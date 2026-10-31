@@ -1,5 +1,5 @@
 use crate::ceillog2;
-use mcrs_minecraft_core::{LocalPos, SectionPos};
+use mcrs_voxel::{LocalPos, SectionPos};
 use rustc_hash::FxHashMap;
 use std::hash::Hash;
 

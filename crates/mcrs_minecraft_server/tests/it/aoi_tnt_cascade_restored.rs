@@ -16,9 +16,6 @@
 
 use bevy_app::{App, FixedPostUpdate, FixedUpdate};
 use bevy_ecs::message::Messages;
-use mcrs_minecraft_core::ColumnPos;
-use mcrs_minecraft_core::SectionPos;
-use mcrs_minecraft_core::{BlockPos, BlockStateId};
 use mcrs_minecraft_engine::block_update::{BlockUpdatePlugin, BlockUpdateWirePlugin};
 use mcrs_minecraft_engine::bus::{OutboundPlayerPacket, PacketPayload};
 use mcrs_minecraft_engine::session::HostAnchor;
@@ -30,6 +27,9 @@ use mcrs_minecraft_engine_world::world::dimension::{DimensionTypeConfig, InDimen
 use mcrs_minecraft_engine_world::world::storage::column::{ColumnIndex, ColumnSlot};
 use mcrs_minecraft_engine_world::world::storage::section::SectionIndex;
 use mcrs_minecraft_simulation::BlockUpdateFlags;
+use mcrs_voxel::ColumnPos;
+use mcrs_voxel::SectionPos;
+use mcrs_voxel::{BlockPos, BlockStateId};
 
 #[test]
 fn tnt_cascade_propagates_through_block_update_per_dim() {

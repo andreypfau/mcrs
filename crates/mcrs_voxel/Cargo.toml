@@ -1,0 +1,16 @@
+[package]
+name = "mcrs_voxel"
+description = "Block, section, column and local positions and the block state id of a voxel world"
+version.workspace = true
+edition.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+glam.workspace = true
+bevy_ecs = { workspace = true, optional = true }
+
+[features]
+default = []
+bevy = ["dep:bevy_ecs"]

@@ -73,6 +73,7 @@ mcrs_minecraft_fixtures = { workspace = true, optional = true }
 mcrs_minecraft_worldgen = { workspace = true, optional = true, features = ["fast"] }
 
 [dev-dependencies]
+mcrs_voxel.workspace = true
 mcrs_minecraft_snbt.workspace = true
 mcrs_minecraft_world = { workspace = true, features = ["bevy", "test-support"] }
 mcrs_minecraft_noise.workspace = true

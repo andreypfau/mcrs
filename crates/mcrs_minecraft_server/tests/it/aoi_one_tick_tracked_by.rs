@@ -11,7 +11,6 @@
 use bevy_app::App;
 use bevy_ecs::prelude::*;
 use bevy_math::DVec3;
-use mcrs_minecraft_core::ColumnPos;
 use mcrs_minecraft_engine::bus::{OutboundPlayerPacket, PacketPayload, PacketTarget};
 use mcrs_minecraft_engine::tracked_by::TrackedBy;
 use mcrs_minecraft_engine_world::aoi::PlayerObservers;
@@ -20,6 +19,7 @@ use mcrs_minecraft_engine_world::world::dimension::{
     DimensionBundle, DimensionTypeConfig, InDimension,
 };
 use mcrs_minecraft_engine_world::world::storage::column::{Column, ColumnIndex, ColumnSlot};
+use mcrs_voxel::ColumnPos;
 
 use crate::harness;
 use harness::{

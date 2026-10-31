@@ -1,12 +1,12 @@
-use mcrs_minecraft_core::{LocalPos, SectionPos};
+use mcrs_voxel::{LocalPos, SectionPos};
 use std::sync::Arc;
 
 use mcrs_minecraft_block_entity::GeneratedBlockEntity;
 use mcrs_minecraft_chunk::{ColumnHeights, VoxelId};
-use mcrs_minecraft_core::ColumnPos;
 use mcrs_minecraft_simulation::PendingTick;
 use mcrs_minecraft_worldgen_feature::placer::GenerationKinds;
 use mcrs_minecraft_worldgen_feature_place::entity::GeneratedEntity;
+use mcrs_voxel::ColumnPos;
 use rustc_hash::FxHashMap;
 
 use crate::saved::SectionData;

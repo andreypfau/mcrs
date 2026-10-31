@@ -1,4 +1,5 @@
-use mcrs_minecraft_core::{BlockPos, ColumnPos, LocalPos, VERSION};
+use mcrs_minecraft_core::VERSION;
+use mcrs_voxel::{BlockPos, ColumnPos, LocalPos};
 use std::collections::BTreeMap;
 use std::hash::Hash;
 use std::io::Cursor;

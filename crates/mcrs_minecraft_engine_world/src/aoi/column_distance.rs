@@ -1,4 +1,4 @@
-use mcrs_minecraft_core::ColumnPos;
+use mcrs_voxel::ColumnPos;
 
 /// The squared distance in columns from `pos` to the nearest of `players`, or 0 without one.
 #[must_use]

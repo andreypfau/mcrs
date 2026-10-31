@@ -1,5 +1,5 @@
-use crate::{BlockPos, SectionPos};
 use glam::IVec3;
+use mcrs_voxel::{BlockPos, SectionPos};
 
 /// An inclusive box in block coordinates.
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]

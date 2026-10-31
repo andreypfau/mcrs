@@ -6,7 +6,7 @@ use std::collections::BTreeMap;
 
 use mcrs_minecraft_block::keys::Block;
 use mcrs_minecraft_core::codec::{PositiveInt, float_value, int_value};
-use mcrs_minecraft_core::{BlockPos, BlockStateNumber, ResourceKey};
+use mcrs_minecraft_core::{BlockStateNumber, ResourceKey};
 use mcrs_minecraft_item::Template;
 use mcrs_minecraft_item::component::{ArgbInt, RgbInt};
 use mcrs_minecraft_registries::{
@@ -14,6 +14,7 @@ use mcrs_minecraft_registries::{
     registry_value,
 };
 use mcrs_minecraft_wire::{Decode, Encode};
+use mcrs_voxel::BlockPos;
 use serde::de::Error as _;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 

@@ -1,28 +1,28 @@
 use crate::BlockPos;
+use core::fmt::Display;
+use core::hash::{Hash, Hasher};
 use glam::DVec3;
 use glam::IVec3;
-use std::fmt::Display;
-use std::hash::{Hash, Hasher};
 
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 #[cfg_attr(feature = "bevy", derive(bevy_ecs::component::Component))]
 pub struct SectionPos(pub IVec3);
 
-impl std::ops::Deref for SectionPos {
+impl core::ops::Deref for SectionPos {
     type Target = IVec3;
     fn deref(&self) -> &Self::Target {
         &self.0
     }
 }
 
-impl std::ops::DerefMut for SectionPos {
+impl core::ops::DerefMut for SectionPos {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.0
     }
 }
 
 impl Display for SectionPos {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         write!(f, "({}:{}:{})", self.x, self.y, self.z)
     }
 }
@@ -49,10 +49,11 @@ impl Hash for SectionPos {
 
 impl From<DVec3> for SectionPos {
     fn from(pos: DVec3) -> Self {
+        let pos = pos.floor();
         Self::new(
-            (pos.x.floor() as i32) >> SectionPos::BITS,
-            (pos.y.floor() as i32) >> SectionPos::BITS,
-            (pos.z.floor() as i32) >> SectionPos::BITS,
+            (pos.x as i32) >> SectionPos::BITS,
+            (pos.y as i32) >> SectionPos::BITS,
+            (pos.z as i32) >> SectionPos::BITS,
         )
     }
 }

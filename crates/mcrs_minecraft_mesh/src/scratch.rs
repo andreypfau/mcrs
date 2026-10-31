@@ -3,8 +3,8 @@ use crate::axis_mut;
 use crate::block::{AIR, BlockInfo, Pass, face_axes};
 use crate::pack::{FACE_NONE, FACE_WORDS, QUAD_WORDS};
 use crate::{SECTION_SIZE, SECTION_VOLUME};
-use mcrs_minecraft_core::{BlockPos, LocalPos, SectionPos};
 use mcrs_minecraft_volume::{BlockVolume, LightVolume, SectionBlocks};
+use mcrs_voxel::{BlockPos, LocalPos, SectionPos};
 
 use super::fluid::{COVER_SEE_THROUGH, FLUID_LAVA, Sloped, fluid_kind};
 

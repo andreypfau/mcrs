@@ -1,9 +1,10 @@
-use mcrs_minecraft_core::BlockStateId;
-use mcrs_minecraft_core::{BlockPos, BoundingBox, LocalPos, SectionPos};
+use mcrs_minecraft_core::BoundingBox;
 use mcrs_minecraft_volume::{
     BlockVolume, BlockVolumeMut, BoxVolume, PaletteBuffer, SectionBlocks, SectionBlocksMut,
     SectionBox, SparseVolume, VisitOrder, Volume,
 };
+use mcrs_voxel::BlockStateId;
+use mcrs_voxel::{BlockPos, LocalPos, SectionPos};
 
 fn stone() -> BlockStateId {
     crate::states(3)[1]

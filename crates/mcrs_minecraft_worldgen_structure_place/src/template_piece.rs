@@ -1,7 +1,7 @@
 use glam::IVec3;
 use mcrs_minecraft_block_entity::GeneratedBlockEntity;
 use mcrs_minecraft_chunk::VoxelId;
-use mcrs_minecraft_core::{BlockPos, BoundingBox, Mirror, ResourceKey};
+use mcrs_minecraft_core::{BoundingBox, Mirror, ResourceKey};
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::worldgen::WorldgenRandom;
 use mcrs_minecraft_worldgen_feature::compile::{BlockResolver, FeatureCompileError};
@@ -13,6 +13,7 @@ use mcrs_minecraft_worldgen_feature_place::entity::GeneratedEntity;
 use mcrs_minecraft_worldgen_feature_place::template::CompiledChain;
 use mcrs_minecraft_worldgen_structure::hardcoded::igloo::IglooTemplate;
 use mcrs_minecraft_worldgen_structure::piece::{IglooPiece, ShipwreckPiece};
+use mcrs_voxel::BlockPos;
 
 use crate::{block_mask, ignore_blocks, place_positional, state};
 use mcrs_minecraft_block::keys::Block;

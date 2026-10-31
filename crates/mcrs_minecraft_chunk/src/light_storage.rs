@@ -1,4 +1,4 @@
-use mcrs_minecraft_core::SectionPos;
+use mcrs_voxel::SectionPos;
 use std::sync::Arc;
 
 use crate::SectionNibbles;

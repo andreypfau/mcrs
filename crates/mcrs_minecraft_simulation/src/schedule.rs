@@ -1,5 +1,5 @@
-use mcrs_minecraft_core::BlockPos;
 use mcrs_minecraft_volume::{Denied, Volume};
+use mcrs_voxel::BlockPos;
 
 use crate::scalar::TickPriority;
 use crate::tick_queue::Kinds;

@@ -1,7 +1,7 @@
 use crate::event_queue::BlockEvent;
 use crate::tick_queue::Kinds;
 use crate::{BlockUpdateFlags, ChainOrigin, Message};
-use mcrs_minecraft_core::{BlockPos, BlockStateId, SectionPos};
+use mcrs_voxel::{BlockPos, BlockStateId, SectionPos};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct BlockWrite {

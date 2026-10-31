@@ -1,10 +1,10 @@
 use super::*;
 use mcrs_minecraft_block::definition::BlockStateFlags;
-use mcrs_minecraft_core::{BlockPos, BlockStateId};
 use mcrs_minecraft_engine_world::palette::{
     BiomePalette, BlockPalette, ChunkBlocks, section_states,
 };
 use mcrs_minecraft_heightmap::*;
+use mcrs_voxel::{BlockPos, BlockStateId};
 use std::sync::OnceLock;
 
 fn corpus() -> &'static Blocks {

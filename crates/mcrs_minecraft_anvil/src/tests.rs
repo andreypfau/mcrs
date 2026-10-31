@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::tag::NbtTag;
 
-use mcrs_minecraft_core::ColumnPos;
+use mcrs_voxel::ColumnPos;
 
 use crate::chunk::LIGHT_BYTES;
 use crate::region::SECTOR_BYTES;
@@ -1165,7 +1165,7 @@ fn a_fluid_tick_that_does_not_load_is_dropped_and_the_rest_survive_a_save() {
         .unwrap();
     let kept = vec![SavedFluidTick {
         fluid: mcrs_minecraft_block::keys::Fluid::Water,
-        pos: mcrs_minecraft_core::BlockPos::new(1, 2, 4),
+        pos: mcrs_voxel::BlockPos::new(1, 2, 4),
         delay: 5,
         priority: -1,
     }];
@@ -1636,8 +1636,8 @@ pub(crate) mod write {
     use std::path::Path;
 
     use mcrs_minecraft_chunk::PalettedContainer;
-    use mcrs_minecraft_core::BlockPos;
     use mcrs_minecraft_nbt::deserializer::NbtReadHelper;
+    use mcrs_voxel::BlockPos;
 
     use super::*;
     use crate::fixture::{self, region_chunks};

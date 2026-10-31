@@ -1,6 +1,6 @@
-use mcrs_minecraft_core::{BlockPos, SectionPos};
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_simulation::{GameTick, SequenceClock, StreamKey, StreamSeed, SubTick};
+use mcrs_voxel::{BlockPos, SectionPos};
 
 #[test]
 fn one_clock_orders_stamps_as_a_plain_call_counter_would() {

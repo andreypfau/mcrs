@@ -14,7 +14,7 @@ use bevy_ecs::prelude::{
 };
 use bevy_ecs::relationship::RelationshipSourceCollection;
 use bevy_platform::time::Instant;
-use mcrs_minecraft_core::SectionPos;
+use mcrs_voxel::SectionPos;
 use uuid::Uuid;
 
 pub mod physics;

@@ -1,5 +1,5 @@
-use mcrs_minecraft_core::ColumnPos;
-use mcrs_minecraft_core::SectionPos;
+use mcrs_voxel::ColumnPos;
+use mcrs_voxel::SectionPos;
 use std::ops::RangeInclusive;
 
 pub const SECTION_WIDTH: i32 = SectionPos::SIZE as i32;

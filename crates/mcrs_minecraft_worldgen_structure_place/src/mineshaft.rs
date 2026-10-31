@@ -4,7 +4,7 @@ use fixedbitset::FixedBitSet;
 use glam::IVec3;
 use mcrs_minecraft_block_entity::GeneratedBlockEntity;
 use mcrs_minecraft_chunk::VoxelId;
-use mcrs_minecraft_core::{BlockPos, BoundingBox, ColumnPos};
+use mcrs_minecraft_core::BoundingBox;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::worldgen::WorldgenRandom;
 use mcrs_minecraft_worldgen_feature::compile::{
@@ -15,6 +15,7 @@ use mcrs_minecraft_worldgen_feature_place::entity::{GeneratedEntity, chest_minec
 use mcrs_minecraft_worldgen_structure::MineshaftType;
 use mcrs_minecraft_worldgen_structure::hardcoded::mineshaft::decorates_first;
 use mcrs_minecraft_worldgen_structure::piece::{MineshaftKind, MineshaftPiece};
+use mcrs_voxel::{BlockPos, ColumnPos};
 
 use crate::canvas::{PieceCanvas, replaceable_by_structures};
 use crate::{Oriented, block_mask, state};

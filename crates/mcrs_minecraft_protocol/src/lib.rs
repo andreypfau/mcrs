@@ -70,11 +70,12 @@ pub use game_event::GameEventKind;
 pub use hand::Hand;
 pub use item::ProtoStack;
 pub use lp_vec3::LpVec3;
-pub use mcrs_minecraft_core::{ColumnPos, Direction};
+pub use mcrs_minecraft_core::Direction;
 pub use mcrs_minecraft_item::component::GlobalPos;
 pub use mcrs_minecraft_wire::{
     Bounded, Context, Decode, Encode, Error, ErrorKind, RawBytes, Result, VarInt, VarLong,
 };
+pub use mcrs_voxel::ColumnPos;
 pub use pos::MoveFlags;
 pub use pos::Position;
 pub use raw::EncodedBody;

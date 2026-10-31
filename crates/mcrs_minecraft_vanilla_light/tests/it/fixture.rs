@@ -1,8 +1,8 @@
 use std::sync::Arc;
 
 use mcrs_minecraft_chunk::{PalettedContainer, VoxelId, VoxelPalette};
-use mcrs_minecraft_core::BlockStateId;
 use mcrs_minecraft_light_engine::prelude::*;
+use mcrs_voxel::BlockStateId;
 
 pub const AIR: VoxelId = VoxelId(0);
 const STONE: VoxelId = VoxelId(1);

@@ -1,4 +1,4 @@
-use mcrs_minecraft_core::ColumnPos;
+use mcrs_voxel::ColumnPos;
 use std::sync::{Arc, LazyLock};
 
 use bytes::Buf;

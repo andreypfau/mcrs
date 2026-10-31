@@ -2,7 +2,7 @@
 /// length of the table that issues it.
 ///
 /// ```
-/// use mcrs_minecraft_core::BlockStateId;
+/// use mcrs_voxel::BlockStateId;
 ///
 /// assert!(BlockStateId::checked(0, 0).is_none());
 /// assert!(BlockStateId::checked(0, 1).is_some());
@@ -13,19 +13,19 @@
 /// ```
 ///
 /// ```compile_fail,E0423
-/// use mcrs_minecraft_core::BlockStateId;
+/// use mcrs_voxel::BlockStateId;
 ///
 /// let _ = BlockStateId(5);
 /// ```
 ///
 /// ```compile_fail,E0308
-/// use mcrs_minecraft_core::BlockStateId;
+/// use mcrs_voxel::BlockStateId;
 ///
 /// let _ = BlockStateId::from(5u16);
 /// ```
 ///
 /// ```compile_fail,E0277
-/// use mcrs_minecraft_core::BlockStateId;
+/// use mcrs_voxel::BlockStateId;
 ///
 /// let _ = <BlockStateId as Default>::default();
 /// ```
@@ -55,17 +55,5 @@ impl BlockStateId {
 impl From<BlockStateId> for u16 {
     fn from(id: BlockStateId) -> Self {
         id.0
-    }
-}
-
-/// A block state as it travels on the wire, not yet checked against the block definitions. The
-/// side that holds the definitions turns it into a [`BlockStateId`] with
-/// `BlockStateId::checked(number, definitions.state_count())`.
-#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
-pub struct BlockStateNumber(pub u16);
-
-impl From<BlockStateId> for BlockStateNumber {
-    fn from(id: BlockStateId) -> Self {
-        Self(id.number())
     }
 }

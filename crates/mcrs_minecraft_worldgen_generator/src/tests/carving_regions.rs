@@ -6,12 +6,12 @@ use mcrs_minecraft_biome::climate::ParameterPoint;
 use mcrs_minecraft_biome::parameter_list::Preset;
 use mcrs_minecraft_biome::source::{BiomeSource, MultiNoiseBiomeSource};
 use mcrs_minecraft_chunk::VoxelId;
-use mcrs_minecraft_core::ColumnPos;
 use mcrs_minecraft_value_provider::{FloatProvider, HeightContext};
 use mcrs_minecraft_worldgen_carver::config::CarverConfig;
 use mcrs_minecraft_worldgen_carver::mask::CarvingMask;
 use mcrs_minecraft_worldgen_density::program::Workspace;
 use mcrs_minecraft_worldgen_density::router::NoiseRouter;
+use mcrs_voxel::ColumnPos;
 
 use super::beta_surface::build_beta_biome_source;
 use super::carvers_of;

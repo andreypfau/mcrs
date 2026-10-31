@@ -1,11 +1,11 @@
 use crate::ticks::{A, B, BUDGET, POLICIES, Policy, rs, saved};
-use mcrs_minecraft_core::{BlockPos, SectionPos};
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_simulation::{
     Collected, GameTick, Queued, SavedTick, ScheduledTick, SubTick, TickKey, TickPriority,
     TickQueue,
 };
+use mcrs_voxel::{BlockPos, SectionPos};
 use std::collections::HashMap;
 
 type Key3 = (i32, i32, i32);

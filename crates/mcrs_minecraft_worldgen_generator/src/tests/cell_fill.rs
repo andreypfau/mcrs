@@ -1,12 +1,12 @@
 use crate::ColumnBiomes;
 use glam::IVec3;
 use mcrs_minecraft_chunk::VoxelId;
-use mcrs_minecraft_core::ColumnPos;
 use mcrs_minecraft_noise::sample_grid::SampleGrid;
 use mcrs_minecraft_worldgen::beard::Beard;
 use mcrs_minecraft_worldgen_density::aquifer::point_barrier;
 use mcrs_minecraft_worldgen_density::program::Workspace;
 use mcrs_minecraft_worldgen_density::router::FINAL_DENSITY;
+use mcrs_voxel::ColumnPos;
 
 use crate::task::CancellationToken;
 use crate::{ColumnBlocks, NO_TOP, column_fluid_field, fill_column_dense_any};

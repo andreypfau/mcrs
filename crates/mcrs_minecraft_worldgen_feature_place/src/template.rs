@@ -4,7 +4,7 @@ use mcrs_minecraft_block_predicate::predicate::HeightmapName;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::TagKey;
 use mcrs_minecraft_core::mth::clamped_map;
-use mcrs_minecraft_core::{Axis, BlockPos, BoundingBox, Direction, dist_manhattan};
+use mcrs_minecraft_core::{Axis, BoundingBox, Direction, dist_manhattan};
 use mcrs_minecraft_core::{Mirror, ResourceLocation, Rotation};
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_random::legacy::LegacyRandom;
@@ -22,6 +22,7 @@ use mcrs_minecraft_worldgen_feature::proto::{
 };
 use mcrs_minecraft_worldgen_feature::template::Projection;
 use mcrs_minecraft_worldgen_feature::template::{FrozenTemplate, JigsawBlock, transform};
+use mcrs_voxel::BlockPos;
 
 use crate::entity::GeneratedEntity;
 use mcrs_minecraft_block::keys::Block;

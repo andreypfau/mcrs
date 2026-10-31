@@ -1,5 +1,5 @@
 use mcrs_minecraft_chunk::VoxelId;
-use mcrs_minecraft_core::BlockPos;
+use mcrs_voxel::BlockPos;
 
 use crate::placer::WorldGenVolume;
 

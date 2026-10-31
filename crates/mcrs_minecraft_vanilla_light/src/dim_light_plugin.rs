@@ -4,7 +4,6 @@ use std::sync::Arc;
 
 use bevy_app::{App, FixedUpdate, Last, Plugin};
 use bevy_ecs::prelude::*;
-use mcrs_minecraft_core::{ColumnPos, SectionPos};
 use mcrs_minecraft_engine::light_codec::{LightCodecParams, build_delta_light_data};
 use mcrs_minecraft_engine_world::aoi::{PlayerObservers, min_column_distance};
 use mcrs_minecraft_engine_world::block_update::BlockPlaced;
@@ -21,6 +20,7 @@ use mcrs_minecraft_engine_world::world::light_gate::{
 use mcrs_minecraft_engine_world::world::storage::column::{ColumnIndex, ColumnPosComponent};
 use mcrs_minecraft_light_engine::block::LightRegistry;
 use mcrs_minecraft_light_engine::prelude::{Edit, LightBounds, Priority};
+use mcrs_voxel::{ColumnPos, SectionPos};
 
 use crate::light_plugin::{
     LightPlugin, LightSet, LightStatus, LightWorkQueue, Lighting, PendingEdits, SectionRelit,

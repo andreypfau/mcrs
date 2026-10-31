@@ -1,6 +1,6 @@
 use crate::section::{Biomes, Blocks};
 use crate::{SectionKind, VoxelId, VoxelPalette};
-use mcrs_minecraft_core::SectionPos;
+use mcrs_voxel::SectionPos;
 
 pub type BlockPalette = VoxelPalette<VoxelId, { SectionPos::SIZE }>;
 pub type BiomePalette = VoxelPalette<u8, { SectionPos::SIZE }>;

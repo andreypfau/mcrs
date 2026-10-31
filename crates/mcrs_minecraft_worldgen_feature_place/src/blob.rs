@@ -1,12 +1,12 @@
 use crate::holds;
 use glam::IVec3;
 use mcrs_minecraft_chunk::VoxelId;
-use mcrs_minecraft_core::BlockPos;
 use mcrs_minecraft_core::Direction;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::worldgen::WorldgenRandom;
 use mcrs_minecraft_value_provider::IntProvider;
 use mcrs_minecraft_worldgen_feature::placer::{Predicate, StateMask, WorldGenVolume};
+use mcrs_voxel::BlockPos;
 
 /// `BlockPos.withinBoxByManhattanDistance` cut at `max_depth`: shells of
 /// ascending Manhattan distance, and inside a shell a mirrored `z` follows its

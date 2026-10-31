@@ -547,7 +547,7 @@ pub fn fill_context(
 /// no multi-noise sample any test takes reaches it.
 fn a_fixed_biome_source_drives_that_biome_s_material_rules() {
     use mcrs_minecraft_biome::source::BiomeSource;
-    use mcrs_minecraft_core::ColumnPos;
+    use mcrs_voxel::ColumnPos;
 
     use crate::stages::fill_column;
     use crate::task::CancellationToken;

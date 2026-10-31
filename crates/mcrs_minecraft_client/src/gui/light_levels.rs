@@ -4,8 +4,8 @@ use bevy::prelude::*;
 use bevy::text::FontSize;
 use bevy::transform::TransformSystems;
 use bevy::ui::{ComputedNode, UiSystems};
-use mcrs_minecraft_core::BlockPos;
 use mcrs_minecraft_volume::LightVolume;
+use mcrs_voxel::BlockPos;
 
 use crate::player::PlayerCamera;
 

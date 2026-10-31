@@ -7,8 +7,8 @@ use rayon::prelude::*;
 
 use std::sync::Arc;
 
-use mcrs_minecraft_core::BlockStateId;
-use mcrs_minecraft_core::{BlockPos, ColumnPos, SectionPos};
+use mcrs_voxel::BlockStateId;
+use mcrs_voxel::{BlockPos, ColumnPos, SectionPos};
 use rustc_hash::FxHashSet;
 
 use crate::block::LightRegistry;
@@ -19,7 +19,7 @@ use crate::relax::relax;
 use crate::world::{Edit, LightWorld, Section, SkyFloor};
 use mcrs_minecraft_chunk::LightStorage;
 use mcrs_minecraft_core::BoundingBox;
-use mcrs_minecraft_core::LocalPos;
+use mcrs_voxel::LocalPos;
 
 /// New light for one section, per layer. A layer the epoch recomputed to the
 /// light it already had is `None`: the world keeps the buffer it holds, and

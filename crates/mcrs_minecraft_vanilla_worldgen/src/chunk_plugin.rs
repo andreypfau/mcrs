@@ -5,7 +5,6 @@ use bevy_ecs::schedule::IntoScheduleConfigs;
 use bevy_ecs::system::{Commands, Res, ResMut};
 use bevy_tasks::futures_lite::future;
 use bevy_tasks::{Task, TaskPool, TaskPoolBuilder, block_on};
-use mcrs_minecraft_core::{ColumnPos, SectionPos};
 use mcrs_minecraft_engine::heightmap::PendingColumnHeightmaps;
 use mcrs_minecraft_engine_world::aoi::min_column_distance;
 use mcrs_minecraft_engine_world::entity::physics::Transform;
@@ -32,6 +31,7 @@ use mcrs_minecraft_worldgen_generator::staging::{
     ColumnDelta, FilledSnapshot, Stage, StagingStore,
 };
 use mcrs_minecraft_worldgen_generator::task::{CancellationToken, ColumnSource};
+use mcrs_voxel::{ColumnPos, SectionPos};
 use rustc_hash::FxHashMap;
 use std::collections::{BTreeMap, HashMap};
 use std::future::Future;
@@ -965,7 +965,7 @@ mod tests {
                 .get::<ChunkBlocks>(*entity)
                 .expect("a delivered section carries its blocks");
             for cell in 0..mcrs_minecraft_worldgen_generator::ColumnBlocks::SECTION_VOLUME {
-                let local = mcrs_minecraft_core::LocalPos::from_index(cell);
+                let local = mcrs_voxel::LocalPos::from_index(cell);
                 let (x, ly, z) = (local.x() as usize, local.y() as usize, local.z() as usize);
                 assert_eq!(
                     got.get_cell(x, ly, z)

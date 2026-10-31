@@ -9,8 +9,9 @@ use mcrs_minecraft_command_argument::ResourceOrTag;
 use mcrs_minecraft_command_argument_block::{
     BlockError, BlockLookup, BlockPredicate, BlockPredicateArgument,
 };
-use mcrs_minecraft_core::{BlockStateId, StaticResourceLocation};
+use mcrs_minecraft_core::StaticResourceLocation;
 use mcrs_minecraft_text::{IntoText, Text};
+use mcrs_voxel::BlockStateId;
 use std::sync::LazyLock;
 
 /// `oak_stairs` and `wheat` with their vanilla properties, `stone`, `chest` with a block

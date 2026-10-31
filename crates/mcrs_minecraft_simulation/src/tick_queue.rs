@@ -1,7 +1,7 @@
 use crate::scalar::{GameTick, TickPriority};
 use crate::section::{SectionOrder, block_pos, bytes, section_at, section_order, table_bytes};
 use crate::sequence::{SubTick, TickKey};
-use mcrs_minecraft_core::{BlockPos, LocalPos, SectionPos};
+use mcrs_voxel::{BlockPos, LocalPos, SectionPos};
 use rustc_hash::FxHashMap;
 use std::cmp::{Ordering, Reverse};
 use std::collections::BinaryHeap;

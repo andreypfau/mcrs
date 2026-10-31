@@ -3,7 +3,7 @@ use bevy_ecs::entity::Entity;
 use bevy_ecs::message::Message;
 use bevy_math::{DVec3, Vec2};
 use bytes::Bytes;
-use mcrs_minecraft_core::{ColumnPos, ResourceKey};
+use mcrs_minecraft_core::ResourceKey;
 use mcrs_minecraft_engine_world::session::PlayerSession;
 use mcrs_minecraft_game_mode::GameMode;
 use mcrs_minecraft_network::event::Trigger;
@@ -19,6 +19,7 @@ use mcrs_minecraft_protocol::packets::game::clientbound::{
     ClientboundSystemChatPacket,
 };
 use mcrs_minecraft_protocol::uuid::Uuid;
+use mcrs_voxel::ColumnPos;
 use smallvec::SmallVec;
 use std::sync::Arc;
 use std::time::Instant;

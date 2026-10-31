@@ -1,8 +1,8 @@
-use mcrs_minecraft_core::{BlockPos, SectionPos};
 use mcrs_minecraft_simulation::{
     CollectScratch, Collected, GameTick, OrderingPolicy, Queued, SavedTick, ScheduledTick,
     SemanticOrder, SubTick, TickKey, TickPriority, TickQueue, VanillaOrder,
 };
+use mcrs_voxel::{BlockPos, SectionPos};
 
 pub(crate) const BUDGET: u32 = 65_536;
 pub(crate) const A: u16 = 10;

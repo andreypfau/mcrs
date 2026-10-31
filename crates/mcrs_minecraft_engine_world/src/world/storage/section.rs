@@ -1,4 +1,4 @@
-pub use mcrs_minecraft_core::SectionPos;
+pub use mcrs_voxel::SectionPos;
 
 use crate::entity::SectionEntities;
 use crate::world::dimension::InDimension;

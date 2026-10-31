@@ -8,8 +8,8 @@
 
 use crate::columns::ColumnStore;
 use bevy::prelude::*;
-use mcrs_minecraft_core::{BlockPos, ColumnPos};
 use mcrs_minecraft_engine_world::entity::physics::Transform as PhysicsTransform;
+use mcrs_voxel::{BlockPos, ColumnPos};
 
 use super::knobs::Guard;
 use crate::player::Player;

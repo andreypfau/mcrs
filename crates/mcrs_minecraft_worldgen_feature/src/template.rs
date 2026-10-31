@@ -684,10 +684,11 @@ pub enum Projection {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use mcrs_minecraft_core::{BlockPos, rl};
+    use mcrs_minecraft_core::rl;
     use mcrs_minecraft_nbt::nbt_compress::{from_gzip_bytes, read_gzip_compound_tag};
     use mcrs_minecraft_nbt::to_nbt_compound;
     use mcrs_minecraft_worldgen_testing::templates;
+    use mcrs_voxel::BlockPos;
     use std::io::Cursor;
 
     fn state(id: &str, properties: &[(&str, &str)]) -> PaletteState {

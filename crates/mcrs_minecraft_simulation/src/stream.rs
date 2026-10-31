@@ -1,8 +1,8 @@
 use crate::scalar::GameTick;
 use crate::sequence::SubTick;
-use mcrs_minecraft_core::{BlockPos, SectionPos};
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::legacy::LegacyRandom;
+use mcrs_voxel::{BlockPos, SectionPos};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum StreamKey {

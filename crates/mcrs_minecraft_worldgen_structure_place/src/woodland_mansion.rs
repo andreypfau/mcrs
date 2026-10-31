@@ -1,7 +1,7 @@
 use glam::IVec3;
 use mcrs_minecraft_block_entity::GeneratedBlockEntity;
 use mcrs_minecraft_chunk::VoxelId;
-use mcrs_minecraft_core::{BlockPos, BoundingBox, Direction};
+use mcrs_minecraft_core::{BoundingBox, Direction};
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::worldgen::WorldgenRandom;
 use mcrs_minecraft_worldgen_feature::compile::{BlockResolver, FeatureCompileError};
@@ -10,6 +10,7 @@ use mcrs_minecraft_worldgen_feature::template::{FrozenTemplate, TemplateManifest
 use mcrs_minecraft_worldgen_feature_place::entity::{GeneratedEntity, allays, evoker, vindicator};
 use mcrs_minecraft_worldgen_feature_place::template::CompiledChain;
 use mcrs_minecraft_worldgen_structure::piece::WoodlandMansionPiece;
+use mcrs_voxel::BlockPos;
 
 use crate::canvas::ChestStates;
 use crate::{ignore_blocks, place_positional, state};

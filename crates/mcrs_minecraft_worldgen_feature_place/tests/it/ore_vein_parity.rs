@@ -3,7 +3,6 @@
 
 use bytes::Buf;
 use mcrs_minecraft_chunk::VoxelId;
-use mcrs_minecraft_core::BlockPos;
 use mcrs_minecraft_fixtures::fixture;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::worldgen::WorldgenRandom;
@@ -12,6 +11,7 @@ use mcrs_minecraft_worldgen_feature_place::ore_modern::{
     CompiledOre, OreReplacement, OreScratch, place_modern_ore,
 };
 use mcrs_minecraft_worldgen_testing::{dump_placements, dump_string};
+use mcrs_voxel::BlockPos;
 use std::collections::HashMap;
 
 const MAGIC: &[u8; 8] = b"MCOREVN0";

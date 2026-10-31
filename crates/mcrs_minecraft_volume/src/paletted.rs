@@ -1,6 +1,6 @@
 use mcrs_minecraft_chunk::PalettedContainer;
-use mcrs_minecraft_core::BlockStateId;
-use mcrs_minecraft_core::{LocalPos, SectionPos};
+use mcrs_voxel::BlockStateId;
+use mcrs_voxel::{LocalPos, SectionPos};
 
 use crate::block::{Palette, PaletteBuffer, SectionBlocks, SectionBlocksMut};
 

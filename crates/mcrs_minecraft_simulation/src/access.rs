@@ -1,5 +1,5 @@
-use mcrs_minecraft_core::SectionPos;
 use mcrs_minecraft_volume::{BlockVolumeMut, Volume};
+use mcrs_voxel::SectionPos;
 
 bitflags::bitflags! {
     #[derive(Clone, Copy, Debug, PartialEq, Eq)]

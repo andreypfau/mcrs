@@ -1,7 +1,7 @@
 use mcrs_minecraft_chunk::PalettedContainer::{Heterogeneous, Homogeneous};
 pub use mcrs_minecraft_chunk::palette::{BiomePalette, BlockPalette};
 use mcrs_minecraft_chunk::{SharedVoxelPalette, VoxelPalette};
-use mcrs_minecraft_core::{BlockStateId, SectionPos};
+use mcrs_voxel::{BlockStateId, SectionPos};
 
 /// One section's block states as the engine keeps them.
 pub type SectionStates = VoxelPalette<BlockStateId, { SectionPos::SIZE }>;

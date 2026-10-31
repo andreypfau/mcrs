@@ -1,5 +1,5 @@
 use mcrs_minecraft_chunk::VoxelPalette;
-use mcrs_minecraft_core::SectionPos;
+use mcrs_voxel::SectionPos;
 
 type Container = VoxelPalette<u8, { SectionPos::SIZE }>;
 

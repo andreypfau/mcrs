@@ -2,10 +2,10 @@ use std::sync::LazyLock;
 
 use mcrs_minecraft_chunk::SectionKind;
 use mcrs_minecraft_chunk::section::{Biomes, NoiseBiomes};
-use mcrs_minecraft_core::ColumnPos;
 use mcrs_minecraft_fixtures::fixture;
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::tag::NbtTag;
+use mcrs_voxel::ColumnPos;
 
 use crate::tests::write::{Named, assert_same_chunk, root};
 use crate::{ChunkStatus, PaletteNames, RetroGen, parse_chunk, write_chunk};

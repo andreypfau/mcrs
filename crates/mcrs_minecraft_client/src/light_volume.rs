@@ -5,7 +5,6 @@ use bevy::platform::collections::{HashMap, HashSet};
 use bevy::prelude::*;
 use bevy::tasks::{AsyncComputeTaskPool, Task, futures::check_ready};
 use mcrs_minecraft_block::definition::Blocks;
-use mcrs_minecraft_core::{ColumnPos, SectionPos};
 use mcrs_minecraft_light_color::colors::LightColors;
 use mcrs_minecraft_light_color::layout::{
     Emitter, PackedBrick, lanes, neighbours, pack, reaching_types,
@@ -18,6 +17,7 @@ use mcrs_minecraft_light_render::{
     LightColorPlugin, LightVolumeRenderPlugin, VolumeCommand, VolumeQueue, VolumeSettings,
 };
 use mcrs_minecraft_render::CameraOrigin;
+use mcrs_voxel::{ColumnPos, SectionPos};
 
 use crate::Unsettled;
 use crate::columns::{ClientTerrainSet, Column, ColumnChange, ColumnStore, Columns, Extent};
@@ -537,8 +537,8 @@ mod tests {
     use super::*;
     use crate::columns::{AIR, Dimension, SECTION_VOLUME, Section};
     use mcrs_minecraft_chunk::PalettedContainer;
-    use mcrs_minecraft_core::BlockStateId;
     use mcrs_minecraft_light_color::colors::LightType;
+    use mcrs_voxel::BlockStateId;
     use std::time::Duration;
 
     const EXTENT: Extent = Extent {

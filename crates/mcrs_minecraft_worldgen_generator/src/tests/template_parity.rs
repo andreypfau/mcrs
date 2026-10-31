@@ -9,7 +9,7 @@ use mcrs_minecraft_block_predicate::block_state::BlockState;
 use mcrs_minecraft_block_predicate::predicate::HeightmapName;
 use mcrs_minecraft_block_predicate::provider::Holder;
 use mcrs_minecraft_chunk::VoxelId;
-use mcrs_minecraft_core::{BlockPos, BoundingBox};
+use mcrs_minecraft_core::BoundingBox;
 use mcrs_minecraft_core::{Mirror, Rotation};
 use mcrs_minecraft_core::{ResourceLocation, rl};
 use mcrs_minecraft_fixtures::fixture;
@@ -33,6 +33,7 @@ use mcrs_minecraft_worldgen_feature_place::template::{
     ChainKind, Placement, SettingsRandom, compile_chain, mirror_state, place_template, rotate_state,
 };
 use mcrs_minecraft_worldgen_testing::dump_string;
+use mcrs_voxel::BlockPos;
 
 use super::corpus_state_of;
 use super::structures::frozen_shared;

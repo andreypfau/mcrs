@@ -1,6 +1,6 @@
 use mcrs_minecraft_chunk::VoxelId;
-use mcrs_minecraft_core::BlockPos;
 use mcrs_minecraft_worldgen_feature::placer::WorldGenVolume;
+use mcrs_voxel::BlockPos;
 
 #[derive(Clone, Debug)]
 pub struct CompiledFillLayer {

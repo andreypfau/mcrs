@@ -2,7 +2,7 @@
 //! and the band their veins land in.
 
 #[cfg(test)]
-use mcrs_minecraft_core::BlockPos;
+use mcrs_voxel::BlockPos;
 #[cfg(test)]
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -10,8 +10,6 @@ use std::sync::Arc;
 use mcrs_minecraft_block_predicate::provider::Holder;
 #[cfg(test)]
 use mcrs_minecraft_chunk::VoxelId;
-#[cfg(test)]
-use mcrs_minecraft_core::ColumnPos;
 use mcrs_minecraft_registries::Registries;
 use mcrs_minecraft_worldgen_feature::compile::CompiledPlacedFeature;
 #[cfg(test)]
@@ -19,6 +17,8 @@ use mcrs_minecraft_worldgen_feature::placer::{PlacerScratch, decorate};
 use mcrs_minecraft_worldgen_feature::proto::Feature;
 #[cfg(test)]
 use mcrs_minecraft_worldgen_feature_place::ore_modern::{OreScratch, place_modern_ore};
+#[cfg(test)]
+use mcrs_voxel::ColumnPos;
 
 #[cfg(test)]
 use crate::ColumnBlocks;

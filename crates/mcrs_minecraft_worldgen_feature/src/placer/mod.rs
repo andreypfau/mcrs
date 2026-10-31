@@ -3,10 +3,10 @@ use std::sync::Arc;
 
 use fixedbitset::FixedBitSet;
 use mcrs_minecraft_chunk::VoxelId;
-use mcrs_minecraft_core::BlockPos;
-use mcrs_minecraft_core::BlockStateId;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::worldgen::WorldgenRandom;
+use mcrs_voxel::BlockPos;
+use mcrs_voxel::BlockStateId;
 
 use mcrs_minecraft_block::keys::Fluid;
 use mcrs_minecraft_block_predicate::predicate::HeightmapName;

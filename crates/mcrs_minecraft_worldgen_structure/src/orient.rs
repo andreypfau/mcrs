@@ -1,6 +1,7 @@
 use glam::IVec3;
-use mcrs_minecraft_core::{BlockPos, BoundingBox, Mirror, Rotation};
+use mcrs_minecraft_core::{BoundingBox, Mirror, Rotation};
 use mcrs_minecraft_random::Random;
+use mcrs_voxel::BlockPos;
 
 use crate::piece::{FortressPiece, MineshaftKind, MineshaftPiece, Piece, StrongholdPiece};
 

@@ -22,10 +22,10 @@ use bevy_app::App;
 use fixedbitset::FixedBitSet;
 use glam::IVec3;
 use mcrs_minecraft_chunk::VoxelId;
-use mcrs_minecraft_core::ColumnPos;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_heightmap::heightmap_predicates;
 use mcrs_minecraft_worldgen_structure::frozen::DimensionStructureTables;
+use mcrs_voxel::ColumnPos;
 use std::collections::BTreeMap;
 use std::sync::Arc;
 

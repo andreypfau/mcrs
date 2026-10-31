@@ -1,4 +1,4 @@
-use mcrs_minecraft_core::ColumnPos;
+use mcrs_voxel::ColumnPos;
 use std::f64::consts::PI;
 
 use mcrs_minecraft_random::Random;

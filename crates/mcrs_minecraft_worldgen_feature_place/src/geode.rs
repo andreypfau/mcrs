@@ -1,13 +1,13 @@
 use glam::IVec3;
 use mcrs_minecraft_block_predicate::block_state::BlockState;
 use mcrs_minecraft_chunk::VoxelId;
-use mcrs_minecraft_core::BlockPos;
 use mcrs_minecraft_core::Direction;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::worldgen::WorldgenRandom;
 use mcrs_minecraft_value_provider::IntProvider;
 use mcrs_minecraft_worldgen_feature::compile::BlockResolver;
 use mcrs_minecraft_worldgen_feature::placer::{StateMask, WorldGenVolume};
+use mcrs_voxel::BlockPos;
 
 use crate::tree::provider::{SharedNoise, StateProvider};
 

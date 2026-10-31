@@ -4,11 +4,12 @@
 )]
 
 use mcrs_minecraft_chunk::VoxelId;
-use mcrs_minecraft_core::BlockStateId;
-use mcrs_minecraft_core::{BlockPos, BoundingBox, SectionPos};
+use mcrs_minecraft_core::BoundingBox;
 use mcrs_minecraft_volume::{
     Access, BiomeVolume, BoxVolume, HeightVolume, Unavailable, Volume, VoxelStore, VoxelStoreMut,
 };
+use mcrs_voxel::BlockStateId;
+use mcrs_voxel::{BlockPos, SectionPos};
 
 use mcrs_minecraft_block_predicate::predicate::HeightmapName;
 use mcrs_minecraft_value_provider::HeightContext;

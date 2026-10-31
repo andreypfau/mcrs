@@ -80,6 +80,7 @@ mcrs_minecraft_network = { path = "crates/mcrs_minecraft_network", default-featu
 mcrs_minecraft_engine_world = { path = "crates/mcrs_minecraft_engine_world" }
 mcrs_minecraft_engine = { path = "crates/mcrs_minecraft_engine" }
 mcrs_minecraft_engine_server = { path = "crates/mcrs_minecraft_engine_server", default-features = false }
+mcrs_voxel = { path = "crates/mcrs_voxel" }
 mcrs_minecraft_core = { path = "crates/mcrs_minecraft_core", default-features = false }
 mcrs_minecraft_datapack = { path = "crates/mcrs_minecraft_datapack" }
 mcrs_minecraft_registries = { path = "crates/mcrs_minecraft_registries" }

@@ -1,11 +1,11 @@
 use std::collections::{BTreeMap, HashMap};
 
 use crate::common::*;
-use mcrs_minecraft_core::{BlockPos, SectionPos};
 use mcrs_minecraft_light_color::colors::LightType;
 use mcrs_minecraft_light_color::layout::{Emitter, PackedBrick, neighbours, pack, reaching_types};
 use mcrs_minecraft_light_color::region::{Palette, Region, section_bricks, section_output};
 use mcrs_minecraft_light_color::resolve::{Lanes, resolve};
+use mcrs_voxel::{BlockPos, SectionPos};
 use proptest::prelude::*;
 
 const CENTRE: SectionPos = SectionPos(glam::IVec3::new(0, 4, 0));

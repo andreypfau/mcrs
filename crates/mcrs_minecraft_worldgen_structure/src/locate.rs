@@ -1,7 +1,7 @@
 use crate::StructurePlacement;
 use crate::placement::SpreadPlacement;
 use glam::IVec3;
-use mcrs_minecraft_core::{BlockPos, ColumnPos};
+use mcrs_voxel::{BlockPos, ColumnPos};
 
 use super::frozen::{SetId, StructureId};
 

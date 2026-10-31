@@ -1,7 +1,7 @@
 use crate::section::{SectionOrder, bytes, section_order, table_bytes};
 use crate::sequence::SubTick;
 use crate::tick_queue::Queued;
-use mcrs_minecraft_core::{BlockPos, LocalPos, SectionPos};
+use mcrs_voxel::{BlockPos, LocalPos, SectionPos};
 use rustc_hash::FxHashSet;
 use std::collections::VecDeque;
 use std::fmt::Debug;

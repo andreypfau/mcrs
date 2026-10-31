@@ -4,7 +4,6 @@ use std::sync::Arc;
 
 use mcrs_minecraft_block::keys::Block;
 use mcrs_minecraft_chunk::VoxelId;
-use mcrs_minecraft_core::BlockPos;
 use mcrs_minecraft_core::Direction;
 use mcrs_minecraft_core::Id;
 use mcrs_minecraft_core::mth::clamped_map;
@@ -13,6 +12,7 @@ use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::worldgen::WorldgenRandom;
 use mcrs_minecraft_value_provider::{IntProvider, pick_weighted_by};
 use mcrs_minecraft_worldgen_feature::placer::{BlockLayout, Predicate, WorldGenVolume, with_digit};
+use mcrs_voxel::BlockPos;
 
 pub type SharedNoise = Arc<NoiseStack<Octave>>;
 
@@ -377,13 +377,14 @@ pub(crate) mod fake {
     use rustc_hash::FxHashMap as HashMap;
 
     use mcrs_minecraft_block_predicate::predicate::HeightmapName;
-    use mcrs_minecraft_core::BlockStateId;
-    use mcrs_minecraft_core::{BoundingBox, SectionPos};
+    use mcrs_minecraft_core::BoundingBox;
     use mcrs_minecraft_value_provider::HeightContext;
     use mcrs_minecraft_volume::{
         Access, BiomeVolume, HeightVolume, Unavailable, Volume, VoxelStore, VoxelStoreMut,
     };
     use mcrs_minecraft_worldgen_feature::placer::{GenerationKinds, WorldStates};
+    use mcrs_voxel::BlockStateId;
+    use mcrs_voxel::SectionPos;
 
     use super::*;
 

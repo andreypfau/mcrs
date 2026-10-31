@@ -13,6 +13,8 @@ mod string;
 mod tuple;
 #[cfg(feature = "uuid")]
 mod uuid;
+#[cfg(feature = "voxel")]
+mod voxel;
 
 /// Prevents preallocating too much memory in case we get a malicious or invalid
 /// sequence length.

@@ -2,13 +2,13 @@ use mcrs_minecraft_anvil::{Chunk, ErrorKind, LIGHT_BYTES, parse_chunk};
 use mcrs_minecraft_biome_file::BiomeFile;
 use mcrs_minecraft_block::definition::schema::PropertyValue;
 use mcrs_minecraft_block::definition::{BlockDefinitions, BlockEntry};
-use mcrs_minecraft_core::BlockStateId;
 use mcrs_minecraft_engine_world::palette::non_air_block_count;
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_worldgen_generator::saved::{
     CorpusBlockStates, RegistryBiomes, column_sections,
 };
+use mcrs_voxel::BlockStateId;
 
 fn corpus() -> &'static BlockDefinitions {
     &crate::support::standalone_corpus().0.0

@@ -3,7 +3,6 @@ use bevy_ecs::system::SystemParam;
 use mcrs_minecraft_block_entity::GeneratedBlockEntity;
 use mcrs_minecraft_command_engine::CommandFailure;
 use mcrs_minecraft_core::heightmap::HeightmapName;
-use mcrs_minecraft_core::{BlockPos, BlockStateId, ColumnPos, SectionPos};
 use mcrs_minecraft_engine::teleport::MAX_XZ_BLOCKS;
 use mcrs_minecraft_engine_world::palette::ChunkBlocks;
 use mcrs_minecraft_engine_world::world::dimension::{Dimension, DimensionTypeConfig};
@@ -17,6 +16,7 @@ use mcrs_minecraft_engine_world::world::storage::column::{
 use mcrs_minecraft_heightmap::{
     MotionHeightmap, NoLeavesHeightmap, SolidHeightmap, SurfaceHeightmap,
 };
+use mcrs_voxel::{BlockPos, BlockStateId, ColumnPos, SectionPos};
 
 fn local(axis: i32) -> Option<usize> {
     usize::try_from(axis & SectionPos::MASK as i32).ok()

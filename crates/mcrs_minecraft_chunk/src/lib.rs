@@ -29,9 +29,9 @@ impl From<u16> for VoxelId {
     }
 }
 
-impl From<mcrs_minecraft_core::BlockStateId> for VoxelId {
+impl From<mcrs_voxel::BlockStateId> for VoxelId {
     #[inline]
-    fn from(id: mcrs_minecraft_core::BlockStateId) -> Self {
+    fn from(id: mcrs_voxel::BlockStateId) -> Self {
         VoxelId(id.number())
     }
 }

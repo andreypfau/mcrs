@@ -8,7 +8,8 @@ use mcrs_minecraft_worldgen_feature::placer::{StateMask, WorldGenVolume};
 
 use crate::multiface_growth::{MultifaceStates, spread_positions};
 use crate::tree::trunk::all_shuffled;
-use mcrs_minecraft_core::{BlockPos, dist_manhattan};
+use mcrs_minecraft_core::dist_manhattan;
+use mcrs_voxel::BlockPos;
 
 /// `SculkSpreader.createWorldGenSpreader`, which is the only spreader a feature
 /// ever builds.

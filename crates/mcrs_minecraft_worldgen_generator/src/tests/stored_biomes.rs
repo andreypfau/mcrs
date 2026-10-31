@@ -1,6 +1,6 @@
 use mcrs_minecraft_biome::zoom::{FiddleCache, obfuscate_seed, quart_cell};
 use mcrs_minecraft_chunk::VoxelPalette;
-use mcrs_minecraft_core::{BlockPos, SectionPos};
+use mcrs_voxel::{BlockPos, SectionPos};
 
 use super::build_settings_router;
 use super::multi_noise_biomes::overworld_table;

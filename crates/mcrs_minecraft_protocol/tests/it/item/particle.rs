@@ -4,7 +4,6 @@ use std::collections::BTreeMap;
 use std::sync::LazyLock;
 
 use glam::DVec3;
-use mcrs_minecraft_core::BlockPos;
 use mcrs_minecraft_core::ResourceKey;
 use mcrs_minecraft_core::codec::Bounded;
 use mcrs_minecraft_particle::keys::ParticleType;
@@ -18,6 +17,7 @@ use mcrs_minecraft_protocol::packets::game::clientbound::{
 };
 use mcrs_minecraft_protocol::{Decode, Encode, VarInt};
 use mcrs_minecraft_registries::{FromWire, Wire};
+use mcrs_voxel::BlockPos;
 
 use crate::item::harness::{block_lookup, hex, named, read_json};
 

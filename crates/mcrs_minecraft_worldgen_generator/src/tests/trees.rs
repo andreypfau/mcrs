@@ -10,13 +10,13 @@ use fixedbitset::FixedBitSet;
 use mcrs_minecraft_biome::source::BiomeSource;
 #[cfg(test)]
 use mcrs_minecraft_chunk::VoxelId;
-#[cfg(test)]
-use mcrs_minecraft_core::ColumnPos;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_registries::Registries;
 use mcrs_minecraft_worldgen_feature::compile::CompiledPlacedFeature;
 #[cfg(test)]
 use mcrs_minecraft_worldgen_feature::proto::PlacedFeature;
+#[cfg(test)]
+use mcrs_voxel::ColumnPos;
 
 use crate::feature_program::FeatureProgram;
 use crate::features::FeatureTables;

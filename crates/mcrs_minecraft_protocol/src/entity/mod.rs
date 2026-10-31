@@ -6,7 +6,6 @@ pub use crate::item::component::equippable::EquipmentSlot;
 use crate::text::Text;
 use crate::{Direction, GlobalPos, Result, VarInt, VarLong};
 use glam::{Vec3, Vec4};
-use mcrs_minecraft_core::BlockPos;
 use mcrs_minecraft_core::Id;
 use mcrs_minecraft_core::Registered;
 use mcrs_minecraft_entity::variant::{
@@ -20,6 +19,7 @@ use mcrs_minecraft_registries::Registries;
 use mcrs_minecraft_registries::{FromWire, ResolveError, Wire, WireId};
 use mcrs_minecraft_registries::{decode_registry_id, encode_registry_id};
 use mcrs_minecraft_wire::{Decode, Encode};
+use mcrs_voxel::BlockPos;
 use std::io::Write;
 use uuid::Uuid;
 

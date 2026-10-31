@@ -7,8 +7,8 @@ use std::sync::Arc;
 use crate::common::{
     AIR, BOTTOM_SLAB, GLASS, LEAVES, Reference, STONE, TOP_SLAB, filled, registry, state,
 };
-use mcrs_minecraft_core::{BlockPos, ColumnPos, SectionPos};
 use mcrs_minecraft_light_engine::prelude::*;
+use mcrs_voxel::{BlockPos, ColumnPos, SectionPos};
 
 const SECTIONS_Y: i32 = 5;
 

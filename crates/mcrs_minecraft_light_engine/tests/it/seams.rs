@@ -7,8 +7,8 @@ use std::sync::Arc;
 use crate::common::{AIR, Reference, WATER, filled, registry};
 use mcrs_minecraft_chunk::LightLayer;
 use mcrs_minecraft_chunk::VoxelId;
-use mcrs_minecraft_core::{BlockPos, SectionPos};
 use mcrs_minecraft_light_engine::prelude::*;
+use mcrs_voxel::{BlockPos, SectionPos};
 
 const SECTIONS_Y: i32 = 4;
 

@@ -1,5 +1,5 @@
 use crate::{entries_per_long, packed_len};
-use mcrs_minecraft_core::SectionPos;
+use mcrs_voxel::SectionPos;
 
 /// One packed Y scalar over the 16x16 column footprint, indexed by `(x, z)` in
 /// `0..16` each. The stored value is `1 + y` of the topmost block satisfying the

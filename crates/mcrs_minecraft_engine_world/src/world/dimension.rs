@@ -14,8 +14,9 @@ use bevy_ecs::prelude::{
     Query, Ref, With,
 };
 use mcrs_minecraft_core::Id;
-use mcrs_minecraft_core::{ResourceKey, SectionPos};
+use mcrs_minecraft_core::ResourceKey;
 use mcrs_minecraft_dimension::DimensionType;
+use mcrs_voxel::SectionPos;
 use std::collections::BTreeSet;
 
 pub struct DimensionPlugin;

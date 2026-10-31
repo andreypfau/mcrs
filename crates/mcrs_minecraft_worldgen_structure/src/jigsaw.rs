@@ -4,12 +4,13 @@ use crate::JigsawConfig;
 use glam::IVec3;
 use mcrs_minecraft_block_entity::Joint;
 use mcrs_minecraft_block_predicate::predicate::HeightmapName;
+use mcrs_minecraft_core::BoundingBox;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::Rotation;
-use mcrs_minecraft_core::{BlockPos, BoundingBox};
 use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_random::{shuffle, shuffled};
 use mcrs_minecraft_worldgen_feature::template::Projection;
+use mcrs_voxel::BlockPos;
 
 use super::frozen::{ElementId, FrozenElement, FrozenPool, FrozenStructures, PoolId};
 use super::piece::{JigsawPiece, Junction};

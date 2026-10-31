@@ -11,6 +11,7 @@ doctest = false
 workspace = true
 
 [dependencies]
+mcrs_voxel.workspace = true
 glam.workspace = true
 bytemuck = { version = "1", features = ["derive"] }
 mcrs_minecraft_core.workspace = true

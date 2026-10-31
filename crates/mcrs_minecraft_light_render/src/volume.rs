@@ -8,12 +8,12 @@ use bevy::render::extract_resource::ExtractResource;
 use bevy::render::render_resource::binding_types::{sampler, texture_3d, uniform_buffer_sized};
 use bevy::render::render_resource::*;
 use bevy::render::renderer::{RenderDevice, RenderQueue};
-use mcrs_minecraft_core::SectionPos;
 use mcrs_minecraft_light_color::layout::{
     JOB_WORDS, Lane, REGION_CELLS, SLOT_ABOVE, SLOT_UNLOADED, job_words, lane_words, neighbours,
 };
 use mcrs_minecraft_render::sky::ExtractedSky;
 use mcrs_minecraft_render::{Brightness, CameraOrigin, uniform_buffer};
+use mcrs_voxel::SectionPos;
 
 pub(crate) const BRICK_SIDE: u32 = 18;
 const BRICK_BYTES: u64 = (SectionPos::VOLUME * 4) as u64;

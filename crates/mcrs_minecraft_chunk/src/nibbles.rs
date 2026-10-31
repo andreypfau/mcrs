@@ -1,7 +1,7 @@
 //! One nibble per cell of a section, in `y << 8 | z << 4 | x` order — the
 //! layout both the save format and the light packet use.
 
-use mcrs_minecraft_core::SectionPos;
+use mcrs_voxel::SectionPos;
 
 #[derive(Clone, PartialEq, Eq)]
 pub struct SectionNibbles(pub Box<[u8; SectionPos::VOLUME / 2]>);

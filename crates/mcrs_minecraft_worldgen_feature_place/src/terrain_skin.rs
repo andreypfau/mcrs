@@ -3,7 +3,6 @@ use std::sync::{Arc, LazyLock};
 use glam::IVec3;
 use mcrs_minecraft_block_predicate::predicate::HeightmapName;
 use mcrs_minecraft_chunk::VoxelId;
-use mcrs_minecraft_core::BlockPos;
 use mcrs_minecraft_core::Direction;
 use mcrs_minecraft_noise::simplex::SimplexNoise;
 use mcrs_minecraft_noise::stack::NoiseStack;
@@ -14,6 +13,7 @@ use mcrs_minecraft_value_provider::IntProvider;
 use mcrs_minecraft_worldgen_feature::placer::{
     Predicate, StateMask, WorldGenVolume, biome_info_noise,
 };
+use mcrs_voxel::BlockPos;
 
 use crate::holds;
 use crate::tables::BlockTables;

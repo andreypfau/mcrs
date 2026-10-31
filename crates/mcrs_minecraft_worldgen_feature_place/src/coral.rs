@@ -1,10 +1,10 @@
 use glam::IVec3;
-use mcrs_minecraft_core::BlockPos;
 use mcrs_minecraft_core::Direction;
 use mcrs_minecraft_core::Rotation;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::worldgen::WorldgenRandom;
 use mcrs_minecraft_worldgen_feature::placer::WorldGenVolume;
+use mcrs_voxel::BlockPos;
 
 use crate::tree::trunk::random_horizontal;
 use mcrs_minecraft_random::shuffle;

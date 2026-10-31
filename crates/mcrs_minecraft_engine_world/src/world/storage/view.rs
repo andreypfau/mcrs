@@ -1,10 +1,11 @@
 use bevy_ecs::prelude::{Entity, Query};
 use bevy_ecs::system::SystemParam;
-use mcrs_minecraft_core::{BlockPos, BoundingBox, SectionPos};
+use mcrs_minecraft_core::BoundingBox;
 use mcrs_minecraft_volume::{
     Access, BlockVolume, BlockVolumeMut, ColumnLayout, Denied, PalettedSection, PalettedSectionMut,
     SectionVolume, Unavailable, Volume,
 };
+use mcrs_voxel::{BlockPos, SectionPos};
 
 use crate::palette::ChunkBlocks;
 use crate::world::dimension::DimensionTypeConfig;
@@ -196,7 +197,7 @@ mod tests {
     use crate::palette::air_section;
     use bevy_ecs::system::SystemState;
     use bevy_ecs::world::World;
-    use mcrs_minecraft_core::BlockStateId;
+    use mcrs_voxel::BlockStateId;
 
     #[test]
     fn a_section_answers_by_what_the_dimension_holds_for_it() {

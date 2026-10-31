@@ -1,7 +1,7 @@
 use glam::IVec3;
 use mcrs_minecraft_block_predicate::block_state::BlockState;
 use mcrs_minecraft_chunk::VoxelId;
-use mcrs_minecraft_core::{BlockPos, BoundingBox, Direction};
+use mcrs_minecraft_core::{BoundingBox, Direction};
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::worldgen::WorldgenRandom;
 use mcrs_minecraft_registries::KeySet;
@@ -18,6 +18,7 @@ use mcrs_minecraft_worldgen_structure::RuinedPortalSetup;
 use mcrs_minecraft_worldgen_structure::hardcoded::ruined_portal::heightmap;
 use mcrs_minecraft_worldgen_structure::piece::{PortalProperties, RuinedPortalPiece};
 use mcrs_minecraft_worldgen_structure::{PortalPlacement, PortalPlacement::OnOceanFloor};
+use mcrs_voxel::BlockPos;
 
 use crate::{block_mask, place_positional, state};
 use mcrs_minecraft_block::keys::Block;

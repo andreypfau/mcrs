@@ -162,7 +162,7 @@ pub fn run_profile_ticks(
                         target: PacketTarget::SinglePlayer(*player),
                         priority: PacketPriority::Normal,
                         data: PacketPayload::BlockUpdate(ClientboundBlockUpdate {
-                            block_pos: mcrs_minecraft_core::BlockPos::new(0, 64, 0),
+                            block_pos: mcrs_voxel::BlockPos::new(0, 64, 0),
                             block_state_id: BlockStateNumber(1),
                         }),
                         session: *session,

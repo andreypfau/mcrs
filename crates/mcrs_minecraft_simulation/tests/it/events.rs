@@ -1,8 +1,8 @@
-use mcrs_minecraft_core::{BlockPos, SectionPos};
 use mcrs_minecraft_simulation::{
     BlockEvent, DrainEnd, Drained, EventQueue, GameTick, Queued, QueuedEvent, SequenceClock,
     SubTick,
 };
+use mcrs_voxel::{BlockPos, SectionPos};
 
 const A: u16 = 10;
 const P: BlockPos = BlockPos::new(0, 64, 0);

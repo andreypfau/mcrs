@@ -1,6 +1,6 @@
 [package]
 name = "mcrs_minecraft_core"
-description = "Positions, directions, Mth, ResourceLocation, ResourceKey and TagKey"
+description = "Directions, Mth, ResourceLocation, ResourceKey and TagKey"
 version.workspace = true
 edition.workspace = true
 
@@ -19,9 +19,10 @@ thiserror.workspace = true
 tracing.workspace = true
 mcrs_minecraft_nbt.workspace = true
 mcrs_minecraft_snbt.workspace = true
-mcrs_minecraft_wire = { workspace = true, features = ["serde"] }
+mcrs_minecraft_wire = { workspace = true, features = ["serde", "voxel"] }
+mcrs_voxel.workspace = true
 derive_more = { workspace = true, features = ["from", "deref"] }
 
 [features]
 default = []
-bevy = ["dep:bevy_ecs"]
+bevy = ["dep:bevy_ecs", "mcrs_voxel/bevy"]

@@ -169,7 +169,7 @@ fn load_stone_column(server: &mut PlayServer) {
         let state = if chunk_y < 4 {
             stone
         } else {
-            mcrs_minecraft_core::BlockStateId::AIR
+            mcrs_voxel::BlockStateId::AIR
         };
         let section = world
             .spawn((
@@ -218,7 +218,7 @@ fn place_block_entity(server: &mut PlayServer, entry: GeneratedBlockEntity) {
         panic!("the section of {pos:?} is loaded");
     };
     world.spawn((
-        BlockEntityPos(mcrs_minecraft_core::BlockPos::new(pos.x, pos.y, pos.z)),
+        BlockEntityPos(mcrs_voxel::BlockPos::new(pos.x, pos.y, pos.z)),
         InSection(section),
         BlockEntity(entry),
     ));
@@ -865,7 +865,7 @@ fn execute_tests_the_saved_data_of_a_block_entity() {
     place_block_entity(
         &mut server,
         GeneratedBlockEntity::chest(
-            mcrs_minecraft_core::BlockPos::new(8, 63, 8),
+            mcrs_voxel::BlockPos::new(8, 63, 8),
             "minecraft:chests/simple_dungeon".to_owned(),
             5,
         ),

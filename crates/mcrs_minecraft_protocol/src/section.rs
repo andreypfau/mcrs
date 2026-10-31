@@ -1,7 +1,7 @@
 use crate::Result;
 use crate::wire::Context;
 use mcrs_minecraft_chunk::{SectionKind, VoxelId, ceillog2};
-use mcrs_minecraft_core::BlockStateId;
+use mcrs_voxel::BlockStateId;
 
 pub use mcrs_minecraft_chunk::section::{Biomes, Blocks};
 

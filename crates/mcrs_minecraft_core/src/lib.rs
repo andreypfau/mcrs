@@ -1,10 +1,7 @@
-pub mod block_pos;
 pub mod bounding_box;
 pub mod codec;
-pub mod column_pos;
 pub mod direction;
 pub mod heightmap;
-pub mod local_pos;
 pub mod mirror;
 pub mod mth;
 pub mod quart_pos;
@@ -13,27 +10,25 @@ pub mod registry_key;
 pub mod resource_key;
 pub mod resource_location;
 pub mod rotation;
-pub mod section_pos;
 pub mod tag_key;
 pub mod version;
 #[cfg(feature = "bevy")]
 pub mod versioned;
 pub mod voxel_shape;
 
-mod block_state_id;
+mod block_pos_long;
+mod block_state_number;
 mod id;
 mod look;
 mod look_anchor;
 mod wire;
 
-pub use block_pos::BlockPos;
-pub use block_state_id::{BlockStateId, BlockStateNumber};
+pub use block_pos_long::block_pos_as_long;
+pub use block_state_number::BlockStateNumber;
 pub use bounding_box::BoundingBox;
-pub use column_pos::ColumnPos;
 pub use direction::{Axis, Direction, DirectionSet, dist_manhattan};
 pub use heightmap::HeightmapName;
 pub use id::{Id, NarrowError, TagId};
-pub use local_pos::LocalPos;
 pub use look::Look;
 pub use look_anchor::LookAnchor;
 pub use mcrs_minecraft_wire::Bounded;
@@ -44,7 +39,6 @@ pub use registry_key::{Registered, RegistryKey, RegistryValue};
 pub use resource_key::ResourceKey;
 pub use resource_location::{ResourceLocation, StaticResourceLocation};
 pub use rotation::Rotation;
-pub use section_pos::SectionPos;
 pub use tag_key::TagKey;
 pub use version::{PackVersion, VERSION, VERSION_JSON, Version, check_corpus_version};
 #[cfg(feature = "bevy")]

@@ -1,6 +1,6 @@
-use crate::{BlockPos, RegionPos, SectionPos};
+use crate::{BlockPos, SectionPos};
+use core::fmt::Debug;
 use glam::{DVec3, IVec2};
-use std::fmt::Debug;
 
 /// The X and Z position of a chunk column.
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Default, Hash)]
@@ -10,7 +10,7 @@ pub struct ColumnPos {
 }
 
 impl Debug for ColumnPos {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         (self.x, self.z).fmt(f)
     }
 }
@@ -42,14 +42,6 @@ impl ColumnPos {
     pub const fn middle_block_z(self) -> i32 {
         self.min_block_z() + 8
     }
-
-    pub const fn region_local_x(self) -> i32 {
-        self.x & RegionPos::MASK as i32
-    }
-
-    pub const fn region_local_z(self) -> i32 {
-        self.z & RegionPos::MASK as i32
-    }
 }
 
 impl From<SectionPos> for ColumnPos {
@@ -75,9 +67,10 @@ impl From<IVec2> for ColumnPos {
 
 impl From<DVec3> for ColumnPos {
     fn from(pos: DVec3) -> Self {
+        let pos = pos.floor();
         Self {
-            x: (pos.x.floor() as i32) >> SectionPos::BITS,
-            z: (pos.z.floor() as i32) >> SectionPos::BITS,
+            x: (pos.x as i32) >> SectionPos::BITS,
+            z: (pos.z as i32) >> SectionPos::BITS,
         }
     }
 }

@@ -2,9 +2,10 @@ use std::cmp::Ordering;
 
 use glam::IVec3;
 use mcrs_minecraft_block_predicate::predicate::HeightmapName;
-use mcrs_minecraft_core::{BlockPos, BoundingBox, ColumnPos};
+use mcrs_minecraft_core::BoundingBox;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::legacy::LegacyRandom;
+use mcrs_voxel::{BlockPos, ColumnPos};
 
 use crate::MineshaftType;
 use crate::orient::{

@@ -1,13 +1,13 @@
 use mcrs_minecraft_block::definition::BlockEntry;
 use mcrs_minecraft_block::keys::Block;
 use mcrs_minecraft_chunk::VoxelId;
-use mcrs_minecraft_core::BlockStateId;
 use mcrs_minecraft_light_color::asset::LightColorFile;
 use mcrs_minecraft_light_color::colors::{
     CORPUS_DIRECTORY, LightColorError, LightColors, LightType,
 };
 use mcrs_minecraft_world::registry_load::test_registries;
 use mcrs_minecraft_worldgen_testing::{assets_dir, json_files};
+use mcrs_voxel::BlockStateId;
 
 use crate::corpus::{blocks, corpus};
 

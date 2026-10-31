@@ -2,11 +2,11 @@ use std::cell::Cell;
 use std::rc::Rc;
 
 use mcrs_minecraft_chunk::VoxelId;
-use mcrs_minecraft_core::BlockPos;
 use mcrs_minecraft_core::BoundingBox;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_volume::BoxVolume;
+use mcrs_voxel::BlockPos;
 use rand_xoshiro::rand_core::{Infallible, TryRng};
 
 use crate::{BetaOreBlockIds, place_all_ores};
@@ -193,7 +193,7 @@ fn veins_cross_the_column_border_on_the_pinned_draw_count() {
 /// same cells on each side of the column border.
 #[test]
 fn the_region_takes_the_veins_the_box_takes() {
-    use mcrs_minecraft_core::ColumnPos;
+    use mcrs_voxel::ColumnPos;
 
     use crate::ColumnBlocks;
     use crate::beta_ores::apply_beta_ores_in;
@@ -233,7 +233,7 @@ fn the_region_takes_the_veins_the_box_takes() {
 fn the_populate_feature_is_the_populate_step() {
     use std::sync::Arc;
 
-    use mcrs_minecraft_core::ColumnPos;
+    use mcrs_voxel::ColumnPos;
 
     use crate::ColumnBlocks;
     use crate::beta_ores::apply_beta_ores_in;

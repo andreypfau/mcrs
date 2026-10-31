@@ -7,8 +7,8 @@ use crate::policy::CollectScratch;
 use crate::scalar::{GameTick, ShardId};
 use crate::sequence::SequenceClock;
 use crate::tick_queue::{Collected, Kinds, TickQueue};
-use mcrs_minecraft_core::BlockPos;
 use mcrs_minecraft_volume::PaletteBuffer;
+use mcrs_voxel::BlockPos;
 use rustc_hash::FxHashSet;
 
 pub struct BlockShard<K: Kinds> {

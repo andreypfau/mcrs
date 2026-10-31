@@ -10,7 +10,6 @@ use bevy_ecs::message::Messages;
 use bevy_ecs::prelude::*;
 use bevy_ecs::schedule::{Schedule, ScheduleLabel};
 use bevy_math::DVec3;
-use mcrs_minecraft_core::ColumnPos;
 use mcrs_minecraft_engine::bus::{
     InboundPlayerDespawn, OutboundPlayerPacket, PacketPayload, PacketTarget,
 };
@@ -29,6 +28,7 @@ use mcrs_minecraft_engine_world::world::dimension::{
 use mcrs_minecraft_engine_world::world::storage::column::{Column, ColumnIndex, ColumnSlot};
 use mcrs_minecraft_protocol::VarInt;
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundRemoveEntities;
+use mcrs_voxel::ColumnPos;
 
 /// Ad-hoc sub-app label for this test.
 #[derive(AppLabel, Clone, Copy, Debug, Hash, PartialEq, Eq)]

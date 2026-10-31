@@ -1,4 +1,5 @@
-use mcrs_minecraft_core::{BlockPos, HeightmapName};
+use mcrs_minecraft_core::HeightmapName;
+use mcrs_voxel::BlockPos;
 
 use crate::access::{Unavailable, Volume};
 

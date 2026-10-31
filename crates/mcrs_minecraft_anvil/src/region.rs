@@ -9,7 +9,8 @@ use crate::chunk::{self, Chunk};
 use crate::palette::PaletteLookup;
 use crate::{AnvilError, ErrorKind};
 use mcrs_minecraft_chunk::VoxelId;
-use mcrs_minecraft_core::{ColumnPos, RegionPos};
+use mcrs_minecraft_core::RegionPos;
+use mcrs_voxel::ColumnPos;
 
 pub const SECTOR_BYTES: usize = 4096;
 pub const REGION_SIDE: i32 = 32;
@@ -348,7 +349,7 @@ fn replace_file(path: &Path, parts: &[&[u8]]) -> std::io::Result<()> {
 }
 
 fn slot_index(pos: ColumnPos) -> usize {
-    (pos.region_local_z() * REGION_SIDE + pos.region_local_x()) as usize
+    (RegionPos::local_z(pos) * REGION_SIDE + RegionPos::local_x(pos)) as usize
 }
 
 fn parse_region_name(path: &Path) -> Option<RegionPos> {

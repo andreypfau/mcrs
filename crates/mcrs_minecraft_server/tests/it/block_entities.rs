@@ -8,7 +8,7 @@ use bevy_ecs::prelude::Entity;
 use bevy_ecs::world::World;
 use mcrs_minecraft_anvil::{PaletteLookup, Properties, parse_chunk};
 use mcrs_minecraft_block_entity::{BeeOccupant, EndGatewayData, GeneratedBlockEntity};
-use mcrs_minecraft_core::{SectionPos, VERSION};
+use mcrs_minecraft_core::VERSION;
 use mcrs_minecraft_engine::block_entity_packet::packet_entry;
 use mcrs_minecraft_engine_world::world::dimension::InDimension;
 use mcrs_minecraft_engine_world::world::lifecycle::level::SectionLevels;
@@ -27,6 +27,7 @@ use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_protocol::chunk::{ChunkData, ChunkDataBlockEntity};
 use mcrs_minecraft_protocol::{Decode, Encode};
 use mcrs_minecraft_worldgen_generator::saved::saved_block_entities;
+use mcrs_voxel::SectionPos;
 
 fn section_pos() -> SectionPos {
     SectionPos::new(2, 4, -1)
@@ -50,7 +51,7 @@ fn every_kind() -> Vec<(GeneratedBlockEntity, u16)> {
         (generated_nest(), 33),
         (
             GeneratedBlockEntity::chest(
-                mcrs_minecraft_core::BlockPos::new(33, 64, -3),
+                mcrs_voxel::BlockPos::new(33, 64, -3),
                 "minecraft:chests/simple_dungeon".to_owned(),
                 -8_123_456_789,
             ),
@@ -58,7 +59,7 @@ fn every_kind() -> Vec<(GeneratedBlockEntity, u16)> {
         ),
         (
             GeneratedBlockEntity::mob_spawner(
-                mcrs_minecraft_core::BlockPos::new(46, 79, -16),
+                mcrs_voxel::BlockPos::new(46, 79, -16),
                 "minecraft:skeleton",
             ),
             9,

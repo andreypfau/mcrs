@@ -13,8 +13,8 @@ use mcrs_minecraft_worldgen_feature::tree::{TrunkPlacer, UniformIntRange};
 
 use super::provider::StateProvider;
 
-use mcrs_minecraft_core::BlockPos;
 pub use mcrs_minecraft_core::{Axis, dist_manhattan};
+use mcrs_voxel::BlockPos;
 
 /// `Direction.Plane.getRandomDirection`.
 pub fn random_horizontal<R: Random>(rng: &mut R) -> Direction {

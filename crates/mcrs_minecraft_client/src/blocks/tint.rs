@@ -3,11 +3,11 @@ use std::sync::{Arc, LazyLock};
 use bevy::ecs::resource::Resource;
 
 use crate::columns::{Columns, SECTION_SIZE};
-use mcrs_minecraft_core::ColumnPos;
-use mcrs_minecraft_core::{BlockPos, SectionPos};
 use mcrs_minecraft_noise::simplex::SimplexNoise;
 use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_volume::BiomeVolume;
+use mcrs_voxel::ColumnPos;
+use mcrs_voxel::{BlockPos, SectionPos};
 
 use crate::model::{self, Pack};
 use mcrs_minecraft_biome::GrassColorModifier;

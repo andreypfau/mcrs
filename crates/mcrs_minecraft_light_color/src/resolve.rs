@@ -1,4 +1,4 @@
-use mcrs_minecraft_core::BlockPos;
+use mcrs_voxel::BlockPos;
 
 use crate::colors::LightColors;
 use crate::region::{Palette, Region};

@@ -1,7 +1,6 @@
 use std::sync::OnceLock;
 
 use mcrs_minecraft_block::keys::Block;
-use mcrs_minecraft_core::BlockStateId;
 use mcrs_minecraft_core::Id;
 use mcrs_minecraft_item::keys::Item;
 use mcrs_minecraft_light_color::asset::LightColorFile;
@@ -9,6 +8,7 @@ use mcrs_minecraft_light_color::colors::LightColors;
 use mcrs_minecraft_light_color::item::{
     ItemLight, ItemLightError, ItemLightFile, ItemLights, WATER_SENSITIVE,
 };
+use mcrs_voxel::BlockStateId;
 
 use mcrs_minecraft_world::registry_load::test_registries;
 use mcrs_minecraft_worldgen_testing::assets_dir;

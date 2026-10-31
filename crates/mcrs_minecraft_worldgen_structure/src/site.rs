@@ -1,4 +1,4 @@
-use mcrs_minecraft_core::ColumnPos;
+use mcrs_voxel::ColumnPos;
 use std::collections::BTreeMap;
 use std::sync::LazyLock;
 

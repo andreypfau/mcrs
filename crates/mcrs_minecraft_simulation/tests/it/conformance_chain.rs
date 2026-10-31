@@ -1,10 +1,11 @@
 use crate::probe::*;
-use mcrs_minecraft_core::{BlockPos, BlockStateId, Direction};
+use mcrs_minecraft_core::Direction;
 use mcrs_minecraft_simulation::{
     BlockUpdateFlags, ChainLedger, ChainLimit, ChainOrigin, Destroyed, Message, MessageBody,
     PartitionKind, Phase, ShardId, StepError, StepOutput, StepReport, UpdateRequest,
 };
 use mcrs_minecraft_volume::Access;
+use mcrs_voxel::{BlockPos, BlockStateId};
 
 fn neighbour_hits(log: &[Entry]) -> Vec<BlockPos> {
     neighbour_entries(log)

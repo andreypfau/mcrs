@@ -16,8 +16,8 @@ use mcrs_minecraft_biome_file::BiomeFile;
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_chunk::section::Biomes;
 use mcrs_minecraft_chunk::{PalettedContainer, SectionKind};
+use mcrs_minecraft_core::BoundingBox;
 use mcrs_minecraft_core::Id;
-use mcrs_minecraft_core::{BlockPos, BlockStateId, BoundingBox, LocalPos, SectionPos};
 use mcrs_minecraft_dimension_environment::dimension_type::DimensionTypeFile;
 use mcrs_minecraft_protocol::ColumnPos;
 use mcrs_minecraft_protocol::chunk::{ChunkData, LightChunk, LightData};
@@ -29,6 +29,7 @@ use mcrs_minecraft_protocol::packets::game::clientbound::{
 };
 use mcrs_minecraft_protocol::packets::game::serverbound::ServerboundChunkBatchReceived;
 use mcrs_minecraft_protocol::{Decode, WritePacket};
+use mcrs_voxel::{BlockPos, BlockStateId, LocalPos, SectionPos};
 
 use crate::joined_game::CurrentDimension;
 pub use mcrs_minecraft_mesh::{SECTION_SIZE, SECTION_VOLUME};

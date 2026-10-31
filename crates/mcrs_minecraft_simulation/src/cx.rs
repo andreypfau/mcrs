@@ -8,8 +8,8 @@ use crate::sequence::{SubTick, TickKey};
 use crate::shard::{BlockShard, Env, KernelConfig};
 use crate::tick_queue::{Collected, Kinds, ScheduledTick};
 use crate::{BlockUpdateFlags, SimulationVolume};
-use mcrs_minecraft_core::{BlockPos, BlockStateId, SectionPos};
 use mcrs_minecraft_volume::{Access, SectionBlocks, Unavailable};
+use mcrs_voxel::{BlockPos, BlockStateId, SectionPos};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Lane {

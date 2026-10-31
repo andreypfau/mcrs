@@ -3,7 +3,6 @@ use bevy_ecs::prelude::*;
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_block::keys::Block;
 use mcrs_minecraft_chunk::{ColumnHeights, VoxelId};
-use mcrs_minecraft_core::{ColumnPos, SectionPos};
 use mcrs_minecraft_engine_world::block_update::BlockPlaced;
 use mcrs_minecraft_engine_world::palette::ChunkBlocks;
 use mcrs_minecraft_engine_world::world::dimension::{DimensionTypeConfig, InDimension};
@@ -16,6 +15,7 @@ use mcrs_minecraft_heightmap::{
 };
 use mcrs_minecraft_protocol::VarInt;
 use mcrs_minecraft_registries::CurrentRegistries;
+use mcrs_voxel::{ColumnPos, SectionPos};
 use rustc_hash::FxHashMap;
 
 #[derive(Resource, Clone)]

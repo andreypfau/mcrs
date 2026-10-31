@@ -1,4 +1,5 @@
-use mcrs_minecraft_core::{BlockPos, BoundingBox, SectionPos};
+use mcrs_minecraft_core::BoundingBox;
+use mcrs_voxel::{BlockPos, SectionPos};
 
 use crate::bounds::ColumnLayout;
 

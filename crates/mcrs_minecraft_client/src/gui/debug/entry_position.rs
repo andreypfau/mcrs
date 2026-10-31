@@ -2,8 +2,9 @@ use crate::joined_game::CurrentDimension;
 use bevy::prelude::*;
 use mcrs_minecraft_core::resource_location::ResourceLocation;
 use mcrs_minecraft_core::rl;
-use mcrs_minecraft_core::{BlockPos, ColumnPos, Direction, RegionPos, SectionPos};
+use mcrs_minecraft_core::{Direction, RegionPos};
 use mcrs_minecraft_engine_world::entity::physics::Transform as PhysicsTransform;
+use mcrs_voxel::{BlockPos, ColumnPos, SectionPos};
 
 use super::DebugScreenDisplayer;
 use crate::player::Player;
@@ -40,8 +41,8 @@ pub fn display(
                 chunk.x,
                 chunk.y,
                 chunk.z,
-                ColumnPos::from(chunk).region_local_x(),
-                ColumnPos::from(chunk).region_local_z(),
+                RegionPos::local_x(ColumnPos::from(chunk)),
+                RegionPos::local_z(ColumnPos::from(chunk)),
                 RegionPos::from(ColumnPos::from(chunk)).x,
                 RegionPos::from(ColumnPos::from(chunk)).z,
             ),

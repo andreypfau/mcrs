@@ -1,6 +1,6 @@
 use glam::IVec3;
 use mcrs_minecraft_chunk::VoxelId;
-use mcrs_minecraft_core::{BlockPos, BoundingBox, Mirror};
+use mcrs_minecraft_core::{BoundingBox, Mirror};
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_random::worldgen::WorldgenRandom;
@@ -11,6 +11,7 @@ use mcrs_minecraft_worldgen_feature_place::entity::GeneratedEntity;
 use mcrs_minecraft_worldgen_feature_place::template::{CompiledChain, rotate_state};
 use mcrs_minecraft_worldgen_structure::orient::random_rotation;
 use mcrs_minecraft_worldgen_structure::piece::NetherFossilPiece;
+use mcrs_voxel::BlockPos;
 
 use crate::{ignore_blocks, place_positional, state};
 use mcrs_minecraft_block::keys::Block;

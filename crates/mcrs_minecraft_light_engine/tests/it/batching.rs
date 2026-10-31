@@ -10,9 +10,10 @@ fn drain_one(queue: &mut LightQueue, budget_cells: u64, avoid: &[BoundingBox]) -
 }
 use mcrs_minecraft_chunk::LightLayer;
 use mcrs_minecraft_chunk::VoxelId;
-use mcrs_minecraft_core::{BlockPos, BoundingBox, ColumnPos, SectionPos};
+use mcrs_minecraft_core::BoundingBox;
 use mcrs_minecraft_light_engine::field::FieldLayout;
 use mcrs_minecraft_light_engine::prelude::*;
+use mcrs_voxel::{BlockPos, ColumnPos, SectionPos};
 
 fn column(x: i32, z: i32) -> ColumnPos {
     ColumnPos { x, z }

@@ -25,12 +25,12 @@ use crate::material::PushReaction;
 use crate::material::map::MapColor;
 #[cfg(feature = "bevy")]
 use mcrs_minecraft_assets::asset::{CorpusReadError, read_json_corpus};
-use mcrs_minecraft_core::BlockStateId;
 use mcrs_minecraft_core::Id;
 use mcrs_minecraft_core::voxel_shape::Aabb;
 use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
 use mcrs_minecraft_sound::BlockSoundSet;
 use mcrs_minecraft_value_provider::IntProvider;
+use mcrs_voxel::BlockStateId;
 use std::collections::HashMap;
 
 pub const CORPUS_DIRECTORY: &str = "mcrs/block_definition";

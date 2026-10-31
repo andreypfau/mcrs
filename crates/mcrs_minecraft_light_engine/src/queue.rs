@@ -2,10 +2,10 @@
 //! immediately and only the resulting [`Influence`] is deferred. Queuing the
 //! change itself would mean a batched-out edit had not happened yet.
 
-use mcrs_minecraft_core::SectionPos;
+use mcrs_voxel::SectionPos;
 use std::collections::BTreeSet;
 
-use mcrs_minecraft_core::ColumnPos;
+use mcrs_voxel::ColumnPos;
 use rustc_hash::{FxHashMap, FxHashSet};
 
 use crate::region::Influence;

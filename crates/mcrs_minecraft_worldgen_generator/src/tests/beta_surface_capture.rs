@@ -1,12 +1,12 @@
 use crate::ColumnBiomes;
-use mcrs_minecraft_core::LocalPos;
+use mcrs_voxel::LocalPos;
 use std::collections::BTreeMap;
 
 use mcrs_minecraft_biome::source::{
     BetaLandBiome, beta_biome_from_climate, build_beta_lookup_table,
 };
-use mcrs_minecraft_core::BlockPos;
-use mcrs_minecraft_core::BlockStateId;
+use mcrs_voxel::BlockPos;
+use mcrs_voxel::BlockStateId;
 
 use mcrs_minecraft_worldgen_density::program::Workspace;
 

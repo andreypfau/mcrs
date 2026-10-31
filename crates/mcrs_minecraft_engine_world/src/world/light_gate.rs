@@ -1,7 +1,7 @@
 use bevy_ecs::message::Message;
 use bevy_ecs::resource::Resource;
 use bevy_ecs::schedule::SystemSet;
-use mcrs_minecraft_core::ColumnPos;
+use mcrs_voxel::ColumnPos;
 
 /// Present in a dimension world whose columns wait for their light to settle before they are
 /// sent. Without it a column goes out as soon as its sections land, at full sky light.

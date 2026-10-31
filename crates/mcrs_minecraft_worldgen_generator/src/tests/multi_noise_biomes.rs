@@ -7,9 +7,10 @@ use mcrs_minecraft_biome::parameter_list::{MultiNoiseBiomeSourceParameterList, P
 use mcrs_minecraft_biome::source::MultiNoiseBiomeSource;
 use mcrs_minecraft_biome::zoom::{obfuscate_seed, quart_cell};
 use mcrs_minecraft_core::Id;
-use mcrs_minecraft_core::{BlockPos, ResourceLocation};
+use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_registries::Diagnostics;
 use mcrs_minecraft_worldgen_density::program::Workspace;
+use mcrs_voxel::BlockPos;
 
 use super::build_settings_router;
 use crate::modern_carvers::climate_target_at;

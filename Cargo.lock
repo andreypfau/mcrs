@@ -3498,6 +3498,7 @@ dependencies = [
  "mcrs_minecraft_fixtures",
  "mcrs_minecraft_nbt",
  "mcrs_minecraft_registries",
+ "mcrs_voxel",
  "serde",
  "thiserror 2.0.18",
 ]
@@ -3524,6 +3525,7 @@ dependencies = [
  "mcrs_minecraft_core",
  "mcrs_minecraft_registries",
  "mcrs_minecraft_worldgen_testing",
+ "mcrs_voxel",
  "serde",
  "serde_json",
  "sha2",
@@ -3557,6 +3559,7 @@ dependencies = [
  "mcrs_minecraft_registries",
  "mcrs_minecraft_sound",
  "mcrs_minecraft_value_provider",
+ "mcrs_voxel",
  "rustc-hash 2.1.1",
  "serde",
  "serde_json",
@@ -3574,6 +3577,7 @@ dependencies = [
  "mcrs_minecraft_nbt",
  "mcrs_minecraft_registries",
  "mcrs_minecraft_value_provider",
+ "mcrs_voxel",
  "serde",
 ]
 
@@ -3640,6 +3644,7 @@ dependencies = [
  "bevy_ecs",
  "mcrs_minecraft_core",
  "mcrs_minecraft_registries",
+ "mcrs_voxel",
  "rustc-hash 2.1.1",
 ]
 
@@ -3699,6 +3704,7 @@ dependencies = [
  "mcrs_minecraft_vanilla_worldgen",
  "mcrs_minecraft_volume",
  "mcrs_minecraft_world",
+ "mcrs_voxel",
  "objc2-foundation 0.3.2",
  "objc2-metal 0.3.2",
  "serde",
@@ -3768,6 +3774,7 @@ dependencies = [
  "mcrs_minecraft_snbt",
  "mcrs_minecraft_text",
  "mcrs_test_alloc",
+ "mcrs_voxel",
 ]
 
 [[package]]
@@ -3891,6 +3898,7 @@ dependencies = [
  "mcrs_minecraft_text",
  "mcrs_minecraft_worldgen_generator",
  "mcrs_minecraft_worldgen_structure",
+ "mcrs_voxel",
  "rand 0.10.0",
  "tracing",
 ]
@@ -3905,6 +3913,7 @@ dependencies = [
  "mcrs_minecraft_nbt",
  "mcrs_minecraft_snbt",
  "mcrs_minecraft_wire",
+ "mcrs_voxel",
  "serde",
  "serde_json",
  "thiserror 2.0.18",
@@ -3998,6 +4007,7 @@ dependencies = [
  "mcrs_minecraft_volume",
  "mcrs_minecraft_world",
  "mcrs_minecraft_worldgen_generator",
+ "mcrs_voxel",
  "rustc-hash 2.1.1",
  "serde",
  "serde_json",
@@ -4055,6 +4065,7 @@ dependencies = [
  "mcrs_minecraft_dimension",
  "mcrs_minecraft_simulation",
  "mcrs_minecraft_volume",
+ "mcrs_voxel",
  "rustc-hash 2.1.1",
  "smallvec",
  "tracing",
@@ -4135,6 +4146,7 @@ dependencies = [
  "mcrs_minecraft_chunk",
  "mcrs_minecraft_core",
  "mcrs_minecraft_registries",
+ "mcrs_voxel",
 ]
 
 [[package]]
@@ -4159,6 +4171,7 @@ dependencies = [
  "mcrs_minecraft_value_provider",
  "mcrs_minecraft_wire",
  "mcrs_minecraft_worldgen_testing",
+ "mcrs_voxel",
  "serde",
  "serde_json",
  "thiserror 2.0.18",
@@ -4189,6 +4202,7 @@ dependencies = [
  "mcrs_minecraft_volume",
  "mcrs_minecraft_world",
  "mcrs_minecraft_worldgen_testing",
+ "mcrs_voxel",
  "proptest",
  "serde",
  "serde_json",
@@ -4207,6 +4221,7 @@ dependencies = [
  "mcrs_minecraft_chunk",
  "mcrs_minecraft_core",
  "mcrs_minecraft_volume",
+ "mcrs_voxel",
  "rayon",
  "rustc-hash 2.1.1",
  "tracing",
@@ -4227,6 +4242,7 @@ dependencies = [
  "mcrs_minecraft_registries",
  "mcrs_minecraft_render",
  "mcrs_minecraft_world",
+ "mcrs_voxel",
 ]
 
 [[package]]
@@ -4245,6 +4261,7 @@ dependencies = [
  "glam",
  "mcrs_minecraft_core",
  "mcrs_minecraft_volume",
+ "mcrs_voxel",
 ]
 
 [[package]]
@@ -4307,6 +4324,7 @@ dependencies = [
  "mcrs_minecraft_item",
  "mcrs_minecraft_registries",
  "mcrs_minecraft_wire",
+ "mcrs_voxel",
  "serde",
 ]
 
@@ -4362,6 +4380,7 @@ dependencies = [
  "mcrs_minecraft_text",
  "mcrs_minecraft_wire",
  "mcrs_minecraft_world",
+ "mcrs_voxel",
  "rand 0.10.0",
  "serde",
  "serde_json",
@@ -4506,6 +4525,7 @@ dependencies = [
  "mcrs_minecraft_worldgen_builtin",
  "mcrs_minecraft_worldgen_density",
  "mcrs_minecraft_worldgen_generator",
+ "mcrs_voxel",
  "rustc-hash 2.1.1",
  "serde_json",
  "smallvec",
@@ -4521,6 +4541,7 @@ dependencies = [
  "mcrs_minecraft_core",
  "mcrs_minecraft_random",
  "mcrs_minecraft_volume",
+ "mcrs_voxel",
  "rustc-hash 2.1.1",
  "thiserror 2.0.18",
 ]
@@ -4603,6 +4624,7 @@ dependencies = [
  "mcrs_minecraft_heightmap",
  "mcrs_minecraft_light_engine",
  "mcrs_minecraft_protocol",
+ "mcrs_voxel",
  "rayon",
  "rustc-hash 2.1.1",
  "smallvec",
@@ -4647,6 +4669,7 @@ dependencies = [
  "mcrs_minecraft_worldgen_generator",
  "mcrs_minecraft_worldgen_structure",
  "mcrs_minecraft_worldgen_surface",
+ "mcrs_voxel",
  "rustc-hash 2.1.1",
  "serde_json",
  "thiserror 2.0.18",
@@ -4659,6 +4682,7 @@ version = "0.5.8"
 dependencies = [
  "mcrs_minecraft_chunk",
  "mcrs_minecraft_core",
+ "mcrs_voxel",
  "thiserror 2.0.18",
 ]
 
@@ -4667,7 +4691,9 @@ name = "mcrs_minecraft_wire"
 version = "0.5.8"
 dependencies = [
  "glam",
+ "mcrs_minecraft_wire",
  "mcrs_minecraft_wire_macros",
+ "mcrs_voxel",
  "rand 0.10.0",
  "serde",
  "uuid",
@@ -4728,6 +4754,7 @@ dependencies = [
  "mcrs_minecraft_worldgen_structure",
  "mcrs_minecraft_worldgen_surface",
  "mcrs_minecraft_worldgen_testing",
+ "mcrs_voxel",
  "serde",
  "serde_json",
  "thiserror 2.0.18",
@@ -4761,6 +4788,7 @@ dependencies = [
  "mcrs_minecraft_worldgen_structure",
  "mcrs_minecraft_worldgen_surface",
  "mcrs_minecraft_worldgen_testing",
+ "mcrs_voxel",
  "serde",
  "serde_json",
  "thiserror 2.0.18",
@@ -4862,6 +4890,7 @@ dependencies = [
  "mcrs_minecraft_worldgen_feature",
  "mcrs_minecraft_worldgen_surface",
  "mcrs_minecraft_worldgen_testing",
+ "mcrs_voxel",
  "serde",
  "serde_json",
  "thiserror 2.0.18",
@@ -4894,6 +4923,7 @@ dependencies = [
  "mcrs_minecraft_worldgen_structure",
  "mcrs_minecraft_worldgen_surface",
  "mcrs_minecraft_worldgen_testing",
+ "mcrs_voxel",
  "rustc-hash 2.1.1",
  "serde",
  "serde_json",
@@ -4941,6 +4971,7 @@ dependencies = [
  "mcrs_minecraft_worldgen_structure_place",
  "mcrs_minecraft_worldgen_surface",
  "mcrs_minecraft_worldgen_testing",
+ "mcrs_voxel",
  "rand_xoshiro",
  "rayon",
  "rustc-hash 2.1.1",
@@ -4973,6 +5004,7 @@ dependencies = [
  "mcrs_minecraft_worldgen_density",
  "mcrs_minecraft_worldgen_feature",
  "mcrs_minecraft_worldgen_testing",
+ "mcrs_voxel",
  "serde",
  "serde_json",
 ]
@@ -4996,6 +5028,7 @@ dependencies = [
  "mcrs_minecraft_worldgen_feature",
  "mcrs_minecraft_worldgen_feature_place",
  "mcrs_minecraft_worldgen_structure",
+ "mcrs_voxel",
 ]
 
 [[package]]
@@ -5034,6 +5067,14 @@ dependencies = [
 [[package]]
 name = "mcrs_test_alloc"
 version = "0.5.8"
+
+[[package]]
+name = "mcrs_voxel"
+version = "0.5.8"
+dependencies = [
+ "bevy_ecs",
+ "glam",
+]
 
 [[package]]
 name = "md-5"

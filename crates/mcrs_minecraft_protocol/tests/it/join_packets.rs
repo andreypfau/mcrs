@@ -8,7 +8,7 @@ use std::sync::LazyLock;
 
 use mcrs_minecraft_core::Id;
 use mcrs_minecraft_core::LookAnchor;
-use mcrs_minecraft_core::{BlockPos, ResourceKey, ResourceLocation, VERSION};
+use mcrs_minecraft_core::{ResourceKey, ResourceLocation, VERSION};
 use mcrs_minecraft_dimension::{Dimension, DimensionType};
 use mcrs_minecraft_game_mode::GameMode;
 use mcrs_minecraft_game_mode::OptGameMode;
@@ -18,6 +18,7 @@ use mcrs_minecraft_protocol::packets::common::{Brand, clientbound, serverbound};
 use mcrs_minecraft_protocol::packets::game::clientbound::*;
 use mcrs_minecraft_protocol::packets::intent::serverbound::ServerboundHandshake;
 use mcrs_minecraft_protocol::{Bounded, Decode, Encode, GlobalPos, RawBytes, VarInt};
+use mcrs_voxel::BlockPos;
 
 static GOLDEN: LazyLock<String> =
     LazyLock::new(|| mcrs_minecraft_fixtures::fixture("join_packets").text());

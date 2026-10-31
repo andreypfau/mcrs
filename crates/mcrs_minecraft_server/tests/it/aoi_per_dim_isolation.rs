@@ -7,7 +7,6 @@
 
 use bevy_ecs::prelude::*;
 use bevy_math::DVec3;
-use mcrs_minecraft_core::ColumnPos;
 use mcrs_minecraft_engine::column_view::ColumnView;
 use mcrs_minecraft_engine::tracked_by::TrackedBy;
 use mcrs_minecraft_engine_world::aoi::PlayerObservers;
@@ -17,6 +16,7 @@ use mcrs_minecraft_engine_world::entity::player::chunk_view::PlayerViewDistance;
 use mcrs_minecraft_engine_world::world::dimension::InDimension;
 use mcrs_minecraft_engine_world::world::storage::column::{Column, ColumnIndex, ColumnSlot};
 use mcrs_minecraft_engine_world::world::sub_app::DimAppLabel;
+use mcrs_voxel::ColumnPos;
 
 use crate::host_app;
 

@@ -1,6 +1,6 @@
 use bevy_ecs::prelude::Component;
 use indexmap::IndexSet;
-use mcrs_minecraft_core::SectionPos;
+use mcrs_voxel::SectionPos;
 use rustc_hash::{FxBuildHasher, FxHashMap, FxHashSet};
 use std::ops::RangeInclusive;
 

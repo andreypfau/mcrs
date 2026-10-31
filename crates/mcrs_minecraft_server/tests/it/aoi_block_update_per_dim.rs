@@ -8,9 +8,6 @@ use bevy_app::App;
 use bevy_ecs::message::Messages;
 use bevy_ecs::prelude::*;
 use bevy_ecs::system::IntoSystem;
-use mcrs_minecraft_core::BlockPos;
-use mcrs_minecraft_core::ColumnPos;
-use mcrs_minecraft_core::SectionPos;
 use mcrs_minecraft_engine::block_update::update_client_blocks_per_dim;
 use mcrs_minecraft_engine::bus::{OutboundPlayerPacket, PacketPayload, PacketTarget};
 use mcrs_minecraft_engine::session::HostAnchor;
@@ -20,6 +17,9 @@ use mcrs_minecraft_engine_world::entity::player::Player;
 use mcrs_minecraft_engine_world::world::dimension::InDimension;
 use mcrs_minecraft_engine_world::world::storage::column::{ColumnIndex, ColumnSlot};
 use mcrs_minecraft_simulation::BlockUpdateFlags;
+use mcrs_voxel::BlockPos;
+use mcrs_voxel::ColumnPos;
+use mcrs_voxel::SectionPos;
 
 #[test]
 fn block_update_resolves_observers_per_dim_emit_site() {
@@ -69,8 +69,8 @@ fn block_update_resolves_observers_per_dim_emit_site() {
         chunk: chunk_entity,
         chunk_pos,
         block_pos,
-        old_state: mcrs_minecraft_core::BlockStateId::AIR,
-        new_state: mcrs_minecraft_core::BlockStateId::AIR,
+        old_state: mcrs_voxel::BlockStateId::AIR,
+        new_state: mcrs_voxel::BlockStateId::AIR,
         flags,
     };
     let block_pos = BlockPos::new(2, 3, 4);

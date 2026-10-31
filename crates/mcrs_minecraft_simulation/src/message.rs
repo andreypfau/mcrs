@@ -3,7 +3,8 @@ use crate::event_queue::BlockEvent;
 use crate::scalar::{GameTick, ShardId, TickPriority};
 use crate::sequence::SubTick;
 use crate::tick_queue::Kinds;
-use mcrs_minecraft_core::{BlockPos, BlockStateId, Direction, SectionPos};
+use mcrs_minecraft_core::Direction;
+use mcrs_voxel::{BlockPos, BlockStateId, SectionPos};
 
 /// Stamps of different partitions collide, so a chain is told apart by the partition that
 /// started it as well.

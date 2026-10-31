@@ -1,5 +1,5 @@
 use glam::IVec3;
-use mcrs_minecraft_core::{BlockPos, BoundingBox, ColumnPos, SectionPos};
+use mcrs_minecraft_core::BoundingBox;
 use mcrs_minecraft_core::{Mirror, Rotation};
 use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_random::worldgen::WorldgenRandom;
@@ -8,6 +8,7 @@ use mcrs_minecraft_worldgen_feature::placer::WorldGenVolume;
 use mcrs_minecraft_worldgen_feature::pool::LiquidSettings;
 use mcrs_minecraft_worldgen_feature_place::template::{Placement, SettingsRandom, place_template};
 use mcrs_minecraft_worldgen_structure::hardcoded::mineshaft::decorates_first;
+use mcrs_voxel::{BlockPos, ColumnPos, SectionPos};
 
 use crate::feature_program::{CompiledElement, CompiledStructure, FeatureProgram, Run};
 use crate::stages::decoration_seed;

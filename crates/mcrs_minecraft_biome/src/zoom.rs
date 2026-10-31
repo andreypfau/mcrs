@@ -1,4 +1,5 @@
-use mcrs_minecraft_core::{BlockPos, QuartPos};
+use mcrs_minecraft_core::QuartPos;
+use mcrs_voxel::BlockPos;
 use sha2::{Digest, Sha256};
 
 /// The seed enters the digest as eight little-endian bytes and the first eight

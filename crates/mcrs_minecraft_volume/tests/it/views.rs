@@ -1,12 +1,13 @@
 use std::ops::ControlFlow;
 
-use mcrs_minecraft_core::BlockStateId;
-use mcrs_minecraft_core::{BlockPos, BoundingBox, SectionPos};
+use mcrs_minecraft_core::BoundingBox;
 use mcrs_minecraft_volume::{
     Access, AccessPolicy, BlockVolume, BlockVolumeMut, BoxVolume, Cursor, Missing, Restricted,
     SectionBox, SectionVolume, SparseVolume, Unavailable, VisitOptions, VisitOrder, Volume,
     VoxelStore, VoxelStoreMut,
 };
+use mcrs_voxel::BlockStateId;
+use mcrs_voxel::{BlockPos, SectionPos};
 
 use crate::access::WEAKEST_FIRST;
 

@@ -1,9 +1,9 @@
 use glam::IVec3;
 use mcrs_minecraft_chunk::VoxelId;
-use mcrs_minecraft_core::BlockPos;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::worldgen::WorldgenRandom;
 use mcrs_minecraft_worldgen_feature::placer::{BiomeMask, Predicate, WorldGenVolume};
+use mcrs_voxel::BlockPos;
 
 use crate::holds;
 use crate::tree::provider::StateProvider;

@@ -3,7 +3,7 @@
     clippy::indexing_slicing,
     reason = "a test reports a failure by panicking"
 )]
-use mcrs_minecraft_core::BlockStateId;
+use mcrs_voxel::BlockStateId;
 
 mod access;
 mod sections;

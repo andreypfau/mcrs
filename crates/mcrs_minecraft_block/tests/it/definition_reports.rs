@@ -1,4 +1,4 @@
-use mcrs_minecraft_core::BlockStateId;
+use mcrs_voxel::BlockStateId;
 
 use crate::common::{assert_no_mismatches, corpus};
 

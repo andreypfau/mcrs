@@ -6,12 +6,12 @@ use std::sync::Arc;
 
 use mcrs_minecraft_block_predicate::provider::Holder;
 use mcrs_minecraft_chunk::VoxelId;
-use mcrs_minecraft_core::ColumnPos;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_registries::{KeySet, Registries};
 use mcrs_minecraft_worldgen_feature::compile::{CompiledPlacedFeature, FeatureSteps};
 use mcrs_minecraft_worldgen_feature::placement::PlacementModifier;
 use mcrs_minecraft_worldgen_feature::proto::{Feature, PlacedFeature};
+use mcrs_voxel::ColumnPos;
 
 use crate::ColumnBlocks;
 use crate::feature_program::FeatureProgram;
@@ -417,7 +417,7 @@ fn a_source_only_fluid_query_holds_sources_and_waterlogged_blocks() {
 #[test]
 fn a_survival_rule_reads_the_water_condition_its_block_names() {
     use mcrs_minecraft_block::keys::Block;
-    use mcrs_minecraft_core::BlockPos;
+    use mcrs_voxel::BlockPos;
 
     fluid_resolver_test(|resolver| {
         let rules = crate::trees::survive_rules(resolver).expect("the survival rules compile");

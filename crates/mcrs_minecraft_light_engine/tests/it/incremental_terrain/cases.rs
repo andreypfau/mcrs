@@ -2,7 +2,8 @@ use std::sync::Arc;
 
 use crate::common::{AIR, Reference, STONE, registry, state};
 use mcrs_minecraft_chunk::{PalettedContainer, VoxelPalette};
-use mcrs_minecraft_core::{BlockPos, BoundingBox, ColumnPos, SectionPos};
+use mcrs_minecraft_core::BoundingBox;
+use mcrs_voxel::{BlockPos, ColumnPos, SectionPos};
 use mcrs_minecraft_chunk::LightLayer;
 use mcrs_minecraft_light_engine::prelude::*;
 

@@ -6,15 +6,16 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicU8, Ordering};
 
 use mcrs_minecraft_chunk::{PalettedContainer, VoxelId};
-use mcrs_minecraft_core::{BlockPos, Direction, SectionPos};
+use mcrs_minecraft_core::Direction;
+use mcrs_voxel::{BlockPos, SectionPos};
 
 use crate::SectionBlocks;
 use crate::block::LightRegistry;
 use crate::level::{LightLevel, SECTION_WIDTH};
 use mcrs_minecraft_chunk::LightStorage;
 use mcrs_minecraft_core::BoundingBox;
-use mcrs_minecraft_core::LocalPos;
 use mcrs_minecraft_volume::{SectionBox, Snapshot, Unavailable};
+use mcrs_voxel::LocalPos;
 
 /// Index of a cell within a [`FieldLayout`].
 pub type CellIndex = u32;

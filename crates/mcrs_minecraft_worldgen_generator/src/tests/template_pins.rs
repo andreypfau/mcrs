@@ -1,9 +1,10 @@
 use super::corpus_features;
 use super::template_parity::{block_entity_types, feature_program, region};
 use crate::feature_program::RunScratch;
-use mcrs_minecraft_core::{BlockPos, rl};
+use mcrs_minecraft_core::rl;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::worldgen::WorldgenRandom;
+use mcrs_voxel::BlockPos;
 
 mod exhaustive {
     use super::*;

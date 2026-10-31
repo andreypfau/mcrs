@@ -1,6 +1,6 @@
 use std::ops::ControlFlow;
 
-use mcrs_minecraft_core::SectionPos;
+use mcrs_voxel::SectionPos;
 
 use crate::access::Unavailable;
 use crate::block::BlockVolume;

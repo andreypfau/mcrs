@@ -3,7 +3,6 @@ use bevy_ecs::message::MessageReader;
 use bevy_ecs::prelude::{Entity, IntoScheduleConfigs, ResMut, Resource};
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_chunk::{BlockLight, SkyLight, VoxelId};
-use mcrs_minecraft_core::{BlockPos, BlockStateId, ColumnPos, SectionPos};
 use mcrs_minecraft_engine::bus::{
     OutboundPlayerPacket, PacketPayload, PacketPriority, PacketTarget,
 };
@@ -24,6 +23,7 @@ use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundLightUpdate;
 use mcrs_minecraft_simulation::BlockUpdateFlags;
 use mcrs_minecraft_vanilla_light::emit_light_updates;
 use mcrs_minecraft_vanilla_light::{LightBudget, LightEpoch, LightWorkQueue, PendingEdits};
+use mcrs_voxel::{BlockPos, BlockStateId, ColumnPos, SectionPos};
 
 use crate::host_app;
 

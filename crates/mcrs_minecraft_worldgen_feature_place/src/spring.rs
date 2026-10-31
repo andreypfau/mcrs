@@ -2,10 +2,10 @@ use crate::holds;
 use glam::IVec3;
 use mcrs_minecraft_block::keys::Fluid;
 use mcrs_minecraft_chunk::VoxelId;
-use mcrs_minecraft_core::BlockPos;
 use mcrs_minecraft_random::worldgen::WorldgenRandom;
 use mcrs_minecraft_simulation::{PendingTick, TickPriority};
 use mcrs_minecraft_worldgen_feature::placer::{StateMask, WorldGenVolume};
+use mcrs_voxel::BlockPos;
 
 /// `west`, `east`, `north`, `south`, `below` — the order both counts walk.
 const SIDES: [IVec3; 5] = [

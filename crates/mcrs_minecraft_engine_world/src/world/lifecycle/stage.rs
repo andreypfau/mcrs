@@ -1,6 +1,6 @@
 use bevy_ecs::prelude::{Component, Entity, Message, MessageWriter, Query};
 use bevy_ecs::system::SystemParam;
-use mcrs_minecraft_core::SectionPos;
+use mcrs_voxel::SectionPos;
 
 use crate::world::dimension::InDimension;
 

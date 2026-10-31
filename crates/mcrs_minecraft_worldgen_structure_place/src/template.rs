@@ -2,7 +2,7 @@ use glam::IVec3;
 use mcrs_minecraft_block_entity::GeneratedBlockEntity;
 use mcrs_minecraft_block_predicate::provider::UnitFloat;
 use mcrs_minecraft_chunk::VoxelId;
-use mcrs_minecraft_core::{BlockPos, BoundingBox, Mirror};
+use mcrs_minecraft_core::{BoundingBox, Mirror};
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::worldgen::WorldgenRandom;
 use mcrs_minecraft_value_provider::IntProvider;
@@ -19,6 +19,7 @@ use mcrs_minecraft_worldgen_structure::OceanTemperature;
 use mcrs_minecraft_worldgen_structure::frozen::{FrozenStructures, OceanRuinConfig, StructureId};
 use mcrs_minecraft_worldgen_structure::piece::OceanRuinPiece;
 use mcrs_minecraft_worldgen_structure::spawn_condition::SpawnContext;
+use mcrs_voxel::BlockPos;
 
 use crate::{place_positional, state};
 use mcrs_minecraft_block::keys::Block;

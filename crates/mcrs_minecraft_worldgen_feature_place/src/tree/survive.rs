@@ -2,8 +2,8 @@ use crate::holds;
 use fixedbitset::FixedBitSet;
 use glam::IVec3;
 use mcrs_minecraft_chunk::VoxelId;
-use mcrs_minecraft_core::BlockPos;
 use mcrs_minecraft_core::Direction;
+use mcrs_voxel::BlockPos;
 
 /// Which shape a state's block takes. A block that answers `None` overrides
 /// nothing and takes the default `canSurvive`, which is true.

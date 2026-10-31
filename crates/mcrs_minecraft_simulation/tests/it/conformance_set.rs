@@ -1,6 +1,7 @@
 use crate::probe::*;
-use mcrs_minecraft_core::{BlockPos, BlockStateId, Direction};
+use mcrs_minecraft_core::Direction;
 use mcrs_minecraft_simulation::{BlockUpdateFlags, MessageBody, Phase, StepOutput};
+use mcrs_voxel::{BlockPos, BlockStateId};
 
 fn run_set(host: Host, rules: Vec<Rule>, pos: BlockPos, state: BlockStateId, flags: u32) -> Runner {
     run_set_out(host, rules, pos, state, flags).0

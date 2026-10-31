@@ -1,13 +1,13 @@
 #[cfg(test)]
 use crate::ColumnBiomes;
 #[cfg(test)]
-use mcrs_minecraft_core::LocalPos;
+use mcrs_voxel::LocalPos;
 
 use mcrs_minecraft_biome::source::{BiomeSource, build_beta_lookup_table};
 #[cfg(test)]
 use mcrs_minecraft_chunk::VoxelId;
 #[cfg(test)]
-use mcrs_minecraft_core::BlockPos;
+use mcrs_voxel::BlockPos;
 
 #[cfg(test)]
 use super::build_beta_router;

@@ -1,14 +1,14 @@
+use core::fmt::Display;
+use core::hash::{Hash, Hasher};
+use core::ops::{Add, AddAssign, Sub, SubAssign};
 use glam::DVec3;
 use glam::IVec3;
-use std::fmt::Display;
-use std::hash::{Hash, Hasher};
-use std::ops::{Add, AddAssign, Sub, SubAssign};
 
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub struct BlockPos(IVec3);
 
 impl Display for BlockPos {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         write!(f, "({}, {}, {})", self.x, self.y, self.z)
     }
 }
@@ -33,15 +33,6 @@ impl BlockPos {
 
     pub const fn as_ivec3(self) -> IVec3 {
         self.0
-    }
-
-    /// `BlockPos.asLong`: 26 bits of x, 26 of z and 12 of y, packed x-z-y.
-    pub const fn as_long(self) -> i64 {
-        const HORIZONTAL_MASK: i64 = (1 << 26) - 1;
-        const Y_MASK: i64 = (1 << 12) - 1;
-        ((self.0.x as i64 & HORIZONTAL_MASK) << 38)
-            | ((self.0.z as i64 & HORIZONTAL_MASK) << 12)
-            | (self.0.y as i64 & Y_MASK)
     }
 }
 
@@ -97,11 +88,8 @@ impl From<IVec3> for BlockPos {
 
 impl From<DVec3> for BlockPos {
     fn from(value: DVec3) -> Self {
-        BlockPos::new(
-            value.x.floor() as i32,
-            value.y.floor() as i32,
-            value.z.floor() as i32,
-        )
+        let value = value.floor();
+        BlockPos::new(value.x as i32, value.y as i32, value.z as i32)
     }
 }
 
@@ -126,18 +114,5 @@ impl From<[i32; 3]> for BlockPos {
 impl From<BlockPos> for [i32; 3] {
     fn from(pos: BlockPos) -> Self {
         [pos.x, pos.y, pos.z]
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn as_long_packs_like_the_reference() {
-        assert_eq!(BlockPos::new(0, 0, 0).as_long(), 0);
-        assert_eq!(BlockPos::new(1, 2, 3).as_long(), (1 << 38) | (3 << 12) | 2);
-        assert_eq!(BlockPos::new(-1, -1, -1).as_long(), -1);
-        assert_eq!(BlockPos::new(-16, 62, 25).as_long(), -4398046408642);
     }
 }

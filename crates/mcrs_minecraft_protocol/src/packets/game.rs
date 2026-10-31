@@ -17,17 +17,17 @@ pub mod clientbound {
     use crate::{Bounded, ColumnPos, LpVec3, PositionFlags, Result, VarInt, VarLong};
     use glam::DVec3;
     use mcrs_minecraft_command_tree::CommandNode;
-    use mcrs_minecraft_core::BlockPos;
     use mcrs_minecraft_core::Look;
     use mcrs_minecraft_core::LookAnchor;
     use mcrs_minecraft_core::ResourceKey;
     use mcrs_minecraft_core::ResourceLocation;
-    use mcrs_minecraft_core::SectionPos;
     use mcrs_minecraft_entity::keys::{Attribute, EntityType};
     use mcrs_minecraft_item::keys::MenuType;
     use mcrs_minecraft_particle::ParticleOptions;
     use mcrs_minecraft_registries::Wire;
     use mcrs_minecraft_wire::{Decode, Encode};
+    use mcrs_voxel::BlockPos;
+    use mcrs_voxel::SectionPos;
     use std::borrow::Cow;
     use std::io::Write;
     use uuid::Uuid;
@@ -803,8 +803,9 @@ pub mod serverbound {
     use crate::{Bounded, Decode, Difficulty, Direction, Encode, Hand, LpVec3, Position, VarInt};
     use bitfield_struct::bitfield;
     use derive_more::From;
-    use mcrs_minecraft_core::{BlockPos, Look, ResourceLocation};
+    use mcrs_minecraft_core::{Look, ResourceLocation};
     use mcrs_minecraft_game_mode::GameMode;
+    use mcrs_voxel::BlockPos;
     use uuid::Uuid;
 
     #[derive(Clone, Debug, PartialEq, Encode, Decode)]

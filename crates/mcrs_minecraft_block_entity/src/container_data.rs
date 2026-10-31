@@ -1,7 +1,7 @@
-use mcrs_minecraft_core::BlockPos;
 use mcrs_minecraft_item::ItemStackWithSlot;
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_registries::Named;
+use mcrs_voxel::BlockPos;
 use serde::ser::SerializeStruct;
 use serde::{Deserialize, Serialize, Serializer};
 

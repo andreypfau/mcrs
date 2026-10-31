@@ -1,4 +1,5 @@
-use mcrs_minecraft_core::{ColumnPos, RegionPos, ResourceKey};
+use mcrs_minecraft_core::{RegionPos, ResourceKey};
+use mcrs_voxel::ColumnPos;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, OnceLock};

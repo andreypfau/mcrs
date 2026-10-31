@@ -1,4 +1,4 @@
-use mcrs_minecraft_core::{BlockPos, BlockStateId, BoundingBox, Direction, SectionPos};
+use mcrs_minecraft_core::{BoundingBox, Direction};
 use mcrs_minecraft_simulation::SimulationVolume;
 use mcrs_minecraft_simulation::{
     BlockBehaviour, BlockEvent, BlockFacts, BlockShard, BlockUpdateFlags, ChainLedger, ChainOrigin,
@@ -10,6 +10,7 @@ use mcrs_minecraft_volume::{
     Access, BlockVolume, BlockVolumeMut, Denied, PalettedSection, PalettedSectionMut, SparseVolume,
     Unavailable, Volume,
 };
+use mcrs_voxel::{BlockPos, BlockStateId, SectionPos};
 use std::collections::HashMap;
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicU32, Ordering};

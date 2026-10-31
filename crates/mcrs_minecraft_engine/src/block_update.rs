@@ -15,10 +15,6 @@
 use bevy_app::{App, FixedPostUpdate, Plugin};
 use bevy_ecs::message::{MessageReader, MessageWriter};
 use bevy_ecs::prelude::{Entity, IntoScheduleConfigs, Local, Query, With};
-use mcrs_minecraft_core::BlockPos;
-use mcrs_minecraft_core::ColumnPos;
-use mcrs_minecraft_core::LocalPos;
-use mcrs_minecraft_core::SectionPos;
 use mcrs_minecraft_engine_world::aoi::PlayerObservers;
 use mcrs_minecraft_engine_world::block_update::BlockPlaced;
 use mcrs_minecraft_engine_world::entity::player::Player;
@@ -30,6 +26,10 @@ use mcrs_minecraft_engine_world::world::storage::column::ColumnIndex;
 use mcrs_minecraft_protocol::block::BlockStateNumber;
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundBlockUpdate;
 use mcrs_minecraft_simulation::BlockUpdateFlags;
+use mcrs_voxel::BlockPos;
+use mcrs_voxel::ColumnPos;
+use mcrs_voxel::LocalPos;
+use mcrs_voxel::SectionPos;
 use rustc_hash::{FxHashMap, FxHashSet};
 use smallvec::SmallVec;
 

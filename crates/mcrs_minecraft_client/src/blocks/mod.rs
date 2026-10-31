@@ -6,9 +6,9 @@ use build::build_one;
 use mcrs_minecraft_block::definition::BlockDefinitions;
 use mcrs_minecraft_block::definition::schema::PropertyValue;
 use mcrs_minecraft_block::keys::Block;
-use mcrs_minecraft_core::BlockStateId;
 use mcrs_minecraft_mesh::block::BlockInfo;
 use mcrs_minecraft_mesh::pack::{MAX_SPRITE_ARRAYS, MAX_SPRITES};
+use mcrs_voxel::BlockStateId;
 pub use tint::{BiomeTint, BiomeTints, derive_tints, tint_column};
 
 mod build;

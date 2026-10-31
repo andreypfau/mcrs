@@ -22,7 +22,6 @@ use mcrs_minecraft_block_predicate::provider::{
 use mcrs_minecraft_registries::{Named, Ref};
 
 use mcrs_minecraft_chunk::VoxelId;
-use mcrs_minecraft_core::BlockPos;
 use mcrs_minecraft_fixtures::fixture;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::worldgen::WorldgenRandom;
@@ -41,6 +40,7 @@ use mcrs_minecraft_worldgen_feature_place::tree::{
     CompiledTree, LeafDistances, TreeTables, place_tree,
 };
 use mcrs_minecraft_worldgen_testing::{dump_placements, dump_string};
+use mcrs_voxel::BlockPos;
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 

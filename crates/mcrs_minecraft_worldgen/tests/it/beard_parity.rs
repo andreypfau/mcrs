@@ -4,12 +4,13 @@
 
 use bytes::{Buf, Bytes};
 use glam::IVec3;
-use mcrs_minecraft_core::{BlockPos, BoundingBox};
+use mcrs_minecraft_core::BoundingBox;
 use mcrs_minecraft_fixtures::fixture;
 use mcrs_minecraft_noise::SampleGrid;
 use mcrs_minecraft_worldgen::beard::{Beard, JunctionPoint, KERNEL, KERNEL_LEN, Rigid};
 use mcrs_minecraft_worldgen_structure::TerrainAdaptation;
 use mcrs_minecraft_worldgen_testing::dump_string;
+use mcrs_voxel::BlockPos;
 
 const MAGIC: &[u8; 8] = b"MCBEARD0";
 

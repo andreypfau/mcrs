@@ -2,8 +2,8 @@ use std::sync::{Arc, OnceLock};
 
 use mcrs_minecraft_block::definition::{BlockDefinitions, BlockStateFlags, ShapeId};
 use mcrs_minecraft_chunk::VoxelId;
-use mcrs_minecraft_core::BlockStateId;
 use mcrs_minecraft_core::voxel_shape::{ShapeRegistry, VoxelShape};
+use mcrs_voxel::BlockStateId;
 use rustc_hash::FxHashMap;
 
 use crate::block::{LightProperties, LightRegistry, SpecialBlocks};

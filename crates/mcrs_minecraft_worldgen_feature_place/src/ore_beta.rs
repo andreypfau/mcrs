@@ -1,7 +1,7 @@
-use mcrs_minecraft_core::BlockPos;
-use mcrs_minecraft_core::BlockStateId;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_volume::BlockVolumeMut;
+use mcrs_voxel::BlockPos;
+use mcrs_voxel::BlockStateId;
 
 #[derive(Clone, Debug)]
 pub struct OreConfig {

@@ -1,5 +1,6 @@
-use mcrs_minecraft_core::BlockStateId;
-use mcrs_minecraft_core::{BlockPos, BoundingBox, LocalPos, SectionPos};
+use mcrs_minecraft_core::BoundingBox;
+use mcrs_voxel::BlockStateId;
+use mcrs_voxel::{BlockPos, LocalPos, SectionPos};
 use std::cell::RefCell;
 use std::sync::Arc;
 
@@ -10,7 +11,6 @@ use mcrs_minecraft_block::definition::BlockDefinitions;
 use mcrs_minecraft_block_entity::GeneratedBlockEntity;
 use mcrs_minecraft_block_predicate::predicate::HeightmapName;
 use mcrs_minecraft_chunk::VoxelId;
-use mcrs_minecraft_core::ColumnPos;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::worldgen::WorldgenRandom;
 use mcrs_minecraft_simulation::{PendingTick, ScheduleTicks};
@@ -27,6 +27,7 @@ use mcrs_minecraft_worldgen_feature::placer::{
 use mcrs_minecraft_worldgen_feature_place::entity::GeneratedEntity;
 use mcrs_minecraft_worldgen_surface::MaterialScratch;
 use mcrs_minecraft_worldgen_surface::compile::MaterialProgram;
+use mcrs_voxel::ColumnPos;
 use rustc_hash::FxHashMap;
 use tracing::{error, info_span};
 

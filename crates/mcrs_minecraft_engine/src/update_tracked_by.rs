@@ -8,7 +8,6 @@ use crate::bus::to;
 use bevy_ecs::message::MessageWriter;
 use bevy_ecs::prelude::{Changed, Entity, Query, With, Without};
 use bevy_math::DVec3;
-use mcrs_minecraft_core::ColumnPos;
 use mcrs_minecraft_engine_world::aoi::PlayerObservers;
 use mcrs_minecraft_engine_world::entity::physics::Transform;
 use mcrs_minecraft_engine_world::entity::player::Player;
@@ -20,6 +19,7 @@ use mcrs_minecraft_protocol::VarInt;
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundAddEntity;
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundRemoveEntities;
 use mcrs_minecraft_protocol::uuid::Uuid;
+use mcrs_voxel::ColumnPos;
 use smallvec::SmallVec;
 
 use crate::bus::{OutboundPlayerPacket, PacketPayload};

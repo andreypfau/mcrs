@@ -5,8 +5,9 @@ use mcrs_minecraft_block::keys::block_tags::{
 };
 use mcrs_minecraft_chunk::palette::{BiomePalette, BlockPalette};
 use mcrs_minecraft_chunk::{ColumnHeights, PalettedContainer, VoxelId};
-use mcrs_minecraft_core::{LocalPos, SectionPos, TagId};
+use mcrs_minecraft_core::TagId;
 use mcrs_minecraft_registries::Tags;
+use mcrs_voxel::{LocalPos, SectionPos};
 use std::cell::Cell;
 use std::sync::Arc;
 

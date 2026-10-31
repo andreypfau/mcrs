@@ -1,7 +1,8 @@
 use crate::multi_noise_biomes::BiomeGrid;
 use mcrs_minecraft_biome::zoom::{FiddleCache, uniform_corners};
 use mcrs_minecraft_chunk::VoxelPalette;
-use mcrs_minecraft_core::{BlockPos, QuartPos, SectionPos};
+use mcrs_minecraft_core::QuartPos;
+use mcrs_voxel::{BlockPos, SectionPos};
 use std::ops::Range;
 
 const EDGE: usize = SectionPos::SIZE;

@@ -1,5 +1,6 @@
-use mcrs_minecraft_core::BlockStateId;
-use mcrs_minecraft_core::{BlockPos, BoundingBox, SectionPos};
+use mcrs_minecraft_core::BoundingBox;
+use mcrs_voxel::BlockStateId;
+use mcrs_voxel::{BlockPos, SectionPos};
 
 use crate::access::{Access, Volume, section_meets, within};
 use crate::bounds::span;

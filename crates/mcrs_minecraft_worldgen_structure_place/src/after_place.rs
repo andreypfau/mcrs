@@ -1,10 +1,11 @@
 use mcrs_minecraft_block_entity::GeneratedBlockEntity;
 use mcrs_minecraft_chunk::VoxelId;
-use mcrs_minecraft_core::{BlockPos, BoundingBox};
+use mcrs_minecraft_core::{BoundingBox, block_pos_as_long};
 use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_random::{Random, shuffle};
 use mcrs_minecraft_worldgen_feature::placer::WorldGenVolume;
 use mcrs_minecraft_worldgen_structure::orient::Orientation;
+use mcrs_voxel::BlockPos;
 
 use crate::scattered::{DesertPyramidBlocks, collapsed_roof_pos, potential_suspicious_sand};
 use crate::woodland_mansion::WoodlandMansionBlocks;
@@ -33,7 +34,7 @@ pub fn desert_pyramid<W: WorldGenVolume>(
                     .as_str()
                     .to_owned(),
             ),
-            loot_table_seed: pos.as_long(),
+            loot_table_seed: block_pos_as_long(pos),
             item: None,
             components: None,
         });

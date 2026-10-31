@@ -1,7 +1,8 @@
 use std::sync::Arc;
 
 use mcrs_minecraft_chunk::VoxelPalette;
-use mcrs_minecraft_core::{BlockPos, BlockStateId, BoundingBox, SectionPos};
+use mcrs_minecraft_core::BoundingBox;
+use mcrs_voxel::{BlockPos, BlockStateId, SectionPos};
 
 use crate::access::{Access, Unavailable, Volume};
 use crate::block::BlockVolume;

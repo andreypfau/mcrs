@@ -7,10 +7,10 @@ use bevy::platform::collections::{HashMap, HashSet};
 use bevy::prelude::*;
 use bevy::tasks::{AsyncComputeTaskPool, IoTaskPool, Task, futures::check_ready};
 use mcrs_minecraft_block::definition::{BlockDefinitions, Blocks};
-use mcrs_minecraft_core::{ColumnPos, SectionPos};
 #[cfg(feature = "dev")]
 use mcrs_minecraft_engine_world::world::lifecycle::trace::{ColumnStage, TraceEvent};
 use mcrs_minecraft_registries::CurrentRegistries;
+use mcrs_voxel::{ColumnPos, SectionPos};
 
 use crate::atlas::SpriteArray;
 use crate::blocks::{self, BiomeTints, Catalog};
@@ -1935,13 +1935,12 @@ mod tests {
                 0,
                 vec![Some(Section {
                     blocks: Box::new(
-                        [mcrs_minecraft_core::BlockStateId::checked(1, 2)
-                            .expect("a state past air");
+                        [mcrs_voxel::BlockStateId::checked(1, 2).expect("a state past air");
                             crate::columns::SECTION_VOLUME],
                     ),
                     biomes: PalettedContainer::Homogeneous(0),
                     states: vec![
-                        mcrs_minecraft_core::BlockStateId::checked(1, 2).expect("a state past air"),
+                        mcrs_voxel::BlockStateId::checked(1, 2).expect("a state past air"),
                     ],
                 })],
             )
@@ -1993,13 +1992,12 @@ mod tests {
                 0,
                 vec![Some(Section {
                     blocks: Box::new(
-                        [mcrs_minecraft_core::BlockStateId::checked(1, 2)
-                            .expect("a state past air");
+                        [mcrs_voxel::BlockStateId::checked(1, 2).expect("a state past air");
                             crate::columns::SECTION_VOLUME],
                     ),
                     biomes: PalettedContainer::Homogeneous(0),
                     states: vec![
-                        mcrs_minecraft_core::BlockStateId::checked(1, 2).expect("a state past air"),
+                        mcrs_voxel::BlockStateId::checked(1, 2).expect("a state past air"),
                     ],
                 })],
             )
@@ -2072,13 +2070,12 @@ mod tests {
                 0,
                 vec![Some(Section {
                     blocks: Box::new(
-                        [mcrs_minecraft_core::BlockStateId::checked(1, 2)
-                            .expect("a state past air");
+                        [mcrs_voxel::BlockStateId::checked(1, 2).expect("a state past air");
                             crate::columns::SECTION_VOLUME],
                     ),
                     biomes: PalettedContainer::Homogeneous(0),
                     states: vec![
-                        mcrs_minecraft_core::BlockStateId::checked(1, 2).expect("a state past air"),
+                        mcrs_voxel::BlockStateId::checked(1, 2).expect("a state past air"),
                     ],
                 })],
             ),

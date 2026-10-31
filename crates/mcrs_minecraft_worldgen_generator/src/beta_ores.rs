@@ -1,13 +1,13 @@
-use mcrs_minecraft_core::BlockPos;
+use mcrs_voxel::BlockPos;
 
 use crate::beta_chunk_seed;
 use mcrs_minecraft_block::definition::BlockDefinitions;
 use mcrs_minecraft_block::keys::Block;
-use mcrs_minecraft_core::BlockStateId;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_volume::BlockVolumeMut;
 use mcrs_minecraft_worldgen_feature_place::ore_beta::{OreConfig, place_beta_ore};
+use mcrs_voxel::BlockStateId;
 
 pub struct BetaOreBlockIds {
     pub stone: BlockStateId,

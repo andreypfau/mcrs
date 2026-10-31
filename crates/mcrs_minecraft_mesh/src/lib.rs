@@ -29,8 +29,8 @@ use mcrs_minecraft_volume::{BlockVolume, LightVolume};
 pub use connectivity::{CONNECT_ALL, Connectivity, OPEN, SEALED, along};
 pub use scratch::Scratch;
 
-pub const SECTION_SIZE: usize = mcrs_minecraft_core::SectionPos::SIZE;
-pub const SECTION_VOLUME: usize = mcrs_minecraft_core::SectionPos::VOLUME;
+pub const SECTION_SIZE: usize = mcrs_voxel::SectionPos::SIZE;
+pub const SECTION_VOLUME: usize = mcrs_voxel::SectionPos::VOLUME;
 
 pub const STREAMS: usize = Pass::COUNT * 2;
 
@@ -306,14 +306,14 @@ pub fn mesh_section(
 /// One unlit section at the world origin, with every block chosen by `pick`.
 #[cfg(test)]
 pub fn one_section_world(pick: impl Fn(usize, usize, usize) -> u16) -> OneSection {
-    let mut blocks = Box::new([mcrs_minecraft_core::BlockStateId::AIR; SECTION_VOLUME]);
+    let mut blocks = Box::new([mcrs_voxel::BlockStateId::AIR; SECTION_VOLUME]);
     for y in 0..SECTION_SIZE {
         for z in 0..SECTION_SIZE {
             for x in 0..SECTION_SIZE {
                 // A test catalog row is any u16, so every one of them is a state.
-                let state = mcrs_minecraft_core::BlockStateId::checked(pick(x, y, z), 1 << 16);
+                let state = mcrs_voxel::BlockStateId::checked(pick(x, y, z), 1 << 16);
                 blocks[(y * SECTION_SIZE + z) * SECTION_SIZE + x] =
-                    state.unwrap_or(mcrs_minecraft_core::BlockStateId::AIR);
+                    state.unwrap_or(mcrs_voxel::BlockStateId::AIR);
             }
         }
     }
@@ -323,16 +323,16 @@ pub fn one_section_world(pick: impl Fn(usize, usize, usize) -> u16) -> OneSectio
 /// The section at the origin, alone in its column: the rows beside it in the
 /// column are dark, and everything past the column is open sky.
 #[cfg(test)]
-pub struct OneSection(Box<[mcrs_minecraft_core::BlockStateId; SECTION_VOLUME]>);
+pub struct OneSection(Box<[mcrs_voxel::BlockStateId; SECTION_VOLUME]>);
 
 #[cfg(test)]
 impl mcrs_minecraft_volume::Volume for OneSection {
     fn bounds(&self) -> mcrs_minecraft_core::BoundingBox {
-        mcrs_minecraft_core::BoundingBox::of_section(mcrs_minecraft_core::SectionPos::new(0, 0, 0))
+        mcrs_minecraft_core::BoundingBox::of_section(mcrs_voxel::SectionPos::new(0, 0, 0))
     }
 
-    fn access(&self, at: mcrs_minecraft_core::SectionPos) -> mcrs_minecraft_volume::Access {
-        if at == mcrs_minecraft_core::SectionPos::new(0, 0, 0) {
+    fn access(&self, at: mcrs_voxel::SectionPos) -> mcrs_minecraft_volume::Access {
+        if at == mcrs_voxel::SectionPos::new(0, 0, 0) {
             mcrs_minecraft_volume::Access::Read
         } else {
             mcrs_minecraft_volume::Access::Outside
@@ -346,7 +346,7 @@ impl BlockVolume for OneSection {
 
     fn section(
         &self,
-        at: mcrs_minecraft_core::SectionPos,
+        at: mcrs_voxel::SectionPos,
     ) -> Result<Self::Section<'_>, mcrs_minecraft_volume::Unavailable> {
         mcrs_minecraft_volume::Volume::access(self, at).check_read()?;
         Ok(mcrs_minecraft_volume::DenseSection(&self.0))
@@ -355,11 +355,8 @@ impl BlockVolume for OneSection {
 
 #[cfg(test)]
 impl LightVolume for OneSection {
-    fn light(
-        &self,
-        at: mcrs_minecraft_core::BlockPos,
-    ) -> Result<u8, mcrs_minecraft_volume::Unavailable> {
-        let at = mcrs_minecraft_core::SectionPos::from(at);
+    fn light(&self, at: mcrs_voxel::BlockPos) -> Result<u8, mcrs_minecraft_volume::Unavailable> {
+        let at = mcrs_voxel::SectionPos::from(at);
         Ok(if at.x != 0 || at.z != 0 || at.y > 1 {
             0x0f
         } else {

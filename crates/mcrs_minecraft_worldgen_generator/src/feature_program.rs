@@ -20,14 +20,13 @@ use mcrs_minecraft_block_predicate::provider::DirectBlockStateProvider;
 use mcrs_minecraft_block_predicate::provider::Holder;
 use mcrs_minecraft_block_predicate::state_properties::StatePropertiesPredicate;
 use mcrs_minecraft_chunk::VoxelId;
-use mcrs_minecraft_core::BlockStateId;
+use mcrs_minecraft_core::BoundingBox;
 use mcrs_minecraft_core::Direction;
 use mcrs_minecraft_core::Id;
 use mcrs_minecraft_core::ResourceKey;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::tag_key::TagKey;
 use mcrs_minecraft_core::voxel_shape::{FACE_MASK_FULL, VoxelShape};
-use mcrs_minecraft_core::{BlockPos, BoundingBox};
 use mcrs_minecraft_core::{Mirror, Rotation};
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::legacy::LegacyRandom;
@@ -155,6 +154,8 @@ use mcrs_minecraft_worldgen_structure_place::template_piece::{
     IglooBlocks, ignore_structure_and_air,
 };
 use mcrs_minecraft_worldgen_structure_place::woodland_mansion::WoodlandMansionBlocks;
+use mcrs_voxel::BlockPos;
+use mcrs_voxel::BlockStateId;
 use rustc_hash::FxHashMap;
 use std::collections::BTreeMap;
 use std::ops::Range;

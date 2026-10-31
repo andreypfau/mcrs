@@ -1,9 +1,10 @@
 use std::borrow::Cow;
 use std::collections::{BTreeMap, BTreeSet};
 
-use mcrs_minecraft_core::{ColumnPos, ResourceLocation};
+use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::tag::NbtTag;
+use mcrs_voxel::ColumnPos;
 use serde::ser::SerializeMap;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 

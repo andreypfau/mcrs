@@ -14,7 +14,7 @@ use crate::world::storage::section::{SectionBundle, SectionIndex};
 use bevy_app::{App, FixedUpdate, Plugin};
 use bevy_ecs::lifecycle::Remove;
 use bevy_ecs::prelude::*;
-use mcrs_minecraft_core::SectionPos;
+use mcrs_voxel::SectionPos;
 use rustc_hash::{FxHashMap, FxHashSet};
 use smallvec::SmallVec;
 

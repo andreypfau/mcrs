@@ -2,7 +2,7 @@ use std::io::Cursor;
 
 use glam::{DVec3, IVec3};
 use mcrs_minecraft_core::mth::wrap_degrees;
-use mcrs_minecraft_core::{BlockPos, ColumnPos, Direction, Mirror, ResourceLocation, Rotation};
+use mcrs_minecraft_core::{Direction, Mirror, ResourceLocation, Rotation};
 use mcrs_minecraft_entity::villager::VillagerData;
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::{Nbt, nbt_int_array};
@@ -12,6 +12,7 @@ use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
 use mcrs_minecraft_registries::dispatch;
 use mcrs_minecraft_worldgen_feature::template::{EntityKind, FrozenEntity};
 use mcrs_minecraft_worldgen_structure::spawn_condition::{SpawnContext, VariantTables};
+use mcrs_voxel::{BlockPos, ColumnPos};
 use serde::{Deserialize, Serialize};
 
 use mcrs_minecraft_nbt::nbt_flag;

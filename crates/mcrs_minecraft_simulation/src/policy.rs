@@ -2,7 +2,7 @@ use crate::scalar::{GameTick, TickPriority};
 use crate::section::{SectionOrder, bytes, section_at, section_order};
 use crate::sequence::{SubTick, TickKey};
 use crate::tick_queue::{Collected, TickKind, TickQueue};
-use mcrs_minecraft_core::SectionPos;
+use mcrs_voxel::SectionPos;
 use std::cmp::Reverse;
 use std::collections::BinaryHeap;
 use std::ops::Range;

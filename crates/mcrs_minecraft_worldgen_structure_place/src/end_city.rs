@@ -1,5 +1,5 @@
 use glam::IVec3;
-use mcrs_minecraft_core::{BlockPos, BoundingBox, Direction, Mirror};
+use mcrs_minecraft_core::{BoundingBox, Direction, Mirror};
 use mcrs_minecraft_random::worldgen::WorldgenRandom;
 use mcrs_minecraft_worldgen_feature::compile::{BlockResolver, FeatureCompileError};
 use mcrs_minecraft_worldgen_feature::placer::WorldGenVolume;
@@ -8,6 +8,7 @@ use mcrs_minecraft_worldgen_feature_place::entity::{GeneratedEntity, elytra_fram
 use mcrs_minecraft_worldgen_feature_place::template::CompiledChain;
 use mcrs_minecraft_worldgen_structure::frozen::FrozenStructures;
 use mcrs_minecraft_worldgen_structure::piece::EndCityPiece;
+use mcrs_voxel::BlockPos;
 
 use crate::template_piece::seed_container_loot;
 use crate::{ignore_blocks, place_positional};

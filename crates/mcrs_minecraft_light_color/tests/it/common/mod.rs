@@ -2,14 +2,15 @@ use std::sync::{Arc, OnceLock};
 
 use glam::Vec3;
 use mcrs_minecraft_chunk::{VoxelId, VoxelPalette};
+use mcrs_minecraft_core::BoundingBox;
 use mcrs_minecraft_core::voxel_shape::{Aabb, VoxelShape};
-use mcrs_minecraft_core::{BlockPos, BlockStateId, BoundingBox, LocalPos, SectionPos};
 use mcrs_minecraft_light_color::colors::{LightColors, LightType};
 use mcrs_minecraft_light_color::region::{EdgeCosts, Region, Seed, section_bricks, section_output};
 use mcrs_minecraft_light_engine::field::{BlockSnapshot, FieldLayout, LightField, SectionSource};
 use mcrs_minecraft_light_engine::prelude::*;
 use mcrs_minecraft_light_engine::relax;
 use mcrs_minecraft_volume::{Access, Volume, VoxelStore};
+use mcrs_voxel::{BlockPos, BlockStateId, LocalPos, SectionPos};
 use proptest::prelude::*;
 
 pub const AIR: VoxelId = VoxelId(0);

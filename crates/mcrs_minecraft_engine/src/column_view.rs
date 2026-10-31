@@ -10,7 +10,6 @@ use bevy_ecs::schedule::{IntoScheduleConfigs, SystemSet};
 use bevy_ecs::system::{Res, SystemParam};
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_chunk::{BlockLight, SkyLight};
-use mcrs_minecraft_core::{BlockStateId, SectionPos};
 use mcrs_minecraft_engine_world::entity::physics::Transform;
 use mcrs_minecraft_engine_world::entity::player::chunk_view::{
     ChunkTrackingView, PlayerViewDistance, SentChunkView,
@@ -44,6 +43,7 @@ use mcrs_minecraft_protocol::packets::game::serverbound::ServerboundChunkBatchRe
 use mcrs_minecraft_protocol::section::{biome_direct_bits, block_direct_bits};
 use mcrs_minecraft_registries::CurrentRegistries;
 use mcrs_minecraft_volume::{PaletteBuffer, PalettedSection, SectionBlocks};
+use mcrs_voxel::{BlockStateId, SectionPos};
 
 use crate::block_entity_packet::packet_entry;
 use crate::bus::{OutboundPlayerPacket, PacketPayload};

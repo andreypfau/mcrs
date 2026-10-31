@@ -5,7 +5,7 @@ use bevy_app::{App, TaskPoolPlugin};
 use bevy_asset::{AssetPlugin, AssetServer};
 use mcrs_minecraft_block::definition::{BlockDefinitions, Blocks, load_block_definitions};
 use mcrs_minecraft_chunk::VoxelId;
-use mcrs_minecraft_core::BlockStateId;
+use mcrs_voxel::BlockStateId;
 
 /// The corpus, loaded once per process. Worldgen resolves every block it
 /// places against it, so a stub would fail at the first lookup.

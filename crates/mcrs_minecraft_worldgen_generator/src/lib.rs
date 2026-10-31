@@ -26,7 +26,6 @@ use mcrs_minecraft_block::keys::Block;
 use mcrs_minecraft_block_predicate::predicate::HeightmapName;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_chunk::palette::{BiomePalette, BlockPalette};
-use mcrs_minecraft_core::BlockStateId;
 use mcrs_minecraft_core::NarrowError;
 use mcrs_minecraft_heightmap::{HeightmapKinds, HeightmapPredicates};
 use mcrs_minecraft_noise::interval::Interval;
@@ -40,6 +39,7 @@ use mcrs_minecraft_worldgen_density::program::Workspace;
 use mcrs_minecraft_worldgen_density::router::{
     CONTINENTS, DEPTH, EROSION, FINAL_DENSITY, NoiseRouter, RIDGES, TEMPERATURE, VEGETATION,
 };
+use mcrs_voxel::BlockStateId;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::sync::Arc;

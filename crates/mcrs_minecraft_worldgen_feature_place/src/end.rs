@@ -1,11 +1,11 @@
 use glam::IVec3;
-use mcrs_minecraft_core::BlockPos;
 use mcrs_minecraft_core::Direction;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_random::worldgen::WorldgenRandom;
 use mcrs_minecraft_worldgen_feature::placer::WorldGenVolume;
 pub use mcrs_minecraft_worldgen_feature::proto::EndSpike;
+use mcrs_voxel::BlockPos;
 
 use mcrs_minecraft_block_entity::{EndGatewayData, GeneratedBlockEntity};
 use mcrs_minecraft_chunk::VoxelId;

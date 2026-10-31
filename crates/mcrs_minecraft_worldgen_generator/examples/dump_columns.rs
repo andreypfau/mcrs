@@ -5,12 +5,12 @@
     clippy::unwrap_used,
     reason = "an example has no caller to return an error to"
 )]
-use mcrs_minecraft_core::BlockPos;
-use mcrs_minecraft_core::BlockStateId;
-use mcrs_minecraft_core::LocalPos;
 use mcrs_minecraft_worldgen_generator::ColumnBiomes;
 use mcrs_minecraft_worldgen_generator::generate_column;
 use mcrs_minecraft_worldgen_generator::task::CancellationToken;
+use mcrs_voxel::BlockPos;
+use mcrs_voxel::BlockStateId;
+use mcrs_voxel::LocalPos;
 use std::collections::BTreeMap;
 use std::io::Write;
 

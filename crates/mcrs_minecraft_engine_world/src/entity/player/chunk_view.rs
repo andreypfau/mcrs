@@ -1,5 +1,5 @@
 use bevy_ecs::prelude::Component;
-use mcrs_minecraft_core::{ColumnPos, SectionPos};
+use mcrs_voxel::{ColumnPos, SectionPos};
 
 #[derive(Component, Debug, Clone, Copy)]
 pub struct PlayerViewDistance {

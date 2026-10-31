@@ -11,6 +11,7 @@ doctest = false
 workspace = true
 
 [dependencies]
+mcrs_voxel.workspace = true
 mcrs_minecraft_dimension.workspace = true
 bevy_app.workspace = true
 bevy_asset.workspace = true

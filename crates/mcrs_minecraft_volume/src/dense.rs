@@ -1,4 +1,4 @@
-use mcrs_minecraft_core::{BlockStateId, LocalPos, SectionPos};
+use mcrs_voxel::{BlockStateId, LocalPos, SectionPos};
 
 use crate::block::SectionBlocks;
 

@@ -25,8 +25,8 @@ pub mod relax;
 pub mod world;
 
 use mcrs_minecraft_chunk::VoxelPalette;
-use mcrs_minecraft_core::BlockStateId;
-use mcrs_minecraft_core::SectionPos;
+use mcrs_voxel::BlockStateId;
+use mcrs_voxel::SectionPos;
 
 pub use relax::relax;
 

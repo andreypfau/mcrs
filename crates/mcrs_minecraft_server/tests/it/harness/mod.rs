@@ -10,7 +10,6 @@ use bevy_app::{App, FixedPostUpdate, FixedPreUpdate};
 use bevy_ecs::prelude::*;
 use bevy_ecs::schedule::Schedule;
 use bevy_math::DVec3;
-use mcrs_minecraft_core::ColumnPos;
 use mcrs_minecraft_engine::bus::{InboundPlayerDespawn, OutboundPlayerPacket};
 use mcrs_minecraft_engine::column_view::ColumnView;
 use mcrs_minecraft_engine::player_tracker::PlayerTrackerPlugin;
@@ -20,6 +19,7 @@ use mcrs_minecraft_engine_world::entity::physics::Transform;
 use mcrs_minecraft_engine_world::entity::player::Player;
 use mcrs_minecraft_engine_world::entity::player::chunk_view::PlayerViewDistance;
 use mcrs_minecraft_engine_world::world::dimension::InDimension;
+use mcrs_voxel::ColumnPos;
 
 /// Build a host App with the AoI plugin, the outbound bus, and the
 /// `FixedPreUpdate` / `FixedPostUpdate` schedules registered.

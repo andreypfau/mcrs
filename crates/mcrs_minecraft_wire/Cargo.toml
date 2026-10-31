@@ -13,6 +13,11 @@ mcrs_minecraft_wire_macros.workspace = true
 glam = { workspace = true, optional = true }
 serde = { workspace = true, optional = true }
 uuid = { workspace = true, optional = true }
+mcrs_voxel = { workspace = true, optional = true }
+
+[features]
+voxel = ["dep:mcrs_voxel"]
 
 [dev-dependencies]
+mcrs_minecraft_wire = { path = ".", features = ["voxel"] }
 rand.workspace = true

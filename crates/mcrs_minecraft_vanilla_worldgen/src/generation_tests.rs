@@ -10,7 +10,7 @@ use bevy_tasks::TaskPoolBuilder;
 use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_biome::source::MultiNoiseBiomeSource;
 use mcrs_minecraft_chunk::VoxelId;
-use mcrs_minecraft_core::{ColumnPos, ResourceKey, SectionPos};
+use mcrs_minecraft_core::ResourceKey;
 use mcrs_minecraft_engine::heightmap::PendingColumnHeightmaps;
 use mcrs_minecraft_engine_world::palette::ChunkBlocks;
 use mcrs_minecraft_engine_world::world::lifecycle::stage::{SectionStage, SectionStageChanged};
@@ -29,6 +29,7 @@ use mcrs_minecraft_worldgen_generator::tests::ladder::{
 use mcrs_minecraft_worldgen_generator::tests::surface::{
     fill_context as surface_fill_context, overworld_biome_registry, overworld_material_router,
 };
+use mcrs_voxel::{ColumnPos, SectionPos};
 use std::collections::BTreeMap;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -738,8 +739,8 @@ fn a_delivery_carrying_part_of_a_column_still_lays_its_bedrock_floor() {
     use bevy_app::App;
     use bevy_ecs::entity::Entity;
     use mcrs_minecraft_biome::source::BiomeSource;
-    use mcrs_minecraft_core::ColumnPos;
-    use mcrs_minecraft_core::SectionPos;
+    use mcrs_voxel::ColumnPos;
+    use mcrs_voxel::SectionPos;
 
     use crate::chunk_plugin::carried_sections;
     use mcrs_minecraft_worldgen_generator::stages::fill_column;

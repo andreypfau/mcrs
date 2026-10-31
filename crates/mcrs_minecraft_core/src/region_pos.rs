@@ -1,4 +1,4 @@
-use crate::ColumnPos;
+use mcrs_voxel::ColumnPos;
 
 /// A region file: 32 by 32 columns.
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
@@ -14,6 +14,16 @@ impl RegionPos {
 
     pub const fn new(x: i32, z: i32) -> Self {
         Self { x, z }
+    }
+
+    /// The x of `column` within its region.
+    pub const fn local_x(column: ColumnPos) -> i32 {
+        column.x & Self::MASK as i32
+    }
+
+    /// The z of `column` within its region.
+    pub const fn local_z(column: ColumnPos) -> i32 {
+        column.z & Self::MASK as i32
     }
 
     pub const fn column_at(self, local_x: i32, local_z: i32) -> ColumnPos {
@@ -39,7 +49,10 @@ mod tests {
         let column = ColumnPos::new(-1, 33);
         let region = RegionPos::from(column);
         assert_eq!(region, RegionPos::new(-1, 1));
-        assert_eq!((column.region_local_x(), column.region_local_z()), (31, 1));
+        assert_eq!(
+            (RegionPos::local_x(column), RegionPos::local_z(column)),
+            (31, 1)
+        );
         assert_eq!(region.column_at(31, 1), column);
     }
 }

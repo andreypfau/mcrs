@@ -6,7 +6,7 @@ use bevy_app::{App, Last, Plugin};
 use bevy_ecs::prelude::*;
 use bevy_ecs::system::SystemParam;
 use bevy_tasks::{AsyncComputeTaskPool, Task, available_parallelism, block_on, poll_once};
-use mcrs_minecraft_core::{BlockPos, ColumnPos};
+use mcrs_voxel::{BlockPos, ColumnPos};
 
 use mcrs_minecraft_chunk::{BlockLight, SkyLight};
 use mcrs_minecraft_core::BoundingBox;

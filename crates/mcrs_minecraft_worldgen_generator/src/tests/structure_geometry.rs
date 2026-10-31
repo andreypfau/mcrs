@@ -6,7 +6,7 @@ use glam::IVec3;
 use mcrs_minecraft_block_entity::GeneratedBlockEntity;
 use mcrs_minecraft_block_predicate::predicate::HeightmapName;
 use mcrs_minecraft_chunk::VoxelId;
-use mcrs_minecraft_core::{BlockPos, BoundingBox, ColumnPos, ResourceLocation};
+use mcrs_minecraft_core::{BoundingBox, ResourceLocation};
 use mcrs_minecraft_fixtures::fixture;
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::to_nbt_compound;
@@ -21,6 +21,7 @@ use mcrs_minecraft_worldgen_structure::frozen::{FrozenStructures, StructureKind}
 use mcrs_minecraft_worldgen_structure::piece::Start;
 use mcrs_minecraft_worldgen_structure::site::{BaseColumn, Context, SiteWorld, layout, site};
 use mcrs_minecraft_worldgen_testing::dump_string;
+use mcrs_voxel::{BlockPos, ColumnPos};
 
 use super::corpus_state_of;
 use super::structure_pieces::{read_box, read_nbt};

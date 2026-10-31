@@ -6,9 +6,9 @@ use mcrs_minecraft_block::definition::schema::{BlockProperty, PropertyValue};
 use mcrs_minecraft_block::keys::BLOCK;
 use mcrs_minecraft_command::{Identifier, Source, SpannedIdentifier, read_identifier};
 use mcrs_minecraft_command_argument::ResourceOrTag;
-use mcrs_minecraft_core::BlockStateId;
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_snbt::{check_compound, read_compound};
+use mcrs_voxel::BlockStateId;
 
 /// The value of a `block_predicate`. The property list and the data compound stay text and are
 /// read again by the test, so the value borrows the command line and owns nothing.

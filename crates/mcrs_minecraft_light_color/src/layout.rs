@@ -1,4 +1,4 @@
-use mcrs_minecraft_core::SectionPos;
+use mcrs_voxel::SectionPos;
 
 use crate::colors::{LightColors, LightType};
 use crate::region::{REACH, SectionBricks, section_output};

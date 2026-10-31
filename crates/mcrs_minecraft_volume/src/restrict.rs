@@ -1,6 +1,7 @@
 use std::ops::{Deref, DerefMut};
 
-use mcrs_minecraft_core::{BoundingBox, SectionPos};
+use mcrs_minecraft_core::BoundingBox;
+use mcrs_voxel::SectionPos;
 
 use crate::access::{Access, Denied, Unavailable, Volume};
 use crate::block::{BlockVolume, BlockVolumeMut};

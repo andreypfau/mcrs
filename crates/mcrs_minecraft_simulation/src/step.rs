@@ -8,8 +8,8 @@ use crate::output::{StepError, StepOutput};
 use crate::policy::OrderingPolicy;
 use crate::shard::{BlockShard, Env, Phase, PhaseInput, StepAt};
 use crate::tick_queue::Kinds;
-use mcrs_minecraft_core::SectionPos;
 use mcrs_minecraft_volume::{Access, Volume};
+use mcrs_voxel::SectionPos;
 use rustc_hash::FxHashMap;
 use std::mem::take;
 

@@ -1,4 +1,4 @@
-use mcrs_minecraft_core::{BlockPos, LocalPos, SectionPos};
+use mcrs_voxel::{BlockPos, LocalPos, SectionPos};
 
 pub(crate) type SectionOrder = (i32, i32, i32);
 

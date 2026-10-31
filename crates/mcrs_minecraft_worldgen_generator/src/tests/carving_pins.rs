@@ -6,11 +6,11 @@ use mcrs_minecraft_biome::overworld_preset::{nether_parameter_list, overworld_pa
 use mcrs_minecraft_biome::parameter_list::Preset;
 use mcrs_minecraft_biome::source::{BiomeSource, MultiNoiseBiomeSource};
 use mcrs_minecraft_chunk::VoxelId;
-use mcrs_minecraft_core::ColumnPos;
 use mcrs_minecraft_registries::Registries;
 use mcrs_minecraft_worldgen_carver::mask::CarvingMask;
 use mcrs_minecraft_worldgen_density::program::Workspace;
 use mcrs_minecraft_worldgen_density::router::NoiseRouter;
+use mcrs_voxel::ColumnPos;
 
 use super::carvers_of;
 use super::surface::fill_context;

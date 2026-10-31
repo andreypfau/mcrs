@@ -1,8 +1,8 @@
 use std::borrow::Cow;
 
 use mcrs_minecraft_block::keys::Fluid;
-use mcrs_minecraft_core::{BlockPos, ColumnPos};
 use mcrs_minecraft_nbt::tag::NbtTag;
+use mcrs_voxel::{BlockPos, ColumnPos};
 use serde::de::IntoDeserializer;
 use serde::de::value::{Error as ValueError, StrDeserializer};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};

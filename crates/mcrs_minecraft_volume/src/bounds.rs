@@ -1,5 +1,6 @@
 use crate::visit::VisitOrder;
-use mcrs_minecraft_core::{BoundingBox, SectionPos};
+use mcrs_minecraft_core::BoundingBox;
+use mcrs_voxel::SectionPos;
 
 /// An inclusive box of sections; empty when `min` exceeds `max` on any axis.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]

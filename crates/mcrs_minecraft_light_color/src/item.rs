@@ -7,12 +7,12 @@ use mcrs_minecraft_block::definition::{BlockDefinitions, BlockEntry};
 use mcrs_minecraft_block::keys::Fluid;
 use mcrs_minecraft_block::keys::fluid_tags::WATER;
 use mcrs_minecraft_chunk::VoxelId;
-use mcrs_minecraft_core::BlockStateId;
 use mcrs_minecraft_core::Id;
 use mcrs_minecraft_core::{ResourceLocation, TagKey, rl};
 use mcrs_minecraft_item::ItemDefinitions;
 use mcrs_minecraft_item::keys::Item;
 use mcrs_minecraft_registries::Registries;
+use mcrs_voxel::BlockStateId;
 use serde::{Deserialize, Deserializer, Serialize, de};
 
 use crate::asset::{BlockStateRef, StateTarget};

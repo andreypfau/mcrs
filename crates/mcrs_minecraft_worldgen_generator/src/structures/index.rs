@@ -1,5 +1,6 @@
-use mcrs_minecraft_core::{BlockPos, BoundingBox, ColumnPos};
+use mcrs_minecraft_core::BoundingBox;
 use mcrs_minecraft_core::{Id, ResourceKey};
+use mcrs_voxel::{BlockPos, ColumnPos};
 use std::collections::HashMap;
 use std::ops::Range;
 use std::sync::{Arc, Mutex, OnceLock};

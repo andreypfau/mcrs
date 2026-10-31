@@ -5,8 +5,9 @@ use crate::output::ChainLedger;
 use crate::shard::ChainLimit;
 use crate::tick_queue::Kinds;
 use crate::{BlockUpdateFlags, SimulationVolume};
-use mcrs_minecraft_core::{BlockPos, BlockStateId, Direction, SectionPos};
+use mcrs_minecraft_core::Direction;
 use mcrs_minecraft_volume::Access;
+use mcrs_voxel::{BlockPos, BlockStateId, SectionPos};
 
 use Direction::{Down, East, North, South, Up, West};
 

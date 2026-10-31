@@ -1,4 +1,4 @@
-use mcrs_minecraft_core::BlockPos;
+use mcrs_voxel::BlockPos;
 
 use crate::access::{Unavailable, Volume};
 

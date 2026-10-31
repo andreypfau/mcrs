@@ -3,11 +3,11 @@ use std::sync::Arc;
 use crate::fixture::{AIR, TORCH, filled, registry, state};
 use bevy_app::{App, TaskPoolPlugin};
 use mcrs_minecraft_chunk::{BlockLight, SkyLight};
-use mcrs_minecraft_core::SectionPos;
 use mcrs_minecraft_light_engine::prelude::*;
 use mcrs_minecraft_vanilla_light::{
     IntakeBudget, LightEpoch, LightPlugin, LightSet, LightWorkQueue, Lighting, PendingEdits,
 };
+use mcrs_voxel::SectionPos;
 
 fn settle(app: &mut App) {
     for _ in 0..1000 {
@@ -53,7 +53,7 @@ fn a_torch_lights_its_neighbour_through_the_plugin() {
     app.world_mut()
         .resource_mut::<PendingEdits>()
         .push(Edit::SetBlock {
-            pos: mcrs_minecraft_core::BlockPos::new(8, 8, 8),
+            pos: mcrs_voxel::BlockPos::new(8, 8, 8),
             block: state(TORCH),
         });
     settle(&mut app);
@@ -172,7 +172,7 @@ fn intake_is_bounded_per_tick_and_loses_nothing() {
 fn a_block_change_is_not_deferred_behind_a_bulk_load() {
     let mut app = budgeted_app();
     let limit = app.world().resource::<IntakeBudget>().columns_per_tick;
-    let pos = mcrs_minecraft_core::BlockPos::new(8, 8, 8);
+    let pos = mcrs_voxel::BlockPos::new(8, 8, 8);
     load_columns(&mut app, 1);
     app.update();
 

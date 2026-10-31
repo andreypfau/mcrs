@@ -1,7 +1,8 @@
 use crate::SimulationVolume;
 use crate::cx::Cx;
 use crate::tick_queue::Kinds;
-use mcrs_minecraft_core::{BlockPos, BlockStateId, Direction};
+use mcrs_minecraft_core::Direction;
+use mcrs_voxel::{BlockPos, BlockStateId};
 
 pub trait BlockFacts<K: Kinds> {
     fn block_of(&self, state: BlockStateId) -> K::Block;

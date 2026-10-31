@@ -3,10 +3,10 @@ use bevy_app::{FixedPostUpdate, FixedUpdate, Plugin};
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::{Message, MessageReader, MessageWriter, Messages};
 use bevy_ecs::schedule::{IntoScheduleConfigs, SystemSet};
-use mcrs_minecraft_core::SectionPos;
-use mcrs_minecraft_core::{BlockPos, BlockStateId};
 use mcrs_minecraft_simulation::BlockUpdateFlags;
 use mcrs_minecraft_volume::BlockVolumeMut;
+use mcrs_voxel::SectionPos;
+use mcrs_voxel::{BlockPos, BlockStateId};
 
 #[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
 pub enum VoxelUpdateSet {

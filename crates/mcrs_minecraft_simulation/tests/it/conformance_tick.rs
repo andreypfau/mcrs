@@ -1,10 +1,10 @@
 use crate::probe::*;
-use mcrs_minecraft_core::{BlockPos, BlockStateId};
 use mcrs_minecraft_simulation::{
     BlockEvent, BlockUpdateFlags, GameTick, Message, MessageBody, Phase, SectionProperties,
     StepOutput, StepReport, TickPriority,
 };
 use mcrs_minecraft_volume::{Access, Unavailable};
+use mcrs_voxel::{BlockPos, BlockStateId};
 
 fn hook_times(log: &[Entry], hook: Hook, pos: BlockPos) -> Vec<i64> {
     log.iter()

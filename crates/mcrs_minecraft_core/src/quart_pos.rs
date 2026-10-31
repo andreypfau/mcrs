@@ -1,4 +1,4 @@
-use crate::{BlockPos, ColumnPos, SectionPos};
+use mcrs_voxel::{BlockPos, ColumnPos, SectionPos};
 
 /// A biome cell: 4 by 4 by 4 blocks.
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]

@@ -1,12 +1,12 @@
 use crate::ore_vein_parity::{MIN_Y, stone_world};
 use mcrs_minecraft_chunk::VoxelId;
-use mcrs_minecraft_core::BlockPos;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::worldgen::WorldgenRandom;
 use mcrs_minecraft_worldgen_feature::placer::Rule;
 use mcrs_minecraft_worldgen_feature_place::ore_modern::{
     CompiledOre, OreReplacement, OreScratch, place_modern_ore,
 };
+use mcrs_voxel::BlockPos;
 
 /// The probe box is the one thing the flat-world dump cannot pin, because the
 /// oracle stands `getHeight` in for a constant. At size 20 from (0, 64, 0) the

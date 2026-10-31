@@ -7,12 +7,12 @@
 use std::sync::Arc;
 
 use mcrs_minecraft_chunk::VoxelId;
-use mcrs_minecraft_core::BlockPos;
-use mcrs_minecraft_core::BlockStateId;
-use mcrs_minecraft_core::ColumnPos;
-use mcrs_minecraft_core::SectionPos;
 use mcrs_minecraft_volume::{Access, BlockVolume, BlockVolumeMut, Denied, Unavailable, Volume};
 use mcrs_minecraft_worldgen_feature::placer::WorldGenVolume;
+use mcrs_voxel::BlockPos;
+use mcrs_voxel::BlockStateId;
+use mcrs_voxel::ColumnPos;
+use mcrs_voxel::SectionPos;
 
 use crate::ColumnBlocks;
 use crate::stages::ColumnRegion;

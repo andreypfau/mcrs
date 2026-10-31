@@ -1,6 +1,6 @@
 use glam::IVec3;
 use mcrs_minecraft_chunk::VoxelId;
-use mcrs_minecraft_core::{BlockPos, BoundingBox};
+use mcrs_minecraft_core::BoundingBox;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::worldgen::WorldgenRandom;
 use mcrs_minecraft_worldgen_feature::compile::{BlockResolver, FeatureCompileError};
@@ -9,6 +9,7 @@ use mcrs_minecraft_worldgen_feature_place::entity;
 use mcrs_minecraft_worldgen_structure::orient::{Orientation, world_pos};
 use mcrs_minecraft_worldgen_structure::piece::DesertPyramidPiece;
 use mcrs_minecraft_worldgen_structure::spawn_condition::{SpawnContext, VariantTables};
+use mcrs_voxel::BlockPos;
 
 use crate::canvas::{ChestStates, PieceCanvas, replaceable_by_structures};
 use crate::{Oriented, state};

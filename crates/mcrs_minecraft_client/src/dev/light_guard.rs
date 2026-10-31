@@ -15,9 +15,9 @@ use bevy::platform::collections::{HashMap, HashSet};
 use bevy::prelude::*;
 use bevy::tasks::{AsyncComputeTaskPool, Task, futures::check_ready};
 use mcrs_minecraft_block::definition::{BlockStateFlags, Blocks};
-use mcrs_minecraft_core::ColumnPos;
-use mcrs_minecraft_core::{BlockPos, BlockStateId};
 use mcrs_minecraft_volume::{BlockVolume, LightVolume};
+use mcrs_voxel::ColumnPos;
+use mcrs_voxel::{BlockPos, BlockStateId};
 
 use super::knobs::Guard;
 
