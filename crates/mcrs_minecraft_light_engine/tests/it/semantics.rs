@@ -13,7 +13,7 @@ fn combined(world: &LightWorld, pos: BlockPos, sky_darken: u8) -> u8 {
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_chunk::{LightLayer, LightStorage};
 use mcrs_minecraft_core::{BlockPos, SectionPos};
-use mcrs_minecraft_light::prelude::*;
+use mcrs_minecraft_light_engine::prelude::*;
 
 #[test]
 fn block_light_dims_by_one_per_step() {

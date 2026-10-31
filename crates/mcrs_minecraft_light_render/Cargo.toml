@@ -1,5 +1,5 @@
 [package]
-name = "mcrs_minecraft_render_light_color"
+name = "mcrs_minecraft_light_render"
 description = "Coloured block light for the lighting pass: a paged light volume propagated on the GPU"
 version.workspace = true
 edition.workspace = true

@@ -10,11 +10,11 @@ use mcrs_minecraft_core::{BlockPos, ColumnPos};
 
 use mcrs_minecraft_chunk::{BlockLight, SkyLight};
 use mcrs_minecraft_core::BoundingBox;
-use mcrs_minecraft_light::block::LightRegistry;
-use mcrs_minecraft_light::epoch::LightUpdate;
-use mcrs_minecraft_light::level::{LightBounds, SECTION_WIDTH};
-use mcrs_minecraft_light::queue::{DEFAULT_PRIORITY, LightQueue, Priority, PriorityColumns};
-use mcrs_minecraft_light::world::{Edit, LightWorld};
+use mcrs_minecraft_light_engine::block::LightRegistry;
+use mcrs_minecraft_light_engine::epoch::LightUpdate;
+use mcrs_minecraft_light_engine::level::{LightBounds, SECTION_WIDTH};
+use mcrs_minecraft_light_engine::queue::{DEFAULT_PRIORITY, LightQueue, Priority, PriorityColumns};
+use mcrs_minecraft_light_engine::world::{Edit, LightWorld};
 
 /// Owns the block and light data. The ECS holds only what has been published.
 #[derive(Resource)]

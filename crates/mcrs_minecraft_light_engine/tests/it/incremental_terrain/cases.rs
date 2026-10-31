@@ -4,7 +4,7 @@ use crate::common::{AIR, Reference, STONE, registry, state};
 use mcrs_minecraft_chunk::{PalettedContainer, VoxelPalette};
 use mcrs_minecraft_core::{BlockPos, BoundingBox, ColumnPos, SectionPos};
 use mcrs_minecraft_chunk::LightLayer;
-use mcrs_minecraft_light::prelude::*;
+use mcrs_minecraft_light_engine::prelude::*;
 
 fn bounds() -> LightBounds {
     LightBounds::new(0, SECTIONS_Y - 1)

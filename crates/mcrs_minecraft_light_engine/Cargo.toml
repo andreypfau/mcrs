@@ -1,6 +1,6 @@
 [package]
-name = "mcrs_minecraft_light"
-description = "mcrs_minecraft_light"
+name = "mcrs_minecraft_light_engine"
+description = "Block and sky light propagation over sections, without Bevy"
 version.workspace = true
 edition.workspace = true
 

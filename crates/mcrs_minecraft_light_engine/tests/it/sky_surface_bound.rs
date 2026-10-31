@@ -8,7 +8,7 @@ use crate::common::{
     AIR, BOTTOM_SLAB, GLASS, LEAVES, Reference, STONE, TOP_SLAB, filled, registry, state,
 };
 use mcrs_minecraft_core::{BlockPos, ColumnPos, SectionPos};
-use mcrs_minecraft_light::prelude::*;
+use mcrs_minecraft_light_engine::prelude::*;
 
 const SECTIONS_Y: i32 = 5;
 

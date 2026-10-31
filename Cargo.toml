@@ -124,7 +124,7 @@ mcrs_minecraft_server = { path = "crates/mcrs_minecraft_server" }
 mcrs_minecraft_client = { path = "crates/mcrs_minecraft_client", default-features = false }
 mcrs_minecraft_mesh = { path = "crates/mcrs_minecraft_mesh" }
 mcrs_minecraft_render = { path = "crates/mcrs_minecraft_render" }
-mcrs_minecraft_render_light_color = { path = "crates/mcrs_minecraft_render_light_color" }
+mcrs_minecraft_light_render = { path = "crates/mcrs_minecraft_light_render" }
 mcrs_minecraft_render_probe = { path = "crates/mcrs_minecraft_render_probe" }
 mcrs_minecraft_client_jar = { path = "crates/mcrs_minecraft_client_jar" }
 mcrs_minecraft_worldgen = { path = "crates/mcrs_minecraft_worldgen", default-features = false }
@@ -141,7 +141,7 @@ mcrs_minecraft_worldgen_carver = { path = "crates/mcrs_minecraft_worldgen_carver
 mcrs_minecraft_worldgen_structure = { path = "crates/mcrs_minecraft_worldgen_structure" }
 mcrs_minecraft_worldgen_structure_place = { path = "crates/mcrs_minecraft_worldgen_structure_place" }
 mcrs_minecraft_random = { path = "crates/mcrs_minecraft_random" }
-mcrs_minecraft_light = { path = "crates/mcrs_minecraft_light", default-features = false }
+mcrs_minecraft_light_engine = { path = "crates/mcrs_minecraft_light_engine", default-features = false }
 mcrs_minecraft_light_color = { path = "crates/mcrs_minecraft_light_color", default-features = false }
 mcrs_minecraft_vanilla_light = { path = "crates/mcrs_minecraft_vanilla_light" }
 mcrs_minecraft_vanilla_worldgen = { path = "crates/mcrs_minecraft_vanilla_worldgen" }
@@ -281,7 +281,7 @@ opt-level = 3
 
 # The light engine runs a frontier relaxation over millions of cells every time
 # a column arrives, so it belongs with the other per-column hot paths.
-[profile.dev.package."mcrs_minecraft_light"]
+[profile.dev.package."mcrs_minecraft_light_engine"]
 opt-level = 3
 
 # Edge costs sweep about a hundred thousand cells per region in every oracle

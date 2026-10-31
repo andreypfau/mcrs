@@ -14,7 +14,7 @@ use std::time::{Duration, Instant};
 use bevy_app::{App, TaskPoolPlugin};
 use mcrs_minecraft_chunk::{PalettedContainer, VoxelId, VoxelPalette};
 use mcrs_minecraft_core::{BlockStateId, ColumnPos, SectionPos};
-use mcrs_minecraft_light::prelude::*;
+use mcrs_minecraft_light_engine::prelude::*;
 use mcrs_minecraft_vanilla_light::{
     IntakeBudget, LightBudget, LightEpoch, LightPlugin, LightWorkQueue, PendingEdits,
 };

@@ -460,9 +460,9 @@ fn the_column_under_the_player_is_lit_before_the_far_ones() {
 fn a_column_is_not_sent_while_a_neighbour_still_has_lighting_work() {
     use bevy_ecs::prelude::World;
     use bevy_ecs::system::RunSystemOnce;
-    use mcrs_minecraft_light::block::{LightProperties, LightRegistry, SpecialBlocks};
-    use mcrs_minecraft_light::prelude::{Influence, LightBounds};
-    use mcrs_minecraft_light::world::LightWorld;
+    use mcrs_minecraft_light_engine::block::{LightProperties, LightRegistry, SpecialBlocks};
+    use mcrs_minecraft_light_engine::prelude::{Influence, LightBounds};
+    use mcrs_minecraft_light_engine::world::LightWorld;
     use mcrs_minecraft_vanilla_light::{
         LightEpoch, LightStatus, LightWorkQueue, Lighting, PendingEdits,
     };

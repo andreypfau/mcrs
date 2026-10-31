@@ -66,7 +66,7 @@ bevy_ecs = { workspace = true, features = ["multi_threaded"] }
 bevy_asset = { workspace = true, features = ["multi_threaded"] }
 
 [dev-dependencies]
-mcrs_minecraft_light = { workspace = true, features = ["bevy"] }
+mcrs_minecraft_light_engine = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_command_tree.workspace = true
 mcrs_command.workspace = true
 mcrs_minecraft_command_argument_vanilla.workspace = true

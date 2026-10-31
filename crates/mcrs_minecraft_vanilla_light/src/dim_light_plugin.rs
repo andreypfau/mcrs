@@ -19,8 +19,8 @@ use mcrs_minecraft_level::world::light_gate::{
     ColumnAwaitsLight, ColumnLightGate, ColumnLightSettled, LightGated,
 };
 use mcrs_minecraft_level::world::storage::column::{ColumnIndex, ColumnPosComponent};
-use mcrs_minecraft_light::block::LightRegistry;
-use mcrs_minecraft_light::prelude::{Edit, LightBounds, Priority};
+use mcrs_minecraft_light_engine::block::LightRegistry;
+use mcrs_minecraft_light_engine::prelude::{Edit, LightBounds, Priority};
 
 use crate::light_plugin::{
     LightPlugin, LightSet, LightStatus, LightWorkQueue, Lighting, PendingEdits, SectionRelit,

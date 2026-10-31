@@ -6,7 +6,7 @@ use mcrs_minecraft_dimension::Dimension;
 use mcrs_minecraft_engine::heightmap::BlockHeightmapPredicates;
 use mcrs_minecraft_environment::world_clock::{WorldClock, WorldClocks};
 use mcrs_minecraft_level::world::sub_app::DimSpawnQueue;
-use mcrs_minecraft_light::block_light::BlockLightRegistry;
+use mcrs_minecraft_light_engine::block_light::BlockLightRegistry;
 use mcrs_minecraft_protocol::uuid::Uuid;
 use mcrs_minecraft_registries::CurrentRegistries;
 use mcrs_minecraft_server::{DimensionWorldsPlugin, MinecraftServerPlugins};

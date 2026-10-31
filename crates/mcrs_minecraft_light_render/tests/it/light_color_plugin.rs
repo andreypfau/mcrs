@@ -1,8 +1,8 @@
 use bevy::app::{App, TaskPoolPlugin};
 use bevy::asset::AssetPlugin;
 use mcrs_minecraft_light_color::colors::LightColors;
+use mcrs_minecraft_light_render::{HeldItemLights, LightColorPlugin};
 use mcrs_minecraft_registries::CurrentRegistries;
-use mcrs_minecraft_render_light_color::{HeldItemLights, LightColorPlugin};
 use mcrs_minecraft_world::item::test_corpus;
 use mcrs_minecraft_world::registry_load::test_registries;
 

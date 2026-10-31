@@ -1,7 +1,7 @@
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::{BlockPos, Direction, LocalPos, SectionPos};
-use mcrs_minecraft_light::block::LightRegistry;
-use mcrs_minecraft_light::level::LightBounds;
+use mcrs_minecraft_light_engine::block::LightRegistry;
+use mcrs_minecraft_light_engine::level::LightBounds;
 use mcrs_minecraft_volume::{BlockVolume, SectionBlocks};
 
 use crate::colors::{LightColors, LightType};

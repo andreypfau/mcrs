@@ -6,18 +6,18 @@ use bevy::prelude::*;
 use bevy::tasks::{AsyncComputeTaskPool, Task, futures::check_ready};
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_core::{ColumnPos, SectionPos};
-use mcrs_minecraft_light::block::LightRegistry;
-use mcrs_minecraft_light::block_light::block_light_registry;
-use mcrs_minecraft_light::level::LightBounds;
 use mcrs_minecraft_light_color::colors::LightColors;
 use mcrs_minecraft_light_color::layout::{
     Emitter, PackedBrick, lanes, neighbours, pack, reaching_types,
 };
 use mcrs_minecraft_light_color::region::section_bricks;
-use mcrs_minecraft_render::CameraOrigin;
-use mcrs_minecraft_render_light_color::{
+use mcrs_minecraft_light_engine::block::LightRegistry;
+use mcrs_minecraft_light_engine::block_light::block_light_registry;
+use mcrs_minecraft_light_engine::level::LightBounds;
+use mcrs_minecraft_light_render::{
     LightColorPlugin, LightVolumeRenderPlugin, VolumeCommand, VolumeQueue, VolumeSettings,
 };
+use mcrs_minecraft_render::CameraOrigin;
 
 use crate::Unsettled;
 use crate::columns::{ClientTerrainSet, Column, ColumnChange, ColumnStore, Columns, Extent};

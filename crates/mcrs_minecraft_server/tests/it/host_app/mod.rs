@@ -33,7 +33,7 @@ use mcrs_minecraft_level::session::{Place, PlayerSession, PlayerSessionCounter, 
 use mcrs_minecraft_level::world::sub_app::{
     DimAppLabel, DimDespawnQueue, DimSpawnQueue, DimSpawnRequest,
 };
-use mcrs_minecraft_light::block_light::{BlockLightRegistry, block_light_registry};
+use mcrs_minecraft_light_engine::block_light::{BlockLightRegistry, block_light_registry};
 use mcrs_minecraft_network::ConnectionState;
 use mcrs_minecraft_network::metrics::PacketDispatcher;
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundLogin;

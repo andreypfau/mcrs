@@ -379,7 +379,7 @@ with "wanted" replaced by "wanted or within two of a wanted column".
 writes into it afterwards.** By Q1, when `U` is delivered every unit that can
 write into `U` has run and its delta has been merged. This closes the hole that
 §13 of `worldgen.md` describes: light reads its neighbours at radius one
-(`crates/mcrs_minecraft_light/src/epoch.rs`, `of`), and every neighbour it can see is either delivered — and
+(`crates/mcrs_minecraft_light_engine/src/epoch.rs`, `of`), and every neighbour it can see is either delivered — and
 so final — or absent, which the light code already treats as "not yet"
 (`light.rs` seeds on a section landing in `Loaded` and re-seeds seams as
 neighbours arrive). No radius-two dependency on light is declared, and the

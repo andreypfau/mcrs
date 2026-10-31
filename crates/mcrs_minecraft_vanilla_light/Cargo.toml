@@ -17,7 +17,7 @@ mcrs_minecraft_core = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_engine.workspace = true
 mcrs_minecraft_heightmap = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_level.workspace = true
-mcrs_minecraft_light = { workspace = true, features = ["bevy"] }
+mcrs_minecraft_light_engine = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_protocol.workspace = true
 bevy_app.workspace = true
 bevy_ecs.workspace = true

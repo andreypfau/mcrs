@@ -14,7 +14,7 @@ mcrs_minecraft_dimension.workspace = true
 mcrs_minecraft_mesh.workspace = true
 mcrs_minecraft_volume.workspace = true
 mcrs_minecraft_render.workspace = true
-mcrs_minecraft_render_light_color.workspace = true
+mcrs_minecraft_light_render.workspace = true
 mcrs_minecraft_render_probe.workspace = true
 mcrs_minecraft_random.workspace = true
 mcrs_minecraft_noise.workspace = true
@@ -27,7 +27,7 @@ mcrs_minecraft_item = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_environment = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_assets.workspace = true
 mcrs_minecraft_datapack.workspace = true
-mcrs_minecraft_light.workspace = true
+mcrs_minecraft_light_engine.workspace = true
 mcrs_minecraft_light_color = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_client_jar.workspace = true
 bevy = { version = "0.19.1", default-features = false, features = [
