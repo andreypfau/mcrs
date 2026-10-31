@@ -15,7 +15,7 @@ mcrs_minecraft_value_provider.workspace = true
 mcrs_minecraft_registries.workspace = true
 bevy_asset = { workspace = true, optional = true }
 bevy_ecs = { workspace = true, optional = true }
-bevy_math.workspace = true
+glam.workspace = true
 bevy_platform = { workspace = true, optional = true }
 bitflags = "2"
 mcrs_minecraft_assets = { workspace = true, optional = true }

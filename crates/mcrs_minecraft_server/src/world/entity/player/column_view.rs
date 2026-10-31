@@ -1,6 +1,3 @@
-use crate::world::light_codec::{
-    LightCodecParams, build_full_light_data, build_fullbright_light_data,
-};
 use bevy_app::{App, FixedUpdate, Plugin};
 use bevy_ecs::change_detection::ResMut;
 use bevy_ecs::entity::Entity;
@@ -28,6 +25,9 @@ use mcrs_minecraft_level::world::storage::column::{
 };
 use mcrs_minecraft_level::world::storage::section::SectionIndex;
 use mcrs_minecraft_light::{BlockLight, SkyLight};
+use mcrs_minecraft_light_plugin::{
+    LightCodecParams, build_full_light_data, build_fullbright_light_data,
+};
 use mcrs_minecraft_network::event::Received;
 use mcrs_minecraft_protocol::ColumnPos;
 use mcrs_minecraft_protocol::VarInt;

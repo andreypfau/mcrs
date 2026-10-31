@@ -18,7 +18,7 @@ mcrs_minecraft_render_light_color.workspace = true
 mcrs_minecraft_render_probe.workspace = true
 mcrs_minecraft_random.workspace = true
 mcrs_minecraft_noise.workspace = true
-mcrs_minecraft_registries.workspace = true
+mcrs_minecraft_registries = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_biome.workspace = true
 mcrs_minecraft_biome_file.workspace = true
 mcrs_minecraft_dimension_environment = { workspace = true, features = ["bevy"] }
@@ -80,6 +80,7 @@ bevy = { version = "0.19.1", default-features = false, features = ["file_watcher
 # Singleplayer is a server of our own on a loopback port, as it is in vanilla.
 mcrs_minecraft_server = { workspace = true, optional = true }
 mcrs_minecraft_engine = { workspace = true, optional = true }
+mcrs_minecraft_light_plugin = { workspace = true, optional = true }
 tracing-tracy = { version = "0.12", optional = true }
 
 [target.'cfg(target_os = "linux")'.dependencies]
@@ -97,7 +98,7 @@ web-sys = { version = "0.3", features = ["Window", "Location", "UrlSearchParams"
 
 [features]
 default = ["singleplayer", "dev"]
-singleplayer = ["dep:mcrs_minecraft_server", "dep:mcrs_minecraft_engine"]
+singleplayer = ["dep:mcrs_minecraft_server", "dep:mcrs_minecraft_engine", "dep:mcrs_minecraft_light_plugin"]
 dev = []
 # Bevy links as a shared library instead of being statically relinked into every
 # client rebuild. Dev loop only; it is not a shape we ship.

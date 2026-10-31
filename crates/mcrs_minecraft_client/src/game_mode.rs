@@ -1,6 +1,6 @@
+use crate::joined_game::JoinedGame;
 use bevy::prelude::*;
 use mcrs_minecraft_game_mode::GameMode;
-use mcrs_minecraft_network::client::JoinedGame;
 use mcrs_minecraft_network::event::Received;
 use mcrs_minecraft_protocol::entity::player::PlayerSpawnInfo;
 use mcrs_minecraft_protocol::game_event::GameEventKind;

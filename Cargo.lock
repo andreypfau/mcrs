@@ -3465,6 +3465,7 @@ dependencies = [
  "mcrs_minecraft_dimension",
  "mcrs_minecraft_dimension_environment",
  "mcrs_minecraft_fixtures",
+ "mcrs_minecraft_light_plugin",
  "mcrs_minecraft_network",
  "mcrs_minecraft_registries",
  "mcrs_minecraft_server",
@@ -3543,9 +3544,9 @@ dependencies = [
  "bevy_app",
  "bevy_asset",
  "bevy_ecs",
- "bevy_math",
  "bevy_platform",
  "bitflags 2.10.0",
+ "glam",
  "mcrs_minecraft_assets",
  "mcrs_minecraft_block",
  "mcrs_minecraft_core",
@@ -3676,6 +3677,7 @@ dependencies = [
  "mcrs_minecraft_level",
  "mcrs_minecraft_light",
  "mcrs_minecraft_light_color",
+ "mcrs_minecraft_light_plugin",
  "mcrs_minecraft_mesh",
  "mcrs_minecraft_nbt",
  "mcrs_minecraft_network",
@@ -3891,8 +3893,8 @@ name = "mcrs_minecraft_core"
 version = "0.5.8"
 dependencies = [
  "bevy_ecs",
- "bevy_math",
  "derive_more",
+ "glam",
  "mcrs_minecraft_nbt",
  "mcrs_minecraft_snbt",
  "mcrs_minecraft_wire",
@@ -4125,8 +4127,8 @@ dependencies = [
  "bevy_app",
  "bevy_asset",
  "bevy_ecs",
- "bevy_math",
  "bevy_tasks",
+ "glam",
  "mcrs_minecraft_block",
  "mcrs_minecraft_chunk",
  "mcrs_minecraft_core",
@@ -4143,7 +4145,7 @@ dependencies = [
  "bevy_app",
  "bevy_asset",
  "bevy_ecs",
- "bevy_math",
+ "glam",
  "mcrs_minecraft_assets",
  "mcrs_minecraft_block",
  "mcrs_minecraft_chunk",
@@ -4162,6 +4164,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "mcrs_minecraft_light_plugin"
+version = "0.5.8"
+dependencies = [
+ "bevy_app",
+ "bevy_ecs",
+ "mcrs_minecraft_block",
+ "mcrs_minecraft_chunk",
+ "mcrs_minecraft_core",
+ "mcrs_minecraft_engine",
+ "mcrs_minecraft_heightmap",
+ "mcrs_minecraft_level",
+ "mcrs_minecraft_light",
+ "mcrs_minecraft_protocol",
+ "rustc-hash 2.1.1",
+ "smallvec",
+]
+
+[[package]]
 name = "mcrs_minecraft_loot"
 version = "0.5.8"
 dependencies = [
@@ -4173,8 +4193,8 @@ dependencies = [
 name = "mcrs_minecraft_mesh"
 version = "0.5.8"
 dependencies = [
- "bevy_math",
  "bytemuck",
+ "glam",
  "mcrs_minecraft_core",
  "mcrs_minecraft_volume",
 ]
@@ -4199,17 +4219,12 @@ dependencies = [
  "anyhow",
  "bevy_app",
  "bevy_ecs",
- "bevy_math",
  "bytes",
+ "glam",
  "js-sys",
  "mcrs_minecraft_core",
- "mcrs_minecraft_dimension",
- "mcrs_minecraft_entity",
- "mcrs_minecraft_game_mode",
- "mcrs_minecraft_nbt",
  "mcrs_minecraft_network",
  "mcrs_minecraft_protocol",
- "mcrs_minecraft_registries",
  "md-5",
  "rand 0.10.0",
  "serde",
@@ -4227,7 +4242,7 @@ dependencies = [
 name = "mcrs_minecraft_noise"
 version = "0.5.8"
 dependencies = [
- "bevy_math",
+ "glam",
  "mcrs_minecraft_core",
  "mcrs_minecraft_random",
  "mcrs_minecraft_registries",
@@ -4311,7 +4326,7 @@ dependencies = [
 name = "mcrs_minecraft_random"
 version = "0.5.8"
 dependencies = [
- "bevy_math",
+ "glam",
  "md-5",
  "rand_xoshiro",
 ]
@@ -4447,6 +4462,7 @@ dependencies = [
  "mcrs_minecraft_item",
  "mcrs_minecraft_level",
  "mcrs_minecraft_light",
+ "mcrs_minecraft_light_plugin",
  "mcrs_minecraft_nbt",
  "mcrs_minecraft_network",
  "mcrs_minecraft_protocol",
@@ -4585,11 +4601,11 @@ dependencies = [
  "bevy_app",
  "bevy_asset",
  "bevy_ecs",
- "bevy_math",
  "bevy_platform",
  "bevy_state",
  "bevy_tasks",
  "bytes",
+ "glam",
  "mcrs_minecraft_assets",
  "mcrs_minecraft_biome",
  "mcrs_minecraft_biome_file",

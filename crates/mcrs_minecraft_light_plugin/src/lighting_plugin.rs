@@ -7,11 +7,12 @@ use mcrs_minecraft_light::block_light::{BlockLightRegistry, block_light_registry
 /// no dimension registers a lighting engine and every column goes to the client at full sky
 /// light: sunlight, torches and shadows stop existing, and the world loads without the
 /// propagation cost.
+///
+/// The host inserts [`Blocks`] before `Startup`.
 pub struct LightingPlugin;
 
 impl Plugin for LightingPlugin {
     fn build(&self, app: &mut App) {
-        crate::require::<Self, crate::ServerCorePlugin>(app);
         app.add_systems(Startup, insert_block_light_registry);
     }
 }

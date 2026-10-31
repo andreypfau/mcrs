@@ -11,5 +11,5 @@ workspace = true
 
 [dependencies]
 rand_xoshiro.workspace = true
-bevy_math.workspace = true
+glam.workspace = true
 md-5.workspace = true

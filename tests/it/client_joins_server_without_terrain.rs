@@ -1,5 +1,6 @@
 use bevy_app::{App, PluginGroup};
-use mcrs_minecraft_server::{BoundAddress, LightingPlugin, MinecraftServerPlugins, WorldGenPlugin};
+use mcrs_minecraft_light_plugin::LightingPlugin;
+use mcrs_minecraft_server::{BoundAddress, MinecraftServerPlugins, WorldGenPlugin};
 
 use crate::support::{JOIN_TIMEOUT, drive_client_until_joined, joining_client, start_server};
 

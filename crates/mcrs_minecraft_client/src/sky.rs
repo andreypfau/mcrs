@@ -1,3 +1,4 @@
+use crate::joined_game::CurrentDimension;
 use bevy::asset::{AssetPath, RenderAssetUsages};
 use bevy::image::{ImageLoaderSettings, ImageSampler};
 use bevy::prelude::*;
@@ -7,7 +8,6 @@ use bevy::render::render_resource::{
 use bevy::render::{Extract, ExtractSchedule, RenderApp};
 use bevy::transform::TransformSystems;
 use mcrs_minecraft_core::Id;
-use mcrs_minecraft_network::client::CurrentDimension;
 use mcrs_minecraft_registries::CurrentRegistries;
 
 use crate::sky_state::{SkyField, SkyFrame, SkyKey, SkyLayout, SkyStatic, SkyValue};

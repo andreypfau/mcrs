@@ -7,6 +7,7 @@ use mcrs_minecraft_client::blocks::BiomeTints;
 use mcrs_minecraft_client::columns::{
     Column, ColumnCachePlugin, ColumnStore, Columns, Dimension, Extent,
 };
+use mcrs_minecraft_client::joined_game::CurrentDimension;
 use mcrs_minecraft_client::player::{Player, PlayerCamera};
 use mcrs_minecraft_client::sky::{SkyEnvironment, SkyPlugin};
 use mcrs_minecraft_core::Id;
@@ -17,7 +18,6 @@ use mcrs_minecraft_dimension_environment::environment::Weather;
 use mcrs_minecraft_environment::world_clock::{ClockTimeMarkers, WorldClock, WorldClocks};
 use mcrs_minecraft_game_mode::GameMode;
 use mcrs_minecraft_item::{Items, JukeboxPlayable, JukeboxSong};
-use mcrs_minecraft_network::client::CurrentDimension;
 use mcrs_minecraft_network::event;
 use mcrs_minecraft_network::{ConnectionState, Instant};
 use mcrs_minecraft_protocol::Encode;

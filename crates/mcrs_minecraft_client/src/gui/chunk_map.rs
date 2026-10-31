@@ -1,12 +1,13 @@
 use std::time::Duration;
 
+use crate::joined_game::CurrentDimension;
 use bevy::ecs::system::SystemParam;
 use bevy::platform::collections::HashMap;
 use bevy::prelude::*;
 use bevy::text::{FontSize, LineBreak};
 use mcrs_minecraft_core::{BlockPos, ColumnPos};
 use mcrs_minecraft_level::world::lifecycle::trace::{ColumnSample, ColumnStage, ColumnTraceSink};
-use mcrs_minecraft_network::client::{ClientConnection, CurrentDimension};
+use mcrs_minecraft_network::client::ClientConnection;
 
 use crate::player::Player;
 use mcrs_minecraft_level::entity::physics::Transform as PhysicsTransform;

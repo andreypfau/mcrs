@@ -1,0 +1,25 @@
+[package]
+name = "mcrs_minecraft_light_plugin"
+description = "Light propagation wired into the dimension worlds: the block light table, each dimension's light engine and the light updates sent to the players"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+doctest = false
+
+[lints]
+workspace = true
+
+[dependencies]
+mcrs_minecraft_block = { workspace = true, features = ["bevy"] }
+mcrs_minecraft_chunk = { workspace = true, features = ["bevy"] }
+mcrs_minecraft_core = { workspace = true, features = ["bevy"] }
+mcrs_minecraft_engine.workspace = true
+mcrs_minecraft_heightmap = { workspace = true, features = ["bevy"] }
+mcrs_minecraft_level.workspace = true
+mcrs_minecraft_light = { workspace = true, features = ["bevy"] }
+mcrs_minecraft_protocol.workspace = true
+bevy_app.workspace = true
+bevy_ecs.workspace = true
+rustc-hash.workspace = true
+smallvec.workspace = true

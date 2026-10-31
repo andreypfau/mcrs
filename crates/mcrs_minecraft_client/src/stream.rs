@@ -1567,19 +1567,19 @@ fn admit_meshing(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::registries::LastConfiguration;
     use mcrs_minecraft_biome_file::BiomeFile;
     use mcrs_minecraft_chunk::PalettedContainer;
     use mcrs_minecraft_mesh::StreamSpan;
-    use mcrs_minecraft_network::join::Configuration;
     use mcrs_minecraft_registries::Received;
     use mcrs_minecraft_world::registry_load::{sent_by, test_registries};
 
     fn session(edit: impl FnOnce(&mut Received)) -> CurrentRegistries {
-        let mut configuration = Configuration {
-            registries: sent_by(test_registries(), false),
+        let mut configuration = LastConfiguration {
+            received: sent_by(test_registries(), false),
             vanilla_known: false,
         };
-        edit(&mut configuration.registries);
+        edit(&mut configuration.received);
         let (registries, _) = crate::registries::load_registries(&configuration, None)
             .unwrap_or_else(|error| panic!("{error}"));
         CurrentRegistries::new(registries)

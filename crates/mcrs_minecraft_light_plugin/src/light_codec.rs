@@ -1,25 +1,3 @@
-//! Lighting wire codec.
-//!
-//! Pure transformation core that converts per-chunk `BlockLight` / `SkyLight`
-//! state into the protocol's `LightData` payload. Two public entry points:
-//!
-//! 1. `pack_chunk` — the per-chunk, per-layer wire-mapping decision matrix.
-//!    Given a `WireRow` (Loaded / Unloaded / BottomPadding / TopPadding) and
-//!    the optional `LightStorage` for the requested `Layer`, it updates the
-//!    four wire masks (`*_light_mask` and `empty_*_light_mask`) and may append
-//!    a 2048-byte payload to the matching arrays builder.
-//!
-//! 2. `build_full_light_data` / `build_delta_light_data` — iterate `wire_rows`
-//!    for a column entity, dispatch `pack_chunk` per row per layer, and return
-//!    a wire-ready `LightData<'static>` with `Cow::Owned` payloads. They differ
-//!    only in which rows they pack: a delta leaves the rest out of both masks,
-//!    which the client reads as "unchanged".
-//!
-//! The codec is read-only against ECS state and allocates only the output
-//! buffers (worst case 24 chunks × 2 layers × 2048 bytes = 96 KB per column).
-//! The `'static` lifetime on the returned `LightData` is required because
-//! downstream `Message<T>` types must be `Send + Sync + 'static`.
-
 use bevy_ecs::prelude::{Entity, Query, With};
 use bevy_ecs::system::SystemParam;
 use mcrs_minecraft_chunk::SectionNibbles as LightNibbles;
@@ -35,7 +13,7 @@ use std::borrow::Cow;
 /// section below and a section above the dimension's real Y range, so the
 /// sequence is one padding row, every real section, then one padding row.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum WireRow {
+pub(crate) enum WireRow {
     BottomPadding,
     Loaded(Entity),
     Unloaded,
@@ -43,7 +21,7 @@ pub enum WireRow {
 }
 
 /// The padded row sequence for a column, in wire order.
-pub fn wire_rows(chunks: &ColumnSections) -> impl Iterator<Item = WireRow> + '_ {
+pub(crate) fn wire_rows(chunks: &ColumnSections) -> impl Iterator<Item = WireRow> + '_ {
     std::iter::once(WireRow::BottomPadding)
         .chain(chunks.iter().map(|lookup| match lookup {
             SectionLookup::Loaded(e) => WireRow::Loaded(e),
@@ -67,7 +45,7 @@ pub fn wire_rows(chunks: &ColumnSections) -> impl Iterator<Item = WireRow> + '_ 
     clippy::too_many_arguments,
     reason = "the packer fills the three wire buffers in one pass, so each buffer and the row's layer, sky flag and bit index stay separate parameters"
 )]
-pub fn pack_chunk(
+pub(crate) fn pack_chunk(
     chunk: WireRow,
     storage: Option<&LightStorage>,
     layer: Layer,
@@ -182,7 +160,7 @@ pub fn build_full_light_data(
 /// Changed sections arrive as entities because that is what a change-detection
 /// query hands the caller, and a delta touches a handful of sections, so a
 /// linear scan is cheaper than making the caller build a set.
-pub fn build_delta_light_data(
+pub(crate) fn build_delta_light_data(
     column_entity: Entity,
     changed_block: &[Entity],
     changed_sky: &[Entity],

@@ -1,11 +1,10 @@
 use crate::columns::ColumnStore;
 use crate::gui::chunk_map::JoinedTraces;
+use crate::joined_game::CurrentDimension;
 use bevy::prelude::*;
 use mcrs_minecraft_level::world::lifecycle::trace::{ColumnSample, ColumnStage};
 use mcrs_minecraft_network::ConnectionState;
-use mcrs_minecraft_network::client::{
-    ChunkCacheRadius, ClientConnection, CurrentDimension, ServerProfile,
-};
+use mcrs_minecraft_network::client::{ChunkCacheRadius, ClientConnection, ServerProfile};
 
 use super::DebugScreenDisplayer;
 

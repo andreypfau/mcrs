@@ -7,6 +7,7 @@ use std::path::PathBuf;
 #[cfg(not(target_family = "wasm"))]
 use std::time::{SystemTime, UNIX_EPOCH};
 
+use crate::joined_game::{CurrentDimension, JoinedGame};
 use bevy::ecs::system::SystemParam;
 use bevy::prelude::*;
 use mcrs_minecraft_block::definition::Blocks;
@@ -21,9 +22,7 @@ use mcrs_minecraft_command_argument_vanilla::ClientGraph;
 use mcrs_minecraft_command_registry::RegistryLookup;
 use mcrs_minecraft_core::{ResourceKey, StaticResourceLocation};
 use mcrs_minecraft_dimension::Dimension;
-use mcrs_minecraft_network::client::{
-    ClientConnection, ClientNetworkSystems, CurrentDimension, JoinedGame,
-};
+use mcrs_minecraft_network::client::{ClientConnection, ClientNetworkSystems};
 use mcrs_minecraft_protocol::entity::player::MessageSignature;
 use mcrs_minecraft_protocol::packets::game::serverbound::{
     ServerboundChat, ServerboundChatCommand, ServerboundChatCommandSigned,

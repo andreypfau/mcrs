@@ -17,15 +17,17 @@ use mcrs_minecraft_environment::world_clock::{
 use mcrs_minecraft_item::Items;
 use mcrs_minecraft_network::ConnectionState;
 use mcrs_minecraft_network::client::{
-    ClientNetworkSystems, CurrentDimension, RegistriesReceived, TagsReceived,
-    close_connection_later, finish_configuration,
+    ClientNetworkSystems, RegistriesReceived, close_connection_later, finish_configuration,
 };
-use mcrs_minecraft_network::join::Configuration;
-use mcrs_minecraft_registries::{CurrentRegistries, Diagnostics, Registries};
+use mcrs_minecraft_network::event;
+use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundUpdateTags;
+use mcrs_minecraft_registries::{CurrentRegistries, Diagnostics, Received, Registries};
 use mcrs_minecraft_world::item::definitions::load_item_definitions;
 use mcrs_minecraft_world::registry_load::{RegistryLoadError, load_received};
 
 use crate::blocks::BiomeTints;
+use crate::joined_game::{self, CurrentDimension};
+use crate::received::{received, received_tags};
 
 const DATAPACK_REPORT: &[u8] = include_bytes!(concat!(
     env!("CARGO_MANIFEST_DIR"),
@@ -39,7 +41,11 @@ pub(crate) struct LocalCorpus(DirectoryPacks);
 /// What the server sent in its last configuration. A tag update in play replaces the tags of the
 /// registries it names and loads the registries again from it.
 #[derive(Component)]
-struct LastConfiguration(Configuration);
+pub(crate) struct LastConfiguration {
+    pub received: Received,
+    /// The client accepted the vanilla pack, so the server may have left its entries' data out.
+    pub vanilla_known: bool,
+}
 
 #[derive(SystemSet, Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum SessionSet {
@@ -77,6 +83,7 @@ impl Plugin for ClientRegistriesPlugin {
             )
             .add_observer(load_server_registries)
             .add_observer(replace_server_tags);
+        joined_game::add_observers(app);
     }
 
     fn finish(&self, app: &mut App) {
@@ -106,13 +113,13 @@ fn refuse<E: std::fmt::Display>(error: &E) -> ! {
 }
 
 pub(crate) fn load_registries(
-    configuration: &Configuration,
+    configuration: &LastConfiguration,
     corpus: Option<&LocalCorpus>,
 ) -> Result<(Registries, Diagnostics), RegistryLoadError> {
     let vanilla = corpus.filter(|_| configuration.vanilla_known);
     load_received(
         DATAPACK_REPORT,
-        &configuration.registries,
+        &configuration.received,
         vanilla.map(|corpus| &corpus.0 as _),
     )
 }
@@ -147,12 +154,24 @@ fn load_server_registries(
     blocks: Res<Blocks>,
     mut commands: Commands,
 ) {
-    match load_registries(&event.configuration, corpus.as_deref()) {
+    let configuration = match received(&event.configuration) {
+        Ok(received) => LastConfiguration {
+            received,
+            vanilla_known: event.configuration.vanilla_known,
+        },
+        Err(error) => {
+            close_connection_later(
+                &mut commands,
+                event.entity,
+                format!("the server's registries cannot be read: {error:#}"),
+            );
+            return;
+        }
+    };
+    match load_registries(&configuration, corpus.as_deref()) {
         Ok(loaded) => {
             install(loaded, (&assets, &blocks), &mut commands);
-            commands
-                .entity(event.entity)
-                .insert(LastConfiguration(event.configuration.clone()));
+            commands.entity(event.entity).insert(configuration);
             finish_configuration(&mut commands, event.entity);
         }
         Err(error) => close_connection_later(
@@ -164,13 +183,16 @@ fn load_server_registries(
 }
 
 fn replace_server_tags(
-    event: On<TagsReceived>,
+    event: On<event::Received<ClientboundUpdateTags<'static>>>,
     mut connections: Query<&mut LastConfiguration>,
     corpus: Option<Res<LocalCorpus>>,
     assets: Res<AssetServer>,
     blocks: Res<Blocks>,
     mut commands: Commands,
 ) {
+    let Some(update) = event.packet() else {
+        return;
+    };
     let Ok(mut last) = connections.get_mut(event.entity) else {
         close_connection_later(
             &mut commands,
@@ -179,8 +201,8 @@ fn replace_server_tags(
         );
         return;
     };
-    last.0.registries.replace_tags(event.tags.clone());
-    match load_registries(&last.0, corpus.as_deref()) {
+    last.received.replace_tags(received_tags(update.registries));
+    match load_registries(&last, corpus.as_deref()) {
         Ok(loaded) => install(loaded, (&assets, &blocks), &mut commands),
         Err(error) => close_connection_later(
             &mut commands,

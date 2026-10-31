@@ -176,7 +176,7 @@ mod tests {
     use crate::pack::{MODEL_OVERHANG, MODEL_SHADE, MODEL_STEPS};
     use crate::{SECTION_SIZE, SECTION_VOLUME};
     use crate::{Scratch, mesh_world, one_section_world};
-    use bevy_math::Vec3;
+    use glam::Vec3;
     use mcrs_minecraft_core::Direction;
 
     #[test]

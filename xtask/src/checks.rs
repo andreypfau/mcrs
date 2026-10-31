@@ -29,7 +29,7 @@ const WASM32_PACKAGES: [&str; 10] = [
 
 const NO_STD_PACKAGES: [&str; 2] = ["mcrs_command", "mcrs_minecraft_chat"];
 
-const NO_BEVY_PACKAGES: [&str; 63] = [
+const NO_BEVY_PACKAGES: [&str; 64] = [
     "mcrs_command",
     "mcrs_minecraft_anvil",
     "mcrs_minecraft_biome",
@@ -63,6 +63,7 @@ const NO_BEVY_PACKAGES: [&str; 63] = [
     "mcrs_minecraft_light",
     "mcrs_minecraft_light_color",
     "mcrs_minecraft_loot",
+    "mcrs_minecraft_mesh",
     "mcrs_minecraft_nbt",
     "mcrs_minecraft_network",
     "mcrs_minecraft_noise",

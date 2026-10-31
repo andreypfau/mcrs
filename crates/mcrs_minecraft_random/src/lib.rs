@@ -5,7 +5,7 @@ pub mod xoroshiro;
 
 use crate::legacy::LegacyRandom;
 use crate::xoroshiro::XoroshiroRandom;
-use bevy_math::IVec3;
+use glam::IVec3;
 use rand_xoshiro::rand_core::{Rng, TryRng};
 use std::convert::Infallible;
 

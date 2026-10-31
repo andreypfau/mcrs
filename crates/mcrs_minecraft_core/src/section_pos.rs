@@ -1,6 +1,6 @@
 use crate::BlockPos;
-use bevy_math::DVec3;
-use bevy_math::prelude::*;
+use glam::DVec3;
+use glam::IVec3;
 use std::fmt::Display;
 use std::hash::{Hash, Hasher};
 

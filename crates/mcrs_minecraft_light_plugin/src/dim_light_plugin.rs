@@ -2,11 +2,11 @@ use mcrs_minecraft_protocol::VarInt;
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundLightUpdate;
 use std::sync::Arc;
 
-use crate::world::light_codec::{LightCodecParams, build_delta_light_data};
+use crate::light_codec::{LightCodecParams, build_delta_light_data};
 use bevy_app::{App, Last, Plugin};
 use bevy_ecs::prelude::*;
 use mcrs_minecraft_core::{ColumnPos, SectionPos};
-use mcrs_minecraft_level::aoi::PlayerObservers;
+use mcrs_minecraft_level::aoi::{PlayerObservers, min_column_distance};
 use mcrs_minecraft_level::block_update::BlockPlaced;
 use mcrs_minecraft_level::entity::physics::Transform;
 use mcrs_minecraft_level::entity::player::Player;
@@ -33,7 +33,7 @@ use mcrs_minecraft_engine::session::HostAnchor;
 /// A dimension's side of the light engine: what it hands the light world before intake, and
 /// what it sends once the light world has published.
 #[derive(SystemSet, Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum DimLightSet {
+pub(crate) enum DimLightSet {
     Feed,
     Emit,
 }
@@ -66,9 +66,8 @@ impl Plugin for DimLightPlugin {
                 (
                     feed_light_edits,
                     reprioritize_light_work,
-                    // After the block edits it bounds, and after the maps have taken
-                    // this tick's edits: a bound must never describe blocks the
-                    // light world has not been handed.
+                    // A surface bound must never describe blocks the light world has not
+                    // been handed yet.
                     feed_column_surfaces
                         .after(mcrs_minecraft_engine::heightmap::update_column_heightmaps),
                 )
@@ -106,8 +105,7 @@ fn reprioritize_light_work(
     scored_for.clone_from(&*player_columns);
 
     let score = |column: ColumnPos| {
-        crate::world::chunk::min_column_distance(&column, &player_columns)
-            .clamp(0, Priority::MAX as i32) as Priority
+        min_column_distance(&column, &player_columns).clamp(0, Priority::MAX as i32) as Priority
     };
     pending.reprioritize(score);
     queue.0.reprioritize(score);
@@ -127,7 +125,7 @@ fn feed_light_edits(
     // to drain in the sender's order: the same distance to the nearest player
     // that the column scheduler already treats as a ticket level.
     let mut queue = |edit: Edit| {
-        let distance = crate::world::chunk::min_column_distance(&edit.column(), &player_columns);
+        let distance = min_column_distance(&edit.column(), &player_columns);
         pending.push_with_priority(edit, distance.clamp(0, Priority::MAX as i32) as Priority);
     };
 
@@ -166,7 +164,7 @@ fn feed_column_surfaces(
     player_columns.clear();
     player_columns.extend(players.iter().map(|at| ColumnPos::from(at.translation)));
     for (pos, surface) in &columns {
-        let distance = crate::world::chunk::min_column_distance(&pos.0, &player_columns);
+        let distance = min_column_distance(&pos.0, &player_columns);
         pending.push_with_priority(
             Edit::SetColumnSurface {
                 column: pos.0,

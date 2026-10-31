@@ -1,4 +1,4 @@
-use bevy_math::{IVec3, Vec3};
+use glam::{IVec3, Vec3};
 use mcrs_minecraft_core::Direction;
 
 /// Vanilla's packed light coordinates: block light in the low byte and sky light in the third,

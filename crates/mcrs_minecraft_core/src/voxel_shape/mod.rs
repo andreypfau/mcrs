@@ -1,7 +1,7 @@
 pub mod block;
 pub mod empty;
 
-use bevy_math::Vec3;
+use glam::Vec3;
 
 use self::block::block_shape;
 use self::empty::empty_shape;

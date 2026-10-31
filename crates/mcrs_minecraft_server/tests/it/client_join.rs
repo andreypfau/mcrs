@@ -2,13 +2,15 @@ use crate::configuration_registries::ASSETS;
 use bevy_app::{App, AppExit, PluginGroup, Update};
 use bevy_ecs::message::MessageWriter;
 use mcrs_minecraft_core::{ResourceLocation, VERSION};
+use mcrs_minecraft_light_plugin::LightingPlugin;
 use mcrs_minecraft_network::join::{Join, Joined, join};
 use mcrs_minecraft_network::packet_io::PacketIo;
-use mcrs_minecraft_protocol::Packet;
+use mcrs_minecraft_protocol::packets::configuration::clientbound::ClientboundRegistryData;
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundLogin;
 use mcrs_minecraft_protocol::uuid::Uuid;
+use mcrs_minecraft_protocol::{Decode, Packet};
 use mcrs_minecraft_server::{
-    BoundAddress, LightingPlugin, MinecraftServerPlugins, WorldGenPlugin, run_server_loop,
+    BoundAddress, MinecraftServerPlugins, WorldGenPlugin, run_server_loop,
 };
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -95,11 +97,10 @@ fn a_client_without_an_app_joins_the_embedded_server_offline() {
     assert_eq!(profile.username, "Bot");
     let dimension_type = ResourceLocation::read("minecraft:dimension_type").unwrap();
     assert!(
-        configuration
-            .registries
-            .registries
-            .iter()
-            .any(|(registry, entries)| *registry == dimension_type && !entries.is_empty()),
+        configuration.registry_data.iter().any(|body| {
+            let data = ClientboundRegistryData::decode(&mut &body[..]).unwrap();
+            data.registry == dimension_type && !data.entries.is_empty()
+        }),
         "the server sent its dimension types"
     );
     assert_eq!(first_game_packet, ClientboundLogin::ID);

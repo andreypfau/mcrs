@@ -12,7 +12,7 @@ workspace = true
 
 [dependencies]
 mcrs_minecraft_registries.workspace = true
-bevy_math.workspace = true
+glam.workspace = true
 mcrs_minecraft_core.workspace = true
 mcrs_minecraft_random.workspace = true
 serde.workspace = true

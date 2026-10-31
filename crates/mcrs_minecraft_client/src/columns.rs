@@ -30,10 +30,11 @@ use mcrs_minecraft_protocol::packets::game::clientbound::{
 use mcrs_minecraft_protocol::packets::game::serverbound::ServerboundChunkBatchReceived;
 use mcrs_minecraft_protocol::{Decode, WritePacket};
 
+use crate::joined_game::CurrentDimension;
 pub use mcrs_minecraft_mesh::{SECTION_SIZE, SECTION_VOLUME};
 use mcrs_minecraft_network::Instant;
 use mcrs_minecraft_network::client::{
-    ClientConnection, ClientNetworkSystems, CurrentDimension, close_connection_later,
+    ClientConnection, ClientNetworkSystems, close_connection_later,
 };
 use mcrs_minecraft_network::event::Received;
 use mcrs_minecraft_registries::{CurrentRegistries, Registries};

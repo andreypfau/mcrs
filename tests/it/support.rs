@@ -6,14 +6,14 @@ use bevy_ecs::message::MessageWriter;
 use mcrs_minecraft_biome_file::BiomeFile;
 use mcrs_minecraft_block::keys::Block;
 use mcrs_minecraft_client::columns::{ColumnCachePlugin, ColumnStore, Columns};
+use mcrs_minecraft_client::joined_game::{CurrentDimension, JoinedGame};
 use mcrs_minecraft_client::player::Player;
 use mcrs_minecraft_client::registries::ClientRegistriesPlugin;
 use mcrs_minecraft_core::{Id, RegistryValue};
 use mcrs_minecraft_dimension_environment::dimension_type::DimensionTypeFile;
 use mcrs_minecraft_network::ConnectionState;
 use mcrs_minecraft_network::client::{
-    ChunkCacheCenter, ChunkCacheRadius, ClientNetworkPlugin, CurrentDimension, JoinedGame,
-    PendingTeleports,
+    ChunkCacheCenter, ChunkCacheRadius, ClientNetworkPlugin, PendingTeleports,
 };
 use mcrs_minecraft_registries::CurrentRegistries;
 use std::net::SocketAddr;

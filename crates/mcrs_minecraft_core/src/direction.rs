@@ -1,4 +1,4 @@
-use bevy_math::IVec3;
+use glam::IVec3;
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
 use std::ops::BitAndAssign;
