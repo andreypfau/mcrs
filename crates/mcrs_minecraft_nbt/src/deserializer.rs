@@ -1,10 +1,15 @@
 use std::borrow::Cow;
 use std::io::{Seek, SeekFrom};
 
-use crate::*;
-use io::Read;
+use crate::tag::{self, NbtTag};
+use crate::{
+    BYTE_ARRAY_ID, BYTE_ID, COMPOUND_ID, DOUBLE_ID, END_ID, Error, FLOAT_ID, INT_ARRAY_ID, INT_ID,
+    LIST_ID, LONG_ARRAY_ID, LONG_ID, NBT_ARRAY_TAG, NBT_BYTE_ARRAY_TAG, NBT_INT_ARRAY_TAG,
+    NBT_LONG_ARRAY_TAG, SHORT_ID, STRING_ID, get_nbt_string,
+};
 use serde::de::{self, DeserializeSeed, IntoDeserializer, MapAccess, SeqAccess, Visitor};
 use serde::{Deserialize, forward_to_deserialize_any};
+use std::io::Read;
 
 pub type Result<T> = std::result::Result<T, Error>;
 

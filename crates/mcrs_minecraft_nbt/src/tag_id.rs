@@ -1,0 +1,13 @@
+pub const END_ID: u8 = 0x00;
+pub const BYTE_ID: u8 = 0x01;
+pub const SHORT_ID: u8 = 0x02;
+pub const INT_ID: u8 = 0x03;
+pub const LONG_ID: u8 = 0x04;
+pub const FLOAT_ID: u8 = 0x05;
+pub const DOUBLE_ID: u8 = 0x06;
+pub const BYTE_ARRAY_ID: u8 = 0x07;
+pub const STRING_ID: u8 = 0x08;
+pub const LIST_ID: u8 = 0x09;
+pub const COMPOUND_ID: u8 = 0x0A;
+pub const INT_ARRAY_ID: u8 = 0x0B;
+pub const LONG_ARRAY_ID: u8 = 0x0C;

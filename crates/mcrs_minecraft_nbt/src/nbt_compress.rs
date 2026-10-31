@@ -1,5 +1,6 @@
+use crate::compound::NbtCompound;
 use crate::deserializer::NbtReadHelper;
-use crate::{Error, Nbt, NbtCompound, deserializer, serializer};
+use crate::{Error, Nbt, deserializer, serializer};
 use flate2::{Compression, read::GzDecoder, write::GzEncoder};
 use std::io::{Cursor, Read, Seek, Write};
 

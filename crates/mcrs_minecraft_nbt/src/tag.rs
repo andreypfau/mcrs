@@ -1,10 +1,14 @@
-use compound::NbtCompound;
-use deserializer::{NbtReadHelper, READ_STEP, cautious_capacity};
-use io::{Read, Write};
+use crate::compound::NbtCompound;
+use crate::deserializer::{NbtReadHelper, READ_STEP, cautious_capacity};
+use crate::serializer::{self, WriteAdaptor};
 use serde::{Deserialize, Serialize};
-use serializer::WriteAdaptor;
+use std::io::{Read, Seek, Write};
 
-use crate::*;
+use crate::{
+    BYTE_ARRAY_ID, BYTE_ID, COMPOUND_ID, DOUBLE_ID, END_ID, Error, FLOAT_ID, INT_ARRAY_ID, INT_ID,
+    LIST_ID, LONG_ARRAY_ID, LONG_ID, NBT_ARRAY_TAG, NBT_BYTE_ARRAY_TAG, NBT_INT_ARRAY_TAG,
+    NBT_LONG_ARRAY_TAG, SHORT_ID, STRING_ID, get_nbt_string,
+};
 
 #[derive(Clone, Debug, PartialEq, PartialOrd)]
 #[repr(u8)]
