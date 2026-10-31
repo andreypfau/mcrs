@@ -61,13 +61,31 @@ async fn main() -> AppExit {
             announce_on_lan: on_off(
                 "MCRS_LAN_ANNOUNCE",
                 variable("MCRS_LAN_ANNOUNCE").as_deref(),
+                true,
             ),
-            offer_known_packs: on_off("MCRS_KNOWN_PACKS", variable("MCRS_KNOWN_PACKS").as_deref()),
+            offer_known_packs: on_off(
+                "MCRS_KNOWN_PACKS",
+                variable("MCRS_KNOWN_PACKS").as_deref(),
+                true,
+            ),
             compression_threshold: compression_threshold(
                 variable("MCRS_COMPRESSION_THRESHOLD").as_deref(),
             ),
-            accepts_transfers: variable("MCRS_ACCEPT_TRANSFERS")
-                .is_some_and(|value| on_off("MCRS_ACCEPT_TRANSFERS", Some(&value))),
+            accepts_transfers: on_off(
+                "MCRS_ACCEPT_TRANSFERS",
+                variable("MCRS_ACCEPT_TRANSFERS").as_deref(),
+                false,
+            ),
+            hide_online_players: on_off(
+                "MCRS_HIDE_ONLINE_PLAYERS",
+                variable("MCRS_HIDE_ONLINE_PLAYERS").as_deref(),
+                false,
+            ),
+            enable_status: on_off(
+                "MCRS_ENABLE_STATUS",
+                variable("MCRS_ENABLE_STATUS").as_deref(),
+                true,
+            ),
             ..Default::default()
         },
         ..Default::default()
@@ -95,18 +113,19 @@ fn world_folder() -> Option<PathBuf> {
     Some(path)
 }
 
-/// `off` turns a setting off; `0`, `false` and `no` do the same, in any case. Any other value
-/// leaves it on and is logged when it is neither on nor off.
-fn on_off(name: &str, value: Option<&str>) -> bool {
-    match value
-        .map(|value| value.trim().to_ascii_lowercase())
-        .as_deref()
-    {
-        None | Some("" | "on" | "1" | "true" | "yes") => true,
-        Some("off" | "0" | "false" | "no") => false,
-        Some(other) => {
-            eprintln!("{name}={other} is neither on nor off; leaving it on");
-            true
+/// `on`, `1`, `true` and `yes` turn a setting on; `off`, `0`, `false` and `no` turn it off, in any
+/// case. An unset, empty or unrecognised value leaves the default, and the last two are logged.
+fn on_off(name: &str, value: Option<&str>, default: bool) -> bool {
+    let Some(raw) = value else {
+        return default;
+    };
+    match raw.trim().to_ascii_lowercase().as_str() {
+        "on" | "1" | "true" | "yes" => true,
+        "off" | "0" | "false" | "no" => false,
+        other => {
+            let state = if default { "on" } else { "off" };
+            eprintln!("{name}={other:?} is neither on nor off; leaving it {state}");
+            default
         }
     }
 }
@@ -190,16 +209,21 @@ mod tests {
 
     #[test]
     fn the_on_off_settings_read_their_spellings_in_any_case() {
-        for name in ["MCRS_LAN_ANNOUNCE", "MCRS_KNOWN_PACKS"] {
+        for default in [true, false] {
             for off in ["OFF", "Off", " False ", "NO", "0", "fAlSe"] {
-                assert!(!on_off(name, Some(off)), "{name}={off:?}");
+                assert!(!on_off("MCRS_TEST", Some(off), default), "{off:?}");
             }
-            for on in [
-                "ON", "On", " TRUE ", "Yes", "1", "disabled", "of f", "2", "",
-            ] {
-                assert!(on_off(name, Some(on)), "{name}={on:?}");
+            for on in ["ON", "On", " TRUE ", "Yes", "1"] {
+                assert!(on_off("MCRS_TEST", Some(on), default), "{on:?}");
             }
-            assert!(on_off(name, None), "{name} unset");
+            for other in ["disabled", "of f", "2", ""] {
+                assert_eq!(
+                    on_off("MCRS_TEST", Some(other), default),
+                    default,
+                    "{other:?}"
+                );
+            }
+            assert_eq!(on_off("MCRS_TEST", None, default), default);
         }
     }
 

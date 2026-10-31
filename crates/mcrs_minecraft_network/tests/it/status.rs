@@ -7,10 +7,12 @@ use mcrs_minecraft_protocol::packets::intent::serverbound::ServerboundHandshake;
 use mcrs_minecraft_protocol::packets::status::clientbound::StatusResponse;
 use mcrs_minecraft_protocol::packets::status::serverbound::StatusRequest;
 use mcrs_minecraft_protocol::uuid::Uuid;
-use mcrs_minecraft_protocol::{Bounded, VarInt};
+use mcrs_minecraft_protocol::{Bounded, PacketEncoder, VarInt};
 use serde::Deserialize;
 use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
 use std::time::Duration;
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::net::TcpStream;
 
 #[derive(Deserialize)]
 struct Status {
@@ -32,13 +34,22 @@ struct Sample {
 }
 
 fn server(max_players: u32, motd: &str, players: Vec<(Uuid, String)>) -> (App, SocketAddr) {
+    server_with(
+        NetworkPlugin {
+            max_players,
+            motd: motd.to_owned(),
+            ..Default::default()
+        },
+        players,
+    )
+}
+
+fn server_with(plugin: NetworkPlugin, players: Vec<(Uuid, String)>) -> (App, SocketAddr) {
     let mut app = App::new();
     app.add_plugins(NetworkPlugin {
         address: SocketAddrV4::new(Ipv4Addr::LOCALHOST, 0).into(),
         announce_on_lan: false,
-        max_players,
-        motd: motd.to_owned(),
-        ..Default::default()
+        ..plugin
     });
     app.world()
         .resource::<StatusPublisher>()
@@ -49,23 +60,22 @@ fn server(max_players: u32, motd: &str, players: Vec<(Uuid, String)>) -> (App, S
 }
 
 fn status_json(address: SocketAddr) -> String {
+    status_exchange(address).unwrap()
+}
+
+fn status_exchange(address: SocketAddr) -> anyhow::Result<String> {
     tokio::runtime::Runtime::new().unwrap().block_on(async {
         tokio::time::timeout(Duration::from_secs(10), async {
-            let mut io = PacketIo::connect(address).await.unwrap();
+            let mut io = PacketIo::connect(address).await?;
             io.send_packet(&ServerboundHandshake {
                 protocol_version: VarInt(VERSION.protocol_version),
                 server_address: Bounded("127.0.0.1"),
                 server_port: address.port(),
                 intent: Intent::Status,
             })
-            .await
-            .unwrap();
-            io.send_packet(&StatusRequest).await.unwrap();
-            io.recv_packet::<StatusResponse>()
-                .await
-                .unwrap()
-                .json
-                .to_owned()
+            .await?;
+            io.send_packet(&StatusRequest).await?;
+            Ok(io.recv_packet::<StatusResponse>().await?.json.to_owned())
         })
         .await
         .unwrap()
@@ -98,6 +108,60 @@ fn the_status_response_shows_the_settings_and_the_online_players() {
         json.contains(r#"{"id":"00000000-0000-0000-0000-000000000001","name":"player1"}"#),
         "{json}"
     );
+}
+
+#[test]
+fn a_disabled_status_closes_without_a_packet() {
+    let (_app, address) = server_with(
+        NetworkPlugin {
+            enable_status: false,
+            ..Default::default()
+        },
+        vec![],
+    );
+    let mut request = PacketEncoder::new();
+    request
+        .append_packet(&ServerboundHandshake {
+            protocol_version: VarInt(VERSION.protocol_version),
+            server_address: Bounded("127.0.0.1"),
+            server_port: address.port(),
+            intent: Intent::Status,
+        })
+        .unwrap();
+    request.append_packet(&StatusRequest).unwrap();
+
+    let received = tokio::runtime::Runtime::new().unwrap().block_on(async {
+        tokio::time::timeout(Duration::from_secs(10), async {
+            let mut stream = TcpStream::connect(address).await.unwrap();
+            stream.write_all(&request.take()).await.unwrap();
+            let mut received = Vec::new();
+            stream.read_to_end(&mut received).await.unwrap();
+            received
+        })
+        .await
+        .unwrap()
+    });
+
+    assert!(received.is_empty(), "{received:?}");
+}
+
+#[test]
+fn hidden_online_players_keep_the_counts_without_a_sample() {
+    let players = (1..=3)
+        .map(|n| (Uuid::from_u128(n), format!("player{n}")))
+        .collect();
+    let (_app, address) = server_with(
+        NetworkPlugin {
+            hide_online_players: true,
+            ..Default::default()
+        },
+        players,
+    );
+    let json = status_json(address);
+    let status: Status = serde_json::from_str(&json).unwrap();
+
+    assert!(status.players.sample.is_none(), "{json}");
+    assert_eq!(status.players.online, 3);
 }
 
 #[test]
