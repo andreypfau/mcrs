@@ -1,6 +1,6 @@
 use crate::block_state::try_resolve_state;
-use bevy_math::IVec3;
 use fixedbitset::FixedBitSet;
+use glam::IVec3;
 use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_block::definition::{BlockDefinitions, BlockStateFlags};
 use mcrs_minecraft_block::keys::Block;

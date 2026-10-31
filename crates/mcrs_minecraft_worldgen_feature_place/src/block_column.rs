@@ -81,7 +81,7 @@ fn truncate(heights: &mut [i32], total: i32, new_height: i32, prioritize_tip: bo
 
 #[cfg(test)]
 mod tests {
-    use bevy_math::IVec3;
+    use glam::IVec3;
     use mcrs_minecraft_random::Random;
 
     use mcrs_minecraft_chunk::VoxelId;

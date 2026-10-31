@@ -4,8 +4,8 @@ use crate::structures::{check_block_entity_ids, resolve_palette_state};
 use crate::trees::{
     build_tree_tables, compile_decorator, compile_provider, compile_tree, state_of, with_property,
 };
-use bevy_math::IVec3;
 use fixedbitset::FixedBitSet;
+use glam::IVec3;
 use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_block::definition::schema::PropertyValue;
 use mcrs_minecraft_block::definition::{

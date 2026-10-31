@@ -17,7 +17,7 @@
 use crate::biome_upscale::upscale_biomes;
 use crate::multi_noise_biomes::{BiomeGrid, MultiNoiseBiomeTable};
 use crate::task::CancellationToken;
-use bevy_math::IVec3;
+use glam::IVec3;
 use mcrs_minecraft_biome::climate::TargetPoint;
 use mcrs_minecraft_biome::source::{BetaLandBiome, BiomeSource, beta_biome_from_climate};
 use mcrs_minecraft_biome::zoom::{FiddleCache, obfuscate_seed};

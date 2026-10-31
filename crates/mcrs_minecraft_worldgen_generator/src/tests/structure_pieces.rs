@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 use std::io::Cursor;
 
-use bevy_math::IVec3;
 use bytes::Buf;
+use glam::IVec3;
 use mcrs_minecraft_core::{BoundingBox, ColumnPos, ResourceLocation};
 use mcrs_minecraft_fixtures::fixture;
 use mcrs_minecraft_nbt::compound::NbtCompound;

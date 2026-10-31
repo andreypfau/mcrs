@@ -1,4 +1,4 @@
-use bevy_math::IVec3;
+use glam::IVec3;
 use mcrs_minecraft_biome::zoom::{FiddleCache, obfuscate_seed, quart_cell};
 use mcrs_minecraft_chunk::{PalettedContainer, VoxelPalette};
 use mcrs_minecraft_core::{BlockPos, QuartPos};

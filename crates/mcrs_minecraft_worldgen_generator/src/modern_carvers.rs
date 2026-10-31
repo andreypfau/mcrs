@@ -1,6 +1,6 @@
 use crate::structures::index::CLIMATE_ROOTS;
 use crate::{ColumnBlocks, beta_chunk_seed};
-use bevy_math::IVec3;
+use glam::IVec3;
 use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_biome::climate::{ParameterList, ParameterPoint, TargetPoint};
 use mcrs_minecraft_biome::source::{BetaLandBiome, BiomeSource, beta_biome_from_climate};

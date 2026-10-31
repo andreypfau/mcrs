@@ -1,8 +1,8 @@
 use mcrs_minecraft_core::ColumnPos;
 use std::collections::HashMap;
 
-use bevy_math::IVec3;
 use bytes::Buf;
+use glam::IVec3;
 use mcrs_minecraft_block_predicate::provider::Holder;
 use mcrs_minecraft_core::BoundingBox;
 use mcrs_minecraft_core::ResourceLocation;

@@ -52,7 +52,7 @@ mod tests {
     use mcrs_minecraft_random::worldgen::WorldgenRandom;
     use mcrs_minecraft_worldgen_feature::placer::single_state;
 
-    use bevy_math::IVec3;
+    use glam::IVec3;
 
     use super::*;
     use crate::tree::provider::fake::{AIR, FakeVolume};

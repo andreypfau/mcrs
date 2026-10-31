@@ -1,6 +1,6 @@
 use std::sync::{Arc, LazyLock};
 
-use bevy_math::IVec3;
+use glam::IVec3;
 use mcrs_minecraft_block_predicate::predicate::HeightmapName;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::BlockPos;

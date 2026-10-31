@@ -1,7 +1,7 @@
 use std::cmp::Ordering;
 
-use bevy_math::IVec3;
 use fixedbitset::FixedBitSet;
+use glam::IVec3;
 use mcrs_minecraft_block_entity::GeneratedBlockEntity;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::{BlockPos, BoundingBox, ColumnPos};

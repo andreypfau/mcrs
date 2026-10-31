@@ -12,8 +12,8 @@
 //! and not the reference's. Everything else about a leaf state — the block,
 //! `persistent`, `waterlogged` — is compared.
 
-use bevy_math::IVec3;
 use bytes::Buf;
+use glam::IVec3;
 use mcrs_minecraft_block_predicate::predicate::HeightmapName;
 
 use mcrs_minecraft_block_predicate::provider::{

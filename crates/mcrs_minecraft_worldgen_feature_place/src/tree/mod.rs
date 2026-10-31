@@ -9,8 +9,8 @@ pub mod trunk;
 use rustc_hash::FxHashMap as HashMap;
 use std::sync::Arc;
 
-use bevy_math::IVec3;
 use fixedbitset::FixedBitSet;
+use glam::IVec3;
 use mcrs_minecraft_block::keys::Block;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::BlockPos;

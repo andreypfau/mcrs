@@ -1,8 +1,8 @@
 use mcrs_minecraft_core::ColumnPos;
 use std::sync::Arc;
 
-use bevy_math::IVec3;
 use fixedbitset::FixedBitSet;
+use glam::IVec3;
 use mcrs_minecraft_biome::parameter_list::Preset;
 use mcrs_minecraft_core::ResourceLocation;
 

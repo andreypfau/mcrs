@@ -81,7 +81,7 @@ impl Random for CountingRng {
             draws: self.draws.clone(),
         }
     }
-    fn fork_at<T: Into<bevy_math::IVec3>>(&mut self, pos: T) -> Self {
+    fn fork_at<T: Into<glam::IVec3>>(&mut self, pos: T) -> Self {
         self.inc();
         CountingRng {
             inner: self.inner.fork_at(pos),

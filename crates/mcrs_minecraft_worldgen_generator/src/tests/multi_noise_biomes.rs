@@ -17,7 +17,7 @@ use crate::multi_noise_biomes::{
     BiomeNames, BiomeTableError, MultiNoiseBiomeTable, PresetBiomeTables, UnknownEntry,
 };
 use crate::{multi_noise_grid, multi_noise_palettes};
-use bevy_math::IVec3;
+use glam::IVec3;
 use mcrs_minecraft_biome::Biome;
 
 /// The preset's biomes numbered in the order the preset names them, which is

@@ -1,8 +1,8 @@
 use mcrs_minecraft_core::ColumnPos;
 use std::sync::{Arc, LazyLock};
 
-use bevy_math::IVec3;
 use bytes::Buf;
+use glam::IVec3;
 use mcrs_minecraft_biome::source::BiomeSource;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_fixtures::fixture;

@@ -1,6 +1,6 @@
 use std::io::Cursor;
 
-use bevy_math::{DVec3, IVec3};
+use glam::{DVec3, IVec3};
 use mcrs_minecraft_core::mth::wrap_degrees;
 use mcrs_minecraft_core::{BlockPos, ColumnPos, Direction, Mirror, ResourceLocation, Rotation};
 use mcrs_minecraft_entity::villager::VillagerData;

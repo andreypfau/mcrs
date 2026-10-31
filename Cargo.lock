@@ -4823,9 +4823,9 @@ dependencies = [
 name = "mcrs_minecraft_worldgen_feature_place"
 version = "0.5.8"
 dependencies = [
- "bevy_math",
  "bytes",
  "fixedbitset",
+ "glam",
  "mcrs_minecraft_block",
  "mcrs_minecraft_block_entity",
  "mcrs_minecraft_block_predicate",
@@ -4859,10 +4859,10 @@ dependencies = [
  "bevy_app",
  "bevy_asset",
  "bevy_ecs",
- "bevy_math",
  "bytes",
  "criterion",
  "fixedbitset",
+ "glam",
  "mcrs_minecraft_anvil",
  "mcrs_minecraft_biome",
  "mcrs_minecraft_biome_file",
@@ -4933,8 +4933,8 @@ dependencies = [
 name = "mcrs_minecraft_worldgen_structure_place"
 version = "0.5.8"
 dependencies = [
- "bevy_math",
  "fixedbitset",
+ "glam",
  "mcrs_minecraft_block",
  "mcrs_minecraft_block_entity",
  "mcrs_minecraft_block_predicate",

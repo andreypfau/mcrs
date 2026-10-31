@@ -14,7 +14,7 @@ pub mod template;
 pub mod template_piece;
 pub mod woodland_mansion;
 
-use bevy_math::IVec3;
+use glam::IVec3;
 use mcrs_minecraft_block::keys::Block;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::{BoundingBox, Mirror, Rotation};

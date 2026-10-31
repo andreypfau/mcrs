@@ -373,7 +373,7 @@ fn index_at_noise(len: usize, noise: f32) -> usize {
 
 #[cfg(test)]
 pub(crate) mod fake {
-    use bevy_math::IVec3;
+    use glam::IVec3;
     use rustc_hash::FxHashMap as HashMap;
 
     use mcrs_minecraft_block_predicate::predicate::HeightmapName;
@@ -541,7 +541,7 @@ pub(crate) mod fake {
 
 #[cfg(test)]
 mod tests {
-    use bevy_math::IVec3;
+    use glam::IVec3;
     use mcrs_minecraft_worldgen_feature::placer::mask_of;
     use std::sync::Arc;
 

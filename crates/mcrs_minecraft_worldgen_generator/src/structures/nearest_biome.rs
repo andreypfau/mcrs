@@ -1,4 +1,4 @@
-use bevy_math::IVec3;
+use glam::IVec3;
 
 const RADIUS: i32 = 200;
 const STEP: i32 = 32;

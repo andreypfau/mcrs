@@ -2,7 +2,7 @@ use crate::ids::require_id;
 use crate::modern_carvers::TerrainCarving;
 use crate::stored_biomes::{present_biomes, stored_biome, stored_biomes_between};
 use crate::{ColumnBlocks, NO_TOP};
-use bevy_math::IVec3;
+use glam::IVec3;
 use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_block::definition::BlockDefinitions;
 use mcrs_minecraft_chunk::VoxelId;

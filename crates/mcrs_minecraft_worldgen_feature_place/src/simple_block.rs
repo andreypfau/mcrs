@@ -1,6 +1,6 @@
 use crate::holds;
 
-use bevy_math::IVec3;
+use glam::IVec3;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::{BlockPos, BlockStateId};
 use mcrs_minecraft_random::worldgen::WorldgenRandom;
