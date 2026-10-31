@@ -5,6 +5,7 @@
 use std::sync::Arc;
 
 use crate::common::{AIR, Reference, WATER, filled, registry};
+use mcrs_minecraft_chunk::LightLayer;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::{BlockPos, SectionPos};
 use mcrs_minecraft_light::prelude::*;
@@ -107,11 +108,13 @@ fn an_ocean_surface_is_lit_the_same_everywhere_including_chunk_borders() {
     }
 
     let air_above = |w: &LightWorld, x: i32, z: i32| {
-        w.light_at(BlockPos::new(x, surface + 1, z), Layer::Sky)
+        w.light_at(BlockPos::new(x, surface + 1, z), LightLayer::Sky)
             .get()
     };
-    let top_of_water =
-        |w: &LightWorld, x: i32, z: i32| w.light_at(BlockPos::new(x, surface, z), Layer::Sky).get();
+    let top_of_water = |w: &LightWorld, x: i32, z: i32| {
+        w.light_at(BlockPos::new(x, surface, z), LightLayer::Sky)
+            .get()
+    };
 
     let width = COLUMNS * 16;
     let expected_air = air_above(&world, width / 2, width / 2);

@@ -8,6 +8,7 @@ fn drain_one(queue: &mut LightQueue, budget_cells: u64, avoid: &[BoundingBox]) -
         .pop()
         .unwrap_or_default()
 }
+use mcrs_minecraft_chunk::LightLayer;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::{BlockPos, BoundingBox, ColumnPos, SectionPos};
 use mcrs_minecraft_light::field::FieldLayout;
@@ -229,12 +230,12 @@ fn disjoint_jobs_publish_in_any_order() {
                 let pos = BlockPos::new(x, y, z);
                 assert_eq!(
                     in_one_pass.block_light(pos),
-                    concurrent.world.light_at(pos, Layer::Block).get(),
+                    concurrent.world.light_at(pos, LightLayer::Block).get(),
                     "block light at {pos:?}"
                 );
                 assert_eq!(
                     in_one_pass.sky_light(pos),
-                    concurrent.world.light_at(pos, Layer::Sky).get(),
+                    concurrent.world.light_at(pos, LightLayer::Sky).get(),
                     "sky light at {pos:?}"
                 );
             }
@@ -294,12 +295,12 @@ fn batching_reaches_the_same_answer_as_one_pass(columns: i32) {
                 let pos = BlockPos::new(x, y, z);
                 assert_eq!(
                     in_one_pass.block_light(pos),
-                    in_batches.world.light_at(pos, Layer::Block).get(),
+                    in_batches.world.light_at(pos, LightLayer::Block).get(),
                     "block light at {pos:?} after {passes} passes"
                 );
                 assert_eq!(
                     in_one_pass.sky_light(pos),
-                    in_batches.world.light_at(pos, Layer::Sky).get(),
+                    in_batches.world.light_at(pos, LightLayer::Sky).get(),
                     "sky light at {pos:?} after {passes} passes"
                 );
             }
@@ -397,7 +398,7 @@ fn loading_and_editing_a_column_in_one_batch_stays_inside_the_world() {
         "the working area stayed bounded, not stretched to the sky-floor sentinel: {}",
         stats.area_cells
     );
-    assert_eq!(world.light_at(pos, Layer::Block).get(), 14);
+    assert_eq!(world.light_at(pos, LightLayer::Block).get(), 14);
 }
 
 /// Batches filled in one pass are handed out together, so they have to stay

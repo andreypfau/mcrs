@@ -13,7 +13,7 @@ use crate::epoch::LightUpdate;
 use crate::level::{LightBounds, SECTION_WIDTH};
 use crate::queue::{DEFAULT_PRIORITY, LightQueue, Priority, PriorityColumns};
 use crate::world::{Edit, LightWorld};
-use crate::{BlockLight, SkyLight};
+use mcrs_minecraft_chunk::{BlockLight, SkyLight};
 use mcrs_minecraft_core::BoundingBox;
 
 /// Owns the block and light data. The ECS holds only what has been published.

@@ -1,11 +1,10 @@
 use bevy_ecs::prelude::{Entity, Query, With};
 use bevy_ecs::system::SystemParam;
-use mcrs_minecraft_chunk::SectionNibbles as LightNibbles;
+use mcrs_minecraft_chunk::{
+    BlockLight, LightLayer, LightStorage, SectionNibbles as LightNibbles, SkyLight,
+};
 use mcrs_minecraft_level::world::dimension::{HasSkyLight, InDimension};
 use mcrs_minecraft_level::world::storage::column::{ColumnSections, SectionLookup};
-use mcrs_minecraft_light::block::Layer;
-use mcrs_minecraft_light::storage::LightStorage;
-use mcrs_minecraft_light::{BlockLight, SkyLight};
 use mcrs_minecraft_protocol::chunk::{LightChunk, LightData};
 use std::borrow::Cow;
 
@@ -48,7 +47,7 @@ pub(crate) fn wire_rows(chunks: &ColumnSections) -> impl Iterator<Item = WireRow
 pub(crate) fn pack_chunk(
     chunk: WireRow,
     storage: Option<&LightStorage>,
-    layer: Layer,
+    layer: LightLayer,
     has_sky_light: bool,
     bit_idx: usize,
     mask: &mut Vec<u64>,
@@ -60,7 +59,7 @@ pub(crate) fn pack_chunk(
             set_bit(empty_mask, bit_idx);
         }
         WireRow::TopPadding => match layer {
-            Layer::Sky => {
+            LightLayer::Sky => {
                 if has_sky_light {
                     set_bit(mask, bit_idx);
                     arrays.push(LightChunk([0xFFu8; 2048]));
@@ -68,12 +67,12 @@ pub(crate) fn pack_chunk(
                     set_bit(empty_mask, bit_idx);
                 }
             }
-            Layer::Block => {
+            LightLayer::Block => {
                 set_bit(empty_mask, bit_idx);
             }
         },
         WireRow::Loaded(_) => {
-            if matches!(layer, Layer::Sky) && !has_sky_light {
+            if matches!(layer, LightLayer::Sky) && !has_sky_light {
                 set_bit(empty_mask, bit_idx);
                 return;
             }
@@ -160,15 +159,15 @@ pub fn build_full_light_data(
 /// Changed sections arrive as entities because that is what a change-detection
 /// query hands the caller, and a delta touches a handful of sections, so a
 /// linear scan is cheaper than making the caller build a set.
-pub(crate) fn build_delta_light_data(
+pub fn build_delta_light_data(
     column_entity: Entity,
     changed_block: &[Entity],
     changed_sky: &[Entity],
     params: &LightCodecParams,
 ) -> LightData<'static> {
     build_light_data(column_entity, params, |row, layer| match (row, layer) {
-        (WireRow::Loaded(e), Layer::Block) => changed_block.contains(&e),
-        (WireRow::Loaded(e), Layer::Sky) => changed_sky.contains(&e),
+        (WireRow::Loaded(e), LightLayer::Block) => changed_block.contains(&e),
+        (WireRow::Loaded(e), LightLayer::Sky) => changed_sky.contains(&e),
         _ => false,
     })
 }
@@ -176,7 +175,7 @@ pub(crate) fn build_delta_light_data(
 fn build_light_data(
     column_entity: Entity,
     params: &LightCodecParams,
-    pack_row: impl Fn(WireRow, Layer) -> bool,
+    pack_row: impl Fn(WireRow, LightLayer) -> bool,
 ) -> LightData<'static> {
     let Ok(chunk_index) = params.chunk_indexes.get(column_entity) else {
         return LightData::default();
@@ -206,11 +205,11 @@ fn build_light_data(
             .and_then(|e| params.sky_lights.get(e).ok())
             .map(|sl| &sl.0);
 
-        if pack_row(lookup, Layer::Block) {
+        if pack_row(lookup, LightLayer::Block) {
             pack_chunk(
                 lookup,
                 block_storage,
-                Layer::Block,
+                LightLayer::Block,
                 has_sky_light,
                 bit_idx,
                 &mut block_mask,
@@ -218,11 +217,11 @@ fn build_light_data(
                 &mut block_arrays,
             );
         }
-        if pack_row(lookup, Layer::Sky) {
+        if pack_row(lookup, LightLayer::Sky) {
             pack_chunk(
                 lookup,
                 sky_storage,
-                Layer::Sky,
+                LightLayer::Sky,
                 has_sky_light,
                 bit_idx,
                 &mut sky_mask,
@@ -248,7 +247,6 @@ mod tests {
     use bevy_ecs::entity::Entity;
     use bevy_ecs::prelude::{In, World};
     use bevy_ecs::system::RunSystemOnce;
-    use mcrs_minecraft_chunk::SectionNibbles as LightNibbles;
     use mcrs_minecraft_protocol::light_codec::{RowLight, unpack_light_data};
     use std::sync::Arc;
 
@@ -339,7 +337,7 @@ mod tests {
             pack_chunk(
                 *chunk,
                 block_storage.as_ref(),
-                Layer::Block,
+                LightLayer::Block,
                 has_sky_light,
                 bit_idx,
                 &mut block_mask,
@@ -349,7 +347,7 @@ mod tests {
             pack_chunk(
                 *chunk,
                 sky_storage.as_ref(),
-                Layer::Sky,
+                LightLayer::Sky,
                 has_sky_light,
                 bit_idx,
                 &mut sky_mask,
@@ -490,31 +488,31 @@ mod tests {
             (
                 true,
                 2,
-                Layer::Block,
+                LightLayer::Block,
                 dense,
                 Some(RowLight::Filled(LightChunk(*nibbles.0))),
             ),
             (
                 true,
                 2,
-                Layer::Block,
+                LightLayer::Block,
                 LightStorage::Uniform(0),
                 Some(RowLight::Empty),
             ),
             (
                 true,
                 1,
-                Layer::Sky,
+                LightLayer::Sky,
                 LightStorage::Uniform(0xF),
                 Some(RowLight::Filled(LightChunk([0xFF; 2048]))),
             ),
-            (false, 2, Layer::Sky, LightStorage::Uniform(0xF), None),
+            (false, 2, LightLayer::Sky, LightStorage::Uniform(0xF), None),
         ];
         for index in 0..SECTIONS {
             cases.push((
                 true,
                 index,
-                Layer::Block,
+                LightLayer::Block,
                 LightStorage::Uniform(0x3),
                 Some(RowLight::Filled(LightChunk([0x33; 2048]))),
             ));
@@ -525,21 +523,21 @@ mod tests {
             let (mut world, column, sections) = column_world(has_sky);
             let changed = vec![sections[index]];
             let data = match layer {
-                Layer::Block => {
+                LightLayer::Block => {
                     world
                         .entity_mut(sections[index])
                         .insert(BlockLight(storage));
                     delta(&mut world, column, changed, Vec::new())
                 }
-                Layer::Sky => {
+                LightLayer::Sky => {
                     world.entity_mut(sections[index]).insert(SkyLight(storage));
                     delta(&mut world, column, Vec::new(), changed)
                 }
             };
             let unpacked = unpack_light_data(&data, ROWS).expect("delta round-trips");
             let (rows, arrays) = match layer {
-                Layer::Block => (&unpacked.block, data.block_light_arrays.len()),
-                Layer::Sky => (&unpacked.sky, data.sky_light_arrays.len()),
+                LightLayer::Block => (&unpacked.block, data.block_light_arrays.len()),
+                LightLayer::Sky => (&unpacked.sky, data.sky_light_arrays.len()),
             };
             let filled = rows
                 .iter()
@@ -553,12 +551,12 @@ mod tests {
             };
             let changed_row = index + 1;
             for row in 0..ROWS {
-                let block_expected = if layer == Layer::Block && row == changed_row {
+                let block_expected = if layer == LightLayer::Block && row == changed_row {
                     &expected
                 } else {
                     &RowLight::Unchanged
                 };
-                let sky_expected = if layer == Layer::Sky && row == changed_row {
+                let sky_expected = if layer == LightLayer::Sky && row == changed_row {
                     &expected
                 } else {
                     &RowLight::Unchanged

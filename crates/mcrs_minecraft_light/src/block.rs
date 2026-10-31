@@ -68,17 +68,6 @@ impl LightProperties {
     }
 }
 
-/// Which of the two independent light layers is being computed.
-#[derive(Copy, Clone, PartialEq, Eq, Hash, Debug)]
-pub enum Layer {
-    /// Emitted by blocks. Sources are block emission.
-    Block,
-    /// Comes from the sky. It has no per-block emitters at all: its sources
-    /// are whole vertical runs of unoccluded column, found by
-    /// [`LightRegistry::breaks_sky_column`].
-    Sky,
-}
-
 /// What stands in for a block the world cannot supply.
 ///
 /// The two cases are genuinely different and must not share an id. Space that

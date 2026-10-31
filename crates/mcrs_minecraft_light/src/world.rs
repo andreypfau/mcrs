@@ -6,9 +6,10 @@ use mcrs_minecraft_chunk::{ColumnHeights, PalettedContainer, VoxelId};
 use mcrs_minecraft_core::{BlockPos, BlockStateId, ColumnPos, SectionPos};
 
 use crate::SectionBlocks;
-use crate::block::{Layer, LightRegistry};
+use crate::block::LightRegistry;
 use crate::level::{BlockColumn, LightBounds, LightLevel, SECTION_WIDTH};
-use crate::storage::LightStorage;
+use mcrs_minecraft_chunk::LightLayer;
+use mcrs_minecraft_chunk::LightStorage;
 use mcrs_minecraft_core::BoundingBox;
 use mcrs_minecraft_core::LocalPos;
 use mcrs_minecraft_volume::{
@@ -56,10 +57,10 @@ impl Section {
         }
     }
 
-    pub fn light(&self, layer: Layer) -> &LightStorage {
+    pub fn light(&self, layer: LightLayer) -> &LightStorage {
         match layer {
-            Layer::Block => &self.block_light,
-            Layer::Sky => &self.sky_light,
+            LightLayer::Block => &self.block_light,
+            LightLayer::Sky => &self.sky_light,
         }
     }
 }
@@ -279,7 +280,7 @@ impl LightWorld {
     /// light. The calculation itself uses a different convention — unloaded
     /// space contributes nothing to either layer — which is why this method is
     /// not used to build seeds.
-    pub fn light_at(&self, pos: BlockPos, layer: Layer) -> LightLevel {
+    pub fn light_at(&self, pos: BlockPos, layer: LightLayer) -> LightLevel {
         match self.sections.get(&SectionPos::from(pos)) {
             Some(section) => {
                 let local = LocalPos::from(pos);
@@ -290,8 +291,8 @@ impl LightWorld {
                 ))
             }
             None => match layer {
-                Layer::Block => LightLevel::ZERO,
-                Layer::Sky => LightLevel::MAX,
+                LightLayer::Block => LightLevel::ZERO,
+                LightLayer::Sky => LightLevel::MAX,
             },
         }
     }

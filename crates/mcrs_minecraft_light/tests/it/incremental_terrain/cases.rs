@@ -3,6 +3,7 @@ use std::sync::Arc;
 use crate::common::{AIR, Reference, STONE, registry, state};
 use mcrs_minecraft_chunk::{PalettedContainer, VoxelPalette};
 use mcrs_minecraft_core::{BlockPos, BoundingBox, ColumnPos, SectionPos};
+use mcrs_minecraft_chunk::LightLayer;
 use mcrs_minecraft_light::prelude::*;
 
 fn bounds() -> LightBounds {
@@ -133,7 +134,7 @@ fn check_open_sky_is_full(pump: &Pump) {
             let top = surface_height(x, z);
             for y in top + 1..SECTIONS_Y * 16 {
                 let pos = BlockPos::new(x, y, z);
-                let got = pump.world.light_at(pos, Layer::Sky).get();
+                let got = pump.world.light_at(pos, LightLayer::Sky).get();
                 assert_eq!(
                     got,
                     15,
@@ -327,7 +328,7 @@ fn a_shaft_lights_a_tunnel_across_chunk_seams() {
         for x in SHAFT_X.start..COLUMNS * 16 - 8 {
             profile.push(
                 pump.world
-                    .light_at(BlockPos::new(x, TUNNEL_LOW + 1, 25), Layer::Sky)
+                    .light_at(BlockPos::new(x, TUNNEL_LOW + 1, 25), LightLayer::Sky)
                     .get(),
             );
         }

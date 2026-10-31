@@ -2,6 +2,8 @@ pub mod column_heights;
 pub mod container;
 #[rustfmt::skip]
 pub mod keys;
+pub mod light;
+pub mod light_storage;
 pub mod nibbles;
 pub mod palette;
 pub mod section;
@@ -9,6 +11,8 @@ pub mod voxel_palette;
 
 pub use column_heights::ColumnHeights;
 pub use container::{AbstractCube, HeterogeneousPaletteData, PalettedContainer};
+pub use light::{BlockLight, LightLayer, SkyLight};
+pub use light_storage::LightStorage;
 pub use nibbles::SectionNibbles;
 pub use voxel_palette::{SharedVoxelPalette, VoxelPalette};
 

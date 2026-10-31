@@ -2,27 +2,32 @@ use mcrs_minecraft_protocol::VarInt;
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundLightUpdate;
 use std::sync::Arc;
 
-use crate::light_codec::{LightCodecParams, build_delta_light_data};
-use bevy_app::{App, Last, Plugin};
+use bevy_app::{App, FixedUpdate, Last, Plugin};
 use bevy_ecs::prelude::*;
 use mcrs_minecraft_core::{ColumnPos, SectionPos};
+use mcrs_minecraft_engine::light_codec::{LightCodecParams, build_delta_light_data};
 use mcrs_minecraft_level::aoi::{PlayerObservers, min_column_distance};
 use mcrs_minecraft_level::block_update::BlockPlaced;
 use mcrs_minecraft_level::entity::physics::Transform;
 use mcrs_minecraft_level::entity::player::Player;
 use mcrs_minecraft_level::palette::ChunkBlocks;
 use mcrs_minecraft_level::session::PlayerSession;
+use mcrs_minecraft_level::world::column_drain::{ColumnDrain, ColumnDrainSet};
 use mcrs_minecraft_level::world::dimension::InDimension;
 use mcrs_minecraft_level::world::lifecycle::stage::SectionStageChanged;
+use mcrs_minecraft_level::world::light_gate::{
+    ColumnAwaitsLight, ColumnLightGate, ColumnLightSettled, LightGated,
+};
 use mcrs_minecraft_level::world::storage::column::{ColumnIndex, ColumnPosComponent};
 use mcrs_minecraft_light::block::LightRegistry;
 use mcrs_minecraft_light::prelude::LightWorkQueue;
 use mcrs_minecraft_light::prelude::{
-    Edit, LightBounds, LightPlugin, LightSet, PendingEdits, Priority, SectionRelit,
+    Edit, LightBounds, LightPlugin, LightSet, LightStatus, Lighting, PendingEdits, Priority,
+    SectionRelit, dispatch_epoch, publish_light,
 };
 
 use mcrs_minecraft_heightmap::SurfaceHeightmap;
-use rustc_hash::FxHashMap;
+use rustc_hash::{FxHashMap, FxHashSet};
 use smallvec::SmallVec;
 
 use mcrs_minecraft_engine::bus::{
@@ -38,11 +43,15 @@ pub(crate) enum DimLightSet {
     Emit,
 }
 
-pub struct DimLightPlugin {
-    pub registry: Arc<LightRegistry>,
-    pub bounds: LightBounds,
-    pub sky: bool,
+pub(crate) struct DimLightPlugin {
+    pub(crate) registry: Arc<LightRegistry>,
+    pub(crate) bounds: LightBounds,
+    pub(crate) sky: bool,
 }
+
+/// The columns that wait for the light around them to settle.
+#[derive(Resource, Default)]
+struct ColumnsAwaitingLight(FxHashSet<ColumnPos>);
 
 impl Plugin for DimLightPlugin {
     fn build(&self, app: &mut App) {
@@ -75,8 +84,49 @@ impl Plugin for DimLightPlugin {
                     .in_set(DimLightSet::Feed),
                 emit_light_updates.in_set(DimLightSet::Emit),
             ),
+        )
+        .insert_resource(LightGated)
+        .init_resource::<ColumnsAwaitingLight>()
+        .add_systems(FixedUpdate, settle_awaiting_columns.in_set(ColumnLightGate))
+        .add_systems(
+            ColumnDrain,
+            (
+                // A finished epoch frees its slot and unblocks its area only when it is
+                // retired, and columns land many times a tick. Retiring here publishes a
+                // column's light in time for the send that follows it in this same drain.
+                (publish_light, dispatch_epoch)
+                    .chain()
+                    .run_if(resource_exists::<Lighting>)
+                    .in_set(ColumnDrainSet::Light),
+                settle_awaiting_columns
+                    .in_set(ColumnDrainSet::Send)
+                    .in_set(ColumnLightGate),
+            ),
         );
     }
+}
+
+/// Answers each column that waits for its light once the light around it has settled.
+fn settle_awaiting_columns(
+    mut awaiting: MessageReader<ColumnAwaitsLight>,
+    mut waiting: ResMut<ColumnsAwaitingLight>,
+    status: LightStatus,
+    mut settled: MessageWriter<ColumnLightSettled>,
+) {
+    waiting
+        .0
+        .extend(awaiting.read().map(|&ColumnAwaitsLight(column)| column));
+    if waiting.0.is_empty() {
+        return;
+    }
+    waiting.0.retain(|&column| {
+        if status.settled_around(column) {
+            settled.write(ColumnLightSettled(column));
+            false
+        } else {
+            true
+        }
+    });
 }
 
 /// Re-scores the waiting light work against where the players stand now.

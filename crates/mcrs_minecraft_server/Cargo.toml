@@ -34,7 +34,6 @@ mcrs_minecraft_level.workspace = true
 mcrs_minecraft_engine.workspace = true
 mcrs_minecraft_simulation.workspace = true
 mcrs_minecraft_volume.workspace = true
-mcrs_minecraft_light = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_light_plugin.workspace = true
 mcrs_minecraft_vanilla_worldgen.workspace = true
 mcrs_minecraft_network = { workspace = true, features = ["bevy"] }
@@ -67,6 +66,7 @@ bevy_ecs = { workspace = true, features = ["multi_threaded"] }
 bevy_asset = { workspace = true, features = ["multi_threaded"] }
 
 [dev-dependencies]
+mcrs_minecraft_light = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_command_tree.workspace = true
 mcrs_command.workspace = true
 mcrs_minecraft_command_argument_vanilla.workspace = true

@@ -4,13 +4,14 @@ use crate::common::*;
 
 fn combined(world: &LightWorld, pos: BlockPos, sky_darken: u8) -> u8 {
     LightLevel::brightness(
-        world.light_at(pos, Layer::Block),
-        world.light_at(pos, Layer::Sky),
+        world.light_at(pos, LightLayer::Block),
+        world.light_at(pos, LightLayer::Sky),
         sky_darken,
     )
     .get()
 }
 use mcrs_minecraft_chunk::VoxelId;
+use mcrs_minecraft_chunk::{LightLayer, LightStorage};
 use mcrs_minecraft_core::{BlockPos, SectionPos};
 use mcrs_minecraft_light::prelude::*;
 
@@ -237,7 +238,9 @@ fn loading_a_section_lets_light_in_from_its_neighbour() {
         block: state(GLOWSTONE),
     }]);
     assert_eq!(
-        world.light_at(BlockPos::new(15, 8, 8), Layer::Block).get(),
+        world
+            .light_at(BlockPos::new(15, 8, 8), LightLayer::Block)
+            .get(),
         15
     );
 
@@ -247,12 +250,16 @@ fn loading_a_section_lets_light_in_from_its_neighbour() {
         blocks: Arc::new(filled(AIR)),
     }]);
     assert_eq!(
-        world.light_at(BlockPos::new(16, 8, 8), Layer::Block).get(),
+        world
+            .light_at(BlockPos::new(16, 8, 8), LightLayer::Block)
+            .get(),
         14,
         "a section that has just appeared must be lit by what already surrounds it"
     );
     assert_eq!(
-        world.light_at(BlockPos::new(20, 8, 8), Layer::Block).get(),
+        world
+            .light_at(BlockPos::new(20, 8, 8), LightLayer::Block)
+            .get(),
         10
     );
 }
@@ -273,7 +280,9 @@ fn unloading_a_section_takes_its_light_with_it() {
         block: state(GLOWSTONE),
     }]);
     assert_eq!(
-        world.light_at(BlockPos::new(18, 8, 8), Layer::Block).get(),
+        world
+            .light_at(BlockPos::new(18, 8, 8), LightLayer::Block)
+            .get(),
         12
     );
 
@@ -281,7 +290,9 @@ fn unloading_a_section_takes_its_light_with_it() {
         pos: SectionPos::new(0, 0, 0),
     }]);
     assert_eq!(
-        world.light_at(BlockPos::new(18, 8, 8), Layer::Block).get(),
+        world
+            .light_at(BlockPos::new(18, 8, 8), LightLayer::Block)
+            .get(),
         0,
         "the emitter is gone, and unloaded space is opaque rather than empty"
     );
@@ -468,15 +479,21 @@ fn uniform_sections_agree_with_the_reference_solver() {
     world.update_now(loads);
 
     assert_eq!(
-        world.light_at(BlockPos::new(8, 47, 8), Layer::Sky).get(),
+        world
+            .light_at(BlockPos::new(8, 47, 8), LightLayer::Sky)
+            .get(),
         15
     );
     assert_eq!(
-        world.light_at(BlockPos::new(8, 32, 8), Layer::Sky).get(),
+        world
+            .light_at(BlockPos::new(8, 32, 8), LightLayer::Sky)
+            .get(),
         15
     );
     assert_eq!(
-        world.light_at(BlockPos::new(8, 31, 8), Layer::Sky).get(),
+        world
+            .light_at(BlockPos::new(8, 31, 8), LightLayer::Sky)
+            .get(),
         14
     );
 

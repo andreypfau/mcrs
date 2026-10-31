@@ -24,7 +24,7 @@ tracing.workspace = true
 
 [features]
 default = []
-bevy = ["dep:bevy_ecs", "dep:bevy_app", "dep:bevy_tasks"]
+bevy = ["dep:bevy_ecs", "dep:bevy_app", "dep:bevy_tasks", "mcrs_minecraft_chunk/bevy"]
 
 [dev-dependencies]
 bevy_app.workspace = true

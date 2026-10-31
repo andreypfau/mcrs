@@ -34,6 +34,7 @@ use mcrs_minecraft_level::world::sub_app::{
     DimAppLabel, DimDespawnQueue, DimSpawnQueue, DimSpawnRequest,
 };
 use mcrs_minecraft_light::block_light::{BlockLightRegistry, block_light_registry};
+use mcrs_minecraft_light_plugin::LightingPlugin;
 use mcrs_minecraft_network::ConnectionState;
 use mcrs_minecraft_network::metrics::PacketDispatcher;
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundLogin;
@@ -96,8 +97,9 @@ pub fn make_host_app() -> App {
 }
 
 /// Give the dimensions spawned from this host a lighting engine. Production
-/// inserts the same resource at `Startup`.
+/// builds the same table at `Startup`.
 pub fn enable_lighting(app: &mut App) {
+    app.add_plugins(LightingPlugin);
     let blocks = app.world().resource::<Blocks>().clone();
     app.insert_resource(BlockLightRegistry(block_light_registry(&blocks)));
 }

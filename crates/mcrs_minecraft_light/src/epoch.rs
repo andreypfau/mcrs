@@ -16,8 +16,8 @@ use crate::field::{BlockSnapshot, CellIndex, FieldLayout, LightField, block_in};
 use crate::level::{BlockColumn, LightLevel};
 use crate::region::{ErasePlan, Influence, Regions, SectionErase};
 use crate::relax::relax;
-use crate::storage::LightStorage;
 use crate::world::{Edit, LightWorld, Section, SkyFloor};
+use mcrs_minecraft_chunk::LightStorage;
 use mcrs_minecraft_core::BoundingBox;
 use mcrs_minecraft_core::LocalPos;
 

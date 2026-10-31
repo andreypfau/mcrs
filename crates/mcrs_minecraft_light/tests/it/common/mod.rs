@@ -1,7 +1,7 @@
 use std::sync::{Arc, OnceLock};
 
 use glam::Vec3;
-use mcrs_minecraft_chunk::{PalettedContainer, VoxelId, VoxelPalette};
+use mcrs_minecraft_chunk::{LightLayer, PalettedContainer, VoxelId, VoxelPalette};
 use mcrs_minecraft_core::voxel_shape::{Aabb, VoxelShape};
 use mcrs_minecraft_core::{BlockPos, BlockStateId, Direction, SectionPos};
 use mcrs_minecraft_light::prelude::*;
@@ -155,11 +155,11 @@ impl TestWorld {
     }
 
     pub fn block_light(&self, pos: BlockPos) -> u8 {
-        self.world.light_at(pos, Layer::Block).get()
+        self.world.light_at(pos, LightLayer::Block).get()
     }
 
     pub fn sky_light(&self, pos: BlockPos) -> u8 {
-        self.world.light_at(pos, Layer::Sky).get()
+        self.world.light_at(pos, LightLayer::Sky).get()
     }
 
     /// Sky light going down a column, from `top` to `bottom` inclusive.
@@ -296,8 +296,8 @@ impl Reference {
                 for x in self.min.x..self.min.x + self.dim.0 {
                     let p = BlockPos::new(x, y, z);
                     let i = self.index(p);
-                    let got_block = world.light_at(p, Layer::Block).get();
-                    let got_sky = world.light_at(p, Layer::Sky).get();
+                    let got_block = world.light_at(p, LightLayer::Block).get();
+                    let got_sky = world.light_at(p, LightLayer::Sky).get();
                     if got_block != self.block[i] || got_sky != self.sky[i] {
                         return Some(format!(
                             "at {p:?}: engine block={got_block} sky={got_sky}, \

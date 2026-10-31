@@ -24,29 +24,19 @@ pub mod plugin;
 pub mod queue;
 pub mod region;
 pub mod relax;
-pub mod storage;
 pub mod world;
 
 use mcrs_minecraft_chunk::VoxelPalette;
 use mcrs_minecraft_core::BlockStateId;
 use mcrs_minecraft_core::SectionPos;
 
-use crate::storage::LightStorage;
-
 pub use relax::relax;
 
 pub type SectionBlocks = VoxelPalette<BlockStateId, { SectionPos::SIZE }>;
 
-#[derive(Clone, Debug, Default, PartialEq)]
-#[cfg_attr(feature = "bevy", derive(bevy_ecs::component::Component))]
-pub struct BlockLight(pub LightStorage);
-
-#[derive(Clone, Debug, Default, PartialEq)]
-#[cfg_attr(feature = "bevy", derive(bevy_ecs::component::Component))]
-pub struct SkyLight(pub LightStorage);
-
 pub mod prelude {
-    pub use crate::block::{Layer, LightProperties, LightRegistry, SpecialBlocks};
+    pub use crate::SectionBlocks;
+    pub use crate::block::{LightProperties, LightRegistry, SpecialBlocks};
     pub use crate::epoch::{EpochStats, LightJob, LightUpdate, PublishedLight, SectionLight};
     pub use crate::level::{BlockColumn, LightBounds, LightLevel};
     #[cfg(feature = "bevy")]
@@ -56,7 +46,5 @@ pub mod prelude {
     };
     pub use crate::queue::{DEFAULT_PRIORITY, LightQueue, Priority};
     pub use crate::region::Influence;
-    pub use crate::storage::LightStorage;
     pub use crate::world::{ColumnSurface, Edit, LightWorld, Section};
-    pub use crate::{BlockLight, SectionBlocks, SkyLight};
 }

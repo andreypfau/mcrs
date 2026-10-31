@@ -11,7 +11,7 @@ use mcrs_minecraft_core::{BlockPos, Direction, SectionPos};
 use crate::SectionBlocks;
 use crate::block::LightRegistry;
 use crate::level::{LightLevel, SECTION_WIDTH};
-use crate::storage::LightStorage;
+use mcrs_minecraft_chunk::LightStorage;
 use mcrs_minecraft_core::BoundingBox;
 use mcrs_minecraft_core::LocalPos;
 use mcrs_minecraft_volume::{SectionBox, Snapshot, Unavailable};

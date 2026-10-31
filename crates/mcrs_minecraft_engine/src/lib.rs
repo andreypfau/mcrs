@@ -13,6 +13,7 @@ pub mod dim;
 pub mod dimension_change;
 pub mod disconnect;
 pub mod heightmap;
+pub mod light_codec;
 pub mod network_id;
 pub mod session;
 pub mod teleport;

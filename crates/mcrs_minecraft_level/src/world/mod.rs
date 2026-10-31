@@ -4,6 +4,7 @@ pub mod dimension;
 pub mod dimension_builders;
 pub mod dimension_list;
 pub mod lifecycle;
+pub mod light_gate;
 pub mod storage;
 pub mod sub_app;
 pub mod world_save;

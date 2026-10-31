@@ -10,6 +10,7 @@ use crate::world::dimension::DimensionTypeConfig;
 pub struct DimensionBuild<'a> {
     pub dimension: &'a ResourceKey<Dimension>,
     pub type_config: DimensionTypeConfig,
+    pub has_sky_light: bool,
 }
 
 /// Reads the host world and adds a host plugin's part to one dimension world.

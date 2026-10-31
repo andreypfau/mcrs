@@ -2,13 +2,17 @@ use bevy_app::{App, FixedUpdate, Plugin};
 use bevy_ecs::change_detection::ResMut;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::lifecycle::Discard;
-use bevy_ecs::message::MessageWriter;
-use bevy_ecs::prelude::{Added, Changed, Component, ContainsEntity, Local, On, Or, Query};
+use bevy_ecs::message::{MessageReader, MessageWriter};
+use bevy_ecs::prelude::{Added, Changed, Component, ContainsEntity, Local, On, Or, Query, With};
 use bevy_ecs::schedule::{IntoScheduleConfigs, SystemSet};
 use bevy_ecs::system::{Res, SystemParam};
 use mcrs_minecraft_block::definition::Blocks;
+use mcrs_minecraft_chunk::{BlockLight, SkyLight};
 use mcrs_minecraft_core::{BlockStateId, SectionPos};
 use mcrs_minecraft_engine::bus::to;
+use mcrs_minecraft_engine::light_codec::{
+    LightCodecParams, build_full_light_data, build_fullbright_light_data,
+};
 use mcrs_minecraft_level::entity::physics::Transform;
 use mcrs_minecraft_level::entity::player::chunk_view::{
     ChunkTrackingView, PlayerViewDistance, SentChunkView,
@@ -21,15 +25,14 @@ use mcrs_minecraft_level::world::lifecycle::ticket::{
 };
 use mcrs_minecraft_level::world::lifecycle::trace as column_trace;
 use mcrs_minecraft_level::world::lifecycle::trace::{ColumnStage, ColumnTraceLog};
+use mcrs_minecraft_level::world::light_gate::{
+    ColumnAwaitsLight, ColumnLightGate, ColumnLightSettled, LightGated,
+};
 use mcrs_minecraft_level::world::storage::block_entity::SectionBlockEntities;
 use mcrs_minecraft_level::world::storage::column::{
     ColumnIndex, ColumnLifecycleSet, ColumnPos as EngineColumnPos,
 };
 use mcrs_minecraft_level::world::storage::section::SectionIndex;
-use mcrs_minecraft_light::{BlockLight, SkyLight};
-use mcrs_minecraft_light_plugin::{
-    LightCodecParams, build_full_light_data, build_fullbright_light_data,
-};
 use mcrs_minecraft_network::event::Received;
 use mcrs_minecraft_protocol::ColumnPos;
 use mcrs_minecraft_protocol::VarInt;
@@ -73,15 +76,21 @@ impl Plugin for ColumnViewPlugin {
         app.add_systems(
             FixedUpdate,
             (
-                update_view,
-                raise_queued_columns,
-                project_ready_columns,
-                send_column_queue,
-                crate::world::aoi::mirror_held_columns,
+                (update_view, raise_queued_columns, project_ready_columns)
+                    .chain()
+                    .before(ColumnLightGate),
+                (
+                    promote_lit_columns,
+                    send_column_queue,
+                    crate::world::aoi::mirror_held_columns,
+                )
+                    .chain()
+                    .after(ColumnLightGate),
             )
-                .chain()
                 .in_set(ColumnViewSet),
         );
+        app.add_message::<ColumnAwaitsLight>();
+        app.add_message::<ColumnLightSettled>();
 
         app.add_observer(handle_batch_acknowledgement);
         app.add_observer(release_loading_tickets);
@@ -92,8 +101,10 @@ impl Plugin for ColumnViewPlugin {
 enum ColumnState {
     /// In the view, with no ticket raised for it yet.
     Queued,
-    /// Ticketed, waiting for its sections to land and its light to settle.
+    /// Ticketed, waiting for its sections to land.
     Awaiting,
+    /// Landed and lit, waiting for the light around it to settle.
+    Lighting,
     Ready,
     Sent,
 }
@@ -111,7 +122,7 @@ pub struct ColumnView {
     states: FxHashMap<ColumnPos, ColumnState>,
     /// The unsent columns of `states` by state, so a drain walks what is left to do rather than
     /// the whole view. Kept by `set` alone.
-    unsent: [FxHashSet<ColumnPos>; 3],
+    unsent: [FxHashSet<ColumnPos>; 4],
     batch_quota: f32,
     desired_columns_per_tick: f32,
     unacknowledged_batches: u32,
@@ -159,10 +170,11 @@ impl ColumnView {
     }
 
     fn in_state(&self, state: ColumnState) -> impl Iterator<Item = ColumnPos> + '_ {
-        let [queued, awaiting, ready] = &self.unsent;
+        let [queued, awaiting, lighting, ready] = &self.unsent;
         let unsent = match state {
             ColumnState::Queued => Some(queued),
             ColumnState::Awaiting => Some(awaiting),
+            ColumnState::Lighting => Some(lighting),
             ColumnState::Ready => Some(ready),
             ColumnState::Sent => None,
         };
@@ -172,10 +184,11 @@ impl ColumnView {
     }
 
     fn unsent_mut(&mut self, state: ColumnState) -> Option<&mut FxHashSet<ColumnPos>> {
-        let [queued, awaiting, ready] = &mut self.unsent;
+        let [queued, awaiting, lighting, ready] = &mut self.unsent;
         match state {
             ColumnState::Queued => Some(queued),
             ColumnState::Awaiting => Some(awaiting),
+            ColumnState::Lighting => Some(lighting),
             ColumnState::Ready => Some(ready),
             ColumnState::Sent => None,
         }
@@ -450,21 +463,18 @@ pub(crate) struct ReadyInputs<'w, 's> {
         ),
     >,
     chunks: Query<'w, 's, &'static SectionStage>,
-    codec_params: LightCodecParams<'w, 's>,
-    light_status: mcrs_minecraft_light::prelude::LightStatus<'w>,
+    lit: Query<'w, 's, (), (With<BlockLight>, With<SkyLight>)>,
+    light_gated: Option<Res<'w, LightGated>>,
+    awaiting_light: MessageWriter<'w, ColumnAwaitsLight>,
     ready: Local<'s, Vec<ColumnPos>>,
     traces: Option<ResMut<'w, ColumnTraceLog>>,
 }
 
-/// Moves a column from "wanted" to "ready to send" once every section it carries has landed
-/// and its light has settled. The only writer of that transition.
+/// Moves a column on from "wanted" once every section it carries has landed: to ready, or in a
+/// light-gated world to waiting for the light around it to settle.
 ///
-/// The light gate belongs here rather than at the send: a column goes out once and never
-/// again, so sending one before its light has settled leaves it permanently black on the
-/// client.
-///
-/// Every waiting column is looked at, so this runs once a tick; light settling has no
-/// per-column signal and this is what catches it.
+/// The light gate belongs before the send: a column goes out once and never again, so sending
+/// one before its light has settled leaves it permanently black on the client.
 pub(crate) fn project_ready_columns(mut inputs: ReadyInputs) {
     project(&mut inputs, None);
 }
@@ -500,12 +510,13 @@ fn project(inputs: &mut ReadyInputs, candidates: Option<&FxHashSet<ColumnPos>>) 
         players,
         dims,
         chunks,
-        codec_params,
-        light_status,
+        lit,
+        light_gated,
+        awaiting_light,
         ready,
         traces,
     } = inputs;
-    let await_light = light_status.is_installed();
+    let await_light = light_gated.is_some();
     for (mut chunk_view, dim) in players.iter_mut() {
         let Ok((chunk_index, column_index, type_config)) = dims.get(dim.entity()) else {
             continue;
@@ -528,22 +539,14 @@ fn project(inputs: &mut ReadyInputs, candidates: Option<&FxHashSet<ColumnPos>>) 
         let blocks_landed = |col: ColumnPos| sections_of(col).is_some();
         let light_landed = |col: ColumnPos| {
             sections_of(col).is_some_and(|(_, sections)| {
-                !await_light
-                    || sections.iter().all(|&chunk_e| {
-                        codec_params.block_lights.contains(chunk_e)
-                            && codec_params.sky_lights.contains(chunk_e)
-                    })
+                !await_light || sections.iter().all(|&chunk_e| lit.contains(chunk_e))
             })
         };
         // Light computed against a neighbour whose blocks have not arrived
         // is a seam the column would carry for as long as the client holds
-        // it, because a column goes out once. `settled_around` then waits
-        // for the work those neighbours raised.
-        let is_ready = |&col: &ColumnPos| {
-            light_landed(col)
-                && margin_of(col).all(blocks_landed)
-                && (!await_light || light_status.settled_around(col))
-        };
+        // it, because a column goes out once. The light gate then waits for
+        // the work those neighbours raised.
+        let is_ready = |&col: &ColumnPos| light_landed(col) && margin_of(col).all(blocks_landed);
         match candidates {
             None => ready.extend(chunk_view.in_state(ColumnState::Awaiting).filter(is_ready)),
             Some(candidates) => ready.extend(
@@ -555,9 +558,32 @@ fn project(inputs: &mut ReadyInputs, candidates: Option<&FxHashSet<ColumnPos>>) 
             ),
         }
         for col in ready.drain(..) {
-            trace!("Column {:?} ready", col);
-            column_trace::mark(traces, col, ColumnStage::Ready);
-            chunk_view.set(col, Some(ColumnState::Ready));
+            if await_light {
+                chunk_view.set(col, Some(ColumnState::Lighting));
+                awaiting_light.write(ColumnAwaitsLight(col));
+            } else {
+                trace!("Column {:?} ready", col);
+                column_trace::mark(traces, col, ColumnStage::Ready);
+                chunk_view.set(col, Some(ColumnState::Ready));
+            }
+        }
+    }
+}
+
+/// Moves a column whose light has settled from waiting for it to ready, for every player
+/// waiting on it.
+pub(crate) fn promote_lit_columns(
+    mut settled: MessageReader<ColumnLightSettled>,
+    mut players: Query<&mut ColumnView>,
+    mut traces: Option<ResMut<ColumnTraceLog>>,
+) {
+    for &ColumnLightSettled(col) in settled.read() {
+        for mut chunk_view in &mut players {
+            if chunk_view.state(col) == Some(ColumnState::Lighting) {
+                trace!("Column {:?} ready", col);
+                column_trace::mark(&mut traces, col, ColumnStage::Ready);
+                chunk_view.set(col, Some(ColumnState::Ready));
+            }
         }
     }
 }
@@ -617,7 +643,7 @@ pub(crate) fn send_column_queue(
     dim_type_configs: Query<&DimensionTypeConfig>,
     column_heightmaps: Query<(&SurfaceHeightmap, &MotionHeightmap, &NoLeavesHeightmap)>,
     codec_params: LightCodecParams,
-    light_status: mcrs_minecraft_light::prelude::LightStatus,
+    light_gated: Option<Res<LightGated>>,
     (block_definitions, registries): (Res<Blocks>, Res<CurrentRegistries>),
     mut packet_writer: MessageWriter<OutboundPlayerPacket>,
     mut held: MessageWriter<ColumnHeld>,
@@ -750,7 +776,7 @@ pub(crate) fn send_column_queue(
                         continue 'columns;
                     }
                 }
-                let light_data = if !light_status.is_installed() {
+                let light_data = if light_gated.is_none() {
                     build_fullbright_light_data(wire_light_rows)
                 } else {
                     build_full_light_data(column_entity, &codec_params)
@@ -853,10 +879,6 @@ mod tests {
     use bevy_ecs::world::World;
     use mcrs_minecraft_level::world::dimension::HasSkyLight;
     use mcrs_minecraft_level::world::storage::column::{ColumnSections, ColumnSlot};
-    use mcrs_minecraft_light::prelude::{
-        BlockLight, LightBounds, LightProperties, LightRegistry, LightWorld, SkyLight,
-        SpecialBlocks,
-    };
 
     const SECTIONS: u32 = 2;
 
@@ -920,17 +942,9 @@ mod tests {
             .spawn((ColumnView::default(), InDimension(dim), HostAnchor(host)))
             .id();
 
-        let registry = std::sync::Arc::new(LightRegistry::new(
-            vec![LightProperties::AIR, LightProperties::SOLID],
-            SpecialBlocks {
-                unloaded: mcrs_minecraft_chunk::VoxelId(1),
-                outside: mcrs_minecraft_chunk::VoxelId(0),
-            },
-        ));
-        world.insert_resource(mcrs_minecraft_light::prelude::Lighting(LightWorld::new(
-            registry,
-            LightBounds::new(0, SECTIONS as i32 - 1),
-        )));
+        world.insert_resource(LightGated);
+        world.init_resource::<Messages<ColumnAwaitsLight>>();
+        world.init_resource::<Messages<ColumnLightSettled>>();
         world.init_resource::<Messages<OutboundPlayerPacket>>();
         world.init_resource::<Messages<ColumnHeld>>();
         world.insert_resource(CurrentRegistries::new(
@@ -1057,6 +1071,25 @@ mod tests {
         world
             .run_system_once(project_ready_columns)
             .expect("the projection runs");
+        assert_eq!(
+            view(&world, fx.player).state(col),
+            Some(ColumnState::Lighting)
+        );
+        let awaiting = world.resource::<Messages<ColumnAwaitsLight>>();
+        assert_eq!(
+            awaiting
+                .get_cursor()
+                .read(awaiting)
+                .copied()
+                .collect::<Vec<_>>(),
+            vec![ColumnAwaitsLight(col)],
+            "the light gate is asked about the column once it has landed"
+        );
+
+        world.write_message(ColumnLightSettled(col));
+        world
+            .run_system_once(promote_lit_columns)
+            .expect("the promotion runs");
         assert_eq!(view(&world, fx.player).state(col), Some(ColumnState::Ready));
     }
 

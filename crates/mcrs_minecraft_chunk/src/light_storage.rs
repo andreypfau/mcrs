@@ -1,7 +1,7 @@
 use mcrs_minecraft_core::SectionPos;
 use std::sync::Arc;
 
-use mcrs_minecraft_chunk::SectionNibbles;
+use crate::SectionNibbles;
 
 /// `Eq` is load-bearing: `Arc` compares its pointers first only when the payload
 /// is `Eq`, and that shortcut is why the dense payload is shared rather than

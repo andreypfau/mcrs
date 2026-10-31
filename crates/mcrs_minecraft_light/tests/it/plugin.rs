@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use crate::common::{AIR, TORCH, filled, registry, state};
 use bevy_app::{App, TaskPoolPlugin};
+use mcrs_minecraft_chunk::{BlockLight, SkyLight};
 use mcrs_minecraft_core::SectionPos;
 use mcrs_minecraft_light::prelude::*;
 

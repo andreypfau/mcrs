@@ -65,25 +65,21 @@ use mcrs_minecraft_level::world::dimension::{
 };
 use mcrs_minecraft_level::world::dimension_builders::{DimensionBuild, DimensionBuilders};
 use mcrs_minecraft_level::world::lifecycle::trace::{ColumnTraceLog, ColumnTraceSink};
+use mcrs_minecraft_level::world::light_gate::ColumnLightGate;
 use mcrs_minecraft_level::world::sub_app::{
     DimAppLabel, DimSpawnQueue, DimSpawnRequest, DimensionPlugins,
 };
 use mcrs_minecraft_level::world::world_save::WorldSave;
-use mcrs_minecraft_light_plugin::DimLightPlugin;
 use mcrs_minecraft_registries::CurrentRegistries;
 
 #[derive(Clone)]
 pub struct DimRegistryBundle {
-    pub light_registry: Option<std::sync::Arc<mcrs_minecraft_light::block::LightRegistry>>,
     pub heightmap_predicates: Option<HeightmapPredicates>,
     pub world_save: Option<WorldSave>,
 }
 
 pub fn gather_dim_registries(world: &bevy_ecs::world::World) -> DimRegistryBundle {
     DimRegistryBundle {
-        light_registry: world
-            .get_resource::<mcrs_minecraft_light::block_light::BlockLightRegistry>()
-            .map(|registry| registry.0.clone()),
         heightmap_predicates: world
             .get_resource::<BlockHeightmapPredicates>()
             .map(|predicates| predicates.0.clone()),
@@ -292,27 +288,18 @@ pub fn spawn_dim_subapp(
             )
                 .chain()
                 .in_set(ColumnDrainSet::Request),
-            // A finished epoch frees its slot and unblocks its area only when it is
-            // retired, so retiring once a tick leaves most of the light engine's
-            // concurrency idle while columns arrive many times a tick. Retire and
-            // re-dispatch here, where the columns land, and a column's light is
-            // published in time for the send that follows it in this same drain.
             (
-                mcrs_minecraft_light::prelude::publish_light,
-                mcrs_minecraft_light::prelude::dispatch_epoch,
-            )
-                .chain()
-                .run_if(
-                    bevy_ecs::prelude::resource_exists::<mcrs_minecraft_light::prelude::Lighting>,
+                crate::world::entity::player::column_view::project_touched_columns
+                    .before(ColumnLightGate),
+                (
+                    crate::world::entity::player::column_view::promote_lit_columns,
+                    crate::world::entity::player::column_view::send_column_queue,
+                    crate::world::aoi::mirror_held_columns,
+                    flush_from_dim_outbox,
                 )
-                .in_set(ColumnDrainSet::Light),
-            (
-                crate::world::entity::player::column_view::project_touched_columns,
-                crate::world::entity::player::column_view::send_column_queue,
-                crate::world::aoi::mirror_held_columns,
-                flush_from_dim_outbox,
+                    .chain()
+                    .after(ColumnLightGate),
             )
-                .chain()
                 .in_set(ColumnDrainSet::Send),
         ),
     );
@@ -360,17 +347,6 @@ pub fn spawn_dim_subapp(
         .copied()
         .unwrap_or_default();
     sub_app.insert_resource(default_game_mode);
-    if let Some(registry) = &registries.light_registry {
-        sub_app.add_plugins(DimLightPlugin {
-            registry: std::sync::Arc::clone(registry),
-            bounds: mcrs_minecraft_light::level::LightBounds::from_dimension(
-                type_config.min_y,
-                type_config.section_count,
-            ),
-            sky: has_sky,
-        });
-    }
-
     if let Some(predicates) = &registries.heightmap_predicates {
         sub_app.insert_resource(BlockHeightmapPredicates(predicates.clone()));
     }
@@ -441,6 +417,7 @@ pub fn spawn_dim_subapp(
         let build = DimensionBuild {
             dimension: &request.dimension,
             type_config,
+            has_sky_light: has_sky,
         };
         builders.build(app.world(), &build, &mut sub_app);
     }
