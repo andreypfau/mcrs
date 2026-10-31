@@ -51,8 +51,8 @@ fn server_with(plugin: NetworkPlugin, players: Vec<(Uuid, String)>) -> (App, Soc
         announce_on_lan: false,
         ..plugin
     });
-    app.world()
-        .resource::<StatusPublisher>()
+    app.world_mut()
+        .resource_mut::<StatusPublisher>()
         .publish(StatusPlayers { players });
     let address = app.world().resource::<BoundAddress>().0;
     app.update();
@@ -80,6 +80,48 @@ fn status_exchange(address: SocketAddr) -> anyhow::Result<String> {
         .await
         .unwrap()
     })
+}
+
+#[test]
+fn a_player_who_joins_shows_in_the_next_status_response() {
+    let players = (1..=3)
+        .map(|n| (Uuid::from_u128(n), format!("player{n}")))
+        .collect();
+    let (mut app, address) = server(7, "§aTest", players);
+
+    let json = status_json(address);
+    let status: Status = serde_json::from_str(&json).unwrap();
+    assert_eq!(status.players.online, 3);
+    let more = (1..=4)
+        .map(|n| (Uuid::from_u128(n), format!("player{n}")))
+        .collect();
+    app.world_mut()
+        .resource_mut::<StatusPublisher>()
+        .publish(StatusPlayers { players: more });
+
+    app.update();
+    let json = status_json(address);
+    let status: Status = serde_json::from_str(&json).unwrap();
+
+    assert_eq!(status.players.online, 4);
+}
+
+#[test]
+fn the_status_response_stays_the_same_while_no_one_joins() {
+    let players = (1..=17)
+        .map(|n| (Uuid::from_u128(n), format!("player{n}")))
+        .collect();
+    let (mut app, address) = server(7, "§aTest", players);
+
+    let json = status_json(address);
+    let status: Status = serde_json::from_str(&json).unwrap();
+
+    app.update();
+
+    let json = status_json(address);
+    let status2: Status = serde_json::from_str(&json).unwrap();
+
+    assert_eq!(status2.players.sample, status.players.sample);
 }
 
 #[test]

@@ -20,7 +20,9 @@ impl Plugin for StatusPlugin {
             Update,
             (
                 on_connection_state_change_handle,
-                publish_status_players.run_if(resource_changed::<OnlinePlayers>),
+                publish_status_players
+                    .run_if(resource_changed::<OnlinePlayers>)
+                    .before(mcrs_minecraft_network::NetworkSet::RefreshStatus),
             )
                 .chain(),
         );
@@ -28,7 +30,7 @@ impl Plugin for StatusPlugin {
     }
 }
 
-fn publish_status_players(players: Res<OnlinePlayers>, publisher: Res<StatusPublisher>) {
+fn publish_status_players(players: Res<OnlinePlayers>, mut publisher: ResMut<StatusPublisher>) {
     let mut vec = Vec::new();
     for (_, uuid, name) in &players.players {
         vec.push((*uuid, name.clone()));

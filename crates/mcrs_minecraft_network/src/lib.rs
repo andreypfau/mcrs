@@ -38,6 +38,10 @@ pub use mcrs_minecraft_protocol::ConnectionState;
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, bevy_ecs::schedule::SystemSet)]
 pub enum NetworkSet {
     SpawnConnections,
+    /// Rebuilds the status response when the online players changed or 5 s passed. A system that
+    /// publishes players through `StatusPublisher` must run before this set to show them in the
+    /// same frame.
+    RefreshStatus,
 }
 use bytes::Bytes;
 
