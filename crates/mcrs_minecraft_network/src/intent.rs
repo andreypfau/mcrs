@@ -63,9 +63,13 @@ async fn refuse_login<S: ByteStream>(mut io: PacketIo<S>, reason: &Text) -> anyh
         reason: Bounded(&reason),
     })
     .await?;
-    // A client that never closes only costs the timeout; the reason is already sent.
-    let _ = timeout(REFUSAL_CLOSE_TIMEOUT, io.close()).await;
+    close_gracefully(io).await;
     Ok(())
+}
+
+async fn close_gracefully<S: ByteStream>(io: PacketIo<S>) {
+    // A client that never closes only costs the timeout; everything to send is already sent.
+    let _ = timeout(REFUSAL_CLOSE_TIMEOUT, io.close()).await;
 }
 
 pub(crate) async fn handle_intent<S: ByteStream>(
@@ -80,6 +84,10 @@ pub(crate) async fn handle_intent<S: ByteStream>(
 
     match intent {
         Intent::Status => {
+            if !shared.0.enable_status {
+                close_gracefully(io).await;
+                return Ok(());
+            }
             let _request = io
                 .recv_packet::<mcrs_minecraft_protocol::packets::status::serverbound::StatusRequest>()
                 .await?;
@@ -88,19 +96,21 @@ pub(crate) async fn handle_intent<S: ByteStream>(
                 let players = shared.0.status_recv.borrow();
                 let mut samples = Vec::new();
 
-                let n = players.players.len();
-                let start = if n > 12 {
-                    rand::random_range(0..=n - 12)
-                } else {
-                    0
-                };
-                for (uuid, name) in players.players.iter().skip(start).take(12) {
-                    samples.push(Sample {
-                        id: *uuid,
-                        name: name.clone(),
-                    });
+                if !shared.0.hide_online_players {
+                    let n = players.players.len();
+                    let start = if n > 12 {
+                        rand::random_range(0..=n - 12)
+                    } else {
+                        0
+                    };
+                    for (uuid, name) in players.players.iter().skip(start).take(12) {
+                        samples.push(Sample {
+                            id: *uuid,
+                            name: name.clone(),
+                        });
+                    }
+                    samples.shuffle(&mut rand::rng());
                 }
-                samples.shuffle(&mut rand::rng());
 
                 let status = Status {
                     version: Version {

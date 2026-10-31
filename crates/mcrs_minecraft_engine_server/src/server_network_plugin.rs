@@ -28,6 +28,12 @@ pub struct ServerNetworkPlugin {
     /// Turned on, a client that a transfer packet sends here logs in; turned off, it gets
     /// `multiplayer.disconnect.transfers_disabled`.
     pub accepts_transfers: bool,
+    /// Turned on, the status response keeps the online and maximum counts but carries no sample
+    /// of player names.
+    pub hide_online_players: bool,
+    /// Turned off, a status connection closes after the handshake without a packet; a login is
+    /// not affected.
+    pub enable_status: bool,
 }
 
 impl ServerNetworkPlugin {
@@ -54,6 +60,8 @@ impl Default for ServerNetworkPlugin {
             max_players: 20,
             motd: "mcrs Server".to_owned(),
             accepts_transfers: false,
+            hide_online_players: false,
+            enable_status: true,
         }
     }
 }
@@ -71,6 +79,8 @@ impl Plugin for ServerNetworkPlugin {
             max_players: self.max_players,
             motd: self.motd.clone(),
             accepts_transfers: self.accepts_transfers,
+            hide_online_players: self.hide_online_players,
+            enable_status: self.enable_status,
         });
         app.insert_resource(self.compression_threshold);
         app.add_plugins(LoginPlugin);
