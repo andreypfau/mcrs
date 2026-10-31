@@ -558,7 +558,7 @@ fn compile_processor(
                 .collect::<Result<_, FeatureCompileError>>()?,
         ),
         BlockAge { mossiness } => {
-            let tag = |tag: TagKey<Block, &'static str>| {
+            let tag = |tag: TagKey<'static, Block>| {
                 states_of(blocks, StateQuery::BlockTag(&tag.location().to_buf()))
             };
             CompiledProcessor::BlockAge(BlockAgeTables {

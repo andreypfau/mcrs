@@ -4,8 +4,9 @@ use crate::list_option::ListOption;
 use crate::options::read_options;
 use crate::selector::{SelectorResult, State, rewind};
 use mcrs_command::{Reader, StringSpan};
-use mcrs_minecraft_command::{Identifier, SpannedIdentifier, read_identifier};
+use mcrs_minecraft_command::{SpannedIdentifier, read_identifier};
 use mcrs_minecraft_entity::keys::EntityType;
+use mcrs_minecraft_resource::ResourceLocation;
 
 pub(crate) fn read_type<'a>(
     reader: &mut Reader<'a>,
@@ -56,7 +57,12 @@ pub(crate) fn read_type<'a>(
 
 /// Whether an earlier `type` option of the same selector named this tag.
 // chisle: re-reads the option prefix per `type=#tag`, O(n^2) in the options; a heap-free seen-set in `State` lifts it
-fn type_tag_seen(input: &str, options_start: usize, before: usize, tag: Identifier<'_>) -> bool {
+fn type_tag_seen(
+    input: &str,
+    options_start: usize,
+    before: usize,
+    tag: ResourceLocation<'_>,
+) -> bool {
     let prefix = input.get(..before).unwrap_or_default();
     let mut reader = Reader::at(prefix, options_start);
     let mut state = State::new(prefix);
@@ -70,7 +76,7 @@ fn type_tag_seen(input: &str, options_start: usize, before: usize, tag: Identifi
     seen
 }
 
-fn entity_type(id: Identifier<'_>) -> Option<EntityType> {
+fn entity_type(id: ResourceLocation<'_>) -> Option<EntityType> {
     EntityType::ALL
         .iter()
         .copied()

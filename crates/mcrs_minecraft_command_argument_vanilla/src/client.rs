@@ -8,11 +8,12 @@ use mcrs_command::{
 use mcrs_minecraft_command::{Lookup, Source, identifier_matches};
 use mcrs_minecraft_command_tree::{ArgumentParser, CommandNode, CommandNodeKind};
 use mcrs_minecraft_keys::command_argument_type as parser;
-use mcrs_minecraft_resource::StaticResourceLocation;
+use mcrs_minecraft_resource::ResourceLocation;
 use mcrs_minecraft_wire::VarInt;
 use std::collections::VecDeque;
 
-const SOUND_EVENT: StaticResourceLocation = mcrs_minecraft_resource::rl!("minecraft:sound_event");
+const SOUND_EVENT: ResourceLocation<'static> =
+    mcrs_minecraft_resource::rl!("minecraft:sound_event");
 
 /// The client tree of the last `commands` packet. The client source holds the
 /// restricted atom, so every node passes; an executable node runs nothing on the client.
@@ -29,13 +30,14 @@ pub enum SuggestionType {
     AvailableSounds,
 }
 
-impl From<&str> for SuggestionType {
-    fn from(name: &str) -> Self {
-        match name {
-            "minecraft:available_sounds" => SuggestionType::AvailableSounds,
-            // chisle: summonable_entities and post_effects ask the server, because the client
-            // holds no summonable entity set and no post effect list yet.
-            _ => SuggestionType::AskServer,
+impl From<ResourceLocation<'_>> for SuggestionType {
+    fn from(name: ResourceLocation<'_>) -> Self {
+        // chisle: summonable_entities and post_effects ask the server, because the client
+        // holds no summonable entity set and no post effect list yet.
+        if name == mcrs_minecraft_resource::rl!("minecraft:available_sounds") {
+            SuggestionType::AvailableSounds
+        } else {
+            SuggestionType::AskServer
         }
     }
 }
@@ -152,7 +154,7 @@ fn index(value: VarInt, len: usize) -> Result<usize, TreeError> {
 fn argument(
     parser: &ArgumentParser<'_>,
     suggestions: SuggestionType,
-    registries: &[StaticResourceLocation],
+    registries: &[ResourceLocation<'static>],
 ) -> ClientArgument {
     let key = usize::try_from(parser.id.0)
         .ok()
@@ -162,7 +164,7 @@ fn argument(
         registries
             .iter()
             .copied()
-            .find(|registry| registry.as_str() == name)
+            .find(|registry| *registry == name)
     });
     ClientArgument {
         grammar,
@@ -235,7 +237,7 @@ fn check_child_cycles(nodes: &[CommandNode<'_>]) -> Result<(), TreeError> {
 pub fn client_tree(
     nodes: &[CommandNode<'_>],
     root: VarInt,
-    registries: &[StaticResourceLocation],
+    registries: &[ResourceLocation<'static>],
 ) -> Result<ClientGraph, TreeError> {
     let len = nodes.len();
     let root = index(root, len)?;
@@ -273,9 +275,9 @@ pub fn client_tree(
                     parser,
                     suggestions,
                 } => {
-                    let suggestions = suggestions.as_ref().map_or(SuggestionType::OfType, |name| {
-                        SuggestionType::from(name.as_str())
-                    });
+                    let suggestions = suggestions
+                        .as_ref()
+                        .map_or(SuggestionType::OfType, |name| SuggestionType::from(*name));
                     builder
                         .argument(parent, name, argument(parser, suggestions, registries), ())?
                         .node()

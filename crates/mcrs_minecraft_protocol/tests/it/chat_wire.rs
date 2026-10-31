@@ -1,12 +1,12 @@
 use mcrs_minecraft_command_tree::{CommandNode, CommandNodeKind, ParserProperties};
 use mcrs_minecraft_protocol::Decode;
 use mcrs_minecraft_protocol::chat::{ChatTypeId, FilterMask};
-use mcrs_minecraft_resource::ResourceLocationBuf;
+use mcrs_minecraft_resource::ResourceLocation;
 
 #[test]
 fn an_argument_reads_the_properties_of_its_parser() {
     let registry =
-        |id: &str| ParserProperties::Registry(ResourceLocationBuf::read(id).unwrap().into());
+        |id: &'static str| ParserProperties::Registry(ResourceLocation::read(id).unwrap());
     let item = b"\x0eminecraft:item";
     let cases: [(u8, &[u8], ParserProperties); 5] = [
         (20, &[], ParserProperties::None),

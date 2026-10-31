@@ -1,9 +1,9 @@
 use mcrs_minecraft_noise::proto::NoiseParam;
-use mcrs_minecraft_resource::{ResourceLocationBuf, StaticResourceLocation, rl};
+use mcrs_minecraft_resource::{ResourceLocation, ResourceLocationBuf, rl};
 use std::collections::BTreeMap;
 
 #[rustfmt::skip]
-const NOISES: &[(StaticResourceLocation, i32, &[f64])] = &[
+const NOISES: &[(ResourceLocation<'static>, i32, &[f64])] = &[
     (rl!("minecraft:temperature"), -10, &[1.5, 0.0, 1.0, 0.0, 0.0, 0.0]),
     (rl!("minecraft:vegetation"), -8, &[1.0, 1.0, 0.0, 0.0, 0.0, 0.0]),
     (rl!("minecraft:continentalness"), -9, &[1.0, 1.0, 2.0, 2.0, 2.0, 1.0, 1.0, 1.0, 1.0]),

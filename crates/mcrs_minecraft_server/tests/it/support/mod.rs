@@ -36,20 +36,20 @@ pub fn insert_registries(app: &mut App) {
     );
 }
 
-pub fn dimension_type(name: &str) -> Id<DimensionType> {
+pub fn dimension_type(name: impl std::fmt::Display) -> Id<DimensionType> {
     Resolver::id(
         test_registries(),
-        &ResourceKeyBuf::from_location(ResourceLocationBuf::read(name).unwrap()),
+        &ResourceKeyBuf::from_location(ResourceLocationBuf::read(&name.to_string()).unwrap()),
     )
     .unwrap_or_else(|error| panic!("the dimension type {name} is loaded: {error}"))
 }
 
-pub fn preset(name: &str) -> Dimensions {
+pub fn preset(name: impl std::fmt::Display) -> Dimensions {
     let presets = test_registries()
         .registry::<WorldPreset>()
         .expect("the presets are loaded");
     presets
-        .by_name(&ResourceLocationBuf::read(name).unwrap())
+        .by_name(&ResourceLocationBuf::read(&name.to_string()).unwrap())
         .and_then(|id| presets.get(id))
         .unwrap_or_else(|| panic!("the preset {name} is loaded"))
         .dimensions
@@ -67,12 +67,12 @@ pub fn baked(
 pub fn dimension_list_with_extra() -> DimensionList {
     use mcrs_minecraft_world::worldgen::chunk_generator::ChunkGenerator;
 
-    let mut dimensions = preset(mcrs_minecraft_world::keys::world_preset::NORMAL.as_str());
+    let mut dimensions = preset(mcrs_minecraft_world::keys::world_preset::NORMAL);
     dimensions.insert(
         ResourceKeyBuf::from_location("test:extra".parse().unwrap()),
         DimensionEntry {
             dimension_type: dimension_type(
-                mcrs_minecraft_dimension::keys::dimension_type::OVERWORLD.as_str(),
+                mcrs_minecraft_dimension::keys::dimension_type::OVERWORLD,
             ),
             generator: ChunkGenerator::Debug,
         },

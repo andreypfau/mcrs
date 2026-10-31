@@ -2,11 +2,11 @@
 
 use mcrs_minecraft_resource::{ResourceKey, rl};
 
-pub const CANYON: ResourceKey<crate::ConfiguredCarver, &'static str> =
+pub const CANYON: ResourceKey<'static, crate::ConfiguredCarver> =
     ResourceKey::new(rl!("minecraft:canyon"));
-pub const CAVE: ResourceKey<crate::ConfiguredCarver, &'static str> =
+pub const CAVE: ResourceKey<'static, crate::ConfiguredCarver> =
     ResourceKey::new(rl!("minecraft:cave"));
-pub const CAVE_EXTRA_UNDERGROUND: ResourceKey<crate::ConfiguredCarver, &'static str> =
+pub const CAVE_EXTRA_UNDERGROUND: ResourceKey<'static, crate::ConfiguredCarver> =
     ResourceKey::new(rl!("minecraft:cave_extra_underground"));
-pub const NETHER_CAVE: ResourceKey<crate::ConfiguredCarver, &'static str> =
+pub const NETHER_CAVE: ResourceKey<'static, crate::ConfiguredCarver> =
     ResourceKey::new(rl!("minecraft:nether_cave"));

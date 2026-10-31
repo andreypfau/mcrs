@@ -1,38 +1,37 @@
-use crate::identifier::Identifier;
 use crate::permission::CommandLevel;
 use glam::DVec3;
 use mcrs_minecraft_core::LookAnchor;
-use mcrs_minecraft_resource::StaticResourceLocation;
+use mcrs_minecraft_resource::ResourceLocation;
 
 /// What the arguments read from the world of the source: registries, players and dimensions.
 pub trait Lookup {
     /// The identifiers of the entries, each as `namespace:path`.
-    fn entries(&self, registry: StaticResourceLocation) -> impl Iterator<Item = &str>;
+    fn entries(&self, registry: ResourceLocation<'static>) -> impl Iterator<Item = &str>;
 
     /// The identifiers of the tags of the registry, each as `namespace:path`.
-    fn tags(&self, registry: StaticResourceLocation) -> impl Iterator<Item = &str>;
+    fn tags(&self, registry: ResourceLocation<'static>) -> impl Iterator<Item = &str>;
 
     /// The lookup holds the entries of the registry.
-    fn has_registry(&self, _registry: StaticResourceLocation) -> bool {
+    fn has_registry(&self, _registry: ResourceLocation<'static>) -> bool {
         true
     }
 
     /// The registry holds `entry`.
-    fn has_entry(&self, registry: StaticResourceLocation, entry: Identifier<'_>) -> bool {
+    fn has_entry(&self, registry: ResourceLocation<'static>, entry: ResourceLocation<'_>) -> bool {
         self.entries(registry).any(|name| entry == name)
     }
 
     /// The registry holds the tag `tag`.
-    fn has_tag(&self, registry: StaticResourceLocation, tag: Identifier<'_>) -> bool {
+    fn has_tag(&self, registry: ResourceLocation<'static>, tag: ResourceLocation<'_>) -> bool {
         self.tags(registry).any(|name| tag == name)
     }
 
     /// The tag `tag` of the registry holds `entry`.
     fn tag_contains(
         &self,
-        registry: StaticResourceLocation,
-        tag: Identifier<'_>,
-        entry: StaticResourceLocation,
+        registry: ResourceLocation<'static>,
+        tag: ResourceLocation<'_>,
+        entry: ResourceLocation<'static>,
     ) -> bool;
 
     /// The names of the online players.
@@ -44,8 +43,8 @@ pub trait Lookup {
     /// The identifiers of the members of a tag, each as `namespace:path`.
     fn tag_entries(
         &self,
-        registry: StaticResourceLocation,
-        tag: Identifier<'_>,
+        registry: ResourceLocation<'static>,
+        tag: ResourceLocation<'_>,
     ) -> impl Iterator<Item = &str>;
 }
 
@@ -54,19 +53,19 @@ pub trait Lookup {
 pub struct NoLookup;
 
 impl Lookup for NoLookup {
-    fn entries(&self, _: StaticResourceLocation) -> impl Iterator<Item = &str> {
+    fn entries(&self, _: ResourceLocation<'static>) -> impl Iterator<Item = &str> {
         core::iter::empty()
     }
 
-    fn tags(&self, _: StaticResourceLocation) -> impl Iterator<Item = &str> {
+    fn tags(&self, _: ResourceLocation<'static>) -> impl Iterator<Item = &str> {
         core::iter::empty()
     }
 
     fn tag_contains(
         &self,
-        _: StaticResourceLocation,
-        _: Identifier<'_>,
-        _: StaticResourceLocation,
+        _: ResourceLocation<'static>,
+        _: ResourceLocation<'_>,
+        _: ResourceLocation<'static>,
     ) -> bool {
         false
     }
@@ -81,8 +80,8 @@ impl Lookup for NoLookup {
 
     fn tag_entries(
         &self,
-        _: StaticResourceLocation,
-        _: Identifier<'_>,
+        _: ResourceLocation<'static>,
+        _: ResourceLocation<'_>,
     ) -> impl Iterator<Item = &str> {
         core::iter::empty()
     }

@@ -662,25 +662,25 @@ mod tests {
 
     const PROBE_NAME: &str = "minecraft:test_probe";
 
-    fn probe_data(entries: &[&str]) -> ClientboundRegistryData<'static> {
+    fn probe_data(entries: &[&'static str]) -> ClientboundRegistryData<'static> {
         ClientboundRegistryData {
-            registry: ResourceLocation::read_cow(PROBE_NAME.to_owned()).unwrap(),
+            registry: ResourceLocation::read(PROBE_NAME).unwrap(),
             entries: entries
                 .iter()
                 .map(|entry| Entry {
-                    id: ResourceLocation::read_cow((*entry).to_owned()).unwrap(),
+                    id: ResourceLocation::read(entry).unwrap(),
                     data: None,
                 })
                 .collect(),
         }
     }
 
-    fn probe_tags(tag: &str, members: &[i32]) -> ClientboundUpdateTags<'static> {
+    fn probe_tags(tag: &'static str, members: &[i32]) -> ClientboundUpdateTags<'static> {
         ClientboundUpdateTags {
             registries: vec![RegistryTags {
-                registry: ResourceLocation::read_cow(PROBE_NAME.to_owned()).unwrap(),
+                registry: ResourceLocation::read(PROBE_NAME).unwrap(),
                 tags: vec![TagGroup {
-                    name: ResourceLocation::read_cow(tag.to_owned()).unwrap(),
+                    name: ResourceLocation::read(tag).unwrap(),
                     entries: members.iter().copied().map(VarInt).collect(),
                 }],
             }],

@@ -34,7 +34,7 @@ fn decode_len(r: &mut &[u8]) -> crate::Result<usize> {
     usize::try_from(len).map_err(|_| crate::ErrorKind::NegativeLength(len).into())
 }
 
-fn encode_len(len: usize, w: impl std::io::Write) -> crate::Result<()> {
+pub(crate) fn encode_len(len: usize, w: impl std::io::Write) -> crate::Result<()> {
     let max = i32::MAX as usize;
     let len = i32::try_from(len).map_err(|_| crate::ErrorKind::TooLong { len, max })?;
     crate::Encode::encode(&crate::VarInt(len), w)

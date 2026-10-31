@@ -6,9 +6,8 @@ use crate::keys::Item;
 use crate::{ComponentMap, Template};
 #[cfg(feature = "bevy")]
 use bevy_ecs::resource::Resource;
-use mcrs_minecraft_resource::{Id, ResourceLocationBuf};
+use mcrs_minecraft_resource::{Id, ResourceLocation, ResourceLocationBuf};
 use mcrs_voxel::BlockStateId;
-use std::collections::HashMap;
 
 pub const CORPUS_DIRECTORY: &str = "mcrs/item_definition";
 pub const FORMAT_VERSION: &str = "1.21.130";
@@ -26,7 +25,7 @@ pub struct ItemEntry {
 #[derive(Debug, Default)]
 pub struct ItemDefinitions {
     entries: Vec<ItemEntry>,
-    ids: HashMap<ResourceLocationBuf, Id<Item>>,
+    ids: hashbrown::HashMap<ResourceLocationBuf, Id<Item>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
@@ -53,7 +52,7 @@ impl ItemDefinitions {
         items: &[ResourceLocationBuf],
         entries: Vec<ItemEntry>,
     ) -> Result<Self, ItemTableError> {
-        let ids: HashMap<ResourceLocationBuf, Id<Item>> = (0..=u16::MAX)
+        let ids: hashbrown::HashMap<ResourceLocationBuf, Id<Item>> = (0..=u16::MAX)
             .zip(items)
             .filter_map(|(number, name)| Some((name.clone(), Id::checked(number, items.len())?)))
             .collect();
@@ -95,7 +94,9 @@ impl ItemDefinitions {
     }
 
     pub fn id_of(&self, location: &str) -> Option<Id<Item>> {
-        self.ids.get(location).copied()
+        self.ids
+            .get(&ResourceLocation::read(location).ok()?)
+            .copied()
     }
 
     pub fn iter(&self) -> impl Iterator<Item = &ItemEntry> {

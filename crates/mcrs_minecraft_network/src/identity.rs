@@ -9,6 +9,6 @@ pub const COMMIT_HASH: &str = match option_env!("MCRS_COMMIT_HASH") {
 
 pub const BRAND: &str = concat!("github.com/andreypfau/mcrs@", env!("CARGO_PKG_VERSION"));
 
-pub const MOD_ENTRY: ResourceLocation<&'static str> = rl!("github.com:andreypfau/mcrs");
+pub const MOD_ENTRY: ResourceLocation<'static> = rl!("github.com:andreypfau/mcrs");
 
-pub const COMMIT_PROPERTY: ResourceLocation<&'static str> = rl!("mcrs:commit");
+pub const COMMIT_PROPERTY: ResourceLocation<'static> = rl!("mcrs:commit");

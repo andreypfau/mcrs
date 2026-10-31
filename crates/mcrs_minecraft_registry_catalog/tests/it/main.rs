@@ -33,7 +33,7 @@ fn every_catalog_row_is_a_reported_registry_in_protocol_id_order() {
         .iter()
         .map(|(location, _)| {
             report
-                .get(location.as_static_str())
+                .get(&location.to_string())
                 .unwrap_or_else(|| panic!("{location}: in the catalog but not in the report"))
                 .protocol_id
         })
@@ -45,21 +45,21 @@ fn every_catalog_row_is_a_reported_registry_in_protocol_id_order() {
 fn every_reported_entry_is_the_catalog_entry_at_its_protocol_id() {
     let report = report();
     for (location, entries) in STATIC_REGISTRIES {
-        let name = location.as_static_str();
-        let registry = &report[name];
+        let name = location.to_string();
+        let registry = &report[&name];
         for (entry, reported) in &registry.entries {
             assert_eq!(
                 entries
                     .get(usize::from(reported.protocol_id))
-                    .map(|location| location.as_static_str()),
-                Some(entry.as_str()),
+                    .map(|location| location.to_string()),
+                Some(entry.clone()),
                 "{name}: {entry}"
             );
         }
-        let unreported: Vec<&str> = entries
+        let unreported: Vec<String> = entries
             .iter()
-            .map(|location| location.as_static_str())
-            .filter(|entry| !registry.entries.contains_key(*entry))
+            .map(|location| location.to_string())
+            .filter(|entry| !registry.entries.contains_key(entry))
             .collect();
         assert_eq!(
             entries.len(),

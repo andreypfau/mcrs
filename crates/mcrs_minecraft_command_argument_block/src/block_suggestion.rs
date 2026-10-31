@@ -5,8 +5,9 @@ use mcrs_command::{
 };
 use mcrs_minecraft_block::definition::schema::{BlockProperty, PropertyValue};
 use mcrs_minecraft_block::keys::BLOCK;
-use mcrs_minecraft_command::{Identifier, Source};
+use mcrs_minecraft_command::Source;
 use mcrs_minecraft_command_argument::{ResourceOrTag, ResourceOrTagArgument};
+use mcrs_minecraft_resource::ResourceLocation;
 
 const DIGITS: &str = "0123456789";
 
@@ -59,7 +60,7 @@ fn has_block_entity<L: BlockLookup>(lookup: &L, subject: ResourceOrTag<'_>) -> b
         ResourceOrTag::Entry(block) => lookup.has_block_entity(block),
         ResourceOrTag::Tag(tag) => lookup
             .tag_entries(BLOCK.location(), tag)
-            .filter_map(Identifier::parse)
+            .filter_map(|text| ResourceLocation::read(text).ok())
             .any(|member| lookup.has_block_entity(member)),
     }
 }
@@ -91,10 +92,10 @@ impl BlockPredicateArgument {
         };
         let input = builder.input();
         let mut builder = builder.at(point);
-        let members = |tag: Identifier<'t>| {
+        let members = |tag: ResourceLocation<'t>| {
             lookup
                 .tag_entries(registry, tag)
-                .filter_map(Identifier::parse)
+                .filter_map(|text| ResourceLocation::read(text).ok())
                 .filter_map(|member| lookup.block_properties(member))
         };
         match stage {

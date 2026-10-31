@@ -13,6 +13,6 @@ pub enum CommandNodeKind<'a> {
     Argument {
         name: Cow<'a, str>,
         parser: ArgumentParser<'a>,
-        suggestions: Option<ResourceLocation<Cow<'a, str>>>,
+        suggestions: Option<ResourceLocation<'a>>,
     },
 }

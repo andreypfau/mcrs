@@ -2,7 +2,7 @@ use crate::permission::PermissionCheck;
 use crate::source::Source;
 use mcrs_command::{Graph, NodeId, NodeKind, SuggestionList};
 use mcrs_minecraft_command_tree::{ArgumentParser, CommandNode, CommandNodeKind};
-use mcrs_minecraft_resource::StaticResourceLocation;
+use mcrs_minecraft_resource::ResourceLocation;
 use mcrs_minecraft_text::Text;
 use mcrs_minecraft_wire::{VarInt, utf16_position};
 use std::borrow::Cow;
@@ -17,7 +17,7 @@ pub trait WireArgument {
 
     /// The suggestion type of the `commands` packet, when the client asks the
     /// server for the suggestions of the argument.
-    fn suggestion_type(&self) -> Option<StaticResourceLocation>;
+    fn suggestion_type(&self) -> Option<ResourceLocation<'static>>;
 }
 
 /// The most suggestions one reply carries.
@@ -82,7 +82,7 @@ pub fn player_tree<'a, A: WireArgument, H, L>(
             NodeKind::Argument { name, argument } => CommandNodeKind::Argument {
                 name: Cow::Borrowed(name),
                 parser: argument.wire()?,
-                suggestions: argument.suggestion_type().map(Into::into),
+                suggestions: argument.suggestion_type(),
             },
         };
         nodes.push(CommandNode {

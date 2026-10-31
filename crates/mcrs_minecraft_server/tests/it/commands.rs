@@ -39,7 +39,7 @@ use mcrs_minecraft_protocol::packets::game::clientbound::{
 use mcrs_minecraft_protocol::text::{TextContent, TranslateArg};
 use mcrs_minecraft_protocol::{Decode, Packet, VarLong};
 use mcrs_minecraft_registries::CurrentRegistries;
-use mcrs_minecraft_resource::{Id, ResourceLocationBuf};
+use mcrs_minecraft_resource::{Id, ResourceLocation};
 
 use crate::host_app::{self, PlayServer};
 
@@ -1446,7 +1446,7 @@ fn the_time_tree_and_its_server_suggestions_follow_the_clock() {
     );
     let ask_server = Some("minecraft:ask_server".to_owned());
     let registry =
-        |id: &str| ParserProperties::Registry(ResourceLocationBuf::read(id).unwrap().into());
+        |id: &'static str| ParserProperties::Registry(ResourceLocation::read(id).unwrap());
     let cases = [
         (child(&tree, set, "time"), (ParserProperties::Time(0), None)),
         (

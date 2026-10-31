@@ -2,77 +2,77 @@
 
 use mcrs_minecraft_resource::{TagKey, rl};
 
-pub const ALWAYS_HURTS_ENDER_DRAGONS: TagKey<crate::damage_type::DamageType, &'static str> =
+pub const ALWAYS_HURTS_ENDER_DRAGONS: TagKey<'static, crate::damage_type::DamageType> =
     TagKey::new(rl!("minecraft:always_hurts_ender_dragons"));
-pub const ALWAYS_KILLS_ARMOR_STANDS: TagKey<crate::damage_type::DamageType, &'static str> =
+pub const ALWAYS_KILLS_ARMOR_STANDS: TagKey<'static, crate::damage_type::DamageType> =
     TagKey::new(rl!("minecraft:always_kills_armor_stands"));
-pub const ALWAYS_MOST_SIGNIFICANT_FALL: TagKey<crate::damage_type::DamageType, &'static str> =
+pub const ALWAYS_MOST_SIGNIFICANT_FALL: TagKey<'static, crate::damage_type::DamageType> =
     TagKey::new(rl!("minecraft:always_most_significant_fall"));
-pub const ALWAYS_TRIGGERS_SILVERFISH: TagKey<crate::damage_type::DamageType, &'static str> =
+pub const ALWAYS_TRIGGERS_SILVERFISH: TagKey<'static, crate::damage_type::DamageType> =
     TagKey::new(rl!("minecraft:always_triggers_silverfish"));
-pub const AVOIDS_GUARDIAN_THORNS: TagKey<crate::damage_type::DamageType, &'static str> =
+pub const AVOIDS_GUARDIAN_THORNS: TagKey<'static, crate::damage_type::DamageType> =
     TagKey::new(rl!("minecraft:avoids_guardian_thorns"));
-pub const BURN_FROM_STEPPING: TagKey<crate::damage_type::DamageType, &'static str> =
+pub const BURN_FROM_STEPPING: TagKey<'static, crate::damage_type::DamageType> =
     TagKey::new(rl!("minecraft:burn_from_stepping"));
-pub const BURNS_ARMOR_STANDS: TagKey<crate::damage_type::DamageType, &'static str> =
+pub const BURNS_ARMOR_STANDS: TagKey<'static, crate::damage_type::DamageType> =
     TagKey::new(rl!("minecraft:burns_armor_stands"));
-pub const BYPASSES_ARMOR: TagKey<crate::damage_type::DamageType, &'static str> =
+pub const BYPASSES_ARMOR: TagKey<'static, crate::damage_type::DamageType> =
     TagKey::new(rl!("minecraft:bypasses_armor"));
-pub const BYPASSES_COOLDOWN: TagKey<crate::damage_type::DamageType, &'static str> =
+pub const BYPASSES_COOLDOWN: TagKey<'static, crate::damage_type::DamageType> =
     TagKey::new(rl!("minecraft:bypasses_cooldown"));
-pub const BYPASSES_EFFECTS: TagKey<crate::damage_type::DamageType, &'static str> =
+pub const BYPASSES_EFFECTS: TagKey<'static, crate::damage_type::DamageType> =
     TagKey::new(rl!("minecraft:bypasses_effects"));
-pub const BYPASSES_ENCHANTMENTS: TagKey<crate::damage_type::DamageType, &'static str> =
+pub const BYPASSES_ENCHANTMENTS: TagKey<'static, crate::damage_type::DamageType> =
     TagKey::new(rl!("minecraft:bypasses_enchantments"));
-pub const BYPASSES_INVULNERABILITY: TagKey<crate::damage_type::DamageType, &'static str> =
+pub const BYPASSES_INVULNERABILITY: TagKey<'static, crate::damage_type::DamageType> =
     TagKey::new(rl!("minecraft:bypasses_invulnerability"));
-pub const BYPASSES_RESISTANCE: TagKey<crate::damage_type::DamageType, &'static str> =
+pub const BYPASSES_RESISTANCE: TagKey<'static, crate::damage_type::DamageType> =
     TagKey::new(rl!("minecraft:bypasses_resistance"));
-pub const BYPASSES_SHIELD: TagKey<crate::damage_type::DamageType, &'static str> =
+pub const BYPASSES_SHIELD: TagKey<'static, crate::damage_type::DamageType> =
     TagKey::new(rl!("minecraft:bypasses_shield"));
-pub const BYPASSES_WOLF_ARMOR: TagKey<crate::damage_type::DamageType, &'static str> =
+pub const BYPASSES_WOLF_ARMOR: TagKey<'static, crate::damage_type::DamageType> =
     TagKey::new(rl!("minecraft:bypasses_wolf_armor"));
-pub const CAN_BREAK_ARMOR_STAND: TagKey<crate::damage_type::DamageType, &'static str> =
+pub const CAN_BREAK_ARMOR_STAND: TagKey<'static, crate::damage_type::DamageType> =
     TagKey::new(rl!("minecraft:can_break_armor_stand"));
-pub const DAMAGES_HELMET: TagKey<crate::damage_type::DamageType, &'static str> =
+pub const DAMAGES_HELMET: TagKey<'static, crate::damage_type::DamageType> =
     TagKey::new(rl!("minecraft:damages_helmet"));
-pub const IGNITES_ARMOR_STANDS: TagKey<crate::damage_type::DamageType, &'static str> =
+pub const IGNITES_ARMOR_STANDS: TagKey<'static, crate::damage_type::DamageType> =
     TagKey::new(rl!("minecraft:ignites_armor_stands"));
-pub const IS_DROWNING: TagKey<crate::damage_type::DamageType, &'static str> =
+pub const IS_DROWNING: TagKey<'static, crate::damage_type::DamageType> =
     TagKey::new(rl!("minecraft:is_drowning"));
-pub const IS_EXPLOSION: TagKey<crate::damage_type::DamageType, &'static str> =
+pub const IS_EXPLOSION: TagKey<'static, crate::damage_type::DamageType> =
     TagKey::new(rl!("minecraft:is_explosion"));
-pub const IS_FALL: TagKey<crate::damage_type::DamageType, &'static str> =
+pub const IS_FALL: TagKey<'static, crate::damage_type::DamageType> =
     TagKey::new(rl!("minecraft:is_fall"));
-pub const IS_FIRE: TagKey<crate::damage_type::DamageType, &'static str> =
+pub const IS_FIRE: TagKey<'static, crate::damage_type::DamageType> =
     TagKey::new(rl!("minecraft:is_fire"));
-pub const IS_FREEZING: TagKey<crate::damage_type::DamageType, &'static str> =
+pub const IS_FREEZING: TagKey<'static, crate::damage_type::DamageType> =
     TagKey::new(rl!("minecraft:is_freezing"));
-pub const IS_LIGHTNING: TagKey<crate::damage_type::DamageType, &'static str> =
+pub const IS_LIGHTNING: TagKey<'static, crate::damage_type::DamageType> =
     TagKey::new(rl!("minecraft:is_lightning"));
-pub const IS_PLAYER_ATTACK: TagKey<crate::damage_type::DamageType, &'static str> =
+pub const IS_PLAYER_ATTACK: TagKey<'static, crate::damage_type::DamageType> =
     TagKey::new(rl!("minecraft:is_player_attack"));
-pub const IS_PROJECTILE: TagKey<crate::damage_type::DamageType, &'static str> =
+pub const IS_PROJECTILE: TagKey<'static, crate::damage_type::DamageType> =
     TagKey::new(rl!("minecraft:is_projectile"));
-pub const MACE_SMASH: TagKey<crate::damage_type::DamageType, &'static str> =
+pub const MACE_SMASH: TagKey<'static, crate::damage_type::DamageType> =
     TagKey::new(rl!("minecraft:mace_smash"));
-pub const NO_ANGER: TagKey<crate::damage_type::DamageType, &'static str> =
+pub const NO_ANGER: TagKey<'static, crate::damage_type::DamageType> =
     TagKey::new(rl!("minecraft:no_anger"));
-pub const NO_HURT_SOUND: TagKey<crate::damage_type::DamageType, &'static str> =
+pub const NO_HURT_SOUND: TagKey<'static, crate::damage_type::DamageType> =
     TagKey::new(rl!("minecraft:no_hurt_sound"));
-pub const NO_IMPACT: TagKey<crate::damage_type::DamageType, &'static str> =
+pub const NO_IMPACT: TagKey<'static, crate::damage_type::DamageType> =
     TagKey::new(rl!("minecraft:no_impact"));
-pub const NO_KNOCKBACK: TagKey<crate::damage_type::DamageType, &'static str> =
+pub const NO_KNOCKBACK: TagKey<'static, crate::damage_type::DamageType> =
     TagKey::new(rl!("minecraft:no_knockback"));
-pub const NO_WOLF_RETALIATION: TagKey<crate::damage_type::DamageType, &'static str> =
+pub const NO_WOLF_RETALIATION: TagKey<'static, crate::damage_type::DamageType> =
     TagKey::new(rl!("minecraft:no_wolf_retaliation"));
-pub const PANIC_CAUSES: TagKey<crate::damage_type::DamageType, &'static str> =
+pub const PANIC_CAUSES: TagKey<'static, crate::damage_type::DamageType> =
     TagKey::new(rl!("minecraft:panic_causes"));
-pub const PANIC_ENVIRONMENTAL_CAUSES: TagKey<crate::damage_type::DamageType, &'static str> =
+pub const PANIC_ENVIRONMENTAL_CAUSES: TagKey<'static, crate::damage_type::DamageType> =
     TagKey::new(rl!("minecraft:panic_environmental_causes"));
-pub const SULFUR_CUBE_WITH_BLOCK_IMMUNE_TO: TagKey<crate::damage_type::DamageType, &'static str> =
+pub const SULFUR_CUBE_WITH_BLOCK_IMMUNE_TO: TagKey<'static, crate::damage_type::DamageType> =
     TagKey::new(rl!("minecraft:sulfur_cube_with_block_immune_to"));
-pub const WITCH_RESISTANT_TO: TagKey<crate::damage_type::DamageType, &'static str> =
+pub const WITCH_RESISTANT_TO: TagKey<'static, crate::damage_type::DamageType> =
     TagKey::new(rl!("minecraft:witch_resistant_to"));
-pub const WITHER_IMMUNE_TO: TagKey<crate::damage_type::DamageType, &'static str> =
+pub const WITHER_IMMUNE_TO: TagKey<'static, crate::damage_type::DamageType> =
     TagKey::new(rl!("minecraft:wither_immune_to"));

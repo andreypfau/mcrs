@@ -1,52 +1,14 @@
 use crate::error::ResourceError;
-use core::fmt;
 use mcrs_command::Span;
 use mcrs_command::starts_with_ignore_case;
 use mcrs_command::{Reader, SuggestionBuilder, SuggestionText, SyntaxError};
-use mcrs_minecraft_resource::parse_parts;
-
-/// An identifier borrowed from the command line; a missing namespace is `minecraft`.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub struct Identifier<'a> {
-    pub namespace: &'a str,
-    pub path: &'a str,
-}
+use mcrs_minecraft_resource::ResourceLocation;
 
 /// An identifier and the span of the command line it was read from.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct SpannedIdentifier<'a> {
-    pub identifier: Identifier<'a>,
+    pub identifier: ResourceLocation<'a>,
     pub span: Span,
-}
-
-impl<'a> Identifier<'a> {
-    /// The identifier of `text`, or `None` when it is not one.
-    #[must_use]
-    pub fn parse(text: &'a str) -> Option<Self> {
-        let (namespace, path) = parse_parts(text)?;
-        Some(Self { namespace, path })
-    }
-}
-
-/// An identifier equals a string that spells it as `namespace:path`.
-impl PartialEq<str> for Identifier<'_> {
-    fn eq(&self, canonical: &str) -> bool {
-        canonical
-            .split_once(':')
-            .is_some_and(|(namespace, path)| namespace == self.namespace && path == self.path)
-    }
-}
-
-impl PartialEq<&str> for Identifier<'_> {
-    fn eq(&self, canonical: &&str) -> bool {
-        *self == **canonical
-    }
-}
-
-impl fmt::Display for Identifier<'_> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}:{}", self.namespace, self.path)
-    }
 }
 
 pub(crate) const fn is_identifier_char(c: char) -> bool {
@@ -58,9 +20,9 @@ pub fn read_identifier<'a, E: From<ResourceError>>(
 ) -> Result<SpannedIdentifier<'a>, SyntaxError<E>> {
     let start = reader.cursor();
     let span = reader.read_while(is_identifier_char);
-    match Identifier::parse(span.text(reader.input())) {
-        Some(identifier) => Ok(SpannedIdentifier { identifier, span }),
-        None => {
+    match ResourceLocation::read(span.text(reader.input())) {
+        Ok(identifier) => Ok(SpannedIdentifier { identifier, span }),
+        Err(_) => {
             reader.set_cursor(start);
             Err(SyntaxError::argument(
                 ResourceError::IdInvalid.into(),

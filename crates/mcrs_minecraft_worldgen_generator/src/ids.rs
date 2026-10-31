@@ -16,7 +16,7 @@ impl FillIds {
         let block_tags = require_tags::<Block>(registries, diagnostics)?;
         Some(Self {
             end: end?,
-            uncarvable: block_tags.id(&block_tags::UNCARVABLE),
+            uncarvable: block_tags.id(block_tags::UNCARVABLE),
             block_tags,
         })
     }
@@ -56,14 +56,14 @@ pub(crate) fn require_tags<R: Registered>(
 
 pub(crate) fn require_id<R: Registered>(
     registries: &Registries,
-    name: ResourceKey<R, &'static str>,
+    name: ResourceKey<'static, R>,
     diagnostics: &mut Diagnostics,
 ) -> Option<Id<R>> {
     let found = registries.id(&name.into());
     if let Err(message) = &found {
         diagnostics.extend([Diagnostic::Entry {
             registry: R::REGISTRY.location().into(),
-            entry: (*name.location()).into(),
+            entry: name.location().into(),
             message: message.to_string(),
             pack: None,
             file: None,

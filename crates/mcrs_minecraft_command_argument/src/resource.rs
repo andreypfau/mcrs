@@ -1,23 +1,23 @@
 use core::fmt;
 use mcrs_command::{Argument, Reader, SuggestionBuilder, SyntaxError};
 use mcrs_minecraft_command::{
-    Identifier, Lookup, ResourceError, Source, SpannedIdentifier, identifier_matches,
+    Lookup, ResourceError, Source, SpannedIdentifier, identifier_matches,
     prefixed_identifier_matches, read_identifier, suggest_prefixed,
 };
-use mcrs_minecraft_resource::StaticResourceLocation;
+use mcrs_minecraft_resource::ResourceLocation;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct ResourceLocationArgument;
 
 impl<S> Argument<S> for ResourceLocationArgument {
-    type Value<'a> = Identifier<'a>;
+    type Value<'a> = ResourceLocation<'a>;
     type Error = ResourceError;
 
     fn parse<'a>(
         &self,
         reader: &mut Reader<'a>,
         _: &S,
-    ) -> Result<Identifier<'a>, SyntaxError<ResourceError>> {
+    ) -> Result<ResourceLocation<'a>, SyntaxError<ResourceError>> {
         read_identifier(reader).map(|read| read.identifier)
     }
 }
@@ -37,14 +37,14 @@ impl DimensionArgument {
 }
 
 impl<S> Argument<S> for DimensionArgument {
-    type Value<'a> = Identifier<'a>;
+    type Value<'a> = ResourceLocation<'a>;
     type Error = ResourceError;
 
     fn parse<'a>(
         &self,
         reader: &mut Reader<'a>,
         source: &S,
-    ) -> Result<Identifier<'a>, SyntaxError<ResourceError>> {
+    ) -> Result<ResourceLocation<'a>, SyntaxError<ResourceError>> {
         ResourceLocationArgument.parse(reader, source)
     }
 }
@@ -53,9 +53,9 @@ impl<S> Argument<S> for DimensionArgument {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ResourceOrTag<'a> {
     /// One entry of the registry.
-    Entry(Identifier<'a>),
+    Entry(ResourceLocation<'a>),
     /// A tag of the registry.
-    Tag(Identifier<'a>),
+    Tag(ResourceLocation<'a>),
 }
 
 impl fmt::Display for ResourceOrTag<'_> {
@@ -72,7 +72,7 @@ impl fmt::Display for ResourceOrTag<'_> {
 /// the tag exists.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct ResourceOrTagArgument {
-    pub registry: StaticResourceLocation,
+    pub registry: ResourceLocation<'static>,
     pub must_exist: bool,
 }
 
@@ -133,7 +133,7 @@ impl<L: Lookup> Argument<Source<'_, L>> for ResourceOrTagArgument {
 /// `minecraft:resource`: an entry of the registry, which must exist.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct ResourceArgument {
-    pub registry: StaticResourceLocation,
+    pub registry: ResourceLocation<'static>,
 }
 
 impl ResourceArgument {
@@ -148,14 +148,14 @@ impl ResourceArgument {
 }
 
 impl<L: Lookup> Argument<Source<'_, L>> for ResourceArgument {
-    type Value<'a> = Identifier<'a>;
+    type Value<'a> = ResourceLocation<'a>;
     type Error = ResourceError;
 
     fn parse<'a>(
         &self,
         reader: &mut Reader<'a>,
         source: &Source<'_, L>,
-    ) -> Result<Identifier<'a>, SyntaxError<ResourceError>> {
+    ) -> Result<ResourceLocation<'a>, SyntaxError<ResourceError>> {
         let SpannedIdentifier { identifier, span } = read_identifier(reader)?;
         if source.lookup.has_entry(self.registry, identifier) {
             Ok(identifier)

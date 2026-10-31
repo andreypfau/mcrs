@@ -22,7 +22,7 @@ fn contents(set: &Registries, registries: &[String]) -> Contents {
                 .map(|names| names.iter().map(ToString::to_string).collect())
                 .unwrap_or_default();
             let tags = set
-                .tags_of(&key)
+                .tags_of(key.as_location())
                 .map(|tags| {
                     tags.map(|(name, members)| (name.to_string(), members.to_vec()))
                         .collect()

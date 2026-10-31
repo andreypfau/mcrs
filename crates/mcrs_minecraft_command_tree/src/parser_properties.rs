@@ -3,7 +3,6 @@ use crate::string_mode::StringMode;
 use mcrs_minecraft_keys::command_argument_type as parser;
 use mcrs_minecraft_resource::ResourceLocation;
 use mcrs_minecraft_wire::{Decode, Encode, Error, Result, VarInt};
-use std::borrow::Cow;
 use std::io::Write;
 
 /// The properties that follow a parser id on the wire.
@@ -26,7 +25,7 @@ pub enum ParserProperties<'a> {
     /// `minecraft:score_holder`: whether the argument takes more than one holder.
     ScoreHolder { multiple: bool },
     /// The registry of a resource or tag argument.
-    Registry(ResourceLocation<Cow<'a, str>>),
+    Registry(ResourceLocation<'a>),
     /// `minecraft:time`: the minimum, in ticks, always present.
     Time(i32),
 }

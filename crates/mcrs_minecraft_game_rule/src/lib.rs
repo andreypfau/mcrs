@@ -1,7 +1,7 @@
 #[rustfmt::skip]
 pub mod keys;
 
-use mcrs_minecraft_resource::StaticResourceLocation;
+use mcrs_minecraft_resource::ResourceLocation;
 
 pub use keys::GameRule;
 
@@ -26,7 +26,7 @@ pub enum GameRuleValueType {
 pub struct GameRuleDefinition {
     pub category: GameRuleCategory,
     pub value: GameRuleValueType,
-    pub required_features: &'static [StaticResourceLocation],
+    pub required_features: &'static [ResourceLocation<'static>],
 }
 
 #[cfg(test)]

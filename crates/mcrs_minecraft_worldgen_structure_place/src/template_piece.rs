@@ -33,7 +33,7 @@ pub fn ignore_structure_and_air(
 pub fn seed_container_loot<W: WorldGenVolume>(
     volume: &mut W,
     pos: BlockPos,
-    loot_table: ResourceKey<mcrs_minecraft_item::loot::LootTable, &'static str>,
+    loot_table: ResourceKey<'static, mcrs_minecraft_item::loot::LootTable>,
     rng: &mut WorldgenRandom,
 ) {
     let container = volume
@@ -48,7 +48,7 @@ pub fn seed_container_loot<W: WorldGenVolume>(
             _ => None,
         });
     if let Some(container) = container {
-        container.loot_table = Some(loot_table.as_str().to_owned());
+        container.loot_table = Some(loot_table.to_string());
         container.loot_table_seed = rng.next_java_long();
     }
 }
@@ -56,7 +56,7 @@ pub fn seed_container_loot<W: WorldGenVolume>(
 /// `ShipwreckPieces.MARKERS_TO_LOOT`.
 fn shipwreck_loot(
     marker: &str,
-) -> Option<ResourceKey<mcrs_minecraft_item::loot::LootTable, &'static str>> {
+) -> Option<ResourceKey<'static, mcrs_minecraft_item::loot::LootTable>> {
     Some(match marker {
         "map_chest" => mcrs_minecraft_item::keys::loot_table::CHESTS_SHIPWRECK_MAP,
         "treasure_chest" => mcrs_minecraft_item::keys::loot_table::CHESTS_SHIPWRECK_TREASURE,

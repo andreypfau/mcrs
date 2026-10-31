@@ -184,7 +184,7 @@ fn a_registry_read_by_its_names_holds_the_names_and_tags_sent() {
         Some(&[rl("t:x"), rl("t:y")][..])
     );
     let tags: Vec<_> = registries
-        .tags_of(&rl("t:names"))
+        .tags_of(rl("t:names").as_location())
         .unwrap()
         .map(|(name, members)| (name.clone(), members.iter().copied().collect()))
         .collect();

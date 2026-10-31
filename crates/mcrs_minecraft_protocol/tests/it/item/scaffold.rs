@@ -421,10 +421,7 @@ fn a_direct_holder_set_encodes_from_a_registry_without_tags() {
             .is_none_or(|tags| tags.iter().next().is_none())
     );
     let lookup = lookup();
-    let id = |n: usize| {
-        let name = SoundEvent::ENTRIES[n].as_static_str();
-        entry::<SoundEvent>(name.strip_prefix("minecraft:").unwrap_or(name))
-    };
+    let id = |n: usize| entry::<SoundEvent>(SoundEvent::ENTRIES[n].path());
     let (first, fourth) = (id(1), id(4));
     for (set, bytes) in [
         (IdSet::List(Box::new([first])), &[2, 1][..]),

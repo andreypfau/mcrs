@@ -61,7 +61,7 @@ impl Dimension {
         }
     }
 
-    fn biomes(self) -> &'static ParameterList<&'static str> {
+    fn biomes(self) -> &'static ParameterList<mcrs_minecraft_resource::ResourceLocation<'static>> {
         match self {
             Dimension::Overworld => overworld_parameter_list(),
             Dimension::Nether => nether_parameter_list(),
@@ -162,7 +162,10 @@ fn the_per_column_mask_is_what_it_was() {
 
 fn biome_registry(dimension: Dimension) -> Registries {
     let mut names: Vec<&str> = Vec::new();
-    let preset = dimension.biomes().values().iter().map(|(_, name)| *name);
+    let texts: Vec<String> = (dimension.biomes().values().iter())
+        .map(|(_, name)| name.to_string())
+        .collect();
+    let preset = texts.iter().map(String::as_str);
     let surface = [
         "minecraft:eroded_badlands",
         "minecraft:frozen_ocean",

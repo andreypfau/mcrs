@@ -1,5 +1,4 @@
 use std::any::Any;
-use std::collections::HashMap;
 use std::fmt;
 use std::sync::Arc;
 
@@ -14,8 +13,8 @@ use crate::refs::{MissingRef, Namer, ResolveError, Resolver};
 use crate::registry::{Entries, Names, Registry};
 use crate::tags::{TagTable, Tags};
 
-pub(crate) fn key_of<R: Registered>() -> &'static str {
-    R::REGISTRY.location().as_static_str()
+pub(crate) fn key_of<R: Registered>() -> ResourceLocation<'static> {
+    R::REGISTRY.location()
 }
 
 /// When a registry loads. A registry sees the entries of its own stage and of every earlier one.
@@ -63,7 +62,7 @@ pub(crate) struct Table {
 #[derive(Clone)]
 pub struct Registries {
     tables: Arc<Vec<Table>>,
-    index: Arc<HashMap<ResourceLocationBuf, usize>>,
+    index: Arc<hashbrown::HashMap<ResourceLocationBuf, usize>>,
     pub(crate) world_stack: Arc<PackStack>,
     pub(crate) reload_stack: Arc<PackStack>,
 }
@@ -100,25 +99,29 @@ impl Registries {
     }
 
     /// The entry names of the registry `key`, in id order, for a caller that has no type for it.
-    pub fn names_of(
+    pub fn names_of<'k>(
         &self,
-        key: &ResourceLocation<impl AsRef<str>>,
+        key: impl Into<ResourceLocation<'k>>,
     ) -> Option<&[ResourceLocationBuf]> {
-        self.table(key.as_str()).map(|table| table.names.all())
+        self.table(key.into()).map(|table| table.names.all())
     }
 
     /// The id of the entry `name` in the registry `key`, for a caller that has no type for it.
-    pub fn id_of(&self, key: &ResourceLocation<impl AsRef<str>>, name: &str) -> Option<u16> {
-        self.table(key.as_str())?.names.get(name)
+    pub fn id_of<'k, 'n>(
+        &self,
+        key: impl Into<ResourceLocation<'k>>,
+        name: impl Into<ResourceLocation<'n>>,
+    ) -> Option<u16> {
+        self.table(key.into())?.names.get(name.into())
     }
 
     /// Each resolved tag of the registry `key` with its member ids, for a caller that has no type
     /// for it.
-    pub fn tags_of<'s, S: AsRef<str>>(
+    pub fn tags_of<'s>(
         &'s self,
-        key: &ResourceLocation<S>,
-    ) -> Option<impl Iterator<Item = (&'s ResourceLocationBuf, &'s [u16])> + use<'s, S>> {
-        let table = self.table(key.as_str())?;
+        key: ResourceLocation<'_>,
+    ) -> Option<impl Iterator<Item = (&'s ResourceLocationBuf, &'s [u16])> + use<'s>> {
+        let table = self.table(key)?;
         Some(
             table
                 .tags
@@ -151,12 +154,12 @@ impl Registries {
         &self.tables
     }
 
-    pub(crate) fn table(&self, key: &str) -> Option<&Table> {
-        self.tables.get(*self.index.get(key)?)
+    pub(crate) fn table(&self, key: ResourceLocation<'_>) -> Option<&Table> {
+        self.tables.get(*self.index.get(&key)?)
     }
 
-    pub(crate) fn table_mut(&mut self, key: &str) -> Option<&mut Table> {
-        let at = *self.index.get(key)?;
+    pub(crate) fn table_mut(&mut self, key: ResourceLocation<'_>) -> Option<&mut Table> {
+        let at = *self.index.get(&key)?;
         Arc::make_mut(&mut self.tables).get_mut(at)
     }
 
@@ -187,7 +190,7 @@ impl Resolver for Registries {
     fn id<R: Registered>(&self, key: &ResourceKeyBuf<R>) -> Result<Id<R>, ResolveError> {
         let table = self.table(key_of::<R>()).ok_or_else(unbound::<R>)?;
         let name = key.location();
-        table.names.id(name).ok_or_else(|| {
+        table.names.id(name.as_location()).ok_or_else(|| {
             let message = format!("unknown entry {name} of {}", table.key);
             miss(table, name, false, message)
         })
@@ -196,7 +199,7 @@ impl Resolver for Registries {
     fn tag<R: Registered>(&self, tag: &TagKeyBuf<R>) -> Result<TagId<R>, ResolveError> {
         let table = self.table(key_of::<R>()).ok_or_else(unbound::<R>)?;
         let name = tag.location();
-        table.tags.id(tag.as_str()).ok_or_else(|| {
+        table.tags.id(name.as_location()).ok_or_else(|| {
             let message = format!("unknown tag #{name} of {}", table.key);
             miss(table, name, true, message)
         })

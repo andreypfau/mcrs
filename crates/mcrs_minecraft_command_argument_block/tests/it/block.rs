@@ -4,12 +4,12 @@ use mcrs_command::{
 };
 use mcrs_minecraft_block::definition::BlockEntry;
 use mcrs_minecraft_block::definition::schema::{BlockProperties, BlockProperty, PropertyValue};
-use mcrs_minecraft_command::{CommandLevel, Identifier, Lookup, Source, error_message};
+use mcrs_minecraft_command::{CommandLevel, Lookup, Source, error_message};
 use mcrs_minecraft_command_argument::ResourceOrTag;
 use mcrs_minecraft_command_argument_block::{
     BlockError, BlockLookup, BlockPredicate, BlockPredicateArgument,
 };
-use mcrs_minecraft_resource::StaticResourceLocation;
+use mcrs_minecraft_resource::ResourceLocation;
 use mcrs_minecraft_text::{IntoText, Text};
 use mcrs_voxel::BlockStateId;
 use std::sync::LazyLock;
@@ -51,7 +51,7 @@ static BLOCKS: LazyLock<Blocks> = LazyLock::new(|| Blocks {
 });
 
 impl Lookup for Blocks {
-    fn entries(&self, _: StaticResourceLocation) -> impl Iterator<Item = &str> {
+    fn entries(&self, _: ResourceLocation<'static>) -> impl Iterator<Item = &str> {
         [
             "minecraft:oak_stairs",
             "minecraft:wheat",
@@ -62,15 +62,15 @@ impl Lookup for Blocks {
         .into_iter()
     }
 
-    fn tags(&self, _: StaticResourceLocation) -> impl Iterator<Item = &str> {
+    fn tags(&self, _: ResourceLocation<'static>) -> impl Iterator<Item = &str> {
         ["minecraft:logs"].into_iter()
     }
 
     fn tag_contains(
         &self,
-        _: StaticResourceLocation,
-        _: Identifier<'_>,
-        _: StaticResourceLocation,
+        _: ResourceLocation<'static>,
+        _: ResourceLocation<'_>,
+        _: ResourceLocation<'static>,
     ) -> bool {
         false
     }
@@ -85,8 +85,8 @@ impl Lookup for Blocks {
 
     fn tag_entries(
         &self,
-        _: StaticResourceLocation,
-        tag: Identifier<'_>,
+        _: ResourceLocation<'static>,
+        tag: ResourceLocation<'_>,
     ) -> impl Iterator<Item = &str> {
         (tag == "minecraft:logs")
             .then_some("minecraft:oak_log")
@@ -95,7 +95,7 @@ impl Lookup for Blocks {
 }
 
 impl BlockLookup for Blocks {
-    fn block_properties(&self, block: Identifier<'_>) -> Option<&[BlockProperty]> {
+    fn block_properties(&self, block: ResourceLocation<'_>) -> Option<&[BlockProperty]> {
         [
             ("minecraft:oak_stairs", self.stairs.as_slice()),
             ("minecraft:wheat", self.wheat.as_slice()),
@@ -108,7 +108,7 @@ impl BlockLookup for Blocks {
         .map(|(_, properties)| properties)
     }
 
-    fn has_block_entity(&self, block: Identifier<'_>) -> bool {
+    fn has_block_entity(&self, block: ResourceLocation<'_>) -> bool {
         block == "minecraft:chest"
     }
 }
@@ -148,18 +148,8 @@ fn key(key: &'static str, with: &[&str]) -> Text {
 
 #[test]
 fn a_predicate_reads_a_block_or_a_tag_and_its_property_list() {
-    let block = |path| {
-        ResourceOrTag::Entry(Identifier {
-            namespace: "minecraft",
-            path,
-        })
-    };
-    let tag = |path| {
-        ResourceOrTag::Tag(Identifier {
-            namespace: "minecraft",
-            path,
-        })
-    };
+    let block = |path| ResourceOrTag::Entry(ResourceLocation::new("minecraft", path).unwrap());
+    let tag = |path| ResourceOrTag::Tag(ResourceLocation::new("minecraft", path).unwrap());
     let cases = [
         ("stone", block("stone"), 5),
         ("minecraft:stone", block("stone"), 15),

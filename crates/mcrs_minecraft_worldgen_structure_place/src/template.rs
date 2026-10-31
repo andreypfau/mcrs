@@ -178,7 +178,7 @@ pub fn place_ocean_ruin<W: WorldGenVolume>(
                 };
                 region.add_block_entity(GeneratedBlockEntity::chest(
                     pos,
-                    loot.as_str().to_owned(),
+                    loot.to_string(),
                     rng.next_java_long(),
                 ));
             }

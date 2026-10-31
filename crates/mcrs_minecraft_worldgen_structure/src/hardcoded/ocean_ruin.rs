@@ -3,7 +3,7 @@ use mcrs_minecraft_block_predicate::predicate::HeightmapName;
 use mcrs_minecraft_core::{BoundingBox, Mirror, Rotation};
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::legacy::LegacyRandom;
-use mcrs_minecraft_resource::{StaticResourceLocation, rl};
+use mcrs_minecraft_resource::{ResourceLocation, rl};
 use mcrs_minecraft_worldgen_feature::template::{bounding_box, transform};
 
 use super::on_top_of_chunk_centre;
@@ -13,7 +13,7 @@ use crate::orient::random_rotation;
 use crate::piece::{OceanRuinPiece, Piece};
 use crate::site::{Context, Site, Stub};
 
-pub const TEMPLATES: &[StaticResourceLocation] = &[
+pub const TEMPLATES: &[ResourceLocation<'static>] = &[
     rl!("minecraft:underwater_ruin/warm_1"),
     rl!("minecraft:underwater_ruin/warm_2"),
     rl!("minecraft:underwater_ruin/warm_3"),
@@ -64,17 +64,17 @@ pub const TEMPLATES: &[StaticResourceLocation] = &[
     rl!("minecraft:underwater_ruin/big_warm_7"),
 ];
 
-const WARM: &[StaticResourceLocation] = family(0, 8);
-const BRICK: &[StaticResourceLocation] = family(8, 8);
-const CRACKED: &[StaticResourceLocation] = family(16, 8);
-const MOSSY: &[StaticResourceLocation] = family(24, 8);
-const BIG_BRICK: &[StaticResourceLocation] = family(32, 4);
-const BIG_MOSSY: &[StaticResourceLocation] = family(36, 4);
-const BIG_CRACKED: &[StaticResourceLocation] = family(40, 4);
-const BIG_WARM: &[StaticResourceLocation] = family(44, 4);
+const WARM: &[ResourceLocation<'static>] = family(0, 8);
+const BRICK: &[ResourceLocation<'static>] = family(8, 8);
+const CRACKED: &[ResourceLocation<'static>] = family(16, 8);
+const MOSSY: &[ResourceLocation<'static>] = family(24, 8);
+const BIG_BRICK: &[ResourceLocation<'static>] = family(32, 4);
+const BIG_MOSSY: &[ResourceLocation<'static>] = family(36, 4);
+const BIG_CRACKED: &[ResourceLocation<'static>] = family(40, 4);
+const BIG_WARM: &[ResourceLocation<'static>] = family(44, 4);
 
 /// The ruins of one family, in the order the reference's arrays list them.
-const fn family(start: usize, len: usize) -> &'static [StaticResourceLocation] {
+const fn family(start: usize, len: usize) -> &'static [ResourceLocation<'static>] {
     TEMPLATES.split_at(start).1.split_at(len).0
 }
 
@@ -247,13 +247,13 @@ fn add_piece(
 fn piece(
     config: &OceanRuinConfig,
     ctx: &mut Context<'_>,
-    name: StaticResourceLocation,
+    name: ResourceLocation<'static>,
     position: IVec3,
     rotation: Rotation,
     integrity: f32,
     large: bool,
 ) -> Option<Piece> {
-    let (template, size) = ctx.frozen.sized_template(name.as_str())?;
+    let (template, size) = ctx.frozen.sized_template(name)?;
     let bounds = bounding_box(size, position, rotation, Mirror::None, IVec3::ZERO);
     Some(Piece::OceanRuin(OceanRuinPiece {
         template,

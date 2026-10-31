@@ -239,7 +239,7 @@ fn the_vanilla_pack_loads_without_world_generation_and_names_its_registries_only
     assert!(!placed.is_empty());
     assert!(
         registries
-            .names_of(&rl!("minecraft:worldgen/feature_type"))
+            .names_of(rl!("minecraft:worldgen/feature_type"))
             .is_none()
     );
 }
@@ -1914,7 +1914,12 @@ fn every_preset_parses_in_registry_context() {
             .and_then(|id| presets.get(id))
             .unwrap_or_else(|| panic!("no preset {name}"))
     };
-    let overworld = |name: &str| &preset(name).dimensions["minecraft:overworld"].generator;
+    let overworld = |name: &str| {
+        &preset(name).dimensions[&ResourceKeyBuf::from_location(
+            ResourceLocationBuf::read("minecraft:overworld").unwrap(),
+        )]
+            .generator
+    };
 
     let ChunkGenerator::Noise(normal) = overworld("minecraft:normal") else {
         panic!("the normal overworld is a noise generator");
@@ -1976,7 +1981,10 @@ fn a_preset_reads_its_dimensions_as_a_map_by_key() {
     );
     let beta_type: Id<DimensionType> = id_in(set, "minecraft:beta");
     assert_eq!(
-        beta.dimensions["minecraft:overworld"].dimension_type,
+        beta.dimensions[&ResourceKeyBuf::from_location(
+            ResourceLocationBuf::read("minecraft:overworld").unwrap()
+        )]
+            .dimension_type,
         beta_type
     );
 
@@ -2086,8 +2094,8 @@ fn an_item_and_a_block_of_one_name_keep_their_own_numbers() {
         let Some(block) = blocks.by_name(name) else {
             continue;
         };
-        assert_eq!(Item::find(name.as_str()).unwrap().id(), item, "{name}");
-        assert_eq!(Block::find(name.as_str()).unwrap().id(), block, "{name}");
+        assert_eq!(Item::read(name.as_str()).unwrap().id(), item, "{name}");
+        assert_eq!(Block::read(name.as_str()).unwrap().id(), block, "{name}");
         differing += usize::from(item.number() != block.number());
     }
     assert!(differing > 0, "no shared name is numbered differently");

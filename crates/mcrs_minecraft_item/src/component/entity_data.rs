@@ -3,7 +3,7 @@ use mcrs_minecraft_core::codec::int_value;
 use mcrs_minecraft_entity::keys::EntityType;
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::{BYTE_ID, COMPOUND_ID, LIST_ID, STRING_ID};
-use mcrs_minecraft_resource::{ResourceKeyBuf, StaticResourceLocation, rl};
+use mcrs_minecraft_resource::{ResourceKeyBuf, ResourceLocation, rl};
 use serde::{Deserialize, Serialize};
 
 use crate::component::common::TypedEntityData;
@@ -76,7 +76,7 @@ impl Sample for Bees {
     }
 }
 
-fn typed<R>(id: StaticResourceLocation, tag: NbtCompound) -> TypedEntityData<R> {
+fn typed<R>(id: ResourceLocation<'static>, tag: NbtCompound) -> TypedEntityData<R> {
     TypedEntityData {
         id: ResourceKeyBuf::from_location(id.to_buf()),
         tag,

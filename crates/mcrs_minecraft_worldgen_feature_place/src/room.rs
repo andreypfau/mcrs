@@ -128,9 +128,7 @@ pub fn place_monster_room<W: WorldGenVolume>(
             if volume.set_unless(&config.cannot_replace, pos, chest) {
                 volume.add_block_entity(GeneratedBlockEntity::chest(
                     pos,
-                    mcrs_minecraft_item::keys::loot_table::CHESTS_SIMPLE_DUNGEON
-                        .as_str()
-                        .to_owned(),
+                    mcrs_minecraft_item::keys::loot_table::CHESTS_SIMPLE_DUNGEON.to_string(),
                     rng.next_java_long(),
                 ));
             }
@@ -229,9 +227,7 @@ pub fn place_bonus_chest<W: WorldGenVolume>(
             volume.set(pos, config.chest);
             volume.add_block_entity(GeneratedBlockEntity::chest(
                 pos,
-                mcrs_minecraft_item::keys::loot_table::CHESTS_SPAWN_BONUS_CHEST
-                    .as_str()
-                    .to_owned(),
+                mcrs_minecraft_item::keys::loot_table::CHESTS_SPAWN_BONUS_CHEST.to_string(),
                 rng.next_java_long(),
             ));
             for side in Direction::HORIZONTAL {

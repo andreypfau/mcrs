@@ -119,8 +119,8 @@ fn sent_entry<'a>(
 ) -> &'a mcrs_minecraft_protocol::registry::Entry<'a> {
     packets
         .iter()
-        .find(|packet| packet.registry.as_str() == registry)
-        .and_then(|packet| packet.entries.iter().find(|sent| sent.id.as_str() == entry))
+        .find(|packet| packet.registry == registry)
+        .and_then(|packet| packet.entries.iter().find(|sent| sent.id == entry))
         .unwrap_or_else(|| panic!("{registry}/{entry} is not sent"))
 }
 
@@ -255,16 +255,17 @@ fn shipped_entries(registry: &str) -> Vec<(String, String)> {
 fn the_registry_packets_list_the_entries_the_packs_ship() {
     for known in [false, true] {
         for packet in sent(test_network(), known) {
-            let registry = packet.registry.as_str();
-            let shipped = shipped_entries(registry);
-            let sent: Vec<&str> = packet
+            let registry = packet.registry.to_string();
+            let shipped = shipped_entries(&registry);
+            let sent: Vec<String> = packet
                 .entries
                 .iter()
-                .map(|entry| entry.id.as_str())
+                .map(|entry| entry.id.to_string())
                 .collect();
-            let expected: Vec<&str> = shipped.iter().map(|(name, _)| name.as_str()).collect();
+            let expected: Vec<&String> = shipped.iter().map(|(name, _)| name).collect();
             assert_eq!(
-                sent, expected,
+                sent.iter().collect::<Vec<_>>(),
+                expected,
                 "{registry}, known packs negotiated: {known}"
             );
             for (entry, (name, pack)) in packet.entries.iter().zip(&shipped) {
@@ -283,25 +284,24 @@ fn the_registry_packets_carry_each_synced_registry_in_id_order() {
     let registries = test_registries();
     let packets = sent(test_network(), false);
 
-    let sent: Vec<&str> = packets
+    let sent: Vec<String> = packets
         .iter()
-        .map(|packet| packet.registry.as_str())
+        .map(|packet| packet.registry.to_string())
         .collect();
     assert_eq!(sent.len(), 33);
-    assert!(!sent.contains(&"minecraft:environment_attribute"));
+    assert!(!sent.iter().any(|s| s == "minecraft:environment_attribute"));
 
     for packet in &packets {
-        let key = ResourceLocationBuf::read(packet.registry.as_str()).unwrap();
-        let in_id_order: Vec<&str> = registries
-            .names_of(&key)
+        let in_id_order: Vec<String> = registries
+            .names_of(packet.registry)
             .unwrap()
             .iter()
-            .map(|name| name.as_str())
+            .map(ToString::to_string)
             .collect();
-        let names: Vec<&str> = packet
+        let names: Vec<String> = packet
             .entries
             .iter()
-            .map(|entry| entry.id.as_str())
+            .map(|entry| entry.id.to_string())
             .collect();
         assert_eq!(names, in_id_order, "entries of {}", packet.registry);
         assert!(
@@ -328,10 +328,12 @@ const OTHER_PACK: KnownPack<'static> = KnownPack {
 fn an_entry_of_a_negotiated_pack_is_sent_without_its_data() {
     let mut from_other_packs = 0;
     for packet in sent(test_network(), true) {
-        let registry = packet.registry.as_str();
-        let shipped: BTreeMap<String, String> = shipped_entries(registry).into_iter().collect();
+        let registry = packet.registry;
+        let shipped: BTreeMap<String, String> =
+            shipped_entries(&registry.to_string()).into_iter().collect();
         for entry in &packet.entries {
-            let vanilla = shipped.get(entry.id.as_str()).map(String::as_str) == Some(VANILLA_PACK);
+            let vanilla =
+                shipped.get(&entry.id.to_string()).map(String::as_str) == Some(VANILLA_PACK);
             assert_eq!(
                 entry.data.is_none(),
                 vanilla,

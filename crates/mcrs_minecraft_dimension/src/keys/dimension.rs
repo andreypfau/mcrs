@@ -2,6 +2,6 @@
 
 use mcrs_minecraft_resource::{ResourceKey, rl};
 
-pub const OVERWORLD: ResourceKey<crate::Dimension, &'static str> = ResourceKey::new(rl!("minecraft:overworld"));
-pub const THE_END: ResourceKey<crate::Dimension, &'static str> = ResourceKey::new(rl!("minecraft:the_end"));
-pub const THE_NETHER: ResourceKey<crate::Dimension, &'static str> = ResourceKey::new(rl!("minecraft:the_nether"));
+pub const OVERWORLD: ResourceKey<'static, crate::Dimension> = ResourceKey::new(rl!("minecraft:overworld"));
+pub const THE_END: ResourceKey<'static, crate::Dimension> = ResourceKey::new(rl!("minecraft:the_end"));
+pub const THE_NETHER: ResourceKey<'static, crate::Dimension> = ResourceKey::new(rl!("minecraft:the_nether"));

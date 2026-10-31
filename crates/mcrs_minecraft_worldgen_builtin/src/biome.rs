@@ -19,11 +19,11 @@ use mcrs_minecraft_sound::keys::SoundEvent;
 use mcrs_minecraft_value_provider::IntProvider;
 use serde::Serialize;
 
-type BiomeRow = (ResourceKey<Biome, &'static str>, fn() -> Draft);
+type BiomeRow = (ResourceKey<'static, Biome>, fn() -> Draft);
 
 #[derive(Clone, Copy)]
 pub struct Mob {
-    id: ResourceKey<EntityType, &'static str>,
+    id: ResourceKey<'static, EntityType>,
     category: MobCategory,
 }
 
@@ -108,12 +108,12 @@ pub mod mob {
         #[test]
         fn no_entity_type_is_listed_twice() {
             let mut seen = BTreeSet::new();
-            let repeated: Vec<&str> = ALL
+            let repeated: Vec<_> = ALL
                 .iter()
-                .map(|mob| mob.id.as_str())
+                .map(|mob| mob.id)
                 .filter(|name| !seen.insert(*name))
                 .collect();
-            assert_eq!(repeated, Vec::<&str>::new());
+            assert!(repeated.is_empty(), "{repeated:?}");
         }
     }
 }
@@ -140,7 +140,7 @@ impl Mobs {
     ) -> &mut Self {
         self.0.add_spawn(
             category,
-            *mob.id.location(),
+            mob.id.location(),
             Bounded(weight.into()),
             IntProvider::between(min, max),
         );
@@ -148,7 +148,7 @@ impl Mobs {
     }
 
     pub fn cost(&mut self, mob: Mob, charge: f64, energy_budget: f64) -> &mut Self {
-        self.0.add_cost(*mob.id.location(), charge, energy_budget);
+        self.0.add_cost(mob.id.location(), charge, energy_budget);
         self
     }
 }
@@ -292,5 +292,5 @@ const BIOMES: &[BiomeRow] = {
 pub fn drafts() -> impl Iterator<Item = (ResourceLocationBuf, Draft)> {
     BIOMES
         .iter()
-        .map(|(key, draft)| ((*key.location()).into(), draft()))
+        .map(|(key, draft)| (key.location().into(), draft()))
 }

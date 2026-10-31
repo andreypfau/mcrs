@@ -1,5 +1,5 @@
 use crate::terrain::{self, Coordinates};
-use mcrs_minecraft_resource::{StaticResourceLocation, rl};
+use mcrs_minecraft_resource::{ResourceLocation, rl};
 use mcrs_minecraft_worldgen_density::node::distance::DistanceMetric;
 use mcrs_minecraft_worldgen_density::proto::MAX_REASONABLE_NOISE_VALUE;
 use mcrs_minecraft_worldgen_density::proto::build::{Df, Functions};
@@ -10,33 +10,33 @@ use std::ops::RangeInclusive;
 pub(crate) const OVERWORLD: NoiseSettings = NoiseSettings::new(-64, 384);
 const OVERWORLD_TOP: i32 = OVERWORLD.min_y + OVERWORLD.height as i32;
 
-const Y: StaticResourceLocation = rl!("minecraft:y");
-pub(crate) const RIDGES: StaticResourceLocation = rl!("minecraft:overworld/ridges");
-const RIDGES_FOLDED: StaticResourceLocation = rl!("minecraft:overworld/ridges_folded");
-const BASE_3D_NOISE_OVERWORLD: StaticResourceLocation = rl!("minecraft:overworld/base_3d_noise");
-const BASE_3D_NOISE_NETHER: StaticResourceLocation = rl!("minecraft:nether/base_3d_noise");
-pub(crate) const BASE_3D_NOISE_END: StaticResourceLocation = rl!("minecraft:end/base_3d_noise");
-pub(crate) const END_ISLANDS: StaticResourceLocation = rl!("minecraft:end/islands");
-pub(crate) const SLOPED_CHEESE_END: StaticResourceLocation = rl!("minecraft:end/sloped_cheese");
-const SPAGHETTI_ROUGHNESS_FUNCTION: StaticResourceLocation =
+const Y: ResourceLocation<'static> = rl!("minecraft:y");
+pub(crate) const RIDGES: ResourceLocation<'static> = rl!("minecraft:overworld/ridges");
+const RIDGES_FOLDED: ResourceLocation<'static> = rl!("minecraft:overworld/ridges_folded");
+const BASE_3D_NOISE_OVERWORLD: ResourceLocation<'static> = rl!("minecraft:overworld/base_3d_noise");
+const BASE_3D_NOISE_NETHER: ResourceLocation<'static> = rl!("minecraft:nether/base_3d_noise");
+pub(crate) const BASE_3D_NOISE_END: ResourceLocation<'static> = rl!("minecraft:end/base_3d_noise");
+pub(crate) const END_ISLANDS: ResourceLocation<'static> = rl!("minecraft:end/islands");
+pub(crate) const SLOPED_CHEESE_END: ResourceLocation<'static> = rl!("minecraft:end/sloped_cheese");
+const SPAGHETTI_ROUGHNESS_FUNCTION: ResourceLocation<'static> =
     rl!("minecraft:overworld/caves/spaghetti_roughness_function");
-const ENTRANCES: StaticResourceLocation = rl!("minecraft:overworld/caves/entrances");
-const NOODLE: StaticResourceLocation = rl!("minecraft:overworld/caves/noodle");
-const PILLARS: StaticResourceLocation = rl!("minecraft:overworld/caves/pillars");
-const SPAGHETTI_2D_THICKNESS_MODULATOR: StaticResourceLocation =
+const ENTRANCES: ResourceLocation<'static> = rl!("minecraft:overworld/caves/entrances");
+const NOODLE: ResourceLocation<'static> = rl!("minecraft:overworld/caves/noodle");
+const PILLARS: ResourceLocation<'static> = rl!("minecraft:overworld/caves/pillars");
+const SPAGHETTI_2D_THICKNESS_MODULATOR: ResourceLocation<'static> =
     rl!("minecraft:overworld/caves/spaghetti_2d_thickness_modulator");
-const SPAGHETTI_2D: StaticResourceLocation = rl!("minecraft:overworld/caves/spaghetti_2d");
+const SPAGHETTI_2D: ResourceLocation<'static> = rl!("minecraft:overworld/caves/spaghetti_2d");
 
 /// The density functions one overworld preset defines for its terrain.
 pub(crate) struct Terrain {
-    pub(crate) offset: StaticResourceLocation,
-    pub(crate) factor: StaticResourceLocation,
-    pub(crate) depth: StaticResourceLocation,
-    pub(crate) jaggedness: StaticResourceLocation,
-    pub(crate) sloped_cheese: StaticResourceLocation,
-    pub(crate) preliminary_surface_level: StaticResourceLocation,
-    pub(crate) chunk_surface_level: StaticResourceLocation,
-    pub(crate) final_density: StaticResourceLocation,
+    pub(crate) offset: ResourceLocation<'static>,
+    pub(crate) factor: ResourceLocation<'static>,
+    pub(crate) depth: ResourceLocation<'static>,
+    pub(crate) jaggedness: ResourceLocation<'static>,
+    pub(crate) sloped_cheese: ResourceLocation<'static>,
+    pub(crate) preliminary_surface_level: ResourceLocation<'static>,
+    pub(crate) chunk_surface_level: ResourceLocation<'static>,
+    pub(crate) final_density: ResourceLocation<'static>,
 }
 
 pub(crate) const OVERWORLD_TERRAIN: Terrain = Terrain {
@@ -106,7 +106,7 @@ pub fn define(f: &mut Functions) {
     );
 
     let climate =
-        |noise: StaticResourceLocation| Df::shifted_noise_2d(&shift_x, &shift_z, 0.25, noise);
+        |noise: ResourceLocation<'static>| Df::shifted_noise_2d(&shift_x, &shift_z, 0.25, noise);
     f.define(
         rl!("minecraft:overworld/temperature"),
         climate(rl!("minecraft:temperature")),
@@ -273,7 +273,7 @@ fn entrances() -> Df {
         -0.065,
         -0.088,
     );
-    let cave = |noise: StaticResourceLocation| {
+    let cave = |noise: ResourceLocation<'static>| {
         Df::rarity_select(&rarity, noise, &[-0.5, 0.0, 0.5], &[0.75, 1.0, 1.5, 2.0])
     };
     let spaghetti_3d = (cave(rl!("minecraft:spaghetti_3d_1"))
@@ -301,7 +301,7 @@ fn noodle() -> Df {
         0.0,
     );
     let ridge_frequency = 2.6666666666666665;
-    let ridge = |noise: StaticResourceLocation| {
+    let ridge = |noise: ResourceLocation<'static>| {
         limited(Df::noise(noise, ridge_frequency, ridge_frequency), 0.0).abs()
     };
     let ridged =
@@ -384,7 +384,7 @@ fn ore_veins(f: &mut Functions) {
         rl!("minecraft:overworld/ore_vein/richness"),
         toggle.clone().abs().clamped_map(0.4, 0.6, 0.1, 0.3),
     );
-    let vein = |noise: StaticResourceLocation| limited(Df::noise(noise, 4.0, 4.0), 1.0).abs();
+    let vein = |noise: ResourceLocation<'static>| limited(Df::noise(noise, 4.0, 4.0), 1.0).abs();
     let no_vein_near_toggle_zero = Df::range_choice(
         &toggle,
         -0.4..0.4,

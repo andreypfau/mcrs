@@ -1,8 +1,8 @@
 // Written by `cargo run -p mcrs_minecraft_update -- keys`; do not edit.
 
-use mcrs_minecraft_resource::StaticResourceLocation;
+use mcrs_minecraft_resource::ResourceLocation;
 
-pub const STATIC_REGISTRIES: &[(StaticResourceLocation, &[StaticResourceLocation])] = &[
+pub const STATIC_REGISTRIES: &[(ResourceLocation<'static>, &[ResourceLocation<'static>])] = &[
     (
         mcrs_minecraft_keys::GAME_EVENT,
         mcrs_minecraft_keys::game_event::ENTRIES,

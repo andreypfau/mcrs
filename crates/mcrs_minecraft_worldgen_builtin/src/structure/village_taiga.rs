@@ -674,12 +674,7 @@ fn taiga_butcher_shop_1(c: &mut Canvas) {
         EMPTY,
         "minecraft:cobblestone_stairs[facing=north]",
     );
-    c.spot(
-        [7, 0, 6],
-        mcrs_minecraft_worldgen_feature::keys::template_pool::VILLAGE_COMMON_BUTCHER_ANIMALS
-            .as_str(),
-        GRASS,
-    );
+    c.spot([7, 0, 6], "minecraft:village/common/butcher_animals", GRASS);
 }
 
 fn cartographer_house_1(c: &mut Canvas, v: Village) {
@@ -1092,11 +1087,7 @@ fn shepherds_house_1(c: &mut Canvas, v: Village) {
     c.solid(&S.grass, [6, 1, 3], [8, 1, 7]);
     c.walls(&S.spruce_fence, &S.spruce_fence, [5, 2, 2], [9, 2, 8]);
     c.fill(&S.torch, 9, 3, [2, 8]);
-    c.spot(
-        [8, 1, 6],
-        mcrs_minecraft_worldgen_feature::keys::template_pool::VILLAGE_COMMON_SHEEP.as_str(),
-        GRASS,
-    );
+    c.spot([8, 1, 6], "minecraft:village/common/sheep", GRASS);
 
     c.walls(&S.cobble, &S.cobble, [2, 1, 1], [5, 2, 9]);
     c.solid(&S.spruce_planks, [3, 1, 2], [4, 1, 8]);

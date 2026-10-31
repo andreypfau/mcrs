@@ -511,7 +511,8 @@ fn world_gen_settings_keep_their_dimensions() {
     let mut dimensions = normal_dimensions();
     let extra =
         ResourceKeyBuf::<mcrs_minecraft_dimension::Dimension>::from_location(clock("test:extra"));
-    let overworld = dimensions["minecraft:overworld"].clone();
+    let overworld =
+        dimensions[&mcrs_minecraft_dimension::keys::dimension::OVERWORLD.to_buf()].clone();
     dimensions.insert(extra, overworld);
     let settings = WorldGenSettings {
         seed: -7,

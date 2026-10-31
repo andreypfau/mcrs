@@ -23,7 +23,9 @@ license = "MIT OR Apache-2.0"
 repository = "https://github.com/andreypfau/mcrs"
 
 [workspace.dependencies]
+equivalent = "1.0.2"
 fixedbitset = "0.5.7"
+hashbrown = "0.16.1"
 fancy-regex = "0.16"
 derive-where = "1.6.1"
 serde_path_to_error = "0.1.20"

@@ -995,11 +995,7 @@ fn snowy_shepherds_house_1(c: &mut Canvas) {
     c.solid(&S.spruce_fence, [0, 1, 0], [2, 1, 0]);
     c.solid(&S.spruce_fence, [0, 1, 1], [0, 1, 4]);
     c.place(&K.lantern, 0, 2, 0);
-    c.spot(
-        [1, 0, 2],
-        mcrs_minecraft_worldgen_feature::keys::template_pool::VILLAGE_COMMON_SHEEP.as_str(),
-        GRASS,
-    );
+    c.spot([1, 0, 2], "minecraft:village/common/sheep", GRASS);
 
     c.boxes(&K.log, &[([4, 0, 1], [7, 2, 1]), ([4, 0, 2], [4, 2, 5])]);
     c.boxes(&K.log, &[([7, 0, 2], [7, 2, 8]), ([1, 0, 6], [3, 2, 6])]);

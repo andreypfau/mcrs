@@ -3,7 +3,7 @@ use std::fmt;
 use std::ops::Deref;
 
 use mcrs_minecraft_datapack::{Level, PackDiagnostic};
-use mcrs_minecraft_resource::{ResourceLocationBuf, StaticResourceLocation, rl};
+use mcrs_minecraft_resource::{ResourceLocation, ResourceLocationBuf, rl};
 
 use crate::order::identifier_order;
 
@@ -109,7 +109,7 @@ impl Diagnostic {
     }
 }
 
-const ROOT: StaticResourceLocation = rl!("minecraft:root");
+const ROOT: ResourceLocation<'static> = rl!("minecraft:root");
 
 fn list(missing: &[Missing]) -> String {
     let items: Vec<String> = missing.iter().map(ToString::to_string).collect();

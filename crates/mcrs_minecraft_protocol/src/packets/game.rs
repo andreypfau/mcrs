@@ -558,7 +558,7 @@ pub mod clientbound {
 
     #[derive(Clone, Debug, PartialEq, Encode, Decode)]
     pub struct AttributeModifier<'a> {
-        pub id: ResourceLocation<Cow<'a, str>>,
+        pub id: ResourceLocation<'a>,
         pub amount: f64,
         pub operation: AttributeOperation,
     }

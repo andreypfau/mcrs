@@ -5,7 +5,7 @@ pub mod density_function_type;
 
 pub use density_function_type::DensityFunctionType;
 
-use mcrs_minecraft_resource::{Registered, RegistryKey, StaticResourceLocation, rl};
+use mcrs_minecraft_resource::{Registered, RegistryKey, ResourceLocation, rl};
 
 pub const DENSITY_FUNCTION: RegistryKey<crate::proto::DensityFunctionHolder> =
     RegistryKey::new(rl!("minecraft:worldgen/density_function"));
@@ -20,7 +20,7 @@ impl Registered for crate::keys::DensityFunctionType {
 }
 
 /// The static registries of this crate, which the catalog does not list.
-pub const STATIC_REGISTRIES: &[(StaticResourceLocation, &[StaticResourceLocation])] = &[(
+pub const STATIC_REGISTRIES: &[(ResourceLocation<'static>, &[ResourceLocation<'static>])] = &[(
     DENSITY_FUNCTION_TYPE.location(),
     DensityFunctionType::ENTRIES,
 )];

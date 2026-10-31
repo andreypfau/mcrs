@@ -17,8 +17,7 @@ const STEP_SOUTH: &str =
 const FENCE: &str =
     "minecraft:acacia_fence[east=false,north=false,south=false,waterlogged=false,west=false]";
 
-const TREES: &str =
-    mcrs_minecraft_worldgen_feature::keys::template_pool::VILLAGE_SAVANNA_TREES.as_static_str();
+const TREES: &str = "minecraft:village/savanna/trees";
 const STEP_EAST: &str = "minecraft:acacia_stairs[facing=east]";
 
 /// The end of a street that opens towards `side` from inside the box.

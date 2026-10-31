@@ -1,8 +1,8 @@
 use crate::{Decode, Encode};
 use mcrs_minecraft_resource::{ResourceLocation, rl};
 
-pub const BRAND_CHANNEL: ResourceLocation<&'static str> = rl!("minecraft:brand");
-pub const MOD_LIST_CHANNEL: ResourceLocation<&'static str> = rl!("minecraft:mod_list");
+pub const BRAND_CHANNEL: ResourceLocation<'static> = rl!("minecraft:brand");
+pub const MOD_LIST_CHANNEL: ResourceLocation<'static> = rl!("minecraft:mod_list");
 
 #[derive(Copy, Clone, PartialEq, Eq, Debug, Encode, Decode)]
 pub struct Brand<'a> {
@@ -23,7 +23,7 @@ pub mod clientbound {
 
     #[derive(Clone, PartialEq, Eq, Debug, Encode, Decode)]
     pub struct CustomPayload<'a> {
-        pub channel: ResourceLocation<Cow<'a, str>>,
+        pub channel: ResourceLocation<'a>,
         pub data: Bounded<Cow<'a, RawBytes<'a>>, MAX_PAYLOAD_SIZE>,
     }
 
@@ -100,7 +100,7 @@ pub mod serverbound {
     use crate::{Bounded, Decode, Encode, RawBytes, VarInt};
     use mcrs_minecraft_nbt::tag::NbtTag;
     use mcrs_minecraft_resource::ResourceLocation;
-    use std::borrow::Cow;
+
     use std::io::Write;
     use uuid::Uuid;
 
@@ -124,15 +124,15 @@ pub mod serverbound {
 
     #[derive(Clone, PartialEq, Eq, Debug, Encode, Decode)]
     pub struct CustomPayload<'a> {
-        pub channel: ResourceLocation<Cow<'a, str>>,
+        pub channel: ResourceLocation<'a>,
         pub data: Bounded<RawBytes<'a>, MAX_PAYLOAD_SIZE>,
     }
 
     #[derive(Clone, PartialEq, Eq, Debug, Default)]
-    pub struct PropertyMap<'a>(pub Vec<(ResourceLocation<Cow<'a, str>>, &'a str)>);
+    pub struct PropertyMap<'a>(pub Vec<(ResourceLocation<'a>, &'a str)>);
 
     #[derive(Clone, PartialEq, Eq, Debug, Default)]
-    pub struct ModList<'a>(pub Vec<(ResourceLocation<Cow<'a, str>>, PropertyMap<'a>)>);
+    pub struct ModList<'a>(pub Vec<(ResourceLocation<'a>, PropertyMap<'a>)>);
 
     fn write_count(w: impl Write, len: usize, max: usize, what: &str) -> crate::Result<()> {
         crate::wire::ensure!(len <= max, "{what} of {len} entries exceeds {max}");
@@ -258,7 +258,7 @@ pub mod serverbound {
 
     #[derive(Clone, PartialEq, Debug)]
     pub struct CustomClickAction<'a> {
-        pub id: ResourceLocation<Cow<'a, str>>,
+        pub id: ResourceLocation<'a>,
         pub payload: Option<NbtTag>,
     }
 
@@ -307,10 +307,9 @@ mod tests {
     };
     use crate::{Decode, Encode, VarInt};
     use mcrs_minecraft_resource::ResourceLocation;
-    use std::borrow::Cow;
 
-    fn key(path: &str) -> ResourceLocation<Cow<'_, str>> {
-        ResourceLocation::read_cow(path).unwrap()
+    fn key(path: &str) -> ResourceLocation<'_> {
+        ResourceLocation::read(path).unwrap()
     }
 
     fn count(n: usize) -> Vec<u8> {

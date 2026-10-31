@@ -2,4 +2,4 @@
 
 use mcrs_minecraft_resource::{ResourceKey, rl};
 
-pub const ALWAYS_PASS: ResourceKey<crate::test_types::TestInstance, &'static str> = ResourceKey::new(rl!("minecraft:always_pass"));
+pub const ALWAYS_PASS: ResourceKey<'static, crate::test_types::TestInstance> = ResourceKey::new(rl!("minecraft:always_pass"));

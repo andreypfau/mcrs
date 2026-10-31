@@ -15,7 +15,7 @@ use mcrs_minecraft_block::definition::schema::BlockProperty;
 use mcrs_minecraft_chat_client::{
     ChatAbilities, ChatLog, ChatScreen, Context, History, Outgoing, Overlay, Signing, Tag,
 };
-use mcrs_minecraft_command::{CommandLevel, Identifier, Lookup, Source};
+use mcrs_minecraft_command::{CommandLevel, Lookup, Source};
 use mcrs_minecraft_command_argument::TimeLookup;
 use mcrs_minecraft_command_argument_block::BlockLookup;
 use mcrs_minecraft_command_argument_vanilla::ClientGraph;
@@ -31,7 +31,7 @@ use mcrs_minecraft_protocol::text::Text;
 use mcrs_minecraft_protocol::uuid::Uuid;
 use mcrs_minecraft_protocol::{Bounded, VarInt, WritePacket};
 use mcrs_minecraft_registries::CurrentRegistries;
-use mcrs_minecraft_resource::{ResourceKeyBuf, StaticResourceLocation};
+use mcrs_minecraft_resource::{ResourceKeyBuf, ResourceLocation};
 
 use crate::chat_history::{self, CommandHistoryFile};
 use crate::chat_packets;
@@ -129,23 +129,23 @@ pub struct ClientLookup<'a> {
 }
 
 impl Lookup for ClientLookup<'_> {
-    fn entries(&self, registry: StaticResourceLocation) -> impl Iterator<Item = &str> {
+    fn entries(&self, registry: ResourceLocation<'static>) -> impl Iterator<Item = &str> {
         self.registries.entries(registry)
     }
 
-    fn tags(&self, registry: StaticResourceLocation) -> impl Iterator<Item = &str> {
+    fn tags(&self, registry: ResourceLocation<'static>) -> impl Iterator<Item = &str> {
         self.registries.tags(registry)
     }
 
-    fn has_registry(&self, registry: StaticResourceLocation) -> bool {
+    fn has_registry(&self, registry: ResourceLocation<'static>) -> bool {
         self.registries.has_registry(registry)
     }
 
     fn tag_contains(
         &self,
-        registry: StaticResourceLocation,
-        tag: Identifier<'_>,
-        entry: StaticResourceLocation,
+        registry: ResourceLocation<'static>,
+        tag: ResourceLocation<'_>,
+        entry: ResourceLocation<'static>,
     ) -> bool {
         self.registries.tag_contains(registry, tag, entry)
     }
@@ -160,29 +160,35 @@ impl Lookup for ClientLookup<'_> {
 
     fn tag_entries(
         &self,
-        registry: StaticResourceLocation,
-        tag: Identifier<'_>,
+        registry: ResourceLocation<'static>,
+        tag: ResourceLocation<'_>,
     ) -> impl Iterator<Item = &str> {
         self.registries.tag_entries(registry, tag)
     }
 }
 
 impl BlockLookup for ClientLookup<'_> {
-    fn block_properties(&self, block: Identifier<'_>) -> Option<&[BlockProperty]> {
+    fn block_properties(&self, block: ResourceLocation<'_>) -> Option<&[BlockProperty]> {
         self.registries.block_properties(block)
     }
 
-    fn has_block_entity(&self, block: Identifier<'_>) -> bool {
+    fn has_block_entity(&self, block: ResourceLocation<'_>) -> bool {
         self.registries.has_block_entity(block)
     }
 }
 
 impl TimeLookup for ClientLookup<'_> {
-    fn suggested_time_markers(&self, clock: Option<Identifier<'_>>) -> impl Iterator<Item = &str> {
+    fn suggested_time_markers(
+        &self,
+        clock: Option<ResourceLocation<'_>>,
+    ) -> impl Iterator<Item = &str> {
         self.registries.suggested_time_markers(clock)
     }
 
-    fn timelines_of_clock(&self, clock: Option<Identifier<'_>>) -> impl Iterator<Item = &str> {
+    fn timelines_of_clock(
+        &self,
+        clock: Option<ResourceLocation<'_>>,
+    ) -> impl Iterator<Item = &str> {
         self.registries.timelines_of_clock(clock)
     }
 }

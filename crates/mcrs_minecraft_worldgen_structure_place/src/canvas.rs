@@ -281,7 +281,7 @@ impl<W: WorldGenVolume> PieceCanvas<'_, W> {
         x: i32,
         y: i32,
         z: i32,
-        loot_table: ResourceKey<mcrs_minecraft_item::loot::LootTable, &'static str>,
+        loot_table: ResourceKey<'static, mcrs_minecraft_item::loot::LootTable>,
     ) -> bool {
         let pos = self.world_pos(x, y, z);
         if !self.clip.is_inside(pos) || self.volume.holds(&chest.states, pos) {
@@ -291,7 +291,7 @@ impl<W: WorldGenVolume> PieceCanvas<'_, W> {
         self.volume.set(pos, state);
         self.volume.add_block_entity(GeneratedBlockEntity::chest(
             pos,
-            loot_table.as_str().to_owned(),
+            loot_table.to_string(),
             rng.next_java_long(),
         ));
         true
@@ -310,7 +310,7 @@ impl<W: WorldGenVolume> PieceCanvas<'_, W> {
         x: i32,
         y: i32,
         z: i32,
-        loot_table: ResourceKey<mcrs_minecraft_item::loot::LootTable, &'static str>,
+        loot_table: ResourceKey<'static, mcrs_minecraft_item::loot::LootTable>,
     ) -> bool {
         let pos = self.world_pos(x, y, z);
         if !self.clip.is_inside(pos) || self.volume.holds(dispenser_states, pos) {
@@ -320,7 +320,7 @@ impl<W: WorldGenVolume> PieceCanvas<'_, W> {
         self.volume
             .add_block_entity(GeneratedBlockEntity::Dispenser(ContainerData::looted(
                 pos,
-                loot_table.as_str().to_owned(),
+                loot_table.to_string(),
                 rng.next_java_long(),
             )));
         true

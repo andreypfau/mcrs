@@ -1,7 +1,7 @@
 use mcrs_minecraft_core::codec::is_default;
 use mcrs_minecraft_nbt::LIST_ID;
 use mcrs_minecraft_registries::{Refs, Resolved, registry_value};
-use mcrs_minecraft_resource::{ResourceLocationBuf, StaticResourceLocation, rl};
+use mcrs_minecraft_resource::{ResourceLocation, ResourceLocationBuf, rl};
 use serde::{Deserialize, Deserializer, Serialize};
 
 use crate::component::common::{EquipmentSlotGroup, ordinal_enum};
@@ -124,7 +124,7 @@ impl Sample for AttributeModifiers {
 
     fn samples() -> Vec<Self> {
         let entry =
-            |path: &str, id: StaticResourceLocation, amount: f64, operation, slot, display| {
+            |path: &str, id: ResourceLocation<'static>, amount: f64, operation, slot, display| {
                 AttributeEntry {
                     attribute: entry(path),
                     modifier: AttributeModifierValue {

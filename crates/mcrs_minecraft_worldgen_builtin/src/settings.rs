@@ -5,7 +5,7 @@ use crate::density::{
 };
 use mcrs_minecraft_block::keys::Block;
 use mcrs_minecraft_block_predicate::block_state::BlockState;
-use mcrs_minecraft_resource::{ResourceLocationBuf, StaticResourceLocation, rl};
+use mcrs_minecraft_resource::{ResourceLocation, ResourceLocationBuf, rl};
 use mcrs_minecraft_worldgen_density::proto::ValueRange;
 use mcrs_minecraft_worldgen_density::proto::build::Df;
 use mcrs_minecraft_worldgen_density::router::{
@@ -17,10 +17,10 @@ use std::num::NonZeroU32;
 
 /// The density functions an overworld preset reads its climate from.
 struct Climate {
-    temperature: StaticResourceLocation,
-    vegetation: StaticResourceLocation,
-    continents: StaticResourceLocation,
-    erosion: StaticResourceLocation,
+    temperature: ResourceLocation<'static>,
+    vegetation: ResourceLocation<'static>,
+    continents: ResourceLocation<'static>,
+    erosion: ResourceLocation<'static>,
 }
 
 const CLIMATE: Climate = Climate {
@@ -154,7 +154,7 @@ fn density_only(
     slide: Df,
     cell_size_xz: NonZeroU32,
     cell_size_y: NonZeroU32,
-    material_rule: StaticResourceLocation,
+    material_rule: ResourceLocation<'static>,
     sea_level: i32,
 ) -> NoiseGeneratorSettings {
     let router = RouterFunctions::of_density(full_noise(slide, cell_size_xz, cell_size_y));

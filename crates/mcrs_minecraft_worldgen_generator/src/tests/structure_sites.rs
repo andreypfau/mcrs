@@ -185,7 +185,7 @@ pub(super) fn build_index(dimension: &Dimension, seed: i64) -> StructureIndex {
             EndBiomes::from_lookup(|key| {
                 Some(super::biome_id(
                     super::test_registries(),
-                    key.location().as_str(),
+                    &key.location().to_string(),
                 ))
             })
             .unwrap(),

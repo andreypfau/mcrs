@@ -1,67 +1,24 @@
-use alloc::borrow::{Cow, ToOwned};
-use alloc::boxed::Box;
+use alloc::borrow::ToOwned;
 use alloc::format;
-use alloc::string::{String, ToString};
-use core::borrow::Borrow;
+use alloc::string::String;
+use core::cmp::Ordering;
 use core::fmt;
 use core::hash::{Hash, Hasher};
+use serde::de::{self, Visitor};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-/// A namespaced resource identifier in the form `namespace:path`.
+use crate::ResourceLocationBuf;
+
+/// A namespaced resource identifier, `namespace:path`, borrowed from the text it was read from.
 ///
-/// Generic over the string storage type `S`:
-/// - [`ResourceLocationBuf`] — owned; a clone allocates.
-/// - `ResourceLocation<&'static str>` — zero-alloc, `Copy`, const-constructible.
-/// - `ResourceLocation<Cow<'a, str>>` — borrowed or owned, used by the wire codecs.
-///
-/// Both variants hash and compare identically, and `ResourceLocation<&'static str>`
-/// can be used for zero-allocation lookups into `HashMap<ResourceLocationBuf, …>` via
-/// the `Borrow<str>` impl.
-#[derive(Clone)]
-pub struct ResourceLocation<S> {
-    string: S,
-    colon_pos: u16,
+/// A bare `path` reads in the `minecraft` namespace without an allocation. [`rl!`](crate::rl)
+/// builds one at compile time. [`ResourceLocationBuf`] is the owned form; both forms hash and
+/// compare by the namespace and the path, and order by the path and then the namespace.
+#[derive(Clone, Copy)]
+pub struct ResourceLocation<'a> {
+    namespace: &'a str,
+    path: &'a str,
 }
-
-pub type StaticResourceLocation = ResourceLocation<&'static str>;
-
-/// The owned form: one boxed `namespace:path` string.
-pub type ResourceLocationBuf = ResourceLocation<Box<str>>;
-
-// Copy for &'static str variant
-impl Copy for ResourceLocation<&'static str> {}
-
-// ─── Common methods for any S: AsRef<str> ────────────────────────────────────
-
-impl<S: AsRef<str>> ResourceLocation<S> {
-    /// The full `namespace:path` string.
-    #[inline]
-    pub fn as_str(&self) -> &str {
-        self.string.as_ref()
-    }
-
-    /// The namespace portion (everything before `:`).
-    #[inline]
-    pub fn namespace(&self) -> &str {
-        &self.string.as_ref()[..self.colon_pos as usize]
-    }
-
-    /// The path portion (everything after `:`).
-    #[inline]
-    pub fn path(&self) -> &str {
-        &self.string.as_ref()[(self.colon_pos as usize + 1)..]
-    }
-
-    /// The owned form, with one allocation.
-    pub fn to_buf(&self) -> ResourceLocationBuf {
-        ResourceLocation {
-            string: Box::from(self.string.as_ref()),
-            colon_pos: self.colon_pos,
-        }
-    }
-}
-
-// ─── Validation ──────────────────────────────────────────────────────────────
 
 const DEFAULT_NAMESPACE: &str = "minecraft";
 
@@ -98,7 +55,7 @@ const fn valid(mut bytes: &[u8], slash: bool) -> bool {
     true
 }
 
-fn check(namespace: &str, path: &str) -> Result<(), String> {
+pub(crate) fn check(namespace: &str, path: &str) -> Result<(), String> {
     if !valid_namespace(namespace.as_bytes()) {
         return Err(format!(
             "Non [a-z0-9_.-] character in namespace of identifier: {namespace}:{path}"
@@ -118,35 +75,10 @@ fn check(namespace: &str, path: &str) -> Result<(), String> {
     Ok(())
 }
 
-struct Split<'t> {
-    namespace: &'t str,
-    path: &'t str,
-    canonical: bool,
-}
-
-fn split(text: &str) -> Result<Split<'_>, InvalidResourceLocation> {
-    let canonical = text
-        .split_once(':')
-        .is_some_and(|(namespace, _)| !namespace.is_empty());
-    let (namespace, path) = split_namespace(text);
-    check(namespace, path).map_err(|reason| InvalidResourceLocation {
-        input: text.to_owned(),
-        reason,
-    })?;
-    Ok(Split {
-        namespace,
-        path,
-        canonical,
-    })
-}
-
-// ─── &'static str constructors ───────────────────────────────────────────────
-
-impl ResourceLocation<&'static str> {
-    /// Const constructor for a literal that is already in canonical form:
-    /// refuses unless `s` is `namespace:path` with a non-empty namespace in
-    /// `[a-z0-9_.-]` (not `..`) and a path in `[a-z0-9_.-/]`. `rl!` turns the
-    /// refusal into a compile error.
+impl ResourceLocation<'static> {
+    /// Const constructor for a literal that is already in canonical form: refuses unless `s` is
+    /// `namespace:path` with a non-empty namespace in `[a-z0-9_.-]` (not `..`) and a path in
+    /// `[a-z0-9_.-/]`. `rl!` turns the refusal into a compile error.
     pub const fn new_static(s: &'static str) -> Result<Self, &'static str> {
         let bytes = s.as_bytes();
         let mut colon = 0;
@@ -158,175 +90,146 @@ impl ResourceLocation<&'static str> {
             colon += 1;
             rest = tail;
         }
-        let Some((namespace, [b':', path @ ..])) = bytes.split_at_checked(colon) else {
+        let Some((namespace_bytes, [b':', path_bytes @ ..])) = bytes.split_at_checked(colon) else {
             return Err("ResourceLocation must contain ':'");
+        };
+        let (Ok(namespace), Ok(path)) = (
+            core::str::from_utf8(namespace_bytes),
+            core::str::from_utf8(path_bytes),
+        ) else {
+            return Err("resource location is not UTF-8");
         };
         if namespace.is_empty() {
             return Err("resource location namespace must not be empty");
         }
-        if colon > u16::MAX as usize {
+        if namespace.len() > u16::MAX as usize {
             return Err("resource location namespace is too long");
         }
-        if !valid_namespace(namespace) {
+        if !valid_namespace(namespace.as_bytes()) {
             return Err(
                 "invalid character in resource location namespace (allowed: a-z 0-9 _ . -, not \"..\")",
             );
         }
-        if !valid(path, true) {
+        if !valid(path.as_bytes(), true) {
             return Err("invalid character in resource location path (allowed: a-z 0-9 _ . - /)");
         }
-        Ok(ResourceLocation {
-            string: s,
-            colon_pos: colon as u16,
-        })
-    }
-
-    /// `as_str` borrows from the value; this keeps the `'static` lifetime a
-    /// `const` table needs.
-    pub const fn as_static_str(self) -> &'static str {
-        self.string
+        Ok(ResourceLocation { namespace, path })
     }
 }
 
-// ─── Owned constructors ───────────────────────────────────────────────────
-
-impl ResourceLocation<Box<str>> {
+impl<'a> ResourceLocation<'a> {
     /// Both halves are checked and nothing is defaulted, so an empty namespace stays empty.
-    pub fn new(namespace: &str, path: &str) -> Result<Self, InvalidResourceLocation> {
+    pub fn new(namespace: &'a str, path: &'a str) -> Result<Self, InvalidResourceLocation> {
         check(namespace, path).map_err(|reason| InvalidResourceLocation {
             input: format!("{namespace}:{path}"),
             reason,
         })?;
-        Ok(ResourceLocation {
-            string: Box::from(format!("{namespace}:{path}")),
-            colon_pos: namespace.len() as u16,
-        })
+        Ok(ResourceLocation { namespace, path })
     }
 
-    pub fn minecraft(path: &str) -> Result<Self, InvalidResourceLocation> {
-        Self::new(DEFAULT_NAMESPACE, path)
+    /// A missing or empty namespace is `minecraft`; the namespace is the text before the first
+    /// `:` and the path everything after it. Reading allocates only to report an error.
+    pub fn read(text: &'a str) -> Result<Self, InvalidResourceLocation> {
+        let (namespace, path) = split_namespace(text);
+        check(namespace, path).map_err(|reason| InvalidResourceLocation {
+            input: text.to_owned(),
+            reason,
+        })?;
+        Ok(ResourceLocation { namespace, path })
     }
 
-    /// A missing or empty namespace is `minecraft`; the namespace is the text
-    /// before the first `:` and the path everything after it.
-    pub fn read(text: &str) -> Result<Self, InvalidResourceLocation> {
-        ResourceLocation::read_cow(text).map(Into::into)
+    /// The parts of a location that was checked when it was stored.
+    pub(crate) const fn from_checked_parts(namespace: &'a str, path: &'a str) -> Self {
+        ResourceLocation { namespace, path }
     }
-}
 
-// ─── Cow<str> constructors ───────────────────────────────────────────────────
-
-impl<'a> ResourceLocation<Cow<'a, str>> {
-    /// `read` that keeps a borrowed canonical text borrowed.
-    pub fn read_cow(text: impl Into<Cow<'a, str>>) -> Result<Self, InvalidResourceLocation> {
-        let text = text.into();
-        let (colon_pos, defaulted) = {
-            let parts = split(&text)?;
-            (
-                parts.namespace.len() as u16,
-                (!parts.canonical).then(|| format!("{}:{}", parts.namespace, parts.path)),
-            )
-        };
-        Ok(ResourceLocation {
-            string: defaulted.map_or(text, Cow::Owned),
-            colon_pos,
-        })
-    }
-}
-
-// ─── Conversions ─────────────────────────────────────────────────────────────
-
-impl From<ResourceLocation<&'static str>> for ResourceLocation<Box<str>> {
     #[inline]
-    fn from(rl: ResourceLocation<&'static str>) -> Self {
-        ResourceLocation {
-            string: Box::from(rl.string),
-            colon_pos: rl.colon_pos,
-        }
+    pub const fn namespace(self) -> &'a str {
+        self.namespace
+    }
+
+    #[inline]
+    pub const fn path(self) -> &'a str {
+        self.path
+    }
+
+    /// The owned form, with one allocation.
+    pub fn to_buf(self) -> ResourceLocationBuf {
+        ResourceLocationBuf::from(self)
+    }
+
+    /// The length of the canonical `namespace:path` text in bytes.
+    pub const fn len(self) -> usize {
+        self.namespace.len() + 1 + self.path.len()
+    }
+
+    /// A location is never empty: its text holds at least the `:`.
+    pub const fn is_empty(self) -> bool {
+        false
     }
 }
 
-impl From<ResourceLocation<&'static str>> for ResourceLocation<Cow<'static, str>> {
-    #[inline]
-    fn from(rl: ResourceLocation<&'static str>) -> Self {
-        ResourceLocation {
-            string: Cow::Borrowed(rl.string),
-            colon_pos: rl.colon_pos,
-        }
+impl<'a> From<&ResourceLocation<'a>> for ResourceLocation<'a> {
+    fn from(location: &ResourceLocation<'a>) -> Self {
+        *location
     }
 }
 
-impl<'a> From<ResourceLocation<Cow<'a, str>>> for ResourceLocation<Box<str>> {
-    #[inline]
-    fn from(rl: ResourceLocation<Cow<'a, str>>) -> Self {
-        ResourceLocation {
-            string: Box::from(rl.string.as_ref()),
-            colon_pos: rl.colon_pos,
-        }
+impl PartialEq for ResourceLocation<'_> {
+    fn eq(&self, other: &Self) -> bool {
+        self.namespace == other.namespace && self.path == other.path
     }
 }
 
-impl From<ResourceLocation<Box<str>>> for ResourceLocation<Cow<'static, str>> {
-    #[inline]
-    fn from(rl: ResourceLocation<Box<str>>) -> Self {
-        ResourceLocation {
-            string: Cow::Owned(rl.string.to_string()),
-            colon_pos: rl.colon_pos,
-        }
+impl Eq for ResourceLocation<'_> {}
+
+/// Compares against the canonical `namespace:path` text.
+impl PartialEq<str> for ResourceLocation<'_> {
+    fn eq(&self, other: &str) -> bool {
+        other
+            .strip_prefix(self.namespace)
+            .and_then(|rest| rest.strip_prefix(':'))
+            == Some(self.path)
     }
 }
 
-// ─── Trait impls ─────────────────────────────────────────────────────────────
+impl PartialEq<&str> for ResourceLocation<'_> {
+    fn eq(&self, other: &&str) -> bool {
+        *self == **other
+    }
+}
 
-impl<S: AsRef<str>> Hash for ResourceLocation<S> {
-    #[inline]
+impl Hash for ResourceLocation<'_> {
     fn hash<H: Hasher>(&self, state: &mut H) {
-        self.string.as_ref().hash(state);
+        self.namespace.hash(state);
+        self.path.hash(state);
     }
 }
 
-impl<S: AsRef<str>, T: AsRef<str>> PartialEq<ResourceLocation<T>> for ResourceLocation<S> {
-    #[inline]
-    fn eq(&self, other: &ResourceLocation<T>) -> bool {
-        self.string.as_ref() == other.string.as_ref()
-    }
-}
-
-impl<S: AsRef<str>> Eq for ResourceLocation<S> {}
-
-impl<S: AsRef<str>> PartialOrd for ResourceLocation<S> {
-    fn partial_cmp(&self, other: &Self) -> Option<core::cmp::Ordering> {
+impl PartialOrd for ResourceLocation<'_> {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
     }
 }
 
-impl<S: AsRef<str>> Ord for ResourceLocation<S> {
-    fn cmp(&self, other: &Self) -> core::cmp::Ordering {
-        self.string.as_ref().cmp(other.string.as_ref())
+/// The path first, then the namespace, both byte-wise: the total order of identifiers.
+impl Ord for ResourceLocation<'_> {
+    fn cmp(&self, other: &Self) -> Ordering {
+        (self.path, self.namespace).cmp(&(other.path, other.namespace))
     }
 }
 
-/// Enables zero-alloc lookup in `HashMap<ResourceLocation, …>` via `map.get(rl.as_str())`.
-impl<S: AsRef<str>> Borrow<str> for ResourceLocation<S> {
-    #[inline]
-    fn borrow(&self) -> &str {
-        self.string.as_ref()
-    }
-}
-
-impl<S: AsRef<str>> fmt::Display for ResourceLocation<S> {
+impl fmt::Display for ResourceLocation<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(self.string.as_ref())
+        write!(f, "{}:{}", self.namespace, self.path)
     }
 }
 
-impl<S: AsRef<str>> fmt::Debug for ResourceLocation<S> {
+impl fmt::Debug for ResourceLocation<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "ResourceLocation({:?})", self.string.as_ref())
+        write!(f, "ResourceLocation(\"{}:{}\")", self.namespace, self.path)
     }
 }
-
-// ─── FromStr ─────────────────────────────────────────────────────────────────
 
 #[derive(Debug, thiserror::Error)]
 #[error("Not a valid resource location: {input} {reason}")]
@@ -335,38 +238,35 @@ pub struct InvalidResourceLocation {
     pub reason: String,
 }
 
-impl core::str::FromStr for ResourceLocation<Box<str>> {
-    type Err = InvalidResourceLocation;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        ResourceLocation::read(s)
-    }
-}
-
-// ─── Serde ───────────────────────────────────────────────────────────────────
-
-impl<S: AsRef<str>> Serialize for ResourceLocation<S> {
+impl Serialize for ResourceLocation<'_> {
     fn serialize<Ser: Serializer>(&self, s: Ser) -> Result<Ser::Ok, Ser::Error> {
-        s.serialize_str(self.string.as_ref())
+        s.collect_str(self)
     }
 }
 
-impl<'de> Deserialize<'de> for ResourceLocation<Box<str>> {
+/// Reads only text the input lends, such as a JSON string without escapes; an owned string
+/// fails, because the location would outlive it.
+impl<'de> Deserialize<'de> for ResourceLocation<'de> {
     fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
-        ResourceLocation::read(&String::deserialize(d)?).map_err(serde::de::Error::custom)
+        struct Borrowed;
+
+        impl<'de> Visitor<'de> for Borrowed {
+            type Value = ResourceLocation<'de>;
+
+            fn expecting(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                f.write_str("a borrowed resource location")
+            }
+
+            fn visit_borrowed_str<E: de::Error>(self, text: &'de str) -> Result<Self::Value, E> {
+                ResourceLocation::read(text).map_err(E::custom)
+            }
+        }
+
+        d.deserialize_str(Borrowed)
     }
 }
 
-impl<'de> Deserialize<'de> for ResourceLocation<Cow<'static, str>> {
-    fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
-        ResourceLocation::<Box<str>>::deserialize(d).map(Into::into)
-    }
-}
-
-// ─── rl! macro ───────────────────────────────────────────────────────────────
-
-/// A `ResourceLocation<&'static str>` from a `namespace:path` literal,
-/// validated at compile time.
+/// A `ResourceLocation<'static>` from a `namespace:path` literal, validated at compile time.
 #[macro_export]
 macro_rules! rl {
     ($s:literal) => {
@@ -381,34 +281,38 @@ macro_rules! rl {
 
 #[cfg(test)]
 mod tests {
+    extern crate std;
+
     use super::*;
+    use alloc::string::ToString;
 
     #[test]
     fn a_bare_path_reads_in_the_minecraft_namespace() {
-        let read = |json: &str| serde_json::from_str::<ResourceLocation<Box<str>>>(json).unwrap();
-        assert_eq!(read(r#""alt""#).as_str(), "minecraft:alt");
-        assert_eq!(read(r#""block/stone""#).as_str(), "minecraft:block/stone");
-        assert_eq!(read(r#""mcrs:alt""#).as_str(), "mcrs:alt");
-        assert_eq!(read(r#"":alt""#).as_str(), "minecraft:alt");
+        for (text, namespace, path) in [
+            ("alt", "minecraft", "alt"),
+            ("block/stone", "minecraft", "block/stone"),
+            ("mcrs:alt", "mcrs", "alt"),
+            (":alt", "minecraft", "alt"),
+        ] {
+            let location = ResourceLocation::read(text).unwrap();
+            assert_eq!((location.namespace(), location.path()), (namespace, path));
+        }
     }
 
     #[test]
     fn vanilla_character_sets_are_enforced() {
-        let read = |json: &str| serde_json::from_str::<ResourceLocation<Box<str>>>(json);
         assert_eq!(
-            read(r#""MC:alt""#).unwrap_err().to_string(),
+            ResourceLocation::read("MC:alt").unwrap_err().to_string(),
             "Not a valid resource location: MC:alt Non [a-z0-9_.-] character in namespace of identifier: MC:alt"
         );
         assert_eq!(
-            read(r#""minecraft:Alt""#).unwrap_err().to_string(),
+            ResourceLocation::read("minecraft:Alt")
+                .unwrap_err()
+                .to_string(),
             "Not a valid resource location: minecraft:Alt Non [a-z0-9/._-] character in path of location: minecraft:Alt"
         );
-        assert!(read(r#""..:x""#).is_err());
-        assert!(read(r#""a:b:c""#).is_err());
-        assert_eq!(
-            read(r#""a.b-c_1:d/e.f-g_2""#).unwrap().as_str(),
-            "a.b-c_1:d/e.f-g_2"
-        );
+        assert!(ResourceLocation::read("..:x").is_err());
+        assert!(ResourceLocation::read("a:b:c").is_err());
     }
 
     #[test]
@@ -427,8 +331,6 @@ mod tests {
             assert!(ResourceLocation::new_static(bad).is_err(), "{bad}");
         }
         assert_eq!(crate::rl!("minecraft:").path(), "");
-        const TEXT: &str = crate::rl!("a.b-c_1:d/e.f-g_2").as_static_str();
-        assert_eq!(TEXT, "a.b-c_1:d/e.f-g_2");
     }
 
     #[test]
@@ -437,7 +339,47 @@ mod tests {
         assert!(ResourceLocation::read(&format!("{namespace}:x")).is_err());
         assert!(ResourceLocation::new(&namespace, "x").is_err());
         let longest = "a".repeat(u16::MAX as usize);
-        let kept = ResourceLocation::read(&format!("{longest}:x")).unwrap();
+        let text = format!("{longest}:x");
+        let kept = ResourceLocation::read(&text).unwrap();
         assert_eq!((kept.namespace().len(), kept.path()), (longest.len(), "x"));
+    }
+
+    #[test]
+    fn a_borrowed_and_an_owned_location_are_one_value() {
+        use core::hash::BuildHasher;
+        let hasher = std::hash::RandomState::new();
+        let bare = ResourceLocation::read("stone").unwrap();
+        let owned = ResourceLocationBuf::read("minecraft:stone").unwrap();
+        assert_eq!(bare, crate::rl!("minecraft:stone"));
+        assert_eq!(owned, bare);
+        assert_eq!(hasher.hash_one(bare), hasher.hash_one(&owned));
+        assert_eq!(
+            bare.cmp(&crate::rl!("minecraft:stone")),
+            owned.as_location().cmp(&crate::rl!("minecraft:stone"))
+        );
+        assert!(bare == "minecraft:stone" && bare != "stone");
+    }
+
+    #[test]
+    fn locations_order_by_path_then_namespace() {
+        for (first, second) in [
+            (crate::rl!("z:a"), crate::rl!("a:b")),
+            (crate::rl!("a:x"), crate::rl!("b:x")),
+            (crate::rl!("m:a"), crate::rl!("m:a_b")),
+            (crate::rl!("m:a/b"), crate::rl!("m:a_b")),
+        ] {
+            assert!(first < second, "{first} sorts before {second}");
+            assert!(first.to_buf() < second.to_buf(), "{first} as owned");
+        }
+    }
+
+    #[test]
+    fn the_sizes_stay_pinned() {
+        assert_eq!(size_of::<ResourceLocation<'_>>(), 32, "two &str");
+        assert_eq!(
+            size_of::<ResourceLocationBuf>(),
+            24,
+            "a Box<str> and the colon"
+        );
     }
 }

@@ -11,7 +11,7 @@ pub use structure_piece::StructurePieceType;
 pub use structure_placement::StructurePlacementType;
 pub use structure_type::StructureType;
 
-use mcrs_minecraft_resource::{Registered, RegistryKey, StaticResourceLocation, rl};
+use mcrs_minecraft_resource::{Registered, RegistryKey, ResourceLocation, rl};
 
 pub const POOL_ALIAS_BINDING: RegistryKey<crate::keys::PoolAliasBindingType> =
     RegistryKey::new(rl!("minecraft:worldgen/pool_alias_binding"));
@@ -44,7 +44,7 @@ impl Registered for crate::keys::StructureType {
 }
 
 /// The static registries of this crate, which the catalog does not list.
-pub const STATIC_REGISTRIES: &[(StaticResourceLocation, &[StaticResourceLocation])] = &[
+pub const STATIC_REGISTRIES: &[(ResourceLocation<'static>, &[ResourceLocation<'static>])] = &[
     (
         STRUCTURE_PLACEMENT.location(),
         StructurePlacementType::ENTRIES,

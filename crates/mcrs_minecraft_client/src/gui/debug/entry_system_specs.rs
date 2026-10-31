@@ -5,7 +5,7 @@ use mcrs_minecraft_resource::{ResourceLocation, rl};
 
 use super::DebugScreenDisplayer;
 
-pub const GROUP: ResourceLocation<&'static str> = rl!("minecraft:system");
+pub const GROUP: ResourceLocation<'static> = rl!("minecraft:system");
 
 /// Vanilla also names the Java runtime and the CPU model; neither has a source
 /// here, and a native binary has no runtime to name in the first place.

@@ -1,4 +1,4 @@
-use mcrs_minecraft_resource::ResourceLocationBuf;
+use mcrs_minecraft_resource::ResourceLocation;
 use std::fmt;
 
 use serde::de::{self, Visitor};
@@ -18,16 +18,18 @@ pub enum Preset {
 impl Preset {
     pub const ALL: [Preset; 2] = [Preset::Overworld, Preset::Nether];
 
-    pub fn name(self) -> &'static str {
+    pub fn name(self) -> ResourceLocation<'static> {
         match self {
             Preset::Overworld => {
-                crate::keys::multi_noise_biome_source_parameter_list::OVERWORLD.as_str()
+                crate::keys::multi_noise_biome_source_parameter_list::OVERWORLD.location()
             }
-            Preset::Nether => crate::keys::multi_noise_biome_source_parameter_list::NETHER.as_str(),
+            Preset::Nether => {
+                crate::keys::multi_noise_biome_source_parameter_list::NETHER.location()
+            }
         }
     }
 
-    pub fn parameter_list(self) -> &'static ParameterList<&'static str> {
+    pub fn parameter_list(self) -> &'static ParameterList<ResourceLocation<'static>> {
         match self {
             Preset::Overworld => overworld_parameter_list(),
             Preset::Nether => nether_parameter_list(),
@@ -37,7 +39,7 @@ impl Preset {
 
 impl Serialize for Preset {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        serializer.serialize_str(self.name())
+        self.name().serialize(serializer)
     }
 }
 
@@ -53,11 +55,11 @@ impl<'de> Deserialize<'de> for Preset {
             }
 
             fn visit_str<E: de::Error>(self, text: &str) -> Result<Preset, E> {
-                let name = ResourceLocationBuf::read(text).map_err(E::custom)?;
+                let name = ResourceLocation::read(text).map_err(E::custom)?;
                 Preset::ALL
                     .into_iter()
-                    .find(|preset| preset.name() == name.as_str())
-                    .ok_or_else(|| E::custom(format_args!("Unknown preset: {}", name.as_str())))
+                    .find(|preset| preset.name() == name)
+                    .ok_or_else(|| E::custom(format_args!("Unknown preset: {name}")))
             }
         }
 

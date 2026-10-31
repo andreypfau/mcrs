@@ -2,11 +2,11 @@
 
 use mcrs_minecraft_resource::{ResourceKey, rl};
 
-pub const CAVE_VINES_BODY: ResourceKey<crate::provider::DirectBlockStateProvider, &'static str> = ResourceKey::new(rl!("minecraft:cave_vines_body"));
-pub const CAVE_VINES_HEAD: ResourceKey<crate::provider::DirectBlockStateProvider, &'static str> = ResourceKey::new(rl!("minecraft:cave_vines_head"));
-pub const FLOWER_FLOWER_FOREST: ResourceKey<crate::provider::DirectBlockStateProvider, &'static str> = ResourceKey::new(rl!("minecraft:flower_flower_forest"));
-pub const FLOWER_MEADOW: ResourceKey<crate::provider::DirectBlockStateProvider, &'static str> = ResourceKey::new(rl!("minecraft:flower_meadow"));
-pub const FLOWER_PLAIN: ResourceKey<crate::provider::DirectBlockStateProvider, &'static str> = ResourceKey::new(rl!("minecraft:flower_plain"));
-pub const MANGROVE_PROPAGULE: ResourceKey<crate::provider::DirectBlockStateProvider, &'static str> = ResourceKey::new(rl!("minecraft:mangrove_propagule"));
-pub const PODZOL_BENEATH_TREE: ResourceKey<crate::provider::DirectBlockStateProvider, &'static str> = ResourceKey::new(rl!("minecraft:podzol_beneath_tree"));
-pub const SOIL_BENEATH_TREE: ResourceKey<crate::provider::DirectBlockStateProvider, &'static str> = ResourceKey::new(rl!("minecraft:soil_beneath_tree"));
+pub const CAVE_VINES_BODY: ResourceKey<'static, crate::provider::DirectBlockStateProvider> = ResourceKey::new(rl!("minecraft:cave_vines_body"));
+pub const CAVE_VINES_HEAD: ResourceKey<'static, crate::provider::DirectBlockStateProvider> = ResourceKey::new(rl!("minecraft:cave_vines_head"));
+pub const FLOWER_FLOWER_FOREST: ResourceKey<'static, crate::provider::DirectBlockStateProvider> = ResourceKey::new(rl!("minecraft:flower_flower_forest"));
+pub const FLOWER_MEADOW: ResourceKey<'static, crate::provider::DirectBlockStateProvider> = ResourceKey::new(rl!("minecraft:flower_meadow"));
+pub const FLOWER_PLAIN: ResourceKey<'static, crate::provider::DirectBlockStateProvider> = ResourceKey::new(rl!("minecraft:flower_plain"));
+pub const MANGROVE_PROPAGULE: ResourceKey<'static, crate::provider::DirectBlockStateProvider> = ResourceKey::new(rl!("minecraft:mangrove_propagule"));
+pub const PODZOL_BENEATH_TREE: ResourceKey<'static, crate::provider::DirectBlockStateProvider> = ResourceKey::new(rl!("minecraft:podzol_beneath_tree"));
+pub const SOIL_BENEATH_TREE: ResourceKey<'static, crate::provider::DirectBlockStateProvider> = ResourceKey::new(rl!("minecraft:soil_beneath_tree"));

@@ -70,7 +70,7 @@ fn spawn_subapp(app: &mut App) -> Entity {
         .push(DimSpawnRequest {
             dimension: mcrs_minecraft_dimension::keys::dimension::OVERWORLD.into(),
             dimension_type: crate::support::dimension_type(
-                mcrs_minecraft_dimension::keys::dimension_type::OVERWORLD.as_str(),
+                mcrs_minecraft_dimension::keys::dimension_type::OVERWORLD,
             ),
         });
     drain_dim_spawn_queue(app);

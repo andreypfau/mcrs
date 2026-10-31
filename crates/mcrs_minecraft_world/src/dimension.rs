@@ -39,7 +39,7 @@ impl DimensionEntry {
 
 pub type Dimensions = BTreeMap<ResourceKeyBuf<Dimension>, DimensionEntry>;
 
-const LEADING: [ResourceKey<Dimension, &str>; 3] = [
+const LEADING: [ResourceKey<'static, Dimension>; 3] = [
     mcrs_minecraft_dimension::keys::dimension::OVERWORLD,
     mcrs_minecraft_dimension::keys::dimension::THE_NETHER,
     mcrs_minecraft_dimension::keys::dimension::THE_END,
@@ -58,7 +58,7 @@ pub fn bake(
         return Err(format!(
             "{}: the dimension list has no {}, which every world needs",
             mcrs_minecraft_dimension::keys::DIMENSION,
-            mcrs_minecraft_dimension::keys::dimension::OVERWORLD.as_str()
+            mcrs_minecraft_dimension::keys::dimension::OVERWORLD
         ));
     }
     Ok(baked)
@@ -99,7 +99,7 @@ fn merge(
 
     let mut baked = Vec::with_capacity(merged.len());
     for leading in LEADING {
-        if let Some(entry) = merged.remove(leading.as_str()) {
+        if let Some(entry) = merged.remove(&leading.to_buf()) {
             baked.push((leading.into(), entry));
         }
     }

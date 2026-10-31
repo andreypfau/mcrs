@@ -302,7 +302,7 @@ fn fail_absent_members(
         for (member, pack) in members.iter() {
             let resolves = match member.tag {
                 true => tag_target(index, member).is_some(),
-                false => names.get(&member.id).is_some(),
+                false => names.get(member.id.as_location()).is_some(),
             };
             if !member.required || resolves {
                 continue;
@@ -433,7 +433,7 @@ fn resolve(
         let mut out: Vec<u16> = Vec::new();
         for (member, _) in &node.members {
             if !member.tag {
-                if let Some(id) = names.get(&member.id) {
+                if let Some(id) = names.get(member.id.as_location()) {
                     push_unique(&mut seen, &mut out, id);
                 }
                 continue;

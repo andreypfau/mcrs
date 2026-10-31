@@ -5,7 +5,7 @@
 use std::collections::{BTreeMap, HashMap, HashSet};
 
 use mcrs_minecraft_core::Direction;
-use mcrs_minecraft_resource::{ResourceLocationBuf, StaticResourceLocation, rl};
+use mcrs_minecraft_resource::{ResourceLocation, ResourceLocationBuf, rl};
 use mcrs_minecraft_worldgen_feature::template::PaletteState;
 
 use super::turn::direction;
@@ -13,9 +13,9 @@ use super::{BlueprintError, Pos};
 
 pub type World = HashMap<Pos, PaletteState>;
 
-const GROUND: StaticResourceLocation = rl!("minecraft:ground");
+const GROUND: ResourceLocation<'static> = rl!("minecraft:ground");
 
-pub fn block(id: StaticResourceLocation) -> PaletteState {
+pub fn block(id: ResourceLocation<'static>) -> PaletteState {
     PaletteState {
         id: id.to_buf(),
         properties: None,

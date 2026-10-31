@@ -57,7 +57,7 @@ fn loaded_names<R: Registered>() -> Vec<String> {
 fn report_names(registry: &str) -> Vec<String> {
     let (_, names) = mcrs_minecraft_registry_catalog::STATIC_REGISTRIES
         .iter()
-        .find(|(key, _)| key.as_static_str() == registry)
+        .find(|(key, _)| *key == registry)
         .unwrap_or_else(|| panic!("{registry} is not a static registry"));
     names.iter().map(ToString::to_string).collect()
 }

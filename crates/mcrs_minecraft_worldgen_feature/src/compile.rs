@@ -4,7 +4,7 @@ use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
 
 use fixedbitset::FixedBitSet;
-use mcrs_minecraft_resource::{ResourceLocation, ResourceLocationBuf};
+use mcrs_minecraft_resource::ResourceLocationBuf;
 
 use mcrs_minecraft_chunk::VoxelId;
 
@@ -331,7 +331,7 @@ impl std::fmt::Display for StateQuery<'_> {
         match self {
             StateQuery::Blocks(set) => write!(f, "{set:?}"),
             StateQuery::Names(names) => {
-                let names: Vec<_> = names.iter().map(ResourceLocation::as_str).collect();
+                let names: Vec<_> = names.iter().map(ResourceLocationBuf::as_str).collect();
                 f.write_str(&names.join(", "))
             }
             StateQuery::Fluids(set, state) if state.is_any() => write!(f, "{set:?}"),

@@ -1,7 +1,7 @@
 use crate::set::{VanillaCommands, VanillaContext};
 use bevy_ecs::prelude::*;
 use mcrs_command::{ArgumentHandle, BuildError, FloatArgument, NodeId};
-use mcrs_minecraft_command::{CommandLevel, Identifier, PermissionCheck};
+use mcrs_minecraft_command::{CommandLevel, PermissionCheck};
 use mcrs_minecraft_command_argument::ResourceArgument;
 use mcrs_minecraft_command_argument::{TimeArgument, TimeMarkerArgument, TimelineArgument};
 use mcrs_minecraft_command_engine::{
@@ -15,6 +15,7 @@ use mcrs_minecraft_environment::world_clock::{
     self, ClockEdit, ClockState, ClockTimeMarker, WorldClock, WorldClocks,
 };
 use mcrs_minecraft_resource::Id;
+use mcrs_minecraft_resource::ResourceLocation;
 use mcrs_minecraft_text::{Text, TranslateArg};
 
 const MIN_RATE: f32 = 1.0e-5;
@@ -189,7 +190,7 @@ impl Outcome {
 fn time_marker(
     context: &VanillaContext,
     clock: Id<WorldClock>,
-    name: Identifier<'_>,
+    name: ResourceLocation<'_>,
 ) -> Option<ClockTimeMarker> {
     context
         .lookup()

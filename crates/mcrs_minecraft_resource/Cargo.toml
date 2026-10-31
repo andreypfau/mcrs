@@ -8,6 +8,7 @@ edition.workspace = true
 workspace = true
 
 [dependencies]
+equivalent.workspace = true
 serde.workspace = true
 bevy_ecs = { workspace = true, optional = true }
 thiserror.workspace = true
@@ -17,4 +18,5 @@ default = []
 bevy = ["dep:bevy_ecs"]
 
 [dev-dependencies]
+mcrs_test_alloc.workspace = true
 serde_json.workspace = true

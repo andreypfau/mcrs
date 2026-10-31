@@ -9,7 +9,7 @@ pub struct DebugScreenDisplayer {
     left: Vec<String>,
     right: Vec<String>,
     lines: Vec<String>,
-    groups: Vec<(ResourceLocation<&'static str>, Vec<String>)>,
+    groups: Vec<(ResourceLocation<'static>, Vec<String>)>,
 }
 
 impl DebugScreenDisplayer {
@@ -27,7 +27,7 @@ impl DebugScreenDisplayer {
 
     pub fn add_to_group(
         &mut self,
-        group: ResourceLocation<&'static str>,
+        group: ResourceLocation<'static>,
         lines: impl IntoIterator<Item = String>,
     ) {
         match self.groups.iter_mut().find(|(id, _)| *id == group) {
@@ -89,8 +89,8 @@ mod tests {
     use super::*;
     use mcrs_minecraft_resource::rl;
 
-    const FIRST: ResourceLocation<&'static str> = rl!("minecraft:first");
-    const SECOND: ResourceLocation<&'static str> = rl!("minecraft:second");
+    const FIRST: ResourceLocation<'static> = rl!("minecraft:first");
+    const SECOND: ResourceLocation<'static> = rl!("minecraft:second");
 
     fn lines(of: &[&str]) -> Vec<String> {
         of.iter().map(|line| (*line).to_owned()).collect()

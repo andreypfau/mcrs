@@ -2,7 +2,7 @@ use glam::IVec3;
 use mcrs_minecraft_core::{Mirror, Rotation};
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::legacy::LegacyRandom;
-use mcrs_minecraft_resource::{StaticResourceLocation, rl};
+use mcrs_minecraft_resource::{ResourceLocation, rl};
 use mcrs_minecraft_worldgen_feature::template::{bounding_box, transform};
 
 use super::lowest_corner_site;
@@ -10,27 +10,29 @@ use crate::frozen::FrozenStructures;
 use crate::piece::{EndCityPiece, Piece};
 use crate::site::{Context, Site, Stub};
 
-const BASE_FLOOR: StaticResourceLocation = rl!("minecraft:end_city/base_floor");
-const BASE_ROOF: StaticResourceLocation = rl!("minecraft:end_city/base_roof");
-const SECOND_FLOOR_1: StaticResourceLocation = rl!("minecraft:end_city/second_floor_1");
-const SECOND_FLOOR_2: StaticResourceLocation = rl!("minecraft:end_city/second_floor_2");
-const SECOND_ROOF: StaticResourceLocation = rl!("minecraft:end_city/second_roof");
-const THIRD_FLOOR_1: StaticResourceLocation = rl!("minecraft:end_city/third_floor_1");
-const THIRD_FLOOR_2: StaticResourceLocation = rl!("minecraft:end_city/third_floor_2");
-const THIRD_ROOF: StaticResourceLocation = rl!("minecraft:end_city/third_roof");
-const TOWER_BASE: StaticResourceLocation = rl!("minecraft:end_city/tower_base");
-const TOWER_PIECE: StaticResourceLocation = rl!("minecraft:end_city/tower_piece");
-const TOWER_TOP: StaticResourceLocation = rl!("minecraft:end_city/tower_top");
-const BRIDGE_PIECE: StaticResourceLocation = rl!("minecraft:end_city/bridge_piece");
-const BRIDGE_END: StaticResourceLocation = rl!("minecraft:end_city/bridge_end");
-const BRIDGE_STEEP_STAIRS: StaticResourceLocation = rl!("minecraft:end_city/bridge_steep_stairs");
-const BRIDGE_GENTLE_STAIRS: StaticResourceLocation = rl!("minecraft:end_city/bridge_gentle_stairs");
-const SHIP: StaticResourceLocation = rl!("minecraft:end_city/ship");
-const FAT_TOWER_BASE: StaticResourceLocation = rl!("minecraft:end_city/fat_tower_base");
-const FAT_TOWER_MIDDLE: StaticResourceLocation = rl!("minecraft:end_city/fat_tower_middle");
-const FAT_TOWER_TOP: StaticResourceLocation = rl!("minecraft:end_city/fat_tower_top");
+const BASE_FLOOR: ResourceLocation<'static> = rl!("minecraft:end_city/base_floor");
+const BASE_ROOF: ResourceLocation<'static> = rl!("minecraft:end_city/base_roof");
+const SECOND_FLOOR_1: ResourceLocation<'static> = rl!("minecraft:end_city/second_floor_1");
+const SECOND_FLOOR_2: ResourceLocation<'static> = rl!("minecraft:end_city/second_floor_2");
+const SECOND_ROOF: ResourceLocation<'static> = rl!("minecraft:end_city/second_roof");
+const THIRD_FLOOR_1: ResourceLocation<'static> = rl!("minecraft:end_city/third_floor_1");
+const THIRD_FLOOR_2: ResourceLocation<'static> = rl!("minecraft:end_city/third_floor_2");
+const THIRD_ROOF: ResourceLocation<'static> = rl!("minecraft:end_city/third_roof");
+const TOWER_BASE: ResourceLocation<'static> = rl!("minecraft:end_city/tower_base");
+const TOWER_PIECE: ResourceLocation<'static> = rl!("minecraft:end_city/tower_piece");
+const TOWER_TOP: ResourceLocation<'static> = rl!("minecraft:end_city/tower_top");
+const BRIDGE_PIECE: ResourceLocation<'static> = rl!("minecraft:end_city/bridge_piece");
+const BRIDGE_END: ResourceLocation<'static> = rl!("minecraft:end_city/bridge_end");
+const BRIDGE_STEEP_STAIRS: ResourceLocation<'static> =
+    rl!("minecraft:end_city/bridge_steep_stairs");
+const BRIDGE_GENTLE_STAIRS: ResourceLocation<'static> =
+    rl!("minecraft:end_city/bridge_gentle_stairs");
+const SHIP: ResourceLocation<'static> = rl!("minecraft:end_city/ship");
+const FAT_TOWER_BASE: ResourceLocation<'static> = rl!("minecraft:end_city/fat_tower_base");
+const FAT_TOWER_MIDDLE: ResourceLocation<'static> = rl!("minecraft:end_city/fat_tower_middle");
+const FAT_TOWER_TOP: ResourceLocation<'static> = rl!("minecraft:end_city/fat_tower_top");
 
-pub const TEMPLATES: &[StaticResourceLocation] = &[
+pub const TEMPLATES: &[ResourceLocation<'static>] = &[
     BASE_FLOOR,
     BASE_ROOF,
     SECOND_FLOOR_1,
@@ -138,12 +140,12 @@ impl City<'_> {
 
     fn piece(
         &self,
-        name: StaticResourceLocation,
+        name: ResourceLocation<'static>,
         position: IVec3,
         rotation: Rotation,
         overwrite: bool,
     ) -> Option<EndCityPiece> {
-        let (template, size) = self.frozen.sized_template(name.as_str())?;
+        let (template, size) = self.frozen.sized_template(name)?;
         Some(EndCityPiece {
             template,
             position,
@@ -159,7 +161,7 @@ impl City<'_> {
         &self,
         parent: &EndCityPiece,
         offset: IVec3,
-        name: StaticResourceLocation,
+        name: ResourceLocation<'static>,
         rotation: Rotation,
         overwrite: bool,
     ) -> Option<EndCityPiece> {

@@ -1142,7 +1142,7 @@ impl<'a> Compiler<'a> {
     fn create_legacy_noise(&mut self, id: &ResourceLocationBuf) -> Option<NoiseStack<Octave>> {
         if id == mcrs_minecraft_noise::keys::noise::OFFSET.location() {
             let mut root = self.random.clone();
-            let mut random = root.fork_hash(mcrs_minecraft_noise::keys::noise::OFFSET.as_str());
+            let mut random = root.fork_hash(mcrs_minecraft_noise::keys::noise::OFFSET.to_string());
             return Some(normal_noise::create_parity(0, &[0.0], &mut random));
         }
         match id.as_str() {

@@ -473,7 +473,7 @@ fn definition_text(out: &mut String, registry: &str, key: &str, value: Option<&s
         ));
     } else {
         out.push_str(&format!(
-            "pub const {key}: StaticResourceLocation = rl!(\"{registry}\");\n"
+            "pub const {key}: ResourceLocation<'static> = rl!(\"{registry}\");\n"
         ));
     }
 }
@@ -503,16 +503,15 @@ fn by_protocol_id<'r>(
 /// The entries of a static registry no crate keys by a type: one location
 /// per entry and the list of them by protocol id.
 fn static_names_module(registry: &str, report: &registries::Registry) -> Result<String, String> {
-    let mut out =
-        format!("{HEADER}\nuse mcrs_minecraft_resource::{{StaticResourceLocation, rl}};\n\n");
+    let mut out = format!("{HEADER}\nuse mcrs_minecraft_resource::{{ResourceLocation, rl}};\n\n");
     let names = by_protocol_id(registry, report)?;
     let constants = constants(registry, names.into_iter(), &["ENTRIES"])?;
     for (constant, name) in &constants {
         out.push_str(&format!(
-            "pub const {constant}: StaticResourceLocation = rl!(\"{name}\");\n"
+            "pub const {constant}: ResourceLocation<'static> = rl!(\"{name}\");\n"
         ));
     }
-    out.push_str("\npub const ENTRIES: &[StaticResourceLocation] = &[\n");
+    out.push_str("\npub const ENTRIES: &[ResourceLocation<'static>] = &[\n");
     for (constant, _) in &constants {
         out.push_str(&format!("    {constant},\n"));
     }
@@ -563,13 +562,13 @@ fn named_constants(
     names: &BTreeSet<String>,
 ) -> Result<String, String> {
     let ty = value.map_or_else(
-        || "StaticResourceLocation".to_owned(),
-        |value| format!("{key}<{value}, &'static str>"),
+        || "ResourceLocation<'static>".to_owned(),
+        |value| format!("{key}<'static, {value}>"),
     );
     let import = if value.is_some() {
         key
     } else {
-        "StaticResourceLocation"
+        "ResourceLocation"
     };
     let mut out = format!("{HEADER}\nuse mcrs_minecraft_resource::{{{import}, rl}};\n\n");
     for (constant, name) in constants(registry, names.iter().map(String::as_str), &[])? {
@@ -585,7 +584,7 @@ fn named_constants(
 fn registry_file(target: &Target) -> String {
     format!(
         "{HEADER}\n\
-         use mcrs_minecraft_resource::{{StaticResourceLocation, rl}};\n\
+         use mcrs_minecraft_resource::{{ResourceLocation, rl}};\n\
          \n\
          {definitions}",
         definitions = target.definitions,
@@ -610,7 +609,7 @@ fn owner_file(target: &Target) -> String {
     statics.sort_by_key(|&(protocol_id, _)| protocol_id);
     let imports = match statics.is_empty() {
         true => "Registered, RegistryKey, rl",
-        false => "Registered, RegistryKey, StaticResourceLocation, rl",
+        false => "Registered, RegistryKey, ResourceLocation, rl",
     };
     out.push_str(&format!(
         "use mcrs_minecraft_resource::{{{imports}}};\n\
@@ -621,7 +620,7 @@ fn owner_file(target: &Target) -> String {
     if !statics.is_empty() {
         out.push_str(
             "\n/// The static registries of this crate, which the catalog does not list.\n\
-             pub const STATIC_REGISTRIES: &[(StaticResourceLocation, &[StaticResourceLocation])] = &[\n",
+             pub const STATIC_REGISTRIES: &[(ResourceLocation<'static>, &[ResourceLocation<'static>])] = &[\n",
         );
         for (_, line) in statics {
             out.push_str(&line);
@@ -643,9 +642,9 @@ fn lib_file(modules: &[String]) -> String {
 fn catalog_file(statics: &[String]) -> String {
     let mut out = format!(
         "{HEADER}\n\
-         use mcrs_minecraft_resource::StaticResourceLocation;\n\
+         use mcrs_minecraft_resource::ResourceLocation;\n\
          \n\
-         pub const STATIC_REGISTRIES: &[(StaticResourceLocation, &[StaticResourceLocation])] = &[\n"
+         pub const STATIC_REGISTRIES: &[(ResourceLocation<'static>, &[ResourceLocation<'static>])] = &[\n"
     );
     for line in statics {
         out.push_str(line);
@@ -815,9 +814,9 @@ mod tests {
             files[CATALOG_LIB],
             "// Written by `cargo run -p mcrs_minecraft_update -- keys`; do not edit.\n\
              \n\
-             use mcrs_minecraft_resource::StaticResourceLocation;\n\
+             use mcrs_minecraft_resource::ResourceLocation;\n\
              \n\
-             pub const STATIC_REGISTRIES: &[(StaticResourceLocation, &[StaticResourceLocation])] = &[(\n\
+             pub const STATIC_REGISTRIES: &[(ResourceLocation<'static>, &[ResourceLocation<'static>])] = &[(\n\
              \x20   mcrs_minecraft_keys::BLOCK,\n\
              \x20   mcrs_minecraft_keys::block::ENTRIES,\n\
              )];\n"
@@ -839,29 +838,29 @@ mod tests {
             files["src/registry.rs"],
             "// Written by `cargo run -p mcrs_minecraft_update -- keys`; do not edit.\n\
              \n\
-             use mcrs_minecraft_resource::{StaticResourceLocation, rl};\n\
+             use mcrs_minecraft_resource::{ResourceLocation, rl};\n\
              \n\
-             pub const BLOCK: StaticResourceLocation = rl!(\"minecraft:block\");\n\
-             pub const BIOME: StaticResourceLocation = rl!(\"minecraft:worldgen/biome\");\n"
+             pub const BLOCK: ResourceLocation<'static> = rl!(\"minecraft:block\");\n\
+             pub const BIOME: ResourceLocation<'static> = rl!(\"minecraft:worldgen/biome\");\n"
         );
         assert_eq!(
             files["src/block.rs"],
             "// Written by `cargo run -p mcrs_minecraft_update -- keys`; do not edit.\n\
              \n\
-             use mcrs_minecraft_resource::{StaticResourceLocation, rl};\n\
+             use mcrs_minecraft_resource::{ResourceLocation, rl};\n\
              \n\
-             pub const AIR: StaticResourceLocation = rl!(\"minecraft:air\");\n\
-             pub const STONE: StaticResourceLocation = rl!(\"minecraft:stone\");\n\
+             pub const AIR: ResourceLocation<'static> = rl!(\"minecraft:air\");\n\
+             pub const STONE: ResourceLocation<'static> = rl!(\"minecraft:stone\");\n\
              \n\
-             pub const ENTRIES: &[StaticResourceLocation] = &[AIR, STONE];\n"
+             pub const ENTRIES: &[ResourceLocation<'static>] = &[AIR, STONE];\n"
         );
         assert_eq!(
             files["src/biome.rs"],
             "// Written by `cargo run -p mcrs_minecraft_update -- keys`; do not edit.\n\
              \n\
-             use mcrs_minecraft_resource::{StaticResourceLocation, rl};\n\
+             use mcrs_minecraft_resource::{ResourceLocation, rl};\n\
              \n\
-             pub const PLAINS: StaticResourceLocation = rl!(\"minecraft:plains\");\n"
+             pub const PLAINS: ResourceLocation<'static> = rl!(\"minecraft:plains\");\n"
         );
     }
 
@@ -922,7 +921,7 @@ mod tests {
         );
         assert!(
             files["src/jukebox_song.rs"]
-                .contains("pub const FIVE: StaticResourceLocation = rl!(\"minecraft:5\");"),
+                .contains("pub const FIVE: ResourceLocation<'static> = rl!(\"minecraft:5\");"),
             "{}",
             files["src/jukebox_song.rs"]
         );
@@ -998,7 +997,7 @@ mod tests {
         .unwrap();
 
         assert!(files["src/registry.rs"].contains(
-            "pub const ITEM_MODIFIER: StaticResourceLocation = rl!(\"minecraft:item_modifier\");"
+            "pub const ITEM_MODIFIER: ResourceLocation<'static> = rl!(\"minecraft:item_modifier\");"
         ));
         assert!(!files.contains_key("src/item_modifier.rs"));
         assert!(!files["src/lib.rs"].contains("item_modifier"));
@@ -1060,9 +1059,9 @@ mod tests {
             files["src/block_tags.rs"],
             "// Written by `cargo run -p mcrs_minecraft_update -- keys`; do not edit.\n\
              \n\
-             use mcrs_minecraft_resource::{StaticResourceLocation, rl};\n\
+             use mcrs_minecraft_resource::{ResourceLocation, rl};\n\
              \n\
-             pub const LOGS: StaticResourceLocation = rl!(\"minecraft:logs\");\n"
+             pub const LOGS: ResourceLocation<'static> = rl!(\"minecraft:logs\");\n"
         );
     }
 
@@ -1091,7 +1090,7 @@ mod tests {
             ]
         );
         assert!(files["src/biome_tags.rs"].contains(
-            "pub const HAS_STRUCTURE_VILLAGE: StaticResourceLocation = rl!(\"minecraft:has_structure/village\");"
+            "pub const HAS_STRUCTURE_VILLAGE: ResourceLocation<'static> = rl!(\"minecraft:has_structure/village\");"
         ));
     }
 
@@ -1148,7 +1147,7 @@ mod tests {
         assert_eq!(constants(&files, "src/item.rs"), ["AIR", "APPLE", "STONE"]);
         assert!(
             files["src/item.rs"]
-                .contains("pub const AIR: StaticResourceLocation = rl!(\"minecraft:air\");")
+                .contains("pub const AIR: ResourceLocation<'static> = rl!(\"minecraft:air\");")
         );
     }
 
@@ -1185,8 +1184,10 @@ mod tests {
         )
         .unwrap();
 
-        assert!(files["src/registry.rs"].contains("pub const ADVANCEMENT: StaticResourceLocation"));
-        assert!(files["src/registry.rs"].contains("pub const RECIPE: StaticResourceLocation"));
+        assert!(
+            files["src/registry.rs"].contains("pub const ADVANCEMENT: ResourceLocation<'static>")
+        );
+        assert!(files["src/registry.rs"].contains("pub const RECIPE: ResourceLocation<'static>"));
         assert!(!files.contains_key("src/advancement.rs"));
         assert!(!files.contains_key("src/recipe.rs"));
         assert!(!files["src/lib.rs"].contains("advancement"));
@@ -1218,7 +1219,7 @@ mod tests {
             let names = &files["src/registry.rs"];
             assert!(
                 names.contains(&format!(
-                    "pub const {key}: StaticResourceLocation = rl!(\"{registry}\");"
+                    "pub const {key}: ResourceLocation<'static> = rl!(\"{registry}\");"
                 )),
                 "{names}"
             );
@@ -1317,7 +1318,7 @@ mod tests {
 
     fn tag_file<R>(
         registry: mcrs_minecraft_resource::RegistryKey<R>,
-        tag: mcrs_minecraft_resource::TagKey<R, &'static str>,
+        tag: mcrs_minecraft_resource::TagKey<'static, R>,
     ) -> String {
         let location = tag.location();
         format!(
@@ -1394,7 +1395,7 @@ mod tests {
         );
         assert!(
             files["crates/mcrs_minecraft_biome/src/keys/biome.rs"].contains(
-                "pub const PLAINS: ResourceKey<crate::Biome, &'static str> =\n    ResourceKey::new(rl!(\"minecraft:plains\"));"
+                "pub const PLAINS: ResourceKey<'static, crate::Biome> = ResourceKey::new(rl!(\"minecraft:plains\"));"
             )
         );
         assert!(!files[CATALOG_MANIFEST].contains("mcrs_minecraft_biome"));

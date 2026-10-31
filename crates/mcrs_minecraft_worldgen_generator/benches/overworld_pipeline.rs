@@ -37,7 +37,7 @@ fn biome_ids() -> HashMap<String, u16> {
     let mut ids = HashMap::new();
     for (_, biome) in overworld_parameter_list().values() {
         let next = u16::try_from(ids.len()).unwrap();
-        ids.entry((*biome).to_owned()).or_insert(next);
+        ids.entry(biome.to_string()).or_insert(next);
     }
     ids
 }

@@ -2,7 +2,7 @@ use bevy_ecs::prelude::{Query, Res};
 use bevy_ecs::system::SystemParam;
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_block::definition::schema::BlockProperty;
-use mcrs_minecraft_command::{Identifier, Lookup};
+use mcrs_minecraft_command::Lookup;
 use mcrs_minecraft_command_argument::TimeLookup;
 use mcrs_minecraft_command_argument_block::BlockLookup;
 use mcrs_minecraft_command_argument_vanilla::{ArgumentError, VanillaArgument};
@@ -10,7 +10,7 @@ use mcrs_minecraft_command_engine::{CommandContext, CommandSet, CommandTargets};
 use mcrs_minecraft_command_registry::RegistryLookup;
 use mcrs_minecraft_engine_world::world::dimension::DimensionTypeId;
 use mcrs_minecraft_registries::CurrentRegistries;
-use mcrs_minecraft_resource::StaticResourceLocation;
+use mcrs_minecraft_resource::ResourceLocation;
 
 /// The vanilla argument types, which read the registries, the block table and the players of
 /// the world a line parses in.
@@ -51,19 +51,19 @@ impl VanillaWorld<'_, '_> {
 }
 
 impl Lookup for VanillaWorld<'_, '_> {
-    fn entries(&self, registry: StaticResourceLocation) -> impl Iterator<Item = &str> {
+    fn entries(&self, registry: ResourceLocation<'static>) -> impl Iterator<Item = &str> {
         self.registry_lookup().entries(registry)
     }
 
-    fn tags(&self, registry: StaticResourceLocation) -> impl Iterator<Item = &str> {
+    fn tags(&self, registry: ResourceLocation<'static>) -> impl Iterator<Item = &str> {
         self.registry_lookup().tags(registry)
     }
 
     fn tag_contains(
         &self,
-        registry: StaticResourceLocation,
-        tag: Identifier<'_>,
-        entry: StaticResourceLocation,
+        registry: ResourceLocation<'static>,
+        tag: ResourceLocation<'_>,
+        entry: ResourceLocation<'static>,
     ) -> bool {
         self.registry_lookup().tag_contains(registry, tag, entry)
     }
@@ -84,29 +84,35 @@ impl Lookup for VanillaWorld<'_, '_> {
 
     fn tag_entries(
         &self,
-        registry: StaticResourceLocation,
-        tag: Identifier<'_>,
+        registry: ResourceLocation<'static>,
+        tag: ResourceLocation<'_>,
     ) -> impl Iterator<Item = &str> {
         self.registry_lookup().tag_entries(registry, tag)
     }
 }
 
 impl BlockLookup for VanillaWorld<'_, '_> {
-    fn block_properties(&self, block: Identifier<'_>) -> Option<&[BlockProperty]> {
+    fn block_properties(&self, block: ResourceLocation<'_>) -> Option<&[BlockProperty]> {
         self.registry_lookup().block_properties(block)
     }
 
-    fn has_block_entity(&self, block: Identifier<'_>) -> bool {
+    fn has_block_entity(&self, block: ResourceLocation<'_>) -> bool {
         self.registry_lookup().has_block_entity(block)
     }
 }
 
 impl TimeLookup for VanillaWorld<'_, '_> {
-    fn suggested_time_markers(&self, clock: Option<Identifier<'_>>) -> impl Iterator<Item = &str> {
+    fn suggested_time_markers(
+        &self,
+        clock: Option<ResourceLocation<'_>>,
+    ) -> impl Iterator<Item = &str> {
         self.registry_lookup().suggested_time_markers(clock)
     }
 
-    fn timelines_of_clock(&self, clock: Option<Identifier<'_>>) -> impl Iterator<Item = &str> {
+    fn timelines_of_clock(
+        &self,
+        clock: Option<ResourceLocation<'_>>,
+    ) -> impl Iterator<Item = &str> {
         self.registry_lookup().timelines_of_clock(clock)
     }
 }

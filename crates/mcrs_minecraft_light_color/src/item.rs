@@ -18,8 +18,7 @@ use crate::asset::{BlockStateRef, StateTarget};
 use crate::colors::{LightColors, LightType};
 
 pub const CORPUS_DIRECTORY: &str = "mcrs/item_light";
-pub const WATER_SENSITIVE: TagKey<Item, &'static str> =
-    TagKey::new(rl!("mcrs:water_sensitive_light"));
+pub const WATER_SENSITIVE: TagKey<'static, Item> = TagKey::new(rl!("mcrs:water_sensitive_light"));
 
 /// A bare block id stands for the block's default state.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
@@ -175,8 +174,8 @@ impl ItemLights {
         let fluid_tags = registries
             .tags::<Fluid>()
             .ok_or_else(|| undeclared("fluid"))?;
-        let water_sensitive = item_tags.id(&WATER_SENSITIVE);
-        let water = fluid_tags.id(&WATER);
+        let water_sensitive = item_tags.id(WATER_SENSITIVE);
+        let water = fluid_tags.id(WATER);
         Ok(ItemLights {
             mapped: mapped.into(),
             water_sensitive: items

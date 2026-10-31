@@ -203,7 +203,7 @@ pub fn fill_context(consumer: Consumer) -> Dimension {
                     &blocks().0,
                     block_tags().members(
                         block_tags()
-                            .id(&mcrs_minecraft_block::keys::block_tags::UNCARVABLE)
+                            .id(mcrs_minecraft_block::keys::block_tags::UNCARVABLE)
                             .expect("the corpus holds the uncarvable tag"),
                     ),
                 )),

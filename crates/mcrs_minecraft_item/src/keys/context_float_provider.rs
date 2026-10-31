@@ -2,7 +2,7 @@
 
 use mcrs_minecraft_resource::{ResourceKey, rl};
 
-pub const BREWING_SPEED_DEFAULT: ResourceKey<crate::loot::ContextFloatProvider, &'static str> = ResourceKey::new(rl!("minecraft:brewing/speed_default"));
-pub const COOKING_FAST_SPEED_MULTIPLIER: ResourceKey<crate::loot::ContextFloatProvider, &'static str> = ResourceKey::new(rl!("minecraft:cooking/fast_speed_multiplier"));
-pub const COOKING_NORMAL_SPEED_MULTIPLIER: ResourceKey<crate::loot::ContextFloatProvider, &'static str> = ResourceKey::new(rl!("minecraft:cooking/normal_speed_multiplier"));
-pub const COOKING_SPEED_DEFAULT: ResourceKey<crate::loot::ContextFloatProvider, &'static str> = ResourceKey::new(rl!("minecraft:cooking/speed_default"));
+pub const BREWING_SPEED_DEFAULT: ResourceKey<'static, crate::loot::ContextFloatProvider> = ResourceKey::new(rl!("minecraft:brewing/speed_default"));
+pub const COOKING_FAST_SPEED_MULTIPLIER: ResourceKey<'static, crate::loot::ContextFloatProvider> = ResourceKey::new(rl!("minecraft:cooking/fast_speed_multiplier"));
+pub const COOKING_NORMAL_SPEED_MULTIPLIER: ResourceKey<'static, crate::loot::ContextFloatProvider> = ResourceKey::new(rl!("minecraft:cooking/normal_speed_multiplier"));
+pub const COOKING_SPEED_DEFAULT: ResourceKey<'static, crate::loot::ContextFloatProvider> = ResourceKey::new(rl!("minecraft:cooking/speed_default"));

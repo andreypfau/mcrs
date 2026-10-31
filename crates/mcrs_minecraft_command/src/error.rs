@@ -1,9 +1,8 @@
-use crate::identifier::Identifier;
 use core::fmt;
 use mcrs_command::Span;
 use mcrs_command::{ErrorKind, LibraryError, StringSpan, StringValue, SyntaxError};
 use mcrs_minecraft_nbt::tag::NbtTag;
-use mcrs_minecraft_resource::StaticResourceLocation;
+use mcrs_minecraft_resource::ResourceLocation;
 use mcrs_minecraft_snbt::SnbtError;
 use mcrs_minecraft_text::{Color, IntoText, Text, TranslateArg};
 
@@ -16,12 +15,12 @@ pub enum ResourceError {
     /// The registry holds no entry with the identifier at `span`.
     ResourceNotFound {
         span: Span,
-        registry: StaticResourceLocation,
+        registry: ResourceLocation<'static>,
     },
     /// The registry holds no tag with the identifier at `span`.
     ResourceTagNotFound {
         span: Span,
-        registry: StaticResourceLocation,
+        registry: ResourceLocation<'static>,
     },
 }
 
@@ -59,7 +58,9 @@ pub fn identifier_text(input: &str, span: Span) -> Text {
 
 pub fn identifier_string(input: &str, span: Span) -> String {
     let text = span.text(input);
-    Identifier::parse(text).map_or_else(|| text.to_owned(), |id| id.to_string())
+    ResourceLocation::read(text)
+        .ok()
+        .map_or_else(|| text.to_owned(), |id| id.to_string())
 }
 
 fn bound(key: &'static str, limit: NbtTag, value: NbtTag) -> Text {
@@ -136,7 +137,7 @@ fn library_text(input: &str, error: LibraryError) -> Text {
 
 impl ErrorText for ResourceError {
     fn text(&self, input: &str) -> Text {
-        let registry = |registry: StaticResourceLocation| registry.as_str().to_owned().into_text();
+        let registry = |registry: ResourceLocation<'static>| registry.to_string().into_text();
         match *self {
             ResourceError::IdInvalid => Text::translate("argument.id.invalid", vec![]),
             ResourceError::ResourceNotFound { span, registry: r } => Text::translate(

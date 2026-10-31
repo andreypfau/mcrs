@@ -63,7 +63,7 @@ mod village_taiga;
 use mcrs_minecraft_core::Axis::{X, Y, Z};
 use mcrs_minecraft_core::Direction::{East, North, South, West};
 use mcrs_minecraft_core::{Axis, Direction};
-use mcrs_minecraft_resource::{ResourceLocation, ResourceLocationBuf, StaticResourceLocation};
+use mcrs_minecraft_resource::{ResourceLocation, ResourceLocationBuf};
 use mcrs_minecraft_worldgen_feature::template::Template;
 use mcrs_minecraft_worldgen_structure::blueprint::{
     BlueprintError, Canvas, Cell, Fields, GROUND, Gable, Tag, Turn, VOID, block, corner_stairs,
@@ -71,7 +71,7 @@ use mcrs_minecraft_worldgen_structure::blueprint::{
 };
 
 /// A template's name under `structure`, its size and the procedure that paints it.
-type Entry = (StaticResourceLocation, [i32; 3], fn(&mut Canvas));
+type Entry = (ResourceLocation<'static>, [i32; 3], fn(&mut Canvas));
 
 const FAMILIES: [&[Entry]; 7] = [
     village_common::TEMPLATES,
@@ -110,27 +110,21 @@ fn paint((_, size, paint): &Entry) -> Result<Template, BlueprintError> {
 
 const AIR: &str = Block::Air.as_static_str();
 const NOTHING: &str = Block::StructureVoid.as_static_str();
-const EMPTY: &str = mcrs_minecraft_worldgen_feature::keys::template_pool::EMPTY.as_static_str();
+const EMPTY: &str = "minecraft:empty";
 const BOTTOM: &str = "minecraft:bottom";
 
-const ANIMALS: &str =
-    mcrs_minecraft_worldgen_feature::keys::template_pool::VILLAGE_COMMON_ANIMALS.as_static_str();
+const ANIMALS: &str = "minecraft:village/common/animals";
 const BLUE_BED: &str = Block::BlueBed.as_static_str();
-const BUTCHER_ANIMALS: &str =
-    mcrs_minecraft_worldgen_feature::keys::template_pool::VILLAGE_COMMON_BUTCHER_ANIMALS
-        .as_static_str();
-const CATS: &str =
-    mcrs_minecraft_worldgen_feature::keys::template_pool::VILLAGE_COMMON_CATS.as_static_str();
+const BUTCHER_ANIMALS: &str = "minecraft:village/common/butcher_animals";
+const CATS: &str = "minecraft:village/common/cats";
 const COBBLE: &str = Block::Cobblestone.as_static_str();
 const COBBLE_STAIRS: &str = Block::CobblestoneStairs.as_static_str();
 const DIRT: &str = Block::Dirt.as_static_str();
 const GRASS: &str = Block::GrassBlock.as_static_str();
-const IRON_GOLEM: &str =
-    mcrs_minecraft_worldgen_feature::keys::template_pool::VILLAGE_COMMON_IRON_GOLEM.as_static_str();
+const IRON_GOLEM: &str = "minecraft:village/common/iron_golem";
 const PATH: &str = Block::DirtPath.as_static_str();
 const RED_BED: &str = Block::RedBed.as_static_str();
-const SHEEP: &str =
-    mcrs_minecraft_worldgen_feature::keys::template_pool::VILLAGE_COMMON_SHEEP.as_static_str();
+const SHEEP: &str = "minecraft:village/common/sheep";
 const SPRUCE_DOOR: &str = Block::SpruceDoor.as_static_str();
 const SPRUCE_STAIRS: &str = Block::SpruceStairs.as_static_str();
 const WHITE_BED: &str = Block::WhiteBed.as_static_str();

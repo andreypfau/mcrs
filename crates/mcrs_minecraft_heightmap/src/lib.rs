@@ -69,8 +69,8 @@ impl HeightmapPredicates {
 }
 
 pub fn heightmap_predicates(blocks: &Blocks, tags: &Tags<Block>) -> HeightmapPredicates {
-    let motion = tags.id(&BLOCKS_MOTION_IN_HEIGHTMAP);
-    let motion_no_leaves = tags.id(&BLOCKS_MOTION_IN_HEIGHTMAP_NO_LEAVES);
+    let motion = tags.id(BLOCKS_MOTION_IN_HEIGHTMAP);
+    let motion_no_leaves = tags.id(BLOCKS_MOTION_IN_HEIGHTMAP_NO_LEAVES);
     let has = |tag: Option<TagId<Block>>, block: Option<_>| {
         tag.zip(block)
             .is_some_and(|(tag, block)| tags.contains(tag, block))

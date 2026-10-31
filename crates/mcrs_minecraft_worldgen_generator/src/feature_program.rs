@@ -442,7 +442,7 @@ impl FeatureProgram {
             .map(|(_, name, _)| {
                 tables
                     .climate
-                    .get(name.as_str())
+                    .get(name)
                     .copied()
                     .ok_or_else(|| FeatureCompileError::UnknownBiome(name.to_string()))
             })
@@ -2809,13 +2809,13 @@ impl<'a> Resolver<'a> {
         states_of(self, query)
     }
 
-    pub fn tag_mask(&self, tag: TagKey<Block, &'static str>) -> Compiled<StateMask> {
+    pub fn tag_mask(&self, tag: TagKey<'static, Block>) -> Compiled<StateMask> {
         self.mask(StateQuery::Blocks(&block_tag(tag)))
     }
 
     pub fn fluid_tag_mask(
         &self,
-        tag: TagKey<Fluid, &'static str>,
+        tag: TagKey<'static, Fluid>,
         state: &StatePropertiesPredicate,
     ) -> Compiled<StateMask> {
         let set = KeySet::Tag(tag.into());
@@ -2968,7 +2968,7 @@ fn named<R>(location: ResourceLocationBuf) -> KeySet<R> {
     KeySet::List(Box::new([ResourceKeyBuf::from_location(location)]))
 }
 
-fn block_tag(tag: TagKey<Block, &'static str>) -> KeySet<Block> {
+fn block_tag(tag: TagKey<'static, Block>) -> KeySet<Block> {
     KeySet::Tag(tag.into())
 }
 

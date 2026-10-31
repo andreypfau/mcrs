@@ -52,7 +52,7 @@ fn an_empty_dimension_list_from_the_plugin_is_refused() {
 #[test]
 fn a_dimension_list_without_the_overworld_is_refused() {
     let mut without_overworld = normal();
-    without_overworld.remove("minecraft:overworld");
+    without_overworld.remove(&key("minecraft:overworld"));
     for (case, base) in [
         ("without the overworld", without_overworld),
         ("empty", Dimensions::new()),
@@ -68,7 +68,7 @@ fn the_baked_order_ignores_input_order() {
     let set = test_registries();
     let entry = debug_dimension(set, "minecraft:overworld");
     let mut base = normal();
-    base.remove("minecraft:the_end");
+    base.remove(&key("minecraft:the_end"));
     for name in ["z:last", "a:first", "minecraft:the_end", "m:middle"] {
         base.insert(key(name), entry.clone());
     }
@@ -80,8 +80,8 @@ fn the_baked_order_ignores_input_order() {
             "minecraft:the_nether",
             "minecraft:the_end",
             "a:first",
-            "m:middle",
             "z:last",
+            "m:middle",
         ]
     );
 }
@@ -112,7 +112,7 @@ fn a_data_pack_dimension_replaces_the_preset_entry_of_its_key() {
         list[0].1,
         debug_dimension(&set, "minecraft:overworld_caves")
     );
-    assert_ne!(list[0].1, base["minecraft:overworld"]);
-    assert_eq!(list[1].1, base["minecraft:the_nether"]);
-    assert_eq!(list[2].1, base["minecraft:the_end"]);
+    assert_ne!(list[0].1, base[&key("minecraft:overworld")]);
+    assert_eq!(list[1].1, base[&key("minecraft:the_nether")]);
+    assert_eq!(list[2].1, base[&key("minecraft:the_end")]);
 }

@@ -7,7 +7,7 @@ use mcrs_minecraft_biome::parameter_list::{MultiNoiseBiomeSourceParameterList, P
 use mcrs_minecraft_biome::source::MultiNoiseBiomeSource;
 use mcrs_minecraft_biome::zoom::{obfuscate_seed, quart_cell};
 use mcrs_minecraft_registries::Diagnostics;
-use mcrs_minecraft_resource::{Id, ResourceLocationBuf};
+use mcrs_minecraft_resource::{Id, ResourceLocation, ResourceLocationBuf};
 use mcrs_minecraft_worldgen_density::program::Workspace;
 use mcrs_voxel::BlockPos;
 
@@ -26,7 +26,7 @@ pub(super) fn preset_ids() -> HashMap<String, u8> {
     let mut ids = HashMap::new();
     for (_, biome) in overworld_parameter_list().values() {
         let next = ids.len() as u8;
-        ids.entry((*biome).to_owned()).or_insert(next);
+        ids.entry(biome.to_string()).or_insert(next);
     }
     ids
 }
@@ -41,14 +41,14 @@ impl NameList {
 }
 
 impl BiomeNames for NameList {
-    fn biome_named(&self, name: &str) -> Result<Id<Biome>, UnknownEntry> {
+    fn biome_named(&self, name: ResourceLocation<'_>) -> Result<Id<Biome>, UnknownEntry> {
         self.0
             .iter()
-            .position(|held| held == name)
+            .position(|held| name == held.as_str())
             .and_then(|number| Id::checked(u16::try_from(number).ok()?, self.0.len()))
             .ok_or_else(|| UnknownEntry {
                 registry: mcrs_minecraft_biome::keys::BIOME.location().into(),
-                name: name.to_owned(),
+                name: name.to_string(),
             })
     }
 }
@@ -335,15 +335,15 @@ fn entries_naming_one_preset_share_one_table() {
 fn a_preset_naming_a_missing_biome_fails_the_load() {
     use mcrs_minecraft_biome::overworld_preset::nether_parameter_list;
 
-    let missing = overworld_parameter_list().values()[0].1;
-    let named: BTreeSet<&str> = overworld_parameter_list()
+    let missing = overworld_parameter_list().values()[0].1.to_string();
+    let named: BTreeSet<String> = overworld_parameter_list()
         .values()
         .iter()
         .chain(nether_parameter_list().values())
-        .map(|(_, biome)| *biome)
+        .map(|(_, biome)| biome.to_string())
         .filter(|biome| *biome != missing)
         .collect();
-    let biomes = NameList::of(named);
+    let biomes = NameList::of(named.iter().map(String::as_str));
     let name = ResourceLocationBuf::read("minecraft:overworld").expect("a vanilla name");
 
     let mut diagnostics = Diagnostics::default();
@@ -352,7 +352,7 @@ fn a_preset_naming_a_missing_biome_fails_the_load() {
     let text = diagnostics.to_string();
     let line = text
         .lines()
-        .find(|line| line.contains("overworld") && line.contains(missing))
+        .find(|line| line.contains("overworld") && line.contains(missing.as_str()))
         .unwrap_or_else(|| panic!("no line names the parameter list and {missing}: {text}"));
     assert!(
         line.contains("minecraft:worldgen/multi_noise_biome_source_parameter_list"),

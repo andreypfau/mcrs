@@ -68,11 +68,11 @@ fn configuration_of(received: &Received) -> Configuration {
         .iter()
         .map(|(registry, entries)| {
             body(&ClientboundRegistryData {
-                registry: registry.clone().into(),
+                registry: registry.as_location(),
                 entries: entries
                     .iter()
                     .map(|(id, data)| Entry {
-                        id: id.clone().into(),
+                        id: id.as_location(),
                         data: data.as_ref().map(Cow::Borrowed),
                     })
                     .collect(),
@@ -84,11 +84,11 @@ fn configuration_of(received: &Received) -> Configuration {
             .tags
             .iter()
             .map(|(registry, tags)| RegistryTags {
-                registry: registry.clone().into(),
+                registry: registry.as_location(),
                 tags: tags
                     .iter()
                     .map(|(name, members)| TagGroup {
-                        name: name.clone().into(),
+                        name: name.as_location(),
                         entries: members.iter().copied().map(VarInt).collect(),
                     })
                     .collect(),
@@ -132,7 +132,7 @@ fn contents(set: &Registries, registries: &[String]) -> Contents {
                 .map(|names| names.iter().map(ToString::to_string).collect())
                 .unwrap_or_default();
             let tags = set
-                .tags_of(&key)
+                .tags_of(key.as_location())
                 .map(|tags| {
                     tags.map(|(name, members)| (name.to_string(), members.to_vec()))
                         .collect()

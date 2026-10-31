@@ -311,14 +311,14 @@ mod tests {
         );
         assert_eq!(day.tracks["minecraft:visual/sky_color"].ease, None);
         assert_eq!(
-            day.time_markers["minecraft:day"],
+            day.time_markers[&ResourceLocationBuf::read("minecraft:day").unwrap()],
             TimeMarker {
                 ticks: 1000,
                 show_in_commands: true
             }
         );
         assert_eq!(
-            day.time_markers["minecraft:roll_village_siege"],
+            day.time_markers[&ResourceLocationBuf::read("minecraft:roll_village_siege").unwrap()],
             TimeMarker {
                 ticks: 18000,
                 show_in_commands: false

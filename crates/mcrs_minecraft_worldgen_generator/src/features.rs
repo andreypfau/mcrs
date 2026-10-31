@@ -1,14 +1,14 @@
 use mcrs_minecraft_biome::parameter_list::ParameterLists;
 use mcrs_minecraft_biome::source::{BiomeSource, MultiNoiseBiomeSource};
 use mcrs_minecraft_registries::{Namer, Registries};
-use mcrs_minecraft_resource::{ResourceKey, ResourceLocationBuf};
+use mcrs_minecraft_resource::{ResourceKey, ResourceLocation, ResourceLocationBuf};
 use mcrs_minecraft_worldgen_feature::compile::FeatureSteps;
 use mcrs_minecraft_worldgen_feature_place::terrain_skin::BiomeClimate;
 use std::collections::BTreeMap;
 
 /// `TheEndBiomeSource` lists its five biomes in this order, and that order is
 /// the input of the sort.
-const END_BIOMES: [ResourceKey<mcrs_minecraft_biome::Biome, &'static str>; 5] = [
+const END_BIOMES: [ResourceKey<'static, mcrs_minecraft_biome::Biome>; 5] = [
     mcrs_minecraft_biome::keys::biome::THE_END,
     mcrs_minecraft_biome::keys::biome::END_HIGHLANDS,
     mcrs_minecraft_biome::keys::biome::END_MIDLANDS,
@@ -67,11 +67,11 @@ pub fn possible_biomes(
 }
 
 fn preset_biomes(
-    list: &mcrs_minecraft_biome::climate::ParameterList<&'static str>,
+    list: &mcrs_minecraft_biome::climate::ParameterList<ResourceLocation<'static>>,
 ) -> Vec<ResourceLocationBuf> {
     list.values()
         .iter()
-        .filter_map(|(_, biome)| ResourceLocationBuf::read(biome).ok())
+        .map(|(_, biome)| biome.to_buf())
         .collect()
 }
 

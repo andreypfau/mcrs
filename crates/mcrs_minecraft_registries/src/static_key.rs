@@ -1,10 +1,10 @@
-use mcrs_minecraft_resource::{Id, Registered, StaticResourceLocation};
+use mcrs_minecraft_resource::{Id, Registered, ResourceLocation};
 use std::fmt;
 
 pub trait StaticEntry: Registered + Copy {
     fn id(self) -> Id<Self>;
 
-    fn location(self) -> StaticResourceLocation;
+    fn location(self) -> ResourceLocation<'static>;
 }
 
 #[doc(hidden)]
@@ -35,7 +35,7 @@ macro_rules! static_registry {
         impl $name {
             pub const ALL: &'static [$name] = &[$($name::$variant,)+];
 
-            pub const ENTRIES: &'static [::mcrs_minecraft_resource::StaticResourceLocation] =
+            pub const ENTRIES: &'static [::mcrs_minecraft_resource::ResourceLocation<'static>] =
                 &[$($crate::static_key::__rl!($location),)+];
 
             pub const fn id(self) -> ::mcrs_minecraft_resource::Id<$name> {
@@ -45,14 +45,16 @@ macro_rules! static_registry {
                 }
             }
 
-            pub const fn location(self) -> ::mcrs_minecraft_resource::StaticResourceLocation {
+            pub const fn location(self) -> ::mcrs_minecraft_resource::ResourceLocation<'static> {
                 match self {
                     $($name::$variant => $crate::static_key::__rl!($location),)+
                 }
             }
 
             pub const fn as_static_str(self) -> &'static str {
-                self.location().as_static_str()
+                match self {
+                    $($name::$variant => $location,)+
+                }
             }
 
             pub const fn from_id(id: ::mcrs_minecraft_resource::Id<$name>) -> Option<$name> {
@@ -66,21 +68,20 @@ macro_rules! static_registry {
                 }
             }
 
-            pub fn find(location: &str) -> Option<$name> {
+            /// The entry that `location` names.
+            pub fn get(location: ::mcrs_minecraft_resource::ResourceLocation<'_>) -> Option<$name> {
                 static INDEX: ::std::sync::LazyLock<
-                    ::std::collections::HashMap<&'static str, $name>,
+                    ::std::collections::HashMap<::mcrs_minecraft_resource::ResourceLocation<'static>, $name>,
                 > = ::std::sync::LazyLock::new(|| {
-                    $name::ALL
-                        .iter()
-                        .map(|&entry| (entry.as_static_str(), entry))
-                        .collect()
+                    $name::ALL.iter().map(|&entry| (entry.location(), entry)).collect()
                 });
-                INDEX.get(location).copied()
+                let index: &::std::collections::HashMap<::mcrs_minecraft_resource::ResourceLocation<'_>, $name> = &INDEX;
+                index.get(&location).copied()
             }
 
+            /// The entry that `text` names; a bare path is in the `minecraft` namespace.
             pub fn read(text: &str) -> Option<$name> {
-                let location = $crate::static_key::__ResourceLocation::read(text).ok()?;
-                Self::find(location.as_str())
+                Self::get($crate::static_key::__ResourceLocation::read(text).ok()?)
             }
         }
 
@@ -89,7 +90,7 @@ macro_rules! static_registry {
                 $name::id(self)
             }
 
-            fn location(self) -> ::mcrs_minecraft_resource::StaticResourceLocation {
+            fn location(self) -> ::mcrs_minecraft_resource::ResourceLocation<'static> {
                 $name::location(self)
             }
         }
@@ -134,7 +135,7 @@ macro_rules! static_registry {
                 use $crate::__serde::de::Error as _;
                 let text = <std::borrow::Cow<'de, str> as $crate::__serde::Deserialize>::deserialize(deserializer)?;
                 let location = $crate::static_key::__ResourceLocation::read(&text).map_err(D::Error::custom)?;
-                Self::find(location.as_str()).ok_or_else(|| {
+                Self::get(location).ok_or_else(|| {
                     D::Error::custom($crate::static_key::unknown_entry(
                         <Self as ::mcrs_minecraft_resource::Registered>::REGISTRY.location(),
                         &location,

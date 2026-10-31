@@ -237,7 +237,7 @@ fn attributes_round_trip_with_modifiers() {
                 attribute: Attribute::KnockbackResistance,
                 base: 0.0,
                 modifiers: vec![AttributeModifier {
-                    id: ResourceLocation::read_cow("minecraft:random_spawn_bonus").unwrap(),
+                    id: ResourceLocation::read("minecraft:random_spawn_bonus").unwrap(),
                     amount: 0.025,
                     operation: AttributeOperation::AddValue,
                 }],

@@ -17,14 +17,14 @@ use crate::{
     Joint, SavedItem, SignText, SpawnData, Text, Uuid, VaultConfig,
 };
 
-const EMPTY_TEMPLATE_POOL: ResourceLocation<&'static str> = rl!("minecraft:empty");
+const EMPTY_TEMPLATE_POOL: ResourceLocation<'static> = rl!("minecraft:empty");
 
 fn empty_id() -> String {
-    EMPTY_LABEL.as_str().to_owned()
+    EMPTY_LABEL.to_string()
 }
 
 fn empty_pool() -> String {
-    EMPTY_TEMPLATE_POOL.as_str().to_owned()
+    EMPTY_TEMPLATE_POOL.to_string()
 }
 
 fn air_id() -> String {
@@ -378,7 +378,7 @@ fn spawner_spawn_range() -> i16 {
 impl GeneratedBlockEntity {
     /// The kind a save entry's `id` names when a variant describes it.
     pub fn kind_of(id: &str) -> Option<BlockEntityType> {
-        BlockEntityType::find(id).filter(|kind| Self::KINDS.contains(kind))
+        BlockEntityType::read(id).filter(|kind| Self::KINDS.contains(kind))
     }
 
     /// The kinds that are a `RandomizableContainer`: a template placing one

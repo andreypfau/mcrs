@@ -1,9 +1,7 @@
 use mcrs_minecraft_biome::keys::placed_feature;
 use mcrs_minecraft_biome_file::PlacedFeatureKey;
 use mcrs_minecraft_core::codec::Bounded;
-use mcrs_minecraft_resource::{
-    InvalidResourceLocation, ResourceLocationBuf, StaticResourceLocation, rl,
-};
+use mcrs_minecraft_resource::{InvalidResourceLocation, ResourceLocation, ResourceLocationBuf, rl};
 use mcrs_minecraft_worldgen_feature::pool::{PoolElement, SingleElement, TemplatePool};
 use mcrs_minecraft_worldgen_feature::template::Projection::Rigid;
 
@@ -29,7 +27,7 @@ const BIOME_VARIANTS: [&str; 18] = [
 ];
 
 #[rustfmt::skip]
-const TREES: [(StaticResourceLocation, PlacedFeatureKey); 21] = [
+const TREES: [(ResourceLocation<'static>, PlacedFeatureKey); 21] = [
     (rl!("minecraft:abandoned_camp/trees/acacia"), placed_feature::ACACIA_CHECKED),
     (rl!("minecraft:abandoned_camp/trees/birch"), placed_feature::BIRCH_CHECKED),
     (rl!("minecraft:abandoned_camp/trees/fancy_oak"), placed_feature::FANCY_OAK_CHECKED),

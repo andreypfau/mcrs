@@ -221,7 +221,7 @@ impl Sample for Enchantments {
     fn nbt_tags(&self) -> Vec<(&'static str, u8)> {
         let mut tags = vec![("", COMPOUND_ID)];
         if !self.0.is_empty() {
-            tags.push((crate::keys::enchantment::SHARPNESS.as_static_str(), INT_ID));
+            tags.push(("minecraft:sharpness", INT_ID));
         }
         tags
     }

@@ -1,16 +1,17 @@
 use crate::{OP, read};
 use mcrs_command::Span;
 use mcrs_command::SyntaxError;
-use mcrs_minecraft_command::{Identifier, ResourceError};
+use mcrs_minecraft_command::ResourceError;
 use mcrs_minecraft_command_argument::{
     EntityAnchorArgument, GameModeArgument, HeightmapArgument, KeywordError,
     ResourceLocationArgument,
 };
 use mcrs_minecraft_game_mode::GameMode;
+use mcrs_minecraft_resource::ResourceLocation;
 
 #[test]
 fn identifiers_default_their_namespace() {
-    let id = |namespace, path| Identifier { namespace, path };
+    let id = |namespace, path| ResourceLocation::new(namespace, path).unwrap();
     let cases = [
         ("stone", Ok(id("minecraft", "stone")), 5),
         ("Stone", Ok(id("minecraft", "")), 0),

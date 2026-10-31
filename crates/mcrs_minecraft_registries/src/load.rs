@@ -178,7 +178,7 @@ pub(crate) fn stages<'f>(
         }
     }
     let tables = (declarations.iter())
-        .filter_map(|declaration| registries.table(declaration.key.as_str()).cloned())
+        .filter_map(|declaration| registries.table(declaration.key.as_location()).cloned())
         .collect();
     let (world_stack, reload_stack) = (registries.world_stack, registries.reload_stack);
     Ok((
@@ -197,7 +197,7 @@ fn decode(
 ) -> Vec<ResourceLocationBuf> {
     let mut built = Vec::new();
     for (key, sources) in decoding {
-        let Some(table) = registries.table(key.as_str()) else {
+        let Some(table) = registries.table(key.as_location()) else {
             continue;
         };
         let Kind::Data(codec) = &table.kind else {
@@ -217,7 +217,7 @@ fn decode(
                 continue;
             };
             let missing = error.missing_ref().filter(|missing| {
-                (registries.table(missing.registry.as_str()))
+                (registries.table(missing.registry.as_location()))
                     .is_some_and(|t| t.stage == table.stage)
             });
             if let Some(missing) = missing {
@@ -248,7 +248,7 @@ fn decode(
     built
         .into_iter()
         .filter_map(|(key, registry)| {
-            registries.table_mut(key.as_str())?.registry = Some(registry);
+            registries.table_mut(key.as_location())?.registry = Some(registry);
             Some(key)
         })
         .collect()
@@ -261,7 +261,7 @@ fn validate(
 ) -> Vec<Diagnostic> {
     let mut errors = Vec::new();
     for key in decoded {
-        let Some(table) = registries.table(key.as_str()) else {
+        let Some(table) = registries.table(key.as_location()) else {
             continue;
         };
         let (Kind::Data(codec), Some(registry)) = (&table.kind, &table.registry) else {
@@ -323,7 +323,8 @@ fn read(
         diagnostics,
         |declaration, report| {
             let files = routed.remove(&declaration.key).unwrap_or_default();
-            let previous = previous.and_then(|previous| previous.table(declaration.key.as_str()));
+            let previous =
+                previous.and_then(|previous| previous.table(declaration.key.as_location()));
             let kept = previous.filter(|_| declaration.stage < Stage::Reloadable);
             let (names, kept, sources) = match kept {
                 Some(table) => (Arc::clone(&table.names), table.registry.clone(), None),

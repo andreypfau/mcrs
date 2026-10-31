@@ -18,8 +18,8 @@ use mcrs_minecraft_worldgen_structure::{Structure, StructureSet};
 use mcrs_minecraft_worldgen_surface::proto::{MaterialConditionHolder, MaterialRuleHolder};
 
 const STATIC_REGISTRIES: [&[(
-    mcrs_minecraft_resource::StaticResourceLocation,
-    &[mcrs_minecraft_resource::StaticResourceLocation],
+    mcrs_minecraft_resource::ResourceLocation<'static>,
+    &[mcrs_minecraft_resource::ResourceLocation<'static>],
 )]; 5] = [
     mcrs_minecraft_worldgen_carver::keys::STATIC_REGISTRIES,
     mcrs_minecraft_worldgen_density::keys::STATIC_REGISTRIES,

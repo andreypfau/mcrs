@@ -5,7 +5,7 @@ use std::borrow::Cow;
 
 #[derive(Clone, Debug, Encode, Decode)]
 pub struct Entry<'a> {
-    pub id: ResourceLocation<Cow<'a, str>>,
+    pub id: ResourceLocation<'a>,
     pub data: Option<Cow<'a, NbtTag>>,
 }
 

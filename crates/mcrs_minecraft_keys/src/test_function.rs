@@ -1,9 +1,9 @@
 // Written by `cargo run -p mcrs_minecraft_update -- keys`; do not edit.
 
-use mcrs_minecraft_resource::{StaticResourceLocation, rl};
+use mcrs_minecraft_resource::{ResourceLocation, rl};
 
-pub const ALWAYS_PASS: StaticResourceLocation = rl!("minecraft:always_pass");
+pub const ALWAYS_PASS: ResourceLocation<'static> = rl!("minecraft:always_pass");
 
-pub const ENTRIES: &[StaticResourceLocation] = &[
+pub const ENTRIES: &[ResourceLocation<'static>] = &[
     ALWAYS_PASS,
 ];

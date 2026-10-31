@@ -50,7 +50,7 @@ fn fixture() -> Fixture {
 }
 
 fn item(fixture: &Fixture, path: &str) -> Id<Item> {
-    let id = Item::find(&format!("minecraft:{path}")).unwrap().id();
+    let id = Item::read(&format!("minecraft:{path}")).unwrap().id();
     assert_eq!(
         fixture
             .ids

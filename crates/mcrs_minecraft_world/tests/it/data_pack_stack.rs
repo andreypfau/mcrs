@@ -2,6 +2,7 @@ use mcrs_minecraft_biome_file::BiomeFile;
 use mcrs_minecraft_core::VERSION;
 use mcrs_minecraft_datapack::{Level, PackDiagnostic, StackedPack};
 use mcrs_minecraft_registries::{Diagnostic, Registries};
+use mcrs_minecraft_resource::ResourceLocationBuf;
 
 use crate::common::{TEST_PACK, WithFiles};
 
@@ -17,7 +18,7 @@ fn a_pack_that_ships_a_built_in_biome_replaces_the_built_in_entry() {
 
     let biomes = set.registry::<BiomeFile>().unwrap();
     let plains = biomes
-        .by_name(&"minecraft:plains".parse().unwrap())
+        .by_name(&"minecraft:plains".parse::<ResourceLocationBuf>().unwrap())
         .unwrap();
     let biome = biomes.get(plains).unwrap();
     assert_eq!(
@@ -35,8 +36,12 @@ fn banner_pattern(name: &str) -> String {
 }
 
 fn has_banner_pattern(set: &Registries, name: &str) -> bool {
-    set.names_of(&"minecraft:banner_pattern".parse().unwrap())
-        .is_some_and(|names| names.iter().any(|entry| entry.as_str() == name))
+    set.names_of(
+        &"minecraft:banner_pattern"
+            .parse::<ResourceLocationBuf>()
+            .unwrap(),
+    )
+    .is_some_and(|names| names.iter().any(|entry| entry.as_str() == name))
 }
 
 #[test]

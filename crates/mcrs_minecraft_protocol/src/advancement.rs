@@ -1,6 +1,6 @@
 use std::io::Write;
 
-use mcrs_minecraft_resource::{ResourceLocationBuf, ResourceLocation};
+use mcrs_minecraft_resource::ResourceLocationBuf;
 use mcrs_minecraft_core::codec;
 use mcrs_minecraft_item::Text;
 use mcrs_minecraft_registries::{FromWire, Refs, Resolved, Wire, registry_value};
@@ -98,7 +98,7 @@ impl Decode<'_> for DisplayInfo<Wire> {
         let frame = AdvancementType::decode(r)?;
         let flags = i32::decode(r)?;
         let background = if flags & FLAG_BACKGROUND != 0 {
-            Some(ResourceLocation::decode(r)?)
+            Some(ResourceLocationBuf::decode(r)?)
         } else {
             None
         };

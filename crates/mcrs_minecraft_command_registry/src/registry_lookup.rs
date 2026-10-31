@@ -1,13 +1,12 @@
 use mcrs_minecraft_block::definition::schema::BlockProperty;
 use mcrs_minecraft_block::definition::{BlockDefinitions, BlockEntry, BlockStateFlags};
-use mcrs_minecraft_command::Identifier;
 use mcrs_minecraft_command_argument::ResourceOrTag;
 use mcrs_minecraft_dimension::DimensionType;
 use mcrs_minecraft_dimension_environment::dimension_type::DimensionTypeFile;
 use mcrs_minecraft_environment::timeline::Timeline;
 use mcrs_minecraft_environment::world_clock::WorldClock;
 use mcrs_minecraft_registries::Registries;
-use mcrs_minecraft_resource::{Id, ResourceLocation, ResourceLocationBuf, StaticResourceLocation};
+use mcrs_minecraft_resource::{Id, ResourceLocation, ResourceLocationBuf};
 
 /// The dimension type of the source and its default clock.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -27,33 +26,33 @@ pub struct RegistryLookup<'a> {
 
 impl<'a> RegistryLookup<'a> {
     /// Whether the registries hold `registry`.
-    pub fn has_registry(&self, registry: StaticResourceLocation) -> bool {
+    pub fn has_registry(&self, registry: ResourceLocation<'static>) -> bool {
         self.registries
-            .is_some_and(|registries| registries.names_of(&registry).is_some())
+            .is_some_and(|registries| registries.names_of(registry).is_some())
     }
 
     /// The names of the entries of `registry` in id order.
-    pub fn names(&self, registry: StaticResourceLocation) -> &'a [ResourceLocationBuf] {
+    pub fn names(&self, registry: ResourceLocation<'static>) -> &'a [ResourceLocationBuf] {
         self.registries
-            .and_then(|registries| registries.names_of(&registry))
+            .and_then(|registries| registries.names_of(registry))
             .unwrap_or_default()
     }
 
     /// The identifiers of the entries, each as `namespace:path`.
     pub fn entries(
         &self,
-        registry: StaticResourceLocation,
+        registry: ResourceLocation<'static>,
     ) -> impl Iterator<Item = &'a str> + use<'a> {
-        self.names(registry).iter().map(ResourceLocation::as_str)
+        self.names(registry).iter().map(ResourceLocationBuf::as_str)
     }
 
     /// The identifiers of the tags of `registry`, each as `namespace:path`.
     pub fn tags(
         &self,
-        registry: StaticResourceLocation,
+        registry: ResourceLocation<'static>,
     ) -> impl Iterator<Item = &'a str> + use<'a> {
         self.registries
-            .and_then(|registries| registries.tags_of(&registry))
+            .and_then(|registries| registries.tags_of(registry))
             .into_iter()
             .flatten()
             .map(|(name, _)| name.as_str())
@@ -62,11 +61,11 @@ impl<'a> RegistryLookup<'a> {
     /// The registry ids of the members of `tag`.
     pub fn tag_members(
         &self,
-        registry: StaticResourceLocation,
-        tag: Identifier<'_>,
+        registry: ResourceLocation<'static>,
+        tag: ResourceLocation<'_>,
     ) -> Option<&'a [u16]> {
         self.registries?
-            .tags_of(&registry)?
+            .tags_of(registry)?
             .find(|(name, _)| tag == name.as_str())
             .map(|(_, members)| members)
     }
@@ -74,12 +73,12 @@ impl<'a> RegistryLookup<'a> {
     /// Whether `tag` of `registry` holds `entry`.
     pub fn tag_contains(
         &self,
-        registry: StaticResourceLocation,
-        tag: Identifier<'_>,
-        entry: StaticResourceLocation,
+        registry: ResourceLocation<'static>,
+        tag: ResourceLocation<'_>,
+        entry: ResourceLocation<'static>,
     ) -> bool {
         self.registries
-            .and_then(|registries| registries.id_of(&registry, entry.as_str()))
+            .and_then(|registries| registries.id_of(registry, entry))
             .is_some_and(|id| {
                 self.tag_members(registry, tag)
                     .is_some_and(|members| members.contains(&id))
@@ -89,21 +88,25 @@ impl<'a> RegistryLookup<'a> {
     /// The identifiers of the members of `tag`, each as `namespace:path`.
     pub fn tag_entries(
         &self,
-        registry: StaticResourceLocation,
-        tag: Identifier<'_>,
+        registry: ResourceLocation<'static>,
+        tag: ResourceLocation<'_>,
     ) -> impl Iterator<Item = &'a str> + use<'a> {
         let names = self.names(registry);
         self.tag_members(registry, tag)
             .unwrap_or_default()
             .iter()
             .filter_map(move |&id| names.get(usize::from(id)))
-            .map(ResourceLocation::as_str)
+            .map(ResourceLocationBuf::as_str)
     }
 
     /// The registry id of the entry `name`.
     // chisle: a linear scan of the names per read, because `id_of` takes the full text and a
-    // short identifier would need it built; an index by `Identifier` lifts it.
-    pub fn id(&self, registry: StaticResourceLocation, name: Identifier<'_>) -> Option<u16> {
+    // short identifier would need it built; an index by `ResourceLocation` lifts it.
+    pub fn id(
+        &self,
+        registry: ResourceLocation<'static>,
+        name: ResourceLocation<'_>,
+    ) -> Option<u16> {
         let index = self
             .names(registry)
             .iter()
@@ -114,7 +117,7 @@ impl<'a> RegistryLookup<'a> {
     /// The entry of the block table for `block`.
     // chisle: a linear scan of the block table per read; an index by identifier that takes
     // borrowed text lifts it.
-    pub fn block(&self, block: Identifier<'_>) -> Option<&'a BlockEntry> {
+    pub fn block(&self, block: ResourceLocation<'_>) -> Option<&'a BlockEntry> {
         self.blocks?
             .blocks()
             .iter()
@@ -122,12 +125,12 @@ impl<'a> RegistryLookup<'a> {
     }
 
     /// The properties of `block` in their order.
-    pub fn block_properties(&self, block: Identifier<'_>) -> Option<&'a [BlockProperty]> {
+    pub fn block_properties(&self, block: ResourceLocation<'_>) -> Option<&'a [BlockProperty]> {
         self.block(block).map(|entry| entry.properties.0.as_slice())
     }
 
     /// Whether the states of `block` have a block entity.
-    pub fn has_block_entity(&self, block: Identifier<'_>) -> bool {
+    pub fn has_block_entity(&self, block: ResourceLocation<'_>) -> bool {
         let (Some(blocks), Some(entry)) = (self.blocks, self.block(block)) else {
             return false;
         };
@@ -140,7 +143,7 @@ impl<'a> RegistryLookup<'a> {
     /// The registry ids of an entry or of the members of a tag.
     pub fn ids(
         &self,
-        registry: StaticResourceLocation,
+        registry: ResourceLocation<'static>,
         value: ResourceOrTag<'_>,
     ) -> Option<Ids<'a>> {
         match value {
@@ -152,7 +155,7 @@ impl<'a> RegistryLookup<'a> {
     /// The name of the entry with the registry id `id`.
     pub fn name(
         &self,
-        registry: StaticResourceLocation,
+        registry: ResourceLocation<'static>,
         id: u16,
     ) -> Option<&'a ResourceLocationBuf> {
         self.names(registry).get(usize::from(id))
@@ -169,7 +172,7 @@ impl<'a> RegistryLookup<'a> {
     }
 
     /// The named clock, or the default clock of the source dimension for `None`.
-    pub fn clock(&self, name: Option<Identifier<'_>>) -> Option<Id<WorldClock>> {
+    pub fn clock(&self, name: Option<ResourceLocation<'_>>) -> Option<Id<WorldClock>> {
         match name {
             None => self.dimension_clock()?.clock,
             Some(name) => self
@@ -202,7 +205,7 @@ impl<'a> RegistryLookup<'a> {
     /// The timeline `name`, with its name.
     pub fn timeline(
         &self,
-        name: Identifier<'_>,
+        name: ResourceLocation<'_>,
     ) -> Option<(&'a ResourceLocationBuf, &'a Timeline)> {
         self.registries?
             .registry::<Timeline>()?
@@ -214,7 +217,7 @@ impl<'a> RegistryLookup<'a> {
     /// The time markers of a clock that a command suggests.
     pub fn suggested_time_markers(
         &self,
-        clock: Option<Identifier<'_>>,
+        clock: Option<ResourceLocation<'_>>,
     ) -> impl Iterator<Item = &'a str> + use<'a> {
         self.timelines(self.clock(clock))
             .flat_map(|(_, timeline)| &timeline.time_markers)
@@ -225,7 +228,7 @@ impl<'a> RegistryLookup<'a> {
     /// The identifiers of the timelines that run on a clock; `None` is the default clock.
     pub fn timelines_of_clock(
         &self,
-        clock: Option<Identifier<'_>>,
+        clock: Option<ResourceLocation<'_>>,
     ) -> impl Iterator<Item = &'a str> + use<'a> {
         self.timelines(self.clock(clock))
             .map(|(name, _)| name.as_str())
