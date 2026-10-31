@@ -8,7 +8,7 @@ use bevy_ecs::world::World;
 use mcrs_minecraft_engine::dim::DimSubAppHandle;
 use mcrs_minecraft_engine::sub_app_builder::drain_dim_spawn_queue;
 use mcrs_minecraft_engine_world::world::sub_app::DimAppLabel;
-use mcrs_minecraft_resource::ResourceKey;
+use mcrs_minecraft_resource::ResourceKeyBuf;
 use mcrs_minecraft_server::MinecraftServerPlugins;
 use mcrs_minecraft_world::dimension::{DimensionEntry, Dimensions};
 use mcrs_minecraft_world::worldgen::chunk_generator::ChunkGenerator;
@@ -89,7 +89,7 @@ fn no_simulation_schedule_has_an_unordered_conflicting_pair() {
     plugins.core.asset_path = Some(ASSETS.to_owned());
     plugins.network.announce_on_lan = false;
     plugins.worlds.dimensions = Some(Dimensions::from([(
-        ResourceKey::from_location("mcrs:ambiguity".parse().expect("a valid identifier")),
+        ResourceKeyBuf::from_location("mcrs:ambiguity".parse().expect("a valid identifier")),
         DimensionEntry {
             dimension_type: crate::support::dimension_type("minecraft:overworld"),
             generator: ChunkGenerator::Debug,

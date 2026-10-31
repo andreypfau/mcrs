@@ -839,6 +839,8 @@ mod tests {
     use mcrs_minecraft_protocol::chunk::{ChunkSection, encode_section};
     use mcrs_minecraft_protocol::section::{biome_direct_bits, block_direct_bits};
     use mcrs_minecraft_protocol::{Decode, Encode, VarInt};
+    use mcrs_minecraft_resource::ResourceKeyBuf;
+    use mcrs_minecraft_resource::ResourceLocationBuf;
     use std::borrow::Cow;
 
     const EXTENT: Extent = Extent {
@@ -1383,13 +1385,12 @@ mod tests {
         use mcrs_minecraft_dimension::Dimension;
         use mcrs_minecraft_dimension::keys::dimension::{OVERWORLD, THE_NETHER};
         use mcrs_minecraft_game_mode::GameMode;
-        use mcrs_minecraft_resource::ResourceKey;
 
         let registries = mcrs_minecraft_world::registry_load::test_registries();
         let types = registries.registry::<DimensionTypeFile>().unwrap();
-        let named = |key: &str, dimension: ResourceKey<Dimension>| {
+        let named = |key: &str, dimension: ResourceKeyBuf<Dimension>| {
             let id = types
-                .by_name(&mcrs_minecraft_resource::ResourceLocation::read(key).unwrap())
+                .by_name(&ResourceLocationBuf::read(key).unwrap())
                 .unwrap();
             CurrentDimension::of(&PlayerSpawnInfo::new(
                 Id::checked(id.number(), types.len()).unwrap(),

@@ -5,14 +5,14 @@ use mcrs_minecraft_item::keys::Item;
 use mcrs_minecraft_item::patch::ComponentMap;
 use mcrs_minecraft_item::{ItemDefinitions, ItemEntry, ItemTableError, Template};
 use mcrs_minecraft_registries::{Registries, Resolve, ResolveError, Resolver};
-use mcrs_minecraft_resource::ResourceLocation;
+use mcrs_minecraft_resource::{ResourceKeyBuf, ResourceLocationBuf};
 
 pub fn from_files(
     files: impl IntoIterator<Item = (String, Vec<u8>)>,
     registries: &Registries,
     blocks: &BlockDefinitions,
 ) -> Result<ItemDefinitions, ItemCorpusError> {
-    let items: Vec<ResourceLocation> = registries
+    let items: Vec<ResourceLocationBuf> = registries
         .entries::<Item>()
         .ok_or(ItemCorpusError::NoItemRegistry)?
         .names()
@@ -38,9 +38,7 @@ pub fn from_files(
         let found = item.description.protocol_id;
         let reported = Resolver::id::<Item>(
             registries,
-            &mcrs_minecraft_resource::ResourceKey::from_location(
-                item.description.identifier.clone(),
-            ),
+            &ResourceKeyBuf::from_location(item.description.identifier.clone()),
         )
         .map_err(|_| ItemTableError::Unknown(item.description.identifier.clone()))?;
         if found != reported.number() {

@@ -1,7 +1,7 @@
 use std::fmt;
 
 use mcrs_minecraft_core::VERSION;
-use mcrs_minecraft_resource::ResourceLocation;
+use mcrs_minecraft_resource::{ResourceLocation, ResourceLocationBuf};
 use serde::de::{self, IgnoredAny, Visitor};
 use serde::{Deserialize, Deserializer};
 
@@ -39,7 +39,7 @@ impl<T> Lenient<T> {
 }
 
 pub(crate) struct Metadata {
-    pub(crate) features: Vec<ResourceLocation>,
+    pub(crate) features: Vec<ResourceLocationBuf>,
     pub(crate) filter: Option<Lenient<FilterSection>>,
     pub(crate) overlays: Vec<String>,
 }
@@ -64,7 +64,7 @@ struct PackSection {
 
 #[derive(Deserialize)]
 struct FeaturesSection {
-    enabled: Vec<ResourceLocation>,
+    enabled: Vec<ResourceLocationBuf>,
 }
 
 #[derive(Deserialize)]
@@ -253,7 +253,7 @@ fn overlay_range(entry: &OverlayEntry) -> Result<(Format, Format), String> {
 pub(crate) fn read(
     pack: &str,
     bytes: &[u8],
-    known_features: &[ResourceLocation],
+    known_features: &[ResourceLocationBuf],
     diagnostics: &mut Vec<PackDiagnostic>,
 ) -> Result<Metadata, String> {
     let root: Root = read_json(bytes).map_err(|e| e.message)?;

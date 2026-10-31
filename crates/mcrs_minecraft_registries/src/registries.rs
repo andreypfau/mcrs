@@ -5,7 +5,8 @@ use std::sync::Arc;
 
 use mcrs_minecraft_datapack::{KnownPack, PackStack, StackedPack};
 use mcrs_minecraft_resource::{
-    Id, Registered, RegistryValue, ResourceKey, ResourceLocation, TagId, TagKey,
+    Id, Registered, RegistryValue, ResourceKeyBuf, ResourceLocation, ResourceLocationBuf, TagId,
+    TagKeyBuf,
 };
 
 use crate::declaration::Codec;
@@ -47,7 +48,7 @@ pub(crate) enum Kind {
 
 #[derive(Clone)]
 pub(crate) struct Table {
-    pub(crate) key: ResourceLocation,
+    pub(crate) key: ResourceLocationBuf,
     pub(crate) stage: Stage,
     pub(crate) kind: Kind,
     pub(crate) names: Arc<Names>,
@@ -62,7 +63,7 @@ pub(crate) struct Table {
 #[derive(Clone)]
 pub struct Registries {
     tables: Arc<Vec<Table>>,
-    index: Arc<HashMap<ResourceLocation, usize>>,
+    index: Arc<HashMap<ResourceLocationBuf, usize>>,
     pub(crate) world_stack: Arc<PackStack>,
     pub(crate) reload_stack: Arc<PackStack>,
 }
@@ -99,7 +100,10 @@ impl Registries {
     }
 
     /// The entry names of the registry `key`, in id order, for a caller that has no type for it.
-    pub fn names_of(&self, key: &ResourceLocation<impl AsRef<str>>) -> Option<&[ResourceLocation]> {
+    pub fn names_of(
+        &self,
+        key: &ResourceLocation<impl AsRef<str>>,
+    ) -> Option<&[ResourceLocationBuf]> {
         self.table(key.as_str()).map(|table| table.names.all())
     }
 
@@ -113,7 +117,7 @@ impl Registries {
     pub fn tags_of<'s, S: AsRef<str>>(
         &'s self,
         key: &ResourceLocation<S>,
-    ) -> Option<impl Iterator<Item = (&'s ResourceLocation, &'s [u16])> + use<'s, S>> {
+    ) -> Option<impl Iterator<Item = (&'s ResourceLocationBuf, &'s [u16])> + use<'s, S>> {
         let table = self.table(key.as_str())?;
         Some(
             table
@@ -170,17 +174,17 @@ impl Registries {
 }
 
 impl Namer for Registries {
-    fn name<R: Registered>(&self, id: Id<R>) -> Option<&ResourceLocation> {
+    fn name<R: Registered>(&self, id: Id<R>) -> Option<&ResourceLocationBuf> {
         self.table(key_of::<R>())?.names.name(id.number())
     }
 
-    fn tag_name<R: Registered>(&self, tag: TagId<R>) -> Option<&ResourceLocation> {
+    fn tag_name<R: Registered>(&self, tag: TagId<R>) -> Option<&ResourceLocationBuf> {
         self.table(key_of::<R>())?.tags.name(tag.index())
     }
 }
 
 impl Resolver for Registries {
-    fn id<R: Registered>(&self, key: &ResourceKey<R>) -> Result<Id<R>, ResolveError> {
+    fn id<R: Registered>(&self, key: &ResourceKeyBuf<R>) -> Result<Id<R>, ResolveError> {
         let table = self.table(key_of::<R>()).ok_or_else(unbound::<R>)?;
         let name = key.location();
         table.names.id(name).ok_or_else(|| {
@@ -189,7 +193,7 @@ impl Resolver for Registries {
         })
     }
 
-    fn tag<R: Registered>(&self, tag: &TagKey<R>) -> Result<TagId<R>, ResolveError> {
+    fn tag<R: Registered>(&self, tag: &TagKeyBuf<R>) -> Result<TagId<R>, ResolveError> {
         let table = self.table(key_of::<R>()).ok_or_else(unbound::<R>)?;
         let name = tag.location();
         table.tags.id(tag.as_str()).ok_or_else(|| {
@@ -199,7 +203,7 @@ impl Resolver for Registries {
     }
 }
 
-fn miss(table: &Table, name: &ResourceLocation, tag: bool, message: String) -> ResolveError {
+fn miss(table: &Table, name: &ResourceLocationBuf, tag: bool, message: String) -> ResolveError {
     let missing = MissingRef {
         registry: table.key.clone(),
         name: name.clone(),

@@ -1,8 +1,8 @@
 mod wire;
 
+use mcrs_minecraft_resource::ResourceLocationBuf;
 use std::fmt;
 
-use mcrs_minecraft_resource::ResourceLocation;
 use serde::de::{Error as _, MapAccess, SeqAccess, Visitor, value};
 use serde::ser::{Error as _, SerializeMap};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -59,9 +59,9 @@ pub enum PlayerModelType {
 
 #[derive(Clone, Debug, PartialEq, Default)]
 pub struct SkinPatch {
-    pub texture: Option<ResourceLocation>,
-    pub cape: Option<ResourceLocation>,
-    pub elytra: Option<ResourceLocation>,
+    pub texture: Option<ResourceLocationBuf>,
+    pub cape: Option<ResourceLocationBuf>,
+    pub elytra: Option<ResourceLocationBuf>,
     pub model: Option<PlayerModelType>,
 }
 
@@ -161,11 +161,11 @@ struct ProfileRepr {
     #[serde(default, deserialize_with = "properties")]
     properties: Vec<Property>,
     #[serde(default)]
-    texture: Option<ResourceLocation>,
+    texture: Option<ResourceLocationBuf>,
     #[serde(default)]
-    cape: Option<ResourceLocation>,
+    cape: Option<ResourceLocationBuf>,
     #[serde(default)]
-    elytra: Option<ResourceLocation>,
+    elytra: Option<ResourceLocationBuf>,
     #[serde(default)]
     model: Option<PlayerModelType>,
 }

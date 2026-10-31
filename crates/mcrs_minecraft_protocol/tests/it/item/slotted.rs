@@ -6,8 +6,7 @@ use mcrs_minecraft_protocol::item::{
     EnchantmentGlintOverride, ItemComponentValue, ItemStackValue, ItemStackWithSlot,
 };
 use mcrs_minecraft_registries::Named;
-use mcrs_minecraft_resource::ResourceKey;
-use mcrs_minecraft_resource::ResourceLocation;
+use mcrs_minecraft_resource::{ResourceKeyBuf, ResourceLocationBuf};
 
 type ComponentPatch = mcrs_minecraft_protocol::item::ComponentPatch<Named>;
 type Slotted = ItemStackWithSlot<Named>;
@@ -16,7 +15,7 @@ fn stack(slot: u8, path: &str, count: i32, components: ComponentPatch) -> Slotte
     ItemStackWithSlot {
         slot,
         stack: ItemStackValue {
-            item: ResourceKey::from_location(ResourceLocation::minecraft(path).unwrap()),
+            item: ResourceKeyBuf::from_location(ResourceLocationBuf::minecraft(path).unwrap()),
             count: Bounded(count),
             components,
         },

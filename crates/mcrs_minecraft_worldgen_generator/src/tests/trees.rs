@@ -1,6 +1,9 @@
 //! The corpus's own tree features over a real overworld column: that they
 //! decorate at all, and that how many they place stays where it was measured.
 
+use mcrs_minecraft_resource::ResourceLocationBuf;
+#[cfg(test)]
+use mcrs_minecraft_resource::TagKeyBuf;
 #[cfg(test)]
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -11,7 +14,6 @@ use mcrs_minecraft_biome::source::BiomeSource;
 #[cfg(test)]
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_registries::Registries;
-use mcrs_minecraft_resource::ResourceLocation;
 use mcrs_minecraft_worldgen_feature::compile::CompiledPlacedFeature;
 #[cfg(test)]
 use mcrs_minecraft_worldgen_feature::proto::PlacedFeature;
@@ -68,7 +70,7 @@ pub(super) fn biome_registry() -> Registries {
 /// over the real biomes is tested elsewhere, and a band over counts does not
 /// depend on the order, only on it being fixed.
 pub(super) fn tree_tables(biome: &str, placed_id: &str) -> FeatureTables {
-    let id = ResourceLocation::read(placed_id).unwrap();
+    let id = ResourceLocationBuf::read(placed_id).unwrap();
     let entry = corpus_features()
         .placed_features
         .get(&id)
@@ -151,8 +153,8 @@ pub(super) fn tag_states(tag: &str) -> FixedBitSet {
     let mut mask = FixedBitSet::with_capacity(blocks().0.state_count());
     let tags = super::block_tags();
     for id in tags.members(
-        tags.id(&mcrs_minecraft_resource::TagKey::from_location(
-            ResourceLocation::read(tag).unwrap(),
+        tags.id(&TagKeyBuf::from_location(
+            ResourceLocationBuf::read(tag).unwrap(),
         ))
         .unwrap_or_else(|| panic!("{tag} is not loaded")),
     ) {
@@ -308,7 +310,7 @@ fn bee_tables() -> FeatureTables {
         .expect("the placement parses");
     let feature = tables.features.steps[0][0].placed.feature.clone();
     tables.features.steps[0][0] = Arc::new(CompiledPlacedFeature {
-        id: Some(ResourceLocation::read("minecraft:fancy_oak_bees").unwrap()),
+        id: Some(ResourceLocationBuf::read("minecraft:fancy_oak_bees").unwrap()),
         placed: PlacedFeature { feature, placement },
     });
     tables

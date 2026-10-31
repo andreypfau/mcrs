@@ -1,5 +1,5 @@
 use mcrs_minecraft_core::VERSION;
-use mcrs_minecraft_resource::ResourceLocation;
+use mcrs_minecraft_resource::ResourceLocationBuf;
 
 use crate::filter::Filter;
 use crate::metadata::{self, Metadata};
@@ -14,7 +14,7 @@ struct Candidate<'a> {
     metadata: Metadata,
 }
 
-fn disallowed(requested: &[ResourceLocation], features: &Features) -> Vec<ResourceLocation> {
+fn disallowed(requested: &[ResourceLocationBuf], features: &Features) -> Vec<ResourceLocationBuf> {
     match &features.world {
         None => Vec::new(),
         Some(world) => requested
@@ -150,7 +150,7 @@ fn append_feature_packs<'c, 'a>(
     let Some(world) = &features.world else {
         return;
     };
-    let provided = |chosen: &[&Candidate<'_>], feature: &ResourceLocation| {
+    let provided = |chosen: &[&Candidate<'_>], feature: &ResourceLocationBuf| {
         chosen
             .iter()
             .any(|candidate| candidate.metadata.features.contains(feature))
@@ -229,7 +229,7 @@ pub fn pack_stack(
         }
     }
 
-    let mut enabled_features: Vec<ResourceLocation> = chosen
+    let mut enabled_features: Vec<ResourceLocationBuf> = chosen
         .iter()
         .flat_map(|candidate| candidate.metadata.features.iter().cloned())
         .chain(features.world.iter().flatten().cloned())

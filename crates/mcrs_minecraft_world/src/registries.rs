@@ -1,3 +1,4 @@
+use mcrs_minecraft_resource::ResourceLocationBuf;
 use std::collections::{BTreeMap, BTreeSet};
 
 use crate::chat_type::ChatType;
@@ -31,7 +32,6 @@ use mcrs_minecraft_item::{
     BannerPattern, InstrumentValue, JukeboxSong, PaintingVariantValue, TrimMaterial, TrimPattern,
 };
 use mcrs_minecraft_registries::{Declaration, Stage};
-use mcrs_minecraft_resource::ResourceLocation;
 use mcrs_minecraft_sound::BlockSoundSet;
 use serde::Deserialize;
 
@@ -121,7 +121,7 @@ fn typed_declarations() -> Vec<Declaration> {
 
 #[derive(Deserialize)]
 struct DatapackReport {
-    registries: BTreeMap<ResourceLocation, Flags>,
+    registries: BTreeMap<ResourceLocationBuf, Flags>,
 }
 
 #[derive(Deserialize)]
@@ -132,7 +132,9 @@ struct Flags {
 
 /// The stage of every data registry the data pack report lists: one whose entries a reload may
 /// change is reloadable.
-fn data_registries(report: &[u8]) -> Result<BTreeMap<ResourceLocation, Stage>, RegistryLoadError> {
+fn data_registries(
+    report: &[u8],
+) -> Result<BTreeMap<ResourceLocationBuf, Stage>, RegistryLoadError> {
     let report: DatapackReport = serde_json::from_slice(report).map_err(|error| {
         RegistryLoadError::Declarations(format!("the data pack report: {error}"))
     })?;
@@ -166,7 +168,7 @@ pub fn declarations(
     }
 
     let mut stages = data_registries(report)?;
-    let replaced: BTreeSet<ResourceLocation> = extra
+    let replaced: BTreeSet<ResourceLocationBuf> = extra
         .iter()
         .map(|declaration| declaration.key().clone())
         .collect();

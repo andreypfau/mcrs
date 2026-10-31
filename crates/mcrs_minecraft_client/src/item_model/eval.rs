@@ -10,7 +10,7 @@ use mcrs_minecraft_item::{
     ItemStack, Items, children, component_value, has_component, has_non_default,
 };
 use mcrs_minecraft_registries::{Namer, Ref, Registries, Resolve};
-use mcrs_minecraft_resource::{ResourceKey, ResourceLocation};
+use mcrs_minecraft_resource::{ResourceKeyBuf, ResourceLocationBuf};
 
 use super::asset::{
     Case, ChargeType, ConditionProperty, DisplayContext, RangeProperty, SelectSwitch, TintSource,
@@ -26,9 +26,9 @@ pub struct EntityStack<'w, 'l, L> {
 }
 
 impl<'w, L: Copy + Fn(Entity) -> Option<EntityRef<'w>>> EntityStack<'w, '_, L> {
-    fn item(&self) -> &ResourceLocation {
-        static AIR: std::sync::LazyLock<ResourceLocation> =
-            std::sync::LazyLock::new(|| Item::Air.location().to_arc());
+    fn item(&self) -> &ResourceLocationBuf {
+        static AIR: std::sync::LazyLock<ResourceLocationBuf> =
+            std::sync::LazyLock::new(|| Item::Air.location().to_buf());
         self.entity
             .get::<ItemStack>()
             .and_then(|stack| self.items.get(stack.item))
@@ -203,7 +203,7 @@ impl<'w, L: Copy + Fn(Entity) -> Option<EntityRef<'w>>> Evaluator<'_, EntityStac
             SelectSwitch::TrimMaterial { cases } => match &self.stack.get::<Trim>()?.material {
                 Ref::Id(id) => {
                     let name = Namer::name(self.registries?, *id)?.clone();
-                    find(cases, &ResourceKey::from_location(name))
+                    find(cases, &ResourceKeyBuf::from_location(name))
                 }
                 Ref::Inline(_) => None,
             },

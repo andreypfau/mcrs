@@ -1,5 +1,5 @@
 use crate::proto::PlacedFeature;
-use mcrs_minecraft_resource::ResourceLocation;
+use mcrs_minecraft_resource::ResourceLocationBuf;
 use std::collections::HashSet;
 
 const ALLOWED_MIN: i32 = -16;
@@ -11,7 +11,7 @@ const ALLOWED_MAX: i32 = 31;
 /// that names it; a later biome naming it again still counts it in its
 /// feature index.
 pub fn check_feature_domains<'a>(
-    biomes: impl IntoIterator<Item = Vec<Vec<(&'a ResourceLocation, &'a PlacedFeature)>>>,
+    biomes: impl IntoIterator<Item = Vec<Vec<(&'a ResourceLocationBuf, &'a PlacedFeature)>>>,
 ) -> Vec<(usize, String)> {
     let mut visited = HashSet::new();
     let mut failures = Vec::new();
@@ -60,7 +60,7 @@ mod tests {
     #[test]
     fn each_feature_is_reported_once_under_the_first_biome_naming_it() {
         let names = ["minecraft:fine", "minecraft:wide", "minecraft:wider"]
-            .map(|name| ResourceLocation::read(name).unwrap());
+            .map(|name| ResourceLocationBuf::read(name).unwrap());
         let features = [1, 3, 4].map(square_chain);
         let named = |picked: &[usize]| -> Vec<_> {
             picked

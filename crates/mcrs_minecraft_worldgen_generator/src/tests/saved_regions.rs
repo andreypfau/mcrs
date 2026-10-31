@@ -1,6 +1,5 @@
+use mcrs_minecraft_resource::{ResourceKeyBuf, ResourceLocationBuf};
 use std::path::Path;
-
-use mcrs_minecraft_resource::{ResourceKey, ResourceLocation};
 
 use crate::saved::region_dir;
 use mcrs_minecraft_dimension::Dimension;
@@ -29,7 +28,8 @@ fn a_dimension_saves_under_its_own_directory() {
         ("test:a//b", None),
     ];
     for (text, expected) in cases {
-        let key = ResourceKey::<Dimension>::from_location(ResourceLocation::read(text).unwrap());
+        let key =
+            ResourceKeyBuf::<Dimension>::from_location(ResourceLocationBuf::read(text).unwrap());
         assert_eq!(
             region_dir(world, &key),
             expected.map(|dir| world.join(dir)),

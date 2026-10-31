@@ -1,10 +1,8 @@
 use std::path::Path;
-use std::sync::Arc;
 
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::nbt_compress::write_gzip_compound_tag_to_bytes;
 use mcrs_minecraft_nbt::tag::NbtTag;
-use mcrs_minecraft_resource::ResourceKey;
 
 use super::*;
 use crate::player;
@@ -34,8 +32,8 @@ fn keys(compound: &NbtCompound) -> Vec<&str> {
         .collect()
 }
 
-fn clock(id: &str) -> ResourceLocation<Arc<str>> {
-    ResourceLocation::read(id).unwrap()
+fn clock(id: &str) -> ResourceLocationBuf {
+    ResourceLocationBuf::read(id).unwrap()
 }
 
 fn spawn_compound() -> NbtCompound {
@@ -367,7 +365,7 @@ fn normal_dimensions() -> Dimensions {
         .by_name(
             &mcrs_minecraft_world::keys::world_preset::NORMAL
                 .location()
-                .to_arc(),
+                .to_buf(),
         )
         .expect("the normal preset is loaded");
     presets.get(id).unwrap().dimensions.clone()
@@ -512,7 +510,7 @@ fn world_gen_settings_keep_their_dimensions() {
     let _ = std::fs::remove_dir_all(&world);
     let mut dimensions = normal_dimensions();
     let extra =
-        ResourceKey::<mcrs_minecraft_dimension::Dimension>::from_location(clock("test:extra"));
+        ResourceKeyBuf::<mcrs_minecraft_dimension::Dimension>::from_location(clock("test:extra"));
     let overworld = dimensions["minecraft:overworld"].clone();
     dimensions.insert(extra, overworld);
     let settings = WorldGenSettings {

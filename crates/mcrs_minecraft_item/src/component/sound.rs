@@ -40,11 +40,11 @@ pub fn sound_holder_samples() -> Vec<Sound<Resolved>> {
     vec![
         Ref::Id(mcrs_minecraft_sound::keys::SoundEvent::EntityItemBreak.id()),
         Ref::Inline(Arc::new(SoundEventValue {
-            sound_id: rl!("mcrs:custom").to_arc(),
+            sound_id: rl!("mcrs:custom").to_buf(),
             range: None,
         })),
         Ref::Inline(Arc::new(SoundEventValue {
-            sound_id: rl!("mcrs:custom").to_arc(),
+            sound_id: rl!("mcrs:custom").to_buf(),
             range: Some(12.5),
         })),
     ]

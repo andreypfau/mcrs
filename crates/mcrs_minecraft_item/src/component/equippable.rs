@@ -1,6 +1,6 @@
 use mcrs_minecraft_core::codec::default_true;
 use mcrs_minecraft_entity::keys::EntityType;
-use mcrs_minecraft_resource::{ResourceLocation, rl};
+use mcrs_minecraft_resource::{ResourceLocationBuf, rl};
 use std::sync::Arc;
 
 use mcrs_minecraft_nbt::{BYTE_ID, COMPOUND_ID, FLOAT_ID, STRING_ID};
@@ -89,9 +89,9 @@ pub struct Equippable<M: Refs = Resolved> {
     )]
     pub equip_sound: Sound<M>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub asset_id: Option<ResourceLocation>,
+    pub asset_id: Option<ResourceLocationBuf>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub camera_overlay: Option<ResourceLocation>,
+    pub camera_overlay: Option<ResourceLocationBuf>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub allowed_entities: Option<M::Set<EntityType>>,
     #[serde(
@@ -219,8 +219,8 @@ impl Sample for Equippable {
             Equippable {
                 slot: EquipmentSlot::OffHand,
                 equip_sound: Ref::Id(SoundEvent::ItemArmorEquipIron.id()),
-                asset_id: Some(rl!("minecraft:iron").to_arc()),
-                camera_overlay: Some(rl!("minecraft:misc/pumpkinblur").to_arc()),
+                asset_id: Some(rl!("minecraft:iron").to_buf()),
+                camera_overlay: Some(rl!("minecraft:misc/pumpkinblur").to_buf()),
                 allowed_entities: Some(list_set(&["zombie", "pig"])),
                 dispensable: false,
                 swappable: false,
@@ -228,7 +228,7 @@ impl Sample for Equippable {
                 equip_on_interact: true,
                 can_be_sheared: true,
                 shearing_sound: Ref::Inline(Arc::new(SoundEventValue {
-                    sound_id: rl!("mcrs:snip").to_arc(),
+                    sound_id: rl!("mcrs:snip").to_buf(),
                     range: Some(3.5),
                 })),
             },
@@ -238,7 +238,7 @@ impl Sample for Equippable {
             },
             Equippable {
                 equip_sound: Ref::Inline(Arc::new(SoundEventValue {
-                    sound_id: rl!("mcrs:equip").to_arc(),
+                    sound_id: rl!("mcrs:equip").to_buf(),
                     range: None,
                 })),
                 allowed_entities: Some(one_set("pig")),

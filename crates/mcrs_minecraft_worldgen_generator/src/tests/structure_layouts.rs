@@ -1,3 +1,4 @@
+use mcrs_minecraft_resource::ResourceLocationBuf;
 use mcrs_voxel::ColumnPos;
 use std::collections::HashMap;
 
@@ -7,7 +8,6 @@ use mcrs_minecraft_block_predicate::provider::Holder;
 use mcrs_minecraft_core::BoundingBox;
 use mcrs_minecraft_core::Rotation;
 use mcrs_minecraft_fixtures::fixture;
-use mcrs_minecraft_resource::ResourceLocation;
 use mcrs_minecraft_worldgen_feature::template::Projection;
 use mcrs_minecraft_worldgen_testing::dump_string;
 
@@ -127,7 +127,7 @@ fn read_dump() -> Vec<DumpSeed> {
 
 fn render(
     frozen: &FrozenStructures,
-    template_names: &HashMap<TemplateId, &ResourceLocation>,
+    template_names: &HashMap<TemplateId, &ResourceLocationBuf>,
     element: ElementId,
 ) -> String {
     match &frozen.elements[element.0 as usize] {
@@ -168,7 +168,7 @@ mod exhaustive {
         let dump = read_dump();
         assert_eq!(dump.len(), 5, "the dump lost seeds");
         let frozen = frozen_shared();
-        let template_names: HashMap<TemplateId, &ResourceLocation> = frozen
+        let template_names: HashMap<TemplateId, &ResourceLocationBuf> = frozen
             .template_ids
             .iter()
             .map(|(location, id)| (*id, location))
@@ -182,7 +182,8 @@ mod exhaustive {
             for (dimension_id, structures) in &entry.dimensions {
                 let index = build_index(&dimension(dimension_id), seed);
                 for structure in structures {
-                    let id = frozen.structure_ids[&ResourceLocation::read(&structure.id).unwrap()];
+                    let id =
+                        frozen.structure_ids[&ResourceLocationBuf::read(&structure.id).unwrap()];
                     assert_eq!(structure.cases.len(), 16, "{}: cases", structure.id);
                     for case in &structure.cases {
                         let ColumnPos { x, z } = case.chunk;

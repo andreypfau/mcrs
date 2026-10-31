@@ -4,7 +4,7 @@ use mcrs_minecraft_core::validated;
 use mcrs_minecraft_registries::{
     IdSet, KeySet, Named, Refs, Resolved, Wire, WireId, WireSet, registry_value,
 };
-use mcrs_minecraft_resource::{Id, ResourceKey};
+use mcrs_minecraft_resource::{Id, ResourceKeyBuf};
 use mcrs_minecraft_wire::{Decode, Encode, Error, Result};
 use serde::{Deserialize, Serialize};
 use std::io::Write;
@@ -52,7 +52,7 @@ macro_rules! listed_items {
     )*};
 }
 
-listed_items!(KeySet: ResourceKey<Item>, IdSet: Id<Item>, WireSet: WireId<Item>);
+listed_items!(KeySet: ResourceKeyBuf<Item>, IdSet: Id<Item>, WireSet: WireId<Item>);
 
 impl<M: Refs> Validate for Ingredient<M>
 where

@@ -1,3 +1,4 @@
+use mcrs_minecraft_resource::ResourceLocationBuf;
 use std::fmt;
 
 use serde::de::{self, Visitor};
@@ -6,7 +7,6 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use crate::climate::ParameterList;
 use crate::overworld_preset::{nether_parameter_list, overworld_parameter_list};
 use mcrs_minecraft_registries::Registries;
-use mcrs_minecraft_resource::ResourceLocation;
 use std::sync::Arc;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -53,7 +53,7 @@ impl<'de> Deserialize<'de> for Preset {
             }
 
             fn visit_str<E: de::Error>(self, text: &str) -> Result<Preset, E> {
-                let name = ResourceLocation::read(text).map_err(E::custom)?;
+                let name = ResourceLocationBuf::read(text).map_err(E::custom)?;
                 Preset::ALL
                     .into_iter()
                     .find(|preset| preset.name() == name.as_str())

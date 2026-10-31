@@ -1,8 +1,7 @@
 use std::borrow::Cow;
-use std::sync::Arc;
 
 use mcrs_minecraft_protocol::{Decode, Encode};
-use mcrs_minecraft_resource::ResourceLocation;
+use mcrs_minecraft_resource::{ResourceLocation, ResourceLocationBuf};
 
 use crate::identifier_rows::{ROWS, outcome};
 
@@ -13,7 +12,7 @@ fn a_wire_identifier_decodes_as_vanilla_parses_it() {
         let mut bytes = Vec::new();
         text.encode(&mut bytes).unwrap();
         assert_eq!(
-            outcome(ResourceLocation::<Arc<str>>::decode(&mut bytes.as_slice())),
+            outcome(ResourceLocationBuf::decode(&mut bytes.as_slice())),
             row.parse,
             "wire decode {text:?}"
         );

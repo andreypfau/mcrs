@@ -1,13 +1,13 @@
 use mcrs_minecraft_nbt::{COMPOUND_ID, FLOAT_ID, INT_ID, STRING_ID};
-use mcrs_minecraft_resource::{ResourceKey, ResourceLocation};
+use mcrs_minecraft_resource::{ResourceKeyBuf, ResourceLocationBuf};
 use serde::{Deserialize, Serialize};
 
 use crate::component::common::{ResolvableFloat, ResolvableInt};
 use crate::harness::Sample;
 
 impl ResolvableInt {
-    pub fn reference(location: ResourceLocation) -> Self {
-        ResolvableInt::Reference(ResourceKey::from_location(location))
+    pub fn reference(location: ResourceLocationBuf) -> Self {
+        ResolvableInt::Reference(ResourceKeyBuf::from_location(location))
     }
 
     fn nbt_tag(&self) -> u8 {
@@ -19,8 +19,8 @@ impl ResolvableInt {
 }
 
 impl ResolvableFloat {
-    pub fn reference(location: ResourceLocation) -> Self {
-        ResolvableFloat::Reference(ResourceKey::from_location(location))
+    pub fn reference(location: ResourceLocationBuf) -> Self {
+        ResolvableFloat::Reference(ResourceKeyBuf::from_location(location))
     }
 
     fn nbt_tag(&self) -> u8 {
@@ -48,7 +48,7 @@ macro_rules! fuel {
             fn samples() -> Vec<Self> {
                 vec![
                     $ty { $($field: $field_ty::Constant($constant),)+ },
-                    $ty { $($field: $field_ty::reference(ResourceLocation::minecraft(stringify!($field)).unwrap()),)+ },
+                    $ty { $($field: $field_ty::reference(ResourceLocationBuf::minecraft(stringify!($field)).unwrap()),)+ },
                 ]
             }
         }

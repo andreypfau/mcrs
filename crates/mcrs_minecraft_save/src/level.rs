@@ -1,13 +1,12 @@
+use mcrs_minecraft_resource::{ResourceKeyBuf, ResourceLocationBuf};
 use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
 
 use mcrs_minecraft_core::VERSION;
 use mcrs_minecraft_registries::{
     Named, Refs, Registries, Resolve, ResolveError, Resolved, registry_value,
 };
-use mcrs_minecraft_resource::{ResourceKey, ResourceLocation};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -57,7 +56,7 @@ pub enum SaveError {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct RespawnData {
-    pub dimension: ResourceKey<Dimension>,
+    pub dimension: ResourceKeyBuf<Dimension>,
     pub pos: [i32; 3],
     pub yaw: f32,
     pub pitch: f32,
@@ -86,7 +85,7 @@ pub struct LevelDat {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct WorldGenSettings<M: Refs = Resolved> {
     pub seed: i64,
-    pub dimensions: std::collections::BTreeMap<ResourceKey<Dimension>, DimensionEntry<M>>,
+    pub dimensions: std::collections::BTreeMap<ResourceKeyBuf<Dimension>, DimensionEntry<M>>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
@@ -113,7 +112,7 @@ impl Default for GameRules {
     }
 }
 
-pub type WorldClockStates = HashMap<ResourceLocation<Arc<str>>, ClockState>;
+pub type WorldClockStates = HashMap<ResourceLocationBuf, ClockState>;
 
 pub fn read_level_dat(world: &Path) -> Result<LevelDat, SaveError> {
     let path = world.join("level.dat");
@@ -262,7 +261,7 @@ struct RawLevelData {
 
 #[derive(Deserialize)]
 struct RawRespawnData {
-    dimension: ResourceKey<Dimension>,
+    dimension: ResourceKeyBuf<Dimension>,
     pos: Vec<i32>,
     yaw: f32,
     pitch: f32,

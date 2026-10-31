@@ -1,10 +1,10 @@
+use mcrs_minecraft_resource::ResourceLocationBuf;
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::sync::Arc;
 
 use mcrs_minecraft_datapack::{
     PackContent, PackDiagnostic, PackFile, PackFiles, PackIndex, PackStack,
 };
-use mcrs_minecraft_resource::ResourceLocation;
 
 use crate::declaration::{Declaration, Source};
 use crate::diagnostics::{Diagnostic, Diagnostics, Missing, Referrer};
@@ -50,15 +50,15 @@ impl Registries {
 pub(crate) struct Report {
     pub(crate) skipped: Vec<Diagnostic>,
     pub(crate) failed_tags: Vec<Diagnostic>,
-    pub(crate) unresolved: BTreeMap<ResourceLocation, Vec<Missing>>,
+    pub(crate) unresolved: BTreeMap<ResourceLocationBuf, Vec<Missing>>,
     pub(crate) errors: Vec<Diagnostic>,
 }
 
 impl Report {
     pub(crate) fn names(
         &mut self,
-        registry: &ResourceLocation,
-        names: Vec<ResourceLocation>,
+        registry: &ResourceLocationBuf,
+        names: Vec<ResourceLocationBuf>,
         origins: Vec<PackIndex>,
     ) -> Option<Arc<Names>> {
         match Names::new(names, origins) {
@@ -75,9 +75,9 @@ impl Report {
 
     pub(crate) fn tags(
         &mut self,
-        registry: &ResourceLocation,
+        registry: &ResourceLocationBuf,
         entries: usize,
-        tags: Vec<(ResourceLocation, Option<Vec<u16>>)>,
+        tags: Vec<(ResourceLocationBuf, Option<Vec<u16>>)>,
     ) -> Option<TagTable> {
         match TagTable::new(entries, tags) {
             Ok(tags) => Some(tags),
@@ -191,10 +191,10 @@ pub(crate) fn stages<'f>(
 /// an earlier, complete stage is an error of the entry that names it.
 fn decode(
     registries: &mut Registries,
-    decoding: Vec<(ResourceLocation, Vec<Source<'_>>)>,
-    unresolved: &mut BTreeMap<ResourceLocation, Vec<Missing>>,
+    decoding: Vec<(ResourceLocationBuf, Vec<Source<'_>>)>,
+    unresolved: &mut BTreeMap<ResourceLocationBuf, Vec<Missing>>,
     errors: &mut Vec<Diagnostic>,
-) -> Vec<ResourceLocation> {
+) -> Vec<ResourceLocationBuf> {
     let mut built = Vec::new();
     for (key, sources) in decoding {
         let Some(table) = registries.table(key.as_str()) else {
@@ -256,7 +256,7 @@ fn decode(
 
 fn validate(
     registries: &Registries,
-    decoded: &[ResourceLocation],
+    decoded: &[ResourceLocationBuf],
     received: bool,
 ) -> Vec<Diagnostic> {
     let mut errors = Vec::new();
@@ -301,8 +301,8 @@ fn validate(
 
 #[derive(Default)]
 struct Files<'f> {
-    entries: BTreeMap<ResourceLocation, PackFile<'f>>,
-    tags: BTreeMap<ResourceLocation, Vec<PackFile<'f>>>,
+    entries: BTreeMap<ResourceLocationBuf, PackFile<'f>>,
+    tags: BTreeMap<ResourceLocationBuf, Vec<PackFile<'f>>>,
 }
 
 fn read(
@@ -375,11 +375,11 @@ fn route<'f>(
     stack: &PackStack,
     files: Vec<PackFile<'f>>,
     diagnostics: &mut Diagnostics,
-) -> HashMap<ResourceLocation, Files<'f>> {
-    let directories: HashMap<&str, (&ResourceLocation, bool)> = (declarations.iter())
+) -> HashMap<ResourceLocationBuf, Files<'f>> {
+    let directories: HashMap<&str, (&ResourceLocationBuf, bool)> = (declarations.iter())
         .map(|d| (d.key.path(), (&d.key, !matches!(d.kind, Kind::Fixed))))
         .collect();
-    let mut routed: HashMap<ResourceLocation, Files<'f>> = HashMap::new();
+    let mut routed: HashMap<ResourceLocationBuf, Files<'f>> = HashMap::new();
     for file in files {
         let (tag, inside) = match file.relative.strip_prefix("tags/") {
             Some(inside) => (true, inside),
@@ -398,8 +398,8 @@ fn route<'f>(
             continue;
         };
         let name = match rest.strip_suffix(".json") {
-            Some(stem) => ResourceLocation::new(file.namespace, stem).ok(),
-            None if ResourceLocation::new(file.namespace, file.relative).is_ok() => continue,
+            Some(stem) => ResourceLocationBuf::new(file.namespace, stem).ok(),
+            None if ResourceLocationBuf::new(file.namespace, file.relative).is_ok() => continue,
             None => None,
         };
         let Some(name) = name else {

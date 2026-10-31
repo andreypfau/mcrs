@@ -10,7 +10,7 @@ use crate::proto::{
 use crate::router::NoiseSettings;
 use mcrs_minecraft_core::Axis;
 use mcrs_minecraft_noise::proto::{HashableF64, NoiseHolder};
-use mcrs_minecraft_resource::{ResourceLocation, StaticResourceLocation};
+use mcrs_minecraft_resource::{ResourceLocationBuf, StaticResourceLocation};
 use std::collections::BTreeMap;
 use std::num::NonZeroU32;
 use std::ops::{Add, Bound, Div, Mul, RangeBounds, RangeInclusive, Sub};
@@ -392,7 +392,7 @@ impl DensityFunctionHolder {
 /// A density function registry being filled: defining an entry hands back the
 /// reference the entries after it name it by.
 #[derive(Debug, Default)]
-pub struct Functions(pub BTreeMap<ResourceLocation, Df>);
+pub struct Functions(pub BTreeMap<ResourceLocationBuf, Df>);
 
 impl Functions {
     pub fn define(&mut self, name: StaticResourceLocation, function: Df) -> Df {

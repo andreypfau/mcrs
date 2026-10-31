@@ -5,7 +5,7 @@
 use std::collections::{BTreeMap, HashMap, HashSet};
 
 use mcrs_minecraft_core::Direction;
-use mcrs_minecraft_resource::{ResourceLocation, StaticResourceLocation, rl};
+use mcrs_minecraft_resource::{ResourceLocationBuf, StaticResourceLocation, rl};
 use mcrs_minecraft_worldgen_feature::template::PaletteState;
 
 use super::turn::direction;
@@ -17,7 +17,7 @@ const GROUND: StaticResourceLocation = rl!("minecraft:ground");
 
 pub fn block(id: StaticResourceLocation) -> PaletteState {
     PaletteState {
-        id: id.to_arc(),
+        id: id.to_buf(),
         properties: None,
     }
 }
@@ -506,7 +506,7 @@ pub fn snow_supports(world: &World) -> Vec<(Pos, String)> {
 
 pub fn stairs(block: &str, facing: Direction) -> Result<PaletteState, BlueprintError> {
     let stairs = PaletteState {
-        id: ResourceLocation::read(block).map_err(|reason| BlueprintError::State {
+        id: ResourceLocationBuf::read(block).map_err(|reason| BlueprintError::State {
             text: block.to_owned(),
             reason: reason.to_string(),
         })?,

@@ -1,7 +1,7 @@
 use mcrs_minecraft_core::codec::default_true;
 use mcrs_minecraft_dimension::Dimension;
 use mcrs_minecraft_nbt::{BYTE_ID, COMPOUND_ID, INT_ARRAY_ID, STRING_ID};
-use mcrs_minecraft_resource::ResourceKey;
+use mcrs_minecraft_resource::ResourceKeyBuf;
 use mcrs_voxel::BlockPos;
 use serde::{Deserialize, Serialize};
 
@@ -27,7 +27,7 @@ mod pos {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, Encode, Decode)]
 #[serde(deny_unknown_fields)]
 pub struct GlobalPos {
-    pub dimension: ResourceKey<Dimension>,
+    pub dimension: ResourceKeyBuf<Dimension>,
     #[serde(with = "pos")]
     pub pos: BlockPos,
 }

@@ -231,7 +231,7 @@ pub fn every_consume_effect() -> Vec<ConsumeEffect> {
         },
         ConsumeEffect::PlaySound {
             sound: Ref::Inline(Arc::new(SoundEventValue {
-                sound_id: rl!("mcrs:ding").to_arc(),
+                sound_id: rl!("mcrs:ding").to_buf(),
                 range: None,
             })),
         },
@@ -264,7 +264,7 @@ impl Sample for Consumable {
                 consume_seconds: 2.5,
                 animation: ItemUseAnimation::Drink,
                 sound: Ref::Inline(Arc::new(SoundEventValue {
-                    sound_id: rl!("mcrs:sip").to_arc(),
+                    sound_id: rl!("mcrs:sip").to_buf(),
                     range: Some(8.0),
                 })),
                 has_consume_particles: false,

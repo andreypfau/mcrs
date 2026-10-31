@@ -1,13 +1,13 @@
 use mcrs_minecraft_dimension::Dimension;
 use mcrs_minecraft_registries::{Registries, Resolver};
-use mcrs_minecraft_resource::ResourceKey;
+use mcrs_minecraft_resource::ResourceKeyBuf;
 use mcrs_minecraft_world::dimension::{DimensionEntry, Dimensions, bake, bake_list};
 use mcrs_minecraft_world::registry_load::test_registries;
 use mcrs_minecraft_world::worldgen::chunk_generator::ChunkGenerator;
 use mcrs_minecraft_world::worldgen::world_preset::WorldPreset;
 
-fn key(name: &str) -> ResourceKey<Dimension> {
-    ResourceKey::from_location(name.parse().unwrap())
+fn key(name: &str) -> ResourceKeyBuf<Dimension> {
+    ResourceKeyBuf::from_location(name.parse().unwrap())
 }
 
 fn normal() -> Dimensions {
@@ -18,7 +18,7 @@ fn normal() -> Dimensions {
         .by_name(
             &mcrs_minecraft_world::keys::world_preset::NORMAL
                 .location()
-                .to_arc(),
+                .to_buf(),
         )
         .expect("the normal preset is loaded");
     presets.get(id).unwrap().dimensions.clone()
@@ -27,17 +27,19 @@ fn normal() -> Dimensions {
 fn debug_dimension(set: &Registries, dimension_type: &str) -> DimensionEntry {
     DimensionEntry {
         dimension_type: set
-            .id(&ResourceKey::from_location(dimension_type.parse().unwrap()))
+            .id(&ResourceKeyBuf::from_location(
+                dimension_type.parse().unwrap(),
+            ))
             .expect("the dimension type is loaded"),
         generator: ChunkGenerator::Debug,
     }
 }
 
-fn baked(base: &Dimensions, set: &Registries) -> Vec<(ResourceKey<Dimension>, DimensionEntry)> {
+fn baked(base: &Dimensions, set: &Registries) -> Vec<(ResourceKeyBuf<Dimension>, DimensionEntry)> {
     bake(base, set).expect("a list with an overworld bakes")
 }
 
-fn names(list: &[(ResourceKey<Dimension>, DimensionEntry)]) -> Vec<&str> {
+fn names(list: &[(ResourceKeyBuf<Dimension>, DimensionEntry)]) -> Vec<&str> {
     list.iter().map(|(key, _)| key.as_str()).collect()
 }
 

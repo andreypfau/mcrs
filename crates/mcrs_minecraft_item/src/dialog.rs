@@ -1,3 +1,4 @@
+use mcrs_minecraft_resource::ResourceLocationBuf;
 use std::fmt;
 
 use crate::component::consume::positive_float;
@@ -12,7 +13,6 @@ use mcrs_minecraft_nbt::{from_tag, to_nbt_compound};
 use mcrs_minecraft_registries::{
     Named, Namer, Refs, Resolve, ResolveError, Resolved, Resolver, dispatch, registry_value,
 };
-use mcrs_minecraft_resource::ResourceLocation;
 type ClickEvent<M> = mcrs_minecraft_text::ClickEvent<Template<M>>;
 use crate::keys::DialogActionType;
 use serde::de::value::StrDeserializer;
@@ -364,7 +364,7 @@ pub enum DynamicAction {
     RunCommand { template: CommandTemplate },
     #[dispatch(DynamicCustom)]
     Custom {
-        id: ResourceLocation,
+        id: ResourceLocationBuf,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         additions: Option<NbtCompound>,
     },

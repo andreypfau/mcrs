@@ -1,9 +1,9 @@
+use mcrs_minecraft_resource::ResourceLocationBuf;
 use std::collections::HashMap;
 use std::sync::Arc;
 
 use bevy::math::{Mat4, Vec3};
 use bevy::prelude::Resource;
-use mcrs_minecraft_resource::ResourceLocation;
 
 use super::asset::{
     ClientItem, ConditionProperty, RangeProperty, SelectSwitch, SpecialModel, TintSource,
@@ -85,7 +85,7 @@ impl BakedNode {
 
 #[derive(Resource)]
 pub struct ItemModels {
-    pub by_id: HashMap<ResourceLocation, Arc<BakedNode>>,
+    pub by_id: HashMap<ResourceLocationBuf, Arc<BakedNode>>,
     pub missing: Arc<BakedNode>,
     pub grass_colormap: Option<Vec<u8>>,
 }
@@ -120,7 +120,7 @@ pub fn bake_all(pack: &Pack, sprites: &mut SpriteRegistry) -> Result<ItemModels,
         let root = baker
             .node(&item.model, Mat4::IDENTITY)
             .map_err(|error| format!("items/{id}: {error}"))?;
-        let location = ResourceLocation::read(&id).map_err(|error| format!("{id}: {error}"))?;
+        let location = ResourceLocationBuf::read(&id).map_err(|error| format!("{id}: {error}"))?;
         by_id.insert(location, Arc::new(root));
     }
     Ok(ItemModels {

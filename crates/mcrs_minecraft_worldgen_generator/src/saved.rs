@@ -1,5 +1,5 @@
 use mcrs_minecraft_core::RegionPos;
-use mcrs_minecraft_resource::ResourceKey;
+use mcrs_minecraft_resource::{ResourceKeyBuf, ResourceLocationBuf};
 use mcrs_voxel::ColumnPos;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -12,7 +12,6 @@ use mcrs_minecraft_block_entity::GeneratedBlockEntity;
 use mcrs_minecraft_chunk::palette::{BiomePalette, BlockPalette};
 use mcrs_minecraft_chunk::{VoxelId, VoxelPalette};
 use mcrs_minecraft_registries::{Registries, Registry};
-use mcrs_minecraft_resource::ResourceLocation;
 use std::time::Instant;
 
 use mcrs_minecraft_dimension::Dimension;
@@ -47,14 +46,14 @@ pub struct RegistryBiomes<'a>(pub &'a Registry<BiomeFile>);
 
 impl PaletteLookup<u8> for RegistryBiomes<'_> {
     fn resolve(&self, name: &str, _properties: Properties<'_>) -> Option<u8> {
-        let name = ResourceLocation::read(name).ok()?;
+        let name = ResourceLocationBuf::read(name).ok()?;
         self.0.by_name(&name).and_then(|id| id.narrow::<u8>().ok())
     }
 }
 
 /// The identifier's own characters allow a `..` path segment, which would leave
 /// the world directory.
-pub(crate) fn region_dir(world: &Path, dimension: &ResourceKey<Dimension>) -> Option<PathBuf> {
+pub(crate) fn region_dir(world: &Path, dimension: &ResourceKeyBuf<Dimension>) -> Option<PathBuf> {
     if dimension
         .path()
         .split('/')
@@ -93,7 +92,7 @@ impl SavedColumns {
     /// dimension has never been saved.
     pub fn open(
         world: &Path,
-        dimension: &ResourceKey<Dimension>,
+        dimension: &ResourceKeyBuf<Dimension>,
         registries: Registries,
     ) -> Option<Self> {
         let dir = region_dir(world, dimension)?;

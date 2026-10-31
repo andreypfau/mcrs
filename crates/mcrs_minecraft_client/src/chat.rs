@@ -31,7 +31,7 @@ use mcrs_minecraft_protocol::text::Text;
 use mcrs_minecraft_protocol::uuid::Uuid;
 use mcrs_minecraft_protocol::{Bounded, VarInt, WritePacket};
 use mcrs_minecraft_registries::CurrentRegistries;
-use mcrs_minecraft_resource::{ResourceKey, StaticResourceLocation};
+use mcrs_minecraft_resource::{ResourceKeyBuf, StaticResourceLocation};
 
 use crate::chat_history::{self, CommandHistoryFile};
 use crate::chat_packets;
@@ -125,7 +125,7 @@ pub struct ChatInput(pub ChatScreen);
 pub struct ClientLookup<'a> {
     registries: RegistryLookup<'a>,
     players: &'a OnlinePlayers,
-    dimensions: &'a [ResourceKey<Dimension>],
+    dimensions: &'a [ResourceKeyBuf<Dimension>],
 }
 
 impl Lookup for ClientLookup<'_> {

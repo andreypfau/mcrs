@@ -15,7 +15,7 @@ use crate::node::distance::DistanceMetric;
 use mcrs_minecraft_noise::proto::{HashableF64, NoiseHolder};
 use mcrs_minecraft_noise::sample_grid::Axis;
 use mcrs_minecraft_registries::dispatch;
-use mcrs_minecraft_resource::ResourceLocation;
+use mcrs_minecraft_resource::ResourceLocationBuf;
 use serde::{Deserialize, Serialize};
 use std::hash::{Hash, Hasher};
 use std::num::NonZeroU32;
@@ -104,7 +104,7 @@ mod bare_value {
 #[cfg_attr(feature = "bevy", derive(bevy_asset::Asset, bevy_reflect::TypePath))]
 pub enum DensityFunctionHolder {
     Value(#[serde(with = "bare_value")] ConstantValue),
-    Reference(ResourceLocation),
+    Reference(ResourceLocationBuf),
     Owned(Box<ProtoDensityFunction>),
 }
 

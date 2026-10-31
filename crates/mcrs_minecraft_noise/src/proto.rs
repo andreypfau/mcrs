@@ -1,6 +1,6 @@
 use crate::interval::Interval;
 use mcrs_minecraft_core::{codec::Validate, validated};
-use mcrs_minecraft_resource::ResourceLocation;
+use mcrs_minecraft_resource::ResourceLocationBuf;
 use serde::{Deserialize, Serialize};
 
 validated!(NoiseParam);
@@ -10,7 +10,7 @@ validated!(NoiseParam);
 #[derive(Hash, PartialEq, Eq, Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum NoiseHolder {
-    Reference(ResourceLocation),
+    Reference(ResourceLocationBuf),
     Owned(NoiseParam),
 }
 

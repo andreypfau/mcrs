@@ -20,7 +20,7 @@ use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::block_pos_seed;
 use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_random::worldgen::WorldgenRandom;
-use mcrs_minecraft_resource::{ResourceLocation, rl};
+use mcrs_minecraft_resource::{ResourceLocationBuf, TagKeyBuf, rl};
 use mcrs_minecraft_volume::{BoxVolume, Volume, VoxelStore};
 use mcrs_minecraft_worldgen_feature::compile::CompiledPlacedFeature;
 use mcrs_minecraft_worldgen_feature::placer::{BoxRegion, WorldStates};
@@ -487,7 +487,7 @@ fn compare(label: &str, expected: &DumpPlacement, got: &Outcome) -> Vec<String> 
 fn element_key(
     frozen: &mcrs_minecraft_worldgen_structure::frozen::FrozenStructures,
 ) -> Vec<(CaseKey, ElementId)> {
-    let template_named: BTreeMap<u32, &ResourceLocation> = frozen
+    let template_named: BTreeMap<u32, &ResourceLocationBuf> = frozen
         .template_ids
         .iter()
         .map(|(id, template)| (template.0, id))
@@ -553,7 +553,7 @@ fn report(faults: &[String], placements: usize) {
 }
 
 fn feature_key(feature: &Feature) -> Option<CaseKey> {
-    let ids = |ids: &[ResourceLocation]| {
+    let ids = |ids: &[ResourceLocationBuf]| {
         ids.iter()
             .map(ToString::to_string)
             .collect::<Vec<_>>()
@@ -630,11 +630,11 @@ fn portal_processors(key: &str) -> Vec<StructureProcessor> {
     let replace = |source: &str, probability: Option<f32>, target: &str| ProcessorRule {
         input_predicate: match probability {
             Some(probability) => RuleTest::RandomBlockMatch {
-                block: ResourceLocation::minecraft(source).unwrap(),
+                block: ResourceLocationBuf::minecraft(source).unwrap(),
                 probability,
             },
             None => RuleTest::BlockMatch {
-                block: ResourceLocation::minecraft(source).unwrap(),
+                block: ResourceLocationBuf::minecraft(source).unwrap(),
             },
         },
         location_predicate: RuleTest::AlwaysTrue,
@@ -665,11 +665,9 @@ fn portal_processors(key: &str) -> Vec<StructureProcessor> {
             mossiness: f64::from(mossiness),
         },
         StructureProcessor::ProtectedBlocks {
-            value: mcrs_minecraft_registries::KeySet::Tag(
-                mcrs_minecraft_resource::TagKey::from_location(
-                    rl!("minecraft:features_cannot_replace").to_arc(),
-                ),
-            ),
+            value: mcrs_minecraft_registries::KeySet::Tag(TagKeyBuf::from_location(
+                rl!("minecraft:features_cannot_replace").to_buf(),
+            )),
         },
         StructureProcessor::LavaSubmergedBlock,
     ];

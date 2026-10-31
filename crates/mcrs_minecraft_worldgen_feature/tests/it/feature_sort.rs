@@ -3,7 +3,7 @@
 
 use bytes::Buf;
 use mcrs_minecraft_fixtures::fixture;
-use mcrs_minecraft_resource::ResourceLocation;
+use mcrs_minecraft_resource::ResourceLocationBuf;
 use mcrs_minecraft_worldgen_feature::compile::{LoadedFeatures, build_feature_steps};
 use mcrs_minecraft_worldgen_feature::proto::FeatureStepList;
 use mcrs_minecraft_worldgen_testing as corpus;
@@ -14,7 +14,7 @@ const MAGIC: &[u8; 8] = b"MCFSTEP0";
 
 struct Source {
     id: String,
-    biomes: Vec<ResourceLocation>,
+    biomes: Vec<ResourceLocationBuf>,
     steps: Vec<Vec<String>>,
     /// `[biome][step]`, the feature positions the biome carries.
     per_biome: Vec<Vec<Vec<usize>>>,
@@ -27,8 +27,8 @@ fn read_dump() -> Vec<Source> {
     let sources = (0..r.get_u32_le())
         .map(|_| {
             let id = dump_string(&mut r);
-            let biomes: Vec<ResourceLocation> = (0..r.get_u32_le())
-                .map(|_| ResourceLocation::read(&dump_string(&mut r)).unwrap())
+            let biomes: Vec<ResourceLocationBuf> = (0..r.get_u32_le())
+                .map(|_| ResourceLocationBuf::read(&dump_string(&mut r)).unwrap())
                 .collect();
             let steps: Vec<Vec<String>> = (0..r.get_u32_le())
                 .map(|_| (0..r.get_u32_le()).map(|_| dump_string(&mut r)).collect())

@@ -1,4 +1,3 @@
-use mcrs_minecraft_resource::ResourceKey;
 use std::borrow::Cow;
 use std::fmt;
 
@@ -17,8 +16,7 @@ use mcrs_minecraft_registries::{
     FromWire, IdSet, Named, Namer, Refs, Resolve, ResolveError, Resolved, Resolver, Wire,
     WireNames, registry_value,
 };
-use mcrs_minecraft_resource::Id;
-use mcrs_minecraft_resource::ResourceLocation;
+use mcrs_minecraft_resource::{Id, ResourceKeyBuf, ResourceLocationBuf};
 use serde::de::{Error as _, IgnoredAny, MapAccess, SeqAccess, Visitor};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
@@ -195,8 +193,8 @@ impl<'de> Deserialize<'de> for Enchantments<Named> {
                         entry.2 = level;
                         continue;
                     }
-                    let key = ResourceKey::from_location(
-                        ResourceLocation::read(&raw).map_err(A::Error::custom)?,
+                    let key = ResourceKeyBuf::from_location(
+                        ResourceLocationBuf::read(&raw).map_err(A::Error::custom)?,
                     );
                     if entries.iter().any(|(_, k, _)| *k == key) {
                         return Err(A::Error::custom(format_args!(

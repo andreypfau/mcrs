@@ -1,8 +1,9 @@
 use std::borrow::Cow;
 use std::io::Write;
-use std::sync::Arc;
 
-use mcrs_minecraft_resource::{Id, ResourceKey, ResourceLocation};
+use mcrs_minecraft_resource::{
+    Id, ResourceKey, ResourceKeyBuf, ResourceLocation, ResourceLocationBuf,
+};
 
 use crate::{Context, Decode, Encode, Error, Result, VarInt};
 
@@ -18,9 +19,9 @@ impl<'a> Decode<'a> for ResourceLocation<Cow<'a, str>> {
     }
 }
 
-impl Decode<'_> for ResourceLocation<Arc<str>> {
+impl Decode<'_> for ResourceLocationBuf {
     fn decode(r: &mut &[u8]) -> Result<Self> {
-        ResourceLocation::read(<&str>::decode(r)?).map_err(Error::other)
+        ResourceLocationBuf::read(<&str>::decode(r)?).map_err(Error::other)
     }
 }
 
@@ -30,9 +31,9 @@ impl<T, S: AsRef<str>> Encode for ResourceKey<T, S> {
     }
 }
 
-impl<T> Decode<'_> for ResourceKey<T, Arc<str>> {
+impl<T> Decode<'_> for ResourceKeyBuf<T> {
     fn decode(r: &mut &[u8]) -> Result<Self> {
-        Ok(ResourceKey::from_location(ResourceLocation::decode(r)?))
+        Ok(ResourceKeyBuf::from_location(ResourceLocation::decode(r)?))
     }
 }
 

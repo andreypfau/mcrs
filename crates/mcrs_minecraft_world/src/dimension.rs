@@ -6,7 +6,7 @@ use crate::worldgen::chunk_generator::ChunkGenerator;
 use mcrs_minecraft_dimension::Dimension;
 use mcrs_minecraft_dimension::DimensionType;
 use mcrs_minecraft_registries::{Refs, Registries, Resolved, registry_value};
-use mcrs_minecraft_resource::ResourceKey;
+use mcrs_minecraft_resource::{ResourceKey, ResourceKeyBuf};
 
 #[registry_value]
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -37,7 +37,7 @@ impl DimensionEntry {
     }
 }
 
-pub type Dimensions = BTreeMap<ResourceKey<Dimension>, DimensionEntry>;
+pub type Dimensions = BTreeMap<ResourceKeyBuf<Dimension>, DimensionEntry>;
 
 const LEADING: [ResourceKey<Dimension, &str>; 3] = [
     mcrs_minecraft_dimension::keys::dimension::OVERWORLD,
@@ -49,7 +49,7 @@ const LEADING: [ResourceKey<Dimension, &str>; 3] = [
 pub fn bake(
     base: &Dimensions,
     registries: &Registries,
-) -> Result<Vec<(ResourceKey<Dimension>, DimensionEntry)>, String> {
+) -> Result<Vec<(ResourceKeyBuf<Dimension>, DimensionEntry)>, String> {
     let baked = merge(base, registries)?;
     if !baked
         .first()
@@ -70,7 +70,7 @@ pub fn bake(
 pub fn bake_list(
     base: &Dimensions,
     registries: &Registries,
-) -> Result<Vec<(ResourceKey<Dimension>, DimensionEntry)>, String> {
+) -> Result<Vec<(ResourceKeyBuf<Dimension>, DimensionEntry)>, String> {
     let baked = merge(base, registries)?;
     if baked.is_empty() {
         return Err(format!(
@@ -84,7 +84,7 @@ pub fn bake_list(
 fn merge(
     base: &Dimensions,
     registries: &Registries,
-) -> Result<Vec<(ResourceKey<Dimension>, DimensionEntry)>, String> {
+) -> Result<Vec<(ResourceKeyBuf<Dimension>, DimensionEntry)>, String> {
     let registry = registries.registry::<DimensionEntry>().ok_or_else(|| {
         format!(
             "{} is not loaded",
@@ -94,7 +94,7 @@ fn merge(
 
     let mut merged = base.clone();
     for (_, name, entry) in registry.iter() {
-        merged.insert(ResourceKey::from_location(name.clone()), entry.clone());
+        merged.insert(ResourceKeyBuf::from_location(name.clone()), entry.clone());
     }
 
     let mut baked = Vec::with_capacity(merged.len());

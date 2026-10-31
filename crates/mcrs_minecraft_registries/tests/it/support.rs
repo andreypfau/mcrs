@@ -1,4 +1,3 @@
-use mcrs_minecraft_resource::TagKey;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
@@ -10,13 +9,13 @@ use mcrs_minecraft_registries::{
     ResolveError, Resolved, Resolver, Stage,
 };
 use mcrs_minecraft_resource::{
-    Id, Registered, RegistryKey, RegistryValue, ResourceKey, ResourceLocation, rl,
+    Id, Registered, RegistryKey, RegistryValue, ResourceKeyBuf, ResourceLocationBuf, TagKeyBuf, rl,
 };
 use serde::de::IgnoredAny;
 use serde::{Deserialize, Deserializer, Serialize};
 
-pub fn rl(text: &str) -> ResourceLocation {
-    ResourceLocation::read(text).unwrap()
+pub fn rl(text: &str) -> ResourceLocationBuf {
+    ResourceLocationBuf::read(text).unwrap()
 }
 
 pub const META: &str = r#"{"pack":{"description":"x","min_format":122,"max_format":122}}"#;
@@ -96,7 +95,7 @@ pub struct NamedEnchant {
     damage_types: Option<KeySet<DamageType>>,
     merchant_predicate: Option<Ref<Named, Predicate, Predicate>>,
     damage: Option<Ref<Named, DamageType, Damage>>,
-    preferred: Option<ResourceKey<Enchantment>>,
+    preferred: Option<ResourceKeyBuf<Enchantment>>,
 }
 
 impl RegistryValue for Enchant {
@@ -243,7 +242,7 @@ pub fn names<R: Registered>(registries: &Registries) -> Vec<String> {
 
 pub fn tag<R: Registered>(registries: &Registries, tag: &str) -> Option<Vec<String>> {
     let tags = registries.tags::<R>().expect("every registry has tags");
-    let id = tags.id(&TagKey::from_location(rl(tag)))?;
+    let id = tags.id(&TagKeyBuf::from_location(rl(tag)))?;
     Some(
         tags.members(id)
             .map(|member| registries.name(member).unwrap().to_string())
@@ -253,7 +252,7 @@ pub fn tag<R: Registered>(registries: &Registries, tag: &str) -> Option<Vec<Stri
 
 pub fn get<R: Registered>(registries: &Registries, name: &str) -> Id<R> {
     registries
-        .id(&ResourceKey::from_location(rl(name)))
+        .id(&ResourceKeyBuf::from_location(rl(name)))
         .unwrap_or_else(|e| panic!("{name} is an entry: {e}"))
 }
 

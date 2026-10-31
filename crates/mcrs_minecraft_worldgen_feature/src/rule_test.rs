@@ -1,7 +1,7 @@
 use mcrs_minecraft_registries::dispatch;
+use mcrs_minecraft_resource::ResourceLocationBuf;
 
 use mcrs_minecraft_block_predicate::block_state::BlockState;
-use mcrs_minecraft_resource::ResourceLocation;
 
 #[dispatch(registry = crate::keys::RuleTestType, key = "predicate_type")]
 #[derive(Debug, Clone, PartialEq)]
@@ -9,21 +9,21 @@ use mcrs_minecraft_resource::ResourceLocation;
 pub enum RuleTest {
     AlwaysTrue,
     BlockMatch {
-        block: ResourceLocation,
+        block: ResourceLocationBuf,
     },
     #[dispatch(BlockstateMatch)]
     BlockStateMatch {
         block_state: BlockState,
     },
     TagMatch {
-        tag: ResourceLocation,
+        tag: ResourceLocationBuf,
     },
     HeightMatch {
         min_inclusive: i32,
         max_inclusive: i32,
     },
     RandomBlockMatch {
-        block: ResourceLocation,
+        block: ResourceLocationBuf,
         probability: f32,
     },
     #[dispatch(RandomBlockstateMatch)]

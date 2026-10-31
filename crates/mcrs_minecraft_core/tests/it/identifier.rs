@@ -1,7 +1,6 @@
 use std::borrow::Cow;
-use std::sync::Arc;
 
-use mcrs_minecraft_resource::ResourceLocation;
+use mcrs_minecraft_resource::{ResourceLocation, ResourceLocationBuf};
 
 use crate::identifier_rows::{Accepts, ROWS, Refuses, outcome};
 
@@ -13,17 +12,17 @@ fn every_identifier_constructor_agrees_with_vanilla() {
         let json = serde_json::to_string(text).unwrap();
 
         assert_eq!(
-            outcome(text.parse::<ResourceLocation>()),
+            outcome(text.parse::<ResourceLocationBuf>()),
             expected,
             "FromStr {text:?}"
         );
         assert_eq!(
-            outcome(ResourceLocation::read(text)),
+            outcome(ResourceLocationBuf::read(text)),
             expected,
             "read {text:?}"
         );
         assert_eq!(
-            outcome(serde_json::from_str::<ResourceLocation<Arc<str>>>(&json)),
+            outcome(serde_json::from_str::<ResourceLocationBuf>(&json)),
             expected,
             "Deserialize {text:?}"
         );
@@ -39,7 +38,7 @@ fn every_identifier_constructor_agrees_with_vanilla() {
             (row.from_namespace_and_path, text.split_once(':'))
         {
             assert_eq!(
-                outcome(ResourceLocation::new(namespace, path)),
+                outcome(ResourceLocationBuf::new(namespace, path)),
                 expected,
                 "new {namespace:?} {path:?}"
             );

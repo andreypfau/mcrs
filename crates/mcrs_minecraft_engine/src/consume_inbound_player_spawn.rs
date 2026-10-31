@@ -33,7 +33,7 @@ use mcrs_minecraft_protocol::entity::player::PlayerSpawnInfo;
 use mcrs_minecraft_protocol::packets::game::clientbound::{
     ClientboundChunkCacheRadius, ClientboundLogin,
 };
-use mcrs_minecraft_resource::ResourceKey;
+use mcrs_minecraft_resource::ResourceKeyBuf;
 use tracing::{debug, info};
 
 /// The server clamps what a client asks for to its own limit, as vanilla does; ours is three
@@ -58,7 +58,7 @@ pub(crate) fn consume_inbound_player_spawn(
     mut reader: MessageReader<InboundPlayerSpawn>,
     mut attached: MessageWriter<OutboundPlayerAttached>,
     mut packet_writer: MessageWriter<OutboundPlayerPacket>,
-    dims: Query<(Entity, &ResourceKey<DimensionKey>, &DimensionTypeId), With<Dimension>>,
+    dims: Query<(Entity, &ResourceKeyBuf<DimensionKey>, &DimensionTypeId), With<Dimension>>,
     mut commands: Commands,
     mut dim_index: ResMut<DimPlayerIndex>,
     simulation_distance: Res<SimulationDistance>,

@@ -7,7 +7,9 @@ use std::sync::Arc;
 
 use derive_where::derive_where;
 use mcrs_minecraft_datapack::PackIndex;
-use mcrs_minecraft_resource::{Id, Registered, RegistryValue, ResourceLocation};
+use mcrs_minecraft_resource::{
+    Id, Registered, RegistryValue, ResourceLocation, ResourceLocationBuf,
+};
 use serde::de::DeserializeOwned;
 
 use crate::refs::Resolve;
@@ -28,15 +30,15 @@ impl<T> DataValue for T where
 
 #[derive(Debug)]
 pub(crate) struct Names {
-    names: Box<[ResourceLocation]>,
-    index: HashMap<ResourceLocation, u16>,
+    names: Box<[ResourceLocationBuf]>,
+    index: HashMap<ResourceLocationBuf, u16>,
     origins: Box<[PackIndex]>,
 }
 
 impl Names {
     /// `origins` holds the pack of each entry, or nothing for a registry no pack fills.
     pub(crate) fn new(
-        names: Vec<ResourceLocation>,
+        names: Vec<ResourceLocationBuf>,
         origins: Vec<PackIndex>,
     ) -> Result<Self, usize> {
         if names.len() > MAX_ENTRIES {
@@ -56,7 +58,7 @@ impl Names {
 
     pub(crate) fn get<Q>(&self, name: &Q) -> Option<u16>
     where
-        ResourceLocation: Borrow<Q>,
+        ResourceLocationBuf: Borrow<Q>,
         Q: Hash + Eq + ?Sized,
     {
         self.index.get(name).copied()
@@ -64,17 +66,17 @@ impl Names {
 
     pub(crate) fn id<R, Q>(&self, name: &Q) -> Option<Id<R>>
     where
-        ResourceLocation: Borrow<Q>,
+        ResourceLocationBuf: Borrow<Q>,
         Q: Hash + Eq + ?Sized,
     {
         Id::checked(self.get(name)?, self.len())
     }
 
-    pub(crate) fn name(&self, number: u16) -> Option<&ResourceLocation> {
+    pub(crate) fn name(&self, number: u16) -> Option<&ResourceLocationBuf> {
         self.names.get(usize::from(number))
     }
 
-    pub(crate) fn all(&self) -> &[ResourceLocation] {
+    pub(crate) fn all(&self) -> &[ResourceLocationBuf] {
         &self.names
     }
 
@@ -106,19 +108,19 @@ impl<'a, R> Entries<'a, R> {
         self.names.len() == 0
     }
 
-    pub fn by_name(&self, name: &ResourceLocation) -> Option<Id<R>> {
+    pub fn by_name(&self, name: &ResourceLocationBuf) -> Option<Id<R>> {
         self.names.id(name)
     }
 
-    pub fn name(&self, id: Id<R>) -> Option<&'a ResourceLocation> {
+    pub fn name(&self, id: Id<R>) -> Option<&'a ResourceLocationBuf> {
         self.names.name(id.number())
     }
 
-    pub fn names(&self) -> &'a [ResourceLocation] {
+    pub fn names(&self) -> &'a [ResourceLocationBuf] {
         self.names.all()
     }
 
-    pub fn iter(&self) -> impl Iterator<Item = (Id<R>, &'a ResourceLocation)> + 'a {
+    pub fn iter(&self) -> impl Iterator<Item = (Id<R>, &'a ResourceLocationBuf)> + 'a {
         let len = self.names.len();
         (self.names.all().iter().zip(0..=u16::MAX))
             .filter_map(move |(name, number)| Some((Id::checked(number, len)?, name)))
@@ -159,15 +161,15 @@ impl<V: RegistryValue> Registry<V> {
         self.values.get(id.index())
     }
 
-    pub fn name(&self, id: Id<V::Registry>) -> Option<&ResourceLocation> {
+    pub fn name(&self, id: Id<V::Registry>) -> Option<&ResourceLocationBuf> {
         self.names.name(id.number())
     }
 
-    pub fn by_name(&self, name: &ResourceLocation) -> Option<Id<V::Registry>> {
+    pub fn by_name(&self, name: &ResourceLocationBuf) -> Option<Id<V::Registry>> {
         self.names.id(name)
     }
 
-    pub fn iter(&self) -> impl Iterator<Item = (Id<V::Registry>, &ResourceLocation, &V)> {
+    pub fn iter(&self) -> impl Iterator<Item = (Id<V::Registry>, &ResourceLocationBuf, &V)> {
         let len = self.names.len();
         self.names
             .all()

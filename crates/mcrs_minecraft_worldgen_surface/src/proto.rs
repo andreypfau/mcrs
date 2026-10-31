@@ -1,9 +1,9 @@
+use mcrs_minecraft_resource::ResourceLocationBuf;
 use serde::{Deserialize, Serialize};
 
 use mcrs_minecraft_block_predicate::block_state::BlockState;
 use mcrs_minecraft_noise::proto::HashableF64;
 use mcrs_minecraft_registries::{KeySet, dispatch};
-use mcrs_minecraft_resource::ResourceLocation;
 use mcrs_minecraft_value_provider::VerticalAnchor;
 use mcrs_minecraft_worldgen_density::proto::DensityFunctionHolder;
 
@@ -11,7 +11,7 @@ use mcrs_minecraft_worldgen_density::proto::DensityFunctionHolder;
 #[serde(untagged)]
 #[cfg_attr(feature = "bevy", derive(bevy_asset::Asset, bevy_reflect::TypePath))]
 pub enum MaterialRuleHolder {
-    Reference(ResourceLocation),
+    Reference(ResourceLocationBuf),
     Owned(Box<MaterialRule>),
 }
 
@@ -23,7 +23,7 @@ impl mcrs_minecraft_resource::RegistryValue for MaterialRuleHolder {
 #[serde(untagged)]
 #[cfg_attr(feature = "bevy", derive(bevy_asset::Asset, bevy_reflect::TypePath))]
 pub enum MaterialConditionHolder {
-    Reference(ResourceLocation),
+    Reference(ResourceLocationBuf),
     Owned(Box<MaterialCondition>),
 }
 
@@ -65,14 +65,14 @@ pub enum MaterialCondition {
         biome_is: KeySet<mcrs_minecraft_biome::Biome>,
     },
     NoiseThreshold {
-        noise: ResourceLocation,
+        noise: ResourceLocationBuf,
         min_threshold: HashableF64,
         max_threshold: HashableF64,
         #[serde(default, skip_serializing_if = "std::ops::Not::not")]
         is_3d: bool,
     },
     VerticalGradient {
-        random_name: ResourceLocation,
+        random_name: ResourceLocationBuf,
         true_at_and_below: VerticalAnchor,
         false_at_and_above: VerticalAnchor,
     },

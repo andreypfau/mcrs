@@ -2,13 +2,13 @@ use bevy_app::SubApp;
 use bevy_ecs::resource::Resource;
 use bevy_ecs::world::World;
 use mcrs_minecraft_dimension::Dimension;
-use mcrs_minecraft_resource::ResourceKey;
+use mcrs_minecraft_resource::ResourceKeyBuf;
 
 use crate::world::dimension::DimensionTypeConfig;
 
 /// The dimension a world is built for.
 pub struct DimensionBuild<'a> {
-    pub dimension: &'a ResourceKey<Dimension>,
+    pub dimension: &'a ResourceKeyBuf<Dimension>,
     pub type_config: DimensionTypeConfig,
     pub has_sky_light: bool,
 }

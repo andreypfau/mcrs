@@ -10,7 +10,7 @@ use mcrs_minecraft_environment::attribute::{
     AttributeError, EnvironmentAttributeMap, MobSpawnSettings, Operation,
 };
 use mcrs_minecraft_registries::{KeySet, Named, Refs, Resolve, Resolved};
-use mcrs_minecraft_resource::{ResourceKey, ResourceLocation};
+use mcrs_minecraft_resource::{ResourceKey, ResourceKeyBuf, ResourceLocation};
 
 pub type Carvers = ConfiguredCarver;
 pub type PlacedFeatures = PlacedFeature;
@@ -132,12 +132,12 @@ pub type PlacedFeatureKey = ResourceKey<PlacedFeature, &'static str>;
 /// were added. A step is listed up to the last one that was given a feature.
 #[derive(Debug, Default)]
 pub struct BiomeGeneration {
-    carvers: Vec<ResourceKey<Carvers>>,
-    features: Vec<Vec<ResourceKey<PlacedFeatures>>>,
+    carvers: Vec<ResourceKeyBuf<Carvers>>,
+    features: Vec<Vec<ResourceKeyBuf<PlacedFeatures>>>,
 }
 
-fn key<R, V>(key: ResourceKey<V, &'static str>) -> ResourceKey<R> {
-    ResourceKey::from_location(ResourceLocation::from(*key.location()))
+fn key<R, V>(key: ResourceKey<V, &'static str>) -> ResourceKeyBuf<R> {
+    ResourceKeyBuf::from_location(ResourceLocation::from(*key.location()))
 }
 
 impl BiomeGeneration {

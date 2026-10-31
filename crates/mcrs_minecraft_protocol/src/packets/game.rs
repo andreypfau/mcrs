@@ -23,7 +23,7 @@ pub mod clientbound {
     use mcrs_minecraft_item::keys::MenuType;
     use mcrs_minecraft_particle::ParticleOptions;
     use mcrs_minecraft_registries::Wire;
-    use mcrs_minecraft_resource::ResourceKey;
+
     use mcrs_minecraft_resource::ResourceLocation;
     use mcrs_minecraft_wire::{Decode, Encode};
     use mcrs_voxel::BlockPos;
@@ -193,7 +193,8 @@ pub mod clientbound {
     pub struct ClientboundLogin {
         pub player_id: i32,
         pub hardcore: bool,
-        pub dimensions: Vec<ResourceKey<mcrs_minecraft_dimension::Dimension>>,
+        pub dimensions:
+            Vec<mcrs_minecraft_resource::ResourceKeyBuf<mcrs_minecraft_dimension::Dimension>>,
         pub max_players: VarInt,
         pub chunk_radius: VarInt,
         pub simulation_distance: VarInt,
@@ -573,8 +574,11 @@ pub mod clientbound {
     pub struct ClientboundUpdateAdvancements {
         pub reset: bool,
         pub added: Vec<PositionedAdvancement<Wire>>,
-        pub removed: Vec<ResourceLocation>,
-        pub progress: Vec<(ResourceLocation, AdvancementProgress)>,
+        pub removed: Vec<mcrs_minecraft_resource::ResourceLocationBuf>,
+        pub progress: Vec<(
+            mcrs_minecraft_resource::ResourceLocationBuf,
+            AdvancementProgress,
+        )>,
         pub show_advancements: bool,
     }
 
@@ -588,7 +592,10 @@ pub mod clientbound {
     /// from a hash map, so the order is whatever was received.
     #[derive(Clone, Debug, PartialEq, Encode, Decode)]
     pub struct ClientboundUpdateRecipes {
-        pub item_sets: Vec<(ResourceLocation, RecipePropertySet<Wire>)>,
+        pub item_sets: Vec<(
+            mcrs_minecraft_resource::ResourceLocationBuf,
+            RecipePropertySet<Wire>,
+        )>,
         pub stonecutter_recipes: Vec<SelectableRecipe<Wire>>,
     }
 
@@ -805,7 +812,7 @@ pub mod serverbound {
     use derive_more::From;
     use mcrs_minecraft_core::Look;
     use mcrs_minecraft_game_mode::GameMode;
-    use mcrs_minecraft_resource::ResourceLocation;
+
     use mcrs_voxel::BlockPos;
     use uuid::Uuid;
 
@@ -1141,7 +1148,7 @@ pub mod serverbound {
 
     #[derive(Clone, Debug, PartialEq, Encode, Decode)]
     pub enum SeenAdvancementsAction {
-        OpenedTab(ResourceLocation),
+        OpenedTab(mcrs_minecraft_resource::ResourceLocationBuf),
         ClosedScreen,
     }
 

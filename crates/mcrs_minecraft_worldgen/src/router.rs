@@ -5,8 +5,7 @@ use mcrs_minecraft_block_predicate::block_state::BlockState;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_noise::proto::NoiseParam;
 use mcrs_minecraft_registries::{IdSet, KeySet, Registries, Resolve};
-use mcrs_minecraft_resource::RegistryValue;
-use mcrs_minecraft_resource::ResourceLocation;
+use mcrs_minecraft_resource::{RegistryValue, ResourceLocationBuf};
 use mcrs_minecraft_worldgen_density::compile::CompileError;
 use mcrs_minecraft_worldgen_density::proto::DensityFunctionHolder;
 use mcrs_minecraft_worldgen_density::router::{NoiseGeneratorSettings, NoiseRouter, RouterBlocks};
@@ -21,7 +20,7 @@ use std::collections::BTreeMap;
 // reads the registries lifts it.
 fn named<T: RegistryValue + Clone + Send + Sync + 'static>(
     registries: &Registries,
-) -> BTreeMap<ResourceLocation, T> {
+) -> BTreeMap<ResourceLocationBuf, T> {
     registries
         .registry::<T>()
         .into_iter()
@@ -30,7 +29,9 @@ fn named<T: RegistryValue + Clone + Send + Sync + 'static>(
         .collect()
 }
 
-fn density_functions(registries: &Registries) -> BTreeMap<ResourceLocation, DensityFunctionHolder> {
+fn density_functions(
+    registries: &Registries,
+) -> BTreeMap<ResourceLocationBuf, DensityFunctionHolder> {
     named(registries)
 }
 

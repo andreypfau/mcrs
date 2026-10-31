@@ -9,7 +9,7 @@ use mcrs_minecraft_environment::world_clock::{WorldClock, WorldClocks};
 use mcrs_minecraft_light_engine::block_light::BlockLightRegistry;
 use mcrs_minecraft_protocol::uuid::Uuid;
 use mcrs_minecraft_registries::CurrentRegistries;
-use mcrs_minecraft_resource::ResourceKey;
+use mcrs_minecraft_resource::ResourceKeyBuf;
 use mcrs_minecraft_save::{WorldGenSettings, write_world_gen_settings};
 use mcrs_minecraft_server::MinecraftServerPlugins;
 use mcrs_minecraft_world::dimension::{DimensionEntry, Dimensions};
@@ -20,8 +20,8 @@ use crate::support::preset;
 
 const ASSETS: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../assets");
 
-fn key(name: &str) -> ResourceKey<Dimension> {
-    ResourceKey::from_location(name.parse().unwrap())
+fn key(name: &str) -> ResourceKeyBuf<Dimension> {
+    ResourceKeyBuf::from_location(name.parse().unwrap())
 }
 
 fn debug_dimension(dimension_type: &str) -> DimensionEntry {

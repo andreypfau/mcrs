@@ -1,6 +1,4 @@
 use mcrs_minecraft_biome_file::BiomeFile;
-use mcrs_minecraft_resource::Registered;
-use mcrs_minecraft_resource::ResourceKey;
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
 
@@ -25,7 +23,8 @@ use mcrs_minecraft_registries::{
     RegistryAdditions, Resolve, Resolver, Stage, insert_entry,
 };
 use mcrs_minecraft_resource::{
-    Id, RegistryKey, RegistryValue, ResourceLocation, TagId, TagKey, rl,
+    Id, Registered, RegistryKey, RegistryValue, ResourceKeyBuf, ResourceLocationBuf, TagId,
+    TagKeyBuf, rl,
 };
 use mcrs_minecraft_world::registry_load::{
     RegistryLoadError, load_registries, sent_by, test_network, test_registries,
@@ -161,7 +160,7 @@ fn every_registry_of_the_reports_is_loaded() {
     let set = test_registries();
     for registry in every_registry() {
         assert!(
-            set.names_of(&ResourceLocation::read(&registry).unwrap())
+            set.names_of(&ResourceLocationBuf::read(&registry).unwrap())
                 .is_some(),
             "{registry} is not loaded"
         );
@@ -206,7 +205,7 @@ fn every_shipped_and_builtin_biome_has_a_name_from_the_loader() {
     }
 }
 
-fn from_pack<V: RegistryValue + 'static>(set: &Registries, pack: &str) -> Vec<ResourceLocation> {
+fn from_pack<V: RegistryValue + 'static>(set: &Registries, pack: &str) -> Vec<ResourceLocationBuf> {
     let registry = set
         .registry::<V>()
         .unwrap_or_else(|| panic!("{} is not loaded", std::any::type_name::<V>()));
@@ -219,11 +218,11 @@ fn from_pack<V: RegistryValue + 'static>(set: &Registries, pack: &str) -> Vec<Re
 
 fn pack_of<V: RegistryValue + 'static>(set: &Registries, name: &str) -> Option<String> {
     let registry = set.registry::<V>()?;
-    let id = registry.by_name(&ResourceLocation::read(name).ok()?)?;
+    let id = registry.by_name(&ResourceLocationBuf::read(name).ok()?)?;
     set.origin(id).map(|pack| pack.id().to_owned())
 }
 
-fn key_of<V: RegistryValue>() -> ResourceLocation {
+fn key_of<V: RegistryValue>() -> ResourceLocationBuf {
     <V::Registry as Registered>::REGISTRY.location().into()
 }
 
@@ -258,7 +257,7 @@ fn vanilla_biomes_are_built_entries_not_files() {
 #[test]
 fn vanilla_noise_settings_are_built_entries_not_files() {
     let set = test_registries();
-    type FromPack = fn(&Registries, &str) -> Vec<ResourceLocation>;
+    type FromPack = fn(&Registries, &str) -> Vec<ResourceLocationBuf>;
     let cases: [(&str, FromPack, usize, usize); 3] = [
         ("minecraft:worldgen/noise", from_pack::<NoiseParam>, 65, 5),
         (
@@ -318,7 +317,7 @@ fn the_fallback_serves_only_structure_templates() {
     );
 
     let mut json_paths = 0;
-    let built: [(ResourceLocation, Vec<ResourceLocation>); 5] = [
+    let built: [(ResourceLocationBuf, Vec<ResourceLocationBuf>); 5] = [
         (
             key_of::<BiomeFile>(),
             from_pack::<BiomeFile>(set, VANILLA_PACK),
@@ -505,7 +504,7 @@ fn packs_follow_vanilla_in_name_order() {
     let patterns = set.registry::<BannerPattern>().unwrap();
     let entry = |name: &str| {
         let id = patterns
-            .by_name(&ResourceLocation::read(name).unwrap())
+            .by_name(&ResourceLocationBuf::read(name).unwrap())
             .unwrap_or_else(|| panic!("no {name}"));
         (
             set.origin(id).map(StackedPack::id),
@@ -664,7 +663,7 @@ fn an_embedded_pack_overrides_vanilla_below_the_root_packs_and_is_always_sent_wi
     let patterns = registries.registry::<BannerPattern>().unwrap();
     let entry = |name: &str| {
         let id = patterns
-            .by_name(&ResourceLocation::read(name).unwrap())
+            .by_name(&ResourceLocationBuf::read(name).unwrap())
             .unwrap();
         let origin = registries.origin(id).unwrap();
         let asset = patterns.get(id).unwrap().asset_id.to_string();
@@ -755,7 +754,7 @@ fn an_extra_declaration_takes_the_stage_the_report_gives_its_key_or_keeps_its_ow
     .unwrap_or_else(|error| panic!("{error}"));
 
     let stages = |key: &str| -> Vec<Stage> {
-        let key = ResourceLocation::read(key).unwrap();
+        let key = ResourceLocationBuf::read(key).unwrap();
         let declared = declarations
             .iter()
             .filter(|declaration| *declaration.key() == key);
@@ -792,7 +791,7 @@ fn a_loaded_holder_set_answers_membership_through_the_tags() {
         else {
             continue;
         };
-        let tag = ResourceLocation::read(tag).unwrap();
+        let tag = ResourceLocationBuf::read(tag).unwrap();
         let listed = json_at(&corpus_path(&format!(
             "{}/tags/item/{}.json",
             tag.namespace(),
@@ -828,8 +827,8 @@ fn the_local_light_tag_reaches_the_loaded_item_tags() {
     let items = set.entries::<Item>().unwrap();
     let tags = set.tags::<Item>().unwrap();
     let tag = tags
-        .id(&TagKey::from_location(
-            ResourceLocation::read("mcrs:water_sensitive_light").unwrap(),
+        .id(&TagKeyBuf::from_location(
+            ResourceLocationBuf::read("mcrs:water_sensitive_light").unwrap(),
         ))
         .expect("the local light tag is loaded");
     let members: Vec<&str> = tags
@@ -1025,7 +1024,7 @@ fn the_synced_wolf_variant_has_no_spawn_conditions() {
     assert!(synced.get("spawn_conditions").is_none());
 
     let selectors = spawn_selectors::<WolfVariantFile>(set).unwrap();
-    let pale = &selectors[&ResourceLocation::read("minecraft:pale").unwrap()];
+    let pale = &selectors[&ResourceLocationBuf::read("minecraft:pale").unwrap()];
     assert_eq!(
         serde_json::to_value(pale).unwrap(),
         serde_json::json!([{"priority": 0}])
@@ -1728,7 +1727,7 @@ fn trial_spawners_have_names_and_no_values() {
         "minecraft:item_modifier",
     ] {
         assert!(
-            set.names_of(&ResourceLocation::read(loot).unwrap())
+            set.names_of(&ResourceLocationBuf::read(loot).unwrap())
                 .is_some(),
             "{loot} has no names from the reloadable registries"
         );
@@ -1746,7 +1745,7 @@ fn trial_spawners_have_names_and_no_values() {
 pub fn worldgen_registries_are_parsed_by_the_loader_not_requested_as_assets(app: &App) {
     fn parsed<R: RegistryValue + 'static>(
         set: &Registries,
-    ) -> (ResourceLocation, Vec<ResourceLocation>) {
+    ) -> (ResourceLocationBuf, Vec<ResourceLocationBuf>) {
         let registry = set.registry::<R>().unwrap_or_else(|| {
             panic!("{} is not parsed by the loader", std::any::type_name::<R>())
         });
@@ -1784,7 +1783,7 @@ pub fn worldgen_registries_are_parsed_by_the_loader_not_requested_as_assets(app:
     let carvers = set.registry::<CarverConfig>().unwrap();
     assert!(
         carvers
-            .by_name(&ResourceLocation::read("minecraft:beta_cave").unwrap())
+            .by_name(&ResourceLocationBuf::read("minecraft:beta_cave").unwrap())
             .is_some()
     );
 }
@@ -1810,15 +1809,15 @@ fn overworld_dimension_type_with(
 fn tag_in<R: Registered>(set: &Registries, name: &str) -> TagId<R> {
     set.tags::<R>()
         .unwrap_or_else(|| panic!("{} has loaded tags", std::any::type_name::<R>()))
-        .id(&TagKey::from_location(
-            ResourceLocation::read(name).unwrap(),
+        .id(&TagKeyBuf::from_location(
+            ResourceLocationBuf::read(name).unwrap(),
         ))
         .unwrap_or_else(|| panic!("{name} is a loaded tag"))
 }
 
 fn id_in<R: Registered>(set: &Registries, name: &str) -> Id<R> {
-    set.id(&ResourceKey::from_location(
-        ResourceLocation::read(name).unwrap(),
+    set.id(&ResourceKeyBuf::from_location(
+        ResourceLocationBuf::read(name).unwrap(),
     ))
     .unwrap_or_else(|error| panic!("{error}"))
 }
@@ -1911,7 +1910,7 @@ fn every_preset_parses_in_registry_context() {
         .expect("the loader parses world presets");
     let preset = |name: &str| {
         presets
-            .by_name(&ResourceLocation::read(name).unwrap())
+            .by_name(&ResourceLocationBuf::read(name).unwrap())
             .and_then(|id| presets.get(id))
             .unwrap_or_else(|| panic!("no preset {name}"))
     };
@@ -1962,7 +1961,7 @@ fn a_preset_reads_its_dimensions_as_a_map_by_key() {
     let presets = set.registry::<WorldPreset>().unwrap();
     let preset = |name: &str| {
         presets
-            .by_name(&ResourceLocation::read(name).unwrap())
+            .by_name(&ResourceLocationBuf::read(name).unwrap())
             .and_then(|id| presets.get(id))
             .unwrap()
     };
@@ -2078,7 +2077,7 @@ fn an_item_and_a_block_of_one_name_keep_their_own_numbers() {
     let set = test_registries();
     let items = set.entries::<Item>().unwrap();
     let blocks = set.entries::<Block>().unwrap();
-    let stone = ResourceLocation::read("minecraft:stone").unwrap();
+    let stone = ResourceLocationBuf::read("minecraft:stone").unwrap();
     assert_eq!(items.by_name(&stone), Some(Item::Stone.id()));
     assert_eq!(blocks.by_name(&stone), Some(Block::Stone.id()));
 

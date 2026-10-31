@@ -8,8 +8,7 @@
 #[cfg(feature = "bevy")]
 use bevy_ecs::prelude::Resource;
 use mcrs_minecraft_registries::Registries;
-use mcrs_minecraft_resource::Id;
-use mcrs_minecraft_resource::ResourceKey;
+use mcrs_minecraft_resource::{Id, ResourceKeyBuf};
 
 use crate::dimension_type::{DimensionTypeEnvironment, DimensionTypeFile};
 use mcrs_minecraft_dimension::{Dimension, DimensionType, Skybox};
@@ -91,7 +90,7 @@ pub struct DimensionEnvironment<'a> {
 impl<'a> DimensionEnvironment<'a> {
     /// The end has no weather by its key, whatever type it is given.
     pub fn of(
-        dimension: &ResourceKey<Dimension>,
+        dimension: &ResourceKeyBuf<Dimension>,
         dimension_type: &DimensionType,
         environment: &'a DimensionTypeEnvironment,
     ) -> Self {
@@ -169,7 +168,7 @@ impl EnvironmentAttributes {
 
     pub fn of_dimension(
         registries: &Registries,
-        dimension: &ResourceKey<Dimension>,
+        dimension: &ResourceKeyBuf<Dimension>,
         dimension_type: Id<DimensionType>,
     ) -> Result<Self, EnvironmentError> {
         let timelines = registries

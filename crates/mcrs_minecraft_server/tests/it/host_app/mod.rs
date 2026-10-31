@@ -1,4 +1,5 @@
 use mcrs_minecraft_engine::session::GameProfile;
+use mcrs_minecraft_resource::{ResourceKeyBuf, ResourceLocationBuf};
 use std::sync::Arc;
 
 use bevy_app::{App, TaskPoolPlugin};
@@ -42,7 +43,6 @@ use mcrs_minecraft_network::metrics::PacketDispatcher;
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundLogin;
 use mcrs_minecraft_protocol::uuid::Uuid;
 use mcrs_minecraft_protocol::{Encode, Packet};
-use mcrs_minecraft_resource::{ResourceKey, ResourceLocation};
 use mcrs_minecraft_vanilla_light::LightingPlugin;
 
 /// Build a host `App` wired for the production per-dim sub-app builder path.
@@ -124,8 +124,8 @@ pub fn enqueue_spawn(app: &mut App, id: &str, dimension_type: &str) {
         .resource_mut::<DimSpawnQueue>()
         .0
         .push(DimSpawnRequest {
-            dimension: ResourceKey::from_location(
-                ResourceLocation::read(id).expect("a test dimension id is a valid identifier"),
+            dimension: ResourceKeyBuf::from_location(
+                ResourceLocationBuf::read(id).expect("a test dimension id is a valid identifier"),
             ),
             dimension_type: crate::support::dimension_type(dimension_type),
         });
@@ -142,7 +142,7 @@ pub fn materialise_sub_apps(app: &mut App, dimensions: &[(&str, &str)]) {
 
 pub fn label_of(app: &App, dimension: &str) -> Entity {
     app.world()
-        .try_query::<(Entity, &DimSubAppHandle, &ResourceKey<Dimension>)>()
+        .try_query::<(Entity, &DimSubAppHandle, &ResourceKeyBuf<Dimension>)>()
         .expect("a dimension was spawned")
         .iter(app.world())
         .find(|(_, _, key)| key.as_str() == dimension)
@@ -155,7 +155,7 @@ pub fn label_of(app: &App, dimension: &str) -> Entity {
 pub fn join(
     app: &mut App,
     label: Entity,
-    dimensions: Arc<[ResourceKey<Dimension>]>,
+    dimensions: Arc<[ResourceKeyBuf<Dimension>]>,
 ) -> ClientboundLogin {
     let host_anchor = app.world_mut().spawn_empty().id();
     let session = app

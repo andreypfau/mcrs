@@ -1,6 +1,7 @@
 use bevy_app::App;
 use bevy_asset::{AssetServer, Assets};
 use mcrs_minecraft_registries::CurrentRegistries;
+use mcrs_minecraft_resource::ResourceLocationBuf;
 use mcrs_minecraft_vanilla_worldgen::{TemplateAsset, pool_templates, template_handle};
 use mcrs_minecraft_worldgen_feature::pool::TemplatePool;
 use mcrs_minecraft_worldgen_feature::proto::StructureProcessorList;
@@ -52,10 +53,9 @@ pub fn the_structure_registries_land_before_playing(app: &App) {
         .by_name(&"minecraft:ancient_city/walls/no_corners".parse().unwrap())
         .and_then(|id| pools.get(id))
         .expect("the pool is a loaded entry");
-    let missing = mcrs_minecraft_resource::ResourceLocation::minecraft(
-        "ancient_city/walls/intact_horizontal_wall_stairs_5",
-    )
-    .unwrap();
+    let missing =
+        ResourceLocationBuf::minecraft("ancient_city/walls/intact_horizontal_wall_stairs_5")
+            .unwrap();
     assert!(
         pool_templates(no_corners).contains(&missing),
         "a pool naming a template that does not ship still loads"

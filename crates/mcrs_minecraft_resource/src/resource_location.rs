@@ -1,7 +1,7 @@
 use alloc::borrow::{Cow, ToOwned};
+use alloc::boxed::Box;
 use alloc::format;
 use alloc::string::{String, ToString};
-use alloc::sync::Arc;
 use core::borrow::Borrow;
 use core::fmt;
 use core::hash::{Hash, Hasher};
@@ -10,20 +10,23 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 /// A namespaced resource identifier in the form `namespace:path`.
 ///
 /// Generic over the string storage type `S`:
-/// - `ResourceLocation<Arc<str>>` (the default) — heap-allocated, cheap to clone.
+/// - [`ResourceLocationBuf`] — owned; a clone allocates.
 /// - `ResourceLocation<&'static str>` — zero-alloc, `Copy`, const-constructible.
 /// - `ResourceLocation<Cow<'a, str>>` — borrowed or owned, used by the wire codecs.
 ///
 /// Both variants hash and compare identically, and `ResourceLocation<&'static str>`
-/// can be used for zero-allocation lookups into `HashMap<ResourceLocation, …>` via
+/// can be used for zero-allocation lookups into `HashMap<ResourceLocationBuf, …>` via
 /// the `Borrow<str>` impl.
 #[derive(Clone)]
-pub struct ResourceLocation<S = Arc<str>> {
+pub struct ResourceLocation<S> {
     string: S,
     colon_pos: u16,
 }
 
 pub type StaticResourceLocation = ResourceLocation<&'static str>;
+
+/// The owned form: one boxed `namespace:path` string.
+pub type ResourceLocationBuf = ResourceLocation<Box<str>>;
 
 // Copy for &'static str variant
 impl Copy for ResourceLocation<&'static str> {}
@@ -49,10 +52,10 @@ impl<S: AsRef<str>> ResourceLocation<S> {
         &self.string.as_ref()[(self.colon_pos as usize + 1)..]
     }
 
-    /// Convert to the heap-allocated variant.
-    pub fn to_arc(&self) -> ResourceLocation<Arc<str>> {
+    /// The owned form, with one allocation.
+    pub fn to_buf(&self) -> ResourceLocationBuf {
         ResourceLocation {
-            string: Arc::from(self.string.as_ref()),
+            string: Box::from(self.string.as_ref()),
             colon_pos: self.colon_pos,
         }
     }
@@ -185,9 +188,9 @@ impl ResourceLocation<&'static str> {
     }
 }
 
-// ─── Arc<str> constructors ───────────────────────────────────────────────────
+// ─── Owned constructors ───────────────────────────────────────────────────
 
-impl ResourceLocation<Arc<str>> {
+impl ResourceLocation<Box<str>> {
     /// Both halves are checked and nothing is defaulted, so an empty namespace stays empty.
     pub fn new(namespace: &str, path: &str) -> Result<Self, InvalidResourceLocation> {
         check(namespace, path).map_err(|reason| InvalidResourceLocation {
@@ -195,7 +198,7 @@ impl ResourceLocation<Arc<str>> {
             reason,
         })?;
         Ok(ResourceLocation {
-            string: Arc::from(format!("{namespace}:{path}")),
+            string: Box::from(format!("{namespace}:{path}")),
             colon_pos: namespace.len() as u16,
         })
     }
@@ -233,11 +236,11 @@ impl<'a> ResourceLocation<Cow<'a, str>> {
 
 // ─── Conversions ─────────────────────────────────────────────────────────────
 
-impl From<ResourceLocation<&'static str>> for ResourceLocation<Arc<str>> {
+impl From<ResourceLocation<&'static str>> for ResourceLocation<Box<str>> {
     #[inline]
     fn from(rl: ResourceLocation<&'static str>) -> Self {
         ResourceLocation {
-            string: Arc::from(rl.string),
+            string: Box::from(rl.string),
             colon_pos: rl.colon_pos,
         }
     }
@@ -253,19 +256,19 @@ impl From<ResourceLocation<&'static str>> for ResourceLocation<Cow<'static, str>
     }
 }
 
-impl<'a> From<ResourceLocation<Cow<'a, str>>> for ResourceLocation<Arc<str>> {
+impl<'a> From<ResourceLocation<Cow<'a, str>>> for ResourceLocation<Box<str>> {
     #[inline]
     fn from(rl: ResourceLocation<Cow<'a, str>>) -> Self {
         ResourceLocation {
-            string: Arc::from(rl.string.as_ref()),
+            string: Box::from(rl.string.as_ref()),
             colon_pos: rl.colon_pos,
         }
     }
 }
 
-impl From<ResourceLocation<Arc<str>>> for ResourceLocation<Cow<'static, str>> {
+impl From<ResourceLocation<Box<str>>> for ResourceLocation<Cow<'static, str>> {
     #[inline]
-    fn from(rl: ResourceLocation<Arc<str>>) -> Self {
+    fn from(rl: ResourceLocation<Box<str>>) -> Self {
         ResourceLocation {
             string: Cow::Owned(rl.string.to_string()),
             colon_pos: rl.colon_pos,
@@ -332,7 +335,7 @@ pub struct InvalidResourceLocation {
     pub reason: String,
 }
 
-impl core::str::FromStr for ResourceLocation<Arc<str>> {
+impl core::str::FromStr for ResourceLocation<Box<str>> {
     type Err = InvalidResourceLocation;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
@@ -348,7 +351,7 @@ impl<S: AsRef<str>> Serialize for ResourceLocation<S> {
     }
 }
 
-impl<'de> Deserialize<'de> for ResourceLocation<Arc<str>> {
+impl<'de> Deserialize<'de> for ResourceLocation<Box<str>> {
     fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
         ResourceLocation::read(&String::deserialize(d)?).map_err(serde::de::Error::custom)
     }
@@ -356,7 +359,7 @@ impl<'de> Deserialize<'de> for ResourceLocation<Arc<str>> {
 
 impl<'de> Deserialize<'de> for ResourceLocation<Cow<'static, str>> {
     fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
-        ResourceLocation::<Arc<str>>::deserialize(d).map(Into::into)
+        ResourceLocation::<Box<str>>::deserialize(d).map(Into::into)
     }
 }
 
@@ -382,7 +385,7 @@ mod tests {
 
     #[test]
     fn a_bare_path_reads_in_the_minecraft_namespace() {
-        let read = |json: &str| serde_json::from_str::<ResourceLocation<Arc<str>>>(json).unwrap();
+        let read = |json: &str| serde_json::from_str::<ResourceLocation<Box<str>>>(json).unwrap();
         assert_eq!(read(r#""alt""#).as_str(), "minecraft:alt");
         assert_eq!(read(r#""block/stone""#).as_str(), "minecraft:block/stone");
         assert_eq!(read(r#""mcrs:alt""#).as_str(), "mcrs:alt");
@@ -391,7 +394,7 @@ mod tests {
 
     #[test]
     fn vanilla_character_sets_are_enforced() {
-        let read = |json: &str| serde_json::from_str::<ResourceLocation<Arc<str>>>(json);
+        let read = |json: &str| serde_json::from_str::<ResourceLocation<Box<str>>>(json);
         assert_eq!(
             read(r#""MC:alt""#).unwrap_err().to_string(),
             "Not a valid resource location: MC:alt Non [a-z0-9_.-] character in namespace of identifier: MC:alt"

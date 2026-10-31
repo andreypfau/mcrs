@@ -5,8 +5,7 @@ use mcrs_minecraft_item::{ComponentPatch, ItemStackValue, ItemStackWithSlot};
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_nbt::{from_tag, to_nbt_compound};
-use mcrs_minecraft_resource::ResourceKey;
-use mcrs_minecraft_resource::rl;
+use mcrs_minecraft_resource::{ResourceKeyBuf, rl};
 use mcrs_voxel::BlockPos;
 
 use crate::generated_block_entity::fresh_listener;
@@ -31,7 +30,7 @@ fn container(loot: Option<&str>) -> ContainerData {
         items: vec![ItemStackWithSlot {
             slot: 4,
             stack: ItemStackValue {
-                item: ResourceKey::from_location(rl!("minecraft:bread").to_arc()),
+                item: ResourceKeyBuf::from_location(rl!("minecraft:bread").to_buf()),
                 count: Bounded(2),
                 components: ComponentPatch::EMPTY,
             },

@@ -1,3 +1,5 @@
+#[cfg(test)]
+use mcrs_minecraft_resource::{ResourceKeyBuf, TagKeyBuf};
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
@@ -8,8 +10,7 @@ use bevy_ecs::prelude::*;
 use mcrs_minecraft_core::codec::is_default;
 #[cfg(feature = "bevy")]
 use mcrs_minecraft_registries::CurrentRegistries;
-use mcrs_minecraft_resource::Id;
-use mcrs_minecraft_resource::ResourceLocation;
+use mcrs_minecraft_resource::{Id, ResourceLocationBuf};
 use serde::{Deserialize, Serialize};
 
 use crate::timeline::Timeline;
@@ -195,8 +196,8 @@ impl ClockTimeMarker {
 #[derive(Debug, thiserror::Error)]
 #[error("time marker `{marker}` was defined more than once for clock `{clock}`")]
 pub struct DuplicateTimeMarker {
-    pub marker: ResourceLocation<Arc<str>>,
-    pub clock: ResourceLocation<Arc<str>>,
+    pub marker: ResourceLocationBuf,
+    pub clock: ResourceLocationBuf,
 }
 
 /// Every time marker the loaded timelines declare, grouped by the clock they
@@ -208,7 +209,7 @@ pub struct DuplicateTimeMarker {
 #[cfg_attr(feature = "bevy", derive(Resource))]
 pub struct ClockTimeMarkers(Arc<BTreeMap<Id<WorldClock>, MarkersOfClock>>);
 
-type MarkersOfClock = BTreeMap<ResourceLocation<Arc<str>>, ClockTimeMarker>;
+type MarkersOfClock = BTreeMap<ResourceLocationBuf, ClockTimeMarker>;
 
 impl ClockTimeMarkers {
     pub fn get(&self, clock: Id<WorldClock>, marker: &str) -> Option<&ClockTimeMarker> {
@@ -218,7 +219,7 @@ impl ClockTimeMarkers {
     pub fn of_clock(
         &self,
         clock: Id<WorldClock>,
-    ) -> impl Iterator<Item = (&ResourceLocation<Arc<str>>, &ClockTimeMarker)> {
+    ) -> impl Iterator<Item = (&ResourceLocationBuf, &ClockTimeMarker)> {
         self.0.get(&clock).into_iter().flat_map(BTreeMap::iter)
     }
 
@@ -226,7 +227,7 @@ impl ClockTimeMarkers {
     /// repeat is returned with the index of the timeline that repeated it.
     pub fn derive<'a>(
         timelines: &[Timeline],
-        clock_name: impl Fn(Id<WorldClock>) -> Option<&'a ResourceLocation>,
+        clock_name: impl Fn(Id<WorldClock>) -> Option<&'a ResourceLocationBuf>,
     ) -> Result<Self, Vec<(usize, DuplicateTimeMarker)>> {
         let mut table: BTreeMap<Id<WorldClock>, MarkersOfClock> = BTreeMap::new();
         let mut duplicates = Vec::new();
@@ -342,7 +343,7 @@ pub fn extract_world_clocks(main_world: &mut World, sub_world: &mut World) {
 /// The shipped world clocks numbered in name order, standing in for the registries a value that
 /// names a clock is resolved and named against.
 #[cfg(test)]
-pub(crate) struct TestClocks(Vec<ResourceLocation<Arc<str>>>);
+pub(crate) struct TestClocks(Vec<ResourceLocationBuf>);
 
 #[cfg(test)]
 pub(crate) static TEST_CLOCKS: std::sync::LazyLock<TestClocks> = std::sync::LazyLock::new(|| {
@@ -351,7 +352,7 @@ pub(crate) static TEST_CLOCKS: std::sync::LazyLock<TestClocks> = std::sync::Lazy
         .iter()
         .map(|path| {
             let name = path.file_stem().unwrap().to_str().unwrap();
-            ResourceLocation::read(&format!("minecraft:{name}")).unwrap()
+            ResourceLocationBuf::read(&format!("minecraft:{name}")).unwrap()
         })
         .collect();
     names.sort();
@@ -392,7 +393,7 @@ impl TestClocks {
 impl mcrs_minecraft_registries::Resolver for TestClocks {
     fn id<R: mcrs_minecraft_resource::Registered>(
         &self,
-        key: &mcrs_minecraft_resource::ResourceKey<R>,
+        key: &ResourceKeyBuf<R>,
     ) -> Result<Id<R>, mcrs_minecraft_registries::ResolveError> {
         let at = self.0.iter().position(|name| name == key.location());
         at.and_then(|at| Id::checked(at as u16, self.0.len()))
@@ -403,7 +404,7 @@ impl mcrs_minecraft_registries::Resolver for TestClocks {
 
     fn tag<R: mcrs_minecraft_resource::Registered>(
         &self,
-        tag: &mcrs_minecraft_resource::TagKey<R>,
+        tag: &TagKeyBuf<R>,
     ) -> Result<mcrs_minecraft_resource::TagId<R>, mcrs_minecraft_registries::ResolveError> {
         Err(format!("unknown tag #{}", tag.as_str()).into())
     }
@@ -411,14 +412,17 @@ impl mcrs_minecraft_registries::Resolver for TestClocks {
 
 #[cfg(test)]
 impl mcrs_minecraft_registries::Namer for TestClocks {
-    fn name<R: mcrs_minecraft_resource::Registered>(&self, id: Id<R>) -> Option<&ResourceLocation> {
+    fn name<R: mcrs_minecraft_resource::Registered>(
+        &self,
+        id: Id<R>,
+    ) -> Option<&ResourceLocationBuf> {
         self.0.get(id.index())
     }
 
     fn tag_name<R: mcrs_minecraft_resource::Registered>(
         &self,
         _: mcrs_minecraft_resource::TagId<R>,
-    ) -> Option<&ResourceLocation> {
+    ) -> Option<&ResourceLocationBuf> {
         None
     }
 }

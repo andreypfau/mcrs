@@ -2,6 +2,7 @@
 pub mod keys;
 mod wire;
 
+use mcrs_minecraft_resource::ResourceKeyBuf;
 use std::collections::BTreeMap;
 
 use mcrs_minecraft_block::keys::Block;
@@ -13,7 +14,6 @@ use mcrs_minecraft_registries::{
     FromWire, Namer, Refs, Resolve, ResolveError, Resolved, Resolver, WireNames, dispatch,
     registry_value,
 };
-use mcrs_minecraft_resource::ResourceKey;
 use mcrs_minecraft_wire::{Decode, Encode};
 use mcrs_voxel::BlockPos;
 use serde::de::Error as _;
@@ -177,16 +177,16 @@ for_each_particle_type!(particle_types);
 /// the id is resolved.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct BlockStateValue {
-    pub block: ResourceKey<Block>,
+    pub block: ResourceKeyBuf<Block>,
     pub properties: BTreeMap<String, String>,
 }
 
 #[derive(Serialize, Deserialize)]
 #[serde(untagged)]
 enum BlockStateRepr {
-    Id(ResourceKey<Block>),
+    Id(ResourceKeyBuf<Block>),
     State {
-        id: ResourceKey<Block>,
+        id: ResourceKeyBuf<Block>,
         #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
         properties: BTreeMap<String, String>,
     },
@@ -238,7 +238,7 @@ impl FromWire for BlockStateValue {
     fn from_wire<C: WireNames>(wire: BlockStateNumber, ctx: &C) -> Result<Self, ResolveError> {
         let (block, properties) = ctx.block_state(wire.0)?;
         Ok(BlockStateValue {
-            block: ResourceKey::from_location(block),
+            block: ResourceKeyBuf::from_location(block),
             properties: properties.into_iter().collect(),
         })
     }

@@ -1587,6 +1587,7 @@ mod tests {
 
     mod jar {
         use super::*;
+        use mcrs_minecraft_resource::ResourceLocationBuf;
 
         #[test]
         fn the_tint_table_follows_the_session_biomes() {
@@ -1632,10 +1633,7 @@ mod tests {
 
             let swamp = |set: &CurrentRegistries| {
                 biomes(set)
-                    .by_name(
-                        &mcrs_minecraft_resource::ResourceLocation::read("minecraft:swamp")
-                            .unwrap(),
-                    )
+                    .by_name(&ResourceLocationBuf::read("minecraft:swamp").unwrap())
                     .unwrap()
             };
             assert_ne!(swamp(&first), swamp(&second), "the swamp is numbered anew");

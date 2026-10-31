@@ -1,3 +1,4 @@
+use mcrs_minecraft_resource::{ResourceKeyBuf, ResourceLocationBuf};
 use std::collections::BTreeMap;
 use std::fmt;
 
@@ -8,7 +9,6 @@ use mcrs_minecraft_environment::timeline::Timeline;
 use mcrs_minecraft_environment::world_clock::WorldClock;
 use mcrs_minecraft_game_rule::{GameRule, GameRuleValueType};
 use mcrs_minecraft_registries::{Ref, Refs, Resolved, dispatch, registry_value};
-use mcrs_minecraft_resource::{ResourceKey, ResourceLocation};
 use serde::de::{DeserializeSeed, Error as _, MapAccess, Visitor};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
@@ -32,9 +32,9 @@ pub enum TestEnvironment<M: Refs = Resolved> {
     #[dispatch(Function)]
     Functions {
         #[serde(default, skip_serializing_if = "Option::is_none")]
-        setup: Option<ResourceLocation>,
+        setup: Option<ResourceLocationBuf>,
         #[serde(default, skip_serializing_if = "Option::is_none")]
-        teardown: Option<ResourceLocation>,
+        teardown: Option<ResourceLocationBuf>,
     },
     #[dispatch(GameRules)]
     SetGameRules {
@@ -125,7 +125,7 @@ impl<'de> Deserialize<'de> for GameRuleMap {
 
             fn visit_map<A: MapAccess<'de>>(self, mut map: A) -> Result<GameRuleMap, A::Error> {
                 let mut rules = BTreeMap::new();
-                while let Some(name) = map.next_key::<ResourceLocation>()? {
+                while let Some(name) = map.next_key::<ResourceLocationBuf>()? {
                     let rule = GameRule::find(name.as_str())
                         .ok_or_else(|| A::Error::custom(format_args!("{name} is no GameRule")))?;
                     let value = map
@@ -145,11 +145,11 @@ type Positive = Bounded<1, { i32::MAX }, 1>;
 type NonNegative = Bounded<0, { i32::MAX }, 0>;
 type Padding = Bounded<0, 128, 0>;
 
-fn overworld() -> ResourceKey<Dimension> {
+fn overworld() -> ResourceKeyBuf<Dimension> {
     mcrs_minecraft_dimension::keys::dimension::OVERWORLD.into()
 }
 
-fn is_overworld(dimension: &ResourceKey<Dimension>) -> bool {
+fn is_overworld(dimension: &ResourceKeyBuf<Dimension>) -> bool {
     *dimension == mcrs_minecraft_dimension::keys::dimension::OVERWORLD
 }
 
@@ -169,8 +169,8 @@ macro_rules! test_instance {
             $($head)*
             pub environment: EnvironmentRef<M>,
             #[serde(default = "overworld", skip_serializing_if = "is_overworld")]
-            pub dimension: ResourceKey<Dimension>,
-            pub structure: ResourceLocation,
+            pub dimension: ResourceKeyBuf<Dimension>,
+            pub structure: ResourceLocationBuf,
             pub max_ticks: Positive,
             #[serde(default, skip_serializing_if = "is_default")]
             pub setup_ticks: NonNegative,
@@ -194,7 +194,7 @@ macro_rules! test_instance {
 
 test_instance!(BlockBasedTest {});
 test_instance!(FunctionTest {
-    pub function: ResourceLocation,
+    pub function: ResourceLocationBuf,
 });
 
 #[registry_value]

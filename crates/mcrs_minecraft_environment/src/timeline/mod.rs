@@ -1,11 +1,9 @@
-use mcrs_minecraft_resource::ResourceKey;
+use mcrs_minecraft_resource::{ResourceKeyBuf, ResourceLocationBuf};
 use std::collections::BTreeMap;
-use std::sync::Arc;
 
 use crate::world_clock::WorldClock;
 use mcrs_minecraft_core::codec::{NonNegativeInt, PositiveInt};
 use mcrs_minecraft_registries::{Named, Refs, Resolve, Resolved};
-use mcrs_minecraft_resource::ResourceLocation;
 use serde::de::Error as _;
 use serde::{Deserialize, Deserializer, Serialize};
 
@@ -17,7 +15,7 @@ pub use marker::TimeMarker;
 pub use sampler::{AttributeTrackSampler, TrackSampler};
 pub use track::{Easing, Keyframe, Track, TrackError, Tracks};
 
-pub type TimeMarkers = BTreeMap<ResourceLocation<Arc<str>>, TimeMarker>;
+pub type TimeMarkers = BTreeMap<ResourceLocationBuf, TimeMarker>;
 
 fn non_negative_ticks<'de, D: Deserializer<'de>>(d: D) -> Result<u32, D::Error> {
     NonNegativeInt::deserialize(d).map(|ticks| ticks.0 as u32)
@@ -52,7 +50,7 @@ impl Serialize for Timeline<Named> {
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct TimelineRepr {
-    clock: ResourceKey<WorldClock>,
+    clock: ResourceKeyBuf<WorldClock>,
     #[serde(default)]
     period_ticks: Option<PositiveInt>,
     #[serde(default)]
@@ -136,7 +134,7 @@ impl From<&Timeline> for NetworkTimeline {
 pub enum TimelineError {
     #[error("time marker `{marker}` at tick {ticks} must be in range [0; {period})")]
     MarkerOutsidePeriod {
-        marker: ResourceLocation<Arc<str>>,
+        marker: ResourceLocationBuf,
         ticks: u32,
         period: u32,
     },

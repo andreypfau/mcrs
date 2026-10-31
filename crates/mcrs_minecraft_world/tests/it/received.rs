@@ -1,8 +1,8 @@
+use mcrs_minecraft_resource::ResourceLocationBuf;
 use std::collections::BTreeMap;
 
 use mcrs_minecraft_datapack::PackSource;
 use mcrs_minecraft_registries::{NetworkSnapshot, Registries};
-use mcrs_minecraft_resource::ResourceLocation;
 use mcrs_minecraft_world::registry_load::{load_received, sent_by, test_packs, test_registries};
 
 const REPORT: &[u8] = include_bytes!(concat!(
@@ -16,7 +16,7 @@ fn contents(set: &Registries, registries: &[String]) -> Contents {
     registries
         .iter()
         .map(|registry| {
-            let key = ResourceLocation::read(registry).unwrap();
+            let key = ResourceLocationBuf::read(registry).unwrap();
             let names = set
                 .names_of(&key)
                 .map(|names| names.iter().map(ToString::to_string).collect())
@@ -57,7 +57,7 @@ fn a_client_holds_the_synced_registries_and_tags_the_server_holds() {
 /// The client reads the vanilla entries of `left_out` from its own vanilla files and every other
 /// entry from the data sent; it then holds what it holds when the server sends every entry with
 /// its data.
-fn files_stand_for_the_data_sent(left_out: impl Fn(&ResourceLocation) -> bool) {
+fn files_stand_for_the_data_sent(left_out: impl Fn(&ResourceLocationBuf) -> bool) {
     let with_data = sent_by(test_registries(), false);
     let mut without = sent_by(test_registries(), true);
     for ((registry, entries), (_, full)) in without.registries.iter_mut().zip(&with_data.registries)

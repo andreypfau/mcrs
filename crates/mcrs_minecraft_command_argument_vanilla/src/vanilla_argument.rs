@@ -48,7 +48,7 @@ pub enum VanillaArgument {
     /// `minecraft:rotation`.
     Rotation(RotationArgument),
     /// `minecraft:resource_location`.
-    ResourceLocation(ResourceLocationArgument),
+    ResourceLocationBuf(ResourceLocationArgument),
     /// `minecraft:entity_anchor`.
     EntityAnchor(EntityAnchorArgument),
     /// `minecraft:dimension`.
@@ -106,7 +106,7 @@ variant_conversions! {
     Entity(EntityArgument)
     Vec3(Vec3Argument)
     Rotation(RotationArgument)
-    ResourceLocation(ResourceLocationArgument)
+    ResourceLocationBuf(ResourceLocationArgument)
     EntityAnchor(EntityAnchorArgument)
     Dimension(DimensionArgument)
     GameMode(GameModeArgument)
@@ -154,7 +154,7 @@ impl<L: VanillaLookup> ArgumentSet<Source<'_, L>> for VanillaArgument {
             VanillaArgument::Entity(argument) => check(argument, reader, source),
             VanillaArgument::Vec3(argument) => check(argument, reader, source),
             VanillaArgument::Rotation(argument) => check(argument, reader, source),
-            VanillaArgument::ResourceLocation(argument) => check(argument, reader, source),
+            VanillaArgument::ResourceLocationBuf(argument) => check(argument, reader, source),
             VanillaArgument::EntityAnchor(argument) => check(argument, reader, source),
             VanillaArgument::Dimension(argument) => check(argument, reader, source),
             VanillaArgument::GameMode(argument) => check(argument, reader, source),
@@ -198,7 +198,7 @@ impl<L: VanillaLookup> ArgumentSet<Source<'_, L>> for VanillaArgument {
             | VanillaArgument::Double(_)
             | VanillaArgument::String(_)
             | VanillaArgument::Rotation(_)
-            | VanillaArgument::ResourceLocation(_) => {}
+            | VanillaArgument::ResourceLocationBuf(_) => {}
         }
     }
 }
@@ -218,7 +218,7 @@ fn limits<T: Copy>(range: &NumberRange<T>, any: (T, T)) -> (T, T) {
 const UNIT_ARGUMENTS: [VanillaArgument; 10] = [
     VanillaArgument::Vec3(Vec3Argument),
     VanillaArgument::Rotation(RotationArgument),
-    VanillaArgument::ResourceLocation(ResourceLocationArgument),
+    VanillaArgument::ResourceLocationBuf(ResourceLocationArgument),
     VanillaArgument::EntityAnchor(EntityAnchorArgument),
     VanillaArgument::Dimension(DimensionArgument),
     VanillaArgument::GameMode(GameModeArgument),
@@ -391,7 +391,7 @@ impl WireArgument for VanillaArgument {
             ),
             VanillaArgument::Vec3(_) => (parser::VEC3, ParserProperties::None),
             VanillaArgument::Rotation(_) => (parser::ROTATION, ParserProperties::None),
-            VanillaArgument::ResourceLocation(_) => {
+            VanillaArgument::ResourceLocationBuf(_) => {
                 (parser::RESOURCE_LOCATION, ParserProperties::None)
             }
             VanillaArgument::EntityAnchor(_) => (parser::ENTITY_ANCHOR, ParserProperties::None),

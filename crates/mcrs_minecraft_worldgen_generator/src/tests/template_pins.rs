@@ -14,7 +14,7 @@ mod exhaustive {
     /// three draws before the corner check still happen.
     #[test]
     fn a_fossil_with_too_many_empty_corners_places_nothing() {
-        let node = &corpus_features().features[&rl!("minecraft:fossil_coal").to_arc()];
+        let node = &corpus_features().features[&rl!("minecraft:fossil_coal").to_buf()];
         let program = feature_program(node);
         let generator = program.generator_at(0, 0).expect("a fossil compiles");
         let mut region = region(BlockPos::new(-16, 60, -16), BlockPos::new(31, 99, 31), 0);

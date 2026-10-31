@@ -1,3 +1,4 @@
+use mcrs_minecraft_resource::ResourceLocationBuf;
 use std::io::Cursor;
 
 use glam::{DVec3, IVec3};
@@ -10,7 +11,6 @@ use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::worldgen::WorldgenRandom;
 use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
 use mcrs_minecraft_registries::dispatch;
-use mcrs_minecraft_resource::ResourceLocation;
 use mcrs_minecraft_worldgen_feature::template::{EntityKind, FrozenEntity};
 use mcrs_minecraft_worldgen_structure::spawn_condition::{SpawnContext, VariantTables};
 use mcrs_voxel::{BlockPos, ColumnPos};
@@ -44,8 +44,8 @@ pub enum GeneratedKind {
     Cat {
         #[serde(rename = "LeftHanded", deserialize_with = "nbt_flag")]
         left_handed: bool,
-        variant: ResourceLocation,
-        sound_variant: ResourceLocation,
+        variant: ResourceLocationBuf,
+        sound_variant: ResourceLocationBuf,
     },
     ElderGuardian {
         #[serde(rename = "LeftHanded", deserialize_with = "nbt_flag")]
@@ -64,13 +64,13 @@ pub enum GeneratedKind {
         left_handed: bool,
         #[serde(rename = "IsChickenJockey", deserialize_with = "nbt_flag")]
         jockey: bool,
-        variant: ResourceLocation,
-        sound_variant: ResourceLocation,
+        variant: ResourceLocationBuf,
+        sound_variant: ResourceLocationBuf,
     },
     ZombieNautilus {
         #[serde(rename = "LeftHanded", deserialize_with = "nbt_flag")]
         left_handed: bool,
-        variant: ResourceLocation,
+        variant: ResourceLocationBuf,
     },
     Shulker {
         #[serde(rename = "LeftHanded", deserialize_with = "nbt_flag")]
@@ -411,10 +411,10 @@ pub fn chest_minecart(
 /// `Registry.getRandom` over a registry in its order, `fallback` when the
 /// registry is empty.
 fn pick_sound(
-    sounds: &[ResourceLocation],
-    fallback: impl FnOnce() -> ResourceLocation,
+    sounds: &[ResourceLocationBuf],
+    fallback: impl FnOnce() -> ResourceLocationBuf,
     rng: &mut WorldgenRandom,
-) -> ResourceLocation {
+) -> ResourceLocationBuf {
     sounds
         .get(rng.next_i32_bound(sounds.len() as i32) as usize)
         .cloned()
@@ -431,14 +431,14 @@ pub fn cat(
     let variant = tables.cats.pick(ctx, rng).cloned().unwrap_or_else(|| {
         mcrs_minecraft_entity::keys::cat_variant::BLACK
             .location()
-            .to_arc()
+            .to_buf()
     });
     let sound_variant = pick_sound(
         &tables.cat_sounds,
         || {
             mcrs_minecraft_entity::keys::cat_sound_variant::CLASSIC
                 .location()
-                .to_arc()
+                .to_buf()
         },
         rng,
     );
@@ -463,14 +463,14 @@ fn chicken_jockey(
     let variant = tables.chickens.pick(ctx, rng).cloned().unwrap_or_else(|| {
         mcrs_minecraft_entity::keys::chicken_variant::TEMPERATE
             .location()
-            .to_arc()
+            .to_buf()
     });
     let sound_variant = pick_sound(
         &tables.chicken_sounds,
         || {
             mcrs_minecraft_entity::keys::chicken_sound_variant::CLASSIC
                 .location()
-                .to_arc()
+                .to_buf()
         },
         rng,
     );
@@ -501,7 +501,7 @@ fn zombie_nautilus(
         .unwrap_or_else(|| {
             mcrs_minecraft_entity::keys::zombie_nautilus_variant::TEMPERATE
                 .location()
-                .to_arc()
+                .to_buf()
         });
     // `NautilusAi.initMemories`: the attack cooldown, `UniformInt.of(2400, 3600)`.
     rng.next_i32_bound(1201);
@@ -589,6 +589,7 @@ mod tests {
     use fixedbitset::FixedBitSet;
     use mcrs_minecraft_nbt::to_nbt_compound;
     use mcrs_minecraft_registries::{KeySet, Named};
+    use mcrs_minecraft_resource::TagKeyBuf;
     use mcrs_minecraft_resource::rl;
     use mcrs_minecraft_worldgen_structure::spawn_condition::{
         IdSet, SpawnCondition, SpawnSelector, VariantTable,
@@ -620,10 +621,10 @@ mod tests {
         Arc::new(bits)
     }
 
-    fn ids(names: &[&str]) -> Vec<ResourceLocation> {
+    fn ids(names: &[&str]) -> Vec<ResourceLocationBuf> {
         names
             .iter()
-            .map(|n| ResourceLocation::minecraft(n).unwrap())
+            .map(|n| ResourceLocationBuf::minecraft(n).unwrap())
             .collect()
     }
 
@@ -633,8 +634,8 @@ mod tests {
     }
 
     fn tag_key<R>(tag: &str) -> KeySet<R> {
-        KeySet::Tag(mcrs_minecraft_resource::TagKey::from_location(
-            ResourceLocation::minecraft(tag).unwrap(),
+        KeySet::Tag(TagKeyBuf::from_location(
+            ResourceLocationBuf::minecraft(tag).unwrap(),
         ))
     }
 
@@ -651,7 +652,7 @@ mod tests {
 
     fn tables() -> VariantTables {
         let dir = mcrs_minecraft_worldgen_testing::vanilla_dir().join("cat_variant");
-        let cats: Vec<(ResourceLocation, Vec<SpawnSelector<Named>>)> =
+        let cats: Vec<(ResourceLocationBuf, Vec<SpawnSelector<Named>>)> =
             mcrs_minecraft_worldgen_testing::json_files(&dir)
                 .into_iter()
                 .map(|path| {
@@ -659,7 +660,7 @@ mod tests {
                     let variant: Variant =
                         serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
                     (
-                        ResourceLocation::minecraft(&name).unwrap(),
+                        ResourceLocationBuf::minecraft(&name).unwrap(),
                         variant.spawn_conditions,
                     )
                 })
@@ -684,11 +685,11 @@ mod tests {
         let chickens = VariantTable::freeze(
             [
                 (
-                    rl!("minecraft:cold").to_arc(),
+                    rl!("minecraft:cold").to_buf(),
                     std::slice::from_ref(&in_tag("spawns_cold_variant_farm_animals")),
                 ),
                 (
-                    rl!("minecraft:temperate").to_arc(),
+                    rl!("minecraft:temperate").to_buf(),
                     std::slice::from_ref(&plain),
                 ),
             ],
@@ -699,11 +700,11 @@ mod tests {
         let zombie_nautiluses = VariantTable::freeze(
             [
                 (
-                    rl!("minecraft:temperate").to_arc(),
+                    rl!("minecraft:temperate").to_buf(),
                     std::slice::from_ref(&plain),
                 ),
                 (
-                    rl!("minecraft:warm").to_arc(),
+                    rl!("minecraft:warm").to_buf(),
                     std::slice::from_ref(&in_tag("spawns_coral_variant_zombie_nautilus")),
                 ),
             ],
@@ -792,7 +793,7 @@ mod tests {
         else {
             panic!()
         };
-        assert_eq!(variant, rl!("minecraft:all_black").to_arc());
+        assert_eq!(variant, rl!("minecraft:all_black").to_buf());
         assert!(tables.cat_sounds.contains(&sound_variant));
 
         let mut seen = std::collections::BTreeSet::new();
@@ -1003,7 +1004,7 @@ mod tests {
                 match &entity.kind {
                     GeneratedKind::ZombieNautilus { variant, .. } => {
                         mounted += 1;
-                        assert_eq!(variant, &rl!("minecraft:warm").to_arc());
+                        assert_eq!(variant, &rl!("minecraft:warm").to_buf());
                         let [rider] = entity.passengers.as_slice() else {
                             panic!()
                         };
@@ -1048,7 +1049,7 @@ mod tests {
                 {
                     jockeys += 1;
                     assert!(jockey);
-                    assert_eq!(variant, &rl!("minecraft:cold").to_arc());
+                    assert_eq!(variant, &rl!("minecraft:cold").to_buf());
                     let GeneratedKind::Drowned { baby, .. } = entity.passengers[0].kind else {
                         panic!()
                     };

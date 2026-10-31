@@ -1,3 +1,4 @@
+use mcrs_minecraft_resource::ResourceKeyBuf;
 use std::collections::BTreeMap;
 use std::fmt;
 use std::fs;
@@ -8,7 +9,6 @@ use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_protocol::item::{ItemStackValue, ItemStackWithSlot};
 use mcrs_minecraft_registries::Named;
-use mcrs_minecraft_resource::ResourceKey;
 use serde::de::{Error as _, MapAccess, Visitor};
 use serde::ser::SerializeMap;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -24,7 +24,7 @@ pub struct PlayerDat {
     pub data_version: i32,
     pub pos: [f64; 3],
     pub rotation: [f32; 2],
-    pub dimension: ResourceKey<mcrs_minecraft_dimension::Dimension>,
+    pub dimension: ResourceKeyBuf<mcrs_minecraft_dimension::Dimension>,
     pub inventory: Vec<ItemStackWithSlot<Named>>,
     pub selected_item_slot: i32,
     pub equipment: BTreeMap<String, ItemStackValue<Named>>,

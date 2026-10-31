@@ -1,6 +1,6 @@
 use mcrs_minecraft_core::codec::Bounded;
 use mcrs_minecraft_registries::{Ref, Refs, Resolved, registry_value};
-use mcrs_minecraft_resource::ResourceLocation;
+use mcrs_minecraft_resource::{ResourceLocation, ResourceLocationBuf};
 use serde::{Deserialize, Serialize};
 
 use crate::Text;
@@ -17,7 +17,7 @@ use std::io::Write;
 pub struct PaintingVariantValue<M: Refs = Resolved> {
     pub width: Bounded<1, 16, 1>,
     pub height: Bounded<1, 16, 1>,
-    pub asset_id: ResourceLocation,
+    pub asset_id: ResourceLocationBuf,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub title: Option<Text<M::Nbt>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]

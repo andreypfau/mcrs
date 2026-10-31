@@ -1,9 +1,9 @@
+use mcrs_minecraft_resource::ResourceLocationBuf;
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
 use mcrs_minecraft_datapack::ReadError;
 use mcrs_minecraft_nbt::tag::NbtTag;
-use mcrs_minecraft_resource::ResourceLocation;
 
 use crate::declaration::{Declaration, Source, entry_path};
 use crate::diagnostics::{Diagnostic, Diagnostics};
@@ -11,14 +11,17 @@ use crate::load::{Filled, stages};
 use crate::registries::{Kind, Registries};
 
 /// Each registry's tags as sent: the tag names with the numbers of their members.
-pub type ReceivedTags = Vec<(ResourceLocation, Vec<(ResourceLocation, Vec<i32>)>)>;
+pub type ReceivedTags = Vec<(ResourceLocationBuf, Vec<(ResourceLocationBuf, Vec<i32>)>)>;
 
 /// What a server sent of its registries during one configuration.
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct Received {
     /// Each registry's entries in the order sent, a registry sent in several packets already
     /// joined. An entry's data is absent where the server left it to a pack the client knows.
-    pub registries: Vec<(ResourceLocation, Vec<(ResourceLocation, Option<NbtTag>)>)>,
+    pub registries: Vec<(
+        ResourceLocationBuf,
+        Vec<(ResourceLocationBuf, Option<NbtTag>)>,
+    )>,
     /// The tags of each registry, as numbers of the entries the registry holds.
     pub tags: ReceivedTags,
 }
@@ -48,7 +51,7 @@ impl Registries {
         received: &Received,
         known: Option<&dyn Fn(&str) -> Result<Vec<u8>, ReadError>>,
     ) -> Result<(Registries, Diagnostics), Diagnostics> {
-        let sent: HashMap<&ResourceLocation, &[(ResourceLocation, Option<NbtTag>)]> =
+        let sent: HashMap<&ResourceLocationBuf, &[(ResourceLocationBuf, Option<NbtTag>)]> =
             (received.registries.iter())
                 .map(|(key, entries)| (key, entries.as_slice()))
                 .collect();
@@ -107,10 +110,10 @@ impl Registries {
 
 /// Members numbered outside the registry are dropped, as the game drops them.
 fn received_tags(
-    registry: &ResourceLocation,
-    received: &[(ResourceLocation, Vec<(ResourceLocation, Vec<i32>)>)],
+    registry: &ResourceLocationBuf,
+    received: &[(ResourceLocationBuf, Vec<(ResourceLocationBuf, Vec<i32>)>)],
     entries: usize,
-) -> Vec<(ResourceLocation, Option<Vec<u16>>)> {
+) -> Vec<(ResourceLocationBuf, Option<Vec<u16>>)> {
     received
         .iter()
         .rfind(|(key, _)| key == registry)

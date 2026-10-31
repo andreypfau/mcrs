@@ -1,3 +1,4 @@
+use mcrs_minecraft_resource::ResourceLocationBuf;
 use std::borrow::Cow;
 use std::fmt;
 use std::marker::PhantomData;
@@ -6,7 +7,6 @@ use mcrs_minecraft_core::codec::non_empty;
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::from_tag;
 use mcrs_minecraft_nbt::tag::NbtTag;
-use mcrs_minecraft_resource::ResourceLocation;
 use serde::de::Visitor;
 use serde::{Deserialize, Deserializer, Serialize, de};
 
@@ -99,7 +99,7 @@ impl<'de, I: TextSerde> Deserialize<'de> for TextInner<I> {
                         "insertion" => {
                             style!(style.insertion, String, |v: String| Some(Cow::Owned(v)))
                         }
-                        "font" => style!(style.font, ResourceLocation, Some),
+                        "font" => style!(style.font, ResourceLocationBuf, Some),
                         "with" => with = Some(map.next_value()?),
                         _ => content.child_tags.push((key, map.next_value::<NbtTag>()?)),
                     }

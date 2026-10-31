@@ -1,7 +1,7 @@
 use mcrs_minecraft_block_predicate::provider::Holder;
 use mcrs_minecraft_core::codec::Bounded;
 use mcrs_minecraft_registries::dispatch;
-use mcrs_minecraft_resource::ResourceLocation;
+use mcrs_minecraft_resource::ResourceLocationBuf;
 use mcrs_minecraft_worldgen_density::proto::Either;
 use serde::{Deserialize, Serialize};
 
@@ -19,7 +19,7 @@ pub enum LiquidSettings {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct TemplatePool {
-    pub fallback: ResourceLocation,
+    pub fallback: ResourceLocationBuf,
     pub elements: Vec<PoolEntry>,
 }
 
@@ -56,7 +56,7 @@ pub enum PoolElement {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct SingleElement {
-    pub location: ResourceLocation,
+    pub location: ResourceLocationBuf,
     pub processors: Holder<StructureProcessorList>,
     pub projection: Projection,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -66,7 +66,7 @@ pub struct SingleElement {
 impl SingleElement {
     /// No processor list is an empty list written in place, not a reference.
     pub fn new(
-        location: impl Into<ResourceLocation>,
+        location: impl Into<ResourceLocationBuf>,
         processors: Option<Holder<StructureProcessorList>>,
         projection: Projection,
     ) -> Self {

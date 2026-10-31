@@ -1,3 +1,4 @@
+use mcrs_minecraft_resource::ResourceLocationBuf;
 use std::collections::BTreeMap;
 
 use mcrs_minecraft_biome_file::{BiomeFile, NetworkBiome};
@@ -6,7 +7,6 @@ use mcrs_minecraft_noise::proto::NoiseParam;
 use mcrs_minecraft_registries::{
     DataDeclaration, DataValue, Declaration, RegistryAdditions, insert_entry,
 };
-use mcrs_minecraft_resource::ResourceLocation;
 use mcrs_minecraft_worldgen_builtin as builtin;
 use mcrs_minecraft_worldgen_carver::config::CarverConfig;
 use mcrs_minecraft_worldgen_density::proto::DensityFunctionHolder;
@@ -99,7 +99,7 @@ fn insert_built_ins(files: &mut PackFiles) -> Result<(), builtin::BuiltinError> 
 fn insert_all<V: DataValue>(
     files: &mut PackFiles,
     pack: &str,
-    values: BTreeMap<ResourceLocation, V::Named>,
+    values: BTreeMap<ResourceLocationBuf, V::Named>,
 ) where
     V::Named: Send + Sync,
 {
@@ -112,7 +112,6 @@ fn insert_all<V: DataValue>(
 mod tests {
     use std::collections::BTreeMap;
 
-    use mcrs_minecraft_resource::ResourceLocation;
     use mcrs_minecraft_world::registry_load::test_registries;
     use serde::Deserialize;
 
@@ -140,7 +139,7 @@ mod tests {
                 .collect();
             reported.sort();
             let declared = test_registries()
-                .names_of(&ResourceLocation::read(&name).unwrap())
+                .names_of(&mcrs_minecraft_resource::ResourceLocationBuf::read(&name).unwrap())
                 .unwrap_or_else(|| panic!("{name} is not declared"));
             let declared: Vec<String> = declared.iter().map(ToString::to_string).collect();
             let reported: Vec<String> = reported.into_iter().map(|(_, entry)| entry).collect();

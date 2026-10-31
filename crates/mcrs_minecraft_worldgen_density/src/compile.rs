@@ -22,7 +22,7 @@ use mcrs_minecraft_noise::stack::{NoiseStack, Octave};
 use mcrs_minecraft_noise::strata::{Axes, NO_AXES, axis_bit};
 use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_random::{Random, RandomSource};
-use mcrs_minecraft_resource::ResourceLocation;
+use mcrs_minecraft_resource::ResourceLocationBuf;
 use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
 
@@ -49,8 +49,8 @@ pub enum CompileError {
 
 pub fn build_router(
     settings: &NoiseGeneratorSettings,
-    registry: &BTreeMap<ResourceLocation, DensityFunctionHolder>,
-    noises: &BTreeMap<ResourceLocation, NoiseParam>,
+    registry: &BTreeMap<ResourceLocationBuf, DensityFunctionHolder>,
+    noises: &BTreeMap<ResourceLocationBuf, NoiseParam>,
     seed: u64,
     blocks: RouterBlocks,
 ) -> Result<NoiseRouter, CompileError> {
@@ -63,8 +63,8 @@ pub fn build_router(
 /// before the aquifer's.
 pub fn build_router_with<T>(
     settings: &NoiseGeneratorSettings,
-    registry: &BTreeMap<ResourceLocation, DensityFunctionHolder>,
-    noises: &BTreeMap<ResourceLocation, NoiseParam>,
+    registry: &BTreeMap<ResourceLocationBuf, DensityFunctionHolder>,
+    noises: &BTreeMap<ResourceLocationBuf, NoiseParam>,
     seed: u64,
     blocks: RouterBlocks,
     extra: impl FnOnce(&mut Compiler<'_>, &mut Vec<NodeId>) -> Result<T, CompileError>,
@@ -124,8 +124,8 @@ fn compile_aquifer(
 }
 
 pub struct Compiler<'a> {
-    registry: &'a BTreeMap<ResourceLocation, DensityFunctionHolder>,
-    noises: &'a BTreeMap<ResourceLocation, NoiseParam>,
+    registry: &'a BTreeMap<ResourceLocationBuf, DensityFunctionHolder>,
+    noises: &'a BTreeMap<ResourceLocationBuf, NoiseParam>,
     seed: u64,
     legacy_random: bool,
     random: RandomSource,
@@ -133,8 +133,8 @@ pub struct Compiler<'a> {
     axes: Vec<Axes>,
     node_ranges: Vec<Interval>,
     interned: HashMap<Key, NodeId>,
-    compiled: HashMap<ResourceLocation, NodeId>,
-    resolving: Vec<ResourceLocation>,
+    compiled: HashMap<ResourceLocationBuf, NodeId>,
+    resolving: Vec<ResourceLocationBuf>,
     samplers: HashMap<NoiseHolder, Arc<NoiseStack<Octave>>>,
     noise_params: HashMap<(usize, u64, u64), Arc<NoiseFunctionParams>>,
     splines: HashMap<ProtoSpline, Arc<CompiledSpline>>,
@@ -149,8 +149,8 @@ pub struct Compiler<'a> {
 
 impl<'a> Compiler<'a> {
     pub fn new(
-        registry: &'a BTreeMap<ResourceLocation, DensityFunctionHolder>,
-        noises: &'a BTreeMap<ResourceLocation, NoiseParam>,
+        registry: &'a BTreeMap<ResourceLocationBuf, DensityFunctionHolder>,
+        noises: &'a BTreeMap<ResourceLocationBuf, NoiseParam>,
         seed: u64,
         legacy_random: bool,
     ) -> Self {
@@ -255,7 +255,7 @@ impl<'a> Compiler<'a> {
     /// function spelled inline is a tree, not a shared node. So the memo hangs
     /// here rather than over every holder, where keying it would clone and hash
     /// a whole subtree at every level of the walk.
-    fn compile_reference(&mut self, id: &ResourceLocation) -> Result<NodeId, CompileError> {
+    fn compile_reference(&mut self, id: &ResourceLocationBuf) -> Result<NodeId, CompileError> {
         if let Some(&node) = self.compiled.get(id) {
             return Ok(node);
         }
@@ -1076,7 +1076,7 @@ impl<'a> Compiler<'a> {
 
     fn create_named_noise(
         &mut self,
-        id: &ResourceLocation,
+        id: &ResourceLocationBuf,
     ) -> Result<NoiseStack<Octave>, CompileError> {
         // The two nether climate noises are seeded from the raw world seed, not
         // from the hashed fork every other noise takes.
@@ -1139,7 +1139,7 @@ impl<'a> Compiler<'a> {
 
     /// The Beta noises are drawn from the pre-26.3 `LegacyRandom` streams and
     /// have no `worldgen/noise` entry, so the ids are resolved here instead.
-    fn create_legacy_noise(&mut self, id: &ResourceLocation) -> Option<NoiseStack<Octave>> {
+    fn create_legacy_noise(&mut self, id: &ResourceLocationBuf) -> Option<NoiseStack<Octave>> {
         if id == mcrs_minecraft_noise::keys::noise::OFFSET.location() {
             let mut root = self.random.clone();
             let mut random = root.fork_hash(mcrs_minecraft_noise::keys::noise::OFFSET.as_str());
@@ -1285,11 +1285,11 @@ pub(crate) mod tests {
     use mcrs_minecraft_noise::sample_grid::SampleGrid;
     use mcrs_minecraft_noise::strata::{AXIS_X, AXIS_Y, AXIS_Z};
 
-    fn no_functions() -> BTreeMap<ResourceLocation, DensityFunctionHolder> {
+    fn no_functions() -> BTreeMap<ResourceLocationBuf, DensityFunctionHolder> {
         BTreeMap::new()
     }
 
-    fn no_noises() -> BTreeMap<ResourceLocation, NoiseParam> {
+    fn no_noises() -> BTreeMap<ResourceLocationBuf, NoiseParam> {
         BTreeMap::new()
     }
 
@@ -1627,8 +1627,8 @@ pub(crate) mod tests {
     // --- the shipped corpus -------------------------------------------------
 
     pub(crate) fn corpus() -> (
-        BTreeMap<ResourceLocation, DensityFunctionHolder>,
-        BTreeMap<ResourceLocation, NoiseParam>,
+        BTreeMap<ResourceLocationBuf, DensityFunctionHolder>,
+        BTreeMap<ResourceLocationBuf, NoiseParam>,
     ) {
         (
             mcrs_minecraft_worldgen_testing::registry("density_function"),
@@ -1637,9 +1637,9 @@ pub(crate) mod tests {
     }
 
     fn tree_size(
-        registry: &BTreeMap<ResourceLocation, DensityFunctionHolder>,
+        registry: &BTreeMap<ResourceLocationBuf, DensityFunctionHolder>,
         holder: &DensityFunctionHolder,
-        memo: &mut HashMap<ResourceLocation, usize>,
+        memo: &mut HashMap<ResourceLocationBuf, usize>,
     ) -> usize {
         match holder {
             DensityFunctionHolder::Value(_) => 1,
@@ -1664,7 +1664,7 @@ pub(crate) mod tests {
         let (functions, noises) = corpus();
         let settings: NoiseGeneratorSettings = mcrs_minecraft_worldgen_testing::read(
             "noise_settings",
-            &rl!("minecraft:overworld").to_arc(),
+            &rl!("minecraft:overworld").to_buf(),
         );
         let router = build_router(&settings, &functions, &noises, 42, TEST_BLOCKS).unwrap();
 
@@ -1694,7 +1694,7 @@ pub(crate) mod tests {
     fn the_end_islands_slice_pins_y_to_zero_and_the_end_final_density_is_a_real_field() {
         let (functions, noises) = corpus();
         let settings: NoiseGeneratorSettings =
-            mcrs_minecraft_worldgen_testing::read("noise_settings", &rl!("minecraft:end").to_arc());
+            mcrs_minecraft_worldgen_testing::read("noise_settings", &rl!("minecraft:end").to_buf());
         let router = build_router(&settings, &functions, &noises, 42, TEST_BLOCKS).unwrap();
 
         let volume = SampleGrid::dense(IVec3::new(1, 32, 1), IVec3::new(-25, 0, -25));

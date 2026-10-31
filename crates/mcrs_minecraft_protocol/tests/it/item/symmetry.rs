@@ -248,7 +248,7 @@ fn inline_holders_are_a_zero_prefix_and_a_bare_prefix_fails() {
     type Pattern = Ref<Resolved, BannerPattern, BannerPattern>;
     let lookup = lookup();
     let direct = Pattern::Inline(Arc::new(BannerPattern {
-        asset_id: rl!("minecraft:globe").to_arc(),
+        asset_id: rl!("minecraft:globe").to_buf(),
         translation_key: "block.minecraft.banner.globe".into(),
     }));
     let mut wire = Vec::new();

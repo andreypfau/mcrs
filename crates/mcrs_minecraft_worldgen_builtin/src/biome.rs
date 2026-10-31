@@ -14,7 +14,7 @@ use mcrs_minecraft_entity::keys::EntityType;
 use mcrs_minecraft_entity::spawn::MobCategory;
 use mcrs_minecraft_environment::attribute::id::*;
 use mcrs_minecraft_environment::attribute::{MobSpawnSettings, Operation};
-use mcrs_minecraft_resource::{ResourceKey, ResourceLocation};
+use mcrs_minecraft_resource::{ResourceKey, ResourceLocationBuf};
 use mcrs_minecraft_sound::keys::SoundEvent;
 use mcrs_minecraft_value_provider::IntProvider;
 use serde::Serialize;
@@ -289,7 +289,7 @@ const BIOMES: &[BiomeRow] = {
 };
 
 /// Every biome as code describes it, its carvers and features still names.
-pub fn drafts() -> impl Iterator<Item = (ResourceLocation, Draft)> {
+pub fn drafts() -> impl Iterator<Item = (ResourceLocationBuf, Draft)> {
     BIOMES
         .iter()
         .map(|(key, draft)| ((*key.location()).into(), draft()))

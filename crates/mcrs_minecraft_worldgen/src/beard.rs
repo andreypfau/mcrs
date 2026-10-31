@@ -1,7 +1,7 @@
 use mcrs_minecraft_core::BoundingBox;
 use mcrs_minecraft_core::mth::{fast_inv_sqrt, floor_div};
 use mcrs_minecraft_noise::SampleGrid;
-use mcrs_minecraft_resource::ResourceLocation;
+use mcrs_minecraft_resource::ResourceLocationBuf;
 use mcrs_minecraft_worldgen_density::proto::{DensityFunctionHolder, ProtoDensityFunction};
 use mcrs_minecraft_worldgen_feature::template::Projection;
 use mcrs_minecraft_worldgen_structure::TerrainAdaptation;
@@ -259,7 +259,7 @@ pub enum BeardifierPlacement {
 
 pub fn beardifier_placement(
     final_density: &DensityFunctionHolder,
-    registry: &BTreeMap<ResourceLocation, DensityFunctionHolder>,
+    registry: &BTreeMap<ResourceLocationBuf, DensityFunctionHolder>,
 ) -> BeardifierPlacement {
     let root = resolve(final_density, registry);
     if let DensityFunctionHolder::Owned(function) = root
@@ -280,7 +280,7 @@ pub fn beardifier_placement(
 
 fn resolve<'a>(
     mut holder: &'a DensityFunctionHolder,
-    registry: &'a BTreeMap<ResourceLocation, DensityFunctionHolder>,
+    registry: &'a BTreeMap<ResourceLocationBuf, DensityFunctionHolder>,
 ) -> &'a DensityFunctionHolder {
     for _ in 0..=registry.len() {
         let DensityFunctionHolder::Reference(id) = holder else {
@@ -296,7 +296,7 @@ fn resolve<'a>(
 
 fn is_beardifier(
     holder: &DensityFunctionHolder,
-    registry: &BTreeMap<ResourceLocation, DensityFunctionHolder>,
+    registry: &BTreeMap<ResourceLocationBuf, DensityFunctionHolder>,
 ) -> bool {
     matches!(
         resolve(holder, registry),
@@ -307,12 +307,12 @@ fn is_beardifier(
 
 fn contains_beardifier(
     holder: &DensityFunctionHolder,
-    registry: &BTreeMap<ResourceLocation, DensityFunctionHolder>,
+    registry: &BTreeMap<ResourceLocationBuf, DensityFunctionHolder>,
 ) -> bool {
     fn walk(
         holder: &DensityFunctionHolder,
-        registry: &BTreeMap<ResourceLocation, DensityFunctionHolder>,
-        seen: &mut BTreeSet<ResourceLocation>,
+        registry: &BTreeMap<ResourceLocationBuf, DensityFunctionHolder>,
+        seen: &mut BTreeSet<ResourceLocationBuf>,
     ) -> bool {
         match holder {
             DensityFunctionHolder::Value(_) => false,
@@ -613,7 +613,7 @@ mod tests {
     ) -> BeardifierPlacement {
         let registry = registry
             .iter()
-            .map(|(id, holder)| (ResourceLocation::minecraft(id).unwrap(), holder.clone()))
+            .map(|(id, holder)| (ResourceLocationBuf::minecraft(id).unwrap(), holder.clone()))
             .collect();
         beardifier_placement(&root, &registry)
     }
@@ -685,10 +685,10 @@ mod tests {
 
     #[test]
     fn every_shipped_noise_settings_adds_the_beardifier_at_its_root() {
-        let functions: BTreeMap<ResourceLocation, DensityFunctionHolder> =
+        let functions: BTreeMap<ResourceLocationBuf, DensityFunctionHolder> =
             mcrs_minecraft_worldgen_testing::registry("density_function");
         let settings: BTreeMap<
-            ResourceLocation,
+            ResourceLocationBuf,
             mcrs_minecraft_worldgen_density::router::NoiseGeneratorSettings,
         > = mcrs_minecraft_worldgen_testing::registry("noise_settings");
         let placements: Vec<(String, BeardifierPlacement)> = settings

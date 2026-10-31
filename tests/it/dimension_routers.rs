@@ -5,7 +5,7 @@ use mcrs_minecraft_dimension::Dimension;
 use mcrs_minecraft_engine::dimension_generators::DimensionGenerators;
 use mcrs_minecraft_engine::sub_app_builder::drain_dim_spawn_queue;
 use mcrs_minecraft_engine_world::world::dimension_list::DimensionList;
-use mcrs_minecraft_resource::{ResourceKey, ResourceLocation};
+use mcrs_minecraft_resource::{ResourceKeyBuf, ResourceLocationBuf};
 use mcrs_minecraft_server::MinecraftServerPlugins;
 use mcrs_minecraft_vanilla_worldgen::DimensionRouters;
 use mcrs_minecraft_world::worldgen::chunk_generator::ChunkGenerator;
@@ -41,7 +41,7 @@ fn every_noise_dimension_reaches_its_sub_app_with_a_router() {
         "minecraft:the_nether",
         "minecraft:the_end",
     ] {
-        let id = ResourceLocation::read(dimension).unwrap();
+        let id = ResourceLocationBuf::read(dimension).unwrap();
         assert!(
             routers.0.contains_key(&id),
             "no router compiled for {dimension}; have {:?}",
@@ -51,7 +51,7 @@ fn every_noise_dimension_reaches_its_sub_app_with_a_router() {
     // Each dimension's noise settings name their own terrain block, so a build
     // that resolved them globally would hand every dimension the same pair.
     let block_of = |name: &str| {
-        let id = ResourceLocation::read(name).unwrap();
+        let id = ResourceLocationBuf::read(name).unwrap();
         let router = &routers.0[&id];
         (
             router.router.default_block_state,
@@ -100,7 +100,7 @@ fn every_noise_dimension_reaches_its_sub_app_with_a_router() {
     for sub_app in sub_apps.values_mut() {
         let world = sub_app.world_mut();
         let dimension = world
-            .query::<&ResourceKey<Dimension>>()
+            .query::<&ResourceKeyBuf<Dimension>>()
             .single(world)
             .expect("a sub-app holds one dimension")
             .location()

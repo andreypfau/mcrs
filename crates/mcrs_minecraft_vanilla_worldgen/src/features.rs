@@ -19,7 +19,7 @@ use mcrs_minecraft_engine_world::world::sub_app::DimSpawnEnqueue;
 use mcrs_minecraft_registries::{
     CurrentRegistries, IdSet, Named, Namer, Registries, Registry, Resolve, Tags,
 };
-use mcrs_minecraft_resource::ResourceLocation;
+use mcrs_minecraft_resource::ResourceLocationBuf;
 use mcrs_minecraft_world::worldgen::chunk_generator::ChunkGenerator;
 use mcrs_minecraft_worldgen_feature::compile::{LoadedFeatures, build_feature_steps};
 use mcrs_minecraft_worldgen_feature::proto::FeatureStepList;
@@ -32,7 +32,7 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 
 #[derive(Resource, Default, Clone)]
-pub struct DimensionFeaturePrograms(pub BTreeMap<ResourceLocation, Arc<FeatureProgram>>);
+pub struct DimensionFeaturePrograms(pub BTreeMap<ResourceLocationBuf, Arc<FeatureProgram>>);
 
 pub struct FeaturePlugin;
 
@@ -74,7 +74,7 @@ fn decoration_steps(
 fn placed_feature_tags(
     registries: &Registries,
     tags: &Tags<mcrs_minecraft_biome::PlacedFeature>,
-) -> BTreeMap<ResourceLocation, Vec<ResourceLocation>> {
+) -> BTreeMap<ResourceLocationBuf, Vec<ResourceLocationBuf>> {
     tags.iter()
         .map(|(tag, name)| {
             let members = tags
@@ -97,7 +97,7 @@ fn placed_feature_tags(
 fn named_providers(
     registries: &Registries,
     providers: &Registry<DirectBlockStateProvider>,
-) -> BTreeMap<ResourceLocation, DirectBlockStateProvider<Named>> {
+) -> BTreeMap<ResourceLocationBuf, DirectBlockStateProvider<Named>> {
     providers
         .iter()
         .filter_map(|(_, name, provider)| match provider.name(registries) {
@@ -112,7 +112,7 @@ fn named_providers(
 
 fn loaded_features(
     registries: &Registries,
-    templates: BTreeMap<ResourceLocation, Template>,
+    templates: BTreeMap<ResourceLocationBuf, Template>,
 ) -> Option<LoadedFeatures> {
     Some(LoadedFeatures {
         features: registries
@@ -180,12 +180,12 @@ fn build_dimension_features(
         return;
     };
 
-    let by_id: BTreeMap<ResourceLocation, &BiomeFile> = biomes
+    let by_id: BTreeMap<ResourceLocationBuf, &BiomeFile> = biomes
         .iter()
         .map(|(_, name, biome)| (name.clone(), biome))
         .collect();
 
-    let climate: BTreeMap<ResourceLocation, BiomeClimate> = by_id
+    let climate: BTreeMap<ResourceLocationBuf, BiomeClimate> = by_id
         .iter()
         .map(|(id, biome)| {
             (

@@ -1,5 +1,5 @@
 use mcrs_minecraft_nbt::serializer::WriteAdaptor;
-use mcrs_minecraft_resource::ResourceLocation;
+use mcrs_minecraft_resource::ResourceLocationBuf;
 
 use crate::Registries;
 use crate::declaration::Codec;
@@ -25,8 +25,8 @@ impl NetworkSnapshot {
     /// `minecraft` namespace is sent, so a vanilla client never receives one.
     pub fn new(registries: &Registries) -> Result<Self, Diagnostics> {
         let mut synced = Vec::new();
-        let mut synced_tags: Vec<(&ResourceLocation, &TagTable)> = Vec::new();
-        let mut static_tags: Vec<(&ResourceLocation, &TagTable)> = Vec::new();
+        let mut synced_tags: Vec<(&ResourceLocationBuf, &TagTable)> = Vec::new();
+        let mut static_tags: Vec<(&ResourceLocationBuf, &TagTable)> = Vec::new();
         let mut errors = Vec::new();
         for table in registries.tables() {
             if table.key.namespace() != "minecraft" {
@@ -130,7 +130,7 @@ fn registry_data(
     })
 }
 
-fn update_tags(tagged: &[(&ResourceLocation, &TagTable)]) -> Box<[u8]> {
+fn update_tags(tagged: &[(&ResourceLocationBuf, &TagTable)]) -> Box<[u8]> {
     let mut out = Vec::new();
     var_int(&mut out, tagged.len());
     for (registry, table) in tagged {

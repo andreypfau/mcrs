@@ -9,8 +9,6 @@ pub trait Sample: Sized {
     }
 }
 
-use mcrs_minecraft_resource::Registered;
-use mcrs_minecraft_resource::ResourceKey;
 use std::sync::LazyLock;
 
 use mcrs_minecraft_core::codec::IntArray;
@@ -20,9 +18,9 @@ use mcrs_minecraft_profile::{
     ints_uuid,
 };
 use mcrs_minecraft_registries::{IdSet, Namer, Resolver};
-use mcrs_minecraft_resource::Id;
-use mcrs_minecraft_resource::{RegistryKey, ResourceLocation, rl};
-use mcrs_minecraft_resource::{TagId, TagKey};
+use mcrs_minecraft_resource::{
+    Id, Registered, RegistryKey, ResourceKeyBuf, ResourceLocationBuf, TagId, TagKeyBuf, rl,
+};
 use std::any::TypeId;
 use std::collections::HashMap;
 
@@ -75,9 +73,9 @@ impl Sample for Profile {
                     ],
                 }),
                 skin: SkinPatch {
-                    texture: Some(rl!("minecraft:skin").to_arc()),
-                    cape: Some(rl!("minecraft:cape").to_arc()),
-                    elytra: Some(rl!("minecraft:elytra").to_arc()),
+                    texture: Some(rl!("minecraft:skin").to_buf()),
+                    cape: Some(rl!("minecraft:cape").to_buf()),
+                    elytra: Some(rl!("minecraft:elytra").to_buf()),
                     model: Some(PlayerModelType::Slim),
                 },
             },
@@ -109,8 +107,8 @@ impl Sample for Profile {
 
 #[derive(Clone)]
 struct SampleRegistry {
-    names: Vec<ResourceLocation>,
-    tags: Vec<(ResourceLocation, Vec<u16>)>,
+    names: Vec<ResourceLocationBuf>,
+    tags: Vec<(ResourceLocationBuf, Vec<u16>)>,
 }
 
 /// Names and tags of a few entries of each registry the component samples name, keyed by the
@@ -122,7 +120,7 @@ impl SampleRegistries {
     fn with<R: 'static>(
         mut self,
         key: RegistryKey<R>,
-        names: Vec<ResourceLocation>,
+        names: Vec<ResourceLocationBuf>,
         tags: &[(&str, &[&str])],
     ) -> Self {
         let number = |member: &str| {
@@ -135,7 +133,7 @@ impl SampleRegistries {
         let tags = tags
             .iter()
             .map(|(tag, members)| {
-                let name = ResourceLocation::minecraft(tag)
+                let name = ResourceLocationBuf::minecraft(tag)
                     .unwrap_or_else(|error| panic!("the sample tag {tag}: {error}"));
                 (name, members.iter().map(|member| number(member)).collect())
             })
@@ -155,7 +153,7 @@ impl SampleRegistries {
 impl Resolver for SampleRegistries {
     fn id<R: Registered>(
         &self,
-        key: &ResourceKey<R>,
+        key: &ResourceKeyBuf<R>,
     ) -> Result<Id<R>, mcrs_minecraft_registries::ResolveError> {
         let registry = self.registry::<R>()?;
         registry
@@ -168,7 +166,7 @@ impl Resolver for SampleRegistries {
 
     fn tag<R: Registered>(
         &self,
-        tag: &TagKey<R>,
+        tag: &TagKeyBuf<R>,
     ) -> Result<TagId<R>, mcrs_minecraft_registries::ResolveError> {
         let registry = self.registry::<R>()?;
         registry
@@ -181,11 +179,11 @@ impl Resolver for SampleRegistries {
 }
 
 impl Namer for SampleRegistries {
-    fn name<R: Registered>(&self, id: Id<R>) -> Option<&ResourceLocation> {
+    fn name<R: Registered>(&self, id: Id<R>) -> Option<&ResourceLocationBuf> {
         self.registry::<R>().ok()?.names.get(id.index())
     }
 
-    fn tag_name<R: Registered>(&self, tag: TagId<R>) -> Option<&ResourceLocation> {
+    fn tag_name<R: Registered>(&self, tag: TagId<R>) -> Option<&ResourceLocationBuf> {
         let (name, _) = self.registry::<R>().ok()?.tags.get(tag.index())?;
         Some(name)
     }
@@ -195,10 +193,10 @@ impl Namer for SampleRegistries {
 /// same entry in the samples as in the game; the listed names are what a peer numbers on the wire.
 macro_rules! sample_numbering {
     ($entries:path; $($name:literal),+) => {
-        $entries.iter().map(|&name| name.into()).collect::<Vec<ResourceLocation>>()
+        $entries.iter().map(|&name| name.into()).collect::<Vec<ResourceLocationBuf>>()
     };
     (; $($name:literal),+) => {
-        vec![$(ResourceLocation::minecraft($name).unwrap()),+]
+        vec![$(ResourceLocationBuf::minecraft($name).unwrap()),+]
     };
 }
 
@@ -273,9 +271,9 @@ pub fn sample_registries() -> &'static SampleRegistries {
     &SET
 }
 
-fn sample_key<R>(path: &str) -> ResourceKey<R> {
-    ResourceKey::from_location(
-        ResourceLocation::minecraft(path)
+fn sample_key<R>(path: &str) -> ResourceKeyBuf<R> {
+    ResourceKeyBuf::from_location(
+        ResourceLocationBuf::minecraft(path)
             .unwrap_or_else(|error| panic!("the sample name {path}: {error}")),
     )
 }
@@ -288,7 +286,7 @@ pub fn entry<R: Registered>(path: &str) -> Id<R> {
 
 pub fn tag_set<R: Registered>(path: &str) -> IdSet<R> {
     sample_registries()
-        .tag(&TagKey::from_location(
+        .tag(&TagKeyBuf::from_location(
             sample_key::<R>(path).location().clone(),
         ))
         .map(IdSet::Tag)

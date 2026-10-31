@@ -1,7 +1,7 @@
 use mcrs_minecraft_engine_world::palette::non_air_block_count;
+use mcrs_minecraft_resource::ResourceLocationBuf;
 use mcrs_minecraft_worldgen_generator::ColumnBiomes;
 
-use mcrs_minecraft_resource::ResourceLocation;
 use mcrs_minecraft_worldgen_builtin as builtin;
 use mcrs_minecraft_worldgen_density::compile::build_router;
 use mcrs_minecraft_worldgen_density::proto::DensityFunctionHolder;
@@ -12,11 +12,11 @@ use std::collections::BTreeMap;
 
 fn load_noise_settings(name: &str) -> NoiseGeneratorSettings {
     builtin::noise_settings()
-        .remove(&ResourceLocation::minecraft(name).unwrap())
+        .remove(&ResourceLocationBuf::minecraft(name).unwrap())
         .unwrap_or_else(|| panic!("noise_settings/{name} must be built in"))
 }
 
-fn load_beta_density_functions() -> BTreeMap<ResourceLocation, DensityFunctionHolder> {
+fn load_beta_density_functions() -> BTreeMap<ResourceLocationBuf, DensityFunctionHolder> {
     builtin::density_functions()
         .into_iter()
         .filter(|(id, _)| id.path().starts_with("beta/"))

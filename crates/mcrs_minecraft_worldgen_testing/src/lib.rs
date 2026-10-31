@@ -13,7 +13,7 @@
     reason = "test support re-encodes a value into JSON for comparison"
 )]
 
-use mcrs_minecraft_resource::ResourceLocation;
+use mcrs_minecraft_resource::ResourceLocationBuf;
 use mcrs_minecraft_worldgen_builtin as builtin;
 use serde::de::DeserializeOwned;
 use std::collections::BTreeMap;
@@ -108,24 +108,24 @@ pub fn templates() -> BTreeMap<PathBuf, Vec<u8>> {
 
 /// One structure template as the gzip NBT the loader reads: the built-in, or the
 /// game's file when the code builds none.
-pub fn template(id: &ResourceLocation) -> Option<Vec<u8>> {
+pub fn template(id: &ResourceLocationBuf) -> Option<Vec<u8>> {
     let path = format!("{}/structure/{}.nbt", id.namespace(), id.path());
     builtin::asset(&path).or_else(|| std::fs::read(corpus_path(&path)).ok())
 }
 
 /// Whether the code builds the structure template `id` in place of the game's file.
-pub fn is_built_template(id: &ResourceLocation) -> bool {
+pub fn is_built_template(id: &ResourceLocationBuf) -> bool {
     builtin::asset(&format!("{}/structure/{}.nbt", id.namespace(), id.path())).is_some()
 }
 
 /// The id a corpus file carries: its path under `base`, without the extension.
-fn id_of(base: &Path, path: &Path) -> ResourceLocation {
+fn id_of(base: &Path, path: &Path) -> ResourceLocationBuf {
     let relative = path.strip_prefix(base).expect("the file is under the base");
     let name = relative
         .with_extension("")
         .to_string_lossy()
         .replace('\\', "/");
-    ResourceLocation::read(&format!("minecraft:{name}")).expect("a corpus path is a valid id")
+    ResourceLocationBuf::read(&format!("minecraft:{name}")).expect("a corpus path is a valid id")
 }
 
 fn worldgen_roots() -> impl Iterator<Item = PathBuf> {
@@ -138,19 +138,19 @@ fn worldgen_roots() -> impl Iterator<Item = PathBuf> {
 
 /// The built template pools as the JSON they encode to, for the tests that read
 /// the corpus as files.
-pub fn built_template_pools() -> BTreeMap<ResourceLocation, Vec<u8>> {
+pub fn built_template_pools() -> BTreeMap<ResourceLocationBuf, Vec<u8>> {
     built_json("template_pool")
 }
 
 /// The built biomes as the JSON they encode to, for the tests that read the
 /// corpus as files.
-pub fn built_biomes() -> BTreeMap<ResourceLocation, Vec<u8>> {
+pub fn built_biomes() -> BTreeMap<ResourceLocationBuf, Vec<u8>> {
     encoded(builtin::biomes().unwrap_or_else(|error| panic!("{error}")))
 }
 
 fn encoded<T: serde::Serialize>(
-    entries: BTreeMap<ResourceLocation, T>,
-) -> BTreeMap<ResourceLocation, Vec<u8>> {
+    entries: BTreeMap<ResourceLocationBuf, T>,
+) -> BTreeMap<ResourceLocationBuf, Vec<u8>> {
     entries
         .into_iter()
         .map(|(id, value)| {
@@ -163,8 +163,8 @@ fn encoded<T: serde::Serialize>(
 
 /// The built-in entries of one `minecraft/worldgen` folder as the JSON they
 /// encode to, for the tests that read the corpus as files.
-fn built_json(folder: &str) -> BTreeMap<ResourceLocation, Vec<u8>> {
-    type Json = LazyLock<BTreeMap<ResourceLocation, Vec<u8>>>;
+fn built_json(folder: &str) -> BTreeMap<ResourceLocationBuf, Vec<u8>> {
+    type Json = LazyLock<BTreeMap<ResourceLocationBuf, Vec<u8>>>;
     static NOISES: Json = LazyLock::new(|| encoded(builtin::noises()));
     static DENSITY_FUNCTIONS: Json = LazyLock::new(|| encoded(builtin::density_functions()));
     static NOISE_SETTINGS: Json = LazyLock::new(|| encoded(builtin::noise_settings()));
@@ -184,9 +184,9 @@ fn built_json(folder: &str) -> BTreeMap<ResourceLocation, Vec<u8>> {
 /// One `minecraft/worldgen` registry as the JSON the loader reads for each
 /// entry: the game's files, replaced by the built-in entries, replaced by the
 /// files of every pack. An id two packs ship, or a pack and the game, is refused.
-fn entries(folder: &str) -> BTreeMap<ResourceLocation, Vec<u8>> {
+fn entries(folder: &str) -> BTreeMap<ResourceLocationBuf, Vec<u8>> {
     let mut entries = BTreeMap::new();
-    let mut shipped: BTreeMap<ResourceLocation, PathBuf> = BTreeMap::new();
+    let mut shipped: BTreeMap<ResourceLocationBuf, PathBuf> = BTreeMap::new();
     let mut from_packs = Vec::new();
     for (at, root) in worldgen_roots().enumerate() {
         let base = root.join(folder);
@@ -218,7 +218,7 @@ fn entries(folder: &str) -> BTreeMap<ResourceLocation, Vec<u8>> {
 /// One `minecraft/worldgen` registry, parsed. Every entry must parse: dropping
 /// the ones that do not would let a test read "the whole corpus compiles" off a
 /// corpus quietly missing the entries that broke.
-pub fn registry<T: DeserializeOwned>(folder: &str) -> BTreeMap<ResourceLocation, T> {
+pub fn registry<T: DeserializeOwned>(folder: &str) -> BTreeMap<ResourceLocationBuf, T> {
     entries(folder)
         .into_iter()
         .map(|(id, bytes)| {
@@ -254,7 +254,7 @@ pub fn parse_all<T: DeserializeOwned>(dir: &str) -> Vec<(PathBuf, T)> {
 
 /// One named `minecraft/worldgen` asset, which must parse: the file a pack
 /// ships, else the built-in entry, else the game's file.
-pub fn read<T: DeserializeOwned>(folder: &str, id: &ResourceLocation) -> T {
+pub fn read<T: DeserializeOwned>(folder: &str, id: &ResourceLocationBuf) -> T {
     let path = format!("{}/worldgen/{folder}/{}.json", id.namespace(), id.path());
     let bytes = packs()
         .into_iter()

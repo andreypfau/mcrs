@@ -4,7 +4,9 @@ use std::sync::Arc;
 
 use derive_where::derive_where;
 use mcrs_minecraft_datapack::JsonError;
-use mcrs_minecraft_resource::{Id, Registered, ResourceKey, ResourceLocation, TagId, TagKey};
+use mcrs_minecraft_resource::{
+    Id, Registered, ResourceKeyBuf, ResourceLocationBuf, TagId, TagKeyBuf,
+};
 use serde::de::value::{
     BoolDeserializer, F64Deserializer, I64Deserializer, MapAccessDeserializer,
     SeqAccessDeserializer, U64Deserializer,
@@ -45,13 +47,13 @@ pub struct Named;
 pub struct Resolved;
 
 impl Refs for Named {
-    type Id<R: Registered> = ResourceKey<R>;
+    type Id<R: Registered> = ResourceKeyBuf<R>;
     type Set<R: Registered> = KeySet<R>;
     type Nbt = Named;
     type Value<T: Checked> = T::Named;
 
-    fn id_of<R: StaticEntry>(entry: R) -> ResourceKey<R> {
-        ResourceKey::from_location(entry.location().to_arc())
+    fn id_of<R: StaticEntry>(entry: R) -> ResourceKeyBuf<R> {
+        ResourceKeyBuf::from_location(entry.location().to_buf())
     }
 }
 
@@ -68,9 +70,9 @@ impl Refs for Resolved {
 
 #[derive_where(Clone, Default, PartialEq, Eq, Hash)]
 pub enum KeySet<R> {
-    Tag(TagKey<R>),
+    Tag(TagKeyBuf<R>),
     #[derive_where(default)]
-    List(Box<[ResourceKey<R>]>),
+    List(Box<[ResourceKeyBuf<R>]>),
 }
 
 impl<R> fmt::Debug for KeySet<R> {
@@ -100,8 +102,8 @@ impl<R> Serialize for KeySet<R> {
     }
 }
 
-fn location<E: de::Error>(text: &str) -> Result<ResourceLocation, E> {
-    ResourceLocation::read(text).map_err(E::custom)
+fn location<E: de::Error>(text: &str) -> Result<ResourceLocationBuf, E> {
+    ResourceLocationBuf::read(text).map_err(E::custom)
 }
 
 impl<'de, R> Deserialize<'de> for KeySet<R> {
@@ -117,14 +119,16 @@ impl<'de, R> Deserialize<'de> for KeySet<R> {
 
             fn visit_str<E: de::Error>(self, text: &str) -> Result<KeySet<R>, E> {
                 match text.strip_prefix('#') {
-                    Some(tag) => location(tag).map(|tag| KeySet::Tag(TagKey::from_location(tag))),
+                    Some(tag) => {
+                        location(tag).map(|tag| KeySet::Tag(TagKeyBuf::from_location(tag)))
+                    }
                     None => location(text)
-                        .map(|key| KeySet::List(Box::new([ResourceKey::from_location(key)]))),
+                        .map(|key| KeySet::List(Box::new([ResourceKeyBuf::from_location(key)]))),
                 }
             }
 
             fn visit_seq<A: SeqAccess<'de>>(self, seq: A) -> Result<KeySet<R>, A::Error> {
-                let keys = Vec::<ResourceKey<R>>::deserialize(SeqAccessDeserializer::new(seq))?;
+                let keys = Vec::<ResourceKeyBuf<R>>::deserialize(SeqAccessDeserializer::new(seq))?;
                 Ok(KeySet::List(keys.into_boxed_slice()))
             }
         }
@@ -177,7 +181,7 @@ impl<'de, R: Registered, V: Deserialize<'de>> Deserialize<'de> for Ref<Named, R,
             }
 
             fn visit_str<E: de::Error>(self, text: &str) -> Result<Self::Value, E> {
-                location(text).map(|key| Ref::Id(ResourceKey::from_location(key)))
+                location(text).map(|key| Ref::Id(ResourceKeyBuf::from_location(key)))
             }
 
             fn visit_bool<E: de::Error>(self, v: bool) -> Result<Self::Value, E> {
@@ -210,15 +214,15 @@ impl<'de, R: Registered, V: Deserialize<'de>> Deserialize<'de> for Ref<Named, R,
 }
 
 pub trait Resolver {
-    fn id<R: Registered>(&self, key: &ResourceKey<R>) -> Result<Id<R>, ResolveError>;
+    fn id<R: Registered>(&self, key: &ResourceKeyBuf<R>) -> Result<Id<R>, ResolveError>;
 
-    fn tag<R: Registered>(&self, tag: &TagKey<R>) -> Result<TagId<R>, ResolveError>;
+    fn tag<R: Registered>(&self, tag: &TagKeyBuf<R>) -> Result<TagId<R>, ResolveError>;
 }
 
 pub trait Namer {
-    fn name<R: Registered>(&self, id: Id<R>) -> Option<&ResourceLocation>;
+    fn name<R: Registered>(&self, id: Id<R>) -> Option<&ResourceLocationBuf>;
 
-    fn tag_name<R: Registered>(&self, tag: TagId<R>) -> Option<&ResourceLocation>;
+    fn tag_name<R: Registered>(&self, tag: TagId<R>) -> Option<&ResourceLocationBuf>;
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -231,8 +235,8 @@ pub struct ResolveError {
 /// A name the registry it refers to does not hold.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct MissingRef {
-    pub(crate) registry: ResourceLocation,
-    pub(crate) name: ResourceLocation,
+    pub(crate) registry: ResourceLocationBuf,
+    pub(crate) name: ResourceLocationBuf,
     pub(crate) tag: bool,
 }
 
@@ -318,16 +322,16 @@ fn unnamed<R>(id: Id<R>) -> ResolveError {
 }
 
 impl<R: Registered> Resolve for Id<R> {
-    type Named = ResourceKey<R>;
+    type Named = ResourceKeyBuf<R>;
 
-    fn resolve<C: Resolver>(named: ResourceKey<R>, ctx: &C) -> Result<Self, ResolveError> {
+    fn resolve<C: Resolver>(named: ResourceKeyBuf<R>, ctx: &C) -> Result<Self, ResolveError> {
         ctx.id(&named)
     }
 
-    fn name<C: Namer>(&self, names: &C) -> Result<ResourceKey<R>, ResolveError> {
+    fn name<C: Namer>(&self, names: &C) -> Result<ResourceKeyBuf<R>, ResolveError> {
         names
             .name(*self)
-            .map(|name| ResourceKey::from_location(name.clone()))
+            .map(|name| ResourceKeyBuf::from_location(name.clone()))
             .ok_or_else(|| unnamed(*self))
     }
 }
@@ -351,7 +355,7 @@ impl<R: Registered> Resolve for IdSet<R> {
         match self {
             IdSet::Tag(tag) => names
                 .tag_name(*tag)
-                .map(|name| KeySet::Tag(TagKey::from_location(name.clone())))
+                .map(|name| KeySet::Tag(TagKeyBuf::from_location(name.clone())))
                 .ok_or_else(|| ResolveError::new(format!("no tag is numbered {}", tag.number()))),
             IdSet::List(ids) => ids
                 .iter()

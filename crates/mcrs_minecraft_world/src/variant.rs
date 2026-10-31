@@ -6,7 +6,7 @@ use mcrs_minecraft_entity::variant::{
     PigVariant, WolfVariant, WolfVariantAssets, ZombieNautilusModel, ZombieNautilusVariant,
 };
 use mcrs_minecraft_registries::{Named, Refs, Registries, Resolve, Resolved, registry_value};
-use mcrs_minecraft_resource::{RegistryValue, ResourceLocation};
+use mcrs_minecraft_resource::{RegistryValue, ResourceLocationBuf};
 use serde::{Deserialize, Serialize};
 
 pub use mcrs_minecraft_entity::spawn_condition::SpawnSelector;
@@ -64,8 +64,8 @@ spawning_variant! {
     PigVariantFile for PigVariant {
         #[serde(default, skip_serializing_if = "is_default")]
         model: PigModel,
-        asset_id: ResourceLocation,
-        baby_asset_id: ResourceLocation,
+        asset_id: ResourceLocationBuf,
+        baby_asset_id: ResourceLocationBuf,
     }
 }
 
@@ -73,8 +73,8 @@ spawning_variant! {
     CowVariantFile for CowVariant {
         #[serde(default, skip_serializing_if = "is_default")]
         model: CowModel,
-        asset_id: ResourceLocation,
-        baby_asset_id: ResourceLocation,
+        asset_id: ResourceLocationBuf,
+        baby_asset_id: ResourceLocationBuf,
     }
 }
 
@@ -82,8 +82,8 @@ spawning_variant! {
     ChickenVariantFile for ChickenVariant {
         #[serde(default, skip_serializing_if = "is_default")]
         model: ChickenModel,
-        asset_id: ResourceLocation,
-        baby_asset_id: ResourceLocation,
+        asset_id: ResourceLocationBuf,
+        baby_asset_id: ResourceLocationBuf,
     }
 }
 
@@ -91,20 +91,20 @@ spawning_variant! {
     ZombieNautilusVariantFile for ZombieNautilusVariant {
         #[serde(default, skip_serializing_if = "is_default")]
         model: ZombieNautilusModel,
-        asset_id: ResourceLocation,
+        asset_id: ResourceLocationBuf,
     }
 }
 
 spawning_variant! {
     CatVariantFile for CatVariant {
-        asset_id: ResourceLocation,
-        baby_asset_id: ResourceLocation,
+        asset_id: ResourceLocationBuf,
+        baby_asset_id: ResourceLocationBuf,
     }
 }
 
 spawning_variant! {
     FrogVariantFile for FrogVariant {
-        asset_id: ResourceLocation,
+        asset_id: ResourceLocationBuf,
     }
 }
 
@@ -115,7 +115,7 @@ pub trait SpawnConditions: Send + Sync + 'static {
 /// A variant registry's spawn conditions by variant name.
 pub fn spawn_selectors<F: SpawnConditions + RegistryValue + 'static>(
     registries: &Registries,
-) -> Result<BTreeMap<ResourceLocation, Vec<SpawnSelector<Named>>>, String> {
+) -> Result<BTreeMap<ResourceLocationBuf, Vec<SpawnSelector<Named>>>, String> {
     let registry = registries
         .registry::<F>()
         .ok_or_else(|| format!("{} is not loaded", std::any::type_name::<F>()))?;

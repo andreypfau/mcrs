@@ -1,7 +1,7 @@
 use mcrs_minecraft_core::codec::is_default;
 use mcrs_minecraft_nbt::LIST_ID;
 use mcrs_minecraft_registries::{Refs, Resolved, registry_value};
-use mcrs_minecraft_resource::{ResourceLocation, StaticResourceLocation, rl};
+use mcrs_minecraft_resource::{ResourceLocationBuf, StaticResourceLocation, rl};
 use serde::{Deserialize, Deserializer, Serialize};
 
 use crate::component::common::{EquipmentSlotGroup, ordinal_enum};
@@ -84,7 +84,7 @@ fn is_any(slot: &EquipmentSlotGroup) -> bool {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, Encode, Decode)]
 #[serde(deny_unknown_fields)]
 pub struct AttributeModifierValue {
-    pub id: ResourceLocation,
+    pub id: ResourceLocationBuf,
     pub amount: f64,
     pub operation: AttributeOperation,
 }
@@ -128,7 +128,7 @@ impl Sample for AttributeModifiers {
                 AttributeEntry {
                     attribute: entry(path),
                     modifier: AttributeModifierValue {
-                        id: id.to_arc(),
+                        id: id.to_buf(),
                         amount,
                         operation,
                     },

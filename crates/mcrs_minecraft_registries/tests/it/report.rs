@@ -1,5 +1,5 @@
 use mcrs_minecraft_registries::{Declaration, Diagnostic, Missing, Referrer, Resolver};
-use mcrs_minecraft_resource::ResourceKey;
+use mcrs_minecraft_resource::ResourceKeyBuf;
 
 use crate::support::{Damage, DamageType, Packs, damage, declarations, report, report_errors, rl};
 
@@ -74,7 +74,7 @@ fn validated() -> Declaration {
 fn resolving() -> Declaration {
     Declaration::data::<Damage>()
         .validate(|_, registries| {
-            let missing = ResourceKey::<DamageType>::from_location(rl("t:missing"));
+            let missing = ResourceKeyBuf::<DamageType>::from_location(rl("t:missing"));
             registries
                 .id(&missing)
                 .err()

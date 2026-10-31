@@ -6,8 +6,7 @@ use crate::keys::Item;
 use crate::{ComponentMap, Template};
 #[cfg(feature = "bevy")]
 use bevy_ecs::resource::Resource;
-use mcrs_minecraft_resource::Id;
-use mcrs_minecraft_resource::ResourceLocation;
+use mcrs_minecraft_resource::{Id, ResourceLocationBuf};
 use mcrs_voxel::BlockStateId;
 use std::collections::HashMap;
 
@@ -16,7 +15,7 @@ pub const FORMAT_VERSION: &str = "1.21.130";
 
 #[derive(Debug)]
 pub struct ItemEntry {
-    pub identifier: ResourceLocation<Arc<str>>,
+    pub identifier: ResourceLocationBuf,
     pub id: Id<Item>,
     pub prototype: ComponentMap,
     pub block_placer: Option<BlockStateId>,
@@ -27,13 +26,13 @@ pub struct ItemEntry {
 #[derive(Debug, Default)]
 pub struct ItemDefinitions {
     entries: Vec<ItemEntry>,
-    ids: HashMap<ResourceLocation<Arc<str>>, Id<Item>>,
+    ids: HashMap<ResourceLocationBuf, Id<Item>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 #[error("`{identifier}` is defined at positions {first} and {second}")]
 pub struct DuplicateItem {
-    pub identifier: ResourceLocation<Arc<str>>,
+    pub identifier: ResourceLocationBuf,
     pub first: usize,
     pub second: usize,
 }
@@ -41,22 +40,20 @@ pub struct DuplicateItem {
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum ItemTableError {
     #[error("the item registry holds no `{0}`")]
-    Unknown(ResourceLocation<Arc<str>>),
+    Unknown(ResourceLocationBuf),
     #[error(transparent)]
     Duplicate(#[from] DuplicateItem),
     #[error("the registries report lists item `{identifier}` but no entry defines it")]
-    Missing {
-        identifier: ResourceLocation<Arc<str>>,
-    },
+    Missing { identifier: ResourceLocationBuf },
 }
 
 impl ItemDefinitions {
     /// `items` names the item registry's entries in id order.
     pub fn from_entries(
-        items: &[ResourceLocation<Arc<str>>],
+        items: &[ResourceLocationBuf],
         entries: Vec<ItemEntry>,
     ) -> Result<Self, ItemTableError> {
-        let ids: HashMap<ResourceLocation<Arc<str>>, Id<Item>> = (0..=u16::MAX)
+        let ids: HashMap<ResourceLocationBuf, Id<Item>> = (0..=u16::MAX)
             .zip(items)
             .filter_map(|(number, name)| Some((name.clone(), Id::checked(number, items.len())?)))
             .collect();
@@ -135,7 +132,7 @@ mod tests {
 
     fn entry(name: &str) -> ItemEntry {
         ItemEntry {
-            identifier: ResourceLocation::minecraft(name).unwrap(),
+            identifier: ResourceLocationBuf::minecraft(name).unwrap(),
             id: crate::keys::Item::Air.id(),
             prototype: ComponentMap::default(),
             block_placer: None,
@@ -144,10 +141,10 @@ mod tests {
         }
     }
 
-    fn registry(names: &[&str]) -> Vec<ResourceLocation<Arc<str>>> {
+    fn registry(names: &[&str]) -> Vec<ResourceLocationBuf> {
         names
             .iter()
-            .map(|name| ResourceLocation::minecraft(name).unwrap())
+            .map(|name| ResourceLocationBuf::minecraft(name).unwrap())
             .collect()
     }
 
@@ -185,7 +182,7 @@ mod tests {
         assert_eq!(
             result.err(),
             Some(ItemTableError::Duplicate(DuplicateItem {
-                identifier: rl!("minecraft:stone").to_arc(),
+                identifier: rl!("minecraft:stone").to_buf(),
                 first: 0,
                 second: 1,
             }))
@@ -208,7 +205,7 @@ mod tests {
         assert_eq!(
             error,
             ItemTableError::Missing {
-                identifier: rl!("minecraft:apple").to_arc()
+                identifier: rl!("minecraft:apple").to_buf()
             }
         );
     }

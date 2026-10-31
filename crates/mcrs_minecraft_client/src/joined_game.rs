@@ -9,19 +9,19 @@ use mcrs_minecraft_protocol::packets::game::clientbound::{
     ClientboundLogin, ClientboundRespawn, ClientboundSetEntityData,
 };
 use mcrs_minecraft_registries::{CurrentRegistries, Namer, Registries};
-use mcrs_minecraft_resource::{Id, ResourceKey};
+use mcrs_minecraft_resource::{Id, ResourceKeyBuf};
 
 #[derive(Component, Clone, Debug)]
 pub struct JoinedGame {
     pub player_id: i32,
-    pub dimensions: Vec<ResourceKey<Dimension>>,
+    pub dimensions: Vec<ResourceKeyBuf<Dimension>>,
 }
 
 /// The dimension the player is in. Written only when a login or a respawn
 /// names it, as a whole.
 #[derive(Component, Clone, Debug)]
 pub struct CurrentDimension {
-    pub key: ResourceKey<Dimension>,
+    pub key: ResourceKeyBuf<Dimension>,
     pub dimension_type: Id<DimensionType>,
 }
 
@@ -140,11 +140,10 @@ mod tests {
     use mcrs_minecraft_protocol::entity::{MetaDataValue, Metadata, MetadataEntry};
     use mcrs_minecraft_protocol::{Encode, VarInt};
     use mcrs_minecraft_registries::Declaration;
-    use mcrs_minecraft_resource::ResourceLocation;
-    use std::sync::Arc;
+    use mcrs_minecraft_resource::ResourceLocationBuf;
 
-    fn name(text: &str) -> ResourceLocation<Arc<str>> {
-        ResourceLocation::read(text).unwrap()
+    fn name(text: &str) -> ResourceLocationBuf {
+        ResourceLocationBuf::read(text).unwrap()
     }
 
     fn session(cats: usize) -> CurrentRegistries {
@@ -198,7 +197,7 @@ mod tests {
     }
 
     fn respawn(
-        dimension: ResourceKey<Dimension>,
+        dimension: ResourceKeyBuf<Dimension>,
         dimension_type: Id<DimensionType>,
     ) -> ClientboundRespawn {
         ClientboundRespawn {

@@ -1,7 +1,7 @@
 use mcrs_minecraft_registries::{
     Diagnostic, Diagnostics, IdSet, Missing, Ref, Referrer, Registries,
 };
-use mcrs_minecraft_resource::TagKey;
+use mcrs_minecraft_resource::TagKeyBuf;
 
 use crate::support::{
     DamageType, Enchant, Enchantment, Item, Packs, damage, declarations, get, report_errors, rl,
@@ -56,7 +56,7 @@ fn a_tag_of_the_same_stage_resolves_whatever_the_file_order() {
         .unwrap();
         let tags = registries.tags::<DamageType>().unwrap();
         let tag = tags
-            .id(&TagKey::from_location(rl(&format!(
+            .id(&TagKeyBuf::from_location(rl(&format!(
                 "{namespace}:my_damage_tag"
             ))))
             .unwrap();

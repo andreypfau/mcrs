@@ -1,9 +1,9 @@
+use mcrs_minecraft_resource::ResourceLocationBuf;
 use std::collections::BTreeMap;
 use std::ops::Not;
 
 use mcrs_minecraft_core::codec::{Bounded, NonNegativeInt, default_true};
 use mcrs_minecraft_nbt::{BYTE_ID, COMPOUND_ID, FLOAT_ID, INT_ID, LIST_ID, STRING_ID};
-use mcrs_minecraft_resource::ResourceLocation;
 use serde::de::Error as _;
 use serde::{Deserialize, Deserializer, Serialize};
 
@@ -134,7 +134,7 @@ fn distinct(kinds: Vec<DataComponentType>) -> Vec<DataComponentType> {
 /// An unknown kind is worded as a registry lookup failure, unlike a patch's
 /// unknown key.
 fn distinct_kinds<'de, D: Deserializer<'de>>(d: D) -> Result<Vec<DataComponentType>, D::Error> {
-    Vec::<ResourceLocation>::deserialize(d)?
+    Vec::<ResourceLocationBuf>::deserialize(d)?
         .iter()
         .map(|id| {
             DataComponentType::read(id.as_str()).ok_or_else(|| {
@@ -237,7 +237,7 @@ pub struct UseCooldown {
     #[serde(deserialize_with = "positive_float")]
     pub seconds: f32,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub cooldown_group: Option<ResourceLocation>,
+    pub cooldown_group: Option<ResourceLocationBuf>,
 }
 
 impl Sample for UseCooldown {
@@ -257,7 +257,7 @@ impl Sample for UseCooldown {
             },
             UseCooldown {
                 seconds: 0.5,
-                cooldown_group: Some(Item::EnderPearl.location().to_arc()),
+                cooldown_group: Some(Item::EnderPearl.location().to_buf()),
             },
         ]
     }

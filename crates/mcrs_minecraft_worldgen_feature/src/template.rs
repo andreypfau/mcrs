@@ -8,7 +8,7 @@ use mcrs_minecraft_core::{BoundingBox, Direction};
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_nbt::{Nbt, from_bytes_unnamed};
-use mcrs_minecraft_resource::ResourceLocation;
+use mcrs_minecraft_resource::{ResourceLocation, ResourceLocationBuf};
 use serde::{Deserialize, Serialize};
 
 use mcrs_minecraft_block::keys::Block;
@@ -51,7 +51,7 @@ pub struct TemplateEntity {
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct PaletteState {
-    pub id: ResourceLocation,
+    pub id: ResourceLocationBuf,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub properties: Option<BTreeMap<String, String>>,
 }
@@ -156,9 +156,9 @@ pub struct JigsawBlock {
     pub front: Direction,
     pub top: Direction,
     pub joint: Joint,
-    pub name: ResourceLocation,
-    pub pool: ResourceLocation,
-    pub target: ResourceLocation,
+    pub name: ResourceLocationBuf,
+    pub pool: ResourceLocationBuf,
+    pub target: ResourceLocationBuf,
     pub placement_priority: i32,
     pub selection_priority: i32,
     pub final_state: Option<VoxelId>,
@@ -213,60 +213,63 @@ pub fn data_markers<'a>(
 pub enum TemplateError {
     #[error("{id}: DataVersion {found}, expected {expected}")]
     DataVersion {
-        id: ResourceLocation,
+        id: ResourceLocationBuf,
         found: i32,
         expected: i32,
     },
     #[error("{id}: has both `palette` and `palettes`")]
-    BothPalettes { id: ResourceLocation },
+    BothPalettes { id: ResourceLocationBuf },
     #[error("{id}: has neither `palette` nor `palettes`")]
-    NoPalette { id: ResourceLocation },
+    NoPalette { id: ResourceLocationBuf },
     #[error(
         "{id}: size {size:?} must be at least 1 on every axis and at most {}",
         u16::MAX
     )]
     Size {
-        id: ResourceLocation,
+        id: ResourceLocationBuf,
         size: [i32; 3],
     },
     #[error("{id}: palette {palette} has {len} entries, palette 0 has {expected}")]
     PaletteLength {
-        id: ResourceLocation,
+        id: ResourceLocationBuf,
         palette: usize,
         len: usize,
         expected: usize,
     },
     #[error("{id}: block {index} names palette entry {state} of {len}")]
     StateIndex {
-        id: ResourceLocation,
+        id: ResourceLocationBuf,
         index: usize,
         state: i32,
         len: usize,
     },
     #[error("{id}: block {index} at {pos:?} lies outside size {size:?}")]
     OutOfBounds {
-        id: ResourceLocation,
+        id: ResourceLocationBuf,
         index: usize,
         pos: [i32; 3],
         size: [u16; 3],
     },
     #[error("{id}: unknown block state {state}")]
-    UnknownState { id: ResourceLocation, state: String },
+    UnknownState {
+        id: ResourceLocationBuf,
+        state: String,
+    },
     #[error("{id}: jigsaw at {pos:?}: {what}")]
     Jigsaw {
-        id: ResourceLocation,
+        id: ResourceLocationBuf,
         pos: [u16; 3],
         what: String,
     },
     #[error("{id}: structure block at {pos:?}: {what}")]
     Marker {
-        id: ResourceLocation,
+        id: ResourceLocationBuf,
         pos: [u16; 3],
         what: String,
     },
     #[error("{id}: entity {index}: {what}")]
     Entity {
-        id: ResourceLocation,
+        id: ResourceLocationBuf,
         index: usize,
         what: String,
     },
@@ -302,7 +305,7 @@ impl std::str::FromStr for PaletteState {
             Some((id, rest)) => (id, Some(rest)),
             None => (text, None),
         };
-        let id = ResourceLocation::read(id.trim()).map_err(|e| e.to_string())?;
+        let id = ResourceLocationBuf::read(id.trim()).map_err(|e| e.to_string())?;
         let Some(rest) = rest else {
             return Ok(PaletteState {
                 id,
@@ -348,10 +351,10 @@ fn id_or(
     nbt: &NbtCompound,
     key: &str,
     default: ResourceLocation<&'static str>,
-) -> Result<ResourceLocation, String> {
+) -> Result<ResourceLocationBuf, String> {
     match nbt.get_string(key) {
-        Some(text) => ResourceLocation::read(text).map_err(|e| format!("{key}: {e}")),
-        None => Ok(default.to_arc()),
+        Some(text) => ResourceLocationBuf::read(text).map_err(|e| format!("{key}: {e}")),
+        None => Ok(default.to_buf()),
     }
 }
 
@@ -362,7 +365,7 @@ impl Template {
     )]
     pub fn freeze(
         &self,
-        id: &ResourceLocation,
+        id: &ResourceLocationBuf,
         resolve: &dyn Fn(&PaletteState) -> Option<ResolvedState>,
     ) -> Result<(FrozenTemplate, TemplateManifest), TemplateError> {
         let err_id = || id.clone();
@@ -693,7 +696,7 @@ mod tests {
 
     fn state(id: &str, properties: &[(&str, &str)]) -> PaletteState {
         PaletteState {
-            id: ResourceLocation::read(id).unwrap(),
+            id: ResourceLocationBuf::read(id).unwrap(),
             properties: (!properties.is_empty()).then(|| {
                 properties
                     .iter()
@@ -747,8 +750,8 @@ mod tests {
         }
     }
 
-    fn id() -> ResourceLocation {
-        rl!("minecraft:test").to_arc()
+    fn id() -> ResourceLocationBuf {
+        rl!("minecraft:test").to_buf()
     }
 
     #[test]
@@ -858,7 +861,7 @@ mod tests {
         let (_, manifest) = t.freeze(&id(), &resolve).unwrap();
         let jigsaws = &manifest.jigsaws[0];
         assert_eq!(jigsaws.len(), 3);
-        let empty = rl!("minecraft:empty").to_arc();
+        let empty = rl!("minecraft:empty").to_buf();
         assert_eq!(
             jigsaws[0],
             JigsawBlock {
@@ -881,9 +884,9 @@ mod tests {
                 front: Direction::North,
                 top: Direction::Up,
                 joint: Joint::Rollable,
-                name: rl!("minecraft:a").to_arc(),
-                pool: rl!("minecraft:b").to_arc(),
-                target: rl!("minecraft:c").to_arc(),
+                name: rl!("minecraft:a").to_buf(),
+                pool: rl!("minecraft:b").to_buf(),
+                target: rl!("minecraft:c").to_buf(),
                 placement_priority: 2,
                 selection_priority: 3,
                 final_state: Some(
@@ -1277,7 +1280,7 @@ mod tests {
         assert_eq!(
             "minecraft:stone[]".parse::<PaletteState>().unwrap(),
             PaletteState {
-                id: rl!("minecraft:stone").to_arc(),
+                id: rl!("minecraft:stone").to_buf(),
                 properties: Some(BTreeMap::new())
             }
         );
@@ -1493,7 +1496,7 @@ mod tests {
                 let template: Template = from_gzip_bytes(Cursor::new(bytes)).unwrap();
                 let (frozen, _) = template
                     .freeze(
-                        &ResourceLocation::minecraft(&path.to_string_lossy()).unwrap(),
+                        &ResourceLocationBuf::minecraft(&path.to_string_lossy()).unwrap(),
                         &any,
                     )
                     .unwrap_or_else(|e| panic!("{e}"));

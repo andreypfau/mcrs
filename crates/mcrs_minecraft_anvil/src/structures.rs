@@ -1,9 +1,9 @@
+use mcrs_minecraft_resource::ResourceLocationBuf;
 use std::borrow::Cow;
 use std::collections::{BTreeMap, BTreeSet};
 
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::tag::NbtTag;
-use mcrs_minecraft_resource::ResourceLocation;
 use mcrs_voxel::ColumnPos;
 use serde::ser::SerializeMap;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -12,9 +12,9 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 /// so an id it does not name is for the caller to reject.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct ChunkStructures {
-    pub starts: BTreeMap<ResourceLocation, StructureStart>,
+    pub starts: BTreeMap<ResourceLocationBuf, StructureStart>,
     /// The chunks holding a start of the structure that reaches into this one.
-    pub references: BTreeMap<ResourceLocation, BTreeSet<ColumnPos>>,
+    pub references: BTreeMap<ResourceLocationBuf, BTreeSet<ColumnPos>>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -29,10 +29,10 @@ pub struct StructureStart {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum DroppedStructure {
     StartId(String),
-    StartWithoutPieces(ResourceLocation),
+    StartWithoutPieces(ResourceLocationBuf),
     ReferenceId(String),
     FarReference {
-        structure: ResourceLocation,
+        structure: ResourceLocationBuf,
         chunk: ColumnPos,
     },
 }
@@ -115,7 +115,7 @@ fn decode(tag: NbtTag) -> Structures<'static> {
         match key.as_str() {
             "starts" => {
                 for (id, value) in compound(value).child_tags {
-                    let Ok(structure) = ResourceLocation::read(&id) else {
+                    let Ok(structure) = ResourceLocationBuf::read(&id) else {
                         dropped.push(DroppedStructure::StartId(id));
                         continue;
                     };
@@ -129,7 +129,7 @@ fn decode(tag: NbtTag) -> Structures<'static> {
             }
             "References" => {
                 for (id, value) in compound(value).child_tags {
-                    let Ok(structure) = ResourceLocation::read(&id) else {
+                    let Ok(structure) = ResourceLocationBuf::read(&id) else {
                         dropped.push(DroppedStructure::ReferenceId(id));
                         continue;
                     };
@@ -193,7 +193,7 @@ impl Serialize for LongArray {
     }
 }
 
-struct References<'a>(&'a BTreeMap<ResourceLocation, BTreeSet<ColumnPos>>);
+struct References<'a>(&'a BTreeMap<ResourceLocationBuf, BTreeSet<ColumnPos>>);
 
 impl Serialize for References<'_> {
     fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {

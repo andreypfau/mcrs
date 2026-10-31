@@ -1,10 +1,9 @@
-use mcrs_minecraft_resource::ResourceKey;
 use std::fmt;
 
 use anyhow::ensure;
 use mcrs_minecraft_core::codec::{self, Validate, is_default};
 use mcrs_minecraft_registries::{Named, Namer, Refs, Resolve, Resolved, WireId};
-use mcrs_minecraft_resource::Id;
+use mcrs_minecraft_resource::{Id, ResourceKeyBuf};
 use serde::de::{Error as _, MapAccess, Visitor, value};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
@@ -31,7 +30,7 @@ pub trait ItemRef {
     fn is_air(&self) -> bool;
 }
 
-impl ItemRef for ResourceKey<Item> {
+impl ItemRef for ResourceKeyBuf<Item> {
     fn is_air(&self) -> bool {
         self.location().as_str() == Item::Air.as_static_str()
     }
@@ -64,7 +63,7 @@ where
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct StackRepr {
-    id: ResourceKey<Item>,
+    id: ResourceKeyBuf<Item>,
     #[serde(default)]
     count: codec::Bounded<1, 99, 1>,
     #[serde(default, skip_serializing_if = "ComponentPatch::is_empty")]
@@ -109,7 +108,7 @@ impl mcrs_minecraft_text::TextSerde for Template<Named> {}
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct TemplateRepr {
-    id: ResourceKey<Item>,
+    id: ResourceKeyBuf<Item>,
     #[serde(default, skip_serializing_if = "is_default")]
     count: codec::Bounded<1, 99, 1>,
     #[serde(default, skip_serializing_if = "ComponentPatch::is_empty")]
@@ -139,7 +138,7 @@ impl<'de> Deserialize<'de> for Template<Named> {
             }
 
             fn visit_str<E: serde::de::Error>(self, id: &str) -> Result<Template<Named>, E> {
-                let item = ResourceKey::deserialize(value::StrDeserializer::<E>::new(id))?;
+                let item = ResourceKeyBuf::deserialize(value::StrDeserializer::<E>::new(id))?;
                 Template::new(item, 1, ComponentPatch::EMPTY).map_err(E::custom)
             }
 
@@ -315,7 +314,7 @@ impl Serialize for ItemStackWithSlot<Named> {
 struct SlotRepr {
     #[serde(rename = "Slot", default, deserialize_with = "codec::int_value")]
     slot: i32,
-    id: ResourceKey<Item>,
+    id: ResourceKeyBuf<Item>,
     #[serde(default)]
     count: codec::Bounded<1, 99, 1>,
     #[serde(default)]

@@ -101,7 +101,7 @@ impl Sample for Instrument {
             }))),
             Instrument(Ref::Inline(Arc::new(InstrumentValue {
                 sound_event: Ref::Inline(Arc::new(SoundEventValue {
-                    sound_id: rl!("mcrs:toot").to_arc(),
+                    sound_id: rl!("mcrs:toot").to_buf(),
                     range: Some(16.0),
                 })),
                 use_duration: 0.0,

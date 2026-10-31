@@ -1,8 +1,8 @@
+use mcrs_minecraft_resource::ResourceLocationBuf;
 use std::collections::{BTreeMap, HashMap, HashSet};
 
 use glam::IVec3;
 use mcrs_minecraft_core::{Axis, Direction, Mirror, Rotation, VERSION};
-use mcrs_minecraft_resource::ResourceLocation;
 use mcrs_minecraft_worldgen_feature::template::{
     PaletteState, Template, TemplateBlock, TemplateEntity, transform, zero_position_with_transform,
 };
@@ -323,7 +323,7 @@ impl Canvas {
 
     /// Replaces one block by another wherever it stands, keeping its properties.
     pub fn rename(&mut self, from: &str, to: &str) {
-        let to = match ResourceLocation::read(to) {
+        let to = match ResourceLocationBuf::read(to) {
             Ok(to) => to,
             Err(reason) => {
                 self.fail(BlueprintError::State {

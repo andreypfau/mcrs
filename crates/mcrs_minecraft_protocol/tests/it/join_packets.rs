@@ -17,8 +17,7 @@ use mcrs_minecraft_protocol::packets::common::{Brand, clientbound, serverbound};
 use mcrs_minecraft_protocol::packets::game::clientbound::*;
 use mcrs_minecraft_protocol::packets::intent::serverbound::ServerboundHandshake;
 use mcrs_minecraft_protocol::{Bounded, Decode, Encode, GlobalPos, RawBytes, VarInt};
-use mcrs_minecraft_resource::Id;
-use mcrs_minecraft_resource::{ResourceKey, ResourceLocation};
+use mcrs_minecraft_resource::{Id, ResourceKeyBuf, ResourceLocation};
 use mcrs_voxel::BlockPos;
 
 static GOLDEN: LazyLock<String> =
@@ -72,7 +71,7 @@ fn check<'a, P: Encode + Decode<'a> + PartialEq + std::fmt::Debug>(
     assert_eq!(encoded(&expected), bytes, "{name}");
 }
 
-fn overworld() -> ResourceKey<Dimension> {
+fn overworld() -> ResourceKeyBuf<Dimension> {
     mcrs_minecraft_dimension::keys::dimension::OVERWORLD.into()
 }
 

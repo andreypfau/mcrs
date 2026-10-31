@@ -1,3 +1,4 @@
+use mcrs_minecraft_resource::ResourceLocationBuf;
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::fmt;
 use std::fs;
@@ -5,7 +6,6 @@ use std::io::ErrorKind;
 use std::path::Path;
 
 use mcrs_minecraft_client_jar::Directory;
-use mcrs_minecraft_resource::ResourceLocation;
 use serde::de::IgnoredAny;
 use serde::{Deserialize, Serialize};
 
@@ -153,7 +153,7 @@ fn identifier(file: &str, path: &str) -> Result<String, String> {
 }
 
 fn identifier_of(file: &str, text: &str) -> Result<String, String> {
-    ResourceLocation::read(text)
+    ResourceLocationBuf::read(text)
         .map(|identifier| identifier.as_str().to_owned())
         .map_err(|error| format!("{file}: {error}"))
 }

@@ -3,7 +3,7 @@ use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_fixtures::{FixtureFile, fixture};
 use mcrs_minecraft_noise::proto::NoiseParam;
 use mcrs_minecraft_noise::sample_grid::SampleGrid;
-use mcrs_minecraft_resource::{ResourceLocation, rl};
+use mcrs_minecraft_resource::{ResourceLocationBuf, rl};
 use mcrs_minecraft_worldgen_density::compile::build_router;
 use mcrs_minecraft_worldgen_density::program::Workspace;
 use mcrs_minecraft_worldgen_density::proto::DensityFunctionHolder;
@@ -110,10 +110,10 @@ fn dense_dump() -> Dump {
 
 pub(crate) fn overworld_router(seed: u64) -> NoiseRouter {
     let settings: NoiseGeneratorSettings =
-        corpus::read("noise_settings", &rl!("minecraft:overworld").to_arc());
-    let registry: BTreeMap<ResourceLocation, DensityFunctionHolder> =
+        corpus::read("noise_settings", &rl!("minecraft:overworld").to_buf());
+    let registry: BTreeMap<ResourceLocationBuf, DensityFunctionHolder> =
         corpus::registry("density_function");
-    let noises: BTreeMap<ResourceLocation, NoiseParam> = corpus::registry("noise");
+    let noises: BTreeMap<ResourceLocationBuf, NoiseParam> = corpus::registry("noise");
     build_router(
         &settings,
         &registry,

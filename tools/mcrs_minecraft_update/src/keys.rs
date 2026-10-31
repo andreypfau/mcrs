@@ -1,10 +1,9 @@
+use mcrs_minecraft_resource::ResourceLocationBuf;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::io::Write;
 use std::path::Path;
 use std::process::{Command, Stdio};
-
-use mcrs_minecraft_resource::ResourceLocation;
 
 use crate::{corpus, names, registries};
 
@@ -396,8 +395,9 @@ fn identity(registry: &str) -> Result<String, String> {
     Ok(module)
 }
 
-fn location(context: &str, name: &str) -> Result<ResourceLocation<std::sync::Arc<str>>, String> {
-    let location = ResourceLocation::read(name).map_err(|error| format!("{context}: {error}"))?;
+fn location(context: &str, name: &str) -> Result<ResourceLocationBuf, String> {
+    let location =
+        ResourceLocationBuf::read(name).map_err(|error| format!("{context}: {error}"))?;
     if location.as_str() != name {
         return Err(format!(
             "{context}: {name} is not written as namespace:path"

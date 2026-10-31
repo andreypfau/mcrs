@@ -1,5 +1,5 @@
 use mcrs_minecraft_nbt::nbt_flag;
-use mcrs_minecraft_resource::{ResourceLocation, rl};
+use mcrs_minecraft_resource::{ResourceLocationBuf, rl};
 use serde::{Deserialize, Serialize};
 
 use crate::discriminator::{object_atlas, object_player};
@@ -18,8 +18,8 @@ pub enum ObjectInfo {
         )]
         typed: (),
         #[serde(default = "default_atlas", skip_serializing_if = "is_default_atlas")]
-        atlas: ResourceLocation,
-        sprite: ResourceLocation,
+        atlas: ResourceLocationBuf,
+        sprite: ResourceLocationBuf,
     },
     Player {
         #[serde(
@@ -39,10 +39,10 @@ pub enum ObjectInfo {
     },
 }
 
-fn default_atlas() -> ResourceLocation {
-    rl!("minecraft:blocks").to_arc()
+fn default_atlas() -> ResourceLocationBuf {
+    rl!("minecraft:blocks").to_buf()
 }
 
-fn is_default_atlas(atlas: &ResourceLocation) -> bool {
+fn is_default_atlas(atlas: &ResourceLocationBuf) -> bool {
     *atlas == default_atlas()
 }

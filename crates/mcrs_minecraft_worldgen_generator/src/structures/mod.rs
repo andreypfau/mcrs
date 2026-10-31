@@ -10,9 +10,9 @@ use mcrs_minecraft_block_predicate::block_state::BlockState as ProtoBlockState;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::{Mirror, Rotation};
 use mcrs_minecraft_registries::{IdSet as Ids, KeySet, Named, Namer, Registries, Resolve, Tags};
-use mcrs_minecraft_resource::Id;
-use mcrs_minecraft_resource::Registered;
-use mcrs_minecraft_resource::{ResourceLocation, StaticResourceLocation, TagKey};
+use mcrs_minecraft_resource::{
+    Id, Registered, ResourceLocationBuf, StaticResourceLocation, TagKey,
+};
 use mcrs_minecraft_worldgen_feature::placement::DecorationStep;
 use mcrs_minecraft_worldgen_feature::placer::BiomeMask;
 use mcrs_minecraft_worldgen_feature::pool::{PoolElement, TemplatePool};
@@ -92,10 +92,10 @@ pub fn resolve_palette_state(
 }
 
 pub struct StructureInputs<'a> {
-    pub sets: &'a BTreeMap<ResourceLocation, StructureSet>,
-    pub structures: &'a BTreeMap<ResourceLocation, Structure>,
-    pub pools: &'a BTreeMap<ResourceLocation, TemplatePool>,
-    pub template: &'a dyn Fn(&ResourceLocation) -> Option<Cow<'a, Template>>,
+    pub sets: &'a BTreeMap<ResourceLocationBuf, StructureSet>,
+    pub structures: &'a BTreeMap<ResourceLocationBuf, Structure>,
+    pub pools: &'a BTreeMap<ResourceLocationBuf, TemplatePool>,
+    pub template: &'a dyn Fn(&ResourceLocationBuf) -> Option<Cow<'a, Template>>,
     pub resolve: &'a dyn Fn(&PaletteState) -> Option<ResolvedState>,
     /// The biome and structure ids and tags the sets are resolved against.
     pub registries: &'a Registries,
@@ -107,11 +107,11 @@ pub struct StructureInputs<'a> {
 /// as its ids in order.
 #[derive(Default)]
 pub struct VariantInputs<'a> {
-    pub cats: Option<&'a BTreeMap<ResourceLocation, Vec<SpawnSelector<Named>>>>,
-    pub cat_sounds: &'a [ResourceLocation],
-    pub chickens: Option<&'a BTreeMap<ResourceLocation, Vec<SpawnSelector<Named>>>>,
-    pub chicken_sounds: &'a [ResourceLocation],
-    pub zombie_nautiluses: Option<&'a BTreeMap<ResourceLocation, Vec<SpawnSelector<Named>>>>,
+    pub cats: Option<&'a BTreeMap<ResourceLocationBuf, Vec<SpawnSelector<Named>>>>,
+    pub cat_sounds: &'a [ResourceLocationBuf],
+    pub chickens: Option<&'a BTreeMap<ResourceLocationBuf, Vec<SpawnSelector<Named>>>>,
+    pub chicken_sounds: &'a [ResourceLocationBuf],
+    pub zombie_nautiluses: Option<&'a BTreeMap<ResourceLocationBuf, Vec<SpawnSelector<Named>>>>,
 }
 
 const MAX_JIGSAW_RANGE: i32 = 128;
@@ -158,7 +158,7 @@ fn freeze_variants(
     frozen: &mut FrozenStructures,
 ) -> Result<(), String> {
     let table = |registry: &str,
-                 entries: Option<&BTreeMap<ResourceLocation, Vec<SpawnSelector<Named>>>>|
+                 entries: Option<&BTreeMap<ResourceLocationBuf, Vec<SpawnSelector<Named>>>>|
      -> Result<VariantTable, String> {
         let Some(entries) = entries else {
             return Ok(VariantTable::default());
@@ -268,7 +268,7 @@ fn freeze_pools(inputs: &StructureInputs<'_>, frozen: &mut FrozenStructures) -> 
 fn freeze_element(
     inputs: &StructureInputs<'_>,
     frozen: &mut FrozenStructures,
-    pool: &ResourceLocation,
+    pool: &ResourceLocationBuf,
     element: &PoolElement,
     imposed: Option<Projection>,
 ) -> Result<(ElementId, Option<(i32, i32)>), String> {
@@ -338,8 +338,8 @@ fn freeze_element(
 fn freeze_template(
     inputs: &StructureInputs<'_>,
     frozen: &mut FrozenStructures,
-    pool: &ResourceLocation,
-    location: &ResourceLocation,
+    pool: &ResourceLocationBuf,
+    location: &ResourceLocationBuf,
 ) -> Result<TemplateId, String> {
     if let Some(id) = frozen.template_ids.get(location) {
         return Ok(*id);
@@ -361,11 +361,11 @@ fn freeze_template(
 fn freeze_structure_templates(
     inputs: &StructureInputs<'_>,
     frozen: &mut FrozenStructures,
-    structure: &ResourceLocation,
+    structure: &ResourceLocationBuf,
     names: &[StaticResourceLocation],
 ) -> Result<(), String> {
     for name in names {
-        let location = name.to_arc();
+        let location = name.to_buf();
         if frozen.template_ids.contains_key(&location) {
             continue;
         }
@@ -380,7 +380,7 @@ fn freeze_structure_templates(
 fn freeze_loaded_template(
     inputs: &StructureInputs<'_>,
     frozen: &mut FrozenStructures,
-    location: &ResourceLocation,
+    location: &ResourceLocationBuf,
     template: &Template,
 ) -> Result<TemplateId, String> {
     let (template, manifest) = template
@@ -392,7 +392,7 @@ fn freeze_loaded_template(
 
 fn push_template(
     frozen: &mut FrozenStructures,
-    location: &ResourceLocation,
+    location: &ResourceLocationBuf,
     template: FrozenTemplate,
     manifest: TemplateManifest,
 ) -> TemplateId {
@@ -404,7 +404,7 @@ fn push_template(
 }
 
 pub(crate) fn check_block_entity_ids(
-    location: &ResourceLocation,
+    location: &ResourceLocationBuf,
     template: &FrozenTemplate,
 ) -> Result<(), String> {
     for block in template.palettes.iter().flat_map(|palette| palette.iter()) {
@@ -425,7 +425,7 @@ pub(crate) fn check_block_entity_ids(
     Ok(())
 }
 
-fn path_then_namespace(a: &ResourceLocation, b: &ResourceLocation) -> Ordering {
+fn path_then_namespace(a: &ResourceLocationBuf, b: &ResourceLocationBuf) -> Ordering {
     a.path()
         .cmp(b.path())
         .then_with(|| a.namespace().cmp(b.namespace()))
@@ -439,7 +439,7 @@ fn freeze_structures(
     inputs: &StructureInputs<'_>,
     frozen: &mut FrozenStructures,
 ) -> Result<(), String> {
-    let mut ordered: Vec<(&ResourceLocation, &Structure)> = inputs.structures.iter().collect();
+    let mut ordered: Vec<(&ResourceLocationBuf, &Structure)> = inputs.structures.iter().collect();
     ordered.sort_by(|a, b| path_then_namespace(a.0, b.0));
     let mut per_step: BTreeMap<DecorationStep, u32> = BTreeMap::new();
     for (id, structure) in ordered {
@@ -561,12 +561,12 @@ fn freeze_structures(
 }
 
 fn check_aliases(
-    structure: &ResourceLocation,
+    structure: &ResourceLocationBuf,
     aliases: &[PoolAlias],
-    pools: &BTreeMap<ResourceLocation, PoolId>,
-    seen: &mut BTreeSet<ResourceLocation>,
+    pools: &BTreeMap<ResourceLocationBuf, PoolId>,
+    seen: &mut BTreeSet<ResourceLocationBuf>,
 ) -> Result<(), String> {
-    let claim = |seen: &mut BTreeSet<ResourceLocation>, alias: &ResourceLocation| {
+    let claim = |seen: &mut BTreeSet<ResourceLocationBuf>, alias: &ResourceLocationBuf| {
         if seen.insert(alias.clone()) {
             Ok(())
         } else {
@@ -575,7 +575,7 @@ fn check_aliases(
             ))
         }
     };
-    let target = |target: &ResourceLocation| {
+    let target = |target: &ResourceLocationBuf| {
         if pools.contains_key(target) {
             Ok(())
         } else {
@@ -614,9 +614,9 @@ fn check_aliases(
 /// Every pool a jigsaw can reach from the start pool must name, in each of its
 /// templates' jigsaw blocks, either a loaded pool or an alias of this structure.
 fn check_jigsaw_targets(
-    structure: &ResourceLocation,
+    structure: &ResourceLocationBuf,
     start: PoolId,
-    aliases: &BTreeSet<ResourceLocation>,
+    aliases: &BTreeSet<ResourceLocationBuf>,
     frozen: &FrozenStructures,
 ) -> Result<(), String> {
     let mut visited = BTreeSet::new();

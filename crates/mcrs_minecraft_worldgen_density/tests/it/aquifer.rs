@@ -19,7 +19,7 @@ const BLOCKS: RouterBlocks = RouterBlocks {
 
 fn overworld(seed: u64, edit: impl FnOnce(&mut serde_json::Value)) -> NoiseRouter {
     let mut raw: serde_json::Value =
-        corpus::read("noise_settings", &rl!("minecraft:overworld").to_arc());
+        corpus::read("noise_settings", &rl!("minecraft:overworld").to_buf());
     edit(&mut raw);
     let settings: NoiseGeneratorSettings = serde_json::from_value(raw).unwrap();
     build_router(

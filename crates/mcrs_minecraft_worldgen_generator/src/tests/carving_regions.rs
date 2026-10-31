@@ -149,7 +149,7 @@ fn a_column_below_zero_belongs_to_the_region_below_zero(router: &NoiseRouter) {
 
 fn long_canyon_table(width: i32, capacity: usize) -> CarverBiomeTable {
     let mut canyon: CarverConfig =
-        mcrs_minecraft_worldgen_testing::read("carver", &rl!("minecraft:canyon").to_arc());
+        mcrs_minecraft_worldgen_testing::read("carver", &rl!("minecraft:canyon").to_buf());
     let CarverConfig::Canyon {
         probability, shape, ..
     } = &mut canyon

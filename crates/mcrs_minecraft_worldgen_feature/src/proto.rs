@@ -1,5 +1,6 @@
 use mcrs_minecraft_block_predicate::provider::Holder;
 use mcrs_minecraft_registries::{KeySet, Named, dispatch};
+use mcrs_minecraft_resource::ResourceLocationBuf;
 use std::fmt;
 
 use serde::de::Error as _;
@@ -20,7 +21,6 @@ use mcrs_minecraft_core::Axis;
 use mcrs_minecraft_core::Direction;
 use mcrs_minecraft_core::Rotation;
 use mcrs_minecraft_core::codec::{Bounded, NonNegativeInt, default_true, is_default, non_empty};
-use mcrs_minecraft_resource::ResourceLocation;
 use mcrs_minecraft_value_provider::{BoundedIntProvider, FloatProvider, IntProvider, Weighted};
 use mcrs_minecraft_worldgen_density::proto::Either;
 use mcrs_minecraft_worldgen_surface::proto::CaveSurface;
@@ -31,7 +31,7 @@ use mcrs_minecraft_worldgen_surface::proto::CaveSurface;
 /// writes as the bare entry.
 #[derive(Debug, Clone, PartialEq)]
 pub enum PlacedFeatureSet {
-    Tag(ResourceLocation),
+    Tag(ResourceLocationBuf),
     List(Vec<Holder<PlacedFeature>>),
 }
 
@@ -46,7 +46,7 @@ impl PlacedFeatureSet {
 
     fn tagged<E: serde::de::Error>(text: &str) -> Result<Self, E> {
         let tag = text.strip_prefix('#').unwrap_or(text);
-        ResourceLocation::read(tag)
+        ResourceLocationBuf::read(tag)
             .map(PlacedFeatureSet::Tag)
             .map_err(E::custom)
     }
@@ -106,7 +106,7 @@ pub type FeatureStepList = Vec<Holder<PlacedFeature>>;
 
 impl Feature {
     /// The structure templates this feature places.
-    pub fn templates(&self) -> impl Iterator<Item = &ResourceLocation> {
+    pub fn templates(&self) -> impl Iterator<Item = &ResourceLocationBuf> {
         let (entries, fossils, overlays): (&[Weighted<TemplateEntry>], &[_], &[_]) = match self {
             Self::Template { templates, .. } => (templates, &[], &[]),
             Self::Fossil {
@@ -328,9 +328,9 @@ pub enum Feature {
     },
     Fossil {
         #[serde(deserialize_with = "non_empty")]
-        fossil_structures: Vec<ResourceLocation>,
+        fossil_structures: Vec<ResourceLocationBuf>,
         #[serde(deserialize_with = "non_empty")]
-        overlay_structures: Vec<ResourceLocation>,
+        overlay_structures: Vec<ResourceLocationBuf>,
         fossil_processors: Holder<StructureProcessorList>,
         overlay_processors: Holder<StructureProcessorList>,
         max_empty_corners_allowed: Bounded<0, 7>,
@@ -409,7 +409,7 @@ pub enum Feature {
     },
     MonsterRoom,
     MultifaceGrowth {
-        block: ResourceLocation,
+        block: ResourceLocationBuf,
         #[serde(default, skip_serializing_if = "is_default")]
         search_range: Bounded<1, 64, 10>,
         #[serde(default, skip_serializing_if = "is_default")]
@@ -677,7 +677,7 @@ pub struct VegetationPatchConfig {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct TemplateEntry {
-    pub id: ResourceLocation,
+    pub id: ResourceLocationBuf,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub rotations: Option<Vec<Rotation>>,
 }
@@ -827,7 +827,7 @@ pub struct LinearPos {
 pub enum RuleBlockEntityModifier {
     Clear,
     Passthrough,
-    AppendLoot { loot_table: ResourceLocation },
+    AppendLoot { loot_table: ResourceLocationBuf },
 }
 
 // ---------------------------------------------------------------------------

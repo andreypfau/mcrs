@@ -1,6 +1,8 @@
 use mcrs_minecraft_block::definition::BlockDefinitions;
 use mcrs_minecraft_registries::{BlockStates, Namer, Registries, ResolveError, Resolver};
-use mcrs_minecraft_resource::{Id, Registered, ResourceKey, ResourceLocation, TagId, TagKey};
+use mcrs_minecraft_resource::{
+    Id, Registered, ResourceKeyBuf, ResourceLocationBuf, TagId, TagKeyBuf,
+};
 
 /// What a wire value is checked against. Both ends of a connection number a registry alike: a
 /// client holds the registries its server sent, in the order sent.
@@ -26,21 +28,21 @@ impl<'a> WireLookup<'a> {
 }
 
 impl Resolver for WireLookup<'_> {
-    fn id<R: Registered>(&self, key: &ResourceKey<R>) -> Result<Id<R>, ResolveError> {
+    fn id<R: Registered>(&self, key: &ResourceKeyBuf<R>) -> Result<Id<R>, ResolveError> {
         self.registries.id(key)
     }
 
-    fn tag<R: Registered>(&self, tag: &TagKey<R>) -> Result<TagId<R>, ResolveError> {
+    fn tag<R: Registered>(&self, tag: &TagKeyBuf<R>) -> Result<TagId<R>, ResolveError> {
         self.registries.tag(tag)
     }
 }
 
 impl Namer for WireLookup<'_> {
-    fn name<R: Registered>(&self, id: Id<R>) -> Option<&ResourceLocation> {
+    fn name<R: Registered>(&self, id: Id<R>) -> Option<&ResourceLocationBuf> {
         Namer::name(self.registries, id)
     }
 
-    fn tag_name<R: Registered>(&self, tag: TagId<R>) -> Option<&ResourceLocation> {
+    fn tag_name<R: Registered>(&self, tag: TagId<R>) -> Option<&ResourceLocationBuf> {
         self.registries.tag_name(tag)
     }
 }
@@ -56,7 +58,7 @@ impl BlockStates for WireLookup<'_> {
     fn block_state(
         &self,
         id: u16,
-    ) -> Result<(ResourceLocation, Vec<(String, String)>), ResolveError> {
+    ) -> Result<(ResourceLocationBuf, Vec<(String, String)>), ResolveError> {
         self.blocks()?
             .properties_of(id)
             .ok_or_else(|| ResolveError::new(format!("no block state has id {id}")))
@@ -64,7 +66,7 @@ impl BlockStates for WireLookup<'_> {
 
     fn block_state_id(
         &self,
-        block: &ResourceLocation,
+        block: &ResourceLocationBuf,
         properties: &[(&str, &str)],
     ) -> Result<u16, ResolveError> {
         self.blocks()?

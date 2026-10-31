@@ -1,3 +1,4 @@
+use mcrs_minecraft_resource::ResourceLocationBuf;
 use std::collections::HashMap;
 use std::sync::LazyLock;
 
@@ -12,7 +13,6 @@ use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::to_nbt_compound;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::worldgen::WorldgenRandom;
-use mcrs_minecraft_resource::ResourceLocation;
 use mcrs_minecraft_value_provider::HeightContext;
 use mcrs_minecraft_volume::{BoxVolume, Volume};
 use mcrs_minecraft_worldgen_feature::placer::{BiomeMask, BoxRegion, WorldStates};
@@ -277,7 +277,7 @@ impl SiteWorld for FlatSiteWorld<'_> {
 
 fn flat_start(frozen: &FrozenStructures, case: &DumpCase) -> Option<Start> {
     let (min_y, height, sea_level) = dimension(&case.dimension);
-    let id = frozen.structure_ids[&ResourceLocation::read(&case.structure).unwrap()];
+    let id = frozen.structure_ids[&ResourceLocationBuf::read(&case.structure).unwrap()];
     let states = &program().world;
     let mut world = FlatSiteWorld {
         min_y,
@@ -573,7 +573,7 @@ mod exhaustive {
         let mut placed = 0;
         let mut chunks = 0;
         for case in &dump.cases {
-            let id = frozen.structure_ids[&ResourceLocation::read(&case.structure).unwrap()];
+            let id = frozen.structure_ids[&ResourceLocationBuf::read(&case.structure).unwrap()];
             let structure = &frozen.structures[id.0 as usize];
             let label = format!(
                 "{} {} base {} at {:?}",

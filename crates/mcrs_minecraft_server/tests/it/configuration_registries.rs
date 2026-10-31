@@ -25,7 +25,7 @@ use mcrs_minecraft_protocol::{Decode, Encode, Packet};
 use mcrs_minecraft_registries::{
     CurrentRegistries, NetworkSnapshot, Registries, RegistryAdditions,
 };
-use mcrs_minecraft_resource::ResourceLocation;
+use mcrs_minecraft_resource::ResourceLocationBuf;
 use mcrs_minecraft_server::MinecraftServerPlugins;
 use mcrs_minecraft_world::registry_load::{test_network, test_registries};
 use std::collections::BTreeMap;
@@ -139,7 +139,7 @@ fn a_pack_replacing_a_shipped_damage_type_is_what_the_server_uses_and_sends() {
     let registry = "minecraft:damage_type";
     let damage_types = registries.registry::<DamageType>().unwrap();
     let arrow = damage_types
-        .by_name(&ResourceLocation::read("minecraft:arrow").unwrap())
+        .by_name(&ResourceLocationBuf::read("minecraft:arrow").unwrap())
         .unwrap();
     assert_eq!(damage_types.get(arrow).unwrap().exhaustion, 0.75);
     assert_eq!(
@@ -291,7 +291,7 @@ fn the_registry_packets_carry_each_synced_registry_in_id_order() {
     assert!(!sent.contains(&"minecraft:environment_attribute"));
 
     for packet in &packets {
-        let key = ResourceLocation::read(packet.registry.as_str()).unwrap();
+        let key = ResourceLocationBuf::read(packet.registry.as_str()).unwrap();
         let in_id_order: Vec<&str> = registries
             .names_of(&key)
             .unwrap()

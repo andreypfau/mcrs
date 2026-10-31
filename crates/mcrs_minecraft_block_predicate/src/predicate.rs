@@ -1,3 +1,4 @@
+use mcrs_minecraft_resource::ResourceLocationBuf;
 use serde::de::Error as _;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
@@ -9,7 +10,6 @@ use mcrs_minecraft_core::codec::IntArray;
 use mcrs_minecraft_core::codec::is_default;
 use mcrs_minecraft_core::{codec::Validate, validated};
 use mcrs_minecraft_registries::{Named, Refs, Resolved, dispatch, registry_value};
-use mcrs_minecraft_resource::ResourceLocation;
 use mcrs_minecraft_value_provider::VerticalAnchor;
 
 /// `Vec3i.offsetCodec(16)`.
@@ -53,7 +53,7 @@ pub enum BlockPredicate<M: Refs = Resolved> {
     MatchingBlockTag {
         #[serde(default, skip_serializing_if = "is_default")]
         offset: Offset,
-        tag: ResourceLocation,
+        tag: ResourceLocationBuf,
     },
     MatchingFluids {
         #[serde(default, skip_serializing_if = "is_default")]

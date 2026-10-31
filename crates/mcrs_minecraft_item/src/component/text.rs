@@ -1,5 +1,5 @@
 use mcrs_minecraft_registries::{Named, Refs, Resolved, registry_value};
-use mcrs_minecraft_resource::{ResourceLocation, rl};
+use mcrs_minecraft_resource::{ResourceLocationBuf, rl};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Deserializer, Serialize};
 
@@ -97,7 +97,7 @@ macro_rules! location_newtype {
         #[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
         #[derive(mcrs_minecraft_wire::Encode, mcrs_minecraft_wire::Decode)]
         #[serde(transparent)]
-        pub struct $ty(pub ResourceLocation);
+        pub struct $ty(pub ResourceLocationBuf);
 
         impl Sample for $ty {
             fn nbt_tags(&self) -> Vec<(&'static str, u8)> {
@@ -106,8 +106,8 @@ macro_rules! location_newtype {
 
             fn samples() -> Vec<Self> {
                 vec![
-                    $ty(rl!("minecraft:stone").to_arc()),
-                    $ty(rl!("custom:style/dir").to_arc()),
+                    $ty(rl!("minecraft:stone").to_buf()),
+                    $ty(rl!("custom:style/dir").to_buf()),
                 ]
             }
         }

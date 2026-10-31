@@ -1,3 +1,4 @@
+use mcrs_minecraft_resource::ResourceLocationBuf;
 use std::borrow::Cow;
 
 use anyhow::Context as _;
@@ -7,7 +8,6 @@ use mcrs_minecraft_protocol::packets::configuration::clientbound::{
     ClientboundRegistryData, ClientboundUpdateTags, RegistryTags,
 };
 use mcrs_minecraft_registries::{Received, ReceivedTags};
-use mcrs_minecraft_resource::ResourceLocation;
 
 /// What a server sent of its registries during one configuration: a registry sent in several
 /// packets is joined in the order sent, and a later tag packet replaces the tags of the
@@ -28,7 +28,7 @@ pub(crate) fn received(configuration: &Configuration) -> anyhow::Result<Received
 }
 
 fn collect_registry(received: &mut Received, data: ClientboundRegistryData<'_>) {
-    let registry: ResourceLocation = data.registry.into();
+    let registry: ResourceLocationBuf = data.registry.into();
     let entries = data
         .entries
         .into_iter()
@@ -67,8 +67,8 @@ mod tests {
     use mcrs_minecraft_protocol::packets::configuration::clientbound::TagGroup;
     use mcrs_minecraft_protocol::registry::Entry;
     use mcrs_minecraft_protocol::{Encode, VarInt};
+    use mcrs_minecraft_resource::ResourceLocation;
     use serde::Serialize;
-    use std::sync::Arc;
 
     #[derive(Serialize)]
     struct Probe {
@@ -77,8 +77,8 @@ mod tests {
 
     const PROBE_NAME: &str = "minecraft:test_probe";
 
-    fn name(text: &str) -> ResourceLocation<Arc<str>> {
-        ResourceLocation::read(text).unwrap()
+    fn name(text: &str) -> ResourceLocationBuf {
+        ResourceLocationBuf::read(text).unwrap()
     }
 
     fn probe(size: i32) -> NbtTag {

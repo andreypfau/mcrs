@@ -7,7 +7,7 @@ use mcrs_minecraft_network::client::{
     ChunkCacheCenter, ChunkCacheRadius, PendingTeleports, ServerProfile, offline_player_uuid,
 };
 use mcrs_minecraft_registries::{CurrentRegistries, Registries};
-use mcrs_minecraft_resource::ResourceLocation;
+use mcrs_minecraft_resource::ResourceLocationBuf;
 use mcrs_minecraft_server::MinecraftServerPlugins;
 use mcrs_minecraft_world::registry_load::sent_by;
 use std::collections::BTreeMap;
@@ -24,7 +24,7 @@ fn contents(set: &Registries, registries: &[String]) -> Contents {
     registries
         .iter()
         .map(|registry| {
-            let key = ResourceLocation::read(registry).unwrap();
+            let key = ResourceLocationBuf::read(registry).unwrap();
             let names = set
                 .names_of(&key)
                 .map(|names| names.iter().map(ToString::to_string).collect())

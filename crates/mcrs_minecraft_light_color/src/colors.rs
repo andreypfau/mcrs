@@ -61,7 +61,7 @@ mod load {
     use mcrs_minecraft_block::definition::{BlockDefinitions, BlockEntry};
     use mcrs_minecraft_block::keys::Block;
     use mcrs_minecraft_registries::Tags;
-    use mcrs_minecraft_resource::TagKey;
+
     use mcrs_voxel::BlockStateId;
 
     use super::{LightColors, LightType};
@@ -190,7 +190,9 @@ mod load {
                     entry: entry.to_string(),
                 }),
             StateTarget::Tag(id) => tags
-                .id(&TagKey::<Block, _>::from_location(id.clone()))
+                .id(&mcrs_minecraft_resource::TagKeyBuf::<Block>::from_location(
+                    id.clone(),
+                ))
                 .map(|tag| {
                     tags.members(tag)
                         .filter_map(|member| blocks.blocks().get(member.index()))

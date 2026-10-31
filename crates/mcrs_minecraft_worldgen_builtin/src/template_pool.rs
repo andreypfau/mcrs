@@ -13,8 +13,9 @@ mod village_taiga;
 
 use mcrs_minecraft_biome_file::PlacedFeatureKey;
 use mcrs_minecraft_core::codec::Bounded;
-use mcrs_minecraft_resource::InvalidResourceLocation;
-use mcrs_minecraft_resource::{ResourceKey, ResourceLocation, StaticResourceLocation, rl};
+use mcrs_minecraft_resource::{
+    InvalidResourceLocation, ResourceKey, ResourceLocationBuf, StaticResourceLocation, rl,
+};
 use mcrs_minecraft_worldgen_feature::pool::{PoolElement, PoolEntry, SingleElement, TemplatePool};
 use mcrs_minecraft_worldgen_feature::proto::StructureProcessorList;
 use mcrs_minecraft_worldgen_feature::template::Projection;
@@ -130,7 +131,7 @@ impl Pool {
         match piece {
             Piece::Template(template) => {
                 let mut push = |name: std::fmt::Arguments| {
-                    let location = ResourceLocation::minecraft(&format!("{}{name}", self.dir))?;
+                    let location = ResourceLocationBuf::minecraft(&format!("{}{name}", self.dir))?;
                     let processors = template.processors.or(self.processors);
                     let element =
                         SingleElement::new(location, processors.map(Into::into), projection);
@@ -237,7 +238,7 @@ fn listed() -> impl Iterator<Item = &'static Pool> {
 }
 
 pub fn all()
--> impl Iterator<Item = Result<(ResourceLocation, TemplatePool), InvalidResourceLocation>> {
+-> impl Iterator<Item = Result<(ResourceLocationBuf, TemplatePool), InvalidResourceLocation>> {
     listed()
         .map(|pool| Ok((pool.name.into(), pool.build()?)))
         .chain(abandoned_camp::all())

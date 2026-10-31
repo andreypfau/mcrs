@@ -1,7 +1,7 @@
 use crate::block_state::try_resolve_state;
 use mcrs_minecraft_block::definition::BlockDefinitions;
 use mcrs_minecraft_registries::Registries;
-use mcrs_minecraft_resource::ResourceLocation;
+use mcrs_minecraft_resource::ResourceLocationBuf;
 use mcrs_minecraft_worldgen::beard::BeardifierPlacement;
 use mcrs_minecraft_worldgen::router::{build_dimension_router, dimension_beardifier_placement};
 use mcrs_minecraft_worldgen_density::compile::CompileError;
@@ -26,8 +26,8 @@ pub fn build_router(
 /// addend, so any other shape would silently lose the term.
 pub fn refuse_misplaced_beardifier(
     registries: &Registries,
-    dimension: &ResourceLocation,
-    settings_name: &ResourceLocation,
+    dimension: &ResourceLocationBuf,
+    settings_name: &ResourceLocationBuf,
     settings: &NoiseGeneratorSettings,
     tables: &DimensionStructureTables,
 ) {

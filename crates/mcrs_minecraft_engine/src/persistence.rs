@@ -8,7 +8,7 @@ use mcrs_minecraft_engine_world::world::dimension::InDimension;
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_protocol::item::{ItemStackValue, ItemStackWithSlot};
 use mcrs_minecraft_registries::Named;
-use mcrs_minecraft_resource::ResourceKey;
+use mcrs_minecraft_resource::ResourceKeyBuf;
 use mcrs_minecraft_save::{PlayerDat, read_player_dat, write_player_dat};
 use std::collections::BTreeMap;
 use tracing::error;
@@ -65,7 +65,7 @@ pub fn save_player(world: &World, player: Entity) -> PlayerDat {
         .unwrap_or(Transform::IDENTITY);
     let dimension = world
         .get::<InDimension>(player)
-        .and_then(|dim| world.get::<ResourceKey<Dimension>>(dim.0))
+        .and_then(|dim| world.get::<ResourceKeyBuf<Dimension>>(dim.0))
         .cloned()
         .unwrap_or_else(|| mcrs_minecraft_dimension::keys::dimension::OVERWORLD.into());
     let loaded = world

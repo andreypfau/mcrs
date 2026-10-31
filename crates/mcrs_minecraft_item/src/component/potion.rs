@@ -1,4 +1,4 @@
-use mcrs_minecraft_resource::ResourceKey;
+use mcrs_minecraft_resource::ResourceKeyBuf;
 use std::fmt;
 
 use mcrs_minecraft_core::codec::Bounded;
@@ -116,7 +116,7 @@ impl<'de> Deserialize<'de> for PotionContents<Named> {
             }
 
             fn visit_str<E: serde::de::Error>(self, text: &str) -> Result<Self::Value, E> {
-                ResourceKey::deserialize(value::StrDeserializer::new(text))
+                ResourceKeyBuf::deserialize(value::StrDeserializer::new(text))
                     .map(PotionContents::potion)
             }
 

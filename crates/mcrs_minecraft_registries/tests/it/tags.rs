@@ -1,11 +1,10 @@
-use mcrs_minecraft_resource::TagKey;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::Path;
 
 use mcrs_minecraft_fixtures::vanilla_dir;
 use mcrs_minecraft_registries::{Declaration, Diagnostic, Missing, Referrer};
-use mcrs_minecraft_resource::Id;
+use mcrs_minecraft_resource::{Id, TagKeyBuf};
 use serde::Deserialize;
 
 use crate::support::{
@@ -54,7 +53,7 @@ mod exhaustive {
     fn a_registry_at_the_end_of_the_tag_range_loads() {
         let (registries, _) = block_tag_files(65_536).load(declarations()).unwrap();
         let tags = registries.tags::<Block>().unwrap();
-        let last = tags.id(&TagKey::from_location(rl("t:e65535"))).unwrap();
+        let last = tags.id(&TagKeyBuf::from_location(rl("t:e65535"))).unwrap();
         assert_eq!(last.number(), u16::MAX);
         assert_eq!(
             tags.members(last).collect::<Vec<_>>(),

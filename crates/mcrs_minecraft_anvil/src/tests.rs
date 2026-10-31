@@ -1,3 +1,4 @@
+use mcrs_minecraft_resource::ResourceLocationBuf;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
@@ -1247,7 +1248,7 @@ fn structure_cases() -> [StructureCase; 4] {
     use StructureCase as Case;
 
     let pos = STRUCTURE_CHUNK;
-    let rl = |id: &str| mcrs_minecraft_resource::ResourceLocation::read(id).unwrap();
+    let rl = |id: &str| ResourceLocationBuf::read(id).unwrap();
     let piece = || Some(vec![structure_piece("minecraft:shipwreck")]);
     [
         Case {

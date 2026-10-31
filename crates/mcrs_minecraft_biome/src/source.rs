@@ -1,10 +1,9 @@
-use mcrs_minecraft_resource::ResourceKey;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
 use super::climate::{ClimateParameters, ParameterPoint};
 use mcrs_minecraft_registries::{Named, Refs, Resolve, Resolved, dispatch, registry_value};
-use mcrs_minecraft_resource::Id;
+use mcrs_minecraft_resource::{Id, ResourceKeyBuf};
 
 // ===========================================================================
 // Beta biome lookup — enum, cascade, table
@@ -137,7 +136,7 @@ struct MultiNoiseFields {
     #[serde(default, deserialize_with = "distinguishable_entries")]
     biomes: Option<Vec<MultiNoiseBiomeEntry<Named>>>,
     #[serde(default)]
-    preset: Option<ResourceKey<crate::parameter_list::MultiNoiseBiomeSourceParameterList>>,
+    preset: Option<ResourceKeyBuf<crate::parameter_list::MultiNoiseBiomeSourceParameterList>>,
 }
 
 impl<'de> Deserialize<'de> for MultiNoiseBiomeSource<Named> {

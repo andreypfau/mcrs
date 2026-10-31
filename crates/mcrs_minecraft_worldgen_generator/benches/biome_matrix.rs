@@ -17,7 +17,7 @@
 )]
 
 mod common;
-use mcrs_minecraft_resource::ResourceKey;
+use mcrs_minecraft_resource::{ResourceKeyBuf, ResourceLocationBuf};
 use mcrs_minecraft_worldgen_generator::ColumnBiomes;
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -26,7 +26,6 @@ use std::time::{Duration, Instant};
 use mcrs_minecraft_biome::parameter_list::Preset;
 use mcrs_minecraft_biome::source::{BiomeSource, MultiNoiseBiomeSource};
 use mcrs_minecraft_registries::{Diagnostics, Registries, Resolver};
-use mcrs_minecraft_resource::ResourceLocation;
 use mcrs_minecraft_worldgen_density::router::NoiseRouter;
 use mcrs_minecraft_worldgen_generator::multi_noise_biomes::MultiNoiseBiomeTable;
 use mcrs_minecraft_worldgen_generator::task::CancellationToken;
@@ -311,7 +310,7 @@ fn natural(
     offset: i32,
 ) {
     let overworld =
-        ResourceKey::from_location(ResourceLocation::read("minecraft:overworld").unwrap());
+        ResourceKeyBuf::from_location(ResourceLocationBuf::read("minecraft:overworld").unwrap());
     let multi = MultiNoiseBiomeSource::Preset(Resolver::id(registry, &overworld).unwrap());
     let table = MultiNoiseBiomeTable::of_preset(Preset::Overworld, biomes_of(registry))
         .expect("the overworld preset resolves");
