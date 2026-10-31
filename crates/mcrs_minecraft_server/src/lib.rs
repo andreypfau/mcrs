@@ -2,7 +2,6 @@
 
 extern crate core;
 
-pub mod block_light_table;
 pub mod runner;
 pub use runner::{DEFAULT_TPS, run_server_loop};
 pub mod configuration;
@@ -13,7 +12,6 @@ mod status;
 pub mod world;
 pub mod world_options;
 
-pub use crate::block_light_table::LightingPlugin;
 use crate::configuration::ConfigurationStatePlugin;
 use crate::keep_alive::KeepAlivePlugin;
 use crate::login::{LoginPlugin, SingleplayerProfile};
@@ -24,6 +22,7 @@ use bevy_app::{App, AppExit, Plugin, PluginGroup, PluginGroupBuilder};
 use bevy_ecs::prelude::Resource;
 use mcrs_minecraft_level::server_loop::VoxelServerPlugin;
 use mcrs_minecraft_level::world::lifecycle::trace::ColumnTraceSink;
+use mcrs_minecraft_light_plugin::LightingPlugin;
 use mcrs_minecraft_network::NetworkPlugin;
 use mcrs_minecraft_world::dimension::Dimensions;
 use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};

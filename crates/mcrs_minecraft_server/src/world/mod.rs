@@ -14,8 +14,6 @@ pub mod entity;
 pub mod generate;
 #[cfg(test)]
 mod generation_tests;
-pub mod light;
-pub mod light_codec;
 pub mod sub_app_builder;
 
 pub struct WorldPlugin;

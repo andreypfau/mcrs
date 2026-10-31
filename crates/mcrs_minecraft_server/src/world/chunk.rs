@@ -8,6 +8,7 @@ use bevy_tasks::futures_lite::future;
 use bevy_tasks::{Task, TaskPool, TaskPoolBuilder, block_on};
 use mcrs_minecraft_core::SectionPos;
 use mcrs_minecraft_engine::heightmap::PendingColumnHeightmaps;
+use mcrs_minecraft_level::aoi::min_column_distance;
 use mcrs_minecraft_level::entity::physics::Transform;
 use mcrs_minecraft_level::entity::player::Player;
 use mcrs_minecraft_level::entity::player::chunk_view::ChunkTrackingView;
@@ -248,18 +249,6 @@ pub(crate) fn carried_sections(
 /// simulation that runs the section.
 #[derive(bevy_ecs::prelude::Component, Clone, Debug, PartialEq)]
 pub struct GeneratedTicks(pub Vec<PendingTick<GenerationKinds>>);
-
-/// Squared XZ (column) distance from a chunk to the nearest player.
-pub(crate) fn min_column_distance(pos: &ColumnPos, players: &[ColumnPos]) -> i32 {
-    if players.is_empty() {
-        return 0;
-    }
-    players
-        .iter()
-        .map(|p| pos.distance_squared(*p))
-        .min()
-        .unwrap_or(0)
-}
 
 impl SlowColumns {
     /// The whole ladder's latency, reported once a second with the count of the
