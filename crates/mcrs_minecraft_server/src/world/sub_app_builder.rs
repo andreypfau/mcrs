@@ -78,7 +78,6 @@ use crate::world::aoi::PlayerTrackerPlugin;
 use crate::world::block_update::{BlockUpdatePlugin, BlockUpdateWirePlugin};
 use crate::world::entity::MinecraftEntityPlugin;
 use crate::world::generate::DimensionRouters;
-use crate::world::light::DimLightPlugin;
 use mcrs_minecraft_biome::source::{BiomeSource, MultiNoiseBiomeSource};
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_dimension_environment::dimension_type::DimensionTypeFile;
@@ -92,6 +91,7 @@ use mcrs_minecraft_level::world::lifecycle::trace::{ColumnTraceLog, ColumnTraceS
 use mcrs_minecraft_level::world::sub_app::{
     DimAppLabel, DimSpawnQueue, DimSpawnRequest, DimensionPlugins,
 };
+use mcrs_minecraft_light_plugin::DimLightPlugin;
 use mcrs_minecraft_registries::{CurrentRegistries, Diagnostics, Registries};
 use mcrs_minecraft_worldgen_generator::SurfaceIds;
 use mcrs_minecraft_worldgen_generator::ids::FillIds;
