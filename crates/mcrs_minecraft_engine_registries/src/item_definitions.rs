@@ -2,10 +2,10 @@ use bevy_asset::AssetServer;
 use bevy_asset::io::AssetSourceId;
 use mcrs_minecraft_assets::asset::{CorpusReadError, read_json_corpus};
 use mcrs_minecraft_block::definition::BlockDefinitions;
+use mcrs_minecraft_game_registries::item::definitions::{ItemCorpusError, from_files};
 use mcrs_minecraft_item::ItemDefinitions;
 use mcrs_minecraft_item::definition::CORPUS_DIRECTORY;
 use mcrs_minecraft_registries::Registries;
-use mcrs_minecraft_world::item::definitions::{ItemCorpusError, from_files};
 
 /// Why the item definitions did not load through the asset server.
 #[derive(Debug, thiserror::Error)]

@@ -946,7 +946,7 @@ mod tests {
         world.init_resource::<Messages<OutboundPlayerPacket>>();
         world.init_resource::<Messages<ColumnHeld>>();
         world.insert_resource(CurrentRegistries::new(
-            mcrs_minecraft_world::registry_load::registries_declaring(Vec::new()),
+            mcrs_minecraft_game_registries::registry_load::registries_declaring(Vec::new()),
         ));
         world.insert_resource(mcrs_minecraft_worldgen_generator::tests::blocks().clone());
 

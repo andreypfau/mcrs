@@ -14,6 +14,7 @@ use mcrs_minecraft_environment::timeline::Timeline;
 use mcrs_minecraft_environment::world_clock::{
     ClockTimeMarkers, WorldClock, WorldClockPlugin, WorldClocks,
 };
+use mcrs_minecraft_game_registries::registry_load::{RegistryLoadError, load_received};
 use mcrs_minecraft_item::Items;
 use mcrs_minecraft_network::ConnectionState;
 use mcrs_minecraft_network::client::{
@@ -23,7 +24,6 @@ use mcrs_minecraft_network::event;
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundUpdateTags;
 use mcrs_minecraft_registries::{CurrentRegistries, Diagnostics, Received, Registries};
 use mcrs_minecraft_resource::Id;
-use mcrs_minecraft_world::registry_load::{RegistryLoadError, load_received};
 
 use crate::blocks::BiomeTints;
 use crate::joined_game::{self, CurrentDimension};

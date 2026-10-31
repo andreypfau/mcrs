@@ -148,42 +148,42 @@ pub const OWNERS: &[Owner] = &[
     },
     Owner {
         registry: "minecraft:chat_type",
-        krate: "mcrs_minecraft_world",
+        krate: "mcrs_minecraft_game_registries",
         value: ValueType::Defined("crate::chat_type::ChatType"),
     },
     Owner {
         registry: "minecraft:test_environment",
-        krate: "mcrs_minecraft_world",
+        krate: "mcrs_minecraft_game_registries",
         value: ValueType::Defined("crate::test_types::TestEnvironment"),
     },
     Owner {
         registry: "minecraft:test_instance",
-        krate: "mcrs_minecraft_world",
+        krate: "mcrs_minecraft_game_registries",
         value: ValueType::Defined("crate::test_types::TestInstance"),
     },
     Owner {
         registry: "minecraft:sulfur_cube_archetype",
-        krate: "mcrs_minecraft_world",
+        krate: "mcrs_minecraft_game_registries",
         value: ValueType::Defined("crate::sulfur_cube_archetype::SulfurCubeArchetype"),
     },
     Owner {
         registry: "minecraft:enchantment_provider",
-        krate: "mcrs_minecraft_world",
+        krate: "mcrs_minecraft_game_registries",
         value: ValueType::Defined("crate::enchantment_provider::EnchantmentProvider"),
     },
     Owner {
         registry: "minecraft:villager_trade",
-        krate: "mcrs_minecraft_world",
+        krate: "mcrs_minecraft_game_registries",
         value: ValueType::Defined("crate::villager_trade::VillagerTrade"),
     },
     Owner {
         registry: "minecraft:trade_set",
-        krate: "mcrs_minecraft_world",
+        krate: "mcrs_minecraft_game_registries",
         value: ValueType::Defined("crate::villager_trade::TradeSet"),
     },
     Owner {
         registry: "minecraft:worldgen/world_preset",
-        krate: "mcrs_minecraft_world",
+        krate: "mcrs_minecraft_game_registries",
         value: ValueType::Defined("crate::worldgen::world_preset::WorldPreset"),
     },
     Owner {

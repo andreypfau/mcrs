@@ -45,7 +45,7 @@ flate2.workspace = true
 mcrs_minecraft_engine_registries = { workspace = true, features = ["test-support"] }
 mcrs_minecraft_snbt.workspace = true
 mcrs_minecraft_sound.workspace = true
-mcrs_minecraft_world = { workspace = true, features = ["test-support"] }
+mcrs_minecraft_game_registries = { workspace = true, features = ["test-support"] }
 criterion = { version = "0.7", features = ["html_reports"] }
 rand.workspace = true
 serde_json.workspace = true

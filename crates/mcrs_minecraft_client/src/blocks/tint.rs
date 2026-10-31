@@ -240,8 +240,8 @@ mod tests {
     use crate::columns::{Column, ColumnStore, Extent, SECTION_VOLUME, Section};
     use mcrs_minecraft_chunk::section::Biomes;
     use mcrs_minecraft_chunk::{PalettedContainer, SectionKind};
+    use mcrs_minecraft_game_registries::registry_load::test_registries;
     use mcrs_minecraft_resource::ResourceLocationBuf;
-    use mcrs_minecraft_world::registry_load::test_registries;
 
     fn tints_of(biome: &str) -> BiomeTint {
         static TINTS: LazyLock<BiomeTints> = LazyLock::new(|| {

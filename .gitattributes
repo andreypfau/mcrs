@@ -24,7 +24,7 @@ crates/mcrs_minecraft_worldgen_feature_place/tests/fixtures/vanilla/ore_vein.bin
 crates/mcrs_minecraft_worldgen_feature_place/tests/fixtures/vanilla/tree_geometry.bin linguist-generated
 crates/mcrs_minecraft_worldgen_structure/tests/fixtures/vanilla/structure_cells.bin linguist-generated
 crates/mcrs_minecraft_worldgen/tests/fixtures/vanilla/beard.bin linguist-generated
-crates/mcrs_minecraft_world/src/entity/fixtures/registry_census.bin linguist-generated
+crates/mcrs_minecraft_game_registries/src/entity/fixtures/registry_census.bin linguist-generated
 crates/mcrs_minecraft_anvil/src/fixtures/vanilla/chunk_full.nbt linguist-generated
 crates/mcrs_minecraft_anvil/src/fixtures/vanilla/chunk_terrain.nbt linguist-generated
 crates/mcrs_minecraft_anvil/src/fixtures/vanilla/chunk_retrogen.nbt linguist-generated
@@ -48,5 +48,5 @@ crates/mcrs_minecraft_protocol/tests/fixtures/inventory_packets_golden.txt lingu
 crates/mcrs_minecraft_protocol/tests/fixtures/join_packets_golden.txt linguist-generated
 crates/mcrs_minecraft_protocol/tests/fixtures/serverbound_game_packets_golden.txt linguist-generated
 crates/mcrs_minecraft_protocol/tests/fixtures/frames_golden.txt linguist-generated
-crates/mcrs_minecraft_world/tests/fixtures/vanilla_player.dat linguist-generated
-crates/mcrs_minecraft_world/tests/fixtures/registry_values.txt linguist-generated
+crates/mcrs_minecraft_game_registries/tests/fixtures/vanilla_player.dat linguist-generated
+crates/mcrs_minecraft_game_registries/tests/fixtures/registry_values.txt linguist-generated

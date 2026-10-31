@@ -11,11 +11,13 @@ use mcrs_minecraft_datapack::{DirectoryEntry, DirectoryPacks, PackSource, ReadEr
 use mcrs_minecraft_engine_registries::RegistryLoadPlugin;
 use mcrs_minecraft_engine_registries::test_corpus;
 use mcrs_minecraft_fixtures::vanilla_dir;
+use mcrs_minecraft_game_registries::registry_load::{
+    RegistryLoadError, load_registries, test_additions,
+};
 use mcrs_minecraft_item::Items;
 use mcrs_minecraft_registries::Diagnostics;
 use mcrs_minecraft_registries::{Namer, Registries, RegistryAdditions, Resolve};
 use mcrs_minecraft_resource::{Registered, ResourceLocationBuf, TagKeyBuf};
-use mcrs_minecraft_world::registry_load::{RegistryLoadError, load_registries, test_additions};
 use serde::Deserialize;
 use serde::de::DeserializeOwned;
 

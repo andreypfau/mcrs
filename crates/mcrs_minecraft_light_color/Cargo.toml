@@ -32,7 +32,7 @@ bevy = ["dep:bevy_ecs"]
 [dev-dependencies]
 mcrs_minecraft_engine_registries = { workspace = true, features = ["test-support"] }
 mcrs_minecraft_volume.workspace = true
-mcrs_minecraft_world = { workspace = true, features = ["test-support"] }
+mcrs_minecraft_game_registries = { workspace = true, features = ["test-support"] }
 glam.workspace = true
 proptest = "1.11.0"
 serde_json.workspace = true

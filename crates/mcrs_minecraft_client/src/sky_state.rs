@@ -291,14 +291,14 @@ impl SkyStatic {
 pub(crate) fn test_resolved<T: mcrs_minecraft_registries::Resolve>(named: T::Named) -> T {
     T::resolve(
         named,
-        mcrs_minecraft_world::registry_load::test_registries(),
+        mcrs_minecraft_game_registries::registry_load::test_registries(),
     )
     .unwrap()
 }
 
 #[cfg(test)]
 pub(crate) fn test_clock_count() -> usize {
-    mcrs_minecraft_world::registry_load::test_registries()
+    mcrs_minecraft_game_registries::registry_load::test_registries()
         .registry::<mcrs_minecraft_environment::world_clock::WorldClock>()
         .unwrap()
         .len()

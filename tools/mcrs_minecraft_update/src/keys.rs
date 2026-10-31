@@ -1484,10 +1484,10 @@ mod tests {
         );
         let owner = |registry, value| Owner {
             registry,
-            krate: "mcrs_minecraft_world",
+            krate: "mcrs_minecraft_game_registries",
             value,
         };
-        let above = BTreeSet::from(["mcrs_minecraft_world".to_owned()]);
+        let above = BTreeSet::from(["mcrs_minecraft_game_registries".to_owned()]);
 
         let files = generate(
             &registries,
@@ -1501,9 +1501,9 @@ mod tests {
             &BTreeSet::new(),
         )
         .unwrap();
-        assert!(files.contains_key("crates/mcrs_minecraft_world/src/keys/mod.rs"));
-        assert!(!files[CATALOG_LIB].contains("mcrs_minecraft_world"));
-        assert!(!files[CATALOG_MANIFEST].contains("mcrs_minecraft_world"));
+        assert!(files.contains_key("crates/mcrs_minecraft_game_registries/src/keys/mod.rs"));
+        assert!(!files[CATALOG_LIB].contains("mcrs_minecraft_game_registries"));
+        assert!(!files[CATALOG_MANIFEST].contains("mcrs_minecraft_game_registries"));
 
         assert_refused(
             generate(
@@ -1514,7 +1514,7 @@ mod tests {
                 &above,
                 &BTreeSet::new(),
             ),
-            &["minecraft:block", "mcrs_minecraft_world"],
+            &["minecraft:block", "mcrs_minecraft_game_registries"],
         );
     }
 

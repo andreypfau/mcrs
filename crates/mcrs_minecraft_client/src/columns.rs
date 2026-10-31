@@ -1386,7 +1386,7 @@ mod tests {
         use mcrs_minecraft_dimension::keys::dimension::{OVERWORLD, THE_NETHER};
         use mcrs_minecraft_game_mode::GameMode;
 
-        let registries = mcrs_minecraft_world::registry_load::test_registries();
+        let registries = mcrs_minecraft_game_registries::registry_load::test_registries();
         let types = registries.registry::<DimensionTypeFile>().unwrap();
         let named = |key: &str, dimension: ResourceKeyBuf<Dimension>| {
             let id = types

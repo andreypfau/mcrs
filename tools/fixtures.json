@@ -119,7 +119,7 @@
     "outputs": [
       {
         "file": "registry_census.bin",
-        "to": "crates/mcrs_minecraft_world/src/entity/fixtures"
+        "to": "crates/mcrs_minecraft_game_registries/src/entity/fixtures"
       }
     ]
   },
@@ -361,7 +361,7 @@
     "outputs": [
       {
         "file": "vanilla_player.dat",
-        "to": "crates/mcrs_minecraft_world/tests/fixtures"
+        "to": "crates/mcrs_minecraft_game_registries/tests/fixtures"
       }
     ]
   },
@@ -371,7 +371,7 @@
     "outputs": [
       {
         "file": "registry_values.txt",
-        "to": "crates/mcrs_minecraft_world/tests/fixtures"
+        "to": "crates/mcrs_minecraft_game_registries/tests/fixtures"
       }
     ]
   }

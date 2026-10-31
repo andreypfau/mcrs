@@ -26,7 +26,7 @@ mcrs_minecraft_entity.workspace = true
 mcrs_minecraft_engine_world.workspace = true
 mcrs_minecraft_registries = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_simulation.workspace = true
-mcrs_minecraft_world.workspace = true
+mcrs_minecraft_game_registries.workspace = true
 mcrs_minecraft_worldgen = { workspace = true, features = ["fast"] }
 mcrs_minecraft_worldgen_builtin.workspace = true
 mcrs_minecraft_datapack.workspace = true
@@ -54,7 +54,7 @@ mcrs_minecraft_fixtures.workspace = true
 mcrs_minecraft_block_entity.workspace = true
 mcrs_minecraft_chunk.workspace = true
 mcrs_minecraft_item.workspace = true
-mcrs_minecraft_world = { workspace = true, features = ["test-support"] }
+mcrs_minecraft_game_registries = { workspace = true, features = ["test-support"] }
 mcrs_minecraft_worldgen_generator = { workspace = true, features = ["bevy", "test-support"] }
 mcrs_minecraft_worldgen_feature = { workspace = true, features = ["test-support"] }
 serde_json.workspace = true

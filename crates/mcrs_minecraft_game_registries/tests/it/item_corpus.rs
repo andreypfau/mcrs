@@ -17,7 +17,7 @@ use serde::de::IgnoredAny;
 
 use crate::common::items;
 use mcrs_minecraft_engine_registries::test_corpus;
-use mcrs_minecraft_world::registry_load::test_registries;
+use mcrs_minecraft_game_registries::registry_load::test_registries;
 
 fn files() -> Vec<(String, Vec<u8>)> {
     let root = concat!(env!("CARGO_MANIFEST_DIR"), "/../../assets/").to_owned() + CORPUS_DIRECTORY;
@@ -225,13 +225,16 @@ fn a_repeated_identifier_fails_to_load() {
         "forged/stick.json".to_owned(),
         serde_json::to_vec(&stick_json).unwrap(),
     );
-    let error =
-        mcrs_minecraft_world::item::definitions::from_files(files, test_registries(), blocks)
-            .unwrap_err();
+    let error = mcrs_minecraft_game_registries::item::definitions::from_files(
+        files,
+        test_registries(),
+        blocks,
+    )
+    .unwrap_err();
     assert!(
         matches!(
             &error,
-            mcrs_minecraft_world::item::definitions::ItemCorpusError::DuplicateIdentifier { item, file }
+            mcrs_minecraft_game_registries::item::definitions::ItemCorpusError::DuplicateIdentifier { item, file }
                 if item == "minecraft:stick" && file == "forged/stick.json"
         ),
         "{error}"

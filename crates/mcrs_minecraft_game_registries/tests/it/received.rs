@@ -2,8 +2,10 @@ use mcrs_minecraft_resource::ResourceLocationBuf;
 use std::collections::BTreeMap;
 
 use mcrs_minecraft_datapack::PackSource;
+use mcrs_minecraft_game_registries::registry_load::{
+    load_received, sent_by, test_packs, test_registries,
+};
 use mcrs_minecraft_registries::{NetworkSnapshot, Registries};
-use mcrs_minecraft_world::registry_load::{load_received, sent_by, test_packs, test_registries};
 
 const REPORT: &[u8] = include_bytes!(concat!(
     env!("CARGO_MANIFEST_DIR"),

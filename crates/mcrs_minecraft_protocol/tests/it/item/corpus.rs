@@ -1,8 +1,8 @@
 use std::path::{Path, PathBuf};
 
+use mcrs_minecraft_game_registries::registry_load::test_registries;
 use mcrs_minecraft_protocol::item::{ComponentMap, ComponentPatch, ItemPredicate, Template};
 use mcrs_minecraft_registries::Resolve;
-use mcrs_minecraft_world::registry_load::test_registries;
 use serde::Serialize;
 use serde::de::DeserializeOwned;
 use serde_json::Value;

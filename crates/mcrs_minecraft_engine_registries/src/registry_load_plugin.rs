@@ -9,8 +9,8 @@ use bevy_ecs::prelude::*;
 use bevy_state::prelude::*;
 use mcrs_minecraft_assets::packs::PACK_FILES;
 use mcrs_minecraft_assets::{AppState, LoadedRegistryAssets};
+use mcrs_minecraft_game_registries::registry_load::load_registries;
 use mcrs_minecraft_registries::NetworkSnapshot;
-use mcrs_minecraft_world::registry_load::load_registries;
 
 /// What the configuration phase sends of the installed registries, encoded once per load.
 #[derive(Resource)]

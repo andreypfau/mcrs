@@ -180,7 +180,7 @@ use mcrs_minecraft_worldgen_feature_place::terrain_skin::BiomeClimate;
 pub type Biomes = Registry<BiomeFile>;
 
 pub fn test_registries() -> &'static Registries {
-    mcrs_minecraft_world::registry_load::test_registries()
+    mcrs_minecraft_game_registries::registry_load::test_registries()
 }
 
 pub fn biomes_of(registries: &Registries) -> &Biomes {
@@ -272,8 +272,8 @@ pub fn registries_over(leading: &[&str]) -> Registries {
     use std::collections::HashMap;
     use std::sync::Mutex;
 
+    use mcrs_minecraft_game_registries::registry_load::{load_received, sent_by};
     use mcrs_minecraft_registries::Received;
-    use mcrs_minecraft_world::registry_load::{load_received, sent_by};
 
     const REPORT: &[u8] = include_bytes!(concat!(
         env!("CARGO_MANIFEST_DIR"),

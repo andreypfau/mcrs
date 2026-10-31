@@ -14,9 +14,9 @@ use mcrs_minecraft_engine_world::world::dimension::{
 };
 use mcrs_minecraft_engine_world::world::dimension_list::DimensionList;
 use mcrs_minecraft_engine_world::world::sub_app::DimAppLabel;
-use mcrs_minecraft_world::dimension::Dimensions;
-use mcrs_minecraft_world::registry_load::test_registries;
-use mcrs_minecraft_world::worldgen::world_preset::WorldPreset;
+use mcrs_minecraft_game_registries::dimension::Dimensions;
+use mcrs_minecraft_game_registries::registry_load::test_registries;
+use mcrs_minecraft_game_registries::worldgen::world_preset::WorldPreset;
 
 use crate::{host_app, support};
 

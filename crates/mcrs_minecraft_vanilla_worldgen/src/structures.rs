@@ -13,13 +13,13 @@ use mcrs_minecraft_engine::dimension_generators::DimensionGenerators;
 use mcrs_minecraft_engine_world::world::dimension_list::DimensionList;
 use mcrs_minecraft_engine_world::world::sub_app::DimSpawnEnqueue;
 use mcrs_minecraft_entity::variant::{CatSoundVariant, ChickenSoundVariant};
-use mcrs_minecraft_registries::{CurrentRegistries, Registries, Registry};
-use mcrs_minecraft_resource::{Registered, ResourceLocationBuf};
-use mcrs_minecraft_world::variant::spawn_selectors;
-use mcrs_minecraft_world::variant::{
+use mcrs_minecraft_game_registries::variant::spawn_selectors;
+use mcrs_minecraft_game_registries::variant::{
     CatVariantFile, ChickenVariantFile, ZombieNautilusVariantFile,
 };
-use mcrs_minecraft_world::worldgen::chunk_generator::ChunkGenerator;
+use mcrs_minecraft_game_registries::worldgen::chunk_generator::ChunkGenerator;
+use mcrs_minecraft_registries::{CurrentRegistries, Registries, Registry};
+use mcrs_minecraft_resource::{Registered, ResourceLocationBuf};
 use mcrs_minecraft_worldgen_feature::pool::TemplatePool;
 use mcrs_minecraft_worldgen_feature::template::PaletteState;
 use mcrs_minecraft_worldgen_generator::features::possible_biomes;

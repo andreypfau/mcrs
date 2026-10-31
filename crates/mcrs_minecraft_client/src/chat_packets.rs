@@ -4,6 +4,7 @@
 use bevy::prelude::*;
 use mcrs_minecraft_chat_client::Tag;
 use mcrs_minecraft_command::Source;
+use mcrs_minecraft_game_registries::chat_type::{ChatParameter, ChatType};
 use mcrs_minecraft_network::client;
 use mcrs_minecraft_network::event::Received;
 use mcrs_minecraft_protocol::chat::{CompletionAction, FilterMask};
@@ -15,7 +16,6 @@ use mcrs_minecraft_protocol::packets::game::clientbound::{
 use mcrs_minecraft_protocol::text::{Color, IntoText, Text};
 use mcrs_minecraft_registries::{CurrentRegistries, Registries};
 use mcrs_minecraft_resource::ResourceLocation;
-use mcrs_minecraft_world::chat_type::{ChatParameter, ChatType};
 
 use crate::chat::{
     self, Chat, ChatInput, ChatMessage, CommandTree, CommandWorld, MessageOrigin, OnlinePlayer,

@@ -1,5 +1,5 @@
 [package]
-name = "mcrs_minecraft_world"
+name = "mcrs_minecraft_game_registries"
 description = "Vanilla Minecraft block/item type vocabulary and static registries"
 version.workspace = true
 edition.workspace = true
@@ -60,7 +60,7 @@ bevy_tasks.workspace = true
 mcrs_minecraft_assets.workspace = true
 mcrs_voxel.workspace = true
 mcrs_minecraft_snbt.workspace = true
-mcrs_minecraft_world = { workspace = true, features = ["test-support"] }
+mcrs_minecraft_game_registries = { workspace = true, features = ["test-support"] }
 mcrs_minecraft_engine_registries = { workspace = true, features = ["test-support"] }
 mcrs_minecraft_noise.workspace = true
 mcrs_minecraft_worldgen = { workspace = true, features = ["fast"] }

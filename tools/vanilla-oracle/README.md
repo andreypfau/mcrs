@@ -677,7 +677,7 @@ cargo run -p mcrs_minecraft_update -- recapture registry_census
 
 One file, `registry_census.bin` (magic `MCREGCE0`), deterministic. The layout
 and what each consumer pins against it are beside the fixture in
-`crates/mcrs_minecraft_world/src/entity/fixtures/registry_census_capture_procedure.md`.
+`crates/mcrs_minecraft_game_registries/src/entity/fixtures/registry_census_capture_procedure.md`.
 
 ---
 
