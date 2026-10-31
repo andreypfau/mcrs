@@ -2,7 +2,8 @@ use crate::identity;
 use crate::packet_io::{ByteStream, PacketIo, decode_body};
 use crate::{RawConnection, SwitchMode};
 use anyhow::bail;
-use mcrs_minecraft_core::{ResourceLocation, VERSION};
+use bytes::Bytes;
+use mcrs_minecraft_core::VERSION;
 use mcrs_minecraft_protocol::handshake::Intent;
 use mcrs_minecraft_protocol::packets::common::Brand;
 use mcrs_minecraft_protocol::packets::common::serverbound::{
@@ -10,7 +11,7 @@ use mcrs_minecraft_protocol::packets::common::serverbound::{
 };
 use mcrs_minecraft_protocol::packets::configuration::clientbound::{
     ClientboundDisconnect, ClientboundFinishConfiguration, ClientboundKeepAlive,
-    ClientboundRegistryData, ClientboundSelectKnownPacks, ClientboundUpdateTags, RegistryTags,
+    ClientboundRegistryData, ClientboundSelectKnownPacks, ClientboundUpdateTags,
 };
 use mcrs_minecraft_protocol::packets::configuration::serverbound::{
     ServerboundClientInformation, ServerboundCustomPayload, ServerboundFinishConfiguration,
@@ -28,8 +29,6 @@ use mcrs_minecraft_protocol::resource_pack::KnownPack;
 use mcrs_minecraft_protocol::setting::{ChatMode, DisplayedSkinParts, MainArm, ParticleStatus};
 use mcrs_minecraft_protocol::uuid::Uuid;
 use mcrs_minecraft_protocol::{Bounded, CompressionThreshold, Packet, VarInt, WritePacket};
-use mcrs_minecraft_registries::{Received, ReceivedTags};
-use std::borrow::Cow;
 use std::net::SocketAddr;
 use tracing::info;
 
@@ -211,7 +210,10 @@ pub(crate) fn write_first_configuration_packets(out: &mut impl WritePacket, view
 #[derive(Clone, Debug, Default, PartialEq)]
 #[cfg_attr(feature = "bevy", derive(bevy_ecs::component::Component))]
 pub struct Configuration {
-    pub registries: Received,
+    /// The bodies of the registry data packets in the order sent.
+    pub registry_data: Vec<Bytes>,
+    /// The bodies of the tag packets in the order sent.
+    pub tags: Vec<Bytes>,
     /// The client accepted the vanilla pack, so the server may leave its entries' data out.
     pub vanilla_known: bool,
 }
@@ -222,7 +224,7 @@ impl Configuration {
     pub fn read(
         &mut self,
         id: i32,
-        body: &[u8],
+        body: &Bytes,
         holds_vanilla_pack: bool,
         out: &mut impl WritePacket,
     ) -> anyhow::Result<Option<Configuration>> {
@@ -241,11 +243,9 @@ impl Configuration {
             self.vanilla_known = !known_packs.is_empty();
             out.write_packet_fallible(&ServerboundSelectKnownPacks { known_packs })?;
         } else if id == ClientboundRegistryData::ID {
-            collect_registry(&mut self.registries, decode_body(body)?);
+            self.registry_data.push(body.clone());
         } else if id == ClientboundUpdateTags::ID {
-            let update = decode_body::<ClientboundUpdateTags>(body)?;
-            self.registries
-                .replace_tags(received_tags(update.registries));
+            self.tags.push(body.clone());
         } else if id == ClientboundKeepAlive::ID {
             let keep_alive = decode_body::<ClientboundKeepAlive>(body)?;
             out.write_packet_fallible(&ServerboundKeepAlive(KeepAlive {
@@ -263,39 +263,6 @@ impl Configuration {
         }
         Ok(None)
     }
-}
-
-fn collect_registry(received: &mut Received, data: ClientboundRegistryData<'_>) {
-    let registry: ResourceLocation = data.registry.into();
-    let entries = data
-        .entries
-        .into_iter()
-        .map(|entry| (entry.id.into(), entry.data.map(Cow::into_owned)));
-    match received
-        .registries
-        .iter_mut()
-        .find(|(collected, _)| *collected == registry)
-    {
-        Some((_, collected)) => collected.extend(entries),
-        None => received.registries.push((registry, entries.collect())),
-    }
-}
-
-pub(crate) fn received_tags(update: Vec<RegistryTags<'_>>) -> ReceivedTags {
-    update
-        .into_iter()
-        .map(|registry| {
-            let tags = registry
-                .tags
-                .into_iter()
-                .map(|group| {
-                    let members = group.entries.into_iter().map(|member| member.0).collect();
-                    (group.name.into(), members)
-                })
-                .collect();
-            (registry.registry.into(), tags)
-        })
-        .collect()
 }
 
 #[cfg(test)]

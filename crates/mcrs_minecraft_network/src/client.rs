@@ -1,9 +1,8 @@
 use crate::event::{Received, Trigger};
-use crate::join::{Configuration, Join, Joined, received_tags};
+use crate::join::{Configuration, Join, Joined};
 use crate::metrics::PacketDispatcher;
 use crate::packet_io::PacketIo;
 use crate::{ConnectionState, RawConnection};
-use anyhow::Context as _;
 use bevy_app::{App, AppExit, Plugin, Update};
 use bevy_ecs::component::Component;
 use bevy_ecs::entity::Entity;
@@ -14,27 +13,21 @@ use bevy_ecs::schedule::{IntoScheduleConfigs, SystemSet};
 use bevy_ecs::world::World;
 use bevy_math::DVec3;
 use bytes::Bytes;
-use mcrs_minecraft_core::Id;
 use mcrs_minecraft_core::Look;
-use mcrs_minecraft_core::{ResourceKey, VERSION};
-use mcrs_minecraft_dimension::{Dimension, DimensionType};
+use mcrs_minecraft_core::VERSION;
 use mcrs_minecraft_protocol::ColumnPos;
-use mcrs_minecraft_protocol::entity::player::PlayerSpawnInfo;
 use mcrs_minecraft_protocol::packets::common::serverbound::KeepAlive;
 use mcrs_minecraft_protocol::packets::configuration::serverbound::ServerboundFinishConfiguration;
 use mcrs_minecraft_protocol::packets::game::clientbound::{
     ClientboundBundleDelimiter, ClientboundChunkCacheRadius, ClientboundDisconnect,
-    ClientboundKeepAlive as GameKeepAlive, ClientboundLevelChunkWithLight, ClientboundLogin,
-    ClientboundPlayerPosition, ClientboundRespawn, ClientboundSetChunkCacheCenter,
-    ClientboundSetEntityData, ClientboundStartConfiguration,
-    ClientboundUpdateTags as ClientboundGameUpdateTags,
+    ClientboundKeepAlive as GameKeepAlive, ClientboundLevelChunkWithLight,
+    ClientboundPlayerPosition, ClientboundSetChunkCacheCenter, ClientboundStartConfiguration,
 };
 use mcrs_minecraft_protocol::packets::game::serverbound::{
     ServerboundConfigurationAcknowledged, ServerboundKeepAlive as ServerboundGameKeepAlive,
 };
 use mcrs_minecraft_protocol::packets::table::Row;
 use mcrs_minecraft_protocol::{Encode, Packet, WritePacket, uuid::Uuid};
-use mcrs_minecraft_registries::{CurrentRegistries, Namer, ReceivedTags};
 use md5::{Digest, Md5};
 use std::net::SocketAddr;
 #[cfg(not(target_family = "wasm"))]
@@ -107,13 +100,6 @@ pub struct RegistriesReceived {
     pub configuration: Configuration,
 }
 
-/// A server replaced the tags of the registries it names during play.
-#[derive(EntityEvent, Debug)]
-pub struct TagsReceived {
-    pub entity: Entity,
-    pub tags: ReceivedTags,
-}
-
 pub fn finish_configuration(commands: &mut Commands, connection: Entity) {
     commands.queue(move |world: &mut World| {
         let Ok(mut entity) = world.get_entity_mut(connection) else {
@@ -126,29 +112,6 @@ pub fn finish_configuration(commands: &mut Commands, connection: Entity) {
             *state = ConnectionState::Game;
         }
     });
-}
-
-#[derive(Component, Clone, Debug)]
-pub struct JoinedGame {
-    pub player_id: i32,
-    pub dimensions: Vec<ResourceKey<Dimension>>,
-}
-
-/// The dimension the player is in. Written only when a login or a respawn
-/// names it, as a whole.
-#[derive(Component, Clone, Debug)]
-pub struct CurrentDimension {
-    pub key: ResourceKey<Dimension>,
-    pub dimension_type: Id<DimensionType>,
-}
-
-impl CurrentDimension {
-    pub fn of(spawn: &PlayerSpawnInfo) -> Self {
-        CurrentDimension {
-            key: spawn.dimension.clone(),
-            dimension_type: spawn.dimension_type_id,
-        }
-    }
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -470,11 +433,7 @@ pub(crate) fn add_packet_observers(app: &mut App) {
     app.add_observer(on_configuration_packet::<configuration::ClientboundDisconnect>);
     app.add_observer(on_configuration_packet::<configuration::ClientboundFinishConfiguration>);
     app.add_observer(on_disconnect);
-    app.add_observer(on_login);
-    app.add_observer(on_respawn);
-    app.add_observer(on_set_entity_data);
     app.add_observer(on_start_configuration);
-    app.add_observer(on_update_tags);
     app.add_observer(on_player_position);
     app.add_observer(on_set_chunk_cache_center);
     app.add_observer(on_chunk_cache_radius);
@@ -506,27 +465,6 @@ fn on_configuration_packet<R: Row>(
     }
 }
 
-fn refuse_packet(commands: &mut Commands, connection: Entity, name: &str, error: anyhow::Error) {
-    close_connection_later(
-        commands,
-        connection,
-        format!("the server sent a {name} the client cannot read: {error:#}"),
-    );
-}
-
-fn in_session(
-    registries: Option<&mcrs_minecraft_registries::Registries>,
-    spawn: &PlayerSpawnInfo,
-) -> anyhow::Result<()> {
-    let id = spawn.dimension_type_id;
-    anyhow::ensure!(
-        registries.is_some_and(|registries| Namer::name(registries, id).is_some()),
-        "dimension type {} is not an entry of the session registries",
-        id.number()
-    );
-    Ok(())
-}
-
 fn on_disconnect(event: On<Received<ClientboundDisconnect>>, mut commands: Commands) {
     let Some(disconnect) = event.packet() else {
         return;
@@ -539,75 +477,6 @@ fn on_disconnect(event: On<Received<ClientboundDisconnect>>, mut commands: Comma
             disconnect.reason.to_legacy_lossy()
         ),
     );
-}
-
-fn on_login(
-    event: On<Received<ClientboundLogin>>,
-    registries: Option<Res<CurrentRegistries>>,
-    mut commands: Commands,
-) {
-    let Some(login) = event.packet() else {
-        return;
-    };
-    let session = registries.as_deref().map(|registries| &**registries);
-    match in_session(session, &login.player_spawn_info) {
-        Ok(()) => {
-            commands.entity(event.entity).insert((
-                JoinedGame {
-                    player_id: login.player_id,
-                    dimensions: login.dimensions,
-                },
-                CurrentDimension::of(&login.player_spawn_info),
-            ));
-        }
-        Err(error) => refuse_packet(&mut commands, event.entity, ClientboundLogin::NAME, error),
-    }
-}
-
-fn on_respawn(
-    event: On<Received<ClientboundRespawn>>,
-    registries: Option<Res<CurrentRegistries>>,
-    mut commands: Commands,
-) {
-    let Some(respawn) = event.packet() else {
-        return;
-    };
-    let session = registries.as_deref().map(|registries| &**registries);
-    match in_session(session, &respawn.player_spawn_info) {
-        Ok(()) => {
-            commands
-                .entity(event.entity)
-                .insert(CurrentDimension::of(&respawn.player_spawn_info));
-        }
-        Err(error) => refuse_packet(&mut commands, event.entity, ClientboundRespawn::NAME, error),
-    }
-}
-
-fn on_set_entity_data(
-    event: On<Received<ClientboundSetEntityData<'static>>>,
-    registries: Option<Res<CurrentRegistries>>,
-    mut commands: Commands,
-) {
-    let Some(data) = event.packet() else {
-        return;
-    };
-    let checked = match registries.as_deref() {
-        Some(registries) => data
-            .metadata
-            .check(registries)
-            .context("an id is not an entry of the session registries"),
-        None => Err(anyhow::anyhow!(
-            "an id is not an entry of the session registries"
-        )),
-    };
-    if let Err(error) = checked {
-        refuse_packet(
-            &mut commands,
-            event.entity,
-            ClientboundSetEntityData::NAME,
-            error,
-        );
-    }
 }
 
 fn on_start_configuration(
@@ -624,16 +493,6 @@ fn on_start_configuration(
     connection.write_packet(&ServerboundConfigurationAcknowledged);
     *state = ConnectionState::Configuration;
     *collected = Configuration::default();
-}
-
-fn on_update_tags(event: On<Received<ClientboundGameUpdateTags<'static>>>, mut commands: Commands) {
-    let Some(update) = event.packet() else {
-        return;
-    };
-    commands.trigger(TagsReceived {
-        entity: event.entity,
-        tags: received_tags(update.registries),
-    });
 }
 
 fn on_player_position(
@@ -702,33 +561,21 @@ fn on_keep_alive(
 mod tests {
     use super::*;
     use bevy_app::Update;
+    use bevy_ecs::prelude::ResMut;
     use bytes::BytesMut;
     use mcrs_minecraft_core::ResourceLocation;
-    use mcrs_minecraft_dimension::keys::DIMENSION_TYPE;
-    use mcrs_minecraft_dimension::{Dimension, DimensionType};
-    use mcrs_minecraft_entity::keys::CAT_VARIANT;
-    use mcrs_minecraft_entity::variant::CatVariant;
-    use mcrs_minecraft_game_mode::GameMode;
-    use mcrs_minecraft_nbt::tag::NbtTag;
     use mcrs_minecraft_protocol::Decode;
     use mcrs_minecraft_protocol::VarInt;
     use mcrs_minecraft_protocol::decode::PacketDecoder;
-    use mcrs_minecraft_protocol::entity::player::PlayerSpawnInfo;
     use mcrs_minecraft_protocol::packets::configuration::clientbound::{
         ClientboundFinishConfiguration, ClientboundRegistryData, ClientboundSelectKnownPacks,
         ClientboundUpdateTags, RegistryTags, TagGroup,
     };
-    use mcrs_minecraft_protocol::packets::game::clientbound::{
-        ClientboundStartConfiguration, ClientboundUpdateTags as GameUpdateTags,
-    };
+    use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundStartConfiguration;
     use mcrs_minecraft_protocol::packets::game::serverbound::ServerboundConfigurationAcknowledged;
     use mcrs_minecraft_protocol::registry::Entry;
     use mcrs_minecraft_protocol::resource_pack::KnownPack;
     use mcrs_minecraft_protocol::text::Text;
-    use mcrs_minecraft_registries::{Declaration, Received, Registries};
-    use serde::{Deserialize, Serialize};
-    use std::borrow::Cow;
-    use std::sync::Arc;
     use tokio::sync::mpsc;
 
     fn runtime() -> Runtime {
@@ -784,124 +631,86 @@ mod tests {
         assert!(app.world().get_entity(entity).is_err());
     }
 
+    fn body<P: Encode>(packet: &P) -> Bytes {
+        let mut body = Vec::new();
+        packet.encode(&mut body).unwrap();
+        body.into()
+    }
+
+    fn deliver_frame(
+        runtime: &Runtime,
+        inbound: &mpsc::Sender<crate::ReceivedPacket>,
+        id: i32,
+        payload: Bytes,
+    ) {
+        runtime
+            .block_on(inbound.send(crate::ReceivedPacket {
+                timestamp: crate::Instant::now(),
+                id,
+                payload,
+            }))
+            .unwrap();
+    }
+
     fn deliver<P: Encode + Packet>(
         runtime: &Runtime,
         inbound: &mpsc::Sender<crate::ReceivedPacket>,
         packet: &P,
     ) {
-        let mut body = Vec::new();
-        packet.encode(&mut body).unwrap();
-        runtime
-            .block_on(inbound.send(crate::ReceivedPacket {
-                timestamp: crate::Instant::now(),
-                id: P::ID,
-                payload: body.into(),
-            }))
-            .unwrap();
-    }
-
-    #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-    struct Probe {
-        size: i32,
+        deliver_frame(runtime, inbound, P::ID, body(packet));
     }
 
     const PROBE_NAME: &str = "minecraft:test_probe";
 
-    fn name(text: &str) -> ResourceLocation<Arc<str>> {
-        ResourceLocation::read(text).unwrap()
-    }
-
-    fn session(cats: usize) -> CurrentRegistries {
-        let types = [
-            "minecraft:overworld",
-            "minecraft:the_nether",
-            "minecraft:the_end",
-            "minecraft:beta",
-        ]
-        .map(name)
-        .to_vec();
-        let cats = (0..cats)
-            .map(|n| name(&format!("minecraft:cat{n}")))
-            .collect();
-        let declarations = vec![
-            Declaration::fixed(DIMENSION_TYPE.location().into(), types),
-            Declaration::fixed(CAT_VARIANT.location().into(), cats),
-        ];
-        let (registries, _) =
-            Registries::receive(declarations, &Received::default(), None).unwrap();
-        CurrentRegistries::new(registries)
-    }
-
-    fn statics() -> CurrentRegistries {
-        session(0)
-    }
-
-    fn dimension_type(number: u16) -> Id<DimensionType> {
-        Id::checked(number, 8).unwrap()
-    }
-
-    fn probe(size: i32) -> NbtTag {
-        mcrs_minecraft_nbt::to_nbt_tag(&Probe { size }).unwrap()
-    }
-
-    fn probe_data(entries: &[(&str, Option<i32>)]) -> ClientboundRegistryData<'static> {
+    fn probe_data(entries: &[&str]) -> ClientboundRegistryData<'static> {
         ClientboundRegistryData {
             registry: ResourceLocation::read_cow(PROBE_NAME.to_owned()).unwrap(),
             entries: entries
                 .iter()
-                .map(|(entry, size)| Entry {
+                .map(|entry| Entry {
                     id: ResourceLocation::read_cow((*entry).to_owned()).unwrap(),
-                    data: size.map(|size| Cow::Owned(probe(size))),
+                    data: None,
                 })
                 .collect(),
         }
     }
 
-    fn tag_groups(registry: &str, tags: &[(&str, &[u16])]) -> Vec<RegistryTags<'static>> {
-        vec![RegistryTags {
-            registry: ResourceLocation::read_cow(registry.to_owned()).unwrap(),
-            tags: tags
-                .iter()
-                .map(|(tag, members)| TagGroup {
-                    name: ResourceLocation::read_cow((*tag).to_owned()).unwrap(),
-                    entries: members.iter().map(|&m| VarInt(i32::from(m))).collect(),
-                })
-                .collect(),
-        }]
-    }
-
-    fn received(registry: &str, tags: &[(&str, &[u16])]) -> ReceivedTags {
-        vec![(
-            name(registry),
-            tags.iter()
-                .map(|(tag, members)| (name(tag), members.iter().map(|&m| i32::from(m)).collect()))
-                .collect(),
-        )]
+    fn probe_tags(tag: &str, members: &[i32]) -> ClientboundUpdateTags<'static> {
+        ClientboundUpdateTags {
+            registries: vec![RegistryTags {
+                registry: ResourceLocation::read_cow(PROBE_NAME.to_owned()).unwrap(),
+                tags: vec![TagGroup {
+                    name: ResourceLocation::read_cow(tag.to_owned()).unwrap(),
+                    entries: members.iter().copied().map(VarInt).collect(),
+                }],
+            }],
+        }
     }
 
     #[derive(Resource, Default)]
     struct Handed {
-        registries: Vec<(Received, bool)>,
-        tags: Vec<ReceivedTags>,
+        configurations: Vec<Configuration>,
+        chunk_cache_center_read_in: Vec<ConnectionState>,
     }
 
-    /// Stands in for the client crate: takes what the server sent, makes the statics the decode
-    /// scope and finishes.
+    /// Stands in for the client crate: takes what the server sent and finishes.
     fn accept_registries(
         event: On<RegistriesReceived>,
-        mut handed: bevy_ecs::prelude::ResMut<Handed>,
+        mut handed: ResMut<Handed>,
         mut commands: Commands,
     ) {
-        handed.registries.push((
-            event.configuration.registries.clone(),
-            event.configuration.vanilla_known,
-        ));
-        commands.insert_resource(statics());
+        handed.configurations.push(event.configuration.clone());
         finish_configuration(&mut commands, event.entity);
     }
 
-    fn accept_tags(event: On<TagsReceived>, mut handed: bevy_ecs::prelude::ResMut<Handed>) {
-        handed.tags.push(event.tags.clone());
+    fn record_chunk_cache_center(
+        event: On<Received<ClientboundSetChunkCacheCenter>>,
+        states: Query<&ConnectionState>,
+        mut handed: ResMut<Handed>,
+    ) {
+        if let Ok(state) = states.get(event.entity) {
+            handed.chunk_cache_center_read_in.push(*state);
+        }
     }
 
     struct Harness {
@@ -921,7 +730,7 @@ mod tests {
             app.add_systems(Update, (receive_packets, flush).chain());
             add_packet_observers(&mut app);
             app.add_observer(accept_registries);
-            app.add_observer(accept_tags);
+            app.add_observer(record_chunk_cache_center);
             let entity = app
                 .world_mut()
                 .spawn((
@@ -980,80 +789,45 @@ mod tests {
         }
     }
 
-    fn login(player_id: i32, dimension_type: Id<DimensionType>) -> ClientboundLogin {
-        ClientboundLogin {
-            player_id,
-            hardcore: false,
-            dimensions: vec![mcrs_minecraft_dimension::keys::dimension::OVERWORLD.into()],
-            max_players: VarInt(1),
-            chunk_radius: VarInt(8),
-            simulation_distance: VarInt(8),
-            reduced_debug_info: false,
-            show_death_screen: true,
-            do_limited_crafting: false,
-            player_spawn_info: PlayerSpawnInfo::new(
-                dimension_type,
-                mcrs_minecraft_dimension::keys::dimension::OVERWORLD.into(),
-                GameMode::Survival,
-            ),
-            online_mode: false,
-            enforces_secure_chat: false,
-        }
-    }
-
-    fn respawn(
-        dimension: ResourceKey<Dimension>,
-        dimension_type: Id<DimensionType>,
-    ) -> ClientboundRespawn {
-        ClientboundRespawn {
-            player_spawn_info: PlayerSpawnInfo::new(dimension_type, dimension, GameMode::Survival),
-            data_to_keep: 0,
-        }
-    }
-
     #[test]
     fn the_end_of_configuration_hands_over_what_the_server_sent_in_order() {
         let runtime = runtime();
         let mut client = Harness::configuring(&runtime);
-        client.deliver(
-            &runtime,
-            &probe_data(&[("minecraft:zeta", Some(0)), ("minecraft:alpha", None)]),
-        );
-        client.deliver(&runtime, &probe_data(&[("minecraft:beta", Some(2))]));
-        client.deliver(
-            &runtime,
-            &ClientboundUpdateTags {
-                registries: tag_groups(PROBE_NAME, &[("minecraft:old", &[0])]),
-            },
-        );
-        client.deliver(
-            &runtime,
-            &ClientboundUpdateTags {
-                registries: tag_groups(PROBE_NAME, &[("minecraft:t", &[2, 0])]),
-            },
-        );
+        let first = probe_data(&["minecraft:zeta", "minecraft:alpha"]);
+        let second = probe_data(&["minecraft:beta"]);
+        let old_tags = probe_tags("minecraft:old", &[0]);
+        let new_tags = probe_tags("minecraft:t", &[2, 0]);
+        client.deliver(&runtime, &first);
+        client.deliver(&runtime, &second);
+        client.deliver(&runtime, &old_tags);
+        client.deliver(&runtime, &new_tags);
         client.deliver(&runtime, &ClientboundFinishConfiguration);
         client.app.update();
 
         assert_eq!(
-            client.handed().registries,
-            [(
-                Received {
-                    registries: vec![(
-                        name(PROBE_NAME),
-                        vec![
-                            (name("minecraft:zeta"), Some(probe(0))),
-                            (name("minecraft:alpha"), None),
-                            (name("minecraft:beta"), Some(probe(2))),
-                        ]
-                    )],
-                    tags: received(PROBE_NAME, &[("minecraft:t", &[2, 0])]),
-                },
-                false
-            )]
+            client.handed().configurations,
+            [Configuration {
+                registry_data: vec![body(&first), body(&second)],
+                tags: vec![body(&old_tags), body(&new_tags)],
+                vanilla_known: false,
+            }]
         );
         assert_eq!(client.state(), ConnectionState::Game);
         assert_eq!(client.sent_ids(), [ServerboundFinishConfiguration::ID]);
+    }
+
+    #[test]
+    fn a_registry_packet_that_does_not_decode_drops_the_connection() {
+        let runtime = runtime();
+        let mut client = Harness::configuring(&runtime);
+        deliver_frame(
+            &runtime,
+            &client.inbound,
+            ClientboundRegistryData::ID,
+            Bytes::from_static(&[0xff]),
+        );
+        client.app.update();
+        assert!(client.dropped());
     }
 
     #[test]
@@ -1090,7 +864,7 @@ mod tests {
                 .unwrap()
                 .known_packs
                 .len();
-            (answered, client.handed().registries[0].1)
+            (answered, client.handed().configurations[0].vanilla_known)
         };
 
         assert_eq!(answer(false, vec![vanilla()]), (0, false));
@@ -1099,102 +873,25 @@ mod tests {
     }
 
     #[test]
-    fn a_login_behind_the_finish_is_read_against_the_session_registries() {
+    fn a_frame_behind_the_finish_is_read_once_the_finish_is_answered() {
         let runtime = runtime();
         let mut client = Harness::configuring(&runtime);
-        client.deliver(&runtime, &probe_data(&[("minecraft:a", Some(0))]));
+        client.deliver(&runtime, &probe_data(&["minecraft:a"]));
         client.deliver(&runtime, &ClientboundFinishConfiguration);
-        client.deliver(&runtime, &login(7, dimension_type(2)));
-        client.app.update();
-        client.app.update();
-
-        let current = client
-            .app
-            .world()
-            .get::<CurrentDimension>(client.entity)
-            .expect("the login named a dimension type of the session set");
-        assert_eq!(current.dimension_type.index(), 2);
-    }
-
-    #[test]
-    fn a_respawn_moves_the_current_dimension_to_the_key_and_type_it_names() {
-        use mcrs_minecraft_dimension::keys::dimension::{OVERWORLD, THE_NETHER};
-
-        let runtime = runtime();
-        let mut client = Harness::playing(&runtime);
-        client.app.insert_resource(statics());
-        let current = |client: &Harness| {
-            client
-                .app
-                .world()
-                .get::<CurrentDimension>(client.entity)
-                .cloned()
-        };
-
-        client.deliver(&runtime, &login(7, dimension_type(3)));
-        client.app.update();
-        let first = current(&client).expect("the login names type 3");
-        assert_eq!(first.key, OVERWORLD);
-        assert_eq!(first.dimension_type.index(), 3);
-
-        client.deliver(&runtime, &respawn(THE_NETHER.into(), dimension_type(1)));
-        client.app.update();
-        let second = current(&client).expect("the respawn names type 1");
-        assert_eq!(second.key, THE_NETHER);
-        assert_eq!(second.dimension_type.index(), 1);
-        assert_eq!(
-            client
-                .app
-                .world()
-                .get::<JoinedGame>(client.entity)
-                .unwrap()
-                .player_id,
-            7
+        client.deliver(
+            &runtime,
+            &ClientboundSetChunkCacheCenter {
+                x: VarInt(1),
+                z: VarInt(2),
+            },
         );
-
-        client.deliver(&runtime, &respawn(OVERWORLD.into(), dimension_type(4)));
         client.app.update();
-        assert!(client.dropped(), "a type number past the dimension types");
-    }
-
-    #[test]
-    fn a_cat_variant_outside_the_session_registry_drops_the_connection() {
-        use mcrs_minecraft_protocol::entity::{MetaDataValue, Metadata, MetadataEntry};
-
-        let entity_data = |variant: u16| ClientboundSetEntityData {
-            entity_id: VarInt(5),
-            metadata: Metadata(vec![MetadataEntry {
-                index: 20,
-                value: MetaDataValue::CatVariant(Id::<CatVariant>::checked(variant, 3).unwrap()),
-            }]),
-        };
-
-        let runtime = runtime();
-        let mut client = Harness::playing(&runtime);
-        client.app.insert_resource(session(2));
-
-        client.deliver(&runtime, &entity_data(1));
         client.app.update();
-        assert!(!client.dropped(), "the last cat variant of the session");
 
-        client.deliver(&runtime, &entity_data(2));
-        client.app.update();
-        assert!(client.dropped(), "one past the session's cat variants");
-    }
-
-    #[test]
-    fn a_login_naming_a_type_outside_the_session_registries_drops_the_connection() {
-        let runtime = runtime();
-        let mut client = Harness::playing(&runtime);
-        client.app.insert_resource(statics());
-        client.deliver(&runtime, &login(7, dimension_type(4)));
-        client.app.update();
-        assert!(client.dropped());
-
-        let mut without = Harness::playing(&runtime);
-        without.deliver(&runtime, &login(7, dimension_type(0)));
-        without.app.update();
-        assert!(without.dropped(), "no session registries at all");
+        assert_eq!(
+            client.handed().chunk_cache_center_read_in,
+            [ConnectionState::Game]
+        );
     }
 
     #[test]
@@ -1213,7 +910,7 @@ mod tests {
     fn re_entering_configuration_acknowledges_and_collects_afresh() {
         let runtime = runtime();
         let mut client = Harness::configuring(&runtime);
-        client.deliver(&runtime, &probe_data(&[("minecraft:a", Some(0))]));
+        client.deliver(&runtime, &probe_data(&["minecraft:a"]));
         client.deliver(&runtime, &ClientboundFinishConfiguration);
         client.app.update();
         client.sent_ids();
@@ -1226,41 +923,15 @@ mod tests {
             [ServerboundConfigurationAcknowledged::ID]
         );
 
-        client.deliver(&runtime, &probe_data(&[("minecraft:c", Some(1))]));
+        let again = probe_data(&["minecraft:c"]);
+        client.deliver(&runtime, &again);
         client.deliver(&runtime, &ClientboundFinishConfiguration);
         client.app.update();
         assert_eq!(
-            client.handed().registries[1].0.registries,
-            [(
-                name(PROBE_NAME),
-                vec![(name("minecraft:c"), Some(probe(1)))]
-            )]
+            client.handed().configurations[1].registry_data,
+            [body(&again)]
         );
         assert_eq!(client.state(), ConnectionState::Game);
-    }
-
-    #[test]
-    fn tag_updates_in_play_are_handed_over_in_the_order_sent() {
-        let runtime = runtime();
-        let mut client = Harness::playing(&runtime);
-        let play_tags = |registry, tags| GameUpdateTags {
-            registries: tag_groups(registry, tags),
-        };
-        client.deliver(&runtime, &play_tags(PROBE_NAME, &[("minecraft:t", &[1])]));
-        client.deliver(
-            &runtime,
-            &play_tags("minecraft:dimension_type", &[("minecraft:d", &[2])]),
-        );
-        client.app.update();
-
-        assert_eq!(
-            client.handed().tags,
-            [
-                received(PROBE_NAME, &[("minecraft:t", &[1])]),
-                received("minecraft:dimension_type", &[("minecraft:d", &[2])]),
-            ]
-        );
-        assert!(!client.dropped());
     }
 
     #[test]

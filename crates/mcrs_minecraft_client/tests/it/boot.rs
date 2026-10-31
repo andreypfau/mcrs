@@ -1,6 +1,7 @@
 use bevy::app::{TaskPoolOptions, TaskPoolPlugin};
 use bevy::asset::io::AssetSourceId;
 use bevy::prelude::*;
+use bytes::Bytes;
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_client::asset_source;
 use mcrs_minecraft_client::registries::ClientRegistriesPlugin;
@@ -11,8 +12,14 @@ use mcrs_minecraft_dimension_environment::environment::EnvironmentAttributes;
 use mcrs_minecraft_network::ConnectionState;
 use mcrs_minecraft_network::client::RegistriesReceived;
 use mcrs_minecraft_network::join::Configuration;
+use mcrs_minecraft_protocol::packets::configuration::clientbound::{
+    ClientboundRegistryData, ClientboundUpdateTags, RegistryTags, TagGroup,
+};
+use mcrs_minecraft_protocol::registry::Entry;
+use mcrs_minecraft_protocol::{Encode, VarInt};
 use mcrs_minecraft_registries::{CurrentRegistries, Received, Registries};
 use mcrs_minecraft_world::registry_load::{sent_by, test_packs, test_registries};
+use std::borrow::Cow;
 use std::collections::BTreeMap;
 
 pub fn boot(extra: impl FnOnce(&mut App)) -> App {
@@ -50,12 +57,55 @@ pub fn receive_registries(app: &mut App, connection: Entity, edit: impl FnOnce(&
     edit(&mut registries);
     app.world_mut().trigger(RegistriesReceived {
         entity: connection,
-        configuration: Configuration {
-            registries,
-            vanilla_known: true,
-        },
+        configuration: configuration_of(&registries),
     });
     app.world_mut().flush();
+}
+
+fn configuration_of(received: &Received) -> Configuration {
+    let registry_data = received
+        .registries
+        .iter()
+        .map(|(registry, entries)| {
+            body(&ClientboundRegistryData {
+                registry: registry.clone().into(),
+                entries: entries
+                    .iter()
+                    .map(|(id, data)| Entry {
+                        id: id.clone().into(),
+                        data: data.as_ref().map(Cow::Borrowed),
+                    })
+                    .collect(),
+            })
+        })
+        .collect();
+    let tags = ClientboundUpdateTags {
+        registries: received
+            .tags
+            .iter()
+            .map(|(registry, tags)| RegistryTags {
+                registry: registry.clone().into(),
+                tags: tags
+                    .iter()
+                    .map(|(name, members)| TagGroup {
+                        name: name.clone().into(),
+                        entries: members.iter().copied().map(VarInt).collect(),
+                    })
+                    .collect(),
+            })
+            .collect(),
+    };
+    Configuration {
+        registry_data,
+        tags: vec![body(&tags)],
+        vanilla_known: true,
+    }
+}
+
+fn body<P: Encode>(packet: &P) -> Bytes {
+    let mut body = Vec::new();
+    packet.encode(&mut body).unwrap();
+    body.into()
 }
 
 /// The number `name` has in the received registry of `V`.
@@ -91,6 +141,24 @@ fn contents(set: &Registries, registries: &[String]) -> Contents {
             (registry.clone(), (names, tags))
         })
         .collect()
+}
+
+#[test]
+fn registry_data_that_does_not_decode_drops_the_connection() {
+    let mut app = boot(|_| {});
+    let connection = app.world_mut().spawn(ConnectionState::Configuration).id();
+    app.world_mut().trigger(RegistriesReceived {
+        entity: connection,
+        configuration: Configuration {
+            registry_data: vec![Bytes::from_static(&[0xff])],
+            tags: Vec::new(),
+            vanilla_known: true,
+        },
+    });
+    app.world_mut().flush();
+
+    assert!(app.world().get_entity(connection).is_err());
+    assert!(app.world().get_resource::<CurrentRegistries>().is_none());
 }
 
 #[test]
