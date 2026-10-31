@@ -1,6 +1,6 @@
 use bevy::prelude::*;
 
-use mcrs_minecraft_core::resource_location::ResourceLocation;
+use mcrs_minecraft_resource::ResourceLocation;
 
 /// The lines one frame's debug entries produced, in the shape
 /// `DebugScreenOverlay` splits into its two columns.
@@ -87,7 +87,7 @@ impl DebugScreenDisplayer {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use mcrs_minecraft_core::rl;
+    use mcrs_minecraft_resource::rl;
 
     const FIRST: ResourceLocation<&'static str> = rl!("minecraft:first");
     const SECOND: ResourceLocation<&'static str> = rl!("minecraft:second");

@@ -4,7 +4,7 @@ use mcrs_minecraft_command::{
     Identifier, Lookup, ResourceError, Source, SpannedIdentifier, identifier_matches,
     prefixed_identifier_matches, read_identifier, suggest_prefixed,
 };
-use mcrs_minecraft_core::StaticResourceLocation;
+use mcrs_minecraft_resource::StaticResourceLocation;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct ResourceLocationArgument;

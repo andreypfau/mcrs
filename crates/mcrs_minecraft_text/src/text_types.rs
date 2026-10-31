@@ -1,6 +1,6 @@
 use std::fmt;
 
-use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_resource::ResourceLocation;
 use serde::Serialize;
 
 use crate::DialogRef;

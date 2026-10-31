@@ -1,7 +1,7 @@
 use mcrs_minecraft_core::codec::is_default;
-use mcrs_minecraft_core::{ResourceLocation, StaticResourceLocation, rl};
 use mcrs_minecraft_nbt::LIST_ID;
 use mcrs_minecraft_registries::{Refs, Resolved, registry_value};
+use mcrs_minecraft_resource::{ResourceLocation, StaticResourceLocation, rl};
 use serde::{Deserialize, Deserializer, Serialize};
 
 use crate::component::common::{EquipmentSlotGroup, ordinal_enum};

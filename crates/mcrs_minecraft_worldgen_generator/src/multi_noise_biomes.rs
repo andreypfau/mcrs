@@ -7,9 +7,9 @@ use mcrs_minecraft_biome::keys::{BIOME, MULTI_NOISE_BIOME_SOURCE_PARAMETER_LIST}
 use mcrs_minecraft_biome::parameter_list::{MultiNoiseBiomeSourceParameterList, Preset};
 use mcrs_minecraft_biome::source::{MultiNoiseBiomeEntry, MultiNoiseBiomeSource};
 use mcrs_minecraft_biome_file::BiomeFile;
-use mcrs_minecraft_core::{Id, NarrowError, ResourceLocation};
 use mcrs_minecraft_noise::sample_grid::SampleGrid;
 use mcrs_minecraft_registries::{Diagnostic, Diagnostics, Registries};
+use mcrs_minecraft_resource::{Id, NarrowError, ResourceLocation};
 
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 #[error("registry {registry} holds no entry named {name}")]

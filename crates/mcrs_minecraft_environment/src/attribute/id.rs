@@ -1,7 +1,7 @@
 use std::marker::PhantomData;
 
-use mcrs_minecraft_core::StaticResourceLocation;
 use mcrs_minecraft_core::codec::HexRgb;
+use mcrs_minecraft_resource::StaticResourceLocation;
 
 use super::MobSpawnSettings;
 

@@ -8,7 +8,7 @@ pub use float_provider_type::FloatProviderType;
 pub use height_provider_type::HeightProviderType;
 pub use int_provider_type::IntProviderType;
 
-use mcrs_minecraft_core::{Registered, RegistryKey, rl};
+use mcrs_minecraft_resource::{Registered, RegistryKey, rl};
 
 pub const FLOAT_PROVIDER_TYPE: RegistryKey<crate::keys::FloatProviderType> =
     RegistryKey::new(rl!("minecraft:float_provider_type"));

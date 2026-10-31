@@ -2,11 +2,11 @@ use std::borrow::Cow;
 use std::fmt;
 use std::marker::PhantomData;
 
-use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::codec::non_empty;
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::from_tag;
 use mcrs_minecraft_nbt::tag::NbtTag;
+use mcrs_minecraft_resource::ResourceLocation;
 use serde::de::Visitor;
 use serde::{Deserialize, Deserializer, Serialize, de};
 

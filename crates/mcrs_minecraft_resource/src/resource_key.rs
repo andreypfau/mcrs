@@ -1,9 +1,9 @@
-use crate::resource_location::ResourceLocation;
-use std::borrow::Borrow;
-use std::fmt;
-use std::hash::{Hash, Hasher};
-use std::marker::PhantomData;
-use std::sync::Arc;
+use crate::ResourceLocation;
+use alloc::sync::Arc;
+use core::borrow::Borrow;
+use core::fmt;
+use core::hash::{Hash, Hasher};
+use core::marker::PhantomData;
 
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
@@ -43,7 +43,7 @@ impl<T> ResourceKey<T, &'static str> {
     /// Const-compatible constructor from a static `ResourceLocation`.
     ///
     /// ```rust,ignore
-    /// use mcrs_minecraft_core::{rl, ResourceKey};
+    /// use mcrs_minecraft_resource::{rl, ResourceKey};
     /// const KEY: ResourceKey<MyType, &'static str> = ResourceKey::new(rl!("minecraft:overworld"));
     /// ```
     pub const fn new(location: ResourceLocation<&'static str>) -> Self {
@@ -130,13 +130,13 @@ impl<T, S: AsRef<str>> Eq for ResourceKey<T, S> {}
 // ─── Ord ────────────────────────────────────────────────────────────────────
 
 impl<T, S: AsRef<str>> PartialOrd for ResourceKey<T, S> {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+    fn partial_cmp(&self, other: &Self) -> Option<core::cmp::Ordering> {
         Some(self.cmp(other))
     }
 }
 
 impl<T, S: AsRef<str>> Ord for ResourceKey<T, S> {
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+    fn cmp(&self, other: &Self) -> core::cmp::Ordering {
         self.location.as_str().cmp(other.location.as_str())
     }
 }
@@ -163,7 +163,7 @@ impl<T, S: AsRef<str>> fmt::Debug for ResourceKey<T, S> {
         write!(
             f,
             "ResourceKey<{}>({})",
-            std::any::type_name::<T>(),
+            core::any::type_name::<T>(),
             self.location.as_str()
         )
     }

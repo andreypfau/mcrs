@@ -62,7 +62,8 @@ mod village_taiga;
 
 use mcrs_minecraft_core::Axis::{X, Y, Z};
 use mcrs_minecraft_core::Direction::{East, North, South, West};
-use mcrs_minecraft_core::{Axis, Direction, ResourceLocation, StaticResourceLocation};
+use mcrs_minecraft_core::{Axis, Direction};
+use mcrs_minecraft_resource::{ResourceLocation, StaticResourceLocation};
 use mcrs_minecraft_worldgen_feature::template::Template;
 use mcrs_minecraft_worldgen_structure::blueprint::{
     BlueprintError, Canvas, Cell, Fields, GROUND, Gable, Tag, Turn, VOID, block, corner_stairs,

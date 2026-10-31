@@ -27,7 +27,7 @@ pub use spawn_condition_type::SpawnConditionType;
 pub use villager_profession::VillagerProfession;
 pub use villager_type::VillagerType;
 
-use mcrs_minecraft_core::{Registered, RegistryKey, rl};
+use mcrs_minecraft_resource::{Registered, RegistryKey, rl};
 
 pub const ATTRIBUTE: RegistryKey<crate::keys::Attribute> =
     RegistryKey::new(rl!("minecraft:attribute"));

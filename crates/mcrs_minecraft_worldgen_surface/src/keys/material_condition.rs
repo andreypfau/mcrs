@@ -1,6 +1,6 @@
 // Written by `cargo run -p mcrs_minecraft_update -- keys`; do not edit.
 
-use mcrs_minecraft_core::{ResourceKey, rl};
+use mcrs_minecraft_resource::{ResourceKey, rl};
 
 pub const DEEP_UNDER_FLOOR: ResourceKey<crate::proto::MaterialConditionHolder, &'static str> = ResourceKey::new(rl!("minecraft:deep_under_floor"));
 pub const NOT_UNDER_DEEP_WATER: ResourceKey<crate::proto::MaterialConditionHolder, &'static str> = ResourceKey::new(rl!("minecraft:not_under_deep_water"));

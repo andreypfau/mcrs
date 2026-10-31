@@ -14,6 +14,7 @@ workspace = true
 bevy = ["dep:bevy_ecs"]
 
 [dependencies]
+mcrs_minecraft_resource.workspace = true
 bevy_ecs = { workspace = true, optional = true }
 mcrs_minecraft_core.workspace = true
 mcrs_minecraft_wire = { workspace = true, features = ["uuid"] }

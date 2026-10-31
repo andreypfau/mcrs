@@ -1,11 +1,11 @@
-use mcrs_minecraft_core::ResourceKey;
+use mcrs_minecraft_resource::ResourceKey;
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use crate::world_clock::WorldClock;
-use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::codec::{NonNegativeInt, PositiveInt};
 use mcrs_minecraft_registries::{Named, Refs, Resolve, Resolved};
+use mcrs_minecraft_resource::ResourceLocation;
 use serde::de::Error as _;
 use serde::{Deserialize, Deserializer, Serialize};
 

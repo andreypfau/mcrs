@@ -64,7 +64,7 @@ pub use recipe_display::RecipeDisplayType;
 pub use recipe_serializer::RecipeSerializer;
 pub use slot_display::SlotDisplayType;
 
-use mcrs_minecraft_core::{Registered, RegistryKey, rl};
+use mcrs_minecraft_resource::{Registered, RegistryKey, rl};
 
 pub const BANNER_PATTERN: RegistryKey<crate::BannerPattern> =
     RegistryKey::new(rl!("minecraft:banner_pattern"));

@@ -13,7 +13,7 @@
     reason = "test support re-encodes a value into JSON for comparison"
 )]
 
-use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_resource::ResourceLocation;
 use mcrs_minecraft_worldgen_builtin as builtin;
 use serde::de::DeserializeOwned;
 use std::collections::BTreeMap;

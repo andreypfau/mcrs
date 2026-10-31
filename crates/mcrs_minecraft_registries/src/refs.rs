@@ -3,8 +3,8 @@ use std::marker::PhantomData;
 use std::sync::Arc;
 
 use derive_where::derive_where;
-use mcrs_minecraft_core::{Id, Registered, ResourceKey, ResourceLocation, TagId, TagKey};
 use mcrs_minecraft_datapack::JsonError;
+use mcrs_minecraft_resource::{Id, Registered, ResourceKey, ResourceLocation, TagId, TagKey};
 use serde::de::value::{
     BoolDeserializer, F64Deserializer, I64Deserializer, MapAccessDeserializer,
     SeqAccessDeserializer, U64Deserializer,

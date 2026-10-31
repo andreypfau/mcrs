@@ -1,9 +1,9 @@
-use mcrs_minecraft_core::ResourceKey;
 use mcrs_minecraft_fixtures::fixture;
+use mcrs_minecraft_resource::ResourceKey;
 use std::io::Cursor;
 
-use mcrs_minecraft_core::rl;
 use mcrs_minecraft_nbt::{from_bytes_unnamed, to_bytes_unnamed};
+use mcrs_minecraft_resource::rl;
 
 use std::str::FromStr;
 

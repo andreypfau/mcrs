@@ -1,9 +1,7 @@
 use crate::common::encoded;
 use crate::item::harness::WireCodec;
 use mcrs_minecraft_block::keys::Block;
-use mcrs_minecraft_core::Id;
 use mcrs_minecraft_core::codec::Bounded;
-use mcrs_minecraft_core::{ResourceKey, rl};
 use mcrs_minecraft_item::keys::{DataComponentType, Item};
 use mcrs_minecraft_protocol::item::{
     ComponentMap, ComponentPatch, CreativeSlotLock, CustomData, CustomName, DelimitedStack,
@@ -12,6 +10,8 @@ use mcrs_minecraft_protocol::item::{
 };
 use mcrs_minecraft_protocol::{Decode, Encode, VarInt};
 use mcrs_minecraft_registries::{FromWire, IdSet, Named, Ref, Resolved, Wire};
+use mcrs_minecraft_resource::Id;
+use mcrs_minecraft_resource::{ResourceKey, rl};
 
 use crate::item::harness::{
     custom_data, entry, json_of, list_set, lookup, named, one_set, read_json, registries, resolved,

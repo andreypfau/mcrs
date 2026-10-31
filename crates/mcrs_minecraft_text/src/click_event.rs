@@ -1,8 +1,8 @@
 use std::borrow::Cow;
 
-use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::codec::int_value;
 use mcrs_minecraft_nbt::tag::NbtTag;
+use mcrs_minecraft_resource::ResourceLocation;
 use serde::{Deserialize, Deserializer, Serialize, de};
 
 use crate::tagged_compound::{tagged_compound, variant};

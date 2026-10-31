@@ -5,8 +5,8 @@ use bevy_ecs::prelude::*;
 use bevy_state::prelude::*;
 use bevy_tasks::futures_lite::StreamExt;
 use mcrs_minecraft_assets::{AppState, LoadedRegistryAssets};
-use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_registries::{CurrentRegistries, Registries, RegistryAdditions};
+use mcrs_minecraft_resource::ResourceLocation;
 use std::collections::BTreeSet;
 use std::path::Path;
 

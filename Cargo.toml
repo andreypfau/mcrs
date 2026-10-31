@@ -81,6 +81,7 @@ mcrs_minecraft_engine_world = { path = "crates/mcrs_minecraft_engine_world" }
 mcrs_minecraft_engine = { path = "crates/mcrs_minecraft_engine" }
 mcrs_minecraft_engine_server = { path = "crates/mcrs_minecraft_engine_server", default-features = false }
 mcrs_voxel = { path = "crates/mcrs_voxel" }
+mcrs_minecraft_resource = { path = "crates/mcrs_minecraft_resource" }
 mcrs_minecraft_core = { path = "crates/mcrs_minecraft_core", default-features = false }
 mcrs_minecraft_datapack = { path = "crates/mcrs_minecraft_datapack" }
 mcrs_minecraft_registries = { path = "crates/mcrs_minecraft_registries" }
@@ -189,6 +190,7 @@ mcrs_minecraft_vanilla_worldgen.workspace = true
 bevy_diagnostic = { version = "0.19.0-rc.3", optional = true }
 
 [dev-dependencies]
+mcrs_minecraft_resource.workspace = true
 mcrs_minecraft_worldgen_generator = { workspace = true, features = ["test-support"] }
 bevy_state.workspace = true
 mcrs_minecraft_client.workspace = true

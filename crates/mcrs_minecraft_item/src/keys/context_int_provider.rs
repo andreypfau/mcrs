@@ -1,6 +1,6 @@
 // Written by `cargo run -p mcrs_minecraft_update -- keys`; do not edit.
 
-use mcrs_minecraft_core::{ResourceKey, rl};
+use mcrs_minecraft_resource::{ResourceKey, rl};
 
 pub const BREWING_USES_DEFAULT: ResourceKey<crate::loot::ContextIntProvider, &'static str> = ResourceKey::new(rl!("minecraft:brewing/uses_default"));
 pub const COMPOSTABLE_ALWAYS_ADD_ONE: ResourceKey<crate::loot::ContextIntProvider, &'static str> = ResourceKey::new(rl!("minecraft:compostable/always_add_one"));

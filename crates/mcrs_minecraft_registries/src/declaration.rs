@@ -1,9 +1,9 @@
 use std::any::{Any, type_name};
 use std::sync::Arc;
 
-use mcrs_minecraft_core::{Registered, ResourceLocation};
 use mcrs_minecraft_datapack::{PackFiles, read_json};
 use mcrs_minecraft_nbt::tag::NbtTag;
+use mcrs_minecraft_resource::{Registered, ResourceLocation};
 use serde::Serialize;
 use serde::de::DeserializeOwned;
 

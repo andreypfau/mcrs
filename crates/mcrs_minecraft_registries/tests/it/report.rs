@@ -1,5 +1,5 @@
-use mcrs_minecraft_core::ResourceKey;
 use mcrs_minecraft_registries::{Declaration, Diagnostic, Missing, Referrer, Resolver};
+use mcrs_minecraft_resource::ResourceKey;
 
 use crate::support::{Damage, DamageType, Packs, damage, declarations, report, report_errors, rl};
 

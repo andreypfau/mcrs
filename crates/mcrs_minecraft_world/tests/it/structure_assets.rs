@@ -52,7 +52,7 @@ pub fn the_structure_registries_land_before_playing(app: &App) {
         .by_name(&"minecraft:ancient_city/walls/no_corners".parse().unwrap())
         .and_then(|id| pools.get(id))
         .expect("the pool is a loaded entry");
-    let missing = mcrs_minecraft_core::ResourceLocation::minecraft(
+    let missing = mcrs_minecraft_resource::ResourceLocation::minecraft(
         "ancient_city/walls/intact_horizontal_wall_stairs_5",
     )
     .unwrap();

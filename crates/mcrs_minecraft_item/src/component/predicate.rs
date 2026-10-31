@@ -11,12 +11,12 @@ use crate::keys::Potion;
 use mcrs_minecraft_block::keys::Block;
 pub use mcrs_minecraft_block_predicate::state_properties::StatePropertiesPredicate;
 use mcrs_minecraft_core::codec::unique_entries;
-use mcrs_minecraft_core::{ResourceLocation, rl};
 use mcrs_minecraft_entity::keys::Attribute;
 use mcrs_minecraft_entity::keys::VillagerType;
 use mcrs_minecraft_registries::{
     Named, Namer, Refs, Resolve, ResolveError, Resolved, Resolver, registry_value,
 };
+use mcrs_minecraft_resource::{ResourceLocation, rl};
 use serde::de::{DeserializeSeed, Error as _, MapAccess, Visitor};
 use serde::ser::SerializeMap;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};

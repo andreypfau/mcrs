@@ -1,7 +1,7 @@
 use std::any::Any;
 use std::collections::{BTreeMap, HashMap};
 
-use mcrs_minecraft_core::{ResourceLocation, rl};
+use mcrs_minecraft_resource::{ResourceLocation, rl};
 
 use crate::PackDiagnostic;
 use crate::filter::Filter;

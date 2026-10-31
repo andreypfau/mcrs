@@ -1,13 +1,14 @@
 use std::collections::BTreeMap;
 use std::fmt;
 
+use mcrs_minecraft_core::Rotation;
 use mcrs_minecraft_core::codec::{Bounded, default_true, int_value, is_default, is_true};
-use mcrs_minecraft_core::{ResourceKey, ResourceLocation, Rotation};
 use mcrs_minecraft_dimension::Dimension;
 use mcrs_minecraft_environment::timeline::Timeline;
 use mcrs_minecraft_environment::world_clock::WorldClock;
 use mcrs_minecraft_game_rule::{GameRule, GameRuleValueType};
 use mcrs_minecraft_registries::{Ref, Refs, Resolved, dispatch, registry_value};
+use mcrs_minecraft_resource::{ResourceKey, ResourceLocation};
 use serde::de::{DeserializeSeed, Error as _, MapAccess, Visitor};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 

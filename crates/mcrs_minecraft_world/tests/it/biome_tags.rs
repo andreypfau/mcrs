@@ -1,7 +1,7 @@
 use bevy_app::App;
 use mcrs_minecraft_biome::Biome;
-use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_registries::CurrentRegistries;
+use mcrs_minecraft_resource::ResourceLocation;
 use mcrs_minecraft_world::registry_load::sent_by;
 
 use crate::common::tag_members;

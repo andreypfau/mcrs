@@ -1,10 +1,10 @@
 use std::path::Path;
 use std::sync::Arc;
 
-use mcrs_minecraft_core::ResourceKey;
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::nbt_compress::write_gzip_compound_tag_to_bytes;
 use mcrs_minecraft_nbt::tag::NbtTag;
+use mcrs_minecraft_resource::ResourceKey;
 
 use super::*;
 use crate::dimension::Dimensions;

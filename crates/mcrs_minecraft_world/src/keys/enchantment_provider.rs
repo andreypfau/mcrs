@@ -1,6 +1,6 @@
 // Written by `cargo run -p mcrs_minecraft_update -- keys`; do not edit.
 
-use mcrs_minecraft_core::{ResourceKey, rl};
+use mcrs_minecraft_resource::{ResourceKey, rl};
 
 pub const ENDERMAN_LOOT_DROP: ResourceKey<crate::enchantment_provider::EnchantmentProvider, &'static str> = ResourceKey::new(rl!("minecraft:enderman_loot_drop"));
 pub const MOB_SPAWN_EQUIPMENT: ResourceKey<crate::enchantment_provider::EnchantmentProvider, &'static str> = ResourceKey::new(rl!("minecraft:mob_spawn_equipment"));

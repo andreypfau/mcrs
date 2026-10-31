@@ -1,6 +1,6 @@
-use mcrs_minecraft_core::ResourceKey;
 use mcrs_minecraft_dimension::Dimension;
 use mcrs_minecraft_registries::{Registries, Resolver};
+use mcrs_minecraft_resource::ResourceKey;
 use mcrs_minecraft_world::dimension::{DimensionEntry, Dimensions, bake, bake_list};
 use mcrs_minecraft_world::registry_load::test_registries;
 use mcrs_minecraft_world::worldgen::chunk_generator::ChunkGenerator;

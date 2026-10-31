@@ -2,7 +2,7 @@ use std::fmt;
 use std::str::FromStr;
 use std::sync::Arc;
 
-use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_resource::ResourceLocation;
 use serde::{Deserialize, Deserializer, Serialize, Serializer, de};
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]

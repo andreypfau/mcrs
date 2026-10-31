@@ -1,6 +1,7 @@
 use std::fmt;
 
-use mcrs_minecraft_core::{ResourceLocation, VERSION};
+use mcrs_minecraft_core::VERSION;
+use mcrs_minecraft_resource::ResourceLocation;
 use serde::de::{self, IgnoredAny, Visitor};
 use serde::{Deserialize, Deserializer};
 

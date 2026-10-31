@@ -5,7 +5,7 @@ use std::io::ErrorKind;
 use std::path::Path;
 
 use mcrs_minecraft_client_jar::Directory;
-use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_resource::ResourceLocation;
 use serde::de::IgnoredAny;
 use serde::{Deserialize, Serialize};
 

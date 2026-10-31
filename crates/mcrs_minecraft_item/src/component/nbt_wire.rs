@@ -2,10 +2,10 @@ use std::collections::BTreeMap;
 
 use mcrs_minecraft_block::keys::Block;
 use mcrs_minecraft_core::codec::{is_default, long_value};
-use mcrs_minecraft_core::{ResourceKey, rl};
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_nbt::{COMPOUND_ID, DOUBLE_ID, FLOAT_ID, LIST_ID, LONG_ID, STRING_ID};
+use mcrs_minecraft_resource::{ResourceKey, rl};
 use serde::{Deserialize, Deserializer, Serialize};
 
 use crate::component::common::compound_or_snbt;

@@ -1,8 +1,9 @@
 use glam::IVec3;
 use mcrs_minecraft_block_predicate::predicate::HeightmapName;
-use mcrs_minecraft_core::{BoundingBox, Mirror, Rotation, StaticResourceLocation, rl};
+use mcrs_minecraft_core::{BoundingBox, Mirror, Rotation};
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::legacy::LegacyRandom;
+use mcrs_minecraft_resource::{StaticResourceLocation, rl};
 use mcrs_minecraft_worldgen_feature::template::{bounding_box, transform};
 
 use super::on_top_of_chunk_centre;

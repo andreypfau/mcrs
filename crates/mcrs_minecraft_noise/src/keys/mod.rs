@@ -2,7 +2,7 @@
 
 pub mod noise;
 
-use mcrs_minecraft_core::{Registered, RegistryKey, rl};
+use mcrs_minecraft_resource::{Registered, RegistryKey, rl};
 
 pub const NOISE: RegistryKey<crate::proto::NoiseParam> =
     RegistryKey::new(rl!("minecraft:worldgen/noise"));

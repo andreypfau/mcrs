@@ -28,7 +28,6 @@ use mcrs_minecraft_server::operator_broadcast::broadcast_to_operators;
 
 use mcrs_minecraft_block_entity::GeneratedBlockEntity;
 use mcrs_minecraft_command_tree::{CommandNode, NumberRange, ParserProperties};
-use mcrs_minecraft_core::{Id, ResourceLocation};
 use mcrs_minecraft_engine::clock::{GameTime, WorldClockHostPlugin};
 use mcrs_minecraft_engine_world::world::storage::block_entity::BlockEntity;
 use mcrs_minecraft_environment::world_clock::{AdvanceTime, WorldClockPlugin};
@@ -40,6 +39,7 @@ use mcrs_minecraft_protocol::packets::game::clientbound::{
 use mcrs_minecraft_protocol::text::{TextContent, TranslateArg};
 use mcrs_minecraft_protocol::{Decode, Packet, VarLong};
 use mcrs_minecraft_registries::CurrentRegistries;
+use mcrs_minecraft_resource::{Id, ResourceLocation};
 
 use crate::host_app::{self, PlayServer};
 

@@ -8,8 +8,8 @@ use crate::{
 use bevy_ecs::component::Component;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::world::{EntityRef, EntityWorldMut, World};
-use mcrs_minecraft_core::Id;
 use mcrs_minecraft_core::codec::Bounded;
+use mcrs_minecraft_resource::Id;
 
 use crate::definition::{ItemEntry, Items};
 use crate::held::SlotTable;

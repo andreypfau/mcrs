@@ -1,4 +1,4 @@
-use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_resource::ResourceLocation;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Vanilla {

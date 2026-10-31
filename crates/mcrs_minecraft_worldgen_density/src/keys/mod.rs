@@ -5,7 +5,7 @@ pub mod density_function_type;
 
 pub use density_function_type::DensityFunctionType;
 
-use mcrs_minecraft_core::{Registered, RegistryKey, StaticResourceLocation, rl};
+use mcrs_minecraft_resource::{Registered, RegistryKey, StaticResourceLocation, rl};
 
 pub const DENSITY_FUNCTION: RegistryKey<crate::proto::DensityFunctionHolder> =
     RegistryKey::new(rl!("minecraft:worldgen/density_function"));

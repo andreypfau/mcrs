@@ -80,7 +80,7 @@ fn install(world: &mut World) -> Result<(), String> {
     let sound_sets =
         mcrs_minecraft_block::definition::BlockSoundSets::resolve(&definitions, |key| {
             let id = sound_set_registry.by_name(key.location())?;
-            mcrs_minecraft_core::Id::checked(id.number(), sound_set_registry.len())
+            mcrs_minecraft_resource::Id::checked(id.number(), sound_set_registry.len())
         })
         .map_err(|key| format!("the block sound set {key} is not loaded"))?;
     let definitions = std::sync::Arc::new(definitions);

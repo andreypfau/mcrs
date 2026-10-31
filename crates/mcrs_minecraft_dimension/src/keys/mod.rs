@@ -7,7 +7,7 @@ pub mod noise_settings;
 
 pub use chunk_generator::ChunkGeneratorType;
 
-use mcrs_minecraft_core::{Registered, RegistryKey, rl};
+use mcrs_minecraft_resource::{Registered, RegistryKey, rl};
 
 pub const DIMENSION: RegistryKey<crate::Dimension> = RegistryKey::new(rl!("minecraft:dimension"));
 impl Registered for crate::Dimension {

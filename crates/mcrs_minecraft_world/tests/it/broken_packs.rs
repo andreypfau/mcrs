@@ -1,8 +1,8 @@
 use std::path::PathBuf;
 
-use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_datapack::{Level, PackDiagnostic};
 use mcrs_minecraft_registries::{Diagnostic, Missing, Referrer, RegistryAdditions};
+use mcrs_minecraft_resource::ResourceLocation;
 use mcrs_minecraft_world::registry_load::{RegistryLoadError, load_registries, test_additions};
 
 use crate::common::directory_packs;

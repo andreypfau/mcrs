@@ -2,7 +2,7 @@ use crate::identifier::Identifier;
 use crate::permission::CommandLevel;
 use glam::DVec3;
 use mcrs_minecraft_core::LookAnchor;
-use mcrs_minecraft_core::StaticResourceLocation;
+use mcrs_minecraft_resource::StaticResourceLocation;
 
 /// What the arguments read from the world of the source: registries, players and dimensions.
 pub trait Lookup {

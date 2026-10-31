@@ -6,7 +6,6 @@ use std::collections::BTreeMap;
 use std::sync::{Arc, LazyLock};
 
 use mcrs_minecraft_core::codec::{Bounded, Validate};
-use mcrs_minecraft_core::{Id, rl};
 use mcrs_minecraft_item::keys::DataComponentType;
 use mcrs_minecraft_item::keys::Item;
 use mcrs_minecraft_item::keys::RecipeBookCategory;
@@ -30,6 +29,7 @@ use mcrs_minecraft_protocol::recipe::{
 use mcrs_minecraft_protocol::wire::MAX_NESTING;
 use mcrs_minecraft_protocol::{Decode, Encode, VarInt};
 use mcrs_minecraft_registries::{FromWire, IdSet, Ref, Resolved, Wire};
+use mcrs_minecraft_resource::{Id, rl};
 
 use crate::item::harness::{
     WireCodec, entry, hex, list_set, lookup, one_set, read_json, tag_set, wire_form,

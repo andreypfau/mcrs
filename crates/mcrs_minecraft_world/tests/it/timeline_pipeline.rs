@@ -1,6 +1,4 @@
 use bevy_app::App;
-use mcrs_minecraft_core::Id;
-use mcrs_minecraft_core::ResourceKey;
 use mcrs_minecraft_datapack::PACKS_ROOT;
 use mcrs_minecraft_dimension::{Dimension, DimensionType};
 use mcrs_minecraft_dimension_environment::dimension_type::DimensionTypeFile;
@@ -8,6 +6,8 @@ use mcrs_minecraft_dimension_environment::environment::EnvironmentAttributes;
 use mcrs_minecraft_environment::timeline::Timeline;
 use mcrs_minecraft_environment::world_clock::WorldClock;
 use mcrs_minecraft_registries::{CurrentRegistries, Resolve, Resolver};
+use mcrs_minecraft_resource::Id;
+use mcrs_minecraft_resource::ResourceKey;
 
 use crate::common::tag_members;
 

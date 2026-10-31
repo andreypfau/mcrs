@@ -1,4 +1,5 @@
-use mcrs_minecraft_core::{ResourceLocation, VERSION};
+use mcrs_minecraft_core::VERSION;
+use mcrs_minecraft_resource::ResourceLocation;
 
 use crate::filter::Filter;
 use crate::metadata::{self, Metadata};

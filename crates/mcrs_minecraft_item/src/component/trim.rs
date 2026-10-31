@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
-use mcrs_minecraft_core::{ResourceLocation, rl};
 use mcrs_minecraft_registries::{Ref, Refs, Resolved, registry_value};
+use mcrs_minecraft_resource::{ResourceLocation, rl};
 use serde::{Deserialize, Serialize};
 
 use crate::Text;

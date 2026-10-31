@@ -14,7 +14,7 @@ use std::sync::LazyLock;
 #[cfg(test)]
 use mcrs_minecraft_block_predicate::provider::Holder;
 #[cfg(test)]
-use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_resource::ResourceLocation;
 use mcrs_minecraft_worldgen_feature::compile::CompiledPlacedFeature;
 #[cfg(test)]
 use mcrs_minecraft_worldgen_feature::proto::{Feature, PlacedFeature};

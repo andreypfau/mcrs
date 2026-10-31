@@ -1,6 +1,6 @@
 // Written by `cargo run -p mcrs_minecraft_update -- keys`; do not edit.
 
-use mcrs_minecraft_core::{StaticResourceLocation, rl};
+use mcrs_minecraft_resource::{StaticResourceLocation, rl};
 
 pub const ALLOWLIST: StaticResourceLocation = rl!("minecraft:allowlist");
 pub const ALLOWLIST_SET: StaticResourceLocation = rl!("minecraft:allowlist/set");

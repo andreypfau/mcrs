@@ -1,6 +1,6 @@
 // Written by `cargo run -p mcrs_minecraft_update -- keys`; do not edit.
 
-use mcrs_minecraft_core::{ResourceKey, rl};
+use mcrs_minecraft_resource::{ResourceKey, rl};
 
 pub const CAVE_VINES_BODY: ResourceKey<crate::provider::DirectBlockStateProvider, &'static str> = ResourceKey::new(rl!("minecraft:cave_vines_body"));
 pub const CAVE_VINES_HEAD: ResourceKey<crate::provider::DirectBlockStateProvider, &'static str> = ResourceKey::new(rl!("minecraft:cave_vines_head"));

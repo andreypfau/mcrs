@@ -5,13 +5,14 @@ use crate::{Template, Text};
 use mcrs_minecraft_core::codec::{
     self, Bounded, CompactList, Validate, default_true, is_default, is_true,
 };
-use mcrs_minecraft_core::{ResourceLocation, validated};
+use mcrs_minecraft_core::validated;
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_nbt::{from_tag, to_nbt_compound};
 use mcrs_minecraft_registries::{
     Named, Namer, Refs, Resolve, ResolveError, Resolved, Resolver, dispatch, registry_value,
 };
+use mcrs_minecraft_resource::ResourceLocation;
 type ClickEvent<M> = mcrs_minecraft_text::ClickEvent<Template<M>>;
 use crate::keys::DialogActionType;
 use serde::de::value::StrDeserializer;

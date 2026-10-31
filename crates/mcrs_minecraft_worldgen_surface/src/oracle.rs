@@ -5,9 +5,9 @@ use crate::proto::{
 };
 use glam::IVec3;
 use mcrs_minecraft_chunk::VoxelId;
-use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::mth::map;
 use mcrs_minecraft_random::Random;
+use mcrs_minecraft_resource::ResourceLocation;
 use mcrs_minecraft_value_provider::HeightContext;
 use std::collections::BTreeSet;
 
@@ -282,7 +282,7 @@ mod tests {
     use super::*;
     use crate::compile::tests::{biome_ids, build, material_corpus, resolve_block};
     use crate::eval::MaterialScratch;
-    use mcrs_minecraft_core::rl;
+    use mcrs_minecraft_resource::rl;
 
     /// Every condition kind the overworld tree reaches. Each has to be seen
     /// holding and not holding, or the run proves nothing about it.

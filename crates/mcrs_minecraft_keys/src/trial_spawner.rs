@@ -1,6 +1,6 @@
 // Written by `cargo run -p mcrs_minecraft_update -- keys`; do not edit.
 
-use mcrs_minecraft_core::{StaticResourceLocation, rl};
+use mcrs_minecraft_resource::{StaticResourceLocation, rl};
 
 pub const TRIAL_CHAMBER_BREEZE_NORMAL: StaticResourceLocation = rl!("minecraft:trial_chamber/breeze/normal");
 pub const TRIAL_CHAMBER_BREEZE_OMINOUS: StaticResourceLocation = rl!("minecraft:trial_chamber/breeze/ominous");

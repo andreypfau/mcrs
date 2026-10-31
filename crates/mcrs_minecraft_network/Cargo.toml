@@ -12,6 +12,7 @@ doctest = false
 workspace = true
 
 [dependencies]
+mcrs_minecraft_resource.workspace = true
 rand.workspace = true
 serde.workspace = true
 anyhow.workspace = true

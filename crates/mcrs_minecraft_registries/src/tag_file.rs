@@ -1,9 +1,9 @@
 use std::collections::{BTreeMap, HashMap, HashSet};
 
-use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_datapack::{
     PackContent, PackFile, PackIndex, PackStack, StackedPack, read_json,
 };
+use mcrs_minecraft_resource::ResourceLocation;
 use serde::de::Error as _;
 use serde::{Deserialize, Deserializer};
 

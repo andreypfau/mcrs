@@ -8,7 +8,7 @@ pub mod material_rule_type;
 pub use material_condition_type::MaterialConditionType;
 pub use material_rule_type::MaterialRuleType;
 
-use mcrs_minecraft_core::{Registered, RegistryKey, StaticResourceLocation, rl};
+use mcrs_minecraft_resource::{Registered, RegistryKey, StaticResourceLocation, rl};
 
 pub const MATERIAL_CONDITION: RegistryKey<crate::proto::MaterialConditionHolder> =
     RegistryKey::new(rl!("minecraft:worldgen/material_condition"));

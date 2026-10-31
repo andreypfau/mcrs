@@ -1,8 +1,8 @@
 use bevy_app::SubApp;
 use bevy_ecs::resource::Resource;
 use bevy_ecs::world::World;
-use mcrs_minecraft_core::ResourceKey;
 use mcrs_minecraft_dimension::Dimension;
+use mcrs_minecraft_resource::ResourceKey;
 
 use crate::world::dimension::DimensionTypeConfig;
 

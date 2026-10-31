@@ -8,7 +8,7 @@ pub use custom_stat::CustomStat;
 pub use entity_sub_predicate_type::EntitySubPredicateType;
 pub use stat_type::StatType;
 
-use mcrs_minecraft_core::{Registered, RegistryKey, rl};
+use mcrs_minecraft_resource::{Registered, RegistryKey, rl};
 
 pub const CUSTOM_STAT: RegistryKey<crate::keys::CustomStat> =
     RegistryKey::new(rl!("minecraft:custom_stat"));

@@ -2,10 +2,10 @@ use std::collections::BTreeMap;
 use std::io::Cursor;
 
 use mcrs_minecraft_biome_file::BiomeFile;
-use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::nbt_compress::from_gzip_bytes;
 use mcrs_minecraft_registries::Named;
+use mcrs_minecraft_resource::ResourceLocation;
 use mcrs_minecraft_worldgen_builtin as builtin;
 use mcrs_minecraft_worldgen_feature::template::{PaletteState, Template};
 use mcrs_minecraft_worldgen_testing::{same_json, vanilla_dir};

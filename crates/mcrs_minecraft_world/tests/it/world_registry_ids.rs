@@ -2,11 +2,11 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::path::PathBuf;
 
 use bevy_app::App;
-use mcrs_minecraft_core::Id;
 use mcrs_minecraft_dimension::DimensionType;
 use mcrs_minecraft_protocol::item::WireLookup;
 use mcrs_minecraft_protocol::{Decode, Encode, VarInt};
 use mcrs_minecraft_registries::{CurrentRegistries, FromWire, Resolved};
+use mcrs_minecraft_resource::Id;
 use mcrs_minecraft_world::registry_load::{sent_by, test_registries};
 
 use crate::common::{declared_registries, loaded_names};

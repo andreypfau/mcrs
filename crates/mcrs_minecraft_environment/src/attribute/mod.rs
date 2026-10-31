@@ -16,7 +16,7 @@ use serde::de::{DeserializeSeed, Error as _, MapAccess, SeqAccess, Visitor};
 use serde::ser::{Error as _, SerializeMap};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_resource::ResourceLocation;
 
 pub use mob_spawns::{MobSpawnSettings, SpawnCost};
 pub use modifier::{ModifierError, Operation, apply};

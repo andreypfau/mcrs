@@ -10,7 +10,7 @@ pub use block::Block;
 pub use block_entity_type::BlockEntityType;
 pub use fluid::Fluid;
 
-use mcrs_minecraft_core::{Registered, RegistryKey, rl};
+use mcrs_minecraft_resource::{Registered, RegistryKey, rl};
 
 pub const BLOCK: RegistryKey<crate::keys::Block> = RegistryKey::new(rl!("minecraft:block"));
 impl Registered for crate::keys::Block {

@@ -6,7 +6,7 @@ pub mod position_source_type;
 pub use particle_type::ParticleType;
 pub use position_source_type::PositionSourceType;
 
-use mcrs_minecraft_core::{Registered, RegistryKey, rl};
+use mcrs_minecraft_resource::{Registered, RegistryKey, rl};
 
 pub const PARTICLE_TYPE: RegistryKey<crate::keys::ParticleType> =
     RegistryKey::new(rl!("minecraft:particle_type"));

@@ -2,8 +2,8 @@ use std::fmt;
 use std::marker::PhantomData;
 use std::vec;
 
-use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_nbt::{ArrayKind, NBT_ARRAY_TAG};
+use mcrs_minecraft_resource::ResourceLocation;
 use serde::de::{
     self, DeserializeSeed, EnumAccess, Error as _, IntoDeserializer, MapAccess, SeqAccess,
     Unexpected, VariantAccess, Visitor,
@@ -12,7 +12,7 @@ use serde::ser::{self, Impossible, SerializeMap, SerializeStruct, SerializeStruc
 use serde::{Deserialize, Deserializer, Serialize, Serializer, forward_to_deserialize_any};
 
 #[doc(hidden)]
-pub use mcrs_minecraft_core as __core;
+pub use mcrs_minecraft_resource as __resource;
 
 /// A value read once and kept at the width and shape its format delivered, so
 /// a codec can look at a map's keys before choosing how to read its values.
@@ -1084,13 +1084,13 @@ impl<S: Serializer> Serializer for Payload<S> {
 
 #[cfg(test)]
 mod tests {
-    use mcrs_minecraft_core::Registered;
-    use mcrs_minecraft_core::{RegistryKey, rl};
     use mcrs_minecraft_nbt::compound::NbtCompound;
     use mcrs_minecraft_nbt::tag::NbtTag;
     use mcrs_minecraft_nbt::{
         from_bytes, from_tag, nbt_int_array, nbt_long_array, to_bytes, to_nbt_compound,
     };
+    use mcrs_minecraft_resource::Registered;
+    use mcrs_minecraft_resource::{RegistryKey, rl};
     use serde::{Deserialize, Serialize};
     use std::io::Cursor;
 

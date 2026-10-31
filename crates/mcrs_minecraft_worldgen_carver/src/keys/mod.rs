@@ -4,7 +4,7 @@ pub mod carver_type;
 
 pub use carver_type::CarverType;
 
-use mcrs_minecraft_core::{Registered, RegistryKey, StaticResourceLocation, rl};
+use mcrs_minecraft_resource::{Registered, RegistryKey, StaticResourceLocation, rl};
 
 pub const CARVER_TYPE: RegistryKey<crate::keys::CarverType> =
     RegistryKey::new(rl!("minecraft:worldgen/carver_type"));

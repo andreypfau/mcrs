@@ -45,7 +45,7 @@ pub enum CarverConfig {
     BetaCave,
 }
 
-impl mcrs_minecraft_core::RegistryValue for CarverConfig {
+impl mcrs_minecraft_resource::RegistryValue for CarverConfig {
     type Registry = mcrs_minecraft_biome::ConfiguredCarver;
 }
 
@@ -78,7 +78,7 @@ impl CarverConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use mcrs_minecraft_core::rl;
+    use mcrs_minecraft_resource::rl;
     use mcrs_minecraft_worldgen_testing::{read, round_trips};
 
     #[test]

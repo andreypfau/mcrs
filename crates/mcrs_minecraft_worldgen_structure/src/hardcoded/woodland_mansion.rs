@@ -1,7 +1,8 @@
 use glam::IVec3;
-use mcrs_minecraft_core::{Direction, Mirror, Rotation, StaticResourceLocation, rl};
+use mcrs_minecraft_core::{Direction, Mirror, Rotation};
 use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_random::{Random, shuffle};
+use mcrs_minecraft_resource::{StaticResourceLocation, rl};
 use mcrs_minecraft_worldgen_feature::template::{
     bounding_box, transform, zero_position_with_transform,
 };

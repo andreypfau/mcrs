@@ -2,8 +2,8 @@ use super::corpus_biomes;
 use crate::SurfaceIds;
 use crate::ids::{FillIds, require_id};
 use mcrs_minecraft_block::keys::Block;
-use mcrs_minecraft_core::Registered;
 use mcrs_minecraft_registries::{Declaration, Diagnostics, Registries};
+use mcrs_minecraft_resource::Registered;
 use mcrs_minecraft_world::registry_load::{registries_declaring, test_registries};
 
 fn biomes_without(skipped: &str) -> Registries {

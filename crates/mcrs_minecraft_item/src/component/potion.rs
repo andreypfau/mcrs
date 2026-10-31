@@ -1,4 +1,4 @@
-use mcrs_minecraft_core::ResourceKey;
+use mcrs_minecraft_resource::ResourceKey;
 use std::fmt;
 
 use mcrs_minecraft_core::codec::Bounded;

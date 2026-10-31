@@ -31,7 +31,7 @@ pub struct EnchantmentFile<M: Refs = Resolved> {
     pub effects: Option<NbtTag>,
 }
 
-impl mcrs_minecraft_core::RegistryValue for EnchantmentFile {
+impl mcrs_minecraft_resource::RegistryValue for EnchantmentFile {
     type Registry = EnchantmentData;
 }
 

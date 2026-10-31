@@ -1,6 +1,6 @@
 use mcrs_minecraft_block::keys::Block;
-use mcrs_minecraft_core::ResourceLocation;
-use mcrs_minecraft_core::resource_location::InvalidResourceLocation;
+use mcrs_minecraft_resource::InvalidResourceLocation;
+use mcrs_minecraft_resource::ResourceLocation;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 

@@ -9,12 +9,12 @@ use mcrs_minecraft_command_engine::{
     Worlds,
 };
 use mcrs_minecraft_command_registry::DimensionClock;
-use mcrs_minecraft_core::Id;
 use mcrs_minecraft_engine::clock::{EditClock, GameTime};
 use mcrs_minecraft_environment::keys::WORLD_CLOCK;
 use mcrs_minecraft_environment::world_clock::{
     self, ClockEdit, ClockState, ClockTimeMarker, WorldClock, WorldClocks,
 };
+use mcrs_minecraft_resource::Id;
 use mcrs_minecraft_text::{Text, TranslateArg};
 
 const MIN_RATE: f32 = 1.0e-5;

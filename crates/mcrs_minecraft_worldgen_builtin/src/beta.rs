@@ -1,8 +1,8 @@
 use crate::density::{CELL_4, CELL_8};
 use mcrs_minecraft_block::keys::Block;
 use mcrs_minecraft_block_predicate::block_state::BlockState;
-use mcrs_minecraft_core::{ResourceLocation, StaticResourceLocation, rl};
 use mcrs_minecraft_noise::proto::NoiseParam;
+use mcrs_minecraft_resource::{ResourceLocation, StaticResourceLocation, rl};
 use mcrs_minecraft_worldgen_density::proto::build::{Df, Functions};
 use mcrs_minecraft_worldgen_density::router::{
     NoiseGeneratorSettings, NoiseSettings, RouterFunctions,

@@ -3,7 +3,7 @@ pub mod clientbound {
     use crate::{Bounded, RawBytes, VarInt};
     use bitfield_struct::bitfield;
     use derive_more::Into;
-    use mcrs_minecraft_core::ResourceLocation;
+    use mcrs_minecraft_resource::ResourceLocation;
     use mcrs_minecraft_wire::{Decode, Encode};
     use std::borrow::Cow;
     use uuid::Uuid;

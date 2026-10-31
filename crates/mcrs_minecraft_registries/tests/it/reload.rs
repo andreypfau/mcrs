@@ -1,5 +1,5 @@
-use mcrs_minecraft_core::TagKey;
 use mcrs_minecraft_registries::Diagnostic;
+use mcrs_minecraft_resource::TagKey;
 
 use crate::support::{
     Block, Damage, DamageType, Enchant, Item, LootTable, META, Packs, damage, declarations, get,

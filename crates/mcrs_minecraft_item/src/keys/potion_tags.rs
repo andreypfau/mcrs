@@ -1,6 +1,6 @@
 // Written by `cargo run -p mcrs_minecraft_update -- keys`; do not edit.
 
-use mcrs_minecraft_core::{TagKey, rl};
+use mcrs_minecraft_resource::{TagKey, rl};
 
 pub const DOUSES_FIRE: TagKey<crate::keys::Potion, &'static str> = TagKey::new(rl!("minecraft:douses_fire"));
 pub const EXTINGUISHES_ENTITIES: TagKey<crate::keys::Potion, &'static str> = TagKey::new(rl!("minecraft:extinguishes_entities"));

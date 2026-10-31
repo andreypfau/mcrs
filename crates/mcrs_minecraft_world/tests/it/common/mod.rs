@@ -1,4 +1,4 @@
-use mcrs_minecraft_core::{Registered, TagKey};
+use mcrs_minecraft_resource::{Registered, TagKey};
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::PathBuf;
 
@@ -8,12 +8,12 @@ use bevy_state::app::StatesPlugin;
 use bevy_state::state::State;
 use mcrs_minecraft_assets::AppState;
 use mcrs_minecraft_assets::packs::{PackLayering, PackRoots};
-use mcrs_minecraft_core::resource_location::ResourceLocation;
 use mcrs_minecraft_datapack::{DirectoryEntry, DirectoryPacks, PackSource, ReadError};
 use mcrs_minecraft_fixtures::vanilla_dir;
 use mcrs_minecraft_item::Items;
 use mcrs_minecraft_registries::Diagnostics;
 use mcrs_minecraft_registries::{Namer, Registries, RegistryAdditions, Resolve};
+use mcrs_minecraft_resource::ResourceLocation;
 use mcrs_minecraft_world::MinecraftWorldPlugin;
 use mcrs_minecraft_world::item::test_corpus;
 use mcrs_minecraft_world::registry_load::{RegistryLoadError, load_registries, test_additions};

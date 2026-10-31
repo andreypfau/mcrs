@@ -1,7 +1,7 @@
-use mcrs_minecraft_core::ResourceKey;
 use mcrs_minecraft_core::codec::default_true;
 use mcrs_minecraft_dimension::Dimension;
 use mcrs_minecraft_nbt::{BYTE_ID, COMPOUND_ID, INT_ARRAY_ID, STRING_ID};
+use mcrs_minecraft_resource::ResourceKey;
 use mcrs_voxel::BlockPos;
 use serde::{Deserialize, Serialize};
 

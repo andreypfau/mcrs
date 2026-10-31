@@ -1,5 +1,3 @@
-use mcrs_minecraft_core::ResourceKey;
-use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::codec::Bounded;
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::tag::NbtTag;
@@ -8,6 +6,8 @@ use mcrs_minecraft_protocol::item::{
     EnchantmentGlintOverride, ItemComponentValue, ItemStackValue, ItemStackWithSlot,
 };
 use mcrs_minecraft_registries::Named;
+use mcrs_minecraft_resource::ResourceKey;
+use mcrs_minecraft_resource::ResourceLocation;
 
 type ComponentPatch = mcrs_minecraft_protocol::item::ComponentPatch<Named>;
 type Slotted = ItemStackWithSlot<Named>;

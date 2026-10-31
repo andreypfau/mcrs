@@ -3,9 +3,9 @@ use std::collections::{BTreeMap, HashMap};
 use bytes::Buf;
 use mcrs_minecraft_block_entity::Joint;
 use mcrs_minecraft_chunk::VoxelId;
-use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_fixtures::fixture;
 use mcrs_minecraft_nbt::nbt_compress::from_gzip_bytes;
+use mcrs_minecraft_resource::ResourceLocation;
 use mcrs_minecraft_worldgen_feature::template::{
     FrozenTemplate, PaletteState, Template, TemplateManifest,
 };

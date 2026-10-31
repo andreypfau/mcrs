@@ -1,6 +1,6 @@
 // Written by `cargo run -p mcrs_minecraft_update -- keys`; do not edit.
 
-use mcrs_minecraft_core::{StaticResourceLocation, rl};
+use mcrs_minecraft_resource::{StaticResourceLocation, rl};
 
 pub const BOTTOMLESS_PIT: StaticResourceLocation = rl!("minecraft:bottomless_pit");
 pub const CLASSIC_FLAT: StaticResourceLocation = rl!("minecraft:classic_flat");

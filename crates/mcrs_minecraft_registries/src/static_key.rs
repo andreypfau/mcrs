@@ -1,4 +1,4 @@
-use mcrs_minecraft_core::{Id, Registered, StaticResourceLocation};
+use mcrs_minecraft_resource::{Id, Registered, StaticResourceLocation};
 use std::fmt;
 
 pub trait StaticEntry: Registered + Copy {
@@ -8,9 +8,9 @@ pub trait StaticEntry: Registered + Copy {
 }
 
 #[doc(hidden)]
-pub use mcrs_minecraft_core::resource_location::ResourceLocation as __ResourceLocation;
+pub use mcrs_minecraft_resource::ResourceLocation as __ResourceLocation;
 #[doc(hidden)]
-pub use mcrs_minecraft_core::rl as __rl;
+pub use mcrs_minecraft_resource::rl as __rl;
 
 #[doc(hidden)]
 pub fn unknown_entry(registry: impl fmt::Display, location: impl fmt::Display) -> String {
@@ -35,17 +35,17 @@ macro_rules! static_registry {
         impl $name {
             pub const ALL: &'static [$name] = &[$($name::$variant,)+];
 
-            pub const ENTRIES: &'static [::mcrs_minecraft_core::StaticResourceLocation] =
+            pub const ENTRIES: &'static [::mcrs_minecraft_resource::StaticResourceLocation] =
                 &[$($crate::static_key::__rl!($location),)+];
 
-            pub const fn id(self) -> ::mcrs_minecraft_core::Id<$name> {
-                match ::mcrs_minecraft_core::Id::checked(self as u16, Self::ALL.len()) {
+            pub const fn id(self) -> ::mcrs_minecraft_resource::Id<$name> {
+                match ::mcrs_minecraft_resource::Id::checked(self as u16, Self::ALL.len()) {
                     Some(id) => id,
                     None => panic!("an entry's discriminant lies outside its own entry list"),
                 }
             }
 
-            pub const fn location(self) -> ::mcrs_minecraft_core::StaticResourceLocation {
+            pub const fn location(self) -> ::mcrs_minecraft_resource::StaticResourceLocation {
                 match self {
                     $($name::$variant => $crate::static_key::__rl!($location),)+
                 }
@@ -55,7 +55,7 @@ macro_rules! static_registry {
                 self.location().as_static_str()
             }
 
-            pub const fn from_id(id: ::mcrs_minecraft_core::Id<$name>) -> Option<$name> {
+            pub const fn from_id(id: ::mcrs_minecraft_resource::Id<$name>) -> Option<$name> {
                 Self::from_protocol_id(id.number())
             }
 
@@ -85,16 +85,16 @@ macro_rules! static_registry {
         }
 
         impl $crate::StaticEntry for $name {
-            fn id(self) -> ::mcrs_minecraft_core::Id<$name> {
+            fn id(self) -> ::mcrs_minecraft_resource::Id<$name> {
                 $name::id(self)
             }
 
-            fn location(self) -> ::mcrs_minecraft_core::StaticResourceLocation {
+            fn location(self) -> ::mcrs_minecraft_resource::StaticResourceLocation {
                 $name::location(self)
             }
         }
 
-        impl From<$name> for ::mcrs_minecraft_core::Id<$name> {
+        impl From<$name> for ::mcrs_minecraft_resource::Id<$name> {
             fn from(entry: $name) -> Self {
                 entry.id()
             }
@@ -111,7 +111,7 @@ macro_rules! static_registry {
                 let id = $crate::decode_registry_id(r)?;
                 Self::from_protocol_id(id).ok_or_else(|| {
                     $crate::__wire::Error::invalid($crate::static_key::unknown_id(
-                        <Self as ::mcrs_minecraft_core::Registered>::REGISTRY.location(),
+                        <Self as ::mcrs_minecraft_resource::Registered>::REGISTRY.location(),
                         id,
                     ))
                 })
@@ -136,7 +136,7 @@ macro_rules! static_registry {
                 let location = $crate::static_key::__ResourceLocation::read(&text).map_err(D::Error::custom)?;
                 Self::find(location.as_str()).ok_or_else(|| {
                     D::Error::custom($crate::static_key::unknown_entry(
-                        <Self as ::mcrs_minecraft_core::Registered>::REGISTRY.location(),
+                        <Self as ::mcrs_minecraft_resource::Registered>::REGISTRY.location(),
                         &location,
                     ))
                 })

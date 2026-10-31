@@ -1,4 +1,4 @@
-use mcrs_minecraft_core::ResourceKey;
+use mcrs_minecraft_resource::ResourceKey;
 use std::sync::OnceLock;
 
 use bevy_app::{App, TaskPoolPlugin};
@@ -39,7 +39,7 @@ pub fn blocks() -> &'static Blocks {
 
 use mcrs_minecraft_worldgen_testing::registry;
 
-use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_resource::ResourceLocation;
 use mcrs_minecraft_worldgen_density::compile::build_router;
 use mcrs_minecraft_worldgen_density::router::{NoiseGeneratorSettings, NoiseRouter, RouterBlocks};
 
@@ -175,8 +175,8 @@ use std::sync::Arc;
 use mcrs_minecraft_biome::{Biome, TemperatureModifier};
 use mcrs_minecraft_biome_file::BiomeFile;
 use mcrs_minecraft_block::keys::Block;
-use mcrs_minecraft_core::Id;
 use mcrs_minecraft_registries::{IdSet, KeySet, Registries, Registry, Resolve, Resolver, Tags};
+use mcrs_minecraft_resource::Id;
 use mcrs_minecraft_worldgen_feature_place::terrain_skin::BiomeClimate;
 
 pub type Biomes = Registry<BiomeFile>;

@@ -1,9 +1,10 @@
 use mcrs_minecraft_block_predicate::provider::BlockStateProvider;
+use mcrs_minecraft_core::Direction;
 use mcrs_minecraft_core::codec::{
     self, NonNegativeInt, Validate, default_true, is_default, is_true,
 };
-use mcrs_minecraft_core::{Direction, ResourceLocation};
 use mcrs_minecraft_registries::{Named, Refs, Resolved, registry_value};
+use mcrs_minecraft_resource::ResourceLocation;
 use mcrs_minecraft_sound::Sound;
 use serde::{Deserialize, Serialize};
 

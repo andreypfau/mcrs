@@ -15,7 +15,7 @@ pub use loot_pool_entry_type::LootPoolEntryType;
 pub use loot_score_provider_type::LootScoreProviderType;
 pub use slot_source_type::SlotSourceType;
 
-use mcrs_minecraft_core::{Registered, RegistryKey, rl};
+use mcrs_minecraft_resource::{Registered, RegistryKey, rl};
 
 pub const ITEM_MODIFIER: RegistryKey<crate::function::LootItemFunction> =
     RegistryKey::new(rl!("minecraft:item_modifier"));

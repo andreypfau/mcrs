@@ -3,7 +3,7 @@ use core::fmt;
 use mcrs_command::Span;
 use mcrs_command::starts_with_ignore_case;
 use mcrs_command::{Reader, SuggestionBuilder, SuggestionText, SyntaxError};
-use mcrs_minecraft_core::resource_location::parse_parts;
+use mcrs_minecraft_resource::parse_parts;
 
 /// An identifier borrowed from the command line; a missing namespace is `minecraft`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]

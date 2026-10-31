@@ -8,10 +8,10 @@ use mcrs_minecraft_command_argument::{ResourceOrTag, ResourceOrTagArgument};
 use mcrs_minecraft_command_engine::{
     Call, CommandFailure, CommandOutput, CommandRegistrar, CommandResult, Feedback,
 };
-use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_engine_world::world::dimension::{Dimension, DimensionTypeConfig};
 use mcrs_minecraft_entity::keys::STRUCTURE;
 use mcrs_minecraft_keys::POINT_OF_INTEREST_TYPE;
+use mcrs_minecraft_resource::ResourceLocation;
 use mcrs_minecraft_text::{Color, IntoText, Text};
 use mcrs_minecraft_worldgen_generator::stages::FillContext;
 use mcrs_minecraft_worldgen_generator::structures::nearest_biome;

@@ -1,5 +1,5 @@
-use mcrs_minecraft_core::{ResourceLocation, rl};
 use mcrs_minecraft_registries::{Named, Refs, Resolved, registry_value};
+use mcrs_minecraft_resource::{ResourceLocation, rl};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Deserializer, Serialize};
 

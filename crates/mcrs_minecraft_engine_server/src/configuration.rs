@@ -10,7 +10,6 @@ use bevy_ecs::system::ScheduleSystem;
 use bevy_math::{DVec3, Vec2};
 use bevy_state::prelude::in_state;
 use mcrs_minecraft_assets::AppState;
-use mcrs_minecraft_core::ResourceKey;
 use mcrs_minecraft_engine::bus::InboundPlayerSpawn;
 use mcrs_minecraft_engine::bus::PlayerTransferSnapshot;
 use mcrs_minecraft_engine::channel_types::{DimChannelsResource, ToDim};
@@ -40,6 +39,7 @@ use mcrs_minecraft_protocol::packets::game::serverbound::ServerboundConfiguratio
 use mcrs_minecraft_protocol::resource_pack::KnownPack;
 use mcrs_minecraft_protocol::{EncodedBody, WritePacket};
 use mcrs_minecraft_registries::{CurrentRegistries, Registries};
+use mcrs_minecraft_resource::ResourceKey;
 use mcrs_minecraft_world::SyncedRegistries;
 use mcrs_minecraft_world::save::read_player_dat;
 use std::sync::Arc;

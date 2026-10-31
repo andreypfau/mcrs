@@ -7,12 +7,12 @@ use mcrs_command::{
 };
 use mcrs_minecraft_command::{Lookup, Source, identifier_matches};
 use mcrs_minecraft_command_tree::{ArgumentParser, CommandNode, CommandNodeKind};
-use mcrs_minecraft_core::StaticResourceLocation;
 use mcrs_minecraft_keys::command_argument_type as parser;
+use mcrs_minecraft_resource::StaticResourceLocation;
 use mcrs_minecraft_wire::VarInt;
 use std::collections::VecDeque;
 
-const SOUND_EVENT: StaticResourceLocation = mcrs_minecraft_core::rl!("minecraft:sound_event");
+const SOUND_EVENT: StaticResourceLocation = mcrs_minecraft_resource::rl!("minecraft:sound_event");
 
 /// The client tree of the last `commands` packet. The client source holds the
 /// restricted atom, so every node passes; an executable node runs nothing on the client.

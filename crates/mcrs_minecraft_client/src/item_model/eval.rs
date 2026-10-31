@@ -1,6 +1,5 @@
 use bevy::ecs::world::EntityRef;
 use bevy::prelude::Entity;
-use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
 use mcrs_minecraft_item::keys::DataComponentType;
 use mcrs_minecraft_item::{
     Bees, BlockState, CustomModelData, Damage, DyedColor, EnchantmentGlintOverride, Enchantments,
@@ -11,6 +10,7 @@ use mcrs_minecraft_item::{
     ItemStack, Items, children, component_value, has_component, has_non_default,
 };
 use mcrs_minecraft_registries::{Namer, Ref, Registries, Resolve};
+use mcrs_minecraft_resource::{ResourceKey, ResourceLocation};
 
 use super::asset::{
     Case, ChargeType, ConditionProperty, DisplayContext, RangeProperty, SelectSwitch, TintSource,

@@ -1,8 +1,8 @@
 use std::sync::Arc;
 
 use mcrs_minecraft_core::codec::{self, NonNegativeInt, is_default};
-use mcrs_minecraft_core::rl;
 use mcrs_minecraft_registries::{Ref, Refs, Resolved, registry_value};
+use mcrs_minecraft_resource::rl;
 use serde::{Deserialize, Serialize};
 
 use crate::Text;

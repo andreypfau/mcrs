@@ -1,6 +1,6 @@
 use crate::keys::Item;
 use bevy_ecs::prelude::Component;
-use mcrs_minecraft_core::Id;
+use mcrs_minecraft_resource::Id;
 
 /// On a stack entity only a stack transaction assigns the fields; the
 /// constructor serves inline prototype-only values such as mob equipment.

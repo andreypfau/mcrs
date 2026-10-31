@@ -16,12 +16,12 @@ use mcrs_minecraft_block_predicate::provider::{
 };
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::Direction;
-use mcrs_minecraft_core::Id;
 use mcrs_minecraft_core::voxel_shape::{
     FACE_MASK_EMPTY, FACE_MASK_FULL, FACE_RESOLUTION, FaceMask, VoxelShape,
 };
 use mcrs_minecraft_noise::normal as normal_noise;
 use mcrs_minecraft_random::legacy::LegacyRandom;
+use mcrs_minecraft_resource::Id;
 use mcrs_minecraft_worldgen_feature::compile::{
     FeatureCompileError, StateQuery, compile_predicate,
 };

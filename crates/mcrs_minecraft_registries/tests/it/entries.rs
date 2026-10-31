@@ -1,8 +1,8 @@
 use std::mem::size_of;
 
-use mcrs_minecraft_core::Id;
 use mcrs_minecraft_datapack::{Level, PackDiagnostic};
 use mcrs_minecraft_registries::{Declaration, Diagnostic, Stage, insert_entry};
+use mcrs_minecraft_resource::Id;
 
 use crate::support::{
     Damage, DamageType, LootTable, Packs, Things, damage, declarations, get, names, report_errors,

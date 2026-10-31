@@ -4,7 +4,7 @@ use std::io::Write;
 use std::path::Path;
 use std::process::{Command, Stdio};
 
-use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_resource::ResourceLocation;
 
 use crate::{corpus, names, registries};
 
@@ -503,7 +503,8 @@ fn by_protocol_id<'r>(
 /// The entries of a static registry no crate keys by a type: one location
 /// per entry and the list of them by protocol id.
 fn static_names_module(registry: &str, report: &registries::Registry) -> Result<String, String> {
-    let mut out = format!("{HEADER}\nuse mcrs_minecraft_core::{{StaticResourceLocation, rl}};\n\n");
+    let mut out =
+        format!("{HEADER}\nuse mcrs_minecraft_resource::{{StaticResourceLocation, rl}};\n\n");
     let names = by_protocol_id(registry, report)?;
     let constants = constants(registry, names.into_iter(), &["ENTRIES"])?;
     for (constant, name) in &constants {
@@ -570,7 +571,7 @@ fn named_constants(
     } else {
         "StaticResourceLocation"
     };
-    let mut out = format!("{HEADER}\nuse mcrs_minecraft_core::{{{import}, rl}};\n\n");
+    let mut out = format!("{HEADER}\nuse mcrs_minecraft_resource::{{{import}, rl}};\n\n");
     for (constant, name) in constants(registry, names.iter().map(String::as_str), &[])? {
         let init = match value {
             Some(_) => format!("{key}::new(rl!(\"{name}\"))"),
@@ -584,7 +585,7 @@ fn named_constants(
 fn registry_file(target: &Target) -> String {
     format!(
         "{HEADER}\n\
-         use mcrs_minecraft_core::{{StaticResourceLocation, rl}};\n\
+         use mcrs_minecraft_resource::{{StaticResourceLocation, rl}};\n\
          \n\
          {definitions}",
         definitions = target.definitions,
@@ -612,7 +613,7 @@ fn owner_file(target: &Target) -> String {
         false => "Registered, RegistryKey, StaticResourceLocation, rl",
     };
     out.push_str(&format!(
-        "use mcrs_minecraft_core::{{{imports}}};\n\
+        "use mcrs_minecraft_resource::{{{imports}}};\n\
          \n\
          {definitions}",
         definitions = target.definitions,
@@ -642,7 +643,7 @@ fn lib_file(modules: &[String]) -> String {
 fn catalog_file(statics: &[String]) -> String {
     let mut out = format!(
         "{HEADER}\n\
-         use mcrs_minecraft_core::StaticResourceLocation;\n\
+         use mcrs_minecraft_resource::StaticResourceLocation;\n\
          \n\
          pub const STATIC_REGISTRIES: &[(StaticResourceLocation, &[StaticResourceLocation])] = &[\n"
     );
@@ -669,7 +670,7 @@ fn catalog_manifest(static_owners: &BTreeSet<String>) -> String {
          workspace = true\n\
          \n\
          [dependencies]\n\
-         mcrs_minecraft_core.workspace = true\n",
+         mcrs_minecraft_resource.workspace = true\n",
         HEADER.replacen("//", "#", 1).trim_end()
     );
     for krate in static_owners {
@@ -814,7 +815,7 @@ mod tests {
             files[CATALOG_LIB],
             "// Written by `cargo run -p mcrs_minecraft_update -- keys`; do not edit.\n\
              \n\
-             use mcrs_minecraft_core::StaticResourceLocation;\n\
+             use mcrs_minecraft_resource::StaticResourceLocation;\n\
              \n\
              pub const STATIC_REGISTRIES: &[(StaticResourceLocation, &[StaticResourceLocation])] = &[(\n\
              \x20   mcrs_minecraft_keys::BLOCK,\n\
@@ -838,7 +839,7 @@ mod tests {
             files["src/registry.rs"],
             "// Written by `cargo run -p mcrs_minecraft_update -- keys`; do not edit.\n\
              \n\
-             use mcrs_minecraft_core::{StaticResourceLocation, rl};\n\
+             use mcrs_minecraft_resource::{StaticResourceLocation, rl};\n\
              \n\
              pub const BLOCK: StaticResourceLocation = rl!(\"minecraft:block\");\n\
              pub const BIOME: StaticResourceLocation = rl!(\"minecraft:worldgen/biome\");\n"
@@ -847,7 +848,7 @@ mod tests {
             files["src/block.rs"],
             "// Written by `cargo run -p mcrs_minecraft_update -- keys`; do not edit.\n\
              \n\
-             use mcrs_minecraft_core::{StaticResourceLocation, rl};\n\
+             use mcrs_minecraft_resource::{StaticResourceLocation, rl};\n\
              \n\
              pub const AIR: StaticResourceLocation = rl!(\"minecraft:air\");\n\
              pub const STONE: StaticResourceLocation = rl!(\"minecraft:stone\");\n\
@@ -858,7 +859,7 @@ mod tests {
             files["src/biome.rs"],
             "// Written by `cargo run -p mcrs_minecraft_update -- keys`; do not edit.\n\
              \n\
-             use mcrs_minecraft_core::{StaticResourceLocation, rl};\n\
+             use mcrs_minecraft_resource::{StaticResourceLocation, rl};\n\
              \n\
              pub const PLAINS: StaticResourceLocation = rl!(\"minecraft:plains\");\n"
         );
@@ -1059,7 +1060,7 @@ mod tests {
             files["src/block_tags.rs"],
             "// Written by `cargo run -p mcrs_minecraft_update -- keys`; do not edit.\n\
              \n\
-             use mcrs_minecraft_core::{StaticResourceLocation, rl};\n\
+             use mcrs_minecraft_resource::{StaticResourceLocation, rl};\n\
              \n\
              pub const LOGS: StaticResourceLocation = rl!(\"minecraft:logs\");\n"
         );
@@ -1315,8 +1316,8 @@ mod tests {
     }
 
     fn tag_file<R>(
-        registry: mcrs_minecraft_core::RegistryKey<R>,
-        tag: mcrs_minecraft_core::TagKey<R, &'static str>,
+        registry: mcrs_minecraft_resource::RegistryKey<R>,
+        tag: mcrs_minecraft_resource::TagKey<R, &'static str>,
     ) -> String {
         let location = tag.location();
         format!(
@@ -1384,7 +1385,7 @@ mod tests {
              \n\
              pub mod biome;\n\
              \n\
-             use mcrs_minecraft_core::{Registered, RegistryKey, rl};\n\
+             use mcrs_minecraft_resource::{Registered, RegistryKey, rl};\n\
              \n\
              pub const BIOME: RegistryKey<crate::Biome> = RegistryKey::new(rl!(\"minecraft:worldgen/biome\"));\n\
              impl Registered for crate::Biome {\n\

@@ -1633,7 +1633,8 @@ mod tests {
             let swamp = |set: &CurrentRegistries| {
                 biomes(set)
                     .by_name(
-                        &mcrs_minecraft_core::ResourceLocation::read("minecraft:swamp").unwrap(),
+                        &mcrs_minecraft_resource::ResourceLocation::read("minecraft:swamp")
+                            .unwrap(),
                     )
                     .unwrap()
             };

@@ -1,8 +1,8 @@
 use mcrs_minecraft_biome::keys::placed_feature;
 use mcrs_minecraft_biome_file::PlacedFeatureKey;
 use mcrs_minecraft_core::codec::Bounded;
-use mcrs_minecraft_core::resource_location::InvalidResourceLocation;
-use mcrs_minecraft_core::{ResourceLocation, StaticResourceLocation, rl};
+use mcrs_minecraft_resource::InvalidResourceLocation;
+use mcrs_minecraft_resource::{ResourceLocation, StaticResourceLocation, rl};
 use mcrs_minecraft_worldgen_feature::pool::{PoolElement, SingleElement, TemplatePool};
 use mcrs_minecraft_worldgen_feature::template::Projection::Rigid;
 

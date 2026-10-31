@@ -2,7 +2,7 @@ use crate::permission::PermissionCheck;
 use crate::source::Source;
 use mcrs_command::{Graph, NodeId, NodeKind, SuggestionList};
 use mcrs_minecraft_command_tree::{ArgumentParser, CommandNode, CommandNodeKind};
-use mcrs_minecraft_core::StaticResourceLocation;
+use mcrs_minecraft_resource::StaticResourceLocation;
 use mcrs_minecraft_text::Text;
 use mcrs_minecraft_wire::{VarInt, utf16_position};
 use std::borrow::Cow;

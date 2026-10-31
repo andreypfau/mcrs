@@ -142,7 +142,7 @@ pub(crate) fn dispatch(
                 #krate::dispatch::read(
                     deserializer,
                     #key,
-                    <#registry as #krate::dispatch::__core::Registered>::REGISTRY
+                    <#registry as #krate::dispatch::__resource::Registered>::REGISTRY
                         .location()
                         .as_static_str(),
                     pick,

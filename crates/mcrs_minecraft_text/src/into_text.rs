@@ -2,7 +2,7 @@
 
 use std::borrow::Cow;
 
-use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_resource::ResourceLocation;
 
 use super::{ClickEvent, Color, HoverEvent, Text, TextTypes};
 

@@ -1,8 +1,8 @@
 use std::borrow::Cow;
 use std::sync::Arc;
 
-use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_protocol::{Decode, Encode};
+use mcrs_minecraft_resource::ResourceLocation;
 
 use crate::identifier_rows::{ROWS, outcome};
 

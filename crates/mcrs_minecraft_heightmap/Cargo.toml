@@ -11,6 +11,7 @@ doctest = false
 workspace = true
 
 [dependencies]
+mcrs_minecraft_resource.workspace = true
 mcrs_voxel.workspace = true
 bevy_ecs = { workspace = true, optional = true }
 bitflags = "2.10.0"

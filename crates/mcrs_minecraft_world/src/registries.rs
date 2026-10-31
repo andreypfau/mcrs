@@ -12,7 +12,6 @@ use crate::worldgen::world_preset::WorldPreset;
 use mcrs_minecraft_biome::parameter_list::MultiNoiseBiomeSourceParameterList;
 use mcrs_minecraft_biome_file::{BiomeFile, NetworkBiome};
 use mcrs_minecraft_block_predicate::provider::DirectBlockStateProvider;
-use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_dimension::keys::DIMENSION;
 use mcrs_minecraft_dimension_environment::dimension_type::{
     DimensionTypeFile, NetworkDimensionType,
@@ -32,6 +31,7 @@ use mcrs_minecraft_item::{
     BannerPattern, InstrumentValue, JukeboxSong, PaintingVariantValue, TrimMaterial, TrimPattern,
 };
 use mcrs_minecraft_registries::{Declaration, Stage};
+use mcrs_minecraft_resource::ResourceLocation;
 use mcrs_minecraft_sound::BlockSoundSet;
 use serde::Deserialize;
 

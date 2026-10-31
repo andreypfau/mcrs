@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
+use mcrs_minecraft_resource::{ResourceKey, ResourceLocation};
 
 use crate::saved::region_dir;
 use mcrs_minecraft_dimension::Dimension;

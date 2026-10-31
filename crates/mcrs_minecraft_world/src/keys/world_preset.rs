@@ -1,6 +1,6 @@
 // Written by `cargo run -p mcrs_minecraft_update -- keys`; do not edit.
 
-use mcrs_minecraft_core::{ResourceKey, rl};
+use mcrs_minecraft_resource::{ResourceKey, rl};
 
 pub const AMPLIFIED: ResourceKey<crate::worldgen::world_preset::WorldPreset, &'static str> = ResourceKey::new(rl!("minecraft:amplified"));
 pub const DEBUG_ALL_BLOCK_STATES: ResourceKey<crate::worldgen::world_preset::WorldPreset, &'static str> = ResourceKey::new(rl!("minecraft:debug_all_block_states"));

@@ -1,6 +1,6 @@
 // Written by `cargo run -p mcrs_minecraft_update -- keys`; do not edit.
 
-use mcrs_minecraft_core::{ResourceKey, rl};
+use mcrs_minecraft_resource::{ResourceKey, rl};
 
 pub const ASHEN: ResourceKey<crate::variant::WolfVariant, &'static str> = ResourceKey::new(rl!("minecraft:ashen"));
 pub const BLACK: ResourceKey<crate::variant::WolfVariant, &'static str> = ResourceKey::new(rl!("minecraft:black"));

@@ -1,6 +1,6 @@
 // Written by `cargo run -p mcrs_minecraft_update -- keys`; do not edit.
 
-use mcrs_minecraft_core::{ResourceKey, rl};
+use mcrs_minecraft_resource::{ResourceKey, rl};
 
 pub const ABANDONED_CAMP_CAMP_BAMBOO_JUNGLE: ResourceKey<crate::pool::TemplatePool, &'static str> = ResourceKey::new(rl!("minecraft:abandoned_camp/camp/bamboo_jungle"));
 pub const ABANDONED_CAMP_CAMP_BIRCH_FOREST: ResourceKey<crate::pool::TemplatePool, &'static str> = ResourceKey::new(rl!("minecraft:abandoned_camp/camp/birch_forest"));

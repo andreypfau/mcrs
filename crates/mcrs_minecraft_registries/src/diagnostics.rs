@@ -2,8 +2,8 @@ use std::cmp::Ordering;
 use std::fmt;
 use std::ops::Deref;
 
-use mcrs_minecraft_core::{ResourceLocation, StaticResourceLocation, rl};
 use mcrs_minecraft_datapack::{Level, PackDiagnostic};
+use mcrs_minecraft_resource::{ResourceLocation, StaticResourceLocation, rl};
 
 use crate::order::identifier_order;
 

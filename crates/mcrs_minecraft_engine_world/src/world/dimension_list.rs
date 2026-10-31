@@ -1,9 +1,9 @@
 use std::sync::Arc;
 
 use bevy_ecs::resource::Resource;
-use mcrs_minecraft_core::Id;
-use mcrs_minecraft_core::ResourceKey;
 use mcrs_minecraft_dimension::{Dimension, DimensionType};
+use mcrs_minecraft_resource::Id;
+use mcrs_minecraft_resource::ResourceKey;
 
 /// Every dimension the world spawns, in spawn order, with its dimension type.
 #[derive(Resource, Clone, Debug)]

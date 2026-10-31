@@ -124,8 +124,10 @@ pub fn spawn_dim_subapp(
             .get_resource::<CurrentRegistries>()
             .and_then(|registries| registries.registry::<DimensionTypeFile>())
             .and_then(|types| {
-                let id =
-                    mcrs_minecraft_core::Id::checked(request.dimension_type.number(), types.len())?;
+                let id = mcrs_minecraft_resource::Id::checked(
+                    request.dimension_type.number(),
+                    types.len(),
+                )?;
                 types.get(id)
             })
             .ok_or_else(unknown)?;

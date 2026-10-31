@@ -1,7 +1,7 @@
 use super::Piece::*;
 use super::{Piece, Pool, legacy, pool};
 use mcrs_minecraft_biome::keys::placed_feature;
-use mcrs_minecraft_core::rl;
+use mcrs_minecraft_resource::rl;
 use mcrs_minecraft_worldgen_feature::keys::processor_list;
 
 const STREETS: &[(Piece, i32)] = &[

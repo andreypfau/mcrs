@@ -1,6 +1,6 @@
 // Written by `cargo run -p mcrs_minecraft_update -- keys`; do not edit.
 
-use mcrs_minecraft_core::{StaticResourceLocation, rl};
+use mcrs_minecraft_resource::{StaticResourceLocation, rl};
 
 pub const NOTIFICATION_SERVER_STARTED: StaticResourceLocation = rl!("minecraft:notification/server/started");
 pub const NOTIFICATION_SERVER_STOPPING: StaticResourceLocation = rl!("minecraft:notification/server/stopping");

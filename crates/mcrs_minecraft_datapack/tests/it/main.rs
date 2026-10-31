@@ -6,7 +6,7 @@
 mod root;
 mod stack;
 
-use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_resource::ResourceLocation;
 
 pub const META: &str = r#"{"pack":{"description":"x","min_format":122,"max_format":122}}"#;
 

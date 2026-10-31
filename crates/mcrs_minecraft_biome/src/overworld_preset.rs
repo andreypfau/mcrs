@@ -9,7 +9,7 @@
 
 use std::sync::LazyLock;
 
-use mcrs_minecraft_core::ResourceKey;
+use mcrs_minecraft_resource::ResourceKey;
 
 use super::climate::{Parameter, ParameterList, ParameterPoint};
 use crate::Biome;

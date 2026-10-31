@@ -1,7 +1,7 @@
 use mcrs_minecraft_block_predicate::provider::Holder;
-use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::codec::Bounded;
 use mcrs_minecraft_registries::dispatch;
+use mcrs_minecraft_resource::ResourceLocation;
 use mcrs_minecraft_worldgen_density::proto::Either;
 use serde::{Deserialize, Serialize};
 

@@ -1,6 +1,6 @@
 // Written by `cargo run -p mcrs_minecraft_update -- keys`; do not edit.
 
-use mcrs_minecraft_core::{TagKey, rl};
+use mcrs_minecraft_resource::{TagKey, rl};
 
 pub const ABANDONED_CAMP: TagKey<crate::spawn_condition::Structure, &'static str> =
     TagKey::new(rl!("minecraft:abandoned_camp"));

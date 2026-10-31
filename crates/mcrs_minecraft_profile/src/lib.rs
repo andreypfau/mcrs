@@ -2,7 +2,7 @@ mod wire;
 
 use std::fmt;
 
-use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_resource::ResourceLocation;
 use serde::de::{Error as _, MapAccess, SeqAccess, Visitor, value};
 use serde::ser::{Error as _, SerializeMap};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};

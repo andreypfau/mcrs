@@ -4,7 +4,6 @@ use std::collections::BTreeMap;
 use std::sync::LazyLock;
 
 use glam::DVec3;
-use mcrs_minecraft_core::ResourceKey;
 use mcrs_minecraft_core::codec::Bounded;
 use mcrs_minecraft_particle::keys::ParticleType;
 use mcrs_minecraft_particle::{
@@ -17,6 +16,7 @@ use mcrs_minecraft_protocol::packets::game::clientbound::{
 };
 use mcrs_minecraft_protocol::{Decode, Encode, VarInt};
 use mcrs_minecraft_registries::{FromWire, Wire};
+use mcrs_minecraft_resource::ResourceKey;
 use mcrs_voxel::BlockPos;
 
 use crate::item::harness::{block_lookup, hex, named, read_json};
@@ -121,7 +121,7 @@ fn golden_values_decode_to_the_expected_fields() {
         ParticleOptions::Block(BlockParticle {
             block_state: BlockStateValue {
                 block: ResourceKey::from_location(
-                    mcrs_minecraft_core::rl!("minecraft:furnace").to_arc()
+                    mcrs_minecraft_resource::rl!("minecraft:furnace").to_arc()
                 ),
                 properties: BTreeMap::from([
                     ("facing".to_string(), "north".to_string()),
@@ -135,7 +135,7 @@ fn golden_values_decode_to_the_expected_fields() {
         ParticleOptions::Block(BlockParticle {
             block_state: BlockStateValue {
                 block: ResourceKey::from_location(
-                    mcrs_minecraft_core::rl!("minecraft:furnace").to_arc()
+                    mcrs_minecraft_resource::rl!("minecraft:furnace").to_arc()
                 ),
                 properties: BTreeMap::new(),
             },
@@ -320,13 +320,13 @@ fn block_states_read_from_data_resolve_like_vanilla() {
 #[test]
 fn a_wire_value_that_names_no_known_entry_is_rejected_by_the_check() {
     use mcrs_minecraft_core::BlockStateNumber;
-    use mcrs_minecraft_core::{ResourceLocation, TagKey};
     use mcrs_minecraft_item::component::CompactList;
     use mcrs_minecraft_item::component::{AdventureModePredicate, BlockPredicate, CanPlaceOn};
     use mcrs_minecraft_item::keys::Item;
     use mcrs_minecraft_item::kind::ItemComponentValue;
     use mcrs_minecraft_item::stack::ItemStackValue;
     use mcrs_minecraft_registries::{WireId, WireSet};
+    use mcrs_minecraft_resource::{ResourceLocation, TagKey};
 
     let item = |id: u16, components: ComponentPatch<Wire>| {
         ParticleOptions::<Wire>::Item(ItemParticle {

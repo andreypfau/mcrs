@@ -6,8 +6,8 @@ use crate::keys::Item;
 use crate::{ComponentMap, Template};
 #[cfg(feature = "bevy")]
 use bevy_ecs::resource::Resource;
-use mcrs_minecraft_core::Id;
-use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_resource::Id;
+use mcrs_minecraft_resource::ResourceLocation;
 use mcrs_voxel::BlockStateId;
 use std::collections::HashMap;
 
@@ -131,7 +131,7 @@ impl std::ops::Deref for Items {
 mod tests {
     use super::*;
     use crate::ComponentMap;
-    use mcrs_minecraft_core::rl;
+    use mcrs_minecraft_resource::rl;
 
     fn entry(name: &str) -> ItemEntry {
         ItemEntry {

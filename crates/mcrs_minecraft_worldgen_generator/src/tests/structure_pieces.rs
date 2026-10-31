@@ -3,11 +3,12 @@ use std::io::Cursor;
 
 use bytes::Buf;
 use glam::IVec3;
-use mcrs_minecraft_core::{BoundingBox, ResourceLocation};
+use mcrs_minecraft_core::BoundingBox;
 use mcrs_minecraft_fixtures::fixture;
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::deserializer::NbtReadHelper;
 use mcrs_minecraft_nbt::{Nbt, to_nbt_compound};
+use mcrs_minecraft_resource::ResourceLocation;
 use mcrs_minecraft_worldgen_structure::piece::PieceContext;
 use mcrs_minecraft_worldgen_testing::dump_string;
 use mcrs_voxel::ColumnPos;

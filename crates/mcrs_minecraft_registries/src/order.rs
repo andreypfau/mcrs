@@ -1,6 +1,6 @@
 use std::cmp::Ordering;
 
-use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_resource::ResourceLocation;
 
 pub(crate) fn identifier_order(a: &ResourceLocation, b: &ResourceLocation) -> Ordering {
     a.path()

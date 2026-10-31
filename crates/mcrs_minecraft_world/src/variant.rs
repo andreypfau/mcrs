@@ -1,12 +1,12 @@
 use std::collections::BTreeMap;
 
 use mcrs_minecraft_core::codec::is_default;
-use mcrs_minecraft_core::{RegistryValue, ResourceLocation};
 use mcrs_minecraft_entity::variant::{
     CatVariant, ChickenModel, ChickenVariant, CowModel, CowVariant, FrogVariant, PigModel,
     PigVariant, WolfVariant, WolfVariantAssets, ZombieNautilusModel, ZombieNautilusVariant,
 };
 use mcrs_minecraft_registries::{Named, Refs, Registries, Resolve, Resolved, registry_value};
+use mcrs_minecraft_resource::{RegistryValue, ResourceLocation};
 use serde::{Deserialize, Serialize};
 
 pub use mcrs_minecraft_entity::spawn_condition::SpawnSelector;
@@ -25,7 +25,7 @@ macro_rules! spawning_variant {
             pub spawn_conditions: Vec<SpawnSelector<M>>,
         }
 
-        impl mcrs_minecraft_core::RegistryValue for $file {
+        impl mcrs_minecraft_resource::RegistryValue for $file {
             type Registry = $value;
         }
 

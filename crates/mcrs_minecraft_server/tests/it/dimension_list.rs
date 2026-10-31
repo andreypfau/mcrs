@@ -1,7 +1,6 @@
 use bevy_app::{App, AppExit};
 use bevy_state::state::State;
 use mcrs_minecraft_assets::AppState;
-use mcrs_minecraft_core::ResourceKey;
 use mcrs_minecraft_dimension::Dimension;
 use mcrs_minecraft_engine::heightmap::BlockHeightmapPredicates;
 use mcrs_minecraft_engine_server::DimensionWorldsPlugin;
@@ -10,6 +9,7 @@ use mcrs_minecraft_environment::world_clock::{WorldClock, WorldClocks};
 use mcrs_minecraft_light_engine::block_light::BlockLightRegistry;
 use mcrs_minecraft_protocol::uuid::Uuid;
 use mcrs_minecraft_registries::CurrentRegistries;
+use mcrs_minecraft_resource::ResourceKey;
 use mcrs_minecraft_server::MinecraftServerPlugins;
 use mcrs_minecraft_world::dimension::{DimensionEntry, Dimensions};
 use mcrs_minecraft_world::registry_load::test_registries;
@@ -125,8 +125,8 @@ fn the_startup_tables_and_clocks_exist_after_the_first_update(app: &App) {
         "the clocks held after the first update differ from the registry's"
     );
     for (id, _, _) in registered.iter() {
-        let id =
-            mcrs_minecraft_core::Id::<WorldClock>::checked(id.number(), registered.len()).unwrap();
+        let id = mcrs_minecraft_resource::Id::<WorldClock>::checked(id.number(), registered.len())
+            .unwrap();
         assert!(clocks.get(id).is_some(), "{id:?} is not seeded");
     }
 }

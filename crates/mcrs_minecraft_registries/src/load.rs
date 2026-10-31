@@ -1,10 +1,10 @@
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::sync::Arc;
 
-use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_datapack::{
     PackContent, PackDiagnostic, PackFile, PackFiles, PackIndex, PackStack,
 };
+use mcrs_minecraft_resource::ResourceLocation;
 
 use crate::declaration::{Declaration, Source};
 use crate::diagnostics::{Diagnostic, Diagnostics, Missing, Referrer};

@@ -5,7 +5,6 @@ use bytes::Bytes;
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_client::asset_source;
 use mcrs_minecraft_client::registries::ClientRegistriesPlugin;
-use mcrs_minecraft_core::{Id, RegistryValue, ResourceKey, ResourceLocation};
 use mcrs_minecraft_dimension::Dimension;
 use mcrs_minecraft_dimension_environment::dimension_type::DimensionTypeFile;
 use mcrs_minecraft_dimension_environment::environment::EnvironmentAttributes;
@@ -18,6 +17,7 @@ use mcrs_minecraft_protocol::packets::configuration::clientbound::{
 use mcrs_minecraft_protocol::registry::Entry;
 use mcrs_minecraft_protocol::{Encode, VarInt};
 use mcrs_minecraft_registries::{CurrentRegistries, Received, Registries};
+use mcrs_minecraft_resource::{Id, RegistryValue, ResourceKey, ResourceLocation};
 use mcrs_minecraft_world::registry_load::{sent_by, test_packs, test_registries};
 use std::borrow::Cow;
 use std::collections::BTreeMap;

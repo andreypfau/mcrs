@@ -5,7 +5,6 @@ use bevy_asset::io::AssetSourceId;
 #[cfg(feature = "bevy")]
 use mcrs_minecraft_assets::asset::{CorpusReadError, read_json_corpus};
 use mcrs_minecraft_block::definition::BlockDefinitions;
-use mcrs_minecraft_core::ResourceLocation;
 #[cfg(feature = "bevy")]
 use mcrs_minecraft_item::definition::CORPUS_DIRECTORY;
 use mcrs_minecraft_item::definition::FORMAT_VERSION;
@@ -14,6 +13,7 @@ use mcrs_minecraft_item::keys::Item;
 use mcrs_minecraft_item::patch::ComponentMap;
 use mcrs_minecraft_item::{ItemDefinitions, ItemEntry, ItemTableError, Template};
 use mcrs_minecraft_registries::{Registries, Resolve, ResolveError, Resolver};
+use mcrs_minecraft_resource::ResourceLocation;
 
 pub fn from_files(
     files: impl IntoIterator<Item = (String, Vec<u8>)>,
@@ -46,7 +46,9 @@ pub fn from_files(
         let found = item.description.protocol_id;
         let reported = Resolver::id::<Item>(
             registries,
-            &mcrs_minecraft_core::ResourceKey::from_location(item.description.identifier.clone()),
+            &mcrs_minecraft_resource::ResourceKey::from_location(
+                item.description.identifier.clone(),
+            ),
         )
         .map_err(|_| ItemTableError::Unknown(item.description.identifier.clone()))?;
         if found != reported.number() {

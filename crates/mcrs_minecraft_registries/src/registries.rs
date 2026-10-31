@@ -3,10 +3,10 @@ use std::collections::HashMap;
 use std::fmt;
 use std::sync::Arc;
 
-use mcrs_minecraft_core::{
+use mcrs_minecraft_datapack::{KnownPack, PackStack, StackedPack};
+use mcrs_minecraft_resource::{
     Id, Registered, RegistryValue, ResourceKey, ResourceLocation, TagId, TagKey,
 };
-use mcrs_minecraft_datapack::{KnownPack, PackStack, StackedPack};
 
 use crate::declaration::Codec;
 use crate::refs::{MissingRef, Namer, ResolveError, Resolver};

@@ -1,8 +1,10 @@
-use std::any::type_name;
-use std::cmp::Ordering;
-use std::fmt;
-use std::hash::{Hash, Hasher};
-use std::marker::PhantomData;
+use alloc::borrow::ToOwned;
+use alloc::string::String;
+use core::any::type_name;
+use core::cmp::Ordering;
+use core::fmt;
+use core::hash::{Hash, Hasher};
+use core::marker::PhantomData;
 
 macro_rules! dense_id {
     ($name:ident) => {
@@ -73,7 +75,7 @@ macro_rules! dense_id {
 /// length of the table that issues it.
 ///
 /// ```
-/// use mcrs_minecraft_core::Id;
+/// use mcrs_minecraft_resource::Id;
 ///
 /// struct X;
 ///
@@ -91,7 +93,7 @@ macro_rules! dense_id {
 /// ```
 ///
 /// ```compile_fail,E0599
-/// use mcrs_minecraft_core::Id;
+/// use mcrs_minecraft_resource::Id;
 ///
 /// struct X;
 ///
@@ -99,7 +101,7 @@ macro_rules! dense_id {
 /// ```
 ///
 /// ```compile_fail,E0451
-/// use mcrs_minecraft_core::Id;
+/// use mcrs_minecraft_resource::Id;
 /// use std::marker::PhantomData;
 ///
 /// struct X;
@@ -115,7 +117,7 @@ pub struct Id<R> {
 /// against the length of the table that issues it.
 ///
 /// ```
-/// use mcrs_minecraft_core::TagId;
+/// use mcrs_minecraft_resource::TagId;
 ///
 /// struct X;
 ///
@@ -127,7 +129,7 @@ pub struct Id<R> {
 /// ```
 ///
 /// ```compile_fail,E0451
-/// use mcrs_minecraft_core::TagId;
+/// use mcrs_minecraft_resource::TagId;
 /// use std::marker::PhantomData;
 ///
 /// struct X;
@@ -136,7 +138,7 @@ pub struct Id<R> {
 /// ```
 ///
 /// ```compile_fail,E0599
-/// use mcrs_minecraft_core::TagId;
+/// use mcrs_minecraft_resource::TagId;
 ///
 /// struct X;
 ///
@@ -177,4 +179,4 @@ impl fmt::Display for NarrowError {
     }
 }
 
-impl std::error::Error for NarrowError {}
+impl core::error::Error for NarrowError {}

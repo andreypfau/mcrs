@@ -3,7 +3,6 @@ use mcrs_minecraft_fixtures::fixture;
 use std::collections::{BTreeMap, HashMap};
 use std::sync::LazyLock;
 
-use mcrs_minecraft_core::{ResourceLocation, rl};
 use mcrs_minecraft_item::keys::DataComponentType;
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_protocol::item::harness::Sample;
@@ -15,6 +14,7 @@ use mcrs_minecraft_protocol::item::{
     SignTextFront, TooltipDisplay, TooltipStyle, UseCooldown, UseEffects, Weapon, hash_ops,
 };
 use mcrs_minecraft_protocol::profile::Property;
+use mcrs_minecraft_resource::{ResourceLocation, rl};
 
 use crate::item::harness::{from_json, from_nbt, hex, lookup, named, nbt_tree, persistent_json};
 

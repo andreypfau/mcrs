@@ -1,7 +1,7 @@
-use crate::resource_location::ResourceLocation;
-use std::hash::{Hash, Hasher};
-use std::marker::PhantomData;
-use std::sync::Arc;
+use crate::ResourceLocation;
+use alloc::sync::Arc;
+use core::hash::{Hash, Hasher};
+use core::marker::PhantomData;
 
 /// A typed reference to a tag in a specific registry.
 ///
@@ -50,7 +50,7 @@ impl<R> TagKey<R, &'static str> {
     /// Create a tag key from a compile-time validated `ResourceLocation<&'static str>`.
     ///
     /// ```rust,ignore
-    /// use mcrs_minecraft_core::{rl, TagKey};
+    /// use mcrs_minecraft_resource::{rl, TagKey};
     /// const MY_TAG: TagKey<Block, &'static str> = TagKey::new(rl!("minecraft:mineable/pickaxe"));
     /// ```
     pub const fn new(rl: ResourceLocation<&'static str>) -> Self {
@@ -97,8 +97,8 @@ impl<R, S: AsRef<str>> TagKey<R, S> {
 
 // ── Debug ──
 
-impl<R, S: AsRef<str>> std::fmt::Debug for TagKey<R, S> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl<R, S: AsRef<str>> core::fmt::Debug for TagKey<R, S> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         write!(f, "TagKey({})", self.rl.as_str())
     }
 }

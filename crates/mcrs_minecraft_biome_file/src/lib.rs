@@ -5,12 +5,12 @@ use mcrs_minecraft_biome::{
     TemperatureModifier,
 };
 use mcrs_minecraft_core::codec::HexRgb;
-use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
 use mcrs_minecraft_environment::attribute::id::{self, Attribute};
 use mcrs_minecraft_environment::attribute::{
     AttributeError, EnvironmentAttributeMap, MobSpawnSettings, Operation,
 };
 use mcrs_minecraft_registries::{KeySet, Named, Refs, Resolve, Resolved};
+use mcrs_minecraft_resource::{ResourceKey, ResourceLocation};
 
 pub type Carvers = ConfiguredCarver;
 pub type PlacedFeatures = PlacedFeature;
@@ -35,7 +35,7 @@ pub struct BiomeFile<M: Refs = Resolved> {
     pub features: Vec<M::Set<PlacedFeatures>>,
 }
 
-impl mcrs_minecraft_core::RegistryValue for BiomeFile {
+impl mcrs_minecraft_resource::RegistryValue for BiomeFile {
     type Registry = mcrs_minecraft_biome::Biome;
 }
 

@@ -1,9 +1,9 @@
 use glam::IVec3;
 use mcrs_minecraft_chunk::VoxelId;
-use mcrs_minecraft_core::{ResourceLocation, rl};
 use mcrs_minecraft_fixtures::{FixtureFile, fixture};
 use mcrs_minecraft_noise::proto::NoiseParam;
 use mcrs_minecraft_noise::sample_grid::SampleGrid;
+use mcrs_minecraft_resource::{ResourceLocation, rl};
 use mcrs_minecraft_worldgen_density::compile::build_router;
 use mcrs_minecraft_worldgen_density::program::Workspace;
 use mcrs_minecraft_worldgen_density::proto::DensityFunctionHolder;

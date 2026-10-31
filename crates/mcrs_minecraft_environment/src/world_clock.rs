@@ -5,11 +5,11 @@ use std::sync::Arc;
 use bevy_app::{App, FixedUpdate, Plugin, PreUpdate};
 #[cfg(feature = "bevy")]
 use bevy_ecs::prelude::*;
-use mcrs_minecraft_core::Id;
-use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::codec::is_default;
 #[cfg(feature = "bevy")]
 use mcrs_minecraft_registries::CurrentRegistries;
+use mcrs_minecraft_resource::Id;
+use mcrs_minecraft_resource::ResourceLocation;
 use serde::{Deserialize, Serialize};
 
 use crate::timeline::Timeline;
@@ -390,9 +390,9 @@ impl TestClocks {
 
 #[cfg(test)]
 impl mcrs_minecraft_registries::Resolver for TestClocks {
-    fn id<R: mcrs_minecraft_core::Registered>(
+    fn id<R: mcrs_minecraft_resource::Registered>(
         &self,
-        key: &mcrs_minecraft_core::ResourceKey<R>,
+        key: &mcrs_minecraft_resource::ResourceKey<R>,
     ) -> Result<Id<R>, mcrs_minecraft_registries::ResolveError> {
         let at = self.0.iter().position(|name| name == key.location());
         at.and_then(|at| Id::checked(at as u16, self.0.len()))
@@ -401,23 +401,23 @@ impl mcrs_minecraft_registries::Resolver for TestClocks {
             })
     }
 
-    fn tag<R: mcrs_minecraft_core::Registered>(
+    fn tag<R: mcrs_minecraft_resource::Registered>(
         &self,
-        tag: &mcrs_minecraft_core::TagKey<R>,
-    ) -> Result<mcrs_minecraft_core::TagId<R>, mcrs_minecraft_registries::ResolveError> {
+        tag: &mcrs_minecraft_resource::TagKey<R>,
+    ) -> Result<mcrs_minecraft_resource::TagId<R>, mcrs_minecraft_registries::ResolveError> {
         Err(format!("unknown tag #{}", tag.as_str()).into())
     }
 }
 
 #[cfg(test)]
 impl mcrs_minecraft_registries::Namer for TestClocks {
-    fn name<R: mcrs_minecraft_core::Registered>(&self, id: Id<R>) -> Option<&ResourceLocation> {
+    fn name<R: mcrs_minecraft_resource::Registered>(&self, id: Id<R>) -> Option<&ResourceLocation> {
         self.0.get(id.index())
     }
 
-    fn tag_name<R: mcrs_minecraft_core::Registered>(
+    fn tag_name<R: mcrs_minecraft_resource::Registered>(
         &self,
-        _: mcrs_minecraft_core::TagId<R>,
+        _: mcrs_minecraft_resource::TagId<R>,
     ) -> Option<&ResourceLocation> {
         None
     }

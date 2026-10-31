@@ -7,14 +7,14 @@ use std::sync::{Arc, LazyLock};
 
 #[cfg(test)]
 use mcrs_minecraft_biome::source::{BiomeSource, MultiNoiseBiomeSource};
-use mcrs_minecraft_core::ResourceLocation;
 #[cfg(test)]
 use mcrs_minecraft_core::VERSION;
 #[cfg(test)]
-use mcrs_minecraft_core::rl;
-#[cfg(test)]
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::nbt_compress::from_gzip_bytes;
+use mcrs_minecraft_resource::ResourceLocation;
+#[cfg(test)]
+use mcrs_minecraft_resource::rl;
 use mcrs_minecraft_worldgen_feature::pool::TemplatePool;
 #[cfg(test)]
 use mcrs_minecraft_worldgen_feature::template::Projection;

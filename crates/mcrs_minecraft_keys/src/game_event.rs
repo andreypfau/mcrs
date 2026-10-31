@@ -1,6 +1,6 @@
 // Written by `cargo run -p mcrs_minecraft_update -- keys`; do not edit.
 
-use mcrs_minecraft_core::{StaticResourceLocation, rl};
+use mcrs_minecraft_resource::{StaticResourceLocation, rl};
 
 pub const BLOCK_ACTIVATE: StaticResourceLocation = rl!("minecraft:block_activate");
 pub const BLOCK_ATTACH: StaticResourceLocation = rl!("minecraft:block_attach");

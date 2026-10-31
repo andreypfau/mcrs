@@ -1,6 +1,6 @@
 // Written by `cargo run -p mcrs_minecraft_update -- keys`; do not edit.
 
-use mcrs_minecraft_core::{ResourceKey, rl};
+use mcrs_minecraft_resource::{ResourceKey, rl};
 
 pub const ANGRY: ResourceKey<crate::variant::WolfSoundVariant, &'static str> = ResourceKey::new(rl!("minecraft:angry"));
 pub const BIG: ResourceKey<crate::variant::WolfSoundVariant, &'static str> = ResourceKey::new(rl!("minecraft:big"));

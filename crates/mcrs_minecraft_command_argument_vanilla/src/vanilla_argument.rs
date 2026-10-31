@@ -18,8 +18,8 @@ use mcrs_minecraft_command_argument::{TimeArgument, TimeMarkerArgument, Timeline
 use mcrs_minecraft_command_argument_block::BlockPredicateArgument;
 use mcrs_minecraft_command_argument_entity::EntityArgument;
 use mcrs_minecraft_command_tree::{ArgumentParser, NumberRange, ParserProperties, StringMode};
-use mcrs_minecraft_core::StaticResourceLocation;
 use mcrs_minecraft_keys::command_argument_type as parser;
+use mcrs_minecraft_resource::StaticResourceLocation;
 use mcrs_minecraft_wire::VarInt;
 
 /// The command tree of the vanilla argument types, with handlers of type `H`.
@@ -204,7 +204,7 @@ impl<L: VanillaLookup> ArgumentSet<Source<'_, L>> for VanillaArgument {
 }
 
 /// The suggestion type of the `commands` packet.
-const ASK_SERVER: StaticResourceLocation = mcrs_minecraft_core::rl!("minecraft:ask_server");
+const ASK_SERVER: StaticResourceLocation = mcrs_minecraft_resource::rl!("minecraft:ask_server");
 
 fn range<T>((min, max): (Option<T>, Option<T>)) -> NumberRange<T> {
     NumberRange { min, max }
@@ -430,7 +430,7 @@ mod tests {
     use serde::Deserialize;
     use std::collections::BTreeMap;
 
-    const ITEM: StaticResourceLocation = mcrs_minecraft_core::rl!("minecraft:item");
+    const ITEM: StaticResourceLocation = mcrs_minecraft_resource::rl!("minecraft:item");
 
     #[derive(Deserialize)]
     struct Registries {

@@ -1,11 +1,11 @@
 use std::sync::Arc;
 
 use fixedbitset::FixedBitSet;
-use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_item::component::common::MinMaxBounds;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::worldgen::WorldgenRandom;
 use mcrs_minecraft_registries::{KeySet, Named};
+use mcrs_minecraft_resource::ResourceLocation;
 
 pub use mcrs_minecraft_entity::spawn_condition::{SpawnCondition, SpawnSelector};
 

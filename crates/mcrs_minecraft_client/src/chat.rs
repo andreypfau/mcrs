@@ -20,7 +20,6 @@ use mcrs_minecraft_command_argument::TimeLookup;
 use mcrs_minecraft_command_argument_block::BlockLookup;
 use mcrs_minecraft_command_argument_vanilla::ClientGraph;
 use mcrs_minecraft_command_registry::RegistryLookup;
-use mcrs_minecraft_core::{ResourceKey, StaticResourceLocation};
 use mcrs_minecraft_dimension::Dimension;
 use mcrs_minecraft_network::client::{ClientConnection, ClientNetworkSystems};
 use mcrs_minecraft_protocol::entity::player::MessageSignature;
@@ -32,6 +31,7 @@ use mcrs_minecraft_protocol::text::Text;
 use mcrs_minecraft_protocol::uuid::Uuid;
 use mcrs_minecraft_protocol::{Bounded, VarInt, WritePacket};
 use mcrs_minecraft_registries::CurrentRegistries;
+use mcrs_minecraft_resource::{ResourceKey, StaticResourceLocation};
 
 use crate::chat_history::{self, CommandHistoryFile};
 use crate::chat_packets;

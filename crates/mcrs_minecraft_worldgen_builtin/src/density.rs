@@ -1,5 +1,5 @@
 use crate::terrain::{self, Coordinates};
-use mcrs_minecraft_core::{StaticResourceLocation, rl};
+use mcrs_minecraft_resource::{StaticResourceLocation, rl};
 use mcrs_minecraft_worldgen_density::node::distance::DistanceMetric;
 use mcrs_minecraft_worldgen_density::proto::MAX_REASONABLE_NOISE_VALUE;
 use mcrs_minecraft_worldgen_density::proto::build::{Df, Functions};

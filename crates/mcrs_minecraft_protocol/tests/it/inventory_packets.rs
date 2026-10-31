@@ -4,7 +4,6 @@ use crate::common::encoded;
 use std::collections::HashMap;
 use std::sync::LazyLock;
 
-use mcrs_minecraft_core::Id;
 use mcrs_minecraft_core::codec::Bounded as Range;
 use mcrs_minecraft_item::keys::{Item, MenuType};
 use mcrs_minecraft_protocol::item::Text as ItemText;
@@ -17,6 +16,7 @@ use mcrs_minecraft_protocol::packets::game::clientbound::*;
 use mcrs_minecraft_protocol::packets::game::serverbound::*;
 use mcrs_minecraft_protocol::text::Text;
 use mcrs_minecraft_protocol::{Bounded, Decode, Encode, ProtoStack, VarInt};
+use mcrs_minecraft_resource::Id;
 use mcrs_voxel::BlockPos;
 
 use crate::item::harness::{WireCodec, lookup, wire_form};

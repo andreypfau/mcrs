@@ -4,7 +4,7 @@ pub mod chunk_status;
 
 pub use chunk_status::ChunkStatus;
 
-use mcrs_minecraft_core::{Registered, RegistryKey, rl};
+use mcrs_minecraft_resource::{Registered, RegistryKey, rl};
 
 pub const CHUNK_STATUS: RegistryKey<crate::keys::ChunkStatus> =
     RegistryKey::new(rl!("minecraft:chunk_status"));

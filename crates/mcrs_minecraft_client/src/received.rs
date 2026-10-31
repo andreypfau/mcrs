@@ -1,13 +1,13 @@
 use std::borrow::Cow;
 
 use anyhow::Context as _;
-use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_network::join::Configuration;
 use mcrs_minecraft_protocol::Decode;
 use mcrs_minecraft_protocol::packets::configuration::clientbound::{
     ClientboundRegistryData, ClientboundUpdateTags, RegistryTags,
 };
 use mcrs_minecraft_registries::{Received, ReceivedTags};
+use mcrs_minecraft_resource::ResourceLocation;
 
 /// What a server sent of its registries during one configuration: a registry sent in several
 /// packets is joined in the order sent, and a later tag packet replaces the tags of the

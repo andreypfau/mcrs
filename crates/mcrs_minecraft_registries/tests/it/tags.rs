@@ -1,11 +1,11 @@
-use mcrs_minecraft_core::TagKey;
+use mcrs_minecraft_resource::TagKey;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::Path;
 
-use mcrs_minecraft_core::Id;
 use mcrs_minecraft_fixtures::vanilla_dir;
 use mcrs_minecraft_registries::{Declaration, Diagnostic, Missing, Referrer};
+use mcrs_minecraft_resource::Id;
 use serde::Deserialize;
 
 use crate::support::{

@@ -1,5 +1,5 @@
-use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_nbt::compound::NbtCompound;
+use mcrs_minecraft_resource::ResourceLocation;
 use serde::{Deserialize, Serialize};
 
 /// A registry id, or the dialog written inline.

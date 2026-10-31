@@ -1,8 +1,8 @@
 use crate::structures::index::EndBiomes;
 use mcrs_minecraft_block::keys::Block;
 use mcrs_minecraft_block::keys::block_tags;
-use mcrs_minecraft_core::{Id, Registered, RegistryValue, ResourceKey, TagId};
 use mcrs_minecraft_registries::{Diagnostic, Diagnostics, Registries, Registry, Resolver, Tags};
+use mcrs_minecraft_resource::{Id, Registered, RegistryValue, ResourceKey, TagId};
 
 pub struct FillIds {
     pub end: EndBiomes,

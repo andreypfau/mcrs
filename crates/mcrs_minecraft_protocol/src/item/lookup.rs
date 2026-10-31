@@ -1,6 +1,6 @@
 use mcrs_minecraft_block::definition::BlockDefinitions;
-use mcrs_minecraft_core::{Id, Registered, ResourceKey, ResourceLocation, TagId, TagKey};
 use mcrs_minecraft_registries::{BlockStates, Namer, Registries, ResolveError, Resolver};
+use mcrs_minecraft_resource::{Id, Registered, ResourceKey, ResourceLocation, TagId, TagKey};
 
 /// What a wire value is checked against. Both ends of a connection number a registry alike: a
 /// client holds the registries its server sent, in the order sent.

@@ -1,5 +1,4 @@
 use crate::item::harness::WireCodec;
-use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_item::keys::Item;
 use mcrs_minecraft_protocol::advancement::{
     Advancement, AdvancementProgress, AdvancementType, CriterionProgress, DisplayInfo,
@@ -12,6 +11,7 @@ use mcrs_minecraft_protocol::packets::game::serverbound::{
 };
 use mcrs_minecraft_protocol::{Decode, Encode};
 use mcrs_minecraft_registries::FromWire;
+use mcrs_minecraft_resource::ResourceLocation;
 
 use crate::item::harness::{block_lookup, hex, json_of, read_json};
 use crate::item::particle::{golden, to_hex};

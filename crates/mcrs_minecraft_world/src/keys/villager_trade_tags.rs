@@ -1,6 +1,6 @@
 // Written by `cargo run -p mcrs_minecraft_update -- keys`; do not edit.
 
-use mcrs_minecraft_core::{TagKey, rl};
+use mcrs_minecraft_resource::{TagKey, rl};
 
 pub const ARMORER_LEVEL_1: TagKey<crate::villager_trade::VillagerTrade, &'static str> = TagKey::new(rl!("minecraft:armorer/level_1"));
 pub const ARMORER_LEVEL_2: TagKey<crate::villager_trade::VillagerTrade, &'static str> = TagKey::new(rl!("minecraft:armorer/level_2"));

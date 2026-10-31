@@ -2,7 +2,6 @@ use bevy_ecs::entity::Entity;
 use bevy_ecs::message::Messages;
 use bevy_math::DVec3;
 use mcrs_minecraft_chat_server::ChatPlugin;
-use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
 use mcrs_minecraft_engine::ability::{PlayerFlying, PlayerGameMode};
 use mcrs_minecraft_engine::bus::{OutboundPlayerPacket, PacketPayload, PacketTarget, to};
 use mcrs_minecraft_engine::player_dimension_change;
@@ -18,6 +17,7 @@ use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundChunkCacheRa
 use mcrs_minecraft_protocol::setting::ChatMode;
 use mcrs_minecraft_protocol::text::TextContent;
 use mcrs_minecraft_protocol::uuid::Uuid;
+use mcrs_minecraft_resource::{ResourceKey, ResourceLocation};
 
 use crate::chat::{client_information, line};
 use crate::host_app::{self, PlayServer};

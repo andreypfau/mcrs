@@ -1,6 +1,6 @@
 use super::Piece::*;
 use super::{Pool, legacy, pool};
-use mcrs_minecraft_core::rl;
+use mcrs_minecraft_resource::rl;
 
 #[rustfmt::skip]
 pub const POOLS: &[Pool] = &[

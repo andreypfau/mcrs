@@ -1,7 +1,7 @@
 use crate::configuration_registries::ASSETS;
 use bevy_app::{App, AppExit, PluginGroup, Update};
 use bevy_ecs::message::MessageWriter;
-use mcrs_minecraft_core::{ResourceLocation, VERSION};
+use mcrs_minecraft_core::VERSION;
 use mcrs_minecraft_engine_server::{BoundAddress, run_server_loop};
 use mcrs_minecraft_network::join::{Join, Joined, join};
 use mcrs_minecraft_network::packet_io::PacketIo;
@@ -9,6 +9,7 @@ use mcrs_minecraft_protocol::packets::configuration::clientbound::ClientboundReg
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundLogin;
 use mcrs_minecraft_protocol::uuid::Uuid;
 use mcrs_minecraft_protocol::{Decode, Packet};
+use mcrs_minecraft_resource::ResourceLocation;
 use mcrs_minecraft_server::MinecraftServerPlugins;
 use mcrs_minecraft_vanilla_light::LightingPlugin;
 use mcrs_minecraft_vanilla_worldgen::WorldGenPlugin;

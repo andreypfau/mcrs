@@ -563,7 +563,6 @@ mod tests {
     use bevy_app::Update;
     use bevy_ecs::prelude::ResMut;
     use bytes::BytesMut;
-    use mcrs_minecraft_core::ResourceLocation;
     use mcrs_minecraft_protocol::Decode;
     use mcrs_minecraft_protocol::VarInt;
     use mcrs_minecraft_protocol::decode::PacketDecoder;
@@ -576,6 +575,7 @@ mod tests {
     use mcrs_minecraft_protocol::registry::Entry;
     use mcrs_minecraft_protocol::resource_pack::KnownPack;
     use mcrs_minecraft_protocol::text::Text;
+    use mcrs_minecraft_resource::ResourceLocation;
     use tokio::sync::mpsc;
 
     fn runtime() -> Runtime {

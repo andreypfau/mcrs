@@ -3,10 +3,11 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use mcrs_minecraft_core::{ResourceKey, ResourceLocation, VERSION};
+use mcrs_minecraft_core::VERSION;
 use mcrs_minecraft_registries::{
     Named, Refs, Registries, Resolve, ResolveError, Resolved, registry_value,
 };
+use mcrs_minecraft_resource::{ResourceKey, ResourceLocation};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;

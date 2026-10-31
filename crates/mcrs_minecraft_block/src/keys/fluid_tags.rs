@@ -1,6 +1,6 @@
 // Written by `cargo run -p mcrs_minecraft_update -- keys`; do not edit.
 
-use mcrs_minecraft_core::{TagKey, rl};
+use mcrs_minecraft_resource::{TagKey, rl};
 
 pub const AXOLOTL_TRIES_TO_FIND: TagKey<crate::keys::Fluid, &'static str> = TagKey::new(rl!("minecraft:axolotl_tries_to_find"));
 pub const BUBBLE_COLUMN_CAN_OCCUPY: TagKey<crate::keys::Fluid, &'static str> = TagKey::new(rl!("minecraft:bubble_column_can_occupy"));

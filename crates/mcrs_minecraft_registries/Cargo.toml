@@ -11,6 +11,7 @@ doctest = false
 bevy = ["dep:bevy_ecs"]
 
 [dependencies]
+mcrs_minecraft_resource.workspace = true
 bevy_ecs = { workspace = true, optional = true }
 derive-where.workspace = true
 fixedbitset.workspace = true

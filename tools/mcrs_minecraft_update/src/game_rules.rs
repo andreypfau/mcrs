@@ -37,7 +37,7 @@ pub fn definition_impl(json: &str) -> Result<String, String> {
         serde_json::from_str(json).map_err(|error| format!("{DEFINITIONS}: {error}"))?;
     let mut out = String::from(
         "\nuse crate::{GameRuleCategory, GameRuleDefinition, GameRuleValueType};\n\
-         use mcrs_minecraft_core::rl;\n\n\
+         use mcrs_minecraft_resource::rl;\n\n\
          impl GameRule {\n\
          #[expect(clippy::too_many_lines, reason = \"one arm per game rule the game ships\")]\n\
          pub const fn definition(self) -> &'static GameRuleDefinition {\n\

@@ -1,4 +1,5 @@
-use mcrs_minecraft_core::{RegionPos, ResourceKey};
+use mcrs_minecraft_core::RegionPos;
+use mcrs_minecraft_resource::ResourceKey;
 use mcrs_voxel::ColumnPos;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -10,8 +11,8 @@ use mcrs_minecraft_block::definition::BlockDefinitions;
 use mcrs_minecraft_block_entity::GeneratedBlockEntity;
 use mcrs_minecraft_chunk::palette::{BiomePalette, BlockPalette};
 use mcrs_minecraft_chunk::{VoxelId, VoxelPalette};
-use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_registries::{Registries, Registry};
+use mcrs_minecraft_resource::ResourceLocation;
 use std::time::Instant;
 
 use mcrs_minecraft_dimension::Dimension;

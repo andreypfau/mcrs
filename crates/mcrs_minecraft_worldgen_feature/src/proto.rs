@@ -18,9 +18,9 @@ use mcrs_minecraft_block_predicate::predicate::HeightmapName;
 use mcrs_minecraft_block_predicate::provider::{BlockStateProvider, UnitFloat};
 use mcrs_minecraft_core::Axis;
 use mcrs_minecraft_core::Direction;
-use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::Rotation;
 use mcrs_minecraft_core::codec::{Bounded, NonNegativeInt, default_true, is_default, non_empty};
+use mcrs_minecraft_resource::ResourceLocation;
 use mcrs_minecraft_value_provider::{BoundedIntProvider, FloatProvider, IntProvider, Weighted};
 use mcrs_minecraft_worldgen_density::proto::Either;
 use mcrs_minecraft_worldgen_surface::proto::CaveSurface;
@@ -218,7 +218,7 @@ pub struct PlacedFeature {
     pub placement: Vec<PlacementModifier>,
 }
 
-impl mcrs_minecraft_core::RegistryValue for PlacedFeature {
+impl mcrs_minecraft_resource::RegistryValue for PlacedFeature {
     type Registry = mcrs_minecraft_biome::PlacedFeature;
 }
 

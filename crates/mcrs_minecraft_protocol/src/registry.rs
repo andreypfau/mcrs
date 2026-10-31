@@ -1,6 +1,6 @@
 use crate::{Decode, Encode};
-use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_nbt::tag::NbtTag;
+use mcrs_minecraft_resource::ResourceLocation;
 use std::borrow::Cow;
 
 #[derive(Clone, Debug, Encode, Decode)]
@@ -15,11 +15,11 @@ mod tests {
     use crate::block::BlockStateNumber;
     use crate::entity::OptionalBlockState;
     use crate::{Result, VarInt};
-    use mcrs_minecraft_core::Id;
     use mcrs_minecraft_item::keys::DataComponentType;
     use mcrs_minecraft_item::keys::{DataComponentPredicateType, Item};
     use mcrs_minecraft_particle::keys::ParticleType;
     use mcrs_minecraft_registries::{decode_registry_id, encode_registry_id};
+    use mcrs_minecraft_resource::Id;
 
     type Decoder = fn(&mut &[u8]) -> Result<()>;
 

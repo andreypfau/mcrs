@@ -1,9 +1,9 @@
 use serde::{Deserialize, Serialize};
 
 use mcrs_minecraft_block_predicate::block_state::BlockState;
-use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_noise::proto::HashableF64;
 use mcrs_minecraft_registries::{KeySet, dispatch};
+use mcrs_minecraft_resource::ResourceLocation;
 use mcrs_minecraft_value_provider::VerticalAnchor;
 use mcrs_minecraft_worldgen_density::proto::DensityFunctionHolder;
 
@@ -15,7 +15,7 @@ pub enum MaterialRuleHolder {
     Owned(Box<MaterialRule>),
 }
 
-impl mcrs_minecraft_core::RegistryValue for MaterialRuleHolder {
+impl mcrs_minecraft_resource::RegistryValue for MaterialRuleHolder {
     type Registry = MaterialRule;
 }
 

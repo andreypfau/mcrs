@@ -17,7 +17,6 @@ use bevy_ecs::query::QueryState;
 use bevy_ecs::resource::Resource;
 use bevy_ecs::world::{World, WorldId};
 use mcrs_command::{Limits, SourceLists, Stage};
-use mcrs_minecraft_core::{Id, ResourceKey};
 use mcrs_minecraft_dimension::Dimension as DimensionKey;
 use mcrs_minecraft_dimension_environment::dimension_type::DimensionTypeFile;
 use mcrs_minecraft_engine::ability::PlayerGameMode;
@@ -29,6 +28,7 @@ use mcrs_minecraft_engine_world::session::{Session, SessionPlacement};
 use mcrs_minecraft_engine_world::world::dimension::{Dimension, DimensionTypeId};
 use mcrs_minecraft_engine_world::world::sub_app::DimensionLabel;
 use mcrs_minecraft_registries::CurrentRegistries;
+use mcrs_minecraft_resource::{Id, ResourceKey};
 
 /// The host's buffers for running command lines, reused from one run to the next.
 #[derive(Resource)]

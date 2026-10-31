@@ -20,7 +20,6 @@ use bevy_ecs::entity::Entity;
 use bevy_ecs::message::{MessageReader, MessageWriter};
 use bevy_ecs::prelude::{Commands, Query, Res, ResMut, With};
 use bevy_ecs::world::World;
-use mcrs_minecraft_core::ResourceKey;
 use mcrs_minecraft_dimension::Dimension as DimensionKey;
 use mcrs_minecraft_engine_world::entity::EntityUuid;
 use mcrs_minecraft_engine_world::entity::physics::Transform;
@@ -34,6 +33,7 @@ use mcrs_minecraft_protocol::entity::player::PlayerSpawnInfo;
 use mcrs_minecraft_protocol::packets::game::clientbound::{
     ClientboundChunkCacheRadius, ClientboundLogin,
 };
+use mcrs_minecraft_resource::ResourceKey;
 use tracing::{debug, info};
 
 /// The server clamps what a client asks for to its own limit, as vanilla does; ours is three

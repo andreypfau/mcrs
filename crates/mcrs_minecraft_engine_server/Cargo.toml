@@ -11,6 +11,7 @@ doctest = false
 workspace = true
 
 [dependencies]
+mcrs_minecraft_resource.workspace = true
 mcrs_minecraft_assets.workspace = true
 mcrs_minecraft_client_jar = { workspace = true, optional = true }
 mcrs_minecraft_core = { workspace = true, features = ["bevy"] }

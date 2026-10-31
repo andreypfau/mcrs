@@ -9,7 +9,7 @@ use mcrs_minecraft_command_argument::ResourceOrTag;
 use mcrs_minecraft_command_argument_block::{
     BlockError, BlockLookup, BlockPredicate, BlockPredicateArgument,
 };
-use mcrs_minecraft_core::StaticResourceLocation;
+use mcrs_minecraft_resource::StaticResourceLocation;
 use mcrs_minecraft_text::{IntoText, Text};
 use mcrs_voxel::BlockStateId;
 use std::sync::LazyLock;

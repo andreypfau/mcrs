@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
-use mcrs_minecraft_core::rl;
 use mcrs_minecraft_registries::{Ref, Refs, Resolved, registry_value};
+use mcrs_minecraft_resource::rl;
 use mcrs_minecraft_sound::{Sound, SoundEventValue};
 use serde::{Deserialize, Serialize};
 

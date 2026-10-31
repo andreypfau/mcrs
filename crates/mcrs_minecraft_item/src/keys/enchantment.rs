@@ -1,6 +1,6 @@
 // Written by `cargo run -p mcrs_minecraft_update -- keys`; do not edit.
 
-use mcrs_minecraft_core::{ResourceKey, rl};
+use mcrs_minecraft_resource::{ResourceKey, rl};
 
 pub const AQUA_AFFINITY: ResourceKey<crate::enchantment::EnchantmentData, &'static str> = ResourceKey::new(rl!("minecraft:aqua_affinity"));
 pub const BANE_OF_ARTHROPODS: ResourceKey<crate::enchantment::EnchantmentData, &'static str> = ResourceKey::new(rl!("minecraft:bane_of_arthropods"));

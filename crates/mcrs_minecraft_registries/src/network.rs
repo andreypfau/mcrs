@@ -1,5 +1,5 @@
-use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_nbt::serializer::WriteAdaptor;
+use mcrs_minecraft_resource::ResourceLocation;
 
 use crate::Registries;
 use crate::declaration::Codec;

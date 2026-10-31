@@ -1,6 +1,6 @@
 // Written by `cargo run -p mcrs_minecraft_update -- keys`; do not edit.
 
-use mcrs_minecraft_core::{ResourceKey, rl};
+use mcrs_minecraft_resource::{ResourceKey, rl};
 
 pub const ARMORER_LEVEL_1: ResourceKey<crate::villager_trade::TradeSet, &'static str> = ResourceKey::new(rl!("minecraft:armorer/level_1"));
 pub const ARMORER_LEVEL_2: ResourceKey<crate::villager_trade::TradeSet, &'static str> = ResourceKey::new(rl!("minecraft:armorer/level_2"));

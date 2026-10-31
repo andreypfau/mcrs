@@ -4,7 +4,6 @@ use bevy_state::app::{AppExtStates, StatesPlugin};
 use bevy_state::prelude::NextState;
 use bytes::BytesMut;
 use mcrs_minecraft_assets::AppState;
-use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::VERSION;
 use mcrs_minecraft_datapack::{VANILLA_PACK, VANILLA_ROOT};
 use mcrs_minecraft_engine_server::configuration::{
@@ -25,6 +24,7 @@ use mcrs_minecraft_protocol::{Decode, Encode, Packet};
 use mcrs_minecraft_registries::{
     CurrentRegistries, NetworkSnapshot, Registries, RegistryAdditions,
 };
+use mcrs_minecraft_resource::ResourceLocation;
 use mcrs_minecraft_server::MinecraftServerPlugins;
 use mcrs_minecraft_world::SyncedRegistries;
 use mcrs_minecraft_world::registry_load::{test_network, test_registries};

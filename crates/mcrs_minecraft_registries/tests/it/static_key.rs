@@ -1,4 +1,4 @@
-use mcrs_minecraft_core::Id;
+use mcrs_minecraft_resource::Id;
 
 mcrs_minecraft_registries::static_registry! {
     pub enum Fruit;
@@ -6,9 +6,9 @@ mcrs_minecraft_registries::static_registry! {
     Apple = "minecraft:apple",
 }
 
-impl mcrs_minecraft_core::Registered for Fruit {
-    const REGISTRY: mcrs_minecraft_core::RegistryKey<Self> =
-        mcrs_minecraft_core::RegistryKey::new(mcrs_minecraft_core::rl!("minecraft:fruit"));
+impl mcrs_minecraft_resource::Registered for Fruit {
+    const REGISTRY: mcrs_minecraft_resource::RegistryKey<Self> =
+        mcrs_minecraft_resource::RegistryKey::new(mcrs_minecraft_resource::rl!("minecraft:fruit"));
 }
 
 #[test]

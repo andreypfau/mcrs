@@ -5,8 +5,8 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::climate::ParameterList;
 use crate::overworld_preset::{nether_parameter_list, overworld_parameter_list};
-use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_registries::Registries;
+use mcrs_minecraft_resource::ResourceLocation;
 use std::sync::Arc;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

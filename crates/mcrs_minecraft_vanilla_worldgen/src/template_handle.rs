@@ -1,6 +1,6 @@
 use crate::template_asset::TemplateAsset;
 use bevy_asset::{AssetServer, Handle};
-use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_resource::ResourceLocation;
 
 /// The loaded template at `<namespace>/structure/<path>.nbt`, if one was
 /// requested and the file exists.

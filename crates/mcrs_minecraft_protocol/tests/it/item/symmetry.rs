@@ -1,7 +1,6 @@
 use crate::item::harness::WireCodec;
 use std::sync::Arc;
 
-use mcrs_minecraft_core::{Id, rl};
 use mcrs_minecraft_item::keys::DataComponentType;
 use mcrs_minecraft_protocol::item::WireLookup;
 use mcrs_minecraft_protocol::item::for_each_data_component;
@@ -12,6 +11,7 @@ use mcrs_minecraft_protocol::item::{
 };
 use mcrs_minecraft_protocol::{Decode, Encode, VarInt};
 use mcrs_minecraft_registries::{FromWire, Named, Ref, Resolved, Wire};
+use mcrs_minecraft_resource::{Id, rl};
 use rand::rngs::StdRng;
 use rand::seq::IndexedRandom;
 use rand::{RngExt, SeedableRng};

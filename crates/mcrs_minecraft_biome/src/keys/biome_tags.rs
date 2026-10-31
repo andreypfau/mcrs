@@ -1,6 +1,6 @@
 // Written by `cargo run -p mcrs_minecraft_update -- keys`; do not edit.
 
-use mcrs_minecraft_core::{TagKey, rl};
+use mcrs_minecraft_resource::{TagKey, rl};
 
 pub const ALLOWS_SURFACE_SLIME_SPAWNS: TagKey<crate::Biome, &'static str> =
     TagKey::new(rl!("minecraft:allows_surface_slime_spawns"));

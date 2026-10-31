@@ -1,8 +1,6 @@
 use std::fmt;
 use std::marker::PhantomData;
 
-use mcrs_minecraft_core::ResourceKey;
-use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::codec::{Validate, default_true, is_default};
 use mcrs_minecraft_dimension::Dimension;
 use mcrs_minecraft_entity::keys::EntityType;
@@ -12,6 +10,8 @@ use mcrs_minecraft_item::keys::DataComponentType;
 use mcrs_minecraft_item::{ComponentPredicate, DyeColor, ItemComponentValue, RgbInt};
 use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_registries::Named;
+use mcrs_minecraft_resource::ResourceKey;
+use mcrs_minecraft_resource::ResourceLocation;
 use serde::de::{DeserializeSeed, Error as _, MapAccess, SeqAccess, Visitor, value};
 use serde::ser::SerializeMap;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};

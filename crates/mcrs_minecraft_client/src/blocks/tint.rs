@@ -252,7 +252,7 @@ mod tests {
         let id = test_registries()
             .registry::<BiomeFile>()
             .unwrap()
-            .by_name(&mcrs_minecraft_core::ResourceLocation::read(biome).unwrap())
+            .by_name(&mcrs_minecraft_resource::ResourceLocation::read(biome).unwrap())
             .unwrap_or_else(|| panic!("{biome} is a biome"));
         TINTS[id.index()]
     }

@@ -8,6 +8,7 @@ edition.workspace = true
 workspace = true
 
 [dependencies]
+mcrs_minecraft_resource.workspace = true
 mcrs_voxel.workspace = true
 mcrs_minecraft_game_mode.workspace = true
 mcrs_minecraft_entity.workspace = true

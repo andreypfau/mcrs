@@ -7,7 +7,7 @@ use std::sync::Arc;
 
 use derive_where::derive_where;
 use fixedbitset::FixedBitSet;
-use mcrs_minecraft_core::{Id, ResourceLocation, TagId, TagKey};
+use mcrs_minecraft_resource::{Id, ResourceLocation, TagId, TagKey};
 
 use crate::registry::MAX_ENTRIES;
 

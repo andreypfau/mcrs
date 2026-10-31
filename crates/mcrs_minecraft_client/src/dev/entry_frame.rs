@@ -1,6 +1,6 @@
 use bevy::prelude::*;
-use mcrs_minecraft_core::resource_location::ResourceLocation;
-use mcrs_minecraft_core::rl;
+use mcrs_minecraft_resource::ResourceLocation;
+use mcrs_minecraft_resource::rl;
 
 use crate::gui::debug::{DebugScreenDisplayer, entry_terrain};
 use mcrs_minecraft_render_probe::probe::{self, CpuTimings, GpuTimings};

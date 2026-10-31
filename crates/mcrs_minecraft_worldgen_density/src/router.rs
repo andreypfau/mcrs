@@ -6,9 +6,9 @@ use crate::proto::{DensityFunctionHolder, ValueRange};
 use glam::IVec3;
 use mcrs_minecraft_block_predicate::block_state::BlockState;
 use mcrs_minecraft_chunk::VoxelId;
-use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_noise::interval::Interval;
 use mcrs_minecraft_noise::sample_grid::SampleGrid;
+use mcrs_minecraft_resource::ResourceLocation;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
@@ -146,7 +146,7 @@ pub struct NoiseGeneratorSettings {
     pub debug_functions: Vec<DebugFunction>,
 }
 
-impl mcrs_minecraft_core::RegistryValue for NoiseGeneratorSettings {
+impl mcrs_minecraft_resource::RegistryValue for NoiseGeneratorSettings {
     type Registry = mcrs_minecraft_dimension::NoiseSettings;
 }
 

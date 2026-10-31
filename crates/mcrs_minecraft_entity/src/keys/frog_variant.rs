@@ -1,6 +1,6 @@
 // Written by `cargo run -p mcrs_minecraft_update -- keys`; do not edit.
 
-use mcrs_minecraft_core::{ResourceKey, rl};
+use mcrs_minecraft_resource::{ResourceKey, rl};
 
 pub const COLD: ResourceKey<crate::variant::FrogVariant, &'static str> = ResourceKey::new(rl!("minecraft:cold"));
 pub const TEMPERATE: ResourceKey<crate::variant::FrogVariant, &'static str> = ResourceKey::new(rl!("minecraft:temperate"));

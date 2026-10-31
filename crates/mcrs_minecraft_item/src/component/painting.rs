@@ -1,6 +1,6 @@
-use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::codec::Bounded;
 use mcrs_minecraft_registries::{Ref, Refs, Resolved, registry_value};
+use mcrs_minecraft_resource::ResourceLocation;
 use serde::{Deserialize, Serialize};
 
 use crate::Text;

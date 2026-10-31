@@ -1,6 +1,6 @@
 use mcrs_minecraft_core::codec::default_true;
-use mcrs_minecraft_core::{ResourceLocation, rl};
 use mcrs_minecraft_entity::keys::EntityType;
+use mcrs_minecraft_resource::{ResourceLocation, rl};
 use std::sync::Arc;
 
 use mcrs_minecraft_nbt::{BYTE_ID, COMPOUND_ID, FLOAT_ID, STRING_ID};

@@ -1,6 +1,6 @@
 use mcrs_minecraft_biome_file::BiomeFile;
-use mcrs_minecraft_core::Registered;
-use mcrs_minecraft_core::ResourceKey;
+use mcrs_minecraft_resource::Registered;
+use mcrs_minecraft_resource::ResourceKey;
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
 
@@ -12,7 +12,6 @@ use mcrs_minecraft_assets::asset::read_whole;
 use mcrs_minecraft_assets::packs::{PackLayers, layered_file_source, layered_reader};
 use mcrs_minecraft_biome::source::{BiomeSource, MultiNoiseBiomeSource};
 use mcrs_minecraft_block::keys::Block;
-use mcrs_minecraft_core::{Id, RegistryKey, RegistryValue, ResourceLocation, TagId, TagKey, rl};
 use mcrs_minecraft_datapack::{Level, PackDiagnostic, StackedPack, VANILLA_PACK};
 use mcrs_minecraft_dimension_environment::dimension_type::DimensionTypeFile;
 use mcrs_minecraft_environment::timeline::Timeline;
@@ -23,6 +22,9 @@ use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_registries::{
     CurrentRegistries, Declaration, Diagnostic, IdSet, NetworkSnapshot, Registries,
     RegistryAdditions, Resolve, Resolver, Stage, insert_entry,
+};
+use mcrs_minecraft_resource::{
+    Id, RegistryKey, RegistryValue, ResourceLocation, TagId, TagKey, rl,
 };
 use mcrs_minecraft_world::SyncedRegistries;
 use mcrs_minecraft_world::registry_load::{

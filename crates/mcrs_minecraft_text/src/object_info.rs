@@ -1,5 +1,5 @@
-use mcrs_minecraft_core::{ResourceLocation, rl};
 use mcrs_minecraft_nbt::nbt_flag;
+use mcrs_minecraft_resource::{ResourceLocation, rl};
 use serde::{Deserialize, Serialize};
 
 use crate::discriminator::{object_atlas, object_player};

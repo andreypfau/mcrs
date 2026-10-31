@@ -24,9 +24,9 @@ use mcrs_minecraft_block_predicate::provider::UnitFloat;
 use mcrs_minecraft_core::codec::{
     Bounded, NonNegativeInt, PositiveFloat, PositiveInt, is_default, non_empty,
 };
-use mcrs_minecraft_core::{ResourceLocation, StaticResourceLocation};
 use mcrs_minecraft_entity::spawn::{MobCategory, SpawnerData};
 use mcrs_minecraft_registries::{KeySet, dispatch};
+use mcrs_minecraft_resource::{ResourceLocation, StaticResourceLocation};
 use mcrs_minecraft_value_provider::{HeightProvider, Weighted};
 use mcrs_minecraft_worldgen_density::proto::Either;
 use mcrs_minecraft_worldgen_feature::placement::DecorationStep;
@@ -191,7 +191,7 @@ pub enum Structure {
     },
 }
 
-impl mcrs_minecraft_core::RegistryValue for Structure {
+impl mcrs_minecraft_resource::RegistryValue for Structure {
     type Registry = mcrs_minecraft_entity::spawn_condition::Structure;
 }
 

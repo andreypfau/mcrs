@@ -1,13 +1,14 @@
 use bevy_ecs::entity::Entity;
 use bevy_ecs::prelude::{Component, With};
 use bevy_ecs::world::World;
-use mcrs_minecraft_core::{ResourceKey, VERSION};
+use mcrs_minecraft_core::VERSION;
 use mcrs_minecraft_engine_world::entity::physics::Transform;
 use mcrs_minecraft_engine_world::entity::player::Player;
 use mcrs_minecraft_engine_world::world::dimension::InDimension;
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_protocol::item::{ItemStackValue, ItemStackWithSlot};
 use mcrs_minecraft_registries::Named;
+use mcrs_minecraft_resource::ResourceKey;
 use mcrs_minecraft_world::save::{PlayerDat, read_player_dat, write_player_dat};
 use std::collections::BTreeMap;
 use tracing::error;

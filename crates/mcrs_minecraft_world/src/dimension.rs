@@ -3,10 +3,10 @@ use std::collections::BTreeMap;
 use serde::{Deserialize, Serialize};
 
 use crate::worldgen::chunk_generator::ChunkGenerator;
-use mcrs_minecraft_core::ResourceKey;
 use mcrs_minecraft_dimension::Dimension;
 use mcrs_minecraft_dimension::DimensionType;
 use mcrs_minecraft_registries::{Refs, Registries, Resolved, registry_value};
+use mcrs_minecraft_resource::ResourceKey;
 
 #[registry_value]
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -17,7 +17,7 @@ pub struct DimensionEntry<M: Refs = Resolved> {
     pub generator: ChunkGenerator<M>,
 }
 
-impl mcrs_minecraft_core::RegistryValue for DimensionEntry {
+impl mcrs_minecraft_resource::RegistryValue for DimensionEntry {
     type Registry = mcrs_minecraft_dimension::Dimension;
 }
 

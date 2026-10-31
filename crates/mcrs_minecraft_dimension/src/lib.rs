@@ -2,8 +2,8 @@
 pub mod keys;
 
 use mcrs_minecraft_block::keys::Block;
-use mcrs_minecraft_core::Id;
 use mcrs_minecraft_registries::IdSet;
+use mcrs_minecraft_resource::Id;
 use mcrs_minecraft_value_provider::IntProvider;
 use serde::{Deserialize, Serialize};
 

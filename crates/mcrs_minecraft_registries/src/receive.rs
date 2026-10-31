@@ -1,9 +1,9 @@
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
-use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_datapack::ReadError;
 use mcrs_minecraft_nbt::tag::NbtTag;
+use mcrs_minecraft_resource::ResourceLocation;
 
 use crate::declaration::{Declaration, Source, entry_path};
 use crate::diagnostics::{Diagnostic, Diagnostics};

@@ -2,10 +2,9 @@ use mcrs_minecraft_registries::dispatch;
 use std::fmt;
 
 use glam::IVec3;
-use mcrs_minecraft_core::{
-    BoundingBox, Direction, Mirror, ResourceLocation, Rotation, mirror, rotation,
-};
+use mcrs_minecraft_core::{BoundingBox, Direction, Mirror, Rotation, mirror, rotation};
 use mcrs_minecraft_nbt::{nbt_flag, nbt_int_array};
+use mcrs_minecraft_resource::ResourceLocation;
 use mcrs_minecraft_worldgen_feature::template::Projection;
 use mcrs_voxel::ColumnPos;
 use serde::de::{DeserializeSeed, Error as _};
@@ -2266,9 +2265,9 @@ mod tests {
     use crate::Structure;
     use crate::frozen::{FrozenStructure, PoolId};
     use mcrs_minecraft_block_predicate::provider::Holder;
-    use mcrs_minecraft_core::rl;
     use mcrs_minecraft_nbt::deserializer::Deserializer as NbtDeserializer;
     use mcrs_minecraft_nbt::{to_bytes, to_nbt_compound};
+    use mcrs_minecraft_resource::rl;
     use mcrs_minecraft_worldgen_feature::placement::DecorationStep;
     use mcrs_voxel::BlockPos;
 

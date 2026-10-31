@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 
-use mcrs_minecraft_core::ResourceKey;
 use mcrs_minecraft_registries::{Refs, Resolved, registry_value};
+use mcrs_minecraft_resource::ResourceKey;
 use serde::{Deserialize, Serialize};
 
 use crate::dimension::DimensionEntry;

@@ -1,6 +1,6 @@
-use crate::resource_location::ResourceLocation;
-use std::fmt;
-use std::marker::PhantomData;
+use crate::ResourceLocation;
+use core::fmt;
+use core::marker::PhantomData;
 
 pub struct RegistryKey<T> {
     location: ResourceLocation<&'static str>,

@@ -1,9 +1,9 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use mcrs_minecraft_block::keys::Block;
-use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_protocol::packets::configuration::clientbound::ClientboundUpdateTags;
 use mcrs_minecraft_registries::Registries;
+use mcrs_minecraft_resource::ResourceLocation;
 use mcrs_minecraft_world::registry_load::{test_network, test_registries};
 
 use crate::configuration_registries::{json_files, sent_update_tags, shipped_packs};
@@ -127,7 +127,7 @@ fn the_server_sends_tag_members_in_tag_order() {
     let mut out_of_id_order = Vec::new();
     for group in &sent_blocks.tags {
         let id = blocks
-            .id(&mcrs_minecraft_core::TagKey::from_location(key(group
+            .id(&mcrs_minecraft_resource::TagKey::from_location(key(group
                 .name
                 .as_str())))
             .expect("a sent block tag is in the set");

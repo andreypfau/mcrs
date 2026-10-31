@@ -1,8 +1,8 @@
 use bevy::prelude::*;
 use bevy::render::renderer::RenderAdapterInfo;
 use bevy::window::PrimaryWindow;
-use mcrs_minecraft_core::resource_location::ResourceLocation;
-use mcrs_minecraft_core::rl;
+use mcrs_minecraft_resource::ResourceLocation;
+use mcrs_minecraft_resource::rl;
 
 use super::DebugScreenDisplayer;
 

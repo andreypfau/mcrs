@@ -5,9 +5,9 @@ use bytes::Buf;
 use glam::IVec3;
 use mcrs_minecraft_block_predicate::provider::Holder;
 use mcrs_minecraft_core::BoundingBox;
-use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::Rotation;
 use mcrs_minecraft_fixtures::fixture;
+use mcrs_minecraft_resource::ResourceLocation;
 use mcrs_minecraft_worldgen_feature::template::Projection;
 use mcrs_minecraft_worldgen_testing::dump_string;
 

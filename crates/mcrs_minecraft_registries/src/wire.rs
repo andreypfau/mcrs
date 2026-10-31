@@ -6,7 +6,7 @@ use std::sync::Arc;
 use derive_where::derive_where;
 use mcrs_minecraft_core::Bounded;
 use mcrs_minecraft_core::codec::CompactList;
-use mcrs_minecraft_core::{Id, Registered, ResourceLocation, TagKey};
+use mcrs_minecraft_resource::{Id, Registered, ResourceLocation, TagKey};
 use mcrs_minecraft_wire::{Context, Decode, Encode, ErrorKind, Result, VarInt};
 
 use crate::Namer;

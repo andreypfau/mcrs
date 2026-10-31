@@ -143,7 +143,7 @@ pub struct TimelineArgument {
 
 impl TimelineArgument {
     pub const RESOURCE: ResourceArgument = ResourceArgument {
-        registry: mcrs_minecraft_core::rl!("minecraft:timeline"),
+        registry: mcrs_minecraft_resource::rl!("minecraft:timeline"),
     };
 
     /// Suggests the timelines of the selected clock.

@@ -1,6 +1,6 @@
 use crate::interval::Interval;
-use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::{codec::Validate, validated};
+use mcrs_minecraft_resource::ResourceLocation;
 use serde::{Deserialize, Serialize};
 
 validated!(NoiseParam);

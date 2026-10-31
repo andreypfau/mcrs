@@ -1,5 +1,5 @@
 use crate::argument_parser::ArgumentParser;
-use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_resource::ResourceLocation;
 use std::borrow::Cow;
 
 /// What a node of the command tree reads.

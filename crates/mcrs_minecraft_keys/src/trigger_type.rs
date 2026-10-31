@@ -1,6 +1,6 @@
 // Written by `cargo run -p mcrs_minecraft_update -- keys`; do not edit.
 
-use mcrs_minecraft_core::{StaticResourceLocation, rl};
+use mcrs_minecraft_resource::{StaticResourceLocation, rl};
 
 pub const IMPOSSIBLE: StaticResourceLocation = rl!("minecraft:impossible");
 pub const PLAYER_KILLED_ENTITY: StaticResourceLocation = rl!("minecraft:player_killed_entity");

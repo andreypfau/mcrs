@@ -4,9 +4,9 @@ pub mod keys;
 
 pub use block_sound_set::BlockSoundSet;
 
-use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::codec::lenient_float;
 use mcrs_minecraft_registries::Ref;
+use mcrs_minecraft_resource::ResourceLocation;
 use mcrs_minecraft_wire::{Decode, Encode};
 use serde::{Deserialize, Serialize};
 

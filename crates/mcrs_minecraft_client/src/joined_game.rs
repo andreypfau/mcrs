@@ -1,6 +1,5 @@
 use anyhow::Context as _;
 use bevy::prelude::*;
-use mcrs_minecraft_core::{Id, ResourceKey};
 use mcrs_minecraft_dimension::{Dimension, DimensionType};
 use mcrs_minecraft_network::client::close_connection_later;
 use mcrs_minecraft_network::event::Received;
@@ -10,6 +9,7 @@ use mcrs_minecraft_protocol::packets::game::clientbound::{
     ClientboundLogin, ClientboundRespawn, ClientboundSetEntityData,
 };
 use mcrs_minecraft_registries::{CurrentRegistries, Namer, Registries};
+use mcrs_minecraft_resource::{Id, ResourceKey};
 
 #[derive(Component, Clone, Debug)]
 pub struct JoinedGame {
@@ -130,7 +130,6 @@ fn on_set_entity_data(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use mcrs_minecraft_core::ResourceLocation;
     use mcrs_minecraft_dimension::keys::DIMENSION_TYPE;
     use mcrs_minecraft_dimension::keys::dimension::{OVERWORLD, THE_NETHER};
     use mcrs_minecraft_entity::keys::CAT_VARIANT;
@@ -141,6 +140,7 @@ mod tests {
     use mcrs_minecraft_protocol::entity::{MetaDataValue, Metadata, MetadataEntry};
     use mcrs_minecraft_protocol::{Encode, VarInt};
     use mcrs_minecraft_registries::Declaration;
+    use mcrs_minecraft_resource::ResourceLocation;
     use std::sync::Arc;
 
     fn name(text: &str) -> ResourceLocation<Arc<str>> {

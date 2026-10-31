@@ -1,8 +1,8 @@
 use bevy_ecs::component::Component;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::Message;
-use mcrs_minecraft_core::ResourceKey;
 use mcrs_minecraft_dimension::Dimension;
+use mcrs_minecraft_resource::ResourceKey;
 
 use crate::entity::physics::Transform;
 

@@ -13,8 +13,8 @@ mod village_taiga;
 
 use mcrs_minecraft_biome_file::PlacedFeatureKey;
 use mcrs_minecraft_core::codec::Bounded;
-use mcrs_minecraft_core::resource_location::InvalidResourceLocation;
-use mcrs_minecraft_core::{ResourceKey, ResourceLocation, StaticResourceLocation, rl};
+use mcrs_minecraft_resource::InvalidResourceLocation;
+use mcrs_minecraft_resource::{ResourceKey, ResourceLocation, StaticResourceLocation, rl};
 use mcrs_minecraft_worldgen_feature::pool::{PoolElement, PoolEntry, SingleElement, TemplatePool};
 use mcrs_minecraft_worldgen_feature::proto::StructureProcessorList;
 use mcrs_minecraft_worldgen_feature::template::Projection;

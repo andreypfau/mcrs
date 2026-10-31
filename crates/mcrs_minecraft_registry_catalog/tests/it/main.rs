@@ -2,8 +2,8 @@
 use std::collections::BTreeMap;
 
 use mcrs_minecraft_block::keys::Block;
-use mcrs_minecraft_core::Id;
 use mcrs_minecraft_registry_catalog::STATIC_REGISTRIES;
+use mcrs_minecraft_resource::Id;
 use serde::Deserialize;
 
 #[derive(Deserialize)]

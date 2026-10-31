@@ -1,7 +1,7 @@
 use mcrs_minecraft_core::BoundingBox;
-use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::mth::{fast_inv_sqrt, floor_div};
 use mcrs_minecraft_noise::SampleGrid;
+use mcrs_minecraft_resource::ResourceLocation;
 use mcrs_minecraft_worldgen_density::proto::{DensityFunctionHolder, ProtoDensityFunction};
 use mcrs_minecraft_worldgen_feature::template::Projection;
 use mcrs_minecraft_worldgen_structure::TerrainAdaptation;
@@ -341,7 +341,7 @@ fn contains_beardifier(
 mod tests {
     use super::*;
     use glam::IVec3;
-    use mcrs_minecraft_core::rl;
+    use mcrs_minecraft_resource::rl;
     use mcrs_minecraft_worldgen_density::proto::build::Df;
 
     const CHUNK: ColumnPos = ColumnPos::new(0, 0);

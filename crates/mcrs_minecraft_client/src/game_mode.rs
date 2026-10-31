@@ -128,11 +128,11 @@ fn on_entity_event(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use mcrs_minecraft_core::Id;
     use mcrs_minecraft_game_mode::OptGameMode;
     use mcrs_minecraft_network::ConnectionState;
     use mcrs_minecraft_network::metrics::PacketDispatcher;
     use mcrs_minecraft_protocol::{Encode, Packet, VarInt};
+    use mcrs_minecraft_resource::Id;
 
     const PLAYER_ID: i32 = 7;
 

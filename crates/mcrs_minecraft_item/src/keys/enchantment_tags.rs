@@ -1,6 +1,6 @@
 // Written by `cargo run -p mcrs_minecraft_update -- keys`; do not edit.
 
-use mcrs_minecraft_core::{TagKey, rl};
+use mcrs_minecraft_resource::{TagKey, rl};
 
 pub const CURSE: TagKey<crate::enchantment::EnchantmentData, &'static str> = TagKey::new(rl!("minecraft:curse"));
 pub const DOUBLE_TRADE_PRICE: TagKey<crate::enchantment::EnchantmentData, &'static str> = TagKey::new(rl!("minecraft:double_trade_price"));

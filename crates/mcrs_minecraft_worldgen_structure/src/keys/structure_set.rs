@@ -1,6 +1,6 @@
 // Written by `cargo run -p mcrs_minecraft_update -- keys`; do not edit.
 
-use mcrs_minecraft_core::{ResourceKey, rl};
+use mcrs_minecraft_resource::{ResourceKey, rl};
 
 pub const ABANDONED_CAMP: ResourceKey<crate::StructureSet, &'static str> = ResourceKey::new(rl!("minecraft:abandoned_camp"));
 pub const ANCIENT_CITIES: ResourceKey<crate::StructureSet, &'static str> = ResourceKey::new(rl!("minecraft:ancient_cities"));

@@ -18,7 +18,7 @@ use std::sync::{Arc, Barrier};
 use std::time::Instant;
 
 use mcrs_minecraft_biome::source::{BiomeSource, build_beta_lookup_table};
-use mcrs_minecraft_core::Id;
+use mcrs_minecraft_resource::Id;
 use mcrs_minecraft_worldgen_carver::config::CarverConfig;
 use mcrs_minecraft_worldgen_density::program::Workspace;
 use mcrs_minecraft_worldgen_density::router::NoiseRouter;

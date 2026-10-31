@@ -4,11 +4,11 @@ use crate::proto::{
 use glam::IVec3;
 use mcrs_minecraft_block_predicate::block_state::BlockState;
 use mcrs_minecraft_chunk::VoxelId;
-use mcrs_minecraft_core::{ResourceKey, ResourceLocation, rl};
 use mcrs_minecraft_noise::proto::{HashableF64, NoiseHolder, NoiseParam};
 use mcrs_minecraft_noise::stack::{NoiseStack, Octave};
 use mcrs_minecraft_random::{Random, RandomSource};
 use mcrs_minecraft_registries::KeySet;
+use mcrs_minecraft_resource::{ResourceKey, ResourceLocation, rl};
 use mcrs_minecraft_value_provider::HeightContext;
 use mcrs_minecraft_worldgen_density::cell::CellBounds;
 use mcrs_minecraft_worldgen_density::compile::build_router_with;

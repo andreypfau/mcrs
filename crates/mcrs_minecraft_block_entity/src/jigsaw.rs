@@ -1,4 +1,4 @@
-use mcrs_minecraft_core::{ResourceLocation, rl};
+use mcrs_minecraft_resource::{ResourceLocation, rl};
 use serde::{Deserialize, Serialize};
 
 /// The default of a jigsaw's name and target: labels of attachment points, not registry entries.

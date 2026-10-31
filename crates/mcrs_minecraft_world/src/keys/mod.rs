@@ -11,7 +11,7 @@ pub mod villager_trade_tags;
 pub mod world_preset;
 pub mod world_preset_tags;
 
-use mcrs_minecraft_core::{Registered, RegistryKey, rl};
+use mcrs_minecraft_resource::{Registered, RegistryKey, rl};
 
 pub const CHAT_TYPE: RegistryKey<crate::chat_type::ChatType> =
     RegistryKey::new(rl!("minecraft:chat_type"));

@@ -1,6 +1,6 @@
-use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::codec::is_default;
 use mcrs_minecraft_registries::{Refs, Resolved, registry_value};
+use mcrs_minecraft_resource::ResourceLocation;
 use mcrs_minecraft_sound::Sound;
 use serde::{Deserialize, Serialize};
 

@@ -11,7 +11,6 @@ use crate::program::{
 };
 use crate::proto::{DensityFunctionHolder, ProtoDensityFunction, ProtoSpline};
 use crate::router::{Aquifers, NoiseGeneratorSettings, NoiseRouter, RouterBlocks};
-use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::mth;
 use mcrs_minecraft_noise::blended::BlendedNoise;
 use mcrs_minecraft_noise::interval::Interval;
@@ -23,6 +22,7 @@ use mcrs_minecraft_noise::stack::{NoiseStack, Octave};
 use mcrs_minecraft_noise::strata::{Axes, NO_AXES, axis_bit};
 use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_random::{Random, RandomSource};
+use mcrs_minecraft_resource::ResourceLocation;
 use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
 
@@ -1269,7 +1269,7 @@ enum Key {
 #[cfg(test)]
 pub(crate) mod tests {
     use mcrs_minecraft_chunk::VoxelId;
-    use mcrs_minecraft_core::rl;
+    use mcrs_minecraft_resource::rl;
     pub(crate) const TEST_BLOCKS: RouterBlocks = RouterBlocks {
         default_block: VoxelId(1),
         default_fluid: VoxelId(2),

@@ -8,7 +8,6 @@ use bevy_ecs::prelude::*;
 use bevy_math::{DVec3, Vec2};
 use bevy_state::prelude::NextState;
 use mcrs_minecraft_assets::AppState;
-use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
 use mcrs_minecraft_engine::bridge::{bridge_inbound_to_channel, bridge_player_attach};
 use mcrs_minecraft_engine::bus::{InboundPlayerSpawn, PlayerTransferSnapshot};
 use mcrs_minecraft_engine::channel_types::{DimChannelsResource, ToDim};
@@ -21,6 +20,7 @@ use mcrs_minecraft_engine_world::session::PlayerSession;
 use mcrs_minecraft_engine_world::session::{Place, PlayerSessionCounter, SessionPlacement};
 use mcrs_minecraft_engine_world::world::sub_app::{DimSpawnQueue, DimSpawnRequest};
 use mcrs_minecraft_protocol::uuid::Uuid;
+use mcrs_minecraft_resource::{ResourceKey, ResourceLocation};
 
 use mcrs_minecraft_engine_server::configuration::emit_initial_player_spawn;
 

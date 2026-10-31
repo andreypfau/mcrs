@@ -1,6 +1,6 @@
 // Written by `cargo run -p mcrs_minecraft_update -- keys`; do not edit.
 
-use mcrs_minecraft_core::{ResourceKey, rl};
+use mcrs_minecraft_resource::{ResourceKey, rl};
 
 pub const BOUNCY: ResourceKey<crate::sulfur_cube_archetype::SulfurCubeArchetype, &'static str> = ResourceKey::new(rl!("minecraft:bouncy"));
 pub const EXPLOSIVE: ResourceKey<crate::sulfur_cube_archetype::SulfurCubeArchetype, &'static str> = ResourceKey::new(rl!("minecraft:explosive"));

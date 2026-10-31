@@ -1,6 +1,6 @@
 // Written by `cargo run -p mcrs_minecraft_update -- keys`; do not edit.
 
-use mcrs_minecraft_core::{StaticResourceLocation, rl};
+use mcrs_minecraft_resource::{StaticResourceLocation, rl};
 
 pub const ALLAY_CAN_LISTEN: StaticResourceLocation = rl!("minecraft:allay_can_listen");
 pub const IGNORE_VIBRATIONS_SNEAKING: StaticResourceLocation = rl!("minecraft:ignore_vibrations_sneaking");

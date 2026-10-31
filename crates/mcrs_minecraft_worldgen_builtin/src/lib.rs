@@ -13,12 +13,12 @@ mod template_pool;
 mod terrain;
 
 use mcrs_minecraft_biome_file::BiomeFile;
-use mcrs_minecraft_core::ResourceLocation;
-use mcrs_minecraft_core::resource_location::InvalidResourceLocation;
 use mcrs_minecraft_environment::attribute::AttributeError;
 use mcrs_minecraft_nbt::nbt_compress::to_gzip_bytes_vec;
 use mcrs_minecraft_noise::proto::NoiseParam;
 use mcrs_minecraft_registries::Named;
+use mcrs_minecraft_resource::InvalidResourceLocation;
+use mcrs_minecraft_resource::ResourceLocation;
 use mcrs_minecraft_worldgen_density::proto::DensityFunctionHolder;
 use mcrs_minecraft_worldgen_density::proto::build::Functions;
 use mcrs_minecraft_worldgen_density::router::NoiseGeneratorSettings;

@@ -5,7 +5,6 @@ use std::collections::BTreeMap;
 use std::sync::{Arc, LazyLock};
 
 use mcrs_minecraft_core::codec::Bounded;
-use mcrs_minecraft_core::rl;
 use mcrs_minecraft_item::keys::DataComponentType;
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::tag::NbtTag;
@@ -14,6 +13,7 @@ use mcrs_minecraft_protocol::item::{
     PaintingVariantValue, Text, WireRef, hash_ops,
 };
 use mcrs_minecraft_registries::{Named, Ref};
+use mcrs_minecraft_resource::rl;
 
 use crate::item::harness::{from_json, hex, lookup, named, nbt_tree, persistent_json};
 

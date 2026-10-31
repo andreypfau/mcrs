@@ -2,8 +2,8 @@ use crate::identifier::Identifier;
 use core::fmt;
 use mcrs_command::Span;
 use mcrs_command::{ErrorKind, LibraryError, StringSpan, StringValue, SyntaxError};
-use mcrs_minecraft_core::StaticResourceLocation;
 use mcrs_minecraft_nbt::tag::NbtTag;
+use mcrs_minecraft_resource::StaticResourceLocation;
 use mcrs_minecraft_snbt::SnbtError;
 use mcrs_minecraft_text::{Color, IntoText, Text, TranslateArg};
 

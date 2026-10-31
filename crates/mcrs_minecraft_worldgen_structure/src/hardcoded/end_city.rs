@@ -1,7 +1,8 @@
 use glam::IVec3;
-use mcrs_minecraft_core::{Mirror, Rotation, StaticResourceLocation, rl};
+use mcrs_minecraft_core::{Mirror, Rotation};
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::legacy::LegacyRandom;
+use mcrs_minecraft_resource::{StaticResourceLocation, rl};
 use mcrs_minecraft_worldgen_feature::template::{bounding_box, transform};
 
 use super::lowest_corner_site;

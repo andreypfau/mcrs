@@ -1,6 +1,6 @@
 // Written by `cargo run -p mcrs_minecraft_update -- keys`; do not edit.
 
-use mcrs_minecraft_core::{TagKey, rl};
+use mcrs_minecraft_resource::{TagKey, rl};
 
 pub const NO_ITEM_REQUIRED: TagKey<crate::BannerPattern, &'static str> = TagKey::new(rl!("minecraft:no_item_required"));
 pub const PATTERN_ITEM_BORDURE_INDENTED: TagKey<crate::BannerPattern, &'static str> = TagKey::new(rl!("minecraft:pattern_item/bordure_indented"));

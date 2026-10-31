@@ -1,6 +1,6 @@
 // Written by `cargo run -p mcrs_minecraft_update -- keys`; do not edit.
 
-use mcrs_minecraft_core::{ResourceKey, rl};
+use mcrs_minecraft_resource::{ResourceKey, rl};
 
 pub const ARCHAEOLOGY_DESERT_PYRAMID: ResourceKey<crate::loot::LootTable, &'static str> =
     ResourceKey::new(rl!("minecraft:archaeology/desert_pyramid"));

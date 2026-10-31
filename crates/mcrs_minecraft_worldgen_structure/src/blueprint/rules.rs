@@ -4,7 +4,8 @@
 
 use std::collections::{BTreeMap, HashMap, HashSet};
 
-use mcrs_minecraft_core::{Direction, ResourceLocation, StaticResourceLocation, rl};
+use mcrs_minecraft_core::Direction;
+use mcrs_minecraft_resource::{ResourceLocation, StaticResourceLocation, rl};
 use mcrs_minecraft_worldgen_feature::template::PaletteState;
 
 use super::turn::direction;

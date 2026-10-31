@@ -1,9 +1,9 @@
 use crate::joined_game::CurrentDimension;
 use bevy::prelude::*;
-use mcrs_minecraft_core::resource_location::ResourceLocation;
-use mcrs_minecraft_core::rl;
 use mcrs_minecraft_core::{Direction, RegionPos};
 use mcrs_minecraft_engine_world::entity::physics::Transform as PhysicsTransform;
+use mcrs_minecraft_resource::ResourceLocation;
+use mcrs_minecraft_resource::rl;
 use mcrs_voxel::{BlockPos, ColumnPos, SectionPos};
 
 use super::DebugScreenDisplayer;
@@ -79,7 +79,7 @@ mod tests {
         world.init_resource::<DebugScreenDisplayer>();
         world.spawn(CurrentDimension {
             key: mcrs_minecraft_dimension::keys::dimension::OVERWORLD.into(),
-            dimension_type: mcrs_minecraft_core::Id::checked(0, 1).unwrap(),
+            dimension_type: mcrs_minecraft_resource::Id::checked(0, 1).unwrap(),
         });
         world.spawn((
             Player,

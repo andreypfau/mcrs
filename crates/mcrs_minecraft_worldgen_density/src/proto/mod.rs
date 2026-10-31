@@ -12,10 +12,10 @@ pub use settings::{Either, ValueRange};
 pub use spline::{ProtoMultipoint, ProtoSpline, SplinePoints};
 
 use crate::node::distance::DistanceMetric;
-use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_noise::proto::{HashableF64, NoiseHolder};
 use mcrs_minecraft_noise::sample_grid::Axis;
 use mcrs_minecraft_registries::dispatch;
+use mcrs_minecraft_resource::ResourceLocation;
 use serde::{Deserialize, Serialize};
 use std::hash::{Hash, Hasher};
 use std::num::NonZeroU32;

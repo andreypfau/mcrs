@@ -3,7 +3,7 @@
 
 use glam::IVec3;
 use mcrs_minecraft_chunk::VoxelId;
-use mcrs_minecraft_core::rl;
+use mcrs_minecraft_resource::rl;
 use std::collections::BTreeMap;
 
 use mcrs_minecraft_noise::interval::Interval;

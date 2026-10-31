@@ -29,7 +29,7 @@ const WASM32_PACKAGES: [&str; 10] = [
 
 const NO_STD_PACKAGES: [&str; 2] = ["mcrs_command", "mcrs_minecraft_chat"];
 
-const NO_BEVY_PACKAGES: [&str; 65] = [
+const NO_BEVY_PACKAGES: [&str; 66] = [
     "mcrs_command",
     "mcrs_minecraft_anvil",
     "mcrs_minecraft_biome",
@@ -74,6 +74,7 @@ const NO_BEVY_PACKAGES: [&str; 65] = [
     "mcrs_minecraft_random",
     "mcrs_minecraft_registries",
     "mcrs_minecraft_registry_catalog",
+    "mcrs_minecraft_resource",
     "mcrs_minecraft_simulation",
     "mcrs_minecraft_snbt",
     "mcrs_minecraft_sound",
@@ -428,9 +429,9 @@ fn test(ctx: &Context) -> Outcome {
     let passed = ctx.exec("cargo", &args)?;
     let core_selected = match &selection {
         Scope::Workspace => true,
-        Scope::Packages(names) => names
-            .iter()
-            .any(|n| n == "mcrs_minecraft_core" || n == "mcrs_voxel"),
+        Scope::Packages(names) => names.iter().any(|n| {
+            n == "mcrs_minecraft_core" || n == "mcrs_minecraft_resource" || n == "mcrs_voxel"
+        }),
     };
     if !passed || ctx.trigger == Trigger::Gpu || !core_selected {
         return verdict(
@@ -449,10 +450,12 @@ fn test(ctx: &Context) -> Outcome {
                 "-p",
                 "mcrs_minecraft_core",
                 "-p",
+                "mcrs_minecraft_resource",
+                "-p",
                 "mcrs_voxel",
             ],
         )?,
-        "a core or voxel doctest failed",
+        "a core, resource or voxel doctest failed",
         "fix the doctests above",
     )
 }

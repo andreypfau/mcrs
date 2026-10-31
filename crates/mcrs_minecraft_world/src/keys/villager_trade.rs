@@ -1,6 +1,6 @@
 // Written by `cargo run -p mcrs_minecraft_update -- keys`; do not edit.
 
-use mcrs_minecraft_core::{ResourceKey, rl};
+use mcrs_minecraft_resource::{ResourceKey, rl};
 
 pub const ARMORER_1_EMERALD_IRON_BOOTS: ResourceKey<
     crate::villager_trade::VillagerTrade,

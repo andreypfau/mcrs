@@ -1,7 +1,7 @@
 use mcrs_minecraft_biome::parameter_list::ParameterLists;
 use mcrs_minecraft_biome::source::{BiomeSource, MultiNoiseBiomeSource};
-use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
 use mcrs_minecraft_registries::{Namer, Registries};
+use mcrs_minecraft_resource::{ResourceKey, ResourceLocation};
 use mcrs_minecraft_worldgen_feature::compile::FeatureSteps;
 use mcrs_minecraft_worldgen_feature_place::terrain_skin::BiomeClimate;
 use std::collections::BTreeMap;
@@ -36,7 +36,7 @@ pub fn possible_biomes(
     registries: &Registries,
     lists: &ParameterLists,
 ) -> Vec<ResourceLocation> {
-    let named = |id: &mcrs_minecraft_core::Id<mcrs_minecraft_biome::Biome>| {
+    let named = |id: &mcrs_minecraft_resource::Id<mcrs_minecraft_biome::Biome>| {
         Namer::name(registries, *id)
             .unwrap_or_else(|| panic!("the biome registry holds no entry numbered {}", id.index()))
             .clone()

@@ -9,20 +9,20 @@ pub trait Sample: Sized {
     }
 }
 
-use mcrs_minecraft_core::Registered;
-use mcrs_minecraft_core::ResourceKey;
+use mcrs_minecraft_resource::Registered;
+use mcrs_minecraft_resource::ResourceKey;
 use std::sync::LazyLock;
 
-use mcrs_minecraft_core::Id;
 use mcrs_minecraft_core::codec::IntArray;
-use mcrs_minecraft_core::{RegistryKey, ResourceLocation, rl};
-use mcrs_minecraft_core::{TagId, TagKey};
 use mcrs_minecraft_nbt::{COMPOUND_ID, INT_ARRAY_ID, LIST_ID, STRING_ID};
 use mcrs_minecraft_profile::{
     GameProfileValue, PlayerModelType, PlayerName, Profile, ProfileIdentity, Property, SkinPatch,
     ints_uuid,
 };
 use mcrs_minecraft_registries::{IdSet, Namer, Resolver};
+use mcrs_minecraft_resource::Id;
+use mcrs_minecraft_resource::{RegistryKey, ResourceLocation, rl};
+use mcrs_minecraft_resource::{TagId, TagKey};
 use std::any::TypeId;
 use std::collections::HashMap;
 

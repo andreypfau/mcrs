@@ -143,8 +143,8 @@ mod tests {
     /// `(noise id, xz_scale)`.
     fn inline_noise_scales(name: &str) -> Vec<(String, f64)> {
         use crate::proto::{DensityFunctionHolder, ProtoDensityFunction};
-        use mcrs_minecraft_core::ResourceLocation;
         use mcrs_minecraft_noise::proto::NoiseHolder;
+        use mcrs_minecraft_resource::ResourceLocation;
 
         fn walk(holder: &DensityFunctionHolder, out: &mut Vec<(String, f64)>) {
             let DensityFunctionHolder::Owned(function) = holder else {

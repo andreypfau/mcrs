@@ -1,9 +1,9 @@
 use crate::{Bounded, GlobalPos, VarInt};
-use mcrs_minecraft_core::Id;
-use mcrs_minecraft_core::ResourceKey;
 use mcrs_minecraft_dimension::{Dimension, DimensionType};
 use mcrs_minecraft_game_mode::GameMode;
 use mcrs_minecraft_game_mode::OptGameMode;
+use mcrs_minecraft_resource::Id;
+use mcrs_minecraft_resource::ResourceKey;
 use mcrs_minecraft_wire::{Decode, Encode};
 
 #[derive(Clone, Debug, PartialEq, Encode, Decode)]

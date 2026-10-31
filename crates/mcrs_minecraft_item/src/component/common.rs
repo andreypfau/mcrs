@@ -1,4 +1,4 @@
-use mcrs_minecraft_core::Registered;
+use mcrs_minecraft_resource::Registered;
 use std::fmt;
 use std::marker::PhantomData;
 
@@ -6,7 +6,7 @@ pub use mcrs_minecraft_core::codec::CompactList;
 use mcrs_minecraft_core::codec::{
     Bounded, NonNegativeInt, default_true, float_value, int_value, is_default, optional_flag,
 };
-use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
+use mcrs_minecraft_resource::{ResourceKey, ResourceLocation};
 
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::tag::NbtTag;

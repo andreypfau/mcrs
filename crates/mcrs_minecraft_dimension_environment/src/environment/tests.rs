@@ -1,13 +1,13 @@
-use mcrs_minecraft_core::Registered;
-use mcrs_minecraft_core::ResourceKey;
 use mcrs_minecraft_core::mth::wrap_degrees;
+use mcrs_minecraft_resource::Registered;
+use mcrs_minecraft_resource::ResourceKey;
 
 use serde::de::DeserializeOwned;
 use serde_json::json;
 
 use super::*;
-use mcrs_minecraft_core::TagId;
 use mcrs_minecraft_registries::{Named, Resolve, Resolver};
+use mcrs_minecraft_resource::TagId;
 use mcrs_minecraft_worldgen_testing::vanilla_dir;
 
 use crate::dimension_type::{DimensionTypeEnvironment, DimensionTypeFile};
@@ -52,7 +52,7 @@ impl Resolver for ShippedClocks {
 
     fn tag<R: Registered>(
         &self,
-        _: &mcrs_minecraft_core::TagKey<R>,
+        _: &mcrs_minecraft_resource::TagKey<R>,
     ) -> Result<TagId<R>, mcrs_minecraft_registries::ResolveError> {
         Ok(TagId::checked(0, 1).unwrap())
     }

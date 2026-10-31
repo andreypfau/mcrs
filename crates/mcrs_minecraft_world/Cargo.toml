@@ -35,6 +35,7 @@ bevy = [
 ]
 
 [dependencies]
+mcrs_minecraft_resource.workspace = true
 mcrs_minecraft_game_rule.workspace = true
 mcrs_minecraft_value_provider.workspace = true
 mcrs_minecraft_sound.workspace = true

@@ -1,5 +1,5 @@
 use crate::{Decode, Encode};
-use mcrs_minecraft_core::{ResourceLocation, rl};
+use mcrs_minecraft_resource::{ResourceLocation, rl};
 
 pub const BRAND_CHANNEL: ResourceLocation<&'static str> = rl!("minecraft:brand");
 pub const MOD_LIST_CHANNEL: ResourceLocation<&'static str> = rl!("minecraft:mod_list");
@@ -14,7 +14,7 @@ pub mod clientbound {
     use crate::text::Text;
     use crate::{Bounded, Decode, Encode, RawBytes};
     use derive_more::Into;
-    use mcrs_minecraft_core::ResourceLocation;
+    use mcrs_minecraft_resource::ResourceLocation;
     use std::borrow::Cow;
     use std::io::Write;
     use uuid::Uuid;
@@ -98,8 +98,8 @@ pub mod clientbound {
 pub mod serverbound {
     use super::{BRAND_CHANNEL, Brand, MOD_LIST_CHANNEL};
     use crate::{Bounded, Decode, Encode, RawBytes, VarInt};
-    use mcrs_minecraft_core::ResourceLocation;
     use mcrs_minecraft_nbt::tag::NbtTag;
+    use mcrs_minecraft_resource::ResourceLocation;
     use std::borrow::Cow;
     use std::io::Write;
     use uuid::Uuid;
@@ -306,7 +306,7 @@ mod tests {
         MAX_MOD_ENTRIES, MAX_PROPERTIES, MAX_PROPERTY_CHARS, ModList, PropertyMap,
     };
     use crate::{Decode, Encode, VarInt};
-    use mcrs_minecraft_core::ResourceLocation;
+    use mcrs_minecraft_resource::ResourceLocation;
     use std::borrow::Cow;
 
     fn key(path: &str) -> ResourceLocation<Cow<'_, str>> {

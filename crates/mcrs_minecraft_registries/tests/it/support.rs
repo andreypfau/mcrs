@@ -1,16 +1,16 @@
-use mcrs_minecraft_core::TagKey;
+use mcrs_minecraft_resource::TagKey;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use mcrs_minecraft_core::{
-    Id, Registered, RegistryKey, RegistryValue, ResourceKey, ResourceLocation, rl,
-};
 use mcrs_minecraft_datapack::{
     AvailablePack, Features, PackDiagnostic, PackFiles, PackSelection, PackStack, pack_stack,
 };
 use mcrs_minecraft_registries::{
     Declaration, Diagnostic, Diagnostics, IdSet, KeySet, Named, Namer, Ref, Registries, Resolve,
     ResolveError, Resolved, Resolver, Stage,
+};
+use mcrs_minecraft_resource::{
+    Id, Registered, RegistryKey, RegistryValue, ResourceKey, ResourceLocation, rl,
 };
 use serde::de::IgnoredAny;
 use serde::{Deserialize, Deserializer, Serialize};

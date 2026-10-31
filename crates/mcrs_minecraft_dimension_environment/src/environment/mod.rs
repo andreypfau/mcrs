@@ -7,9 +7,9 @@
 
 #[cfg(feature = "bevy")]
 use bevy_ecs::prelude::Resource;
-use mcrs_minecraft_core::Id;
-use mcrs_minecraft_core::ResourceKey;
 use mcrs_minecraft_registries::Registries;
+use mcrs_minecraft_resource::Id;
+use mcrs_minecraft_resource::ResourceKey;
 
 use crate::dimension_type::{DimensionTypeEnvironment, DimensionTypeFile};
 use mcrs_minecraft_dimension::{Dimension, DimensionType, Skybox};

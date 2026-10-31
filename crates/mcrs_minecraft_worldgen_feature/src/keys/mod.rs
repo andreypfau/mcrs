@@ -30,7 +30,7 @@ pub use structure_processor::StructureProcessorType;
 pub use tree_decorator_type::TreeDecoratorType;
 pub use trunk_placer_type::TrunkPlacerType;
 
-use mcrs_minecraft_core::{Registered, RegistryKey, StaticResourceLocation, rl};
+use mcrs_minecraft_resource::{Registered, RegistryKey, StaticResourceLocation, rl};
 
 pub const POS_RULE_TEST: RegistryKey<crate::keys::PosRuleTestType> =
     RegistryKey::new(rl!("minecraft:pos_rule_test"));

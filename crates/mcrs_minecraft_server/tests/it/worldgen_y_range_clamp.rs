@@ -1,7 +1,7 @@
 use mcrs_minecraft_engine_world::palette::non_air_block_count;
 use mcrs_minecraft_worldgen_generator::ColumnBiomes;
 
-use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_resource::ResourceLocation;
 use mcrs_minecraft_worldgen_builtin as builtin;
 use mcrs_minecraft_worldgen_density::compile::build_router;
 use mcrs_minecraft_worldgen_density::proto::DensityFunctionHolder;

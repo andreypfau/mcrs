@@ -1,6 +1,6 @@
 // Written by `cargo run -p mcrs_minecraft_update -- keys`; do not edit.
 
-use mcrs_minecraft_core::{ResourceKey, rl};
+use mcrs_minecraft_resource::{ResourceKey, rl};
 
 pub const ALL_BLACK: ResourceKey<crate::variant::CatVariant, &'static str> = ResourceKey::new(rl!("minecraft:all_black"));
 pub const BLACK: ResourceKey<crate::variant::CatVariant, &'static str> = ResourceKey::new(rl!("minecraft:black"));

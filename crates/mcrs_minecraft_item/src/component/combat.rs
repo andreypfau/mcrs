@@ -2,8 +2,8 @@ use crate::damage_type::DamageType;
 use mcrs_minecraft_core::codec::{self, NonNegativeInt, default_true, is_default};
 use std::sync::Arc;
 
-use mcrs_minecraft_core::rl;
 use mcrs_minecraft_registries::{Ref, Refs, Resolved, registry_value};
+use mcrs_minecraft_resource::rl;
 use mcrs_minecraft_sound::Sound;
 use mcrs_minecraft_sound::keys::SoundEvent;
 use serde::{Deserialize, Serialize};

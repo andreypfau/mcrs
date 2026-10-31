@@ -64,7 +64,7 @@ mcrs_minecraft_registries::static_registry! {
 }
 
 use crate::{GameRuleCategory, GameRuleDefinition, GameRuleValueType};
-use mcrs_minecraft_core::rl;
+use mcrs_minecraft_resource::rl;
 
 impl GameRule {
     #[expect(

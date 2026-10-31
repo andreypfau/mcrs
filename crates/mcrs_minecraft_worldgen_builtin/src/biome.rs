@@ -10,11 +10,11 @@ use mcrs_minecraft_biome::keys::carver;
 use mcrs_minecraft_biome::keys::placed_feature;
 use mcrs_minecraft_biome_file::{BiomeDraft as Draft, BiomeGeneration as Generation};
 use mcrs_minecraft_core::codec::{Bounded, HexRgb};
-use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
 use mcrs_minecraft_entity::keys::EntityType;
 use mcrs_minecraft_entity::spawn::MobCategory;
 use mcrs_minecraft_environment::attribute::id::*;
 use mcrs_minecraft_environment::attribute::{MobSpawnSettings, Operation};
+use mcrs_minecraft_resource::{ResourceKey, ResourceLocation};
 use mcrs_minecraft_sound::keys::SoundEvent;
 use mcrs_minecraft_value_provider::IntProvider;
 use serde::Serialize;
@@ -29,8 +29,8 @@ pub struct Mob {
 
 pub mod mob {
     use super::Mob;
-    use mcrs_minecraft_core::ResourceKey;
     use mcrs_minecraft_entity::spawn::MobCategory::*;
+    use mcrs_minecraft_resource::ResourceKey;
 
     macro_rules! mobs {
         ($($name:ident = $id:expr, $category:ident;)*) => {

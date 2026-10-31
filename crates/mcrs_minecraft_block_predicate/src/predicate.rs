@@ -5,11 +5,11 @@ use crate::block_state::BlockState;
 use crate::state_properties::StatePropertiesPredicate;
 use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_block::keys::Fluid;
-use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::codec::IntArray;
 use mcrs_minecraft_core::codec::is_default;
 use mcrs_minecraft_core::{codec::Validate, validated};
 use mcrs_minecraft_registries::{Named, Refs, Resolved, dispatch, registry_value};
+use mcrs_minecraft_resource::ResourceLocation;
 use mcrs_minecraft_value_provider::VerticalAnchor;
 
 /// `Vec3i.offsetCodec(16)`.

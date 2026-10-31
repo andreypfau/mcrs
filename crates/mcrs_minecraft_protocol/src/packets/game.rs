@@ -19,12 +19,12 @@ pub mod clientbound {
     use mcrs_minecraft_command_tree::CommandNode;
     use mcrs_minecraft_core::Look;
     use mcrs_minecraft_core::LookAnchor;
-    use mcrs_minecraft_core::ResourceKey;
-    use mcrs_minecraft_core::ResourceLocation;
     use mcrs_minecraft_entity::keys::{Attribute, EntityType};
     use mcrs_minecraft_item::keys::MenuType;
     use mcrs_minecraft_particle::ParticleOptions;
     use mcrs_minecraft_registries::Wire;
+    use mcrs_minecraft_resource::ResourceKey;
+    use mcrs_minecraft_resource::ResourceLocation;
     use mcrs_minecraft_wire::{Decode, Encode};
     use mcrs_voxel::BlockPos;
     use mcrs_voxel::SectionPos;
@@ -803,8 +803,9 @@ pub mod serverbound {
     use crate::{Bounded, Decode, Difficulty, Direction, Encode, Hand, LpVec3, Position, VarInt};
     use bitfield_struct::bitfield;
     use derive_more::From;
-    use mcrs_minecraft_core::{Look, ResourceLocation};
+    use mcrs_minecraft_core::Look;
     use mcrs_minecraft_game_mode::GameMode;
+    use mcrs_minecraft_resource::ResourceLocation;
     use mcrs_voxel::BlockPos;
     use uuid::Uuid;
 

@@ -1,5 +1,5 @@
-use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
 use mcrs_minecraft_nbt::{COMPOUND_ID, FLOAT_ID, INT_ID, STRING_ID};
+use mcrs_minecraft_resource::{ResourceKey, ResourceLocation};
 use serde::{Deserialize, Serialize};
 
 use crate::component::common::{ResolvableFloat, ResolvableInt};

@@ -1,12 +1,12 @@
 use std::collections::BTreeMap;
 
 use mcrs_minecraft_biome_file::{BiomeFile, NetworkBiome};
-use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_datapack::{PackFiles, VANILLA_PACK};
 use mcrs_minecraft_noise::proto::NoiseParam;
 use mcrs_minecraft_registries::{
     DataDeclaration, DataValue, Declaration, RegistryAdditions, insert_entry,
 };
+use mcrs_minecraft_resource::ResourceLocation;
 use mcrs_minecraft_worldgen_builtin as builtin;
 use mcrs_minecraft_worldgen_carver::config::CarverConfig;
 use mcrs_minecraft_worldgen_density::proto::DensityFunctionHolder;
@@ -18,8 +18,8 @@ use mcrs_minecraft_worldgen_structure::{Structure, StructureSet};
 use mcrs_minecraft_worldgen_surface::proto::{MaterialConditionHolder, MaterialRuleHolder};
 
 const STATIC_REGISTRIES: [&[(
-    mcrs_minecraft_core::StaticResourceLocation,
-    &[mcrs_minecraft_core::StaticResourceLocation],
+    mcrs_minecraft_resource::StaticResourceLocation,
+    &[mcrs_minecraft_resource::StaticResourceLocation],
 )]; 5] = [
     mcrs_minecraft_worldgen_carver::keys::STATIC_REGISTRIES,
     mcrs_minecraft_worldgen_density::keys::STATIC_REGISTRIES,
@@ -112,7 +112,7 @@ fn insert_all<V: DataValue>(
 mod tests {
     use std::collections::BTreeMap;
 
-    use mcrs_minecraft_core::ResourceLocation;
+    use mcrs_minecraft_resource::ResourceLocation;
     use mcrs_minecraft_world::registry_load::test_registries;
     use serde::Deserialize;
 

@@ -1,6 +1,6 @@
 // Written by `cargo run -p mcrs_minecraft_update -- keys`; do not edit.
 
-use mcrs_minecraft_core::{ResourceKey, rl};
+use mcrs_minecraft_resource::{ResourceKey, rl};
 
 pub const ANCIENT_CITY_GENERIC_DEGRADATION: ResourceKey<crate::proto::StructureProcessorList, &'static str> = ResourceKey::new(rl!("minecraft:ancient_city_generic_degradation"));
 pub const ANCIENT_CITY_START_DEGRADATION: ResourceKey<crate::proto::StructureProcessorList, &'static str> = ResourceKey::new(rl!("minecraft:ancient_city_start_degradation"));

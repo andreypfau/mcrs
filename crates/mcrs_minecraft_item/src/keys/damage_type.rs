@@ -1,6 +1,6 @@
 // Written by `cargo run -p mcrs_minecraft_update -- keys`; do not edit.
 
-use mcrs_minecraft_core::{ResourceKey, rl};
+use mcrs_minecraft_resource::{ResourceKey, rl};
 
 pub const ARROW: ResourceKey<crate::damage_type::DamageType, &'static str> = ResourceKey::new(rl!("minecraft:arrow"));
 pub const BAD_RESPAWN_POINT: ResourceKey<crate::damage_type::DamageType, &'static str> = ResourceKey::new(rl!("minecraft:bad_respawn_point"));

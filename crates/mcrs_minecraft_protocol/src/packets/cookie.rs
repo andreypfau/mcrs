@@ -1,7 +1,7 @@
 pub mod serverbound {
     use crate::Bounded;
     use derive_more::Into;
-    use mcrs_minecraft_core::ResourceLocation;
+    use mcrs_minecraft_resource::ResourceLocation;
     use mcrs_minecraft_wire::{Decode, Encode};
     use std::borrow::Cow;
 
@@ -16,7 +16,7 @@ pub mod serverbound {
 
 pub mod clientbound {
     use derive_more::Into;
-    use mcrs_minecraft_core::ResourceLocation;
+    use mcrs_minecraft_resource::ResourceLocation;
     use mcrs_minecraft_wire::{Decode, Encode};
     use std::borrow::Cow;
 

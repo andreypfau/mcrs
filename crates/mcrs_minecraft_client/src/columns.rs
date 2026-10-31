@@ -17,7 +17,6 @@ use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_chunk::section::Biomes;
 use mcrs_minecraft_chunk::{PalettedContainer, SectionKind};
 use mcrs_minecraft_core::BoundingBox;
-use mcrs_minecraft_core::Id;
 use mcrs_minecraft_dimension_environment::dimension_type::DimensionTypeFile;
 use mcrs_minecraft_protocol::ColumnPos;
 use mcrs_minecraft_protocol::chunk::{ChunkData, LightChunk, LightData};
@@ -29,6 +28,7 @@ use mcrs_minecraft_protocol::packets::game::clientbound::{
 };
 use mcrs_minecraft_protocol::packets::game::serverbound::ServerboundChunkBatchReceived;
 use mcrs_minecraft_protocol::{Decode, WritePacket};
+use mcrs_minecraft_resource::Id;
 use mcrs_voxel::{BlockPos, BlockStateId, LocalPos, SectionPos};
 
 use crate::joined_game::CurrentDimension;
@@ -1380,16 +1380,16 @@ mod tests {
 
     #[test]
     fn the_vertical_extent_comes_from_the_dimension_type_the_login_named() {
-        use mcrs_minecraft_core::ResourceKey;
         use mcrs_minecraft_dimension::Dimension;
         use mcrs_minecraft_dimension::keys::dimension::{OVERWORLD, THE_NETHER};
         use mcrs_minecraft_game_mode::GameMode;
+        use mcrs_minecraft_resource::ResourceKey;
 
         let registries = mcrs_minecraft_world::registry_load::test_registries();
         let types = registries.registry::<DimensionTypeFile>().unwrap();
         let named = |key: &str, dimension: ResourceKey<Dimension>| {
             let id = types
-                .by_name(&mcrs_minecraft_core::ResourceLocation::read(key).unwrap())
+                .by_name(&mcrs_minecraft_resource::ResourceLocation::read(key).unwrap())
                 .unwrap();
             CurrentDimension::of(&PlayerSpawnInfo::new(
                 Id::checked(id.number(), types.len()).unwrap(),

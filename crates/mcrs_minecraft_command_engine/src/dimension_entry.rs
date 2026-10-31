@@ -1,6 +1,6 @@
 use bevy_ecs::entity::Entity;
-use mcrs_minecraft_core::ResourceKey;
 use mcrs_minecraft_dimension::Dimension;
+use mcrs_minecraft_resource::ResourceKey;
 
 /// A dimension that runs, as a command sees it.
 #[derive(Clone, Debug)]

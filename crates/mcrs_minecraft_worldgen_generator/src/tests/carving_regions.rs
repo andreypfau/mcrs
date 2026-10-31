@@ -1,4 +1,4 @@
-use mcrs_minecraft_core::rl;
+use mcrs_minecraft_resource::rl;
 use std::collections::HashMap;
 use std::sync::Arc;
 

@@ -2,14 +2,15 @@ use glam::IVec3;
 use mcrs_minecraft_block_predicate::block_state::BlockState;
 use mcrs_minecraft_block_predicate::predicate::HeightmapName;
 use mcrs_minecraft_chunk::VoxelId;
-use mcrs_minecraft_core::TagKey;
 use mcrs_minecraft_core::mth::clamped_map;
 use mcrs_minecraft_core::{Axis, BoundingBox, Direction, dist_manhattan};
-use mcrs_minecraft_core::{Mirror, ResourceLocation, Rotation};
+use mcrs_minecraft_core::{Mirror, Rotation};
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_random::worldgen::WorldgenRandom;
 use mcrs_minecraft_random::{Random, block_pos_seed, shuffled};
+use mcrs_minecraft_resource::ResourceLocation;
+use mcrs_minecraft_resource::TagKey;
 use mcrs_minecraft_value_provider::IntProvider;
 use mcrs_minecraft_worldgen_feature::compile::{
     BlockResolver, FeatureCompileError, StateQuery, compile_rule, state_of, states_of,
@@ -1021,7 +1022,7 @@ mod tests {
     use fixedbitset::FixedBitSet;
 
     use super::*;
-    use mcrs_minecraft_core::rl;
+    use mcrs_minecraft_resource::rl;
     use mcrs_minecraft_worldgen_feature::placer::{BoxRegion, PropertyLayout, mask_of};
     use mcrs_minecraft_worldgen_feature::template::FrozenBlock;
 

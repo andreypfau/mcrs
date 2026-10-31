@@ -82,8 +82,8 @@ use mcrs_minecraft_worldgen_feature_place::terrain_skin::BiomeClimate;
 
 use mcrs_minecraft_chunk::palette::{BiomePalette, BlockPalette};
 use mcrs_minecraft_chunk::{ColumnHeights, VoxelId};
-use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_registries::Registries;
+use mcrs_minecraft_resource::ResourceLocation;
 use mcrs_voxel::ColumnPos;
 
 use fixedbitset::FixedBitSet;
@@ -287,9 +287,10 @@ pub fn preset_tables() -> &'static crate::multi_noise_biomes::PresetBiomeTables 
 
 pub fn parameter_list_id(
     name: &str,
-) -> mcrs_minecraft_core::Id<mcrs_minecraft_biome::parameter_list::MultiNoiseBiomeSourceParameterList>
-{
-    let key = mcrs_minecraft_core::ResourceKey::from_location(
+) -> mcrs_minecraft_resource::Id<
+    mcrs_minecraft_biome::parameter_list::MultiNoiseBiomeSourceParameterList,
+> {
+    let key = mcrs_minecraft_resource::ResourceKey::from_location(
         ResourceLocation::read(name).unwrap_or_else(|e| panic!("{name}: {e}")),
     );
     mcrs_minecraft_registries::Resolver::id(test_registries(), &key)

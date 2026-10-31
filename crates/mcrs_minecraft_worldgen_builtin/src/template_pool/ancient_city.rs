@@ -1,7 +1,7 @@
 use super::Piece::*;
 use super::{Pool, pool, single};
 use mcrs_minecraft_biome::keys::placed_feature;
-use mcrs_minecraft_core::rl;
+use mcrs_minecraft_resource::rl;
 use mcrs_minecraft_worldgen_feature::keys::processor_list;
 
 #[rustfmt::skip]

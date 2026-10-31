@@ -8,6 +8,8 @@ mod option;
 mod pointer;
 pub(crate) mod primitive;
 pub(crate) use primitive::take;
+#[cfg(feature = "resource")]
+mod resource;
 mod sequence;
 mod string;
 mod tuple;

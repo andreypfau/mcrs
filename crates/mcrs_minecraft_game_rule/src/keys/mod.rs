@@ -4,7 +4,7 @@ pub mod game_rule;
 
 pub use game_rule::GameRule;
 
-use mcrs_minecraft_core::{Registered, RegistryKey, rl};
+use mcrs_minecraft_resource::{Registered, RegistryKey, rl};
 
 pub const GAME_RULE: RegistryKey<crate::keys::GameRule> =
     RegistryKey::new(rl!("minecraft:game_rule"));

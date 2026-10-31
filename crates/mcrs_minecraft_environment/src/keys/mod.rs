@@ -13,7 +13,7 @@ pub use environment_attribute::EnvironmentAttribute;
 pub use test_environment_definition_type::TestEnvironmentDefinitionType;
 pub use test_instance_type::TestInstanceType;
 
-use mcrs_minecraft_core::{Registered, RegistryKey, rl};
+use mcrs_minecraft_resource::{Registered, RegistryKey, rl};
 
 pub const ACTIVITY: RegistryKey<crate::keys::Activity> =
     RegistryKey::new(rl!("minecraft:activity"));

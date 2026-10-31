@@ -2,9 +2,9 @@ use std::sync::Arc;
 
 use crate::keys::MobEffect;
 use mcrs_minecraft_core::codec::default_true;
-use mcrs_minecraft_core::rl;
 use mcrs_minecraft_nbt::nbt_flag;
 use mcrs_minecraft_registries::{Ref, Refs, Resolved, dispatch, registry_value};
+use mcrs_minecraft_resource::rl;
 use mcrs_minecraft_sound::keys::SoundEvent;
 use serde::{Deserialize, Deserializer, Serialize};
 

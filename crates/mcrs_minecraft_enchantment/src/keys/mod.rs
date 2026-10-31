@@ -12,7 +12,7 @@ pub use enchantment_location_based_effect_type::EnchantmentLocationBasedEffectTy
 pub use enchantment_provider_type::EnchantmentProviderType;
 pub use enchantment_value_effect_type::EnchantmentValueEffectType;
 
-use mcrs_minecraft_core::{Registered, RegistryKey, rl};
+use mcrs_minecraft_resource::{Registered, RegistryKey, rl};
 
 pub const ENCHANTMENT_EFFECT_COMPONENT_TYPE: RegistryKey<
     crate::keys::EnchantmentEffectComponentType,

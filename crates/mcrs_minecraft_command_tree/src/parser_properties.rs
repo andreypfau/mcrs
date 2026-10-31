@@ -1,7 +1,7 @@
 use crate::number_range::NumberRange;
 use crate::string_mode::StringMode;
-use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_keys::command_argument_type as parser;
+use mcrs_minecraft_resource::ResourceLocation;
 use mcrs_minecraft_wire::{Decode, Encode, Error, Result, VarInt};
 use std::borrow::Cow;
 use std::io::Write;

@@ -7,7 +7,7 @@ pub mod block_state_provider_type;
 pub use block_predicate_type::BlockPredicateType;
 pub use block_state_provider_type::BlockStateProviderType;
 
-use mcrs_minecraft_core::{Registered, RegistryKey, rl};
+use mcrs_minecraft_resource::{Registered, RegistryKey, rl};
 
 pub const BLOCK_PREDICATE_TYPE: RegistryKey<crate::keys::BlockPredicateType> =
     RegistryKey::new(rl!("minecraft:block_predicate_type"));

@@ -1,10 +1,10 @@
-use mcrs_minecraft_core::ResourceKey;
+use mcrs_minecraft_resource::ResourceKey;
 use std::fmt;
 
 use anyhow::ensure;
-use mcrs_minecraft_core::Id;
 use mcrs_minecraft_core::codec::{self, Validate, is_default};
 use mcrs_minecraft_registries::{Named, Namer, Refs, Resolve, Resolved, WireId};
+use mcrs_minecraft_resource::Id;
 use serde::de::{Error as _, MapAccess, Visitor, value};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 

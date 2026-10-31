@@ -8,6 +8,7 @@ edition.workspace = true
 doctest = false
 
 [dependencies]
+mcrs_minecraft_resource.workspace = true
 fancy-regex.workspace = true
 mcrs_minecraft_core.workspace = true
 serde.workspace = true

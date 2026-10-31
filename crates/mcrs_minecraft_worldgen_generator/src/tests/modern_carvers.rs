@@ -14,7 +14,7 @@ use crate::modern_carvers::{
 use crate::{ColumnBlocks, column_fluid_field};
 use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_biome::parameter_list::Preset;
-use mcrs_minecraft_core::Id;
+use mcrs_minecraft_resource::Id;
 
 fn overworld_height() -> HeightContext {
     HeightContext {

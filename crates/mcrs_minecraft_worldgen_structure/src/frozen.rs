@@ -2,7 +2,7 @@ use mcrs_minecraft_worldgen_feature::placement::DecorationStep;
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
-use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_resource::ResourceLocation;
 
 use super::{
     JigsawConfig, LiquidSettings, MineshaftType, OceanTemperature, RuinedPortalSetup,

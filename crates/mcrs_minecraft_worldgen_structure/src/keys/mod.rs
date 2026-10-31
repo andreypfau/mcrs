@@ -11,7 +11,7 @@ pub use structure_piece::StructurePieceType;
 pub use structure_placement::StructurePlacementType;
 pub use structure_type::StructureType;
 
-use mcrs_minecraft_core::{Registered, RegistryKey, StaticResourceLocation, rl};
+use mcrs_minecraft_resource::{Registered, RegistryKey, StaticResourceLocation, rl};
 
 pub const POOL_ALIAS_BINDING: RegistryKey<crate::keys::PoolAliasBindingType> =
     RegistryKey::new(rl!("minecraft:worldgen/pool_alias_binding"));

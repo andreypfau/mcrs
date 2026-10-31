@@ -6,7 +6,7 @@ pub mod sound_event;
 
 pub use sound_event::SoundEvent;
 
-use mcrs_minecraft_core::{Registered, RegistryKey, rl};
+use mcrs_minecraft_resource::{Registered, RegistryKey, rl};
 
 pub const BLOCK_SOUND_SET: RegistryKey<crate::BlockSoundSet> =
     RegistryKey::new(rl!("minecraft:block_sound_set"));

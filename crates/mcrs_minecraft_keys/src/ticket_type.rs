@@ -1,6 +1,6 @@
 // Written by `cargo run -p mcrs_minecraft_update -- keys`; do not edit.
 
-use mcrs_minecraft_core::{StaticResourceLocation, rl};
+use mcrs_minecraft_resource::{StaticResourceLocation, rl};
 
 pub const PLAYER_SPAWN: StaticResourceLocation = rl!("minecraft:player_spawn");
 pub const SPAWN_SEARCH: StaticResourceLocation = rl!("minecraft:spawn_search");

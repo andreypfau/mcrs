@@ -1,4 +1,4 @@
-use mcrs_minecraft_core::ResourceKey;
+use mcrs_minecraft_resource::ResourceKey;
 use std::borrow::Cow;
 use std::fmt;
 
@@ -9,15 +9,16 @@ use crate::enchantment::EnchantmentData;
 use crate::keys::Item;
 use crate::keys::MobEffect;
 use mcrs_minecraft_block::keys::Block;
-use mcrs_minecraft_core::Id;
 use mcrs_minecraft_core::codec::{Bounded, NonNegativeInt, Validate, int_value};
-use mcrs_minecraft_core::{ResourceLocation, validated};
+use mcrs_minecraft_core::validated;
 use mcrs_minecraft_entity::keys::EntityType;
 use mcrs_minecraft_nbt::{COMPOUND_ID, FLOAT_ID, INT_ID, LIST_ID, STRING_ID};
 use mcrs_minecraft_registries::{
     FromWire, IdSet, Named, Namer, Refs, Resolve, ResolveError, Resolved, Resolver, Wire,
     WireNames, registry_value,
 };
+use mcrs_minecraft_resource::Id;
+use mcrs_minecraft_resource::ResourceLocation;
 use serde::de::{Error as _, IgnoredAny, MapAccess, SeqAccess, Visitor};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 

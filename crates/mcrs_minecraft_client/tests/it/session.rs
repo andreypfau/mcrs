@@ -10,8 +10,6 @@ use mcrs_minecraft_client::columns::{
 use mcrs_minecraft_client::joined_game::CurrentDimension;
 use mcrs_minecraft_client::player::{Player, PlayerCamera};
 use mcrs_minecraft_client::sky::{SkyEnvironment, SkyPlugin};
-use mcrs_minecraft_core::Id;
-use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
 use mcrs_minecraft_dimension::DimensionType;
 use mcrs_minecraft_dimension_environment::dimension_type::DimensionTypeFile;
 use mcrs_minecraft_dimension_environment::environment::Weather;
@@ -24,6 +22,8 @@ use mcrs_minecraft_protocol::Encode;
 use mcrs_minecraft_protocol::entity::player::PlayerSpawnInfo;
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundRespawn;
 use mcrs_minecraft_registries::{CurrentRegistries, Received, Ref};
+use mcrs_minecraft_resource::Id;
+use mcrs_minecraft_resource::{ResourceKey, ResourceLocation};
 
 use crate::boot::{boot, receive_registries, received_id};
 

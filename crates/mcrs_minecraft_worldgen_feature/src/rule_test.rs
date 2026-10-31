@@ -1,7 +1,7 @@
 use mcrs_minecraft_registries::dispatch;
 
 use mcrs_minecraft_block_predicate::block_state::BlockState;
-use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_resource::ResourceLocation;
 
 #[dispatch(registry = crate::keys::RuleTestType, key = "predicate_type")]
 #[derive(Debug, Clone, PartialEq)]

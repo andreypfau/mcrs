@@ -2,8 +2,8 @@
 //! `getPotentialStructureChunk` and `isStructureChunk` over two chunk squares.
 
 use bytes::Buf;
-use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_fixtures::fixture;
+use mcrs_minecraft_resource::ResourceLocation;
 use mcrs_minecraft_worldgen_structure::StructureSet;
 use mcrs_minecraft_worldgen_structure::placement::{SpreadPlacement, frequency_gate};
 use mcrs_minecraft_worldgen_testing::{self as corpus, dump_string};

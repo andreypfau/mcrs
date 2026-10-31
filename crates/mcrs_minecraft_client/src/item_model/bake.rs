@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use bevy::math::{Mat4, Vec3};
 use bevy::prelude::Resource;
-use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_resource::ResourceLocation;
 
 use super::asset::{
     ClientItem, ConditionProperty, RangeProperty, SelectSwitch, SpecialModel, TintSource,

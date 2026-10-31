@@ -1,7 +1,7 @@
-use mcrs_minecraft_core::TagKey;
 use mcrs_minecraft_registries::{
     Diagnostic, Diagnostics, IdSet, Missing, Ref, Referrer, Registries,
 };
+use mcrs_minecraft_resource::TagKey;
 
 use crate::support::{
     DamageType, Enchant, Enchantment, Item, Packs, damage, declarations, get, report_errors, rl,

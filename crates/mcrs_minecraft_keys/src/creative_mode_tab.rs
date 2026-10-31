@@ -1,6 +1,6 @@
 // Written by `cargo run -p mcrs_minecraft_update -- keys`; do not edit.
 
-use mcrs_minecraft_core::{StaticResourceLocation, rl};
+use mcrs_minecraft_resource::{StaticResourceLocation, rl};
 
 pub const BUILDING_BLOCKS: StaticResourceLocation = rl!("minecraft:building_blocks");
 pub const COLORED_BLOCKS: StaticResourceLocation = rl!("minecraft:colored_blocks");

@@ -1,5 +1,5 @@
 use mcrs_minecraft_block_predicate::provider::Holder;
-use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_resource::ResourceLocation;
 use mcrs_minecraft_worldgen_feature::compile::LoadedFeatures;
 use mcrs_minecraft_worldgen_feature::proto::Feature;
 

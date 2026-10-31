@@ -7,8 +7,8 @@ use bevy::render::render_resource::{
 };
 use bevy::render::{Extract, ExtractSchedule, RenderApp};
 use bevy::transform::TransformSystems;
-use mcrs_minecraft_core::Id;
 use mcrs_minecraft_registries::CurrentRegistries;
+use mcrs_minecraft_resource::Id;
 
 use crate::sky_state::{SkyField, SkyFrame, SkyKey, SkyLayout, SkyStatic, SkyValue};
 use mcrs_minecraft_dimension_environment::dimension_type::DimensionTypeFile;
@@ -650,7 +650,7 @@ mod sky_regression {
     fn the_drift_follows_the_default_clock_by_id_and_reads_none_without_one() {
         let overworld_clock = mcrs_minecraft_registries::Resolver::id(
             mcrs_minecraft_world::registry_load::test_registries(),
-            &mcrs_minecraft_core::ResourceKey::from_location(
+            &mcrs_minecraft_resource::ResourceKey::from_location(
                 (*mcrs_minecraft_environment::keys::world_clock::OVERWORLD.location()).into(),
             ),
         )

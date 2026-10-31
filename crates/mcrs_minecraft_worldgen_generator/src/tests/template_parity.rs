@@ -11,7 +11,6 @@ use mcrs_minecraft_block_predicate::provider::Holder;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::BoundingBox;
 use mcrs_minecraft_core::{Mirror, Rotation};
-use mcrs_minecraft_core::{ResourceLocation, rl};
 use mcrs_minecraft_fixtures::fixture;
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::deserializer::NbtReadHelper;
@@ -21,6 +20,7 @@ use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::block_pos_seed;
 use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_random::worldgen::WorldgenRandom;
+use mcrs_minecraft_resource::{ResourceLocation, rl};
 use mcrs_minecraft_volume::{BoxVolume, Volume, VoxelStore};
 use mcrs_minecraft_worldgen_feature::compile::CompiledPlacedFeature;
 use mcrs_minecraft_worldgen_feature::placer::{BoxRegion, WorldStates};
@@ -666,7 +666,7 @@ fn portal_processors(key: &str) -> Vec<StructureProcessor> {
         },
         StructureProcessor::ProtectedBlocks {
             value: mcrs_minecraft_registries::KeySet::Tag(
-                mcrs_minecraft_core::TagKey::from_location(
+                mcrs_minecraft_resource::TagKey::from_location(
                     rl!("minecraft:features_cannot_replace").to_arc(),
                 ),
             ),

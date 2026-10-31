@@ -15,8 +15,8 @@ use mcrs_minecraft_block::keys::Block;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::BoundingBox;
 use mcrs_minecraft_core::Direction;
-use mcrs_minecraft_core::Id;
 use mcrs_minecraft_random::worldgen::WorldgenRandom;
+use mcrs_minecraft_resource::Id;
 use mcrs_voxel::BlockPos;
 
 use mcrs_minecraft_worldgen_feature::placer::WorldGenVolume;

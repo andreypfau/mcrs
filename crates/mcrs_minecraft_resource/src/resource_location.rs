@@ -1,8 +1,11 @@
+use alloc::borrow::{Cow, ToOwned};
+use alloc::format;
+use alloc::string::{String, ToString};
+use alloc::sync::Arc;
+use core::borrow::Borrow;
+use core::fmt;
+use core::hash::{Hash, Hasher};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
-use std::borrow::{Borrow, Cow};
-use std::fmt;
-use std::hash::{Hash, Hasher};
-use std::sync::Arc;
 
 /// A namespaced resource identifier in the form `namespace:path`.
 ///
@@ -289,13 +292,13 @@ impl<S: AsRef<str>, T: AsRef<str>> PartialEq<ResourceLocation<T>> for ResourceLo
 impl<S: AsRef<str>> Eq for ResourceLocation<S> {}
 
 impl<S: AsRef<str>> PartialOrd for ResourceLocation<S> {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+    fn partial_cmp(&self, other: &Self) -> Option<core::cmp::Ordering> {
         Some(self.cmp(other))
     }
 }
 
 impl<S: AsRef<str>> Ord for ResourceLocation<S> {
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+    fn cmp(&self, other: &Self) -> core::cmp::Ordering {
         self.string.as_ref().cmp(other.string.as_ref())
     }
 }
@@ -329,7 +332,7 @@ pub struct InvalidResourceLocation {
     pub reason: String,
 }
 
-impl std::str::FromStr for ResourceLocation<Arc<str>> {
+impl core::str::FromStr for ResourceLocation<Arc<str>> {
     type Err = InvalidResourceLocation;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
@@ -365,7 +368,7 @@ impl<'de> Deserialize<'de> for ResourceLocation<Cow<'static, str>> {
 macro_rules! rl {
     ($s:literal) => {
         const {
-            match $crate::resource_location::ResourceLocation::new_static($s) {
+            match $crate::ResourceLocation::new_static($s) {
                 ::core::result::Result::Ok(location) => location,
                 ::core::result::Result::Err(reason) => ::core::panic!("{}", reason),
             }

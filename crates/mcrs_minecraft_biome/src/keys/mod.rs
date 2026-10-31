@@ -9,7 +9,7 @@ pub mod placed_feature;
 
 pub use biome_source::BiomeSourceType;
 
-use mcrs_minecraft_core::{Registered, RegistryKey, rl};
+use mcrs_minecraft_resource::{Registered, RegistryKey, rl};
 
 pub const BIOME: RegistryKey<crate::Biome> = RegistryKey::new(rl!("minecraft:worldgen/biome"));
 impl Registered for crate::Biome {

@@ -14,7 +14,6 @@ use bevy_time::{Fixed, Time, TimePlugin};
 use bytes::Bytes;
 use mcrs_minecraft_assets::AppState;
 use mcrs_minecraft_block::definition::Blocks;
-use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
 use mcrs_minecraft_dimension::Dimension;
 use mcrs_minecraft_engine::ability::{PlayerGameMode, PlayerOpLevel};
 use mcrs_minecraft_engine::bus::{
@@ -43,6 +42,7 @@ use mcrs_minecraft_network::metrics::PacketDispatcher;
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundLogin;
 use mcrs_minecraft_protocol::uuid::Uuid;
 use mcrs_minecraft_protocol::{Encode, Packet};
+use mcrs_minecraft_resource::{ResourceKey, ResourceLocation};
 use mcrs_minecraft_vanilla_light::LightingPlugin;
 
 /// Build a host `App` wired for the production per-dim sub-app builder path.

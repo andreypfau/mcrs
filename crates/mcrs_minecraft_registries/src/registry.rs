@@ -6,8 +6,8 @@ use std::marker::PhantomData;
 use std::sync::Arc;
 
 use derive_where::derive_where;
-use mcrs_minecraft_core::{Id, Registered, RegistryValue, ResourceLocation};
 use mcrs_minecraft_datapack::PackIndex;
+use mcrs_minecraft_resource::{Id, Registered, RegistryValue, ResourceLocation};
 use serde::de::DeserializeOwned;
 
 use crate::refs::Resolve;

@@ -8,8 +8,9 @@ use crate::proto::{
     SingleArgumentFunction, SmearScaleMultiplier, TwoArgumentFunction,
 };
 use crate::router::NoiseSettings;
-use mcrs_minecraft_core::{Axis, ResourceLocation, StaticResourceLocation};
+use mcrs_minecraft_core::Axis;
 use mcrs_minecraft_noise::proto::{HashableF64, NoiseHolder};
+use mcrs_minecraft_resource::{ResourceLocation, StaticResourceLocation};
 use std::collections::BTreeMap;
 use std::num::NonZeroU32;
 use std::ops::{Add, Bound, Div, Mul, RangeBounds, RangeInclusive, Sub};

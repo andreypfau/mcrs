@@ -9,8 +9,8 @@ pub use self::clientbound::ClientboundUpdateTags;
 pub mod clientbound {
     use crate::packets::common::clientbound::{KeepAlive, Payload};
     use derive_more::From;
-    use mcrs_minecraft_core::ResourceLocation;
     use mcrs_minecraft_nbt::compound::NbtCompound;
+    use mcrs_minecraft_resource::ResourceLocation;
     use mcrs_minecraft_wire::{Decode, Encode};
     use std::borrow::Cow;
 

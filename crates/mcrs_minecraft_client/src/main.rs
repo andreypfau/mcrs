@@ -18,7 +18,6 @@ use bevy::window::{
 };
 use bevy::winit::{UpdateMode, WinitSettings};
 use mcrs_minecraft_biome_file::BiomeFile;
-use mcrs_minecraft_core::Id;
 #[cfg(not(target_family = "wasm"))]
 use mcrs_minecraft_datapack::DirectoryPacks;
 use mcrs_minecraft_dimension_environment::dimension_type::DimensionTypeFile;
@@ -28,6 +27,7 @@ use mcrs_minecraft_environment::world_clock::{AdvanceTime, WorldClocks};
 #[cfg(not(target_family = "wasm"))]
 use mcrs_minecraft_protocol::uuid::Uuid;
 use mcrs_minecraft_registries::CurrentRegistries;
+use mcrs_minecraft_resource::Id;
 #[cfg(not(target_family = "wasm"))]
 use mcrs_minecraft_world::save::{self, SaveError};
 
@@ -608,7 +608,7 @@ fn apply_saved_clocks(
 }
 
 fn log_registry_counts(registries: Res<CurrentRegistries>) {
-    fn count<V: mcrs_minecraft_core::RegistryValue + Send + Sync + 'static>(
+    fn count<V: mcrs_minecraft_resource::RegistryValue + Send + Sync + 'static>(
         registries: &CurrentRegistries,
     ) -> usize {
         registries

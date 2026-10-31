@@ -1,6 +1,6 @@
 use std::io::Write;
 
-use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_resource::ResourceLocation;
 use mcrs_minecraft_core::codec;
 use mcrs_minecraft_item::Text;
 use mcrs_minecraft_registries::{FromWire, Refs, Resolved, Wire, registry_value};

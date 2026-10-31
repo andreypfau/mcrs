@@ -14,7 +14,7 @@ use std::sync::Arc;
 /// overworld's.
 #[derive(bevy_ecs::prelude::Resource, Default, Clone)]
 pub struct DimensionCarverBiomes(
-    pub std::collections::BTreeMap<mcrs_minecraft_core::ResourceLocation, Arc<CarverBiomeTable>>,
+    pub std::collections::BTreeMap<mcrs_minecraft_resource::ResourceLocation, Arc<CarverBiomeTable>>,
 );
 
 pub struct ModernCarverPlugin;

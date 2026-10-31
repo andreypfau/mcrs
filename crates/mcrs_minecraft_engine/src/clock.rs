@@ -3,12 +3,12 @@
 use crate::bus::{OutboundPlayerPacket, PacketPayload, PacketTarget, to_target};
 use bevy_app::{App, FixedUpdate, Plugin};
 use bevy_ecs::prelude::*;
-use mcrs_minecraft_core::Id;
 use mcrs_minecraft_environment::world_clock::{
     AdvanceTime, ClockEdit, ClockState, WorldClock, WorldClocks,
 };
 use mcrs_minecraft_protocol::packets::game::clientbound::{ClientboundSetTime, ClockUpdate};
 use mcrs_minecraft_protocol::{VarInt, VarLong};
+use mcrs_minecraft_resource::Id;
 
 /// A change to a world clock. The host owns the clocks and applies it.
 #[derive(Event, Clone, Copy, Debug, PartialEq)]

@@ -4,7 +4,7 @@ use std::sync::Arc;
 use fixedbitset::FixedBitSet;
 use glam::IVec3;
 use mcrs_minecraft_biome::parameter_list::Preset;
-use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_resource::ResourceLocation;
 
 use super::structures::{frozen_shared, preset};
 use super::{block_tags, blocks, build_settings_router, corpus_biomes, corpus_climate};

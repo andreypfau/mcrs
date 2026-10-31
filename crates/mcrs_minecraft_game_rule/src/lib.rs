@@ -1,7 +1,7 @@
 #[rustfmt::skip]
 pub mod keys;
 
-use mcrs_minecraft_core::StaticResourceLocation;
+use mcrs_minecraft_resource::StaticResourceLocation;
 
 pub use keys::GameRule;
 

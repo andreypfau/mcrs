@@ -1,5 +1,5 @@
 use super::*;
-use mcrs_minecraft_core::rl;
+use mcrs_minecraft_resource::rl;
 
 pub fn grass_11x13(c: &mut Canvas) {
     c.variant_of([16, 1, 16], Turn::NONE, grass_16x16);

@@ -1,6 +1,6 @@
 // Written by `cargo run -p mcrs_minecraft_update -- keys`; do not edit.
 
-use mcrs_minecraft_core::{StaticResourceLocation, rl};
+use mcrs_minecraft_resource::{StaticResourceLocation, rl};
 
 pub const DEDICATED_SERVER_TICK_TIME: StaticResourceLocation = rl!("minecraft:dedicated_server_tick_time");
 pub const BEES: StaticResourceLocation = rl!("minecraft:bees");

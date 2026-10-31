@@ -1,7 +1,7 @@
 use crate::argument_parser::ArgumentParser;
 use crate::command_node_kind::CommandNodeKind;
 use crate::parser_properties::decode_properties;
-use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_resource::ResourceLocation;
 use mcrs_minecraft_wire::{Decode, Encode, Error, Result, VarInt};
 use std::borrow::Cow;
 use std::io::Write;

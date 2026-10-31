@@ -9,13 +9,13 @@ use mcrs_minecraft_client::columns::{ColumnCachePlugin, ColumnStore, Columns};
 use mcrs_minecraft_client::joined_game::{CurrentDimension, JoinedGame};
 use mcrs_minecraft_client::player::Player;
 use mcrs_minecraft_client::registries::ClientRegistriesPlugin;
-use mcrs_minecraft_core::{Id, RegistryValue};
 use mcrs_minecraft_dimension_environment::dimension_type::DimensionTypeFile;
 use mcrs_minecraft_network::ConnectionState;
 use mcrs_minecraft_network::client::{
     ChunkCacheCenter, ChunkCacheRadius, ClientNetworkPlugin, PendingTeleports,
 };
 use mcrs_minecraft_registries::CurrentRegistries;
+use mcrs_minecraft_resource::{Id, RegistryValue};
 use std::net::SocketAddr;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};

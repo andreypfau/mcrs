@@ -2,13 +2,13 @@ use serde::de::Error as _;
 use serde::{Deserialize, Deserializer, Serialize};
 
 use mcrs_minecraft_block::keys::Block;
-use mcrs_minecraft_core::Id;
 use mcrs_minecraft_core::codec::{Bounded, is_default};
 use mcrs_minecraft_dimension::{CardinalLight, DimensionType, Skybox};
 use mcrs_minecraft_environment::attribute::EnvironmentAttributeMap;
 use mcrs_minecraft_environment::timeline::Timeline;
 use mcrs_minecraft_environment::world_clock::WorldClock;
 use mcrs_minecraft_registries::{IdSet, Named, Refs, Resolve, Resolved};
+use mcrs_minecraft_resource::Id;
 use mcrs_minecraft_value_provider::{BoundedIntProvider, IntProvider};
 
 const Y_SIZE: i32 = (1 << 12) - 32;
@@ -87,7 +87,7 @@ pub struct DimensionTypeFile<M: Refs = Resolved> {
     pub default_clock: Option<M::Id<WorldClock>>,
 }
 
-impl mcrs_minecraft_core::RegistryValue for DimensionTypeFile {
+impl mcrs_minecraft_resource::RegistryValue for DimensionTypeFile {
     type Registry = mcrs_minecraft_dimension::DimensionType;
 }
 

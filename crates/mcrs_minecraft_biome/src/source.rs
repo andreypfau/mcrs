@@ -1,10 +1,10 @@
-use mcrs_minecraft_core::ResourceKey;
+use mcrs_minecraft_resource::ResourceKey;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
 use super::climate::{ClimateParameters, ParameterPoint};
-use mcrs_minecraft_core::Id;
 use mcrs_minecraft_registries::{Named, Refs, Resolve, Resolved, dispatch, registry_value};
+use mcrs_minecraft_resource::Id;
 
 // ===========================================================================
 // Beta biome lookup — enum, cascade, table

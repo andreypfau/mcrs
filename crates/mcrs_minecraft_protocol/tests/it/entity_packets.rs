@@ -1,7 +1,5 @@
 use crate::item::harness::wire_form;
 use glam::DVec3;
-use mcrs_minecraft_core::Id;
-use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_entity::keys::{Attribute, EntityType, VillagerProfession, VillagerType};
 use mcrs_minecraft_entity::variant::{CatSoundVariant, CatVariant, ZombieNautilusVariant};
 use mcrs_minecraft_item::PaintingVariantValue;
@@ -17,6 +15,8 @@ use mcrs_minecraft_protocol::packets::game::clientbound::{
     ClientboundUpdateAttributes,
 };
 use mcrs_minecraft_protocol::{ByteAngle, Decode, Encode, LpVec3, ProtoStack, VarInt};
+use mcrs_minecraft_resource::Id;
+use mcrs_minecraft_resource::ResourceLocation;
 use uuid::Uuid;
 
 fn id<R>(number: u16) -> Id<R> {
