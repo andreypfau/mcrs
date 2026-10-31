@@ -1,8 +1,10 @@
 use crate::inbound_rate::InboundRateBucket;
+use crate::intent::status_json;
 use crate::metrics::Malformed;
 use crate::{ConnectionState, NetworkSet, RawConnection};
 use crate::{connect, event, lan, webtransport};
-use bevy_app::{App, AppExit, FixedPreUpdate, Plugin, PostStartup};
+use bevy_app::{App, AppExit, FixedPreUpdate, Plugin, PostStartup, Update};
+use bevy_ecs::change_detection::ResMut;
 use bevy_ecs::prelude::Component;
 use bevy_ecs::resource::Resource;
 use bevy_ecs::schedule::IntoScheduleConfigs;
@@ -14,8 +16,10 @@ use mcrs_minecraft_protocol::uuid::Uuid;
 use mcrs_minecraft_protocol::{Bounded, Encode, Packet, Text, WritePacket};
 use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
 use std::sync::Arc;
+use std::time::{Duration, Instant};
 use tokio::runtime::{Handle, Runtime};
 use tokio::sync::mpsc::{Sender, channel};
+use tokio::sync::watch;
 use tracing::{info, warn};
 
 pub struct NetworkPlugin {
@@ -29,6 +33,8 @@ pub struct NetworkPlugin {
     /// A handshake with the transfer intent continues as a login only when this is set;
     /// otherwise the client gets `multiplayer.disconnect.transfers_disabled`.
     pub accepts_transfers: bool,
+    pub hide_online_players: bool,
+    pub enable_status: bool,
 }
 
 impl Default for NetworkPlugin {
@@ -39,6 +45,8 @@ impl Default for NetworkPlugin {
             max_players: 20,
             motd: "mcrs Server".to_owned(),
             accepts_transfers: false,
+            hide_online_players: false,
+            enable_status: true,
         }
     }
 }
@@ -66,10 +74,16 @@ pub struct StatusPlayers {
 }
 
 #[derive(Resource)]
-pub struct StatusPublisher(tokio::sync::watch::Sender<StatusPlayers>);
+pub struct StatusPublisher {
+    sender: watch::Sender<String>,
+    players: StatusPlayers,
+    changed: bool,
+    built_at: Instant,
+}
 impl StatusPublisher {
-    pub fn publish(&self, players: StatusPlayers) {
-        self.0.send_replace(players);
+    pub fn publish(&mut self, players: StatusPlayers) {
+        self.players = players;
+        self.changed = true;
     }
 }
 impl WebTransportEndpoint {
@@ -107,7 +121,7 @@ fn build_plugin(app: &mut App, plugin: &NetworkPlugin) -> anyhow::Result<()> {
     };
 
     let (new_sessions_send, mut new_sessions_recv) = channel(128);
-    let (status_send, status_recv) = tokio::sync::watch::channel(StatusPlayers::default());
+    let (status_send, status_recv) = tokio::sync::watch::channel(String::new());
 
     let shared_state = SharedNetworkState(Arc::new(SharedNetworkStateInner {
         tokio_handle,
@@ -117,11 +131,19 @@ fn build_plugin(app: &mut App, plugin: &NetworkPlugin) -> anyhow::Result<()> {
         status_recv,
         motd: plugin.motd.clone(),
         accepts_transfers: plugin.accepts_transfers,
+        hide_online_players: plugin.hide_online_players,
+        enable_status: plugin.enable_status,
     }));
+    status_send.send_replace(status_json(&StatusPlayers::default(), &shared_state.0));
 
     app.insert_resource(shared_state.clone());
     app.insert_resource(BoundAddress(bound));
-    app.insert_resource(StatusPublisher(status_send));
+    app.insert_resource(StatusPublisher {
+        sender: status_send,
+        players: StatusPlayers::default(),
+        changed: false,
+        built_at: Instant::now(),
+    });
 
     let mut webtransport_endpoint = {
         let _guard = shared_state.0.tokio_handle.enter();
@@ -188,11 +210,22 @@ fn build_plugin(app: &mut App, plugin: &NetworkPlugin) -> anyhow::Result<()> {
         FixedPreUpdate,
         spawn_new_raw_connections.in_set(NetworkSet::SpawnConnections),
     );
+    app.add_systems(Update, refresh_status.in_set(NetworkSet::RefreshStatus));
     // flush_packets and check_congestion removed; the FixedPostUpdate bridge chain
     // is registered by BridgePlugin in mcrs_minecraft_server.
     app.add_plugins(event::EventLoopPlugin);
 
     Ok(())
+}
+
+fn refresh_status(mut publisher: ResMut<StatusPublisher>, shared: Res<SharedNetworkState>) {
+    if !publisher.changed && publisher.built_at.elapsed() < Duration::from_secs(5) {
+        return;
+    }
+    let json = status_json(&publisher.players, &shared.0);
+    publisher.sender.send_replace(json);
+    publisher.built_at = Instant::now();
+    publisher.changed = false;
 }
 
 #[derive(Resource, Clone)]
@@ -207,9 +240,11 @@ pub(crate) struct SharedNetworkStateInner {
     tokio_runtime: Option<Runtime>,
     pub(crate) new_connections_send: Sender<Box<RawConnection>>,
     pub(crate) max_players: u32,
-    pub(crate) status_recv: tokio::sync::watch::Receiver<StatusPlayers>,
+    pub(crate) status_recv: tokio::sync::watch::Receiver<String>,
     pub(crate) motd: String,
     pub(crate) accepts_transfers: bool,
+    pub(crate) hide_online_players: bool,
+    pub(crate) enable_status: bool,
 }
 
 #[derive(Component)]

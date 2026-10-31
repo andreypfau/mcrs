@@ -68,6 +68,12 @@ async fn main() -> AppExit {
             ),
             accepts_transfers: variable("MCRS_ACCEPT_TRANSFERS")
                 .is_some_and(|value| on_off("MCRS_ACCEPT_TRANSFERS", Some(&value))),
+            hide_online_players: variable("MCRS_HIDE_ONLINE_PLAYERS")
+                .is_some_and(|value| on_off("MCRS_HIDE_ONLINE_PLAYERS", Some(&value))),
+            enable_status: on_off(
+                "MCRS_ENABLE_STATUS",
+                variable("MCRS_ENABLE_STATUS").as_deref(),
+            ),
             ..Default::default()
         },
         ..Default::default()

@@ -38,6 +38,7 @@ pub use mcrs_minecraft_protocol::ConnectionState;
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, bevy_ecs::schedule::SystemSet)]
 pub enum NetworkSet {
     SpawnConnections,
+    RefreshStatus,
 }
 use bytes::Bytes;
 
