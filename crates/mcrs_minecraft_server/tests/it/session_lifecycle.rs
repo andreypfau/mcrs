@@ -8,13 +8,13 @@ use mcrs_minecraft_engine::disconnect::{LeavingSessions, process_disconnect};
 use mcrs_minecraft_engine::session::GameProfile;
 use mcrs_minecraft_engine::session::{HostAnchorRef, SessionConnection};
 use mcrs_minecraft_engine_server::login::{LoginPlugin, LoginState};
-use mcrs_minecraft_level::session::{Place, PlayerSession, Session, SessionPlacement};
+use mcrs_minecraft_engine_world::session::{Place, PlayerSession, Session, SessionPlacement};
 use mcrs_minecraft_protocol::uuid::Uuid;
 
 fn make_app() -> App {
     let mut app = App::new();
     app.add_plugins(LoginPlugin);
-    app.init_resource::<mcrs_minecraft_level::session::PlayerSessionCounter>();
+    app.init_resource::<mcrs_minecraft_engine_world::session::PlayerSessionCounter>();
     app.init_resource::<DimChannelsResource>();
     app.add_message::<InboundPlayerDespawn>();
     app
@@ -110,7 +110,7 @@ fn connection_removal_despawns_the_session_and_routes_despawn_via_lifecycle() {
     let current_dim = Entity::from_raw_u32(77).expect("nonzero");
     let ctl_rx = {
         use mcrs_minecraft_engine::channel_types::FromDim;
-        use mcrs_minecraft_level::world::channels::{
+        use mcrs_minecraft_engine_world::world::channels::{
             FROM_DIM_CAPACITY, TO_DIM_CAPACITY, TO_DIM_CONTROL_CAPACITY,
         };
         let (srv_tx, _srv_rx) =
@@ -142,7 +142,7 @@ fn connection_removal_despawns_the_session_and_routes_despawn_via_lifecycle() {
                     host_anchor,
                     &mut sessions,
                     &dim_channels,
-                    &mut mcrs_minecraft_level::world::sub_app::DimDespawnQueue::default(),
+                    &mut mcrs_minecraft_engine_world::world::sub_app::DimDespawnQueue::default(),
                     &mut commands,
                 );
 
@@ -151,7 +151,7 @@ fn connection_removal_despawns_the_session_and_routes_despawn_via_lifecycle() {
                     host_anchor,
                     &mut sessions,
                     &dim_channels,
-                    &mut mcrs_minecraft_level::world::sub_app::DimDespawnQueue::default(),
+                    &mut mcrs_minecraft_engine_world::world::sub_app::DimDespawnQueue::default(),
                     &mut commands,
                 );
             },
@@ -214,7 +214,7 @@ fn a_late_cleanup_leaves_the_name_to_the_player_who_logged_in_again() {
                     first_anchor,
                     &mut sessions,
                     &dim_channels,
-                    &mut mcrs_minecraft_level::world::sub_app::DimDespawnQueue::default(),
+                    &mut mcrs_minecraft_engine_world::world::sub_app::DimDespawnQueue::default(),
                     &mut commands,
                 );
             },

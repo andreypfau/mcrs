@@ -31,7 +31,7 @@ use mcrs_minecraft_engine::bridge_queue::{DEPTH_DRAIN_TARGET, DEPTH_LIMIT, Outbo
 use mcrs_minecraft_engine::bus::{
     OutboundPlayerPacket, PacketPayload, PacketPriority, PacketTarget, TestPayload,
 };
-use mcrs_minecraft_level::session::PlayerSession;
+use mcrs_minecraft_engine_world::session::PlayerSession;
 use mcrs_minecraft_network::ServerSideConnection;
 use mcrs_minecraft_network::metrics::BridgeTelemetry;
 use mcrs_minecraft_protocol::chunk::LightData;

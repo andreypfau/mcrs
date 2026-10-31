@@ -10,15 +10,17 @@ use mcrs_minecraft_anvil::{PaletteLookup, Properties, parse_chunk};
 use mcrs_minecraft_block_entity::{BeeOccupant, EndGatewayData, GeneratedBlockEntity};
 use mcrs_minecraft_core::{SectionPos, VERSION};
 use mcrs_minecraft_engine::block_entity_packet::packet_entry;
-use mcrs_minecraft_level::world::dimension::InDimension;
-use mcrs_minecraft_level::world::lifecycle::level::SectionLevels;
-use mcrs_minecraft_level::world::lifecycle::stage::{SectionStage, SectionStageChanged};
-use mcrs_minecraft_level::world::lifecycle::ticket::{SectionTickets, TicketPlugin};
-use mcrs_minecraft_level::world::storage::block_entity::{BlockEntity, spawn_block_entities};
-use mcrs_minecraft_level::world::storage::block_entity::{
+use mcrs_minecraft_engine_world::world::dimension::InDimension;
+use mcrs_minecraft_engine_world::world::lifecycle::level::SectionLevels;
+use mcrs_minecraft_engine_world::world::lifecycle::stage::{SectionStage, SectionStageChanged};
+use mcrs_minecraft_engine_world::world::lifecycle::ticket::{SectionTickets, TicketPlugin};
+use mcrs_minecraft_engine_world::world::storage::block_entity::{
+    BlockEntity, spawn_block_entities,
+};
+use mcrs_minecraft_engine_world::world::storage::block_entity::{
     InSection, SectionBlockEntities, reconcile_block_entities,
 };
-use mcrs_minecraft_level::world::storage::section::SectionIndex;
+use mcrs_minecraft_engine_world::world::storage::section::SectionIndex;
 use mcrs_minecraft_nbt::Nbt;
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::tag::NbtTag;

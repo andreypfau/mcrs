@@ -7,7 +7,7 @@ use smallvec::SmallVec;
 use std::borrow::Cow;
 
 use crate::bus::InboundPlayerPacket;
-use mcrs_minecraft_level::session::{PlayerSession, Session, SessionPlacement};
+use mcrs_minecraft_engine_world::session::{PlayerSession, Session, SessionPlacement};
 
 /// Serverbound packets that arrived while the session had no dimension to take them, handed
 /// on in arrival order once it is attached.

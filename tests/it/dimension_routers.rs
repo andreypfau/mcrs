@@ -5,7 +5,7 @@ use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
 use mcrs_minecraft_dimension::Dimension;
 use mcrs_minecraft_engine::dimension_generators::DimensionGenerators;
 use mcrs_minecraft_engine::sub_app_builder::drain_dim_spawn_queue;
-use mcrs_minecraft_level::world::dimension_list::DimensionList;
+use mcrs_minecraft_engine_world::world::dimension_list::DimensionList;
 use mcrs_minecraft_server::MinecraftServerPlugins;
 use mcrs_minecraft_vanilla_worldgen::DimensionRouters;
 use mcrs_minecraft_world::worldgen::chunk_generator::ChunkGenerator;

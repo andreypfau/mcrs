@@ -9,11 +9,11 @@ use mcrs_minecraft_core::Id;
 use mcrs_minecraft_engine::bus::InboundPlayerSpawn;
 use mcrs_minecraft_engine::dim::{DimSubAppHandle, drain_dim_despawn_queue};
 use mcrs_minecraft_engine::sub_app_builder::drain_dim_spawn_queue;
+use mcrs_minecraft_engine_world::session::{PlayerSessionCounter, Session};
+use mcrs_minecraft_engine_world::world::dimension::Dimension;
+use mcrs_minecraft_engine_world::world::dimension_list::DimensionList;
+use mcrs_minecraft_engine_world::world::sub_app::{DimAppLabel, DimDespawnQueue};
 use mcrs_minecraft_environment::world_clock::{ClockState, WorldClockPlugin, WorldClocks};
-use mcrs_minecraft_level::session::{PlayerSessionCounter, Session};
-use mcrs_minecraft_level::world::dimension::Dimension;
-use mcrs_minecraft_level::world::dimension_list::DimensionList;
-use mcrs_minecraft_level::world::sub_app::{DimAppLabel, DimDespawnQueue};
 use mcrs_minecraft_network::ServerSideConnection;
 use mcrs_minecraft_registries::{CurrentRegistries, Registries, Resolver};
 

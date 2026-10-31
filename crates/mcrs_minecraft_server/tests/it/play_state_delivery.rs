@@ -19,8 +19,12 @@ use mcrs_minecraft_engine::dim::DimSubAppHandle;
 use mcrs_minecraft_engine::dim::pump_channels;
 use mcrs_minecraft_engine::session::SessionBundle;
 use mcrs_minecraft_engine::sub_app_builder::drain_dim_spawn_queue;
-use mcrs_minecraft_level::session::{Place, PlayerSession, PlayerSessionCounter, SessionPlacement};
-use mcrs_minecraft_level::world::sub_app::{DimDespawnQueue, DimSpawnQueue, DimSpawnRequest};
+use mcrs_minecraft_engine_world::session::{
+    Place, PlayerSession, PlayerSessionCounter, SessionPlacement,
+};
+use mcrs_minecraft_engine_world::world::sub_app::{
+    DimDespawnQueue, DimSpawnQueue, DimSpawnRequest,
+};
 use mcrs_minecraft_protocol::uuid::Uuid;
 
 use crate::support;

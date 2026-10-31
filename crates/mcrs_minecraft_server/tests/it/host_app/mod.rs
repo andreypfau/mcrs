@@ -29,12 +29,14 @@ use mcrs_minecraft_engine::ops::{DefaultOpLevel, OpList, OpListEntry};
 use mcrs_minecraft_engine::session::HostAnchor;
 use mcrs_minecraft_engine::session::{HostAnchorRef, SessionBundle, SessionConnection};
 use mcrs_minecraft_engine::sub_app_builder::drain_dim_spawn_queue;
-use mcrs_minecraft_game_mode::GameMode;
-use mcrs_minecraft_level::entity::player::Player;
-use mcrs_minecraft_level::session::{Place, PlayerSession, PlayerSessionCounter, SessionPlacement};
-use mcrs_minecraft_level::world::sub_app::{
+use mcrs_minecraft_engine_world::entity::player::Player;
+use mcrs_minecraft_engine_world::session::{
+    Place, PlayerSession, PlayerSessionCounter, SessionPlacement,
+};
+use mcrs_minecraft_engine_world::world::sub_app::{
     DimAppLabel, DimDespawnQueue, DimSpawnQueue, DimSpawnRequest,
 };
+use mcrs_minecraft_game_mode::GameMode;
 use mcrs_minecraft_light_engine::block_light::{BlockLightRegistry, block_light_registry};
 use mcrs_minecraft_network::ConnectionState;
 use mcrs_minecraft_network::metrics::PacketDispatcher;

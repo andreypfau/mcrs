@@ -9,10 +9,12 @@ use mcrs_minecraft_core::ColumnPos;
 use mcrs_minecraft_engine::bus::{InboundPlayerDespawn, OutboundPlayerPacket};
 use mcrs_minecraft_engine::column_view::ColumnView;
 use mcrs_minecraft_engine::tracked_by::TrackedBy;
-use mcrs_minecraft_level::aoi::PlayerObservers;
-use mcrs_minecraft_level::session::PlayerSession;
-use mcrs_minecraft_level::world::dimension::{DimensionBundle, DimensionTypeConfig, InDimension};
-use mcrs_minecraft_level::world::storage::column::{Column, ColumnIndex, ColumnSlot};
+use mcrs_minecraft_engine_world::aoi::PlayerObservers;
+use mcrs_minecraft_engine_world::session::PlayerSession;
+use mcrs_minecraft_engine_world::world::dimension::{
+    DimensionBundle, DimensionTypeConfig, InDimension,
+};
+use mcrs_minecraft_engine_world::world::storage::column::{Column, ColumnIndex, ColumnSlot};
 use rustc_hash::FxHashMap;
 
 use crate::harness;

@@ -1,6 +1,6 @@
 use crate::joined_game::CurrentDimension;
 use bevy::prelude::*;
-use mcrs_minecraft_level::world::lifecycle::trace::ColumnTraceSink;
+use mcrs_minecraft_engine_world::world::lifecycle::trace::ColumnTraceSink;
 use mcrs_minecraft_network::client::ClientConnection;
 
 use crate::stream::Loader;

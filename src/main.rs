@@ -16,7 +16,7 @@ use mcrs_minecraft_server::MinecraftServerPlugins;
 use mcrs_minecraft_vanilla_light::LightingPlugin;
 use mcrs_minecraft_vanilla_worldgen::WorldGenPlugin;
 
-const LOG_FILTER: &str = "mcrs_minecraft_server=debug,mcrs_minecraft_engine=debug,mcrs_minecraft_engine::column_view=trace,mcrs_minecraft_level::entity::player::chunk_view=trace,mcrs_minecraft_network=debug";
+const LOG_FILTER: &str = "mcrs_minecraft_server=debug,mcrs_minecraft_engine=debug,mcrs_minecraft_engine::column_view=trace,mcrs_minecraft_engine_world::entity::player::chunk_view=trace,mcrs_minecraft_network=debug";
 
 #[tokio::main]
 async fn main() -> AppExit {

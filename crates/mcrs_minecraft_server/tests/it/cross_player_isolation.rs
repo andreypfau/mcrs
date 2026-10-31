@@ -20,8 +20,8 @@ use mcrs_minecraft_engine::bridge_queue::OutboundQueue;
 use mcrs_minecraft_engine::bus::{InboundPlayerDespawn, OutboundPlayerPacket, PacketPriority};
 use mcrs_minecraft_engine::despawn_inbound_player::despawn_inbound_player;
 use mcrs_minecraft_engine::session::HostAnchor;
-use mcrs_minecraft_level::entity::player::Player;
-use mcrs_minecraft_level::session::{DimPlayerIndex, Owner, PlayerSession, Session};
+use mcrs_minecraft_engine_world::entity::player::Player;
+use mcrs_minecraft_engine_world::session::{DimPlayerIndex, Owner, PlayerSession, Session};
 
 use mock_connection::{
     drain_queue, register_session, run_system, spawn_connection, write_packet_stamped,

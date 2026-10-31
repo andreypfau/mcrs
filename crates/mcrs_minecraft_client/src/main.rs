@@ -23,8 +23,8 @@ use mcrs_minecraft_core::Id;
 use mcrs_minecraft_datapack::DirectoryPacks;
 use mcrs_minecraft_dimension_environment::dimension_type::DimensionTypeFile;
 use mcrs_minecraft_dimension_environment::environment::Weather;
+use mcrs_minecraft_engine_world::entity::physics::Transform as PhysicsTransform;
 use mcrs_minecraft_environment::world_clock::{AdvanceTime, WorldClocks};
-use mcrs_minecraft_level::entity::physics::Transform as PhysicsTransform;
 #[cfg(not(target_family = "wasm"))]
 use mcrs_minecraft_protocol::uuid::Uuid;
 use mcrs_minecraft_registries::CurrentRegistries;
@@ -52,9 +52,9 @@ use mcrs_minecraft_engine_server::{
     BoundAddress, DataPack, DimensionWorldsPlugin, NetworkCompressionThreshold, ServerCorePlugin,
     ServerNetworkPlugin,
 };
-use mcrs_minecraft_environment::world_clock::WorldClock;
 #[cfg(all(feature = "singleplayer", not(target_family = "wasm")))]
-use mcrs_minecraft_level::world::lifecycle::trace::ColumnTraceSink;
+use mcrs_minecraft_engine_world::world::lifecycle::trace::ColumnTraceSink;
+use mcrs_minecraft_environment::world_clock::WorldClock;
 #[cfg(all(feature = "singleplayer", not(target_family = "wasm")))]
 use mcrs_minecraft_network::client::offline_player_uuid;
 #[cfg(not(target_family = "wasm"))]

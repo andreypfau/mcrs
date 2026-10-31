@@ -5,9 +5,9 @@ use bevy_math::DVec3;
 use mcrs_minecraft_command::CommandLevel;
 use mcrs_minecraft_core::{Look, LookAnchor};
 use mcrs_minecraft_engine::ability::{PlayerGameMode, PlayerOpLevel};
+use mcrs_minecraft_engine_world::entity::physics::Transform;
+use mcrs_minecraft_engine_world::entity::player::Player;
 use mcrs_minecraft_game_mode::GameMode;
-use mcrs_minecraft_level::entity::physics::Transform;
-use mcrs_minecraft_level::entity::player::Player;
 
 /// One source of a command: who runs it, in which dimension, where, facing where, with which
 /// permissions. A stage of `execute` maps it to other sources; the output stays the player who

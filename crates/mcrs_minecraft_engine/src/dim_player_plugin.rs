@@ -14,9 +14,9 @@ use crate::player_dimension_change::{self, CarryOnDimensionChangeExt};
 use crate::session::GameProfile;
 use bevy_app::{App, FixedUpdate, Plugin, Update};
 use bevy_ecs::schedule::IntoScheduleConfigs;
-use mcrs_minecraft_level::aoi::every_n_ticks;
-use mcrs_minecraft_level::entity::player::chunk_view::PlayerViewDistance;
-use mcrs_minecraft_level::tick::TickSet;
+use mcrs_minecraft_engine_world::aoi::every_n_ticks;
+use mcrs_minecraft_engine_world::entity::player::chunk_view::PlayerViewDistance;
+use mcrs_minecraft_engine_world::tick::TickSet;
 
 /// Plugin for per-dimension worlds. Registers only the bus-driven and
 /// simulation systems that are safe to run inside a DimWorld — no

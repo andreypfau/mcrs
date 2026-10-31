@@ -15,8 +15,8 @@ use tracing::{error, warn};
 use crate::bus::{InboundPlayerDespawn, InboundPlayerSpawn, OutboundPlayerPacket};
 use crate::channel_types::{FromDim, ToDim};
 use crate::dim::DimSubAppHandle;
-use mcrs_minecraft_level::block_update::{BlockPlaced, BlockSetRequest};
-use mcrs_minecraft_level::world::channels::{
+use mcrs_minecraft_engine_world::block_update::{BlockPlaced, BlockSetRequest};
+use mcrs_minecraft_engine_world::world::channels::{
     DimChannels, FROM_DIM_CAPACITY, FromDimSender, TO_DIM_CAPACITY, TO_DIM_CONTROL_CAPACITY,
     ToDimReceiver,
 };
@@ -58,18 +58,18 @@ use crate::minecraft_entity::MinecraftEntityPlugin;
 use crate::player_tracker::PlayerTrackerPlugin;
 use mcrs_minecraft_dimension_environment::dimension_type::DimensionTypeFile;
 use mcrs_minecraft_dimension_environment::environment::DimensionEnvironment;
-use mcrs_minecraft_heightmap::HeightmapPredicates;
-use mcrs_minecraft_level::world::column_drain::{ColumnDrain, ColumnDrainSet};
-use mcrs_minecraft_level::world::dimension::{
+use mcrs_minecraft_engine_world::world::column_drain::{ColumnDrain, ColumnDrainSet};
+use mcrs_minecraft_engine_world::world::dimension::{
     DimensionBundle, DimensionPlugin, DimensionTypeConfig, DimensionTypeId, HasSkyLight, HasWeather,
 };
-use mcrs_minecraft_level::world::dimension_builders::{DimensionBuild, DimensionBuilders};
-use mcrs_minecraft_level::world::lifecycle::trace::{ColumnTraceLog, ColumnTraceSink};
-use mcrs_minecraft_level::world::light_gate::ColumnLightGate;
-use mcrs_minecraft_level::world::sub_app::{
+use mcrs_minecraft_engine_world::world::dimension_builders::{DimensionBuild, DimensionBuilders};
+use mcrs_minecraft_engine_world::world::lifecycle::trace::{ColumnTraceLog, ColumnTraceSink};
+use mcrs_minecraft_engine_world::world::light_gate::ColumnLightGate;
+use mcrs_minecraft_engine_world::world::sub_app::{
     DimAppLabel, DimSpawnQueue, DimSpawnRequest, DimensionPlugins,
 };
-use mcrs_minecraft_level::world::world_save::WorldSave;
+use mcrs_minecraft_engine_world::world::world_save::WorldSave;
+use mcrs_minecraft_heightmap::HeightmapPredicates;
 use mcrs_minecraft_registries::CurrentRegistries;
 
 #[derive(Clone)]
@@ -196,7 +196,7 @@ pub fn spawn_dim_subapp(
     // `OutboundPlayerAttached` is written by `consume_inbound_player_spawn` and
     // extracted by the host to attach the session.
     sub_app.add_message::<crate::bus::OutboundPlayerAttached>();
-    sub_app.add_message::<mcrs_minecraft_level::entity::player::ChangeDimensionRequest>();
+    sub_app.add_message::<mcrs_minecraft_engine_world::entity::player::ChangeDimensionRequest>();
     // The sub-app builder is the single source of truth for these registrations — `BlockUpdatePlugin`
     // no longer registers them and instead debug-asserts they are already in
     // place, so a mistaken host-side `add_plugins(BlockUpdatePlugin)` fails
@@ -205,11 +205,11 @@ pub fn spawn_dim_subapp(
     sub_app.add_message::<BlockSetRequest>();
     sub_app.add_message::<BlockPlaced>();
 
-    sub_app.init_resource::<mcrs_minecraft_level::session::DimPlayerIndex>();
+    sub_app.init_resource::<mcrs_minecraft_engine_world::session::DimPlayerIndex>();
     if column_traces.is_some() {
         sub_app.init_resource::<ColumnTraceLog>();
     }
-    sub_app.insert_resource(mcrs_minecraft_level::world::sub_app::DimensionLabel(
+    sub_app.insert_resource(mcrs_minecraft_engine_world::world::sub_app::DimensionLabel(
         label_entity,
     ));
 
@@ -281,15 +281,15 @@ pub fn spawn_dim_subapp(
             // The light packet walks the column index, which is rebuilt here rather than left
             // to the tick: a column sent before its sections are in it goes out unlit.
             (
-                mcrs_minecraft_level::world::storage::column::reconcile_columns,
-                mcrs_minecraft_level::world::storage::block_entity::reconcile_block_entities,
+                mcrs_minecraft_engine_world::world::storage::column::reconcile_columns,
+                mcrs_minecraft_engine_world::world::storage::block_entity::reconcile_block_entities,
                 crate::heightmap::prime_column_heightmaps,
             )
                 .chain()
                 .in_set(ColumnDrainSet::Reconcile),
             (
-                mcrs_minecraft_level::world::lifecycle::ticket::propagate_section_levels,
-                mcrs_minecraft_level::world::lifecycle::ticket::spawn_chunks,
+                mcrs_minecraft_engine_world::world::lifecycle::ticket::propagate_section_levels,
+                mcrs_minecraft_engine_world::world::lifecycle::ticket::spawn_chunks,
             )
                 .chain()
                 .in_set(ColumnDrainSet::Request),
@@ -590,7 +590,7 @@ mod tests {
                 target: PacketTarget::SinglePlayer(Entity::PLACEHOLDER),
                 priority: PacketPriority::Critical,
                 data: PacketPayload::Test(TestPayload { seq }),
-                session: mcrs_minecraft_level::session::PlayerSession(0),
+                session: mcrs_minecraft_engine_world::session::PlayerSession(0),
                 epoch: 0,
             });
         }

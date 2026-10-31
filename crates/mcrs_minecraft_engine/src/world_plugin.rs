@@ -2,8 +2,8 @@ use bevy_app::{App, Plugin};
 use bevy_ecs::prelude::*;
 use bevy_state::prelude::OnEnter;
 use mcrs_minecraft_assets::AppState;
-use mcrs_minecraft_level::world::dimension_list::DimensionList;
-use mcrs_minecraft_level::world::sub_app::{
+use mcrs_minecraft_engine_world::world::dimension_list::DimensionList;
+use mcrs_minecraft_engine_world::world::sub_app::{
     DimSpawnEnqueue, DimSpawnQueue, DimSpawnRequest, DimensionPlugins,
 };
 use tracing::{debug, info, warn};

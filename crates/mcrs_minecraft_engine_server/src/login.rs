@@ -19,7 +19,9 @@ use mcrs_minecraft_engine::disconnect::Departing;
 use mcrs_minecraft_engine::session::{
     GameProfile, HostAnchorRef, SessionBundle, SessionConnection,
 };
-use mcrs_minecraft_level::session::{Place, PlayerSessionCounter, Session, SessionPlacement};
+use mcrs_minecraft_engine_world::session::{
+    Place, PlayerSessionCounter, Session, SessionPlacement,
+};
 
 /// Vanilla mints one chat session id per listener and reuses it for every login.
 #[derive(Resource, Clone, Copy, Debug)]

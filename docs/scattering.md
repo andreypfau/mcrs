@@ -804,10 +804,10 @@ schema knows which blocks have one; what is missing
 is the runtime form. That form is an entity per block entity with a back-link
 to its section, in the shape the column-to-section link already has: a
 custom component naming the parent
-(`crates/mcrs_minecraft_level/src/world/storage/column.rs`, `Column`, `ColumnSlot`), a forward
+(`crates/mcrs_minecraft_engine_world/src/world/storage/column.rs`, `Column`, `ColumnSlot`), a forward
 index on the parent maintained by the same reconcile step that attaches the
 back-link, and not the built-in hierarchy (X8 of `worldgen.md`). The section's
-despawn (`crates/mcrs_minecraft_level/src/world/lifecycle/ticket.rs`, `track_simulation_tickets`, `release_simulation_ticket`) despawns its block entities through
+despawn (`crates/mcrs_minecraft_engine_world/src/world/lifecycle/ticket.rs`, `track_simulation_tickets`, `release_simulation_ticket`) despawns its block entities through
 that index, since a custom link does not cascade. Position, kind and the
 kind's state — for a bee nest, its occupants — are the entity's components,
 typed per kind. NBT is a serialisation format and appears nowhere at run time:

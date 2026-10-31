@@ -10,7 +10,7 @@ use crate::worlds::Worlds;
 use bevy_app::{App, Plugin};
 use bevy_ecs::prelude::*;
 use mcrs_command::BuildError;
-use mcrs_minecraft_level::world::sub_app::AddDimensionPlugins;
+use mcrs_minecraft_engine_world::world::sub_app::AddDimensionPlugins;
 use std::marker::PhantomData;
 
 /// Why a command, or one of its nodes, is not in the command tree.

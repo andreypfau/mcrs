@@ -14,8 +14,10 @@ use mcrs_minecraft_engine::disconnect::{
     filter_inflight_for_disconnect,
 };
 use mcrs_minecraft_engine::session::SessionBundle;
-use mcrs_minecraft_level::session::{Place, PlayerSessionCounter, Session, SessionPlacement};
-use mcrs_minecraft_level::world::channels::{
+use mcrs_minecraft_engine_world::session::{
+    Place, PlayerSessionCounter, Session, SessionPlacement,
+};
+use mcrs_minecraft_engine_world::world::channels::{
     FROM_DIM_CAPACITY, TO_DIM_CAPACITY, TO_DIM_CONTROL_CAPACITY,
 };
 

@@ -58,7 +58,7 @@ fn build_modern_carver_biomes(
     dimensions: bevy_ecs::prelude::Res<
         mcrs_minecraft_engine::dimension_generators::DimensionGenerators,
     >,
-    list: bevy_ecs::prelude::Res<mcrs_minecraft_level::world::dimension_list::DimensionList>,
+    list: bevy_ecs::prelude::Res<mcrs_minecraft_engine_world::world::dimension_list::DimensionList>,
     current: bevy_ecs::prelude::Res<CurrentRegistries>,
 ) {
     let Some(carvers) = carvers_by_biome(&current) else {

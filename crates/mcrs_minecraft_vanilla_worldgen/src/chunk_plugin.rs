@@ -7,21 +7,21 @@ use bevy_tasks::futures_lite::future;
 use bevy_tasks::{Task, TaskPool, TaskPoolBuilder, block_on};
 use mcrs_minecraft_core::{ColumnPos, SectionPos};
 use mcrs_minecraft_engine::heightmap::PendingColumnHeightmaps;
-use mcrs_minecraft_level::aoi::min_column_distance;
-use mcrs_minecraft_level::entity::physics::Transform;
-use mcrs_minecraft_level::entity::player::Player;
-use mcrs_minecraft_level::entity::player::chunk_view::{ChunkTrackingView, SentChunkView};
-use mcrs_minecraft_level::palette::{ChunkBlocks, section_states};
-use mcrs_minecraft_level::world::column_drain::{ColumnDrain, ColumnDrainSet};
-use mcrs_minecraft_level::world::dimension::InDimension;
-use mcrs_minecraft_level::world::lifecycle::level::FULL_LEVEL;
-use mcrs_minecraft_level::world::lifecycle::stage::{
+use mcrs_minecraft_engine_world::aoi::min_column_distance;
+use mcrs_minecraft_engine_world::entity::physics::Transform;
+use mcrs_minecraft_engine_world::entity::player::Player;
+use mcrs_minecraft_engine_world::entity::player::chunk_view::{ChunkTrackingView, SentChunkView};
+use mcrs_minecraft_engine_world::palette::{ChunkBlocks, section_states};
+use mcrs_minecraft_engine_world::world::column_drain::{ColumnDrain, ColumnDrainSet};
+use mcrs_minecraft_engine_world::world::dimension::InDimension;
+use mcrs_minecraft_engine_world::world::lifecycle::level::FULL_LEVEL;
+use mcrs_minecraft_engine_world::world::lifecycle::stage::{
     SectionStage, SectionStageChanged, SectionStages,
 };
-use mcrs_minecraft_level::world::lifecycle::ticket::Ticket;
-use mcrs_minecraft_level::world::lifecycle::trace as column_trace;
-use mcrs_minecraft_level::world::lifecycle::trace::{ColumnStage, ColumnTraceLog};
-use mcrs_minecraft_level::world::storage::block_entity::spawn_block_entities;
+use mcrs_minecraft_engine_world::world::lifecycle::ticket::Ticket;
+use mcrs_minecraft_engine_world::world::lifecycle::trace as column_trace;
+use mcrs_minecraft_engine_world::world::lifecycle::trace::{ColumnStage, ColumnTraceLog};
+use mcrs_minecraft_engine_world::world::storage::block_entity::spawn_block_entities;
 use mcrs_minecraft_simulation::PendingTick;
 use mcrs_minecraft_worldgen_feature::placer::GenerationKinds;
 use mcrs_minecraft_worldgen_generator::saved::SectionData;
@@ -63,8 +63,8 @@ impl Plugin for ChunkPlugin {
                 dispatch_column_generation.run_if(resource_exists::<FillContext>),
             )
                 .chain()
-                .in_set(mcrs_minecraft_level::tick::TickSet::Project)
-                .after(mcrs_minecraft_level::world::lifecycle::ticket::ChunkSpawnSet),
+                .in_set(mcrs_minecraft_engine_world::tick::TickSet::Project)
+                .after(mcrs_minecraft_engine_world::world::lifecycle::ticket::ChunkSpawnSet),
         );
         app.add_systems(
             ColumnDrain,
@@ -78,7 +78,7 @@ impl Plugin for ChunkPlugin {
                 )
                     .chain()
                     .in_set(ColumnDrainSet::Request)
-                    .after(mcrs_minecraft_level::world::lifecycle::ticket::spawn_chunks),
+                    .after(mcrs_minecraft_engine_world::world::lifecycle::ticket::spawn_chunks),
             ),
         );
     }

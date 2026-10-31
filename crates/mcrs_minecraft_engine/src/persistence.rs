@@ -2,9 +2,9 @@ use bevy_ecs::entity::Entity;
 use bevy_ecs::prelude::{Component, With};
 use bevy_ecs::world::World;
 use mcrs_minecraft_core::{ResourceKey, VERSION};
-use mcrs_minecraft_level::entity::physics::Transform;
-use mcrs_minecraft_level::entity::player::Player;
-use mcrs_minecraft_level::world::dimension::InDimension;
+use mcrs_minecraft_engine_world::entity::physics::Transform;
+use mcrs_minecraft_engine_world::entity::player::Player;
+use mcrs_minecraft_engine_world::world::dimension::InDimension;
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_protocol::item::{ItemStackValue, ItemStackWithSlot};
 use mcrs_minecraft_registries::Named;
@@ -14,7 +14,7 @@ use tracing::error;
 
 use crate::session::GameProfile;
 use mcrs_minecraft_dimension::Dimension;
-use mcrs_minecraft_level::world::world_save::WorldSave;
+use mcrs_minecraft_engine_world::world::world_save::WorldSave;
 
 /// Vanilla's own autosave cadence, in ticks.
 pub const AUTOSAVE_INTERVAL: u32 = 6000;

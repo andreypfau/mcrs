@@ -11,26 +11,26 @@ use bevy_ecs::system::{Res, SystemParam};
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_chunk::{BlockLight, SkyLight};
 use mcrs_minecraft_core::{BlockStateId, SectionPos};
-use mcrs_minecraft_level::entity::physics::Transform;
-use mcrs_minecraft_level::entity::player::chunk_view::{
+use mcrs_minecraft_engine_world::entity::physics::Transform;
+use mcrs_minecraft_engine_world::entity::player::chunk_view::{
     ChunkTrackingView, PlayerViewDistance, SentChunkView,
 };
-use mcrs_minecraft_level::palette::{BiomePalette, ChunkBlocks};
-use mcrs_minecraft_level::world::dimension::{DimensionTypeConfig, InDimension};
-use mcrs_minecraft_level::world::lifecycle::stage::SectionStage;
-use mcrs_minecraft_level::world::lifecycle::ticket::{
+use mcrs_minecraft_engine_world::palette::{BiomePalette, ChunkBlocks};
+use mcrs_minecraft_engine_world::world::dimension::{DimensionTypeConfig, InDimension};
+use mcrs_minecraft_engine_world::world::lifecycle::stage::SectionStage;
+use mcrs_minecraft_engine_world::world::lifecycle::ticket::{
     ChunkSpawnSet, MAX_SPAWNS_PER_TICK, SectionTickets, Ticket,
 };
-use mcrs_minecraft_level::world::lifecycle::trace as column_trace;
-use mcrs_minecraft_level::world::lifecycle::trace::{ColumnStage, ColumnTraceLog};
-use mcrs_minecraft_level::world::light_gate::{
+use mcrs_minecraft_engine_world::world::lifecycle::trace as column_trace;
+use mcrs_minecraft_engine_world::world::lifecycle::trace::{ColumnStage, ColumnTraceLog};
+use mcrs_minecraft_engine_world::world::light_gate::{
     ColumnAwaitsLight, ColumnLightGate, ColumnLightSettled, LightGated,
 };
-use mcrs_minecraft_level::world::storage::block_entity::SectionBlockEntities;
-use mcrs_minecraft_level::world::storage::column::{
+use mcrs_minecraft_engine_world::world::storage::block_entity::SectionBlockEntities;
+use mcrs_minecraft_engine_world::world::storage::column::{
     ColumnIndex, ColumnLifecycleSet, ColumnPos as EngineColumnPos,
 };
-use mcrs_minecraft_level::world::storage::section::SectionIndex;
+use mcrs_minecraft_engine_world::world::storage::section::SectionIndex;
 use mcrs_minecraft_network::event::Received;
 use mcrs_minecraft_protocol::ColumnPos;
 use mcrs_minecraft_protocol::VarInt;
@@ -51,8 +51,8 @@ use crate::column_held::ColumnHeld;
 use crate::heightmap::client_heightmaps;
 use crate::session::HostAnchor;
 use mcrs_minecraft_biome_file::BiomeFile;
+use mcrs_minecraft_engine_world::world::storage::block_entity::BlockEntity;
 use mcrs_minecraft_heightmap::{MotionHeightmap, NoLeavesHeightmap, SurfaceHeightmap};
-use mcrs_minecraft_level::world::storage::block_entity::BlockEntity;
 use rustc_hash::{FxHashMap, FxHashSet};
 use tracing::{trace, warn};
 
@@ -875,8 +875,8 @@ mod tests {
     use bevy_ecs::message::Messages;
     use bevy_ecs::system::RunSystemOnce;
     use bevy_ecs::world::World;
-    use mcrs_minecraft_level::world::dimension::HasSkyLight;
-    use mcrs_minecraft_level::world::storage::column::{ColumnSections, ColumnSlot};
+    use mcrs_minecraft_engine_world::world::dimension::HasSkyLight;
+    use mcrs_minecraft_engine_world::world::storage::column::{ColumnSections, ColumnSlot};
 
     const SECTIONS: u32 = 2;
 
@@ -899,7 +899,7 @@ mod tests {
                 .map(|y| {
                     let section = world
                         .spawn((
-                            mcrs_minecraft_level::palette::air_section(),
+                            mcrs_minecraft_engine_world::palette::air_section(),
                             BiomePalette::default(),
                             SectionStage::Loaded,
                         ))

@@ -18,8 +18,8 @@ pub use dimension_worlds_plugin::DimensionWorldsPlugin;
 pub use login::NetworkCompressionThreshold;
 #[cfg(feature = "client-jar")]
 pub use mcrs_minecraft_client_jar::ClientJar;
+pub use mcrs_minecraft_engine_world::server_loop::spawn_server_thread;
 pub use mcrs_minecraft_game_mode::GameMode;
-pub use mcrs_minecraft_level::server_loop::spawn_server_thread;
 pub use mcrs_minecraft_network::BoundAddress;
 pub use runner::{DEFAULT_TPS, run_server_loop};
 pub use server_core_plugin::ServerCorePlugin;

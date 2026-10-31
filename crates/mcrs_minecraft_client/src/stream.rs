@@ -9,7 +9,7 @@ use bevy::tasks::{AsyncComputeTaskPool, IoTaskPool, Task, futures::check_ready};
 use mcrs_minecraft_block::definition::{BlockDefinitions, Blocks};
 use mcrs_minecraft_core::{ColumnPos, SectionPos};
 #[cfg(feature = "dev")]
-use mcrs_minecraft_level::world::lifecycle::trace::{ColumnStage, TraceEvent};
+use mcrs_minecraft_engine_world::world::lifecycle::trace::{ColumnStage, TraceEvent};
 use mcrs_minecraft_registries::CurrentRegistries;
 
 use crate::atlas::SpriteArray;

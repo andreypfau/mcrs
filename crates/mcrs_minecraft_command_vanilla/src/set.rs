@@ -9,7 +9,7 @@ use mcrs_minecraft_command_argument_vanilla::{ArgumentError, VanillaArgument};
 use mcrs_minecraft_command_engine::{CommandContext, CommandSet, CommandTargets};
 use mcrs_minecraft_command_registry::RegistryLookup;
 use mcrs_minecraft_core::StaticResourceLocation;
-use mcrs_minecraft_level::world::dimension::DimensionTypeId;
+use mcrs_minecraft_engine_world::world::dimension::DimensionTypeId;
 use mcrs_minecraft_registries::CurrentRegistries;
 
 /// The vanilla argument types, which read the registries, the block table and the players of

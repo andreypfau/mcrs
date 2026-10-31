@@ -13,7 +13,7 @@ use mcrs_minecraft_protocol::uuid::Uuid;
 
 use crate::host_app::{self, PlayServer};
 use mcrs_minecraft_chat_server::ChatPlugin;
-use mcrs_minecraft_level::world::sub_app::AddDimensionPlugins;
+use mcrs_minecraft_engine_world::world::sub_app::AddDimensionPlugins;
 
 pub fn line(message: &str) -> ServerboundChat<'_> {
     ServerboundChat {

@@ -14,8 +14,8 @@
 use crate::bus::to;
 use bevy_ecs::message::{MessageReader, MessageWriter};
 use bevy_ecs::prelude::{Commands, Entity, In, Query, With};
-use mcrs_minecraft_level::entity::player::Player;
-use mcrs_minecraft_level::entity::player::chunk_view::SentChunkView;
+use mcrs_minecraft_engine_world::entity::player::Player;
+use mcrs_minecraft_engine_world::entity::player::chunk_view::SentChunkView;
 use mcrs_minecraft_protocol::VarInt;
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundRemoveEntities;
 use smallvec::SmallVec;

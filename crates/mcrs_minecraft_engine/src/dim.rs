@@ -6,9 +6,9 @@ use bevy_ecs::entity::Entity;
 use bevy_ecs::message::Messages;
 use bevy_ecs::resource::Resource;
 use bevy_ecs::world::World;
-use mcrs_minecraft_level::session::{PlayerSession, Session, SessionPlacement};
-use mcrs_minecraft_level::world::channels::DimChannels;
-use mcrs_minecraft_level::world::sub_app::{DimAppLabel, DimDespawnQueue};
+use mcrs_minecraft_engine_world::session::{PlayerSession, Session, SessionPlacement};
+use mcrs_minecraft_engine_world::world::channels::DimChannels;
+use mcrs_minecraft_engine_world::world::sub_app::{DimAppLabel, DimDespawnQueue};
 use tracing::{debug, warn};
 
 /// Send a non-sheddable control message, escalating a saturated control channel

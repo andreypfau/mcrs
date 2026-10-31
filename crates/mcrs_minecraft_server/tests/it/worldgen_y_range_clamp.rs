@@ -1,4 +1,4 @@
-use mcrs_minecraft_level::palette::non_air_block_count;
+use mcrs_minecraft_engine_world::palette::non_air_block_count;
 use mcrs_minecraft_worldgen_generator::ColumnBiomes;
 
 use mcrs_minecraft_core::ResourceLocation;

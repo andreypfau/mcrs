@@ -4,8 +4,8 @@ use crate::op_level::AnnouncedOpLevel;
 use crate::teleport::TeleportState;
 use crate::tracked_by::TrackedBy;
 use bevy_ecs::bundle::Bundle;
-use mcrs_minecraft_level::entity::player::Player;
-use mcrs_minecraft_level::entity::player::chunk_view::PlayerViewDistance;
+use mcrs_minecraft_engine_world::entity::player::Player;
+use mcrs_minecraft_engine_world::entity::player::chunk_view::PlayerViewDistance;
 
 #[derive(Bundle, Default)]
 pub struct PlayerBundle {

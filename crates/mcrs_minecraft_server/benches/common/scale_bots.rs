@@ -30,7 +30,7 @@ use mcrs_minecraft_engine::bus::{
     OutboundPlayerPacket, PacketPayload, PacketPriority, PacketTarget,
 };
 use mcrs_minecraft_engine::session::{HostAnchorRef, SessionBundle};
-use mcrs_minecraft_level::session::{
+use mcrs_minecraft_engine_world::session::{
     Place, PlayerSession, PlayerSessionCounter, Session, SessionPlacement,
 };
 use mcrs_minecraft_network::metrics::BridgeTelemetry;

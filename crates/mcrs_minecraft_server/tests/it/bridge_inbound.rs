@@ -18,7 +18,9 @@ use mcrs_minecraft_engine::bridge_queue::{
 use mcrs_minecraft_engine::bus::{InboundPlayerPacket, OutboundPlayerPacket};
 use mcrs_minecraft_engine::channel_types::DimChannelsResource;
 use mcrs_minecraft_engine::session::{HostAnchorRef, SessionBundle};
-use mcrs_minecraft_level::session::{Place, PlayerSessionCounter, Session, SessionPlacement};
+use mcrs_minecraft_engine_world::session::{
+    Place, PlayerSessionCounter, Session, SessionPlacement,
+};
 use mcrs_minecraft_network::event::{Received, run_event_loop};
 use mcrs_minecraft_network::metrics::{BridgeTelemetry, PacketDispatcher};
 use mcrs_minecraft_network::{ConnectionState, ReceivedPacket, ServerSideConnection};
@@ -296,7 +298,7 @@ fn disconnect_clears_pending() {
                     player,
                     &mut sessions,
                     &dim_channels,
-                    &mut mcrs_minecraft_level::world::sub_app::DimDespawnQueue::default(),
+                    &mut mcrs_minecraft_engine_world::world::sub_app::DimDespawnQueue::default(),
                     &mut commands,
                 );
             },

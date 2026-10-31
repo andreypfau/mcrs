@@ -19,9 +19,9 @@ use mcrs_minecraft_engine::dim::DimSubAppHandle;
 use mcrs_minecraft_engine::dim::send_control_or_teardown;
 use mcrs_minecraft_engine::session::GameProfile;
 use mcrs_minecraft_engine::session::HostAnchorRef;
-use mcrs_minecraft_level::session::{Place, Session, SessionPlacement};
-use mcrs_minecraft_level::world::sub_app::DimDespawnQueue;
-use mcrs_minecraft_level::world::world_save::WorldSave;
+use mcrs_minecraft_engine_world::session::{Place, Session, SessionPlacement};
+use mcrs_minecraft_engine_world::world::sub_app::DimDespawnQueue;
+use mcrs_minecraft_engine_world::world::world_save::WorldSave;
 use mcrs_minecraft_network::event::Received;
 use mcrs_minecraft_network::identity;
 use mcrs_minecraft_network::{ConnectionState, ServerSideConnection};
@@ -45,7 +45,7 @@ use mcrs_minecraft_world::save::read_player_dat;
 use std::sync::Arc;
 use tracing::{debug, info};
 
-use mcrs_minecraft_level::world::dimension_list::DimensionList;
+use mcrs_minecraft_engine_world::world::dimension_list::DimensionList;
 
 /// Marker for a connection that has been sent `ClientboundSelectKnownPacks`
 /// and is awaiting the client's `ServerboundSelectKnownPacks` response

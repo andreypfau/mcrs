@@ -4,7 +4,7 @@ use bevy_app::{App, Plugin, Startup, SubApp};
 use bevy_ecs::prelude::{Commands, Res};
 use bevy_ecs::world::World;
 use mcrs_minecraft_block::definition::Blocks;
-use mcrs_minecraft_level::world::dimension_builders::{DimensionBuild, DimensionBuilders};
+use mcrs_minecraft_engine_world::world::dimension_builders::{DimensionBuild, DimensionBuilders};
 use mcrs_minecraft_light_engine::block_light::{BlockLightRegistry, block_light_registry};
 use mcrs_minecraft_light_engine::level::LightBounds;
 

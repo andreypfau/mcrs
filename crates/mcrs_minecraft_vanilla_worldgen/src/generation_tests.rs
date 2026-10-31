@@ -12,9 +12,9 @@ use mcrs_minecraft_biome::source::MultiNoiseBiomeSource;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::{ColumnPos, ResourceKey, SectionPos};
 use mcrs_minecraft_engine::heightmap::PendingColumnHeightmaps;
+use mcrs_minecraft_engine_world::palette::ChunkBlocks;
+use mcrs_minecraft_engine_world::world::lifecycle::stage::{SectionStage, SectionStageChanged};
 use mcrs_minecraft_item::Items;
-use mcrs_minecraft_level::palette::ChunkBlocks;
-use mcrs_minecraft_level::world::lifecycle::stage::{SectionStage, SectionStageChanged};
 use mcrs_minecraft_worldgen_generator::ColumnBlocks;
 use mcrs_minecraft_worldgen_generator::stages::{fill_pooled, run_region};
 use mcrs_minecraft_worldgen_generator::staging::{
@@ -672,8 +672,8 @@ fn assert_region_agrees(consumer: Consumer, radius: i32, drives: &[Drive]) {
 fn a_dead_first_section_does_not_take_the_column_s_block_entities_with_it() {
     use crate::chunk_plugin::{ColumnKey, PendingColumn};
     use mcrs_minecraft_block_entity::{BeeOccupant, GeneratedBlockEntity};
-    use mcrs_minecraft_level::world::dimension::InDimension;
-    use mcrs_minecraft_level::world::storage::block_entity::BlockEntity;
+    use mcrs_minecraft_engine_world::world::dimension::InDimension;
+    use mcrs_minecraft_engine_world::world::storage::block_entity::BlockEntity;
 
     let mut app = App::new();
     app.add_message::<SectionStageChanged>();

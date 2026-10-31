@@ -18,7 +18,7 @@ mcrs_minecraft_datapack.workspace = true
 mcrs_minecraft_dimension.workspace = true
 mcrs_minecraft_engine.workspace = true
 mcrs_minecraft_game_mode.workspace = true
-mcrs_minecraft_level.workspace = true
+mcrs_minecraft_engine_world.workspace = true
 mcrs_minecraft_network = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_protocol.workspace = true
 mcrs_minecraft_registries = { workspace = true, features = ["bevy"] }
@@ -46,4 +46,4 @@ tokio.workspace = true
 [features]
 default = ["client-jar"]
 client-jar = ["dep:mcrs_minecraft_client_jar"]
-telemetry-tracy = ["bevy_ecs/trace", "mcrs_minecraft_network/telemetry-tracy", "mcrs_minecraft_level/telemetry-tracy", "mcrs_minecraft_engine/telemetry-tracy"]
+telemetry-tracy = ["bevy_ecs/trace", "mcrs_minecraft_network/telemetry-tracy", "mcrs_minecraft_engine_world/telemetry-tracy", "mcrs_minecraft_engine/telemetry-tracy"]

@@ -4,7 +4,7 @@ use mcrs_minecraft_command_engine::{OperatorBroadcast, system_chat};
 use mcrs_minecraft_engine::bus::{OutboundPlayerPacket, PacketTarget, to_target};
 use mcrs_minecraft_engine::ops::OpList;
 use mcrs_minecraft_engine::session::GameProfile;
-use mcrs_minecraft_level::session::Session;
+use mcrs_minecraft_engine_world::session::Session;
 use smallvec::SmallVec;
 
 /// Delivers an admin message from any dimension to every online operator but its source. The

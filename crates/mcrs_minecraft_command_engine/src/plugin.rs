@@ -13,7 +13,7 @@ use bevy_ecs::schedule::IntoScheduleConfigs;
 use mcrs_command::GraphBuilder;
 use mcrs_minecraft_engine::ability::{AnswerOpLevel, OpLevelAnnounced};
 use mcrs_minecraft_engine::between_ticks::BetweenTicks;
-use mcrs_minecraft_level::world::sub_app::AddDimensionPlugins;
+use mcrs_minecraft_engine_world::world::sub_app::AddDimensionPlugins;
 use std::marker::PhantomData;
 
 /// Owns the command tree of the set `S`: plugins register commands while the app builds, and

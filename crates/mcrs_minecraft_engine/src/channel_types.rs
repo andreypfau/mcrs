@@ -1,5 +1,5 @@
-use mcrs_minecraft_level::session::PlayerSession;
-use mcrs_minecraft_level::world::channels::DimChannels;
+use mcrs_minecraft_engine_world::session::PlayerSession;
+use mcrs_minecraft_engine_world::world::channels::DimChannels;
 
 use crate::bus::{
     InboundPlayerDespawn, InboundPlayerPacket, InboundPlayerSpawn, OutboundPlayerPacket,

@@ -25,8 +25,8 @@ use mcrs_minecraft_engine::session::HostAnchorRef;
 use mcrs_minecraft_engine::sub_app_builder::drain_dim_spawn_queue;
 use mcrs_minecraft_engine_server::configuration::emit_initial_player_spawn;
 use mcrs_minecraft_engine_server::login::{LoginPlugin, LoginState};
-use mcrs_minecraft_level::session::{Place, SessionPlacement};
-use mcrs_minecraft_level::world::sub_app::{DimSpawnQueue, DimSpawnRequest};
+use mcrs_minecraft_engine_world::session::{Place, SessionPlacement};
+use mcrs_minecraft_engine_world::world::sub_app::{DimSpawnQueue, DimSpawnRequest};
 use mcrs_minecraft_network::ServerSideConnection;
 use mcrs_minecraft_protocol::uuid::Uuid;
 
@@ -42,7 +42,7 @@ fn build_join_host_app() -> App {
     app.insert_resource(crate::support::dimension_list_with_extra());
 
     app.init_resource::<mcrs_minecraft_network::metrics::BridgeTelemetry>();
-    app.init_resource::<mcrs_minecraft_level::session::PlayerSessionCounter>();
+    app.init_resource::<mcrs_minecraft_engine_world::session::PlayerSessionCounter>();
     app.add_message::<InboundPlayerSpawn>();
 
     app.add_systems(

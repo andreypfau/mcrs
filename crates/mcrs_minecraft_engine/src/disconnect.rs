@@ -37,8 +37,8 @@ use crate::channel_types::{DimChannelsResource, ToDim};
 use crate::dim::send_control_or_teardown;
 use crate::session::GameProfile;
 use crate::session::{HostAnchorRef, SessionConnection};
-use mcrs_minecraft_level::session::{Place, PlayerSession, Session, SessionPlacement};
-use mcrs_minecraft_level::world::sub_app::DimDespawnQueue;
+use mcrs_minecraft_engine_world::session::{Place, PlayerSession, Session, SessionPlacement};
+use mcrs_minecraft_engine_world::world::sub_app::DimDespawnQueue;
 use mcrs_minecraft_protocol::uuid::Uuid;
 
 /// 32 caps work at 640 disconnects/sec under a 20 TPS schedule, draining a

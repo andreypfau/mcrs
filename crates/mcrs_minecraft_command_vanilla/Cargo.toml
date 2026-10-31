@@ -39,7 +39,7 @@ mcrs_minecraft_environment = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_heightmap = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_item.workspace = true
 mcrs_minecraft_keys.workspace = true
-mcrs_minecraft_level.workspace = true
+mcrs_minecraft_engine_world.workspace = true
 mcrs_minecraft_nbt.workspace = true
 mcrs_minecraft_protocol.workspace = true
 mcrs_minecraft_registries.workspace = true

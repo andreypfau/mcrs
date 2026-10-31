@@ -5,8 +5,8 @@ use bevy_ecs::entity::Entity;
 use bevy_ecs::message::MessageReader;
 use bevy_ecs::prelude::{Commands, Query, ResMut, With};
 use bevy_ecs::world::World;
-use mcrs_minecraft_level::entity::player::Player;
-use mcrs_minecraft_level::session::DimPlayerIndex;
+use mcrs_minecraft_engine_world::entity::player::Player;
+use mcrs_minecraft_engine_world::session::DimPlayerIndex;
 
 /// Per-dim consumer that despawns the in-dim player entity when an
 /// `InboundPlayerDespawn` arrives for its host anchor on a disconnect, so the

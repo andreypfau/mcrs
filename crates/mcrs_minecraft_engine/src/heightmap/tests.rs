@@ -1,8 +1,10 @@
 use super::*;
 use mcrs_minecraft_block::definition::BlockStateFlags;
 use mcrs_minecraft_core::{BlockPos, BlockStateId};
+use mcrs_minecraft_engine_world::palette::{
+    BiomePalette, BlockPalette, ChunkBlocks, section_states,
+};
 use mcrs_minecraft_heightmap::*;
-use mcrs_minecraft_level::palette::{BiomePalette, BlockPalette, ChunkBlocks, section_states};
 use std::sync::OnceLock;
 
 fn corpus() -> &'static Blocks {
@@ -249,8 +251,8 @@ fn spawn_column(
     sections: &[Option<(BlockPalette, BiomePalette)>],
     y_sections: &[i32],
 ) -> (App, Entity, Vec<Entity>) {
-    use mcrs_minecraft_level::world::storage::column::{ColumnIndex, ColumnSlot};
-    use mcrs_minecraft_level::world::storage::section::SectionIndex;
+    use mcrs_minecraft_engine_world::world::storage::column::{ColumnIndex, ColumnSlot};
+    use mcrs_minecraft_engine_world::world::storage::section::SectionIndex;
 
     let mut app = App::new();
     app.add_message::<BlockPlaced>();
@@ -398,7 +400,7 @@ fn a_series_of_edits_stays_bit_for_bit_equal_to_a_rebuild() {
 
 #[test]
 fn priming_merges_partial_ranges_with_max() {
-    use mcrs_minecraft_level::world::storage::column::{ColumnIndex, ColumnSlot};
+    use mcrs_minecraft_engine_world::world::storage::column::{ColumnIndex, ColumnSlot};
 
     let mut app = App::new();
     app.init_resource::<PendingColumnHeightmaps>();

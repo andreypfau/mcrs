@@ -22,13 +22,13 @@ use mcrs_minecraft_core::{BlockPos, BlockStateId};
 use mcrs_minecraft_engine::block_update::{BlockUpdatePlugin, BlockUpdateWirePlugin};
 use mcrs_minecraft_engine::bus::{OutboundPlayerPacket, PacketPayload};
 use mcrs_minecraft_engine::session::HostAnchor;
-use mcrs_minecraft_level::aoi::PlayerObservers;
-use mcrs_minecraft_level::block_update::{BlockPlaced, BlockSetRequest};
-use mcrs_minecraft_level::entity::player::Player;
-use mcrs_minecraft_level::palette::air_section;
-use mcrs_minecraft_level::world::dimension::{DimensionTypeConfig, InDimension};
-use mcrs_minecraft_level::world::storage::column::{ColumnIndex, ColumnSlot};
-use mcrs_minecraft_level::world::storage::section::SectionIndex;
+use mcrs_minecraft_engine_world::aoi::PlayerObservers;
+use mcrs_minecraft_engine_world::block_update::{BlockPlaced, BlockSetRequest};
+use mcrs_minecraft_engine_world::entity::player::Player;
+use mcrs_minecraft_engine_world::palette::air_section;
+use mcrs_minecraft_engine_world::world::dimension::{DimensionTypeConfig, InDimension};
+use mcrs_minecraft_engine_world::world::storage::column::{ColumnIndex, ColumnSlot};
+use mcrs_minecraft_engine_world::world::storage::section::SectionIndex;
 use mcrs_minecraft_simulation::BlockUpdateFlags;
 
 #[test]

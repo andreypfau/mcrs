@@ -102,7 +102,8 @@ impl Plugin for DebugScreenPlugin {
             app.add_plugins(FrameTimeDiagnosticsPlugin::new(entry_fps::HISTORY));
         }
         app.init_resource::<DebugOverlay>()
-            .init_resource::<mcrs_minecraft_level::world::lifecycle::trace::ColumnTraceSink>()
+            .init_resource::<mcrs_minecraft_engine_world::world::lifecycle::trace::ColumnTraceSink>(
+            )
             .init_resource::<DebugScreenDisplayer>()
             .init_resource::<UiNeeded>()
             .add_plugins(ExtractResourcePlugin::<UiNeeded>::default())

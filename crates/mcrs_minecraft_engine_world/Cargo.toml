@@ -1,5 +1,5 @@
 [package]
-name = "mcrs_minecraft_level"
+name = "mcrs_minecraft_engine_world"
 description = "Chunk and column entities, dimensions, tickets, area of interest, sessions, the server loop and block updates"
 version.workspace = true
 edition.workspace = true

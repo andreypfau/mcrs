@@ -10,8 +10,10 @@ use mcrs_minecraft_engine::bridge::{bridge_inbound_to_channel, forward_pending_i
 use mcrs_minecraft_engine::bus::InboundPlayerPacket;
 use mcrs_minecraft_engine::channel_types::{DimChannelsResource, FromDim, ToDim};
 use mcrs_minecraft_engine::session::{HostAnchorRef, PendingInbound, SessionBundle};
-use mcrs_minecraft_level::session::{Place, PlayerSession, PlayerSessionCounter, SessionPlacement};
-use mcrs_minecraft_level::world::channels::{
+use mcrs_minecraft_engine_world::session::{
+    Place, PlayerSession, PlayerSessionCounter, SessionPlacement,
+};
+use mcrs_minecraft_engine_world::world::channels::{
     FROM_DIM_CAPACITY, TO_DIM_CAPACITY, TO_DIM_CONTROL_CAPACITY,
 };
 use mcrs_minecraft_network::ServerSideConnection;
@@ -208,7 +210,7 @@ fn transfer_snapshot() -> mcrs_minecraft_engine::bus::PlayerTransferSnapshot {
 #[test]
 fn control_full_enqueues_dim_teardown() {
     use mcrs_minecraft_engine::dim::send_control_or_teardown;
-    use mcrs_minecraft_level::world::sub_app::DimDespawnQueue;
+    use mcrs_minecraft_engine_world::world::sub_app::DimDespawnQueue;
 
     let mut world = World::new();
     let dim = world.spawn_empty().id();

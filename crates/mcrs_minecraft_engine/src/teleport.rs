@@ -1,7 +1,7 @@
 //! The bounds of a teleport and the teleport state of a player.
 
 use bevy_ecs::component::Component;
-use mcrs_minecraft_level::entity::physics::Transform;
+use mcrs_minecraft_engine_world::entity::physics::Transform;
 
 /// The horizontal bound, in blocks, of a position a player can reach.
 pub const MAX_XZ_BLOCKS: i32 = 30_000_000;

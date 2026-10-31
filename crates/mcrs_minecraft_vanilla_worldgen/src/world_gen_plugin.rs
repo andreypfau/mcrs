@@ -4,8 +4,8 @@ use bevy_app::{App, Plugin};
 use bevy_ecs::schedule::IntoScheduleConfigs;
 use bevy_state::prelude::OnEnter;
 use mcrs_minecraft_assets::AppState;
-use mcrs_minecraft_level::world::dimension_builders::DimensionBuilders;
-use mcrs_minecraft_level::world::sub_app::DimSpawnEnqueue;
+use mcrs_minecraft_engine_world::world::dimension_builders::DimensionBuilders;
+use mcrs_minecraft_engine_world::world::sub_app::DimSpawnEnqueue;
 
 use crate::chunk_plugin::SlowColumnThreshold;
 use crate::dimension_world::build_dimension_world;
@@ -15,7 +15,7 @@ use crate::routers::build_dimension_routers;
 use crate::structures::{StructurePlugin, build_dimension_structures};
 
 /// Generates and reads the columns of every dimension. The host inserts the
-/// [`DimensionList`](mcrs_minecraft_level::world::dimension_list::DimensionList),
+/// [`DimensionList`](mcrs_minecraft_engine_world::world::dimension_list::DimensionList),
 /// [`DimensionGenerators`](mcrs_minecraft_engine::dimension_generators::DimensionGenerators) and [`WorldSeed`](mcrs_minecraft_engine::world_seed::WorldSeed) before
 /// `OnEnter(AppState::Playing)`.
 #[derive(Clone, Debug)]

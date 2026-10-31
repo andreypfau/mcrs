@@ -32,7 +32,7 @@ use crate::bus::{InboundPlayerPacket, OutboundPlayerAttached, OutboundPlayerPack
 use crate::bus::{PacketPayload, PacketTarget};
 use crate::channel_types::{DimChannelsResource, ToDim};
 use crate::session::{HostAnchorRef, PendingInbound, SessionConnection};
-use mcrs_minecraft_level::session::{Place, Session, SessionPlacement};
+use mcrs_minecraft_engine_world::session::{Place, Session, SessionPlacement};
 
 /// Attach `OutboundQueue` to any connection entity that carries
 /// `ServerSideConnection` but not yet an `OutboundQueue`.
@@ -536,8 +536,8 @@ mod tests {
     use crate::session::SessionBundle;
 
     use bytes::Bytes;
-    use mcrs_minecraft_level::session::PlayerSession;
-    use mcrs_minecraft_level::world::channels::{
+    use mcrs_minecraft_engine_world::session::PlayerSession;
+    use mcrs_minecraft_engine_world::world::channels::{
         FROM_DIM_CAPACITY, TO_DIM_CAPACITY, TO_DIM_CONTROL_CAPACITY,
     };
 

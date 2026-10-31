@@ -23,11 +23,11 @@ use mcrs_minecraft_dimension_environment::dimension_type::DimensionTypeFile;
 use mcrs_minecraft_engine::ability::PlayerGameMode;
 use mcrs_minecraft_engine::dimension_order::{DimensionWorld, in_dimension_order};
 use mcrs_minecraft_engine::session::{GameProfile, HostAnchor};
-use mcrs_minecraft_level::entity::physics::Transform;
-use mcrs_minecraft_level::entity::player::Player;
-use mcrs_minecraft_level::session::{Session, SessionPlacement};
-use mcrs_minecraft_level::world::dimension::{Dimension, DimensionTypeId};
-use mcrs_minecraft_level::world::sub_app::DimensionLabel;
+use mcrs_minecraft_engine_world::entity::physics::Transform;
+use mcrs_minecraft_engine_world::entity::player::Player;
+use mcrs_minecraft_engine_world::session::{Session, SessionPlacement};
+use mcrs_minecraft_engine_world::world::dimension::{Dimension, DimensionTypeId};
+use mcrs_minecraft_engine_world::world::sub_app::DimensionLabel;
 use mcrs_minecraft_registries::CurrentRegistries;
 
 /// The host's buffers for running command lines, reused from one run to the next.

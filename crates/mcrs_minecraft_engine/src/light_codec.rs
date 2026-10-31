@@ -3,8 +3,8 @@ use bevy_ecs::system::SystemParam;
 use mcrs_minecraft_chunk::{
     BlockLight, LightLayer, LightStorage, SectionNibbles as LightNibbles, SkyLight,
 };
-use mcrs_minecraft_level::world::dimension::{HasSkyLight, InDimension};
-use mcrs_minecraft_level::world::storage::column::{ColumnSections, SectionLookup};
+use mcrs_minecraft_engine_world::world::dimension::{HasSkyLight, InDimension};
+use mcrs_minecraft_engine_world::world::storage::column::{ColumnSections, SectionLookup};
 use mcrs_minecraft_protocol::chunk::{LightChunk, LightData};
 use std::borrow::Cow;
 

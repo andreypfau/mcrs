@@ -4,14 +4,16 @@ use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_block::keys::Block;
 use mcrs_minecraft_chunk::{ColumnHeights, VoxelId};
 use mcrs_minecraft_core::{ColumnPos, SectionPos};
+use mcrs_minecraft_engine_world::block_update::BlockPlaced;
+use mcrs_minecraft_engine_world::palette::ChunkBlocks;
+use mcrs_minecraft_engine_world::world::dimension::{DimensionTypeConfig, InDimension};
+use mcrs_minecraft_engine_world::world::storage::column::{
+    ColumnIndex, ColumnSections, SectionLookup,
+};
 use mcrs_minecraft_heightmap::{
     ColumnHeightmapSet, HeightmapPredicates, MotionHeightmap, NoLeavesHeightmap, SolidHeightmap,
     SurfaceHeightmap, apply_write, heightmap_predicates,
 };
-use mcrs_minecraft_level::block_update::BlockPlaced;
-use mcrs_minecraft_level::palette::ChunkBlocks;
-use mcrs_minecraft_level::world::dimension::{DimensionTypeConfig, InDimension};
-use mcrs_minecraft_level::world::storage::column::{ColumnIndex, ColumnSections, SectionLookup};
 use mcrs_minecraft_protocol::VarInt;
 use mcrs_minecraft_registries::CurrentRegistries;
 use rustc_hash::FxHashMap;

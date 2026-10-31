@@ -6,11 +6,13 @@ use bevy::platform::collections::HashMap;
 use bevy::prelude::*;
 use bevy::text::{FontSize, LineBreak};
 use mcrs_minecraft_core::{BlockPos, ColumnPos};
-use mcrs_minecraft_level::world::lifecycle::trace::{ColumnSample, ColumnStage, ColumnTraceSink};
+use mcrs_minecraft_engine_world::world::lifecycle::trace::{
+    ColumnSample, ColumnStage, ColumnTraceSink,
+};
 use mcrs_minecraft_network::client::ClientConnection;
 
 use crate::player::Player;
-use mcrs_minecraft_level::entity::physics::Transform as PhysicsTransform;
+use mcrs_minecraft_engine_world::entity::physics::Transform as PhysicsTransform;
 
 /// Columns across the map. A player's view distance is 12 columns plus a
 /// border, so this leaves room for the ring that is still catching up behind

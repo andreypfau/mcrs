@@ -14,11 +14,11 @@ use mcrs_minecraft_core::SectionPos;
 use mcrs_minecraft_engine::block_update::update_client_blocks_per_dim;
 use mcrs_minecraft_engine::bus::{OutboundPlayerPacket, PacketPayload, PacketTarget};
 use mcrs_minecraft_engine::session::HostAnchor;
-use mcrs_minecraft_level::aoi::PlayerObservers;
-use mcrs_minecraft_level::block_update::BlockPlaced;
-use mcrs_minecraft_level::entity::player::Player;
-use mcrs_minecraft_level::world::dimension::InDimension;
-use mcrs_minecraft_level::world::storage::column::{ColumnIndex, ColumnSlot};
+use mcrs_minecraft_engine_world::aoi::PlayerObservers;
+use mcrs_minecraft_engine_world::block_update::BlockPlaced;
+use mcrs_minecraft_engine_world::entity::player::Player;
+use mcrs_minecraft_engine_world::world::dimension::InDimension;
+use mcrs_minecraft_engine_world::world::storage::column::{ColumnIndex, ColumnSlot};
 use mcrs_minecraft_simulation::BlockUpdateFlags;
 
 #[test]
@@ -59,7 +59,7 @@ fn block_update_resolves_observers_per_dim_emit_site() {
         .spawn((
             chunk_pos,
             InDimension(dim_entity),
-            mcrs_minecraft_level::palette::air_section(),
+            mcrs_minecraft_engine_world::palette::air_section(),
         ))
         .id();
 

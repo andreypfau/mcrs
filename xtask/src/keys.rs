@@ -175,7 +175,7 @@ mod tests {
             ("tools/mcrs_minecraft_update/src/owners.rs", true),
             ("Cargo.lock", true),
             ("Cargo.toml", true),
-            ("crates/mcrs_minecraft_level/Cargo.toml", true),
+            ("crates/mcrs_minecraft_engine_world/Cargo.toml", true),
             ("crates/mcrs_minecraft_block/src/lib.rs", false),
             ("crates/mcrs_minecraft_block/src/keys.rs", false),
             ("crates/a/b/src/keys/x.rs", false),

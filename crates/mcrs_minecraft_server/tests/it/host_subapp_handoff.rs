@@ -17,9 +17,9 @@ use mcrs_minecraft_engine::session::GameProfile;
 use mcrs_minecraft_engine::session::HostAnchorRef;
 use mcrs_minecraft_engine::sub_app_builder::drain_dim_spawn_queue;
 use mcrs_minecraft_engine_server::login::{LoginPlugin, LoginState};
-use mcrs_minecraft_level::session::PlayerSession;
-use mcrs_minecraft_level::session::{Place, PlayerSessionCounter, SessionPlacement};
-use mcrs_minecraft_level::world::sub_app::{DimSpawnQueue, DimSpawnRequest};
+use mcrs_minecraft_engine_world::session::PlayerSession;
+use mcrs_minecraft_engine_world::session::{Place, PlayerSessionCounter, SessionPlacement};
+use mcrs_minecraft_engine_world::world::sub_app::{DimSpawnQueue, DimSpawnRequest};
 use mcrs_minecraft_protocol::uuid::Uuid;
 
 use mcrs_minecraft_engine_server::configuration::emit_initial_player_spawn;
@@ -104,7 +104,7 @@ fn transition_to_game(app: &mut App, connection_entity: Entity) {
 /// receiving end of its control channel.
 fn live_dimension(app: &mut App, key: ResourceKey<Dimension>) -> (Entity, flume::Receiver<ToDim>) {
     use mcrs_minecraft_engine::channel_types::FromDim;
-    use mcrs_minecraft_level::world::channels::{
+    use mcrs_minecraft_engine_world::world::channels::{
         FROM_DIM_CAPACITY, TO_DIM_CAPACITY, TO_DIM_CONTROL_CAPACITY,
     };
 
@@ -172,7 +172,7 @@ fn join_with_live_nether_end_and_overworld(
     saved: Option<ResourceKey<Dimension>>,
     expected: ResourceKey<Dimension>,
 ) {
-    use mcrs_minecraft_level::world::world_save::WorldSave;
+    use mcrs_minecraft_engine_world::world::world_save::WorldSave;
     use mcrs_minecraft_world::save::{PlayerDat, write_player_dat};
 
     let mut app = build_host_app();
@@ -286,8 +286,8 @@ fn no_live_dim_no_spawn() {
 /// MessageReader cursor semantics: a second pump with no new InboundPlayerSpawn
 /// must NOT spawn a second in-dim entity.
 fn no_duplicate_spawn_on_reread() {
-    use mcrs_minecraft_level::entity::player::Player;
-    use mcrs_minecraft_level::world::sub_app::DimAppLabel;
+    use mcrs_minecraft_engine_world::entity::player::Player;
+    use mcrs_minecraft_engine_world::world::sub_app::DimAppLabel;
 
     let mut app = build_host_app();
 
@@ -511,7 +511,7 @@ fn dimension_labels(app: &mut App) -> Vec<(Entity, ResourceKey<Dimension>)> {
 }
 
 fn a_registry_resource_is_not_changed_on_the_second_tick(app: &mut App) {
-    use mcrs_minecraft_level::world::sub_app::DimAppLabel;
+    use mcrs_minecraft_engine_world::world::sub_app::DimAppLabel;
 
     let labels = dimension_labels(app);
     assert_eq!(labels.len(), 2);
@@ -543,7 +543,7 @@ fn a_registry_resource_is_not_changed_on_the_second_tick(app: &mut App) {
 
     app.update();
     {
-        use mcrs_minecraft_level::entity::player::Player;
+        use mcrs_minecraft_engine_world::entity::player::Player;
         let world = app.sub_app_mut(DimAppLabel(overworld)).world_mut();
         assert_eq!(
             world

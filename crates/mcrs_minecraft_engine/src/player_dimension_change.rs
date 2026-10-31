@@ -22,12 +22,12 @@ use bevy_ecs::resource::Resource;
 use bevy_ecs::world::{EntityRef, EntityWorldMut, World};
 use mcrs_minecraft_core::{Id, ResourceKey};
 use mcrs_minecraft_dimension::{Dimension as DimensionKey, DimensionType};
+use mcrs_minecraft_engine_world::entity::EntityUuid;
+use mcrs_minecraft_engine_world::entity::player::{ChangeDimensionRequest, Player};
+use mcrs_minecraft_engine_world::session::{DimPlayerIndex, Owner, Place, SessionPlacement};
+use mcrs_minecraft_engine_world::world::dimension::{Dimension, DimensionTypeId, InDimension};
+use mcrs_minecraft_engine_world::world::sub_app::DimensionLabel;
 use mcrs_minecraft_game_mode::GameMode;
-use mcrs_minecraft_level::entity::EntityUuid;
-use mcrs_minecraft_level::entity::player::{ChangeDimensionRequest, Player};
-use mcrs_minecraft_level::session::{DimPlayerIndex, Owner, Place, SessionPlacement};
-use mcrs_minecraft_level::world::dimension::{Dimension, DimensionTypeId, InDimension};
-use mcrs_minecraft_level::world::sub_app::DimensionLabel;
 use mcrs_minecraft_protocol::entity::player::PlayerSpawnInfo;
 use mcrs_minecraft_protocol::packets::game::clientbound::{
     ClientboundPlayerPosition, ClientboundRespawn,

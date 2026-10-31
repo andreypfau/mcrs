@@ -5,8 +5,8 @@ use mcrs_minecraft_engine::between_ticks::run_between_ticks;
 use mcrs_minecraft_engine::bridge::OutboundFlush;
 use mcrs_minecraft_engine::dim::{DimSubAppHandle, drain_dim_despawn_queue, pump_channels};
 use mcrs_minecraft_engine::sub_app_builder::drain_dim_spawn_queue;
-use mcrs_minecraft_level::world::column_drain::ColumnDrain;
-use mcrs_minecraft_level::world::sub_app::DimAppLabel;
+use mcrs_minecraft_engine_world::world::column_drain::ColumnDrain;
+use mcrs_minecraft_engine_world::world::sub_app::DimAppLabel;
 use std::num::NonZeroU32;
 
 pub const DEFAULT_TPS: NonZeroU32 = match NonZeroU32::new(20) {
@@ -15,7 +15,7 @@ pub const DEFAULT_TPS: NonZeroU32 = match NonZeroU32::new(20) {
 };
 
 pub fn run_server_loop(app: App) -> AppExit {
-    mcrs_minecraft_level::server_loop::run_server_loop(
+    mcrs_minecraft_engine_world::server_loop::run_server_loop(
         app,
         DEFAULT_TPS,
         between_ticks,

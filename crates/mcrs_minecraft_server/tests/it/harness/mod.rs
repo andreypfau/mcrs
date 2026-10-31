@@ -16,10 +16,10 @@ use mcrs_minecraft_engine::column_view::ColumnView;
 use mcrs_minecraft_engine::player_tracker::PlayerTrackerPlugin;
 use mcrs_minecraft_engine::session::HostAnchor;
 use mcrs_minecraft_engine::tracked_by::TrackedBy;
-use mcrs_minecraft_level::entity::physics::Transform;
-use mcrs_minecraft_level::entity::player::Player;
-use mcrs_minecraft_level::entity::player::chunk_view::PlayerViewDistance;
-use mcrs_minecraft_level::world::dimension::InDimension;
+use mcrs_minecraft_engine_world::entity::physics::Transform;
+use mcrs_minecraft_engine_world::entity::player::Player;
+use mcrs_minecraft_engine_world::entity::player::chunk_view::PlayerViewDistance;
+use mcrs_minecraft_engine_world::world::dimension::InDimension;
 
 /// Build a host App with the AoI plugin, the outbound bus, and the
 /// `FixedPreUpdate` / `FixedPostUpdate` schedules registered.

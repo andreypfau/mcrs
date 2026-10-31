@@ -20,7 +20,7 @@ mcrs_minecraft_core = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_dimension.workspace = true
 mcrs_minecraft_engine.workspace = true
 mcrs_minecraft_entity.workspace = true
-mcrs_minecraft_level.workspace = true
+mcrs_minecraft_engine_world.workspace = true
 mcrs_minecraft_registries = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_simulation.workspace = true
 mcrs_minecraft_world = { workspace = true, features = ["bevy"] }

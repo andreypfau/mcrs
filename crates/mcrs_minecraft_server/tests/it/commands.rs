@@ -16,8 +16,8 @@ use mcrs_minecraft_command_vanilla::{
 };
 use mcrs_minecraft_core::LookAnchor;
 use mcrs_minecraft_engine::bus::{PacketPayload, PacketTarget};
+use mcrs_minecraft_engine_world::entity::physics::Transform;
 use mcrs_minecraft_game_mode::GameMode;
-use mcrs_minecraft_level::entity::physics::Transform;
 use mcrs_minecraft_protocol::packets::game::serverbound::{
     ServerboundChatCommand, ServerboundCommandSuggestion,
 };
@@ -30,9 +30,9 @@ use mcrs_minecraft_block_entity::GeneratedBlockEntity;
 use mcrs_minecraft_command_tree::{CommandNode, NumberRange, ParserProperties};
 use mcrs_minecraft_core::{Id, ResourceLocation};
 use mcrs_minecraft_engine::clock::{GameTime, WorldClockHostPlugin};
+use mcrs_minecraft_engine_world::world::storage::block_entity::BlockEntity;
 use mcrs_minecraft_environment::world_clock::{AdvanceTime, WorldClockPlugin};
 use mcrs_minecraft_environment::world_clock::{ClockState, WorldClock, WorldClocks};
-use mcrs_minecraft_level::world::storage::block_entity::BlockEntity;
 use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_protocol::packets::game::clientbound::{
     ClientboundCommands, ClientboundSetTime, ClockUpdate, LookAtEntity,
@@ -144,14 +144,14 @@ fn transform_in(server: &mut PlayServer, dim: Entity, anchor: Entity) -> Transfo
 
 /// Loads the column at chunk `0 0` with stone from the bottom up to y 63 and air above.
 fn load_stone_column(server: &mut PlayServer) {
+    use mcrs_minecraft_engine_world::palette::{ChunkBlocks, SectionStates};
+    use mcrs_minecraft_engine_world::world::dimension::{Dimension, DimensionTypeConfig};
+    use mcrs_minecraft_engine_world::world::lifecycle::stage::SectionStage;
+    use mcrs_minecraft_engine_world::world::storage::column::{
+        ColumnIndex, ColumnPos, ColumnSections, ColumnSlot,
+    };
     use mcrs_minecraft_heightmap::{
         MotionHeightmap, NoLeavesHeightmap, SolidHeightmap, SurfaceHeightmap,
-    };
-    use mcrs_minecraft_level::palette::{ChunkBlocks, SectionStates};
-    use mcrs_minecraft_level::world::dimension::{Dimension, DimensionTypeConfig};
-    use mcrs_minecraft_level::world::lifecycle::stage::SectionStage;
-    use mcrs_minecraft_level::world::storage::column::{
-        ColumnIndex, ColumnPos, ColumnSections, ColumnSlot,
     };
     let stone = crate::support::standalone_corpus()
         .0
@@ -205,8 +205,8 @@ fn load_stone_column(server: &mut PlayServer) {
 
 /// A block entity in the section of the stone column that holds `pos`.
 fn place_block_entity(server: &mut PlayServer, entry: GeneratedBlockEntity) {
-    use mcrs_minecraft_level::world::storage::block_entity::{BlockEntityPos, InSection};
-    use mcrs_minecraft_level::world::storage::column::{ColumnSections, SectionLookup};
+    use mcrs_minecraft_engine_world::world::storage::block_entity::{BlockEntityPos, InSection};
+    use mcrs_minecraft_engine_world::world::storage::column::{ColumnSections, SectionLookup};
     let pos = entry.position();
     let world = server.world();
     let section = world

@@ -77,7 +77,7 @@ mcrs_minecraft_protocol = { path = "crates/mcrs_minecraft_protocol" }
 mcrs_minecraft_nbt = { path = "crates/mcrs_minecraft_nbt" }
 mcrs_minecraft_snbt = { path = "crates/mcrs_minecraft_snbt" }
 mcrs_minecraft_network = { path = "crates/mcrs_minecraft_network", default-features = false }
-mcrs_minecraft_level = { path = "crates/mcrs_minecraft_level" }
+mcrs_minecraft_engine_world = { path = "crates/mcrs_minecraft_engine_world" }
 mcrs_minecraft_engine = { path = "crates/mcrs_minecraft_engine" }
 mcrs_minecraft_engine_server = { path = "crates/mcrs_minecraft_engine_server", default-features = false }
 mcrs_minecraft_core = { path = "crates/mcrs_minecraft_core", default-features = false }
@@ -195,7 +195,7 @@ mcrs_minecraft_assets.workspace = true
 mcrs_minecraft_world = { workspace = true, features = ["test-support"] }
 mcrs_minecraft_core = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_dimension.workspace = true
-mcrs_minecraft_level.workspace = true
+mcrs_minecraft_engine_world.workspace = true
 bevy_ecs.workspace = true
 mcrs_minecraft_network = { workspace = true, features = ["bevy"] }
 bevy_asset.workspace = true
@@ -324,7 +324,7 @@ opt-level = 3
 
 # The level field tests recompute the field from scratch after every change:
 # 0.6 seconds at opt-level 2, 4.7 at opt-level 0.
-[profile.dev.package."mcrs_minecraft_level"]
+[profile.dev.package."mcrs_minecraft_engine_world"]
 opt-level = 2
 
 # The browser bundle is inlined into a single HTML file, so binary size is the

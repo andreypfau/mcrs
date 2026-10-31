@@ -19,7 +19,7 @@ use mcrs_minecraft_engine::disconnect::{
     drain_pending_disconnects, filter_inflight_for_disconnect,
 };
 use mcrs_minecraft_engine::session::SessionBundle;
-use mcrs_minecraft_level::session::{Place, PlayerSessionCounter, SessionPlacement};
+use mcrs_minecraft_engine_world::session::{Place, PlayerSessionCounter, SessionPlacement};
 
 fn build_app() -> App {
     let mut app = App::new();
@@ -29,7 +29,7 @@ fn build_app() -> App {
     app.add_message::<InboundPlayerDespawn>();
     app.init_resource::<PlayerSessionCounter>();
     app.init_resource::<DimChannelsResource>();
-    app.init_resource::<mcrs_minecraft_level::world::sub_app::DimDespawnQueue>();
+    app.init_resource::<mcrs_minecraft_engine_world::world::sub_app::DimDespawnQueue>();
     app.add_plugins(DisconnectProtocolPlugin);
     app
 }

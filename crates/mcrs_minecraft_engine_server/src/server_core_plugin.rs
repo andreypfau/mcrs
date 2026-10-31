@@ -1,6 +1,6 @@
 use bevy_app::{App, AppExit, Plugin};
 use mcrs_minecraft_assets::packs::{BuiltinAsset, PackRoots};
-use mcrs_minecraft_level::server_loop::VoxelServerPlugin;
+use mcrs_minecraft_engine_world::server_loop::VoxelServerPlugin;
 use mcrs_minecraft_registries::RegistryAdditions;
 
 use crate::data_pack::DataPack;

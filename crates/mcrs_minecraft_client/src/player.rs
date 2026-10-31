@@ -6,10 +6,10 @@ use bevy::render::render_resource::TextureUsages;
 use bevy::render::view::Msaa;
 use bevy::window::{CursorGrabMode, CursorOptions, PrimaryWindow};
 
-use mcrs_minecraft_item::{SelectedHotbarSlot, SlotTable, slots};
-use mcrs_minecraft_level::entity::physics::{
+use mcrs_minecraft_engine_world::entity::physics::{
     OldTransform, Rotation, Transform as PhysicsTransform, Velocity,
 };
+use mcrs_minecraft_item::{SelectedHotbarSlot, SlotTable, slots};
 
 use crate::camera::FovFilter;
 use crate::local_player::{Flying, FlyingSpeed, LastSentMovement, Sprint};
