@@ -244,6 +244,26 @@ fn build_for(
 }
 
 fn no_bevy(ctx: &Context) -> Outcome {
+    let required: Vec<String> = ctx
+        .workspace()?
+        .packages
+        .iter()
+        .filter(|package| NO_BEVY_PACKAGES.contains(&package.name.as_str()))
+        .flat_map(|package| {
+            package
+                .dependencies
+                .iter()
+                .filter(|dep| dep.kind == Kind::Normal && !dep.optional)
+                .filter(|dep| dep.name.starts_with("bevy"))
+                .map(move |dep| format!("{} on {}", package.name, dep.name))
+        })
+        .collect();
+    if !required.is_empty() {
+        return Err(format!(
+            "a crate below layer 4 requires Bevy ({}); make the dependency optional behind the bevy feature",
+            required.join(", ")
+        ));
+    }
     let mut args = vec!["check", "--locked", "--no-default-features"];
     for package in NO_BEVY_PACKAGES {
         args.extend(["-p", package]);

@@ -14,6 +14,7 @@ pub enum Kind {
 pub struct Dependency {
     pub name: String,
     pub kind: Kind,
+    pub optional: bool,
     pub local: bool,
 }
 
@@ -48,6 +49,8 @@ struct MetadataPackage {
 struct MetadataDependency {
     name: String,
     kind: Option<Kind>,
+    #[serde(default)]
+    optional: bool,
     path: Option<String>,
 }
 
@@ -96,6 +99,7 @@ impl Workspace {
                     .map(|dep| Dependency {
                         name: dep.name,
                         kind: dep.kind.unwrap_or(Kind::Normal),
+                        optional: dep.optional,
                         local: dep.path.is_some(),
                     })
                     .collect();
