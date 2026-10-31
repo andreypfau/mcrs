@@ -55,14 +55,9 @@ impl LightColors {
     }
 }
 
-#[cfg(feature = "bevy")]
 pub use self::load::{CORPUS_DIRECTORY, LightColorError};
 
-#[cfg(feature = "bevy")]
 mod load {
-    use bevy_asset::AssetServer;
-    use bevy_asset::io::AssetSourceId;
-    use mcrs_minecraft_assets::asset::{CorpusReadError, read_json_corpus};
     use mcrs_minecraft_block::definition::{BlockDefinitions, BlockEntry};
     use mcrs_minecraft_block::keys::Block;
     use mcrs_minecraft_core::BlockStateId;
@@ -76,10 +71,6 @@ mod load {
 
     #[derive(Debug, thiserror::Error)]
     pub enum LightColorError {
-        #[error("the default asset source is missing")]
-        NoAssetSource,
-        #[error(transparent)]
-        Corpus(#[from] CorpusReadError),
         #[error("{count} light colour files, but at most 255 fit a light type")]
         TooManyColours { count: usize },
         #[error("`{path}` read as zero bytes")]
@@ -116,18 +107,6 @@ mod load {
     }
 
     impl LightColors {
-        pub fn load(
-            asset_server: &AssetServer,
-            blocks: &BlockDefinitions,
-            tags: &Tags<Block>,
-        ) -> Result<Self, LightColorError> {
-            let source = asset_server
-                .get_source(AssetSourceId::Default)
-                .map_err(|_| LightColorError::NoAssetSource)?;
-            let files = read_json_corpus(source.reader(), CORPUS_DIRECTORY)?;
-            Self::from_files(files, blocks, tags)
-        }
-
         /// Colours are numbered from 1 in the order the files come.
         #[expect(
             clippy::excessive_nesting,

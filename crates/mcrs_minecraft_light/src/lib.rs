@@ -19,8 +19,6 @@ pub mod block_light;
 pub mod epoch;
 pub mod field;
 pub mod level;
-#[cfg(feature = "bevy")]
-pub mod plugin;
 pub mod queue;
 pub mod region;
 pub mod relax;
@@ -39,11 +37,6 @@ pub mod prelude {
     pub use crate::block::{LightProperties, LightRegistry, SpecialBlocks};
     pub use crate::epoch::{EpochStats, LightJob, LightUpdate, PublishedLight, SectionLight};
     pub use crate::level::{BlockColumn, LightBounds, LightLevel};
-    #[cfg(feature = "bevy")]
-    pub use crate::plugin::{
-        IntakeBudget, LightBudget, LightEpoch, LightPlugin, LightSet, LightStatus, LightWorkQueue,
-        Lighting, PendingEdits, SectionRelit, dispatch_epoch, publish_light,
-    };
     pub use crate::queue::{DEFAULT_PRIORITY, LightQueue, Priority};
     pub use crate::region::Influence;
     pub use crate::world::{ColumnSurface, Edit, LightWorld, Section};

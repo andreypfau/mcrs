@@ -47,8 +47,6 @@ use mcrs_minecraft_environment::world_clock::WorldClock;
 #[cfg(all(feature = "singleplayer", not(target_family = "wasm")))]
 use mcrs_minecraft_level::world::lifecycle::trace::ColumnTraceSink;
 #[cfg(all(feature = "singleplayer", not(target_family = "wasm")))]
-use mcrs_minecraft_light_plugin::LightingPlugin;
-#[cfg(all(feature = "singleplayer", not(target_family = "wasm")))]
 use mcrs_minecraft_network::client::offline_player_uuid;
 #[cfg(not(target_family = "wasm"))]
 use mcrs_minecraft_network::client::{ClientNetworkPlugin, ExitOnDisconnect};
@@ -60,6 +58,8 @@ use mcrs_minecraft_server::{
     NetworkCompressionThreshold, ServerCorePlugin, ServerNetworkPlugin,
     ops::{OPS_FILE, OpList, OpListEntry},
 };
+#[cfg(all(feature = "singleplayer", not(target_family = "wasm")))]
+use mcrs_minecraft_vanilla_light::LightingPlugin;
 #[cfg(all(feature = "singleplayer", not(target_family = "wasm")))]
 use mcrs_minecraft_vanilla_worldgen::WorldGenPlugin;
 

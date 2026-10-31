@@ -3,10 +3,6 @@ use std::collections::btree_map::Entry;
 use std::fmt;
 use std::sync::Arc;
 
-use bevy_asset::AssetServer;
-use bevy_asset::io::AssetSourceId;
-use bevy_ecs::resource::Resource;
-use mcrs_minecraft_assets::asset::{CorpusReadError, read_json_corpus};
 use mcrs_minecraft_block::definition::{BlockDefinitions, BlockEntry};
 use mcrs_minecraft_block::keys::Fluid;
 use mcrs_minecraft_block::keys::fluid_tags::WATER;
@@ -74,7 +70,7 @@ pub struct ItemLight {
     pub state: BlockStateId,
 }
 
-#[derive(Clone, Debug, Resource)]
+#[derive(Clone, Debug)]
 pub struct ItemLights {
     mapped: Arc<[Option<BlockStateId>]>,
     water_sensitive: Arc<[bool]>,
@@ -83,12 +79,8 @@ pub struct ItemLights {
 
 #[derive(Debug, thiserror::Error)]
 pub enum ItemLightError {
-    #[error("the default asset source is missing")]
-    NoAssetSource,
     #[error("the registries declare no {registry} registry with its tags")]
     Undeclared { registry: &'static str },
-    #[error(transparent)]
-    Corpus(#[from] CorpusReadError),
     #[error("`{path}` read as zero bytes")]
     Empty { path: String },
     #[error("failed to parse `{path}`: {source}")]
@@ -119,19 +111,6 @@ pub enum ItemLightError {
 }
 
 impl ItemLights {
-    pub fn load(
-        asset_server: &AssetServer,
-        blocks: &BlockDefinitions,
-        items: &ItemDefinitions,
-        registries: &Registries,
-    ) -> Result<Self, ItemLightError> {
-        let source = asset_server
-            .get_source(AssetSourceId::Default)
-            .map_err(|_| ItemLightError::NoAssetSource)?;
-        let files = read_json_corpus(source.reader(), CORPUS_DIRECTORY)?;
-        Self::from_files(files, blocks, items, registries)
-    }
-
     pub fn from_files(
         files: impl IntoIterator<Item = (String, Vec<u8>)>,
         blocks: &BlockDefinitions,

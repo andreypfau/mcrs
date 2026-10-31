@@ -1,10 +1,13 @@
 use std::sync::Arc;
 
-use crate::common::{AIR, TORCH, filled, registry, state};
+use crate::fixture::{AIR, TORCH, filled, registry, state};
 use bevy_app::{App, TaskPoolPlugin};
 use mcrs_minecraft_chunk::{BlockLight, SkyLight};
 use mcrs_minecraft_core::SectionPos;
 use mcrs_minecraft_light::prelude::*;
+use mcrs_minecraft_vanilla_light::{
+    IntakeBudget, LightEpoch, LightPlugin, LightSet, LightWorkQueue, Lighting, PendingEdits,
+};
 
 fn settle(app: &mut App) {
     for _ in 0..1000 {

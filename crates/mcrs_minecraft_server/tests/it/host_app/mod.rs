@@ -34,7 +34,6 @@ use mcrs_minecraft_level::world::sub_app::{
     DimAppLabel, DimDespawnQueue, DimSpawnQueue, DimSpawnRequest,
 };
 use mcrs_minecraft_light::block_light::{BlockLightRegistry, block_light_registry};
-use mcrs_minecraft_light_plugin::LightingPlugin;
 use mcrs_minecraft_network::ConnectionState;
 use mcrs_minecraft_network::metrics::PacketDispatcher;
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundLogin;
@@ -42,6 +41,7 @@ use mcrs_minecraft_protocol::uuid::Uuid;
 use mcrs_minecraft_protocol::{Encode, Packet};
 use mcrs_minecraft_server::ops::{DefaultOpLevel, OpList, OpListEntry};
 use mcrs_minecraft_server::world::sub_app_builder::drain_dim_spawn_queue;
+use mcrs_minecraft_vanilla_light::LightingPlugin;
 
 /// Build a host `App` wired for the production per-dim sub-app builder path.
 ///

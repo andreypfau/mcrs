@@ -3,6 +3,7 @@
 #![recursion_limit = "256"]
 
 mod colour;
+mod light_color_plugin;
 mod volume;
 
 use bevy::core_pipeline::schedule::Core3d;
@@ -12,6 +13,7 @@ use bevy::render::render_resource::BindGroup;
 use bevy::render::{Render, RenderApp, RenderSystems};
 use mcrs_minecraft_render::{LightTint, WorldPass};
 
+pub use light_color_plugin::{HeldItemLights, LightColorPlugin};
 pub use volume::{VolumeCommand, VolumeQueue, VolumeSettings};
 
 pub struct LightVolumeRenderPlugin {

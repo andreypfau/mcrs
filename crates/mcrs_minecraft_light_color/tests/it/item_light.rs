@@ -14,13 +14,13 @@ use mcrs_minecraft_world::registry_load::test_registries;
 use mcrs_minecraft_worldgen_testing::assets_dir;
 use proptest::prelude::*;
 
-use crate::corpus::{asset_server, blocks, items};
+use crate::corpus::{blocks, corpus, items};
 
 fn colours() -> &'static LightColors {
     static COLOURS: OnceLock<LightColors> = OnceLock::new();
     COLOURS.get_or_init(|| {
-        LightColors::load(
-            asset_server(),
+        LightColors::from_files(
+            corpus(mcrs_minecraft_light_color::colors::CORPUS_DIRECTORY),
             blocks(),
             &test_registries()
                 .tags::<Block>()
@@ -33,8 +33,13 @@ fn colours() -> &'static LightColors {
 fn shipped() -> &'static ItemLights {
     static LIGHTS: OnceLock<ItemLights> = OnceLock::new();
     LIGHTS.get_or_init(|| {
-        ItemLights::load(asset_server(), blocks(), items(), test_registries())
-            .unwrap_or_else(|e| panic!("{e}"))
+        ItemLights::from_files(
+            corpus(mcrs_minecraft_light_color::item::CORPUS_DIRECTORY),
+            blocks(),
+            items(),
+            test_registries(),
+        )
+        .unwrap_or_else(|e| panic!("{e}"))
     })
 }
 

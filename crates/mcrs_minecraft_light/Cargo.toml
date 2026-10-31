@@ -16,15 +16,13 @@ mcrs_minecraft_core.workspace = true
 mcrs_minecraft_chunk.workspace = true
 mcrs_minecraft_volume.workspace = true
 bevy_ecs = { workspace = true, optional = true }
-bevy_app = { workspace = true, optional = true }
-bevy_tasks = { workspace = true, features = ["multi_threaded"], optional = true }
 rayon.workspace = true
 rustc-hash.workspace = true
 tracing.workspace = true
 
 [features]
 default = []
-bevy = ["dep:bevy_ecs", "dep:bevy_app", "dep:bevy_tasks", "mcrs_minecraft_chunk/bevy"]
+bevy = ["dep:bevy_ecs"]
 
 [dev-dependencies]
 bevy_app.workspace = true
@@ -32,7 +30,3 @@ bevy_asset.workspace = true
 mcrs_minecraft_block = { workspace = true, features = ["bevy"] }
 glam.workspace = true
 mcrs_minecraft_core = { workspace = true, features = ["bevy"] }
-
-[[example]]
-name = "bulk_load"
-required-features = ["bevy"]

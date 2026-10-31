@@ -20,10 +20,11 @@ use mcrs_minecraft_level::world::light_gate::{
 };
 use mcrs_minecraft_level::world::storage::column::{ColumnIndex, ColumnPosComponent};
 use mcrs_minecraft_light::block::LightRegistry;
-use mcrs_minecraft_light::prelude::LightWorkQueue;
-use mcrs_minecraft_light::prelude::{
-    Edit, LightBounds, LightPlugin, LightSet, LightStatus, Lighting, PendingEdits, Priority,
-    SectionRelit, dispatch_epoch, publish_light,
+use mcrs_minecraft_light::prelude::{Edit, LightBounds, Priority};
+
+use crate::light_plugin::{
+    LightPlugin, LightSet, LightStatus, LightWorkQueue, Lighting, PendingEdits, SectionRelit,
+    dispatch_epoch, publish_light,
 };
 
 use mcrs_minecraft_heightmap::SurfaceHeightmap;

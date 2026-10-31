@@ -3466,10 +3466,10 @@ dependencies = [
  "mcrs_minecraft_dimension_environment",
  "mcrs_minecraft_fixtures",
  "mcrs_minecraft_level",
- "mcrs_minecraft_light_plugin",
  "mcrs_minecraft_network",
  "mcrs_minecraft_registries",
  "mcrs_minecraft_server",
+ "mcrs_minecraft_vanilla_light",
  "mcrs_minecraft_vanilla_worldgen",
  "mcrs_minecraft_world",
  "mcrs_minecraft_worldgen_generator",
@@ -3679,7 +3679,6 @@ dependencies = [
  "mcrs_minecraft_level",
  "mcrs_minecraft_light",
  "mcrs_minecraft_light_color",
- "mcrs_minecraft_light_plugin",
  "mcrs_minecraft_mesh",
  "mcrs_minecraft_nbt",
  "mcrs_minecraft_network",
@@ -3692,6 +3691,7 @@ dependencies = [
  "mcrs_minecraft_render_probe",
  "mcrs_minecraft_server",
  "mcrs_minecraft_snbt",
+ "mcrs_minecraft_vanilla_light",
  "mcrs_minecraft_vanilla_worldgen",
  "mcrs_minecraft_volume",
  "mcrs_minecraft_world",
@@ -4130,7 +4130,6 @@ dependencies = [
  "bevy_app",
  "bevy_asset",
  "bevy_ecs",
- "bevy_tasks",
  "glam",
  "mcrs_minecraft_block",
  "mcrs_minecraft_chunk",
@@ -4163,25 +4162,6 @@ dependencies = [
  "serde",
  "serde_json",
  "thiserror 2.0.18",
- "tracing",
-]
-
-[[package]]
-name = "mcrs_minecraft_light_plugin"
-version = "0.5.8"
-dependencies = [
- "bevy_app",
- "bevy_ecs",
- "mcrs_minecraft_block",
- "mcrs_minecraft_chunk",
- "mcrs_minecraft_core",
- "mcrs_minecraft_engine",
- "mcrs_minecraft_heightmap",
- "mcrs_minecraft_level",
- "mcrs_minecraft_light",
- "mcrs_minecraft_protocol",
- "rustc-hash 2.1.1",
- "smallvec",
 ]
 
 [[package]]
@@ -4403,9 +4383,15 @@ version = "0.5.8"
 dependencies = [
  "bevy",
  "bytemuck",
+ "mcrs_minecraft_assets",
+ "mcrs_minecraft_block",
+ "mcrs_minecraft_chunk",
  "mcrs_minecraft_core",
+ "mcrs_minecraft_item",
  "mcrs_minecraft_light_color",
+ "mcrs_minecraft_registries",
  "mcrs_minecraft_render",
+ "mcrs_minecraft_world",
 ]
 
 [[package]]
@@ -4462,12 +4448,12 @@ dependencies = [
  "mcrs_minecraft_item",
  "mcrs_minecraft_level",
  "mcrs_minecraft_light",
- "mcrs_minecraft_light_plugin",
  "mcrs_minecraft_nbt",
  "mcrs_minecraft_network",
  "mcrs_minecraft_protocol",
  "mcrs_minecraft_registries",
  "mcrs_minecraft_simulation",
+ "mcrs_minecraft_vanilla_light",
  "mcrs_minecraft_vanilla_worldgen",
  "mcrs_minecraft_volume",
  "mcrs_minecraft_world",
@@ -4558,6 +4544,26 @@ dependencies = [
  "mcrs_minecraft_snbt",
  "serde",
  "serde_json",
+]
+
+[[package]]
+name = "mcrs_minecraft_vanilla_light"
+version = "0.5.8"
+dependencies = [
+ "bevy_app",
+ "bevy_ecs",
+ "bevy_tasks",
+ "mcrs_minecraft_block",
+ "mcrs_minecraft_chunk",
+ "mcrs_minecraft_core",
+ "mcrs_minecraft_engine",
+ "mcrs_minecraft_heightmap",
+ "mcrs_minecraft_level",
+ "mcrs_minecraft_light",
+ "mcrs_minecraft_protocol",
+ "rayon",
+ "rustc-hash 2.1.1",
+ "smallvec",
 ]
 
 [[package]]

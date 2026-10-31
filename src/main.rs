@@ -8,12 +8,12 @@ use std::time::Duration;
 
 use bevy_app::{App, AppExit, PluginGroup};
 use bevy_log::{Level, LogPlugin, tracing_subscriber};
-use mcrs_minecraft_light_plugin::LightingPlugin;
 use mcrs_minecraft_server::ops::{OPS_FILE, OpList};
 use mcrs_minecraft_server::{
     DimensionWorldsPlugin, GameMode, MinecraftServerPlugins, NetworkCompressionThreshold,
     ServerNetworkPlugin,
 };
+use mcrs_minecraft_vanilla_light::LightingPlugin;
 use mcrs_minecraft_vanilla_worldgen::WorldGenPlugin;
 
 const LOG_FILTER: &str = "mcrs_minecraft_server=debug,mcrs_minecraft_engine=debug,mcrs_minecraft_server::world::entity::player::column_view=trace,mcrs_minecraft_level::entity::player::chunk_view=trace,mcrs_minecraft_network=debug";

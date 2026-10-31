@@ -17,13 +17,13 @@ use mcrs_minecraft_level::world::dimension::{DimensionTypeConfig, InDimension};
 use mcrs_minecraft_level::world::lifecycle::stage::{SectionStage, SectionStageChanged};
 use mcrs_minecraft_level::world::storage::column::ColumnIndex;
 use mcrs_minecraft_level::world::sub_app::DimAppLabel;
-use mcrs_minecraft_light::prelude::{LightBudget, LightEpoch, LightWorkQueue, PendingEdits};
-use mcrs_minecraft_light_plugin::emit_light_updates;
 use mcrs_minecraft_protocol::light_codec::{RowLight, unpack_light_data};
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundLightUpdate;
 use mcrs_minecraft_server::world::entity::player::column_view::ColumnView;
 use mcrs_minecraft_server::world::sub_app_builder::drain_dim_spawn_queue;
 use mcrs_minecraft_simulation::BlockUpdateFlags;
+use mcrs_minecraft_vanilla_light::emit_light_updates;
+use mcrs_minecraft_vanilla_light::{LightBudget, LightEpoch, LightWorkQueue, PendingEdits};
 
 use crate::host_app;
 
@@ -461,10 +461,11 @@ fn a_column_is_not_sent_while_a_neighbour_still_has_lighting_work() {
     use bevy_ecs::prelude::World;
     use bevy_ecs::system::RunSystemOnce;
     use mcrs_minecraft_light::block::{LightProperties, LightRegistry, SpecialBlocks};
-    use mcrs_minecraft_light::prelude::{
-        Influence, LightBounds, LightEpoch, LightStatus, LightWorkQueue, Lighting, PendingEdits,
-    };
+    use mcrs_minecraft_light::prelude::{Influence, LightBounds};
     use mcrs_minecraft_light::world::LightWorld;
+    use mcrs_minecraft_vanilla_light::{
+        LightEpoch, LightStatus, LightWorkQueue, Lighting, PendingEdits,
+    };
     use std::sync::Arc;
 
     let registry = Arc::new(LightRegistry::new(

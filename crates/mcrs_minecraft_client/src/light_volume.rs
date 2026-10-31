@@ -16,7 +16,7 @@ use mcrs_minecraft_light_color::layout::{
 use mcrs_minecraft_light_color::region::section_bricks;
 use mcrs_minecraft_render::CameraOrigin;
 use mcrs_minecraft_render_light_color::{
-    LightVolumeRenderPlugin, VolumeCommand, VolumeQueue, VolumeSettings,
+    LightColorPlugin, LightVolumeRenderPlugin, VolumeCommand, VolumeQueue, VolumeSettings,
 };
 
 use crate::Unsettled;
@@ -54,7 +54,7 @@ impl Default for LightVolumePlugin {
 impl Plugin for LightVolumePlugin {
     fn build(&self, app: &mut App) {
         let knobs = crate::config::Knobs::of(app);
-        app.add_plugins(mcrs_minecraft_light_color::plugin::LightColorPlugin)
+        app.add_plugins(LightColorPlugin)
             .add_plugins(LightVolumeRenderPlugin {
                 settings: VolumeSettings {
                     radius: self.radius,

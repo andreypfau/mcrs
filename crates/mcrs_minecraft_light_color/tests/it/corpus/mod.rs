@@ -1,7 +1,9 @@
 use std::sync::OnceLock;
 
 use bevy_app::{App, TaskPoolPlugin};
+use bevy_asset::io::AssetSourceId;
 use bevy_asset::{AssetPlugin, AssetServer};
+use mcrs_minecraft_assets::asset::read_json_corpus;
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_item::Items;
 
@@ -13,7 +15,7 @@ pub fn items() -> &'static Items {
     &mcrs_minecraft_world::item::test_corpus().1
 }
 
-pub fn asset_server() -> &'static AssetServer {
+fn asset_server() -> &'static AssetServer {
     static SERVER: OnceLock<AssetServer> = OnceLock::new();
     SERVER.get_or_init(|| {
         let mut app = App::new();
@@ -26,4 +28,11 @@ pub fn asset_server() -> &'static AssetServer {
         ));
         app.world().resource::<AssetServer>().clone()
     })
+}
+
+pub fn corpus(directory: &str) -> Vec<(String, Vec<u8>)> {
+    let source = asset_server()
+        .get_source(AssetSourceId::Default)
+        .expect("the default asset source");
+    read_json_corpus(source.reader(), directory).unwrap_or_else(|e| panic!("{e}"))
 }

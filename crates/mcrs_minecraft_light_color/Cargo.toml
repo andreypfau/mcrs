@@ -11,43 +11,32 @@ doctest = false
 workspace = true
 
 [dependencies]
+mcrs_minecraft_block.workspace = true
 mcrs_minecraft_core.workspace = true
 mcrs_minecraft_chunk.workspace = true
+mcrs_minecraft_item.workspace = true
 mcrs_minecraft_light.workspace = true
+mcrs_minecraft_registries.workspace = true
 mcrs_minecraft_volume.workspace = true
 serde.workspace = true
+serde_json.workspace = true
 thiserror.workspace = true
-tracing.workspace = true
 bevy_ecs = { workspace = true, optional = true }
-bevy_app = { workspace = true, optional = true }
-bevy_asset = { workspace = true, optional = true }
-mcrs_minecraft_block = { workspace = true, optional = true }
-mcrs_minecraft_assets = { workspace = true, optional = true }
-mcrs_minecraft_registries = { workspace = true, optional = true }
-mcrs_minecraft_item = { workspace = true, features = ["bevy"], optional = true }
-serde_json = { workspace = true, optional = true }
 
 [features]
 default = []
-bevy = [
-    "dep:bevy_ecs",
-    "dep:bevy_app",
-    "dep:bevy_asset",
-    "dep:mcrs_minecraft_block",
-    "dep:mcrs_minecraft_assets",
-    "dep:mcrs_minecraft_registries",
-    "mcrs_minecraft_registries/bevy",
-    "dep:mcrs_minecraft_item",
-    "dep:serde_json",
-]
+bevy = ["dep:bevy_ecs"]
 
 [dev-dependencies]
 mcrs_minecraft_volume.workspace = true
-mcrs_minecraft_world = { workspace = true, features = ["test-support"] }
+mcrs_minecraft_world = { workspace = true, features = ["bevy", "test-support"] }
 glam.workspace = true
 proptest = "1.11.0"
 serde_json.workspace = true
 mcrs_minecraft_item = { workspace = true, features = ["bevy"] }
+mcrs_minecraft_assets.workspace = true
+mcrs_minecraft_block = { workspace = true, features = ["bevy"] }
+mcrs_minecraft_registries = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_worldgen_testing.workspace = true
 bevy_app.workspace = true
 bevy_asset.workspace = true
