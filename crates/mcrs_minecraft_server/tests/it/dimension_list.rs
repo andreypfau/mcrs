@@ -6,15 +6,15 @@ use mcrs_minecraft_engine::heightmap::BlockHeightmapPredicates;
 use mcrs_minecraft_engine_server::DimensionWorldsPlugin;
 use mcrs_minecraft_engine_world::world::sub_app::DimSpawnQueue;
 use mcrs_minecraft_environment::world_clock::{WorldClock, WorldClocks};
+use mcrs_minecraft_game_registries::dimension::{DimensionEntry, Dimensions};
+use mcrs_minecraft_game_registries::registry_load::test_registries;
+use mcrs_minecraft_game_registries::worldgen::chunk_generator::ChunkGenerator;
 use mcrs_minecraft_light_engine::block_light::BlockLightRegistry;
 use mcrs_minecraft_protocol::uuid::Uuid;
 use mcrs_minecraft_registries::CurrentRegistries;
 use mcrs_minecraft_resource::ResourceKeyBuf;
 use mcrs_minecraft_save::{WorldGenSettings, write_world_gen_settings};
 use mcrs_minecraft_server::MinecraftServerPlugins;
-use mcrs_minecraft_world::dimension::{DimensionEntry, Dimensions};
-use mcrs_minecraft_world::registry_load::test_registries;
-use mcrs_minecraft_world::worldgen::chunk_generator::ChunkGenerator;
 
 use crate::support::preset;
 

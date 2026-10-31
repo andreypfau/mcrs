@@ -4,7 +4,7 @@ use std::path::Path;
 use std::process::ExitCode;
 
 use mcrs_minecraft_datapack::Level;
-use mcrs_minecraft_world::registry_load::{
+use mcrs_minecraft_game_registries::registry_load::{
     RegistryLoadError, load_registries, test_additions, test_packs,
 };
 

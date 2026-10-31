@@ -1,8 +1,8 @@
 use bevy_ecs::resource::Resource;
 use mcrs_minecraft_dimension::Dimension;
 use mcrs_minecraft_engine_world::world::dimension_list::DimensionList;
+use mcrs_minecraft_game_registries::worldgen::chunk_generator::ChunkGenerator;
 use mcrs_minecraft_resource::ResourceKeyBuf;
-use mcrs_minecraft_world::worldgen::chunk_generator::ChunkGenerator;
 
 /// The chunk generator of each dimension, in the order of the [`DimensionList`].
 #[derive(Resource, Clone, Debug, Default)]

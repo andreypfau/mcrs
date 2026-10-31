@@ -811,7 +811,7 @@ fn a_fixed_source_stores_the_ids_the_loader_numbered_its_biomes_with() {
     use mcrs_minecraft_biome::source::BiomeSource;
     use mcrs_minecraft_registries::{Named, Resolve, Resolver};
 
-    use mcrs_minecraft_world::registry_load::test_registries;
+    use mcrs_minecraft_game_registries::registry_load::test_registries;
     use mcrs_minecraft_worldgen_generator::stages::fill_column;
 
     let registries = test_registries().clone();

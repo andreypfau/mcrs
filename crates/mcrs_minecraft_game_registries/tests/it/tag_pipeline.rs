@@ -5,9 +5,9 @@ use mcrs_minecraft_block::keys::Block;
 use mcrs_minecraft_block::keys::block_tags;
 use mcrs_minecraft_entity::keys::EntityType;
 use mcrs_minecraft_environment::timeline::Timeline;
+use mcrs_minecraft_game_registries::registry_load::test_registries;
 use mcrs_minecraft_registries::{CurrentRegistries, IdSet};
 use mcrs_minecraft_resource::{ResourceLocationBuf, TagKey, TagKeyBuf};
-use mcrs_minecraft_world::registry_load::test_registries;
 
 use crate::common::{read_named, tag_members};
 

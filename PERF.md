@@ -951,7 +951,7 @@ the built-in worldgen change (456 crates). Cargo 1.100 nightly keeps the metadat
 | clean workspace check without the crate | 66 s | 20.02 / 28.84 |
 | clean workspace check with the crate | 59 s | 28.84 / 25.12 |
 | `libmcrs_minecraft_keys-*.rmeta` | 6,161,686 bytes (6,164,226 in the empty target directory) | not applicable |
-| `mcrs_minecraft_keys` after touching `mcrs_minecraft_world/src/lib.rs`, `cargo build -v -p mcrs_minecraft_world` | `Fresh` | 19.32 / 57.09 |
+| `mcrs_minecraft_keys` after touching `mcrs_minecraft_game_registries/src/lib.rs`, `cargo build -v -p mcrs_minecraft_game_registries` | `Fresh` | 19.32 / 57.09 |
 
 The machine was not idle at any point: every load average above is well over 4, from other builds
 running alongside, so every time is an upper bound and a rerun on an idle machine is the way to get

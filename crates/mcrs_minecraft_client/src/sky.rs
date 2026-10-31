@@ -650,7 +650,7 @@ mod sky_regression {
     #[test]
     fn the_drift_follows_the_default_clock_by_id_and_reads_none_without_one() {
         let overworld_clock = mcrs_minecraft_registries::Resolver::id(
-            mcrs_minecraft_world::registry_load::test_registries(),
+            mcrs_minecraft_game_registries::registry_load::test_registries(),
             &ResourceKeyBuf::from_location(
                 mcrs_minecraft_environment::keys::world_clock::OVERWORLD
                     .location()

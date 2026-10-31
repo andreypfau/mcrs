@@ -16,11 +16,11 @@ use mcrs_minecraft_engine::dimension_generators::DimensionGenerators;
 use mcrs_minecraft_engine::world_seed::WorldSeed;
 use mcrs_minecraft_engine_world::world::dimension_list::DimensionList;
 use mcrs_minecraft_engine_world::world::sub_app::DimSpawnEnqueue;
+use mcrs_minecraft_game_registries::worldgen::chunk_generator::ChunkGenerator;
 use mcrs_minecraft_registries::{
     CurrentRegistries, IdSet, Named, Namer, Registries, Registry, Resolve, Tags,
 };
 use mcrs_minecraft_resource::ResourceLocationBuf;
-use mcrs_minecraft_world::worldgen::chunk_generator::ChunkGenerator;
 use mcrs_minecraft_worldgen_feature::compile::{LoadedFeatures, build_feature_steps};
 use mcrs_minecraft_worldgen_feature::proto::FeatureStepList;
 use mcrs_minecraft_worldgen_feature::proto::{Feature, PlacedFeature, StructureProcessorList};

@@ -32,4 +32,4 @@ bytemuck = { version = "1", features = ["derive"] }
 
 [dev-dependencies]
 mcrs_minecraft_engine_registries = { workspace = true, features = ["test-support"] }
-mcrs_minecraft_world = { workspace = true, features = ["test-support"] }
+mcrs_minecraft_game_registries = { workspace = true, features = ["test-support"] }

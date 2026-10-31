@@ -111,7 +111,7 @@ fn chunk(sections: Vec<NbtTag>) -> Result<Chunk, ErrorKind> {
         &bytes,
         &CorpusBlockStates(corpus()),
         &RegistryBiomes(
-            mcrs_minecraft_world::registry_load::test_registries()
+            mcrs_minecraft_game_registries::registry_load::test_registries()
                 .registry::<BiomeFile>()
                 .expect("the biomes are loaded"),
         ),

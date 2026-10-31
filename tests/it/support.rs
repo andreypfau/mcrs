@@ -86,7 +86,7 @@ fn add_client_registries(client: &mut App) {
             ..Default::default()
         })
         .add_plugins(ClientRegistriesPlugin {
-            local_corpus: Some(mcrs_minecraft_world::registry_load::test_packs()),
+            local_corpus: Some(mcrs_minecraft_game_registries::registry_load::test_packs()),
         });
 }
 

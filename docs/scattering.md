@@ -412,7 +412,7 @@ that type (`Feature`; the 58 registered types are listed at
 `FeatureTypes.bootstrap`; the corpus uses 47 of them, `tree` 45 times,
 `simple_block` 37, `ore` 30, `random_selector` 21). In Rust that is one enum
 with `#[serde(tag = "type")]`, the shape `NoiseChunkGenerator` already uses
-(`crates/mcrs_minecraft_world/src/worldgen/chunk_generator.rs`). An
+(`crates/mcrs_minecraft_game_registries/src/worldgen/chunk_generator.rs`). An
 unknown type is a load error, as a mismatch with the targeted version always is.
 
 `worldgen/placed_feature/<id>.json` is a `PlacedFeature`: `feature` and

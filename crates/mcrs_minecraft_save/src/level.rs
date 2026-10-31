@@ -11,7 +11,7 @@ use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use mcrs_minecraft_world::dimension::DimensionEntry;
+use mcrs_minecraft_game_registries::dimension::DimensionEntry;
 
 use mcrs_minecraft_dimension::Dimension;
 use mcrs_minecraft_environment::world_clock::ClockState;

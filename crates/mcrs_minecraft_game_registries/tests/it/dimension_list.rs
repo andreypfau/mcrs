@@ -1,10 +1,10 @@
 use mcrs_minecraft_dimension::Dimension;
+use mcrs_minecraft_game_registries::dimension::{DimensionEntry, Dimensions, bake, bake_list};
+use mcrs_minecraft_game_registries::registry_load::test_registries;
+use mcrs_minecraft_game_registries::worldgen::chunk_generator::ChunkGenerator;
+use mcrs_minecraft_game_registries::worldgen::world_preset::WorldPreset;
 use mcrs_minecraft_registries::{Registries, Resolver};
 use mcrs_minecraft_resource::ResourceKeyBuf;
-use mcrs_minecraft_world::dimension::{DimensionEntry, Dimensions, bake, bake_list};
-use mcrs_minecraft_world::registry_load::test_registries;
-use mcrs_minecraft_world::worldgen::chunk_generator::ChunkGenerator;
-use mcrs_minecraft_world::worldgen::world_preset::WorldPreset;
 
 fn key(name: &str) -> ResourceKeyBuf<Dimension> {
     ResourceKeyBuf::from_location(name.parse().unwrap())
@@ -16,7 +16,7 @@ fn normal() -> Dimensions {
         .expect("the presets are loaded");
     let id = presets
         .by_name(
-            &mcrs_minecraft_world::keys::world_preset::NORMAL
+            &mcrs_minecraft_game_registries::keys::world_preset::NORMAL
                 .location()
                 .to_buf(),
         )

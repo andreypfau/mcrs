@@ -14,7 +14,7 @@ cargo run -p mcrs_minecraft_update -- recapture registry_census
 Output is deterministic: re-running produces a byte-identical file (56 875
 bytes).
 
-**Consumer:** `crates/mcrs_minecraft_world/src/entity/census.rs`, which pins
+**Consumer:** `crates/mcrs_minecraft_game_registries/src/entity/census.rs`, which pins
 the static tables whose ids cross the wire as registry indices — the
 `entity_type` table, the items the shipped structures' mobs carry, villager
 type and profession, and the entity attributes with their default, minimum,

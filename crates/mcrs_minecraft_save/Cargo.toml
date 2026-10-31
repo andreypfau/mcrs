@@ -18,7 +18,7 @@ mcrs_minecraft_nbt.workspace = true
 mcrs_minecraft_protocol.workspace = true
 mcrs_minecraft_registries.workspace = true
 mcrs_minecraft_resource.workspace = true
-mcrs_minecraft_world.workspace = true
+mcrs_minecraft_game_registries.workspace = true
 serde.workspace = true
 thiserror.workspace = true
 uuid.workspace = true
@@ -26,4 +26,4 @@ uuid.workspace = true
 [dev-dependencies]
 mcrs_minecraft_fixtures.workspace = true
 mcrs_minecraft_item.workspace = true
-mcrs_minecraft_world = { workspace = true, features = ["test-support"] }
+mcrs_minecraft_game_registries = { workspace = true, features = ["test-support"] }

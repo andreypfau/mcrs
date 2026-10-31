@@ -12,10 +12,10 @@ use mcrs_minecraft_block::keys::Fluid;
 use mcrs_minecraft_block::material::PushReaction;
 use mcrs_minecraft_block::material::map::MapColor;
 use mcrs_minecraft_core::voxel_shape::Aabb;
+use mcrs_minecraft_game_registries::registry_load::test_registries;
 use mcrs_minecraft_protocol::section::block_direct_bits;
 use mcrs_minecraft_resource::Id;
 use mcrs_minecraft_sound::BlockSoundSet;
-use mcrs_minecraft_world::registry_load::test_registries;
 use mcrs_voxel::BlockStateId;
 
 fn corpus() -> &'static (BlockDefinitions, LoadReport) {

@@ -11,7 +11,7 @@ use mcrs_minecraft_block::definition::{Blocks, load_block_definitions};
 use mcrs_minecraft_item::Items;
 
 use crate::item_definitions::load_item_definitions;
-use mcrs_minecraft_world::registry_load::test_registries;
+use mcrs_minecraft_game_registries::registry_load::test_registries;
 
 /// The whole vanilla corpus, loaded once per process; for tests and tools
 /// that have no app to hand it an asset server from.

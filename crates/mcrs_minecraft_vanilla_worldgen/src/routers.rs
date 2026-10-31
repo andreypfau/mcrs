@@ -4,8 +4,8 @@ use std::sync::Arc;
 
 use bevy_ecs::prelude::{Commands, Res, Resource};
 use mcrs_minecraft_block::definition::Blocks;
+use mcrs_minecraft_game_registries::worldgen::chunk_generator::ChunkGenerator;
 use mcrs_minecraft_registries::CurrentRegistries;
-use mcrs_minecraft_world::worldgen::chunk_generator::ChunkGenerator;
 use mcrs_minecraft_worldgen_density::router::NoiseRouter;
 use mcrs_minecraft_worldgen_generator::routers::{build_router, refuse_misplaced_beardifier};
 use mcrs_minecraft_worldgen_surface::compile::MaterialProgram;

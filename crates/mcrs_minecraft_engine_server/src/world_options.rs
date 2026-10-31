@@ -7,11 +7,11 @@ use mcrs_minecraft_engine::dimension_generators::DimensionGenerators;
 use mcrs_minecraft_engine::world_seed::WorldSeed;
 use mcrs_minecraft_engine_world::world::dimension_list::DimensionList;
 use mcrs_minecraft_engine_world::world::world_save::WorldSave;
+use mcrs_minecraft_game_registries::dimension::{DimensionEntry, Dimensions, bake, bake_list};
+use mcrs_minecraft_game_registries::worldgen::world_preset::WorldPreset;
 use mcrs_minecraft_registries::{CurrentRegistries, Registries};
 use mcrs_minecraft_resource::{ResourceKeyBuf, ResourceLocationBuf};
 use mcrs_minecraft_save::read_world_gen_settings;
-use mcrs_minecraft_world::dimension::{DimensionEntry, Dimensions, bake, bake_list};
-use mcrs_minecraft_world::worldgen::world_preset::WorldPreset;
 use tracing::{error, info};
 
 /// The dimension list the server plugin was given, which replaces the save's and the preset's.
@@ -84,7 +84,7 @@ fn dimension_list(
             .ok_or_else(|| {
                 format!(
                     "{}: no world preset is named {preset}",
-                    mcrs_minecraft_world::keys::WORLD_PRESET
+                    mcrs_minecraft_game_registries::keys::WORLD_PRESET
                 )
             })?;
         Ok((preset.to_owned(), bake(&named.dimensions, registries)?))

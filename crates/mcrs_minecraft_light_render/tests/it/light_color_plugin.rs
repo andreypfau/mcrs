@@ -1,10 +1,10 @@
 use bevy::app::{App, TaskPoolPlugin};
 use bevy::asset::AssetPlugin;
 use mcrs_minecraft_engine_registries::test_corpus;
+use mcrs_minecraft_game_registries::registry_load::test_registries;
 use mcrs_minecraft_light_color::colors::LightColors;
 use mcrs_minecraft_light_render::{HeldItemLights, LightColorPlugin};
 use mcrs_minecraft_registries::CurrentRegistries;
-use mcrs_minecraft_world::registry_load::test_registries;
 
 #[test]
 fn the_plugin_holds_the_colour_table_and_item_lights_after_the_first_update() {

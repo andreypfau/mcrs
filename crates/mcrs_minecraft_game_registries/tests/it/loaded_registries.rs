@@ -15,6 +15,13 @@ use mcrs_minecraft_dimension_environment::dimension_type::DimensionTypeFile;
 use mcrs_minecraft_engine_registries::SyncedRegistries;
 use mcrs_minecraft_environment::timeline::Timeline;
 use mcrs_minecraft_environment::world_clock::WorldClock;
+use mcrs_minecraft_game_registries::registry_load::{
+    RegistryLoadError, load_registries, sent_by, test_network, test_registries,
+};
+use mcrs_minecraft_game_registries::sulfur_cube_archetype::SulfurCubeArchetype;
+use mcrs_minecraft_game_registries::variant::{WolfVariantFile, spawn_selectors};
+use mcrs_minecraft_game_registries::worldgen::chunk_generator::ChunkGenerator;
+use mcrs_minecraft_game_registries::worldgen::world_preset::WorldPreset;
 use mcrs_minecraft_item::dialog::{Action, Dialog, DialogBody, Input};
 use mcrs_minecraft_item::{BannerPattern, InstrumentValue, PaintingVariantValue};
 use mcrs_minecraft_nbt::tag::NbtTag;
@@ -26,13 +33,6 @@ use mcrs_minecraft_resource::{
     Id, Registered, RegistryKey, RegistryValue, ResourceKeyBuf, ResourceLocationBuf, TagId,
     TagKeyBuf, rl,
 };
-use mcrs_minecraft_world::registry_load::{
-    RegistryLoadError, load_registries, sent_by, test_network, test_registries,
-};
-use mcrs_minecraft_world::sulfur_cube_archetype::SulfurCubeArchetype;
-use mcrs_minecraft_world::variant::{WolfVariantFile, spawn_selectors};
-use mcrs_minecraft_world::worldgen::chunk_generator::ChunkGenerator;
-use mcrs_minecraft_world::worldgen::world_preset::WorldPreset;
 use mcrs_minecraft_worldgen_testing::{corpus_path, packs, vanilla_dir};
 
 use crate::common::{
@@ -744,7 +744,7 @@ fn an_extra_declaration_takes_the_stage_the_report_gives_its_key_or_keeps_its_ow
         env!("CARGO_MANIFEST_DIR"),
         "/../../assets/mcrs/reports/datapack.json"
     ));
-    let declarations = mcrs_minecraft_world::registries::declarations(
+    let declarations = mcrs_minecraft_game_registries::registries::declarations(
         report,
         vec![
             Declaration::names_only(rl!("minecraft:trade_set").into(), Stage::Reloadable),

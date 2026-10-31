@@ -10,7 +10,7 @@ use mcrs_minecraft_engine::world_seed::WorldSeed;
 use mcrs_minecraft_engine_world::world::lifecycle::trace::ColumnTraceSink;
 use mcrs_minecraft_engine_world::world::world_save::WorldSave;
 use mcrs_minecraft_game_mode::GameMode;
-use mcrs_minecraft_world::dimension::Dimensions;
+use mcrs_minecraft_game_registries::dimension::Dimensions;
 
 use crate::require::require;
 use crate::server_core_plugin::ServerCorePlugin;

@@ -9,13 +9,13 @@ use mcrs_minecraft_engine::client_info::ClientInfo;
 use mcrs_minecraft_engine_registries::install_registries;
 use mcrs_minecraft_engine_registries::test_corpus;
 use mcrs_minecraft_engine_world::world::dimension_list::DimensionList;
+use mcrs_minecraft_game_registries::dimension::{DimensionEntry, Dimensions, bake};
+use mcrs_minecraft_game_registries::registry_load::test_registries;
+use mcrs_minecraft_game_registries::worldgen::world_preset::WorldPreset;
 use mcrs_minecraft_item::Items;
 use mcrs_minecraft_protocol::setting::ChatMode;
 use mcrs_minecraft_registries::{Registries, Resolver};
 use mcrs_minecraft_resource::{Id, ResourceKeyBuf, ResourceLocationBuf};
-use mcrs_minecraft_world::dimension::{DimensionEntry, Dimensions, bake};
-use mcrs_minecraft_world::registry_load::test_registries;
-use mcrs_minecraft_world::worldgen::world_preset::WorldPreset;
 
 /// A dimension sub-app is handed the real corpus at spawn, and worldgen
 /// resolves the block it fills terrain with against it, so a stub would only
@@ -65,9 +65,9 @@ pub fn baked(
 
 /// The vanilla preset's three dimensions, then a data-pack dimension, baked as the server bakes them.
 pub fn dimension_list_with_extra() -> DimensionList {
-    use mcrs_minecraft_world::worldgen::chunk_generator::ChunkGenerator;
+    use mcrs_minecraft_game_registries::worldgen::chunk_generator::ChunkGenerator;
 
-    let mut dimensions = preset(mcrs_minecraft_world::keys::world_preset::NORMAL);
+    let mut dimensions = preset(mcrs_minecraft_game_registries::keys::world_preset::NORMAL);
     dimensions.insert(
         ResourceKeyBuf::from_location("test:extra".parse().unwrap()),
         DimensionEntry {

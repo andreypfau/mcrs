@@ -1570,9 +1570,9 @@ mod tests {
     use crate::registries::LastConfiguration;
     use mcrs_minecraft_biome_file::BiomeFile;
     use mcrs_minecraft_chunk::PalettedContainer;
+    use mcrs_minecraft_game_registries::registry_load::{sent_by, test_registries};
     use mcrs_minecraft_mesh::StreamSpan;
     use mcrs_minecraft_registries::Received;
-    use mcrs_minecraft_world::registry_load::{sent_by, test_registries};
 
     fn session(edit: impl FnOnce(&mut Received)) -> CurrentRegistries {
         let mut configuration = LastConfiguration {

@@ -14,7 +14,7 @@ fn corpus() -> &'static Blocks {
 fn block_tags() -> &'static mcrs_minecraft_registries::Tags<Block> {
     static TAGS: OnceLock<mcrs_minecraft_registries::Tags<Block>> = OnceLock::new();
     TAGS.get_or_init(|| {
-        mcrs_minecraft_world::registry_load::test_registries()
+        mcrs_minecraft_game_registries::registry_load::test_registries()
             .tags::<Block>()
             .expect("the loaded registries hold the block tags")
     })

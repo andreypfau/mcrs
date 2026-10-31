@@ -112,7 +112,7 @@ fn insert_all<V: DataValue>(
 mod tests {
     use std::collections::BTreeMap;
 
-    use mcrs_minecraft_world::registry_load::test_registries;
+    use mcrs_minecraft_game_registries::registry_load::test_registries;
     use serde::Deserialize;
 
     #[derive(Deserialize)]

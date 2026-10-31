@@ -10,7 +10,7 @@ use mcrs_minecraft_light_color::item::{
 use mcrs_minecraft_resource::Id;
 use mcrs_voxel::BlockStateId;
 
-use mcrs_minecraft_world::registry_load::test_registries;
+use mcrs_minecraft_game_registries::registry_load::test_registries;
 use mcrs_minecraft_worldgen_testing::assets_dir;
 use proptest::prelude::*;
 

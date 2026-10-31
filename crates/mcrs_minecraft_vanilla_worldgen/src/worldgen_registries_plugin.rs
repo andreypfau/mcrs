@@ -231,7 +231,7 @@ mod tests {
         use bevy_asset::io::AssetSourceBuilder;
         use bevy_asset::io::memory::MemoryAssetReader;
         use bevy_asset::{AssetApp, AssetPlugin};
-        use mcrs_minecraft_world::registry_load::load_registries;
+        use mcrs_minecraft_game_registries::registry_load::load_registries;
 
         let element = |template: &str| {
             format!(
