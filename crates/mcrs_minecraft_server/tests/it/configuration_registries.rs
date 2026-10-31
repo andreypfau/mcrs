@@ -6,6 +6,7 @@ use bytes::BytesMut;
 use mcrs_minecraft_assets::AppState;
 use mcrs_minecraft_core::VERSION;
 use mcrs_minecraft_datapack::{VANILLA_PACK, VANILLA_ROOT};
+use mcrs_minecraft_engine_registries::SyncedRegistries;
 use mcrs_minecraft_engine_server::configuration::{
     KnownPackOffer, known_pack_offer, negotiated, offered_pack, on_known_packs_response,
     start_configuration,
@@ -26,7 +27,6 @@ use mcrs_minecraft_registries::{
 };
 use mcrs_minecraft_resource::ResourceLocation;
 use mcrs_minecraft_server::MinecraftServerPlugins;
-use mcrs_minecraft_world::SyncedRegistries;
 use mcrs_minecraft_world::registry_load::{test_network, test_registries};
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};

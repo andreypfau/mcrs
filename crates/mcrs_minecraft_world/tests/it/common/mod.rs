@@ -9,13 +9,13 @@ use bevy_state::state::State;
 use mcrs_minecraft_assets::AppState;
 use mcrs_minecraft_assets::packs::{PackLayering, PackRoots};
 use mcrs_minecraft_datapack::{DirectoryEntry, DirectoryPacks, PackSource, ReadError};
+use mcrs_minecraft_engine_registries::RegistryLoadPlugin;
+use mcrs_minecraft_engine_registries::test_corpus;
 use mcrs_minecraft_fixtures::vanilla_dir;
 use mcrs_minecraft_item::Items;
 use mcrs_minecraft_registries::Diagnostics;
 use mcrs_minecraft_registries::{Namer, Registries, RegistryAdditions, Resolve};
 use mcrs_minecraft_resource::ResourceLocation;
-use mcrs_minecraft_world::MinecraftWorldPlugin;
-use mcrs_minecraft_world::item::test_corpus;
 use mcrs_minecraft_world::registry_load::{RegistryLoadError, load_registries, test_additions};
 use serde::Deserialize;
 use serde::de::DeserializeOwned;
@@ -141,7 +141,7 @@ pub fn run_to_playing() -> App {
         ..Default::default()
     });
     app.add_plugins(mcrs_minecraft_assets::MinecraftCorePlugin);
-    app.add_plugins(MinecraftWorldPlugin);
+    app.add_plugins(RegistryLoadPlugin);
     app.add_plugins(mcrs_minecraft_vanilla_worldgen::WorldgenRegistriesPlugin);
     app.finish();
     app.cleanup();
@@ -170,7 +170,7 @@ pub fn plugin_app<M>(plugins: impl Plugins<M>) -> App {
     });
     app.add_plugins(mcrs_minecraft_assets::MinecraftCorePlugin);
     app.add_plugins(plugins);
-    app.add_plugins(MinecraftWorldPlugin);
+    app.add_plugins(RegistryLoadPlugin);
     app.add_plugins(mcrs_minecraft_vanilla_worldgen::WorldgenRegistriesPlugin);
     app.finish();
     app.cleanup();

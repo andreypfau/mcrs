@@ -14,6 +14,7 @@ use mcrs_minecraft_biome::source::{BiomeSource, MultiNoiseBiomeSource};
 use mcrs_minecraft_block::keys::Block;
 use mcrs_minecraft_datapack::{Level, PackDiagnostic, StackedPack, VANILLA_PACK};
 use mcrs_minecraft_dimension_environment::dimension_type::DimensionTypeFile;
+use mcrs_minecraft_engine_registries::SyncedRegistries;
 use mcrs_minecraft_environment::timeline::Timeline;
 use mcrs_minecraft_environment::world_clock::WorldClock;
 use mcrs_minecraft_item::dialog::{Action, Dialog, DialogBody, Input};
@@ -26,7 +27,6 @@ use mcrs_minecraft_registries::{
 use mcrs_minecraft_resource::{
     Id, RegistryKey, RegistryValue, ResourceLocation, TagId, TagKey, rl,
 };
-use mcrs_minecraft_world::SyncedRegistries;
 use mcrs_minecraft_world::registry_load::{
     RegistryLoadError, load_registries, sent_by, test_network, test_registries,
 };

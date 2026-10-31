@@ -11,6 +11,7 @@ doctest = false
 workspace = true
 
 [dependencies]
+mcrs_minecraft_engine_registries.workspace = true
 mcrs_minecraft_resource.workspace = true
 mcrs_voxel.workspace = true
 mcrs_minecraft_assets.workspace = true
@@ -21,7 +22,7 @@ mcrs_minecraft_entity.workspace = true
 mcrs_minecraft_nbt.workspace = true
 mcrs_minecraft_simulation.workspace = true
 mcrs_minecraft_volume.workspace = true
-mcrs_minecraft_world = { workspace = true, features = ["bevy"] }
+mcrs_minecraft_world.workspace = true
 bevy_asset.workspace = true
 bevy_state.workspace = true
 bevy_tasks.workspace = true
@@ -51,8 +52,9 @@ thiserror.workspace = true
 tracing.workspace = true
 
 [dev-dependencies]
+mcrs_minecraft_engine_registries = { workspace = true, features = ["test-support"] }
 mcrs_minecraft_worldgen_generator = { workspace = true, features = ["test-support"] }
-mcrs_minecraft_world = { workspace = true, features = ["bevy", "test-support"] }
+mcrs_minecraft_world = { workspace = true, features = ["test-support"] }
 
 [features]
 telemetry-tracy = []

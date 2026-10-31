@@ -16,7 +16,7 @@ use serde::Deserialize;
 use serde::de::IgnoredAny;
 
 use crate::common::items;
-use mcrs_minecraft_world::item::test_corpus;
+use mcrs_minecraft_engine_registries::test_corpus;
 use mcrs_minecraft_world::registry_load::test_registries;
 
 fn files() -> Vec<(String, Vec<u8>)> {

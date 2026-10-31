@@ -8,7 +8,7 @@ use mcrs_voxel::{BlockPos, BlockStateId};
 use std::sync::OnceLock;
 
 fn corpus() -> &'static Blocks {
-    &mcrs_minecraft_world::item::test_corpus().0
+    &mcrs_minecraft_engine_registries::test_corpus().0
 }
 
 fn block_tags() -> &'static mcrs_minecraft_registries::Tags<Block> {

@@ -167,7 +167,7 @@ pub fn spawn_dim_subapp(
     let column_traces = app.world().get_resource::<ColumnTraceSink>().cloned();
     let trace_dimension = request.dimension.as_str().to_owned();
     let mut sub_app = SubApp::new();
-    mcrs_minecraft_world::registry_snapshot::extract_registries(app.world(), sub_app.world_mut());
+    mcrs_minecraft_engine_registries::extract_registries(app.world(), sub_app.world_mut());
 
     sub_app.insert_resource(ToDimReceiver::<ToDim> {
         serverbound: to_dim_srv_rx,
@@ -386,7 +386,7 @@ pub fn spawn_dim_subapp(
         }
         mcrs_minecraft_environment::world_clock::extract_world_clocks(main_world, sub_world);
         crate::clock::extract_game_time(main_world, sub_world);
-        mcrs_minecraft_world::registry_snapshot::extract_registries(main_world, sub_world);
+        mcrs_minecraft_engine_registries::extract_registries(main_world, sub_world);
         if let Some(ops) = main_world.get_resource::<crate::ops::OpList>() {
             sub_world.insert_resource(ops.clone());
         }

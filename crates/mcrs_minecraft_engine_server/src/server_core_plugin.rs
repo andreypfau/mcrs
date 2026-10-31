@@ -71,6 +71,6 @@ impl Plugin for ServerCorePlugin {
             asset_path: self.asset_path.clone(),
         });
         app.add_plugins(mcrs_minecraft_assets::MinecraftCorePlugin);
-        app.add_plugins(mcrs_minecraft_world::MinecraftWorldPlugin);
+        app.add_plugins(mcrs_minecraft_engine_registries::RegistryLoadPlugin);
     }
 }

@@ -1,12 +1,4 @@
-#[cfg(feature = "bevy")]
-use bevy_asset::AssetServer;
-#[cfg(feature = "bevy")]
-use bevy_asset::io::AssetSourceId;
-#[cfg(feature = "bevy")]
-use mcrs_minecraft_assets::asset::{CorpusReadError, read_json_corpus};
 use mcrs_minecraft_block::definition::BlockDefinitions;
-#[cfg(feature = "bevy")]
-use mcrs_minecraft_item::definition::CORPUS_DIRECTORY;
 use mcrs_minecraft_item::definition::FORMAT_VERSION;
 use mcrs_minecraft_item::definition::schema::ItemDefinitionFile;
 use mcrs_minecraft_item::keys::Item;
@@ -95,14 +87,8 @@ pub fn from_files(
 
 #[derive(Debug, thiserror::Error)]
 pub enum ItemCorpusError {
-    #[cfg(feature = "bevy")]
-    #[error("no default asset source")]
-    NoAssetSource,
     #[error("the registries hold no item registry")]
     NoItemRegistry,
-    #[cfg(feature = "bevy")]
-    #[error(transparent)]
-    Corpus(#[from] CorpusReadError),
     #[error("`{path}` read as zero bytes")]
     Empty { path: String },
     #[error("failed to parse `{path}`: {source}")]
@@ -126,17 +112,4 @@ pub enum ItemCorpusError {
     UnknownBlock { item: String, block: String },
     #[error("`{file}` redefines `{item}`")]
     DuplicateIdentifier { item: String, file: String },
-}
-
-#[cfg(feature = "bevy")]
-pub fn load_item_definitions(
-    asset_server: &AssetServer,
-    registries: &Registries,
-    blocks: &BlockDefinitions,
-) -> Result<ItemDefinitions, ItemCorpusError> {
-    let source = asset_server
-        .get_source(AssetSourceId::Default)
-        .map_err(|_| ItemCorpusError::NoAssetSource)?;
-    let files = read_json_corpus(source.reader(), CORPUS_DIRECTORY)?;
-    from_files(files, registries, blocks)
 }

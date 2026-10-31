@@ -8,6 +8,7 @@ edition.workspace = true
 workspace = true
 
 [dependencies]
+mcrs_minecraft_engine_registries.workspace = true
 mcrs_minecraft_resource.workspace = true
 mcrs_voxel.workspace = true
 mcrs_minecraft_game_mode.workspace = true
@@ -71,7 +72,7 @@ mcrs_minecraft_command_argument_vanilla.workspace = true
 mcrs_minecraft_keys.workspace = true
 mcrs_minecraft_network = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_protocol.workspace = true
-mcrs_minecraft_world = { workspace = true, features = ["bevy"] }
+mcrs_minecraft_world.workspace = true
 mcrs_minecraft_chunk = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_engine_world.workspace = true
 # Bevy gives no name to the query-set and pass-timestamp types, and timing a pass needs both.
@@ -113,6 +114,7 @@ dynamic_linking = ["bevy/dynamic_linking"]
 telemetry-tracy = ["bevy/trace", "dep:tracing-tracy", "mcrs_minecraft_server?/telemetry-tracy"]
 
 [dev-dependencies]
+mcrs_minecraft_engine_registries = { workspace = true, features = ["test-support"] }
 mcrs_minecraft_world = { workspace = true, features = ["test-support"] }
 bytes.workspace = true
 mcrs_minecraft_fixtures.workspace = true

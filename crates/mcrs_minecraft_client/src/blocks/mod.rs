@@ -149,7 +149,7 @@ pub fn corpus() -> &'static BlockDefinitions {
 
 #[cfg(test)]
 pub fn corpus_blocks() -> &'static mcrs_minecraft_block::definition::Blocks {
-    &mcrs_minecraft_world::item::test_corpus().0
+    &mcrs_minecraft_engine_registries::test_corpus().0
 }
 
 #[cfg(test)]

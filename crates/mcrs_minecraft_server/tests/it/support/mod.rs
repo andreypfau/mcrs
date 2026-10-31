@@ -6,6 +6,8 @@ use mcrs_minecraft_assets::AppState;
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_dimension::{Dimension, DimensionType};
 use mcrs_minecraft_engine::client_info::ClientInfo;
+use mcrs_minecraft_engine_registries::install_registries;
+use mcrs_minecraft_engine_registries::test_corpus;
 use mcrs_minecraft_engine_world::world::dimension_list::DimensionList;
 use mcrs_minecraft_item::Items;
 use mcrs_minecraft_protocol::setting::ChatMode;
@@ -13,9 +15,7 @@ use mcrs_minecraft_registries::{Registries, Resolver};
 use mcrs_minecraft_resource::Id;
 use mcrs_minecraft_resource::{ResourceKey, ResourceLocation};
 use mcrs_minecraft_world::dimension::{DimensionEntry, Dimensions, bake};
-use mcrs_minecraft_world::item::test_corpus;
 use mcrs_minecraft_world::registry_load::test_registries;
-use mcrs_minecraft_world::registry_snapshot::install_registries;
 use mcrs_minecraft_world::worldgen::world_preset::WorldPreset;
 
 /// A dimension sub-app is handed the real corpus at spawn, and worldgen

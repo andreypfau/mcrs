@@ -11,6 +11,7 @@ doctest = false
 workspace = true
 
 [dependencies]
+mcrs_minecraft_engine_registries.workspace = true
 mcrs_minecraft_resource.workspace = true
 mcrs_minecraft_assets.workspace = true
 mcrs_minecraft_client_jar = { workspace = true, optional = true }
@@ -23,7 +24,7 @@ mcrs_minecraft_engine_world.workspace = true
 mcrs_minecraft_network = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_protocol.workspace = true
 mcrs_minecraft_registries = { workspace = true, features = ["bevy"] }
-mcrs_minecraft_world = { workspace = true, features = ["bevy"] }
+mcrs_minecraft_world.workspace = true
 bevy_app.workspace = true
 bevy_asset.workspace = true
 bevy_ecs.workspace = true

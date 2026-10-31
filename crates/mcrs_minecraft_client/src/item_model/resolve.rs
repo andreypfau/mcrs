@@ -291,6 +291,7 @@ mod tests {
     use bevy::app::App;
     use bevy::ecs::world::World;
     use mcrs_minecraft_core::codec::Bounded;
+    use mcrs_minecraft_engine_registries::test_corpus;
     use mcrs_minecraft_item::SlotTable;
     use mcrs_minecraft_item::keys::DataComponentType;
     use mcrs_minecraft_item::value::{is_child_kind, named_entry, ops};
@@ -299,7 +300,6 @@ mod tests {
         ItemStackValue, RgbInt,
     };
     use mcrs_minecraft_resource::rl;
-    use mcrs_minecraft_world::item::test_corpus;
 
     use super::*;
     use crate::atlas::SpriteRegistry;

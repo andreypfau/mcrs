@@ -416,9 +416,9 @@ fn entering_the_game_spawns_the_player_once_and_shares_the_baked_dimension_list(
 fn every_registry_resource_of_the_host_reaches_every_dimension(app: &App) {
     use mcrs_minecraft_block::definition::Blocks;
     use mcrs_minecraft_core::Versioned;
+    use mcrs_minecraft_engine_registries::RegistrySnapshot;
     use mcrs_minecraft_item::Items;
     use mcrs_minecraft_registries::CurrentRegistries;
-    use mcrs_minecraft_world::registry_snapshot::RegistrySnapshot;
     use std::any::type_name;
 
     let expected = [
@@ -573,8 +573,8 @@ fn a_registry_resource_is_not_changed_on_the_second_tick(app: &mut App) {
 
 fn registry_resources_changed_since(world: &World, since: Tick) -> bool {
     use mcrs_minecraft_core::Versioned;
+    use mcrs_minecraft_engine_registries::RegistrySnapshot;
     use mcrs_minecraft_registries::CurrentRegistries;
-    use mcrs_minecraft_world::registry_snapshot::RegistrySnapshot;
 
     let now = world.read_change_tick();
     let snapshot = world
@@ -650,7 +650,7 @@ fn snapshot_ticks(app: &mut App) -> Vec<(InternedAppLabel, Tick)> {
 
 fn dimensions_that_replaced_their_snapshot(app: &App, since: &[(InternedAppLabel, Tick)]) -> usize {
     use mcrs_minecraft_core::Versioned;
-    use mcrs_minecraft_world::registry_snapshot::RegistrySnapshot;
+    use mcrs_minecraft_engine_registries::RegistrySnapshot;
 
     since
         .iter()
@@ -665,8 +665,8 @@ fn dimensions_that_replaced_their_snapshot(app: &App, since: &[(InternedAppLabel
 
 #[test]
 fn a_swapped_set_reaches_every_dimension_on_the_next_tick_and_an_idle_tick_replaces_nothing() {
+    use mcrs_minecraft_engine_registries::replace_registries;
     use mcrs_minecraft_registries::{CurrentRegistries, Registries};
-    use mcrs_minecraft_world::registry_snapshot::replace_registries;
 
     let mut app = crate::host_app::make_host_app();
     crate::host_app::drive_to_playing(&mut app);

@@ -3687,6 +3687,7 @@ dependencies = [
  "mcrs_minecraft_dimension",
  "mcrs_minecraft_dimension_environment",
  "mcrs_minecraft_engine",
+ "mcrs_minecraft_engine_registries",
  "mcrs_minecraft_engine_server",
  "mcrs_minecraft_engine_world",
  "mcrs_minecraft_entity",
@@ -4017,6 +4018,7 @@ dependencies = [
  "mcrs_minecraft_core",
  "mcrs_minecraft_dimension",
  "mcrs_minecraft_dimension_environment",
+ "mcrs_minecraft_engine_registries",
  "mcrs_minecraft_engine_world",
  "mcrs_minecraft_entity",
  "mcrs_minecraft_environment",
@@ -4041,6 +4043,30 @@ dependencies = [
 ]
 
 [[package]]
+name = "mcrs_minecraft_engine_registries"
+version = "0.5.8"
+dependencies = [
+ "bevy_app",
+ "bevy_asset",
+ "bevy_ecs",
+ "bevy_platform",
+ "bevy_state",
+ "bevy_tasks",
+ "mcrs_minecraft_assets",
+ "mcrs_minecraft_block",
+ "mcrs_minecraft_core",
+ "mcrs_minecraft_datapack",
+ "mcrs_minecraft_environment",
+ "mcrs_minecraft_item",
+ "mcrs_minecraft_registries",
+ "mcrs_minecraft_resource",
+ "mcrs_minecraft_sound",
+ "mcrs_minecraft_world",
+ "thiserror 2.0.18",
+ "tracing",
+]
+
+[[package]]
 name = "mcrs_minecraft_engine_server"
 version = "0.5.8"
 dependencies = [
@@ -4057,6 +4083,7 @@ dependencies = [
  "mcrs_minecraft_datapack",
  "mcrs_minecraft_dimension",
  "mcrs_minecraft_engine",
+ "mcrs_minecraft_engine_registries",
  "mcrs_minecraft_engine_world",
  "mcrs_minecraft_fixtures",
  "mcrs_minecraft_game_mode",
@@ -4228,6 +4255,7 @@ dependencies = [
  "mcrs_minecraft_block",
  "mcrs_minecraft_chunk",
  "mcrs_minecraft_core",
+ "mcrs_minecraft_engine_registries",
  "mcrs_minecraft_item",
  "mcrs_minecraft_light_engine",
  "mcrs_minecraft_registries",
@@ -4270,6 +4298,7 @@ dependencies = [
  "mcrs_minecraft_block",
  "mcrs_minecraft_chunk",
  "mcrs_minecraft_core",
+ "mcrs_minecraft_engine_registries",
  "mcrs_minecraft_item",
  "mcrs_minecraft_light_color",
  "mcrs_minecraft_registries",
@@ -4404,6 +4433,7 @@ dependencies = [
  "mcrs_minecraft_command_tree",
  "mcrs_minecraft_core",
  "mcrs_minecraft_dimension",
+ "mcrs_minecraft_engine_registries",
  "mcrs_minecraft_entity",
  "mcrs_minecraft_fixtures",
  "mcrs_minecraft_game_mode",
@@ -4556,6 +4586,7 @@ dependencies = [
  "mcrs_minecraft_dimension",
  "mcrs_minecraft_dimension_environment",
  "mcrs_minecraft_engine",
+ "mcrs_minecraft_engine_registries",
  "mcrs_minecraft_engine_server",
  "mcrs_minecraft_engine_world",
  "mcrs_minecraft_entity",
@@ -4708,6 +4739,7 @@ dependencies = [
  "mcrs_minecraft_datapack",
  "mcrs_minecraft_dimension",
  "mcrs_minecraft_engine",
+ "mcrs_minecraft_engine_registries",
  "mcrs_minecraft_engine_world",
  "mcrs_minecraft_entity",
  "mcrs_minecraft_fixtures",
@@ -4773,7 +4805,6 @@ dependencies = [
  "bevy_app",
  "bevy_asset",
  "bevy_ecs",
- "bevy_platform",
  "bevy_state",
  "bevy_tasks",
  "bytes",
@@ -4788,6 +4819,7 @@ dependencies = [
  "mcrs_minecraft_dimension",
  "mcrs_minecraft_dimension_environment",
  "mcrs_minecraft_enchantment",
+ "mcrs_minecraft_engine_registries",
  "mcrs_minecraft_entity",
  "mcrs_minecraft_environment",
  "mcrs_minecraft_fixtures",

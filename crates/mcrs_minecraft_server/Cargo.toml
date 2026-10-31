@@ -31,6 +31,7 @@ bevy_ecs = { workspace = true, features = ["multi_threaded"] }
 bevy_asset = { workspace = true, features = ["multi_threaded"] }
 
 [dev-dependencies]
+mcrs_minecraft_engine_registries = { workspace = true, features = ["test-support"] }
 mcrs_minecraft_resource.workspace = true
 mcrs_voxel.workspace = true
 mcrs_minecraft_game_mode.workspace = true
@@ -67,7 +68,7 @@ mcrs_minecraft_command_tree.workspace = true
 mcrs_command.workspace = true
 mcrs_minecraft_command_argument_vanilla.workspace = true
 mcrs_minecraft_chat_client.workspace = true
-mcrs_minecraft_world = { workspace = true, features = ["bevy", "test-support"] }
+mcrs_minecraft_world = { workspace = true, features = ["test-support"] }
 mcrs_minecraft_fixtures.workspace = true
 mcrs_minecraft_worldgen_generator = { workspace = true, features = ["bevy", "test-support"] }
 mcrs_minecraft_worldgen_density.workspace = true

@@ -23,7 +23,8 @@ impl bevy_app::Plugin for ModernCarverPlugin {
     fn build(&self, app: &mut bevy_app::App) {
         app.add_systems(
             bevy_state::prelude::OnEnter(mcrs_minecraft_assets::AppState::WorldgenFreeze),
-            build_modern_carver_biomes.before(mcrs_minecraft_world::transition_to_playing),
+            build_modern_carver_biomes
+                .before(mcrs_minecraft_engine_registries::transition_to_playing),
         );
     }
 }

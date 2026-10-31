@@ -6,6 +6,7 @@ use std::fmt;
 use serde::Serialize;
 use serde::de::DeserializeOwned;
 
+use mcrs_minecraft_engine_registries::test_corpus;
 use mcrs_minecraft_item::keys::DataComponentType;
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::tag::NbtTag;
@@ -19,7 +20,6 @@ use mcrs_minecraft_protocol::{Decode, Encode};
 use mcrs_minecraft_registries::FromWire;
 use mcrs_minecraft_registries::{IdSet, Named, Registries, Resolve, Resolver};
 use mcrs_minecraft_resource::{Id, ResourceLocation};
-use mcrs_minecraft_world::item::test_corpus;
 use mcrs_minecraft_world::registry_load::test_registries;
 
 pub use crate::common::{hex, nbt_tree};

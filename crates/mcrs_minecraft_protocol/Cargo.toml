@@ -42,9 +42,10 @@ derive_more = { workspace = true, features = ["from", "into", "deref", "deref_mu
 flate2.workspace = true
 
 [dev-dependencies]
+mcrs_minecraft_engine_registries = { workspace = true, features = ["test-support"] }
 mcrs_minecraft_snbt.workspace = true
 mcrs_minecraft_sound.workspace = true
-mcrs_minecraft_world = { workspace = true, features = ["bevy", "test-support"] }
+mcrs_minecraft_world = { workspace = true, features = ["test-support"] }
 criterion = { version = "0.7", features = ["html_reports"] }
 rand.workspace = true
 serde_json.workspace = true

@@ -8,11 +8,11 @@ use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_item::Items;
 
 pub fn blocks() -> &'static Blocks {
-    &mcrs_minecraft_world::item::test_corpus().0
+    &mcrs_minecraft_engine_registries::test_corpus().0
 }
 
 pub fn items() -> &'static Items {
-    &mcrs_minecraft_world::item::test_corpus().1
+    &mcrs_minecraft_engine_registries::test_corpus().1
 }
 
 fn asset_server() -> &'static AssetServer {

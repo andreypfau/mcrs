@@ -1,5 +1,8 @@
-use crate::data_pack::{check_registry_assets_ready, start_loading_data_pack};
-use crate::registry_load::{self, AssetReaderPacks};
+use crate::asset_reader_packs::AssetReaderPacks;
+use crate::item_definitions::load_item_definitions;
+use crate::loading_state::{check_registry_assets_ready, start_loading_data_pack};
+use crate::log_diagnostics::log_diagnostics;
+use crate::registry_snapshot::install_registries;
 use bevy_app::{App, AppExit, Plugin, PostStartup, Update};
 use bevy_asset::AssetServer;
 use bevy_ecs::prelude::*;
@@ -7,14 +10,17 @@ use bevy_state::prelude::*;
 use mcrs_minecraft_assets::packs::PACK_FILES;
 use mcrs_minecraft_assets::{AppState, LoadedRegistryAssets};
 use mcrs_minecraft_registries::NetworkSnapshot;
+use mcrs_minecraft_world::registry_load::load_registries;
 
 /// What the configuration phase sends of the installed registries, encoded once per load.
 #[derive(Resource)]
 pub struct SyncedRegistries(pub NetworkSnapshot);
 
-pub struct MinecraftWorldPlugin;
+/// Loads the registries, the block and item definitions and the block sound sets when the app
+/// finishes, and walks the app through loading the data pack to playing.
+pub struct RegistryLoadPlugin;
 
-impl Plugin for MinecraftWorldPlugin {
+impl Plugin for RegistryLoadPlugin {
     fn build(&self, app: &mut App) {
         app.add_plugins(mcrs_minecraft_environment::world_clock::WorldClockPlugin);
         app.init_resource::<LoadedRegistryAssets>();
@@ -55,10 +61,9 @@ fn install(world: &mut World) -> Result<(), String> {
         .remove_resource::<mcrs_minecraft_registries::RegistryAdditions>()
         .unwrap_or_default();
     let started = bevy_platform::time::Instant::now();
-    let (registries, diagnostics) =
-        registry_load::load_registries(&AssetReaderPacks(pack_files), additions)
-            .map_err(|error| error.to_string())?;
-    registry_load::log_diagnostics(&diagnostics);
+    let (registries, diagnostics) = load_registries(&AssetReaderPacks(pack_files), additions)
+        .map_err(|error| error.to_string())?;
+    log_diagnostics(&diagnostics);
     tracing::info!(elapsed = ?started.elapsed(), "loaded registries");
     let synced = NetworkSnapshot::new(&registries).map_err(|error| error.to_string())?;
 
@@ -84,13 +89,12 @@ fn install(world: &mut World) -> Result<(), String> {
         })
         .map_err(|key| format!("the block sound set {key} is not loaded"))?;
     let definitions = std::sync::Arc::new(definitions);
-    let items =
-        crate::item::definitions::load_item_definitions(&asset_server, &registries, &definitions)
-            .map_err(|error| error.to_string())?;
+    let items = load_item_definitions(&asset_server, &registries, &definitions)
+        .map_err(|error| error.to_string())?;
     tracing::info!(items = items.len(), "loaded item definitions");
     world.insert_resource(sound_sets);
     world.insert_resource(SyncedRegistries(synced));
-    crate::registry_snapshot::install_registries(
+    install_registries(
         world,
         registries,
         mcrs_minecraft_block::definition::Blocks(definitions),
@@ -99,6 +103,7 @@ fn install(world: &mut World) -> Result<(), String> {
     Ok(())
 }
 
+/// Enters `AppState::Playing`.
 pub fn transition_to_playing(mut next: ResMut<NextState<AppState>>) {
     next.set(AppState::Playing);
     tracing::info!("entering Playing state");

@@ -9,6 +9,7 @@ use bevy::log::{error, info};
 use bevy::prelude::*;
 use mcrs_minecraft_block::definition::{Blocks, load_block_definitions};
 use mcrs_minecraft_datapack::DirectoryPacks;
+use mcrs_minecraft_engine_registries::load_item_definitions;
 use mcrs_minecraft_environment::timeline::Timeline;
 use mcrs_minecraft_environment::world_clock::{
     ClockTimeMarkers, WorldClock, WorldClockPlugin, WorldClocks,
@@ -22,7 +23,6 @@ use mcrs_minecraft_network::event;
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundUpdateTags;
 use mcrs_minecraft_registries::{CurrentRegistries, Diagnostics, Received, Registries};
 use mcrs_minecraft_resource::Id;
-use mcrs_minecraft_world::item::definitions::load_item_definitions;
 use mcrs_minecraft_world::registry_load::{RegistryLoadError, load_received};
 
 use crate::blocks::BiomeTints;
