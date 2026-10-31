@@ -32,13 +32,22 @@ struct Sample {
 }
 
 fn server(max_players: u32, motd: &str, players: Vec<(Uuid, String)>) -> (App, SocketAddr) {
+    server_with(
+        NetworkPlugin {
+            max_players,
+            motd: motd.to_owned(),
+            ..Default::default()
+        },
+        players,
+    )
+}
+
+fn server_with(plugin: NetworkPlugin, players: Vec<(Uuid, String)>) -> (App, SocketAddr) {
     let mut app = App::new();
     app.add_plugins(NetworkPlugin {
         address: SocketAddrV4::new(Ipv4Addr::LOCALHOST, 0).into(),
         announce_on_lan: false,
-        max_players,
-        motd: motd.to_owned(),
-        ..Default::default()
+        ..plugin
     });
     app.world()
         .resource::<StatusPublisher>()
@@ -49,23 +58,22 @@ fn server(max_players: u32, motd: &str, players: Vec<(Uuid, String)>) -> (App, S
 }
 
 fn status_json(address: SocketAddr) -> String {
+    status_exchange(address).unwrap()
+}
+
+fn status_exchange(address: SocketAddr) -> anyhow::Result<String> {
     tokio::runtime::Runtime::new().unwrap().block_on(async {
         tokio::time::timeout(Duration::from_secs(10), async {
-            let mut io = PacketIo::connect(address).await.unwrap();
+            let mut io = PacketIo::connect(address).await?;
             io.send_packet(&ServerboundHandshake {
                 protocol_version: VarInt(VERSION.protocol_version),
                 server_address: Bounded("127.0.0.1"),
                 server_port: address.port(),
                 intent: Intent::Status,
             })
-            .await
-            .unwrap();
-            io.send_packet(&StatusRequest).await.unwrap();
-            io.recv_packet::<StatusResponse>()
-                .await
-                .unwrap()
-                .json
-                .to_owned()
+            .await?;
+            io.send_packet(&StatusRequest).await?;
+            Ok(io.recv_packet::<StatusResponse>().await?.json.to_owned())
         })
         .await
         .unwrap()
@@ -98,6 +106,38 @@ fn the_status_response_shows_the_settings_and_the_online_players() {
         json.contains(r#"{"id":"00000000-0000-0000-0000-000000000001","name":"player1"}"#),
         "{json}"
     );
+}
+
+#[test]
+fn the_enable_status_disable() {
+    let (_app, address) = server_with(
+        NetworkPlugin {
+            enable_status: false,
+            ..Default::default()
+        },
+        vec![],
+    );
+    let status = status_exchange(address);
+    assert!(status.is_err(), "{status:?}")
+}
+
+#[test]
+fn the_sample_of_enable_hide_online_players() {
+    let players = (1..=3)
+        .map(|n| (Uuid::from_u128(n), format!("player{n}")))
+        .collect();
+    let (_app, address) = server_with(
+        NetworkPlugin {
+            hide_online_players: true,
+            ..Default::default()
+        },
+        players,
+    );
+    let json = status_json(address);
+    let status: Status = serde_json::from_str(&json).unwrap();
+
+    assert!(status.players.sample.is_none(), "{json}");
+    assert_eq!(status.players.online, 3);
 }
 
 #[test]

@@ -15,3 +15,7 @@ It differs from the game on purpose:
 ## Transfers
 
 A client that a transfer packet sends to the server opens its connection with the transfer intent. The server plugin's `accepts_transfers` lets such a connection log in as a direct one, with the same version check. When it is off, which is the default, the client gets `multiplayer.disconnect.transfers_disabled`. The `mcrs` server binary turns it on from `MCRS_ACCEPT_TRANSFERS` (`on`, `1`, `true` or `yes` in any case).
+
+## Status
+
+The status response follows [docs/spec/status.md](../../docs/spec/status.md). The server plugin's `hide_online_players` leaves the sample of online players out of it, while the online and maximum counts stay. It is off by default, and the `mcrs` server binary turns it on from `MCRS_HIDE_ONLINE_PLAYERS` (`on`, `1`, `true` or `yes` in any case). With `enable_status` off, the server closes a status connection after the handshake without sending a packet; a login is not affected. It is on by default, and the binary turns it off from `MCRS_ENABLE_STATUS` (`off`, `0`, `false` or `no` in any case).

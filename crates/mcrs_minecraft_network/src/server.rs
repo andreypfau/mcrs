@@ -29,6 +29,8 @@ pub struct NetworkPlugin {
     /// A handshake with the transfer intent continues as a login only when this is set;
     /// otherwise the client gets `multiplayer.disconnect.transfers_disabled`.
     pub accepts_transfers: bool,
+    pub hide_online_players: bool,
+    pub enable_status: bool,
 }
 
 impl Default for NetworkPlugin {
@@ -39,6 +41,8 @@ impl Default for NetworkPlugin {
             max_players: 20,
             motd: "mcrs Server".to_owned(),
             accepts_transfers: false,
+            hide_online_players: false,
+            enable_status: true,
         }
     }
 }
@@ -117,6 +121,8 @@ fn build_plugin(app: &mut App, plugin: &NetworkPlugin) -> anyhow::Result<()> {
         status_recv,
         motd: plugin.motd.clone(),
         accepts_transfers: plugin.accepts_transfers,
+        hide_online_players: plugin.hide_online_players,
+        enable_status: plugin.enable_status,
     }));
 
     app.insert_resource(shared_state.clone());
@@ -210,6 +216,8 @@ pub(crate) struct SharedNetworkStateInner {
     pub(crate) status_recv: tokio::sync::watch::Receiver<StatusPlayers>,
     pub(crate) motd: String,
     pub(crate) accepts_transfers: bool,
+    pub(crate) hide_online_players: bool,
+    pub(crate) enable_status: bool,
 }
 
 #[derive(Component)]
