@@ -5,7 +5,7 @@ pub use mcrs_minecraft_core::codec::CompactList;
 use mcrs_minecraft_core::codec::{
     Bounded, NonNegativeInt, default_true, float_value, int_value, is_default, optional_flag,
 };
-use mcrs_minecraft_resource::{Registered, ResourceKeyBuf, ResourceLocation, ResourceLocationBuf};
+use mcrs_minecraft_resource::{Registered, ResourceKeyBuf, ResourceLocationBuf};
 
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::tag::NbtTag;
@@ -603,7 +603,7 @@ macro_rules! resolvable_wire {
                 Ok(match bool::decode(r)? {
                     true => Self::Constant(Decode::decode(r)?),
                     false => {
-                        Self::Reference(ResourceKeyBuf::from_location(ResourceLocation::decode(r)?))
+                        Self::Reference(ResourceKeyBuf::from_location(ResourceLocationBuf::decode(r)?))
                     }
                 })
             }
@@ -658,7 +658,7 @@ macro_rules! typed_entity_data_wire {
     ($($registry:ty),* $(,)?) => {$(
         impl Encode for TypedEntityData<$registry> {
             fn encode(&self, mut w: impl Write) -> Result<()> {
-                <$registry>::find(self.id.location().as_str())
+                <$registry>::get(self.id.as_key().location())
                     .with_context(|| format!("no {} is named {}", stringify!($registry), self.id))?
                     .encode(&mut w)?;
                 self.tag.encode(w)

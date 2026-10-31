@@ -74,6 +74,11 @@ impl PackDiagnostic {
     }
 }
 
+fn joined(features: &[ResourceLocationBuf]) -> String {
+    let names: Vec<&str> = features.iter().map(ResourceLocationBuf::as_str).collect();
+    names.join(", ")
+}
+
 impl fmt::Display for PackDiagnostic {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
@@ -95,13 +100,13 @@ impl fmt::Display for PackDiagnostic {
             PackDiagnostic::PackFeaturesDisabled { pack, features } => write!(
                 f,
                 "data pack {pack} removed: it requests disabled features {}",
-                features.join(", ")
+                joined(features)
             ),
             PackDiagnostic::PackFound { pack } => write!(f, "found new data pack {pack}"),
             PackDiagnostic::PackNotAppended { pack, features } => write!(
                 f,
                 "new data pack {pack} not enabled: it requests disabled features {}",
-                features.join(", ")
+                joined(features)
             ),
             PackDiagnostic::FeaturePackAppended { pack } => {
                 write!(f, "enabled feature pack {pack} for the world's features")

@@ -30,7 +30,7 @@ pub const CLAY_BAND_COUNT: usize = 192;
 /// The nine noises the stage samples outside the density graph. The reference
 /// hardcodes them, so no datapack file names them and nothing else would load
 /// them.
-pub const SURFACE_NOISE_NAMES: [ResourceKey<NoiseParam, &'static str>; 9] = [
+pub const SURFACE_NOISE_NAMES: [ResourceKey<'static, NoiseParam>; 9] = [
     mcrs_minecraft_noise::keys::noise::SURFACE,
     mcrs_minecraft_noise::keys::noise::SURFACE_SECONDARY,
     mcrs_minecraft_noise::keys::noise::CLAY_BANDS_OFFSET,

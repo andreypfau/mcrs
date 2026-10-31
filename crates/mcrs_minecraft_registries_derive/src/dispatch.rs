@@ -142,9 +142,7 @@ pub(crate) fn dispatch(
                 #krate::dispatch::read(
                     deserializer,
                     #key,
-                    <#registry as #krate::dispatch::__resource::Registered>::REGISTRY
-                        .location()
-                        .as_static_str(),
+                    <#registry as #krate::dispatch::__resource::Registered>::REGISTRY.location(),
                     pick,
                     #body,
                 )
@@ -231,7 +229,7 @@ fn pick(args: &Args, variants: &[(Ident, Target)]) -> Tokens {
     quote! {
         fn pick(location: &str) -> #krate::dispatch::Pick {
             use #krate::dispatch::Pick;
-            match <#registry>::find(location) {
+            match <#registry>::read(location) {
                 ::core::option::Option::Some(entry) => match entry {
                     #(#entry_arms)*
                     #(<#registry>::#unsupported => Pick::Unsupported,)*

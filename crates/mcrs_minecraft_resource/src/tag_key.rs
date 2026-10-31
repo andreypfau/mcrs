@@ -1,107 +1,77 @@
-use crate::ResourceLocation;
-use alloc::boxed::Box;
+use core::fmt;
 use core::hash::{Hash, Hasher};
 use core::marker::PhantomData;
 
-/// A typed reference to a tag in a specific registry.
-///
-/// Generic over storage `S`:
-/// - [`TagKeyBuf<R>`] — owned, for a tag reference read at runtime.
-/// - `TagKey<R, &'static str>` — `Copy`, zero-alloc, const-constructible; every constant spells it.
-///
-/// Cross-variant equality and hashing compare by string content (like `ResourceLocation`).
-pub struct TagKey<R, S> {
-    rl: ResourceLocation<S>,
+use crate::{ResourceLocation, TagKeyBuf};
+
+/// A borrowed reference to a tag of the registry `R`. It is `Copy`, and the generated
+/// constants are `TagKey<'static, R>`; [`TagKeyBuf`] is the owned form.
+pub struct TagKey<'a, R> {
+    location: ResourceLocation<'a>,
     _marker: PhantomData<fn() -> R>,
 }
 
-// ── Clone / Copy ──
-
-impl<R, S: Clone> Clone for TagKey<R, S> {
+impl<R> Clone for TagKey<'_, R> {
     fn clone(&self) -> Self {
+        *self
+    }
+}
+
+impl<R> Copy for TagKey<'_, R> {}
+
+impl<'a, R> TagKey<'a, R> {
+    pub const fn new(location: ResourceLocation<'a>) -> Self {
         TagKey {
-            rl: self.rl.clone(),
+            location,
             _marker: PhantomData,
         }
     }
-}
 
-/// The owned form of a tag key.
-pub type TagKeyBuf<R> = TagKey<R, Box<str>>;
+    #[inline]
+    pub const fn location(self) -> ResourceLocation<'a> {
+        self.location
+    }
 
-impl<R> Copy for TagKey<R, &'static str> {}
-
-// ── Eq / Hash (cross-variant, by string content) ──
-
-impl<R, S: AsRef<str>, U: AsRef<str>> PartialEq<TagKey<R, U>> for TagKey<R, S> {
-    fn eq(&self, other: &TagKey<R, U>) -> bool {
-        self.rl.as_str() == other.rl.as_str()
+    /// The owned form, with one allocation.
+    pub fn to_buf(self) -> TagKeyBuf<R> {
+        TagKeyBuf::from_location(self.location.to_buf())
     }
 }
 
-impl<R, S: AsRef<str>> Eq for TagKey<R, S> {}
+impl<'a, R> From<&TagKey<'a, R>> for TagKey<'a, R> {
+    fn from(key: &TagKey<'a, R>) -> Self {
+        *key
+    }
+}
 
-impl<R, S: AsRef<str>> Hash for TagKey<R, S> {
+impl<R> PartialEq for TagKey<'_, R> {
+    fn eq(&self, other: &Self) -> bool {
+        self.location == other.location
+    }
+}
+
+impl<R> Eq for TagKey<'_, R> {}
+
+impl<R> PartialEq<TagKeyBuf<R>> for TagKey<'_, R> {
+    fn eq(&self, other: &TagKeyBuf<R>) -> bool {
+        *self == other.as_key()
+    }
+}
+
+impl<R> Hash for TagKey<'_, R> {
     fn hash<H: Hasher>(&self, state: &mut H) {
-        self.rl.as_str().hash(state);
+        self.location.hash(state);
     }
 }
 
-// ── Static variant (`&'static str`) ──
-
-impl<R> TagKey<R, &'static str> {
-    /// Create a tag key from a compile-time validated `ResourceLocation<&'static str>`.
-    ///
-    /// ```rust,ignore
-    /// use mcrs_minecraft_resource::{rl, TagKey};
-    /// const MY_TAG: TagKey<Block, &'static str> = TagKey::new(rl!("minecraft:mineable/pickaxe"));
-    /// ```
-    pub const fn new(rl: ResourceLocation<&'static str>) -> Self {
-        TagKey {
-            rl,
-            _marker: PhantomData,
-        }
+impl<R> fmt::Display for TagKey<'_, R> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Display::fmt(&self.location, f)
     }
 }
 
-// ── Owned variant (runtime-parsed) ──
-
-impl<R> TagKey<R, Box<str>> {
-    /// Create a tag key from a location read at runtime.
-    pub fn from_location(rl: ResourceLocation<Box<str>>) -> Self {
-        TagKey {
-            rl,
-            _marker: PhantomData,
-        }
-    }
-}
-
-impl<R> From<TagKey<R, &'static str>> for TagKey<R, Box<str>> {
-    fn from(key: TagKey<R, &'static str>) -> Self {
-        TagKey::from_location(key.rl.into())
-    }
-}
-
-// ── Generic accessors (any S: AsRef<str>) ──
-
-impl<R, S: AsRef<str>> TagKey<R, S> {
-    /// The full `namespace:path` string of this tag key.
-    #[inline]
-    pub fn as_str(&self) -> &str {
-        self.rl.as_str()
-    }
-
-    /// Borrow the inner `ResourceLocation`.
-    #[inline]
-    pub fn location(&self) -> &ResourceLocation<S> {
-        &self.rl
-    }
-}
-
-// ── Debug ──
-
-impl<R, S: AsRef<str>> core::fmt::Debug for TagKey<R, S> {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "TagKey({})", self.rl.as_str())
+impl<R> fmt::Debug for TagKey<'_, R> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "TagKey({})", self.location)
     }
 }

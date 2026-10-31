@@ -2,7 +2,7 @@ use glam::IVec3;
 use mcrs_minecraft_core::Mirror;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::legacy::LegacyRandom;
-use mcrs_minecraft_resource::{StaticResourceLocation, rl};
+use mcrs_minecraft_resource::{ResourceLocation, rl};
 use mcrs_minecraft_value_provider::HeightProvider;
 use mcrs_minecraft_worldgen_feature::template::bounding_box;
 
@@ -11,7 +11,7 @@ use crate::orient::random_rotation;
 use crate::piece::{NetherFossilPiece, Piece};
 use crate::site::{Context, Site, Stub};
 
-pub const TEMPLATES: &[StaticResourceLocation] = &[
+pub const TEMPLATES: &[ResourceLocation<'static>] = &[
     rl!("minecraft:nether_fossils/fossil_1"),
     rl!("minecraft:nether_fossils/fossil_2"),
     rl!("minecraft:nether_fossils/fossil_3"),

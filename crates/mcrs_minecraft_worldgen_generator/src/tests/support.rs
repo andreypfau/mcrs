@@ -237,8 +237,10 @@ pub fn corpus_climate() -> &'static Arc<[BiomeClimate]> {
 }
 
 /// The carver list a biome actually ships, as the loader reads it.
-pub fn carvers_of(biome: &str) -> Arc<[mcrs_minecraft_worldgen_carver::config::CarverConfig]> {
-    let id = biome_id(test_registries(), biome);
+pub fn carvers_of(
+    biome: mcrs_minecraft_resource::ResourceLocation<'_>,
+) -> Arc<[mcrs_minecraft_worldgen_carver::config::CarverConfig]> {
+    let id = biome_id(test_registries(), &biome.to_string());
     carver_list(id.index())
 }
 

@@ -10,7 +10,7 @@ use crate::proto::{
 use crate::router::NoiseSettings;
 use mcrs_minecraft_core::Axis;
 use mcrs_minecraft_noise::proto::{HashableF64, NoiseHolder};
-use mcrs_minecraft_resource::{ResourceLocationBuf, StaticResourceLocation};
+use mcrs_minecraft_resource::{ResourceLocation, ResourceLocationBuf};
 use std::collections::BTreeMap;
 use std::num::NonZeroU32;
 use std::ops::{Add, Bound, Div, Mul, RangeBounds, RangeInclusive, Sub};
@@ -121,7 +121,7 @@ impl DensityFunctionHolder {
         blend_density => BlendDensity,
     }
 
-    pub fn reference(name: StaticResourceLocation) -> Self {
+    pub fn reference(name: ResourceLocation<'static>) -> Self {
         Self::Reference(name.into())
     }
 
@@ -230,19 +230,19 @@ impl DensityFunctionHolder {
         owned(P::DistanceToPoint { point, metric })
     }
 
-    pub fn shift_a(noise: StaticResourceLocation) -> Self {
+    pub fn shift_a(noise: ResourceLocation<'static>) -> Self {
         owned(P::ShiftA {
             noise: NoiseHolder::Reference(noise.into()),
         })
     }
 
-    pub fn shift_b(noise: StaticResourceLocation) -> Self {
+    pub fn shift_b(noise: ResourceLocation<'static>) -> Self {
         owned(P::ShiftB {
             noise: NoiseHolder::Reference(noise.into()),
         })
     }
 
-    pub fn noise(noise: StaticResourceLocation, xz_scale: f64, y_scale: f64) -> Self {
+    pub fn noise(noise: ResourceLocation<'static>, xz_scale: f64, y_scale: f64) -> Self {
         Self::shifted_noise(noise, xz_scale, y_scale, Self::ZERO, Self::ZERO)
     }
 
@@ -250,13 +250,13 @@ impl DensityFunctionHolder {
         shift_x: &Self,
         shift_z: &Self,
         xz_scale: f64,
-        noise: StaticResourceLocation,
+        noise: ResourceLocation<'static>,
     ) -> Self {
         Self::shifted_noise(noise, xz_scale, 0.0, shift_x.clone(), shift_z.clone())
     }
 
     fn shifted_noise(
-        noise: StaticResourceLocation,
+        noise: ResourceLocation<'static>,
         xz_scale: f64,
         y_scale: f64,
         shift_x: Self,
@@ -274,7 +274,7 @@ impl DensityFunctionHolder {
 
     /// A noise whose `[-1, 1]` is stretched onto `[min_target, max_target]`.
     pub fn mapped_noise(
-        noise: StaticResourceLocation,
+        noise: ResourceLocation<'static>,
         xz_scale: f64,
         y_scale: f64,
         min_target: f32,
@@ -360,7 +360,7 @@ impl DensityFunctionHolder {
     /// it `1 / rarity` as often and scales the result back up by `rarity`.
     pub fn rarity_select(
         input: impl Into<Self>,
-        noise: StaticResourceLocation,
+        noise: ResourceLocation<'static>,
         thresholds: &[f32],
         rarities: &[f32],
     ) -> Self {
@@ -395,7 +395,7 @@ impl DensityFunctionHolder {
 pub struct Functions(pub BTreeMap<ResourceLocationBuf, Df>);
 
 impl Functions {
-    pub fn define(&mut self, name: StaticResourceLocation, function: Df) -> Df {
+    pub fn define(&mut self, name: ResourceLocation<'static>, function: Df) -> Df {
         let replaced = self.0.insert(name.into(), function);
         assert!(replaced.is_none(), "{name} is defined twice");
         Df::reference(name)

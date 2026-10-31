@@ -3,27 +3,24 @@ use core::fmt;
 use core::marker::PhantomData;
 
 pub struct RegistryKey<T> {
-    location: ResourceLocation<&'static str>,
+    location: ResourceLocation<'static>,
     _marker: PhantomData<fn() -> T>,
 }
 
 impl<T> RegistryKey<T> {
-    pub const fn new(location: ResourceLocation<&'static str>) -> Self {
+    pub const fn new(location: ResourceLocation<'static>) -> Self {
         RegistryKey {
             location,
             _marker: PhantomData,
         }
     }
 
-    pub const fn location(self) -> ResourceLocation<&'static str> {
+    pub const fn location(self) -> ResourceLocation<'static> {
         self.location
     }
 
-    pub fn path(self) -> &'static str {
-        self.location
-            .as_static_str()
-            .split_once(':')
-            .map_or("", |(_, path)| path)
+    pub const fn path(self) -> &'static str {
+        self.location.path()
     }
 }
 

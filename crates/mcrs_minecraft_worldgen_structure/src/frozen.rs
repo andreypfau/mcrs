@@ -1,4 +1,4 @@
-use mcrs_minecraft_resource::ResourceLocationBuf;
+use mcrs_minecraft_resource::{ResourceLocation, ResourceLocationBuf};
 use mcrs_minecraft_worldgen_feature::placement::DecorationStep;
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -147,7 +147,7 @@ pub struct FrozenStructures {
     pub set_ids: BTreeMap<ResourceLocationBuf, SetId>,
     pub structure_ids: BTreeMap<ResourceLocationBuf, StructureId>,
     pub pool_ids: BTreeMap<ResourceLocationBuf, PoolId>,
-    pub template_ids: BTreeMap<ResourceLocationBuf, TemplateId>,
+    pub template_ids: hashbrown::HashMap<ResourceLocationBuf, TemplateId>,
     /// The variant registries the structures' mobs draw from.
     pub variants: VariantTables,
 }
@@ -169,12 +169,12 @@ impl FrozenStructures {
         self.manifests.get(id.0 as usize).map(Arc::as_ref)
     }
 
-    pub fn template_id(&self, name: &str) -> Option<TemplateId> {
-        self.template_ids.get(name).copied()
+    pub fn template_id(&self, name: ResourceLocation<'_>) -> Option<TemplateId> {
+        self.template_ids.get(&name).copied()
     }
 
     /// The template named `name` and the size of its manifest.
-    pub fn sized_template(&self, name: &str) -> Option<(TemplateId, [u16; 3])> {
+    pub fn sized_template(&self, name: ResourceLocation<'_>) -> Option<(TemplateId, [u16; 3])> {
         let id = self.template_id(name)?;
         Some((id, self.manifest(id)?.size))
     }

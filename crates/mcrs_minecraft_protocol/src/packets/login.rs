@@ -5,7 +5,7 @@ pub mod clientbound {
     use derive_more::Into;
     use mcrs_minecraft_resource::ResourceLocation;
     use mcrs_minecraft_wire::{Decode, Encode};
-    use std::borrow::Cow;
+
     use uuid::Uuid;
 
     #[derive(Copy, Clone, Debug, Encode, Decode)]
@@ -60,7 +60,7 @@ pub mod clientbound {
     #[derive(Clone, Debug, Encode, Decode, Into)]
     pub struct CustomQuery<'a> {
         pub message_id: VarInt,
-        pub channel: ResourceLocation<Cow<'a, str>>,
+        pub channel: ResourceLocation<'a>,
         pub data: Bounded<RawBytes<'a>, 1048576>,
     }
 }

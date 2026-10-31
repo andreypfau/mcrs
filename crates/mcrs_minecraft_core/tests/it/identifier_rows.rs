@@ -1,4 +1,4 @@
-use mcrs_minecraft_resource::ResourceLocation;
+use mcrs_minecraft_resource::ResourceLocationBuf;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Vanilla {
@@ -106,8 +106,8 @@ pub const ROWS: &[Row] = &[
     },
 ];
 
-pub fn outcome<S: AsRef<str>, E>(result: Result<ResourceLocation<S>, E>) -> Vanilla {
-    match result {
+pub fn outcome<L: Into<ResourceLocationBuf>, E>(result: Result<L, E>) -> Vanilla {
+    match result.map(Into::into) {
         Ok(location) => Accepts(
             Box::leak(location.namespace().to_owned().into_boxed_str()),
             Box::leak(location.path().to_owned().into_boxed_str()),

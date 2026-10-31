@@ -1,17 +1,17 @@
 // Written by `cargo run -p mcrs_minecraft_update -- keys`; do not edit.
 
-use mcrs_minecraft_resource::{StaticResourceLocation, rl};
+use mcrs_minecraft_resource::{ResourceLocation, rl};
 
-pub const CRAFTING: StaticResourceLocation = rl!("minecraft:crafting");
-pub const SMELTING: StaticResourceLocation = rl!("minecraft:smelting");
-pub const BLASTING: StaticResourceLocation = rl!("minecraft:blasting");
-pub const SMOKING: StaticResourceLocation = rl!("minecraft:smoking");
-pub const CAMPFIRE_COOKING: StaticResourceLocation = rl!("minecraft:campfire_cooking");
-pub const STONECUTTING: StaticResourceLocation = rl!("minecraft:stonecutting");
-pub const SMITHING: StaticResourceLocation = rl!("minecraft:smithing");
-pub const BREWING: StaticResourceLocation = rl!("minecraft:brewing");
+pub const CRAFTING: ResourceLocation<'static> = rl!("minecraft:crafting");
+pub const SMELTING: ResourceLocation<'static> = rl!("minecraft:smelting");
+pub const BLASTING: ResourceLocation<'static> = rl!("minecraft:blasting");
+pub const SMOKING: ResourceLocation<'static> = rl!("minecraft:smoking");
+pub const CAMPFIRE_COOKING: ResourceLocation<'static> = rl!("minecraft:campfire_cooking");
+pub const STONECUTTING: ResourceLocation<'static> = rl!("minecraft:stonecutting");
+pub const SMITHING: ResourceLocation<'static> = rl!("minecraft:smithing");
+pub const BREWING: ResourceLocation<'static> = rl!("minecraft:brewing");
 
-pub const ENTRIES: &[StaticResourceLocation] = &[
+pub const ENTRIES: &[ResourceLocation<'static>] = &[
     CRAFTING,
     SMELTING,
     BLASTING,

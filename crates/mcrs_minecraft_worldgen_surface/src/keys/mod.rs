@@ -8,7 +8,7 @@ pub mod material_rule_type;
 pub use material_condition_type::MaterialConditionType;
 pub use material_rule_type::MaterialRuleType;
 
-use mcrs_minecraft_resource::{Registered, RegistryKey, StaticResourceLocation, rl};
+use mcrs_minecraft_resource::{Registered, RegistryKey, ResourceLocation, rl};
 
 pub const MATERIAL_CONDITION: RegistryKey<crate::proto::MaterialConditionHolder> =
     RegistryKey::new(rl!("minecraft:worldgen/material_condition"));
@@ -35,7 +35,7 @@ impl Registered for crate::keys::MaterialRuleType {
 }
 
 /// The static registries of this crate, which the catalog does not list.
-pub const STATIC_REGISTRIES: &[(StaticResourceLocation, &[StaticResourceLocation])] = &[
+pub const STATIC_REGISTRIES: &[(ResourceLocation<'static>, &[ResourceLocation<'static>])] = &[
     (
         MATERIAL_CONDITION_TYPE.location(),
         MaterialConditionType::ENTRIES,

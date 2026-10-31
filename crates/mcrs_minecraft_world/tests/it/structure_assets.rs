@@ -50,7 +50,11 @@ pub fn the_structure_registries_land_before_playing(app: &App) {
     );
 
     let no_corners = pools
-        .by_name(&"minecraft:ancient_city/walls/no_corners".parse().unwrap())
+        .by_name(
+            &"minecraft:ancient_city/walls/no_corners"
+                .parse::<ResourceLocationBuf>()
+                .unwrap(),
+        )
         .and_then(|id| pools.get(id))
         .expect("the pool is a loaded entry");
     let missing =

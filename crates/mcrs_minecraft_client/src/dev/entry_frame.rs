@@ -5,7 +5,7 @@ use crate::gui::debug::{DebugScreenDisplayer, entry_terrain};
 use mcrs_minecraft_render_probe::probe::{self, CpuTimings, GpuTimings};
 use mcrs_minecraft_render_probe::{DrawnTriangles, ReportedCounts};
 
-pub const GROUP: ResourceLocation<&'static str> = rl!("mcrs:frame");
+pub const GROUP: ResourceLocation<'static> = rl!("mcrs:frame");
 
 #[derive(Resource)]
 pub struct UploadBudget(pub usize);

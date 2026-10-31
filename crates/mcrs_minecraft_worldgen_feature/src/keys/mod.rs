@@ -30,7 +30,7 @@ pub use structure_processor::StructureProcessorType;
 pub use tree_decorator_type::TreeDecoratorType;
 pub use trunk_placer_type::TrunkPlacerType;
 
-use mcrs_minecraft_resource::{Registered, RegistryKey, StaticResourceLocation, rl};
+use mcrs_minecraft_resource::{Registered, RegistryKey, ResourceLocation, rl};
 
 pub const POS_RULE_TEST: RegistryKey<crate::keys::PosRuleTestType> =
     RegistryKey::new(rl!("minecraft:pos_rule_test"));
@@ -123,7 +123,7 @@ impl Registered for crate::keys::TrunkPlacerType {
 }
 
 /// The static registries of this crate, which the catalog does not list.
-pub const STATIC_REGISTRIES: &[(StaticResourceLocation, &[StaticResourceLocation])] = &[
+pub const STATIC_REGISTRIES: &[(ResourceLocation<'static>, &[ResourceLocation<'static>])] = &[
     (RULE_TEST_TYPE.location(), RuleTestType::ENTRIES),
     (
         RULE_BLOCK_ENTITY_MODIFIER.location(),

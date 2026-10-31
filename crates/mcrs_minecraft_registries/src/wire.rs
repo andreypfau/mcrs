@@ -6,7 +6,7 @@ use std::sync::Arc;
 use derive_where::derive_where;
 use mcrs_minecraft_core::Bounded;
 use mcrs_minecraft_core::codec::CompactList;
-use mcrs_minecraft_resource::{Id, Registered, ResourceLocation, ResourceLocationBuf, TagKeyBuf};
+use mcrs_minecraft_resource::{Id, Registered, ResourceLocationBuf, TagKeyBuf};
 use mcrs_minecraft_wire::{Context, Decode, Encode, ErrorKind, Result, VarInt};
 
 use crate::Namer;
@@ -376,7 +376,7 @@ impl<R> Decode<'_> for WireSet<R> {
         };
         if raw == 0 {
             return Ok(WireSet::Tag(TagKeyBuf::from_location(
-                ResourceLocation::decode(r)?,
+                ResourceLocationBuf::decode(r)?,
             )));
         }
         let len = raw.saturating_sub(1);

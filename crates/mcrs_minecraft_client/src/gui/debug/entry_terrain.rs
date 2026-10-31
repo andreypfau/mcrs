@@ -6,7 +6,7 @@ use crate::cave::CaveCull;
 use crate::stream::Streaming;
 use mcrs_minecraft_render::{DebugViews, SelectedView};
 
-pub const GROUP: ResourceLocation<&'static str> = rl!("minecraft:terrain");
+pub const GROUP: ResourceLocation<'static> = rl!("minecraft:terrain");
 
 pub fn display(
     mut displayer: ResMut<DebugScreenDisplayer>,

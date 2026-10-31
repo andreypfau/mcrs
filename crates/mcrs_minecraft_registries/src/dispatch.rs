@@ -685,7 +685,7 @@ impl<'de> Visitor<'de> for MapEntries {
 pub fn read<'de, D, T, F>(
     deserializer: D,
     key: &'static str,
-    registry: &'static str,
+    registry: mcrs_minecraft_resource::ResourceLocation<'static>,
     pick: fn(&str) -> Pick,
     derive: F,
 ) -> Result<T, D::Error>

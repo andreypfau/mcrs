@@ -9,13 +9,13 @@
 
 use std::sync::LazyLock;
 
-use mcrs_minecraft_resource::ResourceKey;
+use mcrs_minecraft_resource::{ResourceKey, ResourceLocation};
 
 use super::climate::{Parameter, ParameterList, ParameterPoint};
 use crate::Biome;
 use crate::keys::biome::*;
 
-type BiomeKey = ResourceKey<Biome, &'static str>;
+type BiomeKey = ResourceKey<'static, Biome>;
 
 const VALLEY_SIZE: f32 = 0.05;
 const LOW_START: f32 = 0.266_666_68;
@@ -215,7 +215,7 @@ struct Builder {
     near_inland: Parameter,
     mid_inland: Parameter,
     far_inland: Parameter,
-    out: Vec<(ParameterPoint, &'static str)>,
+    out: Vec<(ParameterPoint, ResourceLocation<'static>)>,
 }
 
 impl Builder {
@@ -367,7 +367,7 @@ impl Builder {
                 weirdness,
                 offset: super::climate::quantize_coord(offset),
             },
-            biome.as_static_str(),
+            biome.location(),
         ));
     }
 
@@ -1232,8 +1232,8 @@ impl Builder {
 }
 
 /// The overworld climate table, in the order the reference emits it.
-pub fn overworld_parameter_list() -> &'static ParameterList<&'static str> {
-    static LIST: LazyLock<ParameterList<&'static str>> = LazyLock::new(|| {
+pub fn overworld_parameter_list() -> &'static ParameterList<ResourceLocation<'static>> {
+    static LIST: LazyLock<ParameterList<ResourceLocation<'static>>> = LazyLock::new(|| {
         let mut builder = Builder::new();
         builder.add_off_coast_biomes();
         builder.add_inland_biomes();
@@ -1244,8 +1244,8 @@ pub fn overworld_parameter_list() -> &'static ParameterList<&'static str> {
 }
 
 /// The `minecraft:nether` preset, which is small enough to be a literal.
-pub fn nether_parameter_list() -> &'static ParameterList<&'static str> {
-    static LIST: LazyLock<ParameterList<&'static str>> = LazyLock::new(|| {
+pub fn nether_parameter_list() -> &'static ParameterList<ResourceLocation<'static>> {
+    static LIST: LazyLock<ParameterList<ResourceLocation<'static>>> = LazyLock::new(|| {
         let point = Parameter::point(0.0);
         let entry = |temperature: Parameter, humidity: Parameter, offset: f32, biome: BiomeKey| {
             (
@@ -1258,7 +1258,7 @@ pub fn nether_parameter_list() -> &'static ParameterList<&'static str> {
                     weirdness: point,
                     offset: super::climate::quantize_coord(offset),
                 },
-                biome.as_static_str(),
+                biome.location(),
             )
         };
         ParameterList::new(vec![
@@ -1312,7 +1312,7 @@ mod tests {
         .filter(|(_, biome)| match &biome.carvers {
             mcrs_minecraft_registries::KeySet::List(carvers) => carvers
                 .iter()
-                .any(|carver| carver.location().as_str() == crate::keys::carver::CAVE.as_str()),
+                .any(|carver| carver.location() == crate::keys::carver::CAVE.location()),
             mcrs_minecraft_registries::KeySet::Tag(tag) => {
                 panic!("a biome names the carver tag #{}", tag.location())
             }
@@ -1328,7 +1328,7 @@ mod tests {
         let named: BTreeSet<String> = table
             .values()
             .iter()
-            .map(|(_, biome)| (*biome).to_owned())
+            .map(|(_, biome)| biome.to_string())
             .collect();
         assert_eq!(named.len(), 57);
         assert_eq!(named, with_overworld_carvers);
@@ -1351,39 +1351,39 @@ mod tests {
         };
         assert_eq!(
             at(-0.8, 0.0, -1.1, 0.0, 0.0, 0.0),
-            crate::keys::biome::MUSHROOM_FIELDS.as_static_str()
+            crate::keys::biome::MUSHROOM_FIELDS.location()
         );
         assert_eq!(
             at(-0.8, 0.0, -0.8, 0.0, 0.0, 0.0),
-            crate::keys::biome::DEEP_FROZEN_OCEAN.as_static_str()
+            crate::keys::biome::DEEP_FROZEN_OCEAN.location()
         );
         assert_eq!(
             at(0.8, 0.0, -0.8, 0.0, 0.0, 0.0),
-            crate::keys::biome::WARM_OCEAN.as_static_str()
+            crate::keys::biome::WARM_OCEAN.location()
         );
         assert_eq!(
             at(-0.8, 0.0, -0.3, 0.0, 0.0, 0.0),
-            crate::keys::biome::FROZEN_OCEAN.as_static_str()
+            crate::keys::biome::FROZEN_OCEAN.location()
         );
         assert_eq!(
             at(0.0, 0.0, 0.0, -0.9, 1.1, 0.0),
-            crate::keys::biome::DEEP_DARK.as_static_str()
+            crate::keys::biome::DEEP_DARK.location()
         );
         assert_eq!(
             at(0.0, 0.8, 0.0, 0.0, 0.5, 0.0),
-            crate::keys::biome::LUSH_CAVES.as_static_str()
+            crate::keys::biome::LUSH_CAVES.location()
         );
         assert_eq!(
             at(0.0, 0.0, 0.9, 0.0, 0.5, 0.0),
-            crate::keys::biome::DRIPSTONE_CAVES.as_static_str()
+            crate::keys::biome::DRIPSTONE_CAVES.location()
         );
         assert_eq!(
             at(0.8, 0.0, 0.5, 0.3, 0.0, -0.5),
-            crate::keys::biome::DESERT.as_static_str()
+            crate::keys::biome::DESERT.location()
         );
         assert_eq!(
             at(-0.9, 0.0, -0.5, 0.0, 0.5, 0.8),
-            crate::keys::biome::ICE_CAVES.as_static_str()
+            crate::keys::biome::ICE_CAVES.location()
         );
     }
 
@@ -1396,26 +1396,14 @@ mod tests {
                 .find_value(TargetPoint::new(temperature, humidity, 0.0, 0.0, 0.0, 0.0))
                 .unwrap()
         };
-        assert_eq!(
-            at(0.0, 0.0),
-            crate::keys::biome::NETHER_WASTES.as_static_str()
-        );
+        assert_eq!(at(0.0, 0.0), crate::keys::biome::NETHER_WASTES.location());
         assert_eq!(
             at(0.0, -0.5),
-            crate::keys::biome::SOUL_SAND_VALLEY.as_static_str()
+            crate::keys::biome::SOUL_SAND_VALLEY.location()
         );
-        assert_eq!(
-            at(0.4, 0.0),
-            crate::keys::biome::CRIMSON_FOREST.as_static_str()
-        );
-        assert_eq!(
-            at(0.0, 0.5),
-            crate::keys::biome::WARPED_FOREST.as_static_str()
-        );
-        assert_eq!(
-            at(-0.5, 0.0),
-            crate::keys::biome::BASALT_DELTAS.as_static_str()
-        );
+        assert_eq!(at(0.4, 0.0), crate::keys::biome::CRIMSON_FOREST.location());
+        assert_eq!(at(0.0, 0.5), crate::keys::biome::WARPED_FOREST.location());
+        assert_eq!(at(-0.5, 0.0), crate::keys::biome::BASALT_DELTAS.location());
     }
 
     /// Weirdness picks between a slice's plain biome and its variant, so the
@@ -1428,7 +1416,7 @@ mod tests {
                 .find_value(TargetPoint::new(-0.8, -0.8, 0.2, 0.2, 0.0, weirdness))
                 .unwrap()
         };
-        assert_eq!(at(-0.2), crate::keys::biome::SNOWY_PLAINS.as_static_str());
-        assert_eq!(at(0.2), crate::keys::biome::ICE_SPIKES.as_static_str());
+        assert_eq!(at(-0.2), crate::keys::biome::SNOWY_PLAINS.location());
+        assert_eq!(at(0.2), crate::keys::biome::ICE_SPIKES.location());
     }
 }

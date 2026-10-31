@@ -18,7 +18,7 @@ pub fn tags_load_resolve_and_freeze_on_the_way_to_playing(app: &App) {
         .tags::<Block>()
         .expect("the load builds the block tags");
     let blocks = app.world().resource::<Blocks>();
-    let contains = |tag: &TagKey<Block, &'static str>, name: &str| {
+    let contains = |tag: &TagKey<'static, Block>, name: &str| {
         let id = blocks.id_of(name).expect("the corpus declares it");
         tags.contains(tags.id(tag).expect("the pack ships the tag"), id)
     };

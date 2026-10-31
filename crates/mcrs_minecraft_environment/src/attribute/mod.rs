@@ -39,7 +39,7 @@ pub struct EnvironmentAttributeMap(pub BTreeMap<ResourceLocationBuf, AttributeEn
 
 impl EnvironmentAttributeMap {
     pub fn get(&self, id: &str) -> Option<&AttributeEntry> {
-        self.0.get(id)
+        self.0.get(&ResourceLocationBuf::read(id).ok()?)
     }
 
     pub fn argument(&self, id: &str) -> Option<&AttributeValue> {
@@ -50,12 +50,12 @@ impl EnvironmentAttributeMap {
     /// entry is.
     pub fn modify(
         &mut self,
-        id: ResourceLocation<&'static str>,
+        id: ResourceLocation<'static>,
         modifier: Operation,
         argument: impl Serialize,
     ) -> Result<(), AttributeError> {
-        let spec = attribute(id.as_str())
-            .ok_or_else(|| AttributeError::UnknownAttribute(id.as_str().to_owned()))?;
+        let name = id.to_string();
+        let spec = attribute(&name).ok_or(AttributeError::UnknownAttribute(name))?;
         // Through the JSON text rather than a value tree: a tree widens an `f32`
         // to the nearest `f64` and so prints 0.07 as 0.07000000029802322.
         let refused = |error: serde_json::Error| malformed(spec.id, error.to_string());

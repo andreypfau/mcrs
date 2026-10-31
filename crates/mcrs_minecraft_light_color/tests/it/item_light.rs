@@ -129,7 +129,7 @@ fn water_sensitive() -> Vec<Id<Item>> {
         .tags::<Item>()
         .expect("the load builds the item tags");
     let tag = tags
-        .id(&WATER_SENSITIVE)
+        .id(WATER_SENSITIVE)
         .expect("the water-sensitive item tag");
     tags.members(tag).collect()
 }

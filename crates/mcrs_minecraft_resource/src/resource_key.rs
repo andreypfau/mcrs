@@ -1,191 +1,112 @@
-use crate::ResourceLocation;
-use alloc::boxed::Box;
-use core::borrow::Borrow;
+use core::cmp::Ordering;
 use core::fmt;
 use core::hash::{Hash, Hasher};
 use core::marker::PhantomData;
+use serde::{Serialize, Serializer};
 
-use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use crate::{ResourceKeyBuf, ResourceLocation};
 
-/// A typed resource key — a `ResourceLocation` annotated with a phantom type
-/// indicating which registry it belongs to.
-///
-/// Generic over `S` (string storage), just like `ResourceLocation<S>`:
-/// - `ResourceKey<T, &'static str>` — `Copy`, const-constructible.
-/// - [`ResourceKeyBuf<T>`] — owned, `Clone`, deserializable.
-///
-/// Both variants hash and compare identically (by underlying string), and the
-/// `Borrow<str>` impl enables zero-alloc lookups in `HashMap<ResourceKey<T>, …>`.
-#[cfg_attr(feature = "bevy", derive(bevy_ecs::component::Component))]
-pub struct ResourceKey<T, S> {
-    location: ResourceLocation<S>,
+/// A borrowed location typed by the registry `T` it names an entry of. It is `Copy`, and the
+/// generated constants are `ResourceKey<'static, T>`; [`ResourceKeyBuf`] is the owned form.
+pub struct ResourceKey<'a, T> {
+    location: ResourceLocation<'a>,
     _marker: PhantomData<fn() -> T>,
 }
 
-// ─── Copy for &'static str variant ──────────────────────────────────────────
-
-/// The owned form of a key.
-pub type ResourceKeyBuf<T> = ResourceKey<T, Box<str>>;
-
-impl<T> Copy for ResourceKey<T, &'static str> {}
-
-// ─── Manual Clone (no bound on T) ───────────────────────────────────────────
-
-impl<T, S: Clone> Clone for ResourceKey<T, S> {
+impl<T> Clone for ResourceKey<'_, T> {
     fn clone(&self) -> Self {
-        ResourceKey {
-            location: self.location.clone(),
-            _marker: PhantomData,
-        }
+        *self
     }
 }
 
-// ─── Constructors ───────────────────────────────────────────────────────────
+impl<T> Copy for ResourceKey<'_, T> {}
 
-impl<T> ResourceKey<T, &'static str> {
-    /// Const-compatible constructor from a static `ResourceLocation`.
-    ///
-    /// ```rust,ignore
-    /// use mcrs_minecraft_resource::{rl, ResourceKey};
-    /// const KEY: ResourceKey<MyType, &'static str> = ResourceKey::new(rl!("minecraft:overworld"));
-    /// ```
-    pub const fn new(location: ResourceLocation<&'static str>) -> Self {
+impl<'a, T> ResourceKey<'a, T> {
+    pub const fn new(location: ResourceLocation<'a>) -> Self {
         ResourceKey {
             location,
             _marker: PhantomData,
         }
     }
 
-    pub const fn as_static_str(self) -> &'static str {
-        self.location.as_static_str()
-    }
-}
-
-impl<T> ResourceKey<T, Box<str>> {
-    /// Runtime constructor from an owned resource location.
-    pub fn from_location(location: ResourceLocation<Box<str>>) -> Self {
-        ResourceKey {
-            location,
-            _marker: PhantomData,
-        }
-    }
-}
-
-// ─── Common accessors ───────────────────────────────────────────────────────
-
-impl<T, S: AsRef<str>> ResourceKey<T, S> {
-    /// The full `namespace:path` string.
     #[inline]
-    pub fn as_str(&self) -> &str {
-        self.location.as_str()
+    pub const fn location(self) -> ResourceLocation<'a> {
+        self.location
     }
 
-    /// The underlying `ResourceLocation`.
     #[inline]
-    pub fn location(&self) -> &ResourceLocation<S> {
-        &self.location
-    }
-
-    /// The namespace portion.
-    #[inline]
-    pub fn namespace(&self) -> &str {
+    pub const fn namespace(self) -> &'a str {
         self.location.namespace()
     }
 
-    /// The path portion.
     #[inline]
-    pub fn path(&self) -> &str {
+    pub const fn path(self) -> &'a str {
         self.location.path()
     }
-}
 
-// ─── Conversion: static → owned ───────────────────────────────────────────────
-
-impl<T> From<ResourceKey<T, &'static str>> for ResourceKey<T, Box<str>> {
-    fn from(key: ResourceKey<T, &'static str>) -> Self {
-        ResourceKey {
-            location: key.location.into(),
-            _marker: PhantomData,
-        }
+    /// The owned form, with one allocation.
+    pub fn to_buf(self) -> ResourceKeyBuf<T> {
+        ResourceKeyBuf::from_location(self.location.to_buf())
     }
 }
 
-// ─── Hash (delegates to underlying string) ──────────────────────────────────
+impl<'a, T> From<&ResourceKey<'a, T>> for ResourceKey<'a, T> {
+    fn from(key: &ResourceKey<'a, T>) -> Self {
+        *key
+    }
+}
 
-impl<T, S: AsRef<str>> Hash for ResourceKey<T, S> {
-    #[inline]
+impl<T> PartialEq for ResourceKey<'_, T> {
+    fn eq(&self, other: &Self) -> bool {
+        self.location == other.location
+    }
+}
+
+impl<T> Eq for ResourceKey<'_, T> {}
+
+impl<T> PartialEq<ResourceKeyBuf<T>> for ResourceKey<'_, T> {
+    fn eq(&self, other: &ResourceKeyBuf<T>) -> bool {
+        *self == other.as_key()
+    }
+}
+
+impl<T> Hash for ResourceKey<'_, T> {
     fn hash<H: Hasher>(&self, state: &mut H) {
-        self.location.as_str().hash(state);
+        self.location.hash(state);
     }
 }
 
-// ─── Cross-variant PartialEq ────────────────────────────────────────────────
-
-impl<T, S: AsRef<str>, U: AsRef<str>> PartialEq<ResourceKey<T, U>> for ResourceKey<T, S> {
-    #[inline]
-    fn eq(&self, other: &ResourceKey<T, U>) -> bool {
-        self.location.as_str() == other.location.as_str()
-    }
-}
-
-impl<T, S: AsRef<str>> Eq for ResourceKey<T, S> {}
-
-// ─── Ord ────────────────────────────────────────────────────────────────────
-
-impl<T, S: AsRef<str>> PartialOrd for ResourceKey<T, S> {
-    fn partial_cmp(&self, other: &Self) -> Option<core::cmp::Ordering> {
+impl<T> PartialOrd for ResourceKey<'_, T> {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
     }
 }
 
-impl<T, S: AsRef<str>> Ord for ResourceKey<T, S> {
-    fn cmp(&self, other: &Self) -> core::cmp::Ordering {
-        self.location.as_str().cmp(other.location.as_str())
+impl<T> Ord for ResourceKey<'_, T> {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.location.cmp(&other.location)
     }
 }
 
-// ─── Borrow<str> for zero-alloc HashMap lookups ─────────────────────────────
-
-impl<T, S: AsRef<str>> Borrow<str> for ResourceKey<T, S> {
-    #[inline]
-    fn borrow(&self) -> &str {
-        self.location.as_str()
-    }
-}
-
-// ─── Display / Debug ────────────────────────────────────────────────────────
-
-impl<T, S: AsRef<str>> fmt::Display for ResourceKey<T, S> {
+impl<T> fmt::Display for ResourceKey<'_, T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(self.location.as_str())
+        fmt::Display::fmt(&self.location, f)
     }
 }
 
-impl<T, S: AsRef<str>> fmt::Debug for ResourceKey<T, S> {
+impl<T> fmt::Debug for ResourceKey<'_, T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
             "ResourceKey<{}>({})",
             core::any::type_name::<T>(),
-            self.location.as_str()
+            self.location
         )
     }
 }
 
-// ─── Serde ──────────────────────────────────────────────────────────────────
-
-impl<T, S: AsRef<str>> Serialize for ResourceKey<T, S> {
+impl<T> Serialize for ResourceKey<'_, T> {
     fn serialize<Ser: Serializer>(&self, s: Ser) -> Result<Ser::Ok, Ser::Error> {
-        s.serialize_str(self.location.as_str())
-    }
-}
-
-impl<'de, T> Deserialize<'de> for ResourceKey<T, Box<str>> {
-    fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
-        let location = ResourceLocation::<Box<str>>::deserialize(d)?;
-        Ok(ResourceKey {
-            location,
-            _marker: PhantomData,
-        })
+        self.location.serialize(s)
     }
 }

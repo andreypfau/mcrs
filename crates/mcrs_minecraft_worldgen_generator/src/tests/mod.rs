@@ -287,12 +287,13 @@ pub fn preset_tables() -> &'static crate::multi_noise_biomes::PresetBiomeTables 
 }
 
 pub fn parameter_list_id(
-    name: &str,
+    name: impl std::fmt::Display,
 ) -> mcrs_minecraft_resource::Id<
     mcrs_minecraft_biome::parameter_list::MultiNoiseBiomeSourceParameterList,
 > {
+    let name = name.to_string();
     let key = ResourceKeyBuf::from_location(
-        ResourceLocationBuf::read(name).unwrap_or_else(|e| panic!("{name}: {e}")),
+        ResourceLocationBuf::read(&name).unwrap_or_else(|e| panic!("{name}: {e}")),
     );
     mcrs_minecraft_registries::Resolver::id(test_registries(), &key)
         .unwrap_or_else(|e| panic!("{e}"))

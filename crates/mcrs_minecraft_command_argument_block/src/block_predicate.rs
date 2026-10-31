@@ -4,9 +4,10 @@ use mcrs_command::{Argument, Reader, StringSpan, StringValue, SyntaxError};
 use mcrs_minecraft_block::definition::BlockEntry;
 use mcrs_minecraft_block::definition::schema::{BlockProperty, PropertyValue};
 use mcrs_minecraft_block::keys::BLOCK;
-use mcrs_minecraft_command::{Identifier, Source, SpannedIdentifier, read_identifier};
+use mcrs_minecraft_command::{Source, SpannedIdentifier, read_identifier};
 use mcrs_minecraft_command_argument::ResourceOrTag;
 use mcrs_minecraft_nbt::compound::NbtCompound;
+use mcrs_minecraft_resource::ResourceLocation;
 use mcrs_minecraft_snbt::{check_compound, read_compound};
 use mcrs_voxel::BlockStateId;
 
@@ -121,26 +122,26 @@ pub(crate) enum Stage<'a> {
     Start,
     AfterSubject(ResourceOrTag<'a>),
     BlockName {
-        block: Identifier<'a>,
+        block: ResourceLocation<'a>,
         list: usize,
         first: bool,
     },
     BlockEquals,
     BlockValue {
-        block: Identifier<'a>,
+        block: ResourceLocation<'a>,
         property: usize,
     },
     BlockAfterValue {
-        block: Identifier<'a>,
+        block: ResourceLocation<'a>,
         list: usize,
     },
     TagName {
-        tag: Identifier<'a>,
+        tag: ResourceLocation<'a>,
         list: usize,
         first: bool,
     },
     TagValue {
-        tag: Identifier<'a>,
+        tag: ResourceLocation<'a>,
         list: usize,
         name: StringSpan,
     },

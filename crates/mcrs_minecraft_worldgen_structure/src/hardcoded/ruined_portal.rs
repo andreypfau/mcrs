@@ -3,7 +3,7 @@ use mcrs_minecraft_block_predicate::predicate::HeightmapName;
 use mcrs_minecraft_core::{BoundingBox, Mirror, Rotation};
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::legacy::LegacyRandom;
-use mcrs_minecraft_resource::{StaticResourceLocation, rl};
+use mcrs_minecraft_resource::{ResourceLocation, rl};
 use mcrs_minecraft_worldgen_feature::template::bounding_box;
 
 use crate::frozen::TemplateId;
@@ -12,7 +12,7 @@ use crate::piece::{Piece, PortalProperties, RuinedPortalPiece};
 use crate::site::{Context, Site, Stub};
 use crate::{PortalPlacement, RuinedPortalSetup};
 
-pub const TEMPLATES: &[StaticResourceLocation] = &[
+pub const TEMPLATES: &[ResourceLocation<'static>] = &[
     rl!("minecraft:ruined_portal/portal_1"),
     rl!("minecraft:ruined_portal/portal_2"),
     rl!("minecraft:ruined_portal/portal_3"),
@@ -28,8 +28,8 @@ pub const TEMPLATES: &[StaticResourceLocation] = &[
     rl!("minecraft:ruined_portal/giant_portal_3"),
 ];
 
-pub const PORTALS: &[StaticResourceLocation] = TEMPLATES.split_at(10).0;
-pub const GIANT_PORTALS: &[StaticResourceLocation] = TEMPLATES.split_at(10).1;
+pub const PORTALS: &[ResourceLocation<'static>] = TEMPLATES.split_at(10).0;
+pub const GIANT_PORTALS: &[ResourceLocation<'static>] = TEMPLATES.split_at(10).1;
 
 const GIANT_PORTAL_PROBABILITY: f32 = 0.05;
 const MIN_Y_INDEX: i32 = 15;

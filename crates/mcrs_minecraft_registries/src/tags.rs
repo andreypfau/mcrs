@@ -1,13 +1,10 @@
-use std::borrow::Borrow;
-use std::collections::HashMap;
 use std::fmt;
-use std::hash::Hash;
 use std::marker::PhantomData;
 use std::sync::Arc;
 
 use derive_where::derive_where;
 use fixedbitset::FixedBitSet;
-use mcrs_minecraft_resource::{Id, ResourceLocationBuf, TagId, TagKey};
+use mcrs_minecraft_resource::{Id, ResourceLocation, ResourceLocationBuf, TagId, TagKey};
 
 use crate::registry::MAX_ENTRIES;
 
@@ -22,7 +19,7 @@ struct Tag {
 pub(crate) struct TagTable {
     entries: usize,
     tags: Box<[Tag]>,
-    index: HashMap<ResourceLocationBuf, u16>,
+    index: hashbrown::HashMap<ResourceLocationBuf, u16>,
 }
 
 impl TagTable {
@@ -33,7 +30,7 @@ impl TagTable {
         if tags.len() > MAX_ENTRIES {
             return Err(tags.len());
         }
-        let mut index = HashMap::new();
+        let mut index = hashbrown::HashMap::new();
         let tags = tags
             .into_iter()
             .zip(0..=u16::MAX)
@@ -71,12 +68,8 @@ impl TagTable {
             .filter_map(|(tag, number)| Some((number, &tag.name, tag.members.as_deref()?)))
     }
 
-    pub(crate) fn id<R, Q>(&self, name: &Q) -> Option<TagId<R>>
-    where
-        ResourceLocationBuf: Borrow<Q>,
-        Q: Hash + Eq + ?Sized,
-    {
-        TagId::checked(*self.index.get(name)?, self.len())
+    pub(crate) fn id<R>(&self, name: ResourceLocation<'_>) -> Option<TagId<R>> {
+        TagId::checked(*self.index.get(&name)?, self.len())
     }
 
     pub(crate) fn name(&self, number: usize) -> Option<&ResourceLocationBuf> {
@@ -113,8 +106,8 @@ impl<R> Tags<R> {
     }
 
     /// An absent tag is `None`, and code that names it treats it as empty.
-    pub fn id<S: AsRef<str>>(&self, key: &TagKey<R, S>) -> Option<TagId<R>> {
-        self.table.id(key.as_str())
+    pub fn id<'k>(&self, key: impl Into<TagKey<'k, R>>) -> Option<TagId<R>> {
+        self.table.id(key.into().location())
     }
 
     pub fn name(&self, tag: TagId<R>) -> Option<&ResourceLocationBuf> {

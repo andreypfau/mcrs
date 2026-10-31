@@ -1,24 +1,24 @@
 // Written by `cargo run -p mcrs_minecraft_update -- keys`; do not edit.
 
-use mcrs_minecraft_resource::{StaticResourceLocation, rl};
+use mcrs_minecraft_resource::{ResourceLocation, rl};
 
-pub const BOOLEAN: StaticResourceLocation = rl!("minecraft:boolean");
-pub const TRI_STATE: StaticResourceLocation = rl!("minecraft:tri_state");
-pub const FLOAT: StaticResourceLocation = rl!("minecraft:float");
-pub const ANGLE_DEGREES: StaticResourceLocation = rl!("minecraft:angle_degrees");
-pub const RGB_COLOR: StaticResourceLocation = rl!("minecraft:rgb_color");
-pub const ARGB_COLOR: StaticResourceLocation = rl!("minecraft:argb_color");
-pub const INTEGER: StaticResourceLocation = rl!("minecraft:integer");
-pub const MOON_PHASE: StaticResourceLocation = rl!("minecraft:moon_phase");
-pub const ACTIVITY: StaticResourceLocation = rl!("minecraft:activity");
-pub const BED_RULE: StaticResourceLocation = rl!("minecraft:bed_rule");
-pub const PARTICLE: StaticResourceLocation = rl!("minecraft:particle");
-pub const AMBIENT_PARTICLES: StaticResourceLocation = rl!("minecraft:ambient_particles");
-pub const BACKGROUND_MUSIC: StaticResourceLocation = rl!("minecraft:background_music");
-pub const AMBIENT_SOUNDS: StaticResourceLocation = rl!("minecraft:ambient_sounds");
-pub const MOB_SPAWN_SETTINGS: StaticResourceLocation = rl!("minecraft:mob_spawn_settings");
+pub const BOOLEAN: ResourceLocation<'static> = rl!("minecraft:boolean");
+pub const TRI_STATE: ResourceLocation<'static> = rl!("minecraft:tri_state");
+pub const FLOAT: ResourceLocation<'static> = rl!("minecraft:float");
+pub const ANGLE_DEGREES: ResourceLocation<'static> = rl!("minecraft:angle_degrees");
+pub const RGB_COLOR: ResourceLocation<'static> = rl!("minecraft:rgb_color");
+pub const ARGB_COLOR: ResourceLocation<'static> = rl!("minecraft:argb_color");
+pub const INTEGER: ResourceLocation<'static> = rl!("minecraft:integer");
+pub const MOON_PHASE: ResourceLocation<'static> = rl!("minecraft:moon_phase");
+pub const ACTIVITY: ResourceLocation<'static> = rl!("minecraft:activity");
+pub const BED_RULE: ResourceLocation<'static> = rl!("minecraft:bed_rule");
+pub const PARTICLE: ResourceLocation<'static> = rl!("minecraft:particle");
+pub const AMBIENT_PARTICLES: ResourceLocation<'static> = rl!("minecraft:ambient_particles");
+pub const BACKGROUND_MUSIC: ResourceLocation<'static> = rl!("minecraft:background_music");
+pub const AMBIENT_SOUNDS: ResourceLocation<'static> = rl!("minecraft:ambient_sounds");
+pub const MOB_SPAWN_SETTINGS: ResourceLocation<'static> = rl!("minecraft:mob_spawn_settings");
 
-pub const ENTRIES: &[StaticResourceLocation] = &[
+pub const ENTRIES: &[ResourceLocation<'static>] = &[
     BOOLEAN,
     TRI_STATE,
     FLOAT,

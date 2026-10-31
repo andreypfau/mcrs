@@ -10,7 +10,7 @@ use mcrs_minecraft_environment::attribute::{
     AttributeError, EnvironmentAttributeMap, MobSpawnSettings, Operation,
 };
 use mcrs_minecraft_registries::{KeySet, Named, Refs, Resolve, Resolved};
-use mcrs_minecraft_resource::{ResourceKey, ResourceKeyBuf, ResourceLocation};
+use mcrs_minecraft_resource::{ResourceKey, ResourceKeyBuf, ResourceLocationBuf};
 
 pub type Carvers = ConfiguredCarver;
 pub type PlacedFeatures = PlacedFeature;
@@ -126,7 +126,7 @@ impl From<NetworkBiome> for BiomeFile {
     }
 }
 
-pub type PlacedFeatureKey = ResourceKey<PlacedFeature, &'static str>;
+pub type PlacedFeatureKey = ResourceKey<'static, PlacedFeature>;
 
 /// The carvers and the per-step placed features of a biome, in the order they
 /// were added. A step is listed up to the last one that was given a feature.
@@ -136,12 +136,12 @@ pub struct BiomeGeneration {
     features: Vec<Vec<ResourceKeyBuf<PlacedFeatures>>>,
 }
 
-fn key<R, V>(key: ResourceKey<V, &'static str>) -> ResourceKeyBuf<R> {
-    ResourceKeyBuf::from_location(ResourceLocation::from(*key.location()))
+fn key<R, V>(key: ResourceKey<'static, V>) -> ResourceKeyBuf<R> {
+    ResourceKeyBuf::from_location(ResourceLocationBuf::from(key.location()))
 }
 
 impl BiomeGeneration {
-    pub fn carver(&mut self, carver: ResourceKey<ConfiguredCarver, &'static str>) -> &mut Self {
+    pub fn carver(&mut self, carver: ResourceKey<'static, ConfiguredCarver>) -> &mut Self {
         self.carvers.push(key(carver));
         self
     }

@@ -2,6 +2,6 @@
 
 use mcrs_minecraft_resource::{ResourceKey, rl};
 
-pub const COLD: ResourceKey<crate::variant::ChickenVariant, &'static str> = ResourceKey::new(rl!("minecraft:cold"));
-pub const TEMPERATE: ResourceKey<crate::variant::ChickenVariant, &'static str> = ResourceKey::new(rl!("minecraft:temperate"));
-pub const WARM: ResourceKey<crate::variant::ChickenVariant, &'static str> = ResourceKey::new(rl!("minecraft:warm"));
+pub const COLD: ResourceKey<'static, crate::variant::ChickenVariant> = ResourceKey::new(rl!("minecraft:cold"));
+pub const TEMPERATE: ResourceKey<'static, crate::variant::ChickenVariant> = ResourceKey::new(rl!("minecraft:temperate"));
+pub const WARM: ResourceKey<'static, crate::variant::ChickenVariant> = ResourceKey::new(rl!("minecraft:warm"));

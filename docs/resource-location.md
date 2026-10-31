@@ -55,21 +55,24 @@ pub struct ResourceLocationBuf {
 
 - `ResourceLocation<'a>` is the borrowed form. It is `Copy`. A parse of `stone` gives the namespace `"minecraft"` and the path `"stone"` without an allocation, because a `&'static str` fits any `'a`.
 - `ResourceLocationBuf` is the owned form. It holds one `Box<str>` and no `Arc`.
-- `ResourceLocationBuf::as_location` gives the borrowed form. The name is not `as_ref`, because `AsRef::as_ref` must return a reference, and this method returns a value.
+- `ResourceLocationBuf::as_location` gives the borrowed form. The name is not `as_ref`, because `AsRef::as_ref` must return a reference, and this method returns a value. `From<&ResourceLocationBuf>` gives the same, so a lookup can take `impl Into<ResourceLocation<'_>>`.
 - `ResourceLocation::to_buf` and `From<ResourceLocation<'_>>` give the owned form. They allocate one time.
 - `rl!("ns:path")` gives a `const` `ResourceLocation<'static>`, split at compile time. `StaticResourceLocation` and the type parameter `S` go away.
 - `ResourceLocationBuf::as_str` gives the canonical text. The borrowed form has no `as_str`, because its two parts are not one string. `Display` writes `namespace:path` for both types.
 
-**Equality, hash and order.** `Eq`, `Hash` and `Ord` compare the namespace, then the path. The implementations are the same for both types, and `PartialEq` works across the two types. So `minecraft:stone` and a parsed `stone` are equal and have the same hash.
+**Equality, hash and order.** `Eq` and `Hash` operate on the namespace and the path. `Ord` compares the path first and the namespace second, both byte-wise, which is the total order of identifiers in REG-ID-002 of `docs/spec/registry.md`. The implementations are the same for both types, and `PartialEq` works across the two types. So `minecraft:stone` and a parsed `stone` are equal and have the same hash.
 
-The order changes from today. Today `Ord` compares the whole string, where `:` sorts after `-`, `.` and the digits. The two orders differ only when one namespace is a prefix of another and the longer one continues with `-`, `.` or a digit. Step 3 states each test and each output order that this change affects.
+The order changes from today, where `Ord` compares the whole `namespace:path` string. For identifiers in one namespace the two orders are the same. Three outputs follow the order of a map keyed by a location, so they change when more than one namespace is present: the baked dimension list after the three vanilla dimensions, the order of the tags in the tags packet, and the key order of the structure starts and references in an Anvil chunk.
 
 **Keys.** `ResourceKey` and `TagKey` follow the same split:
 
 - `ResourceKey<'a, T>` and `TagKey<'a, R>` wrap a `ResourceLocation<'a>`. They are `Copy`, and the generated constants are `ResourceKey<'static, T>`.
 - `ResourceKeyBuf<T>` and `TagKeyBuf<R>` wrap a `ResourceLocationBuf`. A value that keeps a key, such as the `recipes` item component, holds the owned form.
 
-**Maps.** A map keeps the owned form as its key. A `BTreeMap` lookup by a borrowed location makes a `ResourceLocationBuf`, because `Borrow` cannot give a reference to a value made from two parts. The audit shows that each such lookup happens at load time, so the allocation is acceptable. The workspace does not add `hashbrown`, because the audit found no `HashMap` keyed by a location that a tick reads by name.
+**Maps.** A map keeps the owned form as its key. The std `Borrow` trait cannot give a `ResourceLocation<'_>` from a `ResourceLocationBuf`, because `Borrow` returns a reference and the borrowed form is a value made from two parts. So a std map cannot look up an owned key by a borrowed location.
+
+- A map that is read by name after load is a `hashbrown::HashMap`. The `Equivalent` implementations let a borrowed location look up an owned key without an allocation. This applies to the registry tables, the names and tags of a registry, the block and item definitions, the structure templates and the client item models.
+- A `BTreeMap` that is read by name only at load time or in a test makes a `ResourceLocationBuf` for the lookup.
 
 **Codecs.**
 

@@ -19,7 +19,7 @@ use mcrs_minecraft_command_argument_block::BlockPredicateArgument;
 use mcrs_minecraft_command_argument_entity::EntityArgument;
 use mcrs_minecraft_command_tree::{ArgumentParser, NumberRange, ParserProperties, StringMode};
 use mcrs_minecraft_keys::command_argument_type as parser;
-use mcrs_minecraft_resource::StaticResourceLocation;
+use mcrs_minecraft_resource::ResourceLocation;
 use mcrs_minecraft_wire::VarInt;
 
 /// The command tree of the vanilla argument types, with handlers of type `H`.
@@ -204,7 +204,7 @@ impl<L: VanillaLookup> ArgumentSet<Source<'_, L>> for VanillaArgument {
 }
 
 /// The suggestion type of the `commands` packet.
-const ASK_SERVER: StaticResourceLocation = mcrs_minecraft_resource::rl!("minecraft:ask_server");
+const ASK_SERVER: ResourceLocation<'static> = mcrs_minecraft_resource::rl!("minecraft:ask_server");
 
 fn range<T>((min, max): (Option<T>, Option<T>)) -> NumberRange<T> {
     NumberRange { min, max }
@@ -230,21 +230,17 @@ const UNIT_ARGUMENTS: [VanillaArgument; 10] = [
 
 /// The parser of an argument has no id in the `command_argument_type` registry.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct UnknownParser(pub StaticResourceLocation);
+pub struct UnknownParser(pub ResourceLocation<'static>);
 
 impl fmt::Display for UnknownParser {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "the argument parser {} has no registry id",
-            self.0.as_str()
-        )
+        write!(f, "the argument parser {} has no registry id", self.0)
     }
 }
 
 impl core::error::Error for UnknownParser {}
 
-fn parser_id(key: StaticResourceLocation) -> Result<VarInt, UnknownParser> {
+fn parser_id(key: ResourceLocation<'static>) -> Result<VarInt, UnknownParser> {
     parser::ENTRIES
         .iter()
         .position(|&entry| entry == key)
@@ -255,7 +251,7 @@ fn parser_id(key: StaticResourceLocation) -> Result<VarInt, UnknownParser> {
 
 impl VanillaArgument {
     /// The registry whose entries the argument reads, if it reads one.
-    pub(crate) fn registry(&self) -> Option<StaticResourceLocation> {
+    pub(crate) fn registry(&self) -> Option<ResourceLocation<'static>> {
         match self {
             VanillaArgument::ResourceOrTag(argument) => Some(argument.registry),
             VanillaArgument::Resource(argument) => Some(argument.registry),
@@ -270,7 +266,7 @@ impl VanillaArgument {
     /// resource location and the resource they are sent as: their clock is not on the wire.
     pub(crate) fn from_wire(
         parser: &ArgumentParser<'_>,
-        registry: impl Fn(&str) -> Option<StaticResourceLocation>,
+        registry: impl Fn(ResourceLocation<'_>) -> Option<ResourceLocation<'static>>,
     ) -> Option<Self> {
         let key = usize::try_from(parser.id.0)
             .ok()
@@ -318,14 +314,14 @@ impl VanillaArgument {
                 if key == parser::RESOURCE_OR_TAG || key == parser::RESOURCE_OR_TAG_KEY =>
             {
                 ResourceOrTagArgument {
-                    registry: registry(name.as_str())?,
+                    registry: registry(*name)?,
                     must_exist: key == parser::RESOURCE_OR_TAG,
                 }
                 .into()
             }
             (key, ParserProperties::Registry(name)) if key == parser::RESOURCE => {
                 ResourceArgument {
-                    registry: registry(name.as_str())?,
+                    registry: registry(*name)?,
                 }
                 .into()
             }
@@ -345,7 +341,7 @@ impl WireArgument for VanillaArgument {
     type WireError = UnknownParser;
 
     /// `minecraft:ask_server` for an argument whose suggestions only the server can make.
-    fn suggestion_type(&self) -> Option<StaticResourceLocation> {
+    fn suggestion_type(&self) -> Option<ResourceLocation<'static>> {
         matches!(
             self,
             VanillaArgument::TimeMarker(_) | VanillaArgument::Timeline(_)
@@ -354,8 +350,7 @@ impl WireArgument for VanillaArgument {
     }
 
     fn wire(&self) -> Result<ArgumentParser<'static>, UnknownParser> {
-        let registry =
-            |registry: StaticResourceLocation| ParserProperties::Registry(registry.into());
+        let registry = |registry: ResourceLocation<'static>| ParserProperties::Registry(registry);
         let (key, properties) = match *self {
             VanillaArgument::Bool(_) => (parser::BRIGADIER_BOOL, ParserProperties::None),
             VanillaArgument::Integer(argument) => (
@@ -430,7 +425,7 @@ mod tests {
     use serde::Deserialize;
     use std::collections::BTreeMap;
 
-    const ITEM: StaticResourceLocation = mcrs_minecraft_resource::rl!("minecraft:item");
+    const ITEM: ResourceLocation<'static> = mcrs_minecraft_resource::rl!("minecraft:item");
 
     #[derive(Deserialize)]
     struct Registries {
@@ -469,10 +464,9 @@ mod tests {
         assert_eq!(parser::ENTRIES.len(), reported.len());
         for (index, entry) in parser::ENTRIES.iter().enumerate() {
             assert_eq!(
-                reported.get(entry.as_str()).copied(),
+                reported.get(&entry.to_string()).copied(),
                 i32::try_from(index).ok(),
-                "{}",
-                entry.as_str()
+                "{entry}"
             );
         }
     }
@@ -556,8 +550,7 @@ mod tests {
         for (argument, name) in arguments {
             let wire = argument.wire().expect("every vanilla parser has an id");
             assert_eq!(Some(&wire.id.0), reported.get(name), "{name}");
-            let read =
-                VanillaArgument::from_wire(&wire, |name| (name == ITEM.as_str()).then_some(ITEM));
+            let read = VanillaArgument::from_wire(&wire, |name| (name == ITEM).then_some(ITEM));
             assert_eq!(read, Some(argument));
         }
     }

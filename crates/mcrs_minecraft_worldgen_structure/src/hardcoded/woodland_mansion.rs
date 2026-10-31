@@ -2,7 +2,7 @@ use glam::IVec3;
 use mcrs_minecraft_core::{Direction, Mirror, Rotation};
 use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_random::{Random, shuffle};
-use mcrs_minecraft_resource::{StaticResourceLocation, rl};
+use mcrs_minecraft_resource::{ResourceLocation, rl};
 use mcrs_minecraft_worldgen_feature::template::{
     bounding_box, transform, zero_position_with_transform,
 };
@@ -16,8 +16,7 @@ use crate::site::{Context, Site, Stub};
 macro_rules! mansion {
     ($path:literal) => {
         const {
-            match StaticResourceLocation::new_static(concat!("minecraft:woodland_mansion/", $path))
-            {
+            match ResourceLocation::new_static(concat!("minecraft:woodland_mansion/", $path)) {
                 Ok(name) => name,
                 Err(reason) => panic!("{}", reason),
             }
@@ -25,7 +24,7 @@ macro_rules! mansion {
     };
 }
 
-pub const TEMPLATES: &[StaticResourceLocation] = &[
+pub const TEMPLATES: &[ResourceLocation<'static>] = &[
     rl!("minecraft:woodland_mansion/1x1_a1"),
     rl!("minecraft:woodland_mansion/1x1_a2"),
     rl!("minecraft:woodland_mansion/1x1_a3"),
@@ -498,27 +497,27 @@ fn identify_rooms(from: &Grid, rooms: &mut Grid, rng: &mut LegacyRandom) {
     }
 }
 
-const ROOMS_1X1_A: &[StaticResourceLocation] = &[
+const ROOMS_1X1_A: &[ResourceLocation<'static>] = &[
     mansion!("1x1_a1"),
     mansion!("1x1_a2"),
     mansion!("1x1_a3"),
     mansion!("1x1_a4"),
     mansion!("1x1_a5"),
 ];
-const ROOMS_1X1_B: &[StaticResourceLocation] = &[
+const ROOMS_1X1_B: &[ResourceLocation<'static>] = &[
     mansion!("1x1_b1"),
     mansion!("1x1_b2"),
     mansion!("1x1_b3"),
     mansion!("1x1_b4"),
     mansion!("1x1_b5"),
 ];
-const ROOMS_1X1_AS: &[StaticResourceLocation] = &[
+const ROOMS_1X1_AS: &[ResourceLocation<'static>] = &[
     mansion!("1x1_as1"),
     mansion!("1x1_as2"),
     mansion!("1x1_as3"),
     mansion!("1x1_as4"),
 ];
-const ROOMS_1X2_A: &[StaticResourceLocation] = &[
+const ROOMS_1X2_A: &[ResourceLocation<'static>] = &[
     mansion!("1x2_a1"),
     mansion!("1x2_a2"),
     mansion!("1x2_a3"),
@@ -529,35 +528,35 @@ const ROOMS_1X2_A: &[StaticResourceLocation] = &[
     mansion!("1x2_a8"),
     mansion!("1x2_a9"),
 ];
-const ROOMS_1X2_C: &[StaticResourceLocation] = &[
+const ROOMS_1X2_C: &[ResourceLocation<'static>] = &[
     mansion!("1x2_c1"),
     mansion!("1x2_c2"),
     mansion!("1x2_c3"),
     mansion!("1x2_c4"),
 ];
-const ROOMS_1X2_B: &[StaticResourceLocation] = &[
+const ROOMS_1X2_B: &[ResourceLocation<'static>] = &[
     mansion!("1x2_b1"),
     mansion!("1x2_b2"),
     mansion!("1x2_b3"),
     mansion!("1x2_b4"),
     mansion!("1x2_b5"),
 ];
-const ROOMS_1X2_D: &[StaticResourceLocation] = &[
+const ROOMS_1X2_D: &[ResourceLocation<'static>] = &[
     mansion!("1x2_d1"),
     mansion!("1x2_d2"),
     mansion!("1x2_d3"),
     mansion!("1x2_d4"),
     mansion!("1x2_d5"),
 ];
-const ROOMS_1X2_S: &[StaticResourceLocation] = &[mansion!("1x2_s1"), mansion!("1x2_s2")];
-const ROOMS_1X2_SE: &[StaticResourceLocation] = &[mansion!("1x2_se1")];
-const ROOMS_2X2_A: &[StaticResourceLocation] = &[
+const ROOMS_1X2_S: &[ResourceLocation<'static>] = &[mansion!("1x2_s1"), mansion!("1x2_s2")];
+const ROOMS_1X2_SE: &[ResourceLocation<'static>] = &[mansion!("1x2_se1")];
+const ROOMS_2X2_A: &[ResourceLocation<'static>] = &[
     mansion!("2x2_a1"),
     mansion!("2x2_a2"),
     mansion!("2x2_a3"),
     mansion!("2x2_a4"),
 ];
-const ROOMS_2X2_B: &[StaticResourceLocation] = &[
+const ROOMS_2X2_B: &[ResourceLocation<'static>] = &[
     mansion!("2x2_b1"),
     mansion!("2x2_b2"),
     mansion!("2x2_b3"),
@@ -582,22 +581,22 @@ impl FloorRooms {
     }
 
     fn numbered(
-        names: &[StaticResourceLocation],
+        names: &[ResourceLocation<'static>],
         rng: &mut LegacyRandom,
-    ) -> Option<StaticResourceLocation> {
+    ) -> Option<ResourceLocation<'static>> {
         names
             .get(rng.next_i32_bound(names.len() as i32) as usize)
             .copied()
     }
 
-    fn room_1x1(self, rng: &mut LegacyRandom) -> Option<StaticResourceLocation> {
+    fn room_1x1(self, rng: &mut LegacyRandom) -> Option<ResourceLocation<'static>> {
         match self {
             FloorRooms::First => Self::numbered(ROOMS_1X1_A, rng),
             FloorRooms::Upper => Self::numbered(ROOMS_1X1_B, rng),
         }
     }
 
-    fn room_1x1_secret(self, rng: &mut LegacyRandom) -> Option<StaticResourceLocation> {
+    fn room_1x1_secret(self, rng: &mut LegacyRandom) -> Option<ResourceLocation<'static>> {
         Self::numbered(ROOMS_1X1_AS, rng)
     }
 
@@ -605,7 +604,7 @@ impl FloorRooms {
         self,
         rng: &mut LegacyRandom,
         stairs: bool,
-    ) -> Option<StaticResourceLocation> {
+    ) -> Option<ResourceLocation<'static>> {
         match self {
             FloorRooms::First => Self::numbered(ROOMS_1X2_A, rng),
             FloorRooms::Upper if stairs => Some(mansion!("1x2_c_stairs")),
@@ -617,7 +616,7 @@ impl FloorRooms {
         self,
         rng: &mut LegacyRandom,
         stairs: bool,
-    ) -> Option<StaticResourceLocation> {
+    ) -> Option<ResourceLocation<'static>> {
         match self {
             FloorRooms::First => Self::numbered(ROOMS_1X2_B, rng),
             FloorRooms::Upper if stairs => Some(mansion!("1x2_d_stairs")),
@@ -625,21 +624,21 @@ impl FloorRooms {
         }
     }
 
-    fn room_1x2_secret(self, rng: &mut LegacyRandom) -> Option<StaticResourceLocation> {
+    fn room_1x2_secret(self, rng: &mut LegacyRandom) -> Option<ResourceLocation<'static>> {
         match self {
             FloorRooms::First => Self::numbered(ROOMS_1X2_S, rng),
             FloorRooms::Upper => Self::numbered(ROOMS_1X2_SE, rng),
         }
     }
 
-    fn room_2x2(self, rng: &mut LegacyRandom) -> Option<StaticResourceLocation> {
+    fn room_2x2(self, rng: &mut LegacyRandom) -> Option<ResourceLocation<'static>> {
         match self {
             FloorRooms::First => Self::numbered(ROOMS_2X2_A, rng),
             FloorRooms::Upper => Self::numbered(ROOMS_2X2_B, rng),
         }
     }
 
-    fn room_2x2_secret(self) -> StaticResourceLocation {
+    fn room_2x2_secret(self) -> ResourceLocation<'static> {
         mansion!("2x2_s1")
     }
 }
@@ -647,7 +646,7 @@ impl FloorRooms {
 struct PlacementData {
     position: IVec3,
     rotation: Rotation,
-    wall: StaticResourceLocation,
+    wall: ResourceLocation<'static>,
 }
 
 struct Placer<'a> {
@@ -661,12 +660,12 @@ struct Placer<'a> {
 impl Placer<'_> {
     fn add(
         &mut self,
-        name: StaticResourceLocation,
+        name: ResourceLocation<'static>,
         position: IVec3,
         rotation: Rotation,
         mirror: Mirror,
     ) {
-        let Some((template, size)) = self.frozen.sized_template(name.as_str()) else {
+        let Some((template, size)) = self.frozen.sized_template(name) else {
             return;
         };
         self.pieces

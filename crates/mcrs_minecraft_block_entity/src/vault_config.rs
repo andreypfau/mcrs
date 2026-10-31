@@ -6,8 +6,8 @@ use crate::SavedItem;
 const VAULT_ACTIVATION_RANGE: f64 = 4.0;
 const VAULT_DEACTIVATION_RANGE: f64 = 4.5;
 
-fn is_vault_loot(value: &String) -> bool {
-    value == mcrs_minecraft_item::keys::loot_table::CHESTS_TRIAL_CHAMBERS_REWARD.as_str()
+fn is_vault_loot(value: &str) -> bool {
+    mcrs_minecraft_item::keys::loot_table::CHESTS_TRIAL_CHAMBERS_REWARD.location() == value
 }
 
 fn is_vault_activation_range(value: &f64) -> bool {
@@ -36,8 +36,7 @@ impl Default for VaultConfig {
     fn default() -> Self {
         VaultConfig {
             loot_table: mcrs_minecraft_item::keys::loot_table::CHESTS_TRIAL_CHAMBERS_REWARD
-                .as_str()
-                .to_owned(),
+                .to_string(),
             activation_range: VAULT_ACTIVATION_RANGE,
             deactivation_range: VAULT_DEACTIVATION_RANGE,
             key_item: SavedItem {

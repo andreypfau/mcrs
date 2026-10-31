@@ -1,5 +1,3 @@
-use std::borrow::Cow;
-
 use mcrs_minecraft_resource::{ResourceLocation, ResourceLocationBuf};
 
 use crate::identifier_rows::{Accepts, ROWS, Refuses, outcome};
@@ -27,11 +25,9 @@ fn every_identifier_constructor_agrees_with_vanilla() {
             "Deserialize {text:?}"
         );
         assert_eq!(
-            outcome(serde_json::from_str::<ResourceLocation<Cow<'static, str>>>(
-                &json
-            )),
+            outcome(serde_json::from_str::<ResourceLocation<'_>>(&json)),
             expected,
-            "Deserialize Cow {text:?}"
+            "Deserialize borrowed {text:?}"
         );
 
         if let (Some(expected), Some((namespace, path))) =

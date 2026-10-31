@@ -2,9 +2,8 @@ use crate::resource::{ResourceArgument, ResourceLocationArgument};
 use crate::time_error::TimeError;
 use crate::time_lookup::TimeLookup;
 use mcrs_command::{Argument, ContextView, NodeId, Reader, SuggestionBuilder, SyntaxError};
-use mcrs_minecraft_command::{
-    Identifier, Lookup, ResourceError, Source, identifier_matches, text_matches,
-};
+use mcrs_minecraft_command::{Lookup, ResourceError, Source, identifier_matches, text_matches};
+use mcrs_minecraft_resource::ResourceLocation;
 
 const TICKS_PER_DAY: f32 = 24_000.0;
 const TICKS_PER_SECOND: f32 = 20.0;
@@ -76,7 +75,7 @@ enum SelectedClock<'i> {
     /// The branch has no clock node, so the default clock of the source dimension.
     Default,
     /// The value of the clock node.
-    Named(Identifier<'i>),
+    Named(ResourceLocation<'i>),
     /// The context lacks the clock node or holds no identifier there.
     Unread,
 }
@@ -89,7 +88,7 @@ impl<'i> SelectedClock<'i> {
         context
             .nodes()
             .find(|&(node, _)| node == clock)
-            .and_then(|(_, span)| Identifier::parse(span.text(input)))
+            .and_then(|(_, span)| ResourceLocation::read(span.text(input)).ok())
             .map_or(SelectedClock::Unread, SelectedClock::Named)
     }
 }
@@ -121,14 +120,14 @@ impl TimeMarkerArgument {
 }
 
 impl<S> Argument<S> for TimeMarkerArgument {
-    type Value<'a> = Identifier<'a>;
+    type Value<'a> = ResourceLocation<'a>;
     type Error = ResourceError;
 
     fn parse<'a>(
         &self,
         reader: &mut Reader<'a>,
         source: &S,
-    ) -> Result<Identifier<'a>, SyntaxError<ResourceError>> {
+    ) -> Result<ResourceLocation<'a>, SyntaxError<ResourceError>> {
         ResourceLocationArgument.parse(reader, source)
     }
 }
@@ -164,14 +163,14 @@ impl TimelineArgument {
 }
 
 impl<L: Lookup> Argument<Source<'_, L>> for TimelineArgument {
-    type Value<'a> = Identifier<'a>;
+    type Value<'a> = ResourceLocation<'a>;
     type Error = ResourceError;
 
     fn parse<'a>(
         &self,
         reader: &mut Reader<'a>,
         source: &Source<'_, L>,
-    ) -> Result<Identifier<'a>, SyntaxError<ResourceError>> {
+    ) -> Result<ResourceLocation<'a>, SyntaxError<ResourceError>> {
         Self::RESOURCE.parse(reader, source)
     }
 }

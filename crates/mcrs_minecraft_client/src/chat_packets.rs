@@ -14,7 +14,7 @@ use mcrs_minecraft_protocol::packets::game::clientbound::{
 };
 use mcrs_minecraft_protocol::text::{Color, IntoText, Text};
 use mcrs_minecraft_registries::{CurrentRegistries, Registries};
-use mcrs_minecraft_resource::StaticResourceLocation;
+use mcrs_minecraft_resource::ResourceLocation;
 use mcrs_minecraft_world::chat_type::{ChatParameter, ChatType};
 
 use crate::chat::{
@@ -26,7 +26,7 @@ use crate::chat::{
 /// client.
 // chisle: a fixed list; an argument of another registry reads as a type without a grammar and
 // asks the server. Registry keys that are not static lift it.
-const STATIC_REGISTRIES: [StaticResourceLocation; 5] = [
+const STATIC_REGISTRIES: [ResourceLocation<'static>; 5] = [
     mcrs_minecraft_biome::keys::BIOME.location(),
     mcrs_minecraft_entity::keys::STRUCTURE.location(),
     mcrs_minecraft_keys::POINT_OF_INTEREST_TYPE,

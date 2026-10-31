@@ -1,8 +1,8 @@
 use mcrs_command::Span;
 use mcrs_command::StringValue;
-use mcrs_minecraft_command::Identifier;
 use mcrs_minecraft_entity::keys::EntityType;
 use mcrs_minecraft_game_mode::GameMode;
+use mcrs_minecraft_resource::ResourceLocation;
 
 /// An option that holds one of several values, as the search tests it.
 #[derive(Clone, Copy, Debug)]
@@ -24,7 +24,7 @@ pub(crate) enum ListOption<'a> {
         negated: bool,
     },
     TypeTag {
-        tag: Identifier<'a>,
+        tag: ResourceLocation<'a>,
         negated: bool,
     },
     Tag {
@@ -41,7 +41,7 @@ pub(crate) enum ListOption<'a> {
         empty: bool,
     },
     Predicate {
-        id: Identifier<'a>,
+        id: ResourceLocation<'a>,
         span: Span,
     },
 }

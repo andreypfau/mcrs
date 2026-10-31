@@ -13,8 +13,8 @@ pub use error::{
     parse_error_line, snbt_text, span_text, string_text,
 };
 pub use identifier::{
-    Identifier, SpannedIdentifier, identifier_matches, prefixed_identifier_matches,
-    read_identifier, suggest_prefixed, text_matches,
+    SpannedIdentifier, identifier_matches, prefixed_identifier_matches, read_identifier,
+    suggest_prefixed, text_matches,
 };
 pub use packet::{
     PlayerTree, SuggestionEntry, SuggestionReply, WireArgument, player_tree, suggestion_reply,

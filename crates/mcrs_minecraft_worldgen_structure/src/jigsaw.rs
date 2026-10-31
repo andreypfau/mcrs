@@ -129,7 +129,7 @@ pub fn layout(ctx: &mut Context<'_>, config: &JigsawConfig, site: Site) -> Vec<J
 
 fn pool_is_usable(pool: &FrozenPool) -> bool {
     !pool.expanded.is_empty()
-        || pool.id.as_str() == mcrs_minecraft_worldgen_feature::keys::template_pool::EMPTY.as_str()
+        || pool.id == mcrs_minecraft_worldgen_feature::keys::template_pool::EMPTY.location()
 }
 
 fn can_attach(source: &PlacedJigsaw<'_>, target: &PlacedJigsaw<'_>) -> bool {

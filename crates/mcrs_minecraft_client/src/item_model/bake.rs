@@ -1,4 +1,4 @@
-use mcrs_minecraft_resource::ResourceLocationBuf;
+use mcrs_minecraft_resource::{ResourceLocation, ResourceLocationBuf};
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -85,14 +85,17 @@ impl BakedNode {
 
 #[derive(Resource)]
 pub struct ItemModels {
-    pub by_id: HashMap<ResourceLocationBuf, Arc<BakedNode>>,
+    pub by_id: hashbrown::HashMap<ResourceLocationBuf, Arc<BakedNode>>,
     pub missing: Arc<BakedNode>,
     pub grass_colormap: Option<Vec<u8>>,
 }
 
 impl ItemModels {
     pub fn get(&self, id: &str) -> &BakedNode {
-        self.by_id.get(id).unwrap_or(&self.missing)
+        ResourceLocation::read(id)
+            .ok()
+            .and_then(|id| self.by_id.get(&id))
+            .unwrap_or(&self.missing)
     }
 }
 
@@ -114,7 +117,7 @@ pub fn bake_all(pack: &Pack, sprites: &mut SpriteRegistry) -> Result<ItemModels,
         models: HashMap::new(),
         missing: missing.clone(),
     };
-    let mut by_id = HashMap::new();
+    let mut by_id = hashbrown::HashMap::new();
     for (id, bytes) in pack.entries("items", "json") {
         let item = ClientItem::parse(bytes).map_err(|error| format!("items/{id}: {error}"))?;
         let root = baker

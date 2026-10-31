@@ -2,22 +2,22 @@ use crate::density::{CELL_4, CELL_8};
 use mcrs_minecraft_block::keys::Block;
 use mcrs_minecraft_block_predicate::block_state::BlockState;
 use mcrs_minecraft_noise::proto::NoiseParam;
-use mcrs_minecraft_resource::{ResourceLocationBuf, StaticResourceLocation, rl};
+use mcrs_minecraft_resource::{ResourceLocation, ResourceLocationBuf, rl};
 use mcrs_minecraft_worldgen_density::proto::build::{Df, Functions};
 use mcrs_minecraft_worldgen_density::router::{
     NoiseGeneratorSettings, NoiseSettings, RouterFunctions,
 };
 
-const TEMPERATURE: StaticResourceLocation = rl!("minecraft:beta/temperature");
-const VEGETATION: StaticResourceLocation = rl!("minecraft:beta/vegetation");
-const CLIMATE_DETAIL: StaticResourceLocation = rl!("minecraft:beta/climate_detail");
-const CLIMATE_FACTOR: StaticResourceLocation = rl!("minecraft:beta/climate_factor");
-const SCALE: StaticResourceLocation = rl!("minecraft:beta/scale");
-const DEPTH_CURVE: StaticResourceLocation = rl!("minecraft:beta/depth_curve");
-const DEPTH: StaticResourceLocation = rl!("minecraft:beta/depth");
-const EFFECTIVE_SCALE: StaticResourceLocation = rl!("minecraft:beta/effective_scale");
-const FALLOFF: StaticResourceLocation = rl!("minecraft:beta/falloff");
-const TOP_SLIDE: StaticResourceLocation = rl!("minecraft:beta/top_slide");
+const TEMPERATURE: ResourceLocation<'static> = rl!("minecraft:beta/temperature");
+const VEGETATION: ResourceLocation<'static> = rl!("minecraft:beta/vegetation");
+const CLIMATE_DETAIL: ResourceLocation<'static> = rl!("minecraft:beta/climate_detail");
+const CLIMATE_FACTOR: ResourceLocation<'static> = rl!("minecraft:beta/climate_factor");
+const SCALE: ResourceLocation<'static> = rl!("minecraft:beta/scale");
+const DEPTH_CURVE: ResourceLocation<'static> = rl!("minecraft:beta/depth_curve");
+const DEPTH: ResourceLocation<'static> = rl!("minecraft:beta/depth");
+const EFFECTIVE_SCALE: ResourceLocation<'static> = rl!("minecraft:beta/effective_scale");
+const FALLOFF: ResourceLocation<'static> = rl!("minecraft:beta/falloff");
+const TOP_SLIDE: ResourceLocation<'static> = rl!("minecraft:beta/top_slide");
 
 const CELL_WIDTH: f64 = 4.0;
 const SIMPLEX_STRETCH: f64 = 1.5;

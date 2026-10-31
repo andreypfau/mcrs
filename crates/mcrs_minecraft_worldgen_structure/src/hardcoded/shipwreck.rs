@@ -3,7 +3,7 @@ use mcrs_minecraft_block_predicate::predicate::HeightmapName;
 use mcrs_minecraft_core::Mirror;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::legacy::LegacyRandom;
-use mcrs_minecraft_resource::{StaticResourceLocation, rl};
+use mcrs_minecraft_resource::{ResourceLocation, rl};
 use mcrs_minecraft_worldgen_feature::template::bounding_box;
 
 use super::{corner_heights, lowest_y, on_top_of_chunk_centre};
@@ -12,7 +12,7 @@ use crate::orient::random_rotation;
 use crate::piece::{Piece, ShipwreckPiece};
 use crate::site::{Context, Site, Stub};
 
-pub const BEACHED: &[StaticResourceLocation] = &[
+pub const BEACHED: &[ResourceLocation<'static>] = &[
     rl!("minecraft:shipwreck/with_mast"),
     rl!("minecraft:shipwreck/sideways_full"),
     rl!("minecraft:shipwreck/sideways_fronthalf"),
@@ -26,7 +26,7 @@ pub const BEACHED: &[StaticResourceLocation] = &[
     rl!("minecraft:shipwreck/rightsideup_backhalf_degraded"),
 ];
 
-pub const OCEAN: &[StaticResourceLocation] = &[
+pub const OCEAN: &[ResourceLocation<'static>] = &[
     rl!("minecraft:shipwreck/with_mast"),
     rl!("minecraft:shipwreck/upsidedown_full"),
     rl!("minecraft:shipwreck/upsidedown_fronthalf"),
@@ -50,7 +50,7 @@ pub const OCEAN: &[StaticResourceLocation] = &[
 ];
 
 /// The beached list is a subset of the ocean one.
-pub const TEMPLATES: &[StaticResourceLocation] = OCEAN;
+pub const TEMPLATES: &[ResourceLocation<'static>] = OCEAN;
 
 const REGION_FIT: i32 = 32;
 

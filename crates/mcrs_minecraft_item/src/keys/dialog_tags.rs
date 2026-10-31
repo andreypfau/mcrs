@@ -2,5 +2,5 @@
 
 use mcrs_minecraft_resource::{TagKey, rl};
 
-pub const PAUSE_SCREEN_ADDITIONS: TagKey<crate::dialog::Dialog, &'static str> = TagKey::new(rl!("minecraft:pause_screen_additions"));
-pub const QUICK_ACTIONS: TagKey<crate::dialog::Dialog, &'static str> = TagKey::new(rl!("minecraft:quick_actions"));
+pub const PAUSE_SCREEN_ADDITIONS: TagKey<'static, crate::dialog::Dialog> = TagKey::new(rl!("minecraft:pause_screen_additions"));
+pub const QUICK_ACTIONS: TagKey<'static, crate::dialog::Dialog> = TagKey::new(rl!("minecraft:quick_actions"));

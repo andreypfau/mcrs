@@ -187,11 +187,8 @@ pub(crate) fn write_first_configuration_packets(out: &mut impl WritePacket, view
     })));
     out.write_packet(&ServerboundCustomPayload::from(Payload::ModList(ModList(
         vec![(
-            identity::MOD_ENTRY.into(),
-            PropertyMap(vec![(
-                identity::COMMIT_PROPERTY.into(),
-                identity::COMMIT_HASH,
-            )]),
+            identity::MOD_ENTRY,
+            PropertyMap(vec![(identity::COMMIT_PROPERTY, identity::COMMIT_HASH)]),
         )],
     ))));
     out.write_packet(&ServerboundClientInformation(ClientInformation {

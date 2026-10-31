@@ -26,11 +26,10 @@ use crate::material::map::MapColor;
 #[cfg(feature = "bevy")]
 use mcrs_minecraft_assets::asset::{CorpusReadError, read_json_corpus};
 use mcrs_minecraft_core::voxel_shape::Aabb;
-use mcrs_minecraft_resource::{Id, ResourceKeyBuf, ResourceLocationBuf};
+use mcrs_minecraft_resource::{Id, ResourceKeyBuf, ResourceLocation, ResourceLocationBuf};
 use mcrs_minecraft_sound::BlockSoundSet;
 use mcrs_minecraft_value_provider::IntProvider;
 use mcrs_voxel::BlockStateId;
-use std::collections::HashMap;
 
 pub const CORPUS_DIRECTORY: &str = "mcrs/block_definition";
 
@@ -224,7 +223,7 @@ pub struct BlockDefinitions {
     sound_sets: Vec<ResourceKeyBuf<BlockSoundSet>>,
     blocks: Vec<BlockEntry>,
     owners: Vec<Id<Block>>,
-    ids: HashMap<ResourceLocationBuf, Id<Block>>,
+    ids: hashbrown::HashMap<ResourceLocationBuf, Id<Block>>,
 }
 
 const _: () = assert!(size_of::<Id<Block>>() == 2);
@@ -317,7 +316,9 @@ impl BlockDefinitions {
 
     #[inline]
     pub fn id_of(&self, identifier: &str) -> Option<Id<Block>> {
-        self.ids.get(identifier).copied()
+        self.ids
+            .get(&ResourceLocation::read(identifier).ok()?)
+            .copied()
     }
 
     pub fn table_bytes(&self) -> usize {
@@ -483,7 +484,7 @@ pub fn load_block_definitions(
         .map_err(|_| LoadError::NoAssetSource)?;
     let corpus = read_json_corpus(source.reader(), CORPUS_DIRECTORY)?;
     let (definitions, mut report) = build_block_definitions(
-        &Block::ENTRIES
+        &Block::ALL
             .iter()
             .map(|entry| entry.as_static_str())
             .collect::<Vec<_>>(),
@@ -561,14 +562,14 @@ struct Builder {
     experience: Vec<IntProvider>,
     sound_sets: Vec<ResourceKeyBuf<BlockSoundSet>>,
     names: Vec<ResourceLocationBuf>,
-    ids: HashMap<ResourceLocationBuf, Id<Block>>,
+    ids: hashbrown::HashMap<ResourceLocationBuf, Id<Block>>,
     blocks: Vec<Option<BlockEntry>>,
     permutations: usize,
 }
 
 impl Builder {
     fn new<S: AsRef<str>>(names: &[S]) -> Result<Self, LoadError> {
-        let mut ids = HashMap::with_capacity(names.len());
+        let mut ids = hashbrown::HashMap::with_capacity(names.len());
         let mut read = Vec::with_capacity(names.len());
         for (number, name) in (0..=u16::MAX).zip(names) {
             let name =
@@ -1005,7 +1006,7 @@ fn to_engine_aabb(value: &ModelBox) -> Aabb {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use mcrs_minecraft_resource::ResourceKey;
+
     use mcrs_minecraft_resource::rl;
 
     const COMPONENTS: &str = r##"{
@@ -1303,7 +1304,7 @@ mod tests {
                 .state(states[state])
                 .sound_set
                 .and_then(|id| definitions.sound_set(id))
-                .map(ResourceKey::as_str)
+                .map(ResourceKeyBuf::as_str)
         };
         assert_eq!(set_of(0), Some("minecraft:decorated_pot_cracked"));
         assert_eq!(set_of(1), Some("minecraft:decorated_pot"));

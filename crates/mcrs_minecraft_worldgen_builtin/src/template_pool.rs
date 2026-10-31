@@ -14,13 +14,13 @@ mod village_taiga;
 use mcrs_minecraft_biome_file::PlacedFeatureKey;
 use mcrs_minecraft_core::codec::Bounded;
 use mcrs_minecraft_resource::{
-    InvalidResourceLocation, ResourceKey, ResourceLocationBuf, StaticResourceLocation, rl,
+    InvalidResourceLocation, ResourceKey, ResourceLocation, ResourceLocationBuf, rl,
 };
 use mcrs_minecraft_worldgen_feature::pool::{PoolElement, PoolEntry, SingleElement, TemplatePool};
 use mcrs_minecraft_worldgen_feature::proto::StructureProcessorList;
 use mcrs_minecraft_worldgen_feature::template::Projection;
 
-type ProcessorListKey = ResourceKey<StructureProcessorList, &'static str>;
+type ProcessorListKey = ResourceKey<'static, StructureProcessorList>;
 type Weight = Bounded<1, 150>;
 
 /// A template named relative to its pool's directory. `numbers` makes one row
@@ -77,15 +77,15 @@ impl Template {
 /// A pool whose fallback is `empty`, whose pieces are rigid, sit at the root
 /// and take no processors, until a builder call says otherwise.
 pub struct Pool {
-    name: StaticResourceLocation,
-    fallback: StaticResourceLocation,
+    name: ResourceLocation<'static>,
+    fallback: ResourceLocation<'static>,
     projection: Projection,
     dir: &'static str,
     processors: Option<ProcessorListKey>,
     pieces: &'static [(Piece, i32)],
 }
 
-pub const fn pool(name: StaticResourceLocation) -> Pool {
+pub const fn pool(name: ResourceLocation<'static>) -> Pool {
     Pool {
         name,
         fallback: rl!("minecraft:empty"),
@@ -97,7 +97,7 @@ pub const fn pool(name: StaticResourceLocation) -> Pool {
 }
 
 impl Pool {
-    pub const fn fallback(mut self, fallback: StaticResourceLocation) -> Self {
+    pub const fn fallback(mut self, fallback: ResourceLocation<'static>) -> Self {
         self.fallback = fallback;
         self
     }
@@ -221,7 +221,7 @@ const fn weights_in_range(mut tables: &[&[Pool]]) -> bool {
 const _: () = assert!(weights_in_range(&TABLES), "a pool weight is within 1..=150");
 
 fn entries_pool(
-    fallback: StaticResourceLocation,
+    fallback: ResourceLocation<'static>,
     entries: impl IntoIterator<Item = (PoolElement, Weight)>,
 ) -> TemplatePool {
     TemplatePool {

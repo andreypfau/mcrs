@@ -26,7 +26,7 @@ use mcrs_minecraft_core::codec::{
 };
 use mcrs_minecraft_entity::spawn::{MobCategory, SpawnerData};
 use mcrs_minecraft_registries::{KeySet, dispatch};
-use mcrs_minecraft_resource::{ResourceLocationBuf, StaticResourceLocation};
+use mcrs_minecraft_resource::{ResourceLocation, ResourceLocationBuf};
 use mcrs_minecraft_value_provider::{HeightProvider, Weighted};
 use mcrs_minecraft_worldgen_density::proto::Either;
 use mcrs_minecraft_worldgen_feature::placement::DecorationStep;
@@ -219,7 +219,7 @@ impl Structure {
 
     /// The `minecraft:` template paths the type's generator draws from, which
     /// no datapack file names.
-    pub fn templates(&self) -> &'static [StaticResourceLocation] {
+    pub fn templates(&self) -> &'static [ResourceLocation<'static>] {
         match self {
             Structure::EndCity { .. } => hardcoded::end_city::TEMPLATES,
             Structure::Igloo { .. } => hardcoded::igloo::TEMPLATES,

@@ -3,7 +3,7 @@ use mcrs_minecraft_block_predicate::predicate::HeightmapName;
 use mcrs_minecraft_core::Mirror;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::legacy::LegacyRandom;
-use mcrs_minecraft_resource::{ResourceLocationBuf, StaticResourceLocation, rl};
+use mcrs_minecraft_resource::{ResourceLocation, ResourceLocationBuf, rl};
 use mcrs_minecraft_worldgen_feature::template::{bounding_box, transform};
 
 use super::on_top_of_chunk_centre;
@@ -12,7 +12,7 @@ use crate::orient::random_rotation;
 use crate::piece::{IglooPiece, Piece};
 use crate::site::{Context, Site, Stub};
 
-pub const TEMPLATES: &[StaticResourceLocation] = &[
+pub const TEMPLATES: &[ResourceLocation<'static>] = &[
     IglooTemplate::Top.location(),
     IglooTemplate::Middle.location(),
     IglooTemplate::Bottom.location(),
@@ -28,7 +28,7 @@ pub enum IglooTemplate {
 }
 
 impl IglooTemplate {
-    pub const fn location(self) -> StaticResourceLocation {
+    pub const fn location(self) -> ResourceLocation<'static> {
         match self {
             IglooTemplate::Top => rl!("minecraft:igloo/top"),
             IglooTemplate::Middle => rl!("minecraft:igloo/middle"),
@@ -43,7 +43,7 @@ impl IglooTemplate {
     }
 
     pub fn id(self, frozen: &FrozenStructures) -> Option<TemplateId> {
-        frozen.template_id(self.location().as_str())
+        frozen.template_id(self.location())
     }
 
     pub const fn pivot(self) -> IVec3 {

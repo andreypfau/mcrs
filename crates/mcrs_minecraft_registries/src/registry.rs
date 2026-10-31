@@ -1,7 +1,4 @@
-use std::borrow::Borrow;
-use std::collections::HashMap;
 use std::fmt;
-use std::hash::Hash;
 use std::marker::PhantomData;
 use std::sync::Arc;
 
@@ -31,7 +28,7 @@ impl<T> DataValue for T where
 #[derive(Debug)]
 pub(crate) struct Names {
     names: Box<[ResourceLocationBuf]>,
-    index: HashMap<ResourceLocationBuf, u16>,
+    index: hashbrown::HashMap<ResourceLocationBuf, u16>,
     origins: Box<[PackIndex]>,
 }
 
@@ -56,19 +53,11 @@ impl Names {
         self.names.len()
     }
 
-    pub(crate) fn get<Q>(&self, name: &Q) -> Option<u16>
-    where
-        ResourceLocationBuf: Borrow<Q>,
-        Q: Hash + Eq + ?Sized,
-    {
-        self.index.get(name).copied()
+    pub(crate) fn get(&self, name: ResourceLocation<'_>) -> Option<u16> {
+        self.index.get(&name).copied()
     }
 
-    pub(crate) fn id<R, Q>(&self, name: &Q) -> Option<Id<R>>
-    where
-        ResourceLocationBuf: Borrow<Q>,
-        Q: Hash + Eq + ?Sized,
-    {
+    pub(crate) fn id<R>(&self, name: ResourceLocation<'_>) -> Option<Id<R>> {
         Id::checked(self.get(name)?, self.len())
     }
 
@@ -108,8 +97,8 @@ impl<'a, R> Entries<'a, R> {
         self.names.len() == 0
     }
 
-    pub fn by_name(&self, name: &ResourceLocationBuf) -> Option<Id<R>> {
-        self.names.id(name)
+    pub fn by_name<'n>(&self, name: impl Into<ResourceLocation<'n>>) -> Option<Id<R>> {
+        self.names.id(name.into())
     }
 
     pub fn name(&self, id: Id<R>) -> Option<&'a ResourceLocationBuf> {
@@ -141,7 +130,7 @@ impl<V: RegistryValue> Registry<V> {
         }
     }
 
-    pub fn key(&self) -> ResourceLocation<&'static str> {
+    pub fn key(&self) -> ResourceLocation<'static> {
         <V::Registry as Registered>::REGISTRY.location()
     }
 
@@ -165,8 +154,8 @@ impl<V: RegistryValue> Registry<V> {
         self.names.name(id.number())
     }
 
-    pub fn by_name(&self, name: &ResourceLocationBuf) -> Option<Id<V::Registry>> {
-        self.names.id(name)
+    pub fn by_name<'n>(&self, name: impl Into<ResourceLocation<'n>>) -> Option<Id<V::Registry>> {
+        self.names.id(name.into())
     }
 
     pub fn iter(&self) -> impl Iterator<Item = (Id<V::Registry>, &ResourceLocationBuf, &V)> {

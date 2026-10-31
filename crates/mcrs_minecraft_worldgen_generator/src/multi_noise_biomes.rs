@@ -9,7 +9,7 @@ use mcrs_minecraft_biome::source::{MultiNoiseBiomeEntry, MultiNoiseBiomeSource};
 use mcrs_minecraft_biome_file::BiomeFile;
 use mcrs_minecraft_noise::sample_grid::SampleGrid;
 use mcrs_minecraft_registries::{Diagnostic, Diagnostics, Registries};
-use mcrs_minecraft_resource::{Id, NarrowError, ResourceLocationBuf};
+use mcrs_minecraft_resource::{Id, NarrowError, ResourceLocation, ResourceLocationBuf};
 
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 #[error("registry {registry} holds no entry named {name}")]
@@ -32,18 +32,16 @@ pub enum BiomeTableError {
 
 /// The biome registry as a table builder reads it: a name in, the id out.
 pub trait BiomeNames {
-    fn biome_named(&self, name: &str) -> Result<Id<Biome>, UnknownEntry>;
+    fn biome_named(&self, name: ResourceLocation<'_>) -> Result<Id<Biome>, UnknownEntry>;
 }
 
 impl BiomeNames for mcrs_minecraft_registries::Registry<BiomeFile> {
-    fn biome_named(&self, name: &str) -> Result<Id<Biome>, UnknownEntry> {
-        ResourceLocationBuf::read(name)
-            .ok()
-            .and_then(|name| self.by_name(&name))
+    fn biome_named(&self, name: ResourceLocation<'_>) -> Result<Id<Biome>, UnknownEntry> {
+        self.by_name(name)
             .and_then(|id| Id::checked(id.number(), self.len()))
             .ok_or_else(|| UnknownEntry {
                 registry: self.key().into(),
-                name: name.to_owned(),
+                name: name.to_string(),
             })
     }
 }
@@ -93,7 +91,7 @@ impl MultiNoiseBiomeTable {
         let mut failure = None;
         let table = preset.parameter_list().try_map_values(|name| {
             match biomes
-                .biome_named(name)
+                .biome_named(*name)
                 .map_err(BiomeTableError::from)
                 .and_then(|id| narrow_biome(id).map_err(BiomeTableError::from))
             {

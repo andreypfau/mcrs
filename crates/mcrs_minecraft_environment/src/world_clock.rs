@@ -213,7 +213,9 @@ type MarkersOfClock = BTreeMap<ResourceLocationBuf, ClockTimeMarker>;
 
 impl ClockTimeMarkers {
     pub fn get(&self, clock: Id<WorldClock>, marker: &str) -> Option<&ClockTimeMarker> {
-        self.0.get(&clock)?.get(marker)
+        self.0
+            .get(&clock)?
+            .get(&ResourceLocationBuf::read(marker).ok()?)
     }
 
     pub fn of_clock(

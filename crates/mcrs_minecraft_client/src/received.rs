@@ -93,11 +93,11 @@ mod tests {
 
     fn probe_data(entries: &[(&str, Option<i32>)]) -> bytes::Bytes {
         body(&ClientboundRegistryData {
-            registry: ResourceLocation::read_cow(PROBE_NAME.to_owned()).unwrap(),
+            registry: ResourceLocation::read(PROBE_NAME).unwrap(),
             entries: entries
                 .iter()
                 .map(|(entry, size)| Entry {
-                    id: ResourceLocation::read_cow((*entry).to_owned()).unwrap(),
+                    id: ResourceLocation::read(entry).unwrap(),
                     data: size.map(|size| Cow::Owned(probe(size))),
                 })
                 .collect(),
@@ -107,9 +107,9 @@ mod tests {
     fn probe_tags(tag: &str, members: &[i32]) -> bytes::Bytes {
         body(&ClientboundUpdateTags {
             registries: vec![RegistryTags {
-                registry: ResourceLocation::read_cow(PROBE_NAME.to_owned()).unwrap(),
+                registry: ResourceLocation::read(PROBE_NAME).unwrap(),
                 tags: vec![TagGroup {
-                    name: ResourceLocation::read_cow(tag.to_owned()).unwrap(),
+                    name: ResourceLocation::read(tag).unwrap(),
                     entries: members.iter().copied().map(VarInt).collect(),
                 }],
             }],

@@ -1,7 +1,7 @@
 use std::fmt;
 
 use mcrs_minecraft_core::VERSION;
-use mcrs_minecraft_resource::{ResourceLocation, ResourceLocationBuf};
+use mcrs_minecraft_resource::ResourceLocationBuf;
 use serde::de::{self, IgnoredAny, Visitor};
 use serde::{Deserialize, Deserializer};
 
@@ -269,7 +269,7 @@ pub(crate) fn read(
     let unknown: Vec<&str> = features
         .iter()
         .filter(|feature| !known_features.contains(feature))
-        .map(ResourceLocation::as_str)
+        .map(ResourceLocationBuf::as_str)
         .collect();
     if !unknown.is_empty() {
         return Err(format!("unknown features {}", unknown.join(", ")));

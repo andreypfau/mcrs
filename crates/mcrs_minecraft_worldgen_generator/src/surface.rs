@@ -30,7 +30,7 @@ impl SurfaceIds {
     }
 
     pub fn from_lookup(
-        mut biome: impl FnMut(ResourceKey<Biome, &'static str>) -> Option<Id<Biome>>,
+        mut biome: impl FnMut(ResourceKey<'static, Biome>) -> Option<Id<Biome>>,
     ) -> Option<Self> {
         let eroded_badlands = biome(mcrs_minecraft_biome::keys::biome::ERODED_BADLANDS);
         let frozen_ocean = biome(mcrs_minecraft_biome::keys::biome::FROZEN_OCEAN);

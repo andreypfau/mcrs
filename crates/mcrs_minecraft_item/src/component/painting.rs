@@ -1,6 +1,6 @@
 use mcrs_minecraft_core::codec::Bounded;
 use mcrs_minecraft_registries::{Ref, Refs, Resolved, registry_value};
-use mcrs_minecraft_resource::{ResourceLocation, ResourceLocationBuf};
+use mcrs_minecraft_resource::ResourceLocationBuf;
 use serde::{Deserialize, Serialize};
 
 use crate::Text;
@@ -67,7 +67,7 @@ impl Decode<'_> for PaintingVariantValue<Wire> {
         Ok(PaintingVariantValue {
             width: Bounded(VarInt::decode(r)?.0),
             height: Bounded(VarInt::decode(r)?.0),
-            asset_id: ResourceLocation::decode(r)?,
+            asset_id: ResourceLocationBuf::decode(r)?,
             title: Option::decode(r)?,
             author: Option::decode(r)?,
         })

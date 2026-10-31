@@ -2,6 +2,6 @@
 
 use mcrs_minecraft_resource::{ResourceKey, rl};
 
-pub const BLOCK_FAST_COOKING: ResourceKey<crate::condition::LootCondition, &'static str> = ResourceKey::new(rl!("minecraft:block/fast_cooking"));
-pub const TOOL_CAN_SHEAR: ResourceKey<crate::condition::LootCondition, &'static str> = ResourceKey::new(rl!("minecraft:tool/can_shear"));
-pub const TOOL_CAN_SILK_TOUCH: ResourceKey<crate::condition::LootCondition, &'static str> = ResourceKey::new(rl!("minecraft:tool/can_silk_touch"));
+pub const BLOCK_FAST_COOKING: ResourceKey<'static, crate::condition::LootCondition> = ResourceKey::new(rl!("minecraft:block/fast_cooking"));
+pub const TOOL_CAN_SHEAR: ResourceKey<'static, crate::condition::LootCondition> = ResourceKey::new(rl!("minecraft:tool/can_shear"));
+pub const TOOL_CAN_SILK_TOUCH: ResourceKey<'static, crate::condition::LootCondition> = ResourceKey::new(rl!("minecraft:tool/can_silk_touch"));

@@ -10,9 +10,7 @@ use mcrs_minecraft_block_predicate::block_state::BlockState as ProtoBlockState;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::{Mirror, Rotation};
 use mcrs_minecraft_registries::{IdSet as Ids, KeySet, Named, Namer, Registries, Resolve, Tags};
-use mcrs_minecraft_resource::{
-    Id, Registered, ResourceLocationBuf, StaticResourceLocation, TagKey,
-};
+use mcrs_minecraft_resource::{Id, Registered, ResourceLocation, ResourceLocationBuf, TagKey};
 use mcrs_minecraft_worldgen_feature::placement::DecorationStep;
 use mcrs_minecraft_worldgen_feature::placer::BiomeMask;
 use mcrs_minecraft_worldgen_feature::pool::{PoolElement, TemplatePool};
@@ -146,7 +144,7 @@ fn structure_id_set(
         })?;
         let loaded = frozen
             .structure_ids
-            .get(name.as_str())
+            .get(name)
             .ok_or_else(|| format!("names the structure {name}, which is not loaded"))?;
         mask.insert(usize::from(loaded.0));
     }
@@ -157,7 +155,7 @@ fn freeze_variants(
     inputs: &StructureInputs<'_>,
     frozen: &mut FrozenStructures,
 ) -> Result<(), String> {
-    let table = |registry: &str,
+    let table = |registry: ResourceLocation<'static>,
                  entries: Option<&BTreeMap<ResourceLocationBuf, Vec<SpawnSelector<Named>>>>|
      -> Result<VariantTable, String> {
         let Some(entries) = entries else {
@@ -174,23 +172,17 @@ fn freeze_variants(
     };
     frozen.variants = VariantTables {
         cats: table(
-            mcrs_minecraft_entity::keys::CAT_VARIANT
-                .location()
-                .as_static_str(),
+            mcrs_minecraft_entity::keys::CAT_VARIANT.location(),
             inputs.variants.cats,
         )?,
         cat_sounds: inputs.variants.cat_sounds.to_vec(),
         chickens: table(
-            mcrs_minecraft_entity::keys::CHICKEN_VARIANT
-                .location()
-                .as_static_str(),
+            mcrs_minecraft_entity::keys::CHICKEN_VARIANT.location(),
             inputs.variants.chickens,
         )?,
         chicken_sounds: inputs.variants.chicken_sounds.to_vec(),
         zombie_nautiluses: table(
-            mcrs_minecraft_entity::keys::ZOMBIE_NAUTILUS_VARIANT
-                .location()
-                .as_static_str(),
+            mcrs_minecraft_entity::keys::ZOMBIE_NAUTILUS_VARIANT.location(),
             inputs.variants.zombie_nautiluses,
         )?,
     };
@@ -219,14 +211,10 @@ fn biome_mask(inputs: &StructureInputs<'_>, keys: &KeySet<Biome>) -> Result<Biom
 fn biome_tag_mask(
     inputs: &StructureInputs<'_>,
     owner: &dyn std::fmt::Display,
-    key: TagKey<Biome, &'static str>,
+    key: TagKey<'static, Biome>,
 ) -> Result<BiomeMask, String> {
-    biome_mask(inputs, &KeySet::Tag(key.into())).map_err(|_| {
-        format!(
-            "{owner}: names the biome tag #{}, which is not loaded",
-            key.as_str()
-        )
-    })
+    biome_mask(inputs, &KeySet::Tag(key.into()))
+        .map_err(|_| format!("{owner}: names the biome tag #{}, which is not loaded", key))
 }
 
 fn freeze_pools(inputs: &StructureInputs<'_>, frozen: &mut FrozenStructures) -> Result<(), String> {
@@ -362,7 +350,7 @@ fn freeze_structure_templates(
     inputs: &StructureInputs<'_>,
     frozen: &mut FrozenStructures,
     structure: &ResourceLocationBuf,
-    names: &[StaticResourceLocation],
+    names: &[ResourceLocation<'static>],
 ) -> Result<(), String> {
     for name in names {
         let location = name.to_buf();
@@ -448,10 +436,10 @@ fn freeze_structures(
         let biomes =
             biome_mask(inputs, &settings.biomes).map_err(|error| format!("{id}: {error}"))?;
         freeze_structure_templates(inputs, frozen, id, structure.templates())?;
-        let templates = |names: &[StaticResourceLocation]| {
+        let templates = |names: &[ResourceLocation<'static>]| {
             names
                 .iter()
-                .map(|name| frozen.template_ids[name.as_str()])
+                .map(|name| frozen.template_ids[name])
                 .collect::<Vec<TemplateId>>()
         };
         let kind = match structure {

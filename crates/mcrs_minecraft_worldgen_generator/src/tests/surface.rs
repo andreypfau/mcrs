@@ -143,7 +143,7 @@ pub(super) fn biome_ids() -> HashMap<String, u16> {
     let mut ids = HashMap::new();
     for (_, biome) in overworld_parameter_list().values() {
         let next = u16::try_from(ids.len()).unwrap();
-        ids.entry((*biome).to_owned()).or_insert(next);
+        ids.entry(biome.to_string()).or_insert(next);
     }
     ids
 }
@@ -468,9 +468,12 @@ fn grid_biomes(
 
 /// The preset's biomes as a registry, and the ids it gave them.
 pub fn overworld_biome_registry() -> (Registries, HashMap<String, u16>) {
+    let texts: Vec<String> = (overworld_parameter_list().values().iter())
+        .map(|(_, biome)| biome.to_string())
+        .collect();
     let mut names: Vec<&str> = Vec::new();
-    for (_, biome) in overworld_parameter_list().values() {
-        if !names.contains(biome) {
+    for biome in &texts {
+        if !names.contains(&biome.as_str()) {
             names.push(biome);
         }
     }

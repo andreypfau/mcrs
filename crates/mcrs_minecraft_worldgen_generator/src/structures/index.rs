@@ -60,7 +60,7 @@ pub struct EndBiomes {
 
 impl EndBiomes {
     pub fn from_lookup(
-        mut biome: impl FnMut(ResourceKey<Biome, &'static str>) -> Option<Id<Biome>>,
+        mut biome: impl FnMut(ResourceKey<'static, Biome>) -> Option<Id<Biome>>,
     ) -> Option<Self> {
         let mut id_of = |key| biome(key).map(Id::number);
         let end = id_of(mcrs_minecraft_biome::keys::biome::THE_END);

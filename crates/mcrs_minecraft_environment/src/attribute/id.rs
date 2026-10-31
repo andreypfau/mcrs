@@ -1,13 +1,13 @@
 use std::marker::PhantomData;
 
 use mcrs_minecraft_core::codec::HexRgb;
-use mcrs_minecraft_resource::StaticResourceLocation;
+use mcrs_minecraft_resource::ResourceLocation;
 
 use super::MobSpawnSettings;
 
 /// An attribute id together with the type an `override` of it takes.
 pub struct Attribute<T> {
-    pub id: StaticResourceLocation,
+    pub id: ResourceLocation<'static>,
     value: PhantomData<fn() -> T>,
 }
 

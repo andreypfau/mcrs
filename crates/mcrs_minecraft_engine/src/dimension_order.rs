@@ -8,7 +8,7 @@ use mcrs_minecraft_resource::ResourceKeyBuf;
 fn dimension_rank(key: &ResourceKeyBuf<Dimension>) -> (u8, &str) {
     let rank = [OVERWORLD, THE_NETHER, THE_END]
         .iter()
-        .position(|vanilla| vanilla.as_str() == key.as_str())
+        .position(|vanilla| *vanilla == *key)
         .unwrap_or(3) as u8;
     (rank, key.as_str())
 }

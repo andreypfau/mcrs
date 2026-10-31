@@ -126,7 +126,7 @@ impl<'de> Deserialize<'de> for GameRuleMap {
             fn visit_map<A: MapAccess<'de>>(self, mut map: A) -> Result<GameRuleMap, A::Error> {
                 let mut rules = BTreeMap::new();
                 while let Some(name) = map.next_key::<ResourceLocationBuf>()? {
-                    let rule = GameRule::find(name.as_str())
+                    let rule = GameRule::read(name.as_str())
                         .ok_or_else(|| A::Error::custom(format_args!("{name} is no GameRule")))?;
                     let value = map
                         .next_value_seed(RuleKind(rule.definition().value))

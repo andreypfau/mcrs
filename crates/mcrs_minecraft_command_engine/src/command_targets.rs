@@ -2,7 +2,7 @@ use crate::dimension_entry::DimensionEntry;
 use crate::player_entry::PlayerEntry;
 use bevy_ecs::entity::{Entity, EntityHashMap};
 use bevy_ecs::resource::Resource;
-use mcrs_minecraft_command::Identifier;
+use mcrs_minecraft_resource::ResourceLocation;
 
 /// The dimensions in the dimension order and the online players of all of them in
 /// the order of the player list. The host collects it at the start of a pass, and the
@@ -39,10 +39,10 @@ impl CommandTargets {
     }
 
     /// The running dimension with the identifier `id`.
-    pub fn dimension_named(&self, id: Identifier<'_>) -> Option<&DimensionEntry> {
+    pub fn dimension_named(&self, id: ResourceLocation<'_>) -> Option<&DimensionEntry> {
         self.dimensions
             .iter()
-            .find(|entry| entry.key.namespace() == id.namespace && entry.key.path() == id.path)
+            .find(|entry| entry.key.namespace() == id.namespace() && entry.key.path() == id.path())
     }
 
     /// The online player with the host anchor `anchor`.

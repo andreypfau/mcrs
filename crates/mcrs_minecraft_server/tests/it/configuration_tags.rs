@@ -19,9 +19,9 @@ fn sent_tags(registries: &Registries, packet: &ClientboundUpdateTags) -> SentTag
         .registries
         .iter()
         .map(|registry| {
-            let name = registry.registry.as_str();
+            let name = registry.registry.to_string();
             let entries = registries
-                .names_of(&key(name))
+                .names_of(&key(&name))
                 .unwrap_or_else(|| panic!("{name} has no table"));
             let tags = registry
                 .tags
@@ -38,7 +38,7 @@ fn sent_tags(registries: &Registries, packet: &ClientboundUpdateTags) -> SentTag
                     (tag.name.to_string(), members)
                 })
                 .collect();
-            (name.to_owned(), tags)
+            (name, tags)
         })
         .collect()
 }
@@ -122,18 +122,18 @@ fn the_server_sends_tag_members_in_tag_order() {
     let sent_blocks = packet
         .registries
         .iter()
-        .find(|registry| registry.registry.as_str() == "minecraft:block")
+        .find(|registry| registry.registry == "minecraft:block")
         .expect("block tags are sent");
     let mut out_of_id_order = Vec::new();
     for group in &sent_blocks.tags {
         let id = blocks
-            .id(&TagKeyBuf::from_location(key(group.name.as_str())))
+            .id(&TagKeyBuf::from_location(group.name.to_buf()))
             .expect("a sent block tag is in the set");
         let in_tag_order: Vec<u16> = blocks.members(id).map(|member| member.number()).collect();
         let sent: Vec<u16> = group.entries.iter().map(|member| member.0 as u16).collect();
         assert_eq!(sent, in_tag_order, "members of {}", group.name);
         if !sent.is_sorted() {
-            out_of_id_order.push(group.name.as_str());
+            out_of_id_order.push(group.name);
         }
     }
     assert!(
@@ -142,13 +142,17 @@ fn the_server_sends_tag_members_in_tag_order() {
     );
 
     for registry in &packet.registries {
-        let name = registry.registry.as_str();
+        let name = registry.registry;
         let declared: Vec<(&ResourceLocationBuf, &[u16])> = registries
-            .tags_of(&key(name))
+            .tags_of(name)
             .unwrap_or_else(|| panic!("{name} has no tag table"))
             .collect();
-        let sent: Vec<&str> = registry.tags.iter().map(|tag| tag.name.as_str()).collect();
-        let names: Vec<&str> = declared.iter().map(|(tag, _)| tag.as_str()).collect();
+        let sent: Vec<String> = registry
+            .tags
+            .iter()
+            .map(|tag| tag.name.to_string())
+            .collect();
+        let names: Vec<String> = declared.iter().map(|(tag, _)| tag.to_string()).collect();
         assert_eq!(sent, names, "the tags {name} declares, in table order");
         for (group, (_, declared)) in registry.tags.iter().zip(&declared) {
             let members: Vec<u16> = group.entries.iter().map(|member| member.0 as u16).collect();
@@ -161,11 +165,14 @@ fn the_server_sends_tag_members_in_tag_order() {
 fn the_tags_packet_follows_the_static_registry_order() {
     let packet = sent_update_tags(test_network());
     let data = crate::configuration_registries::sent(test_network(), false);
-    let synced: Vec<&str> = data.iter().map(|packet| packet.registry.as_str()).collect();
-    let statics_sent: Vec<&str> = packet
+    let synced: Vec<String> = data
+        .iter()
+        .map(|packet| packet.registry.to_string())
+        .collect();
+    let statics_sent: Vec<String> = packet
         .registries
         .iter()
-        .map(|registry| registry.registry.as_str())
+        .map(|registry| registry.registry.to_string())
         .filter(|registry| !synced.contains(registry))
         .collect();
 
@@ -180,7 +187,7 @@ fn the_tags_packet_follows_the_static_registry_order() {
     let positions: Vec<u64> = statics_sent
         .iter()
         .map(|registry| {
-            report[*registry]["protocol_id"]
+            report[registry.as_str()]["protocol_id"]
                 .as_u64()
                 .unwrap_or_else(|| panic!("{registry} has no protocol id in the report"))
         })
@@ -199,10 +206,10 @@ fn the_tags_packet_follows_the_static_registry_order() {
 fn every_static_and_synced_registry_with_tags_is_sent_and_no_other() {
     let registries = test_registries();
     let packet = sent_update_tags(test_network());
-    let sent: Vec<&str> = packet
+    let sent: Vec<String> = packet
         .registries
         .iter()
-        .map(|registry| registry.registry.as_str())
+        .map(|r| r.registry.to_string())
         .collect();
 
     let mut distinct = sent.clone();
@@ -215,10 +222,10 @@ fn every_static_and_synced_registry_with_tags_is_sent_and_no_other() {
     );
 
     let data = crate::configuration_registries::sent(test_network(), false);
-    let synced: Vec<&str> = data.iter().map(|packet| packet.registry.as_str()).collect();
+    let synced: Vec<String> = data.iter().map(|p| p.registry.to_string()).collect();
     let has_tags = |registry: &str| {
         registries
-            .tags_of(&key(registry))
+            .tags_of(key(registry).as_location())
             .is_some_and(|mut tags| tags.next().is_some())
     };
     let report = |name: &str| -> serde_json::Value {
@@ -247,12 +254,12 @@ fn every_static_and_synced_registry_with_tags_is_sent_and_no_other() {
         .collect();
     let is_world_registry = |registry: &str| data.contains(registry);
 
-    let synced_sent: Vec<&str> = sent
+    let synced_sent: Vec<String> = sent
         .iter()
-        .copied()
         .take_while(|registry| synced.contains(registry))
+        .cloned()
         .collect();
-    let expected_synced: Vec<&str> = synced.iter().copied().filter(|r| has_tags(r)).collect();
+    let expected_synced: Vec<String> = synced.iter().filter(|r| has_tags(r)).cloned().collect();
     assert_eq!(
         synced_sent, expected_synced,
         "synced registries come first, in declaration order"
@@ -268,9 +275,9 @@ fn every_static_and_synced_registry_with_tags_is_sent_and_no_other() {
 
     for registry in statics.union(&data) {
         let registry = registry.as_str();
-        let networked = synced.contains(&registry) || !is_world_registry(registry);
+        let networked = synced.iter().any(|s| s == registry) || !is_world_registry(registry);
         assert_eq!(
-            sent.contains(&registry),
+            sent.iter().any(|s| s == registry),
             networked && has_tags(registry),
             "whether {registry} is sent"
         );
@@ -282,19 +289,20 @@ fn every_static_and_synced_registry_with_tags_is_sent_and_no_other() {
         "minecraft:potion",
     ] {
         assert!(
-            sent.contains(&registry),
+            sent.iter().any(|s| s == registry),
             "{registry} carries tags and is static"
         );
     }
     assert!(
-        has_tags("minecraft:villager_trade") && !sent.contains(&"minecraft:villager_trade"),
+        has_tags("minecraft:villager_trade")
+            && !sent.iter().any(|s| s == "minecraft:villager_trade"),
         "a world registry the game does not synchronize is not sent even with tags"
     );
 
     let biomes = packet
         .registries
         .iter()
-        .find(|registry| registry.registry.as_str() == "minecraft:worldgen/biome")
+        .find(|registry| registry.registry == "minecraft:worldgen/biome")
         .expect("biome tags are sent");
     assert!(!biomes.tags.is_empty());
     assert!(

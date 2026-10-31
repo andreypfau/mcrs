@@ -1,5 +1,3 @@
-use std::borrow::Cow;
-
 use mcrs_minecraft_protocol::{Decode, Encode};
 use mcrs_minecraft_resource::{ResourceLocation, ResourceLocationBuf};
 
@@ -17,7 +15,7 @@ fn a_wire_identifier_decodes_as_vanilla_parses_it() {
             "wire decode {text:?}"
         );
         assert_eq!(
-            outcome(ResourceLocation::<Cow<str>>::decode(&mut bytes.as_slice())),
+            outcome(ResourceLocation::decode(&mut bytes.as_slice())),
             row.parse,
             "wire decode borrowed {text:?}"
         );

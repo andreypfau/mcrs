@@ -20,8 +20,7 @@ const FENCE: &str = Block::OakFence.as_static_str();
 const OAK_LOG: &str = Block::OakLog.as_static_str();
 const STRIPPED_LOG: &str = Block::StrippedOakLog.as_static_str();
 
-const TREES: &str =
-    mcrs_minecraft_worldgen_feature::keys::template_pool::VILLAGE_PLAINS_TREES.as_static_str();
+const TREES: &str = "minecraft:village/plains/trees";
 
 const BOARDED: Slopes = Slopes::BOARDED;
 const BARE: Slopes = Slopes::BARE;
@@ -1805,8 +1804,7 @@ fn meeting_point_1(c: &mut Canvas, v: Village) {
         c.posts(&S.torch, &[3, 6], &[3, 6], [6, 6]);
     }
     c.bell([3, 2, 7], "floor", North);
-    let well =
-        mcrs_minecraft_worldgen_feature::keys::template_pool::VILLAGE_COMMON_WELL_BOTTOMS.as_str();
+    let well = "minecraft:village/common/well_bottoms";
     c.socket_facing([6, 0, 3], "down_south", BOTTOM, well, COBBLE);
     street_ends(c, v, &[[5, 0], [0, 4], [9, 5], [4, 9]]);
     spots(c, CATS, COBBLE, &[[2, 1, 2], [2, 1, 4], [5, 1, 7]]);

@@ -83,9 +83,9 @@ fn particle_type_wire_ids_and_position_sources_match_the_golden() {
 
     let (_, sources) = mcrs_minecraft_registry_catalog::STATIC_REGISTRIES
         .iter()
-        .find(|(key, _)| key.as_static_str() == "minecraft:position_source_type")
+        .find(|(key, _)| *key == "minecraft:position_source_type")
         .unwrap();
-    let names: Vec<&str> = sources.iter().map(|name| name.as_static_str()).collect();
+    let names: Vec<String> = sources.iter().map(ToString::to_string).collect();
     assert_eq!(names, ["minecraft:block", "minecraft:entity"]);
     let mut out = Vec::new();
     PositionSource::Entity {

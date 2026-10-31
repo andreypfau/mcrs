@@ -8,7 +8,7 @@ use mcrs_voxel::{BlockPos, ColumnPos, SectionPos};
 use super::DebugScreenDisplayer;
 use crate::player::Player;
 
-pub const GROUP: ResourceLocation<&'static str> = rl!("minecraft:position");
+pub const GROUP: ResourceLocation<'static> = rl!("minecraft:position");
 
 pub fn display(
     mut displayer: ResMut<DebugScreenDisplayer>,

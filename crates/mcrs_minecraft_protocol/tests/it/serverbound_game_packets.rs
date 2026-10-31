@@ -18,7 +18,7 @@ use mcrs_minecraft_protocol::packets::cookie::serverbound::CookieResponse;
 use mcrs_minecraft_protocol::packets::game::serverbound::*;
 use mcrs_minecraft_protocol::resource_pack::Status;
 use mcrs_minecraft_protocol::{Decode, Encode, Hand, LpVec3, Position, VarInt};
-use mcrs_minecraft_resource::{ResourceLocation, rl};
+use mcrs_minecraft_resource::rl;
 use uuid::Uuid;
 
 static GOLDEN: LazyLock<String> = LazyLock::new(|| fixture("serverbound_game_packets").text());
@@ -186,11 +186,11 @@ fn every_packet_decodes_the_games_bytes() {
         },
     );
     {
-        let key = ResourceLocation::from(rl!("minecraft:session"));
+        let key = rl!("minecraft:session");
         check(
             "cookie_response",
             ServerboundCookieResponse(CookieResponse {
-                key: key.clone(),
+                key,
                 payload: Some(Bounded(&[1, 2, 3][..])),
             }),
         );
@@ -212,14 +212,14 @@ fn every_packet_decodes_the_games_bytes() {
         }),
     );
     {
-        let id = ResourceLocation::from(rl!("example:action"));
+        let id = rl!("example:action");
         let mut payload = NbtCompound::new();
         payload.put_string("name", "ok".into());
         payload.put_int("count", 3);
         check(
             "custom_click_action",
             ServerboundCustomClickAction(CustomClickAction {
-                id: id.clone(),
+                id,
                 payload: Some(NbtTag::Compound(payload)),
             }),
         );

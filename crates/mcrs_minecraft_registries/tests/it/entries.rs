@@ -594,8 +594,14 @@ fn a_registry_without_a_type_is_named_by_its_files_and_tagged_by_key() {
         registries.names_of(&advancement).unwrap(),
         [rl("a/c"), rl("b")]
     );
-    let tags: Vec<_> = registries.tags_of(&advancement).unwrap().collect();
+    let tags: Vec<_> = registries
+        .tags_of(advancement.as_location())
+        .unwrap()
+        .collect();
     assert_eq!(tags, [(&rl("all"), &[0, 1][..])]);
-    let sound_tags: Vec<_> = registries.tags_of(&rl("sound")).unwrap().collect();
+    let sound_tags: Vec<_> = registries
+        .tags_of(rl("sound").as_location())
+        .unwrap()
+        .collect();
     assert_eq!(sound_tags, [(&rl("second"), &[1][..])]);
 }

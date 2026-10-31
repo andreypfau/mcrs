@@ -11,7 +11,7 @@ mod screen;
 
 use mcrs_minecraft_block::definition::schema::BlockProperty;
 use mcrs_minecraft_chat_client::{ChatAbilities, Context};
-use mcrs_minecraft_command::{CommandLevel, Identifier, Lookup, Source};
+use mcrs_minecraft_command::{CommandLevel, Lookup, Source};
 use mcrs_minecraft_command_argument::TimeLookup;
 use mcrs_minecraft_command_argument_block::BlockLookup;
 use mcrs_minecraft_command_argument_vanilla::{ClientGraph, client_tree};
@@ -21,34 +21,34 @@ use mcrs_minecraft_command_tree::{
 use mcrs_minecraft_keys::command_argument_type as parser;
 use mcrs_minecraft_protocol::VarInt;
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundCommands;
-use mcrs_minecraft_resource::{ResourceLocation, StaticResourceLocation};
+use mcrs_minecraft_resource::ResourceLocation;
 use std::borrow::Cow;
 
 /// The players online, and nothing else.
 pub struct Players(pub &'static [&'static str]);
 
 impl Lookup for Players {
-    fn entries(&self, _: StaticResourceLocation) -> impl Iterator<Item = &str> {
+    fn entries(&self, _: ResourceLocation<'static>) -> impl Iterator<Item = &str> {
         std::iter::empty()
     }
 
-    fn tags(&self, _: StaticResourceLocation) -> impl Iterator<Item = &str> {
+    fn tags(&self, _: ResourceLocation<'static>) -> impl Iterator<Item = &str> {
         std::iter::empty()
     }
 
     fn tag_contains(
         &self,
-        _: StaticResourceLocation,
-        _: Identifier<'_>,
-        _: StaticResourceLocation,
+        _: ResourceLocation<'static>,
+        _: ResourceLocation<'_>,
+        _: ResourceLocation<'static>,
     ) -> bool {
         false
     }
 
     fn tag_entries(
         &self,
-        _: StaticResourceLocation,
-        _: Identifier<'_>,
+        _: ResourceLocation<'static>,
+        _: ResourceLocation<'_>,
     ) -> impl Iterator<Item = &str> {
         std::iter::empty()
     }
@@ -63,21 +63,24 @@ impl Lookup for Players {
 }
 
 impl BlockLookup for Players {
-    fn block_properties(&self, _: Identifier<'_>) -> Option<&[BlockProperty]> {
+    fn block_properties(&self, _: ResourceLocation<'_>) -> Option<&[BlockProperty]> {
         None
     }
 
-    fn has_block_entity(&self, _: Identifier<'_>) -> bool {
+    fn has_block_entity(&self, _: ResourceLocation<'_>) -> bool {
         false
     }
 }
 
 impl TimeLookup for Players {
-    fn suggested_time_markers(&self, _: Option<Identifier<'_>>) -> impl Iterator<Item = &str> {
+    fn suggested_time_markers(
+        &self,
+        _: Option<ResourceLocation<'_>>,
+    ) -> impl Iterator<Item = &str> {
         std::iter::empty()
     }
 
-    fn timelines_of_clock(&self, _: Option<Identifier<'_>>) -> impl Iterator<Item = &str> {
+    fn timelines_of_clock(&self, _: Option<ResourceLocation<'_>>) -> impl Iterator<Item = &str> {
         std::iter::empty()
     }
 }
@@ -103,7 +106,7 @@ pub enum Wire {
     Literal(&'static str),
     Argument(
         &'static str,
-        StaticResourceLocation,
+        ResourceLocation<'static>,
         ParserProperties<'static>,
         Option<&'static str>,
     ),
@@ -142,7 +145,7 @@ impl Tree {
                     ),
                     properties,
                 },
-                suggestions: suggestions.map(|name| ResourceLocation::read_cow(name).unwrap()),
+                suggestions: suggestions.map(|name| ResourceLocation::read(name).unwrap()),
             },
         };
         let index = self.0.len();

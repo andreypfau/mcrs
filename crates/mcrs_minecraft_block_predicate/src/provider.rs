@@ -82,9 +82,9 @@ pub enum Holder<T> {
     Inline(Box<T>),
 }
 
-impl<V: RegistryValue> From<ResourceKey<V::Registry, &'static str>> for Holder<V> {
-    fn from(key: ResourceKey<V::Registry, &'static str>) -> Self {
-        Holder::Reference((*key.location()).into())
+impl<V: RegistryValue> From<ResourceKey<'static, V::Registry>> for Holder<V> {
+    fn from(key: ResourceKey<'static, V::Registry>) -> Self {
+        Holder::Reference(key.location().into())
     }
 }
 

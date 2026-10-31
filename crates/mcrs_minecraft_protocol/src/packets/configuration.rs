@@ -12,7 +12,6 @@ pub mod clientbound {
     use mcrs_minecraft_nbt::compound::NbtCompound;
     use mcrs_minecraft_resource::ResourceLocation;
     use mcrs_minecraft_wire::{Decode, Encode};
-    use std::borrow::Cow;
 
     #[derive(Clone, Debug, Encode, Decode, From)]
     pub struct ClientboundCustomPayload<'a>(pub Payload<'a>);
@@ -30,7 +29,7 @@ pub mod clientbound {
 
     #[derive(Clone, Debug, Encode, Decode)]
     pub struct ClientboundRegistryData<'a> {
-        pub registry: ResourceLocation<Cow<'a, str>>,
+        pub registry: ResourceLocation<'a>,
         pub entries: Vec<crate::registry::Entry<'a>>,
     }
 
@@ -48,7 +47,7 @@ pub mod clientbound {
     #[derive(Clone, Debug, Encode, Decode)]
     pub struct TagGroup<'a> {
         /// The tag identifier (e.g., "minecraft:mineable/pickaxe")
-        pub name: ResourceLocation<Cow<'a, str>>,
+        pub name: ResourceLocation<'a>,
         /// Array of numeric registry entry IDs that belong to this tag
         pub entries: Vec<crate::VarInt>,
     }
@@ -57,7 +56,7 @@ pub mod clientbound {
     #[derive(Clone, Debug, Encode, Decode)]
     pub struct RegistryTags<'a> {
         /// The registry identifier (e.g., "minecraft:block", "minecraft:item")
-        pub registry: ResourceLocation<Cow<'a, str>>,
+        pub registry: ResourceLocation<'a>,
         /// Array of tags for this registry
         pub tags: Vec<TagGroup<'a>>,
     }

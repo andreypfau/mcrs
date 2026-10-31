@@ -297,7 +297,7 @@ impl<M: Refs> ComponentPredicateEntry<M> {
         }
     }
 
-    fn id(&self) -> ResourceLocation<&'static str> {
+    fn id(&self) -> ResourceLocation<'static> {
         match self {
             Self::Typed(predicate) => predicate.kind().location(),
             Self::AnyValue(kind) => kind.location(),
@@ -311,10 +311,10 @@ impl Serialize for ComponentPredicates<Named> {
         for entry in &self.0 {
             match entry {
                 ComponentPredicateEntry::Typed(predicate) => {
-                    map.serialize_entry(entry.id().as_str(), predicate)?
+                    map.serialize_entry(&entry.id(), predicate)?
                 }
                 ComponentPredicateEntry::AnyValue(_) => {
-                    map.serialize_entry(entry.id().as_str(), &UnitMap)?
+                    map.serialize_entry(&entry.id(), &UnitMap)?
                 }
             }
         }

@@ -25,8 +25,8 @@ fn an_entry_is_numbered_by_its_position_and_names_its_location() {
 #[test]
 fn an_entry_is_found_by_id_and_by_location() {
     assert_eq!(Fruit::from_id(Fruit::Apple.id()), Some(Fruit::Apple));
-    assert_eq!(Fruit::find("minecraft:zebra"), Some(Fruit::Zebra));
-    assert_eq!(Fruit::find("minecraft:mango"), None);
+    assert_eq!(Fruit::read("minecraft:zebra"), Some(Fruit::Zebra));
+    assert_eq!(Fruit::read("minecraft:mango"), None);
     let beyond: Id<Fruit> = Id::checked(2, Fruit::ALL.len() + 1).unwrap();
     assert_eq!(Fruit::from_id(beyond), None);
     assert_eq!(Fruit::from_protocol_id(1), Some(Fruit::Apple));
