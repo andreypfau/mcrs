@@ -1,9 +1,10 @@
-use crate::world::sub_app_builder::{ColumnDrain, drain_dim_spawn_queue};
+use crate::world::sub_app_builder::drain_dim_spawn_queue;
 use bevy_app::{App, AppExit};
 use bevy_ecs::entity::Entity;
 use bevy_ecs::query::With;
 use mcrs_minecraft_engine::bridge::OutboundFlush;
 use mcrs_minecraft_engine::dim::{DimSubAppHandle, drain_dim_despawn_queue, pump_channels};
+use mcrs_minecraft_level::world::column_drain::ColumnDrain;
 use mcrs_minecraft_level::world::sub_app::DimAppLabel;
 use std::num::NonZeroU32;
 

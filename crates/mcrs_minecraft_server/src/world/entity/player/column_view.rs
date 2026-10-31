@@ -10,7 +10,9 @@ use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_core::{BlockStateId, SectionPos};
 use mcrs_minecraft_engine::bus::to;
 use mcrs_minecraft_level::entity::physics::Transform;
-use mcrs_minecraft_level::entity::player::chunk_view::{ChunkTrackingView, PlayerViewDistance};
+use mcrs_minecraft_level::entity::player::chunk_view::{
+    ChunkTrackingView, PlayerViewDistance, SentChunkView,
+};
 use mcrs_minecraft_level::palette::{BiomePalette, ChunkBlocks};
 use mcrs_minecraft_level::world::dimension::{DimensionTypeConfig, InDimension};
 use mcrs_minecraft_level::world::lifecycle::stage::SectionStage;
@@ -96,17 +98,16 @@ enum ColumnState {
     Sent,
 }
 
-/// What a player is owed, column by column, and the view that decided it. A column the view
-/// wants has exactly one state, so this is the view's want list and no second copy of it is
-/// kept.
+/// What a player is owed, column by column, as the player's [`SentChunkView`] decided it. A
+/// column the view wants has exactly one state, so this is the view's want list and no second
+/// copy of it is kept.
 ///
 /// No pending state is ordered. A batch takes the columns nearest the player's position at the
 /// moment it goes out, so any order stored earlier could only be a stale one — the player turns,
 /// and the front of the queue is behind them.
 #[derive(Component)]
+#[require(SentChunkView)]
 pub struct ColumnView {
-    /// The view the client was last told about.
-    view: Option<ChunkTrackingView>,
     states: FxHashMap<ColumnPos, ColumnState>,
     /// The unsent columns of `states` by state, so a drain walks what is left to do rather than
     /// the whole view. Kept by `set` alone.
@@ -120,7 +121,6 @@ pub struct ColumnView {
 impl Default for ColumnView {
     fn default() -> Self {
         Self {
-            view: None,
             states: FxHashMap::default(),
             unsent: Default::default(),
             batch_quota: 0.0,
@@ -140,18 +140,6 @@ impl ColumnView {
             view.set(column, Some(ColumnState::Sent));
         }
         view
-    }
-
-    #[cfg(test)]
-    pub(crate) fn looking_at(view: ChunkTrackingView) -> Self {
-        Self {
-            view: Some(view),
-            ..Self::default()
-        }
-    }
-
-    pub fn view(&self) -> Option<ChunkTrackingView> {
-        self.view
     }
 
     pub fn holds(&self, column: ColumnPos) -> bool {
@@ -245,6 +233,7 @@ pub(crate) fn update_view(
         (
             Entity,
             &mut ColumnView,
+            &mut SentChunkView,
             &Transform,
             &PlayerViewDistance,
             &InDimension,
@@ -262,7 +251,9 @@ pub(crate) fn update_view(
     mut left: Local<Vec<ColumnPos>>,
     mut traces: Option<ResMut<ColumnTraceLog>>,
 ) {
-    for (player, mut chunk_view, transform, distance, in_dim, host_anchor) in &mut players {
+    for (player, mut chunk_view, mut sent_view, transform, distance, in_dim, host_anchor) in
+        &mut players
+    {
         let Ok((mut tickets, type_config)) = dims.get_mut(in_dim.entity()) else {
             continue;
         };
@@ -274,7 +265,7 @@ pub(crate) fn update_view(
             min_section_y,
             min_section_y + type_config.section_count as i32 - 1,
         );
-        let old_view = chunk_view.view;
+        let old_view = sent_view.0;
         if old_view == Some(new_view) {
             continue;
         }
@@ -324,7 +315,7 @@ pub(crate) fn update_view(
                 );
             }
         }
-        view.view = Some(new_view);
+        sent_view.0 = Some(new_view);
     }
 }
 
@@ -367,13 +358,13 @@ fn send_cache_view(
 /// spawns, so counting sections here would let the view ask for more than `spawn_chunks` can
 /// ever hand out and grow the queue without bound.
 pub(crate) fn raise_queued_columns(
-    mut players: Query<(&mut ColumnView, &InDimension)>,
+    mut players: Query<(&mut ColumnView, &SentChunkView, &InDimension)>,
     mut dims: Query<(&mut SectionTickets, &DimensionTypeConfig)>,
     mut nearest: Local<Vec<ColumnPos>>,
     mut traces: Option<ResMut<ColumnTraceLog>>,
 ) {
-    for (mut chunk_view, in_dim) in &mut players {
-        let Some(view) = chunk_view.view else {
+    for (mut chunk_view, &SentChunkView(view), in_dim) in &mut players {
+        let Some(view) = view else {
             continue;
         };
         nearest.extend(chunk_view.in_state(ColumnState::Queued));
@@ -611,7 +602,13 @@ fn column_distance_sq(pos: ColumnPos, center: SectionPos) -> i64 {
     reason = "one system picks the nearest columns, encodes them and brackets the batch, and the rate and priority rules read against each other"
 )]
 pub(crate) fn send_column_queue(
-    mut players: Query<(Entity, &mut ColumnView, &InDimension, &HostAnchor)>,
+    mut players: Query<(
+        Entity,
+        &mut ColumnView,
+        &SentChunkView,
+        &InDimension,
+        &HostAnchor,
+    )>,
     chunks: Query<(&ChunkBlocks, &BiomePalette, Option<&SectionBlockEntities>)>,
     stages: Query<&SectionStage>,
     block_entities_held: Query<&'static BlockEntity>,
@@ -636,7 +633,7 @@ pub(crate) fn send_column_queue(
     );
     players
         .iter_mut()
-        .for_each(|(player, mut chunk_view, in_dim, host_anchor)| {
+        .for_each(|(player, mut chunk_view, sent_view, in_dim, host_anchor)| {
             let host = host_anchor.0;
             let Ok(chunk_index) = dim_chunk_indexes.get(in_dim.entity()) else {
                 return;
@@ -668,8 +665,8 @@ pub(crate) fn send_column_queue(
             // ready: one step of the player invalidates any order settled earlier. The ready
             // set is bounded by the view, so taking the batch out of it costs one pass and a
             // partial selection rather than a kept ordering that goes stale on its own.
-            let center = chunk_view
-                .view
+            let center = sent_view
+                .0
                 .map(|view| view.center)
                 .unwrap_or(SectionPos::new(0, 0, 0));
             nearest.clear();
@@ -1064,11 +1061,11 @@ mod tests {
     }
 
     fn raise(world: &mut World, player: Entity, col: ColumnPos) {
-        {
-            let mut chunk_view = world.get_mut::<ColumnView>(player).unwrap();
-            chunk_view.view = Some(ChunkTrackingView::default());
-            chunk_view.set(col, Some(ColumnState::Queued));
-        }
+        world.get_mut::<SentChunkView>(player).unwrap().0 = Some(ChunkTrackingView::default());
+        world
+            .get_mut::<ColumnView>(player)
+            .unwrap()
+            .set(col, Some(ColumnState::Queued));
         world
             .run_system_once(raise_queued_columns)
             .expect("the raise runs");
@@ -1129,8 +1126,8 @@ mod tests {
         looking: ChunkTrackingView,
     ) -> Entity {
         let fx = fixture(world, &[]);
+        world.get_mut::<SentChunkView>(fx.player).unwrap().0 = Some(looking);
         let mut chunk_view = world.get_mut::<ColumnView>(fx.player).unwrap();
-        chunk_view.view = Some(looking);
         for &col in wants {
             chunk_view.set(col, Some(ColumnState::Queued));
         }

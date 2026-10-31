@@ -81,6 +81,7 @@ bevy = { version = "0.19.1", default-features = false, features = ["file_watcher
 mcrs_minecraft_server = { workspace = true, optional = true }
 mcrs_minecraft_engine = { workspace = true, optional = true }
 mcrs_minecraft_light_plugin = { workspace = true, optional = true }
+mcrs_minecraft_vanilla_worldgen = { workspace = true, optional = true }
 tracing-tracy = { version = "0.12", optional = true }
 
 [target.'cfg(target_os = "linux")'.dependencies]
@@ -98,7 +99,7 @@ web-sys = { version = "0.3", features = ["Window", "Location", "UrlSearchParams"
 
 [features]
 default = ["singleplayer", "dev"]
-singleplayer = ["dep:mcrs_minecraft_server", "dep:mcrs_minecraft_engine", "dep:mcrs_minecraft_light_plugin"]
+singleplayer = ["dep:mcrs_minecraft_server", "dep:mcrs_minecraft_engine", "dep:mcrs_minecraft_light_plugin", "dep:mcrs_minecraft_vanilla_worldgen"]
 dev = []
 # Bevy links as a shared library instead of being statically relinked into every
 # client rebuild. Dev loop only; it is not a shape we ship.

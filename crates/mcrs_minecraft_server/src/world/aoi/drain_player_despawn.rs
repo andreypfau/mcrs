@@ -15,6 +15,7 @@ use bevy_ecs::message::{MessageReader, MessageWriter};
 use bevy_ecs::prelude::{Commands, Entity, In, Query, With};
 use mcrs_minecraft_engine::bus::to;
 use mcrs_minecraft_level::entity::player::Player;
+use mcrs_minecraft_level::entity::player::chunk_view::SentChunkView;
 use mcrs_minecraft_protocol::VarInt;
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundRemoveEntities;
 use smallvec::SmallVec;
@@ -64,7 +65,9 @@ pub fn drain_inbound_player_despawn(
             &mut player_caches,
             &mut packet_writer,
         );
-        commands.entity(target).try_remove::<ColumnView>();
+        commands
+            .entity(target)
+            .try_remove::<(ColumnView, SentChunkView)>();
     }
 }
 

@@ -1,4 +1,3 @@
-use crate::world::entity::player::column_view::ColumnView;
 use bevy_app::{App, FixedUpdate, Plugin};
 use bevy_ecs::entity::Entity;
 use bevy_ecs::prelude::{Local, MessageReader, ParamSet, Query, Resource, With, resource_exists};
@@ -6,13 +5,14 @@ use bevy_ecs::schedule::IntoScheduleConfigs;
 use bevy_ecs::system::{Commands, Res, ResMut};
 use bevy_tasks::futures_lite::future;
 use bevy_tasks::{Task, TaskPool, TaskPoolBuilder, block_on};
-use mcrs_minecraft_core::SectionPos;
+use mcrs_minecraft_core::{ColumnPos, SectionPos};
 use mcrs_minecraft_engine::heightmap::PendingColumnHeightmaps;
 use mcrs_minecraft_level::aoi::min_column_distance;
 use mcrs_minecraft_level::entity::physics::Transform;
 use mcrs_minecraft_level::entity::player::Player;
-use mcrs_minecraft_level::entity::player::chunk_view::ChunkTrackingView;
+use mcrs_minecraft_level::entity::player::chunk_view::{ChunkTrackingView, SentChunkView};
 use mcrs_minecraft_level::palette::{ChunkBlocks, section_states};
+use mcrs_minecraft_level::world::column_drain::{ColumnDrain, ColumnDrainSet};
 use mcrs_minecraft_level::world::dimension::InDimension;
 use mcrs_minecraft_level::world::lifecycle::level::FULL_LEVEL;
 use mcrs_minecraft_level::world::lifecycle::stage::{
@@ -22,7 +22,6 @@ use mcrs_minecraft_level::world::lifecycle::ticket::Ticket;
 use mcrs_minecraft_level::world::lifecycle::trace as column_trace;
 use mcrs_minecraft_level::world::lifecycle::trace::{ColumnStage, ColumnTraceLog};
 use mcrs_minecraft_level::world::storage::block_entity::spawn_block_entities;
-use mcrs_minecraft_protocol::ColumnPos;
 use mcrs_minecraft_simulation::PendingTick;
 use mcrs_minecraft_worldgen_feature::placer::GenerationKinds;
 use mcrs_minecraft_worldgen_generator::saved::SectionData;
@@ -40,7 +39,7 @@ use std::sync::{Arc, OnceLock};
 use std::time::{Duration, Instant};
 use tracing::{info, trace};
 
-pub struct ChunkPlugin;
+pub(crate) struct ChunkPlugin;
 
 impl Plugin for ChunkPlugin {
     fn build(&self, app: &mut App) {
@@ -67,6 +66,21 @@ impl Plugin for ChunkPlugin {
                 .in_set(mcrs_minecraft_level::tick::TickSet::Project)
                 .after(mcrs_minecraft_level::world::lifecycle::ticket::ChunkSpawnSet),
         );
+        app.add_systems(
+            ColumnDrain,
+            (
+                (process_completed_columns, deliver_merged_columns)
+                    .chain()
+                    .in_set(ColumnDrainSet::Collect),
+                (
+                    enqueue_pending_columns,
+                    dispatch_column_generation.run_if(resource_exists::<FillContext>),
+                )
+                    .chain()
+                    .in_set(ColumnDrainSet::Request)
+                    .after(mcrs_minecraft_level::world::lifecycle::ticket::spawn_chunks),
+            ),
+        );
     }
 }
 
@@ -75,16 +89,16 @@ pub(crate) static CHUNK_TASK_POOL: OnceLock<TaskPool> = OnceLock::new();
 /// Sort key for the priority queue. Lower distance_sq values are dequeued first.
 /// The column position (col_x, col_z) serves as a tiebreaker for determinism.
 #[derive(Ord, PartialOrd, Eq, PartialEq, Clone, Copy, Debug)]
-pub struct ColumnKey {
+pub(crate) struct ColumnKey {
     /// Squared XZ distance to the nearest player. Primary sort key.
-    pub distance_sq: i32,
+    pub(crate) distance_sq: i32,
     /// Column position. Tiebreaker for deterministic ordering.
-    pub chunk_column_pos: ColumnPos,
+    pub(crate) chunk_column_pos: ColumnPos,
 }
 
 impl ColumnKey {
     /// Create a new ColumnKey with the given distance and position.
-    pub fn new(distance_sq: i32, chunk_column_pos: ColumnPos) -> Self {
+    pub(crate) fn new(distance_sq: i32, chunk_column_pos: ColumnPos) -> Self {
         Self {
             distance_sq,
             chunk_column_pos,
@@ -96,17 +110,17 @@ impl ColumnKey {
 ///
 /// Contains the list of section entities and their Y positions. Sections are stored
 /// as `(Entity, y)` tuples where `y` is the section's Y coordinate.
-pub struct PendingColumn {
+pub(crate) struct PendingColumn {
     /// Section entities with their Y coordinates, to be sorted by Y before dispatch.
-    pub sections: Vec<(Entity, i32)>,
+    pub(crate) sections: Vec<(Entity, i32)>,
     /// When the column joined the queue, so a column that arrives late can say
     /// whether it waited for a worker or for the work itself.
-    pub queued: Instant,
+    pub(crate) queued: Instant,
 }
 
 impl PendingColumn {
     /// Create a new pending column with the given sections.
-    pub fn new(sections: Vec<(Entity, i32)>) -> Self {
+    pub(crate) fn new(sections: Vec<(Entity, i32)>) -> Self {
         Self {
             sections,
             queued: Instant::now(),
@@ -119,14 +133,14 @@ impl PendingColumn {
 /// A halo column owns no entity, so nothing here names one: the store is keyed
 /// by position alone, and the sections a delivery owes are read off the request
 /// that wanted the column, at the moment it is delivered.
-pub struct InFlightStage {
-    pub col: ColumnPos,
-    pub cancel: CancellationToken,
-    pub task: Task<Option<StageResult>>,
+pub(crate) struct InFlightStage {
+    pub(crate) col: ColumnPos,
+    pub(crate) cancel: CancellationToken,
+    pub(crate) task: Task<Option<StageResult>>,
 }
 
 /// What a stage hands back. `None` from the task itself means cancelled.
-pub enum StageResult {
+pub(crate) enum StageResult {
     Filled(Box<FilledSnapshot>),
     Ran(usize, Vec<(ColumnPos, ColumnDelta)>),
     Merged(usize, Box<FilledSnapshot>),
@@ -136,15 +150,15 @@ pub enum StageResult {
 ///
 /// Controls concurrency limits and dispatch rates for chunk generation tasks.
 #[derive(Resource, Clone)]
-pub struct SchedulerConfig {
+pub(crate) struct SchedulerConfig {
     /// Maximum number of concurrent stage tasks. A column's fill and the run
     /// and merge of each of its rungs all share this budget, so it bounds the
     /// pool, not the column count.
-    pub max_in_flight: usize,
+    pub(crate) max_in_flight: usize,
     /// Maximum stages to dispatch per tick.
-    pub max_dispatch_per_tick: usize,
+    pub(crate) max_dispatch_per_tick: usize,
     /// Number of threads in the chunk generation thread pool.
-    pub num_threads: usize,
+    pub(crate) num_threads: usize,
 }
 
 impl Default for SchedulerConfig {
@@ -168,27 +182,28 @@ impl Default for SchedulerConfig {
 /// ladder materialises — filled snapshots and the deltas one merge each
 /// consumes — lives in `store`, outside the ECS, keyed by position alone.
 #[derive(Resource, Default)]
-pub struct ColumnScheduler {
+pub(crate) struct ColumnScheduler {
     /// Columns a view asked for. Lower `ColumnKey` values are worked first.
-    pub pending: BTreeMap<ColumnKey, PendingColumn>,
+    pub(crate) pending: BTreeMap<ColumnKey, PendingColumn>,
     /// Reverse index: column position -> current priority key.
-    pub priority_index: FxHashMap<ColumnPos, ColumnKey>,
+    pub(crate) priority_index: FxHashMap<ColumnPos, ColumnKey>,
     /// Active stage tasks with their cancellation tokens.
-    pub in_flight: Vec<InFlightStage>,
+    pub(crate) in_flight: Vec<InFlightStage>,
     /// The one owner of every materialised value of the ladder.
-    pub store: StagingStore,
+    pub(crate) store: StagingStore,
     /// Configuration for concurrency limits and dispatch rates.
-    pub config: SchedulerConfig,
+    pub(crate) config: SchedulerConfig,
 }
 
 impl ColumnScheduler {
     /// Check if a column is wanted and not yet delivered.
-    pub fn is_pending(&self, col: ColumnPos) -> bool {
+    pub(crate) fn is_pending(&self, col: ColumnPos) -> bool {
         self.priority_index.contains_key(&col)
     }
 
     /// Check if a column has a stage on the pool.
-    pub fn is_in_flight(&self, col: ColumnPos) -> bool {
+    #[cfg(test)]
+    pub(crate) fn is_in_flight(&self, col: ColumnPos) -> bool {
         self.store.stage(col).is_some_and(Stage::in_flight)
     }
 
@@ -211,7 +226,7 @@ impl ColumnScheduler {
 /// A column slower than this from queue to hand-off gets a line naming the stage
 /// that cost the time.
 #[derive(Resource, Clone, Copy, Debug)]
-pub(crate) struct SlowColumnThreshold(pub Duration);
+pub(crate) struct SlowColumnThreshold(pub(crate) Duration);
 
 impl Default for SlowColumnThreshold {
     fn default() -> Self {
@@ -248,7 +263,7 @@ pub(crate) fn carried_sections(
 /// The ticks generation scheduled in a section, in the order it asked, held for the
 /// simulation that runs the section.
 #[derive(bevy_ecs::prelude::Component, Clone, Debug, PartialEq)]
-pub struct GeneratedTicks(pub Vec<PendingTick<GenerationKinds>>);
+pub(crate) struct GeneratedTicks(pub Vec<PendingTick<GenerationKinds>>);
 
 impl SlowColumns {
     /// The whole ladder's latency, reported once a second with the count of the
@@ -582,7 +597,7 @@ fn cancel_stale_columns(
     mut scheduler: ResMut<ColumnScheduler>,
     mut stages: SectionStages,
     ctx: Option<Res<FillContext>>,
-    views: Query<&ColumnView>,
+    views: Query<&SentChunkView>,
     mut traces: Option<ResMut<ColumnTraceLog>>,
     mut player_views: Local<Vec<ChunkTrackingView>>,
     mut stale: Local<Vec<ColumnKey>>,
@@ -596,7 +611,7 @@ fn cancel_stale_columns(
     let rings = (FULL_LEVEL - Ticket::PLAYER_LOADING.level) as i32;
 
     player_views.clear();
-    player_views.extend(views.iter().filter_map(ColumnView::view));
+    player_views.extend(views.iter().filter_map(|view| view.0));
 
     if player_views.is_empty() {
         return;
@@ -843,16 +858,15 @@ pub(crate) fn dispatch_column_generation(
 mod tests {
     use super::*;
     use bevy_app::{App, Update};
-    use mcrs_minecraft_level::entity::player::chunk_view::ChunkTrackingView;
 
     fn spawn_observer_with_view(app: &mut App, center: SectionPos, distance: u8) -> Entity {
-        let view = ColumnView::looking_at(ChunkTrackingView {
+        let view = SentChunkView(Some(ChunkTrackingView {
             center,
             distance,
             vert_distance: 8,
             min_section_y: i32::MIN,
             max_section_y: i32::MAX,
-        });
+        }));
         app.world_mut().spawn(view).id()
     }
 

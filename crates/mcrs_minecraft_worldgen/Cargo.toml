@@ -15,13 +15,6 @@ mcrs_minecraft_registries.workspace = true
 mcrs_minecraft_block.workspace = true
 mcrs_minecraft_biome.workspace = true
 mcrs_minecraft_block_predicate.workspace = true
-bevy_app = { workspace = true, optional = true }
-bevy_asset = { workspace = true, optional = true }
-bevy_ecs = { workspace = true, optional = true }
-bevy_reflect = { workspace = true, optional = true }
-bevy_state = { workspace = true, optional = true }
-bevy_tasks = { workspace = true, optional = true }
-mcrs_minecraft_assets = { workspace = true, optional = true }
 mcrs_minecraft_biome_file.workspace = true
 mcrs_minecraft_datapack.workspace = true
 mcrs_minecraft_worldgen_builtin.workspace = true
@@ -35,7 +28,6 @@ mcrs_minecraft_worldgen_density.workspace = true
 mcrs_minecraft_worldgen_surface.workspace = true
 mcrs_minecraft_worldgen_feature.workspace = true
 mcrs_minecraft_worldgen_structure.workspace = true
-piper = { workspace = true, optional = true }
 thiserror.workspace = true
 tracing.workspace = true
 
@@ -49,19 +41,4 @@ mcrs_minecraft_worldgen_testing.workspace = true
 
 [features]
 default = ["fast"]
-bevy = [
-    "dep:bevy_app",
-    "dep:bevy_asset",
-    "dep:bevy_ecs",
-    "dep:bevy_reflect",
-    "dep:bevy_state",
-    "dep:bevy_tasks",
-    "dep:mcrs_minecraft_assets",
-    "dep:piper",
-    "mcrs_minecraft_core/bevy",
-    "mcrs_minecraft_registries/bevy",
-    "mcrs_minecraft_worldgen_carver/bevy",
-    "mcrs_minecraft_worldgen_density/bevy",
-    "mcrs_minecraft_worldgen_surface/bevy",
-]
 fast = ["mcrs_minecraft_noise/fast", "mcrs_minecraft_worldgen_density/fast", "mcrs_minecraft_worldgen_surface/fast", "mcrs_minecraft_worldgen_feature/fast"]

@@ -1,8 +1,7 @@
 use bevy_app::App;
 use bevy_asset::{AssetServer, Assets};
 use mcrs_minecraft_registries::CurrentRegistries;
-use mcrs_minecraft_worldgen::bevy::{TemplateAsset, pool_templates};
-use mcrs_minecraft_worldgen::tables::template_handle;
+use mcrs_minecraft_vanilla_worldgen::{TemplateAsset, pool_templates, template_handle};
 use mcrs_minecraft_worldgen_feature::pool::TemplatePool;
 use mcrs_minecraft_worldgen_feature::proto::StructureProcessorList;
 use mcrs_minecraft_worldgen_structure::{Structure, StructureSet};

@@ -3,10 +3,10 @@ use bevy_state::state::State;
 use mcrs_minecraft_assets::AppState;
 use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
 use mcrs_minecraft_dimension::Dimension;
+use mcrs_minecraft_level::world::dimension_list::DimensionList;
 use mcrs_minecraft_server::MinecraftServerPlugins;
-use mcrs_minecraft_server::world::generate::DimensionRouters;
 use mcrs_minecraft_server::world::sub_app_builder::drain_dim_spawn_queue;
-use mcrs_minecraft_server::world_options::DimensionList;
+use mcrs_minecraft_vanilla_worldgen::{DimensionGenerators, DimensionRouters};
 use mcrs_minecraft_world::worldgen::chunk_generator::ChunkGenerator;
 use mcrs_minecraft_worldgen_generator::stages::FillContext;
 use std::time::Duration;
@@ -66,8 +66,10 @@ fn every_noise_dimension_reaches_its_sub_app_with_a_router() {
     let sources: Vec<_> = app
         .world()
         .resource::<DimensionList>()
+        .keys()
         .iter()
-        .filter_map(|(key, entry)| match &entry.generator {
+        .zip(&app.world().resource::<DimensionGenerators>().0)
+        .filter_map(|(key, generator)| match generator {
             ChunkGenerator::Noise(generator) => {
                 Some((key.location().clone(), generator.biome_source.clone()))
             }

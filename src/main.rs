@@ -14,6 +14,7 @@ use mcrs_minecraft_server::{
     DimensionWorldsPlugin, GameMode, MinecraftServerPlugins, NetworkCompressionThreshold,
     ServerNetworkPlugin,
 };
+use mcrs_minecraft_vanilla_worldgen::WorldGenPlugin;
 
 const LOG_FILTER: &str = "mcrs_minecraft_server=debug,mcrs_minecraft_engine=debug,mcrs_minecraft_server::world::entity::player::column_view=trace,mcrs_minecraft_level::entity::player::chunk_view=trace,mcrs_minecraft_network=debug";
 
@@ -51,8 +52,10 @@ async fn main() -> AppExit {
             seed: world_seed(variable("MCRS_WORLD_SEED").as_deref()),
             preset: world_preset(variable("MCRS_WORLD_PRESET").as_deref()),
             default_game_mode: game_mode(variable("MCRS_DEFAULT_GAMEMODE").as_deref()),
-            slow_column_threshold: slow_column_threshold(variable("MCRS_SLOW_CHUNK_MS").as_deref()),
             ..Default::default()
+        },
+        world_gen: WorldGenPlugin {
+            slow_column_threshold: slow_column_threshold(variable("MCRS_SLOW_CHUNK_MS").as_deref()),
         },
         network: ServerNetworkPlugin {
             announce_on_lan: on_off(

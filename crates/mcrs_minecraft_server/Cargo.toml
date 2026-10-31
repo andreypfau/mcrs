@@ -19,25 +19,15 @@ mcrs_minecraft_command_engine.workspace = true
 mcrs_minecraft_command_vanilla.workspace = true
 mcrs_minecraft_dimension.workspace = true
 mcrs_minecraft_biome_file.workspace = true
-mcrs_minecraft_block_predicate.workspace = true
-mcrs_minecraft_worldgen_generator = { workspace = true, features = ["bevy"] }
-mcrs_minecraft_worldgen_feature_place.workspace = true
-mcrs_minecraft_worldgen_structure.workspace = true
-mcrs_minecraft_worldgen_carver.workspace = true
-mcrs_minecraft_worldgen_feature.workspace = true
-mcrs_minecraft_worldgen_surface.workspace = true
-mcrs_minecraft_worldgen_density.workspace = true
 mcrs_minecraft_worldgen_builtin.workspace = true
 mcrs_minecraft_item = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_dimension_environment = { workspace = true, features = ["bevy"] }
-mcrs_minecraft_biome.workspace = true
 mcrs_minecraft_block = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_environment = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_assets.workspace = true
 mcrs_minecraft_client_jar = { workspace = true, optional = true }
 mcrs_minecraft_datapack.workspace = true
 mcrs_minecraft_registries = { workspace = true, features = ["bevy"] }
-fixedbitset.workspace = true
 mcrs_minecraft_chunk = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_heightmap = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_level.workspace = true
@@ -46,12 +36,12 @@ mcrs_minecraft_simulation.workspace = true
 mcrs_minecraft_volume.workspace = true
 mcrs_minecraft_light = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_light_plugin.workspace = true
+mcrs_minecraft_vanilla_worldgen.workspace = true
 mcrs_minecraft_network = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_protocol.workspace = true
 mcrs_minecraft_core = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_entity.workspace = true
 mcrs_minecraft_world = { workspace = true, features = ["bevy"] }
-mcrs_minecraft_worldgen = { workspace = true, features = ["fast", "bevy"] }
 mcrs_minecraft_nbt.workspace = true
 bevy_math.workspace = true
 bevy_app.workspace = true
@@ -83,8 +73,8 @@ mcrs_minecraft_command_argument_vanilla.workspace = true
 mcrs_minecraft_chat_client.workspace = true
 mcrs_minecraft_world = { workspace = true, features = ["test-support"] }
 mcrs_minecraft_fixtures.workspace = true
-mcrs_minecraft_worldgen_generator = { workspace = true, features = ["test-support"] }
-mcrs_minecraft_worldgen_feature = { workspace = true, features = ["test-support"] }
+mcrs_minecraft_worldgen_generator = { workspace = true, features = ["bevy", "test-support"] }
+mcrs_minecraft_worldgen_density.workspace = true
 criterion = { version = "0.7", features = ["html_reports"] }
 mcrs_minecraft_anvil.workspace = true
 tokio.workspace = true
@@ -92,7 +82,7 @@ tokio.workspace = true
 [features]
 default = ["client-jar"]
 client-jar = ["dep:mcrs_minecraft_client_jar"]
-telemetry-tracy = ["bevy_ecs/trace", "mcrs_minecraft_worldgen_generator/telemetry-tracy", "mcrs_minecraft_network/telemetry-tracy", "mcrs_minecraft_level/telemetry-tracy", "mcrs_minecraft_engine/telemetry-tracy"]
+telemetry-tracy = ["bevy_ecs/trace", "mcrs_minecraft_vanilla_worldgen/telemetry-tracy", "mcrs_minecraft_network/telemetry-tracy", "mcrs_minecraft_level/telemetry-tracy", "mcrs_minecraft_engine/telemetry-tracy"]
 
 [[bench]]
 name = "bot_load"

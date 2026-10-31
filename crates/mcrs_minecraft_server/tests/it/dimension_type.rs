@@ -10,10 +10,10 @@ use mcrs_minecraft_level::session::PlayerSessionCounter;
 use mcrs_minecraft_level::world::dimension::{
     DimensionTypeConfig, DimensionTypeId, HasSkyLight, HasWeather,
 };
+use mcrs_minecraft_level::world::dimension_list::DimensionList;
 use mcrs_minecraft_level::world::sub_app::DimAppLabel;
 use mcrs_minecraft_server::world::enqueue_dim_spawns;
 use mcrs_minecraft_server::world::sub_app_builder::drain_dim_spawn_queue;
-use mcrs_minecraft_server::world_options::DimensionList;
 use mcrs_minecraft_world::dimension::Dimensions;
 use mcrs_minecraft_world::registry_load::test_registries;
 use mcrs_minecraft_world::worldgen::world_preset::WorldPreset;
@@ -24,10 +24,11 @@ fn host_spawning(dimensions: &Dimensions) -> App {
     let mut app = host_app::make_host_app();
     app.init_resource::<PlayerSessionCounter>();
     app.add_message::<InboundPlayerSpawn>();
-    app.insert_resource(DimensionList::new(support::baked(
-        dimensions,
-        test_registries(),
-    )));
+    app.insert_resource(DimensionList::new(
+        support::baked(dimensions, test_registries())
+            .into_iter()
+            .map(|(key, entry)| (key, entry.dimension_type)),
+    ));
     app.world_mut()
         .run_system_once(enqueue_dim_spawns)
         .expect("the spawn requests are enqueued");

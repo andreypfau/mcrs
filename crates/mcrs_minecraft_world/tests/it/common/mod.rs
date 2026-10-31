@@ -127,7 +127,7 @@ pub fn run_to_playing() -> App {
     });
     app.add_plugins(mcrs_minecraft_assets::MinecraftCorePlugin);
     app.add_plugins(MinecraftWorldPlugin);
-    app.add_plugins(mcrs_minecraft_worldgen::plugin::VanillaWorldgenPlugin);
+    app.add_plugins(mcrs_minecraft_vanilla_worldgen::WorldgenRegistriesPlugin);
     app.finish();
     app.cleanup();
 
@@ -160,7 +160,7 @@ pub fn plugin_app<M>(plugins: impl Plugins<M>) -> App {
     app.add_plugins(mcrs_minecraft_assets::MinecraftCorePlugin);
     app.add_plugins(plugins);
     app.add_plugins(MinecraftWorldPlugin);
-    app.add_plugins(mcrs_minecraft_worldgen::plugin::VanillaWorldgenPlugin);
+    app.add_plugins(mcrs_minecraft_vanilla_worldgen::WorldgenRegistriesPlugin);
     app.finish();
     app.cleanup();
     app

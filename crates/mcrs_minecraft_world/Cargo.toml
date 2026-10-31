@@ -70,13 +70,14 @@ uuid.workspace = true
 
 [target.'cfg(not(target_family = "wasm"))'.dependencies]
 mcrs_minecraft_fixtures = { workspace = true, optional = true }
-mcrs_minecraft_worldgen = { workspace = true, optional = true, features = ["bevy", "fast"] }
+mcrs_minecraft_worldgen = { workspace = true, optional = true, features = ["fast"] }
 
 [dev-dependencies]
 mcrs_minecraft_snbt.workspace = true
 mcrs_minecraft_world = { workspace = true, features = ["bevy", "test-support"] }
 mcrs_minecraft_noise.workspace = true
-mcrs_minecraft_worldgen = { workspace = true, features = ["bevy", "fast"] }
+mcrs_minecraft_worldgen = { workspace = true, features = ["fast"] }
+mcrs_minecraft_vanilla_worldgen.workspace = true
 mcrs_minecraft_worldgen_builtin.workspace = true
 mcrs_minecraft_worldgen_carver.workspace = true
 mcrs_minecraft_worldgen_density.workspace = true

@@ -763,7 +763,7 @@ frozen and counted but not placed.
 
 | Value | Category | Owner | Note |
 | --- | --- | --- | --- |
-| Structure sets, structures, pools, processor lists, templates, the frozen tables | truth | the freeze build | cloned into the sub-app once, like the routers (`crates/mcrs_minecraft_server/src/world/generate/routers.rs`, `DimensionRouters`, `build_dimension_routers`) |
+| Structure sets, structures, pools, processor lists, templates, the frozen tables | truth | the freeze build | cloned into the sub-app once, like the routers (`crates/mcrs_minecraft_vanilla_worldgen/src/routers.rs`, `DimensionRouters`, `build_dimension_routers`) |
 | Ring positions per dimension | projection of the seed | the index, at construction | P4; a few hundred kilobytes of biome sampling, once |
 | `site(C, S)` for a chunk `C` and structure `S` | projection of the seed | the index, memoised per chunk | L2; cheap; what search asks (R6) |
 | `starts_at(C)` for a chunk `C` | projection of the seed | the index, memoised per chunk | P2–P6 then §3–§4; expensive (a village layout), reused by fill, run and gameplay |
@@ -776,7 +776,7 @@ frozen and counted but not placed.
 positions, and a concurrent memo from chunk position to an owning slice of
 starts (usually empty), each slot filled once by whichever task asks first.
 Generation lives outside the ECS (X1), and so does the index: it sits beside
-the staging store and the scheduler (`crates/mcrs_minecraft_server/src/world/chunk.rs`, `ColumnScheduler`) and is handed to fill and run tasks as an owning handle
+the staging store and the scheduler (`crates/mcrs_minecraft_vanilla_worldgen/src/chunk_plugin.rs`, `ColumnScheduler`) and is handed to fill and run tasks as an owning handle
 (X7). The sub-app receives the same handle as a read-only resource for the
 consumers of I4. Two tasks racing on one cell compute the same bits (St1); a
 once-cell per slot removes the duplicate work, and nothing else needs a lock.

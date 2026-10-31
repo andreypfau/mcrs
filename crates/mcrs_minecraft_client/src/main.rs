@@ -60,6 +60,8 @@ use mcrs_minecraft_server::{
     NetworkCompressionThreshold, ServerCorePlugin, ServerNetworkPlugin,
     ops::{OPS_FILE, OpList, OpListEntry},
 };
+#[cfg(all(feature = "singleplayer", not(target_family = "wasm")))]
+use mcrs_minecraft_vanilla_worldgen::WorldGenPlugin;
 
 #[cfg(feature = "telemetry-tracy")]
 #[global_allocator]
@@ -404,8 +406,10 @@ fn host_integrated_server(
             seed: knobs.world_seed(),
             preset: knobs.world_preset(),
             default_game_mode: knobs.default_game_mode(),
-            slow_column_threshold: knobs.slow_column_threshold(),
             ..Default::default()
+        },
+        world_gen: WorldGenPlugin {
+            slow_column_threshold: knobs.slow_column_threshold(),
         },
         network: ServerNetworkPlugin {
             bind_address: config::integrated_bind_address(open_to_lan),

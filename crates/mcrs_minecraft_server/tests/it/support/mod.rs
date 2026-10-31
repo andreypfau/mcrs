@@ -9,6 +9,7 @@ use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
 use mcrs_minecraft_dimension::{Dimension, DimensionType};
 use mcrs_minecraft_engine::client_info::ClientInfo;
 use mcrs_minecraft_item::Items;
+use mcrs_minecraft_level::world::dimension_list::DimensionList;
 use mcrs_minecraft_protocol::setting::ChatMode;
 use mcrs_minecraft_registries::{Registries, Resolver};
 use mcrs_minecraft_world::dimension::{DimensionEntry, Dimensions, bake};
@@ -64,7 +65,7 @@ pub fn baked(
 }
 
 /// The vanilla preset's three dimensions, then a data-pack dimension, baked as the server bakes them.
-pub fn dimension_list_with_extra() -> mcrs_minecraft_server::world_options::DimensionList {
+pub fn dimension_list_with_extra() -> DimensionList {
     use mcrs_minecraft_world::worldgen::chunk_generator::ChunkGenerator;
 
     let mut dimensions = preset(mcrs_minecraft_world::keys::world_preset::NORMAL.as_str());
@@ -77,7 +78,11 @@ pub fn dimension_list_with_extra() -> mcrs_minecraft_server::world_options::Dime
             generator: ChunkGenerator::Debug,
         },
     );
-    mcrs_minecraft_server::world_options::DimensionList::new(baked(&dimensions, test_registries()))
+    DimensionList::new(
+        baked(&dimensions, test_registries())
+            .into_iter()
+            .map(|(key, entry)| (key, entry.dimension_type)),
+    )
 }
 
 pub fn update_until_playing(app: &mut App) {

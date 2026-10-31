@@ -9,9 +9,8 @@ use mcrs_minecraft_protocol::packets::configuration::clientbound::ClientboundReg
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundLogin;
 use mcrs_minecraft_protocol::uuid::Uuid;
 use mcrs_minecraft_protocol::{Decode, Packet};
-use mcrs_minecraft_server::{
-    BoundAddress, MinecraftServerPlugins, WorldGenPlugin, run_server_loop,
-};
+use mcrs_minecraft_server::{BoundAddress, MinecraftServerPlugins, run_server_loop};
+use mcrs_minecraft_vanilla_worldgen::WorldGenPlugin;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;

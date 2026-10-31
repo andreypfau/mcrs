@@ -1,4 +1,3 @@
-use crate::WorldSave;
 use bevy_app::AppExit;
 use bevy_ecs::prelude::{Commands, MessageWriter, ResMut};
 use bevy_ecs::resource::Resource;
@@ -6,11 +5,13 @@ use bevy_ecs::system::Res;
 use mcrs_minecraft_core::ResourceKey;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_dimension::Dimension;
+use mcrs_minecraft_level::world::dimension_list::DimensionList;
+use mcrs_minecraft_level::world::world_save::WorldSave;
 use mcrs_minecraft_registries::{CurrentRegistries, Registries};
+use mcrs_minecraft_vanilla_worldgen::{DimensionGenerators, WorldSeed};
 use mcrs_minecraft_world::dimension::{DimensionEntry, Dimensions, bake, bake_list};
 use mcrs_minecraft_world::save::read_world_gen_settings;
 use mcrs_minecraft_world::worldgen::world_preset::WorldPreset;
-use std::sync::Arc;
 use tracing::{error, info};
 
 /// The dimension list the server plugin was given, which replaces the save's and the preset's.
@@ -39,7 +40,13 @@ pub(crate) fn bake_dimensions(
     match baked {
         Ok((source, list)) => {
             info!(%source, dimensions = list.len(), "dimension list");
-            commands.insert_resource(DimensionList::new(list));
+            commands.insert_resource(DimensionList::new(
+                list.iter()
+                    .map(|(key, entry)| (key.clone(), entry.dimension_type)),
+            ));
+            commands.insert_resource(DimensionGenerators(
+                list.into_iter().map(|(_, entry)| entry.generator).collect(),
+            ));
         }
         Err(error) => {
             error!("the registries are unusable:\n{error}");
@@ -83,41 +90,3 @@ fn dimension_list(
         Ok((preset.to_owned(), bake(&named.dimensions, registries)?))
     }
 }
-
-/// Every dimension the world spawns, in spawn order. Written once at `Startup`.
-#[derive(Resource, Clone)]
-pub struct DimensionList {
-    keys: Arc<[ResourceKey<Dimension>]>,
-    entries: Arc<[DimensionEntry]>,
-}
-
-impl DimensionList {
-    pub fn new(list: Vec<(ResourceKey<Dimension>, DimensionEntry)>) -> Self {
-        let (keys, entries): (Vec<_>, Vec<_>) = list.into_iter().unzip();
-        DimensionList {
-            keys: keys.into(),
-            entries: entries.into(),
-        }
-    }
-
-    pub fn keys(&self) -> &Arc<[ResourceKey<Dimension>]> {
-        &self.keys
-    }
-
-    pub fn iter(&self) -> impl Iterator<Item = (&ResourceKey<Dimension>, &DimensionEntry)> {
-        self.keys.iter().zip(self.entries.iter())
-    }
-
-    pub fn len(&self) -> usize {
-        self.keys.len()
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.keys.is_empty()
-    }
-}
-
-/// The seed every dimension's noise router is compiled against. One writer in
-/// the host; the routers carry it into the sub-apps.
-#[derive(Resource, Clone, Copy, Debug, Default)]
-pub struct WorldSeed(pub u64);

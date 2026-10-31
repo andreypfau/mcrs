@@ -11,8 +11,10 @@ use mcrs_minecraft_worldgen_generator::routers::{build_router, refuse_misplaced_
 use mcrs_minecraft_worldgen_surface::compile::MaterialProgram;
 use tracing::{error, info};
 
-use crate::world::generate::structures::DimensionStructures;
-use crate::world_options::{DimensionList, WorldSeed};
+use crate::dimension_generators::DimensionGenerators;
+use crate::structures::DimensionStructures;
+use crate::world_seed::WorldSeed;
+use mcrs_minecraft_level::world::dimension_list::DimensionList;
 use mcrs_minecraft_worldgen_density::router::NoiseGeneratorSettings;
 
 /// Every dimension's compiled router, keyed by the id the world preset gave it.
@@ -37,7 +39,8 @@ pub struct DimensionRouter {
 /// router.
 pub(crate) fn build_dimension_routers(
     mut commands: Commands,
-    dimensions: Res<DimensionList>,
+    dimensions: Res<DimensionGenerators>,
+    list: Res<DimensionList>,
     seed: Res<WorldSeed>,
     blocks: Res<Blocks>,
     registries: Res<CurrentRegistries>,
@@ -51,10 +54,10 @@ pub(crate) fn build_dimension_routers(
     };
 
     let mut routers = DimensionRouters::default();
-    for (dimension, entry) in dimensions.iter() {
+    for (dimension, generator) in dimensions.iter(&list) {
         // A flat or debug generator drives no density graph, so the dimension
         // is left out rather than refused.
-        let ChunkGenerator::Noise(generator) = &entry.generator else {
+        let ChunkGenerator::Noise(generator) = generator else {
             continue;
         };
         let dimension = dimension.location();

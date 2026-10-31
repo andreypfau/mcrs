@@ -2,6 +2,7 @@ use std::collections::HashSet;
 
 use bevy_app::{App, AppLabel, Plugin, SubApp};
 use bevy_ecs::prelude::{Entity, Resource};
+use bevy_ecs::schedule::SystemSet;
 
 use mcrs_minecraft_core::Id;
 use mcrs_minecraft_core::ResourceKey;
@@ -23,6 +24,10 @@ pub struct DimSpawnRequest {
 
 #[derive(Resource, Default)]
 pub struct DimSpawnQueue(pub Vec<DimSpawnRequest>);
+
+/// The system that turns the dimension list into spawn requests.
+#[derive(SystemSet, Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct DimSpawnEnqueue;
 
 /// Queue of host-world `DimSubAppHandle` label entities awaiting sub-app teardown.
 /// Entries are the `Entity` values used as `DimAppLabel(Entity)` keys when the

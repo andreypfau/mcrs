@@ -1,4 +1,3 @@
-use crate::WorldSave;
 use crate::login::{SessionsById, disconnect, duplicate_login_reason};
 use bevy_app::{App, Plugin, Update};
 use bevy_ecs::component::Component;
@@ -22,6 +21,7 @@ use mcrs_minecraft_engine::session::GameProfile;
 use mcrs_minecraft_engine::session::HostAnchorRef;
 use mcrs_minecraft_level::session::{Place, Session, SessionPlacement};
 use mcrs_minecraft_level::world::sub_app::DimDespawnQueue;
+use mcrs_minecraft_level::world::world_save::WorldSave;
 use mcrs_minecraft_network::event::Received;
 use mcrs_minecraft_network::identity;
 use mcrs_minecraft_network::{ConnectionState, ServerSideConnection};
@@ -45,7 +45,7 @@ use mcrs_minecraft_world::save::read_player_dat;
 use std::sync::Arc;
 use tracing::{debug, info};
 
-use crate::world_options::DimensionList;
+use mcrs_minecraft_level::world::dimension_list::DimensionList;
 
 /// Marker for a connection that has been sent `ClientboundSelectKnownPacks`
 /// and is awaiting the client's `ServerboundSelectKnownPacks` response

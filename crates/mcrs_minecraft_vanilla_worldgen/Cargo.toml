@@ -1,0 +1,60 @@
+[package]
+name = "mcrs_minecraft_vanilla_worldgen"
+description = "World generation wired into the dimension worlds: the routers, carvers, features and structures of each dimension, and the column scheduler that generates or reads its columns"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+doctest = false
+
+[lints]
+workspace = true
+
+[dependencies]
+mcrs_minecraft_assets.workspace = true
+mcrs_minecraft_biome.workspace = true
+mcrs_minecraft_biome_file.workspace = true
+mcrs_minecraft_block = { workspace = true, features = ["bevy"] }
+mcrs_minecraft_block_predicate.workspace = true
+mcrs_minecraft_core = { workspace = true, features = ["bevy"] }
+mcrs_minecraft_dimension.workspace = true
+mcrs_minecraft_engine.workspace = true
+mcrs_minecraft_entity.workspace = true
+mcrs_minecraft_level.workspace = true
+mcrs_minecraft_registries = { workspace = true, features = ["bevy"] }
+mcrs_minecraft_simulation.workspace = true
+mcrs_minecraft_world = { workspace = true, features = ["bevy"] }
+mcrs_minecraft_worldgen = { workspace = true, features = ["fast"] }
+mcrs_minecraft_worldgen_builtin.workspace = true
+mcrs_minecraft_datapack.workspace = true
+mcrs_minecraft_nbt.workspace = true
+mcrs_minecraft_worldgen_carver = { workspace = true, features = ["bevy"] }
+mcrs_minecraft_worldgen_density = { workspace = true, features = ["bevy"] }
+mcrs_minecraft_worldgen_feature.workspace = true
+mcrs_minecraft_worldgen_feature_place.workspace = true
+mcrs_minecraft_worldgen_generator = { workspace = true, features = ["bevy"] }
+mcrs_minecraft_worldgen_structure.workspace = true
+mcrs_minecraft_worldgen_surface = { workspace = true, features = ["bevy"] }
+bevy_app.workspace = true
+bevy_asset.workspace = true
+bevy_ecs.workspace = true
+bevy_reflect.workspace = true
+bevy_state.workspace = true
+bevy_tasks.workspace = true
+fixedbitset.workspace = true
+rustc-hash.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+
+[dev-dependencies]
+mcrs_minecraft_fixtures.workspace = true
+mcrs_minecraft_block_entity.workspace = true
+mcrs_minecraft_chunk.workspace = true
+mcrs_minecraft_item.workspace = true
+mcrs_minecraft_world = { workspace = true, features = ["bevy", "test-support"] }
+mcrs_minecraft_worldgen_generator = { workspace = true, features = ["bevy", "test-support"] }
+mcrs_minecraft_worldgen_feature = { workspace = true, features = ["test-support"] }
+serde_json.workspace = true
+
+[features]
+telemetry-tracy = ["mcrs_minecraft_worldgen_generator/telemetry-tracy"]

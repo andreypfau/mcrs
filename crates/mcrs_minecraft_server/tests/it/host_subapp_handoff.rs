@@ -172,7 +172,7 @@ fn join_with_live_nether_end_and_overworld(
     saved: Option<ResourceKey<Dimension>>,
     expected: ResourceKey<Dimension>,
 ) {
-    use mcrs_minecraft_server::WorldSave;
+    use mcrs_minecraft_level::world::world_save::WorldSave;
     use mcrs_minecraft_world::save::{PlayerDat, write_player_dat};
 
     let mut app = build_host_app();

@@ -17,17 +17,16 @@ use crate::keep_alive::KeepAlivePlugin;
 use crate::login::{LoginPlugin, SingleplayerProfile};
 use crate::status::StatusPlugin;
 use crate::world::WorldPlugin;
-pub use crate::world::generate::WorldGenPlugin;
 use bevy_app::{App, AppExit, Plugin, PluginGroup, PluginGroupBuilder};
-use bevy_ecs::prelude::Resource;
 use mcrs_minecraft_level::server_loop::VoxelServerPlugin;
 use mcrs_minecraft_level::world::lifecycle::trace::ColumnTraceSink;
+use mcrs_minecraft_level::world::world_save::WorldSave;
 use mcrs_minecraft_light_plugin::LightingPlugin;
 use mcrs_minecraft_network::NetworkPlugin;
+use mcrs_minecraft_vanilla_worldgen::{WorldGenPlugin, WorldSeed};
 use mcrs_minecraft_world::dimension::Dimensions;
 use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
 use std::path::PathBuf;
-use std::time::Duration;
 
 pub use login::NetworkCompressionThreshold;
 #[cfg(feature = "client-jar")]
@@ -95,12 +94,9 @@ impl Default for DataPack {
 pub struct MinecraftServerPlugins {
     pub core: ServerCorePlugin,
     pub worlds: DimensionWorldsPlugin,
+    pub world_gen: WorldGenPlugin,
     pub network: ServerNetworkPlugin,
 }
-
-/// The world folder the server reads its saved chunks from.
-#[derive(Resource, Clone)]
-pub struct WorldSave(pub PathBuf);
 
 impl MinecraftServerPlugins {
     /// A server running inside another process: loopback only, an OS-assigned
@@ -131,7 +127,7 @@ impl PluginGroup for MinecraftServerPlugins {
             >::new())
             .add(mcrs_minecraft_command_vanilla::VanillaCommandsPlugin)
             .add(self.worlds)
-            .add(WorldGenPlugin)
+            .add(self.world_gen)
             .add(LightingPlugin)
             .add(self.network)
     }
@@ -200,7 +196,7 @@ impl Plugin for ServerCorePlugin {
         });
         app.add_plugins(mcrs_minecraft_assets::MinecraftCorePlugin);
         app.add_plugins(mcrs_minecraft_world::MinecraftWorldPlugin);
-        app.add_plugins(mcrs_minecraft_worldgen::plugin::VanillaWorldgenPlugin);
+        app.add_plugins(mcrs_minecraft_vanilla_worldgen::WorldgenRegistriesPlugin);
     }
 }
 
@@ -225,8 +221,6 @@ pub struct DimensionWorldsPlugin {
     pub default_op_level: u8,
     /// Game mode of a player joining for the first time.
     pub default_game_mode: GameMode,
-    /// A column that takes longer than this from request to delivery is logged.
-    pub slow_column_threshold: Duration,
 }
 
 impl Default for DimensionWorldsPlugin {
@@ -240,7 +234,6 @@ impl Default for DimensionWorldsPlugin {
             ops: ops::OpList::default(),
             default_op_level: 0,
             default_game_mode: GameMode::Creative,
-            slow_column_threshold: Duration::from_millis(250),
         }
     }
 }
@@ -248,7 +241,7 @@ impl Default for DimensionWorldsPlugin {
 impl Plugin for DimensionWorldsPlugin {
     fn build(&self, app: &mut App) {
         require::<Self, ServerCorePlugin>(app);
-        app.insert_resource(crate::world_options::WorldSeed(self.seed));
+        app.insert_resource(WorldSeed(self.seed));
         app.insert_resource(crate::world_options::WorldPresetName(self.preset.clone()));
         if let Some(world) = &self.world {
             app.insert_resource(WorldSave(world.clone()));
@@ -263,9 +256,6 @@ impl Plugin for DimensionWorldsPlugin {
         ));
         app.insert_resource(crate::world::entity::player::DefaultGameMode(
             self.default_game_mode,
-        ));
-        app.insert_resource(crate::world::chunk::SlowColumnThreshold(
-            self.slow_column_threshold,
         ));
         if let Some(traces) = &self.column_traces {
             app.insert_resource(traces.clone());

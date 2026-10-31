@@ -1,4 +1,4 @@
-use crate::world::chunk::{
+use crate::chunk_plugin::{
     CHUNK_TASK_POOL, ColumnScheduler, SchedulerConfig, deliver_merged_columns,
     dispatch_column_generation, enqueue_pending_columns, process_completed_columns,
     request_section,
@@ -10,13 +10,11 @@ use bevy_tasks::TaskPoolBuilder;
 use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_biome::source::MultiNoiseBiomeSource;
 use mcrs_minecraft_chunk::VoxelId;
-use mcrs_minecraft_core::ResourceKey;
-use mcrs_minecraft_core::SectionPos;
+use mcrs_minecraft_core::{ColumnPos, ResourceKey, SectionPos};
 use mcrs_minecraft_engine::heightmap::PendingColumnHeightmaps;
 use mcrs_minecraft_item::Items;
 use mcrs_minecraft_level::palette::ChunkBlocks;
 use mcrs_minecraft_level::world::lifecycle::stage::{SectionStage, SectionStageChanged};
-use mcrs_minecraft_protocol::ColumnPos;
 use mcrs_minecraft_worldgen_generator::ColumnBlocks;
 use mcrs_minecraft_worldgen_generator::stages::{fill_pooled, run_region};
 use mcrs_minecraft_worldgen_generator::staging::{
@@ -672,7 +670,7 @@ fn assert_region_agrees(consumer: Consumer, radius: i32, drives: &[Drive]) {
 /// every nest the column grew.
 #[test]
 fn a_dead_first_section_does_not_take_the_column_s_block_entities_with_it() {
-    use crate::world::chunk::{ColumnKey, PendingColumn};
+    use crate::chunk_plugin::{ColumnKey, PendingColumn};
     use mcrs_minecraft_block_entity::{BeeOccupant, GeneratedBlockEntity};
     use mcrs_minecraft_level::world::dimension::InDimension;
     use mcrs_minecraft_level::world::storage::block_entity::BlockEntity;
@@ -740,10 +738,10 @@ fn a_delivery_carrying_part_of_a_column_still_lays_its_bedrock_floor() {
     use bevy_app::App;
     use bevy_ecs::entity::Entity;
     use mcrs_minecraft_biome::source::BiomeSource;
+    use mcrs_minecraft_core::ColumnPos;
     use mcrs_minecraft_core::SectionPos;
-    use mcrs_minecraft_protocol::ColumnPos;
 
-    use crate::world::chunk::carried_sections;
+    use crate::chunk_plugin::carried_sections;
     use mcrs_minecraft_worldgen_generator::stages::fill_column;
     use mcrs_minecraft_worldgen_generator::task::CancellationToken;
 

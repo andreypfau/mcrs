@@ -41,7 +41,7 @@ confirmed one.
 ## Exception: world generation
 
 The world generation code stays as it is. The exception covers the crates
-`mcrs_minecraft_worldgen*`, `mcrs_minecraft_biome` and `crates/mcrs_minecraft_server/src/world/generate/`, with their
+`mcrs_minecraft_worldgen*`, `mcrs_minecraft_biome` and `crates/mcrs_minecraft_vanilla_worldgen/`, with their
 design notes `docs/worldgen.md`, `docs/aquifer.md`, `docs/surface.md`, `docs/structures.md`,
 `docs/scattering.md` and `docs/heightmap.md`. New work in these places follows the rules above.
 A change that touches a name of the game's code there removes the name.

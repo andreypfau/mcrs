@@ -9,7 +9,6 @@ use bevy_ecs::schedule::{IntoScheduleConfigs, Schedule, ScheduleLabel, SystemSet
 use bevy_ecs::system::{Local, Res, ResMut};
 use bevy_ecs::world::World;
 use bevy_time::{Fixed, Real, Time, Virtual};
-use mcrs_minecraft_world::worldgen::chunk_generator::ChunkGenerator;
 use std::collections::VecDeque;
 use tracing::{error, warn};
 
@@ -53,61 +52,31 @@ pub struct DimInboxDrain;
 #[derive(ScheduleLabel, Debug, Clone, PartialEq, Eq, Hash)]
 struct DimTick;
 
-/// Takes the columns whose sections landed on to the wire: run at the end of every tick and
-/// again between ticks, so a column read from the save is not held for the next tick.
-#[derive(ScheduleLabel, Debug, Clone, PartialEq, Eq, Hash)]
-pub struct ColumnDrain;
-
-/// The stages of a [`ColumnDrain`], in the order they run. Every one only acts on what is
-/// pending, which is what lets the drain run between ticks as well as at their end.
-#[derive(SystemSet, Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum ColumnDrainSet {
-    /// Finished generation and saved columns come off the pool into their sections.
-    Collect,
-    /// The column index, block entities and heightmaps catch up with what landed.
-    Reconcile,
-    /// Ticket levels spread, sections spawn, and the columns they need are queued and dispatched.
-    Request,
-    /// A finished light epoch is retired and the next one dispatched.
-    Light,
-    /// Ready columns go out and the outbox is flushed towards the host.
-    Send,
-}
-use crate::WorldSave;
 use crate::world::aoi::PlayerTrackerPlugin;
 use crate::world::block_update::{BlockUpdatePlugin, BlockUpdateWirePlugin};
 use crate::world::entity::MinecraftEntityPlugin;
-use crate::world::generate::DimensionRouters;
-use mcrs_minecraft_biome::source::{BiomeSource, MultiNoiseBiomeSource};
-use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_dimension_environment::dimension_type::DimensionTypeFile;
 use mcrs_minecraft_dimension_environment::environment::DimensionEnvironment;
 use mcrs_minecraft_engine::heightmap::{BlockHeightmapPredicates, DimHeightmapPlugin};
 use mcrs_minecraft_heightmap::HeightmapPredicates;
+use mcrs_minecraft_level::world::column_drain::{ColumnDrain, ColumnDrainSet};
 use mcrs_minecraft_level::world::dimension::{
     DimensionBundle, DimensionPlugin, DimensionTypeConfig, DimensionTypeId, HasSkyLight, HasWeather,
 };
+use mcrs_minecraft_level::world::dimension_builders::{DimensionBuild, DimensionBuilders};
 use mcrs_minecraft_level::world::lifecycle::trace::{ColumnTraceLog, ColumnTraceSink};
 use mcrs_minecraft_level::world::sub_app::{
     DimAppLabel, DimSpawnQueue, DimSpawnRequest, DimensionPlugins,
 };
+use mcrs_minecraft_level::world::world_save::WorldSave;
 use mcrs_minecraft_light_plugin::DimLightPlugin;
-use mcrs_minecraft_registries::{CurrentRegistries, Diagnostics, Registries};
-use mcrs_minecraft_worldgen_generator::SurfaceIds;
-use mcrs_minecraft_worldgen_generator::ids::FillIds;
-use mcrs_minecraft_worldgen_generator::multi_noise_biomes::PresetBiomeTables;
-use mcrs_minecraft_worldgen_generator::saved::SavedColumns;
-use mcrs_minecraft_worldgen_generator::stages::{FillContext, dimension_y_sections};
+use mcrs_minecraft_registries::CurrentRegistries;
 
 #[derive(Clone)]
 pub struct DimRegistryBundle {
     pub light_registry: Option<std::sync::Arc<mcrs_minecraft_light::block::LightRegistry>>,
     pub heightmap_predicates: Option<HeightmapPredicates>,
-    pub modern_carver_biomes: crate::world::generate::modern_carvers::DimensionCarverBiomes,
-    pub features: crate::world::generate::features::DimensionFeaturePrograms,
-    pub structures: crate::world::generate::structures::DimensionStructures,
     pub world_save: Option<WorldSave>,
-    pub noise_routers: DimensionRouters,
 }
 
 pub fn gather_dim_registries(world: &bevy_ecs::world::World) -> DimRegistryBundle {
@@ -118,23 +87,7 @@ pub fn gather_dim_registries(world: &bevy_ecs::world::World) -> DimRegistryBundl
         heightmap_predicates: world
             .get_resource::<BlockHeightmapPredicates>()
             .map(|predicates| predicates.0.clone()),
-        modern_carver_biomes: world
-            .get_resource::<crate::world::generate::modern_carvers::DimensionCarverBiomes>()
-            .cloned()
-            .unwrap_or_default(),
-        features: world
-            .get_resource::<crate::world::generate::features::DimensionFeaturePrograms>()
-            .cloned()
-            .unwrap_or_default(),
-        structures: world
-            .get_resource::<crate::world::generate::structures::DimensionStructures>()
-            .cloned()
-            .unwrap_or_default(),
         world_save: world.get_resource::<WorldSave>().cloned(),
-        noise_routers: world
-            .get_resource::<DimensionRouters>()
-            .cloned()
-            .unwrap_or_default(),
     }
 }
 
@@ -210,17 +163,6 @@ pub fn spawn_dim_subapp(
 
     let column_traces = app.world().get_resource::<ColumnTraceSink>().cloned();
     let trace_dimension = request.dimension.as_str().to_owned();
-    let biome_source = app
-        .world()
-        .get_resource::<crate::world_options::DimensionList>()
-        .and_then(|list| list.iter().find(|(key, _)| **key == request.dimension))
-        .and_then(|(_, entry)| match &entry.generator {
-            ChunkGenerator::Noise(generator) => {
-                Some(std::sync::Arc::new(generator.biome_source.clone()))
-            }
-            _ => None,
-        });
-
     let mut sub_app = SubApp::new();
     mcrs_minecraft_world::registry_snapshot::extract_registries(app.world(), sub_app.world_mut());
 
@@ -335,12 +277,6 @@ pub fn spawn_dim_subapp(
     sub_app.add_systems(
         ColumnDrain,
         (
-            (
-                crate::world::chunk::process_completed_columns,
-                crate::world::chunk::deliver_merged_columns,
-            )
-                .chain()
-                .in_set(ColumnDrainSet::Collect),
             // The light packet walks the column index, which is rebuilt here rather than left
             // to the tick: a column sent before its sections are in it goes out unlit.
             (
@@ -353,9 +289,6 @@ pub fn spawn_dim_subapp(
             (
                 mcrs_minecraft_level::world::lifecycle::ticket::propagate_section_levels,
                 mcrs_minecraft_level::world::lifecycle::ticket::spawn_chunks,
-                crate::world::chunk::enqueue_pending_columns,
-                crate::world::chunk::dispatch_column_generation
-                    .run_if(bevy_ecs::prelude::resource_exists::<FillContext>),
             )
                 .chain()
                 .in_set(ColumnDrainSet::Request),
@@ -389,10 +322,8 @@ pub fn spawn_dim_subapp(
 
     sub_app.add_plugins(DimensionPlugin);
     // AssetPlugin and AppTypeRegistry must precede any plugin that calls
-    // `init_asset` / `register_asset_loader`. `ChunkPlugin` (via its nested
-    // `NoiseGeneratorSettingsPlugin`) registers assets, so it must come after
-    // this block. `AppTypeRegistry` is initialised by `App::new` but not by
-    // `SubApp::new`, so the sub-app needs the explicit `init_resource` call.
+    // `init_asset` / `register_asset_loader`. `AppTypeRegistry` is initialised by `App::new` but
+    // not by `SubApp::new`, so the sub-app needs the explicit `init_resource` call.
     sub_app.init_resource::<bevy_ecs::reflect::AppTypeRegistry>();
     // Dropping a notify fsevents watcher joins its CFRunLoop thread and can
     // block forever; one recursive watch over the 22k-file corpus per dimension
@@ -412,75 +343,6 @@ pub fn spawn_dim_subapp(
         file_path: roots.assets,
         ..AssetPlugin::default()
     });
-    // The worldgen `ChunkPlugin` (ColumnScheduler, the CHUNK_TASK_POOL, and the
-    // five FixedPreUpdate worldgen systems) is the per-dim entry-point that
-    // turns DimSpawnRequest into populated columns. It is distinct from the
-    // engine-level `storage::section::SectionPlugin` that DimensionPlugin adds
-    // (which only contributes TicketPlugin).
-    //
-    // The router is compiled host-side and arrives here as a read-only
-    // snapshot; a dimension the preset drives with no noise generator simply
-    // gets none, and `dispatch_column_generation` never runs for it.
-    let dimension = request.dimension.location();
-    match registries.noise_routers.0.get(dimension) {
-        Some(dimension_router) => 'fill: {
-            let router = &dimension_router.router;
-            let blocks = sub_app.world().resource::<Blocks>().0.clone();
-            let current = sub_app.world().resource::<CurrentRegistries>();
-            let mut diagnostics = Diagnostics::default();
-            let surface_ids = SurfaceIds::resolve(current, &mut diagnostics);
-            let fill_ids = FillIds::resolve(current, &mut diagnostics);
-            let preset_tables = match biome_source.as_deref() {
-                Some(BiomeSource::MultiNoise(MultiNoiseBiomeSource::Preset(_))) => {
-                    PresetBiomeTables::resolve(current, &mut diagnostics)
-                }
-                _ => Some(PresetBiomeTables::default()),
-            };
-            let (Some(surface_ids), Some(fill_ids), Some(preset_tables)) =
-                (surface_ids, fill_ids, preset_tables)
-            else {
-                error!(%dimension, %diagnostics, "the registries lack a name worldgen needs; it will generate nothing");
-                break 'fill;
-            };
-            let features = registries
-                .features
-                .0
-                .get(dimension)
-                .map(std::sync::Arc::clone);
-            // A dimension with no program decorates nothing, which is silent
-            // in the world and loud only here.
-            if features.is_none() {
-                warn!(%dimension, "no feature program for this dimension; it will place no features");
-            }
-            sub_app.insert_resource(FillContext::build(
-                std::sync::Arc::clone(router),
-                Some(std::sync::Arc::clone(&dimension_router.material)),
-                blocks,
-                dimension_y_sections(router, type_config.min_y, type_config.section_count),
-                biome_source,
-                &preset_tables,
-                registries.heightmap_predicates.clone(),
-                registries.world_save.as_ref().and_then(|save| {
-                    let registries =
-                        Registries::clone(sub_app.world().resource::<CurrentRegistries>());
-                    SavedColumns::open(&save.0, &request.dimension, registries)
-                }),
-                registries
-                    .modern_carver_biomes
-                    .0
-                    .get(dimension)
-                    .map(std::sync::Arc::clone),
-                std::sync::Arc::new(surface_ids),
-                &fill_ids,
-                features,
-                registries.structures.0.get(dimension).cloned(),
-            ));
-        }
-        None => {
-            warn!(%dimension, "no noise router for this dimension; it will generate nothing")
-        }
-    }
-    sub_app.add_plugins(crate::world::chunk::ChunkPlugin);
     sub_app.add_plugins(PlayerTrackerPlugin);
     sub_app.add_plugins(BlockUpdatePlugin);
     sub_app.add_plugins(BlockUpdateWirePlugin);
@@ -498,12 +360,6 @@ pub fn spawn_dim_subapp(
         .copied()
         .unwrap_or_default();
     sub_app.insert_resource(default_game_mode);
-    let slow_column_threshold = app
-        .world()
-        .get_resource::<crate::world::chunk::SlowColumnThreshold>()
-        .copied()
-        .unwrap_or_default();
-    sub_app.insert_resource(slow_column_threshold);
     if let Some(registry) = &registries.light_registry {
         sub_app.add_plugins(DimLightPlugin {
             registry: std::sync::Arc::clone(registry),
@@ -518,7 +374,6 @@ pub fn spawn_dim_subapp(
     if let Some(predicates) = &registries.heightmap_predicates {
         sub_app.insert_resource(BlockHeightmapPredicates(predicates.clone()));
     }
-    sub_app.insert_resource(registries.structures.clone());
     if let Some(save) = &registries.world_save {
         sub_app.insert_resource(save.clone());
     }
@@ -582,6 +437,13 @@ pub fn spawn_dim_subapp(
 
     // Before the dimension entity spawns, so a plugin can still register required components and
     // hooks for its components and its observers see it spawn.
+    if let Some(builders) = app.world().get_resource::<DimensionBuilders>() {
+        let build = DimensionBuild {
+            dimension: &request.dimension,
+            type_config,
+        };
+        builders.build(app.world(), &build, &mut sub_app);
+    }
     if let Some(plugins) = app.world().get_resource::<DimensionPlugins>() {
         plugins.build(&request.dimension, &mut sub_app);
     }

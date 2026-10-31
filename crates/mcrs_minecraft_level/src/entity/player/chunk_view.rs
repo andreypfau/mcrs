@@ -16,6 +16,10 @@ impl Default for PlayerViewDistance {
     }
 }
 
+/// The view the client was last told about.
+#[derive(Component, Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct SentChunkView(pub Option<ChunkTrackingView>);
+
 #[derive(Debug, PartialEq, Eq, Hash, Copy, Clone)]
 pub struct ChunkTrackingView {
     pub center: SectionPos,

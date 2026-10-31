@@ -55,7 +55,8 @@ fn carvers_by_biome(registries: &Registries) -> Option<Vec<Arc<[CarverConfig]>>>
 /// datapack that retunes either is picked up here.
 fn build_modern_carver_biomes(
     mut commands: bevy_ecs::prelude::Commands,
-    dimensions: bevy_ecs::prelude::Res<crate::world_options::DimensionList>,
+    dimensions: bevy_ecs::prelude::Res<crate::dimension_generators::DimensionGenerators>,
+    list: bevy_ecs::prelude::Res<mcrs_minecraft_level::world::dimension_list::DimensionList>,
     current: bevy_ecs::prelude::Res<CurrentRegistries>,
 ) {
     let Some(carvers) = carvers_by_biome(&current) else {
@@ -72,8 +73,8 @@ fn build_modern_carver_biomes(
     let carvers_of = |biome: usize| carvers.get(biome).cloned().unwrap_or_default();
 
     let mut tables = DimensionCarverBiomes::default();
-    for (dimension, entry) in dimensions.iter() {
-        let ChunkGenerator::Noise(generator) = &entry.generator else {
+    for (dimension, generator) in dimensions.iter(&list) {
+        let ChunkGenerator::Noise(generator) = generator else {
             continue;
         };
         let dimension = dimension.location();

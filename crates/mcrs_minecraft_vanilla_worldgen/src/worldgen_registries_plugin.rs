@@ -10,16 +10,16 @@ use mcrs_minecraft_registries::{CurrentRegistries, Registries, RegistryAdditions
 use std::collections::BTreeSet;
 use std::path::Path;
 
-use crate::bevy::{TemplateAsset, WorldgenAssetsPlugin, named_templates};
-use crate::registries::add_vanilla_worldgen;
-use crate::tables::template_path;
+use crate::template_asset::{TemplateAsset, WorldgenAssetsPlugin, named_templates};
+use crate::template_handle::template_path;
+use mcrs_minecraft_worldgen::registries::add_vanilla_worldgen;
 
 /// The registries of vanilla world generation, the entries built by code and the structure
 /// templates the loaded registries name. The world plugin waits for the templates before the
 /// registries freeze.
-pub struct VanillaWorldgenPlugin;
+pub struct WorldgenRegistriesPlugin;
 
-impl Plugin for VanillaWorldgenPlugin {
+impl Plugin for WorldgenRegistriesPlugin {
     fn build(&self, app: &mut App) {
         app.add_plugins(WorldgenAssetsPlugin);
         let added =
@@ -222,7 +222,7 @@ mod tests {
 
     #[test]
     fn a_template_named_only_by_an_extra_pack_pool_is_requested() {
-        use crate::tables::template_handle;
+        use crate::template_handle::template_handle;
         use bevy_app::{App, TaskPoolPlugin};
         use bevy_asset::io::AssetSourceBuilder;
         use bevy_asset::io::memory::MemoryAssetReader;

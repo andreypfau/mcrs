@@ -1,4 +1,6 @@
-use crate::world_options::DimensionList;
+use crate::dimension_generators::DimensionGenerators;
+use crate::template_asset::{TemplateAsset, named_templates};
+use crate::template_handle::template_handle;
 use bevy_app::{App, AppExit, Plugin};
 use bevy_asset::{AssetServer, Assets, Handle};
 use bevy_ecs::prelude::{Commands, IntoScheduleConfigs, MessageWriter, Res, Resource};
@@ -11,14 +13,14 @@ use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_core::Registered;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_entity::variant::{CatSoundVariant, ChickenSoundVariant};
+use mcrs_minecraft_level::world::dimension_list::DimensionList;
+use mcrs_minecraft_level::world::sub_app::DimSpawnEnqueue;
 use mcrs_minecraft_registries::{CurrentRegistries, Registries, Registry};
 use mcrs_minecraft_world::variant::spawn_selectors;
 use mcrs_minecraft_world::variant::{
     CatVariantFile, ChickenVariantFile, ZombieNautilusVariantFile,
 };
 use mcrs_minecraft_world::worldgen::chunk_generator::ChunkGenerator;
-use mcrs_minecraft_worldgen::bevy::{TemplateAsset, named_templates};
-use mcrs_minecraft_worldgen::tables::template_handle;
 use mcrs_minecraft_worldgen_feature::pool::TemplatePool;
 use mcrs_minecraft_worldgen_feature::template::PaletteState;
 use mcrs_minecraft_worldgen_generator::features::possible_biomes;
@@ -39,11 +41,12 @@ pub fn dimension_tables(
     biomes: &Registry<BiomeFile>,
     registries: &Registries,
     lists: &ParameterLists,
-    dimensions: &DimensionList,
+    dimensions: &DimensionGenerators,
+    list: &DimensionList,
 ) -> DimensionStructures {
     let mut tables = DimensionStructures::default();
-    for (dimension, entry) in dimensions.iter() {
-        let ChunkGenerator::Noise(generator) = &entry.generator else {
+    for (dimension, generator) in dimensions.iter(list) {
+        let ChunkGenerator::Noise(generator) = generator else {
             continue;
         };
         let dimension = dimension.location();
@@ -77,14 +80,14 @@ impl Plugin for StructurePlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(
             OnEnter(AppState::Playing),
-            build_dimension_structures.before(crate::world::enqueue_dim_spawns),
+            build_dimension_structures.before(DimSpawnEnqueue),
         );
     }
 }
 
 pub(crate) fn build_dimension_structures(
     mut commands: Commands,
-    dimensions: Res<DimensionList>,
+    (dimensions, list): (Res<DimensionGenerators>, Res<DimensionList>),
     asset_server: Res<AssetServer>,
     templates: Res<Assets<TemplateAsset>>,
     blocks: Res<Blocks>,
@@ -190,5 +193,6 @@ pub(crate) fn build_dimension_structures(
         &registries,
         &parameter_lists_of(&registries).unwrap_or_else(|| Arc::from(Vec::new())),
         &dimensions,
+        &list,
     ));
 }

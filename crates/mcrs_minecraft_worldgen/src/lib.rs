@@ -1,9 +1,3 @@
 pub mod beard;
-#[cfg(feature = "bevy")]
-pub mod bevy;
-#[cfg(feature = "bevy")]
-pub mod plugin;
 pub mod registries;
 pub mod router;
-#[cfg(feature = "bevy")]
-pub mod tables;

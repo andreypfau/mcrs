@@ -1,5 +1,8 @@
-use crate::world::generate::structures::{DimensionStructures, build_dimension_structures};
-use crate::world_options::{DimensionList, WorldSeed};
+use crate::dimension_generators::DimensionGenerators;
+use crate::structures::{DimensionStructures, build_dimension_structures};
+use crate::template_asset::{TemplateAsset, named_templates};
+use crate::template_handle::template_handle;
+use crate::world_seed::WorldSeed;
 use bevy_app::{App, AppExit, Plugin};
 use bevy_asset::{AssetServer, Assets};
 use bevy_ecs::prelude::{Commands, IntoScheduleConfigs, MessageWriter, Res, Resource};
@@ -12,12 +15,12 @@ use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_block_predicate::provider::DirectBlockStateProvider;
 use mcrs_minecraft_block_predicate::provider::Holder;
 use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_level::world::dimension_list::DimensionList;
+use mcrs_minecraft_level::world::sub_app::DimSpawnEnqueue;
 use mcrs_minecraft_registries::{
     CurrentRegistries, IdSet, Named, Namer, Registries, Registry, Resolve, Tags,
 };
 use mcrs_minecraft_world::worldgen::chunk_generator::ChunkGenerator;
-use mcrs_minecraft_worldgen::bevy::{TemplateAsset, named_templates};
-use mcrs_minecraft_worldgen::tables::template_handle;
 use mcrs_minecraft_worldgen_feature::compile::{LoadedFeatures, build_feature_steps};
 use mcrs_minecraft_worldgen_feature::proto::FeatureStepList;
 use mcrs_minecraft_worldgen_feature::proto::{Feature, PlacedFeature, StructureProcessorList};
@@ -46,7 +49,7 @@ impl Plugin for FeaturePlugin {
             OnEnter(AppState::Playing),
             build_dimension_features
                 .after(build_dimension_structures)
-                .before(crate::world::enqueue_dim_spawns),
+                .before(DimSpawnEnqueue),
         );
     }
 }
@@ -139,7 +142,8 @@ fn loaded_features(
 )]
 fn build_dimension_features(
     mut commands: Commands,
-    dimensions: Res<DimensionList>,
+    dimensions: Res<DimensionGenerators>,
+    list: Res<DimensionList>,
     asset_server: Res<AssetServer>,
     templates: Res<Assets<TemplateAsset>>,
     structures: Option<Res<DimensionStructures>>,
@@ -197,8 +201,8 @@ fn build_dimension_features(
 
     let parameter_lists = parameter_lists_of(&registries).unwrap_or_else(|| Arc::from(Vec::new()));
     let mut programs = DimensionFeaturePrograms::default();
-    for (dimension, entry) in dimensions.iter() {
-        let ChunkGenerator::Noise(generator) = &entry.generator else {
+    for (dimension, generator) in dimensions.iter(&list) {
+        let ChunkGenerator::Noise(generator) = generator else {
             continue;
         };
         let dimension = dimension.location();
