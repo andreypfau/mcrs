@@ -1,5 +1,5 @@
 use crate::{BlockPos, RegionPos, SectionPos};
-use bevy_math::{DVec3, IVec2};
+use glam::{DVec3, IVec2};
 use std::fmt::Debug;
 
 /// The X and Z position of a chunk column.

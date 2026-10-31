@@ -3544,9 +3544,9 @@ dependencies = [
  "bevy_app",
  "bevy_asset",
  "bevy_ecs",
- "bevy_math",
  "bevy_platform",
  "bitflags 2.10.0",
+ "glam",
  "mcrs_minecraft_assets",
  "mcrs_minecraft_block",
  "mcrs_minecraft_core",
@@ -3893,8 +3893,8 @@ name = "mcrs_minecraft_core"
 version = "0.5.8"
 dependencies = [
  "bevy_ecs",
- "bevy_math",
  "derive_more",
+ "glam",
  "mcrs_minecraft_nbt",
  "mcrs_minecraft_snbt",
  "mcrs_minecraft_wire",
@@ -4127,8 +4127,8 @@ dependencies = [
  "bevy_app",
  "bevy_asset",
  "bevy_ecs",
- "bevy_math",
  "bevy_tasks",
+ "glam",
  "mcrs_minecraft_block",
  "mcrs_minecraft_chunk",
  "mcrs_minecraft_core",
@@ -4145,7 +4145,7 @@ dependencies = [
  "bevy_app",
  "bevy_asset",
  "bevy_ecs",
- "bevy_math",
+ "glam",
  "mcrs_minecraft_assets",
  "mcrs_minecraft_block",
  "mcrs_minecraft_chunk",
@@ -4193,8 +4193,8 @@ dependencies = [
 name = "mcrs_minecraft_mesh"
 version = "0.5.8"
 dependencies = [
- "bevy_math",
  "bytemuck",
+ "glam",
  "mcrs_minecraft_core",
  "mcrs_minecraft_volume",
 ]
@@ -4219,8 +4219,8 @@ dependencies = [
  "anyhow",
  "bevy_app",
  "bevy_ecs",
- "bevy_math",
  "bytes",
+ "glam",
  "js-sys",
  "mcrs_minecraft_core",
  "mcrs_minecraft_network",
@@ -4242,7 +4242,7 @@ dependencies = [
 name = "mcrs_minecraft_noise"
 version = "0.5.8"
 dependencies = [
- "bevy_math",
+ "glam",
  "mcrs_minecraft_core",
  "mcrs_minecraft_random",
  "mcrs_minecraft_registries",
@@ -4326,7 +4326,7 @@ dependencies = [
 name = "mcrs_minecraft_random"
 version = "0.5.8"
 dependencies = [
- "bevy_math",
+ "glam",
  "md-5",
  "rand_xoshiro",
 ]
@@ -4601,11 +4601,11 @@ dependencies = [
  "bevy_app",
  "bevy_asset",
  "bevy_ecs",
- "bevy_math",
  "bevy_platform",
  "bevy_state",
  "bevy_tasks",
  "bytes",
+ "glam",
  "mcrs_minecraft_assets",
  "mcrs_minecraft_biome",
  "mcrs_minecraft_biome_file",

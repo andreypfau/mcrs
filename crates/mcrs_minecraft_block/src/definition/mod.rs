@@ -11,7 +11,7 @@ use bevy_platform::time::Instant;
 use bevy_asset::AssetServer;
 #[cfg(feature = "bevy")]
 use bevy_asset::io::AssetSourceId;
-use bevy_math::Vec3;
+use glam::Vec3;
 use rustc_hash::{FxBuildHasher, FxHashMap};
 
 use self::molang::{MolangError, StateCondition};

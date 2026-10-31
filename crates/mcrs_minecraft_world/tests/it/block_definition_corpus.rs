@@ -2,7 +2,7 @@ use std::sync::OnceLock;
 
 use bevy_app::{App, TaskPoolPlugin};
 use bevy_asset::{AssetPlugin, AssetServer};
-use bevy_math::Vec3;
+use glam::Vec3;
 use mcrs_minecraft_block::definition::schema::{NoteBlockInstrument, PropertyValue};
 use mcrs_minecraft_block::definition::{
     BlockDefinitions, BlockSoundSets, BlockStateData, BlockStateFlags, LoadReport,

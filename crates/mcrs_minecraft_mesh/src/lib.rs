@@ -415,7 +415,7 @@ pub fn mesh_world(
 mod tests {
     use super::*;
     use crate::block::{CubeFace, ModelQuad};
-    use bevy_math::Vec3;
+    use glam::Vec3;
 
     #[test]
     fn a_reused_scratch_meshes_a_section_exactly_as_a_fresh_one_does() {

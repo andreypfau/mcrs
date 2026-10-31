@@ -1,5 +1,5 @@
 use super::{Aabb, FACE_MASK_FULL, ShapeRepr, VoxelShape};
-use bevy_math::Vec3;
+use glam::Vec3;
 
 pub(super) static BLOCK: VoxelShape = VoxelShape {
     repr: ShapeRepr::Block,

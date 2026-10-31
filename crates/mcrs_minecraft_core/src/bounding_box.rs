@@ -1,5 +1,5 @@
 use crate::{BlockPos, SectionPos};
-use bevy_math::IVec3;
+use glam::IVec3;
 
 /// An inclusive box in block coordinates.
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]

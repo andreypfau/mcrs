@@ -205,7 +205,7 @@ mod tests {
     #[test]
     fn a_dropped_axis_broadcasts_across_every_column_that_shares_it() {
         use crate::strata::{AXIS_X, AXIS_Y, AXIS_Z};
-        use bevy_math::IVec3;
+        use glam::IVec3;
 
         let volume = SampleGrid::dense(IVec3::new(2, 3, 2), IVec3::ZERO);
         let data: Vec<f32> = (0..4).map(|i| i as f32).collect();
@@ -224,7 +224,7 @@ mod tests {
     #[test]
     fn each_column_walks_the_stratum_in_layout_order() {
         use crate::strata::{AXIS_X, AXIS_Z, stratum};
-        use bevy_math::IVec3;
+        use glam::IVec3;
 
         let volume = SampleGrid::dense(IVec3::new(2, 3, 2), IVec3::ZERO);
         let ext = stratum(AXIS_X | AXIS_Z, &volume);

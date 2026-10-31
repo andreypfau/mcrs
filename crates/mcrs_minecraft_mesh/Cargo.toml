@@ -11,7 +11,7 @@ doctest = false
 workspace = true
 
 [dependencies]
-bevy_math.workspace = true
+glam.workspace = true
 bytemuck = { version = "1", features = ["derive"] }
 mcrs_minecraft_core.workspace = true
 mcrs_minecraft_volume.workspace = true

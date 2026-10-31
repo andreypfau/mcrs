@@ -1,4 +1,4 @@
-use bevy_math::Vec3;
+use glam::Vec3;
 use mcrs_minecraft_core::Direction;
 
 use crate::ambient::Neighbour;

@@ -1,6 +1,6 @@
 use crate::bits::BitSource;
 use crate::{GaussianBank, Random, block_pos_seed};
-use bevy_math::IVec3;
+use glam::IVec3;
 use rand_xoshiro::rand_core::{Rng, TryRng};
 use std::convert::Infallible;
 

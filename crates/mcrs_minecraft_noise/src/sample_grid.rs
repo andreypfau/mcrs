@@ -1,4 +1,4 @@
-use bevy_math::IVec3;
+use glam::IVec3;
 pub use mcrs_minecraft_core::Axis;
 use mcrs_minecraft_core::mth::{floor_div, floor_mod};
 

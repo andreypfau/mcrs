@@ -1,6 +1,6 @@
 use std::sync::{Arc, OnceLock};
 
-use bevy_math::Vec3;
+use glam::Vec3;
 use mcrs_minecraft_chunk::{VoxelId, VoxelPalette};
 use mcrs_minecraft_core::voxel_shape::{Aabb, VoxelShape};
 use mcrs_minecraft_core::{BlockPos, BlockStateId, BoundingBox, LocalPos, SectionPos};
@@ -162,7 +162,7 @@ impl Neighbourhood {
 
     fn slot(&self, pos: SectionPos) -> Option<usize> {
         let d = pos.0 - self.centre.0 + 1;
-        (d.cmpge(bevy_math::IVec3::ZERO).all() && d.cmplt(bevy_math::IVec3::splat(3)).all())
+        (d.cmpge(glam::IVec3::ZERO).all() && d.cmplt(glam::IVec3::splat(3)).all())
             .then(|| (d.x + 3 * d.z + 9 * d.y) as usize)
     }
 

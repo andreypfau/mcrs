@@ -1,4 +1,4 @@
-use bevy_math::IVec3;
+use glam::IVec3;
 use md5::{Digest, Md5};
 use rand_xoshiro::Xoroshiro128PlusPlus;
 use rand_xoshiro::rand_core::{Rng, SeedableRng, TryRng};

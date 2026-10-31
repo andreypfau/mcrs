@@ -1,6 +1,6 @@
 use std::sync::{Arc, OnceLock};
 
-use bevy_math::Vec3;
+use glam::Vec3;
 use mcrs_minecraft_chunk::{PalettedContainer, VoxelId, VoxelPalette};
 use mcrs_minecraft_core::voxel_shape::{Aabb, VoxelShape};
 use mcrs_minecraft_core::{BlockPos, BlockStateId, Direction, SectionPos};

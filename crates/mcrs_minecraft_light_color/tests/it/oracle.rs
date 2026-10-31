@@ -8,7 +8,7 @@ use mcrs_minecraft_light_color::region::{Palette, Region, section_bricks, sectio
 use mcrs_minecraft_light_color::resolve::{Lanes, resolve};
 use proptest::prelude::*;
 
-const CENTRE: SectionPos = SectionPos(bevy_math::IVec3::new(0, 4, 0));
+const CENTRE: SectionPos = SectionPos(glam::IVec3::new(0, 4, 0));
 
 fn resolve_one(levels: &[(LightType, u8)]) -> [u8; 4] {
     let region = Region {

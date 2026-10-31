@@ -44,7 +44,7 @@ bevy = [
 [dev-dependencies]
 mcrs_minecraft_volume.workspace = true
 mcrs_minecraft_world = { workspace = true, features = ["test-support"] }
-bevy_math.workspace = true
+glam.workspace = true
 proptest = "1.11.0"
 serde_json.workspace = true
 mcrs_minecraft_item = { workspace = true, features = ["bevy"] }

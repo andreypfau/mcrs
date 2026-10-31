@@ -30,7 +30,7 @@ bevy = ["dep:bevy_ecs", "dep:bevy_app", "dep:bevy_tasks"]
 bevy_app.workspace = true
 bevy_asset.workspace = true
 mcrs_minecraft_block = { workspace = true, features = ["bevy"] }
-bevy_math.workspace = true
+glam.workspace = true
 mcrs_minecraft_core = { workspace = true, features = ["bevy"] }
 
 [[example]]

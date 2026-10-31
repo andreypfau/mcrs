@@ -17,7 +17,7 @@ serde.workspace = true
 anyhow.workspace = true
 bevy_app = { workspace = true, optional = true }
 bevy_ecs = { workspace = true, optional = true }
-bevy_math.workspace = true
+glam.workspace = true
 bytes.workspace = true
 mcrs_minecraft_core.workspace = true
 mcrs_minecraft_protocol.workspace = true

@@ -1,5 +1,5 @@
 use crate::sample_grid::{Axis, SampleGrid};
-use bevy_math::IVec3;
+use glam::IVec3;
 
 pub type Axes = u8;
 
