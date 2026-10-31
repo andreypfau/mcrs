@@ -260,7 +260,7 @@ impl PlayServer {
         let mut packets = Vec::new();
         for _ in 0..n {
             self.app.update();
-            mcrs_minecraft_server::runner::between_ticks(&mut self.app);
+            mcrs_minecraft_engine_server::runner::between_ticks(&mut self.app);
             packets.extend(
                 self.app
                     .world_mut()

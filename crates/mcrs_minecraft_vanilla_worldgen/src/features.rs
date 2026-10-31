@@ -1,8 +1,6 @@
-use crate::dimension_generators::DimensionGenerators;
 use crate::structures::{DimensionStructures, build_dimension_structures};
 use crate::template_asset::{TemplateAsset, named_templates};
 use crate::template_handle::template_handle;
-use crate::world_seed::WorldSeed;
 use bevy_app::{App, AppExit, Plugin};
 use bevy_asset::{AssetServer, Assets};
 use bevy_ecs::prelude::{Commands, IntoScheduleConfigs, MessageWriter, Res, Resource};
@@ -15,6 +13,8 @@ use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_block_predicate::provider::DirectBlockStateProvider;
 use mcrs_minecraft_block_predicate::provider::Holder;
 use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_engine::dimension_generators::DimensionGenerators;
+use mcrs_minecraft_engine::world_seed::WorldSeed;
 use mcrs_minecraft_level::world::dimension_list::DimensionList;
 use mcrs_minecraft_level::world::sub_app::DimSpawnEnqueue;
 use mcrs_minecraft_registries::{

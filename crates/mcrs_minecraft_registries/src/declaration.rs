@@ -281,4 +281,7 @@ pub struct RegistryAdditions {
     pub declarations: Vec<Declaration>,
     pub embedded_packs: Vec<String>,
     pub files: PackFiles,
+    /// The local packs of the pack root the load takes, by directory name. A local pack that no
+    /// one names is left out.
+    pub local_packs: Vec<String>,
 }

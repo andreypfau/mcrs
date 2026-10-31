@@ -9,10 +9,10 @@ use std::time::Duration;
 use bevy_app::{App, AppExit, PluginGroup};
 use bevy_log::{Level, LogPlugin, tracing_subscriber};
 use mcrs_minecraft_engine::ops::{OPS_FILE, OpList};
-use mcrs_minecraft_server::{
-    DimensionWorldsPlugin, GameMode, MinecraftServerPlugins, NetworkCompressionThreshold,
-    ServerNetworkPlugin,
+use mcrs_minecraft_engine_server::{
+    DimensionWorldsPlugin, GameMode, NetworkCompressionThreshold, ServerNetworkPlugin,
 };
+use mcrs_minecraft_server::MinecraftServerPlugins;
 use mcrs_minecraft_vanilla_light::LightingPlugin;
 use mcrs_minecraft_vanilla_worldgen::WorldGenPlugin;
 
@@ -77,7 +77,7 @@ async fn main() -> AppExit {
         server = server.disable::<LightingPlugin>();
     }
     app.add_plugins(server);
-    mcrs_minecraft_server::run_server_loop(app)
+    mcrs_minecraft_engine_server::run_server_loop(app)
 }
 
 fn variable(name: &str) -> Option<String> {
@@ -186,7 +186,7 @@ fn slow_column_threshold(value: Option<&str>) -> Duration {
 #[cfg(test)]
 mod tests {
     use super::{game_mode, on_off, world_seed};
-    use mcrs_minecraft_server::GameMode;
+    use mcrs_minecraft_engine_server::GameMode;
 
     #[test]
     fn the_on_off_settings_read_their_spellings_in_any_case() {

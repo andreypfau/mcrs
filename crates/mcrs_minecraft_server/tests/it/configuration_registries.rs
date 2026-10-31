@@ -7,6 +7,10 @@ use mcrs_minecraft_assets::AppState;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::VERSION;
 use mcrs_minecraft_datapack::{VANILLA_PACK, VANILLA_ROOT};
+use mcrs_minecraft_engine_server::configuration::{
+    KnownPackOffer, known_pack_offer, negotiated, offered_pack, on_known_packs_response,
+    start_configuration,
+};
 use mcrs_minecraft_item::damage_type::DamageType;
 use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_network::event::Received;
@@ -18,12 +22,10 @@ use mcrs_minecraft_protocol::packets::configuration::{
 };
 use mcrs_minecraft_protocol::resource_pack::KnownPack;
 use mcrs_minecraft_protocol::{Decode, Encode, Packet};
-use mcrs_minecraft_registries::{CurrentRegistries, NetworkSnapshot, Registries};
-use mcrs_minecraft_server::MinecraftServerPlugins;
-use mcrs_minecraft_server::configuration::{
-    KnownPackOffer, known_pack_offer, negotiated, offered_pack, on_known_packs_response,
-    start_configuration,
+use mcrs_minecraft_registries::{
+    CurrentRegistries, NetworkSnapshot, Registries, RegistryAdditions,
 };
+use mcrs_minecraft_server::MinecraftServerPlugins;
 use mcrs_minecraft_world::SyncedRegistries;
 use mcrs_minecraft_world::registry_load::{test_network, test_registries};
 use std::collections::BTreeMap;
@@ -31,8 +33,12 @@ use std::path::{Path, PathBuf};
 
 pub(crate) const ASSETS: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../assets");
 
-fn served(root: &Path) -> (Registries, NetworkSnapshot) {
+fn served(root: &Path, local_pack: &str) -> (Registries, NetworkSnapshot) {
     let mut app = App::new();
+    app.world_mut()
+        .get_resource_or_init::<RegistryAdditions>()
+        .local_packs
+        .push(local_pack.to_owned());
     let mut plugins = MinecraftServerPlugins::embedded();
     plugins.core.asset_path = Some(root.to_str().unwrap().to_owned());
     plugins.network.announce_on_lan = false;
@@ -128,7 +134,7 @@ fn a_pack_replacing_a_shipped_damage_type_is_what_the_server_uses_and_sends() {
             r#"{"exhaustion":0.75,"message_id":"arrow","scaling":"when_caused_by_living_non_player"}"#,
         )],
     );
-    let (registries, network) = served(&root.0);
+    let (registries, network) = served(&root.0, "zz_override");
 
     let registry = "minecraft:damage_type";
     let damage_types = registries.registry::<DamageType>().unwrap();

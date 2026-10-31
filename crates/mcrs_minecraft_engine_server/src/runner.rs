@@ -1,6 +1,7 @@
 use bevy_app::{App, AppExit};
 use bevy_ecs::entity::Entity;
 use bevy_ecs::query::With;
+use mcrs_minecraft_engine::between_ticks::run_between_ticks;
 use mcrs_minecraft_engine::bridge::OutboundFlush;
 use mcrs_minecraft_engine::dim::{DimSubAppHandle, drain_dim_despawn_queue, pump_channels};
 use mcrs_minecraft_engine::sub_app_builder::drain_dim_spawn_queue;
@@ -22,13 +23,11 @@ pub fn run_server_loop(app: App) -> AppExit {
     )
 }
 
-/// What the host does after each tick: it takes the dimensions' output, runs the commands
-/// it parsed, moves the players that changed dimension and spawns or despawns dimensions.
+/// What the host does after each tick: it takes the dimensions' output, runs what plugins
+/// added to `BetweenTicks`, moves the players that changed dimension and spawns or despawns dimensions.
 pub fn between_ticks(app: &mut App) {
     pump_channels(app);
-    mcrs_minecraft_command_engine::run_pending_commands::<
-        mcrs_minecraft_command_vanilla::VanillaCommands,
-    >(app);
+    run_between_ticks(app);
     mcrs_minecraft_engine::player_dimension_change::apply_dimension_change_requests(app);
     drain_dim_spawn_queue(app);
     drain_dim_despawn_queue(app);

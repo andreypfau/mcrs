@@ -9,14 +9,14 @@ use mcrs_minecraft_world::worldgen::chunk_generator::ChunkGenerator;
 pub struct DimensionGenerators(pub Vec<ChunkGenerator>);
 
 impl DimensionGenerators {
-    pub(crate) fn iter<'a>(
+    pub fn iter<'a>(
         &'a self,
         dimensions: &'a DimensionList,
     ) -> impl Iterator<Item = (&'a ResourceKey<Dimension>, &'a ChunkGenerator)> {
         dimensions.keys().iter().zip(&self.0)
     }
 
-    pub(crate) fn get(
+    pub fn get(
         &self,
         dimensions: &DimensionList,
         dimension: &ResourceKey<Dimension>,

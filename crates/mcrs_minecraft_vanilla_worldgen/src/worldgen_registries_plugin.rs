@@ -254,6 +254,7 @@ mod tests {
         };
         let mut additions = RegistryAdditions::default();
         add_vanilla_worldgen(&mut additions).unwrap();
+        additions.local_packs.push("extra".to_owned());
         let (registries, _) =
             load_registries(&source, additions).unwrap_or_else(|error| panic!("{error}"));
 

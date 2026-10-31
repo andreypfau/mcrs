@@ -2,7 +2,7 @@ use std::path::PathBuf;
 
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_datapack::{Level, PackDiagnostic};
-use mcrs_minecraft_registries::{Diagnostic, Missing, Referrer};
+use mcrs_minecraft_registries::{Diagnostic, Missing, Referrer, RegistryAdditions};
 use mcrs_minecraft_world::registry_load::{RegistryLoadError, load_registries, test_additions};
 
 use crate::common::directory_packs;
@@ -138,7 +138,7 @@ fn each_broken_pack_over_vanilla_reports_its_one_error_with_pack_file_and_field(
         let packs = directory_packs()
             .with_only_pack(&write_pack(name, metadata, files))
             .unwrap();
-        let (failed, diagnostics) = match load_registries(&packs, test_additions()) {
+        let (failed, diagnostics) = match load_registries(&packs, with_local_pack(name)) {
             Ok((_, diagnostics)) => (false, diagnostics),
             Err(RegistryLoadError::Load(diagnostics)) => (true, diagnostics),
             Err(error) => panic!("{name}: {error}"),
@@ -150,4 +150,10 @@ fn each_broken_pack_over_vanilla_reports_its_one_error_with_pack_file_and_field(
         assert_eq!(errors, [expected], "{name}:\n{diagnostics}");
         assert_eq!(failed, fails, "{name}: whether the load fails");
     }
+}
+
+fn with_local_pack(name: &str) -> RegistryAdditions {
+    let mut additions = test_additions();
+    additions.local_packs.push(name.to_owned());
+    additions
 }

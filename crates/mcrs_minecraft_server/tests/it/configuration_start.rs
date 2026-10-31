@@ -5,6 +5,7 @@ use bevy_state::app::{AppExtStates, StatesPlugin};
 use bevy_state::prelude::NextState;
 use bytes::BytesMut;
 use mcrs_minecraft_assets::AppState;
+use mcrs_minecraft_engine_server::configuration::{AwaitingKnownPacks, start_configuration};
 use mcrs_minecraft_network::identity;
 use mcrs_minecraft_network::{ConnectionState, ServerSideConnection};
 use mcrs_minecraft_protocol::Decode;
@@ -15,7 +16,6 @@ use mcrs_minecraft_protocol::packets::configuration::clientbound::{
     ClientboundCustomPayload, ClientboundSelectKnownPacks,
 };
 use mcrs_minecraft_registries::CurrentRegistries;
-use mcrs_minecraft_server::configuration::{AwaitingKnownPacks, start_configuration};
 use mcrs_minecraft_world::registry_load::test_registries;
 
 #[test]

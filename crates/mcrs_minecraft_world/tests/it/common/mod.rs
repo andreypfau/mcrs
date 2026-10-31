@@ -13,7 +13,7 @@ use mcrs_minecraft_datapack::{DirectoryEntry, DirectoryPacks, PackSource, ReadEr
 use mcrs_minecraft_fixtures::vanilla_dir;
 use mcrs_minecraft_item::Items;
 use mcrs_minecraft_registries::Diagnostics;
-use mcrs_minecraft_registries::{Namer, Registries, Resolve};
+use mcrs_minecraft_registries::{Namer, Registries, RegistryAdditions, Resolve};
 use mcrs_minecraft_world::MinecraftWorldPlugin;
 use mcrs_minecraft_world::item::test_corpus;
 use mcrs_minecraft_world::registry_load::{RegistryLoadError, load_registries, test_additions};
@@ -126,6 +126,10 @@ pub fn run_to_playing() -> App {
         ..Default::default()
     });
     app.add_plugins(mcrs_minecraft_assets::MinecraftCorePlugin);
+    app.world_mut()
+        .get_resource_or_init::<RegistryAdditions>()
+        .local_packs
+        .push("mcrs".to_owned());
     app.add_plugins(MinecraftWorldPlugin);
     app.add_plugins(mcrs_minecraft_vanilla_worldgen::WorldgenRegistriesPlugin);
     app.finish();
@@ -159,6 +163,10 @@ pub fn plugin_app<M>(plugins: impl Plugins<M>) -> App {
     });
     app.add_plugins(mcrs_minecraft_assets::MinecraftCorePlugin);
     app.add_plugins(plugins);
+    app.world_mut()
+        .get_resource_or_init::<RegistryAdditions>()
+        .local_packs
+        .push("mcrs".to_owned());
     app.add_plugins(MinecraftWorldPlugin);
     app.add_plugins(mcrs_minecraft_vanilla_worldgen::WorldgenRegistriesPlugin);
     app.finish();
@@ -172,6 +180,7 @@ pub struct WithFiles {
     base: DirectoryPacks,
     files: BTreeMap<String, Option<Vec<u8>>>,
     hidden: Vec<String>,
+    packs: Vec<String>,
 }
 
 impl WithFiles {
@@ -180,6 +189,7 @@ impl WithFiles {
             base: directory_packs(),
             files: BTreeMap::new(),
             hidden: Vec::new(),
+            packs: Vec::new(),
         }
     }
 
@@ -197,9 +207,19 @@ impl WithFiles {
         self
     }
 
-    pub fn pack(self, root: &str) -> Self {
+    pub fn pack(mut self, root: &str) -> Self {
         let metadata = std::fs::read(assets().join("mcrs/datapacks/beta/pack.mcmeta")).unwrap();
+        if let Some(name) = root.strip_prefix("mcrs/datapacks/") {
+            self.packs.push(name.to_owned());
+        }
         self.with(format!("{root}/pack.mcmeta"), metadata)
+    }
+
+    /// The test additions with the local packs this source added.
+    pub fn additions(&self) -> RegistryAdditions {
+        let mut additions = test_additions();
+        additions.local_packs.extend(self.packs.iter().cloned());
+        additions
     }
 
     pub fn test_pack<P: AsRef<str>, T: AsRef<str>>(files: &[(P, T)]) -> Self {
@@ -229,7 +249,7 @@ impl WithFiles {
     }
 
     pub fn load(&self) -> Result<(Registries, Diagnostics), RegistryLoadError> {
-        load_registries(self, test_additions())
+        load_registries(self, self.additions())
     }
 }
 

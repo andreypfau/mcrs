@@ -6,11 +6,13 @@ use crate::command_targets::CommandTargets;
 use crate::command_tree::{CommandTree, CommandTreeBuilder, CommandTreePackets, send_command_tree};
 use crate::handlers::{CommandHandlers, ModifierHandlers};
 use crate::pass::PassBuffers;
+use crate::pass::run_pending_commands;
 use crate::running_command::RunningCommand;
 use bevy_app::{App, Plugin, Update};
 use bevy_ecs::schedule::IntoScheduleConfigs;
 use mcrs_command::GraphBuilder;
 use mcrs_minecraft_engine::ability::{AnswerOpLevel, OpLevelAnnounced};
+use mcrs_minecraft_engine::between_ticks::BetweenTicks;
 use mcrs_minecraft_level::world::sub_app::AddDimensionPlugins;
 use std::marker::PhantomData;
 
@@ -41,6 +43,9 @@ impl<S: CommandSet> Plugin for CommandPlugin<S> {
         app.init_resource::<CommandQueue>();
         app.add_observer(queue_command_line)
             .add_observer(queue_suggestion_request);
+        app.world_mut()
+            .get_resource_or_init::<BetweenTicks>()
+            .add(run_pending_commands::<S>);
     }
 
     fn finish(&self, app: &mut App) {

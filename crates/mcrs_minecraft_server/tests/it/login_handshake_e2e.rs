@@ -23,12 +23,12 @@ use mcrs_minecraft_engine::dim::pump_channels;
 use mcrs_minecraft_engine::session::GameProfile;
 use mcrs_minecraft_engine::session::HostAnchorRef;
 use mcrs_minecraft_engine::sub_app_builder::drain_dim_spawn_queue;
+use mcrs_minecraft_engine_server::configuration::emit_initial_player_spawn;
+use mcrs_minecraft_engine_server::login::{LoginPlugin, LoginState};
 use mcrs_minecraft_level::session::{Place, SessionPlacement};
 use mcrs_minecraft_level::world::sub_app::{DimSpawnQueue, DimSpawnRequest};
 use mcrs_minecraft_network::ServerSideConnection;
 use mcrs_minecraft_protocol::uuid::Uuid;
-use mcrs_minecraft_server::configuration::emit_initial_player_spawn;
-use mcrs_minecraft_server::login::{LoginPlugin, LoginState};
 
 // ---------------------------------------------------------------------------
 // e2e_join_releases_joining_world

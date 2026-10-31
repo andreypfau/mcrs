@@ -107,12 +107,22 @@ pub fn load_registries(
         declarations: extra,
         embedded_packs,
         mut files,
+        local_packs,
     } = additions;
     let packs = RootPacks::read(source)?;
     let declarations = declarations(&source.read(DATAPACK_REPORT)?, extra)?;
 
     let mut selection = PackSelection::default();
-    let mut available = packs.available().to_vec();
+    let mut available: Vec<AvailablePack> = packs
+        .available()
+        .iter()
+        .filter(|pack| {
+            pack.id()
+                .strip_prefix("file/")
+                .is_none_or(|name| local_packs.iter().any(|local| local == name))
+        })
+        .cloned()
+        .collect();
     for id in embedded_packs {
         if available.iter().any(|pack| pack.id() == id) {
             return Err(RegistryLoadError::Declarations(format!(
@@ -171,6 +181,7 @@ pub fn test_packs() -> mcrs_minecraft_datapack::DirectoryPacks {
 #[expect(clippy::panic, reason = "test support reports a failure by panicking")]
 pub fn test_additions() -> RegistryAdditions {
     let mut additions = RegistryAdditions::default();
+    additions.local_packs.push("mcrs".to_owned());
     mcrs_minecraft_worldgen::registries::add_vanilla_worldgen(&mut additions)
         .unwrap_or_else(|error| panic!("{error}"));
     additions

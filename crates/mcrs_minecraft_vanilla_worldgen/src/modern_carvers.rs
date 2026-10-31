@@ -55,7 +55,9 @@ fn carvers_by_biome(registries: &Registries) -> Option<Vec<Arc<[CarverConfig]>>>
 /// datapack that retunes either is picked up here.
 fn build_modern_carver_biomes(
     mut commands: bevy_ecs::prelude::Commands,
-    dimensions: bevy_ecs::prelude::Res<crate::dimension_generators::DimensionGenerators>,
+    dimensions: bevy_ecs::prelude::Res<
+        mcrs_minecraft_engine::dimension_generators::DimensionGenerators,
+    >,
     list: bevy_ecs::prelude::Res<mcrs_minecraft_level::world::dimension_list::DimensionList>,
     current: bevy_ecs::prelude::Res<CurrentRegistries>,
 ) {

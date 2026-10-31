@@ -41,6 +41,8 @@ pub fn add_vanilla_worldgen(
             .declarations
             .push(Declaration::fixed((*key).into(), names));
     }
+    // The beta presets name the noise settings built here.
+    additions.local_packs.push("beta".to_owned());
     additions.declarations.extend([
         biome_declaration().synced_via::<NetworkBiome>().into(),
         Declaration::data::<Feature>().into(),

@@ -34,8 +34,8 @@ pub fn start_server(mut server: App) -> impl FnOnce() {
         }
     });
     let (finished_send, finished_recv) = mpsc::channel();
-    let server_thread = mcrs_minecraft_server::spawn_server_thread(server, move |app| {
-        mcrs_minecraft_server::run_server_loop(app);
+    let server_thread = mcrs_minecraft_engine_server::spawn_server_thread(server, move |app| {
+        mcrs_minecraft_engine_server::run_server_loop(app);
         finished_send.send(()).ok();
     })
     .expect("the embedded server thread starts");

@@ -1,0 +1,49 @@
+[package]
+name = "mcrs_minecraft_engine_server"
+description = "The server plugins of the engine without vanilla behaviour: the core, the dimension worlds, the listener with login, configuration, keep-alive and status, and the server loop"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+doctest = false
+
+[lints]
+workspace = true
+
+[dependencies]
+mcrs_minecraft_assets.workspace = true
+mcrs_minecraft_client_jar = { workspace = true, optional = true }
+mcrs_minecraft_core = { workspace = true, features = ["bevy"] }
+mcrs_minecraft_datapack.workspace = true
+mcrs_minecraft_dimension.workspace = true
+mcrs_minecraft_engine.workspace = true
+mcrs_minecraft_game_mode.workspace = true
+mcrs_minecraft_level.workspace = true
+mcrs_minecraft_network = { workspace = true, features = ["bevy"] }
+mcrs_minecraft_protocol.workspace = true
+mcrs_minecraft_registries = { workspace = true, features = ["bevy"] }
+mcrs_minecraft_world = { workspace = true, features = ["bevy"] }
+bevy_app.workspace = true
+bevy_asset.workspace = true
+bevy_ecs.workspace = true
+bevy_math.workspace = true
+bevy_state.workspace = true
+bevy_time.workspace = true
+bytes.workspace = true
+rand.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+
+# Without this a build of the server alone runs every schedule and `par_iter` on one thread.
+[target.'cfg(not(target_family = "wasm"))'.dependencies]
+bevy_ecs = { workspace = true, features = ["multi_threaded"] }
+bevy_asset = { workspace = true, features = ["multi_threaded"] }
+
+[dev-dependencies]
+mcrs_minecraft_fixtures.workspace = true
+tokio.workspace = true
+
+[features]
+default = ["client-jar"]
+client-jar = ["dep:mcrs_minecraft_client_jar"]
+telemetry-tracy = ["bevy_ecs/trace", "mcrs_minecraft_network/telemetry-tracy", "mcrs_minecraft_level/telemetry-tracy", "mcrs_minecraft_engine/telemetry-tracy"]

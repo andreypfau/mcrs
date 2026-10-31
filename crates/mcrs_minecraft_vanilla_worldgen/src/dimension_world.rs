@@ -18,11 +18,11 @@ use mcrs_minecraft_worldgen_generator::stages::{FillContext, dimension_y_section
 use tracing::{error, warn};
 
 use crate::chunk_plugin::{ChunkPlugin, SlowColumnThreshold};
-use crate::dimension_generators::DimensionGenerators;
 use crate::features::DimensionFeaturePrograms;
 use crate::modern_carvers::DimensionCarverBiomes;
 use crate::routers::DimensionRouters;
 use crate::structures::DimensionStructures;
+use mcrs_minecraft_engine::dimension_generators::DimensionGenerators;
 
 pub(crate) fn build_dimension_world(
     host: &World,

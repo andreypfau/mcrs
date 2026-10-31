@@ -7,9 +7,9 @@ use mcrs_minecraft_engine::channel_types::DimChannelsResource;
 use mcrs_minecraft_engine::disconnect::{LeavingSessions, process_disconnect};
 use mcrs_minecraft_engine::session::GameProfile;
 use mcrs_minecraft_engine::session::{HostAnchorRef, SessionConnection};
+use mcrs_minecraft_engine_server::login::{LoginPlugin, LoginState};
 use mcrs_minecraft_level::session::{Place, PlayerSession, Session, SessionPlacement};
 use mcrs_minecraft_protocol::uuid::Uuid;
-use mcrs_minecraft_server::login::{LoginPlugin, LoginState};
 
 fn make_app() -> App {
     let mut app = App::new();

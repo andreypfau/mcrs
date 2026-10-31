@@ -2,13 +2,14 @@ use crate::configuration_registries::ASSETS;
 use bevy_app::{App, AppExit, PluginGroup, Update};
 use bevy_ecs::message::MessageWriter;
 use mcrs_minecraft_core::{ResourceLocation, VERSION};
+use mcrs_minecraft_engine_server::{BoundAddress, run_server_loop};
 use mcrs_minecraft_network::join::{Join, Joined, join};
 use mcrs_minecraft_network::packet_io::PacketIo;
 use mcrs_minecraft_protocol::packets::configuration::clientbound::ClientboundRegistryData;
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundLogin;
 use mcrs_minecraft_protocol::uuid::Uuid;
 use mcrs_minecraft_protocol::{Decode, Packet};
-use mcrs_minecraft_server::{BoundAddress, MinecraftServerPlugins, run_server_loop};
+use mcrs_minecraft_server::MinecraftServerPlugins;
 use mcrs_minecraft_vanilla_light::LightingPlugin;
 use mcrs_minecraft_vanilla_worldgen::WorldGenPlugin;
 use std::sync::Arc;
@@ -46,7 +47,7 @@ fn a_client_without_an_app_joins_the_embedded_server_offline() {
     });
     let address = app.world().resource::<BoundAddress>().0;
     let (finished_send, finished_recv) = std::sync::mpsc::channel();
-    let server = mcrs_minecraft_server::spawn_server_thread(app, move |app| {
+    let server = mcrs_minecraft_engine_server::spawn_server_thread(app, move |app| {
         run_server_loop(app);
         finished_send.send(()).ok();
     })

@@ -79,6 +79,7 @@ mcrs_minecraft_snbt = { path = "crates/mcrs_minecraft_snbt" }
 mcrs_minecraft_network = { path = "crates/mcrs_minecraft_network", default-features = false }
 mcrs_minecraft_level = { path = "crates/mcrs_minecraft_level" }
 mcrs_minecraft_engine = { path = "crates/mcrs_minecraft_engine" }
+mcrs_minecraft_engine_server = { path = "crates/mcrs_minecraft_engine_server", default-features = false }
 mcrs_minecraft_core = { path = "crates/mcrs_minecraft_core", default-features = false }
 mcrs_minecraft_datapack = { path = "crates/mcrs_minecraft_datapack" }
 mcrs_minecraft_registries = { path = "crates/mcrs_minecraft_registries" }
@@ -180,6 +181,7 @@ bevy_app.workspace = true
 bevy_log.workspace = true
 tokio = { version = "1", features = ["full"] }
 mcrs_minecraft_server.workspace = true
+mcrs_minecraft_engine_server.workspace = true
 mcrs_minecraft_engine.workspace = true
 mcrs_minecraft_vanilla_light.workspace = true
 mcrs_minecraft_vanilla_worldgen.workspace = true

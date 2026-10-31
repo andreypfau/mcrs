@@ -207,8 +207,8 @@ impl Knobs {
     /// `DEFAULT_GAMEMODE` is `survival`, `creative`, `adventure` or `spectator`, in any case; unset
     /// or anything else is creative.
     #[cfg(all(feature = "singleplayer", not(target_family = "wasm")))]
-    pub fn default_game_mode(&self) -> mcrs_minecraft_server::GameMode {
-        use mcrs_minecraft_server::GameMode;
+    pub fn default_game_mode(&self) -> mcrs_minecraft_engine_server::GameMode {
+        use mcrs_minecraft_engine_server::GameMode;
         let Some(mode) = self.knob("DEFAULT_GAMEMODE") else {
             return GameMode::Creative;
         };

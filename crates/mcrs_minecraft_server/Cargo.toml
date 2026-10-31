@@ -12,35 +12,18 @@ workspace = true
 
 [dependencies]
 mcrs_minecraft_chat_server.workspace = true
-mcrs_minecraft_game_mode.workspace = true
 mcrs_minecraft_command_engine.workspace = true
 mcrs_minecraft_command_vanilla.workspace = true
-mcrs_minecraft_dimension.workspace = true
-mcrs_minecraft_worldgen_builtin.workspace = true
-mcrs_minecraft_assets.workspace = true
-mcrs_minecraft_client_jar = { workspace = true, optional = true }
-mcrs_minecraft_datapack.workspace = true
-mcrs_minecraft_registries = { workspace = true, features = ["bevy"] }
-mcrs_minecraft_level.workspace = true
 mcrs_minecraft_engine.workspace = true
+mcrs_minecraft_engine_server.workspace = true
+mcrs_minecraft_level.workspace = true
 mcrs_minecraft_vanilla_light.workspace = true
-mcrs_minecraft_vanilla_worldgen.workspace = true
-mcrs_minecraft_network = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_protocol.workspace = true
-mcrs_minecraft_core = { workspace = true, features = ["bevy"] }
-mcrs_minecraft_world = { workspace = true, features = ["bevy"] }
-bevy_math.workspace = true
+mcrs_minecraft_vanilla_worldgen.workspace = true
+mcrs_minecraft_worldgen_builtin.workspace = true
 bevy_app.workspace = true
 bevy_ecs.workspace = true
-bevy_state.workspace = true
-bevy_time.workspace = true
-bevy_tasks.workspace = true
-bevy_asset.workspace = true
-rand.workspace = true
 smallvec.workspace = true
-bytes.workspace = true
-thiserror.workspace = true
-tracing = { workspace = true }
 
 # Without this a build of the server alone runs every schedule and `par_iter` on one thread.
 [target.'cfg(not(target_family = "wasm"))'.dependencies]
@@ -48,6 +31,20 @@ bevy_ecs = { workspace = true, features = ["multi_threaded"] }
 bevy_asset = { workspace = true, features = ["multi_threaded"] }
 
 [dev-dependencies]
+mcrs_minecraft_game_mode.workspace = true
+mcrs_minecraft_dimension.workspace = true
+mcrs_minecraft_assets.workspace = true
+mcrs_minecraft_datapack.workspace = true
+mcrs_minecraft_registries = { workspace = true, features = ["bevy"] }
+mcrs_minecraft_network = { workspace = true, features = ["bevy"] }
+mcrs_minecraft_core = { workspace = true, features = ["bevy"] }
+bevy_math.workspace = true
+bevy_state.workspace = true
+bevy_time.workspace = true
+bevy_tasks.workspace = true
+bevy_asset.workspace = true
+bytes.workspace = true
+tracing.workspace = true
 mcrs_minecraft_block_entity.workspace = true
 mcrs_minecraft_command.workspace = true
 mcrs_minecraft_biome_file.workspace = true
@@ -68,7 +65,7 @@ mcrs_minecraft_command_tree.workspace = true
 mcrs_command.workspace = true
 mcrs_minecraft_command_argument_vanilla.workspace = true
 mcrs_minecraft_chat_client.workspace = true
-mcrs_minecraft_world = { workspace = true, features = ["test-support"] }
+mcrs_minecraft_world = { workspace = true, features = ["bevy", "test-support"] }
 mcrs_minecraft_fixtures.workspace = true
 mcrs_minecraft_worldgen_generator = { workspace = true, features = ["bevy", "test-support"] }
 mcrs_minecraft_worldgen_density.workspace = true
@@ -78,8 +75,8 @@ tokio.workspace = true
 
 [features]
 default = ["client-jar"]
-client-jar = ["dep:mcrs_minecraft_client_jar"]
-telemetry-tracy = ["bevy_ecs/trace", "mcrs_minecraft_vanilla_worldgen/telemetry-tracy", "mcrs_minecraft_network/telemetry-tracy", "mcrs_minecraft_level/telemetry-tracy", "mcrs_minecraft_engine/telemetry-tracy"]
+client-jar = ["mcrs_minecraft_engine_server/client-jar"]
+telemetry-tracy = ["mcrs_minecraft_engine_server/telemetry-tracy", "mcrs_minecraft_vanilla_worldgen/telemetry-tracy"]
 
 [[bench]]
 name = "bot_load"

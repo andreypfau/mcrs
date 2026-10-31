@@ -45,6 +45,13 @@ use mcrs_minecraft_client::{
 use mcrs_minecraft_client::{asset_source, screenshot};
 #[cfg(all(feature = "singleplayer", not(target_family = "wasm")))]
 use mcrs_minecraft_engine::ops::{OPS_FILE, OpList, OpListEntry};
+#[cfg(all(feature = "singleplayer", not(target_family = "wasm")))]
+use mcrs_minecraft_engine_server::login::SingleplayerProfile;
+#[cfg(all(feature = "singleplayer", not(target_family = "wasm")))]
+use mcrs_minecraft_engine_server::{
+    BoundAddress, DataPack, DimensionWorldsPlugin, NetworkCompressionThreshold, ServerCorePlugin,
+    ServerNetworkPlugin,
+};
 use mcrs_minecraft_environment::world_clock::WorldClock;
 #[cfg(all(feature = "singleplayer", not(target_family = "wasm")))]
 use mcrs_minecraft_level::world::lifecycle::trace::ColumnTraceSink;
@@ -53,12 +60,7 @@ use mcrs_minecraft_network::client::offline_player_uuid;
 #[cfg(not(target_family = "wasm"))]
 use mcrs_minecraft_network::client::{ClientNetworkPlugin, ExitOnDisconnect};
 #[cfg(all(feature = "singleplayer", not(target_family = "wasm")))]
-use mcrs_minecraft_server::login::SingleplayerProfile;
-#[cfg(all(feature = "singleplayer", not(target_family = "wasm")))]
-use mcrs_minecraft_server::{
-    BoundAddress, DataPack, DimensionWorldsPlugin, MinecraftServerPlugins,
-    NetworkCompressionThreshold, ServerCorePlugin, ServerNetworkPlugin,
-};
+use mcrs_minecraft_server::MinecraftServerPlugins;
 #[cfg(all(feature = "singleplayer", not(target_family = "wasm")))]
 use mcrs_minecraft_vanilla_light::LightingPlugin;
 #[cfg(all(feature = "singleplayer", not(target_family = "wasm")))]
@@ -384,6 +386,7 @@ fn host_integrated_server(
             owns_task_pools: false,
             asset_path: Some(assets.to_owned()),
             data_pack: DataPack::Directory(data_pack.to_owned()),
+            ..MinecraftServerPlugins::default().core
         },
         worlds: DimensionWorldsPlugin {
             world: world.map(Path::to_path_buf),
@@ -430,8 +433,8 @@ fn host_integrated_server(
     }
     server.add_plugins(plugins);
     let address = server.world().resource::<BoundAddress>().0;
-    let spawned = mcrs_minecraft_server::spawn_server_thread(server, |app| {
-        if let AppExit::Error(code) = mcrs_minecraft_server::run_server_loop(app) {
+    let spawned = mcrs_minecraft_engine_server::spawn_server_thread(server, |app| {
+        if let AppExit::Error(code) = mcrs_minecraft_engine_server::run_server_loop(app) {
             error!("the integrated server stopped with an error");
             std::process::exit(i32::from(code.get()));
         }

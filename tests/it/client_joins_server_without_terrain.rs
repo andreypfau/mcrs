@@ -1,5 +1,6 @@
 use bevy_app::{App, PluginGroup};
-use mcrs_minecraft_server::{BoundAddress, MinecraftServerPlugins};
+use mcrs_minecraft_engine_server::BoundAddress;
+use mcrs_minecraft_server::MinecraftServerPlugins;
 use mcrs_minecraft_vanilla_light::LightingPlugin;
 use mcrs_minecraft_vanilla_worldgen::WorldGenPlugin;
 

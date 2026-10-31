@@ -117,6 +117,7 @@ fn a_jar_file_that_a_built_in_entry_replaces_is_never_read() {
 #[test]
 fn an_active_overlay_of_a_local_pack_is_read_under_its_own_root() {
     let (registries, _) = WithFiles::over_assets()
+        .pack(TEST_PACK)
         .with(
             format!("{TEST_PACK}/pack.mcmeta"),
             format!(

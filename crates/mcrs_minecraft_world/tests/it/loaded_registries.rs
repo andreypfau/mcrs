@@ -26,7 +26,7 @@ use mcrs_minecraft_registries::{
 };
 use mcrs_minecraft_world::SyncedRegistries;
 use mcrs_minecraft_world::registry_load::{
-    RegistryLoadError, load_registries, sent_by, test_additions, test_network, test_registries,
+    RegistryLoadError, load_registries, sent_by, test_network, test_registries,
 };
 use mcrs_minecraft_world::sulfur_cube_archetype::SulfurCubeArchetype;
 use mcrs_minecraft_world::variant::{WolfVariantFile, spawn_selectors};
@@ -648,7 +648,7 @@ fn an_embedded_pack_overrides_vanilla_below_the_root_packs_and_is_always_sent_wi
             pattern("world"),
         );
     let embedding = |ids: &[&str]| {
-        let mut additions = test_additions();
+        let mut additions = source.additions();
         for name in ["globe", "piglin"] {
             let path = format!("data/minecraft/banner_pattern/{name}.json");
             additions.files.insert("extra", path, pattern("embedded"));

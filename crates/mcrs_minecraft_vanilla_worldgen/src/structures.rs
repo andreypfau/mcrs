@@ -1,4 +1,3 @@
-use crate::dimension_generators::DimensionGenerators;
 use crate::template_asset::{TemplateAsset, named_templates};
 use crate::template_handle::template_handle;
 use bevy_app::{App, AppExit, Plugin};
@@ -12,6 +11,7 @@ use mcrs_minecraft_biome_file::BiomeFile;
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_core::Registered;
 use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_engine::dimension_generators::DimensionGenerators;
 use mcrs_minecraft_entity::variant::{CatSoundVariant, ChickenSoundVariant};
 use mcrs_minecraft_level::world::dimension_list::DimensionList;
 use mcrs_minecraft_level::world::sub_app::DimSpawnEnqueue;

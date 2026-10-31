@@ -11,9 +11,9 @@ use mcrs_minecraft_worldgen_generator::routers::{build_router, refuse_misplaced_
 use mcrs_minecraft_worldgen_surface::compile::MaterialProgram;
 use tracing::{error, info};
 
-use crate::dimension_generators::DimensionGenerators;
 use crate::structures::DimensionStructures;
-use crate::world_seed::WorldSeed;
+use mcrs_minecraft_engine::dimension_generators::DimensionGenerators;
+use mcrs_minecraft_engine::world_seed::WorldSeed;
 use mcrs_minecraft_level::world::dimension_list::DimensionList;
 use mcrs_minecraft_worldgen_density::router::NoiseGeneratorSettings;
 
