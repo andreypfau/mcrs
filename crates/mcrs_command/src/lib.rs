@@ -9,7 +9,6 @@ extern crate alloc;
 mod argument;
 mod argument_handle;
 mod build_error;
-mod chat_character;
 mod contains;
 mod error;
 mod exec;
@@ -33,7 +32,6 @@ pub use argument::{
 };
 pub use argument_handle::ArgumentHandle;
 pub use build_error::BuildError;
-pub use chat_character::is_allowed_chat_character;
 pub use contains::Contains;
 pub use error::{ErrorKind, LibraryError, SyntaxError};
 pub use exec::{Chain, End, Executor, Failure, Limits, SourceLists, Stage, execute};

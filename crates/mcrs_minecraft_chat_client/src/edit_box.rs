@@ -1,5 +1,6 @@
-use mcrs_command::{Span, is_allowed_chat_character};
+use mcrs_command::Span;
 use mcrs_minecraft_chat::MAX_INPUT;
+use mcrs_minecraft_text::is_allowed_chat_character;
 
 /// How far a caret move or a removal goes.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]

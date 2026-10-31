@@ -3613,6 +3613,7 @@ dependencies = [
  "mcrs_minecraft_core",
  "mcrs_minecraft_keys",
  "mcrs_minecraft_protocol",
+ "mcrs_minecraft_text",
  "mcrs_minecraft_wire",
 ]
 
@@ -3622,11 +3623,11 @@ version = "0.5.8"
 dependencies = [
  "bevy_app",
  "bevy_ecs",
- "mcrs_command",
  "mcrs_minecraft_command_engine",
  "mcrs_minecraft_engine",
  "mcrs_minecraft_network",
  "mcrs_minecraft_protocol",
+ "mcrs_minecraft_text",
  "tracing",
 ]
 
@@ -4507,7 +4508,6 @@ dependencies = [
 name = "mcrs_minecraft_text"
 version = "0.5.8"
 dependencies = [
- "mcrs_command",
  "mcrs_minecraft_core",
  "mcrs_minecraft_nbt",
  "mcrs_minecraft_profile",

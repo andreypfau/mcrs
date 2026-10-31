@@ -1,7 +1,6 @@
 use bevy_app::{App, Plugin};
 use bevy_ecs::message::MessageWriter;
 use bevy_ecs::prelude::*;
-use mcrs_command::is_allowed_chat_character;
 use mcrs_minecraft_command_engine::system_chat;
 use mcrs_minecraft_engine::bus::{self, OutboundPlayerPacket, PacketTarget, to_target};
 use mcrs_minecraft_engine::client_info::{ClientInfo, ClientInfoPlugin};
@@ -12,6 +11,7 @@ use mcrs_minecraft_protocol::Text;
 use mcrs_minecraft_protocol::packets::game::serverbound::ServerboundChat;
 use mcrs_minecraft_protocol::setting::ChatMode;
 use mcrs_minecraft_protocol::text::{Color, IntoText};
+use mcrs_minecraft_text::is_allowed_chat_character;
 use tracing::info;
 
 /// Broadcasts the chat messages of the players as system messages.

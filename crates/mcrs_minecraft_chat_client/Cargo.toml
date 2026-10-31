@@ -14,6 +14,7 @@ workspace = true
 [dependencies]
 mcrs_minecraft_chat.workspace = true
 mcrs_command.workspace = true
+mcrs_minecraft_text.workspace = true
 mcrs_minecraft_command.workspace = true
 mcrs_minecraft_command_argument_vanilla.workspace = true
 mcrs_minecraft_protocol.workspace = true

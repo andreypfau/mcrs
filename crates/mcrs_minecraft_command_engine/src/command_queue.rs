@@ -52,7 +52,10 @@ pub(crate) fn queue_command_line(
         return;
     };
     let line = packet.command.0;
-    if line.chars().all(mcrs_command::is_allowed_chat_character) {
+    if line
+        .chars()
+        .all(mcrs_minecraft_text::is_allowed_chat_character)
+    {
         if let Some(&HostAnchorRef(player)) = anchor {
             let mut owned = queue.spare.pop().unwrap_or_default();
             owned.clear();
