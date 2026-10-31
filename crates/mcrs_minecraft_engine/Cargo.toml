@@ -35,7 +35,7 @@ tracing.workspace = true
 
 [dev-dependencies]
 mcrs_minecraft_simulation.workspace = true
-mcrs_minecraft_world = { workspace = true, features = ["test-support"] }
+mcrs_minecraft_world = { workspace = true, features = ["bevy", "test-support"] }
 
 [features]
 telemetry-tracy = []

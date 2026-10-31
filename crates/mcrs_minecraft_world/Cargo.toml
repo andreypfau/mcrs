@@ -16,7 +16,7 @@ path = "tests/it/main.rs"
 required-features = ["bevy"]
 
 [features]
-default = ["bevy"]
+default = []
 test-support = ["dep:mcrs_minecraft_fixtures", "dep:mcrs_minecraft_worldgen"]
 bevy = [
     "dep:bevy_app",
@@ -74,7 +74,7 @@ mcrs_minecraft_worldgen = { workspace = true, optional = true, features = ["bevy
 
 [dev-dependencies]
 mcrs_minecraft_snbt.workspace = true
-mcrs_minecraft_world = { workspace = true, features = ["test-support"] }
+mcrs_minecraft_world = { workspace = true, features = ["bevy", "test-support"] }
 mcrs_minecraft_noise.workspace = true
 mcrs_minecraft_worldgen = { workspace = true, features = ["bevy", "fast"] }
 mcrs_minecraft_worldgen_builtin.workspace = true

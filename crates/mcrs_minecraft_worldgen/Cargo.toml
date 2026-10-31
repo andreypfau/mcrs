@@ -48,7 +48,7 @@ mcrs_minecraft_world = { workspace = true, features = ["test-support"] }
 mcrs_minecraft_worldgen_testing.workspace = true
 
 [features]
-default = ["fast", "bevy"]
+default = ["fast"]
 bevy = [
     "dep:bevy_app",
     "dep:bevy_asset",
