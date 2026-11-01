@@ -13,6 +13,7 @@ pub mod joined_game;
 pub mod local_player;
 pub mod movement_input;
 pub mod player;
+pub mod player_view;
 mod received;
 pub mod registries;
 pub mod screen;

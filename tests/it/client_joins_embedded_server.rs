@@ -2,11 +2,12 @@ use bevy_app::{App, Update};
 use bevy_ecs::prelude::{Local, Res};
 use mcrs_minecraft_client_world::columns::{ColumnStore, Columns};
 use mcrs_minecraft_client_world::joined_game::{CurrentDimension, JoinedGame};
+use mcrs_minecraft_client_world::player_view::{
+    ChunkCacheCenter, ChunkCacheRadius, PendingTeleports,
+};
 use mcrs_minecraft_engine_server::BoundAddress;
 use mcrs_minecraft_game_registries::registry_load::sent_by;
-use mcrs_minecraft_network::client::{
-    ChunkCacheCenter, ChunkCacheRadius, PendingTeleports, ServerProfile, offline_player_uuid,
-};
+use mcrs_minecraft_network::client::{ServerProfile, offline_player_uuid};
 use mcrs_minecraft_registries::{CurrentRegistries, Registries};
 use mcrs_minecraft_resource::ResourceLocationBuf;
 use mcrs_minecraft_server::MinecraftServerPlugins;

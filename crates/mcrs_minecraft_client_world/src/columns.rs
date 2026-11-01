@@ -34,7 +34,7 @@ use mcrs_voxel::{BlockPos, BlockStateId, LocalPos, SectionPos};
 use crate::joined_game::CurrentDimension;
 use mcrs_minecraft_network::Instant;
 use mcrs_minecraft_network::client::{
-    ClientConnection, ClientNetworkSystems, close_connection_later,
+    ClientConnection, ClientNetworkSystems, DeferredRows, close_connection_later,
 };
 use mcrs_minecraft_network::event::Received;
 use mcrs_minecraft_registries::{CurrentRegistries, Registries};
@@ -538,6 +538,10 @@ impl Plugin for ColumnCachePlugin {
         app.add_observer(on_forget);
         app.add_observer(on_batch_start);
         app.add_observer(on_batch_finished);
+        // A column is large; its observer decodes it off the main thread.
+        app.world_mut()
+            .get_resource_or_init::<DeferredRows>()
+            .defer::<ClientboundLevelChunkWithLight<'static>>();
         app.configure_sets(
             Update,
             (

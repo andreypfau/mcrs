@@ -4,7 +4,7 @@ use mcrs_minecraft_engine_world::entity::physics::{
     OldTransform, Rotation, Transform as PhysicsTransform, Velocity,
 };
 use mcrs_minecraft_network::ConnectionState;
-use mcrs_minecraft_network::client::{ClientConnection, PendingTeleports};
+use mcrs_minecraft_network::client::ClientConnection;
 use mcrs_minecraft_protocol::packets::game::serverbound::{
     ServerboundAcceptTeleportation, ServerboundMovePlayerPos, ServerboundMovePlayerPosRot,
     ServerboundMovePlayerRot,
@@ -13,6 +13,7 @@ use mcrs_minecraft_protocol::{MoveFlags, VarInt, WritePacket};
 
 use crate::movement_input::MovementInput;
 use crate::player::Player;
+use crate::player_view::{PendingTeleports, PlayerViewPlugin};
 
 pub const TICKS_PER_SECOND: f64 = 20.0;
 
@@ -85,6 +86,9 @@ pub struct LocalPlayerPlugin;
 
 impl Plugin for LocalPlayerPlugin {
     fn build(&self, app: &mut App) {
+        if !app.is_plugin_added::<PlayerViewPlugin>() {
+            app.add_plugins(PlayerViewPlugin);
+        }
         app.init_resource::<MovementInput>().add_systems(
             FixedUpdate,
             (

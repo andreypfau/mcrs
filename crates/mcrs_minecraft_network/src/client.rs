@@ -12,16 +12,12 @@ use bevy_ecs::resource::Resource;
 use bevy_ecs::schedule::{IntoScheduleConfigs, SystemSet};
 use bevy_ecs::world::World;
 use bytes::Bytes;
-use glam::DVec3;
-use mcrs_minecraft_core::Look;
 use mcrs_minecraft_core::VERSION;
-use mcrs_minecraft_protocol::ColumnPos;
 use mcrs_minecraft_protocol::packets::common::serverbound::KeepAlive;
 use mcrs_minecraft_protocol::packets::configuration::serverbound::ServerboundFinishConfiguration;
 use mcrs_minecraft_protocol::packets::game::clientbound::{
-    ClientboundBundleDelimiter, ClientboundChunkCacheRadius, ClientboundDisconnect,
-    ClientboundKeepAlive as GameKeepAlive, ClientboundLevelChunkWithLight,
-    ClientboundPlayerPosition, ClientboundSetChunkCacheCenter, ClientboundStartConfiguration,
+    ClientboundBundleDelimiter, ClientboundDisconnect, ClientboundKeepAlive as GameKeepAlive,
+    ClientboundStartConfiguration,
 };
 use mcrs_minecraft_protocol::packets::game::serverbound::{
     ServerboundConfigurationAcknowledged, ServerboundKeepAlive as ServerboundGameKeepAlive,
@@ -73,15 +69,33 @@ pub struct ClientConnection {
 }
 
 impl ClientConnection {
-    fn new(raw: RawConnection, ended: Option<ConnectionState>) -> Self {
+    fn new(
+        raw: RawConnection,
+        ended: Option<ConnectionState>,
+        deferred: Option<&DeferredRows>,
+    ) -> Self {
         Self {
             raw: Box::new(raw),
-            // A column is large; its observer decodes it off the main thread.
-            dispatcher: PacketDispatcher::clientbound()
-                .defer::<ClientboundLevelChunkWithLight<'static>>(),
+            dispatcher: deferred
+                .into_iter()
+                .flat_map(|deferred| &deferred.0)
+                .fold(PacketDispatcher::clientbound(), |dispatcher, defer| {
+                    defer(dispatcher)
+                }),
             bundle: None,
             ended,
         }
+    }
+}
+
+/// The rows whose observers check their own frames, off the main thread, instead of the
+/// dispatcher. A connection reads the set when it opens.
+#[derive(Resource, Default)]
+pub struct DeferredRows(Vec<fn(PacketDispatcher) -> PacketDispatcher>);
+
+impl DeferredRows {
+    pub fn defer<R: Row>(&mut self) {
+        self.0.push(PacketDispatcher::defer::<R>);
     }
 }
 
@@ -113,26 +127,6 @@ pub fn finish_configuration(commands: &mut Commands, connection: Entity) {
         }
     });
 }
-
-#[derive(Clone, Copy, Debug)]
-pub struct ServerTeleport {
-    pub teleport_id: i32,
-    pub position: DVec3,
-    pub velocity: DVec3,
-    pub look: Look,
-}
-
-/// Teleports the server has sent that the player has yet to be moved to and
-/// confirm. A queue rather than the latest one, because the server keeps a
-/// count of outstanding confirmations and a dropped teleport never unblocks.
-#[derive(Component, Default, Debug)]
-pub struct PendingTeleports(pub Vec<ServerTeleport>);
-
-#[derive(Component, Clone, Copy, Debug)]
-pub struct ChunkCacheCenter(pub ColumnPos);
-
-#[derive(Component, Clone, Copy, Debug)]
-pub struct ChunkCacheRadius(pub i32);
 
 #[cfg(not(target_family = "wasm"))]
 #[derive(Resource)]
@@ -284,11 +278,14 @@ fn spawn_joined_connection(mut joined: Receiver<JoinOutcome>) -> impl FnMut(&mut
             let entity = world
                 .spawn((
                     // The server ended the configuration while the client joined.
-                    ClientConnection::new(connection, Some(ConnectionState::Configuration)),
+                    ClientConnection::new(
+                        connection,
+                        Some(ConnectionState::Configuration),
+                        world.get_resource::<DeferredRows>(),
+                    ),
                     ConnectionState::Configuration,
                     profile,
                     Configuration::default(),
-                    PendingTeleports::default(),
                 ))
                 .id();
             world.trigger(RegistriesReceived {
@@ -434,9 +431,6 @@ pub(crate) fn add_packet_observers(app: &mut App) {
     app.add_observer(on_configuration_packet::<configuration::ClientboundFinishConfiguration>);
     app.add_observer(on_disconnect);
     app.add_observer(on_start_configuration);
-    app.add_observer(on_player_position);
-    app.add_observer(on_set_chunk_cache_center);
-    app.add_observer(on_chunk_cache_radius);
     app.add_observer(on_keep_alive);
 }
 
@@ -495,53 +489,6 @@ fn on_start_configuration(
     *collected = Configuration::default();
 }
 
-fn on_player_position(
-    event: On<Received<ClientboundPlayerPosition>>,
-    mut pending_teleports: Query<&mut PendingTeleports>,
-) {
-    let (Some(position), Ok(mut pending_teleports)) =
-        (event.packet(), pending_teleports.get_mut(event.entity))
-    else {
-        return;
-    };
-    if !position.flags.is_empty() {
-        // chisle: every relative flag is treated as absolute. Our server
-        // only ever sends absolute teleports; the upgrade is vanilla's
-        // `PositionMoveRotation.calculateAbsolute`.
-        warn!(
-            "relative teleport flags are not applied: {:?}",
-            position.flags
-        );
-    }
-    pending_teleports.0.push(ServerTeleport {
-        teleport_id: position.teleport_id.0,
-        position: position.position,
-        velocity: position.velocity,
-        look: position.look,
-    });
-}
-
-fn on_set_chunk_cache_center(
-    event: On<Received<ClientboundSetChunkCacheCenter>>,
-    mut commands: Commands,
-) {
-    let Some(center) = event.packet() else {
-        return;
-    };
-    commands
-        .entity(event.entity)
-        .insert(ChunkCacheCenter(ColumnPos::new(center.x.0, center.z.0)));
-}
-
-fn on_chunk_cache_radius(event: On<Received<ClientboundChunkCacheRadius>>, mut commands: Commands) {
-    let Some(radius) = event.packet() else {
-        return;
-    };
-    commands
-        .entity(event.entity)
-        .insert(ChunkCacheRadius(radius.radius.0));
-}
-
 fn on_keep_alive(
     event: On<Received<GameKeepAlive>>,
     mut connections: Query<&mut ClientConnection>,
@@ -570,7 +517,9 @@ mod tests {
         ClientboundFinishConfiguration, ClientboundRegistryData, ClientboundSelectKnownPacks,
         ClientboundUpdateTags, RegistryTags, TagGroup,
     };
-    use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundStartConfiguration;
+    use mcrs_minecraft_protocol::packets::game::clientbound::{
+        ClientboundSetChunkCacheCenter, ClientboundStartConfiguration,
+    };
     use mcrs_minecraft_protocol::packets::game::serverbound::ServerboundConfigurationAcknowledged;
     use mcrs_minecraft_protocol::registry::Entry;
     use mcrs_minecraft_protocol::resource_pack::KnownPack;
@@ -595,10 +544,9 @@ mod tests {
         let entity = app
             .world_mut()
             .spawn((
-                ClientConnection::new(raw, None),
+                ClientConnection::new(raw, None, None),
                 ConnectionState::Game,
                 Configuration::default(),
-                PendingTeleports::default(),
             ))
             .id();
         (app, inbound, entity)
@@ -734,10 +682,9 @@ mod tests {
             let entity = app
                 .world_mut()
                 .spawn((
-                    ClientConnection::new(raw, None),
+                    ClientConnection::new(raw, None, None),
                     state,
                     Configuration::default(),
-                    PendingTeleports::default(),
                 ))
                 .id();
             Harness {

@@ -8,12 +8,13 @@ use mcrs_minecraft_block::block_keys::Block;
 use mcrs_minecraft_client_world::columns::{ColumnCachePlugin, ColumnStore, Columns};
 use mcrs_minecraft_client_world::joined_game::{CurrentDimension, JoinedGame};
 use mcrs_minecraft_client_world::player::Player;
+use mcrs_minecraft_client_world::player_view::{
+    ChunkCacheCenter, ChunkCacheRadius, PendingTeleports, PlayerViewPlugin,
+};
 use mcrs_minecraft_client_world::registries::ClientRegistriesPlugin;
 use mcrs_minecraft_dimension_environment::dimension_type::DimensionTypeFile;
 use mcrs_minecraft_network::ConnectionState;
-use mcrs_minecraft_network::client::{
-    ChunkCacheCenter, ChunkCacheRadius, ClientNetworkPlugin, PendingTeleports,
-};
+use mcrs_minecraft_network::client::ClientNetworkPlugin;
 use mcrs_minecraft_registries::CurrentRegistries;
 use mcrs_minecraft_resource::{Id, RegistryValue};
 use std::net::SocketAddr;
@@ -58,7 +59,7 @@ pub fn joining_client(server: SocketAddr, view_distance: u8) -> App {
         view_distance,
         holds_vanilla_pack: true,
     });
-    client.add_plugins(ColumnCachePlugin);
+    client.add_plugins((ColumnCachePlugin, PlayerViewPlugin));
     add_client_registries(&mut client);
     client.world_mut().spawn(Player);
     client.finish();

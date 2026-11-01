@@ -1,6 +1,6 @@
 use mcrs_minecraft_client_world::columns::ColumnStore;
 use mcrs_minecraft_client_world::joined_game::JoinedGame;
-use mcrs_minecraft_network::client::PendingTeleports;
+use mcrs_minecraft_client_world::player_view::PendingTeleports;
 use std::net::SocketAddr;
 
 use crate::support::{
