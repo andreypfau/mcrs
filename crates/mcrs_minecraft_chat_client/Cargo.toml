@@ -25,7 +25,6 @@ mcrs_minecraft_wire.workspace = true
 [dev-dependencies]
 mcrs_minecraft_resource.workspace = true
 mcrs_minecraft_command_tree.workspace = true
-mcrs_minecraft_core.workspace = true
 mcrs_minecraft_keys.workspace = true
 mcrs_minecraft_block.workspace = true
 mcrs_minecraft_command_argument_block.workspace = true

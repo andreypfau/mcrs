@@ -351,7 +351,7 @@
     "outputs": [
       {
         "file": "frames_golden.txt",
-        "to": "crates/mcrs_minecraft_protocol_game/tests/fixtures"
+        "to": "crates/mcrs_minecraft_protocol/tests/fixtures"
       }
     ]
   },

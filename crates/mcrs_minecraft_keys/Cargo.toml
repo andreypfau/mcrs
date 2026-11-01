@@ -12,4 +12,3 @@ workspace = true
 
 [dependencies]
 mcrs_minecraft_resource.workspace = true
-mcrs_minecraft_core.workspace = true

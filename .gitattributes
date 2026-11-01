@@ -47,6 +47,6 @@ crates/mcrs_minecraft_protocol_game/tests/fixtures/particles_golden.txt linguist
 crates/mcrs_minecraft_protocol_game/tests/fixtures/inventory_packets_golden.txt linguist-generated
 crates/mcrs_minecraft_protocol_game/tests/fixtures/join_packets_golden.txt linguist-generated
 crates/mcrs_minecraft_protocol_game/tests/fixtures/serverbound_game_packets_golden.txt linguist-generated
-crates/mcrs_minecraft_protocol_game/tests/fixtures/frames_golden.txt linguist-generated
+crates/mcrs_minecraft_protocol/tests/fixtures/frames_golden.txt linguist-generated
 crates/mcrs_minecraft_game_registries/tests/fixtures/vanilla_player.dat linguist-generated
 crates/mcrs_minecraft_game_registries/tests/fixtures/registry_values.txt linguist-generated

@@ -13,7 +13,6 @@ workspace = true
 [dependencies]
 mcrs_minecraft_resource.workspace = true
 mcrs_voxel.workspace = true
-mcrs_minecraft_core.workspace = true
 mcrs_minecraft_registries.workspace = true
 rustc-hash.workspace = true
 bevy_ecs = { workspace = true, optional = true }

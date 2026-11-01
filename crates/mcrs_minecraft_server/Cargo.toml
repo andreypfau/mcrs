@@ -19,7 +19,6 @@ mcrs_minecraft_engine_server.workspace = true
 mcrs_minecraft_engine_world.workspace = true
 mcrs_minecraft_text.workspace = true
 mcrs_minecraft_vanilla_light.workspace = true
-mcrs_minecraft_protocol.workspace = true
 mcrs_minecraft_vanilla_worldgen.workspace = true
 mcrs_minecraft_worldgen_builtin.workspace = true
 bevy_app.workspace = true
@@ -32,6 +31,7 @@ bevy_ecs = { workspace = true, features = ["multi_threaded"] }
 bevy_asset = { workspace = true, features = ["multi_threaded"] }
 
 [dev-dependencies]
+mcrs_minecraft_protocol.workspace = true
 mcrs_minecraft_protocol_game.workspace = true
 mcrs_minecraft_save.workspace = true
 mcrs_minecraft_engine_registries = { workspace = true, features = ["test-support"] }
@@ -50,7 +50,6 @@ bevy_time.workspace = true
 bevy_tasks.workspace = true
 bevy_asset.workspace = true
 bytes.workspace = true
-tracing.workspace = true
 mcrs_minecraft_block_entity.workspace = true
 mcrs_minecraft_command.workspace = true
 mcrs_minecraft_biome_file.workspace = true

@@ -3461,7 +3461,6 @@ dependencies = [
  "mcrs_minecraft_biome_file",
  "mcrs_minecraft_block",
  "mcrs_minecraft_client_world",
- "mcrs_minecraft_core",
  "mcrs_minecraft_dimension",
  "mcrs_minecraft_dimension_environment",
  "mcrs_minecraft_engine",
@@ -3498,7 +3497,6 @@ dependencies = [
  "mcrs_minecraft_core",
  "mcrs_minecraft_fixtures",
  "mcrs_minecraft_nbt",
- "mcrs_minecraft_registries",
  "mcrs_minecraft_resource",
  "mcrs_voxel",
  "serde",
@@ -3544,7 +3542,6 @@ dependencies = [
  "mcrs_minecraft_registries",
  "mcrs_minecraft_resource",
  "serde",
- "serde_json",
 ]
 
 [[package]]
@@ -3624,7 +3621,6 @@ dependencies = [
  "mcrs_minecraft_command_argument_block",
  "mcrs_minecraft_command_argument_vanilla",
  "mcrs_minecraft_command_tree",
- "mcrs_minecraft_core",
  "mcrs_minecraft_item",
  "mcrs_minecraft_keys",
  "mcrs_minecraft_protocol",
@@ -3654,7 +3650,6 @@ name = "mcrs_minecraft_chunk"
 version = "0.5.8"
 dependencies = [
  "bevy_ecs",
- "mcrs_minecraft_core",
  "mcrs_minecraft_registries",
  "mcrs_minecraft_resource",
  "mcrs_voxel",
@@ -3802,7 +3797,6 @@ dependencies = [
  "mcrs_minecraft_engine_world",
  "mcrs_minecraft_entity",
  "mcrs_minecraft_environment",
- "mcrs_minecraft_fixtures",
  "mcrs_minecraft_game_mode",
  "mcrs_minecraft_game_registries",
  "mcrs_minecraft_item",
@@ -3939,9 +3933,7 @@ name = "mcrs_minecraft_command_registry"
 version = "0.5.8"
 dependencies = [
  "mcrs_minecraft_block",
- "mcrs_minecraft_command",
  "mcrs_minecraft_command_argument",
- "mcrs_minecraft_core",
  "mcrs_minecraft_dimension",
  "mcrs_minecraft_dimension_environment",
  "mcrs_minecraft_environment",
@@ -3953,7 +3945,6 @@ dependencies = [
 name = "mcrs_minecraft_command_tree"
 version = "0.5.8"
 dependencies = [
- "mcrs_minecraft_core",
  "mcrs_minecraft_keys",
  "mcrs_minecraft_resource",
  "mcrs_minecraft_wire",
@@ -3984,7 +3975,6 @@ dependencies = [
  "mcrs_minecraft_environment",
  "mcrs_minecraft_game_mode",
  "mcrs_minecraft_heightmap",
- "mcrs_minecraft_item",
  "mcrs_minecraft_keys",
  "mcrs_minecraft_nbt",
  "mcrs_minecraft_protocol",
@@ -4004,7 +3994,6 @@ name = "mcrs_minecraft_core"
 version = "0.5.8"
 dependencies = [
  "bevy_ecs",
- "derive_more",
  "glam",
  "mcrs_minecraft_nbt",
  "mcrs_minecraft_resource",
@@ -4013,7 +4002,6 @@ dependencies = [
  "mcrs_voxel",
  "serde",
  "serde_json",
- "thiserror 2.0.18",
  "tracing",
 ]
 
@@ -4035,7 +4023,6 @@ name = "mcrs_minecraft_dimension"
 version = "0.5.8"
 dependencies = [
  "mcrs_minecraft_block",
- "mcrs_minecraft_core",
  "mcrs_minecraft_registries",
  "mcrs_minecraft_resource",
  "mcrs_minecraft_value_provider",
@@ -4065,7 +4052,6 @@ dependencies = [
 name = "mcrs_minecraft_enchantment"
 version = "0.5.8"
 dependencies = [
- "mcrs_minecraft_core",
  "mcrs_minecraft_item",
  "mcrs_minecraft_nbt",
  "mcrs_minecraft_registries",
@@ -4272,7 +4258,6 @@ version = "0.5.8"
 dependencies = [
  "bevy_app",
  "bevy_asset",
- "bevy_ecs",
  "bevy_state",
  "bevy_tasks",
  "bytes",
@@ -4312,22 +4297,18 @@ dependencies = [
  "mcrs_minecraft_worldgen_density",
  "mcrs_minecraft_worldgen_feature",
  "mcrs_minecraft_worldgen_structure",
- "mcrs_minecraft_worldgen_surface",
  "mcrs_minecraft_worldgen_testing",
  "mcrs_voxel",
  "serde",
  "serde_json",
  "thiserror 2.0.18",
- "tracing",
  "tracing-subscriber",
- "uuid",
 ]
 
 [[package]]
 name = "mcrs_minecraft_game_rule"
 version = "0.5.8"
 dependencies = [
- "mcrs_minecraft_core",
  "mcrs_minecraft_registries",
  "mcrs_minecraft_resource",
 ]
@@ -4340,7 +4321,6 @@ dependencies = [
  "bitflags 2.10.0",
  "mcrs_minecraft_block",
  "mcrs_minecraft_chunk",
- "mcrs_minecraft_core",
  "mcrs_minecraft_registries",
  "mcrs_minecraft_resource",
  "mcrs_voxel",
@@ -4380,7 +4360,6 @@ dependencies = [
 name = "mcrs_minecraft_keys"
 version = "0.5.8"
 dependencies = [
- "mcrs_minecraft_core",
  "mcrs_minecraft_resource",
 ]
 
@@ -4438,7 +4417,6 @@ dependencies = [
  "mcrs_minecraft_assets",
  "mcrs_minecraft_block",
  "mcrs_minecraft_chunk",
- "mcrs_minecraft_core",
  "mcrs_minecraft_engine_registries",
  "mcrs_minecraft_game_registries",
  "mcrs_minecraft_item",
@@ -4452,7 +4430,6 @@ dependencies = [
 name = "mcrs_minecraft_loot"
 version = "0.5.8"
 dependencies = [
- "mcrs_minecraft_core",
  "mcrs_minecraft_registries",
  "mcrs_minecraft_resource",
 ]
@@ -4564,7 +4541,6 @@ dependencies = [
 name = "mcrs_minecraft_predicate"
 version = "0.5.8"
 dependencies = [
- "mcrs_minecraft_core",
  "mcrs_minecraft_registries",
  "mcrs_minecraft_resource",
 ]
@@ -4592,6 +4568,8 @@ dependencies = [
  "bytes",
  "derive_more",
  "flate2",
+ "mcrs_minecraft_core",
+ "mcrs_minecraft_fixtures",
  "mcrs_minecraft_nbt",
  "mcrs_minecraft_profile",
  "mcrs_minecraft_resource",
@@ -4823,7 +4801,6 @@ dependencies = [
  "serde_json",
  "smallvec",
  "tokio",
- "tracing",
 ]
 
 [[package]]
@@ -4897,7 +4874,6 @@ name = "mcrs_minecraft_value_provider"
 version = "0.5.8"
 dependencies = [
  "mcrs_minecraft_core",
- "mcrs_minecraft_nbt",
  "mcrs_minecraft_random",
  "mcrs_minecraft_registries",
  "mcrs_minecraft_resource",
@@ -4948,7 +4924,6 @@ dependencies = [
  "mcrs_minecraft_chunk",
  "mcrs_minecraft_core",
  "mcrs_minecraft_datapack",
- "mcrs_minecraft_dimension",
  "mcrs_minecraft_engine",
  "mcrs_minecraft_engine_registries",
  "mcrs_minecraft_engine_world",
@@ -5024,7 +4999,6 @@ dependencies = [
  "mcrs_minecraft_datapack",
  "mcrs_minecraft_fixtures",
  "mcrs_minecraft_game_registries",
- "mcrs_minecraft_nbt",
  "mcrs_minecraft_noise",
  "mcrs_minecraft_registries",
  "mcrs_minecraft_resource",
@@ -5038,8 +5012,6 @@ dependencies = [
  "mcrs_voxel",
  "serde",
  "serde_json",
- "thiserror 2.0.18",
- "tracing",
 ]
 
 [[package]]
@@ -5061,7 +5033,6 @@ dependencies = [
  "mcrs_minecraft_resource",
  "mcrs_minecraft_sound",
  "mcrs_minecraft_value_provider",
- "mcrs_minecraft_worldgen_carver",
  "mcrs_minecraft_worldgen_density",
  "mcrs_minecraft_worldgen_feature",
  "mcrs_minecraft_worldgen_structure",
@@ -5128,7 +5099,6 @@ dependencies = [
  "mcrs_minecraft_core",
  "mcrs_minecraft_entity",
  "mcrs_minecraft_fixtures",
- "mcrs_minecraft_item",
  "mcrs_minecraft_nbt",
  "mcrs_minecraft_noise",
  "mcrs_minecraft_random",
@@ -5314,7 +5284,6 @@ name = "mcrs_minecraft_worldgen_testing"
 version = "0.5.8"
 dependencies = [
  "bytes",
- "mcrs_minecraft_core",
  "mcrs_minecraft_fixtures",
  "mcrs_minecraft_resource",
  "mcrs_minecraft_worldgen_builtin",

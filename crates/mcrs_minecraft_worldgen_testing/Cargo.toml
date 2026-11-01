@@ -13,7 +13,6 @@ workspace = true
 [dependencies]
 mcrs_minecraft_resource.workspace = true
 bytes.workspace = true
-mcrs_minecraft_core.workspace = true
 mcrs_minecraft_fixtures.workspace = true
 mcrs_minecraft_worldgen_builtin.workspace = true
 serde.workspace = true

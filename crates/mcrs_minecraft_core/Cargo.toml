@@ -15,14 +15,12 @@ bevy_ecs = { workspace = true, optional = true }
 glam.workspace = true
 serde.workspace = true
 serde_json.workspace = true
-thiserror.workspace = true
 tracing.workspace = true
 mcrs_minecraft_nbt.workspace = true
 mcrs_minecraft_snbt.workspace = true
 mcrs_minecraft_wire = { workspace = true, features = ["serde", "voxel", "resource"] }
 mcrs_minecraft_resource.workspace = true
 mcrs_voxel.workspace = true
-derive_more = { workspace = true, features = ["from", "deref"] }
 
 [features]
 default = []
