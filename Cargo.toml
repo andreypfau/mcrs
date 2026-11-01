@@ -200,6 +200,7 @@ bevy_diagnostic = { version = "0.19.0-rc.3", optional = true }
 
 [dev-dependencies]
 mcrs_minecraft_resource.workspace = true
+mcrs_minecraft_save.workspace = true
 mcrs_minecraft_worldgen_generator = { workspace = true, features = ["test-support"] }
 bevy_state.workspace = true
 mcrs_minecraft_client_world.workspace = true

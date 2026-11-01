@@ -11,5 +11,6 @@
 mod client_joins_embedded_server;
 mod client_joins_server_without_terrain;
 mod dimension_routers;
+mod shutdown;
 mod support;
 mod vanilla_server;
