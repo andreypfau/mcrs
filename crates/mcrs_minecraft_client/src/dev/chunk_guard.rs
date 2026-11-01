@@ -6,13 +6,13 @@
 //! moment after a dimension change, so the check starts only once the column
 //! under the player has actually arrived.
 
-use crate::columns::ColumnStore;
 use bevy::prelude::*;
+use mcrs_minecraft_client_world::columns::ColumnStore;
 use mcrs_minecraft_engine_world::entity::physics::Transform as PhysicsTransform;
 use mcrs_voxel::{BlockPos, ColumnPos};
 
 use super::knobs::Guard;
-use crate::player::Player;
+use mcrs_minecraft_client_world::player::Player;
 
 pub struct ChunkGuardPlugin {
     pub level: Guard,

@@ -21,10 +21,12 @@ use super::item_decorations::WHITE;
 use super::language::Language;
 use super::scene::{GuiAtlas, GuiScene};
 use super::text::{self, Wrap};
-use crate::chat::{self, Chat, ChatInput, ClientLookup, CommandWorld, SendChat};
-use crate::chat_history::CommandHistoryFile;
 use crate::gui::cursor_grab::grab;
-use crate::screen::Screen;
+use mcrs_minecraft_client_world::chat::{
+    self, Chat, ChatInput, ClientLookup, CommandWorld, SendChat,
+};
+use mcrs_minecraft_client_world::chat_history::CommandHistoryFile;
+use mcrs_minecraft_client_world::screen::Screen;
 
 /// The lines of the chat log as the GUI wraps them, and the scroll of the open chat.
 #[derive(Resource, Default)]
@@ -37,7 +39,10 @@ impl Plugin for ChatScreenPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<ChatLines>()
             .add_systems(PreUpdate, chat_keys.after(InputSystems))
-            .add_systems(Update, project_lines.after(crate::chat::log_messages));
+            .add_systems(
+                Update,
+                project_lines.after(mcrs_minecraft_client_world::chat::log_messages),
+            );
     }
 }
 

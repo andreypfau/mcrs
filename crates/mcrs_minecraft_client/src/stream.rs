@@ -1,12 +1,14 @@
 use std::collections::BinaryHeap;
 use std::sync::Arc;
 
-use crate::columns::{ClientTerrainSet, ColumnChange, ColumnStore, Columns, Extent};
 use bevy::ecs::system::SystemParam;
 use bevy::platform::collections::{HashMap, HashSet};
 use bevy::prelude::*;
 use bevy::tasks::{AsyncComputeTaskPool, IoTaskPool, Task, futures::check_ready};
 use mcrs_minecraft_block::definition::{BlockDefinitions, Blocks};
+use mcrs_minecraft_client_world::columns::{
+    ClientTerrainSet, ColumnChange, ColumnStore, Columns, Extent,
+};
 #[cfg(feature = "dev")]
 use mcrs_minecraft_engine_world::world::lifecycle::trace::{ColumnStage, TraceEvent};
 use mcrs_minecraft_mesh::SECTION_SIZE;
@@ -18,8 +20,8 @@ use crate::blocks::{self, BiomeTints, Catalog};
 use crate::cave::{CaveCull, NO_SLOT};
 use crate::item_model::bake::{ItemModels, bake_all as bake_items};
 use crate::model::Pack;
-use crate::registries::{SessionSet, entered_configuration};
 use crate::vanilla::VanillaAssets;
+use mcrs_minecraft_client_world::registries::{SessionSet, entered_configuration};
 use mcrs_minecraft_mesh::arena::{Arena, Block};
 use mcrs_minecraft_mesh::block::BlockInfo;
 use mcrs_minecraft_mesh::pack::QUAD_WORDS;
@@ -1579,9 +1581,9 @@ fn admit_meshing(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::registries::LastConfiguration;
     use mcrs_minecraft_biome_file::BiomeFile;
     use mcrs_minecraft_chunk::PalettedContainer;
+    use mcrs_minecraft_client_world::registries::LastConfiguration;
     use mcrs_minecraft_game_registries::registry_load::{sent_by, test_registries};
     use mcrs_minecraft_mesh::StreamSpan;
     use mcrs_minecraft_registries::Received;
@@ -1592,8 +1594,9 @@ mod tests {
             vanilla_known: false,
         };
         edit(&mut configuration.received);
-        let (registries, _) = crate::registries::load_registries(&configuration, None)
-            .unwrap_or_else(|error| panic!("{error}"));
+        let (registries, _) =
+            mcrs_minecraft_client_world::registries::load_registries(&configuration, None)
+                .unwrap_or_else(|error| panic!("{error}"));
         CurrentRegistries::new(registries)
     }
 
@@ -1956,7 +1959,7 @@ mod tests {
     }
 
     fn a_section_is_queued_when_the_last_of_its_neighbours_arrives_not_when_it_does() {
-        use crate::columns::{Column, Extent, Section};
+        use mcrs_minecraft_client_world::columns::{Column, Extent, Section};
 
         let extent = Extent {
             min_section_y: 0,
@@ -2017,7 +2020,7 @@ mod tests {
     }
 
     fn a_mesh_read_out_of_a_column_the_server_took_back_is_thrown_away() {
-        use crate::columns::{Column, Extent, Section};
+        use mcrs_minecraft_client_world::columns::{Column, Extent, Section};
 
         let stone = || {
             Column::unlit(
@@ -2085,7 +2088,7 @@ mod tests {
     }
 
     fn a_column_taken_back_before_it_is_adopted_leaves_the_section_count_where_it_was() {
-        use crate::columns::{Column, Extent, Section};
+        use mcrs_minecraft_client_world::columns::{Column, Extent, Section};
 
         let mut loader = loader();
         let mut cave = CaveCull::new(1 << 8, true);
@@ -2157,7 +2160,10 @@ mod tests {
         let pos = ColumnPos::new(2, 3);
         app.world_mut().write_message(ColumnChange::Arrived(
             pos,
-            Arc::new(crate::columns::Column::unlit(0, Vec::new())),
+            Arc::new(mcrs_minecraft_client_world::columns::Column::unlit(
+                0,
+                Vec::new(),
+            )),
         ));
         for _ in 0..3 {
             app.update();

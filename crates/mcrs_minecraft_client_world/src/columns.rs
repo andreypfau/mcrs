@@ -65,7 +65,7 @@ pub struct Dimension {
     pub extent: Extent,
 }
 
-#[cfg(test)]
+/// A dimension with no name, for a store that only ever holds one.
 impl From<Extent> for Dimension {
     fn from(extent: Extent) -> Self {
         Dimension {
@@ -235,7 +235,7 @@ impl Columns for Neighbourhood {
         if !(0..3).contains(&dx) || !(0..3).contains(&dz) {
             return None;
         }
-        self.columns[(dz * 3 + dx) as usize].as_deref()
+        self.columns.get((dz * 3 + dx) as usize)?.as_deref()
     }
 }
 
@@ -430,7 +430,7 @@ impl Column {
             return 0;
         }
         match self.light.get(row as usize) {
-            Some(Some(light)) => light[cell],
+            Some(Some(light)) => light.get(cell).copied().unwrap_or(0),
             Some(None) => 0,
             None => OPEN_SKY,
         }
@@ -443,7 +443,11 @@ fn expand<V: Hash + Eq + Copy + Default, const DIM: usize, T>(
     id: impl Fn(V) -> T,
 ) {
     let mut cells = out.iter_mut();
-    container.for_each(|value| *cells.next().expect("one cell per entry") = id(value));
+    container.for_each(|value| {
+        if let Some(cell) = cells.next() {
+            *cell = id(value);
+        }
+    });
 }
 
 fn apply_layer(row: &RowLight, out: &mut [u8; SectionPos::VOLUME], shift: u32) {
@@ -461,9 +465,10 @@ fn apply_layer(row: &RowLight, out: &mut [u8; SectionPos::VOLUME], shift: u32) {
 
 fn write_nibbles(source: &LightChunk, out: &mut [u8; SectionPos::VOLUME], shift: u32) {
     let keep = !(0x0f << shift);
-    for (index, byte) in source.as_bytes().iter().enumerate() {
-        out[index * 2] = (out[index * 2] & keep) | ((byte & 0x0f) << shift);
-        out[index * 2 + 1] = (out[index * 2 + 1] & keep) | ((byte >> 4) << shift);
+    let (pairs, _) = out.as_chunks_mut::<2>();
+    for ([low, high], byte) in pairs.iter_mut().zip(source.as_bytes()) {
+        *low = (*low & keep) | ((byte & 0x0f) << shift);
+        *high = (*high & keep) | ((byte >> 4) << shift);
     }
 }
 
@@ -488,12 +493,10 @@ fn biome_ids(
             let mut cube = Box::new([[[0u8; Biomes::SIZE]; Biomes::SIZE]; Biomes::SIZE]);
             let mut slots = cube.as_flattened_mut().as_flattened_mut().iter_mut();
             let mut refused = Ok(());
-            sent.for_each(|number| {
-                let slot = slots.next().expect("one cell per entry");
-                match local(number) {
-                    Ok(id) => *slot = id,
-                    Err(error) => refused = Err(error),
-                }
+            sent.for_each(|number| match (slots.next(), local(number)) {
+                (Some(slot), Ok(id)) => *slot = id,
+                (None, Ok(_)) => {}
+                (_, Err(error)) => refused = Err(error),
             });
             refused?;
             Ok(PalettedContainer::from_cube(cube))

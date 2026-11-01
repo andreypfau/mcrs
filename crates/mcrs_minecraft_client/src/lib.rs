@@ -22,6 +22,7 @@ use bevy::app::PluginGroupBuilder;
 use bevy::camera::visibility::VisibilitySystems;
 use bevy::prelude::*;
 use bevy::render::{ExtractSchedule, RenderApp};
+use mcrs_minecraft_client_world::{local_player, registries};
 
 pub mod anim;
 #[cfg(target_os = "macos")]
@@ -31,27 +32,15 @@ pub mod bake;
 pub mod blocks;
 pub mod camera;
 pub mod cave;
-pub mod chat;
-mod chat_history;
-mod chat_packets;
-pub mod columns;
 pub mod config;
 #[cfg(feature = "dev")]
 pub mod dev;
-pub mod game_mode;
 pub mod gui;
 pub mod input;
 pub mod item_model;
-pub mod joined_game;
 pub mod light_volume;
-pub mod local_player;
 pub mod model;
-pub mod movement_input;
-pub mod player;
-mod received;
-pub mod registries;
 pub mod render;
-pub mod screen;
 #[cfg(not(target_family = "wasm"))]
 pub mod screenshot;
 pub mod sky;
@@ -60,20 +49,6 @@ pub mod stream;
 pub mod vanilla;
 #[cfg(target_family = "wasm")]
 pub mod web;
-
-/// The default asset source over `roots`: the packs under the assets root layered over its
-/// files and the game's data pack, with no built-in answer for a path none of them holds.
-#[cfg(not(target_family = "wasm"))]
-pub fn asset_source(
-    roots: &mcrs_minecraft_assets::packs::PackRoots,
-) -> bevy::asset::io::AssetSourceBuilder {
-    use bevy::asset::io::AssetSourceBuilder;
-    use mcrs_minecraft_assets::packs::{PackLayers, pack_files_reader};
-
-    let mut files = pack_files_reader(roots);
-    AssetSourceBuilder::platform_default(&roots.assets, None)
-        .with_reader(move || Box::new(PackLayers::new(files())))
-}
 
 /// A plugin still has work a scripted capture must wait for.
 #[derive(Message)]

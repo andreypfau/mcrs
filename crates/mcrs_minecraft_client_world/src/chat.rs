@@ -206,7 +206,7 @@ pub struct CommandWorld<'w, 's> {
 }
 
 impl CommandWorld<'_, '_> {
-    pub(crate) fn lookup(&self) -> ClientLookup<'_> {
+    pub fn lookup(&self) -> ClientLookup<'_> {
         ClientLookup {
             registries: RegistryLookup {
                 registries: self.registries.as_deref().map(|registries| &**registries),
@@ -226,11 +226,11 @@ impl CommandWorld<'_, '_> {
         }
     }
 
-    pub(crate) fn has_joined(&self) -> bool {
+    pub fn has_joined(&self) -> bool {
         !self.joined.is_empty()
     }
 
-    pub(crate) fn level(&self) -> CommandLevel {
+    pub fn level(&self) -> CommandLevel {
         CommandLevel::from(self.level.iter().next().map_or(0, |level| level.0))
     }
 }
@@ -285,7 +285,7 @@ fn advance_tick(mut chat: ResMut<Chat>) {
     chat.overlay.tick();
 }
 
-pub(crate) fn log_messages(mut messages: MessageReader<ChatMessage>, mut chat: ResMut<Chat>) {
+pub fn log_messages(mut messages: MessageReader<ChatMessage>, mut chat: ResMut<Chat>) {
     let chat = &mut *chat;
     for message in messages.read() {
         let allowed = match message.origin {
@@ -298,7 +298,7 @@ pub(crate) fn log_messages(mut messages: MessageReader<ChatMessage>, mut chat: R
     }
 }
 
-pub(crate) fn context<'a>(
+pub fn context<'a>(
     world: &'a CommandWorld,
     source: &'a Source<'a, ClientLookup<'a>>,
     abilities: ChatAbilities,

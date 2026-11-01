@@ -3,10 +3,10 @@ use bevy::prelude::*;
 use bevy::window::{CursorGrabMode, CursorOptions, PrimaryWindow};
 use mcrs_minecraft_engine_world::entity::physics::Transform as PhysicsTransform;
 
-use crate::local_player::{FlyingSpeed, LocalPlayerTick};
-use crate::movement_input::MovementInput;
-use crate::player::Player;
-use crate::screen::Screen;
+use mcrs_minecraft_client_world::local_player::{FlyingSpeed, LocalPlayerTick};
+use mcrs_minecraft_client_world::movement_input::MovementInput;
+use mcrs_minecraft_client_world::player::Player;
+use mcrs_minecraft_client_world::screen::Screen;
 
 const FLY_SPEED_STEP: f64 = 0.05;
 const FLY_SPEED_MIN: f64 = 0.0;

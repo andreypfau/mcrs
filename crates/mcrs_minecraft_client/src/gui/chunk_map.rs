@@ -1,17 +1,17 @@
 use std::time::Duration;
 
-use crate::joined_game::CurrentDimension;
 use bevy::ecs::system::SystemParam;
 use bevy::platform::collections::HashMap;
 use bevy::prelude::*;
 use bevy::text::{FontSize, LineBreak};
+use mcrs_minecraft_client_world::joined_game::CurrentDimension;
 use mcrs_minecraft_engine_world::world::lifecycle::trace::{
     ColumnSample, ColumnStage, ColumnTraceSink,
 };
 use mcrs_minecraft_network::client::ClientConnection;
 use mcrs_voxel::{BlockPos, ColumnPos};
 
-use crate::player::Player;
+use mcrs_minecraft_client_world::player::Player;
 use mcrs_minecraft_engine_world::entity::physics::Transform as PhysicsTransform;
 
 /// Columns across the map. A player's view distance is 12 columns plus a

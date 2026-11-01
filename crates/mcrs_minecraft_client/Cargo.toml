@@ -34,6 +34,7 @@ mcrs_minecraft_datapack.workspace = true
 mcrs_minecraft_light_engine.workspace = true
 mcrs_minecraft_light_color = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_client_jar.workspace = true
+mcrs_minecraft_client_world.workspace = true
 bevy = { version = "0.19.1", default-features = false, features = [
     "std",
     "async_executor",
@@ -56,21 +57,14 @@ bevy = { version = "0.19.1", default-features = false, features = [
 ] }
 bytemuck = { version = "1", features = ["derive"] }
 flate2.workspace = true
-anyhow.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 mcrs_minecraft_core = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_nbt.workspace = true
 mcrs_minecraft_snbt.workspace = true
-mcrs_command.workspace = true
 mcrs_minecraft_chat.workspace = true
 mcrs_minecraft_chat_client.workspace = true
 mcrs_minecraft_command.workspace = true
-mcrs_minecraft_command_argument_block.workspace = true
-mcrs_minecraft_command_registry.workspace = true
-mcrs_minecraft_command_argument.workspace = true
-mcrs_minecraft_command_argument_vanilla.workspace = true
-mcrs_minecraft_keys.workspace = true
 mcrs_minecraft_network = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_protocol.workspace = true
 mcrs_minecraft_game_registries.workspace = true

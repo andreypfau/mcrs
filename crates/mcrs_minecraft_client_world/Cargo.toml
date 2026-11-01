@@ -1,0 +1,66 @@
+[package]
+name = "mcrs_minecraft_client_world"
+description = "The world state of a Minecraft client without a window or a renderer: session registries, columns, the local player, game mode and chat"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+doctest = false
+
+[lints]
+workspace = true
+
+[dependencies]
+anyhow.workspace = true
+mcrs_minecraft_assets.workspace = true
+mcrs_minecraft_biome.workspace = true
+mcrs_minecraft_biome_file.workspace = true
+mcrs_minecraft_block = { workspace = true, features = ["bevy"] }
+mcrs_minecraft_chat_client.workspace = true
+mcrs_minecraft_chunk = { workspace = true, features = ["bevy"] }
+mcrs_minecraft_command.workspace = true
+mcrs_minecraft_command_argument.workspace = true
+mcrs_minecraft_command_argument_block.workspace = true
+mcrs_minecraft_command_argument_vanilla.workspace = true
+mcrs_minecraft_command_registry.workspace = true
+mcrs_minecraft_core = { workspace = true, features = ["bevy"] }
+mcrs_minecraft_datapack.workspace = true
+mcrs_minecraft_dimension.workspace = true
+mcrs_minecraft_dimension_environment = { workspace = true, features = ["bevy"] }
+mcrs_minecraft_engine_registries.workspace = true
+mcrs_minecraft_engine_world.workspace = true
+mcrs_minecraft_entity.workspace = true
+mcrs_minecraft_environment = { workspace = true, features = ["bevy"] }
+mcrs_minecraft_game_mode.workspace = true
+mcrs_minecraft_game_registries.workspace = true
+mcrs_minecraft_item = { workspace = true, features = ["bevy"] }
+mcrs_minecraft_keys.workspace = true
+mcrs_minecraft_nbt.workspace = true
+mcrs_minecraft_network = { workspace = true, features = ["bevy"] }
+mcrs_minecraft_protocol.workspace = true
+mcrs_minecraft_registries = { workspace = true, features = ["bevy"] }
+mcrs_minecraft_resource.workspace = true
+mcrs_minecraft_volume.workspace = true
+mcrs_voxel.workspace = true
+bevy = { version = "0.19.1", default-features = false, features = [
+    "std",
+    "async_executor",
+    "bevy_asset",
+    "bevy_log",
+] }
+
+[target.'cfg(not(target_family = "wasm"))'.dependencies]
+bevy = { version = "0.19.1", default-features = false, features = ["multi_threaded"] }
+
+[target.'cfg(target_family = "wasm")'.dependencies]
+bevy = { version = "0.19.1", default-features = false, features = ["web"] }
+# The rustflag in .cargo/config.toml picks the backend; without the crate feature of the same
+# name getrandom refuses to build at all.
+getrandom = { version = "0.4", features = ["wasm_js"] }
+
+[dev-dependencies]
+mcrs_minecraft_engine_registries = { workspace = true, features = ["test-support"] }
+mcrs_minecraft_game_registries = { workspace = true, features = ["test-support"] }
+bytes.workspace = true
+mcrs_minecraft_fixtures.workspace = true
+serde.workspace = true

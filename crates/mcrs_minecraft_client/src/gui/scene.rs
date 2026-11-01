@@ -23,9 +23,9 @@ use super::tooltip::{Tooltip, TooltipSprites};
 use crate::atlas::{MISSING_SIZE, decode_png, missing_pixels, rgba};
 use crate::item_model::resolve::{GuiVertex, ItemRenderLayers};
 use crate::model::Pack;
-use crate::player::Player;
-use crate::screen::Screen;
 use crate::stream::BlockCatalog;
+use mcrs_minecraft_client_world::player::Player;
+use mcrs_minecraft_client_world::screen::Screen;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct GuiSize {

@@ -7,14 +7,14 @@ use std::path::PathBuf;
 /// The command history file and its writes. One write runs at a time and only the newest
 /// history waits for it, so an older history never overwrites a newer one.
 #[derive(Resource)]
-pub(crate) struct CommandHistoryFile {
+pub struct CommandHistoryFile {
     path: PathBuf,
     writing: Option<Task<()>>,
     next: Option<String>,
 }
 
 impl CommandHistoryFile {
-    pub(crate) fn new(path: PathBuf) -> Self {
+    pub fn new(path: PathBuf) -> Self {
         Self {
             path,
             writing: None,
@@ -22,7 +22,7 @@ impl CommandHistoryFile {
         }
     }
 
-    pub(crate) fn save(&mut self, file: String) {
+    pub fn save(&mut self, file: String) {
         if self.writing.is_some() {
             self.next = Some(file);
         } else {

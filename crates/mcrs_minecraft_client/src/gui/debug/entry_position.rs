@@ -1,12 +1,12 @@
-use crate::joined_game::CurrentDimension;
 use bevy::prelude::*;
+use mcrs_minecraft_client_world::joined_game::CurrentDimension;
 use mcrs_minecraft_core::{Direction, RegionPos};
 use mcrs_minecraft_engine_world::entity::physics::Transform as PhysicsTransform;
 use mcrs_minecraft_resource::{ResourceLocation, rl};
 use mcrs_voxel::{BlockPos, ColumnPos, SectionPos};
 
 use super::DebugScreenDisplayer;
-use crate::player::Player;
+use mcrs_minecraft_client_world::player::Player;
 
 pub const GROUP: ResourceLocation<'static> = rl!("minecraft:position");
 

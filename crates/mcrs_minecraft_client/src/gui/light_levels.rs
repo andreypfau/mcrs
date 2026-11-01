@@ -1,9 +1,9 @@
-use crate::columns::ColumnStore;
 use bevy::color::Mix;
 use bevy::prelude::*;
 use bevy::text::FontSize;
 use bevy::transform::TransformSystems;
 use bevy::ui::{ComputedNode, UiSystems};
+use mcrs_minecraft_client_world::columns::ColumnStore;
 use mcrs_minecraft_volume::LightVolume;
 use mcrs_voxel::BlockPos;
 
