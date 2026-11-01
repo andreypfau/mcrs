@@ -71,9 +71,12 @@ impl Source for WebSource {
                 continue;
             }
             let (from, to) = (start.max(span.start), end.min(span.end));
-            bytes[(from - span.start) as usize..(to - span.start) as usize]
-                .copy_from_slice(&piece[(from - start) as usize..(to - start) as usize]);
-            filled += to - from;
+            let target = bytes.get_mut((from - span.start) as usize..(to - span.start) as usize);
+            let source = piece.get((from - start) as usize..(to - start) as usize);
+            if let (Some(target), Some(source)) = (target, source) {
+                target.copy_from_slice(source);
+                filled += to - from;
+            }
         }
         if filled == span.end - span.start {
             Ok(bytes)
@@ -92,13 +95,19 @@ impl WebSource {
             .map(|(start, _)| *start)
             .collect();
         for start in overlapping {
-            let piece = pieces.remove(&start).unwrap();
+            let Some(piece) = pieces.remove(&start) else {
+                continue;
+            };
             let end = start + piece.len() as u64;
-            if start < cut.start {
-                pieces.insert(start, piece[..(cut.start - start) as usize].to_vec());
+            if start < cut.start
+                && let Some(head) = piece.get(..(cut.start - start) as usize)
+            {
+                pieces.insert(start, head.to_vec());
             }
-            if end > cut.end {
-                pieces.insert(cut.end, piece[(cut.end - start) as usize..].to_vec());
+            if end > cut.end
+                && let Some(tail) = piece.get((cut.end - start) as usize..)
+            {
+                pieces.insert(cut.end, tail.to_vec());
             }
         }
     }
