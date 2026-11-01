@@ -88,7 +88,7 @@ tracing-tracy = { version = "0.12", optional = true }
 bevy = { version = "0.19.1", default-features = false, features = ["x11"] }
 
 [target.'cfg(target_family = "wasm")'.dependencies]
-bevy = { version = "0.19.1", default-features = false, features = ["web", "webgpu"] }
+bevy = { version = "0.19.1", default-features = false, features = ["web", "webgpu", "bevy_clipboard"] }
 console_error_panic_hook = "0.1"
 wasm-bindgen-futures = "0.4"
 # The rustflag in .cargo/config.toml picks the backend; without the crate
