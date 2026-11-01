@@ -4,8 +4,10 @@ use mcrs_minecraft_render::DrawMask;
 use mcrs_minecraft_render::sky::SkyDrawsOnly;
 
 use crate::config::Knobs;
-use crate::gui::debug::{DebugScreenSet, collecting, entry_fps, entry_system_specs, entry_terrain};
 use crate::stream;
+use crate::terrain_debug_entry;
+use mcrs_minecraft_client_gui::debug_screen::{DebugScreenSet, collecting};
+use mcrs_minecraft_client_gui::{debug_entry_fps, debug_entry_system_specs};
 use mcrs_minecraft_client_world::columns::ClientTerrainSet;
 use mcrs_minecraft_client_world::local_player::{FlyingSpeed, LocalPlayerTick};
 
@@ -85,11 +87,11 @@ impl Plugin for DevPlugin {
             Update,
             (
                 entry_frame::display
-                    .after(entry_fps::display)
-                    .before(entry_fps::display_version),
+                    .after(debug_entry_fps::display)
+                    .before(debug_entry_fps::display_version),
                 entry_frame::display_triangles
-                    .after(entry_system_specs::display)
-                    .before(entry_terrain::display)
+                    .after(debug_entry_system_specs::display)
+                    .before(terrain_debug_entry::display)
                     .run_if(resource_exists::<stream::Loader>),
             )
                 .in_set(DebugScreenSet::Collect)

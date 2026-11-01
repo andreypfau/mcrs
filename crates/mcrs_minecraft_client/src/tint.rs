@@ -138,16 +138,6 @@ fn noted<T>(result: Result<T, String>, failures: &mut Vec<String>) -> Option<T> 
     result.map_err(|reason| failures.push(reason)).ok()
 }
 
-/// An item's grass colour, where vanilla's colormap resolves it.
-pub(crate) fn colormap_rgba(
-    map: Option<&[u8]>,
-    temperature: f32,
-    downfall: f32,
-) -> Option<[f32; 4]> {
-    let color = sample_colormap(Some(map?), temperature, downfall);
-    Some(crate::sky::rgb(color).extend(1.0).to_array())
-}
-
 pub fn tint_column(
     store: &(impl Columns + BiomeVolume),
     tints: &[BiomeTint],

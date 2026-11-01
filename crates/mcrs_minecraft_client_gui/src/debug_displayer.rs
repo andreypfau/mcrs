@@ -58,8 +58,12 @@ impl DebugScreenDisplayer {
 
         if !self.lines.is_empty() {
             let middle = self.lines.len().div_ceil(2);
-            left.extend_from_slice(&self.lines[..middle]);
-            right.extend_from_slice(&self.lines[middle..]);
+            let (first, second) = self
+                .lines
+                .split_at_checked(middle)
+                .unwrap_or((&self.lines, &[]));
+            left.extend_from_slice(first);
+            right.extend_from_slice(second);
             left.push(String::new());
             if middle < self.lines.len() {
                 right.push(String::new());

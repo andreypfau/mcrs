@@ -8,13 +8,13 @@ use mcrs_minecraft_chat_client::{
     ARGUMENT_COLOURS, ChatScreen, Highlight, Tag, Tooltip as SuggestionTooltip,
 };
 
-use super::chat_suggestions;
-use super::font::{self, Font, Hover, Span};
-use super::item_decorations::WHITE;
-use super::language::Language;
-use super::scene::{self, GuiAtlas, GuiConfig, GuiQuad, GuiScene, GuiSize};
-use super::text::{self, Wrap};
-use super::tooltip::Tooltip;
+use crate::chat_suggestions;
+use crate::font::{self, Font, Hover, Span};
+use crate::item_decorations::WHITE;
+use crate::language::Language;
+use crate::scene::{self, GuiAtlas, GuiConfig, GuiQuad, GuiScene, GuiSize};
+use crate::text::{self, Wrap};
+use crate::tooltip::Tooltip;
 use mcrs_minecraft_client_world::chat::{Chat, ChatInput};
 use mcrs_minecraft_client_world::screen::Screen;
 
@@ -363,7 +363,7 @@ fn input_box(
 /// Draws the chat log and the overlay message, and the input box, the suggestions, the hints
 /// and the tooltips of the open chat screen.
 pub fn draw(
-    (chat, lines): (Res<Chat>, Res<super::chat_input::ChatLines>),
+    (chat, lines): (Res<Chat>, Res<crate::chat_input::ChatLines>),
     input: Res<ChatInput>,
     screen: Res<Screen>,
     (language, atlas): (Option<Res<Language>>, Option<Res<GuiAtlas>>),
@@ -438,8 +438,8 @@ pub fn draw(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::gui::font::corpus_font;
-    use crate::gui::text::row_texts;
+    use crate::font::corpus_font;
+    use crate::text::row_texts;
 
     mod jar {
         use super::*;

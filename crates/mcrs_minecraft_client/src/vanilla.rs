@@ -9,8 +9,8 @@ use bevy::prelude::*;
 use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
 use mcrs_minecraft_client_jar::{self as client_jar, Files, Progress};
 
-use crate::gui::font::{ASCII_TEXTURE, Font, Span, draw_centered_text};
-use crate::gui::scene::GuiQuad;
+use mcrs_minecraft_client_gui::font::{ASCII_TEXTURE, Font, Span, draw_centered_text};
+use mcrs_minecraft_client_gui::scene::GuiQuad;
 use mcrs_minecraft_model::atlas::decode_png;
 use mcrs_minecraft_model::model::{Pack, is_resource};
 use mcrs_minecraft_model::vanilla_source::{fill, register_source};

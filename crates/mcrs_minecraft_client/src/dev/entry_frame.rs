@@ -1,7 +1,8 @@
 use bevy::prelude::*;
 use mcrs_minecraft_resource::{ResourceLocation, rl};
 
-use crate::gui::debug::{DebugScreenDisplayer, entry_terrain};
+use crate::terrain_debug_entry;
+use mcrs_minecraft_client_gui::debug_displayer::DebugScreenDisplayer;
 use mcrs_minecraft_render_probe::probe::{self, CpuTimings, GpuTimings};
 use mcrs_minecraft_render_probe::{DrawnTriangles, ReportedCounts};
 
@@ -73,7 +74,7 @@ pub fn display_triangles(
     triangles: Res<DrawnTriangles>,
 ) {
     displayer.add_to_group(
-        entry_terrain::GROUP,
+        terrain_debug_entry::GROUP,
         [format!(
             "Tris: {} ({} hidden behind terrain)",
             triangles.get(),

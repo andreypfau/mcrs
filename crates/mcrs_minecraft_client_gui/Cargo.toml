@@ -1,0 +1,68 @@
+[package]
+name = "mcrs_minecraft_client_gui"
+description = "The GUI of a Minecraft client: hotbar, inventory and chat screens, game mode switcher, slot item models and the F3 debug screen"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+doctest = false
+
+[lints]
+workspace = true
+
+[dependencies]
+bytemuck = { version = "1", features = ["derive"] }
+mcrs_minecraft_chat.workspace = true
+mcrs_minecraft_chat_client.workspace = true
+mcrs_minecraft_client_world.workspace = true
+mcrs_minecraft_command.workspace = true
+mcrs_minecraft_core = { workspace = true, features = ["bevy"] }
+mcrs_minecraft_dimension.workspace = true
+mcrs_minecraft_engine_world.workspace = true
+mcrs_minecraft_game_mode.workspace = true
+mcrs_minecraft_item = { workspace = true, features = ["bevy"] }
+mcrs_minecraft_model.workspace = true
+mcrs_minecraft_nbt.workspace = true
+mcrs_minecraft_network = { workspace = true, features = ["bevy"] }
+mcrs_minecraft_protocol.workspace = true
+mcrs_minecraft_registries = { workspace = true, features = ["bevy"] }
+mcrs_minecraft_render.workspace = true
+mcrs_minecraft_render_probe.workspace = true
+mcrs_minecraft_resource.workspace = true
+mcrs_minecraft_snbt.workspace = true
+mcrs_minecraft_volume.workspace = true
+mcrs_voxel.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+# Bevy gives no name to the texture data order a layered upload needs.
+wgpu = { version = "29", default-features = false }
+bevy = { version = "0.19.1", default-features = false, features = [
+    "std",
+    "async_executor",
+    "bevy_asset",
+    "bevy_log",
+    "bevy_window",
+    "bevy_render",
+    "bevy_core_pipeline",
+    "bevy_image",
+    "bevy_clipboard",
+    "keyboard",
+    "mouse",
+    "bevy_text",
+    "bevy_ui",
+    "bevy_ui_render",
+    "default_font",
+] }
+
+[target.'cfg(not(target_family = "wasm"))'.dependencies]
+bevy = { version = "0.19.1", default-features = false, features = ["multi_threaded"] }
+
+[target.'cfg(target_family = "wasm")'.dependencies]
+bevy = { version = "0.19.1", default-features = false, features = ["web"] }
+# The rustflag in .cargo/config.toml picks the backend; without the crate feature of the same
+# name getrandom refuses to build at all.
+getrandom = { version = "0.4", features = ["wasm_js"] }
+
+[dev-dependencies]
+mcrs_minecraft_engine_registries = { workspace = true, features = ["test-support"] }
+mcrs_minecraft_model = { workspace = true, features = ["test-support"] }

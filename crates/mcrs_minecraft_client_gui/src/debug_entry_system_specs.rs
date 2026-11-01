@@ -3,7 +3,7 @@ use bevy::render::renderer::RenderAdapterInfo;
 use bevy::window::PrimaryWindow;
 use mcrs_minecraft_resource::{ResourceLocation, rl};
 
-use super::DebugScreenDisplayer;
+use crate::debug_displayer::DebugScreenDisplayer;
 
 pub const GROUP: ResourceLocation<'static> = rl!("minecraft:system");
 

@@ -1,8 +1,8 @@
 use bevy::color::{ColorToPacked, Hsva, Srgba};
 use bevy::math::{IRect, IVec2};
 
-use super::font::{Font, Span, draw_text};
-use super::scene::GuiQuad;
+use crate::font::{Font, Span, draw_text};
+use crate::scene::GuiQuad;
 
 pub const WHITE: u32 = 0xFFFF_FFFF;
 const BAR_BACK: u32 = 0xFF00_0000;
@@ -45,7 +45,7 @@ pub fn decorations(origin: IVec2, stack: &Decorated, font: &Font, out: &mut Vec<
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::gui::font::corpus_font;
+    use crate::font::corpus_font;
 
     #[test]
     fn bar_width_and_hue_follow_the_damage() {

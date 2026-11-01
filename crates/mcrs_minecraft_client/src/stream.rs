@@ -862,6 +862,16 @@ impl Stream {
     }
 }
 
+/// The GUI textures and translations come from the pack the catalog bakes from, once it has
+/// loaded.
+pub fn load_gui_atlas(catalog: Res<BlockCatalog>, mut commands: Commands) {
+    if let Some(pack) = catalog.pack()
+        && let Err(reason) = mcrs_minecraft_client_gui::scene::load_gui_atlas(pack, &mut commands)
+    {
+        panic!("cannot load the GUI: {reason}");
+    }
+}
+
 impl BlockCatalog {
     pub fn pack(&self) -> Option<&Arc<Pack>> {
         match &self.pack {

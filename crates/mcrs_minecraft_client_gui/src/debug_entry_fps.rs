@@ -4,7 +4,7 @@ use bevy::prelude::*;
 use bevy::window::{PresentMode, PrimaryWindow};
 use mcrs_minecraft_core::VERSION;
 
-use super::DebugScreenDisplayer;
+use crate::debug_displayer::DebugScreenDisplayer;
 use mcrs_minecraft_render_probe::probe::{CPU_WINDOW, WINDOW_SECS};
 
 /// Room for a second of frames at the rate being aimed for.
@@ -27,7 +27,10 @@ pub fn display(
             .map(|m| m.value),
     );
     sorted.sort_unstable_by(f64::total_cmp);
-    let at = |q: f64| sorted[((sorted.len() as f64 * q) as usize).min(sorted.len() - 1)];
+    let at = |q: f64| {
+        let index = ((sorted.len() as f64 * q) as usize).min(sorted.len().saturating_sub(1));
+        sorted.get(index).copied().unwrap_or(0.0)
+    };
     let vsync = matches!(
         window.present_mode,
         PresentMode::AutoVsync | PresentMode::Fifo | PresentMode::FifoRelaxed
@@ -42,7 +45,7 @@ pub fn display(
             sorted.len(),
             at(0.5),
             at(0.99),
-            sorted[sorted.len() - 1],
+            sorted.last().copied().unwrap_or(0.0),
             if vsync { " vsync" } else { "" }
         )
     };

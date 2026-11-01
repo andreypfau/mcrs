@@ -2,7 +2,6 @@
     clippy::expect_used,
     clippy::indexing_slicing,
     clippy::panic,
-    clippy::unreachable,
     clippy::unwrap_used,
     reason = "an application has no caller to return an error to"
 )]
@@ -22,6 +21,8 @@ use bevy::app::PluginGroupBuilder;
 use bevy::camera::visibility::VisibilitySystems;
 use bevy::prelude::*;
 use bevy::render::{ExtractSchedule, RenderApp};
+use mcrs_minecraft_client_gui::debug_entry_system_specs;
+use mcrs_minecraft_client_gui::debug_screen::{DebugScreenSet, collecting};
 use mcrs_minecraft_client_world::{local_player, registries};
 
 #[cfg(target_os = "macos")]
@@ -31,16 +32,14 @@ pub mod cave;
 pub mod config;
 #[cfg(feature = "dev")]
 pub mod dev;
-pub mod gui;
 pub mod input;
-pub mod item_resolve;
 pub mod light_volume;
-pub mod render;
 #[cfg(not(target_family = "wasm"))]
 pub mod screenshot;
 pub mod sky;
 pub mod sky_state;
 pub mod stream;
+pub mod terrain_debug_entry;
 pub mod tint;
 pub mod vanilla;
 #[cfg(target_family = "wasm")]
@@ -59,16 +58,16 @@ impl PluginGroup for ClientPlugins {
             .add(input::ClientInputPlugin)
             .add(local_player::LocalPlayerPlugin)
             .add(camera::CameraPlugin)
-            .add(gui::debug::DebugScreenPlugin {
+            .add(mcrs_minecraft_client_gui::debug_screen::DebugScreenPlugin {
                 stats_interval: self.0.stats_interval(),
                 always_time_passes: self.0.always_time_passes(),
             })
-            .add(gui::chunk_map::ChunkMapPlugin {
+            .add(mcrs_minecraft_client_gui::chunk_map::ChunkMapPlugin {
                 visible: self.0.chunk_map(),
             })
-            .add(gui::light_levels::LightLevelsPlugin {
-                visible: self.0.light_levels(),
-            })
+            .add(mcrs_minecraft_client_gui::light_levels::LightLevelsPlugin::<
+                camera::PlayerCamera,
+            >::new(self.0.light_levels()))
             .add(registries::ClientRegistriesPlugin::default())
             .add(sky::SkyPlugin)
     }
@@ -88,7 +87,7 @@ impl Plugin for ClientTerrainPlugin {
             heat: knobs.gpu_hot(),
             timestamps: knobs.pass_timestamps(),
         })
-        .add_plugins(render::GuiItemsPlugin)
+        .add_plugins(mcrs_minecraft_client_gui::gui_items::GuiItemsPlugin)
         .insert_resource(mcrs_minecraft_render::Occlusion(knobs.occlusion()))
         .insert_resource(mcrs_minecraft_render::Brightness(knobs.brightness()))
         .add_plugins(stream::StreamPlugin::new(
@@ -100,7 +99,19 @@ impl Plugin for ClientTerrainPlugin {
             },
         ))
         .insert_resource(cave)
-        .add_systems(Update, (cave::toggle, toggle_culls, step_debug_view))
+        .add_systems(
+            Update,
+            (
+                cave::toggle,
+                toggle_culls,
+                step_debug_view,
+                terrain_debug_entry::display
+                    .after(debug_entry_system_specs::display)
+                    .in_set(DebugScreenSet::Collect)
+                    .run_if(collecting)
+                    .run_if(resource_exists::<stream::Loader>),
+            ),
+        )
         .add_systems(
             PostUpdate,
             cave::cave_cull.after(VisibilitySystems::UpdateFrusta),

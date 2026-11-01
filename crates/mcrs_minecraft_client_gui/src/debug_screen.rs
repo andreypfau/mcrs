@@ -5,9 +5,9 @@ use bevy::render::{ExtractSchedule, RenderApp};
 use bevy::ui::UiSystems;
 use bevy::ui_render::RenderUiSystems;
 
-use crate::gui::chunk_map::ChunkMap;
-use crate::gui::debug_screen_overlay;
-use crate::gui::light_levels::LightLevels;
+use crate::chunk_map::ChunkMap;
+use crate::debug_screen_overlay;
+use crate::light_levels::LightLevels;
 
 /// Whether any panel is up this frame and whether one was last frame. Bevy's UI systems run
 /// every frame whatever is on screen; with nothing shown they are a fixed cost of the frame,
@@ -45,14 +45,7 @@ fn update_ui_needed(
     }
 }
 
-pub mod displayer;
-pub mod entry_fps;
-pub mod entry_network;
-pub mod entry_position;
-pub mod entry_system_specs;
-pub mod entry_terrain;
-
-pub use displayer::DebugScreenDisplayer;
+use crate::debug_displayer::DebugScreenDisplayer;
 
 /// Frames the entries actually run on: a shown overlay refreshes on a timer rather than every
 /// frame, and a stats log collects on its own timer with the overlay staying hidden, so the
@@ -103,7 +96,9 @@ pub struct DebugScreenPlugin {
 impl Plugin for DebugScreenPlugin {
     fn build(&self, app: &mut App) {
         if !app.is_plugin_added::<FrameTimeDiagnosticsPlugin>() {
-            app.add_plugins(FrameTimeDiagnosticsPlugin::new(entry_fps::HISTORY));
+            app.add_plugins(FrameTimeDiagnosticsPlugin::new(
+                crate::debug_entry_fps::HISTORY,
+            ));
         }
         app.init_resource::<DebugOverlay>()
             .init_resource::<mcrs_minecraft_engine_world::world::lifecycle::trace::ColumnTraceSink>(
@@ -157,12 +152,11 @@ impl Plugin for DebugScreenPlugin {
         app.add_systems(
             Update,
             (
-                entry_fps::display,
-                entry_fps::display_version,
-                entry_network::display,
-                entry_position::display,
-                entry_system_specs::display,
-                entry_terrain::display.run_if(resource_exists::<crate::stream::Loader>),
+                crate::debug_entry_fps::display,
+                crate::debug_entry_fps::display_version,
+                crate::debug_entry_network::display,
+                crate::debug_entry_position::display,
+                crate::debug_entry_system_specs::display,
             )
                 .chain()
                 .in_set(DebugScreenSet::Collect)

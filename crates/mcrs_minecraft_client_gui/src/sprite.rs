@@ -7,7 +7,7 @@ use serde::de::value::MapAccessDeserializer;
 use serde::de::{self, MapAccess, Visitor};
 use serde::{Deserialize, Deserializer};
 
-use super::scene::GuiQuad;
+use crate::scene::GuiQuad;
 
 /// The widths of the edges of a nine-slice sprite, in texels.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize)]

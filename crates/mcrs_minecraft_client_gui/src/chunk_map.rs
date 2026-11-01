@@ -230,7 +230,9 @@ fn render(
     let mut slowest: Option<(ColumnPos, ColumnStage, Duration)> = None;
 
     for sample in samples.iter() {
-        counts[sample.stage as usize] += 1;
+        if let Some(count) = counts.get_mut(sample.stage as usize) {
+            *count += 1;
+        }
         if let Some(after) = sample.sent_after {
             sent.push(after);
         }
@@ -270,15 +272,16 @@ fn render(
     };
     sent.sort_unstable();
     let quantile = |at: f32| -> String {
-        if sent.is_empty() {
-            return "-".to_owned();
-        }
-        let index = ((sent.len() - 1) as f32 * at).round() as usize;
-        duration(sent[index])
+        let index = (sent.len().saturating_sub(1) as f32 * at).round() as usize;
+        sent.get(index)
+            .map_or_else(|| "-".to_owned(), |&slowest| duration(slowest))
     };
     let tally = ColumnStage::ALL
         .iter()
-        .map(|stage| format!("{} {}", stage.label(), counts[*stage as usize]))
+        .map(|stage| {
+            let count = counts.get(*stage as usize).copied().unwrap_or(0);
+            format!("{} {count}", stage.label())
+        })
         .collect::<Vec<_>>()
         .join("  ");
     let block = format!(
