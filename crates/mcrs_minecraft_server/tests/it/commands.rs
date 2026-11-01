@@ -2152,6 +2152,78 @@ fn a_client_move_after_it_accepts_each_teleport_moves_the_player() {
 }
 
 #[test]
+fn a_client_move_is_ignored_until_the_client_accepts_the_teleport() {
+    use mcrs_minecraft_protocol_game::serverbound::ServerboundMovePlayerPos;
+    let mut server = start();
+    let (op, joined) = server.join(OPERATOR, "Op");
+    let ids = teleport_ids(&command(&mut server, op, "tp @s 2 64 2"));
+    let pending = [teleport_ids(&joined), ids].concat();
+    let step = DVec3::new(3.0, 64.0, 2.0);
+    let move_to_step = |server: &mut PlayServer| {
+        server.send(
+            op,
+            &ServerboundMovePlayerPos {
+                position: step.into(),
+                flags: mcrs_minecraft_protocol_game::MoveFlags::new().with_on_ground(true),
+            },
+        );
+        transform(server, op).translation
+    };
+    assert_eq!(
+        move_to_step(&mut server),
+        DVec3::new(2.5, 64.0, 2.5),
+        "two teleports are unconfirmed"
+    );
+    accept_teleports(&mut server, op, &pending[..1]);
+    assert_eq!(
+        move_to_step(&mut server),
+        DVec3::new(2.5, 64.0, 2.5),
+        "one teleport is still unconfirmed"
+    );
+    accept_teleports(&mut server, op, &pending[1..]);
+    assert_eq!(move_to_step(&mut server), step);
+}
+
+#[test]
+fn teleport_rejects_non_finite_coordinates() {
+    let mut server = start();
+    let (op, _) = server.join(OPERATOR, "Op");
+    let before = transform(&mut server, op).translation;
+    let huge = "9".repeat(400);
+    let range_error = red(translated("commands.teleport.invalidPosition", &[]));
+    let cases = [
+        ("tp NaN 0 0".to_owned(), true),
+        ("tp inf 0 0".to_owned(), true),
+        ("tp 0 -Infinity 0".to_owned(), true),
+        (format!("tp {huge} 0 0"), false),
+        (format!("tp 0 -{huge} 0"), false),
+    ];
+    for (line, any_error) in cases {
+        let packets = command(&mut server, op, &line);
+        assert!(teleport_ids(&packets).is_empty(), "{line}");
+        assert_eq!(transform(&mut server, op).translation, before, "{line}");
+        if !any_error {
+            assert!(
+                !chats(&packets).contains(&range_error),
+                "{line}: the number is refused while parsing, before the range check"
+            );
+        }
+    }
+}
+
+#[test]
+fn login_sends_one_position_and_teleport_ids_follow_the_counter() {
+    let mut server = start();
+    let (op, joined) = server.join(OPERATOR, "Op");
+    let first = teleport_ids(&command(&mut server, op, "tp 0 100 0"));
+    let second = teleport_ids(&command(&mut server, op, "tp 0 101 0"));
+    assert_eq!(
+        (teleport_ids(&joined), first, second),
+        (vec![0], vec![1], vec![2])
+    );
+}
+
+#[test]
 fn teleport_to_an_entity_takes_its_dimension_position_and_rotation() {
     use mcrs_minecraft_protocol_game::clientbound::ClientboundPlayerLookAt;
     let mut server = start_in(
