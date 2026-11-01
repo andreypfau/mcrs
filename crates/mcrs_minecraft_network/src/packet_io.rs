@@ -15,6 +15,8 @@ use std::io::ErrorKind;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
+#[cfg(not(target_family = "wasm"))]
+use std::time::Duration;
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, BufWriter};
 use tokio::sync::mpsc;
 use tokio::sync::mpsc::error::{TryRecvError, TrySendError};
@@ -30,6 +32,9 @@ impl<T: Send> MaybeSend for T {}
 pub trait MaybeSend {}
 #[cfg(target_family = "wasm")]
 impl<T> MaybeSend for T {}
+
+#[cfg(not(target_family = "wasm"))]
+const CLOSE_TIMEOUT: Duration = Duration::from_secs(5);
 
 /// A duplex byte stream that can be torn into independently owned halves, so
 /// the reader and writer loops need no shared lock. TCP, a native WebTransport
@@ -176,24 +181,32 @@ impl<S: AsyncRead + AsyncWrite + Unpin> PacketIo<S> {
 
         let (reader, writer) = self.stream.split_stream();
         let (inbound_switch, switches) = mpsc::unbounded_channel();
-        let reader = reader_loop(reader, self.dec, switches, incoming_sender);
         let writer = writer_loop(outgoing_receiver, writer, disconnect_flag.clone());
 
         #[cfg(not(target_family = "wasm"))]
-        let reader_task = tokio::spawn(reader);
-        #[cfg(not(target_family = "wasm"))]
-        tokio::spawn(writer);
+        {
+            tokio::spawn(read_until_closed(
+                reader,
+                self.dec,
+                switches,
+                incoming_sender,
+            ));
+            tokio::spawn(writer);
+        }
         #[cfg(target_family = "wasm")]
         {
-            wasm_bindgen_futures::spawn_local(reader);
+            wasm_bindgen_futures::spawn_local(reader_loop(
+                reader,
+                self.dec,
+                switches,
+                incoming_sender,
+            ));
             wasm_bindgen_futures::spawn_local(writer);
         }
 
         RawConnection {
             outgoing: outgoing_sender,
             recv: incoming_receiver,
-            #[cfg(not(target_family = "wasm"))]
-            reader_task,
             enc: self.enc,
             remote_addr,
             switch_mode,
@@ -222,6 +235,27 @@ pub(crate) fn decode_body<'a, P: Decode<'a> + Packet>(body: &'a [u8]) -> anyhow:
         anyhow::Context::with_context(P::decode(&mut r), || format!("reading {}", P::NAME))?;
     anyhow::ensure!(r.is_empty(), "{} bytes left over in {}", r.len(), P::NAME);
     Ok(packet)
+}
+
+#[cfg(not(target_family = "wasm"))]
+async fn read_until_closed<R: AsyncRead + Unpin>(
+    mut reader: R,
+    dec: PacketDecoder,
+    switches: mpsc::UnboundedReceiver<InboundSwitch>,
+    incoming_sender: mpsc::Sender<ReceivedPacket>,
+) {
+    let connection = incoming_sender.clone();
+    tokio::select! {
+        () = reader_loop(&mut reader, dec, switches, incoming_sender) => {}
+        () = connection.closed() => {}
+    }
+    drop(connection);
+    // TCP resets a socket closed with unread input, and the reset can erase the last packet.
+    let drain = async {
+        let mut scratch = [0; READ_BUF_SIZE];
+        while matches!(reader.read(&mut scratch).await, Ok(n) if n != 0) {}
+    };
+    let _ = tokio::time::timeout(CLOSE_TIMEOUT, drain).await;
 }
 
 async fn reader_loop<R: AsyncRead + Unpin>(
@@ -313,10 +347,6 @@ async fn writer_loop<W: AsyncWrite + Unpin>(
 pub struct RawConnection {
     outgoing: mpsc::Sender<Bytes>,
     recv: mpsc::Receiver<ReceivedPacket>,
-    // A browser task cannot be aborted, so there it ends when its next read
-    // resolves and the incoming channel is found closed.
-    #[cfg(not(target_family = "wasm"))]
-    reader_task: tokio::task::JoinHandle<()>,
     pub enc: PacketEncoder,
     pub remote_addr: SocketAddr,
     switch_mode: SwitchMode,
@@ -341,14 +371,6 @@ enum InboundSwitch {
     },
 }
 
-#[cfg(not(target_family = "wasm"))]
-impl Drop for RawConnection {
-    fn drop(&mut self) {
-        self.reader_task.abort();
-        // writer shuts down naturally when outgoing sender is dropped
-    }
-}
-
 impl RawConnection {
     /// Construct a mock with separate inbound control: the caller drives
     /// the inbound channel (for bridge_inbound tests).
@@ -360,15 +382,11 @@ impl RawConnection {
     ) -> (Self, mpsc::Receiver<Bytes>, mpsc::Sender<ReceivedPacket>) {
         let (outgoing_tx, outgoing_rx) = mpsc::channel::<Bytes>(outgoing_capacity);
         let (inbound_tx, inbound_rx) = mpsc::channel::<ReceivedPacket>(128);
-        let reader_task = tokio::spawn(async {
-            std::future::pending::<()>().await;
-        });
         let disconnect_flag = Arc::new(AtomicBool::new(false));
         let addr = SocketAddr::from(([127, 0, 0, 1], 0));
         let raw = RawConnection {
             outgoing: outgoing_tx,
             recv: inbound_rx,
-            reader_task,
             enc: PacketEncoder::new(),
             remote_addr: addr,
             switch_mode: SwitchMode::of_own_version(),
@@ -645,6 +663,29 @@ mod tests {
             let status_length = 1 + body_of(&status).len();
             assert_eq!(leading_var_int(&frames[2]) as usize, status_length);
             assert!(frames[2].len() < status_length);
+        });
+    }
+
+    #[test]
+    fn a_peer_still_sending_after_the_connection_drops_reads_its_last_packet_and_a_clean_close() {
+        let runtime = tokio::runtime::Runtime::new().unwrap();
+        runtime.block_on(async {
+            let (mut connection, mut peer) = loopback(SwitchMode::Immediate).await;
+            connection.append(&PingRequest { payload: 7 }).unwrap();
+            connection.flush().unwrap();
+            drop(connection);
+            tokio::time::sleep(Duration::from_millis(100)).await;
+
+            peer.write_all(&[0; 64]).await.unwrap();
+            tokio::time::sleep(Duration::from_millis(100)).await;
+
+            let mut received = Vec::new();
+            let result =
+                tokio::time::timeout(Duration::from_secs(10), peer.read_to_end(&mut received))
+                    .await
+                    .unwrap();
+            assert!(result.is_ok(), "{result:?}");
+            assert!(!received.is_empty());
         });
     }
 
