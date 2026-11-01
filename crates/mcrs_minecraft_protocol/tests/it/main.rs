@@ -10,6 +10,8 @@
 
 mod common;
 
+mod alloc_free;
+
 mod chat_wire;
 mod chunk_wire;
 mod column_pos_wire;

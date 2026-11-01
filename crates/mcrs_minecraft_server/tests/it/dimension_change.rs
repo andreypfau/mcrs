@@ -390,12 +390,12 @@ fn the_chat_mode_a_player_chose_holds_after_a_dimension_change() {
     server.queue(anchor, &line("hello"));
     let sent = server.ticks_all(2);
 
-    let told: Vec<&str> = sent
+    let told: Vec<String> = sent
         .iter()
         .filter(|packet| matches!(packet.target, PacketTarget::SinglePlayer(target) if target == anchor))
         .filter_map(|packet| match &packet.data {
-            PacketPayload::SystemChat(chat) => match &chat.content.content {
-                TextContent::Translate { translate, .. } => Some(&**translate),
+            PacketPayload::SystemChat(chat) => match &chat.content.to_text().unwrap().content {
+                TextContent::Translate { translate, .. } => Some(translate.to_string()),
                 _ => None,
             },
             _ => None,

@@ -102,7 +102,7 @@ mod tests {
             AttributeSnapshot, ClientboundAddEntity, ClientboundOpenScreen,
             ClientboundUpdateAttributes,
         };
-        use crate::text::Text;
+        use crate::text::{RawText, Text};
         use glam::DVec3;
         use mcrs_minecraft_block::keys::BlockEntityType;
         use mcrs_minecraft_entity::keys::{Attribute, EntityType};
@@ -139,7 +139,7 @@ mod tests {
         let open_screen = ClientboundOpenScreen {
             container_id: VarInt(1),
             menu_type: *MenuType::ALL.last().unwrap(),
-            title: Text::text("Chest"),
+            title: RawText::from_text(&Text::text("Chest")).unwrap(),
         };
         refused_past_the_table(
             "minecraft:menu",

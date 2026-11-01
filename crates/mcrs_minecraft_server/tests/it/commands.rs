@@ -18,6 +18,7 @@ use mcrs_minecraft_core::LookAnchor;
 use mcrs_minecraft_engine::bus::{PacketPayload, PacketTarget};
 use mcrs_minecraft_engine_world::entity::physics::Transform;
 use mcrs_minecraft_game_mode::GameMode;
+use mcrs_minecraft_item::ItemHoverMap;
 use mcrs_minecraft_protocol::packets::game::serverbound::{
     ServerboundChatCommand, ServerboundCommandSuggestion,
 };
@@ -259,7 +260,9 @@ fn chats(packets: &[PacketPayload]) -> Vec<Text> {
     packets
         .iter()
         .filter_map(|packet| match packet {
-            PacketPayload::SystemChat(chat) => Some(chat.content.clone()),
+            PacketPayload::SystemChat(chat) => {
+                Some(chat.content.to_text().unwrap().map(&ItemHoverMap).unwrap())
+            }
             _ => None,
         })
         .collect()
@@ -501,19 +504,19 @@ fn an_admin_message_reaches_only_the_other_listed_operators_of_every_dimension()
     )
     .color(mcrs_minecraft_protocol::text::Color::GRAY)
     .italic();
-    let admin_to = |anchor: Entity| -> Vec<&Text> {
+    let admin_to = |anchor: Entity| -> Vec<Text> {
         packets
             .iter()
             .filter(|packet| {
                 matches!(&packet.target, PacketTarget::PlayerSet(set) if set.contains(&anchor))
             })
             .filter_map(|packet| match &packet.data {
-                PacketPayload::SystemChat(chat) => Some(&chat.content),
+                PacketPayload::SystemChat(chat) => Some(chat.content.to_text().unwrap().map(&ItemHoverMap).unwrap()),
                 _ => None,
             })
             .collect()
     };
-    assert_eq!(admin_to(watcher), [&admin]);
+    assert_eq!(admin_to(watcher), [admin]);
     assert!(admin_to(guest).is_empty());
     assert!(admin_to(op).is_empty());
 }
@@ -1730,7 +1733,7 @@ fn told(packets: &[mcrs_minecraft_engine::bus::OutboundPlayerPacket], anchor: En
         .iter()
         .filter(|packet| matches!(packet.target, PacketTarget::SinglePlayer(target) if target == anchor))
         .filter_map(|packet| match &packet.data {
-            PacketPayload::SystemChat(chat) => Some(chat.content.clone()),
+            PacketPayload::SystemChat(chat) => Some(chat.content.to_text().unwrap().map(&ItemHoverMap).unwrap()),
             _ => None,
         })
         .collect()

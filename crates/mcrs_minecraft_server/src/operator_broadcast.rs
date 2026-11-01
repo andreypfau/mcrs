@@ -5,7 +5,7 @@ use mcrs_minecraft_engine::bus::{OutboundPlayerPacket, PacketTarget, to_target};
 use mcrs_minecraft_engine::ops::OpList;
 use mcrs_minecraft_engine::session::GameProfile;
 use mcrs_minecraft_engine_world::session::Session;
-use mcrs_minecraft_item::ItemHoverMap;
+use mcrs_minecraft_text::RawText;
 use smallvec::SmallVec;
 
 /// Delivers an admin message from any dimension to every online operator but its source. The
@@ -28,7 +28,7 @@ pub fn broadcast_to_operators(
     if operators.is_empty() {
         return;
     }
-    let Ok(message) = broadcast.message.map(&ItemHoverMap) else {
+    let Ok(message) = RawText::from_text(&broadcast.message) else {
         return;
     };
     writer.write(to_target(

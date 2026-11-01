@@ -1,4 +1,4 @@
-use crate::text::Text;
+use crate::text::RawText;
 use crate::{Bounded, Decode, Encode};
 use bitfield_struct::bitfield;
 use mcrs_minecraft_game_mode::GameMode;
@@ -34,7 +34,7 @@ pub struct PlayerListEntry<'a> {
     pub listed: bool,
     pub ping: i32,
     pub game_mode: GameMode,
-    pub display_name: Option<Cow<'a, Text>>,
+    pub display_name: Option<RawText<'a>>,
     pub list_order: i32,
     pub show_hat: bool,
 }

@@ -1,4 +1,4 @@
-use crate::text::Text;
+use crate::text::RawText;
 use crate::{Decode, Encode};
 use std::borrow::Cow;
 
@@ -6,5 +6,5 @@ use std::borrow::Cow;
 #[derive(Clone, Debug, PartialEq, Encode, Decode)]
 pub struct CommandSuggestion<'a> {
     pub text: Cow<'a, str>,
-    pub tooltip: Option<Text>,
+    pub tooltip: Option<RawText<'a>>,
 }

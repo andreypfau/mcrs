@@ -164,7 +164,7 @@ pub enum PacketPayload {
     PlayerPosition(ClientboundPlayerPosition),
     PlayerLookAt(ClientboundPlayerLookAt),
     PlayerAbilities(ClientboundPlayerAbilities),
-    SystemChat(ClientboundSystemChatPacket),
+    SystemChat(ClientboundSystemChatPacket<'static>),
     GameEvent(ClientboundGameEvent),
     /// The `commands` packet with its id, encoded once for every player of one command level.
     Commands(Bytes),

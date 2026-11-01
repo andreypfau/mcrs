@@ -37,4 +37,4 @@ pub use tag_id::{
     LIST_ID, LONG_ARRAY_ID, LONG_ID, SHORT_ID, STRING_ID,
 };
 pub use tag_serializer::{to_nbt_compound, to_nbt_tag};
-pub use wire::{WireDeserializer, decode_wire, encode_wire, read_wire};
+pub use wire::{WireDeserializer, decode_wire, encode_wire, read_wire, split_wire};

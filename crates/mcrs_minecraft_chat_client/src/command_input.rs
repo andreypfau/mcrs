@@ -11,8 +11,9 @@ use mcrs_minecraft_command::{Source, text_matches};
 use mcrs_minecraft_command_argument_vanilla::{
     ArgumentError, ClientGraph, CommandSyntaxError, VanillaLookup,
 };
+use mcrs_minecraft_item::ItemHoverMap;
 use mcrs_minecraft_protocol::CommandSuggestion;
-use mcrs_minecraft_protocol::text::Text;
+use mcrs_minecraft_protocol::text::{RawText, Text};
 use mcrs_minecraft_wire::utf16_byte_offset;
 use std::mem;
 use std::ops::Range;
@@ -97,6 +98,10 @@ fn has_message<E: Copy>(tree: &ClientGraph, parse: &ParseResult<'_, '_, E>) -> b
                 .and_then(Node::argument)
                 .is_some_and(|argument| argument.message)
         })
+}
+
+fn server_text(raw: &RawText<'_>) -> Option<Text> {
+    raw.to_text().ok()?.map(&ItemHoverMap).ok()
 }
 
 #[derive(PartialEq)]
@@ -363,14 +368,19 @@ impl CommandInput {
         let truncated = self.input.get(..self.caret).unwrap_or_default();
         let start = utf16_byte_offset(truncated, start);
         let end = start + utf16_byte_offset(truncated.get(start..).unwrap_or_default(), length);
-        let tip =
-            |suggestion: &CommandSuggestion<'_>| suggestion.tooltip.clone().map(Tooltip::Text);
+        let tooltips: Vec<Option<Text>> = suggestions
+            .iter()
+            .map(|suggestion| suggestion.tooltip.as_ref().and_then(server_text))
+            .collect();
         if self.single_child {
             self.entries.clear();
             self.entries.set_range(Span::new(start, end));
-            for suggestion in suggestions {
-                self.entries
-                    .push(start, suggestion.text.chars(), tip(suggestion));
+            for (suggestion, tooltip) in suggestions.iter().zip(&tooltips) {
+                self.entries.push(
+                    start,
+                    suggestion.text.chars(),
+                    tooltip.clone().map(Tooltip::Text),
+                );
             }
         } else {
             mem::swap(&mut self.entries, &mut self.spare);
@@ -385,13 +395,18 @@ impl CommandInput {
                     };
                     Suggestion::new(item_start, SuggestionText::new(text), tooltip)
                 })
-                .chain(suggestions.iter().map(|suggestion| {
-                    Suggestion::new(
-                        start,
-                        SuggestionText::new(&suggestion.text),
-                        suggestion.tooltip.as_ref().map(TooltipRef::Text),
-                    )
-                }))
+                .chain(
+                    suggestions
+                        .iter()
+                        .zip(&tooltips)
+                        .map(|(suggestion, tooltip)| {
+                            Suggestion::new(
+                                start,
+                                SuggestionText::new(&suggestion.text),
+                                tooltip.as_ref().map(TooltipRef::Text),
+                            )
+                        }),
+                )
                 .collect();
             let list = SuggestionList::build(truncated, &mut all);
             self.entries.fill(&list, |tooltip| match tooltip {

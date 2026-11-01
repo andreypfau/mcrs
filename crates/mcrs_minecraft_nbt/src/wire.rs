@@ -83,3 +83,26 @@ pub fn read_wire<T>(
 pub fn decode_wire<T: serde::de::DeserializeOwned>(r: &mut &[u8]) -> Result<T> {
     read_wire(r, |d| T::deserialize(&mut *d).map_err(Error::other))
 }
+
+/// Checks that `r` starts with one well-formed network NBT tag, advances `r` past it, and
+/// returns the bytes of the tag. It builds no tree and does not allocate.
+pub fn split_wire<'a>(r: &mut &'a [u8]) -> Result<&'a [u8]> {
+    let input = *r;
+    let Some(&tag_id) = input.first() else {
+        return Err(ErrorKind::UnexpectedEnd.into());
+    };
+    if tag_id == crate::END_ID {
+        return Err(Error::invalid("a network NBT tag must not be TAG_End"));
+    }
+    let mut cursor = Cursor::new(input);
+    let mut reader = NbtReadHelper::new(&mut cursor);
+    reader.skip_bytes(1).map_err(Error::other)?;
+    NbtTag::skip_data(&mut reader, tag_id).map_err(Error::other)?;
+    let end =
+        usize::try_from(cursor.position()).map_err(|_| Error::from(ErrorKind::UnexpectedEnd))?;
+    let (tag, rest) = input
+        .split_at_checked(end)
+        .ok_or(ErrorKind::UnexpectedEnd)?;
+    *r = rest;
+    Ok(tag)
+}

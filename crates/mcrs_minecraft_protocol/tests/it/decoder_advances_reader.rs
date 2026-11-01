@@ -6,7 +6,7 @@
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_protocol::packets::configuration::clientbound::ClientboundRegistryData;
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundSystemChatPacket;
-use mcrs_minecraft_protocol::text::Text;
+use mcrs_minecraft_protocol::text::{RawText, Text};
 use mcrs_minecraft_protocol::{Decode, Encode};
 use mcrs_minecraft_resource::ResourceLocation;
 
@@ -55,7 +55,7 @@ fn every_decoder_stops_after_its_own_bytes() {
     {
         let content = Text::text("hello");
         let packet = ClientboundSystemChatPacket {
-            content: content.clone(),
+            content: RawText::from_text(&content).unwrap(),
             overlay: true,
         };
 
@@ -67,7 +67,7 @@ fn every_decoder_stops_after_its_own_bytes() {
             "the text field swallowed the overlay flag ({} bytes left)",
             r.len()
         );
-        assert_eq!(decoded.content, content);
+        assert_eq!(decoded.content, packet.content);
         assert!(decoded.overlay, "overlay flag was not decoded");
         assert_eq!(encoded(&decoded), buf);
     }
