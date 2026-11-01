@@ -5,10 +5,10 @@ use bevy_ecs::entity::Entity;
 use bevy_ecs::message::MessageWriter;
 use mcrs_minecraft_biome_file::BiomeFile;
 use mcrs_minecraft_block::keys::Block;
-use mcrs_minecraft_client::columns::{ColumnCachePlugin, ColumnStore, Columns};
-use mcrs_minecraft_client::joined_game::{CurrentDimension, JoinedGame};
-use mcrs_minecraft_client::player::Player;
-use mcrs_minecraft_client::registries::ClientRegistriesPlugin;
+use mcrs_minecraft_client_world::columns::{ColumnCachePlugin, ColumnStore, Columns};
+use mcrs_minecraft_client_world::joined_game::{CurrentDimension, JoinedGame};
+use mcrs_minecraft_client_world::player::Player;
+use mcrs_minecraft_client_world::registries::ClientRegistriesPlugin;
 use mcrs_minecraft_dimension_environment::dimension_type::DimensionTypeFile;
 use mcrs_minecraft_network::ConnectionState;
 use mcrs_minecraft_network::client::{
@@ -75,10 +75,12 @@ fn add_client_registries(client: &mut App) {
         .add_plugins(TaskPoolPlugin::default())
         .register_asset_source(
             AssetSourceId::Default,
-            mcrs_minecraft_client::asset_source(&mcrs_minecraft_assets::packs::PackRoots {
-                assets: assets.clone(),
-                vanilla: mcrs_minecraft_fixtures::vanilla_dir().to_owned(),
-            }),
+            mcrs_minecraft_client_world::asset_source::asset_source(
+                &mcrs_minecraft_assets::packs::PackRoots {
+                    assets: assets.clone(),
+                    vanilla: mcrs_minecraft_fixtures::vanilla_dir().to_owned(),
+                },
+            ),
         )
         .add_plugins(AssetPlugin {
             file_path: assets,

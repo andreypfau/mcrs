@@ -198,17 +198,9 @@ fn tick(sprint: &mut Sprint, flying_speed: FlyingSpeed, yaw: f32, input: Movemen
 }
 
 #[cfg(test)]
-pub(crate) mod tests {
+mod tests {
     use super::*;
-
-    pub(crate) fn minecraft_look_direction(yaw: f32, pitch: f32) -> Vec3 {
-        let (pitch, yaw) = (pitch.to_radians(), -yaw.to_radians());
-        Vec3::new(
-            yaw.sin() * pitch.cos(),
-            -pitch.sin(),
-            yaw.cos() * pitch.cos(),
-        )
-    }
+    use crate::player::look_direction;
 
     #[test]
     fn forward_moves_along_the_horizontal_look_direction() {
@@ -218,7 +210,7 @@ pub(crate) mod tests {
         };
         for yaw in [0.0, 90.0, -139.9493, 180.0] {
             let moved = tick(&mut Sprint::default(), FlyingSpeed(1.0), yaw, forward);
-            let look = minecraft_look_direction(yaw, 0.0).as_dvec3();
+            let look = look_direction(yaw, 0.0).as_dvec3();
             assert!(
                 moved.abs_diff_eq(look, 1e-6),
                 "yaw {yaw}: {moved:?} != {look:?}"

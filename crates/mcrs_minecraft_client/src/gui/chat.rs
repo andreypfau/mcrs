@@ -15,8 +15,8 @@ use super::language::Language;
 use super::scene::{self, GuiAtlas, GuiConfig, GuiQuad, GuiScene, GuiSize};
 use super::text::{self, Wrap};
 use super::tooltip::Tooltip;
-use crate::chat::{Chat, ChatInput};
-use crate::screen::Screen;
+use mcrs_minecraft_client_world::chat::{Chat, ChatInput};
+use mcrs_minecraft_client_world::screen::Screen;
 
 const CHAT_WIDTH: i32 = 320;
 const LINE: i32 = 9;

@@ -1,7 +1,7 @@
 use bevy_app::{App, Update};
 use bevy_ecs::prelude::{Local, Res};
-use mcrs_minecraft_client::columns::{ColumnStore, Columns};
-use mcrs_minecraft_client::joined_game::{CurrentDimension, JoinedGame};
+use mcrs_minecraft_client_world::columns::{ColumnStore, Columns};
+use mcrs_minecraft_client_world::joined_game::{CurrentDimension, JoinedGame};
 use mcrs_minecraft_engine_server::BoundAddress;
 use mcrs_minecraft_game_registries::registry_load::sent_by;
 use mcrs_minecraft_network::client::{

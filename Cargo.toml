@@ -129,6 +129,7 @@ mcrs_minecraft_dimension_environment = { path = "crates/mcrs_minecraft_dimension
 mcrs_minecraft_item = { path = "crates/mcrs_minecraft_item" }
 mcrs_minecraft_server = { path = "crates/mcrs_minecraft_server" }
 mcrs_minecraft_client = { path = "crates/mcrs_minecraft_client", default-features = false }
+mcrs_minecraft_client_world = { path = "crates/mcrs_minecraft_client_world" }
 mcrs_minecraft_mesh = { path = "crates/mcrs_minecraft_mesh" }
 mcrs_minecraft_render = { path = "crates/mcrs_minecraft_render" }
 mcrs_minecraft_light_render = { path = "crates/mcrs_minecraft_light_render" }
@@ -197,7 +198,7 @@ bevy_diagnostic = { version = "0.19.0-rc.3", optional = true }
 mcrs_minecraft_resource.workspace = true
 mcrs_minecraft_worldgen_generator = { workspace = true, features = ["test-support"] }
 bevy_state.workspace = true
-mcrs_minecraft_client.workspace = true
+mcrs_minecraft_client_world.workspace = true
 mcrs_minecraft_assets.workspace = true
 mcrs_minecraft_game_registries = { workspace = true, features = ["test-support"] }
 mcrs_minecraft_core = { workspace = true, features = ["bevy"] }

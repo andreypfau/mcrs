@@ -11,11 +11,11 @@ use super::debug_screen_overlay::{DebugModifier, toggle_overlay};
 use super::font::{Span, draw_centered_text};
 use super::language::Language;
 use super::scene::{GuiAtlas, GuiQuad, GuiScene, sprite};
-use crate::chat::ChatMessage;
-use crate::game_mode::{LocalGameMode, PermissionLevel};
 use crate::gui::cursor_grab::grab;
-use crate::player::Player;
-use crate::screen::Screen;
+use mcrs_minecraft_client_world::chat::ChatMessage;
+use mcrs_minecraft_client_world::game_mode::{LocalGameMode, PermissionLevel};
+use mcrs_minecraft_client_world::player::Player;
+use mcrs_minecraft_client_world::screen::Screen;
 
 const MODIFIER: KeyCode = KeyCode::F3;
 const SWITCH: KeyCode = KeyCode::F4;

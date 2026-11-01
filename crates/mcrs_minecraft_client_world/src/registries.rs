@@ -35,12 +35,12 @@ const DATAPACK_REPORT: &[u8] = include_bytes!(concat!(
 
 /// The packs of the client's own vanilla pack, whose files fill the entries a server leaves out.
 #[derive(Resource)]
-pub(crate) struct LocalCorpus(DirectoryPacks);
+pub struct LocalCorpus(DirectoryPacks);
 
 /// What the server sent in its last configuration. A tag update in play replaces the tags of the
 /// registries it names and loads the registries again from it.
 #[derive(Component)]
-pub(crate) struct LastConfiguration {
+pub struct LastConfiguration {
     pub received: Received,
     /// The client accepted the vanilla pack, so the server may have left its entries' data out.
     pub vanilla_known: bool,
@@ -111,7 +111,7 @@ fn refuse<E: std::fmt::Display>(error: &E) -> ! {
     std::process::exit(1)
 }
 
-pub(crate) fn load_registries(
+pub fn load_registries(
     configuration: &LastConfiguration,
     corpus: Option<&LocalCorpus>,
 ) -> Result<(Registries, Diagnostics), RegistryLoadError> {
@@ -228,7 +228,7 @@ fn check_corpus_version(assets: &AssetServer) -> Result<(), String> {
 /// True once a connection has entered configuration, from play or at its start. The server
 /// sends the next registries only after the client's acknowledgement, a frame or more later, so
 /// no set arrives before the clearing this gates has run.
-pub(crate) fn entered_configuration(
+pub fn entered_configuration(
     connections: Query<&ConnectionState, Changed<ConnectionState>>,
 ) -> bool {
     connections

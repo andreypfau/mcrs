@@ -35,13 +35,14 @@ use mcrs_minecraft_save::{self as save, SaveError};
 use mcrs_minecraft_assets::packs::PackRoots;
 use mcrs_minecraft_client::config::{Knobs, TerrainLimits};
 #[cfg(not(target_family = "wasm"))]
-use mcrs_minecraft_client::registries::ClientRegistriesPlugin;
-use mcrs_minecraft_client::registries::SessionSet;
-use mcrs_minecraft_client::{
-    ClientPlugins, ClientTerrainPlugin, config, gui, local_player, player, sky, vanilla,
-};
+use mcrs_minecraft_client::screenshot;
+use mcrs_minecraft_client::{ClientPlugins, ClientTerrainPlugin, config, gui, sky, vanilla};
 #[cfg(not(target_family = "wasm"))]
-use mcrs_minecraft_client::{asset_source, screenshot};
+use mcrs_minecraft_client_world::asset_source::asset_source;
+#[cfg(not(target_family = "wasm"))]
+use mcrs_minecraft_client_world::registries::ClientRegistriesPlugin;
+use mcrs_minecraft_client_world::registries::SessionSet;
+use mcrs_minecraft_client_world::{local_player, player};
 #[cfg(all(feature = "singleplayer", not(target_family = "wasm")))]
 use mcrs_minecraft_engine::ops::{OPS_FILE, OpList, OpListEntry};
 #[cfg(all(feature = "singleplayer", not(target_family = "wasm")))]
@@ -278,11 +279,11 @@ fn main() -> AppExit {
         view_distance,
         holds_vanilla_pack: true,
     });
-    app.add_plugins(mcrs_minecraft_client::columns::ColumnCachePlugin);
-    app.init_resource::<mcrs_minecraft_client::screen::Screen>();
-    app.add_plugins(mcrs_minecraft_client::game_mode::GameModePlugin);
+    app.add_plugins(mcrs_minecraft_client_world::columns::ColumnCachePlugin);
+    app.init_resource::<mcrs_minecraft_client_world::screen::Screen>();
+    app.add_plugins(mcrs_minecraft_client_world::game_mode::GameModePlugin);
     app.add_plugins(gui::game_mode_switcher::GameModeSwitcherPlugin);
-    app.add_plugins(mcrs_minecraft_client::chat::ClientChatPlugin {
+    app.add_plugins(mcrs_minecraft_client_world::chat::ClientChatPlugin {
         command_history: knobs.command_history().or_else(|| {
             world
                 .as_deref()

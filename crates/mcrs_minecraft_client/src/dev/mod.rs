@@ -3,11 +3,11 @@ use bevy::window::{Monitor, PrimaryMonitor, WindowPosition};
 use mcrs_minecraft_render::DrawMask;
 use mcrs_minecraft_render::sky::SkyDrawsOnly;
 
-use crate::columns::ClientTerrainSet;
 use crate::config::Knobs;
 use crate::gui::debug::{DebugScreenSet, collecting, entry_fps, entry_system_specs, entry_terrain};
-use crate::local_player::{FlyingSpeed, LocalPlayerTick};
 use crate::stream;
+use mcrs_minecraft_client_world::columns::ClientTerrainSet;
+use mcrs_minecraft_client_world::local_player::{FlyingSpeed, LocalPlayerTick};
 
 pub mod census;
 pub mod chunk_guard;

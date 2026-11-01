@@ -1,8 +1,8 @@
 use bevy::prelude::*;
 use mcrs_minecraft_client::camera::PlayerCamera;
-use mcrs_minecraft_client::joined_game::CurrentDimension;
 use mcrs_minecraft_client::sky::{SkyEnvironment, SkyPlugin};
 use mcrs_minecraft_client::sky_state::SkyFrame;
+use mcrs_minecraft_client_world::joined_game::CurrentDimension;
 use mcrs_minecraft_dimension_environment::environment::Weather;
 use mcrs_minecraft_network::ConnectionState;
 use mcrs_minecraft_render::sky::SkyUniform;

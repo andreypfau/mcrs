@@ -20,7 +20,9 @@ use mcrs_minecraft_render::CameraOrigin;
 use mcrs_voxel::{ColumnPos, SectionPos};
 
 use crate::Unsettled;
-use crate::columns::{ClientTerrainSet, Column, ColumnChange, ColumnStore, Columns, Extent};
+use mcrs_minecraft_client_world::columns::{
+    ClientTerrainSet, Column, ColumnChange, ColumnStore, Columns, Extent,
+};
 
 pub struct LightVolumePlugin {
     /// Columns around the camera whose block light is coloured; 0 is off.
@@ -535,8 +537,8 @@ fn report_unsettled(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::columns::{AIR, Dimension, Section};
     use mcrs_minecraft_chunk::PalettedContainer;
+    use mcrs_minecraft_client_world::columns::{AIR, Dimension, Section};
     use mcrs_minecraft_light_color::colors::LightType;
     use mcrs_minecraft_mesh::SECTION_VOLUME;
     use mcrs_voxel::BlockStateId;

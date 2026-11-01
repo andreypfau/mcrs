@@ -13,8 +13,9 @@ use mcrs_minecraft_network::client::ClientNetworkPlugin;
 use mcrs_minecraft_registries::CurrentRegistries;
 
 use crate::config::{Knobs, TerrainLimits};
-use crate::registries::SessionSet;
-use crate::{ClientPlugins, ClientTerrainPlugin, local_player, player, vanilla};
+use crate::{ClientPlugins, ClientTerrainPlugin, vanilla};
+use mcrs_minecraft_client_world::registries::SessionSet;
+use mcrs_minecraft_client_world::{local_player, player};
 
 pub const CANVAS: &str = "#mcrs";
 
@@ -151,7 +152,7 @@ pub fn run() {
                 view_distance: knobs.view_distance(),
                 holds_vanilla_pack: false,
             });
-            app.add_plugins(crate::columns::ColumnCachePlugin);
+            app.add_plugins(mcrs_minecraft_client_world::columns::ColumnCachePlugin);
         }
         None => warn!(
             "no ?server=<https url>&cert=<sha-256 hex>: the browser draws sky only. \

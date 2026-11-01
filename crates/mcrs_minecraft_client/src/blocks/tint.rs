@@ -2,7 +2,7 @@ use std::sync::{Arc, LazyLock};
 
 use bevy::ecs::resource::Resource;
 
-use crate::columns::Columns;
+use mcrs_minecraft_client_world::columns::Columns;
 use mcrs_minecraft_mesh::SECTION_SIZE;
 use mcrs_minecraft_noise::simplex::SimplexNoise;
 use mcrs_minecraft_random::legacy::LegacyRandom;
@@ -238,9 +238,9 @@ fn surface_biome(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::columns::{Column, ColumnStore, Extent, Section};
     use mcrs_minecraft_chunk::section::Biomes;
     use mcrs_minecraft_chunk::{PalettedContainer, SectionKind};
+    use mcrs_minecraft_client_world::columns::{Column, ColumnStore, Extent, Section};
     use mcrs_minecraft_game_registries::registry_load::test_registries;
     use mcrs_minecraft_mesh::SECTION_VOLUME;
     use mcrs_minecraft_resource::ResourceLocationBuf;
@@ -343,9 +343,9 @@ mod tests {
 
     fn section_holding(biomes: PalettedContainer<u8, { Biomes::SIZE }>) -> Section {
         Section {
-            blocks: Box::new([crate::columns::AIR; SECTION_VOLUME]),
+            blocks: Box::new([mcrs_minecraft_client_world::columns::AIR; SECTION_VOLUME]),
             biomes,
-            states: vec![crate::columns::AIR],
+            states: vec![mcrs_minecraft_client_world::columns::AIR],
         }
     }
 

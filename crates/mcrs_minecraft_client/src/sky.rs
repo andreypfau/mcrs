@@ -1,4 +1,3 @@
-use crate::joined_game::CurrentDimension;
 use bevy::asset::{AssetPath, RenderAssetUsages};
 use bevy::image::{ImageLoaderSettings, ImageSampler};
 use bevy::prelude::*;
@@ -7,6 +6,7 @@ use bevy::render::render_resource::{
 };
 use bevy::render::{Extract, ExtractSchedule, RenderApp};
 use bevy::transform::TransformSystems;
+use mcrs_minecraft_client_world::joined_game::CurrentDimension;
 use mcrs_minecraft_registries::CurrentRegistries;
 use mcrs_minecraft_resource::Id;
 
@@ -19,8 +19,8 @@ use mcrs_minecraft_environment::attribute::MoonPhase;
 use mcrs_minecraft_environment::world_clock::{WorldClock, WorldClocks};
 
 use crate::camera::PlayerCamera;
-use crate::registries::{SessionSet, entered_configuration};
 use crate::vanilla::{self, VanillaAssets};
+use mcrs_minecraft_client_world::registries::{SessionSet, entered_configuration};
 use mcrs_minecraft_render::sky::{ExtractedSky, SkyDrawsOnly, SkyRenderPlugin, SkyUniform};
 
 const SUN: &str = "minecraft/textures/environment/celestial/sun.png";

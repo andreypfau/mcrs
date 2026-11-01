@@ -6,9 +6,9 @@ use std::net::{Ipv4Addr, SocketAddr};
 
 use crate::cave::CaveCull;
 use crate::gui::scene::{GuiConfig, GuiPlugin};
-use crate::screen::Screen;
 use bevy::app::App;
 use bevy::ecs::resource::Resource;
+use mcrs_minecraft_client_world::screen::Screen;
 use mcrs_minecraft_render::{Budget, FACE_BYTES, MODEL_BYTES, QUAD_BYTES, Uploads};
 
 #[cfg(not(target_family = "wasm"))]

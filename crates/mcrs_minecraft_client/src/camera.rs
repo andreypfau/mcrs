@@ -6,8 +6,8 @@ use bevy::render::view::Msaa;
 
 use mcrs_minecraft_engine_world::entity::physics::{OldTransform, Transform as PhysicsTransform};
 
-use crate::local_player::{LocalPlayerTick, Sprint};
-use crate::player::Player;
+use mcrs_minecraft_client_world::local_player::{LocalPlayerTick, Sprint};
+use mcrs_minecraft_client_world::player::Player;
 use mcrs_minecraft_entity::PLAYER_EYE_HEIGHT;
 use mcrs_minecraft_render::CameraOrigin;
 
@@ -161,8 +161,7 @@ fn apply_fov(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::local_player::tests::minecraft_look_direction;
-    use crate::player::spawn_player;
+    use mcrs_minecraft_client_world::player::{look_direction, spawn_player};
 
     #[test]
     fn a_spawned_player_carries_the_camera() {
@@ -193,7 +192,7 @@ mod tests {
             (45.0, -90.0),
         ] {
             let forward = (yaw_rotation(yaw) * pitch_rotation(pitch)) * Vec3::NEG_Z;
-            let expected = minecraft_look_direction(yaw, pitch);
+            let expected = look_direction(yaw, pitch);
             assert!(
                 forward.abs_diff_eq(expected, 1e-5),
                 "yaw {yaw}, pitch {pitch}: {forward:?} != {expected:?}"

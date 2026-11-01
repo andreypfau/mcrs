@@ -1,6 +1,6 @@
-use crate::movement_input::MovementInput;
-use crate::player::Player;
 use bevy::prelude::*;
+use mcrs_minecraft_client_world::movement_input::MovementInput;
+use mcrs_minecraft_client_world::player::Player;
 use mcrs_minecraft_engine_world::entity::physics::{Rotation, Transform as PhysicsTransform};
 
 #[derive(Resource)]
