@@ -4,7 +4,7 @@ use crate::JukeboxSong;
 use crate::TrimMaterial;
 use crate::TrimPattern;
 use crate::data_component_predicate_type_keys::DataComponentPredicateType;
-use crate::enchantment::EnchantmentData;
+use crate::enchantment::Enchantment;
 use crate::item_keys::Item;
 use crate::mob_effect_keys::MobEffect;
 use crate::potion_keys::Potion;
@@ -485,7 +485,7 @@ pub struct EnchantmentsPredicate<M: Refs = Resolved>(pub Vec<EnchantmentPredicat
 #[serde(remote = "Self", deny_unknown_fields)]
 pub struct EnchantmentPredicate<M: Refs = Resolved> {
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub enchantments: Option<M::Set<EnchantmentData>>,
+    pub enchantments: Option<M::Set<Enchantment>>,
     #[serde(default, skip_serializing_if = "MinMaxBounds::is_any")]
     pub levels: MinMaxBounds<i32>,
 }

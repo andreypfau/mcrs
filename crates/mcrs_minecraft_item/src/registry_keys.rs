@@ -100,17 +100,10 @@ impl Registered for crate::dialog_type_keys::DialogType {
     const REGISTRY: RegistryKey<Self> = DIALOG_TYPE;
 }
 
-pub const ENCHANTMENT: RegistryKey<crate::enchantment::EnchantmentData> =
+pub const ENCHANTMENT: RegistryKey<crate::enchantment::Enchantment> =
     RegistryKey::new(rl!("minecraft:enchantment"));
-impl Registered for crate::enchantment::EnchantmentData {
+impl Registered for crate::enchantment::Enchantment {
     const REGISTRY: RegistryKey<Self> = ENCHANTMENT;
-}
-
-pub const ENCHANTMENT_LEVEL_BASED_VALUE_TYPE: RegistryKey<
-    crate::enchantment_level_based_value_type_keys::EnchantmentLevelBasedValueType,
-> = RegistryKey::new(rl!("minecraft:enchantment_level_based_value_type"));
-impl Registered for crate::enchantment_level_based_value_type_keys::EnchantmentLevelBasedValueType {
-    const REGISTRY: RegistryKey<Self> = ENCHANTMENT_LEVEL_BASED_VALUE_TYPE;
 }
 
 pub const INPUT_CONTROL_TYPE: RegistryKey<crate::input_control_type_keys::InputControlType> =

@@ -16,6 +16,13 @@ impl Registered for crate::enchantment_entity_effect_type_keys::EnchantmentEntit
     const REGISTRY: RegistryKey<Self> = ENCHANTMENT_ENTITY_EFFECT_TYPE;
 }
 
+pub const ENCHANTMENT_LEVEL_BASED_VALUE_TYPE: RegistryKey<
+    crate::enchantment_level_based_value_type_keys::EnchantmentLevelBasedValueType,
+> = RegistryKey::new(rl!("minecraft:enchantment_level_based_value_type"));
+impl Registered for crate::enchantment_level_based_value_type_keys::EnchantmentLevelBasedValueType {
+    const REGISTRY: RegistryKey<Self> = ENCHANTMENT_LEVEL_BASED_VALUE_TYPE;
+}
+
 pub const ENCHANTMENT_LOCATION_BASED_EFFECT_TYPE: RegistryKey<
     crate::enchantment_location_based_effect_type_keys::EnchantmentLocationBasedEffectType,
 > = RegistryKey::new(rl!("minecraft:enchantment_location_based_effect_type"));

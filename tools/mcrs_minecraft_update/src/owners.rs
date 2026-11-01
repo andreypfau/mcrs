@@ -84,7 +84,7 @@ pub const OWNERS: &[Owner] = &[
     Owner {
         registry: "minecraft:enchantment",
         krate: "mcrs_minecraft_item",
-        value: ValueType::Defined("crate::enchantment::EnchantmentData"),
+        value: ValueType::Defined("crate::enchantment::Enchantment"),
     },
     Owner {
         registry: "minecraft:wolf_variant",
@@ -488,7 +488,7 @@ pub const OWNERS: &[Owner] = &[
     },
     Owner {
         registry: "minecraft:enchantment_level_based_value_type",
-        krate: "mcrs_minecraft_item",
+        krate: "mcrs_minecraft_enchantment",
         value: ValueType::Enum("EnchantmentLevelBasedValueType"),
     },
     Owner {

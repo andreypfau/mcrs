@@ -1,6 +1,7 @@
+use crate::enchantment_data::{EnchantmentCost, EnchantmentData};
 use mcrs_minecraft_item::Text;
 use mcrs_minecraft_item::component::EquipmentSlotGroup;
-use mcrs_minecraft_item::enchantment::{EnchantmentCost, EnchantmentData};
+use mcrs_minecraft_item::enchantment::Enchantment;
 use mcrs_minecraft_item::item_keys::Item;
 use mcrs_minecraft_registries::{Refs, Resolved, registry_value};
 use serde::{Deserialize, Serialize};
@@ -26,13 +27,13 @@ pub struct EnchantmentFile<M: Refs = Resolved> {
     pub weight: u32,
     pub max_level: u32,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub exclusive_set: Option<M::Set<EnchantmentData>>,
+    pub exclusive_set: Option<M::Set<Enchantment>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub effects: Option<NbtTag>,
 }
 
 impl mcrs_minecraft_resource::RegistryValue for EnchantmentFile {
-    type Registry = EnchantmentData;
+    type Registry = Enchantment;
 }
 
 impl EnchantmentFile {
