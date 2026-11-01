@@ -90,5 +90,6 @@ impl Plugin for ServerNetworkPlugin {
             app.add_plugins(ClientInfoPlugin);
         }
         app.add_plugins(StatusPlugin);
+        app.add_plugins(crate::shutdown::ShutdownPlugin);
     }
 }

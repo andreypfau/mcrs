@@ -187,6 +187,7 @@ indexing_slicing = "deny"
 type_complexity = "allow"
 
 [dependencies]
+bevy_ecs.workspace = true
 bevy_app.workspace = true
 bevy_log.workspace = true
 tokio = { version = "1", features = ["full"] }
@@ -206,7 +207,6 @@ mcrs_minecraft_assets.workspace = true
 mcrs_minecraft_game_registries = { workspace = true, features = ["test-support"] }
 mcrs_minecraft_dimension.workspace = true
 mcrs_minecraft_engine_world.workspace = true
-bevy_ecs.workspace = true
 mcrs_minecraft_network = { workspace = true, features = ["bevy"] }
 bevy_asset.workspace = true
 mcrs_minecraft_biome_file.workspace = true
