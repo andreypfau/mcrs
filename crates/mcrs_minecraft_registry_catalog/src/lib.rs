@@ -52,7 +52,7 @@ pub const STATIC_REGISTRIES: &[(ResourceLocation<'static>, &[ResourceLocation<'s
     (mcrs_minecraft_item::registry_keys::DATA_COMPONENT_PREDICATE_TYPE.location(), mcrs_minecraft_item::data_component_predicate_type_keys::DataComponentPredicateType::ENTRIES),
     (mcrs_minecraft_item::registry_keys::MAP_DECORATION_TYPE.location(), mcrs_minecraft_item::map_decoration_type_keys::MapDecorationType::ENTRIES),
     (mcrs_minecraft_enchantment::registry_keys::ENCHANTMENT_EFFECT_COMPONENT_TYPE.location(), mcrs_minecraft_enchantment::enchantment_effect_component_type_keys::EnchantmentEffectComponentType::ENTRIES),
-    (mcrs_minecraft_item::registry_keys::ENCHANTMENT_LEVEL_BASED_VALUE_TYPE.location(), mcrs_minecraft_item::enchantment_level_based_value_type_keys::EnchantmentLevelBasedValueType::ENTRIES),
+    (mcrs_minecraft_enchantment::registry_keys::ENCHANTMENT_LEVEL_BASED_VALUE_TYPE.location(), mcrs_minecraft_enchantment::enchantment_level_based_value_type_keys::EnchantmentLevelBasedValueType::ENTRIES),
     (mcrs_minecraft_enchantment::registry_keys::ENCHANTMENT_ENTITY_EFFECT_TYPE.location(), mcrs_minecraft_enchantment::enchantment_entity_effect_type_keys::EnchantmentEntityEffectType::ENTRIES),
     (mcrs_minecraft_enchantment::registry_keys::ENCHANTMENT_LOCATION_BASED_EFFECT_TYPE.location(), mcrs_minecraft_enchantment::enchantment_location_based_effect_type_keys::EnchantmentLocationBasedEffectType::ENTRIES),
     (mcrs_minecraft_enchantment::registry_keys::ENCHANTMENT_VALUE_EFFECT_TYPE.location(), mcrs_minecraft_enchantment::enchantment_value_effect_type_keys::EnchantmentValueEffectType::ENTRIES),

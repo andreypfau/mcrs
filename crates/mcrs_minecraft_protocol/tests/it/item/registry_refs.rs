@@ -7,7 +7,7 @@ use mcrs_minecraft_item::data_component_type_keys::DataComponentType;
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_protocol::item::{ItemComponentValue, hash_ops};
 
-use mcrs_minecraft_item::enchantment::EnchantmentData;
+use mcrs_minecraft_item::enchantment::Enchantment;
 
 use crate::item::harness::{
     entry, from_nbt, hex, json_value, lookup, named, nbt_tree, persistent_json, resolved,
@@ -282,7 +282,7 @@ fn wire_enchantment_levels_follow_the_constructor_not_the_codec() {
             .map(|value| persistent_json(&value))
             .map_err(|e| e.to_string())
     };
-    let sharpness = u8::try_from(entry::<EnchantmentData>("sharpness").number()).unwrap();
+    let sharpness = u8::try_from(entry::<Enchantment>("sharpness").number()).unwrap();
     assert_eq!(
         decode(&[1, sharpness, 0]).unwrap(),
         r#"{"minecraft:sharpness":0}"#

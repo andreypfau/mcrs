@@ -4,7 +4,7 @@ use std::fmt;
 use crate::BannerPattern;
 use crate::block_transformer::BlockTransformer;
 use crate::damage_type::DamageType;
-use crate::enchantment::EnchantmentData;
+use crate::enchantment::Enchantment;
 use crate::item_keys::Item;
 use crate::mob_effect_keys::MobEffect;
 use mcrs_minecraft_block::block_keys::Block;
@@ -67,7 +67,7 @@ macro_rules! null_as_default {
 }
 pub(crate) use null_as_default;
 
-pub type EnchantmentId<M> = <M as Refs>::Id<EnchantmentData>;
+pub type EnchantmentId<M> = <M as Refs>::Id<Enchantment>;
 
 /// Enchantment id to level in 1..=255, kept in read order because vanilla's
 /// own order is hash order.
@@ -82,7 +82,7 @@ impl<M: Refs> Default for Enchantments<M> {
 
 impl Enchantments {
     /// Zero when absent.
-    pub fn level(&self, enchantment: Id<EnchantmentData>) -> i32 {
+    pub fn level(&self, enchantment: Id<Enchantment>) -> i32 {
         self.0
             .iter()
             .find(|(id, _)| *id == enchantment)
@@ -690,7 +690,7 @@ impl Decode<'_> for Enchantments<Wire> {
     fn decode(r: &mut &[u8]) -> Result<Self> {
         let len = VarInt::decode(r)?.0;
         ensure!(len >= 0, "attempt to decode a map with negative length");
-        let mut entries: Vec<(WireId<EnchantmentData>, i32)> =
+        let mut entries: Vec<(WireId<Enchantment>, i32)> =
             Vec::with_capacity((len as usize).min(r.len()));
         let mut at: std::collections::HashMap<_, usize> =
             std::collections::HashMap::with_capacity(entries.capacity());

@@ -1,10 +1,12 @@
-use crate::Text;
-use crate::component::EquipmentSlotGroup;
-use crate::item_keys::Item;
+use mcrs_minecraft_item::Text;
+use mcrs_minecraft_item::component::EquipmentSlotGroup;
+use mcrs_minecraft_item::enchantment::Enchantment;
+use mcrs_minecraft_item::item_keys::Item;
 use mcrs_minecraft_registries::{Refs, Resolve, Resolved};
 use serde::{Deserialize, Serialize};
 
-/// An enchantment's effects are the `mcrs_minecraft_enchantment` column beside it.
+/// An enchantment's definition; its effects are the column [`EnchantmentFile`](crate::file::EnchantmentFile)
+/// keeps beside it.
 #[derive(Debug, Clone, Resolve)]
 pub struct EnchantmentData<M: Refs = Resolved> {
     pub description: Text<M>,
@@ -16,7 +18,7 @@ pub struct EnchantmentData<M: Refs = Resolved> {
     pub primary_items: Option<M::Set<Item>>,
     pub weight: u32,
     pub max_level: u32,
-    pub exclusive_set: Option<M::Set<EnchantmentData>>,
+    pub exclusive_set: Option<M::Set<Enchantment>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

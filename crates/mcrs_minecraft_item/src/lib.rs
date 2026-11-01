@@ -50,8 +50,6 @@ pub mod dialog_type_keys;
 #[rustfmt::skip]
 pub mod enchantment_keys;
 #[rustfmt::skip]
-pub mod enchantment_level_based_value_type_keys;
-#[rustfmt::skip]
 pub mod enchantment_tag_keys;
 #[rustfmt::skip]
 pub mod input_control_type_keys;
