@@ -47,7 +47,7 @@ impl BiomeNames for NameList {
             .position(|held| name == held.as_str())
             .and_then(|number| Id::checked(u16::try_from(number).ok()?, self.0.len()))
             .ok_or_else(|| UnknownEntry {
-                registry: mcrs_minecraft_biome::keys::BIOME.location().into(),
+                registry: mcrs_minecraft_biome::registry_keys::BIOME.location().into(),
                 name: name.to_string(),
             })
     }

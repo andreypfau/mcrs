@@ -34,18 +34,18 @@ macro_rules! attributes {
 }
 
 attributes! {
-    SKY_COLOR: HexRgb = crate::keys::EnvironmentAttribute::VisualSkyColor;
-    FOG_COLOR: HexRgb = crate::keys::EnvironmentAttribute::VisualFogColor;
-    WATER_FOG_COLOR: HexRgb = crate::keys::EnvironmentAttribute::VisualWaterFogColor;
-    WATER_FOG_END_DISTANCE: f32 = crate::keys::EnvironmentAttribute::VisualWaterFogEndDistance;
-    AMBIENT_PARTICLES: Opaque = crate::keys::EnvironmentAttribute::VisualAmbientParticles;
-    BACKGROUND_MUSIC: Opaque = crate::keys::EnvironmentAttribute::AudioBackgroundMusic;
-    MUSIC_VOLUME: f32 = crate::keys::EnvironmentAttribute::AudioMusicVolume;
-    AMBIENT_SOUNDS: Opaque = crate::keys::EnvironmentAttribute::AudioAmbientSounds;
-    INCREASED_FIRE_BURNOUT: bool = crate::keys::EnvironmentAttribute::GameplayIncreasedFireBurnout;
-    SNOW_GOLEM_MELTS: bool = crate::keys::EnvironmentAttribute::GameplaySnowGolemMelts;
-    CAN_PILLAGER_PATROL_SPAWN: bool = crate::keys::EnvironmentAttribute::GameplayCanPillagerPatrolSpawn;
+    SKY_COLOR: HexRgb = crate::environment_attribute_keys::EnvironmentAttribute::VisualSkyColor;
+    FOG_COLOR: HexRgb = crate::environment_attribute_keys::EnvironmentAttribute::VisualFogColor;
+    WATER_FOG_COLOR: HexRgb = crate::environment_attribute_keys::EnvironmentAttribute::VisualWaterFogColor;
+    WATER_FOG_END_DISTANCE: f32 = crate::environment_attribute_keys::EnvironmentAttribute::VisualWaterFogEndDistance;
+    AMBIENT_PARTICLES: Opaque = crate::environment_attribute_keys::EnvironmentAttribute::VisualAmbientParticles;
+    BACKGROUND_MUSIC: Opaque = crate::environment_attribute_keys::EnvironmentAttribute::AudioBackgroundMusic;
+    MUSIC_VOLUME: f32 = crate::environment_attribute_keys::EnvironmentAttribute::AudioMusicVolume;
+    AMBIENT_SOUNDS: Opaque = crate::environment_attribute_keys::EnvironmentAttribute::AudioAmbientSounds;
+    INCREASED_FIRE_BURNOUT: bool = crate::environment_attribute_keys::EnvironmentAttribute::GameplayIncreasedFireBurnout;
+    SNOW_GOLEM_MELTS: bool = crate::environment_attribute_keys::EnvironmentAttribute::GameplaySnowGolemMelts;
+    CAN_PILLAGER_PATROL_SPAWN: bool = crate::environment_attribute_keys::EnvironmentAttribute::GameplayCanPillagerPatrolSpawn;
     CREATURE_WORLD_GEN_SPAWN_PROBABILITY: f32 =
-        crate::keys::EnvironmentAttribute::GameplayCreatureWorldGenSpawnProbability;
-    NATURAL_MOB_SPAWNS: MobSpawnSettings = crate::keys::EnvironmentAttribute::GameplayNaturalMobSpawns;
+        crate::environment_attribute_keys::EnvironmentAttribute::GameplayCreatureWorldGenSpawnProbability;
+    NATURAL_MOB_SPAWNS: MobSpawnSettings = crate::environment_attribute_keys::EnvironmentAttribute::GameplayNaturalMobSpawns;
 }

@@ -6,7 +6,7 @@ use mcrs_minecraft_command::{ErrorText, Source};
 use mcrs_minecraft_command_argument_entity::{
     Candidate, EntityArgument, EntityBounds, EntityError, Target,
 };
-use mcrs_minecraft_entity::keys::EntityType;
+use mcrs_minecraft_entity::entity_type_keys::EntityType;
 use mcrs_minecraft_game_mode::GameMode;
 use mcrs_minecraft_text::{IntoText, Text};
 use uuid::Uuid;

@@ -23,16 +23,16 @@ pub struct BetaCaveBlockIds {
 
 impl BetaCaveBlockIds {
     pub fn resolve(blocks: &BlockDefinitions) -> Self {
-        let state = |block: Id<mcrs_minecraft_block::keys::Block>| -> VoxelId {
+        let state = |block: Id<mcrs_minecraft_block::block_keys::Block>| -> VoxelId {
             blocks.default_state_of(block).number().into()
         };
         BetaCaveBlockIds {
-            air: state(mcrs_minecraft_block::keys::Block::Air.id()),
-            lava: state(mcrs_minecraft_block::keys::Block::Lava.id()),
-            stone: state(mcrs_minecraft_block::keys::Block::Stone.id()),
-            dirt: state(mcrs_minecraft_block::keys::Block::Dirt.id()),
-            grass: state(mcrs_minecraft_block::keys::Block::GrassBlock.id()),
-            water: state(mcrs_minecraft_block::keys::Block::Water.id()),
+            air: state(mcrs_minecraft_block::block_keys::Block::Air.id()),
+            lava: state(mcrs_minecraft_block::block_keys::Block::Lava.id()),
+            stone: state(mcrs_minecraft_block::block_keys::Block::Stone.id()),
+            dirt: state(mcrs_minecraft_block::block_keys::Block::Dirt.id()),
+            grass: state(mcrs_minecraft_block::block_keys::Block::GrassBlock.id()),
+            water: state(mcrs_minecraft_block::block_keys::Block::Water.id()),
         }
     }
 }
@@ -134,7 +134,7 @@ mod tests {
     fn the_fill_frees_only_what_beta_carves_and_floors_it_with_lava() {
         let ids = BetaCaveBlockIds::resolve(corpus());
         let sand: VoxelId = corpus()
-            .default_state_of(mcrs_minecraft_block::keys::Block::Sand.id())
+            .default_state_of(mcrs_minecraft_block::block_keys::Block::Sand.id())
             .number()
             .into();
         let sections: Vec<i32> = (0..8).collect();

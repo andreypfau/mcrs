@@ -7,7 +7,7 @@ use std::ops::RangeInclusive;
 use mcrs_minecraft_core::{Axis, Direction};
 
 use super::{Canvas, Cell, Gable, block, settled, stairs};
-use mcrs_minecraft_block::keys::Block;
+use mcrs_minecraft_block::block_keys::Block;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Hinge {

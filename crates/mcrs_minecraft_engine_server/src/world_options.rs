@@ -84,7 +84,7 @@ fn dimension_list(
             .ok_or_else(|| {
                 format!(
                     "{}: no world preset is named {preset}",
-                    mcrs_minecraft_game_registries::keys::WORLD_PRESET
+                    mcrs_minecraft_game_registries::registry_keys::WORLD_PRESET
                 )
             })?;
         Ok((preset.to_owned(), bake(&named.dimensions, registries)?))

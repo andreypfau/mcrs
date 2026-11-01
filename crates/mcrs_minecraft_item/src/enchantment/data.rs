@@ -1,6 +1,6 @@
 use crate::Text;
 use crate::component::EquipmentSlotGroup;
-use crate::keys::Item;
+use crate::item_keys::Item;
 use mcrs_minecraft_registries::{Refs, Resolve, Resolved};
 use serde::{Deserialize, Serialize};
 

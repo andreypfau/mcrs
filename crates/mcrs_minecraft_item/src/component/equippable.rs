@@ -1,11 +1,11 @@
 use mcrs_minecraft_core::codec::default_true;
-use mcrs_minecraft_entity::keys::EntityType;
+use mcrs_minecraft_entity::entity_type_keys::EntityType;
 use mcrs_minecraft_resource::{ResourceLocationBuf, rl};
 use std::sync::Arc;
 
 use mcrs_minecraft_nbt::{BYTE_ID, COMPOUND_ID, FLOAT_ID, STRING_ID};
 use mcrs_minecraft_registries::{Ref, Refs, Resolved, registry_value};
-use mcrs_minecraft_sound::keys::SoundEvent;
+use mcrs_minecraft_sound::sound_event_keys::SoundEvent;
 use mcrs_minecraft_sound::{Sound, SoundEventValue};
 use serde::{Deserialize, Deserializer, Serialize};
 

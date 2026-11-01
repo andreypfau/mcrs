@@ -1,8 +1,8 @@
-use mcrs_minecraft_block::definition::{BlockStateFlags, Blocks};
-use mcrs_minecraft_block::keys::Block;
-use mcrs_minecraft_block::keys::block_tags::{
+use mcrs_minecraft_block::block_keys::Block;
+use mcrs_minecraft_block::block_tag_keys::{
     BLOCKS_MOTION_IN_HEIGHTMAP, BLOCKS_MOTION_IN_HEIGHTMAP_NO_LEAVES,
 };
+use mcrs_minecraft_block::definition::{BlockStateFlags, Blocks};
 use mcrs_minecraft_chunk::palette::{BiomePalette, BlockPalette};
 use mcrs_minecraft_chunk::{ColumnHeights, PalettedContainer, VoxelId};
 use mcrs_minecraft_registries::Tags;

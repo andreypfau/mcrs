@@ -4,7 +4,7 @@ use mcrs_command::{
     Reader, StringValue, SuggestionBuilder, SuggestionText, starts_with_ignore_case,
 };
 use mcrs_minecraft_block::definition::schema::{BlockProperty, PropertyValue};
-use mcrs_minecraft_block::keys::BLOCK;
+use mcrs_minecraft_block::registry_keys::BLOCK;
 use mcrs_minecraft_command::Source;
 use mcrs_minecraft_command_argument::{ResourceOrTag, ResourceOrTagArgument};
 use mcrs_minecraft_resource::ResourceLocation;

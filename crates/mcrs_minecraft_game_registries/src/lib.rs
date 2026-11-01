@@ -3,7 +3,27 @@
 #![recursion_limit = "256"]
 pub mod chat_type;
 #[rustfmt::skip]
-pub mod keys;
+pub mod chat_type_keys;
+#[rustfmt::skip]
+pub mod enchantment_provider_keys;
+#[rustfmt::skip]
+pub mod registry_keys;
+#[rustfmt::skip]
+pub mod sulfur_cube_archetype_keys;
+#[rustfmt::skip]
+pub mod test_environment_keys;
+#[rustfmt::skip]
+pub mod test_instance_keys;
+#[rustfmt::skip]
+pub mod trade_set_keys;
+#[rustfmt::skip]
+pub mod villager_trade_keys;
+#[rustfmt::skip]
+pub mod villager_trade_tag_keys;
+#[rustfmt::skip]
+pub mod world_preset_keys;
+#[rustfmt::skip]
+pub mod world_preset_tag_keys;
 pub mod dimension;
 pub mod enchantment_provider;
 pub mod entity;

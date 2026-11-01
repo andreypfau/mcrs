@@ -67,12 +67,12 @@ pub fn baked(
 pub fn dimension_list_with_extra() -> DimensionList {
     use mcrs_minecraft_game_registries::worldgen::chunk_generator::ChunkGenerator;
 
-    let mut dimensions = preset(mcrs_minecraft_game_registries::keys::world_preset::NORMAL);
+    let mut dimensions = preset(mcrs_minecraft_game_registries::world_preset_keys::NORMAL);
     dimensions.insert(
         ResourceKeyBuf::from_location("test:extra".parse().unwrap()),
         DimensionEntry {
             dimension_type: dimension_type(
-                mcrs_minecraft_dimension::keys::dimension_type::OVERWORLD,
+                mcrs_minecraft_dimension::dimension_type_keys::OVERWORLD,
             ),
             generator: ChunkGenerator::Debug,
         },

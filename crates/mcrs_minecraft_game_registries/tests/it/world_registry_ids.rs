@@ -114,7 +114,7 @@ fn a_wire_id_the_registries_lack_is_refused_by_registry_and_a_holder_id_round_tr
     let error = checked::<Sound>(&ctx, &past("minecraft:sound_event", 1)).unwrap_err();
     assert!(error.contains("minecraft:sound_event"), "{error}");
 
-    let sound = Sound::Id(mcrs_minecraft_sound::keys::SoundEvent::EntityItemBreak.id());
+    let sound = Sound::Id(mcrs_minecraft_sound::sound_event_keys::SoundEvent::EntityItemBreak.id());
     let mut wire = Vec::new();
     sound.to_wire(&ctx).unwrap().encode(&mut wire).unwrap();
     assert_eq!(checked::<Sound>(&ctx, &wire).unwrap(), sound);

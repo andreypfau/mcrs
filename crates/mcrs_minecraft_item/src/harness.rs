@@ -216,51 +216,51 @@ macro_rules! sample_registries_table {
 }
 
 sample_registries_table! {
-    crate::keys::ITEM => "item" numbered crate::keys::Item::ENTRIES ["air", "stone", "diamond_sword", "apple", "bundle", "diamond"]
+    crate::registry_keys::ITEM => "item" numbered crate::item_keys::Item::ENTRIES ["air", "stone", "diamond_sword", "apple", "bundle", "diamond"]
         [("planks" => ["stone"]), ("swords" => ["diamond_sword"])];
-    crate::keys::MOB_EFFECT => "mob_effect" numbered crate::keys::MobEffect::ENTRIES ["speed", "slowness", "haste"] [];
-    crate::keys::ENCHANTMENT => "enchantment" ["sharpness", "unbreaking"] [];
-    crate::keys::DAMAGE_TYPE => "damage_type" ["in_fire", "lava"]
+    crate::registry_keys::MOB_EFFECT => "mob_effect" numbered crate::mob_effect_keys::MobEffect::ENTRIES ["speed", "slowness", "haste"] [];
+    crate::registry_keys::ENCHANTMENT => "enchantment" ["sharpness", "unbreaking"] [];
+    crate::registry_keys::DAMAGE_TYPE => "damage_type" ["in_fire", "lava"]
         [("is_fire" => ["in_fire", "lava"]), ("bypasses_shield" => ["lava"])];
-    mcrs_minecraft_block::keys::BLOCK => "block" ["stone", "dirt"]
+    mcrs_minecraft_block::registry_keys::BLOCK => "block" ["stone", "dirt"]
         [("mineable/pickaxe" => ["stone"]), ("logs" => ["dirt"])];
-    mcrs_minecraft_entity::keys::ENTITY_TYPE => "entity_type" ["zombie", "pig", "skeleton", "player"]
+    mcrs_minecraft_entity::registry_keys::ENTITY_TYPE => "entity_type" ["zombie", "pig", "skeleton", "player"]
         [("skeletons" => ["skeleton"])];
-    mcrs_minecraft_block::keys::BLOCK_ENTITY_TYPE => "block_entity_type" ["chest", "sign"] [];
-    crate::keys::POTION => "potion" numbered crate::keys::Potion::ENTRIES ["water", "swiftness", "healing"] [];
-    mcrs_minecraft_entity::keys::ATTRIBUTE => "attribute"
-        numbered mcrs_minecraft_entity::keys::Attribute::ENTRIES ["armor", "attack_damage"] [];
-    crate::keys::BANNER_PATTERN => "banner_pattern" ["globe", "creeper"]
+    mcrs_minecraft_block::registry_keys::BLOCK_ENTITY_TYPE => "block_entity_type" ["chest", "sign"] [];
+    crate::registry_keys::POTION => "potion" numbered crate::potion_keys::Potion::ENTRIES ["water", "swiftness", "healing"] [];
+    mcrs_minecraft_entity::registry_keys::ATTRIBUTE => "attribute"
+        numbered mcrs_minecraft_entity::attribute_keys::Attribute::ENTRIES ["armor", "attack_damage"] [];
+    crate::registry_keys::BANNER_PATTERN => "banner_pattern" ["globe", "creeper"]
         [("pattern_item/globe" => ["globe"])];
-    crate::keys::BLOCK_TRANSFORMER => "block_transformer" ["axe", "shovel"] [];
-    mcrs_minecraft_entity::keys::VILLAGER_TYPE => "villager_type" ["plains", "desert"] [];
-    mcrs_minecraft_entity::keys::WOLF_VARIANT => "wolf_variant" ["pale", "ashen"] [];
-    mcrs_minecraft_entity::keys::WOLF_SOUND_VARIANT => "wolf_sound_variant" ["classic", "big"] [];
-    mcrs_minecraft_entity::keys::PIG_VARIANT => "pig_variant" ["temperate", "cold"] [];
-    mcrs_minecraft_entity::keys::PIG_SOUND_VARIANT => "pig_sound_variant" ["classic", "mini"] [];
-    mcrs_minecraft_entity::keys::COW_VARIANT => "cow_variant" ["temperate", "warm"] [];
-    mcrs_minecraft_entity::keys::COW_SOUND_VARIANT => "cow_sound_variant" ["classic", "moody"] [];
-    mcrs_minecraft_entity::keys::CHICKEN_VARIANT => "chicken_variant" ["temperate", "cold"] [];
-    mcrs_minecraft_entity::keys::CHICKEN_SOUND_VARIANT => "chicken_sound_variant" ["classic", "picky"] [];
-    mcrs_minecraft_entity::keys::ZOMBIE_NAUTILUS_VARIANT => "zombie_nautilus_variant" ["temperate", "warm"] [];
-    mcrs_minecraft_entity::keys::FROG_VARIANT => "frog_variant" ["temperate", "warm"] [];
-    mcrs_minecraft_entity::keys::CAT_VARIANT => "cat_variant" ["tabby", "jellie"] [];
-    mcrs_minecraft_entity::keys::CAT_SOUND_VARIANT => "cat_sound_variant" ["classic", "royal"] [];
-    crate::keys::DECORATED_POT_PATTERN => "decorated_pot_pattern" ["angler", "skull"] [];
-    crate::keys::TRIM_MATERIAL => "trim_material" ["amethyst", "gold"] [];
-    crate::keys::TRIM_PATTERN => "trim_pattern" ["coast", "sentry", "vex"] [];
-    crate::keys::INSTRUMENT => "instrument" ["ponder_goat_horn"] [];
-    crate::keys::JUKEBOX_SONG => "jukebox_song" ["pigstep", "cat"] [];
-    crate::keys::PAINTING_VARIANT => "painting_variant" ["kebab"] [];
+    crate::registry_keys::BLOCK_TRANSFORMER => "block_transformer" ["axe", "shovel"] [];
+    mcrs_minecraft_entity::registry_keys::VILLAGER_TYPE => "villager_type" ["plains", "desert"] [];
+    mcrs_minecraft_entity::registry_keys::WOLF_VARIANT => "wolf_variant" ["pale", "ashen"] [];
+    mcrs_minecraft_entity::registry_keys::WOLF_SOUND_VARIANT => "wolf_sound_variant" ["classic", "big"] [];
+    mcrs_minecraft_entity::registry_keys::PIG_VARIANT => "pig_variant" ["temperate", "cold"] [];
+    mcrs_minecraft_entity::registry_keys::PIG_SOUND_VARIANT => "pig_sound_variant" ["classic", "mini"] [];
+    mcrs_minecraft_entity::registry_keys::COW_VARIANT => "cow_variant" ["temperate", "warm"] [];
+    mcrs_minecraft_entity::registry_keys::COW_SOUND_VARIANT => "cow_sound_variant" ["classic", "moody"] [];
+    mcrs_minecraft_entity::registry_keys::CHICKEN_VARIANT => "chicken_variant" ["temperate", "cold"] [];
+    mcrs_minecraft_entity::registry_keys::CHICKEN_SOUND_VARIANT => "chicken_sound_variant" ["classic", "picky"] [];
+    mcrs_minecraft_entity::registry_keys::ZOMBIE_NAUTILUS_VARIANT => "zombie_nautilus_variant" ["temperate", "warm"] [];
+    mcrs_minecraft_entity::registry_keys::FROG_VARIANT => "frog_variant" ["temperate", "warm"] [];
+    mcrs_minecraft_entity::registry_keys::CAT_VARIANT => "cat_variant" ["tabby", "jellie"] [];
+    mcrs_minecraft_entity::registry_keys::CAT_SOUND_VARIANT => "cat_sound_variant" ["classic", "royal"] [];
+    crate::registry_keys::DECORATED_POT_PATTERN => "decorated_pot_pattern" ["angler", "skull"] [];
+    crate::registry_keys::TRIM_MATERIAL => "trim_material" ["amethyst", "gold"] [];
+    crate::registry_keys::TRIM_PATTERN => "trim_pattern" ["coast", "sentry", "vex"] [];
+    crate::registry_keys::INSTRUMENT => "instrument" ["ponder_goat_horn"] [];
+    crate::registry_keys::JUKEBOX_SONG => "jukebox_song" ["pigstep", "cat"] [];
+    crate::registry_keys::PAINTING_VARIANT => "painting_variant" ["kebab"] [];
 }
 
 fn build_sample_registries() -> SampleRegistries {
-    let sounds = mcrs_minecraft_sound::keys::SoundEvent::ENTRIES
+    let sounds = mcrs_minecraft_sound::sound_event_keys::SoundEvent::ENTRIES
         .iter()
         .map(|&name| name.into())
         .collect();
     build_listed_registries(SampleRegistries::default()).with(
-        mcrs_minecraft_sound::keys::SOUND_EVENT,
+        mcrs_minecraft_sound::registry_keys::SOUND_EVENT,
         sounds,
         &[],
     )

@@ -46,7 +46,7 @@ impl LevelBasedValue {
     }
 }
 
-#[dispatch(registry = crate::keys::EnchantmentLevelBasedValueType)]
+#[dispatch(registry = crate::enchantment_level_based_value_type_keys::EnchantmentLevelBasedValueType)]
 #[derive(Debug, Clone, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub enum DispatchedLevelBasedValue {

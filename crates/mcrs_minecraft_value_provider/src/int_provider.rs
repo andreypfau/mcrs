@@ -80,7 +80,7 @@ impl DispatchedIntProvider {
     }
 }
 
-#[dispatch(registry = crate::keys::IntProviderType)]
+#[dispatch(registry = crate::int_provider_type_keys::IntProviderType)]
 #[derive(Debug, Clone, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub enum DispatchedIntProvider {

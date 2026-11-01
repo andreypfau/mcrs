@@ -8,7 +8,7 @@ use mcrs_minecraft_block::definition::{
     BlockDefinitions, BlockSoundSets, BlockStateData, BlockStateFlags, LoadReport,
     load_block_definitions,
 };
-use mcrs_minecraft_block::keys::Fluid;
+use mcrs_minecraft_block::fluid_keys::Fluid;
 use mcrs_minecraft_block::material::PushReaction;
 use mcrs_minecraft_block::material::map::MapColor;
 use mcrs_minecraft_core::voxel_shape::Aabb;

@@ -783,7 +783,7 @@ impl PieceContext<'_> {
 
 /// `StructurePiece.createTag` plus each type's `addAdditionalSaveData`; `id`
 /// picks the type, so the save reads back whatever order its keys came in.
-#[dispatch(registry = crate::keys::StructurePieceType, key = "id", unsupported(Nestart, Omcr, Omdxr, Omdxyr, Omdyr, Omdyzr, Omdzr, Omentry, Ompenthouse, Omsimple, Omsimplet, Omwr))]
+#[dispatch(registry = crate::structure_piece_keys::StructurePieceType, key = "id", unsupported(Nestart, Omcr, Omdxr, Omdxyr, Omdyr, Omdyzr, Omdzr, Omentry, Ompenthouse, Omsimple, Omsimplet, Omwr))]
 #[serde(deny_unknown_fields)]
 enum PieceTag {
     Jigsaw {

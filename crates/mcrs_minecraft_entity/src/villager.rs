@@ -1,4 +1,4 @@
-use crate::keys::{VillagerProfession, VillagerType};
+use crate::{villager_profession_keys::VillagerProfession, villager_type_keys::VillagerType};
 use serde::{Deserialize, Serialize};
 
 pub const MIN_VILLAGER_LEVEL: i32 = 1;

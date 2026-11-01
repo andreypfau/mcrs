@@ -1,4 +1,4 @@
-use crate::keys::Item;
+use crate::item_keys::Item;
 use bevy_ecs::prelude::Component;
 use mcrs_minecraft_resource::Id;
 

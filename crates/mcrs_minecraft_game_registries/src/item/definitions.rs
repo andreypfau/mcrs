@@ -1,7 +1,7 @@
 use mcrs_minecraft_block::definition::BlockDefinitions;
 use mcrs_minecraft_item::definition::FORMAT_VERSION;
 use mcrs_minecraft_item::definition::schema::ItemDefinitionFile;
-use mcrs_minecraft_item::keys::Item;
+use mcrs_minecraft_item::item_keys::Item;
 use mcrs_minecraft_item::patch::ComponentMap;
 use mcrs_minecraft_item::{ItemDefinitions, ItemEntry, ItemTableError, Template};
 use mcrs_minecraft_registries::{Registries, Resolve, ResolveError, Resolver};

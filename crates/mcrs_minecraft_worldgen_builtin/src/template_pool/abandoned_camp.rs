@@ -1,4 +1,4 @@
-use mcrs_minecraft_biome::keys::placed_feature;
+use mcrs_minecraft_biome::placed_feature_keys;
 use mcrs_minecraft_biome_file::PlacedFeatureKey;
 use mcrs_minecraft_core::codec::Bounded;
 use mcrs_minecraft_resource::{InvalidResourceLocation, ResourceLocation, ResourceLocationBuf, rl};
@@ -28,27 +28,27 @@ const BIOME_VARIANTS: [&str; 18] = [
 
 #[rustfmt::skip]
 const TREES: [(ResourceLocation<'static>, PlacedFeatureKey); 21] = [
-    (rl!("minecraft:abandoned_camp/trees/acacia"), placed_feature::ACACIA_CHECKED),
-    (rl!("minecraft:abandoned_camp/trees/birch"), placed_feature::BIRCH_CHECKED),
-    (rl!("minecraft:abandoned_camp/trees/fancy_oak"), placed_feature::FANCY_OAK_CHECKED),
-    (rl!("minecraft:abandoned_camp/trees/oak"), placed_feature::OAK_CHECKED),
-    (rl!("minecraft:abandoned_camp/trees/spruce"), placed_feature::SPRUCE_CHECKED),
-    (rl!("minecraft:abandoned_camp/trees/thick_spruce"), placed_feature::MEGA_SPRUCE_CHECKED),
-    (rl!("minecraft:abandoned_camp/trees/yellow_poplar"), placed_feature::YELLOW_POPLAR),
-    (rl!("minecraft:abandoned_camp/trees/orange_poplar"), placed_feature::ORANGE_POPLAR),
-    (rl!("minecraft:abandoned_camp/trees/red_poplar"), placed_feature::RED_POPLAR),
-    (rl!("minecraft:abandoned_camp/trees/super_birch_bees"), placed_feature::SUPER_BIRCH_BEES_0002),
-    (rl!("minecraft:abandoned_camp/trees/spruce_on_snow"), placed_feature::SPRUCE_ON_SNOW),
-    (rl!("minecraft:abandoned_camp/trees/fancy_oak_bees"), placed_feature::FANCY_OAK_BEES_002),
-    (rl!("minecraft:abandoned_camp/trees/birch_bees"), placed_feature::BIRCH_BEES_002),
-    (rl!("minecraft:abandoned_camp/trees/pale_oak"), placed_feature::PALE_OAK_CHECKED),
-    (rl!("minecraft:abandoned_camp/trees/bamboo"), placed_feature::BAMBOO_IN_STRUCTURE),
-    (rl!("minecraft:abandoned_camp/trees/jungle"), placed_feature::JUNGLE_TREE),
-    (rl!("minecraft:abandoned_camp/trees/pine"), placed_feature::PINE_CHECKED),
-    (rl!("minecraft:abandoned_camp/trees/mega_pine"), placed_feature::MEGA_PINE_CHECKED),
-    (rl!("minecraft:abandoned_camp/trees/mega_jungle"), placed_feature::MEGA_JUNGLE_TREE_CHECKED),
-    (rl!("minecraft:abandoned_camp/trees/cherry"), placed_feature::CHERRY_CHECKED),
-    (rl!("minecraft:abandoned_camp/trees/cherry_bees"), placed_feature::CHERRY_BEES_005),
+    (rl!("minecraft:abandoned_camp/trees/acacia"), placed_feature_keys::ACACIA_CHECKED),
+    (rl!("minecraft:abandoned_camp/trees/birch"), placed_feature_keys::BIRCH_CHECKED),
+    (rl!("minecraft:abandoned_camp/trees/fancy_oak"), placed_feature_keys::FANCY_OAK_CHECKED),
+    (rl!("minecraft:abandoned_camp/trees/oak"), placed_feature_keys::OAK_CHECKED),
+    (rl!("minecraft:abandoned_camp/trees/spruce"), placed_feature_keys::SPRUCE_CHECKED),
+    (rl!("minecraft:abandoned_camp/trees/thick_spruce"), placed_feature_keys::MEGA_SPRUCE_CHECKED),
+    (rl!("minecraft:abandoned_camp/trees/yellow_poplar"), placed_feature_keys::YELLOW_POPLAR),
+    (rl!("minecraft:abandoned_camp/trees/orange_poplar"), placed_feature_keys::ORANGE_POPLAR),
+    (rl!("minecraft:abandoned_camp/trees/red_poplar"), placed_feature_keys::RED_POPLAR),
+    (rl!("minecraft:abandoned_camp/trees/super_birch_bees"), placed_feature_keys::SUPER_BIRCH_BEES_0002),
+    (rl!("minecraft:abandoned_camp/trees/spruce_on_snow"), placed_feature_keys::SPRUCE_ON_SNOW),
+    (rl!("minecraft:abandoned_camp/trees/fancy_oak_bees"), placed_feature_keys::FANCY_OAK_BEES_002),
+    (rl!("minecraft:abandoned_camp/trees/birch_bees"), placed_feature_keys::BIRCH_BEES_002),
+    (rl!("minecraft:abandoned_camp/trees/pale_oak"), placed_feature_keys::PALE_OAK_CHECKED),
+    (rl!("minecraft:abandoned_camp/trees/bamboo"), placed_feature_keys::BAMBOO_IN_STRUCTURE),
+    (rl!("minecraft:abandoned_camp/trees/jungle"), placed_feature_keys::JUNGLE_TREE),
+    (rl!("minecraft:abandoned_camp/trees/pine"), placed_feature_keys::PINE_CHECKED),
+    (rl!("minecraft:abandoned_camp/trees/mega_pine"), placed_feature_keys::MEGA_PINE_CHECKED),
+    (rl!("minecraft:abandoned_camp/trees/mega_jungle"), placed_feature_keys::MEGA_JUNGLE_TREE_CHECKED),
+    (rl!("minecraft:abandoned_camp/trees/cherry"), placed_feature_keys::CHERRY_CHECKED),
+    (rl!("minecraft:abandoned_camp/trees/cherry_bees"), placed_feature_keys::CHERRY_BEES_005),
 ];
 
 const DEFAULT_CAMP_TYPES: [&str; 3] = ["chest", "barrel", "special"];

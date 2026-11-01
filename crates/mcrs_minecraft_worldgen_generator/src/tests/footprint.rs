@@ -150,7 +150,7 @@ fn a_rewrite_answers_the_earlier_write() {
 /// A tick travels in the delta of the column that holds it; one past the ring is refused.
 #[test]
 fn a_tick_goes_to_the_column_it_falls_in() {
-    use mcrs_minecraft_block::keys::Fluid;
+    use mcrs_minecraft_block::fluid_keys::Fluid;
     use mcrs_minecraft_simulation::{PendingTick, ScheduleTicks, TickPriority};
 
     let snapshots = empty_region();

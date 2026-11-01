@@ -1,6 +1,12 @@
 mod block_sound_set;
 #[rustfmt::skip]
-pub mod keys;
+pub mod block_sound_set_keys;
+#[rustfmt::skip]
+pub mod block_sound_set_tag_keys;
+#[rustfmt::skip]
+pub mod registry_keys;
+#[rustfmt::skip]
+pub mod sound_event_keys;
 
 pub use block_sound_set::BlockSoundSet;
 
@@ -11,7 +17,7 @@ use mcrs_minecraft_wire::{Decode, Encode};
 use serde::{Deserialize, Serialize};
 
 /// A sound event named by its key, or written out in place.
-pub type Sound<M> = Ref<M, keys::SoundEvent, SoundEventValue>;
+pub type Sound<M> = Ref<M, sound_event_keys::SoundEvent, SoundEventValue>;
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, Encode, Decode)]
 pub struct SoundEventValue {

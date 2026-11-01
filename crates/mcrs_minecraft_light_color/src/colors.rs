@@ -58,8 +58,8 @@ impl LightColors {
 pub use self::load::{CORPUS_DIRECTORY, LightColorError};
 
 mod load {
+    use mcrs_minecraft_block::block_keys::Block;
     use mcrs_minecraft_block::definition::{BlockDefinitions, BlockEntry};
-    use mcrs_minecraft_block::keys::Block;
     use mcrs_minecraft_registries::Tags;
 
     use mcrs_voxel::BlockStateId;

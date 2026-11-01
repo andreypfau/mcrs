@@ -1,6 +1,6 @@
-use mcrs_minecraft_block::keys::BlockEntityType;
+use mcrs_minecraft_block::block_entity_type_keys::BlockEntityType;
 use mcrs_minecraft_core::codec::int_value;
-use mcrs_minecraft_entity::keys::EntityType;
+use mcrs_minecraft_entity::entity_type_keys::EntityType;
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::{BYTE_ID, COMPOUND_ID, LIST_ID, STRING_ID};
 use mcrs_minecraft_resource::{ResourceKeyBuf, ResourceLocation, rl};

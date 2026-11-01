@@ -95,7 +95,7 @@ impl<'de> Deserialize<'de> for StatePropertiesPredicate {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use mcrs_minecraft_block::keys::Fluid;
+    use mcrs_minecraft_block::fluid_keys::Fluid;
 
     fn water(level: u8, source: bool) -> FluidState {
         FluidState {

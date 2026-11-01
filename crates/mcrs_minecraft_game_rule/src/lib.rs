@@ -1,9 +1,11 @@
 #[rustfmt::skip]
-pub mod keys;
+pub mod game_rule_keys;
+#[rustfmt::skip]
+pub mod registry_keys;
 
 use mcrs_minecraft_resource::ResourceLocation;
 
-pub use keys::GameRule;
+pub use game_rule_keys::GameRule;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum GameRuleCategory {

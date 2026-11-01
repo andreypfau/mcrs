@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use mcrs_minecraft_block::keys::Block;
+use mcrs_minecraft_block::block_keys::Block;
 use mcrs_minecraft_core::codec::{is_default, long_value};
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::tag::NbtTag;
@@ -10,8 +10,8 @@ use serde::{Deserialize, Deserializer, Serialize};
 
 use crate::component::common::compound_or_snbt;
 use crate::harness::Sample;
-use crate::keys::MapDecorationType;
 use crate::loot::LootTable;
+use crate::map_decoration_type_keys::MapDecorationType;
 use crate::recipe::Recipe;
 use mcrs_minecraft_wire::{Decode, Encode, Result};
 use std::io::Write;
@@ -117,7 +117,9 @@ impl Sample for MapDecorations {
                 "m1".to_string(),
                 MapDecoration {
                     kind: ResourceKeyBuf::from_location(
-                        crate::keys::MapDecorationType::Player.location().to_buf(),
+                        crate::map_decoration_type_keys::MapDecorationType::Player
+                            .location()
+                            .to_buf(),
                     ),
                     x: 1.5,
                     z: -2.5,
@@ -198,7 +200,7 @@ impl Sample for ContainerLoot {
 
     fn samples() -> Vec<Self> {
         let loot_table: ResourceKeyBuf<LootTable> =
-            crate::keys::loot_table::CHESTS_SIMPLE_DUNGEON.into();
+            crate::loot_table_keys::CHESTS_SIMPLE_DUNGEON.into();
         vec![
             ContainerLoot {
                 loot_table: loot_table.clone(),

@@ -1,7 +1,7 @@
 use std::fmt;
 
 use mcrs_minecraft_block::definition;
-use mcrs_minecraft_block::keys::Fluid;
+use mcrs_minecraft_block::fluid_keys::Fluid;
 use mcrs_minecraft_resource::Id;
 use serde::de::Error as _;
 use serde::ser::Error as _;

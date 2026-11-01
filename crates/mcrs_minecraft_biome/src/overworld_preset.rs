@@ -13,7 +13,7 @@ use mcrs_minecraft_resource::{ResourceKey, ResourceLocation};
 
 use super::climate::{Parameter, ParameterList, ParameterPoint};
 use crate::Biome;
-use crate::keys::biome::*;
+use crate::biome_keys::*;
 
 type BiomeKey = ResourceKey<'static, Biome>;
 
@@ -1312,7 +1312,7 @@ mod tests {
         .filter(|(_, biome)| match &biome.carvers {
             mcrs_minecraft_registries::KeySet::List(carvers) => carvers
                 .iter()
-                .any(|carver| carver.location() == crate::keys::carver::CAVE.location()),
+                .any(|carver| carver.location() == crate::carver_keys::CAVE.location()),
             mcrs_minecraft_registries::KeySet::Tag(tag) => {
                 panic!("a biome names the carver tag #{}", tag.location())
             }
@@ -1351,39 +1351,39 @@ mod tests {
         };
         assert_eq!(
             at(-0.8, 0.0, -1.1, 0.0, 0.0, 0.0),
-            crate::keys::biome::MUSHROOM_FIELDS.location()
+            crate::biome_keys::MUSHROOM_FIELDS.location()
         );
         assert_eq!(
             at(-0.8, 0.0, -0.8, 0.0, 0.0, 0.0),
-            crate::keys::biome::DEEP_FROZEN_OCEAN.location()
+            crate::biome_keys::DEEP_FROZEN_OCEAN.location()
         );
         assert_eq!(
             at(0.8, 0.0, -0.8, 0.0, 0.0, 0.0),
-            crate::keys::biome::WARM_OCEAN.location()
+            crate::biome_keys::WARM_OCEAN.location()
         );
         assert_eq!(
             at(-0.8, 0.0, -0.3, 0.0, 0.0, 0.0),
-            crate::keys::biome::FROZEN_OCEAN.location()
+            crate::biome_keys::FROZEN_OCEAN.location()
         );
         assert_eq!(
             at(0.0, 0.0, 0.0, -0.9, 1.1, 0.0),
-            crate::keys::biome::DEEP_DARK.location()
+            crate::biome_keys::DEEP_DARK.location()
         );
         assert_eq!(
             at(0.0, 0.8, 0.0, 0.0, 0.5, 0.0),
-            crate::keys::biome::LUSH_CAVES.location()
+            crate::biome_keys::LUSH_CAVES.location()
         );
         assert_eq!(
             at(0.0, 0.0, 0.9, 0.0, 0.5, 0.0),
-            crate::keys::biome::DRIPSTONE_CAVES.location()
+            crate::biome_keys::DRIPSTONE_CAVES.location()
         );
         assert_eq!(
             at(0.8, 0.0, 0.5, 0.3, 0.0, -0.5),
-            crate::keys::biome::DESERT.location()
+            crate::biome_keys::DESERT.location()
         );
         assert_eq!(
             at(-0.9, 0.0, -0.5, 0.0, 0.5, 0.8),
-            crate::keys::biome::ICE_CAVES.location()
+            crate::biome_keys::ICE_CAVES.location()
         );
     }
 
@@ -1396,14 +1396,14 @@ mod tests {
                 .find_value(TargetPoint::new(temperature, humidity, 0.0, 0.0, 0.0, 0.0))
                 .unwrap()
         };
-        assert_eq!(at(0.0, 0.0), crate::keys::biome::NETHER_WASTES.location());
+        assert_eq!(at(0.0, 0.0), crate::biome_keys::NETHER_WASTES.location());
         assert_eq!(
             at(0.0, -0.5),
-            crate::keys::biome::SOUL_SAND_VALLEY.location()
+            crate::biome_keys::SOUL_SAND_VALLEY.location()
         );
-        assert_eq!(at(0.4, 0.0), crate::keys::biome::CRIMSON_FOREST.location());
-        assert_eq!(at(0.0, 0.5), crate::keys::biome::WARPED_FOREST.location());
-        assert_eq!(at(-0.5, 0.0), crate::keys::biome::BASALT_DELTAS.location());
+        assert_eq!(at(0.4, 0.0), crate::biome_keys::CRIMSON_FOREST.location());
+        assert_eq!(at(0.0, 0.5), crate::biome_keys::WARPED_FOREST.location());
+        assert_eq!(at(-0.5, 0.0), crate::biome_keys::BASALT_DELTAS.location());
     }
 
     /// Weirdness picks between a slice's plain biome and its variant, so the
@@ -1416,7 +1416,7 @@ mod tests {
                 .find_value(TargetPoint::new(-0.8, -0.8, 0.2, 0.2, 0.0, weirdness))
                 .unwrap()
         };
-        assert_eq!(at(-0.2), crate::keys::biome::SNOWY_PLAINS.location());
-        assert_eq!(at(0.2), crate::keys::biome::ICE_SPIKES.location());
+        assert_eq!(at(-0.2), crate::biome_keys::SNOWY_PLAINS.location());
+        assert_eq!(at(0.2), crate::biome_keys::ICE_SPIKES.location());
     }
 }

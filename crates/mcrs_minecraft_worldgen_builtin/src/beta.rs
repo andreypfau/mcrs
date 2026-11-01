@@ -1,5 +1,5 @@
 use crate::density::{CELL_4, CELL_8};
-use mcrs_minecraft_block::keys::Block;
+use mcrs_minecraft_block::block_keys::Block;
 use mcrs_minecraft_block_predicate::block_state::BlockState;
 use mcrs_minecraft_noise::proto::NoiseParam;
 use mcrs_minecraft_resource::{ResourceLocation, ResourceLocationBuf, rl};
@@ -120,7 +120,7 @@ pub fn noise_settings() -> (ResourceLocationBuf, NoiseGeneratorSettings) {
             NoiseSettings::new(0, 128),
             BlockState::from(Block::Water).with("level", "0"),
             router,
-            mcrs_minecraft_worldgen_surface::keys::material_rule::OVERWORLD
+            mcrs_minecraft_worldgen_surface::material_rule_keys::OVERWORLD
                 .location()
                 .to_buf(),
             64,

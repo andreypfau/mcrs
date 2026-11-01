@@ -21,11 +21,11 @@ const STATIC_REGISTRIES: [&[(
     mcrs_minecraft_resource::ResourceLocation<'static>,
     &[mcrs_minecraft_resource::ResourceLocation<'static>],
 )]; 5] = [
-    mcrs_minecraft_worldgen_carver::keys::STATIC_REGISTRIES,
-    mcrs_minecraft_worldgen_density::keys::STATIC_REGISTRIES,
-    mcrs_minecraft_worldgen_feature::keys::STATIC_REGISTRIES,
-    mcrs_minecraft_worldgen_structure::keys::STATIC_REGISTRIES,
-    mcrs_minecraft_worldgen_surface::keys::STATIC_REGISTRIES,
+    mcrs_minecraft_worldgen_carver::registry_keys::STATIC_REGISTRIES,
+    mcrs_minecraft_worldgen_density::registry_keys::STATIC_REGISTRIES,
+    mcrs_minecraft_worldgen_feature::registry_keys::STATIC_REGISTRIES,
+    mcrs_minecraft_worldgen_structure::registry_keys::STATIC_REGISTRIES,
+    mcrs_minecraft_worldgen_surface::registry_keys::STATIC_REGISTRIES,
 ];
 
 /// Adds the registries of vanilla world generation to `additions`: the static registries of the

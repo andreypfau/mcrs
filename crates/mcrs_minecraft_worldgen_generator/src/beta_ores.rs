@@ -1,8 +1,8 @@
 use mcrs_voxel::BlockPos;
 
 use crate::beta_chunk_seed;
+use mcrs_minecraft_block::block_keys::Block;
 use mcrs_minecraft_block::definition::BlockDefinitions;
-use mcrs_minecraft_block::keys::Block;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_volume::BlockVolumeMut;

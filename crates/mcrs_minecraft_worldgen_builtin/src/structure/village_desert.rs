@@ -1494,10 +1494,10 @@ fn meeting_point_3(c: &mut Canvas, v: Village) {
 mod data {
     use super::{Fields, Tag};
 
-    pub const CAMEL_ENTITY: Fields = &[("id", Tag::String(mcrs_minecraft_entity::keys::EntityType::Camel.as_static_str()))];
+    pub const CAMEL_ENTITY: Fields = &[("id", Tag::String(mcrs_minecraft_entity::entity_type_keys::EntityType::Camel.as_static_str()))];
 }
 use data::*;
-use mcrs_minecraft_block::keys::Block;
+use mcrs_minecraft_block::block_keys::Block;
 
 templates! {
     "desert" Desert;

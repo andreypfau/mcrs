@@ -3,7 +3,7 @@ use mcrs_minecraft_fixtures::fixture;
 use std::collections::{BTreeMap, HashMap};
 use std::sync::LazyLock;
 
-use mcrs_minecraft_item::keys::DataComponentType;
+use mcrs_minecraft_item::data_component_type_keys::DataComponentType;
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_protocol::item::harness::Sample;
 use mcrs_minecraft_protocol::item::{

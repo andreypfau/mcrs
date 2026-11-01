@@ -1,4 +1,4 @@
-use crate::keys::Item;
+use crate::item_keys::Item;
 use mcrs_minecraft_core::codec::Validate;
 use mcrs_minecraft_core::validated;
 use mcrs_minecraft_registries::{

@@ -11,7 +11,7 @@ use super::placement::IntOr;
 use super::placement::{PlacementModifier, VerticalDirection};
 use super::rule_test::RuleTest;
 use super::tree::TreeConfig;
-use mcrs_minecraft_block::keys::Block;
+use mcrs_minecraft_block::block_keys::Block;
 use mcrs_minecraft_block_predicate::block_state::BlockState;
 use mcrs_minecraft_block_predicate::fluid_state::FluidState;
 use mcrs_minecraft_block_predicate::predicate::BlockPredicate;
@@ -235,7 +235,7 @@ impl PlacedFeature {
 /// The 58 entries of `FeatureTypes`, and Beta's populate step. A 26.3 feature
 /// writes its configuration into the same object as its `type`; there is no
 /// `config` wrapper.
-#[dispatch(registry = crate::keys::FeatureType)]
+#[dispatch(registry = crate::feature_type_keys::FeatureType)]
 #[derive(Debug, Clone, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub enum Feature {
@@ -743,7 +743,7 @@ pub fn processor_list(list: &StructureProcessorList) -> &[StructureProcessor] {
     }
 }
 
-#[dispatch(registry = crate::keys::StructureProcessorType, key = "processor_type")]
+#[dispatch(registry = crate::structure_processor_keys::StructureProcessorType, key = "processor_type")]
 #[derive(Debug, Clone, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub enum StructureProcessor {
@@ -792,7 +792,7 @@ pub struct ProcessorRule {
     pub block_entity_modifier: Option<RuleBlockEntityModifier>,
 }
 
-#[dispatch(registry = crate::keys::PosRuleTestType, key = "predicate_type")]
+#[dispatch(registry = crate::pos_rule_test_keys::PosRuleTestType, key = "predicate_type")]
 #[derive(Debug, Clone, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub enum PosRuleTest {
@@ -821,7 +821,7 @@ pub struct LinearPos {
 /// `append_static` is deliberately absent: its `data` is a `CompoundTag`, and
 /// this crate has no NBT value type to hold one. A pack that uses it fails to
 /// load naming the type, which is the wanted behaviour until templates exist.
-#[dispatch(registry = crate::keys::RuleBlockEntityModifierType, unsupported(AppendStatic))]
+#[dispatch(registry = crate::rule_block_entity_modifier_keys::RuleBlockEntityModifierType, unsupported(AppendStatic))]
 #[derive(Debug, Clone, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub enum RuleBlockEntityModifier {

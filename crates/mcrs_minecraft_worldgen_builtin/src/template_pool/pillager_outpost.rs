@@ -1,7 +1,7 @@
 use super::Piece::*;
 use super::{Pool, legacy, pool};
 use mcrs_minecraft_resource::rl;
-use mcrs_minecraft_worldgen_feature::keys::processor_list;
+use mcrs_minecraft_worldgen_feature::processor_list_keys;
 
 #[rustfmt::skip]
 pub const POOLS: &[Pool] = &[
@@ -15,5 +15,5 @@ pub const POOLS: &[Pool] = &[
         (Template(legacy("feature_targets")), 1),
         (Empty, 6),
     ]),
-    pool(rl!("minecraft:pillager_outpost/towers")).dir("pillager_outpost/").pieces(&[(List(&[Template(legacy("watchtower")), Template(legacy("watchtower_overgrown").with(processor_list::OUTPOST_ROT))]), 1)]),
+    pool(rl!("minecraft:pillager_outpost/towers")).dir("pillager_outpost/").pieces(&[(List(&[Template(legacy("watchtower")), Template(legacy("watchtower_overgrown").with(processor_list_keys::OUTPOST_ROT))]), 1)]),
 ];

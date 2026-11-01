@@ -61,10 +61,11 @@ entry names of every registry of datapack.json that has elements and the tag nam
 registry, in sorted order. It prints the entries and tags added and removed against the stored
 file, then writes the registry key sources from the stored reports. It touches nothing else.
 
-keys writes the registry key sources from the stored reports alone: the src/keys module of
-every crate that owns a registry type, crates/mcrs_minecraft_keys for the registries no crate
+keys writes the registry key sources from the stored reports alone: the src/*_keys.rs modules
+of every crate that owns a registry type, crates/mcrs_minecraft_keys for the registries no crate
 owns, and crates/mcrs_minecraft_registry_catalog. A source file there the generator no longer
-produces is deleted.";
+produces is deleted. An owning crate declares each of its key modules in its own lib.rs; the
+generator stops and names a declaration that is missing.";
 
 const VERSION_FILE: &str = "assets/minecraft/version.json";
 const DESCRIPTOR: &str = "crates/mcrs_minecraft_client_jar/src/release.json";

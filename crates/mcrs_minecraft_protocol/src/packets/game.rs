@@ -19,8 +19,8 @@ pub mod clientbound {
     use mcrs_minecraft_command_tree::CommandNode;
     use mcrs_minecraft_core::Look;
     use mcrs_minecraft_core::LookAnchor;
-    use mcrs_minecraft_entity::keys::{Attribute, EntityType};
-    use mcrs_minecraft_item::keys::MenuType;
+    use mcrs_minecraft_entity::{attribute_keys::Attribute, entity_type_keys::EntityType};
+    use mcrs_minecraft_item::menu_keys::MenuType;
     use mcrs_minecraft_particle::ParticleOptions;
     use mcrs_minecraft_registries::Wire;
 

@@ -1,4 +1,4 @@
-use mcrs_minecraft_entity::keys::EntityType;
+use mcrs_minecraft_entity::entity_type_keys::EntityType;
 use mcrs_minecraft_nbt::{from_tag, to_nbt_tag};
 use mcrs_minecraft_registries::{Named, ResolveError};
 use mcrs_minecraft_resource::{ResourceKeyBuf, ResourceLocationBuf};

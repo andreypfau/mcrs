@@ -9,11 +9,11 @@ use std::collections::BTreeMap;
 /// `TheEndBiomeSource` lists its five biomes in this order, and that order is
 /// the input of the sort.
 const END_BIOMES: [ResourceKey<'static, mcrs_minecraft_biome::Biome>; 5] = [
-    mcrs_minecraft_biome::keys::biome::THE_END,
-    mcrs_minecraft_biome::keys::biome::END_HIGHLANDS,
-    mcrs_minecraft_biome::keys::biome::END_MIDLANDS,
-    mcrs_minecraft_biome::keys::biome::SMALL_END_ISLANDS,
-    mcrs_minecraft_biome::keys::biome::END_BARRENS,
+    mcrs_minecraft_biome::biome_keys::THE_END,
+    mcrs_minecraft_biome::biome_keys::END_HIGHLANDS,
+    mcrs_minecraft_biome::biome_keys::END_MIDLANDS,
+    mcrs_minecraft_biome::biome_keys::SMALL_END_ISLANDS,
+    mcrs_minecraft_biome::biome_keys::END_BARRENS,
 ];
 
 /// One dimension's sorted feature tables: what [`FeatureProgram::build`]

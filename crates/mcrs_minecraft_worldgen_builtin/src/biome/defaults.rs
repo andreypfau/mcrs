@@ -1,12 +1,12 @@
 use super::mob::*;
-use super::{Generation, Mobs, carver, placed_feature};
+use super::{Generation, Mobs, carver_keys, placed_feature_keys};
 use mcrs_minecraft_biome_file::PlacedFeatureKey;
 use mcrs_minecraft_worldgen_feature::placement::DecorationStep::*;
 
 macro_rules! feature_sets {
     ($($name:ident => $($step:ident [$($key:ident),+])+;)*) => {$(
         pub fn $name(g: &mut Generation) {
-            $(g.features($step, &[$(placed_feature::$key),+]);)+
+            $(g.features($step, &[$(placed_feature_keys::$key),+]);)+
         }
     )*};
 }
@@ -99,9 +99,9 @@ macro_rules! set_groups {
 }
 
 pub fn default_carvers(g: &mut Generation) {
-    g.carver(carver::CAVE)
-        .carver(carver::CAVE_EXTRA_UNDERGROUND)
-        .carver(carver::CANYON);
+    g.carver(carver_keys::CAVE)
+        .carver(carver_keys::CAVE_EXTRA_UNDERGROUND)
+        .carver(carver_keys::CANYON);
 }
 
 pub fn default_carvers_and_lakes(g: &mut Generation) {
@@ -109,8 +109,8 @@ pub fn default_carvers_and_lakes(g: &mut Generation) {
     g.features(
         Lakes,
         &[
-            placed_feature::LAKE_LAVA_UNDERGROUND,
-            placed_feature::LAKE_LAVA_SURFACE,
+            placed_feature_keys::LAKE_LAVA_UNDERGROUND,
+            placed_feature_keys::LAKE_LAVA_SURFACE,
         ],
     );
 }
@@ -124,57 +124,57 @@ pub fn underground_variety(g: &mut Generation, dirt_and_granite: bool, glow_lich
         g.features(
             UndergroundOres,
             &[
-                placed_feature::ORE_DIRT,
-                placed_feature::ORE_GRANITE_UPPER,
-                placed_feature::ORE_GRANITE_LOWER,
+                placed_feature_keys::ORE_DIRT,
+                placed_feature_keys::ORE_GRANITE_UPPER,
+                placed_feature_keys::ORE_GRANITE_LOWER,
             ],
         );
     }
     g.features(
         UndergroundOres,
         &[
-            placed_feature::ORE_GRAVEL,
-            placed_feature::ORE_DIORITE_UPPER,
-            placed_feature::ORE_DIORITE_LOWER,
-            placed_feature::ORE_ANDESITE_UPPER,
-            placed_feature::ORE_ANDESITE_LOWER,
-            placed_feature::ORE_TUFF,
+            placed_feature_keys::ORE_GRAVEL,
+            placed_feature_keys::ORE_DIORITE_UPPER,
+            placed_feature_keys::ORE_DIORITE_LOWER,
+            placed_feature_keys::ORE_ANDESITE_UPPER,
+            placed_feature_keys::ORE_ANDESITE_LOWER,
+            placed_feature_keys::ORE_TUFF,
         ],
     );
     if glow_lichen {
-        g.feature(VegetalDecoration, placed_feature::GLOW_LICHEN);
+        g.feature(VegetalDecoration, placed_feature_keys::GLOW_LICHEN);
     }
 }
 
 pub fn default_ores(g: &mut Generation) {
-    ores(g, placed_feature::ORE_COPPER);
+    ores(g, placed_feature_keys::ORE_COPPER);
 }
 
 pub fn default_ores_with_large_copper_blobs(g: &mut Generation) {
-    ores(g, placed_feature::ORE_COPPER_LARGE);
+    ores(g, placed_feature_keys::ORE_COPPER_LARGE);
 }
 
 fn ores(g: &mut Generation, copper: PlacedFeatureKey) {
     g.features(
         UndergroundOres,
         &[
-            placed_feature::ORE_COAL_UPPER,
-            placed_feature::ORE_COAL_LOWER,
-            placed_feature::ORE_IRON_UPPER,
-            placed_feature::ORE_IRON_MIDDLE,
-            placed_feature::ORE_IRON_SMALL,
-            placed_feature::ORE_GOLD,
-            placed_feature::ORE_GOLD_LOWER,
-            placed_feature::ORE_REDSTONE,
-            placed_feature::ORE_REDSTONE_LOWER,
-            placed_feature::ORE_DIAMOND,
-            placed_feature::ORE_DIAMOND_MEDIUM,
-            placed_feature::ORE_DIAMOND_LARGE,
-            placed_feature::ORE_DIAMOND_BURIED,
-            placed_feature::ORE_LAPIS,
-            placed_feature::ORE_LAPIS_BURIED,
+            placed_feature_keys::ORE_COAL_UPPER,
+            placed_feature_keys::ORE_COAL_LOWER,
+            placed_feature_keys::ORE_IRON_UPPER,
+            placed_feature_keys::ORE_IRON_MIDDLE,
+            placed_feature_keys::ORE_IRON_SMALL,
+            placed_feature_keys::ORE_GOLD,
+            placed_feature_keys::ORE_GOLD_LOWER,
+            placed_feature_keys::ORE_REDSTONE,
+            placed_feature_keys::ORE_REDSTONE_LOWER,
+            placed_feature_keys::ORE_DIAMOND,
+            placed_feature_keys::ORE_DIAMOND_MEDIUM,
+            placed_feature_keys::ORE_DIAMOND_LARGE,
+            placed_feature_keys::ORE_DIAMOND_BURIED,
+            placed_feature_keys::ORE_LAPIS,
+            placed_feature_keys::ORE_LAPIS_BURIED,
             copper,
-            placed_feature::UNDERWATER_MAGMA,
+            placed_feature_keys::UNDERWATER_MAGMA,
         ],
     );
 }
@@ -183,10 +183,10 @@ pub fn nether_default_ores(g: &mut Generation) {
     g.features(
         UndergroundDecoration,
         &[
-            placed_feature::ORE_GRAVEL_NETHER,
-            placed_feature::ORE_BLACKSTONE,
-            placed_feature::ORE_GOLD_NETHER,
-            placed_feature::ORE_QUARTZ_NETHER,
+            placed_feature_keys::ORE_GRAVEL_NETHER,
+            placed_feature_keys::ORE_BLACKSTONE,
+            placed_feature_keys::ORE_GOLD_NETHER,
+            placed_feature_keys::ORE_QUARTZ_NETHER,
         ],
     );
     ancient_debris(g);

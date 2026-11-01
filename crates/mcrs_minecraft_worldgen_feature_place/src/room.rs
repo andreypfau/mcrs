@@ -26,11 +26,11 @@ pub struct CompiledMonsterRoom {
 }
 
 /// `MonsterRoomFeature.MOBS`, whose repeat of the zombie is the weighting.
-const MOBS: [mcrs_minecraft_entity::keys::EntityType; 4] = [
-    mcrs_minecraft_entity::keys::EntityType::Skeleton,
-    mcrs_minecraft_entity::keys::EntityType::Zombie,
-    mcrs_minecraft_entity::keys::EntityType::Zombie,
-    mcrs_minecraft_entity::keys::EntityType::Spider,
+const MOBS: [mcrs_minecraft_entity::entity_type_keys::EntityType; 4] = [
+    mcrs_minecraft_entity::entity_type_keys::EntityType::Skeleton,
+    mcrs_minecraft_entity::entity_type_keys::EntityType::Zombie,
+    mcrs_minecraft_entity::entity_type_keys::EntityType::Zombie,
+    mcrs_minecraft_entity::entity_type_keys::EntityType::Spider,
 ];
 
 #[derive(Clone, Debug)]
@@ -128,7 +128,7 @@ pub fn place_monster_room<W: WorldGenVolume>(
             if volume.set_unless(&config.cannot_replace, pos, chest) {
                 volume.add_block_entity(GeneratedBlockEntity::chest(
                     pos,
-                    mcrs_minecraft_item::keys::loot_table::CHESTS_SIMPLE_DUNGEON.to_string(),
+                    mcrs_minecraft_item::loot_table_keys::CHESTS_SIMPLE_DUNGEON.to_string(),
                     rng.next_java_long(),
                 ));
             }
@@ -227,7 +227,7 @@ pub fn place_bonus_chest<W: WorldGenVolume>(
             volume.set(pos, config.chest);
             volume.add_block_entity(GeneratedBlockEntity::chest(
                 pos,
-                mcrs_minecraft_item::keys::loot_table::CHESTS_SPAWN_BONUS_CHEST.to_string(),
+                mcrs_minecraft_item::loot_table_keys::CHESTS_SPAWN_BONUS_CHEST.to_string(),
                 rng.next_java_long(),
             ));
             for side in Direction::HORIZONTAL {

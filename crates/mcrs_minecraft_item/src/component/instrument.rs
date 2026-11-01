@@ -93,7 +93,9 @@ impl Sample for Instrument {
         vec![
             Instrument(Ref::Id(entry("ponder_goat_horn"))),
             Instrument(Ref::Inline(Arc::new(InstrumentValue {
-                sound_event: Ref::Id(mcrs_minecraft_sound::keys::SoundEvent::EntityItemBreak.id()),
+                sound_event: Ref::Id(
+                    mcrs_minecraft_sound::sound_event_keys::SoundEvent::EntityItemBreak.id(),
+                ),
                 use_duration: 7.0,
                 range: 256.0,
                 durability_damage: codec::Bounded(0),

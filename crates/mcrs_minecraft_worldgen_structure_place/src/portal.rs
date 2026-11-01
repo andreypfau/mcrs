@@ -21,7 +21,7 @@ use mcrs_minecraft_worldgen_structure::{PortalPlacement, PortalPlacement::OnOcea
 use mcrs_voxel::BlockPos;
 
 use crate::{block_mask, place_positional, state};
-use mcrs_minecraft_block::keys::Block;
+use mcrs_minecraft_block::block_keys::Block;
 
 const GOLD_GONE: f32 = 0.3;
 const MAGMA_INSTEAD_OF_NETHERRACK: f32 = 0.07;

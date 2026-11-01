@@ -5,7 +5,7 @@ use std::collections::HashMap;
 use std::sync::LazyLock;
 
 use mcrs_minecraft_core::codec::Bounded as Range;
-use mcrs_minecraft_item::keys::{Item, MenuType};
+use mcrs_minecraft_item::{item_keys::Item, menu_keys::MenuType};
 use mcrs_minecraft_protocol::item::Text as ItemText;
 use mcrs_minecraft_protocol::item::{
     ComponentMap, ComponentPatch, ContainerInput, CustomName, Damage, DelimitedStack, HashedStack,

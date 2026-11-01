@@ -10,7 +10,7 @@ use mcrs_minecraft_worldgen_structure::piece::{
 
 use crate::canvas::{PieceCanvas, replaceable_by_structures};
 use crate::{Oriented, block_mask};
-use mcrs_minecraft_block::keys::Block;
+use mcrs_minecraft_block::block_keys::Block;
 
 #[derive(Clone, Debug)]
 pub struct OceanMonumentBlocks {

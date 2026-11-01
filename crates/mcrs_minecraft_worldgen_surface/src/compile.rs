@@ -31,15 +31,15 @@ pub const CLAY_BAND_COUNT: usize = 192;
 /// hardcodes them, so no datapack file names them and nothing else would load
 /// them.
 pub const SURFACE_NOISE_NAMES: [ResourceKey<'static, NoiseParam>; 9] = [
-    mcrs_minecraft_noise::keys::noise::SURFACE,
-    mcrs_minecraft_noise::keys::noise::SURFACE_SECONDARY,
-    mcrs_minecraft_noise::keys::noise::CLAY_BANDS_OFFSET,
-    mcrs_minecraft_noise::keys::noise::BADLANDS_PILLAR,
-    mcrs_minecraft_noise::keys::noise::BADLANDS_PILLAR_ROOF,
-    mcrs_minecraft_noise::keys::noise::BADLANDS_SURFACE,
-    mcrs_minecraft_noise::keys::noise::ICEBERG_PILLAR,
-    mcrs_minecraft_noise::keys::noise::ICEBERG_PILLAR_ROOF,
-    mcrs_minecraft_noise::keys::noise::ICEBERG_SURFACE,
+    mcrs_minecraft_noise::noise_keys::SURFACE,
+    mcrs_minecraft_noise::noise_keys::SURFACE_SECONDARY,
+    mcrs_minecraft_noise::noise_keys::CLAY_BANDS_OFFSET,
+    mcrs_minecraft_noise::noise_keys::BADLANDS_PILLAR,
+    mcrs_minecraft_noise::noise_keys::BADLANDS_PILLAR_ROOF,
+    mcrs_minecraft_noise::noise_keys::BADLANDS_SURFACE,
+    mcrs_minecraft_noise::noise_keys::ICEBERG_PILLAR,
+    mcrs_minecraft_noise::noise_keys::ICEBERG_PILLAR_ROOF,
+    mcrs_minecraft_noise::noise_keys::ICEBERG_SURFACE,
 ];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

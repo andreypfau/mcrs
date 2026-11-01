@@ -13,7 +13,7 @@ use mcrs_minecraft_worldgen_structure::orient::{Orientation, world_pos};
 use mcrs_voxel::BlockPos;
 
 use crate::{Oriented, block_mask, state};
-use mcrs_minecraft_block::keys::Block;
+use mcrs_minecraft_block::block_keys::Block;
 
 /// The chest as `StructurePiece.createChest` reorients it, world-facing.
 #[derive(Clone, Debug)]

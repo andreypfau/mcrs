@@ -37,7 +37,7 @@ impl Default for PlayerDat {
             data_version: VERSION.world_version,
             pos: [0.0; 3],
             rotation: [0.0; 2],
-            dimension: mcrs_minecraft_dimension::keys::dimension::OVERWORLD.into(),
+            dimension: mcrs_minecraft_dimension::dimension_keys::OVERWORLD.into(),
             inventory: Vec::new(),
             selected_item_slot: 0,
             equipment: BTreeMap::new(),

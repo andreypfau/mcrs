@@ -7,7 +7,7 @@ use serde::{Deserialize, Deserializer, Serialize};
 use crate::component::common::{EquipmentSlotGroup, ordinal_enum};
 use crate::component::registry_ref::null_as_default;
 use crate::harness::{Sample, entry};
-use mcrs_minecraft_entity::keys::Attribute;
+use mcrs_minecraft_entity::attribute_keys::Attribute;
 use mcrs_minecraft_text::IntoText;
 
 use crate::Text;

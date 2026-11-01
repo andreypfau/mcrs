@@ -40,9 +40,9 @@ impl DimensionEntry {
 pub type Dimensions = BTreeMap<ResourceKeyBuf<Dimension>, DimensionEntry>;
 
 const LEADING: [ResourceKey<'static, Dimension>; 3] = [
-    mcrs_minecraft_dimension::keys::dimension::OVERWORLD,
-    mcrs_minecraft_dimension::keys::dimension::THE_NETHER,
-    mcrs_minecraft_dimension::keys::dimension::THE_END,
+    mcrs_minecraft_dimension::dimension_keys::OVERWORLD,
+    mcrs_minecraft_dimension::dimension_keys::THE_NETHER,
+    mcrs_minecraft_dimension::dimension_keys::THE_END,
 ];
 
 /// The vanilla dimension list of a save or a world preset, which must hold the overworld.
@@ -53,12 +53,12 @@ pub fn bake(
     let baked = merge(base, registries)?;
     if !baked
         .first()
-        .is_some_and(|(key, _)| *key == mcrs_minecraft_dimension::keys::dimension::OVERWORLD)
+        .is_some_and(|(key, _)| *key == mcrs_minecraft_dimension::dimension_keys::OVERWORLD)
     {
         return Err(format!(
             "{}: the dimension list has no {}, which every world needs",
-            mcrs_minecraft_dimension::keys::DIMENSION,
-            mcrs_minecraft_dimension::keys::dimension::OVERWORLD
+            mcrs_minecraft_dimension::registry_keys::DIMENSION,
+            mcrs_minecraft_dimension::dimension_keys::OVERWORLD
         ));
     }
     Ok(baked)
@@ -75,7 +75,7 @@ pub fn bake_list(
     if baked.is_empty() {
         return Err(format!(
             "{}: the dimension list is empty, so no player has a dimension to spawn in",
-            mcrs_minecraft_dimension::keys::DIMENSION
+            mcrs_minecraft_dimension::registry_keys::DIMENSION
         ));
     }
     Ok(baked)
@@ -88,7 +88,7 @@ fn merge(
     let registry = registries.registry::<DimensionEntry>().ok_or_else(|| {
         format!(
             "{} is not loaded",
-            mcrs_minecraft_dimension::keys::DIMENSION
+            mcrs_minecraft_dimension::registry_keys::DIMENSION
         )
     })?;
 

@@ -1,7 +1,7 @@
 use std::sync::OnceLock;
 
-use mcrs_minecraft_block::keys::Block;
-use mcrs_minecraft_item::keys::Item;
+use mcrs_minecraft_block::block_keys::Block;
+use mcrs_minecraft_item::item_keys::Item;
 use mcrs_minecraft_light_color::asset::LightColorFile;
 use mcrs_minecraft_light_color::colors::LightColors;
 use mcrs_minecraft_light_color::item::{

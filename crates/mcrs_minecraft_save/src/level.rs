@@ -65,7 +65,7 @@ pub struct RespawnData {
 impl Default for RespawnData {
     fn default() -> Self {
         Self {
-            dimension: mcrs_minecraft_dimension::keys::dimension::OVERWORLD.into(),
+            dimension: mcrs_minecraft_dimension::dimension_keys::OVERWORLD.into(),
             pos: [0, 0, 0],
             yaw: 0.0,
             pitch: 0.0,

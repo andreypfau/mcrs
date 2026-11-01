@@ -32,7 +32,7 @@ impl From<VerticalDirection> for mcrs_minecraft_core::Direction {
 /// One placement modifier. `P` is the predicate type: the asset's
 /// `BlockPredicate` as loaded, the compiled `Predicate` once every set it names
 /// is a mask.
-#[dispatch(registry = crate::keys::PlacementModifierType)]
+#[dispatch(registry = crate::placement_modifier_type_keys::PlacementModifierType)]
 #[derive(Debug, Clone, PartialEq)]
 #[serde(deny_unknown_fields)]
 #[serde(bound(deserialize = "P: Deserialize<'de>", serialize = "P: Serialize"))]

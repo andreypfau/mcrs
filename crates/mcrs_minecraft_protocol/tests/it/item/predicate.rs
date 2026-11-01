@@ -1,6 +1,6 @@
 use crate::item::harness::{decode_component, wire_kind};
 use mcrs_minecraft_fixtures::fixture;
-use mcrs_minecraft_item::keys::DataComponentType;
+use mcrs_minecraft_item::data_component_type_keys::DataComponentType;
 use mcrs_minecraft_protocol::ErrorKind;
 use mcrs_minecraft_protocol::item::{ItemComponentValue, hash_ops};
 use serde::Deserialize;

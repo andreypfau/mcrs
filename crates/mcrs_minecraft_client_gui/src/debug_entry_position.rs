@@ -77,7 +77,7 @@ mod tests {
         let mut world = World::new();
         world.init_resource::<DebugScreenDisplayer>();
         world.spawn(CurrentDimension {
-            key: mcrs_minecraft_dimension::keys::dimension::OVERWORLD.into(),
+            key: mcrs_minecraft_dimension::dimension_keys::OVERWORLD.into(),
             dimension_type: mcrs_minecraft_resource::Id::checked(0, 1).unwrap(),
         });
         world.spawn((

@@ -6,7 +6,7 @@ use serde::Deserialize;
 use crate::keys;
 
 pub const DEFINITIONS: &str = "assets/mcrs/registry_definition/game_rule.json";
-pub const ENUM_FILE: &str = "crates/mcrs_minecraft_game_rule/src/keys/game_rule.rs";
+pub const ENUM_FILE: &str = "crates/mcrs_minecraft_game_rule/src/game_rule_keys.rs";
 const REGISTRY: &str = "minecraft:game_rule";
 
 #[derive(Deserialize)]

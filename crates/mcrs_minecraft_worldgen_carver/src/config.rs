@@ -14,7 +14,7 @@ fn is_one(provider: &FloatProvider) -> bool {
     *provider == one()
 }
 
-#[dispatch(registry = crate::keys::CarverType)]
+#[dispatch(registry = crate::carver_type_keys::CarverType)]
 #[derive(Debug, Clone, PartialEq)]
 #[cfg_attr(feature = "bevy", derive(bevy_reflect::TypePath))]
 #[serde(deny_unknown_fields)]

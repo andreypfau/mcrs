@@ -3,16 +3,16 @@ use std::fmt;
 use crate::JukeboxSong;
 use crate::TrimMaterial;
 use crate::TrimPattern;
+use crate::data_component_predicate_type_keys::DataComponentPredicateType;
 use crate::enchantment::EnchantmentData;
-use crate::keys::DataComponentPredicateType;
-use crate::keys::Item;
-use crate::keys::MobEffect;
-use crate::keys::Potion;
-use mcrs_minecraft_block::keys::Block;
+use crate::item_keys::Item;
+use crate::mob_effect_keys::MobEffect;
+use crate::potion_keys::Potion;
+use mcrs_minecraft_block::block_keys::Block;
 pub use mcrs_minecraft_block_predicate::state_properties::StatePropertiesPredicate;
 use mcrs_minecraft_core::codec::unique_entries;
-use mcrs_minecraft_entity::keys::Attribute;
-use mcrs_minecraft_entity::keys::VillagerType;
+use mcrs_minecraft_entity::attribute_keys::Attribute;
+use mcrs_minecraft_entity::villager_type_keys::VillagerType;
 use mcrs_minecraft_registries::{
     Named, Namer, Refs, Resolve, ResolveError, Resolved, Resolver, registry_value,
 };
@@ -29,9 +29,9 @@ use crate::component::common::{
 use crate::component::fireworks::FireworkShape;
 use crate::component::registry_ref::holder_set_tag;
 use crate::component::scalar::{named_record_codec, record_codec};
+use crate::data_component_type_keys::DataComponentType;
 use crate::harness::Sample;
 use crate::harness::{entry, list_set, one_set, tag_set};
-use crate::keys::DataComponentType;
 use crate::patch::ComponentMap;
 use mcrs_minecraft_text::IntoText;
 

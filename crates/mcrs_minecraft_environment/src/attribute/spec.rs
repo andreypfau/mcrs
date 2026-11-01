@@ -19,7 +19,7 @@ use super::value::{
     AmbientParticle, AmbientSounds, BackgroundMusic, BedRule, BedRuleCondition, MoonPhase, TriState,
 };
 use crate::attribute::MobSpawnSettings;
-use crate::keys::{Activity, EnvironmentAttribute};
+use crate::{activity_keys::Activity, environment_attribute_keys::EnvironmentAttribute};
 
 const _: () = assert!(size_of::<AttributeValue>() <= 32);
 
@@ -32,7 +32,7 @@ pub enum AttributeValue {
     Color(u32),
     Integer(i32),
     MoonPhase(MoonPhase),
-    Activity(crate::keys::Activity),
+    Activity(crate::activity_keys::Activity),
     BedRule(BedRule),
     Particle(Box<ParticleOptions<Named>>),
     AmbientParticles(Vec<AmbientParticle>),
@@ -469,7 +469,7 @@ fn read_draft<'de, D: Deserializer<'de>>(ty: AttributeType, d: D) -> Result<Draf
         T::Integer => V::Integer(int_value(d)?),
         T::RgbColor | T::ArgbColor => return d.deserialize_any(ColorDraft),
         T::MoonPhase => V::MoonPhase(MoonPhase::deserialize(d)?),
-        T::Activity => V::Activity(crate::keys::Activity::deserialize(d)?),
+        T::Activity => V::Activity(crate::activity_keys::Activity::deserialize(d)?),
         T::BedRule => V::BedRule(BedRule::deserialize(d)?),
         T::Particle => V::Particle(Box::new(
             <ParticleOptions<mcrs_minecraft_registries::Named> as Deserialize>::deserialize(d)?,

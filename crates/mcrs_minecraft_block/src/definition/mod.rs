@@ -19,8 +19,8 @@ use self::schema::{
     BlockDefinitionFile, BlockProperties, BlockProperty, Components, LavaFlammable, ModelBox,
     NoteBlockInstrument, PlacementFilter, PropertyValue, Sticky,
 };
-use crate::keys::Block;
-use crate::keys::Fluid;
+use crate::block_keys::Block;
+use crate::fluid_keys::Fluid;
 use crate::material::PushReaction;
 use crate::material::map::MapColor;
 #[cfg(feature = "bevy")]

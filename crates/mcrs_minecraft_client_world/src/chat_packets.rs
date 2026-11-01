@@ -28,11 +28,11 @@ use crate::chat::{
 // chisle: a fixed list; an argument of another registry reads as a type without a grammar and
 // asks the server. Registry keys that are not static lift it.
 const STATIC_REGISTRIES: [ResourceLocation<'static>; 5] = [
-    mcrs_minecraft_biome::keys::BIOME.location(),
-    mcrs_minecraft_entity::keys::STRUCTURE.location(),
+    mcrs_minecraft_biome::registry_keys::BIOME.location(),
+    mcrs_minecraft_entity::registry_keys::STRUCTURE.location(),
     mcrs_minecraft_keys::POINT_OF_INTEREST_TYPE,
-    mcrs_minecraft_environment::keys::WORLD_CLOCK.location(),
-    mcrs_minecraft_environment::keys::TIMELINE.location(),
+    mcrs_minecraft_environment::registry_keys::WORLD_CLOCK.location(),
+    mcrs_minecraft_environment::registry_keys::TIMELINE.location(),
 ];
 
 pub(crate) fn on_login(

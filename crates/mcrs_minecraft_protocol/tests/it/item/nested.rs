@@ -1,7 +1,7 @@
 use crate::item::harness::{WireCodec, decode_component, wire_kind};
 use mcrs_minecraft_fixtures::fixture;
 
-use mcrs_minecraft_item::keys::{DataComponentType, Item};
+use mcrs_minecraft_item::{data_component_type_keys::DataComponentType, item_keys::Item};
 use mcrs_minecraft_protocol::item::{
     BundleContents, ChargedProjectiles, Container, ItemComponentValue, PotDecorations, Template,
     hash_ops,

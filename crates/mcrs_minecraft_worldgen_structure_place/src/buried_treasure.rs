@@ -9,7 +9,7 @@ use mcrs_voxel::BlockPos;
 
 use crate::canvas::{ChestStates, PieceCanvas};
 use crate::{block_mask, state};
-use mcrs_minecraft_block::keys::Block;
+use mcrs_minecraft_block::block_keys::Block;
 
 #[derive(Clone, Debug)]
 pub struct BuriedTreasureBlocks {
@@ -86,7 +86,7 @@ pub fn paint_buried_treasure<W: WorldGenVolume, R: Random>(
                 pos.x,
                 pos.y,
                 pos.z,
-                mcrs_minecraft_item::keys::loot_table::CHESTS_BURIED_TREASURE,
+                mcrs_minecraft_item::loot_table_keys::CHESTS_BURIED_TREASURE,
             );
             return;
         }

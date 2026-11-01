@@ -17,7 +17,7 @@ use mcrs_minecraft_worldgen_structure::piece::{IglooPiece, ShipwreckPiece};
 use mcrs_voxel::BlockPos;
 
 use crate::{block_mask, ignore_blocks, place_positional, state};
-use mcrs_minecraft_block::keys::Block;
+use mcrs_minecraft_block::block_keys::Block;
 
 /// `BlockIgnoreProcessor.STRUCTURE_AND_AIR` as a chain of its own.
 pub fn ignore_structure_and_air(
@@ -58,9 +58,9 @@ fn shipwreck_loot(
     marker: &str,
 ) -> Option<ResourceKey<'static, mcrs_minecraft_item::loot::LootTable>> {
     Some(match marker {
-        "map_chest" => mcrs_minecraft_item::keys::loot_table::CHESTS_SHIPWRECK_MAP,
-        "treasure_chest" => mcrs_minecraft_item::keys::loot_table::CHESTS_SHIPWRECK_TREASURE,
-        "supply_chest" => mcrs_minecraft_item::keys::loot_table::CHESTS_SHIPWRECK_SUPPLY,
+        "map_chest" => mcrs_minecraft_item::loot_table_keys::CHESTS_SHIPWRECK_MAP,
+        "treasure_chest" => mcrs_minecraft_item::loot_table_keys::CHESTS_SHIPWRECK_TREASURE,
+        "supply_chest" => mcrs_minecraft_item::loot_table_keys::CHESTS_SHIPWRECK_SUPPLY,
         _ => return None,
     })
 }
@@ -192,7 +192,7 @@ pub fn paint_igloo<W: WorldGenVolume>(
                 seed_container_loot(
                     region,
                     (pos - IVec3::Y).into(),
-                    mcrs_minecraft_item::keys::loot_table::CHESTS_IGLOO_CHEST,
+                    mcrs_minecraft_item::loot_table_keys::CHESTS_IGLOO_CHEST,
                     rng,
                 );
             }

@@ -6,7 +6,7 @@ pub(crate) const HEADER: &str =
     "// Written by `cargo run -p mcrs_minecraft_update -- keys`; do not edit.";
 
 pub(crate) const MARKED: [&str; 3] = [
-    "crates/*/src/keys/**",
+    "crates/*/src/*_keys.rs",
     "crates/mcrs_minecraft_keys/src/**",
     "crates/mcrs_minecraft_registry_catalog/src/**",
 ];
@@ -21,10 +21,10 @@ pub(crate) const GENERATE: [&str; 6] = [
 ];
 
 fn segment_matches(glob: &str, segment: &str) -> bool {
-    if glob == "*" {
-        !segment.is_empty()
-    } else {
-        glob == segment
+    match glob.strip_prefix('*') {
+        Some("") => !segment.is_empty(),
+        Some(suffix) => segment.len() > suffix.len() && segment.ends_with(suffix),
+        None => glob == segment,
     }
 }
 
@@ -131,7 +131,7 @@ pub(crate) fn check(
         return Err(failure(
             "these files sit under the key paths but the generator did not write them:",
             &headers.wrong,
-            "only cargo run -p mcrs_minecraft_update -- keys writes under crates/*/src/keys, crates/mcrs_minecraft_keys/src and crates/mcrs_minecraft_registry_catalog/src; move hand-written files out of them",
+            "only cargo run -p mcrs_minecraft_update -- keys writes crates/*/src/*_keys.rs and under crates/mcrs_minecraft_keys/src and crates/mcrs_minecraft_registry_catalog/src; rename hand-written files or move them out",
         ));
     }
     let before = dirty(repo)?;
@@ -168,7 +168,8 @@ mod tests {
     #[test]
     fn a_change_reaches_the_generator_only_through_its_inputs_and_outputs() {
         let rows = [
-            ("crates/mcrs_minecraft_block/src/keys/block.rs", true),
+            ("crates/mcrs_minecraft_block/src/block_keys.rs", true),
+            ("crates/mcrs_minecraft_block/src/registry_keys.rs", true),
             ("crates/mcrs_minecraft_keys/src/lib.rs", true),
             ("crates/mcrs_minecraft_registry_catalog/src/lib.rs", true),
             ("assets/mcrs/reports/names.json", true),
@@ -178,7 +179,9 @@ mod tests {
             ("crates/mcrs_minecraft_engine_world/Cargo.toml", true),
             ("crates/mcrs_minecraft_block/src/lib.rs", false),
             ("crates/mcrs_minecraft_block/src/keys.rs", false),
-            ("crates/a/b/src/keys/x.rs", false),
+            ("crates/a/b/src/x_keys.rs", false),
+            ("crates/a/src/_keys.rs", false),
+            ("crates/a/src/keys/x.rs", false),
             ("crates/mcrs_minecraft_keys/README.md", false),
             ("assets/mcrs/reports_old/x.json", false),
             ("tools/mcrs_minecraft_update_extra/src/lib.rs", false),
@@ -215,15 +218,18 @@ mod tests {
         let repo = Repo::new("keys-header");
         repo.init();
         let headed = format!("{HEADER}\npub const A: u8 = 1;\n");
-        repo.write("crates/a/src/keys/mod.rs", &headed);
-        repo.write("crates/a/src/keys/plain.rs", "pub const A: u8 = 1;\n");
+        repo.write("crates/a/src/registry_keys.rs", &headed);
+        repo.write("crates/a/src/plain_keys.rs", "pub const A: u8 = 1;\n");
         repo.write(
-            "crates/a/src/keys/altered.rs",
+            "crates/a/src/altered_keys.rs",
             &headed.replace("do not edit.", "do not change."),
         );
-        repo.write("crates/a/src/keys/second.rs", &format!("\n{headed}"));
-        repo.write("crates/a/src/keys/data.json", &format!("{HEADER}\n{{}}\n"));
-        repo.write("crates/a/src/keys/notes.txt", "notes\n");
+        repo.write("crates/a/src/second_keys.rs", &format!("\n{headed}"));
+        repo.write(
+            "crates/mcrs_minecraft_keys/src/data.json",
+            &format!("{HEADER}\n{{}}\n"),
+        );
+        repo.write("crates/a/src/notes.txt", "notes\n");
         repo.write("crates/a/src/lib.rs", "pub const A: u8 = 1;\n");
         repo.write("crates/mcrs_minecraft_keys/src/lib.rs", &headed);
         repo.write(
@@ -238,15 +244,14 @@ mod tests {
             .iter()
             .map(|line| line.split(": ").next().unwrap())
             .collect();
-        assert_eq!(found.marked, 8);
+        assert_eq!(found.marked, 7);
         assert_eq!(
             paths,
             [
-                "crates/a/src/keys/altered.rs",
-                "crates/a/src/keys/data.json",
-                "crates/a/src/keys/notes.txt",
-                "crates/a/src/keys/plain.rs",
-                "crates/a/src/keys/second.rs",
+                "crates/a/src/altered_keys.rs",
+                "crates/a/src/plain_keys.rs",
+                "crates/a/src/second_keys.rs",
+                "crates/mcrs_minecraft_keys/src/data.json",
                 "crates/mcrs_minecraft_registry_catalog/src/extra.rs",
             ]
         );
@@ -264,24 +269,24 @@ mod tests {
 
     #[test]
     fn regeneration_refuses_a_dirty_worktree_and_fails_on_anything_it_leaves_behind() {
-        const GENERATED: &str = "crates/x/src/keys/mod.rs";
+        const GENERATED: &str = "crates/x/src/registry_keys.rs";
         let rows = [
             Row {
                 name: "an untracked file before the run",
-                untracked_before: Some("crates/x/src/keys/draft.rs"),
+                untracked_before: Some("crates/x/src/draft_keys.rs"),
                 written: None,
                 generator_succeeds: true,
                 passes: false,
-                fragment: "?? crates/x/src/keys/draft.rs",
+                fragment: "?? crates/x/src/draft_keys.rs",
                 runs: false,
             },
             Row {
                 name: "a file the generator leaves untracked",
                 untracked_before: None,
-                written: Some("crates/x/src/keys/new.rs"),
+                written: Some("crates/x/src/new_keys.rs"),
                 generator_succeeds: true,
                 passes: false,
-                fragment: "?? crates/x/src/keys/new.rs",
+                fragment: "?? crates/x/src/new_keys.rs",
                 runs: true,
             },
             Row {

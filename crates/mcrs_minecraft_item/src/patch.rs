@@ -9,7 +9,7 @@ use serde::ser::SerializeMap;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::component::deserialize_unit;
-use crate::keys::DataComponentType;
+use crate::data_component_type_keys::DataComponentType;
 use crate::kind::decode_component_value;
 use crate::kind::{ItemComponentValue, ItemDataComponent};
 use mcrs_minecraft_wire::{Decode, Encode, Result, VarInt, ensure};

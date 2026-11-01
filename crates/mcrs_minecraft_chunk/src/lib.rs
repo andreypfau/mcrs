@@ -1,7 +1,9 @@
 pub mod column_heights;
 pub mod container;
 #[rustfmt::skip]
-pub mod keys;
+pub mod chunk_status_keys;
+#[rustfmt::skip]
+pub mod registry_keys;
 pub mod light;
 pub mod light_storage;
 pub mod nibbles;

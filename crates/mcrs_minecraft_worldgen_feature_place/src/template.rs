@@ -25,8 +25,8 @@ use mcrs_minecraft_worldgen_feature::template::{FrozenTemplate, JigsawBlock, tra
 use mcrs_voxel::BlockPos;
 
 use crate::entity::GeneratedEntity;
-use mcrs_minecraft_block::keys::Block;
-use mcrs_minecraft_block::keys::BlockEntityType;
+use mcrs_minecraft_block::block_entity_type_keys::BlockEntityType;
+use mcrs_minecraft_block::block_keys::Block;
 use mcrs_minecraft_block_entity::GeneratedBlockEntity;
 
 fn direction_named(name: &str) -> Option<Direction> {
@@ -567,9 +567,9 @@ fn compile_processor(
                     blocks,
                     &[Block::StoneBricks, Block::Stone, Block::ChiseledStoneBricks],
                 )?,
-                stairs: tag(mcrs_minecraft_block::keys::block_tags::STAIRS)?,
-                slabs: tag(mcrs_minecraft_block::keys::block_tags::SLABS)?,
-                walls: tag(mcrs_minecraft_block::keys::block_tags::WALLS)?,
+                stairs: tag(mcrs_minecraft_block::block_tag_keys::STAIRS)?,
+                slabs: tag(mcrs_minecraft_block::block_tag_keys::SLABS)?,
+                walls: tag(mcrs_minecraft_block::block_tag_keys::WALLS)?,
                 obsidian: block_mask(blocks, &[Block::Obsidian])?,
                 cracked_stone_bricks: state(blocks, Block::CrackedStoneBricks, &[])?,
                 mossy_stone_bricks: state(blocks, Block::MossyStoneBricks, &[])?,

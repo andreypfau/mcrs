@@ -2,7 +2,7 @@ pub mod schema;
 
 use std::sync::Arc;
 
-use crate::keys::Item;
+use crate::item_keys::Item;
 use crate::{ComponentMap, Template};
 #[cfg(feature = "bevy")]
 use bevy_ecs::resource::Resource;
@@ -134,7 +134,7 @@ mod tests {
     fn entry(name: &str) -> ItemEntry {
         ItemEntry {
             identifier: ResourceLocationBuf::minecraft(name).unwrap(),
-            id: crate::keys::Item::Air.id(),
+            id: crate::item_keys::Item::Air.id(),
             prototype: ComponentMap::default(),
             block_placer: None,
             container_slots: None,

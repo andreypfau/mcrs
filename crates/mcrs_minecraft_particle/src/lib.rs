@@ -1,11 +1,15 @@
 #[rustfmt::skip]
-pub mod keys;
+pub mod particle_type_keys;
+#[rustfmt::skip]
+pub mod position_source_type_keys;
+#[rustfmt::skip]
+pub mod registry_keys;
 mod wire;
 
 use mcrs_minecraft_resource::ResourceKeyBuf;
 use std::collections::BTreeMap;
 
-use mcrs_minecraft_block::keys::Block;
+use mcrs_minecraft_block::block_keys::Block;
 use mcrs_minecraft_core::BlockStateNumber;
 use mcrs_minecraft_core::codec::{PositiveInt, float_value, int_value};
 use mcrs_minecraft_item::Template;
@@ -23,7 +27,7 @@ macro_rules! particle_types {
     ($($variant:ident $(($payload:ty))?),* $(,)?) => {
         #[registry_value]
         #[derive(mcrs_minecraft_registries::FromWire)]
-        #[dispatch(registry = crate::keys::ParticleType)]
+        #[dispatch(registry = crate::particle_type_keys::ParticleType)]
         #[derive(Clone, Debug, PartialEq)]
         pub enum ParticleOptions<M: Refs = Resolved> {
             $($variant $(($payload))?),*
@@ -408,7 +412,7 @@ pub enum PositionSource {
     Entity { entity_id: i32, y_offset: f32 },
 }
 
-#[dispatch(registry = crate::keys::PositionSourceType, key_last)]
+#[dispatch(registry = crate::position_source_type_keys::PositionSourceType, key_last)]
 enum PositionSourceRepr {
     Block { pos: [i32; 3] },
     Entity {},

@@ -1391,7 +1391,7 @@ mod tests {
     #[test]
     fn the_vertical_extent_comes_from_the_dimension_type_the_login_named() {
         use mcrs_minecraft_dimension::Dimension;
-        use mcrs_minecraft_dimension::keys::dimension::{OVERWORLD, THE_NETHER};
+        use mcrs_minecraft_dimension::dimension_keys::{OVERWORLD, THE_NETHER};
         use mcrs_minecraft_game_mode::GameMode;
 
         let registries = mcrs_minecraft_game_registries::registry_load::test_registries();

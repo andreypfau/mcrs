@@ -18,7 +18,7 @@ impl BeeOccupant {
         let mut entity_data = NbtCompound::new();
         entity_data.put_string(
             "id",
-            mcrs_minecraft_entity::keys::EntityType::Bee
+            mcrs_minecraft_entity::entity_type_keys::EntityType::Bee
                 .as_static_str()
                 .to_owned(),
         );

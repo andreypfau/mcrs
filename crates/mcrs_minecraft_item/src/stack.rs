@@ -8,9 +8,9 @@ use serde::de::{Error as _, MapAccess, Visitor, value};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::component::common::map_only;
+use crate::data_component_type_keys::DataComponentType;
 use crate::hash_ops;
-use crate::keys::DataComponentType;
-use crate::keys::Item;
+use crate::item_keys::Item;
 use crate::patch::ComponentPatch;
 use crate::patch::{decode_delimited_patch, encode_delimited_patch};
 use mcrs_minecraft_registries::{FromWire, Wire, WireNames};
@@ -99,7 +99,7 @@ impl<'de> Deserialize<'de> for ItemStackValue<Named> {
 pub struct Template<M: Refs = Resolved>(pub ItemStackValue<M>);
 
 impl<M: Refs> mcrs_minecraft_text::TextTypes for Template<M> {
-    type EntityKey = M::Id<mcrs_minecraft_entity::keys::EntityType>;
+    type EntityKey = M::Id<mcrs_minecraft_entity::entity_type_keys::EntityType>;
     type Dialog = crate::dialog::DialogRef<M>;
 }
 

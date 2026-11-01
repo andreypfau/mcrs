@@ -1,7 +1,7 @@
 use serde::de::Error as _;
 use serde::{Deserialize, Deserializer, Serialize};
 
-use mcrs_minecraft_block::keys::Block;
+use mcrs_minecraft_block::block_keys::Block;
 use mcrs_minecraft_core::codec::{Bounded, is_default};
 use mcrs_minecraft_dimension::{CardinalLight, DimensionType, Skybox};
 use mcrs_minecraft_environment::attribute::EnvironmentAttributeMap;

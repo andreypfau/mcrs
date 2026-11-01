@@ -4,7 +4,7 @@ use crate::option_key::Key;
 use crate::options::read_options;
 use mcrs_command::{Reader, StringValue, SyntaxError};
 use mcrs_minecraft_command::Source;
-use mcrs_minecraft_entity::keys::EntityType;
+use mcrs_minecraft_entity::entity_type_keys::EntityType;
 use mcrs_minecraft_value_provider::bounds::MinMaxBounds;
 use uuid::Uuid;
 

@@ -5,12 +5,12 @@ use crate::BannerPattern;
 use crate::block_transformer::BlockTransformer;
 use crate::damage_type::DamageType;
 use crate::enchantment::EnchantmentData;
-use crate::keys::Item;
-use crate::keys::MobEffect;
-use mcrs_minecraft_block::keys::Block;
+use crate::item_keys::Item;
+use crate::mob_effect_keys::MobEffect;
+use mcrs_minecraft_block::block_keys::Block;
 use mcrs_minecraft_core::codec::{Bounded, NonNegativeInt, Validate, int_value};
 use mcrs_minecraft_core::validated;
-use mcrs_minecraft_entity::keys::EntityType;
+use mcrs_minecraft_entity::entity_type_keys::EntityType;
 use mcrs_minecraft_nbt::{COMPOUND_ID, FLOAT_ID, INT_ID, LIST_ID, STRING_ID};
 use mcrs_minecraft_registries::{
     FromWire, IdSet, Named, Namer, Refs, Resolve, ResolveError, Resolved, Resolver, Wire,

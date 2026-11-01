@@ -1,7 +1,7 @@
 #![expect(clippy::panic, reason = "a test reports a failure by panicking")]
 use std::collections::BTreeMap;
 
-use mcrs_minecraft_block::keys::Block;
+use mcrs_minecraft_block::block_keys::Block;
 use mcrs_minecraft_registry_catalog::STATIC_REGISTRIES;
 use mcrs_minecraft_resource::Id;
 use serde::Deserialize;

@@ -1,7 +1,7 @@
 use mcrs_minecraft_item::Text;
 use mcrs_minecraft_item::component::EquipmentSlotGroup;
 use mcrs_minecraft_item::enchantment::{EnchantmentCost, EnchantmentData};
-use mcrs_minecraft_item::keys::Item;
+use mcrs_minecraft_item::item_keys::Item;
 use mcrs_minecraft_registries::{Refs, Resolved, registry_value};
 use serde::{Deserialize, Serialize};
 

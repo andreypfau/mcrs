@@ -175,7 +175,7 @@ mod tests {
             prev_game_mode: OptGameMode(previous),
             ..PlayerSpawnInfo::new(
                 overworld,
-                mcrs_minecraft_dimension::keys::dimension::OVERWORLD.into(),
+                mcrs_minecraft_dimension::dimension_keys::OVERWORLD.into(),
                 mode,
             )
         }

@@ -5,7 +5,7 @@ use crate::set::VanillaContext;
 use bevy_ecs::system::SystemParam;
 use bevy_math::DVec3;
 use mcrs_command::ArgumentHandle;
-use mcrs_minecraft_block::keys::BLOCK;
+use mcrs_minecraft_block::registry_keys::BLOCK;
 use mcrs_minecraft_block_entity::GeneratedBlockEntity;
 use mcrs_minecraft_command_argument::{DimensionArgument, ResourceOrTag};
 use mcrs_minecraft_command_argument_entity::EntityArgument;

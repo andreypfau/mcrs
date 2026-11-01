@@ -5,7 +5,7 @@ use crate::options::read_options;
 use crate::selector::{SelectorResult, State, rewind};
 use mcrs_command::{Reader, StringSpan};
 use mcrs_minecraft_command::{SpannedIdentifier, read_identifier};
-use mcrs_minecraft_entity::keys::EntityType;
+use mcrs_minecraft_entity::entity_type_keys::EntityType;
 use mcrs_minecraft_resource::ResourceLocation;
 
 pub(crate) fn read_type<'a>(

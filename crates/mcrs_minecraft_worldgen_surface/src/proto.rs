@@ -27,7 +27,7 @@ pub enum MaterialConditionHolder {
     Owned(Box<MaterialCondition>),
 }
 
-#[dispatch(registry = crate::keys::MaterialRuleType)]
+#[dispatch(registry = crate::material_rule_type_keys::MaterialRuleType)]
 #[derive(Hash, Eq, PartialEq, Debug, Clone)]
 #[serde(deny_unknown_fields)]
 #[expect(
@@ -57,7 +57,7 @@ pub enum MaterialRule {
     },
 }
 
-#[dispatch(registry = crate::keys::MaterialConditionType)]
+#[dispatch(registry = crate::material_condition_type_keys::MaterialConditionType)]
 #[derive(Hash, Eq, PartialEq, Debug, Clone)]
 #[serde(deny_unknown_fields)]
 pub enum MaterialCondition {

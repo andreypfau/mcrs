@@ -2,7 +2,7 @@ use bevy_app::{App, FixedUpdate, Plugin, Update};
 use bevy_ecs::message::Messages;
 use bevy_ecs::prelude::*;
 use bevy_time::{Fixed, Time, Virtual};
-use mcrs_minecraft_dimension::keys::dimension::OVERWORLD;
+use mcrs_minecraft_dimension::dimension_keys::OVERWORLD;
 use mcrs_minecraft_engine_world::world::dimension::Dimension;
 use mcrs_minecraft_engine_world::world::sub_app::{AddDimensionPlugins, DimAppLabel};
 

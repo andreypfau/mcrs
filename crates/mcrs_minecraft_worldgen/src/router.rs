@@ -1,6 +1,6 @@
 use crate::beard::{BeardifierPlacement, beardifier_placement};
 use mcrs_minecraft_biome::Biome;
-use mcrs_minecraft_block::keys::Block;
+use mcrs_minecraft_block::block_keys::Block;
 use mcrs_minecraft_block_predicate::block_state::BlockState;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_noise::proto::NoiseParam;

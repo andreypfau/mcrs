@@ -1,6 +1,9 @@
 use mcrs_minecraft_resource::ResourceLocationBuf;
 
-use crate::keys::{ContextFloatProviderType, ContextIntProviderType, ContextKeySet};
+use crate::{
+    context_float_provider_type_keys::ContextFloatProviderType,
+    context_int_provider_type_keys::ContextIntProviderType, context_key_set_keys::ContextKeySet,
+};
 
 /// The part of a loot table an item can name: the context it is rolled in and
 /// the random sequence it draws from. Its pools are a column beside the

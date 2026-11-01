@@ -1,9 +1,12 @@
 use crate::item::harness::wire_form;
 use glam::DVec3;
-use mcrs_minecraft_entity::keys::{Attribute, EntityType, VillagerProfession, VillagerType};
 use mcrs_minecraft_entity::variant::{CatSoundVariant, CatVariant, ZombieNautilusVariant};
+use mcrs_minecraft_entity::{
+    attribute_keys::Attribute, entity_type_keys::EntityType,
+    villager_profession_keys::VillagerProfession, villager_type_keys::VillagerType,
+};
 use mcrs_minecraft_item::PaintingVariantValue;
-use mcrs_minecraft_item::keys::Item;
+use mcrs_minecraft_item::item_keys::Item;
 use mcrs_minecraft_protocol::block::BlockStateNumber;
 use mcrs_minecraft_protocol::entity::{
     DyeColor, EquipmentSlot, MetaDataValue, Metadata, MetadataEntry, OptionalBlockState,

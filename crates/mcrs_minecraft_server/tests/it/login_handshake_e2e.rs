@@ -122,9 +122,9 @@ fn e2e_join_releases_joining_world() {
         .resource_mut::<DimSpawnQueue>()
         .0
         .push(DimSpawnRequest {
-            dimension: mcrs_minecraft_dimension::keys::dimension::OVERWORLD.into(),
+            dimension: mcrs_minecraft_dimension::dimension_keys::OVERWORLD.into(),
             dimension_type: crate::support::dimension_type(
-                mcrs_minecraft_dimension::keys::dimension_type::OVERWORLD,
+                mcrs_minecraft_dimension::dimension_type_keys::OVERWORLD,
             ),
         });
     drain_dim_spawn_queue(&mut app);

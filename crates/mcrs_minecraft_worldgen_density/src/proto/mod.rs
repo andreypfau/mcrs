@@ -137,7 +137,7 @@ impl From<SingleArgumentFunction> for DensityFunctionHolder {
     }
 }
 
-#[dispatch(registry = crate::keys::DensityFunctionType)]
+#[dispatch(registry = crate::density_function_type_keys::DensityFunctionType)]
 #[derive(Hash, Eq, PartialEq, Debug, Clone)]
 #[serde(deny_unknown_fields)]
 pub enum ProtoDensityFunction {

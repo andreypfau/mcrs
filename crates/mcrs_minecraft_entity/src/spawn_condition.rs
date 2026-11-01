@@ -18,7 +18,7 @@ pub struct SpawnSelector<M: Refs = Resolved> {
 }
 
 #[registry_value]
-#[dispatch(registry = crate::keys::SpawnConditionType)]
+#[dispatch(registry = crate::spawn_condition_type_keys::SpawnConditionType)]
 #[derive(Debug, Clone, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub enum SpawnCondition<M: Refs = Resolved> {

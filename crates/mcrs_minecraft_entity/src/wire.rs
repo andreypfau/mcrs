@@ -2,8 +2,8 @@ use std::io::Write;
 
 use mcrs_minecraft_wire::{Decode, Encode, Result, VarInt};
 
-use crate::keys::{VillagerProfession, VillagerType};
 use crate::villager::VillagerData;
+use crate::{villager_profession_keys::VillagerProfession, villager_type_keys::VillagerType};
 
 impl Encode for VillagerData {
     fn encode(&self, mut w: impl Write) -> Result<()> {

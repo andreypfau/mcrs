@@ -1,0 +1,6 @@
+// Written by `cargo run -p mcrs_minecraft_update -- keys`; do not edit.
+
+use mcrs_minecraft_resource::{ResourceKey, rl};
+
+pub const ALWAYS_PASS: ResourceKey<'static, crate::test_types::TestInstance> =
+    ResourceKey::new(rl!("minecraft:always_pass"));

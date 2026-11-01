@@ -5,7 +5,7 @@ use mcrs_minecraft_dimension_environment::environment::{
     AttributeStack, EnvironmentAttributes, EnvironmentContext, Weather,
 };
 use mcrs_minecraft_environment::attribute::AttributeValue;
-use mcrs_minecraft_environment::keys::EnvironmentAttribute;
+use mcrs_minecraft_environment::environment_attribute_keys::EnvironmentAttribute;
 
 use mcrs_minecraft_render::sky::SkyEffects;
 

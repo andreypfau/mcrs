@@ -1,8 +1,8 @@
 use super::Piece::*;
 use super::{Piece, Pool, legacy, pool};
-use mcrs_minecraft_biome::keys::placed_feature;
+use mcrs_minecraft_biome::placed_feature_keys;
 use mcrs_minecraft_resource::rl;
-use mcrs_minecraft_worldgen_feature::keys::processor_list;
+use mcrs_minecraft_worldgen_feature::processor_list_keys;
 
 const STREETS: &[(Piece, i32)] = &[
     (Template(legacy("corner_01")), 2),
@@ -20,9 +20,9 @@ const STREETS: &[(Piece, i32)] = &[
 
 const DECOR: &[(Piece, i32)] = &[
     (Template(legacy("savanna_lamp_post_01")), 4),
-    (Feature(placed_feature::ACACIA), 4),
-    (Feature(placed_feature::PILE_HAY), 4),
-    (Feature(placed_feature::PILE_MELON), 1),
+    (Feature(placed_feature_keys::ACACIA), 4),
+    (Feature(placed_feature_keys::PILE_HAY), 4),
+    (Feature(placed_feature_keys::PILE_MELON), 1),
     (Empty, 4),
 ];
 
@@ -45,14 +45,14 @@ pub const POOLS: &[Pool] = &[
         (Template(legacy("savanna_weaponsmith_").numbered(1, 2)), 2),
         (Template(legacy("savanna_temple_1")), 2),
         (Template(legacy("savanna_temple_2")), 3),
-        (Template(legacy("savanna_large_farm_1").with(processor_list::FARM_SAVANNA)), 4),
-        (Template(legacy("savanna_large_farm_2").with(processor_list::FARM_SAVANNA)), 6),
-        (Template(legacy("savanna_small_farm").with(processor_list::FARM_SAVANNA)), 4),
+        (Template(legacy("savanna_large_farm_1").with(processor_list_keys::FARM_SAVANNA)), 4),
+        (Template(legacy("savanna_large_farm_2").with(processor_list_keys::FARM_SAVANNA)), 6),
+        (Template(legacy("savanna_small_farm").with(processor_list_keys::FARM_SAVANNA)), 4),
         (Template(legacy("savanna_animal_pen_").numbered(1, 3)), 2),
         (Empty, 5),
     ]),
-    pool(rl!("minecraft:village/savanna/streets")).fallback(rl!("minecraft:village/savanna/terminators")).terrain_matching().dir("village/savanna/streets/").processors(processor_list::STREET_SAVANNA).pieces(STREETS),
-    pool(rl!("minecraft:village/savanna/terminators")).terrain_matching().dir("village/").processors(processor_list::STREET_SAVANNA).pieces(&[
+    pool(rl!("minecraft:village/savanna/streets")).fallback(rl!("minecraft:village/savanna/terminators")).terrain_matching().dir("village/savanna/streets/").processors(processor_list_keys::STREET_SAVANNA).pieces(STREETS),
+    pool(rl!("minecraft:village/savanna/terminators")).terrain_matching().dir("village/").processors(processor_list_keys::STREET_SAVANNA).pieces(&[
         (Template(legacy("plains/terminators/terminator_").padded(1, 4, 2)), 1),
         (Template(legacy("savanna/terminators/terminator_05")), 1),
     ]),
@@ -60,18 +60,18 @@ pub const POOLS: &[Pool] = &[
         (Template(legacy("town_centers/savanna_meeting_point_1")), 100),
         (Template(legacy("town_centers/savanna_meeting_point_2")), 50),
         (Template(legacy("town_centers/savanna_meeting_point_").numbered(3, 4)), 150),
-        (Template(legacy("zombie/town_centers/savanna_meeting_point_1").with(processor_list::ZOMBIE_SAVANNA)), 2),
-        (Template(legacy("zombie/town_centers/savanna_meeting_point_2").with(processor_list::ZOMBIE_SAVANNA)), 1),
-        (Template(legacy("zombie/town_centers/savanna_meeting_point_").numbered(3, 4).with(processor_list::ZOMBIE_SAVANNA)), 3),
+        (Template(legacy("zombie/town_centers/savanna_meeting_point_1").with(processor_list_keys::ZOMBIE_SAVANNA)), 2),
+        (Template(legacy("zombie/town_centers/savanna_meeting_point_2").with(processor_list_keys::ZOMBIE_SAVANNA)), 1),
+        (Template(legacy("zombie/town_centers/savanna_meeting_point_").numbered(3, 4).with(processor_list_keys::ZOMBIE_SAVANNA)), 3),
     ]),
-    pool(rl!("minecraft:village/savanna/trees")).pieces(&[(Feature(placed_feature::ACACIA), 1)]),
+    pool(rl!("minecraft:village/savanna/trees")).pieces(&[(Feature(placed_feature_keys::ACACIA), 1)]),
     pool(rl!("minecraft:village/savanna/villagers")).dir("village/savanna/villagers/").pieces(&[
         (Template(legacy("nitwit")), 1),
         (Template(legacy("baby")), 1),
         (Template(legacy("unemployed")), 10),
     ]),
-    pool(rl!("minecraft:village/savanna/zombie/decor")).dir("village/savanna/").processors(processor_list::ZOMBIE_SAVANNA).pieces(DECOR),
-    pool(rl!("minecraft:village/savanna/zombie/houses")).fallback(rl!("minecraft:village/savanna/zombie/terminators")).dir("village/savanna/").processors(processor_list::ZOMBIE_SAVANNA).pieces(&[
+    pool(rl!("minecraft:village/savanna/zombie/decor")).dir("village/savanna/").processors(processor_list_keys::ZOMBIE_SAVANNA).pieces(DECOR),
+    pool(rl!("minecraft:village/savanna/zombie/houses")).fallback(rl!("minecraft:village/savanna/zombie/terminators")).dir("village/savanna/").processors(processor_list_keys::ZOMBIE_SAVANNA).pieces(&[
         (Template(legacy("zombie/houses/savanna_small_house_").numbered(1, 8)), 2),
         (Template(legacy("zombie/houses/savanna_medium_house_").numbered(1, 2)), 2),
         (Template(legacy("houses/savanna_butchers_shop_").numbered(1, 2)), 2),
@@ -94,8 +94,8 @@ pub const POOLS: &[Pool] = &[
         (Template(legacy("zombie/houses/savanna_animal_pen_").numbered(2, 3)), 2),
         (Empty, 5),
     ]),
-    pool(rl!("minecraft:village/savanna/zombie/streets")).fallback(rl!("minecraft:village/savanna/zombie/terminators")).terrain_matching().dir("village/savanna/zombie/streets/").processors(processor_list::STREET_SAVANNA).pieces(STREETS),
-    pool(rl!("minecraft:village/savanna/zombie/terminators")).terrain_matching().dir("village/").processors(processor_list::STREET_SAVANNA).pieces(&[
+    pool(rl!("minecraft:village/savanna/zombie/streets")).fallback(rl!("minecraft:village/savanna/zombie/terminators")).terrain_matching().dir("village/savanna/zombie/streets/").processors(processor_list_keys::STREET_SAVANNA).pieces(STREETS),
+    pool(rl!("minecraft:village/savanna/zombie/terminators")).terrain_matching().dir("village/").processors(processor_list_keys::STREET_SAVANNA).pieces(&[
         (Template(legacy("plains/terminators/terminator_").padded(1, 4, 2)), 1),
         (Template(legacy("savanna/zombie/terminators/terminator_05")), 1),
     ]),

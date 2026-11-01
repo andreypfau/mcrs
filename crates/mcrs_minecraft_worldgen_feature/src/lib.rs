@@ -1,5 +1,37 @@
 #[rustfmt::skip]
-pub mod keys;
+pub mod feature_keys;
+#[rustfmt::skip]
+pub mod feature_size_type_keys;
+#[rustfmt::skip]
+pub mod feature_tag_keys;
+#[rustfmt::skip]
+pub mod feature_type_keys;
+#[rustfmt::skip]
+pub mod foliage_placer_type_keys;
+#[rustfmt::skip]
+pub mod placement_modifier_type_keys;
+#[rustfmt::skip]
+pub mod pos_rule_test_keys;
+#[rustfmt::skip]
+pub mod processor_list_keys;
+#[rustfmt::skip]
+pub mod registry_keys;
+#[rustfmt::skip]
+pub mod root_placer_type_keys;
+#[rustfmt::skip]
+pub mod rule_block_entity_modifier_keys;
+#[rustfmt::skip]
+pub mod rule_test_type_keys;
+#[rustfmt::skip]
+pub mod structure_pool_element_keys;
+#[rustfmt::skip]
+pub mod structure_processor_keys;
+#[rustfmt::skip]
+pub mod template_pool_keys;
+#[rustfmt::skip]
+pub mod tree_decorator_type_keys;
+#[rustfmt::skip]
+pub mod trunk_placer_type_keys;
 pub mod biome_domain;
 pub mod compile;
 pub mod placement;

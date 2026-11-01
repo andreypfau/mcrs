@@ -2,7 +2,7 @@ use super::defaults::*;
 use super::mob::*;
 use super::*;
 use mcrs_minecraft_biome_file::PlacedFeatureKey;
-use mcrs_minecraft_particle::keys::ParticleType;
+use mcrs_minecraft_particle::particle_type_keys::ParticleType;
 use mcrs_minecraft_worldgen_feature::placement::DecorationStep::*;
 
 #[derive(Serialize)]
@@ -93,23 +93,32 @@ fn nether_generation(
     ores: &[PlacedFeatureKey],
 ) -> Generation {
     let mut g = Generation::default();
-    g.carver(carver::NETHER_CAVE)
-        .feature(VegetalDecoration, placed_feature::SPRING_LAVA)
+    g.carver(carver_keys::NETHER_CAVE)
+        .feature(VegetalDecoration, placed_feature_keys::SPRING_LAVA)
         .features(
             UndergroundDecoration,
-            &[placed_feature::SPRING_OPEN, placed_feature::PATCH_FIRE],
+            &[
+                placed_feature_keys::SPRING_OPEN,
+                placed_feature_keys::PATCH_FIRE,
+            ],
         );
     if soul_fire {
-        g.feature(UndergroundDecoration, placed_feature::PATCH_SOUL_FIRE);
+        g.feature(UndergroundDecoration, placed_feature_keys::PATCH_SOUL_FIRE);
     }
     g.features(
         UndergroundDecoration,
-        &[placed_feature::GLOWSTONE_EXTRA, placed_feature::GLOWSTONE],
+        &[
+            placed_feature_keys::GLOWSTONE_EXTRA,
+            placed_feature_keys::GLOWSTONE,
+        ],
     )
     .features(UndergroundDecoration, patches)
     .features(
         UndergroundDecoration,
-        &[placed_feature::ORE_MAGMA, placed_feature::SPRING_CLOSED],
+        &[
+            placed_feature_keys::ORE_MAGMA,
+            placed_feature_keys::SPRING_CLOSED,
+        ],
     )
     .features(UndergroundDecoration, ores);
     nether_default_ores(&mut g);
@@ -127,8 +136,8 @@ pub fn nether_wastes() -> Draft {
     let mut g = nether_generation(
         true,
         &[
-            placed_feature::BROWN_MUSHROOM_NETHER,
-            placed_feature::RED_MUSHROOM_NETHER,
+            placed_feature_keys::BROWN_MUSHROOM_NETHER,
+            placed_feature_keys::RED_MUSHROOM_NETHER,
         ],
         &[],
     );
@@ -155,10 +164,10 @@ pub fn soul_sand_valley() -> Draft {
     }
     let mut g = nether_generation(
         true,
-        &[placed_feature::PATCH_CRIMSON_ROOTS],
-        &[placed_feature::ORE_SOUL_SAND],
+        &[placed_feature_keys::PATCH_CRIMSON_ROOTS],
+        &[placed_feature_keys::ORE_SOUL_SAND],
     );
-    g.feature(LocalModifications, placed_feature::BASALT_PILLAR);
+    g.feature(LocalModifications, placed_feature_keys::BASALT_PILLAR);
     nether_biome!(
         MusicNetherSoulSandValley,
         AmbientSoulSandValleyLoop,
@@ -181,31 +190,31 @@ pub fn basalt_deltas() -> Draft {
         .spawn(MAGMA_CUBE, 100, 2, 5)
         .spawn(STRIDER, 60, 1, 2);
     let mut g = Generation::default();
-    g.carver(carver::NETHER_CAVE)
+    g.carver(carver_keys::NETHER_CAVE)
         .features(
             SurfaceStructures,
             &[
-                placed_feature::DELTA,
-                placed_feature::SMALL_BASALT_COLUMNS,
-                placed_feature::LARGE_BASALT_COLUMNS,
+                placed_feature_keys::DELTA,
+                placed_feature_keys::SMALL_BASALT_COLUMNS,
+                placed_feature_keys::LARGE_BASALT_COLUMNS,
             ],
         )
         .features(
             UndergroundDecoration,
             &[
-                placed_feature::BASALT_BLOBS,
-                placed_feature::BLACKSTONE_BLOBS,
-                placed_feature::SPRING_DELTA,
-                placed_feature::PATCH_FIRE,
-                placed_feature::PATCH_SOUL_FIRE,
-                placed_feature::GLOWSTONE_EXTRA,
-                placed_feature::GLOWSTONE,
-                placed_feature::BROWN_MUSHROOM_NETHER,
-                placed_feature::RED_MUSHROOM_NETHER,
-                placed_feature::ORE_MAGMA,
-                placed_feature::SPRING_CLOSED_DOUBLE,
-                placed_feature::ORE_GOLD_DELTAS,
-                placed_feature::ORE_QUARTZ_DELTAS,
+                placed_feature_keys::BASALT_BLOBS,
+                placed_feature_keys::BLACKSTONE_BLOBS,
+                placed_feature_keys::SPRING_DELTA,
+                placed_feature_keys::PATCH_FIRE,
+                placed_feature_keys::PATCH_SOUL_FIRE,
+                placed_feature_keys::GLOWSTONE_EXTRA,
+                placed_feature_keys::GLOWSTONE,
+                placed_feature_keys::BROWN_MUSHROOM_NETHER,
+                placed_feature_keys::RED_MUSHROOM_NETHER,
+                placed_feature_keys::ORE_MAGMA,
+                placed_feature_keys::SPRING_CLOSED_DOUBLE,
+                placed_feature_keys::ORE_GOLD_DELTAS,
+                placed_feature_keys::ORE_QUARTZ_DELTAS,
             ],
         );
     ancient_debris(&mut g);
@@ -236,9 +245,9 @@ pub fn crimson_forest() -> Draft {
     g.features(
         VegetalDecoration,
         &[
-            placed_feature::WEEPING_VINES,
-            placed_feature::CRIMSON_FUNGI,
-            placed_feature::CRIMSON_FOREST_VEGETATION,
+            placed_feature_keys::WEEPING_VINES,
+            placed_feature_keys::CRIMSON_FUNGI,
+            placed_feature_keys::CRIMSON_FOREST_VEGETATION,
         ],
     );
     nether_biome!(
@@ -267,10 +276,10 @@ pub fn warped_forest() -> Draft {
     g.features(
         VegetalDecoration,
         &[
-            placed_feature::WARPED_FUNGI,
-            placed_feature::WARPED_FOREST_VEGETATION,
-            placed_feature::NETHER_SPROUTS,
-            placed_feature::TWISTING_VINES,
+            placed_feature_keys::WARPED_FUNGI,
+            placed_feature_keys::WARPED_FOREST_VEGETATION,
+            placed_feature_keys::NETHER_SPROUTS,
+            placed_feature_keys::TWISTING_VINES,
         ],
     );
     nether_biome!(

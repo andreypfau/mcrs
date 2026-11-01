@@ -202,9 +202,9 @@ fn join_with_live_nether_end_and_overworld(
     }
 
     let live: Vec<_> = [
-        mcrs_minecraft_dimension::keys::dimension::THE_NETHER,
-        mcrs_minecraft_dimension::keys::dimension::THE_END,
-        mcrs_minecraft_dimension::keys::dimension::OVERWORLD,
+        mcrs_minecraft_dimension::dimension_keys::THE_NETHER,
+        mcrs_minecraft_dimension::dimension_keys::THE_END,
+        mcrs_minecraft_dimension::dimension_keys::OVERWORLD,
     ]
     .into_iter()
     .map(|name| {
@@ -240,9 +240,9 @@ fn join_with_live_nether_end_and_overworld(
 #[test]
 fn a_joining_player_enters_its_saved_dimension_or_else_the_overworld() {
     let nether =
-        ResourceKeyBuf::<Dimension>::from(mcrs_minecraft_dimension::keys::dimension::THE_NETHER);
+        ResourceKeyBuf::<Dimension>::from(mcrs_minecraft_dimension::dimension_keys::THE_NETHER);
     let overworld =
-        ResourceKeyBuf::<Dimension>::from(mcrs_minecraft_dimension::keys::dimension::OVERWORLD);
+        ResourceKeyBuf::<Dimension>::from(mcrs_minecraft_dimension::dimension_keys::OVERWORLD);
     let gone = ResourceKeyBuf::from_location(ResourceLocationBuf::read("test:gone").unwrap());
     for (saved, expected) in [
         (Some(nether.clone()), nether),
@@ -302,9 +302,9 @@ fn no_duplicate_spawn_on_reread() {
         .resource_mut::<DimSpawnQueue>()
         .0
         .push(DimSpawnRequest {
-            dimension: mcrs_minecraft_dimension::keys::dimension::OVERWORLD.into(),
+            dimension: mcrs_minecraft_dimension::dimension_keys::OVERWORLD.into(),
             dimension_type: crate::support::dimension_type(
-                mcrs_minecraft_dimension::keys::dimension_type::OVERWORLD,
+                mcrs_minecraft_dimension::dimension_type_keys::OVERWORLD,
             ),
         });
     drain_dim_spawn_queue(&mut app);
@@ -403,7 +403,7 @@ fn entering_the_game_spawns_the_player_once_and_shares_the_baked_dimension_list(
     app.insert_resource(list);
     let (dim_label, ctl_rx) = live_dimension(
         &mut app,
-        mcrs_minecraft_dimension::keys::dimension::OVERWORLD.into(),
+        mcrs_minecraft_dimension::dimension_keys::OVERWORLD.into(),
     );
     row(&mut failed, "the transition sends one spawn", || {
         game_transition_emits_initial_spawn(&mut app, dim_label, &ctl_rx)
@@ -520,7 +520,7 @@ fn a_registry_resource_is_not_changed_on_the_second_tick(app: &mut App) {
     assert_eq!(labels.len(), 2);
     let overworld = labels
         .iter()
-        .find(|(_, key)| *key == mcrs_minecraft_dimension::keys::dimension::OVERWORLD)
+        .find(|(_, key)| *key == mcrs_minecraft_dimension::dimension_keys::OVERWORLD)
         .expect("the overworld is live")
         .0;
 

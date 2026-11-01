@@ -99,7 +99,7 @@ impl<'a> DimensionEnvironment<'a> {
             skybox: dimension_type.skybox,
             can_have_weather: dimension_type.has_skylight
                 && !dimension_type.has_ceiling
-                && *dimension != mcrs_minecraft_dimension::keys::dimension::THE_END,
+                && *dimension != mcrs_minecraft_dimension::dimension_keys::THE_END,
         }
     }
 }

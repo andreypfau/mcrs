@@ -2,14 +2,14 @@ use crate::set::{VanillaCommands, VanillaContext};
 use bevy_ecs::prelude::*;
 use bevy_math::IVec3;
 use mcrs_command::{ArgumentHandle, BuildError, NodeId};
-use mcrs_minecraft_biome::keys::BIOME;
+use mcrs_minecraft_biome::registry_keys::BIOME;
 use mcrs_minecraft_command::{CommandLevel, PermissionCheck};
 use mcrs_minecraft_command_argument::{ResourceOrTag, ResourceOrTagArgument};
 use mcrs_minecraft_command_engine::{
     Call, CommandFailure, CommandOutput, CommandRegistrar, CommandResult, Feedback,
 };
 use mcrs_minecraft_engine_world::world::dimension::{Dimension, DimensionTypeConfig};
-use mcrs_minecraft_entity::keys::STRUCTURE;
+use mcrs_minecraft_entity::registry_keys::STRUCTURE;
 use mcrs_minecraft_keys::POINT_OF_INTEREST_TYPE;
 use mcrs_minecraft_resource::ResourceLocationBuf;
 use mcrs_minecraft_text::{Color, IntoText, Text};

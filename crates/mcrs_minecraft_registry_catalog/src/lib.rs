@@ -3,304 +3,79 @@
 use mcrs_minecraft_resource::ResourceLocation;
 
 pub const STATIC_REGISTRIES: &[(ResourceLocation<'static>, &[ResourceLocation<'static>])] = &[
-    (
-        mcrs_minecraft_keys::GAME_EVENT,
-        mcrs_minecraft_keys::game_event::ENTRIES,
-    ),
-    (
-        mcrs_minecraft_sound::keys::SOUND_EVENT.location(),
-        mcrs_minecraft_sound::keys::SoundEvent::ENTRIES,
-    ),
-    (
-        mcrs_minecraft_block::keys::FLUID.location(),
-        mcrs_minecraft_block::keys::Fluid::ENTRIES,
-    ),
-    (
-        mcrs_minecraft_item::keys::MOB_EFFECT.location(),
-        mcrs_minecraft_item::keys::MobEffect::ENTRIES,
-    ),
-    (
-        mcrs_minecraft_block::keys::BLOCK.location(),
-        mcrs_minecraft_block::keys::Block::ENTRIES,
-    ),
-    (
-        mcrs_minecraft_keys::DEBUG_SUBSCRIPTION,
-        mcrs_minecraft_keys::debug_subscription::ENTRIES,
-    ),
-    (
-        mcrs_minecraft_entity::keys::ENTITY_TYPE.location(),
-        mcrs_minecraft_entity::keys::EntityType::ENTRIES,
-    ),
-    (
-        mcrs_minecraft_item::keys::ITEM.location(),
-        mcrs_minecraft_item::keys::Item::ENTRIES,
-    ),
-    (
-        mcrs_minecraft_item::keys::POTION.location(),
-        mcrs_minecraft_item::keys::Potion::ENTRIES,
-    ),
-    (
-        mcrs_minecraft_particle::keys::PARTICLE_TYPE.location(),
-        mcrs_minecraft_particle::keys::ParticleType::ENTRIES,
-    ),
-    (
-        mcrs_minecraft_block::keys::BLOCK_ENTITY_TYPE.location(),
-        mcrs_minecraft_block::keys::BlockEntityType::ENTRIES,
-    ),
-    (
-        mcrs_minecraft_predicate::keys::CUSTOM_STAT.location(),
-        mcrs_minecraft_predicate::keys::CustomStat::ENTRIES,
-    ),
-    (
-        mcrs_minecraft_chunk::keys::CHUNK_STATUS.location(),
-        mcrs_minecraft_chunk::keys::ChunkStatus::ENTRIES,
-    ),
-    (
-        mcrs_minecraft_item::keys::MENU.location(),
-        mcrs_minecraft_item::keys::MenuType::ENTRIES,
-    ),
-    (
-        mcrs_minecraft_keys::RECIPE_TYPE,
-        mcrs_minecraft_keys::recipe_type::ENTRIES,
-    ),
-    (
-        mcrs_minecraft_item::keys::RECIPE_SERIALIZER.location(),
-        mcrs_minecraft_item::keys::RecipeSerializer::ENTRIES,
-    ),
-    (
-        mcrs_minecraft_entity::keys::ATTRIBUTE.location(),
-        mcrs_minecraft_entity::keys::Attribute::ENTRIES,
-    ),
-    (
-        mcrs_minecraft_particle::keys::POSITION_SOURCE_TYPE.location(),
-        mcrs_minecraft_particle::keys::PositionSourceType::ENTRIES,
-    ),
-    (
-        mcrs_minecraft_keys::COMMAND_ARGUMENT_TYPE,
-        mcrs_minecraft_keys::command_argument_type::ENTRIES,
-    ),
-    (
-        mcrs_minecraft_predicate::keys::STAT_TYPE.location(),
-        mcrs_minecraft_predicate::keys::StatType::ENTRIES,
-    ),
-    (
-        mcrs_minecraft_entity::keys::VILLAGER_TYPE.location(),
-        mcrs_minecraft_entity::keys::VillagerType::ENTRIES,
-    ),
-    (
-        mcrs_minecraft_entity::keys::VILLAGER_PROFESSION.location(),
-        mcrs_minecraft_entity::keys::VillagerProfession::ENTRIES,
-    ),
-    (
-        mcrs_minecraft_keys::POINT_OF_INTEREST_TYPE,
-        mcrs_minecraft_keys::point_of_interest_type::ENTRIES,
-    ),
-    (
-        mcrs_minecraft_keys::MEMORY_MODULE_TYPE,
-        mcrs_minecraft_keys::memory_module_type::ENTRIES,
-    ),
-    (
-        mcrs_minecraft_keys::SENSOR_TYPE,
-        mcrs_minecraft_keys::sensor_type::ENTRIES,
-    ),
-    (
-        mcrs_minecraft_environment::keys::ACTIVITY.location(),
-        mcrs_minecraft_environment::keys::Activity::ENTRIES,
-    ),
-    (
-        mcrs_minecraft_loot::keys::LOOT_POOL_ENTRY_TYPE.location(),
-        mcrs_minecraft_loot::keys::LootPoolEntryType::ENTRIES,
-    ),
-    (
-        mcrs_minecraft_loot::keys::LOOT_FUNCTION_TYPE.location(),
-        mcrs_minecraft_loot::keys::LootFunctionType::ENTRIES,
-    ),
-    (
-        mcrs_minecraft_loot::keys::LOOT_CONDITION_TYPE.location(),
-        mcrs_minecraft_loot::keys::LootConditionType::ENTRIES,
-    ),
-    (
-        mcrs_minecraft_item::keys::CONTEXT_FLOAT_PROVIDER_TYPE.location(),
-        mcrs_minecraft_item::keys::ContextFloatProviderType::ENTRIES,
-    ),
-    (
-        mcrs_minecraft_item::keys::CONTEXT_INT_PROVIDER_TYPE.location(),
-        mcrs_minecraft_item::keys::ContextIntProviderType::ENTRIES,
-    ),
-    (
-        mcrs_minecraft_loot::keys::LOOT_NBT_PROVIDER_TYPE.location(),
-        mcrs_minecraft_loot::keys::LootNbtProviderType::ENTRIES,
-    ),
-    (
-        mcrs_minecraft_loot::keys::LOOT_SCORE_PROVIDER_TYPE.location(),
-        mcrs_minecraft_loot::keys::LootScoreProviderType::ENTRIES,
-    ),
-    (
-        mcrs_minecraft_value_provider::keys::FLOAT_PROVIDER_TYPE.location(),
-        mcrs_minecraft_value_provider::keys::FloatProviderType::ENTRIES,
-    ),
-    (
-        mcrs_minecraft_value_provider::keys::INT_PROVIDER_TYPE.location(),
-        mcrs_minecraft_value_provider::keys::IntProviderType::ENTRIES,
-    ),
-    (
-        mcrs_minecraft_value_provider::keys::HEIGHT_PROVIDER_TYPE.location(),
-        mcrs_minecraft_value_provider::keys::HeightProviderType::ENTRIES,
-    ),
-    (
-        mcrs_minecraft_block_predicate::keys::BLOCK_PREDICATE_TYPE.location(),
-        mcrs_minecraft_block_predicate::keys::BlockPredicateType::ENTRIES,
-    ),
-    (
-        mcrs_minecraft_block_predicate::keys::BLOCK_STATE_PROVIDER_TYPE.location(),
-        mcrs_minecraft_block_predicate::keys::BlockStateProviderType::ENTRIES,
-    ),
-    (
-        mcrs_minecraft_biome::keys::BIOME_SOURCE.location(),
-        mcrs_minecraft_biome::keys::BiomeSourceType::ENTRIES,
-    ),
-    (
-        mcrs_minecraft_dimension::keys::CHUNK_GENERATOR.location(),
-        mcrs_minecraft_dimension::keys::ChunkGeneratorType::ENTRIES,
-    ),
-    (
-        mcrs_minecraft_keys::CREATIVE_MODE_TAB,
-        mcrs_minecraft_keys::creative_mode_tab::ENTRIES,
-    ),
-    (
-        mcrs_minecraft_keys::TRIGGER_TYPE,
-        mcrs_minecraft_keys::trigger_type::ENTRIES,
-    ),
-    (
-        mcrs_minecraft_keys::NUMBER_FORMAT_TYPE,
-        mcrs_minecraft_keys::number_format_type::ENTRIES,
-    ),
-    (
-        mcrs_minecraft_item::keys::DATA_COMPONENT_TYPE.location(),
-        mcrs_minecraft_item::keys::DataComponentType::ENTRIES,
-    ),
-    (
-        mcrs_minecraft_game_rule::keys::GAME_RULE.location(),
-        mcrs_minecraft_game_rule::keys::GameRule::ENTRIES,
-    ),
-    (
-        mcrs_minecraft_predicate::keys::ENTITY_SUB_PREDICATE_TYPE.location(),
-        mcrs_minecraft_predicate::keys::EntitySubPredicateType::ENTRIES,
-    ),
-    (
-        mcrs_minecraft_item::keys::DATA_COMPONENT_PREDICATE_TYPE.location(),
-        mcrs_minecraft_item::keys::DataComponentPredicateType::ENTRIES,
-    ),
-    (
-        mcrs_minecraft_item::keys::MAP_DECORATION_TYPE.location(),
-        mcrs_minecraft_item::keys::MapDecorationType::ENTRIES,
-    ),
-    (
-        mcrs_minecraft_enchantment::keys::ENCHANTMENT_EFFECT_COMPONENT_TYPE.location(),
-        mcrs_minecraft_enchantment::keys::EnchantmentEffectComponentType::ENTRIES,
-    ),
-    (
-        mcrs_minecraft_item::keys::ENCHANTMENT_LEVEL_BASED_VALUE_TYPE.location(),
-        mcrs_minecraft_item::keys::EnchantmentLevelBasedValueType::ENTRIES,
-    ),
-    (
-        mcrs_minecraft_enchantment::keys::ENCHANTMENT_ENTITY_EFFECT_TYPE.location(),
-        mcrs_minecraft_enchantment::keys::EnchantmentEntityEffectType::ENTRIES,
-    ),
-    (
-        mcrs_minecraft_enchantment::keys::ENCHANTMENT_LOCATION_BASED_EFFECT_TYPE.location(),
-        mcrs_minecraft_enchantment::keys::EnchantmentLocationBasedEffectType::ENTRIES,
-    ),
-    (
-        mcrs_minecraft_enchantment::keys::ENCHANTMENT_VALUE_EFFECT_TYPE.location(),
-        mcrs_minecraft_enchantment::keys::EnchantmentValueEffectType::ENTRIES,
-    ),
-    (
-        mcrs_minecraft_enchantment::keys::ENCHANTMENT_PROVIDER_TYPE.location(),
-        mcrs_minecraft_enchantment::keys::EnchantmentProviderType::ENTRIES,
-    ),
-    (
-        mcrs_minecraft_item::keys::CONSUME_EFFECT_TYPE.location(),
-        mcrs_minecraft_item::keys::ConsumeEffectType::ENTRIES,
-    ),
-    (
-        mcrs_minecraft_item::keys::RECIPE_DISPLAY.location(),
-        mcrs_minecraft_item::keys::RecipeDisplayType::ENTRIES,
-    ),
-    (
-        mcrs_minecraft_item::keys::SLOT_DISPLAY.location(),
-        mcrs_minecraft_item::keys::SlotDisplayType::ENTRIES,
-    ),
-    (
-        mcrs_minecraft_item::keys::RECIPE_BOOK_CATEGORY.location(),
-        mcrs_minecraft_item::keys::RecipeBookCategory::ENTRIES,
-    ),
-    (
-        mcrs_minecraft_keys::TICKET_TYPE,
-        mcrs_minecraft_keys::ticket_type::ENTRIES,
-    ),
-    (
-        mcrs_minecraft_keys::INCOMING_RPC_METHODS,
-        mcrs_minecraft_keys::incoming_rpc_methods::ENTRIES,
-    ),
-    (
-        mcrs_minecraft_keys::OUTGOING_RPC_METHODS,
-        mcrs_minecraft_keys::outgoing_rpc_methods::ENTRIES,
-    ),
-    (
-        mcrs_minecraft_environment::keys::TEST_ENVIRONMENT_DEFINITION_TYPE.location(),
-        mcrs_minecraft_environment::keys::TestEnvironmentDefinitionType::ENTRIES,
-    ),
-    (
-        mcrs_minecraft_environment::keys::TEST_INSTANCE_TYPE.location(),
-        mcrs_minecraft_environment::keys::TestInstanceType::ENTRIES,
-    ),
-    (
-        mcrs_minecraft_entity::keys::SPAWN_CONDITION_TYPE.location(),
-        mcrs_minecraft_entity::keys::SpawnConditionType::ENTRIES,
-    ),
-    (
-        mcrs_minecraft_item::keys::DIALOG_TYPE.location(),
-        mcrs_minecraft_item::keys::DialogType::ENTRIES,
-    ),
-    (
-        mcrs_minecraft_item::keys::DIALOG_ACTION_TYPE.location(),
-        mcrs_minecraft_item::keys::DialogActionType::ENTRIES,
-    ),
-    (
-        mcrs_minecraft_item::keys::INPUT_CONTROL_TYPE.location(),
-        mcrs_minecraft_item::keys::InputControlType::ENTRIES,
-    ),
-    (
-        mcrs_minecraft_item::keys::DIALOG_BODY_TYPE.location(),
-        mcrs_minecraft_item::keys::DialogBodyType::ENTRIES,
-    ),
-    (
-        mcrs_minecraft_keys::PERMISSION_TYPE,
-        mcrs_minecraft_keys::permission_type::ENTRIES,
-    ),
-    (
-        mcrs_minecraft_keys::PERMISSION_CHECK_TYPE,
-        mcrs_minecraft_keys::permission_check_type::ENTRIES,
-    ),
-    (
-        mcrs_minecraft_environment::keys::ENVIRONMENT_ATTRIBUTE.location(),
-        mcrs_minecraft_environment::keys::EnvironmentAttribute::ENTRIES,
-    ),
-    (
-        mcrs_minecraft_keys::ATTRIBUTE_TYPE,
-        mcrs_minecraft_keys::attribute_type::ENTRIES,
-    ),
-    (
-        mcrs_minecraft_loot::keys::SLOT_SOURCE_TYPE.location(),
-        mcrs_minecraft_loot::keys::SlotSourceType::ENTRIES,
-    ),
-    (
-        mcrs_minecraft_item::keys::CONTEXT_KEY_SET.location(),
-        mcrs_minecraft_item::keys::ContextKeySet::ENTRIES,
-    ),
-    (
-        mcrs_minecraft_keys::TEST_FUNCTION,
-        mcrs_minecraft_keys::test_function::ENTRIES,
-    ),
+    (mcrs_minecraft_keys::GAME_EVENT, mcrs_minecraft_keys::game_event::ENTRIES),
+    (mcrs_minecraft_sound::registry_keys::SOUND_EVENT.location(), mcrs_minecraft_sound::sound_event_keys::SoundEvent::ENTRIES),
+    (mcrs_minecraft_block::registry_keys::FLUID.location(), mcrs_minecraft_block::fluid_keys::Fluid::ENTRIES),
+    (mcrs_minecraft_item::registry_keys::MOB_EFFECT.location(), mcrs_minecraft_item::mob_effect_keys::MobEffect::ENTRIES),
+    (mcrs_minecraft_block::registry_keys::BLOCK.location(), mcrs_minecraft_block::block_keys::Block::ENTRIES),
+    (mcrs_minecraft_keys::DEBUG_SUBSCRIPTION, mcrs_minecraft_keys::debug_subscription::ENTRIES),
+    (mcrs_minecraft_entity::registry_keys::ENTITY_TYPE.location(), mcrs_minecraft_entity::entity_type_keys::EntityType::ENTRIES),
+    (mcrs_minecraft_item::registry_keys::ITEM.location(), mcrs_minecraft_item::item_keys::Item::ENTRIES),
+    (mcrs_minecraft_item::registry_keys::POTION.location(), mcrs_minecraft_item::potion_keys::Potion::ENTRIES),
+    (mcrs_minecraft_particle::registry_keys::PARTICLE_TYPE.location(), mcrs_minecraft_particle::particle_type_keys::ParticleType::ENTRIES),
+    (mcrs_minecraft_block::registry_keys::BLOCK_ENTITY_TYPE.location(), mcrs_minecraft_block::block_entity_type_keys::BlockEntityType::ENTRIES),
+    (mcrs_minecraft_predicate::registry_keys::CUSTOM_STAT.location(), mcrs_minecraft_predicate::custom_stat_keys::CustomStat::ENTRIES),
+    (mcrs_minecraft_chunk::registry_keys::CHUNK_STATUS.location(), mcrs_minecraft_chunk::chunk_status_keys::ChunkStatus::ENTRIES),
+    (mcrs_minecraft_item::registry_keys::MENU.location(), mcrs_minecraft_item::menu_keys::MenuType::ENTRIES),
+    (mcrs_minecraft_keys::RECIPE_TYPE, mcrs_minecraft_keys::recipe_type::ENTRIES),
+    (mcrs_minecraft_item::registry_keys::RECIPE_SERIALIZER.location(), mcrs_minecraft_item::recipe_serializer_keys::RecipeSerializer::ENTRIES),
+    (mcrs_minecraft_entity::registry_keys::ATTRIBUTE.location(), mcrs_minecraft_entity::attribute_keys::Attribute::ENTRIES),
+    (mcrs_minecraft_particle::registry_keys::POSITION_SOURCE_TYPE.location(), mcrs_minecraft_particle::position_source_type_keys::PositionSourceType::ENTRIES),
+    (mcrs_minecraft_keys::COMMAND_ARGUMENT_TYPE, mcrs_minecraft_keys::command_argument_type::ENTRIES),
+    (mcrs_minecraft_predicate::registry_keys::STAT_TYPE.location(), mcrs_minecraft_predicate::stat_type_keys::StatType::ENTRIES),
+    (mcrs_minecraft_entity::registry_keys::VILLAGER_TYPE.location(), mcrs_minecraft_entity::villager_type_keys::VillagerType::ENTRIES),
+    (mcrs_minecraft_entity::registry_keys::VILLAGER_PROFESSION.location(), mcrs_minecraft_entity::villager_profession_keys::VillagerProfession::ENTRIES),
+    (mcrs_minecraft_keys::POINT_OF_INTEREST_TYPE, mcrs_minecraft_keys::point_of_interest_type::ENTRIES),
+    (mcrs_minecraft_keys::MEMORY_MODULE_TYPE, mcrs_minecraft_keys::memory_module_type::ENTRIES),
+    (mcrs_minecraft_keys::SENSOR_TYPE, mcrs_minecraft_keys::sensor_type::ENTRIES),
+    (mcrs_minecraft_environment::registry_keys::ACTIVITY.location(), mcrs_minecraft_environment::activity_keys::Activity::ENTRIES),
+    (mcrs_minecraft_loot::registry_keys::LOOT_POOL_ENTRY_TYPE.location(), mcrs_minecraft_loot::loot_pool_entry_type_keys::LootPoolEntryType::ENTRIES),
+    (mcrs_minecraft_loot::registry_keys::LOOT_FUNCTION_TYPE.location(), mcrs_minecraft_loot::loot_function_type_keys::LootFunctionType::ENTRIES),
+    (mcrs_minecraft_loot::registry_keys::LOOT_CONDITION_TYPE.location(), mcrs_minecraft_loot::loot_condition_type_keys::LootConditionType::ENTRIES),
+    (mcrs_minecraft_item::registry_keys::CONTEXT_FLOAT_PROVIDER_TYPE.location(), mcrs_minecraft_item::context_float_provider_type_keys::ContextFloatProviderType::ENTRIES),
+    (mcrs_minecraft_item::registry_keys::CONTEXT_INT_PROVIDER_TYPE.location(), mcrs_minecraft_item::context_int_provider_type_keys::ContextIntProviderType::ENTRIES),
+    (mcrs_minecraft_loot::registry_keys::LOOT_NBT_PROVIDER_TYPE.location(), mcrs_minecraft_loot::loot_nbt_provider_type_keys::LootNbtProviderType::ENTRIES),
+    (mcrs_minecraft_loot::registry_keys::LOOT_SCORE_PROVIDER_TYPE.location(), mcrs_minecraft_loot::loot_score_provider_type_keys::LootScoreProviderType::ENTRIES),
+    (mcrs_minecraft_value_provider::registry_keys::FLOAT_PROVIDER_TYPE.location(), mcrs_minecraft_value_provider::float_provider_type_keys::FloatProviderType::ENTRIES),
+    (mcrs_minecraft_value_provider::registry_keys::INT_PROVIDER_TYPE.location(), mcrs_minecraft_value_provider::int_provider_type_keys::IntProviderType::ENTRIES),
+    (mcrs_minecraft_value_provider::registry_keys::HEIGHT_PROVIDER_TYPE.location(), mcrs_minecraft_value_provider::height_provider_type_keys::HeightProviderType::ENTRIES),
+    (mcrs_minecraft_block_predicate::registry_keys::BLOCK_PREDICATE_TYPE.location(), mcrs_minecraft_block_predicate::block_predicate_type_keys::BlockPredicateType::ENTRIES),
+    (mcrs_minecraft_block_predicate::registry_keys::BLOCK_STATE_PROVIDER_TYPE.location(), mcrs_minecraft_block_predicate::block_state_provider_type_keys::BlockStateProviderType::ENTRIES),
+    (mcrs_minecraft_biome::registry_keys::BIOME_SOURCE.location(), mcrs_minecraft_biome::biome_source_keys::BiomeSourceType::ENTRIES),
+    (mcrs_minecraft_dimension::registry_keys::CHUNK_GENERATOR.location(), mcrs_minecraft_dimension::chunk_generator_keys::ChunkGeneratorType::ENTRIES),
+    (mcrs_minecraft_keys::CREATIVE_MODE_TAB, mcrs_minecraft_keys::creative_mode_tab::ENTRIES),
+    (mcrs_minecraft_keys::TRIGGER_TYPE, mcrs_minecraft_keys::trigger_type::ENTRIES),
+    (mcrs_minecraft_keys::NUMBER_FORMAT_TYPE, mcrs_minecraft_keys::number_format_type::ENTRIES),
+    (mcrs_minecraft_item::registry_keys::DATA_COMPONENT_TYPE.location(), mcrs_minecraft_item::data_component_type_keys::DataComponentType::ENTRIES),
+    (mcrs_minecraft_game_rule::registry_keys::GAME_RULE.location(), mcrs_minecraft_game_rule::game_rule_keys::GameRule::ENTRIES),
+    (mcrs_minecraft_predicate::registry_keys::ENTITY_SUB_PREDICATE_TYPE.location(), mcrs_minecraft_predicate::entity_sub_predicate_type_keys::EntitySubPredicateType::ENTRIES),
+    (mcrs_minecraft_item::registry_keys::DATA_COMPONENT_PREDICATE_TYPE.location(), mcrs_minecraft_item::data_component_predicate_type_keys::DataComponentPredicateType::ENTRIES),
+    (mcrs_minecraft_item::registry_keys::MAP_DECORATION_TYPE.location(), mcrs_minecraft_item::map_decoration_type_keys::MapDecorationType::ENTRIES),
+    (mcrs_minecraft_enchantment::registry_keys::ENCHANTMENT_EFFECT_COMPONENT_TYPE.location(), mcrs_minecraft_enchantment::enchantment_effect_component_type_keys::EnchantmentEffectComponentType::ENTRIES),
+    (mcrs_minecraft_item::registry_keys::ENCHANTMENT_LEVEL_BASED_VALUE_TYPE.location(), mcrs_minecraft_item::enchantment_level_based_value_type_keys::EnchantmentLevelBasedValueType::ENTRIES),
+    (mcrs_minecraft_enchantment::registry_keys::ENCHANTMENT_ENTITY_EFFECT_TYPE.location(), mcrs_minecraft_enchantment::enchantment_entity_effect_type_keys::EnchantmentEntityEffectType::ENTRIES),
+    (mcrs_minecraft_enchantment::registry_keys::ENCHANTMENT_LOCATION_BASED_EFFECT_TYPE.location(), mcrs_minecraft_enchantment::enchantment_location_based_effect_type_keys::EnchantmentLocationBasedEffectType::ENTRIES),
+    (mcrs_minecraft_enchantment::registry_keys::ENCHANTMENT_VALUE_EFFECT_TYPE.location(), mcrs_minecraft_enchantment::enchantment_value_effect_type_keys::EnchantmentValueEffectType::ENTRIES),
+    (mcrs_minecraft_enchantment::registry_keys::ENCHANTMENT_PROVIDER_TYPE.location(), mcrs_minecraft_enchantment::enchantment_provider_type_keys::EnchantmentProviderType::ENTRIES),
+    (mcrs_minecraft_item::registry_keys::CONSUME_EFFECT_TYPE.location(), mcrs_minecraft_item::consume_effect_type_keys::ConsumeEffectType::ENTRIES),
+    (mcrs_minecraft_item::registry_keys::RECIPE_DISPLAY.location(), mcrs_minecraft_item::recipe_display_keys::RecipeDisplayType::ENTRIES),
+    (mcrs_minecraft_item::registry_keys::SLOT_DISPLAY.location(), mcrs_minecraft_item::slot_display_keys::SlotDisplayType::ENTRIES),
+    (mcrs_minecraft_item::registry_keys::RECIPE_BOOK_CATEGORY.location(), mcrs_minecraft_item::recipe_book_category_keys::RecipeBookCategory::ENTRIES),
+    (mcrs_minecraft_keys::TICKET_TYPE, mcrs_minecraft_keys::ticket_type::ENTRIES),
+    (mcrs_minecraft_keys::INCOMING_RPC_METHODS, mcrs_minecraft_keys::incoming_rpc_methods::ENTRIES),
+    (mcrs_minecraft_keys::OUTGOING_RPC_METHODS, mcrs_minecraft_keys::outgoing_rpc_methods::ENTRIES),
+    (mcrs_minecraft_environment::registry_keys::TEST_ENVIRONMENT_DEFINITION_TYPE.location(), mcrs_minecraft_environment::test_environment_definition_type_keys::TestEnvironmentDefinitionType::ENTRIES),
+    (mcrs_minecraft_environment::registry_keys::TEST_INSTANCE_TYPE.location(), mcrs_minecraft_environment::test_instance_type_keys::TestInstanceType::ENTRIES),
+    (mcrs_minecraft_entity::registry_keys::SPAWN_CONDITION_TYPE.location(), mcrs_minecraft_entity::spawn_condition_type_keys::SpawnConditionType::ENTRIES),
+    (mcrs_minecraft_item::registry_keys::DIALOG_TYPE.location(), mcrs_minecraft_item::dialog_type_keys::DialogType::ENTRIES),
+    (mcrs_minecraft_item::registry_keys::DIALOG_ACTION_TYPE.location(), mcrs_minecraft_item::dialog_action_type_keys::DialogActionType::ENTRIES),
+    (mcrs_minecraft_item::registry_keys::INPUT_CONTROL_TYPE.location(), mcrs_minecraft_item::input_control_type_keys::InputControlType::ENTRIES),
+    (mcrs_minecraft_item::registry_keys::DIALOG_BODY_TYPE.location(), mcrs_minecraft_item::dialog_body_type_keys::DialogBodyType::ENTRIES),
+    (mcrs_minecraft_keys::PERMISSION_TYPE, mcrs_minecraft_keys::permission_type::ENTRIES),
+    (mcrs_minecraft_keys::PERMISSION_CHECK_TYPE, mcrs_minecraft_keys::permission_check_type::ENTRIES),
+    (mcrs_minecraft_environment::registry_keys::ENVIRONMENT_ATTRIBUTE.location(), mcrs_minecraft_environment::environment_attribute_keys::EnvironmentAttribute::ENTRIES),
+    (mcrs_minecraft_keys::ATTRIBUTE_TYPE, mcrs_minecraft_keys::attribute_type::ENTRIES),
+    (mcrs_minecraft_loot::registry_keys::SLOT_SOURCE_TYPE.location(), mcrs_minecraft_loot::slot_source_type_keys::SlotSourceType::ENTRIES),
+    (mcrs_minecraft_item::registry_keys::CONTEXT_KEY_SET.location(), mcrs_minecraft_item::context_key_set_keys::ContextKeySet::ENTRIES),
+    (mcrs_minecraft_keys::TEST_FUNCTION, mcrs_minecraft_keys::test_function::ENTRIES),
 ];

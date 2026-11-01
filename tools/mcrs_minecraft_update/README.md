@@ -138,9 +138,12 @@ is deleted. Never edit a generated source by hand.
 
 `OWNERS` in `src/owners.rs` names, per registry, the crate that owns it and its
 value type: a type the crate defines, or, for a static registry with entries, an
-enum the generator writes. An owned registry is keyed in `src/keys` of its
-owner, which holds the `RegistryKey`, its `Registered` implementation and one
-module per registry:
+enum the generator writes. An owned registry is keyed in flat modules of its
+owner: `src/registry_keys.rs` holds the `RegistryKey` and its `Registered`
+implementation, and each registry gets `src/<registry>_keys.rs` and, with tags,
+`src/<registry>_tag_keys.rs`. The owner declares these modules in its own
+`lib.rs`; the generator stops and names a declaration that is missing. The
+modules are:
 
 - a static registry with entries is a `mcrs_minecraft_registries::static_registry!` enum of its
   entries, numbered by protocol id, with their locations in `ENTRIES`;
@@ -149,8 +152,9 @@ module per registry:
 
 `crates/mcrs_minecraft_keys` keys only the registries no crate owns, with
 locations in place of typed keys. A registry with tags in `names.json` also
-gets a `<module>_tags` module of `TagKey` constants, so `block_tags::LOGS` and
-`item_tags::LOGS` are two constants of two registries. A constant is the entry
+gets a tags module of `TagKey` constants, `<module>_tags` there and
+`<module>_tag_keys` in an owner, so `block_tag_keys::LOGS` and
+`item_tag_keys::LOGS` are two constants of two registries. A constant is the entry
 path in upper case with `/`, `.` and `-` as `_`; the jukebox songs `5`, `11`
 and `13` become `FIVE`, `ELEVEN` and `THIRTEEN`, and a `brigadier:` entry takes
 the prefix `BRIGADIER_`. Any other digit-leading name, a namespace without a
@@ -161,7 +165,7 @@ well: `STATIC_REGISTRIES` lists every static registry with its `ENTRIES`. The
 catalog depends only on the crates that own a static registry. An owner that
 depends on the catalog cannot own a static registry. The catalog stays below
 world generation: an owner in `OWN_LISTS` of `src/owners.rs` gets the
-`STATIC_REGISTRIES` of its own static registries in its keys module, and the
+`STATIC_REGISTRIES` of its own static registries in `registry_keys`, and the
 catalog does not list them.
 
 A test of this crate regenerates the sources from the stored reports and fails,

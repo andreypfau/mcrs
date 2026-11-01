@@ -8,7 +8,7 @@ use mcrs_minecraft_random::worldgen::WorldgenRandom;
 use mcrs_voxel::BlockPos;
 use mcrs_voxel::BlockStateId;
 
-use mcrs_minecraft_block::keys::Fluid;
+use mcrs_minecraft_block::fluid_keys::Fluid;
 use mcrs_minecraft_block_predicate::predicate::HeightmapName;
 use mcrs_minecraft_simulation::{Kinds, ScheduleTicks};
 use mcrs_minecraft_value_provider::HeightContext;

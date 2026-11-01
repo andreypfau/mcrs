@@ -14,7 +14,7 @@ use mcrs_minecraft_registries::{
     Named, Namer, Refs, Resolve, ResolveError, Resolved, Resolver, dispatch, registry_value,
 };
 type ClickEvent<M> = mcrs_minecraft_text::ClickEvent<Template<M>>;
-use crate::keys::DialogActionType;
+use crate::dialog_action_type_keys::DialogActionType;
 use serde::de::value::StrDeserializer;
 use serde::de::{Error as _, MapAccess, Visitor, value};
 use serde::ser::Error as _;
@@ -114,7 +114,7 @@ pub struct ItemBody<M: Refs = Resolved> {
 }
 
 #[registry_value]
-#[dispatch(registry = crate::keys::DialogBodyType)]
+#[dispatch(registry = crate::dialog_body_type_keys::DialogBodyType)]
 #[derive(Debug, Clone, PartialEq)]
 pub enum DialogBody<M: Refs = Resolved> {
     Item(ItemBody<M>),
@@ -307,7 +307,7 @@ impl<M: Refs> Validate for TextInput<M> {
 }
 
 #[registry_value]
-#[dispatch(registry = crate::keys::InputControlType)]
+#[dispatch(registry = crate::input_control_type_keys::InputControlType)]
 #[derive(Debug, Clone, PartialEq)]
 pub enum Input<M: Refs = Resolved> {
     Boolean(BooleanInput<M>),
@@ -356,7 +356,7 @@ impl<'de> Deserialize<'de> for CommandTemplate {
     }
 }
 
-#[dispatch(registry = crate::keys::DialogActionType, unsupported(OpenUrl, RunCommand, SuggestCommand, ShowDialog, ChangePage, CopyToClipboard, Custom))]
+#[dispatch(registry = crate::dialog_action_type_keys::DialogActionType, unsupported(OpenUrl, RunCommand, SuggestCommand, ShowDialog, ChangePage, CopyToClipboard, Custom))]
 #[derive(Debug, Clone, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub enum DynamicAction {
@@ -585,7 +585,7 @@ dialog_type!(DialogList {
 });
 
 #[registry_value]
-#[dispatch(registry = crate::keys::DialogType)]
+#[dispatch(registry = crate::dialog_type_keys::DialogType)]
 #[derive(Debug, Clone, PartialEq)]
 pub enum Dialog<M: Refs = Resolved> {
     Notice(Notice<M>),

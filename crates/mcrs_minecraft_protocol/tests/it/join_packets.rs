@@ -72,7 +72,7 @@ fn check<'a, P: Encode + Decode<'a> + PartialEq + std::fmt::Debug>(
 }
 
 fn overworld() -> ResourceKeyBuf<Dimension> {
-    mcrs_minecraft_dimension::keys::dimension::OVERWORLD.into()
+    mcrs_minecraft_dimension::dimension_keys::OVERWORLD.into()
 }
 
 #[test]
@@ -111,7 +111,7 @@ fn respawn_equals_the_reference_bytes() {
     let expected = ClientboundRespawn {
         player_spawn_info: PlayerSpawnInfo {
             dimension_type_id: dimension_type(&fixture, "minecraft:the_nether"),
-            dimension: mcrs_minecraft_dimension::keys::dimension::THE_NETHER.into(),
+            dimension: mcrs_minecraft_dimension::dimension_keys::THE_NETHER.into(),
             game_mode: GameMode::Survival,
             prev_game_mode: OptGameMode(None),
             is_debug: false,

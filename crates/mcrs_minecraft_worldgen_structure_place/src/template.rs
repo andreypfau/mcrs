@@ -22,7 +22,7 @@ use mcrs_minecraft_worldgen_structure::spawn_condition::SpawnContext;
 use mcrs_voxel::BlockPos;
 
 use crate::{place_positional, state};
-use mcrs_minecraft_block::keys::Block;
+use mcrs_minecraft_block::block_keys::Block;
 
 /// The integrities `OceanRuinPieces.addPieces` hands its pieces: the large
 /// and small base ruins, then the cracked and mossy overlays.
@@ -48,12 +48,12 @@ impl OceanRuinBlocks {
             OceanTemperature::Warm => (
                 Block::Sand,
                 Block::SuspiciousSand,
-                mcrs_minecraft_item::keys::loot_table::ARCHAEOLOGY_OCEAN_RUIN_WARM,
+                mcrs_minecraft_item::loot_table_keys::ARCHAEOLOGY_OCEAN_RUIN_WARM,
             ),
             OceanTemperature::Cold => (
                 Block::Gravel,
                 Block::SuspiciousGravel,
-                mcrs_minecraft_item::keys::loot_table::ARCHAEOLOGY_OCEAN_RUIN_COLD,
+                mcrs_minecraft_item::loot_table_keys::ARCHAEOLOGY_OCEAN_RUIN_COLD,
             ),
         };
         let chains = INTEGRITIES
@@ -172,9 +172,9 @@ pub fn place_ocean_ruin<W: WorldGenVolume>(
                     },
                 );
                 let loot = if piece.large {
-                    mcrs_minecraft_item::keys::loot_table::CHESTS_UNDERWATER_RUIN_BIG
+                    mcrs_minecraft_item::loot_table_keys::CHESTS_UNDERWATER_RUIN_BIG
                 } else {
-                    mcrs_minecraft_item::keys::loot_table::CHESTS_UNDERWATER_RUIN_SMALL
+                    mcrs_minecraft_item::loot_table_keys::CHESTS_UNDERWATER_RUIN_SMALL
                 };
                 region.add_block_entity(GeneratedBlockEntity::chest(
                     pos,

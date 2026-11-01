@@ -15,7 +15,7 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 pub type EnvironmentRef<M = Resolved> = Ref<M, TestEnvironment, TestEnvironment<M>>;
 
 #[registry_value]
-#[dispatch(registry = mcrs_minecraft_environment::keys::TestEnvironmentDefinitionType)]
+#[dispatch(registry = mcrs_minecraft_environment::test_environment_definition_type_keys::TestEnvironmentDefinitionType)]
 #[derive(Debug, Clone, PartialEq)]
 pub enum TestEnvironment<M: Refs = Resolved> {
     AllOf {
@@ -146,11 +146,11 @@ type NonNegative = Bounded<0, { i32::MAX }, 0>;
 type Padding = Bounded<0, 128, 0>;
 
 fn overworld() -> ResourceKeyBuf<Dimension> {
-    mcrs_minecraft_dimension::keys::dimension::OVERWORLD.into()
+    mcrs_minecraft_dimension::dimension_keys::OVERWORLD.into()
 }
 
 fn is_overworld(dimension: &ResourceKeyBuf<Dimension>) -> bool {
-    *dimension == mcrs_minecraft_dimension::keys::dimension::OVERWORLD
+    *dimension == mcrs_minecraft_dimension::dimension_keys::OVERWORLD
 }
 
 fn unrotated() -> Rotation {
@@ -198,7 +198,7 @@ test_instance!(FunctionTest {
 });
 
 #[registry_value]
-#[dispatch(registry = mcrs_minecraft_environment::keys::TestInstanceType)]
+#[dispatch(registry = mcrs_minecraft_environment::test_instance_type_keys::TestInstanceType)]
 #[derive(Debug, Clone, PartialEq)]
 pub enum TestInstance<M: Refs = Resolved> {
     BlockBased(BlockBasedTest<M>),

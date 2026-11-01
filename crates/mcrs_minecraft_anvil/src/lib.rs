@@ -14,7 +14,7 @@ mod tests;
 mod vanilla_files;
 
 pub use chunk::{Chunk, ChunkDecodeReport, LIGHT_BYTES, Light, Section, parse as parse_chunk};
-pub use mcrs_minecraft_chunk::keys::ChunkStatus;
+pub use mcrs_minecraft_chunk::chunk_status_keys::ChunkStatus;
 pub use palette::{PaletteLookup, Properties};
 pub use region::{REGION_SIDE, RegionFile, SECTOR_BYTES};
 pub use retrogen::RetroGen;

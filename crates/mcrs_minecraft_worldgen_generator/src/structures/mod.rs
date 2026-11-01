@@ -2,9 +2,9 @@ use crate::block_state::try_resolve_state;
 use fixedbitset::FixedBitSet;
 use glam::IVec3;
 use mcrs_minecraft_biome::Biome;
+use mcrs_minecraft_block::block_entity_type_keys::BlockEntityType;
+use mcrs_minecraft_block::block_keys::Block;
 use mcrs_minecraft_block::definition::{BlockDefinitions, BlockStateFlags};
-use mcrs_minecraft_block::keys::Block;
-use mcrs_minecraft_block::keys::BlockEntityType;
 use mcrs_minecraft_block_entity::GeneratedBlockEntity;
 use mcrs_minecraft_block_predicate::block_state::BlockState as ProtoBlockState;
 use mcrs_minecraft_chunk::VoxelId;
@@ -172,17 +172,17 @@ fn freeze_variants(
     };
     frozen.variants = VariantTables {
         cats: table(
-            mcrs_minecraft_entity::keys::CAT_VARIANT.location(),
+            mcrs_minecraft_entity::registry_keys::CAT_VARIANT.location(),
             inputs.variants.cats,
         )?,
         cat_sounds: inputs.variants.cat_sounds.to_vec(),
         chickens: table(
-            mcrs_minecraft_entity::keys::CHICKEN_VARIANT.location(),
+            mcrs_minecraft_entity::registry_keys::CHICKEN_VARIANT.location(),
             inputs.variants.chickens,
         )?,
         chicken_sounds: inputs.variants.chicken_sounds.to_vec(),
         zombie_nautiluses: table(
-            mcrs_minecraft_entity::keys::ZOMBIE_NAUTILUS_VARIANT.location(),
+            mcrs_minecraft_entity::registry_keys::ZOMBIE_NAUTILUS_VARIANT.location(),
             inputs.variants.zombie_nautiluses,
         )?,
     };
@@ -481,7 +481,7 @@ fn freeze_structures(
                 blocking: biome_tag_mask(
                     inputs,
                     id,
-                    mcrs_minecraft_biome::keys::biome_tags::MINESHAFT_BLOCKING,
+                    mcrs_minecraft_biome::biome_tag_keys::MINESHAFT_BLOCKING,
                 )?,
             },
             Structure::NetherFossil { height, .. } => StructureKind::NetherFossil {
@@ -492,7 +492,7 @@ fn freeze_structures(
                 surrounding: biome_tag_mask(
                     inputs,
                     id,
-                    mcrs_minecraft_biome::keys::biome_tags::REQUIRED_OCEAN_MONUMENT_SURROUNDING,
+                    mcrs_minecraft_biome::biome_tag_keys::REQUIRED_OCEAN_MONUMENT_SURROUNDING,
                 )?,
             },
             Structure::OceanRuin {
@@ -507,7 +507,7 @@ fn freeze_structures(
                 frequent_drowned: biome_tag_mask(
                     inputs,
                     id,
-                    mcrs_minecraft_biome::keys::biome_tags::MORE_FREQUENT_DROWNED_SPAWNS,
+                    mcrs_minecraft_biome::biome_tag_keys::MORE_FREQUENT_DROWNED_SPAWNS,
                 )?,
             }),
             Structure::RuinedPortal { setups, .. } => {

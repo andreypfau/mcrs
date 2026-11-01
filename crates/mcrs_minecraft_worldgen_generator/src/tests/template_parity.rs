@@ -41,7 +41,7 @@ use super::template_manifest::{freeze, parse_state, resolve};
 use super::{biome_registry, blocks, build_program_with, corpus, corpus_features, one_step};
 use crate::feature_program::{FeatureProgram, RunScratch};
 use crate::structures::place::place_element;
-use mcrs_minecraft_block::keys::BlockEntityType;
+use mcrs_minecraft_block::block_entity_type_keys::BlockEntityType;
 use mcrs_minecraft_worldgen_structure::frozen::{ElementId, FrozenElement};
 
 const MAGIC: &[u8; 8] = b"MCTMPLP2";

@@ -1,6 +1,6 @@
 use bevy::ecs::world::EntityRef;
 use bevy::prelude::Entity;
-use mcrs_minecraft_item::keys::DataComponentType;
+use mcrs_minecraft_item::data_component_type_keys::DataComponentType;
 use mcrs_minecraft_item::{
     Bees, BlockState, CustomModelData, Damage, DyedColor, EnchantmentGlintOverride, Enchantments,
     FireworkExplosion, ItemComponentValue, ItemDataComponent, MaxDamage, MaxStackSize,
@@ -15,7 +15,7 @@ use mcrs_minecraft_resource::{ResourceKeyBuf, ResourceLocationBuf};
 use crate::item_model_asset::{
     Case, ChargeType, ConditionProperty, DisplayContext, RangeProperty, SelectSwitch, TintSource,
 };
-use mcrs_minecraft_item::keys::Item;
+use mcrs_minecraft_item::item_keys::Item;
 
 /// A stack entity and the corpus that names its item, as the model selectors see it: its
 /// effective components and its child stacks.
