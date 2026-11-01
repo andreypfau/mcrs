@@ -15,17 +15,18 @@ use mcrs_minecraft_mesh::SECTION_SIZE;
 use mcrs_minecraft_registries::CurrentRegistries;
 use mcrs_voxel::{ColumnPos, SectionPos};
 
-use crate::atlas::SpriteArray;
-use crate::blocks::{self, BiomeTints, Catalog};
 use crate::cave::{CaveCull, NO_SLOT};
-use crate::item_model::bake::{ItemModels, bake_all as bake_items};
-use crate::model::Pack;
+use crate::tint::{self, BiomeTints};
 use crate::vanilla::VanillaAssets;
 use mcrs_minecraft_client_world::registries::{SessionSet, entered_configuration};
 use mcrs_minecraft_mesh::arena::{Arena, Block};
 use mcrs_minecraft_mesh::block::BlockInfo;
 use mcrs_minecraft_mesh::pack::QUAD_WORDS;
 use mcrs_minecraft_mesh::{self as mesh, Connectivity, Draw, Group, STREAMS, Scratch, SectionMesh};
+use mcrs_minecraft_model::atlas::SpriteArray;
+use mcrs_minecraft_model::block_catalog::{self, Catalog};
+use mcrs_minecraft_model::item_model_bake::{ItemModels, bake_all as bake_items};
+use mcrs_minecraft_model::model::Pack;
 use mcrs_minecraft_render::{
     Animation, AtlasUpdate, Budget, FACE_BYTES, Placement, STILL, SectionDesc, SpriteEntry,
     SpriteUpload, Upload, Uploads,
@@ -872,7 +873,7 @@ impl BlockCatalog {
     fn new() -> Self {
         Self {
             pack: PackLoad::Pending,
-            catalog: Some(blocks::empty()),
+            catalog: Some(block_catalog::empty()),
             blocks: Arc::new(Vec::new()),
             baked: Vec::new(),
             to_bake: Vec::new(),
@@ -955,7 +956,7 @@ impl BlockCatalog {
         let bake_items_too = !self.items_baked;
         self.items_baked = true;
         self.baking = Some(pool.spawn(async move {
-            blocks::extend(&pack, &mut catalog, &definitions, &states);
+            block_catalog::extend(&pack, &mut catalog, &definitions, &states);
             let items = bake_items_too.then(|| {
                 let started = std::time::Instant::now();
                 let items = bake_items(&pack, &mut catalog.sprites)
@@ -1419,7 +1420,7 @@ fn derive_biome_tints(
         return;
     };
     *due = false;
-    match blocks::derive_tints(pack, &registries) {
+    match tint::derive_tints(pack, &registries) {
         Some((tints, failures)) => {
             for failure in &failures {
                 warn!("no tint for {failure}");
@@ -1469,7 +1470,7 @@ fn tint_columns(
         let palette = palette.clone();
         tints.tinting.push((
             corner,
-            pool.spawn(async move { blocks::tint_column(&world, &palette, pos) }),
+            pool.spawn(async move { tint::tint_column(&world, &palette, pos) }),
         ));
     }
 }
@@ -1697,7 +1698,13 @@ mod tests {
         let mut catalog = BlockCatalog::new();
         let mut tints = ColumnTints::new([512; 2]);
         store.drain_changes(&mut loader.changes);
-        loader.adopt(store, blocks::corpus(), &mut catalog, &mut tints, cave);
+        loader.adopt(
+            store,
+            &mcrs_minecraft_engine_registries::test_corpus().0.0,
+            &mut catalog,
+            &mut tints,
+            cave,
+        );
     }
 
     fn one_greedy_group(section: [i32; 3], slot: u32, quads: u32) -> SectionMesh {

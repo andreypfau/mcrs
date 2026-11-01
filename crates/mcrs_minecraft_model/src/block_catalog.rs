@@ -1,21 +1,14 @@
 use crate::atlas::SpriteRegistry;
 use crate::bake::Dir;
+use crate::block_build::build_one;
 use crate::model::Pack;
 use bevy::math::Vec3;
-use build::build_one;
 use mcrs_minecraft_block::definition::BlockDefinitions;
 use mcrs_minecraft_block::definition::schema::PropertyValue;
 use mcrs_minecraft_block::keys::Block;
 use mcrs_minecraft_mesh::block::BlockInfo;
 use mcrs_minecraft_mesh::pack::{MAX_SPRITE_ARRAYS, MAX_SPRITES};
 use mcrs_voxel::BlockStateId;
-pub use tint::{BiomeTint, BiomeTints, derive_tints, tint_column};
-
-mod build;
-
-mod tint;
-
-pub(crate) use tint::{colormap_rgba, load_colormap};
 
 /// A block state as the resource pack names it: the block's identifier and
 /// every property it declares, rendered the way a blockstates file spells them.
@@ -78,8 +71,9 @@ pub struct Catalog {
     pub failures: Vec<String>,
 }
 
-pub fn cube_corner(dir: Dir, corner: usize) -> Vec3 {
-    mcrs_minecraft_mesh::ambient::corners(dir, Vec3::ZERO, Vec3::ONE)[corner]
+/// The four corners of a full cube's `dir` face, in the order a baked quad winds them.
+pub fn cube_corners(dir: Dir) -> [Vec3; 4] {
+    mcrs_minecraft_mesh::ambient::corners(dir, Vec3::ZERO, Vec3::ONE)
 }
 
 pub fn empty() -> Catalog {
@@ -124,7 +118,11 @@ pub fn extend(pack: &Pack, catalog: &mut Catalog, definitions: &BlockDefinitions
             definitions.shape(data.occlusion_shape),
             &mut catalog.sprites,
         ) {
-            Ok(info) => catalog.blocks[id as usize] = info,
+            Ok(info) => {
+                if let Some(slot) = catalog.blocks.get_mut(usize::from(id)) {
+                    *slot = info;
+                }
+            }
             Err(reason) => catalog
                 .failures
                 .push(format!("{}: {reason}", state.label())),

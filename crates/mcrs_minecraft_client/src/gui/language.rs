@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use bevy::prelude::Resource;
 
 use super::font::Span;
-use crate::model::Pack;
+use mcrs_minecraft_model::model::Pack;
 
 pub const EN_US: &str = "minecraft/lang/en_us.json";
 

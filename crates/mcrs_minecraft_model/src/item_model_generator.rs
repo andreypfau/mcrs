@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 use std::collections::HashSet;
 
-use super::bake::{ItemQuad, item_quad};
 use crate::bake::Dir;
+use crate::item_model_bake::{ItemQuad, item_quad};
 use crate::model::{Element, Face};
 
 const MIN_Z: f32 = 7.5;
@@ -99,7 +99,9 @@ fn side_faces(side: u32, frames: &[&[u8]]) -> Vec<(Side, u32, u32)> {
         if x < 0 || y < 0 || x >= side as i32 || y >= side as i32 {
             return true;
         }
-        frame[((y as u32 * side + x as u32) * 4 + 3) as usize] == 0
+        frame
+            .get(((y as u32 * side + x as u32) * 4 + 3) as usize)
+            .is_none_or(|alpha| *alpha == 0)
     };
     let mut seen = HashSet::new();
     let mut faces = Vec::new();

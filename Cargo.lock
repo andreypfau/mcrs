@@ -3669,7 +3669,6 @@ dependencies = [
  "console_error_panic_hook",
  "flate2",
  "getrandom 0.4.1",
- "hashbrown 0.16.1",
  "mcrs_minecraft_assets",
  "mcrs_minecraft_biome",
  "mcrs_minecraft_biome_file",
@@ -3698,6 +3697,7 @@ dependencies = [
  "mcrs_minecraft_light_engine",
  "mcrs_minecraft_light_render",
  "mcrs_minecraft_mesh",
+ "mcrs_minecraft_model",
  "mcrs_minecraft_nbt",
  "mcrs_minecraft_network",
  "mcrs_minecraft_noise",
@@ -4425,6 +4425,31 @@ dependencies = [
  "mcrs_minecraft_core",
  "mcrs_minecraft_volume",
  "mcrs_voxel",
+]
+
+[[package]]
+name = "mcrs_minecraft_model"
+version = "0.5.8"
+dependencies = [
+ "bevy",
+ "getrandom 0.4.1",
+ "hashbrown 0.16.1",
+ "mcrs_minecraft_assets",
+ "mcrs_minecraft_block",
+ "mcrs_minecraft_client_jar",
+ "mcrs_minecraft_core",
+ "mcrs_minecraft_datapack",
+ "mcrs_minecraft_dimension",
+ "mcrs_minecraft_engine_registries",
+ "mcrs_minecraft_entity",
+ "mcrs_minecraft_item",
+ "mcrs_minecraft_mesh",
+ "mcrs_minecraft_nbt",
+ "mcrs_minecraft_registries",
+ "mcrs_minecraft_resource",
+ "mcrs_voxel",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]

@@ -10,10 +10,11 @@ use mcrs_minecraft_volume::BiomeVolume;
 use mcrs_voxel::ColumnPos;
 use mcrs_voxel::{BlockPos, SectionPos};
 
-use crate::model::{self, Pack};
 use mcrs_minecraft_biome::GrassColorModifier;
 use mcrs_minecraft_biome_file::BiomeFile;
 use mcrs_minecraft_core::codec::HexRgb;
+use mcrs_minecraft_model::colormap::{load_colormap, sample_colormap};
+use mcrs_minecraft_model::model::Pack;
 use mcrs_minecraft_registries::Registries;
 
 use mcrs_minecraft_mesh::tint::BIOME_TINTS;
@@ -135,35 +136,6 @@ pub fn derive_tints(pack: &Pack, registries: &Registries) -> Option<(BiomeTints,
 
 fn noted<T>(result: Result<T, String>, failures: &mut Vec<String>) -> Option<T> {
     result.map_err(|reason| failures.push(reason)).ok()
-}
-
-pub(crate) fn load_colormap(pack: &Pack, name: &str) -> Result<Vec<u8>, String> {
-    let path = model::resource_path(&format!("minecraft:colormap/{name}"), "textures", "png");
-    let (data, width, height) = crate::atlas::decode_png(pack.read(&path)?, &path)?;
-    if width != 256 || height != 256 {
-        return Err(format!(
-            "{path} is {width}x{height}, and a colormap is sampled as a 256x256 grid"
-        ));
-    }
-    Ok(data)
-}
-
-/// Vanilla's colormap lookup, in doubles as it computes it. A missing map, or a climate that
-/// lands outside it, gives the magenta vanilla uses to flag the same.
-pub(crate) fn sample_colormap(map: Option<&[u8]>, temperature: f32, downfall: f32) -> u32 {
-    const MISSING: u32 = 0xff00ff;
-    let Some(map) = map else {
-        return MISSING;
-    };
-    let temperature = f64::from(temperature.clamp(0.0, 1.0));
-    let downfall = f64::from(downfall.clamp(0.0, 1.0)) * temperature;
-    let x = ((1.0 - temperature) * 255.0) as usize;
-    let y = ((1.0 - downfall) * 255.0) as usize;
-    let offset = (y << 8 | x) * 4;
-    match map.get(offset..offset + 3) {
-        Some(&[r, g, b]) => u32::from(r) << 16 | u32::from(g) << 8 | u32::from(b),
-        _ => MISSING,
-    }
 }
 
 /// An item's grass colour, where vanilla's colormap resolves it.

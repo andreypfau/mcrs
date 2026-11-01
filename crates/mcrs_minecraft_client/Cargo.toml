@@ -8,7 +8,6 @@ edition.workspace = true
 workspace = true
 
 [dependencies]
-hashbrown.workspace = true
 mcrs_minecraft_engine_registries.workspace = true
 mcrs_minecraft_resource.workspace = true
 mcrs_voxel.workspace = true
@@ -16,6 +15,7 @@ mcrs_minecraft_game_mode.workspace = true
 mcrs_minecraft_entity.workspace = true
 mcrs_minecraft_dimension.workspace = true
 mcrs_minecraft_mesh.workspace = true
+mcrs_minecraft_model.workspace = true
 mcrs_minecraft_volume.workspace = true
 mcrs_minecraft_render.workspace = true
 mcrs_minecraft_light_render.workspace = true
@@ -110,6 +110,7 @@ dynamic_linking = ["bevy/dynamic_linking"]
 telemetry-tracy = ["bevy/trace", "dep:tracing-tracy", "mcrs_minecraft_server?/telemetry-tracy"]
 
 [dev-dependencies]
+mcrs_minecraft_model = { workspace = true, features = ["test-support"] }
 mcrs_minecraft_engine_registries = { workspace = true, features = ["test-support"] }
 mcrs_minecraft_game_registries = { workspace = true, features = ["test-support"] }
 bytes.workspace = true

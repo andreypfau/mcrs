@@ -28,11 +28,11 @@ use bevy::render::mesh::{Indices, PrimitiveTopology, VertexAttributeValues};
 use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
 use bevy::tasks::block_on;
 
-use mcrs_minecraft_client::atlas;
-use mcrs_minecraft_client::bake;
-use mcrs_minecraft_client::model::{self, Pack};
 use mcrs_minecraft_client::vanilla::{self, VanillaAssets};
 use mcrs_minecraft_mesh::ambient::{self, Neighbour, Sample};
+use mcrs_minecraft_model::atlas;
+use mcrs_minecraft_model::bake;
+use mcrs_minecraft_model::model::{self, Pack};
 
 const DEFAULT_TARGET: &str = "minecraft:oak_log[axis=y]";
 

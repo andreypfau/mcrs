@@ -24,12 +24,8 @@ use bevy::prelude::*;
 use bevy::render::{ExtractSchedule, RenderApp};
 use mcrs_minecraft_client_world::{local_player, registries};
 
-pub mod anim;
 #[cfg(target_os = "macos")]
 pub mod app_nap;
-pub mod atlas;
-pub mod bake;
-pub mod blocks;
 pub mod camera;
 pub mod cave;
 pub mod config;
@@ -37,15 +33,15 @@ pub mod config;
 pub mod dev;
 pub mod gui;
 pub mod input;
-pub mod item_model;
+pub mod item_resolve;
 pub mod light_volume;
-pub mod model;
 pub mod render;
 #[cfg(not(target_family = "wasm"))]
 pub mod screenshot;
 pub mod sky;
 pub mod sky_state;
 pub mod stream;
+pub mod tint;
 pub mod vanilla;
 #[cfg(target_family = "wasm")]
 pub mod web;

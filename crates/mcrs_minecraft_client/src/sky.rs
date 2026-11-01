@@ -19,8 +19,9 @@ use mcrs_minecraft_environment::attribute::MoonPhase;
 use mcrs_minecraft_environment::world_clock::{WorldClock, WorldClocks};
 
 use crate::camera::PlayerCamera;
-use crate::vanilla::{self, VanillaAssets};
+use crate::vanilla::VanillaAssets;
 use mcrs_minecraft_client_world::registries::{SessionSet, entered_configuration};
+use mcrs_minecraft_model::vanilla_source;
 use mcrs_minecraft_render::sky::{ExtractedSky, SkyDrawsOnly, SkyRenderPlugin, SkyUniform};
 
 const SUN: &str = "minecraft/textures/environment/celestial/sun.png";
@@ -329,7 +330,7 @@ fn request_sources(mut commands: Commands, asset_server: Res<AssetServer>) {
             .with_settings(|settings: &mut ImageLoaderSettings| {
                 settings.asset_usage = RenderAssetUsages::MAIN_WORLD;
             })
-            .load(AssetPath::from(path).with_source(vanilla::SOURCE))
+            .load(AssetPath::from(path).with_source(vanilla_source::SOURCE))
     };
     commands.insert_resource(SkySources {
         celestials: celestial_paths().map(load).collect(),
@@ -494,7 +495,9 @@ mod tests {
         fn every_layer_path_names_a_file_in_the_corpus() {
             for path in celestial_paths().chain(CLOUD_LAYERS.iter().map(|p| (*p).to_owned())) {
                 assert!(
-                    crate::model::Pack::corpus().get(&path).is_some(),
+                    mcrs_minecraft_model::model::Pack::corpus()
+                        .get(&path)
+                        .is_some(),
                     "{path} is missing"
                 );
             }

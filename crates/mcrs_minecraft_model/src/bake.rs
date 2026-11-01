@@ -167,29 +167,39 @@ fn uvlock_transform(rotation: VariantRotation, dir: Dir) -> Mat4 {
 /// drops the two faces that would be edge-on. Vanilla relies on this for `cross`-shaped models.
 pub(crate) fn draws_face(element: &Element, dir: Dir) -> bool {
     let flat: Vec<usize> = (0..3)
-        .filter(|&axis| element.from[axis] == element.to[axis])
+        .filter(|&axis| element.from.get(axis) == element.to.get(axis))
         .collect();
     let face_axis = axis(dir);
     flat.iter().all(|&axis| axis == face_axis)
 }
 
-fn recalculate_winding(positions: &mut [Vec3; 4], uvs: &mut [[f32; 2]; 4], dir: Dir) {
-    let mut min = positions[0];
-    let mut max = positions[0];
+fn recalculate_winding(
+    positions: &mut [Vec3; 4],
+    uvs: &mut [[f32; 2]; 4],
+    dir: Dir,
+) -> Result<(), String> {
+    let [first, ..] = *positions;
+    let mut min = first;
+    let mut max = first;
     for p in positions.iter() {
         min = min.min(*p);
         max = max.max(*p);
     }
     for (slot, want) in corners(dir, min, max).into_iter().enumerate() {
-        let found = (slot..4).find(|&i| positions[i] == want);
+        let found = (slot..4).find(|&i| positions.get(i) == Some(&want));
         match found {
             Some(i) => {
                 positions.swap(slot, i);
                 uvs.swap(slot, i);
             }
-            None => panic!("cannot find vertex to swap while winding a {dir:?} face"),
+            None => {
+                return Err(format!(
+                    "cannot find vertex to swap while winding a {dir:?} face"
+                ));
+            }
         }
     }
+    Ok(())
 }
 
 #[derive(Debug, Clone)]
@@ -284,7 +294,7 @@ pub(crate) fn face_geometry(
     if element.rotation.is_none()
         && let Some(facing) = facing
     {
-        recalculate_winding(&mut positions, &mut uvs, facing);
+        recalculate_winding(&mut positions, &mut uvs, facing)?;
     }
     Ok(FaceGeometry {
         positions,
@@ -342,7 +352,11 @@ pub fn bake(pack: &Pack, block: &str, props: &[(&str, &str)]) -> Result<BakedBlo
         let rotation = VariantRotation::from_degrees(variant.x, variant.y, variant.z)?;
         let part = bake_model(&model, rotation, variant.uvlock)?;
         for mut quad in part.quads {
-            quad.sprite = intern(&mut merged.sprites, &part.sprites[quad.sprite]);
+            let sprite = part
+                .sprites
+                .get(quad.sprite)
+                .ok_or_else(|| format!("{} names a sprite past its table", variant.model))?;
+            quad.sprite = intern(&mut merged.sprites, sprite);
             merged.quads.push(quad);
         }
     }

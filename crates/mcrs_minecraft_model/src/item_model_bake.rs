@@ -5,15 +5,15 @@ use std::sync::Arc;
 use bevy::math::{Mat4, Vec3};
 use bevy::prelude::Resource;
 
-use super::asset::{
+use crate::atlas::{MISSING_SPRITE, SpriteRegistry};
+use crate::bake::{Dir, VariantRotation, draws_face, face_geometry};
+use crate::colormap::load_colormap;
+use crate::item_model_asset::{
     ClientItem, ConditionProperty, RangeProperty, SelectSwitch, SpecialModel, TintSource,
     UnbakedItemModel,
 };
-use super::generator;
-use super::transform::compose;
-use crate::atlas::{MISSING_SPRITE, SpriteRegistry};
-use crate::bake::{Dir, VariantRotation, draws_face, face_geometry};
-use crate::blocks::load_colormap;
+use crate::item_model_generator;
+use crate::item_model_transform::compose;
 use crate::model::{Element, Face, GuiLight, ItemTransform, Pack, ResolvedModel, resolve_model};
 
 #[derive(Debug, Clone)]
@@ -162,7 +162,7 @@ impl Baker<'_> {
                     .collect::<Result<Vec<_>, _>>()?;
                 match children.len() {
                     0 => BakedNode::Empty,
-                    1 => children.pop().unwrap(),
+                    1 => children.pop().unwrap_or(BakedNode::Empty),
                     _ => BakedNode::Composite(children),
                 }
             }
@@ -274,9 +274,13 @@ fn bake_model(
                 break;
             };
             let sprite = sprites.intern(pack, texture)?;
-            let side = sprites.arrays()[sprites.sprite(sprite).array as usize].size;
+            let side = sprites
+                .arrays()
+                .get(sprites.sprite(sprite).array as usize)
+                .ok_or_else(|| format!("{texture} names no texture array"))?
+                .size;
             let frames = sprites.frames(sprite);
-            quads.extend(generator::extrude(sprite, side, &frames, layer)?);
+            quads.extend(item_model_generator::extrude(sprite, side, &frames, layer)?);
         }
     } else {
         for element in &model.elements {
