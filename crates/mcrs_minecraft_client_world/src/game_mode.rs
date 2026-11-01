@@ -2,11 +2,11 @@ use crate::joined_game::JoinedGame;
 use bevy::prelude::*;
 use mcrs_minecraft_game_mode::GameMode;
 use mcrs_minecraft_network::event::Received;
-use mcrs_minecraft_protocol::entity::player::PlayerSpawnInfo;
-use mcrs_minecraft_protocol::game_event::GameEventKind;
-use mcrs_minecraft_protocol::packets::game::clientbound::{
+use mcrs_minecraft_protocol_game::clientbound::{
     ClientboundEntityEvent, ClientboundGameEvent, ClientboundLogin, ClientboundRespawn,
 };
+use mcrs_minecraft_protocol_game::game_event::GameEventKind;
+use mcrs_minecraft_protocol_game::player::PlayerSpawnInfo;
 
 use crate::player::Player;
 
@@ -157,6 +157,7 @@ mod tests {
         let mut data = Vec::new();
         packet.encode(&mut data).unwrap();
         let trigger = PacketDispatcher::clientbound()
+            .with_play(crate::game_packets::GAME_CLIENTBOUND)
             .dispatch(P::STATE, P::ID, &data)
             .unwrap()
             .unwrap();

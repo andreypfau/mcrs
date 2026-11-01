@@ -5,7 +5,7 @@ use mcrs_minecraft_chunk::{
 };
 use mcrs_minecraft_engine_world::world::dimension::{HasSkyLight, InDimension};
 use mcrs_minecraft_engine_world::world::storage::column::{ColumnSections, SectionLookup};
-use mcrs_minecraft_protocol::chunk::{LightChunk, LightData};
+use mcrs_minecraft_protocol_game::chunk::{LightChunk, LightData};
 use std::borrow::Cow;
 
 /// One row of the light packet's section sequence. The packet carries a
@@ -247,7 +247,7 @@ mod tests {
     use bevy_ecs::entity::Entity;
     use bevy_ecs::prelude::{In, World};
     use bevy_ecs::system::RunSystemOnce;
-    use mcrs_minecraft_protocol::light_codec::{RowLight, unpack_light_data};
+    use mcrs_minecraft_protocol_game::light_codec::{RowLight, unpack_light_data};
     use std::sync::Arc;
 
     fn fake_entity(index: u32) -> Entity {

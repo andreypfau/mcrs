@@ -18,8 +18,8 @@ use mcrs_minecraft_engine_world::entity::physics::{OldTransform, Transform};
 use mcrs_minecraft_engine_world::entity::{EntityNetworkSyncEvent, EntityPlugin};
 use mcrs_minecraft_engine_world::world::dimension::InDimension;
 use mcrs_minecraft_protocol::VarInt;
-use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundEntityPositionSync;
-use mcrs_minecraft_protocol::packets::game::clientbound::PositionPath;
+use mcrs_minecraft_protocol_game::clientbound::ClientboundEntityPositionSync;
+use mcrs_minecraft_protocol_game::clientbound::PositionPath;
 
 pub struct MinecraftEntityPlugin;
 

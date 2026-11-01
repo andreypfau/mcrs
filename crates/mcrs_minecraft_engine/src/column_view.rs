@@ -31,16 +31,16 @@ use mcrs_minecraft_engine_world::world::storage::column::{
 };
 use mcrs_minecraft_engine_world::world::storage::section::SectionIndex;
 use mcrs_minecraft_network::event::Received;
-use mcrs_minecraft_protocol::ColumnPos;
 use mcrs_minecraft_protocol::VarInt;
-use mcrs_minecraft_protocol::chunk::{ChunkDataBlockEntity, encode_section};
-use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundChunkBatchFinished;
-use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundChunkBatchStart;
-use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundChunkCacheRadius;
-use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundForgetLevelChunk;
-use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundSetChunkCacheCenter;
-use mcrs_minecraft_protocol::packets::game::serverbound::ServerboundChunkBatchReceived;
-use mcrs_minecraft_protocol::section::{biome_direct_bits, block_direct_bits};
+use mcrs_minecraft_protocol_game::ColumnPos;
+use mcrs_minecraft_protocol_game::chunk::{ChunkDataBlockEntity, encode_section};
+use mcrs_minecraft_protocol_game::clientbound::ClientboundChunkBatchFinished;
+use mcrs_minecraft_protocol_game::clientbound::ClientboundChunkBatchStart;
+use mcrs_minecraft_protocol_game::clientbound::ClientboundChunkCacheRadius;
+use mcrs_minecraft_protocol_game::clientbound::ClientboundForgetLevelChunk;
+use mcrs_minecraft_protocol_game::clientbound::ClientboundSetChunkCacheCenter;
+use mcrs_minecraft_protocol_game::section::{biome_direct_bits, block_direct_bits};
+use mcrs_minecraft_protocol_game::serverbound::ServerboundChunkBatchReceived;
 use mcrs_minecraft_registries::CurrentRegistries;
 use mcrs_minecraft_volume::{PaletteBuffer, PalettedSection, SectionBlocks};
 use mcrs_voxel::{BlockStateId, SectionPos};
@@ -807,7 +807,7 @@ pub(crate) fn send_column_queue(
 
                 batch_bytes += data.len()
                     + (light_data.sky_light_arrays.len() + light_data.block_light_arrays.len())
-                        * size_of::<mcrs_minecraft_protocol::chunk::LightChunk>();
+                        * size_of::<mcrs_minecraft_protocol_game::chunk::LightChunk>();
                 batch.push(PacketPayload::ChunkLoad {
                     column: column_pos,
                     chunk_bytes: data,

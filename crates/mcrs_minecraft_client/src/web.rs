@@ -151,6 +151,7 @@ pub fn run() {
                 profile_id: None,
                 view_distance: knobs.view_distance(),
                 holds_vanilla_pack: false,
+                play: Some(mcrs_minecraft_client_world::game_packets::GAME_CLIENTBOUND),
             });
             app.add_plugins(mcrs_minecraft_client_world::columns::ColumnCachePlugin);
         }

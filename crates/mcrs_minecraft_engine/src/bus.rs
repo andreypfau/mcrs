@@ -7,8 +7,9 @@ use mcrs_minecraft_engine_world::session::PlayerSession;
 use mcrs_minecraft_game_mode::GameMode;
 use mcrs_minecraft_network::event::Trigger;
 use mcrs_minecraft_protocol::VarInt;
-use mcrs_minecraft_protocol::chunk::{ChunkDataBlockEntity, LightData};
-use mcrs_minecraft_protocol::packets::game::clientbound::{
+use mcrs_minecraft_protocol::uuid::Uuid;
+use mcrs_minecraft_protocol_game::chunk::{ChunkDataBlockEntity, LightData};
+use mcrs_minecraft_protocol_game::clientbound::{
     ClientboundAddEntity, ClientboundBlockUpdate, ClientboundChunkBatchFinished,
     ClientboundChunkBatchStart, ClientboundChunkCacheRadius, ClientboundCommandSuggestions,
     ClientboundEntityEvent, ClientboundEntityPositionSync, ClientboundForgetLevelChunk,
@@ -17,7 +18,6 @@ use mcrs_minecraft_protocol::packets::game::clientbound::{
     ClientboundRespawn, ClientboundSetChunkCacheCenter, ClientboundSetTime,
     ClientboundSystemChatPacket,
 };
-use mcrs_minecraft_protocol::uuid::Uuid;
 use mcrs_minecraft_resource::ResourceKeyBuf;
 use mcrs_voxel::ColumnPos;
 use smallvec::SmallVec;

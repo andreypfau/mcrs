@@ -21,7 +21,7 @@ use mcrs_minecraft_engine::teleport::{MAX_XZ, MAX_Y, TeleportState};
 use mcrs_minecraft_engine_world::entity::physics::{Rotation, Transform};
 use mcrs_minecraft_entity::PLAYER_EYE_HEIGHT;
 use mcrs_minecraft_protocol::VarInt;
-use mcrs_minecraft_protocol::packets::game::clientbound::{ClientboundPlayerLookAt, LookAtEntity};
+use mcrs_minecraft_protocol_game::clientbound::{ClientboundPlayerLookAt, LookAtEntity};
 use mcrs_minecraft_text::{IntoText, Text};
 
 /// Where a teleport sends one victim.

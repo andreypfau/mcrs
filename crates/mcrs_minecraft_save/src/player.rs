@@ -7,7 +7,7 @@ use std::path::{Path, PathBuf};
 use mcrs_minecraft_core::VERSION;
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::tag::NbtTag;
-use mcrs_minecraft_protocol::item::{ItemStackValue, ItemStackWithSlot};
+use mcrs_minecraft_protocol_game::item::{ItemStackValue, ItemStackWithSlot};
 use mcrs_minecraft_registries::Named;
 use serde::de::{Error as _, MapAccess, Visitor};
 use serde::ser::SerializeMap;

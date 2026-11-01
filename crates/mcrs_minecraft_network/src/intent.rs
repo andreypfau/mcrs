@@ -1,6 +1,7 @@
 use crate::packet_io::{ByteStream, PacketIo};
 use crate::{SharedNetworkState, SwitchMode};
 use mcrs_minecraft_core::VERSION;
+use mcrs_minecraft_protocol::Bounded;
 use mcrs_minecraft_protocol::handshake::Intent;
 use mcrs_minecraft_protocol::packets::intent::serverbound::ServerboundHandshake;
 use mcrs_minecraft_protocol::packets::login::clientbound::ClientboundLoginDisconnect;
@@ -8,7 +9,7 @@ use mcrs_minecraft_protocol::packets::ping::clientbound::PongResponse;
 use mcrs_minecraft_protocol::packets::ping::serverbound::PingRequest;
 use mcrs_minecraft_protocol::packets::status::clientbound::StatusResponse;
 use mcrs_minecraft_protocol::uuid::Uuid;
-use mcrs_minecraft_protocol::{Bounded, Text};
+use mcrs_minecraft_text::Text;
 use rand::seq::SliceRandom;
 use serde::Serialize;
 use std::time::Duration;

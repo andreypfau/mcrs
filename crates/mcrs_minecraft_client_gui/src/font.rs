@@ -138,12 +138,12 @@ fn normalized(id: &str) -> String {
 }
 
 /// The click event of a span.
-pub type ClickEvent = mcrs_minecraft_protocol::text::ClickEvent<
+pub type ClickEvent = mcrs_minecraft_protocol_game::text::ClickEvent<
     mcrs_minecraft_item::Template<mcrs_minecraft_registries::Named>,
 >;
 
 /// The hover event of a span.
-pub type Hover = mcrs_minecraft_protocol::text::HoverEvent<
+pub type Hover = mcrs_minecraft_protocol_game::text::HoverEvent<
     mcrs_minecraft_item::Template<mcrs_minecraft_registries::Named>,
 >;
 

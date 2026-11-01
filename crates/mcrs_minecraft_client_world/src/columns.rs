@@ -18,16 +18,16 @@ use mcrs_minecraft_chunk::section::Biomes;
 use mcrs_minecraft_chunk::{PalettedContainer, SectionKind};
 use mcrs_minecraft_core::BoundingBox;
 use mcrs_minecraft_dimension_environment::dimension_type::DimensionTypeFile;
-use mcrs_minecraft_protocol::ColumnPos;
-use mcrs_minecraft_protocol::chunk::{ChunkData, LightChunk, LightData};
-use mcrs_minecraft_protocol::entity::player::PlayerSpawnInfo;
-use mcrs_minecraft_protocol::light_codec::{ColumnLight, RowLight, unpack_light_data};
-use mcrs_minecraft_protocol::packets::game::clientbound::{
+use mcrs_minecraft_protocol::{Decode, WritePacket};
+use mcrs_minecraft_protocol_game::ColumnPos;
+use mcrs_minecraft_protocol_game::chunk::{ChunkData, LightChunk, LightData};
+use mcrs_minecraft_protocol_game::clientbound::{
     ClientboundChunkBatchFinished, ClientboundChunkBatchStart, ClientboundForgetLevelChunk,
     ClientboundLevelChunkWithLight, ClientboundLightUpdate, ClientboundLogin, ClientboundRespawn,
 };
-use mcrs_minecraft_protocol::packets::game::serverbound::ServerboundChunkBatchReceived;
-use mcrs_minecraft_protocol::{Decode, WritePacket};
+use mcrs_minecraft_protocol_game::light_codec::{ColumnLight, RowLight, unpack_light_data};
+use mcrs_minecraft_protocol_game::player::PlayerSpawnInfo;
+use mcrs_minecraft_protocol_game::serverbound::ServerboundChunkBatchReceived;
 use mcrs_minecraft_resource::Id;
 use mcrs_voxel::{BlockPos, BlockStateId, LocalPos, SectionPos};
 
@@ -845,9 +845,9 @@ mod tests {
 
     use super::*;
     use mcrs_minecraft_chunk::VoxelId;
-    use mcrs_minecraft_protocol::chunk::{ChunkSection, encode_section};
-    use mcrs_minecraft_protocol::section::{biome_direct_bits, block_direct_bits};
     use mcrs_minecraft_protocol::{Decode, Encode, VarInt};
+    use mcrs_minecraft_protocol_game::chunk::{ChunkSection, encode_section};
+    use mcrs_minecraft_protocol_game::section::{biome_direct_bits, block_direct_bits};
     use mcrs_minecraft_resource::ResourceKeyBuf;
     use mcrs_minecraft_resource::ResourceLocationBuf;
     use std::borrow::Cow;

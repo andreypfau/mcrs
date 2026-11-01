@@ -12,6 +12,7 @@ doctest = false
 workspace = true
 
 [dependencies]
+mcrs_minecraft_protocol_game.workspace = true
 mcrs_minecraft_text.workspace = true
 mcrs_minecraft_command_engine.workspace = true
 mcrs_minecraft_engine.workspace = true

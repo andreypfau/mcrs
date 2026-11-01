@@ -7,7 +7,8 @@ use mcrs_minecraft_network::{
 use mcrs_minecraft_protocol::handshake::Intent;
 use mcrs_minecraft_protocol::packets::intent::serverbound::ServerboundHandshake;
 use mcrs_minecraft_protocol::packets::login::clientbound::ClientboundLoginDisconnect;
-use mcrs_minecraft_protocol::{Bounded, Text, VarInt};
+use mcrs_minecraft_protocol::{Bounded, VarInt};
+use mcrs_minecraft_text::Text;
 use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
 use std::time::Duration;
 

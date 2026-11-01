@@ -1,0 +1,74 @@
+//! Every `Decode` implementation must consume exactly the bytes it read, so a
+//! field can be followed by another one. NBT compounds, registry holders and
+//! chat components each used to leave the reader where they found it, or to
+//! swallow the whole remaining buffer.
+
+use mcrs_minecraft_nbt::compound::NbtCompound;
+use mcrs_minecraft_protocol::packets::configuration::clientbound::ClientboundRegistryData;
+use mcrs_minecraft_protocol::{Decode, Encode};
+use mcrs_minecraft_protocol_game::clientbound::ClientboundSystemChatPacket;
+use mcrs_minecraft_protocol_game::text::{RawText, Text};
+use mcrs_minecraft_resource::ResourceLocation;
+
+fn compound(name: &str, value: i32) -> NbtCompound {
+    let mut c = NbtCompound::new();
+    c.put_int(name, value);
+    c
+}
+
+fn encoded(value: &impl Encode) -> Vec<u8> {
+    let mut buf = Vec::new();
+    value.encode(&mut buf).expect("encode");
+    buf
+}
+
+#[test]
+fn every_decoder_stops_after_its_own_bytes() {
+    {
+        let packet = ClientboundRegistryData {
+            registry: ResourceLocation::read("minecraft:dimension_type").expect("registry id"),
+            entries: vec![
+                mcrs_minecraft_protocol::registry::Entry {
+                    id: ResourceLocation::read("minecraft:overworld").expect("entry id"),
+                    data: Some(std::borrow::Cow::Owned(compound("height", 384).into())),
+                },
+                mcrs_minecraft_protocol::registry::Entry {
+                    id: ResourceLocation::read("minecraft:the_nether").expect("entry id"),
+                    data: Some(std::borrow::Cow::Owned(compound("height", 256).into())),
+                },
+                mcrs_minecraft_protocol::registry::Entry {
+                    id: ResourceLocation::read("minecraft:axe").expect("entry id"),
+                    data: Some(std::borrow::Cow::Owned(
+                        mcrs_minecraft_nbt::tag::NbtTag::List(vec![compound("weight", 1).into()]),
+                    )),
+                },
+            ],
+        };
+
+        let buf = encoded(&packet);
+        let mut r: &[u8] = &buf;
+        let decoded = ClientboundRegistryData::decode(&mut r).expect("decode registry data");
+        assert!(r.is_empty(), "{} trailing bytes", r.len());
+        assert_eq!(encoded(&decoded), buf);
+        assert_eq!(decoded.entries.len(), 3);
+    }
+    {
+        let content = Text::text("hello");
+        let packet = ClientboundSystemChatPacket {
+            content: RawText::from_text(&content).unwrap(),
+            overlay: true,
+        };
+
+        let buf = encoded(&packet);
+        let mut r: &[u8] = &buf;
+        let decoded = ClientboundSystemChatPacket::decode(&mut r).expect("decode system chat");
+        assert!(
+            r.is_empty(),
+            "the text field swallowed the overlay flag ({} bytes left)",
+            r.len()
+        );
+        assert_eq!(decoded.content, packet.content);
+        assert!(decoded.overlay, "overlay flag was not decoded");
+        assert_eq!(encoded(&decoded), buf);
+    }
+}

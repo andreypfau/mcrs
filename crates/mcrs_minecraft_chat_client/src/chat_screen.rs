@@ -13,7 +13,7 @@ use crate::style_click::StyleClick;
 use crate::tab_direction::TabDirection;
 use mcrs_minecraft_chat::{MAX_INPUT, normalize};
 use mcrs_minecraft_command_argument_vanilla::VanillaLookup;
-use mcrs_minecraft_protocol::text::{ClickEvent, TextTypes};
+use mcrs_minecraft_protocol_game::text::{ClickEvent, TextTypes};
 use mcrs_minecraft_wire::utf16_len;
 
 /// The chat screen while it is open: the input box, the history position, the draft style and

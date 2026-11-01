@@ -20,7 +20,7 @@ use mcrs_minecraft_command_tree::{
 };
 use mcrs_minecraft_keys::command_argument_type as parser;
 use mcrs_minecraft_protocol::VarInt;
-use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundCommands;
+use mcrs_minecraft_protocol_game::clientbound::ClientboundCommands;
 use mcrs_minecraft_resource::ResourceLocation;
 use std::borrow::Cow;
 

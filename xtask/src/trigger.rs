@@ -5,6 +5,7 @@ pub enum Check {
     Clippy,
     Test,
     NoBevy,
+    Layers,
     Wasm32,
     NoStd,
     Keys,
@@ -18,6 +19,7 @@ impl Check {
             Check::Clippy => "clippy",
             Check::Test => "test",
             Check::NoBevy => "no-bevy",
+            Check::Layers => "layers",
             Check::Wasm32 => "wasm32",
             Check::NoStd => "no-std",
             Check::Keys => "keys",
@@ -125,7 +127,7 @@ pub const fn checks(trigger: Trigger) -> &'static [Check] {
         Trigger::Lint => &[Parity, Fmt, Keys],
         Trigger::Clippy => &[Clippy],
         Trigger::Test | Trigger::Full | Trigger::Gpu => &[Test],
-        Trigger::Portability => &[NoBevy, Wasm32, NoStd],
+        Trigger::Portability => &[NoBevy, Layers, Wasm32, NoStd],
     }
 }
 

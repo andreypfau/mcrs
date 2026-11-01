@@ -9,6 +9,7 @@ pub mod chat_history;
 mod chat_packets;
 pub mod columns;
 pub mod game_mode;
+pub mod game_packets;
 pub mod joined_game;
 pub mod local_player;
 pub mod movement_input;

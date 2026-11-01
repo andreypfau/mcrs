@@ -2,7 +2,7 @@
 
 A protocol library for _Minecraft: Java Edition_. Use this to build clients, servers, proxies, or something novel!
 
-`mcrs_minecraft_protocol` is primarily concerned with defining all of Minecraft's [network packets](packets) and the process for encoding and decoding them. To encode and decode packets, use the [`PacketEncoder`] and [`PacketDecoder`] types.
+`mcrs_minecraft_protocol` defines the framing of Minecraft's network packets, the process for encoding and decoding them, and the [packets](packets) that carry no game data: handshake, status, login, configuration, and the play packets that keep the connection alive or change its state. The play packets with game data are in `mcrs_minecraft_protocol_game`. To encode and decode packets, use the [`PacketEncoder`] and [`PacketDecoder`] types.
 
 The `Encode` and `Decode` traits, the variable-length integers and the codecs for primitives come from `mcrs_minecraft_wire`, and this crate re-exports them. Each vocabulary crate implements the traits for its own types, so a crate that needs only the codec does not depend on this crate.
 

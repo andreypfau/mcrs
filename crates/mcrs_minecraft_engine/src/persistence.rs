@@ -6,7 +6,7 @@ use mcrs_minecraft_engine_world::entity::physics::Transform;
 use mcrs_minecraft_engine_world::entity::player::Player;
 use mcrs_minecraft_engine_world::world::dimension::InDimension;
 use mcrs_minecraft_nbt::compound::NbtCompound;
-use mcrs_minecraft_protocol::item::{ItemStackValue, ItemStackWithSlot};
+use mcrs_minecraft_protocol_game::item::{ItemStackValue, ItemStackWithSlot};
 use mcrs_minecraft_registries::Named;
 use mcrs_minecraft_resource::ResourceKeyBuf;
 use mcrs_minecraft_save::{PlayerDat, read_player_dat, write_player_dat};

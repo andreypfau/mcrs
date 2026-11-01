@@ -1,5 +1,5 @@
 use mcrs_minecraft_protocol::VarInt;
-use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundLightUpdate;
+use mcrs_minecraft_protocol_game::clientbound::ClientboundLightUpdate;
 use std::sync::Arc;
 
 use bevy_app::{App, FixedUpdate, Last, Plugin};

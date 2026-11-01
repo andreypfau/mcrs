@@ -799,7 +799,7 @@ with.
 generated column carries them as data until delivery spawns them.** The anvil
 reader already carries block entities per chunk
 (`crates/mcrs_minecraft_anvil/src/chunk.rs`, `unpack`), the chunk packet already has
-the entry (`crates/mcrs_minecraft_protocol/src/chunk.rs`, `decode_bit_set`), and the block
+the entry (`crates/mcrs_minecraft_protocol_game/src/chunk.rs`, `decode_bit_set`), and the block
 schema knows which blocks have one; what is missing
 is the runtime form. That form is an entity per block entity with a back-link
 to its section, in the shape the column-to-section link already has: a

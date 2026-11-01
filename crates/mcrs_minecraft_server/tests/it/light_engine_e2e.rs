@@ -18,8 +18,8 @@ use mcrs_minecraft_engine_world::world::dimension::{DimensionTypeConfig, InDimen
 use mcrs_minecraft_engine_world::world::lifecycle::stage::{SectionStage, SectionStageChanged};
 use mcrs_minecraft_engine_world::world::storage::column::ColumnIndex;
 use mcrs_minecraft_engine_world::world::sub_app::DimAppLabel;
-use mcrs_minecraft_protocol::light_codec::{RowLight, unpack_light_data};
-use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundLightUpdate;
+use mcrs_minecraft_protocol_game::clientbound::ClientboundLightUpdate;
+use mcrs_minecraft_protocol_game::light_codec::{RowLight, unpack_light_data};
 use mcrs_minecraft_simulation::BlockUpdateFlags;
 use mcrs_minecraft_vanilla_light::emit_light_updates;
 use mcrs_minecraft_vanilla_light::{LightBudget, LightEpoch, LightWorkQueue, PendingEdits};
@@ -239,7 +239,12 @@ fn wire_row(section_y: i32) -> usize {
     (section_y - SECTIONS.start + 1) as usize
 }
 
-fn nibble(chunk: &mcrs_minecraft_protocol::chunk::LightChunk, x: usize, y: usize, z: usize) -> u8 {
+fn nibble(
+    chunk: &mcrs_minecraft_protocol_game::chunk::LightChunk,
+    x: usize,
+    y: usize,
+    z: usize,
+) -> u8 {
     let idx = (y << 8) | (z << 4) | x;
     (chunk.0[idx >> 1] >> ((idx & 1) * 4)) & 0x0F
 }

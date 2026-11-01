@@ -12,7 +12,7 @@ use mcrs_minecraft_chat_client::{
     Outcome, Step, StyleClick, TabDirection, Tag, UnsentDraft,
 };
 use mcrs_minecraft_command::Source;
-use mcrs_minecraft_protocol::text::Text;
+use mcrs_minecraft_protocol_game::text::Text;
 
 use crate::chat::{self as chat_view, ChatFocus};
 use crate::chat_suggestions;

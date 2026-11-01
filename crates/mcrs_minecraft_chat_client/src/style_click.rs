@@ -1,4 +1,4 @@
-use mcrs_minecraft_protocol::text::{ClickEvent, ItemHover, TextTypes};
+use mcrs_minecraft_protocol_game::text::{ClickEvent, ItemHover, TextTypes};
 
 /// The parts of a text style that a click acts on.
 #[derive(Debug, PartialEq)]

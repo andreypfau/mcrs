@@ -7,8 +7,8 @@ use mcrs_minecraft_engine::client_info::{ClientInfo, ClientInfoPlugin};
 use mcrs_minecraft_engine::session::GameProfile;
 use mcrs_minecraft_engine::session::HostAnchor;
 use mcrs_minecraft_network::event::Received;
-use mcrs_minecraft_protocol::packets::game::serverbound::ServerboundChat;
 use mcrs_minecraft_protocol::setting::ChatMode;
+use mcrs_minecraft_protocol_game::serverbound::ServerboundChat;
 use mcrs_minecraft_text::{Color, IntoText, RawText, Text, is_allowed_chat_character};
 use tracing::info;
 

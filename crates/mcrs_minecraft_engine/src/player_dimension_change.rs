@@ -27,10 +27,8 @@ use mcrs_minecraft_engine_world::session::{DimPlayerIndex, Owner, Place, Session
 use mcrs_minecraft_engine_world::world::dimension::{Dimension, DimensionTypeId, InDimension};
 use mcrs_minecraft_engine_world::world::sub_app::DimensionLabel;
 use mcrs_minecraft_game_mode::GameMode;
-use mcrs_minecraft_protocol::entity::player::PlayerSpawnInfo;
-use mcrs_minecraft_protocol::packets::game::clientbound::{
-    ClientboundPlayerPosition, ClientboundRespawn,
-};
+use mcrs_minecraft_protocol_game::clientbound::{ClientboundPlayerPosition, ClientboundRespawn};
+use mcrs_minecraft_protocol_game::player::PlayerSpawnInfo;
 use mcrs_minecraft_resource::{Id, ResourceKeyBuf};
 
 /// Both bits of the data to keep: the attribute modifiers and the entity data.

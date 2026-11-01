@@ -4,8 +4,8 @@ use bevy_ecs::prelude::{Commands, Component, Entity, On, Query};
 use mcrs_minecraft_network::event::Received;
 use mcrs_minecraft_protocol::packets::common::serverbound::ClientInformation;
 use mcrs_minecraft_protocol::packets::configuration::serverbound::ServerboundClientInformation as ConfigurationPacket;
-use mcrs_minecraft_protocol::packets::game::serverbound::ServerboundClientInformation as GamePacket;
 use mcrs_minecraft_protocol::setting::ChatMode;
+use mcrs_minecraft_protocol_game::serverbound::ServerboundClientInformation as GamePacket;
 
 pub struct ClientInfoPlugin;
 

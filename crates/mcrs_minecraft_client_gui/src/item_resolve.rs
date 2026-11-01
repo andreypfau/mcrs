@@ -10,7 +10,7 @@ use bevy::prelude::{
 use bytemuck::{Pod, Zeroable};
 use mcrs_minecraft_item::{Held, ItemStack, Items, StackRevision};
 use mcrs_minecraft_network::client::ClientNetworkSystems;
-use mcrs_minecraft_protocol::item::ItemModel;
+use mcrs_minecraft_protocol_game::item::ItemModel;
 use mcrs_minecraft_registries::{CurrentRegistries, Registries};
 
 use mcrs_minecraft_model::colormap::colormap_rgba;
@@ -301,7 +301,7 @@ mod tests {
     use mcrs_minecraft_item::SlotTable;
     use mcrs_minecraft_item::data_component_type_keys::DataComponentType;
     use mcrs_minecraft_item::value::{is_child_kind, named_entry, ops};
-    use mcrs_minecraft_protocol::item::{
+    use mcrs_minecraft_protocol_game::item::{
         ComponentPatch, Damage, DyedColor, Enchantments, FireworkExplosion, FireworkShape,
         ItemStackValue, RgbInt,
     };
@@ -358,12 +358,12 @@ mod tests {
         stack.id()
     }
 
-    fn set<K: mcrs_minecraft_protocol::item::ItemDataComponent>(
+    fn set<K: mcrs_minecraft_protocol_game::item::ItemDataComponent>(
         world: &mut World,
         stack: Entity,
         value: K,
     ) {
-        let value: mcrs_minecraft_protocol::item::ItemComponentValue = value.into();
+        let value: mcrs_minecraft_protocol_game::item::ItemComponentValue = value.into();
         (ops(value.kind()).insert)(&mut world.entity_mut(stack), &value).unwrap();
         world.get_mut::<StackRevision>(stack).unwrap().0 += 1;
     }

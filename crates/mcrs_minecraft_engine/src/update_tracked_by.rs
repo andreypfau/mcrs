@@ -13,12 +13,12 @@ use mcrs_minecraft_engine_world::entity::physics::Transform;
 use mcrs_minecraft_engine_world::entity::player::Player;
 use mcrs_minecraft_engine_world::world::dimension::InDimension;
 use mcrs_minecraft_engine_world::world::storage::column::{Column, ColumnIndex};
-use mcrs_minecraft_protocol::ByteAngle;
-use mcrs_minecraft_protocol::LpVec3;
 use mcrs_minecraft_protocol::VarInt;
-use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundAddEntity;
-use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundRemoveEntities;
 use mcrs_minecraft_protocol::uuid::Uuid;
+use mcrs_minecraft_protocol_game::ByteAngle;
+use mcrs_minecraft_protocol_game::LpVec3;
+use mcrs_minecraft_protocol_game::clientbound::ClientboundAddEntity;
+use mcrs_minecraft_protocol_game::clientbound::ClientboundRemoveEntities;
 use mcrs_voxel::ColumnPos;
 use smallvec::SmallVec;
 

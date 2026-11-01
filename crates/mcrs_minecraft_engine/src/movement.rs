@@ -11,8 +11,8 @@ use mcrs_minecraft_engine_world::tick::TickSet;
 use mcrs_minecraft_engine_world::voxel_update::VoxelUpdateSet;
 use mcrs_minecraft_network::event::Received;
 use mcrs_minecraft_protocol::VarInt;
-use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundPlayerPosition;
-use mcrs_minecraft_protocol::packets::game::serverbound::{
+use mcrs_minecraft_protocol_game::clientbound::ClientboundPlayerPosition;
+use mcrs_minecraft_protocol_game::serverbound::{
     ServerboundAcceptTeleportation, ServerboundMovePlayerPos, ServerboundMovePlayerPosRot,
     ServerboundMovePlayerRot, ServerboundMovePlayerStatusOnly,
 };
@@ -146,7 +146,7 @@ fn teleport(
                         position: transform.translation,
                         velocity: DVec3::ZERO,
                         look: Look::default(),
-                        flags: mcrs_minecraft_protocol::PositionFlags::default(),
+                        flags: mcrs_minecraft_protocol_game::PositionFlags::default(),
                     }),
                 )
                 .critical(),

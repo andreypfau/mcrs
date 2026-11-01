@@ -117,31 +117,31 @@ macro_rules! for_each_packet_table {
                 "custom_click_action" => ServerboundCustomClickAction<'a>,
                 "accept_code_of_conduct" => ServerboundAcceptCodeOfConduct,
             }
-            game_clientbound: ClientboundGamePacket<'a>, Game, Clientbound in ($crate::packets::game::clientbound) {
+            game_clientbound: ClientboundGamePacket, Game, Clientbound in ($crate::packets::game::clientbound) {
                 "bundle_delimiter" => ClientboundBundleDelimiter,
-                "add_entity" => ClientboundAddEntity,
+                "add_entity",
                 "animate",
                 "award_stats",
                 "block_changed_ack",
-                "block_destruction" => ClientboundBlockDestruction,
+                "block_destruction",
                 "block_entity_data",
                 "block_event",
-                "block_update" => ClientboundBlockUpdate,
+                "block_update",
                 "boss_event",
                 "change_difficulty",
-                "chunk_batch_finished" => ClientboundChunkBatchFinished,
-                "chunk_batch_start" => ClientboundChunkBatchStart,
+                "chunk_batch_finished",
+                "chunk_batch_start",
                 "chunks_biomes",
                 "clear_titles",
-                "command_suggestions" => ClientboundCommandSuggestions<'a>,
-                "commands" => ClientboundCommands<'a>,
-                "container_close" => ClientboundContainerClose,
-                "container_set_content" => ClientboundContainerSetContent,
-                "container_set_data" => ClientboundContainerSetData,
-                "container_set_slot" => ClientboundContainerSetSlot,
+                "command_suggestions",
+                "commands",
+                "container_close",
+                "container_set_content",
+                "container_set_data",
+                "container_set_slot",
                 "cookie_request",
                 "cooldown",
-                "custom_chat_completions" => ClientboundCustomChatCompletions<'a>,
+                "custom_chat_completions",
                 "custom_payload",
                 "damage_event",
                 "debug/block_value",
@@ -151,89 +151,89 @@ macro_rules! for_each_packet_table {
                 "debug_sample",
                 "delete_chat",
                 "disconnect" => ClientboundDisconnect,
-                "disguised_chat" => ClientboundDisguisedChat<'a>,
-                "entity_event" => ClientboundEntityEvent,
-                "entity_position_sync" => ClientboundEntityPositionSync,
+                "disguised_chat",
+                "entity_event",
+                "entity_position_sync",
                 "explode",
                 "add_transient_block",
-                "forget_level_chunk" => ClientboundForgetLevelChunk,
-                "game_event" => ClientboundGameEvent,
+                "forget_level_chunk",
+                "game_event",
                 "game_rule_values",
                 "game_test_highlight_pos",
                 "mount_screen_open",
                 "hurt_animation",
                 "initialize_border",
                 "keep_alive" => ClientboundKeepAlive,
-                "level_chunk_with_light" => ClientboundLevelChunkWithLight<'a>,
+                "level_chunk_with_light",
                 "level_event",
-                "level_particles" => ClientboundLevelParticles,
-                "light_update" => ClientboundLightUpdate<'a>,
-                "login" => ClientboundLogin,
+                "level_particles",
+                "light_update",
+                "login",
                 "low_disk_space_warning",
                 "map_item_data",
-                "merchant_offers" => ClientboundMerchantOffers,
-                "move_entity_pos" => ClientboundMoveEntityPos,
-                "move_entity_pos_rot" => ClientboundMoveEntityPosRot,
-                "move_minecart_along_track" => ClientboundMoveMinecartAlongTrack,
-                "move_entity_rot" => ClientboundMoveEntityRot,
+                "merchant_offers",
+                "move_entity_pos",
+                "move_entity_pos_rot",
+                "move_minecart_along_track",
+                "move_entity_rot",
                 "move_vehicle",
                 "open_book",
-                "open_screen" => ClientboundOpenScreen<'a>,
+                "open_screen",
                 "open_sign_editor",
                 "ping",
                 "pong_response",
                 "place_ghost_recipe",
-                "player_abilities" => ClientboundPlayerAbilities,
-                "player_chat" => ClientboundPlayerChat<'a>,
+                "player_abilities",
+                "player_chat",
                 "player_combat_end",
                 "player_combat_enter",
                 "player_combat_kill",
-                "player_info_remove" => ClientboundPlayerInfoRemove,
-                "player_info_update" => ClientboundPlayerInfoUpdate<'a>,
-                "player_look_at" => ClientboundPlayerLookAt,
-                "player_position" => ClientboundPlayerPosition,
+                "player_info_remove",
+                "player_info_update",
+                "player_look_at",
+                "player_position",
                 "player_rotation",
-                "recipe_book_add" => ClientboundRecipeBookAdd,
-                "recipe_book_remove" => ClientboundRecipeBookRemove,
-                "recipe_book_settings" => ClientboundRecipeBookSettings,
-                "remove_entities" => ClientboundRemoveEntities,
+                "recipe_book_add",
+                "recipe_book_remove",
+                "recipe_book_settings",
+                "remove_entities",
                 "remove_mob_effect",
                 "reset_score",
                 "resource_pack_pop",
                 "resource_pack_push",
                 "post_effects",
-                "respawn" => ClientboundRespawn,
-                "rotate_head" => ClientboundRotateHead,
-                "section_blocks_update" => ClientboundSectionBlocksUpdate<'a>,
+                "respawn",
+                "rotate_head",
+                "section_blocks_update",
                 "select_advancements_tab",
                 "server_data",
-                "set_action_bar_text" => ClientboundSetActionBarText<'a>,
+                "set_action_bar_text",
                 "set_border_center",
                 "set_border_lerp_size",
                 "set_border_size",
                 "set_border_warning_delay",
                 "set_border_warning_distance",
                 "set_camera",
-                "set_chunk_cache_center" => ClientboundSetChunkCacheCenter,
-                "set_chunk_cache_radius" => ClientboundChunkCacheRadius,
-                "set_cursor_item" => ClientboundSetCursorItem,
+                "set_chunk_cache_center",
+                "set_chunk_cache_radius",
+                "set_cursor_item",
                 "set_default_spawn_position",
                 "set_display_objective",
-                "set_entity_data" => ClientboundSetEntityData<'a>,
+                "set_entity_data",
                 "set_entity_link",
                 "set_entity_motion",
-                "set_equipment" => ClientboundSetEquipment,
+                "set_equipment",
                 "set_experience",
                 "set_health",
-                "set_held_slot" => ClientboundSetHeldSlot,
+                "set_held_slot",
                 "set_objective",
-                "set_passengers" => ClientboundSetPassengers,
-                "set_player_inventory" => ClientboundSetPlayerInventory,
+                "set_passengers",
+                "set_player_inventory",
                 "set_player_team",
                 "set_score",
                 "set_simulation_distance",
                 "set_subtitle_text",
-                "set_time" => ClientboundSetTime,
+                "set_time",
                 "set_title_text",
                 "set_titles_animation",
                 "sound_entity",
@@ -242,20 +242,20 @@ macro_rules! for_each_packet_table {
                 "stop_sound",
                 "store_cookie",
                 "swing_animation",
-                "system_chat" => ClientboundSystemChatPacket<'a>,
+                "system_chat",
                 "tab_list",
                 "tag_query",
-                "take_item_entity" => ClientboundTakeItemEntity,
+                "take_item_entity",
                 "teleport_entity",
                 "test_instance_block_status",
                 "ticking_state",
                 "ticking_step",
                 "transfer",
-                "update_advancements" => ClientboundUpdateAdvancements,
-                "update_attributes" => ClientboundUpdateAttributes<'a>,
+                "update_advancements",
+                "update_attributes",
                 "update_mob_effect",
-                "update_recipes" => ClientboundUpdateRecipes,
-                "update_tags" => ClientboundUpdateTags<'a>,
+                "update_recipes",
+                "update_tags",
                 "projectile_power",
                 "custom_report_details",
                 "server_links",
@@ -263,65 +263,65 @@ macro_rules! for_each_packet_table {
                 "clear_dialog",
                 "show_dialog",
             }
-            game_serverbound: ServerboundGamePacket<'a>, Game, Serverbound in ($crate::packets::game::serverbound) {
-                "accept_teleportation" => ServerboundAcceptTeleportation,
-                "attack" => ServerboundAttack,
-                "block_entity_tag_query" => ServerboundBlockEntityTagQuery,
-                "bundle_item_selected" => ServerboundSelectBundleItem,
-                "change_difficulty" => ServerboundChangeDifficulty,
-                "change_game_mode" => ServerboundChangeGameMode,
-                "chat_ack" => ServerboundChatAck,
-                "chat_command" => ServerboundChatCommand<'a>,
-                "chat_command_signed" => ServerboundChatCommandSigned<'a>,
-                "chat" => ServerboundChat<'a>,
-                "chat_session_update" => ServerboundChatSessionUpdate,
-                "chunk_batch_received" => ServerboundChunkBatchReceived,
-                "client_command" => ServerboundClientCommand,
-                "client_tick_end" => ServerboundClientTickEnd,
-                "client_information" => ServerboundClientInformation<'a>,
-                "command_suggestion" => ServerboundCommandSuggestion<'a>,
+            game_serverbound: ServerboundGamePacket, Game, Serverbound in ($crate::packets::game::serverbound) {
+                "accept_teleportation",
+                "attack",
+                "block_entity_tag_query",
+                "bundle_item_selected",
+                "change_difficulty",
+                "change_game_mode",
+                "chat_ack",
+                "chat_command",
+                "chat_command_signed",
+                "chat",
+                "chat_session_update",
+                "chunk_batch_received",
+                "client_command",
+                "client_tick_end",
+                "client_information",
+                "command_suggestion",
                 "configuration_acknowledged" => ServerboundConfigurationAcknowledged,
-                "container_button_click" => ServerboundContainerButtonClick,
-                "container_click" => ServerboundContainerClick,
-                "container_close" => ServerboundContainerClose,
-                "container_slot_state_changed" => ServerboundContainerSlotStateChanged,
-                "cookie_response" => ServerboundCookieResponse<'a>,
-                "custom_payload" => ServerboundCustomPayload<'a>,
+                "container_button_click",
+                "container_click",
+                "container_close",
+                "container_slot_state_changed",
+                "cookie_response",
+                "custom_payload",
                 "debug_subscription_request",
-                "edit_book" => ServerboundEditBook<'a>,
+                "edit_book",
                 "entity_tag_query",
-                "interact" => ServerboundInteract,
+                "interact",
                 "jigsaw_generate",
                 "keep_alive" => ServerboundKeepAlive,
                 "lock_difficulty",
-                "move_player_pos" => ServerboundMovePlayerPos,
-                "move_player_pos_rot" => ServerboundMovePlayerPosRot,
-                "move_player_rot" => ServerboundMovePlayerRot,
-                "move_player_status_only" => ServerboundMovePlayerStatusOnly,
-                "move_vehicle" => ServerboundMoveVehicle,
+                "move_player_pos",
+                "move_player_pos_rot",
+                "move_player_rot",
+                "move_player_status_only",
+                "move_vehicle",
                 "paddle_boat",
-                "pick_item_from_block" => ServerboundPickItemFromBlock,
-                "pick_item_from_entity" => ServerboundPickItemFromEntity,
+                "pick_item_from_block",
+                "pick_item_from_entity",
                 "ping_request",
-                "place_recipe" => ServerboundPlaceRecipe,
-                "player_abilities" => ServerboundPlayerAbilities,
-                "player_action" => ServerboundPlayerAction,
-                "player_command" => ServerboundPlayerCommand,
-                "player_input" => ServerboundPlayerInput,
-                "player_loaded" => ServerboundPlayerLoaded,
-                "pong" => ServerboundPong,
-                "punch" => ServerboundPunch,
-                "recipe_book_change_settings" => ServerboundRecipeBookChangeSettings,
-                "recipe_book_seen_recipe" => ServerboundRecipeBookSeenRecipe,
-                "rename_item" => ServerboundRenameItem<'a>,
-                "resource_pack" => ServerboundResourcePack,
-                "seen_advancements" => ServerboundSeenAdvancements,
-                "select_trade" => ServerboundSelectTrade,
+                "place_recipe",
+                "player_abilities",
+                "player_action",
+                "player_command",
+                "player_input",
+                "player_loaded",
+                "pong",
+                "punch",
+                "recipe_book_change_settings",
+                "recipe_book_seen_recipe",
+                "rename_item",
+                "resource_pack",
+                "seen_advancements",
+                "select_trade",
                 "set_beacon",
-                "set_carried_item" => ServerboundSetCarriedItem,
+                "set_carried_item",
                 "set_command_block",
                 "set_command_minecart",
-                "set_creative_mode_slot" => ServerboundSetCreativeModeSlot,
+                "set_creative_mode_slot",
                 "set_game_rule",
                 "set_jigsaw_block",
                 "set_structure_block",
@@ -330,9 +330,9 @@ macro_rules! for_each_packet_table {
                 "spectator_action",
                 "teleport_to_entity",
                 "test_instance_block_action",
-                "use_item_on" => ServerboundUseItemOn,
-                "use_item" => ServerboundUseItem,
-                "custom_click_action" => ServerboundCustomClickAction<'a>,
+                "use_item_on",
+                "use_item",
+                "custom_click_action",
             }
         }
     };
@@ -458,3 +458,148 @@ macro_rules! tables {
 }
 
 for_each_packet_table!(tables);
+
+#[doc(hidden)]
+#[macro_export]
+macro_rules! __table_row {
+    ($rows:ident, $ty:ident) => {
+        $rows::$ty
+    };
+    ($rows:ident, $ty:ident, $lt:lifetime) => {
+        $rows::$ty<'static>
+    };
+}
+
+#[doc(hidden)]
+#[macro_export]
+macro_rules! __impl_table_row {
+    ($rows:ident, $ty:ident) => {
+        impl $crate::packets::table::Row for $rows::$ty {
+            type Packet<'a> = $rows::$ty;
+        }
+    };
+    ($rows:ident, $ty:ident, $lt:lifetime) => {
+        impl $crate::packets::table::Row for $rows::$ty<'static> {
+            type Packet<'a> = $rows::$ty<'a>;
+        }
+    };
+}
+
+/// Types more rows of a table of this crate in another crate. The table keeps its names, and
+/// the rows this crate types decode as they do here.
+#[macro_export]
+macro_rules! extend_packet_table {
+    ($($table:ident: $enum:ident<'a> extends $($base:ident)::+ in ($($module:tt)*) {
+        $($name:literal => $ty:ident $(<$lt:lifetime>)?,)*
+    })*) => {
+        $(
+            pub mod $table {
+                use $($module)* as rows;
+                use $($base)::+ as base;
+
+                pub const NAMES: &[&str] = base::NAMES;
+                const OWN: &[&str] = &[$($name),*];
+                #[expect(
+                    clippy::indexing_slicing,
+                    reason = "evaluated at compile time, where an index past the end fails the build"
+                )]
+                const ALL_TYPED: [&str; base::TYPED.len() + OWN.len()] = {
+                    let mut out = [""; base::TYPED.len() + OWN.len()];
+                    let mut i = 0;
+                    while i < base::TYPED.len() {
+                        out[i] = base::TYPED[i];
+                        i += 1;
+                    }
+                    let mut j = 0;
+                    while j < OWN.len() {
+                        out[i + j] = OWN[j];
+                        j += 1;
+                    }
+                    out
+                };
+                pub const TYPED: &[&str] = &ALL_TYPED;
+                pub const STATE: $crate::ConnectionState = base::STATE;
+                pub const SIDE: $crate::PacketSide = base::SIDE;
+                pub const TABLE: $crate::packets::table::Table = $crate::packets::table::Table {
+                    name: base::TABLE.name,
+                    state: STATE,
+                    side: SIDE,
+                    names: NAMES,
+                    typed: TYPED,
+                };
+
+                $(
+                    impl $(<$lt>)? $crate::Packet for rows::$ty $(<$lt>)? {
+                        const ID: i32 = const {
+                            let row = $crate::packets::table::row_of(NAMES, $name);
+                            assert!(row.is_some(), "the name is not a row of its table");
+                            assert!(
+                                $crate::packets::table::row_of(base::TYPED, $name).is_none(),
+                                "the row is typed by the base table"
+                            );
+                            match row {
+                                Some(row) => row,
+                                None => -1,
+                            }
+                        };
+                        const NAME: &'static str = $name;
+                        const SIDE: $crate::PacketSide = SIDE;
+                        const STATE: $crate::ConnectionState = STATE;
+                    }
+
+                    $crate::__impl_table_row!(rows, $ty $(, $lt)?);
+                )*
+
+                #[derive(Debug)]
+                pub enum $enum<'a> {
+                    Base(base::$enum),
+                    $($ty(rows::$ty $(<$lt>)?),)*
+                }
+
+                // chisle: a linear chain over this table's typed rows, as in the base table.
+                pub fn decode<'a>(
+                    id: i32,
+                    r: &mut &'a [u8],
+                ) -> $crate::Result<$crate::packets::table::Decoded<$enum<'a>>> {
+                    use $crate::packets::table::Decoded;
+                    $(
+                        if id == <rows::$ty as $crate::Packet>::ID {
+                            return <rows::$ty as $crate::Decode>::decode(r)
+                                .map($enum::$ty)
+                                .map(Decoded::Packet)
+                                .map_err(|error| {
+                                    error.with_context(concat!("decoding ", $name, " (", stringify!($table), ")"))
+                                });
+                        }
+                    )*
+                    Ok(match base::decode(id, r)? {
+                        Decoded::Packet(packet) => Decoded::Packet($enum::Base(packet)),
+                        Decoded::NotImplemented(name) => Decoded::NotImplemented(name),
+                        Decoded::Unknown(id) => Decoded::Unknown(id),
+                    })
+                }
+
+                /// Decodes the frame as [`decode`] does, and hands the type of its row to the
+                /// visitor in place of the packet.
+                pub fn visit<V: $crate::packets::table::Visit>(
+                    id: i32,
+                    r: &mut &[u8],
+                    visitor: &mut V,
+                ) -> $crate::Result<$crate::packets::table::Decoded<V::Output>> {
+                    $(
+                        if id == <rows::$ty as $crate::Packet>::ID {
+                            return <rows::$ty as $crate::Decode>::decode(r)
+                                .map(|_| $crate::packets::table::Decoded::Packet(
+                                    visitor.row::<$crate::__table_row!(rows, $ty $(, $lt)?)>(),
+                                ))
+                                .map_err(|error| {
+                                    error.with_context(concat!("decoding ", $name, " (", stringify!($table), ")"))
+                                });
+                        }
+                    )*
+                    base::visit(id, r, visitor)
+                }
+            }
+        )*
+    };
+}

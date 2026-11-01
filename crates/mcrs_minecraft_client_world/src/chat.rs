@@ -22,14 +22,14 @@ use mcrs_minecraft_command_argument_vanilla::ClientGraph;
 use mcrs_minecraft_command_registry::RegistryLookup;
 use mcrs_minecraft_dimension::Dimension;
 use mcrs_minecraft_network::client::{ClientConnection, ClientNetworkSystems};
-use mcrs_minecraft_protocol::entity::player::MessageSignature;
-use mcrs_minecraft_protocol::packets::game::serverbound::{
+use mcrs_minecraft_protocol::uuid::Uuid;
+use mcrs_minecraft_protocol::{Bounded, VarInt, WritePacket};
+use mcrs_minecraft_protocol_game::player::MessageSignature;
+use mcrs_minecraft_protocol_game::serverbound::{
     ServerboundChat, ServerboundChatCommand, ServerboundChatCommandSigned,
     ServerboundCommandSuggestion,
 };
-use mcrs_minecraft_protocol::text::Text;
-use mcrs_minecraft_protocol::uuid::Uuid;
-use mcrs_minecraft_protocol::{Bounded, VarInt, WritePacket};
+use mcrs_minecraft_protocol_game::text::Text;
 use mcrs_minecraft_registries::CurrentRegistries;
 use mcrs_minecraft_resource::{ResourceKeyBuf, ResourceLocation};
 

@@ -93,7 +93,8 @@ impl std::fmt::Debug for Trigger {
     }
 }
 
-pub(crate) struct Triggers;
+/// Hands back the trigger of the row a frame decodes as.
+pub struct Triggers;
 
 impl Visit for Triggers {
     type Output = Trigger;

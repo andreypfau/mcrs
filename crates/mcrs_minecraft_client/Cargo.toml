@@ -105,6 +105,7 @@ dynamic_linking = ["bevy/dynamic_linking"]
 telemetry-tracy = ["bevy/trace", "dep:tracing-tracy", "mcrs_minecraft_server?/telemetry-tracy"]
 
 [dev-dependencies]
+mcrs_minecraft_protocol_game.workspace = true
 mcrs_minecraft_model = { workspace = true, features = ["test-support"] }
 mcrs_minecraft_engine_registries = { workspace = true, features = ["test-support"] }
 mcrs_minecraft_game_registries = { workspace = true, features = ["test-support"] }

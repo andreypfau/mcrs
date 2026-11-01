@@ -12,11 +12,11 @@ use mcrs_minecraft_engine_world::session::{Place, SessionPlacement};
 use mcrs_minecraft_engine_world::world::sub_app::AddDimensionPlugins;
 use mcrs_minecraft_game_mode::GameMode;
 use mcrs_minecraft_protocol::VarInt;
-use mcrs_minecraft_protocol::game_event::GameEventKind;
-use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundChunkCacheRadius;
 use mcrs_minecraft_protocol::setting::ChatMode;
-use mcrs_minecraft_protocol::text::TextContent;
 use mcrs_minecraft_protocol::uuid::Uuid;
+use mcrs_minecraft_protocol_game::clientbound::ClientboundChunkCacheRadius;
+use mcrs_minecraft_protocol_game::game_event::GameEventKind;
+use mcrs_minecraft_protocol_game::text::TextContent;
 use mcrs_minecraft_resource::{ResourceKeyBuf, ResourceLocationBuf};
 
 use crate::chat::{client_information, line};

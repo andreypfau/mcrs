@@ -5,10 +5,10 @@ use mcrs_minecraft_engine::session::HostAnchorRef;
 use mcrs_minecraft_network::event::Received;
 use mcrs_minecraft_network::{ConnectionState, ServerSideConnection};
 use mcrs_minecraft_protocol::VarInt;
-use mcrs_minecraft_protocol::packets::game::serverbound::{
+use mcrs_minecraft_protocol_game::serverbound::{
     ServerboundChatCommand, ServerboundCommandSuggestion,
 };
-use mcrs_minecraft_protocol::text::Text;
+use mcrs_minecraft_text::Text;
 
 /// The command lines and the suggestion requests that the host received since the last pass.
 #[derive(Resource, Default)]

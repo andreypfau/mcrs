@@ -472,8 +472,8 @@ fn priming_merges_partial_ranges_with_max() {
 
 #[test]
 fn the_chunk_packet_carries_the_three_client_heightmaps() {
-    use mcrs_minecraft_protocol::chunk::ChunkData;
     use mcrs_minecraft_protocol::{Decode, Encode};
+    use mcrs_minecraft_protocol_game::chunk::ChunkData;
     use std::borrow::Cow;
 
     let mut surface = SurfaceHeightmap(ColumnHeights::new(384, -64));

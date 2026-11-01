@@ -18,7 +18,7 @@ pub mod clientbound {
 
     #[derive(Clone, Debug, Encode, Decode)]
     pub struct ClientboundDisconnect {
-        pub reason: crate::Text,
+        pub reason: mcrs_minecraft_text::Text,
     }
 
     #[derive(Clone, Debug, Encode, Decode)]

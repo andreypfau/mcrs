@@ -7,7 +7,7 @@ use mcrs_minecraft_chat_client::{
 use mcrs_minecraft_command_argument_vanilla::ClientGraph;
 use mcrs_minecraft_command_tree::ParserProperties;
 use mcrs_minecraft_keys::command_argument_type as parser;
-use mcrs_minecraft_protocol::CommandSuggestion;
+use mcrs_minecraft_protocol_game::CommandSuggestion;
 use std::borrow::Cow;
 
 fn usage_lines(input: &CommandInput) -> Vec<&str> {

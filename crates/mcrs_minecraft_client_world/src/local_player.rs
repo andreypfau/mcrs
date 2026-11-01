@@ -5,11 +5,12 @@ use mcrs_minecraft_engine_world::entity::physics::{
 };
 use mcrs_minecraft_network::ConnectionState;
 use mcrs_minecraft_network::client::ClientConnection;
-use mcrs_minecraft_protocol::packets::game::serverbound::{
+use mcrs_minecraft_protocol::{VarInt, WritePacket};
+use mcrs_minecraft_protocol_game::MoveFlags;
+use mcrs_minecraft_protocol_game::serverbound::{
     ServerboundAcceptTeleportation, ServerboundMovePlayerPos, ServerboundMovePlayerPosRot,
     ServerboundMovePlayerRot,
 };
-use mcrs_minecraft_protocol::{MoveFlags, VarInt, WritePacket};
 
 use crate::movement_input::MovementInput;
 use crate::player::Player;

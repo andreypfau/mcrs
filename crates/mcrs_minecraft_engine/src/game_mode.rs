@@ -8,11 +8,9 @@ use bevy_app::{App, Plugin};
 use bevy_ecs::prelude::*;
 use mcrs_minecraft_game_mode::GameMode;
 use mcrs_minecraft_network::event::Received;
-use mcrs_minecraft_protocol::GameEventKind;
-use mcrs_minecraft_protocol::packets::game::clientbound::{
-    ClientboundGameEvent, ClientboundPlayerAbilities,
-};
-use mcrs_minecraft_protocol::packets::game::serverbound::{
+use mcrs_minecraft_protocol_game::GameEventKind;
+use mcrs_minecraft_protocol_game::clientbound::{ClientboundGameEvent, ClientboundPlayerAbilities};
+use mcrs_minecraft_protocol_game::serverbound::{
     ServerboundChangeGameMode, ServerboundPlayerAbilities,
 };
 

@@ -2,11 +2,12 @@ use crate::ability::PlayerOpLevel;
 use crate::bus::{OutboundPlayerPacket, PacketPayload, to};
 use crate::op_level::op_level_packet;
 use bevy_ecs::entity::Entity;
-use mcrs_minecraft_protocol::packets::game::clientbound::{
+use mcrs_minecraft_protocol::VarInt;
+use mcrs_minecraft_protocol_game::GameEventKind;
+use mcrs_minecraft_protocol_game::clientbound::{
     ClientboundGameEvent, ClientboundPlayerAbilities, ClientboundPlayerPosition,
     ClientboundSetChunkCacheCenter,
 };
-use mcrs_minecraft_protocol::{GameEventKind, VarInt};
 use mcrs_voxel::ColumnPos;
 
 /// The packets that put a player into the level of its world, after the `login` of a join or
