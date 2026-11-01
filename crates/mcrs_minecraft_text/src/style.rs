@@ -3,7 +3,7 @@ use std::borrow::Cow;
 
 use serde::{Deserialize, Serialize};
 
-use crate::{ClickEvent, Color, HoverEvent, TextMap, TextSerde, TextTypes};
+use crate::{ClickEvent, Color, HoverEvent, ItemHover, TextMap, TextSerde, TextTypes};
 use mcrs_minecraft_core::codec::{ArgbInt, optional_flag};
 
 #[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
@@ -11,7 +11,7 @@ use mcrs_minecraft_core::codec::{ArgbInt, optional_flag};
     deny_unknown_fields,
     bound(serialize = "I: TextSerde", deserialize = "I: TextSerde")
 )]
-pub struct Style<I: TextTypes = ()> {
+pub struct Style<I: TextTypes = ItemHover> {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub color: Option<Color>,
 

@@ -1,5 +1,5 @@
 use core::fmt;
-use mcrs_minecraft_text::{Color, IntoText, Text, TranslateArg};
+use mcrs_minecraft_text::{Color, IntoText, ItemHover, Text, TranslateArg};
 
 /// The result of a command: its number, or the error the source receives.
 pub type CommandResult = Result<i32, CommandFailure>;
@@ -18,7 +18,7 @@ impl std::error::Error for CommandFailure {}
 
 impl CommandFailure {
     /// A failure with the translation `key` and its arguments `with`, which may be primitives.
-    pub fn translate(key: &'static str, with: Vec<TranslateArg<()>>) -> Self {
+    pub fn translate(key: &'static str, with: Vec<TranslateArg<ItemHover>>) -> Self {
         Self(Text::translate_args(key, with))
     }
 

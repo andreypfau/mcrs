@@ -8,8 +8,8 @@ use serde::de::Visitor;
 use serde::{Deserialize, Deserializer, Serialize, de};
 
 use crate::{
-    Color, DataSource, IntoText, ScoreboardValueContent, TextContent, TextInner, TextMap,
-    TextSerde, TextTypes, TranslateArg,
+    Color, DataSource, IntoText, ItemHover, ScoreboardValueContent, TextContent, TextInner,
+    TextMap, TextSerde, TextTypes, TranslateArg,
 };
 
 /// Represents formatted text in Minecraft's JSON text format.
@@ -43,7 +43,7 @@ use crate::{
 /// );
 /// ```
 #[derive(Clone, PartialEq)]
-pub struct Text<I: TextTypes = ()>(Box<TextInner<I>>);
+pub struct Text<I: TextTypes = ItemHover>(Box<TextInner<I>>);
 
 impl<I: TextTypes> Default for Text<I> {
     fn default() -> Self {

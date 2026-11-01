@@ -16,7 +16,7 @@ use mcrs_minecraft_environment::world_clock::{
 };
 use mcrs_minecraft_resource::Id;
 use mcrs_minecraft_resource::ResourceLocation;
-use mcrs_minecraft_text::{Text, TranslateArg};
+use mcrs_minecraft_text::{ItemHover, Text, TranslateArg};
 
 const MIN_RATE: f32 = 1.0e-5;
 const MAX_RATE: f32 = 1000.0;
@@ -159,7 +159,7 @@ fn wrapped(value: i64) -> i32 {
     i32::try_from(value % WRAP).unwrap_or_default()
 }
 
-type MessageArg = TranslateArg<()>;
+type MessageArg = TranslateArg<ItemHover>;
 
 /// What a branch does to the clock: the change it asks for, its message and its result.
 struct Outcome {

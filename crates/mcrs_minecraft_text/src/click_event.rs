@@ -6,7 +6,7 @@ use mcrs_minecraft_nbt::tag::NbtTag;
 use serde::{Deserialize, Deserializer, Serialize, de};
 
 use crate::tagged_compound::{tagged_compound, variant};
-use crate::{TextMap, TextSerde, TextTypes};
+use crate::{ItemHover, TextMap, TextSerde, TextTypes};
 
 /// Action to take on click of the text.
 #[derive(Clone, PartialEq, Debug, Serialize)]
@@ -15,7 +15,7 @@ use crate::{TextMap, TextSerde, TextTypes};
     rename_all = "snake_case",
     bound(serialize = "I: TextSerde")
 )]
-pub enum ClickEvent<I: TextTypes = ()> {
+pub enum ClickEvent<I: TextTypes = ItemHover> {
     OpenUrl {
         url: Cow<'static, str>,
     },

@@ -2,6 +2,7 @@
 
 use bevy::math::{IRect, IVec2};
 use mcrs_minecraft_chat_client::{ChatScreen, Hint, LIST_ROWS, SuggestionMenu};
+use mcrs_minecraft_item::ItemHoverMap;
 
 use super::chat::{GRAY, RED};
 use super::font::{self, Font, Span};
@@ -169,9 +170,7 @@ fn error_spans(input: &str, hint: &Hint, language: &Language) -> Vec<Span> {
     let Hint::Error(error) = hint else {
         return Vec::new();
     };
-    let Ok(line) = mcrs_minecraft_protocol::text::named(&mcrs_minecraft_command::parse_error_line(
-        input, error,
-    )) else {
+    let Ok(line) = mcrs_minecraft_command::parse_error_line(input, error).map(&ItemHoverMap) else {
         return Vec::new();
     };
     text::text_spans(&line, language, ERROR_LINE)
