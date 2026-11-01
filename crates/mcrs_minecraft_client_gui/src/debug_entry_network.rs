@@ -1,4 +1,4 @@
-use crate::gui::chunk_map::JoinedTraces;
+use crate::chunk_map::JoinedTraces;
 use bevy::prelude::*;
 use mcrs_minecraft_client_world::columns::ColumnStore;
 use mcrs_minecraft_client_world::joined_game::CurrentDimension;
@@ -6,7 +6,7 @@ use mcrs_minecraft_engine_world::world::lifecycle::trace::{ColumnSample, ColumnS
 use mcrs_minecraft_network::ConnectionState;
 use mcrs_minecraft_network::client::{ChunkCacheRadius, ClientConnection, ServerProfile};
 
-use super::DebugScreenDisplayer;
+use crate::debug_displayer::DebugScreenDisplayer;
 
 type Connection<'a> = (
     &'a ServerProfile,

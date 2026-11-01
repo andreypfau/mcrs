@@ -13,15 +13,14 @@ use mcrs_minecraft_item::{
     ItemStack, SelectedHotbarSlot, SlotTable, damage_value, is_damaged, max_damage,
 };
 
-use super::font::Font;
-use super::hotbar::hotbar;
-use super::inventory_screen::inventory_screen;
-use super::item_decorations::{Decorated, WHITE, decorations};
-use super::language::Language;
-use super::sprite::{GuiSprite, Scaling};
-use super::tooltip::{Tooltip, TooltipSprites};
+use crate::font::Font;
+use crate::hotbar::hotbar;
+use crate::inventory_screen::inventory_screen;
+use crate::item_decorations::{Decorated, WHITE, decorations};
 use crate::item_resolve::{GuiVertex, ItemRenderLayers};
-use crate::stream::BlockCatalog;
+use crate::language::Language;
+use crate::sprite::{GuiSprite, Scaling};
+use crate::tooltip::{Tooltip, TooltipSprites};
 use mcrs_minecraft_client_world::player::Player;
 use mcrs_minecraft_client_world::screen::Screen;
 use mcrs_minecraft_model::atlas::{MISSING_SIZE, decode_png, missing_pixels, rgba};
@@ -214,7 +213,9 @@ impl GuiAtlasData {
             for (line, source_row) in source.chunks_exact(width * 4).enumerate() {
                 let start =
                     ((rect.min.y as usize + line) * ATLAS_WIDTH as usize + rect.min.x as usize) * 4;
-                pixels[start..start + width * 4].copy_from_slice(source_row);
+                if let Some(target) = pixels.get_mut(start..start + width * 4) {
+                    target.copy_from_slice(source_row);
+                }
             }
             regions.insert(name, rect);
         }
@@ -242,8 +243,8 @@ impl GuiAtlasData {
             height: atlas_height,
             pixels,
             regions,
-            font: font.expect("font/ascii is listed"),
-            glint: glint.expect("the glint is listed"),
+            font: font.ok_or("the GUI atlas lists no font/ascii")?,
+            glint: glint.ok_or("the GUI atlas lists no glint")?,
             tooltip,
             missing,
             ascii_origin,
@@ -252,7 +253,7 @@ impl GuiAtlasData {
     }
 
     pub fn region(&self, name: &str) -> IRect {
-        self.regions[name]
+        self.regions.get(name).copied().unwrap_or_default()
     }
 
     fn uv(&self, pixel: IRect) -> [[f32; 2]; 4] {
@@ -299,7 +300,13 @@ fn crop(pixels: &[u8], stride: u32, width: u32, height: u32) -> Vec<u8> {
     let stride = stride as usize * 4;
     let width = width as usize * 4;
     (0..height as usize)
-        .flat_map(|row| pixels[row * stride..row * stride + width].iter().copied())
+        .flat_map(|row| {
+            pixels
+                .get(row * stride..row * stride + width)
+                .into_iter()
+                .flatten()
+                .copied()
+        })
         .collect()
 }
 
@@ -354,13 +361,22 @@ fn push_quad(
         [rect.max.x as f32, rect.max.y as f32, 0.0],
         [rect.min.x as f32, rect.max.y as f32, 0.0],
     ];
-    let quad: [GuiVertex; 4] = std::array::from_fn(|i| GuiVertex {
-        pos: corners[i],
-        uv: uv[i],
-        color: rgba(colors[i]),
+    let vertex = |pos: [f32; 3], uv: [f32; 2], color: u32| GuiVertex {
+        pos,
+        uv,
+        color: rgba(color),
         sprite,
-    });
-    vertices.extend([quad[0], quad[1], quad[2], quad[0], quad[2], quad[3]]);
+    };
+    let [c0, c1, c2, c3] = corners;
+    let [u0, u1, u2, u3] = uv;
+    let [k0, k1, k2, k3] = colors;
+    let (a, b, c, d) = (
+        vertex(c0, u0, k0),
+        vertex(c1, u1, k1),
+        vertex(c2, u2, k2),
+        vertex(c3, u3, k3),
+    );
+    vertices.extend([a, b, c, a, c, d]);
 }
 
 fn begin_gui_frame(
@@ -389,7 +405,7 @@ fn draw_tooltip(atlas: Option<Res<GuiAtlas>>, mut scene: ResMut<GuiScene>) {
         return;
     };
     let scene = &mut *scene;
-    super::tooltip::draw(&scene.tooltip, scene.size, &atlas.0, &mut scene.quads);
+    crate::tooltip::draw(&scene.tooltip, scene.size, &atlas.0, &mut scene.quads);
 }
 
 fn draw_screens(
@@ -407,16 +423,13 @@ fn draw_screens(
     }
 }
 
-fn load_gui_atlas(catalog: Res<BlockCatalog>, mut commands: Commands) {
-    let Some(pack) = catalog.pack() else {
-        return;
-    };
-    let atlas = GuiAtlasData::load(pack)
-        .unwrap_or_else(|reason| panic!("cannot load the GUI textures: {reason}"));
-    let language = Language::load(pack)
-        .unwrap_or_else(|reason| panic!("cannot load the translations: {reason}"));
+/// Loads the GUI textures and the translations from `pack`, or says which of them it lacks.
+pub fn load_gui_atlas(pack: &Pack, commands: &mut Commands) -> Result<(), String> {
+    let atlas = GuiAtlasData::load(pack).map_err(|reason| format!("the GUI textures: {reason}"))?;
+    let language = Language::load(pack).map_err(|reason| format!("the translations: {reason}"))?;
     commands.insert_resource(GuiAtlas(Arc::new(atlas)));
     commands.insert_resource(language);
+    Ok(())
 }
 
 fn build_gui_batch(
@@ -509,7 +522,8 @@ fn push_item_layers(vertices: &mut Vec<GuiVertex>, layers: &ItemRenderLayers, or
                 sprite: v.sprite | glint,
                 ..*v
             };
-            vertices.extend([0, 1, 2, 0, 2, 3].map(|i| shifted(&quad[i])));
+            let [a, b, c, d] = quad.each_ref().map(shifted);
+            vertices.extend([a, b, c, a, c, d]);
         }
     }
 }
@@ -587,16 +601,12 @@ impl Plugin for GuiPlugin {
             .add_plugins(ExtractResourcePlugin::<GuiBatch>::default())
             .add_plugins(ExtractResourcePlugin::<GuiAtlas>::default())
             .add_systems(
-                Update,
-                load_gui_atlas.run_if(not(resource_exists::<GuiAtlas>)),
-            )
-            .add_systems(
                 PostUpdate,
                 (
                     begin_gui_frame,
                     draw_screens,
-                    super::chat::draw,
-                    super::game_mode_switcher::draw,
+                    crate::chat::draw,
+                    crate::game_mode_switcher::draw,
                     draw_tooltip,
                     build_gui_batch,
                 )

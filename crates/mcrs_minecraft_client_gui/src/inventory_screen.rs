@@ -1,24 +1,25 @@
 use bevy::math::{IRect, IVec2};
 use mcrs_minecraft_item::{SlotTable, slots};
 
-use super::scene::{GuiQuad, GuiSize, sprite};
+use crate::scene::{GuiQuad, GuiSize, sprite};
 
 pub const IMAGE_WIDTH: i32 = 176;
 pub const IMAGE_HEIGHT: i32 = 166;
 const DIM_TOP: u32 = 0xC010_1010;
 const DIM_BOTTOM: u32 = 0xD010_1010;
 
-pub fn slot_position(menu: u16) -> IVec2 {
+pub fn slot_position(menu: u16) -> Option<IVec2> {
     let i = i32::from(menu);
-    match menu {
+    let position = match menu {
         slots::RESULT => IVec2::new(154, 28),
         m if slots::CRAFT.contains(&m) => IVec2::new(98 + (i - 1) % 2 * 18, 18 + (i - 1) / 2 * 18),
         slots::ARMOR_HEAD..=slots::ARMOR_FEET => IVec2::new(8, 8 + (i - 5) * 18),
         m if slots::MAIN.contains(&m) => IVec2::new(8 + (i - 9) % 9 * 18, 84 + (i - 9) / 9 * 18),
         m if slots::HOTBAR.contains(&m) => IVec2::new(8 + (i - 36) * 18, 142),
         slots::OFFHAND => IVec2::new(77, 62),
-        _ => unreachable!("{menu} is not a menu slot"),
-    }
+        _ => return None,
+    };
+    Some(position)
 }
 
 fn empty_icon(menu: u16) -> Option<&'static str> {
@@ -45,7 +46,8 @@ fn hovering(slot: IVec2, local: IVec2) -> bool {
 
 pub fn hovered_slot(size: GuiSize, cursor: IVec2) -> Option<u16> {
     let local = cursor - origin(size);
-    (0..slots::MENU_COUNT as u16).find(|&menu| hovering(slot_position(menu), local))
+    (0..slots::MENU_COUNT as u16)
+        .find(|&menu| slot_position(menu).is_some_and(|position| hovering(position, local)))
 }
 
 pub fn inventory_screen(size: GuiSize, cursor: IVec2, slots: &SlotTable, out: &mut Vec<GuiQuad>) {
@@ -73,15 +75,19 @@ pub fn inventory_screen(size: GuiSize, cursor: IVec2, slots: &SlotTable, out: &m
         },
     ));
     let hovered = hovered_slot(size, cursor);
-    if let Some(menu) = hovered {
+    let highlight = hovered.and_then(slot_position);
+    if let Some(position) = highlight {
         out.push(sprite(
-            top_left + slot_position(menu) - 4,
+            top_left + position - 4,
             IVec2::new(24, 24),
             "container/slot_highlight_back",
         ));
     }
     for menu in 0..slots::MENU_COUNT as u16 {
-        let at = top_left + slot_position(menu);
+        let Some(position) = slot_position(menu) else {
+            continue;
+        };
+        let at = top_left + position;
         match slots.get(menu) {
             Some(stack) => out.push(GuiQuad::Item { origin: at, stack }),
             None => {
@@ -91,9 +97,9 @@ pub fn inventory_screen(size: GuiSize, cursor: IVec2, slots: &SlotTable, out: &m
             }
         }
     }
-    if let Some(menu) = hovered {
+    if let Some(position) = highlight {
         out.push(sprite(
-            top_left + slot_position(menu) - 4,
+            top_left + position - 4,
             IVec2::new(24, 24),
             "container/slot_highlight_front",
         ));
@@ -111,9 +117,9 @@ mod tests {
     use bevy::ecs::world::World;
     use mcrs_minecraft_item::Held;
 
-    use super::super::hotbar::hotbar;
-    use super::super::item_decorations::WHITE;
     use super::*;
+    use crate::hotbar::hotbar;
+    use crate::item_decorations::WHITE;
 
     const SIZE: GuiSize = GuiSize {
         width: 427,
@@ -123,16 +129,16 @@ mod tests {
 
     #[test]
     fn slot_positions_match_the_vanilla_menu() {
-        assert_eq!(slot_position(0), IVec2::new(154, 28));
-        assert_eq!(slot_position(1), IVec2::new(98, 18));
-        assert_eq!(slot_position(4), IVec2::new(116, 36));
-        assert_eq!(slot_position(5), IVec2::new(8, 8));
-        assert_eq!(slot_position(8), IVec2::new(8, 62));
-        assert_eq!(slot_position(9), IVec2::new(8, 84));
-        assert_eq!(slot_position(35), IVec2::new(152, 120));
-        assert_eq!(slot_position(36), IVec2::new(8, 142));
-        assert_eq!(slot_position(44), IVec2::new(152, 142));
-        assert_eq!(slot_position(45), IVec2::new(77, 62));
+        assert_eq!(slot_position(0), Some(IVec2::new(154, 28)));
+        assert_eq!(slot_position(1), Some(IVec2::new(98, 18)));
+        assert_eq!(slot_position(4), Some(IVec2::new(116, 36)));
+        assert_eq!(slot_position(5), Some(IVec2::new(8, 8)));
+        assert_eq!(slot_position(8), Some(IVec2::new(8, 62)));
+        assert_eq!(slot_position(9), Some(IVec2::new(8, 84)));
+        assert_eq!(slot_position(35), Some(IVec2::new(152, 120)));
+        assert_eq!(slot_position(36), Some(IVec2::new(8, 142)));
+        assert_eq!(slot_position(44), Some(IVec2::new(152, 142)));
+        assert_eq!(slot_position(45), Some(IVec2::new(77, 62)));
     }
 
     fn player(world: &mut World, filled: &[u16]) -> SlotTable {

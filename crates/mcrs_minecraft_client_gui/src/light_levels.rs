@@ -7,7 +7,7 @@ use mcrs_minecraft_client_world::columns::ColumnStore;
 use mcrs_minecraft_volume::LightVolume;
 use mcrs_voxel::BlockPos;
 
-use crate::camera::PlayerCamera;
+use std::marker::PhantomData;
 
 /// `LightDebugRenderer.MAX_RENDER_DIST`.
 const RADIUS: i32 = 10;
@@ -73,11 +73,23 @@ struct Label {
     color: Color,
 }
 
-pub struct LightLevelsPlugin {
-    pub visible: bool,
+/// Labels every block near the camera marked `C` with its light level.
+pub struct LightLevelsPlugin<C> {
+    visible: bool,
+    camera: PhantomData<C>,
 }
 
-impl Plugin for LightLevelsPlugin {
+impl<C> LightLevelsPlugin<C> {
+    /// `visible` shows the labels from the first frame.
+    pub fn new(visible: bool) -> Self {
+        Self {
+            visible,
+            camera: PhantomData,
+        }
+    }
+}
+
+impl<C: Component> Plugin for LightLevelsPlugin<C> {
     fn build(&self, app: &mut App) {
         app.insert_resource(if self.visible {
             LightLevels::Both
@@ -87,7 +99,7 @@ impl Plugin for LightLevelsPlugin {
         .add_systems(Update, (toggle, sync_pool).chain())
         .add_systems(
             PostUpdate,
-            render
+            render::<C>
                 .after(TransformSystems::Propagate)
                 .before(UiSystems::Layout)
                 .run_if(|levels: Res<LightLevels>| levels.visible()),
@@ -151,7 +163,7 @@ fn label(
         screen,
         distance,
         scale: scale_at(distance),
-        text: DIGITS[level as usize],
+        text: DIGITS.get(usize::from(level)).copied().unwrap_or("?"),
         color: colour(level, dim, bright),
     })
 }
@@ -166,10 +178,10 @@ fn scale_at(distance: f32) -> f32 {
     (FULL_SIZE_AT / distance).clamp(SCALE_MIN, SCALE_MAX)
 }
 
-fn render(
+fn render<C: Component>(
     levels: Res<LightLevels>,
     store: Option<Res<ColumnStore>>,
-    camera: Single<(&Camera, &GlobalTransform), With<PlayerCamera>>,
+    camera: Single<(&Camera, &GlobalTransform), With<C>>,
     mut labels: Query<
         (
             &mut UiTransform,

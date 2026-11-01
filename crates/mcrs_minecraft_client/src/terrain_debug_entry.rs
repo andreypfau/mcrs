@@ -1,9 +1,9 @@
 use bevy::prelude::*;
 use mcrs_minecraft_resource::{ResourceLocation, rl};
 
-use super::DebugScreenDisplayer;
 use crate::cave::CaveCull;
 use crate::stream::Streaming;
+use mcrs_minecraft_client_gui::debug_displayer::DebugScreenDisplayer;
 use mcrs_minecraft_render::{DebugViews, SelectedView};
 
 pub const GROUP: ResourceLocation<'static> = rl!("minecraft:terrain");

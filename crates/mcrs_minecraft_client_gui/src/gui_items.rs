@@ -18,13 +18,13 @@ use mcrs_minecraft_render::{
     DEPTH_COMPARE, Terrain, WorldPass, pipeline_descriptor, uniform_buffer,
 };
 
-use crate::gui::scene::{GLINT_ALPHA, GuiAtlas, GuiBatch};
+use crate::scene::{GLINT_ALPHA, GuiAtlas, GuiBatch};
 
 pub struct GuiItemsPlugin;
 
 impl Plugin for GuiItemsPlugin {
     fn build(&self, app: &mut App) {
-        bevy::asset::embedded_asset!(app, "shaders/core/gui_items.wgsl");
+        bevy::asset::embedded_asset!(app, "gui_items.wgsl");
         let Some(render_app) = app.get_sub_app_mut(RenderApp) else {
             return;
         };
@@ -57,7 +57,7 @@ struct GuiUniform {
 }
 
 #[derive(Resource)]
-pub(crate) struct GuiPass {
+pub struct GuiPass {
     layout: BindGroupLayoutDescriptor,
     shader: Handle<Shader>,
     uniform: Buffer,
@@ -102,8 +102,7 @@ pub(super) fn init_gui_pass(
                 ),
             ),
         ),
-        shader: asset_server
-            .load("embedded://mcrs_minecraft_client/render/shaders/core/gui_items.wgsl"),
+        shader: asset_server.load("embedded://mcrs_minecraft_client_gui/gui_items.wgsl"),
         uniform: uniform_buffer("gui items", size_of::<GuiUniform>() as u64, &device),
         vertices: None,
         pipelines: None,
@@ -244,13 +243,15 @@ pub(super) fn prepare_gui_pass(
         ));
     }
     let sprites = &terrain.sprites;
-    let atlas_ids = std::array::from_fn(|i| sprites.atlases[i].texture.id());
+    let atlas_ids = sprites.atlases.each_ref().map(|slot| slot.texture.id());
     if pass
         .bind_group
         .as_ref()
         .is_none_or(|(ids, _)| *ids != atlas_ids)
     {
-        let textures = pass.textures.as_ref().expect("built above");
+        let Some(textures) = pass.textures.as_ref() else {
+            return;
+        };
         let bind_group = device.create_bind_group(
             "gui items",
             &pipeline_cache.get_bind_group_layout(&pass.layout),
@@ -326,14 +327,16 @@ pub(super) fn write_gui_buffers(
             mapped_at_creation: false,
         }));
     }
-    queue.write_buffer(pass.vertices.as_ref().expect("sized above"), 0, bytes);
+    if let Some(vertices) = pass.vertices.as_ref() {
+        queue.write_buffer(vertices, 0, bytes);
+    }
 }
 
 /// The world's depth is cleared first: the items' private bands must not be tested
 /// against terrain, and vanilla likewise draws each GUI item into a fresh atlas slot.
 /// Every item element then gets its own slice of the depth range, so its own geometry is
 /// depth-tested against itself and later elements land over earlier ones by draw order.
-pub(crate) fn draw_gui(
+pub fn draw_gui(
     view: ViewQuery<(
         &ViewTarget,
         &ViewDepthTexture,

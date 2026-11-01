@@ -4,8 +4,8 @@ use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_protocol::text::color::RgbColor;
 use mcrs_minecraft_protocol::text::{Color, Text, TextContent, TranslateArg};
 
-use super::font::{ClickEvent, Font, Hover, Span};
-use super::language::Language;
+use crate::font::{ClickEvent, Font, Hover, Span};
+use crate::language::Language;
 
 #[derive(Clone, Copy)]
 struct Inherited<'a> {
@@ -243,7 +243,7 @@ pub(crate) fn row_texts(rows: &[Vec<Span>]) -> Vec<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::gui::font::corpus_font;
+    use crate::font::corpus_font;
     use mcrs_minecraft_protocol::text::IntoText;
 
     #[test]

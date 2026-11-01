@@ -2,9 +2,9 @@
 
 use bevy::math::{IRect, IVec2};
 
-use super::font::{self, Font, Span};
-use super::scene::{GuiAtlasData, GuiQuad, GuiSize};
-use super::sprite::GuiSprite;
+use crate::font::{self, Font, Span};
+use crate::scene::{GuiAtlasData, GuiQuad, GuiSize};
+use crate::sprite::GuiSprite;
 
 const LINE: i32 = 10;
 const OFFSET: i32 = 12;
@@ -101,7 +101,7 @@ mod tests {
 
     #[test]
     fn the_first_request_with_lines_wins_until_the_frame_clears() {
-        use super::super::item_decorations::WHITE;
+        use crate::item_decorations::WHITE;
         fn line(text: &'static str) -> impl FnOnce(&mut Vec<Vec<Span>>) {
             move |rows| rows.push(vec![Span::new(text, WHITE)])
         }

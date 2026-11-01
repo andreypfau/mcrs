@@ -13,7 +13,7 @@ use mcrs_minecraft_network::client::ClientNetworkSystems;
 use mcrs_minecraft_protocol::item::ItemModel;
 use mcrs_minecraft_registries::{CurrentRegistries, Registries};
 
-use crate::tint::colormap_rgba;
+use mcrs_minecraft_model::colormap::colormap_rgba;
 use mcrs_minecraft_model::item_model_bake::{BakedItemModel, BakedNode, ItemModels};
 use mcrs_minecraft_model::item_model_eval::{EntityStack, Evaluator};
 use mcrs_minecraft_model::model::{GuiLight, ItemTransform};
@@ -179,7 +179,10 @@ fn collect<'w, 'm, L: Copy + Fn(Entity) -> Option<EntityRef<'w>>>(
             fallback,
         } => collect(
             evaluator,
-            evaluator.select(switch).map_or(&**fallback, |i| &cases[i]),
+            evaluator
+                .select(switch)
+                .and_then(|i| cases.get(i))
+                .unwrap_or(&**fallback),
             out,
         ),
         BakedNode::RangeDispatch {
@@ -190,8 +193,9 @@ fn collect<'w, 'm, L: Copy + Fn(Entity) -> Option<EntityRef<'w>>>(
             fallback,
         } => {
             let value = evaluator.range(property) * scale;
-            let chosen =
-                BakedNode::range_index(thresholds, value).map_or(&**fallback, |i| &models[i]);
+            let chosen = BakedNode::range_index(thresholds, value)
+                .and_then(|i| models.get(i))
+                .unwrap_or(&**fallback);
             collect(evaluator, chosen, out);
         }
     }
@@ -274,11 +278,13 @@ fn gui_vertices(
         } else {
             [0, 1, 2, 3]
         };
-        vertices.extend(order.map(|i| GuiVertex {
-            pos: positions[i].to_array(),
-            uv: quad.uvs[i],
-            color,
-            sprite,
+        vertices.extend(order.iter().filter_map(|&i| {
+            Some(GuiVertex {
+                pos: positions.get(i)?.to_array(),
+                uv: *quad.uvs.get(i)?,
+                color,
+                sprite,
+            })
         }));
     }
     vertices

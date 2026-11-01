@@ -1,7 +1,8 @@
 use bevy::prelude::*;
 use bevy::text::{FontSize, Justify, LineBreak};
 
-use crate::gui::debug::{DebugOverlay, DebugScreenDisplayer};
+use crate::debug_displayer::DebugScreenDisplayer;
+use crate::debug_screen::DebugOverlay;
 
 const MARGIN: f32 = 2.0;
 const BACKGROUND: Color = Color::srgba(0.314, 0.314, 0.314, 0.565);
@@ -90,7 +91,7 @@ pub fn render(
         if wanted == Visibility::Hidden {
             continue;
         }
-        let block = lines[..end].join("\n");
+        let block = lines.get(..end).unwrap_or(lines).join("\n");
         if text.0 != block {
             text.0 = block;
         }

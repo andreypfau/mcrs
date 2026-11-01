@@ -4,12 +4,12 @@ use bevy::math::{IRect, IVec2};
 use mcrs_minecraft_chat_client::{ChatScreen, Hint, LIST_ROWS, SuggestionMenu};
 use mcrs_minecraft_item::ItemHoverMap;
 
-use super::chat::{GRAY, RED};
-use super::font::{self, Font, Span};
-use super::item_decorations::WHITE;
-use super::language::Language;
-use super::scene::{GuiQuad, GuiSize};
-use super::text;
+use crate::chat::{GRAY, RED};
+use crate::font::{self, Font, Span};
+use crate::item_decorations::WHITE;
+use crate::language::Language;
+use crate::scene::{GuiQuad, GuiSize};
+use crate::text;
 
 const ROW: i32 = 12;
 const ROW_FILL: u32 = 0xD000_0000;

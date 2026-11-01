@@ -14,7 +14,7 @@ use bevy::render::view::{ExtractedView, Msaa, ViewTarget};
 use bevy::window::PrimaryWindow;
 
 use crate::camera::PlayerCamera;
-use crate::render::gui_items::draw_gui;
+use mcrs_minecraft_client_gui::gui_items::draw_gui;
 
 #[derive(Resource, Clone, Copy)]
 pub struct Raster(pub f32);

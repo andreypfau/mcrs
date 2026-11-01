@@ -30,7 +30,8 @@ use mcrs_minecraft_save::{self as save, SaveError};
 use mcrs_minecraft_assets::packs::PackRoots;
 use mcrs_minecraft_client::config::{Knobs, TerrainLimits};
 use mcrs_minecraft_client::screenshot;
-use mcrs_minecraft_client::{ClientPlugins, ClientTerrainPlugin, config, gui, sky, vanilla};
+use mcrs_minecraft_client::{ClientPlugins, ClientTerrainPlugin, config, sky, vanilla};
+use mcrs_minecraft_client_gui::{chat_input, game_mode_switcher};
 use mcrs_minecraft_client_world::asset_source::asset_source;
 use mcrs_minecraft_client_world::registries::ClientRegistriesPlugin;
 use mcrs_minecraft_client_world::registries::SessionSet;
@@ -210,9 +211,15 @@ pub fn run() -> AppExit {
                     data_pack.clone(),
                 )),
             })
-            .add_before::<sky::SkyPlugin>(mcrs_minecraft_client::item_resolve::ItemRenderPlugin)
+            .add_before::<sky::SkyPlugin>(mcrs_minecraft_client_gui::item_resolve::ItemRenderPlugin)
             .add_before::<sky::SkyPlugin>(knobs.gui())
             .add(screenshot::ScreenshotPlugin),
+    )
+    .add_systems(
+        Update,
+        mcrs_minecraft_client::stream::load_gui_atlas.run_if(not(resource_exists::<
+            mcrs_minecraft_client_gui::scene::GuiAtlas,
+        >)),
     )
     .insert_resource(Time::<Fixed>::from_hz(local_player::TICKS_PER_SECOND))
     .add_systems(
@@ -263,7 +270,7 @@ pub fn run() -> AppExit {
     app.add_plugins(mcrs_minecraft_client_world::columns::ColumnCachePlugin);
     app.init_resource::<mcrs_minecraft_client_world::screen::Screen>();
     app.add_plugins(mcrs_minecraft_client_world::game_mode::GameModePlugin);
-    app.add_plugins(gui::game_mode_switcher::GameModeSwitcherPlugin);
+    app.add_plugins(game_mode_switcher::GameModeSwitcherPlugin);
     app.add_plugins(mcrs_minecraft_client_world::chat::ClientChatPlugin {
         command_history: knobs.command_history().or_else(|| {
             world
@@ -271,7 +278,7 @@ pub fn run() -> AppExit {
                 .map(|world| world.join("command_history.txt"))
         }),
     });
-    app.add_plugins(gui::chat_input::ChatScreenPlugin);
+    app.add_plugins(chat_input::ChatScreenPlugin);
     app.insert_resource(ExitOnDisconnect);
 
     let mut saved_clocks = save_data.world_clocks;

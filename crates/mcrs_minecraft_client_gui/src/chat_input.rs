@@ -14,14 +14,14 @@ use mcrs_minecraft_chat_client::{
 use mcrs_minecraft_command::Source;
 use mcrs_minecraft_protocol::text::Text;
 
-use super::chat::{self as chat_view, ChatFocus};
-use super::chat_suggestions;
-use super::font::{Font, Span};
-use super::item_decorations::WHITE;
-use super::language::Language;
-use super::scene::{GuiAtlas, GuiScene};
-use super::text::{self, Wrap};
-use crate::gui::cursor_grab::grab;
+use crate::chat::{self as chat_view, ChatFocus};
+use crate::chat_suggestions;
+use crate::cursor_grab::grab;
+use crate::font::{Font, Span};
+use crate::item_decorations::WHITE;
+use crate::language::Language;
+use crate::scene::{GuiAtlas, GuiScene};
+use crate::text::{self, Wrap};
 use mcrs_minecraft_client_world::chat::{
     self, Chat, ChatInput, ClientLookup, CommandWorld, SendChat,
 };

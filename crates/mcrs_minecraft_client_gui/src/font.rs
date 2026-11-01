@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use bevy::math::IVec2;
 use serde::Deserialize;
 
-use super::scene::GuiQuad;
+use crate::scene::GuiQuad;
 use mcrs_minecraft_model::model::{Pack, split_id};
 
 pub const ASCII_TEXTURE: &str = "minecraft/textures/font/ascii.png";
@@ -97,7 +97,7 @@ impl Font {
                 let inked = (0..self.cell_size.x).rev().find(|&x| {
                     (0..self.cell_size.y).any(|y| {
                         let at = (cell.y + y) as usize * width as usize + (cell.x + x) as usize;
-                        pixels[at * 4 + 3] != 0
+                        pixels.get(at * 4 + 3).is_some_and(|alpha| *alpha != 0)
                     })
                 });
                 let advance = inked.map_or(0, |x| x + 1) + 1;

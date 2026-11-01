@@ -7,11 +7,11 @@ use mcrs_minecraft_protocol::WritePacket;
 use mcrs_minecraft_protocol::packets::game::serverbound::ServerboundChangeGameMode;
 use mcrs_minecraft_protocol::text::{Color, IntoText, Text};
 
-use super::debug_screen_overlay::{DebugModifier, toggle_overlay};
-use super::font::{Span, draw_centered_text};
-use super::language::Language;
-use super::scene::{GuiAtlas, GuiQuad, GuiScene, sprite};
-use crate::gui::cursor_grab::grab;
+use crate::cursor_grab::grab;
+use crate::debug_screen_overlay::{DebugModifier, toggle_overlay};
+use crate::font::{Span, draw_centered_text};
+use crate::language::Language;
+use crate::scene::{GuiAtlas, GuiQuad, GuiScene, sprite};
 use mcrs_minecraft_client_world::chat::ChatMessage;
 use mcrs_minecraft_client_world::game_mode::{LocalGameMode, PermissionLevel};
 use mcrs_minecraft_client_world::player::Player;
@@ -35,7 +35,7 @@ const AQUA: u32 = 0xFF55_FFFF;
 
 pub fn next(mode: GameMode) -> GameMode {
     let at = ICONS.iter().position(|&icon| icon == mode).unwrap_or(0);
-    ICONS[(at + 1) % ICONS.len()]
+    ICONS.get((at + 1) % ICONS.len()).copied().unwrap_or(mode)
 }
 
 pub fn default_selected(mode: &LocalGameMode) -> GameMode {
@@ -203,8 +203,8 @@ fn switcher(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::gui::debug::DebugOverlay;
-    use crate::gui::debug_screen_overlay::DebugModifier;
+    use crate::debug_screen::DebugOverlay;
+    use crate::debug_screen_overlay::DebugModifier;
     use bevy::window::CursorGrabMode;
 
     fn key_app(permission: u8) -> App {
