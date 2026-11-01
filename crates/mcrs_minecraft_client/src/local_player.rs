@@ -1,6 +1,5 @@
 use bevy::math::DVec3;
 use bevy::prelude::*;
-use bevy::window::{CursorOptions, PrimaryWindow};
 use mcrs_minecraft_engine_world::entity::physics::{
     OldTransform, Rotation, Transform as PhysicsTransform, Velocity,
 };
@@ -12,9 +11,7 @@ use mcrs_minecraft_protocol::packets::game::serverbound::{
 };
 use mcrs_minecraft_protocol::{MoveFlags, VarInt, WritePacket};
 
-#[cfg(feature = "dev")]
-use crate::dev::flight::ScriptedFlight;
-use crate::input::{self, Input};
+use crate::movement_input::MovementInput;
 use crate::player::Player;
 
 pub const TICKS_PER_SECOND: f64 = 20.0;
@@ -88,7 +85,7 @@ pub struct LocalPlayerPlugin;
 
 impl Plugin for LocalPlayerPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(
+        app.init_resource::<MovementInput>().add_systems(
             FixedUpdate,
             (
                 accept_teleports.before(LocalPlayerTick),
@@ -169,31 +166,21 @@ fn capture_old_transform(player: Single<(&PhysicsTransform, &mut OldTransform), 
 }
 
 fn fly(
-    keys: Res<ButtonInput<KeyCode>>,
-    cursor: Single<&CursorOptions, With<PrimaryWindow>>,
-    #[cfg(feature = "dev")] scripted: Option<ResMut<ScriptedFlight>>,
-    #[cfg(feature = "dev")] time: Res<Time>,
+    input: Res<MovementInput>,
     player: Single<
         (&mut Sprint, &mut PhysicsTransform, &FlyingSpeed),
         (With<Player>, With<Flying>),
     >,
 ) {
     let (mut sprint, mut transform, flying_speed) = player.into_inner();
-    #[cfg(feature = "dev")]
-    let input = match scripted {
-        Some(mut scripted) => scripted.input(&mut transform, time.elapsed_secs()),
-        None => input::pressed(&keys, &cursor),
-    };
-    #[cfg(not(feature = "dev"))]
-    let input = input::pressed(&keys, &cursor);
     let yaw = transform.rotation.yaw();
-    transform.translation += tick(&mut sprint, *flying_speed, yaw, input);
+    transform.translation += tick(&mut sprint, *flying_speed, yaw, *input);
 }
 
 /// The displacement of one tick: the pressed direction turned by the yaw, with
 /// no inertia and no friction.
-fn tick(sprint: &mut Sprint, flying_speed: FlyingSpeed, yaw: f32, input: Input) -> DVec3 {
-    let move_vector = input::move_vector(input);
+fn tick(sprint: &mut Sprint, flying_speed: FlyingSpeed, yaw: f32, input: MovementInput) -> DVec3 {
+    let move_vector = input.move_vector();
     sprint.active = input.sprint && move_vector.y > 0.0;
     let speed = if sprint.active {
         flying_speed.0 * SPRINT_SPEED_MULTIPLIER
@@ -211,15 +198,23 @@ fn tick(sprint: &mut Sprint, flying_speed: FlyingSpeed, yaw: f32, input: Input) 
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
-    use crate::player::tests::minecraft_look_direction;
+
+    pub(crate) fn minecraft_look_direction(yaw: f32, pitch: f32) -> Vec3 {
+        let (pitch, yaw) = (pitch.to_radians(), -yaw.to_radians());
+        Vec3::new(
+            yaw.sin() * pitch.cos(),
+            -pitch.sin(),
+            yaw.cos() * pitch.cos(),
+        )
+    }
 
     #[test]
     fn forward_moves_along_the_horizontal_look_direction() {
-        let forward = Input {
+        let forward = MovementInput {
             forward: true,
-            ..Input::EMPTY
+            ..MovementInput::EMPTY
         };
         for yaw in [0.0, 90.0, -139.9493, 180.0] {
             let moved = tick(&mut Sprint::default(), FlyingSpeed(1.0), yaw, forward);

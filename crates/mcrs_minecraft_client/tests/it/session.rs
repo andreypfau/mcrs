@@ -3,11 +3,12 @@ use std::collections::BTreeMap;
 use bevy::input::ButtonInput;
 use bevy::prelude::*;
 use bytes::Bytes;
+use mcrs_minecraft_client::camera::PlayerCamera;
 use mcrs_minecraft_client::columns::{
     Column, ColumnCachePlugin, ColumnStore, Columns, Dimension, Extent,
 };
 use mcrs_minecraft_client::joined_game::CurrentDimension;
-use mcrs_minecraft_client::player::{Player, PlayerCamera};
+use mcrs_minecraft_client::player::Player;
 use mcrs_minecraft_client::sky::{SkyEnvironment, SkyPlugin};
 use mcrs_minecraft_dimension::DimensionType;
 use mcrs_minecraft_dimension_environment::dimension_type::DimensionTypeFile;

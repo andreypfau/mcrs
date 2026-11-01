@@ -218,7 +218,7 @@ fn main() -> AppExit {
         unfocused_mode: UpdateMode::Continuous,
     })
     .add_plugins(
-        ClientPlugins
+        ClientPlugins(knobs.clone())
             .build()
             .set(ClientRegistriesPlugin {
                 local_corpus: Some(DirectoryPacks::new(
@@ -229,7 +229,7 @@ fn main() -> AppExit {
             .add_before::<sky::SkyPlugin>(
                 mcrs_minecraft_client::item_model::resolve::ItemRenderPlugin,
             )
-            .add_before::<sky::SkyPlugin>(gui::scene::GuiPlugin)
+            .add_before::<sky::SkyPlugin>(knobs.gui())
             .add(screenshot::ScreenshotPlugin),
     )
     .insert_resource(Time::<Fixed>::from_hz(local_player::TICKS_PER_SECOND))
@@ -626,7 +626,7 @@ fn log_registry_counts(registries: Res<CurrentRegistries>) {
 
 fn log_spawned_transforms(
     player: Single<(&Transform, &PhysicsTransform), With<player::Player>>,
-    camera: Single<&GlobalTransform, With<player::PlayerCamera>>,
+    camera: Single<&GlobalTransform, With<mcrs_minecraft_client::camera::PlayerCamera>>,
 ) {
     let (transform, physics) = player.into_inner();
     info!(

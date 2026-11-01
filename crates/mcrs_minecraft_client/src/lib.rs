@@ -46,6 +46,7 @@ pub mod joined_game;
 pub mod light_volume;
 pub mod local_player;
 pub mod model;
+pub mod movement_input;
 pub mod player;
 mod received;
 pub mod registries;
@@ -78,19 +79,25 @@ pub fn asset_source(
 #[derive(Message)]
 pub struct Unsettled;
 
-pub struct ClientPlugins;
+pub struct ClientPlugins(pub config::Knobs);
 
 impl PluginGroup for ClientPlugins {
     fn build(self) -> PluginGroupBuilder {
         PluginGroupBuilder::start::<Self>()
             .add(vanilla::VanillaAssetsPlugin)
-            .add(player::PlayerPlugin)
             .add(input::ClientInputPlugin)
             .add(local_player::LocalPlayerPlugin)
             .add(camera::CameraPlugin)
-            .add(gui::debug::DebugScreenPlugin)
-            .add(gui::chunk_map::ChunkMapPlugin)
-            .add(gui::light_levels::LightLevelsPlugin)
+            .add(gui::debug::DebugScreenPlugin {
+                stats_interval: self.0.stats_interval(),
+                always_time_passes: self.0.always_time_passes(),
+            })
+            .add(gui::chunk_map::ChunkMapPlugin {
+                visible: self.0.chunk_map(),
+            })
+            .add(gui::light_levels::LightLevelsPlugin {
+                visible: self.0.light_levels(),
+            })
             .add(registries::ClientRegistriesPlugin::default())
             .add(sky::SkyPlugin)
     }

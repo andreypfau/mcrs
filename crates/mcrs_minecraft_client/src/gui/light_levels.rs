@@ -7,7 +7,7 @@ use bevy::ui::{ComputedNode, UiSystems};
 use mcrs_minecraft_volume::LightVolume;
 use mcrs_voxel::BlockPos;
 
-use crate::player::PlayerCamera;
+use crate::camera::PlayerCamera;
 
 /// `LightDebugRenderer.MAX_RENDER_DIST`.
 const RADIUS: i32 = 10;
@@ -73,12 +73,13 @@ struct Label {
     color: Color,
 }
 
-pub struct LightLevelsPlugin;
+pub struct LightLevelsPlugin {
+    pub visible: bool,
+}
 
 impl Plugin for LightLevelsPlugin {
     fn build(&self, app: &mut App) {
-        let knobs = crate::config::Knobs::of(app);
-        app.insert_resource(if knobs.light_levels() {
+        app.insert_resource(if self.visible {
             LightLevels::Both
         } else {
             LightLevels::Off

@@ -23,7 +23,8 @@ use super::scene::{GuiAtlas, GuiScene};
 use super::text::{self, Wrap};
 use crate::chat::{self, Chat, ChatInput, ClientLookup, CommandWorld, SendChat};
 use crate::chat_history::CommandHistoryFile;
-use crate::screen::{self, Screen};
+use crate::gui::cursor_grab::grab;
+use crate::screen::Screen;
 
 /// The lines of the chat log as the GUI wraps them, and the scroll of the open chat.
 #[derive(Resource, Default)]
@@ -204,7 +205,7 @@ fn chat_keys(
     if let Some((initial, style)) = opened {
         state.input.0.open(&initial, style, &cx);
         *state.screen = Screen::Chat;
-        screen::grab(&mut cursor, false);
+        grab(&mut cursor, false);
         keys.keyboard.clear();
         keys.keys.reset_all();
         return;
@@ -233,7 +234,7 @@ fn chat_keys(
     keys.keys.reset_all();
     if let Some(closed) = typed.closed {
         close(&mut state, closed, &mut sends);
-        screen::grab(&mut cursor, true);
+        grab(&mut cursor, true);
     }
 }
 

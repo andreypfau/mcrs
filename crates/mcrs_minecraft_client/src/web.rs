@@ -120,7 +120,7 @@ pub fn run() {
             .disable::<bevy::pbr::PbrPlugin>()
             .disable::<bevy::light::LightPlugin>(),
     )
-    .add_plugins(ClientPlugins)
+    .add_plugins(ClientPlugins(knobs.clone()))
     .insert_resource(Time::<Fixed>::from_hz(local_player::TICKS_PER_SECOND))
     .insert_resource(WorldClocks::default())
     .insert_resource(AdvanceTime(frozen_at.is_none()))

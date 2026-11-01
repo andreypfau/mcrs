@@ -5,6 +5,8 @@ use std::sync::Arc;
 use std::net::{Ipv4Addr, SocketAddr};
 
 use crate::cave::CaveCull;
+use crate::gui::scene::{GuiConfig, GuiPlugin};
+use crate::screen::Screen;
 use bevy::app::App;
 use bevy::ecs::resource::Resource;
 use mcrs_minecraft_render::{Budget, FACE_BYTES, MODEL_BYTES, QUAD_BYTES, Uploads};
@@ -401,6 +403,23 @@ impl Knobs {
     pub fn gui_scale(&self) -> u32 {
         self.parsed("GUI_SCALE", |_| true, "expected a whole GUI scale")
             .unwrap_or(0)
+    }
+
+    pub fn gui(&self) -> GuiPlugin {
+        GuiPlugin {
+            config: GuiConfig {
+                scale: self.gui_scale(),
+                cursor: self.gui_cursor(),
+                frozen_ticks: self.frozen_time(),
+                // chisle: nothing toggles it yet; F3 + H is the vanilla key.
+                advanced_tooltips: false,
+            },
+            screen: if self.opens_inventory() {
+                Screen::Inventory
+            } else {
+                Screen::None
+            },
+        }
     }
 
     /// `SCREEN=inventory` opens that screen at start, so a capture is deterministic.

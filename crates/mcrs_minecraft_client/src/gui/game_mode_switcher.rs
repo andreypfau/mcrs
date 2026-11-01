@@ -13,8 +13,9 @@ use super::language::Language;
 use super::scene::{GuiAtlas, GuiQuad, GuiScene, sprite};
 use crate::chat::ChatMessage;
 use crate::game_mode::{LocalGameMode, PermissionLevel};
+use crate::gui::cursor_grab::grab;
 use crate::player::Player;
-use crate::screen::{Screen, grab};
+use crate::screen::Screen;
 
 const MODIFIER: KeyCode = KeyCode::F3;
 const SWITCH: KeyCode = KeyCode::F4;
