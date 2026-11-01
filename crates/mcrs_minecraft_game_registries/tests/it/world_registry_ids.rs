@@ -4,8 +4,8 @@ use std::path::PathBuf;
 use bevy_app::App;
 use mcrs_minecraft_dimension::DimensionType;
 use mcrs_minecraft_game_registries::registry_load::{sent_by, test_registries};
-use mcrs_minecraft_protocol::item::WireLookup;
 use mcrs_minecraft_protocol::{Decode, Encode, VarInt};
+use mcrs_minecraft_protocol_game::item::WireLookup;
 use mcrs_minecraft_registries::{CurrentRegistries, FromWire, Resolved};
 use mcrs_minecraft_resource::Id;
 

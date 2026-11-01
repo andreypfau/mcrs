@@ -266,6 +266,7 @@ pub fn run() -> AppExit {
         profile_id: save_data.player_uuid,
         view_distance,
         holds_vanilla_pack: true,
+        play: Some(mcrs_minecraft_client_world::game_packets::GAME_CLIENTBOUND),
     });
     app.add_plugins(mcrs_minecraft_client_world::columns::ColumnCachePlugin);
     app.init_resource::<mcrs_minecraft_client_world::screen::Screen>();

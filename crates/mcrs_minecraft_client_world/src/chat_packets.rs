@@ -8,13 +8,13 @@ use mcrs_minecraft_game_registries::chat_type::{ChatParameter, ChatType};
 use mcrs_minecraft_item::ItemHoverMap;
 use mcrs_minecraft_network::client;
 use mcrs_minecraft_network::event::Received;
-use mcrs_minecraft_protocol::chat::{CompletionAction, FilterMask};
-use mcrs_minecraft_protocol::packets::game::clientbound::{
+use mcrs_minecraft_protocol_game::chat::{CompletionAction, FilterMask};
+use mcrs_minecraft_protocol_game::clientbound::{
     ClientboundCommandSuggestions, ClientboundCommands, ClientboundCustomChatCompletions,
     ClientboundDisguisedChat, ClientboundLogin, ClientboundPlayerChat, ClientboundPlayerInfoRemove,
     ClientboundPlayerInfoUpdate, ClientboundSetActionBarText, ClientboundSystemChatPacket,
 };
-use mcrs_minecraft_protocol::text::{Color, IntoText, RawText, Text};
+use mcrs_minecraft_protocol_game::text::{Color, IntoText, RawText, Text};
 use mcrs_minecraft_registries::{CurrentRegistries, Registries};
 use mcrs_minecraft_resource::ResourceLocation;
 
@@ -363,7 +363,7 @@ pub(crate) fn on_player_info_remove(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use mcrs_minecraft_protocol::text::TextContent;
+    use mcrs_minecraft_protocol_game::text::TextContent;
 
     fn shown(body: &str, hidden: u8) -> String {
         let text = filtered(body, &FilterMask::PartiallyFiltered(vec![hidden]));

@@ -40,9 +40,9 @@ use mcrs_minecraft_game_mode::GameMode;
 use mcrs_minecraft_light_engine::block_light::{BlockLightRegistry, block_light_registry};
 use mcrs_minecraft_network::ConnectionState;
 use mcrs_minecraft_network::metrics::PacketDispatcher;
-use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundLogin;
 use mcrs_minecraft_protocol::uuid::Uuid;
 use mcrs_minecraft_protocol::{Encode, Packet};
+use mcrs_minecraft_protocol_game::clientbound::ClientboundLogin;
 use mcrs_minecraft_vanilla_light::LightingPlugin;
 
 /// Build a host `App` wired for the production per-dim sub-app builder path.
@@ -340,6 +340,7 @@ impl PlayServer {
         packet.encode(&mut data).unwrap();
         let data = Bytes::from(data);
         let trigger = PacketDispatcher::serverbound()
+            .with_play(mcrs_minecraft_engine::game_packets::GAME_SERVERBOUND)
             .dispatch(ConnectionState::Game, P::ID, &data)
             .unwrap();
         let timestamp = std::time::Instant::now();

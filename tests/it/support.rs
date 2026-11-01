@@ -6,6 +6,7 @@ use bevy_ecs::message::MessageWriter;
 use mcrs_minecraft_biome_file::BiomeFile;
 use mcrs_minecraft_block::block_keys::Block;
 use mcrs_minecraft_client_world::columns::{ColumnCachePlugin, ColumnStore, Columns};
+use mcrs_minecraft_client_world::game_packets::GAME_CLIENTBOUND;
 use mcrs_minecraft_client_world::joined_game::{CurrentDimension, JoinedGame};
 use mcrs_minecraft_client_world::player::Player;
 use mcrs_minecraft_client_world::player_view::{
@@ -58,6 +59,7 @@ pub fn joining_client(server: SocketAddr, view_distance: u8) -> App {
         profile_id: None,
         view_distance,
         holds_vanilla_pack: true,
+        play: Some(GAME_CLIENTBOUND),
     });
     client.add_plugins((ColumnCachePlugin, PlayerViewPlugin));
     add_client_registries(&mut client);

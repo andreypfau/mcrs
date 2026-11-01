@@ -13,7 +13,7 @@ use mcrs_minecraft_block::material::PushReaction;
 use mcrs_minecraft_block::material::map::MapColor;
 use mcrs_minecraft_core::voxel_shape::Aabb;
 use mcrs_minecraft_game_registries::registry_load::test_registries;
-use mcrs_minecraft_protocol::section::block_direct_bits;
+use mcrs_minecraft_protocol_game::section::block_direct_bits;
 use mcrs_minecraft_resource::Id;
 use mcrs_minecraft_sound::BlockSoundSet;
 use mcrs_voxel::BlockStateId;

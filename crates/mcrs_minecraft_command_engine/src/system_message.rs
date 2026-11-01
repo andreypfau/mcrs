@@ -1,6 +1,6 @@
 use bevy_ecs::entity::Entity;
 use mcrs_minecraft_engine::bus::{self, OutboundPlayerPacket, PacketPayload};
-use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundSystemChatPacket;
+use mcrs_minecraft_protocol_game::clientbound::ClientboundSystemChatPacket;
 use mcrs_minecraft_text::{RawText, Text};
 
 /// A system chat message to the player with the host anchor `host`, or `None` when `content`

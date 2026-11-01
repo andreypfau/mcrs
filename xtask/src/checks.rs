@@ -14,8 +14,9 @@ fn is_actions(value: Option<&str>) -> bool {
     value == Some("true")
 }
 
-const WASM32_PACKAGES: [&str; 10] = [
+const WASM32_PACKAGES: [&str; 11] = [
     "mcrs_minecraft_protocol",
+    "mcrs_minecraft_protocol_game",
     "mcrs_minecraft_wire",
     "mcrs_minecraft_keys",
     "mcrs_minecraft_anvil",
@@ -29,7 +30,7 @@ const WASM32_PACKAGES: [&str; 10] = [
 
 const NO_STD_PACKAGES: [&str; 2] = ["mcrs_command", "mcrs_minecraft_chat"];
 
-const NO_BEVY_PACKAGES: [&str; 67] = [
+const NO_BEVY_PACKAGES: [&str; 68] = [
     "mcrs_command",
     "mcrs_minecraft_anvil",
     "mcrs_minecraft_biome",
@@ -71,6 +72,7 @@ const NO_BEVY_PACKAGES: [&str; 67] = [
     "mcrs_minecraft_predicate",
     "mcrs_minecraft_profile",
     "mcrs_minecraft_protocol",
+    "mcrs_minecraft_protocol_game",
     "mcrs_minecraft_random",
     "mcrs_minecraft_registries",
     "mcrs_minecraft_registry_catalog",
@@ -97,6 +99,19 @@ const NO_BEVY_PACKAGES: [&str; 67] = [
     "mcrs_minecraft_worldgen_testing",
     "mcrs_test_alloc",
     "mcrs_voxel",
+];
+
+/// The wire and network layers, which a proxy or a bot takes without any game data.
+const WIRE_LAYER_PACKAGES: [&str; 2] = ["mcrs_minecraft_protocol", "mcrs_minecraft_network"];
+
+const GAME_DATA_PACKAGES: [&str; 7] = [
+    "mcrs_minecraft_block",
+    "mcrs_minecraft_chunk",
+    "mcrs_minecraft_entity",
+    "mcrs_minecraft_item",
+    "mcrs_minecraft_particle",
+    "mcrs_minecraft_protocol_game",
+    "mcrs_minecraft_registries",
 ];
 
 struct Changes {
@@ -215,6 +230,7 @@ pub fn run(ctx: &Context, check: Check) -> Outcome {
         Check::Clippy => clippy(ctx),
         Check::Test => test(ctx),
         Check::NoBevy => no_bevy(ctx),
+        Check::Layers => layers(ctx),
         Check::NoStd => build_for(
             ctx,
             "wasm32v1-none",
@@ -276,6 +292,49 @@ fn no_bevy(ctx: &Context) -> Outcome {
         "a crate below layer 4 does not build without its default features",
         "put the code that needs Bevy behind the bevy feature",
     )
+}
+
+fn layers(ctx: &Context) -> Outcome {
+    let mut linked = Vec::new();
+    for package in WIRE_LAYER_PACKAGES {
+        let args = [
+            "tree",
+            "--locked",
+            "--all-features",
+            "--edges",
+            "normal",
+            "--prefix",
+            "none",
+            "--format",
+            "{p}",
+            "--package",
+            package,
+        ];
+        println!("$ cargo {}", args.join(" "));
+        let output = Command::new("cargo")
+            .args(args)
+            .current_dir(&ctx.root)
+            .output()
+            .map_err(|e| format!("could not run cargo: {e}; install it and put it on PATH"))?;
+        if !output.status.success() {
+            return Err(format!("cargo tree failed for {package}"));
+        }
+        for line in String::from_utf8_lossy(&output.stdout).lines() {
+            let name = line.split_whitespace().next().unwrap_or_default();
+            let found = format!("{package} links {name}");
+            if GAME_DATA_PACKAGES.contains(&name) && !linked.contains(&found) {
+                linked.push(found);
+            }
+        }
+    }
+    if linked.is_empty() {
+        Ok(String::new())
+    } else {
+        Err(format!(
+            "a crate of the wire or network layer links game data ({}); move the code that needs it to mcrs_minecraft_protocol_game or above",
+            linked.join(", ")
+        ))
+    }
 }
 
 fn parity_check(ctx: &Context) -> Outcome {

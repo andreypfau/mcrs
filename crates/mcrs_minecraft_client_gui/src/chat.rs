@@ -477,7 +477,7 @@ mod tests {
                 ]
             );
         }
-        use mcrs_minecraft_protocol::text::Text;
+        use mcrs_minecraft_protocol_game::text::Text;
 
         #[test]
         fn the_newest_line_sits_forty_units_above_the_bottom_and_is_gone_after_ten_seconds() {

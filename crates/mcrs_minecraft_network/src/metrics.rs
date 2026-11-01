@@ -11,7 +11,8 @@ use mcrs_minecraft_protocol::packets::table::{
     game_serverbound, handshake_serverbound, login_clientbound, login_serverbound,
     status_clientbound, status_serverbound,
 };
-use mcrs_minecraft_protocol::{ConnectionState, Packet, PacketSide, Text};
+use mcrs_minecraft_protocol::{ConnectionState, Packet, PacketSide};
+use mcrs_minecraft_text::Text;
 use tracing::trace;
 
 use crate::event::{Trigger, Triggers};
@@ -28,7 +29,22 @@ pub struct BridgeTelemetry {
     pub outbound_no_queue_total: u64,
 }
 
-type Check = fn(i32, &mut &[u8]) -> mcrs_minecraft_protocol::Result<Decoded<Trigger>>;
+type Check =
+    fn(i32, &mut &[u8], &mut Triggers) -> mcrs_minecraft_protocol::Result<Decoded<Trigger>>;
+
+/// The play-state table of one side, typed by a crate above this one. The dispatcher holds the
+/// rows of this crate's own play packets until one replaces them.
+#[derive(Clone, Copy, Debug)]
+pub struct PlayTable {
+    table: &'static Table,
+    check: Check,
+}
+
+impl PlayTable {
+    pub const fn new(table: &'static Table, check: Check) -> Self {
+        Self { table, check }
+    }
+}
 
 /// Decode failures per row and ids outside the table, for one table.
 /// Sized by the table when built; nothing a peer sends grows it.
@@ -71,7 +87,7 @@ impl TableCounts {
             return Ok(Some(trigger));
         }
         let mut r = body;
-        let (row, cause, detail) = match (self.check)(id, &mut r) {
+        let (row, cause, detail) = match (self.check)(id, &mut r, &mut Triggers) {
             Ok(Decoded::Packet(trigger)) if r.is_empty() => return Ok(Some(trigger)),
             Ok(Decoded::NotImplemented(name)) => {
                 trace!(
@@ -174,7 +190,7 @@ impl Malformed {
 
 macro_rules! counts {
     ($($table:ident),*) => {
-        vec![$(TableCounts::new(&$table::TABLE, |id, r| $table::visit(id, r, &mut Triggers)),)*]
+        vec![$(TableCounts::new(&$table::TABLE, $table::visit::<Triggers>),)*]
             .into_boxed_slice()
     };
 }
@@ -223,6 +239,24 @@ impl PacketDispatcher {
             counts.deferred.push((P::<R>::ID, Trigger::of::<R>()));
         }
         self
+    }
+
+    /// Types the play rows that `play` types, in place of this crate's own play table. The
+    /// table must be of this dispatcher's side.
+    pub fn with_play(mut self, play: PlayTable) -> Self {
+        self.set_play(play);
+        self
+    }
+
+    pub fn set_play(&mut self, play: PlayTable) {
+        if play.table.side != self.side || play.table.state != ConnectionState::Game {
+            return;
+        }
+        if let Some(counts) = self.counts_mut(ConnectionState::Game) {
+            let deferred = std::mem::take(&mut counts.deferred);
+            *counts = TableCounts::new(play.table, play.check);
+            counts.deferred = deferred;
+        }
     }
 
     pub fn counts(&self, state: ConnectionState) -> Option<&TableCounts> {

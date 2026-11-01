@@ -4,7 +4,7 @@ use mcrs_minecraft_chat_client::{
     Anchor, ChatScreen, ClickMode, Closed, EditBox, History, HistoryChange, InputStyle, Key,
     Outcome, Outgoing, Signing, Step, StyleClick, UnsentDraft, keeps_draft,
 };
-use mcrs_minecraft_protocol::text::ClickEvent;
+use mcrs_minecraft_protocol_game::text::ClickEvent;
 
 #[test]
 fn normalization_trims_and_collapses_whitespace() {

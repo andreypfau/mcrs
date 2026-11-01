@@ -11,10 +11,10 @@ pub struct Brand<'a> {
 
 pub mod clientbound {
     use super::{BRAND_CHANNEL, Brand};
-    use crate::text::Text;
     use crate::{Bounded, Decode, Encode, RawBytes};
     use derive_more::Into;
     use mcrs_minecraft_resource::ResourceLocation;
+    use mcrs_minecraft_text::Text;
     use std::borrow::Cow;
     use std::io::Write;
     use uuid::Uuid;

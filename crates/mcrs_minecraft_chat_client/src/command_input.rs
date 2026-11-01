@@ -12,8 +12,8 @@ use mcrs_minecraft_command_argument_vanilla::{
     ArgumentError, ClientGraph, CommandSyntaxError, VanillaLookup,
 };
 use mcrs_minecraft_item::ItemHoverMap;
-use mcrs_minecraft_protocol::CommandSuggestion;
-use mcrs_minecraft_protocol::text::{RawText, Text};
+use mcrs_minecraft_protocol_game::CommandSuggestion;
+use mcrs_minecraft_protocol_game::text::{RawText, Text};
 use mcrs_minecraft_wire::utf16_byte_offset;
 use std::mem;
 use std::ops::Range;

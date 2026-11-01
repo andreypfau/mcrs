@@ -35,8 +35,9 @@ use mcrs_minecraft_protocol::packets::login::serverbound::{
 use mcrs_minecraft_protocol::setting::{ChatMode, DisplayedSkinParts, MainArm, ParticleStatus};
 use mcrs_minecraft_protocol::uuid::{Uuid, uuid};
 use mcrs_minecraft_protocol::{
-    Bounded, CompressionThreshold, Decode, Encode, Packet, Text, VarInt, WritePacket,
+    Bounded, CompressionThreshold, Decode, Encode, Packet, VarInt, WritePacket,
 };
+use mcrs_minecraft_text::Text;
 use tokio::sync::mpsc;
 
 use crate::mock_connection;
@@ -140,6 +141,7 @@ fn send<P: Encode + Packet>(app: &mut App, client: &Client, packet: &P) {
     let mut data = Vec::new();
     packet.encode(&mut data).unwrap();
     let trigger = PacketDispatcher::serverbound()
+        .with_play(mcrs_minecraft_engine::game_packets::GAME_SERVERBOUND)
         .dispatch(P::STATE, P::ID, &data)
         .unwrap()
         .unwrap();
@@ -566,7 +568,10 @@ fn read_sockets(app: &mut App) {
 #[test]
 fn configuration_frames_sent_with_the_login_acknowledgement_count_no_decode_fault() {
     let mut app = server(None);
-    app.insert_resource(PacketDispatcher::serverbound());
+    app.insert_resource(
+        PacketDispatcher::serverbound()
+            .with_play(mcrs_minecraft_engine::game_packets::GAME_SERVERBOUND),
+    );
     let (raw, _outgoing, inbound) = mock_connection::make_mock_raw_connection_full();
     let connection = app
         .world_mut()

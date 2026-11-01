@@ -29,10 +29,8 @@ use mcrs_minecraft_engine_world::world::dimension::{Dimension, DimensionTypeId, 
 use mcrs_minecraft_engine_world::world::lifecycle::ticket::SimulationDistance;
 use mcrs_minecraft_game_mode::GameMode;
 use mcrs_minecraft_protocol::VarInt;
-use mcrs_minecraft_protocol::entity::player::PlayerSpawnInfo;
-use mcrs_minecraft_protocol::packets::game::clientbound::{
-    ClientboundChunkCacheRadius, ClientboundLogin,
-};
+use mcrs_minecraft_protocol_game::clientbound::{ClientboundChunkCacheRadius, ClientboundLogin};
+use mcrs_minecraft_protocol_game::player::PlayerSpawnInfo;
 use mcrs_minecraft_resource::ResourceKeyBuf;
 use tracing::{debug, info};
 

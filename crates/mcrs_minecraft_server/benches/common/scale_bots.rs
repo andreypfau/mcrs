@@ -17,7 +17,7 @@
 //! dependency on process-global metric atomics, that routing landed every
 //! packet and that teardown leaves no session behind.
 
-use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundBlockUpdate;
+use mcrs_minecraft_protocol_game::clientbound::ClientboundBlockUpdate;
 use std::time::Instant;
 
 use bevy_ecs::entity::Entity;
@@ -34,7 +34,7 @@ use mcrs_minecraft_engine_world::session::{
     Place, PlayerSession, PlayerSessionCounter, Session, SessionPlacement,
 };
 use mcrs_minecraft_network::metrics::BridgeTelemetry;
-use mcrs_minecraft_protocol::block::BlockStateNumber;
+use mcrs_minecraft_protocol_game::block::BlockStateNumber;
 
 /// Per-run report: the functional invariants the bench asserts on, all local
 /// to this run's `World`, alongside soft observational telemetry.

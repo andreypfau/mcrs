@@ -9,8 +9,8 @@ use mcrs_command::{Graph, GraphBuilder};
 use mcrs_minecraft_command::{CommandLevel, NoLookup, PermissionCheck, Source};
 use mcrs_minecraft_engine::ability::{OpLevelAnnounced, PlayerOpLevel};
 use mcrs_minecraft_engine::bus::{self, OutboundPlayerPacket, PacketPayload};
-use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundCommands;
 use mcrs_minecraft_protocol::{Packet, anyhow};
+use mcrs_minecraft_protocol_game::clientbound::ClientboundCommands;
 
 /// The command graph. The host owns it and lends it to the world in which a line parses, gets
 /// suggestions or runs; in every other world it is empty.

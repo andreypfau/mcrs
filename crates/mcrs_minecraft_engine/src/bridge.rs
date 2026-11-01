@@ -17,12 +17,13 @@ pub fn run_outbound_flush(world: &mut bevy_ecs::world::World) {
 
 use mcrs_minecraft_network::metrics::{BridgeTelemetry, PacketDispatcher};
 use mcrs_minecraft_network::{ConnectionState, MAX_QUEUED_BYTES_PER_SOCKET, ServerSideConnection};
-use mcrs_minecraft_protocol::Text;
-use mcrs_minecraft_protocol::chunk::ChunkData;
-use mcrs_minecraft_protocol::packets::game::clientbound::{
-    ClientboundDisconnect, ClientboundLevelChunkWithLight, ClientboundPlayerInfoUpdate,
+use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundDisconnect;
+use mcrs_minecraft_protocol_game::chunk::ChunkData;
+use mcrs_minecraft_protocol_game::clientbound::{
+    ClientboundLevelChunkWithLight, ClientboundPlayerInfoUpdate,
 };
-use mcrs_minecraft_protocol::profile::{PlayerListActions, PlayerListEntry};
+use mcrs_minecraft_protocol_game::player_list::{PlayerListActions, PlayerListEntry};
+use mcrs_minecraft_text::Text;
 use std::borrow::Cow;
 use std::sync::atomic::{AtomicU64, Ordering};
 use tracing::{trace, warn};
@@ -456,7 +457,7 @@ pub fn bridge_inbound(
     mut telemetry: ResMut<BridgeTelemetry>,
     mut dispatcher: ResMut<PacketDispatcher>,
 ) {
-    use mcrs_minecraft_protocol::Text;
+    use mcrs_minecraft_text::Text;
 
     for (entity, mut conn, mut bucket, anchor_ref, state) in conns.iter_mut() {
         if *state != ConnectionState::Game {

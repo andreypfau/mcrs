@@ -4,8 +4,8 @@ use bevy::window::{CursorOptions, PrimaryWindow};
 use mcrs_minecraft_game_mode::GameMode;
 use mcrs_minecraft_network::client::{ClientConnection, ClientNetworkSystems};
 use mcrs_minecraft_protocol::WritePacket;
-use mcrs_minecraft_protocol::packets::game::serverbound::ServerboundChangeGameMode;
-use mcrs_minecraft_protocol::text::{Color, IntoText, Text};
+use mcrs_minecraft_protocol_game::serverbound::ServerboundChangeGameMode;
+use mcrs_minecraft_protocol_game::text::{Color, IntoText, Text};
 
 use crate::cursor_grab::grab;
 use crate::debug_screen_overlay::{DebugModifier, toggle_overlay};

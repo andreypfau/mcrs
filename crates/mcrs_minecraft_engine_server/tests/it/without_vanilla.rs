@@ -8,8 +8,8 @@ use mcrs_minecraft_engine_server::{
 use mcrs_minecraft_network::join::{Join, join};
 use mcrs_minecraft_network::packet_io::PacketIo;
 use mcrs_minecraft_protocol::Packet;
-use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundLogin;
 use mcrs_minecraft_protocol::uuid::Uuid;
+use mcrs_minecraft_protocol_game::clientbound::ClientboundLogin;
 use std::process::Command;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};

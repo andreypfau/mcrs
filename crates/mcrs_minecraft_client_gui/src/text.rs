@@ -1,8 +1,8 @@
 //! Text components as styled spans, and the wrap of spans into rows.
 
 use mcrs_minecraft_nbt::tag::NbtTag;
-use mcrs_minecraft_protocol::text::color::RgbColor;
-use mcrs_minecraft_protocol::text::{Color, Text, TextContent, TranslateArg};
+use mcrs_minecraft_protocol_game::text::color::RgbColor;
+use mcrs_minecraft_protocol_game::text::{Color, Text, TextContent, TranslateArg};
 
 use crate::font::{ClickEvent, Font, Hover, Span};
 use crate::language::Language;
@@ -244,7 +244,7 @@ pub(crate) fn row_texts(rows: &[Vec<Span>]) -> Vec<String> {
 mod tests {
     use super::*;
     use crate::font::corpus_font;
-    use mcrs_minecraft_protocol::text::IntoText;
+    use mcrs_minecraft_protocol_game::text::IntoText;
 
     #[test]
     fn click_event_and_insertion_pass_to_children_and_survive_wrapping() {

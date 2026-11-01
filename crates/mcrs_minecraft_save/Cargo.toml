@@ -11,11 +11,11 @@ doctest = false
 workspace = true
 
 [dependencies]
+mcrs_minecraft_protocol_game.workspace = true
 mcrs_minecraft_core.workspace = true
 mcrs_minecraft_dimension.workspace = true
 mcrs_minecraft_environment.workspace = true
 mcrs_minecraft_nbt.workspace = true
-mcrs_minecraft_protocol.workspace = true
 mcrs_minecraft_registries.workspace = true
 mcrs_minecraft_resource.workspace = true
 mcrs_minecraft_game_registries.workspace = true

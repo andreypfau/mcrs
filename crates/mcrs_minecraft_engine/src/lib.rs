@@ -26,6 +26,7 @@ pub mod disconnect;
 pub mod drain_player_despawn;
 pub mod enter_level_packets;
 pub mod game_mode;
+pub mod game_packets;
 pub mod heightmap;
 pub mod light_codec;
 pub mod minecraft_entity;
@@ -59,9 +60,11 @@ impl Plugin for EnginePlugin {
         app.init_resource::<channel_types::DimChannelsResource>();
         app.init_resource::<mcrs_minecraft_network::metrics::BridgeTelemetry>();
         // The pre-game loop and the bridge share one dispatcher, whichever plugin builds first.
-        app.world_mut().get_resource_or_insert_with(
-            mcrs_minecraft_network::metrics::PacketDispatcher::serverbound,
-        );
+        app.world_mut()
+            .get_resource_or_insert_with(
+                mcrs_minecraft_network::metrics::PacketDispatcher::serverbound,
+            )
+            .set_play(game_packets::GAME_SERVERBOUND);
         app.add_message::<bus::OutboundPlayerPacket>();
         app.add_message::<bus::InboundPlayerPacket>();
         app.add_message::<bus::OutboundPlayerAttached>();

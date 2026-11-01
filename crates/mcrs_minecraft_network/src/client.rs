@@ -1,6 +1,6 @@
 use crate::event::{Received, Trigger};
 use crate::join::{Configuration, Join, Joined};
-use crate::metrics::PacketDispatcher;
+use crate::metrics::{PacketDispatcher, PlayTable};
 use crate::packet_io::PacketIo;
 use crate::{ConnectionState, RawConnection};
 use bevy_app::{App, AppExit, Plugin, Update};
@@ -53,6 +53,9 @@ pub struct ClientNetworkPlugin {
     /// Inserts [`HoldsVanillaPack`]. Set it only when the registry loader can fill the entries
     /// a server leaves out.
     pub holds_vanilla_pack: bool,
+    /// The play rows a crate with game data types. Without it the connection types only the
+    /// play packets of the protocol crate, and raises no event for the others.
+    pub play: Option<PlayTable>,
 }
 
 /// The socket, its reader and writer tasks, and the outbound encoder.
@@ -72,21 +75,31 @@ impl ClientConnection {
     fn new(
         raw: RawConnection,
         ended: Option<ConnectionState>,
-        deferred: Option<&DeferredRows>,
+        dispatcher: PacketDispatcher,
     ) -> Self {
         Self {
             raw: Box::new(raw),
-            dispatcher: deferred
-                .into_iter()
-                .flat_map(|deferred| &deferred.0)
-                .fold(PacketDispatcher::clientbound(), |dispatcher, defer| {
-                    defer(dispatcher)
-                }),
+            dispatcher,
             bundle: None,
             ended,
         }
     }
 }
+
+fn client_dispatcher(world: &World) -> PacketDispatcher {
+    let mut dispatcher = PacketDispatcher::clientbound();
+    if let Some(play) = world.get_resource::<ClientPlayTable>() {
+        dispatcher.set_play(play.0);
+    }
+    world
+        .get_resource::<DeferredRows>()
+        .into_iter()
+        .flat_map(|deferred| &deferred.0)
+        .fold(dispatcher, |dispatcher, defer| defer(dispatcher))
+}
+
+#[derive(Resource)]
+struct ClientPlayTable(PlayTable);
 
 /// The rows whose observers check their own frames, off the main thread, instead of the
 /// dispatcher. A connection reads the set when it opens.
@@ -176,6 +189,9 @@ impl Plugin for ClientNetworkPlugin {
         add_packet_observers(app);
         if self.holds_vanilla_pack {
             app.insert_resource(HoldsVanillaPack);
+        }
+        if let Some(play) = self.play {
+            app.insert_resource(ClientPlayTable(play));
         }
 
         let (send, recv) = channel(1);
@@ -281,7 +297,7 @@ fn spawn_joined_connection(mut joined: Receiver<JoinOutcome>) -> impl FnMut(&mut
                     ClientConnection::new(
                         connection,
                         Some(ConnectionState::Configuration),
-                        world.get_resource::<DeferredRows>(),
+                        client_dispatcher(world),
                     ),
                     ConnectionState::Configuration,
                     profile,
@@ -517,14 +533,12 @@ mod tests {
         ClientboundFinishConfiguration, ClientboundRegistryData, ClientboundSelectKnownPacks,
         ClientboundUpdateTags, RegistryTags, TagGroup,
     };
-    use mcrs_minecraft_protocol::packets::game::clientbound::{
-        ClientboundSetChunkCacheCenter, ClientboundStartConfiguration,
-    };
+    use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundStartConfiguration;
     use mcrs_minecraft_protocol::packets::game::serverbound::ServerboundConfigurationAcknowledged;
     use mcrs_minecraft_protocol::registry::Entry;
     use mcrs_minecraft_protocol::resource_pack::KnownPack;
-    use mcrs_minecraft_protocol::text::Text;
     use mcrs_minecraft_resource::ResourceLocation;
+    use mcrs_minecraft_text::Text;
     use tokio::sync::mpsc;
 
     fn runtime() -> Runtime {
@@ -544,7 +558,7 @@ mod tests {
         let entity = app
             .world_mut()
             .spawn((
-                ClientConnection::new(raw, None, None),
+                ClientConnection::new(raw, None, PacketDispatcher::clientbound()),
                 ConnectionState::Game,
                 Configuration::default(),
             ))
@@ -638,7 +652,7 @@ mod tests {
     #[derive(Resource, Default)]
     struct Handed {
         configurations: Vec<Configuration>,
-        chunk_cache_center_read_in: Vec<ConnectionState>,
+        keep_alive_read_in: Vec<ConnectionState>,
     }
 
     /// Stands in for the client crate: takes what the server sent and finishes.
@@ -651,13 +665,13 @@ mod tests {
         finish_configuration(&mut commands, event.entity);
     }
 
-    fn record_chunk_cache_center(
-        event: On<Received<ClientboundSetChunkCacheCenter>>,
+    fn record_keep_alive(
+        event: On<Received<GameKeepAlive>>,
         states: Query<&ConnectionState>,
         mut handed: ResMut<Handed>,
     ) {
         if let Ok(state) = states.get(event.entity) {
-            handed.chunk_cache_center_read_in.push(*state);
+            handed.keep_alive_read_in.push(*state);
         }
     }
 
@@ -678,11 +692,11 @@ mod tests {
             app.add_systems(Update, (receive_packets, flush).chain());
             add_packet_observers(&mut app);
             app.add_observer(accept_registries);
-            app.add_observer(record_chunk_cache_center);
+            app.add_observer(record_keep_alive);
             let entity = app
                 .world_mut()
                 .spawn((
-                    ClientConnection::new(raw, None, None),
+                    ClientConnection::new(raw, None, PacketDispatcher::clientbound()),
                     state,
                     Configuration::default(),
                 ))
@@ -827,18 +841,14 @@ mod tests {
         client.deliver(&runtime, &ClientboundFinishConfiguration);
         client.deliver(
             &runtime,
-            &ClientboundSetChunkCacheCenter {
-                x: VarInt(1),
-                z: VarInt(2),
-            },
+            &GameKeepAlive(
+                mcrs_minecraft_protocol::packets::common::clientbound::KeepAlive { payload: 7 },
+            ),
         );
         client.app.update();
         client.app.update();
 
-        assert_eq!(
-            client.handed().chunk_cache_center_read_in,
-            [ConnectionState::Game]
-        );
+        assert_eq!(client.handed().keep_alive_read_in, [ConnectionState::Game]);
     }
 
     #[test]

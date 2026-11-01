@@ -191,7 +191,7 @@
     "outputs": [
       {
         "file": "vanilla.json",
-        "to": "crates/mcrs_minecraft_protocol/tests/fixtures/text"
+        "to": "crates/mcrs_minecraft_protocol_game/tests/fixtures/text"
       }
     ]
   },
@@ -201,7 +201,7 @@
     "outputs": [
       {
         "file": "probe.json",
-        "to": "crates/mcrs_minecraft_protocol/tests/fixtures/text"
+        "to": "crates/mcrs_minecraft_protocol_game/tests/fixtures/text"
       }
     ]
   },
@@ -211,7 +211,7 @@
     "outputs": [
       {
         "file": "nbt.json",
-        "to": "crates/mcrs_minecraft_protocol/tests/fixtures/text"
+        "to": "crates/mcrs_minecraft_protocol_game/tests/fixtures/text"
       }
     ]
   },
@@ -221,7 +221,7 @@
     "outputs": [
       {
         "file": "wire.json",
-        "to": "crates/mcrs_minecraft_protocol/tests/fixtures/text"
+        "to": "crates/mcrs_minecraft_protocol_game/tests/fixtures/text"
       }
     ]
   },
@@ -231,7 +231,7 @@
     "outputs": [
       {
         "file": "plain_golden.json",
-        "to": "crates/mcrs_minecraft_protocol/tests/fixtures/item"
+        "to": "crates/mcrs_minecraft_protocol_game/tests/fixtures/item"
       }
     ]
   },
@@ -241,7 +241,7 @@
     "outputs": [
       {
         "file": "nested_golden.json",
-        "to": "crates/mcrs_minecraft_protocol/tests/fixtures/item"
+        "to": "crates/mcrs_minecraft_protocol_game/tests/fixtures/item"
       }
     ]
   },
@@ -251,7 +251,7 @@
     "outputs": [
       {
         "file": "predicate_vanilla.json",
-        "to": "crates/mcrs_minecraft_protocol/tests/fixtures/item"
+        "to": "crates/mcrs_minecraft_protocol_game/tests/fixtures/item"
       }
     ]
   },
@@ -261,7 +261,7 @@
     "outputs": [
       {
         "file": "kinds.json",
-        "to": "crates/mcrs_minecraft_protocol/tests/fixtures/item"
+        "to": "crates/mcrs_minecraft_protocol_game/tests/fixtures/item"
       }
     ]
   },
@@ -271,7 +271,7 @@
     "outputs": [
       {
         "file": "holders_golden.txt",
-        "to": "crates/mcrs_minecraft_protocol/tests/fixtures/item"
+        "to": "crates/mcrs_minecraft_protocol_game/tests/fixtures/item"
       }
     ]
   },
@@ -281,7 +281,7 @@
     "outputs": [
       {
         "file": "registry_refs_golden.txt",
-        "to": "crates/mcrs_minecraft_protocol/tests/fixtures/item"
+        "to": "crates/mcrs_minecraft_protocol_game/tests/fixtures/item"
       }
     ]
   },
@@ -291,7 +291,7 @@
     "outputs": [
       {
         "file": "vanilla_records.txt",
-        "to": "crates/mcrs_minecraft_protocol/tests/fixtures/item"
+        "to": "crates/mcrs_minecraft_protocol_game/tests/fixtures/item"
       }
     ]
   },
@@ -301,7 +301,7 @@
     "outputs": [
       {
         "file": "recipe_packets_golden.txt",
-        "to": "crates/mcrs_minecraft_protocol/tests/fixtures"
+        "to": "crates/mcrs_minecraft_protocol_game/tests/fixtures"
       }
     ]
   },
@@ -311,7 +311,7 @@
     "outputs": [
       {
         "file": "particles_golden.txt",
-        "to": "crates/mcrs_minecraft_protocol/tests/fixtures"
+        "to": "crates/mcrs_minecraft_protocol_game/tests/fixtures"
       }
     ]
   },
@@ -321,7 +321,7 @@
     "outputs": [
       {
         "file": "inventory_packets_golden.txt",
-        "to": "crates/mcrs_minecraft_protocol/tests/fixtures"
+        "to": "crates/mcrs_minecraft_protocol_game/tests/fixtures"
       }
     ]
   },
@@ -331,7 +331,7 @@
     "outputs": [
       {
         "file": "join_packets_golden.txt",
-        "to": "crates/mcrs_minecraft_protocol/tests/fixtures"
+        "to": "crates/mcrs_minecraft_protocol_game/tests/fixtures"
       }
     ]
   },
@@ -341,7 +341,7 @@
     "outputs": [
       {
         "file": "serverbound_game_packets_golden.txt",
-        "to": "crates/mcrs_minecraft_protocol/tests/fixtures"
+        "to": "crates/mcrs_minecraft_protocol_game/tests/fixtures"
       }
     ]
   },
@@ -351,7 +351,7 @@
     "outputs": [
       {
         "file": "frames_golden.txt",
-        "to": "crates/mcrs_minecraft_protocol/tests/fixtures"
+        "to": "crates/mcrs_minecraft_protocol_game/tests/fixtures"
       }
     ]
   },

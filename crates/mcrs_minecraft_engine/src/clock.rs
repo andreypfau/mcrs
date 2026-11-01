@@ -6,8 +6,8 @@ use bevy_ecs::prelude::*;
 use mcrs_minecraft_environment::world_clock::{
     AdvanceTime, ClockEdit, ClockState, WorldClock, WorldClocks,
 };
-use mcrs_minecraft_protocol::packets::game::clientbound::{ClientboundSetTime, ClockUpdate};
 use mcrs_minecraft_protocol::{VarInt, VarLong};
+use mcrs_minecraft_protocol_game::clientbound::{ClientboundSetTime, ClockUpdate};
 use mcrs_minecraft_resource::Id;
 
 /// A change to a world clock. The host owns the clocks and applies it.

@@ -4,10 +4,10 @@ use mcrs_minecraft_dimension::{Dimension, DimensionType};
 use mcrs_minecraft_network::client::close_connection_later;
 use mcrs_minecraft_network::event::Received;
 use mcrs_minecraft_protocol::Packet;
-use mcrs_minecraft_protocol::entity::player::PlayerSpawnInfo;
-use mcrs_minecraft_protocol::packets::game::clientbound::{
+use mcrs_minecraft_protocol_game::clientbound::{
     ClientboundLogin, ClientboundRespawn, ClientboundSetEntityData,
 };
+use mcrs_minecraft_protocol_game::player::PlayerSpawnInfo;
 use mcrs_minecraft_registries::{CurrentRegistries, Namer, Registries};
 use mcrs_minecraft_resource::{Id, ResourceKeyBuf};
 
@@ -137,8 +137,8 @@ mod tests {
     use mcrs_minecraft_game_mode::GameMode;
     use mcrs_minecraft_network::ConnectionState;
     use mcrs_minecraft_network::metrics::PacketDispatcher;
-    use mcrs_minecraft_protocol::entity::{MetaDataValue, Metadata, MetadataEntry};
     use mcrs_minecraft_protocol::{Encode, VarInt};
+    use mcrs_minecraft_protocol_game::entity::{MetaDataValue, Metadata, MetadataEntry};
     use mcrs_minecraft_registries::Declaration;
     use mcrs_minecraft_resource::ResourceLocationBuf;
 
@@ -226,6 +226,7 @@ mod tests {
             let mut data = Vec::new();
             packet.encode(&mut data).unwrap();
             let trigger = PacketDispatcher::clientbound()
+                .with_play(crate::game_packets::GAME_CLIENTBOUND)
                 .dispatch(P::STATE, P::ID, &data)
                 .unwrap()
                 .unwrap();

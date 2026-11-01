@@ -30,9 +30,10 @@ use mcrs_minecraft_protocol::decode::PacketDecoder;
 use mcrs_minecraft_protocol::packets::login::clientbound::ClientboundLoginDisconnect;
 use mcrs_minecraft_protocol::packets::login::serverbound::ServerboundHello;
 use mcrs_minecraft_protocol::packets::table::{
-    Row, configuration_serverbound, game_serverbound, login_serverbound, row_of,
+    Row, configuration_serverbound, login_serverbound, row_of,
 };
 use mcrs_minecraft_protocol::packets::{configuration, game};
+use mcrs_minecraft_protocol_game::table::game_serverbound;
 
 use std::time::Instant;
 use tokio::sync::mpsc;
@@ -48,7 +49,10 @@ fn build_inbound_world() -> World {
     world.init_resource::<PlayerSessionCounter>();
     world.init_resource::<DimChannelsResource>();
     world.init_resource::<BridgeTelemetry>();
-    world.insert_resource(PacketDispatcher::serverbound());
+    world.insert_resource(
+        PacketDispatcher::serverbound()
+            .with_play(mcrs_minecraft_engine::game_packets::GAME_SERVERBOUND),
+    );
     world
 }
 

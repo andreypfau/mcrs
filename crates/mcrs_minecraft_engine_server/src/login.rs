@@ -13,7 +13,8 @@ use mcrs_minecraft_network::{ConnectionState, ServerSideConnection};
 use mcrs_minecraft_protocol::packets::login::serverbound::{
     ServerboundHello, ServerboundLoginAcknowledged,
 };
-use mcrs_minecraft_protocol::{CompressionThreshold, Text, uuid};
+use mcrs_minecraft_protocol::{CompressionThreshold, uuid};
+use mcrs_minecraft_text::Text;
 
 use mcrs_minecraft_engine::disconnect::Departing;
 use mcrs_minecraft_engine::session::{

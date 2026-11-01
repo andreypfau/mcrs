@@ -19,12 +19,12 @@ use mcrs_minecraft_engine::bus::{PacketPayload, PacketTarget};
 use mcrs_minecraft_engine_world::entity::physics::Transform;
 use mcrs_minecraft_game_mode::GameMode;
 use mcrs_minecraft_item::ItemHoverMap;
-use mcrs_minecraft_protocol::packets::game::serverbound::{
-    ServerboundChatCommand, ServerboundCommandSuggestion,
-};
-use mcrs_minecraft_protocol::text::{IntoText, Text};
 use mcrs_minecraft_protocol::uuid::Uuid;
 use mcrs_minecraft_protocol::{Bounded, VarInt};
+use mcrs_minecraft_protocol_game::serverbound::{
+    ServerboundChatCommand, ServerboundCommandSuggestion,
+};
+use mcrs_minecraft_protocol_game::text::{IntoText, Text};
 use mcrs_minecraft_server::operator_broadcast::broadcast_to_operators;
 
 use mcrs_minecraft_block_entity::GeneratedBlockEntity;
@@ -34,11 +34,11 @@ use mcrs_minecraft_engine_world::world::storage::block_entity::BlockEntity;
 use mcrs_minecraft_environment::world_clock::{AdvanceTime, WorldClockPlugin};
 use mcrs_minecraft_environment::world_clock::{ClockState, WorldClock, WorldClocks};
 use mcrs_minecraft_nbt::tag::NbtTag;
-use mcrs_minecraft_protocol::packets::game::clientbound::{
+use mcrs_minecraft_protocol::{Decode, Packet, VarLong};
+use mcrs_minecraft_protocol_game::clientbound::{
     ClientboundCommands, ClientboundSetTime, ClockUpdate, LookAtEntity,
 };
-use mcrs_minecraft_protocol::text::{TextContent, TranslateArg};
-use mcrs_minecraft_protocol::{Decode, Packet, VarLong};
+use mcrs_minecraft_protocol_game::text::{TextContent, TranslateArg};
 use mcrs_minecraft_registries::CurrentRegistries;
 use mcrs_minecraft_resource::{Id, ResourceLocation};
 
@@ -333,7 +333,7 @@ fn an_operator_sees_completes_and_runs_a_plugin_command_that_a_guest_cannot() {
                 TranslateArg::Number(NbtTag::Int(0))
             ],
         )
-        .color(mcrs_minecraft_protocol::text::Color::RED),
+        .color(mcrs_minecraft_protocol_game::text::Color::RED),
         "the minimum, then the value, as numbers"
     );
     assert_eq!(context, error_context("echo ", "0", "echo 0"));
@@ -341,7 +341,7 @@ fn an_operator_sees_completes_and_runs_a_plugin_command_that_a_guest_cannot() {
 
 /// The context line of an error at the end of `before`, with `rest` after it.
 fn error_context(before: &str, rest: &str, line: &str) -> Text {
-    use mcrs_minecraft_protocol::text::Color;
+    use mcrs_minecraft_protocol_game::text::Color;
     let mut context = before.to_owned().into_text();
     if !rest.is_empty() {
         context = context.add_child(rest.to_owned().color(Color::RED).underlined());
@@ -358,7 +358,7 @@ fn error_context(before: &str, rest: &str, line: &str) -> Text {
 
 #[test]
 fn teleport_sends_the_relative_axes_and_reports_the_resolved_position() {
-    use mcrs_minecraft_protocol::{PositionFlag as F, PositionFlags};
+    use mcrs_minecraft_protocol_game::{PositionFlag as F, PositionFlags};
     let mut server = start();
     let (op, _) = server.join(OPERATOR, "Op");
     let packets = command(&mut server, op, "tp ~1 ~ 3");
@@ -390,8 +390,8 @@ fn teleport_sends_the_relative_axes_and_reports_the_resolved_position() {
 
 #[test]
 fn teleport_facing_keeps_the_rotation_then_looks_at_the_target() {
-    use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundPlayerLookAt;
-    use mcrs_minecraft_protocol::{PositionFlag as F, PositionFlags};
+    use mcrs_minecraft_protocol_game::clientbound::ClientboundPlayerLookAt;
+    use mcrs_minecraft_protocol_game::{PositionFlag as F, PositionFlags};
     let mut server = start();
     let (op, _) = server.join(OPERATOR, "Op");
     let packets = command(&mut server, op, "tp @s 0.5 64 0.5 facing 0.5 64 10.5");
@@ -502,7 +502,7 @@ fn an_admin_message_reaches_only_the_other_listed_operators_of_every_dimension()
             ),
         ],
     )
-    .color(mcrs_minecraft_protocol::text::Color::GRAY)
+    .color(mcrs_minecraft_protocol_game::text::Color::GRAY)
     .italic();
     let admin_to = |anchor: Entity| -> Vec<Text> {
         packets
@@ -613,7 +613,10 @@ fn translated(key: &'static str, with: &[&str]) -> Text {
 }
 
 fn red(text: Text) -> Text {
-    mcrs_minecraft_protocol::text::IntoText::color(text, mcrs_minecraft_protocol::text::Color::RED)
+    mcrs_minecraft_protocol_game::text::IntoText::color(
+        text,
+        mcrs_minecraft_protocol_game::text::Color::RED,
+    )
 }
 
 #[test]
@@ -1048,7 +1051,7 @@ fn a_forked_chain_keeps_its_fork_and_its_cost_in_the_dimension_it_moves_to() {
     );
 }
 
-type MessageArg = mcrs_minecraft_protocol::text::TranslateArg<
+type MessageArg = mcrs_minecraft_protocol_game::text::TranslateArg<
     mcrs_minecraft_item::Template<mcrs_minecraft_registries::Named>,
 >;
 
@@ -1652,7 +1655,7 @@ fn a_game_mode_set_before_a_change_of_dimension_in_the_same_pass_reaches_every_p
 
 #[test]
 fn execute_in_moves_the_source_player_to_another_dimension() {
-    use mcrs_minecraft_protocol::{PositionFlag as F, PositionFlags};
+    use mcrs_minecraft_protocol_game::{PositionFlag as F, PositionFlags};
     let mut server = start_in(
         &[
             ("minecraft:overworld", "minecraft:overworld"),
@@ -2089,13 +2092,13 @@ fn teleport_ids(packets: &[PacketPayload]) -> Vec<i32> {
 }
 
 fn accept_teleports(server: &mut PlayServer, anchor: Entity, ids: &[i32]) {
-    use mcrs_minecraft_protocol::packets::game::serverbound::ServerboundAcceptTeleportation;
+    use mcrs_minecraft_protocol_game::serverbound::ServerboundAcceptTeleportation;
     for &id in ids {
         server.queue(
             anchor,
             &ServerboundAcceptTeleportation {
                 teleport_id: VarInt(id),
-                position: mcrs_minecraft_protocol::Position::default(),
+                position: mcrs_minecraft_protocol_game::Position::default(),
                 look: mcrs_minecraft_core::Look::default(),
             },
         );
@@ -2105,7 +2108,7 @@ fn accept_teleports(server: &mut PlayServer, anchor: Entity, ids: &[i32]) {
 
 #[test]
 fn a_client_move_after_it_accepts_each_teleport_moves_the_player() {
-    use mcrs_minecraft_protocol::packets::game::serverbound::ServerboundMovePlayerPos;
+    use mcrs_minecraft_protocol_game::serverbound::ServerboundMovePlayerPos;
     let mut server = start_in(
         &[
             ("minecraft:overworld", "minecraft:overworld"),
@@ -2133,7 +2136,7 @@ fn a_client_move_after_it_accepts_each_teleport_moves_the_player() {
             op,
             &ServerboundMovePlayerPos {
                 position: step.into(),
-                flags: mcrs_minecraft_protocol::MoveFlags::new().with_on_ground(true),
+                flags: mcrs_minecraft_protocol_game::MoveFlags::new().with_on_ground(true),
             },
         );
         assert_eq!(
@@ -2150,7 +2153,7 @@ fn a_client_move_after_it_accepts_each_teleport_moves_the_player() {
 
 #[test]
 fn teleport_to_an_entity_takes_its_dimension_position_and_rotation() {
-    use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundPlayerLookAt;
+    use mcrs_minecraft_protocol_game::clientbound::ClientboundPlayerLookAt;
     let mut server = start_in(
         &[
             ("minecraft:overworld", "minecraft:overworld"),

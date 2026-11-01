@@ -19,8 +19,8 @@ use mcrs_minecraft_item::{Items, JukeboxPlayable, JukeboxSong};
 use mcrs_minecraft_network::event;
 use mcrs_minecraft_network::{ConnectionState, Instant};
 use mcrs_minecraft_protocol::Encode;
-use mcrs_minecraft_protocol::entity::player::PlayerSpawnInfo;
-use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundRespawn;
+use mcrs_minecraft_protocol_game::clientbound::ClientboundRespawn;
+use mcrs_minecraft_protocol_game::player::PlayerSpawnInfo;
 use mcrs_minecraft_registries::{CurrentRegistries, Received, Ref};
 use mcrs_minecraft_resource::{Id, ResourceKeyBuf, ResourceLocationBuf};
 
@@ -172,7 +172,7 @@ fn in_play() -> Play {
     Play { app, connection }
 }
 
-use mcrs_minecraft_protocol::ColumnPos;
+use mcrs_minecraft_protocol_game::ColumnPos;
 
 #[test]
 fn entering_configuration_clears_the_play_world() {

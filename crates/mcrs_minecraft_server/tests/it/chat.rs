@@ -2,15 +2,13 @@ use mcrs_minecraft_engine::bus::{PacketPayload, PacketTarget};
 use mcrs_minecraft_item::ItemHoverMap;
 use mcrs_minecraft_protocol::Bounded;
 use mcrs_minecraft_protocol::VarInt;
-use mcrs_minecraft_protocol::entity::player::MessageSignature;
 use mcrs_minecraft_protocol::packets::common::serverbound::ClientInformation;
-use mcrs_minecraft_protocol::packets::game::serverbound::{
-    ServerboundChat, ServerboundClientInformation,
-};
 use mcrs_minecraft_protocol::setting::ChatMode;
 use mcrs_minecraft_protocol::setting::{DisplayedSkinParts, MainArm, ParticleStatus};
-use mcrs_minecraft_protocol::text::{IntoText, Text, TextContent};
 use mcrs_minecraft_protocol::uuid::Uuid;
+use mcrs_minecraft_protocol_game::player::MessageSignature;
+use mcrs_minecraft_protocol_game::serverbound::{ServerboundChat, ServerboundClientInformation};
+use mcrs_minecraft_protocol_game::text::{IntoText, Text, TextContent};
 
 use crate::host_app::{self, PlayServer};
 use mcrs_minecraft_chat_server::ChatPlugin;

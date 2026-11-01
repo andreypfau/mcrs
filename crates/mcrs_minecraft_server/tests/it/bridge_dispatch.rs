@@ -7,15 +7,15 @@
 
 use crate::mock_connection;
 use mcrs_minecraft_entity::entity_type_keys::EntityType;
-use mcrs_minecraft_protocol::ByteAngle;
-use mcrs_minecraft_protocol::LpVec3;
 use mcrs_minecraft_protocol::VarInt;
-use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundAddEntity;
-use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundBlockUpdate;
-use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundEntityPositionSync;
-use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundLightUpdate;
-use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundRemoveEntities;
-use mcrs_minecraft_protocol::packets::game::clientbound::PositionPath;
+use mcrs_minecraft_protocol_game::ByteAngle;
+use mcrs_minecraft_protocol_game::LpVec3;
+use mcrs_minecraft_protocol_game::clientbound::ClientboundAddEntity;
+use mcrs_minecraft_protocol_game::clientbound::ClientboundBlockUpdate;
+use mcrs_minecraft_protocol_game::clientbound::ClientboundEntityPositionSync;
+use mcrs_minecraft_protocol_game::clientbound::ClientboundLightUpdate;
+use mcrs_minecraft_protocol_game::clientbound::ClientboundRemoveEntities;
+use mcrs_minecraft_protocol_game::clientbound::PositionPath;
 
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::Messages;
@@ -33,8 +33,8 @@ use mcrs_minecraft_engine::bus::{
 use mcrs_minecraft_engine_world::session::PlayerSession;
 use mcrs_minecraft_network::ServerSideConnection;
 use mcrs_minecraft_network::metrics::BridgeTelemetry;
-use mcrs_minecraft_protocol::chunk::LightData;
 use mcrs_minecraft_protocol::uuid::Uuid;
+use mcrs_minecraft_protocol_game::chunk::LightData;
 use mcrs_voxel::ColumnPos;
 use tokio::sync::mpsc;
 
@@ -238,7 +238,7 @@ fn deep_critical_queue_is_not_kicked() {
 /// socket per tick. The receiver side sees exactly one blob arrive.
 #[test]
 fn coalesce_single_write_per_tick() {
-    use mcrs_minecraft_protocol::block::BlockStateNumber;
+    use mcrs_minecraft_protocol_game::block::BlockStateNumber;
     use mcrs_voxel::BlockPos;
 
     let mut world = build_dispatch_world();

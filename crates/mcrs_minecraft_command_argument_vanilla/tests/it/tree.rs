@@ -7,8 +7,8 @@ use mcrs_minecraft_command_argument::GameModeArgument;
 use mcrs_minecraft_command_argument_entity::EntityArgument;
 use mcrs_minecraft_command_argument_vanilla::{VanillaArgument, VanillaGraph};
 use mcrs_minecraft_command_tree::{CommandNode, CommandNodeKind, ParserProperties};
-use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundCommands;
 use mcrs_minecraft_protocol::{Decode, Encode, VarInt};
+use mcrs_minecraft_protocol_game::clientbound::ClientboundCommands;
 
 fn graph() -> VanillaGraph<u32> {
     let op = PermissionCheck::Require(CommandLevel::Gamemasters);

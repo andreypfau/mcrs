@@ -24,8 +24,8 @@ use mcrs_minecraft_engine_world::world::storage::section::SectionIndex;
 use mcrs_minecraft_nbt::Nbt;
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::tag::NbtTag;
-use mcrs_minecraft_protocol::chunk::{ChunkData, ChunkDataBlockEntity};
 use mcrs_minecraft_protocol::{Decode, Encode};
+use mcrs_minecraft_protocol_game::chunk::{ChunkData, ChunkDataBlockEntity};
 use mcrs_minecraft_worldgen_generator::saved::saved_block_entities;
 use mcrs_voxel::SectionPos;
 

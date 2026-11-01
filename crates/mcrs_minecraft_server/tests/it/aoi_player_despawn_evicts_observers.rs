@@ -27,7 +27,7 @@ use mcrs_minecraft_engine_world::world::dimension::{
 };
 use mcrs_minecraft_engine_world::world::storage::column::{Column, ColumnIndex, ColumnSlot};
 use mcrs_minecraft_protocol::VarInt;
-use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundRemoveEntities;
+use mcrs_minecraft_protocol_game::clientbound::ClientboundRemoveEntities;
 use mcrs_voxel::ColumnPos;
 
 /// Ad-hoc sub-app label for this test.

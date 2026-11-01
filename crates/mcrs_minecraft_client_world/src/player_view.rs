@@ -4,8 +4,8 @@ use bevy::log::warn;
 use bevy::math::DVec3;
 use mcrs_minecraft_core::Look;
 use mcrs_minecraft_network::event::Received;
-use mcrs_minecraft_protocol::ColumnPos;
-use mcrs_minecraft_protocol::packets::game::clientbound::{
+use mcrs_minecraft_protocol_game::ColumnPos;
+use mcrs_minecraft_protocol_game::clientbound::{
     ClientboundChunkCacheRadius, ClientboundPlayerPosition, ClientboundSetChunkCacheCenter,
 };
 

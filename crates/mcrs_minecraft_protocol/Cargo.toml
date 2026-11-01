@@ -1,6 +1,6 @@
 [package]
 name = "mcrs_minecraft_protocol"
-description = "Protocol library for Minecraft: Java Edition"
+description = "Protocol library for Minecraft: Java Edition: framing, compression, and the handshake, status, login and configuration packets"
 readme = "README.md"
 version.workspace = true
 edition.workspace = true
@@ -13,24 +13,11 @@ bevy = ["dep:bevy_ecs"]
 
 [dependencies]
 mcrs_minecraft_resource.workspace = true
-mcrs_voxel.workspace = true
-mcrs_minecraft_command_tree.workspace = true
-mcrs_minecraft_game_mode.workspace = true
 bevy_ecs = { workspace = true, optional = true }
-mcrs_minecraft_block.workspace = true
-mcrs_minecraft_dimension.workspace = true
-mcrs_minecraft_entity.workspace = true
-mcrs_minecraft_particle.workspace = true
-mcrs_minecraft_registries.workspace = true
 mcrs_minecraft_profile.workspace = true
 mcrs_minecraft_text.workspace = true
-mcrs_minecraft_item.workspace = true
-mcrs_minecraft_chunk.workspace = true
-mcrs_minecraft_core.workspace = true
-mcrs_minecraft_keys.workspace = true
-glam.workspace = true
 mcrs_minecraft_nbt.workspace = true
-mcrs_minecraft_wire = { workspace = true, features = ["glam", "uuid", "serde"] }
+mcrs_minecraft_wire = { workspace = true, features = ["uuid", "serde"] }
 anyhow.workspace = true
 thiserror.workspace = true
 serde = { workspace = true, features = ["derive"] }
@@ -42,17 +29,4 @@ derive_more = { workspace = true, features = ["from", "into", "deref", "deref_mu
 flate2.workspace = true
 
 [dev-dependencies]
-mcrs_minecraft_engine_registries = { workspace = true, features = ["test-support"] }
-mcrs_minecraft_snbt.workspace = true
-mcrs_minecraft_sound.workspace = true
-mcrs_minecraft_game_registries = { workspace = true, features = ["test-support"] }
-criterion = { version = "0.7", features = ["html_reports"] }
 rand.workspace = true
-serde_json.workspace = true
-mcrs_minecraft_fixtures.workspace = true
-mcrs_minecraft_registry_catalog.workspace = true
-mcrs_test_alloc.workspace = true
-
-[[bench]]
-name = "frame"
-harness = false

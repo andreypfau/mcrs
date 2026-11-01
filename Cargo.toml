@@ -76,6 +76,7 @@ rayon = "1"
 mcrs_minecraft_wire = { path = "crates/mcrs_minecraft_wire" }
 mcrs_minecraft_wire_macros = { path = "crates/mcrs_minecraft_wire_macros" }
 mcrs_minecraft_protocol = { path = "crates/mcrs_minecraft_protocol" }
+mcrs_minecraft_protocol_game = { path = "crates/mcrs_minecraft_protocol_game" }
 mcrs_minecraft_nbt = { path = "crates/mcrs_minecraft_nbt" }
 mcrs_minecraft_snbt = { path = "crates/mcrs_minecraft_snbt" }
 mcrs_minecraft_network = { path = "crates/mcrs_minecraft_network", default-features = false }
@@ -260,6 +261,9 @@ opt-level = 3
 opt-level = 3
 
 [profile.dev.package."mcrs_minecraft_protocol"]
+opt-level = 3
+
+[profile.dev.package."mcrs_minecraft_protocol_game"]
 opt-level = 3
 
 [profile.dev.package."mcrs_minecraft_noise"]

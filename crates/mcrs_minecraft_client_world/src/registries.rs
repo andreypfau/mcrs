@@ -21,7 +21,7 @@ use mcrs_minecraft_network::client::{
     ClientNetworkSystems, RegistriesReceived, close_connection_later, finish_configuration,
 };
 use mcrs_minecraft_network::event;
-use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundUpdateTags;
+use mcrs_minecraft_protocol_game::clientbound::ClientboundUpdateTags;
 use mcrs_minecraft_registries::{CurrentRegistries, Diagnostics, Received, Registries};
 use mcrs_minecraft_resource::Id;
 
