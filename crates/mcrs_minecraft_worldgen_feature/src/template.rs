@@ -11,7 +11,7 @@ use mcrs_minecraft_nbt::{Nbt, from_bytes_unnamed};
 use mcrs_minecraft_resource::{ResourceLocation, ResourceLocationBuf};
 use serde::{Deserialize, Serialize};
 
-use mcrs_minecraft_block::keys::Block;
+use mcrs_minecraft_block::block_keys::Block;
 use mcrs_minecraft_block_entity::{EMPTY_LABEL, Joint};
 use mcrs_minecraft_core::{Mirror, Rotation, VERSION};
 use mcrs_minecraft_entity::villager::VillagerData;
@@ -116,7 +116,7 @@ pub struct FrozenEntity {
 // chisle: only the villager pair, which the igloo places, keeps its data.
 // The jigsaw kinds are never placed, so a cat drops its variant and a piglin
 // its sword; the upgrade is a data-carrying variant per kind that gets placed.
-#[dispatch(registry = mcrs_minecraft_entity::keys::EntityType, key = "id", only)]
+#[dispatch(registry = mcrs_minecraft_entity::entity_type_keys::EntityType, key = "id", only)]
 #[derive(Debug, Clone, PartialEq)]
 pub enum EntityKind {
     Allay,
@@ -562,7 +562,7 @@ impl Template {
                     top,
                     joint,
                     name: id_or(nbt, "name", EMPTY_LABEL).map_err(&jigsaw)?,
-                    pool: id_or(nbt, "pool", crate::keys::template_pool::EMPTY.location())
+                    pool: id_or(nbt, "pool", crate::template_pool_keys::EMPTY.location())
                         .map_err(&jigsaw)?,
                     target: id_or(nbt, "target", EMPTY_LABEL).map_err(&jigsaw)?,
                     placement_priority: int_or_zero(nbt, "placement_priority").map_err(&jigsaw)?,
@@ -1243,8 +1243,8 @@ mod tests {
                     rotation: [90.0, -5.0],
                     kind: EntityKind::Villager {
                         data: VillagerData::new(
-                            mcrs_minecraft_entity::keys::VillagerType::Plains,
-                            mcrs_minecraft_entity::keys::VillagerProfession::Cleric,
+                            mcrs_minecraft_entity::villager_type_keys::VillagerType::Plains,
+                            mcrs_minecraft_entity::villager_profession_keys::VillagerProfession::Cleric,
                             2,
                         ),
                     },

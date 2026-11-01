@@ -6,7 +6,7 @@ use serde::de::DeserializeOwned;
 
 use mcrs_minecraft_engine_registries::test_corpus;
 use mcrs_minecraft_game_registries::registry_load::test_registries;
-use mcrs_minecraft_item::keys::DataComponentType;
+use mcrs_minecraft_item::data_component_type_keys::DataComponentType;
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_protocol::item;

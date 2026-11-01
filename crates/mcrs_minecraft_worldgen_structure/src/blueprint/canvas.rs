@@ -10,7 +10,7 @@ use mcrs_minecraft_worldgen_feature::template::{
 use super::data::{BlockData, chest, compound, layered};
 use super::rules::{self, Settle, World};
 use super::{BlueprintError, Cell, Fields, Pos, Turn, state};
-use mcrs_minecraft_block::keys::Block;
+use mcrs_minecraft_block::block_keys::Block;
 
 /// The box a template fills, painted in order: a later call overwrites an
 /// earlier one, and the rule layer runs once when the template is built.

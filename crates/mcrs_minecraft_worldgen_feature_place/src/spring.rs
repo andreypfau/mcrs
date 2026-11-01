@@ -1,6 +1,6 @@
 use crate::holds;
 use glam::IVec3;
-use mcrs_minecraft_block::keys::Fluid;
+use mcrs_minecraft_block::fluid_keys::Fluid;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_random::worldgen::WorldgenRandom;
 use mcrs_minecraft_simulation::{PendingTick, TickPriority};

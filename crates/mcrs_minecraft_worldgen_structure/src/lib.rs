@@ -1,7 +1,17 @@
 use std::collections::BTreeMap;
 
 #[rustfmt::skip]
-pub mod keys;
+pub mod pool_alias_binding_keys;
+#[rustfmt::skip]
+pub mod registry_keys;
+#[rustfmt::skip]
+pub mod structure_piece_keys;
+#[rustfmt::skip]
+pub mod structure_placement_keys;
+#[rustfmt::skip]
+pub mod structure_set_keys;
+#[rustfmt::skip]
+pub mod structure_type_keys;
 pub mod blueprint;
 pub mod frozen;
 pub mod hardcoded;
@@ -45,7 +55,7 @@ pub struct StructureSelectionEntry {
     pub weight: PositiveInt,
 }
 
-#[dispatch(registry = crate::keys::StructurePlacementType)]
+#[dispatch(registry = crate::structure_placement_keys::StructurePlacementType)]
 #[derive(Debug, Clone, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub enum StructurePlacement {
@@ -111,7 +121,7 @@ pub enum SpreadType {
     Triangular,
 }
 
-#[dispatch(registry = crate::keys::StructureType)]
+#[dispatch(registry = crate::structure_type_keys::StructureType)]
 #[derive(Debug, Clone, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub enum Structure {
@@ -401,7 +411,7 @@ fn is_unit_1_0(value: &UnitFloat) -> bool {
     *value == UnitFloat(1.0)
 }
 
-#[dispatch(registry = crate::keys::PoolAliasBindingType)]
+#[dispatch(registry = crate::pool_alias_binding_keys::PoolAliasBindingType)]
 #[derive(Debug, Clone, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub enum PoolAlias {

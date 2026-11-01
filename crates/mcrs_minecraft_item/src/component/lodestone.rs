@@ -69,7 +69,7 @@ impl Sample for LodestoneTracker {
             LodestoneTracker::default(),
             LodestoneTracker {
                 target: Some(GlobalPos {
-                    dimension: mcrs_minecraft_dimension::keys::dimension::THE_NETHER.into(),
+                    dimension: mcrs_minecraft_dimension::dimension_keys::THE_NETHER.into(),
                     pos: BlockPos::new(1, -2, 3),
                 }),
                 tracked: false,

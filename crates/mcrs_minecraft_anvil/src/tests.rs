@@ -1165,7 +1165,7 @@ fn a_fluid_tick_that_does_not_load_is_dropped_and_the_rest_survive_a_save() {
         .unwrap()
         .unwrap();
     let kept = vec![SavedFluidTick {
-        fluid: mcrs_minecraft_block::keys::Fluid::Water,
+        fluid: mcrs_minecraft_block::fluid_keys::Fluid::Water,
         pos: mcrs_voxel::BlockPos::new(1, 2, 4),
         delay: 5,
         priority: -1,

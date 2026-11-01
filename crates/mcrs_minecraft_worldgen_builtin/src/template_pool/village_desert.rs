@@ -1,8 +1,8 @@
 use super::Piece::*;
 use super::{Piece, Pool, legacy, pool};
-use mcrs_minecraft_biome::keys::placed_feature;
+use mcrs_minecraft_biome::placed_feature_keys;
 use mcrs_minecraft_resource::rl;
-use mcrs_minecraft_worldgen_feature::keys::processor_list;
+use mcrs_minecraft_worldgen_feature::processor_list_keys;
 
 const STREETS: &[(Piece, i32)] = &[
     (Template(legacy("corner_").padded(1, 2, 2)), 3),
@@ -15,8 +15,8 @@ const STREETS: &[(Piece, i32)] = &[
 
 const DECOR: &[(Piece, i32)] = &[
     (Template(legacy("desert_lamp_1")), 10),
-    (Feature(placed_feature::PATCH_CACTUS), 4),
-    (Feature(placed_feature::PILE_HAY), 4),
+    (Feature(placed_feature_keys::PATCH_CACTUS), 4),
+    (Feature(placed_feature_keys::PILE_HAY), 4),
     (Empty, 10),
 ];
 
@@ -41,8 +41,8 @@ pub const POOLS: &[Pool] = &[
         (Template(legacy("desert_mason_1")), 2),
         (Template(legacy("desert_weaponsmith_1")), 2),
         (Template(legacy("desert_temple_").numbered(1, 2)), 2),
-        (Template(legacy("desert_large_farm_1").with(processor_list::FARM_DESERT)), 11),
-        (Template(legacy("desert_farm_").numbered(1, 2).with(processor_list::FARM_DESERT)), 4),
+        (Template(legacy("desert_large_farm_1").with(processor_list_keys::FARM_DESERT)), 11),
+        (Template(legacy("desert_farm_").numbered(1, 2).with(processor_list_keys::FARM_DESERT)), 4),
         (Template(legacy("desert_animal_pen_").numbered(1, 2)), 2),
         (Empty, 5),
     ]),
@@ -51,16 +51,16 @@ pub const POOLS: &[Pool] = &[
     pool(rl!("minecraft:village/desert/town_centers")).dir("village/desert/").pieces(&[
         (Template(legacy("town_centers/desert_meeting_point_").numbered(1, 2)), 98),
         (Template(legacy("town_centers/desert_meeting_point_3")), 49),
-        (Template(legacy("zombie/town_centers/desert_meeting_point_").numbered(1, 2).with(processor_list::ZOMBIE_DESERT)), 2),
-        (Template(legacy("zombie/town_centers/desert_meeting_point_3").with(processor_list::ZOMBIE_DESERT)), 1),
+        (Template(legacy("zombie/town_centers/desert_meeting_point_").numbered(1, 2).with(processor_list_keys::ZOMBIE_DESERT)), 2),
+        (Template(legacy("zombie/town_centers/desert_meeting_point_3").with(processor_list_keys::ZOMBIE_DESERT)), 1),
     ]),
     pool(rl!("minecraft:village/desert/villagers")).dir("village/desert/villagers/").pieces(&[
         (Template(legacy("nitwit")), 1),
         (Template(legacy("baby")), 1),
         (Template(legacy("unemployed")), 10),
     ]),
-    pool(rl!("minecraft:village/desert/zombie/decor")).dir("village/desert/").processors(processor_list::ZOMBIE_DESERT).pieces(DECOR),
-    pool(rl!("minecraft:village/desert/zombie/houses")).fallback(rl!("minecraft:village/desert/zombie/terminators")).dir("village/desert/").processors(processor_list::ZOMBIE_DESERT).pieces(&[
+    pool(rl!("minecraft:village/desert/zombie/decor")).dir("village/desert/").processors(processor_list_keys::ZOMBIE_DESERT).pieces(DECOR),
+    pool(rl!("minecraft:village/desert/zombie/houses")).fallback(rl!("minecraft:village/desert/zombie/terminators")).dir("village/desert/").processors(processor_list_keys::ZOMBIE_DESERT).pieces(&[
         (Template(legacy("zombie/houses/desert_small_house_").numbered(1, 5)), 2),
         (Template(legacy("zombie/houses/desert_small_house_6")), 1),
         (Template(legacy("zombie/houses/desert_small_house_").numbered(7, 8)), 2),

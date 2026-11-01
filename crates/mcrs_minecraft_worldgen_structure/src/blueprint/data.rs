@@ -1,4 +1,4 @@
-use mcrs_minecraft_block::keys::BlockEntityType;
+use mcrs_minecraft_block::block_entity_type_keys::BlockEntityType;
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::tag::NbtTag;
 

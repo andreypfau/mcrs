@@ -1,7 +1,7 @@
 use std::io::Cursor;
 
-use mcrs_minecraft_block::keys::Block;
-use mcrs_minecraft_block::keys::BlockEntityType;
+use mcrs_minecraft_block::block_entity_type_keys::BlockEntityType;
+use mcrs_minecraft_block::block_keys::Block;
 use mcrs_minecraft_core::codec::is_default;
 use mcrs_minecraft_item::ItemStackWithSlot;
 use mcrs_minecraft_nbt::compound::NbtCompound;
@@ -33,7 +33,7 @@ fn air_id() -> String {
 
 /// A block entity a generator produced, in the compound the save, the chunk
 /// packet and the anvil reader all encode.
-#[dispatch(registry = mcrs_minecraft_block::keys::BlockEntityType, key = "id", only)]
+#[dispatch(registry = mcrs_minecraft_block::block_entity_type_keys::BlockEntityType, key = "id", only)]
 #[derive(Clone, Debug, PartialEq)]
 pub enum GeneratedBlockEntity {
     Beehive {

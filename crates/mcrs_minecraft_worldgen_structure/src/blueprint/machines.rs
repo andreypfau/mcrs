@@ -3,7 +3,7 @@
 use mcrs_minecraft_core::Direction;
 
 use super::{Canvas, Fields, Tag, block};
-use mcrs_minecraft_block::keys::{Block, BlockEntityType};
+use mcrs_minecraft_block::{block_entity_type_keys::BlockEntityType, block_keys::Block};
 
 #[rustfmt::skip]
 const BARREL: Fields = &[("Items", Tag::List(&[])), ("id", Tag::String(BlockEntityType::Barrel.as_static_str()))];

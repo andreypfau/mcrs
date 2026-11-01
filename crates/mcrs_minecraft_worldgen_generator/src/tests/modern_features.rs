@@ -22,7 +22,7 @@ use super::{
     TEMPERATE, bare_fill_context, biome_registry, blocks, build_beta_router, build_program,
     flat_snapshot, one_step, region_of, try_build_program,
 };
-use mcrs_minecraft_block::keys::Fluid;
+use mcrs_minecraft_block::fluid_keys::Fluid;
 
 const ORE: &str = r#"{
   "type": "minecraft:ore",
@@ -415,7 +415,7 @@ fn a_source_only_fluid_query_holds_sources_and_waterlogged_blocks() {
 
 #[test]
 fn a_survival_rule_reads_the_water_condition_its_block_names() {
-    use mcrs_minecraft_block::keys::Block;
+    use mcrs_minecraft_block::block_keys::Block;
     use mcrs_voxel::BlockPos;
 
     fluid_resolver_test(|resolver| {

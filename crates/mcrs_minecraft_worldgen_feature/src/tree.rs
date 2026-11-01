@@ -1,4 +1,4 @@
-use mcrs_minecraft_block::keys::Block;
+use mcrs_minecraft_block::block_keys::Block;
 use mcrs_minecraft_block_predicate::provider::{BlockStateProvider, UnitFloat};
 use mcrs_minecraft_registries::{KeySet, Named, dispatch};
 use serde::de::Error as _;
@@ -63,7 +63,7 @@ impl Default for TrunkWidth {
     }
 }
 
-#[dispatch(registry = crate::keys::TrunkPlacerType)]
+#[dispatch(registry = crate::trunk_placer_type_keys::TrunkPlacerType)]
 #[derive(Debug, Clone, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub enum TrunkPlacer {
@@ -146,7 +146,7 @@ pub enum TrunkPlacer {
     },
 }
 
-#[dispatch(registry = crate::keys::FoliagePlacerType)]
+#[dispatch(registry = crate::foliage_placer_type_keys::FoliagePlacerType)]
 #[derive(Debug, Clone, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub enum FoliagePlacer {
@@ -230,7 +230,7 @@ pub enum FoliagePlacer {
 
 /// `P` is the block state provider four decorators carry: the datapack's
 /// [`BlockStateProvider`] as loaded, or whatever a freeze resolves it into.
-#[dispatch(registry = crate::keys::TreeDecoratorType)]
+#[dispatch(registry = crate::tree_decorator_type_keys::TreeDecoratorType)]
 #[derive(Debug, Clone, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub enum TreeDecorator<P = BlockStateProvider<Named>> {
@@ -359,7 +359,7 @@ impl<P> TreeDecorator<P> {
     }
 }
 
-#[dispatch(registry = crate::keys::FeatureSizeType)]
+#[dispatch(registry = crate::feature_size_type_keys::FeatureSizeType)]
 #[derive(Debug, Clone, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub enum FeatureSize {
@@ -391,7 +391,7 @@ pub enum FeatureSize {
     },
 }
 
-#[dispatch(registry = crate::keys::RootPlacerType)]
+#[dispatch(registry = crate::root_placer_type_keys::RootPlacerType)]
 #[derive(Debug, Clone, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub enum RootPlacer {

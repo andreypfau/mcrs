@@ -15,9 +15,11 @@ mod tests {
     use crate::block::BlockStateNumber;
     use crate::entity::OptionalBlockState;
     use crate::{Result, VarInt};
-    use mcrs_minecraft_item::keys::DataComponentType;
-    use mcrs_minecraft_item::keys::{DataComponentPredicateType, Item};
-    use mcrs_minecraft_particle::keys::ParticleType;
+    use mcrs_minecraft_item::data_component_type_keys::DataComponentType;
+    use mcrs_minecraft_item::{
+        data_component_predicate_type_keys::DataComponentPredicateType, item_keys::Item,
+    };
+    use mcrs_minecraft_particle::particle_type_keys::ParticleType;
     use mcrs_minecraft_registries::{decode_registry_id, encode_registry_id};
     use mcrs_minecraft_resource::Id;
 
@@ -104,9 +106,9 @@ mod tests {
         };
         use crate::text::{RawText, Text};
         use glam::DVec3;
-        use mcrs_minecraft_block::keys::BlockEntityType;
-        use mcrs_minecraft_entity::keys::{Attribute, EntityType};
-        use mcrs_minecraft_item::keys::MenuType;
+        use mcrs_minecraft_block::block_entity_type_keys::BlockEntityType;
+        use mcrs_minecraft_entity::{attribute_keys::Attribute, entity_type_keys::EntityType};
+        use mcrs_minecraft_item::menu_keys::MenuType;
 
         let add_entity = ClientboundAddEntity {
             id: VarInt(1),

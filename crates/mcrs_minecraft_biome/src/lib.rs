@@ -1,7 +1,19 @@
 pub mod climate;
 pub mod generation;
 #[rustfmt::skip]
-pub mod keys;
+pub mod biome_keys;
+#[rustfmt::skip]
+pub mod biome_source_keys;
+#[rustfmt::skip]
+pub mod biome_tag_keys;
+#[rustfmt::skip]
+pub mod carver_keys;
+#[rustfmt::skip]
+pub mod multi_noise_biome_source_parameter_list_keys;
+#[rustfmt::skip]
+pub mod placed_feature_keys;
+#[rustfmt::skip]
+pub mod registry_keys;
 pub mod overworld_preset;
 pub mod parameter_list;
 pub mod source;

@@ -14,7 +14,7 @@ use mcrs_voxel::BlockPos;
 
 use crate::canvas::ChestStates;
 use crate::{ignore_blocks, place_positional, state};
-use mcrs_minecraft_block::keys::Block;
+use mcrs_minecraft_block::block_keys::Block;
 
 #[derive(Clone)]
 pub struct WoodlandMansionBlocks {
@@ -99,7 +99,7 @@ pub fn place_woodland_mansion_piece<W: WorldGenVolume>(
             volume.set(pos, chest);
             volume.add_block_entity(GeneratedBlockEntity::chest(
                 pos,
-                mcrs_minecraft_item::keys::loot_table::CHESTS_WOODLAND_MANSION.to_string(),
+                mcrs_minecraft_item::loot_table_keys::CHESTS_WOODLAND_MANSION.to_string(),
                 rng.next_java_long(),
             ));
             continue;

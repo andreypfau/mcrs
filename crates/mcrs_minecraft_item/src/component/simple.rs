@@ -12,9 +12,9 @@ use crate::component::consume::{
     checked_float, float_default, is_one, is_zero, non_negative_float, one, positive_float,
     unit_float, zero,
 };
+use crate::data_component_type_keys::DataComponentType;
 use crate::harness::Sample;
-use crate::keys::DataComponentType;
-use crate::keys::Item;
+use crate::item_keys::Item;
 use mcrs_minecraft_wire::{Decode, Encode, Result, VarInt};
 
 float_default! {

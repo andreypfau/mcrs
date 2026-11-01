@@ -171,7 +171,7 @@ fn level_dat_reads_the_fields_we_consume() {
     assert_eq!(
         level.spawn,
         RespawnData {
-            dimension: mcrs_minecraft_dimension::keys::dimension::OVERWORLD.into(),
+            dimension: mcrs_minecraft_dimension::dimension_keys::OVERWORLD.into(),
             pos: [0, 70, 64],
             yaw: 0.0,
             pitch: 0.0,
@@ -363,7 +363,7 @@ fn normal_dimensions() -> Dimensions {
         .expect("the presets are loaded");
     let id = presets
         .by_name(
-            &mcrs_minecraft_game_registries::keys::world_preset::NORMAL
+            &mcrs_minecraft_game_registries::world_preset_keys::NORMAL
                 .location()
                 .to_buf(),
         )
@@ -512,7 +512,7 @@ fn world_gen_settings_keep_their_dimensions() {
     let extra =
         ResourceKeyBuf::<mcrs_minecraft_dimension::Dimension>::from_location(clock("test:extra"));
     let overworld =
-        dimensions[&mcrs_minecraft_dimension::keys::dimension::OVERWORLD.to_buf()].clone();
+        dimensions[&mcrs_minecraft_dimension::dimension_keys::OVERWORLD.to_buf()].clone();
     dimensions.insert(extra, overworld);
     let settings = WorldGenSettings {
         seed: -7,

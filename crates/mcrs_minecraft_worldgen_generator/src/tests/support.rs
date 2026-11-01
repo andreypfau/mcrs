@@ -172,7 +172,7 @@ use std::sync::Arc;
 
 use mcrs_minecraft_biome::{Biome, TemperatureModifier};
 use mcrs_minecraft_biome_file::BiomeFile;
-use mcrs_minecraft_block::keys::Block;
+use mcrs_minecraft_block::block_keys::Block;
 use mcrs_minecraft_registries::{IdSet, KeySet, Registries, Registry, Resolve, Resolver, Tags};
 use mcrs_minecraft_resource::{Id, ResourceKeyBuf, ResourceLocationBuf};
 use mcrs_minecraft_worldgen_feature_place::terrain_skin::BiomeClimate;
@@ -293,7 +293,9 @@ pub fn registries_over(leading: &[&str]) -> Registries {
     let mut received = SENT
         .get_or_init(|| sent_by(test_registries(), false))
         .clone();
-    let biome_key = mcrs_minecraft_biome::keys::BIOME.location().to_buf();
+    let biome_key = mcrs_minecraft_biome::registry_keys::BIOME
+        .location()
+        .to_buf();
     let (_, entries) = received
         .registries
         .iter_mut()

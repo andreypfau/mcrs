@@ -30,7 +30,7 @@ pub struct PoolEntry {
     pub weight: Bounded<1, 150>,
 }
 
-#[dispatch(registry = crate::keys::StructurePoolElementType, key = "element_type")]
+#[dispatch(registry = crate::structure_pool_element_keys::StructurePoolElementType, key = "element_type")]
 #[derive(Debug, Clone, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub enum PoolElement {

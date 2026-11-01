@@ -5,7 +5,7 @@ use mcrs_minecraft_biome::source::BiomeSource;
 use mcrs_minecraft_registries::{Refs, Resolved, dispatch, registry_value};
 
 #[registry_value]
-#[dispatch(registry = mcrs_minecraft_dimension::keys::ChunkGeneratorType)]
+#[dispatch(registry = mcrs_minecraft_dimension::chunk_generator_keys::ChunkGeneratorType)]
 #[derive(Debug, Clone, PartialEq)]
 pub enum ChunkGenerator<M: Refs = Resolved> {
     Noise(NoiseChunkGenerator<M>),

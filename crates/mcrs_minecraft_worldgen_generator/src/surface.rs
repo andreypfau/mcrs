@@ -32,9 +32,9 @@ impl SurfaceIds {
     pub fn from_lookup(
         mut biome: impl FnMut(ResourceKey<'static, Biome>) -> Option<Id<Biome>>,
     ) -> Option<Self> {
-        let eroded_badlands = biome(mcrs_minecraft_biome::keys::biome::ERODED_BADLANDS);
-        let frozen_ocean = biome(mcrs_minecraft_biome::keys::biome::FROZEN_OCEAN);
-        let deep_frozen_ocean = biome(mcrs_minecraft_biome::keys::biome::DEEP_FROZEN_OCEAN);
+        let eroded_badlands = biome(mcrs_minecraft_biome::biome_keys::ERODED_BADLANDS);
+        let frozen_ocean = biome(mcrs_minecraft_biome::biome_keys::FROZEN_OCEAN);
+        let deep_frozen_ocean = biome(mcrs_minecraft_biome::biome_keys::DEEP_FROZEN_OCEAN);
         Some(Self {
             eroded_badlands: eroded_badlands?,
             frozen_ocean: frozen_ocean?,
@@ -52,13 +52,13 @@ pub struct SurfaceStates {
 
 impl SurfaceStates {
     pub fn new(blocks: &BlockDefinitions) -> Self {
-        let state = |block: Id<mcrs_minecraft_block::keys::Block>| -> VoxelId {
+        let state = |block: Id<mcrs_minecraft_block::block_keys::Block>| -> VoxelId {
             blocks.default_state_of(block).number().into()
         };
         Self {
-            snow_block: state(mcrs_minecraft_block::keys::Block::SnowBlock.id()),
-            packed_ice: state(mcrs_minecraft_block::keys::Block::PackedIce.id()),
-            dirt: state(mcrs_minecraft_block::keys::Block::Dirt.id()),
+            snow_block: state(mcrs_minecraft_block::block_keys::Block::SnowBlock.id()),
+            packed_ice: state(mcrs_minecraft_block::block_keys::Block::PackedIce.id()),
+            dirt: state(mcrs_minecraft_block::block_keys::Block::Dirt.id()),
         }
     }
 }

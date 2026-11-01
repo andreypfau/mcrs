@@ -10,7 +10,91 @@ pub mod dropped;
 pub mod effective;
 pub mod enchantment;
 #[rustfmt::skip]
-pub mod keys;
+pub mod banner_pattern_keys;
+#[rustfmt::skip]
+pub mod banner_pattern_tag_keys;
+#[rustfmt::skip]
+pub mod block_transformer_keys;
+#[rustfmt::skip]
+pub mod consume_effect_type_keys;
+#[rustfmt::skip]
+pub mod context_float_provider_keys;
+#[rustfmt::skip]
+pub mod context_float_provider_type_keys;
+#[rustfmt::skip]
+pub mod context_int_provider_keys;
+#[rustfmt::skip]
+pub mod context_int_provider_type_keys;
+#[rustfmt::skip]
+pub mod context_key_set_keys;
+#[rustfmt::skip]
+pub mod damage_type_keys;
+#[rustfmt::skip]
+pub mod damage_type_tag_keys;
+#[rustfmt::skip]
+pub mod data_component_predicate_type_keys;
+#[rustfmt::skip]
+pub mod data_component_type_keys;
+#[rustfmt::skip]
+pub mod decorated_pot_pattern_keys;
+#[rustfmt::skip]
+pub mod dialog_action_type_keys;
+#[rustfmt::skip]
+pub mod dialog_body_type_keys;
+#[rustfmt::skip]
+pub mod dialog_keys;
+#[rustfmt::skip]
+pub mod dialog_tag_keys;
+#[rustfmt::skip]
+pub mod dialog_type_keys;
+#[rustfmt::skip]
+pub mod enchantment_keys;
+#[rustfmt::skip]
+pub mod enchantment_level_based_value_type_keys;
+#[rustfmt::skip]
+pub mod enchantment_tag_keys;
+#[rustfmt::skip]
+pub mod input_control_type_keys;
+#[rustfmt::skip]
+pub mod instrument_keys;
+#[rustfmt::skip]
+pub mod instrument_tag_keys;
+#[rustfmt::skip]
+pub mod item_keys;
+#[rustfmt::skip]
+pub mod item_tag_keys;
+#[rustfmt::skip]
+pub mod jukebox_song_keys;
+#[rustfmt::skip]
+pub mod loot_table_keys;
+#[rustfmt::skip]
+pub mod map_decoration_type_keys;
+#[rustfmt::skip]
+pub mod menu_keys;
+#[rustfmt::skip]
+pub mod mob_effect_keys;
+#[rustfmt::skip]
+pub mod painting_variant_keys;
+#[rustfmt::skip]
+pub mod painting_variant_tag_keys;
+#[rustfmt::skip]
+pub mod potion_keys;
+#[rustfmt::skip]
+pub mod potion_tag_keys;
+#[rustfmt::skip]
+pub mod recipe_book_category_keys;
+#[rustfmt::skip]
+pub mod recipe_display_keys;
+#[rustfmt::skip]
+pub mod recipe_serializer_keys;
+#[rustfmt::skip]
+pub mod registry_keys;
+#[rustfmt::skip]
+pub mod slot_display_keys;
+#[rustfmt::skip]
+pub mod trim_material_keys;
+#[rustfmt::skip]
+pub mod trim_pattern_keys;
 #[doc(hidden)]
 #[expect(
     clippy::panic,

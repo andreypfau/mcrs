@@ -19,7 +19,7 @@ use mcrs_voxel::{BlockPos, ColumnPos};
 
 use crate::canvas::{PieceCanvas, replaceable_by_structures};
 use crate::{Oriented, block_mask, state};
-use mcrs_minecraft_block::keys::Block;
+use mcrs_minecraft_block::block_keys::Block;
 
 const MAX_PILLAR_HEIGHT: i32 = 20;
 const MAX_CHAIN_HEIGHT: i32 = 50;
@@ -88,7 +88,7 @@ impl MineshaftBlocks {
         let oriented = |block: Block, properties: &[(&str, &str)]| {
             Oriented::named(world, blocks, block, properties)
         };
-        let unstable = mcrs_minecraft_block::keys::block_tags::UNSTABLE_BOTTOM_CENTER
+        let unstable = mcrs_minecraft_block::block_tag_keys::UNSTABLE_BOTTOM_CENTER
             .location()
             .to_buf();
         let unstable = states_of(blocks, StateQuery::BlockTag(&unstable))?;
@@ -375,7 +375,7 @@ fn corridor<W: WorldGenVolume>(
                 c.volume.set(pos, b.spawner);
                 c.volume.add_block_entity(GeneratedBlockEntity::mob_spawner(
                     pos,
-                    mcrs_minecraft_entity::keys::EntityType::CaveSpider.as_static_str(),
+                    mcrs_minecraft_entity::entity_type_keys::EntityType::CaveSpider.as_static_str(),
                 ));
             }
         }
@@ -491,7 +491,7 @@ fn create_minecart<W: WorldGenVolume>(
     c.place(rail, x, y, z);
     c.spawns.push(chest_minecart(
         pos,
-        mcrs_minecraft_item::keys::loot_table::CHESTS_ABANDONED_MINESHAFT.to_string(),
+        mcrs_minecraft_item::loot_table_keys::CHESTS_ABANDONED_MINESHAFT.to_string(),
         rng,
     ));
 }

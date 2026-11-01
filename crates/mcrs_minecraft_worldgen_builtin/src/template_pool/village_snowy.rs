@@ -1,8 +1,8 @@
 use super::Piece::*;
 use super::{Piece, Pool, legacy, pool};
-use mcrs_minecraft_biome::keys::placed_feature;
+use mcrs_minecraft_biome::placed_feature_keys;
 use mcrs_minecraft_resource::rl;
-use mcrs_minecraft_worldgen_feature::keys::processor_list;
+use mcrs_minecraft_worldgen_feature::processor_list_keys;
 
 const STREETS: &[(Piece, i32)] = &[
     (Template(legacy("corner_").padded(1, 3, 2)), 2),
@@ -21,9 +21,9 @@ pub const POOLS: &[Pool] = &[
     pool(rl!("minecraft:village/snowy/decor")).dir("village/snowy/").pieces(&[
         (Template(legacy("snowy_lamp_post_").padded(1, 2, 2)), 4),
         (Template(legacy("snowy_lamp_post_03")), 1),
-        (Feature(placed_feature::SPRUCE), 4),
-        (Feature(placed_feature::PILE_SNOW), 4),
-        (Feature(placed_feature::PILE_ICE), 1),
+        (Feature(placed_feature_keys::SPRUCE), 4),
+        (Feature(placed_feature_keys::PILE_SNOW), 4),
+        (Feature(placed_feature_keys::PILE_ICE), 1),
         (Empty, 9),
     ]),
     pool(rl!("minecraft:village/snowy/houses")).fallback(rl!("minecraft:village/snowy/terminators")).dir("village/snowy/houses/").pieces(&[
@@ -43,12 +43,12 @@ pub const POOLS: &[Pool] = &[
         (Template(legacy("snowy_masons_house_").numbered(1, 2)), 2),
         (Template(legacy("snowy_weapon_smith_1")), 2),
         (Template(legacy("snowy_temple_1")), 2),
-        (Template(legacy("snowy_farm_").numbered(1, 2).with(processor_list::FARM_SNOWY)), 3),
+        (Template(legacy("snowy_farm_").numbered(1, 2).with(processor_list_keys::FARM_SNOWY)), 3),
         (Template(legacy("snowy_animal_pen_").numbered(1, 2)), 2),
         (Empty, 6),
     ]),
-    pool(rl!("minecraft:village/snowy/streets")).fallback(rl!("minecraft:village/snowy/terminators")).terrain_matching().dir("village/snowy/streets/").processors(processor_list::STREET_SNOWY_OR_TAIGA).pieces(STREETS),
-    pool(rl!("minecraft:village/snowy/terminators")).terrain_matching().dir("village/plains/terminators/").processors(processor_list::STREET_SNOWY_OR_TAIGA).pieces(&[(Template(legacy("terminator_").padded(1, 4, 2)), 1)]),
+    pool(rl!("minecraft:village/snowy/streets")).fallback(rl!("minecraft:village/snowy/terminators")).terrain_matching().dir("village/snowy/streets/").processors(processor_list_keys::STREET_SNOWY_OR_TAIGA).pieces(STREETS),
+    pool(rl!("minecraft:village/snowy/terminators")).terrain_matching().dir("village/plains/terminators/").processors(processor_list_keys::STREET_SNOWY_OR_TAIGA).pieces(&[(Template(legacy("terminator_").padded(1, 4, 2)), 1)]),
     pool(rl!("minecraft:village/snowy/town_centers")).dir("village/snowy/").pieces(&[
         (Template(legacy("town_centers/snowy_meeting_point_1")), 100),
         (Template(legacy("town_centers/snowy_meeting_point_2")), 50),
@@ -57,20 +57,20 @@ pub const POOLS: &[Pool] = &[
         (Template(legacy("zombie/town_centers/snowy_meeting_point_2")), 1),
         (Template(legacy("zombie/town_centers/snowy_meeting_point_3")), 3),
     ]),
-    pool(rl!("minecraft:village/snowy/trees")).pieces(&[(Feature(placed_feature::SPRUCE), 1)]),
+    pool(rl!("minecraft:village/snowy/trees")).pieces(&[(Feature(placed_feature_keys::SPRUCE), 1)]),
     pool(rl!("minecraft:village/snowy/villagers")).dir("village/snowy/villagers/").pieces(&[
         (Template(legacy("nitwit")), 1),
         (Template(legacy("baby")), 1),
         (Template(legacy("unemployed")), 10),
     ]),
-    pool(rl!("minecraft:village/snowy/zombie/decor")).dir("village/snowy/").processors(processor_list::ZOMBIE_SNOWY).pieces(&[
+    pool(rl!("minecraft:village/snowy/zombie/decor")).dir("village/snowy/").processors(processor_list_keys::ZOMBIE_SNOWY).pieces(&[
         (Template(legacy("snowy_lamp_post_").padded(1, 3, 2)), 1),
-        (Feature(placed_feature::SPRUCE), 4),
-        (Feature(placed_feature::PILE_SNOW), 4),
-        (Feature(placed_feature::PILE_ICE), 4),
+        (Feature(placed_feature_keys::SPRUCE), 4),
+        (Feature(placed_feature_keys::PILE_SNOW), 4),
+        (Feature(placed_feature_keys::PILE_ICE), 4),
         (Empty, 7),
     ]),
-    pool(rl!("minecraft:village/snowy/zombie/houses")).fallback(rl!("minecraft:village/snowy/terminators")).dir("village/snowy/").processors(processor_list::ZOMBIE_SNOWY).pieces(&[
+    pool(rl!("minecraft:village/snowy/zombie/houses")).fallback(rl!("minecraft:village/snowy/terminators")).dir("village/snowy/").processors(processor_list_keys::ZOMBIE_SNOWY).pieces(&[
         (Template(legacy("zombie/houses/snowy_small_house_").numbered(1, 8)), 2),
         (Template(legacy("zombie/houses/snowy_medium_house_").numbered(1, 2)), 2),
         (Template(legacy("zombie/houses/snowy_medium_house_3")), 1),
@@ -90,7 +90,7 @@ pub const POOLS: &[Pool] = &[
         (Template(legacy("houses/snowy_animal_pen_").numbered(1, 2)), 2),
         (Empty, 6),
     ]),
-    pool(rl!("minecraft:village/snowy/zombie/streets")).fallback(rl!("minecraft:village/snowy/terminators")).terrain_matching().dir("village/snowy/zombie/streets/").processors(processor_list::STREET_SNOWY_OR_TAIGA).pieces(STREETS),
+    pool(rl!("minecraft:village/snowy/zombie/streets")).fallback(rl!("minecraft:village/snowy/terminators")).terrain_matching().dir("village/snowy/zombie/streets/").processors(processor_list_keys::STREET_SNOWY_OR_TAIGA).pieces(STREETS),
     pool(rl!("minecraft:village/snowy/zombie/villagers")).dir("village/snowy/zombie/villagers/").pieces(&[
         (Template(legacy("nitwit")), 1),
         (Template(legacy("unemployed")), 10),

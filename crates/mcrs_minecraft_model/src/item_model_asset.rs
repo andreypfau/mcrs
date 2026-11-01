@@ -4,10 +4,10 @@ use std::marker::PhantomData;
 
 use mcrs_minecraft_core::codec::{Validate, default_true, is_default};
 use mcrs_minecraft_dimension::Dimension;
-use mcrs_minecraft_entity::keys::EntityType;
+use mcrs_minecraft_entity::entity_type_keys::EntityType;
 use mcrs_minecraft_item::TrimMaterial;
-use mcrs_minecraft_item::keys::DataComponentPredicateType;
-use mcrs_minecraft_item::keys::DataComponentType;
+use mcrs_minecraft_item::data_component_predicate_type_keys::DataComponentPredicateType;
+use mcrs_minecraft_item::data_component_type_keys::DataComponentType;
 use mcrs_minecraft_item::{ComponentPredicate, DyeColor, ItemComponentValue, RgbInt};
 use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_registries::Named;

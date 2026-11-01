@@ -1,7 +1,15 @@
 #[rustfmt::skip]
-pub mod keys;
+pub mod chunk_generator_keys;
+#[rustfmt::skip]
+pub mod dimension_keys;
+#[rustfmt::skip]
+pub mod dimension_type_keys;
+#[rustfmt::skip]
+pub mod noise_settings_keys;
+#[rustfmt::skip]
+pub mod registry_keys;
 
-use mcrs_minecraft_block::keys::Block;
+use mcrs_minecraft_block::block_keys::Block;
 use mcrs_minecraft_registries::IdSet;
 use mcrs_minecraft_resource::Id;
 use mcrs_minecraft_value_provider::IntProvider;

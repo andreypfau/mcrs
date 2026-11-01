@@ -6,7 +6,7 @@
 //! how many blobs arrive per tick.
 
 use crate::mock_connection;
-use mcrs_minecraft_entity::keys::EntityType;
+use mcrs_minecraft_entity::entity_type_keys::EntityType;
 use mcrs_minecraft_protocol::ByteAngle;
 use mcrs_minecraft_protocol::LpVec3;
 use mcrs_minecraft_protocol::VarInt;

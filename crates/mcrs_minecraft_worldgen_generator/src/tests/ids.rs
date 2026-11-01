@@ -1,7 +1,7 @@
 use super::corpus_biomes;
 use crate::SurfaceIds;
 use crate::ids::{FillIds, require_id};
-use mcrs_minecraft_block::keys::Block;
+use mcrs_minecraft_block::block_keys::Block;
 use mcrs_minecraft_game_registries::registry_load::{registries_declaring, test_registries};
 use mcrs_minecraft_registries::{Declaration, Diagnostics, Registries};
 use mcrs_minecraft_resource::Registered;
@@ -15,7 +15,7 @@ fn biomes_without(skipped: &str) -> Registries {
         .cloned()
         .collect();
     registries_declaring(vec![Declaration::fixed(
-        mcrs_minecraft_biome::keys::BIOME.location().into(),
+        mcrs_minecraft_biome::registry_keys::BIOME.location().into(),
         names,
     )])
 }
@@ -54,7 +54,7 @@ fn a_block_tag_the_packs_leave_out_is_empty_rather_than_an_error() {
     let registries = registries_declaring(vec![
         Declaration::fixed(Block::REGISTRY.location().into(), blocks),
         Declaration::fixed(
-            mcrs_minecraft_biome::keys::BIOME.location().into(),
+            mcrs_minecraft_biome::registry_keys::BIOME.location().into(),
             corpus_biomes()
                 .iter()
                 .map(|(_, name, _)| name.clone())

@@ -8,7 +8,7 @@ use mcrs_minecraft_worldgen_structure::piece::FortressKind;
 
 use crate::canvas::{ChestStates, PieceCanvas, replaceable_by_structures};
 use crate::{Oriented, state};
-use mcrs_minecraft_block::keys::Block;
+use mcrs_minecraft_block::block_keys::Block;
 
 #[derive(Clone, Debug)]
 pub struct FortressBlocks {
@@ -384,7 +384,7 @@ fn small_corridor_left_turn<W: WorldGenVolume, R: Random>(
             3,
             2,
             3,
-            mcrs_minecraft_item::keys::loot_table::CHESTS_NETHER_BRIDGE,
+            mcrs_minecraft_item::loot_table_keys::CHESTS_NETHER_BRIDGE,
         );
     }
     small_corridor_roof(b, c);
@@ -426,7 +426,7 @@ fn small_corridor_right_turn<W: WorldGenVolume, R: Random>(
             1,
             2,
             3,
-            mcrs_minecraft_item::keys::loot_table::CHESTS_NETHER_BRIDGE,
+            mcrs_minecraft_item::loot_table_keys::CHESTS_NETHER_BRIDGE,
         );
     }
     small_corridor_roof(b, c);
@@ -511,7 +511,7 @@ fn monster_throne<W: WorldGenVolume>(b: &FortressBlocks, c: &mut PieceCanvas<'_,
         c.volume.set(pos, b.spawner);
         c.volume.add_block_entity(GeneratedBlockEntity::mob_spawner(
             pos,
-            mcrs_minecraft_entity::keys::EntityType::Blaze.as_static_str(),
+            mcrs_minecraft_entity::entity_type_keys::EntityType::Blaze.as_static_str(),
         ));
     }
     for x in 0..=6 {

@@ -1,11 +1,11 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use mcrs_minecraft_core::codec::Bounded;
+use mcrs_minecraft_item::data_component_type_keys::DataComponentType;
 use mcrs_minecraft_item::definition::CORPUS_DIRECTORY;
 use mcrs_minecraft_item::definition::schema::ItemDefinitionFile;
 use mcrs_minecraft_item::for_each_data_component;
-use mcrs_minecraft_item::keys::DataComponentType;
-use mcrs_minecraft_item::keys::Item;
+use mcrs_minecraft_item::item_keys::Item;
 use mcrs_minecraft_item::{
     AttackAnimation, AttributeModifiers, BreakSound, ComponentPatch, Enchantments,
     InteractAnimation, Lore, MaxStackSize, Rarity, RepairCost, SwingAnimation, TooltipDisplay,
@@ -194,7 +194,7 @@ fn the_plainest_item_carries_the_common_components() {
     assert_eq!(
         map.get::<BreakSound>(),
         Some(&BreakSound(Ref::Id(
-            mcrs_minecraft_sound::keys::SoundEvent::EntityItemBreak.id()
+            mcrs_minecraft_sound::sound_event_keys::SoundEvent::EntityItemBreak.id()
         )))
     );
     assert_eq!(

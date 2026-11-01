@@ -2,7 +2,7 @@ use std::io::Write;
 
 use crate::wire::ensure;
 use mcrs_minecraft_item::ProtoStack;
-use mcrs_minecraft_item::keys::Item;
+use mcrs_minecraft_item::item_keys::Item;
 use mcrs_minecraft_registries::{FromWire, Refs, Resolved, Wire};
 
 use crate::item::patch::ComponentMap;

@@ -63,11 +63,11 @@ impl EndBiomes {
         mut biome: impl FnMut(ResourceKey<'static, Biome>) -> Option<Id<Biome>>,
     ) -> Option<Self> {
         let mut id_of = |key| biome(key).map(Id::number);
-        let end = id_of(mcrs_minecraft_biome::keys::biome::THE_END);
-        let highlands = id_of(mcrs_minecraft_biome::keys::biome::END_HIGHLANDS);
-        let midlands = id_of(mcrs_minecraft_biome::keys::biome::END_MIDLANDS);
-        let islands = id_of(mcrs_minecraft_biome::keys::biome::SMALL_END_ISLANDS);
-        let barrens = id_of(mcrs_minecraft_biome::keys::biome::END_BARRENS);
+        let end = id_of(mcrs_minecraft_biome::biome_keys::THE_END);
+        let highlands = id_of(mcrs_minecraft_biome::biome_keys::END_HIGHLANDS);
+        let midlands = id_of(mcrs_minecraft_biome::biome_keys::END_MIDLANDS);
+        let islands = id_of(mcrs_minecraft_biome::biome_keys::SMALL_END_ISLANDS);
+        let barrens = id_of(mcrs_minecraft_biome::biome_keys::END_BARRENS);
         Some(EndBiomes {
             end: end?,
             highlands: highlands?,

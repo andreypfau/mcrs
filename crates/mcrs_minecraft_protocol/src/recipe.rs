@@ -1,11 +1,14 @@
 use crate::Result;
-use mcrs_minecraft_item::keys::{RecipeBookCategory, RecipeDisplayType, SlotDisplayType};
 use mcrs_minecraft_item::recipe::Ingredient;
+use mcrs_minecraft_item::{
+    recipe_book_category_keys::RecipeBookCategory, recipe_display_keys::RecipeDisplayType,
+    slot_display_keys::SlotDisplayType,
+};
 use std::io::Write;
 
 use mcrs_minecraft_core::codec::Validate;
 use mcrs_minecraft_item::component::trim::TrimPatternRef;
-use mcrs_minecraft_item::keys::Item;
+use mcrs_minecraft_item::item_keys::Item;
 use mcrs_minecraft_registries::{FromWire, Refs, Resolved, Wire};
 use mcrs_minecraft_wire::{Decode, Encode};
 
@@ -13,7 +16,7 @@ use crate::VarInt;
 use crate::entity::OptionalUnsignedInt;
 use crate::item::Template;
 use crate::wire::nested;
-use mcrs_minecraft_item::keys::DataComponentType;
+use mcrs_minecraft_item::data_component_type_keys::DataComponentType;
 
 #[derive(Clone, Debug, PartialEq, FromWire)]
 pub enum SlotDisplay<M: Refs = Resolved> {

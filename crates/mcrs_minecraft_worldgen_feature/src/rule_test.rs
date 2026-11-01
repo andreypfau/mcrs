@@ -3,7 +3,7 @@ use mcrs_minecraft_resource::ResourceLocationBuf;
 
 use mcrs_minecraft_block_predicate::block_state::BlockState;
 
-#[dispatch(registry = crate::keys::RuleTestType, key = "predicate_type")]
+#[dispatch(registry = crate::rule_test_type_keys::RuleTestType, key = "predicate_type")]
 #[derive(Debug, Clone, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub enum RuleTest {

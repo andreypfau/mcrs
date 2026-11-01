@@ -125,7 +125,7 @@ fn world_clock_count(app: &App) -> usize {
 }
 
 fn overworld_clock(app: &App) -> Id<WorldClock> {
-    let overworld = mcrs_minecraft_environment::keys::world_clock::OVERWORLD;
+    let overworld = mcrs_minecraft_environment::world_clock_keys::OVERWORLD;
     Resolver::id(
         &**app.world().resource::<CurrentRegistries>(),
         &overworld.into(),

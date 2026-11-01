@@ -1,7 +1,7 @@
 use super::Piece::*;
 use super::{Pool, pool, single};
 use mcrs_minecraft_resource::rl;
-use mcrs_minecraft_worldgen_feature::keys::processor_list;
+use mcrs_minecraft_worldgen_feature::processor_list_keys;
 
 #[rustfmt::skip]
 pub const POOLS: &[Pool] = &[
@@ -37,8 +37,8 @@ pub const POOLS: &[Pool] = &[
         (Template(single("left_staircase_").numbered(1, 3)), 1),
         (Template(single("right_staircase_").numbered(1, 3)), 1),
     ]),
-    pool(rl!("minecraft:trial_chambers/chamber/end")).dir("trial_chambers/corridor/").processors(processor_list::TRIAL_CHAMBERS_COPPER_BULB_DEGRADATION).pieces(&[(Template(single("end_").numbered(1, 2)), 1)]),
-    pool(rl!("minecraft:trial_chambers/chamber/entrance_cap")).dir("trial_chambers/chamber/").processors(processor_list::TRIAL_CHAMBERS_COPPER_BULB_DEGRADATION).pieces(&[(Template(single("entrance_cap")), 1)]),
+    pool(rl!("minecraft:trial_chambers/chamber/end")).dir("trial_chambers/corridor/").processors(processor_list_keys::TRIAL_CHAMBERS_COPPER_BULB_DEGRADATION).pieces(&[(Template(single("end_").numbered(1, 2)), 1)]),
+    pool(rl!("minecraft:trial_chambers/chamber/entrance_cap")).dir("trial_chambers/chamber/").processors(processor_list_keys::TRIAL_CHAMBERS_COPPER_BULB_DEGRADATION).pieces(&[(Template(single("entrance_cap")), 1)]),
     pool(rl!("minecraft:trial_chambers/chamber/eruption")).dir("trial_chambers/chamber/eruption/").pieces(&[
         (Template(single("center_1")), 1),
         (Template(single("breeze_slice_1")), 1),
@@ -60,7 +60,7 @@ pub const POOLS: &[Pool] = &[
         (Template(single("ramp_").numbered(1, 4)), 1),
         (Template(single("ominous_upper_arm_1")), 1),
     ]),
-    pool(rl!("minecraft:trial_chambers/chambers/end")).fallback(rl!("minecraft:trial_chambers/hallway/fallback")).dir("trial_chambers/chamber/").processors(processor_list::TRIAL_CHAMBERS_COPPER_BULB_DEGRADATION).pieces(&[
+    pool(rl!("minecraft:trial_chambers/chambers/end")).fallback(rl!("minecraft:trial_chambers/hallway/fallback")).dir("trial_chambers/chamber/").processors(processor_list_keys::TRIAL_CHAMBERS_COPPER_BULB_DEGRADATION).pieces(&[
         (Template(single("chamber_1")), 1),
         (Template(single("assembly")), 1),
         (Template(single("eruption")), 1),
@@ -70,12 +70,12 @@ pub const POOLS: &[Pool] = &[
     pool(rl!("minecraft:trial_chambers/chests/supply")).dir("trial_chambers/chests/connectors/").pieces(&[(Template(single("supply")), 1)]),
     pool(rl!("minecraft:trial_chambers/corridor")).dir("trial_chambers/").pieces(&[
         (Template(single("corridor/second_plate")), 1),
-        (Template(single("intersection/intersection_").numbered(1, 3).with(processor_list::TRIAL_CHAMBERS_COPPER_BULB_DEGRADATION)), 1),
+        (Template(single("intersection/intersection_").numbered(1, 3).with(processor_list_keys::TRIAL_CHAMBERS_COPPER_BULB_DEGRADATION)), 1),
         (Template(single("corridor/first_plate")), 1),
-        (Template(single("corridor/atrium_1").with(processor_list::TRIAL_CHAMBERS_COPPER_BULB_DEGRADATION)), 1),
-        (Template(single("corridor/entrance_").numbered(1, 3).with(processor_list::TRIAL_CHAMBERS_COPPER_BULB_DEGRADATION)), 1),
+        (Template(single("corridor/atrium_1").with(processor_list_keys::TRIAL_CHAMBERS_COPPER_BULB_DEGRADATION)), 1),
+        (Template(single("corridor/entrance_").numbered(1, 3).with(processor_list_keys::TRIAL_CHAMBERS_COPPER_BULB_DEGRADATION)), 1),
     ]),
-    pool(rl!("minecraft:trial_chambers/corridor/slices")).dir("trial_chambers/corridor/").processors(processor_list::TRIAL_CHAMBERS_COPPER_BULB_DEGRADATION).pieces(&[
+    pool(rl!("minecraft:trial_chambers/corridor/slices")).dir("trial_chambers/corridor/").processors(processor_list_keys::TRIAL_CHAMBERS_COPPER_BULB_DEGRADATION).pieces(&[
         (Template(single("straight_1")), 1),
         (Template(single("straight_").numbered(2, 6)), 2),
         (Template(single("straight_7")), 1),
@@ -145,30 +145,30 @@ pub const POOLS: &[Pool] = &[
     pool(rl!("minecraft:trial_chambers/entrance")).dir("trial_chambers/corridor/addon/").pieces(&[(Template(single("display_").numbered(1, 3)), 1)]),
     pool(rl!("minecraft:trial_chambers/hallway")).fallback(rl!("minecraft:trial_chambers/hallway/fallback")).dir("trial_chambers/").pieces(&[
         (Template(single("hallway/corridor_connector_1")), 1),
-        (Template(single("hallway/upper_hallway_connector").with(processor_list::TRIAL_CHAMBERS_COPPER_BULB_DEGRADATION)), 1),
-        (Template(single("hallway/lower_hallway_connector").with(processor_list::TRIAL_CHAMBERS_COPPER_BULB_DEGRADATION)), 1),
+        (Template(single("hallway/upper_hallway_connector").with(processor_list_keys::TRIAL_CHAMBERS_COPPER_BULB_DEGRADATION)), 1),
+        (Template(single("hallway/lower_hallway_connector").with(processor_list_keys::TRIAL_CHAMBERS_COPPER_BULB_DEGRADATION)), 1),
         (Template(single("hallway/rubble")), 1),
-        (Template(single("chamber/chamber_").numbered(1, 2).with(processor_list::TRIAL_CHAMBERS_COPPER_BULB_DEGRADATION)), 150),
-        (Template(single("chamber/chamber_4").with(processor_list::TRIAL_CHAMBERS_COPPER_BULB_DEGRADATION)), 150),
-        (Template(single("chamber/chamber_8").with(processor_list::TRIAL_CHAMBERS_COPPER_BULB_DEGRADATION)), 150),
-        (Template(single("chamber/assembly").with(processor_list::TRIAL_CHAMBERS_COPPER_BULB_DEGRADATION)), 150),
-        (Template(single("chamber/eruption").with(processor_list::TRIAL_CHAMBERS_COPPER_BULB_DEGRADATION)), 150),
-        (Template(single("chamber/slanted").with(processor_list::TRIAL_CHAMBERS_COPPER_BULB_DEGRADATION)), 150),
-        (Template(single("chamber/pedestal").with(processor_list::TRIAL_CHAMBERS_COPPER_BULB_DEGRADATION)), 150),
-        (Template(single("hallway/rubble_chamber").with(processor_list::TRIAL_CHAMBERS_COPPER_BULB_DEGRADATION)), 10),
-        (Template(single("hallway/rubble_chamber_thin").with(processor_list::TRIAL_CHAMBERS_COPPER_BULB_DEGRADATION)), 1),
-        (Template(single("hallway/cache_1").with(processor_list::TRIAL_CHAMBERS_COPPER_BULB_DEGRADATION)), 1),
-        (Template(single("hallway/left_corner").with(processor_list::TRIAL_CHAMBERS_COPPER_BULB_DEGRADATION)), 1),
-        (Template(single("hallway/right_corner").with(processor_list::TRIAL_CHAMBERS_COPPER_BULB_DEGRADATION)), 1),
-        (Template(single("hallway/corner_staircase").with(processor_list::TRIAL_CHAMBERS_COPPER_BULB_DEGRADATION)), 1),
-        (Template(single("hallway/corner_staircase_down").with(processor_list::TRIAL_CHAMBERS_COPPER_BULB_DEGRADATION)), 1),
-        (Template(single("hallway/long_straight_staircase").with(processor_list::TRIAL_CHAMBERS_COPPER_BULB_DEGRADATION)), 1),
-        (Template(single("hallway/long_straight_staircase_down").with(processor_list::TRIAL_CHAMBERS_COPPER_BULB_DEGRADATION)), 1),
-        (Template(single("hallway/straight").with(processor_list::TRIAL_CHAMBERS_COPPER_BULB_DEGRADATION)), 1),
-        (Template(single("hallway/straight_staircase").with(processor_list::TRIAL_CHAMBERS_COPPER_BULB_DEGRADATION)), 1),
-        (Template(single("hallway/straight_staircase_down").with(processor_list::TRIAL_CHAMBERS_COPPER_BULB_DEGRADATION)), 1),
-        (Template(single("hallway/trapped_staircase").with(processor_list::TRIAL_CHAMBERS_COPPER_BULB_DEGRADATION)), 1),
-        (Template(single("hallway/encounter_").numbered(1, 5).with(processor_list::TRIAL_CHAMBERS_COPPER_BULB_DEGRADATION)), 1),
+        (Template(single("chamber/chamber_").numbered(1, 2).with(processor_list_keys::TRIAL_CHAMBERS_COPPER_BULB_DEGRADATION)), 150),
+        (Template(single("chamber/chamber_4").with(processor_list_keys::TRIAL_CHAMBERS_COPPER_BULB_DEGRADATION)), 150),
+        (Template(single("chamber/chamber_8").with(processor_list_keys::TRIAL_CHAMBERS_COPPER_BULB_DEGRADATION)), 150),
+        (Template(single("chamber/assembly").with(processor_list_keys::TRIAL_CHAMBERS_COPPER_BULB_DEGRADATION)), 150),
+        (Template(single("chamber/eruption").with(processor_list_keys::TRIAL_CHAMBERS_COPPER_BULB_DEGRADATION)), 150),
+        (Template(single("chamber/slanted").with(processor_list_keys::TRIAL_CHAMBERS_COPPER_BULB_DEGRADATION)), 150),
+        (Template(single("chamber/pedestal").with(processor_list_keys::TRIAL_CHAMBERS_COPPER_BULB_DEGRADATION)), 150),
+        (Template(single("hallway/rubble_chamber").with(processor_list_keys::TRIAL_CHAMBERS_COPPER_BULB_DEGRADATION)), 10),
+        (Template(single("hallway/rubble_chamber_thin").with(processor_list_keys::TRIAL_CHAMBERS_COPPER_BULB_DEGRADATION)), 1),
+        (Template(single("hallway/cache_1").with(processor_list_keys::TRIAL_CHAMBERS_COPPER_BULB_DEGRADATION)), 1),
+        (Template(single("hallway/left_corner").with(processor_list_keys::TRIAL_CHAMBERS_COPPER_BULB_DEGRADATION)), 1),
+        (Template(single("hallway/right_corner").with(processor_list_keys::TRIAL_CHAMBERS_COPPER_BULB_DEGRADATION)), 1),
+        (Template(single("hallway/corner_staircase").with(processor_list_keys::TRIAL_CHAMBERS_COPPER_BULB_DEGRADATION)), 1),
+        (Template(single("hallway/corner_staircase_down").with(processor_list_keys::TRIAL_CHAMBERS_COPPER_BULB_DEGRADATION)), 1),
+        (Template(single("hallway/long_straight_staircase").with(processor_list_keys::TRIAL_CHAMBERS_COPPER_BULB_DEGRADATION)), 1),
+        (Template(single("hallway/long_straight_staircase_down").with(processor_list_keys::TRIAL_CHAMBERS_COPPER_BULB_DEGRADATION)), 1),
+        (Template(single("hallway/straight").with(processor_list_keys::TRIAL_CHAMBERS_COPPER_BULB_DEGRADATION)), 1),
+        (Template(single("hallway/straight_staircase").with(processor_list_keys::TRIAL_CHAMBERS_COPPER_BULB_DEGRADATION)), 1),
+        (Template(single("hallway/straight_staircase_down").with(processor_list_keys::TRIAL_CHAMBERS_COPPER_BULB_DEGRADATION)), 1),
+        (Template(single("hallway/trapped_staircase").with(processor_list_keys::TRIAL_CHAMBERS_COPPER_BULB_DEGRADATION)), 1),
+        (Template(single("hallway/encounter_").numbered(1, 5).with(processor_list_keys::TRIAL_CHAMBERS_COPPER_BULB_DEGRADATION)), 1),
     ]),
     pool(rl!("minecraft:trial_chambers/hallway/fallback")).dir("trial_chambers/hallway/").pieces(&[
         (Template(single("rubble")), 1),

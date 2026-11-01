@@ -1,5 +1,19 @@
 #[rustfmt::skip]
-pub mod keys;
+pub mod loot_condition_type_keys;
+#[rustfmt::skip]
+pub mod loot_function_type_keys;
+#[rustfmt::skip]
+pub mod loot_nbt_provider_type_keys;
+#[rustfmt::skip]
+pub mod loot_pool_entry_type_keys;
+#[rustfmt::skip]
+pub mod loot_score_provider_type_keys;
+#[rustfmt::skip]
+pub mod predicate_keys;
+#[rustfmt::skip]
+pub mod registry_keys;
+#[rustfmt::skip]
+pub mod slot_source_type_keys;
 
 // chisle: loot conditions, item modifiers and slot sources are read for their names only; their
 // values get types when a loot table is rolled.

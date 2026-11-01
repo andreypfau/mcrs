@@ -5,7 +5,7 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use crate::block_state::BlockState;
 use crate::state_properties::StatePropertiesPredicate;
 use mcrs_minecraft_biome::Biome;
-use mcrs_minecraft_block::keys::Fluid;
+use mcrs_minecraft_block::fluid_keys::Fluid;
 use mcrs_minecraft_core::codec::IntArray;
 use mcrs_minecraft_core::codec::is_default;
 use mcrs_minecraft_core::{codec::Validate, validated};
@@ -42,13 +42,13 @@ impl<'de> Deserialize<'de> for Offset {
 use mcrs_minecraft_core::Direction;
 
 #[registry_value]
-#[dispatch(registry = crate::keys::BlockPredicateType)]
+#[dispatch(registry = crate::block_predicate_type_keys::BlockPredicateType)]
 #[derive(Debug, Clone, PartialEq)]
 pub enum BlockPredicate<M: Refs = Resolved> {
     MatchingBlocks {
         #[serde(default, skip_serializing_if = "is_default")]
         offset: Offset,
-        blocks: M::Set<mcrs_minecraft_block::keys::Block>,
+        blocks: M::Set<mcrs_minecraft_block::block_keys::Block>,
     },
     MatchingBlockTag {
         #[serde(default, skip_serializing_if = "is_default")]
@@ -182,7 +182,7 @@ mod tests {
 
     #[test]
     fn every_registered_predicate_type_is_a_variant() {
-        let names = crate::keys::BlockPredicateType::ENTRIES;
+        let names = crate::block_predicate_type_keys::BlockPredicateType::ENTRIES;
         assert!(!names.is_empty());
         for name in names {
             let json = format!(r#"{{"type":"{name}"}}"#);

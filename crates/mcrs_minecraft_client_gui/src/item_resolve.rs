@@ -299,7 +299,7 @@ mod tests {
     use mcrs_minecraft_core::codec::Bounded;
     use mcrs_minecraft_engine_registries::test_corpus;
     use mcrs_minecraft_item::SlotTable;
-    use mcrs_minecraft_item::keys::DataComponentType;
+    use mcrs_minecraft_item::data_component_type_keys::DataComponentType;
     use mcrs_minecraft_item::value::{is_child_kind, named_entry, ops};
     use mcrs_minecraft_protocol::item::{
         ComponentPatch, Damage, DyedColor, Enchantments, FireworkExplosion, FireworkShape,
@@ -324,7 +324,7 @@ mod tests {
 
     fn value(path: &str, count: i32, components: ComponentPatch) -> ItemStackValue {
         ItemStackValue {
-            item: mcrs_minecraft_item::keys::Item::read(&format!("minecraft:{path}"))
+            item: mcrs_minecraft_item::item_keys::Item::read(&format!("minecraft:{path}"))
                 .unwrap()
                 .id(),
             count: Bounded(count),

@@ -3,8 +3,8 @@ use crate::bake::{self, Dir};
 use crate::block_catalog::{BlockStateKey, cube_corners};
 use crate::model::Pack;
 use bevy::math::Vec3;
+use mcrs_minecraft_block::block_keys::Block;
 use mcrs_minecraft_block::definition::{BlockStateData, BlockStateFlags};
-use mcrs_minecraft_block::keys::Block;
 use mcrs_minecraft_core::voxel_shape::Aabb;
 use mcrs_minecraft_mesh::ambient::Neighbour;
 use mcrs_minecraft_mesh::block::{

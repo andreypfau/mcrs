@@ -1,6 +1,6 @@
 use crate::component::*;
-use crate::keys::DataComponentType;
-use crate::keys::Item;
+use crate::data_component_type_keys::DataComponentType;
+use crate::item_keys::Item;
 use crate::{
     ComponentPatch, ItemComponentValue, ItemDataComponent, ItemStackValue, ProtoStack, Template,
     for_each_data_component,

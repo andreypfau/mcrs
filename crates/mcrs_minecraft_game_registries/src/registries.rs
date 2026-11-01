@@ -13,7 +13,7 @@ use crate::worldgen::world_preset::WorldPreset;
 use mcrs_minecraft_biome::parameter_list::MultiNoiseBiomeSourceParameterList;
 use mcrs_minecraft_biome_file::{BiomeFile, NetworkBiome};
 use mcrs_minecraft_block_predicate::provider::DirectBlockStateProvider;
-use mcrs_minecraft_dimension::keys::DIMENSION;
+use mcrs_minecraft_dimension::registry_keys::DIMENSION;
 use mcrs_minecraft_dimension_environment::dimension_type::{
     DimensionTypeFile, NetworkDimensionType,
 };

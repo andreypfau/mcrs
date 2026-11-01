@@ -50,7 +50,7 @@ impl DispatchedFloatProvider {
     }
 }
 
-#[dispatch(registry = crate::keys::FloatProviderType)]
+#[dispatch(registry = crate::float_provider_type_keys::FloatProviderType)]
 #[derive(Debug, Clone, Copy, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub enum DispatchedFloatProvider {

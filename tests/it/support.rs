@@ -4,7 +4,7 @@ use bevy_asset::{AssetApp, AssetPlugin};
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::MessageWriter;
 use mcrs_minecraft_biome_file::BiomeFile;
-use mcrs_minecraft_block::keys::Block;
+use mcrs_minecraft_block::block_keys::Block;
 use mcrs_minecraft_client_world::columns::{ColumnCachePlugin, ColumnStore, Columns};
 use mcrs_minecraft_client_world::joined_game::{CurrentDimension, JoinedGame};
 use mcrs_minecraft_client_world::player::Player;

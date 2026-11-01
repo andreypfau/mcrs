@@ -34,7 +34,7 @@ pub struct GeneratedEntity {
     pub passengers: Vec<GeneratedEntity>,
 }
 
-#[dispatch(registry = mcrs_minecraft_entity::keys::EntityType, key = "id", only)]
+#[dispatch(registry = mcrs_minecraft_entity::entity_type_keys::EntityType, key = "id", only)]
 #[derive(Clone, Debug, PartialEq)]
 pub enum GeneratedKind {
     Witch {
@@ -116,7 +116,7 @@ pub enum GeneratedKind {
     },
 }
 
-use mcrs_minecraft_item::keys::Item;
+use mcrs_minecraft_item::item_keys::Item;
 
 /// `ItemStack.CODEC`, whose `count` is optional to read and always written.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -429,14 +429,14 @@ pub fn cat(
 ) -> GeneratedEntity {
     let left_handed = mob(rng);
     let variant = tables.cats.pick(ctx, rng).cloned().unwrap_or_else(|| {
-        mcrs_minecraft_entity::keys::cat_variant::BLACK
+        mcrs_minecraft_entity::cat_variant_keys::BLACK
             .location()
             .to_buf()
     });
     let sound_variant = pick_sound(
         &tables.cat_sounds,
         || {
-            mcrs_minecraft_entity::keys::cat_sound_variant::CLASSIC
+            mcrs_minecraft_entity::cat_sound_variant_keys::CLASSIC
                 .location()
                 .to_buf()
         },
@@ -461,14 +461,14 @@ fn chicken_jockey(
     rng: &mut WorldgenRandom,
 ) -> GeneratedEntity {
     let variant = tables.chickens.pick(ctx, rng).cloned().unwrap_or_else(|| {
-        mcrs_minecraft_entity::keys::chicken_variant::TEMPERATE
+        mcrs_minecraft_entity::chicken_variant_keys::TEMPERATE
             .location()
             .to_buf()
     });
     let sound_variant = pick_sound(
         &tables.chicken_sounds,
         || {
-            mcrs_minecraft_entity::keys::chicken_sound_variant::CLASSIC
+            mcrs_minecraft_entity::chicken_sound_variant_keys::CLASSIC
                 .location()
                 .to_buf()
         },
@@ -499,7 +499,7 @@ fn zombie_nautilus(
         .pick(ctx, rng)
         .cloned()
         .unwrap_or_else(|| {
-            mcrs_minecraft_entity::keys::zombie_nautilus_variant::TEMPERATE
+            mcrs_minecraft_entity::zombie_nautilus_variant_keys::TEMPERATE
                 .location()
                 .to_buf()
         });

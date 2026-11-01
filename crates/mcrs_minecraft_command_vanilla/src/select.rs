@@ -5,7 +5,7 @@ use mcrs_command::ArgumentHandle;
 use mcrs_minecraft_command::ErrorText;
 use mcrs_minecraft_command_argument_entity::{Candidate, EntityArgument, EntityBounds};
 use mcrs_minecraft_command_engine::{CommandFailure, Invocation, PlayerEntry};
-use mcrs_minecraft_entity::keys::EntityType;
+use mcrs_minecraft_entity::entity_type_keys::EntityType;
 use mcrs_minecraft_entity::{PLAYER_HEIGHT, PLAYER_WIDTH};
 use mcrs_minecraft_game_mode::GameMode;
 use mcrs_minecraft_protocol::uuid::Uuid;

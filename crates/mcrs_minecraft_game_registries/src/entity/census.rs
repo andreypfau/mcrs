@@ -1,6 +1,8 @@
 use bytes::Buf;
-use mcrs_minecraft_entity::keys::{Attribute, VillagerProfession};
 use mcrs_minecraft_entity::variant::{CatSoundVariant, CatVariant};
+use mcrs_minecraft_entity::{
+    attribute_keys::Attribute, villager_profession_keys::VillagerProfession,
+};
 use mcrs_minecraft_fixtures::fixture;
 use mcrs_minecraft_resource::Registered;
 use mcrs_minecraft_worldgen_testing::dump_string;
@@ -75,7 +77,7 @@ fn entity_types_follow_the_registry_order() {
 fn villager_types_and_professions_follow_the_registry_order() {
     let census = read_census();
     assert_eq!(
-        mcrs_minecraft_entity::keys::VillagerType::ENTRIES
+        mcrs_minecraft_entity::villager_type_keys::VillagerType::ENTRIES
             .iter()
             .map(ToString::to_string)
             .collect::<Vec<_>>(),

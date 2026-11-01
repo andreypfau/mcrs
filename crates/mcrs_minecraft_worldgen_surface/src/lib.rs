@@ -1,5 +1,13 @@
 #[rustfmt::skip]
-pub mod keys;
+pub mod material_condition_keys;
+#[rustfmt::skip]
+pub mod material_condition_type_keys;
+#[rustfmt::skip]
+pub mod material_rule_keys;
+#[rustfmt::skip]
+pub mod material_rule_type_keys;
+#[rustfmt::skip]
+pub mod registry_keys;
 pub mod compile;
 pub mod eval;
 #[cfg(test)]

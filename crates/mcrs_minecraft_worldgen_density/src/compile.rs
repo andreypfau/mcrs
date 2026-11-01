@@ -1080,14 +1080,14 @@ impl<'a> Compiler<'a> {
     ) -> Result<NoiseStack<Octave>, CompileError> {
         // The two nether climate noises are seeded from the raw world seed, not
         // from the hashed fork every other noise takes.
-        if id == mcrs_minecraft_noise::keys::noise::NETHER_TEMPERATURE.location() {
+        if id == mcrs_minecraft_noise::noise_keys::NETHER_TEMPERATURE.location() {
             return Ok(normal_noise::create_parity(
                 -7,
                 &[1.0, 1.0],
                 &mut LegacyRandom::new(self.seed),
             ));
         }
-        if id == mcrs_minecraft_noise::keys::noise::NETHER_VEGETATION.location() {
+        if id == mcrs_minecraft_noise::noise_keys::NETHER_VEGETATION.location() {
             return Ok(normal_noise::create_parity(
                 -7,
                 &[1.0, 1.0],
@@ -1140,9 +1140,9 @@ impl<'a> Compiler<'a> {
     /// The Beta noises are drawn from the pre-26.3 `LegacyRandom` streams and
     /// have no `worldgen/noise` entry, so the ids are resolved here instead.
     fn create_legacy_noise(&mut self, id: &ResourceLocationBuf) -> Option<NoiseStack<Octave>> {
-        if id == mcrs_minecraft_noise::keys::noise::OFFSET.location() {
+        if id == mcrs_minecraft_noise::noise_keys::OFFSET.location() {
             let mut root = self.random.clone();
-            let mut random = root.fork_hash(mcrs_minecraft_noise::keys::noise::OFFSET.to_string());
+            let mut random = root.fork_hash(mcrs_minecraft_noise::noise_keys::OFFSET.to_string());
             return Some(normal_noise::create_parity(0, &[0.0], &mut random));
         }
         match id.as_str() {

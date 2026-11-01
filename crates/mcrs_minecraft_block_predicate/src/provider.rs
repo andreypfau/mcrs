@@ -14,7 +14,7 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::block_state::{BlockState, serialize_stated};
 use crate::predicate::BlockPredicate;
-use mcrs_minecraft_block::keys::Block;
+use mcrs_minecraft_block::block_keys::Block;
 
 mcrs_minecraft_noise::bounded_float! {
     /// `Codec.floatRange(0.0F, 1.0F)`.
@@ -136,7 +136,7 @@ pub enum DirectBlockStateProvider<M: Refs = Resolved> {
 }
 
 #[registry_value]
-#[dispatch(registry = crate::keys::BlockStateProviderType)]
+#[dispatch(registry = crate::block_state_provider_type_keys::BlockStateProviderType)]
 #[derive(Debug, Clone, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub enum TypedBlockStateProvider<M: Refs = Resolved> {

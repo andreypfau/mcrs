@@ -1,7 +1,7 @@
 use bevy_app::{App, Last, Plugin, PreUpdate};
 use bevy_ecs::prelude::*;
+use mcrs_minecraft_block::block_keys::Block;
 use mcrs_minecraft_block::definition::Blocks;
-use mcrs_minecraft_block::keys::Block;
 use mcrs_minecraft_chunk::{ColumnHeights, VoxelId};
 use mcrs_minecraft_engine_world::block_update::BlockPlaced;
 use mcrs_minecraft_engine_world::palette::ChunkBlocks;

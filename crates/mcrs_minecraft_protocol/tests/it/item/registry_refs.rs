@@ -3,7 +3,7 @@ use mcrs_minecraft_fixtures::fixture;
 use std::collections::BTreeMap;
 use std::sync::LazyLock;
 
-use mcrs_minecraft_item::keys::DataComponentType;
+use mcrs_minecraft_item::data_component_type_keys::DataComponentType;
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_protocol::item::{ItemComponentValue, hash_ops};
 
@@ -238,7 +238,7 @@ fn out_of_range_wire_ids_read_as_the_first_entry() {
 
 #[test]
 fn a_stack_with_several_enchantments_survives_the_registry_free_pass() {
-    use mcrs_minecraft_item::keys::Item;
+    use mcrs_minecraft_item::item_keys::Item;
     use mcrs_minecraft_protocol::item::{ComponentPatch, Enchantments, ProtoStack};
     use mcrs_minecraft_protocol::{Decode, Encode};
     use mcrs_minecraft_registries::{FromWire, Wire};

@@ -5,7 +5,7 @@ use std::sync::Arc;
 use mcrs_minecraft_registries::{Ref, Refs, Resolved, registry_value};
 use mcrs_minecraft_resource::rl;
 use mcrs_minecraft_sound::Sound;
-use mcrs_minecraft_sound::keys::SoundEvent;
+use mcrs_minecraft_sound::sound_event_keys::SoundEvent;
 use serde::{Deserialize, Serialize};
 
 use crate::component::consume::{

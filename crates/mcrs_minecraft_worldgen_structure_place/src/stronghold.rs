@@ -8,7 +8,7 @@ use mcrs_minecraft_worldgen_structure::piece::{SmallDoor, StrongholdKind};
 
 use crate::canvas::{ChestStates, PieceCanvas};
 use crate::{Oriented, state};
-use mcrs_minecraft_block::keys::Block;
+use mcrs_minecraft_block::block_keys::Block;
 
 #[derive(Clone, Debug)]
 pub struct StrongholdBlocks {
@@ -468,7 +468,7 @@ fn room_crossing<W: WorldGenVolume, R: Random>(
                 3,
                 4,
                 8,
-                mcrs_minecraft_item::keys::loot_table::CHESTS_STRONGHOLD_CROSSING,
+                mcrs_minecraft_item::loot_table_keys::CHESTS_STRONGHOLD_CROSSING,
             );
         }
         _ => {}
@@ -567,7 +567,7 @@ fn chest_corridor<W: WorldGenVolume, R: Random>(
         3,
         2,
         3,
-        mcrs_minecraft_item::keys::loot_table::CHESTS_STRONGHOLD_CORRIDOR,
+        mcrs_minecraft_item::loot_table_keys::CHESTS_STRONGHOLD_CORRIDOR,
     );
 }
 
@@ -670,7 +670,7 @@ fn library<W: WorldGenVolume, R: Random>(
         3,
         3,
         5,
-        mcrs_minecraft_item::keys::loot_table::CHESTS_STRONGHOLD_LIBRARY,
+        mcrs_minecraft_item::loot_table_keys::CHESTS_STRONGHOLD_LIBRARY,
     );
     if tall {
         c.place(&b.cave_air, 12, 9, 1);
@@ -680,7 +680,7 @@ fn library<W: WorldGenVolume, R: Random>(
             12,
             8,
             1,
-            mcrs_minecraft_item::keys::loot_table::CHESTS_STRONGHOLD_LIBRARY,
+            mcrs_minecraft_item::loot_table_keys::CHESTS_STRONGHOLD_LIBRARY,
         );
     }
 }
@@ -748,7 +748,7 @@ fn portal_room<W: WorldGenVolume, R: Random>(
         c.volume.set(pos, b.spawner);
         c.volume.add_block_entity(GeneratedBlockEntity::mob_spawner(
             pos,
-            mcrs_minecraft_entity::keys::EntityType::Silverfish.as_static_str(),
+            mcrs_minecraft_entity::entity_type_keys::EntityType::Silverfish.as_static_str(),
         ));
     }
 }

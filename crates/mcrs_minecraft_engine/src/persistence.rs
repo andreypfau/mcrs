@@ -67,7 +67,7 @@ pub fn save_player(world: &World, player: Entity) -> PlayerDat {
         .get::<InDimension>(player)
         .and_then(|dim| world.get::<ResourceKeyBuf<Dimension>>(dim.0))
         .cloned()
-        .unwrap_or_else(|| mcrs_minecraft_dimension::keys::dimension::OVERWORLD.into());
+        .unwrap_or_else(|| mcrs_minecraft_dimension::dimension_keys::OVERWORLD.into());
     let loaded = world
         .get::<LoadedPlayerDat>(player)
         .cloned()

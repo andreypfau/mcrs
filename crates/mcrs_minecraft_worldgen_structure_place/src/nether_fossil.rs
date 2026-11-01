@@ -14,7 +14,7 @@ use mcrs_minecraft_worldgen_structure::piece::NetherFossilPiece;
 use mcrs_voxel::BlockPos;
 
 use crate::{ignore_blocks, place_positional, state};
-use mcrs_minecraft_block::keys::Block;
+use mcrs_minecraft_block::block_keys::Block;
 
 #[derive(Clone, Debug)]
 pub struct NetherFossilBlocks {

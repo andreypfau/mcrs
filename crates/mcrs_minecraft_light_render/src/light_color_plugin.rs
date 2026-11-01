@@ -1,8 +1,8 @@
 use bevy::asset::io::AssetSourceId;
 use bevy::prelude::*;
 use mcrs_minecraft_assets::asset::read_json_corpus;
+use mcrs_minecraft_block::block_keys::Block;
 use mcrs_minecraft_block::definition::Blocks;
-use mcrs_minecraft_block::keys::Block;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_item::Items;
 use mcrs_minecraft_light_color::colors::{CORPUS_DIRECTORY, LightColors, LightType};

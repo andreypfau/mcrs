@@ -139,7 +139,7 @@ static FEATURE_JIGSAW: LazyLock<JigsawBlock> = LazyLock::new(|| {
         top: Direction::South,
         joint: Joint::Rollable,
         name: label.clone(),
-        pool: mcrs_minecraft_worldgen_feature::keys::template_pool::EMPTY
+        pool: mcrs_minecraft_worldgen_feature::template_pool_keys::EMPTY
             .location()
             .to_buf(),
         target: label,

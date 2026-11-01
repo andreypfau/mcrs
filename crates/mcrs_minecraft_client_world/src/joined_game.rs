@@ -130,9 +130,9 @@ fn on_set_entity_data(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use mcrs_minecraft_dimension::keys::DIMENSION_TYPE;
-    use mcrs_minecraft_dimension::keys::dimension::{OVERWORLD, THE_NETHER};
-    use mcrs_minecraft_entity::keys::CAT_VARIANT;
+    use mcrs_minecraft_dimension::dimension_keys::{OVERWORLD, THE_NETHER};
+    use mcrs_minecraft_dimension::registry_keys::DIMENSION_TYPE;
+    use mcrs_minecraft_entity::registry_keys::CAT_VARIANT;
     use mcrs_minecraft_entity::variant::CatVariant;
     use mcrs_minecraft_game_mode::GameMode;
     use mcrs_minecraft_network::ConnectionState;

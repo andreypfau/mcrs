@@ -5,7 +5,13 @@
 
 pub mod bounds;
 #[rustfmt::skip]
-pub mod keys;
+pub mod float_provider_type_keys;
+#[rustfmt::skip]
+pub mod height_provider_type_keys;
+#[rustfmt::skip]
+pub mod int_provider_type_keys;
+#[rustfmt::skip]
+pub mod registry_keys;
 mod bounded_int_provider;
 mod constant_or_dispatch;
 mod float_provider;

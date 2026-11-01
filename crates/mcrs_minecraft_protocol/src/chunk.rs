@@ -5,7 +5,7 @@ use crate::section::{
 use crate::wire::{Context, bail, ensure};
 use crate::{Decode as DecodeTrait, Encode as EncodeTrait, Result, VarInt, VarLong};
 use bitfield_struct::bitfield;
-use mcrs_minecraft_block::keys::BlockEntityType;
+use mcrs_minecraft_block::block_entity_type_keys::BlockEntityType;
 use mcrs_minecraft_chunk::{
     PalettedContainer, RemapError, SectionKind, VoxelId, any_entry_past, first_entry_past,
     pack_from, packed_len, remap_into, unpack_into,

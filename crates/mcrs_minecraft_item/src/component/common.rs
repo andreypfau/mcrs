@@ -17,9 +17,9 @@ use serde::de::{DeserializeOwned, Error as _, IgnoredAny, MapAccess, SeqAccess, 
 use serde::ser::SerializeMap;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-use crate::keys::MobEffect;
 use crate::loot::ContextFloatProvider;
 use crate::loot::ContextIntProvider;
+use crate::mob_effect_keys::MobEffect;
 
 pub use mcrs_minecraft_core::codec::{
     ArgbInt, BoundedString, IntArray, Number, RgbInt, compound_or_snbt, lenient, lenient_float,
@@ -27,9 +27,9 @@ pub use mcrs_minecraft_core::codec::{
 };
 
 use crate::wire::ordinal_enum_wire;
-use mcrs_minecraft_block::keys::BlockEntityType;
+use mcrs_minecraft_block::block_entity_type_keys::BlockEntityType;
 pub use mcrs_minecraft_block_predicate::state_properties::ValueMatcher;
-use mcrs_minecraft_entity::keys::EntityType;
+use mcrs_minecraft_entity::entity_type_keys::EntityType;
 use mcrs_minecraft_wire::nested;
 use mcrs_minecraft_wire::{Context, Decode, Encode, Result, VarInt, ensure};
 use std::io::Write;

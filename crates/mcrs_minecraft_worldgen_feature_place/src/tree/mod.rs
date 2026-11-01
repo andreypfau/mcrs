@@ -11,7 +11,7 @@ use std::sync::Arc;
 
 use fixedbitset::FixedBitSet;
 use glam::IVec3;
-use mcrs_minecraft_block::keys::Block;
+use mcrs_minecraft_block::block_keys::Block;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::BoundingBox;
 use mcrs_minecraft_core::Direction;

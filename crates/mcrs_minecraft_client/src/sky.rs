@@ -655,7 +655,7 @@ mod sky_regression {
         let overworld_clock = mcrs_minecraft_registries::Resolver::id(
             mcrs_minecraft_game_registries::registry_load::test_registries(),
             &ResourceKeyBuf::from_location(
-                mcrs_minecraft_environment::keys::world_clock::OVERWORLD
+                mcrs_minecraft_environment::world_clock_keys::OVERWORLD
                     .location()
                     .into(),
             ),

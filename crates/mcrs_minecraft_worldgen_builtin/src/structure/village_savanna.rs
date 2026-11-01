@@ -2052,10 +2052,10 @@ fn savanna_lamp_post_01(c: &mut Canvas) {
 mod data {
     use super::{Fields, Tag};
 
-    pub const BANNER_DATA: Fields = &[("patterns", Tag::List(&[])), ("id", Tag::String(mcrs_minecraft_block::keys::BlockEntityType::Banner.as_static_str()))];
+    pub const BANNER_DATA: Fields = &[("patterns", Tag::List(&[])), ("id", Tag::String(mcrs_minecraft_block::block_entity_type_keys::BlockEntityType::Banner.as_static_str()))];
 }
 use data::*;
-use mcrs_minecraft_block::keys::Block;
+use mcrs_minecraft_block::block_keys::Block;
 
 templates! {
     "savanna" Savanna;

@@ -3,7 +3,7 @@ use crate::density::{
     OVERWORLD, OVERWORLD_TERRAIN, RIDGES, SLOPED_CHEESE_END, Terrain, full_noise,
     peaks_and_valleys, slide_end_like, slide_nether_like,
 };
-use mcrs_minecraft_block::keys::Block;
+use mcrs_minecraft_block::block_keys::Block;
 use mcrs_minecraft_block_predicate::block_state::BlockState;
 use mcrs_minecraft_resource::{ResourceLocation, ResourceLocationBuf, rl};
 use mcrs_minecraft_worldgen_density::proto::ValueRange;

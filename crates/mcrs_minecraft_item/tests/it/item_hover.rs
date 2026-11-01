@@ -1,8 +1,8 @@
 #![expect(clippy::unwrap_used, reason = "a test reports a failure by panicking")]
 
+use mcrs_minecraft_item::data_component_type_keys::DataComponentType;
 use mcrs_minecraft_item::definition::CORPUS_DIRECTORY;
 use mcrs_minecraft_item::definition::schema::ItemDefinitionFile;
-use mcrs_minecraft_item::keys::DataComponentType;
 use mcrs_minecraft_item::{ComponentPatch, ItemHoverMap, Template};
 use mcrs_minecraft_registries::Named;
 use mcrs_minecraft_resource::ResourceKeyBuf;

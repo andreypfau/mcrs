@@ -1,6 +1,6 @@
 use mcrs_command::Span;
 use mcrs_command::StringValue;
-use mcrs_minecraft_entity::keys::EntityType;
+use mcrs_minecraft_entity::entity_type_keys::EntityType;
 use mcrs_minecraft_game_mode::GameMode;
 use mcrs_minecraft_resource::ResourceLocation;
 

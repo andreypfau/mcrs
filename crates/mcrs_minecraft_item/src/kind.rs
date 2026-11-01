@@ -8,7 +8,7 @@ use serde::ser::Error as _;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::component::*;
-use crate::keys::DataComponentType;
+use crate::data_component_type_keys::DataComponentType;
 use mcrs_minecraft_wire::{Decode, Encode, Result};
 use std::io::Write;
 

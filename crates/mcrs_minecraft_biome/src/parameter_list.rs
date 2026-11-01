@@ -21,10 +21,10 @@ impl Preset {
     pub fn name(self) -> ResourceLocation<'static> {
         match self {
             Preset::Overworld => {
-                crate::keys::multi_noise_biome_source_parameter_list::OVERWORLD.location()
+                crate::multi_noise_biome_source_parameter_list_keys::OVERWORLD.location()
             }
             Preset::Nether => {
-                crate::keys::multi_noise_biome_source_parameter_list::NETHER.location()
+                crate::multi_noise_biome_source_parameter_list_keys::NETHER.location()
             }
         }
     }

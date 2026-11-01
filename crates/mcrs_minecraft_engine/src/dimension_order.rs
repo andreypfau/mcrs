@@ -1,6 +1,6 @@
 use bevy_ecs::world::World;
 use mcrs_minecraft_dimension::Dimension;
-use mcrs_minecraft_dimension::keys::dimension::{OVERWORLD, THE_END, THE_NETHER};
+use mcrs_minecraft_dimension::dimension_keys::{OVERWORLD, THE_END, THE_NETHER};
 use mcrs_minecraft_resource::ResourceKeyBuf;
 
 /// The rank of a dimension in the dimension order: the three vanilla dimensions first, then

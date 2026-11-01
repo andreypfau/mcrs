@@ -1,6 +1,6 @@
 use crate::structures::index::EndBiomes;
-use mcrs_minecraft_block::keys::Block;
-use mcrs_minecraft_block::keys::block_tags;
+use mcrs_minecraft_block::block_keys::Block;
+use mcrs_minecraft_block::block_tag_keys;
 use mcrs_minecraft_registries::{Diagnostic, Diagnostics, Registries, Registry, Resolver, Tags};
 use mcrs_minecraft_resource::{Id, Registered, RegistryValue, ResourceKey, TagId};
 
@@ -16,7 +16,7 @@ impl FillIds {
         let block_tags = require_tags::<Block>(registries, diagnostics)?;
         Some(Self {
             end: end?,
-            uncarvable: block_tags.id(block_tags::UNCARVABLE),
+            uncarvable: block_tags.id(block_tag_keys::UNCARVABLE),
             block_tags,
         })
     }

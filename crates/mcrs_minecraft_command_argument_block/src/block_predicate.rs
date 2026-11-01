@@ -3,7 +3,7 @@ use crate::error::{BlockError, BlockSubject};
 use mcrs_command::{Argument, Reader, StringSpan, StringValue, SyntaxError};
 use mcrs_minecraft_block::definition::BlockEntry;
 use mcrs_minecraft_block::definition::schema::{BlockProperty, PropertyValue};
-use mcrs_minecraft_block::keys::BLOCK;
+use mcrs_minecraft_block::registry_keys::BLOCK;
 use mcrs_minecraft_command::{Source, SpannedIdentifier, read_identifier};
 use mcrs_minecraft_command_argument::ResourceOrTag;
 use mcrs_minecraft_nbt::compound::NbtCompound;

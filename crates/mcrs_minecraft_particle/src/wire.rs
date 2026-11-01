@@ -5,7 +5,7 @@ use mcrs_minecraft_item::component::RgbInt;
 use mcrs_minecraft_registries::Wire;
 use mcrs_minecraft_wire::{Decode, Encode, ErrorKind, Result, VarInt};
 
-use crate::keys::ParticleType;
+use crate::particle_type_keys::ParticleType;
 use crate::{
     GeyserBaseParticle, GeyserParticle, ParticleOptions, ParticleScale, PositionSource,
     ShriekParticle, TrailParticle, VibrationParticle,

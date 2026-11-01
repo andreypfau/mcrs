@@ -1,6 +1,6 @@
 use std::borrow::Cow;
 
-use mcrs_minecraft_block::keys::Fluid;
+use mcrs_minecraft_block::fluid_keys::Fluid;
 use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_voxel::{BlockPos, ColumnPos};
 use serde::de::IntoDeserializer;

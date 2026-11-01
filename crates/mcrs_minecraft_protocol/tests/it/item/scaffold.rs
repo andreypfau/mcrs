@@ -1,8 +1,8 @@
 use crate::common::encoded;
 use crate::item::harness::WireCodec;
-use mcrs_minecraft_block::keys::Block;
+use mcrs_minecraft_block::block_keys::Block;
 use mcrs_minecraft_core::codec::Bounded;
-use mcrs_minecraft_item::keys::{DataComponentType, Item};
+use mcrs_minecraft_item::{data_component_type_keys::DataComponentType, item_keys::Item};
 use mcrs_minecraft_protocol::item::{
     ComponentMap, ComponentPatch, CreativeSlotLock, CustomData, CustomName, DelimitedStack,
     HashedPatchMap, HashedStack, ItemComponentValue, ItemStackValue, Lore, MaxStackSize,
@@ -413,7 +413,7 @@ fn a_one_entry_holder_set_is_the_bare_entry() {
 
 #[test]
 fn a_direct_holder_set_encodes_from_a_registry_without_tags() {
-    use mcrs_minecraft_sound::keys::SoundEvent;
+    use mcrs_minecraft_sound::sound_event_keys::SoundEvent;
 
     assert!(
         registries()
@@ -542,12 +542,12 @@ fn a_patch_compares_as_a_map() {
 
 #[test]
 fn identifiers_read_with_the_default_namespace_everywhere() {
-    use mcrs_minecraft_entity::keys::EntityType;
+    use mcrs_minecraft_entity::entity_type_keys::EntityType;
     use mcrs_minecraft_protocol::item::{ResolvableFloat, ResolvableInt, TypedEntityData};
     let sound: mcrs_minecraft_sound::Sound<Resolved> = read_json(r#""entity.item.break""#).unwrap();
     assert_eq!(
         sound,
-        Ref::Id(mcrs_minecraft_sound::keys::SoundEvent::EntityItemBreak.id())
+        Ref::Id(mcrs_minecraft_sound::sound_event_keys::SoundEvent::EntityItemBreak.id())
     );
     let logs: IdSet<Block> = read_json("\"#logs\"").unwrap();
     assert_eq!(logs, tag_set("logs"));

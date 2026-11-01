@@ -32,7 +32,7 @@ fn tracked_by_observes_position_change_with_one_tick_latency() {
     let dim = app
         .world_mut()
         .spawn(DimensionBundle::new(
-            mcrs_minecraft_dimension::keys::dimension::OVERWORLD.into(),
+            mcrs_minecraft_dimension::dimension_keys::OVERWORLD.into(),
             DimensionTypeConfig::new(-64, 384),
         ))
         .id();
@@ -152,7 +152,7 @@ fn a_player_entering_the_view_is_sent_to_the_host_anchor_of_each_viewer() {
     let dim = app
         .world_mut()
         .spawn(DimensionBundle::new(
-            mcrs_minecraft_dimension::keys::dimension::OVERWORLD.into(),
+            mcrs_minecraft_dimension::dimension_keys::OVERWORLD.into(),
             DimensionTypeConfig::new(-64, 384),
         ))
         .id();

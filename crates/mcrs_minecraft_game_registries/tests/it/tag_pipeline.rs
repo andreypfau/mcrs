@@ -1,9 +1,9 @@
 use bevy_app::App;
 use mcrs_minecraft_biome::Biome;
+use mcrs_minecraft_block::block_keys::Block;
+use mcrs_minecraft_block::block_tag_keys;
 use mcrs_minecraft_block::definition::Blocks;
-use mcrs_minecraft_block::keys::Block;
-use mcrs_minecraft_block::keys::block_tags;
-use mcrs_minecraft_entity::keys::EntityType;
+use mcrs_minecraft_entity::entity_type_keys::EntityType;
 use mcrs_minecraft_environment::timeline::Timeline;
 use mcrs_minecraft_game_registries::registry_load::test_registries;
 use mcrs_minecraft_registries::{CurrentRegistries, IdSet};
@@ -23,23 +23,32 @@ pub fn tags_load_resolve_and_freeze_on_the_way_to_playing(app: &App) {
         tags.contains(tags.id(tag).expect("the pack ships the tag"), id)
     };
 
-    assert!(contains(&block_tags::MINEABLE_PICKAXE, "minecraft:stone"));
-    assert!(!contains(&block_tags::MINEABLE_PICKAXE, "minecraft:dirt"));
+    assert!(contains(
+        &block_tag_keys::MINEABLE_PICKAXE,
+        "minecraft:stone"
+    ));
+    assert!(!contains(
+        &block_tag_keys::MINEABLE_PICKAXE,
+        "minecraft:dirt"
+    ));
 
     // `#minecraft:planks` is reached only through nested `#tag` entries of
     // `#minecraft:mineable/axe`.
-    assert!(contains(&block_tags::MINEABLE_AXE, "minecraft:oak_planks"));
+    assert!(contains(
+        &block_tag_keys::MINEABLE_AXE,
+        "minecraft:oak_planks"
+    ));
 
     // A block no static registry ever named still lands in its tags.
     assert!(contains(
-        &block_tags::MINEABLE_PICKAXE,
+        &block_tag_keys::MINEABLE_PICKAXE,
         "minecraft:polished_tuff_stairs"
     ));
     assert!(contains(
-        &block_tags::MINEABLE_AXE,
+        &block_tag_keys::MINEABLE_AXE,
         "minecraft:mangrove_trapdoor"
     ));
-    assert!(contains(&block_tags::WOOL, "minecraft:magenta_wool"));
+    assert!(contains(&block_tag_keys::WOOL, "minecraft:magenta_wool"));
 
     // And a tag no Rust constant names is there, because the pack ships it.
     let stairs = tags

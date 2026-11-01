@@ -1,0 +1,41 @@
+// Written by `cargo run -p mcrs_minecraft_update -- keys`; do not edit.
+
+use mcrs_minecraft_resource::{Registered, RegistryKey, rl};
+
+pub const ACTIVITY: RegistryKey<crate::activity_keys::Activity> =
+    RegistryKey::new(rl!("minecraft:activity"));
+impl Registered for crate::activity_keys::Activity {
+    const REGISTRY: RegistryKey<Self> = ACTIVITY;
+}
+
+pub const ENVIRONMENT_ATTRIBUTE: RegistryKey<
+    crate::environment_attribute_keys::EnvironmentAttribute,
+> = RegistryKey::new(rl!("minecraft:environment_attribute"));
+impl Registered for crate::environment_attribute_keys::EnvironmentAttribute {
+    const REGISTRY: RegistryKey<Self> = ENVIRONMENT_ATTRIBUTE;
+}
+
+pub const TEST_ENVIRONMENT_DEFINITION_TYPE: RegistryKey<
+    crate::test_environment_definition_type_keys::TestEnvironmentDefinitionType,
+> = RegistryKey::new(rl!("minecraft:test_environment_definition_type"));
+impl Registered for crate::test_environment_definition_type_keys::TestEnvironmentDefinitionType {
+    const REGISTRY: RegistryKey<Self> = TEST_ENVIRONMENT_DEFINITION_TYPE;
+}
+
+pub const TEST_INSTANCE_TYPE: RegistryKey<crate::test_instance_type_keys::TestInstanceType> =
+    RegistryKey::new(rl!("minecraft:test_instance_type"));
+impl Registered for crate::test_instance_type_keys::TestInstanceType {
+    const REGISTRY: RegistryKey<Self> = TEST_INSTANCE_TYPE;
+}
+
+pub const TIMELINE: RegistryKey<crate::timeline::Timeline> =
+    RegistryKey::new(rl!("minecraft:timeline"));
+impl Registered for crate::timeline::Timeline {
+    const REGISTRY: RegistryKey<Self> = TIMELINE;
+}
+
+pub const WORLD_CLOCK: RegistryKey<crate::world_clock::WorldClock> =
+    RegistryKey::new(rl!("minecraft:world_clock"));
+impl Registered for crate::world_clock::WorldClock {
+    const REGISTRY: RegistryKey<Self> = WORLD_CLOCK;
+}

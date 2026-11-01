@@ -1,5 +1,5 @@
 use super::*;
-use mcrs_minecraft_block::keys::Block;
+use mcrs_minecraft_block::block_keys::Block;
 use mcrs_minecraft_core::{Axis, Direction};
 use mcrs_minecraft_worldgen_structure::blueprint::{
     Cell, Furnace, Hinge, Patch, Slopes, top_stairs,

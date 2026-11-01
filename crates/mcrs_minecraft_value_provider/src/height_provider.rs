@@ -25,7 +25,7 @@ impl<'de> Deserialize<'de> for HeightProvider {
     }
 }
 
-#[dispatch(registry = crate::keys::HeightProviderType, unsupported(BiasedToBottom, WeightedList))]
+#[dispatch(registry = crate::height_provider_type_keys::HeightProviderType, unsupported(BiasedToBottom, WeightedList))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub enum DispatchedHeightProvider {

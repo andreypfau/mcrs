@@ -1,17 +1,17 @@
 use std::sync::Arc;
 
-use crate::keys::MobEffect;
+use crate::mob_effect_keys::MobEffect;
 use mcrs_minecraft_core::codec::default_true;
 use mcrs_minecraft_nbt::nbt_flag;
 use mcrs_minecraft_registries::{Ref, Refs, Resolved, dispatch, registry_value};
 use mcrs_minecraft_resource::rl;
-use mcrs_minecraft_sound::keys::SoundEvent;
+use mcrs_minecraft_sound::sound_event_keys::SoundEvent;
 use serde::{Deserialize, Deserializer, Serialize};
 
 use crate::component::common::{ItemUseAnimation, MobEffectDetails, MobEffectInstance};
+use crate::consume_effect_type_keys::ConsumeEffectType;
 use crate::harness::Sample;
 use crate::harness::{entry, list_set, one_set};
-use crate::keys::ConsumeEffectType;
 use mcrs_minecraft_registries::Wire;
 use mcrs_minecraft_registries::{decode_registry_id, encode_registry_id};
 use mcrs_minecraft_sound::{Sound, SoundEventValue};
@@ -65,7 +65,7 @@ float_default! {
 /// The map buffers on read, so the bools inside go through `nbt_flag`.
 #[registry_value]
 #[derive(mcrs_minecraft_registries::FromWire)]
-#[dispatch(registry = crate::keys::ConsumeEffectType, key_last)]
+#[dispatch(registry = crate::consume_effect_type_keys::ConsumeEffectType, key_last)]
 #[derive(Clone, Debug, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub enum ConsumeEffect<M: Refs = Resolved> {

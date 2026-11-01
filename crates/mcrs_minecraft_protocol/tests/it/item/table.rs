@@ -1,5 +1,5 @@
 use mcrs_minecraft_fixtures::fixture;
-use mcrs_minecraft_item::keys::DataComponentType;
+use mcrs_minecraft_item::data_component_type_keys::DataComponentType;
 use serde::Deserialize;
 
 #[derive(Deserialize)]

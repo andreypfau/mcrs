@@ -1,0 +1,610 @@
+// Written by `cargo run -p mcrs_minecraft_update -- keys`; do not edit.
+
+use mcrs_minecraft_resource::{TagKey, rl};
+
+pub const ACACIA_LOGS: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:acacia_logs"));
+pub const AIR: TagKey<'static, crate::block_keys::Block> = TagKey::new(rl!("minecraft:air"));
+pub const ALL_HANGING_SIGNS: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:all_hanging_signs"));
+pub const ALL_SIGNS: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:all_signs"));
+pub const ANCIENT_CITY_REPLACEABLE: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:ancient_city_replaceable"));
+pub const ANIMALS_SPAWNABLE_ON: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:animals_spawnable_on"));
+pub const ANVIL: TagKey<'static, crate::block_keys::Block> = TagKey::new(rl!("minecraft:anvil"));
+pub const ARMADILLO_SPAWNABLE_ON: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:armadillo_spawnable_on"));
+pub const AXOLOTLS_SPAWNABLE_ON: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:axolotls_spawnable_on"));
+pub const AZALEA_GROWS_ON: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:azalea_grows_on"));
+pub const AZALEA_ROOT_REPLACEABLE: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:azalea_root_replaceable"));
+pub const BADLANDS_TERRACOTTA: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:badlands_terracotta"));
+pub const BAMBOO_BLOCKS: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:bamboo_blocks"));
+pub const BANNERS: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:banners"));
+pub const BARS: TagKey<'static, crate::block_keys::Block> = TagKey::new(rl!("minecraft:bars"));
+pub const BASE_STONE_NETHER: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:base_stone_nether"));
+pub const BASE_STONE_OVERWORLD: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:base_stone_overworld"));
+pub const BATS_SPAWNABLE_ON: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:bats_spawnable_on"));
+pub const BEACON_BASE_BLOCKS: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:beacon_base_blocks"));
+pub const BEDS: TagKey<'static, crate::block_keys::Block> = TagKey::new(rl!("minecraft:beds"));
+pub const BEE_ATTRACTIVE: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:bee_attractive"));
+pub const BEE_GROWABLES: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:bee_growables"));
+pub const BEEHIVES: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:beehives"));
+pub const BENEATH_BAMBOO_PODZOL_REPLACEABLE: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:beneath_bamboo_podzol_replaceable"));
+pub const BENEATH_TREE_PODZOL_REPLACEABLE: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:beneath_tree_podzol_replaceable"));
+pub const BIRCH_LOGS: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:birch_logs"));
+pub const BLOCKS_DOLPHIN_JUMP: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:blocks_dolphin_jump"));
+pub const BLOCKS_FLUID_FLOW: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:blocks_fluid_flow"));
+pub const BLOCKS_LAVA_FIRE_SPREAD: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:blocks_lava_fire_spread"));
+pub const BLOCKS_MOTION: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:blocks_motion"));
+pub const BLOCKS_MOTION_IN_HEIGHTMAP: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:blocks_motion_in_heightmap"));
+pub const BLOCKS_MOTION_IN_HEIGHTMAP_NO_LEAVES: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:blocks_motion_in_heightmap_no_leaves"));
+pub const BLOCKS_MOTION_NO_LEAVES: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:blocks_motion_no_leaves"));
+pub const BLOCKS_WIND_CHARGE_EXPLOSIONS: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:blocks_wind_charge_explosions"));
+pub const BUTTONS: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:buttons"));
+pub const CAMEL_SAND_STEP_SOUND_BLOCKS: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:camel_sand_step_sound_blocks"));
+pub const CAMELS_SPAWNABLE_ON: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:camels_spawnable_on"));
+pub const CAMPFIRES: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:campfires"));
+pub const CAN_GLIDE_THROUGH: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:can_glide_through"));
+pub const CANDLE_CAKES: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:candle_cakes"));
+pub const CANDLES: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:candles"));
+pub const CANNOT_PLACE_BASALT_PILLAR_ON: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:cannot_place_basalt_pillar_on"));
+pub const CANNOT_REPLACE_BELOW_TREE_TRUNK: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:cannot_replace_below_tree_trunk"));
+pub const CANNOT_SUPPORT_KELP: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:cannot_support_kelp"));
+pub const CANNOT_SUPPORT_SEAGRASS: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:cannot_support_seagrass"));
+pub const CANNOT_SUPPORT_SNOW_LAYER: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:cannot_support_snow_layer"));
+pub const CAT_DOES_NOT_TELEPORT_TO: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:cat_does_not_teleport_to"));
+pub const CATS_CAN_LIE_ON: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:cats_can_lie_on"));
+pub const CATS_CAN_SIT_ON: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:cats_can_sit_on"));
+pub const CAULDRONS: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:cauldrons"));
+pub const CAUSES_CONTINUOUS_GEYSER_ERUPTIONS: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:causes_continuous_geyser_eruptions"));
+pub const CAUSES_PERIODIC_GEYSER_ERUPTIONS: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:causes_periodic_geyser_eruptions"));
+pub const CAUSES_SUFFOCATION: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:causes_suffocation"));
+pub const CAVE_VINES: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:cave_vines"));
+pub const CEILING_HANGING_SIGNS: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:ceiling_hanging_signs"));
+pub const CHAINS: TagKey<'static, crate::block_keys::Block> = TagKey::new(rl!("minecraft:chains"));
+pub const CHERRY_LOGS: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:cherry_logs"));
+pub const CLIMBABLE: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:climbable"));
+pub const COAL_ORES: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:coal_ores"));
+pub const COMBINATION_STEP_SOUND_BLOCKS: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:combination_step_sound_blocks"));
+pub const COMPLETES_FIND_TREE_TUTORIAL: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:completes_find_tree_tutorial"));
+pub const CONCRETE: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:concrete"));
+pub const CONCRETE_POWDERS: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:concrete_powders"));
+pub const CONCRETE_SLABS: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:concrete_slabs"));
+pub const CONCRETE_STAIRS: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:concrete_stairs"));
+pub const CONDUIT_EFFECT_BLOCK: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:conduit_effect_block"));
+pub const CONVERTIBLE_TO_MUD: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:convertible_to_mud"));
+pub const COPPER: TagKey<'static, crate::block_keys::Block> = TagKey::new(rl!("minecraft:copper"));
+pub const COPPER_CHESTS: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:copper_chests"));
+pub const COPPER_GOLEM_STATUES: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:copper_golem_statues"));
+pub const COPPER_ORES: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:copper_ores"));
+pub const CORAL_BLOCKS: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:coral_blocks"));
+pub const CORAL_PLANTS: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:coral_plants"));
+pub const CORALS: TagKey<'static, crate::block_keys::Block> = TagKey::new(rl!("minecraft:corals"));
+pub const CRIMSON_STEMS: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:crimson_stems"));
+pub const CROPS: TagKey<'static, crate::block_keys::Block> = TagKey::new(rl!("minecraft:crops"));
+pub const CRYSTAL_SOUND_BLOCKS: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:crystal_sound_blocks"));
+pub const CUSHION_USES_COLLISION_SHAPE: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:cushion_uses_collision_shape"));
+pub const DAMPENS_VIBRATIONS: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:dampens_vibrations"));
+pub const DANGEROUS_FOR_TELEPORTATION: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:dangerous_for_teleportation"));
+pub const DARK_OAK_LOGS: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:dark_oak_logs"));
+pub const DEEPSLATE_ORE_REPLACEABLES: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:deepslate_ore_replaceables"));
+pub const DEFAULT_IMMUNE_TO: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:default_immune_to"));
+pub const DIAMOND_ORES: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:diamond_ores"));
+pub const DIRT: TagKey<'static, crate::block_keys::Block> = TagKey::new(rl!("minecraft:dirt"));
+pub const DOES_NOT_BLOCK_HOPPERS: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:does_not_block_hoppers"));
+pub const DOORS: TagKey<'static, crate::block_keys::Block> = TagKey::new(rl!("minecraft:doors"));
+pub const DRAGON_IMMUNE: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:dragon_immune"));
+pub const DRAGON_TRANSPARENT: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:dragon_transparent"));
+pub const DRIPSTONE_REPLACEABLE_BLOCKS: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:dripstone_replaceable_blocks"));
+pub const EDIBLE_FOR_SHEEP: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:edible_for_sheep"));
+pub const EMERALD_ORES: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:emerald_ores"));
+pub const ENABLES_BUBBLE_COLUMN_DRAG_DOWN: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:enables_bubble_column_drag_down"));
+pub const ENABLES_BUBBLE_COLUMN_PUSH_UP: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:enables_bubble_column_push_up"));
+pub const ENCHANTMENT_POWER_PROVIDER: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:enchantment_power_provider"));
+pub const ENCHANTMENT_POWER_TRANSMITTER: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:enchantment_power_transmitter"));
+pub const ENDERMAN_DOES_NOT_TELEPORT_TO: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:enderman_does_not_teleport_to"));
+pub const ENDERMAN_HOLDABLE: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:enderman_holdable"));
+pub const ENTITIES_CAN_TELEPORT_TO: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:entities_can_teleport_to"));
+pub const FACE_OCCLUDING_ICE_BLOCKS: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:face_occluding_ice_blocks"));
+pub const FALL_DAMAGE_RESETTING: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:fall_damage_resetting"));
+pub const FEATURES_CANNOT_REPLACE: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:features_cannot_replace"));
+pub const FENCE_GATES: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:fence_gates"));
+pub const FENCES: TagKey<'static, crate::block_keys::Block> = TagKey::new(rl!("minecraft:fences"));
+pub const FIRE: TagKey<'static, crate::block_keys::Block> = TagKey::new(rl!("minecraft:fire"));
+pub const FLOWER_POTS: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:flower_pots"));
+pub const FLOWERS: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:flowers"));
+pub const FOREST_ROCK_CAN_PLACE_ON: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:forest_rock_can_place_on"));
+pub const FOX_IMMUNE_TO: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:fox_immune_to"));
+pub const FOXES_SPAWNABLE_ON: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:foxes_spawnable_on"));
+pub const FROG_PREFER_JUMP_TO: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:frog_prefer_jump_to"));
+pub const FROGS_SPAWNABLE_ON: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:frogs_spawnable_on"));
+pub const GEODE_INVALID_BLOCKS: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:geode_invalid_blocks"));
+pub const GLAZED_TERRACOTTA: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:glazed_terracotta"));
+pub const GOATS_SPAWNABLE_ON: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:goats_spawnable_on"));
+pub const GOLD_ORES: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:gold_ores"));
+pub const GRASS_BLOCKS: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:grass_blocks"));
+pub const GROWS_CROPS: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:grows_crops"));
+pub const GUARDED_BY_PIGLINS: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:guarded_by_piglins"));
+pub const HAPPY_GHAST_AVOIDS: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:happy_ghast_avoids"));
+pub const HEIGHT_SPECIFIC_ORE_REPLACEABLES: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:height_specific_ore_replaceables"));
+pub const HOGLIN_REPELLENTS: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:hoglin_repellents"));
+pub const HUGE_BROWN_MUSHROOM_CAN_PLACE_ON: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:huge_brown_mushroom_can_place_on"));
+pub const HUGE_RED_MUSHROOM_CAN_PLACE_ON: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:huge_red_mushroom_can_place_on"));
+pub const ICE: TagKey<'static, crate::block_keys::Block> = TagKey::new(rl!("minecraft:ice"));
+pub const ICE_CAVE_ORE_REPLACEABLES: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:ice_cave_ore_replaceables"));
+pub const ICE_CREVASSE_REPLACEABLES: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:ice_crevasse_replaceables"));
+pub const ICE_MELTS_WHEN_DESTROYED_ABOVE: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:ice_melts_when_destroyed_above"));
+pub const ICE_SPIKE_REPLACEABLE: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:ice_spike_replaceable"));
+pub const IMPERMEABLE: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:impermeable"));
+pub const INCORRECT_FOR_COPPER_TOOL: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:incorrect_for_copper_tool"));
+pub const INCORRECT_FOR_DIAMOND_TOOL: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:incorrect_for_diamond_tool"));
+pub const INCORRECT_FOR_GOLD_TOOL: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:incorrect_for_gold_tool"));
+pub const INCORRECT_FOR_IRON_TOOL: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:incorrect_for_iron_tool"));
+pub const INCORRECT_FOR_NETHERITE_TOOL: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:incorrect_for_netherite_tool"));
+pub const INCORRECT_FOR_STONE_TOOL: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:incorrect_for_stone_tool"));
+pub const INCORRECT_FOR_WOODEN_TOOL: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:incorrect_for_wooden_tool"));
+pub const INFINIBURN_END: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:infiniburn_end"));
+pub const INFINIBURN_NETHER: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:infiniburn_nether"));
+pub const INFINIBURN_OVERWORLD: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:infiniburn_overworld"));
+pub const INSIDE_STEP_SOUND_BLOCKS: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:inside_step_sound_blocks"));
+pub const INVALID_SPAWN_INSIDE: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:invalid_spawn_inside"));
+pub const IRON_ORES: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:iron_ores"));
+pub const JUKEBOX_CONTAINERS: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:jukebox_containers"));
+pub const JUNGLE_LOGS: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:jungle_logs"));
+pub const LANTERNS: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:lanterns"));
+pub const LAPIS_ORES: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:lapis_ores"));
+pub const LARGE_ICICLE_REPLACEABLE: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:large_icicle_replaceable"));
+pub const LAVA_POOL_STONE_CANNOT_REPLACE: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:lava_pool_stone_cannot_replace"));
+pub const LEAVES: TagKey<'static, crate::block_keys::Block> = TagKey::new(rl!("minecraft:leaves"));
+pub const LIGHTNING_RODS: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:lightning_rods"));
+pub const LOGS: TagKey<'static, crate::block_keys::Block> = TagKey::new(rl!("minecraft:logs"));
+pub const LOGS_THAT_BURN: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:logs_that_burn"));
+pub const LUSH_GROUND_REPLACEABLE: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:lush_ground_replaceable"));
+pub const MAINTAINS_FARMLAND: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:maintains_farmland"));
+pub const MANGROVE_LOGS: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:mangrove_logs"));
+pub const MANGROVE_LOGS_CAN_GROW_THROUGH: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:mangrove_logs_can_grow_through"));
+pub const MANGROVE_ROOTS_CAN_GROW_THROUGH: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:mangrove_roots_can_grow_through"));
+pub const MELTS_ICICLE_ABOVE: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:melts_icicle_above"));
+pub const MINEABLE_AXE: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:mineable/axe"));
+pub const MINEABLE_HOE: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:mineable/hoe"));
+pub const MINEABLE_PICKAXE: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:mineable/pickaxe"));
+pub const MINEABLE_SHOVEL: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:mineable/shovel"));
+pub const MOB_INTERACTABLE_DOORS: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:mob_interactable_doors"));
+pub const MOOSHROOMS_SPAWNABLE_ON: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:mooshrooms_spawnable_on"));
+pub const MOSS_BLOCKS: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:moss_blocks"));
+pub const MOSS_REPLACEABLE: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:moss_replaceable"));
+pub const MUD: TagKey<'static, crate::block_keys::Block> = TagKey::new(rl!("minecraft:mud"));
+pub const NEEDS_DIAMOND_TOOL: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:needs_diamond_tool"));
+pub const NEEDS_IRON_TOOL: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:needs_iron_tool"));
+pub const NEEDS_STONE_TOOL: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:needs_stone_tool"));
+pub const NETHER_PORTAL_FRAME: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:nether_portal_frame"));
+pub const NYLIUM: TagKey<'static, crate::block_keys::Block> = TagKey::new(rl!("minecraft:nylium"));
+pub const OAK_LOGS: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:oak_logs"));
+pub const OCCLUDES_VIBRATION_SIGNALS: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:occludes_vibration_signals"));
+pub const ORES: TagKey<'static, crate::block_keys::Block> = TagKey::new(rl!("minecraft:ores"));
+pub const OVERRIDES_MUSHROOM_LIGHT_REQUIREMENT: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:overrides_mushroom_light_requirement"));
+pub const OVERWORLD_NATURAL_LOGS: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:overworld_natural_logs"));
+pub const PALE_OAK_LOGS: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:pale_oak_logs"));
+pub const PARROTS_SPAWNABLE_ON: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:parrots_spawnable_on"));
+pub const PATHFINDING_AVOID_IN_AIR: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:pathfinding/avoid_in_air"));
+pub const PATHFINDING_DAMAGE_CAUTIOUS: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:pathfinding/damage_cautious"));
+pub const PATHFINDING_DAMAGING: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:pathfinding/damaging"));
+pub const PATHFINDING_DROP_DOWN: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:pathfinding/drop_down"));
+pub const PATHFINDING_LEAVES: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:pathfinding/leaves"));
+pub const PATHFINDING_OPEN: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:pathfinding/open"));
+pub const PATHFINDING_POWDER_SNOW: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:pathfinding/powder_snow"));
+pub const PATHFINDING_RAILS: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:pathfinding/rails"));
+pub const PATHFINDING_STICKY: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:pathfinding/sticky"));
+pub const PIGLIN_REPELLENTS: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:piglin_repellents"));
+pub const PLANKS: TagKey<'static, crate::block_keys::Block> = TagKey::new(rl!("minecraft:planks"));
+pub const POLAR_BEAR_IMMUNE_TO: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:polar_bear_immune_to"));
+pub const POLAR_BEARS_SPAWNABLE_ON_ALTERNATE: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:polar_bears_spawnable_on_alternate"));
+pub const POPLAR_LOGS: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:poplar_logs"));
+pub const PORTALS: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:portals"));
+pub const PRESSURE_PLATES: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:pressure_plates"));
+pub const PREVENT_MOB_SPAWNING_INSIDE: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:prevent_mob_spawning_inside"));
+pub const PREVENTS_NEARBY_LEAF_DECAY: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:prevents_nearby_leaf_decay"));
+pub const RABBITS_SPAWNABLE_ON: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:rabbits_spawnable_on"));
+pub const RAILS: TagKey<'static, crate::block_keys::Block> = TagKey::new(rl!("minecraft:rails"));
+pub const REDSTONE_ORES: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:redstone_ores"));
+pub const REPLACEABLE: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:replaceable"));
+pub const REPLACEABLE_BY_MUSHROOMS: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:replaceable_by_mushrooms"));
+pub const REPLACEABLE_BY_TREES: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:replaceable_by_trees"));
+pub const REQUIRED_FOR_POPLAR_LEAF_AMBIENCE: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:required_for_poplar_leaf_ambience"));
+pub const SAND: TagKey<'static, crate::block_keys::Block> = TagKey::new(rl!("minecraft:sand"));
+pub const SAPLINGS: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:saplings"));
+pub const SCULK_GROWTH_INHIBITORS: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:sculk_growth_inhibitors"));
+pub const SCULK_REPLACEABLE: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:sculk_replaceable"));
+pub const SCULK_REPLACEABLE_WORLD_GEN: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:sculk_replaceable_world_gen"));
+pub const SHEARS_EXTREME_BREAKING_SPEED: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:shears_extreme_breaking_speed"));
+pub const SHEARS_MAJOR_BREAKING_SPEED: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:shears_major_breaking_speed"));
+pub const SHEARS_MINOR_BREAKING_SPEED: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:shears_minor_breaking_speed"));
+pub const SHULKER_BOXES: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:shulker_boxes"));
+pub const SHULKER_DOES_NOT_TELEPORT_TO: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:shulker_does_not_teleport_to"));
+pub const SIGNS: TagKey<'static, crate::block_keys::Block> = TagKey::new(rl!("minecraft:signs"));
+pub const SKULLS: TagKey<'static, crate::block_keys::Block> = TagKey::new(rl!("minecraft:skulls"));
+pub const SLABS: TagKey<'static, crate::block_keys::Block> = TagKey::new(rl!("minecraft:slabs"));
+pub const SMALL_FLOWERS: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:small_flowers"));
+pub const SMELTS_TO_GLASS: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:smelts_to_glass"));
+pub const SNAPS_GOAT_HORN: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:snaps_goat_horn"));
+pub const SNIFFER_DIGGABLE_BLOCK: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:sniffer_diggable_block"));
+pub const SNIFFER_EGG_HATCH_BOOST: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:sniffer_egg_hatch_boost"));
+pub const SNOW: TagKey<'static, crate::block_keys::Block> = TagKey::new(rl!("minecraft:snow"));
+pub const SNOW_GOLEM_IMMUNE_TO: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:snow_golem_immune_to"));
+pub const SOUL_FIRE_BASE_BLOCKS: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:soul_fire_base_blocks"));
+pub const SOUL_SPEED_BLOCKS: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:soul_speed_blocks"));
+pub const SPEEDS_UP_ZOMBIE_VILLAGER_CURING: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:speeds_up_zombie_villager_curing"));
+pub const SPELEOTHEMS: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:speleothems"));
+pub const SPRUCE_LOGS: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:spruce_logs"));
+pub const STAIRS: TagKey<'static, crate::block_keys::Block> = TagKey::new(rl!("minecraft:stairs"));
+pub const STANDING_SIGNS: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:standing_signs"));
+pub const STONE_BRICKS: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:stone_bricks"));
+pub const STONE_BUTTONS: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:stone_buttons"));
+pub const STONE_ORE_REPLACEABLES: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:stone_ore_replaceables"));
+pub const STONE_PRESSURE_PLATES: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:stone_pressure_plates"));
+pub const STRAY_IMMUNE_TO: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:stray_immune_to"));
+pub const STRIDER_WARM_BLOCKS: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:strider_warm_blocks"));
+pub const SUBSTRATE_OVERWORLD: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:substrate_overworld"));
+pub const SULFUR_SPIKE_REPLACEABLE_BLOCKS: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:sulfur_spike_replaceable_blocks"));
+pub const SUPPORT_OVERRIDE_CACTUS_FLOWER: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:support_override_cactus_flower"));
+pub const SUPPORT_OVERRIDE_SNOW_LAYER: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:support_override_snow_layer"));
+pub const SUPPORTS_AZALEA: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:supports_azalea"));
+pub const SUPPORTS_BAMBOO: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:supports_bamboo"));
+pub const SUPPORTS_BIG_DRIPLEAF: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:supports_big_dripleaf"));
+pub const SUPPORTS_CACTUS: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:supports_cactus"));
+pub const SUPPORTS_CHORUS_FLOWER: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:supports_chorus_flower"));
+pub const SUPPORTS_CHORUS_PLANT: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:supports_chorus_plant"));
+pub const SUPPORTS_COCOA: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:supports_cocoa"));
+pub const SUPPORTS_CRIMSON_FUNGUS: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:supports_crimson_fungus"));
+pub const SUPPORTS_CRIMSON_ROOTS: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:supports_crimson_roots"));
+pub const SUPPORTS_CROPS: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:supports_crops"));
+pub const SUPPORTS_DRY_VEGETATION: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:supports_dry_vegetation"));
+pub const SUPPORTS_FROGSPAWN: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:supports_frogspawn"));
+pub const SUPPORTS_HANGING_MANGROVE_PROPAGULE: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:supports_hanging_mangrove_propagule"));
+pub const SUPPORTS_LILY_PAD: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:supports_lily_pad"));
+pub const SUPPORTS_MANGROVE_PROPAGULE: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:supports_mangrove_propagule"));
+pub const SUPPORTS_MELON_STEM: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:supports_melon_stem"));
+pub const SUPPORTS_MELON_STEM_FRUIT: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:supports_melon_stem_fruit"));
+pub const SUPPORTS_NETHER_SPROUTS: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:supports_nether_sprouts"));
+pub const SUPPORTS_NETHER_WART: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:supports_nether_wart"));
+pub const SUPPORTS_PUMPKIN_STEM: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:supports_pumpkin_stem"));
+pub const SUPPORTS_PUMPKIN_STEM_FRUIT: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:supports_pumpkin_stem_fruit"));
+pub const SUPPORTS_SMALL_DRIPLEAF: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:supports_small_dripleaf"));
+pub const SUPPORTS_STEM_CROPS: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:supports_stem_crops"));
+pub const SUPPORTS_STEM_FRUIT: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:supports_stem_fruit"));
+pub const SUPPORTS_SUGAR_CANE: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:supports_sugar_cane"));
+pub const SUPPORTS_SUGAR_CANE_ADJACENTLY: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:supports_sugar_cane_adjacently"));
+pub const SUPPORTS_VEGETATION: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:supports_vegetation"));
+pub const SUPPORTS_WARPED_FUNGUS: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:supports_warped_fungus"));
+pub const SUPPORTS_WARPED_ROOTS: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:supports_warped_roots"));
+pub const SUPPORTS_WITHER_ROSE: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:supports_wither_rose"));
+pub const SUPPRESSES_BOUNCE: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:suppresses_bounce"));
+pub const SWORD_EFFICIENT: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:sword_efficient"));
+pub const SWORD_INSTANTLY_MINES: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:sword_instantly_mines"));
+pub const TERRACOTTA: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:terracotta"));
+pub const TRAIL_RUINS_REPLACEABLE: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:trail_ruins_replaceable"));
+pub const TRAPDOORS: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:trapdoors"));
+pub const TRIGGERS_AMBIENT_DESERT_DRY_VEGETATION_BLOCK_SOUNDS: TagKey<
+    'static,
+    crate::block_keys::Block,
+> = TagKey::new(rl!(
+    "minecraft:triggers_ambient_desert_dry_vegetation_block_sounds"
+));
+pub const TRIGGERS_AMBIENT_DESERT_SAND_BLOCK_SOUNDS: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:triggers_ambient_desert_sand_block_sounds"));
+pub const TRIGGERS_AMBIENT_DRIED_GHAST_BLOCK_SOUNDS: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:triggers_ambient_dried_ghast_block_sounds"));
+pub const TURNS_INTO_DIRT_PATH: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:turns_into_dirt_path"));
+pub const TURNS_INTO_FARMLAND: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:turns_into_farmland"));
+pub const UNCARVABLE: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:uncarvable"));
+pub const UNDERWATER_BONEMEALS: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:underwater_bonemeals"));
+pub const UNSTABLE_BOTTOM_CENTER: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:unstable_bottom_center"));
+pub const VALID_SPAWN: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:valid_spawn"));
+pub const VIBRATION_RESONATORS: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:vibration_resonators"));
+pub const VILLAGER_BABIES_CAN_JUMP_ON_BED: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:villager_babies_can_jump_on_bed"));
+pub const VILLAGERS_CAN_SLEEP_ON_BED: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:villagers_can_sleep_on_bed"));
+pub const WALL_CORALS: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:wall_corals"));
+pub const WALL_HANGING_SIGNS: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:wall_hanging_signs"));
+pub const WALL_POST_OVERRIDE: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:wall_post_override"));
+pub const WALL_SIGNS: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:wall_signs"));
+pub const WALLS: TagKey<'static, crate::block_keys::Block> = TagKey::new(rl!("minecraft:walls"));
+pub const WARPED_STEMS: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:warped_stems"));
+pub const WART_BLOCKS: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:wart_blocks"));
+pub const WASHED_AWAY_BY_FLUIDS: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:washed_away_by_fluids"));
+pub const WITHER_IMMUNE: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:wither_immune"));
+pub const WITHER_IMMUNE_TO: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:wither_immune_to"));
+pub const WITHER_SKELETON_IMMUNE_TO: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:wither_skeleton_immune_to"));
+pub const WITHER_SUMMON_BASE_BLOCKS: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:wither_summon_base_blocks"));
+pub const WOLVES_SPAWNABLE_ON: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:wolves_spawnable_on"));
+pub const WOODEN_BUTTONS: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:wooden_buttons"));
+pub const WOODEN_DOORS: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:wooden_doors"));
+pub const WOODEN_FENCES: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:wooden_fences"));
+pub const WOODEN_PRESSURE_PLATES: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:wooden_pressure_plates"));
+pub const WOODEN_SHELVES: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:wooden_shelves"));
+pub const WOODEN_SLABS: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:wooden_slabs"));
+pub const WOODEN_STAIRS: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:wooden_stairs"));
+pub const WOODEN_TRAPDOORS: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:wooden_trapdoors"));
+pub const WOOL: TagKey<'static, crate::block_keys::Block> = TagKey::new(rl!("minecraft:wool"));
+pub const WOOL_CARPETS: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:wool_carpets"));
+pub const WOOL_SLABS: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:wool_slabs"));
+pub const WOOL_STAIRS: TagKey<'static, crate::block_keys::Block> =
+    TagKey::new(rl!("minecraft:wool_stairs"));

@@ -1,5 +1,7 @@
 #[rustfmt::skip]
-pub mod keys;
+pub mod carver_type_keys;
+#[rustfmt::skip]
+pub mod registry_keys;
 pub mod beta;
 pub mod canyon;
 pub mod config;

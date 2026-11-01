@@ -12,7 +12,7 @@ use mcrs_voxel::BlockPos;
 
 use crate::template_piece::seed_container_loot;
 use crate::{ignore_blocks, place_positional};
-use mcrs_minecraft_block::keys::Block;
+use mcrs_minecraft_block::block_keys::Block;
 
 /// `EndCityPiece.makeSettings`: the two processor chains its pieces place
 /// with, by whether the template's air overwrites what stands there.
@@ -91,7 +91,7 @@ pub fn place_end_city_piece<W: WorldGenVolume>(
                 seed_container_loot(
                     volume,
                     chest,
-                    mcrs_minecraft_item::keys::loot_table::CHESTS_END_CITY_TREASURE,
+                    mcrs_minecraft_item::loot_table_keys::CHESTS_END_CITY_TREASURE,
                     rng,
                 );
             }

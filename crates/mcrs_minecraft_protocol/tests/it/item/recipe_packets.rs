@@ -6,11 +6,13 @@ use std::collections::BTreeMap;
 use std::sync::{Arc, LazyLock};
 
 use mcrs_minecraft_core::codec::{Bounded, Validate};
-use mcrs_minecraft_item::keys::DataComponentType;
-use mcrs_minecraft_item::keys::Item;
-use mcrs_minecraft_item::keys::RecipeBookCategory;
-use mcrs_minecraft_item::keys::{RecipeDisplayType, SlotDisplayType};
+use mcrs_minecraft_item::data_component_type_keys::DataComponentType;
+use mcrs_minecraft_item::item_keys::Item;
 use mcrs_minecraft_item::recipe::Ingredient;
+use mcrs_minecraft_item::recipe_book_category_keys::RecipeBookCategory;
+use mcrs_minecraft_item::{
+    recipe_display_keys::RecipeDisplayType, slot_display_keys::SlotDisplayType,
+};
 use mcrs_minecraft_protocol::item::WireLookup;
 use mcrs_minecraft_protocol::item::{
     ComponentPatch, Damage, ItemComponentValue, Template, Text, TrimPattern, TrimPatternRef,

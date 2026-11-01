@@ -13,20 +13,20 @@ pub fn end_base(generation: Generation) -> Draft {
 
 pub fn the_end() -> Draft {
     let mut g = Generation::default();
-    g.feature(SurfaceStructures, placed_feature::END_SPIKE)
-        .feature(TopLayerModification, placed_feature::END_PLATFORM);
+    g.feature(SurfaceStructures, placed_feature_keys::END_SPIKE)
+        .feature(TopLayerModification, placed_feature_keys::END_PLATFORM);
     end_base(g)
 }
 
 pub fn end_highlands() -> Draft {
     let mut g = Generation::default();
-    g.feature(SurfaceStructures, placed_feature::END_GATEWAY_RETURN)
-        .feature(VegetalDecoration, placed_feature::CHORUS_PLANT);
+    g.feature(SurfaceStructures, placed_feature_keys::END_GATEWAY_RETURN)
+        .feature(VegetalDecoration, placed_feature_keys::CHORUS_PLANT);
     end_base(g)
 }
 
 pub fn small_end_islands() -> Draft {
     let mut g = Generation::default();
-    g.feature(RawGeneration, placed_feature::END_ISLAND_DECORATED);
+    g.feature(RawGeneration, placed_feature_keys::END_ISLAND_DECORATED);
     end_base(g)
 }

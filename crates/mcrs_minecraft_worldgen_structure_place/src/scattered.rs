@@ -13,7 +13,7 @@ use mcrs_voxel::BlockPos;
 
 use crate::canvas::{ChestStates, PieceCanvas, replaceable_by_structures};
 use crate::{Oriented, state};
-use mcrs_minecraft_block::keys::Block;
+use mcrs_minecraft_block::block_keys::Block;
 
 /// `DesertPyramidPiece.addCellar`'s room centre, piece-local.
 const CELLAR_CENTRE: IVec3 = IVec3::new(16, -4, 13);
@@ -382,7 +382,7 @@ pub fn paint_desert_pyramid<W: WorldGenVolume, R: Random>(
             10 + step_x * 2,
             -11,
             10 + step_z * 2,
-            mcrs_minecraft_item::keys::loot_table::CHESTS_DESERT_PYRAMID,
+            mcrs_minecraft_item::loot_table_keys::CHESTS_DESERT_PYRAMID,
         );
     }
 

@@ -17,7 +17,7 @@ impl AttributeDefinition {
     }
 }
 
-impl crate::keys::Attribute {
+impl crate::attribute_keys::Attribute {
     pub const fn definition(self) -> AttributeDefinition {
         match self {
             Self::AirDragModifier => AttributeDefinition::new(1.0, 0.0, 2048.0, true),

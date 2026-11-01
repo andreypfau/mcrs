@@ -60,7 +60,7 @@ fn the_vanilla_file_round_trips_through_the_typed_shape() {
     assert_eq!(dat.rotation, [90.0, -12.5]);
     assert_eq!(
         dat.dimension,
-        mcrs_minecraft_dimension::keys::dimension::OVERWORLD
+        mcrs_minecraft_dimension::dimension_keys::OVERWORLD
     );
     assert_eq!(dat.selected_item_slot, 3);
     assert_eq!(
@@ -79,7 +79,7 @@ fn the_vanilla_file_round_trips_through_the_typed_shape() {
         dat.inventory[3]
             .stack
             .components
-            .is_removed(mcrs_minecraft_item::keys::DataComponentType::Lore)
+            .is_removed(mcrs_minecraft_item::data_component_type_keys::DataComponentType::Lore)
     );
     assert_eq!(
         dat.equipment.keys().cloned().collect::<Vec<_>>(),

@@ -217,7 +217,7 @@ fn grow<W>(
 mod tests {
     use mcrs_minecraft_worldgen_feature::placer::mask_of;
 
-    use mcrs_minecraft_block::keys::Block;
+    use mcrs_minecraft_block::block_keys::Block;
     use mcrs_minecraft_random::worldgen::WorldgenRandom;
 
     use super::*;

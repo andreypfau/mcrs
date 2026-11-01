@@ -5,7 +5,7 @@ use std::collections::BTreeMap;
 use std::sync::{Arc, LazyLock};
 
 use mcrs_minecraft_core::codec::Bounded;
-use mcrs_minecraft_item::keys::DataComponentType;
+use mcrs_minecraft_item::data_component_type_keys::DataComponentType;
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_protocol::item::{
@@ -114,7 +114,9 @@ fn reference_only_kinds_still_carry_the_entry_inline_on_the_wire() {
     wire_only(
         "jukebox_playable_direct",
         JukeboxPlayable(WireRef(Ref::Inline(Arc::new(JukeboxSong {
-            sound_event: Ref::Id(mcrs_minecraft_sound::keys::SoundEvent::EntityItemBreak.id()),
+            sound_event: Ref::Id(
+                mcrs_minecraft_sound::sound_event_keys::SoundEvent::EntityItemBreak.id(),
+            ),
             description: Text::text("Song"),
             length_in_seconds: 12.5,
             comparator_output: Bounded(7),

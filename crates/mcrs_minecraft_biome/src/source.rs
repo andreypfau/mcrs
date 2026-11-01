@@ -86,7 +86,7 @@ pub fn beta_biome_from_climate(
 // ===========================================================================
 
 #[registry_value]
-#[dispatch(registry = crate::keys::BiomeSourceType, unsupported(Checkerboard))]
+#[dispatch(registry = crate::biome_source_keys::BiomeSourceType, unsupported(Checkerboard))]
 #[derive(Debug, Clone, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub enum BiomeSource<M: Refs = Resolved> {

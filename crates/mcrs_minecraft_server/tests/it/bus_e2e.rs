@@ -47,9 +47,9 @@ fn enqueue_overworld(app: &mut App) {
         .resource_mut::<DimSpawnQueue>()
         .0
         .push(DimSpawnRequest {
-            dimension: mcrs_minecraft_dimension::keys::dimension::OVERWORLD.into(),
+            dimension: mcrs_minecraft_dimension::dimension_keys::OVERWORLD.into(),
             dimension_type: crate::support::dimension_type(
-                mcrs_minecraft_dimension::keys::dimension_type::OVERWORLD,
+                mcrs_minecraft_dimension::dimension_type_keys::OVERWORLD,
             ),
         });
 }
@@ -202,9 +202,9 @@ fn messages_sent_before_a_dimension_boots_arrive_in_order_on_its_first_tick() {
         .resource_mut::<DimSpawnQueue>()
         .0
         .push(DimSpawnRequest {
-            dimension: mcrs_minecraft_dimension::keys::dimension::THE_END.into(),
+            dimension: mcrs_minecraft_dimension::dimension_keys::THE_END.into(),
             dimension_type: crate::support::dimension_type(
-                mcrs_minecraft_dimension::keys::dimension_type::THE_END,
+                mcrs_minecraft_dimension::dimension_type_keys::THE_END,
             ),
         });
     drain_dim_spawn_queue(&mut app);

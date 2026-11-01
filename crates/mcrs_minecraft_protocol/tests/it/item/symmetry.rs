@@ -1,7 +1,7 @@
 use crate::item::harness::WireCodec;
 use std::sync::Arc;
 
-use mcrs_minecraft_item::keys::DataComponentType;
+use mcrs_minecraft_item::data_component_type_keys::DataComponentType;
 use mcrs_minecraft_protocol::item::WireLookup;
 use mcrs_minecraft_protocol::item::for_each_data_component;
 use mcrs_minecraft_protocol::item::{
@@ -20,7 +20,7 @@ use crate::item::harness::{
     decode, entry, from_json, from_nbt, json_of, lookup, named, persistent_json, read_json,
     resolved, wire,
 };
-use mcrs_minecraft_item::keys::Item;
+use mcrs_minecraft_item::item_keys::Item;
 
 const ITERATIONS: usize = 256;
 const ITEMS: [&str; 4] = ["stone", "diamond_sword", "apple", "bundle"];
@@ -197,7 +197,7 @@ fn check_kind(kind: DataComponentType, iterations: usize) {
 }
 
 mod exhaustive {
-    use mcrs_minecraft_item::keys::DataComponentType;
+    use mcrs_minecraft_item::data_component_type_keys::DataComponentType;
 
     #[test]
     fn random_values_of_every_kind_round_trip() {

@@ -1,4 +1,4 @@
-use crate::keys::DataComponentType;
+use crate::data_component_type_keys::DataComponentType;
 use crate::{Damage, ItemComponentValue, MaxDamage, MaxStackSize, Unbreakable};
 use bevy_ecs::entity::Entity;
 use bevy_ecs::world::EntityRef;

@@ -31,11 +31,14 @@ pub enum ValueType {
 const KEYS_CRATE: &str = "mcrs_minecraft_keys";
 const CATALOG_CRATE: &str = "mcrs_minecraft_registry_catalog";
 
+/// The module of an owning crate that holds its registry keys, beside the `<registry>_keys`
+/// and `<registry>_tag_keys` modules of the entries.
+const REGISTRY_KEYS: &str = "registry_keys";
+
 struct Target {
     krate: String,
     definitions: String,
     modules: Vec<String>,
-    enums: Vec<(String, String)>,
     statics: Vec<(u16, String)>,
 }
 
@@ -45,7 +48,6 @@ impl Target {
             krate: krate.to_owned(),
             definitions: String::new(),
             modules: Vec::new(),
-            enums: Vec::new(),
             statics: Vec::new(),
         }
     }
@@ -54,19 +56,35 @@ impl Target {
         self.krate != KEYS_CRATE
     }
 
-    fn source(&self, file: &str) -> String {
+    fn entries_module(&self, module: &str) -> String {
         if self.owned() {
-            format!("crates/{}/src/keys/{file}", self.krate)
+            format!("{module}_keys")
         } else {
-            format!("crates/{}/src/{file}", self.krate)
+            module.to_owned()
         }
     }
 
-    fn path(&self, item: &str) -> String {
+    fn tags_module(&self, module: &str) -> String {
         if self.owned() {
-            format!("{}::keys::{item}", self.krate)
+            format!("{module}_tag_keys")
         } else {
-            format!("{}::{item}", self.krate)
+            format!("{module}_tags")
+        }
+    }
+
+    fn source(&self, module: &str) -> String {
+        format!("crates/{}/src/{module}.rs", self.krate)
+    }
+
+    fn path(&self, item: &str) -> String {
+        format!("{}::{item}", self.krate)
+    }
+
+    fn key_path(&self, key: &str) -> String {
+        if self.owned() {
+            self.path(&format!("{REGISTRY_KEYS}::{key}"))
+        } else {
+            self.path(key)
         }
     }
 }
@@ -119,8 +137,8 @@ pub fn generate(
     for (registry, flags) in &datapack.registries {
         let module = identity(registry)?;
         let tags = names.tags.get(registry).filter(|tags| !tags.is_empty());
-        let tag_module = tags.map(|_| format!("{module}_tags"));
-        for claim in [Some(&module), tag_module.as_ref()].into_iter().flatten() {
+        let tag_claims = tags.map(|_| [format!("{module}_tag"), format!("{module}_tags")]);
+        for claim in std::iter::once(&module).chain(tag_claims.iter().flatten()) {
             if let Some(other) = claimed.insert(claim.clone(), registry) {
                 return Err(format!("{other} and {registry} are both named {claim}"));
             }
@@ -156,7 +174,7 @@ pub fn generate(
         let krate = owner.map_or(KEYS_CRATE, |owner| owner.krate);
         let value = owner.map(|owner| match owner.value {
             ValueType::Defined(value) => value.to_owned(),
-            ValueType::Enum(name) => format!("crate::keys::{name}"),
+            ValueType::Enum(name) => format!("crate::{module}_keys::{name}"),
         });
         let value = value.as_deref();
         let target = targets
@@ -168,7 +186,6 @@ pub fn generate(
         let text = match (report, entries) {
             (Some(report), _) if !report.entries.is_empty() => {
                 if let Some(name) = enumerated {
-                    target.enums.push((module.clone(), name.to_owned()));
                     Some(enum_module(registry, name, report)?)
                 } else {
                     Some(static_names_module(registry, report)?)
@@ -188,25 +205,26 @@ pub fn generate(
                      so the catalog cannot list it"
                 ));
             }
+            let entries_module = target.entries_module(&module);
             let entries = match enumerated {
-                _ if report.entries.is_empty() => "&[]".to_owned(),
-                Some(name) => format!("{name}::ENTRIES"),
-                None => format!("{module}::ENTRIES"),
+                _ if report.entries.is_empty() => None,
+                Some(name) => Some(format!("{entries_module}::{name}::ENTRIES")),
+                None => Some(format!("{entries_module}::ENTRIES")),
             };
             if own_lists.contains(krate) {
+                let entries =
+                    entries.map_or_else(|| "&[]".to_owned(), |entries| format!("crate::{entries}"));
                 target.statics.push((
                     report.protocol_id,
                     format!("    ({key}.location(), {entries}),\n"),
                 ));
             } else {
-                let entries = match report.entries.is_empty() {
-                    true => entries,
-                    false => target.path(&entries),
-                };
+                let entries =
+                    entries.map_or_else(|| "&[]".to_owned(), |entries| target.path(&entries));
                 let location = if target.owned() {
-                    format!("{}.location()", target.path(&key))
+                    format!("{}.location()", target.key_path(&key))
                 } else {
-                    target.path(&key)
+                    target.key_path(&key)
                 };
                 statics.push((
                     report.protocol_id,
@@ -216,27 +234,29 @@ pub fn generate(
             }
         }
         if let Some(text) = text {
-            files.insert(target.source(&format!("{module}.rs")), text);
-            target.modules.push(module);
+            let entries_module = target.entries_module(&module);
+            files.insert(target.source(&entries_module), text);
+            target.modules.push(entries_module);
         }
-        if let (Some(tags), Some(tag_module)) = (tags, tag_module) {
+        if let Some(tags) = tags {
+            let tags_module = target.tags_module(&module);
             files.insert(
-                target.source(&format!("{tag_module}.rs")),
+                target.source(&tags_module),
                 named_constants(registry, value, "TagKey", tags)?,
             );
-            target.modules.push(tag_module);
+            target.modules.push(tags_module);
         }
     }
 
     for target in targets.values_mut() {
         target.modules.sort();
         if target.owned() {
-            files.insert(target.source("mod.rs"), owner_file(target));
+            files.insert(target.source(REGISTRY_KEYS), registry_keys_file(target));
         } else {
-            files.insert(target.source("registry.rs"), registry_file(target));
+            files.insert(target.source("registry"), registry_file(target));
             target.modules.push("registry".to_owned());
             target.modules.sort();
-            files.insert(target.source("lib.rs"), lib_file(&target.modules));
+            files.insert(target.source("lib"), lib_file(&target.modules));
         }
     }
     statics.sort_by_key(|&(protocol_id, _)| protocol_id);
@@ -322,7 +342,50 @@ pub fn write(root: &Path, files: &Files) -> Result<(), String> {
         println!("deleted {path}");
     }
     println!("keys: {written} written, {} deleted", stale.len());
-    Ok(())
+    let undeclared = undeclared(root, files)?;
+    if undeclared.is_empty() {
+        Ok(())
+    } else {
+        Err(format!(
+            "an owning crate does not declare a key module it holds:\n{}",
+            undeclared.join("\n")
+        ))
+    }
+}
+
+/// The `pub mod` lines an owning crate's `lib.rs` lacks for the key modules written into it.
+/// The generator writes the modules but never the hand-written `lib.rs`.
+fn undeclared(root: &Path, files: &Files) -> Result<Vec<String>, String> {
+    let mut missing = Vec::new();
+    let mut libs: BTreeMap<String, String> = BTreeMap::new();
+    for path in files.keys() {
+        let Some((krate, module)) = owned_module(path) else {
+            continue;
+        };
+        let lib = format!("crates/{krate}/src/lib.rs");
+        let text = match libs.get(&lib) {
+            Some(text) => text,
+            None => {
+                let full = root.join(&lib);
+                let text = fs::read_to_string(&full).map_err(|error| corpus::io(&full, error))?;
+                libs.entry(lib.clone()).or_insert(text)
+            }
+        };
+        let declaration = format!("pub mod {module};");
+        if !text.lines().any(|line| line.trim() == declaration) {
+            missing.push(format!("{lib}: add `{declaration}`"));
+        }
+    }
+    Ok(missing)
+}
+
+/// The crate and module of a key source the generator writes into an owning crate.
+fn owned_module(path: &str) -> Option<(&str, &str)> {
+    let rest = path.strip_prefix("crates/")?;
+    let (krate, file) = rest.split_once("/src/")?;
+    let module = file.strip_suffix(".rs")?;
+    let owned = krate != KEYS_CRATE && krate != CATALOG_CRATE;
+    (owned && !module.contains('/') && module.ends_with("_keys")).then_some((krate, module))
 }
 
 /// A source written before the generator formatted its output is kept while
@@ -347,32 +410,37 @@ fn unskipped(text: &str) -> String {
 }
 
 fn stale(root: &Path, files: &Files) -> Result<Vec<String>, String> {
-    let mut on_disk = Vec::new();
-    for dir in generated_dirs(root)? {
-        corpus::files_below(root, &dir, &mut on_disk)?;
-    }
-    on_disk.retain(|path| path.ends_with(".rs") && !files.contains_key(path));
-    Ok(on_disk)
-}
-
-pub fn generated_dirs(root: &Path) -> Result<Vec<std::path::PathBuf>, String> {
     let crates = root.join("crates");
-    let mut dirs = vec![
-        crates.join(KEYS_CRATE).join("src"),
-        crates.join(CATALOG_CRATE).join("src"),
-    ];
+    let mut on_disk = Vec::new();
+    for krate in [KEYS_CRATE, CATALOG_CRATE] {
+        let dir = crates.join(krate).join("src");
+        if dir.is_dir() {
+            corpus::files_below(root, &dir, &mut on_disk)?;
+        }
+    }
     let listing = fs::read_dir(&crates).map_err(|error| corpus::io(&crates, error))?;
     for entry in listing {
         let entry = entry.map_err(|error| corpus::io(&crates, error))?;
-        let keys = entry.path().join("src").join("keys");
-        let module = keys.join("mod.rs");
-        if fs::read_to_string(&module).is_ok_and(|text| text.starts_with(HEADER)) {
-            dirs.push(keys);
+        let src = entry.path().join("src");
+        let Ok(sources) = fs::read_dir(&src) else {
+            continue;
+        };
+        for source in sources {
+            let path = source.map_err(|error| corpus::io(&src, error))?.path();
+            let generated = path
+                .file_name()
+                .and_then(|name| name.to_str())
+                .is_some_and(|name| name.ends_with("_keys.rs"))
+                && fs::read_to_string(&path).is_ok_and(|text| text.starts_with(HEADER));
+            if let (true, Ok(relative)) = (generated, path.strip_prefix(root)) {
+                on_disk.push(relative.to_string_lossy().replace('\\', "/"));
+            }
         }
     }
-    dirs.retain(|dir| dir.is_dir());
-    dirs.sort();
-    Ok(dirs)
+    on_disk.retain(|path| path.ends_with(".rs") && !files.contains_key(path));
+    on_disk.sort();
+    on_disk.dedup();
+    Ok(on_disk)
 }
 
 fn identity(registry: &str) -> Result<String, String> {
@@ -591,20 +659,8 @@ fn registry_file(target: &Target) -> String {
     )
 }
 
-fn owner_file(target: &Target) -> String {
+fn registry_keys_file(target: &Target) -> String {
     let mut out = format!("{HEADER}\n");
-    for module in &target.modules {
-        out.push_str(&format!("pub mod {module};\n"));
-    }
-    if !target.modules.is_empty() {
-        out.push('\n');
-    }
-    for (module, marker) in &target.enums {
-        out.push_str(&format!("pub use {module}::{marker};\n"));
-    }
-    if !target.enums.is_empty() {
-        out.push('\n');
-    }
     let mut statics = target.statics.clone();
     statics.sort_by_key(|&(protocol_id, _)| protocol_id);
     let imports = match statics.is_empty() {
@@ -1331,26 +1387,26 @@ mod tests {
 
     #[test]
     fn generated_tags_name_their_shipped_files() {
-        use mcrs_minecraft_biome::keys::{BIOME, biome_tags};
-        use mcrs_minecraft_block::keys::{BLOCK, block_tags};
-        use mcrs_minecraft_item::keys::{ITEM, item_tags};
+        use mcrs_minecraft_biome::{biome_tag_keys, registry_keys::BIOME};
+        use mcrs_minecraft_block::{block_tag_keys, registry_keys::BLOCK};
+        use mcrs_minecraft_item::{item_tag_keys, registry_keys::ITEM};
 
         let vanilla = mcrs_minecraft_fixtures::vanilla_dir();
         let rows = [
             (
-                tag_file(BLOCK, block_tags::MINEABLE_PICKAXE),
+                tag_file(BLOCK, block_tag_keys::MINEABLE_PICKAXE),
                 "minecraft/tags/block/mineable/pickaxe.json",
             ),
             (
-                tag_file(BLOCK, block_tags::LOGS),
+                tag_file(BLOCK, block_tag_keys::LOGS),
                 "minecraft/tags/block/logs.json",
             ),
             (
-                tag_file(ITEM, item_tags::LOGS),
+                tag_file(ITEM, item_tag_keys::LOGS),
                 "minecraft/tags/item/logs.json",
             ),
             (
-                tag_file(BIOME, biome_tags::IS_OCEAN),
+                tag_file(BIOME, biome_tag_keys::IS_OCEAN),
                 "minecraft/tags/worldgen/biome/is_ocean.json",
             ),
         ];
@@ -1381,10 +1437,8 @@ mod tests {
         assert!(!files["src/registry.rs"].contains("Biome"));
         assert!(!files.contains_key("src/biome.rs"));
         assert_eq!(
-            files["crates/mcrs_minecraft_biome/src/keys/mod.rs"],
+            files["crates/mcrs_minecraft_biome/src/registry_keys.rs"],
             "// Written by `cargo run -p mcrs_minecraft_update -- keys`; do not edit.\n\
-             \n\
-             pub mod biome;\n\
              \n\
              use mcrs_minecraft_resource::{Registered, RegistryKey, rl};\n\
              \n\
@@ -1394,7 +1448,7 @@ mod tests {
              }\n"
         );
         assert!(
-            files["crates/mcrs_minecraft_biome/src/keys/biome.rs"].contains(
+            files["crates/mcrs_minecraft_biome/src/biome_keys.rs"].contains(
                 "pub const PLAINS: ResourceKey<'static, crate::Biome> = ResourceKey::new(rl!(\"minecraft:plains\"));"
             )
         );
@@ -1422,7 +1476,7 @@ mod tests {
         .unwrap();
 
         assert_eq!(
-            files["crates/mcrs_minecraft_food/src/keys/fruit.rs"],
+            files["crates/mcrs_minecraft_food/src/fruit_keys.rs"],
             "// Written by `cargo run -p mcrs_minecraft_update -- keys`; do not edit.\n\
              \n\
              mcrs_minecraft_registries::static_registry! {\n\
@@ -1432,11 +1486,12 @@ mod tests {
              \x20   MusicDisc5 = \"minecraft:music_disc_5\",\n\
              }\n"
         );
-        let module = &files["crates/mcrs_minecraft_food/src/keys/mod.rs"];
-        assert!(module.contains("pub mod fruit;\n\npub use fruit::Fruit;\n"));
-        assert!(module.contains("impl Registered for crate::keys::Fruit {"));
+        let module = &files["crates/mcrs_minecraft_food/src/registry_keys.rs"];
+        assert!(!module.contains("pub mod "), "{module}");
+        assert!(!module.contains("pub use "), "{module}");
+        assert!(module.contains("impl Registered for crate::fruit_keys::Fruit {"));
         assert!(files[CATALOG_LIB].contains(
-            "&[(\n    mcrs_minecraft_food::keys::FRUIT.location(),\n    mcrs_minecraft_food::keys::Fruit::ENTRIES,\n)];\n"
+            "&[(\n    mcrs_minecraft_food::registry_keys::FRUIT.location(),\n    mcrs_minecraft_food::fruit_keys::Fruit::ENTRIES,\n)];\n"
         ));
         assert!(files[CATALOG_MANIFEST].contains("\nmcrs_minecraft_food.workspace = true\n"));
     }
@@ -1501,7 +1556,7 @@ mod tests {
             &BTreeSet::new(),
         )
         .unwrap();
-        assert!(files.contains_key("crates/mcrs_minecraft_game_registries/src/keys/mod.rs"));
+        assert!(files.contains_key("crates/mcrs_minecraft_game_registries/src/registry_keys.rs"));
         assert!(!files[CATALOG_LIB].contains("mcrs_minecraft_game_registries"));
         assert!(!files[CATALOG_MANIFEST].contains("mcrs_minecraft_game_registries"));
 
@@ -1539,11 +1594,10 @@ mod tests {
         .unwrap();
         assert!(!files[CATALOG_LIB].contains("mcrs_minecraft_worldgen_block"));
         assert!(!files[CATALOG_MANIFEST].contains("mcrs_minecraft_worldgen_block"));
+        let module = &files["crates/mcrs_minecraft_worldgen_block/src/registry_keys.rs"];
         assert!(
-            files["crates/mcrs_minecraft_worldgen_block/src/keys/mod.rs"]
-                .contains("&[(BLOCK.location(), Block::ENTRIES)]"),
-            "{}",
-            files["crates/mcrs_minecraft_worldgen_block/src/keys/mod.rs"]
+            module.contains("&[(BLOCK.location(), crate::block_keys::Block::ENTRIES)]"),
+            "{module}"
         );
     }
 
@@ -1573,18 +1627,45 @@ mod tests {
     }
 
     #[test]
+    fn an_owner_whose_lib_misses_a_key_module_is_named() {
+        let root = scratch("keys-undeclared");
+        let src = root.join("crates/mcrs_minecraft_biome/src");
+        fs::create_dir_all(&src).unwrap();
+        fs::write(src.join("lib.rs"), "pub mod registry_keys;\n").unwrap();
+        let files = Files::from([
+            (
+                "crates/mcrs_minecraft_biome/src/registry_keys.rs".to_owned(),
+                HEADER.to_owned(),
+            ),
+            (
+                "crates/mcrs_minecraft_biome/src/biome_keys.rs".to_owned(),
+                HEADER.to_owned(),
+            ),
+        ]);
+
+        let error = write(&root, &files).unwrap_err();
+
+        assert!(
+            error.contains("crates/mcrs_minecraft_biome/src/lib.rs: add `pub mod biome_keys;`"),
+            "{error}"
+        );
+        assert!(!error.contains("registry_keys"), "{error}");
+    }
+
+    #[test]
     fn writing_replaces_changed_files_and_deletes_stale_sources() {
         let root = scratch("keys-write");
         let keys = root.join("crates/mcrs_minecraft_keys");
-        let owner = root.join("crates/mcrs_minecraft_gone/src/keys");
+        let owner = root.join("crates/mcrs_minecraft_gone/src");
         fs::create_dir_all(keys.join("src")).unwrap();
         fs::create_dir_all(&owner).unwrap();
         fs::write(keys.join("Cargo.toml"), "[package]\n").unwrap();
         fs::write(keys.join("src/stale.rs"), "old").unwrap();
         fs::write(keys.join("src/notes.txt"), "kept").unwrap();
         fs::write(keys.join("src/lib.rs"), "old").unwrap();
-        fs::write(owner.join("mod.rs"), HEADER).unwrap();
-        fs::write(owner.join("gone.rs"), HEADER).unwrap();
+        fs::write(owner.join("registry_keys.rs"), HEADER).unwrap();
+        fs::write(owner.join("gone_keys.rs"), HEADER).unwrap();
+        fs::write(owner.join("hand_keys.rs"), "// hand-written\n").unwrap();
         let (registries, datapack, names) = reports(&[("minecraft:block", BLOCK)], &[]);
         let files = generate(
             &registries,
@@ -1611,8 +1692,9 @@ mod tests {
         }
         assert_eq!(fs::read_to_string(root.join(block)).unwrap(), unformatted);
         assert!(!keys.join("src/stale.rs").exists());
-        assert!(!owner.join("mod.rs").exists());
-        assert!(!owner.join("gone.rs").exists());
+        assert!(!owner.join("registry_keys.rs").exists());
+        assert!(!owner.join("gone_keys.rs").exists());
+        assert!(owner.join("hand_keys.rs").exists());
         assert_eq!(
             fs::read_to_string(keys.join("src/notes.txt")).unwrap(),
             "kept"

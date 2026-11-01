@@ -16,7 +16,7 @@ fn normal() -> Dimensions {
         .expect("the presets are loaded");
     let id = presets
         .by_name(
-            &mcrs_minecraft_game_registries::keys::world_preset::NORMAL
+            &mcrs_minecraft_game_registries::world_preset_keys::NORMAL
                 .location()
                 .to_buf(),
         )

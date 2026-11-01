@@ -1,7 +1,7 @@
 use mcrs_minecraft_resource::{ResourceLocationBuf, TagKeyBuf};
 use std::collections::{BTreeMap, BTreeSet};
 
-use mcrs_minecraft_block::keys::Block;
+use mcrs_minecraft_block::block_keys::Block;
 use mcrs_minecraft_game_registries::registry_load::{test_network, test_registries};
 use mcrs_minecraft_protocol::packets::configuration::clientbound::ClientboundUpdateTags;
 use mcrs_minecraft_registries::Registries;

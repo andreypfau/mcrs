@@ -18,7 +18,7 @@ use super::proto::{
 use super::rule_test::RuleTest;
 use super::sort::build_features_per_step;
 use crate::template::Template;
-use mcrs_minecraft_block::keys::Fluid;
+use mcrs_minecraft_block::fluid_keys::Fluid;
 use mcrs_minecraft_block_predicate::block_state::BlockState;
 use mcrs_minecraft_block_predicate::predicate::{BlockPredicate, Offset};
 use mcrs_minecraft_block_predicate::provider::DirectBlockStateProvider;
@@ -287,7 +287,7 @@ impl<'a> Interner<'a> {
 /// function of the state, so each of these collapses to one mask at freeze and
 /// nothing looks a name up again while a column generates.
 pub enum StateQuery<'a> {
-    Blocks(&'a KeySet<mcrs_minecraft_block::keys::Block>),
+    Blocks(&'a KeySet<mcrs_minecraft_block::block_keys::Block>),
     /// Blocks a datapack value lists by name rather than as a holder set.
     Names(&'a [ResourceLocationBuf]),
     Block(&'a ResourceLocationBuf),
@@ -433,7 +433,7 @@ pub fn compile_predicate(
         }
         BlockPredicate::Unobstructed { .. } => {
             return Err(FeatureCompileError::Unsupported(
-                mcrs_minecraft_block_predicate::keys::BlockPredicateType::Unobstructed
+                mcrs_minecraft_block_predicate::block_predicate_type_keys::BlockPredicateType::Unobstructed
                     .as_static_str()
                     .to_owned(),
             ));

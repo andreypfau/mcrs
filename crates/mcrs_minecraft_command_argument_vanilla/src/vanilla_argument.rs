@@ -5,7 +5,7 @@ use mcrs_command::{
     Argument, ArgumentSet, BoolArgument, Contains, ContextView, DoubleArgument, FloatArgument,
     Graph, IntegerArgument, LongArgument, Reader, StringArgument, SuggestionBuilder, SyntaxError,
 };
-use mcrs_minecraft_block::keys::BLOCK;
+use mcrs_minecraft_block::registry_keys::BLOCK;
 use mcrs_minecraft_command::{PermissionCheck, Source, WireArgument};
 use mcrs_minecraft_command_argument::{
     BlockPosArgument, RotationArgument, SwizzleArgument, Vec3Argument,

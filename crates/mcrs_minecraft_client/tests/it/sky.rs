@@ -50,7 +50,7 @@ fn a_dimension_named_unlike_its_type_gets_its_types_sky() {
     app.world_mut()
         .entity_mut(connection)
         .insert(CurrentDimension {
-            key: mcrs_minecraft_dimension::keys::dimension::OVERWORLD.into(),
+            key: mcrs_minecraft_dimension::dimension_keys::OVERWORLD.into(),
             dimension_type: nether,
         });
     app.update();

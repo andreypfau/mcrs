@@ -5,17 +5,17 @@ mod overworld;
 
 use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_biome::GrassColorModifier;
-use mcrs_minecraft_biome::keys::biome;
-use mcrs_minecraft_biome::keys::carver;
-use mcrs_minecraft_biome::keys::placed_feature;
+use mcrs_minecraft_biome::biome_keys;
+use mcrs_minecraft_biome::carver_keys;
+use mcrs_minecraft_biome::placed_feature_keys;
 use mcrs_minecraft_biome_file::{BiomeDraft as Draft, BiomeGeneration as Generation};
 use mcrs_minecraft_core::codec::{Bounded, HexRgb};
-use mcrs_minecraft_entity::keys::EntityType;
+use mcrs_minecraft_entity::entity_type_keys::EntityType;
 use mcrs_minecraft_entity::spawn::MobCategory;
 use mcrs_minecraft_environment::attribute::id::*;
 use mcrs_minecraft_environment::attribute::{MobSpawnSettings, Operation};
 use mcrs_minecraft_resource::{ResourceKey, ResourceLocationBuf};
-use mcrs_minecraft_sound::keys::SoundEvent;
+use mcrs_minecraft_sound::sound_event_keys::SoundEvent;
 use mcrs_minecraft_value_provider::IntProvider;
 use serde::Serialize;
 
@@ -45,59 +45,59 @@ pub mod mob {
     }
 
     mobs! {
-        ARMADILLO = mcrs_minecraft_entity::keys::EntityType::Armadillo, Creature;
-        AXOLOTL = mcrs_minecraft_entity::keys::EntityType::Axolotl, Axolotls;
-        BAT = mcrs_minecraft_entity::keys::EntityType::Bat, Ambient;
-        BOGGED = mcrs_minecraft_entity::keys::EntityType::Bogged, Monster;
-        CAMEL = mcrs_minecraft_entity::keys::EntityType::Camel, Creature;
-        CAVE_SPIDER = mcrs_minecraft_entity::keys::EntityType::CaveSpider, Monster;
-        CHICKEN = mcrs_minecraft_entity::keys::EntityType::Chicken, Creature;
-        COD = mcrs_minecraft_entity::keys::EntityType::Cod, WaterAmbient;
-        COW = mcrs_minecraft_entity::keys::EntityType::Cow, Creature;
-        CREEPER = mcrs_minecraft_entity::keys::EntityType::Creeper, Monster;
-        DOLPHIN = mcrs_minecraft_entity::keys::EntityType::Dolphin, WaterCreature;
-        DONKEY = mcrs_minecraft_entity::keys::EntityType::Donkey, Creature;
-        DROWNED = mcrs_minecraft_entity::keys::EntityType::Drowned, Monster;
-        ENDERMAN = mcrs_minecraft_entity::keys::EntityType::Enderman, Monster;
-        FOX = mcrs_minecraft_entity::keys::EntityType::Fox, Creature;
-        FROG = mcrs_minecraft_entity::keys::EntityType::Frog, Creature;
-        FROSTBITE = mcrs_minecraft_entity::keys::EntityType::Frostbite, Monster;
-        GHAST = mcrs_minecraft_entity::keys::EntityType::Ghast, Monster;
-        GLOW_SQUID = mcrs_minecraft_entity::keys::EntityType::GlowSquid, UndergroundWaterCreature;
-        GOAT = mcrs_minecraft_entity::keys::EntityType::Goat, Creature;
-        HOGLIN = mcrs_minecraft_entity::keys::EntityType::Hoglin, Monster;
-        HORSE = mcrs_minecraft_entity::keys::EntityType::Horse, Creature;
-        HUSK = mcrs_minecraft_entity::keys::EntityType::Husk, Monster;
-        LLAMA = mcrs_minecraft_entity::keys::EntityType::Llama, Creature;
-        MAGMA_CUBE = mcrs_minecraft_entity::keys::EntityType::MagmaCube, Monster;
-        MOOSHROOM = mcrs_minecraft_entity::keys::EntityType::Mooshroom, Creature;
-        NAUTILUS = mcrs_minecraft_entity::keys::EntityType::Nautilus, WaterCreature;
-        OCELOT = mcrs_minecraft_entity::keys::EntityType::Ocelot, Creature;
-        PANDA = mcrs_minecraft_entity::keys::EntityType::Panda, Creature;
-        PARCHED = mcrs_minecraft_entity::keys::EntityType::Parched, Monster;
-        PARROT = mcrs_minecraft_entity::keys::EntityType::Parrot, Creature;
-        PIG = mcrs_minecraft_entity::keys::EntityType::Pig, Creature;
-        PIGLIN = mcrs_minecraft_entity::keys::EntityType::Piglin, Monster;
-        POLAR_BEAR = mcrs_minecraft_entity::keys::EntityType::PolarBear, Creature;
-        PUFFERFISH = mcrs_minecraft_entity::keys::EntityType::Pufferfish, WaterAmbient;
-        RABBIT = mcrs_minecraft_entity::keys::EntityType::Rabbit, Creature;
-        SALMON = mcrs_minecraft_entity::keys::EntityType::Salmon, WaterAmbient;
-        SHEEP = mcrs_minecraft_entity::keys::EntityType::Sheep, Creature;
-        SKELETON = mcrs_minecraft_entity::keys::EntityType::Skeleton, Monster;
-        SLIME = mcrs_minecraft_entity::keys::EntityType::Slime, Monster;
-        SPIDER = mcrs_minecraft_entity::keys::EntityType::Spider, Monster;
-        SQUID = mcrs_minecraft_entity::keys::EntityType::Squid, WaterCreature;
-        STRAY = mcrs_minecraft_entity::keys::EntityType::Stray, Monster;
-        STRIDER = mcrs_minecraft_entity::keys::EntityType::Strider, Creature;
-        SULFUR_CUBE = mcrs_minecraft_entity::keys::EntityType::SulfurCube, Monster;
-        TROPICAL_FISH = mcrs_minecraft_entity::keys::EntityType::TropicalFish, WaterAmbient;
-        TURTLE = mcrs_minecraft_entity::keys::EntityType::Turtle, Creature;
-        WITCH = mcrs_minecraft_entity::keys::EntityType::Witch, Monster;
-        WOLF = mcrs_minecraft_entity::keys::EntityType::Wolf, Creature;
-        ZOMBIE = mcrs_minecraft_entity::keys::EntityType::Zombie, Monster;
-        ZOMBIE_HORSE = mcrs_minecraft_entity::keys::EntityType::ZombieHorse, Monster;
-        ZOMBIE_VILLAGER = mcrs_minecraft_entity::keys::EntityType::ZombieVillager, Monster;
-        ZOMBIFIED_PIGLIN = mcrs_minecraft_entity::keys::EntityType::ZombifiedPiglin, Monster;
+        ARMADILLO = mcrs_minecraft_entity::entity_type_keys::EntityType::Armadillo, Creature;
+        AXOLOTL = mcrs_minecraft_entity::entity_type_keys::EntityType::Axolotl, Axolotls;
+        BAT = mcrs_minecraft_entity::entity_type_keys::EntityType::Bat, Ambient;
+        BOGGED = mcrs_minecraft_entity::entity_type_keys::EntityType::Bogged, Monster;
+        CAMEL = mcrs_minecraft_entity::entity_type_keys::EntityType::Camel, Creature;
+        CAVE_SPIDER = mcrs_minecraft_entity::entity_type_keys::EntityType::CaveSpider, Monster;
+        CHICKEN = mcrs_minecraft_entity::entity_type_keys::EntityType::Chicken, Creature;
+        COD = mcrs_minecraft_entity::entity_type_keys::EntityType::Cod, WaterAmbient;
+        COW = mcrs_minecraft_entity::entity_type_keys::EntityType::Cow, Creature;
+        CREEPER = mcrs_minecraft_entity::entity_type_keys::EntityType::Creeper, Monster;
+        DOLPHIN = mcrs_minecraft_entity::entity_type_keys::EntityType::Dolphin, WaterCreature;
+        DONKEY = mcrs_minecraft_entity::entity_type_keys::EntityType::Donkey, Creature;
+        DROWNED = mcrs_minecraft_entity::entity_type_keys::EntityType::Drowned, Monster;
+        ENDERMAN = mcrs_minecraft_entity::entity_type_keys::EntityType::Enderman, Monster;
+        FOX = mcrs_minecraft_entity::entity_type_keys::EntityType::Fox, Creature;
+        FROG = mcrs_minecraft_entity::entity_type_keys::EntityType::Frog, Creature;
+        FROSTBITE = mcrs_minecraft_entity::entity_type_keys::EntityType::Frostbite, Monster;
+        GHAST = mcrs_minecraft_entity::entity_type_keys::EntityType::Ghast, Monster;
+        GLOW_SQUID = mcrs_minecraft_entity::entity_type_keys::EntityType::GlowSquid, UndergroundWaterCreature;
+        GOAT = mcrs_minecraft_entity::entity_type_keys::EntityType::Goat, Creature;
+        HOGLIN = mcrs_minecraft_entity::entity_type_keys::EntityType::Hoglin, Monster;
+        HORSE = mcrs_minecraft_entity::entity_type_keys::EntityType::Horse, Creature;
+        HUSK = mcrs_minecraft_entity::entity_type_keys::EntityType::Husk, Monster;
+        LLAMA = mcrs_minecraft_entity::entity_type_keys::EntityType::Llama, Creature;
+        MAGMA_CUBE = mcrs_minecraft_entity::entity_type_keys::EntityType::MagmaCube, Monster;
+        MOOSHROOM = mcrs_minecraft_entity::entity_type_keys::EntityType::Mooshroom, Creature;
+        NAUTILUS = mcrs_minecraft_entity::entity_type_keys::EntityType::Nautilus, WaterCreature;
+        OCELOT = mcrs_minecraft_entity::entity_type_keys::EntityType::Ocelot, Creature;
+        PANDA = mcrs_minecraft_entity::entity_type_keys::EntityType::Panda, Creature;
+        PARCHED = mcrs_minecraft_entity::entity_type_keys::EntityType::Parched, Monster;
+        PARROT = mcrs_minecraft_entity::entity_type_keys::EntityType::Parrot, Creature;
+        PIG = mcrs_minecraft_entity::entity_type_keys::EntityType::Pig, Creature;
+        PIGLIN = mcrs_minecraft_entity::entity_type_keys::EntityType::Piglin, Monster;
+        POLAR_BEAR = mcrs_minecraft_entity::entity_type_keys::EntityType::PolarBear, Creature;
+        PUFFERFISH = mcrs_minecraft_entity::entity_type_keys::EntityType::Pufferfish, WaterAmbient;
+        RABBIT = mcrs_minecraft_entity::entity_type_keys::EntityType::Rabbit, Creature;
+        SALMON = mcrs_minecraft_entity::entity_type_keys::EntityType::Salmon, WaterAmbient;
+        SHEEP = mcrs_minecraft_entity::entity_type_keys::EntityType::Sheep, Creature;
+        SKELETON = mcrs_minecraft_entity::entity_type_keys::EntityType::Skeleton, Monster;
+        SLIME = mcrs_minecraft_entity::entity_type_keys::EntityType::Slime, Monster;
+        SPIDER = mcrs_minecraft_entity::entity_type_keys::EntityType::Spider, Monster;
+        SQUID = mcrs_minecraft_entity::entity_type_keys::EntityType::Squid, WaterCreature;
+        STRAY = mcrs_minecraft_entity::entity_type_keys::EntityType::Stray, Monster;
+        STRIDER = mcrs_minecraft_entity::entity_type_keys::EntityType::Strider, Creature;
+        SULFUR_CUBE = mcrs_minecraft_entity::entity_type_keys::EntityType::SulfurCube, Monster;
+        TROPICAL_FISH = mcrs_minecraft_entity::entity_type_keys::EntityType::TropicalFish, WaterAmbient;
+        TURTLE = mcrs_minecraft_entity::entity_type_keys::EntityType::Turtle, Creature;
+        WITCH = mcrs_minecraft_entity::entity_type_keys::EntityType::Witch, Monster;
+        WOLF = mcrs_minecraft_entity::entity_type_keys::EntityType::Wolf, Creature;
+        ZOMBIE = mcrs_minecraft_entity::entity_type_keys::EntityType::Zombie, Monster;
+        ZOMBIE_HORSE = mcrs_minecraft_entity::entity_type_keys::EntityType::ZombieHorse, Monster;
+        ZOMBIE_VILLAGER = mcrs_minecraft_entity::entity_type_keys::EntityType::ZombieVillager, Monster;
+        ZOMBIFIED_PIGLIN = mcrs_minecraft_entity::entity_type_keys::EntityType::ZombifiedPiglin, Monster;
     }
 
     #[cfg(test)]
@@ -217,74 +217,74 @@ const BIOMES: &[BiomeRow] = {
     use nether as n;
     use overworld as o;
     &[
-        (biome::THE_VOID, o::the_void),
-        (biome::PLAINS, || o::plains(false, false, false)),
-        (biome::SUNFLOWER_PLAINS, || o::plains(true, false, false)),
-        (biome::SNOWY_PLAINS, || o::plains(false, true, false)),
-        (biome::ICE_SPIKES, || o::plains(false, true, true)),
-        (biome::DESERT, o::desert),
-        (biome::SWAMP, o::swamp),
-        (biome::MANGROVE_SWAMP, o::mangrove_swamp),
-        (biome::FOREST, || o::forest(false, false, false)),
-        (biome::FLOWER_FOREST, || o::forest(false, false, true)),
-        (biome::BIRCH_FOREST, || o::forest(true, false, false)),
-        (biome::DAPPLED_FOREST, o::dappled_forest),
-        (biome::DARK_FOREST, || o::dark_forest(false)),
-        (biome::PALE_GARDEN, || o::dark_forest(true)),
-        (biome::OLD_GROWTH_BIRCH_FOREST, || o::forest(true, true, false)),
-        (biome::OLD_GROWTH_PINE_TAIGA, || o::old_growth_taiga(false)),
-        (biome::OLD_GROWTH_SPRUCE_TAIGA, || o::old_growth_taiga(true)),
-        (biome::TAIGA, || o::taiga(false)),
-        (biome::SNOWY_TAIGA, || o::taiga(true)),
-        (biome::SAVANNA, || o::savanna(false, false)),
-        (biome::SAVANNA_PLATEAU, || o::savanna(false, true)),
-        (biome::WINDSWEPT_HILLS, || o::windswept_hills(false)),
-        (biome::WINDSWEPT_GRAVELLY_HILLS, || o::windswept_hills(false)),
-        (biome::WINDSWEPT_FOREST, || o::windswept_hills(true)),
-        (biome::WINDSWEPT_SAVANNA, || o::savanna(true, false)),
-        (biome::JUNGLE, || o::jungle(false)),
-        (biome::SPARSE_JUNGLE, o::sparse_jungle),
-        (biome::BAMBOO_JUNGLE, || o::jungle(true)),
-        (biome::BADLANDS, || o::badlands(false)),
-        (biome::ERODED_BADLANDS, || o::badlands(false)),
-        (biome::WOODED_BADLANDS, || o::badlands(true)),
-        (biome::MEADOW, || o::meadow_or_cherry_grove(false)),
-        (biome::CHERRY_GROVE, || o::meadow_or_cherry_grove(true)),
-        (biome::GROVE, o::grove),
-        (biome::SNOWY_SLOPES, o::snowy_slopes),
-        (biome::FROZEN_PEAKS, || o::peaks(SoundEvent::MusicOverworldFrozenPeaks, 25)),
-        (biome::JAGGED_PEAKS, || o::peaks(SoundEvent::MusicOverworldJaggedPeaks, 10)),
-        (biome::STONY_PEAKS, o::stony_peaks),
-        (biome::RIVER, || o::river(false)),
-        (biome::FROZEN_RIVER, || o::river(true)),
-        (biome::BEACH, || o::beach(false, false)),
-        (biome::SNOWY_BEACH, || o::beach(true, false)),
-        (biome::STONY_SHORE, || o::beach(false, true)),
-        (biome::WARM_OCEAN, o::warm_ocean),
-        (biome::LUKEWARM_OCEAN, || o::lukewarm_ocean(false)),
-        (biome::DEEP_LUKEWARM_OCEAN, || o::lukewarm_ocean(true)),
-        (biome::OCEAN, || o::ocean(false)),
-        (biome::DEEP_OCEAN, || o::ocean(true)),
-        (biome::COLD_OCEAN, || o::cold_ocean(false)),
-        (biome::DEEP_COLD_OCEAN, || o::cold_ocean(true)),
-        (biome::FROZEN_OCEAN, || o::frozen_ocean(false)),
-        (biome::DEEP_FROZEN_OCEAN, || o::frozen_ocean(true)),
-        (biome::MUSHROOM_FIELDS, o::mushroom_fields),
-        (biome::DRIPSTONE_CAVES, o::dripstone_caves),
-        (biome::LUSH_CAVES, o::lush_caves),
-        (biome::DEEP_DARK, o::deep_dark),
-        (biome::SULFUR_CAVES, o::sulfur_caves),
-        (biome::ICE_CAVES, o::ice_caves),
-        (biome::NETHER_WASTES, n::nether_wastes),
-        (biome::WARPED_FOREST, n::warped_forest),
-        (biome::CRIMSON_FOREST, n::crimson_forest),
-        (biome::SOUL_SAND_VALLEY, n::soul_sand_valley),
-        (biome::BASALT_DELTAS, n::basalt_deltas),
-        (biome::THE_END, e::the_end),
-        (biome::END_HIGHLANDS, e::end_highlands),
-        (biome::END_MIDLANDS, || e::end_base(Generation::default())),
-        (biome::SMALL_END_ISLANDS, e::small_end_islands),
-        (biome::END_BARRENS, || e::end_base(Generation::default())),
+        (biome_keys::THE_VOID, o::the_void),
+        (biome_keys::PLAINS, || o::plains(false, false, false)),
+        (biome_keys::SUNFLOWER_PLAINS, || o::plains(true, false, false)),
+        (biome_keys::SNOWY_PLAINS, || o::plains(false, true, false)),
+        (biome_keys::ICE_SPIKES, || o::plains(false, true, true)),
+        (biome_keys::DESERT, o::desert),
+        (biome_keys::SWAMP, o::swamp),
+        (biome_keys::MANGROVE_SWAMP, o::mangrove_swamp),
+        (biome_keys::FOREST, || o::forest(false, false, false)),
+        (biome_keys::FLOWER_FOREST, || o::forest(false, false, true)),
+        (biome_keys::BIRCH_FOREST, || o::forest(true, false, false)),
+        (biome_keys::DAPPLED_FOREST, o::dappled_forest),
+        (biome_keys::DARK_FOREST, || o::dark_forest(false)),
+        (biome_keys::PALE_GARDEN, || o::dark_forest(true)),
+        (biome_keys::OLD_GROWTH_BIRCH_FOREST, || o::forest(true, true, false)),
+        (biome_keys::OLD_GROWTH_PINE_TAIGA, || o::old_growth_taiga(false)),
+        (biome_keys::OLD_GROWTH_SPRUCE_TAIGA, || o::old_growth_taiga(true)),
+        (biome_keys::TAIGA, || o::taiga(false)),
+        (biome_keys::SNOWY_TAIGA, || o::taiga(true)),
+        (biome_keys::SAVANNA, || o::savanna(false, false)),
+        (biome_keys::SAVANNA_PLATEAU, || o::savanna(false, true)),
+        (biome_keys::WINDSWEPT_HILLS, || o::windswept_hills(false)),
+        (biome_keys::WINDSWEPT_GRAVELLY_HILLS, || o::windswept_hills(false)),
+        (biome_keys::WINDSWEPT_FOREST, || o::windswept_hills(true)),
+        (biome_keys::WINDSWEPT_SAVANNA, || o::savanna(true, false)),
+        (biome_keys::JUNGLE, || o::jungle(false)),
+        (biome_keys::SPARSE_JUNGLE, o::sparse_jungle),
+        (biome_keys::BAMBOO_JUNGLE, || o::jungle(true)),
+        (biome_keys::BADLANDS, || o::badlands(false)),
+        (biome_keys::ERODED_BADLANDS, || o::badlands(false)),
+        (biome_keys::WOODED_BADLANDS, || o::badlands(true)),
+        (biome_keys::MEADOW, || o::meadow_or_cherry_grove(false)),
+        (biome_keys::CHERRY_GROVE, || o::meadow_or_cherry_grove(true)),
+        (biome_keys::GROVE, o::grove),
+        (biome_keys::SNOWY_SLOPES, o::snowy_slopes),
+        (biome_keys::FROZEN_PEAKS, || o::peaks(SoundEvent::MusicOverworldFrozenPeaks, 25)),
+        (biome_keys::JAGGED_PEAKS, || o::peaks(SoundEvent::MusicOverworldJaggedPeaks, 10)),
+        (biome_keys::STONY_PEAKS, o::stony_peaks),
+        (biome_keys::RIVER, || o::river(false)),
+        (biome_keys::FROZEN_RIVER, || o::river(true)),
+        (biome_keys::BEACH, || o::beach(false, false)),
+        (biome_keys::SNOWY_BEACH, || o::beach(true, false)),
+        (biome_keys::STONY_SHORE, || o::beach(false, true)),
+        (biome_keys::WARM_OCEAN, o::warm_ocean),
+        (biome_keys::LUKEWARM_OCEAN, || o::lukewarm_ocean(false)),
+        (biome_keys::DEEP_LUKEWARM_OCEAN, || o::lukewarm_ocean(true)),
+        (biome_keys::OCEAN, || o::ocean(false)),
+        (biome_keys::DEEP_OCEAN, || o::ocean(true)),
+        (biome_keys::COLD_OCEAN, || o::cold_ocean(false)),
+        (biome_keys::DEEP_COLD_OCEAN, || o::cold_ocean(true)),
+        (biome_keys::FROZEN_OCEAN, || o::frozen_ocean(false)),
+        (biome_keys::DEEP_FROZEN_OCEAN, || o::frozen_ocean(true)),
+        (biome_keys::MUSHROOM_FIELDS, o::mushroom_fields),
+        (biome_keys::DRIPSTONE_CAVES, o::dripstone_caves),
+        (biome_keys::LUSH_CAVES, o::lush_caves),
+        (biome_keys::DEEP_DARK, o::deep_dark),
+        (biome_keys::SULFUR_CAVES, o::sulfur_caves),
+        (biome_keys::ICE_CAVES, o::ice_caves),
+        (biome_keys::NETHER_WASTES, n::nether_wastes),
+        (biome_keys::WARPED_FOREST, n::warped_forest),
+        (biome_keys::CRIMSON_FOREST, n::crimson_forest),
+        (biome_keys::SOUL_SAND_VALLEY, n::soul_sand_valley),
+        (biome_keys::BASALT_DELTAS, n::basalt_deltas),
+        (biome_keys::THE_END, e::the_end),
+        (biome_keys::END_HIGHLANDS, e::end_highlands),
+        (biome_keys::END_MIDLANDS, || e::end_base(Generation::default())),
+        (biome_keys::SMALL_END_ISLANDS, e::small_end_islands),
+        (biome_keys::END_BARRENS, || e::end_base(Generation::default())),
     ]
 };
 
