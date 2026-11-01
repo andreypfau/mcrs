@@ -275,8 +275,8 @@ fn bake_model(
             };
             let sprite = sprites.intern(pack, texture)?;
             let side = sprites
-                .arrays()
-                .get(sprites.sprite(sprite).array as usize)
+                .sprite(sprite)
+                .and_then(|interned| sprites.arrays().get(usize::from(interned.array)))
                 .ok_or_else(|| format!("{texture} names no texture array"))?
                 .size;
             let frames = sprites.frames(sprite);

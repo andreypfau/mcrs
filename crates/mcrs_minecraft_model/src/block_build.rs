@@ -1,10 +1,3 @@
-#![expect(
-    clippy::indexing_slicing,
-    reason = "faces, corners and grid cells index fixed-size tables by a direction or a bounded loop index"
-)]
-// chisle: the indices are bounded by construction but not by type; lifting it takes `Dir`-keyed
-// tables and corner iterators in place of the raw arrays.
-
 use crate::atlas::{Opacity, SpriteRegistry};
 use crate::bake::{self, Dir};
 use crate::block_catalog::{BlockStateKey, cube_corners};
@@ -66,6 +59,9 @@ fn fluid_of(
         overlay,
     }))
 }
+
+const PAST_QUADS: &str = "a face names a quad past the baked model";
+const PAST_SPRITES: &str = "a quad names a sprite past the baked model's table";
 
 pub(crate) fn build_one(
     pack: &Pack,
@@ -133,12 +129,12 @@ pub(crate) fn build_one(
     if let Some(faces) = cube_faces {
         let mut built = [CubeFace::default(); 6];
         let mut worst = Pass::Solid;
-        for dir in Dir::all() {
-            let quad = &baked.quads[faces[dir as usize]];
-            let interned = layers[quad.sprite];
+        for (&index, face) in faces.iter().zip(&mut built) {
+            let quad = baked.quads.get(index).ok_or(PAST_QUADS)?;
+            let interned = *layers.get(quad.sprite).ok_or(PAST_SPRITES)?;
             let pass = Pass::from(sprites.opacity(interned));
             worst = worst.max(pass);
-            built[dir as usize] = CubeFace {
+            *face = CubeFace {
                 sprite: interned,
                 pass: pass as u8,
                 tint: tint_of(state, quad.tint),
@@ -151,8 +147,8 @@ pub(crate) fn build_one(
 
     let mut quads = Vec::with_capacity(extras.len());
     for &index in &extras {
-        let quad = &baked.quads[index];
-        let interned = layers[quad.sprite];
+        let quad = baked.quads.get(index).ok_or(PAST_QUADS)?;
+        let interned = *layers.get(quad.sprite).ok_or(PAST_SPRITES)?;
         quads.push(ModelQuad {
             positions: quad.positions,
             uvs: quad.uvs,
@@ -195,30 +191,24 @@ fn face_shapes(occlusion: &[Aabb]) -> Option<Box<FaceShapes>> {
         outer: [[0; FACE_GRID]; 6],
         inner: [[0; FACE_GRID]; 6],
     };
-    for side in 0..6 {
-        let normal = FACE_AXES[side][0] as usize;
-        let positive = FACE_AXES[side][1] == 1;
+    let sides = FACE_AXES
+        .iter()
+        .zip(faces.outer.iter_mut().zip(&mut faces.inner));
+    for (&[normal, sign, ..], (outer, inner)) in sides {
+        let normal = usize::from(normal);
         let (rows, columns) = tangents(normal);
         for aabb in occlusion {
             let (min, max) = (aabb.min.to_array(), aabb.max.to_array());
-            let reaches = if positive {
-                max[normal] >= 1.0 - EDGE
+            let reaches = if sign == 1 {
+                along(max, normal) >= 1.0 - EDGE
             } else {
-                min[normal] <= EDGE
+                along(min, normal) <= EDGE
             };
             if reaches {
-                mark(
-                    &mut faces.outer[side],
-                    (min[rows], max[rows]),
-                    (min[columns], max[columns]),
-                    true,
-                );
-                mark(
-                    &mut faces.inner[side],
-                    (min[rows], max[rows]),
-                    (min[columns], max[columns]),
-                    false,
-                );
+                let row_span = (along(min, rows), along(max, rows));
+                let column_span = (along(min, columns), along(max, columns));
+                mark(outer, row_span, column_span, true);
+                mark(inner, row_span, column_span, false);
             }
         }
     }
@@ -242,8 +232,10 @@ fn mark(side: &mut SideCells, rows: (f32, f32), columns: (f32, f32), out: bool) 
         return;
     }
     let bits = ((1u32 << columns.len()) - 1) << columns.start;
-    for row in span(rows) {
-        side[row] |= bits as u16;
+    if let Some(cells) = side.get_mut(span(rows)) {
+        for cell in cells {
+            *cell |= bits as u16;
+        }
     }
 }
 
@@ -251,14 +243,19 @@ fn sturdy_faces(quads: &[bake::BakedQuad], layers: &[u16], sprites: &SpriteRegis
     let mut sides = [[0u16; FACE_GRID]; Dir::all().len()];
     for quad in quads {
         let Some(dir) = quad.cull else { continue };
-        if sprites.opacity(layers[quad.sprite]) != Opacity::Solid {
+        let Some(&layer) = layers.get(quad.sprite) else {
+            continue;
+        };
+        if sprites.opacity(layer) != Opacity::Solid {
             continue;
         }
-        cover_face(&mut sides[dir as usize], &quad.positions, dir);
+        if let Some(side) = sides.get_mut(dir as usize) {
+            cover_face(side, &quad.positions, dir);
+        }
     }
     let mut mask = 0;
-    for dir in Dir::all() {
-        if sides[dir as usize].iter().all(|row| *row == u16::MAX) {
+    for (dir, side) in Dir::all().into_iter().zip(&sides) {
+        if side.iter().all(|row| *row == u16::MAX) {
             mask |= 1 << dir as u8;
         }
     }
@@ -266,21 +263,21 @@ fn sturdy_faces(quads: &[bake::BakedQuad], layers: &[u16], sprites: &SpriteRegis
 }
 
 fn cover_face(side: &mut [u16; FACE_GRID], positions: &[Vec3; 4], dir: Dir) {
-    let axes = FACE_AXES[dir as usize];
-    let normal = axes[0] as usize;
-    let plane = if axes[1] == 1 { 1.0 } else { 0.0 };
-    let mut low = [f32::INFINITY; 3];
-    let mut high = [f32::NEG_INFINITY; 3];
-    for position in positions {
-        let point = [position.x, position.y, position.z];
-        if (point[normal] - plane).abs() > 1e-4 {
+    let Some(&[normal, sign, ..]) = FACE_AXES.get(dir as usize) else {
+        return;
+    };
+    let normal = usize::from(normal);
+    let plane = if sign == 1 { 1.0 } else { 0.0 };
+    let mut low = Vec3::INFINITY;
+    let mut high = Vec3::NEG_INFINITY;
+    for &position in positions {
+        if (along(position.to_array(), normal) - plane).abs() > 1e-4 {
             return;
         }
-        for axis in 0..3 {
-            low[axis] = low[axis].min(point[axis]);
-            high[axis] = high[axis].max(point[axis]);
-        }
+        low = low.min(position);
+        high = high.max(position);
     }
+    let (low, high) = (low.to_array(), high.to_array());
     let steps = FACE_GRID as f32;
     let cell = |value: f32, round_up: bool| {
         let scaled = value * steps;
@@ -292,14 +289,24 @@ fn cover_face(side: &mut [u16; FACE_GRID], positions: &[Vec3; 4], dir: Dir) {
         rounded.clamp(0.0, steps) as usize
     };
     let (rows, columns) = tangents(normal);
-    let span = cell(low[columns], true)..cell(high[columns], false);
+    let span = cell(along(low, columns), true)..cell(along(high, columns), false);
     if span.is_empty() {
         return;
     }
     let bits = (((1u32 << span.len()) - 1) << span.start) as u16;
-    let (first_row, end_row) = (cell(low[rows], true), cell(high[rows], false));
+    let (first_row, end_row) = (cell(along(low, rows), true), cell(along(high, rows), false));
     for covered in side.iter_mut().take(end_row).skip(first_row) {
         *covered |= bits;
+    }
+}
+
+/// The coordinate of `point` along `axis`, 0 for x, 1 for y and 2 for z.
+fn along(point: [f32; 3], axis: usize) -> f32 {
+    let [x, y, z] = point;
+    match axis {
+        0 => x,
+        1 => y,
+        _ => z,
     }
 }
 
@@ -368,11 +375,9 @@ fn split_cube(quads: &[bake::BakedQuad]) -> (Option<[usize; 6]>, Vec<usize>) {
     let mut faces = [usize::MAX; 6];
     let mut extras = Vec::new();
     for (index, quad) in quads.iter().enumerate() {
-        let slot = faces[quad.dir as usize];
-        if slot == usize::MAX && is_cube_face(quad) {
-            faces[quad.dir as usize] = index;
-        } else {
-            extras.push(index);
+        match faces.get_mut(quad.dir as usize) {
+            Some(slot) if *slot == usize::MAX && is_cube_face(quad) => *slot = index,
+            _ => extras.push(index),
         }
     }
     if faces.contains(&usize::MAX) {
@@ -407,27 +412,26 @@ fn split_lowered(quads: &[bake::BakedQuad]) -> Option<(usize, usize, u8)> {
 }
 
 fn cube_uvs(quad: &bake::BakedQuad) -> bool {
-    (0..4).all(|corner| {
-        (quad.uvs[corner][0] - CORNER_UV[corner][0]).abs() <= 1e-4
-            && (quad.uvs[corner][1] - CORNER_UV[corner][1]).abs() <= 1e-4
-    })
+    quad.uvs
+        .iter()
+        .zip(&CORNER_UV)
+        .all(|(&uv, &want)| near_uv(uv, want))
 }
 
 fn is_cube_face(quad: &bake::BakedQuad) -> bool {
     if quad.cull != Some(quad.dir) {
         return false;
     }
-    for corner in 0..4 {
-        if quad.positions[corner].distance_squared(cube_corners(quad.dir)[corner]) > 1e-6 {
-            return false;
-        }
-        if (quad.uvs[corner][0] - CORNER_UV[corner][0]).abs() > 1e-4
-            || (quad.uvs[corner][1] - CORNER_UV[corner][1]).abs() > 1e-4
-        {
-            return false;
-        }
-    }
-    true
+    let corners = quad.positions.iter().zip(cube_corners(quad.dir));
+    corners
+        .zip(quad.uvs.iter().zip(&CORNER_UV))
+        .all(|((position, corner), (&uv, &want))| {
+            position.distance_squared(corner) <= 1e-6 && near_uv(uv, want)
+        })
+}
+
+fn near_uv([u, v]: [f32; 2], [want_u, want_v]: [f32; 2]) -> bool {
+    (u - want_u).abs() <= 1e-4 && (v - want_v).abs() <= 1e-4
 }
 
 #[cfg(test)]

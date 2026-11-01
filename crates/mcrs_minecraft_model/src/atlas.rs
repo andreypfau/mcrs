@@ -1,10 +1,3 @@
-#![expect(
-    clippy::indexing_slicing,
-    reason = "pixel rows and mip levels slice buffers sized from the same dimensions"
-)]
-// chisle: the slices are bounded by the sizes the buffers were allocated with; lifting it takes
-// row and level iterators (`chunks_exact`) in place of the offset arithmetic.
-
 use crate::anim;
 use crate::model::{self, Pack};
 use bevy::asset::RenderAssetUsages;
@@ -89,13 +82,19 @@ impl SpriteRegistry {
         &self.table
     }
 
-    pub fn sprite(&self, id: u16) -> Sprite {
-        self.table[id as usize]
+    /// The sprite `intern` handed out as `id`, or `None` for an id it never handed out.
+    pub fn sprite(&self, id: u16) -> Option<Sprite> {
+        self.table.get(usize::from(id)).copied()
     }
 
+    /// An id the registry never handed out reads as translucent, which culls nothing.
     pub fn opacity(&self, id: u16) -> Opacity {
-        let sprite = self.sprite(id);
-        self.arrays[sprite.array as usize].layers[sprite.layer as usize]
+        self.sprite(id)
+            .and_then(|sprite| {
+                let array = self.arrays.get(usize::from(sprite.array))?;
+                array.layers.get(usize::from(sprite.layer)).copied()
+            })
+            .unwrap_or(Opacity::Translucent)
     }
 
     /// Registers the paletted permutations every `atlases/*.json` declares, so
@@ -146,14 +145,21 @@ impl SpriteRegistry {
     }
 
     /// The pixels of every frame the sprite holds, level zero, row-major RGBA.
+    /// Empty for an id the registry never handed out.
     pub fn frames(&self, id: u16) -> Vec<&[u8]> {
-        let sprite = self.sprite(id);
-        let array = &self.arrays[sprite.array as usize];
-        let count = sprite
-            .animation
-            .map_or(1, |index| self.animations[index as usize].count as usize);
+        let Some(sprite) = self.sprite(id) else {
+            return Vec::new();
+        };
+        let Some(array) = self.arrays.get(usize::from(sprite.array)) else {
+            return Vec::new();
+        };
+        let count = sprite.animation.map_or(1, |index| {
+            self.animations
+                .get(usize::from(index))
+                .map_or(1, |animation| animation.count as usize)
+        });
         (0..count)
-            .map(|step| array.layer(sprite.layer as usize + step))
+            .filter_map(|step| array.layer(usize::from(sprite.layer) + step))
             .collect()
     }
 
@@ -225,7 +231,10 @@ impl SpriteRegistry {
                 self.arrays.len() - 1
             }
         };
-        let array = &mut self.arrays[index];
+        let array = self
+            .arrays
+            .get_mut(index)
+            .ok_or_else(|| format!("{id} lands in texture array {index}, past the registry's"))?;
         let layer = array.layers.len() as u16;
         array
             .layers
@@ -408,8 +417,7 @@ fn cut(data: &[u8], image_width: u32, side: u32, frame: u32) -> Option<Vec<u8>> 
 fn opacity_of(pixels: &[u8]) -> Opacity {
     let mut opaque = true;
     let mut binary = true;
-    for i in (3..pixels.len()).step_by(4) {
-        let alpha = pixels[i];
+    for &[.., alpha] in pixels.as_chunks::<4>().0 {
         if alpha != 255 {
             opaque = false;
         }
@@ -429,17 +437,17 @@ impl SpriteArray {
         self.layers.len() as u32
     }
 
-    fn layer(&self, layer: usize) -> &[u8] {
+    fn layer(&self, layer: usize) -> Option<&[u8]> {
         let stride = (self.size * self.size * 4) as usize;
-        &self.pixels[layer * stride..(layer + 1) * stride]
+        self.pixels.get(layer * stride..(layer + 1) * stride)
     }
 
     /// The mip chain of the layers from `from` on, in the layout the whole chain uses.
     pub fn mips(&self, from: usize) -> Vec<Vec<u8>> {
         let stride = (self.size * self.size * 4) as usize;
         mip_levels(
-            &self.pixels[from * stride..],
-            &self.layers[from..],
+            self.pixels.get(from * stride..).unwrap_or_default(),
+            self.layers.get(from..).unwrap_or_default(),
             self.size as usize,
         )
     }
@@ -449,30 +457,34 @@ impl SpriteArray {
 /// share of texels its alpha test passes at every level, so a leaf block does not thin out with
 /// distance.
 fn mip_levels(pixels: &[u8], opacities: &[Opacity], mut size: usize) -> Vec<Vec<u8>> {
+    if size == 0 {
+        return Vec::new();
+    }
     let layers = opacities.len();
-    let targets: Vec<Option<f32>> = (0..layers)
-        .map(|layer| {
-            (opacities[layer] == Opacity::Cutout)
-                .then(|| coverage(&pixels[layer * size * size * 4..], size * size, 1.0))
+    let first_layers = pixels.chunks_exact(size * size * 4).zip(opacities);
+    let targets: Vec<Option<f32>> = first_layers
+        .clone()
+        .map(|(layer, &opacity)| {
+            (opacity == Opacity::Cutout).then(|| coverage(layer, size * size, 1.0))
         })
         .collect();
 
-    let mut levels = vec![pixels[..layers * size * size * 4].to_vec()];
+    let first: Vec<u8> = first_layers.flat_map(|(layer, _)| layer).copied().collect();
+    let mut levels = vec![first];
     while size > 1 {
         let half = size / 2;
         let Some(previous) = levels.last() else {
             break;
         };
         let mut level = vec![0u8; half * half * 4 * layers];
-        for layer in 0..layers {
-            let src = &previous[layer * size * size * 4..(layer + 1) * size * size * 4];
-            let dst = &mut level[layer * half * half * 4..(layer + 1) * half * half * 4];
-            for y in 0..half {
-                for x in 0..half {
-                    downsample_2x2(src, size, x * 2, y * 2, &mut dst[(y * half + x) * 4..]);
-                }
+        let sources = previous.chunks_exact(size * size * 4);
+        let targets_by_layer = level.chunks_exact_mut(half * half * 4).zip(&targets);
+        for (src, (dst, target)) in sources.zip(targets_by_layer) {
+            for (index, texel) in dst.as_chunks_mut::<4>().0.iter_mut().enumerate() {
+                let (x, y) = (index % half, index / half);
+                *texel = downsample_2x2(src, size, x * 2, y * 2);
             }
-            if let Some(target) = targets[layer] {
+            if let Some(target) = *target {
                 match_coverage(dst, half * half, target);
             }
         }
@@ -485,6 +497,13 @@ fn mip_levels(pixels: &[u8], opacities: &[Opacity], mut size: usize) -> Vec<Vec<
 static SRGB_TO_LINEAR: LazyLock<[f32; 256]> =
     LazyLock::new(|| std::array::from_fn(|byte| Srgba::gamma_function(byte as f32 / 255.0)));
 
+fn srgb_to_linear(byte: u8) -> f32 {
+    SRGB_TO_LINEAR
+        .get(usize::from(byte))
+        .copied()
+        .unwrap_or(0.0)
+}
+
 fn linear_to_srgb(light: f32) -> u8 {
     (Srgba::gamma_function_inverse(light) * 255.0)
         .round()
@@ -492,8 +511,12 @@ fn linear_to_srgb(light: f32) -> u8 {
 }
 
 fn coverage(pixels: &[u8], texels: usize, scale: f32) -> f32 {
-    let kept = (0..texels)
-        .filter(|i| pixels[i * 4 + 3] as f32 * scale >= 128.0)
+    let kept = pixels
+        .as_chunks::<4>()
+        .0
+        .iter()
+        .take(texels)
+        .filter(|&&[.., alpha]| alpha as f32 * scale >= 128.0)
         .count();
     kept as f32 / texels as f32
 }
@@ -508,35 +531,35 @@ fn match_coverage(pixels: &mut [u8], texels: usize, target: f32) {
             hi = mid;
         }
     }
-    for i in 0..texels {
-        let alpha = &mut pixels[i * 4 + 3];
+    for [.., alpha] in pixels.as_chunks_mut::<4>().0.iter_mut().take(texels) {
         *alpha = (*alpha as f32 * hi).round().min(255.0) as u8;
     }
 }
 
-fn downsample_2x2(src: &[u8], stride: usize, x: usize, y: usize, dst: &mut [u8]) {
+/// The texel a 2x2 block at `(x, y)` of a `stride`-wide RGBA layer averages to, its colour
+/// weighted by alpha in linear light. A texel past the layer counts as transparent.
+fn downsample_2x2(src: &[u8], stride: usize, x: usize, y: usize) -> [u8; 4] {
     let mut light = [0f32; 3];
     let mut alpha = 0u32;
     let mut weight = 0f32;
     for dy in 0..2 {
         for dx in 0..2 {
-            let s = ((y + dy) * stride + x + dx) * 4;
-            let a = src[s + 3] as u32;
-            for c in 0..3 {
-                light[c] += SRGB_TO_LINEAR[src[s + c] as usize] * a as f32;
+            let start = ((y + dy) * stride + x + dx) * 4;
+            let Some(&[r, g, b, a]) = src.get(start..start + 4) else {
+                continue;
+            };
+            for (sum, channel) in light.iter_mut().zip([r, g, b]) {
+                *sum += srgb_to_linear(channel) * f32::from(a);
             }
-            alpha += a;
-            weight += a as f32;
+            alpha += u32::from(a);
+            weight += f32::from(a);
         }
     }
     if weight == 0.0 {
-        dst[..4].copy_from_slice(&[0, 0, 0, 0]);
-        return;
+        return [0; 4];
     }
-    for c in 0..3 {
-        dst[c] = linear_to_srgb(light[c] / weight);
-    }
-    dst[3] = (alpha / 4) as u8;
+    let [r, g, b] = light.map(|sum| linear_to_srgb(sum / weight));
+    [r, g, b, (alpha / 4) as u8]
 }
 
 impl From<Opacity> for Pass {
@@ -578,8 +601,7 @@ mod tests {
     #[test]
     fn downsampling_averages_light_rather_than_encoded_bytes() {
         let src = [0, 0, 0, 255, 255, 255, 255, 255, 0, 0, 0, 0, 0, 0, 0, 0];
-        let mut dst = [0u8; 4];
-        downsample_2x2(&src, 2, 0, 0, &mut dst);
+        let dst = downsample_2x2(&src, 2, 0, 0);
         assert_eq!(&dst[..3], &[188, 188, 188]);
     }
 
@@ -661,9 +683,9 @@ mod tests {
             "ids count up as interned"
         );
         let (small, large, also_small) = (
-            registry.sprite(small),
-            registry.sprite(large),
-            registry.sprite(also_small),
+            registry.sprite(small).unwrap(),
+            registry.sprite(large).unwrap(),
+            registry.sprite(also_small).unwrap(),
         );
         assert_ne!(small.array, large.array, "16x16 and 32x32 share an array");
         assert_eq!(small.array, also_small.array);
@@ -694,7 +716,7 @@ mod tests {
     }
 
     fn layer(array: &SpriteArray, layer: usize) -> &[u8] {
-        array.layer(layer)
+        array.layer(layer).unwrap()
     }
 
     fn a_sequence_that_revisits_a_frame_lays_it_down_twice() {
@@ -776,10 +798,13 @@ mod tests {
             .unwrap();
 
         let array = &registry.arrays()[0];
-        let layer = |index: usize| array.layer(index);
+        let layer = |index: usize| array.layer(index).unwrap();
 
         assert_eq!(
-            (registry.sprite(stone).layer, registry.sprite(dirt).layer),
+            (
+                registry.sprite(stone).unwrap().layer,
+                registry.sprite(dirt).unwrap().layer,
+            ),
             (0, 21),
             "a still takes the layer after whatever came before it"
         );
@@ -790,7 +815,7 @@ mod tests {
             ("minecraft:block/kelp", kelp),
             ("minecraft:block/seagrass", seagrass),
         ] {
-            let sprite = registry.sprite(sprite);
+            let sprite = registry.sprite(sprite).unwrap();
             let animation =
                 &registry.animations()[sprite.animation.expect("the sprite animates") as usize];
             let base = animation.first_layer as usize;
@@ -851,8 +876,7 @@ mod tests {
     #[test]
     fn downsampling_ignores_the_colour_of_transparent_texels() {
         let src = [255, 255, 255, 255, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
-        let mut dst = [0u8; 4];
-        downsample_2x2(&src, 2, 0, 0, &mut dst);
+        let dst = downsample_2x2(&src, 2, 0, 0);
         assert_eq!(&dst[..3], &[255, 255, 255]);
         assert_eq!(dst[3], 63);
     }
