@@ -10,6 +10,7 @@ mod require;
 pub mod runner;
 mod server_core_plugin;
 mod server_network_plugin;
+mod shutdown;
 mod status;
 pub mod world_options;
 
@@ -24,3 +25,4 @@ pub use mcrs_minecraft_network::BoundAddress;
 pub use runner::{DEFAULT_TPS, run_server_loop};
 pub use server_core_plugin::ServerCorePlugin;
 pub use server_network_plugin::ServerNetworkPlugin;
+pub use shutdown::{ShutdownPlugin, ShutdownRequest};

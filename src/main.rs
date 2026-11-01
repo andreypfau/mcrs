@@ -6,11 +6,13 @@
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
-use bevy_app::{App, AppExit, PluginGroup};
+use bevy_app::{App, AppExit, PluginGroup, Update};
+use bevy_ecs::message::MessageWriter;
 use bevy_log::{Level, LogPlugin, tracing_subscriber};
 use mcrs_minecraft_engine::ops::{OPS_FILE, OpList};
 use mcrs_minecraft_engine_server::{
     DimensionWorldsPlugin, GameMode, NetworkCompressionThreshold, ServerNetworkPlugin,
+    ShutdownRequest,
 };
 use mcrs_minecraft_server::MinecraftServerPlugins;
 use mcrs_minecraft_vanilla_light::LightingPlugin;
@@ -95,6 +97,21 @@ async fn main() -> AppExit {
         server = server.disable::<LightingPlugin>();
     }
     app.add_plugins(server);
+    let (signal_send, mut signal_recv) = tokio::sync::mpsc::channel(1);
+    tokio::spawn(async move {
+        shutdown_signal().await;
+        let _ = signal_send.send(()).await;
+        shutdown_signal().await;
+        std::process::exit(1);
+    });
+    app.add_systems(
+        Update,
+        move |mut requests: MessageWriter<ShutdownRequest>| {
+            if signal_recv.try_recv().is_ok() {
+                requests.write(ShutdownRequest);
+            }
+        },
+    );
     mcrs_minecraft_engine_server::run_server_loop(app)
 }
 
@@ -200,6 +217,27 @@ fn compression_threshold(value: Option<&str>) -> NetworkCompressionThreshold {
 /// `MCRS_SLOW_CHUNK_MS` is the latency in milliseconds above which a column is logged.
 fn slow_column_threshold(value: Option<&str>) -> Duration {
     Duration::from_millis(value.and_then(|ms| ms.parse().ok()).unwrap_or(250))
+}
+
+async fn shutdown_signal() {
+    #[cfg(unix)]
+    {
+        use tokio::signal::unix::{SignalKind, signal};
+        match signal(SignalKind::terminate()) {
+            Ok(mut terminate) => {
+                tokio::select! {
+                    _ = tokio::signal::ctrl_c() => {}
+                    _ = terminate.recv() => {}
+                }
+                return;
+            }
+            Err(error) => bevy_log::error!("SIGTERM is not handled: {error}"),
+        }
+    }
+    if let Err(error) = tokio::signal::ctrl_c().await {
+        bevy_log::error!("Ctrl+C is not handled: {error}");
+        std::future::pending::<()>().await;
+    }
 }
 
 #[cfg(test)]

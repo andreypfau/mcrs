@@ -61,6 +61,7 @@ impl bevy_app::Plugin for LoginPlugin {
                 .chain()
                 .after(mcrs_minecraft_network::event::run_event_loop)
                 .before(crate::configuration::emit_initial_player_spawn)
+                .before(crate::shutdown::shutdown_system)
                 .run_if(any_with_component::<LoginStarted>),
         );
     }
