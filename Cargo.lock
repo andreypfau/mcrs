@@ -4501,7 +4501,6 @@ dependencies = [
  "bevy_app",
  "bevy_ecs",
  "bytes",
- "glam",
  "js-sys",
  "mcrs_minecraft_core",
  "mcrs_minecraft_network",
