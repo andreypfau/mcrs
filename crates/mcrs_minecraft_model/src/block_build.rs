@@ -1,7 +1,13 @@
-use super::BlockStateKey;
-use super::cube_corner;
+#![expect(
+    clippy::indexing_slicing,
+    reason = "faces, corners and grid cells index fixed-size tables by a direction or a bounded loop index"
+)]
+// chisle: the indices are bounded by construction but not by type; lifting it takes `Dir`-keyed
+// tables and corner iterators in place of the raw arrays.
+
 use crate::atlas::{Opacity, SpriteRegistry};
 use crate::bake::{self, Dir};
+use crate::block_catalog::{BlockStateKey, cube_corners};
 use crate::model::Pack;
 use bevy::math::Vec3;
 use mcrs_minecraft_block::definition::{BlockStateData, BlockStateFlags};
@@ -61,7 +67,7 @@ fn fluid_of(
     }))
 }
 
-pub(super) fn build_one(
+pub(crate) fn build_one(
     pack: &Pack,
     block: Block,
     state: &BlockStateKey,
@@ -192,8 +198,7 @@ fn face_shapes(occlusion: &[Aabb]) -> Option<Box<FaceShapes>> {
     for side in 0..6 {
         let normal = FACE_AXES[side][0] as usize;
         let positive = FACE_AXES[side][1] == 1;
-        let mut tangents = (0..3).filter(|axis| *axis != normal);
-        let (rows, columns) = (tangents.next().unwrap(), tangents.next().unwrap());
+        let (rows, columns) = tangents(normal);
         for aabb in occlusion {
             let (min, max) = (aabb.min.to_array(), aabb.max.to_array());
             let reaches = if positive {
@@ -286,8 +291,7 @@ fn cover_face(side: &mut [u16; FACE_GRID], positions: &[Vec3; 4], dir: Dir) {
         };
         rounded.clamp(0.0, steps) as usize
     };
-    let mut tangents = (0..3).filter(|axis| *axis != normal);
-    let (rows, columns) = (tangents.next().unwrap(), tangents.next().unwrap());
+    let (rows, columns) = tangents(normal);
     let span = cell(low[columns], true)..cell(high[columns], false);
     if span.is_empty() {
         return;
@@ -296,6 +300,15 @@ fn cover_face(side: &mut [u16; FACE_GRID], positions: &[Vec3; 4], dir: Dir) {
     let (first_row, end_row) = (cell(low[rows], true), cell(high[rows], false));
     for covered in side.iter_mut().take(end_row).skip(first_row) {
         *covered |= bits;
+    }
+}
+
+/// The two axes across a face whose normal runs along `normal`, in axis order.
+fn tangents(normal: usize) -> (usize, usize) {
+    match normal {
+        0 => (1, 2),
+        1 => (0, 2),
+        _ => (0, 1),
     }
 }
 
@@ -405,7 +418,7 @@ fn is_cube_face(quad: &bake::BakedQuad) -> bool {
         return false;
     }
     for corner in 0..4 {
-        if quad.positions[corner].distance_squared(cube_corner(quad.dir, corner)) > 1e-6 {
+        if quad.positions[corner].distance_squared(cube_corners(quad.dir)[corner]) > 1e-6 {
             return false;
         }
         if (quad.uvs[corner][0] - CORNER_UV[corner][0]).abs() > 1e-4
@@ -519,7 +532,7 @@ mod tests {
         assert_eq!(bake_state("minecraft:stone", &[]).emission, 0);
     }
 
-    use super::{Block, BlockStateKey, Pack, cube_corner, face_group, split_cube};
+    use super::{Block, BlockStateKey, Pack, cube_corners, face_group, split_cube};
     use crate::atlas::SpriteRegistry;
     use crate::bake::{self, Dir};
     use bevy::math::Vec3;
@@ -532,7 +545,7 @@ mod tests {
                 .map(|(key, value)| (key.to_string(), value.to_string()))
                 .collect(),
         };
-        let corpus = crate::blocks::corpus();
+        let corpus = crate::block_catalog::corpus();
         let mut id = corpus.default_state(name).unwrap();
         for (key, value) in props {
             id = corpus
@@ -615,7 +628,7 @@ mod tests {
     #[test]
     fn a_quad_joins_the_face_group_it_squarely_points_along() {
         for dir in Dir::all() {
-            let face = std::array::from_fn(|corner| cube_corner(dir, corner));
+            let face = cube_corners(dir);
             assert_eq!(
                 face_group(&face),
                 Some(dir as u8),
@@ -730,7 +743,7 @@ mod tests {
             for (corner, position) in quad.positions.iter().enumerate().take(4) {
                 assert_eq!(
                     *position,
-                    cube_corner(dir, corner),
+                    cube_corners(dir)[corner],
                     "{dir:?} corner {corner}"
                 );
             }

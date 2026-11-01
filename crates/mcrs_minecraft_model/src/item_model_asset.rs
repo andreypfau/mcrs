@@ -15,7 +15,7 @@ use serde::de::{DeserializeSeed, Error as _, MapAccess, SeqAccess, Visitor, valu
 use serde::ser::SerializeMap;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-use super::transform::Transformation;
+use crate::item_model_transform::Transformation;
 
 fn one() -> f32 {
     1.0
@@ -149,8 +149,8 @@ impl UnbakedItemModel {
     pub fn walk(&self) -> Vec<&UnbakedItemModel> {
         let mut out = vec![self];
         let mut i = 0;
-        while i < out.len() {
-            out.extend(out[i].children());
+        while let Some(&node) = out.get(i) {
+            out.extend(node.children());
             i += 1;
         }
         out
@@ -506,7 +506,10 @@ fn validate_cases<T: PartialEq + fmt::Debug>(cases: &[Case<T>]) -> Result<(), St
     let duplicates: Vec<String> = values
         .iter()
         .enumerate()
-        .filter(|(i, v)| !values[..*i].contains(v) && values[i + 1..].contains(v))
+        .filter(|(i, v)| {
+            values.iter().take(*i).all(|other| other != *v)
+                && values.iter().skip(i + 1).any(|other| other == *v)
+        })
         .map(|(_, v)| format!("{v:?}"))
         .collect();
     if duplicates.is_empty() {

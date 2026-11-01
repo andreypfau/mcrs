@@ -1,23 +1,19 @@
-use std::path::Path;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread::JoinHandle;
 
 use bevy::asset::RenderAssetUsages;
-use bevy::asset::io::memory::{Dir, MemoryAssetReader};
-use bevy::asset::io::{AssetSourceBuilder, AssetSourceId};
+use bevy::asset::io::memory::Dir;
 use bevy::image::ImageSampler;
 use bevy::prelude::*;
 use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
 use mcrs_minecraft_client_jar::{self as client_jar, Files, Progress};
 
-use crate::atlas::decode_png;
 use crate::gui::font::{ASCII_TEXTURE, Font, Span, draw_centered_text};
 use crate::gui::scene::GuiQuad;
-use crate::model::{Pack, is_resource};
-
-/// The asset source holding the resource pack of the vanilla client jar.
-pub const SOURCE: &str = "vanilla";
+use mcrs_minecraft_model::atlas::decode_png;
+use mcrs_minecraft_model::model::{Pack, is_resource};
+use mcrs_minecraft_model::vanilla_source::{fill, register_source};
 
 const BAR_WIDTH: f32 = 400.0;
 const TEXT_SCALE: f32 = 2.0;
@@ -112,31 +108,6 @@ fn spawn_web(
         fill(&root, files);
         unpacked.store(true, Ordering::Release);
     });
-}
-
-pub fn register_source(app: &mut App, root: Dir) {
-    app.register_asset_source(
-        AssetSourceId::from(SOURCE),
-        AssetSourceBuilder::new(move || Box::new(MemoryAssetReader { root: root.clone() })),
-    );
-}
-
-// chisle: the resource half is held twice, here and again in `Pack`; have `Pack` hold the
-// `Dir`'s `Arc<Vec<u8>>` values instead if the memory matters.
-pub fn fill(root: &Dir, files: Files) {
-    for (path, bytes) in files {
-        root.insert_asset(Path::new(&path), bytes);
-    }
-}
-
-#[cfg(test)]
-pub fn resource_files() -> &'static Files {
-    static FILES: std::sync::LazyLock<Files> = std::sync::LazyLock::new(|| {
-        client_jar::resolve(&Progress::default(), is_resource, drop)
-            .unwrap()
-            .0
-    });
-    &FILES
 }
 
 pub struct VanillaAssetsPlugin;

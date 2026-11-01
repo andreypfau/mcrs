@@ -1,3 +1,10 @@
+#![expect(
+    clippy::indexing_slicing,
+    reason = "pixel rows and mip levels slice buffers sized from the same dimensions"
+)]
+// chisle: the slices are bounded by the sizes the buffers were allocated with; lifting it takes
+// row and level iterators (`chunks_exact`) in place of the offset arithmetic.
+
 use crate::anim;
 use crate::model::{self, Pack};
 use bevy::asset::RenderAssetUsages;
@@ -266,12 +273,12 @@ fn argb(rgba: &[u8; 4]) -> u32 {
     u32::from_be_bytes([rgba[3], rgba[0], rgba[1], rgba[2]])
 }
 
-pub(crate) fn rgba(argb: u32) -> [u8; 4] {
+pub fn rgba(argb: u32) -> [u8; 4] {
     let [a, r, g, b] = argb.to_be_bytes();
     [r, g, b, a]
 }
 
-pub(crate) const MISSING_SIZE: u32 = 16;
+pub const MISSING_SIZE: u32 = 16;
 const MAGENTA: [u8; 4] = [0xF8, 0x00, 0xF8, 0xFF];
 const BLACK: [u8; 4] = [0x00, 0x00, 0x00, 0xFF];
 
@@ -453,7 +460,9 @@ fn mip_levels(pixels: &[u8], opacities: &[Opacity], mut size: usize) -> Vec<Vec<
     let mut levels = vec![pixels[..layers * size * size * 4].to_vec()];
     while size > 1 {
         let half = size / 2;
-        let previous = levels.last().unwrap();
+        let Some(previous) = levels.last() else {
+            break;
+        };
         let mut level = vec![0u8; half * half * 4 * layers];
         for layer in 0..layers {
             let src = &previous[layer * size * size * 4..(layer + 1) * size * size * 4];

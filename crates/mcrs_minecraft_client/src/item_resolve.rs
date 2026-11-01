@@ -13,10 +13,10 @@ use mcrs_minecraft_network::client::ClientNetworkSystems;
 use mcrs_minecraft_protocol::item::ItemModel;
 use mcrs_minecraft_registries::{CurrentRegistries, Registries};
 
-use super::bake::{BakedItemModel, BakedNode, ItemModels};
-use super::eval::{EntityStack, Evaluator};
-use crate::blocks::colormap_rgba;
-use crate::model::{GuiLight, ItemTransform};
+use crate::tint::colormap_rgba;
+use mcrs_minecraft_model::item_model_bake::{BakedItemModel, BakedNode, ItemModels};
+use mcrs_minecraft_model::item_model_eval::{EntityStack, Evaluator};
+use mcrs_minecraft_model::model::{GuiLight, ItemTransform};
 
 /// A slot-local GUI vertex: `pos` in pixels from the slot's top-left, `y` down and
 /// `z` out of the screen; `sprite` is the sprite id under the flag bits. The four vertices of a
@@ -302,10 +302,10 @@ mod tests {
     use mcrs_minecraft_resource::rl;
 
     use super::*;
-    use crate::atlas::SpriteRegistry;
-    use crate::item_model::asset::{ConditionProperty, RangeProperty, TintSource};
-    use crate::item_model::bake::bake_all;
-    use crate::model::Pack;
+    use mcrs_minecraft_model::atlas::SpriteRegistry;
+    use mcrs_minecraft_model::item_model_asset::{ConditionProperty, RangeProperty, TintSource};
+    use mcrs_minecraft_model::item_model_bake::bake_all;
+    use mcrs_minecraft_model::model::Pack;
 
     fn items() -> &'static Items {
         &test_corpus().1

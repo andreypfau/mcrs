@@ -4,7 +4,7 @@ use bevy::math::IVec2;
 use serde::Deserialize;
 
 use super::scene::GuiQuad;
-use crate::model::{Pack, split_id};
+use mcrs_minecraft_model::model::{Pack, split_id};
 
 pub const ASCII_TEXTURE: &str = "minecraft/textures/font/ascii.png";
 const ASCII_FILE: &str = "minecraft:font/ascii.png";
@@ -272,7 +272,8 @@ pub fn draw_centered_text(
 pub(crate) fn corpus_font() -> &'static Font {
     static FONT: std::sync::LazyLock<Font> = std::sync::LazyLock::new(|| {
         let bytes = Pack::corpus().read(ASCII_TEXTURE).unwrap();
-        let (pixels, width, height) = crate::atlas::decode_png(bytes, ASCII_TEXTURE).unwrap();
+        let (pixels, width, height) =
+            mcrs_minecraft_model::atlas::decode_png(bytes, ASCII_TEXTURE).unwrap();
         Font::load(Pack::corpus(), &pixels, width, height).unwrap()
     });
     &FONT

@@ -210,9 +210,7 @@ pub fn run() -> AppExit {
                     data_pack.clone(),
                 )),
             })
-            .add_before::<sky::SkyPlugin>(
-                mcrs_minecraft_client::item_model::resolve::ItemRenderPlugin,
-            )
+            .add_before::<sky::SkyPlugin>(mcrs_minecraft_client::item_resolve::ItemRenderPlugin)
             .add_before::<sky::SkyPlugin>(knobs.gui())
             .add(screenshot::ScreenshotPlugin),
     )

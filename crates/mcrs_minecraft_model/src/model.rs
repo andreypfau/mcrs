@@ -15,7 +15,7 @@ use mcrs_minecraft_assets::packs::pack_names;
 use mcrs_minecraft_datapack::PACKS_ROOT;
 use serde::Deserialize;
 
-use crate::vanilla;
+use crate::vanilla_source;
 
 /// The folders of the resource pack the renderer draws from. Everything under them is held in
 /// memory, because a block state first seen mid-stream has to bake without an await.
@@ -60,7 +60,7 @@ pub struct Pack {
 
 impl Pack {
     pub async fn load(assets: &AssetServer) -> Result<Self, String> {
-        let source = AssetSourceId::from(vanilla::SOURCE);
+        let source = AssetSourceId::from(vanilla_source::SOURCE);
         let reader = assets
             .get_source(source.clone())
             .map_err(|error| format!("no {source} asset source: {error}"))?;
@@ -166,14 +166,14 @@ impl FromIterator<(String, Vec<u8>)> for Pack {
     }
 }
 
-#[cfg(test)]
+#[cfg(any(test, feature = "test-support"))]
 static SHARED: std::sync::LazyLock<std::sync::Arc<Pack>> = std::sync::LazyLock::new(|| {
     std::sync::Arc::new(Pack {
-        files: vanilla::resource_files().iter().cloned().collect(),
+        files: vanilla_source::resource_files().iter().cloned().collect(),
     })
 });
 
-#[cfg(test)]
+#[cfg(any(test, feature = "test-support"))]
 impl Pack {
     /// The client jar's resource pack, read without an asset system: a test has none to read
     /// it through.
@@ -336,9 +336,10 @@ impl BlockStateFile {
             if key_matches(key, props) {
                 // A weighted list is picked by a position-seeded random in the game; taking the
                 // first entry keeps a single block deterministic across rebakes.
-                return match &self.variants[*key] {
-                    VariantValue::One(v) => Ok(v.clone()),
-                    VariantValue::Many(v) => v
+                return match self.variants.get(*key) {
+                    None => Err(format!("no variant `{key}`")),
+                    Some(VariantValue::One(v)) => Ok(v.clone()),
+                    Some(VariantValue::Many(v)) => v
                         .first()
                         .cloned()
                         .ok_or_else(|| format!("empty variant list for `{key}`")),
@@ -610,8 +611,8 @@ mod tests {
     fn the_asset_system_reads_the_pack_the_corpus_holds() {
         let mut app = bevy::app::App::new();
         let root = bevy::asset::io::memory::Dir::default();
-        vanilla::fill(&root, vanilla::resource_files().clone());
-        vanilla::register_source(&mut app, root);
+        vanilla_source::fill(&root, vanilla_source::resource_files().clone());
+        vanilla_source::register_source(&mut app, root);
         app.add_plugins(bevy::MinimalPlugins)
             .add_plugins(bevy::asset::AssetPlugin {
                 file_path: concat!(env!("CARGO_MANIFEST_DIR"), "/../../assets").to_owned(),

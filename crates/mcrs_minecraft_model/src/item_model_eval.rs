@@ -12,7 +12,7 @@ use mcrs_minecraft_item::{
 use mcrs_minecraft_registries::{Namer, Ref, Registries, Resolve};
 use mcrs_minecraft_resource::{ResourceKeyBuf, ResourceLocationBuf};
 
-use super::asset::{
+use crate::item_model_asset::{
     Case, ChargeType, ConditionProperty, DisplayContext, RangeProperty, SelectSwitch, TintSource,
 };
 use mcrs_minecraft_item::keys::Item;

@@ -757,7 +757,9 @@ mod tests {
     }
 
     fn glowstone() -> BlockStateId {
-        crate::blocks::corpus()
+        mcrs_minecraft_engine_registries::test_corpus()
+            .0
+            .0
             .default_state("minecraft:glowstone")
             .unwrap()
     }
@@ -802,7 +804,7 @@ mod tests {
         app.add_message::<ColumnChange>()
             .insert_resource(store)
             .insert_resource(queue)
-            .insert_resource(crate::blocks::corpus_blocks().clone())
+            .insert_resource(mcrs_minecraft_engine_registries::test_corpus().0.clone())
             .insert_resource(light_colours([255, 64, 0]))
             .insert_resource(BricksPerFrame(
                 LightVolumePlugin::default().bricks_per_frame,

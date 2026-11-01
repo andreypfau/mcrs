@@ -20,12 +20,12 @@ use super::item_decorations::{Decorated, WHITE, decorations};
 use super::language::Language;
 use super::sprite::{GuiSprite, Scaling};
 use super::tooltip::{Tooltip, TooltipSprites};
-use crate::atlas::{MISSING_SIZE, decode_png, missing_pixels, rgba};
-use crate::item_model::resolve::{GuiVertex, ItemRenderLayers};
-use crate::model::Pack;
+use crate::item_resolve::{GuiVertex, ItemRenderLayers};
 use crate::stream::BlockCatalog;
 use mcrs_minecraft_client_world::player::Player;
 use mcrs_minecraft_client_world::screen::Screen;
+use mcrs_minecraft_model::atlas::{MISSING_SIZE, decode_png, missing_pixels, rgba};
+use mcrs_minecraft_model::model::Pack;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct GuiSize {
