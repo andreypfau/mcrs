@@ -535,9 +535,10 @@ fn report_unsettled(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::columns::{AIR, Dimension, SECTION_VOLUME, Section};
+    use crate::columns::{AIR, Dimension, Section};
     use mcrs_minecraft_chunk::PalettedContainer;
     use mcrs_minecraft_light_color::colors::LightType;
+    use mcrs_minecraft_mesh::SECTION_VOLUME;
     use mcrs_voxel::BlockStateId;
     use std::time::Duration;
 

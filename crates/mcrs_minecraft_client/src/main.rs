@@ -33,7 +33,6 @@ use mcrs_minecraft_save::{self as save, SaveError};
 
 #[cfg(not(target_family = "wasm"))]
 use mcrs_minecraft_assets::packs::PackRoots;
-use mcrs_minecraft_client::columns::SECTION_SIZE;
 use mcrs_minecraft_client::config::{Knobs, TerrainLimits};
 #[cfg(not(target_family = "wasm"))]
 use mcrs_minecraft_client::registries::ClientRegistriesPlugin;
@@ -55,6 +54,7 @@ use mcrs_minecraft_engine_server::{
 #[cfg(all(feature = "singleplayer", not(target_family = "wasm")))]
 use mcrs_minecraft_engine_world::world::lifecycle::trace::ColumnTraceSink;
 use mcrs_minecraft_environment::world_clock::WorldClock;
+use mcrs_minecraft_mesh::SECTION_SIZE;
 #[cfg(all(feature = "singleplayer", not(target_family = "wasm")))]
 use mcrs_minecraft_network::client::offline_player_uuid;
 #[cfg(not(target_family = "wasm"))]

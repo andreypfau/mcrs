@@ -3,7 +3,6 @@ use std::collections::BTreeMap;
 use bevy::input::ButtonInput;
 use bevy::prelude::*;
 use bytes::Bytes;
-use mcrs_minecraft_client::blocks::BiomeTints;
 use mcrs_minecraft_client::columns::{
     Column, ColumnCachePlugin, ColumnStore, Columns, Dimension, Extent,
 };
@@ -168,7 +167,6 @@ fn in_play() -> Play {
     store.enter(overworld());
     store.insert(ColumnPos::new(0, 0), column(OVERWORLD_EXTENT));
     store.insert(ColumnPos::new(1, 0), column(OVERWORLD_EXTENT));
-    app.world_mut().insert_resource(BiomeTints::default());
     app.update();
     Play { app, connection }
 }
@@ -200,7 +198,6 @@ fn entering_configuration_clears_the_play_world() {
     assert!(world.get_resource::<SkyEnvironment>().is_none());
     assert!(world.get_resource::<Items>().is_none());
     assert!(world.get_resource::<ClockTimeMarkers>().is_none());
-    assert!(world.get_resource::<BiomeTints>().is_none());
     assert!(world.resource::<WorldClocks>().is_empty());
     assert!(world.get::<CurrentDimension>(connection).is_none());
 

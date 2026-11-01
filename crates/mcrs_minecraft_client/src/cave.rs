@@ -4,7 +4,7 @@ use bevy::render::Extract;
 use bevy::render::renderer::RenderQueue;
 use bevy::tasks::{AsyncComputeTaskPool, Task, futures::check_ready};
 
-use crate::columns::SECTION_SIZE;
+use mcrs_minecraft_mesh::SECTION_SIZE;
 use mcrs_minecraft_mesh::{Connectivity, OPEN, SEALED, along};
 use mcrs_minecraft_render::Terrain;
 

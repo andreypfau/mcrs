@@ -1,7 +1,7 @@
 use std::collections::BinaryHeap;
 use std::sync::Arc;
 
-use crate::columns::{ClientTerrainSet, ColumnChange, ColumnStore, Columns, Extent, SECTION_SIZE};
+use crate::columns::{ClientTerrainSet, ColumnChange, ColumnStore, Columns, Extent};
 use bevy::ecs::system::SystemParam;
 use bevy::platform::collections::{HashMap, HashSet};
 use bevy::prelude::*;
@@ -9,6 +9,7 @@ use bevy::tasks::{AsyncComputeTaskPool, IoTaskPool, Task, futures::check_ready};
 use mcrs_minecraft_block::definition::{BlockDefinitions, Blocks};
 #[cfg(feature = "dev")]
 use mcrs_minecraft_engine_world::world::lifecycle::trace::{ColumnStage, TraceEvent};
+use mcrs_minecraft_mesh::SECTION_SIZE;
 use mcrs_minecraft_registries::CurrentRegistries;
 use mcrs_voxel::{ColumnPos, SectionPos};
 
@@ -17,7 +18,7 @@ use crate::blocks::{self, BiomeTints, Catalog};
 use crate::cave::{CaveCull, NO_SLOT};
 use crate::item_model::bake::{ItemModels, bake_all as bake_items};
 use crate::model::Pack;
-use crate::registries::SessionSet;
+use crate::registries::{SessionSet, entered_configuration};
 use crate::vanilla::VanillaAssets;
 use mcrs_minecraft_mesh::arena::{Arena, Block};
 use mcrs_minecraft_mesh::block::BlockInfo;
@@ -73,6 +74,12 @@ impl Plugin for StreamPlugin {
                     .chain()
                     .in_set(ClientTerrainSet::Build)
                     .run_if(can_stream),
+            )
+            .add_systems(
+                Update,
+                clear_biome_tints
+                    .in_set(SessionSet::Clear)
+                    .run_if(entered_configuration),
             )
             .add_systems(
                 Update,
@@ -1424,6 +1431,11 @@ fn derive_biome_tints(
     }
 }
 
+/// The tint table holds the numbers of the set it was derived from, so a new set drops it.
+fn clear_biome_tints(mut commands: Commands) {
+    commands.remove_resource::<BiomeTints>();
+}
+
 fn tint_columns(
     mut tints: ResMut<ColumnTints>,
     palette: Option<Res<BiomeTints>>,
@@ -1583,6 +1595,27 @@ mod tests {
         let (registries, _) = crate::registries::load_registries(&configuration, None)
             .unwrap_or_else(|error| panic!("{error}"));
         CurrentRegistries::new(registries)
+    }
+
+    #[test]
+    fn entering_configuration_drops_the_tint_table() {
+        use mcrs_minecraft_network::ConnectionState;
+
+        let mut app = App::new();
+        app.add_systems(Update, clear_biome_tints.run_if(entered_configuration));
+        app.insert_resource(BiomeTints::default());
+        let connection = app.world_mut().spawn(ConnectionState::Game).id();
+        app.update();
+        assert!(app.world().get_resource::<BiomeTints>().is_some());
+
+        app.world_mut()
+            .entity_mut(connection)
+            .insert(ConnectionState::Configuration);
+        app.update();
+        assert!(
+            app.world().get_resource::<BiomeTints>().is_none(),
+            "a new registry set renumbers the biomes the table is indexed by"
+        );
     }
 
     mod jar {
@@ -1935,7 +1968,7 @@ mod tests {
                 vec![Some(Section {
                     blocks: Box::new(
                         [mcrs_voxel::BlockStateId::checked(1, 2).expect("a state past air");
-                            crate::columns::SECTION_VOLUME],
+                            mcrs_minecraft_mesh::SECTION_VOLUME],
                     ),
                     biomes: PalettedContainer::Homogeneous(0),
                     states: vec![
@@ -1992,7 +2025,7 @@ mod tests {
                 vec![Some(Section {
                     blocks: Box::new(
                         [mcrs_voxel::BlockStateId::checked(1, 2).expect("a state past air");
-                            crate::columns::SECTION_VOLUME],
+                            mcrs_minecraft_mesh::SECTION_VOLUME],
                     ),
                     biomes: PalettedContainer::Homogeneous(0),
                     states: vec![
@@ -2070,7 +2103,7 @@ mod tests {
                 vec![Some(Section {
                     blocks: Box::new(
                         [mcrs_voxel::BlockStateId::checked(1, 2).expect("a state past air");
-                            crate::columns::SECTION_VOLUME],
+                            mcrs_minecraft_mesh::SECTION_VOLUME],
                     ),
                     biomes: PalettedContainer::Homogeneous(0),
                     states: vec![
