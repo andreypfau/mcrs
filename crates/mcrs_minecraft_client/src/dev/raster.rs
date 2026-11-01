@@ -13,7 +13,7 @@ use bevy::render::texture::GpuImage;
 use bevy::render::view::{ExtractedView, Msaa, ViewTarget};
 use bevy::window::PrimaryWindow;
 
-use crate::player::PlayerCamera;
+use crate::camera::PlayerCamera;
 use crate::render::gui_items::draw_gui;
 
 #[derive(Resource, Clone, Copy)]

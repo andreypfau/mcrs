@@ -93,7 +93,7 @@ pub struct GuiScene {
     pub tooltip: Tooltip,
 }
 
-#[derive(Resource)]
+#[derive(Resource, Clone, Copy)]
 pub struct GuiConfig {
     pub scale: u32,
     pub cursor: Option<IVec2>,
@@ -573,24 +573,15 @@ fn push_flat_quad(
     }
 }
 
-pub struct GuiPlugin;
+pub struct GuiPlugin {
+    pub config: GuiConfig,
+    pub screen: Screen,
+}
 
 impl Plugin for GuiPlugin {
     fn build(&self, app: &mut App) {
-        let knobs = crate::config::Knobs::of(app);
-        let config = GuiConfig {
-            scale: knobs.gui_scale(),
-            cursor: knobs.gui_cursor(),
-            frozen_ticks: knobs.frozen_time(),
-            // chisle: nothing toggles it yet; F3 + H is the vanilla key.
-            advanced_tooltips: false,
-        };
-        app.insert_resource(config)
-            .insert_resource(if knobs.opens_inventory() {
-                Screen::Inventory
-            } else {
-                Screen::None
-            })
+        app.insert_resource(self.config)
+            .insert_resource(self.screen)
             .init_resource::<GuiScene>()
             .init_resource::<GuiBatch>()
             .add_plugins(ExtractResourcePlugin::<GuiBatch>::default())

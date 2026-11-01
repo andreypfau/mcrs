@@ -1,4 +1,5 @@
-use crate::input::Input;
+use crate::movement_input::MovementInput;
+use crate::player::Player;
 use bevy::prelude::*;
 use mcrs_minecraft_engine_world::entity::physics::{Rotation, Transform as PhysicsTransform};
 
@@ -8,20 +9,23 @@ pub struct ScriptedFlight {
     pub turned: bool,
 }
 
-impl ScriptedFlight {
-    pub fn input(&mut self, transform: &mut PhysicsTransform, elapsed: f32) -> Input {
-        if let Some(turn_at) = self.turn_at
-            && !self.turned
-            && elapsed >= turn_at
-        {
-            self.turned = true;
-            let rotation = transform.rotation;
-            transform.rotation = Rotation::new(rotation.yaw() + 180.0, rotation.pitch());
-        }
-        Input {
-            forward: true,
-            sprint: true,
-            ..Input::EMPTY
-        }
+pub(crate) fn fly_scripted(
+    mut scripted: ResMut<ScriptedFlight>,
+    time: Res<Time>,
+    mut input: ResMut<MovementInput>,
+    mut transform: Single<&mut PhysicsTransform, With<Player>>,
+) {
+    if let Some(turn_at) = scripted.turn_at
+        && !scripted.turned
+        && time.elapsed_secs() >= turn_at
+    {
+        scripted.turned = true;
+        let rotation = transform.rotation;
+        transform.rotation = Rotation::new(rotation.yaw() + 180.0, rotation.pitch());
     }
+    input.set_if_neq(MovementInput {
+        forward: true,
+        sprint: true,
+        ..MovementInput::EMPTY
+    });
 }

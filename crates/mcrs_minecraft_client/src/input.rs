@@ -1,51 +1,53 @@
-use bevy::input::mouse::AccumulatedMouseScroll;
-use bevy::math::DVec2;
+use bevy::input::mouse::{AccumulatedMouseMotion, AccumulatedMouseScroll};
 use bevy::prelude::*;
 use bevy::window::{CursorGrabMode, CursorOptions, PrimaryWindow};
+use mcrs_minecraft_engine_world::entity::physics::Transform as PhysicsTransform;
 
-use crate::local_player::FlyingSpeed;
+use crate::local_player::{FlyingSpeed, LocalPlayerTick};
+use crate::movement_input::MovementInput;
 use crate::player::Player;
+use crate::screen::Screen;
 
 const FLY_SPEED_STEP: f64 = 0.05;
 const FLY_SPEED_MIN: f64 = 0.0;
 const FLY_SPEED_MAX: f64 = 2.0;
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-pub struct Input {
-    pub forward: bool,
-    pub backward: bool,
-    pub left: bool,
-    pub right: bool,
-    pub jump: bool,
-    pub shift: bool,
-    pub sprint: bool,
-}
-
-impl Input {
-    pub const EMPTY: Self = Self {
-        forward: false,
-        backward: false,
-        left: false,
-        right: false,
-        jump: false,
-        shift: false,
-        sprint: false,
-    };
-}
+/// Degrees of turn per pixel of mouse motion.
+const LOOK_SENSITIVITY: f32 = 0.15;
 
 pub struct ClientInputPlugin;
 
 impl Plugin for ClientInputPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Update, read_fly_speed_wheel);
+        app.add_systems(FixedUpdate, read_movement_keys.before(LocalPlayerTick))
+            .add_systems(
+                Update,
+                (
+                    (
+                        release_cursor_on_escape,
+                        apply_mouse_look,
+                        grab_cursor_on_click,
+                    )
+                        .chain(),
+                    read_fly_speed_wheel,
+                ),
+            );
     }
 }
 
-pub fn pressed(keys: &ButtonInput<KeyCode>, cursor: &CursorOptions) -> Input {
+pub(crate) fn read_movement_keys(
+    keys: Res<ButtonInput<KeyCode>>,
+    cursor: Single<&CursorOptions, With<PrimaryWindow>>,
+    mut input: ResMut<MovementInput>,
+) {
+    input.set_if_neq(pressed(&keys, &cursor));
+}
+
+fn pressed(keys: &ButtonInput<KeyCode>, cursor: &CursorOptions) -> MovementInput {
     if cursor.grab_mode == CursorGrabMode::None {
-        return Input::EMPTY;
+        return MovementInput::EMPTY;
     }
-    Input {
+    MovementInput {
         forward: keys.pressed(KeyCode::KeyW),
         backward: keys.pressed(KeyCode::KeyS),
         left: keys.pressed(KeyCode::KeyA),
@@ -54,19 +56,6 @@ pub fn pressed(keys: &ButtonInput<KeyCode>, cursor: &CursorOptions) -> Input {
         shift: keys.pressed(KeyCode::ShiftLeft),
         sprint: keys.pressed(KeyCode::ControlLeft),
     }
-}
-
-/// The `(left, forward)` direction of the pressed keys, of length one or zero.
-pub fn move_vector(input: Input) -> DVec2 {
-    DVec2::new(
-        impulse(input.left, input.right),
-        impulse(input.forward, input.backward),
-    )
-    .normalize_or_zero()
-}
-
-fn impulse(positive: bool, negative: bool) -> f64 {
-    f64::from(i8::from(positive) - i8::from(negative))
 }
 
 fn adjust_fly_speed(speed: f64, wheel: f64) -> f64 {
@@ -82,4 +71,48 @@ fn read_fly_speed_wheel(
         return;
     }
     speed.0 = adjust_fly_speed(speed.0, f64::from(scroll.delta.y));
+}
+
+/// Grabbing after the look has been applied drops the motion the pointer made
+/// while it was still free, which would otherwise land as a jump on the frame
+/// the player clicks.
+fn grab_cursor_on_click(
+    buttons: Res<ButtonInput<MouseButton>>,
+    screen: Option<Res<Screen>>,
+    mut window: Single<&mut CursorOptions, With<PrimaryWindow>>,
+) {
+    if buttons.just_pressed(MouseButton::Left) && screen_is_none(screen) {
+        window.grab_mode = CursorGrabMode::Locked;
+        window.visible = false;
+    }
+}
+
+/// With a screen open, Escape closes the screen instead.
+fn release_cursor_on_escape(
+    keys: Res<ButtonInput<KeyCode>>,
+    screen: Option<Res<Screen>>,
+    mut window: Single<&mut CursorOptions, With<PrimaryWindow>>,
+) {
+    if keys.just_pressed(KeyCode::Escape) && screen_is_none(screen) {
+        window.grab_mode = CursorGrabMode::None;
+        window.visible = true;
+    }
+}
+
+fn screen_is_none(screen: Option<Res<Screen>>) -> bool {
+    screen.is_none_or(|screen| *screen == Screen::None)
+}
+
+pub(crate) fn apply_mouse_look(
+    motion: Res<AccumulatedMouseMotion>,
+    window: Single<&CursorOptions, With<PrimaryWindow>>,
+    mut transform: Single<&mut PhysicsTransform, With<Player>>,
+) {
+    if window.grab_mode == CursorGrabMode::None || motion.delta == Vec2::ZERO {
+        return;
+    }
+    transform.rotation = transform.rotation.turn(
+        motion.delta.x * LOOK_SENSITIVITY,
+        motion.delta.y * LOOK_SENSITIVITY,
+    );
 }

@@ -68,7 +68,9 @@ struct ChunkMapHeader;
 #[derive(Component)]
 struct ChunkMapCell(usize);
 
-pub struct ChunkMapPlugin;
+pub struct ChunkMapPlugin {
+    pub visible: bool,
+}
 
 /// The traced columns of the dimension this client joined.
 #[derive(SystemParam)]
@@ -88,10 +90,9 @@ impl JoinedTraces<'_, '_> {
 
 impl Plugin for ChunkMapPlugin {
     fn build(&self, app: &mut App) {
-        let knobs = crate::config::Knobs::of(app);
         app.init_resource::<ColumnTraceSink>()
             .insert_resource(ChunkMap {
-                visible: knobs.chunk_map(),
+                visible: self.visible,
             })
             .add_systems(Startup, spawn)
             .add_systems(Update, (toggle, render).chain());

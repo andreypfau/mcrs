@@ -6,7 +6,7 @@ use mcrs_minecraft_render::sky::SkyDrawsOnly;
 use crate::columns::ClientTerrainSet;
 use crate::config::Knobs;
 use crate::gui::debug::{DebugScreenSet, collecting, entry_fps, entry_system_specs, entry_terrain};
-use crate::local_player::FlyingSpeed;
+use crate::local_player::{FlyingSpeed, LocalPlayerTick};
 use crate::stream;
 
 pub mod census;
@@ -106,7 +106,13 @@ pub fn script_flight(app: &mut App, player: Entity) {
     app.insert_resource(flight::ScriptedFlight {
         turn_at: knobs.turn_after(),
         turned: false,
-    });
+    })
+    .add_systems(
+        FixedUpdate,
+        flight::fly_scripted
+            .after(crate::input::read_movement_keys)
+            .before(LocalPlayerTick),
+    );
     app.world_mut()
         .entity_mut(player)
         .insert(FlyingSpeed(speed));

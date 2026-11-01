@@ -2,6 +2,7 @@ pub(crate) mod chat;
 pub mod chat_input;
 pub(crate) mod chat_suggestions;
 pub(crate) mod chunk_map;
+pub(crate) mod cursor_grab;
 pub(crate) mod debug;
 pub(crate) mod debug_screen_overlay;
 pub(crate) mod font;

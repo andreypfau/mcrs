@@ -93,11 +93,15 @@ pub enum DebugScreenSet {
     Render,
 }
 
-pub struct DebugScreenPlugin;
+pub struct DebugScreenPlugin {
+    /// Seconds between debug-screen lines written to the log, for a run whose window cannot be
+    /// read.
+    pub stats_interval: Option<f32>,
+    pub always_time_passes: bool,
+}
 
 impl Plugin for DebugScreenPlugin {
     fn build(&self, app: &mut App) {
-        let knobs = crate::config::Knobs::of(app);
         if !app.is_plugin_added::<FrameTimeDiagnosticsPlugin>() {
             app.add_plugins(FrameTimeDiagnosticsPlugin::new(entry_fps::HISTORY));
         }
@@ -121,10 +125,7 @@ impl Plugin for DebugScreenPlugin {
                 )
                     .run_if(ui_needed),
             )
-            .insert_resource(Refresh::new(
-                knobs.stats_interval(),
-                knobs.always_time_passes(),
-            ))
+            .insert_resource(Refresh::new(self.stats_interval, self.always_time_passes))
             .configure_sets(
                 Update,
                 (

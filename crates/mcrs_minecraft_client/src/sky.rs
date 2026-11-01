@@ -18,7 +18,7 @@ use mcrs_minecraft_dimension_environment::environment::{
 use mcrs_minecraft_environment::attribute::MoonPhase;
 use mcrs_minecraft_environment::world_clock::{WorldClock, WorldClocks};
 
-use crate::player::PlayerCamera;
+use crate::camera::PlayerCamera;
 use crate::registries::{SessionSet, entered_configuration};
 use crate::vanilla::{self, VanillaAssets};
 use mcrs_minecraft_render::sky::{ExtractedSky, SkyDrawsOnly, SkyRenderPlugin, SkyUniform};

@@ -1,12 +1,20 @@
+use bevy::core_pipeline::tonemapping::Tonemapping;
 use bevy::math::DVec3;
 use bevy::prelude::*;
+use bevy::render::render_resource::TextureUsages;
+use bevy::render::view::Msaa;
 
 use mcrs_minecraft_engine_world::entity::physics::{OldTransform, Transform as PhysicsTransform};
 
 use crate::local_player::{LocalPlayerTick, Sprint};
-use crate::player::{Player, PlayerCamera, pitch_rotation, yaw_rotation};
+use crate::player::Player;
 use mcrs_minecraft_entity::PLAYER_EYE_HEIGHT;
 use mcrs_minecraft_render::CameraOrigin;
+
+const FAR_PLANE: f32 = 4000.0;
+
+#[derive(Component)]
+pub struct PlayerCamera;
 
 /// Vanilla's `Options` default. `fovEffectScale` stays at its default 1.0, which collapses
 /// `Mth.lerp(scale, 1.0, modifier)` to `modifier`.
@@ -41,15 +49,62 @@ pub struct CameraPlugin;
 
 impl Plugin for CameraPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(FixedUpdate, tick_fov.after(LocalPlayerTick))
+        app.add_observer(attach_camera)
+            .add_systems(FixedUpdate, tick_fov.after(LocalPlayerTick))
             .add_systems(
                 Update,
                 (
-                    align_render_transforms.after(crate::player::apply_mouse_look),
+                    align_render_transforms.after(crate::input::apply_mouse_look),
                     apply_fov,
                 ),
             );
     }
+}
+
+fn attach_camera(add: On<Add, Player>, physics: Query<&PhysicsTransform>, mut commands: Commands) {
+    let player = add.entity;
+    let translation = physics
+        .get(player)
+        .map_or(Vec3::ZERO, |physics| physics.translation.as_vec3());
+    commands.entity(player).insert((
+        Transform::from_translation(translation),
+        // The camera hangs off the player, and visibility only reaches a child through a
+        // parent that takes part in it.
+        Visibility::default(),
+    ));
+    commands.spawn((
+        PlayerCamera,
+        FovFilter::default(),
+        Projection::Perspective(PerspectiveProjection {
+            far: FAR_PLANE,
+            ..default()
+        }),
+        Camera3d {
+            // The cull reads the last frame's depth back as a pyramid.
+            depth_texture_usages: (TextureUsages::RENDER_ATTACHMENT
+                | TextureUsages::TEXTURE_BINDING)
+                .into(),
+            ..default()
+        },
+        // The sky pipelines are built for a single sample; multisampling the
+        // view would leave them unable to render into it.
+        Msaa::Off,
+        // The default `TonyMcMapFace` tonemapper needs the `tonemapping_luts`
+        // feature, which nothing else here requires.
+        Tonemapping::None,
+        Transform::from_xyz(0.0, PLAYER_EYE_HEIGHT as f32, 0.0),
+        ChildOf(player),
+    ));
+}
+
+/// The half-turn is not decoration: Minecraft measures the look direction off
+/// +Z while Bevy's camera looks down -Z, and the pitch sign flips with it.
+fn yaw_rotation(yaw: f32) -> Quat {
+    Quat::from_rotation_y(std::f32::consts::PI - yaw.to_radians())
+}
+
+fn pitch_rotation(pitch: f32) -> Quat {
+    Quat::from_rotation_x(-pitch.to_radians())
 }
 
 fn next_fov_modifier(current: f32, target: f32) -> f32 {
@@ -106,6 +161,45 @@ fn apply_fov(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::local_player::tests::minecraft_look_direction;
+    use crate::player::spawn_player;
+
+    #[test]
+    fn a_spawned_player_carries_the_camera() {
+        let mut app = App::new();
+        app.add_plugins(CameraPlugin);
+        let player = spawn_player(app.world_mut(), DVec3::new(1.0, 64.0, 2.0), 0.0, 0.0);
+        let world = app.world_mut();
+        let parent = world
+            .query_filtered::<&ChildOf, With<PlayerCamera>>()
+            .single(world)
+            .ok()
+            .map(ChildOf::parent);
+        assert_eq!(parent, Some(player));
+        assert_eq!(
+            world.get::<Transform>(player).map(|t| t.translation),
+            Some(Vec3::new(1.0, 64.0, 2.0))
+        );
+    }
+
+    #[test]
+    fn the_camera_faces_where_minecraft_says_it_does() {
+        for (yaw, pitch) in [
+            (0.0, 0.0),
+            (-139.9493, 8.099984),
+            (90.0, -30.0),
+            (180.0, 45.0),
+            (-90.0, 90.0),
+            (45.0, -90.0),
+        ] {
+            let forward = (yaw_rotation(yaw) * pitch_rotation(pitch)) * Vec3::NEG_Z;
+            let expected = minecraft_look_direction(yaw, pitch);
+            assert!(
+                forward.abs_diff_eq(expected, 1e-5),
+                "yaw {yaw}, pitch {pitch}: {forward:?} != {expected:?}"
+            );
+        }
+    }
 
     #[test]
     fn the_field_of_view_eases_halfway_to_the_sprint_target_each_tick() {
