@@ -25,7 +25,6 @@ use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundUpdateTags;
 use mcrs_minecraft_registries::{CurrentRegistries, Diagnostics, Received, Registries};
 use mcrs_minecraft_resource::Id;
 
-use crate::blocks::BiomeTints;
 use crate::joined_game::{self, CurrentDimension};
 use crate::received::{received, received_tags};
 
@@ -246,7 +245,6 @@ fn clear_derived_tables(
 ) {
     commands.remove_resource::<Items>();
     commands.remove_resource::<ClockTimeMarkers>();
-    commands.remove_resource::<BiomeTints>();
     if !clocks.is_empty() {
         *clocks = WorldClocks::default();
     }

@@ -2,7 +2,8 @@ use std::sync::{Arc, LazyLock};
 
 use bevy::ecs::resource::Resource;
 
-use crate::columns::{Columns, SECTION_SIZE};
+use crate::columns::Columns;
+use mcrs_minecraft_mesh::SECTION_SIZE;
 use mcrs_minecraft_noise::simplex::SimplexNoise;
 use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_volume::BiomeVolume;
@@ -237,10 +238,11 @@ fn surface_biome(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::columns::{Column, ColumnStore, Extent, SECTION_VOLUME, Section};
+    use crate::columns::{Column, ColumnStore, Extent, Section};
     use mcrs_minecraft_chunk::section::Biomes;
     use mcrs_minecraft_chunk::{PalettedContainer, SectionKind};
     use mcrs_minecraft_game_registries::registry_load::test_registries;
+    use mcrs_minecraft_mesh::SECTION_VOLUME;
     use mcrs_minecraft_resource::ResourceLocationBuf;
 
     fn tints_of(biome: &str) -> BiomeTint {

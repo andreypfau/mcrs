@@ -32,7 +32,6 @@ use mcrs_minecraft_resource::Id;
 use mcrs_voxel::{BlockPos, BlockStateId, LocalPos, SectionPos};
 
 use crate::joined_game::CurrentDimension;
-pub use mcrs_minecraft_mesh::{SECTION_SIZE, SECTION_VOLUME};
 use mcrs_minecraft_network::Instant;
 use mcrs_minecraft_network::client::{
     ClientConnection, ClientNetworkSystems, close_connection_later,
@@ -78,7 +77,7 @@ impl From<Extent> for Dimension {
 
 #[derive(Clone)]
 pub struct Section {
-    pub blocks: Box<[BlockStateId; SECTION_VOLUME]>,
+    pub blocks: Box<[BlockStateId; SectionPos::VOLUME]>,
     pub biomes: PalettedContainer<u8, { Biomes::SIZE }>,
     /// Every state the blocks hold.
     pub states: Vec<BlockStateId>,
@@ -90,7 +89,7 @@ pub struct Column {
     sections: Vec<Option<Section>>,
     /// One row per section plus the padding row the light packet carries at
     /// each end, so row `i` holds section `min_section_y + i - 1`.
-    light: Vec<Option<Box<[u8; SECTION_VOLUME]>>>,
+    light: Vec<Option<Box<[u8; SectionPos::VOLUME]>>>,
 }
 
 /// A column the server sent or took back, in the order it happened. A column sent again
@@ -255,8 +254,11 @@ pub trait Columns {
 
 fn column_bounds(extent: Option<Extent>) -> BoundingBox {
     let (min_y, max_y) = extent.map_or((0, -1), |extent| {
-        let min_y = extent.min_section_y * SECTION_SIZE as i32;
-        (min_y, min_y + (extent.sections * SECTION_SIZE) as i32 - 1)
+        let min_y = extent.min_section_y * SectionPos::SIZE as i32;
+        (
+            min_y,
+            min_y + (extent.sections * SectionPos::SIZE) as i32 - 1,
+        )
     });
     BoundingBox {
         min: BlockPos::new(i32::MIN, min_y, i32::MIN),
@@ -359,7 +361,7 @@ impl Column {
                 let state = |id: mcrs_minecraft_chunk::VoxelId| {
                     BlockStateId::checked(id.0, block_state_count).unwrap_or(AIR)
                 };
-                let mut blocks = Box::new([AIR; SECTION_VOLUME]);
+                let mut blocks = Box::new([AIR; SectionPos::VOLUME]);
                 expand(&section.blocks, blocks.as_mut_slice(), state);
                 let states = match &section.blocks {
                     PalettedContainer::Homogeneous(id) => vec![state(*id)],
@@ -394,7 +396,7 @@ impl Column {
                     {
                         continue;
                     }
-                    row.insert(Box::new([0u8; SECTION_VOLUME]))
+                    row.insert(Box::new([0u8; SectionPos::VOLUME]))
                 }
             };
             if matches!(sky, RowLight::Unchanged) && matches!(block, RowLight::Unchanged) {
@@ -444,7 +446,7 @@ fn expand<V: Hash + Eq + Copy + Default, const DIM: usize, T>(
     container.for_each(|value| *cells.next().expect("one cell per entry") = id(value));
 }
 
-fn apply_layer(row: &RowLight, out: &mut [u8; SECTION_VOLUME], shift: u32) {
+fn apply_layer(row: &RowLight, out: &mut [u8; SectionPos::VOLUME], shift: u32) {
     match row {
         RowLight::Unchanged => {}
         RowLight::Empty => {
@@ -457,7 +459,7 @@ fn apply_layer(row: &RowLight, out: &mut [u8; SECTION_VOLUME], shift: u32) {
     }
 }
 
-fn write_nibbles(source: &LightChunk, out: &mut [u8; SECTION_VOLUME], shift: u32) {
+fn write_nibbles(source: &LightChunk, out: &mut [u8; SectionPos::VOLUME], shift: u32) {
     let keep = !(0x0f << shift);
     for (index, byte) in source.as_bytes().iter().enumerate() {
         out[index * 2] = (out[index * 2] & keep) | ((byte & 0x0f) << shift);
@@ -507,7 +509,7 @@ fn extent_of(registries: &Registries, current: &CurrentDimension) -> Option<Exte
     )?)?;
     Some(Extent {
         min_section_y: dimension_type.min_y >> SectionPos::BITS,
-        sections: usize::try_from(dimension_type.height).ok()? / SECTION_SIZE,
+        sections: usize::try_from(dimension_type.height).ok()? / SectionPos::SIZE,
     })
 }
 
@@ -829,7 +831,7 @@ mod tests {
     }
 
     fn biome(store: &impl BiomeVolume, sx: i32, sy: i32, sz: i32, cell: (i32, i32, i32)) -> u16 {
-        let size = SECTION_SIZE as i32;
+        let size = SectionPos::SIZE as i32;
         let at = BlockPos::new(sx * size + cell.0, sy * size + cell.1, sz * size + cell.2);
         store.biome_at(at).unwrap_or(0)
     }
@@ -923,7 +925,7 @@ mod tests {
     #[test]
     fn a_decoded_packet_reads_back_where_it_put_its_blocks_and_its_light() {
         let cell = LocalPos::new(3, 5, 7).index();
-        let mut states = vec![0u32; SECTION_VOLUME];
+        let mut states = vec![0u32; SectionPos::VOLUME];
         states[cell] = 42;
         let blob = [air_section(), section_of_states(&states)]
             .iter()
@@ -963,7 +965,10 @@ mod tests {
         .expect("decode the column");
         store.insert(packet.pos, column);
 
-        let (x, z) = ((SECTION_SIZE as i32) + 3, -2 * SECTION_SIZE as i32 + 7);
+        let (x, z) = (
+            (SectionPos::SIZE as i32) + 3,
+            -2 * SectionPos::SIZE as i32 + 7,
+        );
         assert_eq!(
             block(&store, x, 5, z),
             state(42),
@@ -1108,7 +1113,7 @@ mod tests {
 
     /// The world coordinates of `lit_cell` in section `sy` of the lit column.
     fn lit_at(sy: i32) -> (i32, i32, i32) {
-        (19, sy * SECTION_SIZE as i32 + 5, -25)
+        (19, sy * SectionPos::SIZE as i32 + 5, -25)
     }
 
     fn light_update(pos: ColumnPos, light_data: LightData<'_>) -> ColumnLight {
