@@ -13,7 +13,7 @@ pub mod clientbound {
     use crate::packets::common::clientbound::KeepAlive;
     use crate::profile::{PlayerListActions, PlayerListEntry};
     use crate::recipe::{RecipeBookEntry, RecipeBookSettings, RecipePropertySet, SelectableRecipe};
-    use crate::text::Text;
+    use crate::text::{RawText, Text};
     use crate::{Bounded, ColumnPos, LpVec3, PositionFlags, Result, VarInt, VarLong};
     use glam::DVec3;
     use mcrs_minecraft_command_tree::CommandNode;
@@ -359,10 +359,10 @@ pub mod clientbound {
     }
 
     #[derive(Clone, Debug, PartialEq, Encode, Decode)]
-    pub struct ClientboundOpenScreen {
+    pub struct ClientboundOpenScreen<'a> {
         pub container_id: VarInt,
         pub menu_type: MenuType,
-        pub title: Text,
+        pub title: RawText<'a>,
     }
 
     #[derive(Clone, Debug)]
@@ -648,22 +648,22 @@ pub mod clientbound {
     }
 
     #[derive(Clone, Debug, Encode, Decode)]
-    pub struct ClientboundSystemChatPacket {
-        pub content: Text,
+    pub struct ClientboundSystemChatPacket<'a> {
+        pub content: RawText<'a>,
         pub overlay: bool,
     }
 
     #[derive(Clone, Debug, Encode, Decode)]
-    pub struct ClientboundSetActionBarText {
-        pub text: Text,
+    pub struct ClientboundSetActionBarText<'a> {
+        pub text: RawText<'a>,
     }
 
     #[derive(Clone, Debug, Encode, Decode)]
-    pub struct ClientboundDisguisedChat {
-        pub message: Text,
+    pub struct ClientboundDisguisedChat<'a> {
+        pub message: RawText<'a>,
         pub chat_type: ChatTypeId,
-        pub sender_name: Text,
-        pub target_name: Option<Text>,
+        pub sender_name: RawText<'a>,
+        pub target_name: Option<RawText<'a>>,
     }
 
     #[derive(Clone, Debug, Encode, Decode)]
@@ -676,11 +676,11 @@ pub mod clientbound {
         pub timestamp: u64,
         pub salt: u64,
         pub last_seen: Bounded<Vec<PackedSignature<'a>>, 20>,
-        pub unsigned_content: Option<Text>,
+        pub unsigned_content: Option<RawText<'a>>,
         pub filter: FilterMask,
         pub chat_type: ChatTypeId,
-        pub sender_name: Text,
-        pub target_name: Option<Text>,
+        pub sender_name: RawText<'a>,
+        pub target_name: Option<RawText<'a>>,
     }
 
     #[derive(Clone, Debug, Encode, Decode)]

@@ -14,7 +14,7 @@ use mcrs_minecraft_protocol::item::{
 };
 use mcrs_minecraft_protocol::packets::game::clientbound::*;
 use mcrs_minecraft_protocol::packets::game::serverbound::*;
-use mcrs_minecraft_protocol::text::Text;
+use mcrs_minecraft_protocol::text::{RawText, Text};
 use mcrs_minecraft_protocol::{Bounded, Decode, Encode, ProtoStack, VarInt};
 use mcrs_minecraft_resource::Id;
 use mcrs_voxel::BlockPos;
@@ -138,7 +138,7 @@ fn container_packets_are_the_games_bytes() {
         ClientboundOpenScreen {
             container_id: VarInt(1),
             menu_type: MenuType::Generic9x3,
-            title: Text::text("Chest"),
+            title: RawText::from_text(&Text::text("Chest")).unwrap(),
         },
     );
     check(

@@ -5,6 +5,7 @@ use bevy::prelude::*;
 use mcrs_minecraft_chat_client::Tag;
 use mcrs_minecraft_command::Source;
 use mcrs_minecraft_game_registries::chat_type::{ChatParameter, ChatType};
+use mcrs_minecraft_item::ItemHoverMap;
 use mcrs_minecraft_network::client;
 use mcrs_minecraft_network::event::Received;
 use mcrs_minecraft_protocol::chat::{CompletionAction, FilterMask};
@@ -13,7 +14,7 @@ use mcrs_minecraft_protocol::packets::game::clientbound::{
     ClientboundDisguisedChat, ClientboundLogin, ClientboundPlayerChat, ClientboundPlayerInfoRemove,
     ClientboundPlayerInfoUpdate, ClientboundSetActionBarText, ClientboundSystemChatPacket,
 };
-use mcrs_minecraft_protocol::text::{Color, IntoText, Text};
+use mcrs_minecraft_protocol::text::{Color, IntoText, RawText, Text};
 use mcrs_minecraft_registries::{CurrentRegistries, Registries};
 use mcrs_minecraft_resource::ResourceLocation;
 
@@ -94,19 +95,28 @@ pub(crate) fn on_suggestions(
         .reply(reply.id.0, start, length, &reply.suggestions, &cx);
 }
 
+/// A text the server sent, or `None` when it does not decode, as when the packet around it does
+/// not.
+fn server_text(raw: &RawText<'_>) -> Option<Text> {
+    raw.to_text().ok()?.map(&ItemHoverMap).ok()
+}
+
 pub(crate) fn on_system_chat(
-    event: On<Received<ClientboundSystemChatPacket>>,
+    event: On<Received<ClientboundSystemChatPacket<'static>>>,
     mut chat: ResMut<Chat>,
     mut messages: MessageWriter<ChatMessage>,
 ) {
     let Some(packet) = event.packet() else {
         return;
     };
+    let Some(content) = server_text(&packet.content) else {
+        return;
+    };
     if packet.overlay {
-        chat.overlay.set(packet.content);
+        chat.overlay.set(content);
     } else {
         messages.write(ChatMessage {
-            text: packet.content,
+            text: content,
             tag: Some(Tag::SystemSinglePlayer),
             origin: MessageOrigin::System,
         });
@@ -114,11 +124,11 @@ pub(crate) fn on_system_chat(
 }
 
 pub(crate) fn on_action_bar(
-    event: On<Received<ClientboundSetActionBarText>>,
+    event: On<Received<ClientboundSetActionBarText<'static>>>,
     mut chat: ResMut<Chat>,
 ) {
-    if let Some(packet) = event.packet() {
-        chat.overlay.set(packet.text);
+    if let Some(text) = event.packet().and_then(|packet| server_text(&packet.text)) {
+        chat.overlay.set(text);
     }
 }
 
@@ -177,13 +187,17 @@ pub(crate) fn on_player_chat(
         return;
     }
     chat.player_chats = chat.player_chats.wrapping_add(1);
+    let Some(sender_name) = server_text(&packet.sender_name) else {
+        return;
+    };
+    let target_name = packet.target_name.as_ref().and_then(server_text);
     let registries = registries.as_deref().map(|registries| &**registries);
     let decorate = |content| {
         decorate(
             registries,
             packet.chat_type.0,
-            &packet.sender_name,
-            packet.target_name.as_ref(),
+            &sender_name,
+            target_name.as_ref(),
             content,
         )
     };
@@ -199,10 +213,15 @@ pub(crate) fn on_player_chat(
         });
         return;
     }
-    let content = match (&packet.filter, packet.unsigned_content) {
+    let content = match (&packet.filter, &packet.unsigned_content) {
         (FilterMask::FullyFiltered, _) => return,
         (FilterMask::PartiallyFiltered(_), _) => filtered(&packet.content, &packet.filter),
-        (_, Some(unsigned)) => unsigned,
+        (_, Some(unsigned)) => {
+            let Some(unsigned) = server_text(unsigned) else {
+                return;
+            };
+            unsigned
+        }
         (_, None) => packet.content.0.to_owned().into_text(),
     };
     messages.write(ChatMessage {
@@ -257,21 +276,28 @@ fn filtered(body: &str, mask: &FilterMask) -> Text {
 }
 
 pub(crate) fn on_disguised_chat(
-    event: On<Received<ClientboundDisguisedChat>>,
+    event: On<Received<ClientboundDisguisedChat<'static>>>,
     registries: Option<Res<CurrentRegistries>>,
     mut messages: MessageWriter<ChatMessage>,
 ) {
     let Some(packet) = event.packet() else {
         return;
     };
+    let (Some(message), Some(sender_name)) = (
+        server_text(&packet.message),
+        server_text(&packet.sender_name),
+    ) else {
+        return;
+    };
+    let target_name = packet.target_name.as_ref().and_then(server_text);
     let registries = registries.as_deref().map(|registries| &**registries);
     messages.write(ChatMessage {
         text: decorate(
             registries,
             packet.chat_type.0,
-            &packet.sender_name,
-            packet.target_name.as_ref(),
-            packet.message,
+            &sender_name,
+            target_name.as_ref(),
+            message,
         ),
         tag: Some(Tag::System),
         origin: MessageOrigin::Player,

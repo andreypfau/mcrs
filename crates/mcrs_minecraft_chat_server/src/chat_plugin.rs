@@ -7,11 +7,9 @@ use mcrs_minecraft_engine::client_info::{ClientInfo, ClientInfoPlugin};
 use mcrs_minecraft_engine::session::GameProfile;
 use mcrs_minecraft_engine::session::HostAnchor;
 use mcrs_minecraft_network::event::Received;
-use mcrs_minecraft_protocol::Text;
 use mcrs_minecraft_protocol::packets::game::serverbound::ServerboundChat;
 use mcrs_minecraft_protocol::setting::ChatMode;
-use mcrs_minecraft_protocol::text::{Color, IntoText};
-use mcrs_minecraft_text::is_allowed_chat_character;
+use mcrs_minecraft_text::{Color, IntoText, RawText, Text, is_allowed_chat_character};
 use tracing::info;
 
 /// Broadcasts the chat messages of the players as system messages.
@@ -48,14 +46,14 @@ fn handle_chat(
     }
 
     if info.is_some_and(|info| info.chat_mode == ChatMode::Hidden) {
-        packet_writer.write(bus::to(
-            host_anchor.0,
-            system_chat(Text::translate("chat.disabled.options", vec![]).color(Color::RED)),
-        ));
+        let disabled: Text = Text::translate("chat.disabled.options", vec![]).color(Color::RED);
+        if let Ok(disabled) = RawText::from_text(&disabled) {
+            packet_writer.write(bus::to(host_anchor.0, system_chat(disabled)));
+        }
         return;
     }
 
-    let text = Text::translate(
+    let text: Text = Text::translate(
         "chat.type.text",
         vec![
             profile.username.clone().into_text(),
@@ -64,5 +62,8 @@ fn handle_chat(
     );
     info!("<{}> {}", profile.username, msg);
 
+    let Ok(text) = RawText::from_text(&text) else {
+        return;
+    };
     packet_writer.write(to_target(PacketTarget::AllPlayers, system_chat(text)));
 }

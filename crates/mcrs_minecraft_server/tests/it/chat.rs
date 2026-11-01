@@ -1,4 +1,5 @@
 use mcrs_minecraft_engine::bus::{PacketPayload, PacketTarget};
+use mcrs_minecraft_item::ItemHoverMap;
 use mcrs_minecraft_protocol::Bounded;
 use mcrs_minecraft_protocol::VarInt;
 use mcrs_minecraft_protocol::entity::player::MessageSignature;
@@ -85,11 +86,13 @@ fn a_chat_line_reaches_everyone_unless_it_is_rejected_or_the_sender_hides_chat()
         server.queue(sender, &line(message));
         let sent = server.ticks_all(2);
 
-        let heard: Vec<&Text> = sent
+        let heard: Vec<Text> = sent
             .iter()
             .filter(|packet| matches!(packet.target, PacketTarget::AllPlayers))
             .filter_map(|packet| match &packet.data {
-                PacketPayload::SystemChat(chat) => Some(&chat.content),
+                PacketPayload::SystemChat(chat) => {
+                    Some(chat.content.to_text().unwrap().map(&ItemHoverMap).unwrap())
+                }
                 _ => None,
             })
             .collect();
@@ -101,16 +104,16 @@ fn a_chat_line_reaches_everyone_unless_it_is_rejected_or_the_sender_hides_chat()
                     message.to_owned().into_text(),
                 ],
             );
-            assert_eq!(heard, [&expected], "{case}");
+            assert_eq!(heard, [expected], "{case}");
         } else {
             assert!(heard.is_empty(), "{case}: {heard:?}");
         }
 
-        let told: Vec<&str> = sent
+        let told: Vec<String> = sent
             .iter()
             .filter(|packet| matches!(packet.target, PacketTarget::SinglePlayer(target) if target == sender))
             .filter_map(|packet| match &packet.data {
-                PacketPayload::SystemChat(chat) => key(&chat.content),
+                PacketPayload::SystemChat(chat) => key(&chat.content.to_text().unwrap().map(&ItemHoverMap).unwrap()).map(str::to_owned),
                 _ => None,
             })
             .collect();
