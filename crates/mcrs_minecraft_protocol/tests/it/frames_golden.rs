@@ -14,7 +14,7 @@ fn frames() -> Vec<(&'static str, Vec<u8>)> {
             let (label, hex) = line
                 .split_once(' ')
                 .unwrap_or_else(|| panic!("malformed line: {line}"));
-            (label, crate::common::hex(hex))
+            (label, crate::hex(hex))
         })
         .collect()
 }

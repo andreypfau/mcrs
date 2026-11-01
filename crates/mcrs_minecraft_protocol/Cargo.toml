@@ -29,4 +29,6 @@ derive_more = { workspace = true, features = ["from", "into", "deref", "deref_mu
 flate2.workspace = true
 
 [dev-dependencies]
+mcrs_minecraft_core.workspace = true
+mcrs_minecraft_fixtures.workspace = true
 rand.workspace = true

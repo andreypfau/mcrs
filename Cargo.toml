@@ -204,7 +204,6 @@ bevy_state.workspace = true
 mcrs_minecraft_client_world.workspace = true
 mcrs_minecraft_assets.workspace = true
 mcrs_minecraft_game_registries = { workspace = true, features = ["test-support"] }
-mcrs_minecraft_core = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_dimension.workspace = true
 mcrs_minecraft_engine_world.workspace = true
 bevy_ecs.workspace = true

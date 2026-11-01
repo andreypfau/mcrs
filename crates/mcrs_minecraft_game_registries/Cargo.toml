@@ -41,11 +41,9 @@ mcrs_minecraft_entity.workspace = true
 mcrs_minecraft_nbt.workspace = true
 mcrs_minecraft_protocol.workspace = true
 mcrs_minecraft_text.workspace = true
-tracing.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
-uuid.workspace = true
 
 [target.'cfg(not(target_family = "wasm"))'.dependencies]
 mcrs_minecraft_fixtures = { workspace = true, optional = true }
@@ -55,7 +53,6 @@ mcrs_minecraft_worldgen = { workspace = true, optional = true, features = ["fast
 mcrs_minecraft_protocol_game.workspace = true
 bevy_app.workspace = true
 bevy_asset.workspace = true
-bevy_ecs.workspace = true
 bevy_state.workspace = true
 bevy_tasks.workspace = true
 mcrs_minecraft_assets.workspace = true
@@ -71,7 +68,6 @@ mcrs_minecraft_worldgen_carver.workspace = true
 mcrs_minecraft_worldgen_density.workspace = true
 mcrs_minecraft_worldgen_feature.workspace = true
 mcrs_minecraft_worldgen_structure.workspace = true
-mcrs_minecraft_worldgen_surface.workspace = true
 bytes.workspace = true
 tracing-subscriber = "0.3"
 mcrs_minecraft_worldgen_testing.workspace = true

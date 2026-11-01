@@ -20,7 +20,6 @@ mcrs_minecraft_biome_file.workspace = true
 mcrs_minecraft_block = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_block_predicate.workspace = true
 mcrs_minecraft_core = { workspace = true, features = ["bevy"] }
-mcrs_minecraft_dimension.workspace = true
 mcrs_minecraft_engine.workspace = true
 mcrs_minecraft_entity.workspace = true
 mcrs_minecraft_engine_world.workspace = true
