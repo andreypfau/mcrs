@@ -234,9 +234,9 @@ mod tests {
     fn a_client_move_applies_only_once_every_teleport_is_confirmed() {
         let mut world = World::new();
         world.init_resource::<Messages<PlayerMovement>>();
-        let awaiting = world
-            .spawn((Transform::default(), TeleportState::after_login()))
-            .id();
+        let mut unconfirmed = TeleportState::default();
+        unconfirmed.sent(Transform::default());
+        let awaiting = world.spawn((Transform::default(), unconfirmed)).id();
         let confirmed = world
             .spawn((Transform::default(), TeleportState::default()))
             .id();

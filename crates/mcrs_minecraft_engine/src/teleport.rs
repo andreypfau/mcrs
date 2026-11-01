@@ -66,21 +66,4 @@ impl TeleportState {
     pub fn confirm(&mut self) {
         self.pending_teleports = self.pending_teleports.saturating_sub(1);
     }
-
-    /// Teleport id reserved for the login position sync. The spawn consumer
-    /// sends `PlayerPosition` with this id at login, so the runtime counter is
-    /// initialized past it (see [`Self::after_login`]) and the first
-    /// server-authoritative teleport draws the next id without aliasing.
-    pub const LOGIN_TELEPORT_ID: i32 = 0;
-
-    /// Initial state for a freshly spawned player whose login position sync has
-    /// already claimed [`Self::LOGIN_TELEPORT_ID`]. The counter starts past the
-    /// login id and one confirmation is outstanding for that login teleport.
-    pub fn after_login() -> Self {
-        Self {
-            teleport_id_counter: (Self::LOGIN_TELEPORT_ID as u32).wrapping_add(1),
-            pending_teleports: 1,
-            ..Default::default()
-        }
-    }
 }

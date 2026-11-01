@@ -79,14 +79,20 @@ pub(crate) fn consume_inbound_player_spawn(
             ..Default::default()
         };
         let op_level = ops.level_of(&spawn.snapshot.uuid, *default_op_level);
+        let arrival =
+            Arrival::absolute(Transform::default().with_translation(spawn.snapshot.position));
+        let mut teleport_state = TeleportState::default();
+        let login_teleport_id = teleport_state.sent(arrival.transform);
         let new_entity = spawn_player_entity(
             &mut commands,
             spawn,
             dim,
+            arrival.transform,
             view_distance,
             op_level,
             default_game_mode.0,
         );
+        commands.entity(new_entity).insert(teleport_state);
         if let Some(info) = &spawn.snapshot.client_info {
             commands.entity(new_entity).insert(info.clone());
         }
@@ -148,11 +154,10 @@ pub(crate) fn consume_inbound_player_spawn(
             )
             .critical(),
         );
-        let arrival = Arrival::absolute(Transform::default().with_translation(spawn_pos));
         enter_level_packets(
             host,
             op_level,
-            arrival.position_packet(TeleportState::LOGIN_TELEPORT_ID),
+            arrival.position_packet(login_teleport_id),
             game_mode::abilities(default_game_mode.0, PlayerFlying(false)),
             |packet| {
                 packet_writer.write(packet);
@@ -197,6 +202,7 @@ fn spawn_player_entity(
     commands: &mut Commands,
     spawn: &InboundPlayerSpawn,
     dim: Entity,
+    transform: Transform,
     view_distance: PlayerViewDistance,
     op_level: PlayerOpLevel,
     game_mode: GameMode,
@@ -206,7 +212,7 @@ fn spawn_player_entity(
             EntityBundle {
                 minecraft_entity: Default::default(),
                 dimension: InDimension(dim),
-                transform: Transform::default().with_translation(spawn.snapshot.position),
+                transform,
                 uuid: EntityUuid(spawn.snapshot.uuid),
             },
             PlayerBundle {
@@ -214,7 +220,6 @@ fn spawn_player_entity(
                 op_level,
                 listed_game_mode: ListedGameMode(game_mode),
                 announced_op_level: AnnouncedOpLevel(op_level),
-                teleport_state: TeleportState::after_login(),
                 view_distance,
                 ..Default::default()
             },
