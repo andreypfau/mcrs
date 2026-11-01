@@ -238,14 +238,39 @@ pub fn run(ctx: &Context, check: Check) -> Outcome {
             "a crate that must build without std does not build for wasm32v1-none",
             "keep it #![no_std] and its dependencies free of std",
         ),
-        Check::Wasm32 => build_for(
-            ctx,
-            "wasm32-unknown-unknown",
-            &WASM32_PACKAGES,
-            "a crate that must run in a browser does not build for wasm32-unknown-unknown",
-            "keep its dependencies free of native-only code",
-        ),
+        Check::Wasm32 => wasm32(ctx),
     }
+}
+
+const WASM32_CLIENT_FEATURES: [&[&str]; 2] = [&[], &["--no-default-features"]];
+
+fn wasm32(ctx: &Context) -> Outcome {
+    build_for(
+        ctx,
+        "wasm32-unknown-unknown",
+        &WASM32_PACKAGES,
+        "a crate that must run in a browser does not build for wasm32-unknown-unknown",
+        "keep its dependencies free of native-only code",
+    )?;
+    for features in WASM32_CLIENT_FEATURES {
+        let mut args = vec![
+            "build",
+            "--locked",
+            "--target",
+            "wasm32-unknown-unknown",
+            "-p",
+            "mcrs_minecraft_client",
+            "--bin",
+            "mcrs_minecraft_client",
+        ];
+        args.extend(features);
+        verdict(
+            ctx.exec("cargo", &args)?,
+            "the client binary does not build for wasm32-unknown-unknown",
+            "gate native-only code behind cfg(not(target_family = \"wasm\"))",
+        )?;
+    }
+    Ok(String::new())
 }
 
 fn build_for(
