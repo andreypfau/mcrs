@@ -106,7 +106,6 @@ impl<M: Refs> mcrs_minecraft_text::TextTypes for Template<M> {
 impl mcrs_minecraft_text::TextSerde for Template<Named> {}
 
 #[derive(Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
 struct TemplateRepr {
     id: ResourceKeyBuf<Item>,
     #[serde(default, skip_serializing_if = "is_default")]

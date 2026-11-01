@@ -147,8 +147,7 @@ struct ProbeCase {
 
 /// Where the reader knowingly differs from vanilla: registry membership and
 /// selector, NBT-path and coordinate syntax are not checked at parse; a
-/// number stands for a boolean in JSON as it does in NBT; `show_item`
-/// rejects unknown keys as every component codec here does.
+/// number stands for a boolean in JSON as it does in NBT.
 const PROBE_DIVERGENCES: &[&str] = &[
     // `object: player` waits for the profile component.
     "object_player",
@@ -157,7 +156,6 @@ const PROBE_DIVERGENCES: &[&str] = &[
     "object_player_id",
     "bold_int",
     "nbt_interpret_int",
-    "hover_show_item_extra_key",
     "click_show_dialog_unknown",
     "hover_show_item_unknown",
     "hover_show_entity_unknown",

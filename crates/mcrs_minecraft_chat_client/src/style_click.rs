@@ -1,8 +1,8 @@
-use mcrs_minecraft_protocol::text::{ClickEvent, TextTypes};
+use mcrs_minecraft_protocol::text::{ClickEvent, ItemHover, TextTypes};
 
 /// The parts of a text style that a click acts on.
 #[derive(Debug, PartialEq)]
-pub struct StyleClick<'a, I: TextTypes = ()> {
+pub struct StyleClick<'a, I: TextTypes = ItemHover> {
     pub insertion: Option<&'a str>,
     pub event: Option<&'a ClickEvent<I>>,
 }

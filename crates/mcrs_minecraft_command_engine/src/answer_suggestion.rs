@@ -9,6 +9,7 @@ use mcrs_command::{ParseScratch, Suggestion, SuggestionList};
 use mcrs_minecraft_command::CommandLevel;
 use mcrs_minecraft_engine::bus::{self, PacketPayload};
 use mcrs_minecraft_game_mode::GameMode;
+use mcrs_minecraft_item::ItemHoverMap;
 use mcrs_minecraft_protocol::CommandSuggestion;
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundCommandSuggestions;
 use mcrs_minecraft_wire::utf16_len;
@@ -71,7 +72,7 @@ pub(crate) fn answer_suggestion<S: CommandSet>(
                 text: Cow::Owned(entry.text),
                 tooltip: entry
                     .tooltip
-                    .and_then(|tooltip| mcrs_minecraft_protocol::text::named(&tooltip).ok()),
+                    .and_then(|tooltip| tooltip.map(&ItemHoverMap).ok()),
             })
             .collect(),
     };

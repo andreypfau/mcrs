@@ -3,7 +3,7 @@
 use mcrs_minecraft_resource::ResourceLocationBuf;
 use std::borrow::Cow;
 
-use super::{ClickEvent, Color, HoverEvent, Text, TextTypes};
+use super::{ClickEvent, Color, HoverEvent, ItemHover, Text, TextTypes};
 
 /// Trait for any data that can be converted to a [`Text`] object.
 ///
@@ -17,7 +17,7 @@ use super::{ClickEvent, Color, HoverEvent, Text, TextTypes};
 /// let mut my_text: Text = "".into_text();
 /// my_text = my_text.color(NamedColor::Red).bold();
 /// my_text = my_text.add_child("CRABBBBB".obfuscated());
-pub trait IntoText<I: TextTypes = ()>: Sized {
+pub trait IntoText<I: TextTypes = ItemHover>: Sized {
     /// Converts to an owned [`Text`] object.
     fn into_text(self) -> Text<I>;
 

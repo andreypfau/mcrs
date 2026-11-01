@@ -23,6 +23,7 @@ pub mod hash_ops;
 pub mod held;
 #[cfg(feature = "bevy")]
 pub mod inventory;
+mod item_hover_map;
 #[cfg(feature = "bevy")]
 pub mod item_stack;
 pub mod kind;
@@ -49,6 +50,7 @@ pub use effective::{
 pub use held::{Held, Holds, SlotTable};
 #[cfg(feature = "bevy")]
 pub use inventory::{SelectedHotbarSlot, slots};
+pub use item_hover_map::ItemHoverMap;
 #[cfg(feature = "bevy")]
 pub use item_stack::{ItemStack, StackRevision};
 pub use kind::{ItemComponentValue, ItemDataComponent};

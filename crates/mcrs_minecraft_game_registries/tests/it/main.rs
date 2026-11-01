@@ -23,6 +23,7 @@ mod loaded_registries;
 mod playing;
 mod received;
 mod registry_values;
+mod show_item;
 mod sound_sets;
 mod structure_assets;
 mod tag_pipeline;

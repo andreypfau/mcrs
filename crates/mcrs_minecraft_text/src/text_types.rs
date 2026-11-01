@@ -1,13 +1,11 @@
-use mcrs_minecraft_resource::ResourceLocationBuf;
 use std::fmt;
 
 use serde::Serialize;
 
-use crate::DialogRef;
-
 /// The types a text names from outside it: `Self` is what a `show_item` hover
 /// carries, and the associated types are the entity a `show_entity` hover and
-/// the dialog a `show_dialog` click name. `()` names them by location alone.
+/// the dialog a `show_dialog` click name. [`ItemHover`](crate::ItemHover) names them as the
+/// wire holds them.
 pub trait TextTypes: Value {
     type EntityKey: Value;
     type Dialog: Value;
@@ -25,13 +23,6 @@ impl<T> Serde for T where T: Serialize + serde::de::DeserializeOwned {}
 /// written out rather than blanket: an inline dialog holds text of the same
 /// types, so a bound derived from the fields would prove itself in a cycle.
 pub trait TextSerde: TextTypes<EntityKey: Serde, Dialog: Serde> + Serde {}
-
-impl TextTypes for () {
-    type EntityKey = ResourceLocationBuf;
-    type Dialog = DialogRef;
-}
-
-impl TextSerde for () {}
 
 /// Maps the types a text names from `A` to `B`, field by field.
 pub trait TextMap<A: TextTypes, B: TextTypes> {

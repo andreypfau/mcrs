@@ -22,6 +22,7 @@ mcrs_minecraft_dimension.workspace = true
 mcrs_minecraft_dimension_environment = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_engine.workspace = true
 mcrs_minecraft_entity.workspace = true
+mcrs_minecraft_item.workspace = true
 mcrs_minecraft_engine_world.workspace = true
 mcrs_minecraft_network = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_protocol.workspace = true
