@@ -3600,6 +3600,59 @@ Provenance: `source_suggested`. Confidence: medium. Experiment: REG-FLD-009.
 
 Provenance: `source_suggested`. Confidence: medium. Experiment: REG-FLD-009.
 
+### REG-FLD-442: `show_item` in data-pack text
+
+- **Inputs:** a hover event (REG-FLD-441) with the action `show_item`, in a text component (REG-FLD-429) of a data-pack file. Examples are a dialog title, an advancement title and an item modifier that sets a name.
+- **Behavior:** the load accepts the action `show_item` in every data-pack field that holds a text component. No field restricts the action. The hover event object has these fields:
+
+| Field | Required | Value | Load check |
+|-------|----------|-------|------------|
+| `action` | yes | `"show_item"` | — |
+| `id` | yes | an item id | The id must name a registered item. It must not be `minecraft:air`. |
+| `count` | no, default `1` | an integer | The value must be in the range 1 to 99. |
+| `components` | no, default `{}` | a data component patch (REG-FLD-502) | Each key must name a data component type with a persistent form. Each value must decode with the codec of its type. |
+
+  - An id without a namespace has the namespace `minecraft`. This applies to `id` and to each key of `components`, also after the prefix `!`.
+  - The bare string form of an item stack (REG-FLD-500) is not accepted here. A string in place of the hover event fields fails the load.
+  - The load ignores an unknown field of the hover event object, for example `contents` or `tag`. An object that has the item only in `contents` has no `id`, so the load fails.
+  - A component value can name entries of other registries, for example an enchantment. The load checks these references with the rules of the item component, against the registries that are loaded at that stage (REG-REF-002).
+- **Postconditions:**
+  - A load check that fails makes the text component fail. The file that holds it fails as REG-REF-002 states. The load never drops only the hover event.
+  - The load does not check the item stack as a whole. These conditions do not fail the load:
+    1. `count` is more than the maximum stack size of the item with its components;
+    2. the components give both `max_damage` and a `max_stack_size` above 1;
+    3. an item in the `container` or `bundle_contents` component has a count above its maximum stack size.
+  - The vanilla client checks these three conditions when it shows the tooltip. When a condition fails, the client shows the tooltip of an empty stack and writes a warning to its log.
+  - The server sends the hover event with the decoded values. It does not correct `count` or the components.
+- **Edge cases:**
+  - Two keys that name the same component in the same form, for example `food` and `minecraft:food`, fail the load.
+  - The keys `<id>` and `!<id>` for the same component both decode. The patch keeps one of the two. Which one it keeps is unspecified, and a parity test must not compare it.
+  - A key that is not a valid identifier fails the load as an unknown component.
+- **Example:** this hover event loads. It shows a stack of 3 sticks with a custom name and without the `lore` component.
+
+```json
+{
+  "action": "show_item",
+  "id": "stick",
+  "count": 3,
+  "components": {
+    "custom_name": "Wand",
+    "!lore": {}
+  }
+}
+```
+
+- **Failing twins:** each of these changes to the example fails the load:
+  - `"id": "minecraft:no_such_item"`;
+  - `"id": "minecraft:air"`;
+  - `"count": 0` or `"count": 100`;
+  - the key `"minecraft:no_such_component"` or `"!minecraft:no_such_component"`;
+  - the key `"creative_slot_lock"`, a component without a persistent form;
+  - `"!lore": true`, a removal value that is not an object.
+- **Experiment:** make a pack with a dialog whose title has the hover event of the example, but with `"count": 64` and `"max_stack_size": 1` in `components`. Start the server. Expected: the server starts. Show the dialog to a vanilla client and move the mouse over the title. Record the tooltip lines and the client log.
+
+Provenance: `source_suggested` (`HoverEvent.ShowItem`, `ItemStackTemplate.MAP_CODEC`, `Item.CODEC`, `DataComponentPatch.CODEC`, `DataComponentPatch.PatchKey`, `ItemStackTemplate.create`, `ItemStack.validateStrict`). Kind: semantic. Confidence: medium.
+
 ## 8. Item stack, item components and predicates
 
 This chapter gives the reference fields and the default rules for item stacks, item components, data component predicates and advancement predicates. An entry set in this chapter accepts a tag only with the `#` prefix. A number range in this chapter has the form of number bounds (REG-FLD-646).
@@ -3671,7 +3724,7 @@ Provenance: `source_suggested`. Confidence: medium. Experiment: REG-FLD-009.
 - **Write form notes:**
   - The value is one object. Each key is an item component id.
   - A key `<id>` sets the component. Its value has the form of the item component rule for that id.
-  - A key `!<id>` removes the component from the item defaults. Its value is `{}`.
+  - A key `!<id>` removes the component from the item defaults. Its value must be an object. The load ignores the fields of that object. The encoder writes `{}`.
   - The load fails when a key names no data component type. The load also fails when the key names a component with no persistent form.
   - The encoder skips components with no persistent form.
 - **Nested types:** every item component rule in this chapter.
@@ -7598,6 +7651,7 @@ Each point lists the affected rules and an experiment that decides it.
 - REG-FLD-429, REG-FLD-436, REG-FLD-438: The keys `type`, `source` and `object` are left out for the JSON form and the NBT form. It is not verified that every registry encoder on the sync path leaves them out. Experiment: load a pack with a dialog title of each contents type. Capture the registry data packet and check each component for these keys.
 - REG-FLD-413, REG-FLD-438, REG-FLD-441: The internal defaults of item stack (REG-FLD-500) and item component `profile` (REG-FLD-576) are not listed in this chapter. Experiment: none here. Check the rules of those types for the dialog body `item`, the hover event `show_item` and the object `player`.
 - REG-FLD-423: Each game rule value is a primitive, and no references were found. The value forms of each game rule are not listed. Experiment: load a pack with a `game_rules` test environment that sets each game rule. Check the log for load errors and capture the written values.
+- REG-FLD-442: the tooltip that the vanilla client shows for a `show_item` stack that fails the stack checks is not observed. The source suggests the tooltip of an empty stack. Experiment: run the experiment of REG-FLD-442. Record whether the client shows no tooltip, the name of `minecraft:air`, or the stick.
 - REG-FLD-500, REG-FLD-501: the analysis found item stack (REG-FLD-500) in the dialog body `item`, the particle options `item` and the hover event `show_item`. It found saved item stack (REG-FLD-501) only in entity NBT, block entity NBT and other data that is not synced. Item modifiers and enchantment effects were not traced for item stack fields. Experiment: make a pack with an item modifier and an enchantment effect that hold an item. Capture the synced registry data and check whether `count` `1` is left out (form of REG-FLD-500) or written (form of REG-FLD-501).
 - REG-FLD-540: `asset_id` is classified as key only and unchecked, because the server loads no `equipment_asset` registry. Experiment: make a pack with an item that has an `equippable` component with an `asset_id` that does not exist. Check the server log for the absence of a load error.
 - REG-FLD-513, REG-FLD-543, REG-FLD-534, REG-FLD-540, REG-FLD-576, REG-FLD-577: `item_model`, `tooltip_style`, `use_cooldown.cooldown_group`, `equippable.camera_overlay`, the skin texture fields of `profile` and `note_block_sound` are treated as plain identifiers, not references. `note_block_sound` names a sound event, but no load step checks it. Experiment: load a pack that sets each field to an identifier that does not exist. Check the server log for the absence of a load error.
