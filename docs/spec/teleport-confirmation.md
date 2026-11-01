@@ -21,8 +21,10 @@ section 6 gives the captured results.
 - **Move**: one serverbound `move_player_pos` packet.
 - **Pending teleport**: a teleport that the server sent and that no accept has confirmed.
 - **Newest id**: the `teleport_id` of the teleport that the server sent last on the connection.
-- **Resend**: a teleport that repeats the position of the pending teleport with a new
-  `teleport_id`.
+- **Resend**: a teleport that a move causes while a teleport is pending. It repeats the position of
+  the pending teleport with a new `teleport_id`.
+- **Correction**: a teleport that the server sends because an accept fails the movement checks. It
+  holds the position of the player.
 - **Tick**: one game tick. A vanilla server runs 20 ticks each second.
 
 ### 0.2 Provenance
@@ -65,7 +67,8 @@ packet. See result R1.
 the `teleport_id` 1. See result R2.
 
 **TP-CONFIRM-ID-002** (`black_box_confirmed`, semantic). Each later teleport has the `teleport_id`
-of the previous teleport plus 1. A resend obeys this rule too. See results R3 and R4.
+of the previous teleport plus 1. A resend and a correction obey this rule too. See results R3, R4
+and R16.
 
 ## 3. Rules
 
@@ -88,8 +91,17 @@ hold the position of the teleport. In result R7, the accept names a position 5 b
 server uses that position.
 
 **TP-CONFIRM-ACC-004** (`black_box_confirmed`, semantic). The movement checks apply to the position
-in an accept. In result R8, the accept names a position 1000 blocks away. The player stays at the
-position of the teleport, and the server sends a resend. Section 4 gives the limit as unresolved.
+in an accept. In results R8 and R16, the accept names a position 1000 blocks away. The player stays
+at the position of the teleport, and the server sends a correction. Section 4 gives the limit as
+unresolved.
+
+**TP-CONFIRM-ACC-007** (`black_box_confirmed`, semantic). A correction is a pending teleport. Until
+an accept confirms it, the server does not apply a move. An accept with its id confirms it. See
+result R16.
+
+**TP-CONFIRM-ACC-008** (`black_box_confirmed`, semantic). The server sends a correction for each
+accept that fails the movement checks. The interval of TP-CONFIRM-RES-003 does not apply. In result
+R17, the server sends three corrections in less than 0.5 seconds.
 
 ### 3.2 An accept when no teleport is pending
 
@@ -112,7 +124,7 @@ server applies the next move. See results R5, R6 and R11.
 ### 3.4 Resend
 
 **TP-CONFIRM-RES-001** (`black_box_confirmed`, semantic). Only a move causes a resend. Without a
-move, the server does not send a resend. In result R12, a client that sends no move for 25 seconds
+move, the server does not send a resend. A correction is not a resend (TP-CONFIRM-ACC-004). In result R12, a client that sends no move for 25 seconds
 gets no resend. In result R13, a confirmed connection with a new pending teleport gets no resend
 for 10 seconds.
 
@@ -168,6 +180,8 @@ scripted client that sends `player_loaded` when the play state starts. Answer ea
 | E13 | Confirm the first teleport. Send `tp`. Do not send an accept or a move for 10 seconds. | R13 |
 | E14 | Do not send an accept. Send a move each second for 25 seconds. Separately, wait 5 seconds, then send one move. | R14 |
 | E15 | Do not send an accept. Send a move each 50 ms for 12 seconds. | R15 |
+| E16 | Send an accept with the correct id and a position 1000 blocks away. Read the position. Send a move, and read the position. Send an accept with the new id at the position of the teleport. Send a move, and read the position. | R16 |
+| E17 | Send an accept with the correct id and a position 1000 blocks away. Each 0.2 seconds, do this again with the new id, two more times. | R17 |
 
 ## 6. Captured results
 
@@ -316,4 +330,29 @@ One move after a wait of 5 seconds:
 15.205 id=1   16.249 id=2   17.300 id=3   18.350 id=4   19.400 id=5   20.449 id=6
 21.499 id=7   22.549 id=8   23.599 id=9   24.649 id=10  25.699 id=11  26.749 id=12
 27.280 no disconnect
+```
+
+**R16.**
+
+```text
+ 7.724 player_position id=1 pos=(-40.500,78.000,9.500)
+ 7.977 send accept 1 at (959.5,78.0,9.5)
+ 8.020 player_position id=2 pos=(-40.500,78.000,9.500)
+ 8.280 position [-40.5, 78.0, 9.5]
+ 8.280 send move (-39.5,78.0,9.5)
+ 8.633 position [-40.5, 78.0, 9.5]
+ 8.633 send accept 2 at (-40.5,78.0,9.5)
+ 8.884 send move (-39.5,78.0,9.5)
+ 9.186 position [-39.5, 78.0, 9.5]
+```
+
+**R17.**
+
+```text
+10.680 send accept 1 at (971.5,63.0,-7.5)
+10.719 player_position id=2 pos=(-28.500,63.000,-7.500)
+10.881 send accept 2 at (971.5,63.0,-7.5)
+10.920 player_position id=3 pos=(-28.500,63.000,-7.500)
+11.082 send accept 3 at (971.5,63.0,-7.5)
+11.119 player_position id=4 pos=(-28.500,63.000,-7.500)
 ```
