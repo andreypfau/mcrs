@@ -12,6 +12,7 @@ use mcrs_minecraft_engine::session::GameProfile;
 use mcrs_minecraft_engine::session::HostAnchorRef;
 use mcrs_minecraft_engine_server::configuration::on_configuration_ack;
 use mcrs_minecraft_engine_server::login::{LoginPlugin, LoginState, SingleplayerProfile};
+use mcrs_minecraft_engine_server::{ShutdownPlugin, ShutdownRequest};
 use mcrs_minecraft_engine_world::session::{Place, Session, SessionPlacement};
 use mcrs_minecraft_engine_world::world::channels::{
     FROM_DIM_CAPACITY, TO_DIM_CAPACITY, TO_DIM_CONTROL_CAPACITY,
@@ -21,6 +22,7 @@ use mcrs_minecraft_network::metrics::PacketDispatcher;
 use mcrs_minecraft_network::{ConnectionState, ReceivedPacket, ServerSideConnection, SwitchMode};
 use mcrs_minecraft_protocol::decode::{PacketDecoder, PacketFrame};
 use mcrs_minecraft_protocol::packets::common::serverbound::ClientInformation;
+use mcrs_minecraft_protocol::packets::configuration;
 use mcrs_minecraft_protocol::packets::configuration::serverbound::{
     ServerboundClientInformation, ServerboundFinishConfiguration,
 };
@@ -410,6 +412,33 @@ fn a_connection_silent_in_login_is_disconnected_after_six_hundred_ticks() {
     assert_eq!(
         login_disconnect_reason(&client.received(&mut app)),
         serde_json::json!({"translate": "multiplayer.disconnect.slow_login"})
+    );
+}
+
+#[test]
+fn a_shutdown_after_the_login_finished_disconnects_in_the_protocol_the_client_switched_to() {
+    let mut app = server(None);
+    app.add_plugins(ShutdownPlugin);
+    let mut client = connect(&mut app);
+    send_hello(&mut app, &client, "Steve", Uuid::new_v4());
+    client.received(&mut app);
+
+    app.world_mut().write_message(ShutdownRequest);
+    app.update();
+
+    let frames = client.received(&mut app);
+    let [frame] = &frames[..] else {
+        panic!("{frames:?}");
+    };
+    assert_eq!(
+        frame.id,
+        configuration::clientbound::ClientboundDisconnect::ID
+    );
+    let packet =
+        configuration::clientbound::ClientboundDisconnect::decode(&mut &frame.body[..]).unwrap();
+    assert_eq!(
+        packet.reason,
+        Text::translate("multiplayer.disconnect.server_shutdown", Vec::new())
     );
 }
 
