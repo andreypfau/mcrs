@@ -685,7 +685,10 @@ mod tests {
                     .await
                     .unwrap();
             assert!(result.is_ok(), "{result:?}");
-            assert!(!received.is_empty());
+            assert!(
+                !received.is_empty(),
+                "the packet written before the drop arrives"
+            );
         });
     }
 

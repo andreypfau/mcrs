@@ -9,9 +9,14 @@ use mcrs_minecraft_network::ServerSideConnection;
 use mcrs_minecraft_protocol::ConnectionState;
 use mcrs_minecraft_text::Text;
 
-#[derive(Message)]
+use crate::login::LoginState;
+
+/// Asks the server to disconnect every connection, including those that arrive later, and to
+/// write [`AppExit::Success`] once no connection, queued disconnect or unsaved player is left.
+#[derive(Message, Clone, Copy, Debug, PartialEq, Eq)]
 pub struct ShutdownRequest;
 
+/// Handles [`ShutdownRequest`]. It installs no signal handler; the embedder writes the request.
 pub struct ShutdownPlugin;
 
 impl Plugin for ShutdownPlugin {
@@ -24,7 +29,12 @@ impl Plugin for ShutdownPlugin {
 pub(crate) fn shutdown_system(
     requests: MessageReader<ShutdownRequest>,
     mut shutting_down: Local<bool>,
-    mut connections: Query<(Entity, &mut ServerSideConnection, &ConnectionState)>,
+    mut connections: Query<(
+        Entity,
+        &mut ServerSideConnection,
+        &ConnectionState,
+        Option<&LoginState>,
+    )>,
     pending: Res<PendingDisconnectQueue>,
     departing: Query<(), With<Departing>>,
     mut commands: Commands,
@@ -37,10 +47,10 @@ pub(crate) fn shutdown_system(
         return;
     }
 
-    for (entity, mut side_connection, connection_state) in connections.iter_mut() {
+    for (entity, mut side_connection, &connection_state, login) in connections.iter_mut() {
         crate::login::disconnect(
             &mut side_connection,
-            *connection_state,
+            crate::login::client_protocol(connection_state, login),
             Text::translate("multiplayer.disconnect.server_shutdown", Vec::new()),
         );
         commands.entity(entity).remove::<ServerSideConnection>();

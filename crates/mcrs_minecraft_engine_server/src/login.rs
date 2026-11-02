@@ -145,7 +145,10 @@ pub fn duplicate_login_reason() -> Text {
 
 /// The protocol the client decodes. It switches on receiving the packet that ends a phase, while
 /// the server's state follows only on the client's acknowledgement.
-fn client_protocol(state: ConnectionState, login: Option<&LoginState>) -> ConnectionState {
+pub(crate) fn client_protocol(
+    state: ConnectionState,
+    login: Option<&LoginState>,
+) -> ConnectionState {
     match state {
         ConnectionState::Login if login == Some(&LoginState::Accepted) => {
             ConnectionState::Configuration
