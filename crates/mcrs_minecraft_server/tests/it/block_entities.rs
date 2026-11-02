@@ -292,7 +292,7 @@ fn despawning_a_section_leaves_no_orphan_block_entity() {
     }
 }
 
-/// `BeehiveBlockEntity.Occupant.CODEC` requires `entity_data`, and a `bees`
+/// A hive occupant requires `entity_data`, and a `bees`
 /// element without it fails the list codec outright, so a vanilla reader loads
 /// the hive with no bees at all.
 #[test]

@@ -9,7 +9,7 @@ pub const AXIS_Y: Axes = 2;
 pub const AXIS_Z: Axes = 4;
 pub const ALL_AXES: Axes = 7;
 
-/// `DensityFunction.axesFrom`.
+/// The bit an axis takes in a set of axes.
 #[inline]
 pub const fn axis_bit(axis: Axis) -> Axes {
     match axis {

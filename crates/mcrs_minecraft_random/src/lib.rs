@@ -100,7 +100,7 @@ where
     (l >> 16) as u64
 }
 
-/// `Util.shuffle`: a descending Fisher-Yates that spends `n - 1` draws, a slot
+/// A descending Fisher-Yates that spends `n - 1` draws, a slot
 /// swapped with itself as readily as with any other.
 pub fn shuffle<T, R: Random>(items: &mut [T], rng: &mut R) {
     for size in (2..=items.len()).rev() {
@@ -109,7 +109,7 @@ pub fn shuffle<T, R: Random>(items: &mut [T], rng: &mut R) {
     }
 }
 
-/// `Util.shuffledCopy`.
+/// A shuffled copy of `items`, drawn the way [`shuffle`] draws.
 pub fn shuffled<T: Clone, R: Random>(items: &[T], rng: &mut R) -> Vec<T> {
     let mut copy = items.to_vec();
     shuffle(&mut copy, rng);

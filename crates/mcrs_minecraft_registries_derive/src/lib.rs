@@ -23,8 +23,8 @@ pub fn registry_value(args: TokenStream, item: TokenStream) -> TokenStream {
     }
 }
 
-/// Reads and writes an enum as one map whose `key` names an entry of the static `registry`, the
-/// way `Codec.dispatch` does: the entry chooses the variant, the rest of the map is its body.
+/// Reads and writes an enum as one map whose `key` names an entry of the static `registry`: the
+/// entry chooses the variant, the rest of the map is its body.
 /// A variant reads the entry of its own name, `#[dispatch(Entry)]` another one and
 /// `#[dispatch(id = "ns:path")]` a name outside the registry. Every entry has a variant or is
 /// listed in `unsupported(..)`, unless `only` refuses the entries left out; `key_last` writes the

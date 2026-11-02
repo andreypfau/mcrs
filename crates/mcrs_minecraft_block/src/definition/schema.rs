@@ -415,7 +415,7 @@ impl Serialize for InstrumentSound {
     }
 }
 
-/// `BlockBehaviour.Properties.instrument` — the instrument a note block placed
+/// The instrument a note block placed
 /// above the block plays. Unrelated to the note block's own `instrument`
 /// property, which is an ordinary block state property.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]

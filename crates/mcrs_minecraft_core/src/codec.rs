@@ -6,7 +6,7 @@ use mcrs_minecraft_nbt::{from_tag, nbt_int_array};
 use serde::de::{DeserializeOwned, Error as _, IgnoredAny, MapAccess, SeqAccess, Visitor, value};
 use serde::{Deserialize, Deserializer, Serialize, Serializer, de};
 
-/// `Codec.INT` / `Codec.LONG`: any number's `intValue()` / `longValue()`. An
+/// An int or a long read from any number. An
 /// integer keeps its low bits; a fraction is dropped, and a value beyond the
 /// range keeps its low bits from JSON (`BigDecimal.intValue`) but saturates
 /// from NBT (`Double.intValue`). Vanilla wraps the exact decimal text, while
@@ -56,12 +56,12 @@ macro_rules! java_integer_value {
 java_integer_value!(int_value, i32);
 java_integer_value!(long_value, i64);
 
-/// `Codec.FLOAT`: any number's `floatValue()`.
+/// A float read from any number.
 pub fn float_value<'de, D: Deserializer<'de>>(d: D) -> Result<f32, D::Error> {
     f32::deserialize(d)
 }
 
-/// A `Codec.intRange(MIN, MAX)` payload, with the value `optionalFieldOf`
+/// An int in `MIN..=MAX`, with the value an absent field
 /// falls back to. Stated once here rather than as a validator per field,
 /// because the tree registries carry a dozen distinct bounds across sixty-odd
 /// fields.
@@ -226,7 +226,7 @@ impl<const MIN: i32, const MAX: i32, const DEFAULT: i32> Serialize for Bounded<M
 pub type NonNegativeInt = Bounded<0, { i32::MAX }>;
 pub type PositiveInt = Bounded<1, { i32::MAX }>;
 
-/// `ExtraCodecs.POSITIVE_FLOAT`: the low bound is exclusive.
+/// A float above zero: the low bound is exclusive.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 #[serde(try_from = "f32")]
 pub struct PositiveFloat(pub f32);
@@ -590,7 +590,7 @@ color_int!(
     |[r, g, b, a]: [f32; 4]| argb_from_floats(a, r, g, b)
 );
 
-/// `ExtraCodecs.STRING_RGB_COLOR`: written as `#rrggbb`; read from that, from
+/// An RGB colour written as `#rrggbb`; read from that, from
 /// a packed int, or from `[r, g, b]`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Default)]
 pub struct HexRgb(pub u32);

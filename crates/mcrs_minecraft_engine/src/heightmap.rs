@@ -48,7 +48,7 @@ fn rebuild_heightmap_predicates(
     )));
 }
 
-/// `Heightmap.Types` ids. The client reads the packet's map keys through them,
+/// Heightmap type ids. The client reads the packet's map keys through them,
 /// and takes only the three the server is expected to send.
 const WORLD_SURFACE: i32 = 1;
 

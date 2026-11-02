@@ -48,14 +48,14 @@ pub fn mul_add64(a: f64, b: f64, c: f64) -> f64 {
     return a * b + c;
 }
 
-/// `Mth.lerp(float delta, float from, float to)`. Always inlined: the noise
+/// Float lerp from `from` to `to` by `delta`. Always inlined: the noise
 /// kernels call it eight times per lattice cell.
 #[inline(always)]
 pub fn lerp(delta: f32, from: f32, to: f32) -> f32 {
     mul_add(delta, to - from, from)
 }
 
-/// The lerp every `LerpFunction` sampler computes, which is not `Mth.lerp`: an
+/// The lerp every lerp density function computes, which is not [`lerp`]: an
 /// alpha of exactly zero or one returns that endpoint untouched, where
 /// `first + 1 * (second - first)` misses `second` by an ulp.
 #[inline]

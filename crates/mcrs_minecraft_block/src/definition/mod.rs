@@ -139,8 +139,7 @@ impl BlockEntry {
         )
     }
 
-    /// The state that differs from `id` in one property, the way vanilla's
-    /// `BlockState.setValue` does. One property is one digit of the state id,
+    /// The state that differs from `id` in one property. One property is one digit of the state id,
     /// so this is arithmetic over the layout rather than a search.
     pub fn with(
         &self,
@@ -158,8 +157,7 @@ impl BlockEntry {
         self.state_at(offset - current * stride + target * stride)
     }
 
-    /// The state's value for one property, the way vanilla's
-    /// `BlockState.getValue` does.
+    /// The state's value for one property.
     pub fn value_of(&self, id: BlockStateId, property: &str) -> Option<&PropertyValue> {
         if !self.owns(id) {
             return None;
@@ -941,8 +939,8 @@ fn intern<T: Clone + PartialEq>(table: &mut Vec<T>, value: &T) -> u16 {
     }
 }
 
-/// Java's `Block.isShapeFullBlock`: the shape covers the whole block. The boxes
-/// of a `VoxelShape` never overlap, so covering the cube is the same as filling
+/// Whether the shape covers the whole block. The boxes
+/// of a shape never overlap, so covering the cube is the same as filling
 /// its volume without leaving it.
 fn fills_the_cube(boxes: &[ModelBox]) -> bool {
     const EPSILON: f32 = 1.0 / 4096.0;
@@ -967,7 +965,7 @@ fn fills_the_cube(boxes: &[ModelBox]) -> bool {
     (volume - 16.0 * 16.0 * 16.0).abs() < 0.5
 }
 
-/// Java's `BlockBehaviour.calculateSolid`: the collision shape's bounds are
+/// Whether a block is solid: the collision shape's bounds are
 /// either large enough on average or a full block tall.
 ///
 /// The corpus carries no `forceSolidOn`/`forceSolidOff` component, so this is

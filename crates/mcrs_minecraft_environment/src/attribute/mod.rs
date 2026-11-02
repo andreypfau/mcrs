@@ -86,7 +86,7 @@ impl EnvironmentAttributeMap {
     }
 }
 
-/// One entry of an [`EnvironmentAttributeMap`], mirroring `EnvironmentAttributeMap.Entry`.
+/// One entry of an [`EnvironmentAttributeMap`].
 ///
 /// The JSON has two shapes: a bare value, which implies the `override`
 /// modifier, or `{"argument": …, "modifier": …}` naming the modifier

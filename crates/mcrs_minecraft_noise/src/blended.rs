@@ -23,8 +23,7 @@ const MAIN_FACTOR: f64 = 12.75;
 const LIMIT_FIRST_OCTAVE: i32 = -15;
 const MAIN_FIRST_OCTAVE: i32 = -7;
 
-/// The three fbm stacks one `BlendedNoise` draws, in stream order. Vanilla's
-/// `BlendedNoise.FbmSet`.
+/// The three fbm stacks one `BlendedNoise` draws, in stream order.
 struct FbmSet {
     min_limit: NoiseStack<SmearedPerlinNoise>,
     max_limit: NoiseStack<SmearedPerlinNoise>,
@@ -45,7 +44,7 @@ struct Inner {
     fbm: FbmSet,
 }
 
-/// Vanilla's `BlendedNoise.createFbm` schedule: octaves highest frequency
+/// The fbm octave schedule: octaves highest frequency
 /// first, which is the order they draw from the stream, each halving both its
 /// frequency and its smear scale while its weight doubles.
 fn fbm_layers(first_octave: i32, value_factor: f64) -> impl Iterator<Item = (f64, f64)> {
@@ -77,7 +76,7 @@ fn create_fbm(
     stack.build()
 }
 
-/// `BlendedNoise.range()`. The two limit stacks are what escapes furthest and
+/// The declared value bound. The two limit stacks are what escapes furthest and
 /// the main stack only picks between them, so the bound is one limit fbm.
 ///
 /// The per-layer bound is the smeared noise's `±(|fudge_y_scale| + 2.0)`, not a
@@ -149,7 +148,7 @@ impl BlendedNoise {
         }
     }
 
-    /// `BlendedNoise.range()`.
+    /// The declared value bound.
     pub fn range(&self) -> Interval {
         self.inner.range
     }

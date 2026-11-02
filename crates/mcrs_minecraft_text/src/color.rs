@@ -264,7 +264,7 @@ impl TryFrom<&str> for NamedColor {
     }
 }
 
-/// `TextColor.parseColor`: `#` followed by whatever `Integer.parseInt(s, 16)`
+/// A colour written as `#` followed by whatever `Integer.parseInt(s, 16)`
 /// takes, in `0..=0xFFFFFF`.
 impl TryFrom<&str> for RgbColor {
     type Error = ColorError;

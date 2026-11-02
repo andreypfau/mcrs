@@ -9,7 +9,7 @@ use mcrs_voxel::BlockPos;
 
 use std::marker::PhantomData;
 
-/// `LightDebugRenderer.MAX_RENDER_DIST`.
+/// How far from the player, in blocks on each axis, the light levels are drawn.
 const RADIUS: i32 = 10;
 /// The nearest labels the pool can hold. A 21-cube of lit cells reaches several
 /// thousand, and every one of them is a laid-out text node.

@@ -1,5 +1,5 @@
 //! `update_client_blocks_per_dim` resolves recipients through the per-dim
-//! `Column.PlayerObservers` Component, eliminating the two-frame buffer
+//! `PlayerObservers` component of the column, eliminating the two-frame buffer
 //! rotation that caused the TNT silent-drop regression. The test drives the
 //! per-dim system body directly with placed blocks and asserts the emitted
 //! `OutboundPlayerPacket` carries the chunk's observer set.

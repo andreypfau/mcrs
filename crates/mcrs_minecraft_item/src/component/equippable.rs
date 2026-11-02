@@ -46,7 +46,7 @@ impl EquipmentSlot {
         Self::ALL.get(id as usize).copied()
     }
 
-    /// `EquipmentSlot.STREAM_CODEC` numbers the slots differently from the
+    /// The slot id the wire carries numbers the slots differently from the
     /// equipment packet's ordinal: hands first, then armour, offhand at 5.
     pub const fn equippable_id(self) -> u8 {
         match self {

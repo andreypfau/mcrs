@@ -54,7 +54,7 @@ impl std::ops::Deref for VoxelId {
     }
 }
 
-/// `Mth.ceillog2`: the width an index into `count` distinct values must have.
+/// The ceiling of log2: the width an index into `count` distinct values must have.
 /// Answers 0 for a count of 0 or 1, which is what a single-value palette needs.
 #[inline]
 pub const fn ceillog2(count: usize) -> u32 {
@@ -79,7 +79,7 @@ pub trait SectionKind {
     }
 
     /// The width the save format stores at. Values are indices into the palette
-    /// list at every width — `Configuration.Global` widens `bitsInMemory` only.
+    /// list at every width; only the in-memory width of the global palette differs.
     #[inline]
     fn storage_bits(palette_len: usize) -> u32 {
         match ceillog2(palette_len) {

@@ -50,8 +50,8 @@ fn on_player_position(event: On<Received<ClientboundPlayerPosition>>, mut comman
     };
     if !position.flags.is_empty() {
         // chisle: every relative flag is treated as absolute. Our server
-        // only ever sends absolute teleports; the upgrade is vanilla's
-        // `PositionMoveRotation.calculateAbsolute`.
+        // only ever sends absolute teleports; applying them means adding
+        // each flagged component to the current one.
         warn!(
             "relative teleport flags are not applied: {:?}",
             position.flags

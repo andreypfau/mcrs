@@ -12,7 +12,7 @@ use mcrs_minecraft_core::{codec::Validate, validated};
 use mcrs_minecraft_registries::{Named, Refs, Resolved, dispatch, registry_value};
 use mcrs_minecraft_value_provider::VerticalAnchor;
 
-/// `Vec3i.offsetCodec(16)`.
+/// A block offset, each axis in `-16..=16`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub struct Offset(pub [i32; 3]);
 

@@ -41,8 +41,8 @@ impl<'a> Default for ChunkData<'a> {
 /// A single 2048-byte light nibble payload (4 bits per block × 4096 blocks)
 /// for one 16×16×16 chunk.
 ///
-/// Encoded on the wire as `VarInt(2048) + 2048 bytes` to match vanilla's
-/// `ByteBufCodecs.byteArray(2048)` codec used inside `ClientboundLightUpdatePacketData`.
+/// Encoded on the wire as `VarInt(2048) + 2048 bytes` in the light
+/// update data: every array carries its own length.
 /// We keep it as a newtype so a `Cow<'_, [LightChunk]>` keeps zero-copy semantics
 /// while the per-element prefix is emitted automatically.
 ///
@@ -133,7 +133,7 @@ pub struct LightData<'a> {
     pub block_light_arrays: Cow<'a, [LightChunk]>,
 }
 
-/// Vanilla's `ByteBufCodecs.BIT_SET` is `BitSet.toByteArray()`: the words as
+/// A bit set on the wire is `BitSet.toByteArray()`: the words as
 /// little-endian bytes with trailing zero bytes dropped, behind a VarInt length.
 fn encode_bit_set(words: &[u64], mut w: impl Write) -> Result<()> {
     let mut bytes: Vec<u8> = words.iter().flat_map(|word| word.to_le_bytes()).collect();

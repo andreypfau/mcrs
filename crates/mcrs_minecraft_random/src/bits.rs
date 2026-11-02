@@ -45,7 +45,7 @@ pub(crate) trait BitSource {
         self.next_bits(24) as f32 * F32_MULTIPLIER
     }
 
-    /// `BitRandomSource.DOUBLE_MULTIPLIER` is declared from the float literal
+    /// The modern source's double multiplier is the float literal
     /// `1.110223E-16F`, which rounds exactly onto `2^-53`, so the modern source and
     /// `java.util.Random` agree bit for bit here.
     fn bits_f64(&mut self) -> f64 {

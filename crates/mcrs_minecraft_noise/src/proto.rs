@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 
 validated!(NoiseParam);
 
-/// `RegistryCodecs.holder(Registries.NOISE, …)` with inlining allowed: an id
+/// A noise reference: an id
 /// into `worldgen/noise`, or the parameters object itself.
 #[derive(Hash, PartialEq, Eq, Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -19,14 +19,14 @@ pub const MAX_BASE_OCTAVE: i32 = 32;
 pub const MIN_OCTAVE_COUNT: usize = 1;
 pub const MAX_OCTAVE_COUNT: usize = 32;
 pub const MAX_AMPLITUDE: f64 = 1_000_000.0;
-/// `Codec.doubleRange(1.0E-5F, …)`: a float literal widened, so the bound is
+/// The bound is a float literal widened, so the bound is
 /// `1.0000000474974513e-5` and not the decimal it looks like.
 pub const MIN_BASE_AMPLITUDE: f64 = 1.0e-5f32 as f64;
 
 const TARGET_DEVIATION: f64 = 0.3333333333333333;
 const PERLIN_STANDARD_DEVIATION: f64 = 0.2702247831245211;
 
-/// `NormalNoise.Parameters`: the datapack shape alone. Everything derived from
+/// Noise parameters: the datapack shape alone. Everything derived from
 /// it — the surviving octaves, their weights and the declared range — belongs to
 /// [`crate::normal::NormalNoise`].
 #[derive(Hash, PartialEq, Eq, Debug, Clone, Serialize, Deserialize)]
@@ -391,7 +391,7 @@ macro_rules! bounded_float {
     };
 }
 
-/// A `Codec.DOUBLE` payload.
+/// A double that hashes by its bits.
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 pub struct HashableF64(pub f64);
 
