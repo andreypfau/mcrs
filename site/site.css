@@ -31,6 +31,7 @@
   --radius: 0px;
 }
 
+.i18n-pending body { visibility: hidden; }
 body { letter-spacing: -0.005em; }
 h1, h2, h3 { font-weight: 600; letter-spacing: -0.04em; line-height: 0.95; color: inherit; }
 code, pre { font-family: var(--font-code); font-size: 0.9em; }
@@ -52,6 +53,13 @@ p code { background: var(--surface); padding: 0.08em 0.3em; }
 .nav-links { display: flex; gap: 1.5rem; flex-wrap: wrap; font-size: var(--step-body); }
 .nav-links a { text-decoration-color: transparent; color: var(--on-dark); }
 .nav-links a:hover, .nav-links a:focus-visible { text-decoration-color: currentColor; }
+.lang { display: flex; gap: 0.25rem; margin-left: auto; }
+.lang:empty { display: none; }
+.lang button { padding: 0.125rem 0.375rem; font-size: var(--step-small); color: var(--on-dark-soft); transition: color var(--t-hover) ease; }
+.lang button:hover { color: var(--on-dark); }
+.lang button[aria-pressed="true"] { color: var(--on-dark); font-weight: 600; }
+.lang button:focus-visible { outline-color: var(--on-dark); }
+@media (min-width: 64.01rem) and (max-width: 70rem) { .js .nav { column-gap: 1.25rem; } }
 .hero h1 { font-size: var(--step-head); }
 .hero-lede { font-size: var(--step-lead); line-height: 1.35; max-width: 30ch; margin-top: 2rem; color: var(--on-dark); }
 .hero-actions { display: flex; align-items: center; gap: 1.75rem; margin-top: 2.25rem; flex-wrap: wrap; }
@@ -151,6 +159,7 @@ p code { background: var(--surface); padding: 0.08em 0.3em; }
 .track { position: relative; container-type: inline-size; height: calc(6 * 26px + 5 * 4px); }
 .band { position: absolute; left: 0; right: 0; height: 26px; background: #ecebe7; }
 .blk { position: absolute; top: 0; left: 0; height: 26px; width: calc(18cqw - 3px); padding: 0 0.4rem; color: #fff; font-style: normal; font-size: 0.75rem; line-height: 26px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; translate: calc(var(--x, 0) * 1cqw) calc(var(--y, 0) * 30px); transition: translate 750ms var(--ease-expo) calc(var(--d, 0) * 25ms), opacity var(--t-ui) ease; }
+:lang(ru) .blk { padding-inline: 0.2rem; }
 .blk.off { opacity: 0; }
 .blk.net { width: calc(36cqw - 3px); }
 .ent { background: var(--c-ent); }
@@ -323,6 +332,7 @@ p code { background: var(--surface); padding: 0.08em 0.3em; }
   .wall { grid-template-columns: repeat(5, minmax(0, 1fr)); }
   .wall-labels { display: none; }
   .wall-cell[data-layer]::before { content: attr(data-layer); width: 100%; font-size: 0.75rem; color: var(--muted); }
+  .wall-cell[data-label]::before { content: attr(data-label); }
   .wall-cell.empty::before { content: none; }
   .gameplay-text, .gameplay-lists { grid-column: 1 / -1; }
   .snap-text, .update { grid-column: 1 / -1; }
@@ -338,6 +348,7 @@ p code { background: var(--surface); padding: 0.08em 0.3em; }
 @media (max-width: 40rem) {
   .nav { gap: 0.5rem 1.5rem; }
   .nav-links { gap: 1rem; font-size: var(--step-small); }
+  .lang button { min-height: 44px; min-width: 44px; }
   .tick-clause { padding: 2.5rem var(--margin); }
   .tick-stage { padding: 2rem var(--margin); }
   .timeline { grid-template-columns: 3.6rem minmax(0, 1fr); }
@@ -353,6 +364,7 @@ p code { background: var(--surface); padding: 0.08em 0.3em; }
   .ct-row [role="rowheader"] { font-weight: 600; padding: 0 1rem 0.5rem; }
   .ct-row > span:nth-child(2)::before { content: "Vanilla: "; color: var(--muted); }
   .ct-row > span:nth-child(3)::before { content: "Forks and ports: "; color: var(--muted); }
+  .ct-row > span[data-label]::before { content: attr(data-label); }
   .ct-row > .ct-ours { margin-top: 0.4rem; padding: 0.6rem 1rem; }
   .ct-row > .ct-ours::before { content: "mc.rs: "; opacity: 0.8; }
   .ct-row:nth-child(odd) .ct-ours { background: var(--accent); }
@@ -366,4 +378,15 @@ p code { background: var(--surface); padding: 0.08em 0.3em; }
   .run-tile { padding: 2.25rem 1.25rem; }
   .foot { grid-template-columns: 1fr; margin-top: 20svh; gap: 0.5rem; }
   .foot-legal { text-align: left; }
+}
+
+/* long Russian words would otherwise push the compare table's columns out of line */
+@media (min-width: 40.01rem) and (max-width: 46rem) {
+  :lang(ru) .ct-row > span { padding-inline: 0.625rem; }
+}
+
+/* the switcher shares the wordmark's row, the links get their own */
+@media (max-width: 28rem) {
+  .js .nav { row-gap: 0; }
+  .js .nav-links { order: 1; flex-basis: 100%; }
 }

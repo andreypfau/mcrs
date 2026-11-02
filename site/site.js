@@ -1,4 +1,5 @@
 (() => {
+  const { t } = I18N;
   const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
   const fig = document.querySelector('.ecs');
   const range = document.getElementById('tick-range');
@@ -67,12 +68,13 @@
     cell.style.gridArea = `${r + 1} / ${c + 1}`;
     frag.append(cell);
   }));
-  [['a', '5 / 2 / 7 / 8', 'Shard A · thread 1'], ['b', '5 / 9 / 8 / 16', 'Shard B · thread 2'], ['ab', '5 / 2 / 8 / 16', 'Shard A+B · one thread, in order']]
-    .forEach(([cls, area, label]) => {
+  [['a', '5 / 2 / 7 / 8'], ['b', '5 / 9 / 8 / 16'], ['ab', '5 / 2 / 8 / 16']]
+    .forEach(([cls, area]) => {
       const box = document.createElement('div');
       box.className = 'shard-box ' + cls;
+      box.dataset.shard = cls;
       box.style.gridArea = area;
-      box.innerHTML = `<span>${label}</span>`;
+      box.append(document.createElement('span'));
       frag.append(box);
     });
   map.append(frag);
@@ -82,14 +84,13 @@
   let splitTimer;
   const shardRead = () => {
     const state = map.dataset.state;
-    if (state === 'apart') return [['Redstone shards', '2, one thread each'], ['Outcome', 'the same on 1 thread or 16']];
-    if (state === 'linked') return [['Redstone shards', '1, merged at once'], ['Outcome', 'as if they were always one']];
-    return [['Redstone shards', `1, splits in ${map.dataset.left} tick${map.dataset.left === '1' ? '' : 's'}`], ['Outcome', 'as if they were always one']];
+    const count = state === 'splitting' ? t('shards.read.splitting', { n: Number(map.dataset.left) }) : t(`shards.read.${state}`);
+    return [[t('shards.read.key'), count], [t('shards.outcome.key'), t(`shards.outcome.${state === 'apart' ? 'apart' : 'linked'}`)]];
   };
   const setShards = (state, left = '') => {
     map.dataset.state = state;
     map.dataset.left = String(left);
-    act.textContent = state === 'apart' ? 'Place dust in the gap' : state === 'linked' ? 'Break the link' : 'Splitting…';
+    act.textContent = t(`shards.act.${state}`);
     act.disabled = state === 'splitting';
     if (fig.dataset.stage === '4') { setRead(shardRead()); placeBlocks(stages[4]); }
   };
@@ -144,33 +145,24 @@
   blocks.forEach((b, i) => b.style.setProperty('--d', i));
   const laneLabels = fig.querySelectorAll('[data-lane]');
   const end = fig.querySelector('.tick-end');
-  const cores = ['Core 1', 'Core 2', 'Core 3', 'Core 4', 'Core 5', 'Core 6'];
+  const cores = Array(6).fill('core');
 
   const stages = {
-    1: { name: 'One loop, nested',
-      desc: 'The world ticks each chunk, each chunk ticks each entity, and a zombie on a pressure plate runs redstone from inside its own tick. Networking already has threads; this loop does not.',
-      read: [['Simulation threads', '1'], ['Who can touch what', 'anything, from anywhere']] },
-    2: { name: 'Data in tables',
-      desc: 'An entity is a row. A zombie has a position, velocity, health and goals; falling sand has a block and no health; an arrow has only a position and a velocity.',
-      read: [['An entity', 'a row of data'], ['Behaviour', 'not in the row: in systems']] },
-    3: { name: 'Behaviour in systems',
-      desc: 'A system is one rule over every row that has its columns. Two run at once unless one writes what the other touches, and one system splits its rows across cores. That is level one.',
-      read: [['Systems at once', 'all that touch different data'], ['Still in order', 'everything that writes blocks']],
-      lanes: cores, busy: 4, end: 72,
+    1: {},
+    2: {},
+    3: { lanes: cores, busy: 4, end: 72,
       at: { grav: [0, 0], burn: [1, 0], goals: [2, 0], move1: [0, 18], move2: [1, 18], rsA: [3, 0], rsB: [3, 18], fl: [3, 36], bt: [3, 54], conn: null } },
-    4: { name: 'Split by what can reach what',
-      desc: 'Redstone, fluids and block ticks all write the blocks. Shards split that work by what can affect what within a tick, so two machines in one section are two shards. That is level two.',
-      read: null,
-      lanes: cores, busy: 6, end: 36,
+    4: { lanes: cores, busy: 6, end: 36,
       at: { grav: [0, 0], burn: [1, 0], goals: [2, 0], move1: [0, 18], move2: [1, 18], rsA: [3, 0], rsB: [4, 0], fl: [5, 0], bt: [2, 18], conn: null },
       linked: { rsB: [3, 18] } },
-    5: { name: 'One dimension, many machines',
-      desc: 'A shard is data, not a thread. Players connect to an edge; nodes own chunks and their shards and hand them over as players move. The target is ten thousand players in one dimension.',
-      read: [['Players connect to', 'the edge'], ['Chunks and shards', 'move between nodes']],
-      lanes: ['Edge', 'Node A', 'Node A', 'Node B', 'Node B', 'Node B'], busy: 6, end: 36,
+    5: { lanes: ['edge', 'nodeA', 'nodeA', 'nodeB', 'nodeB', 'nodeB'], busy: 6, end: 36,
       at: { conn: [0, 0], grav: [1, 0], move1: [1, 18], burn: [2, 0], move2: [2, 18], goals: [3, 0], bt: [3, 18], rsA: [4, 0], fl: [4, 18], rsB: [5, 0] } },
   };
 
+  const stageRead = (n) => (n === 4 ? shardRead() : [1, 2].map((i) => [t(`stage.${n}.read${i}.key`), t(`stage.${n}.read${i}.value`)]));
+
+  let lanes;
+  const labelLanes = () => laneLabels.forEach((l, i) => { l.textContent = t(`lane.${lanes[i]}`, { n: i + 1 }); });
   const placeBlocks = (s) => {
     const at = s.linked && map.dataset.state !== 'apart' ? { ...s.at, ...s.linked } : s.at;
     blocks.forEach((b) => {
@@ -180,9 +172,10 @@
     });
     laneLabels.forEach((l, i) => {
       const busy = s.linked && map.dataset.state !== 'apart' ? i !== 4 : i < s.busy;
-      l.textContent = s.lanes[i];
       l.classList.toggle('idle', !busy);
     });
+    lanes = s.lanes;
+    labelLanes();
     end.style.setProperty('--end', s.end);
   };
 
@@ -190,30 +183,51 @@
   const text = document.querySelector('.stage-text');
   const stops = document.querySelectorAll('.stops button');
   let swapTimer;
+  const writeStageText = () => {
+    document.querySelector('[data-stage-name]').textContent = t(`stage.${fig.dataset.stage}.name`);
+    document.querySelector('[data-stage-desc]').textContent = t(`stage.${fig.dataset.stage}.desc`);
+  };
   const show = (n) => {
     const s = stages[n];
     fig.dataset.stage = String(n);
     range.value = n;
-    range.setAttribute('aria-valuetext', s.name);
+    range.setAttribute('aria-valuetext', t(`stage.${n}.name`));
     range.parentElement.style.setProperty('--f', String((n - 1) / 4));
     stops.forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.go === String(n))));
     panes.forEach((p) => { p.hidden = !p.dataset.show.split(' ').includes(String(n)); });
     if (n === 2) pick(null);
     if (n === 3) pick([...sysButtons].find((b) => b.getAttribute('aria-pressed') === 'true')?.dataset.sys || 'gravity');
-    setRead(s.read || shardRead());
+    setRead(stageRead(n));
     walk(n === 1);
     handover(n === 5);
     if (s.at) placeBlocks(s);
     text.classList.add('swap');
     clearTimeout(swapTimer);
     swapTimer = setTimeout(() => {
-      document.querySelector('[data-stage-name]').textContent = s.name;
-      document.querySelector('[data-stage-desc]').textContent = s.desc;
+      writeStageText();
       text.classList.remove('swap');
     }, 200);
   };
   range.addEventListener('input', () => show(Number(range.value)));
   stops.forEach((b) => b.addEventListener('click', () => show(Number(b.dataset.go))));
+
+  const cells = document.querySelectorAll('.wall-cell[data-layer]');
+  const compareHeads = document.querySelectorAll('.ct-headrow > span');
+  const compareRows = document.querySelectorAll('.ct-row:not(.ct-headrow)');
+  const render = () => {
+    const n = Number(fig.dataset.stage);
+    writeStageText();
+    setRead(stageRead(n));
+    range.setAttribute('aria-valuetext', t(`stage.${n}.name`));
+    act.textContent = t(`shards.act.${map.dataset.state}`);
+    map.querySelectorAll('.shard-box').forEach((box) => { box.firstChild.textContent = t(`shard.${box.dataset.shard}`); });
+    labelLanes();
+    cells.forEach((cell) => { cell.dataset.label = t(`layer.${cell.dataset.layer}`); });
+    compareRows.forEach((row) => [1, 2].forEach((i) => { row.children[i].dataset.label = `${compareHeads[i].textContent}: `; }));
+  };
+
   show(3);
   show(1);
+  render();
+  document.addEventListener('i18n:change', render);
 })();
