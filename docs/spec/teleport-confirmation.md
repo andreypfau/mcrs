@@ -123,13 +123,14 @@ server applies the next move. See results R5, R6 and R11.
 
 ### 3.4 Resend
 
-**TP-CONFIRM-RES-001** (`black_box_confirmed`, semantic). Only a move causes a resend. Without a
-move, the server does not send a resend. A correction is not a resend (TP-CONFIRM-ACC-004). In result R12, a client that sends no move for 25 seconds
-gets no resend. In result R13, a confirmed connection with a new pending teleport gets no resend
-for 10 seconds.
+**TP-CONFIRM-RES-001** (`black_box_confirmed`, semantic). The server does not send a resend on a
+timer. Without a move, the server does not send a resend. Section 4 gives the other move packets as
+unresolved. A correction is not a resend (TP-CONFIRM-ACC-004). In result R12, a client that sends
+no move for 25 seconds gets no resend. In result R13, a confirmed connection with a new pending
+teleport gets no resend for 10 seconds.
 
 **TP-CONFIRM-RES-002** (`black_box_confirmed`, semantic). When a move arrives while a teleport is
-pending, and at least about 20 ticks have passed since the last teleport, the server sends a resend.
+pending, and about 20 ticks or more have passed since the last teleport, the server sends a resend.
 In results R4 and R14, the first move after a wait causes a resend at once.
 
 **TP-CONFIRM-RES-003** (`black_box_confirmed`, semantic). While moves continue to arrive, the
@@ -140,20 +141,23 @@ each 1.05 seconds. See result R15. Section 4 gives the exact number of ticks as 
 teleport, not the position of the move. See results R4, R14 and R15.
 
 **TP-CONFIRM-RES-005** (`black_box_confirmed`, semantic). The server does not disconnect a client
-because it does not confirm a teleport. Results R12 and R15 show this for 25 and 12 seconds. A longer
-time is unresolved.
+because it does not confirm a teleport. Results R12 and R15 show this for 25 and 12 seconds. A
+longer time is unresolved.
 
 ## 4. Unresolved
 
-- **U1**: the exact interval of a resend. The results agree with 20 ticks and with 21 ticks. Two
-  results, one each 1 second and one each 2 seconds, come from a client that sends a move each
-  second (result R14).
+- **U1**: the exact interval of a resend. The results agree with 20 ticks and with 21 ticks. When
+  the client sends a move each second, the interval between resends is 1 second or 2 seconds
+  (result R14).
 - **U2**: the limit on the distance in TP-CONFIRM-ACC-004. 5 blocks pass and 1000 blocks fail.
 - **U3**: whether the yaw and the pitch of an accept set the rotation of the player. The experiments
   did not read the rotation.
 - **U4**: the value of `teleport_id` after the largest VarInt.
 - **U5**: whether `move_player_pos_rot`, `move_player_rot` and `move_player_status_only` cause a
-  resend. The experiments send only `move_player_pos`.
+  teleport, as a move does. The experiments send only `move_player_pos`.
+- **U6**: the result of an accept with the id of an older teleport when no teleport is pending.
+  TP-CONFIRM-ACC-005 and TP-CONFIRM-ACC-006 state only the newest id and an id that the server never
+  sent.
 
 ## 5. Experiments
 
