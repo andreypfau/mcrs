@@ -67,8 +67,8 @@ does not see a change to a file at another time. See results R3 and R4.
 **BAN-FILE-004** (`black_box_confirmed`, semantic). When the server reads a player ban at its start,
 these defaults apply, and it writes the result to the file. See result R4.
 
-| Field | Value that is missing or not valid | Result |
-|-------|------------------------------------|--------|
+| Field | Condition | Result |
+|-------|-----------|--------|
 | `created` | missing or not valid | the time of the read |
 | `source` | missing | `(Unknown)` |
 | `expires` | missing or not valid | `forever` |
@@ -80,8 +80,8 @@ a `uuid`. The ban does not apply, and the write at the start removes it. See res
 **BAN-FILE-006** (`black_box_confirmed`, semantic). A time has the form
 `yyyy-MM-dd HH:mm:ss Z`. The server writes the time in its local zone. See result R4.
 
-**BAN-FILE-007** (`black_box_confirmed`, deviation). When a file is not valid JSON, a vanilla server
-stops during its start. Section 5 gives the correct behaviour as unresolved. See result R5.
+**BAN-FILE-007** (`unresolved`). The behaviour of a server when a ban file is not valid JSON is
+unresolved (U6). A vanilla server stops during its start, and the file does not change. See result R5.
 
 ## 2. Joining
 
@@ -116,15 +116,14 @@ See result R11.
 
 ## 3. Expiry
 
-**BAN-EXP-001** (`black_box_confirmed`, semantic). An expired ban does not refuse a player. See
-results R7 and R8.
+**BAN-EXP-001** (`black_box_confirmed`, semantic). An expired ban does not refuse a player. This
+includes the first join after the ban expires. See results R7 and R8, and BAN-DEV-001.
 
-**BAN-EXP-002** (`black_box_confirmed`, semantic). `banlist` shows an expired ban. The server removes
-all the expired bans from the ban list when it next checks a join. The file keeps them until the next
-write. See result R8.
+**BAN-EXP-002** (`black_box_confirmed`, unspecified). The time at which a server removes an expired
+ban from the ban list and from the file is unspecified. See results R7 and R8.
 
-**BAN-EXP-003** (`black_box_confirmed`, deviation). See section 5, item D1. A server must let a player
-join when the only ban of that player has expired.
+On a vanilla server, `banlist` shows an expired ban until the join of a player with a ban. That join
+removes all the expired bans from the ban list. The file keeps them until the next write.
 
 ## 4. Commands
 
@@ -142,7 +141,7 @@ translation keys are unresolved (U1).
 | `pardon <target>` | not banned | `Nothing changed. The player isn't banned` |
 | `ban-ip <address> <reason>` | new | `Banned IP <address>: <reason>` |
 | `ban-ip <address>` | banned | `Nothing changed. That IP is already banned` |
-| `ban-ip <text>` | not an address or a player that is online | `Invalid IP address or unknown player` |
+| `ban-ip <text>` | neither an address nor the name of a player that is online | `Invalid IP address or unknown player` |
 | `pardon-ip <address>` | banned | `Unbanned IP <address>` |
 | `pardon-ip <address>` | not banned | `Nothing changed. That IP isn't banned` |
 | `pardon-ip <text>` | not an address | `Invalid IP address` |
@@ -170,33 +169,42 @@ R1 and R6.
 it selects. See result R9.
 
 **BAN-CMD-006** (`black_box_confirmed`, semantic). In offline mode, for a name that the server does
-not know, `ban` stores the name in lower case with the id of that lower-case name. A player whose
-name has an upper-case letter has another id and can join. See result R13. `whitelist.md` states the
-same behaviour for its command, and it marks the alternatives as unresolved.
+not know and that no account holds, `ban` stores the name in lower case with the id of that
+lower-case name. A player whose name has an upper-case letter has another id and can join. See
+result R13 and U7. `whitelist.md`, WL-CMD-003, states the same behaviour for `whitelist add`, and it
+asks whether this behaviour is an accident of the reference.
 
 **BAN-CMD-007** (`black_box_confirmed`, semantic). `ban-ip` accepts the name of a player that is
 online, and it bans the address of that player. It disconnects each online player with that address,
 with the translation key `multiplayer.disconnect.ip_banned`. The console adds the line
-`This ban affects <n> player(s): <names>`. See result R11.
+`This ban affects <n> player(s): <names>`. When no player that is online has that address, the
+console does not show this line. See results R10 and R11.
 
 ## 5. Intentional deviations
 
-- **D1**: on a vanilla server, the first join by a player whose own ban has expired can end with a
-  closed connection and no packet. The result R8 shows this in two runs of three. The server removes
-  the ban, and the next join works. This looks like a defect. A server must not copy it.
-- **D2**: a vanilla server stops during its start when a ban file is not valid JSON (BAN-FILE-007).
-  `whitelist.md`, WL-FILE-004, shows that a damaged whitelist file only empties the list. The correct
-  behaviour is unresolved (U6).
+### BAN-DEV-001: The first join after a ban expires
+
+- **Rule:** BAN-EXP-001.
+- **Reference:** the first join of a player whose own ban has expired fails, when no earlier join
+  has removed that ban. The connection closes before `login_finished`, and the client gets no
+  `login_disconnect`. That join removes all the expired bans, and the next join of that player
+  works. See result R8. In result R7, the join of `blfuture` removed the expired ban first.
+- **Visible to the client:** yes. The first join fails with no reason.
+- **Test:** a differential test ignores the first join of a player whose ban has expired.
 
 ## 6. Unresolved
 
 - **U1**: the translation keys of the replies in BAN-CMD-001.
 - **U2**: the form of the time in BAN-JOIN-003. The result shows `2099-01-01 at 05:00:00 GMT+05:00`.
 - **U3**: an address ban without a reason, an address ban with an `expires` time, and the defaults of
-  BAN-FILE-004 for an address ban.
+  BAN-FILE-004 for an address ban. Also a player ban without `name`, and a player ban with a `uuid`
+  that is not valid.
 - **U4**: the order of the lines of `banlist`.
 - **U5**: `banlist` with both kinds of ban.
-- **U6**: whether a server must stop or continue when a ban file is not valid JSON.
+- **U6**: whether a server must stop or continue when a ban file is not valid JSON (BAN-FILE-007). A
+  start with an empty ban list lets a banned player join. `whitelist.md`, WL-FILE-004, states that a
+  reload of a whitelist file that is not valid JSON empties the whitelist. That rule is about a
+  reload, not a start.
 - **U7**: `ban` looks for a name at an external service. A name that an account holds can get another
   result. The experiments did not test this.
 - **U8**: an IPv6 address, and an address ban with a host name.
@@ -270,11 +278,11 @@ banlist does not name blruntime
 | Player | Entry | Result of a join |
 |--------|-------|------------------|
 | `blfuture` | `expires` 2099, reason `custom text` | refused, text below |
-| `blforever` | correct id, `name` is `Other`, reason `by id` | refused, `with":["by id"]` |
+| `blforever` | correct id, `name` is `Other`, reason `by id` | refused, `"with":["by id"]` |
 | `blbyname` | another id, correct name | joins |
 | `blminimal` | only `uuid` and `name` | refused, default reason |
 | `blnouuid` | no `uuid` | joins |
-| `blbaddate` | `created` is `yesterday`, `expires` is `soon`, reason `x` | refused, `with":["x"]` |
+| `blbaddate` | `created` is `yesterday`, `expires` is `soon`, reason `x` | refused, `"with":["x"]` |
 
 ```text
 blfuture: {"translate":"multiplayer.disconnect.banned.reason","with":["custom text"],
