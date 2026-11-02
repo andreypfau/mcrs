@@ -59,6 +59,17 @@
     </div>
   </div>
 
+  <div class="tick-control">
+    <div class="range-wrap"><span class="rail" aria-hidden="true"><span class="fill"></span></span><label class="sr-only" for="tick-range">Step through one tick</label><input id="tick-range" class="range" type="range" min="1" max="5" step="1" value="1" aria-valuetext="One loop, nested"></div>
+    <ol class="stops">
+      <li><button type="button" data-go="1" aria-pressed="true">Nested loop</button></li>
+      <li><button type="button" data-go="2" aria-pressed="false">Tables</button></li>
+      <li><button type="button" data-go="3" aria-pressed="false">Systems</button></li>
+      <li><button type="button" data-go="4" aria-pressed="false">Shards</button></li>
+      <li><button type="button" data-go="5" aria-pressed="false">Machines</button></li>
+    </ol>
+  </div>
+
   <div class="tick-stage">
     <figure class="ecs" data-ui data-stage="1">
       <pre class="calltree" data-show="1"><code><span class="tl" style="--in:0">world tick</span>
@@ -108,17 +119,6 @@
         <div><dt data-read-k="1">Who can touch what</dt><dd data-read-v="1">anything, from anywhere</dd></div>
       </dl>
     </figure>
-  </div>
-
-  <div class="tick-control">
-    <div class="range-wrap"><span class="rail" aria-hidden="true"><span class="fill"></span></span><label class="sr-only" for="tick-range">Step through one tick</label><input id="tick-range" class="range" type="range" min="1" max="5" step="1" value="1" aria-valuetext="One loop, nested"></div>
-    <ol class="stops">
-      <li><button type="button" data-go="1" class="on">Nested loop</button></li>
-      <li><button type="button" data-go="2">Tables</button></li>
-      <li><button type="button" data-go="3">Systems</button></li>
-      <li><button type="button" data-go="4">Shards</button></li>
-      <li><button type="button" data-go="5">Machines</button></li>
-    </ol>
   </div>
 </section>
 
