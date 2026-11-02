@@ -1,4 +1,4 @@
-# mcrs
+# [mc.rs](https://mc.rs)
 
 **Minecraft Java Edition in Rust: a set of crates, a server and a client, built on [Bevy](https://bevyengine.org) ECS.**
 
