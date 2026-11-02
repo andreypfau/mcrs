@@ -311,6 +311,13 @@ p code { background: var(--surface); padding: 0.08em 0.3em; }
   .hero-pic img { flex: none; aspect-ratio: 16 / 10; }
   .tickfig { grid-template-columns: minmax(0, 1fr); }
   .tick-clause { gap: 2rem; }
+  .tick-stage { order: 1; }
+  .tick-control { padding-block: 1rem; }
+  .range-wrap { display: none; }
+  .stops { display: flex; flex-wrap: wrap; gap: 2px; margin-top: 0; padding: 2px; background: #ada593; }
+  .stops li, .stops li:first-child, .stops li:last-child { flex: 1 1 7rem; text-align: center; }
+  .stops button { width: 100%; min-height: 44px; padding: 0.55rem 0.5rem; background: var(--surface); transition: color var(--t-hover) ease, background-color var(--t-hover) ease; }
+  .stops button.on { background: var(--ink); color: var(--on-dark); }
   .ecs { min-height: 0; }
   .why-title, .why-body, .kit-title, .kit-body { grid-column: 1 / -1; }
   .ct-row { grid-template-columns: 3fr repeat(3, 2.3fr); }
@@ -340,9 +347,7 @@ p code { background: var(--surface); padding: 0.08em 0.3em; }
   .rail { top: 16px; }
   .range::-webkit-slider-thumb { width: 40px; height: 40px; margin-top: -16px; }
   .range::-moz-range-thumb { width: 40px; height: 40px; }
-  .stops { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-  .stops li, .stops li:first-child, .stops li:last-child { text-align: left; }
-  .stops button { font-size: var(--step-small); padding: 0.55rem 0; min-height: 44px; }
+  .stops button { font-size: var(--step-small); }
   .ct-headrow { display: none; }
   .ct-row { grid-template-columns: minmax(0, 1fr); padding: 1rem 0 1.1rem; }
   .ct-row > span { padding: 0.2rem 1rem; display: block; }
