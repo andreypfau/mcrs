@@ -17,6 +17,7 @@
 )]
 
 mod checks;
+mod clean_room;
 mod git;
 mod keys;
 mod metadata;

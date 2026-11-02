@@ -1,7 +1,7 @@
 use crate::metadata::{Kind, Workspace};
 use crate::scope::{self, Head, Scope};
 use crate::trigger::{Check, Trigger};
-use crate::{keys, parity};
+use crate::{clean_room, keys, parity};
 use std::cell::OnceCell;
 use std::collections::BTreeMap;
 use std::io::Write;
@@ -219,6 +219,7 @@ fn verdict(passed: bool, condition: &str, fix: &str) -> Outcome {
 
 pub fn run(ctx: &Context, check: Check) -> Outcome {
     match check {
+        Check::CleanRoom => clean_room_check(ctx),
         Check::Parity => parity_check(ctx),
         Check::Fmt => fmt(ctx),
         Check::Keys => keys::check(
@@ -360,6 +361,16 @@ fn layers(ctx: &Context) -> Outcome {
             linked.join(", ")
         ))
     }
+}
+
+fn clean_room_check(ctx: &Context) -> Outcome {
+    let changed = scope::changed_paths(&ctx.root, ctx.base()?, &ctx.head)?;
+    let selection = if ctx.trigger == Trigger::Commit {
+        clean_room::Selection::Changed(&changed)
+    } else {
+        clean_room::Selection::Every
+    };
+    clean_room::check(&ctx.root, &ctx.head, selection)
 }
 
 fn parity_check(ctx: &Context) -> Outcome {
