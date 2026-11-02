@@ -60,8 +60,10 @@ a server in online mode.
 - **Behavior:** the property `white-list` in `server.properties` turns the whitelist check on and
   off.
 - **Behavior:** the default `server.properties` of this version has `white-list=true`.
+- **Behavior:** a server without the file, or with a file without the property, takes that default
+  and writes the property to the file when it starts.
 
-Provenance: `black_box_confirmed` (R1, R3, R4, and `status.md`, section 7.1, for the default).
+Provenance: `black_box_confirmed` (R1, R3, R4, R19, and `status.md`, section 7.1, for the default).
 Kind: semantic. Confidence: high.
 
 ### WL-CFG-002: `whitelist on` and `whitelist off`
@@ -70,8 +72,7 @@ Kind: semantic. Confidence: high.
   `white-list` to `server.properties` at once.
 - **Behavior:** the value stays after a restart.
 
-Provenance: `black_box_confirmed` (R3, R4). Kind: semantic. Confidence: high for `whitelist on`.
-Confidence: medium for `whitelist off`, which no captured result shows.
+Provenance: `black_box_confirmed` (R3, R4, R20). Kind: semantic. Confidence: high.
 
 ### WL-CFG-003: The property `enforce-whitelist`
 
@@ -109,16 +110,28 @@ Provenance: `black_box_confirmed` (R4, R5). Kind: semantic. Confidence: high.
 ### WL-FILE-003: An entry without both fields
 
 - **Behavior:** the server ignores an entry that does not have both fields.
-- **Behavior:** a reload does not remove that entry from the file.
+- **Behavior:** a reload does not remove that entry from the file. The next write of the file
+  removes it (WL-CMD-002).
 
-Provenance: `black_box_confirmed` (R6). Kind: semantic. Confidence: high.
+Provenance: `black_box_confirmed` (R6, R16). Kind: semantic. Confidence: high.
 
-### WL-FILE-004: A file that is not valid JSON
+### WL-FILE-004: A file that does not hold a JSON array
 
-- **Behavior:** when the whitelist file is not valid JSON, a reload makes the whitelist empty.
+- **Behavior:** when the whitelist file is not valid JSON or does not hold a JSON array, a reload
+  makes the whitelist empty.
 - **Behavior:** the server keeps the file, logs a warning and replies as for a good reload.
+- **Behavior:** the same file at the start of the server gives an empty whitelist and a warning.
+  The server continues to start, and the stop of the server does not write the file.
+- **Behavior:** the next write of the file replaces the content (WL-CMD-002).
 
-Provenance: `black_box_confirmed` (R7). Kind: semantic. Confidence: medium. The rule rests on one
+Provenance: `black_box_confirmed` (R7, R15, R16). Kind: semantic. Confidence: high.
+
+### WL-FILE-005: A missing file
+
+- **Behavior:** when the whitelist file does not exist at the start of the server, the server
+  creates it with an empty array and starts with an empty whitelist.
+
+Provenance: `black_box_confirmed` (R15). Kind: semantic. Confidence: medium. The rule rests on one
 observation.
 
 ## 3. Join
@@ -171,36 +184,41 @@ Provenance: `black_box_confirmed` (R12). Kind: semantic. Confidence: high.
 
 ### WL-CMD-001: Replies
 
-- **Behavior:** the console shows these replies in English. `<name>` is the name of the entry. The
-  translation keys are unresolved (U3).
+- **Behavior:** each reply is a translatable component with the key in this table. The console
+  shows the English text. `<name>` is the name that WL-CMD-004 gives, not the name of the entry.
+- **Behavior:** a reply that the table marks as failed has the form
+  `{"text": "", "color": "red", "extra": [{"translate": <key>}]}`.
+- **Behavior:** the argument of `add.success` and `remove.success` is `<name>`.
+  `commands.whitelist.list` has two arguments: the number of entries as an integer, and the names
+  joined with `, ` as one string. U8 covers the order of the names.
 
-| Command | State | Reply |
-|---------|-------|-------|
-| `whitelist list` | empty | `There are no whitelisted players` |
-| `whitelist list` | one entry | `There are 1 whitelisted player(s): wa` |
-| `whitelist add <name>` | new | `Added <name> to the whitelist` |
-| `whitelist add <name>` | listed | `Player is already whitelisted` |
-| `whitelist remove <name>` | listed | `Removed <name> from the whitelist` |
-| `whitelist remove <name>` | not listed | `Player is not whitelisted` |
-| `whitelist on` | off | `Whitelist is now turned on` |
-| `whitelist on` | on | `Whitelist is already turned on` |
-| `whitelist off` | on | `Whitelist is now turned off` |
-| `whitelist off` | off | `Whitelist is already turned off` |
-| `whitelist reload` | any | `Reloaded the whitelist` |
+| Command | State | Key | Reply on the console |
+|---------|-------|-----|----------------------|
+| `whitelist list` | empty | `commands.whitelist.none` | `There are no whitelisted players` |
+| `whitelist list` | one entry | `commands.whitelist.list` | `There are 1 whitelisted player(s): wa` |
+| `whitelist add <name>` | new | `commands.whitelist.add.success` | `Added <name> to the whitelist` |
+| `whitelist add <name>` | listed, failed | `commands.whitelist.add.failed` | `Player is already whitelisted` |
+| `whitelist remove <name>` | listed | `commands.whitelist.remove.success` | `Removed <name> from the whitelist` |
+| `whitelist remove <name>` | not listed, failed | `commands.whitelist.remove.failed` | `Player is not whitelisted` |
+| `whitelist on` | off | `commands.whitelist.enabled` | `Whitelist is now turned on` |
+| `whitelist on` | on, failed | `commands.whitelist.alreadyOn` | `Whitelist is already turned on` |
+| `whitelist off` | on | `commands.whitelist.disabled` | `Whitelist is now turned off` |
+| `whitelist off` | off, failed | `commands.whitelist.alreadyOff` | `Whitelist is already turned off` |
+| `whitelist reload` | any | `commands.whitelist.reloaded` | `Reloaded the whitelist` |
 
 The permission levels of the command are in `command-permissions.md`.
 
-Provenance: `black_box_confirmed` (R2, R3, R6, R13). Kind: semantic. Confidence: high for the
-replies that section 8 shows. Confidence: medium for `Player is not whitelisted`,
-`Whitelist is now turned off` and `Whitelist is already turned off`, which no captured result
-shows.
+Provenance: `black_box_confirmed` (R2, R3, R6, R13, R16, R17, R18, R20). Kind: wire for the keys and
+the form. Confidence: high.
 
 ### WL-CMD-002: Add and remove write the file
 
 - **Behavior:** `whitelist add` and `whitelist remove` write the whitelist file at once.
+- **Behavior:** the write replaces the whole file with the whitelist in memory. Thus it removes the
+  entries that WL-FILE-003 ignores, and it replaces a file of WL-FILE-004.
+- **Behavior:** a `whitelist remove` that fails does not write the file.
 
-Provenance: `black_box_confirmed` (R2). Kind: semantic. Confidence: high for `whitelist add`.
-Confidence: medium for `whitelist remove`, which no captured result shows in the file.
+Provenance: `black_box_confirmed` (R2, R16). Kind: semantic. Confidence: high.
 
 ### WL-CMD-003: A new name in offline mode
 
@@ -209,11 +227,48 @@ Confidence: medium for `whitelist remove`, which no captured result shows in the
 - **Behavior:** `whitelist add` stores the name with the same case as in the command. The id of
   the entry is the version 3 UUID of `OfflinePlayer:<name>`.
 - **Behavior:** that id is the profile id of the player with that name. Thus the player can join.
-- **Edge cases:** U1 covers a name that an account holds. U2 covers the name of a player that
-  joined before.
+- **Edge cases:** U1 covers a name that an account holds. WL-CMD-004 covers a player that is
+  online.
 
 Provenance: `black_box_confirmed` (R2) for the form of the entry. The rule corrects the reference,
 and WL-DEV-001 records the reference behaviour. Kind: semantic. Confidence: high.
+
+### WL-CMD-004: How `whitelist add` and `whitelist remove` find an entry
+
+- **Behavior:** in offline mode, the command turns the name into a profile.
+  - A name of a player that is online matches with any case. The profile has the id and the name
+    of that player.
+  - For another name, the profile is the one in WL-CMD-003, also when that player joined before.
+    WL-DEV-001 and WL-DEV-004 record the vanilla server.
+- **Behavior:** the command compares the id of the profile with the id of each entry. It does not
+  compare the name of the entry.
+- **Edge cases:**
+  - The entry `{<the id of Wf>, "Other"}`: `whitelist remove Wf` removes it, and `whitelist add Wf`
+    fails. `whitelist remove Other` fails, and `whitelist add Other` adds a second entry with the
+    name `Other`.
+
+Provenance: `black_box_confirmed` (R21). The rule corrects the reference for a player that is not
+online, and WL-DEV-004 records the reference behaviour. Kind: semantic. Confidence: high.
+
+### WL-CMD-005: Who receives the replies
+
+- **Behavior:** the source of the command receives the reply of WL-CMD-001.
+- **Behavior:** after a success of `whitelist add`, `whitelist remove`, `whitelist on`,
+  `whitelist off` or `whitelist reload`, each other online operator also receives the message in
+  the form of CMDP-EXEC-004, with `chat.type.admin`, in gray and italic. A player that is not an
+  operator receives nothing.
+- **Behavior:** `whitelist list` and a failed command reach the source only.
+- **Behavior:** when the console runs the command, each online operator receives the
+  `chat.type.admin` form with the source name `Server`.
+
+Provenance: `black_box_confirmed` (R22). Kind: semantic. Confidence: high.
+
+### WL-CMD-006: The result of the command
+
+- **Behavior:** `execute store result` receives the number of entries from `whitelist list`, 1 from
+  another success, and 0 from a failed command.
+
+Provenance: `black_box_confirmed` (R23). Kind: semantic. Confidence: high.
 
 ### WL-ENF-001: Without enforcement
 
@@ -230,9 +285,10 @@ Provenance: `black_box_confirmed` (R3, R13). Kind: semantic. Confidence: high.
   reason is `multiplayer.disconnect.not_whitelisted`.
 - **Behavior:** this occurs after `whitelist on`, after `whitelist remove` and after
   `whitelist reload`, with the whitelist check on.
-- **Edge cases:** U6 covers `whitelist remove` and `whitelist reload` with the whitelist check off.
+- **Behavior:** with the whitelist check off, `whitelist remove` and `whitelist reload` do not
+  disconnect a player.
 
-Provenance: `black_box_confirmed` (R14). Kind: semantic. Confidence: high.
+Provenance: `black_box_confirmed` (R14, R18). Kind: semantic. Confidence: high.
 
 ### WL-ENF-003: Operators and enforcement
 
@@ -253,22 +309,55 @@ Provenance: `black_box_confirmed` (R14). Kind: semantic. Confidence: high.
 - **Visible to the client:** yes. The vanilla server refuses a player with an upper-case letter in
   the name. This server lets that player join. The console reply names `wa` on the vanilla server
   and `Wa` on this server.
-- **Test:** a differential test skips `whitelist add` with an upper-case name in offline mode.
+- **Reference, `whitelist remove`:** a name that the server does not know becomes the id of the
+  lower-case name. The vanilla server does not remove the entry `WlUpper` with
+  `whitelist remove WlUpper` (R21). This server removes it, since the entry has the id of that name.
+- **Test:** a differential test skips `whitelist add` and `whitelist remove` with an upper-case name
+  in offline mode.
+
+### WL-DEV-002: The default of the whitelist check
+
+- **Rule:** WL-CFG-001.
+- **Reference:** the whitelist check is on when no setting names it (R19).
+- **This server:** the whitelist check is off when no setting names it. This server has no console,
+  and `ops.json` starts empty, so the reference default refuses every player until an edit of the
+  files. The default of `enforce-whitelist` stays `false`.
+- **Visible to the client:** yes. On a new server, a player that is not listed joins.
+- **Test:** a differential test sets `white-list` on both servers.
+
+### WL-DEV-003: `whitelist on` and `whitelist off` after a restart
+
+- **Rule:** WL-CFG-002.
+- **Reference:** the commands write `white-list` to `server.properties`, and the value stays after
+  a restart (R3, R4, R20).
+- **This server:** the settings come from the environment, and this server has no
+  `server.properties`. The commands change the running server only. After a restart, the setting
+  applies again.
+- **Visible to the client:** yes, after a restart that follows one of the commands.
+- **Test:** a differential test does not restart the server after these commands.
+
+### WL-DEV-004: A player that joined before and is not online
+
+- **Rule:** WL-CMD-004.
+- **Reference:** the vanilla server also matches the name of a player that joined before, with any
+  case. After `WlUp` joins and leaves, `whitelist remove wlup` removes the entry of `WlUp` (R21).
+- **This server:** it does not keep the players that joined. In offline mode, the client chooses the
+  name, so a record of each name grows without a limit. `whitelist remove wlup` fails for the entry
+  of `WlUp` when that player is not online. `whitelist remove WlUp` removes it.
+- **Visible to the client:** yes, in the reply and in the whitelist file.
+- **Test:** a differential test uses the exact case for a player that is not online.
 
 ## 6. Unresolved
 
 - **U1**: `whitelist add` looks for the name at an external service. A name that an account holds
   gets another result: `whitelist add LB` replies with `LB`, and the server refuses the player `Lb`.
   The experiments did not read the stored id, and they did not run without a network.
-- **U2**: the result of `whitelist add` for the name of a player that joined the server before. No
-  experiment tested it.
-- **U3**: the translation keys of the replies in WL-CMD-001.
 - **U4**: the behaviour in online mode.
 - **U5**: the reply when the console names several players or a selector.
-- **U6**: whether WL-ENF-002 applies to `whitelist remove` and `whitelist reload` when the
-  whitelist check is off.
 - **U7**: whether WL-ENF-003 is an accident of the reference. The operator that WL-ENF-002
   disconnects can join again at once (WL-JOIN-004).
+- **U8**: the order of the names in `commands.whitelist.list`. After `whitelist add wlkeya` and
+  `whitelist add wlkeyb`, the list shows `wlkeyb, wlkeya` (R17).
 
 ## 7. Experiments
 
@@ -293,6 +382,15 @@ account holds, except where a step names a player.
 | E12 | With the whitelist check on, set `max-players=1` with one listed player online. Join as a listed player and as a player that is not listed. | R12 |
 | E13 | With `enforce-whitelist=false`, run `whitelist remove` for an online player. Join again after it leaves. | R13 |
 | E14 | With `enforce-whitelist=true`, run `whitelist on`, `whitelist remove` and `whitelist reload` with players online. Include an operator that is not listed. | R14 |
+| E15 | Start the server without the file, then with `not json` in it, then with `{}` in it. List, join, stop, and read the file each time. | R15 |
+| E16 | Write entries without both fields and one good entry. Reload, then run `whitelist add` and `whitelist remove`, and read the file after each. Write `not json`, reload, run `whitelist remove` for a name that is not listed, then `whitelist add`, and read the file after each. | R16 |
+| E17 | Connect a scripted client as an operator. Send each form of WL-CMD-001 as `chat_command`, and read `system_chat`. | R17 |
+| E18 | With `enforce-whitelist=true` and `white-list=false`, keep a listed player and a player that is not listed online. Run `whitelist reload`, then `whitelist remove` for the listed player. | R18 |
+| E19 | Remove the lines `white-list` and `enforce-whitelist`, start, join, stop, and read the file. Delete `server.properties`, start, and read the new file. | R19 |
+| E20 | With the whitelist check on, run `whitelist off` on the console, read `server.properties`, and restart. | R20 |
+| E21 | Use a new name for each step, and wait for the reply. Write entries where the id and the name differ, reload, and run `whitelist remove` and `whitelist add` with each name, in each case. Join as a player with an upper-case letter in the name, and repeat. | R21 |
+| E22 | Keep two operators and a player that is not an operator online. One operator runs each form of WL-CMD-001. Then the console runs `whitelist add`. | R22 |
+| E23 | Run `execute store result score #x r run <command>` for each form of WL-CMD-001, and read the score. | R23 |
 
 ## 8. Captured results
 
@@ -423,4 +521,111 @@ whitelist remove Eb -> Eb disconnected with the same key
 wlreload listed and online, whitelist.json edited to []
 still online after 1 second
 whitelist reload -> wlreload disconnected with the same key
+```
+
+**R15.**
+
+```text
+no file at the start: the server starts, whitelist.json holds []
+  whitelist list -> There are no whitelisted players, and a player is refused
+whitelist.json: not json, at the start: a warning in the server log, the server starts
+  whitelist list -> There are no whitelisted players, and a player is refused
+  after stop, whitelist.json still holds: not json
+whitelist.json: {}, at the start: a warning in the server log, the server starts
+  whitelist list -> There are no whitelisted players
+```
+
+**R16.**
+
+```text
+whitelist.json: [{"name": "wlonlyname"}, {"uuid": <an id>}, {"uuid": <the id of wlkept>, "name": "wlkept"}]
+whitelist reload, whitelist list -> There are 1 whitelisted player(s): wlkept
+whitelist add wlnewone -> whitelist.json holds wlkept and wlnewone, with an indent of two spaces
+whitelist remove wlkept -> Removed wlkept from the whitelist, whitelist.json holds wlnewone
+
+whitelist.json: not json, whitelist reload
+whitelist remove wlabsent -> Player is not whitelisted, whitelist.json still holds: not json
+whitelist add wlafterbad -> whitelist.json holds wlafterbad
+```
+
+**R17.** Each line shows the text component of one `system_chat` that the operator reads.
+
+```text
+whitelist list          -> {"translate": "commands.whitelist.none"}
+whitelist add wlkeya    -> {"translate": "commands.whitelist.add.success", "with": ["wlkeya"]}
+whitelist add wlkeya    -> {"text": "", "color": "red", "extra": [{"translate": "commands.whitelist.add.failed"}]}
+whitelist list          -> {"translate": "commands.whitelist.list", "with": [1, "wlkeya"]}
+whitelist add wlkeyb, whitelist list -> the names are "wlkeyb, wlkeya"
+whitelist remove wlkeyb -> {"translate": "commands.whitelist.remove.success", "with": ["wlkeyb"]}
+whitelist remove wlkeyb -> the red form, "commands.whitelist.remove.failed"
+whitelist off           -> the red form, "commands.whitelist.alreadyOff"
+whitelist on            -> {"translate": "commands.whitelist.enabled"}
+whitelist on            -> the red form, "commands.whitelist.alreadyOn"
+whitelist off           -> {"translate": "commands.whitelist.disabled"}
+whitelist reload        -> {"translate": "commands.whitelist.reloaded"}
+```
+
+**R18.**
+
+```text
+enforce-whitelist=true, white-list=false, wlusix listed, wlunlisted not listed, both online
+whitelist reload -> both still online after 1.5 seconds
+whitelist remove wlusix -> both still online after 1.5 seconds
+```
+
+**R19.**
+
+```text
+without the lines: a player is refused, then server.properties has white-list=true and
+  enforce-whitelist=false
+without the file: the new server.properties has white-list=true and enforce-whitelist=false
+```
+
+**R20.**
+
+```text
+whitelist off -> Whitelist is now turned off
+server.properties white-list=false, also after the restart
+```
+
+**R21.** `<n>` is a name that the server does not know, and `id(<n>)` is the id of that name.
+
+```text
+{id(<n>), "wlsomeother"}:  whitelist remove <n> -> Removed <n> from the whitelist, the file holds []
+{id(<n>), "WLNAME"}:       whitelist remove <n> -> Removed <n> from the whitelist, the file holds []
+{<another id>, <n>}:       whitelist remove <n> -> Player is not whitelisted, the file is unchanged
+{id(<n>), <n>}:            whitelist remove <N in upper case> -> Removed <n> from the whitelist
+{id(Wl..), "Wl.."}:        whitelist remove Wl.. -> Player is not whitelisted, the file is unchanged
+{id(<n>), "wlsomeother"}:  whitelist add <n> -> Player is already whitelisted, the file is unchanged
+{<another id>, <n>}:       whitelist add <n> -> Added <n> to the whitelist, the file has both entries
+
+after Wl.. joins:
+{id(Wl..), "wlsomeother"}: whitelist remove Wl.. -> Removed Wl.. from the whitelist
+{id(Wl..), "Wl.."}:        whitelist remove wl.. -> Removed Wl.. from the whitelist
+[]:                        whitelist add wl.. -> Added Wl.. to the whitelist, {id(Wl..), "Wl.."}
+```
+
+**R22.** `a` and `b` are operators, and `c` is not.
+
+```text
+a: whitelist add wlaud
+  a <- {"translate": "commands.whitelist.add.success", "with": ["wlaud"]}
+  b <- {"translate": "chat.type.admin", "color": "gray", "italic": true,
+        "with": [<the display name of a>, {"translate": "commands.whitelist.add.success", "with": ["wlaud"]}]}
+the same two messages for remove.success, enabled, disabled and reloaded
+only a receives: none, list, add.failed, remove.failed, alreadyOn, alreadyOff
+c receives none of them
+console: whitelist add wlbyconsole -> a and b <- chat.type.admin, with "Server" and add.success
+console: whitelist list -> a and b receive nothing
+```
+
+**R23.**
+
+```text
+list, empty -> 0        list, one entry -> 1        list, two entries -> 2
+add, new -> 1           add, listed -> 0
+remove, listed -> 1     remove, not listed -> 0
+on, off -> 1            on, on -> 0
+off, on -> 1            off, off -> 0
+reload -> 1
 ```

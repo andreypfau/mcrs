@@ -203,8 +203,8 @@ console does not show this line. See results R10 and R11.
 - **U5**: `banlist` with both kinds of ban.
 - **U6**: whether a server must stop or continue when a ban file is not valid JSON (BAN-FILE-007). A
   start with an empty ban list lets a banned player join. `whitelist.md`, WL-FILE-004, states that a
-  reload of a whitelist file that is not valid JSON empties the whitelist. That rule is about a
-  reload, not a start.
+  whitelist file that is not valid JSON gives an empty whitelist, at a reload and at a start. A
+  vanilla server thus treats the two kinds of file differently.
 - **U7**: `ban` looks for a name at an external service. A name that an account holds can get another
   result. The experiments did not test this.
 - **U8**: an IPv6 address, and an address ban with a host name.
