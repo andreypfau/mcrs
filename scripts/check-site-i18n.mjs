@@ -49,7 +49,22 @@ const uses = [...read('site.js').matchAll(/\bt\(\s*(?:'([^']+)'|`([^`]+)`)/g)].m
   return { source, pattern: new RegExp(`^${source.split(/\$\{[^}]*\}/).map(escapeRegExp).join('.+')}$`) };
 });
 for (const { source, pattern } of uses) {
-  if (![...keys].some((key) => pattern.test(key))) problems.push(`site/site.js: t(${source}) matches no key`);
+  if (!Object.keys(english).some((key) => pattern.test(key))) problems.push(`site/site.js: t(${source}) matches no key in #i18n-en`);
+}
+
+// What site.js fills its templates with. Stages and layers come from the markup; a new shard state or lane needs a line here.
+const stages = [...html.matchAll(/data-go="(\d+)"/g)].map((m) => m[1]);
+const built = [
+  ...stages.flatMap((n) => [`stage.${n}.name`, `stage.${n}.desc`]),
+  ...stages.filter((n) => n !== '4').flatMap((n) => ['read1', 'read2'].flatMap((r) => [`stage.${n}.${r}.key`, `stage.${n}.${r}.value`])),
+  ...['apart', 'linked', 'splitting'].map((state) => `shards.act.${state}`),
+  ...['apart', 'linked'].flatMap((state) => [`shards.read.${state}`, `shards.outcome.${state}`]),
+  ...['a', 'b', 'ab'].map((shard) => `shard.${shard}`),
+  ...['core', 'edge', 'nodeA', 'nodeB'].map((lane) => `lane.${lane}`),
+  ...[...html.matchAll(/data-layer="([^"]+)"/g)].map((m) => `layer.${m[1]}`),
+];
+for (const key of new Set(built)) {
+  if (!(key in english)) problems.push(`site/index.html: #i18n-en has no ${key}, which site/site.js builds at run time`);
 }
 for (const key of Object.keys(english)) {
   if (!markupKeys.has(key) && !uses.some(({ pattern }) => pattern.test(key))) problems.push(`site/index.html: #i18n-en key ${key} is used by nothing`);
