@@ -196,7 +196,7 @@
     range.value = n;
     range.setAttribute('aria-valuetext', s.name);
     range.parentElement.style.setProperty('--f', String((n - 1) / 4));
-    stops.forEach((b) => b.classList.toggle('on', b.dataset.go === String(n)));
+    stops.forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.go === String(n))));
     panes.forEach((p) => { p.hidden = !p.dataset.show.split(' ').includes(String(n)); });
     if (n === 2) pick(null);
     if (n === 3) pick([...sysButtons].find((b) => b.getAttribute('aria-pressed') === 'true')?.dataset.sys || 'gravity');

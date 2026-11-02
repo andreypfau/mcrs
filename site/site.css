@@ -166,7 +166,7 @@ p code { background: var(--surface); padding: 0.08em 0.3em; }
 .ecs-read dt { color: var(--muted); }
 .ecs-read dd { margin: 0; font-weight: 600; text-align: right; }
 
-.tick-control { grid-column: 1 / -1; background: var(--surface); padding: 1.75rem var(--margin) 1.5rem; }
+.tick-control { grid-column: 1 / -1; grid-row: 2; background: var(--surface); padding: 1.75rem var(--margin) 1.5rem; }
 .range-wrap { position: relative; --f: 0; }
 .rail { position: absolute; left: 0; right: 0; top: 12px; height: 8px; background: #ada593; pointer-events: none; }
 .fill { position: absolute; left: 0; top: 0; bottom: 0; width: calc(16px + (100% - 32px) * var(--f)); background: var(--ink); transition: width var(--t-ui) var(--ease-out); }
@@ -182,7 +182,7 @@ p code { background: var(--surface); padding: 0.08em 0.3em; }
 .stops li:last-child { text-align: right; }
 .stops button { font-size: var(--step-body); color: #46443d; padding: 0.4rem 0.25rem; transition: color var(--t-hover) ease; }
 .stops button:hover { color: var(--ink); }
-.stops button.on { color: var(--ink); font-weight: 600; }
+.stops button[aria-pressed="true"] { color: var(--ink); font-weight: 600; }
 
 /* why */
 .why { padding-top: var(--section); }
@@ -311,13 +311,12 @@ p code { background: var(--surface); padding: 0.08em 0.3em; }
   .hero-pic img { flex: none; aspect-ratio: 16 / 10; }
   .tickfig { grid-template-columns: minmax(0, 1fr); }
   .tick-clause { gap: 2rem; }
-  .tick-stage { order: 1; }
   .tick-control { padding-block: 1rem; }
   .range-wrap { display: none; }
   .stops { display: flex; flex-wrap: wrap; gap: 2px; margin-top: 0; padding: 2px; background: #ada593; }
   .stops li, .stops li:first-child, .stops li:last-child { flex: 1 1 7rem; text-align: center; }
   .stops button { width: 100%; min-height: 44px; padding: 0.55rem 0.5rem; background: var(--surface); transition: color var(--t-hover) ease, background-color var(--t-hover) ease; }
-  .stops button.on { background: var(--ink); color: var(--on-dark); }
+  .stops button[aria-pressed="true"] { background: var(--ink); color: var(--on-dark); }
   .ecs { min-height: 0; }
   .why-title, .why-body, .kit-title, .kit-body { grid-column: 1 / -1; }
   .ct-row { grid-template-columns: 3fr repeat(3, 2.3fr); }
