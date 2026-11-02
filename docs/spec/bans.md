@@ -171,8 +171,8 @@ it selects. See result R9.
 **BAN-CMD-006** (`black_box_confirmed`, semantic). In offline mode, for a name that the server does
 not know and that no account holds, `ban` stores the name in lower case with the id of that
 lower-case name. A player whose name has an upper-case letter has another id and can join. See
-result R13 and U7. `whitelist.md`, WL-CMD-003, states the same behaviour for `whitelist add`, and it
-asks whether this behaviour is an accident of the reference.
+result R13 and U7. `whitelist.md`, WL-DEV-001, records the same behaviour for `whitelist add` as an
+accident of the reference, and WL-CMD-003 corrects it.
 
 **BAN-CMD-007** (`black_box_confirmed`, semantic). `ban-ip` accepts the name of a player that is
 online, and it bans the address of that player. It disconnects each online player with that address,
