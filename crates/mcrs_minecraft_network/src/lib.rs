@@ -16,6 +16,7 @@ pub mod join;
 pub mod lan;
 #[cfg(feature = "bevy")]
 pub mod metrics;
+mod outbound;
 pub mod packet_io;
 #[cfg(all(feature = "bevy", not(target_family = "wasm")))]
 pub mod webtransport;
@@ -27,6 +28,8 @@ pub use std::time::Instant;
 #[cfg(target_family = "wasm")]
 pub use web_time::Instant;
 
+#[cfg(not(target_family = "wasm"))]
+pub use crate::outbound::OutboundReceiver;
 pub use crate::packet_io::{MAX_QUEUED_BYTES_PER_SOCKET, RawConnection};
 pub use mcrs_minecraft_protocol::ConnectionState;
 

@@ -1,13 +1,16 @@
 //! Loads the embedded server with bots over TCP and reports how long its ticks take.
 //!
 //! ```text
-//! cargo run --release -p mcrs_minecraft_server --example tick_load -- <bots> <single|parallel> [seconds]
+//! cargo run --release -p mcrs_minecraft_server --example tick_load -- <bots> <single|parallel> [apart|together] [seconds]
 //! ```
 //!
-//! Every third bot stays in the overworld, the others move to the nether and the end. Each bot
-//! walks away from spawn on its own heading, so the dimensions keep generating, lighting and
-//! sending columns. The report covers the ticks after the first third of the run.
+//! Every third bot stays in the overworld, the others move to the nether and the end. The bots
+//! keep walking from spawn, so the dimensions keep generating, lighting and sending columns.
+//! `apart`, the default, gives each bot its own heading, so bots rarely see the same column;
+//! `together` walks every bot of a dimension on one heading, so they all see the same columns.
+//! The report covers the ticks after the first third of the run.
 
+use std::str::FromStr;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, mpsc};
 use std::time::{Duration, Instant};
@@ -43,6 +46,25 @@ const VIEW_DISTANCE: u8 = 8;
 const BLOCKS_PER_TICK: f64 = 0.6;
 const OTHER_DIMENSIONS: [&str; 2] = ["minecraft:the_nether", "minecraft:the_end"];
 
+/// How the bots of a dimension spread out from spawn.
+#[derive(Clone, Copy, Debug)]
+enum Spread {
+    Apart,
+    Together,
+}
+
+impl FromStr for Spread {
+    type Err = anyhow::Error;
+
+    fn from_str(name: &str) -> anyhow::Result<Self> {
+        match name {
+            "apart" => Ok(Self::Apart),
+            "together" => Ok(Self::Together),
+            other => anyhow::bail!("unknown spread {other:?}, expected apart or together"),
+        }
+    }
+}
+
 struct TickTimes {
     tick: Duration,
     drain: Duration,
@@ -54,7 +76,8 @@ fn main() -> anyhow::Result<()> {
     let threading = args
         .get(2)
         .map_or(Ok(TickThreading::Parallel), |name| name.parse())?;
-    let seconds: u64 = args.get(3).map_or(Ok(40), |count| count.parse())?;
+    let spread: Spread = args.get(3).map_or(Ok(Spread::Apart), |name| name.parse())?;
+    let seconds: u64 = args.get(4).map_or(Ok(40), |count| count.parse())?;
 
     let mut plugins = MinecraftServerPlugins::default();
     plugins.core.asset_path = Some(ASSETS.to_owned());
@@ -81,7 +104,7 @@ fn main() -> anyhow::Result<()> {
         for index in 0..bots {
             let counts = counts.clone();
             tokio::spawn(async move {
-                if let Err(error) = bot(address, index, &counts).await {
+                if let Err(error) = bot(address, index, spread, &counts).await {
                     let after = started.elapsed().as_secs_f64();
                     eprintln!("bot{index} stopped after {after:.1} s: {error:#}");
                 }
@@ -98,7 +121,7 @@ fn main() -> anyhow::Result<()> {
 
     let measured = times.get(times.len() / 3..).unwrap_or_default();
     println!(
-        "{threading:?}: {} of {bots} bots joined, {} columns received, {} ticks measured",
+        "{threading:?}, {spread:?}: {} of {bots} bots joined, {} columns received, {} ticks measured",
         counts.joined.load(Ordering::Relaxed),
         counts.columns.load(Ordering::Relaxed),
         measured.len()
@@ -164,7 +187,12 @@ struct Counts {
     columns: AtomicUsize,
 }
 
-async fn bot(address: std::net::SocketAddr, index: usize, counts: &Counts) -> anyhow::Result<()> {
+async fn bot(
+    address: std::net::SocketAddr,
+    index: usize,
+    spread: Spread,
+    counts: &Counts,
+) -> anyhow::Result<()> {
     let io = PacketIo::connect(address).await?;
     let Joined { mut connection, .. } = join(
         io,
@@ -182,7 +210,10 @@ async fn bot(address: std::net::SocketAddr, index: usize, counts: &Counts) -> an
     .await?;
     counts.joined.fetch_add(1, Ordering::Relaxed);
 
-    let heading = index as f64 * 2.399_963;
+    let heading = match spread {
+        Spread::Apart => index as f64 * 2.399_963,
+        Spread::Together => 0.7,
+    };
     let step = DVec3::new(heading.cos(), 0.0, heading.sin()) * BLOCKS_PER_TICK;
     let mut destination = OTHER_DIMENSIONS.get(index % 3);
     let mut position: Option<DVec3> = None;

@@ -6,9 +6,7 @@ use bytes::Bytes;
 use mcrs_minecraft_engine_world::session::PlayerSession;
 use mcrs_minecraft_game_mode::GameMode;
 use mcrs_minecraft_network::event::Trigger;
-use mcrs_minecraft_protocol::VarInt;
 use mcrs_minecraft_protocol::uuid::Uuid;
-use mcrs_minecraft_protocol_game::chunk::{ChunkDataBlockEntity, LightData};
 use mcrs_minecraft_protocol_game::clientbound::{
     ClientboundAddEntity, ClientboundBlockUpdate, ClientboundChunkBatchFinished,
     ClientboundChunkBatchStart, ClientboundChunkCacheRadius, ClientboundCommandSuggestions,
@@ -127,16 +125,11 @@ pub enum PacketPayload {
     LightUpdate(ClientboundLightUpdate<'static>),
     Test(TestPayload),
     BlockUpdate(ClientboundBlockUpdate),
-    /// Carries owned chunk bytes and light data so dispatch_encode can build
-    /// ClientboundLevelChunkWithLight without World access. The per-dim chunk
-    /// producer encodes sections into `chunk_bytes`; dispatch constructs the
-    /// borrowing ChunkData at encode time.
+    /// A `level_chunk_with_light` packet with its id, encoded once for every player that
+    /// receives the column in the same drain.
     ChunkLoad {
         column: ColumnPos,
-        chunk_bytes: Vec<u8>,
-        heightmaps: Vec<(VarInt, Vec<u64>)>,
-        light_data: LightData<'static>,
-        block_entities: Vec<ChunkDataBlockEntity<'static>>,
+        packet: Bytes,
     },
     ChunkUnload(ClientboundForgetLevelChunk),
     /// Brackets the columns of one send batch, which the client times to answer with the rate

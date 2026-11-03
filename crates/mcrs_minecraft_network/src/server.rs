@@ -329,8 +329,7 @@ impl ServerSideConnection {
             // Neither protocol has a disconnect packet; the connection only closes.
             ConnectionState::Handshaking | ConnectionState::Status => return Ok(()),
         }
-        let blob = self.raw.take_encoded();
-        self.raw.try_send_blob(blob);
+        self.raw.send_written();
         Ok(())
     }
 

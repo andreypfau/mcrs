@@ -1,8 +1,8 @@
 use bevy_ecs::schedule::ScheduleLabel;
 
-use bevy_ecs::entity::{Entity, EntityHashSet};
+use bevy_ecs::entity::Entity;
 use bevy_ecs::message::{MessageReader, Messages};
-use bevy_ecs::prelude::{Commands, Mut};
+use bevy_ecs::prelude::Commands;
 use bevy_ecs::query::{With, Without};
 use bevy_ecs::system::{Query, Res, ResMut};
 
@@ -16,16 +16,13 @@ pub fn run_outbound_flush(world: &mut bevy_ecs::world::World) {
 }
 
 use mcrs_minecraft_network::metrics::{BridgeTelemetry, PacketDispatcher};
-use mcrs_minecraft_network::{ConnectionState, MAX_QUEUED_BYTES_PER_SOCKET, ServerSideConnection};
+use mcrs_minecraft_network::{ConnectionState, RawConnection, ServerSideConnection};
+use mcrs_minecraft_protocol::anyhow;
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundDisconnect;
-use mcrs_minecraft_protocol_game::chunk::ChunkData;
-use mcrs_minecraft_protocol_game::clientbound::{
-    ClientboundLevelChunkWithLight, ClientboundPlayerInfoUpdate,
-};
+use mcrs_minecraft_protocol_game::clientbound::ClientboundPlayerInfoUpdate;
 use mcrs_minecraft_protocol_game::player_list::{PlayerListActions, PlayerListEntry};
 use mcrs_minecraft_text::Text;
 use std::borrow::Cow;
-use std::sync::atomic::{AtomicU64, Ordering};
 use tracing::{trace, warn};
 
 use crate::bridge_queue::{DEPTH_DRAIN_TARGET, DEPTH_LIMIT, InboundRateBucket, OutboundQueue};
@@ -137,19 +134,18 @@ fn push_to_connection(
     }
 }
 
-/// Sixteen blobs at the socket's cap.
+/// Sixteen batches at the socket's cap.
 const STALLED_WRITER_BYTES: usize = 16 * mcrs_minecraft_network::MAX_QUEUED_BYTES_PER_SOCKET;
 
-/// Encode queued outbound packets for every active connection, enforce the
-/// drop-oldest policy, kick connections that overflow Critical/High backlogs,
-/// and coalesce all encoded bytes into a single `try_send_blob` per socket per
-/// tick.
+/// Hands queued outbound packets to every active connection's writer, enforces the
+/// drop-oldest policy, and kicks connections whose writer is dead or has stalled.
 ///
 /// Execution order: runs in `OutboundFlush`, after `bridge_outbound` filled
 /// queues; in FixedPostUpdate that flush runs before `bridge_inbound` reads.
 ///
-/// The kicks walk the connections in sequence, because a kick removes the connection through
-/// `Commands`; the encoding then runs in parallel over the connections that remain.
+/// Only the serialization of each packet runs here, in priority order; a packet encoded once
+/// for many players moves as a shared buffer. Framing, compression and the socket write run on
+/// each connection's writer task.
 #[cfg_attr(
     feature = "telemetry-tracy",
     tracing::instrument(name = "network::dispatch_encode", skip_all)
@@ -159,22 +155,17 @@ pub fn dispatch_encode(
     mut commands: Commands,
     mut telemetry: ResMut<BridgeTelemetry>,
 ) {
-    let mut kicked = EntityHashSet::default();
-    let mut queued = 0usize;
-    let unhandled = AtomicU64::new(0);
-    for (entity, mut queue, mut conn) in players.iter_mut() {
-        // --- (1) Disconnected writer check (AP-06 path) ---
+    for (entity, mut queue, mut conn) in &mut players {
+        // --- (1) Disconnected writer check ---
         if conn.raw.disconnected() {
             conn.raw
                 .append(&ClientboundDisconnect {
                     reason: Text::from("Connection lost"),
                 })
                 .ok();
-            let blob = conn.raw.take_encoded();
-            conn.raw.try_send_blob(blob);
+            conn.raw.send_written();
             warn!(conn = ?entity, "kick: the writer reported the socket dead");
             commands.entity(entity).remove::<ServerSideConnection>();
-            kicked.insert(entity);
             telemetry.kick_overflow_total += 1;
             continue;
         }
@@ -188,7 +179,6 @@ pub fn dispatch_encode(
                 "kick: the writer has stalled"
             );
             commands.entity(entity).remove::<ServerSideConnection>();
-            kicked.insert(entity);
             telemetry.kick_overflow_total += 1;
             continue;
         }
@@ -210,133 +200,92 @@ pub fn dispatch_encode(
             }
         }
 
-        // Nothing to encode only sends what was encoded before, which costs less than handing
-        // the connection to another thread.
-        if queue.total_len() == 0 {
-            encode_and_send(entity, &mut queue, &mut conn, &unhandled);
-        } else {
-            queued += 1;
-        }
+        hand_over(entity, &mut queue, &mut conn.raw, &mut telemetry);
     }
-
-    // Encoding compresses every large packet, so it runs on every connection at once; a kick
-    // above needs Commands and stays in the sequential walk.
-    let encode =
-        |(entity, mut queue, mut conn): (Entity, Mut<OutboundQueue>, Mut<ServerSideConnection>)| {
-            if !kicked.contains(&entity) && queue.total_len() > 0 {
-                encode_and_send(entity, &mut queue, &mut conn, &unhandled);
-            }
-        };
-    match queued {
-        0 => {}
-        1 => players.iter_mut().for_each(encode),
-        _ => players.par_iter_mut().for_each(encode),
-    }
-    telemetry.encode_unhandled_total += unhandled.into_inner();
 }
 
-fn encode_and_send(
+/// Serializes the queue in priority order and hands it, behind anything written to the
+/// connection directly, to the writer.
+fn hand_over(
     entity: Entity,
     queue: &mut OutboundQueue,
-    conn: &mut ServerSideConnection,
-    unhandled: &AtomicU64,
+    raw: &mut RawConnection,
+    telemetry: &mut BridgeTelemetry,
 ) {
-    // --- (3) Encode survivors in priority order ---
-    let encode_queues = [
-        std::mem::take(&mut queue.critical),
-        std::mem::take(&mut queue.high),
-        std::mem::take(&mut queue.normal),
-        std::mem::take(&mut queue.low),
-    ];
-
-    for sub_queue in encode_queues {
-        for pkt in sub_queue {
+    let OutboundQueue {
+        critical,
+        high,
+        normal,
+        low,
+    } = queue;
+    for sub_queue in [critical, high, normal, low] {
+        for pkt in sub_queue.drain(..) {
             trace!(
                 target: "mcrs_minecraft_engine::bridge",
                 conn = ?entity,
                 kind = ?std::mem::discriminant(&pkt.data),
                 "dispatch_encode"
             );
-            let _ = match pkt.data {
-                PacketPayload::LightUpdate(p) => conn.raw.append(&p),
-                PacketPayload::BlockUpdate(p) => conn.raw.append(&p),
-                PacketPayload::ChunkUnload(p) => conn.raw.append(&p),
-                PacketPayload::EntityPosSync(p) => conn.raw.append(&p),
-                PacketPayload::GameEvent(p) => conn.raw.append(&p),
-                PacketPayload::PlayerLookAt(p) => conn.raw.append(&p),
-                PacketPayload::PlayerAbilities(p) => conn.raw.append(&p),
-                PacketPayload::PlayerEnteredView(p) => conn.raw.append(&p),
-                PacketPayload::ChunkLoad {
-                    column,
-                    chunk_bytes,
-                    heightmaps,
-                    light_data,
-                    block_entities,
-                } => {
-                    let chunk_data = ChunkData {
-                        heightmaps: heightmaps
-                            .iter()
-                            .map(|(kind, data)| (*kind, Cow::Borrowed(data.as_slice())))
-                            .collect(),
-                        data: chunk_bytes.as_slice(),
-                        block_entities: Cow::Owned(block_entities),
-                    };
-                    conn.raw.append(&ClientboundLevelChunkWithLight {
-                        pos: column,
-                        chunk_data,
-                        light_data,
-                    })
-                }
-                PacketPayload::ChunkBatchStart(p) => conn.raw.append(&p),
-                PacketPayload::ChunkBatchFinished(p) => conn.raw.append(&p),
-                PacketPayload::PlayerLeftView(p) => conn.raw.append(&p),
-                PacketPayload::PlayerLogin(p) => conn.raw.append(&p),
-                PacketPayload::Respawn(p) => conn.raw.append(&p),
-                PacketPayload::OpLevelEntityEvent(p) => conn.raw.append(&p),
-                PacketPayload::SetChunkCacheCenter(p) => conn.raw.append(&p),
-                PacketPayload::SetChunkCacheRadius(p) => conn.raw.append(&p),
-                PacketPayload::PlayerInfoUpdate { entries } => {
-                    let wire_entries: Vec<PlayerListEntry<'_>> = entries
-                        .iter()
-                        .map(|e| PlayerListEntry {
-                            player_uuid: e.player_uuid,
-                            username: e.username.as_str(),
-                            game_mode: e.game_mode,
-                            listed: e.listed,
-                            ..Default::default()
-                        })
-                        .collect();
-                    conn.raw.append(&ClientboundPlayerInfoUpdate {
-                        actions: PlayerListActions::new()
-                            .with_add_player(true)
-                            .with_update_game_mode(true)
-                            .with_update_listed(true),
-                        entries: Cow::Borrowed(&wire_entries),
-                    })
-                }
-                PacketPayload::PlayerPosition(p) => conn.raw.append(&p),
-                PacketPayload::SystemChat(p) => conn.raw.append(&p),
-                PacketPayload::Commands(p) => conn.raw.append_encoded(&p),
-                PacketPayload::CommandSuggestions(p) => conn.raw.append(&p),
-                PacketPayload::SetTime(p) => conn.raw.append(&p),
-                PacketPayload::Test(_) => {
-                    // Test-only payload; no wire packet. Counted-drop so
-                    // test assertions on encode_unhandled_total work.
-                    unhandled.fetch_add(1, Ordering::Relaxed);
-                    Ok(())
-                }
-            };
+            if let PacketPayload::Test(_) = pkt.data {
+                // Test-only payload; no wire packet. Counted-drop so
+                // test assertions on encode_unhandled_total work.
+                telemetry.encode_unhandled_total += 1;
+                continue;
+            }
+            if let Err(error) = append_payload(raw, pkt.data) {
+                warn!(conn = ?entity, "an outbound packet did not encode: {error:#}");
+            }
         }
     }
+    raw.send_written();
+}
 
-    // --- (4) Coalesce + send ---
-    // A tick's packets are one blob, and several ticks can fall in one frame, so the blob
-    // is handed over in pieces the socket's queue can hold rather than counted against the
-    // player: what it carries is what the server chose to send.
-    let mut blob = conn.raw.take_encoded();
-    while !blob.is_empty() {
-        let piece = blob.split_to(blob.len().min(MAX_QUEUED_BYTES_PER_SOCKET));
-        conn.raw.try_send_blob(piece);
+fn append_payload(raw: &mut RawConnection, data: PacketPayload) -> anyhow::Result<()> {
+    match data {
+        PacketPayload::LightUpdate(p) => raw.append(&p),
+        PacketPayload::BlockUpdate(p) => raw.append(&p),
+        PacketPayload::ChunkUnload(p) => raw.append(&p),
+        PacketPayload::EntityPosSync(p) => raw.append(&p),
+        PacketPayload::GameEvent(p) => raw.append(&p),
+        PacketPayload::PlayerLookAt(p) => raw.append(&p),
+        PacketPayload::PlayerAbilities(p) => raw.append(&p),
+        PacketPayload::PlayerEnteredView(p) => raw.append(&p),
+        PacketPayload::ChunkLoad { packet, .. } | PacketPayload::Commands(packet) => {
+            raw.append_shared(packet);
+            Ok(())
+        }
+        PacketPayload::ChunkBatchStart(p) => raw.append(&p),
+        PacketPayload::ChunkBatchFinished(p) => raw.append(&p),
+        PacketPayload::PlayerLeftView(p) => raw.append(&p),
+        PacketPayload::PlayerLogin(p) => raw.append(&p),
+        PacketPayload::Respawn(p) => raw.append(&p),
+        PacketPayload::OpLevelEntityEvent(p) => raw.append(&p),
+        PacketPayload::SetChunkCacheCenter(p) => raw.append(&p),
+        PacketPayload::SetChunkCacheRadius(p) => raw.append(&p),
+        PacketPayload::PlayerInfoUpdate { entries } => {
+            let wire_entries: Vec<PlayerListEntry<'_>> = entries
+                .iter()
+                .map(|e| PlayerListEntry {
+                    player_uuid: e.player_uuid,
+                    username: e.username.as_str(),
+                    game_mode: e.game_mode,
+                    listed: e.listed,
+                    ..Default::default()
+                })
+                .collect();
+            raw.append(&ClientboundPlayerInfoUpdate {
+                actions: PlayerListActions::new()
+                    .with_add_player(true)
+                    .with_update_game_mode(true)
+                    .with_update_listed(true),
+                entries: Cow::Borrowed(&wire_entries),
+            })
+        }
+        PacketPayload::PlayerPosition(p) => raw.append(&p),
+        PacketPayload::SystemChat(p) => raw.append(&p),
+        PacketPayload::CommandSuggestions(p) => raw.append(&p),
+        PacketPayload::SetTime(p) => raw.append(&p),
+        PacketPayload::Test(_) => Ok(()),
     }
 }
 

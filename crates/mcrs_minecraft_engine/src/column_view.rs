@@ -7,7 +7,9 @@ use bevy_ecs::message::{MessageReader, MessageWriter};
 use bevy_ecs::prelude::{Added, Changed, Component, ContainsEntity, Local, On, Or, Query, With};
 use bevy_ecs::schedule::{IntoScheduleConfigs, SystemSet};
 use bevy_ecs::system::{Res, SystemParam};
+use bevy_tasks::ComputeTaskPool;
 use bevy_utils::Parallel;
+use bytes::{BufMut, Bytes, BytesMut};
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_chunk::{BlockLight, SkyLight};
 use mcrs_minecraft_engine_world::entity::physics::Transform;
@@ -33,13 +35,16 @@ use mcrs_minecraft_engine_world::world::storage::column::{
 };
 use mcrs_minecraft_engine_world::world::storage::section::SectionIndex;
 use mcrs_minecraft_network::event::Received;
-use mcrs_minecraft_protocol::VarInt;
+use mcrs_minecraft_protocol::{Packet, VarInt};
 use mcrs_minecraft_protocol_game::ColumnPos;
-use mcrs_minecraft_protocol_game::chunk::{ChunkDataBlockEntity, encode_section};
+use mcrs_minecraft_protocol_game::chunk::{
+    ChunkData, ChunkDataBlockEntity, LightChunk, encode_section,
+};
 use mcrs_minecraft_protocol_game::clientbound::ClientboundChunkBatchFinished;
 use mcrs_minecraft_protocol_game::clientbound::ClientboundChunkBatchStart;
 use mcrs_minecraft_protocol_game::clientbound::ClientboundChunkCacheRadius;
 use mcrs_minecraft_protocol_game::clientbound::ClientboundForgetLevelChunk;
+use mcrs_minecraft_protocol_game::clientbound::ClientboundLevelChunkWithLight;
 use mcrs_minecraft_protocol_game::clientbound::ClientboundSetChunkCacheCenter;
 use mcrs_minecraft_protocol_game::section::{biome_direct_bits, block_direct_bits};
 use mcrs_minecraft_protocol_game::serverbound::ServerboundChunkBatchReceived;
@@ -56,6 +61,7 @@ use mcrs_minecraft_biome_file::BiomeFile;
 use mcrs_minecraft_engine_world::world::storage::block_entity::BlockEntity;
 use mcrs_minecraft_heightmap::{MotionHeightmap, NoLeavesHeightmap, SurfaceHeightmap};
 use rustc_hash::{FxHashMap, FxHashSet};
+use std::borrow::Cow;
 use tracing::{trace, warn};
 
 pub struct ColumnViewPlugin;
@@ -633,13 +639,59 @@ fn column_distance_sq(pos: ColumnPos, center: SectionPos) -> i64 {
     dx * dx + dz * dz
 }
 
-/// A column encoded for a player, waiting for the player's batch to go out.
-pub(crate) struct EncodedColumn {
+/// A column the next batch of a player takes, before it is encoded.
+pub(crate) struct WantedColumn {
     player: Entity,
     host: Entity,
+    at: DimColumn,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+struct DimColumn {
     dim: Entity,
     column: ColumnPos,
-    payload: PacketPayload,
+}
+
+enum ColumnEncoding {
+    Pending,
+    Encoded(Bytes),
+    Skipped(ColumnSkip),
+}
+
+/// A column encoded once for every player whose batch takes it.
+struct SharedColumn {
+    at: DimColumn,
+    encoding: ColumnEncoding,
+}
+
+/// The columns of one drain, each encoded once. Kept between drains so its storage is reused.
+#[derive(Default)]
+pub(crate) struct SharedColumns {
+    slots: FxHashMap<DimColumn, usize>,
+    columns: Vec<SharedColumn>,
+}
+
+impl SharedColumns {
+    fn clear(&mut self) {
+        self.slots.clear();
+        self.columns.clear();
+    }
+
+    fn want(&mut self, at: DimColumn) {
+        let next = self.columns.len();
+        self.slots.entry(at).or_insert_with(|| {
+            self.columns.push(SharedColumn {
+                at,
+                encoding: ColumnEncoding::Pending,
+            });
+            next
+        });
+    }
+
+    fn encoding(&self, at: DimColumn) -> Option<&ColumnEncoding> {
+        let slot = self.slots.get(&at)?;
+        self.columns.get(*slot).map(|column| &column.encoding)
+    }
 }
 
 /// The sections, light, heightmaps and registries a column is encoded from.
@@ -681,8 +733,13 @@ pub(crate) struct ColumnSource<'w, 's> {
 /// answers with the columns a tick it managed. Chunks are sent at Critical priority so they
 /// are never dropped by the bridge.
 ///
-/// The players encode in parallel. Their batches then go out ordered by player, so the order
-/// does not depend on the thread count.
+/// The players pick their batches in parallel. Each column any batch takes is then encoded
+/// once, in parallel, and every player that takes it receives the same buffer. The batches go
+/// out ordered by player, so the order does not depend on the thread count.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "a system takes its params as arguments"
+)]
 pub(crate) fn send_column_queue(
     mut players: Query<(
         Entity,
@@ -695,8 +752,9 @@ pub(crate) fn send_column_queue(
     mut packet_writer: MessageWriter<OutboundPlayerPacket>,
     mut held: MessageWriter<ColumnHeld>,
     nearest: Local<Parallel<Vec<ColumnPos>>>,
-    mut encoded: Local<Parallel<Vec<EncodedColumn>>>,
-    mut sorted: Local<Vec<EncodedColumn>>,
+    mut picked: Local<Parallel<Vec<WantedColumn>>>,
+    mut wanted: Local<Vec<WantedColumn>>,
+    mut shared: Local<SharedColumns>,
 ) {
     // Most drains find nothing to send, and fanning out to the compute pool for nothing wakes
     // every one of its threads.
@@ -708,18 +766,9 @@ pub(crate) fn send_column_queue(
     if !any_can_send {
         return;
     }
-    let direct_bits = DirectBits {
-        block: block_direct_bits(source.block_definitions.state_count()),
-        biome: biome_direct_bits(
-            source
-                .registries
-                .registry::<BiomeFile>()
-                .map_or(0, |biomes| biomes.len()),
-        ),
-    };
     players
-        .par_iter_mut()
-        .for_each(|(player, mut chunk_view, sent_view, in_dim, host_anchor)| {
+        .par_iter()
+        .for_each(|(player, chunk_view, sent_view, in_dim, host_anchor)| {
             let viewer = Viewer {
                 player,
                 host: host_anchor.0,
@@ -730,56 +779,120 @@ pub(crate) fn send_column_queue(
                     .unwrap_or(SectionPos::new(0, 0, 0)),
             };
             nearest.scope(|nearest| {
-                encoded.scope(|encoded| {
-                    encode_batch(
-                        &source,
-                        direct_bits,
-                        &viewer,
-                        &mut chunk_view,
-                        nearest,
-                        encoded,
-                    );
-                });
+                picked.scope(|picked| pick_batch(&viewer, chunk_view, nearest, picked));
             });
         });
 
-    encoded.drain_into(&mut sorted);
-    // One thread encodes all of a player's columns in order, so a stable sort keeps each batch
-    // in the order it was encoded.
-    sorted.sort_by_key(|column| column.player);
-    let mut columns = sorted.drain(..).peekable();
-    while let Some(first) = columns.next() {
-        let EncodedColumn { player, host, .. } = first;
-        packet_writer.write(
-            to(
-                host,
-                PacketPayload::ChunkBatchStart(ClientboundChunkBatchStart),
-            )
-            .critical(),
-        );
-        let mut batch_size = 0;
-        let mut next = Some(first);
-        while let Some(column) = next {
-            held.write(ColumnHeld {
-                player,
-                dim: column.dim,
-                column: column.column,
-                held: true,
-            });
-            packet_writer.write(to(host, column.payload).critical());
-            batch_size += 1;
-            next = columns.next_if(|column| column.player == player);
-        }
-        packet_writer.write(
-            to(
-                host,
-                PacketPayload::ChunkBatchFinished(ClientboundChunkBatchFinished {
-                    batch_size: VarInt(batch_size),
-                }),
-            )
-            .critical(),
+    picked.drain_into(&mut wanted);
+    // One thread picks all of a player's columns in order, so a stable sort keeps each batch
+    // in the order it was picked.
+    wanted.sort_by_key(|column| column.player);
+    shared.clear();
+    for column in wanted.iter() {
+        shared.want(column.at);
+    }
+    encode_shared(&source, &mut shared.columns);
+
+    for batch in wanted.chunk_by(|left, right| left.player == right.player) {
+        let Some(player) = batch.first().map(|column| column.player) else {
+            continue;
+        };
+        let Ok((_, mut chunk_view, ..)) = players.get_mut(player) else {
+            continue;
+        };
+        send_batch(
+            &source,
+            &shared,
+            &mut chunk_view,
+            batch,
+            &mut packet_writer,
+            &mut held,
         );
     }
+    wanted.clear();
+}
+
+/// Turns the encoded columns of one player's pick into a bracketed batch, nearest first.
+fn send_batch(
+    source: &ColumnSource,
+    shared: &SharedColumns,
+    chunk_view: &mut ColumnView,
+    batch: &[WantedColumn],
+    packet_writer: &mut MessageWriter<OutboundPlayerPacket>,
+    held: &mut MessageWriter<ColumnHeld>,
+) {
+    let mut sends = 0i32;
+    let mut batch_bytes = 0usize;
+    for wanted in batch {
+        if batch_bytes >= MAX_BATCH_BYTES {
+            break;
+        }
+        let column_pos = wanted.at.column;
+        let packet = match shared.encoding(wanted.at) {
+            Some(ColumnEncoding::Encoded(packet)) => packet,
+            Some(ColumnEncoding::Skipped(ColumnSkip::LostSection)) => {
+                chunk_view.set(column_pos, Some(ColumnState::Awaiting));
+                continue;
+            }
+            Some(ColumnEncoding::Skipped(ColumnSkip::Failed) | ColumnEncoding::Pending) | None => {
+                continue;
+            }
+        };
+        if sends == 0 {
+            packet_writer.write(
+                to(
+                    wanted.host,
+                    PacketPayload::ChunkBatchStart(ClientboundChunkBatchStart),
+                )
+                .critical(),
+            );
+        }
+        column_trace::mark(source.traces.as_deref(), column_pos, ColumnStage::Sent);
+        chunk_view.set(column_pos, Some(ColumnState::Sent));
+        trace!(
+            target: "mcrs_minecraft_engine::player",
+            host_anchor = ?wanted.host,
+            col_x = column_pos.x,
+            col_z = column_pos.z,
+            bytes = packet.len(),
+            "send_column_queue: emitting ChunkLoad via bus"
+        );
+        batch_bytes = batch_bytes.saturating_add(packet.len());
+        held.write(ColumnHeld {
+            player: wanted.player,
+            dim: wanted.at.dim,
+            column: column_pos,
+            held: true,
+        });
+        packet_writer.write(
+            to(
+                wanted.host,
+                PacketPayload::ChunkLoad {
+                    column: column_pos,
+                    packet: packet.clone(),
+                },
+            )
+            .critical(),
+        );
+        sends = sends.saturating_add(1);
+    }
+    let Some(last) = batch.last() else {
+        return;
+    };
+    if sends == 0 {
+        return;
+    }
+    packet_writer.write(
+        to(
+            last.host,
+            PacketPayload::ChunkBatchFinished(ClientboundChunkBatchFinished {
+                batch_size: VarInt(sends),
+            }),
+        )
+        .critical(),
+    );
+    chunk_view.unacknowledged_batches += 1;
+    chunk_view.batch_quota -= sends as f32;
 }
 
 #[derive(Clone, Copy)]
@@ -795,30 +908,13 @@ struct Viewer {
     center: SectionPos,
 }
 
-/// Encodes the next batch of `viewer`'s ready columns into `encoded`, nearest first.
-fn encode_batch(
-    source: &ColumnSource,
-    direct_bits: DirectBits,
+/// Picks the next batch of `viewer`'s ready columns into `picked`, nearest first.
+fn pick_batch(
     viewer: &Viewer,
-    chunk_view: &mut ColumnView,
+    chunk_view: &ColumnView,
     nearest: &mut Vec<ColumnPos>,
-    encoded: &mut Vec<EncodedColumn>,
+    picked: &mut Vec<WantedColumn>,
 ) {
-    let (Ok(chunk_index), Ok(column_index), Ok(type_config)) = (
-        source.dim_chunk_indexes.get(viewer.dim),
-        source.dim_column_indexes.get(viewer.dim),
-        source.dim_type_configs.get(viewer.dim),
-    ) else {
-        return;
-    };
-    let layout = DimLayout {
-        chunk_index,
-        column_index,
-        section_count: type_config.section_count as i32,
-        off: offset_sections(type_config.min_y),
-        wire_light_rows: type_config.section_count as usize + 2,
-    };
-
     if !chunk_view.can_send() {
         return;
     }
@@ -836,46 +932,70 @@ fn encode_batch(
         nearest.truncate(allowed);
     }
     nearest.sort_unstable_by_key(|pos| column_distance_sq(*pos, center));
-
-    let mut sends = 0usize;
-    let mut batch_bytes = 0usize;
-    for column_pos in nearest.drain(..) {
-        if batch_bytes >= MAX_BATCH_BYTES {
-            break;
-        }
-        let (payload, bytes) = match encode_column(source, direct_bits, &layout, column_pos) {
-            Ok(EncodedPayload { payload, bytes }) => (payload, bytes),
-            Err(ColumnSkip::LostSection) => {
-                chunk_view.set(column_pos, Some(ColumnState::Awaiting));
-                continue;
-            }
-            Err(ColumnSkip::Failed) => continue,
-        };
-        column_trace::mark(source.traces.as_deref(), column_pos, ColumnStage::Sent);
-        chunk_view.set(column_pos, Some(ColumnState::Sent));
-        trace!(
-            target: "mcrs_minecraft_engine::player",
-            host_anchor = ?viewer.host,
-            col_x = column_pos.x,
-            col_z = column_pos.z,
-            bytes,
-            "send_column_queue: emitting ChunkLoad via bus"
-        );
-        batch_bytes += bytes;
-        encoded.push(EncodedColumn {
-            player: viewer.player,
-            host: viewer.host,
+    picked.extend(nearest.drain(..).map(|column| WantedColumn {
+        player: viewer.player,
+        host: viewer.host,
+        at: DimColumn {
             dim: viewer.dim,
-            column: column_pos,
-            payload,
-        });
-        sends += 1;
-    }
-    if sends == 0 {
+            column,
+        },
+    }));
+}
+
+/// Encodes every pending column, spread over the compute pool when there is more than one.
+fn encode_shared(source: &ColumnSource, columns: &mut [SharedColumn]) {
+    let direct_bits = DirectBits {
+        block: block_direct_bits(source.block_definitions.state_count()),
+        biome: biome_direct_bits(
+            source
+                .registries
+                .registry::<BiomeFile>()
+                .map_or(0, |biomes| biomes.len()),
+        ),
+    };
+    let encode_all = |columns: &mut [SharedColumn]| {
+        for shared in columns {
+            shared.encoding = match encode_at(source, direct_bits, shared.at) {
+                Ok(packet) => ColumnEncoding::Encoded(packet),
+                Err(skip) => ColumnEncoding::Skipped(skip),
+            };
+        }
+    };
+    let pool = ComputeTaskPool::try_get();
+    let threads = pool.map_or(1, |pool| pool.thread_num()).max(1);
+    let Some(pool) = pool.filter(|_| columns.len() > 1 && threads > 1) else {
+        encode_all(columns);
         return;
-    }
-    chunk_view.unacknowledged_batches += 1;
-    chunk_view.batch_quota -= sends as f32;
+    };
+    // Columns differ in cost, so each thread gets several small chunks rather than one share.
+    let chunk = columns.len().div_ceil(threads * 4).max(1);
+    pool.scope(|scope| {
+        for part in columns.chunks_mut(chunk) {
+            scope.spawn(async move { encode_all(part) });
+        }
+    });
+}
+
+fn encode_at(
+    source: &ColumnSource,
+    direct_bits: DirectBits,
+    at: DimColumn,
+) -> Result<Bytes, ColumnSkip> {
+    let (Ok(chunk_index), Ok(column_index), Ok(type_config)) = (
+        source.dim_chunk_indexes.get(at.dim),
+        source.dim_column_indexes.get(at.dim),
+        source.dim_type_configs.get(at.dim),
+    ) else {
+        return Err(ColumnSkip::Failed);
+    };
+    let layout = DimLayout {
+        chunk_index,
+        column_index,
+        section_count: type_config.section_count as i32,
+        off: offset_sections(type_config.min_y),
+        wire_light_rows: type_config.section_count as usize + 2,
+    };
+    encode_column(source, direct_bits, &layout, at.column)
 }
 
 /// Where a dimension keeps its sections, and the shape of its columns.
@@ -887,12 +1007,6 @@ struct DimLayout<'a> {
     wire_light_rows: usize,
 }
 
-struct EncodedPayload {
-    payload: PacketPayload,
-    /// What the column adds to its batch.
-    bytes: usize,
-}
-
 enum ColumnSkip {
     /// A section the view holds a ticket on is not loaded.
     LostSection,
@@ -900,12 +1014,19 @@ enum ColumnSkip {
     Failed,
 }
 
+/// A light array and the length ahead of it on the wire.
+const WIRE_LIGHT_ARRAY_BYTES: usize = size_of::<LightChunk>() + 3;
+
+/// Room for the column's position, masks, heightmaps and block entities.
+const PACKET_SLACK_BYTES: usize = 4 * 1024;
+
+/// Encodes the whole `level_chunk_with_light` packet with its id.
 fn encode_column(
     source: &ColumnSource,
     direct_bits: DirectBits,
     layout: &DimLayout,
     column_pos: ColumnPos,
-) -> Result<EncodedPayload, ColumnSkip> {
+) -> Result<Bytes, ColumnSkip> {
     // The loading tickets this view holds keep every section of a pending column
     // loaded, so losing one here means the ticket and the send disagree about
     // what the view owns. Send nothing rather than a column the client can never
@@ -981,19 +1102,33 @@ fn encode_column(
         .get(column_entity)
         .map(|(surface, motion, no_leaves)| client_heightmaps(surface, motion, no_leaves))
         .unwrap_or_default();
-    let bytes = data.len()
-        + (light_data.sky_light_arrays.len() + light_data.block_light_arrays.len())
-            * size_of::<mcrs_minecraft_protocol_game::chunk::LightChunk>();
-    Ok(EncodedPayload {
-        payload: PacketPayload::ChunkLoad {
-            column: column_pos,
-            chunk_bytes: data,
-            heightmaps,
-            light_data,
-            block_entities,
+    let light_arrays = light_data.sky_light_arrays.len() + light_data.block_light_arrays.len();
+    let mut packet = BytesMut::with_capacity(
+        data.len() + light_arrays * WIRE_LIGHT_ARRAY_BYTES + PACKET_SLACK_BYTES,
+    );
+    let encoded = ClientboundLevelChunkWithLight {
+        pos: column_pos,
+        chunk_data: ChunkData {
+            heightmaps: heightmaps
+                .into_iter()
+                .map(|(kind, longs)| (kind, Cow::Owned(longs)))
+                .collect(),
+            data: &data,
+            block_entities: Cow::Owned(block_entities),
         },
-        bytes,
-    })
+        light_data,
+    }
+    .encode_with_id((&mut packet).writer());
+    if let Err(err) = encoded {
+        warn!(
+            %err,
+            col_x = column_pos.x,
+            col_z = column_pos.z,
+            "encoding a column for the wire"
+        );
+        return Err(ColumnSkip::Failed);
+    }
+    Ok(packet.freeze())
 }
 
 #[inline]
@@ -1010,6 +1145,7 @@ fn margin_of(col: ColumnPos) -> impl Iterator<Item = ColumnPos> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::bus::PacketTarget;
     use bevy_ecs::message::Messages;
     use bevy_ecs::system::RunSystemOnce;
     use bevy_ecs::world::World;
@@ -1391,9 +1527,77 @@ mod tests {
         }));
     }
 
+    /// Two players that take the same columns in one drain receive one encoding of each, and
+    /// each player's batch stays bracketed and whole.
+    fn players_sharing_a_column_share_its_encoding_in_whole_batches() {
+        let mut world = World::new();
+        let columns = [ColumnPos::new(0, 0), ColumnPos::new(1, 0)];
+        let fx = fixture(&mut world, &columns);
+        for sections in fx.sections.values() {
+            let sections = sections.clone();
+            light(&mut world, &sections);
+        }
+        let second_host = world.spawn_empty().id();
+        let second = world
+            .spawn((
+                ColumnView::default(),
+                InDimension(fx.dim),
+                HostAnchor(second_host),
+            ))
+            .id();
+        for player in [fx.player, second] {
+            for col in columns {
+                set_state(&mut world, player, col, ColumnState::Ready);
+            }
+        }
+
+        world
+            .run_system_once(send_column_queue)
+            .expect("the send runs");
+
+        let packets: Vec<OutboundPlayerPacket> = world
+            .resource_mut::<Messages<OutboundPlayerPacket>>()
+            .drain()
+            .collect();
+        let mut hosts: Vec<Entity> = Vec::new();
+        let mut loads: FxHashMap<ColumnPos, Vec<Bytes>> = FxHashMap::default();
+        let mut sequence = Vec::new();
+        for packet in &packets {
+            let PacketTarget::SinglePlayer(host) = packet.target else {
+                panic!("a column goes to one player");
+            };
+            if hosts.last() != Some(&host) {
+                assert!(!hosts.contains(&host), "a player's batch is not split");
+                hosts.push(host);
+            }
+            sequence.push(match &packet.data {
+                PacketPayload::ChunkBatchStart(_) => "start",
+                PacketPayload::ChunkLoad { column, packet } => {
+                    loads.entry(*column).or_default().push(packet.clone());
+                    "load"
+                }
+                PacketPayload::ChunkBatchFinished(_) => "finish",
+                other => panic!("unexpected {other:?}"),
+            });
+        }
+        assert_eq!(hosts.len(), 2);
+        let batch = ["start", "load", "load", "finish"];
+        assert_eq!(sequence, [batch, batch].concat());
+        for col in columns {
+            let sent = &loads[&col];
+            assert_eq!(sent.len(), 2);
+            assert_eq!(
+                sent[0].as_ptr(),
+                sent[1].as_ptr(),
+                "both players receive the one encoding of the column"
+            );
+        }
+    }
+
     #[test]
     fn a_view_raises_lights_sends_and_releases_its_columns() {
         a_batch_goes_out_nearest_first();
+        players_sharing_a_column_share_its_encoding_in_whole_batches();
         a_column_waits_for_the_light_of_every_section_it_carries();
         a_despawned_view_hands_back_its_loading_tickets();
         a_column_missing_a_section_goes_back_to_waiting_instead_of_out();

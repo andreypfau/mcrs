@@ -8,7 +8,6 @@ use bevy_ecs::entity::Entity;
 use bevy_ecs::message::Messages;
 use bevy_ecs::system::{IntoSystem, System};
 use bevy_ecs::world::World;
-use bytes::Bytes;
 use mcrs_minecraft_engine::bridge_queue::OutboundQueue;
 use mcrs_minecraft_engine::bus::{
     OutboundPlayerPacket, PacketPayload, PacketPriority, PacketTarget, TestPayload,
@@ -17,6 +16,7 @@ use mcrs_minecraft_engine::session::{HostAnchorRef, SessionBundle};
 use mcrs_minecraft_engine_world::session::{
     Place, PlayerSession, PlayerSessionCounter, Session, SessionPlacement,
 };
+use mcrs_minecraft_network::OutboundReceiver;
 use mcrs_minecraft_network::RawConnection;
 use tokio::sync::mpsc;
 
@@ -154,14 +154,14 @@ pub fn drain_queue(world: &mut World, socket: Entity) -> Vec<OutboundPlayerPacke
 
 /// Create a mock `RawConnection` backed by an in-memory mpsc channel.
 ///
-/// Returns the `(RawConnection, Receiver<Bytes>)` pair so tests can observe
+/// Returns the `(RawConnection, OutboundReceiver)` pair so tests can observe
 /// every blob that would be sent to a real socket.
 ///
 /// The dummy JoinHandle tasks are spawned onto a process-global single-thread
 /// runtime that lives for the entire test binary lifetime. Abort on
 /// `RawConnection` drop cleans up the handle slots; the runtime itself never
 /// shuts down.
-pub fn make_mock_raw_connection() -> (RawConnection, mpsc::Receiver<Bytes>) {
+pub fn make_mock_raw_connection() -> (RawConnection, OutboundReceiver) {
     use std::sync::OnceLock;
     use tokio::runtime::Runtime;
 
@@ -189,7 +189,7 @@ pub fn make_mock_raw_connection() -> (RawConnection, mpsc::Receiver<Bytes>) {
 /// observe outgoing blobs and inject incoming `ReceivedPacket` values.
 pub fn make_mock_raw_connection_full() -> (
     RawConnection,
-    mpsc::Receiver<Bytes>,
+    OutboundReceiver,
     mpsc::Sender<mcrs_minecraft_network::ReceivedPacket>,
 ) {
     use std::sync::OnceLock;

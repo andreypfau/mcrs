@@ -523,6 +523,7 @@ fn on_keep_alive(
 #[cfg(not(target_family = "wasm"))]
 mod tests {
     use super::*;
+    use crate::OutboundReceiver;
     use bevy_app::Update;
     use bevy_ecs::prelude::ResMut;
     use bytes::BytesMut;
@@ -678,7 +679,7 @@ mod tests {
     struct Harness {
         app: App,
         inbound: mpsc::Sender<crate::ReceivedPacket>,
-        outgoing: mpsc::Receiver<bytes::Bytes>,
+        outgoing: OutboundReceiver,
         entity: Entity,
     }
 

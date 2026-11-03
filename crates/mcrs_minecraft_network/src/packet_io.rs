@@ -1,3 +1,6 @@
+#[cfg(not(target_family = "wasm"))]
+use crate::outbound::OutboundReceiver;
+use crate::outbound::{FrameWriter, OutboundBatch, WriterQueue};
 use crate::{Instant, ReceivedPacket, SwitchMode};
 use bytes::{Bytes, BytesMut};
 use mcrs_minecraft_protocol::packets::login::clientbound::{
@@ -9,7 +12,6 @@ use mcrs_minecraft_protocol::uuid::Uuid;
 use mcrs_minecraft_protocol::{
     CompressionThreshold, Decode, Encode, Packet, PacketDecoder, PacketEncoder, VarInt, WritePacket,
 };
-use std::collections::VecDeque;
 use std::io;
 use std::io::ErrorKind;
 use std::net::SocketAddr;
@@ -176,12 +178,18 @@ impl<S: AsyncRead + AsyncWrite + Unpin> PacketIo<S> {
     {
         let (incoming_sender, incoming_receiver) = mpsc::channel(256);
         let (outgoing_sender, outgoing_receiver) =
-            mpsc::channel::<Bytes>(OUTBOUND_CHANNEL_CAPACITY);
+            mpsc::channel::<OutboundBatch>(OUTBOUND_CHANNEL_CAPACITY);
         let disconnect_flag = Arc::new(AtomicBool::new(false));
 
         let (reader, writer) = self.stream.split_stream();
         let (inbound_switch, switches) = mpsc::unbounded_channel();
-        let writer = writer_loop(outgoing_receiver, writer, disconnect_flag.clone());
+        let reader = reader_loop(reader, self.dec, switches, incoming_sender);
+        let writer = writer_loop(
+            outgoing_receiver,
+            writer,
+            FrameWriter::new(self.enc),
+            disconnect_flag.clone(),
+        );
 
         #[cfg(not(target_family = "wasm"))]
         {
@@ -207,14 +215,15 @@ impl<S: AsyncRead + AsyncWrite + Unpin> PacketIo<S> {
         RawConnection {
             outgoing: outgoing_sender,
             recv: incoming_receiver,
-            enc: self.enc,
+            #[cfg(not(target_family = "wasm"))]
+            reader_task,
             remote_addr,
             switch_mode,
             announced_compression: None,
             awaits_login_acknowledgement: false,
             disconnect_flag,
             inbound_switch: Some(inbound_switch),
-            unsent: VecDeque::new(),
+            queue: WriterQueue::default(),
         }
     }
 }
@@ -325,13 +334,17 @@ async fn reader_loop<R: AsyncRead + Unpin>(
     }
 }
 
+/// Frames, compresses and writes what the connection hands over, so none of that work runs on
+/// the thread that produced the packets.
 async fn writer_loop<W: AsyncWrite + Unpin>(
-    mut rx: mpsc::Receiver<Bytes>,
+    mut rx: mpsc::Receiver<OutboundBatch>,
     sink: W,
+    mut frames: FrameWriter,
     disconnect_flag: Arc<AtomicBool>,
 ) {
     let mut writer = BufWriter::with_capacity(64 * 1024, sink);
-    while let Some(bytes) = rx.recv().await {
+    while let Some(batch) = rx.recv().await {
+        let bytes = frames.frame(batch);
         if writer.write_all(&bytes).await.is_err() {
             disconnect_flag.store(true, Ordering::Relaxed);
             return;
@@ -345,16 +358,19 @@ async fn writer_loop<W: AsyncWrite + Unpin>(
 }
 
 pub struct RawConnection {
-    outgoing: mpsc::Sender<Bytes>,
+    outgoing: mpsc::Sender<OutboundBatch>,
     recv: mpsc::Receiver<ReceivedPacket>,
-    pub enc: PacketEncoder,
+    // A browser task cannot be aborted, so there it ends when its next read
+    // resolves and the incoming channel is found closed.
+    #[cfg(not(target_family = "wasm"))]
+    reader_task: tokio::task::JoinHandle<()>,
     pub remote_addr: SocketAddr,
     switch_mode: SwitchMode,
     announced_compression: Option<CompressionThreshold>,
     awaits_login_acknowledgement: bool,
-    /// Blobs the writer had no room for yet, sent ahead of anything newer: a slow socket delays
-    /// what it is sent and never loses it.
-    unsent: VecDeque<Bytes>,
+    /// What was written and not yet taken by the writer, sent ahead of anything newer: a slow
+    /// socket delays what it is sent and never loses it.
+    queue: WriterQueue,
     disconnect_flag: Arc<AtomicBool>,
     inbound_switch: Option<mpsc::UnboundedSender<InboundSwitch>>,
 }
@@ -379,40 +395,41 @@ impl RawConnection {
     #[cfg(not(target_family = "wasm"))]
     pub fn new_for_test_full(
         outgoing_capacity: usize,
-    ) -> (Self, mpsc::Receiver<Bytes>, mpsc::Sender<ReceivedPacket>) {
-        let (outgoing_tx, outgoing_rx) = mpsc::channel::<Bytes>(outgoing_capacity);
+    ) -> (Self, OutboundReceiver, mpsc::Sender<ReceivedPacket>) {
+        let (outgoing_tx, outgoing_rx) = mpsc::channel::<OutboundBatch>(outgoing_capacity);
         let (inbound_tx, inbound_rx) = mpsc::channel::<ReceivedPacket>(128);
         let disconnect_flag = Arc::new(AtomicBool::new(false));
         let addr = SocketAddr::from(([127, 0, 0, 1], 0));
         let raw = RawConnection {
             outgoing: outgoing_tx,
             recv: inbound_rx,
-            enc: PacketEncoder::new(),
+            reader_task,
             remote_addr: addr,
             switch_mode: SwitchMode::of_own_version(),
             announced_compression: None,
             awaits_login_acknowledgement: false,
             disconnect_flag,
             inbound_switch: Some(mpsc::unbounded_channel().0),
-            unsent: VecDeque::new(),
+            queue: WriterQueue::default(),
         };
-        (raw, outgoing_rx, inbound_tx)
+        (raw, OutboundReceiver::new(outgoing_rx), inbound_tx)
     }
 
-    /// Hands the blob to the writer behind anything still waiting. Answers `false` when the
-    /// writer is behind, which is the backpressure signal the bridge reads; the blob is kept.
-    pub fn try_send_blob(&mut self, blob: Bytes) -> bool {
-        self.unsent.push_back(blob);
+    /// Hands everything written so far to the writer, behind anything still waiting. Answers
+    /// `false` when the writer is behind, which is the backpressure signal the bridge reads;
+    /// what it had no room for is kept.
+    pub fn send_written(&mut self) -> bool {
+        self.queue.close();
         self.flush_unsent()
     }
 
     /// Sends what is waiting, in order, as far as the writer has room.
     pub fn flush_unsent(&mut self) -> bool {
-        while let Some(blob) = self.unsent.pop_front() {
-            match self.outgoing.try_send(blob) {
+        while let Some(batch) = self.queue.pop() {
+            match self.outgoing.try_send(batch) {
                 Ok(()) => {}
-                Err(TrySendError::Full(blob)) => {
-                    self.unsent.push_front(blob);
+                Err(TrySendError::Full(batch)) => {
+                    self.queue.push_front(batch);
                     return false;
                 }
                 Err(TrySendError::Closed(_)) => return false,
@@ -422,11 +439,7 @@ impl RawConnection {
     }
 
     pub fn unsent_bytes(&self) -> usize {
-        self.unsent.iter().map(Bytes::len).sum()
-    }
-
-    pub fn take_encoded(&mut self) -> Bytes {
-        self.enc.take().freeze()
+        self.queue.closed_bytes()
     }
 
     /// Writes the compression packet of LOGIN. In the immediate mode both directions switch
@@ -444,7 +457,7 @@ impl RawConnection {
         });
         self.announced_compression = Some(threshold);
         if self.switch_mode == SwitchMode::Immediate {
-            self.enc.set_compression(threshold);
+            self.queue.switch_compression(threshold);
         }
     }
 
@@ -485,7 +498,7 @@ impl RawConnection {
         if self.switch_mode == SwitchMode::Acknowledged
             && let Some(threshold) = self.announced_compression
         {
-            self.enc.set_compression(threshold);
+            self.queue.switch_compression(threshold);
         }
     }
 
@@ -507,12 +520,15 @@ impl RawConnection {
         self.disconnect_flag.load(Ordering::Relaxed)
     }
 
+    /// Serializes the packet; the writer frames and compresses it.
     pub fn append<P: Encode + Packet>(&mut self, pkt: &P) -> anyhow::Result<()> {
-        self.enc.append_packet(pkt)
+        self.queue.append(pkt)
     }
 
-    pub fn append_encoded(&mut self, packet: &[u8]) -> anyhow::Result<()> {
-        self.enc.append_encoded(packet)
+    /// Queues a packet that `encode_with_id` wrote once for every connection that receives it,
+    /// without a copy.
+    pub fn append_shared(&mut self, packet: Bytes) {
+        self.queue.append_shared(packet);
     }
 
     /// True once the reader has stopped, even while frames it read are still queued.
@@ -528,15 +544,11 @@ impl RawConnection {
         }
     }
 
+    /// Hands everything written so far to the writer, keeping what it has no room for yet.
     pub fn flush(&mut self) -> anyhow::Result<()> {
-        let bytes = self.enc.take();
-        if bytes.is_empty() {
-            return Ok(());
-        }
-        let blob = bytes.freeze();
-        self.outgoing
-            .try_send(blob)
-            .map_err(|_| anyhow::anyhow!("connection closed"))
+        self.send_written();
+        anyhow::ensure!(!self.outgoing.is_closed(), "connection closed");
+        Ok(())
     }
 }
 
@@ -545,7 +557,7 @@ impl WritePacket for RawConnection {
     where
         P: Encode + Packet,
     {
-        self.enc.write_packet_fallible(packet)
+        self.queue.append(packet)
     }
 }
 

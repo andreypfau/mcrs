@@ -1,7 +1,7 @@
 use bevy_app::App;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::system::{IntoSystem, System};
-use bytes::{Bytes, BytesMut};
+use bytes::BytesMut;
 use mcrs_minecraft_engine::bus::{
     InboundPlayerDespawn, OutboundPlayerAttached, OutboundPlayerDisconnect,
 };
@@ -17,6 +17,7 @@ use mcrs_minecraft_engine_world::session::{Place, Session, SessionPlacement};
 use mcrs_minecraft_engine_world::world::channels::{
     FROM_DIM_CAPACITY, TO_DIM_CAPACITY, TO_DIM_CONTROL_CAPACITY,
 };
+use mcrs_minecraft_network::OutboundReceiver;
 use mcrs_minecraft_network::event::run_event_loop;
 use mcrs_minecraft_network::metrics::PacketDispatcher;
 use mcrs_minecraft_network::{ConnectionState, ReceivedPacket, ServerSideConnection, SwitchMode};
@@ -40,7 +41,6 @@ use mcrs_minecraft_protocol::{
     Bounded, CompressionThreshold, Decode, Encode, Packet, VarInt, WritePacket,
 };
 use mcrs_minecraft_text::Text;
-use tokio::sync::mpsc;
 
 use crate::mock_connection;
 
@@ -68,7 +68,7 @@ fn server(host: Option<SingleplayerProfile>) -> App {
 
 struct Client {
     connection: Entity,
-    outgoing: mpsc::Receiver<Bytes>,
+    outgoing: OutboundReceiver,
     decoder: PacketDecoder,
     switch_mode: SwitchMode,
 }

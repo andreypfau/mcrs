@@ -22,7 +22,6 @@ use bevy_ecs::message::Messages;
 use bevy_ecs::system::{IntoSystem, System};
 use bevy_ecs::world::World;
 use bevy_math::DVec3;
-use bevy_tasks::{ComputeTaskPool, TaskPool};
 use bytes::Bytes;
 use mcrs_minecraft_core::Look;
 use mcrs_minecraft_engine::bridge::dispatch_encode;
@@ -31,12 +30,15 @@ use mcrs_minecraft_engine::bus::{
     OutboundPlayerPacket, PacketPayload, PacketPriority, PacketTarget, TestPayload,
 };
 use mcrs_minecraft_engine_world::session::PlayerSession;
+use mcrs_minecraft_network::OutboundReceiver;
 use mcrs_minecraft_network::ServerSideConnection;
 use mcrs_minecraft_network::metrics::BridgeTelemetry;
+use mcrs_minecraft_protocol::Packet;
 use mcrs_minecraft_protocol::uuid::Uuid;
-use mcrs_minecraft_protocol_game::chunk::LightData;
+use mcrs_minecraft_protocol_game::chunk::{ChunkData, LightData};
+use mcrs_minecraft_protocol_game::clientbound::ClientboundLevelChunkWithLight;
 use mcrs_voxel::ColumnPos;
-use tokio::sync::mpsc;
+use std::borrow::Cow;
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -44,20 +46,37 @@ use tokio::sync::mpsc;
 
 /// Build a minimal ECS world with the resources `dispatch_encode` needs.
 fn build_dispatch_world() -> World {
-    // With bevy_ecs `multi_threaded` on, `par_iter_mut` in `dispatch_encode` needs the pool
-    // that `TaskPoolPlugin` installs in a real app.
-    ComputeTaskPool::get_or_init(TaskPool::default);
     let mut world = World::new();
     world.init_resource::<Messages<OutboundPlayerPacket>>();
     world.init_resource::<BridgeTelemetry>();
     world
 }
 
+fn chunk_load(chunk_bytes: &[u8]) -> PacketPayload {
+    let column = ColumnPos::new(0, 0);
+    let mut packet = Vec::new();
+    ClientboundLevelChunkWithLight {
+        pos: column,
+        chunk_data: ChunkData {
+            heightmaps: Vec::new(),
+            data: chunk_bytes,
+            block_entities: Cow::Borrowed(&[]),
+        },
+        light_data: LightData::default(),
+    }
+    .encode_with_id(&mut packet)
+    .unwrap();
+    PacketPayload::ChunkLoad {
+        column,
+        packet: Bytes::from(packet),
+    }
+}
+
 /// Spawn a connection entity backed by an `mpsc::Receiver` that the test holds
 /// to observe blobs sent to the socket.
 ///
 /// Returns `(entity, receiver)`.
-fn spawn_mock_connection(world: &mut World) -> (Entity, mpsc::Receiver<Bytes>) {
+fn spawn_mock_connection(world: &mut World) -> (Entity, OutboundReceiver) {
     let (raw, rx) = mock_connection::make_mock_raw_connection();
     let entity = world
         .spawn((
@@ -234,7 +253,7 @@ fn deep_critical_queue_is_not_kicked() {
 // coalesce_single_write_per_tick
 // ---------------------------------------------------------------------------
 
-/// N queued packets produce exactly ONE `try_send_blob` call (one blob) per
+/// N queued packets produce exactly one hand-over to the writer per
 /// socket per tick. The receiver side sees exactly one blob arrive.
 #[test]
 fn coalesce_single_write_per_tick() {
@@ -293,13 +312,7 @@ fn chunk_load_encodes() {
         q.push(OutboundPlayerPacket {
             target: PacketTarget::AllPlayers,
             priority: PacketPriority::Critical,
-            data: PacketPayload::ChunkLoad {
-                heightmaps: vec![],
-                column: ColumnPos::new(0, 0),
-                chunk_bytes: vec![0x80u8; 2000],
-                light_data: LightData::default(),
-                block_entities: Vec::new(),
-            },
+            data: chunk_load(&[0x80u8; 2000]),
             session: PlayerSession(0),
             epoch: 0,
         });
@@ -346,13 +359,7 @@ fn only_test_remains_counted_drop() {
         q.push(OutboundPlayerPacket {
             target: PacketTarget::AllPlayers,
             priority: PacketPriority::Critical,
-            data: PacketPayload::ChunkLoad {
-                heightmaps: vec![],
-                column: ColumnPos::new(0, 0),
-                chunk_bytes: vec![],
-                light_data: LightData::default(),
-                block_entities: Vec::new(),
-            },
+            data: chunk_load(&[]),
             session: PlayerSession(0),
             epoch: 0,
         });
