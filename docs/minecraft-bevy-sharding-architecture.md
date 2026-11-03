@@ -201,10 +201,10 @@ Examples:
 EntityShard
 RedstoneShard
 FluidShard
+LightingShard
 BlockTickShard
+WorldGenShard
 ```
-
-World generation and lighting are not shard domains. They are services outside the simulation model (decisions 21 and 22). A service computes its result from the world data alone, on threads of its own. The simulation sees only the results, and they land at a tick boundary (decision 23).
 
 These shards can overlap spatially.
 
@@ -458,9 +458,11 @@ The ordering policy and the shard layout are inputs, never assumptions. One shar
 
 A driver owns the shards of a domain, steps them, delivers cross-shard messages in a stable sorted order at a sync point, and merges and splits shards. Without Bevy a driver is a loop.
 
+A driver can run a step beside the tick, on a thread of its own. The tick does not wait for such a step. The writes of the step are input of the first tick after the step ends. That tick applies them in a stable order. World generation and lighting run their steps beside the tick (decision 21).
+
 ## Bevy schedules; no custom scheduler
 
-The engine's driver is Bevy. There is no task graph, worker scheduler or dependency analyser of our own.
+Inside the tick, the engine's driver is Bevy. There is no task graph, worker scheduler or dependency analyser of our own.
 
 - Shards are data: an index or a component per domain.
 - One system per domain steps every shard of that domain, in parallel across shards (`par_iter` or similar).
@@ -621,6 +623,8 @@ When multiple valid execution orders exist, choose one of:
 Do not accidentally allow thread scheduling to become gameplay semantics.
 
 The same inputs give the same result regardless of thread count. Shard layout is derived from the inputs, so it is reproducible as well; a result that may differ between layouts, such as the sync point at which a cross-shard effect applies, is stated by the domain's ordering policy. Ties are broken by a stable key, such as a shard key and an insertion sequence, never by arrival from a thread.
+
+For a step beside the tick, thread timing decides only the tick that applies its writes, never their content or order. This is the third choice above. World generation and lighting accept it, and vanilla also computes both on worker threads.
 
 ---
 
@@ -887,7 +891,7 @@ For semantically nondeterministic systems, required invariants should match.
 
 This helps detect hidden dependencies that the shard formation failed to represent.
 
-The results of the generation and light services arrive at times that thread timing decides. A test of the whole tick therefore runs in lockstep: after each tick, it waits until both services have answered, and integrates nothing. Every run then receives the same results at the same ticks. The test compares the blocks, light, heightmaps and entities after each tick between `TickThreading::Single` and `TickThreading::Parallel` (`crates/mcrs_minecraft_server/tests/it/tick_determinism.rs`). It fails when the tick integrates the results by arrival, or at a moment between ticks.
+Thread timing decides when a step beside the tick ends. A test of the whole tick therefore runs in lockstep: after each tick, it waits until the generation and light steps of the tick end. It applies nothing while it waits. Every run then receives the same writes at the same ticks. The test compares the blocks, light, heightmaps and entities after each tick between `TickThreading::Single` and `TickThreading::Parallel` (`crates/mcrs_minecraft_server/tests/it/tick_determinism.rs`). It fails when the tick applies the writes by arrival, or at a moment between ticks.
 
 ---
 
@@ -920,7 +924,7 @@ Do not:
 - assume section boundaries define causal independence;
 - map one shard to one thread;
 - add a dedicated shard abstraction to every subsystem without measured benefit;
-- build a task graph or scheduler beside Bevy's (the event loops of the generation and light services are not such a scheduler: they own no simulation state and decide no gameplay order);
+- build a task graph or scheduler beside Bevy's;
 - make a domain's kernel depend on Bevy or tokio;
 - preserve vanilla bugs by default;
 - treat every differential mismatch as a defect in the new server.
@@ -1050,25 +1054,15 @@ One shard per domain over the whole world, with the vanilla ordering policy, is 
 
 ## Decision 21
 
-World generation is a service outside the simulation model.
+World generation and lighting run their steps beside the tick (section 13).
 
-Its result is exact and depends only on the seed and the position. Each dimension has a generation actor on a thread of its own, with its own event loop and task pool. The actor owns no simulation state and decides no gameplay order, so it is not a scheduler beside Bevy's (section 27). The simulation sees only the columns that the actor delivers.
+Each dimension has a driver loop on a thread of its own for each of the two domains. The tick sends the inputs of the steps, such as the wanted columns and the block changes.
 
-## Decision 22
+The writes of a step are input of the first tick after the step ends. The tick applies them at its start, before the input from clients: columns by position, light by section, never by arrival. This covers section stages, blocks, biomes, block entities, heightmaps, block light, sky light and the messages that they raise.
 
-Lighting is a service outside the simulation model.
+Between ticks, the server loop only hands the packets of a tick to the sockets. That work changes nothing that a tick reads. With the same writes at the same ticks, the simulation gives the same world for any thread count and threading mode (section 25).
 
-The light engine computes light from the blocks alone, independently of all other game logic. Each dimension has a light actor on a thread of its own. The tick hands the actor the block changes, and reads back only the light of each section. Lighting stays semantic (section 2): the stable light levels must match.
-
-## Decision 23
-
-State that the simulation sees changes only at a tick boundary.
-
-The results of the generation and light services land at one point of the dimension tick: its start, before the input of the tick. This covers section stages, blocks, biomes, block entities, heightmaps, block light, sky light and the messages that they raise. The tick integrates the results in a stable order: columns by position and light by section, never by arrival.
-
-Between ticks, the server loop only hands the packets of a tick to the sockets. That work changes nothing that a tick reads. Thread timing therefore decides only the tick at which a result lands. With the same results at the same ticks, the simulation gives the same world for any thread count and threading mode (section 25).
-
-A column goes out in the tick that lands the last result it needs, at most one tick after the service finishes it.
+A column goes out in the tick that applies the last write it needs.
 
 ---
 
@@ -1123,7 +1117,7 @@ Determine whether EntityShard boundaries are:
 
 Determine whether mutation buffering and deterministic commit are required globally or only for selected domains.
 
-Resolved for the generation and light services: their results commit at the start of a tick, in a stable order (decision 23).
+Resolved for the steps beside the tick: their writes commit at the start of a tick, in a stable order (decision 21).
 
 ## Distributed simulation
 
@@ -1186,8 +1180,9 @@ The intended server architecture can be summarized as:
               |               |               |
               v               v               v
       Bevy systems,     plain loop        host via FFI
-      par_iter per      (tests, tools)    (its own storage)
-      domain
+      par_iter per      (tests, tools,    (its own storage)
+      domain            steps beside
+                        the tick)
 ```
 
 Spatial indexing is based on:

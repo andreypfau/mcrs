@@ -61,7 +61,7 @@ impl Plugin for ChunkPlugin {
             (
                 integrate_generated_columns
                     .run_if(generation_reported)
-                    .in_set(TickSet::ServiceResults),
+                    .in_set(TickSet::DomainInput),
                 (
                     start_column_generator.run_if(resource_exists::<GeneratorInbox>),
                     send_fill_context.run_if(resource_exists_and_changed::<FillContext>),

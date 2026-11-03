@@ -1,9 +1,9 @@
 //! The world a tick produces must not depend on the thread count or on the order in which the
-//! generation and light services finished their work.
+//! generation and light steps ended.
 //!
-//! Each run ticks in lockstep: after every tick it waits until both services have answered
-//! everything the tick asked, without integrating the answers. The services' results then
-//! reach every run at the same tick, so any difference between runs comes from the threads.
+//! Each run ticks in lockstep: after every tick it waits until the generation and light steps
+//! that the tick started have ended, without applying their writes. The writes then reach every
+//! run at the same tick, so any difference between runs comes from the threads.
 
 use std::fmt;
 use std::hash::{DefaultHasher, Hash, Hasher};
@@ -72,7 +72,7 @@ fn dimension_world(app: &mut App, label: Entity) -> &mut World {
     app.sub_app_mut(DimAppLabel(label)).world_mut()
 }
 
-fn services_idle(world: &mut World) -> bool {
+fn steps_ended(world: &mut World) -> bool {
     let light_idle = world
         .get_resource_mut::<LightActor>()
         .is_none_or(|mut actor| {
@@ -84,17 +84,17 @@ fn services_idle(world: &mut World) -> bool {
 
 /// Waits as the server loop does between ticks, draining the dimension's outbox meanwhile: the
 /// drain may run at any moment between ticks, so it must not change what the next tick sees.
-fn wait_for_services(app: &mut App, label: Entity) {
+fn wait_for_steps(app: &mut App, label: Entity) {
     let deadline = Instant::now() + PATIENCE;
     loop {
         dimension_world(app, label).run_schedule(OutboxDrain);
         runner::drain_woken(app);
-        if services_idle(dimension_world(app, label)) {
+        if steps_ended(dimension_world(app, label)) {
             return;
         }
         assert!(
             Instant::now() < deadline,
-            "the generation and light services never caught up with the tick"
+            "the generation and light steps never caught up with the tick"
         );
         std::thread::sleep(Duration::from_millis(1));
     }
@@ -293,7 +293,7 @@ fn run(threading: TickThreading) -> Vec<u64> {
     for at in 0..TICKS {
         scenario.script(dimension_world(&mut app, label), at);
         tick(&mut app);
-        wait_for_services(&mut app, label);
+        wait_for_steps(&mut app, label);
         hashes.push(world_hash(
             dimension_world(&mut app, label),
             Hashed::WithoutBlocks,

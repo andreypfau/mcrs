@@ -33,7 +33,7 @@ impl Plugin for MovementPlugin {
         app.add_observer(handle_accept_teleportation);
         app.add_message::<PlayerMovement>();
         app.carry_on_dimension_change::<TeleportState>();
-        app.add_systems(FixedUpdate, process_movement.in_set(TickSet::Input));
+        app.add_systems(FixedUpdate, process_movement.in_set(TickSet::ClientInput));
         app.add_systems(
             FixedPostUpdate,
             teleport.before(VoxelUpdateSet::NetworkSync),

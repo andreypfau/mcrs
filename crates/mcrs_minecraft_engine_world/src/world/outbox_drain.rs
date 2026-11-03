@@ -6,7 +6,7 @@ use bevy_ecs::schedule::ScheduleLabel;
 /// tick, and between ticks for a dimension whose full channel held packets back.
 ///
 /// It moves packets and changes nothing a tick reads, so it may run at any moment between
-/// ticks. The results of the generation and light services land only at the start of a tick.
+/// ticks. The writes of the generation and light steps land only at the start of a tick.
 #[derive(ScheduleLabel, Debug, Clone, PartialEq, Eq, Hash)]
 pub struct OutboxDrain;
 
