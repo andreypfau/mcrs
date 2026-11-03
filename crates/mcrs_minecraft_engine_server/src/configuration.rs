@@ -15,12 +15,10 @@ use mcrs_minecraft_engine::bus::PlayerTransferSnapshot;
 use mcrs_minecraft_engine::channel_types::{DimChannelsResource, ToDim};
 use mcrs_minecraft_engine::client_info::ClientInfo;
 use mcrs_minecraft_engine::dim::DimSubAppHandle;
-use mcrs_minecraft_engine::dim::send_control_or_teardown;
 use mcrs_minecraft_engine::session::GameProfile;
 use mcrs_minecraft_engine::session::HostAnchorRef;
 use mcrs_minecraft_engine_registries::SyncedRegistries;
 use mcrs_minecraft_engine_world::session::{Place, Session, SessionPlacement};
-use mcrs_minecraft_engine_world::world::sub_app::DimDespawnQueue;
 use mcrs_minecraft_engine_world::world::world_save::WorldSave;
 use mcrs_minecraft_network::event::Received;
 use mcrs_minecraft_network::identity;
@@ -264,10 +262,9 @@ pub fn emit_initial_player_spawn(
         (Entity, &ResourceKeyBuf<mcrs_minecraft_dimension::Dimension>),
         With<DimSubAppHandle>,
     >,
-    dim_channels: Res<DimChannelsResource>,
+    mut dim_channels: ResMut<DimChannelsResource>,
     dimension_list: Res<DimensionList>,
     save: Option<Res<WorldSave>>,
-    mut despawn_queue: ResMut<DimDespawnQueue>,
 ) {
     if live_dims.is_empty() {
         return;
@@ -299,9 +296,6 @@ pub fn emit_initial_player_spawn(
         else {
             continue;
         };
-        let Some(chan) = dim_channels.get(dim_label) else {
-            continue;
-        };
         let snapshot = PlayerTransferSnapshot {
             uuid: profile.id,
             username: profile.username.clone(),
@@ -314,9 +308,7 @@ pub fn emit_initial_player_spawn(
             client_info: info.cloned(),
         };
         let dimensions = Arc::clone(dimension_list.keys());
-        placement.set(Place::Joining(dim_label));
-        send_control_or_teardown(
-            &chan.control_sender,
+        if dim_channels.send_control(
             dim_label,
             ToDim::Spawn(InboundPlayerSpawn {
                 host_anchor,
@@ -324,7 +316,8 @@ pub fn emit_initial_player_spawn(
                 snapshot,
                 dimensions,
             }),
-            &mut despawn_queue,
-        );
+        ) {
+            placement.set(Place::Joining(dim_label));
+        }
     }
 }

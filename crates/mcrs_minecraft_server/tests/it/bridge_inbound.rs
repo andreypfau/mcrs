@@ -297,14 +297,8 @@ fn disconnect_clears_pending() {
         .run_system_once(
             move |mut commands: bevy_ecs::prelude::Commands,
                   mut sessions: LeavingSessions,
-                  dim_channels: bevy_ecs::system::Res<DimChannelsResource>| {
-                process_disconnect(
-                    player,
-                    &mut sessions,
-                    &dim_channels,
-                    &mut mcrs_minecraft_engine_world::world::sub_app::DimDespawnQueue::default(),
-                    &mut commands,
-                );
+                  mut dim_channels: bevy_ecs::system::ResMut<DimChannelsResource>| {
+                process_disconnect(player, &mut sessions, &mut dim_channels, &mut commands);
             },
         )
         .expect("process_disconnect system ran");

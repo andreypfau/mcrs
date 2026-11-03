@@ -1,4 +1,4 @@
-use bevy_app::{App, FixedPostUpdate, FixedPreUpdate, Plugin, Update};
+use bevy_app::{App, First, FixedPostUpdate, FixedPreUpdate, Plugin, Update};
 use bevy_ecs::prelude::*;
 use mcrs_minecraft_engine_world::world::sub_app::{DimDespawnQueue, DimSpawnQueue};
 
@@ -104,6 +104,12 @@ impl Plugin for EnginePlugin {
                 .chain(),
         );
 
+        app.add_systems(
+            First,
+            dim::flush_control_backlogs
+                .after(bevy_ecs::message::MessageUpdateSystems)
+                .before(disconnect::drain_pending_disconnects),
+        );
         app.add_systems(
             Update,
             (

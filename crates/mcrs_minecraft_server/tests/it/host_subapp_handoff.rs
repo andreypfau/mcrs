@@ -701,3 +701,45 @@ fn a_swapped_set_reaches_every_dimension_on_the_next_tick_and_an_idle_tick_repla
     app.update();
     assert_eq!(dimensions_that_replaced_their_snapshot(&app, &since), 0);
 }
+
+#[test]
+fn more_players_than_the_control_channel_holds_enter_the_game_in_one_tick_and_all_spawn() {
+    use mcrs_minecraft_engine::dim::flush_control_backlogs;
+    use mcrs_minecraft_engine_world::entity::player::Player;
+    use mcrs_minecraft_engine_world::world::channels::TO_DIM_CONTROL_CAPACITY;
+    use mcrs_minecraft_engine_world::world::sub_app::{DimAppLabel, DimDespawnQueue};
+
+    let mut app = build_host_app();
+    app.add_systems(bevy_app::First, flush_control_backlogs);
+    crate::host_app::drive_to_playing(&mut app);
+    crate::host_app::materialise_sub_apps(
+        &mut app,
+        &[("minecraft:overworld", "minecraft:overworld")],
+    );
+    let dim_label = crate::host_app::label_of(&app, "minecraft:overworld");
+
+    let players = TO_DIM_CONTROL_CAPACITY + 1;
+    let connections: Vec<Entity> = (0..players)
+        .map(|_| spawn_accepted_connection(&mut app).0)
+        .collect();
+    for &connection in &connections {
+        transition_to_game(&mut app, connection);
+    }
+    for _ in 0..3 {
+        app.update();
+    }
+
+    assert!(
+        app.world().resource::<DimDespawnQueue>().0.is_empty(),
+        "a burst of joins is no reason to tear the dimension down"
+    );
+    let world = app.sub_app_mut(DimAppLabel(dim_label)).world_mut();
+    let spawned = world
+        .query_filtered::<Entity, With<Player>>()
+        .iter(world)
+        .count();
+    assert_eq!(
+        spawned, players,
+        "every player that entered the game must spawn in the dimension"
+    );
+}

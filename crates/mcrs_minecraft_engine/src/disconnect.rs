@@ -34,7 +34,6 @@ use tracing::warn;
 
 use crate::bus::{OutboundPlayerAttached, OutboundPlayerDisconnect};
 use crate::channel_types::{DimChannelsResource, ToDim};
-use crate::dim::send_control_or_teardown;
 use crate::session::GameProfile;
 use crate::session::{HostAnchorRef, SessionConnection};
 use mcrs_minecraft_engine_world::session::{Place, PlayerSession, Session, SessionPlacement};
@@ -166,7 +165,6 @@ pub struct Disconnects<'w, 's> {
     disconnected_this_tick: ResMut<'w, DisconnectedThisTick>,
     overflow_counter: ResMut<'w, OverflowCounter>,
     dim_channels: ResMut<'w, DimChannelsResource>,
-    despawn_queue: ResMut<'w, DimDespawnQueue>,
     commands: Commands<'w, 's>,
 }
 
@@ -178,8 +176,7 @@ impl Disconnects<'_, '_> {
             process_disconnect(
                 host_anchor,
                 &mut self.sessions,
-                &self.dim_channels,
-                &mut self.despawn_queue,
+                &mut self.dim_channels,
                 &mut self.commands,
             );
         } else if !self.pending_queue.push_back(host_anchor) {
@@ -207,21 +204,14 @@ impl Disconnects<'_, '_> {
 pub fn process_disconnect(
     host_anchor: Entity,
     sessions: &mut LeavingSessions,
-    dim_channels: &DimChannelsResource,
-    despawn_queue: &mut DimDespawnQueue,
+    dim_channels: &mut DimChannelsResource,
     commands: &mut Commands,
 ) {
     let Ok((session, mut placement, connection, profile)) = sessions.get_mut(host_anchor) else {
         return;
     };
 
-    let releasing = despawn_from_dim(
-        host_anchor,
-        session.0,
-        placement.place(),
-        dim_channels,
-        despawn_queue,
-    );
+    let releasing = despawn_from_dim(host_anchor, session.0, placement.place(), dim_channels);
     if let Some(profile) = profile
         && let Some(dim) = releasing
     {
@@ -249,21 +239,16 @@ pub fn despawn_from_dim(
     host_anchor: Entity,
     session: PlayerSession,
     place: Place,
-    dim_channels: &DimChannelsResource,
-    despawn_queue: &mut DimDespawnQueue,
+    dim_channels: &mut DimChannelsResource,
 ) -> Option<Entity> {
     place.dim().filter(|&dim| {
-        dim_channels.get(dim).is_some_and(|chan| {
-            send_control_or_teardown(
-                &chan.control_sender,
-                dim,
-                ToDim::Despawn(InboundPlayerDespawn {
-                    host_anchor,
-                    session,
-                }),
-                despawn_queue,
-            )
-        })
+        dim_channels.send_control(
+            dim,
+            ToDim::Despawn(InboundPlayerDespawn {
+                host_anchor,
+                session,
+            }),
+        )
     })
 }
 
@@ -279,8 +264,7 @@ pub fn drain_pending_disconnects(
     mut pending_queue: ResMut<PendingDisconnectQueue>,
     mut disconnected_this_tick: ResMut<DisconnectedThisTick>,
     mut sessions: LeavingSessions,
-    dim_channels: ResMut<DimChannelsResource>,
-    mut despawn_queue: ResMut<DimDespawnQueue>,
+    mut dim_channels: ResMut<DimChannelsResource>,
     mut commands: Commands,
 ) {
     disconnect_budget.refill();
@@ -289,13 +273,7 @@ pub fn drain_pending_disconnects(
     {
         pending_queue.entries.pop_front();
         disconnected_this_tick.host_anchors.push(host_anchor);
-        process_disconnect(
-            host_anchor,
-            &mut sessions,
-            &dim_channels,
-            &mut despawn_queue,
-            &mut commands,
-        );
+        process_disconnect(host_anchor, &mut sessions, &mut dim_channels, &mut commands);
     }
 }
 

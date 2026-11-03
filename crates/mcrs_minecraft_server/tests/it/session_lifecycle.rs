@@ -1,6 +1,6 @@
 use bevy_app::App;
 use bevy_ecs::entity::Entity;
-use bevy_ecs::prelude::{Commands, Res};
+use bevy_ecs::prelude::{Commands, ResMut};
 use bevy_ecs::system::RunSystemOnce;
 use mcrs_minecraft_engine::bus::InboundPlayerDespawn;
 use mcrs_minecraft_engine::channel_types::DimChannelsResource;
@@ -137,23 +137,11 @@ fn connection_removal_despawns_the_session_and_routes_despawn_via_lifecycle() {
         .run_system_once(
             move |mut commands: Commands,
                   mut sessions: LeavingSessions,
-                  dim_channels: Res<DimChannelsResource>| {
-                process_disconnect(
-                    host_anchor,
-                    &mut sessions,
-                    &dim_channels,
-                    &mut mcrs_minecraft_engine_world::world::sub_app::DimDespawnQueue::default(),
-                    &mut commands,
-                );
+                  mut dim_channels: ResMut<DimChannelsResource>| {
+                process_disconnect(host_anchor, &mut sessions, &mut dim_channels, &mut commands);
 
                 // Second call routes nothing (the session is already unplaced).
-                process_disconnect(
-                    host_anchor,
-                    &mut sessions,
-                    &dim_channels,
-                    &mut mcrs_minecraft_engine_world::world::sub_app::DimDespawnQueue::default(),
-                    &mut commands,
-                );
+                process_disconnect(host_anchor, &mut sessions, &mut dim_channels, &mut commands);
             },
         )
         .expect("system runs without panicking");
@@ -209,12 +197,11 @@ fn a_late_cleanup_leaves_the_name_to_the_player_who_logged_in_again() {
         .run_system_once(
             move |mut commands: Commands,
                   mut sessions: LeavingSessions,
-                  dim_channels: Res<DimChannelsResource>| {
+                  mut dim_channels: ResMut<DimChannelsResource>| {
                 process_disconnect(
                     first_anchor,
                     &mut sessions,
-                    &dim_channels,
-                    &mut mcrs_minecraft_engine_world::world::sub_app::DimDespawnQueue::default(),
+                    &mut dim_channels,
                     &mut commands,
                 );
             },

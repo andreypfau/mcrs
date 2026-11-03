@@ -5,44 +5,16 @@ use bevy_app::App;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::Messages;
 use bevy_ecs::resource::Resource;
+use bevy_ecs::system::ResMut;
 use bevy_ecs::world::World;
 use mcrs_minecraft_engine_world::session::{PlayerSession, Session, SessionPlacement};
 use mcrs_minecraft_engine_world::world::channels::DimChannels;
 use mcrs_minecraft_engine_world::world::sub_app::{DimAppLabel, DimDespawnQueue};
 use tracing::{debug, warn};
 
-/// Send a non-sheddable control message, escalating a saturated control channel
-/// to whole-dim teardown.
-///
-/// The control channel holds the lifecycle reserve that the two-channel split
-/// guarantees is always available under normal load. A `Full` here therefore
-/// means the dim has stopped draining its inbox — hard overload — so its label
-/// `Entity` is enqueued for teardown rather than silently dropping the message.
-/// A `Disconnected` channel means the dim is already gone.
-pub fn send_control_or_teardown<T>(
-    sender: &flume::Sender<T>,
-    dim_entity: Entity,
-    msg: T,
-    despawn_queue: &mut DimDespawnQueue,
-) -> bool {
-    match sender.try_send(msg) {
-        Ok(()) => true,
-        Err(flume::TrySendError::Full(_)) => {
-            warn!(
-                dim = ?dim_entity,
-                "control channel saturated (hard overload); enqueueing dim teardown"
-            );
-            enqueue_teardown(despawn_queue, dim_entity);
-            false
-        }
-        Err(flume::TrySendError::Disconnected(_)) => false,
-    }
-}
-
-fn enqueue_teardown(despawn_queue: &mut DimDespawnQueue, dim_entity: Entity) {
-    if !despawn_queue.0.contains(&dim_entity) {
-        despawn_queue.0.push(dim_entity);
-    }
+/// Hands the control messages the host held back to the dimensions as their channels drain.
+pub fn flush_control_backlogs(mut dim_channels: ResMut<DimChannelsResource>) {
+    dim_channels.flush_control_backlogs();
 }
 
 #[derive(Resource, Default)]
