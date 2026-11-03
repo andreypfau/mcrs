@@ -16,6 +16,13 @@ use tracing::info;
 #[derive(Clone, Copy, Debug, Default)]
 pub struct ChatPlugin;
 
+#[derive(Event, Debug)]
+pub struct PlayerChatEvent {
+    pub player: Entity,
+    pub text: Text,
+    pub cancelled: bool,
+}
+
 impl Plugin for ChatPlugin {
     fn build(&self, app: &mut App) {
         if !app.is_plugin_added::<ClientInfoPlugin>() {
@@ -29,6 +36,7 @@ fn handle_chat(
     event: On<Received<ServerboundChat<'static>>>,
     sender_query: Query<(&GameProfile, Option<&ClientInfo>, &HostAnchor)>,
     mut packet_writer: MessageWriter<OutboundPlayerPacket>,
+    mut commands: Commands,
 ) {
     let Some(pkt) = event.packet() else {
         return;
@@ -53,17 +61,30 @@ fn handle_chat(
         return;
     }
 
-    let text: Text = Text::translate(
-        "chat.type.text",
-        vec![
-            profile.username.clone().into_text(),
-            msg.to_string().into_text(),
-        ],
-    );
-    info!("<{}> {}", profile.username, msg);
+    let text = msg.to_string().into_text();
 
-    let Ok(text) = RawText::from_text(&text) else {
-        return;
+    let mut chat_event = PlayerChatEvent {
+        player: event.entity,
+        text,
+        cancelled: false,
     };
-    packet_writer.write(to_target(PacketTarget::AllPlayers, system_chat(text)));
+
+    let username = profile.username.clone();
+    commands.queue(move |world: &mut World| {
+        world.trigger_ref(&mut chat_event);
+        if chat_event.cancelled {
+            return;
+        }
+        info!("<{}> {:?}", username, chat_event.text);
+        let text: Text = Text::translate(
+            "chat.type.text",
+            vec![username.into_text(), chat_event.text],
+        );
+
+        let Ok(text) = RawText::from_text(&text) else {
+            return;
+        };
+
+        world.write_message(to_target(PacketTarget::AllPlayers, system_chat(text)));
+    })
 }

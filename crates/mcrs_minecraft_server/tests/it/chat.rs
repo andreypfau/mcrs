@@ -11,7 +11,8 @@ use mcrs_minecraft_protocol_game::serverbound::{ServerboundChat, ServerboundClie
 use mcrs_minecraft_protocol_game::text::{IntoText, Text, TextContent};
 
 use crate::host_app::{self, PlayServer};
-use mcrs_minecraft_chat_server::ChatPlugin;
+use bevy_ecs::prelude::On;
+use mcrs_minecraft_chat_server::{ChatPlugin, PlayerChatEvent};
 use mcrs_minecraft_engine_world::world::sub_app::AddDimensionPlugins;
 
 pub fn line(message: &str) -> ServerboundChat<'_> {
@@ -117,4 +118,59 @@ fn a_chat_line_reaches_everyone_unless_it_is_rejected_or_the_sender_hides_chat()
             .collect();
         assert_eq!(told, reply.into_iter().collect::<Vec<_>>(), "{case}");
     }
+}
+
+#[test]
+fn an_observer_that_cancels_a_chat_line_stops_its_broadcast() {
+    fn cancel(mut event: On<PlayerChatEvent>) {
+        event.cancelled = true;
+    }
+    let mut app = host_app::make_host_app();
+    app.add_dimension_plugin(ChatPlugin);
+    let mut server = PlayServer::start(app, &[], 0);
+    let (sender, _) = server.join(Uuid::from_u128(1), "Sender");
+    let dim = server.dim;
+    server.world_in(dim).add_observer(cancel);
+    server.queue(sender, &line("hello"));
+
+    let sent = server.ticks_all(2);
+
+    assert!(!sent.iter().any(|packet| {
+        matches!(packet.target, PacketTarget::AllPlayers)
+            && matches!(packet.data, PacketPayload::SystemChat(_))
+    }));
+}
+
+#[test]
+fn an_observer_that_replaces_a_chat_line_changes_its_broadcast() {
+    fn censor(mut event: On<PlayerChatEvent>) {
+        event.text = "***".to_owned().into_text();
+    }
+    let mut app = host_app::make_host_app();
+    app.add_dimension_plugin(ChatPlugin);
+    let mut server = PlayServer::start(app, &[], 0);
+    let (sender, _) = server.join(Uuid::from_u128(1), "Sender");
+    server.world().add_observer(censor);
+    server.queue(sender, &line("hello"));
+
+    let heard: Vec<Text> = server
+        .ticks_all(2)
+        .iter()
+        .filter(|packet| matches!(packet.target, PacketTarget::AllPlayers))
+        .filter_map(|packet| match &packet.data {
+            PacketPayload::SystemChat(chat) => {
+                Some(chat.content.to_text().unwrap().map(&ItemHoverMap).unwrap())
+            }
+            _ => None,
+        })
+        .collect();
+
+    let expected = Text::translate(
+        "chat.type.text",
+        vec![
+            "Sender".to_owned().into_text(),
+            "***".to_owned().into_text(),
+        ],
+    );
+    assert_eq!(heard, [expected]);
 }
