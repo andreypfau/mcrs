@@ -1,7 +1,8 @@
 use std::sync::Arc;
 
 use crate::fixture::{AIR, TORCH, filled, registry, state};
-use bevy_app::{App, TaskPoolPlugin};
+use bevy_app::{App, Last, TaskPoolPlugin};
+use bevy_ecs::schedule::ScheduleLabel;
 use mcrs_minecraft_chunk::{BlockLight, SkyLight};
 use mcrs_minecraft_light_engine::prelude::*;
 use mcrs_minecraft_vanilla_light::{LightActor, LightPlugin, LightSet};
@@ -26,6 +27,7 @@ fn a_torch_lights_its_neighbour_through_the_plugin() {
             registry: registry(),
             bounds: LightBounds::new(0, 1),
             sky: true,
+            publish: Last.intern(),
         });
 
     let sections: Vec<SectionPos> = (0..2).map(|y| SectionPos::new(0, y, 0)).collect();
@@ -68,7 +70,6 @@ fn a_torch_lights_its_neighbour_through_the_plugin() {
 /// without anything having to notice that the old one died.
 #[test]
 fn a_section_respawned_the_tick_its_predecessor_died_is_still_published() {
-    use bevy_app::Last;
     use bevy_ecs::prelude::*;
 
     fn load_added_sections(
@@ -90,6 +91,7 @@ fn a_section_respawned_the_tick_its_predecessor_died_is_still_published() {
             registry: registry(),
             bounds: LightBounds::new(0, 0),
             sky: true,
+            publish: Last.intern(),
         })
         .add_systems(Last, load_added_sections.before(LightSet::Intake));
 

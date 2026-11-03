@@ -5,10 +5,8 @@ use bevy_app::{
 use bevy_asset::AssetPlugin;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::Messages;
-use bevy_ecs::schedule::common_conditions::on_message;
 use bevy_ecs::schedule::{
-    IntoScheduleConfigs, Schedule, ScheduleLabel, SingleThreadedExecutor, SystemCondition,
-    SystemSet,
+    IntoScheduleConfigs, Schedule, ScheduleLabel, SingleThreadedExecutor, SystemSet,
 };
 use bevy_ecs::system::{Local, Res, ResMut};
 use bevy_ecs::world::World;
@@ -18,7 +16,6 @@ use tracing::{error, warn};
 
 use crate::bus::{InboundPlayerDespawn, InboundPlayerSpawn, OutboundPlayerPacket};
 use crate::channel_types::{FromDim, ToDim};
-use crate::column_held::ColumnHeld;
 use crate::dim::DimSubAppHandle;
 use mcrs_minecraft_engine_world::block_update::{BlockPlaced, BlockSetRequest};
 use mcrs_minecraft_engine_world::world::channels::{
@@ -41,7 +38,7 @@ pub struct DimInboxDrain;
 ///   first pump, guarded by an internal `Local<bool>`.
 /// - Each subsequent pump runs `First → PreUpdate → FixedFirst → FixedPreUpdate
 ///   → FixedUpdate → FixedPostUpdate → FixedLast → Update → PostUpdate → Last`
-///   exactly once.
+///   exactly once, then the `OutboxDrain` that hands what the tick wrote to the host.
 ///
 /// Two intentional differences from Bevy's stock `Main`:
 /// - No `RunFixedMainLoop` indirection. The host runner pumps each sub-app
@@ -63,19 +60,15 @@ use crate::minecraft_entity::MinecraftEntityPlugin;
 use crate::player_tracker::PlayerTrackerPlugin;
 use mcrs_minecraft_dimension_environment::dimension_type::DimensionTypeFile;
 use mcrs_minecraft_dimension_environment::environment::DimensionEnvironment;
+use mcrs_minecraft_engine_world::tick::TickSet;
 use mcrs_minecraft_engine_world::tick_threading::{self, TickThreading};
-use mcrs_minecraft_engine_world::world::column_drain::{
-    ColumnDrain, ColumnDrainSet, DrainWake, DrainWakes,
-};
 use mcrs_minecraft_engine_world::world::dimension::{
     DimensionBundle, DimensionPlugin, DimensionTypeConfig, DimensionTypeId, HasSkyLight, HasWeather,
 };
 use mcrs_minecraft_engine_world::world::dimension_builders::{DimensionBuild, DimensionBuilders};
-use mcrs_minecraft_engine_world::world::lifecycle::stage::SectionStageChanged;
 use mcrs_minecraft_engine_world::world::lifecycle::trace::{ColumnTraceLog, ColumnTraceSink};
-use mcrs_minecraft_engine_world::world::light_gate::{
-    ColumnLightGate, ColumnLightSettled, SectionRelit,
-};
+use mcrs_minecraft_engine_world::world::outbox_drain::{DrainWake, DrainWakes, OutboxDrain};
+use mcrs_minecraft_engine_world::world::storage::column::ColumnLifecycleSet;
 use mcrs_minecraft_engine_world::world::sub_app::{
     DimAppLabel, DimSpawnQueue, DimSpawnRequest, DimensionPlugins,
 };
@@ -277,63 +270,27 @@ pub fn spawn_dim_subapp(
             world.run_schedule(Update);
             world.run_schedule(PostUpdate);
             world.run_schedule(Last);
+            world.run_schedule(OutboxDrain);
         },
     );
 
     sub_app.add_systems(FixedPreUpdate, drain_to_dim_inbox.in_set(DimInboxDrain));
-    sub_app.add_schedule(Schedule::new(ColumnDrain));
-    sub_app.configure_sets(
-        ColumnDrain,
-        (
-            ColumnDrainSet::Collect,
-            ColumnDrainSet::Reconcile,
-            ColumnDrainSet::Request,
-            ColumnDrainSet::Light,
-            ColumnDrainSet::Send,
-        )
-            .chain(),
-    );
     sub_app.add_systems(
-        ColumnDrain,
-        (
-            // The light packet walks the column index, which is rebuilt here rather than left
-            // to the tick: a column sent before its sections are in it goes out unlit.
-            (
-                mcrs_minecraft_engine_world::world::storage::column::reconcile_columns,
-                mcrs_minecraft_engine_world::world::storage::block_entity::reconcile_block_entities,
-            )
-                .chain()
-                .run_if(on_message::<SectionStageChanged>)
-                .in_set(ColumnDrainSet::Reconcile),
-            crate::heightmap::prime_column_heightmaps
-                .run_if(heightmaps_pending)
-                .in_set(ColumnDrainSet::Reconcile)
-                .after(mcrs_minecraft_engine_world::world::storage::block_entity::reconcile_block_entities),
-            (
-                crate::column_view::project_touched_columns
-                    .run_if(on_message::<SectionStageChanged>.or_eager(on_message::<SectionRelit>))
-                    .before(ColumnLightGate),
-                (
-                    crate::column_view::promote_lit_columns
-                        .run_if(on_message::<ColumnLightSettled>),
-                    crate::column_view::send_ready_columns
-                        .run_if(on_message::<crate::column_view::ColumnBecameReady>),
-                    crate::column_held::mirror_held_columns.run_if(on_message::<ColumnHeld>),
-                    flush_from_dim_outbox.run_if(outbox_holds_packets),
-                )
-                    .chain()
-                    .after(ColumnLightGate),
-            )
-                .in_set(ColumnDrainSet::Send),
-        ),
+        FixedUpdate,
+        // A column packet carries the heightmaps, so they land before the columns go out.
+        crate::heightmap::prime_column_heightmaps
+            .run_if(heightmaps_pending)
+            .in_set(TickSet::Project)
+            .after(ColumnLifecycleSet)
+            .before(crate::column_view::ColumnViewSet),
     );
-    // The stages run one after another, so threads would only add the cost of handing out
-    // systems to a drain that mostly has little to do.
-    sub_app.edit_schedule(ColumnDrain, |schedule| {
+    sub_app.add_schedule(Schedule::new(OutboxDrain));
+    sub_app.add_systems(
+        OutboxDrain,
+        flush_from_dim_outbox.run_if(outbox_holds_packets),
+    );
+    sub_app.edit_schedule(OutboxDrain, |schedule| {
         schedule.set_executor(SingleThreadedExecutor::new());
-    });
-    sub_app.add_systems(FixedLast, |world: &mut World| {
-        world.run_schedule(ColumnDrain)
     });
 
     sub_app.add_plugins(DimensionPlugin);
@@ -546,8 +503,8 @@ fn heightmaps_pending(pending: Res<crate::heightmap::PendingColumnHeightmaps>) -
 ///
 /// A tick can emit far more packets than the channel holds — a chunk batch at a
 /// high `desired_columns_per_tick` does it routinely — so a full channel is
-/// backpressure, not a fault, and what does not fit waits here for the next
-/// tick in the order it was written. Nothing is ever dropped: a column is
+/// backpressure, not a fault, and what does not fit waits here in the order it
+/// was written, for the next drain between ticks. Nothing is ever dropped: a column is
 /// recorded as sent the moment it is queued and never offered again, so a lost
 /// packet is a hole in the client's world, and a lost batch-finished packet
 /// costs the acknowledgement the whole column stream is paced by.

@@ -8,7 +8,6 @@ use bevy_ecs::prelude::Resource;
 use mcrs_minecraft_engine_world::aoi::min_column_distance;
 use mcrs_minecraft_engine_world::entity::player::chunk_view::ChunkTrackingView;
 use mcrs_minecraft_engine_world::palette::{ChunkBlocks, section_states};
-use mcrs_minecraft_engine_world::world::column_drain::{DrainWake, Finished, HandedOff, Handoff};
 use mcrs_minecraft_engine_world::world::lifecycle::column_loading::LOADING_RINGS;
 use mcrs_minecraft_engine_world::world::lifecycle::trace as column_trace;
 use mcrs_minecraft_engine_world::world::lifecycle::trace::{ColumnStage, ColumnTraceLog};
@@ -26,6 +25,7 @@ use crate::generation_link::{
     DeliveredColumn, DeliveredSection, GenerationReport, GenerationRequest, GeneratorInbox,
     RequestedSection, SectionBlocks, SectionContent, ViewUpdate, WantedColumn,
 };
+use crate::handoff::{Finished, HandedOff, Handoff};
 
 /// Sort key for the priority queue. Lower distance_sq values are dequeued first.
 /// The column position (col_x, col_z) serves as a tiebreaker for determinism.
@@ -125,7 +125,9 @@ enum Event {
 /// column again.
 pub(crate) struct GenerationActor {
     inbox: GeneratorInbox,
-    wake: Option<DrainWake>,
+    /// The requests taken in, and how many of them the last idle report covered.
+    seen: u64,
+    reported: u64,
     pub(crate) traces: Option<ColumnTraceLog>,
     pub(crate) ctx: Option<FillContext>,
     pub(crate) pending: BTreeMap<ColumnKey, PendingColumn>,
@@ -154,13 +156,13 @@ pub(crate) struct GenerationActor {
 impl GenerationActor {
     pub(crate) fn new(
         inbox: GeneratorInbox,
-        wake: Option<DrainWake>,
         traces: Option<ColumnTraceLog>,
         config: SchedulerConfig,
     ) -> Self {
         Self {
             inbox,
-            wake,
+            seen: 0,
+            reported: 0,
             traces,
             ctx: None,
             pending: BTreeMap::new(),
@@ -200,7 +202,8 @@ impl GenerationActor {
     }
 
     /// Takes in every event that is already waiting, dispatches what they made owed and
-    /// delivers what reached the top of its ladder.
+    /// delivers what reached the top of its ladder. Once nothing is owed, it tells the
+    /// dimension how many requests that covers.
     pub(crate) fn settle(&mut self) -> Link {
         while let Ok(request) = self.inbox.requests.try_recv() {
             self.handle(request);
@@ -209,7 +212,16 @@ impl GenerationActor {
             self.finish(finished);
         }
         self.dispatch();
-        self.deliver()
+        if self.deliver() == Link::Closed {
+            return Link::Closed;
+        }
+        if self.seen != self.reported && self.pending.is_empty() && self.in_flight.is_empty() {
+            if !self.report(GenerationReport::Idle { seen: self.seen }) {
+                return Link::Closed;
+            }
+            self.reported = self.seen;
+        }
+        Link::Open
     }
 
     pub(crate) fn rungs(&self) -> usize {
@@ -231,6 +243,7 @@ impl GenerationActor {
     }
 
     fn handle(&mut self, request: GenerationRequest) {
+        self.seen = self.seen.wrapping_add(1);
         match request {
             GenerationRequest::Context(ctx) => self.ctx = Some(*ctx),
             GenerationRequest::Want(wanted) => self.want(wanted),
@@ -296,8 +309,8 @@ impl GenerationActor {
             if views_moved || !abandoned.is_empty() {
                 self.evict_outside_halo();
             }
-            if !abandoned.is_empty() && self.report(GenerationReport::Abandoned(abandoned)) {
-                self.wake();
+            if !abandoned.is_empty() {
+                self.report(GenerationReport::Abandoned(abandoned));
             }
         }
         if previous.players != self.views.players && !self.views.players.is_empty() {
@@ -450,7 +463,6 @@ impl GenerationActor {
             .collect();
         ready.sort_unstable();
         ready.dedup();
-        let mut delivered_any = false;
         for key in ready {
             let Some(column) = self.take_delivery(key) else {
                 continue;
@@ -458,10 +470,6 @@ impl GenerationActor {
             if !self.report(GenerationReport::Delivered(Box::new(column))) {
                 return Link::Closed;
             }
-            delivered_any = true;
-        }
-        if delivered_any {
-            self.wake();
         }
         Link::Open
     }
@@ -528,12 +536,6 @@ impl GenerationActor {
     /// Whether the dimension took the report.
     fn report(&self, report: GenerationReport) -> bool {
         self.inbox.reports.send(report).is_ok()
-    }
-
-    fn wake(&self) {
-        if let Some(wake) = &self.wake {
-            wake.wake();
-        }
     }
 }
 

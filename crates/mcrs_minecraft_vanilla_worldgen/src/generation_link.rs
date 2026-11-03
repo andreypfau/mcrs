@@ -49,6 +49,10 @@ pub(crate) enum GenerationReport {
     Delivered(Box<DeliveredColumn>),
     /// Sections of columns that left every view before they were delivered.
     Abandoned(Vec<Entity>),
+    /// The actor owes nothing for the first `seen` requests it was sent.
+    Idle {
+        seen: u64,
+    },
 }
 
 /// A column at the top of its ladder, already in the form its sections take in the ECS.
@@ -88,20 +92,44 @@ pub(crate) struct SectionBlocks {
 pub(crate) struct ColumnGenerator {
     requests: flume::Sender<GenerationRequest>,
     reports: flume::Receiver<GenerationReport>,
+    /// Reports taken off the channel and not integrated yet, oldest first.
+    held: Vec<GenerationReport>,
+    sent: u64,
+    idle_at: u64,
 }
 
 impl ColumnGenerator {
-    pub(crate) fn send(&self, request: GenerationRequest) {
+    pub(crate) fn send(&mut self, request: GenerationRequest) {
         // Fails only once the actor has gone, and then nothing in the dimension generates.
-        let _ = self.requests.send(request);
+        if self.requests.send(request).is_ok() {
+            self.sent = self.sent.wrapping_add(1);
+        }
     }
 
-    pub(crate) fn reports(&self) -> flume::TryIter<'_, GenerationReport> {
-        self.reports.try_iter()
+    /// Every report not integrated yet, in the order the actor sent them.
+    pub(crate) fn reports(&mut self) -> std::vec::Drain<'_, GenerationReport> {
+        self.take_in();
+        self.held.drain(..)
     }
 
     pub(crate) fn has_reports(&self) -> bool {
-        !self.reports.is_empty()
+        !self.held.is_empty() || !self.reports.is_empty()
+    }
+
+    /// Whether the actor has answered every request sent so far. Takes its reports off the
+    /// channel to tell, and integrates none of them.
+    pub(crate) fn is_idle(&mut self) -> bool {
+        self.take_in();
+        self.idle_at == self.sent
+    }
+
+    fn take_in(&mut self) {
+        for report in self.reports.try_iter() {
+            match report {
+                GenerationReport::Idle { seen } => self.idle_at = seen,
+                report => self.held.push(report),
+            }
+        }
     }
 }
 
@@ -132,6 +160,9 @@ impl GeneratorLink {
             generator: ColumnGenerator {
                 requests: request_sender,
                 reports: report_receiver,
+                held: Vec::new(),
+                sent: 0,
+                idle_at: 0,
             },
             inbox: GeneratorInbox {
                 requests: request_receiver,

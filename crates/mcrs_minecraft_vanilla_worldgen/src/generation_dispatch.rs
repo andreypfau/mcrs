@@ -128,8 +128,7 @@ impl GenerationActor {
         F: Future<Output = Option<StageResult>> + Send + 'static,
     {
         let cancel = CancellationToken::new();
-        // The actor blocks on the hand-off itself, so a finished stage wakes nobody else.
-        let task = self.handoff.spawn(pool, None, work(cancel.clone()));
+        let task = self.handoff.spawn(pool, work(cancel.clone()));
         self.store.set_stage(col, stage);
         self.in_flight.push(InFlightStage { col, cancel, task });
     }

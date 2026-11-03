@@ -1,7 +1,6 @@
 use flume::{Receiver, SendError, Sender, TryRecvError, WeakSender};
 
 use bevy_tasks::AsyncComputeTaskPool;
-use mcrs_minecraft_engine_world::world::column_drain::DrainWake;
 use mcrs_minecraft_light_engine::epoch::PublishedLight;
 
 use crate::from_light::FromLight;
@@ -21,16 +20,14 @@ pub(crate) struct LightThread {
     /// and the epochs in flight have all let go of it.
     epochs: WeakSender<LightInbox>,
     replies: Sender<FromLight>,
-    wake: Option<DrainWake>,
     relit: Vec<PublishedLight>,
     seen: u64,
     reported: u64,
 }
 
 impl LightThread {
-    /// Starts the actor of `state` and hands back the dimension's end of it. `wake` asks the
-    /// dimension to take the actor's replies between ticks.
-    pub(crate) fn spawn(state: LightState, wake: Option<DrainWake>) -> LightActor {
+    /// Starts the actor of `state` and hands back the dimension's end of it.
+    pub(crate) fn spawn(state: LightState) -> LightActor {
         let (inbox_sender, inbox) = flume::unbounded();
         let (replies, replies_receiver) = flume::unbounded();
         let thread = Self {
@@ -38,7 +35,6 @@ impl LightThread {
             inbox,
             epochs: inbox_sender.downgrade(),
             replies,
-            wake,
             relit: Vec::new(),
             seen: 0,
             reported: 0,
@@ -98,21 +94,15 @@ impl LightThread {
             self.state.dispatch(pool, &inbox);
         }
 
-        let mut answered = false;
         if !self.relit.is_empty() {
             let relit = std::mem::take(&mut self.relit);
             self.replies.send(FromLight::Relit(relit))?;
-            answered = true;
         }
         // After the light it waited on, so the dimension has that light before it sends the
         // column.
         let settled = self.state.take_settled();
         if !settled.is_empty() {
             self.replies.send(FromLight::Settled(settled))?;
-            answered = true;
-        }
-        if answered && let Some(wake) = &self.wake {
-            wake.wake();
         }
         if self.seen != self.reported && self.state.is_idle() {
             self.replies.send(FromLight::Idle { seen: self.seen })?;
@@ -129,9 +119,7 @@ mod tests {
     use std::sync::Arc;
     use std::time::{Duration, Instant};
 
-    use bevy_ecs::entity::Entity;
     use mcrs_minecraft_chunk::VoxelId;
-    use mcrs_minecraft_engine_world::world::column_drain::DrainWakes;
     use mcrs_minecraft_light_engine::block::{LightProperties, LightRegistry, SpecialBlocks};
     use mcrs_minecraft_light_engine::level::LightBounds;
     use mcrs_minecraft_light_engine::world::LightWorld;
@@ -149,23 +137,22 @@ mod tests {
             },
         ));
         let world = LightWorld::new(registry, LightBounds::new(0, 0));
-        let wakes = DrainWakes::default();
-        let mut actor = LightThread::spawn(
-            LightState::new(world),
-            Some(wakes.for_dimension(Entity::PLACEHOLDER)),
-        );
+        let mut actor = LightThread::spawn(LightState::new(world));
+        let replies = actor.replies();
         actor.send(ToLight::AwaitColumns(vec![ColumnPos::new(0, 0)]));
-        assert_eq!(
-            wakes.receiver().recv_timeout(Duration::from_secs(5)),
-            Ok(Entity::PLACEHOLDER),
-            "the actor answers the column and wakes the dimension"
+        assert!(
+            matches!(
+                replies.recv_timeout(Duration::from_secs(5)),
+                Ok(FromLight::Settled(_))
+            ),
+            "the actor answers the column"
         );
 
         drop(actor);
 
-        // The thread holds the only other sender of the wakes.
+        // The thread holds the only sender of the replies.
         let deadline = Instant::now() + Duration::from_secs(5);
-        while wakes.receiver().sender_count() > 1 {
+        while replies.sender_count() > 0 {
             assert!(Instant::now() < deadline, "the actor thread never ended");
             std::thread::sleep(Duration::from_millis(1));
         }

@@ -25,6 +25,7 @@ impl Plugin for DimensionPlugin {
         app.configure_sets(
             FixedUpdate,
             (
+                TickSet::ServiceResults,
                 TickSet::Input,
                 TickSet::Simulate,
                 TickSet::WorldWrite,

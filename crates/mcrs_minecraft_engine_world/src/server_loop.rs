@@ -113,8 +113,8 @@ pub fn spawn_server_thread(
 }
 
 /// Ticks the app at `tick_rate`. `between_ticks` runs once after every tick. `until` then has
-/// the time up to the next tick, given as its deadline, to pass on work that finished off the
-/// tick, a column read from the save above all, without waiting for the tick to come round.
+/// the time up to the next tick, given as its deadline, to pass on what the tick wrote for the
+/// clients. It must not change what a tick reads.
 /// The loop sleeps out what `until` leaves of that time. A plugin that asks the app to exit
 /// while it finishes stops the loop before the first tick.
 pub fn run_server_loop(

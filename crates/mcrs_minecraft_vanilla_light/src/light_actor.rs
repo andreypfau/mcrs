@@ -1,3 +1,5 @@
+use std::collections::VecDeque;
+
 use bevy_ecs::resource::Resource;
 use flume::{Receiver, Sender};
 
@@ -17,6 +19,8 @@ use crate::to_light::{QueuedEdit, ToLight};
 pub struct LightActor {
     inbox: Sender<LightInbox>,
     replies: Receiver<FromLight>,
+    /// Replies taken off the channel and not published yet, oldest first.
+    held: VecDeque<FromLight>,
     edits: Vec<QueuedEdit>,
     sent: u64,
     idle_at: u64,
@@ -27,6 +31,7 @@ impl LightActor {
         Self {
             inbox,
             replies,
+            held: VecDeque::new(),
             edits: Vec::new(),
             sent: 0,
             idle_at: 0,
@@ -54,7 +59,23 @@ impl LightActor {
     }
 
     pub(crate) fn has_replies(&self) -> bool {
-        !self.replies.is_empty()
+        !self.held.is_empty() || !self.replies.is_empty()
+    }
+
+    /// Takes the replies the actor sent so far off their channel, so that [`Self::is_idle`]
+    /// counts all of them. It publishes none of them: what the world holds does not change.
+    pub fn take_in_replies(&mut self) {
+        for reply in self.replies.try_iter() {
+            if let FromLight::Idle { seen } = reply {
+                self.idle_at = seen;
+            }
+            self.held.push_back(reply);
+        }
+    }
+
+    #[cfg(test)]
+    pub(crate) fn replies(&self) -> Receiver<FromLight> {
+        self.replies.clone()
     }
 
     pub(crate) fn send(&mut self, message: ToLight) {
@@ -73,10 +94,9 @@ impl LightActor {
 
     /// The next reply of the actor, in the order it sent them.
     pub(crate) fn receive(&mut self) -> Option<FromLight> {
-        let reply = self.replies.try_recv().ok()?;
-        if let FromLight::Idle { seen } = reply {
-            self.idle_at = seen;
+        if self.held.is_empty() {
+            self.take_in_replies();
         }
-        Some(reply)
+        self.held.pop_front()
     }
 }

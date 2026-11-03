@@ -5,7 +5,7 @@ use std::time::{Duration, Instant};
 use bevy_app::{App, FixedUpdate, Plugin};
 use bevy_ecs::entity::Entity;
 use bevy_ecs::prelude::{
-    Local, MessageReader, ParamSet, Query, Resource, With, on_message, resource_exists,
+    Local, MessageReader, ParamSet, Query, Resource, With, resource_exists,
     resource_exists_and_changed,
 };
 use bevy_ecs::schedule::IntoScheduleConfigs;
@@ -18,7 +18,6 @@ use mcrs_minecraft_engine_world::entity::physics::Transform;
 use mcrs_minecraft_engine_world::entity::player::Player;
 use mcrs_minecraft_engine_world::entity::player::chunk_view::SentChunkView;
 use mcrs_minecraft_engine_world::tick::TickSet;
-use mcrs_minecraft_engine_world::world::column_drain::{ColumnDrain, ColumnDrainSet, DrainWake};
 use mcrs_minecraft_engine_world::world::dimension::InDimension;
 use mcrs_minecraft_engine_world::world::lifecycle::stage::{
     SectionStage, SectionStageChanged, SectionStages,
@@ -56,29 +55,22 @@ impl Plugin for ChunkPlugin {
         app.insert_resource(link.generator);
         app.insert_resource(link.inbox);
         // The chunks a view ticketed this tick are spawned this tick and requested right
-        // after; what the actor delivers is integrated by the dimension's `ColumnDrain`, at
-        // the tick's end and between ticks.
+        // after. What the actor delivered since lands at the start of the next tick.
         app.add_systems(
             FixedUpdate,
             (
-                start_column_generator.run_if(resource_exists::<GeneratorInbox>),
-                send_fill_context.run_if(resource_exists_and_changed::<FillContext>),
-                request_columns,
-                send_views,
-            )
-                .chain()
-                .in_set(TickSet::Project)
-                .after(ChunkSpawnSet),
-        );
-        app.add_systems(
-            ColumnDrain,
-            (
                 integrate_generated_columns
                     .run_if(generation_reported)
-                    .in_set(ColumnDrainSet::Collect),
-                request_columns
-                    .run_if(on_message::<SectionStageChanged>)
-                    .in_set(ColumnDrainSet::Request),
+                    .in_set(TickSet::ServiceResults),
+                (
+                    start_column_generator.run_if(resource_exists::<GeneratorInbox>),
+                    send_fill_context.run_if(resource_exists_and_changed::<FillContext>),
+                    request_columns,
+                    send_views,
+                )
+                    .chain()
+                    .in_set(TickSet::Project)
+                    .after(ChunkSpawnSet),
             ),
         );
     }
@@ -94,7 +86,6 @@ pub(crate) fn start_column_generator(world: &mut World) {
     };
     let actor = GenerationActor::new(
         inbox,
-        world.get_resource::<DrainWake>().cloned(),
         world.get_resource::<ColumnTraceLog>().cloned(),
         world
             .get_resource::<SchedulerConfig>()
@@ -113,7 +104,18 @@ fn generation_reported(generator: Res<ColumnGenerator>) -> bool {
     generator.has_reports()
 }
 
-pub(crate) fn send_fill_context(ctx: Res<FillContext>, generator: Res<ColumnGenerator>) {
+/// Whether the generation of the dimension in `world` has answered every request the dimension
+/// made, so that the next tick integrates all of it. A world with no generation is idle.
+///
+/// It takes the answers off their channel to tell, and integrates none of them: what the
+/// simulation sees does not change.
+pub fn generation_is_idle(world: &mut World) -> bool {
+    world
+        .get_resource_mut::<ColumnGenerator>()
+        .is_none_or(|mut generator| generator.is_idle())
+}
+
+pub(crate) fn send_fill_context(ctx: Res<FillContext>, mut generator: ResMut<ColumnGenerator>) {
     generator.send(GenerationRequest::Context(Box::new(ctx.clone())));
 }
 
@@ -121,7 +123,7 @@ pub(crate) fn send_fill_context(ctx: Res<FillContext>, generator: Res<ColumnGene
 pub(crate) fn request_columns(
     mut stages: ParamSet<(MessageReader<SectionStageChanged>, SectionStages)>,
     mut requested: Local<Vec<(Entity, SectionPos)>>,
-    generator: Res<ColumnGenerator>,
+    mut generator: ResMut<ColumnGenerator>,
     players: Query<&Transform, With<Player>>,
     mut columns: Local<HashMap<ColumnPos, Vec<RequestedSection>>>,
     mut player_positions: Local<Vec<ColumnPos>>,
@@ -169,7 +171,7 @@ pub(crate) fn request_columns(
 /// Tells the actor what the views and the players are, so it drops what left every view
 /// and works the nearest columns first.
 pub(crate) fn send_views(
-    generator: Res<ColumnGenerator>,
+    mut generator: ResMut<ColumnGenerator>,
     views: Query<&SentChunkView>,
     players: Query<&Transform, With<Player>>,
 ) {
@@ -184,12 +186,17 @@ pub(crate) fn send_views(
 
 /// Puts what the actor delivered into the sections that asked for it, and sends the
 /// sections of the columns it dropped on their way out.
+///
+/// The pool finishes columns in an order its threads decide, so the reports are integrated
+/// by position: the entities and messages they produce do not depend on that order.
 #[expect(
     clippy::too_many_arguments,
     reason = "a Bevy system: each resource and query is its own parameter so the scheduler sees the access"
 )]
 pub(crate) fn integrate_generated_columns(
-    generator: Res<ColumnGenerator>,
+    mut generator: ResMut<ColumnGenerator>,
+    mut delivered: Local<Vec<DeliveredColumn>>,
+    mut abandoned: Local<Vec<Entity>>,
     mut pending_heightmaps: ResMut<PendingColumnHeightmaps>,
     section_dimensions: Query<&InDimension>,
     mut stages: SectionStages,
@@ -200,17 +207,21 @@ pub(crate) fn integrate_generated_columns(
 ) {
     let threshold = slow_threshold.as_deref().copied().unwrap_or_default().0;
     for report in generator.reports() {
-        let column = match report {
-            GenerationReport::Delivered(column) => column,
-            GenerationReport::Abandoned(sections) => {
-                for section in sections {
-                    if stages.get(section) == Some(SectionStage::Generating) {
-                        stages.set(section, SectionStage::Unloading);
-                    }
-                }
-                continue;
-            }
-        };
+        match report {
+            GenerationReport::Delivered(column) => delivered.push(*column),
+            GenerationReport::Abandoned(sections) => abandoned.extend(sections),
+            GenerationReport::Idle { .. } => {}
+        }
+    }
+    abandoned.sort_unstable();
+    for section in abandoned.drain(..) {
+        if stages.get(section) == Some(SectionStage::Generating) {
+            stages.set(section, SectionStage::Unloading);
+        }
+    }
+    // Stable, so two deliveries of one column keep the order the actor made them in.
+    delivered.sort_by_key(|column| column.col);
+    for column in delivered.drain(..) {
         let DeliveredColumn {
             col,
             queued,
@@ -219,7 +230,7 @@ pub(crate) fn integrate_generated_columns(
             block_entities,
             entities,
             sections,
-        } = *column;
+        } = column;
         // Any live section of the column answers for the whole column. The
         // first-requested one may already have been despawned while the rest of
         // the column still stands, and taking it alone would drop the lot.
@@ -471,7 +482,7 @@ mod tests {
         let link = GeneratorLink::new();
         app.insert_resource(link.generator);
         app.add_systems(Update, integrate_generated_columns);
-        let mut actor = GenerationActor::new(link.inbox, None, None, SchedulerConfig::default());
+        let mut actor = GenerationActor::new(link.inbox, None, SchedulerConfig::default());
 
         let dim = app.world_mut().spawn_empty().id();
         let stale_pos = SectionPos::new(100, 0, 100);
@@ -479,7 +490,7 @@ mod tests {
             .world_mut()
             .spawn((stale_pos, InDimension(dim), SectionStage::Generating))
             .id();
-        let generator = app.world().resource::<ColumnGenerator>();
+        let mut generator = app.world_mut().resource_mut::<ColumnGenerator>();
         generator.send(GenerationRequest::Want(WantedColumn {
             col: ColumnPos::new(stale_pos.x, stale_pos.z),
             distance_sq: 0,
@@ -512,8 +523,8 @@ mod tests {
     /// the link going away can end it.
     #[test]
     fn the_actor_thread_ends_with_the_dimension() {
-        let link = GeneratorLink::new();
-        let actor = GenerationActor::new(link.inbox, None, None, SchedulerConfig::default());
+        let mut link = GeneratorLink::new();
+        let actor = GenerationActor::new(link.inbox, None, SchedulerConfig::default());
         let thread = std::thread::spawn(move || actor.run());
         link.generator
             .send(GenerationRequest::Views(ViewUpdate::default()));

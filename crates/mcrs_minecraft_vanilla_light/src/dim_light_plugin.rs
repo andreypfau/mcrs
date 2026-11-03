@@ -4,6 +4,7 @@ use std::sync::Arc;
 
 use bevy_app::{App, FixedUpdate, Last, Plugin};
 use bevy_ecs::prelude::*;
+use bevy_ecs::schedule::ScheduleLabel;
 use mcrs_minecraft_engine::light_codec::{LightCodecParams, build_delta_light_data};
 use mcrs_minecraft_engine_world::aoi::PlayerObservers;
 use mcrs_minecraft_engine_world::block_update::BlockPlaced;
@@ -12,7 +13,6 @@ use mcrs_minecraft_engine_world::entity::player::Player;
 use mcrs_minecraft_engine_world::palette::ChunkBlocks;
 use mcrs_minecraft_engine_world::session::{Owner, PlayerSession};
 use mcrs_minecraft_engine_world::tick::TickSet;
-use mcrs_minecraft_engine_world::world::column_drain::{ColumnDrain, ColumnDrainSet};
 use mcrs_minecraft_engine_world::world::dimension::InDimension;
 use mcrs_minecraft_engine_world::world::lifecycle::stage::SectionStageChanged;
 use mcrs_minecraft_engine_world::world::light_gate::{
@@ -24,7 +24,7 @@ use mcrs_minecraft_light_engine::prelude::{Edit, LightBounds};
 use mcrs_voxel::{ColumnPos, SectionPos};
 
 use crate::light_actor::LightActor;
-use crate::light_plugin::{LightPlugin, LightSet, light_replied, publish_light};
+use crate::light_plugin::{LightPlugin, LightSet};
 use crate::light_state::player_priority;
 use crate::to_light::ToLight;
 
@@ -56,18 +56,15 @@ impl Plugin for DimLightPlugin {
             registry: Arc::clone(&self.registry),
             bounds: self.bounds,
             sky: self.sky,
+            publish: FixedUpdate.intern(),
         })
         .configure_sets(
-            Last,
-            (
-                DimLightSet::Feed
-                    .after(LightSet::Publish)
-                    .before(LightSet::Intake),
-                DimLightSet::Emit.after(LightSet::Publish),
-            ),
+            FixedUpdate,
+            LightSet::Publish.in_set(TickSet::ServiceResults),
         )
-        // Sections land in `FixedLast`, so `Last` is the first schedule of the
-        // same tick that can see them.
+        .configure_sets(Last, DimLightSet::Feed.before(LightSet::Intake))
+        // `Last` sees what the whole tick landed and placed, and hands it to the actor before
+        // the tick ends.
         .add_systems(
             Last,
             (
@@ -86,21 +83,7 @@ impl Plugin for DimLightPlugin {
         )
         .insert_resource(LightGated)
         .configure_sets(FixedUpdate, ColumnLightGate.in_set(TickSet::Project))
-        .add_systems(FixedUpdate, await_light.in_set(ColumnLightGate))
-        .add_systems(
-            ColumnDrain,
-            (
-                // The light the actor published lands in time for the send that follows it in
-                // this same drain.
-                publish_light
-                    .run_if(light_replied)
-                    .in_set(ColumnDrainSet::Light),
-                await_light
-                    .run_if(on_message::<ColumnAwaitsLight>)
-                    .in_set(ColumnDrainSet::Send)
-                    .in_set(ColumnLightGate),
-            ),
-        );
+        .add_systems(FixedUpdate, await_light.in_set(ColumnLightGate));
     }
 }
 

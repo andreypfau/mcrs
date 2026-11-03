@@ -138,7 +138,7 @@ fn main() -> anyhow::Result<()> {
     Ok(())
 }
 
-/// `run_server_loop`, timing the tick and the column drains until the next tick.
+/// `run_server_loop`, timing the tick and the outbox drains until the next tick.
 fn run_timed(mut app: App, stop: &AtomicBool) -> Vec<TickTimes> {
     app.finish();
     app.cleanup();

@@ -11,7 +11,8 @@
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use bevy_app::{App, TaskPoolPlugin};
+use bevy_app::{App, Last, TaskPoolPlugin};
+use bevy_ecs::schedule::ScheduleLabel;
 use mcrs_minecraft_chunk::{PalettedContainer, VoxelId, VoxelPalette};
 use mcrs_minecraft_light_engine::prelude::*;
 use mcrs_minecraft_vanilla_light::{IntakeBudget, LightActor, LightBudget, LightPlugin};
@@ -92,6 +93,7 @@ fn main() {
                 registry: registry(),
                 bounds,
                 sky: true,
+                publish: Last.intern(),
             });
         let limit = app.world().resource::<IntakeBudget>().columns_per_round;
         {

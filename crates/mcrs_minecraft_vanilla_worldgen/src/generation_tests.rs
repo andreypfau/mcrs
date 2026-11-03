@@ -178,7 +178,6 @@ fn run_parallel(dim: &Dimension, wanted: &[ColumnPos], drive: Drive) -> (Region,
     let mut actor = GenerationActor::new(
         link.inbox,
         None,
-        None,
         SchedulerConfig {
             max_in_flight: drive.in_flight,
             max_dispatch_per_pass: drive.batch,
@@ -687,7 +686,7 @@ fn a_dead_first_section_does_not_take_the_column_s_block_entities_with_it() {
     app.insert_resource(Items(Arc::default()));
     let link = GeneratorLink::new();
     app.insert_resource(link.generator);
-    let mut actor = GenerationActor::new(link.inbox, None, None, SchedulerConfig::default());
+    let mut actor = GenerationActor::new(link.inbox, None, SchedulerConfig::default());
 
     let dim = app.world_mut().spawn_empty().id();
     let dead = app.world_mut().spawn(InDimension(dim)).id();

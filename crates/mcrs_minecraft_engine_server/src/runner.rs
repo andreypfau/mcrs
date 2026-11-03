@@ -5,7 +5,7 @@ use mcrs_minecraft_engine::between_ticks::run_between_ticks;
 use mcrs_minecraft_engine::bridge::run_pending_flush;
 use mcrs_minecraft_engine::dim::{drain_dim_despawn_queue, pump_channels, pump_dim};
 use mcrs_minecraft_engine::sub_app_builder::drain_dim_spawn_queue;
-use mcrs_minecraft_engine_world::world::column_drain::{ColumnDrain, DrainWakes};
+use mcrs_minecraft_engine_world::world::outbox_drain::{DrainWakes, OutboxDrain};
 use mcrs_minecraft_engine_world::world::sub_app::DimAppLabel;
 use std::num::NonZeroU32;
 use std::time::Instant;
@@ -34,9 +34,10 @@ pub fn between_ticks(app: &mut App) {
     drain_dim_despawn_queue(app);
 }
 
-/// Passes on, up to `deadline`, what the dimensions finish off the tick: a dimension that asks
-/// for a drain has it as soon as the server thread is free, and the host hands what it sent to
-/// the sockets. A server with nothing finishing does not drain at all.
+/// Passes on, up to `deadline`, what the tick wrote for the clients. The host hands it to the
+/// sockets at once. A dimension whose full channel held packets back asks for a drain, and has
+/// it as soon as the host has emptied the channel. Nothing here changes what a tick reads:
+/// generation and light land only at the start of a tick.
 pub fn drain_until(app: &mut App, deadline: Instant) {
     loop {
         drain_woken(app);
@@ -65,8 +66,8 @@ pub struct Drained {
     pub dimensions: usize,
 }
 
-/// Drains the dimensions that asked since the last drain, then hands what they sent to the
-/// sockets.
+/// Drains the outboxes of the dimensions that asked since the last drain, then hands what they
+/// sent to the sockets.
 pub fn drain_woken(app: &mut App) -> Drained {
     let mut woken = app
         .world_mut()
@@ -81,7 +82,7 @@ pub fn drain_woken(app: &mut App) -> Drained {
     let dimensions = woken.0.len();
     for &dim in &woken.0 {
         if let Some(sub_app) = app.get_sub_app_mut(DimAppLabel(dim)) {
-            drain_dimension_columns(sub_app);
+            drain_outbox(sub_app);
         }
     }
     let host = app.world_mut();
@@ -110,8 +111,8 @@ pub fn wait_for_wake(app: &mut App, deadline: Instant) -> bool {
     true
 }
 
-fn drain_dimension_columns(dimension: &mut SubApp) {
-    if let Err(error) = dimension.world_mut().try_run_schedule(ColumnDrain) {
-        tracing::error!(%error, "a dimension has no column drain");
+fn drain_outbox(dimension: &mut SubApp) {
+    if let Err(error) = dimension.world_mut().try_run_schedule(OutboxDrain) {
+        tracing::error!(%error, "a dimension has no outbox drain");
     }
 }

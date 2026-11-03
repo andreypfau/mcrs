@@ -3,7 +3,7 @@ use crate::light_codec::{LightCodecParams, build_full_light_data, build_fullbrig
 use bevy_app::{App, FixedUpdate, Plugin};
 use bevy_ecs::entity::Entity;
 use bevy_ecs::lifecycle::Discard;
-use bevy_ecs::message::{Message, MessageReader, MessageWriter};
+use bevy_ecs::message::{MessageReader, MessageWriter};
 use bevy_ecs::prelude::{Added, Changed, Component, ContainsEntity, Local, On, Or, Query, With};
 use bevy_ecs::schedule::{IntoScheduleConfigs, SystemSet};
 use bevy_ecs::system::{Res, SystemParam};
@@ -20,7 +20,7 @@ use mcrs_minecraft_engine_world::palette::{BiomePalette, ChunkBlocks};
 use mcrs_minecraft_engine_world::tick::TickSet;
 use mcrs_minecraft_engine_world::world::dimension::{DimensionTypeConfig, InDimension};
 use mcrs_minecraft_engine_world::world::lifecycle::column_loading::ColumnLoading;
-use mcrs_minecraft_engine_world::world::lifecycle::stage::{SectionStage, SectionStageChanged};
+use mcrs_minecraft_engine_world::world::lifecycle::stage::SectionStage;
 use mcrs_minecraft_engine_world::world::lifecycle::ticket::{
     ChunkSpawnSet, MAX_SPAWNS_PER_TICK, SectionEntitySet,
 };
@@ -102,20 +102,12 @@ impl Plugin for ColumnViewPlugin {
         );
         app.register_required_components::<ColumnLoading, ColumnWaiters>();
         app.add_message::<ColumnAwaitsLight>();
-        app.add_message::<ColumnBecameReady>();
         app.add_message::<ColumnLightSettled>();
         app.add_message::<SectionRelit>();
 
         app.add_observer(handle_batch_acknowledgement);
         app.add_observer(release_loading_tickets);
     }
-}
-
-/// A column of `player`'s view became ready to go out. The drain between ticks sends batches
-/// only to the players these name: nothing else between ticks gives a player a column to send.
-#[derive(Message, Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) struct ColumnBecameReady {
-    pub(crate) player: Entity,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -149,7 +141,7 @@ impl ColumnState {
 #[require(SentChunkView)]
 pub struct ColumnView {
     states: FxHashMap<ColumnPos, ColumnState>,
-    /// The unsent columns of `states` by state, so a drain walks what is left to do rather than
+    /// The unsent columns of `states` by state, so a send walks what is left to do rather than
     /// the whole view. Kept by `set` alone.
     unsent: [FxHashSet<ColumnPos>; 4],
     batch_quota: f32,
@@ -544,7 +536,6 @@ pub(crate) struct ReadyInputs<'w, 's> {
     lit: Query<'w, 's, (), (With<BlockLight>, With<SkyLight>)>,
     light_gated: Option<Res<'w, LightGated>>,
     awaiting_light: MessageWriter<'w, ColumnAwaitsLight>,
-    became_ready: MessageWriter<'w, ColumnBecameReady>,
     ready: Local<'s, Vec<PlayerColumn>>,
     traces: Option<Res<'w, ColumnTraceLog>>,
 }
@@ -555,40 +546,12 @@ pub(crate) struct ReadyInputs<'w, 's> {
 /// The light gate belongs before the send: a column goes out once and never again, so sending
 /// one before its light has settled leaves it permanently black on the client.
 pub(crate) fn project_ready_columns(mut inputs: ReadyInputs) {
-    project(&mut inputs, None);
-}
-
-/// The drain between ticks looks only at columns whose own or neighbouring sections changed
-/// stage or took light since it last ran: rescanning every waiting column at a full render
-/// distance every drain kept the server thread busy enough to starve its inbound packets.
-// Read off the messages, not `Changed` filters: those test the ticks of every section in the
-// dimension on each of the many drains a tick, however few of them changed.
-pub(crate) fn project_touched_columns(
-    mut inputs: ReadyInputs,
-    mut staged: MessageReader<SectionStageChanged>,
-    mut relit: MessageReader<SectionRelit>,
-    positions: Query<&SectionPos>,
-    mut candidates: Local<FxHashSet<ColumnPos>>,
-) {
-    candidates.clear();
-    let relit = relit
-        .read()
-        .filter_map(|change| positions.get(change.section).ok().copied());
-    candidates.extend(
-        staged
-            .read()
-            .map(|change| change.pos)
-            .chain(relit)
-            .flat_map(|pos| margin_of(ColumnPos::new(pos.x, pos.z))),
-    );
-    if !candidates.is_empty() {
-        project(&mut inputs, Some(&candidates));
-    }
+    project(&mut inputs);
 }
 
 /// Readiness depends on the column alone, so each column is decided once and moves on in every
 /// view of its dimension that waits for it.
-fn project(inputs: &mut ReadyInputs, candidates: Option<&FxHashSet<ColumnPos>>) {
+fn project(inputs: &mut ReadyInputs) {
     let ReadyInputs {
         players,
         dims,
@@ -596,7 +559,6 @@ fn project(inputs: &mut ReadyInputs, candidates: Option<&FxHashSet<ColumnPos>>) 
         lit,
         light_gated,
         awaiting_light,
-        became_ready,
         ready,
         traces,
     } = inputs;
@@ -641,17 +603,8 @@ fn project(inputs: &mut ReadyInputs, candidates: Option<&FxHashSet<ColumnPos>>) 
             let awaiting = waiting.of(column).iter().copied().filter(awaits);
             ready.extend(awaiting.map(|player| PlayerColumn { player, column }));
         };
-        match candidates {
-            None => {
-                for column in waiting.columns() {
-                    gather(column);
-                }
-            }
-            Some(candidates) => {
-                for &column in candidates {
-                    gather(column);
-                }
-            }
+        for column in waiting.columns() {
+            gather(column);
         }
         ready.sort_unstable_by_key(|ready| ready.player);
         for batch in ready.chunk_by(|left, right| left.player == right.player) {
@@ -661,9 +614,6 @@ fn project(inputs: &mut ReadyInputs, candidates: Option<&FxHashSet<ColumnPos>>) 
             let Ok(mut chunk_view) = players.get_mut(player) else {
                 continue;
             };
-            if !await_light {
-                became_ready.write(ColumnBecameReady { player });
-            }
             for &PlayerColumn { column, .. } in batch {
                 if await_light {
                     chunk_view.set(&mut waiters, player, column, Some(ColumnState::Lighting));
@@ -685,7 +635,6 @@ pub(crate) fn promote_lit_columns(
     mut settled: MessageReader<ColumnLightSettled>,
     mut dims: Query<&mut ColumnWaiters>,
     mut players: Query<&mut ColumnView>,
-    mut became_ready: MessageWriter<ColumnBecameReady>,
     mut waiting: Local<Vec<Entity>>,
     traces: Option<Res<ColumnTraceLog>>,
 ) {
@@ -700,7 +649,6 @@ pub(crate) fn promote_lit_columns(
                     trace!("Column {:?} ready", col);
                     column_trace::mark(traces.as_deref(), col, ColumnStage::Ready);
                     chunk_view.set(&mut waiters, player, col, Some(ColumnState::Ready));
-                    became_ready.write(ColumnBecameReady { player });
                 }
             }
         }
@@ -758,7 +706,7 @@ struct SharedColumn {
     encoding: ColumnEncoding,
 }
 
-/// The columns of one drain, each encoded once. Kept between drains so its storage is reused.
+/// The columns of one send, each encoded once. Kept between sends so its storage is reused.
 #[derive(Default)]
 pub(crate) struct SharedColumns {
     slots: FxHashMap<DimColumn, usize>,
@@ -873,48 +821,6 @@ pub(crate) fn send_column_queue(
         });
 
     picked.drain_into(&mut wanted);
-    send_picked(
-        &source,
-        &mut players,
-        &mut waiters,
-        &mut wanted,
-        &mut shared,
-        &mut packet_writer,
-        &mut held,
-    );
-}
-
-/// Sends a batch to each player that a column became ready for, from what is left of the
-/// quota of the tick. Between ticks only these players have something new to send.
-#[expect(
-    clippy::too_many_arguments,
-    reason = "a system takes its params as arguments"
-)]
-pub(crate) fn send_ready_columns(
-    mut became_ready: MessageReader<ColumnBecameReady>,
-    mut players: Query<Viewers>,
-    mut waiters: Query<&mut ColumnWaiters>,
-    source: ColumnSource,
-    mut packet_writer: MessageWriter<OutboundPlayerPacket>,
-    mut held: MessageWriter<ColumnHeld>,
-    mut ready_for: Local<Vec<Entity>>,
-    mut nearest: Local<Vec<ColumnPos>>,
-    mut wanted: Local<Vec<WantedColumn>>,
-    mut shared: Local<SharedColumns>,
-) {
-    ready_for.extend(became_ready.read().map(|ready| ready.player));
-    ready_for.sort_unstable();
-    ready_for.dedup();
-    for player in ready_for.drain(..) {
-        let Ok((player, chunk_view, sent_view, in_dim, owner)) = players.get(player) else {
-            continue;
-        };
-        let viewer = Viewer::new(player, sent_view, in_dim, owner);
-        pick_batch(&viewer, chunk_view, &mut nearest, &mut wanted);
-    }
-    if wanted.is_empty() {
-        return;
-    }
     send_picked(
         &source,
         &mut players,
@@ -1396,7 +1302,6 @@ mod tests {
         world.insert_resource(LightGated);
         world.init_resource::<Messages<ColumnAwaitsLight>>();
         world.init_resource::<Messages<ColumnLightSettled>>();
-        world.init_resource::<Messages<ColumnBecameReady>>();
         world.init_resource::<Messages<OutboundPlayerPacket>>();
         world.init_resource::<Messages<ColumnHeld>>();
         world.insert_resource(CurrentRegistries::new(
@@ -1706,7 +1611,7 @@ mod tests {
         }));
     }
 
-    /// Two players that take the same columns in one drain receive one encoding of each, and
+    /// Two players that take the same columns in one send receive one encoding of each, and
     /// each player's batch stays bracketed and whole.
     fn players_sharing_a_column_share_its_encoding_in_whole_batches() {
         let mut world = World::new();
@@ -1775,18 +1680,13 @@ mod tests {
         }
     }
 
-    /// Between ticks nothing refills the quota and nothing walks every player, so the column
-    /// whose light settles there has to reach the send through its own message.
-    fn a_column_lit_between_ticks_goes_out_in_the_same_drain() {
+    /// Light lands at the start of a tick, so the column it settles goes out in that tick.
+    fn a_column_lit_at_the_start_of_a_tick_goes_out_in_that_tick() {
         let mut world = World::new();
         let col = ColumnPos::new(0, 0);
         let fx = fixture(&mut world, &[col]);
         let sections = fx.sections[&col].clone();
         light(&mut world, &sections);
-        world
-            .get_mut::<ColumnView>(fx.player)
-            .unwrap()
-            .refill_quota();
         set_state(&mut world, fx.player, col, ColumnState::Lighting);
 
         world.write_message(ColumnLightSettled(col));
@@ -1794,7 +1694,7 @@ mod tests {
             .run_system_once(promote_lit_columns)
             .expect("the promotion runs");
         world
-            .run_system_once(send_ready_columns)
+            .run_system_once(send_column_queue)
             .expect("the send runs");
 
         assert_eq!(sent_columns(&mut world), vec![col]);
@@ -1840,11 +1740,6 @@ mod tests {
             waiters.of(other).is_empty(),
             "a despawned view waits on nothing"
         );
-        let ready = world.resource::<Messages<ColumnBecameReady>>();
-        assert_eq!(
-            ready.get_cursor().read(ready).copied().collect::<Vec<_>>(),
-            vec![ColumnBecameReady { player: staying }],
-        );
         assert_eq!(view(&world, staying).state(col), Some(ColumnState::Ready));
     }
 
@@ -1852,7 +1747,7 @@ mod tests {
     fn a_view_raises_lights_sends_and_releases_its_columns() {
         a_view_that_goes_away_stops_waiting_on_its_columns();
         a_batch_goes_out_nearest_first();
-        a_column_lit_between_ticks_goes_out_in_the_same_drain();
+        a_column_lit_at_the_start_of_a_tick_goes_out_in_that_tick();
         players_sharing_a_column_share_its_encoding_in_whole_batches();
         a_column_waits_for_the_light_of_every_section_it_carries();
         a_despawned_view_hands_back_its_loading_tickets();
