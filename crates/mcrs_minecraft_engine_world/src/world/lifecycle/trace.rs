@@ -1,7 +1,7 @@
 use std::sync::{Arc, Mutex, PoisonError};
 use std::time::Duration;
 
-use bevy_ecs::prelude::{ResMut, Resource};
+use bevy_ecs::prelude::Resource;
 use bevy_platform::time::Instant;
 
 use mcrs_voxel::ColumnPos;
@@ -199,30 +199,48 @@ impl ColumnTraces {
 
 /// What a dimension has traced since the host last took it. Present only when the host shares
 /// its traces with a client, so a server nobody reads the trace of records nothing.
-#[derive(Resource, Default)]
-pub struct ColumnTraceLog(Vec<TraceEvent>);
+///
+/// Systems record through a shared borrow: a write borrow would keep every system that traces
+/// from running beside another, even in a server that records nothing.
+#[derive(Resource)]
+pub struct ColumnTraceLog {
+    sender: flume::Sender<TraceEvent>,
+    receiver: flume::Receiver<TraceEvent>,
+}
+
+impl Default for ColumnTraceLog {
+    fn default() -> Self {
+        let (sender, receiver) = flume::unbounded();
+        Self { sender, receiver }
+    }
+}
 
 impl ColumnTraceLog {
-    pub fn drain(&mut self) -> impl Iterator<Item = TraceEvent> + '_ {
-        self.0.drain(..)
+    pub fn drain(&self) -> impl Iterator<Item = TraceEvent> + '_ {
+        self.receiver.try_iter()
+    }
+
+    fn record(&self, event: TraceEvent) {
+        // Cannot fail: the log holds its own receiver.
+        let _ = self.sender.send(event);
     }
 }
 
-pub fn mark(log: &mut Option<ResMut<ColumnTraceLog>>, pos: ColumnPos, stage: ColumnStage) {
+pub fn mark(log: Option<&ColumnTraceLog>, pos: ColumnPos, stage: ColumnStage) {
     if let Some(log) = log {
-        log.0.push(TraceEvent::mark(pos, stage));
+        log.record(TraceEvent::mark(pos, stage));
     }
 }
 
-pub fn set_source(log: &mut Option<ResMut<ColumnTraceLog>>, pos: ColumnPos, source: &'static str) {
+pub fn set_source(log: Option<&ColumnTraceLog>, pos: ColumnPos, source: &'static str) {
     if let Some(log) = log {
-        log.0.push(TraceEvent::Source { pos, source });
+        log.record(TraceEvent::Source { pos, source });
     }
 }
 
-pub fn forget(log: &mut Option<ResMut<ColumnTraceLog>>, pos: ColumnPos) {
+pub fn forget(log: Option<&ColumnTraceLog>, pos: ColumnPos) {
     if let Some(log) = log {
-        log.0.push(TraceEvent::Forget(pos));
+        log.record(TraceEvent::Forget(pos));
     }
 }
 

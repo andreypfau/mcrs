@@ -1,7 +1,7 @@
 use crate::entity::player::Player;
 use crate::tick::TickSet;
-use crate::world::lifecycle::level::SectionLevels;
-use crate::world::lifecycle::ticket::SectionTickets;
+use crate::world::lifecycle::column_loading::ColumnLoading;
+use crate::world::lifecycle::simulation::SectionSimulation;
 use crate::world::storage::column::ColumnIndex;
 use crate::world::storage::section::SectionIndex;
 use crate::world::storage::section::SectionPlugin;
@@ -51,8 +51,8 @@ pub struct DimensionBundle {
     pub key: ResourceKeyBuf<mcrs_minecraft_dimension::Dimension>,
     pub type_config: DimensionTypeConfig,
     pub chunk_index: SectionIndex,
-    pub tickets: SectionTickets,
-    pub levels: SectionLevels,
+    pub loading: ColumnLoading,
+    pub simulation: SectionSimulation,
     pub players: DimensionPlayers,
     pub column_index: ColumnIndex,
 }
@@ -69,8 +69,8 @@ impl DimensionBundle {
             key,
             type_config,
             chunk_index: SectionIndex::default(),
-            tickets: SectionTickets::default(),
-            levels: SectionLevels::bounded(min_section_y..=max_section_y),
+            loading: ColumnLoading::bounded(min_section_y..=max_section_y),
+            simulation: SectionSimulation::default(),
             players: DimensionPlayers::default(),
             column_index: ColumnIndex::default(),
         }

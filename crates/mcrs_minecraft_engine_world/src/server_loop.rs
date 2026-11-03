@@ -1,10 +1,17 @@
 use bevy_app::prelude::*;
-use bevy_app::{App, Plugin, TaskPoolOptions, TaskPoolPlugin};
+use bevy_app::{App, Plugin, TaskPoolOptions, TaskPoolPlugin, TaskPoolThreadAssignmentPolicy};
 use bevy_asset::AssetPlugin;
 use bevy_ecs::schedule::SingleThreadedExecutor;
 use bevy_time::{Fixed, Time, TimePlugin};
+use rayon::ThreadPoolBuilder;
 use std::num::NonZeroU32;
 use std::time::{Duration, Instant};
+
+use crate::tick_threading::{self, DimTickPool, TickThreading};
+
+/// One thread for each vanilla dimension. A dimension's executor blocks its thread for the whole
+/// tick, so a thread more than there are dimensions never works, and further dimensions take turns.
+const DIM_TICK_THREADS: usize = 3;
 
 pub struct VoxelServerPlugin {
     pub tick_rate: NonZeroU32,
@@ -16,23 +23,48 @@ pub struct VoxelServerPlugin {
     /// `assets` against `BEVY_ASSET_ROOT` or the executable directory, which a
     /// server embedded in another process cannot rely on.
     pub asset_path: Option<String>,
+    /// How the game logic of a tick uses threads. In [`TickThreading::Single`] an app that does
+    /// not own the task pools still runs `par_iter` on the host's compute pool.
+    pub threading: TickThreading,
 }
 
 impl Plugin for VoxelServerPlugin {
     fn build(&self, app: &mut App) {
-        if self.owns_task_pools && cfg!(debug_assertions) {
-            app.add_plugins(TaskPoolPlugin {
-                task_pool_options: TaskPoolOptions::with_num_threads(1),
-            });
+        let threading = match self.threading {
+            TickThreading::Single => TickThreading::Single,
+            TickThreading::Parallel => match ThreadPoolBuilder::new()
+                .num_threads(DIM_TICK_THREADS)
+                .thread_name(|index| format!("dim-tick-{index}"))
+                .build()
+            {
+                Ok(pool) => {
+                    app.insert_resource(DimTickPool(pool));
+                    TickThreading::Parallel
+                }
+                Err(error) => {
+                    tracing::error!(%error, "the dimension tick pool did not start; the dimensions tick one after another");
+                    TickThreading::Single
+                }
+            },
+        };
+        app.insert_resource(threading);
+        let task_pool_options = if threading == TickThreading::Single && self.owns_task_pools {
+            TaskPoolOptions {
+                compute: TaskPoolThreadAssignmentPolicy {
+                    min_threads: 1,
+                    max_threads: 1,
+                    ..TaskPoolOptions::default().compute
+                },
+                ..TaskPoolOptions::default()
+            }
         } else {
-            app.add_plugins(TaskPoolPlugin::default());
-        }
+            TaskPoolOptions::default()
+        };
+        app.add_plugins(TaskPoolPlugin { task_pool_options });
 
         app.edit_schedule(Update, |schedule| {
             schedule.set_executor(SingleThreadedExecutor::new());
         });
-        #[cfg(debug_assertions)]
-        force_singlethread_schedules(app);
 
         if !app.is_plugin_added::<TimePlugin>() {
             app.add_plugins(TimePlugin);
@@ -48,6 +80,13 @@ impl Plugin for VoxelServerPlugin {
             assets.file_path = path.clone();
         }
         app.add_plugins(assets);
+    }
+
+    // After every plugin's `finish`, which may still add a schedule.
+    fn cleanup(&self, app: &mut App) {
+        if app.world().get_resource::<TickThreading>() == Some(&TickThreading::Single) {
+            tick_threading::run_schedules_on_one_thread(app.world_mut());
+        }
     }
 }
 
@@ -97,7 +136,7 @@ pub fn run_server_loop(
     }
     loop {
         let start = Instant::now();
-        app.update();
+        tick_threading::update(&mut app);
         between_ticks(&mut app);
         if let Some(exit) = app.should_exit() {
             return exit;
@@ -112,30 +151,5 @@ pub fn run_server_loop(
                 break;
             }
         }
-    }
-}
-
-#[cfg(debug_assertions)]
-fn force_singlethread_schedules(app: &mut App) {
-    use bevy_ecs::schedule::ScheduleLabel;
-    for label in [
-        PreStartup.intern(),
-        Startup.intern(),
-        PostStartup.intern(),
-        First.intern(),
-        PreUpdate.intern(),
-        RunFixedMainLoop.intern(),
-        Update.intern(),
-        PostUpdate.intern(),
-        Last.intern(),
-        FixedFirst.intern(),
-        FixedPreUpdate.intern(),
-        FixedUpdate.intern(),
-        FixedPostUpdate.intern(),
-        FixedLast.intern(),
-    ] {
-        app.edit_schedule(label, |s| {
-            s.set_executor(SingleThreadedExecutor::new());
-        });
     }
 }

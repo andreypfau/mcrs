@@ -1,3 +1,4 @@
+use bevy_ecs::entity::Entity;
 use bevy_ecs::message::Message;
 use bevy_ecs::resource::Resource;
 use bevy_ecs::schedule::SystemSet;
@@ -7,6 +8,14 @@ use mcrs_voxel::ColumnPos;
 /// sent. Without it a column goes out as soon as its sections land, at full sky light.
 #[derive(Resource, Debug, Default, Clone, Copy)]
 pub struct LightGated;
+
+/// A section whose light was written, and which of its two layers was written.
+#[derive(Message, Clone, Copy, Debug, PartialEq, Eq)]
+pub struct SectionRelit {
+    pub section: Entity,
+    pub block: bool,
+    pub sky: bool,
+}
 
 /// A column whose sections and light have landed, waiting for its light to settle.
 #[derive(Message, Debug, Clone, Copy, PartialEq, Eq)]

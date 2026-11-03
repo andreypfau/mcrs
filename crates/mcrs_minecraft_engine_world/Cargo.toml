@@ -28,10 +28,13 @@ mcrs_minecraft_chunk = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_core = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_simulation.workspace = true
 mcrs_minecraft_volume.workspace = true
+rayon.workspace = true
 rustc-hash.workspace = true
 smallvec.workspace = true
 tracing.workspace = true
 uuid = { workspace = true, features = ["v4"] }
 
 [features]
+# Makes `TickThreading::Parallel` the default mode.
+parallel-tick = []
 telemetry-tracy = []

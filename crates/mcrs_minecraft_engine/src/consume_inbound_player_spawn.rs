@@ -26,7 +26,7 @@ use mcrs_minecraft_engine_world::entity::physics::Transform;
 use mcrs_minecraft_engine_world::entity::player::chunk_view::PlayerViewDistance;
 use mcrs_minecraft_engine_world::session::{DimPlayerIndex, Owner};
 use mcrs_minecraft_engine_world::world::dimension::{Dimension, DimensionTypeId, InDimension};
-use mcrs_minecraft_engine_world::world::lifecycle::ticket::SimulationDistance;
+use mcrs_minecraft_engine_world::world::lifecycle::simulation::SimulationDistance;
 use mcrs_minecraft_game_mode::GameMode;
 use mcrs_minecraft_protocol::VarInt;
 use mcrs_minecraft_protocol_game::clientbound::{ClientboundChunkCacheRadius, ClientboundLogin};
@@ -122,7 +122,7 @@ pub(crate) fn consume_inbound_player_spawn(
                     wire_id,
                     PlayerSpawnInfo::new(dimension_type.0, dim_key.clone(), default_game_mode.0),
                     view_distance.distance,
-                    simulation_distance.0,
+                    simulation_distance.horizontal,
                 ),
             )
             .critical(),

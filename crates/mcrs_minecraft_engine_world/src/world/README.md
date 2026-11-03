@@ -24,10 +24,12 @@ world/
 ├── in_flight.rs      moves between dimensions awaiting their destination's acknowledgement
 ├── sub_app.rs        per-dimension sub-app labels and spawn/despawn queues
 ├── lifecycle/
-│   ├── level.rs      FullStatus, the incremental 3D level field, SectionLevels
-│   ├── stage.rs      SectionStage, the SectionStageChanged message every transition writes, SectionStages
-│   ├── ticket.rs     SectionTickets, simulation tickets, level propagation, spawn and despawn of section entities
-│   └── trace.rs      per-column stage trace for diagnostics
+│   ├── column_loading.rs  ColumnLoading: the loading tickets on columns and the columns they load
+│   ├── coverage.rs        Coverage: how many areas cover each position, with the positions that enter and leave
+│   ├── simulation.rs      SimulationDistance, the players' 3D simulation areas, BlockTicking and EntityTicking
+│   ├── stage.rs           SectionStage, the SectionStageChanged message every transition writes, SectionStages
+│   ├── ticket.rs          TicketPlugin: spawn and despawn of the sections the tickets load
+│   └── trace.rs           per-column stage trace for diagnostics
 └── storage/
     ├── block_entity.rs  InSection, SectionBlockEntities, BlockEntityPos
     ├── column.rs        Column, ColumnBundle, ColumnSections, SectionLookup, ColumnIndex, ColumnSlot, ColumnLifecycleSet, ColumnPlugin

@@ -58,6 +58,7 @@ use crate::minecraft_entity::MinecraftEntityPlugin;
 use crate::player_tracker::PlayerTrackerPlugin;
 use mcrs_minecraft_dimension_environment::dimension_type::DimensionTypeFile;
 use mcrs_minecraft_dimension_environment::environment::DimensionEnvironment;
+use mcrs_minecraft_engine_world::tick_threading::{self, TickThreading};
 use mcrs_minecraft_engine_world::world::column_drain::{ColumnDrain, ColumnDrainSet};
 use mcrs_minecraft_engine_world::world::dimension::{
     DimensionBundle, DimensionPlugin, DimensionTypeConfig, DimensionTypeId, HasSkyLight, HasWeather,
@@ -289,11 +290,7 @@ pub fn spawn_dim_subapp(
             )
                 .chain()
                 .in_set(ColumnDrainSet::Reconcile),
-            (
-                mcrs_minecraft_engine_world::world::lifecycle::ticket::propagate_section_levels,
-                mcrs_minecraft_engine_world::world::lifecycle::ticket::spawn_chunks,
-            )
-                .chain()
+            mcrs_minecraft_engine_world::world::lifecycle::ticket::spawn_chunks
                 .in_set(ColumnDrainSet::Request),
             (
                 crate::column_view::project_touched_columns.before(ColumnLightGate),
@@ -391,7 +388,7 @@ pub fn spawn_dim_subapp(
             sub_world.insert_resource(ops.clone());
         }
         if let Some(traces) = &column_traces
-            && let Some(mut log) = sub_world.get_resource_mut::<ColumnTraceLog>()
+            && let Some(log) = sub_world.get_resource::<ColumnTraceLog>()
         {
             traces.record(&trace_dimension, log.drain());
         }
@@ -467,6 +464,9 @@ pub fn spawn_dim_subapp(
     }
     sub_app.finish();
     sub_app.cleanup();
+    if app.world().get_resource::<TickThreading>() == Some(&TickThreading::Single) {
+        tick_threading::run_schedules_on_one_thread(sub_app.world_mut());
+    }
 
     app.insert_sub_app(DimAppLabel(label_entity), sub_app);
     Ok(label_entity)

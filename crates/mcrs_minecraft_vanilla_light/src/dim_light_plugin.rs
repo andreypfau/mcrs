@@ -14,6 +14,7 @@ use mcrs_minecraft_engine_world::session::PlayerSession;
 use mcrs_minecraft_engine_world::world::column_drain::{ColumnDrain, ColumnDrainSet};
 use mcrs_minecraft_engine_world::world::dimension::InDimension;
 use mcrs_minecraft_engine_world::world::lifecycle::stage::SectionStageChanged;
+use mcrs_minecraft_engine_world::world::light_gate::SectionRelit;
 use mcrs_minecraft_engine_world::world::light_gate::{
     ColumnAwaitsLight, ColumnLightGate, ColumnLightSettled, LightGated,
 };
@@ -23,8 +24,8 @@ use mcrs_minecraft_light_engine::prelude::{Edit, LightBounds, Priority};
 use mcrs_voxel::{ColumnPos, SectionPos};
 
 use crate::light_plugin::{
-    LightPlugin, LightSet, LightStatus, LightWorkQueue, Lighting, PendingEdits, SectionRelit,
-    dispatch_epoch, publish_light,
+    LightPlugin, LightSet, LightStatus, LightWorkQueue, Lighting, PendingEdits, dispatch_epoch,
+    publish_light,
 };
 
 use mcrs_minecraft_heightmap::SurfaceHeightmap;

@@ -11,9 +11,10 @@ use mcrs_minecraft_block_entity::{BeeOccupant, EndGatewayData, GeneratedBlockEnt
 use mcrs_minecraft_core::VERSION;
 use mcrs_minecraft_engine::block_entity_packet::packet_entry;
 use mcrs_minecraft_engine_world::world::dimension::InDimension;
-use mcrs_minecraft_engine_world::world::lifecycle::level::SectionLevels;
+use mcrs_minecraft_engine_world::world::lifecycle::column_loading::ColumnLoading;
+use mcrs_minecraft_engine_world::world::lifecycle::simulation::SectionSimulation;
 use mcrs_minecraft_engine_world::world::lifecycle::stage::{SectionStage, SectionStageChanged};
-use mcrs_minecraft_engine_world::world::lifecycle::ticket::{SectionTickets, TicketPlugin};
+use mcrs_minecraft_engine_world::world::lifecycle::ticket::TicketPlugin;
 use mcrs_minecraft_engine_world::world::storage::block_entity::{
     BlockEntity, spawn_block_entities,
 };
@@ -155,8 +156,8 @@ fn app_with_section(section_pos: SectionPos) -> (App, Entity, Entity) {
         .world_mut()
         .spawn((
             SectionIndex::default(),
-            SectionTickets::default(),
-            SectionLevels::default(),
+            ColumnLoading::bounded(section_pos.y..=section_pos.y),
+            SectionSimulation::default(),
         ))
         .id();
     let section = app

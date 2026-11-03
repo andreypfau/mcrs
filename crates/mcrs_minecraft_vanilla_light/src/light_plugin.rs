@@ -10,6 +10,7 @@ use mcrs_voxel::{BlockPos, ColumnPos};
 
 use mcrs_minecraft_chunk::{BlockLight, SkyLight};
 use mcrs_minecraft_core::BoundingBox;
+use mcrs_minecraft_engine_world::world::light_gate::SectionRelit;
 use mcrs_minecraft_light_engine::block::LightRegistry;
 use mcrs_minecraft_light_engine::epoch::LightUpdate;
 use mcrs_minecraft_light_engine::level::{LightBounds, SECTION_WIDTH};
@@ -278,14 +279,6 @@ impl Plugin for LightPlugin {
                     .chain(),
             );
     }
-}
-
-/// A section whose light `publish_light` wrote, and which of its two layers it wrote.
-#[derive(Message, Clone, Copy, Debug, PartialEq, Eq)]
-pub struct SectionRelit {
-    pub section: Entity,
-    pub block: bool,
-    pub sky: bool,
 }
 
 pub fn publish_light(

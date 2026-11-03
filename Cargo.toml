@@ -35,6 +35,7 @@ bevy_math = "0.19.1"
 glam = { version = "0.32.1", default-features = false, features = ["std"] }
 bevy_time = "0.19.1"
 bevy_tasks = "0.19.1"
+bevy_utils = "0.19.1"
 # `file_watcher` cannot compile for wasm; the client re-enables it through
 # `bevy` for non-wasm targets, so a native build still hot-reloads.
 bevy_asset = { version = "0.19.1" }
@@ -217,6 +218,8 @@ mcrs_minecraft_fixtures.workspace = true
 mcrs_minecraft_registries.workspace = true
 
 [features]
+default = ["parallel-tick"]
+parallel-tick = ["mcrs_minecraft_server/parallel-tick"]
 telemetry = ["telemetry-tracy", "telemetry-diagnostics"]
 telemetry-tracy = ["bevy_log/tracing-tracy", "mcrs_minecraft_server/telemetry-tracy"]
 # No other crate registers diagnostic plugins yet. Add propagation lines

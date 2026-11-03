@@ -1,12 +1,10 @@
-use bevy_app::{App, AppExit};
-use bevy_ecs::entity::Entity;
-use bevy_ecs::query::With;
+use bevy_app::{App, AppExit, SubApp};
 use mcrs_minecraft_engine::between_ticks::run_between_ticks;
 use mcrs_minecraft_engine::bridge::OutboundFlush;
-use mcrs_minecraft_engine::dim::{DimSubAppHandle, drain_dim_despawn_queue, pump_channels};
+use mcrs_minecraft_engine::dim::{drain_dim_despawn_queue, pump_channels};
 use mcrs_minecraft_engine::sub_app_builder::drain_dim_spawn_queue;
+use mcrs_minecraft_engine_world::tick_threading;
 use mcrs_minecraft_engine_world::world::column_drain::ColumnDrain;
-use mcrs_minecraft_engine_world::world::sub_app::DimAppLabel;
 use std::num::NonZeroU32;
 
 pub const DEFAULT_TPS: NonZeroU32 = match NonZeroU32::new(20) {
@@ -35,18 +33,14 @@ pub fn between_ticks(app: &mut App) {
 
 /// Passes on what landed since the tick: every dimension sends the columns whose sections
 /// are in, the host bridges them and writes the sockets.
-fn drain_columns(app: &mut App) {
-    let dims: Vec<Entity> = app
-        .world_mut()
-        .query_filtered::<Entity, With<DimSubAppHandle>>()
-        .iter(app.world())
-        .collect();
-    for dim in dims {
-        if let Some(sub_app) = app.get_sub_app_mut(DimAppLabel(dim)) {
-            sub_app.world_mut().run_schedule(ColumnDrain);
-        }
-    }
+pub fn drain_columns(app: &mut App) {
+    tick_threading::for_each_sub_app(app, drain_dimension_columns);
     pump_channels(app);
     // Absent without `EnginePlugin`, which adds it.
     let _ = app.world_mut().try_run_schedule(OutboundFlush);
+}
+
+// Every sub-app of the server is a dimension world, and each has `ColumnDrain`.
+fn drain_dimension_columns(dimension: &mut SubApp) {
+    let _ = dimension.world_mut().try_run_schedule(ColumnDrain);
 }

@@ -29,6 +29,7 @@ mcrs_minecraft_game_registries.workspace = true
 bevy_asset.workspace = true
 bevy_state.workspace = true
 bevy_tasks.workspace = true
+bevy_utils.workspace = true
 bevy_time.workspace = true
 serde.workspace = true
 serde_json.workspace = true

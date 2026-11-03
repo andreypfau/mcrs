@@ -11,8 +11,8 @@ use bevy_ecs::message::MessageWriter;
 use bevy_log::{Level, LogPlugin, tracing_subscriber};
 use mcrs_minecraft_engine::ops::{OPS_FILE, OpList};
 use mcrs_minecraft_engine_server::{
-    DimensionWorldsPlugin, GameMode, NetworkCompressionThreshold, ServerNetworkPlugin,
-    ShutdownRequest,
+    DimensionWorldsPlugin, GameMode, NetworkCompressionThreshold, ServerCorePlugin,
+    ServerNetworkPlugin, TickThreading,
 };
 use mcrs_minecraft_server::MinecraftServerPlugins;
 use mcrs_minecraft_vanilla_light::LightingPlugin;
@@ -48,6 +48,10 @@ async fn main() -> AppExit {
         }
     };
     let mut server = MinecraftServerPlugins {
+        core: ServerCorePlugin {
+            tick_threading: tick_threading(variable("MCRS_TICK_THREADING").as_deref()),
+            ..MinecraftServerPlugins::default().core
+        },
         worlds: DimensionWorldsPlugin {
             world: world_folder(),
             ops,
@@ -90,7 +94,6 @@ async fn main() -> AppExit {
             ),
             ..Default::default()
         },
-        ..Default::default()
     }
     .build();
     if !propagates_light(variable("MCRS_NO_LIGHTING").as_deref()) {
@@ -171,6 +174,25 @@ fn world_preset(value: Option<&str>) -> String {
         .map(|name| name.trim().to_lowercase())
         .filter(|name| !name.is_empty())
         .unwrap_or_else(|| "normal".to_owned())
+}
+
+/// `MCRS_TICK_THREADING` is `single` or `parallel`, in any case; unset or anything else keeps the
+/// mode the build chose with the `parallel-tick` feature.
+fn tick_threading(value: Option<&str>) -> TickThreading {
+    value
+        .and_then(|value| {
+            value
+                .parse()
+                .inspect_err(|_| {
+                    bevy_log::warn!(
+                        value,
+                        threading = ?TickThreading::default(),
+                        "MCRS_TICK_THREADING is neither single nor parallel; keeping the default"
+                    );
+                })
+                .ok()
+        })
+        .unwrap_or_default()
 }
 
 /// `MCRS_NO_LIGHTING=1` turns propagation off.

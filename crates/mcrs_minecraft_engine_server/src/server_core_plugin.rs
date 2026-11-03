@@ -1,6 +1,7 @@
 use bevy_app::{App, AppExit, Plugin};
 use mcrs_minecraft_assets::packs::{BuiltinAsset, PackLayering, PackRoots};
 use mcrs_minecraft_engine_world::server_loop::VoxelServerPlugin;
+use mcrs_minecraft_engine_world::tick_threading::TickThreading;
 use mcrs_minecraft_registries::RegistryAdditions;
 
 use crate::data_pack::DataPack;
@@ -22,6 +23,8 @@ pub struct ServerCorePlugin {
     /// The local packs of the pack root that the registries load and the assets layer, by
     /// directory name.
     pub local_packs: Vec<String>,
+    /// How the game logic of a tick uses threads.
+    pub tick_threading: TickThreading,
 }
 
 impl Default for ServerCorePlugin {
@@ -32,6 +35,7 @@ impl Default for ServerCorePlugin {
             data_pack: DataPack::default(),
             builtin_assets: |_| None,
             local_packs: vec!["mcrs".to_owned()],
+            tick_threading: TickThreading::default(),
         }
     }
 }
@@ -69,6 +73,7 @@ impl Plugin for ServerCorePlugin {
             tick_rate: DEFAULT_TPS,
             owns_task_pools: self.owns_task_pools,
             asset_path: self.asset_path.clone(),
+            threading: self.tick_threading,
         });
         app.add_plugins(mcrs_minecraft_assets::MinecraftCorePlugin);
         app.add_plugins(mcrs_minecraft_engine_registries::RegistryLoadPlugin);
