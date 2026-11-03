@@ -24,10 +24,11 @@ enum Owed {
 impl Owed {
     /// How near a wanted column has to be for this stage to be owed at all.
     fn reach(self, rungs: usize) -> i32 {
-        let rung_reach = |rung: usize| 2 * rungs.saturating_sub(1 + rung) as i32;
+        let rings = |rungs: usize| i32::try_from(rungs).unwrap_or(i32::MAX).saturating_mul(2);
+        let rung_reach = |rung: usize| rings(rungs.saturating_sub(rung.saturating_add(1)));
         match self {
-            Owed::Fill => 2 * rungs as i32,
-            Owed::Run(rung) => rung_reach(rung) + 1,
+            Owed::Fill => rings(rungs),
+            Owed::Run(rung) => rung_reach(rung).saturating_add(1),
             Owed::Merge(rung) => rung_reach(rung),
         }
     }

@@ -8,8 +8,8 @@ pub(crate) enum LightInbox {
     Finished(FinishedEpoch),
 }
 
-/// The output of the epoch with `id`. `None` when the epoch ended without one: it panicked,
-/// or it was cancelled.
+/// The output of the epoch with `id`. `None` when the epoch was dropped before it had one, on
+/// cancellation or at shutdown.
 pub(crate) struct FinishedEpoch {
     pub(crate) id: u64,
     pub(crate) update: Option<LightUpdate>,

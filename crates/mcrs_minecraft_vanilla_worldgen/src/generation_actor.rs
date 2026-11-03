@@ -92,7 +92,7 @@ impl Default for SchedulerConfig {
             .map(|p| p.get())
             .unwrap_or(4);
         Self {
-            max_in_flight: parallelism * 8,
+            max_in_flight: parallelism.saturating_mul(8),
             max_dispatch_per_pass: 256,
             num_threads: (parallelism / 2).max(4),
         }
@@ -323,17 +323,20 @@ impl GenerationActor {
         // Every rung costs two rings: `Delivered(U)` needs the last rung run over
         // the 3×3 of `U`, which needs the one below it merged over the 5×5, and so
         // on down to the fill.
-        let halo = 2 * self.rungs() as i32;
+        let halo = i32::try_from(self.rungs())
+            .unwrap_or(i32::MAX)
+            .saturating_mul(2);
+        let reach = LOADING_RINGS.saturating_add(halo);
         let views = &self.views.views;
         for stage in &self.in_flight {
-            if !within(views, stage.col, LOADING_RINGS + halo) {
+            if !within(views, stage.col, reach) {
                 stage.cancel.cancel();
             }
         }
         // A stage still on the pool will write its answer into the store, so its
         // column must survive the eviction that runs beside its cancellation.
         self.store
-            .retain(|col, stage| stage.in_flight() || within(views, col, LOADING_RINGS + halo));
+            .retain(|col, stage| stage.in_flight() || within(views, col, reach));
     }
 
     fn reprioritize(&mut self) {
@@ -541,9 +544,9 @@ struct KeyChange {
 
 fn within(views: &[ChunkTrackingView], col: ColumnPos, slack: i32) -> bool {
     views.iter().any(|view| {
-        let dx = (col.x - view.center.x).abs();
-        let dz = (col.z - view.center.z).abs();
-        dx <= view.distance as i32 + slack && dz <= view.distance as i32 + slack
+        let reach = i64::from(view.distance) + i64::from(slack);
+        i64::from(col.x.abs_diff(view.center.x)) <= reach
+            && i64::from(col.z.abs_diff(view.center.z)) <= reach
     })
 }
 
@@ -564,8 +567,10 @@ pub(crate) fn carried_sections<'a>(
     bottom: i32,
 ) -> impl Iterator<Item = (Entity, SectionPos, Option<&'a SectionData>)> + 'a {
     sections_data.iter().map(move |&(entity, pos)| {
-        let section = usize::try_from(pos.y - bottom)
-            .ok()
+        let section = pos
+            .y
+            .checked_sub(bottom)
+            .and_then(|slot| usize::try_from(slot).ok())
             .and_then(|slot| column.get(slot))
             .and_then(Option::as_ref);
         (entity, pos, section)

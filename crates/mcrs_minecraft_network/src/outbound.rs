@@ -112,7 +112,9 @@ impl WriterQueue {
 
     /// The bytes of the batches ready for the writer that it has not taken.
     pub(crate) fn closed_bytes(&self) -> usize {
-        self.closed.iter().map(OutboundBatch::bytes).sum()
+        self.closed
+            .iter()
+            .fold(0, |total, batch| total.saturating_add(batch.bytes()))
     }
 
     fn close_records(&mut self) {

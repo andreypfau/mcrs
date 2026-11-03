@@ -952,7 +952,7 @@ fn send_batch(
         )
         .critical(),
     );
-    chunk_view.unacknowledged_batches += 1;
+    chunk_view.unacknowledged_batches = chunk_view.unacknowledged_batches.saturating_add(1);
     chunk_view.batch_quota -= sends as f32;
 }
 

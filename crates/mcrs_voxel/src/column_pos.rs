@@ -20,22 +20,28 @@ impl ColumnPos {
         Self { x, z }
     }
 
+    /// Saturates at `i32::MAX` for columns too far apart to square in an `i32`.
     pub const fn distance_squared(self, other: Self) -> i32 {
-        let diff_x = other.x - self.x;
-        let diff_z = other.z - self.z;
+        let diff_x = other.x.saturating_sub(self.x);
+        let diff_z = other.z.saturating_sub(self.z);
 
-        diff_x * diff_x + diff_z * diff_z
+        diff_x
+            .saturating_mul(diff_x)
+            .saturating_add(diff_z.saturating_mul(diff_z))
     }
 
-    /// The larger of the distances along the two axes.
+    /// The larger of the distances along the two axes, saturating at `i32::MAX`.
     pub fn chebyshev_distance(self, other: Self) -> i32 {
-        (self.x - other.x).abs().max((self.z - other.z).abs())
+        let distance = self.x.abs_diff(other.x).max(self.z.abs_diff(other.z));
+        i32::try_from(distance).unwrap_or(i32::MAX)
     }
 
     /// The columns within `radius` of this one on both axes, a square `2 * radius + 1` wide.
+    /// A coordinate past the `i32` range stops at its end.
     pub fn square(self, radius: i32) -> impl Iterator<Item = Self> {
-        (-radius..=radius).flat_map(move |dz| {
-            (-radius..=radius).map(move |dx| Self::new(self.x + dx, self.z + dz))
+        (radius.saturating_neg()..=radius).flat_map(move |dz| {
+            (radius.saturating_neg()..=radius)
+                .map(move |dx| Self::new(self.x.saturating_add(dx), self.z.saturating_add(dz)))
         })
     }
 
@@ -45,14 +51,14 @@ impl ColumnPos {
         (0..=radius).flat_map(move |ring| {
             let side = (-ring..=ring).flat_map(move |along| {
                 [
-                    Self::new(self.x + along, self.z - ring),
-                    Self::new(self.x + along, self.z + ring),
+                    Self::new(self.x.saturating_add(along), self.z.saturating_sub(ring)),
+                    Self::new(self.x.saturating_add(along), self.z.saturating_add(ring)),
                 ]
             });
             let ends = (1 - ring..ring).flat_map(move |along| {
                 [
-                    Self::new(self.x - ring, self.z + along),
-                    Self::new(self.x + ring, self.z + along),
+                    Self::new(self.x.saturating_sub(ring), self.z.saturating_add(along)),
+                    Self::new(self.x.saturating_add(ring), self.z.saturating_add(along)),
                 ]
             });
             // Ring 0 is the column itself, which `side` would yield twice.

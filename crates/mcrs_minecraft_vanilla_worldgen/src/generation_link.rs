@@ -88,20 +88,11 @@ pub(crate) struct SectionBlocks {
 pub(crate) struct ColumnGenerator {
     requests: flume::Sender<GenerationRequest>,
     reports: flume::Receiver<GenerationReport>,
-    watch: ActorWatch,
-}
-
-/// What the dimension knows of its actor's thread.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum ActorWatch {
-    Running,
-    /// The thread stopped, and the dimension has logged it.
-    StopReported,
 }
 
 impl ColumnGenerator {
     pub(crate) fn send(&self, request: GenerationRequest) {
-        // Fails only once the actor has gone, which `stopped_unreported` catches.
+        // Fails only once the actor has gone, and then nothing in the dimension generates.
         let _ = self.requests.send(request);
     }
 
@@ -111,19 +102,6 @@ impl ColumnGenerator {
 
     pub(crate) fn has_reports(&self) -> bool {
         !self.reports.is_empty()
-    }
-
-    /// Whether the actor's thread stopped while the dimension still holds its end, with every
-    /// report it sent taken and the stop not logged yet. Only the dimension letting go ends
-    /// the thread on purpose, so a stop seen from here is a panic or a thread that never started.
-    pub(crate) fn stopped_unreported(&self) -> bool {
-        self.watch == ActorWatch::Running
-            && self.reports.is_disconnected()
-            && self.reports.is_empty()
-    }
-
-    pub(crate) fn report_stop(&mut self) {
-        self.watch = ActorWatch::StopReported;
     }
 }
 
@@ -154,7 +132,6 @@ impl GeneratorLink {
             generator: ColumnGenerator {
                 requests: request_sender,
                 reports: report_receiver,
-                watch: ActorWatch::Running,
             },
             inbox: GeneratorInbox {
                 requests: request_receiver,

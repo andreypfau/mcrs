@@ -20,7 +20,6 @@ use mcrs_minecraft_engine_world::entity::player::chunk_view::SentChunkView;
 use mcrs_minecraft_engine_world::tick::TickSet;
 use mcrs_minecraft_engine_world::world::column_drain::{ColumnDrain, ColumnDrainSet, DrainWake};
 use mcrs_minecraft_engine_world::world::dimension::InDimension;
-use mcrs_minecraft_engine_world::world::dimension_name::DimensionName;
 use mcrs_minecraft_engine_world::world::lifecycle::stage::{
     SectionStage, SectionStageChanged, SectionStages,
 };
@@ -33,7 +32,7 @@ use mcrs_minecraft_worldgen_feature::placer::GenerationKinds;
 use mcrs_minecraft_worldgen_generator::stages::FillContext;
 use mcrs_minecraft_worldgen_generator::task::ColumnSource;
 use mcrs_voxel::{ColumnPos, SectionPos};
-use tracing::{error, info, trace};
+use tracing::{info, trace};
 
 use crate::generation_actor::{GenerationActor, SchedulerConfig};
 use crate::generation_link::{
@@ -74,11 +73,8 @@ impl Plugin for ChunkPlugin {
         app.add_systems(
             ColumnDrain,
             (
-                (
-                    integrate_generated_columns.run_if(generation_reported),
-                    report_stopped_generator.run_if(generator_stopped),
-                )
-                    .chain()
+                integrate_generated_columns
+                    .run_if(generation_reported)
                     .in_set(ColumnDrainSet::Collect),
                 request_columns
                     .run_if(on_message::<SectionStageChanged>)
@@ -115,18 +111,6 @@ pub(crate) fn start_column_generator(world: &mut World) {
 
 fn generation_reported(generator: Res<ColumnGenerator>) -> bool {
     generator.has_reports()
-}
-
-fn generator_stopped(generator: Res<ColumnGenerator>) -> bool {
-    generator.stopped_unreported()
-}
-
-fn report_stopped_generator(mut generator: ResMut<ColumnGenerator>, dimension: DimensionName) {
-    error!(
-        dimension = dimension.as_str(),
-        "the generation actor stopped, so this dimension generates no more columns"
-    );
-    generator.report_stop();
 }
 
 pub(crate) fn send_fill_context(ctx: Res<FillContext>, generator: Res<ColumnGenerator>) {

@@ -195,7 +195,8 @@ impl Owed<'_> {
     fn settled_around(&self, column: ColumnPos) -> bool {
         for dx in -1..=1 {
             for dz in -1..=1 {
-                let neighbour = ColumnPos::new(column.x + dx, column.z + dz);
+                let neighbour =
+                    ColumnPos::new(column.x.saturating_add(dx), column.z.saturating_add(dz));
                 if self.pending.holds(neighbour) || self.queue.priority_of(neighbour).is_some() {
                     return false;
                 }
@@ -204,14 +205,22 @@ impl Owed<'_> {
         let bounds = self.world.bounds();
         let area = BoundingBox {
             min: BlockPos::new(
-                (column.x - 1) * SECTION_WIDTH,
+                column.x.saturating_sub(1).saturating_mul(SECTION_WIDTH),
                 bounds.min_light_y(),
-                (column.z - 1) * SECTION_WIDTH,
+                column.z.saturating_sub(1).saturating_mul(SECTION_WIDTH),
             ),
             max: BlockPos::new(
-                (column.x + 2) * SECTION_WIDTH - 1,
+                column
+                    .x
+                    .saturating_add(2)
+                    .saturating_mul(SECTION_WIDTH)
+                    .saturating_sub(1),
                 bounds.max_light_y(),
-                (column.z + 2) * SECTION_WIDTH - 1,
+                column
+                    .z
+                    .saturating_add(2)
+                    .saturating_mul(SECTION_WIDTH)
+                    .saturating_sub(1),
             ),
         };
         !self.epoch.touches(area)

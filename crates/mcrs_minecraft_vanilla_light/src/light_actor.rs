@@ -20,15 +20,6 @@ pub struct LightActor {
     edits: Vec<QueuedEdit>,
     sent: u64,
     idle_at: u64,
-    watch: ActorWatch,
-}
-
-/// What the dimension knows of its actor's thread.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum ActorWatch {
-    Running,
-    /// The thread stopped, and the dimension has logged it.
-    StopReported,
 }
 
 impl LightActor {
@@ -39,7 +30,6 @@ impl LightActor {
             edits: Vec::new(),
             sent: 0,
             idle_at: 0,
-            watch: ActorWatch::Running,
         }
     }
 
@@ -67,21 +57,8 @@ impl LightActor {
         !self.replies.is_empty()
     }
 
-    /// Whether the actor's thread stopped while the dimension still holds its end, with every
-    /// reply it sent taken and the stop not logged yet. Only the dimension letting go ends the
-    /// thread on purpose, so a stop seen from here is a panic or a thread that never started.
-    pub(crate) fn stopped_unreported(&self) -> bool {
-        self.watch == ActorWatch::Running
-            && self.replies.is_disconnected()
-            && self.replies.is_empty()
-    }
-
-    pub(crate) fn report_stop(&mut self) {
-        self.watch = ActorWatch::StopReported;
-    }
-
     pub(crate) fn send(&mut self, message: ToLight) {
-        // Fails only once the actor has stopped, which `stopped_unreported` catches.
+        // Fails only once the actor has stopped, and then no light comes back to wait for.
         if self.inbox.send(LightInbox::Dimension(message)).is_ok() {
             self.sent = self.sent.wrapping_add(1);
         }

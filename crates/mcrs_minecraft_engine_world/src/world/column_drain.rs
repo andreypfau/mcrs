@@ -99,8 +99,8 @@ pub struct HandedOff {
     pub task: Task<()>,
 }
 
-/// The output of the task with `id`. `None` when the task ended without one: it panicked, or
-/// it was cancelled.
+/// The output of the task with `id`. `None` when the task was dropped before it had one, on
+/// cancellation or at shutdown.
 pub struct Finished<T> {
     pub id: u64,
     pub output: Option<T>,
