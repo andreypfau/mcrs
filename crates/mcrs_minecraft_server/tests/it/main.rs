@@ -59,4 +59,5 @@ mod schedule_ambiguity;
 mod session_lifecycle;
 mod subapp_lifecycle;
 mod support;
+mod tick_determinism;
 mod worldgen_y_range_clamp;
