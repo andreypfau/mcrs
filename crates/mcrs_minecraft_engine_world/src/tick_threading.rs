@@ -77,20 +77,11 @@ pub fn update(app: &mut App) {
     }
     run_each(
         main.world().get_resource::<DimTickPool>(),
+        sub_apps.len(),
         sub_apps.values_mut(),
         SubApp::update,
     );
     main.world_mut().clear_trackers();
-}
-
-/// Runs `run` on every sub-app, at the same time when the app has a dimension tick pool.
-pub fn for_each_sub_app(app: &mut App, run: fn(&mut SubApp)) {
-    let SubApps { main, sub_apps } = app.sub_apps_mut();
-    run_each(
-        main.world().get_resource::<DimTickPool>(),
-        sub_apps.values_mut(),
-        run,
-    );
 }
 
 /// Gives every schedule of `world` a single-threaded executor.
@@ -105,19 +96,14 @@ pub fn run_schedules_on_one_thread(world: &mut World) {
 
 fn run_each<'a>(
     pool: Option<&DimTickPool>,
-    sub_apps: impl ExactSizeIterator<Item = &'a mut SubApp> + Send,
+    count: usize,
+    sub_apps: impl Iterator<Item = &'a mut SubApp> + Send,
     run: fn(&mut SubApp),
 ) {
     match pool {
-        // Lone dimensions gain nothing from the pool but the handoff to it and back.
-        Some(pool) if sub_apps.len() > 1 => {
-            pool.0.install(|| join_each(sub_apps, run))
-        }
-        _ => {
-            for sub_app in sub_apps {
-                run(sub_app);
-            }
-        }
+        // A lone dimension gains nothing from the pool but the handoff to it and back.
+        Some(pool) if count > 1 => pool.0.install(|| join_each(sub_apps, run)),
+        _ => sub_apps.for_each(run),
     }
 }
 

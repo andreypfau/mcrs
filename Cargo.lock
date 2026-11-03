@@ -4179,6 +4179,7 @@ dependencies = [
  "bevy_ecs",
  "bevy_math",
  "bevy_platform",
+ "bevy_tasks",
  "bevy_time",
  "flume",
  "indexmap",
@@ -4906,6 +4907,7 @@ dependencies = [
  "rayon",
  "rustc-hash 2.1.1",
  "smallvec",
+ "tracing",
 ]
 
 [[package]]

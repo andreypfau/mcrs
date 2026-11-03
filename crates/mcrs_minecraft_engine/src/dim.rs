@@ -61,7 +61,12 @@ fn with_pump_scratch(world: &mut World, pump: impl FnOnce(&mut World, &mut PumpS
 ///
 /// Runs outside the ECS schedule, as often as the loop idles between ticks.
 pub fn pump_channels(app: &mut App) {
-    with_pump_scratch(app.world_mut(), |world, scratch| {
+    pump_host_channels(app.world_mut());
+}
+
+/// [`pump_channels`] on the host's world.
+pub fn pump_host_channels(world: &mut World) {
+    with_pump_scratch(world, |world, scratch| {
         scratch.order.clear();
         if let Some(channels) = world.get_resource::<DimChannelsResource>() {
             scratch.order.extend(channels.iter().map(|(dim, _)| *dim));

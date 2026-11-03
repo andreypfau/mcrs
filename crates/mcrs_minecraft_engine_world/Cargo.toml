@@ -16,6 +16,7 @@ mcrs_voxel.workspace = true
 mcrs_minecraft_dimension.workspace = true
 bevy_app.workspace = true
 bevy_asset.workspace = true
+bevy_tasks.workspace = true
 bevy_derive.workspace = true
 bevy_ecs.workspace = true
 bevy_math.workspace = true

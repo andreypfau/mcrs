@@ -27,6 +27,40 @@ impl ColumnPos {
         diff_x * diff_x + diff_z * diff_z
     }
 
+    /// The larger of the distances along the two axes.
+    pub fn chebyshev_distance(self, other: Self) -> i32 {
+        (self.x - other.x).abs().max((self.z - other.z).abs())
+    }
+
+    /// The columns within `radius` of this one on both axes, a square `2 * radius + 1` wide.
+    pub fn square(self, radius: i32) -> impl Iterator<Item = Self> {
+        (-radius..=radius).flat_map(move |dz| {
+            (-radius..=radius).map(move |dx| Self::new(self.x + dx, self.z + dz))
+        })
+    }
+
+    /// The same columns as [`ColumnPos::square`], nearest ring first: this column, then the
+    /// eight around it, and so on out to `radius`.
+    pub fn rings(self, radius: i32) -> impl Iterator<Item = Self> {
+        (0..=radius).flat_map(move |ring| {
+            let side = (-ring..=ring).flat_map(move |along| {
+                [
+                    Self::new(self.x + along, self.z - ring),
+                    Self::new(self.x + along, self.z + ring),
+                ]
+            });
+            let ends = (1 - ring..ring).flat_map(move |along| {
+                [
+                    Self::new(self.x - ring, self.z + along),
+                    Self::new(self.x + ring, self.z + along),
+                ]
+            });
+            // Ring 0 is the column itself, which `side` would yield twice.
+            side.take(if ring == 0 { 1 } else { usize::MAX })
+                .chain(ends)
+        })
+    }
+
     pub const fn min_block_x(self) -> i32 {
         self.x << SectionPos::BITS
     }
@@ -96,5 +130,33 @@ impl From<[i32; 2]> for ColumnPos {
 impl From<ColumnPos> for [i32; 2] {
     fn from(pos: ColumnPos) -> Self {
         [pos.x, pos.z]
+    }
+}
+
+#[cfg(test)]
+mod rings_tests {
+    extern crate std;
+
+    use super::ColumnPos;
+    use std::vec::Vec;
+
+    #[test]
+    fn rings_cover_the_square_once_nearest_first() {
+        let centre = ColumnPos::new(3, -2);
+        for radius in 0..4 {
+            let rings: Vec<ColumnPos> = centre.rings(radius).collect();
+            let mut sorted = rings.clone();
+            sorted.sort_unstable();
+            let mut square: Vec<ColumnPos> = centre.square(radius).collect();
+            square.sort_unstable();
+            assert_eq!(sorted, square, "radius {radius}");
+            assert!(
+                rings
+                    .windows(2)
+                    .all(|pair| centre.chebyshev_distance(pair[0])
+                        <= centre.chebyshev_distance(pair[1])),
+                "radius {radius}"
+            );
+        }
     }
 }

@@ -5,7 +5,9 @@ use bevy_app::{
 use bevy_asset::AssetPlugin;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::Messages;
-use bevy_ecs::schedule::{IntoScheduleConfigs, Schedule, ScheduleLabel, SystemSet};
+use bevy_ecs::schedule::{
+    IntoScheduleConfigs, Schedule, ScheduleLabel, SingleThreadedExecutor, SystemSet,
+};
 use bevy_ecs::system::{Local, Res, ResMut};
 use bevy_ecs::world::World;
 use bevy_time::{Fixed, Real, Time, Virtual};
@@ -59,7 +61,9 @@ use crate::player_tracker::PlayerTrackerPlugin;
 use mcrs_minecraft_dimension_environment::dimension_type::DimensionTypeFile;
 use mcrs_minecraft_dimension_environment::environment::DimensionEnvironment;
 use mcrs_minecraft_engine_world::tick_threading::{self, TickThreading};
-use mcrs_minecraft_engine_world::world::column_drain::{ColumnDrain, ColumnDrainSet};
+use mcrs_minecraft_engine_world::world::column_drain::{
+    ColumnDrain, ColumnDrainSet, DrainWake, DrainWakes,
+};
 use mcrs_minecraft_engine_world::world::dimension::{
     DimensionBundle, DimensionPlugin, DimensionTypeConfig, DimensionTypeId, HasSkyLight, HasWeather,
 };
@@ -176,6 +180,11 @@ pub fn spawn_dim_subapp(
     });
     sub_app.insert_resource(FromDimSender::<FromDim>(from_dim_tx));
     sub_app.init_resource::<FromDimBacklog>();
+    let wake = app
+        .world_mut()
+        .get_resource_or_init::<DrainWakes>()
+        .for_dimension(label_entity);
+    sub_app.insert_resource(wake);
 
     // Per-sub-app message registrations. Only types that still flow through
     // the dim sub-app's Messages<T> double-buffer (intra-dim use) are kept.
@@ -306,6 +315,11 @@ pub fn spawn_dim_subapp(
                 .in_set(ColumnDrainSet::Send),
         ),
     );
+    // The stages run one after another, so threads would only add the cost of handing out
+    // systems to a drain that mostly has little to do.
+    sub_app.edit_schedule(ColumnDrain, |schedule| {
+        schedule.set_executor(SingleThreadedExecutor::new());
+    });
     sub_app.add_systems(FixedLast, |world: &mut World| {
         world.run_schedule(ColumnDrain)
     });
@@ -518,6 +532,7 @@ pub(crate) fn flush_from_dim_outbox(
     mut released: ResMut<Messages<crate::bus::OutboundPlayerReleased>>,
     sender: Res<FromDimSender<FromDim>>,
     mut backlog: ResMut<FromDimBacklog>,
+    wake: Option<Res<DrainWake>>,
 ) {
     let backlog = &mut backlog.0;
     backlog.extend(msgs.drain().map(FromDim::Clientbound));
@@ -527,6 +542,10 @@ pub(crate) fn flush_from_dim_outbox(
     while let Some(outbound) = backlog.pop_front() {
         if let Err(flume::TrySendError::Full(outbound)) = sender.0.try_send(outbound) {
             backlog.push_front(outbound);
+            // The host empties the channel after this drain, and the rest goes with the next.
+            if let Some(wake) = &wake {
+                wake.wake();
+            }
             break;
         }
     }

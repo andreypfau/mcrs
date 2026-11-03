@@ -3,15 +3,16 @@ use bevy_ecs::entity::Entity;
 use bevy_ecs::prelude::{Local, MessageReader, ParamSet, Query, Resource, With, resource_exists};
 use bevy_ecs::schedule::IntoScheduleConfigs;
 use bevy_ecs::system::{Commands, Res, ResMut};
-use bevy_tasks::futures_lite::future;
-use bevy_tasks::{Task, TaskPool, TaskPoolBuilder, block_on};
+use bevy_tasks::{TaskPool, TaskPoolBuilder};
 use mcrs_minecraft_engine::heightmap::PendingColumnHeightmaps;
 use mcrs_minecraft_engine_world::aoi::min_column_distance;
 use mcrs_minecraft_engine_world::entity::physics::Transform;
 use mcrs_minecraft_engine_world::entity::player::Player;
 use mcrs_minecraft_engine_world::entity::player::chunk_view::{ChunkTrackingView, SentChunkView};
-use mcrs_minecraft_engine_world::palette::{ChunkBlocks, section_states};
-use mcrs_minecraft_engine_world::world::column_drain::{ColumnDrain, ColumnDrainSet};
+use mcrs_minecraft_engine_world::palette::{BiomePalette, ChunkBlocks, section_states};
+use mcrs_minecraft_engine_world::world::column_drain::{
+    ColumnDrain, ColumnDrainSet, DrainWake, HandedOff, Handoff,
+};
 use mcrs_minecraft_engine_world::world::dimension::InDimension;
 use mcrs_minecraft_engine_world::world::lifecycle::column_loading::LOADING_RINGS;
 use mcrs_minecraft_engine_world::world::lifecycle::stage::{
@@ -73,7 +74,7 @@ impl Plugin for ChunkPlugin {
                     .in_set(ColumnDrainSet::Collect),
                 (
                     enqueue_pending_columns,
-                    dispatch_column_generation.run_if(resource_exists::<FillContext>),
+                    dispatch_touched_columns.run_if(resource_exists::<FillContext>),
                 )
                     .chain()
                     .in_set(ColumnDrainSet::Request)
@@ -135,7 +136,7 @@ impl PendingColumn {
 pub(crate) struct InFlightStage {
     pub(crate) col: ColumnPos,
     pub(crate) cancel: CancellationToken,
-    pub(crate) task: Task<Option<StageResult>>,
+    pub(crate) task: HandedOff,
 }
 
 /// What a stage hands back. `None` from the task itself means cancelled.
@@ -188,6 +189,21 @@ pub(crate) struct ColumnScheduler {
     pub(crate) priority_index: FxHashMap<ColumnPos, ColumnKey>,
     /// Active stage tasks with their cancellation tokens.
     pub(crate) in_flight: Vec<InFlightStage>,
+    /// Where the stage tasks hand back what they produced.
+    pub(crate) handoff: Handoff<Option<StageResult>>,
+    /// Columns whose stage changed since the drain last dispatched: they and their 3×3 may
+    /// owe a stage now.
+    pub(crate) touched: Vec<ColumnPos>,
+    /// Columns wanted since the last dispatch, whose shells nobody has walked yet.
+    pub(crate) fresh: Vec<ColumnPos>,
+    /// Columns whose stage was cancelled since the last dispatch, and that may owe a fill again.
+    pub(crate) forgotten: Vec<ColumnPos>,
+    /// Columns whose stage moved, or that became wanted, since the last delivery: the ones
+    /// that may have reached the top of the ladder.
+    pub(crate) climbed: Vec<ColumnPos>,
+    /// Set once a tick, for a delivery that looks at every wanted column. A column that
+    /// reached the top unnoticed waits at most until then.
+    pub(crate) recheck_all: bool,
     /// The one owner of every materialised value of the ladder.
     pub(crate) store: StagingStore,
     /// Configuration for concurrency limits and dispatch rates.
@@ -200,6 +216,13 @@ impl ColumnScheduler {
         self.priority_index.contains_key(&col)
     }
 
+    /// Whether a wanted column below `done` lies within `radius` of `col`.
+    fn wanted_within(&self, col: ColumnPos, radius: i32, done: Stage) -> bool {
+        col.rings(radius).any(|u| {
+            self.priority_index.contains_key(&u) && self.store.stage(u).is_none_or(|at| at < done)
+        })
+    }
+
     /// Check if a column has a stage on the pool.
     #[cfg(test)]
     pub(crate) fn is_in_flight(&self, col: ColumnPos) -> bool {
@@ -209,6 +232,7 @@ impl ColumnScheduler {
     fn spawn<F>(
         &mut self,
         pool: &TaskPool,
+        wake: Option<&DrainWake>,
         col: ColumnPos,
         stage: Stage,
         work: impl FnOnce(CancellationToken) -> F,
@@ -216,7 +240,7 @@ impl ColumnScheduler {
         F: Future<Output = Option<StageResult>> + Send + 'static,
     {
         let cancel = CancellationToken::new();
-        let task = pool.spawn(work(cancel.clone()));
+        let task = self.handoff.spawn(pool, wake, work(cancel.clone()));
         self.store.set_stage(col, stage);
         self.in_flight.push(InFlightStage { col, cancel, task });
     }
@@ -241,22 +265,26 @@ pub(crate) struct SlowColumns {
 
 /// The sections a delivery owes, copied out of the whole column it generated.
 /// `bottom` is the section the column buffer starts at.
-pub(crate) fn carried_sections(
-    sections_data: &[(Entity, SectionPos)],
-    column: &[Option<SectionData>],
+pub(crate) fn carried_sections<'a>(
+    sections_data: &'a [(Entity, SectionPos)],
+    column: &'a [Option<SectionData>],
     bottom: i32,
-) -> Vec<(Entity, SectionPos, Option<SectionData>)> {
-    sections_data
-        .iter()
-        .map(|&(entity, pos)| {
-            let section = usize::try_from(pos.y - bottom)
-                .ok()
-                .and_then(|slot| column.get(slot))
-                .cloned()
-                .flatten();
-            (entity, pos, section)
-        })
-        .collect()
+) -> impl Iterator<Item = (Entity, SectionPos, Option<&'a SectionData>)> + 'a {
+    sections_data.iter().map(move |&(entity, pos)| {
+        let section = usize::try_from(pos.y - bottom)
+            .ok()
+            .and_then(|slot| column.get(slot))
+            .and_then(Option::as_ref);
+        (entity, pos, section)
+    })
+}
+
+/// What a delivery hands a section.
+enum Carried {
+    Blocks(ChunkBlocks, BiomePalette),
+    /// The section has blocks, but no block table to check them against.
+    Unchecked,
+    Missing,
 }
 
 /// The ticks generation scheduled in a section, in the order it asked, held for the
@@ -314,19 +342,21 @@ pub(crate) fn process_completed_columns(
     mut done: Local<Vec<(ColumnPos, Option<StageResult>)>>,
 ) {
     let rungs = ctx.map_or(1, |ctx| ctx.rungs());
-    scheduler
-        .in_flight
-        .retain_mut(|stage| match block_on(future::poll_once(&mut stage.task)) {
-            Some(result) => {
-                done.push((stage.col, result));
-                false
-            }
-            None => true,
-        });
+    let ColumnScheduler {
+        in_flight, handoff, ..
+    } = &mut *scheduler;
+    done.extend(handoff.finished().filter_map(|finished| {
+        let at = in_flight
+            .iter()
+            .position(|stage| stage.task.id == finished.id)?;
+        let stage = in_flight.swap_remove(at);
+        Some((stage.col, finished.output.flatten()))
+    }));
 
     for (col, result) in done.drain(..) {
         let Some(result) = result else {
             scheduler.store.forget(col);
+            scheduler.forgotten.push(col);
             continue;
         };
         // The column may have been dropped, or sent back to `Filled` by the
@@ -341,6 +371,8 @@ pub(crate) fn process_completed_columns(
         if scheduler.store.stage(col) != Some(ticket) {
             continue;
         }
+        scheduler.touched.extend(col.square(1));
+        scheduler.climbed.push(col);
         match result {
             StageResult::Filled(snapshot) => {
                 column_trace::mark(traces.as_deref(), col, ColumnStage::Filled);
@@ -384,6 +416,33 @@ pub(crate) fn top_of_ladder(rungs: usize) -> Stage {
     }
 }
 
+/// The wanted columns at the top of their ladder, in priority order: those that climbed since
+/// the last delivery, or every wanted column once a tick.
+fn ready_to_deliver(scheduler: &mut ColumnScheduler, done: Stage, ready: &mut Vec<ColumnKey>) {
+    let at_top = |scheduler: &ColumnScheduler, col: ColumnPos| {
+        scheduler.store.stage(col).is_some_and(|at| at >= done)
+    };
+    let mut climbed = std::mem::take(&mut scheduler.climbed);
+    if std::mem::take(&mut scheduler.recheck_all) {
+        ready.extend(
+            scheduler
+                .pending
+                .keys()
+                .copied()
+                .filter(|key| at_top(scheduler, key.chunk_column_pos)),
+        );
+    } else {
+        ready.extend(climbed.iter().filter_map(|&col| {
+            let key = scheduler.priority_index.get(&col)?;
+            at_top(scheduler, col).then_some(*key)
+        }));
+        ready.sort_unstable();
+        ready.dedup();
+    }
+    climbed.clear();
+    scheduler.climbed = climbed;
+}
+
 /// `Delivered`: the only point at which a column becomes visible.
 ///
 /// Every unit that could write into it has run and its delta has been merged,
@@ -406,12 +465,7 @@ pub(crate) fn deliver_merged_columns(
 ) {
     let states = ctx.as_ref().map(|ctx| ctx.blocks.state_count());
     let done = top_of_ladder(ctx.map_or(1, |ctx| ctx.rungs()));
-    ready.extend(scheduler.pending.keys().copied().filter(|key| {
-        scheduler
-            .store
-            .stage(key.chunk_column_pos)
-            .is_some_and(|at| at >= done)
-    }));
+    ready_to_deliver(&mut scheduler, done, &mut ready);
 
     for key in ready.drain(..) {
         let col = key.chunk_column_pos;
@@ -426,10 +480,25 @@ pub(crate) fn deliver_merged_columns(
             .map(|(entity, y)| (*entity, SectionPos::new(col.x, *y, col.z)))
             .collect();
         sections_data.sort_by_key(|(_, pos)| pos.y);
+        // Straight from the snapshot the store keeps, without a copy of the blocks between.
         let Some((carried, maps, source, ticks)) = scheduler.store.merged(col).map(|merged| {
             let bottom = merged.y_sections.first().copied().unwrap_or(0);
+            let carried: Vec<(Entity, SectionPos, Carried)> =
+                carried_sections(&sections_data, &merged.sections, bottom)
+                    .map(|(entity, pos, section)| {
+                        let carried = match (section, states) {
+                            (Some((blocks, biomes)), Some(states)) => Carried::Blocks(
+                                ChunkBlocks::new(section_states(blocks, states)),
+                                biomes.clone(),
+                            ),
+                            (Some(_), None) => Carried::Unchecked,
+                            (None, _) => Carried::Missing,
+                        };
+                        (entity, pos, carried)
+                    })
+                    .collect();
             (
-                carried_sections(&sections_data, &merged.sections, bottom),
+                carried,
                 merged.maps.clone(),
                 merged.source,
                 merged.ticks.clone(),
@@ -479,15 +548,15 @@ pub(crate) fn deliver_merged_columns(
         }
 
         for (entity, pos, section) in carried {
-            match (section, states) {
-                (Some((blocks, biomes)), Some(states)) => {
+            match section {
+                Carried::Blocks(blocks, biomes) => {
                     let held: Vec<_> = ticks
                         .iter()
                         .filter(|tick| SectionPos::from(tick.pos()) == pos)
                         .copied()
                         .collect();
                     let mut section = commands.entity(entity);
-                    section.try_insert((ChunkBlocks::new(section_states(&blocks, states)), biomes));
+                    section.try_insert((blocks, biomes));
                     if !held.is_empty() {
                         section.try_insert(GeneratedTicks(held));
                     }
@@ -497,11 +566,11 @@ pub(crate) fn deliver_merged_columns(
                         stages.set(entity, SectionStage::Loaded);
                     }
                 }
-                (Some(_), None) => {
+                Carried::Unchecked => {
                     tracing::error!(?col, "a section arrived with no block table to check it");
                     stages.set(entity, SectionStage::Unloading);
                 }
-                (None, _) => stages.set(entity, SectionStage::Unloading),
+                Carried::Missing => stages.set(entity, SectionStage::Unloading),
             }
         }
     }
@@ -567,6 +636,8 @@ pub(crate) fn enqueue_pending_columns(
         let key = ColumnKey::new(distance_sq, col);
         scheduler.pending.insert(key, PendingColumn::new(sections));
         scheduler.priority_index.insert(col, key);
+        scheduler.fresh.push(col);
+        scheduler.climbed.push(col);
     }
 }
 
@@ -692,13 +763,6 @@ fn reprioritize_columns(
     }
 }
 
-/// Every column within `radius` of `centre`, the centre itself included.
-fn square(centre: ColumnPos, radius: i32) -> impl Iterator<Item = ColumnPos> {
-    (-radius..=radius).flat_map(move |dx| {
-        (-radius..=radius).map(move |dz| ColumnPos::new(centre.x + dx, centre.z + dz))
-    })
-}
-
 /// Walk the wanted columns in priority order and dispatch whatever stage each
 /// one is owed next.
 ///
@@ -712,100 +776,254 @@ fn square(centre: ColumnPos, radius: i32) -> impl Iterator<Item = ColumnPos> {
 /// Nothing here waits. A column whose neighbourhood is not ready yet is simply
 /// not dispatched this pass, and the walk moves on to the next thing that is —
 /// so a stalled neighbourhood costs a comparison, never a worker.
-#[expect(
-    clippy::too_many_lines,
-    reason = "the dispatch walk derives each rung's requests from what the views want and what the store holds, and the rungs depend on the ones below"
-)]
 pub(crate) fn dispatch_column_generation(
     mut scheduler: ResMut<ColumnScheduler>,
     ctx: Res<FillContext>,
     traces: Option<Res<ColumnTraceLog>>,
+    wake: Option<Res<DrainWake>>,
     mut wanted: Local<Vec<ColumnPos>>,
 ) {
-    let Some(task_pool) = CHUNK_TASK_POOL.get() else {
+    let Some(pool) = CHUNK_TASK_POOL.get() else {
         tracing::error!("column generation runs before its task pool is built");
         return;
     };
-
-    let current_in_flight = scheduler.in_flight.len();
-    let max_in_flight = scheduler.config.max_in_flight;
-    if current_in_flight >= max_in_flight {
+    // The walk covers whatever the drain still had to look at.
+    scheduler.fresh.clear();
+    scheduler.recheck_all = true;
+    let mut budget = Budget::of(&scheduler);
+    if budget.is_spent() || scheduler.pending.is_empty() {
         return;
     }
-    let budget = (max_in_flight - current_in_flight).min(scheduler.config.max_dispatch_per_tick);
-    if budget == 0 || scheduler.pending.is_empty() {
-        return;
-    }
-    let ctx = ctx.as_ref();
-
     wanted.clear();
     wanted.extend(scheduler.pending.keys().map(|key| key.chunk_column_pos));
+    let mut dispatcher = Dispatcher {
+        pool,
+        ctx: ctx.as_ref(),
+        traces: traces.as_deref(),
+        wake: wake.as_deref(),
+    };
+    for &u in wanted.iter() {
+        if !dispatcher.walk_shell(&mut scheduler, &mut budget, u) {
+            break;
+        }
+    }
+    budget.trace(&scheduler);
+}
 
-    let rungs = ctx.rungs();
+/// Dispatches what changed since the last dispatch made owed, without the walk over every
+/// wanted column: a stage that finishes changes what its own 3×3 is owed, and a column that
+/// is newly wanted owes its whole shell.
+pub(crate) fn dispatch_touched_columns(
+    mut scheduler: ResMut<ColumnScheduler>,
+    ctx: Res<FillContext>,
+    traces: Option<Res<ColumnTraceLog>>,
+    wake: Option<Res<DrainWake>>,
+    mut worklist: Local<Vec<ColumnPos>>,
+) {
+    let Some(pool) = CHUNK_TASK_POOL.get() else {
+        tracing::error!("column generation runs before its task pool is built");
+        return;
+    };
+    let mut budget = Budget::of(&scheduler);
+    let mut dispatcher = Dispatcher {
+        pool,
+        ctx: ctx.as_ref(),
+        traces: traces.as_deref(),
+        wake: wake.as_deref(),
+    };
+    worklist.clear();
+    worklist.append(&mut scheduler.fresh);
+    for (at, &u) in worklist.iter().enumerate() {
+        if !dispatcher.walk_shell(&mut scheduler, &mut budget, u) {
+            let left = worklist.get(at..).unwrap_or_default();
+            scheduler.fresh.extend_from_slice(left);
+            worklist.clear();
+            return;
+        }
+    }
+
+    worklist.clear();
+    worklist.append(&mut scheduler.forgotten);
+    let fills = worklist.len();
+    worklist.append(&mut scheduler.touched);
+    let rungs = dispatcher.ctx.rungs();
     let done = top_of_ladder(rungs);
+    let mut at = 0;
+    while let Some(&v) = worklist.get(at) {
+        at += 1;
+        let owed = owed(&scheduler.store, v, rungs);
+        // A fill is owed by being wanted, which a neighbour finishing a stage does not change.
+        let owed = match owed {
+            Some(Owed::Fill) if at > fills => continue,
+            Some(owed) => owed,
+            None => continue,
+        };
+        if !scheduler.wanted_within(v, owed.reach(rungs), done) {
+            continue;
+        }
+        if budget.is_spent() {
+            // `v` and everything after it waits for the next dispatch.
+            let rest = at - 1;
+            let split = fills.max(rest);
+            let forgotten = worklist.get(rest..split).unwrap_or_default();
+            scheduler.forgotten.extend_from_slice(forgotten);
+            let touched = worklist.get(split..).unwrap_or_default();
+            scheduler.touched.extend_from_slice(touched);
+            break;
+        }
+        dispatcher.dispatch(&mut scheduler, &mut budget, v, owed);
+        // A merge that advanced on the spot left its 3×3 owing something new already.
+        worklist.append(&mut scheduler.touched);
+    }
+    worklist.clear();
+    budget.trace(&scheduler);
+}
 
-    let mut dispatched = 0usize;
-    'wanted: for &u in wanted.iter() {
+/// The next stage a column is owed, once its neighbourhood allows it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Owed {
+    Fill,
+    Run(usize),
+    Merge(usize),
+}
+
+impl Owed {
+    /// How near a wanted column has to be for this stage to be owed at all.
+    fn reach(self, rungs: usize) -> i32 {
+        let rung_reach = |rung: usize| 2 * rungs.saturating_sub(1 + rung) as i32;
+        match self {
+            Owed::Fill => 2 * rungs as i32,
+            Owed::Run(rung) => rung_reach(rung) + 1,
+            Owed::Merge(rung) => rung_reach(rung),
+        }
+    }
+}
+
+fn owed(store: &StagingStore, v: ColumnPos, rungs: usize) -> Option<Owed> {
+    let owed = match store.stage(v) {
+        None => return Some(Owed::Fill),
+        Some(Stage::Filled) if rungs > 0 => Owed::Run(0),
+        Some(Stage::Merged(rung)) if usize::from(rung) + 1 < rungs => {
+            Owed::Run(usize::from(rung) + 1)
+        }
+        Some(Stage::Ran(rung)) => Owed::Merge(usize::from(rung)),
+        _ => return None,
+    };
+    let stage = store.stage(v)?;
+    store.neighbourhood_reached(v, stage).then_some(owed)
+}
+
+/// The stages this dispatch may still hand to the pool.
+struct Budget {
+    left: usize,
+    dispatched: usize,
+}
+
+impl Budget {
+    fn of(scheduler: &ColumnScheduler) -> Self {
+        let max = scheduler.config.max_in_flight;
+        Self {
+            left: max
+                .saturating_sub(scheduler.in_flight.len())
+                .min(scheduler.config.max_dispatch_per_tick),
+            dispatched: 0,
+        }
+    }
+
+    fn is_spent(&self) -> bool {
+        self.dispatched >= self.left
+    }
+
+    fn trace(&self, scheduler: &ColumnScheduler) {
+        if self.dispatched > 0 {
+            trace!(
+                dispatched = self.dispatched,
+                staged = scheduler.store.len(),
+                in_flight = scheduler.in_flight.len(),
+                "dispatched column stages"
+            );
+        }
+    }
+}
+
+struct Dispatcher<'a> {
+    pool: &'a TaskPool,
+    ctx: &'a FillContext,
+    traces: Option<&'a ColumnTraceLog>,
+    wake: Option<&'a DrainWake>,
+}
+
+impl Dispatcher<'_> {
+    /// Dispatches what the shell of the wanted column `u` owes, nearest rung first. Returns
+    /// whether the budget lasted.
+    fn walk_shell(
+        &mut self,
+        scheduler: &mut ColumnScheduler,
+        budget: &mut Budget,
+        u: ColumnPos,
+    ) -> bool {
+        let rungs = self.ctx.rungs();
         // A column at the top of its ladder derived everything it needed, or it
         // could not have got there; it is leaving the queue at this tick's
         // delivery. On a settled view that is every pending column, and walking
         // their shells again is the whole cost of an idle tick.
-        if scheduler.store.stage(u).is_some_and(|at| at >= done) {
-            continue;
+        if scheduler
+            .store
+            .stage(u)
+            .is_some_and(|at| at >= top_of_ladder(rungs))
+        {
+            return true;
         }
-
-        for v in square(u, (2 * rungs) as i32) {
-            if scheduler.store.stage(v).is_some() {
+        for v in u.square(Owed::Fill.reach(rungs)) {
+            let Some(owed) = owed(&scheduler.store, v, rungs) else {
+                continue;
+            };
+            if v.chebyshev_distance(u) > owed.reach(rungs) {
                 continue;
             }
-            if dispatched == budget {
-                break 'wanted;
+            if budget.is_spent() {
+                return false;
             }
-            column_trace::mark(traces.as_deref(), v, ColumnStage::Generating);
-            let ctx = ctx.clone();
-            scheduler.spawn(task_pool, v, Stage::Filling, |cancel| async move {
-                fill_pooled(&ctx, v, &cancel)
-                    .map(|snapshot| StageResult::Filled(Box::new(snapshot)))
-            });
-            dispatched += 1;
+            self.dispatch(scheduler, budget, v, owed);
         }
+        true
+    }
 
-        for rung in 0..rungs {
-            let below = match rung.checked_sub(1) {
-                Some(under) => Stage::Merged(under as u8),
-                None => Stage::Filled,
-            };
-            let reach = 2 * (rungs - 1 - rung) as i32;
-
-            for v in square(u, reach + 1) {
-                if scheduler.store.stage(v) != Some(below)
-                    || !scheduler.store.neighbourhood_reached(v, below)
-                {
-                    continue;
-                }
-                if dispatched == budget {
-                    break 'wanted;
-                }
+    fn dispatch(
+        &mut self,
+        scheduler: &mut ColumnScheduler,
+        budget: &mut Budget,
+        v: ColumnPos,
+        owed: Owed,
+    ) {
+        let ctx = self.ctx;
+        match owed {
+            Owed::Fill => {
+                column_trace::mark(self.traces, v, ColumnStage::Generating);
+                let ctx = ctx.clone();
+                scheduler.spawn(
+                    self.pool,
+                    self.wake,
+                    v,
+                    Stage::Filling,
+                    |cancel| async move {
+                        fill_pooled(&ctx, v, &cancel)
+                            .map(|snapshot| StageResult::Filled(Box::new(snapshot)))
+                    },
+                );
+            }
+            Owed::Run(rung) => {
                 let Some(region) = scheduler.store.region(v, rung) else {
-                    continue;
+                    return;
                 };
                 let ctx = ctx.clone();
-                scheduler.spawn(task_pool, v, Stage::Running(rung as u8), |_| async move {
+                scheduler.spawn(self.pool, self.wake, v, Stage::Running(rung as u8), |_| async move {
                     Some(StageResult::Ran(rung, run_region(&ctx, &region, rung)))
                 });
-                dispatched += 1;
             }
-
-            for v in square(u, reach) {
-                if scheduler.store.stage(v) != Some(Stage::Ran(rung as u8))
-                    || !scheduler
-                        .store
-                        .neighbourhood_reached(v, Stage::Ran(rung as u8))
-                {
-                    continue;
-                }
+            Owed::Merge(rung) => {
                 let Some(base) = scheduler.store.base(v, rung).cloned() else {
-                    continue;
+                    return;
                 };
                 let deltas = scheduler.store.deltas(v, rung);
                 // A rung that grew nothing here leaves the column as it was, so
@@ -817,38 +1035,34 @@ pub(crate) fn dispatch_column_generation(
                 {
                     scheduler.store.insert_staged(v, rung, base);
                     scheduler.store.set_stage(v, Stage::Merged(rung as u8));
-                    continue;
-                }
-                if dispatched == budget {
-                    break 'wanted;
+                    scheduler.touched.extend(v.square(1));
+                    scheduler.climbed.push(v);
+                    return;
                 }
                 let predicates = ctx.predicates.clone();
                 let program = ctx.program.features.clone();
-                scheduler.spawn(task_pool, v, Stage::Merging(rung as u8), |_| async move {
-                    Some(StageResult::Merged(
-                        rung,
-                        Box::new(merge_column(
-                            &base,
-                            &deltas,
-                            predicates.as_ref(),
-                            program
-                                .as_deref()
-                                .map(|program| &program.world.has_block_entity),
-                        )),
-                    ))
-                });
-                dispatched += 1;
+                scheduler.spawn(
+                    self.pool,
+                    self.wake,
+                    v,
+                    Stage::Merging(rung as u8),
+                    |_| async move {
+                        Some(StageResult::Merged(
+                            rung,
+                            Box::new(merge_column(
+                                &base,
+                                &deltas,
+                                predicates.as_ref(),
+                                program
+                                    .as_deref()
+                                    .map(|program| &program.world.has_block_entity),
+                            )),
+                        ))
+                    },
+                );
             }
         }
-    }
-
-    if dispatched > 0 {
-        trace!(
-            dispatched,
-            staged = scheduler.store.len(),
-            in_flight = scheduler.in_flight.len(),
-            "dispatched column stages"
-        );
+        budget.dispatched += 1;
     }
 }
 

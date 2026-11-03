@@ -68,13 +68,10 @@ impl Plugin for ColumnViewPlugin {
     fn build(&self, app: &mut App) {
         app.configure_sets(
             FixedUpdate,
-            (
-                ColumnViewSet
-                    .in_set(TickSet::Project)
-                    .after(ColumnLifecycleSet)
-                    .before(SectionEntitySet),
-                ColumnLightGate.in_set(TickSet::Project),
-            ),
+            ColumnViewSet
+                .in_set(TickSet::Project)
+                .after(ColumnLifecycleSet)
+                .before(SectionEntitySet),
         );
         app.add_systems(
             FixedUpdate,
@@ -177,9 +174,20 @@ impl ColumnView {
         self.states.get(&column).copied()
     }
 
-    fn has_ready(&self) -> bool {
-        let [.., ready] = &self.unsent;
-        !ready.is_empty()
+    /// Grows the batch quota by what the client asks for each call, up to one batch, while the
+    /// client has room for another batch.
+    fn refill_quota(&mut self) {
+        if self.unacknowledged_batches >= self.max_unacknowledged_batches {
+            return;
+        }
+        let desired = self.desired_columns_per_tick;
+        self.batch_quota = (self.batch_quota + desired).min(desired.max(1.0));
+    }
+
+    fn can_send(&self) -> bool {
+        self.unacknowledged_batches < self.max_unacknowledged_batches
+            && self.batch_quota >= 1.0
+            && self.in_state(ColumnState::Ready).next().is_some()
     }
 
     fn in_state(&self, state: ColumnState) -> impl Iterator<Item = ColumnPos> + '_ {
@@ -376,8 +384,7 @@ fn send_cache_view(
     }
 }
 
-/// Raises what the view wants, nearest first, holding a loading ticket on every section of each
-/// column it raises.
+/// Raises what the view wants, nearest first, holding a loading ticket on each column it raises.
 ///
 /// The budget is columns rather than sections: raising a column costs a whole column's worth of
 /// spawns, so counting sections here would let the view ask for more than `spawn_chunks` can
@@ -693,7 +700,12 @@ pub(crate) fn send_column_queue(
 ) {
     // Most drains find nothing to send, and fanning out to the compute pool for nothing wakes
     // every one of its threads.
-    if !players.iter().any(|(_, view, ..)| view.has_ready()) {
+    let mut any_can_send = false;
+    for (_, mut chunk_view, ..) in &mut players {
+        chunk_view.refill_quota();
+        any_can_send |= chunk_view.can_send();
+    }
+    if !any_can_send {
         return;
     }
     let direct_bits = DirectBits {
@@ -807,18 +819,10 @@ fn encode_batch(
         wire_light_rows: type_config.section_count as usize + 2,
     };
 
-    if chunk_view.unacknowledged_batches >= chunk_view.max_unacknowledged_batches {
-        return;
-    }
-    let desired = chunk_view.desired_columns_per_tick;
-    chunk_view.batch_quota = (chunk_view.batch_quota + desired).min(desired.max(1.0));
-    if chunk_view.batch_quota < 1.0 {
+    if !chunk_view.can_send() {
         return;
     }
     let allowed = chunk_view.batch_quota as usize;
-    if chunk_view.in_state(ColumnState::Ready).next().is_none() {
-        return;
-    }
 
     // Nearest to where the player is now, not to where they were when the column came
     // ready: one step of the player invalidates any order settled earlier. The ready
@@ -998,9 +1002,9 @@ fn offset_sections(min_y: i32) -> i32 {
 }
 
 /// A column and the eight around it. A column's own light is only final once the eight around
-/// it hold blocks, and the level of a view's loading tickets keeps that ring loaded.
+/// it hold blocks, and a view's loading tickets keep that ring loaded.
 fn margin_of(col: ColumnPos) -> impl Iterator<Item = ColumnPos> {
-    (-1..=1).flat_map(move |dz| (-1..=1).map(move |dx| ColumnPos::new(col.x + dx, col.z + dz)))
+    col.square(1)
 }
 
 #[cfg(test)]

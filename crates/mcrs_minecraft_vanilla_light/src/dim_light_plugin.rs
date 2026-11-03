@@ -11,6 +11,7 @@ use mcrs_minecraft_engine_world::entity::physics::Transform;
 use mcrs_minecraft_engine_world::entity::player::Player;
 use mcrs_minecraft_engine_world::palette::ChunkBlocks;
 use mcrs_minecraft_engine_world::session::PlayerSession;
+use mcrs_minecraft_engine_world::tick::TickSet;
 use mcrs_minecraft_engine_world::world::column_drain::{ColumnDrain, ColumnDrainSet};
 use mcrs_minecraft_engine_world::world::dimension::InDimension;
 use mcrs_minecraft_engine_world::world::lifecycle::stage::SectionStageChanged;
@@ -89,6 +90,7 @@ impl Plugin for DimLightPlugin {
         )
         .insert_resource(LightGated)
         .init_resource::<ColumnsAwaitingLight>()
+        .configure_sets(FixedUpdate, ColumnLightGate.in_set(TickSet::Project))
         .add_systems(FixedUpdate, settle_awaiting_columns.in_set(ColumnLightGate))
         .add_systems(
             ColumnDrain,

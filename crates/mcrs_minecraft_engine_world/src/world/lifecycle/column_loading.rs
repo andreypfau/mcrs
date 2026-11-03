@@ -55,7 +55,7 @@ impl ColumnLoading {
             pending_release,
         } = self;
         tickets.raise(once(column), |column| {
-            covered.raise(rings_around(column), |loaded| {
+            covered.raise(column.square(LOADING_RINGS), |loaded| {
                 for pos in sections_of(loaded, section_y) {
                     pending_release.remove(&pos);
                     pending_spawn.insert(pos);
@@ -74,7 +74,7 @@ impl ColumnLoading {
             pending_release,
         } = self;
         tickets.lower(once(column), |column| {
-            covered.lower(rings_around(column), |unloaded| {
+            covered.lower(column.square(LOADING_RINGS), |unloaded| {
                 for pos in sections_of(unloaded, section_y) {
                     pending_spawn.swap_remove(&pos);
                     pending_release.insert(pos);
@@ -98,12 +98,6 @@ pub(crate) fn is_loaded(
     pos: SectionPos,
 ) -> bool {
     section_y.contains(&pos.y) && covered.contains(ColumnPos::new(pos.x, pos.z))
-}
-
-fn rings_around(column: ColumnPos) -> impl Iterator<Item = ColumnPos> {
-    (-LOADING_RINGS..=LOADING_RINGS).flat_map(move |dz| {
-        (-LOADING_RINGS..=LOADING_RINGS).map(move |dx| ColumnPos::new(column.x + dx, column.z + dz))
-    })
 }
 
 fn sections_of(

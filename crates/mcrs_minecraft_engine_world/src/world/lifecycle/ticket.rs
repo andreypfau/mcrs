@@ -9,7 +9,8 @@ use crate::tick::TickSet;
 use crate::world::dimension::InDimension;
 use crate::world::lifecycle::column_loading::{ColumnLoading, is_loaded};
 use crate::world::lifecycle::simulation::{
-    SectionSimulation, SimulationDistance, release_simulation_ticket, track_simulation_tickets,
+    SectionSimulation, SimulationDistance, raise_simulation_ticket, release_simulation_ticket,
+    track_simulation_tickets,
 };
 use crate::world::lifecycle::stage::{SectionStage, SectionStageChanged, SectionStages};
 use crate::world::lifecycle::trace::{self, ColumnStage, ColumnTraceLog};
@@ -41,6 +42,7 @@ impl Plugin for TicketPlugin {
     fn build(&self, app: &mut App) {
         app.add_message::<SectionStageChanged>();
         app.init_resource::<SimulationDistance>();
+        app.add_observer(raise_simulation_ticket);
         app.add_observer(release_simulation_ticket);
         app.configure_sets(
             FixedUpdate,

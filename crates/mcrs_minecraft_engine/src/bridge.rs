@@ -2,7 +2,7 @@ use bevy_ecs::schedule::ScheduleLabel;
 
 use bevy_ecs::entity::{Entity, EntityHashSet};
 use bevy_ecs::message::{MessageReader, Messages};
-use bevy_ecs::prelude::Commands;
+use bevy_ecs::prelude::{Commands, Mut};
 use bevy_ecs::query::{With, Without};
 use bevy_ecs::system::{Query, Res, ResMut};
 
@@ -160,6 +160,8 @@ pub fn dispatch_encode(
     mut telemetry: ResMut<BridgeTelemetry>,
 ) {
     let mut kicked = EntityHashSet::default();
+    let mut queued = 0usize;
+    let unhandled = AtomicU64::new(0);
     for (entity, mut queue, mut conn) in players.iter_mut() {
         // --- (1) Disconnected writer check (AP-06 path) ---
         if conn.raw.disconnected() {
@@ -207,18 +209,29 @@ pub fn dispatch_encode(
                 }
             }
         }
+
+        // Nothing to encode only sends what was encoded before, which costs less than handing
+        // the connection to another thread.
+        if queue.total_len() == 0 {
+            encode_and_send(entity, &mut queue, &mut conn, &unhandled);
+        } else {
+            queued += 1;
+        }
     }
 
     // Encoding compresses every large packet, so it runs on every connection at once; a kick
     // above needs Commands and stays in the sequential walk.
-    let unhandled = AtomicU64::new(0);
-    players
-        .par_iter_mut()
-        .for_each(|(entity, mut queue, mut conn)| {
-            if !kicked.contains(&entity) {
+    let encode =
+        |(entity, mut queue, mut conn): (Entity, Mut<OutboundQueue>, Mut<ServerSideConnection>)| {
+            if !kicked.contains(&entity) && queue.total_len() > 0 {
                 encode_and_send(entity, &mut queue, &mut conn, &unhandled);
             }
-        });
+        };
+    match queued {
+        0 => {}
+        1 => players.iter_mut().for_each(encode),
+        _ => players.par_iter_mut().for_each(encode),
+    }
     telemetry.encode_unhandled_total += unhandled.into_inner();
 }
 

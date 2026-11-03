@@ -5,11 +5,12 @@ use rustc_hash::FxHashSet;
 use bevy_app::{App, Last, Plugin};
 use bevy_ecs::prelude::*;
 use bevy_ecs::system::SystemParam;
-use bevy_tasks::{AsyncComputeTaskPool, Task, available_parallelism, block_on, poll_once};
+use bevy_tasks::{AsyncComputeTaskPool, available_parallelism};
 use mcrs_voxel::{BlockPos, ColumnPos};
 
 use mcrs_minecraft_chunk::{BlockLight, SkyLight};
 use mcrs_minecraft_core::BoundingBox;
+use mcrs_minecraft_engine_world::world::column_drain::{DrainWake, HandedOff, Handoff};
 use mcrs_minecraft_engine_world::world::light_gate::SectionRelit;
 use mcrs_minecraft_light_engine::block::LightRegistry;
 use mcrs_minecraft_light_engine::epoch::LightUpdate;
@@ -155,21 +156,26 @@ impl Default for IntakeBudget {
 /// run only when it has, because light published a tick later than an edit is
 /// fine for rendering and not fine for simulation.
 #[derive(Resource, Default)]
-pub struct LightEpoch(Vec<InFlight>);
+pub struct LightEpoch {
+    in_flight: Vec<InFlight>,
+    handoff: Handoff<LightUpdate>,
+}
 
 struct InFlight {
     area: BoundingBox,
-    task: Task<LightUpdate>,
+    task: HandedOff,
 }
 
 impl LightEpoch {
     pub fn is_running(&self) -> bool {
-        !self.0.is_empty()
+        !self.in_flight.is_empty()
     }
 
     /// Whether an epoch under way may still write into `area`.
     pub fn touches(&self, area: BoundingBox) -> bool {
-        self.0.iter().any(|epoch| epoch.area.intersects(area))
+        self.in_flight
+            .iter()
+            .any(|epoch| epoch.area.intersects(area))
     }
 }
 
@@ -289,15 +295,17 @@ pub fn publish_light(
     mut relit: MessageWriter<SectionRelit>,
 ) {
     let mut finished = Vec::new();
-    running
-        .0
-        .retain_mut(|epoch| match block_on(poll_once(&mut epoch.task)) {
-            Some(update) => {
-                finished.push(update);
-                false
-            }
-            None => true,
-        });
+    let LightEpoch { in_flight, handoff } = &mut *running;
+    for done in handoff.finished() {
+        let Some(at) = in_flight.iter().position(|epoch| epoch.task.id == done.id) else {
+            continue;
+        };
+        in_flight.swap_remove(at);
+        match done.output {
+            Some(update) => finished.push(update),
+            None => tracing::error!("a light epoch ended without its update"),
+        }
+    }
 
     for published in finished
         .into_iter()
@@ -364,6 +372,7 @@ pub fn dispatch_epoch(
     mut queue: ResMut<LightWorkQueue>,
     mut running: ResMut<LightEpoch>,
     budget: Res<LightBudget>,
+    wake: Option<Res<DrainWake>>,
 ) {
     if queue.0.is_empty() {
         return;
@@ -373,11 +382,13 @@ pub fn dispatch_epoch(
     let Some(pool) = AsyncComputeTaskPool::try_get() else {
         return;
     };
-    let free = budget.epochs_in_flight.saturating_sub(running.0.len());
+    let free = budget
+        .epochs_in_flight
+        .saturating_sub(running.in_flight.len());
     if free == 0 {
         return;
     }
-    let occupied: Vec<BoundingBox> = running.0.iter().map(|epoch| epoch.area).collect();
+    let occupied: Vec<BoundingBox> = running.in_flight.iter().map(|epoch| epoch.area).collect();
     for batch in queue
         .0
         .drain_batches(budget.cells_per_epoch, &occupied, free)
@@ -386,9 +397,9 @@ pub fn dispatch_epoch(
             continue;
         };
         let area = job.area();
-        running.0.push(InFlight {
-            area,
-            task: pool.spawn(async move { job.run() }),
-        });
+        let task = running
+            .handoff
+            .spawn(pool, wake.as_deref(), async move { job.run() });
+        running.in_flight.push(InFlight { area, task });
     }
 }

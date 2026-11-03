@@ -715,6 +715,9 @@ fn a_dead_first_section_does_not_take_the_column_s_block_entities_with_it() {
             }),
         );
         scheduler.store.set_stage(col, Stage::Merged(0));
+        // Staged by hand rather than climbed, so only the delivery that looks at every wanted
+        // column finds it.
+        scheduler.recheck_all = true;
     }
 
     app.add_systems(Update, deliver_merged_columns);
@@ -776,7 +779,7 @@ fn a_delivery_carrying_part_of_a_column_still_lays_its_bedrock_floor() {
         .expect("the fill was not cancelled");
 
     let bottom = y_sections[0];
-    let delivered = carried_sections(&sections, &snapshot.sections, bottom);
+    let delivered: Vec<_> = carried_sections(&sections, &snapshot.sections, bottom).collect();
     assert_eq!(
         delivered.len(),
         carried.len(),
@@ -792,7 +795,7 @@ fn a_delivery_carrying_part_of_a_column_still_lays_its_bedrock_floor() {
         .iter()
         .find(|(_, pos, _)| pos.y == carried[0])
         .expect("the bottom section came back");
-    let (palette, _) = floor.2.as_ref().expect("the bottom section carries blocks");
+    let (palette, _) = floor.2.expect("the bottom section carries blocks");
     let mut states = Vec::with_capacity(ColumnBlocks::SECTION_VOLUME);
     palette.0.for_each(|state| states.push(state));
     // The palette runs y, then z, then x, so the first layer is the floor of

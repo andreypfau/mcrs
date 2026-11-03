@@ -30,23 +30,21 @@ pub struct VoxelServerPlugin {
 
 impl Plugin for VoxelServerPlugin {
     fn build(&self, app: &mut App) {
-        let threading = match self.threading {
-            TickThreading::Single => TickThreading::Single,
-            TickThreading::Parallel => match ThreadPoolBuilder::new()
+        let threading = self.threading;
+        if threading == TickThreading::Parallel {
+            match ThreadPoolBuilder::new()
                 .num_threads(DIM_TICK_THREADS)
                 .thread_name(|index| format!("dim-tick-{index}"))
                 .build()
             {
                 Ok(pool) => {
                     app.insert_resource(DimTickPool(pool));
-                    TickThreading::Parallel
                 }
                 Err(error) => {
-                    tracing::error!(%error, "the dimension tick pool did not start; the dimensions tick one after another");
-                    TickThreading::Single
+                    tracing::error!(%error, "the dimension tick pool did not start; the dimensions tick one after another, each with its systems in parallel");
                 }
-            },
-        };
+            }
+        }
         app.insert_resource(threading);
         let task_pool_options = if threading == TickThreading::Single && self.owns_task_pools {
             TaskPoolOptions {
@@ -114,19 +112,16 @@ pub fn spawn_server_thread(
         .spawn(move || run(app.into_inner()))
 }
 
-/// How long the loop sleeps between two calls of `idle` while it waits for the next tick.
-const IDLE_STEP: Duration = Duration::from_millis(2);
-
-/// Ticks the app at `tick_rate`. `between_ticks` runs once after every tick; `idle` runs then
-/// and again every `IDLE_STEP` until the next tick is due, which is where work that finished
-/// off the tick, a column read from the save above all, is passed on without waiting for the
-/// tick to come round. A plugin that asks the app to exit while it finishes stops the loop before
-/// the first tick.
+/// Ticks the app at `tick_rate`. `between_ticks` runs once after every tick. `until` then has
+/// the time up to the next tick, given as its deadline, to pass on work that finished off the
+/// tick, a column read from the save above all, without waiting for the tick to come round.
+/// The loop sleeps out what `until` leaves of that time. A plugin that asks the app to exit
+/// while it finishes stops the loop before the first tick.
 pub fn run_server_loop(
     mut app: App,
     tick_rate: NonZeroU32,
     mut between_ticks: impl FnMut(&mut App),
-    mut idle: impl FnMut(&mut App),
+    mut until: impl FnMut(&mut App, Instant),
 ) -> AppExit {
     let tick = Duration::from_secs_f64(1.0 / tick_rate.get() as f64);
     app.finish();
@@ -141,15 +136,10 @@ pub fn run_server_loop(
         if let Some(exit) = app.should_exit() {
             return exit;
         }
-        loop {
-            idle(&mut app);
-            let Some(remaining) = tick.checked_sub(start.elapsed()) else {
-                break;
-            };
-            std::thread::sleep(remaining.min(IDLE_STEP));
-            if start.elapsed() >= tick {
-                break;
-            }
+        let deadline = start + tick;
+        until(&mut app, deadline);
+        if let Some(remaining) = deadline.checked_duration_since(Instant::now()) {
+            std::thread::sleep(remaining);
         }
     }
 }

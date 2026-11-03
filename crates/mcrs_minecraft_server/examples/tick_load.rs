@@ -39,7 +39,6 @@ use mcrs_minecraft_server::MinecraftServerPlugins;
 
 const ASSETS: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../assets");
 const TICK: Duration = Duration::from_millis(50);
-const DRAIN_STEP: Duration = Duration::from_millis(2);
 const VIEW_DISTANCE: u8 = 8;
 const BLOCKS_PER_TICK: f64 = 0.6;
 const OTHER_DIMENSIONS: [&str; 2] = ["minecraft:the_nether", "minecraft:the_end"];
@@ -119,13 +118,19 @@ fn run_timed(mut app: App, stop: &AtomicBool) -> Vec<TickTimes> {
         tick_threading::update(&mut app);
         runner::between_ticks(&mut app);
         let tick = start.elapsed();
+        // `runner::drain_until`, without the time spent waiting.
+        let deadline = start + TICK;
         let mut drain = Duration::ZERO;
-        while let Some(remaining) = TICK.checked_sub(start.elapsed()) {
+        loop {
             let drained = Instant::now();
-            runner::drain_columns(&mut app);
+            runner::drain_woken(&mut app);
             drain += drained.elapsed();
-            std::thread::sleep(remaining.min(DRAIN_STEP));
+            if !runner::wait_for_wake(&mut app, deadline) {
+                break;
+            }
+            runner::sleep_until((drained + runner::DRAIN_INTERVAL).min(deadline));
         }
+        runner::sleep_until(deadline);
         times.push(TickTimes { tick, drain });
     }
     times

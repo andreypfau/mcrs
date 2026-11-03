@@ -78,7 +78,11 @@ impl Plugin for EnginePlugin {
                 .after(mcrs_minecraft_network::NetworkSet::SpawnConnections),
         );
 
-        app.add_schedule(Schedule::new(bridge::OutboundFlush));
+        // Two systems in a chain: threads would only add the cost of handing them out, on a
+        // flush that runs after every drain. The encoding still spreads over the connections.
+        let mut flush = Schedule::new(bridge::OutboundFlush);
+        flush.set_executor(bevy_ecs::schedule::SingleThreadedExecutor::new());
+        app.add_schedule(flush);
         app.add_systems(
             bridge::OutboundFlush,
             (bridge::bridge_outbound, bridge::dispatch_encode).chain(),
