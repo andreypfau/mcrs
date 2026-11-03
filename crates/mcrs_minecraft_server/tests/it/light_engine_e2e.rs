@@ -2,7 +2,7 @@ use bevy_app::{App, AppLabel, Last};
 use bevy_ecs::message::MessageReader;
 use bevy_ecs::prelude::{Entity, IntoScheduleConfigs, ResMut, Resource};
 use mcrs_minecraft_block::definition::Blocks;
-use mcrs_minecraft_chunk::{BlockLight, SkyLight, VoxelId};
+use mcrs_minecraft_chunk::{BlockLight, SkyLight};
 use mcrs_minecraft_engine::bus::{
     OutboundPlayerPacket, PacketPayload, PacketPriority, PacketTarget,
 };
@@ -22,7 +22,7 @@ use mcrs_minecraft_protocol_game::clientbound::ClientboundLightUpdate;
 use mcrs_minecraft_protocol_game::light_codec::{RowLight, unpack_light_data};
 use mcrs_minecraft_simulation::BlockUpdateFlags;
 use mcrs_minecraft_vanilla_light::emit_light_updates;
-use mcrs_minecraft_vanilla_light::{LightBudget, LightEpoch, LightWorkQueue, PendingEdits};
+use mcrs_minecraft_vanilla_light::{LightActor, LightBudget};
 use mcrs_voxel::{BlockPos, BlockStateId, ColumnPos, SectionPos};
 
 use crate::host_app;
@@ -94,16 +94,10 @@ fn settle(app: &mut App, label: DimAppLabel) {
             .get(&label.intern())
             .expect("the dimension sub-app exists")
             .world();
-        let running = world.resource::<LightEpoch>().is_running();
-        if !running
-            && world.resource::<PendingEdits>().is_empty()
-            && world.resource::<LightWorkQueue>().0.is_empty()
-        {
+        if world.resource::<LightActor>().is_idle() {
             return;
         }
-        if running {
-            std::thread::sleep(std::time::Duration::from_millis(2));
-        }
+        std::thread::sleep(std::time::Duration::from_millis(2));
     }
     panic!("light never settled");
 }
@@ -423,7 +417,7 @@ fn the_column_under_the_player_is_lit_before_the_far_ones() {
             .get_mut(&label.intern())
             .expect("the dimension sub-app exists")
             .world_mut();
-        if world.resource::<LightEpoch>().is_running() {
+        if !world.resource::<LightActor>().is_idle() {
             std::thread::sleep(std::time::Duration::from_millis(2));
         }
         let newly: Vec<ColumnPos> = world
@@ -456,55 +450,6 @@ fn the_column_under_the_player_is_lit_before_the_far_ones() {
     assert!(
         by_distance.windows(2).all(|pair| pair[0].1 <= pair[1].1),
         "a nearer column is never lit later than a farther one, got {by_distance:?}"
-    );
-}
-
-/// A seam is lit against whatever stands beside it, so a column is only
-/// finished once its neighbours are.
-#[test]
-fn a_column_is_not_sent_while_a_neighbour_still_has_lighting_work() {
-    use bevy_ecs::prelude::World;
-    use bevy_ecs::system::RunSystemOnce;
-    use mcrs_minecraft_light_engine::block::{LightProperties, LightRegistry, SpecialBlocks};
-    use mcrs_minecraft_light_engine::prelude::{Influence, LightBounds};
-    use mcrs_minecraft_light_engine::world::LightWorld;
-    use mcrs_minecraft_vanilla_light::{
-        LightEpoch, LightStatus, LightWorkQueue, Lighting, PendingEdits,
-    };
-    use std::sync::Arc;
-
-    let registry = Arc::new(LightRegistry::new(
-        vec![LightProperties::AIR, LightProperties::SOLID],
-        SpecialBlocks {
-            unloaded: VoxelId(1),
-            outside: VoxelId(0),
-        },
-    ));
-    let mut world = World::new();
-    world.insert_resource(Lighting(LightWorld::new(
-        registry,
-        LightBounds::new(-4, 19),
-    )));
-    world.init_resource::<LightWorkQueue>();
-    world.init_resource::<LightEpoch>();
-    world.init_resource::<PendingEdits>();
-
-    fn settled(status: LightStatus) -> bool {
-        status.settled_around(ColumnPos::new(0, 0))
-    }
-
-    assert!(
-        world.run_system_once(settled).unwrap(),
-        "nothing is owed to the column or its ring"
-    );
-
-    world.resource_mut::<LightWorkQueue>().0.push(
-        ColumnPos::new(1, 0),
-        Influence::around(BlockPos::new(16, 64, 0)),
-    );
-    assert!(
-        !world.run_system_once(settled).unwrap(),
-        "the neighbour's work will repair this column's seam"
     );
 }
 

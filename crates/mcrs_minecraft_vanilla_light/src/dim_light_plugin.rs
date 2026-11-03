@@ -5,7 +5,7 @@ use std::sync::Arc;
 use bevy_app::{App, FixedUpdate, Last, Plugin};
 use bevy_ecs::prelude::*;
 use mcrs_minecraft_engine::light_codec::{LightCodecParams, build_delta_light_data};
-use mcrs_minecraft_engine_world::aoi::{PlayerObservers, min_column_distance};
+use mcrs_minecraft_engine_world::aoi::PlayerObservers;
 use mcrs_minecraft_engine_world::block_update::BlockPlaced;
 use mcrs_minecraft_engine_world::entity::physics::Transform;
 use mcrs_minecraft_engine_world::entity::player::Player;
@@ -15,22 +15,21 @@ use mcrs_minecraft_engine_world::tick::TickSet;
 use mcrs_minecraft_engine_world::world::column_drain::{ColumnDrain, ColumnDrainSet};
 use mcrs_minecraft_engine_world::world::dimension::InDimension;
 use mcrs_minecraft_engine_world::world::lifecycle::stage::SectionStageChanged;
-use mcrs_minecraft_engine_world::world::light_gate::SectionRelit;
 use mcrs_minecraft_engine_world::world::light_gate::{
-    ColumnAwaitsLight, ColumnLightGate, ColumnLightSettled, LightGated,
+    ColumnAwaitsLight, ColumnLightGate, LightGated, SectionRelit,
 };
 use mcrs_minecraft_engine_world::world::storage::column::{ColumnIndex, ColumnPosComponent};
 use mcrs_minecraft_light_engine::block::LightRegistry;
-use mcrs_minecraft_light_engine::prelude::{Edit, LightBounds, Priority};
+use mcrs_minecraft_light_engine::prelude::{Edit, LightBounds};
 use mcrs_voxel::{ColumnPos, SectionPos};
 
-use crate::light_plugin::{
-    LightPlugin, LightSet, LightStatus, LightWorkQueue, Lighting, PendingEdits, dispatch_epoch,
-    publish_light,
-};
+use crate::light_actor::LightActor;
+use crate::light_plugin::{LightPlugin, LightSet, publish_light};
+use crate::light_state::player_priority;
+use crate::to_light::ToLight;
 
 use mcrs_minecraft_heightmap::SurfaceHeightmap;
-use rustc_hash::{FxHashMap, FxHashSet};
+use rustc_hash::FxHashMap;
 use smallvec::SmallVec;
 
 use mcrs_minecraft_engine::bus::{
@@ -38,8 +37,8 @@ use mcrs_minecraft_engine::bus::{
 };
 use mcrs_minecraft_engine::session::HostAnchor;
 
-/// A dimension's side of the light engine: what it hands the light world before intake, and
-/// what it sends once the light world has published.
+/// A dimension's side of the light engine: what it hands the light actor before intake, and
+/// what it sends once the actor's light has been published.
 #[derive(SystemSet, Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub(crate) enum DimLightSet {
     Feed,
@@ -52,10 +51,6 @@ pub(crate) struct DimLightPlugin {
     pub(crate) sky: bool,
 }
 
-/// The columns that wait for the light around them to settle.
-#[derive(Resource, Default)]
-struct ColumnsAwaitingLight(FxHashSet<ColumnPos>);
-
 impl Plugin for DimLightPlugin {
     fn build(&self, app: &mut App) {
         app.add_plugins(LightPlugin {
@@ -66,7 +61,9 @@ impl Plugin for DimLightPlugin {
         .configure_sets(
             Last,
             (
-                DimLightSet::Feed.before(LightSet::Intake),
+                DimLightSet::Feed
+                    .after(LightSet::Publish)
+                    .before(LightSet::Intake),
                 DimLightSet::Emit.after(LightSet::Publish),
             ),
         )
@@ -89,20 +86,15 @@ impl Plugin for DimLightPlugin {
             ),
         )
         .insert_resource(LightGated)
-        .init_resource::<ColumnsAwaitingLight>()
         .configure_sets(FixedUpdate, ColumnLightGate.in_set(TickSet::Project))
-        .add_systems(FixedUpdate, settle_awaiting_columns.in_set(ColumnLightGate))
+        .add_systems(FixedUpdate, await_light.in_set(ColumnLightGate))
         .add_systems(
             ColumnDrain,
             (
-                // A finished epoch frees its slot and unblocks its area only when it is
-                // retired, and columns land many times a tick. Retiring here publishes a
-                // column's light in time for the send that follows it in this same drain.
-                (publish_light, dispatch_epoch)
-                    .chain()
-                    .run_if(resource_exists::<Lighting>)
-                    .in_set(ColumnDrainSet::Light),
-                settle_awaiting_columns
+                // The light the actor published lands in time for the send that follows it in
+                // this same drain.
+                publish_light.in_set(ColumnDrainSet::Light),
+                await_light
                     .in_set(ColumnDrainSet::Send)
                     .in_set(ColumnLightGate),
             ),
@@ -110,63 +102,37 @@ impl Plugin for DimLightPlugin {
     }
 }
 
-/// Answers each column that waits for its light once the light around it has settled.
-fn settle_awaiting_columns(
-    mut awaiting: MessageReader<ColumnAwaitsLight>,
-    mut waiting: ResMut<ColumnsAwaitingLight>,
-    status: LightStatus,
-    mut settled: MessageWriter<ColumnLightSettled>,
-) {
-    waiting
-        .0
-        .extend(awaiting.read().map(|&ColumnAwaitsLight(column)| column));
-    if waiting.0.is_empty() {
-        return;
+/// Hands the light actor each column that waits for its light. The actor answers once the
+/// light around the column has settled, and [`publish_light`] passes the answer on.
+fn await_light(mut awaiting: MessageReader<ColumnAwaitsLight>, mut actor: ResMut<LightActor>) {
+    let columns: Vec<ColumnPos> = awaiting
+        .read()
+        .map(|&ColumnAwaitsLight(column)| column)
+        .collect();
+    if !columns.is_empty() {
+        actor.send(ToLight::AwaitColumns(columns));
     }
-    waiting.0.retain(|&column| {
-        if status.settled_around(column) {
-            settled.write(ColumnLightSettled(column));
-            false
-        } else {
-            true
-        }
-    });
 }
 
-/// Re-scores the waiting light work against where the players stand now.
-///
-/// A column is not sent until the light around it has settled, so work scored when it was
-/// raised carries the distance from wherever the player was then. One flight across the world
-/// and the queue is sorted by a position nobody occupies, which leaves the column under the
-/// player waiting behind thousands raised earlier and further away.
+/// Hands the light actor where the players stand once one of them has moved to another
+/// column, so the waiting light work is re-scored against them.
 fn reprioritize_light_work(
-    mut pending: ResMut<PendingEdits>,
-    mut queue: ResMut<LightWorkQueue>,
+    mut actor: ResMut<LightActor>,
     players: Query<&Transform, With<Player>>,
     mut scored_for: Local<Vec<ColumnPos>>,
     mut player_columns: Local<Vec<ColumnPos>>,
 ) {
-    if pending.is_empty() && queue.0.is_empty() {
-        return;
-    }
     player_columns.clear();
     player_columns.extend(players.iter().map(|at| ColumnPos::from(at.translation)));
-    // Nothing to score against, and a score is only stale once a player has moved to another
-    // column: the walk is worth its cost then and wasted otherwise.
     if player_columns.is_empty() || *scored_for == *player_columns {
         return;
     }
     scored_for.clone_from(&*player_columns);
-
-    let score = |column: ColumnPos| {
-        min_column_distance(&column, &player_columns).clamp(0, Priority::MAX as i32) as Priority
-    };
-    pending.reprioritize(score);
-    queue.0.reprioritize(score);
+    actor.send(ToLight::Players(player_columns.clone()));
 }
 
 fn feed_light_edits(
-    mut pending: ResMut<PendingEdits>,
+    mut actor: ResMut<LightActor>,
     mut stages: MessageReader<SectionStageChanged>,
     blocks: Query<&ChunkBlocks>,
     players: Query<&Transform, With<Player>>,
@@ -175,12 +141,9 @@ fn feed_light_edits(
 ) {
     player_columns.clear();
     player_columns.extend(players.iter().map(|at| ColumnPos::from(at.translation)));
-    // A column is not sent until its light is published, so the light queue has
-    // to drain in the sender's order: the same distance to the nearest player
-    // that the column scheduler already treats as a ticket level.
     let mut queue = |edit: Edit| {
-        let distance = min_column_distance(&edit.column(), &player_columns);
-        pending.push_with_priority(edit, distance.clamp(0, Priority::MAX as i32) as Priority);
+        let priority = player_priority(edit.column(), &player_columns);
+        actor.push_with_priority(edit, priority);
     };
 
     for change in stages.read() {
@@ -207,7 +170,7 @@ fn feed_light_edits(
 /// Hands the sky scan each column's surface, so a section holding no block of a
 /// column costs it two seam tests rather than sixteen reads.
 fn feed_column_surfaces(
-    mut pending: ResMut<PendingEdits>,
+    mut actor: ResMut<LightActor>,
     columns: Query<(&ColumnPosComponent, &SurfaceHeightmap), Changed<SurfaceHeightmap>>,
     players: Query<&Transform, With<Player>>,
     mut player_columns: Local<Vec<ColumnPos>>,
@@ -218,13 +181,12 @@ fn feed_column_surfaces(
     player_columns.clear();
     player_columns.extend(players.iter().map(|at| ColumnPos::from(at.translation)));
     for (pos, surface) in &columns {
-        let distance = min_column_distance(&pos.0, &player_columns);
-        pending.push_with_priority(
+        actor.push_with_priority(
             Edit::SetColumnSurface {
                 column: pos.0,
                 surface: Arc::new(surface.0.clone()),
             },
-            distance.clamp(0, Priority::MAX as i32) as Priority,
+            player_priority(pos.0, &player_columns),
         );
     }
 }

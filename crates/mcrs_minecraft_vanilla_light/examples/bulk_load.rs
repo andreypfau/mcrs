@@ -14,9 +14,7 @@ use std::time::{Duration, Instant};
 use bevy_app::{App, TaskPoolPlugin};
 use mcrs_minecraft_chunk::{PalettedContainer, VoxelId, VoxelPalette};
 use mcrs_minecraft_light_engine::prelude::*;
-use mcrs_minecraft_vanilla_light::{
-    IntakeBudget, LightBudget, LightEpoch, LightPlugin, LightWorkQueue, PendingEdits,
-};
+use mcrs_minecraft_vanilla_light::{IntakeBudget, LightActor, LightBudget, LightPlugin};
 use mcrs_voxel::{BlockStateId, ColumnPos, SectionPos};
 
 fn filled(block: VoxelId) -> SectionBlocks {
@@ -95,18 +93,16 @@ fn main() {
                 bounds,
                 sky: true,
             });
-        let limit = app.world().resource::<IntakeBudget>().columns_per_tick;
+        let limit = app.world().resource::<IntakeBudget>().columns_per_round;
         {
-            let mut pending = app.world_mut().resource_mut::<PendingEdits>();
+            let mut actor = app.world_mut().resource_mut::<LightActor>();
             for edit in edits {
-                pending.push(edit);
+                actor.push(edit);
             }
         }
         let mut tick = 0usize;
         let mut worst = Duration::ZERO;
         let mut worst_at = 0usize;
-        let mut intake_ticks = 0usize;
-        let mut worst_waiting = 0usize;
         let mut first = Duration::ZERO;
         let started = Instant::now();
         loop {
@@ -121,25 +117,15 @@ fn main() {
                 worst = took;
                 worst_at = tick;
             }
-            let world = app.world();
-            if took == worst {
-                worst_waiting = world.resource::<LightWorkQueue>().0.len();
-            }
-            let drained = world.resource::<PendingEdits>().is_empty();
-            if drained && intake_ticks == 0 {
-                intake_ticks = tick;
-            }
-            if drained
-                && !world.resource::<LightEpoch>().is_running()
-                && world.resource::<LightWorkQueue>().0.is_empty()
-            {
+            if app.world().resource::<LightActor>().is_idle() {
                 break;
             }
+            std::thread::sleep(Duration::from_millis(1));
         }
         println!(
-            "app.update() at {limit} columns per tick: intake drained after {intake_ticks} ticks, \
-             settled after {tick} ticks, {:?} wall, first tick {first:?}, worst tick {worst:?} \
-             (tick {worst_at}, {worst_waiting} columns waiting in the queue)",
+            "app.update() with the light actor at {limit} columns per round: settled after \
+             {tick} updates, {:?} wall, first update {first:?}, worst update {worst:?} \
+             (update {worst_at})",
             started.elapsed()
         );
         return;

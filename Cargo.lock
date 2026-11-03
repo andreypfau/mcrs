@@ -4894,6 +4894,7 @@ dependencies = [
  "bevy_app",
  "bevy_ecs",
  "bevy_tasks",
+ "flume",
  "mcrs_minecraft_block",
  "mcrs_minecraft_chunk",
  "mcrs_minecraft_core",

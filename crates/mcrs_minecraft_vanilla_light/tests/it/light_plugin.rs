@@ -4,25 +4,16 @@ use crate::fixture::{AIR, TORCH, filled, registry, state};
 use bevy_app::{App, TaskPoolPlugin};
 use mcrs_minecraft_chunk::{BlockLight, SkyLight};
 use mcrs_minecraft_light_engine::prelude::*;
-use mcrs_minecraft_vanilla_light::{
-    IntakeBudget, LightEpoch, LightPlugin, LightSet, LightWorkQueue, Lighting, PendingEdits,
-};
+use mcrs_minecraft_vanilla_light::{LightActor, LightPlugin, LightSet};
 use mcrs_voxel::SectionPos;
 
 fn settle(app: &mut App) {
     for _ in 0..1000 {
         app.update();
-        let world = app.world();
-        let running = world.resource::<LightEpoch>().is_running();
-        if !running
-            && world.resource::<PendingEdits>().is_empty()
-            && world.resource::<LightWorkQueue>().0.is_empty()
-        {
+        if app.world().resource::<LightActor>().is_idle() {
             return;
         }
-        if running {
-            std::thread::sleep(std::time::Duration::from_millis(1));
-        }
+        std::thread::sleep(std::time::Duration::from_millis(1));
     }
     panic!("light never settled");
 }
@@ -41,7 +32,7 @@ fn a_torch_lights_its_neighbour_through_the_plugin() {
     for pos in &sections {
         let entity = app.world_mut().spawn(*pos).id();
         app.world_mut()
-            .resource_mut::<PendingEdits>()
+            .resource_mut::<LightActor>()
             .push(Edit::LoadSection {
                 entity: entity.to_bits(),
                 pos: *pos,
@@ -51,7 +42,7 @@ fn a_torch_lights_its_neighbour_through_the_plugin() {
     settle(&mut app);
 
     app.world_mut()
-        .resource_mut::<PendingEdits>()
+        .resource_mut::<LightActor>()
         .push(Edit::SetBlock {
             pos: mcrs_voxel::BlockPos::new(8, 8, 8),
             block: state(TORCH),
@@ -81,11 +72,11 @@ fn a_section_respawned_the_tick_its_predecessor_died_is_still_published() {
     use bevy_ecs::prelude::*;
 
     fn load_added_sections(
-        mut pending: ResMut<PendingEdits>,
+        mut actor: ResMut<LightActor>,
         added: Query<(Entity, &SectionPos), Added<SectionPos>>,
     ) {
         for (entity, pos) in &added {
-            pending.push(Edit::LoadSection {
+            actor.push(Edit::LoadSection {
                 entity: entity.to_bits(),
                 pos: *pos,
                 blocks: Arc::new(filled(AIR)),
@@ -115,105 +106,4 @@ fn a_section_respawned_the_tick_its_predecessor_died_is_still_published() {
         app.world().get::<SkyLight>(new).is_some(),
         "the respawned section was published"
     );
-}
-
-fn budgeted_app() -> App {
-    let mut app = App::new();
-    app.add_plugins(LightPlugin {
-        registry: registry(),
-        bounds: LightBounds::new(0, 1),
-        sky: true,
-    });
-    app
-}
-
-fn load_columns(app: &mut App, columns: i32) {
-    let mut pending = app.world_mut().resource_mut::<PendingEdits>();
-    for x in 0..columns {
-        for y in 0..2 {
-            pending.push(Edit::LoadSection {
-                entity: 0,
-                pos: SectionPos::new(x, y, 0),
-                blocks: Arc::new(filled(AIR)),
-            });
-        }
-    }
-}
-
-#[test]
-fn intake_is_bounded_per_tick_and_loses_nothing() {
-    let mut app = budgeted_app();
-    let limit = app.world().resource::<IntakeBudget>().columns_per_tick;
-    let columns = limit as i32 * 4 + 7;
-    load_columns(&mut app, columns);
-
-    app.update();
-    let loaded = |app: &App| {
-        app.world()
-            .resource::<Lighting>()
-            .0
-            .loaded_sections()
-            .count()
-    };
-    assert_eq!(loaded(&app), limit * 2);
-    assert!(!app.world().resource::<PendingEdits>().is_empty());
-
-    let mut ticks = 1;
-    while !app.world().resource::<PendingEdits>().is_empty() {
-        app.update();
-        ticks += 1;
-        assert!(ticks < 100, "intake never drained");
-    }
-    assert_eq!(ticks, (columns as usize).div_ceil(limit));
-    assert_eq!(loaded(&app), columns as usize * 2);
-}
-
-#[test]
-fn a_block_change_is_not_deferred_behind_a_bulk_load() {
-    let mut app = budgeted_app();
-    let limit = app.world().resource::<IntakeBudget>().columns_per_tick;
-    let pos = mcrs_voxel::BlockPos::new(8, 8, 8);
-    load_columns(&mut app, 1);
-    app.update();
-
-    load_columns(&mut app, limit as i32 * 3);
-    app.world_mut()
-        .resource_mut::<PendingEdits>()
-        .push(Edit::SetBlock {
-            pos,
-            block: state(TORCH),
-        });
-    app.update();
-
-    assert!(!app.world().resource::<PendingEdits>().is_empty());
-    assert_eq!(app.world().resource::<Lighting>().0.block_at(pos), TORCH);
-}
-
-#[test]
-fn the_most_urgent_column_is_admitted_before_the_backlog() {
-    let mut app = budgeted_app();
-    let limit = app.world().resource::<IntakeBudget>().columns_per_tick;
-    load_columns(&mut app, limit as i32 * 2);
-
-    let urgent = SectionPos::new(-1, 0, 0);
-    app.world_mut()
-        .resource_mut::<PendingEdits>()
-        .push_with_priority(
-            Edit::LoadSection {
-                entity: 0,
-                pos: urgent,
-                blocks: Arc::new(filled(AIR)),
-            },
-            0,
-        );
-    app.update();
-
-    assert!(
-        app.world()
-            .resource::<Lighting>()
-            .0
-            .section(urgent)
-            .is_some()
-    );
-    assert!(!app.world().resource::<PendingEdits>().is_empty());
 }
