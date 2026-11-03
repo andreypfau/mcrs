@@ -14,6 +14,7 @@ pub mod client_info;
 pub mod clock;
 pub mod column_held;
 pub mod column_view;
+mod column_waiters;
 pub mod consume_inbound_player_spawn;
 pub mod default_game_mode;
 pub mod despawn_inbound_player;
