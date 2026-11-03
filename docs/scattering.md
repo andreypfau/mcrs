@@ -188,12 +188,12 @@ sub-app (X1).
 The dimension and the actor share no data. They exchange messages only
 (`crates/mcrs_minecraft_vanilla_worldgen/src/generation_link.rs`, `GenerationRequest`,
 `GenerationReport`). The dimension sends the fill context, the wanted columns
-and the views of each tick. The actor sends back each delivered column and the
-sections of each abandoned column, and then wakes the dimension through its
-`DrainWake` (`crates/mcrs_minecraft_engine_world/src/world/column_drain.rs`).
-The column drain of the dimension takes the reports in
-(`crates/mcrs_minecraft_vanilla_worldgen/src/chunk_plugin.rs`, `integrate_generated_columns`). The
-drain runs at the end of each tick and after each wake between ticks.
+and the views of each tick. The actor sends back each delivered column, the
+sections of each abandoned column, and a report when it owes nothing more.
+The dimension takes the reports in at the start of each tick, in the order of
+the column positions
+(`crates/mcrs_minecraft_vanilla_worldgen/src/chunk_plugin.rs`, `integrate_generated_columns`).
+Nothing takes them in between ticks.
 
 ### 3.2 The stage ladder
 

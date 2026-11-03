@@ -191,3 +191,11 @@ One line each, with the numbers that justified it. Newest last.
   eight extra buffers of 98 304 cells per worker are counted. A section-cache on the read path
   buys nothing either: one section list per dimension makes the ring slot an array index, so
   nothing on that path hashes a section position.
+- **Generation and light land at the start of a tick, not between ticks.** A result applied at
+  a wall-clock moment between ticks made the world a tick starts from depend on thread timing;
+  the lockstep test in `tick_determinism.rs` diverges between runs when it is applied there or
+  in arrival order. Between ticks only the outbox of a dimension whose channel was full drains.
+  Against the between-tick drain, at 30 bots apart (parallel) the tick went 2.84 to 2.34 ms
+  mean and the drain 0.66 to 0.02 ms, with 30 738 and 30 931 columns received and the first
+  column after 2.4 and 2.2 s; at 100 bots together 111 582 and 111 951 columns, at least 1101
+  a bot in both.
