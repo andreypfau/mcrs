@@ -41,7 +41,7 @@ fn filled(block: BlockStateId) -> SectionStates {
     SectionStates::homogeneous(block)
 }
 
-/// Spawn one column of section entities exactly as `process_completed_columns`
+/// Spawn one column of section entities exactly as `integrate_generated_columns`
 /// does, then pump until the engine has nothing left to do.
 fn light_one_column(app: &mut App, label: DimAppLabel, stone_floor: bool) {
     let blocks = app.world().resource::<Blocks>().clone();

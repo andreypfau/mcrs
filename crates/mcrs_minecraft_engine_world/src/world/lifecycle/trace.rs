@@ -201,8 +201,9 @@ impl ColumnTraces {
 /// its traces with a client, so a server nobody reads the trace of records nothing.
 ///
 /// Systems record through a shared borrow: a write borrow would keep every system that traces
-/// from running beside another, even in a server that records nothing.
-#[derive(Resource)]
+/// from running beside another, even in a server that records nothing. A clone records into the
+/// same log, from any thread.
+#[derive(Resource, Clone)]
 pub struct ColumnTraceLog {
     sender: flume::Sender<TraceEvent>,
     receiver: flume::Receiver<TraceEvent>,

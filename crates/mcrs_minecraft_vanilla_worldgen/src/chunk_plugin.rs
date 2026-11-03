@@ -1,84 +1,82 @@
+use std::collections::HashMap;
+use std::sync::OnceLock;
+use std::time::{Duration, Instant};
+
 use bevy_app::{App, FixedUpdate, Plugin};
 use bevy_ecs::entity::Entity;
-use bevy_ecs::prelude::{Local, MessageReader, ParamSet, Query, Resource, With, resource_exists};
+use bevy_ecs::prelude::{
+    Local, MessageReader, ParamSet, Query, Resource, With, resource_exists,
+    resource_exists_and_changed,
+};
 use bevy_ecs::schedule::IntoScheduleConfigs;
 use bevy_ecs::system::{Commands, Res, ResMut};
+use bevy_ecs::world::World;
 use bevy_tasks::{TaskPool, TaskPoolBuilder};
 use mcrs_minecraft_engine::heightmap::PendingColumnHeightmaps;
 use mcrs_minecraft_engine_world::aoi::min_column_distance;
 use mcrs_minecraft_engine_world::entity::physics::Transform;
 use mcrs_minecraft_engine_world::entity::player::Player;
-use mcrs_minecraft_engine_world::entity::player::chunk_view::{ChunkTrackingView, SentChunkView};
-use mcrs_minecraft_engine_world::palette::{BiomePalette, ChunkBlocks, section_states};
-use mcrs_minecraft_engine_world::world::column_drain::{
-    ColumnDrain, ColumnDrainSet, DrainWake, HandedOff, Handoff,
-};
+use mcrs_minecraft_engine_world::entity::player::chunk_view::SentChunkView;
+use mcrs_minecraft_engine_world::tick::TickSet;
+use mcrs_minecraft_engine_world::world::column_drain::{ColumnDrain, ColumnDrainSet, DrainWake};
 use mcrs_minecraft_engine_world::world::dimension::InDimension;
-use mcrs_minecraft_engine_world::world::lifecycle::column_loading::LOADING_RINGS;
 use mcrs_minecraft_engine_world::world::lifecycle::stage::{
     SectionStage, SectionStageChanged, SectionStages,
 };
+use mcrs_minecraft_engine_world::world::lifecycle::ticket::{ChunkSpawnSet, spawn_chunks};
 use mcrs_minecraft_engine_world::world::lifecycle::trace as column_trace;
 use mcrs_minecraft_engine_world::world::lifecycle::trace::{ColumnStage, ColumnTraceLog};
 use mcrs_minecraft_engine_world::world::storage::block_entity::spawn_block_entities;
 use mcrs_minecraft_simulation::PendingTick;
 use mcrs_minecraft_worldgen_feature::placer::GenerationKinds;
-use mcrs_minecraft_worldgen_generator::saved::SectionData;
-use mcrs_minecraft_worldgen_generator::stages::{
-    FillContext, fill_pooled, merge_column, run_region,
-};
-use mcrs_minecraft_worldgen_generator::staging::{
-    ColumnDelta, FilledSnapshot, Stage, StagingStore,
-};
-use mcrs_minecraft_worldgen_generator::task::{CancellationToken, ColumnSource};
+use mcrs_minecraft_worldgen_generator::stages::FillContext;
+use mcrs_minecraft_worldgen_generator::task::ColumnSource;
 use mcrs_voxel::{ColumnPos, SectionPos};
-use rustc_hash::FxHashMap;
-use std::collections::{BTreeMap, HashMap};
-use std::future::Future;
-use std::sync::{Arc, OnceLock};
-use std::time::{Duration, Instant};
 use tracing::{info, trace};
+
+use crate::generation_actor::{GenerationActor, SchedulerConfig};
+use crate::generation_link::{
+    ColumnGenerator, DeliveredColumn, GenerationReport, GenerationRequest, GeneratorInbox,
+    GeneratorLink, RequestedSection, SectionContent, ViewUpdate, WantedColumn,
+};
 
 pub(crate) struct ChunkPlugin;
 
 impl Plugin for ChunkPlugin {
     fn build(&self, app: &mut App) {
-        let scheduler = ColumnScheduler::default();
+        let config = SchedulerConfig::default();
         CHUNK_TASK_POOL.get_or_init(|| {
             TaskPoolBuilder::new()
                 .thread_name("ChunkGen".to_string())
-                .num_threads(scheduler.config.num_threads)
+                .num_threads(config.num_threads)
                 .build()
         });
-        app.insert_resource(scheduler);
-        // The chunks a view ticketed this tick are spawned this tick and dispatched right
-        // after; what lands is drained by the dimension's `ColumnDrain`, at the tick's end and
-        // between ticks.
+        let link = GeneratorLink::new();
+        app.insert_resource(config);
+        app.insert_resource(link.generator);
+        app.insert_resource(link.inbox);
+        // The chunks a view ticketed this tick are spawned this tick and requested right
+        // after; what the actor delivers is integrated by the dimension's `ColumnDrain`, at
+        // the tick's end and between ticks.
         app.add_systems(
             FixedUpdate,
             (
-                enqueue_pending_columns,
-                cancel_stale_columns,
-                reprioritize_columns,
-                dispatch_column_generation.run_if(resource_exists::<FillContext>),
+                start_column_generator.run_if(resource_exists::<GeneratorInbox>),
+                send_fill_context.run_if(resource_exists_and_changed::<FillContext>),
+                request_columns,
+                send_views,
             )
                 .chain()
-                .in_set(mcrs_minecraft_engine_world::tick::TickSet::Project)
-                .after(mcrs_minecraft_engine_world::world::lifecycle::ticket::ChunkSpawnSet),
+                .in_set(TickSet::Project)
+                .after(ChunkSpawnSet),
         );
         app.add_systems(
             ColumnDrain,
             (
-                (process_completed_columns, deliver_merged_columns)
-                    .chain()
-                    .in_set(ColumnDrainSet::Collect),
-                (
-                    enqueue_pending_columns,
-                    dispatch_touched_columns.run_if(resource_exists::<FillContext>),
-                )
-                    .chain()
+                integrate_generated_columns.in_set(ColumnDrainSet::Collect),
+                request_columns
                     .in_set(ColumnDrainSet::Request)
-                    .after(mcrs_minecraft_engine_world::world::lifecycle::ticket::spawn_chunks),
+                    .after(spawn_chunks),
             ),
         );
     }
@@ -86,508 +84,40 @@ impl Plugin for ChunkPlugin {
 
 pub(crate) static CHUNK_TASK_POOL: OnceLock<TaskPool> = OnceLock::new();
 
-/// Sort key for the priority queue. Lower distance_sq values are dequeued first.
-/// The column position (col_x, col_z) serves as a tiebreaker for determinism.
-#[derive(Ord, PartialOrd, Eq, PartialEq, Clone, Copy, Debug)]
-pub(crate) struct ColumnKey {
-    /// Squared XZ distance to the nearest player. Primary sort key.
-    pub(crate) distance_sq: i32,
-    /// Column position. Tiebreaker for deterministic ordering.
-    pub(crate) chunk_column_pos: ColumnPos,
-}
-
-impl ColumnKey {
-    /// Create a new ColumnKey with the given distance and position.
-    pub(crate) fn new(distance_sq: i32, chunk_column_pos: ColumnPos) -> Self {
-        Self {
-            distance_sq,
-            chunk_column_pos,
-        }
-    }
-}
-
-/// A column waiting in the priority queue to be dispatched for generation.
-///
-/// Contains the list of section entities and their Y positions. Sections are stored
-/// as `(Entity, y)` tuples where `y` is the section's Y coordinate.
-pub(crate) struct PendingColumn {
-    /// Section entities with their Y coordinates, to be sorted by Y before dispatch.
-    pub(crate) sections: Vec<(Entity, i32)>,
-    /// When the column joined the queue, so a column that arrives late can say
-    /// whether it waited for a worker or for the work itself.
-    pub(crate) queued: Instant,
-}
-
-impl PendingColumn {
-    /// Create a new pending column with the given sections.
-    pub(crate) fn new(sections: Vec<(Entity, i32)>) -> Self {
-        Self {
-            sections,
-            queued: Instant::now(),
-        }
-    }
-}
-
-/// One stage of one column, in flight on the generation pool.
-///
-/// A halo column owns no entity, so nothing here names one: the store is keyed
-/// by position alone, and the sections a delivery owes are read off the request
-/// that wanted the column, at the moment it is delivered.
-pub(crate) struct InFlightStage {
-    pub(crate) col: ColumnPos,
-    pub(crate) cancel: CancellationToken,
-    pub(crate) task: HandedOff,
-}
-
-/// What a stage hands back. `None` from the task itself means cancelled.
-pub(crate) enum StageResult {
-    Filled(Box<FilledSnapshot>),
-    Ran(usize, Vec<(ColumnPos, ColumnDelta)>),
-    Merged(usize, Box<FilledSnapshot>),
-}
-
-/// Configuration for the chunk column scheduler.
-///
-/// Controls concurrency limits and dispatch rates for chunk generation tasks.
-#[derive(Resource, Clone)]
-pub(crate) struct SchedulerConfig {
-    /// Maximum number of concurrent stage tasks. A column's fill and the run
-    /// and merge of each of its rungs all share this budget, so it bounds the
-    /// pool, not the column count.
-    pub(crate) max_in_flight: usize,
-    /// Maximum stages to dispatch per tick.
-    pub(crate) max_dispatch_per_tick: usize,
-    /// Number of threads in the chunk generation thread pool.
-    pub(crate) num_threads: usize,
-}
-
-impl Default for SchedulerConfig {
-    fn default() -> Self {
-        let parallelism = std::thread::available_parallelism()
-            .map(|p| p.get())
-            .unwrap_or(4);
-        Self {
-            max_in_flight: parallelism * 8,
-            max_dispatch_per_tick: 256,
-            num_threads: (parallelism / 2).max(4),
-        }
-    }
-}
-
-/// Priority-based scheduler for chunk column generation.
-///
-/// `pending` is the set of columns a view wants delivered, ordered by distance.
-/// An entry stays there for the whole of its ladder, so sections ticketed after
-/// its first stage was dispatched still reach the delivery. Everything the
-/// ladder materialises — filled snapshots and the deltas one merge each
-/// consumes — lives in `store`, outside the ECS, keyed by position alone.
-#[derive(Resource, Default)]
-pub(crate) struct ColumnScheduler {
-    /// Columns a view asked for. Lower `ColumnKey` values are worked first.
-    pub(crate) pending: BTreeMap<ColumnKey, PendingColumn>,
-    /// Reverse index: column position -> current priority key.
-    pub(crate) priority_index: FxHashMap<ColumnPos, ColumnKey>,
-    /// Active stage tasks with their cancellation tokens.
-    pub(crate) in_flight: Vec<InFlightStage>,
-    /// Where the stage tasks hand back what they produced.
-    pub(crate) handoff: Handoff<Option<StageResult>>,
-    /// Columns whose stage changed since the drain last dispatched: they and their 3×3 may
-    /// owe a stage now.
-    pub(crate) touched: Vec<ColumnPos>,
-    /// Columns wanted since the last dispatch, whose shells nobody has walked yet.
-    pub(crate) fresh: Vec<ColumnPos>,
-    /// Columns whose stage was cancelled since the last dispatch, and that may owe a fill again.
-    pub(crate) forgotten: Vec<ColumnPos>,
-    /// Columns whose stage moved, or that became wanted, since the last delivery: the ones
-    /// that may have reached the top of the ladder.
-    pub(crate) climbed: Vec<ColumnPos>,
-    /// Set once a tick, for a delivery that looks at every wanted column. A column that
-    /// reached the top unnoticed waits at most until then.
-    pub(crate) recheck_all: bool,
-    /// The one owner of every materialised value of the ladder.
-    pub(crate) store: StagingStore,
-    /// Configuration for concurrency limits and dispatch rates.
-    pub(crate) config: SchedulerConfig,
-}
-
-impl ColumnScheduler {
-    /// Check if a column is wanted and not yet delivered.
-    pub(crate) fn is_pending(&self, col: ColumnPos) -> bool {
-        self.priority_index.contains_key(&col)
-    }
-
-    /// Whether a wanted column below `done` lies within `radius` of `col`.
-    fn wanted_within(&self, col: ColumnPos, radius: i32, done: Stage) -> bool {
-        col.rings(radius).any(|u| {
-            self.priority_index.contains_key(&u) && self.store.stage(u).is_none_or(|at| at < done)
-        })
-    }
-
-    /// Check if a column has a stage on the pool.
-    #[cfg(test)]
-    pub(crate) fn is_in_flight(&self, col: ColumnPos) -> bool {
-        self.store.stage(col).is_some_and(Stage::in_flight)
-    }
-
-    fn spawn<F>(
-        &mut self,
-        pool: &TaskPool,
-        wake: Option<&DrainWake>,
-        col: ColumnPos,
-        stage: Stage,
-        work: impl FnOnce(CancellationToken) -> F,
-    ) where
-        F: Future<Output = Option<StageResult>> + Send + 'static,
-    {
-        let cancel = CancellationToken::new();
-        let task = self.handoff.spawn(pool, wake, work(cancel.clone()));
-        self.store.set_stage(col, stage);
-        self.in_flight.push(InFlightStage { col, cancel, task });
-    }
-}
-
-/// A column slower than this from queue to hand-off gets a line naming the stage
-/// that cost the time.
-#[derive(Resource, Clone, Copy, Debug)]
-pub(crate) struct SlowColumnThreshold(pub(crate) Duration);
-
-impl Default for SlowColumnThreshold {
-    fn default() -> Self {
-        Self(Duration::from_millis(250))
-    }
-}
-
-#[derive(Default)]
-pub(crate) struct SlowColumns {
-    reported: Option<Instant>,
-    unreported: u64,
-}
-
-/// The sections a delivery owes, copied out of the whole column it generated.
-/// `bottom` is the section the column buffer starts at.
-pub(crate) fn carried_sections<'a>(
-    sections_data: &'a [(Entity, SectionPos)],
-    column: &'a [Option<SectionData>],
-    bottom: i32,
-) -> impl Iterator<Item = (Entity, SectionPos, Option<&'a SectionData>)> + 'a {
-    sections_data.iter().map(move |&(entity, pos)| {
-        let section = usize::try_from(pos.y - bottom)
-            .ok()
-            .and_then(|slot| column.get(slot))
-            .and_then(Option::as_ref);
-        (entity, pos, section)
-    })
-}
-
-/// What a delivery hands a section.
-enum Carried {
-    Blocks(ChunkBlocks, BiomePalette),
-    /// The section has blocks, but no block table to check them against.
-    Unchecked,
-    Missing,
-}
-
-/// The ticks generation scheduled in a section, in the order it asked, held for the
-/// simulation that runs the section.
-#[derive(bevy_ecs::prelude::Component, Clone, Debug, PartialEq)]
-pub(crate) struct GeneratedTicks(pub Vec<PendingTick<GenerationKinds>>);
-
-impl SlowColumns {
-    /// The whole ladder's latency, reported once a second with the count of the
-    /// columns the sample stands for.
-    fn report(
-        &mut self,
-        threshold: Duration,
-        col: ColumnPos,
-        queued: Instant,
-        sections: usize,
-        source: ColumnSource,
-    ) {
-        let total = queued.elapsed();
-        if total < threshold {
-            return;
-        }
-        // A stall is a property of the whole load, not of one column, and a line per
-        // column drowns out every other log on the server.
-        self.unreported += 1;
-        if self
-            .reported
-            .is_some_and(|at| at.elapsed() < Duration::from_secs(1))
-        {
-            return;
-        }
-        let others = std::mem::replace(&mut self.unreported, 0) - 1;
-        self.reported = Some(Instant::now());
-        info!(
-            x = col.x,
-            z = col.z,
-            source = source.label(),
-            total_ms = total.as_secs_f32() * 1000.0,
-            sections = sections,
-            others = others,
-            "slow chunk column"
-        );
-    }
-}
-
-/// Poll the stages on the pool and put what they produced into the store.
-///
-/// A cancelled stage leaves nothing behind: the column drops off the ladder, and
-/// a later request refills it bit-identically, since a fill depends on nothing
-/// but the seed and the position.
-pub(crate) fn process_completed_columns(
-    mut scheduler: ResMut<ColumnScheduler>,
-    ctx: Option<Res<FillContext>>,
-    traces: Option<Res<ColumnTraceLog>>,
-    mut done: Local<Vec<(ColumnPos, Option<StageResult>)>>,
-) {
-    let rungs = ctx.map_or(1, |ctx| ctx.rungs());
-    let ColumnScheduler {
-        in_flight, handoff, ..
-    } = &mut *scheduler;
-    done.extend(handoff.finished().filter_map(|finished| {
-        let at = in_flight
-            .iter()
-            .position(|stage| stage.task.id == finished.id)?;
-        let stage = in_flight.swap_remove(at);
-        Some((stage.col, finished.output.flatten()))
-    }));
-
-    for (col, result) in done.drain(..) {
-        let Some(result) = result else {
-            scheduler.store.forget(col);
-            scheduler.forgotten.push(col);
-            continue;
-        };
-        // The column may have been dropped, or sent back to `Filled` by the
-        // drop of one it wrote into, while its stage was on the pool. What
-        // comes back then answers a question the store has stopped asking, and
-        // the column climbs again from where it now stands.
-        let ticket = match &result {
-            StageResult::Filled(..) => Stage::Filling,
-            StageResult::Ran(rung, _) => Stage::Running(*rung as u8),
-            StageResult::Merged(rung, _) => Stage::Merging(*rung as u8),
-        };
-        if scheduler.store.stage(col) != Some(ticket) {
-            continue;
-        }
-        scheduler.touched.extend(col.square(1));
-        scheduler.climbed.push(col);
-        match result {
-            StageResult::Filled(snapshot) => {
-                column_trace::mark(traces.as_deref(), col, ColumnStage::Filled);
-                column_trace::set_source(traces.as_deref(), col, snapshot.source.label());
-                let source = snapshot.source;
-                scheduler.store.insert_filled(*snapshot);
-                // A column the save already holds was decorated before it was
-                // written: its own ladder ends here, while its neighbours still
-                // read it rung after rung.
-                let stage = match source {
-                    ColumnSource::Saved => {
-                        scheduler.store.insert_saved(col, rungs);
-                        top_of_ladder(rungs)
-                    }
-                    ColumnSource::Generated => Stage::Filled,
-                };
-                scheduler.store.set_stage(col, stage);
-            }
-            StageResult::Ran(rung, deltas) => {
-                column_trace::mark(traces.as_deref(), col, ColumnStage::Ran);
-                for (target, delta) in deltas {
-                    scheduler.store.push_delta(col, rung, target, delta);
-                }
-                scheduler.store.set_stage(col, Stage::Ran(rung as u8));
-            }
-            StageResult::Merged(rung, merged) => {
-                column_trace::mark(traces.as_deref(), col, ColumnStage::Merged);
-                scheduler.store.insert_staged(col, rung, Arc::new(*merged));
-                scheduler.store.set_stage(col, Stage::Merged(rung as u8));
-            }
-        }
-    }
-}
-
-/// The stage a column stands at once it owes nothing more: the merge of the
-/// last rung, or `Filled` in a dimension that decorates nothing.
-pub(crate) fn top_of_ladder(rungs: usize) -> Stage {
-    match rungs.checked_sub(1) {
-        Some(last) => Stage::Merged(last as u8),
-        None => Stage::Filled,
-    }
-}
-
-/// The wanted columns at the top of their ladder, in priority order: those that climbed since
-/// the last delivery, or every wanted column once a tick.
-fn ready_to_deliver(scheduler: &mut ColumnScheduler, done: Stage, ready: &mut Vec<ColumnKey>) {
-    let at_top = |scheduler: &ColumnScheduler, col: ColumnPos| {
-        scheduler.store.stage(col).is_some_and(|at| at >= done)
+/// Starts the dimension's generation actor on a thread of its own. The thread ends when the
+/// dimension drops its [`ColumnGenerator`].
+pub(crate) fn start_column_generator(world: &mut World) {
+    let Some(inbox) = world.remove_resource::<GeneratorInbox>() else {
+        return;
     };
-    let mut climbed = std::mem::take(&mut scheduler.climbed);
-    if std::mem::take(&mut scheduler.recheck_all) {
-        ready.extend(
-            scheduler
-                .pending
-                .keys()
-                .copied()
-                .filter(|key| at_top(scheduler, key.chunk_column_pos)),
-        );
-    } else {
-        ready.extend(climbed.iter().filter_map(|&col| {
-            let key = scheduler.priority_index.get(&col)?;
-            at_top(scheduler, col).then_some(*key)
-        }));
-        ready.sort_unstable();
-        ready.dedup();
-    }
-    climbed.clear();
-    scheduler.climbed = climbed;
-}
-
-/// `Delivered`: the only point at which a column becomes visible.
-///
-/// Every unit that could write into it has run and its delta has been merged,
-/// so nothing writes into the column after this.
-#[expect(
-    clippy::too_many_arguments,
-    reason = "a Bevy system: each resource and query is its own parameter so the scheduler sees the access"
-)]
-pub(crate) fn deliver_merged_columns(
-    mut scheduler: ResMut<ColumnScheduler>,
-    mut pending_heightmaps: ResMut<PendingColumnHeightmaps>,
-    section_dimensions: Query<&InDimension>,
-    mut stages: SectionStages,
-    ctx: Option<Res<FillContext>>,
-    mut commands: Commands,
-    slow_threshold: Option<Res<SlowColumnThreshold>>,
-    mut slow: Local<SlowColumns>,
-    traces: Option<Res<ColumnTraceLog>>,
-    mut ready: Local<Vec<ColumnKey>>,
-) {
-    let states = ctx.as_ref().map(|ctx| ctx.blocks.state_count());
-    let done = top_of_ladder(ctx.map_or(1, |ctx| ctx.rungs()));
-    ready_to_deliver(&mut scheduler, done, &mut ready);
-
-    for key in ready.drain(..) {
-        let col = key.chunk_column_pos;
-        // No merged column means the store was evicted under the request; the
-        // column keeps its place in the queue and climbs the ladder again.
-        let Some(pending) = scheduler.pending.get(&key) else {
-            continue;
-        };
-        let mut sections_data: Vec<(Entity, SectionPos)> = pending
-            .sections
-            .iter()
-            .map(|(entity, y)| (*entity, SectionPos::new(col.x, *y, col.z)))
-            .collect();
-        sections_data.sort_by_key(|(_, pos)| pos.y);
-        // Straight from the snapshot the store keeps, without a copy of the blocks between.
-        let Some((carried, maps, source, ticks)) = scheduler.store.merged(col).map(|merged| {
-            let bottom = merged.y_sections.first().copied().unwrap_or(0);
-            let carried: Vec<(Entity, SectionPos, Carried)> =
-                carried_sections(&sections_data, &merged.sections, bottom)
-                    .map(|(entity, pos, section)| {
-                        let carried = match (section, states) {
-                            (Some((blocks, biomes)), Some(states)) => Carried::Blocks(
-                                ChunkBlocks::new(section_states(blocks, states)),
-                                biomes.clone(),
-                            ),
-                            (Some(_), None) => Carried::Unchecked,
-                            (None, _) => Carried::Missing,
-                        };
-                        (entity, pos, carried)
-                    })
-                    .collect();
-            (
-                carried,
-                merged.maps.clone(),
-                merged.source,
-                merged.ticks.clone(),
-            )
-        }) else {
-            scheduler.store.forget(col);
-            continue;
-        };
-
-        let Some(entry) = scheduler.pending.remove(&key) else {
-            continue;
-        };
-        scheduler.priority_index.remove(&col);
-        scheduler.store.set_stage(col, Stage::Delivered);
-        let block_entities = scheduler.store.take_block_entities(col);
-        let entities = scheduler.store.take_entities(col);
-        // Any live section of the column answers for the whole column. The
-        // first-enqueued one may already have been despawned while the rest of
-        // the column still stands, and taking it alone would drop the lot.
-        let dim = entry
-            .sections
-            .iter()
-            .find_map(|(section, _)| section_dimensions.get(*section).ok())
-            .copied();
-        match dim {
-            Some(dim) => {
-                // No plugin spawns generated entities yet, so they are dropped here.
-                spawn_block_entities(&mut commands, dim, block_entities);
-            }
-            None => tracing::debug!(
-                dropped = block_entities.len() + entities.len(),
-                "a column with no live section delivered its entities nowhere"
-            ),
-        }
-
-        slow.report(
-            slow_threshold.as_deref().copied().unwrap_or_default().0,
-            col,
-            entry.queued,
-            entry.sections.len(),
-            source,
-        );
-        column_trace::mark(traces.as_deref(), col, ColumnStage::Loaded);
-        column_trace::set_source(traces.as_deref(), col, source.label());
-        if let (Some(dim), Some(maps)) = (dim, maps) {
-            pending_heightmaps.0.insert((dim.0, col), maps);
-        }
-
-        for (entity, pos, section) in carried {
-            match section {
-                Carried::Blocks(blocks, biomes) => {
-                    let held: Vec<_> = ticks
-                        .iter()
-                        .filter(|tick| SectionPos::from(tick.pos()) == pos)
-                        .copied()
-                        .collect();
-                    let mut section = commands.entity(entity);
-                    section.try_insert((blocks, biomes));
-                    if !held.is_empty() {
-                        section.try_insert(GeneratedTicks(held));
-                    }
-                    // One cancelled while it generated keeps the blocks for a ticket that
-                    // takes it back, but stays on its way out.
-                    if stages.get(entity) == Some(SectionStage::Generating) {
-                        stages.set(entity, SectionStage::Loaded);
-                    }
-                }
-                Carried::Unchecked => {
-                    tracing::error!(?col, "a section arrived with no block table to check it");
-                    stages.set(entity, SectionStage::Unloading);
-                }
-                Carried::Missing => stages.set(entity, SectionStage::Unloading),
-            }
-        }
+    let actor = GenerationActor::new(
+        inbox,
+        world.get_resource::<DrainWake>().cloned(),
+        world.get_resource::<ColumnTraceLog>().cloned(),
+        world
+            .get_resource::<SchedulerConfig>()
+            .cloned()
+            .unwrap_or_default(),
+    );
+    let started = std::thread::Builder::new()
+        .name("ColumnGen".to_string())
+        .spawn(move || actor.run());
+    if let Err(error) = started {
+        tracing::error!(%error, "the column generator did not start; this dimension generates nothing");
     }
 }
 
-/// Enqueue the columns a view asked for.
-///
-/// A column stays in the queue for the whole of its ladder, so sections that
-/// arrive after its first stage was dispatched merge into the same entry and
-/// reach the same delivery.
-pub(crate) fn enqueue_pending_columns(
+pub(crate) fn send_fill_context(ctx: Res<FillContext>, generator: Res<ColumnGenerator>) {
+    generator.send(GenerationRequest::Context(Box::new(ctx.clone())));
+}
+
+/// Hands the actor the columns a view asked for.
+pub(crate) fn request_columns(
     mut stages: ParamSet<(MessageReader<SectionStageChanged>, SectionStages)>,
     mut requested: Local<Vec<(Entity, SectionPos)>>,
-    mut scheduler: ResMut<ColumnScheduler>,
+    generator: Res<ColumnGenerator>,
     players: Query<&Transform, With<Player>>,
-    traces: Option<Res<ColumnTraceLog>>,
-    mut columns: Local<HashMap<ColumnPos, Vec<(Entity, i32)>>>,
+    mut columns: Local<HashMap<ColumnPos, Vec<RequestedSection>>>,
     mut player_positions: Local<Vec<ColumnPos>>,
 ) {
     requested.extend(
@@ -610,7 +140,10 @@ pub(crate) fn enqueue_pending_columns(
         columns
             .entry(ColumnPos::new(pos.x, pos.z))
             .or_default()
-            .push((section, pos.y));
+            .push(RequestedSection {
+                entity: section,
+                y: pos.y,
+            });
     }
     if columns.is_empty() {
         return;
@@ -618,33 +151,179 @@ pub(crate) fn enqueue_pending_columns(
 
     player_positions.clear();
     player_positions.extend(players.iter().map(|t| ColumnPos::from(t.translation)));
-
     for (col, sections) in columns.drain() {
-        if scheduler.is_pending(col) {
-            // Merge new sections into the existing entry so the column is
-            // delivered with ALL its sections in a single batch.
-            if let Some(&key) = scheduler.priority_index.get(&col)
-                && let Some(pending) = scheduler.pending.get_mut(&key)
-            {
-                pending.sections.extend(sections);
-            }
-            continue;
-        }
-
-        column_trace::mark(traces.as_deref(), col, ColumnStage::Queued);
-        let distance_sq = min_column_distance(&col, &player_positions);
-        let key = ColumnKey::new(distance_sq, col);
-        scheduler.pending.insert(key, PendingColumn::new(sections));
-        scheduler.priority_index.insert(col, key);
-        scheduler.fresh.push(col);
-        scheduler.climbed.push(col);
+        generator.send(GenerationRequest::Want(WantedColumn {
+            col,
+            distance_sq: min_column_distance(&col, &player_positions),
+            sections,
+        }));
     }
 }
 
-/// Cancel and evict what has left every player's view.
-///
-/// "Wanted" is widened by the halo: a column two away from one a view wants
-/// is still an input to its run, so it is neither cancelled nor evicted.
+/// Tells the actor what the views and the players are, so it drops what left every view
+/// and works the nearest columns first.
+pub(crate) fn send_views(
+    generator: Res<ColumnGenerator>,
+    views: Query<&SentChunkView>,
+    players: Query<&Transform, With<Player>>,
+) {
+    generator.send(GenerationRequest::Views(ViewUpdate {
+        views: views.iter().filter_map(|view| view.0).collect(),
+        players: players
+            .iter()
+            .map(|transform| ColumnPos::from(transform.translation))
+            .collect(),
+    }));
+}
+
+/// Puts what the actor delivered into the sections that asked for it, and sends the
+/// sections of the columns it dropped on their way out.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "a Bevy system: each resource and query is its own parameter so the scheduler sees the access"
+)]
+pub(crate) fn integrate_generated_columns(
+    generator: Res<ColumnGenerator>,
+    mut pending_heightmaps: ResMut<PendingColumnHeightmaps>,
+    section_dimensions: Query<&InDimension>,
+    mut stages: SectionStages,
+    mut commands: Commands,
+    slow_threshold: Option<Res<SlowColumnThreshold>>,
+    mut slow: Local<SlowColumns>,
+    traces: Option<Res<ColumnTraceLog>>,
+) {
+    let threshold = slow_threshold.as_deref().copied().unwrap_or_default().0;
+    for report in generator.reports() {
+        let column = match report {
+            GenerationReport::Delivered(column) => column,
+            GenerationReport::Abandoned(sections) => {
+                for section in sections {
+                    if stages.get(section) == Some(SectionStage::Generating) {
+                        stages.set(section, SectionStage::Unloading);
+                    }
+                }
+                continue;
+            }
+        };
+        let DeliveredColumn {
+            col,
+            queued,
+            source,
+            maps,
+            block_entities,
+            entities,
+            sections,
+        } = *column;
+        // Any live section of the column answers for the whole column. The
+        // first-requested one may already have been despawned while the rest of
+        // the column still stands, and taking it alone would drop the lot.
+        let dim = sections
+            .iter()
+            .find_map(|section| section_dimensions.get(section.entity).ok())
+            .copied();
+        match dim {
+            Some(dim) => {
+                // No plugin spawns generated entities yet, so they are dropped here.
+                spawn_block_entities(&mut commands, dim, block_entities);
+            }
+            None => tracing::debug!(
+                dropped = block_entities.len() + entities.len(),
+                "a column with no live section delivered its entities nowhere"
+            ),
+        }
+
+        slow.report(threshold, col, queued, sections.len(), source);
+        column_trace::mark(traces.as_deref(), col, ColumnStage::Loaded);
+        column_trace::set_source(traces.as_deref(), col, source.label());
+        if let (Some(dim), Some(maps)) = (dim, maps) {
+            pending_heightmaps.0.insert((dim.0, col), maps);
+        }
+
+        for section in sections {
+            let entity = section.entity;
+            match section.content {
+                SectionContent::Blocks(content) => {
+                    let mut commands = commands.entity(entity);
+                    commands.try_insert((content.blocks, content.biomes));
+                    if !content.ticks.is_empty() {
+                        commands.try_insert(GeneratedTicks(content.ticks));
+                    }
+                    // One cancelled while it generated keeps the blocks for a ticket that
+                    // takes it back, but stays on its way out.
+                    if stages.get(entity) == Some(SectionStage::Generating) {
+                        stages.set(entity, SectionStage::Loaded);
+                    }
+                }
+                SectionContent::Unchecked => {
+                    tracing::error!(?col, "a section arrived with no block table to check it");
+                    stages.set(entity, SectionStage::Unloading);
+                }
+                SectionContent::Missing => stages.set(entity, SectionStage::Unloading),
+            }
+        }
+    }
+}
+
+/// A column slower than this from queue to hand-off gets a line naming the stage
+/// that cost the time.
+#[derive(Resource, Clone, Copy, Debug)]
+pub(crate) struct SlowColumnThreshold(pub(crate) Duration);
+
+impl Default for SlowColumnThreshold {
+    fn default() -> Self {
+        Self(Duration::from_millis(250))
+    }
+}
+
+#[derive(Default)]
+pub(crate) struct SlowColumns {
+    reported: Option<Instant>,
+    unreported: u64,
+}
+
+impl SlowColumns {
+    /// The whole ladder's latency, reported once a second with the count of the
+    /// columns the sample stands for.
+    fn report(
+        &mut self,
+        threshold: Duration,
+        col: ColumnPos,
+        queued: Instant,
+        sections: usize,
+        source: ColumnSource,
+    ) {
+        let total = queued.elapsed();
+        if total < threshold {
+            return;
+        }
+        // A stall is a property of the whole load, not of one column, and a line per
+        // column drowns out every other log on the server.
+        self.unreported = self.unreported.saturating_add(1);
+        if self
+            .reported
+            .is_some_and(|at| at.elapsed() < Duration::from_secs(1))
+        {
+            return;
+        }
+        let others = std::mem::replace(&mut self.unreported, 0).saturating_sub(1);
+        self.reported = Some(Instant::now());
+        info!(
+            x = col.x,
+            z = col.z,
+            source = source.label(),
+            total_ms = total.as_secs_f32() * 1000.0,
+            sections = sections,
+            others = others,
+            "slow chunk column"
+        );
+    }
+}
+
+/// The ticks generation scheduled in a section, in the order it asked, held for the
+/// simulation that runs the section.
+#[derive(bevy_ecs::prelude::Component, Clone, Debug, PartialEq)]
+pub(crate) struct GeneratedTicks(pub Vec<PendingTick<GenerationKinds>>);
+
 #[cfg(test)]
 pub(crate) fn request_section(
     world: &mut bevy_ecs::world::World,
@@ -663,433 +342,22 @@ pub(crate) fn request_section(
     section
 }
 
-fn cancel_stale_columns(
-    mut scheduler: ResMut<ColumnScheduler>,
-    mut stages: SectionStages,
-    ctx: Option<Res<FillContext>>,
-    views: Query<&SentChunkView>,
-    traces: Option<Res<ColumnTraceLog>>,
-    mut player_views: Local<Vec<ChunkTrackingView>>,
-    mut stale: Local<Vec<ColumnKey>>,
-) {
-    // Every rung costs two rings: `Delivered(U)` needs the last rung run over
-    // the 3×3 of `U`, which needs the one below it merged over the 5×5, and so
-    // on down to the fill.
-    let halo = 2 * ctx.map_or(1, |ctx| ctx.rungs()) as i32;
-
-    player_views.clear();
-    player_views.extend(views.iter().filter_map(|view| view.0));
-
-    if player_views.is_empty() {
-        return;
-    }
-
-    let wanted = |col: ColumnPos, slack: i32| {
-        player_views.iter().any(|view| {
-            let dx = (col.x - view.center.x).abs();
-            let dz = (col.z - view.center.z).abs();
-            dx <= view.distance as i32 + slack && dz <= view.distance as i32 + slack
-        })
-    };
-
-    stale.extend(
-        scheduler
-            .priority_index
-            .iter()
-            .filter(|(col, key)| {
-                !wanted(**col, LOADING_RINGS) && scheduler.pending.contains_key(*key)
-            })
-            .map(|(_, key)| *key),
-    );
-
-    for key in stale.drain(..) {
-        trace!("Canceling stale column {:?}", key);
-        column_trace::forget(traces.as_deref(), key.chunk_column_pos);
-
-        scheduler.priority_index.remove(&key.chunk_column_pos);
-        let Some(pending) = scheduler.pending.remove(&key) else {
-            continue;
-        };
-        for (entity, _) in pending.sections {
-            stages.set(entity, SectionStage::Unloading);
-        }
-    }
-
-    for stage in &scheduler.in_flight {
-        if !wanted(stage.col, LOADING_RINGS + halo) {
-            stage.cancel.cancel();
-        }
-    }
-
-    // A stage still on the pool will write its answer into the store, so its
-    // column must survive the eviction that runs beside its cancellation.
-    scheduler
-        .store
-        .retain(|col, stage| stage.in_flight() || wanted(col, LOADING_RINGS + halo));
-}
-
-/// Update column priorities when players move.
-fn reprioritize_columns(
-    mut scheduler: ResMut<ColumnScheduler>,
-    players: Query<&Transform, With<Player>>,
-    mut player_positions: Local<Vec<ColumnPos>>,
-    mut updates: Local<Vec<(ColumnKey, ColumnKey)>>,
-) {
-    if scheduler.pending.is_empty() {
-        return;
-    }
-
-    player_positions.clear();
-    player_positions.extend(players.iter().map(|t| ColumnPos::from(t.translation)));
-
-    if player_positions.is_empty() {
-        return;
-    }
-
-    for (&col, &old_key) in &scheduler.priority_index {
-        let new_distance_sq = min_column_distance(&col, &player_positions);
-        if new_distance_sq != old_key.distance_sq {
-            updates.push((old_key, ColumnKey::new(new_distance_sq, col)));
-        }
-    }
-
-    for (old_key, new_key) in updates.drain(..) {
-        if let Some(pending_column) = scheduler.pending.remove(&old_key) {
-            scheduler.pending.insert(new_key, pending_column);
-            scheduler
-                .priority_index
-                .insert(new_key.chunk_column_pos, new_key);
-        }
-    }
-}
-
-/// Walk the wanted columns in priority order and dispatch whatever stage each
-/// one is owed next.
-///
-/// The derived requests are computed here and nowhere stored: they are a
-/// function of what the views want this tick and of what the store already
-/// holds. A wanted column at the top of the ladder needs its own 3×3 to have
-/// run the last rung, which needs the 5×5 to have merged the one below it, and
-/// so on down: every rung costs two rings, so the shell a wanted column derives
-/// is `2 × rungs` deep and each ring inside it is one phase further along.
-///
-/// Nothing here waits. A column whose neighbourhood is not ready yet is simply
-/// not dispatched this pass, and the walk moves on to the next thing that is —
-/// so a stalled neighbourhood costs a comparison, never a worker.
-pub(crate) fn dispatch_column_generation(
-    mut scheduler: ResMut<ColumnScheduler>,
-    ctx: Res<FillContext>,
-    traces: Option<Res<ColumnTraceLog>>,
-    wake: Option<Res<DrainWake>>,
-    mut wanted: Local<Vec<ColumnPos>>,
-) {
-    let Some(pool) = CHUNK_TASK_POOL.get() else {
-        tracing::error!("column generation runs before its task pool is built");
-        return;
-    };
-    // The walk covers whatever the drain still had to look at.
-    scheduler.fresh.clear();
-    scheduler.recheck_all = true;
-    let mut budget = Budget::of(&scheduler);
-    if budget.is_spent() || scheduler.pending.is_empty() {
-        return;
-    }
-    wanted.clear();
-    wanted.extend(scheduler.pending.keys().map(|key| key.chunk_column_pos));
-    let mut dispatcher = Dispatcher {
-        pool,
-        ctx: ctx.as_ref(),
-        traces: traces.as_deref(),
-        wake: wake.as_deref(),
-    };
-    for &u in wanted.iter() {
-        if !dispatcher.walk_shell(&mut scheduler, &mut budget, u) {
-            break;
-        }
-    }
-    budget.trace(&scheduler);
-}
-
-/// Dispatches what changed since the last dispatch made owed, without the walk over every
-/// wanted column: a stage that finishes changes what its own 3×3 is owed, and a column that
-/// is newly wanted owes its whole shell.
-pub(crate) fn dispatch_touched_columns(
-    mut scheduler: ResMut<ColumnScheduler>,
-    ctx: Res<FillContext>,
-    traces: Option<Res<ColumnTraceLog>>,
-    wake: Option<Res<DrainWake>>,
-    mut worklist: Local<Vec<ColumnPos>>,
-) {
-    let Some(pool) = CHUNK_TASK_POOL.get() else {
-        tracing::error!("column generation runs before its task pool is built");
-        return;
-    };
-    let mut budget = Budget::of(&scheduler);
-    let mut dispatcher = Dispatcher {
-        pool,
-        ctx: ctx.as_ref(),
-        traces: traces.as_deref(),
-        wake: wake.as_deref(),
-    };
-    worklist.clear();
-    worklist.append(&mut scheduler.fresh);
-    for (at, &u) in worklist.iter().enumerate() {
-        if !dispatcher.walk_shell(&mut scheduler, &mut budget, u) {
-            let left = worklist.get(at..).unwrap_or_default();
-            scheduler.fresh.extend_from_slice(left);
-            worklist.clear();
-            return;
-        }
-    }
-
-    worklist.clear();
-    worklist.append(&mut scheduler.forgotten);
-    let fills = worklist.len();
-    worklist.append(&mut scheduler.touched);
-    let rungs = dispatcher.ctx.rungs();
-    let done = top_of_ladder(rungs);
-    let mut at = 0;
-    while let Some(&v) = worklist.get(at) {
-        at += 1;
-        let owed = owed(&scheduler.store, v, rungs);
-        // A fill is owed by being wanted, which a neighbour finishing a stage does not change.
-        let owed = match owed {
-            Some(Owed::Fill) if at > fills => continue,
-            Some(owed) => owed,
-            None => continue,
-        };
-        if !scheduler.wanted_within(v, owed.reach(rungs), done) {
-            continue;
-        }
-        if budget.is_spent() {
-            // `v` and everything after it waits for the next dispatch.
-            let rest = at - 1;
-            let split = fills.max(rest);
-            let forgotten = worklist.get(rest..split).unwrap_or_default();
-            scheduler.forgotten.extend_from_slice(forgotten);
-            let touched = worklist.get(split..).unwrap_or_default();
-            scheduler.touched.extend_from_slice(touched);
-            break;
-        }
-        dispatcher.dispatch(&mut scheduler, &mut budget, v, owed);
-        // A merge that advanced on the spot left its 3×3 owing something new already.
-        worklist.append(&mut scheduler.touched);
-    }
-    worklist.clear();
-    budget.trace(&scheduler);
-}
-
-/// The next stage a column is owed, once its neighbourhood allows it.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum Owed {
-    Fill,
-    Run(usize),
-    Merge(usize),
-}
-
-impl Owed {
-    /// How near a wanted column has to be for this stage to be owed at all.
-    fn reach(self, rungs: usize) -> i32 {
-        let rung_reach = |rung: usize| 2 * rungs.saturating_sub(1 + rung) as i32;
-        match self {
-            Owed::Fill => 2 * rungs as i32,
-            Owed::Run(rung) => rung_reach(rung) + 1,
-            Owed::Merge(rung) => rung_reach(rung),
-        }
-    }
-}
-
-fn owed(store: &StagingStore, v: ColumnPos, rungs: usize) -> Option<Owed> {
-    let owed = match store.stage(v) {
-        None => return Some(Owed::Fill),
-        Some(Stage::Filled) if rungs > 0 => Owed::Run(0),
-        Some(Stage::Merged(rung)) if usize::from(rung) + 1 < rungs => {
-            Owed::Run(usize::from(rung) + 1)
-        }
-        Some(Stage::Ran(rung)) => Owed::Merge(usize::from(rung)),
-        _ => return None,
-    };
-    let stage = store.stage(v)?;
-    store.neighbourhood_reached(v, stage).then_some(owed)
-}
-
-/// The stages this dispatch may still hand to the pool.
-struct Budget {
-    left: usize,
-    dispatched: usize,
-}
-
-impl Budget {
-    fn of(scheduler: &ColumnScheduler) -> Self {
-        let max = scheduler.config.max_in_flight;
-        Self {
-            left: max
-                .saturating_sub(scheduler.in_flight.len())
-                .min(scheduler.config.max_dispatch_per_tick),
-            dispatched: 0,
-        }
-    }
-
-    fn is_spent(&self) -> bool {
-        self.dispatched >= self.left
-    }
-
-    fn trace(&self, scheduler: &ColumnScheduler) {
-        if self.dispatched > 0 {
-            trace!(
-                dispatched = self.dispatched,
-                staged = scheduler.store.len(),
-                in_flight = scheduler.in_flight.len(),
-                "dispatched column stages"
-            );
-        }
-    }
-}
-
-struct Dispatcher<'a> {
-    pool: &'a TaskPool,
-    ctx: &'a FillContext,
-    traces: Option<&'a ColumnTraceLog>,
-    wake: Option<&'a DrainWake>,
-}
-
-impl Dispatcher<'_> {
-    /// Dispatches what the shell of the wanted column `u` owes, nearest rung first. Returns
-    /// whether the budget lasted.
-    fn walk_shell(
-        &mut self,
-        scheduler: &mut ColumnScheduler,
-        budget: &mut Budget,
-        u: ColumnPos,
-    ) -> bool {
-        let rungs = self.ctx.rungs();
-        // A column at the top of its ladder derived everything it needed, or it
-        // could not have got there; it is leaving the queue at this tick's
-        // delivery. On a settled view that is every pending column, and walking
-        // their shells again is the whole cost of an idle tick.
-        if scheduler
-            .store
-            .stage(u)
-            .is_some_and(|at| at >= top_of_ladder(rungs))
-        {
-            return true;
-        }
-        for v in u.square(Owed::Fill.reach(rungs)) {
-            let Some(owed) = owed(&scheduler.store, v, rungs) else {
-                continue;
-            };
-            if v.chebyshev_distance(u) > owed.reach(rungs) {
-                continue;
-            }
-            if budget.is_spent() {
-                return false;
-            }
-            self.dispatch(scheduler, budget, v, owed);
-        }
-        true
-    }
-
-    fn dispatch(
-        &mut self,
-        scheduler: &mut ColumnScheduler,
-        budget: &mut Budget,
-        v: ColumnPos,
-        owed: Owed,
-    ) {
-        let ctx = self.ctx;
-        match owed {
-            Owed::Fill => {
-                column_trace::mark(self.traces, v, ColumnStage::Generating);
-                let ctx = ctx.clone();
-                scheduler.spawn(
-                    self.pool,
-                    self.wake,
-                    v,
-                    Stage::Filling,
-                    |cancel| async move {
-                        fill_pooled(&ctx, v, &cancel)
-                            .map(|snapshot| StageResult::Filled(Box::new(snapshot)))
-                    },
-                );
-            }
-            Owed::Run(rung) => {
-                let Some(region) = scheduler.store.region(v, rung) else {
-                    return;
-                };
-                let ctx = ctx.clone();
-                scheduler.spawn(self.pool, self.wake, v, Stage::Running(rung as u8), |_| async move {
-                    Some(StageResult::Ran(rung, run_region(&ctx, &region, rung)))
-                });
-            }
-            Owed::Merge(rung) => {
-                let Some(base) = scheduler.store.base(v, rung).cloned() else {
-                    return;
-                };
-                let deltas = scheduler.store.deltas(v, rung);
-                // A rung that grew nothing here leaves the column as it was, so
-                // it advances on the spot and shares the snapshot it started
-                // from rather than paying for a copy of the palettes.
-                if deltas
-                    .iter()
-                    .all(|delta| delta.writes.is_empty() && delta.block_entities.is_empty())
-                {
-                    scheduler.store.insert_staged(v, rung, base);
-                    scheduler.store.set_stage(v, Stage::Merged(rung as u8));
-                    scheduler.touched.extend(v.square(1));
-                    scheduler.climbed.push(v);
-                    return;
-                }
-                let predicates = ctx.predicates.clone();
-                let program = ctx.program.features.clone();
-                scheduler.spawn(
-                    self.pool,
-                    self.wake,
-                    v,
-                    Stage::Merging(rung as u8),
-                    |_| async move {
-                        Some(StageResult::Merged(
-                            rung,
-                            Box::new(merge_column(
-                                &base,
-                                &deltas,
-                                predicates.as_ref(),
-                                program
-                                    .as_deref()
-                                    .map(|program| &program.world.has_block_entity),
-                            )),
-                        ))
-                    },
-                );
-            }
-        }
-        budget.dispatched += 1;
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use bevy_app::{App, Update};
-
-    fn spawn_observer_with_view(app: &mut App, center: SectionPos, distance: u8) -> Entity {
-        let view = SentChunkView(Some(ChunkTrackingView {
-            center,
-            distance,
-            vert_distance: 8,
-            min_section_y: i32::MIN,
-            max_section_y: i32::MAX,
-        }));
-        app.world_mut().spawn(view).id()
-    }
+    use bevy_app::Update;
+    use mcrs_minecraft_engine_world::entity::player::chunk_view::ChunkTrackingView;
+    use mcrs_minecraft_engine_world::palette::ChunkBlocks;
+    use mcrs_minecraft_worldgen_generator::task::CancellationToken;
+    use std::sync::Arc;
 
     /// The ladder must produce the column the fill alone produces: with no
     /// features to run, every delta is empty and the merge is the identity.
     /// This drives the whole of it — the derived 5x5 of fills, the 3x3 of runs,
-    /// the merge and the delivery — through the ECS, so a readiness or budget
-    /// bug shows up as a column that never arrives.
+    /// the merge and the delivery — through the actor's own thread, so a readiness
+    /// or budget bug shows up as a column that never arrives.
     #[test]
     fn the_ladder_delivers_the_column_the_fill_produced() {
-        use mcrs_minecraft_engine::heightmap::PendingColumnHeightmaps;
         use mcrs_minecraft_worldgen_generator::stages::fill_column;
         use mcrs_minecraft_worldgen_generator::tests::build_beta_router;
 
@@ -1105,21 +373,21 @@ mod tests {
         app.insert_resource(ctx.clone());
         app.insert_resource(mcrs_minecraft_item::Items(Arc::default()));
         app.init_resource::<PendingColumnHeightmaps>();
-        app.insert_resource(ColumnScheduler {
-            config: SchedulerConfig {
-                max_in_flight: 64,
-                max_dispatch_per_tick: 64,
-                num_threads: 2,
-            },
-            ..Default::default()
+        let link = GeneratorLink::new();
+        app.insert_resource(link.generator);
+        app.insert_resource(link.inbox);
+        app.insert_resource(SchedulerConfig {
+            max_in_flight: 64,
+            max_dispatch_per_pass: 64,
+            num_threads: 2,
         });
         app.add_systems(
             Update,
             (
-                enqueue_pending_columns,
-                dispatch_column_generation,
-                process_completed_columns,
-                deliver_merged_columns,
+                start_column_generator.run_if(resource_exists::<GeneratorInbox>),
+                send_fill_context.run_if(resource_exists_and_changed::<FillContext>),
+                request_columns,
+                integrate_generated_columns,
             )
                 .chain(),
         );
@@ -1190,13 +458,14 @@ mod tests {
     }
 
     #[test]
-    fn cancel_stale_columns_unloads_stale_sections() {
+    fn a_column_that_left_every_view_unloads_its_sections() {
         let mut app = App::new();
         app.add_message::<SectionStageChanged>();
-        app.insert_resource(ColumnScheduler::default());
-        app.add_systems(Update, cancel_stale_columns);
-
-        spawn_observer_with_view(&mut app, SectionPos::new(0, 0, 0), 2);
+        app.init_resource::<PendingColumnHeightmaps>();
+        let link = GeneratorLink::new();
+        app.insert_resource(link.generator);
+        app.add_systems(Update, integrate_generated_columns);
+        let mut actor = GenerationActor::new(link.inbox, None, None, SchedulerConfig::default());
 
         let dim = app.world_mut().spawn_empty().id();
         let stale_pos = SectionPos::new(100, 0, 100);
@@ -1204,22 +473,53 @@ mod tests {
             .world_mut()
             .spawn((stale_pos, InDimension(dim), SectionStage::Generating))
             .id();
-
-        let stale_col = ColumnPos::new(stale_pos.x, stale_pos.z);
-        let key = ColumnKey::new(0, stale_col);
-        let pending = PendingColumn::new(vec![(stale_section, stale_pos.y)]);
-        {
-            let mut scheduler = app.world_mut().resource_mut::<ColumnScheduler>();
-            scheduler.pending.insert(key, pending);
-            scheduler.priority_index.insert(stale_col, key);
-        }
-
+        let generator = app.world().resource::<ColumnGenerator>();
+        generator.send(GenerationRequest::Want(WantedColumn {
+            col: ColumnPos::new(stale_pos.x, stale_pos.z),
+            distance_sq: 0,
+            sections: vec![RequestedSection {
+                entity: stale_section,
+                y: stale_pos.y,
+            }],
+        }));
+        generator.send(GenerationRequest::Views(ViewUpdate {
+            views: vec![ChunkTrackingView {
+                center: SectionPos::new(0, 0, 0),
+                distance: 2,
+                vert_distance: 8,
+                min_section_y: i32::MIN,
+                max_section_y: i32::MAX,
+            }],
+            players: Vec::new(),
+        }));
+        actor.settle();
         app.update();
 
         assert_eq!(
             app.world().get::<SectionStage>(stale_section),
             Some(&SectionStage::Unloading),
             "a stale section is sent on its way out"
+        );
+    }
+
+    /// The actor holds a sender of its own stage channel, so only the dimension's end of
+    /// the link going away can end it.
+    #[test]
+    fn the_actor_thread_ends_with_the_dimension() {
+        let link = GeneratorLink::new();
+        let actor = GenerationActor::new(link.inbox, None, None, SchedulerConfig::default());
+        let thread = std::thread::spawn(move || actor.run());
+        link.generator
+            .send(GenerationRequest::Views(ViewUpdate::default()));
+        drop(link.generator);
+
+        let deadline = Instant::now() + Duration::from_secs(10);
+        while !thread.is_finished() && Instant::now() < deadline {
+            std::thread::sleep(Duration::from_millis(1));
+        }
+        assert!(
+            thread.is_finished(),
+            "the actor outlived the dimension's end of the link"
         );
     }
 }

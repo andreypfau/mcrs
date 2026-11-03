@@ -130,6 +130,11 @@ impl<T> Handoff<T> {
     pub fn finished(&self) -> flume::TryIter<'_, Finished<T>> {
         self.receiver.try_iter()
     }
+
+    /// Where the outputs arrive, for an owner that blocks on them instead of polling.
+    pub fn receiver(&self) -> &flume::Receiver<Finished<T>> {
+        &self.receiver
+    }
 }
 
 /// Sends a task's output once, and `None` if the task is dropped before it has one.

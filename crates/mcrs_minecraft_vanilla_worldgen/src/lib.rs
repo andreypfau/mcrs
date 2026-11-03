@@ -3,6 +3,9 @@
 mod chunk_plugin;
 mod dimension_world;
 mod features;
+mod generation_actor;
+mod generation_dispatch;
+mod generation_link;
 #[cfg(test)]
 mod generation_tests;
 mod modern_carvers;

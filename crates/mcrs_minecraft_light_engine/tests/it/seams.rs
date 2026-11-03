@@ -54,7 +54,7 @@ fn two_by_two_water_columns_arriving_one_at_a_time_match_one_pass() {
     water_columns_arriving_one_at_a_time_match_one_pass(2);
 }
 
-/// `process_completed_columns` inserts a column's sections as their tasks
+/// `integrate_generated_columns` inserts a column's sections as their tasks
 /// finish, so a column can enter the light world in pieces. The sky floor of
 /// the whole column moves when the top arrives, and every cell below it is a
 /// source that has to be relit — not just the fifteen under the new section.

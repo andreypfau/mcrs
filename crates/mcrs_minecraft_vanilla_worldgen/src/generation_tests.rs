@@ -1,10 +1,12 @@
 use crate::chunk_plugin::{
-    CHUNK_TASK_POOL, ColumnScheduler, SchedulerConfig, deliver_merged_columns,
-    dispatch_column_generation, enqueue_pending_columns, process_completed_columns,
-    request_section,
+    CHUNK_TASK_POOL, integrate_generated_columns, request_columns, request_section,
+    send_fill_context,
 };
+use crate::generation_actor::{GenerationActor, SchedulerConfig};
+use crate::generation_link::GeneratorLink;
 use bevy_app::{App, Update};
 use bevy_ecs::entity::Entity;
+use bevy_ecs::prelude::resource_exists_and_changed;
 use bevy_ecs::schedule::IntoScheduleConfigs;
 use bevy_tasks::TaskPoolBuilder;
 use mcrs_minecraft_biome::Biome;
@@ -16,7 +18,7 @@ use mcrs_minecraft_engine_world::world::lifecycle::stage::{SectionStage, Section
 use mcrs_minecraft_item::Items;
 use mcrs_minecraft_resource::{ResourceKeyBuf, ResourceLocationBuf};
 use mcrs_minecraft_worldgen_generator::ColumnBlocks;
-use mcrs_minecraft_worldgen_generator::stages::{fill_pooled, run_region};
+use mcrs_minecraft_worldgen_generator::stages::{FillContext, fill_pooled, run_region};
 use mcrs_minecraft_worldgen_generator::staging::{
     FilledSnapshot, RegionSnapshots, Stage, region_column,
 };
@@ -82,7 +84,7 @@ enum Evict {
 struct Drive {
     /// Stages allowed on the pool at once: one, two, or what the machine has.
     in_flight: usize,
-    /// Stages dispatched per tick.
+    /// Stages dispatched per pass of the actor.
     batch: usize,
     order: Order,
     evict: Evict,
@@ -93,7 +95,7 @@ fn machine_parallelism() -> usize {
 }
 
 fn default_batch() -> usize {
-    SchedulerConfig::default().max_dispatch_per_tick
+    SchedulerConfig::default().max_dispatch_per_pass
 }
 
 /// How many ticks that find something to evict actually evict it. Bounded, or a
@@ -103,7 +105,7 @@ fn default_batch() -> usize {
 const EVICT_FIRINGS: usize = 6;
 
 fn force_eviction(
-    app: &mut App,
+    actor: &mut GenerationActor,
     wanted: &[ColumnPos],
     evict: Evict,
     after_a_merge: bool,
@@ -118,10 +120,9 @@ fn force_eviction(
             })
         })
         .collect();
-    let mut scheduler = app.world_mut().resource_mut::<ColumnScheduler>();
     if after_a_merge
         && !wanted.iter().any(|col| {
-            scheduler
+            actor
                 .store
                 .stage(*col)
                 .is_some_and(|at| at >= Stage::Merged(0))
@@ -131,11 +132,11 @@ fn force_eviction(
     }
     let mut evicted = 0;
     for col in halo {
-        if scheduler.is_in_flight(col) || scheduler.store.stage(col) != Some(Stage::Filled) {
+        if actor.is_in_flight(col) || actor.store.stage(col) != Some(Stage::Filled) {
             continue;
         }
         let under_a_run = (0..9).any(|slot| {
-            scheduler
+            actor
                 .store
                 .stage(region_column(col, slot))
                 .is_some_and(|at| at >= Stage::Ran(0))
@@ -143,15 +144,15 @@ fn force_eviction(
         if evict == Evict::UnderARun && !under_a_run {
             continue;
         }
-        scheduler.store.forget(col);
+        actor.evict(col);
         evicted += 1;
     }
     evicted
 }
 
-/// Drive the real scheduler — the same four systems the dimension runs — to the
-/// delivery of every wanted column, and read the blocks back off the delivered
-/// sections.
+/// Drive the real generation actor, stepped on the test's thread between the
+/// dimension's request and integration systems, to the delivery of every wanted
+/// column, and read the blocks back off the delivered sections.
 #[expect(
     clippy::too_many_lines,
     reason = "the helper drives the dimension's real systems to delivery and reads the blocks back, and the scheduling and the read-back share one world"
@@ -172,21 +173,24 @@ fn run_parallel(dim: &Dimension, wanted: &[ColumnPos], drive: Drive) -> (Region,
     app.add_message::<SectionStageChanged>();
     let dimension_entity = app.world_mut().spawn_empty().id();
     app.init_resource::<PendingColumnHeightmaps>();
-    app.insert_resource(ColumnScheduler {
-        config: SchedulerConfig {
+    let link = GeneratorLink::new();
+    app.insert_resource(link.generator);
+    let mut actor = GenerationActor::new(
+        link.inbox,
+        None,
+        None,
+        SchedulerConfig {
             max_in_flight: drive.in_flight,
-            max_dispatch_per_tick: drive.batch,
+            max_dispatch_per_pass: drive.batch,
             ..Default::default()
         },
-        ..Default::default()
-    });
+    );
     app.add_systems(
         Update,
         (
-            enqueue_pending_columns,
-            dispatch_column_generation,
-            process_completed_columns,
-            deliver_merged_columns,
+            send_fill_context.run_if(resource_exists_and_changed::<FillContext>),
+            request_columns,
+            integrate_generated_columns,
         )
             .chain(),
     );
@@ -217,17 +221,18 @@ fn run_parallel(dim: &Dimension, wanted: &[ColumnPos], drive: Drive) -> (Region,
         }
 
         app.update();
+        actor.settle();
 
         match drive.evict {
             Evict::OnTicks if firings < EVICT_FIRINGS => {
-                let n = force_eviction(&mut app, wanted, drive.evict, false, rungs);
+                let n = force_eviction(&mut actor, wanted, drive.evict, false, rungs);
                 if n > 0 {
                     firings += 1;
                     evicted += n;
                 }
             }
             Evict::UnderARun if firings < 2 => {
-                let n = force_eviction(&mut app, wanted, drive.evict, firings == 1, rungs);
+                let n = force_eviction(&mut actor, wanted, drive.evict, firings == 1, rungs);
                 if n > 0 {
                     firings += 1;
                     evicted += n;
@@ -253,11 +258,10 @@ fn run_parallel(dim: &Dimension, wanted: &[ColumnPos], drive: Drive) -> (Region,
     // What a column was delivered with is what it stays. The merged blocks
     // outlive the delivery — a section ticketed later is delivered from them —
     // so a re-merge after an eviction has to land on the same column.
-    let scheduler = app.world().resource::<ColumnScheduler>();
     let standing: Vec<(ColumnPos, Column)> = wanted
         .iter()
         .filter_map(|col| {
-            let merged = scheduler.store.merged(*col)?;
+            let merged = actor.store.merged(*col)?;
             Some((*col, decode(&merged.sections)))
         })
         .collect();
@@ -671,7 +675,8 @@ fn assert_region_agrees(consumer: Consumer, radius: i32, drives: &[Drive]) {
 /// every nest the column grew.
 #[test]
 fn a_dead_first_section_does_not_take_the_column_s_block_entities_with_it() {
-    use crate::chunk_plugin::{ColumnKey, PendingColumn};
+    use crate::generation_actor::{ColumnKey, PendingColumn};
+    use crate::generation_link::RequestedSection;
     use mcrs_minecraft_block_entity::{BeeOccupant, GeneratedBlockEntity};
     use mcrs_minecraft_engine_world::world::dimension::InDimension;
     use mcrs_minecraft_engine_world::world::storage::block_entity::BlockEntity;
@@ -679,8 +684,10 @@ fn a_dead_first_section_does_not_take_the_column_s_block_entities_with_it() {
     let mut app = App::new();
     app.add_message::<SectionStageChanged>();
     app.init_resource::<PendingColumnHeightmaps>();
-    app.insert_resource(ColumnScheduler::default());
     app.insert_resource(Items(Arc::default()));
+    let link = GeneratorLink::new();
+    app.insert_resource(link.generator);
+    let mut actor = GenerationActor::new(link.inbox, None, None, SchedulerConfig::default());
 
     let dim = app.world_mut().spawn_empty().id();
     let dead = app.world_mut().spawn(InDimension(dim)).id();
@@ -689,12 +696,19 @@ fn a_dead_first_section_does_not_take_the_column_s_block_entities_with_it() {
 
     let col = ColumnPos::new(4, 9);
     {
-        let mut scheduler = app.world_mut().resource_mut::<ColumnScheduler>();
-        scheduler.pending.insert(
-            ColumnKey::new(0, col),
-            PendingColumn::new(vec![(dead, 0), (live, 1)]),
+        let key = ColumnKey::new(0, col);
+        actor.pending.insert(
+            key,
+            PendingColumn {
+                sections: vec![
+                    RequestedSection { entity: dead, y: 0 },
+                    RequestedSection { entity: live, y: 1 },
+                ],
+                queued: Instant::now(),
+            },
         );
-        scheduler.store.insert_staged(
+        actor.priority_index.insert(col, key);
+        actor.store.insert_staged(
             col,
             0,
             Arc::new(FilledSnapshot {
@@ -714,13 +728,12 @@ fn a_dead_first_section_does_not_take_the_column_s_block_entities_with_it() {
                 ticks: Vec::new(),
             }),
         );
-        scheduler.store.set_stage(col, Stage::Merged(0));
-        // Staged by hand rather than climbed, so only the delivery that looks at every wanted
-        // column finds it.
-        scheduler.recheck_all = true;
+        actor.store.set_stage(col, Stage::Merged(0));
+        actor.climbed.push(col);
     }
 
-    app.add_systems(Update, deliver_merged_columns);
+    actor.settle();
+    app.add_systems(Update, integrate_generated_columns);
     app.update();
 
     let nests = app
@@ -745,7 +758,7 @@ fn a_delivery_carrying_part_of_a_column_still_lays_its_bedrock_floor() {
     use mcrs_voxel::ColumnPos;
     use mcrs_voxel::SectionPos;
 
-    use crate::chunk_plugin::carried_sections;
+    use crate::generation_actor::carried_sections;
     use mcrs_minecraft_worldgen_generator::stages::fill_column;
     use mcrs_minecraft_worldgen_generator::task::CancellationToken;
 
