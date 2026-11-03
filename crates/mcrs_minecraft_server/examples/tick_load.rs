@@ -8,10 +8,11 @@
 //! keep walking from spawn, so the dimensions keep generating, lighting and sending columns.
 //! `apart`, the default, gives each bot its own heading, so bots rarely see the same column;
 //! `together` walks every bot of a dimension on one heading, so they all see the same columns.
-//! The report covers the ticks after the first third of the run.
+//! The tick report covers the ticks after the first third of the run; the column report covers
+//! each bot over the whole run, by the dimension the bot ends up in.
 
 use std::str::FromStr;
-use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
 use std::sync::{Arc, mpsc};
 use std::time::{Duration, Instant};
 
@@ -101,8 +102,8 @@ fn main() -> anyhow::Result<()> {
         times_send.send(run_timed(app, &server_stop)).ok();
     })?;
 
-    let counts = Arc::new(Counts::default());
     let started = Instant::now();
+    let counts = Arc::new(Counts::new(bots, started));
     let runtime = tokio::runtime::Runtime::new()?;
     runtime.block_on(async {
         for index in 0..bots {
@@ -133,6 +134,7 @@ fn main() -> anyhow::Result<()> {
     report("tick", measured.iter().map(|times| times.tick));
     report("drain", measured.iter().map(|times| times.drain));
     report_wakes(measured);
+    report_bots(&counts);
     Ok(())
 }
 
@@ -208,10 +210,110 @@ fn report(name: &str, durations: impl Iterator<Item = Duration>) {
     );
 }
 
-#[derive(Default)]
 struct Counts {
+    started: Instant,
     joined: AtomicUsize,
     columns: AtomicUsize,
+    bots: Vec<BotCounts>,
+}
+
+impl Counts {
+    fn new(bots: usize, started: Instant) -> Self {
+        Self {
+            started,
+            joined: AtomicUsize::new(0),
+            columns: AtomicUsize::new(0),
+            bots: (0..bots).map(|_| BotCounts::default()).collect(),
+        }
+    }
+
+    fn received(&self, index: usize, columns: usize) {
+        self.columns.fetch_add(columns, Ordering::Relaxed);
+        let Some(bot) = self.bots.get(index) else {
+            return;
+        };
+        let millis = u64::try_from(self.started.elapsed().as_millis()).unwrap_or(u64::MAX);
+        bot.columns.fetch_add(columns, Ordering::Relaxed);
+        bot.first_millis.fetch_min(millis, Ordering::Relaxed);
+        bot.last_millis.fetch_max(millis, Ordering::Relaxed);
+    }
+}
+
+/// The columns one bot received, and when the first and the last of them arrived.
+struct BotCounts {
+    columns: AtomicUsize,
+    first_millis: AtomicU64,
+    last_millis: AtomicU64,
+}
+
+impl Default for BotCounts {
+    fn default() -> Self {
+        Self {
+            columns: AtomicUsize::new(0),
+            first_millis: AtomicU64::new(u64::MAX),
+            last_millis: AtomicU64::new(0),
+        }
+    }
+}
+
+/// The name of the dimension the bot with `index` ends up in.
+fn destination(index: usize) -> &'static str {
+    OTHER_DIMENSIONS
+        .get(index % 3)
+        .copied()
+        .unwrap_or("minecraft:overworld")
+}
+
+/// The columns per bot, by the dimension each bot ends up in, and how soon the bots got their
+/// first column.
+fn report_bots(counts: &Counts) {
+    let mut dimensions: Vec<&str> = (0..counts.bots.len()).map(destination).collect();
+    dimensions.sort_unstable();
+    dimensions.dedup();
+    for dimension in dimensions {
+        let mut columns: Vec<usize> = (0..counts.bots.len())
+            .filter(|index| destination(*index) == dimension)
+            .filter_map(|index| counts.bots.get(index))
+            .map(|bot| bot.columns.load(Ordering::Relaxed))
+            .collect();
+        columns.sort_unstable();
+        let median = columns.get(columns.len() / 2).copied().unwrap_or(0);
+        println!(
+            "{dimension}: {} bots, columns a bot min {}, p50 {median}, max {}",
+            columns.len(),
+            columns.first().copied().unwrap_or(0),
+            columns.last().copied().unwrap_or(0),
+        );
+    }
+    let starved = counts
+        .bots
+        .iter()
+        .filter(|bot| bot.columns.load(Ordering::Relaxed) == 0)
+        .count();
+    let mut firsts: Vec<u64> = counts
+        .bots
+        .iter()
+        .map(|bot| bot.first_millis.load(Ordering::Relaxed))
+        .filter(|millis| *millis != u64::MAX)
+        .collect();
+    firsts.sort_unstable();
+    let mut lasts: Vec<u64> = counts
+        .bots
+        .iter()
+        .filter(|bot| bot.columns.load(Ordering::Relaxed) > 0)
+        .map(|bot| bot.last_millis.load(Ordering::Relaxed))
+        .collect();
+    lasts.sort_unstable();
+    let median_seconds = |sorted: &[u64]| {
+        let median = sorted.get(sorted.len() / 2).copied().unwrap_or(0);
+        median as f64 / 1e3
+    };
+    println!(
+        "bots with no column: {starved}, first column after p50 {:.1} s (max {:.1} s), last column at p50 {:.1} s",
+        median_seconds(&firsts),
+        firsts.last().copied().unwrap_or(0) as f64 / 1e3,
+        median_seconds(&lasts),
+    );
 }
 
 async fn bot(
@@ -260,7 +362,7 @@ async fn bot(
             } else if packet.id == ClientboundChunkBatchFinished::ID {
                 let finished = ClientboundChunkBatchFinished::decode(body)?;
                 let columns = usize::try_from(finished.batch_size.0).unwrap_or(0);
-                counts.columns.fetch_add(columns, Ordering::Relaxed);
+                counts.received(index, columns);
                 connection.write_packet(&ServerboundChunkBatchReceived {
                     desired_chunks_per_tick: 64.0,
                 });
