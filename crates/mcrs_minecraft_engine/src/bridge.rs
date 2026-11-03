@@ -4,15 +4,52 @@ use bevy_ecs::entity::Entity;
 use bevy_ecs::message::{MessageReader, Messages};
 use bevy_ecs::prelude::Commands;
 use bevy_ecs::query::{With, Without};
+use bevy_ecs::resource::Resource;
 use bevy_ecs::system::{Query, Res, ResMut};
 
 /// Bridges the bus to the sockets and writes them: run in the tick's `FixedPostUpdate` and
-/// again between ticks, so a packet a dimension produced off the tick leaves at once.
+/// again between ticks, so a packet a dimension produced off the tick leaves at once. The
+/// [`FlushScope`] tells which connections it writes.
 #[derive(ScheduleLabel, Debug, Clone, PartialEq, Eq, Hash)]
 pub struct OutboundFlush;
 
+/// Which connections an [`OutboundFlush`] writes.
+#[derive(Resource, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum FlushScope {
+    /// Every connection, which also finds the writers that died.
+    #[default]
+    Every,
+    /// Only the [`PendingConnections`], so a flush between ticks costs what it sends rather
+    /// than one visit per connection.
+    Pending,
+}
+
+/// The connections that hold what their writer has not taken yet: a packet that
+/// `bridge_outbound` queued, or bytes a full writer left behind.
+#[derive(Resource, Default)]
+pub struct PendingConnections {
+    connections: Vec<Entity>,
+    visiting: Vec<Entity>,
+}
+
 pub fn run_outbound_flush(world: &mut bevy_ecs::world::World) {
     world.run_schedule(OutboundFlush);
+}
+
+/// An [`OutboundFlush`] of the [`PendingConnections`] alone. Absent without the plugin that
+/// adds the flush.
+pub fn run_pending_flush(world: &mut bevy_ecs::world::World) {
+    *world.get_resource_or_init::<FlushScope>() = FlushScope::Pending;
+    let _ = world.try_run_schedule(OutboundFlush);
+    *world.get_resource_or_init::<FlushScope>() = FlushScope::Every;
+}
+
+pub fn flushes_every_connection(scope: Option<Res<FlushScope>>) -> bool {
+    scope.is_none_or(|scope| *scope == FlushScope::Every)
+}
+
+pub fn flushes_pending_connections(scope: Option<Res<FlushScope>>) -> bool {
+    scope.is_some_and(|scope| *scope == FlushScope::Pending)
 }
 
 use mcrs_minecraft_network::metrics::{BridgeTelemetry, PacketDispatcher};
@@ -71,6 +108,7 @@ pub fn bridge_outbound(
     sessions: Query<(&Session, &SessionPlacement, Option<&SessionConnection>)>,
     mut queues: Query<&mut OutboundQueue>,
     mut telemetry: ResMut<BridgeTelemetry>,
+    mut pending: Option<ResMut<PendingConnections>>,
 ) {
     for msg in reader.read() {
         telemetry.outbound_messages_consumed_total += 1;
@@ -85,7 +123,13 @@ pub fn bridge_outbound(
                 if session.0 != msg.session || msg.epoch != placement.epoch() {
                     continue;
                 }
-                push_to_connection(&mut queues, &mut telemetry, connection, msg);
+                push_to_connection(
+                    &mut queues,
+                    &mut telemetry,
+                    pending.as_deref_mut(),
+                    connection,
+                    msg,
+                );
             }
             PacketTarget::AllInDim(dim_entity) => {
                 // Broadcasts are generated for whoever is in the dim *now*, so
@@ -96,7 +140,13 @@ pub fn bridge_outbound(
                 // unstamped epoch.
                 for (_, placement, connection) in &sessions {
                     if placement.place().dim() == Some(*dim_entity) {
-                        push_to_connection(&mut queues, &mut telemetry, connection, msg);
+                        push_to_connection(
+                            &mut queues,
+                            &mut telemetry,
+                            pending.as_deref_mut(),
+                            connection,
+                            msg,
+                        );
                     }
                 }
             }
@@ -105,7 +155,13 @@ pub fn bridge_outbound(
                 // broadcast must reach every current session regardless of how
                 // many dim transfers each has made.
                 for (_, _, connection) in &sessions {
-                    push_to_connection(&mut queues, &mut telemetry, connection, msg);
+                    push_to_connection(
+                        &mut queues,
+                        &mut telemetry,
+                        pending.as_deref_mut(),
+                        connection,
+                        msg,
+                    );
                 }
             }
             PacketTarget::PlayerSet(set) => {
@@ -114,7 +170,13 @@ pub fn bridge_outbound(
                 // receive it at whatever epoch they currently hold.
                 for anchor in set.iter() {
                     if let Ok((_, _, connection)) = sessions.get(*anchor) {
-                        push_to_connection(&mut queues, &mut telemetry, connection, msg);
+                        push_to_connection(
+                            &mut queues,
+                            &mut telemetry,
+                            pending.as_deref_mut(),
+                            connection,
+                            msg,
+                        );
                     }
                 }
             }
@@ -125,13 +187,26 @@ pub fn bridge_outbound(
 fn push_to_connection(
     queues: &mut Query<&mut OutboundQueue>,
     telemetry: &mut BridgeTelemetry,
+    pending: Option<&mut PendingConnections>,
     connection: Option<&SessionConnection>,
     msg: &OutboundPlayerPacket,
 ) {
-    match connection.map(|connection| queues.get_mut(connection.entity())) {
-        Some(Ok(mut queue)) => queue.push(msg.clone()),
-        _ => telemetry.outbound_no_queue_total += 1,
+    let Some(connection) = connection else {
+        telemetry.outbound_no_queue_total += 1;
+        return;
+    };
+    let Ok(mut queue) = queues.get_mut(connection.entity()) else {
+        telemetry.outbound_no_queue_total += 1;
+        return;
+    };
+    // A queue is emptied whenever its connection is handed over, so one that holds packets
+    // is already pending.
+    if queue.total_len() == 0
+        && let Some(pending) = pending
+    {
+        pending.connections.push(connection.entity());
     }
+    queue.push(msg.clone());
 }
 
 /// Sixteen batches at the socket's cap.
@@ -154,54 +229,100 @@ pub fn dispatch_encode(
     mut players: Query<(Entity, &mut OutboundQueue, &mut ServerSideConnection)>,
     mut commands: Commands,
     mut telemetry: ResMut<BridgeTelemetry>,
+    mut pending: Option<ResMut<PendingConnections>>,
 ) {
+    if let Some(pending) = pending.as_deref_mut() {
+        pending.connections.clear();
+    }
     for (entity, mut queue, mut conn) in &mut players {
-        // --- (1) Disconnected writer check ---
-        if conn.raw.disconnected() {
-            conn.raw
-                .append(&ClientboundDisconnect {
-                    reason: Text::from("Connection lost"),
-                })
-                .ok();
-            conn.raw.send_written();
-            warn!(conn = ?entity, "kick: the writer reported the socket dead");
-            commands.entity(entity).remove::<ServerSideConnection>();
-            telemetry.kick_overflow_total += 1;
-            continue;
+        dispatch_connection(entity, &mut queue, &mut conn, &mut commands, &mut telemetry);
+        if conn.raw.unsent_bytes() > 0
+            && let Some(pending) = pending.as_deref_mut()
+        {
+            pending.connections.push(entity);
         }
+    }
+}
 
-        // --- (1a) A writer that is behind takes what it can; one that has stalled for this
-        // much is a dead socket, not a slow one ---
-        if !conn.raw.flush_unsent() && conn.raw.unsent_bytes() > STALLED_WRITER_BYTES {
-            warn!(
-                conn = ?entity,
-                unsent_bytes = conn.raw.unsent_bytes(),
-                "kick: the writer has stalled"
-            );
-            commands.entity(entity).remove::<ServerSideConnection>();
-            telemetry.kick_overflow_total += 1;
+/// [`dispatch_encode`] for the [`PendingConnections`] alone. A connection with nothing queued
+/// and nothing left behind has nothing to hand over, and the tick's flush checks it for a dead
+/// writer.
+pub fn dispatch_pending(
+    mut players: Query<(Entity, &mut OutboundQueue, &mut ServerSideConnection)>,
+    mut commands: Commands,
+    mut telemetry: ResMut<BridgeTelemetry>,
+    mut pending: ResMut<PendingConnections>,
+) {
+    let PendingConnections {
+        connections,
+        visiting,
+    } = &mut *pending;
+    std::mem::swap(connections, visiting);
+    visiting.sort_unstable();
+    visiting.dedup();
+    for entity in visiting.drain(..) {
+        let Ok((entity, mut queue, mut conn)) = players.get_mut(entity) else {
             continue;
+        };
+        dispatch_connection(entity, &mut queue, &mut conn, &mut commands, &mut telemetry);
+        if conn.raw.unsent_bytes() > 0 {
+            connections.push(entity);
         }
+    }
+}
 
-        // --- (2) Drop policy: shed Normal first, then Low ---
-        // Only activate if total exceeds DEPTH_LIMIT; then drain down to
-        // DEPTH_DRAIN_TARGET so the queue stays below threshold for a few
-        // ticks before refilling.
-        if queue.total_len() > DEPTH_LIMIT {
-            while queue.total_len() > DEPTH_DRAIN_TARGET {
-                if queue.normal.pop_front().is_some() {
-                    telemetry.drop_normal_total += 1;
-                } else if queue.low.pop_front().is_some() {
-                    telemetry.drop_low_total += 1;
-                } else {
-                    // Only Critical/High remain; never drop them.
-                    break;
-                }
+fn dispatch_connection(
+    entity: Entity,
+    queue: &mut OutboundQueue,
+    conn: &mut ServerSideConnection,
+    commands: &mut Commands,
+    telemetry: &mut BridgeTelemetry,
+) {
+    // --- (1) Disconnected writer check ---
+    if conn.raw.disconnected() {
+        conn.raw
+            .append(&ClientboundDisconnect {
+                reason: Text::from("Connection lost"),
+            })
+            .ok();
+        conn.raw.send_written();
+        warn!(conn = ?entity, "kick: the writer reported the socket dead");
+        commands.entity(entity).remove::<ServerSideConnection>();
+        telemetry.kick_overflow_total += 1;
+        return;
+    }
+
+    // --- (1a) A writer that is behind takes what it can; one that has stalled for this
+    // much is a dead socket, not a slow one ---
+    if !conn.raw.flush_unsent() && conn.raw.unsent_bytes() > STALLED_WRITER_BYTES {
+        warn!(
+            conn = ?entity,
+            unsent_bytes = conn.raw.unsent_bytes(),
+            "kick: the writer has stalled"
+        );
+        commands.entity(entity).remove::<ServerSideConnection>();
+        telemetry.kick_overflow_total += 1;
+        return;
+    }
+
+    // --- (2) Drop policy: shed Normal first, then Low ---
+    // Only activate if total exceeds DEPTH_LIMIT; then drain down to
+    // DEPTH_DRAIN_TARGET so the queue stays below threshold for a few
+    // ticks before refilling.
+    if queue.total_len() > DEPTH_LIMIT {
+        while queue.total_len() > DEPTH_DRAIN_TARGET {
+            if queue.normal.pop_front().is_some() {
+                telemetry.drop_normal_total += 1;
+            } else if queue.low.pop_front().is_some() {
+                telemetry.drop_low_total += 1;
+            } else {
+                // Only Critical/High remain; never drop them.
+                break;
             }
         }
-
-        hand_over(entity, &mut queue, &mut conn.raw, &mut telemetry);
     }
+
+    hand_over(entity, queue, &mut conn.raw, telemetry);
 }
 
 /// Serializes the queue in priority order and hands it, behind anything written to the

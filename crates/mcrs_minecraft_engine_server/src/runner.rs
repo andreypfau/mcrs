@@ -1,15 +1,14 @@
 use bevy_app::{App, AppExit, SubApp};
 use bevy_ecs::entity::Entity;
 use bevy_ecs::resource::Resource;
-use bevy_ecs::world::World;
 use mcrs_minecraft_engine::between_ticks::run_between_ticks;
-use mcrs_minecraft_engine::bridge::OutboundFlush;
-use mcrs_minecraft_engine::dim::{drain_dim_despawn_queue, pump_channels, pump_host_channels};
+use mcrs_minecraft_engine::bridge::run_pending_flush;
+use mcrs_minecraft_engine::dim::{drain_dim_despawn_queue, pump_channels, pump_dim};
 use mcrs_minecraft_engine::sub_app_builder::drain_dim_spawn_queue;
 use mcrs_minecraft_engine_world::world::column_drain::{ColumnDrain, DrainWakes};
 use mcrs_minecraft_engine_world::world::sub_app::DimAppLabel;
 use std::num::NonZeroU32;
-use std::time::{Duration, Instant};
+use std::time::Instant;
 
 pub const DEFAULT_TPS: NonZeroU32 = match NonZeroU32::new(20) {
     Some(tps) => tps,
@@ -35,21 +34,15 @@ pub fn between_ticks(app: &mut App) {
     drain_dim_despawn_queue(app);
 }
 
-/// The least time between two drains. Under load the generation finishes work every few
-/// microseconds, and a drain for each finish costs more in running the drain than it moves.
-pub const DRAIN_INTERVAL: Duration = Duration::from_millis(5);
-
 /// Passes on, up to `deadline`, what the dimensions finish off the tick: a dimension that asks
-/// for a drain has one within [`DRAIN_INTERVAL`], and the host hands what it sent to the
-/// sockets. A server with nothing finishing does not drain at all.
+/// for a drain has it as soon as the server thread is free, and the host hands what it sent to
+/// the sockets. A server with nothing finishing does not drain at all.
 pub fn drain_until(app: &mut App, deadline: Instant) {
     loop {
-        let drained = Instant::now();
         drain_woken(app);
         if !wait_for_wake(app, deadline) {
             return;
         }
-        sleep_until((drained + DRAIN_INTERVAL).min(deadline));
     }
 }
 
@@ -63,9 +56,18 @@ pub fn sleep_until(at: Instant) {
 #[derive(Resource, Default)]
 struct WokenDimensions(Vec<Entity>);
 
+/// What one [`drain_woken`] took in.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct Drained {
+    /// The wakes that arrived since the last drain. A dimension can wake more than once
+    /// before it drains, and it drains once for all of them.
+    pub wakes: usize,
+    pub dimensions: usize,
+}
+
 /// Drains the dimensions that asked since the last drain, then hands what they sent to the
 /// sockets.
-pub fn drain_woken(app: &mut App) {
+pub fn drain_woken(app: &mut App) -> Drained {
     let mut woken = app
         .world_mut()
         .remove_resource::<WokenDimensions>()
@@ -73,18 +75,24 @@ pub fn drain_woken(app: &mut App) {
     if let Some(wakes) = app.world().get_resource::<DrainWakes>() {
         woken.0.extend(wakes.receiver().try_iter());
     }
+    let wakes = woken.0.len();
     woken.0.sort_unstable();
     woken.0.dedup();
-    if !woken.0.is_empty() {
-        for &dim in &woken.0 {
-            if let Some(sub_app) = app.get_sub_app_mut(DimAppLabel(dim)) {
-                drain_dimension_columns(sub_app);
-            }
+    let dimensions = woken.0.len();
+    for &dim in &woken.0 {
+        if let Some(sub_app) = app.get_sub_app_mut(DimAppLabel(dim)) {
+            drain_dimension_columns(sub_app);
         }
     }
+    let host = app.world_mut();
+    for &dim in &woken.0 {
+        pump_dim(host, dim);
+    }
+    // Also after a drain that woke nobody: what the tick left in the host goes out with it.
+    run_pending_flush(host);
     woken.0.clear();
     app.world_mut().insert_resource(woken);
-    flush_host(app.world_mut());
+    Drained { wakes, dimensions }
 }
 
 /// Waits until a dimension asks for a drain or `deadline` passes, and tells whether one asked.
@@ -100,13 +108,6 @@ pub fn wait_for_wake(app: &mut App, deadline: Instant) -> bool {
         .0
         .push(dim);
     true
-}
-
-/// Takes what the dimensions sent and writes it to the sockets.
-pub fn flush_host(host: &mut World) {
-    pump_host_channels(host);
-    // Absent without `EnginePlugin`, which adds it.
-    let _ = host.try_run_schedule(OutboundFlush);
 }
 
 fn drain_dimension_columns(dimension: &mut SubApp) {

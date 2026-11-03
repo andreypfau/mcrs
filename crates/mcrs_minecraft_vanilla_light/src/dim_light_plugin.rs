@@ -24,7 +24,7 @@ use mcrs_minecraft_light_engine::prelude::{Edit, LightBounds};
 use mcrs_voxel::{ColumnPos, SectionPos};
 
 use crate::light_actor::LightActor;
-use crate::light_plugin::{LightPlugin, LightSet, publish_light};
+use crate::light_plugin::{LightPlugin, LightSet, light_replied, publish_light};
 use crate::light_state::player_priority;
 use crate::to_light::ToLight;
 
@@ -93,8 +93,11 @@ impl Plugin for DimLightPlugin {
             (
                 // The light the actor published lands in time for the send that follows it in
                 // this same drain.
-                publish_light.in_set(ColumnDrainSet::Light),
+                publish_light
+                    .run_if(light_replied)
+                    .in_set(ColumnDrainSet::Light),
                 await_light
+                    .run_if(on_message::<ColumnAwaitsLight>)
                     .in_set(ColumnDrainSet::Send)
                     .in_set(ColumnLightGate),
             ),

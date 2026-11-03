@@ -8,8 +8,10 @@ use bevy_tasks::{Task, TaskPool};
 /// Puts the columns whose sections landed on the wire, at the end of every tick and between
 /// ticks, so a column read from the save does not wait for the next tick.
 ///
-/// Between ticks a dimension drains only when it asks to through its [`DrainWake`]: what the
-/// drain acts on changes only when work the dimension handed off finishes.
+/// Between ticks a dimension drains each time it asks to through its [`DrainWake`]: what the
+/// drain acts on changes only when work the dimension handed off finishes. The drain is a
+/// mailbox. Each system runs only when its own input is there, so a drain costs what arrived
+/// and a wake that finds nothing left costs almost nothing.
 #[derive(ScheduleLabel, Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ColumnDrain;
 
@@ -20,7 +22,7 @@ pub enum ColumnDrainSet {
     Collect,
     /// The column index, block entities and heightmaps catch up with what landed.
     Reconcile,
-    /// Sections spawn, and the columns they need are requested.
+    /// The columns that sections ask for are requested.
     Request,
     /// A finished light epoch is retired and the next one dispatched.
     Light,

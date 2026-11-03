@@ -5,8 +5,10 @@ use bevy_app::{
 use bevy_asset::AssetPlugin;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::Messages;
+use bevy_ecs::schedule::common_conditions::on_message;
 use bevy_ecs::schedule::{
-    IntoScheduleConfigs, Schedule, ScheduleLabel, SingleThreadedExecutor, SystemSet,
+    IntoScheduleConfigs, Schedule, ScheduleLabel, SingleThreadedExecutor, SystemCondition,
+    SystemSet,
 };
 use bevy_ecs::system::{Local, Res, ResMut};
 use bevy_ecs::world::World;
@@ -16,6 +18,7 @@ use tracing::{error, warn};
 
 use crate::bus::{InboundPlayerDespawn, InboundPlayerSpawn, OutboundPlayerPacket};
 use crate::channel_types::{FromDim, ToDim};
+use crate::column_held::ColumnHeld;
 use crate::dim::DimSubAppHandle;
 use mcrs_minecraft_engine_world::block_update::{BlockPlaced, BlockSetRequest};
 use mcrs_minecraft_engine_world::world::channels::{
@@ -68,8 +71,11 @@ use mcrs_minecraft_engine_world::world::dimension::{
     DimensionBundle, DimensionPlugin, DimensionTypeConfig, DimensionTypeId, HasSkyLight, HasWeather,
 };
 use mcrs_minecraft_engine_world::world::dimension_builders::{DimensionBuild, DimensionBuilders};
+use mcrs_minecraft_engine_world::world::lifecycle::stage::SectionStageChanged;
 use mcrs_minecraft_engine_world::world::lifecycle::trace::{ColumnTraceLog, ColumnTraceSink};
-use mcrs_minecraft_engine_world::world::light_gate::ColumnLightGate;
+use mcrs_minecraft_engine_world::world::light_gate::{
+    ColumnLightGate, ColumnLightSettled, SectionRelit,
+};
 use mcrs_minecraft_engine_world::world::sub_app::{
     DimAppLabel, DimSpawnQueue, DimSpawnRequest, DimensionPlugins,
 };
@@ -295,19 +301,25 @@ pub fn spawn_dim_subapp(
             (
                 mcrs_minecraft_engine_world::world::storage::column::reconcile_columns,
                 mcrs_minecraft_engine_world::world::storage::block_entity::reconcile_block_entities,
-                crate::heightmap::prime_column_heightmaps,
             )
                 .chain()
+                .run_if(on_message::<SectionStageChanged>)
                 .in_set(ColumnDrainSet::Reconcile),
-            mcrs_minecraft_engine_world::world::lifecycle::ticket::spawn_chunks
-                .in_set(ColumnDrainSet::Request),
+            crate::heightmap::prime_column_heightmaps
+                .run_if(heightmaps_pending)
+                .in_set(ColumnDrainSet::Reconcile)
+                .after(mcrs_minecraft_engine_world::world::storage::block_entity::reconcile_block_entities),
             (
-                crate::column_view::project_touched_columns.before(ColumnLightGate),
+                crate::column_view::project_touched_columns
+                    .run_if(on_message::<SectionStageChanged>.or_eager(on_message::<SectionRelit>))
+                    .before(ColumnLightGate),
                 (
-                    crate::column_view::promote_lit_columns,
-                    crate::column_view::send_column_queue,
-                    crate::column_held::mirror_held_columns,
-                    flush_from_dim_outbox,
+                    crate::column_view::promote_lit_columns
+                        .run_if(on_message::<ColumnLightSettled>),
+                    crate::column_view::send_ready_columns
+                        .run_if(on_message::<crate::column_view::ColumnBecameReady>),
+                    crate::column_held::mirror_held_columns.run_if(on_message::<ColumnHeld>),
+                    flush_from_dim_outbox.run_if(outbox_holds_packets),
                 )
                     .chain()
                     .after(ColumnLightGate),
@@ -516,6 +528,18 @@ fn drain_to_dim_inbox(
 /// What a dimension produced and its full channel did not take yet, oldest first.
 #[derive(bevy_ecs::resource::Resource, Default)]
 pub(crate) struct FromDimBacklog(pub(crate) VecDeque<FromDim>);
+
+fn outbox_holds_packets(
+    msgs: Res<Messages<OutboundPlayerPacket>>,
+    released: Res<Messages<crate::bus::OutboundPlayerReleased>>,
+    backlog: Res<FromDimBacklog>,
+) -> bool {
+    !msgs.is_empty() || !released.is_empty() || !backlog.0.is_empty()
+}
+
+fn heightmaps_pending(pending: Res<crate::heightmap::PendingColumnHeightmaps>) -> bool {
+    !pending.0.is_empty()
+}
 
 /// Drains the dim's local `Messages<OutboundPlayerPacket>` into the `FromDim`
 /// channel so the host-side `pump_channels` can epoch-stamp and forward them.

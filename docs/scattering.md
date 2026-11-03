@@ -170,24 +170,36 @@ Classifying every value before storing it, per the project's ECS rule:
 | Value | Category | Owner | Note |
 | --- | --- | --- | --- |
 | Seed, compiled feature tables (§4.3) | truth | `WorldgenFreeze` build | cloned into the sub-app once, like `DimensionRouters` (`crates/mcrs_minecraft_vanilla_worldgen/src/routers.rs`, `DimensionRouters`) |
-| Which columns players want, at which target | derived from players | the dispatcher, each drain | `worldgen.md` §16: never stored |
+| Which columns players want, at which target | derived from players | the generation actor, at each request | `worldgen.md` §16: never stored |
 | A column's stage | derived, but only recoverable by redoing the work | the staging store | an enum field, not a marker (X10); each section entity holds one `SectionStage` that moves `Loading → Generating → Loaded` |
 | A filled column, its palettes, its six maps | materialised projection of the seed | the staging store | read by up to nine `run`s; recomputing is a whole fill |
 | A unit's out-of-column writes (its deltas) | materialised, temporary | the staging store | consumed by one merge each, then dropped |
 | The rank of a unit | pure function | nobody | computed where compared |
 
-There is one owner for every materialised value: the scheduler resource that
-already exists (`ColumnScheduler`, `crates/mcrs_minecraft_vanilla_worldgen/src/chunk_plugin.rs`, `min_column_distance`, `report`). It gains a third state
-beside `pending` and `in_flight`, and the completion handler
-(`process_completed_columns`, `crates/mcrs_minecraft_vanilla_worldgen/src/chunk_plugin.rs`, `deliver_merged_columns`, `enqueue_pending_columns`) gains a branch per stage. The
-store lives where the scheduler lives — in the dimension sub-app
-(`crates/mcrs_minecraft_engine/src/sub_app_builder.rs`, `spawn_dim_subapp`), outside the ECS's entities (X1).
+There is one owner for every materialised value: the generation actor of the
+dimension (`crates/mcrs_minecraft_vanilla_worldgen/src/generation_actor.rs`, `GenerationActor`). The
+actor runs on a thread of its own, one thread for each dimension. It holds the
+wanted columns (`pending`), the stages on the pool (`in_flight`) and the
+staging store (`crates/mcrs_minecraft_worldgen_generator/src/staging.rs`,
+`StagingStore`). Its completion handler (`GenerationActor::finish`) has a
+branch for each stage. The store is outside the ECS and outside the dimension
+sub-app (X1).
+
+The dimension and the actor share no data. They exchange messages only
+(`crates/mcrs_minecraft_vanilla_worldgen/src/generation_link.rs`, `GenerationRequest`,
+`GenerationReport`). The dimension sends the fill context, the wanted columns
+and the views of each tick. The actor sends back each delivered column and the
+sections of each abandoned column, and then wakes the dimension through its
+`DrainWake` (`crates/mcrs_minecraft_engine_world/src/world/column_drain.rs`).
+The column drain of the dimension takes the reports in
+(`crates/mcrs_minecraft_vanilla_worldgen/src/chunk_plugin.rs`, `integrate_generated_columns`). The
+drain runs at the end of each tick and after each wake between ticks.
 
 ### 3.2 The stage ladder
 
 Every column passes through four stages. Each is a separate task on the
-generation pool, dispatched by the same drain that dispatches today
-(`crates/mcrs_minecraft_engine/src/sub_app_builder.rs`, `spawn_dim_subapp`, `crates/mcrs_minecraft_vanilla_worldgen/src/chunk_plugin.rs`, `dispatch_column_generation`, `tests`).
+generation pool. The actor dispatches each task
+(`crates/mcrs_minecraft_vanilla_worldgen/src/generation_dispatch.rs`, `GenerationActor::dispatch`).
 
 ```
 Filled     fill, surface, carving, the six heightmaps, packed palettes
@@ -198,11 +210,11 @@ Merged     own buffer + the eight incoming deltas, applied in rank order;
 Delivered  the sections enter the ECS as SectionStage::Loaded
 ```
 
-`Filled` is today's task up to and including `into_sections`
-(`crates/mcrs_minecraft_vanilla_worldgen/src/chunk_plugin.rs`, `tests`) plus the heightmap descent that follows it
-(`crates/mcrs_minecraft_vanilla_worldgen/src/chunk_plugin.rs`, `tests`), run twice: once before carving for the pre-carve pair
-and once after for the final four (Wn3). `Run` and `Merged` are new. `Delivered`
-is today's completion handler.
+`Filled` is the fill task (`crates/mcrs_minecraft_worldgen_generator/src/stages.rs`,
+`fill_column`) plus the heightmap descent that follows it, run twice: once
+before carving for the pre-carve pair and once after for the final four (Wn3).
+`Delivered` is the delivery of the actor (`GenerationActor::deliver`). The
+dimension integrates the delivery in its column drain.
 
 **Q1. Dependencies, derived from C2.**
 
@@ -265,7 +277,7 @@ order on `(x mod 3, z mod 3)`: the `x` residue can fall twice, the `z` residue
 twice per `x` level, and a fall of a residue is a displacement of `+2` or `−1`;
 the reach of a chain is four columns in `x` and sixteen in `z`. A streaming
 dispatcher — one that pops the nearest wanted column
-(`crates/mcrs_minecraft_vanilla_worldgen/src/chunk_plugin.rs`, `the_ladder_delivers_the_column_the_fill_produced`) rather than decorating a closed batch — must therefore
+(`crates/mcrs_minecraft_vanilla_worldgen/src/generation_dispatch.rs`, `walk_fresh`) rather than decorating a closed batch — must therefore
 fill and decorate columns up to sixteen away from the view before it can
 deliver a column at the edge, and those columns are wanted by nobody. The wave
 barrier the reference's batch model would use does not exist here: there is no
@@ -288,7 +300,7 @@ sit apart.
 task receives `Arc` handles to the nine `Filled` snapshots of its 3×3 (X7: an
 owning snapshot crosses the boundary, never a key) and a dense buffer for its
 own column, unpacked from the centre snapshot. The dense buffer is the existing
-per-worker `ColumnBlocks` (`crates/mcrs_minecraft_vanilla_worldgen/src/chunk_plugin.rs`, `cancel_stale_columns_unloads_stale_sections`, `crates/mcrs_minecraft_worldgen_generator/src/column_blocks.rs`, `ColumnBlocks`);
+per-worker `ColumnBlocks` (`crates/mcrs_minecraft_worldgen_generator/src/column_blocks.rs`, `ColumnBlocks`);
 F7 is honoured for the centre because it already is. For the ring, reads go
 through the snapshots' paletted sections with a last-section cache, the shape
 of the reference's `BulkSectionAccess` (`BulkSectionAccess.level`, `BulkSectionAccess.acquiredSections`, `BulkSectionAccess.lastSection`).
@@ -348,14 +360,15 @@ itself (Q3), and the mask is what says which cells those are.
 
 ### 3.5 The dispatcher
 
-The queue keeps its key (`ColumnKey`, distance then position,
-`crates/mcrs_minecraft_vanilla_worldgen/src/chunk_plugin.rs`, `SchedulerConfig`) and its shape (a `BTreeMap` popped from the front,
-`crates/mcrs_minecraft_vanilla_worldgen/src/chunk_plugin.rs`, `the_ladder_delivers_the_column_the_fill_produced`). What changes is what an entry asks for and when it is
-ready.
+The queue has a key (`ColumnKey`, distance then position,
+`crates/mcrs_minecraft_vanilla_worldgen/src/generation_actor.rs`) and a shape (a `BTreeMap` popped from
+the front, `GenerationActor::pending`). An entry asks for a target stage, and
+it is ready by Q6.
 
 **Q5. A request names a target stage, and requests propagate by Q1.** A view
-that wants column `U` (`enqueue_pending_columns`, `crates/mcrs_minecraft_vanilla_worldgen/src/chunk_plugin.rs`, `enqueue_pending_columns`, `cancel_stale_columns`) asks for
-`Delivered(U)`; the scheduler derives `Run` over the 3×3 and `Filled` over the
+that wants column `U` (`crates/mcrs_minecraft_vanilla_worldgen/src/chunk_plugin.rs`, `request_columns`;
+`GenerationActor::want`) asks for
+`Delivered(U)`; the actor derives `Run` over the 3×3 and `Filled` over the
 5×5, each at the priority of the column that needs it, never stored beyond the
 tick that computed it (`worldgen.md` §16). A derived request that is already
 satisfied or already in flight is a no-op.
@@ -372,8 +385,9 @@ is kept until its target is merged or its target stops being wanted. Evicting
 a `Filled` column and filling it again later is bit-identical by St1 and costs
 one fill. The store holds at most the halo of the views: at a view radius of
 ten, 625 paletted columns per player, tens of kilobytes each; unmeasured.
-Cancellation keeps its current form (`cancel_stale_columns`, `crates/mcrs_minecraft_vanilla_worldgen/src/chunk_plugin.rs`, `cancel_stale_columns`, `square`)
-with "wanted" replaced by "wanted or within two of a wanted column".
+Cancellation (`crates/mcrs_minecraft_vanilla_worldgen/src/generation_actor.rs`, `GenerationActor::screen`,
+`GenerationActor::evict_outside_halo`) uses "wanted or within two of a wanted
+column" for "wanted".
 
 **Q8. Delivery is the only point where a column becomes visible, and nothing
 writes into it afterwards.** By Q1, when `U` is delivered every unit that can
@@ -602,11 +616,11 @@ world-absolute coordinates, the same shape the ore port already takes
 (`crates/mcrs_minecraft_worldgen_feature/src/placer/mod.rs`, `WorldGenVolume`). Beyond blocks a
 generator needs: the six maps of Wn3, the block-resolution biome (Wn4), the
 dimension extent, the block tag registry
-(taken at `crates/mcrs_minecraft_vanilla_worldgen/src/chunk_plugin.rs`, `dispatch_column_generation`) resolved to masks at freeze, and
+(`crates/mcrs_minecraft_worldgen_generator/src/ids.rs`, `block_tags`, which reaches the actor in the fill context) resolved to masks at freeze, and
 the property-transition tables a tree needs to rewrite a leaf's `distance`
 (`TreeFeature.updateLeaves`) — a state-to-state map per block, built at freeze
 from the block definitions, since `try_resolve_state` already moves a stated
-property (`crates/mcrs_minecraft_vanilla_worldgen/src/chunk_plugin.rs`, `tests` tests it).
+property (`crates/mcrs_minecraft_worldgen_generator/src/block_state.rs`, `try_resolve_state`).
 
 ---
 

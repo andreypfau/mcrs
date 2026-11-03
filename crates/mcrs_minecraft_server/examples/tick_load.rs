@@ -68,6 +68,10 @@ impl FromStr for Spread {
 struct TickTimes {
     tick: Duration,
     drain: Duration,
+    /// The wakes the dimensions sent until the next tick.
+    wakes: usize,
+    /// The drains that ran a dimension until the next tick.
+    drains: usize,
 }
 
 fn main() -> anyhow::Result<()> {
@@ -128,6 +132,7 @@ fn main() -> anyhow::Result<()> {
     );
     report("tick", measured.iter().map(|times| times.tick));
     report("drain", measured.iter().map(|times| times.drain));
+    report_wakes(measured);
     Ok(())
 }
 
@@ -144,19 +149,41 @@ fn run_timed(mut app: App, stop: &AtomicBool) -> Vec<TickTimes> {
         // `runner::drain_until`, without the time spent waiting.
         let deadline = start + TICK;
         let mut drain = Duration::ZERO;
+        let mut wakes = 0;
+        let mut drains = 0;
         loop {
             let drained = Instant::now();
-            runner::drain_woken(&mut app);
+            let taken = runner::drain_woken(&mut app);
             drain += drained.elapsed();
+            wakes += taken.wakes;
+            drains += taken.dimensions;
             if !runner::wait_for_wake(&mut app, deadline) {
                 break;
             }
-            runner::sleep_until((drained + runner::DRAIN_INTERVAL).min(deadline));
         }
         runner::sleep_until(deadline);
-        times.push(TickTimes { tick, drain });
+        times.push(TickTimes {
+            tick,
+            drain,
+            wakes,
+            drains,
+        });
     }
     times
+}
+
+/// The wakes and the dimension drains a tick, and what a drain costs on average.
+fn report_wakes(measured: &[TickTimes]) {
+    let ticks = measured.len().max(1) as f64;
+    let wakes: usize = measured.iter().map(|times| times.wakes).sum();
+    let drains: usize = measured.iter().map(|times| times.drains).sum();
+    let drain: Duration = measured.iter().map(|times| times.drain).sum();
+    println!(
+        "wakes: {:.1} a tick, dimension drains: {:.1} a tick, {:.1} us a drain",
+        wakes as f64 / ticks,
+        drains as f64 / ticks,
+        drain.as_secs_f64() * 1e6 / drains.max(1) as f64,
+    );
 }
 
 fn report(name: &str, durations: impl Iterator<Item = Duration>) {

@@ -78,14 +78,21 @@ impl Plugin for EnginePlugin {
                 .after(mcrs_minecraft_network::NetworkSet::SpawnConnections),
         );
 
-        // Two systems in a chain: threads would only add the cost of handing them out, on a
-        // flush that runs after every drain. The encoding still spreads over the connections.
+        // One chain: threads would only add the cost of handing its systems out, on a flush
+        // that runs after every drain.
+        app.init_resource::<bridge::PendingConnections>();
+        app.init_resource::<bridge::FlushScope>();
         let mut flush = Schedule::new(bridge::OutboundFlush);
         flush.set_executor(bevy_ecs::schedule::SingleThreadedExecutor::new());
         app.add_schedule(flush);
         app.add_systems(
             bridge::OutboundFlush,
-            (bridge::bridge_outbound, bridge::dispatch_encode).chain(),
+            (
+                bridge::bridge_outbound,
+                bridge::dispatch_encode.run_if(bridge::flushes_every_connection),
+                bridge::dispatch_pending.run_if(bridge::flushes_pending_connections),
+            )
+                .chain(),
         );
         app.add_systems(
             FixedPostUpdate,

@@ -2,9 +2,11 @@ use std::sync::Arc;
 
 use bevy_app::{App, Last, Plugin};
 use bevy_ecs::prelude::*;
+use tracing::error;
 
 use mcrs_minecraft_chunk::{BlockLight, SkyLight};
 use mcrs_minecraft_engine_world::world::column_drain::DrainWake;
+use mcrs_minecraft_engine_world::world::dimension_name::DimensionName;
 use mcrs_minecraft_engine_world::world::light_gate::{ColumnLightSettled, SectionRelit};
 use mcrs_minecraft_light_engine::block::LightRegistry;
 use mcrs_minecraft_light_engine::epoch::PublishedLight;
@@ -51,11 +53,31 @@ impl Plugin for LightPlugin {
                 Last,
                 (
                     publish_light.in_set(LightSet::Publish),
+                    report_stopped_light
+                        .run_if(light_stopped)
+                        .in_set(LightSet::Publish),
                     (send_budgets, send_edits).chain().in_set(LightSet::Intake),
                 )
                     .chain(),
             );
     }
+}
+
+/// Whether the light actor has replies that [`publish_light`] has not taken yet.
+pub fn light_replied(actor: Res<LightActor>) -> bool {
+    actor.has_replies()
+}
+
+fn light_stopped(actor: Res<LightActor>) -> bool {
+    actor.stopped_unreported()
+}
+
+fn report_stopped_light(mut actor: ResMut<LightActor>, dimension: DimensionName) {
+    error!(
+        dimension = dimension.as_str(),
+        "the light actor stopped, so this dimension gets no more light"
+    );
+    actor.report_stop();
 }
 
 /// Writes what the light actor published since the last run into the sections, and answers

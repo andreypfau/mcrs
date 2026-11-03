@@ -3,7 +3,7 @@ use crate::light_codec::{LightCodecParams, build_full_light_data, build_fullbrig
 use bevy_app::{App, FixedUpdate, Plugin};
 use bevy_ecs::entity::Entity;
 use bevy_ecs::lifecycle::Discard;
-use bevy_ecs::message::{MessageReader, MessageWriter};
+use bevy_ecs::message::{Message, MessageReader, MessageWriter};
 use bevy_ecs::prelude::{Added, Changed, Component, ContainsEntity, Local, On, Or, Query, With};
 use bevy_ecs::schedule::{IntoScheduleConfigs, SystemSet};
 use bevy_ecs::system::{Res, SystemParam};
@@ -100,12 +100,20 @@ impl Plugin for ColumnViewPlugin {
                 .in_set(ColumnViewSet),
         );
         app.add_message::<ColumnAwaitsLight>();
+        app.add_message::<ColumnBecameReady>();
         app.add_message::<ColumnLightSettled>();
         app.add_message::<SectionRelit>();
 
         app.add_observer(handle_batch_acknowledgement);
         app.add_observer(release_loading_tickets);
     }
+}
+
+/// A column of `player`'s view became ready to go out. The drain between ticks sends batches
+/// only to the players these name: nothing else between ticks gives a player a column to send.
+#[derive(Message, Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct ColumnBecameReady {
+    pub(crate) player: Entity,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -475,7 +483,7 @@ fn resolve_column(
 
 #[derive(SystemParam)]
 pub(crate) struct ReadyInputs<'w, 's> {
-    players: Query<'w, 's, (&'static mut ColumnView, &'static InDimension)>,
+    players: Query<'w, 's, (Entity, &'static mut ColumnView, &'static InDimension)>,
     dims: Query<
         'w,
         's,
@@ -489,6 +497,7 @@ pub(crate) struct ReadyInputs<'w, 's> {
     lit: Query<'w, 's, (), (With<BlockLight>, With<SkyLight>)>,
     light_gated: Option<Res<'w, LightGated>>,
     awaiting_light: MessageWriter<'w, ColumnAwaitsLight>,
+    became_ready: MessageWriter<'w, ColumnBecameReady>,
     ready: Local<'s, Vec<ColumnPos>>,
     traces: Option<Res<'w, ColumnTraceLog>>,
 }
@@ -538,11 +547,12 @@ fn project(inputs: &mut ReadyInputs, candidates: Option<&FxHashSet<ColumnPos>>) 
         lit,
         light_gated,
         awaiting_light,
+        became_ready,
         ready,
         traces,
     } = inputs;
     let await_light = light_gated.is_some();
-    for (mut chunk_view, dim) in players.iter_mut() {
+    for (player, mut chunk_view, dim) in players.iter_mut() {
         let Ok((chunk_index, column_index, type_config)) = dims.get(dim.entity()) else {
             continue;
         };
@@ -582,6 +592,9 @@ fn project(inputs: &mut ReadyInputs, candidates: Option<&FxHashSet<ColumnPos>>) 
                     .filter(is_ready),
             ),
         }
+        if !await_light && !ready.is_empty() {
+            became_ready.write(ColumnBecameReady { player });
+        }
         for col in ready.drain(..) {
             if await_light {
                 chunk_view.set(col, Some(ColumnState::Lighting));
@@ -599,15 +612,17 @@ fn project(inputs: &mut ReadyInputs, candidates: Option<&FxHashSet<ColumnPos>>) 
 /// waiting on it.
 pub(crate) fn promote_lit_columns(
     mut settled: MessageReader<ColumnLightSettled>,
-    mut players: Query<&mut ColumnView>,
+    mut players: Query<(Entity, &mut ColumnView)>,
+    mut became_ready: MessageWriter<ColumnBecameReady>,
     traces: Option<Res<ColumnTraceLog>>,
 ) {
     for &ColumnLightSettled(col) in settled.read() {
-        for mut chunk_view in &mut players {
+        for (player, mut chunk_view) in &mut players {
             if chunk_view.state(col) == Some(ColumnState::Lighting) {
                 trace!("Column {:?} ready", col);
                 column_trace::mark(traces.as_deref(), col, ColumnStage::Ready);
                 chunk_view.set(col, Some(ColumnState::Ready));
+                became_ready.write(ColumnBecameReady { player });
             }
         }
     }
@@ -727,11 +742,20 @@ pub(crate) struct ColumnSource<'w, 's> {
     traces: Option<Res<'w, ColumnTraceLog>>,
 }
 
-/// Chunk-load wire emit routed through the `OutboundPlayerPacket` bus.
+/// What a player's batch is picked and sent with.
+type Viewers = (
+    Entity,
+    &'static mut ColumnView,
+    &'static SentChunkView,
+    &'static InDimension,
+    &'static HostAnchor,
+);
+
+/// Chunk-load wire emit routed through the `OutboundPlayerPacket` bus, once a tick.
 ///
 /// The rate is the client's: each batch is bracketed by a start and a finish, and the client
-/// answers with the columns a tick it managed. Chunks are sent at Critical priority so they
-/// are never dropped by the bridge.
+/// answers with the columns a tick it managed. Each tick refills every player's quota by that
+/// answer. Chunks are sent at Critical priority so they are never dropped by the bridge.
 ///
 /// The players pick their batches in parallel. Each column any batch takes is then encoded
 /// once, in parallel, and every player that takes it receives the same buffer. The batches go
@@ -741,13 +765,7 @@ pub(crate) struct ColumnSource<'w, 's> {
     reason = "a system takes its params as arguments"
 )]
 pub(crate) fn send_column_queue(
-    mut players: Query<(
-        Entity,
-        &mut ColumnView,
-        &SentChunkView,
-        &InDimension,
-        &HostAnchor,
-    )>,
+    mut players: Query<Viewers>,
     source: ColumnSource,
     mut packet_writer: MessageWriter<OutboundPlayerPacket>,
     mut held: MessageWriter<ColumnHeld>,
@@ -756,8 +774,7 @@ pub(crate) fn send_column_queue(
     mut wanted: Local<Vec<WantedColumn>>,
     mut shared: Local<SharedColumns>,
 ) {
-    // Most drains find nothing to send, and fanning out to the compute pool for nothing wakes
-    // every one of its threads.
+    // Fanning out to the compute pool for nothing wakes every one of its threads.
     let mut any_can_send = false;
     for (_, mut chunk_view, ..) in &mut players {
         chunk_view.refill_quota();
@@ -769,21 +786,72 @@ pub(crate) fn send_column_queue(
     players
         .par_iter()
         .for_each(|(player, chunk_view, sent_view, in_dim, host_anchor)| {
-            let viewer = Viewer {
-                player,
-                host: host_anchor.0,
-                dim: in_dim.entity(),
-                center: sent_view
-                    .0
-                    .map(|view| view.center)
-                    .unwrap_or(SectionPos::new(0, 0, 0)),
-            };
+            let viewer = Viewer::new(player, sent_view, in_dim, host_anchor);
             nearest.scope(|nearest| {
                 picked.scope(|picked| pick_batch(&viewer, chunk_view, nearest, picked));
             });
         });
 
     picked.drain_into(&mut wanted);
+    send_picked(
+        &source,
+        &mut players,
+        &mut wanted,
+        &mut shared,
+        &mut packet_writer,
+        &mut held,
+    );
+}
+
+/// Sends a batch to each player that a column became ready for, from what is left of the
+/// quota of the tick. Between ticks only these players have something new to send.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "a system takes its params as arguments"
+)]
+pub(crate) fn send_ready_columns(
+    mut became_ready: MessageReader<ColumnBecameReady>,
+    mut players: Query<Viewers>,
+    source: ColumnSource,
+    mut packet_writer: MessageWriter<OutboundPlayerPacket>,
+    mut held: MessageWriter<ColumnHeld>,
+    mut ready_for: Local<Vec<Entity>>,
+    mut nearest: Local<Vec<ColumnPos>>,
+    mut wanted: Local<Vec<WantedColumn>>,
+    mut shared: Local<SharedColumns>,
+) {
+    ready_for.extend(became_ready.read().map(|ready| ready.player));
+    ready_for.sort_unstable();
+    ready_for.dedup();
+    for player in ready_for.drain(..) {
+        let Ok((player, chunk_view, sent_view, in_dim, host_anchor)) = players.get(player) else {
+            continue;
+        };
+        let viewer = Viewer::new(player, sent_view, in_dim, host_anchor);
+        pick_batch(&viewer, chunk_view, &mut nearest, &mut wanted);
+    }
+    if wanted.is_empty() {
+        return;
+    }
+    send_picked(
+        &source,
+        &mut players,
+        &mut wanted,
+        &mut shared,
+        &mut packet_writer,
+        &mut held,
+    );
+}
+
+/// Encodes each column of `wanted` once and sends every player its batch, ordered by player.
+fn send_picked(
+    source: &ColumnSource,
+    players: &mut Query<Viewers>,
+    wanted: &mut Vec<WantedColumn>,
+    shared: &mut SharedColumns,
+    packet_writer: &mut MessageWriter<OutboundPlayerPacket>,
+    held: &mut MessageWriter<ColumnHeld>,
+) {
     // One thread picks all of a player's columns in order, so a stable sort keeps each batch
     // in the order it was picked.
     wanted.sort_by_key(|column| column.player);
@@ -791,7 +859,7 @@ pub(crate) fn send_column_queue(
     for column in wanted.iter() {
         shared.want(column.at);
     }
-    encode_shared(&source, &mut shared.columns);
+    encode_shared(source, &mut shared.columns);
 
     for batch in wanted.chunk_by(|left, right| left.player == right.player) {
         let Some(player) = batch.first().map(|column| column.player) else {
@@ -800,14 +868,7 @@ pub(crate) fn send_column_queue(
         let Ok((_, mut chunk_view, ..)) = players.get_mut(player) else {
             continue;
         };
-        send_batch(
-            &source,
-            &shared,
-            &mut chunk_view,
-            batch,
-            &mut packet_writer,
-            &mut held,
-        );
+        send_batch(source, shared, &mut chunk_view, batch, packet_writer, held);
     }
     wanted.clear();
 }
@@ -906,6 +967,25 @@ struct Viewer {
     host: Entity,
     dim: Entity,
     center: SectionPos,
+}
+
+impl Viewer {
+    fn new(
+        player: Entity,
+        sent_view: &SentChunkView,
+        in_dim: &InDimension,
+        host_anchor: &HostAnchor,
+    ) -> Self {
+        Self {
+            player,
+            host: host_anchor.0,
+            dim: in_dim.entity(),
+            center: sent_view
+                .0
+                .map(|view| view.center)
+                .unwrap_or(SectionPos::new(0, 0, 0)),
+        }
+    }
 }
 
 /// Picks the next batch of `viewer`'s ready columns into `picked`, nearest first.
@@ -1217,6 +1297,7 @@ mod tests {
         world.insert_resource(LightGated);
         world.init_resource::<Messages<ColumnAwaitsLight>>();
         world.init_resource::<Messages<ColumnLightSettled>>();
+        world.init_resource::<Messages<ColumnBecameReady>>();
         world.init_resource::<Messages<OutboundPlayerPacket>>();
         world.init_resource::<Messages<ColumnHeld>>();
         world.insert_resource(CurrentRegistries::new(
@@ -1594,9 +1675,34 @@ mod tests {
         }
     }
 
+    /// Between ticks nothing refills the quota and nothing walks every player, so the column
+    /// whose light settles there has to reach the send through its own message.
+    fn a_column_lit_between_ticks_goes_out_in_the_same_drain() {
+        let mut world = World::new();
+        let col = ColumnPos::new(0, 0);
+        let fx = fixture(&mut world, &[col]);
+        let sections = fx.sections[&col].clone();
+        light(&mut world, &sections);
+        let mut chunk_view = world.get_mut::<ColumnView>(fx.player).unwrap();
+        chunk_view.refill_quota();
+        chunk_view.set(col, Some(ColumnState::Lighting));
+
+        world.write_message(ColumnLightSettled(col));
+        world
+            .run_system_once(promote_lit_columns)
+            .expect("the promotion runs");
+        world
+            .run_system_once(send_ready_columns)
+            .expect("the send runs");
+
+        assert_eq!(sent_columns(&mut world), vec![col]);
+        assert!(view(&world, fx.player).holds(col));
+    }
+
     #[test]
     fn a_view_raises_lights_sends_and_releases_its_columns() {
         a_batch_goes_out_nearest_first();
+        a_column_lit_between_ticks_goes_out_in_the_same_drain();
         players_sharing_a_column_share_its_encoding_in_whole_batches();
         a_column_waits_for_the_light_of_every_section_it_carries();
         a_despawned_view_hands_back_its_loading_tickets();
