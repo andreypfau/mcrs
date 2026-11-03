@@ -37,6 +37,7 @@ pub struct PlayerTrackerPlugin;
 impl Plugin for PlayerTrackerPlugin {
     fn build(&self, app: &mut App) {
         app.add_message::<ColumnHeld>();
+        app.init_resource::<mcrs_minecraft_engine_world::session::DimPlayerIndex>();
         app.add_observer(announce_held_columns);
         app.add_observer(withdraw_held_columns);
         app.configure_sets(

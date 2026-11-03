@@ -19,7 +19,9 @@ use mcrs_minecraft_engine::disconnect::{
     drain_pending_disconnects, filter_inflight_for_disconnect,
 };
 use mcrs_minecraft_engine::session::SessionBundle;
-use mcrs_minecraft_engine_world::session::{Place, PlayerSessionCounter, SessionPlacement};
+use mcrs_minecraft_engine_world::session::{
+    Place, PlayerSession, PlayerSessionCounter, SessionPlacement,
+};
 
 fn build_app() -> App {
     let mut app = App::new();
@@ -34,7 +36,7 @@ fn build_app() -> App {
     app
 }
 
-fn insert_player(app: &mut App, host_anchor: Entity, dim: Entity) {
+fn insert_player(app: &mut App, host_anchor: Entity, dim: Entity) -> PlayerSession {
     let session = app
         .world_mut()
         .resource_mut::<PlayerSessionCounter>()
@@ -45,6 +47,7 @@ fn insert_player(app: &mut App, host_anchor: Entity, dim: Entity) {
             session,
             SessionPlacement::new(Place::InDim(dim), 0),
         ));
+    session
 }
 
 #[test]
@@ -53,7 +56,8 @@ fn a_drained_disconnect_drops_its_in_flight_messages_and_the_filter_forgets_it()
     let dim = Entity::from_raw_u32(3).unwrap();
     let host_anchor = app.world_mut().spawn_empty().id();
     let other = app.world_mut().spawn_empty().id();
-    insert_player(&mut app, host_anchor, dim);
+    let session = insert_player(&mut app, host_anchor, dim);
+    let other_session = insert_player(&mut app, other, dim);
     app.world_mut().resource_mut::<DisconnectBudget>().0 = 0;
     assert!(
         app.world_mut()
@@ -76,21 +80,23 @@ fn a_drained_disconnect_drops_its_in_flight_messages_and_the_filter_forgets_it()
     let mut attached = app
         .world_mut()
         .resource_mut::<Messages<OutboundPlayerAttached>>();
-    attached.write(OutboundPlayerAttached { host_anchor });
-    attached.write(OutboundPlayerAttached { host_anchor: other });
+    attached.write(OutboundPlayerAttached { session });
+    attached.write(OutboundPlayerAttached {
+        session: other_session,
+    });
     app.world_mut()
         .run_system_once(filter_inflight_for_disconnect)
         .expect("filter runs");
 
-    let kept: Vec<Entity> = app
+    let kept: Vec<PlayerSession> = app
         .world_mut()
         .resource_mut::<Messages<OutboundPlayerAttached>>()
         .drain()
-        .map(|message| message.host_anchor)
+        .map(|message| message.session)
         .collect();
     assert_eq!(
         kept,
-        [other],
+        [other_session],
         "only the drained anchor's message is dropped"
     );
     assert!(

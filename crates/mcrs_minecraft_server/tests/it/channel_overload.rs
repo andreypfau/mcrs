@@ -10,7 +10,7 @@ use mcrs_minecraft_engine::bus::InboundPlayerPacket;
 use mcrs_minecraft_engine::channel_types::{DimChannelsResource, FromDim, ToDim};
 use mcrs_minecraft_engine::session::{HostAnchorRef, SessionBundle};
 use mcrs_minecraft_engine_world::session::{
-    Place, PlayerSession, PlayerSessionCounter, SessionPlacement,
+    Place, PlayerSession, PlayerSessionCounter, SessionAnchors, SessionPlacement,
 };
 use mcrs_minecraft_engine_world::world::channels::{
     FROM_DIM_CAPACITY, MAX_HELD_SERVERBOUND, TO_DIM_CAPACITY, TO_DIM_CONTROL_CAPACITY,
@@ -22,6 +22,7 @@ fn build_world() -> World {
     world.init_resource::<Messages<InboundPlayerPacket>>();
     world.init_resource::<PlayerSessionCounter>();
     world.init_resource::<DimChannelsResource>();
+    world.init_resource::<SessionAnchors>();
     world
 }
 
@@ -78,9 +79,9 @@ fn run_bridge(world: &mut World) {
     sys.apply_deferred(world);
 }
 
-fn packet(player: Entity, id: i32) -> InboundPlayerPacket {
+fn packet(session: PlayerSession, id: i32) -> InboundPlayerPacket {
     InboundPlayerPacket {
-        player,
+        session,
         id,
         data: Bytes::new(),
         timestamp: std::time::Instant::now(),
@@ -88,7 +89,7 @@ fn packet(player: Entity, id: i32) -> InboundPlayerPacket {
     }
 }
 
-fn fill(world: &World, dim: Entity, player: Entity) {
+fn fill(world: &World, dim: Entity, player: PlayerSession) {
     let channels = world.resource::<DimChannelsResource>();
     let entry = channels.get(dim).expect("dim channel present");
     for i in 0..TO_DIM_CAPACITY {
@@ -121,17 +122,17 @@ fn ids(rx: &flume::Receiver<ToDim>) -> Vec<i32> {
 fn a_full_serverbound_channel_holds_the_packet_until_the_dimension_drains() {
     let mut world = build_world();
     let dim = world.spawn_empty().id();
-    let other = world.spawn_empty().id();
+    let other = PlayerSession(999);
     let (srv_rx, _ctl_rx, _from_tx) = make_channels(&mut world, dim);
     let conn = spawn_connection(&mut world);
     let anchor = world.spawn_empty().id();
     let in_dim = world.spawn_empty().id();
-    register_session(&mut world, conn, anchor, dim, Some(in_dim));
+    let session = register_session(&mut world, conn, anchor, dim, Some(in_dim));
     fill(&world, dim, other);
 
     world
         .resource_mut::<Messages<InboundPlayerPacket>>()
-        .write_batch([packet(anchor, 0xA), packet(anchor, 0xB)]);
+        .write_batch([packet(session, 0xA), packet(session, 0xB)]);
     run_bridge(&mut world);
     run_forward(&mut world);
 
@@ -153,15 +154,15 @@ fn a_full_serverbound_channel_holds_the_packet_until_the_dimension_drains() {
 fn only_the_session_over_its_held_bound_is_disconnected() {
     let mut world = build_world();
     let dim = world.spawn_empty().id();
-    let other = world.spawn_empty().id();
+    let other = PlayerSession(999);
     let (_srv_rx, _ctl_rx, _from_tx) = make_channels(&mut world, dim);
     let flooding_conn = spawn_connection(&mut world);
     let flooding = world.spawn_empty().id();
     let quiet_conn = spawn_connection(&mut world);
     let quiet = world.spawn_empty().id();
     let in_dim = world.spawn_empty().id();
-    register_session(&mut world, flooding_conn, flooding, dim, Some(in_dim));
-    register_session(&mut world, quiet_conn, quiet, dim, Some(in_dim));
+    let flooding = register_session(&mut world, flooding_conn, flooding, dim, Some(in_dim));
+    let quiet = register_session(&mut world, quiet_conn, quiet, dim, Some(in_dim));
     fill(&world, dim, other);
 
     let mut messages = world.resource_mut::<Messages<InboundPlayerPacket>>();

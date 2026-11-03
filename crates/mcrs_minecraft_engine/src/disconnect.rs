@@ -12,7 +12,8 @@
 //! The `filter_inflight_for_disconnect` system runs in `Update` after the
 //! observer flush and drops in-flight bus messages addressed to a just-
 //! disconnected host-anchor — `OutboundPlayerAttached` and any pending
-//! lifecycle spawns/block events.
+//! lifecycle spawns/block events. An attach names a session; one whose
+//! anchor is already gone is dropped too.
 //!
 //! `drain_pending_disconnects` runs in `First` to refill the budget and
 //! process whatever was queued in earlier ticks.
@@ -26,7 +27,7 @@ use bevy_ecs::message::Messages;
 use bevy_ecs::observer::On;
 use bevy_ecs::resource::Resource;
 use bevy_ecs::schedule::IntoScheduleConfigs;
-use bevy_ecs::system::{Commands, Query, ResMut, SystemParam};
+use bevy_ecs::system::{Commands, Query, Res, ResMut, SystemParam};
 use mcrs_minecraft_network::ServerSideConnection;
 use smallvec::SmallVec;
 use std::collections::VecDeque;
@@ -36,7 +37,9 @@ use crate::bus::{OutboundPlayerAttached, OutboundPlayerDisconnect};
 use crate::channel_types::{DimChannelsResource, ToDim};
 use crate::session::GameProfile;
 use crate::session::{HostAnchorRef, SessionConnection};
-use mcrs_minecraft_engine_world::session::{Place, PlayerSession, Session, SessionPlacement};
+use mcrs_minecraft_engine_world::session::{
+    Place, PlayerSession, Session, SessionAnchors, SessionPlacement,
+};
 use mcrs_minecraft_engine_world::world::sub_app::DimDespawnQueue;
 use mcrs_minecraft_protocol::uuid::Uuid;
 
@@ -211,7 +214,7 @@ pub fn process_disconnect(
         return;
     };
 
-    let releasing = despawn_from_dim(host_anchor, session.0, placement.place(), dim_channels);
+    let releasing = despawn_from_dim(session.0, placement.place(), dim_channels);
     if let Some(profile) = profile
         && let Some(dim) = releasing
     {
@@ -236,19 +239,12 @@ pub fn process_disconnect(
 
 /// Routes the player's despawn into its dimension. Returns the dimension when it took it.
 pub fn despawn_from_dim(
-    host_anchor: Entity,
     session: PlayerSession,
     place: Place,
     dim_channels: &mut DimChannelsResource,
 ) -> Option<Entity> {
     place.dim().filter(|&dim| {
-        dim_channels.send_control(
-            dim,
-            ToDim::Despawn(InboundPlayerDespawn {
-                host_anchor,
-                session,
-            }),
-        )
+        dim_channels.send_control(dim, ToDim::Despawn(InboundPlayerDespawn { session }))
     })
 }
 
@@ -286,6 +282,7 @@ pub fn drain_pending_disconnects(
 )]
 pub fn filter_inflight_for_disconnect(
     mut disconnected_this_tick: ResMut<DisconnectedThisTick>,
+    anchors: Res<SessionAnchors>,
     mut attached_msgs: ResMut<Messages<OutboundPlayerAttached>>,
     mut disconnect_msgs: ResMut<Messages<OutboundPlayerDisconnect>>,
 ) {
@@ -300,7 +297,11 @@ pub fn filter_inflight_for_disconnect(
 
     let kept_attached: Vec<OutboundPlayerAttached> = attached_msgs
         .drain()
-        .filter(|msg| !disconnected.contains(&msg.host_anchor))
+        .filter(|msg| {
+            anchors
+                .get(msg.session)
+                .is_some_and(|anchor| !disconnected.contains(&anchor))
+        })
         .collect();
     for msg in kept_attached {
         attached_msgs.write(msg);
@@ -324,6 +325,7 @@ pub struct DisconnectProtocolPlugin;
 impl Plugin for DisconnectProtocolPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<DisconnectBudget>();
+        app.init_resource::<SessionAnchors>();
         app.init_resource::<PendingDisconnectQueue>();
         app.init_resource::<DisconnectedThisTick>();
         app.init_resource::<OverflowCounter>();

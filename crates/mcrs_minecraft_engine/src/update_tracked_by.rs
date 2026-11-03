@@ -25,8 +25,8 @@ use smallvec::SmallVec;
 use crate::bus::{OutboundPlayerPacket, PacketPayload};
 use crate::network_id::network_id;
 use crate::session::GameProfile;
-use crate::session::HostAnchor;
 use crate::tracked_by::TrackedBy;
+use mcrs_minecraft_engine_world::session::Owner;
 
 /// Chunk-column radius for player-to-player tracking. ~5 chunks ≈ 80
 /// blocks; matches vanilla's mob/player track radius before
@@ -50,26 +50,18 @@ pub fn update_tracked_by(
         (Entity, &Transform, &InDimension, &mut TrackedBy),
         (With<Player>, Changed<Transform>),
     >,
-    all_players: Query<
-        (
-            Entity,
-            &Transform,
-            Option<&GameProfile>,
-            Option<&HostAnchor>,
-        ),
-        With<Player>,
-    >,
+    all_players: Query<(Entity, &Transform, Option<&GameProfile>, Option<&Owner>), With<Player>>,
     chunk_observers: Query<&PlayerObservers, (With<Column>, Without<Player>)>,
     column_indices: Query<&ColumnIndex>,
     mut packet_writer: MessageWriter<OutboundPlayerPacket>,
 ) {
     for (player, transform, in_dim, mut tracked_by) in moved_players.iter_mut() {
-        let (uuid, anchor) = all_players
+        let (uuid, owner) = all_players
             .get(player)
-            .map_or((Uuid::nil(), None), |(_, _, profile, anchor)| {
-                (profile.map_or(Uuid::nil(), |profile| profile.id), anchor)
+            .map_or((Uuid::nil(), None), |(_, _, profile, owner)| {
+                (profile.map_or(Uuid::nil(), |profile| profile.id), owner)
             });
-        let wire_id = network_id(player, anchor);
+        let wire_id = network_id(player, owner);
         let Ok(column_index) = column_indices.get(in_dim.0) else {
             continue;
         };
@@ -108,16 +100,16 @@ pub fn update_tracked_by(
             }
         }
 
-        let anchor_of = |viewer: Entity| {
+        let session_of = |viewer: Entity| {
             all_players
                 .get(viewer)
                 .ok()
-                .and_then(|(.., anchor)| anchor)
-                .map(|&HostAnchor(anchor)| anchor)
+                .and_then(|(.., owner)| owner)
+                .map(|&Owner(session)| session)
         };
         for &new_entity in &new_observers {
             if !tracked_by.0.contains(&new_entity)
-                && let Some(viewer) = anchor_of(new_entity)
+                && let Some(viewer) = session_of(new_entity)
             {
                 packet_writer.write(to(
                     viewer,
@@ -137,7 +129,7 @@ pub fn update_tracked_by(
         }
         for &old_entity in tracked_by.0.iter() {
             if !new_observers.contains(&old_entity)
-                && let Some(viewer) = anchor_of(old_entity)
+                && let Some(viewer) = session_of(old_entity)
             {
                 packet_writer.write(to(
                     viewer,

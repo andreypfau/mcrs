@@ -5,7 +5,7 @@ use mcrs_minecraft_command_engine::system_chat;
 use mcrs_minecraft_engine::bus::{self, OutboundPlayerPacket, PacketTarget, to_target};
 use mcrs_minecraft_engine::client_info::{ClientInfo, ClientInfoPlugin};
 use mcrs_minecraft_engine::session::GameProfile;
-use mcrs_minecraft_engine::session::HostAnchor;
+use mcrs_minecraft_engine_world::session::Owner;
 use mcrs_minecraft_network::event::Received;
 use mcrs_minecraft_protocol::setting::ChatMode;
 use mcrs_minecraft_protocol_game::serverbound::ServerboundChat;
@@ -27,13 +27,13 @@ impl Plugin for ChatPlugin {
 
 fn handle_chat(
     event: On<Received<ServerboundChat<'static>>>,
-    sender_query: Query<(&GameProfile, Option<&ClientInfo>, &HostAnchor)>,
+    sender_query: Query<(&GameProfile, Option<&ClientInfo>, &Owner)>,
     mut packet_writer: MessageWriter<OutboundPlayerPacket>,
 ) {
     let Some(pkt) = event.packet() else {
         return;
     };
-    let Ok((profile, info, host_anchor)) = sender_query.get(event.entity) else {
+    let Ok((profile, info, owner)) = sender_query.get(event.entity) else {
         return;
     };
     let msg = pkt.message;
@@ -48,7 +48,7 @@ fn handle_chat(
     if info.is_some_and(|info| info.chat_mode == ChatMode::Hidden) {
         let disabled: Text = Text::translate("chat.disabled.options", vec![]).color(Color::RED);
         if let Ok(disabled) = RawText::from_text(&disabled) {
-            packet_writer.write(bus::to(host_anchor.0, system_chat(disabled)));
+            packet_writer.write(bus::to(owner.0, system_chat(disabled)));
         }
         return;
     }

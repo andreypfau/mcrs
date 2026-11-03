@@ -15,6 +15,7 @@ use mcrs_minecraft_engine::bus::{OutboundPlayerPacket, PacketPayload, PacketTarg
 use mcrs_minecraft_engine::tracked_by::TrackedBy;
 use mcrs_minecraft_engine_world::aoi::PlayerObservers;
 use mcrs_minecraft_engine_world::entity::physics::Transform;
+use mcrs_minecraft_engine_world::session::PlayerSession;
 use mcrs_minecraft_engine_world::world::dimension::{
     DimensionBundle, DimensionTypeConfig, InDimension,
 };
@@ -23,7 +24,7 @@ use mcrs_voxel::ColumnPos;
 
 use crate::harness;
 use harness::{
-    drive_aoi_tick, make_aoi_app, spawn_player_in_dim, spawn_player_in_dim_with_host_anchor,
+    drive_aoi_tick, make_aoi_app, spawn_player_in_dim, spawn_player_in_dim_with_session,
 };
 
 #[test]
@@ -147,7 +148,7 @@ fn nudge(app: &mut App, player: Entity) {
 }
 
 #[test]
-fn a_player_entering_the_view_is_sent_to_the_host_anchor_of_each_viewer() {
+fn a_player_entering_the_view_is_sent_to_the_session_of_each_viewer() {
     let mut app = make_aoi_app();
     let dim = app
         .world_mut()
@@ -156,12 +157,10 @@ fn a_player_entering_the_view_is_sent_to_the_host_anchor_of_each_viewer() {
             DimensionTypeConfig::new(-64, 384),
         ))
         .id();
-    let a_anchor = app.world_mut().spawn_empty().id();
-    let b_anchor = app.world_mut().spawn_empty().id();
-    let a =
-        spawn_player_in_dim_with_host_anchor(&mut app, dim, DVec3::new(0.0, 64.0, 0.0), a_anchor);
-    let b =
-        spawn_player_in_dim_with_host_anchor(&mut app, dim, DVec3::new(40.0, 64.0, 0.0), b_anchor);
+    let a_session = PlayerSession(1);
+    let b_session = PlayerSession(2);
+    let a = spawn_player_in_dim_with_session(&mut app, dim, DVec3::new(0.0, 64.0, 0.0), a_session);
+    let b = spawn_player_in_dim_with_session(&mut app, dim, DVec3::new(40.0, 64.0, 0.0), b_session);
     seed_column_grid(&mut app, dim, ColumnPos::new(0, 0), 20);
 
     drive_aoi_tick(&mut app);
@@ -169,7 +168,7 @@ fn a_player_entering_the_view_is_sent_to_the_host_anchor_of_each_viewer() {
     nudge(&mut app, b);
     drive_aoi_tick(&mut app);
 
-    let mut entered: Vec<Entity> = app
+    let mut entered: Vec<PlayerSession> = app
         .world_mut()
         .resource_mut::<Messages<OutboundPlayerPacket>>()
         .drain()
@@ -179,8 +178,6 @@ fn a_player_entering_the_view_is_sent_to_the_host_anchor_of_each_viewer() {
             other => panic!("a view change goes to one player, not {other:?}"),
         })
         .collect();
-    entered.sort();
-    let mut anchors = vec![a_anchor, b_anchor];
-    anchors.sort();
-    assert_eq!(entered, anchors);
+    entered.sort_by_key(|session| session.0);
+    assert_eq!(entered, vec![a_session, b_session]);
 }

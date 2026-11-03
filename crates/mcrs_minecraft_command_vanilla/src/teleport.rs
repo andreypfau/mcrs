@@ -19,6 +19,7 @@ use mcrs_minecraft_engine::dimension_change::Arrival;
 use mcrs_minecraft_engine::network_id;
 use mcrs_minecraft_engine::teleport::{MAX_XZ, MAX_Y, TeleportState};
 use mcrs_minecraft_engine_world::entity::physics::{Rotation, Transform};
+use mcrs_minecraft_engine_world::session::PlayerSession;
 use mcrs_minecraft_entity::PLAYER_EYE_HEIGHT;
 use mcrs_minecraft_protocol::VarInt;
 use mcrs_minecraft_protocol_game::clientbound::{ClientboundPlayerLookAt, LookAtEntity};
@@ -48,20 +49,20 @@ pub struct Teleport {
 pub enum Facing {
     /// A fixed position.
     Position(DVec3),
-    /// The player with this host anchor, at its feet or its eyes, read after each move.
+    /// The player of this session, at its feet or its eyes, read after each move.
     Player {
-        /// The host anchor of the player.
-        anchor: Entity,
+        /// The session of the player.
+        player: PlayerSession,
         /// The part of the player to face.
         at: LookAnchor,
     },
 }
 
-/// The command effect that moves the player with the host anchor `player`, in any dimension.
+/// The command effect that moves the player of the session `player`, in any dimension.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct TeleportPlayer {
-    /// The host anchor of the victim.
-    pub player: Entity,
+    /// The session of the victim.
+    pub player: PlayerSession,
     /// Where the victim goes.
     pub to: Teleport,
 }
@@ -240,7 +241,7 @@ fn destination(
                 context.arg(&call.invocation, command.target_location)?,
                 None,
                 Some(Facing::Player {
-                    anchor: entity.anchor,
+                    player: entity.session,
                     at,
                 }),
             )
@@ -317,7 +318,7 @@ pub(crate) fn run(
             output.effect(
                 &mut teleports,
                 TeleportPlayer {
-                    player: victim.anchor,
+                    player: victim.session,
                     to: destination.to,
                 },
             );
@@ -367,22 +368,22 @@ fn success_message(first: &PlayerEntry, moved: usize, destination: Destination) 
 /// before it. A victim that faces itself faces its destination `at`.
 fn facing(
     worlds: &Worlds,
-    victim: Entity,
+    victim: PlayerSession,
     at: DVec3,
     facing: Facing,
 ) -> Option<(DVec3, Option<LookAtEntity>)> {
     match facing {
         Facing::Position(position) => Some((position, None)),
-        Facing::Player { anchor, at: part } => {
-            let position = if anchor == victim {
+        Facing::Player { player, at: part } => {
+            let position = if player == victim {
                 at
             } else {
-                worlds.targets().player(anchor)?.transform.translation
+                worlds.targets().player(player)?.transform.translation
             };
             Some((
                 mcrs_minecraft_command::anchored(part, position, PLAYER_EYE_HEIGHT),
                 Some(LookAtEntity {
-                    id: VarInt(network_id::player_network_id(anchor)),
+                    id: VarInt(network_id::player_network_id(player)),
                     anchor: part,
                 }),
             ))

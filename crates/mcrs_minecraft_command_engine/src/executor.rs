@@ -16,13 +16,13 @@ use crate::source_state::SourceState;
 use crate::system_message::system_message;
 use crate::worlds::Worlds;
 use bevy_ecs::component::Mutable;
-use bevy_ecs::entity::Entity;
 use bevy_ecs::prelude::In;
 use bevy_ecs::resource::Resource;
 use bevy_ecs::system::SystemId;
 use bevy_ecs::world::World;
 use mcrs_command::{End, Executor, Failure, Limits, SourceLists, Stage};
 use mcrs_minecraft_engine::dim;
+use mcrs_minecraft_engine_world::session::PlayerSession;
 use mcrs_minecraft_text::Text;
 
 /// The run of one command line. The line parses, and each stage call runs, in the world of the
@@ -35,7 +35,7 @@ pub(crate) struct PassExecutor<'a, 'w, S: CommandSet> {
     pub(crate) targets: &'a mut CommandTargets,
     pub(crate) running: &'a mut RunningCommand,
     pub(crate) outbox: &'a mut CommandOutbox,
-    pub(crate) output: Entity,
+    pub(crate) output: PlayerSession,
 }
 
 /// Swaps the values of the host and of `world`; a second swap gives them back.

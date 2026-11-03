@@ -7,22 +7,20 @@ use crate::bus::{
 
 /// Host→dim message channel type.
 ///
-/// Carries all traffic from the host (MainWorld) into a dimension world.
+/// Carries all traffic from the host (MainWorld) into a dimension world. A player is named by
+/// its `PlayerSession`, never by an entity of either world, so the two sides could run in
+/// different processes.
 /// `Serverbound` is the sole sheddable class; the control variants `Spawn` and
 /// `Despawn` are never shed.
 #[derive(Clone, Debug)]
 pub enum ToDim {
-    /// A packet arriving from the network, routed to this dim.
-    /// `player` is the host-anchor `Entity`. Sheddable: loss is recoverable
+    /// A packet arriving from the network, routed to this dim. Sheddable: loss is recoverable
     /// like ordinary network packet loss.
     Serverbound(InboundPlayerPacket),
     /// Spawn a player into this dim (default-reset components; no faithful snapshot).
     Spawn(InboundPlayerSpawn),
     /// The host signals that a player disconnected. The dim should despawn the
-    /// player's in-dim entity.
-    /// `session` carries the real `PlayerSession` so the dim can evict the
-    /// matching `DimPlayerIndex` entry; the entity despawn itself keys off
-    /// `host_anchor`.
+    /// player's in-dim entity, which it finds through its `DimPlayerIndex`.
     Despawn(InboundPlayerDespawn),
 }
 

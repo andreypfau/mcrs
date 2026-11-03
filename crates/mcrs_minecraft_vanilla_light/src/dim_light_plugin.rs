@@ -10,7 +10,7 @@ use mcrs_minecraft_engine_world::block_update::BlockPlaced;
 use mcrs_minecraft_engine_world::entity::physics::Transform;
 use mcrs_minecraft_engine_world::entity::player::Player;
 use mcrs_minecraft_engine_world::palette::ChunkBlocks;
-use mcrs_minecraft_engine_world::session::PlayerSession;
+use mcrs_minecraft_engine_world::session::{Owner, PlayerSession};
 use mcrs_minecraft_engine_world::tick::TickSet;
 use mcrs_minecraft_engine_world::world::column_drain::{ColumnDrain, ColumnDrainSet};
 use mcrs_minecraft_engine_world::world::dimension::InDimension;
@@ -35,7 +35,6 @@ use smallvec::SmallVec;
 use mcrs_minecraft_engine::bus::{
     OutboundPlayerPacket, PacketPayload, PacketPriority, PacketTarget,
 };
-use mcrs_minecraft_engine::session::HostAnchor;
 
 /// A dimension's side of the light engine: what it hands the light actor before intake, and
 /// what it sends once the actor's light has been published.
@@ -205,7 +204,7 @@ pub fn emit_light_updates(
     sections: Query<(&SectionPos, &InDimension)>,
     column_indices: Query<&ColumnIndex>,
     observers: Query<&PlayerObservers>,
-    anchors: Query<&HostAnchor>,
+    owners: Query<&Owner>,
     codec_params: LightCodecParams,
     mut packet_writer: MessageWriter<OutboundPlayerPacket>,
     mut by_column: Local<FxHashMap<(Entity, ColumnPos), (Vec<Entity>, Vec<Entity>)>>,
@@ -233,15 +232,12 @@ pub fn emit_light_updates(
         else {
             continue;
         };
-        // The anchor, not the dimension world's player entity: the session
-        // registry is keyed by anchor, and a target it cannot resolve is
-        // dropped without a trace.
-        let targets: SmallVec<[Entity; 8]> = observers
+        let targets: SmallVec<[PlayerSession; 8]> = observers
             .get(column_entity)
             .map(|held| {
                 held.0
                     .iter()
-                    .filter_map(|player| anchors.get(*player).ok().map(|anchor| anchor.0))
+                    .filter_map(|player| owners.get(*player).ok().map(|owner| owner.0))
                     .collect()
             })
             .unwrap_or_default();

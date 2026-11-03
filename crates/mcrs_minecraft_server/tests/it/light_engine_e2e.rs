@@ -8,12 +8,12 @@ use mcrs_minecraft_engine::bus::{
 };
 use mcrs_minecraft_engine::column_view::ColumnView;
 use mcrs_minecraft_engine::dim::DimSubAppHandle;
-use mcrs_minecraft_engine::session::HostAnchor;
 use mcrs_minecraft_engine::sub_app_builder::drain_dim_spawn_queue;
 use mcrs_minecraft_engine_world::block_update::BlockPlaced;
 use mcrs_minecraft_engine_world::entity::physics::Transform;
 use mcrs_minecraft_engine_world::entity::player::Player;
 use mcrs_minecraft_engine_world::palette::{ChunkBlocks, SectionStates};
+use mcrs_minecraft_engine_world::session::{Owner, PlayerSession};
 use mcrs_minecraft_engine_world::world::dimension::{DimensionTypeConfig, InDimension};
 use mcrs_minecraft_engine_world::world::lifecycle::stage::{SectionStage, SectionStageChanged};
 use mcrs_minecraft_engine_world::world::storage::column::ColumnIndex;
@@ -246,10 +246,9 @@ fn nibble(
 /// Light one column, give it a viewing player that has (or has not) already
 /// received it, then place a torch and collect what the emitter sent.
 ///
-/// Returns the player's host anchor, because that is how the bus addresses a
-/// player: the session registry is keyed by anchor, and the dimension world's
-/// own player entity resolves to nothing there.
-fn torch_delta(already_sent: bool) -> (Vec<OutboundPlayerPacket>, Entity) {
+/// Returns the player's session, because that is how the bus addresses a
+/// player: the dimension world's own player entity resolves to nothing on the host.
+fn torch_delta(already_sent: bool) -> (Vec<OutboundPlayerPacket>, PlayerSession) {
     let (mut app, label) = spawn_dimension("minecraft:overworld", "minecraft:overworld");
     let sub_app = app
         .sub_apps_mut()
@@ -267,7 +266,7 @@ fn torch_delta(already_sent: bool) -> (Vec<OutboundPlayerPacket>, Entity) {
         .sub_apps
         .get_mut(&label.intern())
         .expect("the dimension sub-app exists");
-    let anchor = app.world_mut().spawn_empty().id();
+    let session = PlayerSession(1);
     let sub_app = app
         .sub_apps_mut()
         .sub_apps
@@ -284,7 +283,7 @@ fn torch_delta(already_sent: bool) -> (Vec<OutboundPlayerPacket>, Entity) {
     } else {
         ColumnView::default()
     };
-    world.spawn((Player, view, HostAnchor(anchor), InDimension(dimension)));
+    world.spawn((Player, view, Owner(session), InDimension(dimension)));
     world.resource_mut::<CapturedLightUpdates>().0.clear();
 
     place_torch(&mut app, label, torch_at());
@@ -298,18 +297,18 @@ fn torch_delta(already_sent: bool) -> (Vec<OutboundPlayerPacket>, Entity) {
         .resource::<CapturedLightUpdates>()
         .0
         .clone();
-    (captured, anchor)
+    (captured, session)
 }
 
 /// A player that holds the column is sent every correction to its light, standing
 /// still or not.
 fn a_torch_sends_one_delta_carrying_only_the_rows_it_changed() {
-    let (captured, anchor) = torch_delta(true);
+    let (captured, session) = torch_delta(true);
 
     assert_eq!(captured.len(), 1, "one packet for one column");
     let packet = &captured[0];
     match &packet.target {
-        PacketTarget::PlayerSet(set) => assert_eq!(set.as_slice(), [anchor]),
+        PacketTarget::PlayerSet(set) => assert_eq!(set.as_slice(), [session]),
         other => panic!("expected a player set, got {other:?}"),
     }
     assert_eq!(

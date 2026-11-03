@@ -20,7 +20,7 @@ use rustc_hash::FxHashMap;
 use crate::harness;
 use harness::{
     columns_in_view, drive_aoi_tick, make_aoi_app, spawn_player_in_dim,
-    spawn_player_in_dim_with_host_anchor,
+    spawn_player_in_dim_with_session,
 };
 
 fn dimension(app: &mut App) -> Entity {
@@ -65,10 +65,9 @@ fn assert_mirror_invariant(app: &App, player: Entity, columns: &FxHashMap<Column
 fn a_column_lists_exactly_the_players_that_hold_it() {
     let mut app = make_aoi_app();
     let dim = dimension(&mut app);
-    let first_anchor = app.world_mut().spawn_empty().id();
-    let second_anchor = app.world_mut().spawn_empty().id();
-    let first = spawn_player_in_dim_with_host_anchor(&mut app, dim, origin(), first_anchor);
-    let second = spawn_player_in_dim_with_host_anchor(&mut app, dim, origin(), second_anchor);
+    let first_session = PlayerSession(1);
+    let first = spawn_player_in_dim_with_session(&mut app, dim, origin(), first_session);
+    let second = spawn_player_in_dim_with_session(&mut app, dim, origin(), PlayerSession(2));
     let columns = seed_column_grid(&mut app, dim, ColumnPos::new(0, 0), 20);
 
     drive_aoi_tick(&mut app);
@@ -109,8 +108,7 @@ fn a_column_lists_exactly_the_players_that_hold_it() {
     app.world_mut()
         .resource_mut::<Messages<InboundPlayerDespawn>>()
         .write(InboundPlayerDespawn {
-            host_anchor: first_anchor,
-            session: PlayerSession(0),
+            session: first_session,
         });
     drive_aoi_tick(&mut app);
 

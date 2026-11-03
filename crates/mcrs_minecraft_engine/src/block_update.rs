@@ -19,7 +19,6 @@ use mcrs_minecraft_engine_world::aoi::PlayerObservers;
 use mcrs_minecraft_engine_world::block_update::BlockPlaced;
 use mcrs_minecraft_engine_world::entity::player::Player;
 use mcrs_minecraft_engine_world::palette::ChunkBlocks;
-use mcrs_minecraft_engine_world::session::PlayerSession;
 use mcrs_minecraft_engine_world::voxel_update::VoxelUpdateSet;
 use mcrs_minecraft_engine_world::world::dimension::InDimension;
 use mcrs_minecraft_engine_world::world::storage::column::ColumnIndex;
@@ -36,7 +35,7 @@ use smallvec::SmallVec;
 pub use mcrs_minecraft_engine_world::block_update::BlockUpdatePlugin;
 
 use crate::bus::{OutboundPlayerPacket, PacketPayload, PacketPriority, PacketTarget};
-use crate::session::HostAnchor;
+use mcrs_minecraft_engine_world::session::{Owner, PlayerSession};
 
 /// Per-dim wire emitter. Reads the blocks placed this tick that notify
 /// clients, resolves the observer set through the section's column
@@ -63,7 +62,7 @@ pub fn update_client_blocks_per_dim(
     column_indices: Query<&ColumnIndex>,
     observers: Query<&PlayerObservers>,
     live_players: Query<Entity, With<Player>>,
-    anchors: Query<&HostAnchor>,
+    owners: Query<&Owner>,
     mut packet_writer: MessageWriter<OutboundPlayerPacket>,
     mut changed: Local<FxHashMap<Entity, (SectionPos, FxHashSet<BlockPos>)>>,
 ) {
@@ -93,12 +92,9 @@ pub fn update_client_blocks_per_dim(
 
         crate::drain_player_despawn::retain_live_observers(&mut observer_entities, &live_players);
 
-        // The anchor, not the dimension world's player entity: the session
-        // registry is keyed by anchor, and a target it cannot resolve is
-        // dropped without a trace.
-        let targets: SmallVec<[Entity; 8]> = observer_entities
+        let targets: SmallVec<[PlayerSession; 8]> = observer_entities
             .iter()
-            .filter_map(|observer| anchors.get(*observer).ok().map(|anchor| anchor.0))
+            .filter_map(|observer| owners.get(*observer).ok().map(|owner| owner.0))
             .collect();
 
         if targets.is_empty() {

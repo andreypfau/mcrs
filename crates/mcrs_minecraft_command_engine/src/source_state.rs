@@ -7,6 +7,7 @@ use mcrs_minecraft_core::{Look, LookAnchor};
 use mcrs_minecraft_engine::ability::{PlayerGameMode, PlayerOpLevel};
 use mcrs_minecraft_engine_world::entity::physics::Transform;
 use mcrs_minecraft_engine_world::entity::player::Player;
+use mcrs_minecraft_engine_world::session::PlayerSession;
 use mcrs_minecraft_game_mode::GameMode;
 
 /// One source of a command: who runs it, in which dimension, where, facing where, with which
@@ -16,9 +17,9 @@ use mcrs_minecraft_game_mode::GameMode;
 pub struct SourceState {
     /// The permission level of the source.
     pub level: CommandLevel,
-    /// The host anchor of the player the source holds, which names the player in every
+    /// The session of the player the source holds, which names the player in every
     /// dimension, so the source keeps it when the player changes dimension.
-    pub entity: Option<Entity>,
+    pub player: Option<PlayerSession>,
     /// The label of the source dimension. The source entity can be in another one.
     pub dimension: Entity,
     /// The position of the source, at its feet.
@@ -32,10 +33,10 @@ pub struct SourceState {
 }
 
 impl SourceState {
-    /// The source of the player with the host anchor `anchor`, at its transform in the
+    /// The source of the player of the session `player`, at its transform in the
     /// dimension labelled `dimension`, at its feet.
     pub fn of_player(
-        anchor: Entity,
+        player: PlayerSession,
         dimension: Entity,
         level: CommandLevel,
         transform: &Transform,
@@ -43,7 +44,7 @@ impl SourceState {
         let Look { yaw, pitch } = transform.rotation.into();
         Self {
             level,
-            entity: Some(anchor),
+            player: Some(player),
             dimension,
             position: transform.translation,
             yaw,
@@ -71,12 +72,12 @@ pub fn level_of(op_level: PlayerOpLevel) -> CommandLevel {
 pub(crate) type PlayerLevels<'w, 's> =
     Query<'w, 's, (&'static PlayerOpLevel, &'static PlayerGameMode), With<Player>>;
 
-/// The source of the player with the host anchor `player`, from its entry in the targets and its
+/// The source of the player of the session `player`, from its entry in the targets and its
 /// level in this world.
 pub(crate) fn player_source(
     targets: &CommandTargets,
     levels: &PlayerLevels,
-    player: Entity,
+    player: PlayerSession,
 ) -> Option<(SourceState, GameMode)> {
     let entry = targets.player(player)?;
     let dimension = targets.label_of(entry.dimension)?;

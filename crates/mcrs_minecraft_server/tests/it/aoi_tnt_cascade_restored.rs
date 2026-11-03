@@ -18,11 +18,11 @@ use bevy_app::{App, FixedPostUpdate, FixedUpdate};
 use bevy_ecs::message::Messages;
 use mcrs_minecraft_engine::block_update::{BlockUpdatePlugin, BlockUpdateWirePlugin};
 use mcrs_minecraft_engine::bus::{OutboundPlayerPacket, PacketPayload};
-use mcrs_minecraft_engine::session::HostAnchor;
 use mcrs_minecraft_engine_world::aoi::PlayerObservers;
 use mcrs_minecraft_engine_world::block_update::{BlockPlaced, BlockSetRequest};
 use mcrs_minecraft_engine_world::entity::player::Player;
 use mcrs_minecraft_engine_world::palette::air_section;
+use mcrs_minecraft_engine_world::session::{Owner, PlayerSession};
 use mcrs_minecraft_engine_world::world::dimension::{DimensionTypeConfig, InDimension};
 use mcrs_minecraft_engine_world::world::storage::column::{ColumnIndex, ColumnSlot};
 use mcrs_minecraft_engine_world::world::storage::section::SectionIndex;
@@ -50,10 +50,10 @@ fn tnt_cascade_propagates_through_block_update_per_dim() {
 
     // The player must carry the Player Component so the liveness filter in
     // update_client_blocks_per_dim passes it through.
-    // The anchor is what the bus addresses; without it the emit resolves no
+    // The session is what the bus addresses; without it the emit resolves no
     // recipient and the cascade would look silent for the wrong reason.
-    let anchor = app.world_mut().spawn_empty().id();
-    let player = app.world_mut().spawn((Player, HostAnchor(anchor))).id();
+    let session = PlayerSession(1);
+    let player = app.world_mut().spawn((Player, Owner(session))).id();
     let mut observers = PlayerObservers::default();
     observers.0.push(player);
     let column_entity = app.world_mut().spawn(observers).id();

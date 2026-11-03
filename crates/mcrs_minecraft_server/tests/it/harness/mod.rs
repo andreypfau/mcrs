@@ -13,11 +13,11 @@ use bevy_math::DVec3;
 use mcrs_minecraft_engine::bus::{InboundPlayerDespawn, OutboundPlayerPacket};
 use mcrs_minecraft_engine::column_view::ColumnView;
 use mcrs_minecraft_engine::player_tracker::PlayerTrackerPlugin;
-use mcrs_minecraft_engine::session::HostAnchor;
 use mcrs_minecraft_engine::tracked_by::TrackedBy;
 use mcrs_minecraft_engine_world::entity::physics::Transform;
 use mcrs_minecraft_engine_world::entity::player::Player;
 use mcrs_minecraft_engine_world::entity::player::chunk_view::PlayerViewDistance;
+use mcrs_minecraft_engine_world::session::{Owner, PlayerSession};
 use mcrs_minecraft_engine_world::world::dimension::InDimension;
 use mcrs_voxel::ColumnPos;
 
@@ -70,15 +70,15 @@ pub fn spawn_player_in_dim(app: &mut App, dim: Entity, pos: DVec3) -> Entity {
         .id()
 }
 
-/// Spawn a player entity that also carries `HostAnchor(host_anchor)`.
+/// Spawn a player entity that also carries `Owner(session)`.
 /// Used for tests that exercise the cross-world drain path, where the
-/// drain system resolves host_anchor → in-dim Player via HostAnchor —
-/// the same component production attaches in `consume_inbound_player_spawn`.
-pub fn spawn_player_in_dim_with_host_anchor(
+/// drain system resolves the session → in-dim Player through the `DimPlayerIndex` that
+/// `Owner` keeps — the same component production attaches in `consume_inbound_player_spawn`.
+pub fn spawn_player_in_dim_with_session(
     app: &mut App,
     dim: Entity,
     pos: DVec3,
-    host_anchor: Entity,
+    session: PlayerSession,
 ) -> Entity {
     app.world_mut()
         .spawn((
@@ -88,7 +88,7 @@ pub fn spawn_player_in_dim_with_host_anchor(
             ColumnView::holding(columns_in_view(pos)),
             TrackedBy::default(),
             InDimension(dim),
-            HostAnchor(host_anchor),
+            Owner(session),
         ))
         .id()
 }

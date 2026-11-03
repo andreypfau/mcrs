@@ -68,7 +68,7 @@ use crate::bus::{InboundPlayerPacket, OutboundPlayerAttached, OutboundPlayerPack
 use crate::bus::{PacketPayload, PacketTarget};
 use crate::channel_types::{DimChannelsResource, ToDim};
 use crate::session::{HostAnchorRef, PendingInbound, SessionConnection};
-use mcrs_minecraft_engine_world::session::{Place, Session, SessionPlacement};
+use mcrs_minecraft_engine_world::session::{Place, Session, SessionAnchors, SessionPlacement};
 use mcrs_minecraft_engine_world::world::channels::MAX_HELD_SERVERBOUND;
 
 /// Attach `OutboundQueue` to any connection entity that carries
@@ -107,6 +107,7 @@ pub fn attach_outbound_queue(
 /// any residual spawn→attach race stays observable.
 pub fn bridge_outbound(
     mut reader: MessageReader<OutboundPlayerPacket>,
+    anchors: Res<SessionAnchors>,
     sessions: Query<(&Session, &SessionPlacement, Option<&SessionConnection>)>,
     mut queues: Query<&mut OutboundQueue>,
     mut telemetry: ResMut<BridgeTelemetry>,
@@ -116,10 +117,13 @@ pub fn bridge_outbound(
         telemetry.outbound_messages_consumed_total += 1;
 
         match &msg.target {
-            PacketTarget::SinglePlayer(anchor) => {
+            PacketTarget::SinglePlayer(target) => {
                 // Session + epoch stamped at the dim boundary. PlayerSession(0) is
                 // no session's id, so unstamped packets are dropped here.
-                let Ok((session, placement, connection)) = sessions.get(*anchor) else {
+                let Some(anchor) = anchors.get(*target) else {
+                    continue;
+                };
+                let Ok((session, placement, connection)) = sessions.get(anchor) else {
                     continue;
                 };
                 if session.0 != msg.session || msg.epoch != placement.epoch() {
@@ -170,8 +174,10 @@ pub fn bridge_outbound(
                 // Not epoch-filtered — see AllInDim above. The recipient set is
                 // the current observer set computed this tick; each member must
                 // receive it at whatever epoch they currently hold.
-                for anchor in set.iter() {
-                    if let Ok((_, _, connection)) = sessions.get(*anchor) {
+                for &target in set.iter() {
+                    if let Some(anchor) = anchors.get(target)
+                        && let Ok((_, _, connection)) = sessions.get(anchor)
+                    {
                         push_to_connection(
                             &mut queues,
                             &mut telemetry,
@@ -420,6 +426,7 @@ fn append_payload(raw: &mut RawConnection, data: PacketPayload) -> anyhow::Resul
 /// [`MAX_HELD_SERVERBOUND`] packets is disconnected.
 pub fn bridge_inbound_to_channel(
     mut msgs: ResMut<Messages<InboundPlayerPacket>>,
+    anchors: Res<SessionAnchors>,
     mut sessions: Query<(
         &SessionPlacement,
         &mut PendingInbound,
@@ -429,7 +436,10 @@ pub fn bridge_inbound_to_channel(
     mut commands: Commands,
 ) {
     for msg in msgs.drain() {
-        let Ok((placement, mut pending, connection)) = sessions.get_mut(msg.player) else {
+        let Some(anchor) = anchors.get(msg.session) else {
+            continue;
+        };
+        let Ok((placement, mut pending, connection)) = sessions.get_mut(anchor) else {
             continue;
         };
         if let (Some(trigger), Some(connection)) = (msg.trigger, connection) {
@@ -482,10 +492,14 @@ fn route_serverbound(
 /// A dimension that has spawned a player attaches its session.
 pub fn bridge_player_attach(
     mut attach_msgs: ResMut<Messages<OutboundPlayerAttached>>,
+    anchors: Res<SessionAnchors>,
     mut placements: Query<&mut SessionPlacement>,
 ) {
     for msg in attach_msgs.drain() {
-        let Ok(mut placement) = placements.get_mut(msg.host_anchor) else {
+        let Some(anchor) = anchors.get(msg.session) else {
+            continue;
+        };
+        let Ok(mut placement) = placements.get_mut(anchor) else {
             continue;
         };
         if let Place::Joining(dim) = placement.place() {
@@ -533,7 +547,7 @@ pub fn bridge_inbound(
         &ConnectionState,
     )>,
     mut commands: Commands,
-    mut sessions: Query<(&SessionPlacement, &mut PendingInbound)>,
+    mut sessions: Query<(&Session, &SessionPlacement, &mut PendingInbound)>,
     dim_channels: Res<DimChannelsResource>,
     mut telemetry: ResMut<BridgeTelemetry>,
     mut dispatcher: ResMut<PacketDispatcher>,
@@ -576,13 +590,14 @@ pub fn bridge_inbound(
                     // A row without a structure has no observer in the dimension either.
                     if trigger.is_some()
                         && let Some(&HostAnchorRef(anchor)) = anchor_ref
-                        && let Ok((placement, mut pending)) = sessions.get_mut(anchor)
+                        && let Ok((&Session(session), placement, mut pending)) =
+                            sessions.get_mut(anchor)
                         && !route_serverbound(
                             placement,
                             &mut pending,
                             &dim_channels,
                             InboundPlayerPacket {
-                                player: anchor,
+                                session,
                                 id: pkt.id,
                                 data: pkt.payload,
                                 timestamp: pkt.timestamp,
@@ -645,12 +660,13 @@ mod tests {
         world.init_resource::<Messages<OutboundPlayerAttached>>();
         world.init_resource::<Messages<InboundPlayerPacket>>();
         world.init_resource::<DimChannelsResource>();
+        world.init_resource::<SessionAnchors>();
         world
     }
 
-    fn packet(player: Entity, id: i32) -> InboundPlayerPacket {
+    fn packet(session: PlayerSession, id: i32) -> InboundPlayerPacket {
         InboundPlayerPacket {
-            player,
+            session,
             id,
             data: Bytes::new(),
             timestamp: std::time::Instant::now(),
@@ -682,11 +698,13 @@ mod tests {
             .get_mut::<PendingInbound>(host_anchor)
             .unwrap()
             .0
-            .extend((0..3).map(|seq| packet(host_anchor, seq)));
+            .extend((0..3).map(|seq| packet(PlayerSession(3), seq)));
 
         world
             .resource_mut::<Messages<OutboundPlayerAttached>>()
-            .write(OutboundPlayerAttached { host_anchor });
+            .write(OutboundPlayerAttached {
+                session: PlayerSession(3),
+            });
         run(&mut world, bridge_player_attach);
         run(&mut world, forward_pending_inbound);
 
@@ -723,11 +741,11 @@ mod tests {
             .get_mut::<PendingInbound>(host_anchor)
             .unwrap()
             .0
-            .push(packet(host_anchor, 0));
+            .push(packet(PlayerSession(4), 0));
 
         world
             .resource_mut::<Messages<InboundPlayerPacket>>()
-            .write(packet(host_anchor, 1));
+            .write(packet(PlayerSession(4), 1));
         run(&mut world, bridge_inbound_to_channel);
         assert!(ids(&srv_rx).is_empty(), "nothing overtakes a held packet");
 
@@ -736,17 +754,16 @@ mod tests {
     }
 
     #[test]
-    fn bridge_player_attach_idempotent_on_unknown_host_anchor() {
+    fn bridge_player_attach_idempotent_on_unknown_session() {
         let mut world = world();
-        let unknown = Entity::from_raw_u32(999).expect("nonzero");
 
         world
             .resource_mut::<Messages<OutboundPlayerAttached>>()
             .write(OutboundPlayerAttached {
-                host_anchor: unknown,
+                session: PlayerSession(999),
             });
 
         run(&mut world, bridge_player_attach);
-        // No panic — idempotent on unknown anchor
+        // No panic — idempotent on unknown session
     }
 }

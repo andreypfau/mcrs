@@ -9,7 +9,6 @@ use crate::dimension_order::{DimensionWorld, in_dimension_order};
 use crate::enter_level_packets::enter_level_packets;
 use crate::game_mode;
 use crate::minecraft_entity::EntityBundle;
-use crate::session::HostAnchor;
 use crate::sub_app_builder::FromDimBacklog;
 use crate::teleport::TeleportState;
 use crate::tracked_by::TrackedBy;
@@ -23,7 +22,9 @@ use bevy_ecs::world::{EntityRef, EntityWorldMut, World};
 use mcrs_minecraft_dimension::{Dimension as DimensionKey, DimensionType};
 use mcrs_minecraft_engine_world::entity::EntityUuid;
 use mcrs_minecraft_engine_world::entity::player::{ChangeDimensionRequest, Player};
-use mcrs_minecraft_engine_world::session::{DimPlayerIndex, Owner, Place, SessionPlacement};
+use mcrs_minecraft_engine_world::session::{
+    Owner, Place, PlayerSession, SessionAnchors, SessionPlacement,
+};
 use mcrs_minecraft_engine_world::world::dimension::{Dimension, DimensionTypeId, InDimension};
 use mcrs_minecraft_engine_world::world::sub_app::DimensionLabel;
 use mcrs_minecraft_game_mode::GameMode;
@@ -90,22 +91,28 @@ pub fn change_dimension(
     let leaving = from
         .get_entity(player)
         .map_err(|_| DimensionChangeError::NoPlayer)?;
-    let (Some(&anchor), Some(&owner), Some(&uuid), true) = (
-        leaving.get::<HostAnchor>(),
+    let (Some(&owner), Some(&uuid), true) = (
         leaving.get::<Owner>(),
         leaving.get::<EntityUuid>(),
         leaving.contains::<Player>(),
     ) else {
         return Err(DimensionChangeError::NoPlayer);
     };
+    let session = owner.0;
     let state = ArrivalState::read(key, dimension_type, leaving)?;
-    let placed_in_from = from.get_resource::<DimensionLabel>().is_some_and(|from| {
-        host.get::<SessionPlacement>(anchor.0)
-            .is_some_and(|placement| placement.place().dim() == Some(from.0))
-    });
-    if !placed_in_from {
+    let from_label = from.get_resource::<DimensionLabel>().map(|from| from.0);
+    let Some(anchor) = host
+        .get_resource::<SessionAnchors>()
+        .and_then(|anchors| anchors.get(session))
+        .filter(|&anchor| {
+            host.get::<SessionPlacement>(anchor)
+                .is_some_and(|placement| {
+                    from_label.is_some() && placement.place().dim() == from_label
+                })
+        })
+    else {
         return Err(DimensionChangeError::NotPlaced);
-    }
+    };
     let teleport_id = leave(host, from, player, &arrival)?;
     let arrived = to
         .spawn((
@@ -115,7 +122,6 @@ pub fn change_dimension(
                 transform: arrival.transform,
                 uuid,
             },
-            anchor,
             owner,
             TrackedBy::default(),
             Player,
@@ -124,20 +130,14 @@ pub fn change_dimension(
         .id();
     carry_components(from, to, player, arrived);
     from.despawn(player);
-    if let Some(mut index) = from.get_resource_mut::<DimPlayerIndex>() {
-        index.0.remove(&owner.0);
-    }
-    if let Some(mut index) = to.get_resource_mut::<DimPlayerIndex>() {
-        index.0.insert(owner.0, arrived);
-    }
-    if let Some(mut placement) = host.get_mut::<SessionPlacement>(anchor.0) {
+    if let Some(mut placement) = host.get_mut::<SessionPlacement>(anchor) {
         placement.set(Place::InDim(label));
     }
     let op_level = state.op_level;
-    send_arrival(host, anchor.0, state, arrival.position_packet(teleport_id));
+    send_arrival(host, session, state, arrival.position_packet(teleport_id));
     to.write_message(OpLevelAnnounced {
         player: arrived,
-        host: anchor.0,
+        session,
         level: op_level,
     });
     Ok(arrived)
@@ -246,14 +246,14 @@ impl ArrivalState {
 
 fn send_arrival(
     host: &mut World,
-    anchor: Entity,
+    session: PlayerSession,
     state: ArrivalState,
     position: ClientboundPlayerPosition,
 ) {
     dim::deliver(
         host,
         bus::to(
-            anchor,
+            session,
             PacketPayload::Respawn(ClientboundRespawn {
                 player_spawn_info: PlayerSpawnInfo::new(
                     state.dimension_type,
@@ -266,7 +266,7 @@ fn send_arrival(
         .critical(),
     );
     enter_level_packets(
-        anchor,
+        session,
         state.op_level,
         position,
         game_mode::abilities(state.mode, state.flying),

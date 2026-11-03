@@ -5,9 +5,10 @@ use crate::invocation::Invocation;
 use crate::operator_broadcast::OperatorBroadcast;
 use crate::source_state::SourceState;
 use crate::system_message::system_message;
-use bevy_ecs::prelude::{Entity, Res, ResMut};
+use bevy_ecs::prelude::{Res, ResMut};
 use bevy_ecs::system::SystemParam;
 use mcrs_minecraft_engine::bus::OutboundPlayerPacket;
+use mcrs_minecraft_engine_world::session::PlayerSession;
 use mcrs_minecraft_text::{Color, IntoText, Text};
 
 /// Who sees the success message of a command.
@@ -34,8 +35,8 @@ impl CommandOutput<'_> {
         self.outbox.packets.push(packet);
     }
 
-    /// A system message to the player with the host anchor `player`, in any dimension.
-    pub fn tell(&mut self, player: Entity, message: Text) {
+    /// A system message to the player of the session `player`, in any dimension.
+    pub fn tell(&mut self, player: PlayerSession, message: Text) {
         self.outbox.packets.extend(system_message(player, &message));
     }
 
@@ -54,8 +55,8 @@ impl CommandOutput<'_> {
             .extend(system_message(invocation.output, &message));
         let Some(source) = invocation
             .source
-            .entity
-            .and_then(|anchor| self.targets.player(anchor))
+            .player
+            .and_then(|session| self.targets.player(session))
         else {
             return;
         };

@@ -1,6 +1,5 @@
 use crate::command_set::CommandSet;
 use crate::registrar::Handler;
-use bevy_ecs::entity::Entity;
 use bevy_ecs::message::{MessageReader, MessageWriter};
 use bevy_ecs::resource::Resource;
 use bevy_ecs::system::Res;
@@ -9,6 +8,7 @@ use mcrs_command::{Graph, GraphBuilder};
 use mcrs_minecraft_command::{CommandLevel, NoLookup, PermissionCheck, Source};
 use mcrs_minecraft_engine::ability::{OpLevelAnnounced, PlayerOpLevel};
 use mcrs_minecraft_engine::bus::{self, OutboundPlayerPacket, PacketPayload};
+use mcrs_minecraft_engine_world::session::PlayerSession;
 use mcrs_minecraft_protocol::{Packet, anyhow};
 use mcrs_minecraft_protocol_game::clientbound::ClientboundCommands;
 
@@ -44,9 +44,13 @@ pub struct CommandTreePackets {
 
 impl CommandTreePackets {
     /// The command tree a player with `op_level` can see.
-    pub fn to_player(&self, host: Entity, op_level: PlayerOpLevel) -> Option<OutboundPlayerPacket> {
+    pub fn to_player(
+        &self,
+        session: PlayerSession,
+        op_level: PlayerOpLevel,
+    ) -> Option<OutboundPlayerPacket> {
         let packet = self.by_level.get(usize::from(op_level.clamped()))?.clone();
-        Some(bus::to(host, PacketPayload::Commands(packet)).critical())
+        Some(bus::to(session, PacketPayload::Commands(packet)).critical())
     }
 
     pub(crate) fn new<S: CommandSet>(graph: &SetGraph<S>) -> anyhow::Result<Self> {
@@ -73,7 +77,7 @@ pub(crate) fn send_command_tree(
     mut packet_writer: MessageWriter<OutboundPlayerPacket>,
 ) {
     for announced in announced.read() {
-        if let Some(packet) = packets.to_player(announced.host, announced.level) {
+        if let Some(packet) = packets.to_player(announced.session, announced.level) {
             packet_writer.write(packet);
         }
     }

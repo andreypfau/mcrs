@@ -168,10 +168,8 @@ fn connection_removal_despawns_the_session_and_routes_despawn_via_lifecycle() {
     );
     match &despawn_msgs[0] {
         mcrs_minecraft_engine::channel_types::ToDim::Despawn(InboundPlayerDespawn {
-            host_anchor: ha,
             session: sess,
         }) => {
-            assert_eq!(*ha, host_anchor);
             assert_eq!(
                 *sess, session,
                 "despawn must carry the real session so the dim can evict its DimPlayerIndex entry"

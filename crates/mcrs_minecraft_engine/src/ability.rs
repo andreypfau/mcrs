@@ -5,6 +5,7 @@ use bevy_ecs::message::Message;
 use bevy_ecs::prelude::Component;
 use bevy_ecs::schedule::SystemSet;
 use derive_more::{Deref, DerefMut};
+use mcrs_minecraft_engine_world::session::PlayerSession;
 use mcrs_minecraft_game_mode::GameMode;
 
 /// The game mode of a player.
@@ -46,7 +47,7 @@ impl PlayerOpLevel {
 #[derive(Message, Debug, Clone, Copy, PartialEq, Eq)]
 pub struct OpLevelAnnounced {
     pub player: Entity,
-    pub host: Entity,
+    pub session: PlayerSession,
     pub level: PlayerOpLevel,
 }
 

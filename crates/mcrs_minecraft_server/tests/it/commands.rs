@@ -17,6 +17,7 @@ use mcrs_minecraft_command_vanilla::{
 use mcrs_minecraft_core::LookAnchor;
 use mcrs_minecraft_engine::bus::{PacketPayload, PacketTarget};
 use mcrs_minecraft_engine_world::entity::physics::Transform;
+use mcrs_minecraft_engine_world::session::PlayerSession;
 use mcrs_minecraft_game_mode::GameMode;
 use mcrs_minecraft_item::ItemHoverMap;
 use mcrs_minecraft_protocol::uuid::Uuid;
@@ -504,11 +505,11 @@ fn an_admin_message_reaches_only_the_other_listed_operators_of_every_dimension()
     )
     .color(mcrs_minecraft_protocol_game::text::Color::GRAY)
     .italic();
-    let admin_to = |anchor: Entity| -> Vec<Text> {
+    let admin_to = |session: PlayerSession| -> Vec<Text> {
         packets
             .iter()
             .filter(|packet| {
-                matches!(&packet.target, PacketTarget::PlayerSet(set) if set.contains(&anchor))
+                matches!(&packet.target, PacketTarget::PlayerSet(set) if set.contains(&session))
             })
             .filter_map(|packet| match &packet.data {
                 PacketPayload::SystemChat(chat) => Some(chat.content.to_text().unwrap().map(&ItemHoverMap).unwrap()),
@@ -516,9 +517,9 @@ fn an_admin_message_reaches_only_the_other_listed_operators_of_every_dimension()
             })
             .collect()
     };
-    assert_eq!(admin_to(watcher), [admin]);
-    assert!(admin_to(guest).is_empty());
-    assert!(admin_to(op).is_empty());
+    assert_eq!(admin_to(server.session_of(watcher).unwrap()), [admin]);
+    assert!(admin_to(server.session_of(guest).unwrap()).is_empty());
+    assert!(admin_to(server.session_of(op).unwrap()).is_empty());
 }
 
 #[test]
@@ -1513,13 +1514,13 @@ fn the_time_tree_and_its_server_suggestions_follow_the_clock() {
 
 fn seen_by(
     packets: &[mcrs_minecraft_engine::bus::OutboundPlayerPacket],
-    anchor: Entity,
+    session: PlayerSession,
 ) -> Vec<PacketPayload> {
     packets
         .iter()
         .filter(|packet| match &packet.target {
-            PacketTarget::SinglePlayer(target) => *target == anchor,
-            PacketTarget::PlayerSet(set) => set.contains(&anchor),
+            PacketTarget::SinglePlayer(target) => *target == session,
+            PacketTarget::PlayerSet(set) => set.contains(&session),
             PacketTarget::AllPlayers => true,
             _ => false,
         })
@@ -1591,11 +1592,18 @@ fn a_clock_change_in_one_dimension_reaches_every_player() {
             },
         );
         let packets = server.ticks_all(3);
-        assert_eq!(chats(&seen_by(&packets, op)), [message], "{line}");
+        assert_eq!(
+            chats(&seen_by(&packets, server.session_of(op).unwrap())),
+            [message],
+            "{line}"
+        );
         assert_eq!(clock(&server, OVERWORLD_CLOCK).total_ticks, total_ticks);
         for player in [op, guest] {
             assert_eq!(
-                without_game_time(set_times(&seen_by(&packets, player))),
+                without_game_time(set_times(&seen_by(
+                    &packets,
+                    server.session_of(player).unwrap()
+                ))),
                 [overworld_update(&server, total_ticks)],
                 "{line}"
             );
@@ -1731,10 +1739,13 @@ fn mode_in(server: &mut PlayServer, dim: Entity, anchor: Entity) -> GameMode {
         .0
 }
 
-fn told(packets: &[mcrs_minecraft_engine::bus::OutboundPlayerPacket], anchor: Entity) -> Vec<Text> {
+fn told(
+    packets: &[mcrs_minecraft_engine::bus::OutboundPlayerPacket],
+    session: PlayerSession,
+) -> Vec<Text> {
     packets
         .iter()
-        .filter(|packet| matches!(packet.target, PacketTarget::SinglePlayer(target) if target == anchor))
+        .filter(|packet| matches!(packet.target, PacketTarget::SinglePlayer(target) if target == session))
         .filter_map(|packet| match &packet.data {
             PacketPayload::SystemChat(chat) => Some(chat.content.to_text().unwrap().map(&ItemHoverMap).unwrap()),
             _ => None,
@@ -1769,7 +1780,7 @@ fn gamemode_changes_players_of_every_dimension_unless_the_selector_is_world_limi
         GameMode::Adventure
     );
     assert_eq!(
-        told(&packets, op),
+        told(&packets, server.session_of(op).unwrap()),
         [
             Text::translate("commands.gamemode.success.self", vec![mode()]),
             Text::translate(
@@ -1783,11 +1794,11 @@ fn gamemode_changes_players_of_every_dimension_unless_the_selector_is_world_limi
         ]
     );
     assert_eq!(
-        told(&packets, nether_player),
+        told(&packets, server.session_of(nether_player).unwrap()),
         [Text::translate("gameMode.changed", vec![mode()])]
     );
     assert!(
-        packets.iter().any(|packet| matches!(packet.target, PacketTarget::SinglePlayer(target) if target == nether_player)
+        packets.iter().any(|packet| matches!(packet.target, PacketTarget::SinglePlayer(target) if Some(target) == server.session_of(nether_player))
             && matches!(packet.data, PacketPayload::GameEvent(_))),
         "the player in the Nether hears of its new mode from its own dimension"
     );
@@ -1808,7 +1819,7 @@ fn a_target_that_an_earlier_stage_changed_is_not_changed_again() {
     let packets = server.ticks_all(3);
     let mode = || Text::translate("gameMode.creative", vec![]);
     assert_eq!(
-        told(&packets, op),
+        told(&packets, server.session_of(op).unwrap()),
         [
             Text::translate("commands.gamemode.success.self", vec![mode()]),
             Text::translate(
@@ -1822,7 +1833,7 @@ fn a_target_that_an_earlier_stage_changed_is_not_changed_again() {
         ]
     );
     assert_eq!(
-        told(&packets, nether_player),
+        told(&packets, server.session_of(nether_player).unwrap()),
         [Text::translate("gameMode.changed", vec![mode()])]
     );
     assert_eq!(
@@ -1888,7 +1899,7 @@ fn nearest_compares_coordinates_across_dimensions_and_later_commands_see_the_mov
 }
 
 #[derive(Clone, Copy)]
-struct Mark(Entity);
+struct Mark(PlayerSession);
 
 #[derive(Resource, Default)]
 struct Marks(Vec<(usize, DVec3)>);
@@ -1917,7 +1928,7 @@ fn bounce(
     mut teleports: ResMut<EffectQueue<TeleportPlayer>>,
     mut marks: ResMut<EffectQueue<Mark>>,
 ) -> CommandResult {
-    let player = call.invocation.source.entity.unwrap();
+    let player = call.invocation.source.player.unwrap();
     let labels: Vec<Entity> = context
         .targets()
         .dimensions()

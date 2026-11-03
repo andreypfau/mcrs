@@ -7,13 +7,14 @@ use mcrs_minecraft_engine::bus::OutboundPlayerPacket;
 use mcrs_minecraft_engine::dim;
 use mcrs_minecraft_engine::dimension_change::{Arrival, DimensionChangeError, DimensionChanger};
 use mcrs_minecraft_engine_world::entity::physics::Transform;
+use mcrs_minecraft_engine_world::session::PlayerSession;
 use mcrs_minecraft_game_mode::GameMode;
 
 /// Why an operation of [`Worlds`] changed no player.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, thiserror::Error)]
 pub enum PlayerChangeError {
-    /// No online player has the host anchor.
-    #[error("no online player has this host anchor")]
+    /// No online player has the session.
+    #[error("no online player has this session")]
     NotOnline,
     /// The world of the player does not hold its entity.
     #[error("the world of the player does not hold its entity")]
@@ -64,11 +65,11 @@ impl Worlds<'_, '_> {
         dim::deliver(self.host, packet);
     }
 
-    /// Sets the transform of the player with the host anchor `player` in the world that holds
+    /// Sets the transform of the player of the session `player` in the world that holds
     /// it. Returns the entity of the player there.
     pub fn set_transform(
         &mut self,
-        player: Entity,
+        player: PlayerSession,
         transform: Transform,
     ) -> Result<Entity, PlayerChangeError> {
         let entry = self
@@ -85,12 +86,12 @@ impl Worlds<'_, '_> {
         Ok(entry.entity)
     }
 
-    /// Moves the player with the host anchor `player` to the dimension at `destination`
+    /// Moves the player of the session `player` to the dimension at `destination`
     /// through the [`DimensionChanger`] of the world it leaves. Returns the entity of the player
     /// in its new world.
     pub fn change_dimension(
         &mut self,
-        player: Entity,
+        player: PlayerSession,
         destination: usize,
         arrival: Arrival,
     ) -> Result<Entity, PlayerChangeError> {
@@ -114,11 +115,11 @@ impl Worlds<'_, '_> {
         Ok(arrived)
     }
 
-    /// Sets the game mode of the player with the host anchor `player`. Its world sends the
+    /// Sets the game mode of the player of the session `player`. Its world sends the
     /// packets of the change on its next tick.
     pub fn set_game_mode(
         &mut self,
-        player: Entity,
+        player: PlayerSession,
         mode: GameMode,
     ) -> Result<(), PlayerChangeError> {
         let entry = self

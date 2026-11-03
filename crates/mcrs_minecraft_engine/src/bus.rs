@@ -37,7 +37,7 @@ pub struct OutboundPlayerPacket {
 
 #[derive(Message, Clone, Debug)]
 pub struct InboundPlayerPacket {
-    pub player: Entity,
+    pub session: PlayerSession,
     pub id: i32,
     pub data: Bytes,
     pub timestamp: Instant,
@@ -48,7 +48,6 @@ pub struct InboundPlayerPacket {
 
 #[derive(Message, Clone, Debug)]
 pub struct InboundPlayerSpawn {
-    pub host_anchor: Entity,
     pub session: PlayerSession,
     pub snapshot: PlayerTransferSnapshot,
     /// Dimension keys forwarded from the host's
@@ -60,7 +59,7 @@ pub struct InboundPlayerSpawn {
 
 #[derive(Message, Clone, Debug)]
 pub struct OutboundPlayerAttached {
-    pub host_anchor: Entity,
+    pub session: PlayerSession,
 }
 
 #[derive(Message, Clone, Debug)]
@@ -70,7 +69,6 @@ pub struct OutboundPlayerDisconnect {
 
 #[derive(Message, Clone, Debug)]
 pub struct InboundPlayerDespawn {
-    pub host_anchor: Entity,
     pub session: PlayerSession,
 }
 
@@ -82,10 +80,11 @@ pub struct OutboundPlayerReleased {
 
 #[derive(Clone, Debug)]
 pub enum PacketTarget {
-    SinglePlayer(Entity),
+    SinglePlayer(PlayerSession),
+    /// Every session the host places in the dimension with this host label.
     AllInDim(Entity),
     AllPlayers,
-    PlayerSet(SmallVec<[Entity; 8]>),
+    PlayerSet(SmallVec<[PlayerSession; 8]>),
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -96,8 +95,8 @@ pub enum PacketPriority {
     Low,
 }
 
-pub fn to(anchor: Entity, data: PacketPayload) -> OutboundPlayerPacket {
-    to_target(PacketTarget::SinglePlayer(anchor), data)
+pub fn to(session: PlayerSession, data: PacketPayload) -> OutboundPlayerPacket {
+    to_target(PacketTarget::SinglePlayer(session), data)
 }
 
 /// A packet for `target` at the normal priority, not yet stamped with a session.

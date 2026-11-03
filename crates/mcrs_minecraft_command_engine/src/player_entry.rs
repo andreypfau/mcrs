@@ -1,13 +1,14 @@
 use bevy_ecs::entity::Entity;
 use mcrs_minecraft_engine_world::entity::physics::Transform;
+use mcrs_minecraft_engine_world::session::PlayerSession;
 use mcrs_minecraft_game_mode::GameMode;
 use mcrs_minecraft_protocol::uuid::Uuid;
 
 /// A player of any dimension, as a command finds it.
 #[derive(Clone, Debug)]
 pub struct PlayerEntry {
-    /// The host anchor: the identity of the player in every dimension.
-    pub anchor: Entity,
+    /// The session: the identity of the player in every dimension.
+    pub session: PlayerSession,
     /// The position of its dimension in [`CommandTargets::dimensions`](crate::CommandTargets::dimensions)(crate::CommandTargets::dimensions).
     pub dimension: usize,
     /// The entity of the player in the world of its dimension.

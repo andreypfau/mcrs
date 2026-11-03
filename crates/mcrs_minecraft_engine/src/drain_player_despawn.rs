@@ -13,7 +13,7 @@
 
 use crate::bus::to;
 use bevy_ecs::message::{MessageReader, MessageWriter};
-use bevy_ecs::prelude::{Commands, Entity, In, Query, With};
+use bevy_ecs::prelude::{Commands, Entity, In, Query, Res, With};
 use mcrs_minecraft_engine_world::entity::player::Player;
 use mcrs_minecraft_engine_world::entity::player::chunk_view::SentChunkView;
 use mcrs_minecraft_protocol::VarInt;
@@ -22,8 +22,8 @@ use smallvec::SmallVec;
 
 use crate::bus::{InboundPlayerDespawn, OutboundPlayerPacket, PacketPayload};
 use crate::column_view::ColumnView;
-use crate::session::HostAnchor;
 use crate::tracked_by::TrackedBy;
+use mcrs_minecraft_engine_world::session::{DimPlayerIndex, Owner, PlayerSession};
 
 /// Per-dim drain: reads `InboundPlayerDespawn` messages and runs the full
 /// eviction sequence for the resolved in-dim `Player`:
@@ -42,25 +42,26 @@ use crate::tracked_by::TrackedBy;
 )]
 pub fn drain_inbound_player_despawn(
     mut despawn_msgs: MessageReader<InboundPlayerDespawn>,
-    player_lookup: Query<(Entity, &HostAnchor), With<Player>>,
+    index: Res<DimPlayerIndex>,
+    player_lookup: Query<(Entity, &Owner), With<Player>>,
     mut player_caches: Query<&mut TrackedBy, With<Player>>,
     mut packet_writer: MessageWriter<OutboundPlayerPacket>,
     mut commands: Commands,
 ) {
     for msg in despawn_msgs.read() {
-        let host_anchor = msg.host_anchor;
-        let in_dim_entity = player_lookup
-            .iter()
-            .find_map(|(e, anchor)| (anchor.0 == host_anchor).then_some(e));
-        let Some(target) = in_dim_entity else {
-            // No player of this dimension carries the anchor yet: the disconnect came before
-            // the spawn of the player here. There is nothing to evict.
+        let session = msg.session;
+        // No player of this dimension has the session yet when the disconnect came before the
+        // spawn of the player here. There is nothing to evict.
+        let Some(&target) = index.0.get(&session) else {
             continue;
         };
+        if !player_lookup.contains(target) {
+            continue;
+        }
 
         evict(
             target,
-            host_anchor,
+            session,
             &player_lookup,
             &mut player_caches,
             &mut packet_writer,
@@ -75,16 +76,16 @@ pub fn drain_inbound_player_despawn(
 /// player that disconnects; the caller despawns it.
 pub(crate) fn leave_dimension(
     In(target): In<Entity>,
-    player_lookup: Query<(Entity, &HostAnchor), With<Player>>,
+    player_lookup: Query<(Entity, &Owner), With<Player>>,
     mut player_caches: Query<&mut TrackedBy, With<Player>>,
     mut packet_writer: MessageWriter<OutboundPlayerPacket>,
 ) {
-    let Ok((_, &HostAnchor(host_anchor))) = player_lookup.get(target) else {
+    let Ok((_, &Owner(session))) = player_lookup.get(target) else {
         return;
     };
     evict(
         target,
-        host_anchor,
+        session,
         &player_lookup,
         &mut player_caches,
         &mut packet_writer,
@@ -93,18 +94,18 @@ pub(crate) fn leave_dimension(
 
 fn evict(
     target: Entity,
-    host_anchor: Entity,
-    player_lookup: &Query<(Entity, &HostAnchor), With<Player>>,
+    session: PlayerSession,
+    player_lookup: &Query<(Entity, &Owner), With<Player>>,
     player_caches: &mut Query<&mut TrackedBy, With<Player>>,
     packet_writer: &mut MessageWriter<OutboundPlayerPacket>,
 ) {
     let left_view = ClientboundRemoveEntities {
-        entity_ids: vec![VarInt(crate::network_id::player_network_id(host_anchor))],
+        entity_ids: vec![VarInt(crate::network_id::player_network_id(session))],
     };
 
     // The former observers are found through their TrackedBy, so they hear of the leave before
     // the pass below removes `target` from it; update_tracked_by runs later and never sees it.
-    for (observer_entity, &HostAnchor(observer)) in player_lookup.iter() {
+    for (observer_entity, &Owner(observer)) in player_lookup.iter() {
         if observer_entity == target {
             continue;
         }

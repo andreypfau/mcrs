@@ -47,13 +47,13 @@ fn a_packet_target_reaches_exactly_its_players() {
             .collect();
 
         let (packet_target, session) = match target {
-            Target::First => (PacketTarget::SinglePlayer(players[0].0), players[0].1),
+            Target::First => (PacketTarget::SinglePlayer(players[0].1), players[0].1),
             Target::FirstDim => (PacketTarget::AllInDim(dim_a), PlayerSession(0)),
             Target::All => (PacketTarget::AllPlayers, PlayerSession(0)),
             Target::FirstLastAndAbsent => {
-                let absent = Entity::from_raw_u32(999).expect("nonzero");
-                let set: SmallVec<[Entity; 8]> =
-                    SmallVec::from_slice(&[players[0].0, players[2].0, absent]);
+                let absent = PlayerSession(999);
+                let set: SmallVec<[PlayerSession; 8]> =
+                    SmallVec::from_slice(&[players[0].1, players[2].1, absent]);
                 (PacketTarget::PlayerSet(set), PlayerSession(0))
             }
         };
@@ -89,7 +89,7 @@ fn packet_target_missing_queue_counted() {
 
     // Spawn a socket entity WITHOUT an OutboundQueue.
     let socket_no_queue = world.spawn_empty().id();
-    let (player, session) = register_player(&mut world, socket_no_queue, dim);
+    let (_, session) = register_player(&mut world, socket_no_queue, dim);
 
     let before = world
         .resource::<mcrs_minecraft_network::metrics::BridgeTelemetry>()
@@ -97,7 +97,7 @@ fn packet_target_missing_queue_counted() {
 
     write_packet(
         &mut world,
-        PacketTarget::SinglePlayer(player),
+        PacketTarget::SinglePlayer(session),
         session,
         0,
         PacketPriority::Normal,
@@ -129,12 +129,12 @@ fn priority_drain_order() {
 
     let dim = Entity::from_raw_u32(500).expect("nonzero");
     let socket = spawn_connection(&mut world);
-    let (player, session) = register_player(&mut world, socket, dim);
+    let (_, session) = register_player(&mut world, socket, dim);
 
     // Write in reverse-priority order.
     write_packet(
         &mut world,
-        PacketTarget::SinglePlayer(player),
+        PacketTarget::SinglePlayer(session),
         session,
         0,
         PacketPriority::Low,
@@ -142,7 +142,7 @@ fn priority_drain_order() {
     );
     write_packet(
         &mut world,
-        PacketTarget::SinglePlayer(player),
+        PacketTarget::SinglePlayer(session),
         session,
         0,
         PacketPriority::Normal,
@@ -150,7 +150,7 @@ fn priority_drain_order() {
     );
     write_packet(
         &mut world,
-        PacketTarget::SinglePlayer(player),
+        PacketTarget::SinglePlayer(session),
         session,
         0,
         PacketPriority::High,
@@ -158,7 +158,7 @@ fn priority_drain_order() {
     );
     write_packet(
         &mut world,
-        PacketTarget::SinglePlayer(player),
+        PacketTarget::SinglePlayer(session),
         session,
         0,
         PacketPriority::Critical,

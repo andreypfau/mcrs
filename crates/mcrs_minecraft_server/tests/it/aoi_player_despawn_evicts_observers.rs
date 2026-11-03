@@ -2,7 +2,7 @@
 //! the production two-world topology: the main App emits an
 //! InboundPlayerDespawn via PendingInboundLifecycle; the extract closure
 //! shuttles it into the per-dim sub-app's Messages buffer; the per-dim
-//! drain system resolves the in-dim Player via HostAnchor and retains
+//! drain system resolves the in-dim Player via Owner and retains
 //! it out of every column's PlayerObservers.
 
 use bevy_app::{App, AppLabel, FixedPostUpdate, FixedPreUpdate, SubApp};
@@ -15,12 +15,12 @@ use mcrs_minecraft_engine::bus::{
 };
 use mcrs_minecraft_engine::column_view::ColumnView;
 use mcrs_minecraft_engine::player_tracker::PlayerTrackerPlugin;
-use mcrs_minecraft_engine::session::HostAnchor;
 use mcrs_minecraft_engine::tracked_by::TrackedBy;
 use mcrs_minecraft_engine_world::aoi::PlayerObservers;
 use mcrs_minecraft_engine_world::entity::physics::Transform;
 use mcrs_minecraft_engine_world::entity::player::Player;
 use mcrs_minecraft_engine_world::entity::player::chunk_view::PlayerViewDistance;
+use mcrs_minecraft_engine_world::session::Owner;
 use mcrs_minecraft_engine_world::session::PlayerSession;
 use mcrs_minecraft_engine_world::world::dimension::{
     DimensionBundle, DimensionTypeConfig, InDimension,
@@ -58,8 +58,8 @@ fn disconnect_path_evicts_stationary_observer_three_assertions() {
     main_app.add_message::<InboundPlayerDespawn>();
     main_app.add_message::<OutboundPlayerPacket>();
 
-    let host_anchor_o = main_app.world_mut().spawn_empty().id();
-    let host_anchor_t = main_app.world_mut().spawn_empty().id();
+    let session_o = PlayerSession(1);
+    let session_t = PlayerSession(2);
 
     // --- Per-dim SubApp setup (mirrors the existing test above exactly) ---
     let mut sub_app = SubApp::new();
@@ -99,7 +99,7 @@ fn disconnect_path_evicts_stationary_observer_three_assertions() {
             ColumnView::holding(crate::harness::columns_in_view(pos)),
             TrackedBy::default(),
             InDimension(dim),
-            HostAnchor(host_anchor_o),
+            Owner(session_o),
         ))
         .id();
 
@@ -113,7 +113,7 @@ fn disconnect_path_evicts_stationary_observer_three_assertions() {
             ColumnView::holding(crate::harness::columns_in_view(pos)),
             TrackedBy::default(),
             InDimension(dim),
-            HostAnchor(host_anchor_t),
+            Owner(session_t),
         ))
         .id();
 
@@ -210,10 +210,7 @@ fn disconnect_path_evicts_stationary_observer_three_assertions() {
     main_app
         .world_mut()
         .resource_mut::<Messages<InboundPlayerDespawn>>()
-        .write(InboundPlayerDespawn {
-            host_anchor: host_anchor_t,
-            session: PlayerSession(0),
-        });
+        .write(InboundPlayerDespawn { session: session_t });
 
     // --- Tick 2: drain and evict (O does NOT move) ---
     // FixedPreUpdate: drain_inbound_player_despawn fires:
@@ -224,7 +221,7 @@ fn disconnect_path_evicts_stationary_observer_three_assertions() {
     main_app.update();
 
     // Drain packets from the sub-world (needs &mut World).
-    let expected_wire_id = mcrs_minecraft_engine::network_id::player_network_id(host_anchor_t);
+    let expected_wire_id = mcrs_minecraft_engine::network_id::player_network_id(session_t);
     let pkts: Vec<OutboundPlayerPacket> = {
         let sub = main_app.get_sub_app_mut(TestDimLabel).expect("sub-app");
         sub.world_mut()
@@ -233,7 +230,7 @@ fn disconnect_path_evicts_stationary_observer_three_assertions() {
             .collect()
     };
     let left_view_for_o = pkts.iter().any(|pkt| {
-        matches!(&pkt.target, PacketTarget::SinglePlayer(e) if *e == host_anchor_o)
+        matches!(&pkt.target, PacketTarget::SinglePlayer(e) if *e == session_o)
             && matches!(&pkt.data, PacketPayload::PlayerLeftView(ClientboundRemoveEntities { entity_ids })
                 if entity_ids.contains(&VarInt(expected_wire_id)))
     });

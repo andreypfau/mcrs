@@ -17,7 +17,9 @@ use mcrs_minecraft_engine::session::HostAnchorRef;
 use mcrs_minecraft_engine::sub_app_builder::drain_dim_spawn_queue;
 use mcrs_minecraft_engine_server::login::{LoginPlugin, LoginState};
 use mcrs_minecraft_engine_world::session::PlayerSession;
-use mcrs_minecraft_engine_world::session::{Place, PlayerSessionCounter, SessionPlacement};
+use mcrs_minecraft_engine_world::session::{
+    Place, PlayerSessionCounter, Session, SessionPlacement,
+};
 use mcrs_minecraft_engine_world::world::sub_app::{DimSpawnQueue, DimSpawnRequest};
 use mcrs_minecraft_protocol::uuid::Uuid;
 use mcrs_minecraft_resource::{ResourceKeyBuf, ResourceLocationBuf};
@@ -55,6 +57,7 @@ fn build_host_app() -> App {
     app.insert_resource(support::dimension_list_with_extra());
 
     app.init_resource::<PlayerSessionCounter>();
+    app.init_resource::<mcrs_minecraft_engine_world::session::SessionAnchors>();
     app.add_message::<InboundPlayerSpawn>();
     app.add_systems(Update, (bridge_inbound_to_channel, bridge_player_attach));
 
@@ -150,10 +153,14 @@ fn game_transition_emits_initial_spawn(
         "exactly one ToDim::Spawn should be sent to the dim's control channel"
     );
     match &spawns[0] {
-        ToDim::Spawn(InboundPlayerSpawn {
-            host_anchor: ha, ..
-        }) => {
-            assert_eq!(*ha, host_anchor, "spawn's host_anchor must match");
+        ToDim::Spawn(InboundPlayerSpawn { session, .. }) => {
+            assert_eq!(
+                Some(*session),
+                app.world()
+                    .get::<Session>(host_anchor)
+                    .map(|carried| carried.0),
+                "the spawn names the session of the host anchor"
+            );
         }
         _ => unreachable!(),
     }
@@ -317,7 +324,6 @@ fn no_duplicate_spawn_on_reread() {
             .expect("one DimSubAppHandle")
     };
 
-    let host_anchor = app.world_mut().spawn_empty().id();
     {
         app.world()
             .resource::<DimChannelsResource>()
@@ -325,8 +331,7 @@ fn no_duplicate_spawn_on_reread() {
             .expect("channel registered by spawn_dim_subapp")
             .control_sender
             .try_send(ToDim::Spawn(InboundPlayerSpawn {
-                host_anchor,
-                session: PlayerSession(0),
+                session: PlayerSession(1),
                 snapshot: PlayerTransferSnapshot {
                     uuid: Uuid::new_v4(),
                     username: "cursor_test".into(),
@@ -524,15 +529,13 @@ fn a_registry_resource_is_not_changed_on_the_second_tick(app: &mut App) {
         .expect("the overworld is live")
         .0;
 
-    let host_anchor = app.world_mut().spawn_empty().id();
     app.world()
         .resource::<DimChannelsResource>()
         .get(overworld)
         .expect("channel registered by spawn_dim_subapp")
         .control_sender
         .try_send(ToDim::Spawn(InboundPlayerSpawn {
-            host_anchor,
-            session: PlayerSession(0),
+            session: PlayerSession(1),
             snapshot: PlayerTransferSnapshot {
                 uuid: Uuid::new_v4(),
                 username: "second_tick".into(),

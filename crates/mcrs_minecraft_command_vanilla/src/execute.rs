@@ -289,7 +289,7 @@ fn anchor_point(anchor: LookAnchor, position: DVec3) -> DVec3 {
 
 fn as_target(state: &SourceState, target: &PlayerEntry) -> SourceState {
     SourceState {
-        entity: Some(target.anchor),
+        player: Some(target.session),
         ..*state
     }
 }

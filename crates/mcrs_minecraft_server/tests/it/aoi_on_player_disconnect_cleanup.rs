@@ -22,7 +22,9 @@ use mcrs_minecraft_engine::disconnect::{
     DisconnectProtocolPlugin, Disconnects, filter_inflight_for_disconnect,
 };
 use mcrs_minecraft_engine::session::SessionBundle;
-use mcrs_minecraft_engine_world::session::{Place, PlayerSessionCounter, SessionPlacement};
+use mcrs_minecraft_engine_world::session::{
+    Place, PlayerSession, PlayerSessionCounter, SessionPlacement,
+};
 use mcrs_minecraft_engine_world::world::channels::{
     FROM_DIM_CAPACITY, TO_DIM_CAPACITY, TO_DIM_CONTROL_CAPACITY,
 };
@@ -57,7 +59,7 @@ fn count_despawns(rx: &flume::Receiver<ToDim>) -> usize {
         .count()
 }
 
-fn insert_joining(app: &mut App, host_anchor: Entity, dim: Entity) {
+fn insert_joining(app: &mut App, host_anchor: Entity, dim: Entity) -> PlayerSession {
     let session = app
         .world_mut()
         .resource_mut::<PlayerSessionCounter>()
@@ -68,6 +70,7 @@ fn insert_joining(app: &mut App, host_anchor: Entity, dim: Entity) {
             session,
             SessionPlacement::new(Place::Joining(dim), 0),
         ));
+    session
 }
 
 fn synthetic_disconnect(app: &mut App, host_anchor: Entity) {
@@ -89,11 +92,11 @@ fn disconnect_at_tick_n_e1_4_attached_pending_filter() {
     let host_anchor = app.world_mut().spawn_empty().id();
     let dim = Entity::from_raw_u32(402).unwrap();
     let ctl_rx = register_dim_channel(&mut app, dim);
-    insert_joining(&mut app, host_anchor, dim);
+    let session = insert_joining(&mut app, host_anchor, dim);
 
     app.world_mut()
         .resource_mut::<Messages<OutboundPlayerAttached>>()
-        .write(OutboundPlayerAttached { host_anchor });
+        .write(OutboundPlayerAttached { session });
 
     synthetic_disconnect(&mut app, host_anchor);
     run_filter(&mut app);

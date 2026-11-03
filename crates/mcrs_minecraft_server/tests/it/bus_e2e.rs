@@ -30,6 +30,7 @@ struct InboundLog(Vec<i32>);
 fn build_app() -> App {
     let mut app = host_app::make_host_app();
     app.init_resource::<PlayerSessionCounter>();
+    app.init_resource::<mcrs_minecraft_engine_world::session::SessionAnchors>();
     app.add_systems(Update, bridge_inbound_to_channel);
     app
 }
@@ -102,7 +103,7 @@ fn outbound_latency_is_one_host_tick() {
         .world_mut()
         .resource_mut::<Messages<OutboundPlayerPacket>>()
         .write(OutboundPlayerPacket {
-            target: PacketTarget::SinglePlayer(Entity::PLACEHOLDER),
+            target: PacketTarget::SinglePlayer(PlayerSession(0)),
             priority: PacketPriority::Normal,
             data: PacketPayload::Test(TestPayload { seq: 0xDEAD }),
             session: PlayerSession(0),
@@ -147,7 +148,6 @@ fn inbound_latency_is_zero_host_ticks() {
     }
 
     let host_anchor = app.world_mut().spawn_empty().id();
-    let player = host_anchor;
     let session = app
         .world_mut()
         .resource_mut::<PlayerSessionCounter>()
@@ -162,7 +162,7 @@ fn inbound_latency_is_zero_host_ticks() {
     app.world_mut()
         .resource_mut::<Messages<InboundPlayerPacket>>()
         .write(InboundPlayerPacket {
-            player,
+            session,
             id: 0xCAFE,
             data: Bytes::new(),
             timestamp: std::time::Instant::now(),
@@ -219,7 +219,7 @@ fn messages_sent_before_a_dimension_boots_arrive_in_order_on_its_first_tick() {
         sub.add_systems(Update, record_sub_inbound);
     }
 
-    let anchor = Entity::from_raw_u32(5).expect("nonzero");
+    let session = PlayerSession(1);
 
     // Send messages into the channel BEFORE app.update() runs the sub-app.
     // All sends must return Ok without blocking — the bounded channel buffer
@@ -233,8 +233,7 @@ fn messages_sent_before_a_dimension_boots_arrive_in_order_on_its_first_tick() {
         let spawn_result = entry
             .control_sender
             .try_send(ToDim::Spawn(InboundPlayerSpawn {
-                host_anchor: anchor,
-                session: PlayerSession(1),
+                session,
                 snapshot: PlayerTransferSnapshot {
                     uuid: mcrs_minecraft_protocol::uuid::Uuid::nil(),
                     username: "readiness_player".into(),
@@ -250,7 +249,7 @@ fn messages_sent_before_a_dimension_boots_arrive_in_order_on_its_first_tick() {
                 entry
                     .serverbound_sender
                     .try_send(ToDim::Serverbound(InboundPlayerPacket {
-                        player: anchor,
+                        session,
                         id,
                         data: Bytes::new(),
                         timestamp: std::time::Instant::now(),

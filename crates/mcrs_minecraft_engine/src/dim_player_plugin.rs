@@ -26,6 +26,7 @@ pub struct DimPlayerPlugin;
 impl Plugin for DimPlayerPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<DefaultGameMode>();
+        app.init_resource::<mcrs_minecraft_engine_world::session::DimPlayerIndex>();
         app.insert_resource(DimensionChanger(player_dimension_change::change_dimension));
         app.add_plugins((MovementPlugin, ColumnViewPlugin, GameModePlugin));
         app.add_message::<OpLevelAnnounced>();

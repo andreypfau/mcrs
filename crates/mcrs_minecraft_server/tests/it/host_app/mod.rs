@@ -26,12 +26,12 @@ use mcrs_minecraft_engine::channel_types::{DimChannelsResource, ToDim};
 use mcrs_minecraft_engine::dim::DimSubAppHandle;
 use mcrs_minecraft_engine::dim::pump_channels;
 use mcrs_minecraft_engine::ops::{DefaultOpLevel, OpList, OpListEntry};
-use mcrs_minecraft_engine::session::HostAnchor;
 use mcrs_minecraft_engine::session::{HostAnchorRef, SessionBundle, SessionConnection};
 use mcrs_minecraft_engine::sub_app_builder::drain_dim_spawn_queue;
 use mcrs_minecraft_engine_world::entity::player::Player;
+use mcrs_minecraft_engine_world::session::Owner;
 use mcrs_minecraft_engine_world::session::{
-    Place, PlayerSession, PlayerSessionCounter, SessionPlacement,
+    Place, PlayerSession, PlayerSessionCounter, Session, SessionPlacement,
 };
 use mcrs_minecraft_engine_world::world::sub_app::{
     DimAppLabel, DimDespawnQueue, DimSpawnQueue, DimSpawnRequest,
@@ -174,7 +174,6 @@ pub fn join(
         .expect("a channel is registered for the dimension")
         .control_sender
         .try_send(ToDim::Spawn(InboundPlayerSpawn {
-            host_anchor,
             session: PlayerSession(session.0),
             snapshot: PlayerTransferSnapshot {
                 uuid: Uuid::new_v4(),
@@ -249,10 +248,11 @@ impl PlayServer {
 
     /// Runs `n` updates and returns the packets sent to `anchor` or to every player.
     pub fn ticks(&mut self, anchor: Entity, n: usize) -> Vec<PacketPayload> {
+        let session = self.session_of(anchor);
         self.ticks_all(n)
             .into_iter()
             .filter(|packet| match packet.target {
-                PacketTarget::SinglePlayer(target) => target == anchor,
+                PacketTarget::SinglePlayer(target) => Some(target) == session,
                 PacketTarget::AllPlayers => true,
                 _ => false,
             })
@@ -317,8 +317,7 @@ impl PlayServer {
         self.submit_to(
             dim,
             ToDim::Spawn(InboundPlayerSpawn {
-                host_anchor: anchor,
-                session: PlayerSession(0),
+                session,
                 snapshot: PlayerTransferSnapshot {
                     uuid,
                     username: name.into(),
@@ -358,10 +357,11 @@ impl PlayServer {
             .get::<SessionPlacement>(anchor)
             .and_then(|placement| placement.place().dim())
             .unwrap_or(self.dim);
+        let session = self.session_of(anchor).expect("the anchor has a session");
         self.submit_to(
             dim,
             ToDim::Serverbound(InboundPlayerPacket {
-                player: anchor,
+                session,
                 id: P::ID,
                 trigger,
                 data,
@@ -382,12 +382,21 @@ impl PlayServer {
     }
 
     pub fn player_in(&mut self, dim: Entity, anchor: Entity) -> Option<Entity> {
+        let session = self.session_of(anchor)?;
         let world = self.world_in(dim);
         world
-            .query_filtered::<(Entity, &HostAnchor), With<Player>>()
+            .query_filtered::<(Entity, &Owner), With<Player>>()
             .iter(world)
-            .find(|(_, host)| host.0 == anchor)
+            .find(|(_, owner)| owner.0 == session)
             .map(|(player, _)| player)
+    }
+
+    /// The session the host anchor `anchor` carries, while it is connected.
+    pub fn session_of(&self, anchor: Entity) -> Option<PlayerSession> {
+        self.app
+            .world()
+            .get::<Session>(anchor)
+            .map(|session| session.0)
     }
 
     pub fn game_mode(&mut self, anchor: Entity) -> GameMode {

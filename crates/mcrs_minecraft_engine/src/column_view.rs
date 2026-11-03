@@ -57,8 +57,8 @@ use crate::bus::{OutboundPlayerPacket, PacketPayload};
 use crate::column_held::ColumnHeld;
 use crate::column_waiters::ColumnWaiters;
 use crate::heightmap::client_heightmaps;
-use crate::session::HostAnchor;
 use mcrs_minecraft_biome_file::BiomeFile;
+use mcrs_minecraft_engine_world::session::{Owner, PlayerSession};
 use mcrs_minecraft_engine_world::world::storage::block_entity::BlockEntity;
 use mcrs_minecraft_heightmap::{MotionHeightmap, NoLeavesHeightmap, SurfaceHeightmap};
 use rustc_hash::{FxHashMap, FxHashSet};
@@ -318,7 +318,7 @@ pub(crate) fn update_view(
             &Transform,
             &PlayerViewDistance,
             &InDimension,
-            &HostAnchor,
+            &Owner,
         ),
         Or<(
             Changed<Transform>,
@@ -332,8 +332,7 @@ pub(crate) fn update_view(
     mut left: Local<Vec<ColumnPos>>,
     traces: Option<Res<ColumnTraceLog>>,
 ) {
-    for (player, mut chunk_view, mut sent_view, transform, distance, in_dim, host_anchor) in
-        &mut players
+    for (player, mut chunk_view, mut sent_view, transform, distance, in_dim, owner) in &mut players
     {
         let Ok((mut loading, mut waiters, type_config)) = dims.get_mut(in_dim.entity()) else {
             continue;
@@ -350,7 +349,7 @@ pub(crate) fn update_view(
         if old_view == Some(new_view) {
             continue;
         }
-        send_cache_view(old_view, new_view, host_anchor.0, &mut packet_writer);
+        send_cache_view(old_view, new_view, owner.0, &mut packet_writer);
 
         let view = &mut *chunk_view;
         let waiters = &mut *waiters;
@@ -386,7 +385,7 @@ pub(crate) fn update_view(
                 });
                 packet_writer.write(
                     to(
-                        host_anchor.0,
+                        owner.0,
                         PacketPayload::ChunkUnload(ClientboundForgetLevelChunk {
                             x: column.x,
                             z: column.z,
@@ -404,13 +403,13 @@ pub(crate) fn update_view(
 fn send_cache_view(
     old_view: Option<ChunkTrackingView>,
     new_view: ChunkTrackingView,
-    host: Entity,
+    session: PlayerSession,
     packet_writer: &mut MessageWriter<OutboundPlayerPacket>,
 ) {
     if old_view.is_none_or(|old_view| old_view.center != new_view.center) {
         packet_writer.write(
             to(
-                host,
+                session,
                 PacketPayload::SetChunkCacheCenter(ClientboundSetChunkCacheCenter {
                     x: VarInt(new_view.center.x),
                     z: VarInt(new_view.center.z),
@@ -422,7 +421,7 @@ fn send_cache_view(
     if old_view.is_none_or(|old_view| old_view.distance != new_view.distance) {
         packet_writer.write(
             to(
-                host,
+                session,
                 PacketPayload::SetChunkCacheRadius(ClientboundChunkCacheRadius {
                     radius: VarInt(new_view.distance as i32),
                 }),
@@ -737,7 +736,7 @@ fn column_distance_sq(pos: ColumnPos, center: SectionPos) -> i64 {
 /// A column the next batch of a player takes, before it is encoded.
 pub(crate) struct WantedColumn {
     player: Entity,
-    host: Entity,
+    session: PlayerSession,
     at: DimColumn,
 }
 
@@ -828,7 +827,7 @@ type Viewers = (
     &'static mut ColumnView,
     &'static SentChunkView,
     &'static InDimension,
-    &'static HostAnchor,
+    &'static Owner,
 );
 
 /// Chunk-load wire emit routed through the `OutboundPlayerPacket` bus, once a tick.
@@ -866,8 +865,8 @@ pub(crate) fn send_column_queue(
     }
     players
         .par_iter()
-        .for_each(|(player, chunk_view, sent_view, in_dim, host_anchor)| {
-            let viewer = Viewer::new(player, sent_view, in_dim, host_anchor);
+        .for_each(|(player, chunk_view, sent_view, in_dim, owner)| {
+            let viewer = Viewer::new(player, sent_view, in_dim, owner);
             nearest.scope(|nearest| {
                 picked.scope(|picked| pick_batch(&viewer, chunk_view, nearest, picked));
             });
@@ -907,10 +906,10 @@ pub(crate) fn send_ready_columns(
     ready_for.sort_unstable();
     ready_for.dedup();
     for player in ready_for.drain(..) {
-        let Ok((player, chunk_view, sent_view, in_dim, host_anchor)) = players.get(player) else {
+        let Ok((player, chunk_view, sent_view, in_dim, owner)) = players.get(player) else {
             continue;
         };
-        let viewer = Viewer::new(player, sent_view, in_dim, host_anchor);
+        let viewer = Viewer::new(player, sent_view, in_dim, owner);
         pick_batch(&viewer, chunk_view, &mut nearest, &mut wanted);
     }
     if wanted.is_empty() {
@@ -1003,7 +1002,7 @@ fn send_batch(
         if sends == 0 {
             packet_writer.write(
                 to(
-                    wanted.host,
+                    wanted.session,
                     PacketPayload::ChunkBatchStart(ClientboundChunkBatchStart),
                 )
                 .critical(),
@@ -1013,7 +1012,7 @@ fn send_batch(
         chunk_view.set(waiters, wanted.player, column_pos, Some(ColumnState::Sent));
         trace!(
             target: "mcrs_minecraft_engine::player",
-            host_anchor = ?wanted.host,
+            session = ?wanted.session,
             col_x = column_pos.x,
             col_z = column_pos.z,
             bytes = packet.len(),
@@ -1028,7 +1027,7 @@ fn send_batch(
         });
         packet_writer.write(
             to(
-                wanted.host,
+                wanted.session,
                 PacketPayload::ChunkLoad {
                     column: column_pos,
                     packet: packet.clone(),
@@ -1046,7 +1045,7 @@ fn send_batch(
     }
     packet_writer.write(
         to(
-            last.host,
+            last.session,
             PacketPayload::ChunkBatchFinished(ClientboundChunkBatchFinished {
                 batch_size: VarInt(sends),
             }),
@@ -1065,21 +1064,16 @@ struct DirectBits {
 
 struct Viewer {
     player: Entity,
-    host: Entity,
+    session: PlayerSession,
     dim: Entity,
     center: SectionPos,
 }
 
 impl Viewer {
-    fn new(
-        player: Entity,
-        sent_view: &SentChunkView,
-        in_dim: &InDimension,
-        host_anchor: &HostAnchor,
-    ) -> Self {
+    fn new(player: Entity, sent_view: &SentChunkView, in_dim: &InDimension, owner: &Owner) -> Self {
         Self {
             player,
-            host: host_anchor.0,
+            session: owner.0,
             dim: in_dim.entity(),
             center: sent_view
                 .0
@@ -1115,7 +1109,7 @@ fn pick_batch(
     nearest.sort_unstable_by_key(|pos| column_distance_sq(*pos, center));
     picked.extend(nearest.drain(..).map(|column| WantedColumn {
         player: viewer.player,
-        host: viewer.host,
+        session: viewer.session,
         at: DimColumn {
             dim: viewer.dim,
             column,
@@ -1391,9 +1385,12 @@ mod tests {
             column_index,
         ));
 
-        let host = world.spawn_empty().id();
         let player = world
-            .spawn((ColumnView::default(), InDimension(dim), HostAnchor(host)))
+            .spawn((
+                ColumnView::default(),
+                InDimension(dim),
+                Owner(PlayerSession(1)),
+            ))
             .id();
 
         world.insert_resource(LightGated);
@@ -1719,12 +1716,11 @@ mod tests {
             let sections = sections.clone();
             light(&mut world, &sections);
         }
-        let second_host = world.spawn_empty().id();
         let second = world
             .spawn((
                 ColumnView::default(),
                 InDimension(fx.dim),
-                HostAnchor(second_host),
+                Owner(PlayerSession(2)),
             ))
             .id();
         for player in [fx.player, second] {
@@ -1741,16 +1737,19 @@ mod tests {
             .resource_mut::<Messages<OutboundPlayerPacket>>()
             .drain()
             .collect();
-        let mut hosts: Vec<Entity> = Vec::new();
+        let mut sessions: Vec<PlayerSession> = Vec::new();
         let mut loads: FxHashMap<ColumnPos, Vec<Bytes>> = FxHashMap::default();
         let mut sequence = Vec::new();
         for packet in &packets {
-            let PacketTarget::SinglePlayer(host) = packet.target else {
+            let PacketTarget::SinglePlayer(session) = packet.target else {
                 panic!("a column goes to one player");
             };
-            if hosts.last() != Some(&host) {
-                assert!(!hosts.contains(&host), "a player's batch is not split");
-                hosts.push(host);
+            if sessions.last() != Some(&session) {
+                assert!(
+                    !sessions.contains(&session),
+                    "a player's batch is not split"
+                );
+                sessions.push(session);
             }
             sequence.push(match &packet.data {
                 PacketPayload::ChunkBatchStart(_) => "start",
@@ -1762,7 +1761,7 @@ mod tests {
                 other => panic!("unexpected {other:?}"),
             });
         }
-        assert_eq!(hosts.len(), 2);
+        assert_eq!(sessions.len(), 2);
         let batch = ["start", "load", "load", "finish"];
         assert_eq!(sequence, [batch, batch].concat());
         for col in columns {
@@ -1803,9 +1802,10 @@ mod tests {
     }
 
     fn spawn_player(world: &mut World, dim: Entity) -> Entity {
-        let host = world.spawn_empty().id();
+        // Any entity index of the world tells the players of a test apart.
+        let session = PlayerSession(u64::from(world.spawn_empty().id().index_u32()));
         world
-            .spawn((ColumnView::default(), InDimension(dim), HostAnchor(host)))
+            .spawn((ColumnView::default(), InDimension(dim), Owner(session)))
             .id()
     }
 

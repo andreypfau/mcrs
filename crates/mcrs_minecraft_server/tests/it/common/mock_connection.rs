@@ -14,7 +14,7 @@ use mcrs_minecraft_engine::bus::{
 };
 use mcrs_minecraft_engine::session::{HostAnchorRef, SessionBundle};
 use mcrs_minecraft_engine_world::session::{
-    Place, PlayerSession, PlayerSessionCounter, Session, SessionPlacement,
+    Place, PlayerSession, PlayerSessionCounter, SessionPlacement,
 };
 use mcrs_minecraft_network::OutboundReceiver;
 use mcrs_minecraft_network::RawConnection;
@@ -25,6 +25,7 @@ pub fn build_bridge_world() -> World {
     let mut world = World::new();
     world.init_resource::<Messages<OutboundPlayerPacket>>();
     world.init_resource::<mcrs_minecraft_network::metrics::BridgeTelemetry>();
+    world.init_resource::<mcrs_minecraft_engine_world::session::SessionAnchors>();
     world
 }
 
@@ -85,8 +86,7 @@ pub fn write_packet_broadcast(
     write_packet(world, target, PlayerSession(0), 0, priority, seq);
 }
 
-/// Write a test packet stamped for `session`, addressed to the host anchor
-/// carrying it, or to an entity no session lives on when none does.
+/// Write a test packet stamped for `session` and addressed to it.
 pub fn write_packet_stamped(
     world: &mut World,
     session: PlayerSession,
@@ -94,15 +94,9 @@ pub fn write_packet_stamped(
     priority: PacketPriority,
     seq: u32,
 ) {
-    let anchor = world
-        .query::<(Entity, &Session)>()
-        .iter(world)
-        .find(|(_, carried)| carried.0 == session)
-        .map(|(anchor, _)| anchor)
-        .unwrap_or(Entity::from_raw_u32(9999).expect("nonzero"));
     write_packet(
         world,
-        PacketTarget::SinglePlayer(anchor),
+        PacketTarget::SinglePlayer(session),
         session,
         epoch,
         priority,

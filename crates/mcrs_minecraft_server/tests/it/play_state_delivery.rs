@@ -19,9 +19,7 @@ use mcrs_minecraft_engine::dim::DimSubAppHandle;
 use mcrs_minecraft_engine::dim::pump_channels;
 use mcrs_minecraft_engine::session::SessionBundle;
 use mcrs_minecraft_engine::sub_app_builder::drain_dim_spawn_queue;
-use mcrs_minecraft_engine_world::session::{
-    Place, PlayerSession, PlayerSessionCounter, SessionPlacement,
-};
+use mcrs_minecraft_engine_world::session::{Place, PlayerSessionCounter, SessionPlacement};
 use mcrs_minecraft_engine_world::world::sub_app::{
     DimDespawnQueue, DimSpawnQueue, DimSpawnRequest,
 };
@@ -92,18 +90,16 @@ fn play_login_targets_host_anchor() {
     let dim_label = spawn_subapp(&mut app);
 
     let host_anchor = app.world_mut().spawn_empty().id();
-    {
-        let session = app
-            .world_mut()
-            .resource_mut::<PlayerSessionCounter>()
-            .next();
-        app.world_mut()
-            .entity_mut(host_anchor)
-            .insert(SessionBundle::placed(
-                session,
-                SessionPlacement::new(Place::Joining(dim_label), 0),
-            ));
-    }
+    let session = app
+        .world_mut()
+        .resource_mut::<PlayerSessionCounter>()
+        .next();
+    app.world_mut()
+        .entity_mut(host_anchor)
+        .insert(SessionBundle::placed(
+            session,
+            SessionPlacement::new(Place::Joining(dim_label), 0),
+        ));
 
     {
         use mcrs_minecraft_engine::channel_types::ToDim;
@@ -113,8 +109,7 @@ fn play_login_targets_host_anchor() {
             .expect("channel registered for dim_label")
             .control_sender
             .try_send(ToDim::Spawn(InboundPlayerSpawn {
-                host_anchor,
-                session: PlayerSession(0),
+                session,
                 snapshot: PlayerTransferSnapshot {
                     uuid: Uuid::new_v4(),
                     username: "target_test".into(),
@@ -150,14 +145,14 @@ fn play_login_targets_host_anchor() {
         .expect("PlayerLogin packet must be present");
 
     match &login_pkt.target {
-        PacketTarget::SinglePlayer(e) => {
+        PacketTarget::SinglePlayer(target) => {
             assert_eq!(
-                *e, host_anchor,
-                "PlayerLogin target must be the host-anchor entity, not the in-dim entity"
+                *target, session,
+                "PlayerLogin target must be the session, not an entity of either world"
             );
         }
         other => panic!(
-            "PlayerLogin target must be SinglePlayer(host_anchor), got {:?}",
+            "PlayerLogin target must be SinglePlayer(session), got {:?}",
             other
         ),
     }

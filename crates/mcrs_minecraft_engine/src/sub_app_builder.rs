@@ -632,7 +632,9 @@ mod tests {
         let mut msgs = world.resource_mut::<Messages<OutboundPlayerPacket>>();
         for seq in 0..written as u32 {
             msgs.write(OutboundPlayerPacket {
-                target: PacketTarget::SinglePlayer(Entity::PLACEHOLDER),
+                target: PacketTarget::SinglePlayer(
+                    mcrs_minecraft_engine_world::session::PlayerSession(0),
+                ),
                 priority: PacketPriority::Critical,
                 data: PacketPayload::Test(TestPayload { seq }),
                 session: mcrs_minecraft_engine_world::session::PlayerSession(0),

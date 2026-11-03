@@ -21,10 +21,12 @@ use mcrs_minecraft_dimension::Dimension as DimensionKey;
 use mcrs_minecraft_dimension_environment::dimension_type::DimensionTypeFile;
 use mcrs_minecraft_engine::ability::PlayerGameMode;
 use mcrs_minecraft_engine::dimension_order::{DimensionWorld, in_dimension_order};
-use mcrs_minecraft_engine::session::{GameProfile, HostAnchor};
+use mcrs_minecraft_engine::session::GameProfile;
 use mcrs_minecraft_engine_world::entity::physics::Transform;
 use mcrs_minecraft_engine_world::entity::player::Player;
-use mcrs_minecraft_engine_world::session::{Session, SessionPlacement};
+use mcrs_minecraft_engine_world::session::{
+    Owner, PlayerSession, SessionAnchors, SessionPlacement,
+};
 use mcrs_minecraft_engine_world::world::dimension::{Dimension, DimensionTypeId};
 use mcrs_minecraft_engine_world::world::sub_app::DimensionLabel;
 use mcrs_minecraft_registries::CurrentRegistries;
@@ -72,7 +74,7 @@ struct FoundDimension {
 
 type PlayerRow = (
     Entity,
-    &'static HostAnchor,
+    &'static Owner,
     &'static GameProfile,
     &'static Transform,
     &'static PlayerGameMode,
@@ -198,7 +200,7 @@ impl<S: CommandSet> PassBuffers<S> {
             targets: &mut self.targets,
             running: &mut self.running,
             outbox: &mut self.outbox,
-            output: Entity::PLACEHOLDER,
+            output: PlayerSession(0),
         };
         for queued in self.queue.lines.drain(..) {
             executor.output = queued.player;
@@ -219,6 +221,7 @@ impl<S: CommandSet> PassBuffers<S> {
     /// their names' capacity from one pass to the next.
     fn collect_players(&mut self, host: &World, worlds: &[&mut World]) {
         let targets = &mut self.targets;
+        let anchors = host.get_resource::<SessionAnchors>();
         let mut filled = 0;
         for (dimension, world) in worlds.iter().enumerate() {
             let Some(label) = targets.dimensions.get(dimension).map(|entry| entry.label) else {
@@ -231,26 +234,25 @@ impl<S: CommandSet> PassBuffers<S> {
             else {
                 continue;
             };
-            for (entity, &HostAnchor(anchor), profile, transform, mode) in query.players.iter(world)
-            {
-                let (Some(session), Some(placement)) = (
-                    host.get::<Session>(anchor),
-                    host.get::<SessionPlacement>(anchor),
-                ) else {
+            for (entity, &Owner(session), profile, transform, mode) in query.players.iter(world) {
+                let Some(placement) = anchors
+                    .and_then(|anchors| anchors.get(session))
+                    .and_then(|anchor| host.get::<SessionPlacement>(anchor))
+                else {
                     continue;
                 };
                 if placement.place().dim() != Some(label) {
                     continue;
                 }
                 let entry = PlayerEntry {
-                    anchor,
+                    session,
                     dimension,
                     entity,
                     uuid: profile.id,
                     name: String::new(),
                     transform: *transform,
                     mode: mode.0,
-                    list_order: session.0.0,
+                    list_order: session.0,
                 };
                 match targets.players.get_mut(filled) {
                     Some(reused) => {

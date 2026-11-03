@@ -2,7 +2,6 @@ use crate::bus::to;
 use crate::bus::{InboundPlayerPacket, OutboundPlayerPacket, PacketPayload};
 use crate::dim_player_plugin::DimPlayerPlugin;
 use crate::network_id::network_id;
-use crate::session::HostAnchor;
 use bevy_app::{App, FixedPreUpdate, Plugin};
 use bevy_ecs::bundle::Bundle;
 use bevy_ecs::component::Component;
@@ -11,11 +10,12 @@ use bevy_ecs::message::{MessageReader, MessageWriter};
 use bevy_ecs::prelude::{Commands, ContainsEntity, On};
 use bevy_ecs::query::With;
 use bevy_ecs::schedule::IntoScheduleConfigs;
-use bevy_ecs::system::Query;
+use bevy_ecs::system::{Query, Res};
 use derive_more::{Deref, DerefMut};
 use mcrs_minecraft_engine_world::entity::EntityUuid;
 use mcrs_minecraft_engine_world::entity::physics::{OldTransform, Transform};
 use mcrs_minecraft_engine_world::entity::{EntityNetworkSyncEvent, EntityPlugin};
+use mcrs_minecraft_engine_world::session::{DimPlayerIndex, Owner};
 use mcrs_minecraft_engine_world::world::dimension::InDimension;
 use mcrs_minecraft_protocol::VarInt;
 use mcrs_minecraft_protocol_game::clientbound::ClientboundEntityPositionSync;
@@ -59,19 +59,17 @@ impl ContainsEntity for EntityOwner {
 /// Per-dim system that raises the typed event of every `InboundPlayerPacket` drained from the
 /// host→sub-app shuttle, through the trigger the packet carries.
 ///
-/// The extract closure in `sub_app_builder` drains
-/// `PendingInboundPartition.per_dim[label_entity]` into the sub-world's
-/// `Messages<InboundPlayerPacket>` buffer each tick. This system consumes
-/// that buffer, resolves the in-dim entity via the `HostAnchor` component,
-/// and raises the event so all per-dim observers
-/// (movement, chat, digging) fire on the correct in-dim entity.
+/// `drain_to_dim_inbox` fills the sub-world's `Messages<InboundPlayerPacket>` buffer from the
+/// serverbound channel each tick. This system consumes that buffer, resolves the in-dim entity
+/// of the packet's session through the `DimPlayerIndex`, and raises the event so all per-dim
+/// observers (movement, chat, digging) fire on the correct in-dim entity.
 fn dispatch_inbound_to_dim(
     mut reader: MessageReader<InboundPlayerPacket>,
-    players: Query<(Entity, &HostAnchor)>,
+    index: Res<DimPlayerIndex>,
     mut commands: Commands,
 ) {
     for msg in reader.read() {
-        let Some((in_dim_entity, _)) = players.iter().find(|(_, ha)| ha.0 == msg.player) else {
+        let Some(&in_dim_entity) = index.0.get(&msg.session) else {
             continue;
         };
         tracing::debug!(
@@ -103,17 +101,17 @@ pub fn entity_pos_sync(
     // the type system: this observer must only fire on entities that
     // carry both transform components. The actual delta computation
     // moves to the bridge tier where per-player wire state lives.
-    entity_data: Query<(&Transform, Option<&HostAnchor>), With<OldTransform>>,
-    viewers: Query<&HostAnchor>,
+    entity_data: Query<(&Transform, Option<&Owner>), With<OldTransform>>,
+    viewers: Query<&Owner>,
     mut packet_writer: MessageWriter<OutboundPlayerPacket>,
 ) {
-    let Ok((transform, anchor)) = entity_data.get(event.entity) else {
+    let Ok((transform, owner)) = entity_data.get(event.entity) else {
         return;
     };
-    let Ok(&HostAnchor(viewer)) = viewers.get(event.player) else {
+    let Ok(&Owner(viewer)) = viewers.get(event.player) else {
         return;
     };
-    let entity_id = network_id(event.entity, anchor);
+    let entity_id = network_id(event.entity, owner);
     packet_writer.write(to(
         viewer,
         PacketPayload::EntityPosSync(ClientboundEntityPositionSync {

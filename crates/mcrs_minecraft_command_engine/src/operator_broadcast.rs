@@ -1,5 +1,5 @@
-use bevy_ecs::entity::Entity;
 use bevy_ecs::event::Event;
+use mcrs_minecraft_engine_world::session::PlayerSession;
 use mcrs_minecraft_text::Text;
 
 /// A command reported success with a message for the operators, triggered on
@@ -8,8 +8,8 @@ use mcrs_minecraft_text::Text;
 /// the message. The source still receives its own success message.
 #[derive(Event, Clone, Debug)]
 pub struct OperatorBroadcast {
-    /// The host anchor of the player that ran the command.
-    pub source: Entity,
+    /// The session of the player that ran the command.
+    pub source: PlayerSession,
     /// The message, already in the `chat.type.admin` form.
     pub message: Text,
 }

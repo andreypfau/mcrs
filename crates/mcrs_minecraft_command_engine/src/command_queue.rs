@@ -1,7 +1,7 @@
-use bevy_ecs::entity::Entity;
 use bevy_ecs::prelude::{Commands, On, Query, ResMut};
 use bevy_ecs::resource::Resource;
 use mcrs_minecraft_engine::session::HostAnchorRef;
+use mcrs_minecraft_engine_world::session::{PlayerSession, Session};
 use mcrs_minecraft_network::event::Received;
 use mcrs_minecraft_network::{ConnectionState, ServerSideConnection};
 use mcrs_minecraft_protocol::VarInt;
@@ -24,15 +24,15 @@ impl CommandQueue {
     }
 }
 
-/// A command line in the order of arrival, from the player with the host anchor `player`.
+/// A command line in the order of arrival, from the player of the session `player`.
 pub(crate) struct QueuedLine {
-    pub(crate) player: Entity,
+    pub(crate) player: PlayerSession,
     pub(crate) line: String,
 }
 
-/// The latest suggestion request of the player with the host anchor `player`.
+/// The latest suggestion request of the player of the session `player`.
 pub(crate) struct QueuedSuggestion {
-    pub(crate) player: Entity,
+    pub(crate) player: PlayerSession,
     pub(crate) id: VarInt,
     pub(crate) text: String,
 }
@@ -42,6 +42,7 @@ pub(crate) struct QueuedSuggestion {
 pub(crate) fn queue_command_line(
     event: On<Received<ServerboundChatCommand<'static>>>,
     mut connections: Query<(Option<&HostAnchorRef>, Option<&mut ServerSideConnection>)>,
+    sessions: Query<&Session>,
     mut queue: ResMut<CommandQueue>,
     mut commands: Commands,
 ) {
@@ -56,7 +57,9 @@ pub(crate) fn queue_command_line(
         .chars()
         .all(mcrs_minecraft_text::is_allowed_chat_character)
     {
-        if let Some(&HostAnchorRef(player)) = anchor {
+        if let Some(&HostAnchorRef(anchor)) = anchor
+            && let Ok(&Session(player)) = sessions.get(anchor)
+        {
             let mut owned = queue.spare.pop().unwrap_or_default();
             owned.clear();
             owned.push_str(line);
@@ -85,12 +88,16 @@ pub(crate) fn queue_command_line(
 pub(crate) fn queue_suggestion_request(
     event: On<Received<ServerboundCommandSuggestion<'static>>>,
     connections: Query<&HostAnchorRef>,
+    sessions: Query<&Session>,
     mut queue: ResMut<CommandQueue>,
 ) {
     let Some(packet) = event.packet() else {
         return;
     };
-    let Ok(&HostAnchorRef(player)) = connections.get(event.entity) else {
+    let Ok(&HostAnchorRef(anchor)) = connections.get(event.entity) else {
+        return;
+    };
+    let Ok(&Session(player)) = sessions.get(anchor) else {
         return;
     };
     let text = packet.text.0;

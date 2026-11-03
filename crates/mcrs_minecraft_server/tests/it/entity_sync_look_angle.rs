@@ -8,9 +8,9 @@ use bevy_ecs::prelude::*;
 use bevy_math::DVec3;
 use mcrs_minecraft_engine::bus::{OutboundPlayerPacket, PacketPayload, PacketTarget};
 use mcrs_minecraft_engine::minecraft_entity::entity_pos_sync;
-use mcrs_minecraft_engine::session::HostAnchor;
 use mcrs_minecraft_engine_world::entity::EntityNetworkSyncEvent;
 use mcrs_minecraft_engine_world::entity::physics::{OldTransform, Rotation, Transform};
+use mcrs_minecraft_engine_world::session::{Owner, PlayerSession};
 use mcrs_minecraft_protocol_game::clientbound::ClientboundEntityPositionSync;
 
 #[test]
@@ -25,8 +25,8 @@ fn a_synced_entity_keeps_its_look_angles_on_the_wire() {
         .world_mut()
         .spawn((transform, OldTransform(transform)))
         .id();
-    let anchor = app.world_mut().spawn_empty().id();
-    let player = app.world_mut().spawn(HostAnchor(anchor)).id();
+    let session = PlayerSession(1);
+    let player = app.world_mut().spawn(Owner(session)).id();
 
     app.world_mut()
         .trigger(EntityNetworkSyncEvent { entity, player });
@@ -43,7 +43,7 @@ fn a_synced_entity_keeps_its_look_angles_on_the_wire() {
     else {
         panic!("expected an EntityPosSync payload, got {:?}", packet.data);
     };
-    assert!(matches!(packet.target, PacketTarget::SinglePlayer(to) if to == anchor));
+    assert!(matches!(packet.target, PacketTarget::SinglePlayer(to) if to == session));
     assert_eq!(look.yaw, 90.0);
     assert_eq!(look.pitch, -45.0);
 }

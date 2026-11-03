@@ -3,9 +3,9 @@ use crate::bus::to;
 use crate::bus::{OutboundPlayerPacket, PacketPayload, PacketTarget, PlayerInfoEntry, to_target};
 use crate::player_dimension_change::CarryOnDimensionChangeExt;
 use crate::session::GameProfile;
-use crate::session::HostAnchor;
 use bevy_app::{App, Plugin};
 use bevy_ecs::prelude::*;
+use mcrs_minecraft_engine_world::session::Owner;
 use mcrs_minecraft_game_mode::GameMode;
 use mcrs_minecraft_network::event::Received;
 use mcrs_minecraft_protocol_game::GameEventKind;
@@ -33,7 +33,7 @@ impl Plugin for GameModePlugin {
 
 fn handle_change_game_mode(
     event: On<Received<ServerboundChangeGameMode>>,
-    mut players: Query<(&PlayerOpLevel, &mut PlayerGameMode), With<HostAnchor>>,
+    mut players: Query<(&PlayerOpLevel, &mut PlayerGameMode), With<Owner>>,
 ) {
     let Some(pkt) = event.packet() else {
         return;
@@ -54,7 +54,7 @@ fn handle_change_game_mode(
 
 fn handle_player_abilities(
     event: On<Received<ServerboundPlayerAbilities>>,
-    mut players: Query<(&PlayerGameMode, &mut PlayerFlying), With<HostAnchor>>,
+    mut players: Query<(&PlayerGameMode, &mut PlayerFlying), With<Owner>>,
 ) {
     let Some(pkt) = event.packet() else {
         return;
@@ -100,14 +100,14 @@ pub(crate) fn send_game_mode(
             &mut ListedGameMode,
             &mut PlayerFlying,
             &GameProfile,
-            &HostAnchor,
+            &Owner,
         ),
         Changed<PlayerGameMode>,
     >,
     mut writer: MessageWriter<OutboundPlayerPacket>,
 ) {
     let mut entries = Vec::new();
-    for (mode, mut listed, mut flying, profile, &HostAnchor(host)) in &mut players {
+    for (mode, mut listed, mut flying, profile, &Owner(session)) in &mut players {
         if listed.0 == mode.0 {
             continue;
         }
@@ -116,14 +116,14 @@ pub(crate) fn send_game_mode(
         flying.set_if_neq(PlayerFlying(abilities.flying));
         writer.write(
             to(
-                host,
+                session,
                 PacketPayload::GameEvent(ClientboundGameEvent {
                     game_event: GameEventKind::ChangeGameMode(mode.0),
                 }),
             )
             .critical(),
         );
-        writer.write(to(host, PacketPayload::PlayerAbilities(abilities)).critical());
+        writer.write(to(session, PacketPayload::PlayerAbilities(abilities)).critical());
         entries.push(PlayerInfoEntry {
             player_uuid: profile.id,
             username: profile.username.clone(),

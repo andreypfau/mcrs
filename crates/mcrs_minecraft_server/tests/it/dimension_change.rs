@@ -161,11 +161,12 @@ fn packets_the_old_dimension_still_holds_leave_before_the_respawn_under_the_old_
     let (mut server, anchor, overworld, _) = walker_in_the_overworld();
     let (player, transform) = player_in(&mut server, overworld, anchor).unwrap();
     let epoch = epoch_of(&server, anchor);
+    let session = server.session_of(anchor).unwrap();
     let world = server.world_in(overworld);
     world
         .resource_mut::<Messages<OutboundPlayerPacket>>()
         .write(to(
-            anchor,
+            session,
             PacketPayload::SetChunkCacheRadius(ClientboundChunkCacheRadius { radius: VarInt(31) }),
         ));
     world
@@ -203,7 +204,7 @@ fn packets_the_old_dimension_still_holds_leave_before_the_respawn_under_the_old_
     let arrived = epoch_of(&server, anchor);
     assert_ne!(arrived, epoch);
     let later = server.ticks_all(2);
-    let to_mover = |packet: &&OutboundPlayerPacket| matches!(packet.target, PacketTarget::SinglePlayer(target) if target == anchor);
+    let to_mover = |packet: &&OutboundPlayerPacket| matches!(packet.target, PacketTarget::SinglePlayer(target) if target == session);
     let epochs: Vec<u32> = sent[respawn..]
         .iter()
         .chain(&later)
@@ -299,6 +300,7 @@ fn an_observer_in_the_new_dimension_sees_the_mover_with_its_network_id_and_no_li
 
     let packets = server.ticks_all(3);
 
+    let greeter = server.session_of(greeter).unwrap();
     let entered: Vec<VarInt> = packets
         .iter()
         .filter(|packet| {
@@ -390,9 +392,10 @@ fn the_chat_mode_a_player_chose_holds_after_a_dimension_change() {
     server.queue(anchor, &line("hello"));
     let sent = server.ticks_all(2);
 
+    let session = server.session_of(anchor).unwrap();
     let told: Vec<String> = sent
         .iter()
-        .filter(|packet| matches!(packet.target, PacketTarget::SinglePlayer(target) if target == anchor))
+        .filter(|packet| matches!(packet.target, PacketTarget::SinglePlayer(target) if target == session))
         .filter_map(|packet| match &packet.data {
             PacketPayload::SystemChat(chat) => match &chat.content.to_text().unwrap().content {
                 TextContent::Translate { translate, .. } => Some(translate.to_string()),

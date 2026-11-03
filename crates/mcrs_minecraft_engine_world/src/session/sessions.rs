@@ -1,21 +1,102 @@
 use bevy_ecs::component::Component;
 use bevy_ecs::entity::Entity;
+use bevy_ecs::lifecycle::HookContext;
 use bevy_ecs::resource::Resource;
+use bevy_ecs::world::{DeferredWorld, World};
 use rustc_hash::FxHashMap;
 
-/// Never-reused process-global routing key. Copy + Hash + Eq.
+/// The name of one connection of a player, in every world and on both sides of the
+/// host↔dimension channels. The host never hands out a value twice, so a packet for a session
+/// that has ended reaches no later connection of the same profile. A change of dimension keeps
+/// it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct PlayerSession(pub u64);
 
-/// Marks a DimWorld player entity as owned by a session.
+/// Marks a DimWorld player entity as owned by a session, and enters it in the
+/// [`DimPlayerIndex`] of its world.
 #[derive(Component, Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[component(on_insert = Owner::index, on_discard = Owner::unindex)]
 pub struct Owner(pub PlayerSession);
 
+impl Owner {
+    fn index(mut world: DeferredWorld, ctx: HookContext) {
+        let Some(&Owner(session)) = world.get::<Owner>(ctx.entity) else {
+            return;
+        };
+        let entity = ctx.entity;
+        match world.get_resource_mut::<DimPlayerIndex>() {
+            Some(mut index) => {
+                index.0.insert(session, entity);
+            }
+            None => world.commands().queue(move |world: &mut World| {
+                world
+                    .get_resource_or_init::<DimPlayerIndex>()
+                    .0
+                    .insert(session, entity);
+            }),
+        }
+    }
+
+    fn unindex(mut world: DeferredWorld, ctx: HookContext) {
+        let Some(&Owner(session)) = world.get::<Owner>(ctx.entity) else {
+            return;
+        };
+        if let Some(mut index) = world.get_resource_mut::<DimPlayerIndex>()
+            && index.0.get(&session) == Some(&ctx.entity)
+        {
+            index.0.remove(&session);
+        }
+    }
+}
+
 /// A logged-in player on the host, carried by its host anchor entity for as long as the
-/// player is connected.
+/// player is connected, and entered in the host's [`SessionAnchors`].
 #[derive(Component, Clone, Copy, Debug, PartialEq, Eq)]
 #[require(SessionPlacement)]
+#[component(on_insert = Session::index, on_discard = Session::unindex)]
 pub struct Session(pub PlayerSession);
+
+impl Session {
+    fn index(mut world: DeferredWorld, ctx: HookContext) {
+        let Some(&Session(session)) = world.get::<Session>(ctx.entity) else {
+            return;
+        };
+        let entity = ctx.entity;
+        match world.get_resource_mut::<SessionAnchors>() {
+            Some(mut anchors) => {
+                anchors.0.insert(session, entity);
+            }
+            None => world.commands().queue(move |world: &mut World| {
+                world
+                    .get_resource_or_init::<SessionAnchors>()
+                    .0
+                    .insert(session, entity);
+            }),
+        }
+    }
+
+    fn unindex(mut world: DeferredWorld, ctx: HookContext) {
+        let Some(&Session(session)) = world.get::<Session>(ctx.entity) else {
+            return;
+        };
+        if let Some(mut anchors) = world.get_resource_mut::<SessionAnchors>()
+            && anchors.0.get(&session) == Some(&ctx.entity)
+        {
+            anchors.0.remove(&session);
+        }
+    }
+}
+
+/// Host-world index: session → the host anchor that carries its [`Session`]. The host resolves
+/// every session that a dimension names through it; it never crosses a boundary.
+#[derive(Resource, Default, Debug)]
+pub struct SessionAnchors(FxHashMap<PlayerSession, Entity>);
+
+impl SessionAnchors {
+    pub fn get(&self, session: PlayerSession) -> Option<Entity> {
+        self.0.get(&session).copied()
+    }
+}
 
 /// Where the host routes a session's packets.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -92,7 +173,7 @@ impl PlayerSessionCounter {
     }
 }
 
-/// Per-dim O(1) reverse map: session → dim-local entity.
+/// Per-dim O(1) reverse map: session → dim-local entity, kept by the hooks of [`Owner`].
 /// Inserted fresh when a DimSubApp is created; never crosses a boundary.
 #[derive(Resource, Default)]
 pub struct DimPlayerIndex(pub FxHashMap<PlayerSession, Entity>);

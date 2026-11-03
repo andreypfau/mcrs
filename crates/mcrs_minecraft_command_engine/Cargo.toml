@@ -32,5 +32,6 @@ bevy_app.workspace = true
 bevy_ecs.workspace = true
 bevy_math.workspace = true
 bytes.workspace = true
+rustc-hash.workspace = true
 thiserror.workspace = true
 tracing.workspace = true

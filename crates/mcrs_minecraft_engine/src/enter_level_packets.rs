@@ -1,7 +1,7 @@
 use crate::ability::PlayerOpLevel;
 use crate::bus::{OutboundPlayerPacket, PacketPayload, to};
 use crate::op_level::op_level_packet;
-use bevy_ecs::entity::Entity;
+use mcrs_minecraft_engine_world::session::PlayerSession;
 use mcrs_minecraft_protocol::VarInt;
 use mcrs_minecraft_protocol_game::GameEventKind;
 use mcrs_minecraft_protocol_game::clientbound::{
@@ -16,18 +16,18 @@ use mcrs_voxel::ColumnPos;
 // difficulty, world border, clock packet, spawn position, tick rate packet, inventory sync or post
 // effects yet; each step joins this sequence with its state.
 pub(crate) fn enter_level_packets(
-    host: Entity,
+    session: PlayerSession,
     op_level: PlayerOpLevel,
     position: ClientboundPlayerPosition,
     abilities: ClientboundPlayerAbilities,
     mut push: impl FnMut(OutboundPlayerPacket),
 ) {
     let column = ColumnPos::from(position.position);
-    push(op_level_packet(host, op_level));
-    push(to(host, PacketPayload::PlayerPosition(position)).critical());
+    push(op_level_packet(session, op_level));
+    push(to(session, PacketPayload::PlayerPosition(position)).critical());
     push(
         to(
-            host,
+            session,
             PacketPayload::SetChunkCacheCenter(ClientboundSetChunkCacheCenter {
                 x: VarInt(column.x),
                 z: VarInt(column.z),
@@ -35,10 +35,10 @@ pub(crate) fn enter_level_packets(
         )
         .critical(),
     );
-    push(to(host, PacketPayload::PlayerAbilities(abilities)).critical());
+    push(to(session, PacketPayload::PlayerAbilities(abilities)).critical());
     push(
         to(
-            host,
+            session,
             PacketPayload::GameEvent(ClientboundGameEvent {
                 game_event: GameEventKind::LevelChunksLoadStart,
             }),

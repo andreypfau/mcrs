@@ -1,11 +1,11 @@
 use crate::ability::{OpLevelAnnounced, PlayerOpLevel};
 use crate::bus::{OutboundPlayerPacket, PacketPayload, to};
 use crate::network_id;
-use crate::session::HostAnchor;
 use bevy_ecs::component::Component;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::MessageWriter;
 use bevy_ecs::prelude::{Changed, Query};
+use mcrs_minecraft_engine_world::session::{Owner, PlayerSession};
 use mcrs_minecraft_protocol_game::clientbound::ClientboundEntityEvent;
 
 /// The operator level that the client of a player was told, which the login and a dimension
@@ -17,32 +17,35 @@ pub struct AnnouncedOpLevel(pub PlayerOpLevel);
 /// in; this tells it every later change.
 pub(crate) fn send_op_level(
     mut players: Query<
-        (Entity, &PlayerOpLevel, &mut AnnouncedOpLevel, &HostAnchor),
+        (Entity, &PlayerOpLevel, &mut AnnouncedOpLevel, &Owner),
         Changed<PlayerOpLevel>,
     >,
     mut packet_writer: MessageWriter<OutboundPlayerPacket>,
     mut announced_levels: MessageWriter<OpLevelAnnounced>,
 ) {
-    for (player, op_level, mut announced, &HostAnchor(host)) in &mut players {
+    for (player, op_level, mut announced, &Owner(session)) in &mut players {
         if announced.0 == *op_level {
             continue;
         }
         announced.0 = *op_level;
-        packet_writer.write(op_level_packet(host, *op_level));
+        packet_writer.write(op_level_packet(session, *op_level));
         announced_levels.write(OpLevelAnnounced {
             player,
-            host,
+            session,
             level: *op_level,
         });
     }
 }
 
 /// The `entity_event` that tells a client its operator level.
-pub(crate) fn op_level_packet(host: Entity, op_level: PlayerOpLevel) -> OutboundPlayerPacket {
+pub(crate) fn op_level_packet(
+    session: PlayerSession,
+    op_level: PlayerOpLevel,
+) -> OutboundPlayerPacket {
     to(
-        host,
+        session,
         PacketPayload::OpLevelEntityEvent(ClientboundEntityEvent {
-            entity_id: network_id::player_network_id(host),
+            entity_id: network_id::player_network_id(session),
             entity_status: op_level.entity_status(),
         }),
     )

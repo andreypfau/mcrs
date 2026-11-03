@@ -58,6 +58,7 @@ impl Plugin for EnginePlugin {
         // The bridge systems and the host side of the dimension channels read these messages
         // with `resource_mut`, which panics on a message that was never added.
         app.init_resource::<mcrs_minecraft_engine_world::session::PlayerSessionCounter>();
+        app.init_resource::<mcrs_minecraft_engine_world::session::SessionAnchors>();
         app.init_resource::<channel_types::DimChannelsResource>();
         app.init_resource::<mcrs_minecraft_network::metrics::BridgeTelemetry>();
         // The pre-game loop and the bridge share one dispatcher, whichever plugin builds first.

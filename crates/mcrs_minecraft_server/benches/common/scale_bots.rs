@@ -98,6 +98,7 @@ pub fn run_profile_ticks(
     world.init_resource::<Messages<OutboundPlayerPacket>>();
     world.init_resource::<PlayerSessionCounter>();
     world.init_resource::<BridgeTelemetry>();
+    world.init_resource::<mcrs_minecraft_engine_world::session::SessionAnchors>();
 
     // Synthetic dimension entities — plain entity handles used as dim keys
     // in session placements. No dim sub-app is spawned; the harness exercises
@@ -155,11 +156,11 @@ pub fn run_profile_ticks(
         // and routes it to the bot's OutboundQueue. BlockUpdate is a MAPPED
         // variant so it exercises the real fill path.
         if tick_count.is_multiple_of(2) {
-            for (player, _socket, session) in &bot_entities {
+            for (_player, _socket, session) in &bot_entities {
                 world
                     .resource_mut::<Messages<OutboundPlayerPacket>>()
                     .write(OutboundPlayerPacket {
-                        target: PacketTarget::SinglePlayer(*player),
+                        target: PacketTarget::SinglePlayer(*session),
                         priority: PacketPriority::Normal,
                         data: PacketPayload::BlockUpdate(ClientboundBlockUpdate {
                             block_pos: mcrs_voxel::BlockPos::new(0, 64, 0),

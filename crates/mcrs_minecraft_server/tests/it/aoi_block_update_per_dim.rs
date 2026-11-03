@@ -10,10 +10,10 @@ use bevy_ecs::prelude::*;
 use bevy_ecs::system::IntoSystem;
 use mcrs_minecraft_engine::block_update::update_client_blocks_per_dim;
 use mcrs_minecraft_engine::bus::{OutboundPlayerPacket, PacketPayload, PacketTarget};
-use mcrs_minecraft_engine::session::HostAnchor;
 use mcrs_minecraft_engine_world::aoi::PlayerObservers;
 use mcrs_minecraft_engine_world::block_update::BlockPlaced;
 use mcrs_minecraft_engine_world::entity::player::Player;
+use mcrs_minecraft_engine_world::session::{Owner, PlayerSession};
 use mcrs_minecraft_engine_world::world::dimension::InDimension;
 use mcrs_minecraft_engine_world::world::storage::column::{ColumnIndex, ColumnSlot};
 use mcrs_minecraft_simulation::BlockUpdateFlags;
@@ -32,10 +32,10 @@ fn block_update_resolves_observers_per_dim_emit_site() {
     // chunk entity (the source of block-change events).
     // The player must carry the Player Component so the liveness filter in
     // update_client_blocks_per_dim passes it through (the filter uses
-    // Query<Entity, With<Player>>), and its HostAnchor because that is what the
-    // bus addresses: the session registry is keyed by anchor.
-    let anchor = app.world_mut().spawn_empty().id();
-    let player = app.world_mut().spawn((Player, HostAnchor(anchor))).id();
+    // Query<Entity, With<Player>>), and its Owner because the bus addresses
+    // its session.
+    let session = PlayerSession(1);
+    let player = app.world_mut().spawn((Player, Owner(session))).id();
 
     let mut observers = PlayerObservers::default();
     observers.0.push(player);
@@ -100,8 +100,8 @@ fn block_update_resolves_observers_per_dim_emit_site() {
         match &pkt.target {
             PacketTarget::PlayerSet(set) => {
                 assert!(
-                    set.contains(&anchor),
-                    "BlockUpdate PlayerSet target missing the chunk observer's anchor"
+                    set.contains(&session),
+                    "BlockUpdate PlayerSet target missing the chunk observer's session"
                 );
                 block_update_count += 1;
             }

@@ -311,7 +311,6 @@ pub fn emit_initial_player_spawn(
         if dim_channels.send_control(
             dim_label,
             ToDim::Spawn(InboundPlayerSpawn {
-                host_anchor,
                 session: session.0,
                 snapshot,
                 dimensions,

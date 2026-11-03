@@ -347,6 +347,7 @@ fn a_second_login_under_a_name_ends_the_first_session_and_plays_once_its_player_
         [LoginCompression::ID, ClientboundLoginFinished::ID]
     );
     let first_anchor = anchor(&app, &first);
+    let first_session = app.world().get::<Session>(first_anchor).unwrap().0;
     app.world_mut()
         .entity_mut(first.connection)
         .insert(ConnectionState::Game);
@@ -365,7 +366,7 @@ fn a_second_login_under_a_name_ends_the_first_session_and_plays_once_its_player_
     let Ok(ToDim::Despawn(despawn)) = to_dim.try_recv() else {
         panic!("the first player's dimension is not told to let it go");
     };
-    assert_eq!(despawn.host_anchor, first_anchor);
+    assert_eq!(despawn.session, first_session);
 
     for _ in 0..3 {
         app.update();

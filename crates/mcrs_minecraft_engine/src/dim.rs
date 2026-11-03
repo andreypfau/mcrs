@@ -7,7 +7,9 @@ use bevy_ecs::message::Messages;
 use bevy_ecs::resource::Resource;
 use bevy_ecs::system::ResMut;
 use bevy_ecs::world::World;
-use mcrs_minecraft_engine_world::session::{PlayerSession, Session, SessionPlacement};
+use mcrs_minecraft_engine_world::session::{
+    PlayerSession, Session, SessionAnchors, SessionPlacement,
+};
 use mcrs_minecraft_engine_world::world::channels::DimChannels;
 use mcrs_minecraft_engine_world::world::sub_app::{DimAppLabel, DimDespawnQueue};
 use tracing::{debug, warn};
@@ -99,9 +101,10 @@ pub fn forget_departures(world: &mut World, matches: impl Fn(&Departing) -> bool
 /// outbound packets.
 pub fn deliver(world: &mut World, packet: OutboundPlayerPacket) {
     let (session, epoch) = match &packet.target {
-        PacketTarget::SinglePlayer(anchor) => world
-            .get_entity(*anchor)
-            .ok()
+        PacketTarget::SinglePlayer(target) => world
+            .get_resource::<SessionAnchors>()
+            .and_then(|anchors| anchors.get(*target))
+            .and_then(|anchor| world.get_entity(anchor).ok())
             .and_then(|anchor| {
                 Some((
                     anchor.get::<Session>()?.0,
