@@ -60,6 +60,7 @@ use mcrs_minecraft_protocol_game::clientbound::ClientboundPlayerInfoUpdate;
 use mcrs_minecraft_protocol_game::player_list::{PlayerListActions, PlayerListEntry};
 use mcrs_minecraft_text::Text;
 use std::borrow::Cow;
+use std::mem;
 use tracing::{trace, warn};
 
 use crate::bridge_queue::{DEPTH_DRAIN_TARGET, DEPTH_LIMIT, InboundRateBucket, OutboundQueue};
@@ -68,6 +69,7 @@ use crate::bus::{PacketPayload, PacketTarget};
 use crate::channel_types::{DimChannelsResource, ToDim};
 use crate::session::{HostAnchorRef, PendingInbound, SessionConnection};
 use mcrs_minecraft_engine_world::session::{Place, Session, SessionPlacement};
+use mcrs_minecraft_engine_world::world::channels::MAX_HELD_SERVERBOUND;
 
 /// Attach `OutboundQueue` to any connection entity that carries
 /// `ServerSideConnection` but not yet an `OutboundQueue`.
@@ -414,8 +416,8 @@ fn append_payload(raw: &mut RawConnection, data: PacketPayload) -> anyhow::Resul
 ///
 /// `bridge_inbound` handles packets read from sockets; this system handles the
 /// ones written by upstream callers, and raises their typed events on the host
-/// connection as `bridge_inbound` does. A full serverbound channel disconnects the
-/// offending session.
+/// connection as `bridge_inbound` does. A session that holds more than
+/// [`MAX_HELD_SERVERBOUND`] packets is disconnected.
 pub fn bridge_inbound_to_channel(
     mut msgs: ResMut<Messages<InboundPlayerPacket>>,
     mut sessions: Query<(
@@ -449,29 +451,32 @@ pub fn bridge_inbound_to_channel(
 }
 
 /// Sends a packet to the dimension its session is attached to, or holds it
-/// until the session is attached and everything held before it has gone.
-/// Returns `false` when the dimension's serverbound channel is full.
+/// until the session is attached, the channel has room, and everything held
+/// before it has gone. Returns `false` when the session holds more than
+/// [`MAX_HELD_SERVERBOUND`] packets for its attached dimension.
 fn route_serverbound(
     placement: &SessionPlacement,
     pending: &mut PendingInbound,
     dim_channels: &DimChannelsResource,
     packet: InboundPlayerPacket,
 ) -> bool {
-    let Some(dim) = placement
-        .place()
-        .attached()
-        .filter(|_| pending.0.is_empty())
-    else {
+    let Some(dim) = placement.place().attached() else {
         pending.0.push(packet);
         return true;
     };
+    if !pending.0.is_empty() {
+        pending.0.push(packet);
+        return pending.0.len() <= MAX_HELD_SERVERBOUND;
+    }
     let Some(chan) = dim_channels.get(dim) else {
         return true;
     };
-    !matches!(
-        chan.serverbound_sender.try_send(ToDim::Serverbound(packet)),
-        Err(flume::TrySendError::Full(_))
-    )
+    if let Err(flume::TrySendError::Full(ToDim::Serverbound(packet))) =
+        chan.serverbound_sender.try_send(ToDim::Serverbound(packet))
+    {
+        pending.0.push(packet);
+    }
+    true
 }
 
 /// A dimension that has spawned a player attaches its session.
@@ -489,18 +494,13 @@ pub fn bridge_player_attach(
     }
 }
 
-/// Hands an attached session's held packets to its dimension. A full serverbound
-/// channel disconnects the offending session.
+/// Hands an attached session's held packets to its dimension, oldest first, until the
+/// dimension's serverbound channel is full; the rest wait for the next call.
 pub fn forward_pending_inbound(
-    mut sessions: Query<(
-        &SessionPlacement,
-        &mut PendingInbound,
-        Option<&SessionConnection>,
-    )>,
+    mut sessions: Query<(&SessionPlacement, &mut PendingInbound)>,
     dim_channels: Res<DimChannelsResource>,
-    mut commands: Commands,
 ) {
-    for (placement, mut pending, connection) in &mut sessions {
+    for (placement, mut pending) in &mut sessions {
         if pending.0.is_empty() {
             continue;
         }
@@ -511,15 +511,13 @@ pub fn forward_pending_inbound(
         else {
             continue;
         };
-        for packet in pending.0.drain(..) {
-            if let Err(flume::TrySendError::Full(_)) =
+        let mut held = mem::take(&mut pending.0).into_iter();
+        while let Some(packet) = held.next() {
+            if let Err(flume::TrySendError::Full(ToDim::Serverbound(packet))) =
                 chan.serverbound_sender.try_send(ToDim::Serverbound(packet))
             {
-                if let Some(connection) = connection {
-                    commands
-                        .entity(connection.entity())
-                        .remove::<ServerSideConnection>();
-                }
+                pending.0.push(packet);
+                pending.0.extend(held);
                 break;
             }
         }

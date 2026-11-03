@@ -8,12 +8,12 @@ use bytes::Bytes;
 use mcrs_minecraft_engine::bridge::{bridge_inbound_to_channel, forward_pending_inbound};
 use mcrs_minecraft_engine::bus::InboundPlayerPacket;
 use mcrs_minecraft_engine::channel_types::{DimChannelsResource, FromDim, ToDim};
-use mcrs_minecraft_engine::session::{HostAnchorRef, PendingInbound, SessionBundle};
+use mcrs_minecraft_engine::session::{HostAnchorRef, SessionBundle};
 use mcrs_minecraft_engine_world::session::{
     Place, PlayerSession, PlayerSessionCounter, SessionPlacement,
 };
 use mcrs_minecraft_engine_world::world::channels::{
-    FROM_DIM_CAPACITY, TO_DIM_CAPACITY, TO_DIM_CONTROL_CAPACITY,
+    FROM_DIM_CAPACITY, MAX_HELD_SERVERBOUND, TO_DIM_CAPACITY, TO_DIM_CONTROL_CAPACITY,
 };
 use mcrs_minecraft_network::ServerSideConnection;
 
@@ -78,120 +78,103 @@ fn run_bridge(world: &mut World) {
     sys.apply_deferred(world);
 }
 
-#[test]
-fn serverbound_full_disconnects_session() {
-    let mut world = build_world();
-
-    let dim_a = world.spawn_empty().id();
-    let dim_b = world.spawn_empty().id();
-
-    let (srv_rx_a, _ctl_rx_a, _from_tx_a) = make_channels(&mut world, dim_a);
-    let (_srv_rx_b, _ctl_rx_b, _from_tx_b) = make_channels(&mut world, dim_b);
-
-    let in_dim_a = world.spawn_empty().id();
-    let in_dim_b = world.spawn_empty().id();
-
-    let conn_a = spawn_connection(&mut world);
-    let conn_b = spawn_connection(&mut world);
-
-    let anchor_a = world.spawn_empty().id();
-    let anchor_b = world.spawn_empty().id();
-
-    register_session(&mut world, conn_a, anchor_a, dim_a, Some(in_dim_a));
-    register_session(&mut world, conn_b, anchor_b, dim_b, Some(in_dim_b));
-
-    // Fill dim_a's serverbound channel to capacity.
-    {
-        let channels = world.resource::<DimChannelsResource>();
-        let entry = channels.get(dim_a).expect("dim_a channel present");
-        for i in 0..TO_DIM_CAPACITY {
-            entry
-                .serverbound_sender
-                .try_send(ToDim::Serverbound(InboundPlayerPacket {
-                    player: anchor_a,
-                    id: i as i32,
-                    data: Bytes::new(),
-                    timestamp: std::time::Instant::now(),
-                    trigger: None,
-                }))
-                .expect("fill channel");
-        }
+fn packet(player: Entity, id: i32) -> InboundPlayerPacket {
+    InboundPlayerPacket {
+        player,
+        id,
+        data: Bytes::new(),
+        timestamp: std::time::Instant::now(),
+        trigger: None,
     }
-
-    // Route one more packet for the offending session.
-    world
-        .resource_mut::<Messages<InboundPlayerPacket>>()
-        .write(InboundPlayerPacket {
-            player: anchor_a,
-            id: 0xBAD,
-            data: Bytes::new(),
-            timestamp: std::time::Instant::now(),
-            trigger: None,
-        });
-    run_bridge(&mut world);
-
-    // The offending session's connection must be disconnected.
-    assert!(
-        world.get::<ServerSideConnection>(conn_a).is_none(),
-        "offending session connection_entity must lose ServerSideConnection on channel full"
-    );
-
-    // The unrelated session on dim_b must be unaffected.
-    assert!(
-        world.get::<ServerSideConnection>(conn_b).is_some(),
-        "unrelated session on a different dim must remain connected (bounded blast radius)"
-    );
-
-    // Verify the channel was indeed full and we did not accidentally drain it.
-    let drained: Vec<_> = srv_rx_a.try_iter().collect();
-    assert_eq!(
-        drained.len(),
-        TO_DIM_CAPACITY,
-        "channel held exactly TO_DIM_CAPACITY messages"
-    );
 }
 
+fn fill(world: &World, dim: Entity, player: Entity) {
+    let channels = world.resource::<DimChannelsResource>();
+    let entry = channels.get(dim).expect("dim channel present");
+    for i in 0..TO_DIM_CAPACITY {
+        entry
+            .serverbound_sender
+            .try_send(ToDim::Serverbound(packet(player, i as i32)))
+            .expect("fill channel");
+    }
+}
+
+fn run_forward(world: &mut World) {
+    let mut sys = IntoSystem::into_system(forward_pending_inbound);
+    sys.initialize(world);
+    let _ = sys.run((), world);
+    sys.apply_deferred(world);
+}
+
+fn ids(rx: &flume::Receiver<ToDim>) -> Vec<i32> {
+    rx.try_iter()
+        .map(|msg| match msg {
+            ToDim::Serverbound(packet) => packet.id,
+            other => panic!("expected Serverbound, got {other:?}"),
+        })
+        .collect()
+}
+
+/// The channel is shared by every player of the dimension, so finding it full says nothing
+/// about the player whose packet came last.
 #[test]
-fn held_packets_on_a_full_channel_disconnect_session() {
+fn a_full_serverbound_channel_holds_the_packet_until_the_dimension_drains() {
     let mut world = build_world();
     let dim = world.spawn_empty().id();
+    let other = world.spawn_empty().id();
     let (srv_rx, _ctl_rx, _from_tx) = make_channels(&mut world, dim);
     let conn = spawn_connection(&mut world);
     let anchor = world.spawn_empty().id();
     let in_dim = world.spawn_empty().id();
     register_session(&mut world, conn, anchor, dim, Some(in_dim));
+    fill(&world, dim, other);
 
-    let packet = |id| InboundPlayerPacket {
-        player: anchor,
-        id,
-        data: Bytes::new(),
-        timestamp: std::time::Instant::now(),
-        trigger: None,
-    };
-    {
-        let channels = world.resource::<DimChannelsResource>();
-        let entry = channels.get(dim).expect("dim channel present");
-        for i in 0..TO_DIM_CAPACITY - 1 {
-            entry
-                .serverbound_sender
-                .try_send(ToDim::Serverbound(packet(i as i32)))
-                .expect("fill channel");
-        }
-    }
     world
-        .get_mut::<PendingInbound>(anchor)
-        .unwrap()
-        .0
-        .extend([packet(0xA), packet(0xB)]);
-
-    let mut sys = IntoSystem::into_system(forward_pending_inbound);
-    sys.initialize(&mut world);
-    let _ = sys.run((), &mut world);
-    sys.apply_deferred(&mut world);
+        .resource_mut::<Messages<InboundPlayerPacket>>()
+        .write_batch([packet(anchor, 0xA), packet(anchor, 0xB)]);
+    run_bridge(&mut world);
+    run_forward(&mut world);
 
     assert!(
-        world.get::<ServerSideConnection>(conn).is_none(),
-        "a held packet that finds the channel full disconnects the session"
+        world.get::<ServerSideConnection>(conn).is_some(),
+        "a full channel holds the packet rather than costing its session the connection"
     );
     assert_eq!(srv_rx.try_iter().count(), TO_DIM_CAPACITY);
+
+    run_forward(&mut world);
+    assert_eq!(
+        ids(&srv_rx),
+        vec![0xA, 0xB],
+        "the held packets reach the dimension once it drains, in order"
+    );
+}
+
+#[test]
+fn only_the_session_over_its_held_bound_is_disconnected() {
+    let mut world = build_world();
+    let dim = world.spawn_empty().id();
+    let other = world.spawn_empty().id();
+    let (_srv_rx, _ctl_rx, _from_tx) = make_channels(&mut world, dim);
+    let flooding_conn = spawn_connection(&mut world);
+    let flooding = world.spawn_empty().id();
+    let quiet_conn = spawn_connection(&mut world);
+    let quiet = world.spawn_empty().id();
+    let in_dim = world.spawn_empty().id();
+    register_session(&mut world, flooding_conn, flooding, dim, Some(in_dim));
+    register_session(&mut world, quiet_conn, quiet, dim, Some(in_dim));
+    fill(&world, dim, other);
+
+    let mut messages = world.resource_mut::<Messages<InboundPlayerPacket>>();
+    messages.write_batch((0..=MAX_HELD_SERVERBOUND as i32).map(|id| packet(flooding, id)));
+    messages.write(packet(quiet, 0));
+    run_bridge(&mut world);
+
+    assert!(
+        world.get::<ServerSideConnection>(flooding_conn).is_none(),
+        "a session holding more than its bound is disconnected"
+    );
+    assert!(
+        world.get::<ServerSideConnection>(quiet_conn).is_some(),
+        "a session within its bound stays, however full the shared channel is"
+    );
 }

@@ -2,11 +2,17 @@ use bevy_ecs::prelude::{Entity, Resource};
 use rustc_hash::FxHashMap;
 use std::collections::VecDeque;
 
-/// Non-blocking send capacity for the sheddable `Serverbound` channel.
-/// Two-channel split enforces the control reserve structurally: the
-/// `Serverbound` channel fills to this bound, leaving `TO_DIM_CONTROL_CAPACITY`
-/// slots in the separate control channel always available for lifecycle messages.
-pub const TO_DIM_CAPACITY: usize = 224;
+/// Non-blocking send capacity for the `Serverbound` channel, which every player of a dimension
+/// shares. The host fills it for a whole tick before the dimension drains it, so it bounds the
+/// packets a dimension takes a tick, not one player's: a vanilla client sends three or more a
+/// tick, so a few hundred slots would cap a dimension at some seventy players. A packet that
+/// finds the channel full waits in its session's `PendingInbound`.
+pub const TO_DIM_CAPACITY: usize = 4096;
+
+/// The serverbound packets one session may hold for its dimension, behind a full channel,
+/// before the host disconnects it. The bound is per session, so a dimension that falls behind
+/// costs each player only its own backlog, never another player's.
+pub const MAX_HELD_SERVERBOUND: usize = 256;
 
 /// Capacity of the non-sheddable control channel (`Spawn`/`Despawn`/`Attach`).
 /// A message that finds the channel full waits in the host's control backlog.
