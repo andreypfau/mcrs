@@ -121,10 +121,11 @@ Provenance: `black_box_confirmed` (R6, R16). Kind: semantic. Confidence: high.
   makes the whitelist empty.
 - **Behavior:** the server keeps the file, logs a warning and replies as for a good reload.
 - **Behavior:** the same file at the start of the server gives an empty whitelist and a warning.
-  The server continues to start, and the stop of the server does not write the file.
+  The server continues to start.
+- **Behavior:** the stop of the server does not write the file, after a start or after a reload.
 - **Behavior:** the next write of the file replaces the content (WL-CMD-002).
 
-Provenance: `black_box_confirmed` (R7, R15, R16). Kind: semantic. Confidence: high.
+Provenance: `black_box_confirmed` (R7, R15, R16, R24). Kind: semantic. Confidence: high.
 
 ### WL-FILE-005: A missing file
 
@@ -238,8 +239,9 @@ and WL-DEV-001 records the reference behaviour. Kind: semantic. Confidence: high
 - **Behavior:** in offline mode, the command turns the name into a profile.
   - A name of a player that is online matches with any case. The profile has the id and the name
     of that player.
-  - For another name, the profile is the one in WL-CMD-003, also when that player joined before.
-    WL-DEV-001 and WL-DEV-004 record the vanilla server.
+  - For a name that WL-CMD-003 covers, the profile is the one in that rule, also when that player
+    joined before. WL-DEV-001 and WL-DEV-004 record the vanilla server.
+  - U1 covers a name that an account holds.
 - **Behavior:** the command compares the id of the profile with the id of each entry. It does not
   compare the name of the entry.
 - **Edge cases:**
@@ -252,16 +254,25 @@ online, and WL-DEV-004 records the reference behaviour. Kind: semantic. Confiden
 
 ### WL-CMD-005: Who receives the replies
 
-- **Behavior:** the source of the command receives the reply of WL-CMD-001.
+- **Behavior:** the replies follow the conditions of CMDP-EXEC-004.
+- **Behavior:** a player that runs the command receives a failed reply in each case. The player
+  receives a reply of success, also from `whitelist list`, only when the game rule
+  `send_command_feedback` is true. The console receives each reply in each case.
 - **Behavior:** after a success of `whitelist add`, `whitelist remove`, `whitelist on`,
-  `whitelist off` or `whitelist reload`, each other online operator also receives the message in
-  the form of CMDP-EXEC-004, with `chat.type.admin`, in gray and italic. A player that is not an
-  operator receives nothing.
+  `whitelist off` or `whitelist reload` by a player, each other online operator also receives the
+  message in the form of CMDP-EXEC-004, with `chat.type.admin`, in gray and italic, when
+  `send_command_feedback` is true. A player that is not an operator receives nothing.
 - **Behavior:** `whitelist list` and a failed command reach the source only.
-- **Behavior:** when the console runs the command, each online operator receives the
-  `chat.type.admin` form with the source name `Server`.
+- **Behavior:** after such a success by the console, each online operator receives the
+  `chat.type.admin` form with the source name `Server`, when `send_command_feedback` is true and
+  the property `broadcast-console-to-ops` is true.
+- **Behavior:** after such a success by a player, the server log receives the text
+  `[<player>: <message>]` when the game rule `log_admin_commands` is true. The value of
+  `send_command_feedback` does not change this. `log_admin_commands` does not change what a player
+  receives.
 
-Provenance: `black_box_confirmed` (R22). Kind: semantic. Confidence: high.
+Provenance: `black_box_confirmed` (R22, R25). The results in R25 come from one run. Kind: semantic.
+Confidence: high.
 
 ### WL-CMD-006: The result of the command
 
@@ -391,6 +402,8 @@ account holds, except where a step names a player.
 | E21 | Use a new name for each step, and wait for the reply. Write entries where the id and the name differ, reload, and run `whitelist remove` and `whitelist add` with each name, in each case. Join as a player with an upper-case letter in the name, and repeat. | R21 |
 | E22 | Keep two operators and a player that is not an operator online. One operator runs each form of WL-CMD-001. Then the console runs `whitelist add`. | R22 |
 | E23 | Run `execute store result score #x r run <command>` for each form of WL-CMD-001, and read the score. | R23 |
+| E24 | Start with `{}` in the file, stop, and read the file. Then start, add a name, write `{}`, and reload. List, remove a name that is not listed, add a name, and read the file after each. Write `{}` again, reload, stop, and read the file. Use a new name for each step, and wait for the reply. | R24 |
+| E25 | Keep two operators and a player that is not an operator online. Set `send_command_feedback` to false, and run each form of WL-CMD-001 as an operator and `whitelist add`, `remove` and `list` on the console. Repeat `add`, `remove` and `reload` with `log_admin_commands` false. Restart with `broadcast-console-to-ops=false`, and repeat them on the console and as an operator. Read the replies and the server log. | R25 |
 
 ## 8. Captured results
 
@@ -628,4 +641,37 @@ remove, listed -> 1     remove, not listed -> 0
 on, off -> 1            on, on -> 0
 off, on -> 1            off, off -> 0
 reload -> 1
+```
+
+**R24.** `<n>` is a new name for each step.
+
+```text
+whitelist.json: {}, at the start, then stop -> whitelist.json still holds: {}
+
+whitelist add <n>
+whitelist.json: {}, whitelist reload -> a warning in the server log, Reloaded the whitelist
+whitelist list -> There are no whitelisted players, whitelist.json still holds: {}
+whitelist remove <n> -> Player is not whitelisted, whitelist.json still holds: {}
+whitelist add <n> -> Added <n> to the whitelist, whitelist.json holds that entry
+whitelist.json: {}, whitelist reload, whitelist list -> There are no whitelisted players
+after stop, whitelist.json still holds: {}
+```
+
+**R25.** `a` and `b` are operators, and `c` is not. `c` received no reply in any step. The names in
+the first two blocks were held by accounts, so the replies show the case of the account.
+
+```text
+send_command_feedback=false, log_admin_commands=true
+a: list, add, remove, on, off, reload, each with success -> a and b receive nothing
+a: add, remove, on, off, each with failure -> a receives the red reply
+a: add -> the server log: [a: Added <n> to the whitelist]
+console: add, remove, list -> the console receives the reply, a and b receive nothing
+
+send_command_feedback=true, log_admin_commands=false
+a: add, remove, reload -> a receives the reply, b receives chat.type.admin, the server log has no line
+console: add, remove -> the console receives the reply, a and b receive chat.type.admin with "Server"
+
+send_command_feedback=true, log_admin_commands=true, broadcast-console-to-ops=false
+console: add, remove, reload -> the console receives the reply, a and b receive nothing
+a: add, remove -> a receives the reply, b receives chat.type.admin
 ```
