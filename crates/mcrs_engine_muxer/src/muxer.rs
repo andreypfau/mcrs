@@ -5,7 +5,7 @@ use crate::entity_event::{EntityEvent, SubjectEvent};
 use crate::entity_id::{EntityId, ViewerId};
 use crate::muxer_settings::MuxerSettings;
 use crate::planner::{Point, SubscriptionChange, TICKS_PER_SECOND, TileHeader, ViewerState, plan};
-use crate::replication_codec::ReplicationCodec;
+use crate::replication_codec::{BlobKind, Hold, ReplicationCodec};
 use crate::subscription::{LAYERS, Subscription, layer_ranks};
 use crate::tier::Tier;
 use crate::tile_blob::TileBlob;
@@ -164,7 +164,7 @@ impl<C: ReplicationCodec> Muxer<C> {
         let Some(state) = self.viewers.remove(&viewer) else {
             return;
         };
-        self.codec.forget(viewer);
+        self.codec.hold(viewer, Hold::Forget, &mut Vec::new());
         for tile in state.subscriptions.keys() {
             if let Some(stream) = self.tiles.get_mut(tile) {
                 stream.viewers.remove(&viewer);
@@ -216,11 +216,6 @@ impl<C: ReplicationCodec> Muxer<C> {
                     before.get_or_insert_with(|| stream.subjects.clone());
                     stream.insert(subject);
                     self.homes.insert(subject, tile);
-                    if matches!(event, EntityEvent::Enter { .. }) {
-                        // The viewers of this tile may hold the subject from its old tile at
-                        // another tier.
-                        self.codec.refresh(subject);
-                    }
                 }
                 EntityEvent::Leave { .. } | EntityEvent::Despawn => {
                     before.get_or_insert_with(|| stream.subjects.clone());
@@ -332,7 +327,9 @@ impl<C: ReplicationCodec> Muxer<C> {
                 if receivers.is_empty() {
                     continue;
                 }
-                let blob = self.codec.encode(self.tick, tier, &stream.subjects);
+                let blob = self
+                    .codec
+                    .blob(self.tick, tier, &stream.subjects, BlobKind::Delta);
                 if let Some(unsent) = stream.unsent.get_mut(tier.index()) {
                     *unsent = false;
                 }
@@ -356,7 +353,8 @@ impl<C: ReplicationCodec> Muxer<C> {
                 continue;
             };
             for Gain { subject, tier } in gains {
-                self.codec.spawn(viewer, subject, tier, &mut state.chunks);
+                self.codec
+                    .hold(viewer, Hold::Gain { subject, tier }, &mut state.chunks);
             }
         }
         for (viewer, subjects) in settled.lost {
@@ -368,9 +366,11 @@ impl<C: ReplicationCodec> Muxer<C> {
         if subjects.is_empty() {
             return;
         }
-        let removal = self.codec.remove(viewer, subjects);
+        let mut chunks = Vec::new();
+        self.codec
+            .hold(viewer, Hold::Lose { subjects }, &mut chunks);
         if let Some(state) = self.viewers.get_mut(&viewer) {
-            state.chunks.push(removal);
+            state.chunks.append(&mut chunks);
         }
     }
 
@@ -435,7 +435,11 @@ impl<C: ReplicationCodec> Muxer<C> {
                 (None, Some(tier)) => {
                     for &subject in members {
                         if Some(subject) != own && state.held.insert(subject) {
-                            self.codec.spawn(viewer, subject, tier, &mut state.chunks);
+                            self.codec.hold(
+                                viewer,
+                                Hold::Gain { subject, tier },
+                                &mut state.chunks,
+                            );
                         }
                     }
                 }
@@ -449,7 +453,10 @@ impl<C: ReplicationCodec> Muxer<C> {
                     let blob = self
                         .keyframes
                         .entry(TileTier { tile, tier: to })
-                        .or_insert_with(|| self.codec.keyframe(to, &stream.subjects));
+                        .or_insert_with(|| {
+                            self.codec
+                                .blob(self.tick, to, &stream.subjects, BlobKind::Keyframe)
+                        });
                     blob.append_kept(&mut state.chunks, |subject| {
                         window.contains(subject) && Some(subject) != own
                     });
@@ -566,44 +573,46 @@ mod tests {
             }
         }
 
-        fn encode(&mut self, _tick: u64, tier: Tier, subjects: &[EntityId]) -> TileBlob {
-            self.encodes += 1;
-            let moved = &mut self.moved[tier.index()];
-            let sent: Vec<EntityId> = subjects
-                .iter()
-                .copied()
-                .filter(|subject| moved.remove(subject))
-                .collect();
-            Self::blob(sent, "move")
-        }
-
-        fn keyframe(&mut self, _tier: Tier, subjects: &[EntityId]) -> TileBlob {
-            Self::blob(subjects.iter().copied(), "key")
+        fn blob(
+            &mut self,
+            _tick: u64,
+            tier: Tier,
+            subjects: &[EntityId],
+            kind: BlobKind,
+        ) -> TileBlob {
+            match kind {
+                BlobKind::Keyframe => Self::blob(subjects.iter().copied(), "key"),
+                _ => {
+                    self.encodes += 1;
+                    let moved = &mut self.moved[tier.index()];
+                    let sent: Vec<EntityId> = subjects
+                        .iter()
+                        .copied()
+                        .filter(|subject| moved.remove(subject))
+                        .collect();
+                    Self::blob(sent, "move")
+                }
+            }
         }
 
         fn refresh(&mut self, _subject: EntityId) {}
 
-        fn spawn(
-            &mut self,
-            _viewer: ViewerId,
-            subject: EntityId,
-            _tier: Tier,
-            chunks: &mut Vec<Bytes>,
-        ) {
-            chunks.push(Bytes::from(format!("bundle {};", subject.0)));
-        }
-
-        fn remove(&mut self, _viewer: ViewerId, subjects: &[EntityId]) -> Bytes {
-            let ids: Vec<String> = subjects.iter().map(|id| id.0.to_string()).collect();
-            Bytes::from(format!("remove {};", ids.join(",")))
+        fn hold(&mut self, viewer: ViewerId, change: Hold<'_>, chunks: &mut Vec<Bytes>) {
+            match change {
+                Hold::Gain { subject, .. } => {
+                    chunks.push(Bytes::from(format!("bundle {};", subject.0)));
+                }
+                Hold::Lose { subjects } => {
+                    let ids: Vec<String> = subjects.iter().map(|id| id.0.to_string()).collect();
+                    chunks.push(Bytes::from(format!("remove {};", ids.join(","))));
+                }
+                Hold::Forget => self.owed.retain(|owed| owed.viewer != viewer),
+                _ => {}
+            }
         }
 
         fn finish_tick(&mut self, _tick: u64, out: &mut Vec<ViewerBytes>) {
             out.append(&mut self.owed);
-        }
-
-        fn forget(&mut self, viewer: ViewerId) {
-            self.owed.retain(|owed| owed.viewer != viewer);
         }
 
         fn receive(&mut self, (): ()) {}

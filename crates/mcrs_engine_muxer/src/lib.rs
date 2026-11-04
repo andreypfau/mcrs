@@ -29,7 +29,7 @@ pub use entity_id::{EntityId, ViewerId, WorldId};
 pub use muxer::Muxer;
 pub use muxer_settings::MuxerSettings;
 pub use muxer_stage::{MuxerInput, MuxerStage};
-pub use replication_codec::ReplicationCodec;
+pub use replication_codec::{BlobKind, Hold, ReplicationCodec};
 pub use tier::Tier;
 pub use tile_blob::{SubjectRange, TileBlob};
 pub use tile_delta::{TileDelta, TileDeltas};

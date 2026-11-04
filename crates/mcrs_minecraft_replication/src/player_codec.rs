@@ -10,8 +10,8 @@ use crate::player_spawn::PlayerSpawn;
 use bytes::{Bytes, BytesMut};
 use glam::DVec3;
 use mcrs_engine_muxer::{
-    EntityEvent, EntityId, ReplicationCodec, SubjectEvent, SubjectRange, Tier, TileBlob, TileDelta,
-    ViewerBytes, ViewerId,
+    BlobKind, EntityEvent, EntityId, Hold, ReplicationCodec, SubjectEvent, SubjectRange, Tier,
+    TileBlob, TileDelta, ViewerBytes, ViewerId,
 };
 use mcrs_minecraft_entity::entity_type_keys::EntityType;
 use mcrs_minecraft_game_mode::GameMode;
@@ -164,6 +164,7 @@ impl PlayerCodec {
     }
 
     fn apply_events(&mut self, delta: &TileDelta<PlayerData>) -> Result<()> {
+        let mut entered = Vec::new();
         for SubjectEvent { subject, event } in &delta.events {
             let subject = *subject;
             match event {
@@ -192,16 +193,22 @@ impl PlayerCodec {
                         self.owe(viewer, packet.clone());
                     }
                 }
-                EntityEvent::Enter { .. } => self.generation = self.generation.wrapping_add(1),
+                EntityEvent::Enter { .. } => {
+                    self.generation = self.generation.wrapping_add(1);
+                    entered.push(subject);
+                }
                 EntityEvent::Despawn => self.despawn(subject)?,
                 _ => {}
             }
+        }
+        for subject in entered {
+            self.refresh(subject);
         }
         Ok(())
     }
 
     /// The bytes of `subjects` at `tier`, each written by `write`, with the range of each.
-    fn blob(
+    fn write_blob(
         &mut self,
         subjects: &[EntityId],
         mut write: impl FnMut(&mut Motion, VarInt, &mut BytesMut) -> Result<()>,
@@ -225,6 +232,29 @@ impl PlayerCodec {
             bytes: bytes.freeze(),
             ranges,
         })
+    }
+
+    fn release_all(&mut self, viewer: ViewerId, subjects: &[EntityId]) -> Option<Bytes> {
+        let own = self.owners.get(&viewer).copied();
+        for &subject in subjects {
+            if let Some(own) = own {
+                self.list.release(own, subject, self.tick);
+            }
+            if let Some(held) = self.holds.get_mut(&viewer) {
+                held.remove(&subject);
+            }
+            if let Some(viewers) = self.held_by.get_mut(&subject) {
+                viewers.remove(&viewer);
+            }
+        }
+        let entity_ids: Vec<VarInt> = subjects.iter().map(|&subject| wire_id(subject)).collect();
+        match record(&ClientboundRemoveEntities { entity_ids }) {
+            Ok(removal) => Some(removal),
+            Err(error) => {
+                tracing::warn!("a removal did not encode: {error:#}");
+                None
+            }
+        }
     }
 
     fn spawn_chunks(
@@ -325,26 +355,28 @@ impl ReplicationCodec for PlayerCodec {
         }
     }
 
-    fn encode(&mut self, tick: u64, tier: Tier, subjects: &[EntityId]) -> TileBlob {
-        self.tick = tick;
-        self.blob(subjects, |motion, id, bytes| {
-            motion.encode(id, tier, tick, bytes)
-        })
-        .unwrap_or_else(|error| {
-            tracing::warn!("the moves of a tile did not encode: {error:#}");
-            TileBlob::default()
-        })
-    }
-
-    fn keyframe(&mut self, tier: Tier, subjects: &[EntityId]) -> TileBlob {
-        self.blob(subjects, |motion, id, bytes| match motion.base(tier) {
-            Some(base) => base.keyframe(id, bytes),
-            None => Ok(()),
-        })
-        .unwrap_or_else(|error| {
-            tracing::warn!("a keyframe of a tile did not encode: {error:#}");
-            TileBlob::default()
-        })
+    fn blob(&mut self, tick: u64, tier: Tier, subjects: &[EntityId], kind: BlobKind) -> TileBlob {
+        match kind {
+            BlobKind::Keyframe => self
+                .write_blob(subjects, |motion, id, bytes| match motion.base(tier) {
+                    Some(base) => base.keyframe(id, bytes),
+                    None => Ok(()),
+                })
+                .unwrap_or_else(|error| {
+                    tracing::warn!("a keyframe of a tile did not encode: {error:#}");
+                    TileBlob::default()
+                }),
+            _ => {
+                self.tick = tick;
+                self.write_blob(subjects, |motion, id, bytes| {
+                    motion.encode(id, tier, tick, bytes)
+                })
+                .unwrap_or_else(|error| {
+                    tracing::warn!("the moves of a tile did not encode: {error:#}");
+                    TileBlob::default()
+                })
+            }
+        }
     }
 
     fn refresh(&mut self, subject: EntityId) {
@@ -353,42 +385,27 @@ impl ReplicationCodec for PlayerCodec {
         }
     }
 
-    fn spawn(&mut self, viewer: ViewerId, subject: EntityId, tier: Tier, chunks: &mut Vec<Bytes>) {
-        if let Err(error) = self.spawn_chunks(viewer, subject, tier, chunks) {
-            tracing::warn!("a spawn bundle did not encode: {error:#}");
-        }
-    }
-
-    fn forget(&mut self, viewer: ViewerId) {
-        self.owed.remove(&viewer);
-        if self.owners.contains_key(&viewer) {
-            self.forgotten.insert(viewer);
+    fn hold(&mut self, viewer: ViewerId, change: Hold<'_>, chunks: &mut Vec<Bytes>) {
+        match change {
+            Hold::Gain { subject, tier } => {
+                if let Err(error) = self.spawn_chunks(viewer, subject, tier, chunks) {
+                    tracing::warn!("a spawn bundle did not encode: {error:#}");
+                }
+            }
+            Hold::Lose { subjects } => chunks.extend(self.release_all(viewer, subjects)),
+            Hold::Forget => {
+                self.owed.remove(&viewer);
+                if self.owners.contains_key(&viewer) {
+                    self.forgotten.insert(viewer);
+                }
+            }
+            _ => {}
         }
     }
 
     fn position(&self, subject: EntityId) -> Option<[f64; 3]> {
         let pose = self.subjects.get(&subject)?.motion.latest()?;
         Some(pose.position.to_array())
-    }
-
-    fn remove(&mut self, viewer: ViewerId, subjects: &[EntityId]) -> Bytes {
-        let own = self.owners.get(&viewer).copied();
-        for &subject in subjects {
-            if let Some(own) = own {
-                self.list.release(own, subject, self.tick);
-            }
-            if let Some(held) = self.holds.get_mut(&viewer) {
-                held.remove(&subject);
-            }
-            if let Some(viewers) = self.held_by.get_mut(&subject) {
-                viewers.remove(&viewer);
-            }
-        }
-        let entity_ids: Vec<VarInt> = subjects.iter().map(|&subject| wire_id(subject)).collect();
-        record(&ClientboundRemoveEntities { entity_ids }).unwrap_or_else(|error| {
-            tracing::warn!("a removal did not encode: {error:#}");
-            Bytes::new()
-        })
     }
 
     fn finish_tick(&mut self, tick: u64, out: &mut Vec<ViewerBytes>) {
