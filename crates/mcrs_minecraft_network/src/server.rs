@@ -3,6 +3,8 @@ use crate::intent::status_frame;
 use crate::metrics::Malformed;
 use crate::{ConnectionState, NetworkSet, RawConnection};
 use crate::{connect, event, lan, webtransport};
+use base64::Engine;
+use base64::engine::general_purpose::STANDARD;
 use bevy_app::{App, AppExit, FixedPreUpdate, Plugin, PostStartup, Update};
 use bevy_ecs::change_detection::{DetectChanges, ResMut};
 use bevy_ecs::prelude::Component;
@@ -32,6 +34,7 @@ pub struct NetworkPlugin {
     pub announce_on_lan: bool,
     pub max_players: u32,
     pub motd: String,
+    pub favicon: Option<String>,
     /// A handshake with the transfer intent continues as a login only when this is set;
     /// otherwise the client gets `multiplayer.disconnect.transfers_disabled`.
     pub accepts_transfers: bool,
@@ -43,6 +46,15 @@ pub struct NetworkPlugin {
     pub enable_status: bool,
 }
 
+const SERVER_ICON: &[u8] = include_bytes!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../../assets/mcrs/server-icon.png"
+));
+
+pub fn default_favicon() -> String {
+    format!("data:image/png;base64,{}", STANDARD.encode(SERVER_ICON))
+}
+
 impl Default for NetworkPlugin {
     fn default() -> Self {
         Self {
@@ -50,6 +62,7 @@ impl Default for NetworkPlugin {
             announce_on_lan: true,
             max_players: 20,
             motd: "mcrs Server".to_owned(),
+            favicon: Some(default_favicon()),
             accepts_transfers: false,
             hide_online_players: false,
             enable_status: true,
@@ -143,6 +156,7 @@ fn build_plugin(app: &mut App, plugin: &NetworkPlugin) -> anyhow::Result<()> {
         max_players: plugin.max_players,
         status_recv,
         motd: plugin.motd.clone(),
+        favicon: plugin.favicon.clone(),
         accepts_transfers: plugin.accepts_transfers,
         hide_online_players: plugin.hide_online_players,
         enable_status: plugin.enable_status,
@@ -273,6 +287,7 @@ pub(crate) struct SharedNetworkStateInner {
     pub(crate) max_players: u32,
     pub(crate) status_recv: tokio::sync::watch::Receiver<Bytes>,
     pub(crate) motd: String,
+    pub(crate) favicon: Option<String>,
     pub(crate) accepts_transfers: bool,
     pub(crate) hide_online_players: bool,
     pub(crate) enable_status: bool,

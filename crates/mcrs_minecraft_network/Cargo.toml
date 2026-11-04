@@ -28,6 +28,7 @@ serde_json.workspace = true
 tracing.workspace = true
 
 [target.'cfg(not(target_family = "wasm"))'.dependencies]
+base64.workspace = true
 tokio.workspace = true
 wtransport.workspace = true
 

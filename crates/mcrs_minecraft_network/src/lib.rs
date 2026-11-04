@@ -52,7 +52,7 @@ mod server;
 #[cfg(all(feature = "bevy", not(target_family = "wasm")))]
 pub use server::{
     BoundAddress, NetworkPlugin, ServerSideConnection, StatusPlayers, StatusPublisher,
-    WebTransportEndpoint,
+    WebTransportEndpoint, default_favicon,
 };
 
 #[derive(Clone, Debug)]

@@ -75,6 +75,7 @@ this document were run on 2026-10-29 against the vanilla server of
 | `STATUS-SEQ` | the order of packets and the end of the connection |
 | `STATUS-JSON` | the fields of the response document |
 | `STATUS-CFG` | server inputs |
+| `STATUS-DEV` | intentional deviations from the reference |
 
 ### 0.6 Scope
 
@@ -322,6 +323,17 @@ medium. The probe has a resolution of about 1 s. The measured periods were
 experiment shows if the server takes the response document at the handshake or
 at the status request (section 6).
 
+### STATUS-JSON-007: `favicon`
+
+- **Behavior:** by default, the server writes the key `favicon`. Its value is
+  `data:image/png;base64,` and then the Base64 text of the PNG file
+  `assets/mcrs/server-icon.png`, an image of 64 × 64 pixels.
+- **Behavior:** a server that has no icon omits the key.
+
+Provenance: `documentation`. Kind: wire. Confidence: medium. STATUS-DEV-001 records
+the difference from the reference.
+No experiment of this document captured the key from a vanilla server (section 6).
+
 ## 4. Server inputs
 
 ### STATUS-CFG-001: `motd`
@@ -388,7 +400,9 @@ the types and the values must agree.
 
 - **Server icon.** A file `server-icon.png` in the server directory can add a
   key to the response document. No experiment of this document used one.
-  Proposed experiment: add a PNG file of 64 × 64 pixels and repeat E1.
+  Proposed experiment: add a PNG file of 64 × 64 pixels and repeat E1. The form
+  of the value in STATUS-JSON-007 comes from public documentation, and this
+  experiment can confirm it. The server does not read a `server-icon.png` file.
 - **Per-player opt-out.** The vanilla client has an option that hides its
   player from server listings. The probe client did not change it. Proposed
   experiment: join one vanilla client with the option off and one with it on,
@@ -671,3 +685,14 @@ E17:
 (b) > ping_request 0x000000000000002a
     < close at 0.002 s
 ```
+
+## 9. Intentional deviations
+
+### STATUS-DEV-001: The default icon
+
+- **Rule:** STATUS-JSON-007.
+- **Reference:** a vanilla server without a file `server-icon.png` omits the key
+  `favicon` (STATUS-JSON-001).
+- **Visible to the client:** yes. The server list shows the icon of mc.rs and not
+  the default icon of the client.
+- **Test:** a differential test ignores the key `favicon`.

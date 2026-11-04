@@ -4489,6 +4489,7 @@ name = "mcrs_minecraft_network"
 version = "0.5.8"
 dependencies = [
  "anyhow",
+ "base64 0.22.1",
  "bevy_app",
  "bevy_ecs",
  "bytes",
