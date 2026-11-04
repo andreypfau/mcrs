@@ -1,0 +1,19 @@
+[package]
+name = "mcrs_engine_store"
+description = "The data layer: versioned chunks by key in an in-memory cache over a disk store that the game supplies, reached as a stage on a link"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+doctest = false
+
+[lints]
+workspace = true
+
+[dependencies]
+mcrs_engine_link.workspace = true
+rustc-hash.workspace = true
+tracing.workspace = true
+
+[dev-dependencies]
+bevy_tasks.workspace = true

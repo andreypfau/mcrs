@@ -3522,6 +3522,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "mcrs_engine_store"
+version = "0.5.8"
+dependencies = [
+ "bevy_tasks",
+ "mcrs_engine_link",
+ "rustc-hash 2.1.1",
+ "tracing",
+]
+
+[[package]]
 name = "mcrs_minecraft_anvil"
 version = "0.5.8"
 dependencies = [
