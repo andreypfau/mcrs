@@ -352,6 +352,7 @@ fn tint_of(state: &BlockStateKey, layer: Option<u32>) -> Tint {
             .unwrap_or(0)
     };
     let name = state.name.strip_prefix("minecraft:").unwrap_or(&state.name);
+    let dye;
     let layers: &[Tint] = match name {
         "large_fern" | "tall_grass" | "fern" | "short_grass" | "potted_fern" | "bush"
         | "grass_block" | "sugar_cane" => &[Tint::Grass],
@@ -366,7 +367,13 @@ fn tint_of(state: &BlockStateKey, layer: Option<u32>) -> Tint {
         "lily_pad" => &[Tint::LILY_PAD],
         "melon_stem" | "pumpkin_stem" => &[Tint::stem(prop("age"))],
         "redstone_wire" => &[Tint::redstone(prop("power"))],
-        _ => &[],
+        _ => match crate::block_entity::banner_color(name) {
+            Some((id, _)) => {
+                dye = [Tint::dye(id as u8)];
+                &dye
+            }
+            None => &[],
+        },
     };
     layers.get(layer as usize).copied().unwrap_or(Tint::None)
 }
@@ -450,6 +457,54 @@ mod tests {
             a_box_lower_than_its_cell_meshes_its_top_and_bottom_as_cube_faces();
             cube_uv_matches_the_vanilla_bake();
             a_rotated_log_is_not_greedy_meshable();
+            every_state_drawn_in_code_bakes_with_its_entity_textures();
+        }
+    }
+
+    fn every_state_drawn_in_code_bakes_with_its_entity_textures() {
+        let corpus = crate::block_catalog::corpus();
+        let mut sprites = SpriteRegistry::default();
+        for name in [
+            "chest",
+            "trapped_chest",
+            "ender_chest",
+            "waxed_weathered_copper_chest",
+            "shulker_box",
+            "light_gray_shulker_box",
+            "lime_banner",
+            "black_wall_banner",
+            "skeleton_skull",
+            "wither_skeleton_wall_skull",
+            "zombie_head",
+            "player_wall_head",
+            "creeper_head",
+            "piglin_wall_head",
+            "dragon_head",
+            "decorated_pot",
+            "enchanting_table",
+            "lectern",
+            "bell",
+        ] {
+            let block = corpus
+                .block(&format!("minecraft:{name}"))
+                .unwrap_or_else(|| panic!("the corpus has {name}"));
+            for id in (0..block.state_count).filter_map(|offset| block.state_at(offset)) {
+                let state = crate::block_catalog::state_key(corpus, id).unwrap();
+                let info = super::build_one(
+                    Pack::corpus(),
+                    corpus.block_index(id).and_then(Block::from_id).unwrap(),
+                    &state,
+                    corpus.state(id),
+                    corpus.shape(corpus.state(id).occlusion_shape),
+                    &mut sprites,
+                )
+                .unwrap_or_else(|reason| panic!("{} does not bake: {reason}", state.label()));
+                assert!(
+                    !info.quads.is_empty() || info.cube.is_some(),
+                    "{} draws nothing",
+                    state.label()
+                );
+            }
         }
     }
 
