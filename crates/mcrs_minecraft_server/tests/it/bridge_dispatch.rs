@@ -22,7 +22,7 @@ use bevy_ecs::message::Messages;
 use bevy_ecs::system::{IntoSystem, System};
 use bevy_ecs::world::World;
 use bevy_math::DVec3;
-use bytes::Bytes;
+use bytes::{Bytes, BytesMut};
 use mcrs_minecraft_core::Look;
 use mcrs_minecraft_engine::bridge::dispatch_encode;
 use mcrs_minecraft_engine::bridge_queue::{DEPTH_DRAIN_TARGET, DEPTH_LIMIT, OutboundQueue};
@@ -32,9 +32,12 @@ use mcrs_minecraft_engine::bus::{
 use mcrs_minecraft_engine_world::session::PlayerSession;
 use mcrs_minecraft_network::OutboundReceiver;
 use mcrs_minecraft_network::ServerSideConnection;
+use mcrs_minecraft_network::SwitchMode;
 use mcrs_minecraft_network::metrics::BridgeTelemetry;
 use mcrs_minecraft_protocol::Packet;
+use mcrs_minecraft_protocol::packets::login::clientbound::LoginCompression;
 use mcrs_minecraft_protocol::uuid::Uuid;
+use mcrs_minecraft_protocol::{CompressionThreshold, Decode, PacketDecoder};
 use mcrs_minecraft_protocol_game::chunk::{ChunkData, LightData};
 use mcrs_minecraft_protocol_game::clientbound::ClientboundLevelChunkWithLight;
 use mcrs_voxel::ColumnPos;
@@ -331,6 +334,74 @@ fn chunk_load_encodes() {
         .try_recv()
         .expect("dispatch must produce a blob for ChunkLoad");
     assert!(!blob.is_empty(), "blob must be non-empty");
+}
+
+/// A column that three connections receive at two compression thresholds is framed once for
+/// each threshold, and each connection reads it back at its own threshold.
+#[test]
+fn a_shared_column_is_framed_once_for_each_threshold() {
+    let mut world = build_dispatch_world();
+    let thresholds = [None, Some(256), Some(256)];
+    let mut sockets = Vec::new();
+    for threshold in thresholds {
+        let (mut raw, rx) = mock_connection::make_mock_raw_connection();
+        raw = raw.with_switch_mode(SwitchMode::Immediate);
+        if let Some(threshold) = threshold {
+            raw.announce_compression(CompressionThreshold(threshold));
+        }
+        let entity = world
+            .spawn((
+                ServerSideConnection { raw: Box::new(raw) },
+                OutboundQueue::default(),
+            ))
+            .id();
+        sockets.push((entity, rx, threshold));
+    }
+    let column = chunk_load(&[0x80u8; 2000]);
+    let PacketPayload::ChunkLoad { packet, .. } = &column else {
+        unreachable!("chunk_load makes a ChunkLoad");
+    };
+    let mut expected = &packet[..];
+    let expected_id = VarInt::decode(&mut expected).unwrap().0;
+    let expected_body = expected.to_vec();
+    for (socket, _, _) in &sockets {
+        world
+            .get_mut::<OutboundQueue>(*socket)
+            .unwrap()
+            .push(OutboundPlayerPacket {
+                target: PacketTarget::AllPlayers,
+                priority: PacketPriority::Critical,
+                data: column.clone(),
+                session: PlayerSession(0),
+                epoch: 0,
+            });
+    }
+
+    run_dispatch(&mut world);
+
+    let telemetry = *world.resource::<BridgeTelemetry>();
+    assert_eq!(
+        telemetry.shared_frames_total, 2,
+        "one frame for each threshold"
+    );
+    assert_eq!(telemetry.framed_appends_total, 3);
+    for (_, rx, threshold) in &mut sockets {
+        let mut decoder = PacketDecoder::new();
+        decoder.queue_bytes(BytesMut::from(&rx.try_recv().unwrap()[..]));
+        if let Some(threshold) = threshold {
+            let announce = decoder.try_next_packet().unwrap().unwrap();
+            assert_eq!(announce.id, LoginCompression::ID);
+            decoder.set_compression(CompressionThreshold(*threshold));
+        }
+        let frame = decoder.try_next_packet().unwrap().unwrap();
+        assert_eq!(frame.id, expected_id, "threshold {threshold:?}");
+        assert_eq!(
+            &frame.body[..],
+            &expected_body[..],
+            "threshold {threshold:?}"
+        );
+        assert!(decoder.try_next_packet().unwrap().is_none());
+    }
 }
 
 /// Only `PacketPayload::Test` remains a counted-drop; the five real variants

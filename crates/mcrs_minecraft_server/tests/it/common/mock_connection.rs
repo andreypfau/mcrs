@@ -8,7 +8,7 @@ use bevy_ecs::entity::Entity;
 use bevy_ecs::message::Messages;
 use bevy_ecs::system::{IntoSystem, System};
 use bevy_ecs::world::World;
-use mcrs_minecraft_engine::bridge_queue::OutboundQueue;
+use mcrs_minecraft_engine::bridge_queue::{OutboundQueue, QueuedPacket};
 use mcrs_minecraft_engine::bus::{
     OutboundPlayerPacket, PacketPayload, PacketPriority, PacketTarget, TestPayload,
 };
@@ -134,7 +134,7 @@ where
 
 /// Collect all packets from a connection entity's `OutboundQueue` in priority
 /// drain order (Critical → High → Normal → Low) into a flat `Vec`.
-pub fn drain_queue(world: &mut World, socket: Entity) -> Vec<OutboundPlayerPacket> {
+pub fn drain_queue(world: &mut World, socket: Entity) -> Vec<QueuedPacket> {
     let mut q = world
         .get_mut::<OutboundQueue>(socket)
         .expect("OutboundQueue present");

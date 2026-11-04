@@ -94,27 +94,36 @@ struct TickTimes {
 /// What the bridge handed to the connections during one tick and the drains after it.
 #[derive(Clone, Copy, Default)]
 struct Traffic {
+    messages: u64,
     encode_calls: u64,
     shared_appends: u64,
     shared_bytes: u64,
+    shared_frames: u64,
+    framed_appends: u64,
     packets: PacketKinds,
 }
 
 impl Traffic {
     fn of(telemetry: &BridgeTelemetry) -> Self {
         Self {
+            messages: telemetry.outbound_messages_consumed_total,
             encode_calls: telemetry.encode_calls_total,
             shared_appends: telemetry.shared_appends_total,
             shared_bytes: telemetry.shared_bytes_total,
+            shared_frames: telemetry.shared_frames_total,
+            framed_appends: telemetry.framed_appends_total,
             packets: telemetry.packets,
         }
     }
 
     fn since(self, earlier: Self) -> Self {
         Self {
+            messages: self.messages.saturating_sub(earlier.messages),
             encode_calls: self.encode_calls.saturating_sub(earlier.encode_calls),
             shared_appends: self.shared_appends.saturating_sub(earlier.shared_appends),
             shared_bytes: self.shared_bytes.saturating_sub(earlier.shared_bytes),
+            shared_frames: self.shared_frames.saturating_sub(earlier.shared_frames),
+            framed_appends: self.framed_appends.saturating_sub(earlier.framed_appends),
             packets: self.packets.since(earlier.packets),
         }
     }
@@ -267,9 +276,12 @@ fn report_traffic(measured: &[TickTimes]) {
     let mut total = Traffic::default();
     for times in measured {
         let traffic = &times.traffic;
+        total.messages += traffic.messages;
         total.encode_calls += traffic.encode_calls;
         total.shared_appends += traffic.shared_appends;
         total.shared_bytes += traffic.shared_bytes;
+        total.shared_frames += traffic.shared_frames;
+        total.framed_appends += traffic.framed_appends;
         total.packets.entity_move += traffic.packets.entity_move;
         total.packets.spawn += traffic.packets.spawn;
         total.packets.remove += traffic.packets.remove;
@@ -279,10 +291,16 @@ fn report_traffic(measured: &[TickTimes]) {
     }
     let a_tick = |count: u64| count as f64 / ticks;
     println!(
-        "encode calls: {:.1} a tick, shared appends: {:.1} a tick ({:.1} KB a tick shared)",
+        "messages: {:.1} a tick, encode calls: {:.1} a tick, shared appends: {:.1} a tick ({:.1} KB a tick shared)",
+        a_tick(total.messages),
         a_tick(total.encode_calls),
         a_tick(total.shared_appends),
         a_tick(total.shared_bytes) / 1e3,
+    );
+    println!(
+        "shared frames made: {:.1} a tick, appends of a made frame: {:.1} a tick",
+        a_tick(total.shared_frames),
+        a_tick(total.framed_appends),
     );
     println!(
         "packets a tick: move {:.1}, spawn {:.1}, remove {:.1}, player info {:.1}, chunk {:.1}, other {:.1}",

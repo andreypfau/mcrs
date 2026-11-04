@@ -189,11 +189,6 @@ impl PacketPayload {
             _ => PacketKind::Other,
         }
     }
-
-    /// True for a payload that is serialized once and appended to each recipient as it is.
-    pub fn is_shared(&self) -> bool {
-        matches!(self, Self::ChunkLoad { .. } | Self::Commands(_))
-    }
 }
 
 /// Owned player-list entry for use inside `PacketPayload::PlayerInfoUpdate`.

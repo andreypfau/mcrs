@@ -1,11 +1,11 @@
 use bevy_ecs::schedule::ScheduleLabel;
 
 use bevy_ecs::entity::Entity;
-use bevy_ecs::message::{MessageReader, Messages};
+use bevy_ecs::message::Messages;
 use bevy_ecs::prelude::Commands;
 use bevy_ecs::query::{With, Without};
 use bevy_ecs::resource::Resource;
-use bevy_ecs::system::{Query, Res, ResMut};
+use bevy_ecs::system::{Local, Query, Res, ResMut};
 
 /// Bridges the bus to the sockets and writes them: run in the tick's `FixedPostUpdate` and
 /// again between ticks, so a packet a dimension produced off the tick leaves at once. The
@@ -52,12 +52,15 @@ pub fn flushes_pending_connections(scope: Option<Res<FlushScope>>) -> bool {
     scope.is_some_and(|scope| *scope == FlushScope::Pending)
 }
 
+use bytes::{BufMut, Bytes, BytesMut};
 use mcrs_minecraft_network::metrics::{BridgeTelemetry, PacketDispatcher};
-use mcrs_minecraft_network::{ConnectionState, RawConnection, ServerSideConnection};
-use mcrs_minecraft_protocol::anyhow;
+use mcrs_minecraft_network::{
+    ConnectionState, RawConnection, ServerSideConnection, SharedAppend, SharedFrames,
+};
 use mcrs_minecraft_protocol::packets::game::clientbound::{
     ClientboundBundleDelimiter, ClientboundDisconnect,
 };
+use mcrs_minecraft_protocol::{Encode, Packet, WritePacket, anyhow};
 use mcrs_minecraft_protocol_game::clientbound::ClientboundPlayerInfoUpdate;
 use mcrs_minecraft_protocol_game::player_list::{PlayerListActions, PlayerListEntry};
 use mcrs_minecraft_text::Text;
@@ -66,8 +69,9 @@ use std::mem;
 use tracing::{trace, warn};
 
 use crate::bridge_queue::{DEPTH_DRAIN_TARGET, DEPTH_LIMIT, InboundRateBucket, OutboundQueue};
+use crate::bridge_queue::{EncodedPacket, QueuedPacket};
 use crate::bus::{InboundPlayerPacket, OutboundPlayerAttached, OutboundPlayerPacket};
-use crate::bus::{PacketPayload, PacketTarget, SpawnBundle};
+use crate::bus::{PacketPayload, PacketPriority, PacketTarget, SpawnBundle};
 use crate::channel_types::{DimChannelsResource, ToDim};
 use crate::session::{HostAnchorRef, PendingInbound, SessionConnection};
 use mcrs_minecraft_engine_world::session::{Place, Session, SessionAnchors, SessionPlacement};
@@ -95,102 +99,171 @@ pub fn attach_outbound_queue(
     }
 }
 
-/// Drain `Messages<OutboundPlayerPacket>` once per tick, resolve each
-/// `PacketTarget` against the sessions, and push packets onto the addressed
-/// per-connection `OutboundQueue`.
+/// What [`bridge_outbound`] reuses from one message to the next.
+#[derive(Default)]
+pub struct OutboundScratch {
+    recipients: Vec<Entity>,
+    buffer: PacketBuffer,
+}
+
+/// Drains `Messages<OutboundPlayerPacket>`, resolves each `PacketTarget` against the sessions,
+/// and pushes each packet onto the `OutboundQueue` of every connection it addresses.
 ///
-/// Uses `reader.read()` (cursor semantics) so this is the single owning reader
-/// of `OutboundPlayerPacket`. A second reader on the same type would produce an
-/// independent cursor that re-reads from tick start — only one system may own
-/// the reader.
+/// A packet for more than one connection is serialized here once, and every queue holds the
+/// same bytes. A packet for one connection is moved into its queue and serialized when the
+/// queue is handed over.
 ///
 /// A target that resolves to an entity with no `OutboundQueue` increments
 /// `BridgeTelemetry::outbound_no_queue_total` and is never silently dropped, so
 /// any residual spawn→attach race stays observable.
 pub fn bridge_outbound(
-    mut reader: MessageReader<OutboundPlayerPacket>,
+    mut messages: ResMut<Messages<OutboundPlayerPacket>>,
     anchors: Res<SessionAnchors>,
     sessions: Query<(&Session, &SessionPlacement, Option<&SessionConnection>)>,
     mut queues: Query<&mut OutboundQueue>,
     mut telemetry: ResMut<BridgeTelemetry>,
     mut pending: Option<ResMut<PendingConnections>>,
+    mut scratch: Local<OutboundScratch>,
 ) {
-    for msg in reader.read() {
+    let OutboundScratch { recipients, buffer } = &mut *scratch;
+    for msg in messages.drain() {
         telemetry.outbound_messages_consumed_total += 1;
+        recipients.clear();
+        resolve_recipients(&msg, &anchors, &sessions, recipients, &mut telemetry);
+        let Some((&last, rest)) = recipients.split_last() else {
+            continue;
+        };
+        let packet = if rest.is_empty() {
+            QueuedPacket::from(msg.data)
+        } else {
+            match encode_once(buffer, msg.data, &mut telemetry) {
+                Ok(packet) => packet,
+                Err(error) => {
+                    warn!("an outbound packet did not encode: {error:#}");
+                    continue;
+                }
+            }
+        };
+        for &connection in rest {
+            push_to_connection(
+                &mut queues,
+                &mut telemetry,
+                pending.as_deref_mut(),
+                connection,
+                msg.priority,
+                packet.clone(),
+            );
+        }
+        push_to_connection(
+            &mut queues,
+            &mut telemetry,
+            pending.as_deref_mut(),
+            last,
+            msg.priority,
+            packet,
+        );
+    }
+}
 
-        match &msg.target {
-            PacketTarget::SinglePlayer(target) => {
-                // Session + epoch stamped at the dim boundary. PlayerSession(0) is
-                // no session's id, so unstamped packets are dropped here.
-                let Some(anchor) = anchors.get(*target) else {
-                    continue;
-                };
-                let Ok((session, placement, connection)) = sessions.get(anchor) else {
-                    continue;
-                };
-                if session.0 != msg.session || msg.epoch != placement.epoch() {
-                    continue;
-                }
-                push_to_connection(
-                    &mut queues,
-                    &mut telemetry,
-                    pending.as_deref_mut(),
-                    connection,
-                    msg,
-                );
+/// The connections `msg` addresses. A recipient without a connection counts as
+/// `outbound_no_queue_total`.
+fn resolve_recipients(
+    msg: &OutboundPlayerPacket,
+    anchors: &SessionAnchors,
+    sessions: &Query<(&Session, &SessionPlacement, Option<&SessionConnection>)>,
+    recipients: &mut Vec<Entity>,
+    telemetry: &mut BridgeTelemetry,
+) {
+    let mut add = |connection: Option<&SessionConnection>| match connection {
+        Some(connection) => recipients.push(connection.entity()),
+        None => telemetry.outbound_no_queue_total += 1,
+    };
+    match &msg.target {
+        PacketTarget::SinglePlayer(target) => {
+            // Session + epoch stamped at the dim boundary. PlayerSession(0) is
+            // no session's id, so unstamped packets are dropped here.
+            let Some(anchor) = anchors.get(*target) else {
+                return;
+            };
+            let Ok((session, placement, connection)) = sessions.get(anchor) else {
+                return;
+            };
+            if session.0 == msg.session && msg.epoch == placement.epoch() {
+                add(connection);
             }
-            PacketTarget::AllInDim(dim_entity) => {
-                // Broadcasts are generated for whoever is in the dim *now*, so
-                // they are never stale: the per-session epoch stale-drop applies
-                // only to SinglePlayer packets that may be in flight across a
-                // transfer. Epoch-filtering here would wrongly drop every
-                // recipient whose epoch has advanced past a broadcast's
-                // unstamped epoch.
-                for (_, placement, connection) in &sessions {
-                    if placement.place().dim() == Some(*dim_entity) {
-                        push_to_connection(
-                            &mut queues,
-                            &mut telemetry,
-                            pending.as_deref_mut(),
-                            connection,
-                            msg,
-                        );
-                    }
-                }
-            }
-            PacketTarget::AllPlayers => {
-                // Not epoch-filtered — see AllInDim above. A fresh global
-                // broadcast must reach every current session regardless of how
-                // many dim transfers each has made.
-                for (_, _, connection) in &sessions {
-                    push_to_connection(
-                        &mut queues,
-                        &mut telemetry,
-                        pending.as_deref_mut(),
-                        connection,
-                        msg,
-                    );
-                }
-            }
-            PacketTarget::PlayerSet(set) => {
-                // Not epoch-filtered — see AllInDim above. The recipient set is
-                // the current observer set computed this tick; each member must
-                // receive it at whatever epoch they currently hold.
-                for &target in set.iter() {
-                    if let Some(anchor) = anchors.get(target)
-                        && let Ok((_, _, connection)) = sessions.get(anchor)
-                    {
-                        push_to_connection(
-                            &mut queues,
-                            &mut telemetry,
-                            pending.as_deref_mut(),
-                            connection,
-                            msg,
-                        );
-                    }
+        }
+        PacketTarget::AllInDim(dim_entity) => {
+            // Broadcasts are generated for whoever is in the dim *now*, so
+            // they are never stale: the per-session epoch stale-drop applies
+            // only to SinglePlayer packets that may be in flight across a
+            // transfer. Epoch-filtering here would wrongly drop every
+            // recipient whose epoch has advanced past a broadcast's
+            // unstamped epoch.
+            for (_, placement, connection) in sessions {
+                if placement.place().dim() == Some(*dim_entity) {
+                    add(connection);
                 }
             }
         }
+        PacketTarget::AllPlayers => {
+            // Not epoch-filtered — see AllInDim above. A fresh global
+            // broadcast must reach every current session regardless of how
+            // many dim transfers each has made.
+            for (_, _, connection) in sessions {
+                add(connection);
+            }
+        }
+        PacketTarget::PlayerSet(set) => {
+            // Not epoch-filtered — see AllInDim above. The recipient set is
+            // the current observer set computed this tick; each member must
+            // receive it at whatever epoch they currently hold.
+            for &target in set {
+                if let Some(anchor) = anchors.get(target)
+                    && let Ok((_, _, connection)) = sessions.get(anchor)
+                {
+                    add(connection);
+                }
+            }
+        }
+    }
+}
+
+/// Serializes `payload` once for the many connections that receive it.
+fn encode_once(
+    buffer: &mut PacketBuffer,
+    payload: PacketPayload,
+    telemetry: &mut BridgeTelemetry,
+) -> anyhow::Result<QueuedPacket> {
+    let queued = QueuedPacket::from(payload);
+    let QueuedPacket::Payload(payload) = queued else {
+        return Ok(queued);
+    };
+    if let PacketPayload::Test(_) = payload {
+        return Ok(QueuedPacket::Payload(payload));
+    }
+    let kind = payload.kind();
+    if let Err(error) = write_payload(buffer, payload) {
+        buffer.0.clear();
+        return Err(error);
+    }
+    telemetry.encode_calls_total = telemetry.encode_calls_total.saturating_add(1);
+    Ok(QueuedPacket::Encoded(EncodedPacket {
+        kind,
+        packet: buffer.0.split().freeze(),
+    }))
+}
+
+/// Packets with their ids, as `encode_with_id` writes them.
+#[derive(Default)]
+struct PacketBuffer(BytesMut);
+
+impl WritePacket for PacketBuffer {
+    fn write_packet_fallible<P>(&mut self, packet: &P) -> anyhow::Result<()>
+    where
+        P: Encode + Packet,
+    {
+        packet.encode_with_id((&mut self.0).writer())?;
+        Ok(())
     }
 }
 
@@ -198,14 +271,11 @@ fn push_to_connection(
     queues: &mut Query<&mut OutboundQueue>,
     telemetry: &mut BridgeTelemetry,
     pending: Option<&mut PendingConnections>,
-    connection: Option<&SessionConnection>,
-    msg: &OutboundPlayerPacket,
+    connection: Entity,
+    priority: PacketPriority,
+    packet: QueuedPacket,
 ) {
-    let Some(connection) = connection else {
-        telemetry.outbound_no_queue_total += 1;
-        return;
-    };
-    let Ok(mut queue) = queues.get_mut(connection.entity()) else {
+    let Ok(mut queue) = queues.get_mut(connection) else {
         telemetry.outbound_no_queue_total += 1;
         return;
     };
@@ -214,9 +284,9 @@ fn push_to_connection(
     if queue.total_len() == 0
         && let Some(pending) = pending
     {
-        pending.connections.push(connection.entity());
+        pending.connections.push(connection);
     }
-    queue.push(msg.clone());
+    queue.push_queued(priority, packet);
 }
 
 /// Sixteen batches at the socket's cap.
@@ -228,9 +298,10 @@ const STALLED_WRITER_BYTES: usize = 16 * mcrs_minecraft_network::MAX_QUEUED_BYTE
 /// Execution order: runs in `OutboundFlush`, after `bridge_outbound` filled
 /// queues; in FixedPostUpdate that flush runs before `bridge_inbound` reads.
 ///
-/// Only the serialization of each packet runs here, in priority order; a packet encoded once
-/// for many players moves as a shared buffer. Framing, compression and the socket write run on
-/// each connection's writer task.
+/// Only the serialization of each packet for one connection runs here, in priority order. A
+/// packet serialized once for many connections is framed and compressed here once for each
+/// compression threshold, and every connection sends that frame. Framing and compression of the
+/// rest, and the socket write, run on each connection's writer task.
 #[cfg_attr(
     feature = "telemetry-tracy",
     tracing::instrument(name = "network::dispatch_encode", skip_all)
@@ -240,16 +311,40 @@ pub fn dispatch_encode(
     mut commands: Commands,
     mut telemetry: ResMut<BridgeTelemetry>,
     mut pending: Option<ResMut<PendingConnections>>,
+    mut frames: Local<SharedFrames>,
 ) {
     if let Some(pending) = pending.as_deref_mut() {
         pending.connections.clear();
     }
+    for (_, queue, _) in &players {
+        count_recipients(queue, &mut frames);
+    }
     for (entity, mut queue, mut conn) in &mut players {
-        dispatch_connection(entity, &mut queue, &mut conn, &mut commands, &mut telemetry);
+        dispatch_connection(
+            entity,
+            &mut queue,
+            &mut conn,
+            &mut commands,
+            &mut telemetry,
+            &mut frames,
+        );
         if conn.raw.unsent_bytes() > 0
             && let Some(pending) = pending.as_deref_mut()
         {
             pending.connections.push(entity);
+        }
+    }
+    frames.clear();
+}
+
+/// Counts the connections that receive each packet serialized once, so that only a packet of
+/// more than one connection costs a frame on this thread.
+fn count_recipients(queue: &OutboundQueue, frames: &mut SharedFrames) {
+    for sub_queue in [&queue.critical, &queue.high, &queue.normal, &queue.low] {
+        for queued in sub_queue {
+            if let QueuedPacket::Encoded(encoded) = queued {
+                frames.add_recipient(&encoded.packet);
+            }
         }
     }
 }
@@ -262,6 +357,7 @@ pub fn dispatch_pending(
     mut commands: Commands,
     mut telemetry: ResMut<BridgeTelemetry>,
     mut pending: ResMut<PendingConnections>,
+    mut frames: Local<SharedFrames>,
 ) {
     let PendingConnections {
         connections,
@@ -270,15 +366,28 @@ pub fn dispatch_pending(
     std::mem::swap(connections, visiting);
     visiting.sort_unstable();
     visiting.dedup();
+    for &entity in visiting.iter() {
+        if let Ok((_, queue, _)) = players.get(entity) {
+            count_recipients(queue, &mut frames);
+        }
+    }
     for entity in visiting.drain(..) {
         let Ok((entity, mut queue, mut conn)) = players.get_mut(entity) else {
             continue;
         };
-        dispatch_connection(entity, &mut queue, &mut conn, &mut commands, &mut telemetry);
+        dispatch_connection(
+            entity,
+            &mut queue,
+            &mut conn,
+            &mut commands,
+            &mut telemetry,
+            &mut frames,
+        );
         if conn.raw.unsent_bytes() > 0 {
             connections.push(entity);
         }
     }
+    frames.clear();
 }
 
 fn dispatch_connection(
@@ -287,6 +396,7 @@ fn dispatch_connection(
     conn: &mut ServerSideConnection,
     commands: &mut Commands,
     telemetry: &mut BridgeTelemetry,
+    frames: &mut SharedFrames,
 ) {
     // --- (1) Disconnected writer check ---
     if conn.raw.disconnected() {
@@ -332,7 +442,7 @@ fn dispatch_connection(
         }
     }
 
-    hand_over(entity, queue, &mut conn.raw, telemetry);
+    hand_over(entity, queue, &mut conn.raw, telemetry, frames);
 }
 
 /// Serializes the queue in priority order and hands it, behind anything written to the
@@ -342,6 +452,7 @@ fn hand_over(
     queue: &mut OutboundQueue,
     raw: &mut RawConnection,
     telemetry: &mut BridgeTelemetry,
+    frames: &mut SharedFrames,
 ) {
     let OutboundQueue {
         critical,
@@ -350,62 +461,93 @@ fn hand_over(
         low,
     } = queue;
     for sub_queue in [critical, high, normal, low] {
-        for pkt in sub_queue.drain(..) {
+        for queued in sub_queue.drain(..) {
             trace!(
                 target: "mcrs_minecraft_engine::bridge",
                 conn = ?entity,
-                kind = ?std::mem::discriminant(&pkt.data),
+                kind = ?queued.kind(),
                 "dispatch_encode"
             );
-            if let PacketPayload::Test(_) = pkt.data {
-                // Test-only payload; no wire packet. Counted-drop so
-                // test assertions on encode_unhandled_total work.
-                telemetry.encode_unhandled_total += 1;
-                continue;
-            }
-            telemetry.packets.count(pkt.data.kind());
-            let shared = pkt.data.is_shared();
-            let before = raw.appended_bytes();
-            if let Err(error) = append_payload(raw, pkt.data) {
-                warn!(conn = ?entity, "an outbound packet did not encode: {error:#}");
-            } else if shared {
-                telemetry.shared_appends_total = telemetry.shared_appends_total.saturating_add(1);
-                let bytes = raw.appended_bytes().saturating_sub(before);
-                telemetry.shared_bytes_total = telemetry.shared_bytes_total.saturating_add(bytes);
-            } else {
-                telemetry.encode_calls_total = telemetry.encode_calls_total.saturating_add(1);
+            match queued {
+                QueuedPacket::Payload(PacketPayload::Test(_)) => {
+                    // Test-only payload; no wire packet. Counted-drop so
+                    // test assertions on encode_unhandled_total work.
+                    telemetry.encode_unhandled_total += 1;
+                }
+                QueuedPacket::Payload(payload) => {
+                    telemetry.packets.count(payload.kind());
+                    if let Err(error) = write_payload(raw, payload) {
+                        warn!(conn = ?entity, "an outbound packet did not encode: {error:#}");
+                    } else {
+                        telemetry.encode_calls_total =
+                            telemetry.encode_calls_total.saturating_add(1);
+                    }
+                }
+                QueuedPacket::Encoded(encoded) => {
+                    telemetry.packets.count(encoded.kind);
+                    append_encoded(entity, raw, encoded.packet, telemetry, frames);
+                }
             }
         }
     }
     raw.send_written();
 }
 
-fn append_payload(raw: &mut RawConnection, data: PacketPayload) -> anyhow::Result<()> {
-    match data {
-        PacketPayload::LightUpdate(p) => raw.append(&p),
-        PacketPayload::BlockUpdate(p) => raw.append(&p),
-        PacketPayload::ChunkUnload(p) => raw.append(&p),
-        PacketPayload::EntityPosSync(p) => raw.append(&p),
-        PacketPayload::GameEvent(p) => raw.append(&p),
-        PacketPayload::PlayerLookAt(p) => raw.append(&p),
-        PacketPayload::PlayerAbilities(p) => raw.append(&p),
-        PacketPayload::SpawnBundle(bundle) => append_spawn_bundle(raw, &bundle),
-        PacketPayload::EntityMove(p) => raw.append(&p),
-        PacketPayload::EntityMoveRotate(p) => raw.append(&p),
-        PacketPayload::EntityRotate(p) => raw.append(&p),
-        PacketPayload::HeadRotation(p) => raw.append(&p),
-        PacketPayload::ChunkLoad { packet, .. } | PacketPayload::Commands(packet) => {
-            raw.append_shared(packet);
-            Ok(())
+fn append_encoded(
+    entity: Entity,
+    raw: &mut RawConnection,
+    packet: Bytes,
+    telemetry: &mut BridgeTelemetry,
+    frames: &mut SharedFrames,
+) {
+    let bytes = packet.len() as u64;
+    let append = match raw.append_shared(packet, frames) {
+        Ok(append) => append,
+        Err(error) => {
+            warn!(conn = ?entity, "a shared packet could not be framed: {error:#}");
+            return;
         }
-        PacketPayload::ChunkBatchStart(p) => raw.append(&p),
-        PacketPayload::ChunkBatchFinished(p) => raw.append(&p),
-        PacketPayload::RemoveEntities(p) => raw.append(&p),
-        PacketPayload::PlayerLogin(p) => raw.append(&p),
-        PacketPayload::Respawn(p) => raw.append(&p),
-        PacketPayload::OpLevelEntityEvent(p) => raw.append(&p),
-        PacketPayload::SetChunkCacheCenter(p) => raw.append(&p),
-        PacketPayload::SetChunkCacheRadius(p) => raw.append(&p),
+    };
+    telemetry.shared_appends_total = telemetry.shared_appends_total.saturating_add(1);
+    telemetry.shared_bytes_total = telemetry.shared_bytes_total.saturating_add(bytes);
+    match append {
+        SharedAppend::Unframed => {}
+        SharedAppend::FrameMade => {
+            telemetry.shared_frames_total = telemetry.shared_frames_total.saturating_add(1);
+            telemetry.framed_appends_total = telemetry.framed_appends_total.saturating_add(1);
+        }
+        SharedAppend::FrameReused => {
+            telemetry.framed_appends_total = telemetry.framed_appends_total.saturating_add(1);
+        }
+    }
+}
+
+/// Writes a packet that is not serialized yet; a serialized one is an error.
+fn write_payload<W: WritePacket>(sink: &mut W, data: PacketPayload) -> anyhow::Result<()> {
+    match data {
+        PacketPayload::LightUpdate(p) => sink.write_packet_fallible(&p),
+        PacketPayload::BlockUpdate(p) => sink.write_packet_fallible(&p),
+        PacketPayload::ChunkUnload(p) => sink.write_packet_fallible(&p),
+        PacketPayload::EntityPosSync(p) => sink.write_packet_fallible(&p),
+        PacketPayload::GameEvent(p) => sink.write_packet_fallible(&p),
+        PacketPayload::PlayerLookAt(p) => sink.write_packet_fallible(&p),
+        PacketPayload::PlayerAbilities(p) => sink.write_packet_fallible(&p),
+        PacketPayload::SpawnBundle(bundle) => write_spawn_bundle(sink, &bundle),
+        PacketPayload::EntityMove(p) => sink.write_packet_fallible(&p),
+        PacketPayload::EntityMoveRotate(p) => sink.write_packet_fallible(&p),
+        PacketPayload::EntityRotate(p) => sink.write_packet_fallible(&p),
+        PacketPayload::HeadRotation(p) => sink.write_packet_fallible(&p),
+        PacketPayload::ChunkLoad { .. } | PacketPayload::Commands(_) => {
+            anyhow::bail!("a serialized packet reached the encoder")
+        }
+        PacketPayload::ChunkBatchStart(p) => sink.write_packet_fallible(&p),
+        PacketPayload::ChunkBatchFinished(p) => sink.write_packet_fallible(&p),
+        PacketPayload::RemoveEntities(p) => sink.write_packet_fallible(&p),
+        PacketPayload::PlayerLogin(p) => sink.write_packet_fallible(&p),
+        PacketPayload::Respawn(p) => sink.write_packet_fallible(&p),
+        PacketPayload::OpLevelEntityEvent(p) => sink.write_packet_fallible(&p),
+        PacketPayload::SetChunkCacheCenter(p) => sink.write_packet_fallible(&p),
+        PacketPayload::SetChunkCacheRadius(p) => sink.write_packet_fallible(&p),
         PacketPayload::PlayerInfoUpdate { entries } => {
             let wire_entries: Vec<PlayerListEntry<'_>> = entries
                 .iter()
@@ -417,7 +559,7 @@ fn append_payload(raw: &mut RawConnection, data: PacketPayload) -> anyhow::Resul
                     ..Default::default()
                 })
                 .collect();
-            raw.append(&ClientboundPlayerInfoUpdate {
+            sink.write_packet_fallible(&ClientboundPlayerInfoUpdate {
                 actions: PlayerListActions::new()
                     .with_add_player(true)
                     .with_update_game_mode(true)
@@ -425,18 +567,18 @@ fn append_payload(raw: &mut RawConnection, data: PacketPayload) -> anyhow::Resul
                 entries: Cow::Borrowed(&wire_entries),
             })
         }
-        PacketPayload::PlayerPosition(p) => raw.append(&p),
-        PacketPayload::SystemChat(p) => raw.append(&p),
-        PacketPayload::CommandSuggestions(p) => raw.append(&p),
-        PacketPayload::SetTime(p) => raw.append(&p),
+        PacketPayload::PlayerPosition(p) => sink.write_packet_fallible(&p),
+        PacketPayload::SystemChat(p) => sink.write_packet_fallible(&p),
+        PacketPayload::CommandSuggestions(p) => sink.write_packet_fallible(&p),
+        PacketPayload::SetTime(p) => sink.write_packet_fallible(&p),
         PacketPayload::Test(_) => Ok(()),
     }
 }
 
-fn append_spawn_bundle(raw: &mut RawConnection, bundle: &SpawnBundle) -> anyhow::Result<()> {
-    raw.append(&ClientboundBundleDelimiter)?;
+fn write_spawn_bundle<W: WritePacket>(sink: &mut W, bundle: &SpawnBundle) -> anyhow::Result<()> {
+    sink.write_packet_fallible(&ClientboundBundleDelimiter)?;
     if let Some(profile) = &bundle.profile {
-        raw.append(&ClientboundPlayerInfoUpdate {
+        sink.write_packet_fallible(&ClientboundPlayerInfoUpdate {
             actions: PlayerListActions::new()
                 .with_add_player(true)
                 .with_update_game_mode(true),
@@ -448,8 +590,8 @@ fn append_spawn_bundle(raw: &mut RawConnection, bundle: &SpawnBundle) -> anyhow:
             }]),
         })?;
     }
-    raw.append(&bundle.entity)?;
-    raw.append(&ClientboundBundleDelimiter)
+    sink.write_packet_fallible(&bundle.entity)?;
+    sink.write_packet_fallible(&ClientboundBundleDelimiter)
 }
 
 /// Routes serverbound packets written to the bus into the dim channel seam.

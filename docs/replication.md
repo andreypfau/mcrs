@@ -181,11 +181,11 @@ that has no rule.
 | Place | Today | Cost |
 |---|---|---|
 | `EntityTracker`, `crates/mcrs_minecraft_engine/src/entity_tracker.rs` | One grid of sections with hash sets and one radius of 5 sections. A subject that changes its section pairs with the subjects of the new cells in its radius. Each player is a viewer and a subject, so one visible set holds both directions. | One check for each player, and O(subjects that move × visible) each tick. A change of section looks up 121 to 1,331 cells. |
-| `crates/mcrs_minecraft_engine/src/entity_motion.rs` | A move is a relative move from one delta base for each subject. A delta of more than about 8 blocks, or a move after 100 ticks, sends an absolute position sync. One message goes to all viewers of the subject. | The bridge still encodes the message for each viewer. |
+| `crates/mcrs_minecraft_engine/src/entity_motion.rs` | A move is a relative move from one delta base for each subject. A delta of more than about 8 blocks, or a move after 100 ticks, sends an absolute position sync. One message goes to all viewers of the subject. | The bridge encodes the message one time for all viewers. |
 | Remove packets | One remove packet with a list for each viewer and tick. | None. |
-| Dimension to host channel, `crates/mcrs_minecraft_engine/src/sub_app_builder.rs` | One channel message for each packet. | Channel cost for each packet. |
-| `crates/mcrs_minecraft_engine/src/bridge.rs` | The flush runs on one thread. It clones each message for each recipient and encodes it for each recipient. Only chunks and the command tree share bytes. | O(viewers) for each packet. |
-| `crates/mcrs_minecraft_network/src/outbound.rs` | The writer of each connection frames and compresses each packet, also the shared bytes. | Each connection compresses a shared chunk again. |
+| Dimension to host channel, `crates/mcrs_minecraft_engine/src/sub_app_builder.rs` | One channel message for each drain. | None for each packet. |
+| `crates/mcrs_minecraft_engine/src/bridge.rs` | The flush runs on one thread. It encodes a packet for many recipients one time, and all recipients share the bytes. | One encode for each packet. A packet for each pair of subject and viewer is still a separate packet. |
+| `crates/mcrs_minecraft_network/src/outbound.rs` | The flush frames and compresses a shared packet one time for each compression threshold. The writer sends this `Framed` part as it is. | One deflate for each chunk version in a flush. |
 | Profile entries, `track_entities.rs` | The spawn of a player is a bundle: its profile entry, then the spawn. The entry does not set the listing, so a new entry is not listed. A change of game mode still sends a listed entry to all players. | The player list policy and latency are not done (step 4). |
 | `crates/mcrs_minecraft_engine/src/network_id.rs` | The wire id of an entity that is not a player is its index in the dimension. | Not stable across cells (`cells.md`, section 6). |
 | Encryption | None. The server runs in offline mode only. | No cost yet. |

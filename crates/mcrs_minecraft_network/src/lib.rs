@@ -18,6 +18,7 @@ pub mod lan;
 pub mod metrics;
 mod outbound;
 pub mod packet_io;
+mod shared_frames;
 #[cfg(all(feature = "bevy", not(target_family = "wasm")))]
 pub mod webtransport;
 
@@ -31,6 +32,7 @@ pub use web_time::Instant;
 #[cfg(not(target_family = "wasm"))]
 pub use crate::outbound::OutboundReceiver;
 pub use crate::packet_io::{MAX_QUEUED_BYTES_PER_SOCKET, RawConnection};
+pub use crate::shared_frames::{SharedAppend, SharedFrames};
 pub use mcrs_minecraft_protocol::ConnectionState;
 
 /// System sets for the network layer, usable for ordering constraints in

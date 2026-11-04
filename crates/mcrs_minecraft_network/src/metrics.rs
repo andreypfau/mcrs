@@ -33,6 +33,11 @@ pub struct BridgeTelemetry {
     pub shared_appends_total: u64,
     /// Bytes of the shared appends, one count for each recipient.
     pub shared_bytes_total: u64,
+    /// Frames made once for a shared packet and a compression threshold: each compresses the
+    /// packet once at most.
+    pub shared_frames_total: u64,
+    /// Shared appends that went as a frame made once, not framed again by the writer.
+    pub framed_appends_total: u64,
     pub packets: PacketKinds,
 }
 

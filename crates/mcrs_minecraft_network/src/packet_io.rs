@@ -1,6 +1,7 @@
 #[cfg(not(target_family = "wasm"))]
 use crate::outbound::OutboundReceiver;
 use crate::outbound::{FrameWriter, OutboundBatch, WriterQueue};
+use crate::shared_frames::{SharedAppend, SharedFrames};
 use crate::{Instant, ReceivedPacket, SwitchMode};
 use bytes::{Bytes, BytesMut};
 use mcrs_minecraft_protocol::packets::login::clientbound::{
@@ -181,6 +182,7 @@ impl<S: AsyncRead + AsyncWrite + Unpin> PacketIo<S> {
             mpsc::channel::<OutboundBatch>(OUTBOUND_CHANNEL_CAPACITY);
         let disconnect_flag = Arc::new(AtomicBool::new(false));
 
+        let queue = WriterQueue::new(self.enc.compression());
         let (reader, writer) = self.stream.split_stream();
         let (inbound_switch, switches) = mpsc::unbounded_channel();
         let reader = reader_loop(reader, self.dec, switches, incoming_sender);
@@ -223,7 +225,7 @@ impl<S: AsyncRead + AsyncWrite + Unpin> PacketIo<S> {
             awaits_login_acknowledgement: false,
             disconnect_flag,
             inbound_switch: Some(inbound_switch),
-            queue: WriterQueue::default(),
+            queue,
         }
     }
 }
@@ -532,9 +534,20 @@ impl RawConnection {
     }
 
     /// Queues a packet that `encode_with_id` wrote once for every connection that receives it,
-    /// without a copy.
-    pub fn append_shared(&mut self, packet: Bytes) {
-        self.queue.append_shared(packet);
+    /// without a copy. A packet that `frames` counted for more than one connection goes as the
+    /// frame that `frames` makes once for this connection's threshold, so it is compressed once
+    /// for all of them.
+    pub fn append_shared(
+        &mut self,
+        packet: Bytes,
+        frames: &mut SharedFrames,
+    ) -> anyhow::Result<SharedAppend> {
+        let Some(found) = frames.frame(&packet, self.queue.compression())? else {
+            self.queue.append_shared(packet);
+            return Ok(SharedAppend::Unframed);
+        };
+        self.queue.append_framed(found.frame, packet.len());
+        Ok(found.append)
     }
 
     /// True once the reader has stopped, even while frames it read are still queued.

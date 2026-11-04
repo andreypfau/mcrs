@@ -17,6 +17,8 @@ enum OutboundPart {
     Packets(Bytes),
     /// One packet with its id, in a buffer that other connections share.
     Shared(Bytes),
+    /// Frames made for the threshold the writer is at, which it sends as they are.
+    Framed(Bytes),
     /// The writer compresses every packet after this one at the threshold.
     Compression(CompressionThreshold),
 }
@@ -24,7 +26,7 @@ enum OutboundPart {
 impl OutboundPart {
     fn len(&self) -> usize {
         match self {
-            Self::Packets(bytes) | Self::Shared(bytes) => bytes.len(),
+            Self::Packets(bytes) | Self::Shared(bytes) | Self::Framed(bytes) => bytes.len(),
             Self::Compression(_) => 0,
         }
     }
@@ -59,9 +61,23 @@ pub(crate) struct WriterQueue {
     open: OutboundBatch,
     closed: VecDeque<OutboundBatch>,
     appended: u64,
+    compression: CompressionThreshold,
 }
 
 impl WriterQueue {
+    /// A queue for a writer that starts at `compression`.
+    pub(crate) fn new(compression: CompressionThreshold) -> Self {
+        Self {
+            compression,
+            ..Self::default()
+        }
+    }
+
+    /// The threshold the writer frames the next appended packet at.
+    pub(crate) fn compression(&self) -> CompressionThreshold {
+        self.compression
+    }
+
     /// Bytes of packet bodies, with ids and before framing, appended since the queue was made.
     pub(crate) fn appended_bytes(&self) -> u64 {
         self.appended
@@ -97,7 +113,15 @@ impl WriterQueue {
         self.push(OutboundPart::Shared(packet));
     }
 
+    /// Queues frames made at [`Self::compression`] for a packet of `packet_len` bytes.
+    pub(crate) fn append_framed(&mut self, frame: Bytes, packet_len: usize) {
+        self.appended = self.appended.saturating_add(packet_len as u64);
+        self.close_records();
+        self.push(OutboundPart::Framed(frame));
+    }
+
     pub(crate) fn switch_compression(&mut self, threshold: CompressionThreshold) {
+        self.compression = threshold;
         self.close_records();
         self.push(OutboundPart::Compression(threshold));
     }
@@ -142,7 +166,8 @@ impl WriterQueue {
     }
 }
 
-/// The writer's half of the encoding: frames and compresses each batch it is handed, in order.
+/// The writer's half of the encoding: frames and compresses each batch it is handed, in order,
+/// except the frames the server thread made once for many connections.
 pub(crate) struct FrameWriter {
     encoder: PacketEncoder,
 }
@@ -169,6 +194,7 @@ impl FrameWriter {
                     }
                 }
                 OutboundPart::Shared(packet) => self.append(&packet),
+                OutboundPart::Framed(frame) => self.encoder.append_frames(&frame),
                 OutboundPart::Compression(threshold) => self.encoder.set_compression(threshold),
             }
         }
