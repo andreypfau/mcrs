@@ -4,6 +4,7 @@ use mcrs_engine_link::{Stage, Step, TaskOutcome};
 
 use crate::entity_id::{ViewerId, WorldId};
 use crate::muxer::Muxer;
+use crate::muxer_settings::MuxerSettings;
 use crate::replication_codec::ReplicationCodec;
 use crate::tile_delta::TileDeltas;
 use crate::view::View;
@@ -12,10 +13,12 @@ use crate::viewer_bytes::ViewerBytes;
 /// A call to the [`Muxer`] of one world, sent over a link.
 #[non_exhaustive]
 pub enum MuxerInput<C: ReplicationCodec> {
-    /// Starts the muxer of `world` with `codec`. A world that is open already keeps its muxer.
+    /// Starts the muxer of `world` with `codec` and `settings`. A world that is open already
+    /// keeps its muxer.
     Open {
         world: WorldId,
         codec: C,
+        settings: MuxerSettings,
     },
     /// Drops the muxer of `world` and the bytes it has not handed out.
     Close {
@@ -66,10 +69,14 @@ impl<C: ReplicationCodec> MuxerStage<C> {
 
     fn apply(&mut self, input: MuxerInput<C>) {
         match input {
-            MuxerInput::Open { world, codec } => {
+            MuxerInput::Open {
+                world,
+                codec,
+                settings,
+            } => {
                 self.worlds
                     .entry(world)
-                    .or_insert_with(|| Muxer::new(codec));
+                    .or_insert_with(|| Muxer::new(codec, settings));
             }
             MuxerInput::Close { world } => {
                 self.worlds.remove(&world);

@@ -11,8 +11,8 @@ use bevy_tasks::block_on;
 use flume::Sender;
 use mcrs_engine_link::{Link, Placement};
 use mcrs_engine_muxer::{
-    EntityEvent, EntityId, MuxerInput, MuxerStage, SubjectEvent, TileDeltas, TileKey, View,
-    ViewerBytes, ViewerId, WorldId,
+    EntityEvent, EntityId, MuxerInput, MuxerSettings, MuxerStage, SubjectEvent, TileDeltas,
+    TileKey, View, ViewerBytes, ViewerId, WorldId,
 };
 use mcrs_minecraft_engine_world::session::{PlayerSession, SessionAnchors};
 use mcrs_minecraft_replication::{ListPolicy, PlayerCodec, PlayerData, PlayerInput};
@@ -22,7 +22,7 @@ use crate::dim;
 use crate::latency::Latency;
 use crate::muxer_placement::MuxerPlacement;
 use crate::player_list_policy::PlayerListPolicy;
-use crate::player_tiles::VIEW_RADIUS;
+use crate::player_tiles::{TILE_WIDTH, VIEW_RADIUS};
 use crate::session::SessionConnection;
 use crate::tick_wake::TickWake;
 use crate::tile_delta_log::{LoggedDeltas, TileDeltaLog};
@@ -104,6 +104,10 @@ impl EntityReplication {
             self.link.send(MuxerInput::Open {
                 world,
                 codec: PlayerCodec::new(self.policy),
+                settings: MuxerSettings {
+                    tile_width: TILE_WIDTH,
+                    ..MuxerSettings::default()
+                },
             });
         }
         for delta in &deltas.tiles {

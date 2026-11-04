@@ -12,7 +12,7 @@ use bevy_ecs::prelude::*;
 use bevy_ecs::schedule::{Schedule, ScheduleLabel};
 use bevy_math::DVec3;
 use bytes::Bytes;
-use mcrs_engine_muxer::{Muxer, View, ViewerId};
+use mcrs_engine_muxer::{Muxer, MuxerSettings, View, ViewerId};
 use mcrs_minecraft_engine::bus::{InboundPlayerDespawn, OutboundPlayerPacket, PacketPayload};
 use mcrs_minecraft_engine::column_view::ColumnView;
 use mcrs_minecraft_engine::player_tiles::VIEW_RADIUS;
@@ -169,7 +169,7 @@ fn disconnect_path_evicts_stationary_observer_three_assertions() {
     // dimension publishes their spawns; O subscribes to the tiles around its own, as the host
     // does when it sees the spawn.
     main_app.update();
-    let mut muxer = Muxer::new(PlayerCodec::default());
+    let mut muxer = Muxer::new(PlayerCodec::default(), MuxerSettings::default());
     publish(&mut main_app, &mut muxer);
     let own = replicated(&main_app, player_o);
     let viewer_o = ViewerId(session_o.0);

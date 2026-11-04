@@ -6,6 +6,7 @@ mod delta_base;
 mod encode;
 mod list_packets;
 mod list_policy;
+mod motion;
 mod player_codec;
 mod player_data;
 mod player_input;

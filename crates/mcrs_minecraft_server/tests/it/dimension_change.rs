@@ -22,6 +22,7 @@ use mcrs_minecraft_protocol_game::clientbound::{
 };
 use mcrs_minecraft_protocol_game::game_event::GameEventKind;
 use mcrs_minecraft_protocol_game::text::TextContent;
+use mcrs_minecraft_replication::LIST_INTERVAL_TICKS;
 use mcrs_minecraft_resource::{ResourceKeyBuf, ResourceLocationBuf};
 
 use crate::chat::{client_information, line};
@@ -287,6 +288,19 @@ fn muxer_bytes_precede_the_respawn(muxer: Placement) {
     assert!(
         !replicated.is_empty() && replicated.iter().all(|&at| at < respawn),
         "{muxer:?}: the move of the watched player in the tick the mover left comes before the respawn {respawn}: {replicated:?}"
+    );
+
+    // The mover is alone in the End, so all muxer bytes after the respawn would come from the
+    // Overworld, such as its player list.
+    let later = server.ticks(mover, 2 * LIST_INTERVAL_TICKS as usize);
+    let records: Vec<i32> = host_app::replicated(&later)
+        .into_iter()
+        .map(|(id, _)| id)
+        .collect();
+    assert_eq!(
+        records,
+        Vec::<i32>::new(),
+        "{muxer:?}: the Overworld owes the mover nothing after its respawn"
     );
 }
 

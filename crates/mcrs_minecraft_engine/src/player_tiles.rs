@@ -5,7 +5,7 @@ use mcrs_engine_muxer::{TileGrid, TileKey, TileRadius};
 use mcrs_minecraft_engine_world::world::dimension::DimensionTypeConfig;
 
 /// The width of a tile in blocks on X and Z: two columns, as the vanilla tracking cells.
-const TILE_WIDTH: NonZeroU32 = match NonZeroU32::new(32) {
+pub const TILE_WIDTH: NonZeroU32 = match NonZeroU32::new(32) {
     Some(width) => width,
     None => NonZeroU32::MIN,
 };

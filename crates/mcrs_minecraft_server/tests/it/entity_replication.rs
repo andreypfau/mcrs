@@ -25,6 +25,12 @@ use rustc_hash::{FxHashMap, FxHashSet};
 use crate::host_app::{self, PlayServer, sent_to};
 use crate::mock_connection;
 
+/// The ticks between two moves of a subject in the slowest tier.
+const SLOWEST_TIER_TICKS: usize = 20;
+
+/// The default cap of the muxer, K.
+const CAP: usize = 200;
+
 /// What a vanilla client knows of the entities of its world.
 #[derive(Default)]
 struct ClientModel {
@@ -99,15 +105,19 @@ impl ClientModel {
         }
     }
 
-    /// Applies a relative move as the client does: from its last position on the step grid.
+    /// Applies a relative move as the client does: from its last position on the step grid,
+    /// each step of a path after the one before.
     fn step(&mut self, id: VarInt, delta: &VecDelta) {
-        let VecDelta::Linear([x, y, z]) = *delta else {
-            panic!("a stepped path is not sent: {delta:?}");
+        let steps: Vec<[i16; 3]> = match delta {
+            VecDelta::Linear(delta) => vec![*delta],
+            VecDelta::Stepped(steps) => steps.iter().map(|step| step.delta).collect(),
         };
         if let Some(pos) = self.entities.get_mut(&id.0) {
             let grid =
                 |base: f64, steps: i16| ((base * 4096.0).round() + f64::from(steps)) / 4096.0;
-            *pos = DVec3::new(grid(pos.x, x), grid(pos.y, y), grid(pos.z, z));
+            for [x, y, z] in steps {
+                *pos = DVec3::new(grid(pos.x, x), grid(pos.y, y), grid(pos.z, z));
+            }
         }
     }
 
@@ -251,13 +261,26 @@ impl Scene {
             .submit_to(dim, ToDim::Despawn(InboundPlayerDespawn { session }));
     }
 
-    fn place_second(&mut self, translation: DVec3) {
-        let player = self.server.player(self.anchors[1]);
+    fn place(&mut self, index: usize, translation: DVec3) {
+        let player = self.server.player(self.anchors[index]);
         self.server
             .world()
             .get_mut::<Transform>(player)
             .unwrap()
             .translation = translation;
+    }
+
+    fn position(&mut self, index: usize) -> DVec3 {
+        let player = self.server.player(self.anchors[index]);
+        self.server
+            .world()
+            .get::<Transform>(player)
+            .unwrap()
+            .translation
+    }
+
+    fn place_second(&mut self, translation: DVec3) {
+        self.place(1, translation);
         self.tick(1);
     }
 
@@ -293,6 +316,8 @@ fn walk_away(muxer: Placement) {
     for step in 1..=20 {
         let target = start + DVec3::new(2.3 * f64::from(step), 0.0, 0.0);
         scene.place_second(target);
+        // The slowest tier sends a move each 20 ticks.
+        scene.tick(SLOWEST_TIER_TICKS - 1);
         let seen = scene.first_sees_second_at().unwrap();
         assert!(
             seen.distance(target) < 1e-3,
@@ -301,6 +326,7 @@ fn walk_away(muxer: Placement) {
     }
     let jumped = start + DVec3::new(60.0, 0.0, 0.0);
     scene.place_second(jumped);
+    scene.tick(SLOWEST_TIER_TICKS - 1);
     assert!(
         scene.first_sees_second_at().unwrap().distance(jumped) < 1e-3,
         "a jump of more than 8 blocks lands where the server has the walker"
@@ -343,4 +369,68 @@ fn a_player_that_disconnects_leaves_the_player_list_of_its_viewers() {
 
     assert!(!scene.viewers[0].client.profiles.contains(&scene.uuids[1]));
     assert_eq!(scene.first_sees_second_at(), None);
+}
+
+#[test]
+fn a_crowd_past_the_cap_shows_at_most_the_cap_and_moves_each_player_it_shows() {
+    let players = 320;
+    let mut scene = Scene::crowd(players, 1);
+    let origin = scene.position(0);
+    // Seven tiles in a row around the viewer, about 46 players in each.
+    for index in 1..players {
+        let tile = (index % 7) as f64 - 3.0;
+        scene.place(index, origin + DVec3::new(32.0 * tile, 0.0, 0.0));
+    }
+    scene.tick(SLOWEST_TIER_TICKS);
+    let shown = scene.viewers[0].client.entities.len();
+    assert!(
+        (CAP / 2..=CAP).contains(&shown),
+        "the client shows {shown} of {players} players"
+    );
+
+    let start: Vec<DVec3> = (0..players).map(|index| scene.position(index)).collect();
+    for step in 1..=SLOWEST_TIER_TICKS {
+        for (index, start) in start.iter().enumerate().skip(1) {
+            scene.place(index, *start + DVec3::new(0.0, 0.0, 0.25 * step as f64));
+        }
+        scene.tick(1);
+    }
+    let client = &scene.viewers[0].client;
+    let frozen = scene
+        .uuids
+        .iter()
+        .zip(&start)
+        .filter(|(uuid, start)| {
+            client
+                .position_of(**uuid)
+                .is_some_and(|seen| seen.distance(**start) < 1e-3)
+        })
+        .count();
+    assert_eq!(frozen, 0, "every player that the client shows moved");
+
+    let exact = |scene: &mut Scene| {
+        let at: Vec<DVec3> = (0..players).map(|index| scene.position(index)).collect();
+        let client = &scene.viewers[0].client;
+        scene
+            .uuids
+            .iter()
+            .zip(&at)
+            .filter(|(uuid, at)| {
+                client
+                    .position_of(**uuid)
+                    .is_some_and(|seen| seen.distance(**at) < 1e-3)
+            })
+            .count()
+    };
+    scene.tick(2);
+    assert!(
+        exact(&mut scene) >= 31,
+        "the nearest tier shows its players where they are within 2 ticks"
+    );
+    scene.tick(SLOWEST_TIER_TICKS);
+    assert_eq!(
+        exact(&mut scene),
+        scene.viewers[0].client.entities.len(),
+        "each tier shows its players where they stopped"
+    );
 }

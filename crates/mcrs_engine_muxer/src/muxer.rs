@@ -1,66 +1,81 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::mem;
-use std::ops::Range;
-
-use bytes::Bytes;
 
 use crate::entity_event::{EntityEvent, SubjectEvent};
 use crate::entity_id::{EntityId, ViewerId};
+use crate::muxer_settings::MuxerSettings;
+use crate::planner::{Point, SubscriptionChange, TICKS_PER_SECOND, TileHeader, ViewerState, plan};
 use crate::replication_codec::ReplicationCodec;
-use crate::tile_blob::{SubjectRange, TileBlob};
+use crate::subscription::{LAYERS, Subscription, layer_ranks};
+use crate::tier::Tier;
+use crate::tile_blob::TileBlob;
 use crate::tile_delta::{TileDelta, TileDeltas};
 use crate::tile_key::TileKey;
 use crate::tile_stream::TileStream;
 use crate::view::View;
+use crate::viewer::{Gain, Viewer};
 use crate::viewer_bytes::ViewerBytes;
 
 /// Decides which entity bytes each viewer receives. It starts no thread and reads no clock, so
 /// a game can call it from its own loop.
 ///
-/// The work of a call is proportional to the changes and the subscriptions it touches, not to
-/// subjects times viewers. Each tile delta is encoded once, and its viewers share the bytes.
+/// Each tick, it plans each viewer: the tiles near the viewer get a fast tier, the far ones a
+/// slow tier, the cap K limits the subjects that the viewer holds, and the budget lowers tiers
+/// when the viewer receives too many bytes. It encodes each tile once for each tier that is due
+/// and has viewers, and the viewers of a tier share the bytes, cut by layer.
 #[derive(Debug)]
 pub struct Muxer<C> {
     codec: C,
+    settings: MuxerSettings,
     tiles: BTreeMap<TileKey, TileStream>,
+    /// The tile of each subject.
+    homes: BTreeMap<EntityId, TileKey>,
     viewers: BTreeMap<ViewerId, Viewer>,
-    /// The viewers whose chunks are not taken yet.
-    pending: BTreeSet<ViewerId>,
     /// The bytes of viewers that no longer subscribe.
     loose: Vec<ViewerBytes>,
     owed: Vec<ViewerBytes>,
+    /// The tiles with events that some tier has not encoded yet.
+    unsent: BTreeSet<TileKey>,
+    /// The keyframes of this tick, shared by the viewers that change tier in it.
+    keyframes: BTreeMap<TileTier, TileBlob>,
+    tick: u64,
 }
 
-#[derive(Debug)]
-struct Viewer {
-    view: View,
-    chunks: Vec<Bytes>,
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+struct TileTier {
+    tile: TileKey,
+    tier: Tier,
 }
 
-/// A subject that comes into a tile or goes out of it. `other` is the tile on the other side,
-/// or `None` when the subject spawns or despawns.
-struct Crossing {
-    subject: EntityId,
-    other: Option<TileKey>,
+/// A tile whose subjects changed in a tick.
+struct Membership {
+    tile: TileKey,
+    before: Vec<EntityId>,
+    /// The subjects that came in or went out.
+    crossed: Vec<EntityId>,
 }
 
-impl Crossing {
-    /// Whether a viewer of `view` gains or loses the subject on this crossing.
-    fn changes(&self, view: &View) -> bool {
-        Some(self.subject) != view.subject && self.other.is_none_or(|other| !view.contains(other))
-    }
+/// What the clients gain and lose in a tick, before the muxer sends it.
+#[derive(Default)]
+struct Settled {
+    gained: BTreeMap<ViewerId, Vec<Gain>>,
+    lost: BTreeMap<ViewerId, Vec<EntityId>>,
 }
 
 impl<C: ReplicationCodec> Muxer<C> {
     #[must_use]
-    pub fn new(codec: C) -> Self {
+    pub fn new(codec: C, settings: MuxerSettings) -> Self {
         Self {
             codec,
+            settings,
             tiles: BTreeMap::new(),
+            homes: BTreeMap::new(),
             viewers: BTreeMap::new(),
-            pending: BTreeSet::new(),
             loose: Vec::new(),
             owed: Vec::new(),
+            unsent: BTreeSet::new(),
+            keyframes: BTreeMap::new(),
+            tick: 0,
         }
     }
 
@@ -73,92 +88,90 @@ impl<C: ReplicationCodec> Muxer<C> {
         &mut self.codec
     }
 
-    /// Takes in the changes of one tick of a world.
+    /// Takes in the changes of one tick of a world, sends the moves of the tiers that are due,
+    /// and plans each viewer for the next tick.
     pub fn publish(&mut self, deltas: &TileDeltas<C::Data>) {
-        let mut removals: BTreeMap<ViewerId, Vec<EntityId>> = BTreeMap::new();
+        self.tick = deltas.tick;
+        self.keyframes.clear();
+        let mut memberships = Vec::new();
         for delta in &deltas.tiles {
-            self.publish_tile(deltas.tick, delta, &mut removals);
+            self.codec.apply(deltas.tick, delta);
+            memberships.extend(self.take_in(delta));
         }
-        for (viewer, subjects) in removals {
-            let removal = self.codec.remove(viewer, &subjects);
-            self.push(viewer, removal);
+        let mut settled = Settled::default();
+        for membership in &memberships {
+            self.settle(membership, &mut settled);
         }
+        self.send_moves(&settled);
+        self.send_settled(settled);
+
+        let budget = u64::from(self.settings.budget) / TICKS_PER_SECOND;
+        for state in self.viewers.values_mut() {
+            state.measure(budget);
+        }
+        let viewers: Vec<ViewerId> = self.viewers.keys().copied().collect();
+        for viewer in viewers {
+            self.replan(viewer);
+        }
+        for membership in &memberships {
+            self.forget_if_empty(membership.tile);
+        }
+
         let mut owed = mem::take(&mut self.owed);
         self.codec.finish_tick(deltas.tick, &mut owed);
         for ViewerBytes { viewer, mut chunks } in owed.drain(..) {
             match self.viewers.get_mut(&viewer) {
-                Some(state) => {
-                    state.chunks.append(&mut chunks);
-                    self.pending.insert(viewer);
-                }
+                Some(state) => state.chunks.append(&mut chunks),
                 None => self.loose.push(ViewerBytes { viewer, chunks }),
             }
         }
         self.owed = owed;
     }
 
-    /// Subscribes `viewer` to the tiles of `view`. For a viewer that is already subscribed, only
-    /// the difference to its last view costs work: it gets the spawn bundles of the subjects in
-    /// the tiles it gains, and the removal of the subjects in the tiles it loses.
+    /// Subscribes `viewer` to the tiles of `view` and plans it at once. A viewer that keeps its
+    /// own subject keeps the tiles that stay in its view; a new own subject starts the view
+    /// again.
     pub fn subscribe(&mut self, viewer: ViewerId, view: View) {
-        let previous: Option<View> = self.viewers.get(&viewer).map(|state| state.view);
-        // A new own subject changes what the viewer may hold in every tile, so the whole view
-        // starts again.
-        let kept: Option<View> = previous.filter(|old| old.subject == view.subject);
-        let mut chunks = Vec::new();
-
-        if let Some(old) = previous {
-            let mut removed = Vec::new();
-            for tile in old.tiles() {
-                if kept.is_some_and(|_| view.contains(tile)) {
-                    continue;
-                }
-                self.leave_tile(viewer, tile, old.subject, &mut removed);
-            }
-            if !removed.is_empty() {
-                chunks.push(self.codec.remove(viewer, &removed));
-            }
-        }
-
-        for tile in view.tiles() {
-            if kept.is_some_and(|old| old.contains(tile)) {
-                continue;
-            }
-            let stream = self.tiles.entry(tile).or_default();
-            stream.viewers.insert(viewer);
-            for &subject in &stream.subjects {
-                if Some(subject) != view.subject {
-                    self.codec.spawn(viewer, subject, &mut chunks);
-                }
+        let mut lost = Vec::new();
+        if let Some(state) = self.viewers.get(&viewer) {
+            let restart = state.view.subject != view.subject;
+            let dropped: Vec<TileKey> = state
+                .subscriptions
+                .keys()
+                .filter(|&&tile| restart || !view.contains(tile))
+                .copied()
+                .collect();
+            for tile in dropped {
+                let change = SubscriptionChange {
+                    tile,
+                    subscription: None,
+                };
+                self.resubscribe(viewer, change, &mut lost);
             }
         }
-
-        let state = self.viewers.entry(viewer).or_insert_with(|| Viewer {
-            view,
-            chunks: Vec::new(),
-        });
-        state.view = view;
-        if !chunks.is_empty() {
-            state.chunks.append(&mut chunks);
-            self.pending.insert(viewer);
-        }
+        self.viewers
+            .entry(viewer)
+            .or_insert_with(|| Viewer::new(view))
+            .view = view;
+        self.send_removal(viewer, &lost);
+        self.replan(viewer);
     }
 
-    /// Forgets `viewer`. It gets no removal, because its connection is gone or its client drops
-    /// its entities by itself. The bytes it has not taken stay for [`Self::take_output`].
+    /// Forgets `viewer`, and so does the codec. It gets no removal, because its connection is
+    /// gone or its client drops its entities by itself. The bytes it has not taken stay for
+    /// [`Self::take_output`], and no bytes come after them.
     pub fn unsubscribe(&mut self, viewer: ViewerId) {
         let Some(state) = self.viewers.remove(&viewer) else {
             return;
         };
-        for tile in state.view.tiles() {
-            if let Some(stream) = self.tiles.get_mut(&tile) {
+        self.codec.forget(viewer);
+        for tile in state.subscriptions.keys() {
+            if let Some(stream) = self.tiles.get_mut(tile) {
                 stream.viewers.remove(&viewer);
-                if stream.is_empty() {
-                    self.tiles.remove(&tile);
-                }
             }
+            self.forget_if_empty(*tile);
         }
-        if self.pending.remove(&viewer) && !state.chunks.is_empty() {
+        if !state.chunks.is_empty() {
             self.loose.push(ViewerBytes {
                 viewer,
                 chunks: state.chunks,
@@ -171,16 +184,14 @@ impl<C: ReplicationCodec> Muxer<C> {
     /// the outputs to the connections in this order: the bytes of a viewer before it subscribed
     /// come before the bytes of its subscription.
     pub fn take_output(&mut self) -> impl Iterator<Item = ViewerBytes> + '_ {
-        let Self {
-            viewers,
-            pending,
-            loose,
-            ..
-        } = self;
+        let Self { viewers, loose, .. } = self;
         loose
             .drain(..)
-            .chain(mem::take(pending).into_iter().filter_map(|viewer| {
-                let state = viewers.get_mut(&viewer)?;
+            .chain(viewers.iter_mut().filter_map(|(&viewer, state)| {
+                if state.chunks.is_empty() {
+                    return None;
+                }
+                state.counted = 0;
                 Some(ViewerBytes {
                     viewer,
                     chunks: mem::take(&mut state.chunks),
@@ -188,158 +199,349 @@ impl<C: ReplicationCodec> Muxer<C> {
             }))
     }
 
-    fn push(&mut self, viewer: ViewerId, chunk: Bytes) {
-        if let Some(state) = self.viewers.get_mut(&viewer) {
-            state.chunks.push(chunk);
-            self.pending.insert(viewer);
+    /// Moves the subjects that come into or go out of the tile of `delta`.
+    fn take_in(&mut self, delta: &TileDelta<C::Data>) -> Option<Membership> {
+        let tile = delta.tile;
+        let stream = self.tiles.entry(tile).or_default();
+        if !delta.events.is_empty() {
+            stream.unsent = [true; Tier::ALL.len()];
+            self.unsent.insert(tile);
+        }
+        let mut before: Option<Vec<EntityId>> = None;
+        let mut crossed = Vec::new();
+        for SubjectEvent { subject, event } in &delta.events {
+            let subject = *subject;
+            match event {
+                EntityEvent::Spawn(_) | EntityEvent::Enter { .. } => {
+                    before.get_or_insert_with(|| stream.subjects.clone());
+                    stream.insert(subject);
+                    self.homes.insert(subject, tile);
+                    if matches!(event, EntityEvent::Enter { .. }) {
+                        // The viewers of this tile may hold the subject from its old tile at
+                        // another tier.
+                        self.codec.refresh(subject);
+                    }
+                }
+                EntityEvent::Leave { .. } | EntityEvent::Despawn => {
+                    before.get_or_insert_with(|| stream.subjects.clone());
+                    stream.remove(subject);
+                    if self.homes.get(&subject) == Some(&tile) {
+                        self.homes.remove(&subject);
+                    }
+                }
+                EntityEvent::Move(_) | EntityEvent::Data(_) => continue,
+            }
+            crossed.push(subject);
+        }
+        Some(Membership {
+            tile,
+            before: before?,
+            crossed,
+        })
+    }
+
+    /// Finds what each viewer of a tile gains and loses after its subjects changed.
+    fn settle(&mut self, membership: &Membership, settled: &mut Settled) {
+        let Some(stream) = self.tiles.get(&membership.tile) else {
+            return;
+        };
+        let after = &stream.subjects;
+        let shifted: [Vec<EntityId>; LAYERS - 1] = [0, 1]
+            .map(|layer| prefix_difference(&membership.before, after, layer_ranks(layer).end));
+        for subject in shifted.iter().flatten() {
+            let stayed = membership.before.binary_search(subject).is_ok()
+                && after.binary_search(subject).is_ok();
+            if stayed {
+                // The subject changed layer, and a viewer may receive the two layers at two
+                // tiers.
+                self.codec.refresh(*subject);
+            }
+        }
+        for viewer in &stream.viewers {
+            let Some(state) = self.viewers.get_mut(viewer) else {
+                continue;
+            };
+            let visible = state
+                .subscriptions
+                .get(&membership.tile)
+                .map_or(0, Subscription::visible_ranks);
+            let mut candidates = membership.crossed.clone();
+            let boundary = (0..LAYERS - 1)
+                .zip(&shifted)
+                .find(|(layer, _)| layer_ranks(*layer).end == visible);
+            if let Some((_, shifted)) = boundary {
+                candidates.extend(shifted);
+            }
+            candidates.sort_unstable();
+            candidates.dedup();
+            for subject in candidates {
+                let wanted = wanted(&self.tiles, &self.homes, state, subject);
+                let held = state.held.contains(&subject);
+                match wanted {
+                    Some(tier) if !held => {
+                        state.held.insert(subject);
+                        settled
+                            .gained
+                            .entry(*viewer)
+                            .or_default()
+                            .push(Gain { subject, tier });
+                    }
+                    None if held => {
+                        state.held.remove(&subject);
+                        settled.lost.entry(*viewer).or_default().push(subject);
+                    }
+                    _ => {}
+                }
+            }
         }
     }
 
-    fn publish_tile(
-        &mut self,
-        tick: u64,
-        delta: &TileDelta<C::Data>,
-        removals: &mut BTreeMap<ViewerId, Vec<EntityId>>,
-    ) {
-        let stream = self.tiles.entry(delta.tile).or_default();
-        let mut entered = Vec::new();
-        let mut left = Vec::new();
-        for SubjectEvent { subject, event } in &delta.events {
-            let subject = *subject;
-            let (entering, other) = match event {
-                EntityEvent::Spawn(_) => (true, None),
-                EntityEvent::Enter { from } => (true, Some(*from)),
-                EntityEvent::Leave { to } => (false, Some(*to)),
-                EntityEvent::Despawn => (false, None),
-                EntityEvent::Move(_) | EntityEvent::Data(_) => continue,
+    /// Encodes each tile and tier that is due and has events to send, and appends the bytes to
+    /// the viewers of that tier.
+    fn send_moves(&mut self, settled: &Settled) {
+        let tiles: Vec<TileKey> = self.unsent.iter().copied().collect();
+        for tile in tiles {
+            let Some(stream) = self.tiles.get_mut(&tile) else {
+                self.unsent.remove(&tile);
+                continue;
             };
-            let crossing = Crossing { subject, other };
-            if entering {
-                stream.subjects.insert(subject);
-                entered.push(crossing);
-            } else {
-                stream.subjects.remove(&subject);
-                left.push(crossing);
+            if stream.subjects.is_empty() {
+                stream.unsent = [false; Tier::ALL.len()];
+            }
+            for tier in Tier::ALL {
+                let unsent = stream.unsent.get(tier.index()).copied().unwrap_or(false);
+                if !unsent || !due(tile, tier, self.tick) {
+                    continue;
+                }
+                let receivers: Vec<ViewerId> = stream
+                    .viewers
+                    .iter()
+                    .filter(|viewer| {
+                        self.viewers
+                            .get(viewer)
+                            .and_then(|state| state.subscriptions.get(&tile))
+                            .is_some_and(|subscription| {
+                                subscription
+                                    .layers
+                                    .iter()
+                                    .any(|layer| layer.tier == Some(tier))
+                            })
+                    })
+                    .copied()
+                    .collect();
+                if receivers.is_empty() {
+                    continue;
+                }
+                let blob = self.codec.encode(self.tick, tier, &stream.subjects);
+                if let Some(unsent) = stream.unsent.get_mut(tier.index()) {
+                    *unsent = false;
+                }
+                for viewer in receivers {
+                    let Some(state) = self.viewers.get_mut(&viewer) else {
+                        continue;
+                    };
+                    let gained = settled.gained.get(&viewer).map_or(&[][..], Vec::as_slice);
+                    state.append_tier(tile, stream, tier, &blob, gained);
+                }
+            }
+            if stream.unsent.iter().all(|unsent| !unsent) {
+                self.unsent.remove(&tile);
             }
         }
+    }
 
-        let blob = self.codec.encode(tick, delta);
-        let mut gained: Vec<EntityId> = Vec::new();
-        for &viewer in &stream.viewers {
+    fn send_settled(&mut self, settled: Settled) {
+        for (viewer, gains) in settled.gained {
             let Some(state) = self.viewers.get_mut(&viewer) else {
                 continue;
             };
-            let own = state.view.subject;
-            gained.clear();
-            gained.extend(
-                entered
-                    .iter()
-                    .filter(|crossing| crossing.changes(&state.view))
-                    .map(|crossing| crossing.subject),
-            );
-            let before = state.chunks.len();
-            append_blob(&mut state.chunks, &blob, |subject| {
-                Some(subject) == own || gained.contains(&subject)
-            });
-            for &subject in &gained {
-                self.codec.spawn(viewer, subject, &mut state.chunks);
-            }
-            for crossing in &left {
-                if crossing.changes(&state.view) {
-                    removals.entry(viewer).or_default().push(crossing.subject);
-                }
-            }
-            if state.chunks.len() > before {
-                self.pending.insert(viewer);
+            for Gain { subject, tier } in gains {
+                self.codec.spawn(viewer, subject, tier, &mut state.chunks);
             }
         }
-
-        if stream.is_empty() {
-            self.tiles.remove(&delta.tile);
+        for (viewer, subjects) in settled.lost {
+            self.send_removal(viewer, &subjects);
         }
     }
 
-    fn leave_tile(
-        &mut self,
-        viewer: ViewerId,
-        tile: TileKey,
-        own: Option<EntityId>,
-        removed: &mut Vec<EntityId>,
-    ) {
-        let Some(stream) = self.tiles.get_mut(&tile) else {
+    fn send_removal(&mut self, viewer: ViewerId, subjects: &[EntityId]) {
+        if subjects.is_empty() {
+            return;
+        }
+        let removal = self.codec.remove(viewer, subjects);
+        if let Some(state) = self.viewers.get_mut(&viewer) {
+            state.chunks.push(removal);
+        }
+    }
+
+    /// Plans the subscriptions of `viewer` and sends what they change: spawns for the layers it
+    /// gains, removals for the layers it loses, and keyframes for the layers that change tier.
+    fn replan(&mut self, viewer: ViewerId) {
+        let Some(state) = self.viewers.get(&viewer) else {
             return;
         };
-        stream.viewers.remove(&viewer);
-        removed.extend(
-            stream
-                .subjects
-                .iter()
-                .copied()
-                .filter(|&subject| Some(subject) != own),
-        );
-        if stream.is_empty() {
+        let view = state.view;
+        let width = f64::from(self.settings.tile_width.get());
+        let position = match view
+            .subject
+            .and_then(|subject| self.codec.position(subject))
+        {
+            Some([x, _, z]) => Point { x, z },
+            None => Point {
+                x: (f64::from(view.center.x) + 0.5) * width,
+                z: (f64::from(view.center.z) + 0.5) * width,
+            },
+        };
+        let headers: Vec<TileHeader> = view
+            .tiles()
+            .map(|tile| TileHeader {
+                tile,
+                count: self
+                    .tiles
+                    .get(&tile)
+                    .map_or(0, |stream| stream.subjects.len()),
+            })
+            .collect();
+        let viewer_state = ViewerState {
+            settings: &self.settings,
+            position,
+            subscriptions: &state.subscriptions,
+        };
+        let changes = plan(&viewer_state, &headers, state.measured);
+        let mut lost = Vec::new();
+        for change in changes {
+            self.resubscribe(viewer, change, &mut lost);
+        }
+        self.send_removal(viewer, &lost);
+    }
+
+    fn resubscribe(
+        &mut self,
+        viewer: ViewerId,
+        change: SubscriptionChange,
+        lost: &mut Vec<EntityId>,
+    ) {
+        let Some(state) = self.viewers.get_mut(&viewer) else {
+            return;
+        };
+        let tile = change.tile;
+        let old = state.subscriptions.get(&tile).copied().unwrap_or_default();
+        let new = change.subscription.unwrap_or_default();
+        let stream = self.tiles.entry(tile).or_default();
+        let own = state.view.subject;
+        for (layer, (was, now)) in old.layers.iter().zip(&new.layers).enumerate() {
+            let members = stream.layer(layer);
+            match (was.tier, now.tier) {
+                (None, Some(tier)) => {
+                    for &subject in members {
+                        if Some(subject) != own && state.held.insert(subject) {
+                            self.codec.spawn(viewer, subject, tier, &mut state.chunks);
+                        }
+                    }
+                }
+                (Some(_), None) => {
+                    lost.extend(members.iter().filter(|subject| state.held.remove(subject)));
+                }
+                (Some(from), Some(to)) if from != to => {
+                    let Some(window) = stream.window(layer) else {
+                        continue;
+                    };
+                    let blob = self
+                        .keyframes
+                        .entry(TileTier { tile, tier: to })
+                        .or_insert_with(|| self.codec.keyframe(to, &stream.subjects));
+                    blob.append_kept(&mut state.chunks, |subject| {
+                        window.contains(subject) && Some(subject) != own
+                    });
+                }
+                _ => {}
+            }
+        }
+        match change.subscription {
+            Some(subscription) => {
+                stream.viewers.insert(viewer);
+                state.subscriptions.insert(tile, subscription);
+            }
+            None => {
+                stream.viewers.remove(&viewer);
+                state.subscriptions.remove(&tile);
+                self.forget_if_empty(tile);
+            }
+        }
+    }
+
+    fn forget_if_empty(&mut self, tile: TileKey) {
+        if self.tiles.get(&tile).is_some_and(TileStream::is_empty) {
             self.tiles.remove(&tile);
         }
     }
 }
 
-/// Appends the bytes of `blob` without the ranges of the subjects that `excluded` names.
-fn append_blob(chunks: &mut Vec<Bytes>, blob: &TileBlob, excluded: impl Fn(EntityId) -> bool) {
-    let len = blob.bytes.len();
-    let mut start = 0;
-    for SubjectRange { subject, range } in &blob.ranges {
-        // A range out of order or out of bounds would make `Bytes::slice` panic, so the muxer
-        // keeps those bytes rather than trust the codec.
-        let in_bounds = start <= range.start && range.start <= range.end && range.end <= len;
-        if !in_bounds || !excluded(*subject) {
-            continue;
-        }
-        append_slice(chunks, &blob.bytes, start..range.start);
-        start = range.end;
+/// The tier at which the client of `state` holds `subject`, or `None` when it does not hold it.
+fn wanted(
+    tiles: &BTreeMap<TileKey, TileStream>,
+    homes: &BTreeMap<EntityId, TileKey>,
+    state: &Viewer,
+    subject: EntityId,
+) -> Option<Tier> {
+    if Some(subject) == state.view.subject {
+        return None;
     }
-    append_slice(chunks, &blob.bytes, start..len);
+    let tile = homes.get(&subject)?;
+    let rank = tiles.get(tile)?.rank(subject)?;
+    state.subscriptions.get(tile)?.tier_of(rank)
 }
 
-fn append_slice(chunks: &mut Vec<Bytes>, bytes: &Bytes, range: Range<usize>) {
-    if !range.is_empty() {
-        chunks.push(bytes.slice(range));
-    }
+/// Whether tier `tier` of `tile` sends its moves at `tick`. The phase of a tile spreads the work
+/// of a slow tier over its ticks.
+fn due(tile: TileKey, tier: Tier, tick: u64) -> bool {
+    let phase = (u64::from(tile.x as u32).wrapping_mul(0x9E37_79B9_7F4A_7C15)
+        ^ u64::from(tile.y as u32).wrapping_mul(0xC2B2_AE3D_27D4_EB4F)
+        ^ u64::from(tile.z as u32).wrapping_mul(0x1656_67B1_9E37_79F9))
+        >> 32;
+    tick.wrapping_add(phase) % tier.interval() == 0
+}
+
+/// The subjects in exactly one of the first `end` of `before` and the first `end` of `after`.
+fn prefix_difference(before: &[EntityId], after: &[EntityId], end: usize) -> Vec<EntityId> {
+    let old = before.get(..end).unwrap_or(before);
+    let new = after.get(..end).unwrap_or(after);
+    let gone = old
+        .iter()
+        .filter(|subject| new.binary_search(subject).is_err());
+    let come = new
+        .iter()
+        .filter(|subject| old.binary_search(subject).is_err());
+    gone.chain(come).copied().collect()
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use bytes::Bytes;
+
+    use crate::tile_blob::SubjectRange;
     use crate::tile_radius::TileRadius;
 
     /// Writes each event as a short token, so the bytes of a viewer read as text.
     #[derive(Default)]
     struct TextCodec {
         encodes: usize,
+        /// The subjects that moved since the last encode of each tier.
+        moved: [BTreeSet<EntityId>; 4],
         /// Bytes for one viewer at the end of the next tick.
         owed: Vec<ViewerBytes>,
     }
 
-    impl ReplicationCodec for TextCodec {
-        type Data = ();
-        type Input = ();
-
-        fn encode(&mut self, _tick: u64, delta: &TileDelta<()>) -> TileBlob {
-            self.encodes += 1;
+    impl TextCodec {
+        fn blob(subjects: impl IntoIterator<Item = EntityId>, token: &str) -> TileBlob {
             let mut text = String::new();
             let mut ranges = Vec::new();
-            for SubjectEvent { subject, event } in &delta.events {
+            for subject in subjects {
                 let start = text.len();
-                let token = match event {
-                    EntityEvent::Move(()) => "move",
-                    EntityEvent::Data(()) => "data",
-                    EntityEvent::Spawn(())
-                    | EntityEvent::Despawn
-                    | EntityEvent::Enter { .. }
-                    | EntityEvent::Leave { .. } => continue,
-                };
                 text.push_str(&format!("{token} {};", subject.0));
                 ranges.push(SubjectRange {
-                    subject: *subject,
+                    subject,
                     range: start..text.len(),
                 });
             }
@@ -348,8 +550,46 @@ mod tests {
                 ranges,
             }
         }
+    }
 
-        fn spawn(&mut self, _viewer: ViewerId, subject: EntityId, chunks: &mut Vec<Bytes>) {
+    impl ReplicationCodec for TextCodec {
+        type Data = ();
+        type Input = ();
+
+        fn apply(&mut self, _tick: u64, delta: &TileDelta<()>) {
+            for SubjectEvent { subject, event } in &delta.events {
+                if matches!(event, EntityEvent::Move(())) {
+                    for moved in &mut self.moved {
+                        moved.insert(*subject);
+                    }
+                }
+            }
+        }
+
+        fn encode(&mut self, _tick: u64, tier: Tier, subjects: &[EntityId]) -> TileBlob {
+            self.encodes += 1;
+            let moved = &mut self.moved[tier.index()];
+            let sent: Vec<EntityId> = subjects
+                .iter()
+                .copied()
+                .filter(|subject| moved.remove(subject))
+                .collect();
+            Self::blob(sent, "move")
+        }
+
+        fn keyframe(&mut self, _tier: Tier, subjects: &[EntityId]) -> TileBlob {
+            Self::blob(subjects.iter().copied(), "key")
+        }
+
+        fn refresh(&mut self, _subject: EntityId) {}
+
+        fn spawn(
+            &mut self,
+            _viewer: ViewerId,
+            subject: EntityId,
+            _tier: Tier,
+            chunks: &mut Vec<Bytes>,
+        ) {
             chunks.push(Bytes::from(format!("bundle {};", subject.0)));
         }
 
@@ -362,11 +602,23 @@ mod tests {
             out.append(&mut self.owed);
         }
 
+        fn forget(&mut self, viewer: ViewerId) {
+            self.owed.retain(|owed| owed.viewer != viewer);
+        }
+
         fn receive(&mut self, (): ()) {}
+
+        fn position(&self, _subject: EntityId) -> Option<[f64; 3]> {
+            None
+        }
     }
 
     const ORIGIN: TileKey = TileKey::new(0, 0, 0);
     const FAR: TileKey = TileKey::new(10, 0, 0);
+
+    fn muxer() -> Muxer<TextCodec> {
+        Muxer::new(TextCodec::default(), MuxerSettings::default())
+    }
 
     fn view(center: TileKey, subject: Option<u64>) -> View {
         View {
@@ -383,11 +635,17 @@ mod tests {
         }
     }
 
-    fn tick(tile: TileKey, events: Vec<SubjectEvent<()>>) -> TileDeltas<()> {
-        TileDeltas {
-            tick: 0,
-            tiles: vec![TileDelta { tile, events }],
-        }
+    /// Publishes `tiles` at `tick`, then an empty tick, so tier 0 is due in one of the two.
+    fn publish(muxer: &mut Muxer<TextCodec>, tick: u64, tiles: Vec<TileDelta<()>>) {
+        muxer.publish(&TileDeltas { tick, tiles });
+        muxer.publish(&TileDeltas {
+            tick: tick + 1,
+            tiles: Vec::new(),
+        });
+    }
+
+    fn at(tile: TileKey, events: Vec<SubjectEvent<()>>) -> Vec<TileDelta<()>> {
+        vec![TileDelta { tile, events }]
     }
 
     fn text(muxer: &mut Muxer<TextCodec>) -> BTreeMap<u64, String> {
@@ -401,72 +659,51 @@ mod tests {
     }
 
     #[test]
-    fn a_new_viewer_gets_the_spawns_of_the_tile_then_its_deltas_but_never_its_own_subject() {
-        let mut muxer = Muxer::new(TextCodec::default());
-        muxer.publish(&tick(
-            ORIGIN,
-            vec![
-                event(1, EntityEvent::Spawn(())),
-                event(2, EntityEvent::Spawn(())),
-            ],
-        ));
+    fn a_new_viewer_gets_the_spawns_of_the_tile_then_its_moves_but_never_its_own_subject() {
+        let mut muxer = muxer();
+        let spawns = vec![
+            event(1, EntityEvent::Spawn(())),
+            event(2, EntityEvent::Spawn(())),
+        ];
+        publish(&mut muxer, 0, at(ORIGIN, spawns));
 
         muxer.subscribe(ViewerId(7), view(ORIGIN, Some(1)));
         assert_eq!(text(&mut muxer), BTreeMap::from([(7, "bundle 2;".into())]));
 
-        muxer.publish(&tick(
-            ORIGIN,
-            vec![
-                event(1, EntityEvent::Move(())),
-                event(2, EntityEvent::Move(())),
-            ],
-        ));
+        let moves = vec![
+            event(1, EntityEvent::Move(())),
+            event(2, EntityEvent::Move(())),
+        ];
+        publish(&mut muxer, 2, at(ORIGIN, moves));
         assert_eq!(text(&mut muxer), BTreeMap::from([(7, "move 2;".into())]));
     }
 
     #[test]
-    fn a_spawn_and_a_despawn_reach_each_viewer_but_the_own_one() {
-        let mut muxer = Muxer::new(TextCodec::default());
-        muxer.subscribe(ViewerId(1), view(ORIGIN, Some(1)));
-        muxer.subscribe(ViewerId(2), view(ORIGIN, Some(2)));
-
-        muxer.publish(&tick(
-            ORIGIN,
-            vec![
-                event(2, EntityEvent::Spawn(())),
-                event(2, EntityEvent::Move(())),
-            ],
-        ));
-        assert_eq!(text(&mut muxer), BTreeMap::from([(1, "bundle 2;".into())]));
-
-        muxer.publish(&tick(ORIGIN, vec![event(2, EntityEvent::Despawn)]));
-        assert_eq!(text(&mut muxer), BTreeMap::from([(1, "remove 2;".into())]));
-    }
-
-    #[test]
     fn a_subject_that_crosses_tiles_is_removed_where_it_leaves_view_and_spawned_where_it_enters() {
-        let mut muxer = Muxer::new(TextCodec::default());
+        let mut muxer = muxer();
         muxer.subscribe(ViewerId(1), view(ORIGIN, None));
         muxer.subscribe(ViewerId(2), view(FAR, None));
-        muxer.publish(&tick(ORIGIN, vec![event(5, EntityEvent::Spawn(()))]));
+        publish(
+            &mut muxer,
+            0,
+            at(ORIGIN, vec![event(5, EntityEvent::Spawn(()))]),
+        );
         text(&mut muxer);
 
-        muxer.publish(&TileDeltas {
-            tick: 1,
-            tiles: vec![
-                TileDelta {
-                    tile: ORIGIN,
-                    events: vec![event(5, EntityEvent::Leave { to: FAR })],
-                },
-                TileDelta {
-                    tile: FAR,
-                    events: vec![
-                        event(5, EntityEvent::Enter { from: ORIGIN }),
-                        event(5, EntityEvent::Move(())),
-                    ],
-                },
-            ],
-        });
+        let crossing = vec![
+            TileDelta {
+                tile: ORIGIN,
+                events: vec![event(5, EntityEvent::Leave { to: FAR })],
+            },
+            TileDelta {
+                tile: FAR,
+                events: vec![
+                    event(5, EntityEvent::Enter { from: ORIGIN }),
+                    event(5, EntityEvent::Move(())),
+                ],
+            },
+        ];
+        publish(&mut muxer, 2, crossing);
 
         assert_eq!(
             text(&mut muxer),
@@ -476,8 +713,12 @@ mod tests {
 
     #[test]
     fn a_viewer_that_moves_away_gets_the_removal_of_the_subjects_it_no_longer_sees() {
-        let mut muxer = Muxer::new(TextCodec::default());
-        muxer.publish(&tick(ORIGIN, vec![event(3, EntityEvent::Spawn(()))]));
+        let mut muxer = muxer();
+        publish(
+            &mut muxer,
+            0,
+            at(ORIGIN, vec![event(3, EntityEvent::Spawn(()))]),
+        );
         muxer.subscribe(ViewerId(1), view(ORIGIN, None));
         text(&mut muxer);
 
@@ -486,30 +727,46 @@ mod tests {
     }
 
     #[test]
-    fn bytes_the_codec_owes_a_viewer_that_left_still_come_out() {
-        let mut muxer = Muxer::new(TextCodec::default());
+    fn the_bytes_of_a_viewer_that_leaves_still_come_out_and_none_after_them() {
+        let mut muxer = muxer();
+        publish(
+            &mut muxer,
+            0,
+            at(ORIGIN, vec![event(3, EntityEvent::Spawn(()))]),
+        );
         muxer.subscribe(ViewerId(4), view(ORIGIN, None));
-        muxer.unsubscribe(ViewerId(4));
         muxer.codec_mut().owed.push(ViewerBytes {
             viewer: ViewerId(4),
-            chunks: vec![Bytes::from_static(b"bye;")],
+            chunks: vec![Bytes::from_static(b"later;")],
         });
 
-        muxer.publish(&tick(ORIGIN, Vec::new()));
+        muxer.unsubscribe(ViewerId(4));
+        publish(&mut muxer, 2, Vec::new());
 
-        assert_eq!(text(&mut muxer), BTreeMap::from([(4, "bye;".into())]));
+        assert_eq!(text(&mut muxer), BTreeMap::from([(4, "bundle 3;".into())]));
     }
 
     #[test]
-    fn each_tile_delta_is_encoded_once_and_its_bytes_are_shared_by_all_viewers() {
-        let mut muxer = Muxer::new(TextCodec::default());
+    fn each_tile_is_encoded_once_for_its_tier_and_its_bytes_are_shared_by_all_viewers() {
+        let mut muxer = muxer();
+        publish(
+            &mut muxer,
+            0,
+            at(ORIGIN, vec![event(9, EntityEvent::Spawn(()))]),
+        );
         for viewer in 1..=3 {
             muxer.subscribe(ViewerId(viewer), view(ORIGIN, None));
         }
+        text(&mut muxer);
+        let before = muxer.codec().encodes;
 
-        muxer.publish(&tick(ORIGIN, vec![event(9, EntityEvent::Move(()))]));
+        publish(
+            &mut muxer,
+            2,
+            at(ORIGIN, vec![event(9, EntityEvent::Move(()))]),
+        );
 
-        assert_eq!(muxer.codec().encodes, 1);
+        assert_eq!(muxer.codec().encodes - before, 1);
         let outputs: Vec<ViewerBytes> = muxer.take_output().collect();
         assert_eq!(outputs.len(), 3);
         let first = outputs[0].chunks[0].as_ptr();
@@ -519,5 +776,30 @@ mod tests {
                 .all(|output| output.chunks[0].as_ptr() == first),
             "every viewer holds a view into the one encoded buffer"
         );
+    }
+
+    #[test]
+    fn a_crowd_past_the_cap_is_cut_by_layer_and_the_viewer_holds_no_more_than_k() {
+        let mut muxer = Muxer::new(
+            TextCodec::default(),
+            MuxerSettings {
+                cap: 50,
+                ..MuxerSettings::default()
+            },
+        );
+        let spawns: Vec<SubjectEvent<()>> = (1..=120)
+            .map(|subject| event(subject, EntityEvent::Spawn(())))
+            .collect();
+        publish(&mut muxer, 0, at(ORIGIN, spawns));
+        muxer.subscribe(ViewerId(1), view(ORIGIN, None));
+        let spawned = text(&mut muxer)[&1].matches("bundle").count();
+        assert_eq!(spawned, 32, "layer 0 fits in 50, layer 1 does not");
+
+        let moves: Vec<SubjectEvent<()>> = (1..=120)
+            .map(|subject| event(subject, EntityEvent::Move(())))
+            .collect();
+        publish(&mut muxer, 2, at(ORIGIN, moves));
+        let moved = text(&mut muxer)[&1].matches("move").count();
+        assert_eq!(moved, 32, "the viewer gets the moves of layer 0 only");
     }
 }

@@ -1,7 +1,8 @@
-use crate::delta_base::{DeltaBase, Pose};
+use crate::delta_base::DeltaBase;
 use crate::encode::record;
 use crate::list_packets::{Profile, game_mode_packet};
 use crate::list_policy::ListPolicy;
+use crate::motion::Motion;
 use crate::player_data::PlayerData;
 use crate::player_input::PlayerInput;
 use crate::player_list::{Clock, Dispatch, Member, PlayerList, ProfileNeed};
@@ -9,7 +10,7 @@ use crate::player_spawn::PlayerSpawn;
 use bytes::{Bytes, BytesMut};
 use glam::DVec3;
 use mcrs_engine_muxer::{
-    EntityEvent, EntityId, ReplicationCodec, SubjectEvent, SubjectRange, TileBlob, TileDelta,
+    EntityEvent, EntityId, ReplicationCodec, SubjectEvent, SubjectRange, Tier, TileBlob, TileDelta,
     ViewerBytes, ViewerId,
 };
 use mcrs_minecraft_entity::entity_type_keys::EntityType;
@@ -26,8 +27,9 @@ use uuid::Uuid;
 /// The Minecraft side of a [`Muxer`](mcrs_engine_muxer::Muxer) for the players of one world.
 /// The [`EntityId`] of a player is its id on the wire.
 ///
-/// It keeps one delta base for each subject, so every viewer of a tile shares its moves, and the
-/// profile entries of each client. Every packet that it gives is a record (see
+/// It keeps one delta base for each subject and tier, so every viewer of a tier shares its moves,
+/// and the profile entries of each client. The spawn bundle is the same at each tier: the profile
+/// entry and the spawn, with no equipment or entity data yet. Every packet that it gives is a record (see
 /// [`record`](crate::record)).
 #[derive(Debug, Default)]
 pub struct PlayerCodec {
@@ -47,6 +49,9 @@ pub struct PlayerCodec {
     delimiter: Option<Bytes>,
     joined: Vec<Message>,
     owed: BTreeMap<ViewerId, Vec<Bytes>>,
+    /// The viewers that left the muxer while their own subject is still in this world. They
+    /// get no more bytes from it.
+    forgotten: BTreeSet<ViewerId>,
     dispatches: Vec<Dispatch>,
 }
 
@@ -56,10 +61,8 @@ struct Subject {
     uuid: Uuid,
     username: String,
     properties: Vec<Property>,
-    base: DeltaBase,
+    motion: Motion,
     game_mode: GameMode,
-    /// The spawn packet, until the subject next moves.
-    add_player: Option<Bytes>,
 }
 
 impl Subject {
@@ -89,12 +92,15 @@ impl PlayerCodec {
     }
 
     fn owe(&mut self, viewer: ViewerId, packet: Bytes) {
-        self.owed.entry(viewer).or_default().push(packet);
+        if !self.forgotten.contains(&viewer) {
+            self.owed.entry(viewer).or_default().push(packet);
+        }
     }
 
     fn join(&mut self, subject: EntityId, spawn: &PlayerSpawn) {
         self.generation = self.generation.wrapping_add(1);
         self.owners.insert(spawn.viewer, subject);
+        self.forgotten.remove(&spawn.viewer);
         self.list.join(subject, spawn.viewer.0, spawn.uuid);
         self.subjects.insert(
             subject,
@@ -103,26 +109,10 @@ impl PlayerCodec {
                 uuid: spawn.uuid,
                 username: spawn.username.clone(),
                 properties: spawn.properties.clone(),
-                base: DeltaBase::new(&spawn.pose, self.tick),
+                motion: Motion::new(&spawn.pose, self.tick),
                 game_mode: spawn.game_mode,
-                add_player: None,
             },
         );
-    }
-
-    /// Appends the packets that move `subject` to `pose` to `bytes`.
-    fn advance(&mut self, subject: EntityId, pose: &Pose, bytes: &mut BytesMut) -> Result<()> {
-        let Some(state) = self.subjects.get_mut(&subject) else {
-            return Ok(());
-        };
-        let start = bytes.len();
-        state
-            .base
-            .advance(wire_id(subject), pose, self.tick, bytes)?;
-        if bytes.len() > start {
-            state.add_player = None;
-        }
-        Ok(())
     }
 
     fn change_game_mode(&mut self, subject: EntityId, game_mode: GameMode) -> Result<()> {
@@ -154,6 +144,7 @@ impl PlayerCodec {
         let viewer = state.viewer;
         if self.owners.get(&viewer) == Some(&subject) {
             self.owners.remove(&viewer);
+            self.forgotten.remove(&viewer);
             self.latency.remove(&viewer);
             for held in self.holds.remove(&viewer).unwrap_or_default() {
                 if let Some(viewers) = self.held_by.get_mut(&held) {
@@ -172,16 +163,15 @@ impl PlayerCodec {
         Ok(())
     }
 
-    fn encode_events(&mut self, delta: &TileDelta<PlayerData>) -> Result<TileBlob> {
-        let mut bytes = BytesMut::new();
-        let mut ranges = Vec::new();
+    fn apply_events(&mut self, delta: &TileDelta<PlayerData>) -> Result<()> {
         for SubjectEvent { subject, event } in &delta.events {
             let subject = *subject;
-            let start = bytes.len();
             match event {
                 EntityEvent::Spawn(PlayerData::Spawn(spawn)) => self.join(subject, spawn),
                 EntityEvent::Move(PlayerData::Pose(pose)) => {
-                    self.advance(subject, pose, &mut bytes)?;
+                    if let Some(state) = self.subjects.get_mut(&subject) {
+                        state.motion.record(self.tick, pose);
+                    }
                 }
                 EntityEvent::Data(PlayerData::GameMode(game_mode)) => {
                     self.change_game_mode(subject, *game_mode)?;
@@ -206,6 +196,24 @@ impl PlayerCodec {
                 EntityEvent::Despawn => self.despawn(subject)?,
                 _ => {}
             }
+        }
+        Ok(())
+    }
+
+    /// The bytes of `subjects` at `tier`, each written by `write`, with the range of each.
+    fn blob(
+        &mut self,
+        subjects: &[EntityId],
+        mut write: impl FnMut(&mut Motion, VarInt, &mut BytesMut) -> Result<()>,
+    ) -> Result<TileBlob> {
+        let mut bytes = BytesMut::new();
+        let mut ranges = Vec::new();
+        for &subject in subjects {
+            let Some(state) = self.subjects.get_mut(&subject) else {
+                continue;
+            };
+            let start = bytes.len();
+            write(&mut state.motion, wire_id(subject), &mut bytes)?;
             if bytes.len() > start {
                 ranges.push(SubjectRange {
                     subject,
@@ -223,6 +231,7 @@ impl PlayerCodec {
         &mut self,
         viewer: ViewerId,
         subject: EntityId,
+        tier: Tier,
         chunks: &mut Vec<Bytes>,
     ) -> Result<()> {
         let delimiter = match &self.delimiter {
@@ -235,12 +244,12 @@ impl PlayerCodec {
         let Some(state) = self.subjects.get_mut(&subject) else {
             return Ok(());
         };
-        let add_player = match &state.add_player {
-            Some(packet) => packet.clone(),
-            None => {
-                let packet = add_player(wire_id(subject), state.uuid, &state.base)?;
-                state.add_player.insert(packet).clone()
-            }
+        let uuid = state.uuid;
+        let Some(add_player) = state
+            .motion
+            .spawn(tier, |base| add_player(wire_id(subject), uuid, base))?
+        else {
+            return Ok(());
         };
         let need = match self.owners.get(&viewer) {
             Some(&own) => self.list.acquire(own, subject),
@@ -271,7 +280,10 @@ impl PlayerCodec {
             .iter()
             .map(|(&subject, state)| Member {
                 player: subject,
-                position: state.base.position,
+                position: state
+                    .motion
+                    .latest()
+                    .map_or_else(Default::default, |pose| pose.position),
                 profile: state.profile(),
                 game_mode: state.game_mode,
                 latency: self.latency.get(&state.viewer).copied().unwrap_or(0),
@@ -306,18 +318,57 @@ impl ReplicationCodec for PlayerCodec {
     type Data = PlayerData;
     type Input = PlayerInput;
 
-    fn encode(&mut self, tick: u64, delta: &TileDelta<PlayerData>) -> TileBlob {
+    fn apply(&mut self, tick: u64, delta: &TileDelta<PlayerData>) {
         self.tick = tick;
-        self.encode_events(delta).unwrap_or_else(|error| {
+        if let Err(error) = self.apply_events(delta) {
+            tracing::warn!("the events of a tile did not encode: {error:#}");
+        }
+    }
+
+    fn encode(&mut self, tick: u64, tier: Tier, subjects: &[EntityId]) -> TileBlob {
+        self.tick = tick;
+        self.blob(subjects, |motion, id, bytes| {
+            motion.encode(id, tier, tick, bytes)
+        })
+        .unwrap_or_else(|error| {
             tracing::warn!("the moves of a tile did not encode: {error:#}");
             TileBlob::default()
         })
     }
 
-    fn spawn(&mut self, viewer: ViewerId, subject: EntityId, chunks: &mut Vec<Bytes>) {
-        if let Err(error) = self.spawn_chunks(viewer, subject, chunks) {
+    fn keyframe(&mut self, tier: Tier, subjects: &[EntityId]) -> TileBlob {
+        self.blob(subjects, |motion, id, bytes| match motion.base(tier) {
+            Some(base) => base.keyframe(id, bytes),
+            None => Ok(()),
+        })
+        .unwrap_or_else(|error| {
+            tracing::warn!("a keyframe of a tile did not encode: {error:#}");
+            TileBlob::default()
+        })
+    }
+
+    fn refresh(&mut self, subject: EntityId) {
+        if let Some(state) = self.subjects.get_mut(&subject) {
+            state.motion.refresh();
+        }
+    }
+
+    fn spawn(&mut self, viewer: ViewerId, subject: EntityId, tier: Tier, chunks: &mut Vec<Bytes>) {
+        if let Err(error) = self.spawn_chunks(viewer, subject, tier, chunks) {
             tracing::warn!("a spawn bundle did not encode: {error:#}");
         }
+    }
+
+    fn forget(&mut self, viewer: ViewerId) {
+        self.owed.remove(&viewer);
+        if self.owners.contains_key(&viewer) {
+            self.forgotten.insert(viewer);
+        }
+    }
+
+    fn position(&self, subject: EntityId) -> Option<[f64; 3]> {
+        let pose = self.subjects.get(&subject)?.motion.latest()?;
+        Some(pose.position.to_array())
     }
 
     fn remove(&mut self, viewer: ViewerId, subjects: &[EntityId]) -> Bytes {

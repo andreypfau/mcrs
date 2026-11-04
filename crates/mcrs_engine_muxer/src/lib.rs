@@ -1,13 +1,19 @@
 //! The entity side of the Muxer. It takes the tile deltas of a world, keeps a stream for each
 //! tile, and turns the subscriptions of the viewers into bytes that it encodes once and shares.
+//! Each viewer receives the tiles near it at a fast tier and the far ones at a slow tier, at most
+//! a cap of subjects, and within a budget of bytes.
 
 // std: mcrs_engine_link
 
 mod entity_event;
 mod entity_id;
 mod muxer;
+mod muxer_settings;
 mod muxer_stage;
+mod planner;
 mod replication_codec;
+mod subscription;
+mod tier;
 mod tile_blob;
 mod tile_delta;
 mod tile_grid;
@@ -15,13 +21,16 @@ mod tile_key;
 mod tile_radius;
 mod tile_stream;
 mod view;
+mod viewer;
 mod viewer_bytes;
 
 pub use entity_event::{EntityEvent, SubjectEvent};
 pub use entity_id::{EntityId, ViewerId, WorldId};
 pub use muxer::Muxer;
+pub use muxer_settings::MuxerSettings;
 pub use muxer_stage::{MuxerInput, MuxerStage};
 pub use replication_codec::ReplicationCodec;
+pub use tier::Tier;
 pub use tile_blob::{SubjectRange, TileBlob};
 pub use tile_delta::{TileDelta, TileDeltas};
 pub use tile_grid::TileGrid;
