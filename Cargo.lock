@@ -3504,6 +3504,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "mcrs_engine_muxer"
+version = "0.5.8"
+dependencies = [
+ "bytes",
+ "mcrs_engine_link",
+]
+
+[[package]]
 name = "mcrs_minecraft_anvil"
 version = "0.5.8"
 dependencies = [
