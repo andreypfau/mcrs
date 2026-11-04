@@ -34,6 +34,11 @@ pub struct TicketPlugin;
 #[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ChunkSpawnSet;
 
+/// Runs right before the sections of the columns that stopped being loaded are let go, while
+/// they still hold their blocks: the place to take the last version of such a column.
+#[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
+pub struct ColumnCoolSet;
+
 /// The part of [`ChunkSpawnSet`] that spawns and despawns the sections the tickets load.
 #[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
 pub struct SectionEntitySet;
@@ -49,6 +54,7 @@ impl Plugin for TicketPlugin {
             (
                 ChunkSpawnSet.in_set(TickSet::Project),
                 SectionEntitySet.in_set(ChunkSpawnSet),
+                ColumnCoolSet.in_set(SectionEntitySet),
             ),
         );
         app.add_systems(
@@ -58,7 +64,7 @@ impl Plugin for TicketPlugin {
                     .in_set(ChunkSpawnSet)
                     .before(SectionEntitySet),
                 (
-                    release_sections,
+                    release_sections.after(ColumnCoolSet),
                     // Before the spawn, so a section it takes leaves the index in the same run
                     // that could hand its position to a fresh one.
                     despawn_chunks,
@@ -80,8 +86,10 @@ fn release_sections(
             covered,
             section_y,
             pending_release,
+            cooling,
             ..
         } = &mut *loading;
+        cooling.clear();
         pending_release.retain(|&pos| {
             if is_loaded(covered, section_y, pos) {
                 return false;

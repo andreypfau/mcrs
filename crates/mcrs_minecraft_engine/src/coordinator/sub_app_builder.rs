@@ -19,6 +19,7 @@ use crate::to_muxer::DimOpened;
 use mcrs_minecraft_engine_world::block_update::{BlockPlaced, BlockSetRequest};
 
 use crate::block_update::{BlockUpdatePlugin, BlockUpdateWirePlugin};
+use crate::column_store::ColumnStorePlugin;
 use crate::heightmap::{BlockHeightmapPredicates, DimHeightmapPlugin};
 use crate::minecraft_entity::MinecraftEntityPlugin;
 use crate::player_tracker::PlayerTrackerPlugin;
@@ -230,6 +231,9 @@ pub fn spawn_dim_subapp(
     sub_app.add_plugins(BlockUpdateWirePlugin);
     sub_app.add_plugins(MinecraftEntityPlugin);
     sub_app.add_plugins(DimHeightmapPlugin);
+    sub_app.add_plugins(ColumnStorePlugin {
+        placement: Placement::Thread,
+    });
     let default_op_level = app
         .world()
         .get_resource::<crate::coordinator::ops::DefaultOpLevel>()

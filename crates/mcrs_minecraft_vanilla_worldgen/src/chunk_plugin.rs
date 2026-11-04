@@ -11,6 +11,7 @@ use bevy_ecs::schedule::IntoScheduleConfigs;
 use bevy_ecs::system::{Commands, Res, ResMut};
 use bevy_tasks::{TaskPool, TaskPoolBuilder};
 use mcrs_engine_link::{Link, Placement};
+use mcrs_minecraft_engine::column_store::StoredColumnLandSet;
 use mcrs_minecraft_engine::heightmap::PendingColumnHeightmaps;
 use mcrs_minecraft_engine_world::aoi::min_column_distance;
 use mcrs_minecraft_engine_world::entity::physics::Transform;
@@ -67,7 +68,9 @@ impl Plugin for ChunkPlugin {
         app.add_systems(
             FixedUpdate,
             (
-                integrate_generated_columns.in_set(TickSet::DomainInput),
+                integrate_generated_columns
+                    .in_set(TickSet::DomainInput)
+                    .after(StoredColumnLandSet),
                 (
                     send_fill_context.run_if(resource_exists_and_changed::<FillContext>),
                     request_columns,

@@ -4125,6 +4125,7 @@ dependencies = [
  "mcrs_engine_cell",
  "mcrs_engine_link",
  "mcrs_engine_muxer",
+ "mcrs_engine_store",
  "mcrs_minecraft_assets",
  "mcrs_minecraft_biome_file",
  "mcrs_minecraft_block",

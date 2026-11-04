@@ -32,6 +32,7 @@ mod bus_e2e;
 mod channel_overload;
 mod chat;
 mod client_join;
+mod column_store;
 mod commands;
 mod configuration_registries;
 mod configuration_start;

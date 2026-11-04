@@ -31,6 +31,9 @@ pub struct ColumnLoading {
     pub(crate) pending_spawn: IndexSet<SectionPos, FxBuildHasher>,
     /// Stopped being loaded, and `release_sections` has not dealt with it yet.
     pub(crate) pending_release: FxHashSet<SectionPos>,
+    /// Stopped being loaded this tick. The sections still hold their blocks until
+    /// `release_sections` lets them go.
+    pub(crate) cooling: Vec<ColumnPos>,
 }
 
 impl ColumnLoading {
@@ -43,6 +46,7 @@ impl ColumnLoading {
             section_y,
             pending_spawn: IndexSet::default(),
             pending_release: FxHashSet::default(),
+            cooling: Vec::new(),
         }
     }
 
@@ -53,6 +57,7 @@ impl ColumnLoading {
             section_y,
             pending_spawn,
             pending_release,
+            ..
         } = self;
         tickets.raise(once(column), |column| {
             covered.raise(column.square(LOADING_RINGS), |loaded| {
@@ -72,9 +77,11 @@ impl ColumnLoading {
             section_y,
             pending_spawn,
             pending_release,
+            cooling,
         } = self;
         tickets.lower(once(column), |column| {
             covered.lower(column.square(LOADING_RINGS), |unloaded| {
+                cooling.push(unloaded);
                 for pos in sections_of(unloaded, section_y) {
                     pending_spawn.swap_remove(&pos);
                     pending_release.insert(pos);
@@ -85,6 +92,17 @@ impl ColumnLoading {
 
     pub fn has_ticket(&self, column: ColumnPos) -> bool {
         self.tickets.contains(column)
+    }
+
+    /// Whether some ticket loads `column`.
+    pub fn is_column_loaded(&self, column: ColumnPos) -> bool {
+        self.covered.contains(column)
+    }
+
+    /// The columns that stopped being loaded since the sections were last released. A column
+    /// that a ticket loads again in the meantime stays in the list.
+    pub fn cooling(&self) -> &[ColumnPos] {
+        &self.cooling
     }
 
     pub fn is_loaded(&self, pos: SectionPos) -> bool {

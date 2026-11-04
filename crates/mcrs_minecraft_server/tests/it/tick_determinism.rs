@@ -18,6 +18,7 @@ use bevy_math::DVec3;
 use bevy_tasks::block_on;
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_chunk::{BlockLight, LightStorage, SkyLight};
+use mcrs_minecraft_engine::column_store::ColumnStoreLink;
 use mcrs_minecraft_engine::column_view::ColumnView;
 use mcrs_minecraft_engine::muxer::tile_delta_log::TileDeltaLog;
 use mcrs_minecraft_engine_server::{Placement, runner};
@@ -75,6 +76,9 @@ fn wait_for_steps(app: &mut App, label: Entity) {
     }
     if let Some(mut light) = world.get_resource_mut::<LightLink>() {
         block_on(light.answered());
+    }
+    if let Some(mut store) = world.get_resource_mut::<ColumnStoreLink>() {
+        block_on(store.answered());
     }
 }
 

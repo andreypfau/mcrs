@@ -7,6 +7,8 @@ use crate::world::dimension::InDimension;
 #[derive(Component, Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SectionStage {
     Loading,
+    /// Waits for the data layer to hand back the last version of its column.
+    Fetching,
     Generating,
     Loaded,
     Unloading,
