@@ -85,6 +85,7 @@ impl FromStr for Spread {
 
 struct TickTimes {
     tick: Duration,
+    between_ticks: Duration,
     drain: Duration,
     traffic: Traffic,
     /// The bytes appended to each connection during the tick.
@@ -194,6 +195,10 @@ fn main() -> anyhow::Result<()> {
         measured.len()
     );
     report("tick", measured.iter().map(|times| times.tick));
+    report(
+        "between ticks",
+        measured.iter().map(|times| times.between_ticks),
+    );
     report("drain", measured.iter().map(|times| times.drain));
     report_traffic(measured);
     report_bots(&counts, dimensions);
@@ -210,7 +215,9 @@ fn run_timed(mut app: App, stop: &AtomicBool) -> Vec<TickTimes> {
         let before = Traffic::of(app.world().resource::<BridgeTelemetry>());
         let start = Instant::now();
         app.update();
+        let between = Instant::now();
         runner::between_ticks(&mut app);
+        let between_ticks = between.elapsed();
         let tick = start.elapsed();
         // `runner::drain_until`, without the time spent waiting.
         let drained = Instant::now();
@@ -221,6 +228,7 @@ fn run_timed(mut app: App, stop: &AtomicBool) -> Vec<TickTimes> {
         let session_bytes = session_bytes(&mut app, &mut sent);
         times.push(TickTimes {
             tick,
+            between_ticks,
             drain,
             traffic,
             session_bytes,
