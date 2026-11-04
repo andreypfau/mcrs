@@ -174,11 +174,20 @@ impl SpriteRegistry {
         }
         let path = model::resource_path(id, "textures", "png");
         let Source {
-            data,
-            width,
-            height,
+            mut data,
+            mut width,
+            mut height,
             animation,
         } = self.source(pack, id)?;
+        // Entity textures such as a sign's or a skull's are wider than tall; every layer of an
+        // array is square, so the image goes in the top-left corner and UVs divide by the side.
+        if animation.is_none() && width != height {
+            (data, width, height) = (
+                pad_square(&data, width, height),
+                width.max(height),
+                width.max(height),
+            );
+        }
         let image_size = (width, height);
         let (frame_width, frame_height) = match &animation {
             Some(animation) => animation.frame_size(image_size),
@@ -290,6 +299,19 @@ pub fn rgba(argb: u32) -> [u8; 4] {
 pub const MISSING_SIZE: u32 = 16;
 const MAGENTA: [u8; 4] = [0xF8, 0x00, 0xF8, 0xFF];
 const BLACK: [u8; 4] = [0x00, 0x00, 0x00, 0xFF];
+
+/// `data`, `width` by `height` RGBA, in the top-left of a transparent square.
+fn pad_square(data: &[u8], width: u32, height: u32) -> Vec<u8> {
+    let side = width.max(height) as usize;
+    let row = width as usize * 4;
+    let mut out = vec![0; side * side * 4];
+    for (target, line) in out.chunks_exact_mut(side * 4).zip(data.chunks_exact(row)) {
+        if let Some(start) = target.get_mut(..row) {
+            start.copy_from_slice(line);
+        }
+    }
+    out
+}
 
 /// The pixels of the missing sprite, RGBA, `MISSING_SIZE` on each side.
 pub fn missing_pixels() -> Vec<u8> {

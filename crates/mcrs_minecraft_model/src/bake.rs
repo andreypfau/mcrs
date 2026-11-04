@@ -222,7 +222,7 @@ pub struct BakedBlock {
 }
 
 /// Directional face shade, overworld values from the client's `CardinalLighting`.
-fn face_shade(dir: Dir) -> f32 {
+pub(crate) fn face_shade(dir: Dir) -> f32 {
     match dir {
         Dir::Down => 0.5,
         Dir::Up => 1.0,
@@ -351,16 +351,25 @@ pub fn bake(pack: &Pack, block: &str, props: &[(&str, &str)]) -> Result<BakedBlo
         }
         let rotation = VariantRotation::from_degrees(variant.x, variant.y, variant.z)?;
         let part = bake_model(&model, rotation, variant.uvlock)?;
-        for mut quad in part.quads {
-            let sprite = part
-                .sprites
-                .get(quad.sprite)
-                .ok_or_else(|| format!("{} names a sprite past its table", variant.model))?;
-            quad.sprite = intern(&mut merged.sprites, sprite);
-            merged.quads.push(quad);
-        }
+        merge(&mut merged, part, &variant.model)?;
+    }
+    if let Some(drawn) = crate::block_entity::bake(block, props) {
+        merge(&mut merged, drawn, block)?;
     }
     Ok(merged)
+}
+
+/// Adds `part`'s quads to `merged`, renumbering their sprites into its table.
+fn merge(merged: &mut BakedBlock, part: BakedBlock, source: &str) -> Result<(), String> {
+    for mut quad in part.quads {
+        let sprite = part
+            .sprites
+            .get(quad.sprite)
+            .ok_or_else(|| format!("{source} names a sprite past its table"))?;
+        quad.sprite = intern(&mut merged.sprites, sprite);
+        merged.quads.push(quad);
+    }
+    Ok(())
 }
 
 fn intern(sprites: &mut Vec<String>, sprite: &str) -> usize {
