@@ -4,6 +4,7 @@ use mcrs_minecraft_assets::packs::{BuiltinAsset, PackLayering, PackRoots};
 use mcrs_minecraft_engine::muxer::muxer_placement::MuxerPlacement;
 use mcrs_minecraft_engine::muxer::player_list_policy::PlayerListPolicy;
 use mcrs_minecraft_engine_world::server_loop::VoxelServerPlugin;
+use mcrs_minecraft_engine_world::world_cells::WorldCells;
 use mcrs_minecraft_registries::RegistryAdditions;
 use mcrs_minecraft_replication::ListPolicy;
 
@@ -30,6 +31,9 @@ pub struct ServerCorePlugin {
     /// after another, with deterministic schedules; [`Placement::Thread`] gives each world a
     /// thread of its own, the default.
     pub worlds: Placement,
+    /// How many cells each dimension world has: one, the default, or a static division of its
+    /// columns by region.
+    pub cells: WorldCells,
     /// Where the muxer, which decides the entity bytes of each player, runs:
     /// [`Placement::Inline`] on the server thread, [`Placement::Thread`] on a thread of its own,
     /// the default.
@@ -47,6 +51,7 @@ impl Default for ServerCorePlugin {
             builtin_assets: |_| None,
             local_packs: vec!["mcrs".to_owned()],
             worlds: Placement::Thread,
+            cells: WorldCells::default(),
             muxer: Placement::Thread,
             list_policy: ListPolicy::default(),
         }
@@ -83,6 +88,7 @@ impl Plugin for ServerCorePlugin {
             .local_packs
             .extend(self.local_packs.iter().cloned());
         app.insert_resource(MuxerPlacement(self.muxer));
+        app.insert_resource(self.cells);
         app.insert_resource(PlayerListPolicy(self.list_policy));
         app.add_plugins(VoxelServerPlugin {
             tick_rate: DEFAULT_TPS,

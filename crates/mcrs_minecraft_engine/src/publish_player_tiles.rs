@@ -4,7 +4,7 @@
 use bevy_ecs::component::Component;
 use bevy_ecs::lifecycle::Remove;
 use bevy_ecs::observer::On;
-use bevy_ecs::prelude::{Commands, DetectChanges, Entity, Has, Query, Ref, ResMut, With};
+use bevy_ecs::prelude::{Commands, DetectChanges, Entity, Has, Query, Ref, ResMut, With, Without};
 use bytes::Bytes;
 use mcrs_engine_muxer::{EntityEvent, EntityId, ViewerId};
 use mcrs_minecraft_engine_world::entity::physics::Transform;
@@ -16,8 +16,10 @@ use mcrs_minecraft_protocol_game::clientbound::ClientboundSystemChatPacket;
 use mcrs_minecraft_replication::{PlayerData, PlayerSpawn, Pose};
 use mcrs_minecraft_text::{Color, IntoText, RawText, Text};
 
+use crate::cell_crossing::CrossedAt;
 use crate::game_mode::ListedGameMode;
 use crate::game_profile::GameProfile;
+use crate::hot_ticket::CellCrossing;
 use crate::network_id::player_network_id;
 use crate::player_tiles::PlayerTiles;
 use crate::replicated::Replicated;
@@ -60,14 +62,27 @@ pub fn publish_player_tiles(
             Option<&GameProfile>,
             Option<&ListedGameMode>,
             Has<AnnounceJoin>,
+            Option<&CrossedAt>,
         ),
         With<Player>,
     >,
     mut commands: Commands,
 ) {
-    for (player, &Owner(session), transform, dimension, replicated, profile, game_mode, announce) in
-        &mut players
+    for (
+        player,
+        &Owner(session),
+        transform,
+        dimension,
+        replicated,
+        profile,
+        game_mode,
+        announce,
+        crossed,
+    ) in &mut players
     {
+        if crossed.is_some() {
+            commands.entity(player).remove::<CrossedAt>();
+        }
         let Ok(config) = dimensions.get(dimension.0) else {
             continue;
         };
@@ -107,7 +122,8 @@ pub fn publish_player_tiles(
             continue;
         };
         let id = replicated.id;
-        if transform.is_changed() {
+        let moved = crossed.is_none_or(|crossed| crossed.0 != *transform);
+        if transform.is_changed() && moved {
             let from = replicated.tile;
             if from != tile {
                 events.push(from, id, EntityEvent::Leave { to: tile });
@@ -130,7 +146,7 @@ pub fn publish_player_tiles(
 /// Records the despawn of a player that leaves the world, or stops being published.
 pub fn publish_player_despawn(
     remove: On<Remove, Replicated>,
-    players: Query<&Replicated>,
+    players: Query<&Replicated, Without<CellCrossing>>,
     mut events: ResMut<TileEvents>,
 ) {
     if let Ok(replicated) = players.get(remove.event().entity) {

@@ -4,7 +4,7 @@ use bevy_ecs::entity::Entity;
 use bevy_ecs::lifecycle::Discard;
 use bevy_ecs::message::{MessageReader, MessageWriter};
 use bevy_ecs::prelude::{
-    Added, Changed, Component, Has, Local, On, Or, Query, Ref, Resource, With,
+    Added, Changed, Component, Has, Local, On, Or, Query, Ref, Resource, With, Without,
 };
 use bevy_ecs::schedule::{IntoScheduleConfigs, SystemSet};
 use bevy_ecs::system::{Res, ResMut};
@@ -43,7 +43,7 @@ use crate::column_request::ColumnRequest;
 use crate::column_snapshot::ColumnSnapshots;
 use crate::column_store::{ColumnStoreLink, ViewedColumn};
 use crate::column_version::ColumnVersion;
-use crate::hot_ticket::HotColumns;
+use crate::hot_ticket::{CellCrossing, HotColumns};
 use crate::player_view::PlayerView;
 use crate::stored_column::StoredColumn;
 
@@ -305,7 +305,7 @@ pub(crate) fn report_player_views(
 
 fn close_player_view(
     discard: On<Discard, SentChunkView>,
-    owners: Query<&Owner>,
+    owners: Query<&Owner, Without<CellCrossing>>,
     mut views: MessageWriter<PlayerView>,
 ) {
     if let Ok(owner) = owners.get(discard.event().entity) {

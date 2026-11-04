@@ -6,7 +6,7 @@ use bevy_ecs::schedule::{ScheduleLabel, SystemSet};
 use bevy_ecs::system::{Res, ResMut};
 use bevy_ecs::world::World;
 use mcrs_engine_cell::{SubAppWorld, Tick};
-use mcrs_engine_muxer::TileDeltas;
+use mcrs_engine_muxer::{TileDelta, TileDeltas};
 use mcrs_minecraft_core::Versioned;
 use mcrs_minecraft_engine_registries::RegistrySnapshot;
 use mcrs_minecraft_engine_world::session::PlayerSession;
@@ -18,6 +18,8 @@ use crate::bus::{
     InboundPlayerDespawn, InboundPlayerPacket, InboundPlayerSpawn, OutboundPlayerAttached,
     OutboundPlayerPacket, OutboundPlayerReleased,
 };
+use crate::cell_mail;
+use crate::cell_mail::{CellInbox, CellMail, CellMessage};
 use crate::channel_types::ToDim;
 use crate::column_change::ColumnChange;
 use crate::column_request::ColumnRequest;
@@ -74,6 +76,8 @@ pub struct DimInput {
     pub(crate) entity_id_grant: Option<EntityIdRange>,
     /// What the muxer asks of the version streams of the columns, in the order it asked.
     pub(crate) column_requests: Vec<ColumnRequest>,
+    /// What the other cells of the world sent in their last tick, in the order of the cells.
+    pub(crate) cell_mail: Vec<CellMessage>,
 }
 
 /// What a dimension world hands the host after one tick.
@@ -107,6 +111,49 @@ pub struct DimOutput {
     pub(crate) column_versions: Vec<ColumnVersion>,
     /// The changes of the tick to the columns that the muxer subscribes to, after the versions.
     pub(crate) column_changes: Vec<ColumnChange>,
+    /// What the tick hands the other cells of the world. A world of one cell hands nothing.
+    pub(crate) cell_mail: CellMail,
+}
+
+impl DimOutput {
+    /// Appends what another cell of the same dimension handed over in the same tick. The entity
+    /// id request, the roster and the messages between the cells stay with each cell.
+    pub(crate) fn merge(&mut self, other: Self) {
+        self.packets.extend(other.packets);
+        self.released.extend(other.released);
+        self.attached.extend(other.attached);
+        self.traces.extend(other.traces);
+        self.departures.extend(other.departures);
+        merge_tiles(&mut self.tiles, other.tiles);
+        self.orders.extend(other.orders);
+        self.clock_edits.extend(other.clock_edits);
+        self.handoffs.extend(other.handoffs);
+        self.views.extend(other.views);
+        self.column_versions.extend(other.column_versions);
+        self.column_changes.extend(other.column_changes);
+    }
+}
+
+/// Merges the deltas of two cells of one tick: one delta for each tile, sorted by tile, and the
+/// events of a tile sorted by subject. A subject is in one cell in a tick, so the events of one
+/// subject keep their order.
+fn merge_tiles(into: &mut TileDeltas<PlayerData>, other: TileDeltas<PlayerData>) {
+    if other.tiles.is_empty() {
+        return;
+    }
+    into.tiles.extend(other.tiles);
+    into.tiles.sort_by_key(|delta| delta.tile);
+    let mut tiles: Vec<TileDelta<PlayerData>> = Vec::with_capacity(into.tiles.len());
+    for delta in into.tiles.drain(..) {
+        match tiles.last_mut() {
+            Some(last) if last.tile == delta.tile => last.events.extend(delta.events),
+            _ => tiles.push(delta),
+        }
+    }
+    for delta in &mut tiles {
+        delta.events.sort_by_key(|event| event.subject);
+    }
+    into.tiles = tiles;
 }
 
 /// The messages of the input of this tick, until the inbox drain writes them at the sync point.
@@ -148,6 +195,11 @@ fn apply_input(world: &mut World, _tick: Tick, input: DimInput) {
         inbox.control.extend(input.control);
         inbox.serverbound.extend(input.serverbound);
     }
+    if !input.cell_mail.is_empty()
+        && let Some(mut inbox) = world.get_resource_mut::<CellInbox>()
+    {
+        inbox.0.extend(input.cell_mail);
+    }
     if !input.column_requests.is_empty()
         && let Some(mut requests) = world.get_resource_mut::<ColumnRequests>()
     {
@@ -159,6 +211,7 @@ fn take_output(world: &mut World) -> DimOutput {
     let mut output = DimOutput::default();
     // After every schedule of the tick, so the player is in no system's view once it leaves.
     player_dimension_change::depart_players(world, &mut output.departures);
+    cell_mail::take_cell_mail(world, &mut output.cell_mail);
     if let Some(mut packets) = world.get_resource_mut::<Messages<OutboundPlayerPacket>>() {
         output.packets.extend(packets.drain());
     }

@@ -120,7 +120,13 @@ pub(crate) fn receive_transfers(world: &mut World) {
             }
             PlayerTransfer::Return(departure) => {
                 let transform = departure.carried.transform;
-                if let Err(error) = place(world, departure.session, transform, departure.carried) {
+                if let Err(error) = place(
+                    world,
+                    departure.session,
+                    transform,
+                    departure.carried,
+                    SentChunkView::default(),
+                ) {
                     tracing::error!("a player did not return: {error}");
                 }
             }
@@ -138,7 +144,13 @@ fn arrive(world: &mut World, departure: Departure) -> Result<Entity, DimensionCh
         ..
     } = departure;
     let level = carried.op_level;
-    let arrived = place(world, session, arrival.transform, carried)?;
+    let arrived = place(
+        world,
+        session,
+        arrival.transform,
+        carried,
+        SentChunkView::default(),
+    )?;
     world.write_message(OpLevelAnnounced {
         player: arrived,
         session,
@@ -147,11 +159,13 @@ fn arrive(world: &mut World, departure: Departure) -> Result<Entity, DimensionCh
     Ok(arrived)
 }
 
-fn place(
+/// Spawns the player of `session` with `carried`, and with `view` as the view its client holds.
+pub(crate) fn place(
     world: &mut World,
     session: PlayerSession,
     transform: Transform,
     carried: CarriedPlayer,
+    view: SentChunkView,
 ) -> Result<Entity, DimensionChangeError> {
     let dimension = world
         .query_filtered::<Entity, With<Dimension>>()
@@ -166,7 +180,7 @@ fn place(
         },
         Owner(session),
         Player,
-        SentChunkView::default(),
+        view,
     ));
     carried.insert_into(&mut player);
     Ok(player.id())

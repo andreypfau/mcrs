@@ -1,6 +1,7 @@
 use bevy_ecs::message::MessageReader;
 use bevy_ecs::prelude::{Commands, Component, Has, Query, Res, ResMut};
 use mcrs_minecraft_engine_world::block_update::BlockPlaced;
+use mcrs_minecraft_engine_world::owned_columns::{self, OwnedColumns};
 use mcrs_minecraft_engine_world::world::lifecycle::column_loading::ColumnLoading;
 use mcrs_minecraft_engine_world::world::lifecycle::stage::SectionStage;
 use mcrs_minecraft_engine_world::world::light_gate::{ColumnLightSettled, LightGated};
@@ -81,11 +82,13 @@ pub(crate) fn write_cold_columns(
     marks: Query<SectionMarks>,
     snapshots: ColumnSnapshots,
     light_gated: Option<Res<LightGated>>,
+    owned: Option<Res<OwnedColumns>>,
     mut store: ResMut<ColumnStoreLink>,
 ) {
     for (loading, index) in &dims {
         for &column in loading.cooling() {
-            if loading.is_column_loaded(column) {
+            // A column of the halo is a copy: its owner writes it.
+            if loading.is_column_loaded(column) || !owned_columns::owns(owned.as_deref(), column) {
                 continue;
             }
             let Some(slot) = index.get(&column) else {

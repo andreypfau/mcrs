@@ -4236,6 +4236,7 @@ dependencies = [
  "bevy_time",
  "flume",
  "indexmap",
+ "mcrs_engine_cell",
  "mcrs_engine_link",
  "mcrs_minecraft_block_entity",
  "mcrs_minecraft_chunk",

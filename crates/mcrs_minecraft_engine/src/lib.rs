@@ -8,6 +8,8 @@ pub mod between_ticks;
 pub mod block_entity_packet;
 pub mod block_update;
 pub mod bus;
+pub mod cell_crossing;
+pub mod cell_mail;
 pub mod channel_types;
 pub mod client_info;
 pub mod cold_columns;

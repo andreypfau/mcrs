@@ -2,10 +2,11 @@ use std::ops::RangeInclusive;
 
 use bevy_ecs::lifecycle::{Add, Remove};
 use bevy_ecs::prelude::*;
-use mcrs_voxel::SectionPos;
+use mcrs_voxel::{ColumnPos, SectionPos};
 
 use crate::entity::physics::Transform;
 use crate::entity::player::Player;
+use crate::owned_columns::{self, OwnedColumns};
 use crate::world::dimension::InDimension;
 use crate::world::lifecycle::column_loading::ColumnLoading;
 use crate::world::lifecycle::coverage::Coverage;
@@ -140,7 +141,15 @@ impl SectionSimulation {
     }
 
     /// Gives `section`, spawned at `pos`, the markers its position calls for.
-    pub(crate) fn mark_spawned(&self, section: &mut EntityCommands, pos: SectionPos) {
+    pub(crate) fn mark_spawned(
+        &self,
+        section: &mut EntityCommands,
+        pos: SectionPos,
+        owned: Option<&OwnedColumns>,
+    ) {
+        if !owned_columns::owns(owned, ColumnPos::from(pos)) {
+            return;
+        }
         if self.is_block_ticking(pos) {
             section.insert(BlockTicking);
         }
@@ -193,13 +202,18 @@ fn shift_coverage(
     }
 }
 
+/// Only the owner of a section ticks it, so a section of the halo never gets a marker.
 fn mark(
     commands: &mut Commands,
     index: &SectionIndex,
+    owned: Option<&OwnedColumns>,
     pos: SectionPos,
     ticking: Ticking,
     change: Change,
 ) {
+    if !owned_columns::owns(owned, ColumnPos::from(pos)) {
+        return;
+    }
     let Some(section) = index.get(pos) else {
         return;
     };
@@ -232,6 +246,7 @@ type Dimensions<'w, 's> = Query<
 fn shift_in(
     dims: &mut Dimensions,
     commands: &mut Commands,
+    owned: Option<&OwnedColumns>,
     dim: Entity,
     old: Option<SimulationArea>,
     new: Option<SimulationArea>,
@@ -240,7 +255,7 @@ fn shift_in(
         return;
     };
     simulation.shift(old, new, &loading.section_y, |pos, ticking, change| {
-        mark(commands, index, pos, ticking, change);
+        mark(commands, index, owned, pos, ticking, change);
     });
 }
 
@@ -256,8 +271,10 @@ pub(crate) fn track_simulation_tickets(
         With<Player>,
     >,
     mut dims: Dimensions,
+    owned: Option<Res<OwnedColumns>>,
     mut commands: Commands,
 ) {
+    let owned = owned.as_deref();
     for (player, transform, in_dim, held) in &mut players {
         let wanted = SimulationTicket {
             dim: in_dim.0,
@@ -281,15 +298,24 @@ pub(crate) fn track_simulation_tickets(
             shift_in(
                 &mut dims,
                 &mut commands,
+                owned,
                 wanted.dim,
                 Some(old.area),
                 Some(wanted.area),
             );
         } else {
-            shift_in(&mut dims, &mut commands, old.dim, Some(old.area), None);
             shift_in(
                 &mut dims,
                 &mut commands,
+                owned,
+                old.dim,
+                Some(old.area),
+                None,
+            );
+            shift_in(
+                &mut dims,
+                &mut commands,
+                owned,
                 wanted.dim,
                 None,
                 Some(wanted.area),
@@ -303,24 +329,40 @@ pub(crate) fn raise_simulation_ticket(
     add: On<Add, SimulationTicket>,
     held: Query<&SimulationTicket>,
     mut dims: Dimensions,
+    owned: Option<Res<OwnedColumns>>,
     mut commands: Commands,
 ) {
     let Ok(held) = held.get(add.event().entity) else {
         return;
     };
-    shift_in(&mut dims, &mut commands, held.dim, None, Some(held.area));
+    shift_in(
+        &mut dims,
+        &mut commands,
+        owned.as_deref(),
+        held.dim,
+        None,
+        Some(held.area),
+    );
 }
 
 pub(crate) fn release_simulation_ticket(
     remove: On<Remove, SimulationTicket>,
     held: Query<&SimulationTicket>,
     mut dims: Dimensions,
+    owned: Option<Res<OwnedColumns>>,
     mut commands: Commands,
 ) {
     let Ok(held) = held.get(remove.event().entity) else {
         return;
     };
-    shift_in(&mut dims, &mut commands, held.dim, Some(held.area), None);
+    shift_in(
+        &mut dims,
+        &mut commands,
+        owned.as_deref(),
+        held.dim,
+        Some(held.area),
+        None,
+    );
 }
 
 #[cfg(test)]

@@ -1,17 +1,17 @@
 use std::collections::BTreeMap;
 use std::mem;
 
-use bevy_ecs::entity::Entity;
 use bevy_ecs::resource::Resource;
+use mcrs_engine_cell::CellId;
 
 use crate::entity_ids::EntityIdRange;
 
 /// The global entity ids that no cell holds yet, and the ranges granted for the next tick of
-/// each dimension, by its label. The ranges never return, so no two cells share an id.
+/// each cell. The ranges never return, so no two cells share an id.
 #[derive(Resource, Debug, Default)]
 pub struct EntityIdRanges {
     next: u64,
-    granted: BTreeMap<Entity, EntityIdRange>,
+    granted: BTreeMap<CellId, EntityIdRange>,
 }
 
 impl EntityIdRanges {
@@ -22,21 +22,21 @@ impl EntityIdRanges {
         Some(range)
     }
 
-    /// Answers the request of the dimension of `label`: its next input carries a new range.
-    /// Requests from more than one output before that input get one range.
-    pub(crate) fn answer(&mut self, label: Entity) {
-        if self.granted.contains_key(&label) {
+    /// Answers the request of `cell`: its next input carries a new range. Requests from more
+    /// than one output before that input get one range.
+    pub(crate) fn answer(&mut self, cell: CellId) {
+        if self.granted.contains_key(&cell) {
             return;
         }
         let Some(range) = self.grant() else {
-            tracing::error!(?label, "no global entity ids remain to grant");
+            tracing::error!(%cell, "no global entity ids remain to grant");
             return;
         };
-        self.granted.insert(label, range);
+        self.granted.insert(cell, range);
     }
 
-    /// The ranges for the next tick, by label. A range for a dimension that closed is lost.
-    pub(crate) fn take_granted(&mut self) -> BTreeMap<Entity, EntityIdRange> {
+    /// The ranges for the next tick, by cell. A range for a cell that stopped is lost.
+    pub(crate) fn take_granted(&mut self) -> BTreeMap<CellId, EntityIdRange> {
         mem::take(&mut self.granted)
     }
 }

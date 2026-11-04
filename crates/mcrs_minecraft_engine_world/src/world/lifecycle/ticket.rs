@@ -4,6 +4,7 @@ use std::collections::VecDeque;
 
 use crate::entity::physics::Transform;
 use crate::entity::player::Player;
+use crate::owned_columns::OwnedColumns;
 use crate::palette::ChunkBlocks;
 use crate::tick::TickSet;
 use crate::world::dimension::InDimension;
@@ -178,6 +179,7 @@ pub fn spawn_chunks(
     mut stages: SectionStages,
     players: Query<(&Transform, &InDimension), With<Player>>,
     traces: Option<Res<ColumnTraceLog>>,
+    owned: Option<Res<OwnedColumns>>,
     mut centers: Local<Vec<SectionPos>>,
     mut keys_to_process: Local<Vec<SectionPos>>,
 ) {
@@ -217,7 +219,7 @@ pub fn spawn_chunks(
                 trace::mark(traces.as_deref(), pos.into(), ColumnStage::Spawned);
                 let mut section = commands.spawn(SectionBundle::new(InDimension(dim), pos));
                 if let Some(simulation) = simulation {
-                    simulation.mark_spawned(&mut section, pos);
+                    simulation.mark_spawned(&mut section, pos, owned.as_deref());
                 }
                 let section = section.id();
                 section_index.insert(pos, section);
