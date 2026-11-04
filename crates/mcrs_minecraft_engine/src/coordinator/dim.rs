@@ -1,96 +1,45 @@
-use crate::bus::{OutboundPlayerAttached, OutboundPlayerPacket, PacketTarget};
-use crate::coordinator::dim_cells::{DimCells, DimTicked};
-use crate::muxer::dim_inputs::DimInputs;
-use crate::muxer::disconnect::Departing;
-use crate::muxer::entity_replication::{self, Answers, EntityReplication};
-use crate::player_dimension_change;
 use bevy_app::App;
 use bevy_ecs::entity::Entity;
-use bevy_ecs::message::Messages;
 use bevy_ecs::world::World;
 use mcrs_minecraft_dimension::Dimension as DimensionKey;
-use mcrs_minecraft_engine_world::session::{
-    PlayerSession, Session, SessionAnchors, SessionPlacement,
-};
 use mcrs_minecraft_engine_world::world::lifecycle::trace::ColumnTraceSink;
 use mcrs_minecraft_engine_world::world::sub_app::DimDespawnQueue;
 use mcrs_minecraft_resource::ResourceKeyBuf;
 use tracing::{debug, warn};
 
+use crate::coordinator::destination;
+use crate::coordinator::dim_cells::{DimCells, DimTicked};
+use crate::to_muxer::{DimClosed, DimDelivered, RoutedDeparture};
+
 /// Takes what the dimension worlds handed over in their last tick, the dimensions in the order
-/// they ticked: stamps and writes their packets to the host, forgets the players they released,
-/// attaches the sessions they spawned a player for, records their column traces and hands their
-/// tile deltas to the muxer. The entity bytes that the muxer has ready go out with the packets.
-pub fn take_dim_outputs(world: &mut World) {
+/// they ticked: records their column traces, picks the destination of each player that left
+/// them, and hands the rest to the muxer.
+pub(crate) fn take_dim_outputs(world: &mut World) {
     let taken = world
         .get_resource_mut::<DimCells>()
         .map(|mut cells| cells.take_outputs())
         .unwrap_or_default();
     for DimTicked { label, output } in taken {
-        for packet in output.packets {
-            deliver(world, packet);
-        }
-        for session in output.released {
-            forget_departures(world, |departing| {
-                departing.dim == label && departing.session == session
-            });
-        }
-        if !output.attached.is_empty()
-            && let Some(mut attached) = world.get_resource_mut::<Messages<OutboundPlayerAttached>>()
-        {
-            attached.write_batch(output.attached);
-        }
         if !output.traces.is_empty()
             && let Some(sink) = world.get_resource::<ColumnTraceSink>()
             && let Some(dimension) = world.get::<ResourceKeyBuf<DimensionKey>>(label)
         {
             sink.record(dimension.as_str(), output.traces);
         }
-        entity_replication::publish(world, label, output.tiles);
-        for departure in output.departures {
-            player_dimension_change::route_departure(world, label, departure);
-        }
-    }
-    entity_replication::deliver(world, Answers::Ready);
-}
-
-pub fn forget_departures(world: &mut World, matches: impl Fn(&Departing) -> bool) {
-    let released: Vec<Entity> = world
-        .query::<(Entity, &Departing)>()
-        .iter(world)
-        .filter(|(_, departing)| matches(departing))
-        .map(|(entity, _)| entity)
-        .collect();
-    for entity in released {
-        world.despawn(entity);
-    }
-}
-
-/// Stamps `packet` with the session and the epoch of its player and writes it to the host's
-/// outbound packets.
-pub fn deliver(world: &mut World, packet: OutboundPlayerPacket) {
-    let (session, epoch) = match &packet.target {
-        PacketTarget::SinglePlayer(target) => world
-            .get_resource::<SessionAnchors>()
-            .and_then(|anchors| anchors.get(*target))
-            .and_then(|anchor| world.get_entity(anchor).ok())
-            .and_then(|anchor| {
-                Some((
-                    anchor.get::<Session>()?.0,
-                    anchor.get::<SessionPlacement>()?.epoch(),
-                ))
-            })
-            .unwrap_or((PlayerSession(0), 0)),
-        _ => (PlayerSession(0), 0),
-    };
-
-    world
-        .resource_mut::<Messages<OutboundPlayerPacket>>()
-        .write(OutboundPlayerPacket {
-            session,
-            epoch,
-            ..packet
+        let departures: Vec<RoutedDeparture> = output
+            .departures
+            .into_iter()
+            .map(|departure| destination::route(world, label, departure))
+            .collect();
+        world.write_message(DimDelivered {
+            dim: label,
+            packets: output.packets,
+            released: output.released,
+            attached: output.attached,
+            tiles: output.tiles,
+            departures,
         });
+    }
 }
 
 /// Marks the host entity that labels a dimension world. The entity carries the key of the
@@ -98,8 +47,9 @@ pub fn deliver(world: &mut World, packet: OutboundPlayerPacket) {
 #[derive(bevy_ecs::component::Component)]
 pub struct DimSubAppHandle;
 
-/// Stops the dimension worlds of the `DimDespawnQueue` and despawns their label entities.
-pub fn drain_dim_despawn_queue(app: &mut App) {
+/// Stops the dimension worlds of the `DimDespawnQueue`, tells the muxer, and despawns their
+/// label entities.
+pub(crate) fn drain_dim_despawn_queue(app: &mut App) {
     let Some(mut queue) = app.world_mut().get_resource_mut::<DimDespawnQueue>() else {
         return;
     };
@@ -112,14 +62,7 @@ pub fn drain_dim_despawn_queue(app: &mut App) {
         if !removed {
             warn!(?entity, "DimDespawnQueue entry names no dimension world");
         }
-        if let Some(mut inputs) = world.get_resource_mut::<DimInputs>() {
-            inputs.remove(entity);
-        }
-        if let Some(mut replication) = world.get_resource_mut::<EntityReplication>() {
-            replication.close(entity);
-        }
-        // A dimension torn down saves none of its players, so nothing is left to wait for.
-        forget_departures(world, |departing| departing.dim == entity);
+        world.write_message(DimClosed { dim: entity });
 
         // The `OnRemove<DimSubAppHandle>` observer queues an entity that is despawned already.
         match world.get_entity_mut(entity) {

@@ -1,23 +1,23 @@
 use crate::login::{SessionsById, disconnect, duplicate_login_reason};
 use bevy_app::{App, Plugin, Update};
 use bevy_ecs::component::Component;
-use bevy_ecs::prelude::{
-    Changed, Commands, Entity, On, Query, Resource, With, Without, resource_exists,
-};
+use bevy_ecs::message::MessageWriter;
+use bevy_ecs::prelude::{Changed, Commands, Entity, On, Query, Resource, Without, resource_exists};
 use bevy_ecs::schedule::{IntoScheduleConfigs, ScheduleConfigs};
+use bevy_ecs::system::Res;
 use bevy_ecs::system::ScheduleSystem;
-use bevy_ecs::system::{Res, ResMut};
 use bevy_math::{DVec3, Vec2};
 use bevy_state::prelude::in_state;
 use mcrs_minecraft_assets::AppState;
-use mcrs_minecraft_engine::bus::InboundPlayerSpawn;
 use mcrs_minecraft_engine::bus::PlayerTransferSnapshot;
-use mcrs_minecraft_engine::channel_types::ToDim;
 use mcrs_minecraft_engine::client_info::ClientInfo;
-use mcrs_minecraft_engine::coordinator::dim::DimSubAppHandle;
+use mcrs_minecraft_engine::coordinator::join::place_joining_players;
+use mcrs_minecraft_engine::game_profile::GameProfile;
 use mcrs_minecraft_engine::muxer::dim_inputs::DimInputs;
-use mcrs_minecraft_engine::muxer::session::GameProfile;
+use mcrs_minecraft_engine::muxer::join::admit_placed_players;
 use mcrs_minecraft_engine::muxer::session::HostAnchorRef;
+use mcrs_minecraft_engine::to_coordinator::JoinRequested;
+use mcrs_minecraft_engine::to_muxer::JoinPlaced;
 use mcrs_minecraft_engine_registries::SyncedRegistries;
 use mcrs_minecraft_engine_world::session::{Place, Session, SessionPlacement};
 use mcrs_minecraft_engine_world::world::world_save::WorldSave;
@@ -39,9 +39,7 @@ use mcrs_minecraft_protocol::packets::game::serverbound::ServerboundConfiguratio
 use mcrs_minecraft_protocol::resource_pack::KnownPack;
 use mcrs_minecraft_protocol::{EncodedBody, WritePacket};
 use mcrs_minecraft_registries::{CurrentRegistries, Registries};
-use mcrs_minecraft_resource::ResourceKeyBuf;
 use mcrs_minecraft_save::read_player_dat;
-use std::sync::Arc;
 use tracing::{debug, info};
 
 use mcrs_minecraft_engine_world::world::dimension_list::DimensionList;
@@ -66,10 +64,11 @@ impl Plugin for ConfigurationStatePlugin {
         app.add_observer(on_known_packs_response);
         app.add_observer(on_configuration_ack);
         app.add_observer(on_game_configuration_ack);
+        app.add_message::<JoinRequested>();
+        app.add_message::<JoinPlaced>();
         app.add_systems(
             Update,
-            emit_initial_player_spawn
-                .run_if(resource_exists::<DimensionList>)
+            initial_player_spawn()
                 .before(mcrs_minecraft_engine::muxer::bridge::bridge_inbound_to_channel),
         );
     }
@@ -246,28 +245,31 @@ fn on_game_configuration_ack(
     *state = ConnectionState::Configuration;
 }
 
-/// Runs each Update tick. For every connection in the game state whose session
-/// is still unplaced, picks the live `DimSubAppHandle` label entity of the
-/// dimension the player was saved in, or the first dimension of the list when
-/// the save names none or a dimension that is not live, sends
-/// one `ToDim::Spawn` into the dimension's next tick and marks the session
-/// as joining that label entity — the key used by `DimInputs`, NOT a
-/// `Dimension` entity inside the dimension world.
+/// The muxer asks where each joining player spawns, the coordinator places it, and the muxer
+/// sends the spawn, in one update.
+pub fn initial_player_spawn() -> ScheduleConfigs<ScheduleSystem> {
+    (
+        request_initial_player_spawn,
+        place_joining_players.run_if(resource_exists::<DimensionList>),
+        admit_placed_players,
+    )
+        .chain()
+}
+
+/// Runs each Update tick. For every connection in the game state whose session is still
+/// unplaced, asks the coordinator where its player spawns, with the dimension that the save of
+/// the player names. The muxer then sends the spawn and marks the session as joining.
 ///
-/// If no live label entity exists yet (dims still loading), the session stays
-/// unplaced and the emit is retried next tick.
-pub fn emit_initial_player_spawn(
+/// While no dimension takes input yet (dims still loading), the session stays unplaced and asks
+/// again next tick.
+pub fn request_initial_player_spawn(
     connections: Query<(&HostAnchorRef, &ConnectionState, Option<&ClientInfo>)>,
-    mut sessions: Query<(&Session, &mut SessionPlacement, &GameProfile)>,
-    live_dims: Query<
-        (Entity, &ResourceKeyBuf<mcrs_minecraft_dimension::Dimension>),
-        With<DimSubAppHandle>,
-    >,
-    mut dim_inputs: ResMut<DimInputs>,
-    dimension_list: Res<DimensionList>,
+    sessions: Query<(&Session, &SessionPlacement, &GameProfile)>,
+    dim_inputs: Res<DimInputs>,
     save: Option<Res<WorldSave>>,
+    mut requests: MessageWriter<JoinRequested>,
 ) {
-    if live_dims.is_empty() {
+    if dim_inputs.is_empty() {
         return;
     }
 
@@ -275,7 +277,7 @@ pub fn emit_initial_player_spawn(
         if *state != ConnectionState::Game {
             continue;
         }
-        let Ok((session, mut placement, profile)) = sessions.get_mut(host_anchor) else {
+        let Ok((session, placement, profile)) = sessions.get(host_anchor) else {
             continue;
         };
         if placement.place() != Place::Unplaced {
@@ -284,19 +286,6 @@ pub fn emit_initial_player_spawn(
         let saved = save
             .as_ref()
             .and_then(|save| read_player_dat(&save.0, profile.id).ok().flatten());
-        let live = |key: &ResourceKeyBuf<mcrs_minecraft_dimension::Dimension>| {
-            live_dims
-                .iter()
-                .find(|(_, live)| *live == key)
-                .map(|(label, _)| label)
-        };
-        let Some(dim_label) = saved
-            .as_ref()
-            .and_then(|dat| live(&dat.dimension))
-            .or_else(|| live(dimension_list.keys().first()?))
-        else {
-            continue;
-        };
         let snapshot = PlayerTransferSnapshot {
             uuid: profile.id,
             username: profile.username.clone(),
@@ -308,16 +297,10 @@ pub fn emit_initial_player_spawn(
                 .map_or(Vec2::ZERO, |dat| Vec2::from_array(dat.rotation)),
             client_info: info.cloned(),
         };
-        let dimensions = Arc::clone(dimension_list.keys());
-        if dim_inputs.send_control(
-            dim_label,
-            ToDim::Spawn(InboundPlayerSpawn {
-                session: session.0,
-                snapshot,
-                dimensions,
-            }),
-        ) {
-            placement.set(Place::Joining(dim_label));
-        }
+        requests.write(JoinRequested {
+            session: session.0,
+            saved_dimension: saved.map(|dat| dat.dimension),
+            snapshot,
+        });
     }
 }

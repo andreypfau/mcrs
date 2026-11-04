@@ -13,17 +13,17 @@ use bevy_app::{App, Update};
 use bevy_ecs::schedule::IntoScheduleConfigs;
 use bevy_state::prelude::NextState;
 use mcrs_minecraft_assets::AppState;
+use mcrs_minecraft_engine::between_ticks::drain_dim_spawn_queue;
+use mcrs_minecraft_engine::between_ticks::take_dim_outputs;
 use mcrs_minecraft_engine::bus::InboundPlayerSpawn;
-use mcrs_minecraft_engine::coordinator::dim::take_dim_outputs;
-use mcrs_minecraft_engine::coordinator::sub_app_builder::drain_dim_spawn_queue;
+use mcrs_minecraft_engine::game_profile::GameProfile;
 use mcrs_minecraft_engine::muxer::bridge::{
     bridge_inbound_to_channel, bridge_outbound, bridge_player_attach, dispatch_encode,
     forward_pending_inbound,
 };
 use mcrs_minecraft_engine::muxer::bridge_queue::{InboundRateBucket, OutboundQueue};
-use mcrs_minecraft_engine::muxer::session::GameProfile;
 use mcrs_minecraft_engine::muxer::session::HostAnchorRef;
-use mcrs_minecraft_engine_server::configuration::emit_initial_player_spawn;
+use mcrs_minecraft_engine_server::configuration::initial_player_spawn;
 use mcrs_minecraft_engine_server::login::{LoginPlugin, LoginState};
 use mcrs_minecraft_engine_world::session::{Place, SessionPlacement};
 use mcrs_minecraft_engine_world::world::sub_app::{DimSpawnQueue, DimSpawnRequest};
@@ -57,7 +57,7 @@ fn build_join_host_app() -> App {
             .chain(),
     );
     app.add_plugins(LoginPlugin);
-    app.add_systems(Update, emit_initial_player_spawn);
+    app.add_systems(Update, initial_player_spawn());
 
     app
 }
@@ -134,7 +134,7 @@ fn e2e_join_releases_joining_world() {
         .entity_mut(connection_entity)
         .insert(ConnectionState::Game);
 
-    // Tick 1: emit_initial_player_spawn queues ToDim::Spawn for the dimension, which ticks
+    // Tick 1: the initial player spawn queues ToDim::Spawn for the dimension, which ticks
     //         after the host: it spawns the player and hands over OutboundPlayerAttached and
     //         the play-login packets in its output, which the host takes between ticks.
     // Tick 2: bridge_player_attach attaches the session; bridge_outbound routes the

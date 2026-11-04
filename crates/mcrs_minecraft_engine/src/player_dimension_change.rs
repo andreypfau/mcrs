@@ -2,35 +2,21 @@ use bevy_ecs::entity::Entity;
 use bevy_ecs::message::Messages;
 use bevy_ecs::prelude::With;
 use bevy_ecs::world::World;
-use mcrs_minecraft_dimension::{Dimension as DimensionKey, DimensionType};
+use mcrs_minecraft_dimension::Dimension as DimensionKey;
 use mcrs_minecraft_engine_world::entity::physics::Transform;
 use mcrs_minecraft_engine_world::entity::player::{ChangeDimensionRequest, Player};
-use mcrs_minecraft_engine_world::session::{
-    Owner, Place, PlayerSession, SessionAnchors, SessionPlacement,
-};
-use mcrs_minecraft_engine_world::world::dimension::{Dimension, DimensionTypeId, InDimension};
+use mcrs_minecraft_engine_world::session::{Owner, PlayerSession};
+use mcrs_minecraft_engine_world::world::dimension::{Dimension, InDimension};
 use mcrs_minecraft_engine_world::world::sub_app::DimensionLabel;
-use mcrs_minecraft_protocol_game::clientbound::ClientboundRespawn;
-use mcrs_minecraft_protocol_game::player::PlayerSpawnInfo;
-use mcrs_minecraft_resource::{Id, ResourceKeyBuf};
+use mcrs_minecraft_resource::ResourceKeyBuf;
 
 use crate::ability::OpLevelAnnounced;
-use crate::bus::{self, PacketPayload};
-use crate::channel_types::ToDim;
 use crate::column_view::ColumnView;
-use crate::coordinator::dim;
-use crate::coordinator::dim::DimSubAppHandle;
+use crate::coordinator::destination;
 use crate::departure::{CarriedPlayer, Departure, PlayerTransfer};
 use crate::dimension_change::{Arrival, DimensionChangeError};
-use crate::enter_level_packets::enter_level_packets;
-use crate::game_mode;
 use crate::minecraft_entity::EntityBundle;
-use crate::muxer::bridge::OutboundFlush;
-use crate::muxer::dim_inputs::DimInputs;
-use crate::muxer::entity_replication::{self, Answers};
-
-/// Both bits of the data to keep: the attribute modifiers and the entity data.
-const KEEP_ATTRIBUTES_AND_DATA: u8 = 0x03;
+use crate::muxer::departure_routing;
 
 /// Lets go of each player that a [`ChangeDimensionRequest`] of this tick names, in the order of
 /// writing, into `departures`. A request that this world cannot meet leaves the player where it
@@ -154,109 +140,14 @@ fn place(
     Ok(player.id())
 }
 
-/// The dimension a player arrives in, as the host knows it.
-struct Destination {
-    label: Entity,
-    key: ResourceKeyBuf<DimensionKey>,
-    dimension_type: Id<DimensionType>,
-}
-
-fn destination(host: &mut World, to: &ResourceKeyBuf<DimensionKey>) -> Option<Destination> {
-    host.query_filtered::<(Entity, &ResourceKeyBuf<DimensionKey>, &DimensionTypeId), With<DimSubAppHandle>>()
-        .iter(host)
-        .find(|(_, key, _)| *key == to)
-        .map(|(label, key, dimension_type)| Destination {
-            label,
-            key: key.clone(),
-            dimension_type: dimension_type.0,
-        })
-}
-
-/// The host anchor of `session` while the session is placed in the dimension `source`.
-fn placed_anchor(host: &World, session: PlayerSession, source: Entity) -> Option<Entity> {
-    host.get_resource::<SessionAnchors>()
-        .and_then(|anchors| anchors.get(session))
-        .filter(|&anchor| {
-            host.get::<SessionPlacement>(anchor)
-                .is_some_and(|placement| placement.place().dim() == Some(source))
-        })
-}
-
-/// Sends `departure`, which the dimension `source` handed over, on to the dimension it names
-/// for its next tick, and sends the client the packets of a respawn. A departure that names no
-/// other running dimension, or whose session is no longer placed in `source`, goes back to
-/// `source`.
-pub(crate) fn route_departure(host: &mut World, source: Entity, mut departure: Departure) {
-    let anchor = placed_anchor(host, departure.session, source);
-    let destination = destination(host, &departure.to).filter(|found| found.label != source);
-    let (Some(anchor), Some(destination)) = (anchor, destination) else {
-        tracing::error!(
-            to = %departure.to,
-            session = ?departure.session,
-            "a player did not change dimension and returns where it was"
-        );
-        send(host, source, PlayerTransfer::Return(departure));
-        return;
-    };
-    let label = destination.label;
-    announce(host, anchor, destination, &mut departure);
-    send(host, label, PlayerTransfer::Arrive(departure));
-}
-
-fn send(host: &mut World, dim: Entity, transfer: PlayerTransfer) {
-    let sent = host
-        .get_resource_mut::<DimInputs>()
-        .is_some_and(|mut inputs| inputs.send_control(dim, ToDim::Transfer(Box::new(transfer))));
-    if !sent {
-        tracing::error!(?dim, "a dimension that a player changes to takes no input");
-    }
-}
-
-/// Places the session of `departure` in `destination` and sends it the packets of a respawn
-/// there, after the packets of the dimension it leaves.
-fn announce(host: &mut World, anchor: Entity, destination: Destination, departure: &mut Departure) {
-    // The packets stamped for the dimension the player leaves go out before its epoch changes,
-    // or the bridge drops them as stale. The muxer bytes of that dimension are among them, and
-    // the muxer may still work on them, so the host waits for it here.
-    entity_replication::leave(host, departure.session);
-    entity_replication::deliver(host, Answers::All);
-    if let Err(error) = host.try_run_schedule(OutboundFlush) {
-        tracing::warn!("the packets of a player leaving were not flushed: {error}");
-    }
-    if let Some(mut placement) = host.get_mut::<SessionPlacement>(anchor) {
-        placement.set(Place::InDim(destination.label));
-    }
-    let session = departure.session;
-    let carried = &mut departure.carried;
-    let teleport_id = carried.teleport.sent(departure.arrival.transform);
-    dim::deliver(
-        host,
-        bus::to(
-            session,
-            PacketPayload::Respawn(ClientboundRespawn {
-                player_spawn_info: PlayerSpawnInfo::new(
-                    destination.dimension_type,
-                    destination.key,
-                    carried.game_mode.0,
-                ),
-                data_to_keep: KEEP_ATTRIBUTES_AND_DATA,
-            }),
-        )
-        .critical(),
-    );
-    enter_level_packets(
-        session,
-        carried.op_level,
-        departure.arrival.position_packet(teleport_id),
-        game_mode::abilities(carried.game_mode.0, carried.flying),
-        |packet| dim::deliver(host, packet),
-    );
-}
-
 /// Moves `player`, an entity of `from`, into the dimension of `to` at once, through the same
 /// departure that a [`ChangeDimensionRequest`] makes. Gives its entity in `to`. A caller that
 /// holds every world between two ticks uses this, so that the player is in `to` for the rest of
 /// what the caller does.
+///
+/// It reads the coordinator and the muxer of `host` in one call: the command pass that calls it
+/// lends every world at once and answers in the same pass, so a round trip of messages does not
+/// fit.
 pub fn change_dimension(
     host: &mut World,
     from: &mut World,
@@ -273,15 +164,16 @@ pub fn change_dimension(
         .single(to)
         .map_err(|_| DimensionChangeError::NoDimension)?
         .clone();
-    let destination = destination(host, &key)
+    let destination = destination::find(host, &key)
         .filter(|found| found.label != source)
         .ok_or(DimensionChangeError::NoDimension)?;
     let session = from
         .get::<Owner>(player)
         .ok_or(DimensionChangeError::NoPlayer)?
         .0;
-    let anchor = placed_anchor(host, session, source).ok_or(DimensionChangeError::NotPlaced)?;
+    let anchor = departure_routing::placed_anchor(host, session, source)
+        .ok_or(DimensionChangeError::NotPlaced)?;
     let mut departure = depart(from, player, key, arrival)?;
-    announce(host, anchor, destination, &mut departure);
+    departure_routing::announce(host, anchor, destination, &mut departure);
     arrive(to, departure)
 }

@@ -6,10 +6,10 @@ use mcrs_minecraft_engine::bus::{
     InboundPlayerDespawn, OutboundPlayerAttached, OutboundPlayerDisconnect,
 };
 use mcrs_minecraft_engine::channel_types::ToDim;
-use mcrs_minecraft_engine::coordinator::dim;
+use mcrs_minecraft_engine::game_profile::GameProfile;
 use mcrs_minecraft_engine::muxer::dim_inputs::DimInputs;
+use mcrs_minecraft_engine::muxer::dim_outputs;
 use mcrs_minecraft_engine::muxer::disconnect::DisconnectProtocolPlugin;
-use mcrs_minecraft_engine::muxer::session::GameProfile;
 use mcrs_minecraft_engine::muxer::session::HostAnchorRef;
 use mcrs_minecraft_engine_server::configuration::on_configuration_ack;
 use mcrs_minecraft_engine_server::login::{LoginPlugin, LoginState, SingleplayerProfile};
@@ -388,7 +388,7 @@ fn a_second_login_under_a_name_ends_the_first_session_and_plays_once_its_player_
     assert!(sessions_under(&mut app, STEVE).is_empty());
 
     // What the host does with a dimension that releases the session in its output.
-    dim::forget_departures(app.world_mut(), |departing| {
+    dim_outputs::forget_departures(app.world_mut(), |departing| {
         departing.dim == dim && departing.session == despawn.session
     });
     app.update();

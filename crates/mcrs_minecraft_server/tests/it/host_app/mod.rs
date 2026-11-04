@@ -1,4 +1,4 @@
-use mcrs_minecraft_engine::muxer::session::GameProfile;
+use mcrs_minecraft_engine::game_profile::GameProfile;
 use mcrs_minecraft_resource::{ResourceKeyBuf, ResourceLocationBuf};
 use std::sync::Arc;
 
@@ -17,19 +17,22 @@ use mcrs_minecraft_assets::AppState;
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_dimension::Dimension;
 use mcrs_minecraft_engine::ability::{PlayerGameMode, PlayerOpLevel};
+use mcrs_minecraft_engine::between_ticks::drain_dim_spawn_queue;
+use mcrs_minecraft_engine::between_ticks::take_dim_outputs;
 use mcrs_minecraft_engine::bus::{
     InboundPlayerDespawn, InboundPlayerPacket, InboundPlayerSpawn, OutboundPlayerAttached,
     OutboundPlayerDisconnect, OutboundPlayerPacket, PacketPayload, PacketTarget,
     PlayerTransferSnapshot,
 };
 use mcrs_minecraft_engine::channel_types::ToDim;
-use mcrs_minecraft_engine::coordinator::dim::{DimSubAppHandle, take_dim_outputs};
+use mcrs_minecraft_engine::coordinator::dim::DimSubAppHandle;
 use mcrs_minecraft_engine::coordinator::dim_cells::{DimCells, DimCellsPlugin};
 use mcrs_minecraft_engine::coordinator::ops::{DefaultOpLevel, OpList, OpListEntry};
-use mcrs_minecraft_engine::coordinator::sub_app_builder::drain_dim_spawn_queue;
-use mcrs_minecraft_engine::muxer::dim_inputs::DimInputs;
+use mcrs_minecraft_engine::muxer::dim_inputs::{DimInputs, DimInputsPlugin};
 use mcrs_minecraft_engine::muxer::entity_replication::{self, Answers};
 use mcrs_minecraft_engine::muxer::session::{HostAnchorRef, SessionBundle, SessionConnection};
+use mcrs_minecraft_engine::to_coordinator::JoinRequested;
+use mcrs_minecraft_engine::to_muxer::JoinPlaced;
 use mcrs_minecraft_engine_world::entity::player::Player;
 use mcrs_minecraft_engine_world::session::Owner;
 use mcrs_minecraft_engine_world::session::{
@@ -96,6 +99,9 @@ pub fn make_host_app() -> App {
     app.add_message::<InboundPlayerDespawn>();
 
     app.add_plugins(DimCellsPlugin);
+    app.add_plugins(DimInputsPlugin);
+    app.add_message::<JoinRequested>();
+    app.add_message::<JoinPlaced>();
     app.init_resource::<DimSpawnQueue>();
     app.init_resource::<DimDespawnQueue>();
     crate::support::insert_registries(&mut app);

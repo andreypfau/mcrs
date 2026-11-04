@@ -18,7 +18,7 @@ use mcrs_minecraft_engine_world::session::{PlayerSession, SessionAnchors};
 use mcrs_minecraft_replication::{ListPolicy, PlayerCodec, PlayerData, PlayerInput};
 
 use crate::bus::{PacketPayload, to};
-use crate::coordinator::dim;
+use crate::muxer::dim_outputs;
 use crate::muxer::latency::Latency;
 use crate::muxer::muxer_placement::MuxerPlacement;
 use crate::muxer::player_list_policy::PlayerListPolicy;
@@ -278,7 +278,7 @@ pub fn deliver(world: &mut World, answers: Answers) {
     };
     let outputs = replication.take(answers);
     for ViewerBytes { viewer, chunks } in outputs {
-        dim::deliver(
+        dim_outputs::deliver(
             world,
             to(PlayerSession(viewer.0), PacketPayload::Replication(chunks)),
         );

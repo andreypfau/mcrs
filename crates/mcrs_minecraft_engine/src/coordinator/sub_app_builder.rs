@@ -4,7 +4,7 @@ use bevy_app::{
 };
 use bevy_asset::AssetPlugin;
 use bevy_ecs::entity::Entity;
-use bevy_ecs::schedule::{IntoScheduleConfigs, SystemSet};
+use bevy_ecs::schedule::IntoScheduleConfigs;
 use bevy_ecs::system::Res;
 use mcrs_engine_cell::Placement;
 use tracing::{error, warn};
@@ -12,14 +12,9 @@ use tracing::{error, warn};
 use crate::bus::{InboundPlayerSpawn, OutboundPlayerPacket};
 use crate::coordinator::dim::DimSubAppHandle;
 use crate::coordinator::dim_cells::DimCells;
-use crate::dim_tick::{DimInbox, drain_dim_inbox, inbox_holds_messages};
-use crate::muxer::dim_inputs::DimInputs;
+use crate::dim_tick::{DimInbox, DimInboxDrain, drain_dim_inbox, inbox_holds_messages};
+use crate::to_muxer::DimOpened;
 use mcrs_minecraft_engine_world::block_update::{BlockPlaced, BlockSetRequest};
-
-/// The system set of the inbox drain, early in `FixedPreUpdate`: the messages of the input of a
-/// tick reach the dimension here. Systems that consume them run after this set.
-#[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
-pub struct DimInboxDrain;
 
 use crate::block_update::{BlockUpdatePlugin, BlockUpdateWirePlugin};
 use crate::heightmap::{BlockHeightmapPredicates, DimHeightmapPlugin};
@@ -121,8 +116,7 @@ pub fn spawn_dim_subapp(
         .id();
 
     app.world_mut()
-        .get_resource_or_init::<DimInputs>()
-        .insert(label_entity);
+        .write_message(DimOpened { dim: label_entity });
 
     let traces_columns = app.world().contains_resource::<ColumnTraceSink>();
     let mut sub_app = SubApp::new();
@@ -350,7 +344,7 @@ pub enum DimSpawnError {
 
 /// Builds a dimension world for each request of the host's `DimSpawnQueue`. The host calls it
 /// between ticks.
-pub fn drain_dim_spawn_queue(app: &mut App) {
+pub(crate) fn drain_dim_spawn_queue(app: &mut App) {
     let Some(mut queue) = app.world_mut().get_resource_mut::<DimSpawnQueue>() else {
         return;
     };

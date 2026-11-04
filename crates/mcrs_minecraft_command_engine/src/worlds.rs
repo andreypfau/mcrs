@@ -4,8 +4,8 @@ use bevy_ecs::prelude::DetectChangesMut;
 use bevy_ecs::world::World;
 use mcrs_minecraft_engine::ability::PlayerGameMode;
 use mcrs_minecraft_engine::bus::OutboundPlayerPacket;
-use mcrs_minecraft_engine::coordinator::dim;
 use mcrs_minecraft_engine::dimension_change::{Arrival, DimensionChangeError};
+use mcrs_minecraft_engine::muxer::dim_outputs;
 use mcrs_minecraft_engine::player_dimension_change;
 use mcrs_minecraft_engine_world::entity::physics::Transform;
 use mcrs_minecraft_engine_world::session::PlayerSession;
@@ -60,7 +60,7 @@ impl Worlds<'_, '_> {
 
     /// Sends `packet` after everything the dimensions handed over before it.
     pub fn deliver(&mut self, packet: OutboundPlayerPacket) {
-        dim::deliver(self.host, packet);
+        dim_outputs::deliver(self.host, packet);
     }
 
     /// Sets the transform of the player of the session `player` in the world that holds

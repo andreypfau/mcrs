@@ -1,6 +1,8 @@
 //! Integration tests for the host→SubApp player-connection handoff on initial
 //! join: the host-side emit, the per-dim consumer and the full round-trip.
 
+use std::collections::BTreeMap;
+
 use bevy_app::{App, Update};
 use bevy_ecs::change_detection::Tick;
 use bevy_ecs::entity::Entity;
@@ -8,15 +10,17 @@ use bevy_ecs::prelude::*;
 use bevy_math::{DVec3, Vec2};
 use bevy_state::prelude::NextState;
 use mcrs_minecraft_assets::AppState;
+use mcrs_minecraft_engine::between_ticks::drain_dim_spawn_queue;
 use mcrs_minecraft_engine::bus::{InboundPlayerSpawn, PlayerTransferSnapshot};
 use mcrs_minecraft_engine::channel_types::ToDim;
 use mcrs_minecraft_engine::coordinator::dim::DimSubAppHandle;
 use mcrs_minecraft_engine::coordinator::dim_cells::DimCells;
-use mcrs_minecraft_engine::coordinator::sub_app_builder::drain_dim_spawn_queue;
+use mcrs_minecraft_engine::dim_tick::{TickDimensions, TickDimensionsSet};
+use mcrs_minecraft_engine::game_profile::GameProfile;
 use mcrs_minecraft_engine::muxer::bridge::{bridge_inbound_to_channel, bridge_player_attach};
 use mcrs_minecraft_engine::muxer::dim_inputs::DimInputs;
-use mcrs_minecraft_engine::muxer::session::GameProfile;
 use mcrs_minecraft_engine::muxer::session::HostAnchorRef;
+use mcrs_minecraft_engine::to_coordinator::RoutedInput;
 use mcrs_minecraft_engine_server::login::{LoginPlugin, LoginState};
 use mcrs_minecraft_engine_world::session::PlayerSession;
 use mcrs_minecraft_engine_world::session::{
@@ -26,7 +30,7 @@ use mcrs_minecraft_engine_world::world::sub_app::{DimSpawnQueue, DimSpawnRequest
 use mcrs_minecraft_protocol::uuid::Uuid;
 use mcrs_minecraft_resource::{ResourceKeyBuf, ResourceLocationBuf};
 
-use mcrs_minecraft_engine_server::configuration::emit_initial_player_spawn;
+use mcrs_minecraft_engine_server::configuration::initial_player_spawn;
 
 use crate::support;
 use mcrs_minecraft_dimension::Dimension;
@@ -62,10 +66,17 @@ fn build_host_app() -> App {
     app.init_resource::<mcrs_minecraft_engine_world::session::SessionAnchors>();
     app.add_message::<InboundPlayerSpawn>();
     app.add_systems(Update, (bridge_inbound_to_channel, bridge_player_attach));
+    app.init_resource::<RoutedControl>();
+    app.add_systems(
+        TickDimensions,
+        keep_routed_control
+            .after(TickDimensionsSet::Route)
+            .before(TickDimensionsSet::Tick),
+    );
 
     app.add_plugins(LoginPlugin);
     // System under test
-    app.add_systems(Update, emit_initial_player_spawn);
+    app.add_systems(Update, initial_player_spawn());
 
     app
 }
@@ -112,10 +123,30 @@ fn live_dimension(app: &mut App, key: ResourceKeyBuf<Dimension>) -> Entity {
     label
 }
 
-/// Takes the control messages that wait for the next tick of `label`, as its tick would.
+/// The control messages that the muxer routed to each dimension, kept before the tick takes them.
+#[derive(Resource, Default)]
+struct RoutedControl(BTreeMap<Entity, Vec<ToDim>>);
+
+fn keep_routed_control(mut routed: MessageReader<RoutedInput>, mut kept: ResMut<RoutedControl>) {
+    for input in routed.read() {
+        kept.0
+            .entry(input.dim)
+            .or_default()
+            .extend(input.control.iter().cloned());
+    }
+}
+
+/// Takes the control messages that the muxer routed to `label` and those that wait for its next
+/// tick, as its tick would.
 fn take_control(app: &mut App, label: Entity) -> Vec<ToDim> {
+    let mut control = app
+        .world_mut()
+        .resource_mut::<RoutedControl>()
+        .0
+        .remove(&label)
+        .unwrap_or_default();
     let mut inputs = app.world_mut().resource_mut::<DimInputs>();
-    let control = inputs.control(label).to_vec();
+    control.extend_from_slice(inputs.control(label));
     inputs.remove(label);
     inputs.insert(label);
     control
@@ -130,7 +161,7 @@ fn send_spawn(app: &mut App, label: Entity, spawn: InboundPlayerSpawn) {
 }
 
 // ---------------------------------------------------------------------------
-// host-side emit_initial_player_spawn
+// host-side initial player spawn
 // ---------------------------------------------------------------------------
 
 /// When a connection transitions to Game AND a live DimSubAppHandle label
@@ -276,7 +307,7 @@ fn no_live_dim_no_spawn() {
     app.update();
 
     let world = app.world();
-    // No live dim → emit_initial_player_spawn returned early.
+    // No live dim → the request returned early.
 
     assert_eq!(
         world

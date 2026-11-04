@@ -15,7 +15,7 @@ use crate::ability::{PlayerFlying, PlayerGameMode, PlayerOpLevel};
 use crate::client_info::ClientInfo;
 use crate::dimension_change::{Arrival, DimensionChangeError};
 use crate::game_mode::ListedGameMode;
-use crate::muxer::session::GameProfile;
+use crate::game_profile::GameProfile;
 use crate::op_level::AnnouncedOpLevel;
 use crate::persistence::{LoadedPlayerDat, UnreadablePlayerDat};
 use crate::teleport::TeleportState;

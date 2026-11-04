@@ -1,12 +1,19 @@
 use std::mem;
 
+use bevy_app::{App, Plugin};
 use bevy_ecs::entity::Entity;
+use bevy_ecs::message::MessageWriter;
 use bevy_ecs::resource::Resource;
+use bevy_ecs::schedule::IntoScheduleConfigs;
+use bevy_ecs::system::ResMut;
 use mcrs_minecraft_engine_world::world::channels::TO_DIM_CAPACITY;
 use rustc_hash::FxHashMap;
 
 use crate::bus::InboundPlayerPacket;
 use crate::channel_types::ToDim;
+use crate::dim_tick::{TickDimensions, TickDimensionsSet};
+use crate::to_coordinator::RoutedInput;
+use crate::to_muxer::{DimClosed, DimOpened};
 
 /// What the host holds for each dimension world until its next tick, by the label entity of the
 /// dimension.
@@ -15,9 +22,9 @@ pub struct DimInputs(FxHashMap<Entity, PendingInput>);
 
 /// The messages of one dimension for its next tick, each class in the order it was sent.
 #[derive(Default)]
-pub(crate) struct PendingInput {
-    pub(crate) control: Vec<ToDim>,
-    pub(crate) serverbound: Vec<InboundPlayerPacket>,
+struct PendingInput {
+    control: Vec<ToDim>,
+    serverbound: Vec<InboundPlayerPacket>,
 }
 
 impl DimInputs {
@@ -76,7 +83,42 @@ impl DimInputs {
             .map_or(&[], |pending| pending.serverbound.as_slice())
     }
 
-    pub(crate) fn take(&mut self, dim: Entity) -> PendingInput {
-        self.0.get_mut(&dim).map(mem::take).unwrap_or_default()
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+}
+
+/// Hands the coordinator the input that each dimension got during the update, for its tick.
+pub fn route_dim_inputs(mut inputs: ResMut<DimInputs>, mut routed: MessageWriter<RoutedInput>) {
+    for (&dim, pending) in &mut inputs.0 {
+        if pending.control.is_empty() && pending.serverbound.is_empty() {
+            continue;
+        }
+        let PendingInput {
+            control,
+            serverbound,
+        } = mem::take(pending);
+        routed.write(RoutedInput {
+            dim,
+            control,
+            serverbound,
+        });
+    }
+}
+
+/// The input of the dimensions: what the muxer routes to each one until its next tick.
+pub struct DimInputsPlugin;
+
+impl Plugin for DimInputsPlugin {
+    fn build(&self, app: &mut App) {
+        app.init_resource::<DimInputs>();
+        app.add_message::<DimOpened>();
+        app.add_message::<DimClosed>();
+        app.add_message::<RoutedInput>();
+        app.add_systems(
+            TickDimensions,
+            route_dim_inputs.in_set(TickDimensionsSet::Route),
+        );
     }
 }

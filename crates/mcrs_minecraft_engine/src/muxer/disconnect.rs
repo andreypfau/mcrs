@@ -35,13 +35,12 @@ use tracing::warn;
 
 use crate::bus::{OutboundPlayerAttached, OutboundPlayerDisconnect};
 use crate::channel_types::ToDim;
+use crate::game_profile::GameProfile;
 use crate::muxer::dim_inputs::DimInputs;
-use crate::muxer::session::GameProfile;
 use crate::muxer::session::{HostAnchorRef, SessionConnection};
 use mcrs_minecraft_engine_world::session::{
     Place, PlayerSession, Session, SessionAnchors, SessionPlacement,
 };
-use mcrs_minecraft_engine_world::world::sub_app::DimDespawnQueue;
 use mcrs_minecraft_protocol::uuid::Uuid;
 
 /// 32 caps work at 640 disconnects/sec under a 20 TPS schedule, draining a
@@ -330,7 +329,6 @@ impl Plugin for DisconnectProtocolPlugin {
         app.init_resource::<PendingDisconnectQueue>();
         app.init_resource::<DisconnectedThisTick>();
         app.init_resource::<OverflowCounter>();
-        app.init_resource::<DimDespawnQueue>();
         app.add_observer(on_player_disconnect);
         app.add_systems(
             First,

@@ -21,7 +21,7 @@ use bevy_ecs::resource::Resource;
 use bevy_ecs::system::SystemId;
 use bevy_ecs::world::World;
 use mcrs_command::{End, Executor, Failure, Limits, SourceLists, Stage};
-use mcrs_minecraft_engine::coordinator::dim;
+use mcrs_minecraft_engine::muxer::dim_outputs;
 use mcrs_minecraft_engine_world::session::PlayerSession;
 use mcrs_minecraft_text::Text;
 
@@ -197,7 +197,7 @@ impl<S: CommandSet> PassExecutor<'_, '_, S> {
         }
         self.outbox.effects = effects;
         for packet in self.outbox.packets.drain(..) {
-            dim::deliver(self.host, packet);
+            dim_outputs::deliver(self.host, packet);
         }
         for broadcast in self.outbox.broadcasts.drain(..) {
             self.host.trigger(broadcast);
@@ -262,7 +262,7 @@ impl<S: CommandSet> Executor<SourceState, Handler> for PassExecutor<'_, '_, S> {
         };
         let message: Text = failure.text();
         if let Some(packet) = system_message(self.output, &message) {
-            dim::deliver(self.host, packet);
+            dim_outputs::deliver(self.host, packet);
         }
     }
 }

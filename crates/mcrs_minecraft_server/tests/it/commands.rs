@@ -1745,7 +1745,7 @@ fn execute_in_moves_the_source_player_to_another_dimension() {
 fn anchor_of(server: &mut PlayServer, uuid: Uuid) -> Entity {
     let world = server.app.world_mut();
     world
-        .query::<(Entity, &mcrs_minecraft_engine::muxer::session::GameProfile)>()
+        .query::<(Entity, &mcrs_minecraft_engine::game_profile::GameProfile)>()
         .iter(world)
         .find(|(_, profile)| profile.id == uuid)
         .map(|(anchor, _)| anchor)

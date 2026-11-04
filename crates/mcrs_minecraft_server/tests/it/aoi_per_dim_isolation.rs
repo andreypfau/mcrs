@@ -7,8 +7,8 @@
 
 use bevy_ecs::prelude::*;
 use bevy_math::DVec3;
+use mcrs_minecraft_engine::between_ticks::take_dim_outputs;
 use mcrs_minecraft_engine::column_view::ColumnView;
-use mcrs_minecraft_engine::coordinator::dim::take_dim_outputs;
 use mcrs_minecraft_engine::muxer::entity_replication::EntityReplication;
 use mcrs_minecraft_engine_world::aoi::PlayerObservers;
 use mcrs_minecraft_engine_world::entity::physics::Transform;

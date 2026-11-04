@@ -37,7 +37,7 @@ impl Plugin for PlayerTrackerPlugin {
         app.add_systems(
             FixedPreUpdate,
             crate::drain_player_despawn::drain_inbound_player_despawn
-                .after(crate::coordinator::sub_app_builder::DimInboxDrain),
+                .after(crate::dim_tick::DimInboxDrain),
         );
         app.add_systems(
             FixedPostUpdate,

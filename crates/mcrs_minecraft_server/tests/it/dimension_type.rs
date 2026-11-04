@@ -5,9 +5,9 @@ use bevy_ecs::entity::Entity;
 use bevy_ecs::system::RunSystemOnce;
 use bevy_ecs::world::World;
 use mcrs_minecraft_dimension_environment::dimension_type::DimensionTypeFile;
+use mcrs_minecraft_engine::between_ticks::drain_dim_spawn_queue;
 use mcrs_minecraft_engine::bus::InboundPlayerSpawn;
-use mcrs_minecraft_engine::coordinator::sub_app_builder::drain_dim_spawn_queue;
-use mcrs_minecraft_engine::coordinator::world_plugin::enqueue_dim_spawns;
+use mcrs_minecraft_engine::coordinator::coordinator_plugin::enqueue_dim_spawns;
 use mcrs_minecraft_engine_world::session::PlayerSessionCounter;
 use mcrs_minecraft_engine_world::world::dimension::{
     DimensionTypeConfig, DimensionTypeId, HasSkyLight, HasWeather,

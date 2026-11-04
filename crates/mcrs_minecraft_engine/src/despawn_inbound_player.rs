@@ -1,5 +1,5 @@
 use crate::bus::{InboundPlayerDespawn, OutboundPlayerReleased};
-use crate::muxer::session::GameProfile;
+use crate::game_profile::GameProfile;
 use crate::persistence;
 use crate::publish_player_tiles::publish_leave_message;
 use crate::replicated::Replicated;

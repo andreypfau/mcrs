@@ -20,10 +20,10 @@ use mcrs_command::{Limits, SourceLists, Stage};
 use mcrs_minecraft_dimension::Dimension as DimensionKey;
 use mcrs_minecraft_dimension_environment::dimension_type::DimensionTypeFile;
 use mcrs_minecraft_engine::ability::PlayerGameMode;
-use mcrs_minecraft_engine::coordinator::dim;
+use mcrs_minecraft_engine::between_ticks;
 use mcrs_minecraft_engine::coordinator::dim_cells::DimCells;
 use mcrs_minecraft_engine::coordinator::dimension_order::{DimensionWorld, in_dimension_order};
-use mcrs_minecraft_engine::muxer::session::GameProfile;
+use mcrs_minecraft_engine::game_profile::GameProfile;
 use mcrs_minecraft_engine_world::entity::physics::Transform;
 use mcrs_minecraft_engine_world::entity::player::Player;
 use mcrs_minecraft_engine_world::session::{
@@ -126,7 +126,7 @@ pub fn run_pending_commands<S: CommandSet>(app: &mut App) {
     {
         return;
     }
-    dim::take_dim_outputs(host);
+    between_ticks::take_dim_outputs(host);
     host.try_resource_scope(|host, mut cells: Mut<DimCells>| {
         let worlds: Vec<&mut World> = cells.sub_apps_mut().map(SubApp::world_mut).collect();
         run_with_worlds::<S>(host, worlds);

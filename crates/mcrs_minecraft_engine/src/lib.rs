@@ -1,14 +1,7 @@
-use bevy_app::{App, FixedPostUpdate, FixedPreUpdate, Plugin, Update};
-use bevy_ecs::prelude::*;
-use mcrs_minecraft_engine_world::world::sub_app::{DimDespawnQueue, DimSpawnQueue};
+use bevy_app::{App, Plugin};
 
-use crate::coordinator::dim;
-use crate::coordinator::dim_cells;
-use crate::muxer::bridge;
-use crate::muxer::disconnect;
-use crate::muxer::game_packets;
-use crate::muxer::latency;
-use crate::muxer::online_count;
+use crate::coordinator::coordinator_plugin::CoordinatorPlugin;
+use crate::muxer::muxer_plugin::MuxerPlugin;
 
 pub mod ability;
 pub mod between_ticks;
@@ -31,6 +24,7 @@ pub mod dimension_generators;
 pub mod drain_player_despawn;
 pub mod enter_level_packets;
 pub mod game_mode;
+pub mod game_profile;
 pub mod heightmap;
 pub mod light_codec;
 pub mod minecraft_entity;
@@ -47,82 +41,15 @@ pub mod publish_player_tiles;
 pub mod replicated;
 pub mod teleport;
 pub mod tile_events;
+pub mod to_coordinator;
+pub mod to_muxer;
 pub mod world_seed;
 
+/// The host: the coordinator and the muxer, in one world.
 pub struct EnginePlugin;
 
 impl Plugin for EnginePlugin {
     fn build(&self, app: &mut App) {
-        app.init_resource::<DimSpawnQueue>();
-        app.init_resource::<DimDespawnQueue>();
-
-        // The bridge systems and the host side of the dimension channels read these messages
-        // with `resource_mut`, which panics on a message that was never added.
-        app.init_resource::<mcrs_minecraft_engine_world::session::PlayerSessionCounter>();
-        app.init_resource::<mcrs_minecraft_engine_world::session::SessionAnchors>();
-        app.add_plugins(dim_cells::DimCellsPlugin);
-        app.init_resource::<mcrs_minecraft_network::metrics::BridgeTelemetry>();
-        // The pre-game loop and the bridge share one dispatcher, whichever plugin builds first.
-        app.world_mut()
-            .get_resource_or_insert_with(
-                mcrs_minecraft_network::metrics::PacketDispatcher::serverbound,
-            )
-            .set_play(game_packets::GAME_SERVERBOUND);
-        app.add_message::<bus::OutboundPlayerPacket>();
-        app.add_message::<bus::InboundPlayerPacket>();
-        app.add_message::<bus::OutboundPlayerAttached>();
-        app.add_message::<bus::OutboundPlayerDisconnect>();
-        // The commands of `attach_outbound_queue` apply at the end of FixedPreUpdate, so every
-        // connection that `SpawnConnections` spawned carries an `OutboundQueue` by
-        // FixedPostUpdate.
-        app.add_systems(
-            FixedPreUpdate,
-            bridge::attach_outbound_queue
-                .after(mcrs_minecraft_network::NetworkSet::SpawnConnections),
-        );
-
-        // One chain: threads would only add the cost of handing its systems out, on a flush
-        // that runs after every drain.
-        app.init_resource::<bridge::PendingConnections>();
-        app.init_resource::<bridge::FlushScope>();
-        let mut flush = Schedule::new(bridge::OutboundFlush);
-        flush.set_executor(bevy_ecs::schedule::SingleThreadedExecutor::new());
-        app.add_schedule(flush);
-        app.add_systems(
-            bridge::OutboundFlush,
-            (
-                bridge::bridge_outbound,
-                bridge::dispatch_encode.run_if(bridge::flushes_every_connection),
-                bridge::dispatch_pending.run_if(bridge::flushes_pending_connections),
-            )
-                .chain(),
-        );
-        app.add_systems(
-            FixedPostUpdate,
-            (
-                bridge::run_outbound_flush.after(bevy_ecs::message::signal_message_update_system),
-                bridge::bridge_inbound,
-            )
-                .chain(),
-        );
-
-        app.add_systems(
-            Update,
-            (
-                bridge::bridge_inbound_to_channel,
-                bridge::bridge_player_attach,
-                bridge::forward_pending_inbound,
-                online_count::send_online_count,
-                latency::forward_latency,
-            )
-                .chain(),
-        );
-
-        app.add_observer(
-            |trigger: On<Remove, dim::DimSubAppHandle>, mut queue: ResMut<DimDespawnQueue>| {
-                queue.0.push(trigger.event().entity);
-            },
-        );
-        app.add_plugins(disconnect::DisconnectProtocolPlugin);
+        app.add_plugins((CoordinatorPlugin, MuxerPlugin));
     }
 }

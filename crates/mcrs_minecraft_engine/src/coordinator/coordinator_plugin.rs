@@ -4,16 +4,29 @@ use bevy_state::prelude::OnEnter;
 use mcrs_minecraft_assets::AppState;
 use mcrs_minecraft_engine_world::world::dimension_list::DimensionList;
 use mcrs_minecraft_engine_world::world::sub_app::{
-    DimSpawnEnqueue, DimSpawnQueue, DimSpawnRequest, DimensionPlugins,
+    DimDespawnQueue, DimSpawnEnqueue, DimSpawnQueue, DimSpawnRequest, DimensionPlugins,
 };
 use tracing::{debug, info, warn};
 
-pub struct WorldPlugin;
+use crate::coordinator::clock::WorldClockHostPlugin;
+use crate::coordinator::dim::DimSubAppHandle;
+use crate::coordinator::dim_cells::DimCellsPlugin;
 
-impl Plugin for WorldPlugin {
+/// The coordinator: the dimension worlds and their lockstep tick, the queues that spawn and
+/// despawn them, and the clocks.
+pub struct CoordinatorPlugin;
+
+impl Plugin for CoordinatorPlugin {
     fn build(&self, app: &mut App) {
-        app.add_plugins(crate::EnginePlugin);
-        app.add_plugins(crate::coordinator::clock::WorldClockHostPlugin);
+        app.init_resource::<DimSpawnQueue>();
+        app.init_resource::<DimDespawnQueue>();
+        app.add_plugins(DimCellsPlugin);
+        app.add_observer(
+            |trigger: On<Remove, DimSubAppHandle>, mut queue: ResMut<DimDespawnQueue>| {
+                queue.0.push(trigger.event().entity);
+            },
+        );
+        app.add_plugins(WorldClockHostPlugin);
         app.add_systems(
             OnEnter(AppState::Playing),
             enqueue_dim_spawns.in_set(DimSpawnEnqueue),

@@ -2,6 +2,7 @@ use bevy_app::SubApp;
 use bevy_ecs::change_detection::DetectChangesMut;
 use bevy_ecs::message::Messages;
 use bevy_ecs::resource::Resource;
+use bevy_ecs::schedule::{ScheduleLabel, SystemSet};
 use bevy_ecs::system::{Res, ResMut};
 use bevy_ecs::world::World;
 use mcrs_engine_cell::{SubAppWorld, Tick};
@@ -23,6 +24,25 @@ use crate::coordinator::ops::OpList;
 use crate::departure::{Departure, PlayerTransfer};
 use crate::player_dimension_change;
 use crate::tile_events::TileEvents;
+
+/// The host schedule that ticks the dimension worlds, right after `Last`: each world takes
+/// in what the host sent during the update.
+#[derive(ScheduleLabel, Debug, Clone, PartialEq, Eq, Hash)]
+pub struct TickDimensions;
+
+/// The two steps of [`TickDimensions`], in this order.
+#[derive(SystemSet, Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum TickDimensionsSet {
+    /// The muxer hands over the input it routed to each dimension during the update.
+    Route,
+    /// The coordinator ticks every dimension world with that input.
+    Tick,
+}
+
+/// The system set of the inbox drain, early in `FixedPreUpdate`: the messages of the input of a
+/// tick reach the dimension here. Systems that consume them run after this set.
+#[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
+pub struct DimInboxDrain;
 
 /// A dimension world as the host ticks it.
 pub type DimWorld = SubAppWorld<DimInput, DimOutput>;

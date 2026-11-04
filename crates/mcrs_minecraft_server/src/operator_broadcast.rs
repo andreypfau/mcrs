@@ -2,7 +2,7 @@ use bevy_ecs::prelude::{MessageWriter, On, Query, Res};
 use mcrs_minecraft_command_engine::{OperatorBroadcast, system_chat};
 use mcrs_minecraft_engine::bus::{OutboundPlayerPacket, PacketTarget, to_target};
 use mcrs_minecraft_engine::coordinator::ops::OpList;
-use mcrs_minecraft_engine::muxer::session::GameProfile;
+use mcrs_minecraft_engine::game_profile::GameProfile;
 use mcrs_minecraft_engine_world::session::{PlayerSession, Session};
 use mcrs_minecraft_text::RawText;
 use smallvec::SmallVec;

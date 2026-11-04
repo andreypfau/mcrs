@@ -4,9 +4,10 @@ use std::mem;
 use bevy_app::{App, Last, MainScheduleOrder, Plugin, SubApp};
 use bevy_ecs::change_detection::DetectChanges;
 use bevy_ecs::entity::Entity;
+use bevy_ecs::message::Messages;
 use bevy_ecs::resource::Resource;
-use bevy_ecs::schedule::ScheduleLabel;
-use bevy_ecs::world::{Mut, World};
+use bevy_ecs::schedule::IntoScheduleConfigs;
+use bevy_ecs::world::World;
 use bevy_platform::cell::SyncCell;
 use bevy_tasks::block_on;
 use mcrs_engine_cell::{CellId, Cells, Lent, Placement, Tick};
@@ -17,13 +18,10 @@ use mcrs_minecraft_environment::world_clock::WorldClocks;
 use crate::coordinator::clock::GameTime;
 use crate::coordinator::ops::OpList;
 use crate::dim_tick;
-use crate::dim_tick::{DimInput, DimOutput, DimWorld};
-use crate::muxer::dim_inputs::{DimInputs, PendingInput};
-
-/// The host schedule that ticks the dimension worlds, right after `Last`: each world takes
-/// in what the host sent during the update.
-#[derive(ScheduleLabel, Debug, Clone, PartialEq, Eq, Hash)]
-pub struct TickDimensions;
+use crate::dim_tick::{DimInput, DimOutput, DimWorld, TickDimensions, TickDimensionsSet};
+use crate::to_coordinator::RoutedInput;
+use crate::to_muxer::{DimClosed, DimDelivered, DimOpened};
+use rustc_hash::FxHashMap;
 
 /// Ticks the dimension worlds once in every host update, in lockstep.
 pub struct DimCellsPlugin;
@@ -31,11 +29,21 @@ pub struct DimCellsPlugin;
 impl Plugin for DimCellsPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<DimCells>();
-        app.init_resource::<DimInputs>();
+        app.add_message::<DimOpened>();
+        app.add_message::<DimClosed>();
+        app.add_message::<DimDelivered>();
+        app.add_message::<RoutedInput>();
         if let Some(mut order) = app.world_mut().get_resource_mut::<MainScheduleOrder>() {
             order.insert_after(Last, TickDimensions);
         }
-        app.add_systems(TickDimensions, tick_dimensions);
+        app.configure_sets(
+            TickDimensions,
+            (TickDimensionsSet::Route, TickDimensionsSet::Tick).chain(),
+        );
+        app.add_systems(
+            TickDimensions,
+            tick_dimensions.in_set(TickDimensionsSet::Tick),
+        );
     }
 }
 
@@ -207,14 +215,17 @@ impl Globals {
         }
     }
 
-    fn input(&self, pending: PendingInput) -> DimInput {
+    fn input(&self, routed: Option<RoutedInput>) -> DimInput {
+        let (control, serverbound) = routed.map_or_else(Default::default, |routed| {
+            (routed.control, routed.serverbound)
+        });
         DimInput {
             game_time: self.game_time,
             clocks: self.clocks.clone(),
             ops: self.ops.clone(),
             registries: self.registries.clone(),
-            control: pending.control,
-            serverbound: pending.serverbound,
+            control,
+            serverbound,
         }
     }
 }
@@ -225,15 +236,20 @@ fn changed<R: Resource + Clone>(host: &World) -> Option<R> {
         .map(|resource| R::clone(&*resource))
 }
 
-/// Ticks every dimension world once with what the host sent during the update, and keeps the
-/// outputs for the host to take between ticks.
+/// Ticks every dimension world once with the copies of the host resources and the input that
+/// the muxer routed during the update, and keeps the outputs for the host to take between ticks.
 pub fn tick_dimensions(world: &mut World) {
     let globals = Globals::read(world);
-    world.try_resource_scope(|host, mut cells: Mut<DimCells>| {
-        let Some(mut inputs) = host.get_resource_mut::<DimInputs>() else {
-            cells.tick(|_| globals.input(PendingInput::default()));
-            return;
-        };
-        cells.tick(|label| globals.input(inputs.take(label)));
-    });
+    let mut routed: FxHashMap<Entity, RoutedInput> = world
+        .get_resource_mut::<Messages<RoutedInput>>()
+        .map(|mut messages| {
+            messages
+                .drain()
+                .map(|routed| (routed.dim, routed))
+                .collect()
+        })
+        .unwrap_or_default();
+    if let Some(mut cells) = world.get_resource_mut::<DimCells>() {
+        cells.tick(|label| globals.input(routed.remove(&label)));
+    }
 }

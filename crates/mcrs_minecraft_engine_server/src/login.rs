@@ -16,10 +16,9 @@ use mcrs_minecraft_protocol::packets::login::serverbound::{
 use mcrs_minecraft_protocol::{CompressionThreshold, uuid};
 use mcrs_minecraft_text::Text;
 
+use mcrs_minecraft_engine::game_profile::GameProfile;
 use mcrs_minecraft_engine::muxer::disconnect::Departing;
-use mcrs_minecraft_engine::muxer::session::{
-    GameProfile, HostAnchorRef, SessionBundle, SessionConnection,
-};
+use mcrs_minecraft_engine::muxer::session::{HostAnchorRef, SessionBundle, SessionConnection};
 use mcrs_minecraft_engine_world::session::{
     Place, PlayerSessionCounter, Session, SessionPlacement,
 };
@@ -60,8 +59,7 @@ impl bevy_app::Plugin for LoginPlugin {
             (end_slow_logins, finish_awaiting_logins)
                 .chain()
                 .after(mcrs_minecraft_network::event::run_event_loop)
-                .before(crate::configuration::emit_initial_player_spawn)
-                .before(crate::shutdown::shutdown_system)
+                .before(crate::configuration::request_initial_player_spawn)
                 .run_if(any_with_component::<LoginStarted>),
         );
     }

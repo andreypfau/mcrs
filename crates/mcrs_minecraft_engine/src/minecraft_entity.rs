@@ -22,7 +22,7 @@ impl Plugin for MinecraftEntityPlugin {
         app.add_plugins(DimPlayerPlugin);
         app.add_systems(
             FixedPreUpdate,
-            dispatch_inbound_to_dim.after(crate::coordinator::sub_app_builder::DimInboxDrain),
+            dispatch_inbound_to_dim.after(crate::dim_tick::DimInboxDrain),
         );
     }
 }

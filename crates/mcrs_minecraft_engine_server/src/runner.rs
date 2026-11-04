@@ -1,7 +1,7 @@
 use bevy_app::{App, AppExit};
-use mcrs_minecraft_engine::between_ticks::run_between_ticks;
-use mcrs_minecraft_engine::coordinator::dim::{drain_dim_despawn_queue, take_dim_outputs};
-use mcrs_minecraft_engine::coordinator::sub_app_builder::drain_dim_spawn_queue;
+use mcrs_minecraft_engine::between_ticks::{
+    drain_dim_despawn_queue, drain_dim_spawn_queue, run_between_ticks, take_dim_outputs,
+};
 use mcrs_minecraft_engine::muxer::bridge::run_pending_flush;
 use mcrs_minecraft_engine::muxer::entity_replication::{self, Answers};
 use mcrs_minecraft_engine::muxer::tick_wake::TickWake;

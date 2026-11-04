@@ -10,14 +10,14 @@ use bevy_state::app::{AppExtStates, StatesPlugin};
 use bevy_state::prelude::NextState;
 use bevy_time::{Fixed, Time, TimePlugin};
 use mcrs_minecraft_assets::AppState;
+use mcrs_minecraft_engine::between_ticks::drain_dim_spawn_queue;
+use mcrs_minecraft_engine::between_ticks::take_dim_outputs;
 use mcrs_minecraft_engine::bus::{
     InboundPlayerDespawn, InboundPlayerPacket, InboundPlayerSpawn, OutboundPlayerAttached,
     OutboundPlayerDisconnect, OutboundPlayerPacket, PacketPayload, PacketTarget,
     PlayerTransferSnapshot,
 };
 use mcrs_minecraft_engine::coordinator::dim::DimSubAppHandle;
-use mcrs_minecraft_engine::coordinator::dim::take_dim_outputs;
-use mcrs_minecraft_engine::coordinator::sub_app_builder::drain_dim_spawn_queue;
 use mcrs_minecraft_engine::muxer::session::SessionBundle;
 use mcrs_minecraft_engine_world::session::{Place, PlayerSessionCounter, SessionPlacement};
 use mcrs_minecraft_engine_world::world::sub_app::{
@@ -47,6 +47,7 @@ fn build_host_app() -> App {
 
     app.init_resource::<PlayerSessionCounter>();
     app.add_plugins(mcrs_minecraft_engine::coordinator::dim_cells::DimCellsPlugin);
+    app.add_plugins(mcrs_minecraft_engine::muxer::dim_inputs::DimInputsPlugin);
     app.add_message::<OutboundPlayerPacket>();
     app.add_message::<InboundPlayerPacket>();
     app.add_message::<InboundPlayerSpawn>();
