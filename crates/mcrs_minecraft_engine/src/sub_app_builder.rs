@@ -19,8 +19,7 @@ use crate::channel_types::{FromDim, ToDim};
 use crate::dim::DimSubAppHandle;
 use mcrs_minecraft_engine_world::block_update::{BlockPlaced, BlockSetRequest};
 use mcrs_minecraft_engine_world::world::channels::{
-    DimChannels, FROM_DIM_CAPACITY, FromDimSender, TO_DIM_CAPACITY, TO_DIM_CONTROL_CAPACITY,
-    ToDimReceiver,
+    DimChannels, FROM_DIM_CAPACITY, FromDimSender, TO_DIM_CAPACITY, ToDimReceiver,
 };
 
 /// System set for inbox drain systems, run early in `FixedPreUpdate`.
@@ -161,7 +160,7 @@ pub fn spawn_dim_subapp(
         .id();
 
     let (to_dim_srv_tx, to_dim_srv_rx) = flume::bounded::<ToDim>(TO_DIM_CAPACITY);
-    let (to_dim_ctl_tx, to_dim_ctl_rx) = flume::bounded::<ToDim>(TO_DIM_CONTROL_CAPACITY);
+    let (to_dim_ctl_tx, to_dim_ctl_rx) = flume::unbounded::<ToDim>();
     let (from_dim_tx, from_dim_rx) = flume::bounded::<FromDim>(FROM_DIM_CAPACITY);
 
     app.world_mut()

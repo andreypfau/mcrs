@@ -13,8 +13,7 @@ use mcrs_minecraft_engine_world::session::{
     Place, PlayerSession, PlayerSessionCounter, SessionAnchors, SessionPlacement,
 };
 use mcrs_minecraft_engine_world::world::channels::{
-    FROM_DIM_CAPACITY, MAX_HELD_SERVERBOUND, TO_DIM_CAPACITY, TO_DIM_CONTROL_CAPACITY,
-};
+    FROM_DIM_CAPACITY, MAX_HELD_SERVERBOUND, TO_DIM_CAPACITY, };
 use mcrs_minecraft_network::ServerSideConnection;
 
 fn build_world() -> World {
@@ -35,7 +34,7 @@ fn make_channels(
     flume::Sender<FromDim>,
 ) {
     let (srv_tx, srv_rx) = flume::bounded::<ToDim>(TO_DIM_CAPACITY);
-    let (ctl_tx, ctl_rx) = flume::bounded::<ToDim>(TO_DIM_CONTROL_CAPACITY);
+    let (ctl_tx, ctl_rx) = flume::unbounded::<ToDim>();
     let (from_tx, from_rx) = flume::bounded::<FromDim>(FROM_DIM_CAPACITY);
     world
         .resource_mut::<DimChannelsResource>()

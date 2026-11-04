@@ -146,12 +146,6 @@ pub(crate) struct GeneratorLink {
     pub(crate) inbox: GeneratorInbox,
 }
 
-impl Default for GeneratorLink {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 impl GeneratorLink {
     pub(crate) fn new() -> Self {
         let (request_sender, request_receiver) = flume::unbounded();

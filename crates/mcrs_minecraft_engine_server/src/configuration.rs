@@ -2,7 +2,7 @@ use crate::login::{SessionsById, disconnect, duplicate_login_reason};
 use bevy_app::{App, Plugin, Update};
 use bevy_ecs::component::Component;
 use bevy_ecs::prelude::{
-    Changed, Commands, Entity, On, Query, ResMut, Resource, With, Without, resource_exists,
+    Changed, Commands, Entity, On, Query, Resource, With, Without, resource_exists,
 };
 use bevy_ecs::schedule::{IntoScheduleConfigs, ScheduleConfigs};
 use bevy_ecs::system::Res;
@@ -262,7 +262,7 @@ pub fn emit_initial_player_spawn(
         (Entity, &ResourceKeyBuf<mcrs_minecraft_dimension::Dimension>),
         With<DimSubAppHandle>,
     >,
-    mut dim_channels: ResMut<DimChannelsResource>,
+    dim_channels: Res<DimChannelsResource>,
     dimension_list: Res<DimensionList>,
     save: Option<Res<WorldSave>>,
 ) {

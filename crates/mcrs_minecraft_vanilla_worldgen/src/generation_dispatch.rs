@@ -48,18 +48,6 @@ fn owed(store: &StagingStore, v: ColumnPos, rungs: usize) -> Option<Owed> {
     store.neighbourhood_reached(v, stage).then_some(owed)
 }
 
-/// The stages one dispatch pass may still hand to the pool.
-struct Budget {
-    left: usize,
-    dispatched: usize,
-}
-
-impl Budget {
-    fn is_spent(&self) -> bool {
-        self.dispatched >= self.left
-    }
-}
-
 /// Whether a dispatch pass may go on.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Pass {
@@ -89,21 +77,19 @@ impl GenerationActor {
             tracing::error!("column generation runs before its task pool is built");
             return;
         };
-        let mut budget = Budget {
-            left: self
-                .config
-                .max_in_flight
-                .saturating_sub(self.in_flight.len())
-                .min(self.config.max_dispatch_per_pass),
-            dispatched: 0,
-        };
+        let budget = self
+            .config
+            .max_in_flight
+            .saturating_sub(self.in_flight.len())
+            .min(self.config.max_dispatch_per_pass);
+        let mut remaining = budget;
         let mut dispatcher = Dispatcher { pool, ctx: &ctx };
-        if dispatcher.continue_ladders(self, &mut budget) == Pass::Going {
-            dispatcher.walk_fresh(self, &mut budget);
+        if dispatcher.continue_ladders(self, &mut remaining) == Pass::Going {
+            dispatcher.walk_fresh(self, &mut remaining);
         }
-        if budget.dispatched > 0 {
+        if remaining < budget {
             trace!(
-                dispatched = budget.dispatched,
+                dispatched = budget - remaining,
                 staged = self.store.len(),
                 in_flight = self.in_flight.len(),
                 "dispatched column stages"
@@ -143,7 +129,7 @@ impl Dispatcher<'_> {
     /// Dispatches what the columns whose stage changed, or was cancelled, made owed. What
     /// the budget does not cover waits for the next pass, which the next finished stage
     /// starts.
-    fn continue_ladders(&mut self, actor: &mut GenerationActor, budget: &mut Budget) -> Pass {
+    fn continue_ladders(&mut self, actor: &mut GenerationActor, remaining: &mut usize) -> Pass {
         let mut worklist = std::mem::take(&mut actor.forgotten);
         let fills = worklist.len();
         worklist.append(&mut actor.touched);
@@ -162,7 +148,7 @@ impl Dispatcher<'_> {
             if !actor.wanted_within(v, owed.reach(rungs), done) {
                 continue;
             }
-            if budget.is_spent() {
+            if *remaining == 0 {
                 // `v` and everything after it waits for the next pass.
                 let rest = at - 1;
                 let split = fills.max(rest);
@@ -174,7 +160,7 @@ impl Dispatcher<'_> {
                     .extend_from_slice(worklist.get(split..).unwrap_or_default());
                 return Pass::Spent;
             }
-            self.dispatch(actor, budget, v, owed);
+            self.dispatch(actor, remaining, v, owed);
             // A merge that advanced on the spot left its 3×3 owing something new already.
             worklist.append(&mut actor.touched);
         }
@@ -182,9 +168,9 @@ impl Dispatcher<'_> {
     }
 
     /// Walks the shells of the wanted columns nobody has walked yet, nearest first.
-    fn walk_fresh(&mut self, actor: &mut GenerationActor, budget: &mut Budget) {
+    fn walk_fresh(&mut self, actor: &mut GenerationActor, remaining: &mut usize) {
         while let Some(&key) = actor.fresh.first() {
-            if self.walk_shell(actor, budget, key.chunk_column_pos) == Pass::Spent {
+            if self.walk_shell(actor, remaining, key.chunk_column_pos) == Pass::Spent {
                 return;
             }
             actor.fresh.remove(&key);
@@ -195,7 +181,7 @@ impl Dispatcher<'_> {
     fn walk_shell(
         &mut self,
         actor: &mut GenerationActor,
-        budget: &mut Budget,
+        remaining: &mut usize,
         u: ColumnPos,
     ) -> Pass {
         let rungs = self.ctx.rungs();
@@ -215,10 +201,10 @@ impl Dispatcher<'_> {
             if v.chebyshev_distance(u) > owed.reach(rungs) {
                 continue;
             }
-            if budget.is_spent() {
+            if *remaining == 0 {
                 return Pass::Spent;
             }
-            self.dispatch(actor, budget, v, owed);
+            self.dispatch(actor, remaining, v, owed);
         }
         Pass::Going
     }
@@ -226,7 +212,7 @@ impl Dispatcher<'_> {
     fn dispatch(
         &mut self,
         actor: &mut GenerationActor,
-        budget: &mut Budget,
+        remaining: &mut usize,
         v: ColumnPos,
         owed: Owed,
     ) {
@@ -284,6 +270,6 @@ impl Dispatcher<'_> {
                 });
             }
         }
-        budget.dispatched = budget.dispatched.saturating_add(1);
+        *remaining = remaining.saturating_sub(1);
     }
 }

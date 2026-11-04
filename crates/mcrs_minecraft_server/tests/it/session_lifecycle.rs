@@ -111,12 +111,11 @@ fn connection_removal_despawns_the_session_and_routes_despawn_via_lifecycle() {
     let ctl_rx = {
         use mcrs_minecraft_engine::channel_types::FromDim;
         use mcrs_minecraft_engine_world::world::channels::{
-            FROM_DIM_CAPACITY, TO_DIM_CAPACITY, TO_DIM_CONTROL_CAPACITY,
-        };
+            FROM_DIM_CAPACITY, TO_DIM_CAPACITY, };
         let (srv_tx, _srv_rx) =
             flume::bounded::<mcrs_minecraft_engine::channel_types::ToDim>(TO_DIM_CAPACITY);
         let (ctl_tx, ctl_rx) =
-            flume::bounded::<mcrs_minecraft_engine::channel_types::ToDim>(TO_DIM_CONTROL_CAPACITY);
+            flume::unbounded::<mcrs_minecraft_engine::channel_types::ToDim>();
         let (_from_tx, from_rx) = flume::bounded::<FromDim>(FROM_DIM_CAPACITY);
         app.world_mut()
             .resource_mut::<DimChannelsResource>()

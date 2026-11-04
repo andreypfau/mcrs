@@ -77,58 +77,16 @@ struct SectionBox {
 }
 
 impl SectionBox {
-    fn is_empty(self) -> bool {
-        self.min.x > self.max.x || self.min.y > self.max.y || self.min.z > self.max.z
+    fn contains(self, pos: SectionPos) -> bool {
+        (self.min.x..=self.max.x).contains(&pos.x)
+            && (self.min.y..=self.max.y).contains(&pos.y)
+            && (self.min.z..=self.max.z).contains(&pos.z)
     }
 
-    fn overlaps(self, other: Self) -> bool {
-        !self.is_empty()
-            && !other.is_empty()
-            && self.min.x <= other.max.x
-            && other.min.x <= self.max.x
-            && self.min.y <= other.max.y
-            && other.min.y <= self.max.y
-            && self.min.z <= other.max.z
-            && other.min.z <= self.max.z
-    }
-
-    /// The sections of this box outside `other`, as up to six boxes that do not overlap.
-    fn minus(self, other: Option<Self>) -> [Option<Self>; 6] {
-        let mut parts = [None; 6];
-        let Some(other) = other.filter(|other| self.overlaps(*other)) else {
-            parts[0] = Some(self);
-            return parts;
-        };
-        let mut rest = self;
-        if rest.min.x < other.min.x {
-            let max = SectionPos::new(other.min.x - 1, rest.max.y, rest.max.z);
-            parts[0] = Some(Self { min: rest.min, max });
-            rest.min.x = other.min.x;
-        }
-        if rest.max.x > other.max.x {
-            let min = SectionPos::new(other.max.x + 1, rest.min.y, rest.min.z);
-            parts[1] = Some(Self { min, max: rest.max });
-            rest.max.x = other.max.x;
-        }
-        if rest.min.y < other.min.y {
-            let max = SectionPos::new(rest.max.x, other.min.y - 1, rest.max.z);
-            parts[2] = Some(Self { min: rest.min, max });
-            rest.min.y = other.min.y;
-        }
-        if rest.max.y > other.max.y {
-            let min = SectionPos::new(rest.min.x, other.max.y + 1, rest.min.z);
-            parts[3] = Some(Self { min, max: rest.max });
-            rest.max.y = other.max.y;
-        }
-        if rest.min.z < other.min.z {
-            let max = SectionPos::new(rest.max.x, rest.max.y, other.min.z - 1);
-            parts[4] = Some(Self { min: rest.min, max });
-        }
-        if rest.max.z > other.max.z {
-            let min = SectionPos::new(rest.min.x, rest.min.y, other.max.z + 1);
-            parts[5] = Some(Self { min, max: rest.max });
-        }
-        parts
+    /// The sections of this box outside `other`.
+    fn outside(self, other: Option<Self>) -> impl Iterator<Item = SectionPos> {
+        self.sections()
+            .filter(move |&pos| !other.is_some_and(|other| other.contains(pos)))
     }
 
     fn sections(self) -> impl Iterator<Item = SectionPos> {
@@ -228,20 +186,10 @@ fn shift_coverage(
         return;
     }
     if let Some(old) = old {
-        let left = old
-            .minus(new)
-            .into_iter()
-            .flatten()
-            .flat_map(SectionBox::sections);
-        coverage.lower(left, |pos| changed(pos, Change::Stopped));
+        coverage.lower(old.outside(new), |pos| changed(pos, Change::Stopped));
     }
     if let Some(new) = new {
-        let entered = new
-            .minus(old)
-            .into_iter()
-            .flatten()
-            .flat_map(SectionBox::sections);
-        coverage.raise(entered, |pos| changed(pos, Change::Started));
+        coverage.raise(new.outside(old), |pos| changed(pos, Change::Started));
     }
 }
 

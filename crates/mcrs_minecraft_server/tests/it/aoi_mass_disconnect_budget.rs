@@ -18,8 +18,7 @@ use mcrs_minecraft_engine_world::session::{
     Place, PlayerSessionCounter, Session, SessionPlacement,
 };
 use mcrs_minecraft_engine_world::world::channels::{
-    FROM_DIM_CAPACITY, TO_DIM_CAPACITY, TO_DIM_CONTROL_CAPACITY,
-};
+    FROM_DIM_CAPACITY, TO_DIM_CAPACITY, };
 
 fn build_app() -> App {
     let mut app = App::new();
@@ -34,7 +33,7 @@ fn build_app() -> App {
 
 fn register_dim_channel(app: &mut App, dim: Entity) -> flume::Receiver<ToDim> {
     let (srv_tx, _srv_rx) = flume::bounded::<ToDim>(TO_DIM_CAPACITY);
-    let (ctl_tx, ctl_rx) = flume::bounded::<ToDim>(TO_DIM_CONTROL_CAPACITY);
+    let (ctl_tx, ctl_rx) = flume::unbounded::<ToDim>();
     let (_from_tx, from_rx) = flume::bounded::<FromDim>(FROM_DIM_CAPACITY);
     app.world_mut()
         .resource_mut::<DimChannelsResource>()

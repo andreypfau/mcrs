@@ -15,8 +15,7 @@ use mcrs_minecraft_engine_server::login::{LoginPlugin, LoginState, SingleplayerP
 use mcrs_minecraft_engine_server::{ShutdownPlugin, ShutdownRequest};
 use mcrs_minecraft_engine_world::session::{Place, Session, SessionPlacement};
 use mcrs_minecraft_engine_world::world::channels::{
-    FROM_DIM_CAPACITY, TO_DIM_CAPACITY, TO_DIM_CONTROL_CAPACITY,
-};
+    FROM_DIM_CAPACITY, TO_DIM_CAPACITY, };
 use mcrs_minecraft_network::OutboundReceiver;
 use mcrs_minecraft_network::event::run_event_loop;
 use mcrs_minecraft_network::metrics::PacketDispatcher;
@@ -160,7 +159,7 @@ fn send<P: Encode + Packet>(app: &mut App, client: &Client, packet: &P) {
 fn dimension(app: &mut App) -> (Entity, flume::Receiver<ToDim>, flume::Sender<FromDim>) {
     let dim = app.world_mut().spawn_empty().id();
     let (serverbound, _) = flume::bounded(TO_DIM_CAPACITY);
-    let (control, to_dim) = flume::bounded(TO_DIM_CONTROL_CAPACITY);
+    let (control, to_dim) = flume::unbounded();
     let (from_dim, received) = flume::bounded(FROM_DIM_CAPACITY);
     app.world_mut()
         .resource_mut::<DimChannelsResource>()

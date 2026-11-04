@@ -1,6 +1,5 @@
 use bevy_ecs::prelude::{Entity, Resource};
 use rustc_hash::FxHashMap;
-use std::collections::VecDeque;
 
 /// Non-blocking send capacity for the `Serverbound` channel, which every player of a dimension
 /// shares. The host fills it for a whole tick before the dimension drains it, so it bounds the
@@ -14,10 +13,6 @@ pub const TO_DIM_CAPACITY: usize = 4096;
 /// costs each player only its own backlog, never another player's.
 pub const MAX_HELD_SERVERBOUND: usize = 256;
 
-/// Capacity of the non-sheddable control channel (`Spawn`/`Despawn`/`Attach`).
-/// A message that finds the channel full waits in the host's control backlog.
-pub const TO_DIM_CONTROL_CAPACITY: usize = 32;
-
 /// Outbound (dim→host) capacity. Sized to hold ~1 second of peak outbound
 /// traffic before the dim's own outbox self-throttles it via backpressure.
 pub const FROM_DIM_CAPACITY: usize = 512;
@@ -26,26 +21,6 @@ pub struct DimChannelEntry<In, Out> {
     pub serverbound_sender: flume::Sender<In>,
     pub control_sender: flume::Sender<In>,
     pub from_dim_receiver: flume::Receiver<Out>,
-    control_backlog: VecDeque<In>,
-}
-
-impl<In, Out> DimChannelEntry<In, Out> {
-    /// Hands the held control messages to the channel, oldest first, until it is full.
-    fn flush_control_backlog(&mut self) {
-        while let Some(msg) = self.control_backlog.pop_front() {
-            match self.control_sender.try_send(msg) {
-                Ok(()) => {}
-                Err(flume::TrySendError::Full(msg)) => {
-                    self.control_backlog.push_front(msg);
-                    return;
-                }
-                Err(flume::TrySendError::Disconnected(_)) => {
-                    self.control_backlog.clear();
-                    return;
-                }
-            }
-        }
-    }
 }
 
 #[derive(Resource)]
@@ -87,7 +62,6 @@ where
                 serverbound_sender,
                 control_sender,
                 from_dim_receiver,
-                control_backlog: VecDeque::new(),
             },
         );
     }
@@ -100,32 +74,12 @@ where
         self.map.remove(&key)
     }
 
-    /// Sends a lifecycle message to the dimension `key`. A full control channel never loses
-    /// the message: the host holds it, after every message held before it, until
-    /// [`Self::flush_control_backlogs`] finds room. Returns `false` when the dimension is gone.
-    pub fn send_control(&mut self, key: Entity, msg: In) -> bool {
-        let Some(entry) = self.map.get_mut(&key) else {
-            return false;
-        };
-        if !entry.control_backlog.is_empty() {
-            entry.control_backlog.push_back(msg);
-            return true;
-        }
-        match entry.control_sender.try_send(msg) {
-            Ok(()) => true,
-            Err(flume::TrySendError::Full(msg)) => {
-                entry.control_backlog.push_back(msg);
-                true
-            }
-            Err(flume::TrySendError::Disconnected(_)) => false,
-        }
-    }
-
-    /// Hands every dimension's held control messages to its channel, as far as it has room.
-    pub fn flush_control_backlogs(&mut self) {
-        for entry in self.map.values_mut() {
-            entry.flush_control_backlog();
-        }
+    /// Sends a lifecycle message to the dimension `key`. The control channel is unbounded,
+    /// so a burst of joins never loses one. Returns `false` when the dimension is gone.
+    pub fn send_control(&self, key: Entity, msg: In) -> bool {
+        self.map
+            .get(&key)
+            .is_some_and(|entry| entry.control_sender.send(msg).is_ok())
     }
 
     pub fn iter(&self) -> impl Iterator<Item = (&Entity, &DimChannelEntry<In, Out>)> {

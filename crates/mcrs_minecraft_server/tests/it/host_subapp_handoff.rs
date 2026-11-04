@@ -111,12 +111,11 @@ fn live_dimension(
 ) -> (Entity, flume::Receiver<ToDim>) {
     use mcrs_minecraft_engine::channel_types::FromDim;
     use mcrs_minecraft_engine_world::world::channels::{
-        FROM_DIM_CAPACITY, TO_DIM_CAPACITY, TO_DIM_CONTROL_CAPACITY,
-    };
+        FROM_DIM_CAPACITY, TO_DIM_CAPACITY, };
 
     let label = app.world_mut().spawn((DimSubAppHandle, key)).id();
     let (srv_tx, _srv_rx) = flume::bounded::<ToDim>(TO_DIM_CAPACITY);
-    let (ctl_tx, ctl_rx) = flume::bounded::<ToDim>(TO_DIM_CONTROL_CAPACITY);
+    let (ctl_tx, ctl_rx) = flume::unbounded::<ToDim>();
     let (_from_tx, from_rx) = flume::bounded::<FromDim>(FROM_DIM_CAPACITY);
     app.world_mut()
         .resource_mut::<DimChannelsResource>()
@@ -707,13 +706,10 @@ fn a_swapped_set_reaches_every_dimension_on_the_next_tick_and_an_idle_tick_repla
 
 #[test]
 fn more_players_than_the_control_channel_holds_enter_the_game_in_one_tick_and_all_spawn() {
-    use mcrs_minecraft_engine::dim::flush_control_backlogs;
     use mcrs_minecraft_engine_world::entity::player::Player;
-    use mcrs_minecraft_engine_world::world::channels::TO_DIM_CONTROL_CAPACITY;
     use mcrs_minecraft_engine_world::world::sub_app::{DimAppLabel, DimDespawnQueue};
 
     let mut app = build_host_app();
-    app.add_systems(bevy_app::First, flush_control_backlogs);
     crate::host_app::drive_to_playing(&mut app);
     crate::host_app::materialise_sub_apps(
         &mut app,
@@ -721,7 +717,7 @@ fn more_players_than_the_control_channel_holds_enter_the_game_in_one_tick_and_al
     );
     let dim_label = crate::host_app::label_of(&app, "minecraft:overworld");
 
-    let players = TO_DIM_CONTROL_CAPACITY + 1;
+    let players = 64;
     let connections: Vec<Entity> = (0..players)
         .map(|_| spawn_accepted_connection(&mut app).0)
         .collect();
