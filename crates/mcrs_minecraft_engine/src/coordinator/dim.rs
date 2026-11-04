@@ -55,6 +55,9 @@ pub(crate) fn take_dim_outputs(world: &mut World) {
             departures,
             orders: output.orders,
             handoffs: output.handoffs,
+            views: output.views,
+            column_versions: output.column_versions,
+            column_changes: output.column_changes,
         });
     }
 }

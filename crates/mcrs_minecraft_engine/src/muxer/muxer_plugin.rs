@@ -9,6 +9,7 @@ use crate::bus::{
     InboundPlayerPacket, OutboundPlayerAttached, OutboundPlayerDisconnect, OutboundPlayerPacket,
 };
 use crate::muxer::bridge;
+use crate::muxer::column_views::{self, ColumnViews};
 use crate::muxer::dim_inputs::DimInputsPlugin;
 use crate::muxer::disconnect::DisconnectProtocolPlugin;
 use crate::muxer::game_packets;
@@ -24,6 +25,8 @@ impl Plugin for MuxerPlugin {
         app.init_resource::<PlayerSessionCounter>();
         app.init_resource::<SessionAnchors>();
         app.init_resource::<BridgeTelemetry>();
+        app.init_resource::<ColumnViews>();
+        app.add_observer(column_views::acknowledge_batch);
         // The pre-game loop and the bridge share one dispatcher, whichever plugin builds first.
         app.world_mut()
             .get_resource_or_insert_with(PacketDispatcher::serverbound)

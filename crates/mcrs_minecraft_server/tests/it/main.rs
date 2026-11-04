@@ -15,13 +15,9 @@
 // Every file here is one module of a single test binary; a top-level
 // file under tests/ would be a separate crate and a separate link.
 mod anvil_block_states;
-mod aoi_block_update_per_dim;
 mod aoi_drain_disconnect_filters_inflight;
 mod aoi_mass_disconnect_budget;
 mod aoi_on_player_disconnect_cleanup;
-mod aoi_per_dim_isolation;
-mod aoi_player_despawn_evicts_observers;
-mod aoi_shared_columns;
 mod aoi_tnt_cascade_restored;
 mod block_entities;
 mod block_loot_addressing;
@@ -46,7 +42,6 @@ mod disconnect_support;
 mod entity_ids;
 mod entity_replication;
 mod epoch_round_trip;
-mod harness;
 mod host_app;
 mod host_subapp_handoff;
 mod light_engine_e2e;

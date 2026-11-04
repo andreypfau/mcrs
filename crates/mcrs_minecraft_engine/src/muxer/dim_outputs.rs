@@ -7,6 +7,7 @@ use mcrs_minecraft_engine_world::session::{
 
 use crate::bus::{OutboundPlayerAttached, OutboundPlayerPacket, PacketTarget};
 use crate::channel_types::ToDim;
+use crate::muxer::column_views;
 use crate::muxer::departure_routing;
 use crate::muxer::dim_inputs::DimInputs;
 use crate::muxer::disconnect::Departing;
@@ -36,8 +37,13 @@ pub(crate) fn receive(world: &mut World) {
         departures,
         orders: ordered,
         handoffs: handed_off,
+        views,
+        column_versions,
+        column_changes,
     } in delivered
     {
+        // Before the departures: a view that the dimension closed sends nothing after a respawn.
+        column_views::receive(world, dim, views, column_versions, column_changes);
         orders.extend(ordered);
         handoffs.extend(handed_off);
         for packet in packets {
@@ -70,6 +76,7 @@ pub(crate) fn receive(world: &mut World) {
             tracing::error!(dim = ?to, "a command run goes on in a dimension that takes no input");
         }
     }
+    column_views::send(world);
     entity_replication::deliver(world, Answers::Ready);
 }
 

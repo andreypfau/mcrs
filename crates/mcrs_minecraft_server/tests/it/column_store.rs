@@ -11,7 +11,7 @@ use bevy_ecs::prelude::With;
 use bevy_ecs::world::World;
 use bevy_math::DVec3;
 use mcrs_minecraft_block::definition::Blocks;
-use mcrs_minecraft_engine::column_view::ColumnView;
+use mcrs_minecraft_engine::muxer::column_views::ColumnViews;
 use mcrs_minecraft_engine_server::runner;
 use mcrs_minecraft_engine_world::block_update::BlockSetRequest;
 use mcrs_minecraft_engine_world::entity::physics::Transform;
@@ -60,6 +60,42 @@ fn tick_until(app: &mut App, label: Entity, what: &str, done: impl Fn(&mut World
     }
 }
 
+/// Ticks until the muxer has sent the client of `session` what `sent` asks for. Nothing answers
+/// the batches, so the test takes each one as the client would. `check` sees the dimension
+/// after each tick.
+fn tick_until_sent(
+    app: &mut App,
+    label: Entity,
+    session: PlayerSession,
+    what: &str,
+    sent: impl Fn(&ColumnViews) -> bool,
+    check: impl Fn(&mut World),
+) {
+    let deadline = Instant::now() + PATIENCE;
+    loop {
+        check(dimension_world(app, label));
+        let mut views = app.world_mut().resource_mut::<ColumnViews>();
+        views.acknowledge_batch(session, 64.0);
+        if sent(&views) {
+            return;
+        }
+        assert!(Instant::now() < deadline, "{what} never happened");
+        app.update();
+        runner::between_ticks(app);
+        runner::drain(app);
+    }
+}
+
+/// Whether the client of `session` holds every column of the view that the muxer serves it.
+fn holds_whole_view(views: &ColumnViews, session: PlayerSession) -> bool {
+    let Some(view) = views.view(session) else {
+        return false;
+    };
+    let mut whole = true;
+    view.each_column(|column| whole &= views.holds(session, column));
+    whole
+}
+
 fn dimension_entity(world: &mut World) -> Entity {
     world
         .query_filtered::<Entity, With<ColumnIndex>>()
@@ -103,6 +139,7 @@ fn a_change_survives_the_column_going_cold_and_coming_back() {
         .default_state_id;
     let world = dimension_world(&mut app, label);
     let dimension = dimension_entity(world);
+    let session = PlayerSession(1);
     let player = world
         .spawn((
             Player,
@@ -111,22 +148,22 @@ fn a_change_survives_the_column_going_cold_and_coming_back() {
                 distance: 2,
                 ..PlayerViewDistance::default()
             },
-            ColumnView::default(),
+            SentChunkView::default(),
             InDimension(dimension),
-            Owner(PlayerSession(1)),
+            Owner(session),
         ))
         .id();
     let pos = BlockPos::new(8, 250, 8);
     let column = ColumnPos::new(0, 0);
 
-    // Nothing answers the batches, so the test takes each one as the client would.
-    tick_until(&mut app, label, "the column was sent", |world| {
-        let Some(mut view) = world.get_mut::<ColumnView>(player) else {
-            return false;
-        };
-        view.acknowledge_batch(64.0);
-        view.holds(column)
-    });
+    tick_until_sent(
+        &mut app,
+        label,
+        session,
+        "the column was sent",
+        |views| views.holds(session, column),
+        |_| {},
+    );
     let world = dimension_world(&mut app, label);
     assert_ne!(block_at(world, dimension, pos), Some(glowstone));
     world
@@ -178,6 +215,7 @@ fn a_view_wider_than_the_hot_area_is_sent_whole_and_loads_nothing_past_it() {
         vertical: u8::MAX,
     });
     let dimension = dimension_entity(world);
+    let session = PlayerSession(1);
     let player = world
         .spawn((
             Player,
@@ -186,9 +224,9 @@ fn a_view_wider_than_the_hot_area_is_sent_whole_and_loads_nothing_past_it() {
                 distance: 5,
                 ..PlayerViewDistance::default()
             },
-            ColumnView::default(),
+            SentChunkView::default(),
             InDimension(dimension),
-            Owner(PlayerSession(1)),
+            Owner(session),
         ))
         .id();
     // The simulation area one ring wider, and the rings that load with each of its columns.
@@ -201,22 +239,19 @@ fn a_view_wider_than_the_hot_area_is_sent_whole_and_loads_nothing_past_it() {
         })
     };
 
-    tick_until(&mut app, label, "the whole view was sent", |world| {
-        assert!(
-            !loaded_past_the_hot_area(world),
-            "a column past the hot area was loaded into the dimension"
-        );
-        let Some(view) = world.get::<SentChunkView>(player).and_then(|sent| sent.0) else {
-            return false;
-        };
-        let Some(mut columns) = world.get_mut::<ColumnView>(player) else {
-            return false;
-        };
-        columns.acknowledge_batch(64.0);
-        let mut whole = true;
-        view.each_column(|column| whole &= columns.holds(column));
-        whole
-    });
+    tick_until_sent(
+        &mut app,
+        label,
+        session,
+        "the whole view was sent",
+        |views| holds_whole_view(views, session),
+        |world| {
+            assert!(
+                !loaded_past_the_hot_area(world),
+                "a column past the hot area was loaded into the dimension"
+            );
+        },
+    );
     let view = dimension_world(&mut app, label)
         .get::<SentChunkView>(player)
         .and_then(|sent| sent.0)
@@ -227,41 +262,37 @@ fn a_view_wider_than_the_hot_area_is_sent_whole_and_loads_nothing_past_it() {
     );
 
     let world = dimension_world(&mut app, label);
-    let late = world
-        .spawn((
-            Player,
-            Transform::from_translation(DVec3::new(8.5, 100.0, 8.5)),
-            PlayerViewDistance {
-                distance: 5,
-                ..PlayerViewDistance::default()
-            },
-            ColumnView::default(),
-            InDimension(dimension),
-            Owner(PlayerSession(2)),
-        ))
-        .id();
-    tick_until(&mut app, label, "the late view was sent", |world| {
-        let generating = world
-            .query::<&SectionStage>()
-            .iter(world)
-            .any(|stage| *stage == SectionStage::Generating);
-        assert!(
-            !generating,
-            "a column the data layer holds was generated again"
-        );
-        assert!(
-            !loaded_past_the_hot_area(world),
-            "a cold column was loaded instead of sent from the data layer"
-        );
-        let Some(view) = world.get::<SentChunkView>(late).and_then(|sent| sent.0) else {
-            return false;
-        };
-        let Some(mut columns) = world.get_mut::<ColumnView>(late) else {
-            return false;
-        };
-        columns.acknowledge_batch(64.0);
-        let mut whole = true;
-        view.each_column(|column| whole &= columns.holds(column));
-        whole
-    });
+    let late = PlayerSession(2);
+    world.spawn((
+        Player,
+        Transform::from_translation(DVec3::new(8.5, 100.0, 8.5)),
+        PlayerViewDistance {
+            distance: 5,
+            ..PlayerViewDistance::default()
+        },
+        SentChunkView::default(),
+        InDimension(dimension),
+        Owner(late),
+    ));
+    tick_until_sent(
+        &mut app,
+        label,
+        late,
+        "the late view was sent",
+        |views| holds_whole_view(views, late),
+        |world| {
+            let generating = world
+                .query::<&SectionStage>()
+                .iter(world)
+                .any(|stage| *stage == SectionStage::Generating);
+            assert!(
+                !generating,
+                "a column the data layer holds was generated again"
+            );
+            assert!(
+                !loaded_past_the_hot_area(world),
+                "a cold column was loaded instead of sent from the data layer"
+            );
+        },
+    );
 }

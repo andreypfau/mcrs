@@ -20,7 +20,7 @@ use rustc_hash::FxHashMap;
 
 use crate::cold_columns::{mark_changed_sections, mark_final_light, write_cold_columns};
 use crate::column_production::{ColdStageLandSet, ColumnProduction, advance_production};
-use crate::column_view::{ColumnViewSet, land_viewed_columns, update_view};
+use crate::column_streams::{ColumnStreamSet, land_viewed_columns, report_player_views};
 use crate::hot_ticket::{HotColumns, raise_hot_ticket, release_hot_ticket, track_hot_tickets};
 use crate::stored_column::StoredColumn;
 use crate::stored_columns_landing::{fetch_loading_columns, land_stored_columns};
@@ -211,10 +211,10 @@ impl Plugin for ColumnStorePlugin {
                 track_hot_tickets
                     .in_set(TickSet::Project)
                     .after(ColumnLifecycleSet)
-                    .before(ColumnViewSet),
+                    .before(ColumnStreamSet),
                 advance_production
-                    .in_set(ColumnViewSet)
-                    .after(update_view)
+                    .in_set(ColumnStreamSet)
+                    .after(report_player_views)
                     .before(land_viewed_columns),
             ),
         );

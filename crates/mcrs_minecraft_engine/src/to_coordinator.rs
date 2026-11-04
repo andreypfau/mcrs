@@ -13,6 +13,7 @@ use mcrs_minecraft_protocol_game::serverbound::{
 
 use crate::bus::{InboundPlayerPacket, PlayerTransferSnapshot};
 use crate::channel_types::ToDim;
+use crate::column_request::ColumnRequest;
 
 /// The input that the muxer routed to the dimension `dim` during the update, for its next tick.
 /// Each class keeps the order it was sent in.
@@ -21,6 +22,7 @@ pub struct RoutedInput {
     pub dim: Entity,
     pub control: Vec<ToDim>,
     pub serverbound: Vec<InboundPlayerPacket>,
+    pub column_requests: Vec<ColumnRequest>,
 }
 
 impl RoutedInput {

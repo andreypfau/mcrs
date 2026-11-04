@@ -4,16 +4,14 @@ use bevy_ecs::prelude::{Entity, IntoScheduleConfigs, ResMut, Resource};
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_chunk::{BlockLight, SkyLight};
 use mcrs_minecraft_engine::between_ticks::drain_dim_spawn_queue;
-use mcrs_minecraft_engine::bus::{
-    OutboundPlayerPacket, PacketPayload, PacketPriority, PacketTarget,
-};
-use mcrs_minecraft_engine::column_view::ColumnView;
+use mcrs_minecraft_engine::bus::{PacketPayload, PacketPriority};
+use mcrs_minecraft_engine::column_change::ColumnChange;
+use mcrs_minecraft_engine::column_streams::ColumnStreams;
 use mcrs_minecraft_engine::coordinator::dim::DimSubAppHandle;
 use mcrs_minecraft_engine_world::block_update::BlockPlaced;
 use mcrs_minecraft_engine_world::entity::physics::Transform;
 use mcrs_minecraft_engine_world::entity::player::Player;
 use mcrs_minecraft_engine_world::palette::{ChunkBlocks, SectionStates};
-use mcrs_minecraft_engine_world::session::{Owner, PlayerSession};
 use mcrs_minecraft_engine_world::world::dimension::{DimensionTypeConfig, InDimension};
 use mcrs_minecraft_engine_world::world::lifecycle::stage::{SectionStage, SectionStageChanged};
 use mcrs_minecraft_engine_world::world::storage::column::ColumnIndex;
@@ -193,17 +191,17 @@ fn a_dimension_without_a_sky_publishes_none() {
 }
 
 #[derive(Resource, Default)]
-struct CapturedLightUpdates(Vec<OutboundPlayerPacket>);
+struct CapturedLightUpdates(Vec<ColumnChange>);
 
 /// Reads the dim's outbox in the same schedule the emitter writes it, before the output of the
 /// tick drains it.
 fn capture_light_updates(
-    mut reader: MessageReader<OutboundPlayerPacket>,
+    mut reader: MessageReader<ColumnChange>,
     mut captured: ResMut<CapturedLightUpdates>,
 ) {
-    for packet in reader.read() {
-        if matches!(packet.data, PacketPayload::LightUpdate(_)) {
-            captured.0.push(packet.clone());
+    for change in reader.read() {
+        if matches!(change.payload, PacketPayload::LightUpdate(_)) {
+            captured.0.push(change.clone());
         }
     }
 }
@@ -227,12 +225,9 @@ fn nibble(
     (chunk.0[idx >> 1] >> ((idx & 1) * 4)) & 0x0F
 }
 
-/// Light one column, give it a viewing player that has (or has not) already
-/// received it, then place a torch and collect what the emitter sent.
-///
-/// Returns the player's session, because that is how the bus addresses a
-/// player: the dimension world's own player entity resolves to nothing on the host.
-fn torch_delta(already_sent: bool) -> (Vec<OutboundPlayerPacket>, PlayerSession) {
+/// Light one column, subscribe the muxer to it or not, then place a torch and collect what the
+/// dimension published.
+fn torch_delta(subscribed: bool) -> Vec<ColumnChange> {
     let (mut app, label) = spawn_dimension("minecraft:overworld", "minecraft:overworld");
     let sub_app = host_app::sub_app(&mut app, label);
     sub_app.init_resource::<CapturedLightUpdates>();
@@ -241,7 +236,6 @@ fn torch_delta(already_sent: bool) -> (Vec<OutboundPlayerPacket>, PlayerSession)
     light_one_column(&mut app, label, true);
 
     let column = ColumnPos::new(0, 0);
-    let session = PlayerSession(1);
     let sub_app = host_app::sub_app(&mut app, label);
     let world = sub_app.world_mut();
     let dimension = world
@@ -249,41 +243,35 @@ fn torch_delta(already_sent: bool) -> (Vec<OutboundPlayerPacket>, PlayerSession)
         .iter(world)
         .next()
         .expect("the dimension entity");
-    let view = if already_sent {
-        ColumnView::holding([column])
-    } else {
-        ColumnView::default()
-    };
-    world.spawn((Player, view, Owner(session), InDimension(dimension)));
+    if subscribed {
+        world
+            .entity_mut(dimension)
+            .insert(ColumnStreams::subscribed_to([column]));
+    }
     world.resource_mut::<CapturedLightUpdates>().0.clear();
 
     place_torch(&mut app, label, torch_at());
 
-    let captured = host_app::sub_app(&mut app, label)
+    host_app::sub_app(&mut app, label)
         .world()
         .resource::<CapturedLightUpdates>()
         .0
-        .clone();
-    (captured, session)
+        .clone()
 }
 
-/// A player that holds the column is sent every correction to its light, standing
-/// still or not.
+/// The muxer gets every correction to the light of a column it subscribes to.
 fn a_torch_sends_one_delta_carrying_only_the_rows_it_changed() {
-    let (captured, session) = torch_delta(true);
+    let captured = torch_delta(true);
 
-    assert_eq!(captured.len(), 1, "one packet for one column");
+    assert_eq!(captured.len(), 1, "one change for one column");
     let packet = &captured[0];
-    match &packet.target {
-        PacketTarget::PlayerSet(set) => assert_eq!(set.as_slice(), [session]),
-        other => panic!("expected a player set, got {other:?}"),
-    }
+    assert_eq!(packet.column, ColumnPos::new(0, 0));
     assert_eq!(
         packet.priority,
         PacketPriority::High,
         "a column's light is sent in full once, so a shed delta is never made good"
     );
-    let PacketPayload::LightUpdate(ClientboundLightUpdate { x, z, light_data }) = &packet.data
+    let PacketPayload::LightUpdate(ClientboundLightUpdate { x, z, light_data }) = &packet.payload
     else {
         unreachable!("filtered above");
     };
@@ -316,8 +304,8 @@ fn a_torch_sends_one_delta_carrying_only_the_rows_it_changed() {
     );
 }
 
-fn a_column_the_player_never_received_gets_no_delta() {
-    let (captured, _) = torch_delta(false);
+fn a_column_no_client_holds_gets_no_delta() {
+    let captured = torch_delta(false);
     assert!(
         captured.is_empty(),
         "a delta for an unsent column is meaningless: {captured:?}"
@@ -415,6 +403,6 @@ fn the_dimension_lights_its_columns_and_sends_what_changed() {
     a_placed_torch_lights_its_neighbourhood();
     a_dimension_without_a_sky_publishes_none();
     a_torch_sends_one_delta_carrying_only_the_rows_it_changed();
-    a_column_the_player_never_received_gets_no_delta();
+    a_column_no_client_holds_gets_no_delta();
     the_column_under_the_player_is_lit_before_the_far_ones();
 }

@@ -175,6 +175,7 @@ pub fn spawn_dim_subapp(
     // host world.
     sub_app.add_message::<BlockSetRequest>();
     sub_app.add_message::<BlockPlaced>();
+    sub_app.add_message::<crate::column_change::ColumnChange>();
 
     sub_app.init_resource::<mcrs_minecraft_engine_world::session::DimPlayerIndex>();
     let mut entity_ids = CellEntityIds::default();
@@ -224,7 +225,7 @@ pub fn spawn_dim_subapp(
             .run_if(heightmaps_pending)
             .in_set(TickSet::Project)
             .after(ColumnLifecycleSet)
-            .before(crate::column_view::ColumnViewSet),
+            .before(crate::column_streams::ColumnStreamSet),
     );
     sub_app.add_plugins(DimensionPlugin);
     // AssetPlugin and AppTypeRegistry must precede any plugin that calls

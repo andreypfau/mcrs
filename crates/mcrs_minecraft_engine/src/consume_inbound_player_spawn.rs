@@ -3,7 +3,6 @@ use crate::bus::{
     InboundPlayerSpawn, OutboundPlayerAttached, OutboundPlayerPacket, PacketPayload,
     PlayerInfoEntry, to,
 };
-use crate::column_view::ColumnView;
 use crate::coordinator::default_game_mode::DefaultGameMode;
 use crate::coordinator::ops::{DefaultOpLevel, OpList};
 use crate::dimension_change::Arrival;
@@ -25,6 +24,7 @@ use mcrs_minecraft_dimension::Dimension as DimensionKey;
 use mcrs_minecraft_engine_world::entity::EntityUuid;
 use mcrs_minecraft_engine_world::entity::physics::Transform;
 use mcrs_minecraft_engine_world::entity::player::chunk_view::PlayerViewDistance;
+use mcrs_minecraft_engine_world::entity::player::chunk_view::SentChunkView;
 use mcrs_minecraft_engine_world::session::Owner;
 use mcrs_minecraft_engine_world::world::dimension::{Dimension, DimensionTypeId, InDimension};
 use mcrs_minecraft_engine_world::world::lifecycle::simulation::SimulationDistance;
@@ -219,7 +219,7 @@ fn spawn_player_entity(
                 view_distance,
                 ..Default::default()
             },
-            ColumnView::default(),
+            SentChunkView::default(),
             AnnounceJoin,
             Owner(spawn.session),
             GameProfile {

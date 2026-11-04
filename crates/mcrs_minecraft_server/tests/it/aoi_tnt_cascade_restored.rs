@@ -3,11 +3,10 @@
 //! `apply_voxel_set_requests` (the matching reader) live in the same
 //! per-dim `World`, so emitted `BlockSetRequest` messages reach the reader
 //! in the same tick. The reader in turn reports every block it placed, and
-//! the per-dim wire emitter fans the resulting `OutboundPlayerPacket` to the
-//! chunk's observers.
+//! the dimension publishes each change of a column that the muxer subscribes to.
 //!
 //! The test wires the writer half (a hand-written `BlockSetRequest`) and
-//! exercises the full `apply_voxel_set_requests` -> `update_client_blocks_per_dim`
+//! exercises the full `apply_voxel_set_requests` -> `publish_block_changes`
 //! chain end-to-end inside a single sub-world. The full primed-TNT entity
 //! pipeline (Fuse, Explosion, Detonator) is gated on entity scheduling not
 //! required to prove the cross-system message hop is structurally fixed; the
@@ -17,12 +16,11 @@
 use bevy_app::{App, FixedPostUpdate, FixedUpdate};
 use bevy_ecs::message::Messages;
 use mcrs_minecraft_engine::block_update::{BlockUpdatePlugin, BlockUpdateWirePlugin};
-use mcrs_minecraft_engine::bus::{OutboundPlayerPacket, PacketPayload};
-use mcrs_minecraft_engine_world::aoi::PlayerObservers;
+use mcrs_minecraft_engine::bus::PacketPayload;
+use mcrs_minecraft_engine::column_change::ColumnChange;
+use mcrs_minecraft_engine::column_streams::ColumnStreams;
 use mcrs_minecraft_engine_world::block_update::{BlockPlaced, BlockSetRequest};
-use mcrs_minecraft_engine_world::entity::player::Player;
 use mcrs_minecraft_engine_world::palette::air_section;
-use mcrs_minecraft_engine_world::session::{Owner, PlayerSession};
 use mcrs_minecraft_engine_world::world::dimension::{DimensionTypeConfig, InDimension};
 use mcrs_minecraft_engine_world::world::storage::column::{ColumnIndex, ColumnSlot};
 use mcrs_minecraft_engine_world::world::storage::section::SectionIndex;
@@ -38,7 +36,7 @@ fn tnt_cascade_propagates_through_block_update_per_dim() {
     // (apply_voxel_set_requests from BlockUpdatePlugin) live in the same World,
     // so the message hop is single-frame.
     let mut app = App::new();
-    app.add_message::<OutboundPlayerPacket>();
+    app.add_message::<ColumnChange>();
     // BlockUpdatePlugin no longer registers BlockSetRequest / BlockPlaced
     // itself — that responsibility belongs to the per-dim sub-app builder.
     // The test reproduces the per-dim shape by registering the same buffers
@@ -48,24 +46,15 @@ fn tnt_cascade_propagates_through_block_update_per_dim() {
     app.add_plugins(BlockUpdatePlugin);
     app.add_plugins(BlockUpdateWirePlugin);
 
-    // The player must carry the Player Component so the liveness filter in
-    // update_client_blocks_per_dim passes it through.
-    // The session is what the bus addresses; without it the emit resolves no
-    // recipient and the cascade would look silent for the wrong reason.
-    let session = PlayerSession(1);
-    let player = app.world_mut().spawn((Player, Owner(session))).id();
-    let mut observers = PlayerObservers::default();
-    observers.0.push(player);
-    let column_entity = app.world_mut().spawn(observers).id();
+    let column_entity = app.world_mut().spawn_empty().id();
 
     let chunk_positions: Vec<SectionPos> = (0..3)
         .flat_map(|x| (0..3).map(move |z| SectionPos::new(x, 0, z)))
         .collect();
 
     // Each 3x3 chunk lives in its own ColumnPos; one shared dim carries the
-    // SectionIndex (for the BlockSetRequest reader's lookup) and the ColumnIndex
-    // (for the wire emitter's observer-set lookup). Each column maps back to the
-    // single column_entity so every chunk's observers resolve to the same player.
+    // SectionIndex (for the BlockSetRequest reader's lookup) and the ColumnIndex,
+    // and the muxer subscribes to every column.
     let mut chunk_index = SectionIndex::default();
     let mut column_index = ColumnIndex::default();
     let dim_entity = app
@@ -87,9 +76,11 @@ fn tnt_cascade_propagates_through_block_update_per_dim() {
             },
         );
     }
+    let streams =
+        ColumnStreams::subscribed_to(chunk_positions.iter().copied().map(ColumnPos::from));
     app.world_mut()
         .entity_mut(dim_entity)
-        .insert((chunk_index, column_index));
+        .insert((chunk_index, column_index, streams));
 
     // Emit one BlockSetRequest per chunk — the "cascade simulation": after the
     // initial detonation, 9 secondary TNT positions would each emit a
@@ -120,20 +111,20 @@ fn tnt_cascade_propagates_through_block_update_per_dim() {
 
     // Drive the schedule: FixedUpdate runs apply_voxel_set_requests (which
     // reports each block it placed);
-    // FixedPostUpdate runs update_client_blocks_per_dim which fans
-    // OutboundPlayerPackets out to observers.
+    // FixedPostUpdate runs publish_block_changes, which publishes a change of
+    // each placed block.
     app.world_mut().run_schedule(FixedUpdate);
     app.world_mut().run_schedule(FixedPostUpdate);
 
     // Assertion: at least 9 BlockUpdate packets emitted — one per cascade event.
-    let buf = app.world().resource::<Messages<OutboundPlayerPacket>>();
+    let buf = app.world().resource::<Messages<ColumnChange>>();
     let mut cursor = buf.get_cursor();
     let count = cursor
         .read(buf)
-        .filter(|pkt| matches!(pkt.data, PacketPayload::BlockUpdate(_)))
+        .filter(|change| matches!(change.payload, PacketPayload::BlockUpdate(_)))
         .count();
     assert!(
         count >= 9,
-        "expected at least 9 BlockUpdate packets from the 9 cascade events, observed {count}"
+        "expected at least 9 block changes from the 9 cascade events, observed {count}"
     );
 }

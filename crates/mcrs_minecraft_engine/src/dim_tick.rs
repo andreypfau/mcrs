@@ -1,6 +1,6 @@
 use bevy_app::SubApp;
 use bevy_ecs::change_detection::DetectChangesMut;
-use bevy_ecs::message::Messages;
+use bevy_ecs::message::{Message, Messages};
 use bevy_ecs::resource::Resource;
 use bevy_ecs::schedule::{ScheduleLabel, SystemSet};
 use bevy_ecs::system::{Res, ResMut};
@@ -19,6 +19,10 @@ use crate::bus::{
     OutboundPlayerPacket, OutboundPlayerReleased,
 };
 use crate::channel_types::ToDim;
+use crate::column_change::ColumnChange;
+use crate::column_request::ColumnRequest;
+use crate::column_streams::ColumnRequests;
+use crate::column_version::ColumnVersion;
 use crate::command_handoff::CommandHandoff;
 use crate::coordinator::clock::{EditClock, GameTime};
 use crate::coordinator::ops::OpList;
@@ -29,6 +33,7 @@ use crate::entity_ids::{CellEntityIds, EntityIdRange, EntityIdRequest};
 use crate::player_dimension_change;
 use crate::player_order::OrderedPlayer;
 use crate::player_roster::{ForeignPlayers, OwnPlayers, RosterRow};
+use crate::player_view::PlayerView;
 use crate::tile_events::TileEvents;
 
 /// The host schedule that ticks the dimension worlds, right after `Last`: each world takes
@@ -67,6 +72,8 @@ pub struct DimInput {
     pub(crate) serverbound: Vec<InboundPlayerPacket>,
     /// The range that the coordinator grants for the request of the last tick.
     pub(crate) entity_id_grant: Option<EntityIdRange>,
+    /// What the muxer asks of the version streams of the columns, in the order it asked.
+    pub(crate) column_requests: Vec<ColumnRequest>,
 }
 
 /// What a dimension world hands the host after one tick.
@@ -94,6 +101,12 @@ pub struct DimOutput {
     pub(crate) clock_edits: Vec<EditClock>,
     /// The command runs of the tick that go on in other dimensions.
     pub(crate) handoffs: Vec<CommandHandoff>,
+    /// The views of the players that changed in the tick, in the order they changed.
+    pub(crate) views: Vec<PlayerView>,
+    /// The versions of the columns that the muxer wanted, published in the tick.
+    pub(crate) column_versions: Vec<ColumnVersion>,
+    /// The changes of the tick to the columns that the muxer subscribes to, after the versions.
+    pub(crate) column_changes: Vec<ColumnChange>,
 }
 
 /// The messages of the input of this tick, until the inbox drain writes them at the sync point.
@@ -135,6 +148,11 @@ fn apply_input(world: &mut World, _tick: Tick, input: DimInput) {
         inbox.control.extend(input.control);
         inbox.serverbound.extend(input.serverbound);
     }
+    if !input.column_requests.is_empty()
+        && let Some(mut requests) = world.get_resource_mut::<ColumnRequests>()
+    {
+        requests.0.extend(input.column_requests);
+    }
 }
 
 fn take_output(world: &mut World) -> DimOutput {
@@ -175,7 +193,17 @@ fn take_output(world: &mut World) -> DimOutput {
         output.clock_edits = std::mem::take(&mut mail.clock_edits);
         output.handoffs = std::mem::take(&mut mail.handoffs);
     }
+    drain_into(world, &mut output.views);
+    drain_into(world, &mut output.column_versions);
+    drain_into(world, &mut output.column_changes);
     output
+}
+
+/// Moves every message of type `M` that the tick wrote into `out`.
+fn drain_into<M: Message>(world: &mut World, out: &mut Vec<M>) {
+    if let Some(mut messages) = world.get_resource_mut::<Messages<M>>() {
+        out.extend(messages.drain());
+    }
 }
 
 /// Writes the messages of the input of this tick. The control messages go first, so a spawn

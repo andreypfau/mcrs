@@ -237,9 +237,15 @@ impl Globals {
         players: Option<Vec<RosterRow>>,
         entity_id_grant: Option<EntityIdRange>,
     ) -> DimInput {
-        let (control, serverbound) = routed.map_or_else(Default::default, |routed| {
-            (routed.control, routed.serverbound)
-        });
+        let (control, serverbound, column_requests) = match routed {
+            Some(RoutedInput {
+                control,
+                serverbound,
+                column_requests,
+                ..
+            }) => (control, serverbound, column_requests),
+            None => Default::default(),
+        };
         DimInput {
             game_time: self.game_time,
             clocks: self.clocks.clone(),
@@ -250,6 +256,7 @@ impl Globals {
             control,
             serverbound,
             entity_id_grant,
+            column_requests,
         }
     }
 }

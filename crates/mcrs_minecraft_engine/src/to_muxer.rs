@@ -9,9 +9,12 @@ use mcrs_minecraft_replication::PlayerData;
 use mcrs_minecraft_resource::{Id, ResourceKeyBuf};
 
 use crate::bus::{InboundPlayerSpawn, OutboundPlayerAttached, OutboundPlayerPacket};
+use crate::column_change::ColumnChange;
+use crate::column_version::ColumnVersion;
 use crate::command_handoff::CommandHandoff;
 use crate::departure::Departure;
 use crate::player_order::OrderedPlayer;
+use crate::player_view::PlayerView;
 
 /// The dimension `dim` runs and takes input from now on.
 #[derive(Message, Clone, Copy, Debug)]
@@ -45,6 +48,12 @@ pub struct DimDelivered {
     pub orders: Vec<OrderedPlayer>,
     /// The command runs of the tick that go on in the dimension each one names.
     pub handoffs: Vec<CommandHandoff>,
+    /// The views of the players that changed in the tick.
+    pub views: Vec<PlayerView>,
+    /// The versions of the columns that the muxer wanted, published in the tick.
+    pub column_versions: Vec<ColumnVersion>,
+    /// The changes of the tick to the columns that the muxer subscribes to.
+    pub column_changes: Vec<ColumnChange>,
 }
 
 /// A player that left its dimension, with the dimension that the coordinator sends it to.

@@ -1,27 +1,13 @@
-//! Per-dim block-update wire emit. Replaces the old host-side
-//! `update_client_blocks` body (which queried `&mut ServerSideConnection`
-//! directly) with a per-dim system that resolves recipients through
-//! `Column.PlayerObservers` and emits one `OutboundPlayerPacket` per block
-//! change. Single message hop — no two-frame buffer rotation across the
-//! `World` boundary that caused the TNT silent-drop regression.
-//!
-//! Lives in the minecraft crate (not in `mcrs_minecraft_block`) to avoid
-//! `mcrs_minecraft_block -> mcrs_minecraft_server` cycle. The block crate keeps
-//! `BlockUpdatePlugin` (message types, set-block reader, SystemSet
-//! definitions); this module supplies the additional
-//! `BlockUpdateWirePlugin` that registers the new per-dim wire-emit
-//! system in `FixedPostUpdate`.
+//! The block changes that a dimension publishes for the clients: one change of each block that
+//! a tick placed in a column that the muxer subscribes to.
 
 use bevy_app::{App, FixedPostUpdate, Plugin};
 use bevy_ecs::message::{MessageReader, MessageWriter};
-use bevy_ecs::prelude::{Entity, IntoScheduleConfigs, Local, Query, With};
-use mcrs_minecraft_engine_world::aoi::PlayerObservers;
+use bevy_ecs::prelude::{Entity, IntoScheduleConfigs, Local, Query};
 use mcrs_minecraft_engine_world::block_update::BlockPlaced;
-use mcrs_minecraft_engine_world::entity::player::Player;
 use mcrs_minecraft_engine_world::palette::ChunkBlocks;
 use mcrs_minecraft_engine_world::voxel_update::VoxelUpdateSet;
 use mcrs_minecraft_engine_world::world::dimension::InDimension;
-use mcrs_minecraft_engine_world::world::storage::column::ColumnIndex;
 use mcrs_minecraft_protocol_game::block::BlockStateNumber;
 use mcrs_minecraft_protocol_game::clientbound::ClientboundBlockUpdate;
 use mcrs_minecraft_simulation::BlockUpdateFlags;
@@ -30,40 +16,25 @@ use mcrs_voxel::ColumnPos;
 use mcrs_voxel::LocalPos;
 use mcrs_voxel::SectionPos;
 use rustc_hash::{FxHashMap, FxHashSet};
-use smallvec::SmallVec;
 
 pub use mcrs_minecraft_engine_world::block_update::BlockUpdatePlugin;
 
-use crate::bus::{OutboundPlayerPacket, PacketPayload, PacketPriority, PacketTarget};
-use mcrs_minecraft_engine_world::session::{Owner, PlayerSession};
+use crate::bus::{PacketPayload, PacketPriority};
+use crate::column_change::ColumnChange;
+use crate::column_streams::ColumnStreams;
 
-/// Per-dim wire emitter. Reads the blocks placed this tick that notify
-/// clients, resolves the observer set through the section's column
-/// (`ColumnPos::from(section_pos)` -> `ColumnIndex.0.get` -> column entity ->
-/// `PlayerObservers`), and emits one `OutboundPlayerPacket { target: PlayerSet,
-/// priority: Normal, data: PacketPayload::BlockUpdate(..) }`
-/// per changed block.
-///
-/// Recipients are resolved at emit time by reading `PlayerObservers` on
-/// the section's column entity rather than at consume time on the host.
-/// A block placed more than once in a tick goes out once, with the state it
-/// holds when the packet is built.
+/// Publishes the blocks placed this tick that notify clients, in a column that the muxer
+/// subscribes to. A block placed more than once in a tick goes out once, with the state it
+/// holds when the change is built.
 #[cfg_attr(
     feature = "telemetry-tracy",
-    tracing::instrument(name = "block_update::update_client_blocks_per_dim", skip_all)
+    tracing::instrument(name = "block_update::publish_block_changes", skip_all)
 )]
-#[expect(
-    clippy::too_many_arguments,
-    reason = "a Bevy system: each resource and query is its own parameter so the scheduler sees the access"
-)]
-pub fn update_client_blocks_per_dim(
+pub fn publish_block_changes(
     mut placed: MessageReader<BlockPlaced>,
     sections: Query<(&InDimension, &ChunkBlocks)>,
-    column_indices: Query<&ColumnIndex>,
-    observers: Query<&PlayerObservers>,
-    live_players: Query<Entity, With<Player>>,
-    owners: Query<&Owner>,
-    mut packet_writer: MessageWriter<OutboundPlayerPacket>,
+    streams: Query<&ColumnStreams>,
+    mut changes: MessageWriter<ColumnChange>,
     mut changed: Local<FxHashMap<Entity, (SectionPos, FxHashSet<BlockPos>)>>,
 ) {
     for placed in placed.read() {
@@ -80,53 +51,36 @@ pub fn update_client_blocks_per_dim(
         let Ok((in_dim, palette)) = sections.get(section) else {
             continue;
         };
-
-        let column_pos = ColumnPos::from(section_pos);
-        let mut observer_entities: SmallVec<[Entity; 8]> = column_indices
+        let column = ColumnPos::from(section_pos);
+        if !streams
             .get(in_dim.0)
-            .ok()
-            .and_then(|idx| idx.0.get(&column_pos).map(|slot| slot.entity))
-            .and_then(|column_entity| observers.get(column_entity).ok())
-            .map(|obs| obs.0.iter().copied().collect())
-            .unwrap_or_default();
-
-        crate::drain_player_despawn::retain_live_observers(&mut observer_entities, &live_players);
-
-        let targets: SmallVec<[PlayerSession; 8]> = observer_entities
-            .iter()
-            .filter_map(|observer| owners.get(*observer).ok().map(|owner| owner.0))
-            .collect();
-
-        if targets.is_empty() {
+            .is_ok_and(|streams| streams.is_subscribed(column))
+        {
             continue;
         }
-
         for position in positions {
             let new_state = BlockStateNumber(palette.get(LocalPos::from(position)).number());
-            packet_writer.write(OutboundPlayerPacket {
-                target: PacketTarget::PlayerSet(targets.clone()),
+            changes.write(ColumnChange {
+                column,
                 priority: PacketPriority::Normal,
-                data: PacketPayload::BlockUpdate(ClientboundBlockUpdate {
+                payload: PacketPayload::BlockUpdate(ClientboundBlockUpdate {
                     block_pos: position,
                     block_state_id: new_state,
                 }),
-                session: PlayerSession(0),
-                epoch: 0,
             });
         }
     }
 }
 
-/// Per-dim wire-emit plugin. Pairs with `BlockUpdatePlugin` (which
-/// remains in the block crate and supplies the message types and the
-/// set-block reader); both are registered into each `DimSubApp`.
+/// Publishes the block changes of a dimension. Pairs with `BlockUpdatePlugin`, which supplies the
+/// message types and the set-block reader; both are registered into each dimension world.
 pub struct BlockUpdateWirePlugin;
 
 impl Plugin for BlockUpdateWirePlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(
             FixedPostUpdate,
-            update_client_blocks_per_dim.in_set(VoxelUpdateSet::NetworkSync),
+            publish_block_changes.in_set(VoxelUpdateSet::NetworkSync),
         );
     }
 }

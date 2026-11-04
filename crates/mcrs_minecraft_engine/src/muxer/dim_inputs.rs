@@ -11,6 +11,7 @@ use rustc_hash::FxHashMap;
 
 use crate::bus::InboundPlayerPacket;
 use crate::channel_types::ToDim;
+use crate::column_request::ColumnRequest;
 use crate::dim_tick::{TickDimensions, TickDimensionsSet};
 use crate::to_coordinator::RoutedInput;
 use crate::to_muxer::{DimClosed, DimOpened};
@@ -25,6 +26,7 @@ pub struct DimInputs(FxHashMap<Entity, PendingInput>);
 struct PendingInput {
     control: Vec<ToDim>,
     serverbound: Vec<InboundPlayerPacket>,
+    column_requests: Vec<ColumnRequest>,
 }
 
 impl DimInputs {
@@ -69,6 +71,20 @@ impl DimInputs {
         }
     }
 
+    /// Queues what the muxer asks of the version streams of the columns of `dim`. Returns
+    /// `false` when the dimension is gone.
+    pub fn send_column_requests(
+        &mut self,
+        dim: Entity,
+        requests: impl IntoIterator<Item = ColumnRequest>,
+    ) -> bool {
+        let Some(pending) = self.0.get_mut(&dim) else {
+            return false;
+        };
+        pending.column_requests.extend(requests);
+        true
+    }
+
     /// The control messages that wait for the next tick of `dim`.
     pub fn control(&self, dim: Entity) -> &[ToDim] {
         self.0
@@ -92,17 +108,22 @@ impl DimInputs {
 /// Hands the coordinator the input that each dimension got during the update, for its tick.
 pub fn route_dim_inputs(mut inputs: ResMut<DimInputs>, mut routed: MessageWriter<RoutedInput>) {
     for (&dim, pending) in &mut inputs.0 {
-        if pending.control.is_empty() && pending.serverbound.is_empty() {
+        if pending.control.is_empty()
+            && pending.serverbound.is_empty()
+            && pending.column_requests.is_empty()
+        {
             continue;
         }
         let PendingInput {
             control,
             serverbound,
+            column_requests,
         } = mem::take(pending);
         routed.write(RoutedInput {
             dim,
             control,
             serverbound,
+            column_requests,
         });
     }
 }

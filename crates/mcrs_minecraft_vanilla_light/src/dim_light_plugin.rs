@@ -6,15 +6,15 @@ use bevy_app::{App, FixedUpdate, Last, Plugin};
 use bevy_ecs::prelude::*;
 use bevy_ecs::schedule::ScheduleLabel;
 use mcrs_engine_link::Placement;
+use mcrs_minecraft_engine::column_change::ColumnChange;
 use mcrs_minecraft_engine::column_production::ColumnProduction;
+use mcrs_minecraft_engine::column_streams::ColumnStreams;
 use mcrs_minecraft_engine::hot_ticket::HotColumns;
 use mcrs_minecraft_engine::light_codec::{LightCodecParams, build_delta_light_data};
-use mcrs_minecraft_engine_world::aoi::PlayerObservers;
 use mcrs_minecraft_engine_world::block_update::BlockPlaced;
 use mcrs_minecraft_engine_world::entity::physics::Transform;
 use mcrs_minecraft_engine_world::entity::player::Player;
 use mcrs_minecraft_engine_world::palette::ChunkBlocks;
-use mcrs_minecraft_engine_world::session::{Owner, PlayerSession};
 use mcrs_minecraft_engine_world::tick::TickSet;
 use mcrs_minecraft_engine_world::world::dimension::InDimension;
 use mcrs_minecraft_engine_world::world::lifecycle::stage::SectionStageChanged;
@@ -34,11 +34,8 @@ use crate::light_stage::player_priority;
 
 use mcrs_minecraft_heightmap::SurfaceHeightmap;
 use rustc_hash::FxHashMap;
-use smallvec::SmallVec;
 
-use mcrs_minecraft_engine::bus::{
-    OutboundPlayerPacket, PacketPayload, PacketPriority, PacketTarget,
-};
+use mcrs_minecraft_engine::bus::{PacketPayload, PacketPriority};
 
 /// A dimension's side of the light engine: what it hands the light stage before intake, and
 /// what it sends once the stage's light has been published.
@@ -185,23 +182,17 @@ fn feed_column_surfaces(
     }
 }
 
-/// Turns a published light change into a `ClientboundLightUpdate` carrying only
-/// the rows that changed, for the players that already hold the column.
+/// Turns a published light change into a `ClientboundLightUpdate` carrying only the rows that
+/// changed, for a column that the muxer subscribes to.
 ///
 /// A column at the outer ring of a hot area is lit here without its outer neighbours, so its
 /// light goes out from the data layer and not from here.
-#[expect(
-    clippy::too_many_arguments,
-    reason = "a Bevy system: each resource and query is its own parameter so the scheduler sees the access"
-)]
 pub fn emit_light_updates(
     mut relit: MessageReader<SectionRelit>,
     sections: Query<(&SectionPos, &InDimension)>,
-    column_indices: Query<(&ColumnIndex, Option<&HotColumns>)>,
-    observers: Query<&PlayerObservers>,
-    owners: Query<&Owner>,
+    column_indices: Query<(&ColumnIndex, &ColumnStreams, Option<&HotColumns>)>,
     codec_params: LightCodecParams,
-    mut packet_writer: MessageWriter<OutboundPlayerPacket>,
+    mut changes: MessageWriter<ColumnChange>,
     mut by_column: Local<FxHashMap<(Entity, ColumnPos), (Vec<Entity>, Vec<Entity>)>>,
 ) {
     for change in relit.read() {
@@ -223,30 +214,20 @@ pub fn emit_light_updates(
         let Some(column_entity) = column_indices
             .get(dim)
             .ok()
-            .filter(|(_, hot)| hot.is_none_or(|hot| !hot.is_outer_ring(column_pos)))
-            .and_then(|(index, _)| index.0.get(&column_pos).map(|slot| slot.entity))
+            .filter(|(_, streams, hot)| {
+                streams.is_subscribed(column_pos)
+                    && hot.is_none_or(|hot| !hot.is_outer_ring(column_pos))
+            })
+            .and_then(|(index, ..)| index.0.get(&column_pos).map(|slot| slot.entity))
         else {
             continue;
         };
-        let targets: SmallVec<[PlayerSession; 8]> = observers
-            .get(column_entity)
-            .map(|held| {
-                held.0
-                    .iter()
-                    .filter_map(|player| owners.get(*player).ok().map(|owner| owner.0))
-                    .collect()
-            })
-            .unwrap_or_default();
-        if targets.is_empty() {
-            continue;
-        }
-
-        packet_writer.write(OutboundPlayerPacket {
-            target: PacketTarget::PlayerSet(targets),
+        changes.write(ColumnChange {
+            column: column_pos,
             // A column's light is sent in full exactly once, so a shed delta is
             // never re-sent; Normal is the class `dispatch_encode` drops first.
             priority: PacketPriority::High,
-            data: PacketPayload::LightUpdate(ClientboundLightUpdate {
+            payload: PacketPayload::LightUpdate(ClientboundLightUpdate {
                 x: VarInt(column_pos.x),
                 z: VarInt(column_pos.z),
                 light_data: build_delta_light_data(
@@ -256,8 +237,6 @@ pub fn emit_light_updates(
                     &codec_params,
                 ),
             }),
-            session: PlayerSession(0),
-            epoch: 0,
         });
     }
 }

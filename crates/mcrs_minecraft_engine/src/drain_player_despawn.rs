@@ -6,24 +6,17 @@
 //! this system, running in `FixedPreUpdate`, takes the view of the
 //! corresponding in-dim `Player` entity. Its viewers lose it when the
 //! entity despawns, through its despawn in the tile deltas.
-//!
-//! A defensive helper `retain_live_observers` is exposed for use by
-//! per-dim wire emitters that want a belt-and-braces liveness filter
-//! before fan-out.
 
 use bevy_ecs::message::MessageReader;
-use bevy_ecs::prelude::{Commands, Entity, Query, Res, With};
+use bevy_ecs::prelude::{Commands, Query, Res, With};
 use mcrs_minecraft_engine_world::entity::player::Player;
 use mcrs_minecraft_engine_world::entity::player::chunk_view::SentChunkView;
-use smallvec::SmallVec;
 
 use crate::bus::InboundPlayerDespawn;
-use crate::column_view::ColumnView;
 use mcrs_minecraft_engine_world::session::DimPlayerIndex;
 
-/// Per-dim drain: reads `InboundPlayerDespawn` messages and takes the `ColumnView` of the
-/// resolved in-dim `Player`, which hands back its tickets and withdraws it from every column it
-/// held.
+/// Per-dim drain: reads `InboundPlayerDespawn` messages and takes the view of the resolved
+/// in-dim `Player`, so the muxer stops serving it.
 #[cfg_attr(
     feature = "telemetry-tracy",
     tracing::instrument(name = "aoi::drain_inbound_player_despawn", skip_all)
@@ -43,22 +36,6 @@ pub fn drain_inbound_player_despawn(
         if !players.contains(target) {
             continue;
         }
-        commands
-            .entity(target)
-            .try_remove::<(ColumnView, SentChunkView)>();
+        commands.entity(target).try_remove::<SentChunkView>();
     }
-}
-
-/// Defensive helper: filter an `observer_entities` snapshot against a
-/// live-player query before fan-out. Used by per-dim wire emitters
-/// (`update_client_blocks_per_dim`) as belt-and-braces protection
-/// against any future code path that mutates `PlayerObservers` without
-/// going through the drain above. Cost: one Query iteration per
-/// emit-site invocation; acceptable because the live-player set is small
-/// and the emit site already pays a Query cost for `&PlayerObservers`.
-pub fn retain_live_observers(
-    observer_entities: &mut SmallVec<[Entity; 8]>,
-    live_players: &Query<Entity, With<Player>>,
-) {
-    observer_entities.retain(|entity| live_players.get(*entity).is_ok());
 }

@@ -1,6 +1,7 @@
 use bevy_ecs::message::Messages;
 use bevy_ecs::world::World;
 
+use crate::muxer::column_views::ColumnViews;
 use crate::muxer::dim_inputs::DimInputs;
 use crate::muxer::dim_outputs;
 use crate::muxer::entity_replication::EntityReplication;
@@ -26,6 +27,9 @@ pub(crate) fn receive(world: &mut World) {
         }
         if let Some(mut replication) = world.get_resource_mut::<EntityReplication>() {
             replication.close(dim);
+        }
+        if let Some(mut views) = world.get_resource_mut::<ColumnViews>() {
+            views.close_dim(dim);
         }
         // A dimension torn down saves none of its players, so nothing is left to wait for.
         dim_outputs::forget_departures(world, |departing| departing.dim == dim);

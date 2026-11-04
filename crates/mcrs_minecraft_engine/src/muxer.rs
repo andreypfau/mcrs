@@ -1,14 +1,17 @@
 //! The muxer: the gateway for the clients. It owns the connections and the bridge, the sessions
 //! and their placement, the input that it routes to the owner dimension of each player, and the
-//! host side of entity replication.
+//! host side of entity replication, and the view of each player.
 //!
 //! The rule of the boundary: a module of this tree never names a module of `coordinator`, and no
 //! system here reads a resource or a component that the coordinator owns. The muxer learns what
 //! the coordinator decides from the messages of `to_muxer`, and tells the coordinator what it
 //! needs through the messages of `to_coordinator`.
 
+mod batch_pacing;
 pub mod bridge;
 pub mod bridge_queue;
+mod column_feed;
+pub mod column_views;
 pub mod departure_routing;
 pub mod dim_inputs;
 pub mod dim_lifecycle;

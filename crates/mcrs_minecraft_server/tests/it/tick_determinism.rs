@@ -19,13 +19,12 @@ use bevy_tasks::block_on;
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_chunk::{BlockLight, LightStorage, SkyLight};
 use mcrs_minecraft_engine::column_store::ColumnStoreLink;
-use mcrs_minecraft_engine::column_view::ColumnView;
 use mcrs_minecraft_engine::muxer::tile_delta_log::TileDeltaLog;
 use mcrs_minecraft_engine_server::{Placement, runner};
 use mcrs_minecraft_engine_world::block_update::BlockSetRequest;
 use mcrs_minecraft_engine_world::entity::physics::Transform;
 use mcrs_minecraft_engine_world::entity::player::Player;
-use mcrs_minecraft_engine_world::entity::player::chunk_view::PlayerViewDistance;
+use mcrs_minecraft_engine_world::entity::player::chunk_view::{PlayerViewDistance, SentChunkView};
 use mcrs_minecraft_engine_world::palette::ChunkBlocks;
 use mcrs_minecraft_engine_world::session::{Owner, PlayerSession};
 use mcrs_minecraft_engine_world::world::dimension::InDimension;
@@ -259,7 +258,7 @@ fn run(worlds: Placement) -> Vec<u64> {
                 distance: 2,
                 ..PlayerViewDistance::default()
             },
-            ColumnView::default(),
+            SentChunkView::default(),
             InDimension(dimension),
             Owner(PlayerSession(1)),
         ))

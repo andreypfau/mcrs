@@ -5,6 +5,7 @@ use bevy_ecs::world::World;
 use mcrs_engine_muxer::EntityEvent;
 use mcrs_minecraft_dimension::Dimension as DimensionKey;
 use mcrs_minecraft_engine_world::entity::physics::Transform;
+use mcrs_minecraft_engine_world::entity::player::chunk_view::SentChunkView;
 use mcrs_minecraft_engine_world::entity::player::{ChangeDimensionRequest, Player};
 use mcrs_minecraft_engine_world::session::{Owner, PlayerSession};
 use mcrs_minecraft_engine_world::world::dimension::{Dimension, InDimension};
@@ -12,7 +13,6 @@ use mcrs_minecraft_replication::PlayerData;
 use mcrs_minecraft_resource::ResourceKeyBuf;
 
 use crate::ability::OpLevelAnnounced;
-use crate::column_view::ColumnView;
 use crate::departure::{CarriedPlayer, Departure, PlayerTransfer};
 use crate::dimension_change::{Arrival, DimensionChangeError};
 use crate::game_mode::ListedGameMode;
@@ -166,7 +166,7 @@ fn place(
         },
         Owner(session),
         Player,
-        ColumnView::default(),
+        SentChunkView::default(),
     ));
     carried.insert_into(&mut player);
     Ok(player.id())

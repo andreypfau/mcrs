@@ -4,7 +4,7 @@ use bevy_ecs::schedule::IntoScheduleConfigs;
 use bevy_ecs::system::ResMut;
 use mcrs_engine_link::{Link, Placement};
 use mcrs_minecraft_engine::column_production::{ColdStageLandSet, ColumnProduction};
-use mcrs_minecraft_engine::column_view::ColumnViewSet;
+use mcrs_minecraft_engine::column_streams::ColumnStreamSet;
 use mcrs_minecraft_engine::stored_column::{LitBy, StoredColumn, StoredSection};
 use mcrs_minecraft_engine_world::aoi::min_column_distance;
 use mcrs_minecraft_engine_world::entity::physics::Transform;
@@ -46,7 +46,7 @@ impl Plugin for ColdGenerationPlugin {
                 )
                     .chain()
                     .in_set(TickSet::Project)
-                    .after(ColumnViewSet),
+                    .after(ColumnStreamSet),
             ),
         );
     }
