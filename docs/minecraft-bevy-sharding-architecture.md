@@ -539,6 +539,8 @@ DespawnEntity
 
 This makes cross-shard causality explicit. Messages are applied in a stable sorted order at a sync point, so the result does not depend on which shard finished first.
 
+The cells of one world follow the same rule. `cells.md` section 4 lists the message and the delay of each domain across a cell boundary.
+
 ---
 
 # 16. Mutation and Commit Model

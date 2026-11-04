@@ -1,13 +1,14 @@
 //! Loads the embedded server with bots over TCP and reports how long its ticks take.
 //!
 //! ```text
-//! cargo run --release -p mcrs_minecraft_server --example tick_load -- <bots> <single|parallel> [apart|together] [seconds] [dimensions] [thread|inline] [simulation]
+//! cargo run --release -p mcrs_minecraft_server --example tick_load -- <bots> <single|parallel> [apart|together] [seconds] [dimensions] [thread|inline] [simulation] [cells]
 //! ```
 //!
 //! `single` ticks every world inline on the server thread, `parallel` gives each world a thread.
 //! `thread|inline` places the muxer: on a thread of its own, the default, or inline on the server
 //! thread. `simulation` is the simulation distance of every dimension, 10 by default. Below the
-//! view distance of the bots, the view reaches past the hot area into cold space.
+//! view distance of the bots, the view reaches past the hot area into cold space. `cells` is the
+//! number of cells of each dimension world, 1 by default; more cells divide each world by region.
 //!
 //! ```text
 //! ```
@@ -25,6 +26,7 @@
 //! each bot over the whole run, by the dimension the bot ends up in.
 
 use std::collections::HashMap;
+use std::num::NonZeroU32;
 use std::str::FromStr;
 use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
 use std::sync::{Arc, mpsc};
@@ -37,7 +39,7 @@ use mcrs_minecraft_core::VERSION;
 use mcrs_minecraft_engine::coordinator::dim_cells::DimCells;
 use mcrs_minecraft_engine::muxer::entity_replication::EntityReplication;
 use mcrs_minecraft_engine_server::{
-    BoundAddress, GameMode, Placement, ServerNetworkPlugin, runner,
+    BoundAddress, GameMode, Placement, ServerNetworkPlugin, WorldCells, runner,
 };
 use mcrs_minecraft_engine_world::world::lifecycle::simulation::SimulationDistance;
 use mcrs_minecraft_engine_world::world::storage::column::ColumnIndex;
@@ -165,7 +167,14 @@ fn main() -> anyhow::Result<()> {
     let muxer: Placement = args
         .get(6)
         .map_or(Ok(Placement::Thread), |name| name.parse())?;
-    let simulation: Option<u8> = args.get(7).map(|distance| distance.parse()).transpose()?;
+    let simulation: Option<u8> = args
+        .get(7)
+        .filter(|distance| *distance != "-")
+        .map(|distance| distance.parse())
+        .transpose()?;
+    let cells: NonZeroU32 = args
+        .get(8)
+        .map_or(Ok(NonZeroU32::MIN), |count| count.parse())?;
     anyhow::ensure!(
         (1..=DIMENSIONS.len()).contains(&dimensions),
         "dimensions must be 1 to {}",
@@ -176,6 +185,10 @@ fn main() -> anyhow::Result<()> {
     plugins.core.asset_path = Some(ASSETS.to_owned());
     plugins.core.worlds = worlds;
     plugins.core.muxer = muxer;
+    plugins.core.cells = WorldCells {
+        cells,
+        ..WorldCells::default()
+    };
     plugins.network = ServerNetworkPlugin::embedded();
     plugins.network.announce_on_lan = false;
     plugins.worlds.default_op_level = 2;
@@ -221,7 +234,7 @@ fn main() -> anyhow::Result<()> {
 
     let measured = times.get(times.len() / 3..).unwrap_or_default();
     println!(
-        "{worlds:?}, muxer {muxer:?}, {spread:?}: {} of {bots} bots joined, {} columns received, {} ticks measured",
+        "{worlds:?}, muxer {muxer:?}, {cells} cells a world, {spread:?}: {} of {bots} bots joined, {} columns received, {} ticks measured",
         counts.joined.load(Ordering::Relaxed),
         counts.columns.load(Ordering::Relaxed),
         measured.len()
