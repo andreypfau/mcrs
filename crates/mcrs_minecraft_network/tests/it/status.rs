@@ -1,3 +1,5 @@
+use base64::Engine;
+use base64::engine::general_purpose::STANDARD;
 use bevy_app::App;
 use mcrs_minecraft_core::VERSION;
 use mcrs_minecraft_network::packet_io::PacketIo;
@@ -18,6 +20,7 @@ use tokio::net::TcpStream;
 struct Status {
     players: Players,
     description: Option<String>,
+    favicon: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -239,4 +242,32 @@ fn an_empty_server_with_no_motd_sends_neither_sample_nor_description() {
     assert_eq!(status.players.online, 0);
     assert!(status.players.sample.is_none(), "{json}");
     assert!(status.description.is_none(), "{json}");
+}
+
+#[test]
+fn the_default_status_response_carries_a_64_by_64_png_icon() {
+    let (_app, address) = server_with(NetworkPlugin::default(), Vec::new());
+
+    let status: Status = serde_json::from_str(&status_json(address)).unwrap();
+
+    let favicon = status.favicon.unwrap();
+    let base64 = favicon.strip_prefix("data:image/png;base64,").unwrap();
+    let png = STANDARD.decode(base64).unwrap();
+    assert_eq!(png[..4], [0x89, b'P', b'N', b'G']);
+    assert_eq!(png[16..24], [0, 0, 0, 64, 0, 0, 0, 64]);
+}
+
+#[test]
+fn a_server_without_an_icon_omits_the_key() {
+    let (_app, address) = server_with(
+        NetworkPlugin {
+            favicon: None,
+            ..Default::default()
+        },
+        Vec::new(),
+    );
+
+    let json = status_json(address);
+
+    assert!(!json.contains("favicon"), "{json}");
 }

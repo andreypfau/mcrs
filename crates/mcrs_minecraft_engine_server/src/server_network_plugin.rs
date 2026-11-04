@@ -2,7 +2,7 @@ use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
 
 use bevy_app::{App, Plugin};
 use mcrs_minecraft_engine::client_info::ClientInfoPlugin;
-use mcrs_minecraft_network::NetworkPlugin;
+use mcrs_minecraft_network::{NetworkPlugin, default_favicon};
 
 use crate::configuration::{ConfigurationStatePlugin, KnownPackOffer};
 use crate::dimension_worlds_plugin::DimensionWorldsPlugin;
@@ -25,6 +25,7 @@ pub struct ServerNetworkPlugin {
     pub singleplayer_profile: Option<SingleplayerProfile>,
     pub max_players: u32,
     pub motd: String,
+    pub favicon: Option<String>,
     /// Turned on, a client that a transfer packet sends here logs in; turned off, it gets
     /// `multiplayer.disconnect.transfers_disabled`.
     pub accepts_transfers: bool,
@@ -59,6 +60,7 @@ impl Default for ServerNetworkPlugin {
             singleplayer_profile: None,
             max_players: 20,
             motd: "mcrs Server".to_owned(),
+            favicon: Some(default_favicon()),
             accepts_transfers: false,
             hide_online_players: false,
             enable_status: true,
@@ -78,6 +80,7 @@ impl Plugin for ServerNetworkPlugin {
             announce_on_lan: self.announce_on_lan,
             max_players: self.max_players,
             motd: self.motd.clone(),
+            favicon: self.favicon.clone(),
             accepts_transfers: self.accepts_transfers,
             hide_online_players: self.hide_online_players,
             enable_status: self.enable_status,
