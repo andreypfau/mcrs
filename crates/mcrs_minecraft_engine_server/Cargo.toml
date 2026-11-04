@@ -11,6 +11,7 @@ doctest = false
 workspace = true
 
 [dependencies]
+mcrs_engine_link.workspace = true
 mcrs_minecraft_text.workspace = true
 mcrs_minecraft_save.workspace = true
 mcrs_minecraft_engine_registries.workspace = true
@@ -33,6 +34,7 @@ bevy_math.workspace = true
 bevy_state.workspace = true
 bevy_time.workspace = true
 bytes.workspace = true
+flume.workspace = true
 rand.workspace = true
 thiserror.workspace = true
 tracing.workspace = true

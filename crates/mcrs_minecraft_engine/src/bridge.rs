@@ -72,7 +72,7 @@ use crate::bridge_queue::{DEPTH_DRAIN_TARGET, DEPTH_LIMIT, InboundRateBucket, Ou
 use crate::bridge_queue::{EncodedPacket, QueuedPacket};
 use crate::bus::{InboundPlayerPacket, OutboundPlayerAttached, OutboundPlayerPacket};
 use crate::bus::{PacketPayload, PacketPriority, PacketTarget, SpawnBundle};
-use crate::channel_types::{DimChannelsResource, ToDim};
+use crate::dim_inputs::DimInputs;
 use crate::session::{HostAnchorRef, PendingInbound, SessionConnection};
 use mcrs_minecraft_engine_world::session::{Place, Session, SessionAnchors, SessionPlacement};
 use mcrs_minecraft_engine_world::world::channels::MAX_HELD_SERVERBOUND;
@@ -649,7 +649,7 @@ pub fn bridge_inbound_to_channel(
         &mut PendingInbound,
         Option<&SessionConnection>,
     )>,
-    dim_channels: Res<DimChannelsResource>,
+    mut dim_inputs: ResMut<DimInputs>,
     mut commands: Commands,
 ) {
     for msg in msgs.drain() {
@@ -662,7 +662,7 @@ pub fn bridge_inbound_to_channel(
         if let (Some(trigger), Some(connection)) = (msg.trigger, connection) {
             trigger.raise(&mut commands, connection.entity(), msg.data.clone());
         }
-        if !route_serverbound(placement, &mut pending, &dim_channels, msg)
+        if !route_serverbound(placement, &mut pending, &mut dim_inputs, msg)
             && let Some(connection) = connection
         {
             commands
@@ -673,13 +673,13 @@ pub fn bridge_inbound_to_channel(
 }
 
 /// Sends a packet to the dimension its session is attached to, or holds it
-/// until the session is attached, the channel has room, and everything held
+/// until the session is attached, the next tick has room, and everything held
 /// before it has gone. Returns `false` when the session holds more than
 /// [`MAX_HELD_SERVERBOUND`] packets for its attached dimension.
 fn route_serverbound(
     placement: &SessionPlacement,
     pending: &mut PendingInbound,
-    dim_channels: &DimChannelsResource,
+    dim_inputs: &mut DimInputs,
     packet: InboundPlayerPacket,
 ) -> bool {
     let Some(dim) = placement.place().attached() else {
@@ -690,12 +690,10 @@ fn route_serverbound(
         pending.0.push(packet);
         return pending.0.len() <= MAX_HELD_SERVERBOUND;
     }
-    let Some(chan) = dim_channels.get(dim) else {
+    if !dim_inputs.contains(dim) {
         return true;
-    };
-    if let Err(flume::TrySendError::Full(ToDim::Serverbound(packet))) =
-        chan.serverbound_sender.try_send(ToDim::Serverbound(packet))
-    {
+    }
+    if let Err(packet) = dim_inputs.try_send_serverbound(dim, packet) {
         pending.0.push(packet);
     }
     true
@@ -721,27 +719,25 @@ pub fn bridge_player_attach(
 }
 
 /// Hands an attached session's held packets to its dimension, oldest first, until the
-/// dimension's serverbound channel is full; the rest wait for the next call.
+/// serverbound packets of the dimension's next tick are full; the rest wait for the next call.
 pub fn forward_pending_inbound(
     mut sessions: Query<(&SessionPlacement, &mut PendingInbound)>,
-    dim_channels: Res<DimChannelsResource>,
+    mut dim_inputs: ResMut<DimInputs>,
 ) {
     for (placement, mut pending) in &mut sessions {
         if pending.0.is_empty() {
             continue;
         }
-        let Some(chan) = placement
+        let Some(dim) = placement
             .place()
             .attached()
-            .and_then(|dim| dim_channels.get(dim))
+            .filter(|&dim| dim_inputs.contains(dim))
         else {
             continue;
         };
         let mut held = mem::take(&mut pending.0).into_iter();
         while let Some(packet) = held.next() {
-            if let Err(flume::TrySendError::Full(ToDim::Serverbound(packet))) =
-                chan.serverbound_sender.try_send(ToDim::Serverbound(packet))
-            {
+            if let Err(packet) = dim_inputs.try_send_serverbound(dim, packet) {
                 pending.0.push(packet);
                 pending.0.extend(held);
                 break;
@@ -760,7 +756,7 @@ pub fn bridge_inbound(
     )>,
     mut commands: Commands,
     mut sessions: Query<(&Session, &SessionPlacement, &mut PendingInbound)>,
-    dim_channels: Res<DimChannelsResource>,
+    mut dim_inputs: ResMut<DimInputs>,
     mut telemetry: ResMut<BridgeTelemetry>,
     mut dispatcher: ResMut<PacketDispatcher>,
 ) {
@@ -807,7 +803,7 @@ pub fn bridge_inbound(
                         && !route_serverbound(
                             placement,
                             &mut pending,
-                            &dim_channels,
+                            &mut dim_inputs,
                             InboundPlayerPacket {
                                 session,
                                 id: pkt.id,
@@ -840,21 +836,15 @@ mod tests {
     use bevy_ecs::system::{IntoSystem, System};
     use bevy_ecs::world::World;
 
-    use crate::channel_types::{DimChannelsResource, FromDim, ToDim};
     use crate::session::SessionBundle;
 
     use bytes::Bytes;
     use mcrs_minecraft_engine_world::session::PlayerSession;
-    use mcrs_minecraft_engine_world::world::channels::{FROM_DIM_CAPACITY, TO_DIM_CAPACITY};
 
-    fn make_dim_channels(world: &mut World, dim: Entity) -> flume::Receiver<ToDim> {
-        let (srv_tx, srv_rx) = flume::bounded::<ToDim>(TO_DIM_CAPACITY);
-        let (ctl_tx, _ctl_rx) = flume::unbounded::<ToDim>();
-        let (_from_tx, from_rx) = flume::bounded::<FromDim>(FROM_DIM_CAPACITY);
-        world
-            .resource_mut::<DimChannelsResource>()
-            .insert(dim, srv_tx, ctl_tx, from_rx);
-        srv_rx
+    fn spawn_dim(world: &mut World) -> Entity {
+        let dim = world.spawn_empty().id();
+        world.resource_mut::<DimInputs>().insert(dim);
+        dim
     }
 
     fn run<M>(world: &mut World, system: impl IntoSystem<(), (), M>) {
@@ -868,7 +858,7 @@ mod tests {
         let mut world = World::new();
         world.init_resource::<Messages<OutboundPlayerAttached>>();
         world.init_resource::<Messages<InboundPlayerPacket>>();
-        world.init_resource::<DimChannelsResource>();
+        world.init_resource::<DimInputs>();
         world.init_resource::<SessionAnchors>();
         world
     }
@@ -882,20 +872,19 @@ mod tests {
         }
     }
 
-    fn ids(rx: &flume::Receiver<ToDim>) -> Vec<i32> {
-        rx.try_iter()
-            .map(|msg| match msg {
-                ToDim::Serverbound(packet) => packet.id,
-                other => panic!("expected Serverbound, got {other:?}"),
-            })
+    fn ids(world: &World, dim: Entity) -> Vec<i32> {
+        world
+            .resource::<DimInputs>()
+            .serverbound(dim)
+            .iter()
+            .map(|packet| packet.id)
             .collect()
     }
 
     #[test]
     fn bridge_player_attach_places_the_session_and_sends_held_packets() {
         let mut world = world();
-        let dest_dim = world.spawn_empty().id();
-        let dest_srv_rx = make_dim_channels(&mut world, dest_dim);
+        let dest_dim = spawn_dim(&mut world);
         let host_anchor = world
             .spawn(SessionBundle::placed(
                 PlayerSession(3),
@@ -928,17 +917,16 @@ mod tests {
                 .is_empty()
         );
         assert_eq!(
-            ids(&dest_srv_rx),
+            ids(&world, dest_dim),
             vec![0, 1, 2],
-            "3 buffered packets sent to serverbound channel"
+            "the 3 held packets go to the next tick of the dimension"
         );
     }
 
     #[test]
     fn a_packet_arriving_behind_held_ones_waits_for_them() {
         let mut world = world();
-        let dim = world.spawn_empty().id();
-        let srv_rx = make_dim_channels(&mut world, dim);
+        let dim = spawn_dim(&mut world);
         let host_anchor = world
             .spawn(SessionBundle::placed(
                 PlayerSession(4),
@@ -955,10 +943,13 @@ mod tests {
             .resource_mut::<Messages<InboundPlayerPacket>>()
             .write(packet(PlayerSession(4), 1));
         run(&mut world, bridge_inbound_to_channel);
-        assert!(ids(&srv_rx).is_empty(), "nothing overtakes a held packet");
+        assert!(
+            ids(&world, dim).is_empty(),
+            "nothing overtakes a held packet"
+        );
 
         run(&mut world, forward_pending_inbound);
-        assert_eq!(ids(&srv_rx), vec![0, 1]);
+        assert_eq!(ids(&world, dim), vec![0, 1]);
     }
 
     #[test]

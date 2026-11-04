@@ -9,15 +9,16 @@ use mcrs_minecraft_engine::bus::{
     InboundPlayerPacket, InboundPlayerSpawn, OutboundPlayerPacket, PacketPayload, PacketPriority,
     PacketTarget, PlayerTransferSnapshot, TestPayload,
 };
-use mcrs_minecraft_engine::channel_types::{DimChannelsResource, ToDim};
+use mcrs_minecraft_engine::channel_types::ToDim;
 use mcrs_minecraft_engine::dim::DimSubAppHandle;
-use mcrs_minecraft_engine::dim::pump_channels;
+use mcrs_minecraft_engine::dim::take_dim_outputs;
+use mcrs_minecraft_engine::dim_inputs::DimInputs;
 use mcrs_minecraft_engine::session::SessionBundle;
 use mcrs_minecraft_engine::sub_app_builder::drain_dim_spawn_queue;
 use mcrs_minecraft_engine_world::session::{
     Place, PlayerSession, PlayerSessionCounter, SessionPlacement,
 };
-use mcrs_minecraft_engine_world::world::sub_app::{DimAppLabel, DimSpawnQueue, DimSpawnRequest};
+use mcrs_minecraft_engine_world::world::sub_app::{DimSpawnQueue, DimSpawnRequest};
 
 use crate::host_app;
 
@@ -99,8 +100,7 @@ fn outbound_latency_is_one_host_tick() {
 
     let label_entity = first_label_entity(&mut app);
 
-    app.sub_app_mut(DimAppLabel(label_entity))
-        .world_mut()
+    host_app::world(&mut app, label_entity)
         .resource_mut::<Messages<OutboundPlayerPacket>>()
         .write(OutboundPlayerPacket {
             target: PacketTarget::SinglePlayer(PlayerSession(0)),
@@ -110,21 +110,19 @@ fn outbound_latency_is_one_host_tick() {
             epoch: 0,
         });
 
-    // Tick 1: flush_from_dim_outbox sends to channel; pump_channels drains it.
-    // record_host_outbound runs in Update which precedes the pump, so the packet
-    // is not yet in the host Messages buffer when Update executes.
+    // Tick 1: the dimension hands the packet over in its output, which the host takes after
+    // the update. record_host_outbound runs in Update, before the dimension ticks.
     app.update();
-    pump_channels(&mut app);
+    take_dim_outputs(app.world_mut());
     let log = app.world().resource::<OutboundLog>().0.clone();
     assert!(
         log.is_empty(),
         "outbound should NOT yet be visible to host after tick 1; log = {log:?}"
     );
 
-    // Tick 2: host Messages buffers swap; record_host_outbound drains the packet
-    // that pump_channels wrote during tick 1.
+    // Tick 2: record_host_outbound drains the packet that the host took after tick 1.
     app.update();
-    pump_channels(&mut app);
+    take_dim_outputs(app.world_mut());
     let log = app.world().resource::<OutboundLog>().0.clone();
     assert_eq!(
         log,
@@ -142,7 +140,7 @@ fn inbound_latency_is_zero_host_ticks() {
     let label_entity = first_label_entity(&mut app);
 
     {
-        let sub = app.sub_app_mut(DimAppLabel(label_entity));
+        let sub = host_app::sub_app(&mut app, label_entity);
         sub.world_mut().init_resource::<InboundLog>();
         sub.add_systems(Update, record_sub_inbound);
     }
@@ -168,14 +166,12 @@ fn inbound_latency_is_zero_host_ticks() {
             trigger: None,
         });
 
-    // bridge_inbound_to_channel (Update) routes to the dim's serverbound channel;
-    // drain_to_dim_inbox (FixedPreUpdate) reads it into sub Messages;
+    // bridge_inbound_to_channel (Update) queues it for the dimension's tick, which runs after
+    // the host; drain_dim_inbox (FixedPreUpdate) writes it into sub Messages;
     // record_sub_inbound (Update) drains it — all within one app.update().
     app.update();
 
-    let log = app
-        .sub_app(DimAppLabel(label_entity))
-        .world()
+    let log = host_app::world(&mut app, label_entity)
         .resource::<InboundLog>()
         .0
         .clone();
@@ -195,8 +191,8 @@ fn messages_sent_before_a_dimension_boots_arrive_in_order_on_its_first_tick() {
         .set(AppState::Playing);
     app.update();
 
-    // Enqueue and spawn the dim. spawn_dim_subapp creates the channel pair
-    // before the sub-app's schedule first runs.
+    // Enqueue and spawn the dim. spawn_dim_subapp registers its input before the world first
+    // ticks.
     app.world_mut()
         .resource_mut::<DimSpawnQueue>()
         .0
@@ -213,25 +209,19 @@ fn messages_sent_before_a_dimension_boots_arrive_in_order_on_its_first_tick() {
 
     // Install the recorder in the sub-app BEFORE its first tick.
     {
-        let sub = app.sub_app_mut(DimAppLabel(label_entity));
+        let sub = host_app::sub_app(&mut app, label_entity);
         sub.world_mut().init_resource::<InboundLog>();
         sub.add_systems(Update, record_sub_inbound);
     }
 
     let session = PlayerSession(1);
 
-    // Send messages into the channel BEFORE app.update() runs the sub-app.
-    // All sends must return Ok without blocking — the bounded channel buffer
-    // is the pending queue (structural readiness).
+    // Queue messages BEFORE app.update() first ticks the dimension.
     let sent_ok: Vec<bool> = {
-        let channels = app.world().resource::<DimChannelsResource>();
-        let entry = channels
-            .get(label_entity)
-            .expect("channel entry exists before first tick");
-
-        let spawn_result = entry
-            .control_sender
-            .try_send(ToDim::Spawn(InboundPlayerSpawn {
+        let mut inputs = app.world_mut().resource_mut::<DimInputs>();
+        let spawn_result = inputs.send_control(
+            label_entity,
+            ToDim::Spawn(InboundPlayerSpawn {
                 session,
                 snapshot: PlayerTransferSnapshot {
                     uuid: mcrs_minecraft_protocol::uuid::Uuid::nil(),
@@ -241,44 +231,42 @@ fn messages_sent_before_a_dimension_boots_arrive_in_order_on_its_first_tick() {
                     client_info: Some(crate::support::client_info_with_view_distance(12)),
                 },
                 dimensions: Vec::new().into(),
-            }));
+            }),
+        );
 
         let serverbound_results: Vec<_> = (200i32..203)
             .map(|id| {
-                entry
-                    .serverbound_sender
-                    .try_send(ToDim::Serverbound(InboundPlayerPacket {
-                        session,
-                        id,
-                        data: Bytes::new(),
-                        trigger: None,
-                    }))
+                inputs
+                    .try_send_serverbound(
+                        label_entity,
+                        InboundPlayerPacket {
+                            session,
+                            id,
+                            data: Bytes::new(),
+                            trigger: None,
+                        },
+                    )
                     .is_ok()
             })
             .collect();
 
-        std::iter::once(spawn_result.is_ok())
+        std::iter::once(spawn_result)
             .chain(serverbound_results)
             .collect()
     };
 
     for (i, sent) in sent_ok.iter().enumerate() {
-        assert!(
-            *sent,
-            "send {i} must return Ok without blocking before the dim's first tick"
-        );
+        assert!(*sent, "send {i} is taken before the dim's first tick");
     }
 
     // First app.update() — sub-app runs for the first time:
-    // FixedPreUpdate drain_to_dim_inbox drains the channel in FIFO order,
+    // FixedPreUpdate drain_dim_inbox writes the input in FIFO order,
     // control (Spawn) before serverbound; Update record_sub_inbound logs
     // the serverbound packets (Spawn routes to InboundPlayerSpawn, not
     // InboundPlayerPacket, so it does not appear in InboundLog).
     app.update();
 
-    let log = app
-        .sub_app(DimAppLabel(label_entity))
-        .world()
+    let log = host_app::world(&mut app, label_entity)
         .resource::<InboundLog>()
         .0
         .clone();

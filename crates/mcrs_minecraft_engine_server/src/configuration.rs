@@ -5,16 +5,17 @@ use bevy_ecs::prelude::{
     Changed, Commands, Entity, On, Query, Resource, With, Without, resource_exists,
 };
 use bevy_ecs::schedule::{IntoScheduleConfigs, ScheduleConfigs};
-use bevy_ecs::system::Res;
 use bevy_ecs::system::ScheduleSystem;
+use bevy_ecs::system::{Res, ResMut};
 use bevy_math::{DVec3, Vec2};
 use bevy_state::prelude::in_state;
 use mcrs_minecraft_assets::AppState;
 use mcrs_minecraft_engine::bus::InboundPlayerSpawn;
 use mcrs_minecraft_engine::bus::PlayerTransferSnapshot;
-use mcrs_minecraft_engine::channel_types::{DimChannelsResource, ToDim};
+use mcrs_minecraft_engine::channel_types::ToDim;
 use mcrs_minecraft_engine::client_info::ClientInfo;
 use mcrs_minecraft_engine::dim::DimSubAppHandle;
+use mcrs_minecraft_engine::dim_inputs::DimInputs;
 use mcrs_minecraft_engine::session::GameProfile;
 use mcrs_minecraft_engine::session::HostAnchorRef;
 use mcrs_minecraft_engine_registries::SyncedRegistries;
@@ -249,9 +250,9 @@ fn on_game_configuration_ack(
 /// is still unplaced, picks the live `DimSubAppHandle` label entity of the
 /// dimension the player was saved in, or the first dimension of the list when
 /// the save names none or a dimension that is not live, sends
-/// one `ToDim::Spawn` into the dimension's control channel and marks the session
-/// as joining that label entity — the key used by `DimChannelsResource`, NOT a
-/// sub-app-internal `Dimension` entity.
+/// one `ToDim::Spawn` into the dimension's next tick and marks the session
+/// as joining that label entity — the key used by `DimInputs`, NOT a
+/// `Dimension` entity inside the dimension world.
 ///
 /// If no live label entity exists yet (dims still loading), the session stays
 /// unplaced and the emit is retried next tick.
@@ -262,7 +263,7 @@ pub fn emit_initial_player_spawn(
         (Entity, &ResourceKeyBuf<mcrs_minecraft_dimension::Dimension>),
         With<DimSubAppHandle>,
     >,
-    dim_channels: Res<DimChannelsResource>,
+    mut dim_inputs: ResMut<DimInputs>,
     dimension_list: Res<DimensionList>,
     save: Option<Res<WorldSave>>,
 ) {
@@ -308,7 +309,7 @@ pub fn emit_initial_player_spawn(
             client_info: info.cloned(),
         };
         let dimensions = Arc::clone(dimension_list.keys());
-        if dim_channels.send_control(
+        if dim_inputs.send_control(
             dim_label,
             ToDim::Spawn(InboundPlayerSpawn {
                 session: session.0,

@@ -7,8 +7,8 @@ use bevy_ecs::system::RunSystemOnce;
 use mcrs_minecraft_engine::bus::{
     InboundPlayerDespawn, OutboundPlayerAttached, OutboundPlayerDisconnect,
 };
-use mcrs_minecraft_engine::channel_types::FromDim;
-use mcrs_minecraft_engine::channel_types::{DimChannelsResource, ToDim};
+use mcrs_minecraft_engine::channel_types::ToDim;
+use mcrs_minecraft_engine::dim_inputs::DimInputs;
 use mcrs_minecraft_engine::disconnect::{
     DisconnectProtocolPlugin, Disconnects, PendingDisconnectQueue, drain_pending_disconnects,
     filter_inflight_for_disconnect,
@@ -17,7 +17,6 @@ use mcrs_minecraft_engine::session::SessionBundle;
 use mcrs_minecraft_engine_world::session::{
     Place, PlayerSessionCounter, Session, SessionPlacement,
 };
-use mcrs_minecraft_engine_world::world::channels::{FROM_DIM_CAPACITY, TO_DIM_CAPACITY};
 
 fn build_app() -> App {
     let mut app = App::new();
@@ -25,19 +24,13 @@ fn build_app() -> App {
     app.add_message::<OutboundPlayerDisconnect>();
     app.add_message::<InboundPlayerDespawn>();
     app.init_resource::<PlayerSessionCounter>();
-    app.init_resource::<DimChannelsResource>();
+    app.init_resource::<DimInputs>();
     app.add_plugins(DisconnectProtocolPlugin);
     app
 }
 
-fn register_dim_channel(app: &mut App, dim: Entity) -> flume::Receiver<ToDim> {
-    let (srv_tx, _srv_rx) = flume::bounded::<ToDim>(TO_DIM_CAPACITY);
-    let (ctl_tx, ctl_rx) = flume::unbounded::<ToDim>();
-    let (_from_tx, from_rx) = flume::bounded::<FromDim>(FROM_DIM_CAPACITY);
-    app.world_mut()
-        .resource_mut::<DimChannelsResource>()
-        .insert(dim, srv_tx, ctl_tx, from_rx);
-    ctl_rx
+fn register_dim_channel(app: &mut App, dim: Entity) {
+    app.world_mut().resource_mut::<DimInputs>().insert(dim);
 }
 
 fn insert_player(app: &mut App, host_anchor: Entity, dim: Entity) {
@@ -93,9 +86,12 @@ fn tick_update_schedule(app: &mut App) {
         .expect("Update-schedule filter");
 }
 
-fn dim_despawn_count(ctl_rx: &flume::Receiver<ToDim>) -> usize {
-    ctl_rx
-        .try_iter()
+/// The despawns that `dim` holds for its next tick, which never comes here.
+fn dim_despawn_count(app: &App, dim: Entity) -> usize {
+    app.world()
+        .resource::<DimInputs>()
+        .control(dim)
+        .iter()
         .filter(|msg| matches!(msg, ToDim::Despawn(..)))
         .count()
 }
@@ -104,13 +100,13 @@ fn dim_despawn_count(ctl_rx: &flume::Receiver<ToDim>) -> usize {
 fn e4_1_100_simultaneous_disconnects_process_32_per_tick() {
     let mut app = build_app();
     let dim = Entity::from_raw_u32(900).unwrap();
-    let ctl_rx = register_dim_channel(&mut app, dim);
+    register_dim_channel(&mut app, dim);
     let anchors = spawn_anchors(&mut app, 100, dim);
 
     fire_disconnect(&mut app, &anchors);
     tick_update_schedule(&mut app);
 
-    let processed = dim_despawn_count(&ctl_rx);
+    let processed = dim_despawn_count(&app, dim);
     assert_eq!(
         processed, 32,
         "exactly budget-count (32) processed in the first tick",
@@ -127,7 +123,7 @@ fn e4_1_100_simultaneous_disconnects_process_32_per_tick() {
     // Tick 2: drain refills budget and processes 32 more.
     tick_first_schedule(&mut app);
     tick_update_schedule(&mut app);
-    let processed_2 = processed + dim_despawn_count(&ctl_rx);
+    let processed_2 = dim_despawn_count(&app, dim);
     assert_eq!(processed_2, 64, "32 + 32 processed");
     assert_eq!(
         app.world()
@@ -140,7 +136,7 @@ fn e4_1_100_simultaneous_disconnects_process_32_per_tick() {
     // Tick 3: another 32.
     tick_first_schedule(&mut app);
     tick_update_schedule(&mut app);
-    let processed_3 = processed_2 + dim_despawn_count(&ctl_rx);
+    let processed_3 = dim_despawn_count(&app, dim);
     assert_eq!(processed_3, 96);
     assert_eq!(
         app.world()
@@ -153,7 +149,7 @@ fn e4_1_100_simultaneous_disconnects_process_32_per_tick() {
     // Tick 4: remaining 4 drained; queue empty.
     tick_first_schedule(&mut app);
     tick_update_schedule(&mut app);
-    let processed_4 = processed_3 + dim_despawn_count(&ctl_rx);
+    let processed_4 = dim_despawn_count(&app, dim);
     assert_eq!(processed_4, 100);
     assert!(
         app.world()

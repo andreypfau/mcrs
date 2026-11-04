@@ -1,5 +1,5 @@
-//! The world a tick produces must not depend on the thread count or on the order in which the
-//! generation and light steps ended.
+//! The world a tick produces must not depend on where the worlds tick or on the order in which
+//! the generation and light steps ended.
 //!
 //! Each run ticks in lockstep: after every tick it waits until the generation and light steps
 //! that the tick started have ended, without applying their writes. The writes then reach every
@@ -19,20 +19,17 @@ use bevy_tasks::block_on;
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_chunk::{BlockLight, LightStorage, SkyLight};
 use mcrs_minecraft_engine::column_view::ColumnView;
-use mcrs_minecraft_engine_server::{TickThreading, runner};
+use mcrs_minecraft_engine_server::{Placement, runner};
 use mcrs_minecraft_engine_world::block_update::BlockSetRequest;
 use mcrs_minecraft_engine_world::entity::physics::Transform;
 use mcrs_minecraft_engine_world::entity::player::Player;
 use mcrs_minecraft_engine_world::entity::player::chunk_view::PlayerViewDistance;
 use mcrs_minecraft_engine_world::palette::ChunkBlocks;
 use mcrs_minecraft_engine_world::session::{Owner, PlayerSession};
-use mcrs_minecraft_engine_world::tick_threading;
 use mcrs_minecraft_engine_world::world::dimension::InDimension;
 use mcrs_minecraft_engine_world::world::lifecycle::stage::SectionStage;
-use mcrs_minecraft_engine_world::world::outbox_drain::OutboxDrain;
 use mcrs_minecraft_engine_world::world::storage::block_entity::BlockEntity;
 use mcrs_minecraft_engine_world::world::storage::column::{ColumnIndex, ColumnPosComponent};
-use mcrs_minecraft_engine_world::world::sub_app::DimAppLabel;
 use mcrs_minecraft_heightmap::{MotionHeightmap, SurfaceHeightmap};
 use mcrs_minecraft_server::MinecraftServerPlugins;
 use mcrs_minecraft_simulation::BlockUpdateFlags;
@@ -42,16 +39,16 @@ use mcrs_minecraft_worldgen_generator::stages::FillContext;
 use mcrs_voxel::{BlockPos, BlockStateId, SectionPos};
 
 use crate::configuration_registries::ASSETS;
-use crate::host_app::label_of;
+use crate::host_app::{label_of, world as dimension_world};
 
 const OVERWORLD: &str = "minecraft:overworld";
 const TICKS: usize = 60;
 const PATIENCE: Duration = Duration::from_secs(120);
 
-fn server(threading: TickThreading) -> App {
+fn server(worlds: Placement) -> App {
     let mut plugins = MinecraftServerPlugins::embedded();
     plugins.core.asset_path = Some(ASSETS.to_owned());
-    plugins.core.tick_threading = threading;
+    plugins.core.worlds = worlds;
     plugins.network.announce_on_lan = false;
     plugins.worlds.seed = 4;
     let mut app = App::new();
@@ -64,25 +61,13 @@ fn server(threading: TickThreading) -> App {
 }
 
 fn tick(app: &mut App) {
-    tick_threading::update(app);
+    app.update();
     runner::between_ticks(app);
-    runner::drain_woken(app);
+    runner::drain(app);
 }
 
-fn dimension_world(app: &mut App, label: Entity) -> &mut World {
-    app.sub_app_mut(DimAppLabel(label)).world_mut()
-}
-
-fn drain_outbox(app: &mut App, label: Entity) {
-    dimension_world(app, label).run_schedule(OutboxDrain);
-    runner::drain_woken(app);
-}
-
-/// Waits as the server loop does between ticks, draining the dimension's outbox before and
-/// after: the drain may run at any moment between ticks, so it must not change what the next
-/// tick sees.
+/// Waits between ticks until the generation and light steps that the tick started have ended.
 fn wait_for_steps(app: &mut App, label: Entity) {
-    drain_outbox(app, label);
     let world = dimension_world(app, label);
     if let Some(mut generation) = world.get_resource_mut::<GenerationLink>() {
         block_on(generation.answered());
@@ -90,7 +75,6 @@ fn wait_for_steps(app: &mut App, label: Entity) {
     if let Some(mut light) = world.get_resource_mut::<LightLink>() {
         block_on(light.answered());
     }
-    drain_outbox(app, label);
 }
 
 fn dimension_entity(world: &mut World) -> Entity {
@@ -240,8 +224,8 @@ fn world_hash(world: &mut World, hashed: Hashed) -> u64 {
 }
 
 /// The hash of the dimension after each tick of the scenario, and of its blocks after the last.
-fn run(threading: TickThreading) -> Vec<u64> {
-    let mut app = server(threading);
+fn run(worlds: Placement) -> Vec<u64> {
+    let mut app = server(worlds);
     let label = label_of(&app, OVERWORLD);
     // The generation context comes from assets, which load off the tick; nothing generates
     // before the player arrives, so the ticks it takes are not part of the scenario.
@@ -325,13 +309,13 @@ fn first_divergence(left: &[u64], right: &[u64]) -> Option<usize> {
 
 #[test]
 fn the_world_a_tick_produces_does_not_depend_on_the_threads() {
-    let single = run(TickThreading::Single);
-    for threading in [TickThreading::Parallel, TickThreading::Parallel] {
-        let other = run(threading);
+    let inline = run(Placement::Inline);
+    for worlds in [Placement::Thread, Placement::Thread] {
+        let other = run(worlds);
         assert_eq!(
-            first_divergence(&single, &other),
+            first_divergence(&inline, &other),
             None,
-            "{threading:?} diverges from Single at the tick shown (the last entry holds the blocks)"
+            "{worlds:?} diverges from Inline at the tick shown (the last entry holds the blocks)"
         );
     }
 }

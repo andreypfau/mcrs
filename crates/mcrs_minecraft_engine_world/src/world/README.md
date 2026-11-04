@@ -19,10 +19,10 @@ means.
 
 ```
 world/
-├── channels.rs       host ↔ dimension channel types
+├── channels.rs       bounds of the serverbound input of a dimension tick
 ├── dimension.rs      Dimension, DimensionTypeConfig, InDimension, DimensionBundle, HasSkyLight
 ├── in_flight.rs      moves between dimensions awaiting their destination's acknowledgement
-├── sub_app.rs        per-dimension sub-app labels and spawn/despawn queues
+├── sub_app.rs        dimension labels, spawn/despawn queues and dimension plugins
 ├── lifecycle/
 │   ├── column_loading.rs  ColumnLoading: the loading tickets on columns and the columns they load
 │   ├── coverage.rs        Coverage: how many areas cover each position, with the positions that enter and leave

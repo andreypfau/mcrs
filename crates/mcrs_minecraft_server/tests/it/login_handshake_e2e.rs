@@ -19,7 +19,7 @@ use mcrs_minecraft_engine::bridge::{
 };
 use mcrs_minecraft_engine::bridge_queue::{InboundRateBucket, OutboundQueue};
 use mcrs_minecraft_engine::bus::InboundPlayerSpawn;
-use mcrs_minecraft_engine::dim::pump_channels;
+use mcrs_minecraft_engine::dim::take_dim_outputs;
 use mcrs_minecraft_engine::session::GameProfile;
 use mcrs_minecraft_engine::session::HostAnchorRef;
 use mcrs_minecraft_engine::sub_app_builder::drain_dim_spawn_queue;
@@ -134,30 +134,15 @@ fn e2e_join_releases_joining_world() {
         .entity_mut(connection_entity)
         .insert(ConnectionState::Game);
 
-    // Tick 1: emit_initial_player_spawn sends ToDim::Spawn on the control channel.
-    //         Sub-app extract runs (no output yet), then sub-app FixedPreUpdate
-    //         drain_to_dim_inbox routes Spawn → Messages<InboundPlayerSpawn>.
-    //         FixedLast flush_from_dim_outbox runs before Update (empty outbox).
-    //         Update consume_inbound_player_spawn spawns the in-dim entity,
-    //         writes OutboundPlayerAttached + play-login OutboundPlayerPacket(s).
-    //         pump_channels: from_dim channel empty (flush ran before spawn wrote).
-    app.update();
-    pump_channels(&mut app);
-
-    // Tick 2: extract drains sub-app Messages<OutboundPlayerAttached> (written tick 1)
-    //         → host Messages<OutboundPlayerAttached>. Sub-app FixedLast
-    //         flush_from_dim_outbox now drains the play-login packet(s) into the
-    //         FromDim channel. pump_channels drains the channel into host
-    //         Messages<OutboundPlayerPacket> with correct session stamp.
-    app.update();
-    pump_channels(&mut app);
-
-    // Tick 3: main First swaps host Messages; bridge_player_attach sees
-    //         OutboundPlayerAttached → attaches the session; bridge_outbound sees
-    //         play-login packets → routes to OutboundQueue; dispatch_encode encodes
-    //         and sends the blob.
-    app.update();
-    pump_channels(&mut app);
+    // Tick 1: emit_initial_player_spawn queues ToDim::Spawn for the dimension, which ticks
+    //         after the host: it spawns the player and hands over OutboundPlayerAttached and
+    //         the play-login packets in its output, which the host takes between ticks.
+    // Tick 2: bridge_player_attach attaches the session; bridge_outbound routes the
+    //         play-login packets to the OutboundQueue and dispatch_encode sends the blob.
+    for _ in 0..3 {
+        app.update();
+        take_dim_outputs(app.world_mut());
+    }
 
     // Assertion 1: handoff completed — the session is attached.
     let place = app

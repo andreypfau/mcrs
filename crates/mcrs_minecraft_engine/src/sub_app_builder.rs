@@ -4,52 +4,22 @@ use bevy_app::{
 };
 use bevy_asset::AssetPlugin;
 use bevy_ecs::entity::Entity;
-use bevy_ecs::message::Messages;
-use bevy_ecs::schedule::{
-    IntoScheduleConfigs, Schedule, ScheduleLabel, SingleThreadedExecutor, SystemSet,
-};
-use bevy_ecs::system::{Local, Res, ResMut};
-use bevy_ecs::world::World;
-
-use std::collections::VecDeque;
+use bevy_ecs::schedule::{IntoScheduleConfigs, SystemSet};
+use bevy_ecs::system::Res;
+use mcrs_engine_cell::Placement;
 use tracing::{error, warn};
 
-use crate::bus::{InboundPlayerDespawn, InboundPlayerSpawn, OutboundPlayerPacket};
-use crate::channel_types::{FromDim, ToDim};
+use crate::bus::{InboundPlayerSpawn, OutboundPlayerPacket};
 use crate::dim::DimSubAppHandle;
+use crate::dim_cells::DimCells;
+use crate::dim_inputs::DimInputs;
+use crate::dim_tick::{DimInbox, drain_dim_inbox, inbox_holds_messages};
 use mcrs_minecraft_engine_world::block_update::{BlockPlaced, BlockSetRequest};
-use mcrs_minecraft_engine_world::world::channels::{
-    DimChannels, FROM_DIM_CAPACITY, FromDimSender, TO_DIM_CAPACITY, ToDimReceiver,
-};
 
-/// System set for inbox drain systems, run early in `FixedPreUpdate`.
-/// Systems that consume inbound messages run after this set.
+/// The system set of the inbox drain, early in `FixedPreUpdate`: the messages of the input of a
+/// tick reach the dimension here. Systems that consume them run after this set.
 #[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
 pub struct DimInboxDrain;
-
-/// Private driver schedule: Bevy's `SubApp::run_default_schedule` invokes only
-/// the single schedule pointed at by `update_schedule`. This schedule chains
-/// the same Bevy stock schedules that `Main` chains in a regular `App`, so
-/// every per-dim plugin runs the same systems it would in a single-app
-/// composition:
-///
-/// - Startup family (`PreStartup`, `Startup`, `PostStartup`) runs once on the
-///   first pump, guarded by an internal `Local<bool>`.
-/// - Each subsequent pump runs `First → PreUpdate → FixedFirst → FixedPreUpdate
-///   → FixedUpdate → FixedPostUpdate → FixedLast → Update → PostUpdate → Last`
-///   exactly once, then the `OutboxDrain` that hands what the tick wrote to the host.
-///
-/// Two intentional differences from Bevy's stock `Main`:
-/// - No `RunFixedMainLoop` indirection. The host runner pumps each sub-app
-///   exactly once per host tick, so the Fixed* schedules run unconditionally
-///   each pump rather than being driven by accumulated `Time<Fixed>`. The host
-///   itself owns the fixed-timestep cadence; the sub-app mirrors it 1:1.
-/// - No `SpawnScene` (we do not depend on `bevy_scene`).
-///
-/// It has no `StateTransition` or `TimePlugin` either, and no `Time` resource: a dimension
-/// counts ticks, so nothing it simulates can depend on the wall clock.
-#[derive(ScheduleLabel, Debug, Clone, PartialEq, Eq, Hash)]
-struct DimTick;
 
 use crate::block_update::{BlockUpdatePlugin, BlockUpdateWirePlugin};
 use crate::heightmap::{BlockHeightmapPredicates, DimHeightmapPlugin};
@@ -57,19 +27,19 @@ use crate::minecraft_entity::MinecraftEntityPlugin;
 use crate::player_tracker::PlayerTrackerPlugin;
 use mcrs_minecraft_dimension_environment::dimension_type::DimensionTypeFile;
 use mcrs_minecraft_dimension_environment::environment::DimensionEnvironment;
+use mcrs_minecraft_engine_world::server_loop::run_schedules_on_one_thread;
 use mcrs_minecraft_engine_world::tick::TickSet;
-use mcrs_minecraft_engine_world::tick_threading::{self, TickThreading};
 use mcrs_minecraft_engine_world::world::dimension::{
     DimensionBundle, DimensionPlugin, DimensionTypeConfig, DimensionTypeId, HasSkyLight, HasWeather,
 };
 use mcrs_minecraft_engine_world::world::dimension_builders::{DimensionBuild, DimensionBuilders};
 use mcrs_minecraft_engine_world::world::lifecycle::trace::{ColumnTraceLog, ColumnTraceSink};
-use mcrs_minecraft_engine_world::world::outbox_drain::{DrainWake, DrainWakes, OutboxDrain};
 use mcrs_minecraft_engine_world::world::storage::column::ColumnLifecycleSet;
 use mcrs_minecraft_engine_world::world::sub_app::{
-    DimAppLabel, DimSpawnQueue, DimSpawnRequest, DimensionPlugins,
+    DimSpawnQueue, DimSpawnRequest, DimensionPlugins,
 };
 use mcrs_minecraft_engine_world::world::world_save::WorldSave;
+use mcrs_minecraft_engine_world::world_placement::WorldPlacement;
 use mcrs_minecraft_heightmap::HeightmapPredicates;
 use mcrs_minecraft_registries::CurrentRegistries;
 
@@ -88,27 +58,16 @@ pub fn gather_dim_registries(world: &bevy_ecs::world::World) -> DimRegistryBundl
     }
 }
 
-/// Materialise a per-dimension sub-app and return the `DimAppLabel` key as
-/// an `Entity`.
+/// Builds the world of a dimension and places it in a cell of the host's [`DimCells`]. Returns
+/// the label entity of the dimension.
 ///
-/// Constraints encoded here:
-/// - `update_schedule` is set to `DimTick` so Bevy's
-///   `SubApp::run_default_schedule` invokes `DimTick`, which chains
-///   `FixedFirst → FixedPreUpdate → FixedUpdate → FixedPostUpdate → FixedLast`
-///   exactly once per host pump. This ensures all per-dim plugin systems
-///   execute rather than only `FixedUpdate`.
-/// - The label `Entity` is allocated from the host world's `Entities`
-///   allocator so labels are globally unique across all sub-apps. Each
-///   sub-app `World` would otherwise allocate the same low-index `Entity`
-///   value, which would collide in the `DimAppLabel(Entity)` interned key.
-///   The host world does not hold a `Dimension`-tagged entity — the label
-///   entity is reserved (no `Dimension` component) and exists only to
-///   anchor the label.
-/// - A separate `Dimension` entity lives inside the sub-app's `World`,
-///   carrying the per-dim components that the simulation queries against.
+/// The label entity comes from the host's allocator, so labels are unique across all worlds:
+/// every dimension world would otherwise allocate the same low-index entities. The label
+/// entity holds no `Dimension` component. The `Dimension` entity lives inside the world, with the
+/// components that the simulation queries.
 #[expect(
     clippy::too_many_lines,
-    reason = "a dimension's sub-app is assembled in the order its schedules, extraction and plugins require, and each step relies on the previous one"
+    reason = "a dimension's sub-app is assembled in the order its schedules and plugins require, and each step relies on the previous one"
 )]
 pub fn spawn_dim_subapp(
     app: &mut App,
@@ -157,55 +116,36 @@ pub fn spawn_dim_subapp(
         .spawn((DimSubAppHandle, request.dimension.clone()))
         .id();
 
-    let (to_dim_srv_tx, to_dim_srv_rx) = flume::bounded::<ToDim>(TO_DIM_CAPACITY);
-    let (to_dim_ctl_tx, to_dim_ctl_rx) = flume::unbounded::<ToDim>();
-    let (from_dim_tx, from_dim_rx) = flume::bounded::<FromDim>(FROM_DIM_CAPACITY);
-
     app.world_mut()
-        .resource_mut::<DimChannels<ToDim, FromDim>>()
-        .insert(label_entity, to_dim_srv_tx, to_dim_ctl_tx, from_dim_rx);
+        .get_resource_or_init::<DimInputs>()
+        .insert(label_entity);
 
-    let column_traces = app.world().get_resource::<ColumnTraceSink>().cloned();
-    let trace_dimension = request.dimension.as_str().to_owned();
+    let traces_columns = app.world().contains_resource::<ColumnTraceSink>();
     let mut sub_app = SubApp::new();
     mcrs_minecraft_engine_registries::extract_registries(app.world(), sub_app.world_mut());
 
-    sub_app.insert_resource(ToDimReceiver::<ToDim> {
-        serverbound: to_dim_srv_rx,
-        control: to_dim_ctl_rx,
-    });
-    sub_app.insert_resource(FromDimSender::<FromDim>(from_dim_tx));
-    sub_app.init_resource::<FromDimBacklog>();
-    let wake = app
-        .world_mut()
-        .get_resource_or_init::<DrainWakes>()
-        .for_dimension(label_entity);
-    sub_app.insert_resource(wake);
+    sub_app.init_resource::<DimInbox>();
 
-    // Per-sub-app message registrations. Only types that still flow through
-    // the dim sub-app's Messages<T> double-buffer (intra-dim use) are kept.
-    // Types that previously crossed the host↔dim boundary via the extract
-    // closure are now carried by the ToDim/FromDim flume channels instead
-    // and must NOT be registered here: nothing in the dimension writes or reads
-    // a stray registration, and it hides which side owns the message.
+    // Only the messages that a dimension writes or reads inside its own world are registered:
+    // what crosses to the host goes in the input and the output of a tick.
     sub_app.add_message::<OutboundPlayerPacket>();
-    // `InboundPlayerSpawn` is written by `drain_to_dim_inbox` from `ToDim::Spawn`
+    // `InboundPlayerSpawn` is written by `drain_dim_inbox` from `ToDim::Spawn`
     // and read by `consume_inbound_player_spawn` (added by `MinecraftEntityPlugin`).
     sub_app.add_message::<InboundPlayerSpawn>();
-    // `InboundPlayerDespawn` is written by `drain_to_dim_inbox` from `ToDim::Despawn`
+    // `InboundPlayerDespawn` is written by `drain_dim_inbox` from `ToDim::Despawn`
     // and read by `drain_inbound_player_despawn` (added by `PlayerTrackerPlugin`).
     sub_app.add_message::<crate::bus::InboundPlayerDespawn>();
-    // Written by `drain_to_dim_inbox` from `ToDim::Latency` and read by `apply_latency` (added
+    // Written by `drain_dim_inbox` from `ToDim::Latency` and read by `apply_latency` (added
     // by `PlayerTrackerPlugin`).
     sub_app.add_message::<crate::bus::PlayerLatency>();
-    // Written by `despawn_inbound_player` once the player is saved and drained into the
-    // `FromDim` channel by `flush_from_dim_outbox`.
+    // Written by `despawn_inbound_player` once the player is saved, and handed to the host in
+    // the output of the tick.
     sub_app.add_message::<crate::bus::OutboundPlayerReleased>();
     // `InboundPlayerPacket` is read by `dispatch_inbound_to_dim` (added by
-    // `MinecraftEntityPlugin`). Serverbound packets arrive via `drain_to_dim_inbox`.
+    // `MinecraftEntityPlugin`). Serverbound packets arrive via `drain_dim_inbox`.
     sub_app.add_message::<crate::bus::InboundPlayerPacket>();
-    // `OutboundPlayerAttached` is written by `consume_inbound_player_spawn` and
-    // extracted by the host to attach the session.
+    // `OutboundPlayerAttached` is written by `consume_inbound_player_spawn` and handed to the
+    // host in the output of the tick to attach the session.
     sub_app.add_message::<crate::bus::OutboundPlayerAttached>();
     sub_app.add_message::<mcrs_minecraft_engine_world::entity::player::ChangeDimensionRequest>();
     // The sub-app builder is the single source of truth for these registrations — `BlockUpdatePlugin`
@@ -217,17 +157,15 @@ pub fn spawn_dim_subapp(
     sub_app.add_message::<BlockPlaced>();
 
     sub_app.init_resource::<mcrs_minecraft_engine_world::session::DimPlayerIndex>();
-    if column_traces.is_some() {
+    if traces_columns {
         sub_app.init_resource::<ColumnTraceLog>();
     }
     sub_app.insert_resource(mcrs_minecraft_engine_world::world::sub_app::DimensionLabel(
         label_entity,
     ));
 
-    sub_app.update_schedule = Some(DimTick.intern());
     // `init_schedule` keeps a schedule that `SubApp::new` already filled, such as `First` with
     // `message_update_system`.
-    sub_app.init_schedule(DimTick);
     sub_app.init_schedule(First);
     sub_app.init_schedule(PreStartup);
     sub_app.init_schedule(Startup);
@@ -241,36 +179,13 @@ pub fn spawn_dim_subapp(
     sub_app.init_schedule(Update);
     sub_app.init_schedule(PostUpdate);
     sub_app.init_schedule(Last);
-    #[cfg(feature = "telemetry-tracy")]
-    let dim_for_tick = request.dimension.to_string();
-    #[cfg(feature = "telemetry-tracy")]
-    let dim_for_extract = request.dimension.to_string();
-    sub_app.add_systems(
-        DimTick,
-        move |world: &mut World, mut startup_done: Local<bool>| {
-            #[cfg(feature = "telemetry-tracy")]
-            let _dim_span = tracing::info_span!("dim_tick", dim = %dim_for_tick).entered();
-            if !*startup_done {
-                world.run_schedule(PreStartup);
-                world.run_schedule(Startup);
-                world.run_schedule(PostStartup);
-                *startup_done = true;
-            }
-            world.run_schedule(First);
-            world.run_schedule(PreUpdate);
-            world.run_schedule(FixedFirst);
-            world.run_schedule(FixedPreUpdate);
-            world.run_schedule(FixedUpdate);
-            world.run_schedule(FixedPostUpdate);
-            world.run_schedule(FixedLast);
-            world.run_schedule(Update);
-            world.run_schedule(PostUpdate);
-            world.run_schedule(Last);
-            world.run_schedule(OutboxDrain);
-        },
-    );
 
-    sub_app.add_systems(FixedPreUpdate, drain_to_dim_inbox.in_set(DimInboxDrain));
+    sub_app.add_systems(
+        FixedPreUpdate,
+        drain_dim_inbox
+            .run_if(inbox_holds_messages)
+            .in_set(DimInboxDrain),
+    );
     sub_app.add_systems(
         FixedUpdate,
         // A column packet carries the heightmaps, so they land before the columns go out.
@@ -280,15 +195,6 @@ pub fn spawn_dim_subapp(
             .after(ColumnLifecycleSet)
             .before(crate::column_view::ColumnViewSet),
     );
-    sub_app.add_schedule(Schedule::new(OutboxDrain));
-    sub_app.add_systems(
-        OutboxDrain,
-        flush_from_dim_outbox.run_if(outbox_holds_packets),
-    );
-    sub_app.edit_schedule(OutboxDrain, |schedule| {
-        schedule.set_executor(SingleThreadedExecutor::new());
-    });
-
     sub_app.add_plugins(DimensionPlugin);
     // AssetPlugin and AppTypeRegistry must precede any plugin that calls
     // `init_asset` / `register_asset_loader`. `AppTypeRegistry` is initialised by `App::new` but
@@ -333,44 +239,24 @@ pub fn spawn_dim_subapp(
         sub_app.insert_resource(save.clone());
     }
 
-    sub_app.init_resource::<mcrs_minecraft_environment::world_clock::WorldClocks>();
-    sub_app.init_resource::<crate::clock::GameTime>();
-    sub_app.init_resource::<crate::ops::OpList>();
-
-    sub_app.set_extract(move |main_world, sub_world| {
-        use crate::bus::OutboundPlayerAttached;
-
-        #[cfg(feature = "telemetry-tracy")]
-        let _dim_span = tracing::info_span!("dim_extract", dim = %dim_for_extract).entered();
-        mcrs_minecraft_environment::world_clock::extract_world_clocks(main_world, sub_world);
-        crate::clock::extract_game_time(main_world, sub_world);
-        mcrs_minecraft_engine_registries::extract_registries(main_world, sub_world);
-        if let Some(ops) = main_world.get_resource::<crate::ops::OpList>() {
-            sub_world.insert_resource(ops.clone());
-        }
-        if let Some(traces) = &column_traces
-            && let Some(log) = sub_world.get_resource::<ColumnTraceLog>()
-        {
-            traces.record(&trace_dimension, log.drain());
-        }
-
-        // Also extract OutboundPlayerAttached written directly to the sub-app Messages
-        // (i.e., before flush_from_dim_outbox drains it). This covers the case where
-        // consume_inbound_player_spawn writes OutboundPlayerAttached but it hasn't been
-        // flushed yet (e.g., if the sub-app update hasn't reached FixedLast).
-        let attached: Vec<OutboundPlayerAttached> = sub_world
-            .get_resource_mut::<Messages<OutboundPlayerAttached>>()
-            .map(|mut m| m.drain().collect())
-            .unwrap_or_default();
-        if !attached.is_empty()
-            && let Some(mut host_msgs) =
-                main_world.get_resource_mut::<Messages<OutboundPlayerAttached>>()
-        {
-            for msg in attached {
-                host_msgs.write(msg);
-            }
-        }
-    });
+    // The first tick hands over only what changes after the spawn, so the world starts from
+    // the copies of now.
+    let host = app.world();
+    sub_app.insert_resource(
+        host.get_resource::<mcrs_minecraft_environment::world_clock::WorldClocks>()
+            .cloned()
+            .unwrap_or_default(),
+    );
+    sub_app.insert_resource(
+        host.get_resource::<crate::clock::GameTime>()
+            .copied()
+            .unwrap_or_default(),
+    );
+    sub_app.insert_resource(
+        host.get_resource::<crate::ops::OpList>()
+            .cloned()
+            .unwrap_or_default(),
+    );
 
     // Before the dimension entity spawns, so a plugin can still register required components and
     // hooks for its components and its observers see it spawn.
@@ -425,95 +311,20 @@ pub fn spawn_dim_subapp(
     }
     sub_app.finish();
     sub_app.cleanup();
-    if app.world().get_resource::<TickThreading>() == Some(&TickThreading::Single) {
-        tick_threading::run_schedules_on_one_thread(sub_app.world_mut());
+    let placement = app.world().get_resource::<WorldPlacement>().copied();
+    if placement == Some(WorldPlacement(Placement::Inline)) {
+        run_schedules_on_one_thread(sub_app.world_mut());
     }
-
-    app.insert_sub_app(DimAppLabel(label_entity), sub_app);
+    app.world_mut().get_resource_or_init::<DimCells>().add(
+        label_entity,
+        sub_app,
+        placement.map_or(Placement::Inline, |placement| placement.0),
+    );
     Ok(label_entity)
-}
-
-/// Drains both `ToDim` channel receivers into the dim's local message buses.
-/// The control channel (Spawn/Despawn) is drained first so lifecycle messages
-/// always precede any same-tick Serverbound packet for a freshly spawned player.
-fn drain_to_dim_inbox(
-    rx: Res<ToDimReceiver<ToDim>>,
-    mut spawn_msgs: ResMut<Messages<InboundPlayerSpawn>>,
-    mut despawn_msgs: ResMut<Messages<InboundPlayerDespawn>>,
-    mut serverbound_msgs: ResMut<Messages<crate::bus::InboundPlayerPacket>>,
-    mut latency_msgs: ResMut<Messages<crate::bus::PlayerLatency>>,
-) {
-    for msg in rx.control.try_iter() {
-        match msg {
-            ToDim::Spawn(m) => {
-                spawn_msgs.write(m);
-            }
-            ToDim::Despawn(m) => {
-                despawn_msgs.write(m);
-            }
-            ToDim::Latency(m) => {
-                latency_msgs.write(m);
-            }
-            ToDim::Serverbound(_) => {}
-        }
-    }
-    for msg in rx.serverbound.try_iter() {
-        if let ToDim::Serverbound(m) = msg {
-            serverbound_msgs.write(m);
-        }
-    }
-}
-
-/// What a dimension produced and its full channel did not take yet, oldest first.
-#[derive(bevy_ecs::resource::Resource, Default)]
-pub(crate) struct FromDimBacklog(pub(crate) VecDeque<FromDim>);
-
-fn outbox_holds_packets(
-    msgs: Res<Messages<OutboundPlayerPacket>>,
-    released: Res<Messages<crate::bus::OutboundPlayerReleased>>,
-    backlog: Res<FromDimBacklog>,
-) -> bool {
-    !msgs.is_empty() || !released.is_empty() || !backlog.0.is_empty()
 }
 
 fn heightmaps_pending(pending: Res<crate::heightmap::PendingColumnHeightmaps>) -> bool {
     !pending.0.is_empty()
-}
-
-/// Drains the dim's local `Messages<OutboundPlayerPacket>` into the `FromDim`
-/// channel so the host-side `pump_channels` can epoch-stamp and forward them. The packets of
-/// one drain go as one message, so the channel costs one send a drain, not one a packet.
-///
-/// A full channel is backpressure, not a fault: what does not fit waits here in the order it
-/// was written, for the next drain between ticks. Nothing is ever dropped: a column is
-/// recorded as sent the moment it is queued and never offered again, so a lost
-/// packet is a hole in the client's world, and a lost batch-finished packet
-/// costs the acknowledgement the whole column stream is paced by.
-pub(crate) fn flush_from_dim_outbox(
-    mut msgs: ResMut<Messages<OutboundPlayerPacket>>,
-    mut released: ResMut<Messages<crate::bus::OutboundPlayerReleased>>,
-    sender: Res<FromDimSender<FromDim>>,
-    mut backlog: ResMut<FromDimBacklog>,
-    wake: Option<Res<DrainWake>>,
-) {
-    let backlog = &mut backlog.0;
-    let packets: Vec<OutboundPlayerPacket> = msgs.drain().collect();
-    if !packets.is_empty() {
-        backlog.push_back(FromDim::Clientbound(packets));
-    }
-    backlog.extend(released.drain().map(|released| FromDim::Released {
-        session: released.session,
-    }));
-    while let Some(outbound) = backlog.pop_front() {
-        if let Err(flume::TrySendError::Full(outbound)) = sender.0.try_send(outbound) {
-            backlog.push_front(outbound);
-            // The host empties the channel after this drain, and the rest goes with the next.
-            if let Some(wake) = &wake {
-                wake.wake();
-            }
-            break;
-        }
-    }
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -534,9 +345,8 @@ pub enum DimSpawnError {
     NoPackRoots,
 }
 
-/// Drain the `DimSpawnQueue` resource on the host world and materialise a
-/// sub-app for each request. Called from outside the ECS run loop because
-/// `App::insert_sub_app` requires `&mut App`.
+/// Builds a dimension world for each request of the host's `DimSpawnQueue`. The host calls it
+/// between ticks.
 pub fn drain_dim_spawn_queue(app: &mut App) {
     let Some(mut queue) = app.world_mut().get_resource_mut::<DimSpawnQueue>() else {
         return;
@@ -550,72 +360,5 @@ pub fn drain_dim_spawn_queue(app: &mut App) {
         if let Err(error) = spawn_dim_subapp(app, &request, &bundle) {
             error!(%error, "a dimension was not spawned");
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::bus::{PacketPayload, PacketPriority, PacketTarget, TestPayload};
-    use bevy_ecs::system::{IntoSystem, System};
-
-    /// Drains that the host does not take must not cost a packet: a column is recorded as sent
-    /// when it is queued and never offered again.
-    #[test]
-    fn a_full_channel_holds_the_overflow_back_instead_of_dropping_it() {
-        let drains = FROM_DIM_CAPACITY + FROM_DIM_CAPACITY / 2;
-        let (tx, rx) = flume::bounded::<FromDim>(FROM_DIM_CAPACITY);
-        let mut world = World::new();
-        world.insert_resource(Messages::<OutboundPlayerPacket>::default());
-        world.insert_resource(Messages::<crate::bus::OutboundPlayerReleased>::default());
-        world.insert_resource(FromDimSender(tx));
-        world.init_resource::<FromDimBacklog>();
-        let mut flush = IntoSystem::into_system(flush_from_dim_outbox);
-        flush.initialize(&mut world);
-        let packet = |seq| OutboundPlayerPacket {
-            target: PacketTarget::SinglePlayer(
-                mcrs_minecraft_engine_world::session::PlayerSession(0),
-            ),
-            priority: PacketPriority::Critical,
-            data: PacketPayload::Test(TestPayload { seq }),
-            session: mcrs_minecraft_engine_world::session::PlayerSession(0),
-            epoch: 0,
-        };
-        for seq in 0..drains as u32 {
-            let mut msgs = world.resource_mut::<Messages<OutboundPlayerPacket>>();
-            msgs.write(packet(2 * seq));
-            msgs.write(packet(2 * seq + 1));
-            flush.run((), &mut world).unwrap();
-        }
-
-        let mut arrived = Vec::new();
-        let mut batches = 0;
-        let mut drain = |arrived: &mut Vec<u32>| {
-            for msg in rx.try_iter() {
-                let FromDim::Clientbound(packets) = msg else {
-                    panic!("unexpected message {msg:?}");
-                };
-                batches += 1;
-                arrived.extend(packets.into_iter().map(|packet| match packet.data {
-                    PacketPayload::Test(payload) => payload.seq,
-                    other => panic!("unexpected payload {other:?}"),
-                }));
-            }
-        };
-        drain(&mut arrived);
-        assert_eq!(
-            arrived.len(),
-            2 * FROM_DIM_CAPACITY,
-            "the channel takes one message a drain, as many as it holds"
-        );
-
-        flush.run((), &mut world).unwrap();
-        drain(&mut arrived);
-        assert_eq!(batches, drains, "each drain is one message");
-        assert_eq!(
-            arrived,
-            (0..2 * drains as u32).collect::<Vec<_>>(),
-            "every packet arrives, in the order it was written"
-        );
     }
 }

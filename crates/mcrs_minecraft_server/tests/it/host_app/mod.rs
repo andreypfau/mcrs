@@ -2,7 +2,7 @@ use mcrs_minecraft_engine::session::GameProfile;
 use mcrs_minecraft_resource::{ResourceKeyBuf, ResourceLocationBuf};
 use std::sync::Arc;
 
-use bevy_app::{App, TaskPoolPlugin};
+use bevy_app::{App, SubApp, TaskPoolPlugin};
 use bevy_asset::AssetPlugin;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::Messages;
@@ -22,9 +22,10 @@ use mcrs_minecraft_engine::bus::{
     OutboundPlayerDisconnect, OutboundPlayerPacket, PacketPayload, PacketTarget,
     PlayerTransferSnapshot,
 };
-use mcrs_minecraft_engine::channel_types::{DimChannelsResource, ToDim};
-use mcrs_minecraft_engine::dim::DimSubAppHandle;
-use mcrs_minecraft_engine::dim::pump_channels;
+use mcrs_minecraft_engine::channel_types::ToDim;
+use mcrs_minecraft_engine::dim::{DimSubAppHandle, take_dim_outputs};
+use mcrs_minecraft_engine::dim_cells::{DimCells, DimCellsPlugin};
+use mcrs_minecraft_engine::dim_inputs::DimInputs;
 use mcrs_minecraft_engine::ops::{DefaultOpLevel, OpList, OpListEntry};
 use mcrs_minecraft_engine::session::{HostAnchorRef, SessionBundle, SessionConnection};
 use mcrs_minecraft_engine::sub_app_builder::drain_dim_spawn_queue;
@@ -34,7 +35,7 @@ use mcrs_minecraft_engine_world::session::{
     Place, PlayerSession, PlayerSessionCounter, Session, SessionPlacement,
 };
 use mcrs_minecraft_engine_world::world::sub_app::{
-    DimAppLabel, DimDespawnQueue, DimSpawnQueue, DimSpawnRequest,
+    DimDespawnQueue, DimSpawnQueue, DimSpawnRequest,
 };
 use mcrs_minecraft_game_mode::GameMode;
 use mcrs_minecraft_light_engine::block_light::{BlockLightRegistry, block_light_registry};
@@ -47,8 +48,8 @@ use mcrs_minecraft_vanilla_light::LightingPlugin;
 
 /// Build a host `App` wired for the production per-dim sub-app builder path.
 ///
-/// Registers the host-side bus messages, channel resource, spawn/despawn
-/// queues and registries that the sub-app extract closure and `pump_channels`
+/// Registers the host-side bus messages, the dimension cells, the spawn/despawn
+/// queues and registries that the dimension tick and `take_dim_outputs`
 /// read — without them the first `app.update()` after a spawn drain panics.
 /// The message set is the union required across the sub-app tests, so callers
 /// that need only a subset still get a valid host app.
@@ -93,7 +94,7 @@ pub fn make_host_app() -> App {
     app.add_message::<OutboundPlayerDisconnect>();
     app.add_message::<InboundPlayerDespawn>();
 
-    app.init_resource::<DimChannelsResource>();
+    app.add_plugins(DimCellsPlugin);
     app.init_resource::<DimSpawnQueue>();
     app.init_resource::<DimDespawnQueue>();
     crate::support::insert_registries(&mut app);
@@ -140,6 +141,31 @@ pub fn materialise_sub_apps(app: &mut App, dimensions: &[(&str, &str)]) {
     drain_dim_spawn_queue(app);
 }
 
+/// The world of the dimension `label`, lent out of its cell until the next update.
+///
+/// Panics when no dimension has the label.
+pub fn sub_app(app: &mut App, label: Entity) -> &mut SubApp {
+    app.world_mut()
+        .resource_mut::<DimCells>()
+        .into_inner()
+        .sub_app_mut(label)
+        .expect("the dimension is running")
+}
+
+/// [`sub_app`]'s world.
+pub fn world(app: &mut App, label: Entity) -> &mut World {
+    sub_app(app, label).world_mut()
+}
+
+/// Every dimension world, lent out as [`sub_app`] lends one, in the order they tick.
+pub fn sub_apps(app: &mut App) -> Vec<&mut SubApp> {
+    app.world_mut()
+        .resource_mut::<DimCells>()
+        .into_inner()
+        .sub_apps_mut()
+        .collect()
+}
+
 pub fn label_of(app: &App, dimension: &str) -> Entity {
     app.world()
         .try_query::<(Entity, &DimSubAppHandle, &ResourceKeyBuf<Dimension>)>()
@@ -150,8 +176,8 @@ pub fn label_of(app: &App, dimension: &str) -> Entity {
         .unwrap_or_else(|| panic!("{dimension} was spawned"))
 }
 
-/// Places a new session joining `label`, sends its spawn over the dimension's control channel,
-/// pumps until the dimension answers and returns the login it sent.
+/// Places a new session joining `label`, sends its spawn to the dimension, ticks until the
+/// dimension answers and returns the login it sent.
 pub fn join(
     app: &mut App,
     label: Entity,
@@ -168,12 +194,9 @@ pub fn join(
             session,
             SessionPlacement::new(Place::Joining(label), 0),
         ));
-    app.world()
-        .resource::<DimChannelsResource>()
-        .get(label)
-        .expect("a channel is registered for the dimension")
-        .control_sender
-        .try_send(ToDim::Spawn(InboundPlayerSpawn {
+    let sent = app.world_mut().resource_mut::<DimInputs>().send_control(
+        label,
+        ToDim::Spawn(InboundPlayerSpawn {
             session: PlayerSession(session.0),
             snapshot: PlayerTransferSnapshot {
                 uuid: Uuid::new_v4(),
@@ -183,12 +206,13 @@ pub fn join(
                 client_info: Some(crate::support::client_info_with_view_distance(12)),
             },
             dimensions,
-        }))
-        .expect("the control channel is not full");
+        }),
+    );
+    assert!(sent, "the dimension takes input");
 
     for _ in 0..2 {
         app.update();
-        pump_channels(app);
+        take_dim_outputs(app.world_mut());
     }
     app.world_mut()
         .resource_mut::<Messages<OutboundPlayerPacket>>()
@@ -243,7 +267,7 @@ impl PlayServer {
     }
 
     pub fn world_in(&mut self, dim: Entity) -> &mut World {
-        self.app.sub_app_mut(DimAppLabel(dim)).world_mut()
+        world(&mut self.app, dim)
     }
 
     /// Runs `n` updates and returns the packets sent to `anchor` or to every player.
@@ -269,18 +293,13 @@ impl PlayServer {
         packets
     }
 
-    pub fn submit_to(&self, dim: Entity, message: ToDim) {
-        let channels = self
+    pub fn submit_to(&mut self, dim: Entity, message: ToDim) {
+        let sent = self
             .app
-            .world()
-            .resource::<DimChannelsResource>()
-            .get(dim)
-            .unwrap();
-        let sender = match message {
-            ToDim::Serverbound(..) => &channels.serverbound_sender,
-            _ => &channels.control_sender,
-        };
-        sender.try_send(message).unwrap();
+            .world_mut()
+            .resource_mut::<DimInputs>()
+            .send(dim, message);
+        assert!(sent, "the dimension takes the message");
     }
 
     /// Returns the host anchor of the new player and the packets of its first ticks.

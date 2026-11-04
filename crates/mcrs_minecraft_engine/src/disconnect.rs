@@ -34,7 +34,8 @@ use std::collections::VecDeque;
 use tracing::warn;
 
 use crate::bus::{OutboundPlayerAttached, OutboundPlayerDisconnect};
-use crate::channel_types::{DimChannelsResource, ToDim};
+use crate::channel_types::ToDim;
+use crate::dim_inputs::DimInputs;
 use crate::session::GameProfile;
 use crate::session::{HostAnchorRef, SessionConnection};
 use mcrs_minecraft_engine_world::session::{
@@ -167,7 +168,7 @@ pub struct Disconnects<'w, 's> {
     pending_queue: ResMut<'w, PendingDisconnectQueue>,
     disconnected_this_tick: ResMut<'w, DisconnectedThisTick>,
     overflow_counter: ResMut<'w, OverflowCounter>,
-    dim_channels: ResMut<'w, DimChannelsResource>,
+    dim_channels: ResMut<'w, DimInputs>,
     commands: Commands<'w, 's>,
 }
 
@@ -207,7 +208,7 @@ impl Disconnects<'_, '_> {
 pub fn process_disconnect(
     host_anchor: Entity,
     sessions: &mut LeavingSessions,
-    dim_channels: &mut DimChannelsResource,
+    dim_channels: &mut DimInputs,
     commands: &mut Commands,
 ) {
     let Ok((session, mut placement, connection, profile)) = sessions.get_mut(host_anchor) else {
@@ -241,7 +242,7 @@ pub fn process_disconnect(
 pub fn despawn_from_dim(
     session: PlayerSession,
     place: Place,
-    dim_channels: &mut DimChannelsResource,
+    dim_channels: &mut DimInputs,
 ) -> Option<Entity> {
     place.dim().filter(|&dim| {
         dim_channels.send_control(dim, ToDim::Despawn(InboundPlayerDespawn { session }))
@@ -260,7 +261,7 @@ pub fn drain_pending_disconnects(
     mut pending_queue: ResMut<PendingDisconnectQueue>,
     mut disconnected_this_tick: ResMut<DisconnectedThisTick>,
     mut sessions: LeavingSessions,
-    mut dim_channels: ResMut<DimChannelsResource>,
+    mut dim_channels: ResMut<DimInputs>,
     mut commands: Commands,
 ) {
     disconnect_budget.refill();

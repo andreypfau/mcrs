@@ -893,7 +893,7 @@ For semantically nondeterministic systems, required invariants should match.
 
 This helps detect hidden dependencies that the shard formation failed to represent.
 
-Thread timing decides when a step beside the tick ends. A test of the whole tick therefore runs in lockstep: after each tick, it waits until the generation and light steps of the tick end. It applies nothing while it waits. Every run then receives the same writes at the same ticks. The test compares the blocks, light, heightmaps and entities after each tick between `TickThreading::Single` and `TickThreading::Parallel` (`crates/mcrs_minecraft_server/tests/it/tick_determinism.rs`). It fails when the tick applies the writes by arrival, or at a moment between ticks.
+Thread timing decides when a step beside the tick ends. A test of the whole tick therefore runs in lockstep: after each tick, it waits until the generation and light steps of the tick end. It applies nothing while it waits. Every run then receives the same writes at the same ticks. The test compares the blocks, light, heightmaps and entities after each tick between `Placement::Inline` and `Placement::Thread` of the worlds (`crates/mcrs_minecraft_server/tests/it/tick_determinism.rs`). It fails when the tick applies the writes by arrival, or at a moment between ticks.
 
 ---
 

@@ -3,7 +3,7 @@ use bevy_ecs::entity::Entity;
 use bevy_ecs::prelude::{Commands, ResMut};
 use bevy_ecs::system::RunSystemOnce;
 use mcrs_minecraft_engine::bus::InboundPlayerDespawn;
-use mcrs_minecraft_engine::channel_types::DimChannelsResource;
+use mcrs_minecraft_engine::dim_inputs::DimInputs;
 use mcrs_minecraft_engine::disconnect::{LeavingSessions, process_disconnect};
 use mcrs_minecraft_engine::session::GameProfile;
 use mcrs_minecraft_engine::session::{HostAnchorRef, SessionConnection};
@@ -15,7 +15,7 @@ fn make_app() -> App {
     let mut app = App::new();
     app.add_plugins(LoginPlugin);
     app.init_resource::<mcrs_minecraft_engine_world::session::PlayerSessionCounter>();
-    app.init_resource::<DimChannelsResource>();
+    app.init_resource::<DimInputs>();
     app.add_message::<InboundPlayerDespawn>();
     app
 }
@@ -108,18 +108,9 @@ fn connection_removal_despawns_the_session_and_routes_despawn_via_lifecycle() {
 
     // Pin a concrete dim so the assertion can target a specific channel.
     let current_dim = Entity::from_raw_u32(77).expect("nonzero");
-    let ctl_rx = {
-        use mcrs_minecraft_engine::channel_types::FromDim;
-        use mcrs_minecraft_engine_world::world::channels::{FROM_DIM_CAPACITY, TO_DIM_CAPACITY};
-        let (srv_tx, _srv_rx) =
-            flume::bounded::<mcrs_minecraft_engine::channel_types::ToDim>(TO_DIM_CAPACITY);
-        let (ctl_tx, ctl_rx) = flume::unbounded::<mcrs_minecraft_engine::channel_types::ToDim>();
-        let (_from_tx, from_rx) = flume::bounded::<FromDim>(FROM_DIM_CAPACITY);
-        app.world_mut()
-            .resource_mut::<DimChannelsResource>()
-            .insert(current_dim, srv_tx, ctl_tx, from_rx);
-        ctl_rx
-    };
+    app.world_mut()
+        .resource_mut::<DimInputs>()
+        .insert(current_dim);
     let session = app
         .world()
         .get::<Session>(host_anchor)
@@ -134,7 +125,7 @@ fn connection_removal_despawns_the_session_and_routes_despawn_via_lifecycle() {
         .run_system_once(
             move |mut commands: Commands,
                   mut sessions: LeavingSessions,
-                  mut dim_channels: ResMut<DimChannelsResource>| {
+                  mut dim_channels: ResMut<DimInputs>| {
                 process_disconnect(host_anchor, &mut sessions, &mut dim_channels, &mut commands);
 
                 // Second call routes nothing (the session is already unplaced).
@@ -157,7 +148,7 @@ fn connection_removal_despawns_the_session_and_routes_despawn_via_lifecycle() {
         "the username names no session after cleanup",
     );
 
-    let despawn_msgs: Vec<_> = ctl_rx.try_iter().collect();
+    let despawn_msgs = app.world().resource::<DimInputs>().control(current_dim);
     assert_eq!(
         despawn_msgs.len(),
         1,
@@ -192,7 +183,7 @@ fn a_late_cleanup_leaves_the_name_to_the_player_who_logged_in_again() {
         .run_system_once(
             move |mut commands: Commands,
                   mut sessions: LeavingSessions,
-                  mut dim_channels: ResMut<DimChannelsResource>| {
+                  mut dim_channels: ResMut<DimInputs>| {
                 process_disconnect(
                     first_anchor,
                     &mut sessions,

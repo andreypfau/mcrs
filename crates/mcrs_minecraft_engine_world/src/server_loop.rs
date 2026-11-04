@@ -1,17 +1,14 @@
 use bevy_app::prelude::*;
 use bevy_app::{App, Plugin, TaskPoolOptions, TaskPoolPlugin, TaskPoolThreadAssignmentPolicy};
 use bevy_asset::AssetPlugin;
-use bevy_ecs::schedule::SingleThreadedExecutor;
+use bevy_ecs::schedule::{Schedules, SingleThreadedExecutor};
+use bevy_ecs::world::World;
 use bevy_time::{Fixed, Time, TimePlugin, TimeUpdateStrategy};
-use rayon::ThreadPoolBuilder;
+use mcrs_engine_link::Placement;
 use std::num::NonZeroU32;
 use std::time::{Duration, Instant};
 
-use crate::tick_threading::{self, DimTickPool, TickThreading};
-
-/// One thread for each vanilla dimension. A dimension's executor blocks its thread for the whole
-/// tick, so a thread more than there are dimensions never works, and further dimensions take turns.
-const DIM_TICK_THREADS: usize = 3;
+use crate::world_placement::WorldPlacement;
 
 pub struct VoxelServerPlugin {
     pub tick_rate: NonZeroU32,
@@ -23,30 +20,16 @@ pub struct VoxelServerPlugin {
     /// `assets` against `BEVY_ASSET_ROOT` or the executable directory, which a
     /// server embedded in another process cannot rely on.
     pub asset_path: Option<String>,
-    /// How the game logic of a tick uses threads. In [`TickThreading::Single`] an app that does
-    /// not own the task pools still runs `par_iter` on the host's compute pool.
-    pub threading: TickThreading,
+    /// Where the dimension worlds tick, as [`WorldPlacement`] says. Under
+    /// [`Placement::Inline`] an app that does not own the task pools still runs `par_iter` on the
+    /// host's compute pool.
+    pub worlds: Placement,
 }
 
 impl Plugin for VoxelServerPlugin {
     fn build(&self, app: &mut App) {
-        let threading = self.threading;
-        if threading == TickThreading::Parallel {
-            match ThreadPoolBuilder::new()
-                .num_threads(DIM_TICK_THREADS)
-                .thread_name(|index| format!("dim-tick-{index}"))
-                .build()
-            {
-                Ok(pool) => {
-                    app.insert_resource(DimTickPool(pool));
-                }
-                Err(error) => {
-                    tracing::error!(%error, "the dimension tick pool did not start; the dimensions tick one after another, each with its systems in parallel");
-                }
-            }
-        }
-        app.insert_resource(threading);
-        let task_pool_options = if threading == TickThreading::Single && self.owns_task_pools {
+        app.insert_resource(WorldPlacement(self.worlds));
+        let task_pool_options = if self.worlds == Placement::Inline && self.owns_task_pools {
             TaskPoolOptions {
                 compute: TaskPoolThreadAssignmentPolicy {
                     min_threads: 1,
@@ -86,9 +69,20 @@ impl Plugin for VoxelServerPlugin {
 
     // After every plugin's `finish`, which may still add a schedule.
     fn cleanup(&self, app: &mut App) {
-        if app.world().get_resource::<TickThreading>() == Some(&TickThreading::Single) {
-            tick_threading::run_schedules_on_one_thread(app.world_mut());
+        if app.world().get_resource::<WorldPlacement>() == Some(&WorldPlacement(Placement::Inline))
+        {
+            run_schedules_on_one_thread(app.world_mut());
         }
+    }
+}
+
+/// Gives every schedule of `world` a single-threaded executor.
+pub fn run_schedules_on_one_thread(world: &mut World) {
+    let Some(mut schedules) = world.get_resource_mut::<Schedules>() else {
+        return;
+    };
+    for (_, schedule) in schedules.iter_mut() {
+        schedule.set_executor(SingleThreadedExecutor::new());
     }
 }
 
@@ -135,7 +129,7 @@ pub fn run_server_loop(
     }
     loop {
         let start = Instant::now();
-        tick_threading::update(&mut app);
+        app.update();
         between_ticks(&mut app);
         if let Some(exit) = app.should_exit() {
             return exit;

@@ -16,8 +16,8 @@ use bevy_ecs::system::RunSystemOnce;
 use mcrs_minecraft_engine::bus::{
     InboundPlayerDespawn, InboundPlayerSpawn, OutboundPlayerAttached, OutboundPlayerDisconnect,
 };
-use mcrs_minecraft_engine::channel_types::FromDim;
-use mcrs_minecraft_engine::channel_types::{DimChannelsResource, ToDim};
+use mcrs_minecraft_engine::channel_types::ToDim;
+use mcrs_minecraft_engine::dim_inputs::DimInputs;
 use mcrs_minecraft_engine::disconnect::{
     DisconnectProtocolPlugin, Disconnects, filter_inflight_for_disconnect,
 };
@@ -25,7 +25,6 @@ use mcrs_minecraft_engine::session::SessionBundle;
 use mcrs_minecraft_engine_world::session::{
     Place, PlayerSession, PlayerSessionCounter, SessionPlacement,
 };
-use mcrs_minecraft_engine_world::world::channels::{FROM_DIM_CAPACITY, TO_DIM_CAPACITY};
 
 fn build_disconnect_app() -> App {
     let mut app = App::new();
@@ -34,25 +33,22 @@ fn build_disconnect_app() -> App {
     app.add_message::<OutboundPlayerDisconnect>();
     app.add_message::<InboundPlayerDespawn>();
     app.init_resource::<PlayerSessionCounter>();
-    app.init_resource::<DimChannelsResource>();
+    app.init_resource::<DimInputs>();
     app.add_plugins(DisconnectProtocolPlugin);
     app
 }
 
-/// Register a dim channel in the app's `DimChannelsResource` and return the
-/// control receiver so tests can assert on `ToDim::Despawn` messages.
-fn register_dim_channel(app: &mut App, dim: Entity) -> flume::Receiver<ToDim> {
-    let (srv_tx, _srv_rx) = flume::bounded::<ToDim>(TO_DIM_CAPACITY);
-    let (ctl_tx, ctl_rx) = flume::unbounded::<ToDim>();
-    let (_from_tx, from_rx) = flume::bounded::<FromDim>(FROM_DIM_CAPACITY);
-    app.world_mut()
-        .resource_mut::<DimChannelsResource>()
-        .insert(dim, srv_tx, ctl_tx, from_rx);
-    ctl_rx
+/// Lets the app's `DimInputs` take input for `dim`, so tests can assert on its `ToDim::Despawn`
+/// messages.
+fn register_dim_channel(app: &mut App, dim: Entity) {
+    app.world_mut().resource_mut::<DimInputs>().insert(dim);
 }
 
-fn count_despawns(rx: &flume::Receiver<ToDim>) -> usize {
-    rx.try_iter()
+fn count_despawns(app: &App, dim: Entity) -> usize {
+    app.world()
+        .resource::<DimInputs>()
+        .control(dim)
+        .iter()
         .filter(|m| matches!(m, ToDim::Despawn(..)))
         .count()
 }
@@ -89,7 +85,7 @@ fn disconnect_at_tick_n_e1_4_attached_pending_filter() {
 
     let host_anchor = app.world_mut().spawn_empty().id();
     let dim = Entity::from_raw_u32(402).unwrap();
-    let ctl_rx = register_dim_channel(&mut app, dim);
+    register_dim_channel(&mut app, dim);
     let session = insert_joining(&mut app, host_anchor, dim);
 
     app.world_mut()
@@ -109,7 +105,7 @@ fn disconnect_at_tick_n_e1_4_attached_pending_filter() {
         remaining.len()
     );
 
-    assert_eq!(count_despawns(&ctl_rx), 1);
+    assert_eq!(count_despawns(&app, dim), 1);
 
     assert!(
         app.world().get_entity(host_anchor).is_err(),

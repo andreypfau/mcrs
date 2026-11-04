@@ -2,6 +2,7 @@ use bevy_app::App;
 use bevy_state::state::State;
 use mcrs_minecraft_assets::AppState;
 use mcrs_minecraft_dimension::Dimension;
+use mcrs_minecraft_engine::dim_cells::DimCells;
 use mcrs_minecraft_engine::dimension_generators::DimensionGenerators;
 use mcrs_minecraft_engine::sub_app_builder::drain_dim_spawn_queue;
 use mcrs_minecraft_engine_world::world::dimension_list::DimensionList;
@@ -80,10 +81,15 @@ fn every_noise_dimension_reaches_its_sub_app_with_a_router() {
     let expected = routers.0.len();
     drain_dim_spawn_queue(&mut app);
 
-    let sub_apps = &mut app.sub_apps_mut().sub_apps;
+    let mut sub_apps: Vec<_> = app
+        .world_mut()
+        .resource_mut::<DimCells>()
+        .into_inner()
+        .sub_apps_mut()
+        .collect();
     assert!(!sub_apps.is_empty(), "the preset spawned no dimension");
     let with_router = sub_apps
-        .values()
+        .iter()
         .filter(|sub_app| sub_app.world().get_resource::<FillContext>().is_some())
         .count();
     assert_eq!(
@@ -97,7 +103,7 @@ fn every_noise_dimension_reaches_its_sub_app_with_a_router() {
     // surface rules and the carvers. A single host-wide source would hand the
     // nether the overworld's biomes while it samples the nether's router.
     let mut checked = 0;
-    for sub_app in sub_apps.values_mut() {
+    for sub_app in &mut sub_apps {
         let world = sub_app.world_mut();
         let dimension = world
             .query::<&ResourceKeyBuf<Dimension>>()

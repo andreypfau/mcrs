@@ -3,7 +3,7 @@ use bevy_ecs::message::Messages;
 use bevy_ecs::prelude::*;
 use mcrs_minecraft_dimension::dimension_keys::OVERWORLD;
 use mcrs_minecraft_engine_world::world::dimension::Dimension;
-use mcrs_minecraft_engine_world::world::sub_app::{AddDimensionPlugins, DimAppLabel};
+use mcrs_minecraft_engine_world::world::sub_app::AddDimensionPlugins;
 
 use crate::host_app;
 
@@ -76,12 +76,12 @@ impl Plugin for AddsCountTicks {
     }
 }
 
-fn world<'a>(app: &'a App, dimension: &str) -> &'a World {
-    app.sub_app(DimAppLabel(host_app::label_of(app, dimension)))
-        .world()
+fn world<'a>(app: &'a mut App, dimension: &str) -> &'a World {
+    let label = host_app::label_of(app, dimension);
+    host_app::world(app, label)
 }
 
-fn ticks<const ALL: bool>(app: &App, dimension: &str) -> Option<u32> {
+fn ticks<const ALL: bool>(app: &mut App, dimension: &str) -> Option<u32> {
     world(app, dimension)
         .get_resource::<Ticks<ALL>>()
         .map(|ticks| ticks.0)
@@ -107,26 +107,32 @@ fn dimension_plugins_run_in_every_world_or_in_the_world_of_their_key() {
         app.update();
     }
 
-    assert!(ticks::<true>(&app, "minecraft:overworld").is_some_and(|n| n > 0));
-    assert!(ticks::<true>(&app, "minecraft:the_nether").is_some_and(|n| n > 0));
-    assert!(ticks::<false>(&app, "minecraft:overworld").is_some_and(|n| n > 0));
-    assert_eq!(ticks::<false>(&app, "minecraft:the_nether"), None);
+    assert!(ticks::<true>(&mut app, "minecraft:overworld").is_some_and(|n| n > 0));
+    assert!(ticks::<true>(&mut app, "minecraft:the_nether").is_some_and(|n| n > 0));
+    assert!(ticks::<false>(&mut app, "minecraft:overworld").is_some_and(|n| n > 0));
+    assert_eq!(ticks::<false>(&mut app, "minecraft:the_nether"), None);
     assert_eq!(
-        world(&app, "minecraft:overworld").resource::<RateSet>().0,
+        world(&mut app, "minecraft:overworld")
+            .resource::<RateSet>()
+            .0,
         2
     );
     assert_eq!(
-        world(&app, "minecraft:the_nether").resource::<RateSet>().0,
+        world(&mut app, "minecraft:the_nether")
+            .resource::<RateSet>()
+            .0,
         1
     );
     assert_eq!(
-        world(&app, "minecraft:overworld")
+        world(&mut app, "minecraft:overworld")
             .resource::<DimensionsSeen>()
             .0,
         1
     );
     for dimension in ["minecraft:overworld", "minecraft:the_nether"] {
-        let held = world(&app, dimension).resource::<Messages<Ticked>>().len();
+        let held = world(&mut app, dimension)
+            .resource::<Messages<Ticked>>()
+            .len();
         assert!(held <= 2, "{dimension} holds {held} messages of past ticks");
     }
 }

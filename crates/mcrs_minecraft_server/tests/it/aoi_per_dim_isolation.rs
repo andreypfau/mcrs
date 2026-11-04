@@ -15,7 +15,6 @@ use mcrs_minecraft_engine_world::entity::player::Player;
 use mcrs_minecraft_engine_world::entity::player::chunk_view::PlayerViewDistance;
 use mcrs_minecraft_engine_world::world::dimension::InDimension;
 use mcrs_minecraft_engine_world::world::storage::column::{Column, ColumnIndex, ColumnSlot};
-use mcrs_minecraft_engine_world::world::sub_app::DimAppLabel;
 use mcrs_voxel::ColumnPos;
 
 use crate::host_app;
@@ -31,10 +30,7 @@ fn aoi_state_does_not_leak_across_dim_boundary() {
         ],
     );
 
-    // Enumerate the per-dim label entities. `app.sub_apps()` exposes
-    // the interned labels but not the underlying `Entity` values; the
-    // host-world entities carrying `DimSubAppHandle` are the canonical
-    // source of label_entity values.
+    // The host-world entities carrying `DimSubAppHandle` label the dimensions.
     let label_entities: Vec<Entity> = app
         .world_mut()
         .query::<(Entity, &mcrs_minecraft_engine::dim::DimSubAppHandle)>()
@@ -53,7 +49,7 @@ fn aoi_state_does_not_leak_across_dim_boundary() {
     // Seed dim A with a player holding a column grid, so the observer mirror
     // has something to list.
     seed_player_and_columns(
-        app.sub_app_mut(DimAppLabel(dim_a_label)),
+        host_app::sub_app(&mut app, dim_a_label),
         DVec3::new(0.0, 64.0, 0.0),
     );
 
@@ -68,22 +64,19 @@ fn aoi_state_does_not_leak_across_dim_boundary() {
     // Verify dim A's PlayerObservers carry at least one entry (proof
     // that the AoI substrate IS running per-dim — without this the
     // empty assertion below is vacuous).
-    let dim_a_observers_total = sum_observer_count(app.sub_app(DimAppLabel(dim_a_label)));
+    let dim_a_observers_total = sum_observer_count(host_app::sub_app(&mut app, dim_a_label));
     assert!(
         dim_a_observers_total > 0,
         "dim A's PlayerObservers should be populated; the AoI substrate is not running"
     );
 
-    let dim_b_observers_total = sum_observer_count(app.sub_app(DimAppLabel(dim_b_label)));
+    let dim_b_observers_total = sum_observer_count(host_app::sub_app(&mut app, dim_b_label));
     assert_eq!(
         dim_b_observers_total, 0,
         "dim B chunks must have zero PlayerObservers entries (AoI state leaked across dim boundary)"
     );
 
-    let dim_b_tracker = app
-        .sub_app(DimAppLabel(dim_b_label))
-        .world()
-        .resource::<EntityTracker>();
+    let dim_b_tracker = host_app::world(&mut app, dim_b_label).resource::<EntityTracker>();
     assert!(
         dim_b_tracker.is_empty(),
         "dim B's entity tracker holds no player of dim A"

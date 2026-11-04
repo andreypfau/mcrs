@@ -12,8 +12,8 @@ use bevy_ecs::message::MessageWriter;
 use bevy_log::{Level, LogPlugin, tracing_subscriber};
 use mcrs_minecraft_engine::ops::{OPS_FILE, OpList};
 use mcrs_minecraft_engine_server::{
-    DimensionWorldsPlugin, GameMode, NetworkCompressionThreshold, ServerCorePlugin,
-    ServerNetworkPlugin, TickThreading,
+    DimensionWorldsPlugin, GameMode, NetworkCompressionThreshold, Placement, ServerCorePlugin,
+    ServerNetworkPlugin,
 };
 use mcrs_minecraft_server::MinecraftServerPlugins;
 use mcrs_minecraft_vanilla_light::LightingPlugin;
@@ -50,7 +50,7 @@ async fn main() -> AppExit {
     };
     let mut server = MinecraftServerPlugins {
         core: ServerCorePlugin {
-            tick_threading: tick_threading(variable("MCRS_TICK_THREADING").as_deref()),
+            worlds: worlds(variable("MCRS_WORLDS").as_deref()),
             ..MinecraftServerPlugins::default().core
         },
         worlds: DimensionWorldsPlugin {
@@ -187,23 +187,26 @@ fn world_preset(value: Option<&str>) -> String {
         .unwrap_or_else(|| "normal".to_owned())
 }
 
-/// `MCRS_TICK_THREADING` is `single` or `parallel`, in any case; unset or anything else keeps the
-/// mode the build chose with the `parallel-tick` feature.
-fn tick_threading(value: Option<&str>) -> TickThreading {
-    value
-        .and_then(|value| {
-            value
-                .parse()
-                .inspect_err(|_| {
-                    bevy_log::warn!(
-                        value,
-                        threading = ?TickThreading::default(),
-                        "MCRS_TICK_THREADING is neither single nor parallel; keeping the default"
-                    );
-                })
-                .ok()
-        })
-        .unwrap_or_default()
+/// `MCRS_WORLDS` is `inline` or `thread`, in any case; unset or anything else keeps the
+/// placement the build chose with the `parallel-tick` feature.
+fn worlds(value: Option<&str>) -> Placement {
+    let default = ServerCorePlugin::default().worlds;
+    let Some(value) = value else {
+        return default;
+    };
+    let name = value.trim();
+    if name.eq_ignore_ascii_case("inline") {
+        Placement::Inline
+    } else if name.eq_ignore_ascii_case("thread") {
+        Placement::Thread
+    } else {
+        bevy_log::warn!(
+            value,
+            worlds = ?default,
+            "MCRS_WORLDS is neither inline nor thread; keeping the default"
+        );
+        default
+    }
 }
 
 /// `MCRS_NO_LIGHTING=1` turns propagation off.

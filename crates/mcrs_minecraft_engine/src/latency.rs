@@ -2,11 +2,12 @@
 //! the player for its player list entry.
 
 use crate::bus::PlayerLatency;
-use crate::channel_types::{DimChannelsResource, ToDim};
+use crate::channel_types::ToDim;
+use crate::dim_inputs::DimInputs;
 use crate::session::HostAnchorRef;
 use bevy_ecs::component::Component;
 use bevy_ecs::message::MessageReader;
-use bevy_ecs::prelude::{Changed, Commands, Query, Res};
+use bevy_ecs::prelude::{Changed, Commands, Query, Res, ResMut};
 use mcrs_minecraft_engine_world::session::{DimPlayerIndex, Session, SessionPlacement};
 
 /// The smoothed round trip of the keep-alives of a connection in milliseconds. The host keeps it
@@ -26,14 +27,14 @@ impl Latency {
 pub fn forward_latency(
     connections: Query<(&Latency, &HostAnchorRef), Changed<Latency>>,
     sessions: Query<(&Session, &SessionPlacement)>,
-    channels: Res<DimChannelsResource>,
+    mut inputs: ResMut<DimInputs>,
 ) {
     for (&Latency(latency), &HostAnchorRef(anchor)) in &connections {
         let Ok((&Session(session), placement)) = sessions.get(anchor) else {
             continue;
         };
         if let Some(dim) = placement.place().attached() {
-            channels.send_control(dim, ToDim::Latency(PlayerLatency { session, latency }));
+            inputs.send_control(dim, ToDim::Latency(PlayerLatency { session, latency }));
         }
     }
 }

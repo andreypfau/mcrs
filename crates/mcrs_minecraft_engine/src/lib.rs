@@ -19,7 +19,10 @@ pub mod consume_inbound_player_spawn;
 pub mod default_game_mode;
 pub mod despawn_inbound_player;
 pub mod dim;
+pub mod dim_cells;
+pub mod dim_inputs;
 pub mod dim_player_plugin;
+pub mod dim_tick;
 pub mod dimension_change;
 pub mod dimension_generators;
 pub mod dimension_order;
@@ -63,7 +66,7 @@ impl Plugin for EnginePlugin {
         // with `resource_mut`, which panics on a message that was never added.
         app.init_resource::<mcrs_minecraft_engine_world::session::PlayerSessionCounter>();
         app.init_resource::<mcrs_minecraft_engine_world::session::SessionAnchors>();
-        app.init_resource::<channel_types::DimChannelsResource>();
+        app.add_plugins(dim_cells::DimCellsPlugin);
         app.init_resource::<mcrs_minecraft_network::metrics::BridgeTelemetry>();
         // The pre-game loop and the bridge share one dispatcher, whichever plugin builds first.
         app.world_mut()

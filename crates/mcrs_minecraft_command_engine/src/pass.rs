@@ -15,11 +15,13 @@ use bevy_ecs::entity::Entity;
 use bevy_ecs::prelude::With;
 use bevy_ecs::query::QueryState;
 use bevy_ecs::resource::Resource;
-use bevy_ecs::world::{World, WorldId};
+use bevy_ecs::world::{Mut, World, WorldId};
 use mcrs_command::{Limits, SourceLists, Stage};
 use mcrs_minecraft_dimension::Dimension as DimensionKey;
 use mcrs_minecraft_dimension_environment::dimension_type::DimensionTypeFile;
 use mcrs_minecraft_engine::ability::PlayerGameMode;
+use mcrs_minecraft_engine::dim;
+use mcrs_minecraft_engine::dim_cells::DimCells;
 use mcrs_minecraft_engine::dimension_order::{DimensionWorld, in_dimension_order};
 use mcrs_minecraft_engine::session::GameProfile;
 use mcrs_minecraft_engine_world::entity::physics::Transform;
@@ -114,16 +116,24 @@ impl WorldQueries {
 /// arrived, then answers the suggestion requests, with every dimension world in reach. The
 /// server calls it between two ticks, after the dimensions hand over their packets; an embedder
 /// that drives the app itself calls it at the same point, with the set its
-/// [`CommandPlugin`](crate::CommandPlugin) names.
+/// [`CommandPlugin`](crate::CommandPlugin) names. It lends every dimension world until the next
+/// tick.
 pub fn run_pending_commands<S: CommandSet>(app: &mut App) {
-    let sub_apps = app.sub_apps_mut();
-    let host = sub_apps.main.world_mut();
+    let host = app.world_mut();
     if host
         .get_resource::<CommandQueue>()
         .is_none_or(CommandQueue::is_empty)
     {
         return;
     }
+    dim::take_dim_outputs(host);
+    host.try_resource_scope(|host, mut cells: Mut<DimCells>| {
+        let worlds: Vec<&mut World> = cells.sub_apps_mut().map(SubApp::world_mut).collect();
+        run_with_worlds::<S>(host, worlds);
+    });
+}
+
+fn run_with_worlds<S: CommandSet>(host: &mut World, worlds: Vec<&mut World>) {
     let Some(mut buffers) = host.remove_resource::<PassBuffers<S>>() else {
         return;
     };
@@ -136,13 +146,10 @@ pub fn run_pending_commands<S: CommandSet>(app: &mut App) {
         std::mem::swap(&mut *received, &mut buffers.queue);
     }
     buffers.swap_tree(host);
-    buffers.queries.retain(|query| {
-        sub_apps
-            .sub_apps
-            .values()
-            .any(|sub| sub.world().id() == query.world)
-    });
-    let mut worlds = buffers.order_worlds(sub_apps.sub_apps.values_mut().map(SubApp::world_mut));
+    buffers
+        .queries
+        .retain(|query| worlds.iter().any(|world| world.id() == query.world));
+    let mut worlds = buffers.order_worlds(worlds.into_iter());
     buffers.collect_players(host, &worlds);
     buffers.run_queue(host, &mut worlds, limits);
     buffers.worlds = mcrs_command::recycle(worlds);

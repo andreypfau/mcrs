@@ -7,40 +7,38 @@ use bevy_ecs::world::World;
 use bytes::Bytes;
 use mcrs_minecraft_engine::bridge::{bridge_inbound_to_channel, forward_pending_inbound};
 use mcrs_minecraft_engine::bus::InboundPlayerPacket;
-use mcrs_minecraft_engine::channel_types::{DimChannelsResource, FromDim, ToDim};
+use mcrs_minecraft_engine::dim_inputs::DimInputs;
 use mcrs_minecraft_engine::session::{HostAnchorRef, SessionBundle};
 use mcrs_minecraft_engine_world::session::{
     Place, PlayerSession, PlayerSessionCounter, SessionAnchors, SessionPlacement,
 };
-use mcrs_minecraft_engine_world::world::channels::{
-    FROM_DIM_CAPACITY, MAX_HELD_SERVERBOUND, TO_DIM_CAPACITY,
-};
+use mcrs_minecraft_engine_world::world::channels::{MAX_HELD_SERVERBOUND, TO_DIM_CAPACITY};
 use mcrs_minecraft_network::ServerSideConnection;
 
 fn build_world() -> World {
     let mut world = World::new();
     world.init_resource::<Messages<InboundPlayerPacket>>();
     world.init_resource::<PlayerSessionCounter>();
-    world.init_resource::<DimChannelsResource>();
+    world.init_resource::<DimInputs>();
     world.init_resource::<SessionAnchors>();
     world
 }
 
-fn make_channels(
-    world: &mut World,
-    dim: Entity,
-) -> (
-    flume::Receiver<ToDim>,
-    flume::Receiver<ToDim>,
-    flume::Sender<FromDim>,
-) {
-    let (srv_tx, srv_rx) = flume::bounded::<ToDim>(TO_DIM_CAPACITY);
-    let (ctl_tx, ctl_rx) = flume::unbounded::<ToDim>();
-    let (from_tx, from_rx) = flume::bounded::<FromDim>(FROM_DIM_CAPACITY);
-    world
-        .resource_mut::<DimChannelsResource>()
-        .insert(dim, srv_tx, ctl_tx, from_rx);
-    (srv_rx, ctl_rx, from_tx)
+fn take_input(world: &mut World, dim: Entity) {
+    world.resource_mut::<DimInputs>().insert(dim);
+}
+
+/// What the next tick of `dim` takes in, which the tick then empties.
+fn tick_takes(world: &mut World, dim: Entity) -> Vec<i32> {
+    let mut inputs = world.resource_mut::<DimInputs>();
+    let ids = inputs
+        .serverbound(dim)
+        .iter()
+        .map(|packet| packet.id)
+        .collect();
+    inputs.remove(dim);
+    inputs.insert(dim);
+    ids
 }
 
 fn spawn_connection(world: &mut World) -> Entity {
@@ -88,14 +86,12 @@ fn packet(session: PlayerSession, id: i32) -> InboundPlayerPacket {
     }
 }
 
-fn fill(world: &World, dim: Entity, player: PlayerSession) {
-    let channels = world.resource::<DimChannelsResource>();
-    let entry = channels.get(dim).expect("dim channel present");
+fn fill(world: &mut World, dim: Entity, player: PlayerSession) {
+    let mut inputs = world.resource_mut::<DimInputs>();
     for i in 0..TO_DIM_CAPACITY {
-        entry
-            .serverbound_sender
-            .try_send(ToDim::Serverbound(packet(player, i as i32)))
-            .expect("fill channel");
+        inputs
+            .try_send_serverbound(dim, packet(player, i as i32))
+            .expect("the next tick has room");
     }
 }
 
@@ -106,28 +102,19 @@ fn run_forward(world: &mut World) {
     sys.apply_deferred(world);
 }
 
-fn ids(rx: &flume::Receiver<ToDim>) -> Vec<i32> {
-    rx.try_iter()
-        .map(|msg| match msg {
-            ToDim::Serverbound(packet) => packet.id,
-            other => panic!("expected Serverbound, got {other:?}"),
-        })
-        .collect()
-}
-
-/// The channel is shared by every player of the dimension, so finding it full says nothing
-/// about the player whose packet came last.
+/// The input of a tick is shared by every player of the dimension, so finding it full says
+/// nothing about the player whose packet came last.
 #[test]
-fn a_full_serverbound_channel_holds_the_packet_until_the_dimension_drains() {
+fn a_full_serverbound_input_holds_the_packet_until_the_dimension_ticks() {
     let mut world = build_world();
     let dim = world.spawn_empty().id();
     let other = PlayerSession(999);
-    let (srv_rx, _ctl_rx, _from_tx) = make_channels(&mut world, dim);
+    take_input(&mut world, dim);
     let conn = spawn_connection(&mut world);
     let anchor = world.spawn_empty().id();
     let in_dim = world.spawn_empty().id();
     let session = register_session(&mut world, conn, anchor, dim, Some(in_dim));
-    fill(&world, dim, other);
+    fill(&mut world, dim, other);
 
     world
         .resource_mut::<Messages<InboundPlayerPacket>>()
@@ -137,15 +124,15 @@ fn a_full_serverbound_channel_holds_the_packet_until_the_dimension_drains() {
 
     assert!(
         world.get::<ServerSideConnection>(conn).is_some(),
-        "a full channel holds the packet rather than costing its session the connection"
+        "a full input holds the packet rather than costing its session the connection"
     );
-    assert_eq!(srv_rx.try_iter().count(), TO_DIM_CAPACITY);
+    assert_eq!(tick_takes(&mut world, dim).len(), TO_DIM_CAPACITY);
 
     run_forward(&mut world);
     assert_eq!(
-        ids(&srv_rx),
+        tick_takes(&mut world, dim),
         vec![0xA, 0xB],
-        "the held packets reach the dimension once it drains, in order"
+        "the held packets reach the dimension once it ticks, in order"
     );
 }
 
@@ -154,7 +141,7 @@ fn only_the_session_over_its_held_bound_is_disconnected() {
     let mut world = build_world();
     let dim = world.spawn_empty().id();
     let other = PlayerSession(999);
-    let (_srv_rx, _ctl_rx, _from_tx) = make_channels(&mut world, dim);
+    take_input(&mut world, dim);
     let flooding_conn = spawn_connection(&mut world);
     let flooding = world.spawn_empty().id();
     let quiet_conn = spawn_connection(&mut world);
@@ -162,7 +149,7 @@ fn only_the_session_over_its_held_bound_is_disconnected() {
     let in_dim = world.spawn_empty().id();
     let flooding = register_session(&mut world, flooding_conn, flooding, dim, Some(in_dim));
     let quiet = register_session(&mut world, quiet_conn, quiet, dim, Some(in_dim));
-    fill(&world, dim, other);
+    fill(&mut world, dim, other);
 
     let mut messages = world.resource_mut::<Messages<InboundPlayerPacket>>();
     messages.write_batch((0..=MAX_HELD_SERVERBOUND as i32).map(|id| packet(flooding, id)));
@@ -175,6 +162,6 @@ fn only_the_session_over_its_held_bound_is_disconnected() {
     );
     assert!(
         world.get::<ServerSideConnection>(quiet_conn).is_some(),
-        "a session within its bound stays, however full the shared channel is"
+        "a session within its bound stays, however full the shared input is"
     );
 }

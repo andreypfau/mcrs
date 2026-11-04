@@ -16,7 +16,7 @@ use mcrs_minecraft_engine::bridge_queue::{
     INBOUND_BUCKET_CAP, INBOUND_KICK_OVERFLOW_PACKETS, InboundRateBucket, OutboundQueue,
 };
 use mcrs_minecraft_engine::bus::{InboundPlayerPacket, OutboundPlayerPacket};
-use mcrs_minecraft_engine::channel_types::DimChannelsResource;
+use mcrs_minecraft_engine::dim_inputs::DimInputs;
 use mcrs_minecraft_engine::session::{HostAnchorRef, SessionBundle};
 use mcrs_minecraft_engine_world::session::{
     Place, PlayerSessionCounter, Session, SessionPlacement,
@@ -47,7 +47,7 @@ fn build_inbound_world() -> World {
     world.init_resource::<Messages<OutboundPlayerPacket>>();
     world.init_resource::<Messages<InboundPlayerPacket>>();
     world.init_resource::<PlayerSessionCounter>();
-    world.init_resource::<DimChannelsResource>();
+    world.init_resource::<DimInputs>();
     world.init_resource::<BridgeTelemetry>();
     world.insert_resource(
         PacketDispatcher::serverbound()
@@ -272,7 +272,7 @@ fn disconnect_clears_pending() {
 
     let mut world = World::new();
     world.init_resource::<PlayerSessionCounter>();
-    world.init_resource::<DimChannelsResource>();
+    world.init_resource::<DimInputs>();
 
     let dim = Entity::from_raw_u32(10).expect("nonzero");
     let in_dim = Entity::from_raw_u32(30).expect("nonzero");
@@ -297,7 +297,7 @@ fn disconnect_clears_pending() {
         .run_system_once(
             move |mut commands: bevy_ecs::prelude::Commands,
                   mut sessions: LeavingSessions,
-                  mut dim_channels: bevy_ecs::system::ResMut<DimChannelsResource>| {
+                  mut dim_channels: bevy_ecs::system::ResMut<DimInputs>| {
                 process_disconnect(player, &mut sessions, &mut dim_channels, &mut commands);
             },
         )

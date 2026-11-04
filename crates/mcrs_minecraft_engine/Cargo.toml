@@ -29,6 +29,8 @@ mcrs_minecraft_game_registries.workspace = true
 bevy_asset.workspace = true
 bevy_state.workspace = true
 bevy_tasks.workspace = true
+bevy_platform.workspace = true
+mcrs_engine_cell = { workspace = true, features = ["bevy"] }
 bevy_utils.workspace = true
 bevy_time.workspace = true
 serde.workspace = true
@@ -49,7 +51,6 @@ bevy_ecs.workspace = true
 bevy_math.workspace = true
 bytes.workspace = true
 derive_more.workspace = true
-flume.workspace = true
 rustc-hash.workspace = true
 smallvec.workspace = true
 thiserror.workspace = true

@@ -13,7 +13,7 @@ use bevy_ecs::system::RunSystemOnce;
 use mcrs_minecraft_engine::bus::{
     InboundPlayerDespawn, InboundPlayerSpawn, OutboundPlayerAttached, OutboundPlayerDisconnect,
 };
-use mcrs_minecraft_engine::channel_types::DimChannelsResource;
+use mcrs_minecraft_engine::dim_inputs::DimInputs;
 use mcrs_minecraft_engine::disconnect::{
     DisconnectBudget, DisconnectProtocolPlugin, DisconnectedThisTick, PendingDisconnectQueue,
     drain_pending_disconnects, filter_inflight_for_disconnect,
@@ -30,7 +30,7 @@ fn build_app() -> App {
     app.add_message::<OutboundPlayerDisconnect>();
     app.add_message::<InboundPlayerDespawn>();
     app.init_resource::<PlayerSessionCounter>();
-    app.init_resource::<DimChannelsResource>();
+    app.init_resource::<DimInputs>();
     app.init_resource::<mcrs_minecraft_engine_world::world::sub_app::DimDespawnQueue>();
     app.add_plugins(DisconnectProtocolPlugin);
     app

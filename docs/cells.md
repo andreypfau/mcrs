@@ -299,9 +299,9 @@ sharding document (decision 20). It is also the mode of the tests.
 
 | This document | Today |
 |---|---|
-| Cell | one dimension sub-app: a tree with one leaf for each world |
+| Cell | one dimension sub-app in `mcrs_engine_cell::Cells` (`DimCells`): a tree with one leaf for each world, ticked in lockstep after the host's `Last`, placed `Inline` or on a `Thread` by the server's `worlds` field |
 | Muxer and Coordinator | the host world: bridge, sessions, column waiters, game time |
-| Link | `mcrs_engine_link` for light and generation; `ToDim` and `FromDim`, each with its own channels |
+| Link | `mcrs_engine_link` for light and generation; the host and each dimension exchange one `DimInput` and one `DimOutput` a tick over the cell's link. Passes that touch the host and several dimensions at once (dimension change, commands) still lend the worlds between ticks |
 | Data layer | none apart: cold columns live in the dimension until they unload |
 | Stage | the light engine and the world generator, each as a `Stage` on a `Link` |
 

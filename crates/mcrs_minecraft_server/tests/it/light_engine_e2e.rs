@@ -1,4 +1,4 @@
-use bevy_app::{App, AppLabel, Last};
+use bevy_app::{App, Last};
 use bevy_ecs::message::MessageReader;
 use bevy_ecs::prelude::{Entity, IntoScheduleConfigs, ResMut, Resource};
 use mcrs_minecraft_block::definition::Blocks;
@@ -17,7 +17,6 @@ use mcrs_minecraft_engine_world::session::{Owner, PlayerSession};
 use mcrs_minecraft_engine_world::world::dimension::{DimensionTypeConfig, InDimension};
 use mcrs_minecraft_engine_world::world::lifecycle::stage::{SectionStage, SectionStageChanged};
 use mcrs_minecraft_engine_world::world::storage::column::ColumnIndex;
-use mcrs_minecraft_engine_world::world::sub_app::DimAppLabel;
 use mcrs_minecraft_protocol_game::clientbound::ClientboundLightUpdate;
 use mcrs_minecraft_protocol_game::light_codec::{RowLight, unpack_light_data};
 use mcrs_minecraft_simulation::BlockUpdateFlags;
@@ -43,16 +42,12 @@ fn filled(block: BlockStateId) -> SectionStates {
 
 /// Spawn one column of section entities exactly as `integrate_generated_columns`
 /// does, then pump until the engine has nothing left to do.
-fn light_one_column(app: &mut App, label: DimAppLabel, stone_floor: bool) {
+fn light_one_column(app: &mut App, label: Entity, stone_floor: bool) {
     let blocks = app.world().resource::<Blocks>().clone();
     let air = state(&blocks, "minecraft:air");
     let stone = state(&blocks, "minecraft:stone");
 
-    let sub_app = app
-        .sub_apps_mut()
-        .sub_apps
-        .get_mut(&label.intern())
-        .expect("the dimension sub-app exists");
+    let sub_app = host_app::sub_app(app, label);
     let world = sub_app.world_mut();
     let dimension = world
         .query_filtered::<Entity, bevy_ecs::prelude::With<ColumnIndex>>()
@@ -87,15 +82,10 @@ fn light_one_column(app: &mut App, label: DimAppLabel, stone_floor: bool) {
 
 /// Updates until an update leaves the light stage owing nothing, and waits for the stage to
 /// answer between updates. A published answer can raise more light work, such as a new surface.
-fn settle(app: &mut App, label: DimAppLabel) {
+fn settle(app: &mut App, label: Entity) {
     for _ in 0..400 {
         app.update();
-        let world = app
-            .sub_apps_mut()
-            .sub_apps
-            .get_mut(&label.intern())
-            .expect("the dimension sub-app exists")
-            .world_mut();
+        let world = host_app::sub_app(app, label).world_mut();
         let mut light = world.resource_mut::<LightLink>();
         if light.is_idle() {
             return;
@@ -105,13 +95,8 @@ fn settle(app: &mut App, label: DimAppLabel) {
     panic!("light never settled");
 }
 
-fn published(app: &mut App, label: DimAppLabel, pos: SectionPos) -> (BlockLight, SkyLight) {
-    let world = app
-        .sub_apps_mut()
-        .sub_apps
-        .get_mut(&label.intern())
-        .expect("the dimension sub-app exists")
-        .world_mut();
+fn published(app: &mut App, label: Entity, pos: SectionPos) -> (BlockLight, SkyLight) {
+    let world = host_app::sub_app(app, label).world_mut();
     let mut sections = world.query::<(&SectionPos, &BlockLight, &SkyLight)>();
     let (_, block, sky) = sections
         .iter(world)
@@ -120,7 +105,7 @@ fn published(app: &mut App, label: DimAppLabel, pos: SectionPos) -> (BlockLight,
     (block.clone(), sky.clone())
 }
 
-fn spawn_dimension(id: &str, dimension_type: &str) -> (App, DimAppLabel) {
+fn spawn_dimension(id: &str, dimension_type: &str) -> (App, Entity) {
     let mut app = host_app::make_host_app();
     host_app::enable_lighting(&mut app);
     host_app::enqueue_spawn(&mut app, id, dimension_type);
@@ -132,23 +117,19 @@ fn spawn_dimension(id: &str, dimension_type: &str) -> (App, DimAppLabel) {
         .map(|(entity, _)| entity)
         .next()
         .expect("one sub-app handle");
-    (app, DimAppLabel(handle))
+    (app, handle)
 }
 
 /// Stands in for `apply_voxel_set_requests`, which writes the palette and then
 /// the message; the chunk index it resolves through is not wired here.
-fn place_torch(app: &mut App, label: DimAppLabel, at: BlockPos) -> u8 {
+fn place_torch(app: &mut App, label: Entity, at: BlockPos) -> u8 {
     let blocks = app.world().resource::<Blocks>().clone();
     let torch = state(&blocks, "minecraft:torch");
     let emission = blocks
         .state(blocks.default_state("minecraft:torch").unwrap())
         .light_emission;
 
-    let sub_app = app
-        .sub_apps_mut()
-        .sub_apps
-        .get_mut(&label.intern())
-        .expect("the dimension sub-app exists");
+    let sub_app = host_app::sub_app(app, label);
     let chunk_pos = SectionPos::from(at);
     let mut sections = sub_app.world_mut().query::<(Entity, &SectionPos)>();
     let chunk = sections
@@ -214,8 +195,8 @@ fn a_dimension_without_a_sky_publishes_none() {
 #[derive(Resource, Default)]
 struct CapturedLightUpdates(Vec<OutboundPlayerPacket>);
 
-/// Reads the dim's outbox in the same schedule the emitter writes it, before
-/// `flush_from_dim_outbox` drains it in the next tick's `FixedLast`.
+/// Reads the dim's outbox in the same schedule the emitter writes it, before the output of the
+/// tick drains it.
 fn capture_light_updates(
     mut reader: MessageReader<OutboundPlayerPacket>,
     mut captured: ResMut<CapturedLightUpdates>,
@@ -253,28 +234,15 @@ fn nibble(
 /// player: the dimension world's own player entity resolves to nothing on the host.
 fn torch_delta(already_sent: bool) -> (Vec<OutboundPlayerPacket>, PlayerSession) {
     let (mut app, label) = spawn_dimension("minecraft:overworld", "minecraft:overworld");
-    let sub_app = app
-        .sub_apps_mut()
-        .sub_apps
-        .get_mut(&label.intern())
-        .expect("the dimension sub-app exists");
+    let sub_app = host_app::sub_app(&mut app, label);
     sub_app.init_resource::<CapturedLightUpdates>();
     sub_app.add_systems(Last, capture_light_updates.after(emit_light_updates));
 
     light_one_column(&mut app, label, true);
 
     let column = ColumnPos::new(0, 0);
-    let _sub_app = app
-        .sub_apps_mut()
-        .sub_apps
-        .get_mut(&label.intern())
-        .expect("the dimension sub-app exists");
     let session = PlayerSession(1);
-    let sub_app = app
-        .sub_apps_mut()
-        .sub_apps
-        .get_mut(&label.intern())
-        .expect("the dimension sub-app exists");
+    let sub_app = host_app::sub_app(&mut app, label);
     let world = sub_app.world_mut();
     let dimension = world
         .query_filtered::<Entity, bevy_ecs::prelude::With<ColumnIndex>>()
@@ -291,11 +259,7 @@ fn torch_delta(already_sent: bool) -> (Vec<OutboundPlayerPacket>, PlayerSession)
 
     place_torch(&mut app, label, torch_at());
 
-    let captured = app
-        .sub_apps_mut()
-        .sub_apps
-        .get_mut(&label.intern())
-        .expect("the dimension sub-app exists")
+    let captured = host_app::sub_app(&mut app, label)
         .world()
         .resource::<CapturedLightUpdates>()
         .0
@@ -371,11 +335,7 @@ fn the_column_under_the_player_is_lit_before_the_far_ones() {
     let stone = state(&blocks, "minecraft:stone");
     let air = state(&blocks, "minecraft:air");
 
-    let sub_app = app
-        .sub_apps_mut()
-        .sub_apps
-        .get_mut(&label.intern())
-        .expect("the dimension sub-app exists");
+    let sub_app = host_app::sub_app(&mut app, label);
     // One column per epoch, so the order the queue hands work out is the order
     // light is published in.
     sub_app.insert_resource(LightBudget {
@@ -413,12 +373,7 @@ fn the_column_under_the_player_is_lit_before_the_far_ones() {
     let mut lit: Vec<(ColumnPos, usize)> = Vec::new();
     for tick in 0..400 {
         app.update();
-        let world = app
-            .sub_apps_mut()
-            .sub_apps
-            .get_mut(&label.intern())
-            .expect("the dimension sub-app exists")
-            .world_mut();
+        let world = host_app::sub_app(&mut app, label).world_mut();
         if !world.resource::<LightLink>().is_idle() {
             std::thread::sleep(std::time::Duration::from_millis(2));
         }

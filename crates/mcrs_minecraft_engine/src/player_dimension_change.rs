@@ -1,15 +1,14 @@
 use crate::ability::{OpLevelAnnounced, PlayerFlying, PlayerGameMode, PlayerOpLevel};
 use crate::bridge::OutboundFlush;
 use crate::bus::{self, OutboundPlayerPacket, OutboundPlayerReleased, PacketPayload};
-use crate::channel_types::FromDim;
 use crate::column_view::ColumnView;
 use crate::dim;
+use crate::dim_cells::DimCells;
 use crate::dimension_change::{Arrival, DimensionChangeError};
 use crate::dimension_order::{DimensionWorld, in_dimension_order};
 use crate::enter_level_packets::enter_level_packets;
 use crate::game_mode;
 use crate::minecraft_entity::EntityBundle;
-use crate::sub_app_builder::FromDimBacklog;
 use crate::teleport::TeleportState;
 use bevy_app::{App, SubApp};
 use bevy_ecs::component::Component;
@@ -175,19 +174,14 @@ fn carry_components(from: &mut World, to: &mut World, leaving: Entity, arrived: 
     });
 }
 
-/// Stamps everything the old dimension produced and the host did not take yet, in the order it
-/// was written. Stamped later, after the epoch changes, the player would get those packets of
-/// the dimension it left after its respawn.
+/// Stamps everything the old dimension produced since its last tick, such as the packets of a
+/// command, in the order it was written. Stamped later, after the epoch changes, the player
+/// would get those packets of the dimension it left after its respawn. The host takes the
+/// outputs of the last tick before it lends the worlds.
 fn hand_over_outbound(host: &mut World, from: &mut World) {
     let Some(label) = from.get_resource::<DimensionLabel>().map(|label| label.0) else {
         return;
     };
-    dim::pump_dim(host, label);
-    if let Some(mut backlog) = from.get_resource_mut::<FromDimBacklog>() {
-        for message in backlog.0.drain(..) {
-            dim::receive_from_dim(host, label, message);
-        }
-    }
     if let Some(mut packets) = from.get_resource_mut::<Messages<OutboundPlayerPacket>>() {
         for packet in packets.drain() {
             dim::deliver(host, packet);
@@ -195,13 +189,9 @@ fn hand_over_outbound(host: &mut World, from: &mut World) {
     }
     if let Some(mut released) = from.get_resource_mut::<Messages<OutboundPlayerReleased>>() {
         for released in released.drain() {
-            dim::receive_from_dim(
-                host,
-                label,
-                FromDim::Released {
-                    session: released.session,
-                },
-            );
+            dim::forget_departures(host, |departing| {
+                departing.dim == label && departing.session == released.session
+            });
         }
     }
 }
@@ -273,21 +263,22 @@ fn send_arrival(
 /// Applies the [`ChangeDimensionRequest`]s that the dimension worlds wrote in their last tick,
 /// in the order of the dimensions and then in the order of writing. The server calls it between
 /// two ticks, after the pending commands; an embedder that drives the app itself calls it at
-/// the same point.
+/// the same point. It lends every dimension world until the next tick.
 pub fn apply_dimension_change_requests(app: &mut App) {
-    let sub_apps = app.sub_apps_mut();
-    let requested = sub_apps.sub_apps.values().any(|sub| {
-        sub.world()
-            .get_resource::<Messages<ChangeDimensionRequest>>()
-            .is_some_and(|requests| !requests.is_empty())
-    });
-    if !requested {
-        return;
-    }
-    let host = sub_apps.main.world_mut();
+    dim::take_dim_outputs(app.world_mut());
+    app.world_mut()
+        .try_resource_scope(|host, mut cells: Mut<DimCells>| {
+            if !cells.take_dimension_changes() {
+                return;
+            }
+            apply_requests(host, cells.sub_apps_mut().map(SubApp::world_mut));
+        });
+}
+
+fn apply_requests<'w>(host: &mut World, dimensions: impl Iterator<Item = &'w mut World>) {
     let mut worlds = Vec::new();
     in_dimension_order(
-        sub_apps.sub_apps.values_mut().map(SubApp::world_mut),
+        dimensions,
         |world| {
             world
                 .query_filtered::<&ResourceKeyBuf<DimensionKey>, With<Dimension>>()

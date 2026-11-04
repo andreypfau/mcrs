@@ -12,6 +12,7 @@ workspace = true
 
 [dependencies]
 mcrs_minecraft_resource.workspace = true
+mcrs_engine_link.workspace = true
 mcrs_voxel.workspace = true
 mcrs_minecraft_dimension.workspace = true
 bevy_app.workspace = true
@@ -28,13 +29,12 @@ mcrs_minecraft_chunk = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_core = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_simulation.workspace = true
 mcrs_minecraft_volume.workspace = true
-rayon.workspace = true
 rustc-hash.workspace = true
 smallvec.workspace = true
 tracing.workspace = true
 uuid = { workspace = true, features = ["v4"] }
 
 [features]
-# Makes `TickThreading::Parallel` the default mode.
+# Makes `Placement::Thread` the default placement of the dimension worlds.
 parallel-tick = []
 telemetry-tracy = []

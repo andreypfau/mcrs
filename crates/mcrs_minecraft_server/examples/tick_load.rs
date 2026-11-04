@@ -4,6 +4,11 @@
 //! cargo run --release -p mcrs_minecraft_server --example tick_load -- <bots> <single|parallel> [apart|together] [seconds] [dimensions]
 //! ```
 //!
+//! `single` ticks every world inline on the server thread, `parallel` gives each world a thread.
+//!
+//! ```text
+//! ```
+//!
 //! The bots spread over the dimensions in turn: bot 0 in the overworld, bot 1 in the nether,
 //! bot 2 in the end, and so on. The bots
 //! keep walking from spawn, so the dimensions keep generating, lighting and sending columns.
@@ -27,9 +32,8 @@ use bevy_ecs::entity::Entity;
 use bevy_math::DVec3;
 use mcrs_minecraft_core::VERSION;
 use mcrs_minecraft_engine_server::{
-    BoundAddress, GameMode, ServerNetworkPlugin, TickThreading, runner,
+    BoundAddress, GameMode, Placement, ServerNetworkPlugin, runner,
 };
-use mcrs_minecraft_engine_world::tick_threading;
 use mcrs_minecraft_network::ServerSideConnection;
 use mcrs_minecraft_network::join::{Join, Joined, join};
 use mcrs_minecraft_network::metrics::{BridgeTelemetry, PacketKinds};
@@ -82,10 +86,6 @@ impl FromStr for Spread {
 struct TickTimes {
     tick: Duration,
     drain: Duration,
-    /// The wakes the dimensions sent until the next tick.
-    wakes: usize,
-    /// The drains that ran a dimension until the next tick.
-    drains: usize,
     traffic: Traffic,
     /// The bytes appended to each connection during the tick.
     session_bytes: Vec<u64>,
@@ -132,9 +132,11 @@ impl Traffic {
 fn main() -> anyhow::Result<()> {
     let args: Vec<String> = std::env::args().collect();
     let bots: usize = args.get(1).map_or(Ok(30), |count| count.parse())?;
-    let threading = args
-        .get(2)
-        .map_or(Ok(TickThreading::Parallel), |name| name.parse())?;
+    let worlds = match args.get(2).map(String::as_str) {
+        None | Some("parallel") => Placement::Thread,
+        Some("single") => Placement::Inline,
+        Some(other) => anyhow::bail!("unknown mode {other:?}, expected single or parallel"),
+    };
     let spread: Spread = args.get(3).map_or(Ok(Spread::Apart), |name| name.parse())?;
     let seconds: u64 = args.get(4).map_or(Ok(40), |count| count.parse())?;
     let dimensions: usize = args.get(5).map_or(Ok(3), |count| count.parse())?;
@@ -146,7 +148,7 @@ fn main() -> anyhow::Result<()> {
 
     let mut plugins = MinecraftServerPlugins::default();
     plugins.core.asset_path = Some(ASSETS.to_owned());
-    plugins.core.tick_threading = threading;
+    plugins.core.worlds = worlds;
     plugins.network = ServerNetworkPlugin::embedded();
     plugins.network.announce_on_lan = false;
     plugins.worlds.default_op_level = 2;
@@ -186,20 +188,19 @@ fn main() -> anyhow::Result<()> {
 
     let measured = times.get(times.len() / 3..).unwrap_or_default();
     println!(
-        "{threading:?}, {spread:?}: {} of {bots} bots joined, {} columns received, {} ticks measured",
+        "{worlds:?}, {spread:?}: {} of {bots} bots joined, {} columns received, {} ticks measured",
         counts.joined.load(Ordering::Relaxed),
         counts.columns.load(Ordering::Relaxed),
         measured.len()
     );
     report("tick", measured.iter().map(|times| times.tick));
     report("drain", measured.iter().map(|times| times.drain));
-    report_wakes(measured);
     report_traffic(measured);
     report_bots(&counts, dimensions);
     Ok(())
 }
 
-/// `run_server_loop`, timing the tick and the outbox drains until the next tick.
+/// `run_server_loop`, timing the tick and the hand-over to the sockets after it.
 fn run_timed(mut app: App, stop: &AtomicBool) -> Vec<TickTimes> {
     app.finish();
     app.cleanup();
@@ -208,31 +209,19 @@ fn run_timed(mut app: App, stop: &AtomicBool) -> Vec<TickTimes> {
     while !stop.load(Ordering::Relaxed) {
         let before = Traffic::of(app.world().resource::<BridgeTelemetry>());
         let start = Instant::now();
-        tick_threading::update(&mut app);
+        app.update();
         runner::between_ticks(&mut app);
         let tick = start.elapsed();
         // `runner::drain_until`, without the time spent waiting.
-        let deadline = start + TICK;
-        let mut drain = Duration::ZERO;
-        let mut wakes = 0;
-        let mut drains = 0;
-        loop {
-            let drained = Instant::now();
-            let taken = runner::drain_woken(&mut app);
-            drain += drained.elapsed();
-            wakes += taken.wakes;
-            drains += taken.dimensions;
-            if !runner::wait_for_wake(&mut app, deadline) {
-                break;
-            }
-        }
+        let drained = Instant::now();
+        runner::drain(&mut app);
+        let drain = drained.elapsed();
+        runner::drain_until(&mut app, start + TICK);
         let traffic = Traffic::of(app.world().resource::<BridgeTelemetry>()).since(before);
         let session_bytes = session_bytes(&mut app, &mut sent);
         times.push(TickTimes {
             tick,
             drain,
-            wakes,
-            drains,
             traffic,
             session_bytes,
         });
@@ -250,24 +239,6 @@ fn session_bytes(app: &mut App, sent: &mut HashMap<Entity, u64>) -> Vec<u64> {
         deltas.push(total.saturating_sub(last));
     }
     deltas
-}
-
-/// The wakes and the dimension drains a tick, and what a drain costs on average.
-fn report_wakes(measured: &[TickTimes]) {
-    let ticks = measured.len().max(1) as f64;
-    let wakes: usize = measured.iter().map(|times| times.wakes).sum();
-    let drains: usize = measured.iter().map(|times| times.drains).sum();
-    let drain: Duration = measured.iter().map(|times| times.drain).sum();
-    let per_drain = if drains == 0 {
-        "n/a".to_owned()
-    } else {
-        format!("{:.1}", drain.as_secs_f64() * 1e6 / drains as f64)
-    };
-    println!(
-        "wakes: {:.1} a tick, dimension drains: {:.1} a tick, {per_drain} us a drain",
-        wakes as f64 / ticks,
-        drains as f64 / ticks,
-    );
 }
 
 /// The packets and bytes the bridge handed to the connections, per tick and per connection.
