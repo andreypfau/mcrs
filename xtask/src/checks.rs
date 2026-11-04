@@ -30,8 +30,9 @@ const WASM32_PACKAGES: [&str; 11] = [
 
 const NO_STD_PACKAGES: [&str; 2] = ["mcrs_command", "mcrs_minecraft_chat"];
 
-const NO_BEVY_PACKAGES: [&str; 68] = [
+const NO_BEVY_PACKAGES: [&str; 69] = [
     "mcrs_command",
+    "mcrs_engine_link",
     "mcrs_minecraft_anvil",
     "mcrs_minecraft_biome",
     "mcrs_minecraft_biome_file",
