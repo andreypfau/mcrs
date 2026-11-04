@@ -769,4 +769,25 @@ mod tests {
         assert!(wants(&views, dim).contains(&ColumnRequest::Drop(column)));
         assert!(!views.holds(session, column));
     }
+
+    #[test]
+    fn a_view_that_moves_to_another_dimension_lets_go_of_the_old_streams() {
+        let mut world = EcsWorld::new();
+        let (old, new) = (world.spawn_empty().id(), world.spawn_empty().id());
+        let session = PlayerSession(1);
+        let column = ColumnPos::new(0, 0);
+        let mut views = ColumnViews::default();
+        look(&mut views, old, session, 0);
+        send(&mut views);
+        publish(&mut views, old, column, b"column");
+        send(&mut views);
+        views.requests.clear();
+
+        look(&mut views, new, session, 0);
+        send(&mut views);
+
+        assert!(wants(&views, old).contains(&ColumnRequest::Drop(column)));
+        assert!(wants(&views, new).contains(&ColumnRequest::Want(column)));
+        assert!(!views.holds(session, column), "the respawn drops what the client held");
+    }
 }
