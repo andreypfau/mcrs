@@ -289,7 +289,8 @@ fn an_observer_in_the_new_dimension_sees_the_mover_with_its_network_id_and_no_li
             _ => None,
         })
         .unwrap();
-    let (greeter, _) = server.join_in(end, Uuid::new_v4(), "Greeter");
+    let greeter_uuid = Uuid::new_v4();
+    let (greeter, _) = server.join_in(end, greeter_uuid, "Greeter");
     let (player, transform) = player_in(&mut server, overworld, anchor).unwrap();
     server
         .world_in(overworld)
@@ -314,6 +315,19 @@ fn an_observer_in_the_new_dimension_sees_the_mover_with_its_network_id_and_no_li
         entered,
         [VarInt(network_id)],
         "the walker keeps its network id"
+    );
+    let mover = server.session_of(anchor).unwrap();
+    assert!(
+        host_app::replicated(&host_app::sent_to(mover, packets.clone()))
+            .into_iter()
+            .filter(|(id, _)| *id == ClientboundAddEntity::ID)
+            .any(|(_, body)| {
+                ClientboundAddEntity::decode(&mut body.as_slice())
+                    .unwrap()
+                    .uuid
+                    == greeter_uuid
+            }),
+        "the walker subscribes to the tiles of the new dimension and sees the greeter"
     );
     assert!(
         !packets
