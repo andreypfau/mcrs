@@ -79,9 +79,9 @@ impl From<PacketPayload> for QueuedPacket {
     fn from(payload: PacketPayload) -> Self {
         let kind = payload.kind();
         match payload {
-            PacketPayload::ChunkLoad { packet, .. } | PacketPayload::Commands(packet) => {
-                Self::Encoded(EncodedPacket { kind, packet })
-            }
+            PacketPayload::ChunkLoad { packet, .. }
+            | PacketPayload::Commands(packet)
+            | PacketPayload::PlayerInfo(packet) => Self::Encoded(EncodedPacket { kind, packet }),
             payload => Self::Payload(payload),
         }
     }

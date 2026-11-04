@@ -14,13 +14,16 @@ use mcrs_minecraft_protocol_game::clientbound::{
     ClientboundEntityEvent, ClientboundEntityPositionSync, ClientboundForgetLevelChunk,
     ClientboundGameEvent, ClientboundLightUpdate, ClientboundLogin, ClientboundMoveEntityPos,
     ClientboundMoveEntityPosRot, ClientboundMoveEntityRot, ClientboundPlayerAbilities,
-    ClientboundPlayerLookAt, ClientboundPlayerPosition, ClientboundRemoveEntities,
-    ClientboundRespawn, ClientboundRotateHead, ClientboundSetChunkCacheCenter, ClientboundSetTime,
-    ClientboundSystemChatPacket,
+    ClientboundPlayerInfoRemove, ClientboundPlayerInfoUpdate, ClientboundPlayerLookAt,
+    ClientboundPlayerPosition, ClientboundRemoveEntities, ClientboundRespawn,
+    ClientboundRotateHead, ClientboundSetChunkCacheCenter, ClientboundSetTime,
+    ClientboundSystemChatPacket, ClientboundTabList,
 };
+use mcrs_minecraft_protocol_game::player_list::{PlayerListActions, PlayerListEntry};
 use mcrs_minecraft_resource::ResourceKeyBuf;
 use mcrs_voxel::ColumnPos;
 use smallvec::SmallVec;
+use std::borrow::Cow;
 use std::sync::Arc;
 use std::time::Instant;
 
@@ -72,6 +75,14 @@ pub struct OutboundPlayerDisconnect {
 #[derive(Message, Clone, Debug)]
 pub struct InboundPlayerDespawn {
     pub session: PlayerSession,
+}
+
+/// The round trip of the last keep-alive of a session, which the host measures on the wire.
+#[derive(Message, Clone, Copy, Debug)]
+pub struct PlayerLatency {
+    pub session: PlayerSession,
+    /// In milliseconds.
+    pub latency: i32,
 }
 
 /// The dimension has saved the player an `InboundPlayerDespawn` named and let it go.
@@ -159,6 +170,12 @@ pub enum PacketPayload {
     PlayerInfoUpdate {
         entries: Vec<PlayerInfoEntry>,
     },
+    /// A `player_info_update` packet with its id, encoded once for every viewer that receives
+    /// it.
+    PlayerInfo(Bytes),
+    PlayerInfoRemove(ClientboundPlayerInfoRemove),
+    PlayerListChange(ListChange),
+    TabList(ClientboundTabList<'static>),
     PlayerPosition(ClientboundPlayerPosition),
     PlayerLookAt(ClientboundPlayerLookAt),
     PlayerAbilities(ClientboundPlayerAbilities),
@@ -180,13 +197,78 @@ impl PacketPayload {
             | Self::HeadRotation(_) => PacketKind::EntityMove,
             Self::SpawnBundle(_) => PacketKind::Spawn,
             Self::RemoveEntities(_) => PacketKind::Remove,
-            Self::PlayerInfoUpdate { .. } => PacketKind::PlayerInfo,
+            Self::PlayerInfoUpdate { .. }
+            | Self::PlayerInfo(_)
+            | Self::PlayerInfoRemove(_)
+            | Self::PlayerListChange(_)
+            | Self::TabList(_) => PacketKind::PlayerInfo,
             Self::ChunkLoad { .. }
             | Self::ChunkUnload(_)
             | Self::ChunkBatchStart(_)
             | Self::ChunkBatchFinished(_)
             | Self::LightUpdate(_) => PacketKind::Chunk,
             _ => PacketKind::Other,
+        }
+    }
+}
+
+/// A change of the entries that a client already has.
+#[derive(Clone, Debug)]
+pub enum ListChange {
+    /// The entries that the player list starts to show, with their latency.
+    Listed(Vec<EntryLatency>),
+    /// The entries that the player list stops to show.
+    Unlisted(Vec<Uuid>),
+    Latency(Vec<EntryLatency>),
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct EntryLatency {
+    pub player_uuid: Uuid,
+    /// The round trip in milliseconds.
+    pub latency: i32,
+}
+
+impl ListChange {
+    #[must_use]
+    pub fn update_packet(&self) -> ClientboundPlayerInfoUpdate<'static> {
+        let latency_entry = |entry: &EntryLatency, listed: bool| PlayerListEntry {
+            player_uuid: entry.player_uuid,
+            listed,
+            ping: entry.latency,
+            ..Default::default()
+        };
+        let (actions, entries): (PlayerListActions, Vec<PlayerListEntry<'static>>) = match self {
+            Self::Listed(entries) => (
+                PlayerListActions::new()
+                    .with_update_listed(true)
+                    .with_update_latency(true),
+                entries
+                    .iter()
+                    .map(|entry| latency_entry(entry, true))
+                    .collect(),
+            ),
+            Self::Unlisted(uuids) => (
+                PlayerListActions::new().with_update_listed(true),
+                uuids
+                    .iter()
+                    .map(|&player_uuid| PlayerListEntry {
+                        player_uuid,
+                        ..Default::default()
+                    })
+                    .collect(),
+            ),
+            Self::Latency(entries) => (
+                PlayerListActions::new().with_update_latency(true),
+                entries
+                    .iter()
+                    .map(|entry| latency_entry(entry, false))
+                    .collect(),
+            ),
+        };
+        ClientboundPlayerInfoUpdate {
+            actions,
+            entries: Cow::Owned(entries),
         }
     }
 }
@@ -205,18 +287,11 @@ pub struct PlayerInfoEntry {
 /// The packets that make a subject appear on a client, which the client applies in one tick.
 #[derive(Clone, Debug)]
 pub struct SpawnBundle {
-    /// The profile entry of a player, which the client needs before it creates the player.
-    pub profile: Option<ProfileEntry>,
+    /// The `player_info_update` packet of the profile entry of a player, with its id, which the
+    /// client needs before it creates the player. It does not set the listing, so a new entry
+    /// is not listed. `None` when the client has the entry already.
+    pub profile: Option<Bytes>,
     pub entity: ClientboundAddEntity,
-}
-
-/// The profile entry of a spawn bundle. It does not set whether the entry is listed: a new entry
-/// is not listed, and an entry that the client has keeps its listing.
-#[derive(Clone, Debug)]
-pub struct ProfileEntry {
-    pub player_uuid: Uuid,
-    pub username: String,
-    pub game_mode: GameMode,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]

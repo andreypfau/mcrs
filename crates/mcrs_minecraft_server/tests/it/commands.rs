@@ -37,7 +37,7 @@ use mcrs_minecraft_environment::world_clock::{ClockState, WorldClock, WorldClock
 use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_protocol::{Decode, Packet, VarLong};
 use mcrs_minecraft_protocol_game::clientbound::{
-    ClientboundCommands, ClientboundSetTime, ClockUpdate, LookAtEntity,
+    ClientboundCommands, ClientboundPlayerInfoUpdate, ClientboundSetTime, ClockUpdate, LookAtEntity,
 };
 use mcrs_minecraft_protocol_game::text::{TextContent, TranslateArg};
 use mcrs_minecraft_registries::CurrentRegistries;
@@ -1623,7 +1623,7 @@ fn a_clock_change_in_one_dimension_reaches_every_player() {
 }
 
 #[test]
-fn a_game_mode_set_before_a_change_of_dimension_in_the_same_pass_reaches_every_player_list() {
+fn a_game_mode_set_before_a_change_of_dimension_in_the_same_pass_reaches_the_own_entry() {
     let mut server = start_in(
         &[
             ("minecraft:overworld", "minecraft:overworld"),
@@ -1646,19 +1646,43 @@ fn a_game_mode_set_before_a_change_of_dimension_in_the_same_pass_reaches_every_p
         },
     );
 
-    let seen = server.ticks(guest, 3);
+    let (op, guest) = (
+        server.session_of(op).unwrap(),
+        server.session_of(guest).unwrap(),
+    );
+    let packets = server.ticks_all(3);
 
-    let modes: Vec<GameMode> = seen
-        .iter()
-        .filter_map(|packet| match packet {
-            PacketPayload::PlayerInfoUpdate { entries } => Some(entries),
-            _ => None,
-        })
-        .flatten()
-        .filter(|entry| entry.player_uuid == OPERATOR)
-        .map(|entry| entry.game_mode)
-        .collect();
+    let mut modes: Vec<GameMode> = Vec::new();
+    for packet in &host_app::sent_to(op, packets.clone()) {
+        let PacketPayload::PlayerInfo(bytes) = packet else {
+            continue;
+        };
+        let mut body: &[u8] = bytes;
+        assert_eq!(
+            VarInt::decode(&mut body).unwrap().0,
+            ClientboundPlayerInfoUpdate::ID
+        );
+        let update = ClientboundPlayerInfoUpdate::decode(&mut body).unwrap();
+        if update.actions.update_game_mode() {
+            modes.extend(
+                update
+                    .entries
+                    .iter()
+                    .filter(|entry| entry.player_uuid == OPERATOR)
+                    .map(|entry| entry.game_mode),
+            );
+        }
+    }
     assert_eq!(modes, [GameMode::Spectator]);
+    assert!(
+        host_app::sent_to(guest, packets)
+            .iter()
+            .any(|packet| matches!(
+                packet,
+                PacketPayload::PlayerInfoRemove(remove) if remove.players.contains(&OPERATOR)
+            )),
+        "a player of another dimension leaves the player list"
+    );
 }
 
 #[test]

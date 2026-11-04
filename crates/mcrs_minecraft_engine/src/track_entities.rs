@@ -1,19 +1,19 @@
 //! The per-dim system that keeps the [`EntityTracker`] in line with the players of the world and
 //! sends each viewer the spawns, moves and removes of its visible set.
 
-use crate::bus::{
-    OutboundPlayerPacket, PacketPayload, PacketTarget, ProfileEntry, SpawnBundle, to, to_target,
-};
+use crate::bus::{OutboundPlayerPacket, PacketPayload, PacketTarget, SpawnBundle, to, to_target};
 use crate::entity_motion::{DeltaBase, Keyframe, Motion};
 use crate::entity_tracker::{EntityTracker, TrackCell, TrackedSubject, ViewPair};
 use crate::game_mode::ListedGameMode;
 use crate::network_id::player_network_id;
+use crate::player_list::{PlayerList, ProfileNeed};
 use crate::session::GameProfile;
 use bevy_ecs::lifecycle::Remove;
 use bevy_ecs::message::MessageWriter;
 use bevy_ecs::observer::On;
 use bevy_ecs::prelude::{DetectChanges, Entity, Query, Ref, ResMut, With};
 use bevy_math::DVec3;
+use bytes::Bytes;
 use mcrs_minecraft_engine_world::entity::physics::Transform;
 use mcrs_minecraft_engine_world::entity::player::Player;
 use mcrs_minecraft_engine_world::session::{Owner, PlayerSession};
@@ -49,6 +49,7 @@ struct Relocation {
 )]
 pub fn track_entities(
     mut tracker: ResMut<EntityTracker>,
+    mut list: ResMut<PlayerList>,
     players: Query<(Entity, &InDimension, Ref<Transform>, &Owner), With<Player>>,
     profiles: Query<(Option<&GameProfile>, Option<&ListedGameMode>)>,
     mut writer: MessageWriter<OutboundPlayerPacket>,
@@ -100,14 +101,27 @@ pub fn track_entities(
         );
         subject.keyframe_tick = tick;
         tracker.insert(arrival.entity, subject);
+        if let Ok((Some(profile), _)) = profiles.get(arrival.entity) {
+            list.join(arrival.entity, arrival.session, profile.id);
+        }
     }
-    send_removes(&mut tracker, &mut writer);
-    send_spawns(&mut tracker, &profiles, &mut writer);
+    send_removes(&mut tracker, &mut list, &mut writer);
+    send_spawns(&mut tracker, &mut list, &profiles, &mut writer);
 }
 
-/// Removes a player that despawns, or stops being a player, from the tracker.
-pub fn forget_removed_player(remove: On<Remove, Player>, mut tracker: ResMut<EntityTracker>) {
-    tracker.forget(remove.event().entity);
+/// Removes a player that despawns, or stops being a player, from the tracker and from the
+/// player list.
+pub fn forget_removed_player(
+    remove: On<Remove, Player>,
+    mut tracker: ResMut<EntityTracker>,
+    mut list: ResMut<PlayerList>,
+    mut writer: MessageWriter<OutboundPlayerPacket>,
+) {
+    let player = remove.event().entity;
+    tracker.forget(player);
+    if let Some(packet) = list.leave(player) {
+        writer.write(packet);
+    }
 }
 
 /// Sends `motion` of `subject` once to all its viewers.
@@ -130,9 +144,15 @@ fn send_motion(
 }
 
 /// Sends each viewer one remove packet with every subject that it lost.
-fn send_removes(tracker: &mut EntityTracker, writer: &mut MessageWriter<OutboundPlayerPacket>) {
+fn send_removes(
+    tracker: &mut EntityTracker,
+    list: &mut PlayerList,
+    writer: &mut MessageWriter<OutboundPlayerPacket>,
+) {
+    let tick = tracker.tick();
     let mut by_viewer: BTreeMap<Entity, Vec<VarInt>> = BTreeMap::new();
-    for (ViewPair { viewer, .. }, wire_id) in tracker.take_left() {
+    for (ViewPair { viewer, subject }, wire_id) in tracker.take_left() {
+        list.release(viewer, subject, tick);
         by_viewer.entry(viewer).or_default().push(wire_id);
     }
     for (viewer, entity_ids) in by_viewer {
@@ -149,36 +169,46 @@ fn send_removes(tracker: &mut EntityTracker, writer: &mut MessageWriter<Outbound
 /// Sends each viewer the spawn bundle of every subject that it gained.
 fn send_spawns(
     tracker: &mut EntityTracker,
+    list: &mut PlayerList,
     profiles: &Query<(Option<&GameProfile>, Option<&ListedGameMode>)>,
     writer: &mut MessageWriter<OutboundPlayerPacket>,
 ) {
     for ViewPair { viewer, subject } in tracker.take_entered() {
-        let (Some(viewer), Some(tracked)) = (tracker.get(viewer), tracker.get(subject)) else {
+        let (Some(viewer_subject), Some(tracked)) = (tracker.get(viewer), tracker.get(subject))
+        else {
             continue;
         };
         let (profile, game_mode) = profiles.get(subject).unwrap_or_default();
+        let profile_packet = match (profile, list.acquire(viewer, subject)) {
+            (Some(profile), ProfileNeed::Send) => list.profile_packet(
+                subject,
+                profile,
+                game_mode.map(|mode| mode.0).unwrap_or_default(),
+            ),
+            (_, ProfileNeed::Skip) | (None, ProfileNeed::Send) => None,
+        };
         writer.write(to(
-            viewer.session,
-            PacketPayload::SpawnBundle(spawn_bundle(tracked, profile, game_mode)),
+            viewer_subject.session,
+            PacketPayload::SpawnBundle(spawn_bundle(
+                tracked,
+                profile.map(|profile| profile.id),
+                profile_packet,
+            )),
         ));
     }
 }
 
 fn spawn_bundle(
     subject: &TrackedSubject,
-    profile: Option<&GameProfile>,
-    game_mode: Option<&ListedGameMode>,
+    uuid: Option<Uuid>,
+    profile: Option<Bytes>,
 ) -> SpawnBundle {
     let base = subject.base;
     SpawnBundle {
-        profile: profile.map(|profile| ProfileEntry {
-            player_uuid: profile.id,
-            username: profile.username.clone(),
-            game_mode: game_mode.map(|mode| mode.0).unwrap_or_default(),
-        }),
+        profile,
         entity: ClientboundAddEntity {
             id: subject.wire_id,
-            uuid: profile.map_or(Uuid::nil(), |profile| profile.id),
+            uuid: uuid.unwrap_or(Uuid::nil()),
             kind: EntityType::Player,
             pos: base.position,
             movement: LpVec3(DVec3::ZERO),

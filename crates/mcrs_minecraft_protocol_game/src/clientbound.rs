@@ -637,6 +637,13 @@ pub struct ClockUpdate {
     pub rate: f32,
 }
 
+/// The header and the footer of the player list; an empty text hides its line.
+#[derive(Clone, Debug, Encode, Decode)]
+pub struct ClientboundTabList<'a> {
+    pub header: RawText<'a>,
+    pub footer: RawText<'a>,
+}
+
 #[derive(Clone, Debug, Encode, Decode)]
 pub struct ClientboundSystemChatPacket<'a> {
     pub content: RawText<'a>,

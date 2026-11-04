@@ -267,6 +267,44 @@ impl WritePacket for PacketBuffer {
     }
 }
 
+/// Where [`write_payload`] writes: packets to serialize, and packets that are serialized
+/// already, in one order.
+trait PayloadSink: WritePacket {
+    /// Writes `packet`, which holds its id, as it is.
+    fn write_encoded(&mut self, packet: Bytes) -> anyhow::Result<()>;
+}
+
+impl PayloadSink for PacketBuffer {
+    fn write_encoded(&mut self, packet: Bytes) -> anyhow::Result<()> {
+        self.0.extend_from_slice(&packet);
+        Ok(())
+    }
+}
+
+/// One connection that a queue is handed to.
+struct ConnectionSink<'a> {
+    entity: Entity,
+    raw: &'a mut RawConnection,
+    telemetry: &'a mut BridgeTelemetry,
+    frames: &'a mut SharedFrames,
+}
+
+impl WritePacket for ConnectionSink<'_> {
+    fn write_packet_fallible<P>(&mut self, packet: &P) -> anyhow::Result<()>
+    where
+        P: Encode + Packet,
+    {
+        self.raw.write_packet_fallible(packet)
+    }
+}
+
+impl PayloadSink for ConnectionSink<'_> {
+    fn write_encoded(&mut self, packet: Bytes) -> anyhow::Result<()> {
+        append_encoded(self.entity, self.raw, packet, self.telemetry, self.frames);
+        Ok(())
+    }
+}
+
 fn push_to_connection(
     queues: &mut Query<&mut OutboundQueue>,
     telemetry: &mut BridgeTelemetry,
@@ -476,7 +514,13 @@ fn hand_over(
                 }
                 QueuedPacket::Payload(payload) => {
                     telemetry.packets.count(payload.kind());
-                    if let Err(error) = write_payload(raw, payload) {
+                    let mut sink = ConnectionSink {
+                        entity,
+                        raw,
+                        telemetry,
+                        frames,
+                    };
+                    if let Err(error) = write_payload(&mut sink, payload) {
                         warn!(conn = ?entity, "an outbound packet did not encode: {error:#}");
                     } else {
                         telemetry.encode_calls_total =
@@ -523,7 +567,7 @@ fn append_encoded(
 }
 
 /// Writes a packet that is not serialized yet; a serialized one is an error.
-fn write_payload<W: WritePacket>(sink: &mut W, data: PacketPayload) -> anyhow::Result<()> {
+fn write_payload<W: PayloadSink>(sink: &mut W, data: PacketPayload) -> anyhow::Result<()> {
     match data {
         PacketPayload::LightUpdate(p) => sink.write_packet_fallible(&p),
         PacketPayload::BlockUpdate(p) => sink.write_packet_fallible(&p),
@@ -537,7 +581,9 @@ fn write_payload<W: WritePacket>(sink: &mut W, data: PacketPayload) -> anyhow::R
         PacketPayload::EntityMoveRotate(p) => sink.write_packet_fallible(&p),
         PacketPayload::EntityRotate(p) => sink.write_packet_fallible(&p),
         PacketPayload::HeadRotation(p) => sink.write_packet_fallible(&p),
-        PacketPayload::ChunkLoad { .. } | PacketPayload::Commands(_) => {
+        PacketPayload::ChunkLoad { .. }
+        | PacketPayload::Commands(_)
+        | PacketPayload::PlayerInfo(_) => {
             anyhow::bail!("a serialized packet reached the encoder")
         }
         PacketPayload::ChunkBatchStart(p) => sink.write_packet_fallible(&p),
@@ -567,6 +613,11 @@ fn write_payload<W: WritePacket>(sink: &mut W, data: PacketPayload) -> anyhow::R
                 entries: Cow::Borrowed(&wire_entries),
             })
         }
+        PacketPayload::PlayerInfoRemove(p) => sink.write_packet_fallible(&p),
+        PacketPayload::PlayerListChange(change) => {
+            sink.write_packet_fallible(&change.update_packet())
+        }
+        PacketPayload::TabList(p) => sink.write_packet_fallible(&p),
         PacketPayload::PlayerPosition(p) => sink.write_packet_fallible(&p),
         PacketPayload::SystemChat(p) => sink.write_packet_fallible(&p),
         PacketPayload::CommandSuggestions(p) => sink.write_packet_fallible(&p),
@@ -575,20 +626,10 @@ fn write_payload<W: WritePacket>(sink: &mut W, data: PacketPayload) -> anyhow::R
     }
 }
 
-fn write_spawn_bundle<W: WritePacket>(sink: &mut W, bundle: &SpawnBundle) -> anyhow::Result<()> {
+fn write_spawn_bundle<W: PayloadSink>(sink: &mut W, bundle: &SpawnBundle) -> anyhow::Result<()> {
     sink.write_packet_fallible(&ClientboundBundleDelimiter)?;
     if let Some(profile) = &bundle.profile {
-        sink.write_packet_fallible(&ClientboundPlayerInfoUpdate {
-            actions: PlayerListActions::new()
-                .with_add_player(true)
-                .with_update_game_mode(true),
-            entries: Cow::Borrowed(&[PlayerListEntry {
-                player_uuid: profile.player_uuid,
-                username: profile.username.as_str(),
-                game_mode: profile.game_mode,
-                ..Default::default()
-            }]),
-        })?;
+        sink.write_encoded(profile.clone())?;
     }
     sink.write_packet_fallible(&bundle.entity)?;
     sink.write_packet_fallible(&ClientboundBundleDelimiter)

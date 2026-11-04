@@ -186,7 +186,8 @@ that has no rule.
 | Dimension to host channel, `crates/mcrs_minecraft_engine/src/sub_app_builder.rs` | One channel message for each drain. | None for each packet. |
 | `crates/mcrs_minecraft_engine/src/bridge.rs` | The flush runs on one thread. It encodes a packet for many recipients one time, and all recipients share the bytes. | One encode for each packet. A packet for each pair of subject and viewer is still a separate packet. |
 | `crates/mcrs_minecraft_network/src/outbound.rs` | The flush frames and compresses a shared packet one time for each compression threshold. The writer sends this `Framed` part as it is. | One deflate for each chunk version in a flush. |
-| Profile entries, `track_entities.rs` | The spawn of a player is a bundle: its profile entry, then the spawn. The entry does not set the listing, so a new entry is not listed. A change of game mode still sends a listed entry to all players. | The player list policy and latency are not done (step 4). |
+| Profile entries, `crates/mcrs_minecraft_engine/src/player_list.rs` | `PlayerList` keeps the entries of each viewer in its dimension. Section 7.5 gives the rules. A change of game mode goes only to the viewers that have the entry. | The policy reads all players of the dimension: O(N) for each viewer that it checks. |
+| Chat, `crates/mcrs_minecraft_chat_server/src/chat_plugin.rs`, `crates/mcrs_minecraft_engine/src/join_message.rs` | Global chat is system chat. The join and leave messages go to the visible set of the player. | One encode for each message. |
 | `crates/mcrs_minecraft_engine/src/network_id.rs` | The wire id of an entity that is not a player is its index in the dimension. | Not stable across cells (`cells.md`, section 6). |
 | Encryption | None. The server runs in offline mode only. | No cost yet. |
 
@@ -315,6 +316,28 @@ Rules for the budget:
 - A player that joins or leaves changes only the viewers whose set changes.
 - The header or the footer of the list shows the number of players online.
 
+The implementation today has these values and limits:
+
+- The default policy lists the nearest players. `ListPolicy` holds a function, so a party or an
+  operator policy can replace it.
+- The candidates of the policy are the players of the dimension of the viewer. The reference lists
+  all players of the server. When a player changes dimension, the viewers of the old dimension
+  remove its entry, and it removes their entries. This is `intentional_deviation`.
+- The own entry of a viewer comes with its login. It counts as one of the 80 listed entries.
+- A viewer checks its listed entries a maximum of one time in 20 ticks. It checks them only after
+  a player joins, leaves or changes section in the dimension. Thus players that do not move cost
+  no work and no bytes.
+- An entry that is not listed and not in the visible set stays for 600 ticks. Then the dimension
+  sends `player_info_remove`. A disconnect removes the entry at the next tick.
+- The profile entry is in the spawn bundle only when the client does not have the entry. An entry
+  that the policy lists first goes before the change of the listing, outside a bundle.
+- The host measures the latency from the keep-alive on the wire and sends it to the dimension. A
+  viewer gets the latency of its listed entries a maximum of one time in 1,200 ticks, and only
+  the values that changed. An entry that becomes listed also brings its latency.
+- The host sends the header when the number changes. A player that a dimension attaches also
+  gets it.
+- All intervals count ticks of the tracker. No interval reads the wall clock.
+
 ## 7.6 Chat and other broadcasts
 
 - Signed player chat needs the profile entry of the sender at each recipient. Each recipient
@@ -324,6 +347,12 @@ Rules for the budget:
 - Messages about a player that joins or leaves go only to the players near that player.
 - A broadcast with the same bytes for all players, such as the time, is encoded one time. Each
   edge gets one copy.
+
+The implementation today has these limits:
+
+- The server does not sign chat. All chat goes out as system chat, also local chat.
+- The join message goes to the player and to its visible set. The leave message goes to its
+  visible set. A change of dimension sends neither message.
 
 ## 7.7 Spawn bundles by distance
 

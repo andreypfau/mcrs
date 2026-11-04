@@ -31,15 +31,19 @@ pub mod entity_tracker;
 pub mod game_mode;
 pub mod game_packets;
 pub mod heightmap;
+pub mod join_message;
+pub mod latency;
 pub mod light_codec;
 pub mod minecraft_entity;
 pub mod movement;
 pub mod network_id;
+pub mod online_count;
 pub mod op_level;
 pub mod ops;
 pub mod persistence;
 pub mod player_bundle;
 pub mod player_dimension_change;
+pub mod player_list;
 pub mod player_tracker;
 pub mod session;
 pub mod sub_app_builder;
@@ -111,6 +115,8 @@ impl Plugin for EnginePlugin {
                 bridge::bridge_inbound_to_channel,
                 bridge::bridge_player_attach,
                 bridge::forward_pending_inbound,
+                online_count::send_online_count,
+                latency::forward_latency,
             )
                 .chain(),
         );

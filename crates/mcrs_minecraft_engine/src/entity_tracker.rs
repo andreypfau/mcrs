@@ -79,6 +79,7 @@ pub struct EntityTracker {
     /// gone by the flush.
     left: BTreeMap<ViewPair, VarInt>,
     tick: u64,
+    generation: u64,
 }
 
 impl EntityTracker {
@@ -107,6 +108,27 @@ impl EntityTracker {
             .collect()
     }
 
+    /// Whether `viewer` has `subject` on its client.
+    #[must_use]
+    pub fn sees(&self, viewer: Entity, subject: Entity) -> bool {
+        self.subjects
+            .get(&viewer)
+            .is_some_and(|tracked| tracked.visible.contains(&subject))
+    }
+
+    /// Every subject, in no fixed order.
+    pub fn iter(&self) -> impl Iterator<Item = (Entity, &TrackedSubject)> {
+        self.subjects
+            .iter()
+            .map(|(&entity, subject)| (entity, subject))
+    }
+
+    /// Changes each time a subject comes, goes, or moves to another cell.
+    #[must_use]
+    pub fn generation(&self) -> u64 {
+        self.generation
+    }
+
     #[must_use]
     pub fn is_empty(&self) -> bool {
         self.subjects.is_empty()
@@ -124,6 +146,7 @@ impl EntityTracker {
     /// Adds `entity` in the cell of `subject` and pairs it with every subject in its radius.
     pub fn insert(&mut self, entity: Entity, subject: TrackedSubject) {
         let cell = subject.cell;
+        self.generation = self.generation.wrapping_add(1);
         self.cells.entry(cell).or_default().insert(entity);
         self.subjects.insert(entity, subject);
         self.gain(entity, cell, None);
@@ -139,6 +162,7 @@ impl EntityTracker {
         if old == cell {
             return;
         }
+        self.generation = self.generation.wrapping_add(1);
         self.leave_cell(entity, old);
         self.cells.entry(cell).or_default().insert(entity);
         let lost: Vec<Entity> = self
@@ -160,6 +184,7 @@ impl EntityTracker {
         let Some(subject) = self.subjects.remove(&entity) else {
             return;
         };
+        self.generation = self.generation.wrapping_add(1);
         self.leave_cell(entity, subject.cell);
         for other in subject.visible {
             if let Some(viewer) = self.subjects.get_mut(&other) {

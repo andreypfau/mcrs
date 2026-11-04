@@ -8,6 +8,7 @@ use crate::default_game_mode::DefaultGameMode;
 use crate::dimension_change::Arrival;
 use crate::enter_level_packets::enter_level_packets;
 use crate::game_mode::{self, ListedGameMode};
+use crate::join_message::AnnounceJoin;
 use crate::minecraft_entity::EntityBundle;
 use crate::network_id;
 use crate::op_level::AnnouncedOpLevel;
@@ -219,6 +220,7 @@ fn spawn_player_entity(
                 ..Default::default()
             },
             ColumnView::default(),
+            AnnounceJoin,
             Owner(spawn.session),
             GameProfile {
                 id: spawn.snapshot.uuid,

@@ -6,6 +6,7 @@ use bevy_ecs::prelude::{Commands, Query, Res};
 use bevy_ecs::query::Changed;
 use bevy_ecs::schedule::IntoScheduleConfigs;
 use bevy_time::{Real, Time};
+use mcrs_minecraft_engine::latency::Latency;
 use mcrs_minecraft_network::event::Received;
 use mcrs_minecraft_network::{ConnectionState, ServerSideConnection};
 use mcrs_minecraft_protocol::WritePacket;
@@ -108,37 +109,44 @@ pub fn handle_keepalive(
 
 fn on_configuration_response(
     event: On<Received<ConfigurationResponse>>,
-    query: Query<(&ServerSideConnection, &mut KeepAlive)>,
+    query: Query<(&ServerSideConnection, &mut KeepAlive, Option<&Latency>)>,
+    time: Res<Time<Real>>,
     commands: Commands,
 ) {
     if let Some(packet) = event.packet() {
-        handle_keepalive_response(event.entity, packet.0, query, commands);
+        handle_keepalive_response(event.entity, packet.0, query, time.elapsed(), commands);
     }
 }
 
 fn on_game_response(
     event: On<Received<GameResponse>>,
-    query: Query<(&ServerSideConnection, &mut KeepAlive)>,
+    query: Query<(&ServerSideConnection, &mut KeepAlive, Option<&Latency>)>,
+    time: Res<Time<Real>>,
     commands: Commands,
 ) {
     if let Some(packet) = event.packet() {
-        handle_keepalive_response(event.entity, packet.0, query, commands);
+        handle_keepalive_response(event.entity, packet.0, query, time.elapsed(), commands);
     }
 }
 
 fn handle_keepalive_response(
     entity: Entity,
     keep_alive: mcrs_minecraft_protocol::packets::common::serverbound::KeepAlive,
-    mut query: Query<(&ServerSideConnection, &mut KeepAlive)>,
+    mut query: Query<(&ServerSideConnection, &mut KeepAlive, Option<&Latency>)>,
+    now: Duration,
     mut commands: Commands,
 ) {
-    let Ok((con, mut state)) = query.get_mut(entity) else {
+    let Ok((con, mut state, latency)) = query.get_mut(entity) else {
         return;
     };
     debug!("Keepalive response: {:?}", keep_alive);
     match *state {
         KeepAlive::Awaiting { challenge, sent } if keep_alive.payload == challenge => {
             *state = KeepAlive::Idle { since: sent };
+            let round_trip =
+                i32::try_from(now.saturating_sub(sent).as_millis()).unwrap_or(i32::MAX);
+            let latency = latency.map_or(Latency(round_trip), |latency| latency.sample(round_trip));
+            commands.entity(entity).insert(latency);
         }
         _ => {
             warn!(

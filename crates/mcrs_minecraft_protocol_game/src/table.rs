@@ -51,6 +51,7 @@ mcrs_minecraft_protocol::extend_packet_table! {
         "set_player_inventory" => ClientboundSetPlayerInventory,
         "set_time" => ClientboundSetTime,
         "system_chat" => ClientboundSystemChatPacket<'a>,
+        "tab_list" => ClientboundTabList<'a>,
         "take_item_entity" => ClientboundTakeItemEntity,
         "update_advancements" => ClientboundUpdateAdvancements,
         "update_attributes" => ClientboundUpdateAttributes<'a>,

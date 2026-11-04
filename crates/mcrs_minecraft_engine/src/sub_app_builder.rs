@@ -195,6 +195,9 @@ pub fn spawn_dim_subapp(
     // `InboundPlayerDespawn` is written by `drain_to_dim_inbox` from `ToDim::Despawn`
     // and read by `drain_inbound_player_despawn` (added by `PlayerTrackerPlugin`).
     sub_app.add_message::<crate::bus::InboundPlayerDespawn>();
+    // Written by `drain_to_dim_inbox` from `ToDim::Latency` and read by `apply_latency` (added
+    // by `PlayerTrackerPlugin`).
+    sub_app.add_message::<crate::bus::PlayerLatency>();
     // Written by `despawn_inbound_player` once the player is saved and drained into the
     // `FromDim` channel by `flush_from_dim_outbox`.
     sub_app.add_message::<crate::bus::OutboundPlayerReleased>();
@@ -438,6 +441,7 @@ fn drain_to_dim_inbox(
     mut spawn_msgs: ResMut<Messages<InboundPlayerSpawn>>,
     mut despawn_msgs: ResMut<Messages<InboundPlayerDespawn>>,
     mut serverbound_msgs: ResMut<Messages<crate::bus::InboundPlayerPacket>>,
+    mut latency_msgs: ResMut<Messages<crate::bus::PlayerLatency>>,
 ) {
     for msg in rx.control.try_iter() {
         match msg {
@@ -446,6 +450,9 @@ fn drain_to_dim_inbox(
             }
             ToDim::Despawn(m) => {
                 despawn_msgs.write(m);
+            }
+            ToDim::Latency(m) => {
+                latency_msgs.write(m);
             }
             ToDim::Serverbound(_) => {}
         }

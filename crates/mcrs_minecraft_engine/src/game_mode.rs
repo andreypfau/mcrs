@@ -1,7 +1,7 @@
 use crate::ability::{PlayerFlying, PlayerGameMode, PlayerOpLevel};
-use crate::bus::to;
-use crate::bus::{OutboundPlayerPacket, PacketPayload, PacketTarget, PlayerInfoEntry, to_target};
+use crate::bus::{OutboundPlayerPacket, PacketPayload, to};
 use crate::player_dimension_change::CarryOnDimensionChangeExt;
+use crate::player_list::{self, PlayerList};
 use crate::session::GameProfile;
 use bevy_app::{App, Plugin};
 use bevy_ecs::prelude::*;
@@ -23,6 +23,7 @@ pub struct GameModePlugin;
 
 impl Plugin for GameModePlugin {
     fn build(&self, app: &mut App) {
+        app.init_resource::<PlayerList>();
         app.add_observer(handle_change_game_mode)
             .add_observer(handle_player_abilities)
             .carry_on_dimension_change::<PlayerGameMode>()
@@ -88,14 +89,15 @@ pub(crate) fn abilities(mode: GameMode, flying: PlayerFlying) -> ClientboundPlay
     }
 }
 
-/// Gives a player the abilities of its new game mode and tells it both, and tells every player
-/// of the server the new entry of its list. A mode that the login or a dimension
-/// change already told is not sent again.
+/// Gives a player the abilities of its new game mode and tells it both, and tells the viewers
+/// that have its profile entry the new game mode of the entry. A mode that the login or a
+/// dimension change already told is not sent again.
 // chisle: a player that flies near the ground keeps its flight on a change to creative, since
 // the server has no collision query for it yet; a ground test over the block world lifts it.
 pub(crate) fn send_game_mode(
     mut players: Query<
         (
+            Entity,
             &PlayerGameMode,
             &mut ListedGameMode,
             &mut PlayerFlying,
@@ -104,10 +106,10 @@ pub(crate) fn send_game_mode(
         ),
         Changed<PlayerGameMode>,
     >,
+    list: Res<PlayerList>,
     mut writer: MessageWriter<OutboundPlayerPacket>,
 ) {
-    let mut entries = Vec::new();
-    for (mode, mut listed, mut flying, profile, &Owner(session)) in &mut players {
+    for (player, mode, mut listed, mut flying, profile, &Owner(session)) in &mut players {
         if listed.0 == mode.0 {
             continue;
         }
@@ -124,18 +126,10 @@ pub(crate) fn send_game_mode(
             .critical(),
         );
         writer.write(to(session, PacketPayload::PlayerAbilities(abilities)).critical());
-        entries.push(PlayerInfoEntry {
-            player_uuid: profile.id,
-            username: profile.username.clone(),
-            game_mode: mode.0,
-            listed: true,
-        });
+        if let Some(packet) =
+            player_list::game_mode_packet(&list, player, session, profile.id, mode.0)
+        {
+            writer.write(packet);
+        }
     }
-    if entries.is_empty() {
-        return;
-    }
-    writer.write(to_target(
-        PacketTarget::AllPlayers,
-        PacketPayload::PlayerInfoUpdate { entries },
-    ));
 }

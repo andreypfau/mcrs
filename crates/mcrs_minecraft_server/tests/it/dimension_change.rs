@@ -322,7 +322,7 @@ fn an_observer_in_the_new_dimension_sees_the_mover_with_its_network_id_and_no_li
         !packets
             .iter()
             .any(|packet| matches!(packet.data, PacketPayload::PlayerInfoUpdate { .. })),
-        "the tab list does not change"
+        "the own entry of the walker is not sent again"
     );
 }
 

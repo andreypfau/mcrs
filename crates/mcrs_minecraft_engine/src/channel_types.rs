@@ -3,6 +3,7 @@ use mcrs_minecraft_engine_world::world::channels::DimChannels;
 
 use crate::bus::{
     InboundPlayerDespawn, InboundPlayerPacket, InboundPlayerSpawn, OutboundPlayerPacket,
+    PlayerLatency,
 };
 
 /// Host→dim message channel type.
@@ -22,6 +23,7 @@ pub enum ToDim {
     /// The host signals that a player disconnected. The dim should despawn the
     /// player's in-dim entity, which it finds through its `DimPlayerIndex`.
     Despawn(InboundPlayerDespawn),
+    Latency(PlayerLatency),
 }
 
 /// Dim→host message channel type.

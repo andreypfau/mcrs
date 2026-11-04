@@ -1,11 +1,14 @@
 //! A model of the vanilla client decodes the bytes that each viewer receives and checks what it
-//! shows: the other players near it, at their positions, and never itself.
+//! shows: the other players near it, at their positions, and never itself, and at most
+//! [`LISTED_CAP`] players in its player list.
 
 use bevy_ecs::prelude::*;
 use bevy_math::DVec3;
 use mcrs_minecraft_engine::bridge::dispatch_encode;
 use mcrs_minecraft_engine::bridge_queue::OutboundQueue;
-use mcrs_minecraft_engine::bus::{PacketPayload, to};
+use mcrs_minecraft_engine::bus::{InboundPlayerDespawn, PacketPayload, to};
+use mcrs_minecraft_engine::channel_types::ToDim;
+use mcrs_minecraft_engine::player_list::{LIST_INTERVAL_TICKS, LISTED_CAP};
 use mcrs_minecraft_engine_world::entity::physics::Transform;
 use mcrs_minecraft_engine_world::session::PlayerSession;
 use mcrs_minecraft_network::metrics::BridgeTelemetry;
@@ -25,6 +28,7 @@ use crate::mock_connection;
 struct ClientModel {
     own_id: i32,
     profiles: FxHashSet<Uuid>,
+    listed: FxHashSet<Uuid>,
     /// The position of each entity, by wire id.
     entities: FxHashMap<i32, DVec3>,
     uuids: FxHashMap<i32, Uuid>,
@@ -34,9 +38,31 @@ impl ClientModel {
     fn apply(&mut self, packet: ClientboundGamePacket<'_>) {
         match packet {
             ClientboundGamePacket::ClientboundPlayerInfoUpdate(update) => {
-                if update.actions.add_player() {
-                    self.profiles
-                        .extend(update.entries.iter().map(|entry| entry.player_uuid));
+                for entry in update.entries.iter() {
+                    let uuid = entry.player_uuid;
+                    if update.actions.add_player() {
+                        self.profiles.insert(uuid);
+                    }
+                    assert!(
+                        self.profiles.contains(&uuid),
+                        "an update for {uuid}, an entry that the client does not have"
+                    );
+                    if update.actions.update_listed() && entry.listed {
+                        self.listed.insert(uuid);
+                    } else if update.actions.update_listed() {
+                        self.listed.remove(&uuid);
+                    }
+                }
+                assert!(
+                    self.listed.len() <= LISTED_CAP,
+                    "the client lists {} players",
+                    self.listed.len()
+                );
+            }
+            ClientboundGamePacket::ClientboundPlayerInfoRemove(remove) => {
+                for uuid in remove.players {
+                    self.profiles.remove(&uuid);
+                    self.listed.remove(&uuid);
                 }
             }
             ClientboundGamePacket::ClientboundAddEntity(add) => {
@@ -97,6 +123,8 @@ struct Viewer {
     connection: Entity,
     frames: OutboundReceiver,
     client: ClientModel,
+    /// The framed bytes of the entity and player list packets that the viewer received.
+    received_bytes: usize,
 }
 
 impl Viewer {
@@ -118,6 +146,7 @@ impl Viewer {
                 own_id,
                 ..ClientModel::default()
             },
+            received_bytes: 0,
         }
     }
 
@@ -133,6 +162,7 @@ impl Viewer {
         }
         self.world.run_system_cached(dispatch_encode).unwrap();
         while let Ok(frames) = self.frames.try_recv() {
+            self.received_bytes += frames.len();
             let mut rest: &[u8] = &frames;
             while !rest.is_empty() {
                 let length = VarInt::decode(&mut rest).unwrap().0 as usize;
@@ -151,6 +181,9 @@ fn is_entity_packet(data: &PacketPayload) -> bool {
     matches!(
         data,
         PacketPayload::PlayerInfoUpdate { .. }
+            | PacketPayload::PlayerInfo(_)
+            | PacketPayload::PlayerInfoRemove(_)
+            | PacketPayload::PlayerListChange(_)
             | PacketPayload::SpawnBundle(_)
             | PacketPayload::RemoveEntities(_)
             | PacketPayload::EntityPosSync(_)
@@ -161,28 +194,37 @@ fn is_entity_packet(data: &PacketPayload) -> bool {
     )
 }
 
+/// Players that join in one place; the first of them are viewers with a client model.
 struct Scene {
     server: PlayServer,
-    anchors: [Entity; 2],
-    uuids: [Uuid; 2],
-    viewers: [Viewer; 2],
+    anchors: Vec<Entity>,
+    uuids: Vec<Uuid>,
+    viewers: Vec<Viewer>,
 }
 
 impl Scene {
     fn two_players() -> Self {
+        Self::crowd(2, 2)
+    }
+
+    fn crowd(players: usize, viewers: usize) -> Self {
         let mut server = PlayServer::start(host_app::make_host_app(), &[], 0);
-        let uuids = [Uuid::new_v4(), Uuid::new_v4()];
+        let uuids: Vec<Uuid> = (0..players).map(|_| Uuid::new_v4()).collect();
         let dim = server.dim;
-        let anchors = [
-            server.admit(dim, uuids[0], "First"),
-            server.admit(dim, uuids[1], "Second"),
-        ];
-        let viewers = anchors.map(|anchor| {
-            let session = server.session_of(anchor).unwrap();
-            Viewer::new(mcrs_minecraft_engine::network_id::player_network_id(
-                session,
-            ))
-        });
+        let anchors: Vec<Entity> = uuids
+            .iter()
+            .enumerate()
+            .map(|(index, &uuid)| server.admit(dim, uuid, &format!("Player{index}")))
+            .collect();
+        let viewers = anchors[..viewers]
+            .iter()
+            .map(|&anchor| {
+                let session = server.session_of(anchor).unwrap();
+                Viewer::new(mcrs_minecraft_engine::network_id::player_network_id(
+                    session,
+                ))
+            })
+            .collect();
         let mut scene = Self {
             server,
             anchors,
@@ -195,10 +237,20 @@ impl Scene {
 
     fn tick(&mut self, n: usize) {
         let packets = self.server.ticks_all(n);
-        for (viewer, anchor) in self.viewers.iter_mut().zip(self.anchors) {
-            let session = self.server.session_of(anchor).unwrap();
+        for (viewer, &anchor) in self.viewers.iter_mut().zip(&self.anchors) {
+            let Some(session) = self.server.session_of(anchor) else {
+                continue;
+            };
             viewer.receive(sent_to(session, packets.clone()));
         }
+    }
+
+    /// Takes the player of `anchors[index]` out as a disconnect does.
+    fn disconnect(&mut self, index: usize) {
+        let session = self.server.session_of(self.anchors[index]).unwrap();
+        let dim = self.server.dim;
+        self.server
+            .submit_to(dim, ToDim::Despawn(InboundPlayerDespawn { session }));
     }
 
     fn place_second(&mut self, translation: DVec3) {
@@ -252,5 +304,39 @@ fn a_player_that_walks_away_moves_on_the_client_and_is_removed_out_of_range() {
 
     scene.place_second(start + DVec3::new(300.0, 0.0, 0.0));
 
+    assert_eq!(scene.first_sees_second_at(), None);
+}
+
+#[test]
+fn a_crowd_lists_at_most_the_cap_and_costs_nothing_once_it_stands_still() {
+    let mut scene = Scene::crowd(LISTED_CAP + 10, 1);
+    scene.tick(LIST_INTERVAL_TICKS as usize);
+
+    let client = &scene.viewers[0].client;
+    assert_eq!(
+        client.profiles.len(),
+        LISTED_CAP + 10,
+        "it has every player near it"
+    );
+    assert_eq!(client.listed.len(), LISTED_CAP);
+
+    let settled = scene.viewers[0].received_bytes;
+    scene.tick(2 * LIST_INTERVAL_TICKS as usize);
+    assert_eq!(
+        scene.viewers[0].received_bytes - settled,
+        0,
+        "players that neither move nor change send no entity or player list bytes"
+    );
+}
+
+#[test]
+fn a_player_that_disconnects_leaves_the_player_list_of_its_viewers() {
+    let mut scene = Scene::two_players();
+    assert!(scene.viewers[0].client.listed.contains(&scene.uuids[1]));
+
+    scene.disconnect(1);
+    scene.tick(2);
+
+    assert!(!scene.viewers[0].client.profiles.contains(&scene.uuids[1]));
     assert_eq!(scene.first_sees_second_at(), None);
 }
