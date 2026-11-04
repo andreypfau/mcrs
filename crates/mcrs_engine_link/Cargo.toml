@@ -11,5 +11,8 @@ doctest = false
 workspace = true
 
 [dependencies]
-flume = { workspace = true, features = ["select"] }
+flume = { workspace = true, features = ["async", "select"] }
 tracing.workspace = true
+
+[dev-dependencies]
+bevy_tasks.workspace = true

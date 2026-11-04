@@ -84,12 +84,28 @@ impl<S: Stage> Link<S> {
             }
             FarEnd::Thread(link) => {
                 for reply in link.replies.try_iter() {
-                    match reply {
-                        Reply::Output(output) => self.held.push_back(output),
-                        Reply::Answered { seen } => self.answered = seen,
-                    }
+                    hold(&mut self.held, &mut self.answered, reply);
                 }
             }
+        }
+    }
+
+    /// Waits until the far end owes no output for any input sent, and holds the outputs that
+    /// arrive meanwhile for [`Self::outputs`]. An inline far end runs here until its stage is
+    /// idle or cannot make progress. It resolves at once when the far end has stopped.
+    pub async fn answered(&mut self) {
+        loop {
+            self.take_in();
+            if self.is_answered() {
+                return;
+            }
+            let FarEnd::Thread(link) = &self.far else {
+                return;
+            };
+            let Ok(reply) = link.replies.recv_async().await else {
+                return;
+            };
+            hold(&mut self.held, &mut self.answered, reply);
         }
     }
 
@@ -105,6 +121,13 @@ impl<S: Stage> Link<S> {
     #[must_use]
     pub fn is_answered(&self) -> bool {
         self.answered == self.sent
+    }
+}
+
+fn hold<O>(held: &mut VecDeque<O>, answered: &mut u64, reply: Reply<O>) {
+    match reply {
+        Reply::Output(output) => held.push_back(output),
+        Reply::Answered { seen } => *answered = seen,
     }
 }
 
@@ -138,7 +161,7 @@ fn spawn<S: Stage>(stage: S) -> FarEnd<S> {
 mod tests {
     use super::*;
 
-    use std::time::{Duration, Instant};
+    use bevy_tasks::block_on;
 
     use crate::step::Step;
     use crate::task_end::TaskOutcome;
@@ -197,16 +220,12 @@ mod tests {
         for input in 1..=4 {
             link.send(input);
         }
-        let deadline = Instant::now() + Duration::from_secs(5);
-        let mut outputs = Vec::new();
-        loop {
-            outputs.extend(link.outputs());
-            if link.is_answered() {
-                break;
-            }
-            assert!(Instant::now() < deadline, "the far end never answered");
-            thread::sleep(Duration::from_millis(1));
-        }
+        block_on(link.answered());
+        assert!(
+            link.is_answered(),
+            "the far end resolved its wait unanswered"
+        );
+        let mut outputs: Vec<Option<u8>> = link.outputs().collect();
         outputs.sort_unstable();
         outputs
     }
@@ -228,11 +247,11 @@ mod tests {
 
         drop(link);
 
-        // The thread holds the only sender of the replies.
-        let deadline = Instant::now() + Duration::from_secs(5);
-        while replies.sender_count() > 0 {
-            assert!(Instant::now() < deadline, "the thread never ended");
-            thread::sleep(Duration::from_millis(1));
-        }
+        // The thread holds the only sender of the replies, so the channel disconnects once the
+        // thread has ended.
+        assert!(
+            replies.recv().is_err(),
+            "the thread replied with nothing sent to it"
+        );
     }
 }

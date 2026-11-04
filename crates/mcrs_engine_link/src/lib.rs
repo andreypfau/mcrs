@@ -13,6 +13,7 @@ mod task_end;
 mod tasks;
 mod thread_end;
 
+pub use inline_end::InlineEnd;
 pub use link::Link;
 pub use placement::Placement;
 pub use stage::Stage;

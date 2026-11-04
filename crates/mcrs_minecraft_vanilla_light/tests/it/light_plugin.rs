@@ -1,24 +1,25 @@
 use std::sync::Arc;
-use std::time::{Duration, Instant};
 
 use crate::fixture::{AIR, TORCH, filled, registry, state};
 use bevy_app::{App, Last, TaskPoolPlugin};
 use bevy_ecs::schedule::ScheduleLabel;
+use bevy_tasks::block_on;
 use mcrs_engine_link::Placement;
 use mcrs_minecraft_chunk::{BlockLight, SkyLight};
 use mcrs_minecraft_light_engine::prelude::*;
 use mcrs_minecraft_vanilla_light::{LightLink, LightPlugin, LightSet};
 use mcrs_voxel::{BlockPos, SectionPos};
 
+/// One update that hands the stage the pushed edits, a wait for its answer, and one update
+/// that publishes the answer.
 fn settle(app: &mut App) {
-    for _ in 0..1000 {
-        app.update();
-        if app.world().resource::<LightLink>().is_idle() {
-            return;
-        }
-        std::thread::sleep(std::time::Duration::from_millis(1));
-    }
-    panic!("light never settled");
+    app.update();
+    block_on(app.world_mut().resource_mut::<LightLink>().answered());
+    app.update();
+    assert!(
+        app.world().resource::<LightLink>().is_idle(),
+        "the second update handed the stage nothing new"
+    );
 }
 
 #[test]
@@ -155,16 +156,7 @@ fn light_by_tick(placement: Placement) -> Vec<Snapshot> {
             }
         }
         app.update();
-        let deadline = Instant::now() + Duration::from_secs(5);
-        loop {
-            let mut light = app.world_mut().resource_mut::<LightLink>();
-            light.take_in();
-            if light.is_idle() {
-                break;
-            }
-            assert!(Instant::now() < deadline, "the stage never answered");
-            std::thread::sleep(Duration::from_millis(1));
-        }
+        block_on(app.world_mut().resource_mut::<LightLink>().answered());
         let mut sections = app
             .world_mut()
             .query::<(&SectionPos, Option<&BlockLight>, Option<&SkyLight>)>();

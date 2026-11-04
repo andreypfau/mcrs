@@ -2586,6 +2586,8 @@ version = "0.12.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5e139bc46ca777eb5efaf62df0ab8cc5fd400866427e56c68b22e414e53bd3be"
 dependencies = [
+ "futures-core",
+ "futures-sink",
  "spin 0.9.8",
 ]
 
@@ -2728,6 +2730,12 @@ dependencies = [
  "quote",
  "syn 2.0.115",
 ]
+
+[[package]]
+name = "futures-sink"
+version = "0.3.34"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1944426bf7d03f1d14f708785e4b33efd750b36d48a157b836b3efc15ede8e1d"
 
 [[package]]
 name = "futures-task"
@@ -3490,6 +3498,7 @@ dependencies = [
 name = "mcrs_engine_link"
 version = "0.5.8"
 dependencies = [
+ "bevy_tasks",
  "flume",
  "tracing",
 ]

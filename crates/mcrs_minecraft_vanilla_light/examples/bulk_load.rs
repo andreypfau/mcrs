@@ -124,7 +124,7 @@ fn main() {
             if app.world().resource::<LightLink>().is_idle() {
                 break;
             }
-            std::thread::sleep(Duration::from_millis(1));
+            bevy_tasks::block_on(app.world_mut().resource_mut::<LightLink>().answered());
         }
         println!(
             "app.update() with the light stage at {limit} columns per round: settled after \

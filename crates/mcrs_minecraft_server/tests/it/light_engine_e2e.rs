@@ -85,19 +85,22 @@ fn light_one_column(app: &mut App, label: DimAppLabel, stone_floor: bool) {
     settle(app, label);
 }
 
+/// Updates until an update leaves the light stage owing nothing, and waits for the stage to
+/// answer between updates. A published answer can raise more light work, such as a new surface.
 fn settle(app: &mut App, label: DimAppLabel) {
     for _ in 0..400 {
         app.update();
         let world = app
-            .sub_apps()
+            .sub_apps_mut()
             .sub_apps
-            .get(&label.intern())
+            .get_mut(&label.intern())
             .expect("the dimension sub-app exists")
-            .world();
-        if world.resource::<LightLink>().is_idle() {
+            .world_mut();
+        let mut light = world.resource_mut::<LightLink>();
+        if light.is_idle() {
             return;
         }
-        std::thread::sleep(std::time::Duration::from_millis(2));
+        bevy_tasks::block_on(light.answered());
     }
     panic!("light never settled");
 }

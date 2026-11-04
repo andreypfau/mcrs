@@ -56,6 +56,12 @@ impl LightLink {
         self.link.take_in();
     }
 
+    /// Waits until the stage has answered everything handed to it so far, and publishes none
+    /// of it. Edits pushed and not handed to the stage yet are not waited for.
+    pub async fn answered(&mut self) {
+        self.link.answered().await;
+    }
+
     pub(crate) fn send(&mut self, input: LightInput) {
         self.link.send(input);
     }
