@@ -6,11 +6,19 @@ use std::net::IpAddr;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::{Duration, Instant};
+use socket2::SockRef;
 use tokio::net::TcpListener;
 use tokio::time::timeout;
 use tracing::{error, info, warn};
 
 pub(crate) const HANDLE_CONNECTION_TIMEOUT: Duration = Duration::from_secs(5);
+
+/// Autotuning lets every slow reader pin up to 4 MiB of kernel memory, and a few hundred of them
+/// exhaust the network memory of the host. macOS then fails sends with `ENOBUFS` after it may
+/// have queued part of the bytes, so no writer can resume its stream and every one of them is
+/// dropped. A fixed buffer keeps a slow reader's backlog in its own outbound queue instead.
+/// 512 KiB still carries 5 MB/s at a round trip of 100 ms.
+const SEND_BUFFER_BYTES: usize = 512 * 1024;
 
 pub const ACCEPT_BUCKET_CAP: u32 = 5;
 // 5 tokens over a 10 s window → 0.5 tokens/s
@@ -185,6 +193,9 @@ async fn handle_connection(
 ) {
     if let Err(e) = stream.set_nodelay(true) {
         warn!("Failed to set nodelay on {}: {}", remote_addr, e);
+    }
+    if let Err(e) = SockRef::from(&stream).set_send_buffer_size(SEND_BUFFER_BYTES) {
+        warn!("Failed to set the send buffer on {}: {}", remote_addr, e);
     }
     let io = PacketIo::new(stream);
     if let Err(e) = handle_intent(shared, io, remote_addr).await {

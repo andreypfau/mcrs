@@ -4524,6 +4524,7 @@ dependencies = [
  "rand 0.10.0",
  "serde",
  "serde_json",
+ "socket2",
  "tokio",
  "tracing",
  "wasm-bindgen",
