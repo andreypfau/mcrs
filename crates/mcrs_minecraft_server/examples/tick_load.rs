@@ -1,29 +1,38 @@
 //! Loads the embedded server with bots over TCP and reports how long its ticks take.
 //!
 //! ```text
-//! cargo run --release -p mcrs_minecraft_server --example tick_load -- <bots> <single|parallel> [apart|together] [seconds]
+//! cargo run --release -p mcrs_minecraft_server --example tick_load -- <bots> <single|parallel> [apart|together] [seconds] [dimensions]
 //! ```
 //!
-//! Every third bot stays in the overworld, the others move to the nether and the end. The bots
+//! The bots spread over the dimensions in turn: bot 0 in the overworld, bot 1 in the nether,
+//! bot 2 in the end, and so on. The bots
 //! keep walking from spawn, so the dimensions keep generating, lighting and sending columns.
 //! `apart`, the default, gives each bot its own heading, so bots rarely see the same column;
 //! `together` walks every bot of a dimension on one heading, so they all see the same columns.
+//! Every bot moves to the same point first, so `together` is a crowd: each bot sees every other
+//! bot of its dimension, and all of them keep producing entity moves. `dimensions` (1 to 3, 3 by
+//! default) is the number of dimensions the bots spread over; 1 puts the whole crowd in the
+//! overworld.
 //! The tick report covers the ticks after the first third of the run; the column report covers
 //! each bot over the whole run, by the dimension the bot ends up in.
 
+use std::collections::HashMap;
 use std::str::FromStr;
 use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
 use std::sync::{Arc, mpsc};
 use std::time::{Duration, Instant};
 
 use bevy_app::{App, PluginGroup};
+use bevy_ecs::entity::Entity;
 use bevy_math::DVec3;
 use mcrs_minecraft_core::VERSION;
 use mcrs_minecraft_engine_server::{
     BoundAddress, GameMode, ServerNetworkPlugin, TickThreading, runner,
 };
 use mcrs_minecraft_engine_world::tick_threading;
+use mcrs_minecraft_network::ServerSideConnection;
 use mcrs_minecraft_network::join::{Join, Joined, join};
+use mcrs_minecraft_network::metrics::{BridgeTelemetry, PacketKinds};
 use mcrs_minecraft_network::packet_io::PacketIo;
 use mcrs_minecraft_protocol::anyhow;
 use mcrs_minecraft_protocol::packets::common::serverbound::KeepAlive;
@@ -45,7 +54,11 @@ const ASSETS: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../assets");
 const TICK: Duration = Duration::from_millis(50);
 const VIEW_DISTANCE: u8 = 8;
 const BLOCKS_PER_TICK: f64 = 0.6;
-const OTHER_DIMENSIONS: [&str; 2] = ["minecraft:the_nether", "minecraft:the_end"];
+const DIMENSIONS: [&str; 3] = [
+    "minecraft:overworld",
+    "minecraft:the_nether",
+    "minecraft:the_end",
+];
 
 /// How the bots of a dimension spread out from spawn.
 #[derive(Clone, Copy, Debug)]
@@ -73,6 +86,38 @@ struct TickTimes {
     wakes: usize,
     /// The drains that ran a dimension until the next tick.
     drains: usize,
+    traffic: Traffic,
+    /// The bytes appended to each connection during the tick.
+    session_bytes: Vec<u64>,
+}
+
+/// What the bridge handed to the connections during one tick and the drains after it.
+#[derive(Clone, Copy, Default)]
+struct Traffic {
+    encode_calls: u64,
+    shared_appends: u64,
+    shared_bytes: u64,
+    packets: PacketKinds,
+}
+
+impl Traffic {
+    fn of(telemetry: &BridgeTelemetry) -> Self {
+        Self {
+            encode_calls: telemetry.encode_calls_total,
+            shared_appends: telemetry.shared_appends_total,
+            shared_bytes: telemetry.shared_bytes_total,
+            packets: telemetry.packets,
+        }
+    }
+
+    fn since(self, earlier: Self) -> Self {
+        Self {
+            encode_calls: self.encode_calls.saturating_sub(earlier.encode_calls),
+            shared_appends: self.shared_appends.saturating_sub(earlier.shared_appends),
+            shared_bytes: self.shared_bytes.saturating_sub(earlier.shared_bytes),
+            packets: self.packets.since(earlier.packets),
+        }
+    }
 }
 
 fn main() -> anyhow::Result<()> {
@@ -83,6 +128,12 @@ fn main() -> anyhow::Result<()> {
         .map_or(Ok(TickThreading::Parallel), |name| name.parse())?;
     let spread: Spread = args.get(3).map_or(Ok(Spread::Apart), |name| name.parse())?;
     let seconds: u64 = args.get(4).map_or(Ok(40), |count| count.parse())?;
+    let dimensions: usize = args.get(5).map_or(Ok(3), |count| count.parse())?;
+    anyhow::ensure!(
+        (1..=DIMENSIONS.len()).contains(&dimensions),
+        "dimensions must be 1 to {}",
+        DIMENSIONS.len()
+    );
 
     let mut plugins = MinecraftServerPlugins::default();
     plugins.core.asset_path = Some(ASSETS.to_owned());
@@ -109,7 +160,7 @@ fn main() -> anyhow::Result<()> {
         for index in 0..bots {
             let counts = counts.clone();
             tokio::spawn(async move {
-                if let Err(error) = bot(address, index, spread, &counts).await {
+                if let Err(error) = bot(address, index, spread, dimensions, &counts).await {
                     let after = started.elapsed().as_secs_f64();
                     eprintln!("bot{index} stopped after {after:.1} s: {error:#}");
                 }
@@ -134,7 +185,8 @@ fn main() -> anyhow::Result<()> {
     report("tick", measured.iter().map(|times| times.tick));
     report("drain", measured.iter().map(|times| times.drain));
     report_wakes(measured);
-    report_bots(&counts);
+    report_traffic(measured);
+    report_bots(&counts, dimensions);
     Ok(())
 }
 
@@ -143,7 +195,9 @@ fn run_timed(mut app: App, stop: &AtomicBool) -> Vec<TickTimes> {
     app.finish();
     app.cleanup();
     let mut times = Vec::new();
+    let mut sent: HashMap<Entity, u64> = HashMap::new();
     while !stop.load(Ordering::Relaxed) {
+        let before = Traffic::of(app.world().resource::<BridgeTelemetry>());
         let start = Instant::now();
         tick_threading::update(&mut app);
         runner::between_ticks(&mut app);
@@ -163,14 +217,30 @@ fn run_timed(mut app: App, stop: &AtomicBool) -> Vec<TickTimes> {
                 break;
             }
         }
+        let traffic = Traffic::of(app.world().resource::<BridgeTelemetry>()).since(before);
+        let session_bytes = session_bytes(&mut app, &mut sent);
         times.push(TickTimes {
             tick,
             drain,
             wakes,
             drains,
+            traffic,
+            session_bytes,
         });
     }
     times
+}
+
+/// The bytes each connection was handed since the last call.
+fn session_bytes(app: &mut App, sent: &mut HashMap<Entity, u64>) -> Vec<u64> {
+    let mut query = app.world_mut().query::<(Entity, &ServerSideConnection)>();
+    let mut deltas = Vec::new();
+    for (entity, connection) in query.iter(app.world()) {
+        let total = connection.raw.appended_bytes();
+        let last = sent.insert(entity, total).unwrap_or(0);
+        deltas.push(total.saturating_sub(last));
+    }
+    deltas
 }
 
 /// The wakes and the dimension drains a tick, and what a drain costs on average.
@@ -179,11 +249,64 @@ fn report_wakes(measured: &[TickTimes]) {
     let wakes: usize = measured.iter().map(|times| times.wakes).sum();
     let drains: usize = measured.iter().map(|times| times.drains).sum();
     let drain: Duration = measured.iter().map(|times| times.drain).sum();
+    let per_drain = if drains == 0 {
+        "n/a".to_owned()
+    } else {
+        format!("{:.1}", drain.as_secs_f64() * 1e6 / drains as f64)
+    };
     println!(
-        "wakes: {:.1} a tick, dimension drains: {:.1} a tick, {:.1} us a drain",
+        "wakes: {:.1} a tick, dimension drains: {:.1} a tick, {per_drain} us a drain",
         wakes as f64 / ticks,
         drains as f64 / ticks,
-        drain.as_secs_f64() * 1e6 / drains.max(1) as f64,
+    );
+}
+
+/// The packets and bytes the bridge handed to the connections, per tick and per connection.
+fn report_traffic(measured: &[TickTimes]) {
+    let ticks = measured.len().max(1) as f64;
+    let mut total = Traffic::default();
+    for times in measured {
+        let traffic = &times.traffic;
+        total.encode_calls += traffic.encode_calls;
+        total.shared_appends += traffic.shared_appends;
+        total.shared_bytes += traffic.shared_bytes;
+        total.packets.entity_move += traffic.packets.entity_move;
+        total.packets.spawn += traffic.packets.spawn;
+        total.packets.remove += traffic.packets.remove;
+        total.packets.player_info += traffic.packets.player_info;
+        total.packets.chunk += traffic.packets.chunk;
+        total.packets.other += traffic.packets.other;
+    }
+    let a_tick = |count: u64| count as f64 / ticks;
+    println!(
+        "encode calls: {:.1} a tick, shared appends: {:.1} a tick ({:.1} KB a tick shared)",
+        a_tick(total.encode_calls),
+        a_tick(total.shared_appends),
+        a_tick(total.shared_bytes) / 1e3,
+    );
+    println!(
+        "packets a tick: move {:.1}, spawn {:.1}, remove {:.1}, player info {:.1}, chunk {:.1}, other {:.1}",
+        a_tick(total.packets.entity_move),
+        a_tick(total.packets.spawn),
+        a_tick(total.packets.remove),
+        a_tick(total.packets.player_info),
+        a_tick(total.packets.chunk),
+        a_tick(total.packets.other),
+    );
+    let mut bytes: Vec<u64> = measured
+        .iter()
+        .flat_map(|times| times.session_bytes.iter().copied())
+        .collect();
+    bytes.sort_unstable();
+    let Some(max) = bytes.last() else {
+        println!("bytes a session a tick: no sessions");
+        return;
+    };
+    let mean = bytes.iter().sum::<u64>() as f64 / bytes.len() as f64;
+    let p95_index = ((bytes.len() - 1) as f64 * 0.95).round() as usize;
+    println!(
+        "bytes a session a tick: mean {mean:.0}, p95 {}, max {max}",
+        bytes.get(p95_index).copied().unwrap_or(0),
     );
 }
 
@@ -256,22 +379,24 @@ impl Default for BotCounts {
 }
 
 /// The name of the dimension the bot with `index` ends up in.
-fn destination(index: usize) -> &'static str {
-    OTHER_DIMENSIONS
-        .get(index % 3)
+fn destination(index: usize, dimensions: usize) -> &'static str {
+    DIMENSIONS
+        .get(index % dimensions)
         .copied()
         .unwrap_or("minecraft:overworld")
 }
 
 /// The columns per bot, by the dimension each bot ends up in, and how soon the bots got their
 /// first column.
-fn report_bots(counts: &Counts) {
-    let mut dimensions: Vec<&str> = (0..counts.bots.len()).map(destination).collect();
-    dimensions.sort_unstable();
-    dimensions.dedup();
-    for dimension in dimensions {
+fn report_bots(counts: &Counts, dimensions: usize) {
+    let mut names: Vec<&str> = (0..counts.bots.len())
+        .map(|index| destination(index, dimensions))
+        .collect();
+    names.sort_unstable();
+    names.dedup();
+    for dimension in names {
         let mut columns: Vec<usize> = (0..counts.bots.len())
-            .filter(|index| destination(*index) == dimension)
+            .filter(|index| destination(*index, dimensions) == dimension)
             .filter_map(|index| counts.bots.get(index))
             .map(|bot| bot.columns.load(Ordering::Relaxed))
             .collect();
@@ -319,6 +444,7 @@ async fn bot(
     address: std::net::SocketAddr,
     index: usize,
     spread: Spread,
+    dimensions: usize,
     counts: &Counts,
 ) -> anyhow::Result<()> {
     let io = PacketIo::connect(address).await?;
@@ -343,7 +469,7 @@ async fn bot(
         Spread::Together => 0.7,
     };
     let step = DVec3::new(heading.cos(), 0.0, heading.sin()) * BLOCKS_PER_TICK;
-    let mut destination = OTHER_DIMENSIONS.get(index % 3);
+    let mut destination = Some(destination(index, dimensions));
     let mut position: Option<DVec3> = None;
     let mut ticks = tokio::time::interval(TICK);
     loop {

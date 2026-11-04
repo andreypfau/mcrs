@@ -525,6 +525,12 @@ impl RawConnection {
         self.queue.append(pkt)
     }
 
+    /// Bytes of packet bodies, with ids and before framing and compression, appended since the
+    /// connection was made.
+    pub fn appended_bytes(&self) -> u64 {
+        self.queue.appended_bytes()
+    }
+
     /// Queues a packet that `encode_with_id` wrote once for every connection that receives it,
     /// without a copy.
     pub fn append_shared(&mut self, packet: Bytes) {

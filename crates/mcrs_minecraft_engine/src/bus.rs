@@ -6,6 +6,7 @@ use bytes::Bytes;
 use mcrs_minecraft_engine_world::session::PlayerSession;
 use mcrs_minecraft_game_mode::GameMode;
 use mcrs_minecraft_network::event::Trigger;
+use mcrs_minecraft_network::metrics::PacketKind;
 use mcrs_minecraft_protocol::uuid::Uuid;
 use mcrs_minecraft_protocol_game::clientbound::{
     ClientboundAddEntity, ClientboundBlockUpdate, ClientboundChunkBatchFinished,
@@ -162,6 +163,28 @@ pub enum PacketPayload {
     Commands(Bytes),
     CommandSuggestions(ClientboundCommandSuggestions<'static>),
     SetTime(ClientboundSetTime),
+}
+
+impl PacketPayload {
+    pub fn kind(&self) -> PacketKind {
+        match self {
+            Self::EntityPosSync(_) => PacketKind::EntityMove,
+            Self::PlayerEnteredView(_) => PacketKind::Spawn,
+            Self::PlayerLeftView(_) => PacketKind::Remove,
+            Self::PlayerInfoUpdate { .. } => PacketKind::PlayerInfo,
+            Self::ChunkLoad { .. }
+            | Self::ChunkUnload(_)
+            | Self::ChunkBatchStart(_)
+            | Self::ChunkBatchFinished(_)
+            | Self::LightUpdate(_) => PacketKind::Chunk,
+            _ => PacketKind::Other,
+        }
+    }
+
+    /// True for a payload that is serialized once and appended to each recipient as it is.
+    pub fn is_shared(&self) -> bool {
+        matches!(self, Self::ChunkLoad { .. } | Self::Commands(_))
+    }
 }
 
 /// Owned player-list entry for use inside `PacketPayload::PlayerInfoUpdate`.

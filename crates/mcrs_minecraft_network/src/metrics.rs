@@ -27,6 +27,60 @@ pub struct BridgeTelemetry {
     pub outbound_messages_consumed_total: u64,
     pub encode_unhandled_total: u64,
     pub outbound_no_queue_total: u64,
+    /// Packets serialized for one recipient.
+    pub encode_calls_total: u64,
+    /// Packets serialized once and appended to a recipient as shared bytes.
+    pub shared_appends_total: u64,
+    /// Bytes of the shared appends, one count for each recipient.
+    pub shared_bytes_total: u64,
+    pub packets: PacketKinds,
+}
+
+/// What an outbound packet is for, as far as replication cost goes.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PacketKind {
+    EntityMove,
+    Spawn,
+    Remove,
+    PlayerInfo,
+    Chunk,
+    Other,
+}
+
+/// Packets handed to connections, by [`PacketKind`].
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct PacketKinds {
+    pub entity_move: u64,
+    pub spawn: u64,
+    pub remove: u64,
+    pub player_info: u64,
+    pub chunk: u64,
+    pub other: u64,
+}
+
+impl PacketKinds {
+    pub fn count(&mut self, kind: PacketKind) {
+        let slot = match kind {
+            PacketKind::EntityMove => &mut self.entity_move,
+            PacketKind::Spawn => &mut self.spawn,
+            PacketKind::Remove => &mut self.remove,
+            PacketKind::PlayerInfo => &mut self.player_info,
+            PacketKind::Chunk => &mut self.chunk,
+            PacketKind::Other => &mut self.other,
+        };
+        *slot = slot.saturating_add(1);
+    }
+
+    pub fn since(self, earlier: Self) -> Self {
+        Self {
+            entity_move: self.entity_move.saturating_sub(earlier.entity_move),
+            spawn: self.spawn.saturating_sub(earlier.spawn),
+            remove: self.remove.saturating_sub(earlier.remove),
+            player_info: self.player_info.saturating_sub(earlier.player_info),
+            chunk: self.chunk.saturating_sub(earlier.chunk),
+            other: self.other.saturating_sub(earlier.other),
+        }
+    }
 }
 
 type Check =

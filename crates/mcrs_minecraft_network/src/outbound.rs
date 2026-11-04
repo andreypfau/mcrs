@@ -58,9 +58,15 @@ pub(crate) struct WriterQueue {
     records: BytesMut,
     open: OutboundBatch,
     closed: VecDeque<OutboundBatch>,
+    appended: u64,
 }
 
 impl WriterQueue {
+    /// Bytes of packet bodies, with ids and before framing, appended since the queue was made.
+    pub(crate) fn appended_bytes(&self) -> u64 {
+        self.appended
+    }
+
     /// A packet that fails to encode leaves nothing behind.
     pub(crate) fn append<P: Packet + Encode>(&mut self, packet: &P) -> anyhow::Result<()> {
         let start = self.records.len();
@@ -77,6 +83,7 @@ impl WriterQueue {
         if let Some(prefix) = self.records.get_mut(start..start + RECORD_LENGTH_BYTES) {
             prefix.copy_from_slice(&length.to_be_bytes());
         }
+        self.appended = self.appended.saturating_add(u64::from(length));
         if self.records.len() >= MAX_QUEUED_BYTES_PER_SOCKET {
             self.close_records();
         }
@@ -85,6 +92,7 @@ impl WriterQueue {
 
     /// Queues a packet that `encode_with_id` wrote once for every connection that receives it.
     pub(crate) fn append_shared(&mut self, packet: Bytes) {
+        self.appended = self.appended.saturating_add(packet.len() as u64);
         self.close_records();
         self.push(OutboundPart::Shared(packet));
     }

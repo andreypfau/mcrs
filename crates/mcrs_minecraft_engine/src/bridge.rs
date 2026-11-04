@@ -361,8 +361,17 @@ fn hand_over(
                 telemetry.encode_unhandled_total += 1;
                 continue;
             }
+            telemetry.packets.count(pkt.data.kind());
+            let shared = pkt.data.is_shared();
+            let before = raw.appended_bytes();
             if let Err(error) = append_payload(raw, pkt.data) {
                 warn!(conn = ?entity, "an outbound packet did not encode: {error:#}");
+            } else if shared {
+                telemetry.shared_appends_total = telemetry.shared_appends_total.saturating_add(1);
+                let bytes = raw.appended_bytes().saturating_sub(before);
+                telemetry.shared_bytes_total = telemetry.shared_bytes_total.saturating_add(bytes);
+            } else {
+                telemetry.encode_calls_total = telemetry.encode_calls_total.saturating_add(1);
             }
         }
     }
