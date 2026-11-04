@@ -182,7 +182,7 @@ that has no rule.
 |---|---|---|
 | Tile deltas, `crates/mcrs_minecraft_engine/src/publish_player_tiles.rs` | Each dimension keeps the tile of each player. A tile is 2 × 2 columns and the full height of the world. At the end of a tick, the dimension publishes the spawn, the move, the change of tile, the change of game mode, the messages and the despawn of its players, sorted by tile and by player, in its `DimOutput`. | O(players that change) each tick. |
 | Muxer, `crates/mcrs_engine_muxer` | The host sends the tile deltas of each dimension to one `MuxerStage` over a `Link`. The `muxer` field of the server plugin places the link: `Thread` by default, or `Inline`. The stage keeps one `Muxer` for each dimension. A player subscribes to the tiles within 3 tiles of its own tile, about 96 blocks on X and Z. The host changes the subscription when the player spawns, changes tile or despawns. | One encode for each tile delta. All viewers of the tile share the bytes. |
-| Codec, `crates/mcrs_minecraft_replication/src/player_codec.rs` | The codec keeps one delta base for each subject. A delta of more than about 8 blocks, or a move after 100 ticks, sends an absolute position sync. A spawn bundle goes to each viewer that gains a subject. The codec caches the end of the bundle until the subject moves. | One encode of a spawn for each subject and move, and one profile entry for each viewer that does not have it. |
+| Codec, `crates/mcrs_minecraft_replication/src/player_codec.rs` | The codec keeps one delta base for each subject. A delta of more than about 8 blocks, or a move after 100 ticks, sends an absolute position sync. A spawn bundle goes to each viewer that gains a subject. The codec caches the spawn packet until the subject moves. | One encode of a spawn for each subject and move, and one profile entry for each viewer that does not have it. |
 | Remove packets | One remove packet with a list for each viewer and tick. | None. |
 | The host, `crates/mcrs_minecraft_engine/src/entity_replication.rs` | The host takes the bytes of each viewer from the muxer at the end of the time between ticks, and appends them to the outbound packets of its session. The muxer bytes are records: the length of each packet, then the packet with its id. | The muxer thread works while the host does the rest of the time between ticks. |
 | `crates/mcrs_minecraft_engine/src/bridge.rs` | The flush runs on one thread. It encodes a packet for many recipients one time, and all recipients share the bytes. It appends the records of the muxer without a copy. | The writer of each connection frames and compresses the records of the muxer. A frame for each compression threshold is not shared yet. |
@@ -319,8 +319,8 @@ Rules for the budget:
 
 The implementation today has these values and limits:
 
-- The default policy lists the nearest players. `ListPolicy` holds a function, so a party or an
-  operator policy can replace it.
+- The default policy lists the nearest players. `ListPolicy` holds a function, and the
+  `list_policy` field of `ServerCorePlugin` sets it, so a party or an operator policy can replace it.
 - The candidates of the policy are the players of the dimension of the viewer. The reference lists
   all players of the server. When a player changes dimension, the viewers of the old dimension
   remove its entry, and it removes their entries. This is `intentional_deviation`.
