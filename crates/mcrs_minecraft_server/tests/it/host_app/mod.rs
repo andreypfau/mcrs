@@ -1,4 +1,4 @@
-use mcrs_minecraft_engine::session::GameProfile;
+use mcrs_minecraft_engine::muxer::session::GameProfile;
 use mcrs_minecraft_resource::{ResourceKeyBuf, ResourceLocationBuf};
 use std::sync::Arc;
 
@@ -23,13 +23,13 @@ use mcrs_minecraft_engine::bus::{
     PlayerTransferSnapshot,
 };
 use mcrs_minecraft_engine::channel_types::ToDim;
-use mcrs_minecraft_engine::dim::{DimSubAppHandle, take_dim_outputs};
-use mcrs_minecraft_engine::dim_cells::{DimCells, DimCellsPlugin};
-use mcrs_minecraft_engine::dim_inputs::DimInputs;
-use mcrs_minecraft_engine::entity_replication::{self, Answers};
-use mcrs_minecraft_engine::ops::{DefaultOpLevel, OpList, OpListEntry};
-use mcrs_minecraft_engine::session::{HostAnchorRef, SessionBundle, SessionConnection};
-use mcrs_minecraft_engine::sub_app_builder::drain_dim_spawn_queue;
+use mcrs_minecraft_engine::coordinator::dim::{DimSubAppHandle, take_dim_outputs};
+use mcrs_minecraft_engine::coordinator::dim_cells::{DimCells, DimCellsPlugin};
+use mcrs_minecraft_engine::coordinator::ops::{DefaultOpLevel, OpList, OpListEntry};
+use mcrs_minecraft_engine::coordinator::sub_app_builder::drain_dim_spawn_queue;
+use mcrs_minecraft_engine::muxer::dim_inputs::DimInputs;
+use mcrs_minecraft_engine::muxer::entity_replication::{self, Answers};
+use mcrs_minecraft_engine::muxer::session::{HostAnchorRef, SessionBundle, SessionConnection};
 use mcrs_minecraft_engine_world::entity::player::Player;
 use mcrs_minecraft_engine_world::session::Owner;
 use mcrs_minecraft_engine_world::session::{
@@ -360,7 +360,7 @@ impl PlayServer {
         packet.encode(&mut data).unwrap();
         let data = Bytes::from(data);
         let trigger = PacketDispatcher::serverbound()
-            .with_play(mcrs_minecraft_engine::game_packets::GAME_SERVERBOUND)
+            .with_play(mcrs_minecraft_engine::muxer::game_packets::GAME_SERVERBOUND)
             .dispatch(ConnectionState::Game, P::ID, &data)
             .unwrap();
         let world = self.app.world_mut();

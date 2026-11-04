@@ -19,7 +19,7 @@ use bevy_tasks::block_on;
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_chunk::{BlockLight, LightStorage, SkyLight};
 use mcrs_minecraft_engine::column_view::ColumnView;
-use mcrs_minecraft_engine::tile_delta_log::TileDeltaLog;
+use mcrs_minecraft_engine::muxer::tile_delta_log::TileDeltaLog;
 use mcrs_minecraft_engine_server::{Placement, runner};
 use mcrs_minecraft_engine_world::block_update::BlockSetRequest;
 use mcrs_minecraft_engine_world::entity::physics::Transform;

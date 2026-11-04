@@ -14,10 +14,10 @@ use mcrs_minecraft_engine::bus::InboundPlayerSpawn;
 use mcrs_minecraft_engine::bus::PlayerTransferSnapshot;
 use mcrs_minecraft_engine::channel_types::ToDim;
 use mcrs_minecraft_engine::client_info::ClientInfo;
-use mcrs_minecraft_engine::dim::DimSubAppHandle;
-use mcrs_minecraft_engine::dim_inputs::DimInputs;
-use mcrs_minecraft_engine::session::GameProfile;
-use mcrs_minecraft_engine::session::HostAnchorRef;
+use mcrs_minecraft_engine::coordinator::dim::DimSubAppHandle;
+use mcrs_minecraft_engine::muxer::dim_inputs::DimInputs;
+use mcrs_minecraft_engine::muxer::session::GameProfile;
+use mcrs_minecraft_engine::muxer::session::HostAnchorRef;
 use mcrs_minecraft_engine_registries::SyncedRegistries;
 use mcrs_minecraft_engine_world::session::{Place, Session, SessionPlacement};
 use mcrs_minecraft_engine_world::world::world_save::WorldSave;
@@ -70,7 +70,7 @@ impl Plugin for ConfigurationStatePlugin {
             Update,
             emit_initial_player_spawn
                 .run_if(resource_exists::<DimensionList>)
-                .before(mcrs_minecraft_engine::bridge::bridge_inbound_to_channel),
+                .before(mcrs_minecraft_engine::muxer::bridge::bridge_inbound_to_channel),
         );
     }
 }

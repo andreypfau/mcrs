@@ -15,9 +15,9 @@ use crate::ability::{PlayerFlying, PlayerGameMode, PlayerOpLevel};
 use crate::client_info::ClientInfo;
 use crate::dimension_change::{Arrival, DimensionChangeError};
 use crate::game_mode::ListedGameMode;
+use crate::muxer::session::GameProfile;
 use crate::op_level::AnnouncedOpLevel;
 use crate::persistence::{LoadedPlayerDat, UnreadablePlayerDat};
-use crate::session::GameProfile;
 use crate::teleport::TeleportState;
 
 /// A player that its dimension world let go at the end of a tick, to arrive in the dimension

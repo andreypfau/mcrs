@@ -1,8 +1,8 @@
 use bevy_app::{App, AppExit, Plugin};
 use mcrs_engine_link::Placement;
 use mcrs_minecraft_assets::packs::{BuiltinAsset, PackLayering, PackRoots};
-use mcrs_minecraft_engine::muxer_placement::MuxerPlacement;
-use mcrs_minecraft_engine::player_list_policy::PlayerListPolicy;
+use mcrs_minecraft_engine::muxer::muxer_placement::MuxerPlacement;
+use mcrs_minecraft_engine::muxer::player_list_policy::PlayerListPolicy;
 use mcrs_minecraft_engine_world::server_loop::VoxelServerPlugin;
 use mcrs_minecraft_registries::RegistryAdditions;
 use mcrs_minecraft_replication::ListPolicy;

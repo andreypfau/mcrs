@@ -4,10 +4,10 @@ use bevy_ecs::entity::Entity;
 use bevy_ecs::message::Messages;
 use bevy_ecs::world::World;
 use bytes::Bytes;
-use mcrs_minecraft_engine::bridge::{bridge_inbound_to_channel, forward_pending_inbound};
 use mcrs_minecraft_engine::bus::InboundPlayerPacket;
-use mcrs_minecraft_engine::dim_inputs::DimInputs;
-use mcrs_minecraft_engine::session::{HostAnchorRef, SessionBundle};
+use mcrs_minecraft_engine::muxer::bridge::{bridge_inbound_to_channel, forward_pending_inbound};
+use mcrs_minecraft_engine::muxer::dim_inputs::DimInputs;
+use mcrs_minecraft_engine::muxer::session::{HostAnchorRef, SessionBundle};
 use mcrs_minecraft_engine_world::session::{
     Place, PlayerSession, PlayerSessionCounter, SessionAnchors, SessionPlacement,
 };

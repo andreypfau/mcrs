@@ -5,12 +5,12 @@ use mcrs_minecraft_engine::bus::{
     InboundPlayerDespawn, InboundPlayerSpawn, OutboundPlayerAttached, OutboundPlayerDisconnect,
 };
 use mcrs_minecraft_engine::channel_types::ToDim;
-use mcrs_minecraft_engine::dim_inputs::DimInputs;
-use mcrs_minecraft_engine::disconnect::{
+use mcrs_minecraft_engine::muxer::dim_inputs::DimInputs;
+use mcrs_minecraft_engine::muxer::disconnect::{
     DisconnectProtocolPlugin, Disconnects, drain_pending_disconnects,
     filter_inflight_for_disconnect,
 };
-use mcrs_minecraft_engine::session::SessionBundle;
+use mcrs_minecraft_engine::muxer::session::SessionBundle;
 use mcrs_minecraft_engine_world::session::{
     Place, PlayerSession, PlayerSessionCounter, SessionPlacement,
 };

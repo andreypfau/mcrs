@@ -9,7 +9,7 @@
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::Messages;
 use mcrs_minecraft_engine::bus::OutboundPlayerAttached;
-use mcrs_minecraft_engine::disconnect::{
+use mcrs_minecraft_engine::muxer::disconnect::{
     DisconnectBudget, DisconnectedThisTick, PendingDisconnectQueue,
 };
 use mcrs_minecraft_engine_world::session::{Place, PlayerSession};

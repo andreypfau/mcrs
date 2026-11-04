@@ -15,19 +15,19 @@ use mcrs_minecraft_protocol_game::player::PlayerSpawnInfo;
 use mcrs_minecraft_resource::{Id, ResourceKeyBuf};
 
 use crate::ability::OpLevelAnnounced;
-use crate::bridge::OutboundFlush;
 use crate::bus::{self, PacketPayload};
 use crate::channel_types::ToDim;
 use crate::column_view::ColumnView;
+use crate::coordinator::dim;
+use crate::coordinator::dim::DimSubAppHandle;
 use crate::departure::{CarriedPlayer, Departure, PlayerTransfer};
-use crate::dim;
-use crate::dim::DimSubAppHandle;
-use crate::dim_inputs::DimInputs;
 use crate::dimension_change::{Arrival, DimensionChangeError};
 use crate::enter_level_packets::enter_level_packets;
-use crate::entity_replication::{self, Answers};
 use crate::game_mode;
 use crate::minecraft_entity::EntityBundle;
+use crate::muxer::bridge::OutboundFlush;
+use crate::muxer::dim_inputs::DimInputs;
+use crate::muxer::entity_replication::{self, Answers};
 
 /// Both bits of the data to keep: the attribute modifiers and the entity data.
 const KEEP_ATTRIBUTES_AND_DATA: u8 = 0x03;

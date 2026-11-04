@@ -35,9 +35,9 @@ use tracing::warn;
 
 use crate::bus::{OutboundPlayerAttached, OutboundPlayerDisconnect};
 use crate::channel_types::ToDim;
-use crate::dim_inputs::DimInputs;
-use crate::session::GameProfile;
-use crate::session::{HostAnchorRef, SessionConnection};
+use crate::muxer::dim_inputs::DimInputs;
+use crate::muxer::session::GameProfile;
+use crate::muxer::session::{HostAnchorRef, SessionConnection};
 use mcrs_minecraft_engine_world::session::{
     Place, PlayerSession, Session, SessionAnchors, SessionPlacement,
 };
@@ -230,7 +230,7 @@ pub fn process_disconnect(
     if let Some(connection) = connection
         && let Ok(mut socket_entity) = commands.get_entity(connection.entity())
     {
-        socket_entity.try_remove::<crate::bridge_queue::OutboundQueue>();
+        socket_entity.try_remove::<crate::muxer::bridge_queue::OutboundQueue>();
     }
 
     if let Ok(mut anchor_entity) = commands.get_entity(host_anchor) {
@@ -339,8 +339,8 @@ impl Plugin for DisconnectProtocolPlugin {
         app.add_systems(
             Update,
             filter_inflight_for_disconnect
-                .after(crate::bridge::bridge_inbound_to_channel)
-                .before(crate::bridge::bridge_player_attach),
+                .after(crate::muxer::bridge::bridge_inbound_to_channel)
+                .before(crate::muxer::bridge::bridge_player_attach),
         );
     }
 }

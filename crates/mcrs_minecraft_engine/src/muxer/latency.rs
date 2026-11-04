@@ -1,8 +1,8 @@
 //! The latency of a player, which the host measures on the wire and hands to the muxer for its
 //! player list entry.
 
-use crate::entity_replication::EntityReplication;
-use crate::session::HostAnchorRef;
+use crate::muxer::entity_replication::EntityReplication;
+use crate::muxer::session::HostAnchorRef;
 use bevy_ecs::component::Component;
 use bevy_ecs::prelude::{Changed, Query, ResMut};
 use mcrs_minecraft_engine_world::session::Session;

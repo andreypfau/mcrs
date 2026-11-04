@@ -15,10 +15,10 @@ use mcrs_minecraft_engine::bus::{
     OutboundPlayerDisconnect, OutboundPlayerPacket, PacketPayload, PacketTarget,
     PlayerTransferSnapshot,
 };
-use mcrs_minecraft_engine::dim::DimSubAppHandle;
-use mcrs_minecraft_engine::dim::take_dim_outputs;
-use mcrs_minecraft_engine::session::SessionBundle;
-use mcrs_minecraft_engine::sub_app_builder::drain_dim_spawn_queue;
+use mcrs_minecraft_engine::coordinator::dim::DimSubAppHandle;
+use mcrs_minecraft_engine::coordinator::dim::take_dim_outputs;
+use mcrs_minecraft_engine::coordinator::sub_app_builder::drain_dim_spawn_queue;
+use mcrs_minecraft_engine::muxer::session::SessionBundle;
 use mcrs_minecraft_engine_world::session::{Place, PlayerSessionCounter, SessionPlacement};
 use mcrs_minecraft_engine_world::world::sub_app::{
     DimDespawnQueue, DimSpawnQueue, DimSpawnRequest,
@@ -46,7 +46,7 @@ fn build_host_app() -> App {
     support::insert_registries(&mut app);
 
     app.init_resource::<PlayerSessionCounter>();
-    app.add_plugins(mcrs_minecraft_engine::dim_cells::DimCellsPlugin);
+    app.add_plugins(mcrs_minecraft_engine::coordinator::dim_cells::DimCellsPlugin);
     app.add_message::<OutboundPlayerPacket>();
     app.add_message::<InboundPlayerPacket>();
     app.add_message::<InboundPlayerSpawn>();
@@ -105,7 +105,7 @@ fn play_login_targets_host_anchor() {
         use mcrs_minecraft_engine::channel_types::ToDim;
         let sent = app
             .world_mut()
-            .resource_mut::<mcrs_minecraft_engine::dim_inputs::DimInputs>()
+            .resource_mut::<mcrs_minecraft_engine::muxer::dim_inputs::DimInputs>()
             .send_control(
                 dim_label,
                 ToDim::Spawn(InboundPlayerSpawn {

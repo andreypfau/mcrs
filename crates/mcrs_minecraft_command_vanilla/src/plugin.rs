@@ -8,7 +8,7 @@ use mcrs_minecraft_command_engine::AppCommandsExt;
 /// The vanilla commands: `execute`, `gamemode`, `teleport` with its alias `tp`, `locate` (feature
 /// `locate`) and `time`, and their effects: [`TeleportPlayer`](crate::TeleportPlayer),
 /// [`SetGameMode`](crate::SetGameMode) and
-/// [`EditClock`](mcrs_minecraft_engine::clock::EditClock).
+/// [`EditClock`](mcrs_minecraft_engine::coordinator::clock::EditClock).
 pub struct VanillaCommandsPlugin;
 
 impl Plugin for VanillaCommandsPlugin {

@@ -4,18 +4,18 @@ use crate::bus::{
     PlayerInfoEntry, to,
 };
 use crate::column_view::ColumnView;
-use crate::default_game_mode::DefaultGameMode;
+use crate::coordinator::default_game_mode::DefaultGameMode;
+use crate::coordinator::ops::{DefaultOpLevel, OpList};
 use crate::dimension_change::Arrival;
 use crate::enter_level_packets::enter_level_packets;
 use crate::game_mode::{self, ListedGameMode};
 use crate::minecraft_entity::EntityBundle;
+use crate::muxer::session::GameProfile;
 use crate::network_id;
 use crate::op_level::AnnouncedOpLevel;
-use crate::ops::{DefaultOpLevel, OpList};
 use crate::persistence;
 use crate::player_bundle::PlayerBundle;
 use crate::publish_player_tiles::AnnounceJoin;
-use crate::session::GameProfile;
 use crate::teleport::TeleportState;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::{MessageReader, MessageWriter};

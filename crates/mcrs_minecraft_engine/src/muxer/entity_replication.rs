@@ -18,14 +18,14 @@ use mcrs_minecraft_engine_world::session::{PlayerSession, SessionAnchors};
 use mcrs_minecraft_replication::{ListPolicy, PlayerCodec, PlayerData, PlayerInput};
 
 use crate::bus::{PacketPayload, to};
-use crate::dim;
-use crate::latency::Latency;
-use crate::muxer_placement::MuxerPlacement;
-use crate::player_list_policy::PlayerListPolicy;
+use crate::coordinator::dim;
+use crate::muxer::latency::Latency;
+use crate::muxer::muxer_placement::MuxerPlacement;
+use crate::muxer::player_list_policy::PlayerListPolicy;
+use crate::muxer::session::SessionConnection;
+use crate::muxer::tick_wake::TickWake;
+use crate::muxer::tile_delta_log::{LoggedDeltas, TileDeltaLog};
 use crate::player_tiles::{TILE_WIDTH, VIEW_RADIUS};
-use crate::session::SessionConnection;
-use crate::tick_wake::TickWake;
-use crate::tile_delta_log::{LoggedDeltas, TileDeltaLog};
 
 /// Whether [`deliver`] waits for the muxer to answer every input.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

@@ -10,7 +10,7 @@ use std::time::Duration;
 use bevy_app::{App, AppExit, PluginGroup, Update};
 use bevy_ecs::message::MessageWriter;
 use bevy_log::{Level, LogPlugin, tracing_subscriber};
-use mcrs_minecraft_engine::ops::{OPS_FILE, OpList};
+use mcrs_minecraft_engine::coordinator::ops::{OPS_FILE, OpList};
 use mcrs_minecraft_engine_server::{
     DimensionWorldsPlugin, GameMode, NetworkCompressionThreshold, Placement, ServerCorePlugin,
     ServerNetworkPlugin,

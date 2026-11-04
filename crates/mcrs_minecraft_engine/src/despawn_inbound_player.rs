@@ -1,8 +1,8 @@
 use crate::bus::{InboundPlayerDespawn, OutboundPlayerReleased};
+use crate::muxer::session::GameProfile;
 use crate::persistence;
 use crate::publish_player_tiles::publish_leave_message;
 use crate::replicated::Replicated;
-use crate::session::GameProfile;
 use crate::tile_events::TileEvents;
 use bevy_ecs::message::MessageReader;
 use bevy_ecs::prelude::{Commands, Query, Res, ResMut, With};

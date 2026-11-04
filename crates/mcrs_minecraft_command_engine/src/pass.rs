@@ -20,10 +20,10 @@ use mcrs_command::{Limits, SourceLists, Stage};
 use mcrs_minecraft_dimension::Dimension as DimensionKey;
 use mcrs_minecraft_dimension_environment::dimension_type::DimensionTypeFile;
 use mcrs_minecraft_engine::ability::PlayerGameMode;
-use mcrs_minecraft_engine::dim;
-use mcrs_minecraft_engine::dim_cells::DimCells;
-use mcrs_minecraft_engine::dimension_order::{DimensionWorld, in_dimension_order};
-use mcrs_minecraft_engine::session::GameProfile;
+use mcrs_minecraft_engine::coordinator::dim;
+use mcrs_minecraft_engine::coordinator::dim_cells::DimCells;
+use mcrs_minecraft_engine::coordinator::dimension_order::{DimensionWorld, in_dimension_order};
+use mcrs_minecraft_engine::muxer::session::GameProfile;
 use mcrs_minecraft_engine_world::entity::physics::Transform;
 use mcrs_minecraft_engine_world::entity::player::Player;
 use mcrs_minecraft_engine_world::session::{

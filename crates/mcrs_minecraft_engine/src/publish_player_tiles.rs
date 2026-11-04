@@ -17,10 +17,10 @@ use mcrs_minecraft_replication::{PlayerData, PlayerSpawn, Pose};
 use mcrs_minecraft_text::{Color, IntoText, RawText, Text};
 
 use crate::game_mode::ListedGameMode;
+use crate::muxer::session::GameProfile;
 use crate::network_id::player_network_id;
 use crate::player_tiles::PlayerTiles;
 use crate::replicated::Replicated;
-use crate::session::GameProfile;
 use crate::tile_events::TileEvents;
 
 /// Marks a player that logged in and that its neighbours have not heard of yet. A player that

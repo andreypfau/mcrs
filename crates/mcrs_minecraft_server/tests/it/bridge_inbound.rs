@@ -11,13 +11,13 @@ use bevy_ecs::resource::Resource;
 use bevy_ecs::system::{IntoSystem, RunSystemOnce, System};
 use bevy_ecs::world::World;
 use bytes::BytesMut;
-use mcrs_minecraft_engine::bridge::bridge_inbound;
-use mcrs_minecraft_engine::bridge_queue::{
+use mcrs_minecraft_engine::bus::{InboundPlayerPacket, OutboundPlayerPacket};
+use mcrs_minecraft_engine::muxer::bridge::bridge_inbound;
+use mcrs_minecraft_engine::muxer::bridge_queue::{
     INBOUND_BUCKET_CAP, INBOUND_KICK_OVERFLOW_PACKETS, InboundRateBucket, OutboundQueue,
 };
-use mcrs_minecraft_engine::bus::{InboundPlayerPacket, OutboundPlayerPacket};
-use mcrs_minecraft_engine::dim_inputs::DimInputs;
-use mcrs_minecraft_engine::session::{HostAnchorRef, SessionBundle};
+use mcrs_minecraft_engine::muxer::dim_inputs::DimInputs;
+use mcrs_minecraft_engine::muxer::session::{HostAnchorRef, SessionBundle};
 use mcrs_minecraft_engine_world::session::{
     Place, PlayerSessionCounter, Session, SessionPlacement,
 };
@@ -51,7 +51,7 @@ fn build_inbound_world() -> World {
     world.init_resource::<BridgeTelemetry>();
     world.insert_resource(
         PacketDispatcher::serverbound()
-            .with_play(mcrs_minecraft_engine::game_packets::GAME_SERVERBOUND),
+            .with_play(mcrs_minecraft_engine::muxer::game_packets::GAME_SERVERBOUND),
     );
     world
 }
@@ -221,7 +221,7 @@ fn inbound_rate_kick() {
 #[test]
 fn no_unattached_outbound_queue_after_fixed_preupdate() {
     use bevy_ecs::query::{With, Without};
-    use mcrs_minecraft_engine::bridge::attach_outbound_queue;
+    use mcrs_minecraft_engine::muxer::bridge::attach_outbound_queue;
 
     let mut world = World::new();
     // Spawn a bare ServerSideConnection without OutboundQueue (simulates
@@ -268,7 +268,7 @@ fn no_unattached_outbound_queue_after_fixed_preupdate() {
 /// the disconnect tick.
 #[test]
 fn disconnect_clears_pending() {
-    use mcrs_minecraft_engine::disconnect::{LeavingSessions, process_disconnect};
+    use mcrs_minecraft_engine::muxer::disconnect::{LeavingSessions, process_disconnect};
 
     let mut world = World::new();
     world.init_resource::<PlayerSessionCounter>();

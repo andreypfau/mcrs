@@ -8,11 +8,11 @@ use bevy_ecs::entity::Entity;
 use bevy_ecs::message::Messages;
 use bevy_ecs::system::{IntoSystem, System};
 use bevy_ecs::world::World;
-use mcrs_minecraft_engine::bridge_queue::{OutboundQueue, QueuedPacket};
 use mcrs_minecraft_engine::bus::{
     OutboundPlayerPacket, PacketPayload, PacketPriority, PacketTarget, TestPayload,
 };
-use mcrs_minecraft_engine::session::{HostAnchorRef, SessionBundle};
+use mcrs_minecraft_engine::muxer::bridge_queue::{OutboundQueue, QueuedPacket};
+use mcrs_minecraft_engine::muxer::session::{HostAnchorRef, SessionBundle};
 use mcrs_minecraft_engine_world::session::{
     Place, PlayerSession, PlayerSessionCounter, SessionPlacement,
 };

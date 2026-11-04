@@ -8,8 +8,8 @@
 use bevy_ecs::prelude::*;
 use bevy_math::DVec3;
 use mcrs_minecraft_engine::column_view::ColumnView;
-use mcrs_minecraft_engine::dim::take_dim_outputs;
-use mcrs_minecraft_engine::entity_replication::EntityReplication;
+use mcrs_minecraft_engine::coordinator::dim::take_dim_outputs;
+use mcrs_minecraft_engine::muxer::entity_replication::EntityReplication;
 use mcrs_minecraft_engine_world::aoi::PlayerObservers;
 use mcrs_minecraft_engine_world::entity::physics::Transform;
 use mcrs_minecraft_engine_world::entity::player::Player;
@@ -37,7 +37,10 @@ fn aoi_state_does_not_leak_across_dim_boundary() {
     // The host-world entities carrying `DimSubAppHandle` label the dimensions.
     let label_entities: Vec<Entity> = app
         .world_mut()
-        .query::<(Entity, &mcrs_minecraft_engine::dim::DimSubAppHandle)>()
+        .query::<(
+            Entity,
+            &mcrs_minecraft_engine::coordinator::dim::DimSubAppHandle,
+        )>()
         .iter(app.world())
         .map(|(e, _)| e)
         .collect();

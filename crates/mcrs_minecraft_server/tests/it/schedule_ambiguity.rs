@@ -5,8 +5,8 @@ use bevy_ecs::schedule::{
 };
 use bevy_ecs::system::System;
 use bevy_ecs::world::World;
-use mcrs_minecraft_engine::dim::DimSubAppHandle;
-use mcrs_minecraft_engine::sub_app_builder::drain_dim_spawn_queue;
+use mcrs_minecraft_engine::coordinator::dim::DimSubAppHandle;
+use mcrs_minecraft_engine::coordinator::sub_app_builder::drain_dim_spawn_queue;
 use mcrs_minecraft_game_registries::dimension::{DimensionEntry, Dimensions};
 use mcrs_minecraft_game_registries::worldgen::chunk_generator::ChunkGenerator;
 use mcrs_minecraft_resource::ResourceKeyBuf;

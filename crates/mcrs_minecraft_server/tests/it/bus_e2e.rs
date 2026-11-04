@@ -4,17 +4,17 @@ use bevy_ecs::prelude::*;
 use bevy_state::prelude::NextState;
 use bytes::Bytes;
 use mcrs_minecraft_assets::AppState;
-use mcrs_minecraft_engine::bridge::bridge_inbound_to_channel;
 use mcrs_minecraft_engine::bus::{
     InboundPlayerPacket, InboundPlayerSpawn, OutboundPlayerPacket, PacketPayload, PacketPriority,
     PacketTarget, PlayerTransferSnapshot, TestPayload,
 };
 use mcrs_minecraft_engine::channel_types::ToDim;
-use mcrs_minecraft_engine::dim::DimSubAppHandle;
-use mcrs_minecraft_engine::dim::take_dim_outputs;
-use mcrs_minecraft_engine::dim_inputs::DimInputs;
-use mcrs_minecraft_engine::session::SessionBundle;
-use mcrs_minecraft_engine::sub_app_builder::drain_dim_spawn_queue;
+use mcrs_minecraft_engine::coordinator::dim::DimSubAppHandle;
+use mcrs_minecraft_engine::coordinator::dim::take_dim_outputs;
+use mcrs_minecraft_engine::coordinator::sub_app_builder::drain_dim_spawn_queue;
+use mcrs_minecraft_engine::muxer::bridge::bridge_inbound_to_channel;
+use mcrs_minecraft_engine::muxer::dim_inputs::DimInputs;
+use mcrs_minecraft_engine::muxer::session::SessionBundle;
 use mcrs_minecraft_engine_world::session::{
     Place, PlayerSession, PlayerSessionCounter, SessionPlacement,
 };

@@ -1,6 +1,6 @@
 use bevy_ecs::prelude::{Commands, On, Query, ResMut};
 use bevy_ecs::resource::Resource;
-use mcrs_minecraft_engine::session::HostAnchorRef;
+use mcrs_minecraft_engine::muxer::session::HostAnchorRef;
 use mcrs_minecraft_engine_world::session::{PlayerSession, Session};
 use mcrs_minecraft_network::event::Received;
 use mcrs_minecraft_network::{ConnectionState, ServerSideConnection};

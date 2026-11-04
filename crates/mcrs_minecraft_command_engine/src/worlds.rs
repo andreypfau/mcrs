@@ -4,7 +4,7 @@ use bevy_ecs::prelude::DetectChangesMut;
 use bevy_ecs::world::World;
 use mcrs_minecraft_engine::ability::PlayerGameMode;
 use mcrs_minecraft_engine::bus::OutboundPlayerPacket;
-use mcrs_minecraft_engine::dim;
+use mcrs_minecraft_engine::coordinator::dim;
 use mcrs_minecraft_engine::dimension_change::{Arrival, DimensionChangeError};
 use mcrs_minecraft_engine::player_dimension_change;
 use mcrs_minecraft_engine_world::entity::physics::Transform;

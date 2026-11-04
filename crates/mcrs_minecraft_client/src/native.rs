@@ -37,7 +37,7 @@ use mcrs_minecraft_client_world::registries::ClientRegistriesPlugin;
 use mcrs_minecraft_client_world::registries::SessionSet;
 use mcrs_minecraft_client_world::{local_player, player};
 #[cfg(feature = "singleplayer")]
-use mcrs_minecraft_engine::ops::{OPS_FILE, OpList, OpListEntry};
+use mcrs_minecraft_engine::coordinator::ops::{OPS_FILE, OpList, OpListEntry};
 #[cfg(feature = "singleplayer")]
 use mcrs_minecraft_engine_server::login::SingleplayerProfile;
 #[cfg(feature = "singleplayer")]

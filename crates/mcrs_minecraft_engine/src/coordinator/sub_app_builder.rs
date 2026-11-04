@@ -10,10 +10,10 @@ use mcrs_engine_cell::Placement;
 use tracing::{error, warn};
 
 use crate::bus::{InboundPlayerSpawn, OutboundPlayerPacket};
-use crate::dim::DimSubAppHandle;
-use crate::dim_cells::DimCells;
-use crate::dim_inputs::DimInputs;
+use crate::coordinator::dim::DimSubAppHandle;
+use crate::coordinator::dim_cells::DimCells;
 use crate::dim_tick::{DimInbox, drain_dim_inbox, inbox_holds_messages};
+use crate::muxer::dim_inputs::DimInputs;
 use mcrs_minecraft_engine_world::block_update::{BlockPlaced, BlockSetRequest};
 
 /// The system set of the inbox drain, early in `FixedPreUpdate`: the messages of the input of a
@@ -225,13 +225,13 @@ pub fn spawn_dim_subapp(
     sub_app.add_plugins(DimHeightmapPlugin);
     let default_op_level = app
         .world()
-        .get_resource::<crate::ops::DefaultOpLevel>()
+        .get_resource::<crate::coordinator::ops::DefaultOpLevel>()
         .copied()
         .unwrap_or_default();
     sub_app.insert_resource(default_op_level);
     let default_game_mode = app
         .world()
-        .get_resource::<crate::default_game_mode::DefaultGameMode>()
+        .get_resource::<crate::coordinator::default_game_mode::DefaultGameMode>()
         .copied()
         .unwrap_or_default();
     sub_app.insert_resource(default_game_mode);
@@ -251,12 +251,12 @@ pub fn spawn_dim_subapp(
             .unwrap_or_default(),
     );
     sub_app.insert_resource(
-        host.get_resource::<crate::clock::GameTime>()
+        host.get_resource::<crate::coordinator::clock::GameTime>()
             .copied()
             .unwrap_or_default(),
     );
     sub_app.insert_resource(
-        host.get_resource::<crate::ops::OpList>()
+        host.get_resource::<crate::coordinator::ops::OpList>()
             .cloned()
             .unwrap_or_default(),
     );

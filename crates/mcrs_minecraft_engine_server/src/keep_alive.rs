@@ -6,7 +6,7 @@ use bevy_ecs::prelude::{Commands, Query, Res};
 use bevy_ecs::query::Changed;
 use bevy_ecs::schedule::IntoScheduleConfigs;
 use bevy_time::{Real, Time};
-use mcrs_minecraft_engine::latency::Latency;
+use mcrs_minecraft_engine::muxer::latency::Latency;
 use mcrs_minecraft_network::event::Received;
 use mcrs_minecraft_network::{ConnectionState, ServerSideConnection};
 use mcrs_minecraft_protocol::WritePacket;

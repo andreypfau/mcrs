@@ -21,7 +21,7 @@ use bevy_ecs::resource::Resource;
 use bevy_ecs::system::SystemId;
 use bevy_ecs::world::World;
 use mcrs_command::{End, Executor, Failure, Limits, SourceLists, Stage};
-use mcrs_minecraft_engine::dim;
+use mcrs_minecraft_engine::coordinator::dim;
 use mcrs_minecraft_engine_world::session::PlayerSession;
 use mcrs_minecraft_text::Text;
 

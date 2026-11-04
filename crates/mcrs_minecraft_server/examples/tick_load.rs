@@ -33,7 +33,7 @@ use bevy_app::{App, PluginGroup};
 use bevy_ecs::entity::Entity;
 use bevy_math::DVec3;
 use mcrs_minecraft_core::VERSION;
-use mcrs_minecraft_engine::entity_replication::EntityReplication;
+use mcrs_minecraft_engine::muxer::entity_replication::EntityReplication;
 use mcrs_minecraft_engine_server::{
     BoundAddress, GameMode, Placement, ServerNetworkPlugin, runner,
 };

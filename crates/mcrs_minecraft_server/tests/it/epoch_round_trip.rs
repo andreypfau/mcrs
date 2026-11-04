@@ -18,9 +18,9 @@ use crate::mock_connection;
 
 use bevy_ecs::message::Messages;
 use bevy_ecs::world::World;
-use mcrs_minecraft_engine::bridge::bridge_outbound;
-use mcrs_minecraft_engine::bridge_queue::OutboundQueue;
 use mcrs_minecraft_engine::bus::{OutboundPlayerPacket, PacketPriority};
+use mcrs_minecraft_engine::muxer::bridge::bridge_outbound;
+use mcrs_minecraft_engine::muxer::bridge_queue::OutboundQueue;
 use mcrs_minecraft_engine_world::session::{PlayerSession, SessionPlacement};
 
 use mock_connection::{

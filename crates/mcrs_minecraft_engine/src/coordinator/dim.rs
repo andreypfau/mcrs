@@ -1,8 +1,8 @@
 use crate::bus::{OutboundPlayerAttached, OutboundPlayerPacket, PacketTarget};
-use crate::dim_cells::{DimCells, DimTicked};
-use crate::dim_inputs::DimInputs;
-use crate::disconnect::Departing;
-use crate::entity_replication::{self, Answers, EntityReplication};
+use crate::coordinator::dim_cells::{DimCells, DimTicked};
+use crate::muxer::dim_inputs::DimInputs;
+use crate::muxer::disconnect::Departing;
+use crate::muxer::entity_replication::{self, Answers, EntityReplication};
 use crate::player_dimension_change;
 use bevy_app::App;
 use bevy_ecs::entity::Entity;

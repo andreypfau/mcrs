@@ -18,9 +18,9 @@ use crate::bus::{
     OutboundPlayerPacket, OutboundPlayerReleased,
 };
 use crate::channel_types::ToDim;
-use crate::clock::GameTime;
+use crate::coordinator::clock::GameTime;
+use crate::coordinator::ops::OpList;
 use crate::departure::{Departure, PlayerTransfer};
-use crate::ops::OpList;
 use crate::player_dimension_change;
 use crate::tile_events::TileEvents;
 

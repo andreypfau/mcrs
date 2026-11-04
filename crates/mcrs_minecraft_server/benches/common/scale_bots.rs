@@ -29,12 +29,12 @@ use bevy_ecs::message::Messages;
 use bevy_ecs::prelude::World;
 use bevy_ecs::system::{IntoSystem, System};
 use bevy_math::DVec3;
-use mcrs_minecraft_engine::bridge::bridge_outbound;
-use mcrs_minecraft_engine::bridge_queue::OutboundQueue;
 use mcrs_minecraft_engine::bus::{
     OutboundPlayerPacket, PacketPayload, PacketPriority, PacketTarget,
 };
-use mcrs_minecraft_engine::session::{HostAnchorRef, SessionBundle};
+use mcrs_minecraft_engine::muxer::bridge::bridge_outbound;
+use mcrs_minecraft_engine::muxer::bridge_queue::OutboundQueue;
+use mcrs_minecraft_engine::muxer::session::{HostAnchorRef, SessionBundle};
 use mcrs_minecraft_engine_world::session::{
     Place, PlayerSession, PlayerSessionCounter, Session, SessionPlacement,
 };

@@ -16,8 +16,8 @@ use mcrs_minecraft_protocol::packets::login::serverbound::{
 use mcrs_minecraft_protocol::{CompressionThreshold, uuid};
 use mcrs_minecraft_text::Text;
 
-use mcrs_minecraft_engine::disconnect::Departing;
-use mcrs_minecraft_engine::session::{
+use mcrs_minecraft_engine::muxer::disconnect::Departing;
+use mcrs_minecraft_engine::muxer::session::{
     GameProfile, HostAnchorRef, SessionBundle, SessionConnection,
 };
 use mcrs_minecraft_engine_world::session::{

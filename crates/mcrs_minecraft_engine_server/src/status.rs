@@ -6,7 +6,7 @@ use bevy_ecs::observer::On;
 use bevy_ecs::prelude::{Query, Resource, resource_changed};
 use bevy_ecs::query::{Changed, With};
 use bevy_ecs::schedule::IntoScheduleConfigs;
-use mcrs_minecraft_engine::session::GameProfile;
+use mcrs_minecraft_engine::muxer::session::GameProfile;
 use mcrs_minecraft_network::{ServerSideConnection, StatusPlayers, StatusPublisher};
 use mcrs_minecraft_protocol::ConnectionState;
 use mcrs_minecraft_protocol::uuid::Uuid;

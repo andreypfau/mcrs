@@ -66,12 +66,14 @@ use std::borrow::Cow;
 use std::mem;
 use tracing::{trace, warn};
 
-use crate::bridge_queue::{DEPTH_DRAIN_TARGET, DEPTH_LIMIT, InboundRateBucket, OutboundQueue};
-use crate::bridge_queue::{EncodedPacket, QueuedPacket};
 use crate::bus::{InboundPlayerPacket, OutboundPlayerAttached, OutboundPlayerPacket};
 use crate::bus::{PacketPayload, PacketPriority, PacketTarget};
-use crate::dim_inputs::DimInputs;
-use crate::session::{HostAnchorRef, PendingInbound, SessionConnection};
+use crate::muxer::bridge_queue::{
+    DEPTH_DRAIN_TARGET, DEPTH_LIMIT, InboundRateBucket, OutboundQueue,
+};
+use crate::muxer::bridge_queue::{EncodedPacket, QueuedPacket};
+use crate::muxer::dim_inputs::DimInputs;
+use crate::muxer::session::{HostAnchorRef, PendingInbound, SessionConnection};
 use mcrs_minecraft_engine_world::session::{Place, Session, SessionAnchors, SessionPlacement};
 use mcrs_minecraft_engine_world::world::channels::MAX_HELD_SERVERBOUND;
 
@@ -783,7 +785,7 @@ mod tests {
     use bevy_ecs::system::{IntoSystem, System};
     use bevy_ecs::world::World;
 
-    use crate::session::SessionBundle;
+    use crate::muxer::session::SessionBundle;
 
     use bytes::Bytes;
     use mcrs_minecraft_engine_world::session::PlayerSession;

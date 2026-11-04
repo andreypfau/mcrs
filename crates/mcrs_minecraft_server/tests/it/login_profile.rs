@@ -6,11 +6,11 @@ use mcrs_minecraft_engine::bus::{
     InboundPlayerDespawn, OutboundPlayerAttached, OutboundPlayerDisconnect,
 };
 use mcrs_minecraft_engine::channel_types::ToDim;
-use mcrs_minecraft_engine::dim;
-use mcrs_minecraft_engine::dim_inputs::DimInputs;
-use mcrs_minecraft_engine::disconnect::DisconnectProtocolPlugin;
-use mcrs_minecraft_engine::session::GameProfile;
-use mcrs_minecraft_engine::session::HostAnchorRef;
+use mcrs_minecraft_engine::coordinator::dim;
+use mcrs_minecraft_engine::muxer::dim_inputs::DimInputs;
+use mcrs_minecraft_engine::muxer::disconnect::DisconnectProtocolPlugin;
+use mcrs_minecraft_engine::muxer::session::GameProfile;
+use mcrs_minecraft_engine::muxer::session::HostAnchorRef;
 use mcrs_minecraft_engine_server::configuration::on_configuration_ack;
 use mcrs_minecraft_engine_server::login::{LoginPlugin, LoginState, SingleplayerProfile};
 use mcrs_minecraft_engine_server::{ShutdownPlugin, ShutdownRequest};
@@ -141,7 +141,7 @@ fn send<P: Encode + Packet>(app: &mut App, client: &Client, packet: &P) {
     let mut data = Vec::new();
     packet.encode(&mut data).unwrap();
     let trigger = PacketDispatcher::serverbound()
-        .with_play(mcrs_minecraft_engine::game_packets::GAME_SERVERBOUND)
+        .with_play(mcrs_minecraft_engine::muxer::game_packets::GAME_SERVERBOUND)
         .dispatch(P::STATE, P::ID, &data)
         .unwrap()
         .unwrap();
@@ -603,7 +603,7 @@ fn configuration_frames_sent_with_the_login_acknowledgement_count_no_decode_faul
     let mut app = server(None);
     app.insert_resource(
         PacketDispatcher::serverbound()
-            .with_play(mcrs_minecraft_engine::game_packets::GAME_SERVERBOUND),
+            .with_play(mcrs_minecraft_engine::muxer::game_packets::GAME_SERVERBOUND),
     );
     let (raw, _outgoing, inbound) = mock_connection::make_mock_raw_connection_full();
     let connection = app

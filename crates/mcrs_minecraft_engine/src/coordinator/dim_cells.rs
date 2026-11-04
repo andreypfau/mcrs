@@ -14,11 +14,11 @@ use mcrs_minecraft_core::Versioned;
 use mcrs_minecraft_engine_registries::RegistrySnapshot;
 use mcrs_minecraft_environment::world_clock::WorldClocks;
 
-use crate::clock::GameTime;
-use crate::dim_inputs::{DimInputs, PendingInput};
+use crate::coordinator::clock::GameTime;
+use crate::coordinator::ops::OpList;
 use crate::dim_tick;
 use crate::dim_tick::{DimInput, DimOutput, DimWorld};
-use crate::ops::OpList;
+use crate::muxer::dim_inputs::{DimInputs, PendingInput};
 
 /// The host schedule that ticks the dimension worlds, right after `Last`: each world takes
 /// in what the host sent during the update.

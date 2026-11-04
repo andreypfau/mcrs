@@ -4,7 +4,7 @@ use bevy_ecs::prelude::*;
 use mcrs_minecraft_command_engine::system_chat;
 use mcrs_minecraft_engine::bus::{self, OutboundPlayerPacket, PacketTarget, to_target};
 use mcrs_minecraft_engine::client_info::{ClientInfo, ClientInfoPlugin};
-use mcrs_minecraft_engine::session::GameProfile;
+use mcrs_minecraft_engine::muxer::session::GameProfile;
 use mcrs_minecraft_engine_world::session::Owner;
 use mcrs_minecraft_network::event::Received;
 use mcrs_minecraft_protocol::setting::ChatMode;

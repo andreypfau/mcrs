@@ -5,11 +5,11 @@
 use bevy_ecs::prelude::*;
 use bevy_math::DVec3;
 use mcrs_engine_link::Placement;
-use mcrs_minecraft_engine::bridge::dispatch_encode;
-use mcrs_minecraft_engine::bridge_queue::OutboundQueue;
 use mcrs_minecraft_engine::bus::{InboundPlayerDespawn, PacketPayload, to};
 use mcrs_minecraft_engine::channel_types::ToDim;
-use mcrs_minecraft_engine::muxer_placement::MuxerPlacement;
+use mcrs_minecraft_engine::muxer::bridge::dispatch_encode;
+use mcrs_minecraft_engine::muxer::bridge_queue::OutboundQueue;
+use mcrs_minecraft_engine::muxer::muxer_placement::MuxerPlacement;
 use mcrs_minecraft_engine_world::entity::physics::Transform;
 use mcrs_minecraft_engine_world::session::PlayerSession;
 use mcrs_minecraft_network::metrics::BridgeTelemetry;

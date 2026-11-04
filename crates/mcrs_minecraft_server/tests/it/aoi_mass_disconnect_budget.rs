@@ -3,7 +3,7 @@
 
 use bevy_app::App;
 use bevy_ecs::entity::Entity;
-use mcrs_minecraft_engine::disconnect::PendingDisconnectQueue;
+use mcrs_minecraft_engine::muxer::disconnect::PendingDisconnectQueue;
 use mcrs_minecraft_engine_world::session::{Place, Session};
 
 use crate::disconnect_support::{

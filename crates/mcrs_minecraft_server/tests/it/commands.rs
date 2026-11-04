@@ -30,7 +30,7 @@ use mcrs_minecraft_server::operator_broadcast::broadcast_to_operators;
 
 use mcrs_minecraft_block_entity::GeneratedBlockEntity;
 use mcrs_minecraft_command_tree::{CommandNode, NumberRange, ParserProperties};
-use mcrs_minecraft_engine::clock::{GameTime, WorldClockHostPlugin};
+use mcrs_minecraft_engine::coordinator::clock::{GameTime, WorldClockHostPlugin};
 use mcrs_minecraft_engine_world::world::storage::block_entity::BlockEntity;
 use mcrs_minecraft_environment::world_clock::{AdvanceTime, WorldClockPlugin};
 use mcrs_minecraft_environment::world_clock::{ClockState, WorldClock, WorldClocks};
@@ -1745,7 +1745,7 @@ fn execute_in_moves_the_source_player_to_another_dimension() {
 fn anchor_of(server: &mut PlayServer, uuid: Uuid) -> Entity {
     let world = server.app.world_mut();
     world
-        .query::<(Entity, &mcrs_minecraft_engine::session::GameProfile)>()
+        .query::<(Entity, &mcrs_minecraft_engine::muxer::session::GameProfile)>()
         .iter(world)
         .find(|(_, profile)| profile.id == uuid)
         .map(|(anchor, _)| anchor)

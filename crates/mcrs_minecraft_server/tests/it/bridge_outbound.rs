@@ -6,9 +6,9 @@
 use crate::mock_connection;
 
 use bevy_ecs::entity::Entity;
-use mcrs_minecraft_engine::bridge::bridge_outbound;
-use mcrs_minecraft_engine::bridge_queue::{OutboundQueue, QueuedPacket};
 use mcrs_minecraft_engine::bus::{PacketPriority, PacketTarget};
+use mcrs_minecraft_engine::muxer::bridge::bridge_outbound;
+use mcrs_minecraft_engine::muxer::bridge_queue::{OutboundQueue, QueuedPacket};
 use smallvec::SmallVec;
 
 use mcrs_minecraft_engine_world::session::PlayerSession;

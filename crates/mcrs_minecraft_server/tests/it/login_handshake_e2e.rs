@@ -13,16 +13,16 @@ use bevy_app::{App, Update};
 use bevy_ecs::schedule::IntoScheduleConfigs;
 use bevy_state::prelude::NextState;
 use mcrs_minecraft_assets::AppState;
-use mcrs_minecraft_engine::bridge::{
+use mcrs_minecraft_engine::bus::InboundPlayerSpawn;
+use mcrs_minecraft_engine::coordinator::dim::take_dim_outputs;
+use mcrs_minecraft_engine::coordinator::sub_app_builder::drain_dim_spawn_queue;
+use mcrs_minecraft_engine::muxer::bridge::{
     bridge_inbound_to_channel, bridge_outbound, bridge_player_attach, dispatch_encode,
     forward_pending_inbound,
 };
-use mcrs_minecraft_engine::bridge_queue::{InboundRateBucket, OutboundQueue};
-use mcrs_minecraft_engine::bus::InboundPlayerSpawn;
-use mcrs_minecraft_engine::dim::take_dim_outputs;
-use mcrs_minecraft_engine::session::GameProfile;
-use mcrs_minecraft_engine::session::HostAnchorRef;
-use mcrs_minecraft_engine::sub_app_builder::drain_dim_spawn_queue;
+use mcrs_minecraft_engine::muxer::bridge_queue::{InboundRateBucket, OutboundQueue};
+use mcrs_minecraft_engine::muxer::session::GameProfile;
+use mcrs_minecraft_engine::muxer::session::HostAnchorRef;
 use mcrs_minecraft_engine_server::configuration::emit_initial_player_spawn;
 use mcrs_minecraft_engine_server::login::{LoginPlugin, LoginState};
 use mcrs_minecraft_engine_world::session::{Place, SessionPlacement};

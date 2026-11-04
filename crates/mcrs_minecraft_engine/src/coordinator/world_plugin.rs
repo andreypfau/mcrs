@@ -13,7 +13,7 @@ pub struct WorldPlugin;
 impl Plugin for WorldPlugin {
     fn build(&self, app: &mut App) {
         app.add_plugins(crate::EnginePlugin);
-        app.add_plugins(crate::clock::WorldClockHostPlugin);
+        app.add_plugins(crate::coordinator::clock::WorldClockHostPlugin);
         app.add_systems(
             OnEnter(AppState::Playing),
             enqueue_dim_spawns.in_set(DimSpawnEnqueue),
