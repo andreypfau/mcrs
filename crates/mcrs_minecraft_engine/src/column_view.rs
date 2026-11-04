@@ -7,7 +7,7 @@ use bevy_ecs::message::{MessageReader, MessageWriter};
 use bevy_ecs::prelude::{Added, Changed, Component, ContainsEntity, Local, On, Or, Query, With};
 use bevy_ecs::schedule::{IntoScheduleConfigs, SystemSet};
 use bevy_ecs::system::{Res, SystemParam};
-use bevy_tasks::ComputeTaskPool;
+use bevy_tasks::{ComputeTaskPool, ParallelSliceMut};
 use bevy_utils::Parallel;
 use bytes::{BufMut, Bytes, BytesMut};
 use mcrs_minecraft_block::definition::Blocks;
@@ -519,49 +519,32 @@ pub(crate) struct PlayerColumn {
     column: ColumnPos,
 }
 
-#[derive(SystemParam)]
-pub(crate) struct ReadyInputs<'w, 's> {
-    players: Query<'w, 's, &'static mut ColumnView>,
-    dims: Query<
-        'w,
-        's,
-        (
-            &'static SectionIndex,
-            &'static ColumnIndex,
-            &'static DimensionTypeConfig,
-            &'static mut ColumnWaiters,
-        ),
-    >,
-    chunks: Query<'w, 's, &'static SectionStage>,
-    lit: Query<'w, 's, (), (With<BlockLight>, With<SkyLight>)>,
-    light_gated: Option<Res<'w, LightGated>>,
-    awaiting_light: MessageWriter<'w, ColumnAwaitsLight>,
-    ready: Local<'s, Vec<PlayerColumn>>,
-    traces: Option<Res<'w, ColumnTraceLog>>,
-}
-
 /// Moves a column on from "wanted" once every section it carries has landed: to ready, or in a
 /// light-gated world to waiting for the light around it to settle.
 ///
 /// The light gate belongs before the send: a column goes out once and never again, so sending
-/// one before its light has settled leaves it permanently black on the client.
-pub(crate) fn project_ready_columns(mut inputs: ReadyInputs) {
-    project(&mut inputs);
-}
-
-/// Readiness depends on the column alone, so each column is decided once and moves on in every
-/// view of its dimension that waits for it.
-fn project(inputs: &mut ReadyInputs) {
-    let ReadyInputs {
-        players,
-        dims,
-        chunks,
-        lit,
-        light_gated,
-        awaiting_light,
-        ready,
-        traces,
-    } = inputs;
+/// one before its light has settled leaves it permanently black on the client. Readiness
+/// depends on the column alone, so each column is decided once and moves on in every view of
+/// its dimension that waits for it.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "a system takes its params as arguments"
+)]
+pub(crate) fn project_ready_columns(
+    mut players: Query<&mut ColumnView>,
+    mut dims: Query<(
+        &SectionIndex,
+        &ColumnIndex,
+        &DimensionTypeConfig,
+        &mut ColumnWaiters,
+    )>,
+    chunks: Query<&SectionStage>,
+    lit: Query<(), (With<BlockLight>, With<SkyLight>)>,
+    light_gated: Option<Res<LightGated>>,
+    mut awaiting_light: MessageWriter<ColumnAwaitsLight>,
+    mut ready: Local<Vec<PlayerColumn>>,
+    traces: Option<Res<ColumnTraceLog>>,
+) {
     let await_light = light_gated.is_some();
     for (chunk_index, column_index, type_config, mut waiters) in dims.iter_mut() {
         let section_count = type_config.section_count as i32;
@@ -811,14 +794,11 @@ pub(crate) fn send_column_queue(
     if !any_can_send {
         return;
     }
-    players
-        .par_iter()
-        .for_each(|(player, chunk_view, sent_view, in_dim, owner)| {
-            let viewer = Viewer::new(player, sent_view, in_dim, owner);
-            nearest.scope(|nearest| {
-                picked.scope(|picked| pick_batch(&viewer, chunk_view, nearest, picked));
-            });
+    players.par_iter().for_each(|viewer| {
+        nearest.scope(|nearest| {
+            picked.scope(|picked| pick_batch(viewer, nearest, picked));
         });
+    });
 
     picked.drain_into(&mut wanted);
     send_picked(
@@ -968,31 +948,15 @@ struct DirectBits {
     biome: u32,
 }
 
-struct Viewer {
-    player: Entity,
-    session: PlayerSession,
-    dim: Entity,
-    center: SectionPos,
-}
-
-impl Viewer {
-    fn new(player: Entity, sent_view: &SentChunkView, in_dim: &InDimension, owner: &Owner) -> Self {
-        Self {
-            player,
-            session: owner.0,
-            dim: in_dim.entity(),
-            center: sent_view
-                .0
-                .map(|view| view.center)
-                .unwrap_or(SectionPos::new(0, 0, 0)),
-        }
-    }
-}
-
-/// Picks the next batch of `viewer`'s ready columns into `picked`, nearest first.
+/// Picks the next batch of the ready columns of a player into `picked`, nearest first.
 fn pick_batch(
-    viewer: &Viewer,
-    chunk_view: &ColumnView,
+    (player, chunk_view, sent_view, in_dim, owner): (
+        Entity,
+        &ColumnView,
+        &SentChunkView,
+        &InDimension,
+        &Owner,
+    ),
     nearest: &mut Vec<ColumnPos>,
     picked: &mut Vec<WantedColumn>,
 ) {
@@ -1005,7 +969,10 @@ fn pick_batch(
     // ready: one step of the player invalidates any order settled earlier. The ready
     // set is bounded by the view, so taking the batch out of it costs one pass and a
     // partial selection rather than a kept ordering that goes stale on its own.
-    let center = viewer.center;
+    let center = sent_view
+        .0
+        .map_or(SectionPos::new(0, 0, 0), |view| view.center);
+    let dim = in_dim.entity();
     nearest.clear();
     nearest.extend(chunk_view.in_state(ColumnState::Ready));
     if allowed < nearest.len() {
@@ -1014,17 +981,14 @@ fn pick_batch(
     }
     nearest.sort_unstable_by_key(|pos| column_distance_sq(*pos, center));
     picked.extend(nearest.drain(..).map(|column| WantedColumn {
-        player: viewer.player,
-        session: viewer.session,
-        at: DimColumn {
-            dim: viewer.dim,
-            column,
-        },
+        player,
+        session: owner.0,
+        at: DimColumn { dim, column },
     }));
 }
 
 /// Encodes every pending column, spread over the compute pool when there is more than one.
-fn encode_shared(source: &ColumnSource, columns: &mut [SharedColumn]) {
+fn encode_shared(source: &ColumnSource, mut columns: &mut [SharedColumn]) {
     let direct_bits = DirectBits {
         block: block_direct_bits(source.block_definitions.state_count()),
         biome: biome_direct_bits(
@@ -1034,9 +998,9 @@ fn encode_shared(source: &ColumnSource, columns: &mut [SharedColumn]) {
                 .map_or(0, |biomes| biomes.len()),
         ),
     };
-    let encode_all = |columns: &mut [SharedColumn]| {
+    let encode_all = |_, columns: &mut [SharedColumn]| {
         for shared in columns {
-            shared.encoding = match encode_at(source, direct_bits, shared.at) {
+            shared.encoding = match encode_column(source, direct_bits, shared.at) {
                 Ok(packet) => ColumnEncoding::Encoded(packet),
                 Err(skip) => ColumnEncoding::Skipped(skip),
             };
@@ -1045,47 +1009,12 @@ fn encode_shared(source: &ColumnSource, columns: &mut [SharedColumn]) {
     let pool = ComputeTaskPool::try_get();
     let threads = pool.map_or(1, |pool| pool.thread_num()).max(1);
     let Some(pool) = pool.filter(|_| columns.len() > 1 && threads > 1) else {
-        encode_all(columns);
+        encode_all(0, columns);
         return;
     };
     // Columns differ in cost, so each thread gets several small chunks rather than one share.
     let chunk = columns.len().div_ceil(threads * 4).max(1);
-    pool.scope(|scope| {
-        for part in columns.chunks_mut(chunk) {
-            scope.spawn(async move { encode_all(part) });
-        }
-    });
-}
-
-fn encode_at(
-    source: &ColumnSource,
-    direct_bits: DirectBits,
-    at: DimColumn,
-) -> Result<Bytes, ColumnSkip> {
-    let (Ok(chunk_index), Ok(column_index), Ok(type_config)) = (
-        source.dim_chunk_indexes.get(at.dim),
-        source.dim_column_indexes.get(at.dim),
-        source.dim_type_configs.get(at.dim),
-    ) else {
-        return Err(ColumnSkip::Failed);
-    };
-    let layout = DimLayout {
-        chunk_index,
-        column_index,
-        section_count: type_config.section_count as i32,
-        off: offset_sections(type_config.min_y),
-        wire_light_rows: type_config.section_count as usize + 2,
-    };
-    encode_column(source, direct_bits, &layout, at.column)
-}
-
-/// Where a dimension keeps its sections, and the shape of its columns.
-struct DimLayout<'a> {
-    chunk_index: &'a SectionIndex,
-    column_index: &'a ColumnIndex,
-    section_count: i32,
-    off: i32,
-    wire_light_rows: usize,
+    columns.par_chunk_map_mut(pool, chunk, encode_all);
 }
 
 enum ColumnSkip {
@@ -1105,19 +1034,26 @@ const PACKET_SLACK_BYTES: usize = 4 * 1024;
 fn encode_column(
     source: &ColumnSource,
     direct_bits: DirectBits,
-    layout: &DimLayout,
-    column_pos: ColumnPos,
+    at: DimColumn,
 ) -> Result<Bytes, ColumnSkip> {
+    let (Ok(chunk_index), Ok(column_index), Ok(type_config)) = (
+        source.dim_chunk_indexes.get(at.dim),
+        source.dim_column_indexes.get(at.dim),
+        source.dim_type_configs.get(at.dim),
+    ) else {
+        return Err(ColumnSkip::Failed);
+    };
+    let column_pos = at.column;
     // The loading tickets this view holds keep every section of a pending column
     // loaded, so losing one here means the ticket and the send disagree about
     // what the view owns. Send nothing rather than a column the client can never
     // be sent again to fix.
     let held_sections = resolve_column(
-        layout.chunk_index,
-        layout.column_index,
+        chunk_index,
+        column_index,
         column_pos,
-        layout.section_count,
-        layout.off,
+        type_config.section_count as i32,
+        offset_sections(type_config.min_y),
     )
     .map(|(column_entity, sections)| {
         sections
@@ -1141,14 +1077,8 @@ fn encode_column(
     let mut data = Vec::with_capacity(16 * 1024);
     let mut block_entities: Vec<ChunkDataBlockEntity<'static>> = Vec::new();
     for (blocks, biomes, section_block_entities) in sections {
-        for held_entity in section_block_entities.iter().flat_map(|index| index.iter()) {
-            let Ok(BlockEntity(held_entity)) = source.block_entities_held.get(*held_entity) else {
-                continue;
-            };
-            match packet_entry(held_entity) {
-                Ok(entry) => block_entities.push(entry),
-                Err(err) => warn!(%err, "encoding a block entity for the wire"),
-            }
+        if let Some(held) = section_block_entities {
+            push_block_entities(source, held, &mut block_entities);
         }
         let non_air = PalettedSection(&blocks.0.0)
             .palette(&mut PaletteBuffer::default())
@@ -1174,7 +1104,7 @@ fn encode_column(
         }
     }
     let light_data = if source.light_gated.is_none() {
-        build_fullbright_light_data(layout.wire_light_rows)
+        build_fullbright_light_data(type_config.section_count as usize + 2)
     } else {
         build_full_light_data(column_entity, &source.codec_params)
     };
@@ -1210,6 +1140,22 @@ fn encode_column(
         return Err(ColumnSkip::Failed);
     }
     Ok(packet.freeze())
+}
+
+fn push_block_entities(
+    source: &ColumnSource,
+    held: &SectionBlockEntities,
+    block_entities: &mut Vec<ChunkDataBlockEntity<'static>>,
+) {
+    for held_entity in held.iter() {
+        let Ok(BlockEntity(held_entity)) = source.block_entities_held.get(*held_entity) else {
+            continue;
+        };
+        match packet_entry(held_entity) {
+            Ok(entry) => block_entities.push(entry),
+            Err(err) => warn!(%err, "encoding a block entity for the wire"),
+        }
+    }
 }
 
 #[inline]
