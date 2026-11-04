@@ -158,6 +158,8 @@ Task
     Physical unit of work Bevy runs on its task pool
 ```
 
+Where shards run, and how a player sees and simulates the world, is in `cells.md`: cells, the cell tree, the Muxer, the data layer and stages.
+
 The term **region file** is reserved for Anvil storage. Do not use `region` for simulation partitions, and do not use `cell` for any grouping of chunks.
 
 The only term for a simulation partition is **Shard**.
