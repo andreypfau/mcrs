@@ -13,6 +13,7 @@ use crate::list_packets::{
 use crate::list_policy::{Candidate, ListPolicy, ListRequest};
 use bytes::Bytes;
 use glam::DVec3;
+use mcrs_engine_muxer::EntityId;
 use mcrs_minecraft_game_mode::GameMode;
 use mcrs_minecraft_protocol::Result;
 use std::collections::{BTreeMap, BTreeSet};
@@ -31,10 +32,6 @@ pub const ENTRY_LINGER_TICKS: u64 = 600;
 /// A viewer gets the latency of its listed entries at most this often, in ticks: 60 seconds.
 pub const LATENCY_INTERVAL_TICKS: u64 = 1200;
 
-/// The identity of a player in the list. The host maps it to its own handle of the player.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct PlayerKey(pub u64);
-
 /// Whether a spawn must carry the profile entry of its subject.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ProfileNeed {
@@ -45,7 +42,7 @@ pub enum ProfileNeed {
 /// A player that the tracker holds, as the list sees it at one tick.
 #[derive(Clone, Copy, Debug)]
 pub struct Member<'a> {
-    pub player: PlayerKey,
+    pub player: EntityId,
     pub position: DVec3,
     pub profile: Profile<'a>,
     pub game_mode: GameMode,
@@ -66,7 +63,7 @@ pub struct Clock {
 #[derive(Clone, Debug, PartialEq, Eq)]
 #[must_use]
 pub struct Dispatch {
-    pub viewer: PlayerKey,
+    pub viewer: EntityId,
     pub packet: Bytes,
 }
 
@@ -89,7 +86,7 @@ struct Entry {
 struct ViewerEntries {
     /// Spreads the periodic work of the viewers over the ticks.
     phase: u64,
-    entries: BTreeMap<PlayerKey, Entry>,
+    entries: BTreeMap<EntityId, Entry>,
     /// The generation of the last choice of the listed entries.
     chosen_at: Option<u64>,
 }
@@ -98,7 +95,7 @@ struct ViewerEntries {
 struct SubjectProfile {
     uuid: Uuid,
     /// The viewers that have the entry, the subject itself included.
-    holders: BTreeSet<PlayerKey>,
+    holders: BTreeSet<EntityId>,
     encoded: Option<EncodedProfile>,
 }
 
@@ -111,16 +108,16 @@ struct EncodedProfile {
 /// The profile entries of the viewers of a world.
 #[derive(Default, Debug)]
 pub struct PlayerList {
-    viewers: BTreeMap<PlayerKey, ViewerEntries>,
-    subjects: BTreeMap<PlayerKey, SubjectProfile>,
+    viewers: BTreeMap<EntityId, ViewerEntries>,
+    subjects: BTreeMap<EntityId, SubjectProfile>,
     /// The entries that each viewer loses at the next update.
-    removals: BTreeMap<PlayerKey, Vec<Uuid>>,
+    removals: BTreeMap<EntityId, Vec<Uuid>>,
 }
 
 impl PlayerList {
     /// Adds `player`, whose own listed entry its login or its respawn gave its client. `phase`
     /// spreads the periodic work of the viewers over the ticks.
-    pub fn join(&mut self, player: PlayerKey, phase: u64, uuid: Uuid) {
+    pub fn join(&mut self, player: EntityId, phase: u64, uuid: Uuid) {
         let own = Entry {
             listing: Listing::Listed,
             idle_since: None,
@@ -145,7 +142,7 @@ impl PlayerList {
     }
 
     /// Records that `viewer` gains `subject` in its visible set.
-    pub fn acquire(&mut self, viewer: PlayerKey, subject: PlayerKey) -> ProfileNeed {
+    pub fn acquire(&mut self, viewer: EntityId, subject: EntityId) -> ProfileNeed {
         let (Some(entries), Some(profile)) = (
             self.viewers.get_mut(&viewer),
             self.subjects.get_mut(&subject),
@@ -169,7 +166,7 @@ impl PlayerList {
     }
 
     /// Records that `viewer` loses `subject` from its visible set at `tick`.
-    pub fn release(&mut self, viewer: PlayerKey, subject: PlayerKey, tick: u64) {
+    pub fn release(&mut self, viewer: EntityId, subject: EntityId, tick: u64) {
         if let Some(entry) = self
             .viewers
             .get_mut(&viewer)
@@ -183,7 +180,7 @@ impl PlayerList {
     /// Removes `player`. Each viewer that has its entry loses it at the next update. Gives the
     /// packet that removes the entries of `player` from its own client, which keeps them across
     /// a respawn in another dimension.
-    pub fn leave(&mut self, player: PlayerKey) -> Result<Option<Bytes>> {
+    pub fn leave(&mut self, player: EntityId) -> Result<Option<Bytes>> {
         if let Some(profile) = self.subjects.remove(&player) {
             for holder in profile.holders {
                 if holder == player {
@@ -215,7 +212,7 @@ impl PlayerList {
     }
 
     /// The viewers that have the entry of `subject`. The host sends them the game mode packet.
-    pub fn holders(&self, subject: PlayerKey) -> impl Iterator<Item = PlayerKey> + '_ {
+    pub fn holders(&self, subject: EntityId) -> impl Iterator<Item = EntityId> + '_ {
         self.subjects
             .get(&subject)
             .into_iter()
@@ -225,7 +222,7 @@ impl PlayerList {
     /// The profile entry of `subject`, encoded once for each game mode that it has.
     pub fn profile_packet(
         &mut self,
-        subject: PlayerKey,
+        subject: EntityId,
         profile: &Profile<'_>,
         game_mode: GameMode,
     ) -> Result<Bytes> {
@@ -239,7 +236,7 @@ impl PlayerList {
     /// the removal of the entries that nothing needs any more. `roster` holds the tracked
     /// players sorted by player. `sees(viewer, subject)` tells whether the visible set of the
     /// viewer holds the subject. After an error, the dispatches in `out` stay valid.
-    pub fn update<F: Fn(PlayerKey, PlayerKey) -> bool>(
+    pub fn update<F: Fn(EntityId, EntityId) -> bool>(
         &mut self,
         clock: Clock,
         policy: ListPolicy,
@@ -254,7 +251,7 @@ impl PlayerList {
             removals,
         } = self;
         let mut candidates: Vec<Candidate> = Vec::new();
-        let mut chosen: Vec<PlayerKey> = Vec::new();
+        let mut chosen: Vec<EntityId> = Vec::new();
         for (&viewer, entries) in viewers.iter_mut() {
             let new = entries.chosen_at.is_none();
             if !new && !due(tick, entries.phase, LIST_INTERVAL_TICKS) {
@@ -282,7 +279,7 @@ impl PlayerList {
                     &mut chosen,
                 );
                 entries.chosen_at = Some(generation);
-                let listed: BTreeSet<PlayerKey> = chosen
+                let listed: BTreeSet<EntityId> = chosen
                     .iter()
                     .copied()
                     .filter(|&player| player != viewer)
@@ -335,7 +332,7 @@ fn cached_profile(
     Ok(packet)
 }
 
-fn member<'r, 'a>(roster: &'r [Member<'a>], player: PlayerKey) -> Option<&'r Member<'a>> {
+fn member<'r, 'a>(roster: &'r [Member<'a>], player: EntityId) -> Option<&'r Member<'a>> {
     let index = roster
         .binary_search_by_key(&player, |member| member.player)
         .ok()?;
@@ -351,18 +348,18 @@ fn due(tick: u64, phase: u64, interval: u64) -> bool {
 
 /// The choice of the listed entries of one viewer.
 struct Relisting<'a, F> {
-    viewer: PlayerKey,
+    viewer: EntityId,
     tick: u64,
     roster: &'a [Member<'a>],
     sees: &'a F,
 }
 
-impl<F: Fn(PlayerKey, PlayerKey) -> bool> Relisting<'_, F> {
+impl<F: Fn(EntityId, EntityId) -> bool> Relisting<'_, F> {
     fn apply(
         &self,
         entries: &mut ViewerEntries,
-        subjects: &mut BTreeMap<PlayerKey, SubjectProfile>,
-        chosen: &BTreeSet<PlayerKey>,
+        subjects: &mut BTreeMap<EntityId, SubjectProfile>,
+        chosen: &BTreeSet<EntityId>,
         out: &mut Vec<Dispatch>,
     ) -> Result<()> {
         let mut listed: Vec<EntryLatency> = Vec::new();
@@ -434,10 +431,10 @@ impl<F: Fn(PlayerKey, PlayerKey) -> bool> Relisting<'_, F> {
 }
 
 fn evict_idle(
-    viewer: PlayerKey,
+    viewer: EntityId,
     entries: &mut ViewerEntries,
-    subjects: &mut BTreeMap<PlayerKey, SubjectProfile>,
-    removals: &mut BTreeMap<PlayerKey, Vec<Uuid>>,
+    subjects: &mut BTreeMap<EntityId, SubjectProfile>,
+    removals: &mut BTreeMap<EntityId, Vec<Uuid>>,
     tick: u64,
 ) {
     entries.entries.retain(|subject, entry| {
@@ -456,9 +453,9 @@ fn evict_idle(
 }
 
 fn send_latency(
-    viewer: PlayerKey,
+    viewer: EntityId,
     entries: &mut ViewerEntries,
-    subjects: &BTreeMap<PlayerKey, SubjectProfile>,
+    subjects: &BTreeMap<EntityId, SubjectProfile>,
     roster: &[Member<'_>],
     out: &mut Vec<Dispatch>,
 ) -> Result<()> {
@@ -493,10 +490,10 @@ fn send_latency(
 mod tests {
     use super::*;
 
-    const FIRST: PlayerKey = PlayerKey(1);
-    const SECOND: PlayerKey = PlayerKey(2);
+    const FIRST: EntityId = EntityId(1);
+    const SECOND: EntityId = EntityId(2);
 
-    fn member_at(player: PlayerKey, x: f64) -> Member<'static> {
+    fn member_at(player: EntityId, x: f64) -> Member<'static> {
         Member {
             player,
             position: DVec3::new(x, 64.0, 0.0),

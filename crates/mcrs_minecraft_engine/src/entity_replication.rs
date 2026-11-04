@@ -20,6 +20,7 @@ use crate::bus::{PacketPayload, to};
 use crate::dim;
 use crate::latency::Latency;
 use crate::muxer_placement::MuxerPlacement;
+use crate::player_list_policy::PlayerListPolicy;
 use crate::player_tiles::VIEW_RADIUS;
 use crate::session::SessionConnection;
 use crate::tile_delta_log::{LoggedDeltas, TileDeltaLog};
@@ -61,10 +62,10 @@ struct WorldPlayer {
 
 impl EntityReplication {
     #[must_use]
-    pub fn new(placement: Placement) -> Self {
+    pub fn new(placement: Placement, policy: ListPolicy) -> Self {
         Self {
             link: Link::new(MuxerStage::new(), placement),
-            policy: ListPolicy::default(),
+            policy,
             worlds: BTreeSet::new(),
             viewers: BTreeMap::new(),
             players: BTreeMap::new(),
@@ -262,7 +263,12 @@ fn replication_mut(world: &mut World) -> bevy_ecs::world::Mut<'_, EntityReplicat
         let placement = world
             .get_resource::<MuxerPlacement>()
             .map_or(Placement::Inline, |placement| placement.0);
-        world.insert_resource(EntityReplication::new(placement));
+        let policy = world
+            .get_resource::<PlayerListPolicy>()
+            .copied()
+            .unwrap_or_default()
+            .0;
+        world.insert_resource(EntityReplication::new(placement, policy));
     }
     world.resource_mut::<EntityReplication>()
 }

@@ -2,9 +2,11 @@ use bevy_app::{App, AppExit, Plugin};
 use mcrs_engine_link::Placement;
 use mcrs_minecraft_assets::packs::{BuiltinAsset, PackLayering, PackRoots};
 use mcrs_minecraft_engine::muxer_placement::MuxerPlacement;
+use mcrs_minecraft_engine::player_list_policy::PlayerListPolicy;
 use mcrs_minecraft_engine_world::server_loop::VoxelServerPlugin;
 use mcrs_minecraft_engine_world::world_placement::WorldPlacement;
 use mcrs_minecraft_registries::RegistryAdditions;
+use mcrs_minecraft_replication::ListPolicy;
 
 use crate::data_pack::DataPack;
 use crate::runner::DEFAULT_TPS;
@@ -34,6 +36,8 @@ pub struct ServerCorePlugin {
     /// [`Placement::Inline`] on the server thread, [`Placement::Thread`] on a thread of its own,
     /// the default.
     pub muxer: Placement,
+    /// Chooses the players that the player list of each client shows; the nearest by default.
+    pub list_policy: ListPolicy,
 }
 
 impl Default for ServerCorePlugin {
@@ -46,6 +50,7 @@ impl Default for ServerCorePlugin {
             local_packs: vec!["mcrs".to_owned()],
             worlds: WorldPlacement::default().0,
             muxer: Placement::Thread,
+            list_policy: ListPolicy::default(),
         }
     }
 }
@@ -80,6 +85,7 @@ impl Plugin for ServerCorePlugin {
             .local_packs
             .extend(self.local_packs.iter().cloned());
         app.insert_resource(MuxerPlacement(self.muxer));
+        app.insert_resource(PlayerListPolicy(self.list_policy));
         app.add_plugins(VoxelServerPlugin {
             tick_rate: DEFAULT_TPS,
             owns_task_pools: self.owns_task_pools,

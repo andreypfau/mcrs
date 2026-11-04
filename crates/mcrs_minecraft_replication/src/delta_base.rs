@@ -1,5 +1,5 @@
 use crate::encode::record;
-use bytes::Bytes;
+use bytes::BytesMut;
 use glam::DVec3;
 use mcrs_minecraft_core::Look;
 use mcrs_minecraft_protocol::{Result, VarInt};
@@ -19,6 +19,10 @@ pub struct Pose {
     pub look: Look,
 }
 
+/// A moving subject sends its absolute position at least this often, in ticks, so a client that
+/// lost a relative move under the drop policy of its queue comes back to the right place.
+pub const KEYFRAME_INTERVAL_TICKS: u64 = 100;
+
 /// What the viewers of a subject last received for it. All viewers of a subject share one base,
 /// so a relative move of the subject is the same packet for each viewer.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -27,100 +31,66 @@ pub struct DeltaBase {
     pub yaw: ByteAngle,
     pub pitch: ByteAngle,
     pub head_yaw: ByteAngle,
-}
-
-/// Whether a move must carry the absolute position.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Keyframe {
-    Due,
-    NotDue,
-}
-
-/// The packets that take a client from one delta base to the next; both are `None` when nothing
-/// that a client sees changed.
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
-#[must_use]
-pub struct Motion {
-    pub body: Option<Body>,
-    pub head: Option<Bytes>,
-}
-
-/// The packet that moves the body of a subject.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum Body {
-    /// An absolute position, which a client takes whatever it held before.
-    Sync(Bytes),
-    /// A relative move or a turn from the old base.
-    Step(Bytes),
-}
-
-impl Body {
-    #[must_use]
-    pub fn packet(&self) -> &Bytes {
-        match self {
-            Self::Sync(packet) | Self::Step(packet) => packet,
-        }
-    }
-}
-
-impl Motion {
-    pub fn is_empty(&self) -> bool {
-        self.body.is_none() && self.head.is_none()
-    }
+    /// The tick of the last absolute position that the viewers received.
+    keyframe_tick: u64,
 }
 
 impl DeltaBase {
-    pub fn new(pose: &Pose) -> Self {
+    pub fn new(pose: &Pose, tick: u64) -> Self {
         let yaw = ByteAngle::from_degrees(pose.look.yaw);
         Self {
             position: pose.position,
             yaw,
             pitch: ByteAngle::from_degrees(pose.look.pitch),
             head_yaw: yaw,
+            keyframe_tick: tick,
         }
     }
 
-    /// Moves the base to `pose` and returns the packets that move the subject `id` on a client
-    /// from the old base to the new one. A delta that does not fit a relative move, or a due
-    /// keyframe, sends the absolute position. The base stays as it is when an encoding fails.
-    pub fn advance(&mut self, id: VarInt, pose: &Pose, keyframe: Keyframe) -> Result<Motion> {
-        let next = Self::new(pose);
-        let delta = position_delta(self.position, next.position);
+    /// Moves the base to `pose` at `tick` and appends to `bytes` the packets that move the
+    /// subject `id` on a client from the old base to the new one. A delta that does not fit a
+    /// relative move, or a keyframe due at `tick`, sends the absolute position. The base and
+    /// `bytes` stay as they are when an encoding fails.
+    pub fn advance(
+        &mut self,
+        id: VarInt,
+        pose: &Pose,
+        tick: u64,
+        bytes: &mut BytesMut,
+    ) -> Result<()> {
+        let mut next = Self::new(pose, self.keyframe_tick);
+        let delta = position_delta(self.position, next.position)
+            .filter(|_| tick.wrapping_sub(self.keyframe_tick) < KEYFRAME_INTERVAL_TICKS);
         let turned = (next.yaw, next.pitch) != (self.yaw, self.pitch);
-        let body = match (keyframe, delta) {
-            (Keyframe::Due, _) | (_, None) => {
-                Some(Body::Sync(record(&ClientboundEntityPositionSync {
+        let body = match delta {
+            None => {
+                next.keyframe_tick = tick;
+                Some(record(&ClientboundEntityPositionSync {
                     entity_id: id,
                     position: PositionPath::Linear(next.position),
                     look: pose.look,
                     on_ground: true,
-                })?))
+                })?)
             }
-            (Keyframe::NotDue, Some([0, 0, 0])) if turned => {
-                Some(Body::Step(record(&ClientboundMoveEntityRot {
-                    entity_id: id,
-                    y_rot: next.yaw,
-                    x_rot: next.pitch,
-                    on_ground: true,
-                })?))
-            }
-            (Keyframe::NotDue, Some([0, 0, 0])) => None,
-            (Keyframe::NotDue, Some(delta)) if turned => {
-                Some(Body::Step(record(&ClientboundMoveEntityPosRot {
-                    entity_id: id,
-                    delta: VecDelta::Linear(delta),
-                    y_rot: next.yaw,
-                    x_rot: next.pitch,
-                    on_ground: true,
-                })?))
-            }
-            (Keyframe::NotDue, Some(delta)) => {
-                Some(Body::Step(record(&ClientboundMoveEntityPos {
-                    entity_id: id,
-                    delta: VecDelta::Linear(delta),
-                    on_ground: true,
-                })?))
-            }
+            Some([0, 0, 0]) if turned => Some(record(&ClientboundMoveEntityRot {
+                entity_id: id,
+                y_rot: next.yaw,
+                x_rot: next.pitch,
+                on_ground: true,
+            })?),
+            Some([0, 0, 0]) => None,
+            Some(delta) if turned => Some(record(&ClientboundMoveEntityPosRot {
+                entity_id: id,
+                delta: VecDelta::Linear(delta),
+                y_rot: next.yaw,
+                x_rot: next.pitch,
+                on_ground: true,
+            })?),
+            Some(delta) => Some(record(&ClientboundMoveEntityPos {
+                entity_id: id,
+                delta: VecDelta::Linear(delta),
+                on_ground: true,
+            })?),
         };
         let head = if next.head_yaw == self.head_yaw {
             None
@@ -131,7 +101,10 @@ impl DeltaBase {
             })?)
         };
         *self = next;
-        Ok(Motion { body, head })
+        for packet in body.iter().chain(&head) {
+            bytes.extend_from_slice(packet);
+        }
+        Ok(())
     }
 }
 
@@ -153,6 +126,7 @@ fn position_delta(from: DVec3, to: DVec3) -> Option<[i16; 3]> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use bytes::Bytes;
 
     fn at(x: f64, yaw: f32) -> Pose {
         Pose {
@@ -170,45 +144,49 @@ mod tests {
         })
     }
 
+    fn advance(base: &mut DeltaBase, pose: &Pose, tick: u64) -> Result<Bytes> {
+        let mut bytes = BytesMut::new();
+        base.advance(VarInt(3), pose, tick, &mut bytes)?;
+        Ok(bytes.freeze())
+    }
+
     #[test]
     fn small_steps_are_relative_and_a_long_jump_is_absolute() -> Result<()> {
-        let mut base = DeltaBase::new(&at(0.0, 0.0));
-        let id = VarInt(3);
+        let mut base = DeltaBase::new(&at(0.0, 0.0), 0);
 
-        let walked = base.advance(id, &at(0.5, 0.0), Keyframe::NotDue)?;
+        let walked = advance(&mut base, &at(0.5, 0.0), 1)?;
         let expected = record(&ClientboundMoveEntityPos {
-            entity_id: id,
+            entity_id: VarInt(3),
             delta: VecDelta::Linear([2048, 0, 0]),
             on_ground: true,
         })?;
-        assert_eq!(walked.body, Some(Body::Step(expected)));
-        assert!(walked.head.is_none(), "the head did not turn");
-
-        let jumped = base.advance(id, &at(20.0, 0.0), Keyframe::NotDue)?;
-        assert_eq!(jumped.body, Some(Body::Sync(sync(id, 20.0)?)));
-        assert!(
-            base.advance(id, &at(20.0, 0.0), Keyframe::NotDue)?
-                .is_empty()
+        assert_eq!(
+            walked, expected,
+            "a small step without a turn is one relative move"
         );
+
+        let jumped = advance(&mut base, &at(20.0, 0.0), 2)?;
+        assert_eq!(jumped, sync(VarInt(3), 20.0)?);
+        assert!(advance(&mut base, &at(20.0, 0.0), 3)?.is_empty());
         Ok(())
     }
 
     #[test]
     fn a_due_keyframe_is_absolute_even_for_a_small_step() -> Result<()> {
-        let mut base = DeltaBase::new(&at(0.0, 0.0));
+        let mut base = DeltaBase::new(&at(0.0, 0.0), 0);
 
-        let motion = base.advance(VarInt(3), &at(0.5, 0.0), Keyframe::Due)?;
+        let moved = advance(&mut base, &at(0.5, 0.0), KEYFRAME_INTERVAL_TICKS)?;
 
-        assert_eq!(motion.body, Some(Body::Sync(sync(VarInt(3), 0.5)?)));
+        assert_eq!(moved, sync(VarInt(3), 0.5)?);
         Ok(())
     }
 
     #[test]
     fn a_turn_sends_the_look_in_degrees_and_the_head() -> Result<()> {
-        let mut base = DeltaBase::new(&at(0.0, 0.0));
+        let mut base = DeltaBase::new(&at(0.0, 0.0), 0);
         let angle = ByteAngle::from_degrees(90.0);
 
-        let turned = base.advance(VarInt(3), &at(0.0, 90.0), Keyframe::NotDue)?;
+        let turned = advance(&mut base, &at(0.0, 90.0), 1)?;
 
         let rotate = record(&ClientboundMoveEntityRot {
             entity_id: VarInt(3),
@@ -220,11 +198,7 @@ mod tests {
             entity_id: VarInt(3),
             y_head_rot: angle,
         })?;
-        let expected = Motion {
-            body: Some(Body::Step(rotate)),
-            head: Some(head),
-        };
-        assert_eq!(turned, expected);
+        assert_eq!(turned, [rotate, head].concat());
         Ok(())
     }
 }

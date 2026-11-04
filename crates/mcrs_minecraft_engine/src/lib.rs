@@ -46,6 +46,7 @@ pub mod ops;
 pub mod persistence;
 pub mod player_bundle;
 pub mod player_dimension_change;
+pub mod player_list_policy;
 pub mod player_tiles;
 pub mod player_tracker;
 pub mod publish_player_tiles;

@@ -1,10 +1,10 @@
-use crate::player_list::PlayerKey;
 use glam::DVec3;
+use mcrs_engine_muxer::EntityId;
 
 /// A player that a [`ListPolicy`] can list.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Candidate {
-    pub player: PlayerKey,
+    pub player: EntityId,
     pub position: DVec3,
 }
 
@@ -20,7 +20,7 @@ pub struct ListRequest<'a> {
 /// Chooses the players that the list of a viewer shows besides the viewer: at most `limit`
 /// candidates other than the viewer, written to the vector, which starts empty.
 #[derive(Clone, Copy, Debug)]
-pub struct ListPolicy(pub fn(&ListRequest<'_>, &mut Vec<PlayerKey>));
+pub struct ListPolicy(pub fn(&ListRequest<'_>, &mut Vec<EntityId>));
 
 impl Default for ListPolicy {
     fn default() -> Self {
@@ -30,11 +30,11 @@ impl Default for ListPolicy {
 
 struct Ranked {
     distance: f64,
-    player: PlayerKey,
+    player: EntityId,
 }
 
 /// The policy that lists the nearest players. Equal distances go to the lower player.
-pub fn nearest(request: &ListRequest<'_>, listed: &mut Vec<PlayerKey>) {
+pub fn nearest(request: &ListRequest<'_>, listed: &mut Vec<EntityId>) {
     let mut ranked: Vec<Ranked> = request
         .candidates
         .iter()
@@ -63,7 +63,7 @@ mod tests {
 
     fn candidate(index: u64, x: f64) -> Candidate {
         Candidate {
-            player: PlayerKey(index),
+            player: EntityId(index),
             position: DVec3::new(x, 64.0, 0.0),
         }
     }
@@ -88,6 +88,6 @@ mod tests {
         );
 
         listed.sort_unstable();
-        assert_eq!(listed, [PlayerKey(3), PlayerKey(4)]);
+        assert_eq!(listed, [EntityId(3), EntityId(4)]);
     }
 }

@@ -11,9 +11,8 @@ mod player_data;
 mod player_input;
 mod player_list;
 mod player_spawn;
-mod spawn_bundle;
 
-pub use delta_base::*;
+pub use delta_base::{KEYFRAME_INTERVAL_TICKS, Pose};
 pub use encode::record;
 pub use list_packets::{Profile, game_mode_packet};
 pub use list_policy::*;
@@ -22,4 +21,3 @@ pub use player_data::*;
 pub use player_input::*;
 pub use player_list::*;
 pub use player_spawn::*;
-pub use spawn_bundle::*;
