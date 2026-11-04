@@ -8,6 +8,9 @@ use bevy_ecs::prelude::{
 };
 use bevy_ecs::schedule::{IntoScheduleConfigs, SystemSet};
 use bevy_ecs::system::{Res, ResMut};
+use bevy_tasks::{ComputeTaskPool, ParallelSliceMut};
+use bytes::Bytes;
+use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_chunk::{BlockLight, SkyLight};
 use mcrs_minecraft_engine_world::entity::physics::Transform;
 use mcrs_minecraft_engine_world::entity::player::chunk_view::{
@@ -28,12 +31,13 @@ use mcrs_minecraft_engine_world::world::light_gate::{
 };
 use mcrs_minecraft_engine_world::world::storage::column::{ColumnIndex, ColumnLifecycleSet};
 use mcrs_minecraft_engine_world::world::storage::section::SectionIndex;
+use mcrs_minecraft_registries::CurrentRegistries;
 use mcrs_voxel::{ColumnPos, SectionPos};
 use rustc_hash::{FxHashMap, FxHashSet};
 use tracing::warn;
 
 use crate::column_change::ColumnChange;
-use crate::column_packet::StoredLight;
+use crate::column_packet::{DirectBits, StoredLight, encode_stored_column};
 use crate::column_production::ColumnProduction;
 use crate::column_request::ColumnRequest;
 use crate::column_snapshot::ColumnSnapshots;
@@ -41,6 +45,7 @@ use crate::column_store::{ColumnStoreLink, ViewedColumn};
 use crate::column_version::ColumnVersion;
 use crate::hot_ticket::HotColumns;
 use crate::player_view::PlayerView;
+use crate::stored_column::StoredColumn;
 
 /// The version stream of each column of a dimension that the muxer subscribes to: the dimension
 /// publishes a version of a column when the muxer wants one, and each change of a subscribed
@@ -332,11 +337,14 @@ pub(crate) fn land_viewed_columns(
         Has<HasSkyLight>,
     )>,
     light_gated: Option<Res<LightGated>>,
+    blocks: Res<Blocks>,
+    registries: Res<CurrentRegistries>,
     mut versions: MessageWriter<ColumnVersion>,
 ) {
     let Some(store) = store.as_deref_mut() else {
         return;
     };
+    let direct_bits = DirectBits::of(&blocks, &registries);
     for ViewedColumn {
         dim,
         column,
@@ -359,11 +367,11 @@ pub(crate) fn land_viewed_columns(
             continue;
         }
         streams.published(ViewSource::DataLayer, column);
-        versions.write(ColumnVersion {
-            column,
-            stored,
-            light: stored_light(light_gated.is_some(), has_sky_light),
-        });
+        let light = stored_light(light_gated.is_some(), has_sky_light);
+        // The encode logged why; the column stays unsent rather than produced again.
+        if let Some(packet) = encode_stored_column(column, &stored, direct_bits, light) {
+            versions.write(ColumnVersion { column, packet });
+        }
     }
 }
 
@@ -520,17 +528,53 @@ fn promote_lit_columns(
     }
 }
 
-/// Publishes a version of each ready column, taken from the sections of the dimension.
+/// A column taken from the sections of the dimension, and its packet once encoded.
+struct ReadyColumn {
+    column: ColumnPos,
+    stored: StoredColumn,
+    packet: Option<Bytes>,
+}
+
+/// Encodes every column of `ready`, spread over the compute pool when there is more than one.
+fn encode_ready(mut ready: &mut [ReadyColumn], direct_bits: DirectBits, light: StoredLight) {
+    let encode_all = |_, ready: &mut [ReadyColumn]| {
+        for column in ready {
+            column.packet = encode_stored_column(column.column, &column.stored, direct_bits, light);
+        }
+    };
+    let pool = ComputeTaskPool::try_get();
+    let threads = pool.map_or(1, |pool| pool.thread_num()).max(1);
+    match pool.filter(|_| ready.len() > 1 && threads > 1) {
+        Some(pool) => {
+            // Columns differ in cost, so each thread gets several small chunks rather than one
+            // share.
+            let chunk = ready.len().div_ceil(threads * 4).max(1);
+            ready.par_chunk_map_mut(pool, chunk, encode_all);
+        }
+        None => encode_all(0, ready),
+    }
+}
+
+/// Publishes a version of each ready column, taken from the sections of the dimension and
+/// encoded once for every client of the muxer that takes it.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "a system takes its params as arguments"
+)]
 fn publish_ready_columns(
     mut dims: Query<(&ColumnIndex, &mut ColumnStreams, Has<HasSkyLight>)>,
     snapshots: ColumnSnapshots,
     light_gated: Option<Res<LightGated>>,
     store: Option<Res<ColumnStoreLink>>,
+    blocks: Res<Blocks>,
+    registries: Res<CurrentRegistries>,
     mut versions: MessageWriter<ColumnVersion>,
     traces: Option<Res<ColumnTraceLog>>,
     mut ready: Local<Vec<ColumnPos>>,
+    mut taken: Local<Vec<ReadyColumn>>,
 ) {
     let source = ViewSource::of(store.as_deref());
+    let direct_bits = DirectBits::of(&blocks, &registries);
     for (column_index, mut streams, has_sky_light) in &mut dims {
         streams.in_state(Pending::Ready, &mut ready);
         for column in ready.drain(..) {
@@ -555,11 +599,22 @@ fn publish_ready_columns(
             };
             column_trace::mark(traces.as_deref(), column, ColumnStage::Sent);
             streams.published(source, column);
-            versions.write(ColumnVersion {
+            taken.push(ReadyColumn {
                 column,
                 stored,
-                light: stored_light(light_gated.is_some(), has_sky_light),
+                packet: None,
             });
         }
+        encode_ready(
+            &mut taken,
+            direct_bits,
+            stored_light(light_gated.is_some(), has_sky_light),
+        );
+        versions.write_batch(taken.drain(..).filter_map(|ready| {
+            Some(ColumnVersion {
+                column: ready.column,
+                packet: ready.packet?,
+            })
+        }));
     }
 }

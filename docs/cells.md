@@ -193,12 +193,16 @@ changes after it by version, so a snapshot taken during a change is never mixed 
 The Muxer encodes a version of a chunk once, and sends the same bytes to every subscriber.
 
 In Minecraft, a version stream holds a column. The Muxer asks the owner of a column for a version
-with `Want`, and lets the stream go with `Drop`. The owner publishes the version in the output of
-a tick. The version holds the changes of the ticks before that tick. The Muxer applies each
+with `Want`, and lets the stream go with `Drop`. The owner encodes the version once, as the packet
+of the column, and publishes it in the output of a tick. The version holds the changes of the ticks before that tick. The Muxer applies each
 change of that tick and of the later ticks after the version. A change that the version holds
 already sets the same blocks or light again, so it does no harm. While clients wait for a
 version, the Muxer keeps the changes after it, and a client gets the version and then those
 changes. When no client waits, the Muxer lets the version go, and a later client asks again.
+The Muxer sends the same bytes of a version to every client that takes it.
+
+The encode stays with the owner while the Muxer runs on the server thread of the host. With 300
+bots apart, the encode on the host cost 3.5 ms between ticks and took only 0.4 ms off the tick.
 
 The owner of a player reports where the player stands and how far it sees. The Muxer makes the
 view from that report: it asks for the columns of the view nearest first, sends them at the rate
@@ -262,7 +266,7 @@ The rules of a dimension world with a data layer:
   blocks of the column and of the eight columns around it from the dimension when the dimension
   holds the column. Else it takes them from its cache when the world wrote the column. Else
   generation makes them. Then the light stage of cold space lights the column. The dimension
-  publishes the final column, and the Muxer encodes it once for all clients that wait on it.
+  encodes the final column once and publishes it for all clients that wait on it.
 - A light level reaches 15 blocks, so the blocks of a column and of the eight columns around it
   decide the light of the column. The light stage of cold space holds the latest blocks of each
   column near a view. A block change in a column that it holds goes to it too. The data layer
@@ -374,7 +378,7 @@ sharding document (decision 20). It is also the mode of the tests.
 | This document | Today |
 |---|---|
 | Cell | one dimension sub-app in `mcrs_engine_cell::Cells` (`DimCells`): a tree with one leaf for each world, ticked in lockstep after the host's `Last`, placed `Inline` or on a `Thread` by the server's `worlds` field. It loads only the columns of its hot tickets and the two rings around them. It reports the view of each player, publishes a version of each column that the muxer wants, and publishes each change of the blocks and the light of a column that the muxer subscribes to (`column_streams`, `block_update`, `emit_light_updates`). Without a data layer, a wanted column loads with a ticket until the dimension publishes it |
-| Muxer | for entities, `mcrs_engine_muxer::MuxerStage` on a link from the host, placed by the server's `muxer` field (`Thread` by default): tiles, subscriptions, delta bases, spawn bundles and the player list, with the Minecraft codec of `mcrs_minecraft_replication`; for the rest, the `muxer` module tree of `mcrs_minecraft_engine` in the host world: connections and the bridge, sessions and their placement, the input it routes to the owner dimension, the orders and the command handoffs it routes to the dimension of a player or of a handoff, the host side of entity replication, and the view of each player (`muxer::column_views`): the columns of the view and their order by distance, the batches and their pace by the answer of the client, the center, the radius and the forgets, and the version stream of each column, whose version the muxer encodes once on the compute pool and sends with the changes after it |
+| Muxer | for entities, `mcrs_engine_muxer::MuxerStage` on a link from the host, placed by the server's `muxer` field (`Thread` by default): tiles, subscriptions, delta bases, spawn bundles and the player list, with the Minecraft codec of `mcrs_minecraft_replication`; for the rest, the `muxer` module tree of `mcrs_minecraft_engine` in the host world: connections and the bridge, sessions and their placement, the input it routes to the owner dimension, the orders and the command handoffs it routes to the dimension of a player or of a handoff, the host side of entity replication, and the view of each player (`muxer::column_views`): the columns of the view and their order by distance, the batches and their pace by the answer of the client, the center, the radius and the forgets, and the version stream of each column, whose bytes the muxer sends to every client that takes the version, with the changes after it |
 | Coordinator | the `coordinator` module tree of `mcrs_minecraft_engine` in the host world: the dimension worlds and their lockstep tick, the spawn and despawn queues, game time and world clocks, the operator list, the ranges of global entity ids that it grants to each dimension world, the dimension of a player that joins or changes dimension, the running dimensions and the players that each dimension reports. It and the muxer share one world but talk only through the messages of `to_muxer` and `to_coordinator` |
 | Link | `mcrs_engine_link` for light and generation; the host and each dimension exchange one `DimInput` and one `DimOutput` a tick over the cell's link: the coordinator puts the input that the muxer routed into the `DimInput`, and answers a request for entity ids in a `DimOutput` with a range in the next `DimInput`, and hands the packets and the tile deltas of each `DimOutput` to the muxer, which sends the tile deltas on to the entity muxer over its link. The requests of the muxer for column versions go in the `DimInput`, and the views of the players, the column versions and the column changes come back in the `DimOutput`. A command runs inside the tick of one dimension: the muxer routes the command line to the dimension of the player, an effect on a player of another dimension leaves in the `DimOutput` as an order that the muxer routes to the dimension of the player, a stage that reads another dimension leaves as a handoff to that dimension, and a clock change leaves for the coordinator, which sends the clocks to every dimension in the next `DimInput`. Each `DimOutput` reports the players of its dimension, and the coordinator puts the players of the other dimensions in the `DimInput` of a dimension that runs commands. No part lends a world; only tests read a world between ticks |
 | Data layer | `mcrs_engine_store::StoreStage` on a link from each dimension world, placed on a `Thread`, with the column store of `mcrs_minecraft_engine` (`column_store`, `cold_columns`, `stored_columns_landing`, `hot_ticket`) and no disk under it. `ColumnProduction` in the dimension world drives the stages of cold space: a second generation stage (`cold_generation` in `mcrs_minecraft_vanilla_worldgen`) and a second light stage (`cold_light` in `mcrs_minecraft_vanilla_light`), each on a `Thread`. The link to the data layer and `ColumnProduction` stay in the dimension world: the dimension publishes a cold column that the muxer wants in its `DimOutput`. Anvil is read only by the generation stages, for the columns of a save that the data layer does not hold |
@@ -419,7 +423,8 @@ Each step leaves a working server and passes the determinism test.
      - The view runs in the host world, on the server thread. It is not on the `MuxerStage`
        and its link yet, so the `muxer` placement does not move it to a thread. The engine
        crate does not know column streams: a stream generic over a chunk codec, as
-       `ReplicationCodec` is for entities, is the next step.
+       `ReplicationCodec` is for entities, is the next step. On a thread, the Muxer can also
+       take the encode from the dimension.
      - The muxer reaches the data layer through the dimension world, which holds the link and
        `ColumnProduction`. A link of the muxer to the data layer, and a dimension that sends the
        data layer its blocks, remove that path.

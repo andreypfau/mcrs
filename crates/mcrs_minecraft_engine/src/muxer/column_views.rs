@@ -2,14 +2,10 @@
 //! view, whichever dimension or data layer makes the column, and sends the columns to the
 //! client nearest first, at the rate that the client answers with.
 
-use std::mem;
-
 use bevy_ecs::entity::Entity;
 use bevy_ecs::observer::On;
 use bevy_ecs::prelude::{Query, ResMut, Resource};
 use bevy_ecs::world::World;
-use bevy_tasks::{ComputeTaskPool, ParallelSliceMut};
-use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_engine_world::entity::player::chunk_view::ChunkTrackingView;
 use mcrs_minecraft_engine_world::session::{
     PlayerSession, Session, SessionAnchors, SessionPlacement,
@@ -22,17 +18,15 @@ use mcrs_minecraft_protocol_game::clientbound::{
     ClientboundForgetLevelChunk, ClientboundSetChunkCacheCenter,
 };
 use mcrs_minecraft_protocol_game::serverbound::ServerboundChunkBatchReceived;
-use mcrs_minecraft_registries::CurrentRegistries;
 use mcrs_voxel::ColumnPos;
 use rustc_hash::{FxHashMap, FxHashSet};
 
 use crate::bus::{OutboundPlayerPacket, PacketPayload, PacketTarget, to};
 use crate::column_change::ColumnChange;
-use crate::column_packet::DirectBits;
 use crate::column_request::ColumnRequest;
 use crate::column_version::ColumnVersion;
 use crate::muxer::batch_pacing::BatchPacing;
-use crate::muxer::column_feed::{ColumnFeed, Encoding, FeedNeed};
+use crate::muxer::column_feed::{ColumnFeed, FeedNeed};
 use crate::muxer::dim_inputs::DimInputs;
 use crate::muxer::dim_outputs;
 use crate::muxer::session::HostAnchorRef;
@@ -136,12 +130,6 @@ impl PlayerColumns {
         let rows = usize::try_from(rows).unwrap_or(1).max(1);
         (MAX_SPAWNS_PER_TICK / rows).max(1)
     }
-}
-
-/// A version taken out of its feed to encode.
-struct TakenEncoding {
-    at: DimColumn,
-    encoding: Encoding,
 }
 
 /// A column of the next batch of a player.
@@ -388,8 +376,7 @@ impl ColumnViews {
                         dim,
                         column: *column,
                     })
-                    .and_then(|feed| feed.version.as_ref())
-                    .is_some_and(|version| version.encoding.is_sendable())
+                    .is_some_and(|feed| feed.version.is_some())
             }));
             // Nearest to where the player is now, not to where they were when the column came
             // ready: one step of the player invalidates any order settled earlier.
@@ -404,55 +391,6 @@ impl ColumnViews {
                 session,
                 at: DimColumn { dim, column },
             }));
-        }
-    }
-
-    /// Encodes each version that a batch takes once, spread over the compute pool.
-    fn encode_picked(&mut self, picked: &[Picked], direct_bits: DirectBits) {
-        let mut taken: Vec<TakenEncoding> = Vec::new();
-        let mut seen: FxHashSet<DimColumn> = FxHashSet::default();
-        for picked in picked {
-            if !seen.insert(picked.at) {
-                continue;
-            }
-            let Some(version) = self
-                .feeds
-                .get_mut(&picked.at)
-                .and_then(|feed| feed.version.as_mut())
-            else {
-                continue;
-            };
-            if matches!(version.encoding, Encoding::Unencoded(_)) {
-                taken.push(TakenEncoding {
-                    at: picked.at,
-                    encoding: mem::replace(&mut version.encoding, Encoding::Failed),
-                });
-            }
-        }
-        let encode_all = |_, taken: &mut [TakenEncoding]| {
-            for taken in taken {
-                taken.encoding.encode(direct_bits);
-            }
-        };
-        let pool = ComputeTaskPool::try_get();
-        let threads = pool.map_or(1, |pool| pool.thread_num()).max(1);
-        match pool.filter(|_| taken.len() > 1 && threads > 1) {
-            Some(pool) => {
-                // Columns differ in cost, so each thread gets several small chunks rather than
-                // one share.
-                let chunk = taken.len().div_ceil(threads * 4).max(1);
-                taken.par_chunk_map_mut(pool, chunk, encode_all);
-            }
-            None => encode_all(0, &mut taken),
-        }
-        for TakenEncoding { at, encoding } in taken {
-            if let Some(version) = self
-                .feeds
-                .get_mut(&at)
-                .and_then(|feed| feed.version.as_mut())
-            {
-                version.encoding = encoding;
-            }
         }
     }
 
@@ -476,9 +414,7 @@ impl ColumnViews {
                 let Some(version) = &feed.version else {
                     continue;
                 };
-                let Encoding::Encoded(packet) = &version.encoding else {
-                    continue;
-                };
+                let packet = &version.packet;
                 if sends == 0 {
                     out.push(
                         to(
@@ -611,7 +547,7 @@ fn blocked_sessions(world: &World, views: &ColumnViews) -> FxHashSet<PlayerSessi
 }
 
 /// Asks the dimensions for the columns the views want, and sends each player the next batch of
-/// the columns whose version is in. Each version is encoded once for every player that takes it.
+/// the columns whose version is in. Every player that takes a version gets the same bytes.
 pub fn send(world: &mut World) {
     let Some(mut views) = world.remove_resource::<ColumnViews>() else {
         return;
@@ -622,15 +558,7 @@ pub fn send(world: &mut World) {
     let mut picked = Vec::new();
     views.pick(&blocked, &mut picked);
     let mut out = Vec::new();
-    if !picked.is_empty()
-        && let (Some(blocks), Some(registries)) = (
-            world.get_resource::<Blocks>(),
-            world.get_resource::<CurrentRegistries>(),
-        )
-    {
-        views.encode_picked(&picked, DirectBits::of(blocks, registries));
-        views.send_batches(&picked, &mut out);
-    }
+    views.send_batches(&picked, &mut out);
     if let Some(mut inputs) = world.get_resource_mut::<DimInputs>() {
         for (dim, requests) in views.requests.drain() {
             inputs.send_column_requests(dim, requests);
@@ -671,8 +599,6 @@ mod tests {
     use mcrs_voxel::{BlockPos, SectionPos};
 
     use crate::bus::PacketPriority;
-    use crate::column_packet::StoredLight;
-    use crate::stored_column::{LitBy, StoredColumn};
 
     fn dim() -> Entity {
         EcsWorld::new().spawn_empty().id()
@@ -701,29 +627,14 @@ mod tests {
         out
     }
 
-    /// Publishes a version of `column` that encodes to `packet`.
     fn publish(views: &mut ColumnViews, dim: Entity, column: ColumnPos, packet: &'static [u8]) {
         views.take_version(
             dim,
             ColumnVersion {
                 column,
-                stored: StoredColumn {
-                    min_section_y: 0,
-                    sections: Vec::new(),
-                    block_entities: Vec::new(),
-                    heightmaps: None,
-                    lit_by: LitBy::Unlit,
-                },
-                light: StoredLight::Fullbright,
+                packet: Bytes::from_static(packet),
             },
         );
-        if let Some(version) = views
-            .feeds
-            .get_mut(&DimColumn { dim, column })
-            .and_then(|feed| feed.version.as_mut())
-        {
-            version.encoding = Encoding::Encoded(Bytes::from_static(packet));
-        }
     }
 
     fn block_change(column: ColumnPos) -> ColumnChange {
@@ -832,7 +743,7 @@ mod tests {
         assert_eq!(
             loads[0].2.as_ptr(),
             loads[2].2.as_ptr(),
-            "both clients get the one encoding of the column"
+            "both clients get the same bytes of the column"
         );
     }
 

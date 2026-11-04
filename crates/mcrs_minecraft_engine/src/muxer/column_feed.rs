@@ -1,10 +1,7 @@
-use std::mem;
-
 use bytes::Bytes;
 use mcrs_minecraft_engine_world::session::PlayerSession;
 
 use crate::column_change::ColumnChange;
-use crate::column_packet::{DirectBits, encode_stored_column};
 use crate::column_version::ColumnVersion;
 
 /// A version that waits for more changes than this is dropped, and a later one is asked for:
@@ -34,38 +31,8 @@ enum Asked {
 
 /// A version of a column and the changes that came after it.
 pub(crate) struct FeedVersion {
-    pub(crate) encoding: Encoding,
+    pub(crate) packet: Bytes,
     pub(crate) changes: Vec<ColumnChange>,
-}
-
-/// The packet of a version, encoded once for every client that takes it.
-pub(crate) enum Encoding {
-    Unencoded(Box<ColumnVersion>),
-    Encoded(Bytes),
-    /// The encode logged why; the column stays unsent rather than produced again.
-    Failed,
-}
-
-impl Encoding {
-    /// Encodes the version, if it is not encoded yet.
-    pub(crate) fn encode(&mut self, direct_bits: DirectBits) {
-        if !matches!(self, Self::Unencoded(_)) {
-            return;
-        }
-        let Self::Unencoded(version) = mem::replace(self, Self::Failed) else {
-            return;
-        };
-        if let Some(packet) =
-            encode_stored_column(version.column, &version.stored, direct_bits, version.light)
-        {
-            *self = Self::Encoded(packet);
-        }
-    }
-
-    #[must_use]
-    pub(crate) fn is_sendable(&self) -> bool {
-        !matches!(self, Self::Failed)
-    }
 }
 
 /// What a feed asks of the dimension after a change of its clients.
@@ -126,7 +93,7 @@ impl ColumnFeed {
             return;
         }
         self.version = Some(FeedVersion {
-            encoding: Encoding::Unencoded(Box::new(version)),
+            packet: version.packet,
             changes: Vec::new(),
         });
     }
