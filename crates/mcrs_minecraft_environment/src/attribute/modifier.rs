@@ -85,18 +85,24 @@ pub fn apply(
     })
 }
 
-/// `Math.min`: a NaN on either side is the result, where `f32::min` would drop it.
+/// `Math.min`: a NaN on either side is the result, where `f32::min` would drop it, and of two
+/// zeros the negative one, which `f32::min` leaves unspecified.
 fn java_min(a: f32, b: f32) -> f32 {
     if a.is_nan() || b.is_nan() {
         f32::NAN
+    } else if a == b {
+        if a.is_sign_negative() { a } else { b }
     } else {
         a.min(b)
     }
 }
 
+/// `Math.max`: as `java_min`, and of two zeros the positive one.
 fn java_max(a: f32, b: f32) -> f32 {
     if a.is_nan() || b.is_nan() {
         f32::NAN
+    } else if a == b {
+        if a.is_sign_positive() { a } else { b }
     } else {
         a.max(b)
     }
@@ -175,10 +181,15 @@ mod tests {
             color(Operation::Multiply, 0xFF78_A7FF, 0xFF00_0000),
             0xFF00_0000
         );
-        // the cloud colour is argb, and the argument's alpha takes part.
+        // the cloud colour is argb; an opaque argument keeps its alpha...
         assert_eq!(
             color(Operation::Multiply, 0xCCFF_FFFF, 0xFF19_1926),
             0xCC19_1926
+        );
+        // ...and a translucent one multiplies it: 0.8 * 0.502 of 255 is 0x66.
+        assert_eq!(
+            color(Operation::Multiply, 0xCCFF_FFFF, 0x8019_1926),
+            0x6619_1926
         );
     }
 
@@ -201,6 +212,12 @@ mod tests {
             color(Operation::AlphaBlend, 0xFF12_3456, 0x00FF_FFFF),
             0xFF12_3456
         );
+        // half white over half black: alpha 0.502 + 0.502 * 0.498 = 0.752 (0xC0), and white
+        // weighs 0.502 / 0.752 of each channel (0xAA).
+        assert_eq!(
+            color(Operation::AlphaBlend, 0x8000_0000, 0x80FF_FFFF),
+            0xC0AA_AAAA
+        );
         // half white over opaque black: opaque mid grey.
         assert_eq!(
             color(Operation::AlphaBlend, 0xFF00_0000, 0x80FF_FFFF),
@@ -213,6 +230,13 @@ mod tests {
         let f = |op, s: f32, a: f32| apply(op, &V::Float(s), &V::Float(a)).unwrap();
         assert_eq!(f(Operation::Multiply, 0.5, 0.24), V::Float(0.12));
         assert_eq!(f(Operation::Maximum, 0.2, 0.7), V::Float(0.7));
+        // Java picks the zero by sign; `f32::min`/`max` do not promise which.
+        let sign = |op, s, a| match f(op, s, a) {
+            V::Float(x) => x.is_sign_negative(),
+            other => panic!("not a float: {other:?}"),
+        };
+        assert!(sign(Operation::Minimum, 0.0, -0.0) && sign(Operation::Minimum, -0.0, 0.0));
+        assert!(!sign(Operation::Maximum, 0.0, -0.0) && !sign(Operation::Maximum, -0.0, 0.0));
         assert_eq!(f(Operation::Subtract, 1.0, 0.25), V::Float(0.75));
         assert_eq!(
             apply(
