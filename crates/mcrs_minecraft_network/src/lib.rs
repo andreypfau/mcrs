@@ -21,6 +21,9 @@ pub mod packet_io;
 mod shared_frames;
 #[cfg(all(feature = "bevy", not(target_family = "wasm")))]
 pub mod webtransport;
+mod writer_signal;
+#[cfg(not(target_family = "wasm"))]
+mod writer_wakes;
 
 /// Reading a `std::time::Instant` panics in the browser, so packet timestamps
 /// come from `performance.now()` there instead.
@@ -33,6 +36,8 @@ pub use web_time::Instant;
 pub use crate::outbound::OutboundReceiver;
 pub use crate::packet_io::{MAX_QUEUED_BYTES_PER_SOCKET, RawConnection};
 pub use crate::shared_frames::{SharedAppend, SharedFrames};
+#[cfg(not(target_family = "wasm"))]
+pub use crate::writer_wakes::WriterWakes;
 pub use mcrs_minecraft_protocol::ConnectionState;
 
 /// System sets for the network layer, usable for ordering constraints in

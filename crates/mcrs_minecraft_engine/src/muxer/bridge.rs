@@ -55,7 +55,7 @@ pub fn flushes_pending_connections(scope: Option<Res<FlushScope>>) -> bool {
 use bytes::{BufMut, Bytes, BytesMut};
 use mcrs_minecraft_network::metrics::{BridgeTelemetry, PacketDispatcher, PacketKind};
 use mcrs_minecraft_network::{
-    ConnectionState, RawConnection, ServerSideConnection, SharedAppend, SharedFrames,
+    ConnectionState, RawConnection, ServerSideConnection, SharedAppend, SharedFrames, WriterWakes,
 };
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundDisconnect;
 use mcrs_minecraft_protocol::{Encode, Packet, WritePacket, anyhow};
@@ -312,6 +312,7 @@ pub fn dispatch_encode(
     mut telemetry: ResMut<BridgeTelemetry>,
     mut pending: Option<ResMut<PendingConnections>>,
     mut frames: Local<SharedFrames>,
+    mut wakes: Local<WriterWakes>,
 ) {
     if let Some(pending) = pending.as_deref_mut() {
         pending.connections.clear();
@@ -327,6 +328,7 @@ pub fn dispatch_encode(
             &mut commands,
             &mut telemetry,
             &mut frames,
+            &mut wakes,
         );
         if conn.raw.unsent_bytes() > 0
             && let Some(pending) = pending.as_deref_mut()
@@ -334,6 +336,7 @@ pub fn dispatch_encode(
             pending.connections.push(entity);
         }
     }
+    wakes.wake_all();
     frames.clear();
 }
 
@@ -358,6 +361,7 @@ pub fn dispatch_pending(
     mut telemetry: ResMut<BridgeTelemetry>,
     mut pending: ResMut<PendingConnections>,
     mut frames: Local<SharedFrames>,
+    mut wakes: Local<WriterWakes>,
 ) {
     let PendingConnections {
         connections,
@@ -382,11 +386,13 @@ pub fn dispatch_pending(
             &mut commands,
             &mut telemetry,
             &mut frames,
+            &mut wakes,
         );
         if conn.raw.unsent_bytes() > 0 {
             connections.push(entity);
         }
     }
+    wakes.wake_all();
     frames.clear();
 }
 
@@ -397,6 +403,7 @@ fn dispatch_connection(
     commands: &mut Commands,
     telemetry: &mut BridgeTelemetry,
     frames: &mut SharedFrames,
+    wakes: &mut WriterWakes,
 ) {
     // --- (1) Disconnected writer check ---
     if conn.raw.disconnected() {
@@ -414,7 +421,7 @@ fn dispatch_connection(
 
     // --- (1a) A writer that is behind takes what it can; one that has stalled for this
     // much is a dead socket, not a slow one ---
-    if !conn.raw.flush_unsent() && conn.raw.unsent_bytes() > STALLED_WRITER_BYTES {
+    if !conn.raw.flush_unsent_deferred(wakes) && conn.raw.unsent_bytes() > STALLED_WRITER_BYTES {
         warn!(
             conn = ?entity,
             unsent_bytes = conn.raw.unsent_bytes(),
@@ -442,12 +449,12 @@ fn dispatch_connection(
         }
     }
 
-    hand_over(entity, queue, &mut conn.raw, telemetry, frames);
+    write_queue(entity, queue, &mut conn.raw, telemetry, frames);
+    conn.raw.send_written_deferred(wakes);
 }
 
-/// Serializes the queue in priority order and hands it, behind anything written to the
-/// connection directly, to the writer.
-fn hand_over(
+/// Serializes the queue in priority order, behind anything written to the connection directly.
+fn write_queue(
     entity: Entity,
     queue: &mut OutboundQueue,
     raw: &mut RawConnection,
@@ -501,7 +508,6 @@ fn hand_over(
             }
         }
     }
-    raw.send_written();
 }
 
 fn append_encoded(

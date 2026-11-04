@@ -1,7 +1,7 @@
 use crate::inbound_rate::InboundRateBucket;
 use crate::intent::status_frame;
 use crate::metrics::Malformed;
-use crate::{ConnectionState, NetworkSet, RawConnection};
+use crate::{ConnectionState, NetworkSet, RawConnection, WriterWakes};
 use crate::{connect, event, lan, webtransport};
 use base64::engine::general_purpose::STANDARD;
 use bevy_app::{App, AppExit, FixedPreUpdate, Plugin, PostStartup, Update};
@@ -10,7 +10,7 @@ use bevy_ecs::prelude::Component;
 use bevy_ecs::resource::Resource;
 use bevy_ecs::schedule::IntoScheduleConfigs;
 use bevy_ecs::system::Res;
-use bevy_ecs::world::World;
+use bevy_ecs::world::{FromWorld, World};
 use bytes::Bytes;
 use mcrs_minecraft_protocol::packets::login::clientbound::ClientboundLoginDisconnect;
 use mcrs_minecraft_protocol::packets::{configuration, game};
@@ -321,6 +321,17 @@ pub(crate) struct SharedNetworkStateInner {
     pub(crate) hide_online_players: bool,
     pub(crate) enable_status: bool,
     pub(crate) send_buffer_bytes: usize,
+}
+
+/// The writers of the server wake on its runtime; without the network plugin, on the thread of
+/// the flush.
+impl FromWorld for WriterWakes {
+    fn from_world(world: &mut World) -> Self {
+        match world.get_resource::<SharedNetworkState>() {
+            Some(shared) => Self::on_runtime(shared.0.tokio_handle.clone()),
+            None => Self::on_this_thread(),
+        }
+    }
 }
 
 #[derive(Component)]

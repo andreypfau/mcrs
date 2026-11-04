@@ -2,6 +2,9 @@
 use crate::outbound::OutboundReceiver;
 use crate::outbound::{FrameWriter, OutboundBatch, WriterQueue};
 use crate::shared_frames::{SharedAppend, SharedFrames};
+use crate::writer_signal::WriterSignal;
+#[cfg(not(target_family = "wasm"))]
+use crate::writer_wakes::WriterWakes;
 use crate::{Instant, ReceivedPacket, SwitchMode};
 use bytes::{Bytes, BytesMut};
 use mcrs_minecraft_protocol::packets::login::clientbound::{
@@ -17,9 +20,6 @@ use std::io;
 use std::io::ErrorKind;
 use std::net::SocketAddr;
 use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, Ordering};
-#[cfg(not(target_family = "wasm"))]
-use std::time::Duration;
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, BufWriter};
 use tokio::sync::mpsc;
 use tokio::sync::mpsc::error::{TryRecvError, TrySendError};
@@ -180,7 +180,7 @@ impl<S: AsyncRead + AsyncWrite + Unpin> PacketIo<S> {
         let (incoming_sender, incoming_receiver) = mpsc::channel(256);
         let (outgoing_sender, outgoing_receiver) =
             mpsc::channel::<OutboundBatch>(OUTBOUND_CHANNEL_CAPACITY);
-        let disconnect_flag = Arc::new(AtomicBool::new(false));
+        let signal = Arc::new(WriterSignal::default());
 
         let queue = WriterQueue::new(self.enc.compression());
         let (reader, writer) = self.stream.split_stream();
@@ -190,7 +190,7 @@ impl<S: AsyncRead + AsyncWrite + Unpin> PacketIo<S> {
             outgoing_receiver,
             writer,
             FrameWriter::new(self.enc),
-            disconnect_flag.clone(),
+            Arc::clone(&signal),
         );
 
         #[cfg(not(target_family = "wasm"))]
@@ -223,7 +223,7 @@ impl<S: AsyncRead + AsyncWrite + Unpin> PacketIo<S> {
             switch_mode,
             announced_compression: None,
             awaits_login_acknowledgement: false,
-            disconnect_flag,
+            signal,
             inbound_switch: Some(inbound_switch),
             queue,
         }
@@ -337,23 +337,37 @@ async fn reader_loop<R: AsyncRead + Unpin>(
 }
 
 /// Frames, compresses and writes what the connection hands over, so none of that work runs on
-/// the thread that produced the packets.
+/// the thread that produced the packets. It sleeps on `signal`, never on the channel, so the
+/// connection chooses when a send wakes it.
 async fn writer_loop<W: AsyncWrite + Unpin>(
     mut rx: mpsc::Receiver<OutboundBatch>,
     sink: W,
     mut frames: FrameWriter,
-    disconnect_flag: Arc<AtomicBool>,
+    signal: Arc<WriterSignal>,
 ) {
     let mut writer = BufWriter::with_capacity(64 * 1024, sink);
-    while let Some(batch) = rx.recv().await {
-        let bytes = frames.frame(batch);
-        if writer.write_all(&bytes).await.is_err() {
-            disconnect_flag.store(true, Ordering::Relaxed);
-            return;
-        }
-        if writer.flush().await.is_err() {
-            disconnect_flag.store(true, Ordering::Relaxed);
-            return;
+    loop {
+        // Read before the channel: a close seen here comes after every send of the connection.
+        let closed = signal.is_closed();
+        match rx.try_recv() {
+            Ok(batch) => {
+                let bytes = frames.frame(batch);
+                if writer.write_all(&bytes).await.is_err() {
+                    signal.mark_disconnected();
+                    return;
+                }
+            }
+            Err(TryRecvError::Empty) => {
+                if writer.flush().await.is_err() {
+                    signal.mark_disconnected();
+                    return;
+                }
+                if closed {
+                    return;
+                }
+                signal.woken().await;
+            }
+            Err(TryRecvError::Disconnected) => break,
         }
     }
     let _ = writer.flush().await;
@@ -373,8 +387,16 @@ pub struct RawConnection {
     /// What was written and not yet taken by the writer, sent ahead of anything newer: a slow
     /// socket delays what it is sent and never loses it.
     queue: WriterQueue,
-    disconnect_flag: Arc<AtomicBool>,
+    signal: Arc<WriterSignal>,
     inbound_switch: Option<mpsc::UnboundedSender<InboundSwitch>>,
+}
+
+/// What one hand-over to the writer did.
+struct HandOver {
+    /// At least one batch went into the channel, so the writer has something to wake for.
+    sent: bool,
+    /// Every batch went; `false` when the writer is behind or gone.
+    room: bool,
 }
 
 /// The reader task splits frames ahead of the systems that act on them, so it applies a
@@ -389,6 +411,14 @@ enum InboundSwitch {
     },
 }
 
+impl Drop for RawConnection {
+    fn drop(&mut self) {
+        #[cfg(not(target_family = "wasm"))]
+        self.reader_task.abort();
+        self.signal.close();
+    }
+}
+
 impl RawConnection {
     /// Construct a mock with separate inbound control: the caller drives
     /// the inbound channel (for bridge_inbound tests).
@@ -400,7 +430,9 @@ impl RawConnection {
     ) -> (Self, OutboundReceiver, mpsc::Sender<ReceivedPacket>) {
         let (outgoing_tx, outgoing_rx) = mpsc::channel::<OutboundBatch>(outgoing_capacity);
         let (inbound_tx, inbound_rx) = mpsc::channel::<ReceivedPacket>(128);
-        let disconnect_flag = Arc::new(AtomicBool::new(false));
+        let reader_task = tokio::spawn(async {
+            std::future::pending::<()>().await;
+        });
         let addr = SocketAddr::from(([127, 0, 0, 1], 0));
         let raw = RawConnection {
             outgoing: outgoing_tx,
@@ -410,7 +442,7 @@ impl RawConnection {
             switch_mode: SwitchMode::of_own_version(),
             announced_compression: None,
             awaits_login_acknowledgement: false,
-            disconnect_flag,
+            signal: Arc::new(WriterSignal::default()),
             inbound_switch: Some(mpsc::unbounded_channel().0),
             queue: WriterQueue::default(),
         };
@@ -427,17 +459,43 @@ impl RawConnection {
 
     /// Sends what is waiting, in order, as far as the writer has room.
     pub fn flush_unsent(&mut self) -> bool {
+        let handed = self.send_unsent();
+        if handed.sent {
+            self.signal.wake();
+        }
+        handed.room
+    }
+
+    /// [`Self::send_written`], with the wake of the writer left to [`WriterWakes::wake_all`].
+    #[cfg(not(target_family = "wasm"))]
+    pub fn send_written_deferred(&mut self, wakes: &mut WriterWakes) -> bool {
+        self.queue.close();
+        self.flush_unsent_deferred(wakes)
+    }
+
+    /// [`Self::flush_unsent`], with the wake of the writer left to [`WriterWakes::wake_all`].
+    #[cfg(not(target_family = "wasm"))]
+    pub fn flush_unsent_deferred(&mut self, wakes: &mut WriterWakes) -> bool {
+        let handed = self.send_unsent();
+        if handed.sent {
+            wakes.push(&self.signal);
+        }
+        handed.room
+    }
+
+    fn send_unsent(&mut self) -> HandOver {
+        let mut sent = false;
         while let Some(batch) = self.queue.pop() {
             match self.outgoing.try_send(batch) {
-                Ok(()) => {}
+                Ok(()) => sent = true,
                 Err(TrySendError::Full(batch)) => {
                     self.queue.push_front(batch);
-                    return false;
+                    return HandOver { sent, room: false };
                 }
-                Err(TrySendError::Closed(_)) => return false,
+                Err(TrySendError::Closed(_)) => return HandOver { sent, room: false },
             }
         }
-        true
+        HandOver { sent, room: true }
     }
 
     pub fn unsent_bytes(&self) -> usize {
@@ -519,7 +577,7 @@ impl RawConnection {
     }
 
     pub fn disconnected(&self) -> bool {
-        self.disconnect_flag.load(Ordering::Relaxed)
+        self.signal.disconnected()
     }
 
     /// Serializes the packet; the writer frames and compresses it.
@@ -705,28 +763,30 @@ mod tests {
     }
 
     #[test]
-    fn a_peer_still_sending_after_the_connection_drops_reads_its_last_packet_and_a_clean_close() {
+    fn a_deferred_wake_delivers_the_batch_and_a_dropped_connection_then_closes_the_socket() {
         let runtime = tokio::runtime::Runtime::new().unwrap();
+        let mut wakes = WriterWakes::on_runtime(runtime.handle().clone());
+        let (mut connection, mut peer) = runtime.block_on(loopback(SwitchMode::Immediate));
+        let ping = PingRequest { payload: 7 };
+        connection.append(&ping).unwrap();
+        assert!(connection.send_written_deferred(&mut wakes));
+        wakes.wake_all();
+        let mut expected = PacketEncoder::new();
+        expected.append_packet(&ping).unwrap();
+        let expected = expected.take();
+
         runtime.block_on(async {
-            let (mut connection, mut peer) = loopback(SwitchMode::Immediate).await;
-            connection.append(&PingRequest { payload: 7 }).unwrap();
-            connection.flush().unwrap();
-            drop(connection);
-            tokio::time::sleep(Duration::from_millis(100)).await;
-
-            peer.write_all(&[0; 64]).await.unwrap();
-            tokio::time::sleep(Duration::from_millis(100)).await;
-
-            let mut received = Vec::new();
-            let result =
-                tokio::time::timeout(Duration::from_secs(10), peer.read_to_end(&mut received))
-                    .await
-                    .unwrap();
-            assert!(result.is_ok(), "{result:?}");
-            assert!(
-                !received.is_empty(),
-                "the packet written before the drop arrives"
-            );
+            tokio::time::timeout(Duration::from_secs(10), async {
+                let mut frame = vec![0; expected.len()];
+                peer.read_exact(&mut frame).await.unwrap();
+                assert_eq!(frame, &expected[..]);
+                drop(connection);
+                let mut rest = Vec::new();
+                peer.read_to_end(&mut rest).await.unwrap();
+                assert!(rest.is_empty(), "nothing follows the one packet");
+            })
+            .await
+            .unwrap();
         });
     }
 
