@@ -92,7 +92,7 @@ web-sys = { version = "0.3", features = ["Window", "Location", "UrlSearchParams"
 
 [features]
 default = ["singleplayer", "dev"]
-singleplayer = ["dep:mcrs_minecraft_server", "dep:mcrs_minecraft_engine_server", "dep:mcrs_minecraft_engine", "dep:mcrs_minecraft_vanilla_light", "dep:mcrs_minecraft_vanilla_worldgen", "mcrs_minecraft_server?/parallel-tick"]
+singleplayer = ["dep:mcrs_minecraft_server", "dep:mcrs_minecraft_engine_server", "dep:mcrs_minecraft_engine", "dep:mcrs_minecraft_vanilla_light", "dep:mcrs_minecraft_vanilla_worldgen"]
 dev = []
 # Bevy links as a shared library instead of being statically relinked into every
 # client rebuild. Dev loop only; it is not a shape we ship.

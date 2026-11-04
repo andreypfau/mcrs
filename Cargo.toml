@@ -223,8 +223,6 @@ mcrs_minecraft_fixtures.workspace = true
 mcrs_minecraft_registries.workspace = true
 
 [features]
-default = ["parallel-tick"]
-parallel-tick = ["mcrs_minecraft_server/parallel-tick"]
 telemetry = ["telemetry-tracy", "telemetry-diagnostics"]
 telemetry-tracy = ["bevy_log/tracing-tracy", "mcrs_minecraft_server/telemetry-tracy"]
 # No other crate registers diagnostic plugins yet. Add propagation lines

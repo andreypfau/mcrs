@@ -4,7 +4,6 @@ use mcrs_minecraft_assets::packs::{BuiltinAsset, PackLayering, PackRoots};
 use mcrs_minecraft_engine::muxer_placement::MuxerPlacement;
 use mcrs_minecraft_engine::player_list_policy::PlayerListPolicy;
 use mcrs_minecraft_engine_world::server_loop::VoxelServerPlugin;
-use mcrs_minecraft_engine_world::world_placement::WorldPlacement;
 use mcrs_minecraft_registries::RegistryAdditions;
 use mcrs_minecraft_replication::ListPolicy;
 
@@ -29,8 +28,7 @@ pub struct ServerCorePlugin {
     pub local_packs: Vec<String>,
     /// Where the worlds tick: [`Placement::Inline`] ticks every world on the server thread, one
     /// after another, with deterministic schedules; [`Placement::Thread`] gives each world a
-    /// thread of its own. The default is `Thread` with the `parallel-tick` feature and `Inline`
-    /// without it.
+    /// thread of its own, the default.
     pub worlds: Placement,
     /// Where the muxer, which decides the entity bytes of each player, runs:
     /// [`Placement::Inline`] on the server thread, [`Placement::Thread`] on a thread of its own,
@@ -48,7 +46,7 @@ impl Default for ServerCorePlugin {
             data_pack: DataPack::default(),
             builtin_assets: |_| None,
             local_packs: vec!["mcrs".to_owned()],
-            worlds: WorldPlacement::default().0,
+            worlds: Placement::Thread,
             muxer: Placement::Thread,
             list_policy: ListPolicy::default(),
         }

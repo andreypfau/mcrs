@@ -84,7 +84,6 @@ tokio.workspace = true
 [features]
 default = ["client-jar"]
 client-jar = ["mcrs_minecraft_engine_server/client-jar"]
-parallel-tick = ["mcrs_minecraft_engine_server/parallel-tick"]
 telemetry-tracy = ["mcrs_minecraft_engine_server/telemetry-tracy", "mcrs_minecraft_vanilla_worldgen/telemetry-tracy"]
 
 [[bench]]

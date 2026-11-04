@@ -188,25 +188,16 @@ fn world_preset(value: Option<&str>) -> String {
 }
 
 /// `MCRS_WORLDS` is `inline` or `thread`, in any case; unset or anything else keeps the
-/// placement the build chose with the `parallel-tick` feature.
+/// default placement.
 fn worlds(value: Option<&str>) -> Placement {
     let default = ServerCorePlugin::default().worlds;
     let Some(value) = value else {
         return default;
     };
-    let name = value.trim();
-    if name.eq_ignore_ascii_case("inline") {
-        Placement::Inline
-    } else if name.eq_ignore_ascii_case("thread") {
-        Placement::Thread
-    } else {
-        bevy_log::warn!(
-            value,
-            worlds = ?default,
-            "MCRS_WORLDS is neither inline nor thread; keeping the default"
-        );
+    value.trim().parse().unwrap_or_else(|error| {
+        bevy_log::warn!(value, worlds = ?default, "MCRS_WORLDS: {error}; keeping the default");
         default
-    }
+    })
 }
 
 /// `MCRS_NO_LIGHTING=1` turns propagation off.

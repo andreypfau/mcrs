@@ -152,11 +152,9 @@ fn main() -> anyhow::Result<()> {
     let spread: Spread = args.get(3).map_or(Ok(Spread::Apart), |name| name.parse())?;
     let seconds: u64 = args.get(4).map_or(Ok(40), |count| count.parse())?;
     let dimensions: usize = args.get(5).map_or(Ok(3), |count| count.parse())?;
-    let muxer = match args.get(6).map(String::as_str) {
-        None | Some("thread") => Placement::Thread,
-        Some("inline") => Placement::Inline,
-        Some(other) => anyhow::bail!("unknown muxer {other:?}, expected thread or inline"),
-    };
+    let muxer: Placement = args
+        .get(6)
+        .map_or(Ok(Placement::Thread), |name| name.parse())?;
     anyhow::ensure!(
         (1..=DIMENSIONS.len()).contains(&dimensions),
         "dimensions must be 1 to {}",
