@@ -16,8 +16,8 @@ const FAR_PLANE: f32 = 4000.0;
 #[derive(Component)]
 pub struct PlayerCamera;
 
-/// Vanilla's `Options` default. `fovEffectScale` stays at its default 1.0, which collapses
-/// `Mth.lerp(scale, 1.0, modifier)` to `modifier`.
+/// The default field of view. The FOV effects scale stays at its default 1.0, so the
+/// modifier applies in full.
 const FOV: f32 = 70.0;
 const FLYING_FOV_MODIFIER: f32 = 1.1;
 /// `1.1 * (1.3 + 1) / 2`, where `1.3` is `MOVEMENT_SPEED` scaled by the `+0.3`
@@ -111,7 +111,7 @@ fn next_fov_modifier(current: f32, target: f32) -> f32 {
     (current + (target - current) * FOV_FILTER_RATE).clamp(FOV_MODIFIER_MIN, FOV_MODIFIER_MAX)
 }
 
-/// `Camera.tickFov`.
+/// Eases the field of view towards the sprint or flight modifier every tick.
 fn tick_fov(sprint: Single<&Sprint, With<Player>>, mut fov: Single<&mut FovFilter>) {
     let target = if sprint.active {
         SPRINTING_FOV_MODIFIER
@@ -122,8 +122,8 @@ fn tick_fov(sprint: Single<&Sprint, With<Player>>, mut fov: Single<&mut FovFilte
     fov.current = next_fov_modifier(fov.current, target);
 }
 
-/// `Camera.alignWithEntity`, and the only writer of the player's and the camera's render
-/// transforms.
+/// Interpolates the player between ticks and turns the camera to its pitch; the only writer of the
+/// player's and the camera's render transforms.
 fn align_render_transforms(
     time: Res<Time<Fixed>>,
     player: Single<

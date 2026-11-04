@@ -10,7 +10,7 @@ use mcrs_minecraft_core::codec::NonNegativeInt;
 use crate::attribute::spec::{Draft, DraftSeed};
 use crate::attribute::{ArgumentRef, AttributeSpec, AttributeValue, Operation, attribute};
 
-/// `Timeline.TRACKS_CODEC`, a `Codec.dispatchedMap`: the attribute a key names
+/// The tracks of a timeline, keyed by attribute: the attribute a key names
 /// chooses the type its track's keyframe values are read and written in.
 #[derive(Debug, Clone, Default)]
 pub struct Tracks(BTreeMap<&'static str, Track>);
@@ -99,7 +99,7 @@ pub struct Keyframe {
     pub value: AttributeValue,
 }
 
-/// `AttributeTrack.createCodec(attribute)`: the seed the map key hands its
+/// The seed the map key hands its
 /// value, so a keyframe is read in the type the (attribute, modifier) pair
 /// selects rather than in whatever shape the source happened to have.
 ///
@@ -306,7 +306,7 @@ impl Track {
         self.modifier.unwrap_or(Operation::Override)
     }
 
-    /// `KeyframeTrack.validatePeriod`. The period is a sibling of `tracks`, so
+    /// Refuses a keyframe past the period. The period is a sibling of `tracks`, so
     /// this is the one check the track's own seed cannot make.
     pub(super) fn validate_period(&self, period: u32) -> Result<(), TrackError> {
         match self.keyframes.iter().find(|k| k.ticks > period) {
@@ -319,7 +319,7 @@ impl Track {
     }
 }
 
-/// `KeyframeTrack.validateKeyframes`.
+/// Refuses an empty track, keyframes out of tick order, and a tick more than two keyframes share.
 fn validate_keyframes(keyframes: &[Keyframe]) -> Result<(), TrackError> {
     let Some(first) = keyframes.first() else {
         return Err(TrackError::NoKeyframes);

@@ -306,7 +306,7 @@ fn torch_is_not_a_cube() {
     );
 }
 
-/// `BlockState.isSolid` is the collision shape's bounds, not the occlusion
+/// Solidity is the collision shape's bounds, not the occlusion
 /// shape: leaves, ice, glass and a slab are solid to the reference while none
 /// of them fills the cube for rendering.
 fn solidity_follows_the_collision_shape_and_not_the_occlusion_shape() {

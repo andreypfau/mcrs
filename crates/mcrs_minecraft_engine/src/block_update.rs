@@ -1,7 +1,7 @@
 //! Per-dim block-update wire emit. Replaces the old host-side
 //! `update_client_blocks` body (which queried `&mut ServerSideConnection`
 //! directly) with a per-dim system that resolves recipients through
-//! `Column.PlayerObservers` and emits one `OutboundPlayerPacket` per block
+//! the column's `PlayerObservers` and emits one `OutboundPlayerPacket` per block
 //! change. Single message hop — no two-frame buffer rotation across the
 //! `World` boundary that caused the TNT silent-drop regression.
 //!

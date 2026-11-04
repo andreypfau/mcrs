@@ -249,7 +249,7 @@ impl GradientNoise {
 }
 
 /// Folds a coordinate back into the range where a double still resolves single
-/// blocks. Vanilla's `GradientNoise.wrap`.
+/// blocks.
 #[inline(always)]
 pub fn wrap(value: f64) -> f64 {
     const FACTOR: f64 = 3.3554432E7;

@@ -15,8 +15,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::timeline::Timeline;
 
-/// Unit-shaped registry entry. Vanilla `WorldClock.DIRECT_CODEC` is
-/// `MapCodec.unitCodec(WorldClock::new)`, so the wire payload is an
+/// Unit-shaped registry entry: it carries no fields, so the wire payload is an
 /// empty NBT compound.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]

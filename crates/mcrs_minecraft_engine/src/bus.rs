@@ -55,7 +55,7 @@ pub struct InboundPlayerSpawn {
     pub snapshot: PlayerTransferSnapshot,
     /// Dimension keys forwarded from the host's
     /// `DimensionList` so the per-dim spawn consumer can fill
-    /// `ClientboundLogin.dimensions` without reading the list resource
+    /// `ClientboundLogin::dimensions` without reading the list resource
     /// (which is host-only and absent from any DimWorld).
     pub dimensions: Arc<[ResourceKeyBuf<mcrs_minecraft_dimension::Dimension>]>,
 }

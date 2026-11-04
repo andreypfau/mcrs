@@ -72,9 +72,8 @@ pub fn pow(a: f32, b: f32) -> f32 {
     (a as f64).powf(b as f64) as f32
 }
 
-/// `Mth.clamp(float, float, float)`. Returns `min` when the value is NaN,
-/// because `NaN < min` is false and `NaN > max` is false, leaving the value —
-/// vanilla's `Mth.clamp` is written as nested ternaries with the same outcome.
+/// Clamps a float to `[min, max]`. A NaN value comes back as NaN: both
+/// comparisons are false, so neither bound replaces it.
 #[inline]
 pub fn clampf(v: f32, min: f32, max: f32) -> f32 {
     if v < min {
@@ -86,7 +85,7 @@ pub fn clampf(v: f32, min: f32, max: f32) -> f32 {
     }
 }
 
-/// `Mth.floor(float)`, which is `(int)Math.floor(v)`: the narrowing cast
+/// The floor of a float as an int, taken at double precision: the narrowing cast
 /// saturates at the integer bounds and sends NaN to zero rather than wrapping.
 #[inline]
 pub fn mth_floor(v: f32) -> i32 {
@@ -109,7 +108,7 @@ pub fn floor_mod(a: i32, b: i32) -> i32 {
     a - floor_div(a, b) * b
 }
 
-/// `Mth.fastInvSqrt`: one Newton step from a bit-trick guess, so it is not
+/// The game's fast inverse square root: one Newton step from a bit-trick guess, so it is not
 /// `1 / sqrt(x)` and the beard term needs this exact approximation.
 #[inline]
 pub fn fast_inv_sqrt(x: f64) -> f64 {
@@ -153,7 +152,7 @@ pub fn atan2(y: f64, x: f64) -> f64 {
     theta
 }
 
-/// `Mth.clampedMap`: a lerp over an inverse lerp with the source range as a hard
+/// A lerp over an inverse lerp with the source range as a hard
 /// clamp, so a value outside it maps to the near end of the target range.
 pub fn clamped_map<F: Float>(value: F, from_min: F, from_max: F, to_min: F, to_max: F) -> F {
     let delta = (value - from_min) / (from_max - from_min);
@@ -166,18 +165,18 @@ pub fn clamped_map<F: Float>(value: F, from_min: F, from_max: F, to_min: F, to_m
     }
 }
 
-/// `Mth.lerp`.
+/// Linear interpolation from `from` to `to` by `alpha`.
 pub fn lerp<F: Float>(alpha: F, from: F, to: F) -> F {
     from + alpha * (to - from)
 }
 
-/// `Mth.lerpInt`: the step is floored, so the result leaves `from` only once a
+/// An integer lerp: the step is floored, so the result leaves `from` only once a
 /// whole unit has accumulated.
 pub fn lerp_int(alpha: f32, from: i32, to: i32) -> i32 {
     from.wrapping_add((alpha * to.wrapping_sub(from) as f32).floor() as i32)
 }
 
-/// `Mth.wrapDegrees(float)`, which leaves an already-in-range angle bit-identical.
+/// Wraps an angle in degrees into `[-180, 180)`, and leaves an already-in-range angle bit-identical.
 pub fn wrap_degrees(angle: f32) -> f32 {
     let wrapped = angle % 360.0;
     if wrapped >= 180.0 {
@@ -189,10 +188,10 @@ pub fn wrap_degrees(angle: f32) -> f32 {
     }
 }
 
-/// The 65536-entry sine table both Beta's `MathHelper` and 26.3's `Mth` read:
-/// `(float)Math.sin(i * 2π / 65536)`.
+/// The 65536-entry sine table both Beta and 26.3 read: entry `i` is the sine of
+/// `i * 2π / 65536` at double precision, narrowed to float.
 ///
-/// The reference quantizes the argument to a table index, so reading the table is
+/// The game quantizes the argument to a table index, so reading the table is
 /// not an approximation of that: it is the same value, without paying a `sin` per
 /// call.
 static SIN_TABLE: LazyLock<Box<[f32; 65536]>> = LazyLock::new(|| {
@@ -211,13 +210,14 @@ fn sin_table(index: u16) -> f32 {
         .unwrap_or_default()
 }
 
-/// Java beta `MathHelper.sin(x)`: `SIN_TABLE[(int)(x * 10430.378F) & 65535]`.
+/// The Beta sine: `x` scaled by the float `10430.378`, truncated to an int, and its low
+/// 16 bits index the table.
 #[inline]
 pub fn sin(x: f32) -> f32 {
     sin_table((x * 10430.378_f32) as i32 as u16)
 }
 
-/// Java beta `MathHelper.cos(x)`: the same table, offset by a quarter turn.
+/// The Beta cosine: the same table, offset by a quarter turn.
 #[inline]
 pub fn cos(x: f32) -> f32 {
     sin_table((x * 10430.378_f32 + 16384.0_f32) as i32 as u16)
@@ -226,15 +226,15 @@ pub fn cos(x: f32) -> f32 {
 /// The table entries per radian, 65536 / 2π.
 const TABLE_PER_RADIAN: f64 = 10430.378350470453;
 
-/// Java 26.3 `Mth.sin(double)`: `SIN[(int)((long)(i * 10430.378350470453) & 65535L)]`.
-/// The argument and the scale are `double` here, so the index differs from the Beta
+/// The 26.3 sine: `x` scaled by the double `10430.378350470453`, truncated to a long,
+/// and its low 16 bits index the table. The argument and the scale are `double` here, so the index differs from the Beta
 /// form on arguments whose `f32` product rounds across an integer boundary.
 #[inline]
 pub fn sin_modern(x: f64) -> f32 {
     sin_table((x * TABLE_PER_RADIAN) as i64 as u16)
 }
 
-/// Java 26.3 `Mth.cos(double)`: the same table, offset by a quarter turn.
+/// The 26.3 cosine: the same table, offset by a quarter turn.
 #[inline]
 pub fn cos_modern(x: f64) -> f32 {
     sin_table((x * TABLE_PER_RADIAN + 16384.0) as i64 as u16)
@@ -259,7 +259,7 @@ pub fn map(value: f64, from_min: f64, from_max: f64, to_min: f64, to_max: f64) -
     to_min + (value - from_min) / (from_max - from_min) * (to_max - to_min)
 }
 
-/// `Mth.hsvToRgb`: packed `0xRRGGBB`, each channel truncated to eight bits.
+/// HSV to RGB, packed `0xRRGGBB`, each channel truncated to eight bits.
 pub fn hsv_to_rgb(hue: f32, saturation: f32, value: f32) -> i32 {
     let h = (hue * 6.0) as i32 % 6;
     let f = hue * 6.0 - h as f32;

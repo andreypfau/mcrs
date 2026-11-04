@@ -383,7 +383,7 @@ impl<'de, R: Read + Seek> de::Deserializer<'de> for &mut Deserializer<R> {
         ))
     }
 
-    /// `NbtOps.getBooleanValue`: any numeric tag, true when non-zero.
+    /// A boolean read from any numeric tag, true when non-zero.
     fn deserialize_bool<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
         let tag = self.read_root()?;
         NbtTag::deserialize_data(&mut self.input, tag)?.deserialize_bool(visitor)

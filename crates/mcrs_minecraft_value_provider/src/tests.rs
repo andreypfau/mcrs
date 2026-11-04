@@ -56,8 +56,8 @@ fn a_bare_number_is_a_constant() {
 }
 
 /// The corpus never writes it, but `constant` is a member of all three provider
-/// registries, so a datapack may. The reference encodes a constant through
-/// `Either.left(value)`, so the object form is accepted and written back bare.
+/// registries, so a datapack may. The game writes a constant as the bare
+/// value, so the object form is accepted and written back bare.
 #[test]
 fn the_explicit_constant_form_loads_and_normalises() {
     assert_eq!(
@@ -423,7 +423,7 @@ fn a_weighted_list_draws_the_selection_then_the_entry() {
     );
 }
 
-/// `IntProviders.codec(0, 16)` judges a provider by its whole range, so a
+/// A provider bounded to `0..=16` is judged by its whole range, so a
 /// uniform that reaches past the bound is refused even though every value
 /// it could draw might be in range on a given day.
 #[test]

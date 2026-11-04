@@ -93,7 +93,7 @@ pub struct FaceShapes {
     pub inner: [SideCells; 6],
 }
 
-/// Vanilla's `Block.shouldRenderFace`, answered the other way round: whether the face this block
+/// Whether the face this block
 /// shows towards `side` is hidden by the neighbour across it.
 pub fn face_hidden(own: &BlockInfo, neighbour: &BlockInfo, side: usize) -> bool {
     if neighbour.occludes {

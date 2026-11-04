@@ -44,7 +44,7 @@ pub enum AttributeValue {
         value: f32,
         alpha: f32,
     },
-    /// `ColorModifier.BlendToGray`: the argument of a colour `blend_to_gray`.
+    /// The argument of a colour `blend_to_gray`.
     BlendToGray {
         brightness: f32,
         factor: f32,
@@ -130,8 +130,8 @@ impl AttributeType {
             )
     }
 
-    /// Mirrors `Codec.either(attribute.valueCodec(), fullCodec)`: the value
-    /// codec is tried first, so a value that happens to be an object is read as
+    /// Either a bare value or a full entry: the value
+    /// is tried first, so a value that happens to be an object is read as
     /// a value and never mistaken for an entry.
     pub(super) fn map_meaning(self) -> MapMeaning {
         use AttributeType as T;
@@ -221,7 +221,7 @@ impl AttributeSpec {
         }
         Ok(match (self.ty, op) {
             (_, Override) => ArgumentShape::Value,
-            // FloatModifier.Simple takes a plain float, unconstrained by the
+            // A float modifier takes a plain float, unconstrained by the
             // attribute's own range.
             (T::Float | T::AngleDegrees, Add | Subtract | Multiply | Minimum | Maximum) => {
                 ArgumentShape::Typed(T::Float)
@@ -230,10 +230,10 @@ impl AttributeSpec {
                 ArgumentShape::Typed(T::Integer)
             }
             (T::Boolean, And | Nand | Or | Nor | Xor | Xnor) => ArgumentShape::Typed(T::Boolean),
-            // `ColorModifier.ADD`/`SUBTRACT` are one instance shared by both
-            // colour libraries, so their argument shape cannot vary by attribute
+            // `add` and `subtract` behave the same for both
+            // colour kinds, so their argument shape cannot vary by attribute
             // type; `multiply` is split into MULTIPLY_RGB and MULTIPLY_ARGB
-            // because only `ARGB.multiply` consumes the argument's alpha.
+            // because only the ARGB one uses the argument's alpha.
             (T::RgbColor | T::ArgbColor, Add | Subtract) | (T::RgbColor, Multiply) => {
                 ArgumentShape::Typed(T::RgbColor)
             }
@@ -889,7 +889,7 @@ mod tests {
 
     #[test]
     fn multiply_argument_escapes_the_attribute_range() {
-        // FloatModifier.Simple validates the argument as a plain float, so 0.85
+        // A float modifier validates the argument as a plain float, so 0.85
         // is legal here even though the attribute itself is NON_NEGATIVE.
         let end = attribute("minecraft:visual/water_fog_end_distance").unwrap();
         assert_eq!(

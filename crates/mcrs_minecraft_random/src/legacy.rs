@@ -28,7 +28,7 @@ impl LegacyRandom {
         self.seed = self.seed.wrapping_mul(MULTIPLIER).wrapping_add(INCREMENT) & MODULUS_MASK;
     }
 
-    /// `WorldgenRandom.setLargeFeatureSeed`.
+    /// Seeds the random for a large feature from the world seed and a chunk.
     ///
     /// Beta's sibling adds odd-forced products where this one exclusive-ors plain
     /// ones; the two are the same idea and not the same number.

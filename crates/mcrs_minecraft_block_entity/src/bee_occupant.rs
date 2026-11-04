@@ -12,7 +12,7 @@ pub struct BeeOccupant {
 }
 
 impl BeeOccupant {
-    /// `Occupant.create`: a bee with an empty tag, which is what worldgen puts
+    /// A bee with an empty tag, which is what worldgen puts
     /// in a nest.
     pub fn bee(ticks_in_hive: i32) -> Self {
         let mut entity_data = NbtCompound::new();

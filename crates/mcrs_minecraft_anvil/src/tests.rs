@@ -421,8 +421,8 @@ fn a_chunk_outside_the_region_is_a_loud_error() {
     assert!(matches!(err.kind, ErrorKind::WrongRegion { .. }), "{err}");
 }
 
-/// Three entries need two bits, but `Strategy.createForBlockStates` maps bit
-/// counts one through four onto the four-bit configuration. Packing at two bits
+/// Three entries need two bits, but the save format stores bit
+/// counts one through four at four bits. Packing at two bits
 /// would decode most cells to the wrong palette entry.
 #[test]
 fn every_cell_holds_its_resolved_id() {

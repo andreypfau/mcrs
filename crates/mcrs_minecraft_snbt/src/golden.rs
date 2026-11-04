@@ -1,5 +1,5 @@
-// Values printed by the game's own functions: TagParser + Tag.toString +
-// NbtIo.writeAnyTag, JsonOps.convertTo(NbtOps) and Double/Float.toString.
+// Values the game printed: SNBT parsed and printed back, written as binary NBT,
+// JSON converted to NBT, and doubles and floats as Java prints them.
 
 use std::string::String;
 use std::sync::LazyLock;

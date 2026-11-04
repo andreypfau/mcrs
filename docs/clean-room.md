@@ -28,6 +28,10 @@ take both roles for the same behaviour.
 - Text that says code is a port, a transcription or a mirror of the game's code.
 - A test, a tool or a script that reads the game's code.
 
+The `clean-room` check of `scripts/hooks/run-checks` refuses a comment outside the world generation
+exception that names a member of a class in the Java form, such as `Class.member` or `Class#member`.
+The Java standard library is allowed.
+
 The output of the game is evidence and is allowed. A parity test compares our output with an
 artefact the game produced.
 

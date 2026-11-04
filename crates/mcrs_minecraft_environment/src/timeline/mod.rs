@@ -376,7 +376,7 @@ mod tests {
             keyframe("minecraft:visual/sky_light_factor", 0).get("ticks"),
             Some(&NbtTag::Int(730))
         );
-        // `Codec.FLOAT` writes a float tag, never a double
+        // A float value writes a float tag, never a double
         assert_eq!(
             value("minecraft:visual/sky_light_factor", 0),
             NbtTag::Float(1.0)
@@ -386,7 +386,7 @@ mod tests {
             value("minecraft:visual/sky_color", 0),
             NbtTag::String("#ffffff".to_owned())
         );
-        // `ColorModifier.ArgbModifier` decodes a packed int but always encodes hex
+        // An ARGB colour decodes a packed int but always encodes hex
         assert_eq!(
             value("minecraft:visual/cloud_color", 0),
             NbtTag::String("#ffffffff".to_owned())

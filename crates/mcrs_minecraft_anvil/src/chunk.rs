@@ -294,7 +294,7 @@ fn parse_section(
     })
 }
 
-/// Cells are indices into the palette list, in `Strategy.getIndex` order, at the
+/// Cells are indices into the palette list, in `y << 8 | z << 4 | x` order, at the
 /// width the list's length selects. The list may name entries no cell uses.
 fn unpack<K: SectionKind, V: Hash + Eq + Copy + Default, const DIM: usize>(
     raw: RawPalettedContainer,

@@ -15,7 +15,7 @@ pub enum Rotation {
 }
 
 impl Rotation {
-    /// `Rotation.values()`, the order `nextInt(4)` indexes.
+    /// Every rotation, in the order a random draw of `0..4` indexes.
     pub const ALL: [Rotation; 4] = [
         Rotation::None,
         Rotation::Clockwise90,
@@ -32,7 +32,7 @@ impl Rotation {
         }
     }
 
-    /// `Rotation.getRotated`: this rotation followed by `by`.
+    /// This rotation followed by `by`.
     pub fn rotated(self, by: Rotation) -> Rotation {
         match (self as u8 + by as u8) % 4 {
             0 => Rotation::None,

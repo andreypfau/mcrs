@@ -36,7 +36,7 @@ impl Rotation {
         self.pitch
     }
 
-    /// `Entity.turn`, without the caller-side sensitivity scale.
+    /// Turns by a mouse delta, without the caller-side sensitivity scale.
     #[inline]
     #[must_use]
     pub fn turn(self, yaw: f32, pitch: f32) -> Self {

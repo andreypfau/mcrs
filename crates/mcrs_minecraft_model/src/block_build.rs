@@ -180,7 +180,7 @@ pub(crate) fn build_one(
 
 const FACE_GRID: usize = 16;
 
-/// Vanilla's `VoxelShape.getFaceShape` per side, on a sixteenth grid: the boxes that reach the
+/// The face shape of each side, on a sixteenth grid: the boxes that reach the
 /// side, seen along its normal.
 fn face_shapes(occlusion: &[Aabb]) -> Option<Box<FaceShapes>> {
     const EDGE: f32 = 1e-6;

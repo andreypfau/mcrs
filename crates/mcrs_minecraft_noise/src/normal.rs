@@ -18,7 +18,7 @@ pub fn create_parity<R: Random>(
     create(&NoiseParam::parity(base_octave, amplitudes), random)
 }
 
-/// The declared value bound. Vanilla's `Noise.range()`, six sigma on the summed
+/// The declared value bound, six sigma on the summed
 /// octaves.
 pub fn range(params: &NoiseParam) -> Interval {
     declared_range(params.octaves().target_amplitude)
