@@ -185,10 +185,13 @@ observer gets nothing.
 also removes the other part. Both changes reach the breaker in one `section_blocks_update` when they
 are in the same section. The acknowledgement comes last. See result R12.
 
-**BRK-PRT-002** (`black_box_confirmed`, semantic). The breaker gets `level_event` with type 2001 at the
-position of the break, before the block state. For a tall plant, an observer got three `level_event`
-packets: the upper part, the lower part, and the upper part again. See result R12. This rule rests on
-one observation. The other orders are unresolved (U6).
+**BRK-PRT-002** (`black_box_confirmed`, semantic). One part is the main part: the upper part of a door
+or a tall plant, and the foot of a bed. The breaker gets one `level_event` with type 2001 at the main
+part, whichever part was hit, before the block state. See results R12 and R27.
+
+**BRK-PRT-004** (`black_box_confirmed`, semantic). An observer gets `level_event` with type 2001 for the
+hit part and then for the other part. When the hit part is the main part, a third packet repeats it.
+The data of each packet is the state of the part at its position. See results R12 and R27.
 
 **BRK-PRT-003** (`black_box_confirmed`, semantic). A door, a bed and a tall plant drop no item in a
 creative break. See result R12.
@@ -247,8 +250,6 @@ R24. This rule rests on one observation.
   experiments used the default level of the `op` command.
 - **U5**: spawn protection on the `z` axis, on a diagonal, with a spawn that is not at the origin, and
   the operator level that it needs.
-- **U6**: the `level_event` packets for a door and a bed to an observer, and the order when the lower
-  part of a door is the one hit. R26 shows a tall plant in water.
 - **U7**: a position in reach in a chunk that is not loaded. The only tested position was also out of
   reach.
 - **U8**: what an observer gets for a start action outside the world border, or above the height limit.
@@ -282,6 +283,7 @@ Before each step, set the block with `setblock`, and read the packets that arriv
 | E10 | Put the observer 20, 30, 45, 60, 63, 65 and 80 blocks away on `x`. Break a block. | R10 |
 | E11 | Hold each item of R11 in the selected slot. Then hold a sword in another slot, and in the off hand. | R11 |
 | E12 | Break the upper part of a door and of a tall plant, and the foot of a bed. | R12 |
+| E27 | Hit each part of a door, a bed and the plants of R27, with both parts set without neighbour updates, in a stone wall. Repeat. | R27 |
 | E13 | Put a torch, redstone wire and a sign on stone. Break the stone, with the player 4 blocks away. Read the item. | R13 |
 | E14 | Send the start action in adventure mode and in spectator mode. | R14 |
 | E15 | Set a world border that excludes a block. Stand near the height limits. Send the start action. | R15 |
@@ -551,5 +553,29 @@ tall_seagrass, upper part hit:
   observer: level_event type 2001 at the upper part, data 2371
             level_event type 2001 at the lower part, data 2372
             level_event type 2001 at the upper part, data 2371
+            section_blocks_update
+```
+
+**R27.** Two runs, with the same result. `main` is the main part, `other` the other part. For tall
+seagrass both parts become state 89. For the others they become state 0.
+
+```text
+oak_door:       main (upper) data 7246, other (lower) data 7254
+red_bed south:  main (foot) data 2261, other (head) data 2260
+tall_grass:     main (upper) data 14772, other (lower) data 14773
+sunflower:      main (upper) data 14764, other (lower) data 14765
+tall_seagrass:  main (upper) data 2371, other (lower) data 2372
+small_dripleaf: main (upper) data 33812, other (lower) data 33814
+pitcher_plant:  main (upper) data 16792, other (lower) data 16793
+
+main part hit:
+  breaker:  level_event type 2001 at main
+            section_blocks_update with both parts (n=2); block_changed_ack
+  observer: level_event at main, level_event at other, level_event at main
+            section_blocks_update
+other part hit:
+  breaker:  level_event type 2001 at main
+            section_blocks_update with both parts (n=2); block_changed_ack
+  observer: level_event at other, level_event at main
             section_blocks_update
 ```
