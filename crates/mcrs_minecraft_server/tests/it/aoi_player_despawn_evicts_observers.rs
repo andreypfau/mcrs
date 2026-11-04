@@ -3,7 +3,8 @@
 //! InboundPlayerDespawn via PendingInboundLifecycle; the extract closure
 //! shuttles it into the per-dim sub-app's Messages buffer; the per-dim
 //! drain system resolves the in-dim Player via Owner and retains
-//! it out of every column's PlayerObservers.
+//! it out of every column's PlayerObservers; its despawn takes it off the
+//! client of each viewer.
 
 use bevy_app::{App, AppLabel, FixedPostUpdate, FixedPreUpdate, SubApp};
 use bevy_ecs::message::Messages;
@@ -14,8 +15,8 @@ use mcrs_minecraft_engine::bus::{
     InboundPlayerDespawn, OutboundPlayerPacket, PacketPayload, PacketTarget,
 };
 use mcrs_minecraft_engine::column_view::ColumnView;
+use mcrs_minecraft_engine::entity_tracker::EntityTracker;
 use mcrs_minecraft_engine::player_tracker::PlayerTrackerPlugin;
-use mcrs_minecraft_engine::tracked_by::TrackedBy;
 use mcrs_minecraft_engine_world::aoi::PlayerObservers;
 use mcrs_minecraft_engine_world::entity::physics::Transform;
 use mcrs_minecraft_engine_world::entity::player::Player;
@@ -40,9 +41,9 @@ struct TestDimLabel;
 struct TestDimTick;
 
 /// Regression for the disconnect removal path proving the three eviction truths:
-///   1. Stationary observer O's `TrackedBy` no longer contains T after removal.
-///   2. A `PlayerLeftView` packet targeting O carrying T's wire id was emitted.
-///   3. T's view is taken and its `TrackedBy` is empty after removal.
+///   1. T's view is taken and no column lists T after the drain.
+///   2. After T despawns, a remove packet targeting O carrying T's wire id is emitted.
+///   3. The tracker no longer pairs O with T.
 ///
 /// Reuses the same two-world harness (main App + SubApp, `set_extract` test
 /// closure) as the existing topology test above. Observer O does NOT move
@@ -83,13 +84,10 @@ fn disconnect_path_evicts_stationary_observer_three_assertions() {
         ))
         .id();
 
-    // Both players at the same position — within the 80-block tracking radius.
-    // update_tracked_by will discover each player in the other's column
-    // PlayerObservers on tick 1, populating both TrackedBy caches.
+    // Both players at the same position, inside the track radius.
     let pos = DVec3::new(0.0, 64.0, 0.0);
 
-    // Observer O: remains stationary throughout; its TrackedBy must be cleared
-    // of T after the eviction without O moving.
+    // Observer O: remains stationary throughout.
     let player_o = sub_app
         .world_mut()
         .spawn((
@@ -97,7 +95,6 @@ fn disconnect_path_evicts_stationary_observer_three_assertions() {
             Transform::from_translation(pos),
             PlayerViewDistance::default(),
             ColumnView::holding(crate::harness::columns_in_view(pos)),
-            TrackedBy::default(),
             InDimension(dim),
             Owner(session_o),
         ))
@@ -111,7 +108,6 @@ fn disconnect_path_evicts_stationary_observer_three_assertions() {
             Transform::from_translation(pos),
             PlayerViewDistance::default(),
             ColumnView::holding(crate::harness::columns_in_view(pos)),
-            TrackedBy::default(),
             InDimension(dim),
             Owner(session_t),
         ))
@@ -166,28 +162,13 @@ fn disconnect_path_evicts_stationary_observer_three_assertions() {
 
     main_app.insert_sub_app(TestDimLabel, sub_app);
 
-    // --- Tick 1: warm-up — populate PlayerObservers and TrackedBy ---
-    // FixedPreUpdate:
-    //   drain_inbound_player_despawn (no messages).
-    // FixedPostUpdate:
-    //   the mirror lists both players on the columns they hold;
-    //   update_tracked_by → each player discovers the other in neighboring
-    //   column PlayerObservers → both TrackedBy caches populated.
+    // --- Tick 1: warm-up: the mirror lists both players on the columns they hold, and the
+    // tracker pairs them.
     main_app.update();
 
-    // Non-vacuous precondition: O.TrackedBy must contain T before removal.
-    // (If this assertion fails, the test cannot meaningfully assert eviction.)
-    let o_tracked_t_before = {
-        let sub = main_app.get_sub_app(TestDimLabel).expect("sub-app");
-        sub.world()
-            .get::<TrackedBy>(player_o)
-            .map(|tb| tb.0.contains(&player_t))
-            .unwrap_or(false)
-    };
     assert!(
-        o_tracked_t_before,
-        "precondition: O.TrackedBy must contain T before removal (got false — \
-         the two-player warm-up did not converge; check tracking radius and column seeding)"
+        o_sees(&main_app, player_o, player_t),
+        "precondition: the tracker pairs O with T before removal"
     );
 
     // Non-vacuous precondition: T must be listed on the columns it holds.
@@ -212,15 +193,31 @@ fn disconnect_path_evicts_stationary_observer_three_assertions() {
         .resource_mut::<Messages<InboundPlayerDespawn>>()
         .write(InboundPlayerDespawn { session: session_t });
 
-    // --- Tick 2: drain and evict (O does NOT move) ---
-    // FixedPreUpdate: drain_inbound_player_despawn fires:
-    //   emits PlayerLeftView to O, clears T's TrackedBy and takes its view,
-    //   retains T from every column's PlayerObservers.
-    // FixedPostUpdate: on_changed_transform gate fires false (no movement) →
-    //   update_tracked_by is skipped.
+    // --- Tick 2: the drain takes T's view; T has not despawned yet ---
+    main_app.update();
+    {
+        let sub = main_app.get_sub_app(TestDimLabel).expect("sub-app");
+        assert!(
+            sub.world().get::<ColumnView>(player_t).is_none(),
+            "T still has a view after eviction"
+        );
+    }
+    let count_after = count_columns_observing_in_sub(&main_app, &columns, player_t);
+    assert_eq!(
+        count_after, 0,
+        "expected zero columns observing T after eviction, got {count_after}"
+    );
+
+    // --- Tick 3: T despawns, as the disconnect does after the drain (O does NOT move) ---
+    {
+        let sub = main_app.get_sub_app_mut(TestDimLabel).expect("sub-app");
+        sub.world_mut().despawn(player_t);
+        sub.world_mut()
+            .resource_mut::<Messages<OutboundPlayerPacket>>()
+            .clear();
+    }
     main_app.update();
 
-    // Drain packets from the sub-world (needs &mut World).
     let expected_wire_id = mcrs_minecraft_engine::network_id::player_network_id(session_t);
     let pkts: Vec<OutboundPlayerPacket> = {
         let sub = main_app.get_sub_app_mut(TestDimLabel).expect("sub-app");
@@ -229,53 +226,28 @@ fn disconnect_path_evicts_stationary_observer_three_assertions() {
             .drain()
             .collect()
     };
-    let left_view_for_o = pkts.iter().any(|pkt| {
+    let removed_for_o = pkts.iter().any(|pkt| {
         matches!(&pkt.target, PacketTarget::SinglePlayer(e) if *e == session_o)
-            && matches!(&pkt.data, PacketPayload::PlayerLeftView(ClientboundRemoveEntities { entity_ids })
+            && matches!(&pkt.data, PacketPayload::RemoveEntities(ClientboundRemoveEntities { entity_ids })
                 if entity_ids.contains(&VarInt(expected_wire_id)))
     });
     assert!(
-        left_view_for_o,
-        "expected PlayerLeftView targeting O with T's wire id; \
-         found {} emitted packets (none matched)",
-        pkts.len()
+        removed_for_o,
+        "expected a remove packet targeting O with T's wire id; got {pkts:?}"
     );
-
-    // Read TrackedBy and the view from the sub-world (immutable).
-    let sub = main_app.get_sub_app(TestDimLabel).expect("sub-app");
-    let sub_world = sub.world();
-
-    // Assertion 1: O.TrackedBy no longer contains T.
-    let o_tracked_t_after = sub_world
-        .get::<TrackedBy>(player_o)
-        .map(|tb| tb.0.contains(&player_t))
-        .unwrap_or(true);
     assert!(
-        !o_tracked_t_after,
-        "O.TrackedBy still contains T after eviction"
+        !o_sees(&main_app, player_o, player_t),
+        "the tracker still pairs O with T after T despawned"
     );
+}
 
-    // Assertion 3: T's view is gone and its TrackedBy is empty.
-    assert!(
-        sub_world.get::<ColumnView>(player_t).is_none(),
-        "T still has a view after eviction"
-    );
-    let t_tracked_by_empty = sub_world
-        .get::<TrackedBy>(player_t)
-        .map(|tb| tb.0.is_empty())
-        .unwrap_or(true);
-    assert!(
-        t_tracked_by_empty,
-        "T's TrackedBy is non-empty after eviction"
-    );
-
-    // Bonus: T is also removed from every column's PlayerObservers.
-    let count_after = count_columns_observing_in_sub(&main_app, &columns, player_t);
-    assert_eq!(
-        count_after, 0,
-        "expected zero columns observing T after eviction, got {}",
-        count_after
-    );
+fn o_sees(app: &App, viewer: Entity, subject: Entity) -> bool {
+    app.get_sub_app(TestDimLabel)
+        .expect("sub-app")
+        .world()
+        .resource::<EntityTracker>()
+        .visible(viewer)
+        .any(|seen| seen == subject)
 }
 
 fn count_columns_observing_in_sub(app: &App, columns: &[Entity], target: Entity) -> usize {

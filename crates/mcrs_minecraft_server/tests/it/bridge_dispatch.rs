@@ -27,7 +27,7 @@ use mcrs_minecraft_core::Look;
 use mcrs_minecraft_engine::bridge::dispatch_encode;
 use mcrs_minecraft_engine::bridge_queue::{DEPTH_DRAIN_TARGET, DEPTH_LIMIT, OutboundQueue};
 use mcrs_minecraft_engine::bus::{
-    OutboundPlayerPacket, PacketPayload, PacketPriority, PacketTarget, TestPayload,
+    OutboundPlayerPacket, PacketPayload, PacketPriority, PacketTarget, SpawnBundle, TestPayload,
 };
 use mcrs_minecraft_engine_world::session::PlayerSession;
 use mcrs_minecraft_network::OutboundReceiver;
@@ -381,16 +381,19 @@ fn only_test_remains_counted_drop() {
         q.push(OutboundPlayerPacket {
             target: PacketTarget::AllPlayers,
             priority: PacketPriority::Normal,
-            data: PacketPayload::PlayerEnteredView(ClientboundAddEntity {
-                id: VarInt(2),
-                uuid: Uuid::nil(),
-                kind: EntityType::SpruceBoat,
-                pos: DVec3::ZERO,
-                movement: LpVec3(DVec3::ZERO),
-                yaw: ByteAngle::from_degrees(0.0),
-                pitch: ByteAngle::from_degrees(0.0),
-                head_yaw: ByteAngle::from_degrees(0.0),
-                data: VarInt(0),
+            data: PacketPayload::SpawnBundle(SpawnBundle {
+                profile: None,
+                entity: ClientboundAddEntity {
+                    id: VarInt(2),
+                    uuid: Uuid::nil(),
+                    kind: EntityType::SpruceBoat,
+                    pos: DVec3::ZERO,
+                    movement: LpVec3(DVec3::ZERO),
+                    yaw: ByteAngle::from_degrees(0.0),
+                    pitch: ByteAngle::from_degrees(0.0),
+                    head_yaw: ByteAngle::from_degrees(0.0),
+                    data: VarInt(0),
+                },
             }),
             session: PlayerSession(0),
             epoch: 0,
@@ -398,7 +401,7 @@ fn only_test_remains_counted_drop() {
         q.push(OutboundPlayerPacket {
             target: PacketTarget::AllPlayers,
             priority: PacketPriority::Normal,
-            data: PacketPayload::PlayerLeftView(ClientboundRemoveEntities {
+            data: PacketPayload::RemoveEntities(ClientboundRemoveEntities {
                 entity_ids: vec![VarInt(3)],
             }),
             session: PlayerSession(0),

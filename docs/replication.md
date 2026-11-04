@@ -180,14 +180,13 @@ that has no rule.
 
 | Place | Today | Cost |
 |---|---|---|
-| `sync_entities`, `crates/mcrs_minecraft_engine_world/src/entity/mod.rs` | Tests each entity against each player of the dimension, each tick, with no spatial index. Radius: 16 blocks. | O(entities × players) each tick, also when players spread out. |
-| `update_tracked_by`, `crates/mcrs_minecraft_engine/src/update_tracked_by.rs` | Sweeps 11 × 11 columns for each player that moves, with a linear check for duplicates. Radius: 80 blocks. | Worse than O(N²) in a crowd. |
-| The two radii | A subject between 16 and 80 blocks is on the client but gets no moves. | Defect. |
-| `crates/mcrs_minecraft_engine/src/minecraft_entity.rs` | A move is an absolute position sync, built for each pair of subject and viewer. | 40 bytes instead of about 15. O(N²) packets. |
+| `EntityTracker`, `crates/mcrs_minecraft_engine/src/entity_tracker.rs` | One grid of sections with hash sets and one radius of 5 sections. A subject that changes its section pairs with the subjects of the new cells in its radius. Each player is a viewer and a subject, so one visible set holds both directions. | One check for each player, and O(subjects that move × visible) each tick. A change of section looks up 121 to 1,331 cells. |
+| `crates/mcrs_minecraft_engine/src/entity_motion.rs` | A move is a relative move from one delta base for each subject. A delta of more than about 8 blocks, or a move after 100 ticks, sends an absolute position sync. One message goes to all viewers of the subject. | The bridge still encodes the message for each viewer. |
+| Remove packets | One remove packet with a list for each viewer and tick. | None. |
 | Dimension to host channel, `crates/mcrs_minecraft_engine/src/sub_app_builder.rs` | One channel message for each packet. | Channel cost for each packet. |
 | `crates/mcrs_minecraft_engine/src/bridge.rs` | The flush runs on one thread. It clones each message for each recipient and encodes it for each recipient. Only chunks and the command tree share bytes. | O(viewers) for each packet. |
 | `crates/mcrs_minecraft_network/src/outbound.rs` | The writer of each connection frames and compresses each packet, also the shared bytes. | Each connection compresses a shared chunk again. |
-| Profile entries, `consume_inbound_player_spawn.rs` and `game_mode.rs` | A player that joins gets only its own entry. Other entries go out only when a game mode changes. | Other players probably do not appear (C2). A test must confirm this. |
+| Profile entries, `track_entities.rs` | The spawn of a player is a bundle: its profile entry, then the spawn. The entry does not set the listing, so a new entry is not listed. A change of game mode still sends a listed entry to all players. | The player list policy and latency are not done (step 4). |
 | `crates/mcrs_minecraft_engine/src/network_id.rs` | The wire id of an entity that is not a player is its index in the dimension. | Not stable across cells (`cells.md`, section 6). |
 | Encryption | None. The server runs in offline mode only. | No cost yet. |
 

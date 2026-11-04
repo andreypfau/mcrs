@@ -7,7 +7,6 @@ use bevy_ecs::prelude::*;
 use bevy_math::DVec3;
 use mcrs_minecraft_engine::bus::{InboundPlayerDespawn, OutboundPlayerPacket};
 use mcrs_minecraft_engine::column_view::ColumnView;
-use mcrs_minecraft_engine::tracked_by::TrackedBy;
 use mcrs_minecraft_engine_world::aoi::PlayerObservers;
 use mcrs_minecraft_engine_world::session::PlayerSession;
 use mcrs_minecraft_engine_world::world::dimension::{
@@ -59,8 +58,8 @@ fn assert_mirror_invariant(app: &App, player: Entity, columns: &FxHashMap<Column
 /// Every column a player holds lists it and no other column does, through an
 /// arrival, a move and a removal. Removing one player through
 /// `InboundPlayerDespawn`, the message both the disconnect and the
-/// transfer-out paths push, takes it off every shared column and out of the
-/// other player's `TrackedBy`, and leaves the other player where it was.
+/// transfer-out paths push, takes it off every shared column and leaves the
+/// other player where it was.
 #[test]
 fn a_column_lists_exactly_the_players_that_hold_it() {
     let mut app = make_aoi_app();
@@ -84,12 +83,6 @@ fn a_column_lists_exactly_the_players_that_hold_it() {
     }
     assert_mirror_invariant(&app, first, &columns);
     assert_mirror_invariant(&app, second, &columns);
-    assert!(
-        app.world()
-            .get::<TrackedBy>(second)
-            .is_some_and(|tracked| tracked.0.contains(&first)),
-        "precondition: the second player tracks the first"
-    );
 
     app.world_mut()
         .entity_mut(first)
@@ -114,20 +107,8 @@ fn a_column_lists_exactly_the_players_that_hold_it() {
 
     let world = app.world();
     assert!(
-        world
-            .get::<TrackedBy>(second)
-            .is_some_and(|tracked| !tracked.0.contains(&first)),
-        "the second player no longer tracks the first"
-    );
-    assert!(
         world.get::<ColumnView>(first).is_none(),
         "the first player's view is gone"
-    );
-    assert!(
-        world
-            .get::<TrackedBy>(first)
-            .is_some_and(|tracked| tracked.0.is_empty()),
-        "the first player's TrackedBy is cleared"
     );
     assert_mirror_invariant(&app, first, &columns);
     assert_mirror_invariant(&app, second, &columns);

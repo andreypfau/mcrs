@@ -55,7 +55,9 @@ pub fn flushes_pending_connections(scope: Option<Res<FlushScope>>) -> bool {
 use mcrs_minecraft_network::metrics::{BridgeTelemetry, PacketDispatcher};
 use mcrs_minecraft_network::{ConnectionState, RawConnection, ServerSideConnection};
 use mcrs_minecraft_protocol::anyhow;
-use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundDisconnect;
+use mcrs_minecraft_protocol::packets::game::clientbound::{
+    ClientboundBundleDelimiter, ClientboundDisconnect,
+};
 use mcrs_minecraft_protocol_game::clientbound::ClientboundPlayerInfoUpdate;
 use mcrs_minecraft_protocol_game::player_list::{PlayerListActions, PlayerListEntry};
 use mcrs_minecraft_text::Text;
@@ -65,7 +67,7 @@ use tracing::{trace, warn};
 
 use crate::bridge_queue::{DEPTH_DRAIN_TARGET, DEPTH_LIMIT, InboundRateBucket, OutboundQueue};
 use crate::bus::{InboundPlayerPacket, OutboundPlayerAttached, OutboundPlayerPacket};
-use crate::bus::{PacketPayload, PacketTarget};
+use crate::bus::{PacketPayload, PacketTarget, SpawnBundle};
 use crate::channel_types::{DimChannelsResource, ToDim};
 use crate::session::{HostAnchorRef, PendingInbound, SessionConnection};
 use mcrs_minecraft_engine_world::session::{Place, Session, SessionAnchors, SessionPlacement};
@@ -387,14 +389,18 @@ fn append_payload(raw: &mut RawConnection, data: PacketPayload) -> anyhow::Resul
         PacketPayload::GameEvent(p) => raw.append(&p),
         PacketPayload::PlayerLookAt(p) => raw.append(&p),
         PacketPayload::PlayerAbilities(p) => raw.append(&p),
-        PacketPayload::PlayerEnteredView(p) => raw.append(&p),
+        PacketPayload::SpawnBundle(bundle) => append_spawn_bundle(raw, &bundle),
+        PacketPayload::EntityMove(p) => raw.append(&p),
+        PacketPayload::EntityMoveRotate(p) => raw.append(&p),
+        PacketPayload::EntityRotate(p) => raw.append(&p),
+        PacketPayload::HeadRotation(p) => raw.append(&p),
         PacketPayload::ChunkLoad { packet, .. } | PacketPayload::Commands(packet) => {
             raw.append_shared(packet);
             Ok(())
         }
         PacketPayload::ChunkBatchStart(p) => raw.append(&p),
         PacketPayload::ChunkBatchFinished(p) => raw.append(&p),
-        PacketPayload::PlayerLeftView(p) => raw.append(&p),
+        PacketPayload::RemoveEntities(p) => raw.append(&p),
         PacketPayload::PlayerLogin(p) => raw.append(&p),
         PacketPayload::Respawn(p) => raw.append(&p),
         PacketPayload::OpLevelEntityEvent(p) => raw.append(&p),
@@ -425,6 +431,25 @@ fn append_payload(raw: &mut RawConnection, data: PacketPayload) -> anyhow::Resul
         PacketPayload::SetTime(p) => raw.append(&p),
         PacketPayload::Test(_) => Ok(()),
     }
+}
+
+fn append_spawn_bundle(raw: &mut RawConnection, bundle: &SpawnBundle) -> anyhow::Result<()> {
+    raw.append(&ClientboundBundleDelimiter)?;
+    if let Some(profile) = &bundle.profile {
+        raw.append(&ClientboundPlayerInfoUpdate {
+            actions: PlayerListActions::new()
+                .with_add_player(true)
+                .with_update_game_mode(true),
+            entries: Cow::Borrowed(&[PlayerListEntry {
+                player_uuid: profile.player_uuid,
+                username: profile.username.as_str(),
+                game_mode: profile.game_mode,
+                ..Default::default()
+            }]),
+        })?;
+    }
+    raw.append(&bundle.entity)?;
+    raw.append(&ClientboundBundleDelimiter)
 }
 
 /// Routes serverbound packets written to the bus into the dim channel seam.

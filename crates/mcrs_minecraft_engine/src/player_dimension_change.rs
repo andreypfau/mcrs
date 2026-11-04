@@ -11,7 +11,6 @@ use crate::game_mode;
 use crate::minecraft_entity::EntityBundle;
 use crate::sub_app_builder::FromDimBacklog;
 use crate::teleport::TeleportState;
-use crate::tracked_by::TrackedBy;
 use bevy_app::{App, SubApp};
 use bevy_ecs::component::Component;
 use bevy_ecs::entity::Entity;
@@ -123,7 +122,6 @@ pub fn change_dimension(
                 uuid,
             },
             owner,
-            TrackedBy::default(),
             Player,
             ColumnView::default(),
         ))
@@ -143,8 +141,8 @@ pub fn change_dimension(
     Ok(arrived)
 }
 
-/// Takes `player` out of `from`: hands over what `from` produced, takes the player from the
-/// view of its observers and claims the teleport id of its arrival.
+/// Takes `player` out of `from`: hands over what `from` produced and claims the teleport id of
+/// its arrival. Its viewers in `from` lose it when it despawns there.
 fn leave(
     host: &mut World,
     from: &mut World,
@@ -157,8 +155,6 @@ fn leave(
     if let Err(error) = host.try_run_schedule(OutboundFlush) {
         tracing::warn!("the packets of a player leaving were not flushed: {error}");
     }
-    from.run_system_cached_with(crate::drain_player_despawn::leave_dimension, player)
-        .map_err(|_| DimensionChangeError::NotLeft)?;
     Ok(from
         .get_mut::<TeleportState>(player)
         .ok_or(DimensionChangeError::NoArrivalState)?

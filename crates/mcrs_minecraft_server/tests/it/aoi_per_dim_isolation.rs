@@ -8,7 +8,7 @@
 use bevy_ecs::prelude::*;
 use bevy_math::DVec3;
 use mcrs_minecraft_engine::column_view::ColumnView;
-use mcrs_minecraft_engine::tracked_by::TrackedBy;
+use mcrs_minecraft_engine::entity_tracker::EntityTracker;
 use mcrs_minecraft_engine_world::aoi::PlayerObservers;
 use mcrs_minecraft_engine_world::entity::physics::Transform;
 use mcrs_minecraft_engine_world::entity::player::Player;
@@ -80,11 +80,13 @@ fn aoi_state_does_not_leak_across_dim_boundary() {
         "dim B chunks must have zero PlayerObservers entries (AoI state leaked across dim boundary)"
     );
 
-    // Also assert dim B has zero TrackedBy entries on any entity.
-    let dim_b_tracked_by_nonempty = nonempty_tracked_by(app.sub_app_mut(DimAppLabel(dim_b_label)));
+    let dim_b_tracker = app
+        .sub_app(DimAppLabel(dim_b_label))
+        .world()
+        .resource::<EntityTracker>();
     assert!(
-        !dim_b_tracked_by_nonempty,
-        "dim B should not carry any non-empty TrackedBy Components"
+        dim_b_tracker.is_empty(),
+        "dim B's entity tracker holds no player of dim A"
     );
 }
 
@@ -129,7 +131,6 @@ fn seed_player_and_columns(sub_app: &mut bevy_app::SubApp, player_pos: DVec3) {
         Transform::from_translation(player_pos),
         PlayerViewDistance::default(),
         ColumnView::holding(crate::harness::columns_in_view(player_pos)),
-        TrackedBy::default(),
         InDimension(dim_entity),
     ));
 }
@@ -157,9 +158,4 @@ fn sum_observer_count(sub_app: &bevy_app::SubApp) -> usize {
         }
     }
     total
-}
-
-fn nonempty_tracked_by(sub_app: &mut bevy_app::SubApp) -> bool {
-    let mut q = sub_app.world_mut().query::<&TrackedBy>();
-    q.iter(sub_app.world()).any(|t| !t.0.is_empty())
 }

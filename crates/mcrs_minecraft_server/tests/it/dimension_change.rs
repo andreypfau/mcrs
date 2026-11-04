@@ -307,7 +307,9 @@ fn an_observer_in_the_new_dimension_sees_the_mover_with_its_network_id_and_no_li
             matches!(packet.target, PacketTarget::SinglePlayer(target) if target == greeter)
         })
         .filter_map(|packet| match &packet.data {
-            PacketPayload::PlayerEnteredView(entity) if entity.uuid == walker => Some(entity.id),
+            PacketPayload::SpawnBundle(bundle) if bundle.entity.uuid == walker => {
+                Some(bundle.entity.id)
+            }
             _ => None,
         })
         .collect();

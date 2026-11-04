@@ -249,15 +249,8 @@ impl PlayServer {
     /// Runs `n` updates and returns the packets sent to `anchor` or to every player.
     pub fn ticks(&mut self, anchor: Entity, n: usize) -> Vec<PacketPayload> {
         let session = self.session_of(anchor);
-        self.ticks_all(n)
-            .into_iter()
-            .filter(|packet| match packet.target {
-                PacketTarget::SinglePlayer(target) => Some(target) == session,
-                PacketTarget::AllPlayers => true,
-                _ => false,
-            })
-            .map(|packet| packet.data)
-            .collect()
+        let packets = self.ticks_all(n);
+        session.map_or_else(Vec::new, |session| sent_to(session, packets))
     }
 
     /// Runs `n` updates and returns every packet sent.
@@ -296,6 +289,14 @@ impl PlayServer {
     }
 
     pub fn join_in(&mut self, dim: Entity, uuid: Uuid, name: &str) -> (Entity, Vec<PacketPayload>) {
+        let anchor = self.admit(dim, uuid, name);
+        let packets = self.ticks(anchor, 3);
+        (anchor, packets)
+    }
+
+    /// Places a new session in `dim` and sends its spawn, without running a tick. Returns its
+    /// host anchor.
+    pub fn admit(&mut self, dim: Entity, uuid: Uuid, name: &str) -> Entity {
         let session = self
             .app
             .world_mut()
@@ -328,8 +329,7 @@ impl PlayServer {
                 dimensions: Vec::new().into(),
             }),
         );
-        let packets = self.ticks(anchor, 3);
-        (anchor, packets)
+        anchor
     }
 
     /// Raises `packet` from `anchor` on its connection in the host, then queues it in the
@@ -403,4 +403,18 @@ impl PlayServer {
         let player = self.player(anchor);
         self.world().get::<PlayerGameMode>(player).unwrap().0
     }
+}
+
+/// The packets of `packets` that reach `session`, in order.
+pub fn sent_to(session: PlayerSession, packets: Vec<OutboundPlayerPacket>) -> Vec<PacketPayload> {
+    packets
+        .into_iter()
+        .filter(|packet| match &packet.target {
+            PacketTarget::SinglePlayer(target) => *target == session,
+            PacketTarget::PlayerSet(targets) => targets.contains(&session),
+            PacketTarget::AllPlayers => true,
+            PacketTarget::AllInDim(_) => false,
+        })
+        .map(|packet| packet.data)
+        .collect()
 }

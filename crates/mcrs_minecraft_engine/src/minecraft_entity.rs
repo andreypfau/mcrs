@@ -1,25 +1,18 @@
-use crate::bus::to;
-use crate::bus::{InboundPlayerPacket, OutboundPlayerPacket, PacketPayload};
+use crate::bus::InboundPlayerPacket;
 use crate::dim_player_plugin::DimPlayerPlugin;
-use crate::network_id::network_id;
 use bevy_app::{App, FixedPreUpdate, Plugin};
 use bevy_ecs::bundle::Bundle;
 use bevy_ecs::component::Component;
 use bevy_ecs::entity::Entity;
-use bevy_ecs::message::{MessageReader, MessageWriter};
-use bevy_ecs::prelude::{Commands, ContainsEntity, On};
-use bevy_ecs::query::With;
+use bevy_ecs::message::MessageReader;
+use bevy_ecs::prelude::{Commands, ContainsEntity};
 use bevy_ecs::schedule::IntoScheduleConfigs;
-use bevy_ecs::system::{Query, Res};
+use bevy_ecs::system::Res;
 use derive_more::{Deref, DerefMut};
-use mcrs_minecraft_engine_world::entity::EntityUuid;
-use mcrs_minecraft_engine_world::entity::physics::{OldTransform, Transform};
-use mcrs_minecraft_engine_world::entity::{EntityNetworkSyncEvent, EntityPlugin};
-use mcrs_minecraft_engine_world::session::{DimPlayerIndex, Owner};
+use mcrs_minecraft_engine_world::entity::physics::Transform;
+use mcrs_minecraft_engine_world::entity::{EntityPlugin, EntityUuid};
+use mcrs_minecraft_engine_world::session::DimPlayerIndex;
 use mcrs_minecraft_engine_world::world::dimension::InDimension;
-use mcrs_minecraft_protocol::VarInt;
-use mcrs_minecraft_protocol_game::clientbound::ClientboundEntityPositionSync;
-use mcrs_minecraft_protocol_game::clientbound::PositionPath;
 
 pub struct MinecraftEntityPlugin;
 
@@ -27,7 +20,6 @@ impl Plugin for MinecraftEntityPlugin {
     fn build(&self, app: &mut App) {
         app.add_plugins(EntityPlugin);
         app.add_plugins(DimPlayerPlugin);
-        app.add_observer(entity_pos_sync);
         app.add_systems(
             FixedPreUpdate,
             dispatch_inbound_to_dim.after(crate::sub_app_builder::DimInboxDrain),
@@ -87,38 +79,4 @@ fn dispatch_inbound_to_dim(
             );
         }
     }
-}
-
-/// Per-event observer that fans entity-position updates out to a single
-/// player via the cross-`World` bus. The downstream bridge layer consumes
-/// the typed `PacketPayload::EntityPosSync` variant and translates it to
-/// the appropriate wire packet (delta-vs-old, head-rotation, etc.) using
-/// per-player wire state it owns.
-///
-pub fn entity_pos_sync(
-    event: On<EntityNetworkSyncEvent>,
-    // The `With<OldTransform>` filter encodes the gating invariant in
-    // the type system: this observer must only fire on entities that
-    // carry both transform components. The actual delta computation
-    // moves to the bridge tier where per-player wire state lives.
-    entity_data: Query<(&Transform, Option<&Owner>), With<OldTransform>>,
-    viewers: Query<&Owner>,
-    mut packet_writer: MessageWriter<OutboundPlayerPacket>,
-) {
-    let Ok((transform, owner)) = entity_data.get(event.entity) else {
-        return;
-    };
-    let Ok(&Owner(viewer)) = viewers.get(event.player) else {
-        return;
-    };
-    let entity_id = network_id(event.entity, owner);
-    packet_writer.write(to(
-        viewer,
-        PacketPayload::EntityPosSync(ClientboundEntityPositionSync {
-            entity_id: VarInt(entity_id),
-            position: PositionPath::Linear(transform.translation),
-            look: transform.rotation.into(),
-            on_ground: true,
-        }),
-    ));
 }

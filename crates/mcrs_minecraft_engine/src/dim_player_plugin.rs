@@ -7,7 +7,6 @@ use crate::despawn_inbound_player::despawn_inbound_player;
 use crate::dimension_change::DimensionChanger;
 use crate::game_mode::{self, GameModePlugin};
 use crate::movement::MovementPlugin;
-use crate::network_add::network_add;
 use crate::op_level::{AnnouncedOpLevel, send_op_level};
 use crate::persistence;
 use crate::player_dimension_change::{self, CarryOnDimensionChangeExt};
@@ -62,7 +61,6 @@ impl Plugin for DimPlayerPlugin {
                 .in_set(TickSet::Output)
                 .run_if(every_n_ticks(persistence::AUTOSAVE_INTERVAL)),
         );
-        app.add_observer(network_add);
     }
 }
 

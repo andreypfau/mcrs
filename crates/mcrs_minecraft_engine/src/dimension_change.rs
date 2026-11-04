@@ -56,9 +56,6 @@ pub enum DimensionChangeError {
     /// The old world holds no such player.
     #[error("the old world holds no such player")]
     NoPlayer,
-    /// The player did not leave its dimension.
-    #[error("the player did not leave its dimension")]
-    NotLeft,
     /// The session of the player is no longer placed in the old dimension.
     #[error("the session of the player is no longer placed in the old dimension")]
     NotPlaced,

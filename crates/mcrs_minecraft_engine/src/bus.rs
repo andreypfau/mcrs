@@ -12,9 +12,10 @@ use mcrs_minecraft_protocol_game::clientbound::{
     ClientboundAddEntity, ClientboundBlockUpdate, ClientboundChunkBatchFinished,
     ClientboundChunkBatchStart, ClientboundChunkCacheRadius, ClientboundCommandSuggestions,
     ClientboundEntityEvent, ClientboundEntityPositionSync, ClientboundForgetLevelChunk,
-    ClientboundGameEvent, ClientboundLightUpdate, ClientboundLogin, ClientboundPlayerAbilities,
+    ClientboundGameEvent, ClientboundLightUpdate, ClientboundLogin, ClientboundMoveEntityPos,
+    ClientboundMoveEntityPosRot, ClientboundMoveEntityRot, ClientboundPlayerAbilities,
     ClientboundPlayerLookAt, ClientboundPlayerPosition, ClientboundRemoveEntities,
-    ClientboundRespawn, ClientboundSetChunkCacheCenter, ClientboundSetTime,
+    ClientboundRespawn, ClientboundRotateHead, ClientboundSetChunkCacheCenter, ClientboundSetTime,
     ClientboundSystemChatPacket,
 };
 use mcrs_minecraft_resource::ResourceKeyBuf;
@@ -136,9 +137,13 @@ pub enum PacketPayload {
     /// it can take them at.
     ChunkBatchStart(ClientboundChunkBatchStart),
     ChunkBatchFinished(ClientboundChunkBatchFinished),
-    PlayerEnteredView(ClientboundAddEntity),
-    PlayerLeftView(ClientboundRemoveEntities),
+    SpawnBundle(SpawnBundle),
+    RemoveEntities(ClientboundRemoveEntities),
     EntityPosSync(ClientboundEntityPositionSync),
+    EntityMove(ClientboundMoveEntityPos),
+    EntityMoveRotate(ClientboundMoveEntityPosRot),
+    EntityRotate(ClientboundMoveEntityRot),
+    HeadRotation(ClientboundRotateHead),
     PlayerLogin(ClientboundLogin),
     /// Moves the client to another dimension; it keeps its player.
     Respawn(ClientboundRespawn),
@@ -168,9 +173,13 @@ pub enum PacketPayload {
 impl PacketPayload {
     pub fn kind(&self) -> PacketKind {
         match self {
-            Self::EntityPosSync(_) => PacketKind::EntityMove,
-            Self::PlayerEnteredView(_) => PacketKind::Spawn,
-            Self::PlayerLeftView(_) => PacketKind::Remove,
+            Self::EntityPosSync(_)
+            | Self::EntityMove(_)
+            | Self::EntityMoveRotate(_)
+            | Self::EntityRotate(_)
+            | Self::HeadRotation(_) => PacketKind::EntityMove,
+            Self::SpawnBundle(_) => PacketKind::Spawn,
+            Self::RemoveEntities(_) => PacketKind::Remove,
             Self::PlayerInfoUpdate { .. } => PacketKind::PlayerInfo,
             Self::ChunkLoad { .. }
             | Self::ChunkUnload(_)
@@ -196,6 +205,23 @@ pub struct PlayerInfoEntry {
     pub username: String,
     pub game_mode: GameMode,
     pub listed: bool,
+}
+
+/// The packets that make a subject appear on a client, which the client applies in one tick.
+#[derive(Clone, Debug)]
+pub struct SpawnBundle {
+    /// The profile entry of a player, which the client needs before it creates the player.
+    pub profile: Option<ProfileEntry>,
+    pub entity: ClientboundAddEntity,
+}
+
+/// The profile entry of a spawn bundle. It does not set whether the entry is listed: a new entry
+/// is not listed, and an entry that the client has keeps its listing.
+#[derive(Clone, Debug)]
+pub struct ProfileEntry {
+    pub player_uuid: Uuid,
+    pub username: String,
+    pub game_mode: GameMode,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]

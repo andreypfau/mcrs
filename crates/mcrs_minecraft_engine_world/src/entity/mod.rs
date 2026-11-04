@@ -1,18 +1,14 @@
 use crate::entity::physics::{OldTransform, Transform};
-use crate::entity::player::Player;
-use crate::tick::TickSet;
-use crate::world::dimension::{Dimension, DimensionPlayers, InDimension, OldInDimension};
+use crate::world::dimension::{Dimension, InDimension, OldInDimension};
 use crate::world::storage::section::Section;
 use crate::world::storage::section::SectionIndex;
-use bevy_app::{App, FixedPostUpdate, FixedPreUpdate, FixedUpdate, Plugin};
+use bevy_app::{App, FixedPostUpdate, FixedPreUpdate, Plugin};
 use bevy_derive::Deref;
-use bevy_ecs::entity::EntityHashSet;
 use bevy_ecs::lifecycle::Remove;
 use bevy_ecs::prelude::{
-    Added, Commands, Component, ContainsEntity, DetectChanges, Entity, EntityEvent, Has,
-    IntoScheduleConfigs, Local, On, ParallelCommands, Query, Ref, With, Without,
+    Commands, Component, ContainsEntity, DetectChanges, Entity, IntoScheduleConfigs, On, Query,
+    Ref, Without,
 };
-use bevy_ecs::relationship::RelationshipSourceCollection;
 use mcrs_voxel::SectionPos;
 use uuid::Uuid;
 
@@ -23,11 +19,7 @@ pub struct EntityPlugin;
 
 impl Plugin for EntityPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(
-            FixedPreUpdate,
-            (add_entity_to_chunk, add_player_synced_entities),
-        );
-        app.add_systems(FixedUpdate, sync_entities.in_set(TickSet::Project));
+        app.add_systems(FixedPreUpdate, add_entity_to_chunk);
         app.add_systems(
             FixedPostUpdate,
             (
@@ -37,25 +29,16 @@ impl Plugin for EntityPlugin {
             )
                 .chain(),
         );
-        app.add_observer(synced_entity_added);
-        app.add_observer(synced_entity_removed);
         app.add_observer(forget_removed_entity);
     }
 }
-
-#[derive(Component, Default)]
-#[component(storage = "SparseSet")]
-pub struct EntityNetworkSync;
-
-#[derive(Component, Default, Deref)]
-struct PlayerSynchronizedEntities(EntityHashSet);
 
 #[derive(Component, Debug, Default, Deref)]
 pub struct SectionEntities(Vec<Entity>);
 
 impl SectionEntities {
     pub fn remove_entity(&mut self, entity: Entity) -> bool {
-        if let Some(pos) = self.0.iter().position(|e| e == entity) {
+        if let Some(pos) = self.0.iter().position(|&e| e == entity) {
             self.0.remove(pos);
             true
         } else {
@@ -166,15 +149,8 @@ fn forget_removed_entity(
     )>,
     dims_chunks: Query<&SectionIndex>,
     mut chunks: Query<&mut SectionEntities>,
-    mut synced: Query<&mut PlayerSynchronizedEntities>,
 ) {
     let entity = remove.event().entity;
-    // chisle: walks every player per despawn because a player keeps entities synced from a
-    // dimension it or the entity has left; a per-player reverse index of tracked entities,
-    // or clearing the set on dimension change, lifts it.
-    for mut synced_entities in &mut synced {
-        synced_entities.0.remove(entity);
-    }
     let Ok((in_dimension, old_in_dimension, transform, old_transform)) = entities.get(entity)
     else {
         return;
@@ -195,109 +171,6 @@ fn update_old_transforms(mut entities: Query<(&mut OldTransform, &Transform)>) {
         .for_each(|(mut old_transform, transform)| {
             old_transform.0 = *transform;
         });
-}
-
-#[derive(EntityEvent, Debug)]
-pub struct EntityNetworkSyncEvent {
-    pub entity: Entity,
-    pub player: Entity,
-}
-
-#[derive(EntityEvent, Debug)]
-pub struct EntityNetworkAddEvent {
-    pub entity: Entity,
-    pub player: Entity,
-}
-
-#[derive(EntityEvent, Debug)]
-pub struct EntityNetworkRemoveEvent {
-    pub entity: Entity,
-    pub player: Entity,
-}
-
-fn add_player_synced_entities(
-    mut commands: Commands,
-    new_players: Query<Entity, (With<Player>, Added<InDimension>)>,
-) {
-    new_players.iter().for_each(|entity| {
-        commands
-            .entity(entity)
-            .insert(PlayerSynchronizedEntities::default());
-    });
-}
-
-/// Every this many ticks, every tracked entity is resent whether it moved or not.
-const FORCE_SYNC_TICKS: u32 = 60;
-
-fn sync_entities(
-    dim_players: Query<&DimensionPlayers>,
-    player_data: Query<(&Transform, &PlayerSynchronizedEntities), With<Player>>,
-    entities: Query<(Entity, &InDimension, Ref<Transform>, Has<EntityNetworkSync>)>,
-    commands: ParallelCommands,
-    mut tick: Local<u32>,
-) {
-    let need_force_sync = tick.is_multiple_of(FORCE_SYNC_TICKS);
-    *tick = tick.wrapping_add(1);
-
-    entities
-        .par_iter()
-        .for_each(|(entity, in_dimension, transform, need_sync)| {
-            let Ok(players) = dim_players.get(in_dimension.entity()) else {
-                return;
-            };
-            players.iter().for_each(|&player| {
-                if player == entity {
-                    return;
-                }
-                let Ok((player_transform, synced_entities)) = player_data.get(player) else {
-                    return;
-                };
-                let has_spawned = synced_entities.contains(&entity);
-                let too_far =
-                    || (transform.translation - player_transform.translation).length() > 16.0;
-
-                if has_spawned {
-                    if too_far() {
-                        commands.command_scope(|mut cmds| {
-                            cmds.trigger(EntityNetworkRemoveEvent { entity, player });
-                        });
-                    } else if need_force_sync || need_sync || transform.is_changed() {
-                        commands.command_scope(|mut cmds| {
-                            cmds.trigger(EntityNetworkSyncEvent { entity, player });
-                        });
-                    }
-                } else if !too_far() {
-                    commands.command_scope(|mut cmds| {
-                        cmds.trigger(EntityNetworkAddEvent { entity, player });
-                    });
-                }
-            });
-            if need_sync {
-                commands.command_scope(|mut cmds| {
-                    cmds.entity(entity).remove::<EntityNetworkSync>();
-                });
-            }
-        });
-}
-
-fn synced_entity_added(
-    event: On<EntityNetworkAddEvent>,
-    mut player_data: Query<&mut PlayerSynchronizedEntities, With<Player>>,
-) {
-    let Ok(mut synced_entities) = player_data.get_mut(event.player) else {
-        return;
-    };
-    synced_entities.0.add(event.entity);
-}
-
-fn synced_entity_removed(
-    event: On<EntityNetworkRemoveEvent>,
-    mut player_data: Query<&mut PlayerSynchronizedEntities, With<Player>>,
-) {
-    let Ok(mut synced_entities) = player_data.get_mut(event.player) else {
-        return;
-    };
-    synced_entities.0.remove(event.entity);
 }
 
 #[derive(Debug, Clone, Copy, Component, Deref, PartialEq, Eq)]

@@ -13,7 +13,6 @@ use bevy_math::DVec3;
 use mcrs_minecraft_engine::bus::{InboundPlayerDespawn, OutboundPlayerPacket};
 use mcrs_minecraft_engine::column_view::ColumnView;
 use mcrs_minecraft_engine::player_tracker::PlayerTrackerPlugin;
-use mcrs_minecraft_engine::tracked_by::TrackedBy;
 use mcrs_minecraft_engine_world::entity::physics::Transform;
 use mcrs_minecraft_engine_world::entity::player::Player;
 use mcrs_minecraft_engine_world::entity::player::chunk_view::PlayerViewDistance;
@@ -64,7 +63,6 @@ pub fn spawn_player_in_dim(app: &mut App, dim: Entity, pos: DVec3) -> Entity {
             Transform::from_translation(pos),
             PlayerViewDistance::default(),
             ColumnView::holding(columns_in_view(pos)),
-            TrackedBy::default(),
             InDimension(dim),
         ))
         .id()
@@ -86,7 +84,6 @@ pub fn spawn_player_in_dim_with_session(
             Transform::from_translation(pos),
             PlayerViewDistance::default(),
             ColumnView::holding(columns_in_view(pos)),
-            TrackedBy::default(),
             InDimension(dim),
             Owner(session),
         ))
