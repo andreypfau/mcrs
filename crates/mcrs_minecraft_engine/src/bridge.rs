@@ -487,6 +487,9 @@ fn hand_over(
                 }
                 QueuedPacket::Records(chunks) => {
                     for records in chunks {
+                        telemetry.replication_bytes_total = telemetry
+                            .replication_bytes_total
+                            .saturating_add(records.len() as u64);
                         let packets = raw.append_records(records);
                         telemetry
                             .packets

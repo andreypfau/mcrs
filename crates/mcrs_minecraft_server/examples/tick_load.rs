@@ -107,6 +107,7 @@ struct Traffic {
     framed_appends: u64,
     packets: PacketKinds,
     tile_encodes: u64,
+    replication_bytes: u64,
 }
 
 impl Traffic {
@@ -124,6 +125,7 @@ impl Traffic {
             shared_frames: telemetry.shared_frames_total,
             framed_appends: telemetry.framed_appends_total,
             packets: telemetry.packets,
+            replication_bytes: telemetry.replication_bytes_total,
         }
     }
 
@@ -137,6 +139,9 @@ impl Traffic {
             framed_appends: self.framed_appends.saturating_sub(earlier.framed_appends),
             packets: self.packets.since(earlier.packets),
             tile_encodes: self.tile_encodes.saturating_sub(earlier.tile_encodes),
+            replication_bytes: self
+                .replication_bytes
+                .saturating_sub(earlier.replication_bytes),
         }
     }
 }
@@ -307,6 +312,11 @@ fn report_traffic(measured: &[TickTimes]) {
     println!(
         "bytes a session a tick: mean {mean:.0}, p95 {}, max {max}",
         bytes.get(p95_index).copied().unwrap_or(0),
+    );
+    let sessions = last.session_bytes.len().max(1) as f64;
+    println!(
+        "muxer bytes a session a tick: mean {:.0}",
+        a_tick(total.replication_bytes) / sessions,
     );
 }
 
