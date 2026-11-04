@@ -206,36 +206,20 @@ impl<C: ReplicationCodec> Muxer<C> {
         let mut left = Vec::new();
         for SubjectEvent { subject, event } in &delta.events {
             let subject = *subject;
-            match event {
-                EntityEvent::Spawn(_) => {
-                    stream.subjects.insert(subject);
-                    entered.push(Crossing {
-                        subject,
-                        other: None,
-                    });
-                }
-                EntityEvent::Enter { from } => {
-                    stream.subjects.insert(subject);
-                    entered.push(Crossing {
-                        subject,
-                        other: Some(*from),
-                    });
-                }
-                EntityEvent::Leave { to } => {
-                    stream.subjects.remove(&subject);
-                    left.push(Crossing {
-                        subject,
-                        other: Some(*to),
-                    });
-                }
-                EntityEvent::Despawn => {
-                    stream.subjects.remove(&subject);
-                    left.push(Crossing {
-                        subject,
-                        other: None,
-                    });
-                }
-                EntityEvent::Move(_) | EntityEvent::Data(_) => {}
+            let (entering, other) = match event {
+                EntityEvent::Spawn(_) => (true, None),
+                EntityEvent::Enter { from } => (true, Some(*from)),
+                EntityEvent::Leave { to } => (false, Some(*to)),
+                EntityEvent::Despawn => (false, None),
+                EntityEvent::Move(_) | EntityEvent::Data(_) => continue,
+            };
+            let crossing = Crossing { subject, other };
+            if entering {
+                stream.subjects.insert(subject);
+                entered.push(crossing);
+            } else {
+                stream.subjects.remove(&subject);
+                left.push(crossing);
             }
         }
 

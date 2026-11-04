@@ -1,5 +1,5 @@
 use std::collections::VecDeque;
-use std::mem;
+use std::{iter, mem};
 
 use bytes::{BufMut, Bytes, BytesMut};
 use mcrs_minecraft_protocol::{CompressionThreshold, Encode, Packet, PacketEncoder};
@@ -117,15 +117,9 @@ impl WriterQueue {
     /// `u32`, as [`Self::append`] writes them. Returns how many packets `records` holds.
     pub(crate) fn append_records(&mut self, records: Bytes) -> usize {
         let mut count = 0;
-        let mut rest: &[u8] = &records;
-        while let Some((length, tail)) = rest.split_first_chunk::<RECORD_LENGTH_BYTES>() {
-            let length = u32::from_be_bytes(*length);
-            let Some(next) = tail.get(length as usize..) else {
-                break;
-            };
-            self.appended = self.appended.saturating_add(u64::from(length));
+        for packet in packets(&records) {
+            self.appended = self.appended.saturating_add(packet.len() as u64);
             count += 1;
-            rest = next;
         }
         self.close_records();
         self.push(OutboundPart::Packets(records));
@@ -185,6 +179,18 @@ impl WriterQueue {
     }
 }
 
+/// The packets of `records`, each behind its length as a big-endian `u32`. A record cut short
+/// ends them.
+fn packets(records: &[u8]) -> impl Iterator<Item = &[u8]> {
+    let mut rest = records;
+    iter::from_fn(move || {
+        let (length, tail) = rest.split_first_chunk::<RECORD_LENGTH_BYTES>()?;
+        let (packet, tail) = tail.split_at_checked(u32::from_be_bytes(*length) as usize)?;
+        rest = tail;
+        Some(packet)
+    })
+}
+
 /// The writer's half of the encoding: frames and compresses each batch it is handed, in order,
 /// except the frames the server thread made once for many connections.
 pub(crate) struct FrameWriter {
@@ -201,15 +207,8 @@ impl FrameWriter {
         for part in batch.parts {
             match part {
                 OutboundPart::Packets(records) => {
-                    let mut rest: &[u8] = &records;
-                    while let Some((length, tail)) = rest.split_first_chunk::<RECORD_LENGTH_BYTES>()
-                    {
-                        let length = u32::from_be_bytes(*length) as usize;
-                        let Some((packet, tail)) = tail.split_at_checked(length) else {
-                            break;
-                        };
+                    for packet in packets(&records) {
                         self.append(packet);
-                        rest = tail;
                     }
                 }
                 OutboundPart::Shared(packet) => self.append(&packet),
