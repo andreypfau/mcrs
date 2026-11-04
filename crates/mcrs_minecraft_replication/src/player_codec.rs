@@ -456,7 +456,9 @@ fn add_player(id: VarInt, uuid: Uuid, base: &DeltaBase) -> Result<Bytes> {
     })
 }
 
-/// The id on the wire of `subject`, which holds that id in its low 32 bits.
-fn wire_id(subject: EntityId) -> VarInt {
+/// The id on the wire of `subject`: its low 32 bits. The id of a player is odd and the id of
+/// any other entity is even, so the two kinds keep apart on the wire too.
+#[must_use]
+pub fn wire_id(subject: EntityId) -> VarInt {
     VarInt(subject.0 as u32 as i32)
 }

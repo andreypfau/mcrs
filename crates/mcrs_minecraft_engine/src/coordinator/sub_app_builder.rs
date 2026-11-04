@@ -12,7 +12,9 @@ use tracing::{error, warn};
 use crate::bus::{InboundPlayerSpawn, OutboundPlayerPacket};
 use crate::coordinator::dim::DimSubAppHandle;
 use crate::coordinator::dim_cells::DimCells;
+use crate::coordinator::entity_id_ranges::EntityIdRanges;
 use crate::dim_tick::{DimInbox, DimInboxDrain, drain_dim_inbox, inbox_holds_messages};
+use crate::entity_ids::{CellEntityIds, assign_global_entity_id};
 use crate::to_muxer::DimOpened;
 use mcrs_minecraft_engine_world::block_update::{BlockPlaced, BlockSetRequest};
 
@@ -154,6 +156,17 @@ pub fn spawn_dim_subapp(
     sub_app.add_message::<BlockPlaced>();
 
     sub_app.init_resource::<mcrs_minecraft_engine_world::session::DimPlayerIndex>();
+    let mut entity_ids = CellEntityIds::default();
+    match app
+        .world_mut()
+        .get_resource_or_init::<EntityIdRanges>()
+        .grant()
+    {
+        Some(range) => entity_ids.add(range),
+        None => error!("no global entity ids remain for a new dimension"),
+    }
+    sub_app.insert_resource(entity_ids);
+    sub_app.add_observer(assign_global_entity_id);
     if traces_columns {
         sub_app.init_resource::<ColumnTraceLog>();
     }

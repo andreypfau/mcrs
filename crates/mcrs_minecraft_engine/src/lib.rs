@@ -23,6 +23,7 @@ pub mod dimension_change;
 pub mod dimension_generators;
 pub mod drain_player_despawn;
 pub mod enter_level_packets;
+pub mod entity_ids;
 pub mod game_mode;
 pub mod game_profile;
 pub mod heightmap;

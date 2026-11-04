@@ -9,10 +9,11 @@ use tracing::{debug, warn};
 
 use crate::coordinator::destination;
 use crate::coordinator::dim_cells::{DimCells, DimTicked};
+use crate::coordinator::entity_id_ranges::EntityIdRanges;
 use crate::to_muxer::{DimClosed, DimDelivered, RoutedDeparture};
 
 /// Takes what the dimension worlds handed over in their last tick, the dimensions in the order
-/// they ticked: records their column traces, picks the destination of each player that left
+/// they ticked: records their column traces, grants the entity id ranges they ask for, picks the destination of each player that left
 /// them, and hands the rest to the muxer.
 pub(crate) fn take_dim_outputs(world: &mut World) {
     let taken = world
@@ -25,6 +26,11 @@ pub(crate) fn take_dim_outputs(world: &mut World) {
             && let Some(dimension) = world.get::<ResourceKeyBuf<DimensionKey>>(label)
         {
             sink.record(dimension.as_str(), output.traces);
+        }
+        if output.entity_id_request.is_some()
+            && let Some(mut ranges) = world.get_resource_mut::<EntityIdRanges>()
+        {
+            ranges.answer(label);
         }
         let departures: Vec<RoutedDeparture> = output
             .departures

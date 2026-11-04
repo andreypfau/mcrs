@@ -16,9 +16,11 @@ use mcrs_minecraft_engine_registries::RegistrySnapshot;
 use mcrs_minecraft_environment::world_clock::WorldClocks;
 
 use crate::coordinator::clock::GameTime;
+use crate::coordinator::entity_id_ranges::EntityIdRanges;
 use crate::coordinator::ops::OpList;
 use crate::dim_tick;
 use crate::dim_tick::{DimInput, DimOutput, DimWorld, TickDimensions, TickDimensionsSet};
+use crate::entity_ids::EntityIdRange;
 use crate::to_coordinator::RoutedInput;
 use crate::to_muxer::{DimClosed, DimDelivered, DimOpened};
 use rustc_hash::FxHashMap;
@@ -29,6 +31,7 @@ pub struct DimCellsPlugin;
 impl Plugin for DimCellsPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<DimCells>();
+        app.init_resource::<EntityIdRanges>();
         app.add_message::<DimOpened>();
         app.add_message::<DimClosed>();
         app.add_message::<DimDelivered>();
@@ -215,7 +218,11 @@ impl Globals {
         }
     }
 
-    fn input(&self, routed: Option<RoutedInput>) -> DimInput {
+    fn input(
+        &self,
+        routed: Option<RoutedInput>,
+        entity_id_grant: Option<EntityIdRange>,
+    ) -> DimInput {
         let (control, serverbound) = routed.map_or_else(Default::default, |routed| {
             (routed.control, routed.serverbound)
         });
@@ -226,6 +233,7 @@ impl Globals {
             registries: self.registries.clone(),
             control,
             serverbound,
+            entity_id_grant,
         }
     }
 }
@@ -237,7 +245,7 @@ fn changed<R: Resource + Clone>(host: &World) -> Option<R> {
 }
 
 /// Ticks every dimension world once with the copies of the host resources and the input that
-/// the muxer routed during the update, and keeps the outputs for the host to take between ticks.
+/// the muxer routed during the update, with the entity id ranges granted after the last tick, and keeps the outputs for the host to take between ticks.
 pub fn tick_dimensions(world: &mut World) {
     let globals = Globals::read(world);
     let mut routed: FxHashMap<Entity, RoutedInput> = world
@@ -249,7 +257,11 @@ pub fn tick_dimensions(world: &mut World) {
                 .collect()
         })
         .unwrap_or_default();
+    let mut granted = world
+        .get_resource_mut::<EntityIdRanges>()
+        .map(|mut ranges| ranges.take_granted())
+        .unwrap_or_default();
     if let Some(mut cells) = world.get_resource_mut::<DimCells>() {
-        cells.tick(|label| globals.input(routed.remove(&label)));
+        cells.tick(|label| globals.input(routed.remove(&label), granted.remove(&label)));
     }
 }

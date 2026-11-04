@@ -42,6 +42,7 @@ mod dimension_list;
 mod dimension_plugins;
 mod dimension_type;
 mod disconnect_support;
+mod entity_ids;
 mod entity_replication;
 mod epoch_round_trip;
 mod harness;

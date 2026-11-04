@@ -189,7 +189,7 @@ that has no rule.
 | `crates/mcrs_minecraft_network/src/outbound.rs` | The flush frames and compresses a shared packet one time for each compression threshold. The writer sends this `Framed` part as it is. The records of the muxer go as a `Packets` part. | One deflate for each chunk version in a flush. |
 | Profile entries, `crates/mcrs_minecraft_replication/src/player_list.rs` | The codec of each dimension keeps the entries of each viewer in that dimension. Section 7.5 gives the rules. A change of game mode goes only to the viewers that have the entry. | The policy reads all players of the dimension: O(N) for each viewer that it checks. |
 | Chat, `crates/mcrs_minecraft_chat_server/src/chat_plugin.rs`, `crates/mcrs_minecraft_engine/src/publish_player_tiles.rs` | Global chat is system chat. The join and leave messages are data events of the tile deltas. The codec sends them to the viewers whose client holds the player. | One encode for each message. |
-| `crates/mcrs_minecraft_engine/src/network_id.rs` | The wire id of an entity that is not a player is its index in the dimension. | Not stable across cells (`cells.md`, section 6). |
+| Entity ids, `crates/mcrs_minecraft_engine/src/network_id.rs`, `crates/mcrs_minecraft_engine/src/entity_ids.rs` | The `EntityId` of a player comes from its session and is odd. An entity that is not a player gets an even `GlobalEntityId` when it spawns. The Coordinator gives each dimension world a range of 4,096 even ids when the world spawns. A world asks for the next range in its `DimOutput` when fewer than 2,048 ids remain. The grant comes in the `DimInput` of the next tick, so a world can take 2,048 ids in each tick. The Coordinator answers the requests in the order of the cells, so Inline and Thread placement give the same ids. An entity that a cell takes in keeps its `GlobalEntityId`. The wire id is the low 32 bits of the `EntityId`, so it depends on that id only, and players and other entities never share a wire id. | No cost when no entity spawns. One range of ids for each 4,096 entities that spawn. |
 | Encryption | None. The server runs in offline mode only. | No cost yet. |
 
 ---
@@ -462,7 +462,8 @@ the step goes in the migration of `cells.md`, section 12.
 - The tile size.
 - The default K and the default budget. Measure the frame rate of the vanilla client first.
 - The encryption throughput for each core, and the gain of many streams in wide instructions.
-- The wire id of a player wraps after 2³¹ sessions.
+- The wire id of a player wraps after 2³¹ sessions. The wire id of an entity that is not a player
+  wraps after 2³¹ granted ids, because a range never returns to the Coordinator.
 
 ---
 

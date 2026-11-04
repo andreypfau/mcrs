@@ -22,6 +22,7 @@ use crate::channel_types::ToDim;
 use crate::coordinator::clock::GameTime;
 use crate::coordinator::ops::OpList;
 use crate::departure::{Departure, PlayerTransfer};
+use crate::entity_ids::{CellEntityIds, EntityIdRange, EntityIdRequest};
 use crate::player_dimension_change;
 use crate::tile_events::TileEvents;
 
@@ -56,6 +57,8 @@ pub struct DimInput {
     pub(crate) registries: Option<Versioned<RegistrySnapshot>>,
     pub(crate) control: Vec<ToDim>,
     pub(crate) serverbound: Vec<InboundPlayerPacket>,
+    /// The range that the coordinator grants for the request of the last tick.
+    pub(crate) entity_id_grant: Option<EntityIdRange>,
 }
 
 /// What a dimension world hands the host after one tick.
@@ -73,6 +76,8 @@ pub struct DimOutput {
     /// The changes of the players of the tick, for the muxer. A player that departs in the tick
     /// despawns in them.
     pub(crate) tiles: TileDeltas<PlayerData>,
+    /// Present when the dimension holds few free entity ids.
+    pub(crate) entity_id_request: Option<EntityIdRequest>,
 }
 
 /// The messages of the input of this tick, until the inbox drain writes them at the sync point.
@@ -98,6 +103,11 @@ fn apply_input(world: &mut World, _tick: Tick, input: DimInput) {
     }
     if let Some(registries) = input.registries {
         mcrs_minecraft_engine_registries::apply_registries(world, registries);
+    }
+    if let Some(range) = input.entity_id_grant
+        && let Some(mut ids) = world.get_resource_mut::<CellEntityIds>()
+    {
+        ids.add(range);
     }
     if let Some(mut inbox) = world.get_resource_mut::<DimInbox>() {
         inbox.control.extend(input.control);
@@ -126,6 +136,9 @@ fn take_output(world: &mut World) -> DimOutput {
     if let Some(mut events) = world.get_resource_mut::<TileEvents>() {
         output.tiles = events.take();
     }
+    output.entity_id_request = world
+        .get_resource::<CellEntityIds>()
+        .and_then(CellEntityIds::request);
     output
 }
 
