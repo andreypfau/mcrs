@@ -105,7 +105,7 @@ impl GenerationStage {
 
     /// Whether a wanted column below `done` lies within `radius` of `col`.
     fn wanted_within(&self, col: ColumnPos, radius: i32, done: Stage) -> bool {
-        col.rings(radius).any(|u| {
+        col.square(radius).any(|u| {
             self.priority_index.contains_key(&u) && self.store.stage(u).is_none_or(|at| at < done)
         })
     }

@@ -45,28 +45,6 @@ impl ColumnPos {
         })
     }
 
-    /// The same columns as [`ColumnPos::square`], nearest ring first: this column, then the
-    /// eight around it, and so on out to `radius`.
-    pub fn rings(self, radius: i32) -> impl Iterator<Item = Self> {
-        (0..=radius).flat_map(move |ring| {
-            let side = (-ring..=ring).flat_map(move |along| {
-                [
-                    Self::new(self.x.saturating_add(along), self.z.saturating_sub(ring)),
-                    Self::new(self.x.saturating_add(along), self.z.saturating_add(ring)),
-                ]
-            });
-            let ends = (1 - ring..ring).flat_map(move |along| {
-                [
-                    Self::new(self.x.saturating_sub(ring), self.z.saturating_add(along)),
-                    Self::new(self.x.saturating_add(ring), self.z.saturating_add(along)),
-                ]
-            });
-            // Ring 0 is the column itself, which `side` would yield twice.
-            side.take(if ring == 0 { 1 } else { usize::MAX })
-                .chain(ends)
-        })
-    }
-
     pub const fn min_block_x(self) -> i32 {
         self.x << SectionPos::BITS
     }
@@ -136,33 +114,5 @@ impl From<[i32; 2]> for ColumnPos {
 impl From<ColumnPos> for [i32; 2] {
     fn from(pos: ColumnPos) -> Self {
         [pos.x, pos.z]
-    }
-}
-
-#[cfg(test)]
-mod rings_tests {
-    extern crate std;
-
-    use super::ColumnPos;
-    use std::vec::Vec;
-
-    #[test]
-    fn rings_cover_the_square_once_nearest_first() {
-        let centre = ColumnPos::new(3, -2);
-        for radius in 0..4 {
-            let rings: Vec<ColumnPos> = centre.rings(radius).collect();
-            let mut sorted = rings.clone();
-            sorted.sort_unstable();
-            let mut square: Vec<ColumnPos> = centre.square(radius).collect();
-            square.sort_unstable();
-            assert_eq!(sorted, square, "radius {radius}");
-            assert!(
-                rings
-                    .windows(2)
-                    .all(|pair| centre.chebyshev_distance(pair[0])
-                        <= centre.chebyshev_distance(pair[1])),
-                "radius {radius}"
-            );
-        }
     }
 }
