@@ -1,0 +1,23 @@
+[package]
+name = "mcrs_minecraft_replication"
+description = "The Minecraft side of entity replication: delta bases for moves, spawn bundles, profile entries and the player list policy, as encoded packets"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+doctest = false
+
+[lints]
+workspace = true
+
+[dependencies]
+mcrs_minecraft_core.workspace = true
+mcrs_minecraft_entity.workspace = true
+mcrs_minecraft_game_mode.workspace = true
+mcrs_minecraft_profile.workspace = true
+mcrs_minecraft_protocol.workspace = true
+mcrs_minecraft_protocol_game.workspace = true
+mcrs_minecraft_wire.workspace = true
+bytes.workspace = true
+glam.workspace = true
+uuid.workspace = true
