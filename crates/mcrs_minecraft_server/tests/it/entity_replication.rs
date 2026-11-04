@@ -4,11 +4,12 @@
 
 use bevy_ecs::prelude::*;
 use bevy_math::DVec3;
+use mcrs_engine_link::Placement;
 use mcrs_minecraft_engine::bridge::dispatch_encode;
 use mcrs_minecraft_engine::bridge_queue::OutboundQueue;
 use mcrs_minecraft_engine::bus::{InboundPlayerDespawn, PacketPayload, to};
 use mcrs_minecraft_engine::channel_types::ToDim;
-use mcrs_minecraft_engine::player_list::{LIST_INTERVAL_TICKS, LISTED_CAP};
+use mcrs_minecraft_engine::muxer_placement::MuxerPlacement;
 use mcrs_minecraft_engine_world::entity::physics::Transform;
 use mcrs_minecraft_engine_world::session::PlayerSession;
 use mcrs_minecraft_network::metrics::BridgeTelemetry;
@@ -18,6 +19,7 @@ use mcrs_minecraft_protocol::uuid::Uuid;
 use mcrs_minecraft_protocol::{Decode, VarInt};
 use mcrs_minecraft_protocol_game::clientbound::{PositionPath, VecDelta};
 use mcrs_minecraft_protocol_game::table::game_clientbound::{self, ClientboundGamePacket};
+use mcrs_minecraft_replication::{LIST_INTERVAL_TICKS, LISTED_CAP};
 use rustc_hash::{FxHashMap, FxHashSet};
 
 use crate::host_app::{self, PlayServer, sent_to};
@@ -180,17 +182,7 @@ impl Viewer {
 fn is_entity_packet(data: &PacketPayload) -> bool {
     matches!(
         data,
-        PacketPayload::PlayerInfoUpdate { .. }
-            | PacketPayload::PlayerInfo(_)
-            | PacketPayload::PlayerInfoRemove(_)
-            | PacketPayload::PlayerListChange(_)
-            | PacketPayload::SpawnBundle(_)
-            | PacketPayload::RemoveEntities(_)
-            | PacketPayload::EntityPosSync(_)
-            | PacketPayload::EntityMove(_)
-            | PacketPayload::EntityMoveRotate(_)
-            | PacketPayload::EntityRotate(_)
-            | PacketPayload::HeadRotation(_)
+        PacketPayload::PlayerInfoUpdate { .. } | PacketPayload::Replication(_)
     )
 }
 
@@ -208,7 +200,13 @@ impl Scene {
     }
 
     fn crowd(players: usize, viewers: usize) -> Self {
-        let mut server = PlayServer::start(host_app::make_host_app(), &[], 0);
+        Self::crowd_with(players, viewers, Placement::Inline)
+    }
+
+    fn crowd_with(players: usize, viewers: usize, muxer: Placement) -> Self {
+        let mut app = host_app::make_host_app();
+        app.insert_resource(MuxerPlacement(muxer));
+        let mut server = PlayServer::start(app, &[], 0);
         let uuids: Vec<Uuid> = (0..players).map(|_| Uuid::new_v4()).collect();
         let dim = server.dim;
         let anchors: Vec<Entity> = uuids
@@ -283,7 +281,13 @@ fn two_players_near_each_other_see_each_other_and_never_themselves() {
 
 #[test]
 fn a_player_that_walks_away_moves_on_the_client_and_is_removed_out_of_range() {
-    let mut scene = Scene::two_players();
+    for muxer in [Placement::Inline, Placement::Thread] {
+        walk_away(muxer);
+    }
+}
+
+fn walk_away(muxer: Placement) {
+    let mut scene = Scene::crowd_with(2, 2, muxer);
     let start = scene.first_sees_second_at().unwrap();
 
     for step in 1..=20 {
@@ -292,7 +296,7 @@ fn a_player_that_walks_away_moves_on_the_client_and_is_removed_out_of_range() {
         let seen = scene.first_sees_second_at().unwrap();
         assert!(
             seen.distance(target) < 1e-3,
-            "step {step}: the client shows the walker at {seen}, the server has {target}"
+            "{muxer:?}, step {step}: the client shows the walker at {seen}, the server has {target}"
         );
     }
     let jumped = start + DVec3::new(60.0, 0.0, 0.0);

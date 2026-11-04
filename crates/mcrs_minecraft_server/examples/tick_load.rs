@@ -1,10 +1,12 @@
 //! Loads the embedded server with bots over TCP and reports how long its ticks take.
 //!
 //! ```text
-//! cargo run --release -p mcrs_minecraft_server --example tick_load -- <bots> <single|parallel> [apart|together] [seconds] [dimensions]
+//! cargo run --release -p mcrs_minecraft_server --example tick_load -- <bots> <single|parallel> [apart|together] [seconds] [dimensions] [thread|inline]
 //! ```
 //!
 //! `single` ticks every world inline on the server thread, `parallel` gives each world a thread.
+//! The last argument places the muxer: on a thread of its own, the default, or inline on the server
+//! thread.
 //!
 //! ```text
 //! ```
@@ -31,6 +33,7 @@ use bevy_app::{App, PluginGroup};
 use bevy_ecs::entity::Entity;
 use bevy_math::DVec3;
 use mcrs_minecraft_core::VERSION;
+use mcrs_minecraft_engine::entity_replication::EntityReplication;
 use mcrs_minecraft_engine_server::{
     BoundAddress, GameMode, Placement, ServerNetworkPlugin, runner,
 };
@@ -102,11 +105,17 @@ struct Traffic {
     shared_frames: u64,
     framed_appends: u64,
     packets: PacketKinds,
+    tile_encodes: u64,
 }
 
 impl Traffic {
-    fn of(telemetry: &BridgeTelemetry) -> Self {
+    fn of(app: &App) -> Self {
+        let telemetry = app.world().resource::<BridgeTelemetry>();
         Self {
+            tile_encodes: app
+                .world()
+                .get_resource::<EntityReplication>()
+                .map_or(0, EntityReplication::published_tiles),
             messages: telemetry.outbound_messages_consumed_total,
             encode_calls: telemetry.encode_calls_total,
             shared_appends: telemetry.shared_appends_total,
@@ -126,6 +135,7 @@ impl Traffic {
             shared_frames: self.shared_frames.saturating_sub(earlier.shared_frames),
             framed_appends: self.framed_appends.saturating_sub(earlier.framed_appends),
             packets: self.packets.since(earlier.packets),
+            tile_encodes: self.tile_encodes.saturating_sub(earlier.tile_encodes),
         }
     }
 }
@@ -141,6 +151,11 @@ fn main() -> anyhow::Result<()> {
     let spread: Spread = args.get(3).map_or(Ok(Spread::Apart), |name| name.parse())?;
     let seconds: u64 = args.get(4).map_or(Ok(40), |count| count.parse())?;
     let dimensions: usize = args.get(5).map_or(Ok(3), |count| count.parse())?;
+    let muxer = match args.get(6).map(String::as_str) {
+        None | Some("thread") => Placement::Thread,
+        Some("inline") => Placement::Inline,
+        Some(other) => anyhow::bail!("unknown muxer {other:?}, expected thread or inline"),
+    };
     anyhow::ensure!(
         (1..=DIMENSIONS.len()).contains(&dimensions),
         "dimensions must be 1 to {}",
@@ -150,6 +165,7 @@ fn main() -> anyhow::Result<()> {
     let mut plugins = MinecraftServerPlugins::default();
     plugins.core.asset_path = Some(ASSETS.to_owned());
     plugins.core.worlds = worlds;
+    plugins.core.muxer = muxer;
     plugins.network = ServerNetworkPlugin::embedded();
     plugins.network.announce_on_lan = false;
     plugins.worlds.default_op_level = 2;
@@ -189,7 +205,7 @@ fn main() -> anyhow::Result<()> {
 
     let measured = times.get(times.len() / 3..).unwrap_or_default();
     println!(
-        "{worlds:?}, {spread:?}: {} of {bots} bots joined, {} columns received, {} ticks measured",
+        "{worlds:?}, muxer {muxer:?}, {spread:?}: {} of {bots} bots joined, {} columns received, {} ticks measured",
         counts.joined.load(Ordering::Relaxed),
         counts.columns.load(Ordering::Relaxed),
         measured.len()
@@ -212,7 +228,7 @@ fn run_timed(mut app: App, stop: &AtomicBool) -> Vec<TickTimes> {
     let mut times = Vec::new();
     let mut sent: HashMap<Entity, u64> = HashMap::new();
     while !stop.load(Ordering::Relaxed) {
-        let before = Traffic::of(app.world().resource::<BridgeTelemetry>());
+        let before = Traffic::of(&app);
         let start = Instant::now();
         app.update();
         let between = Instant::now();
@@ -224,7 +240,7 @@ fn run_timed(mut app: App, stop: &AtomicBool) -> Vec<TickTimes> {
         runner::drain(&mut app);
         let drain = drained.elapsed();
         runner::drain_until(&mut app, start + TICK);
-        let traffic = Traffic::of(app.world().resource::<BridgeTelemetry>()).since(before);
+        let traffic = Traffic::of(&app).since(before);
         let session_bytes = session_bytes(&mut app, &mut sent);
         times.push(TickTimes {
             tick,
@@ -261,10 +277,12 @@ fn report_traffic(measured: &[TickTimes]) {
         total.shared_bytes += traffic.shared_bytes;
         total.shared_frames += traffic.shared_frames;
         total.framed_appends += traffic.framed_appends;
+        total.tile_encodes += traffic.tile_encodes;
         total.packets.entity_move += traffic.packets.entity_move;
         total.packets.spawn += traffic.packets.spawn;
         total.packets.remove += traffic.packets.remove;
         total.packets.player_info += traffic.packets.player_info;
+        total.packets.replication += traffic.packets.replication;
         total.packets.chunk += traffic.packets.chunk;
         total.packets.other += traffic.packets.other;
     }
@@ -277,16 +295,21 @@ fn report_traffic(measured: &[TickTimes]) {
         a_tick(total.shared_bytes) / 1e3,
     );
     println!(
+        "muxer tile encodes: {:.1} a tick",
+        a_tick(total.tile_encodes)
+    );
+    println!(
         "shared frames made: {:.1} a tick, appends of a made frame: {:.1} a tick",
         a_tick(total.shared_frames),
         a_tick(total.framed_appends),
     );
     println!(
-        "packets a tick: move {:.1}, spawn {:.1}, remove {:.1}, player info {:.1}, chunk {:.1}, other {:.1}",
+        "packets a tick: move {:.1}, spawn {:.1}, remove {:.1}, player info {:.1}, muxer {:.1}, chunk {:.1}, other {:.1}",
         a_tick(total.packets.entity_move),
         a_tick(total.packets.spawn),
         a_tick(total.packets.remove),
         a_tick(total.packets.player_info),
+        a_tick(total.packets.replication),
         a_tick(total.packets.chunk),
         a_tick(total.packets.other),
     );

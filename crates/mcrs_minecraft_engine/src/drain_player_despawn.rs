@@ -5,7 +5,7 @@
 //! the per-dim sub-app's `Messages<InboundPlayerDespawn>` buffer; and
 //! this system, running in `FixedPreUpdate`, takes the view of the
 //! corresponding in-dim `Player` entity. Its viewers lose it when the
-//! entity despawns, through the entity tracker.
+//! entity despawns, through its despawn in the tile deltas.
 //!
 //! A defensive helper `retain_live_observers` is exposed for use by
 //! per-dim wire emitters that want a belt-and-braces liveness filter

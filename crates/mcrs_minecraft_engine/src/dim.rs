@@ -2,6 +2,7 @@ use crate::bus::{OutboundPlayerAttached, OutboundPlayerPacket, PacketTarget};
 use crate::dim_cells::{DimCells, DimTicked};
 use crate::dim_inputs::DimInputs;
 use crate::disconnect::Departing;
+use crate::entity_replication::{self, Answers, EntityReplication};
 use crate::player_dimension_change;
 use bevy_app::App;
 use bevy_ecs::entity::Entity;
@@ -24,7 +25,8 @@ struct TakenOutputs(Vec<DimTicked>);
 
 /// Takes what the dimension worlds handed over in their last tick, the dimensions in the order
 /// they ticked: stamps and writes their packets to the host, forgets the players they released,
-/// attaches the sessions they spawned a player for and records their column traces.
+/// attaches the sessions they spawned a player for, records their column traces and hands their
+/// tile deltas to the muxer. The entity bytes that the muxer has ready go out with the packets.
 pub fn take_dim_outputs(world: &mut World) {
     let mut taken = world.remove_resource::<TakenOutputs>().unwrap_or_default();
     if let Some(mut cells) = world.get_resource_mut::<DimCells>() {
@@ -50,11 +52,13 @@ pub fn take_dim_outputs(world: &mut World) {
         {
             sink.record(dimension.as_str(), output.traces);
         }
+        entity_replication::publish(world, label, output.tiles);
         for departure in output.departures {
             player_dimension_change::route_departure(world, label, departure);
         }
     }
     world.insert_resource(taken);
+    entity_replication::deliver(world, Answers::Ready);
 }
 
 pub fn forget_departures(world: &mut World, matches: impl Fn(&Departing) -> bool) {
@@ -117,6 +121,9 @@ pub fn drain_dim_despawn_queue(app: &mut App) {
         }
         if let Some(mut inputs) = world.get_resource_mut::<DimInputs>() {
             inputs.remove(entity);
+        }
+        if let Some(mut replication) = world.get_resource_mut::<EntityReplication>() {
+            replication.close(entity);
         }
         // A dimension torn down saves none of its players, so nothing is left to wait for.
         forget_departures(world, |departing| departing.dim == entity);

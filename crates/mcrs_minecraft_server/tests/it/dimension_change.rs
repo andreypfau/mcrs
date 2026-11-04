@@ -11,10 +11,12 @@ use mcrs_minecraft_engine_world::entity::player::ChangeDimensionRequest;
 use mcrs_minecraft_engine_world::session::{Place, SessionPlacement};
 use mcrs_minecraft_engine_world::world::sub_app::AddDimensionPlugins;
 use mcrs_minecraft_game_mode::GameMode;
-use mcrs_minecraft_protocol::VarInt;
 use mcrs_minecraft_protocol::setting::ChatMode;
 use mcrs_minecraft_protocol::uuid::Uuid;
-use mcrs_minecraft_protocol_game::clientbound::ClientboundChunkCacheRadius;
+use mcrs_minecraft_protocol::{Decode, Packet, VarInt};
+use mcrs_minecraft_protocol_game::clientbound::{
+    ClientboundAddEntity, ClientboundChunkCacheRadius,
+};
 use mcrs_minecraft_protocol_game::game_event::GameEventKind;
 use mcrs_minecraft_protocol_game::text::TextContent;
 use mcrs_minecraft_resource::{ResourceKeyBuf, ResourceLocationBuf};
@@ -301,17 +303,12 @@ fn an_observer_in_the_new_dimension_sees_the_mover_with_its_network_id_and_no_li
     let packets = server.ticks_all(3);
 
     let greeter = server.session_of(greeter).unwrap();
-    let entered: Vec<VarInt> = packets
-        .iter()
-        .filter(|packet| {
-            matches!(packet.target, PacketTarget::SinglePlayer(target) if target == greeter)
-        })
-        .filter_map(|packet| match &packet.data {
-            PacketPayload::SpawnBundle(bundle) if bundle.entity.uuid == walker => {
-                Some(bundle.entity.id)
-            }
-            _ => None,
-        })
+    let entered: Vec<VarInt> = host_app::replicated(&host_app::sent_to(greeter, packets.clone()))
+        .into_iter()
+        .filter(|(id, _)| *id == ClientboundAddEntity::ID)
+        .map(|(_, body)| ClientboundAddEntity::decode(&mut body.as_slice()).unwrap())
+        .filter(|add| add.uuid == walker)
+        .map(|add| add.id)
         .collect();
     assert_eq!(
         entered,

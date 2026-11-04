@@ -1,6 +1,7 @@
 use bevy_app::{App, AppExit, Plugin};
 use mcrs_engine_link::Placement;
 use mcrs_minecraft_assets::packs::{BuiltinAsset, PackLayering, PackRoots};
+use mcrs_minecraft_engine::muxer_placement::MuxerPlacement;
 use mcrs_minecraft_engine_world::server_loop::VoxelServerPlugin;
 use mcrs_minecraft_engine_world::world_placement::WorldPlacement;
 use mcrs_minecraft_registries::RegistryAdditions;
@@ -29,6 +30,10 @@ pub struct ServerCorePlugin {
     /// thread of its own. The default is `Thread` with the `parallel-tick` feature and `Inline`
     /// without it.
     pub worlds: Placement,
+    /// Where the muxer, which decides the entity bytes of each player, runs:
+    /// [`Placement::Inline`] on the server thread, [`Placement::Thread`] on a thread of its own,
+    /// the default.
+    pub muxer: Placement,
 }
 
 impl Default for ServerCorePlugin {
@@ -40,6 +45,7 @@ impl Default for ServerCorePlugin {
             builtin_assets: |_| None,
             local_packs: vec!["mcrs".to_owned()],
             worlds: WorldPlacement::default().0,
+            muxer: Placement::Thread,
         }
     }
 }
@@ -73,6 +79,7 @@ impl Plugin for ServerCorePlugin {
             .get_resource_or_init::<RegistryAdditions>()
             .local_packs
             .extend(self.local_packs.iter().cloned());
+        app.insert_resource(MuxerPlacement(self.muxer));
         app.add_plugins(VoxelServerPlugin {
             tick_rate: DEFAULT_TPS,
             owns_task_pools: self.owns_task_pools,

@@ -37,7 +37,8 @@ use mcrs_minecraft_environment::world_clock::{ClockState, WorldClock, WorldClock
 use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_protocol::{Decode, Packet, VarLong};
 use mcrs_minecraft_protocol_game::clientbound::{
-    ClientboundCommands, ClientboundPlayerInfoUpdate, ClientboundSetTime, ClockUpdate, LookAtEntity,
+    ClientboundCommands, ClientboundPlayerInfoRemove, ClientboundPlayerInfoUpdate,
+    ClientboundSetTime, ClockUpdate, LookAtEntity,
 };
 use mcrs_minecraft_protocol_game::text::{TextContent, TranslateArg};
 use mcrs_minecraft_registries::CurrentRegistries;
@@ -1653,16 +1654,11 @@ fn a_game_mode_set_before_a_change_of_dimension_in_the_same_pass_reaches_the_own
     let packets = server.ticks_all(3);
 
     let mut modes: Vec<GameMode> = Vec::new();
-    for packet in &host_app::sent_to(op, packets.clone()) {
-        let PacketPayload::PlayerInfo(bytes) = packet else {
+    for (id, body) in host_app::replicated(&host_app::sent_to(op, packets.clone())) {
+        if id != ClientboundPlayerInfoUpdate::ID {
             continue;
-        };
-        let mut body: &[u8] = bytes;
-        assert_eq!(
-            VarInt::decode(&mut body).unwrap().0,
-            ClientboundPlayerInfoUpdate::ID
-        );
-        let update = ClientboundPlayerInfoUpdate::decode(&mut body).unwrap();
+        }
+        let update = ClientboundPlayerInfoUpdate::decode(&mut body.as_slice()).unwrap();
         if update.actions.update_game_mode() {
             modes.extend(
                 update
@@ -1675,12 +1671,15 @@ fn a_game_mode_set_before_a_change_of_dimension_in_the_same_pass_reaches_the_own
     }
     assert_eq!(modes, [GameMode::Spectator]);
     assert!(
-        host_app::sent_to(guest, packets)
+        host_app::replicated(&host_app::sent_to(guest, packets))
             .iter()
-            .any(|packet| matches!(
-                packet,
-                PacketPayload::PlayerInfoRemove(remove) if remove.players.contains(&OPERATOR)
-            )),
+            .filter(|(id, _)| *id == ClientboundPlayerInfoRemove::ID)
+            .any(
+                |(_, body)| ClientboundPlayerInfoRemove::decode(&mut body.as_slice())
+                    .unwrap()
+                    .players
+                    .contains(&OPERATOR)
+            ),
         "a player of another dimension leaves the player list"
     );
 }

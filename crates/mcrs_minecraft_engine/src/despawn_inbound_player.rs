@@ -1,10 +1,11 @@
-use crate::bus::{InboundPlayerDespawn, OutboundPlayerPacket, OutboundPlayerReleased};
-use crate::entity_tracker::EntityTracker;
-use crate::join_message;
+use crate::bus::{InboundPlayerDespawn, OutboundPlayerReleased};
 use crate::persistence;
+use crate::publish_player_tiles::publish_leave_message;
+use crate::replicated::Replicated;
 use crate::session::GameProfile;
-use bevy_ecs::message::{MessageReader, MessageWriter};
-use bevy_ecs::prelude::{Commands, Query, Res, With};
+use crate::tile_events::TileEvents;
+use bevy_ecs::message::MessageReader;
+use bevy_ecs::prelude::{Commands, Query, Res, ResMut, With};
 use bevy_ecs::world::World;
 use mcrs_minecraft_engine_world::entity::player::Player;
 use mcrs_minecraft_engine_world::session::DimPlayerIndex;
@@ -16,19 +17,18 @@ use mcrs_minecraft_engine_world::session::DimPlayerIndex;
 pub fn despawn_inbound_player(
     mut reader: MessageReader<InboundPlayerDespawn>,
     index: Res<DimPlayerIndex>,
-    players: Query<Option<&GameProfile>, With<Player>>,
-    tracker: Option<Res<EntityTracker>>,
-    mut writer: MessageWriter<OutboundPlayerPacket>,
+    players: Query<(Option<&GameProfile>, Option<&Replicated>), With<Player>>,
+    mut events: Option<ResMut<TileEvents>>,
     mut commands: Commands,
 ) {
     for msg in reader.read() {
         if let Some(&entity) = index.0.get(&msg.session)
-            && let Ok(profile) = players.get(entity)
+            && let Ok((profile, replicated)) = players.get(entity)
         {
-            if let (Some(profile), Some(tracker)) = (profile, tracker.as_deref())
-                && let Some(packet) = join_message::leave_message(tracker, entity, profile)
+            if let (Some(profile), Some(replicated), Some(events)) =
+                (profile, replicated, events.as_deref_mut())
             {
-                writer.write(packet);
+                publish_leave_message(events, replicated, profile);
             }
             commands.queue(move |world: &mut World| {
                 persistence::write_player(world, entity);

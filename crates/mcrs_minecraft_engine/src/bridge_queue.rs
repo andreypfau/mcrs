@@ -57,6 +57,8 @@ pub enum QueuedPacket {
     Payload(PacketPayload),
     /// Serialized once for every connection that receives it.
     Encoded(EncodedPacket),
+    /// Records of packets with their ids, from the muxer.
+    Records(Vec<Bytes>),
 }
 
 /// A packet with its id, as `encode_with_id` wrote it.
@@ -71,6 +73,7 @@ impl QueuedPacket {
         match self {
             Self::Payload(payload) => payload.kind(),
             Self::Encoded(encoded) => encoded.kind,
+            Self::Records(_) => PacketKind::Replication,
         }
     }
 }
@@ -79,9 +82,10 @@ impl From<PacketPayload> for QueuedPacket {
     fn from(payload: PacketPayload) -> Self {
         let kind = payload.kind();
         match payload {
-            PacketPayload::ChunkLoad { packet, .. }
-            | PacketPayload::Commands(packet)
-            | PacketPayload::PlayerInfo(packet) => Self::Encoded(EncodedPacket { kind, packet }),
+            PacketPayload::ChunkLoad { packet, .. } | PacketPayload::Commands(packet) => {
+                Self::Encoded(EncodedPacket { kind, packet })
+            }
+            PacketPayload::Replication(records) => Self::Records(records),
             payload => Self::Payload(payload),
         }
     }

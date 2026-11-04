@@ -8,16 +8,20 @@
 use bevy_ecs::prelude::*;
 use bevy_math::DVec3;
 use mcrs_minecraft_engine::column_view::ColumnView;
-use mcrs_minecraft_engine::entity_tracker::EntityTracker;
+use mcrs_minecraft_engine::dim::take_dim_outputs;
+use mcrs_minecraft_engine::entity_replication::EntityReplication;
 use mcrs_minecraft_engine_world::aoi::PlayerObservers;
 use mcrs_minecraft_engine_world::entity::physics::Transform;
 use mcrs_minecraft_engine_world::entity::player::Player;
 use mcrs_minecraft_engine_world::entity::player::chunk_view::PlayerViewDistance;
+use mcrs_minecraft_engine_world::session::{Owner, PlayerSession};
 use mcrs_minecraft_engine_world::world::dimension::InDimension;
 use mcrs_minecraft_engine_world::world::storage::column::{Column, ColumnIndex, ColumnSlot};
 use mcrs_voxel::ColumnPos;
 
 use crate::host_app;
+
+const PLAYER: PlayerSession = PlayerSession(1);
 
 #[test]
 fn aoi_state_does_not_leak_across_dim_boundary() {
@@ -59,6 +63,7 @@ fn aoi_state_does_not_leak_across_dim_boundary() {
     // cross-dim leak.
     for _ in 0..3 {
         app.update();
+        take_dim_outputs(app.world_mut());
     }
 
     // Verify dim A's PlayerObservers carry at least one entry (proof
@@ -76,10 +81,11 @@ fn aoi_state_does_not_leak_across_dim_boundary() {
         "dim B chunks must have zero PlayerObservers entries (AoI state leaked across dim boundary)"
     );
 
-    let dim_b_tracker = host_app::world(&mut app, dim_b_label).resource::<EntityTracker>();
-    assert!(
-        dim_b_tracker.is_empty(),
-        "dim B's entity tracker holds no player of dim A"
+    let replication = app.world().resource::<EntityReplication>();
+    assert_eq!(
+        replication.watched_world(PLAYER),
+        Some(EntityReplication::world_of(dim_a_label)),
+        "the player of dim A watches the tiles of dim A, and none of dim B"
     );
 }
 
@@ -125,6 +131,7 @@ fn seed_player_and_columns(sub_app: &mut bevy_app::SubApp, player_pos: DVec3) {
         PlayerViewDistance::default(),
         ColumnView::holding(crate::harness::columns_in_view(player_pos)),
         InDimension(dim_entity),
+        Owner(PLAYER),
     ));
 }
 

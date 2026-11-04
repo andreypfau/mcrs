@@ -31,6 +31,9 @@ bevy_state.workspace = true
 bevy_tasks.workspace = true
 bevy_platform.workspace = true
 mcrs_engine_cell = { workspace = true, features = ["bevy"] }
+mcrs_engine_link.workspace = true
+mcrs_engine_muxer.workspace = true
+mcrs_minecraft_replication.workspace = true
 bevy_utils.workspace = true
 bevy_time.workspace = true
 serde.workspace = true

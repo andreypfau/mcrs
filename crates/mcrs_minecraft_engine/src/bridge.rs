@@ -53,13 +53,11 @@ pub fn flushes_pending_connections(scope: Option<Res<FlushScope>>) -> bool {
 }
 
 use bytes::{BufMut, Bytes, BytesMut};
-use mcrs_minecraft_network::metrics::{BridgeTelemetry, PacketDispatcher};
+use mcrs_minecraft_network::metrics::{BridgeTelemetry, PacketDispatcher, PacketKind};
 use mcrs_minecraft_network::{
     ConnectionState, RawConnection, ServerSideConnection, SharedAppend, SharedFrames,
 };
-use mcrs_minecraft_protocol::packets::game::clientbound::{
-    ClientboundBundleDelimiter, ClientboundDisconnect,
-};
+use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundDisconnect;
 use mcrs_minecraft_protocol::{Encode, Packet, WritePacket, anyhow};
 use mcrs_minecraft_protocol_game::clientbound::ClientboundPlayerInfoUpdate;
 use mcrs_minecraft_protocol_game::player_list::{PlayerListActions, PlayerListEntry};
@@ -71,7 +69,7 @@ use tracing::{trace, warn};
 use crate::bridge_queue::{DEPTH_DRAIN_TARGET, DEPTH_LIMIT, InboundRateBucket, OutboundQueue};
 use crate::bridge_queue::{EncodedPacket, QueuedPacket};
 use crate::bus::{InboundPlayerPacket, OutboundPlayerAttached, OutboundPlayerPacket};
-use crate::bus::{PacketPayload, PacketPriority, PacketTarget, SpawnBundle};
+use crate::bus::{PacketPayload, PacketPriority, PacketTarget};
 use crate::dim_inputs::DimInputs;
 use crate::session::{HostAnchorRef, PendingInbound, SessionConnection};
 use mcrs_minecraft_engine_world::session::{Place, Session, SessionAnchors, SessionPlacement};
@@ -263,44 +261,6 @@ impl WritePacket for PacketBuffer {
         P: Encode + Packet,
     {
         packet.encode_with_id((&mut self.0).writer())?;
-        Ok(())
-    }
-}
-
-/// Where [`write_payload`] writes: packets to serialize, and packets that are serialized
-/// already, in one order.
-trait PayloadSink: WritePacket {
-    /// Writes `packet`, which holds its id, as it is.
-    fn write_encoded(&mut self, packet: Bytes) -> anyhow::Result<()>;
-}
-
-impl PayloadSink for PacketBuffer {
-    fn write_encoded(&mut self, packet: Bytes) -> anyhow::Result<()> {
-        self.0.extend_from_slice(&packet);
-        Ok(())
-    }
-}
-
-/// One connection that a queue is handed to.
-struct ConnectionSink<'a> {
-    entity: Entity,
-    raw: &'a mut RawConnection,
-    telemetry: &'a mut BridgeTelemetry,
-    frames: &'a mut SharedFrames,
-}
-
-impl WritePacket for ConnectionSink<'_> {
-    fn write_packet_fallible<P>(&mut self, packet: &P) -> anyhow::Result<()>
-    where
-        P: Encode + Packet,
-    {
-        self.raw.write_packet_fallible(packet)
-    }
-}
-
-impl PayloadSink for ConnectionSink<'_> {
-    fn write_encoded(&mut self, packet: Bytes) -> anyhow::Result<()> {
-        append_encoded(self.entity, self.raw, packet, self.telemetry, self.frames);
         Ok(())
     }
 }
@@ -514,13 +474,7 @@ fn hand_over(
                 }
                 QueuedPacket::Payload(payload) => {
                     telemetry.packets.count(payload.kind());
-                    let mut sink = ConnectionSink {
-                        entity,
-                        raw,
-                        telemetry,
-                        frames,
-                    };
-                    if let Err(error) = write_payload(&mut sink, payload) {
+                    if let Err(error) = write_payload(raw, payload) {
                         warn!(conn = ?entity, "an outbound packet did not encode: {error:#}");
                     } else {
                         telemetry.encode_calls_total =
@@ -530,6 +484,14 @@ fn hand_over(
                 QueuedPacket::Encoded(encoded) => {
                     telemetry.packets.count(encoded.kind);
                     append_encoded(entity, raw, encoded.packet, telemetry, frames);
+                }
+                QueuedPacket::Records(chunks) => {
+                    for records in chunks {
+                        let packets = raw.append_records(records);
+                        telemetry
+                            .packets
+                            .add(PacketKind::Replication, packets as u64);
+                    }
                 }
             }
         }
@@ -567,7 +529,7 @@ fn append_encoded(
 }
 
 /// Writes a packet that is not serialized yet; a serialized one is an error.
-fn write_payload<W: PayloadSink>(sink: &mut W, data: PacketPayload) -> anyhow::Result<()> {
+fn write_payload<W: WritePacket>(sink: &mut W, data: PacketPayload) -> anyhow::Result<()> {
     match data {
         PacketPayload::LightUpdate(p) => sink.write_packet_fallible(&p),
         PacketPayload::BlockUpdate(p) => sink.write_packet_fallible(&p),
@@ -576,14 +538,13 @@ fn write_payload<W: PayloadSink>(sink: &mut W, data: PacketPayload) -> anyhow::R
         PacketPayload::GameEvent(p) => sink.write_packet_fallible(&p),
         PacketPayload::PlayerLookAt(p) => sink.write_packet_fallible(&p),
         PacketPayload::PlayerAbilities(p) => sink.write_packet_fallible(&p),
-        PacketPayload::SpawnBundle(bundle) => write_spawn_bundle(sink, &bundle),
         PacketPayload::EntityMove(p) => sink.write_packet_fallible(&p),
         PacketPayload::EntityMoveRotate(p) => sink.write_packet_fallible(&p),
         PacketPayload::EntityRotate(p) => sink.write_packet_fallible(&p),
         PacketPayload::HeadRotation(p) => sink.write_packet_fallible(&p),
         PacketPayload::ChunkLoad { .. }
         | PacketPayload::Commands(_)
-        | PacketPayload::PlayerInfo(_) => {
+        | PacketPayload::Replication(_) => {
             anyhow::bail!("a serialized packet reached the encoder")
         }
         PacketPayload::ChunkBatchStart(p) => sink.write_packet_fallible(&p),
@@ -613,10 +574,6 @@ fn write_payload<W: PayloadSink>(sink: &mut W, data: PacketPayload) -> anyhow::R
                 entries: Cow::Borrowed(&wire_entries),
             })
         }
-        PacketPayload::PlayerInfoRemove(p) => sink.write_packet_fallible(&p),
-        PacketPayload::PlayerListChange(change) => {
-            sink.write_packet_fallible(&change.update_packet())
-        }
         PacketPayload::TabList(p) => sink.write_packet_fallible(&p),
         PacketPayload::PlayerPosition(p) => sink.write_packet_fallible(&p),
         PacketPayload::SystemChat(p) => sink.write_packet_fallible(&p),
@@ -624,15 +581,6 @@ fn write_payload<W: PayloadSink>(sink: &mut W, data: PacketPayload) -> anyhow::R
         PacketPayload::SetTime(p) => sink.write_packet_fallible(&p),
         PacketPayload::Test(_) => Ok(()),
     }
-}
-
-fn write_spawn_bundle<W: PayloadSink>(sink: &mut W, bundle: &SpawnBundle) -> anyhow::Result<()> {
-    sink.write_packet_fallible(&ClientboundBundleDelimiter)?;
-    if let Some(profile) = &bundle.profile {
-        sink.write_encoded(profile.clone())?;
-    }
-    sink.write_packet_fallible(&bundle.entity)?;
-    sink.write_packet_fallible(&ClientboundBundleDelimiter)
 }
 
 /// Routes serverbound packets written to the bus into the dim channel seam.

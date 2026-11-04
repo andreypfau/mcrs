@@ -42,7 +42,7 @@ use mcrs_minecraft_light_engine::block_light::{BlockLightRegistry, block_light_r
 use mcrs_minecraft_network::ConnectionState;
 use mcrs_minecraft_network::metrics::PacketDispatcher;
 use mcrs_minecraft_protocol::uuid::Uuid;
-use mcrs_minecraft_protocol::{Encode, Packet};
+use mcrs_minecraft_protocol::{Decode, Encode, Packet, VarInt};
 use mcrs_minecraft_protocol_game::clientbound::ClientboundLogin;
 use mcrs_minecraft_vanilla_light::LightingPlugin;
 
@@ -420,6 +420,28 @@ impl PlayServer {
         let player = self.player(anchor);
         self.world().get::<PlayerGameMode>(player).unwrap().0
     }
+}
+
+/// The packets of the muxer in `packets`, in order: the id of each packet and its body.
+pub fn replicated(packets: &[PacketPayload]) -> Vec<(i32, Vec<u8>)> {
+    let mut out = Vec::new();
+    for packet in packets {
+        let PacketPayload::Replication(chunks) = packet else {
+            continue;
+        };
+        for chunk in chunks {
+            let mut rest: &[u8] = chunk;
+            while let Some((length, tail)) = rest.split_first_chunk::<4>() {
+                let (mut packet, tail) = tail.split_at(u32::from_be_bytes(*length) as usize);
+                let id = VarInt::decode(&mut packet)
+                    .expect("a record starts with its id")
+                    .0;
+                out.push((id, packet.to_vec()));
+                rest = tail;
+            }
+        }
+    }
+    out
 }
 
 /// The packets of `packets` that reach `session`, in order.

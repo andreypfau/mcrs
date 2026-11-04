@@ -14,7 +14,6 @@ use crate::ability::{PlayerFlying, PlayerGameMode, PlayerOpLevel};
 use crate::client_info::ClientInfo;
 use crate::dimension_change::{Arrival, DimensionChangeError};
 use crate::game_mode::ListedGameMode;
-use crate::latency::Latency;
 use crate::op_level::AnnouncedOpLevel;
 use crate::persistence::{LoadedPlayerDat, UnreadablePlayerDat};
 use crate::session::GameProfile;
@@ -55,7 +54,6 @@ pub(crate) struct CarriedPlayer {
     client_info: Option<ClientInfo>,
     announced_op_level: Option<AnnouncedOpLevel>,
     listed_game_mode: Option<ListedGameMode>,
-    latency: Option<Latency>,
     loaded_dat: Option<LoadedPlayerDat>,
     unreadable_dat: Option<UnreadablePlayerDat>,
 }
@@ -94,7 +92,6 @@ impl CarriedPlayer {
             client_info: player.take(),
             announced_op_level: player.take(),
             listed_game_mode: player.take(),
-            latency: player.take(),
             loaded_dat: player.take(),
             unreadable_dat: player.take(),
         })
@@ -118,9 +115,6 @@ impl CarriedPlayer {
         }
         if let Some(listed_game_mode) = self.listed_game_mode {
             player.insert(listed_game_mode);
-        }
-        if let Some(latency) = self.latency {
-            player.insert(latency);
         }
         if let Some(loaded_dat) = self.loaded_dat {
             player.insert(loaded_dat);

@@ -6,11 +6,7 @@
 //! how many blobs arrive per tick.
 
 use crate::mock_connection;
-use mcrs_minecraft_entity::entity_type_keys::EntityType;
 use mcrs_minecraft_protocol::VarInt;
-use mcrs_minecraft_protocol_game::ByteAngle;
-use mcrs_minecraft_protocol_game::LpVec3;
-use mcrs_minecraft_protocol_game::clientbound::ClientboundAddEntity;
 use mcrs_minecraft_protocol_game::clientbound::ClientboundBlockUpdate;
 use mcrs_minecraft_protocol_game::clientbound::ClientboundEntityPositionSync;
 use mcrs_minecraft_protocol_game::clientbound::ClientboundLightUpdate;
@@ -27,7 +23,7 @@ use mcrs_minecraft_core::Look;
 use mcrs_minecraft_engine::bridge::dispatch_encode;
 use mcrs_minecraft_engine::bridge_queue::{DEPTH_DRAIN_TARGET, DEPTH_LIMIT, OutboundQueue};
 use mcrs_minecraft_engine::bus::{
-    OutboundPlayerPacket, PacketPayload, PacketPriority, PacketTarget, SpawnBundle, TestPayload,
+    OutboundPlayerPacket, PacketPayload, PacketPriority, PacketTarget, TestPayload,
 };
 use mcrs_minecraft_engine_world::session::PlayerSession;
 use mcrs_minecraft_network::OutboundReceiver;
@@ -36,7 +32,6 @@ use mcrs_minecraft_network::SwitchMode;
 use mcrs_minecraft_network::metrics::BridgeTelemetry;
 use mcrs_minecraft_protocol::Packet;
 use mcrs_minecraft_protocol::packets::login::clientbound::LoginCompression;
-use mcrs_minecraft_protocol::uuid::Uuid;
 use mcrs_minecraft_protocol::{CompressionThreshold, Decode, PacketDecoder};
 use mcrs_minecraft_protocol_game::chunk::{ChunkData, LightData};
 use mcrs_minecraft_protocol_game::clientbound::ClientboundLevelChunkWithLight;
@@ -452,20 +447,7 @@ fn only_test_remains_counted_drop() {
         q.push(OutboundPlayerPacket {
             target: PacketTarget::AllPlayers,
             priority: PacketPriority::Normal,
-            data: PacketPayload::SpawnBundle(SpawnBundle {
-                profile: None,
-                entity: ClientboundAddEntity {
-                    id: VarInt(2),
-                    uuid: Uuid::nil(),
-                    kind: EntityType::SpruceBoat,
-                    pos: DVec3::ZERO,
-                    movement: LpVec3(DVec3::ZERO),
-                    yaw: ByteAngle::from_degrees(0.0),
-                    pitch: ByteAngle::from_degrees(0.0),
-                    head_yaw: ByteAngle::from_degrees(0.0),
-                    data: VarInt(0),
-                },
-            }),
+            data: PacketPayload::Replication(vec![bytes::Bytes::new()]),
             session: PlayerSession(0),
             epoch: 0,
         });

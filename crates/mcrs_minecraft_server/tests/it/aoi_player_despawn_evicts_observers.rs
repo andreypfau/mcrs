@@ -11,12 +11,14 @@ use bevy_ecs::message::Messages;
 use bevy_ecs::prelude::*;
 use bevy_ecs::schedule::{Schedule, ScheduleLabel};
 use bevy_math::DVec3;
-use mcrs_minecraft_engine::bus::{
-    InboundPlayerDespawn, OutboundPlayerPacket, PacketPayload, PacketTarget,
-};
+use bytes::Bytes;
+use mcrs_engine_muxer::{Muxer, View, ViewerId};
+use mcrs_minecraft_engine::bus::{InboundPlayerDespawn, OutboundPlayerPacket, PacketPayload};
 use mcrs_minecraft_engine::column_view::ColumnView;
-use mcrs_minecraft_engine::entity_tracker::EntityTracker;
+use mcrs_minecraft_engine::player_tiles::VIEW_RADIUS;
 use mcrs_minecraft_engine::player_tracker::PlayerTrackerPlugin;
+use mcrs_minecraft_engine::replicated::Replicated;
+use mcrs_minecraft_engine::tile_events::TileEvents;
 use mcrs_minecraft_engine_world::aoi::PlayerObservers;
 use mcrs_minecraft_engine_world::entity::physics::Transform;
 use mcrs_minecraft_engine_world::entity::player::Player;
@@ -27,8 +29,9 @@ use mcrs_minecraft_engine_world::world::dimension::{
     DimensionBundle, DimensionTypeConfig, InDimension,
 };
 use mcrs_minecraft_engine_world::world::storage::column::{Column, ColumnIndex, ColumnSlot};
-use mcrs_minecraft_protocol::VarInt;
-use mcrs_minecraft_protocol_game::clientbound::ClientboundRemoveEntities;
+use mcrs_minecraft_protocol::{Decode, Packet};
+use mcrs_minecraft_protocol_game::clientbound::{ClientboundAddEntity, ClientboundRemoveEntities};
+use mcrs_minecraft_replication::PlayerCodec;
 use mcrs_voxel::ColumnPos;
 
 /// Ad-hoc sub-app label for this test.
@@ -42,8 +45,8 @@ struct TestDimTick;
 
 /// Regression for the disconnect removal path proving the three eviction truths:
 ///   1. T's view is taken and no column lists T after the drain.
-///   2. After T despawns, a remove packet targeting O carrying T's wire id is emitted.
-///   3. The tracker no longer pairs O with T.
+///   2. After T despawns, the muxer hands O a remove packet carrying T's wire id.
+///   3. A later tick hands O nothing of T.
 ///
 /// Reuses the same two-world harness (main App + SubApp, `set_extract` test
 /// closure) as the existing topology test above. Observer O does NOT move
@@ -163,12 +166,34 @@ fn disconnect_path_evicts_stationary_observer_three_assertions() {
     main_app.insert_sub_app(TestDimLabel, sub_app);
 
     // --- Tick 1: warm-up: the mirror lists both players on the columns they hold, and the
-    // tracker pairs them.
+    // dimension publishes their spawns; O subscribes to the tiles around its own, as the host
+    // does when it sees the spawn.
     main_app.update();
-
+    let mut muxer = Muxer::new(PlayerCodec::default());
+    publish(&mut main_app, &mut muxer);
+    let own = replicated(&main_app, player_o);
+    let viewer_o = ViewerId(session_o.0);
+    muxer.subscribe(
+        viewer_o,
+        View {
+            center: own.tile,
+            radius: VIEW_RADIUS,
+            subject: Some(own.id),
+        },
+    );
+    let wire_id_t = mcrs_minecraft_engine::network_id::player_network_id(session_t);
     assert!(
-        o_sees(&main_app, player_o, player_t),
-        "precondition: the tracker pairs O with T before removal"
+        packets_for(&mut muxer, viewer_o)
+            .into_iter()
+            .filter(|(id, _)| *id == ClientboundAddEntity::ID)
+            .any(
+                |(_, body)| ClientboundAddEntity::decode(&mut body.as_slice())
+                    .unwrap()
+                    .id
+                    .0
+                    == wire_id_t
+            ),
+        "precondition: O holds T before removal"
     );
 
     // Non-vacuous precondition: T must be listed on the columns it holds.
@@ -176,16 +201,6 @@ fn disconnect_path_evicts_stationary_observer_three_assertions() {
         count_columns_observing_in_sub(&main_app, &columns, player_t) > 0,
         "precondition: T must be listed on the columns it holds before removal"
     );
-
-    // Clear any packets emitted during warm-up so post-removal assertions
-    // see only the eviction emit.
-    {
-        let sub = main_app.get_sub_app_mut(TestDimLabel).expect("sub-app");
-        sub.world_mut()
-            .resource_mut::<Messages<OutboundPlayerPacket>>()
-            .drain()
-            .for_each(drop);
-    }
 
     // --- Simulate disconnect: push InboundPlayerDespawn for T ---
     main_app
@@ -195,6 +210,7 @@ fn disconnect_path_evicts_stationary_observer_three_assertions() {
 
     // --- Tick 2: the drain takes T's view; T has not despawned yet ---
     main_app.update();
+    publish(&mut main_app, &mut muxer);
     {
         let sub = main_app.get_sub_app(TestDimLabel).expect("sub-app");
         assert!(
@@ -207,47 +223,66 @@ fn disconnect_path_evicts_stationary_observer_three_assertions() {
         count_after, 0,
         "expected zero columns observing T after eviction, got {count_after}"
     );
+    packets_for(&mut muxer, viewer_o);
 
     // --- Tick 3: T despawns, as the disconnect does after the drain (O does NOT move) ---
-    {
-        let sub = main_app.get_sub_app_mut(TestDimLabel).expect("sub-app");
-        sub.world_mut().despawn(player_t);
-        sub.world_mut()
-            .resource_mut::<Messages<OutboundPlayerPacket>>()
-            .clear();
-    }
+    main_app
+        .get_sub_app_mut(TestDimLabel)
+        .expect("sub-app")
+        .world_mut()
+        .despawn(player_t);
     main_app.update();
+    publish(&mut main_app, &mut muxer);
 
-    let expected_wire_id = mcrs_minecraft_engine::network_id::player_network_id(session_t);
-    let pkts: Vec<OutboundPlayerPacket> = {
-        let sub = main_app.get_sub_app_mut(TestDimLabel).expect("sub-app");
-        sub.world_mut()
-            .resource_mut::<Messages<OutboundPlayerPacket>>()
-            .drain()
-            .collect()
-    };
-    let removed_for_o = pkts.iter().any(|pkt| {
-        matches!(&pkt.target, PacketTarget::SinglePlayer(e) if *e == session_o)
-            && matches!(&pkt.data, PacketPayload::RemoveEntities(ClientboundRemoveEntities { entity_ids })
-                if entity_ids.contains(&VarInt(expected_wire_id)))
-    });
+    let removed_for_o = packets_for(&mut muxer, viewer_o)
+        .into_iter()
+        .filter(|(id, _)| *id == ClientboundRemoveEntities::ID)
+        .any(|(_, body)| {
+            ClientboundRemoveEntities::decode(&mut body.as_slice())
+                .unwrap()
+                .entity_ids
+                .iter()
+                .any(|id| id.0 == wire_id_t)
+        });
     assert!(
         removed_for_o,
-        "expected a remove packet targeting O with T's wire id; got {pkts:?}"
+        "expected a remove packet for O with T's wire id"
     );
+    main_app.update();
+    publish(&mut main_app, &mut muxer);
     assert!(
-        !o_sees(&main_app, player_o, player_t),
-        "the tracker still pairs O with T after T despawned"
+        packets_for(&mut muxer, viewer_o).is_empty(),
+        "O gets nothing of T once T despawned"
     );
 }
 
-fn o_sees(app: &App, viewer: Entity, subject: Entity) -> bool {
-    app.get_sub_app(TestDimLabel)
+/// Hands the tile deltas of the last tick of the dimension to `muxer`.
+fn publish(app: &mut App, muxer: &mut Muxer<PlayerCodec>) {
+    let deltas = app
+        .get_sub_app_mut(TestDimLabel)
+        .expect("sub-app")
+        .world_mut()
+        .resource_mut::<TileEvents>()
+        .take();
+    muxer.publish(&deltas);
+}
+
+fn replicated(app: &App, player: Entity) -> Replicated {
+    *app.get_sub_app(TestDimLabel)
         .expect("sub-app")
         .world()
-        .resource::<EntityTracker>()
-        .visible(viewer)
-        .any(|seen| seen == subject)
+        .get::<Replicated>(player)
+        .expect("the dimension publishes the player")
+}
+
+/// The packets that `muxer` hands `viewer`, each as its id and its body.
+fn packets_for(muxer: &mut Muxer<PlayerCodec>, viewer: ViewerId) -> Vec<(i32, Vec<u8>)> {
+    let chunks: Vec<Bytes> = muxer
+        .take_output()
+        .filter(|output| output.viewer == viewer)
+        .flat_map(|output| output.chunks)
+        .collect();
+    crate::host_app::replicated(&[PacketPayload::Replication(chunks)])
 }
 
 fn count_columns_observing_in_sub(app: &App, columns: &[Entity], target: Entity) -> usize {

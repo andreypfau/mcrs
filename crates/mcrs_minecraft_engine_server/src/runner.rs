@@ -3,6 +3,7 @@ use bevy_ecs::resource::Resource;
 use mcrs_minecraft_engine::between_ticks::run_between_ticks;
 use mcrs_minecraft_engine::bridge::run_pending_flush;
 use mcrs_minecraft_engine::dim::{drain_dim_despawn_queue, take_dim_outputs};
+use mcrs_minecraft_engine::entity_replication::{self, Answers};
 use mcrs_minecraft_engine::sub_app_builder::drain_dim_spawn_queue;
 use std::num::NonZeroU32;
 use std::time::Instant;
@@ -22,12 +23,14 @@ pub fn run_server_loop(app: App) -> AppExit {
 }
 
 /// What the host does after each tick: it takes the dimensions' output, runs what plugins
-/// added to `BetweenTicks` and spawns or despawns dimensions.
+/// added to `BetweenTicks` and spawns or despawns dimensions. Last, it waits for the entity bytes
+/// of the tick from the muxer, which works on them meanwhile when it has a thread of its own.
 pub fn between_ticks(app: &mut App) {
     take_dim_outputs(app.world_mut());
     run_between_ticks(app);
     drain_dim_spawn_queue(app);
     drain_dim_despawn_queue(app);
+    entity_replication::deliver(app.world_mut(), Answers::All);
 }
 
 /// Hands what the tick wrote for the clients to the sockets, then waits for `deadline`. A wake

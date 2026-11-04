@@ -7,21 +7,24 @@ use bevy_ecs::resource::Resource;
 use bevy_ecs::system::{Res, ResMut};
 use bevy_ecs::world::World;
 use mcrs_engine_cell::{SubAppWorld, Tick};
+use mcrs_engine_muxer::TileDeltas;
 use mcrs_minecraft_core::Versioned;
 use mcrs_minecraft_engine_registries::RegistrySnapshot;
 use mcrs_minecraft_engine_world::session::PlayerSession;
 use mcrs_minecraft_engine_world::world::lifecycle::trace::{ColumnTraceLog, TraceEvent};
 use mcrs_minecraft_environment::world_clock::WorldClocks;
+use mcrs_minecraft_replication::PlayerData;
 
 use crate::bus::{
     InboundPlayerDespawn, InboundPlayerPacket, InboundPlayerSpawn, OutboundPlayerAttached,
-    OutboundPlayerPacket, OutboundPlayerReleased, PlayerLatency,
+    OutboundPlayerPacket, OutboundPlayerReleased,
 };
 use crate::channel_types::ToDim;
 use crate::clock::GameTime;
 use crate::departure::{Departure, PlayerTransfer};
 use crate::ops::OpList;
 use crate::player_dimension_change;
+use crate::tile_events::TileEvents;
 
 /// A dimension world as the host ticks it.
 pub type DimWorld = SubAppWorld<DimInput, DimOutput>;
@@ -49,6 +52,9 @@ pub struct DimOutput {
     pub(crate) traces: Vec<TraceEvent>,
     /// The players that left the dimension in the tick, after the packets of the tick.
     pub(crate) departures: Vec<Departure>,
+    /// The changes of the players of the tick, for the muxer. A player that departs in the tick
+    /// despawns in them.
+    pub(crate) tiles: TileDeltas<PlayerData>,
 }
 
 /// The messages of the input of this tick, until the inbox drain writes them at the sync point.
@@ -110,6 +116,9 @@ fn take_output(world: &mut World) -> DimOutput {
     if let Some(log) = world.get_resource::<ColumnTraceLog>() {
         output.traces.extend(log.drain());
     }
+    if let Some(mut events) = world.get_resource_mut::<TileEvents>() {
+        output.tiles = events.take();
+    }
     output
 }
 
@@ -120,7 +129,6 @@ pub(crate) fn drain_dim_inbox(
     mut spawns: ResMut<Messages<InboundPlayerSpawn>>,
     mut despawns: ResMut<Messages<InboundPlayerDespawn>>,
     mut serverbound: ResMut<Messages<InboundPlayerPacket>>,
-    mut latencies: ResMut<Messages<PlayerLatency>>,
 ) {
     let inbox = &mut *inbox;
     for message in inbox.control.drain(..) {
@@ -130,9 +138,6 @@ pub(crate) fn drain_dim_inbox(
             }
             ToDim::Despawn(despawn) => {
                 despawns.write(despawn);
-            }
-            ToDim::Latency(latency) => {
-                latencies.write(latency);
             }
             ToDim::Serverbound(packet) => {
                 serverbound.write(packet);

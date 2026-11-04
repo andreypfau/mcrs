@@ -19,6 +19,7 @@ use bevy_tasks::block_on;
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_chunk::{BlockLight, LightStorage, SkyLight};
 use mcrs_minecraft_engine::column_view::ColumnView;
+use mcrs_minecraft_engine::tile_delta_log::TileDeltaLog;
 use mcrs_minecraft_engine_server::{Placement, runner};
 use mcrs_minecraft_engine_world::block_update::BlockSetRequest;
 use mcrs_minecraft_engine_world::entity::physics::Transform;
@@ -266,15 +267,22 @@ fn run(worlds: Placement) -> Vec<u64> {
         stone: state("minecraft:stone"),
     };
 
+    app.init_resource::<TileDeltaLog>();
+    let mut published_tiles = 0;
     let mut hashes = Vec::with_capacity(TICKS + 1);
     for at in 0..TICKS {
         scenario.script(dimension_world(&mut app, label), at);
         tick(&mut app);
         wait_for_steps(&mut app, label);
-        hashes.push(world_hash(
-            dimension_world(&mut app, label),
-            Hashed::WithoutBlocks,
-        ));
+        let mut hasher = DefaultHasher::new();
+        world_hash(dimension_world(&mut app, label), Hashed::WithoutBlocks).hash(&mut hasher);
+        // The tile deltas are a pure output of the tick, so the runs publish the same ones.
+        let logged = std::mem::take(&mut app.world_mut().resource_mut::<TileDeltaLog>().0);
+        for entry in logged.iter().filter(|entry| entry.dimension == label) {
+            hash_debug(&mut hasher, &entry.deltas);
+            published_tiles += entry.deltas.tiles.len();
+        }
+        hashes.push(hasher.finish());
     }
     hashes.push(world_hash(
         dimension_world(&mut app, label),
@@ -289,6 +297,10 @@ fn run(worlds: Placement) -> Vec<u64> {
     assert!(
         loaded > 0,
         "the scenario generated nothing, so it compares nothing"
+    );
+    assert!(
+        published_tiles > 0,
+        "the player published no tile delta, so the deltas compare nothing"
     );
     hashes
 }

@@ -1,17 +1,13 @@
-//! The latency of a player, which the host measures on the wire and hands to the dimension of
-//! the player for its player list entry.
+//! The latency of a player, which the host measures on the wire and hands to the muxer for its
+//! player list entry.
 
-use crate::bus::PlayerLatency;
-use crate::channel_types::ToDim;
-use crate::dim_inputs::DimInputs;
+use crate::entity_replication::EntityReplication;
 use crate::session::HostAnchorRef;
 use bevy_ecs::component::Component;
-use bevy_ecs::message::MessageReader;
-use bevy_ecs::prelude::{Changed, Commands, Query, Res, ResMut};
-use mcrs_minecraft_engine_world::session::{DimPlayerIndex, Session, SessionPlacement};
+use bevy_ecs::prelude::{Changed, Query, ResMut};
+use mcrs_minecraft_engine_world::session::Session;
 
-/// The smoothed round trip of the keep-alives of a connection in milliseconds. The host keeps it
-/// on the connection; a dimension keeps the last value it received on the player.
+/// The smoothed round trip of the keep-alives of a connection in milliseconds.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct Latency(pub i32);
 
@@ -23,33 +19,18 @@ impl Latency {
     }
 }
 
-/// Host system: hands each latency that changed to the dimension of its session.
+/// Host system: hands each latency that changed to the muxer.
 pub fn forward_latency(
     connections: Query<(&Latency, &HostAnchorRef), Changed<Latency>>,
-    sessions: Query<(&Session, &SessionPlacement)>,
-    mut inputs: ResMut<DimInputs>,
+    sessions: Query<&Session>,
+    replication: Option<ResMut<EntityReplication>>,
 ) {
+    let Some(mut replication) = replication else {
+        return;
+    };
     for (&Latency(latency), &HostAnchorRef(anchor)) in &connections {
-        let Ok((&Session(session), placement)) = sessions.get(anchor) else {
-            continue;
-        };
-        if let Some(dim) = placement.place().attached() {
-            inputs.send_control(dim, ToDim::Latency(PlayerLatency { session, latency }));
-        }
-    }
-}
-
-/// Dimension system: keeps the latency that the host sent on the player of its session.
-pub fn apply_latency(
-    mut reader: MessageReader<PlayerLatency>,
-    index: Res<DimPlayerIndex>,
-    mut commands: Commands,
-) {
-    for message in reader.read() {
-        if let Some(&entity) = index.0.get(&message.session)
-            && let Ok(mut player) = commands.get_entity(entity)
-        {
-            player.try_insert(Latency(message.latency));
+        if let Ok(&Session(session)) = sessions.get(anchor) {
+            replication.send_latency(session, latency);
         }
     }
 }

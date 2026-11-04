@@ -31,6 +31,9 @@ bevy_ecs = { workspace = true, features = ["multi_threaded"] }
 bevy_asset = { workspace = true, features = ["multi_threaded"] }
 
 [dev-dependencies]
+mcrs_engine_link.workspace = true
+mcrs_engine_muxer.workspace = true
+mcrs_minecraft_replication.workspace = true
 mcrs_minecraft_protocol.workspace = true
 mcrs_minecraft_protocol_game.workspace = true
 mcrs_minecraft_save.workspace = true

@@ -139,9 +139,6 @@ pub fn spawn_dim_subapp(
     // `InboundPlayerDespawn` is written by `drain_dim_inbox` from `ToDim::Despawn`
     // and read by `drain_inbound_player_despawn` (added by `PlayerTrackerPlugin`).
     sub_app.add_message::<crate::bus::InboundPlayerDespawn>();
-    // Written by `drain_dim_inbox` from `ToDim::Latency` and read by `apply_latency` (added
-    // by `PlayerTrackerPlugin`).
-    sub_app.add_message::<crate::bus::PlayerLatency>();
     // Written by `despawn_inbound_player` once the player is saved, and handed to the host in
     // the output of the tick.
     sub_app.add_message::<crate::bus::OutboundPlayerReleased>();
