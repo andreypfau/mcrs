@@ -125,15 +125,19 @@ Provenance: `black_box_confirmed` (R6, R16). Kind: semantic. Confidence: high.
 - **Behavior:** the stop of the server does not write the file, after a start or after a reload.
 - **Behavior:** the next write of the file replaces the content (WL-CMD-002).
 
-Provenance: `black_box_confirmed` (R7, R15, R16, R24). Kind: semantic. Confidence: high.
+Provenance: `black_box_confirmed` (R7, R15, R16, R24, R26). Kind: semantic. Confidence: high.
 
 ### WL-FILE-005: A missing file
 
 - **Behavior:** when the whitelist file does not exist at the start of the server, the server
   creates it with an empty array and starts with an empty whitelist.
+- **Behavior:** when the whitelist file does not exist at a reload, the whitelist does not change.
+  The server does not create the file and replies as for a good reload. It disconnects no listed
+  player, and a listed player can join.
+- **Edge cases:** U9 covers the next write of the file.
 
-Provenance: `black_box_confirmed` (R15). Kind: semantic. Confidence: medium. The rule rests on one
-observation.
+Provenance: `black_box_confirmed` (R15, R26). Kind: semantic. Confidence: medium. The rule for a
+start rests on one observation.
 
 ## 3. Join
 
@@ -369,6 +373,8 @@ Provenance: `black_box_confirmed` (R14). Kind: semantic. Confidence: high.
   disconnects can join again at once (WL-JOIN-004).
 - **U8**: the order of the names in `commands.whitelist.list`. After `whitelist add wlkeya` and
   `whitelist add wlkeyb`, the list shows `wlkeyb, wlkeya` (R17).
+- **U9**: the content of the file after a command writes it, when the file did not exist at the last
+  reload. The whitelist still holds the old entries (WL-FILE-005). The experiments did not test this.
 
 ## 7. Experiments
 
@@ -404,6 +410,7 @@ account holds, except where a step names a player.
 | E23 | Run `execute store result score #x r run <command>` for each form of WL-CMD-001, and read the score. | R23 |
 | E24 | Start with `{}` in the file, stop, and read the file. Then start, add a name, write `{}`, and reload. List, remove a name that is not listed, add a name, and read the file after each. Write `{}` again, reload, stop, and read the file. Use a new name for each step, and wait for the reply. | R24 |
 | E25 | Keep two operators and a player that is not an operator online. Set `send_command_feedback` to false, and run each form of WL-CMD-001 as an operator and `whitelist add`, `remove` and `list` on the console. Repeat `add`, `remove` and `reload` with `log_admin_commands` false. Restart with `broadcast-console-to-ops=false`, and repeat them on the console and as an operator. Read the replies and the server log. | R25 |
+| E26 | With the whitelist check and `enforce-whitelist` on, write two entries and reload. Keep players online, and write `not json` to the file or delete it. Reload and list. Read the file, and join as a listed player and as a new name. Do `not json` three times and the delete four times, with new names for each round. In the rounds with `not json` and in one delete, keep online both listed players and an operator that is not listed. In the other deletes, keep online one listed player. | R26 |
 
 ## 8. Captured results
 
@@ -674,4 +681,22 @@ console: add, remove -> the console receives the reply, a and b receive chat.typ
 send_command_feedback=true, log_admin_commands=true, broadcast-console-to-ops=false
 console: add, remove, reload -> the console receives the reply, a and b receive nothing
 a: add, remove -> a receives the reply, b receives chat.type.admin
+```
+
+**R26.** `enforce-whitelist=true`, with the whitelist check on.
+
+```text
+whitelist.json: not json, whitelist reload -> a warning in the server log, Reloaded the whitelist
+both listed players and the operator disconnected with multiplayer.disconnect.not_whitelisted
+whitelist list -> There are no whitelisted players, whitelist.json still holds: not json
+a listed player and a new name refused with multiplayer.disconnect.not_whitelisted
+the same in each of 3 rounds
+
+whitelist.json deleted, whitelist reload -> Reloaded the whitelist
+whitelist list -> There are 2 whitelisted player(s), with the same names
+each listed player that is online stays online, whitelist.json does not exist
+a new name refused with multiplayer.disconnect.not_whitelisted
+the same in each of 4 rounds
+in the 3 rounds with one listed player online, the other listed player joins
+in the round with an operator that is not listed, the operator disconnected with the same key
 ```
