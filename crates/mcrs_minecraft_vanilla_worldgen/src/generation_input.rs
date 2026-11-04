@@ -1,30 +1,31 @@
-use bevy_ecs::entity::Entity;
 use mcrs_minecraft_engine_world::entity::player::chunk_view::ChunkTrackingView;
 use mcrs_minecraft_worldgen_generator::stages::FillContext;
 use mcrs_voxel::ColumnPos;
 
 /// What the dimension sends to its generation stage.
-pub(crate) enum GenerationInput {
+///
+/// `T` tags each requested section, and the stage hands the tag back with the section.
+pub(crate) enum GenerationInput<T> {
     /// The context every ladder stage runs against. Until it arrives the stage queues what is
     /// wanted and generates nothing.
     Context(Box<FillContext>),
-    Want(WantedColumn),
+    Want(WantedColumn<T>),
     /// What the views and the players are this tick. The stage drops what left every view and
     /// orders what is left by the players' distance.
     Views(ViewUpdate),
 }
 
 /// Sections of one column that a view ticketed, to be generated together.
-pub(crate) struct WantedColumn {
+pub(crate) struct WantedColumn<T> {
     pub(crate) col: ColumnPos,
     /// Squared XZ distance to the nearest player when the sections were ticketed.
     pub(crate) distance_sq: i32,
-    pub(crate) sections: Vec<RequestedSection>,
+    pub(crate) sections: Vec<RequestedSection<T>>,
 }
 
 #[derive(Clone, Copy, Debug)]
-pub(crate) struct RequestedSection {
-    pub(crate) entity: Entity,
+pub(crate) struct RequestedSection<T> {
+    pub(crate) tag: T,
     pub(crate) y: i32,
 }
 

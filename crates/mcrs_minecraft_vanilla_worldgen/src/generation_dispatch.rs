@@ -57,7 +57,7 @@ enum Pass {
     Spent,
 }
 
-impl GenerationStage {
+impl<T: Copy + Send + 'static> GenerationStage<T> {
     /// Dispatches what changed since the last pass made owed.
     ///
     /// The derived requests are computed here and nowhere stored: they are a
@@ -135,19 +135,19 @@ impl GenerationStage {
     }
 }
 
-struct Dispatcher<'a, 'step> {
+struct Dispatcher<'a, 'step, T: Copy + Send + 'static> {
     pool: &'a TaskPool,
     ctx: &'a FillContext,
-    step: &'a mut Step<'step, GenerationStage>,
+    step: &'a mut Step<'step, GenerationStage<T>>,
 }
 
-impl Dispatcher<'_, '_> {
+impl<T: Copy + Send + 'static> Dispatcher<'_, '_, T> {
     /// Dispatches what the columns whose stage changed, or was cancelled, made owed. What
     /// the budget does not cover waits for the next pass, which the next finished stage
     /// starts.
     fn continue_ladders(
         &mut self,
-        generation: &mut GenerationStage,
+        generation: &mut GenerationStage<T>,
         remaining: &mut usize,
     ) -> Pass {
         let mut worklist = std::mem::take(&mut generation.forgotten);
@@ -188,7 +188,7 @@ impl Dispatcher<'_, '_> {
     }
 
     /// Walks the shells of the wanted columns nobody has walked yet, nearest first.
-    fn walk_fresh(&mut self, generation: &mut GenerationStage, remaining: &mut usize) {
+    fn walk_fresh(&mut self, generation: &mut GenerationStage<T>, remaining: &mut usize) {
         while let Some(&key) = generation.fresh.first() {
             if self.walk_shell(generation, remaining, key.chunk_column_pos) == Pass::Spent {
                 return;
@@ -200,7 +200,7 @@ impl Dispatcher<'_, '_> {
     /// Dispatches what the shell of the wanted column `u` owes, nearest rung first.
     fn walk_shell(
         &mut self,
-        generation: &mut GenerationStage,
+        generation: &mut GenerationStage<T>,
         remaining: &mut usize,
         u: ColumnPos,
     ) -> Pass {
@@ -231,7 +231,7 @@ impl Dispatcher<'_, '_> {
 
     fn dispatch(
         &mut self,
-        generation: &mut GenerationStage,
+        generation: &mut GenerationStage<T>,
         remaining: &mut usize,
         v: ColumnPos,
         owed: Owed,

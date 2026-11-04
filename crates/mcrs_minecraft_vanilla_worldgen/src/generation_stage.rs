@@ -1,4 +1,3 @@
-use bevy_ecs::entity::Entity;
 use bevy_tasks::Task;
 use mcrs_engine_link::{InFlight, Step, TaskOutcome};
 use mcrs_minecraft_engine_world::aoi::min_column_distance;
@@ -102,11 +101,11 @@ impl Default for SchedulerConfig {
 /// Each finished ladder stage changes what its own 3×3 is owed, so the step dispatches from
 /// there, and a column that is newly wanted owes its whole shell; nothing walks every wanted
 /// column again.
-pub(crate) struct GenerationStage {
+pub(crate) struct GenerationStage<T> {
     pub(crate) traces: Option<ColumnTraceLog>,
     pub(crate) ctx: Option<FillContext>,
     /// The sections that asked for each wanted column.
-    pub(crate) pending: BTreeMap<ColumnKey, Vec<RequestedSection>>,
+    pub(crate) pending: BTreeMap<ColumnKey, Vec<RequestedSection<T>>>,
     /// Reverse index: column position -> current priority key.
     pub(crate) priority_index: FxHashMap<ColumnPos, ColumnKey>,
     pub(crate) in_flight: InFlight<InFlightStage, Task<()>>,
@@ -124,20 +123,20 @@ pub(crate) struct GenerationStage {
     unscreened: Vec<ColumnPos>,
     views: ViewUpdate,
     /// Columns that left every view, emitted with the next step.
-    abandoned: Vec<AbandonedColumn>,
+    abandoned: Vec<AbandonedColumn<T>>,
     /// The one owner of every materialised value of the ladder.
     pub(crate) store: StagingStore,
     pub(crate) config: SchedulerConfig,
 }
 
-impl mcrs_engine_link::Stage for GenerationStage {
+impl<T: Copy + Send + 'static> mcrs_engine_link::Stage for GenerationStage<T> {
     const NAME: &'static str = "ColumnGen";
 
-    type Input = GenerationInput;
-    type Output = GenerationOutput;
+    type Input = GenerationInput<T>;
+    type Output = GenerationOutput<T>;
     type TaskOutput = StageResult;
 
-    fn receive(&mut self, input: GenerationInput) {
+    fn receive(&mut self, input: GenerationInput<T>) {
         match input {
             GenerationInput::Context(ctx) => self.ctx = Some(*ctx),
             GenerationInput::Want(wanted) => self.want(wanted),
@@ -172,7 +171,7 @@ impl mcrs_engine_link::Stage for GenerationStage {
     }
 }
 
-impl Drop for GenerationStage {
+impl<T> Drop for GenerationStage<T> {
     /// A fill on the pool stops at its next check of the token, rather than run to an end
     /// nobody takes.
     fn drop(&mut self) {
@@ -182,7 +181,7 @@ impl Drop for GenerationStage {
     }
 }
 
-impl GenerationStage {
+impl<T: Copy + Send + 'static> GenerationStage<T> {
     pub(crate) fn new(traces: Option<ColumnTraceLog>, config: SchedulerConfig) -> Self {
         Self {
             traces,
@@ -223,7 +222,7 @@ impl GenerationStage {
     /// A column stays in the queue for the whole of its ladder, so sections that
     /// arrive after its first stage was dispatched merge into the same entry and
     /// reach the same generated column.
-    fn want(&mut self, wanted: WantedColumn) {
+    fn want(&mut self, wanted: WantedColumn<T>) {
         let WantedColumn {
             col,
             distance_sq,
@@ -292,7 +291,7 @@ impl GenerationStage {
         if let Some(pending) = self.pending.remove(&key) {
             self.abandoned.push(AbandonedColumn {
                 col,
-                sections: pending.iter().map(|section| section.entity).collect(),
+                sections: pending.iter().map(|section| section.tag).collect(),
             });
         }
     }
@@ -430,12 +429,12 @@ impl GenerationStage {
         }
     }
 
-    fn take_generated(&mut self, key: ColumnKey) -> Option<GeneratedColumn> {
+    fn take_generated(&mut self, key: ColumnKey) -> Option<GeneratedColumn<T>> {
         let col = key.chunk_column_pos;
         let pending = self.pending.get(&key)?;
-        let mut requested: Vec<(Entity, SectionPos)> = pending
+        let mut requested: Vec<(T, SectionPos)> = pending
             .iter()
-            .map(|section| (section.entity, SectionPos::new(col.x, section.y, col.z)))
+            .map(|section| (section.tag, SectionPos::new(col.x, section.y, col.z)))
             .collect();
         requested.sort_by_key(|(_, pos)| pos.y);
         let states = self.ctx.as_ref().map(|ctx| ctx.blocks.state_count());
@@ -448,9 +447,9 @@ impl GenerationStage {
             return None;
         };
         let bottom = merged.y_sections.first().copied().unwrap_or(0);
-        let sections: Vec<GeneratedSection> =
+        let sections: Vec<GeneratedSection<T>> =
             carried_sections(&requested, &merged.sections, bottom)
-                .map(|(entity, pos, section)| {
+                .map(|(tag, pos, section)| {
                     let content = match (section, states) {
                         (Some((blocks, biomes)), Some(states)) => {
                             SectionContent::Blocks(SectionBlocks {
@@ -467,7 +466,7 @@ impl GenerationStage {
                         (Some(_), None) => SectionContent::Unchecked,
                         (None, _) => SectionContent::Missing,
                     };
-                    GeneratedSection { entity, content }
+                    GeneratedSection { tag, content }
                 })
                 .collect();
         let maps = merged.maps.clone();
@@ -512,18 +511,18 @@ pub(crate) fn top_of_ladder(rungs: usize) -> Stage {
 
 /// The sections a generated column owes, copied out of the whole column.
 /// `bottom` is the section the column buffer starts at.
-pub(crate) fn carried_sections<'a>(
-    sections_data: &'a [(Entity, SectionPos)],
+pub(crate) fn carried_sections<'a, T: Copy>(
+    sections_data: &'a [(T, SectionPos)],
     column: &'a [Option<SectionData>],
     bottom: i32,
-) -> impl Iterator<Item = (Entity, SectionPos, Option<&'a SectionData>)> + 'a {
-    sections_data.iter().map(move |&(entity, pos)| {
+) -> impl Iterator<Item = (T, SectionPos, Option<&'a SectionData>)> + 'a {
+    sections_data.iter().map(move |&(tag, pos)| {
         let section = pos
             .y
             .checked_sub(bottom)
             .and_then(|slot| usize::try_from(slot).ok())
             .and_then(|slot| column.get(slot))
             .and_then(Option::as_ref);
-        (entity, pos, section)
+        (tag, pos, section)
     })
 }

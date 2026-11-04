@@ -1,5 +1,6 @@
 use std::collections::vec_deque::Drain;
 
+use bevy_ecs::entity::Entity;
 use bevy_ecs::resource::Resource;
 use mcrs_engine_link::Link;
 
@@ -12,13 +13,16 @@ use crate::generation_stage::GenerationStage;
 ///
 /// The requests go to the stage during the tick, and the generated columns land at the start
 /// of a later one.
+///
+/// `T` tags each requested section: the section entity of the dimension, or the section row
+/// of a column that the data layer generates whole.
 #[derive(Resource)]
-pub struct GenerationLink {
-    link: Link<GenerationStage>,
+pub struct GenerationLink<T: Copy + Send + Sync + 'static = Entity> {
+    link: Link<GenerationStage<T>>,
 }
 
-impl GenerationLink {
-    pub(crate) fn new(link: Link<GenerationStage>) -> Self {
+impl<T: Copy + Send + Sync + 'static> GenerationLink<T> {
+    pub(crate) fn new(link: Link<GenerationStage<T>>) -> Self {
         Self { link }
     }
 
@@ -27,12 +31,12 @@ impl GenerationLink {
         self.link.answered().await;
     }
 
-    pub(crate) fn send(&mut self, input: GenerationInput) {
+    pub(crate) fn send(&mut self, input: GenerationInput<T>) {
         self.link.send(input);
     }
 
     /// Every output of the stage not landed yet, in the order it emitted them.
-    pub(crate) fn outputs(&mut self) -> Drain<'_, GenerationOutput> {
+    pub(crate) fn outputs(&mut self) -> Drain<'_, GenerationOutput<T>> {
         self.link.outputs()
     }
 }

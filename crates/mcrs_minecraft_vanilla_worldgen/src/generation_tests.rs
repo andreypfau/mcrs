@@ -104,7 +104,7 @@ fn default_batch() -> usize {
 const EVICT_FIRINGS: usize = 6;
 
 fn force_eviction(
-    generation: &mut GenerationStage,
+    generation: &mut GenerationStage<Entity>,
     wanted: &[ColumnPos],
     evict: Evict,
     after_a_merge: bool,
@@ -189,17 +189,14 @@ fn run_parallel(dim: &Dimension, wanted: &[ColumnPos], drive: Drive) -> (Region,
     loop {
         if let Some(&col) = requests.get(next) {
             next += 1;
-            let requested: Vec<RequestedSection> = y_sections
+            let requested: Vec<RequestedSection<Entity>> = y_sections
                 .iter()
                 .map(|&y| RequestedSection {
-                    entity: entities.spawn_empty().id(),
+                    tag: entities.spawn_empty().id(),
                     y,
                 })
                 .collect();
-            sections.insert(
-                col,
-                requested.iter().map(|section| section.entity).collect(),
-            );
+            sections.insert(col, requested.iter().map(|section| section.tag).collect());
             end.receive(GenerationInput::Want(WantedColumn {
                 col,
                 distance_sq: min_column_distance(&col, &[]),
@@ -215,7 +212,7 @@ fn run_parallel(dim: &Dimension, wanted: &[ColumnPos], drive: Drive) -> (Region,
                 let SectionContent::Blocks(content) = section.content else {
                     panic!("{drive:?} generated {:?} without its blocks", column.col);
                 };
-                generated.insert(section.entity, content.blocks);
+                generated.insert(section.tag, content.blocks);
             }
         }
 
@@ -699,8 +696,8 @@ fn a_dead_first_section_does_not_take_the_column_s_block_entities_with_it() {
         generation.pending.insert(
             key,
             vec![
-                RequestedSection { entity: dead, y: 0 },
-                RequestedSection { entity: live, y: 1 },
+                RequestedSection { tag: dead, y: 0 },
+                RequestedSection { tag: live, y: 1 },
             ],
         );
         generation.priority_index.insert(col, key);

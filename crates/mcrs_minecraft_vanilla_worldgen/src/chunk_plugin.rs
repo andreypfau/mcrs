@@ -60,7 +60,8 @@ impl Plugin for ChunkPlugin {
                 .build()
         });
         let traces = app.world().get_resource::<ColumnTraceLog>().cloned();
-        let link = Link::new(GenerationStage::new(traces, config), self.placement);
+        let link: Link<GenerationStage<Entity>> =
+            Link::new(GenerationStage::new(traces, config), self.placement);
         app.insert_resource(GenerationLink::new(link));
         app.init_resource::<ColumnLatency>();
         // The chunks a view ticketed this tick are spawned this tick and requested right
@@ -72,9 +73,9 @@ impl Plugin for ChunkPlugin {
                     .in_set(TickSet::DomainInput)
                     .after(StoredColumnLandSet),
                 (
-                    send_fill_context.run_if(resource_exists_and_changed::<FillContext>),
+                    send_fill_context::<Entity>.run_if(resource_exists_and_changed::<FillContext>),
                     request_columns,
-                    send_views,
+                    send_views::<Entity>,
                 )
                     .chain()
                     .in_set(TickSet::Project)
@@ -86,7 +87,10 @@ impl Plugin for ChunkPlugin {
 
 pub(crate) static CHUNK_TASK_POOL: OnceLock<TaskPool> = OnceLock::new();
 
-pub(crate) fn send_fill_context(ctx: Res<FillContext>, mut generation: ResMut<GenerationLink>) {
+pub(crate) fn send_fill_context<T: Copy + Send + Sync + 'static>(
+    ctx: Res<FillContext>,
+    mut generation: ResMut<GenerationLink<T>>,
+) {
     generation.send(GenerationInput::Context(Box::new(ctx.clone())));
 }
 
@@ -97,7 +101,7 @@ pub(crate) fn request_columns(
     mut generation: ResMut<GenerationLink>,
     mut latency: ResMut<ColumnLatency>,
     players: Query<&Transform, With<Player>>,
-    mut columns: Local<HashMap<ColumnPos, Vec<RequestedSection>>>,
+    mut columns: Local<HashMap<ColumnPos, Vec<RequestedSection<Entity>>>>,
     mut player_positions: Local<Vec<ColumnPos>>,
 ) {
     requested.extend(
@@ -121,7 +125,7 @@ pub(crate) fn request_columns(
             .entry(ColumnPos::new(pos.x, pos.z))
             .or_default()
             .push(RequestedSection {
-                entity: section,
+                tag: section,
                 y: pos.y,
             });
     }
@@ -143,8 +147,8 @@ pub(crate) fn request_columns(
 
 /// Tells the generation stage what the views and the players are, so it drops what left every
 /// view and works the nearest columns first.
-pub(crate) fn send_views(
-    mut generation: ResMut<GenerationLink>,
+pub(crate) fn send_views<T: Copy + Send + Sync + 'static>(
+    mut generation: ResMut<GenerationLink<T>>,
     views: Query<&SentChunkView>,
     players: Query<&Transform, With<Player>>,
 ) {
@@ -168,7 +172,7 @@ pub(crate) fn send_views(
 )]
 pub(crate) fn integrate_generated_columns(
     mut generation: ResMut<GenerationLink>,
-    mut generated: Local<Vec<GeneratedColumn>>,
+    mut generated: Local<Vec<GeneratedColumn<Entity>>>,
     mut abandoned: Local<Vec<Entity>>,
     mut pending_heightmaps: ResMut<PendingColumnHeightmaps>,
     section_dimensions: Query<&InDimension>,
@@ -210,7 +214,7 @@ pub(crate) fn integrate_generated_columns(
         // the column still stands, and taking it alone would drop the lot.
         let dim = sections
             .iter()
-            .find_map(|section| section_dimensions.get(section.entity).ok())
+            .find_map(|section| section_dimensions.get(section.tag).ok())
             .copied();
         match dim {
             Some(dim) => {
@@ -231,7 +235,7 @@ pub(crate) fn integrate_generated_columns(
         }
 
         for section in sections {
-            let entity = section.entity;
+            let entity = section.tag;
             match section.content {
                 SectionContent::Blocks(content) => {
                     let mut commands = commands.entity(entity);
@@ -352,7 +356,8 @@ mod tests {
         app.add_message::<SectionStageChanged>();
         app.init_resource::<PendingColumnHeightmaps>();
         app.init_resource::<ColumnLatency>();
-        let link = Link::new(GenerationStage::new(None, config), placement);
+        let link: Link<GenerationStage<Entity>> =
+            Link::new(GenerationStage::new(None, config), placement);
         app.insert_resource(GenerationLink::new(link));
         app
     }
@@ -400,7 +405,7 @@ mod tests {
         app.add_systems(
             Update,
             (
-                send_fill_context.run_if(resource_exists_and_changed::<FillContext>),
+                send_fill_context::<Entity>.run_if(resource_exists_and_changed::<FillContext>),
                 request_columns,
                 integrate_generated_columns,
             )
@@ -478,7 +483,7 @@ mod tests {
             col: ColumnPos::new(stale_pos.x, stale_pos.z),
             distance_sq: 0,
             sections: vec![RequestedSection {
-                entity: stale_section,
+                tag: stale_section,
                 y: stale_pos.y,
             }],
         }));
