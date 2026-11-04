@@ -28,15 +28,11 @@ pub enum ToDim {
 ///
 /// Carries all traffic from a dimension world back to the host (MainWorld).
 #[derive(Clone, Debug)]
-#[expect(
-    clippy::large_enum_variant,
-    reason = "nearly every message is a packet, so a box would allocate once per packet"
-)]
 pub enum FromDim {
-    /// A packet to be sent to one or more clients. The `session` and `epoch`
-    /// fields are stamped at the outbound boundary before the packet reaches
-    /// `bridge_outbound`.
-    Clientbound(OutboundPlayerPacket),
+    /// The packets of one drain, in the order the dimension wrote them, each to one or more
+    /// clients. The `session` and `epoch` fields are stamped at the outbound boundary before
+    /// the packets reach `bridge_outbound`.
+    Clientbound(Vec<OutboundPlayerPacket>),
     /// The dim has handled a `Despawn` for the session: whatever player it held is saved and gone.
     Released { session: PlayerSession },
 }

@@ -474,11 +474,10 @@ fn heightmaps_pending(pending: Res<crate::heightmap::PendingColumnHeightmaps>) -
 }
 
 /// Drains the dim's local `Messages<OutboundPlayerPacket>` into the `FromDim`
-/// channel so the host-side `pump_channels` can epoch-stamp and forward them.
+/// channel so the host-side `pump_channels` can epoch-stamp and forward them. The packets of
+/// one drain go as one message, so the channel costs one send a drain, not one a packet.
 ///
-/// A tick can emit far more packets than the channel holds — a chunk batch at a
-/// high `desired_columns_per_tick` does it routinely — so a full channel is
-/// backpressure, not a fault, and what does not fit waits here in the order it
+/// A full channel is backpressure, not a fault: what does not fit waits here in the order it
 /// was written, for the next drain between ticks. Nothing is ever dropped: a column is
 /// recorded as sent the moment it is queued and never offered again, so a lost
 /// packet is a hole in the client's world, and a lost batch-finished packet
@@ -491,7 +490,10 @@ pub(crate) fn flush_from_dim_outbox(
     wake: Option<Res<DrainWake>>,
 ) {
     let backlog = &mut backlog.0;
-    backlog.extend(msgs.drain().map(FromDim::Clientbound));
+    let packets: Vec<OutboundPlayerPacket> = msgs.drain().collect();
+    if !packets.is_empty() {
+        backlog.push_back(FromDim::Clientbound(packets));
+    }
     backlog.extend(released.drain().map(|released| FromDim::Released {
         session: released.session,
     }));
@@ -550,56 +552,62 @@ mod tests {
     use crate::bus::{PacketPayload, PacketPriority, PacketTarget, TestPayload};
     use bevy_ecs::system::{IntoSystem, System};
 
-    /// A tick that writes more than the channel holds must not cost a packet: a column is
-    /// recorded as sent when it is queued and never offered again.
+    /// Drains that the host does not take must not cost a packet: a column is recorded as sent
+    /// when it is queued and never offered again.
     #[test]
     fn a_full_channel_holds_the_overflow_back_instead_of_dropping_it() {
-        let written = FROM_DIM_CAPACITY + FROM_DIM_CAPACITY / 2;
+        let drains = FROM_DIM_CAPACITY + FROM_DIM_CAPACITY / 2;
         let (tx, rx) = flume::bounded::<FromDim>(FROM_DIM_CAPACITY);
         let mut world = World::new();
         world.insert_resource(Messages::<OutboundPlayerPacket>::default());
         world.insert_resource(Messages::<crate::bus::OutboundPlayerReleased>::default());
         world.insert_resource(FromDimSender(tx));
         world.init_resource::<FromDimBacklog>();
-        let mut msgs = world.resource_mut::<Messages<OutboundPlayerPacket>>();
-        for seq in 0..written as u32 {
-            msgs.write(OutboundPlayerPacket {
-                target: PacketTarget::SinglePlayer(
-                    mcrs_minecraft_engine_world::session::PlayerSession(0),
-                ),
-                priority: PacketPriority::Critical,
-                data: PacketPayload::Test(TestPayload { seq }),
-                session: mcrs_minecraft_engine_world::session::PlayerSession(0),
-                epoch: 0,
-            });
-        }
-
         let mut flush = IntoSystem::into_system(flush_from_dim_outbox);
         flush.initialize(&mut world);
-        let mut arrived = Vec::new();
-        let drain = |arrived: &mut Vec<u32>| {
-            arrived.extend(rx.try_iter().map(|msg| match msg {
-                FromDim::Clientbound(OutboundPlayerPacket {
-                    data: PacketPayload::Test(payload),
-                    ..
-                }) => payload.seq,
-                other => panic!("unexpected message {other:?}"),
-            }));
+        let packet = |seq| OutboundPlayerPacket {
+            target: PacketTarget::SinglePlayer(
+                mcrs_minecraft_engine_world::session::PlayerSession(0),
+            ),
+            priority: PacketPriority::Critical,
+            data: PacketPayload::Test(TestPayload { seq }),
+            session: mcrs_minecraft_engine_world::session::PlayerSession(0),
+            epoch: 0,
         };
+        for seq in 0..drains as u32 {
+            let mut msgs = world.resource_mut::<Messages<OutboundPlayerPacket>>();
+            msgs.write(packet(2 * seq));
+            msgs.write(packet(2 * seq + 1));
+            flush.run((), &mut world).unwrap();
+        }
 
-        flush.run((), &mut world).unwrap();
+        let mut arrived = Vec::new();
+        let mut batches = 0;
+        let mut drain = |arrived: &mut Vec<u32>| {
+            for msg in rx.try_iter() {
+                let FromDim::Clientbound(packets) = msg else {
+                    panic!("unexpected message {msg:?}");
+                };
+                batches += 1;
+                arrived.extend(packets.into_iter().map(|packet| match packet.data {
+                    PacketPayload::Test(payload) => payload.seq,
+                    other => panic!("unexpected payload {other:?}"),
+                }));
+            }
+        };
         drain(&mut arrived);
         assert_eq!(
             arrived.len(),
-            FROM_DIM_CAPACITY,
-            "the channel takes what it holds"
+            2 * FROM_DIM_CAPACITY,
+            "the channel takes one message a drain, as many as it holds"
         );
 
         flush.run((), &mut world).unwrap();
         drain(&mut arrived);
+        assert_eq!(batches, drains, "each drain is one message");
         assert_eq!(
             arrived,
-            (0..written as u32).collect::<Vec<_>>(),
+            (0..2 * drains as u32).collect::<Vec<_>>(),
             "every packet arrives, in the order it was written"
         );
     }

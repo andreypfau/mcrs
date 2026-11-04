@@ -70,7 +70,11 @@ fn drain_dim(world: &mut World, dim: Entity, messages: &mut Vec<FromDim>) {
 /// Handles one message that the dimension `source_dim` sent to the host.
 pub fn receive_from_dim(world: &mut World, source_dim: Entity, message: FromDim) {
     match message {
-        FromDim::Clientbound(packet) => deliver(world, packet),
+        FromDim::Clientbound(packets) => {
+            for packet in packets {
+                deliver(world, packet);
+            }
+        }
         FromDim::Released { session } => {
             forget_departures(world, |departing| {
                 departing.dim == source_dim && departing.session == session
