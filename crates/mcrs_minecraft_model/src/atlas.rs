@@ -174,20 +174,11 @@ impl SpriteRegistry {
         }
         let path = model::resource_path(id, "textures", "png");
         let Source {
-            mut data,
-            mut width,
-            mut height,
+            data,
+            width,
+            height,
             animation,
-        } = self.source(pack, id)?;
-        // Entity textures such as a sign's or a skull's are wider than tall; every layer of an
-        // array is square, so the image goes in the top-left corner and UVs divide by the side.
-        if animation.is_none() && width != height {
-            (data, width, height) = (
-                pad_square(&data, width, height),
-                width.max(height),
-                width.max(height),
-            );
-        }
+        } = entity_square(id, self.source(pack, id)?);
         let image_size = (width, height);
         let (frame_width, frame_height) = match &animation {
             Some(animation) => animation.frame_size(image_size),
@@ -299,6 +290,26 @@ pub fn rgba(argb: u32) -> [u8; 4] {
 pub const MISSING_SIZE: u32 = 16;
 const MAGENTA: [u8; 4] = [0xF8, 0x00, 0xF8, 0xFF];
 const BLACK: [u8; 4] = [0x00, 0x00, 0x00, 0xFF];
+
+/// Entity textures such as a skull's or a book's are wider than tall; every layer of an array is
+/// square, so the image goes in the top-left corner and `block_entity` divides its UVs by the
+/// side. Block faces' UVs assume the whole layer, so other textures pass through as they are.
+fn entity_square(id: &str, source: Source) -> Source {
+    let entity = id
+        .split_once(':')
+        .map_or(id, |(_, path)| path)
+        .starts_with("entity/");
+    if !entity || source.animation.is_some() || source.width == source.height {
+        return source;
+    }
+    let side = source.width.max(source.height);
+    Source {
+        data: pad_square(&source.data, source.width, source.height),
+        width: side,
+        height: side,
+        animation: None,
+    }
+}
 
 /// `data`, `width` by `height` RGBA, in the top-left of a transparent square.
 fn pad_square(data: &[u8], width: u32, height: u32) -> Vec<u8> {
