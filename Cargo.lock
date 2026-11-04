@@ -3495,6 +3495,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "mcrs_engine_cell"
+version = "0.5.8"
+dependencies = [
+ "bevy_app",
+ "bevy_ecs",
+ "bevy_tasks",
+ "mcrs_engine_link",
+]
+
+[[package]]
 name = "mcrs_engine_link"
 version = "0.5.8"
 dependencies = [

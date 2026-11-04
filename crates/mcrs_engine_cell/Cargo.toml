@@ -1,0 +1,23 @@
+[package]
+name = "mcrs_engine_cell"
+description = "Worlds that tick in lockstep: owned input in, owned output out, each world placed inline or on a thread of its own"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+doctest = false
+
+[lints]
+workspace = true
+
+[dependencies]
+mcrs_engine_link.workspace = true
+bevy_app = { workspace = true, optional = true }
+bevy_ecs = { workspace = true, optional = true }
+
+[dev-dependencies]
+bevy_tasks.workspace = true
+
+[features]
+default = []
+bevy = ["dep:bevy_app", "dep:bevy_ecs"]

@@ -89,6 +89,7 @@ mcrs_voxel = { path = "crates/mcrs_voxel" }
 mcrs_engine_link = { path = "crates/mcrs_engine_link" }
 mcrs_minecraft_replication = { path = "crates/mcrs_minecraft_replication" }
 mcrs_engine_muxer = { path = "crates/mcrs_engine_muxer" }
+mcrs_engine_cell = { path = "crates/mcrs_engine_cell" }
 mcrs_minecraft_resource = { path = "crates/mcrs_minecraft_resource" }
 mcrs_minecraft_core = { path = "crates/mcrs_minecraft_core", default-features = false }
 mcrs_minecraft_datapack = { path = "crates/mcrs_minecraft_datapack" }
