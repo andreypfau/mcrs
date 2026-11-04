@@ -366,7 +366,7 @@ impl ReplicationCodec for PlayerCodec {
                     tracing::warn!("a keyframe of a tile did not encode: {error:#}");
                     TileBlob::default()
                 }),
-            _ => {
+            BlobKind::Delta => {
                 self.tick = tick;
                 self.write_blob(subjects, |motion, id, bytes| {
                     motion.encode(id, tier, tick, bytes)
@@ -399,7 +399,6 @@ impl ReplicationCodec for PlayerCodec {
                     self.forgotten.insert(viewer);
                 }
             }
-            _ => {}
         }
     }
 

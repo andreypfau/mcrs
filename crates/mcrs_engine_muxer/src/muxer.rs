@@ -582,7 +582,7 @@ mod tests {
         ) -> TileBlob {
             match kind {
                 BlobKind::Keyframe => Self::blob(subjects.iter().copied(), "key"),
-                _ => {
+                BlobKind::Delta => {
                     self.encodes += 1;
                     let moved = &mut self.moved[tier.index()];
                     let sent: Vec<EntityId> = subjects
@@ -607,7 +607,6 @@ mod tests {
                     chunks.push(Bytes::from(format!("remove {};", ids.join(","))));
                 }
                 Hold::Forget => self.owed.retain(|owed| owed.viewer != viewer),
-                _ => {}
             }
         }
 

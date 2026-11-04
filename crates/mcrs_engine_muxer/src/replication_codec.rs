@@ -58,7 +58,6 @@ pub trait ReplicationCodec {
 }
 
 /// The kind of a [`TileBlob`].
-#[non_exhaustive]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum BlobKind {
     Delta,
@@ -66,7 +65,6 @@ pub enum BlobKind {
 }
 
 /// A change of what the client of a viewer holds.
-#[non_exhaustive]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Hold<'a> {
     /// The client gains `subject` at its base at `tier`. The codec appends the bytes that make
