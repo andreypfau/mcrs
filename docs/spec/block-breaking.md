@@ -145,16 +145,22 @@ acknowledgement and no block state.
 |------|--------|
 | The block is out of reach (BRK-RCH-001) | R7 |
 | The position is air | R17 |
-| The position holds a water source or a lava source | R18 |
+| The position holds water or lava, at any level | R18, R25 |
 | The position is below the height limit | R15 |
 
 **BRK-ACK-002** (`black_box_confirmed`, semantic). For a start action on air, an observer gets
 `level_event` with type 2001 and data 0. An observer gets no block state. See result R17. This rule
 rests on one observation.
 
-**BRK-ACK-003** (`black_box_confirmed`, semantic). A block that holds water changes to water, and the
-water source stays. The breaker gets `block_update` with the state of water. See result R19. This rule
-rests on one block type.
+**BRK-ACK-003** (`black_box_confirmed`, semantic). A block that holds a water source changes to a water
+source. The breaker gets `block_update` with the state of a water source, and then one acknowledgement.
+An observer gets `level_event` with type 2001 and the state id of the old block, and then the same block
+state. No item drops. See results R19 and R26. The tested blocks are in R26. A block of the same type
+with no water changes to air. Each block type rests on one observation.
+
+**BRK-ACK-004** (`black_box_confirmed`, semantic). For a start action on water or lava, at any level, an
+observer gets `level_event` with type 2001 and the state id of the fluid. An observer gets no block
+state. The fluid stays. See result R25.
 
 ### 3.4 Spawn protection
 
@@ -242,17 +248,17 @@ R24. This rule rests on one observation.
 - **U5**: spawn protection on the `z` axis, on a diagonal, with a spawn that is not at the origin, and
   the operator level that it needs.
 - **U6**: the `level_event` packets for a door and a bed to an observer, and the order when the lower
-  part is the one hit.
+  part of a door is the one hit. R26 shows a tall plant in water.
 - **U7**: a position in reach in a chunk that is not loaded. The only tested position was also out of
   reach.
-- **U8**: what an observer gets for a start action on a water source or a lava source, or outside the
-  world border, or above the height limit.
+- **U8**: what an observer gets for a start action outside the world border, or above the height limit.
 - **U9**: the eye position when the player sneaks, swims or has another pose, and the effect of an
   attribute that changes reach. All experiments used a player that stands. Result R8 confirms the
   height 1.62 only to within 0.05.
 - **U10**: why a position above the height limit sends a block state and a position below it does not.
   Each case rests on two observations.
 - **U11**: two breaks in one tick in different sections.
+- **U12**: blocks that hold water outside R26.
 
 ## 8. Experiments
 
@@ -288,6 +294,8 @@ Before each step, set the block with `setblock`, and read the packets that arriv
 | E22 | Break each block of BRK-DRP-001. Break containers with contents. Read the item entities. | R22 |
 | E23 | Put sand on stone. Break the stone. | R23 |
 | E24 | Send the sequences 0, 1, 2147483646, 2147483647 and -1. | R24 |
+| E25 | Wall a block position in stone. Set water and lava there, at the levels of R25. Wait until the breaker gets the `block_update`, and send the start action at once, before the fluid changes. Do each level that is not a source three times, and each source once. | R25 |
+| E26 | Wall a block position in stone. Set each block of R26 there. Send the start action. Read the block and the item entities. For tall seagrass, hit each part. | R26 |
 
 ## 9. Captured results
 
@@ -504,4 +512,44 @@ seq 1:          block_update state 0; block_changed_ack seq 1
 seq 2147483646: block_update state 0; block_changed_ack seq 2147483646
 seq 2147483647: block_update state 0; block_changed_ack seq 2147483647
 seq -1:         disconnect {translate: "disconnect.packetError"}; block is air
+```
+
+**R25.** The state ids are 89 for a water source and 105 for a lava source. The other ids are the fluid at
+that level. The result is the same in each of three runs, and in the one run of each source.
+
+| Fluid | State id | Breaker | Observer | After |
+|-------|----------|---------|----------|-------|
+| water, level 0 | 89 | `block_changed_ack` | `level_event` type 2001 data 89 | stays |
+| water, level 1 | 90 | `block_changed_ack` | `level_event` type 2001 data 90 | stays |
+| water, level 7 | 96 | `block_changed_ack` | `level_event` type 2001 data 96 | stays |
+| water, level 8 | 97 | `block_changed_ack` | `level_event` type 2001 data 97 | stays |
+| lava, level 0 | 105 | `block_changed_ack` | `level_event` type 2001 data 105 | stays |
+| lava, level 2 | 107 | `block_changed_ack` | `level_event` type 2001 data 107 | stays |
+| lava, level 6 | 111 | `block_changed_ack` | `level_event` type 2001 data 111 | stays |
+| lava, level 8 | 113 | `block_changed_ack` | `level_event` type 2001 data 113 | stays |
+
+**R26.** `<old>` is the state id of the block before the break.
+
+```text
+waterlogged oak_slab, oak_stairs, oak_fence, sea_pickle, ladder;
+kelp, kelp_plant, seagrass, bubble_column:
+  breaker:  block_update state 89; block_changed_ack
+  observer: level_event type 2001 data <old>; block_update state 89
+  the position holds a water source; no item
+oak_slab with no water:
+  breaker:  block_update state 0; block_changed_ack
+  observer: level_event type 2001 data <old>; block_update state 0
+tall_seagrass, lower part hit:
+  breaker:  level_event type 2001 at the upper part, data 2371
+            section_blocks_update with both parts at state 89; block_changed_ack
+  observer: level_event type 2001 at the lower part, data 2372
+            level_event type 2001 at the upper part, data 2371
+            section_blocks_update
+tall_seagrass, upper part hit:
+  breaker:  level_event type 2001 at the upper part, data 2371
+            section_blocks_update with both parts at state 89; block_changed_ack
+  observer: level_event type 2001 at the upper part, data 2371
+            level_event type 2001 at the lower part, data 2372
+            level_event type 2001 at the upper part, data 2371
+            section_blocks_update
 ```
