@@ -180,14 +180,15 @@ that has no rule.
 
 | Place | Today | Cost |
 |---|---|---|
-| `EntityTracker`, `crates/mcrs_minecraft_engine/src/entity_tracker.rs` | One grid of sections with hash sets and one radius of 5 sections. A subject that changes its section pairs with the subjects of the new cells in its radius. Each player is a viewer and a subject, so one visible set holds both directions. | One check for each player, and O(subjects that move × visible) each tick. A change of section looks up 121 to 1,331 cells. |
-| `crates/mcrs_minecraft_engine/src/entity_motion.rs` | A move is a relative move from one delta base for each subject. A delta of more than about 8 blocks, or a move after 100 ticks, sends an absolute position sync. One message goes to all viewers of the subject. | The bridge encodes the message one time for all viewers. |
+| Tile deltas, `crates/mcrs_minecraft_engine/src/publish_player_tiles.rs` | Each dimension keeps the tile of each player. A tile is 2 × 2 columns and the full height of the world. At the end of a tick, the dimension publishes the spawn, the move, the change of tile, the change of game mode, the messages and the despawn of its players, sorted by tile and by player, in its `DimOutput`. | O(players that change) each tick. |
+| Muxer, `crates/mcrs_engine_muxer` | The host sends the tile deltas of each dimension to one `MuxerStage` over a `Link`. The `muxer` field of the server plugin places the link: `Thread` by default, or `Inline`. The stage keeps one `Muxer` for each dimension. A player subscribes to the tiles within 3 tiles of its own tile, about 96 blocks on X and Z. The host changes the subscription when the player spawns, changes tile or despawns. | One encode for each tile delta. All viewers of the tile share the bytes. |
+| Codec, `crates/mcrs_minecraft_replication/src/player_codec.rs` | The codec keeps one delta base for each subject. A delta of more than about 8 blocks, or a move after 100 ticks, sends an absolute position sync. A spawn bundle goes to each viewer that gains a subject. The codec caches the end of the bundle until the subject moves. | One encode of a spawn for each subject and move, and one profile entry for each viewer that does not have it. |
 | Remove packets | One remove packet with a list for each viewer and tick. | None. |
-| Dimension to host channel, `crates/mcrs_minecraft_engine/src/sub_app_builder.rs` | One channel message for each drain. | None for each packet. |
-| `crates/mcrs_minecraft_engine/src/bridge.rs` | The flush runs on one thread. It encodes a packet for many recipients one time, and all recipients share the bytes. | One encode for each packet. A packet for each pair of subject and viewer is still a separate packet. |
-| `crates/mcrs_minecraft_network/src/outbound.rs` | The flush frames and compresses a shared packet one time for each compression threshold. The writer sends this `Framed` part as it is. | One deflate for each chunk version in a flush. |
-| Profile entries, `crates/mcrs_minecraft_engine/src/player_list.rs` | `PlayerList` keeps the entries of each viewer in its dimension. Section 7.5 gives the rules. A change of game mode goes only to the viewers that have the entry. | The policy reads all players of the dimension: O(N) for each viewer that it checks. |
-| Chat, `crates/mcrs_minecraft_chat_server/src/chat_plugin.rs`, `crates/mcrs_minecraft_engine/src/join_message.rs` | Global chat is system chat. The join and leave messages go to the visible set of the player. | One encode for each message. |
+| The host, `crates/mcrs_minecraft_engine/src/entity_replication.rs` | The host takes the bytes of each viewer from the muxer at the end of the time between ticks, and appends them to the outbound packets of its session. The muxer bytes are records: the length of each packet, then the packet with its id. | The muxer thread works while the host does the rest of the time between ticks. |
+| `crates/mcrs_minecraft_engine/src/bridge.rs` | The flush runs on one thread. It encodes a packet for many recipients one time, and all recipients share the bytes. It appends the records of the muxer without a copy. | The writer of each connection frames and compresses the records of the muxer. A frame for each compression threshold is not shared yet. |
+| `crates/mcrs_minecraft_network/src/outbound.rs` | The flush frames and compresses a shared packet one time for each compression threshold. The writer sends this `Framed` part as it is. The records of the muxer go as a `Packets` part. | One deflate for each chunk version in a flush. |
+| Profile entries, `crates/mcrs_minecraft_replication/src/player_list.rs` | The codec of each dimension keeps the entries of each viewer in that dimension. Section 7.5 gives the rules. A change of game mode goes only to the viewers that have the entry. | The policy reads all players of the dimension: O(N) for each viewer that it checks. |
+| Chat, `crates/mcrs_minecraft_chat_server/src/chat_plugin.rs`, `crates/mcrs_minecraft_engine/src/publish_player_tiles.rs` | Global chat is system chat. The join and leave messages are data events of the tile deltas. The codec sends them to the viewers whose client holds the player. | One encode for each message. |
 | `crates/mcrs_minecraft_engine/src/network_id.rs` | The wire id of an entity that is not a player is its index in the dimension. | Not stable across cells (`cells.md`, section 6). |
 | Encryption | None. The server runs in offline mode only. | No cost yet. |
 
@@ -327,16 +328,18 @@ The implementation today has these values and limits:
 - A viewer checks its listed entries a maximum of one time in 20 ticks. It checks them only after
   a player joins, leaves or changes section in the dimension. Thus players that do not move cost
   no work and no bytes.
-- An entry that is not listed and not in the visible set stays for 600 ticks. Then the dimension
-  sends `player_info_remove`. A disconnect removes the entry at the next tick.
+- An entry that is not listed and not in the visible set stays for 600 ticks. Then the muxer
+  sends `player_info_remove`. A disconnect removes the entry at the end of the tick of the
+  despawn.
 - The profile entry is in the spawn bundle only when the client does not have the entry. An entry
   that the policy lists first goes before the change of the listing, outside a bundle.
-- The host measures the latency from the keep-alive on the wire and sends it to the dimension. A
+- The host measures the latency from the keep-alive on the wire and sends it to the muxer. A
   viewer gets the latency of its listed entries a maximum of one time in 1,200 ticks, and only
   the values that changed. An entry that becomes listed also brings its latency.
 - The host sends the header when the number changes. A player that a dimension attaches also
   gets it.
-- All intervals count ticks of the tracker. No interval reads the wall clock.
+- All intervals count the ticks of the tile deltas of the dimension. No interval reads the wall
+  clock.
 
 ## 7.6 Chat and other broadcasts
 
@@ -351,8 +354,9 @@ The implementation today has these values and limits:
 The implementation today has these limits:
 
 - The server does not sign chat. All chat goes out as system chat, also local chat.
-- The join message goes to the player and to its visible set. The leave message goes to its
-  visible set. A change of dimension sends neither message.
+- The join message goes to the player and to the viewers that hold it at the end of the tick of
+  its spawn. The leave message goes to the viewers that hold it. A change of dimension sends
+  neither message.
 
 ## 7.7 Spawn bundles by distance
 

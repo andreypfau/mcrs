@@ -300,8 +300,9 @@ sharding document (decision 20). It is also the mode of the tests.
 | This document | Today |
 |---|---|
 | Cell | one dimension sub-app in `mcrs_engine_cell::Cells` (`DimCells`): a tree with one leaf for each world, ticked in lockstep after the host's `Last`, placed `Inline` or on a `Thread` by the server's `worlds` field |
-| Muxer and Coordinator | the host world: bridge, sessions, column waiters, game time |
-| Link | `mcrs_engine_link` for light and generation; the host and each dimension exchange one `DimInput` and one `DimOutput` a tick over the cell's link. Passes that touch the host and several dimensions at once (dimension change, commands) still lend the worlds between ticks |
+| Muxer | for entities, `mcrs_engine_muxer::MuxerStage` on a link from the host, placed by the server's `muxer` field (`Thread` by default): tiles, subscriptions, delta bases, spawn bundles and the player list, with the Minecraft codec of `mcrs_minecraft_replication`; for the rest, the host world: bridge, sessions, column waiters |
+| Coordinator | the host world: game time, dimension changes, commands |
+| Link | `mcrs_engine_link` for light and generation; the host and each dimension exchange one `DimInput` and one `DimOutput` a tick over the cell's link; the tile deltas of each `DimOutput` go on to the muxer over its link. Passes that touch the host and several dimensions at once (dimension change, commands) still lend the worlds between ticks |
 | Data layer | none apart: cold columns live in the dimension until they unload |
 | Stage | the light engine and the world generator, each as a `Stage` on a `Link` |
 
