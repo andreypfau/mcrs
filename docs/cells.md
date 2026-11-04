@@ -215,6 +215,45 @@ Later: a service of its own, scaled apart from the Muxer.
 The Muxer, the cells and the stages reach the data layer only through a link, by chunk key and
 version. The move to a service changes only the placement of that link.
 
+`mcrs_engine_store` is the data layer. A `StoreStage` holds a `ChunkCache` over a `DiskStore`
+that the game supplies. It takes three inputs:
+
+- `Put`: keep this version of the key. The cache keeps a later version that it already holds.
+- `Get`: answer with the last version of the key, or with `Missing`.
+- `Flush`: write to the disk each version that the disk does not hold yet.
+
+The stage answers in the order of the inputs, so a `Get` after a `Put` sees that `Put`.
+
+Minecraft keys the data layer by column, because a client receives whole columns. One column
+version holds the blocks, the biomes and the light of each section, the block entities and the
+heightmaps. Each dimension world has a link of its own. The world is the only writer of its
+columns, so it numbers the versions it writes.
+
+The rules of a dimension world with a data layer:
+
+- A column is hot when a hot ticket covers it. A player holds one hot ticket: the simulation
+  area one ring wider, as far as the view reaches. A hot ticket loads its columns and the two
+  rings around them.
+- A column that no ticket loads goes cold. Before its sections go, the world writes its last
+  version. It does not write a column that came from the data layer and did not change. It does
+  not write a generated column whose light did not settle, because that light at the edge of the
+  loaded space was lit without the neighbours.
+- A section that a ticket loads asks the data layer first. A section that the data layer does
+  not hold goes on to generation.
+- A view takes a hot column from the dimension. It asks the data layer for a cold column, and the
+  world encodes the answer once for each view that waits on it.
+- A view that gets `Missing` loads the column with a ticket of its own. The dimension then
+  generates and lights the column, and the view sends it from the dimension. The view lets the
+  ticket go when it sends the column, so the column goes cold.
+- An answer is older than a `Put` that the world sent after the `Get`. The world then asks
+  again and drops the older answer. A column that went hot before its answer went out goes out
+  from the dimension. A view thus never gets a version older than the hot one.
+- A column that comes into the dimension again starts with the observers that hold it, so its
+  changes reach them.
+
+The disk store of Minecraft is `NoDisk` for now: the data layer lives in memory, and a restart
+loses the cold columns that the save on disk does not hold.
+
 ---
 
 # 8. Stages
@@ -299,11 +338,11 @@ sharding document (decision 20). It is also the mode of the tests.
 
 | This document | Today |
 |---|---|
-| Cell | one dimension sub-app in `mcrs_engine_cell::Cells` (`DimCells`): a tree with one leaf for each world, ticked in lockstep after the host's `Last`, placed `Inline` or on a `Thread` by the server's `worlds` field |
+| Cell | one dimension sub-app in `mcrs_engine_cell::Cells` (`DimCells`): a tree with one leaf for each world, ticked in lockstep after the host's `Last`, placed `Inline` or on a `Thread` by the server's `worlds` field. It loads only its hot columns and the columns that a view waits on while they are generated and lit |
 | Muxer | for entities, `mcrs_engine_muxer::MuxerStage` on a link from the host, placed by the server's `muxer` field (`Thread` by default): tiles, subscriptions, delta bases, spawn bundles and the player list, with the Minecraft codec of `mcrs_minecraft_replication`; for the rest, the `muxer` module tree of `mcrs_minecraft_engine` in the host world: connections and the bridge, sessions and their placement, the input it routes to the owner dimension, the host side of entity replication. The column view and the column waiters of a player are components of the dimension world |
 | Coordinator | the `coordinator` module tree of `mcrs_minecraft_engine` in the host world: the dimension worlds and their lockstep tick, the spawn and despawn queues, game time and world clocks, the operator list, the ranges of global entity ids that it grants to each dimension world, the dimension of a player that joins or changes dimension. It and the muxer share one world but talk only through the messages of `to_muxer` and `to_coordinator` |
 | Link | `mcrs_engine_link` for light and generation; the host and each dimension exchange one `DimInput` and one `DimOutput` a tick over the cell's link: the coordinator puts the input that the muxer routed into the `DimInput`, and answers a request for entity ids in a `DimOutput` with a range in the next `DimInput`, and hands the packets and the tile deltas of each `DimOutput` to the muxer, which sends the tile deltas on to the entity muxer over its link. The command pass touches the host and several dimensions at once and still lends the worlds between ticks |
-| Data layer | none apart: cold columns live in the dimension until they unload |
+| Data layer | `mcrs_engine_store::StoreStage` on a link from each dimension world, placed on a `Thread`, with the column store of `mcrs_minecraft_engine` (`column_store`, `cold_columns`, `stored_columns_landing`, `hot_ticket`) and no disk under it. The column view and the column waiters of a player stay in the dimension world, and the view gets a cold column from the data layer through the world. Anvil is read only by the generation stage, for the columns of a save that the data layer does not hold |
 | Stage | the light engine and the world generator, each as a `Stage` on a `Link` |
 
 ---
@@ -317,7 +356,17 @@ Each step leaves a working server and passes the determinism test.
 2. Split the host into the Muxer and the Coordinator, still in one process. Make the host to
    dimension channels a link.
 3. Add `mcrs_engine_store` with the in-memory data layer. Serve the view from it. Keep only hot columns
-   in the dimension.
+   in the dimension. Done, with these parts left:
+   - The disk store of Minecraft: Anvil region files that the data layer reads and writes, a
+     `Flush` at each autosave and at shutdown, and an eviction of the columns that the disk
+     holds. Check: a column that a player changed is the same after a restart.
+   - The stages in cold space: the data layer generates and lights a missing column itself. Now
+     a view loads a missing column in the dimension for the stages. Check: a view wider than the
+     hot area loads no column in the dimension.
+   - The view in the Muxer: the Muxer subscribes to the version stream of each column and
+     encodes each version once for all worlds. Now the dimension world serves the view. Check:
+     the column view and the column waiters leave the dimension world.
+   - The scheduled ticks of a section, which a cold column does not keep yet.
 4. Let a cell own a box, not a whole world. Add the halo and the messages between cells. Divide
    statically, for example by region files. Test one cell against many cells.
 5. Split and merge in the Coordinator, with moves at the tick boundary.
