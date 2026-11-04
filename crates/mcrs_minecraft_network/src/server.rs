@@ -17,6 +17,7 @@ use mcrs_minecraft_protocol::packets::{configuration, game};
 use mcrs_minecraft_protocol::uuid::Uuid;
 use mcrs_minecraft_protocol::{Bounded, Encode, Packet, WritePacket};
 use mcrs_minecraft_text::Text;
+use socket2::{Domain, Protocol, Socket, Type};
 use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -49,6 +50,9 @@ pub struct NetworkPlugin {
     /// the bytes, so no writer can resume its stream. A fixed buffer keeps a slow reader's
     /// backlog in its own outbound queue. 512 KiB still carries 5 MB/s at a round trip of 100 ms.
     pub send_buffer_bytes: usize,
+    /// The length of the queue of connections the kernel completes before the accept loop takes
+    /// them. A burst of clients beyond this length gets connection resets.
+    pub accept_backlog: u32,
 }
 
 const SERVER_ICON: &[u8] = include_bytes!(concat!(
@@ -75,6 +79,7 @@ impl Default for NetworkPlugin {
             hide_online_players: false,
             enable_status: true,
             send_buffer_bytes: 512 * 1024,
+            accept_backlog: 1024,
         }
     }
 }
@@ -139,6 +144,21 @@ impl Plugin for NetworkPlugin {
     }
 }
 
+fn bind_listener(address: SocketAddr, backlog: u32) -> std::io::Result<std::net::TcpListener> {
+    let socket = Socket::new(
+        Domain::for_address(address),
+        Type::STREAM,
+        Some(Protocol::TCP),
+    )?;
+    // std sets this on Unix; a restart must not wait for old connections in TIME_WAIT.
+    #[cfg(unix)]
+    socket.set_reuse_address(true)?;
+    socket.bind(&address.into())?;
+    socket.listen(i32::try_from(backlog).unwrap_or(i32::MAX))?;
+    socket.set_nonblocking(true)?;
+    Ok(socket.into())
+}
+
 fn build_plugin(app: &mut App, plugin: &NetworkPlugin) -> anyhow::Result<()> {
     let address = plugin.address;
     let announce_on_lan = plugin.announce_on_lan;
@@ -147,8 +167,7 @@ fn build_plugin(app: &mut App, plugin: &NetworkPlugin) -> anyhow::Result<()> {
 
     // Binding through std keeps this usable from a caller that is itself
     // already inside a tokio runtime, where `block_on` would panic.
-    let std_listener = std::net::TcpListener::bind(address)?;
-    std_listener.set_nonblocking(true)?;
+    let std_listener = bind_listener(address, plugin.accept_backlog)?;
     let bound = std_listener.local_addr()?;
     let listener = {
         let _guard = tokio_handle.enter();

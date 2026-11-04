@@ -37,6 +37,8 @@ pub struct ServerNetworkPlugin {
     pub enable_status: bool,
     /// The kernel send buffer of each connection, in bytes.
     pub send_buffer_bytes: usize,
+    /// The length of the kernel queue of connections that wait for the accept loop.
+    pub accept_backlog: u32,
 }
 
 impl ServerNetworkPlugin {
@@ -67,6 +69,7 @@ impl Default for ServerNetworkPlugin {
             hide_online_players: false,
             enable_status: true,
             send_buffer_bytes: NetworkPlugin::default().send_buffer_bytes,
+            accept_backlog: NetworkPlugin::default().accept_backlog,
         }
     }
 }
@@ -88,6 +91,7 @@ impl Plugin for ServerNetworkPlugin {
             hide_online_players: self.hide_online_players,
             enable_status: self.enable_status,
             send_buffer_bytes: self.send_buffer_bytes,
+            accept_backlog: self.accept_backlog,
         });
         app.insert_resource(self.compression_threshold);
         app.add_plugins(LoginPlugin);

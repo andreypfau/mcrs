@@ -4,6 +4,7 @@
 )]
 
 use std::path::{Path, PathBuf};
+use std::str::FromStr;
 use std::time::Duration;
 
 use bevy_app::{App, AppExit, PluginGroup, Update};
@@ -92,10 +93,15 @@ async fn main() -> AppExit {
                 variable("MCRS_ENABLE_STATUS").as_deref(),
                 true,
             ),
-            send_buffer_bytes: byte_count(
+            send_buffer_bytes: positive_count(
                 "MCRS_SEND_BUFFER_BYTES",
                 variable("MCRS_SEND_BUFFER_BYTES").as_deref(),
                 ServerNetworkPlugin::default().send_buffer_bytes,
+            ),
+            accept_backlog: positive_count(
+                "MCRS_ACCEPT_BACKLOG",
+                variable("MCRS_ACCEPT_BACKLOG").as_deref(),
+                ServerNetworkPlugin::default().accept_backlog,
             ),
             ..Default::default()
         },
@@ -242,12 +248,16 @@ fn compression_threshold(value: Option<&str>) -> NetworkCompressionThreshold {
 }
 
 /// A positive whole number; unset or anything else keeps `default`.
-fn byte_count(name: &str, value: Option<&str>, default: usize) -> usize {
+fn positive_count<T: FromStr + Default + PartialOrd>(
+    name: &str,
+    value: Option<&str>,
+    default: T,
+) -> T {
     let Some(raw) = value.map(str::trim) else {
         return default;
     };
     match raw.parse() {
-        Ok(count) if count > 0 => count,
+        Ok(count) if count > T::default() => count,
         _ => {
             bevy_log::error!(raw, "{name} is not a positive number; using the default");
             default
