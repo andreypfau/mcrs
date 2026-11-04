@@ -16,3 +16,12 @@ pub struct TileDeltas<D> {
     pub tick: u64,
     pub tiles: Vec<TileDelta<D>>,
 }
+
+impl<D> Default for TileDeltas<D> {
+    fn default() -> Self {
+        Self {
+            tick: 0,
+            tiles: Vec::new(),
+        }
+    }
+}

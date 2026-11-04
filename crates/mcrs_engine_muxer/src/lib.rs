@@ -18,7 +18,7 @@ mod view;
 mod viewer_bytes;
 
 pub use entity_event::{EntityEvent, SubjectEvent};
-pub use entity_id::{EntityId, ViewerId};
+pub use entity_id::{EntityId, ViewerId, WorldId};
 pub use muxer::Muxer;
 pub use muxer_stage::{MuxerInput, MuxerStage};
 pub use replication_codec::ReplicationCodec;

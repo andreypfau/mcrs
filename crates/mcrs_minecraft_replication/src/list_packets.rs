@@ -1,4 +1,4 @@
-use crate::encode::encode;
+use crate::encode::record;
 use bytes::Bytes;
 use mcrs_minecraft_game_mode::GameMode;
 use mcrs_minecraft_profile::Property;
@@ -28,7 +28,7 @@ pub(crate) struct EntryLatency {
 /// The packet that adds the entry of `profile`. It does not set the listing, so a new entry is
 /// not listed.
 pub(crate) fn profile_entry(profile: &Profile<'_>, game_mode: GameMode) -> Result<Bytes> {
-    encode(&ClientboundPlayerInfoUpdate {
+    record(&ClientboundPlayerInfoUpdate {
         actions: PlayerListActions::new()
             .with_add_player(true)
             .with_update_game_mode(true),
@@ -44,7 +44,7 @@ pub(crate) fn profile_entry(profile: &Profile<'_>, game_mode: GameMode) -> Resul
 
 /// The packet that tells the viewers of an entry the new game mode of its player.
 pub fn game_mode_packet(uuid: Uuid, game_mode: GameMode) -> Result<Bytes> {
-    encode(&ClientboundPlayerInfoUpdate {
+    record(&ClientboundPlayerInfoUpdate {
         actions: PlayerListActions::new().with_update_game_mode(true),
         entries: Cow::Borrowed(&[PlayerListEntry {
             player_uuid: uuid,
@@ -67,7 +67,7 @@ fn latency_entries(entries: &[EntryLatency], listed: bool) -> Vec<PlayerListEntr
 }
 
 pub(crate) fn listed_packet(entries: &[EntryLatency]) -> Result<Bytes> {
-    encode(&ClientboundPlayerInfoUpdate {
+    record(&ClientboundPlayerInfoUpdate {
         actions: PlayerListActions::new()
             .with_update_listed(true)
             .with_update_latency(true),
@@ -83,19 +83,19 @@ pub(crate) fn unlisted_packet(players: &[Uuid]) -> Result<Bytes> {
             ..Default::default()
         })
         .collect();
-    encode(&ClientboundPlayerInfoUpdate {
+    record(&ClientboundPlayerInfoUpdate {
         actions: PlayerListActions::new().with_update_listed(true),
         entries: Cow::Owned(entries),
     })
 }
 
 pub(crate) fn latency_packet(entries: &[EntryLatency]) -> Result<Bytes> {
-    encode(&ClientboundPlayerInfoUpdate {
+    record(&ClientboundPlayerInfoUpdate {
         actions: PlayerListActions::new().with_update_latency(true),
         entries: Cow::Owned(latency_entries(entries, false)),
     })
 }
 
 pub(crate) fn remove_packet(players: Vec<Uuid>) -> Result<Bytes> {
-    encode(&ClientboundPlayerInfoRemove { players })
+    record(&ClientboundPlayerInfoRemove { players })
 }

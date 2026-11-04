@@ -113,6 +113,25 @@ impl WriterQueue {
         self.push(OutboundPart::Shared(packet));
     }
 
+    /// Queues packets that other connections may share, each behind its length as a big-endian
+    /// `u32`, as [`Self::append`] writes them. Returns how many packets `records` holds.
+    pub(crate) fn append_records(&mut self, records: Bytes) -> usize {
+        let mut count = 0;
+        let mut rest: &[u8] = &records;
+        while let Some((length, tail)) = rest.split_first_chunk::<RECORD_LENGTH_BYTES>() {
+            let length = u32::from_be_bytes(*length);
+            let Some(next) = tail.get(length as usize..) else {
+                break;
+            };
+            self.appended = self.appended.saturating_add(u64::from(length));
+            count += 1;
+            rest = next;
+        }
+        self.close_records();
+        self.push(OutboundPart::Packets(records));
+        count
+    }
+
     /// Queues frames made at [`Self::compression`] for a packet of `packet_len` bytes.
     pub(crate) fn append_framed(&mut self, frame: Bytes, packet_len: usize) {
         self.appended = self.appended.saturating_add(packet_len as u64);

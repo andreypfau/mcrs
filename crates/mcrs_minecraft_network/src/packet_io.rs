@@ -533,6 +533,13 @@ impl RawConnection {
         self.queue.appended_bytes()
     }
 
+    /// Queues `records` without a copy: packets with their ids, each behind its length as a
+    /// big-endian `u32`, which other connections may share. The writer frames each packet. Returns
+    /// how many packets `records` holds; it ends at a length that runs past its end.
+    pub fn append_records(&mut self, records: Bytes) -> usize {
+        self.queue.append_records(records)
+    }
+
     /// Queues a packet that `encode_with_id` wrote once for every connection that receives it,
     /// without a copy. A packet that `frames` counted for more than one connection goes as the
     /// frame that `frames` makes once for this connection's threshold, so it is compressed once

@@ -6,3 +6,8 @@ pub struct EntityId(pub u64);
 /// The identity of a viewer, chosen by the game. It is unique among the viewers of a muxer.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct ViewerId(pub u64);
+
+/// The identity of a world, chosen by the game. A [`MuxerStage`](crate::MuxerStage) keeps one
+/// [`Muxer`](crate::Muxer) for each world.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct WorldId(pub u64);

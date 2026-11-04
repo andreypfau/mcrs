@@ -1,36 +1,103 @@
-use std::collections::VecDeque;
+use std::collections::{BTreeMap, VecDeque};
 
 use mcrs_engine_link::{Stage, Step, TaskOutcome};
 
-use crate::entity_id::ViewerId;
+use crate::entity_id::{ViewerId, WorldId};
 use crate::muxer::Muxer;
 use crate::replication_codec::ReplicationCodec;
 use crate::tile_delta::TileDeltas;
 use crate::view::View;
 use crate::viewer_bytes::ViewerBytes;
 
-/// A call to a [`Muxer`], sent over a link.
+/// A call to the [`Muxer`] of one world, sent over a link.
 #[non_exhaustive]
-#[derive(Clone, Debug, PartialEq)]
-pub enum MuxerInput<D> {
-    Publish(TileDeltas<D>),
-    Subscribe { viewer: ViewerId, view: View },
-    Unsubscribe { viewer: ViewerId },
+pub enum MuxerInput<C: ReplicationCodec> {
+    /// Starts the muxer of `world` with `codec`. A world that is open already keeps its muxer.
+    Open {
+        world: WorldId,
+        codec: C,
+    },
+    /// Drops the muxer of `world` and the bytes it has not handed out.
+    Close {
+        world: WorldId,
+    },
+    Publish {
+        world: WorldId,
+        deltas: TileDeltas<C::Data>,
+    },
+    Subscribe {
+        world: WorldId,
+        viewer: ViewerId,
+        view: View,
+    },
+    Unsubscribe {
+        world: WorldId,
+        viewer: ViewerId,
+    },
+    Codec {
+        world: WorldId,
+        input: C::Input,
+    },
 }
 
-/// A [`Muxer`] as a [`Stage`], so that a link can place it on a thread of its own. It applies
-/// the inputs in the order they came, then emits the bytes of each viewer.
+/// The [`Muxer`]s of many worlds as a [`Stage`], so that a link can place them on a thread of
+/// their own. It applies the inputs in the order they came, then emits the bytes of each viewer,
+/// world by world in the order of [`WorldId`]. An input for a world that is not open does
+/// nothing.
 pub struct MuxerStage<C: ReplicationCodec> {
-    muxer: Muxer<C>,
-    inputs: VecDeque<MuxerInput<C::Data>>,
+    worlds: BTreeMap<WorldId, Muxer<C>>,
+    inputs: VecDeque<MuxerInput<C>>,
+}
+
+impl<C: ReplicationCodec> Default for MuxerStage<C> {
+    fn default() -> Self {
+        Self {
+            worlds: BTreeMap::new(),
+            inputs: VecDeque::new(),
+        }
+    }
 }
 
 impl<C: ReplicationCodec> MuxerStage<C> {
     #[must_use]
-    pub fn new(muxer: Muxer<C>) -> Self {
-        Self {
-            muxer,
-            inputs: VecDeque::new(),
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    fn apply(&mut self, input: MuxerInput<C>) {
+        match input {
+            MuxerInput::Open { world, codec } => {
+                self.worlds
+                    .entry(world)
+                    .or_insert_with(|| Muxer::new(codec));
+            }
+            MuxerInput::Close { world } => {
+                self.worlds.remove(&world);
+            }
+            MuxerInput::Publish { world, deltas } => {
+                if let Some(muxer) = self.worlds.get_mut(&world) {
+                    muxer.publish(&deltas);
+                }
+            }
+            MuxerInput::Subscribe {
+                world,
+                viewer,
+                view,
+            } => {
+                if let Some(muxer) = self.worlds.get_mut(&world) {
+                    muxer.subscribe(viewer, view);
+                }
+            }
+            MuxerInput::Unsubscribe { world, viewer } => {
+                if let Some(muxer) = self.worlds.get_mut(&world) {
+                    muxer.unsubscribe(viewer);
+                }
+            }
+            MuxerInput::Codec { world, input } => {
+                if let Some(muxer) = self.worlds.get_mut(&world) {
+                    muxer.codec_mut().receive(input);
+                }
+            }
         }
     }
 }
@@ -39,10 +106,11 @@ impl<C> Stage for MuxerStage<C>
 where
     C: ReplicationCodec + Send + 'static,
     C::Data: Send + 'static,
+    C::Input: Send + 'static,
 {
     const NAME: &'static str = "muxer";
 
-    type Input = MuxerInput<C::Data>;
+    type Input = MuxerInput<C>;
     type Output = ViewerBytes;
     type TaskOutput = ();
 
@@ -54,14 +122,12 @@ where
 
     fn step(&mut self, step: &mut Step<'_, Self>) {
         while let Some(input) = self.inputs.pop_front() {
-            match input {
-                MuxerInput::Publish(deltas) => self.muxer.publish(&deltas),
-                MuxerInput::Subscribe { viewer, view } => self.muxer.subscribe(viewer, view),
-                MuxerInput::Unsubscribe { viewer } => self.muxer.unsubscribe(viewer),
-            }
+            self.apply(input);
         }
-        for output in self.muxer.take_output() {
-            step.emit(output);
+        for muxer in self.worlds.values_mut() {
+            for output in muxer.take_output() {
+                step.emit(output);
+            }
         }
     }
 

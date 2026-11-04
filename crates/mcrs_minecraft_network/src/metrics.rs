@@ -48,6 +48,9 @@ pub enum PacketKind {
     Spawn,
     Remove,
     PlayerInfo,
+    /// A packet of the entity muxer: a spawn, a move, a removal or a player list update, which
+    /// the bridge counts without reading its id.
+    Replication,
     Chunk,
     Other,
 }
@@ -59,21 +62,27 @@ pub struct PacketKinds {
     pub spawn: u64,
     pub remove: u64,
     pub player_info: u64,
+    pub replication: u64,
     pub chunk: u64,
     pub other: u64,
 }
 
 impl PacketKinds {
     pub fn count(&mut self, kind: PacketKind) {
+        self.add(kind, 1);
+    }
+
+    pub fn add(&mut self, kind: PacketKind, packets: u64) {
         let slot = match kind {
             PacketKind::EntityMove => &mut self.entity_move,
             PacketKind::Spawn => &mut self.spawn,
             PacketKind::Remove => &mut self.remove,
             PacketKind::PlayerInfo => &mut self.player_info,
+            PacketKind::Replication => &mut self.replication,
             PacketKind::Chunk => &mut self.chunk,
             PacketKind::Other => &mut self.other,
         };
-        *slot = slot.saturating_add(1);
+        *slot = slot.saturating_add(packets);
     }
 
     pub fn since(self, earlier: Self) -> Self {
@@ -82,6 +91,7 @@ impl PacketKinds {
             spawn: self.spawn.saturating_sub(earlier.spawn),
             remove: self.remove.saturating_sub(earlier.remove),
             player_info: self.player_info.saturating_sub(earlier.player_info),
+            replication: self.replication.saturating_sub(earlier.replication),
             chunk: self.chunk.saturating_sub(earlier.chunk),
             other: self.other.saturating_sub(earlier.other),
         }
