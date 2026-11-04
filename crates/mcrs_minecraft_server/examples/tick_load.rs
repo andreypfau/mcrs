@@ -163,7 +163,6 @@ fn run_timed(mut app: App, stop: &AtomicBool) -> Vec<TickTimes> {
                 break;
             }
         }
-        runner::sleep_until(deadline);
         times.push(TickTimes {
             tick,
             drain,

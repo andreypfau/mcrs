@@ -114,8 +114,8 @@ pub fn spawn_server_thread(
 
 /// Ticks the app at `tick_rate`. `between_ticks` runs once after every tick. `until` then has
 /// the time up to the next tick, given as its deadline, to pass on what the tick wrote for the
-/// clients. It must not change what a tick reads.
-/// The loop sleeps out what `until` leaves of that time. A plugin that asks the app to exit
+/// clients. It must not change what a tick reads, and it returns at the deadline: the loop
+/// starts the next tick as soon as it returns. A plugin that asks the app to exit
 /// while it finishes stops the loop before the first tick.
 pub fn run_server_loop(
     mut app: App,
@@ -136,10 +136,6 @@ pub fn run_server_loop(
         if let Some(exit) = app.should_exit() {
             return exit;
         }
-        let deadline = start + tick;
-        until(&mut app, deadline);
-        if let Some(remaining) = deadline.checked_duration_since(Instant::now()) {
-            std::thread::sleep(remaining);
-        }
+        until(&mut app, start + tick);
     }
 }

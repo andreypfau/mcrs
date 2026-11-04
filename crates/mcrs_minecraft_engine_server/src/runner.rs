@@ -47,12 +47,6 @@ pub fn drain_until(app: &mut App, deadline: Instant) {
     }
 }
 
-pub fn sleep_until(at: Instant) {
-    if let Some(rest) = at.checked_duration_since(Instant::now()) {
-        std::thread::sleep(rest);
-    }
-}
-
 /// The labels of the dimensions that asked for a drain and have not had it.
 #[derive(Resource, Default)]
 struct WokenDimensions(Vec<Entity>);
@@ -98,9 +92,7 @@ pub fn drain_woken(app: &mut App) -> Drained {
 
 /// Waits until a dimension asks for a drain or `deadline` passes, and tells whether one asked.
 pub fn wait_for_wake(app: &mut App, deadline: Instant) -> bool {
-    let Some(wakes) = app.world().get_resource::<DrainWakes>() else {
-        return false;
-    };
+    let wakes = app.world_mut().get_resource_or_init::<DrainWakes>();
     let Ok(dim) = wakes.receiver().recv_deadline(deadline) else {
         return false;
     };
