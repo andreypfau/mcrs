@@ -29,13 +29,16 @@ fn ui_needed(needed: Option<Res<UiNeeded>>) -> bool {
     needed.is_some_and(|needed| needed.wanted())
 }
 
+/// The chunk map and light levels are optional: an app may show the overlay without them.
 fn update_ui_needed(
     overlay: Res<DebugOverlay>,
-    map: Res<ChunkMap>,
-    levels: Res<LightLevels>,
+    map: Option<Res<ChunkMap>>,
+    levels: Option<Res<LightLevels>>,
     mut needed: ResMut<UiNeeded>,
 ) {
-    let now = **overlay || map.visible() || levels.visible();
+    let now = **overlay
+        || map.is_some_and(|map| map.visible())
+        || levels.is_some_and(|levels| levels.visible());
     let next = UiNeeded {
         now,
         before: needed.now,
@@ -187,8 +190,10 @@ impl Plugin for DebugScreenPlugin {
     }
 }
 
-pub fn collecting(overlay: Res<DebugOverlay>, refresh: Res<Refresh>) -> bool {
-    **overlay || refresh.logging
+/// Whether debug entries run this frame. False without [`DebugScreenPlugin`], so systems gated on
+/// it can be added by apps that render without the debug screen.
+pub fn collecting(overlay: Option<Res<DebugOverlay>>, refresh: Option<Res<Refresh>>) -> bool {
+    overlay.is_some_and(|overlay| **overlay) || refresh.is_some_and(|refresh| refresh.logging)
 }
 
 fn schedule_refresh(
@@ -227,4 +232,26 @@ fn log_debug_screen(displayer: Res<DebugScreenDisplayer>) {
 
 fn clear_displayer(mut displayer: ResMut<DebugScreenDisplayer>) {
     displayer.clear();
+}
+
+#[cfg(test)]
+mod tests {
+    use bevy::ecs::system::RunSystemOnce;
+
+    use super::*;
+
+    #[test]
+    fn nothing_collects_without_the_debug_screen() {
+        let mut world = World::new();
+        assert!(!world.run_system_once(collecting).unwrap());
+    }
+
+    #[test]
+    fn the_overlay_alone_needs_the_ui() {
+        let mut world = World::new();
+        world.insert_resource(DebugOverlay(true));
+        world.init_resource::<UiNeeded>();
+        world.run_system_once(update_ui_needed).unwrap();
+        assert!(world.resource::<UiNeeded>().wanted());
+    }
 }
