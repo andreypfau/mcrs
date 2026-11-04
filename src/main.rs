@@ -92,6 +92,11 @@ async fn main() -> AppExit {
                 variable("MCRS_ENABLE_STATUS").as_deref(),
                 true,
             ),
+            send_buffer_bytes: byte_count(
+                "MCRS_SEND_BUFFER_BYTES",
+                variable("MCRS_SEND_BUFFER_BYTES").as_deref(),
+                ServerNetworkPlugin::default().send_buffer_bytes,
+            ),
             ..Default::default()
         },
     }
@@ -232,6 +237,20 @@ fn compression_threshold(value: Option<&str>) -> NetworkCompressionThreshold {
         Err(error) => {
             bevy_log::error!(%error, raw, "MCRS_COMPRESSION_THRESHOLD is not a number; using the default");
             NetworkCompressionThreshold::default()
+        }
+    }
+}
+
+/// A positive whole number; unset or anything else keeps `default`.
+fn byte_count(name: &str, value: Option<&str>, default: usize) -> usize {
+    let Some(raw) = value.map(str::trim) else {
+        return default;
+    };
+    match raw.parse() {
+        Ok(count) if count > 0 => count,
+        _ => {
+            bevy_log::error!(raw, "{name} is not a positive number; using the default");
+            default
         }
     }
 }

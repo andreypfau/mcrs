@@ -43,6 +43,12 @@ pub struct NetworkPlugin {
     /// Turned off, a status connection closes after the handshake without a packet; a login is
     /// not affected.
     pub enable_status: bool,
+    /// The kernel send buffer of each connection, in bytes. Autotuning would let every slow
+    /// reader pin up to 4 MiB of kernel memory, and a few hundred of them exhaust the network
+    /// memory of the host. macOS then fails sends with `ENOBUFS` after it may have queued part of
+    /// the bytes, so no writer can resume its stream. A fixed buffer keeps a slow reader's
+    /// backlog in its own outbound queue. 512 KiB still carries 5 MB/s at a round trip of 100 ms.
+    pub send_buffer_bytes: usize,
 }
 
 const SERVER_ICON: &[u8] = include_bytes!(concat!(
@@ -68,6 +74,7 @@ impl Default for NetworkPlugin {
             accepts_transfers: false,
             hide_online_players: false,
             enable_status: true,
+            send_buffer_bytes: 512 * 1024,
         }
     }
 }
@@ -162,6 +169,7 @@ fn build_plugin(app: &mut App, plugin: &NetworkPlugin) -> anyhow::Result<()> {
         accepts_transfers: plugin.accepts_transfers,
         hide_online_players: plugin.hide_online_players,
         enable_status: plugin.enable_status,
+        send_buffer_bytes: plugin.send_buffer_bytes,
     }));
     status_send.send_replace(status_frame(&StatusPlayers::default(), &shared_state.0)?);
 
@@ -293,6 +301,7 @@ pub(crate) struct SharedNetworkStateInner {
     pub(crate) accepts_transfers: bool,
     pub(crate) hide_online_players: bool,
     pub(crate) enable_status: bool,
+    pub(crate) send_buffer_bytes: usize,
 }
 
 #[derive(Component)]

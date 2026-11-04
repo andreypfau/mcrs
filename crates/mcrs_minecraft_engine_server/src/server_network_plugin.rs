@@ -35,6 +35,8 @@ pub struct ServerNetworkPlugin {
     /// Turned off, a status connection closes after the handshake without a packet; a login is
     /// not affected.
     pub enable_status: bool,
+    /// The kernel send buffer of each connection, in bytes.
+    pub send_buffer_bytes: usize,
 }
 
 impl ServerNetworkPlugin {
@@ -64,6 +66,7 @@ impl Default for ServerNetworkPlugin {
             accepts_transfers: false,
             hide_online_players: false,
             enable_status: true,
+            send_buffer_bytes: NetworkPlugin::default().send_buffer_bytes,
         }
     }
 }
@@ -84,6 +87,7 @@ impl Plugin for ServerNetworkPlugin {
             accepts_transfers: self.accepts_transfers,
             hide_online_players: self.hide_online_players,
             enable_status: self.enable_status,
+            send_buffer_bytes: self.send_buffer_bytes,
         });
         app.insert_resource(self.compression_threshold);
         app.add_plugins(LoginPlugin);
