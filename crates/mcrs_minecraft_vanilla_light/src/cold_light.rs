@@ -1,0 +1,108 @@
+use std::sync::Arc;
+
+use bevy_app::{App, FixedUpdate, Last, Plugin};
+use bevy_ecs::prelude::{IntoScheduleConfigs, Local, Query, ResMut, Resource, With};
+use mcrs_engine_link::{Link, Placement};
+use mcrs_minecraft_chunk::{BlockLight, SkyLight};
+use mcrs_minecraft_engine::column_production::{
+    ColdLightEdit, ColdStageLandSet, ColumnLight, ColumnProduction, LitSection,
+};
+use mcrs_minecraft_engine_world::entity::physics::Transform;
+use mcrs_minecraft_engine_world::entity::player::Player;
+use mcrs_minecraft_light_engine::block::LightRegistry;
+use mcrs_minecraft_light_engine::level::LightBounds;
+use mcrs_minecraft_light_engine::world::{Edit, LightWorld};
+use mcrs_voxel::ColumnPos;
+
+use crate::light_input::{LightInput, QueuedEdit};
+use crate::light_output::LightOutput;
+use crate::light_stage::{LightStage, player_priority};
+
+/// The light stage of cold space: a second light stage that lights the columns the data layer
+/// produces, from the blocks the data layer hands it. It publishes into no section of the
+/// dimension, so what the dimension simulates does not depend on when it is done.
+pub(crate) struct ColdLightPlugin {
+    pub(crate) registry: Arc<LightRegistry>,
+    pub(crate) bounds: LightBounds,
+    pub(crate) sky: bool,
+}
+
+/// The near end of the link to the light stage of cold space.
+#[derive(Resource)]
+struct ColdLightLink(Link<LightStage>);
+
+impl Plugin for ColdLightPlugin {
+    fn build(&self, app: &mut App) {
+        let world = LightWorld::new(Arc::clone(&self.registry), self.bounds);
+        let world = if self.sky { world } else { world.without_sky() };
+        app.insert_resource(ColdLightLink(Link::new(
+            LightStage::new(world),
+            Placement::Thread,
+        )))
+        .add_systems(
+            FixedUpdate,
+            land_cold_light.in_set(ColdStageLandSet::Light),
+        )
+        .add_systems(Last, send_cold_light);
+    }
+}
+
+/// Hands the light stage of cold space the edits and the awaited columns of the data layer,
+/// the columns nearest a player first.
+fn send_cold_light(
+    mut production: ResMut<ColumnProduction>,
+    mut light: ResMut<ColdLightLink>,
+    players: Query<&Transform, With<Player>>,
+    mut player_columns: Local<Vec<ColumnPos>>,
+) {
+    player_columns.clear();
+    player_columns.extend(players.iter().map(|at| ColumnPos::from(at.translation)));
+    let edits: Vec<QueuedEdit> = production
+        .take_light_edits()
+        .map(|edit| {
+            let edit = match edit {
+                ColdLightEdit::Load { pos, blocks } => Edit::LoadSection {
+                    pos,
+                    entity: 0,
+                    blocks: blocks.0,
+                },
+                ColdLightEdit::Unload { pos } => Edit::UnloadSection { pos },
+                ColdLightEdit::SetBlock { pos, state } => Edit::SetBlock { pos, block: state },
+            };
+            QueuedEdit {
+                priority: player_priority(edit.column(), &player_columns),
+                edit,
+            }
+        })
+        .collect();
+    if !edits.is_empty() {
+        light.0.send(LightInput::Edits(edits));
+    }
+    let awaits: Vec<ColumnPos> = production.take_light_awaits().collect();
+    if !awaits.is_empty() {
+        light.0.send(LightInput::AwaitLight(awaits));
+    }
+}
+
+/// Hands the data layer the light of each column whose light settled.
+fn land_cold_light(mut production: ResMut<ColumnProduction>, mut light: ResMut<ColdLightLink>) {
+    for output in light.0.outputs() {
+        let LightOutput::Lit(columns) = output else {
+            continue;
+        };
+        for column in columns {
+            production.lit(ColumnLight {
+                column: column.column,
+                sections: column
+                    .sections
+                    .into_iter()
+                    .map(|section| LitSection {
+                        y: section.pos.y,
+                        block_light: BlockLight(section.block_light.unwrap_or_default()),
+                        sky_light: SkyLight(section.sky_light.unwrap_or_default()),
+                    })
+                    .collect(),
+            });
+        }
+    }
+}

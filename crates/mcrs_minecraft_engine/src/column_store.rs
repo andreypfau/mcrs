@@ -16,10 +16,11 @@ use mcrs_minecraft_engine_world::world::lifecycle::ticket::{
 };
 use mcrs_minecraft_engine_world::world::storage::column::ColumnLifecycleSet;
 use mcrs_voxel::ColumnPos;
-use rustc_hash::{FxHashMap, FxHashSet};
+use rustc_hash::FxHashMap;
 
 use crate::cold_columns::{mark_changed_sections, mark_final_light, write_cold_columns};
-use crate::column_view::ColumnViewSet;
+use crate::column_production::{ColdStageLandSet, ColumnProduction, advance_production};
+use crate::column_view::{ColumnViewSet, land_viewed_columns, update_view};
 use crate::hot_ticket::{HotColumns, raise_hot_ticket, release_hot_ticket, track_hot_tickets};
 use crate::stored_column::StoredColumn;
 use crate::stored_columns_landing::{fetch_loading_columns, land_stored_columns};
@@ -30,10 +31,11 @@ pub type ColumnDisk = NoDisk<ColumnPos, StoredColumn>;
 /// The data layer of a dimension world, at the far end of a link: the last version of each
 /// column that went cold.
 ///
-/// With it, only the hot columns stay in the dimension: the columns that a player simulates,
-/// and the columns that a view waits on while they are generated and lit. A column that stops
-/// being loaded writes its last version here. A column that a ticket loads again is taken from
-/// here before it is generated, and a view gets a cold column from here.
+/// With it, only the hot columns stay in the dimension: the columns that a player simulates and
+/// the rings that load with them. A column that stops being loaded writes its last version
+/// here. A column that a ticket loads again is taken from here before it is generated. A view
+/// gets every column that the dimension does not light from here, and the data layer generates
+/// and lights a column that it does not hold with [`ColumnProduction`].
 pub struct ColumnStorePlugin {
     pub placement: Placement,
 }
@@ -46,34 +48,43 @@ pub struct ColumnStoreLink {
     written: ChunkVersion,
     /// The columns that wait for an answer of the data layer.
     pub(crate) reads: FxHashMap<ColumnPos, ColumnRead>,
-    /// The answers that views wait on, for the view to take.
+    /// The cold columns that views wait on, final, for the view to take.
     pub(crate) viewed: Vec<ViewedColumn>,
-    /// Every column the world wrote. The data layer has no disk under it, so these are the
-    /// only columns it can hold, and a request for any other one is not worth a round trip.
-    written_columns: FxHashSet<ColumnPos>,
+    /// The answers that the production of cold columns waits on.
+    pub(crate) fetched: Vec<FetchedColumn>,
+    /// The last version of every column the world wrote. The data layer has no disk under it,
+    /// so the world's writes are the only changed columns it holds, and a request for any other
+    /// one is not worth a round trip.
+    written_columns: FxHashMap<ColumnPos, ChunkVersion>,
 }
 
 pub(crate) struct ColumnRead {
     pub(crate) dim: Entity,
     /// The sections of the dimension that wait to take the column back.
     pub(crate) sections: Vec<Entity>,
-    pub(crate) viewed: Viewed,
+    pub(crate) produced: Produced,
     /// An answer older than this version was asked for before the world wrote a later one.
     pub(crate) at_least: ChunkVersion,
 }
 
+/// Whether the production of cold columns waits on a read.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum Viewed {
+pub(crate) enum Produced {
     No,
     Yes,
 }
 
-/// The answer of the data layer for a column that a view waits on. `None` when the data layer
-/// holds no version of it.
+/// A final cold column that views wait on.
 pub(crate) struct ViewedColumn {
     pub(crate) dim: Entity,
     pub(crate) column: ColumnPos,
-    pub(crate) stored: Option<StoredColumn>,
+    pub(crate) stored: StoredColumn,
+}
+
+/// An answer of the data layer that the production of a cold column waits on.
+pub(crate) struct FetchedColumn {
+    pub(crate) column: ColumnPos,
+    pub(crate) answer: StoreOutput<ColumnPos, StoredColumn>,
 }
 
 impl ColumnStoreLink {
@@ -84,13 +95,19 @@ impl ColumnStoreLink {
             written: ChunkVersion::default(),
             reads: FxHashMap::default(),
             viewed: Vec::new(),
-            written_columns: FxHashSet::default(),
+            fetched: Vec::new(),
+            written_columns: FxHashMap::default(),
         }
     }
 
-    /// Whether the data layer may hold a version of `column`.
+    /// Whether the data layer may hold a version of `column` that the world wrote.
     pub(crate) fn may_hold(&self, column: ColumnPos) -> bool {
-        self.written_columns.contains(&column)
+        self.written_columns.contains_key(&column)
+    }
+
+    /// The last version of `column` that the world wrote.
+    pub(crate) fn last_written(&self, column: ColumnPos) -> Option<ChunkVersion> {
+        self.written_columns.get(&column).copied()
     }
 
     /// Waits until the data layer has answered every request sent so far, and lands none of it.
@@ -100,7 +117,7 @@ impl ColumnStoreLink {
 
     pub(crate) fn put(&mut self, column: ColumnPos, chunk: StoredColumn) {
         self.written = self.written.next();
-        self.written_columns.insert(column);
+        self.written_columns.insert(column, self.written);
         self.link.send(StoreInput::Put {
             key: column,
             chunk: VersionedChunk {
@@ -115,13 +132,19 @@ impl ColumnStoreLink {
         }
     }
 
+    /// Keeps the final light of a version the data layer already holds, or of a generated
+    /// column at version zero. A later version that the world wrote meanwhile stays.
+    pub(crate) fn put_lit(&mut self, column: ColumnPos, chunk: VersionedChunk<StoredColumn>) {
+        self.link.send(StoreInput::Put { key: column, chunk });
+    }
+
     fn read(&mut self, dim: Entity, column: ColumnPos) -> &mut ColumnRead {
         self.reads.entry(column).or_insert_with(|| {
             self.link.send(StoreInput::Get { key: column });
             ColumnRead {
                 dim,
                 sections: Vec::new(),
-                viewed: Viewed::No,
+                produced: Produced::No,
                 at_least: ChunkVersion::default(),
             }
         })
@@ -132,9 +155,9 @@ impl ColumnStoreLink {
         self.read(dim, column).sections.push(section);
     }
 
-    /// Asks for `column` on behalf of the views that wait on it, once for all that wait on it.
-    pub(crate) fn view(&mut self, dim: Entity, column: ColumnPos) {
-        self.read(dim, column).viewed = Viewed::Yes;
+    /// Asks for `column` on behalf of the production of cold columns.
+    pub(crate) fn fetch(&mut self, dim: Entity, column: ColumnPos) {
+        self.read(dim, column).produced = Produced::Yes;
     }
 
     pub(crate) fn outputs(&mut self) -> Drain<'_, StoreOutput<ColumnPos, StoredColumn>> {
@@ -143,6 +166,10 @@ impl ColumnStoreLink {
 
     pub(crate) fn take_viewed(&mut self) -> vec::Drain<'_, ViewedColumn> {
         self.viewed.drain(..)
+    }
+
+    pub(crate) fn take_fetched(&mut self) -> vec::Drain<'_, FetchedColumn> {
+        self.fetched.drain(..)
     }
 }
 
@@ -154,6 +181,14 @@ pub struct StoredColumnLandSet;
 impl Plugin for ColumnStorePlugin {
     fn build(&self, app: &mut App) {
         app.insert_resource(ColumnStoreLink::new(self.placement));
+        app.init_resource::<ColumnProduction>();
+        app.configure_sets(
+            FixedUpdate,
+            (ColdStageLandSet::Generation, ColdStageLandSet::Light)
+                .chain()
+                .in_set(TickSet::DomainInput)
+                .after(StoredColumnLandSet),
+        );
         app.register_required_components::<ColumnLoading, HotColumns>();
         app.add_observer(raise_hot_ticket);
         app.add_observer(release_hot_ticket);
@@ -177,6 +212,10 @@ impl Plugin for ColumnStorePlugin {
                     .in_set(TickSet::Project)
                     .after(ColumnLifecycleSet)
                     .before(ColumnViewSet),
+                advance_production
+                    .in_set(ColumnViewSet)
+                    .after(update_view)
+                    .before(land_viewed_columns),
             ),
         );
     }

@@ -1,5 +1,6 @@
 // std: bevy_ecs
 
+mod cold_light;
 mod dim_light_plugin;
 mod light_budget;
 mod light_epoch;

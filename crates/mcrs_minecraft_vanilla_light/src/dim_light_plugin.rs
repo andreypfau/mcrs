@@ -6,6 +6,8 @@ use bevy_app::{App, FixedUpdate, Last, Plugin};
 use bevy_ecs::prelude::*;
 use bevy_ecs::schedule::ScheduleLabel;
 use mcrs_engine_link::Placement;
+use mcrs_minecraft_engine::column_production::ColumnProduction;
+use mcrs_minecraft_engine::hot_ticket::HotColumns;
 use mcrs_minecraft_engine::light_codec::{LightCodecParams, build_delta_light_data};
 use mcrs_minecraft_engine_world::aoi::PlayerObservers;
 use mcrs_minecraft_engine_world::block_update::BlockPlaced;
@@ -24,6 +26,7 @@ use mcrs_minecraft_light_engine::block::LightRegistry;
 use mcrs_minecraft_light_engine::prelude::{Edit, LightBounds};
 use mcrs_voxel::{ColumnPos, SectionPos};
 
+use crate::cold_light::ColdLightPlugin;
 use crate::light_input::LightInput;
 use crate::light_link::LightLink;
 use crate::light_plugin::{LightPlugin, LightSet};
@@ -53,6 +56,13 @@ pub(crate) struct DimLightPlugin {
 
 impl Plugin for DimLightPlugin {
     fn build(&self, app: &mut App) {
+        if app.world().contains_resource::<ColumnProduction>() {
+            app.add_plugins(ColdLightPlugin {
+                registry: Arc::clone(&self.registry),
+                bounds: self.bounds,
+                sky: self.sky,
+            });
+        }
         app.add_plugins(LightPlugin {
             registry: Arc::clone(&self.registry),
             bounds: self.bounds,
@@ -177,6 +187,9 @@ fn feed_column_surfaces(
 
 /// Turns a published light change into a `ClientboundLightUpdate` carrying only
 /// the rows that changed, for the players that already hold the column.
+///
+/// A column at the outer ring of a hot area is lit here without its outer neighbours, so its
+/// light goes out from the data layer and not from here.
 #[expect(
     clippy::too_many_arguments,
     reason = "a Bevy system: each resource and query is its own parameter so the scheduler sees the access"
@@ -184,7 +197,7 @@ fn feed_column_surfaces(
 pub fn emit_light_updates(
     mut relit: MessageReader<SectionRelit>,
     sections: Query<(&SectionPos, &InDimension)>,
-    column_indices: Query<&ColumnIndex>,
+    column_indices: Query<(&ColumnIndex, Option<&HotColumns>)>,
     observers: Query<&PlayerObservers>,
     owners: Query<&Owner>,
     codec_params: LightCodecParams,
@@ -210,7 +223,8 @@ pub fn emit_light_updates(
         let Some(column_entity) = column_indices
             .get(dim)
             .ok()
-            .and_then(|index| index.0.get(&column_pos).map(|slot| slot.entity))
+            .filter(|(_, hot)| hot.is_none_or(|hot| !hot.is_outer_ring(column_pos)))
+            .and_then(|(index, _)| index.0.get(&column_pos).map(|slot| slot.entity))
         else {
             continue;
         };

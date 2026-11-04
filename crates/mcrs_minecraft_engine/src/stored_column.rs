@@ -13,6 +13,19 @@ pub struct StoredColumn {
     pub sections: Vec<StoredSection>,
     pub block_entities: Vec<GeneratedBlockEntity>,
     pub heightmaps: Option<ColumnHeightmapSet>,
+    pub lit_by: LitBy,
+}
+
+/// Where the light of a [`StoredColumn`] was computed.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum LitBy {
+    /// Nothing lit it yet: the sections hold no light.
+    Unlit,
+    /// The dimension lit it while the column was loaded. The light may lag the blocks, or miss
+    /// a neighbour that went cold first.
+    Dimension,
+    /// The data layer lit it from its blocks and the blocks of the eight around it.
+    DataLayer,
 }
 
 impl StoredColumn {

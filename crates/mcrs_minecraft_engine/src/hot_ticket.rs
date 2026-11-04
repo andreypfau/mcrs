@@ -49,6 +49,23 @@ impl HotColumns {
             .any(|loaded| self.centers.contains(loaded))
     }
 
+    /// Whether the dimension holds `column` and the eight around it, so it lights the column
+    /// from the blocks of its neighbours and a view takes the column from the dimension. The
+    /// outer ring of a hot area is hot but not lit this way: a view gets it from the data layer.
+    #[must_use]
+    pub fn lights(&self, column: ColumnPos) -> bool {
+        column
+            .square(LOADING_RINGS.saturating_sub(1))
+            .any(|loaded| self.centers.contains(loaded))
+    }
+
+    /// Whether `column` is hot and the dimension does not light it from the blocks of all its
+    /// neighbours.
+    #[must_use]
+    pub fn is_outer_ring(&self, column: ColumnPos) -> bool {
+        self.is_hot(column) && !self.lights(column)
+    }
+
     fn change(&mut self, loading: &mut ColumnLoading, column: ColumnPos, change: Change) {
         match change {
             Change::Raise => {

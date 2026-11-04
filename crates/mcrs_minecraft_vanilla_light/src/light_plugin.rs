@@ -92,6 +92,7 @@ pub fn publish_light(
                 }
             }
             LightOutput::Settled(answered) => columns.extend(answered),
+            LightOutput::Lit(_) => {}
         }
     }
     sections.extend(latest.drain().map(|(_, light)| light));

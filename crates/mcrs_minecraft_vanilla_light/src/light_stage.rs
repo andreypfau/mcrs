@@ -4,16 +4,16 @@ use bevy_tasks::{AsyncComputeTaskPool, TaskPool};
 use mcrs_engine_link::{Stage, Step, TaskOutcome};
 use mcrs_minecraft_core::BoundingBox;
 use mcrs_minecraft_engine_world::aoi::min_column_distance;
-use mcrs_minecraft_light_engine::epoch::{LightUpdate, PublishedLight};
+use mcrs_minecraft_light_engine::epoch::{LightUpdate, PublishedLight, SectionLight};
 use mcrs_minecraft_light_engine::level::SECTION_WIDTH;
 use mcrs_minecraft_light_engine::queue::{LightQueue, Priority};
 use mcrs_minecraft_light_engine::world::LightWorld;
-use mcrs_voxel::{BlockPos, ColumnPos};
+use mcrs_voxel::{BlockPos, ColumnPos, SectionPos};
 
 use crate::light_budget::LightBudget;
 use crate::light_epoch::LightEpoch;
 use crate::light_input::LightInput;
-use crate::light_output::LightOutput;
+use crate::light_output::{LightOutput, LitColumn};
 use crate::pending_edits::PendingEdits;
 
 /// How many section columns the light stage takes in before it hands out the next epochs.
@@ -38,6 +38,8 @@ pub(crate) struct LightStage {
     epoch: LightEpoch,
     budget: LightBudget,
     awaiting: FxHashSet<ColumnPos>,
+    /// The columns awaited with their light.
+    awaiting_light: FxHashSet<ColumnPos>,
     /// Whether something happened since the last check that can settle an awaited column.
     settle_due: bool,
     /// Light published into the world and not emitted yet.
@@ -64,6 +66,10 @@ impl Stage for LightStage {
                 self.awaiting.extend(columns);
                 self.settle_due = true;
             }
+            LightInput::AwaitLight(columns) => {
+                self.awaiting_light.extend(columns);
+                self.settle_due = true;
+            }
             LightInput::LightBudget(budget) => self.budget = budget,
         }
     }
@@ -85,9 +91,16 @@ impl Stage for LightStage {
         }
         // After the light it waited on, so the dimension has that light before it sends the
         // column.
+        if !std::mem::take(&mut self.settle_due) {
+            return;
+        }
         let settled = self.take_settled();
         if !settled.is_empty() {
             step.emit(LightOutput::Settled(settled));
+        }
+        let lit = self.take_lit();
+        if !lit.is_empty() {
+            step.emit(LightOutput::Lit(lit));
         }
     }
 
@@ -110,6 +123,7 @@ impl LightStage {
             epoch: LightEpoch::default(),
             budget: LightBudget::default(),
             awaiting: FxHashSet::default(),
+            awaiting_light: FxHashSet::default(),
             settle_due: false,
             relit: Vec::new(),
         }
@@ -189,9 +203,6 @@ impl LightStage {
 
     /// Takes the awaited columns whose light has settled, neighbours included.
     fn take_settled(&mut self) -> Vec<ColumnPos> {
-        if !std::mem::take(&mut self.settle_due) || self.awaiting.is_empty() {
-            return Vec::new();
-        }
         let owed = Owed {
             world: &self.world,
             pending: &self.pending,
@@ -208,6 +219,37 @@ impl LightStage {
             }
         });
         settled
+    }
+
+    /// Takes the columns awaited with their light whose light has settled, neighbours
+    /// included, with that light.
+    fn take_lit(&mut self) -> Vec<LitColumn> {
+        let owed = Owed {
+            world: &self.world,
+            pending: &self.pending,
+            queue: &self.queue,
+            epoch: &self.epoch,
+        };
+        let mut lit = Vec::new();
+        self.awaiting_light.retain(|&column| {
+            if !owed.settled_around(column) {
+                return true;
+            }
+            let bounds = owed.world.bounds();
+            let sections = (bounds.min_section_y..=bounds.max_section_y)
+                .filter_map(|y| {
+                    let pos = SectionPos::new(column.x, y, column.z);
+                    owed.world.section(pos).map(|section| SectionLight {
+                        pos,
+                        block_light: Some(section.block_light.clone()),
+                        sky_light: Some(section.sky_light.clone()),
+                    })
+                })
+                .collect();
+            lit.push(LitColumn { column, sections });
+            false
+        });
+        lit
     }
 }
 

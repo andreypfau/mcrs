@@ -3,7 +3,7 @@ use bevy_ecs::entity::Entity;
 use bevy_ecs::lifecycle::Discard;
 use bevy_ecs::message::{MessageReader, MessageWriter};
 use bevy_ecs::prelude::{
-    Added, Changed, Component, ContainsEntity, Has, Local, On, Or, Query, With,
+    Added, Changed, Component, ContainsEntity, Has, Local, On, Or, Query, Ref, With,
 };
 use bevy_ecs::schedule::{IntoScheduleConfigs, SystemSet};
 use bevy_ecs::system::{Res, ResMut, SystemParam};
@@ -12,6 +12,7 @@ use bevy_utils::Parallel;
 use bytes::Bytes;
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_chunk::{BlockLight, SkyLight};
+use mcrs_minecraft_engine_world::block_update::BlockPlaced;
 use mcrs_minecraft_engine_world::entity::physics::Transform;
 use mcrs_minecraft_engine_world::entity::player::chunk_view::{
     ChunkTrackingView, PlayerViewDistance, SentChunkView,
@@ -61,6 +62,7 @@ use crate::column_packet::{
     ColumnParts, DirectBits, StoredLight, encode_packet, encode_sections, encode_stored_column,
     push_block_entity,
 };
+use crate::column_production::ColumnProduction;
 use crate::column_store::{ColumnStoreLink, ViewedColumn};
 use crate::column_waiters::ColumnWaiters;
 use crate::heightmap::client_heightmaps;
@@ -90,6 +92,8 @@ impl Plugin for ColumnViewPlugin {
                     release_sent_tickets,
                     update_view,
                     land_viewed_columns,
+                    requeue_unlit_columns,
+                    drop_changed_packets,
                     raise_queued_columns,
                 )
                     .chain()
@@ -122,14 +126,14 @@ impl Plugin for ColumnViewPlugin {
 enum ColumnState {
     /// In the view, with no ticket raised for it yet.
     Queued,
-    /// Cold, waiting for the data layer to hand back its last version.
+    /// Waiting for the data layer to hand back the final column.
     Fetching,
-    /// Ticketed, waiting for its sections to land.
+    /// Waiting for its sections to land in the dimension.
     Awaiting,
     /// Landed and lit, waiting for the light around it to settle.
     Lighting,
     Ready,
-    /// Cold, with its last version from the data layer encoded and ready to send.
+    /// The final column from the data layer, encoded and ready to send.
     Stored,
     Sent,
 }
@@ -145,12 +149,12 @@ impl ColumnState {
     }
 
     /// Whether the view holds a loading ticket on a column in this state. With a data layer the
-    /// view lets the ticket go once the column is sent, so a column outside every hot area
-    /// goes cold.
+    /// hot tickets load every column that a view takes from the dimension, so a view holds
+    /// none.
     fn holds_ticket(self, views: ViewSource) -> bool {
         match views {
             ViewSource::Dimension => self != Self::Queued,
-            ViewSource::DataLayer => matches!(self, Self::Awaiting | Self::Lighting | Self::Ready),
+            ViewSource::DataLayer => false,
         }
     }
 }
@@ -160,7 +164,7 @@ impl ColumnState {
 enum ViewSource {
     /// The view loads every column it holds, and keeps it loaded.
     Dimension,
-    /// The view gets a cold column from the data layer.
+    /// The view gets each column that the dimension does not light from the data layer.
     DataLayer,
 }
 
@@ -494,7 +498,8 @@ pub(crate) fn raise_queued_columns(
     mut dims: Query<(&mut ColumnLoading, &mut ColumnWaiters, &DimensionTypeConfig)>,
     mut nearest: Local<Vec<ColumnPos>>,
     traces: Option<Res<ColumnTraceLog>>,
-    mut store: Option<ResMut<ColumnStoreLink>>,
+    store: Option<Res<ColumnStoreLink>>,
+    mut production: Option<ResMut<ColumnProduction>>,
     hot_columns: Query<&HotColumns>,
 ) {
     for (player, mut chunk_view, &SentChunkView(view), in_dim) in &mut players {
@@ -519,12 +524,13 @@ pub(crate) fn raise_queued_columns(
         nearest.sort_unstable_by_key(|column| column.distance_squared(center));
 
         for column in nearest.drain(..) {
-            if let Some(store) = store.as_deref_mut()
-                && store.may_hold(column)
-                && hot.is_some_and(|hot| !hot.is_hot(column))
-            {
-                chunk_view.set(&mut waiters, player, column, Some(ColumnState::Fetching));
-                store.view(in_dim.entity(), column);
+            if let (Some(store), Some(production)) = (store.as_deref(), production.as_deref_mut()) {
+                if hot.is_some_and(|hot| hot.lights(column)) {
+                    chunk_view.set(&mut waiters, player, column, Some(ColumnState::Awaiting));
+                } else {
+                    chunk_view.set(&mut waiters, player, column, Some(ColumnState::Fetching));
+                    production.want(in_dim.entity(), column, store);
+                }
                 continue;
             }
             chunk_view.set(&mut waiters, player, column, Some(ColumnState::Awaiting));
@@ -544,21 +550,15 @@ fn release_sent_tickets(mut dims: Query<(&mut ColumnLoading, &mut ColumnWaiters)
     }
 }
 
-/// Moves each view that waits on a column the data layer answered for: to send the version the
-/// data layer held, or to load the column when the data layer held none.
+/// Moves each view that waits on a column the data layer finished to send it.
 ///
-/// The packet is encoded once for every view that waits on the column. A column that went hot
-/// in the meantime is taken from the dimension instead, so a version older than the hot one
-/// never reaches a view.
+/// The packet is encoded once for every view that waits on the column. A column that the
+/// dimension lights by now is taken from the dimension instead, so a version older than the
+/// hot one never reaches a view.
 pub(crate) fn land_viewed_columns(
     mut store: Option<ResMut<ColumnStoreLink>>,
     mut players: Query<&mut ColumnView>,
-    mut dims: Query<(
-        &mut ColumnLoading,
-        &mut ColumnWaiters,
-        &HotColumns,
-        Has<HasSkyLight>,
-    )>,
+    mut dims: Query<(&mut ColumnWaiters, &HotColumns, Has<HasSkyLight>)>,
     light_gated: Option<Res<LightGated>>,
     blocks: Res<Blocks>,
     registries: Res<CurrentRegistries>,
@@ -574,7 +574,7 @@ pub(crate) fn land_viewed_columns(
         stored,
     } in store.take_viewed()
     {
-        let Ok((mut loading, mut waiters, hot_columns, has_sky_light)) = dims.get_mut(dim) else {
+        let Ok((mut waiters, hot_columns, has_sky_light)) = dims.get_mut(dim) else {
             continue;
         };
         fetching.extend(waiters.of(column).iter().copied().filter(|player| {
@@ -589,25 +589,95 @@ pub(crate) fn land_viewed_columns(
             Some(_) => StoredLight::Kept { has_sky_light },
             None => StoredLight::Fullbright,
         };
-        let hot = hot_columns.is_hot(column);
-        let packet = stored
-            .filter(|_| !hot)
-            .and_then(|stored| encode_stored_column(column, &stored, direct_bits, light));
-        let next = match &packet {
-            _ if hot => ColumnState::Queued,
-            Some(_) => ColumnState::Stored,
-            None => ColumnState::Awaiting,
-        };
-        if let Some(packet) = packet {
+        let next = if hot_columns.lights(column) {
+            ColumnState::Queued
+        } else if let Some(packet) = encode_stored_column(column, &stored, direct_bits, light) {
             waiters.insert_packet(column, packet);
-        }
+            ColumnState::Stored
+        } else {
+            // The encode logged why; the column stays unsent rather than produced again.
+            fetching.clear();
+            continue;
+        };
         for player in fetching.drain(..) {
             let Ok(mut view) = players.get_mut(player) else {
                 continue;
             };
             view.set(&mut waiters, player, column, Some(next));
-            if next == ColumnState::Awaiting {
-                loading.add_ticket(column);
+        }
+    }
+}
+
+/// Sends a column that views wait to take from the dimension back to the queue once the
+/// dimension stops lighting it, so the views get it from the data layer instead.
+fn requeue_unlit_columns(
+    mut dims: Query<(&mut ColumnWaiters, Ref<HotColumns>)>,
+    mut players: Query<&mut ColumnView>,
+    mut unlit: Local<Vec<PlayerColumn>>,
+) {
+    use bevy_ecs::change_detection::DetectChanges;
+
+    for (mut waiters, hot) in &mut dims {
+        if !hot.is_changed() {
+            continue;
+        }
+        for column in waiters.columns().filter(|column| !hot.lights(*column)) {
+            unlit.extend(
+                waiters
+                    .of(column)
+                    .iter()
+                    .filter(|player| {
+                        players.get(**player).is_ok_and(|view| {
+                            matches!(
+                                view.state(column),
+                                Some(ColumnState::Awaiting | ColumnState::Lighting)
+                            )
+                        })
+                    })
+                    .map(|&player| PlayerColumn { player, column }),
+            );
+        }
+        for PlayerColumn { player, column } in unlit.drain(..) {
+            if let Ok(mut view) = players.get_mut(player) {
+                view.set(&mut waiters, player, column, Some(ColumnState::Queued));
+            }
+        }
+    }
+}
+
+/// Drops the packet of a column from the data layer once a block of the column changes before
+/// it went out, and sends its views back to the queue: the change would not reach a view that
+/// holds the column only after it.
+fn drop_changed_packets(
+    mut placed: MessageReader<BlockPlaced>,
+    mut dims: Query<&mut ColumnWaiters>,
+    mut players: Query<&mut ColumnView>,
+    mut stored: Local<Vec<PlayerColumn>>,
+) {
+    for placed in placed.read() {
+        let column = ColumnPos::new(
+            placed.block_pos.x >> SectionPos::BITS,
+            placed.block_pos.z >> SectionPos::BITS,
+        );
+        for mut waiters in &mut dims {
+            if waiters.packet(column).is_none() {
+                continue;
+            }
+            stored.extend(
+                waiters
+                    .of(column)
+                    .iter()
+                    .filter(|player| {
+                        players
+                            .get(**player)
+                            .is_ok_and(|view| view.state(column) == Some(ColumnState::Stored))
+                    })
+                    .map(|&player| PlayerColumn { player, column }),
+            );
+            for PlayerColumn { player, column } in stored.drain(..) {
+                if let Ok(mut view) = players.get_mut(player) {
+                    view.set(&mut waiters, player, column, Some(ColumnState::Queued));
+                }
             }
         }
     }
@@ -1050,12 +1120,12 @@ fn batch_packet(
     let column = wanted.at.column;
     match wanted.source {
         PacketSource::DataLayer => {
-            // A column that went hot since the data layer answered may have changed since,
-            // so the view takes it from the dimension instead.
+            // A column that the dimension lights since the data layer answered may change
+            // there, so the view takes it from the dimension instead.
             let packet = dim
                 .waiters
                 .packet(column)
-                .filter(|_| !dim.hot.is_some_and(|hot| hot.is_hot(column)))
+                .filter(|_| !dim.hot.is_some_and(|hot| hot.lights(column)))
                 .cloned();
             if packet.is_none() {
                 chunk_view.set(
@@ -1070,12 +1140,12 @@ fn batch_packet(
         PacketSource::Dimension => match shared.encoding(wanted.at) {
             Some(ColumnEncoding::Encoded(packet)) => Some(packet.clone()),
             Some(ColumnEncoding::Skipped(ColumnSkip::LostSection)) => {
-                chunk_view.set(
-                    dim.waiters,
-                    wanted.player,
-                    column,
-                    Some(ColumnState::Awaiting),
-                );
+                // Without tickets of its own, a view waits for the column wherever it now is.
+                let next = match dim.views {
+                    ViewSource::Dimension => ColumnState::Awaiting,
+                    ViewSource::DataLayer => ColumnState::Queued,
+                };
+                chunk_view.set(dim.waiters, wanted.player, column, Some(next));
                 None
             }
             Some(ColumnEncoding::Skipped(ColumnSkip::Failed) | ColumnEncoding::Pending) | None => {

@@ -17,5 +17,7 @@ pub(crate) enum LightInput {
     Players(Vec<ColumnPos>),
     /// Columns to answer once the light around them has settled.
     AwaitColumns(Vec<ColumnPos>),
+    /// Columns to answer with their light once the light around them has settled.
+    AwaitLight(Vec<ColumnPos>),
     LightBudget(LightBudget),
 }

@@ -1,5 +1,6 @@
 //! A column that goes cold keeps its last version in the data layer, and a column that a ticket
-//! loads again comes back from there instead of from the generator.
+//! loads again comes back from there instead of from the generator. A view gets every column
+//! past the hot area from the data layer, which generates and lights it outside the dimension.
 
 use std::time::{Duration, Instant};
 
@@ -165,7 +166,7 @@ fn a_change_survives_the_column_going_cold_and_coming_back() {
 }
 
 #[test]
-fn a_view_wider_than_the_hot_area_is_sent_whole_and_only_the_hot_area_stays_loaded() {
+fn a_view_wider_than_the_hot_area_is_sent_whole_and_loads_nothing_past_it() {
     let mut app = server();
     let label = label_of(&app, OVERWORLD);
     tick_until(&mut app, label, "the generation context loaded", |world| {
@@ -192,8 +193,19 @@ fn a_view_wider_than_the_hot_area_is_sent_whole_and_only_the_hot_area_stays_load
         .id();
     // The simulation area one ring wider, and the rings that load with each of its columns.
     let loaded_reach = 2 + LOADING_RINGS;
+    let loaded_past_the_hot_area = |world: &mut World| {
+        world.get::<ColumnIndex>(dimension).is_some_and(|index| {
+            index
+                .keys()
+                .any(|column| column.x.abs().max(column.z.abs()) > loaded_reach)
+        })
+    };
 
     tick_until(&mut app, label, "the whole view was sent", |world| {
+        assert!(
+            !loaded_past_the_hot_area(world),
+            "a column past the hot area was loaded into the dimension"
+        );
         let Some(view) = world.get::<SentChunkView>(player).and_then(|sent| sent.0) else {
             return false;
         };
@@ -204,13 +216,6 @@ fn a_view_wider_than_the_hot_area_is_sent_whole_and_only_the_hot_area_stays_load
         let mut whole = true;
         view.each_column(|column| whole &= columns.holds(column));
         whole
-    });
-    tick_until(&mut app, label, "the cold columns left", |world| {
-        world.get::<ColumnIndex>(dimension).is_some_and(|index| {
-            index
-                .keys()
-                .all(|column| column.x.abs().max(column.z.abs()) <= loaded_reach)
-        })
     });
     let view = dimension_world(&mut app, label)
         .get::<SentChunkView>(player)
@@ -244,15 +249,8 @@ fn a_view_wider_than_the_hot_area_is_sent_whole_and_only_the_hot_area_stays_load
             !generating,
             "a column the data layer holds was generated again"
         );
-        // A view loads a column of the edge of the hot area with the rings it needs to light
-        // it. Every column past those it gets from the data layer.
-        let loaded_past_the_edge = world.get::<ColumnIndex>(dimension).is_some_and(|index| {
-            index
-                .keys()
-                .any(|column| column.x.abs().max(column.z.abs()) > loaded_reach + LOADING_RINGS)
-        });
         assert!(
-            !loaded_past_the_edge,
+            !loaded_past_the_hot_area(world),
             "a cold column was loaded instead of sent from the data layer"
         );
         let Some(view) = world.get::<SentChunkView>(late).and_then(|sent| sent.0) else {

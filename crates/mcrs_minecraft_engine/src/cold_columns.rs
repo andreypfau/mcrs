@@ -1,23 +1,15 @@
 use bevy_ecs::message::MessageReader;
 use bevy_ecs::prelude::{Commands, Component, Has, Query, Res, ResMut};
-use mcrs_minecraft_chunk::{BlockLight, SkyLight};
 use mcrs_minecraft_engine_world::block_update::BlockPlaced;
-use mcrs_minecraft_engine_world::palette::{BiomePalette, ChunkBlocks};
 use mcrs_minecraft_engine_world::world::lifecycle::column_loading::ColumnLoading;
 use mcrs_minecraft_engine_world::world::lifecycle::stage::SectionStage;
 use mcrs_minecraft_engine_world::world::light_gate::{ColumnLightSettled, LightGated};
-use mcrs_minecraft_engine_world::world::storage::block_entity::{
-    BlockEntity, SectionBlockEntities,
-};
 use mcrs_minecraft_engine_world::world::storage::column::{
     ColumnIndex, ColumnSections, SectionLookup,
 };
-use mcrs_minecraft_heightmap::{
-    ColumnHeightmapSet, MotionHeightmap, NoLeavesHeightmap, SolidHeightmap, SurfaceHeightmap,
-};
 
+use crate::column_snapshot::ColumnSnapshots;
 use crate::column_store::ColumnStoreLink;
-use crate::stored_column::{StoredColumn, StoredSection};
 use crate::stored_columns_landing::TakenFromStore;
 
 /// The light of the column, and of the eight around it, settled while it was loaded, so the
@@ -63,24 +55,7 @@ type SectionMarks = (
     Has<SectionChanged>,
 );
 
-type SectionContent = (
-    &'static ChunkBlocks,
-    &'static BiomePalette,
-    Option<&'static BlockLight>,
-    Option<&'static SkyLight>,
-    Option<&'static SectionBlockEntities>,
-);
-
-type ColumnContent = (
-    &'static ColumnSections,
-    Has<ColumnLightFinal>,
-    Option<(
-        &'static SurfaceHeightmap,
-        &'static SolidHeightmap,
-        &'static MotionHeightmap,
-        &'static NoLeavesHeightmap,
-    )>,
-);
+type ColumnMarks = (&'static ColumnSections, Has<ColumnLightFinal>);
 
 /// Where the content of a column came from since it was loaded.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -99,13 +74,12 @@ enum Origin {
 /// A column that never landed whole keeps the version the data layer already holds, and so
 /// does a column that the data layer handed back and that did not change. A generated column
 /// whose light never settled is not written: its light at the edge of the loaded space was
-/// lit without the neighbours, and a view would get it that way.
+/// lit without the neighbours, and the data layer generates the same column again.
 pub(crate) fn write_cold_columns(
     dims: Query<(&ColumnLoading, &ColumnIndex)>,
-    columns: Query<ColumnContent>,
+    columns: Query<ColumnMarks>,
     marks: Query<SectionMarks>,
-    sections: Query<SectionContent>,
-    block_entities: Query<&BlockEntity>,
+    snapshots: ColumnSnapshots,
     light_gated: Option<Res<LightGated>>,
     mut store: ResMut<ColumnStoreLink>,
 ) {
@@ -117,7 +91,7 @@ pub(crate) fn write_cold_columns(
             let Some(slot) = index.get(&column) else {
                 continue;
             };
-            let Ok((column_sections, light_final, heightmaps)) = columns.get(slot.entity) else {
+            let Ok((column_sections, light_final)) = columns.get(slot.entity) else {
                 continue;
             };
             let Some(origin) = origin(column_sections, &marks) else {
@@ -129,17 +103,9 @@ pub(crate) fn write_cold_columns(
                 Origin::Generated if unlit => continue,
                 Origin::Generated | Origin::Kept => {}
             }
-            let Some(mut stored) = last_version(column_sections, &sections, &block_entities) else {
-                continue;
-            };
-            stored.heightmaps =
-                heightmaps.map(|(surface, solid, motion, no_leaves)| ColumnHeightmapSet {
-                    surface: surface.clone(),
-                    solid: solid.clone(),
-                    motion: motion.clone(),
-                    no_leaves: no_leaves.clone(),
-                });
-            store.put(column, stored);
+            if let Some(stored) = snapshots.take(slot.entity) {
+                store.put(column, stored);
+            }
         }
     }
 }
@@ -168,37 +134,4 @@ fn origin(column: &ColumnSections, marks: &Query<SectionMarks>) -> Option<Origin
     } else {
         Origin::Generated
     })
-}
-
-/// The sections and block entities of a column, or `None` when a section has not landed.
-fn last_version(
-    column: &ColumnSections,
-    sections: &Query<SectionContent>,
-    block_entities: &Query<&BlockEntity>,
-) -> Option<StoredColumn> {
-    let mut stored = StoredColumn {
-        min_section_y: column.min_section_y,
-        sections: Vec::with_capacity(column.sections.len()),
-        block_entities: Vec::new(),
-        heightmaps: None,
-    };
-    for lookup in column.iter() {
-        let SectionLookup::Loaded(section) = lookup else {
-            return None;
-        };
-        let (blocks, biomes, block_light, sky_light, held) = sections.get(section).ok()?;
-        stored.sections.push(StoredSection {
-            blocks: blocks.clone(),
-            biomes: biomes.clone(),
-            block_light: block_light.cloned(),
-            sky_light: sky_light.cloned(),
-        });
-        stored.block_entities.extend(
-            held.into_iter()
-                .flat_map(|held| held.iter())
-                .filter_map(|entity| block_entities.get(*entity).ok())
-                .map(|BlockEntity(entry)| entry.clone()),
-        );
-    }
-    Some(stored)
 }

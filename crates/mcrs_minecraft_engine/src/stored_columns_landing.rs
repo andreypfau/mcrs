@@ -9,7 +9,7 @@ use mcrs_minecraft_engine_world::world::lifecycle::stage::{
 use mcrs_minecraft_engine_world::world::storage::block_entity::spawn_block_entities;
 use mcrs_voxel::{ColumnPos, SectionPos};
 
-use crate::column_store::{ColumnStoreLink, Viewed, ViewedColumn};
+use crate::column_store::{ColumnStoreLink, FetchedColumn, Produced};
 use crate::heightmap::PendingColumnHeightmaps;
 use crate::stored_column::StoredColumn;
 
@@ -41,7 +41,7 @@ pub(crate) fn fetch_loading_columns(
 }
 
 /// Lands each answer of the data layer: in the sections that wait to take the column back, and
-/// in the list of answers that views wait on.
+/// in the answers that the production of cold columns waits on.
 pub(crate) fn land_stored_columns(
     mut store: ResMut<ColumnStoreLink>,
     mut stages: SectionStages,
@@ -52,11 +52,10 @@ pub(crate) fn land_stored_columns(
 ) {
     answers.extend(store.outputs());
     for answer in answers.drain(..) {
-        let (column, version, stored) = match answer {
-            StoreOutput::Found { key, chunk } => (key, chunk.version, Some(chunk.chunk)),
-            // The data layer lives in memory only, so it never fails to read.
+        let (column, version) = match &answer {
+            StoreOutput::Found { key, chunk } => (*key, chunk.version),
             StoreOutput::Missing { key } | StoreOutput::Unreadable { key } => {
-                (key, ChunkVersion::default(), None)
+                (*key, ChunkVersion::default())
             }
         };
         if store
@@ -69,17 +68,17 @@ pub(crate) fn land_stored_columns(
         let Some(read) = store.reads.remove(&column) else {
             continue;
         };
-        match &stored {
-            Some(stored) => {
+        match &answer {
+            StoreOutput::Found { chunk, .. } => {
                 land_sections(
                     &mut stages,
                     &positions,
                     &mut commands,
                     read.dim,
                     &read.sections,
-                    stored,
+                    &chunk.chunk,
                 );
-                if let Some(maps) = &stored.heightmaps
+                if let Some(maps) = &chunk.chunk.heightmaps
                     && !read.sections.is_empty()
                 {
                     pending_heightmaps
@@ -87,7 +86,7 @@ pub(crate) fn land_stored_columns(
                         .insert((read.dim, column), maps.clone());
                 }
             }
-            None => {
+            StoreOutput::Missing { .. } | StoreOutput::Unreadable { .. } => {
                 for &section in &read.sections {
                     if stages.get(section) == Some(SectionStage::Fetching) {
                         stages.set(section, SectionStage::Loading);
@@ -95,16 +94,15 @@ pub(crate) fn land_stored_columns(
                 }
             }
         }
-        if read.viewed == Viewed::Yes {
-            store.viewed.push(ViewedColumn {
-                dim: read.dim,
-                column,
-                stored,
-            });
+        if read.produced == Produced::Yes {
+            store.fetched.push(FetchedColumn { column, answer });
         }
     }
 }
 
+/// Puts the blocks of `stored` into the sections that wait for them. The light stays behind:
+/// the data layer may light the version again at any time, so the dimension lights the
+/// sections itself, and what it simulates does not depend on when that happened.
 fn land_sections(
     stages: &mut SectionStages,
     positions: &Query<&SectionPos>,
@@ -125,18 +123,11 @@ fn land_sections(
             stages.set(section, SectionStage::Loading);
             continue;
         };
-        let mut entity = commands.entity(section);
-        entity.try_insert((
+        commands.entity(section).try_insert((
             content.blocks.clone(),
             content.biomes.clone(),
             TakenFromStore,
         ));
-        if let Some(light) = &content.block_light {
-            entity.try_insert(light.clone());
-        }
-        if let Some(light) = &content.sky_light {
-            entity.try_insert(light.clone());
-        }
         stages.set(section, SectionStage::Loaded);
         landed_rows.push(y);
     }

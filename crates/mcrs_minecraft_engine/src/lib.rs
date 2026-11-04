@@ -13,6 +13,8 @@ pub mod client_info;
 pub mod cold_columns;
 pub mod column_held;
 mod column_packet;
+pub mod column_production;
+mod column_snapshot;
 pub mod column_store;
 pub mod column_view;
 mod column_waiters;

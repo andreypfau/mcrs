@@ -1,6 +1,7 @@
 // std: bevy_ecs
 
 mod chunk_plugin;
+mod cold_generation;
 mod dimension_world;
 mod features;
 mod generation_dispatch;
