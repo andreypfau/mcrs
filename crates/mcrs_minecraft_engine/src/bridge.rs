@@ -634,8 +634,7 @@ mod tests {
 
     use bytes::Bytes;
     use mcrs_minecraft_engine_world::session::PlayerSession;
-    use mcrs_minecraft_engine_world::world::channels::{
-        FROM_DIM_CAPACITY, TO_DIM_CAPACITY, };
+    use mcrs_minecraft_engine_world::world::channels::{FROM_DIM_CAPACITY, TO_DIM_CAPACITY};
 
     fn make_dim_channels(world: &mut World, dim: Entity) -> flume::Receiver<ToDim> {
         let (srv_tx, srv_rx) = flume::bounded::<ToDim>(TO_DIM_CAPACITY);

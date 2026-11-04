@@ -58,10 +58,7 @@ impl Plugin for DimLightPlugin {
             sky: self.sky,
             publish: FixedUpdate.intern(),
         })
-        .configure_sets(
-            FixedUpdate,
-            LightSet::Publish.in_set(TickSet::DomainInput),
-        )
+        .configure_sets(FixedUpdate, LightSet::Publish.in_set(TickSet::DomainInput))
         .configure_sets(Last, DimLightSet::Feed.before(LightSet::Intake))
         // `Last` sees what the whole tick landed and placed, and hands it to the actor before
         // the tick ends.

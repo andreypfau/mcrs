@@ -48,8 +48,8 @@ pub struct DimDespawnQueue(pub Vec<Entity>);
 ///
 /// A dimension world does not run the stock `Main`. It runs the startup schedules on its first
 /// tick, then `First`, `PreUpdate`, the `Fixed*` schedules, `Update`, `PostUpdate` and `Last` once
-/// per host tick. It has no `StateTransition` or `TimePlugin`, and its time resources are copies of
-/// the host's.
+/// per host tick. It has no `StateTransition`, `TimePlugin` or `Time` resource: a dimension counts
+/// ticks, so nothing it simulates can depend on the wall clock.
 #[derive(Resource, Default)]
 pub struct DimensionPlugins(Vec<DimensionPluginEntry>);
 

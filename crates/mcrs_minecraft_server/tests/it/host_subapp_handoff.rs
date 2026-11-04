@@ -110,8 +110,7 @@ fn live_dimension(
     key: ResourceKeyBuf<Dimension>,
 ) -> (Entity, flume::Receiver<ToDim>) {
     use mcrs_minecraft_engine::channel_types::FromDim;
-    use mcrs_minecraft_engine_world::world::channels::{
-        FROM_DIM_CAPACITY, TO_DIM_CAPACITY, };
+    use mcrs_minecraft_engine_world::world::channels::{FROM_DIM_CAPACITY, TO_DIM_CAPACITY};
 
     let label = app.world_mut().spawn((DimSubAppHandle, key)).id();
     let (srv_tx, _srv_rx) = flume::bounded::<ToDim>(TO_DIM_CAPACITY);

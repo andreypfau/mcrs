@@ -13,7 +13,6 @@ use bevy_ecs::prelude::{
     IntoScheduleConfigs, Local, On, ParallelCommands, Query, Ref, With, Without,
 };
 use bevy_ecs::relationship::RelationshipSourceCollection;
-use bevy_platform::time::Instant;
 use mcrs_voxel::SectionPos;
 use uuid::Uuid;
 
@@ -227,20 +226,18 @@ fn add_player_synced_entities(
     });
 }
 
+/// Every this many ticks, every tracked entity is resent whether it moved or not.
+const FORCE_SYNC_TICKS: u32 = 60;
+
 fn sync_entities(
     dim_players: Query<&DimensionPlayers>,
     player_data: Query<(&Transform, &PlayerSynchronizedEntities), With<Player>>,
     entities: Query<(Entity, &InDimension, Ref<Transform>, Has<EntityNetworkSync>)>,
     commands: ParallelCommands,
-    mut last_force_sync: Local<Option<Instant>>,
+    mut tick: Local<u32>,
 ) {
-    let need_force_sync = match *last_force_sync {
-        Some(last) => last.elapsed().as_secs_f32() > 3.0,
-        None => true,
-    };
-    if need_force_sync {
-        *last_force_sync = Some(Instant::now());
-    }
+    let need_force_sync = tick.is_multiple_of(FORCE_SYNC_TICKS);
+    *tick = tick.wrapping_add(1);
 
     entities
         .par_iter()

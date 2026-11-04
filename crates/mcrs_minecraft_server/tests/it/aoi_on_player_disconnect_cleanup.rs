@@ -25,8 +25,7 @@ use mcrs_minecraft_engine::session::SessionBundle;
 use mcrs_minecraft_engine_world::session::{
     Place, PlayerSession, PlayerSessionCounter, SessionPlacement,
 };
-use mcrs_minecraft_engine_world::world::channels::{
-    FROM_DIM_CAPACITY, TO_DIM_CAPACITY, };
+use mcrs_minecraft_engine_world::world::channels::{FROM_DIM_CAPACITY, TO_DIM_CAPACITY};
 
 fn build_disconnect_app() -> App {
     let mut app = App::new();

@@ -1,7 +1,6 @@
-use bevy_app::{App, FixedUpdate, Plugin, Update};
+use bevy_app::{App, FixedUpdate, Plugin};
 use bevy_ecs::message::Messages;
 use bevy_ecs::prelude::*;
-use bevy_time::{Fixed, Time, Virtual};
 use mcrs_minecraft_dimension::dimension_keys::OVERWORLD;
 use mcrs_minecraft_engine_world::world::dimension::Dimension;
 use mcrs_minecraft_engine_world::world::sub_app::{AddDimensionPlugins, DimAppLabel};
@@ -77,35 +76,6 @@ impl Plugin for AddsCountTicks {
     }
 }
 
-#[derive(Resource, Default)]
-struct TimeMismatch {
-    fixed: bool,
-    virtual_time: bool,
-}
-
-#[derive(Clone)]
-struct ReadsTime;
-
-impl Plugin for ReadsTime {
-    fn build(&self, app: &mut App) {
-        app.init_resource::<TimeMismatch>()
-            .add_systems(
-                FixedUpdate,
-                |time: Res<Time>, fixed: Res<Time<Fixed>>, mut mismatch: ResMut<TimeMismatch>| {
-                    mismatch.fixed |= time.elapsed() != fixed.elapsed();
-                },
-            )
-            .add_systems(
-                Update,
-                |time: Res<Time>,
-                 virtual_time: Res<Time<Virtual>>,
-                 mut mismatch: ResMut<TimeMismatch>| {
-                    mismatch.virtual_time |= time.elapsed() != virtual_time.elapsed();
-                },
-            );
-    }
-}
-
 fn world<'a>(app: &'a App, dimension: &str) -> &'a World {
     app.sub_app(DimAppLabel(host_app::label_of(app, dimension)))
         .world()
@@ -122,7 +92,6 @@ fn dimension_plugins_run_in_every_world_or_in_the_world_of_their_key() {
     let mut app = host_app::make_host_app();
     app.add_dimension_plugin(CountTicks::<true>)
         .add_dimension_plugin(Rate(1))
-        .add_dimension_plugin(ReadsTime)
         .add_dimension_plugin_to(OVERWORLD, SeesSpawn)
         .add_dimension_plugin_to(OVERWORLD, AddsCountTicks)
         .add_dimension_plugin_to(OVERWORLD, CountTicks::<false>)
@@ -159,14 +128,5 @@ fn dimension_plugins_run_in_every_world_or_in_the_world_of_their_key() {
     for dimension in ["minecraft:overworld", "minecraft:the_nether"] {
         let held = world(&app, dimension).resource::<Messages<Ticked>>().len();
         assert!(held <= 2, "{dimension} holds {held} messages of past ticks");
-        let mismatch = world(&app, dimension).resource::<TimeMismatch>();
-        assert!(
-            !mismatch.fixed,
-            "{dimension} reads a time other than the fixed time in FixedUpdate"
-        );
-        assert!(
-            !mismatch.virtual_time,
-            "{dimension} reads a time other than the virtual time in Update"
-        );
     }
 }

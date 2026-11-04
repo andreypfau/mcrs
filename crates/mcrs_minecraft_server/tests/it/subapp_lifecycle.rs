@@ -152,10 +152,10 @@ fn main_clock(app: &App) -> ClockState {
 /// Systems on every non-`Fixed` schedule of a sub-app run on each pump, with
 /// the `Startup` family once: an earlier driver chained only the `Fixed*`
 /// schedules and left `spawn_player`, loot loading and column-view attachment
-/// inert. The main app owns time and the clocks; each pump hands the sub-world
-/// the same values, overwriting any it advanced on its own.
+/// inert. The main app owns the clocks; each pump hands the sub-world the same
+/// values, overwriting any it advanced on its own. The sub-world has no time.
 #[test]
-fn a_dim_sub_app_runs_the_whole_pipeline_on_the_main_app_time_and_clocks() {
+fn a_dim_sub_app_runs_the_whole_pipeline_on_the_main_app_clocks() {
     let mut app = host_app::make_host_app();
     app.add_message::<InboundPlayerSpawn>();
     app.add_plugins(WorldClockPlugin);
@@ -179,13 +179,11 @@ fn a_dim_sub_app_runs_the_whole_pipeline_on_the_main_app_time_and_clocks() {
     assert!(main_clock(&app).total_ticks >= before + 7);
     assert_eq!(sub_app_clock(&mut app, dim_label), main_clock(&app));
 
-    let host_fixed = *app.world().resource::<Time<Fixed>>();
-    let sub_fixed = *app
-        .sub_app(DimAppLabel(dim_label))
-        .world()
-        .resource::<Time<Fixed>>();
-    assert_eq!(host_fixed.elapsed(), sub_fixed.elapsed());
-    assert_eq!(host_fixed.delta(), sub_fixed.delta());
+    let sub_world = app.sub_app(DimAppLabel(dim_label)).world();
+    assert!(
+        !sub_world.contains_resource::<Time>() && !sub_world.contains_resource::<Time<Fixed>>(),
+        "a dimension counts ticks and has no wall clock to read"
+    );
 
     let overworld = overworld_clock(&app);
     app.sub_app_mut(DimAppLabel(dim_label))

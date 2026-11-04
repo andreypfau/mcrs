@@ -10,7 +10,7 @@ use bevy_ecs::schedule::{
 };
 use bevy_ecs::system::{Local, Res, ResMut};
 use bevy_ecs::world::World;
-use bevy_time::{Fixed, Real, Time, Virtual};
+
 use std::collections::VecDeque;
 use tracing::{error, warn};
 
@@ -46,10 +46,8 @@ pub struct DimInboxDrain;
 ///   itself owns the fixed-timestep cadence; the sub-app mirrors it 1:1.
 /// - No `SpawnScene` (we do not depend on `bevy_scene`).
 ///
-/// It has no `StateTransition` or `TimePlugin` either. Its time resources are copies of the
-/// host's. `Res<Time>` is the fixed time in the `Fixed*` schedules and the virtual time in the
-/// others. The `Fixed*` schedules run once per host tick, but the host can advance `Time<Fixed>`
-/// by zero, one or more steps in that tick.
+/// It has no `StateTransition` or `TimePlugin` either, and no `Time` resource: a dimension
+/// counts ticks, so nothing it simulates can depend on the wall clock.
 #[derive(ScheduleLabel, Debug, Clone, PartialEq, Eq, Hash)]
 struct DimTick;
 
@@ -257,15 +255,11 @@ pub fn spawn_dim_subapp(
             }
             world.run_schedule(First);
             world.run_schedule(PreUpdate);
-            let fixed = world.resource::<Time<Fixed>>().as_generic();
-            world.insert_resource(fixed);
             world.run_schedule(FixedFirst);
             world.run_schedule(FixedPreUpdate);
             world.run_schedule(FixedUpdate);
             world.run_schedule(FixedPostUpdate);
             world.run_schedule(FixedLast);
-            let virtual_time = world.resource::<Time<Virtual>>().as_generic();
-            world.insert_resource(virtual_time);
             world.run_schedule(Update);
             world.run_schedule(PostUpdate);
             world.run_schedule(Last);
@@ -336,12 +330,6 @@ pub fn spawn_dim_subapp(
         sub_app.insert_resource(save.clone());
     }
 
-    // Seed the time resources so an inspector that reads `Res<Time<…>>` on a
-    // sub-app that has never been pumped gets a valid default. The extract
-    // closure overwrites these every subsequent tick.
-    sub_app.insert_resource(Time::<Fixed>::default());
-    sub_app.insert_resource(Time::<Virtual>::default());
-    sub_app.insert_resource(Time::<Real>::default());
     sub_app.init_resource::<mcrs_minecraft_environment::world_clock::WorldClocks>();
     sub_app.init_resource::<crate::clock::GameTime>();
     sub_app.init_resource::<crate::ops::OpList>();
@@ -351,18 +339,6 @@ pub fn spawn_dim_subapp(
 
         #[cfg(feature = "telemetry-tracy")]
         let _dim_span = tracing::info_span!("dim_extract", dim = %dim_for_extract).entered();
-        if let Some(time_fixed) = main_world.get_resource::<Time<Fixed>>() {
-            sub_world.insert_resource(*time_fixed);
-        }
-        if let Some(time_virtual) = main_world.get_resource::<Time<Virtual>>() {
-            sub_world.insert_resource(*time_virtual);
-        }
-        if let Some(time_real) = main_world.get_resource::<Time<Real>>() {
-            sub_world.insert_resource(*time_real);
-        }
-        if let Some(time) = main_world.get_resource::<Time<()>>() {
-            sub_world.insert_resource(*time);
-        }
         mcrs_minecraft_environment::world_clock::extract_world_clocks(main_world, sub_world);
         crate::clock::extract_game_time(main_world, sub_world);
         mcrs_minecraft_engine_registries::extract_registries(main_world, sub_world);

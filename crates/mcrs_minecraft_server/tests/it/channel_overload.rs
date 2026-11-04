@@ -13,7 +13,8 @@ use mcrs_minecraft_engine_world::session::{
     Place, PlayerSession, PlayerSessionCounter, SessionAnchors, SessionPlacement,
 };
 use mcrs_minecraft_engine_world::world::channels::{
-    FROM_DIM_CAPACITY, MAX_HELD_SERVERBOUND, TO_DIM_CAPACITY, };
+    FROM_DIM_CAPACITY, MAX_HELD_SERVERBOUND, TO_DIM_CAPACITY,
+};
 use mcrs_minecraft_network::ServerSideConnection;
 
 fn build_world() -> World {

@@ -2,7 +2,7 @@ use bevy_app::prelude::*;
 use bevy_app::{App, Plugin, TaskPoolOptions, TaskPoolPlugin, TaskPoolThreadAssignmentPolicy};
 use bevy_asset::AssetPlugin;
 use bevy_ecs::schedule::SingleThreadedExecutor;
-use bevy_time::{Fixed, Time, TimePlugin};
+use bevy_time::{Fixed, Time, TimePlugin, TimeUpdateStrategy};
 use rayon::ThreadPoolBuilder;
 use std::num::NonZeroU32;
 use std::time::{Duration, Instant};
@@ -68,6 +68,10 @@ impl Plugin for VoxelServerPlugin {
             app.add_plugins(TimePlugin);
         }
         app.insert_resource(Time::<Fixed>::from_hz(self.tick_rate.get() as f64));
+        // One host update is one tick: the host's fixed schedules run exactly once in it, as
+        // the dimensions' do, however late the update starts. Wall-clock time decides only
+        // when a tick starts, never what it does.
+        app.insert_resource(TimeUpdateStrategy::FixedTimesteps(1));
         // Dropping a notify fsevents watcher joins its CFRunLoop thread and
         // can block forever. The server has no hot-reload consumer.
         let mut assets = AssetPlugin {

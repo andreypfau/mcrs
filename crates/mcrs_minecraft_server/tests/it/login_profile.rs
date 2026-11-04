@@ -14,8 +14,7 @@ use mcrs_minecraft_engine_server::configuration::on_configuration_ack;
 use mcrs_minecraft_engine_server::login::{LoginPlugin, LoginState, SingleplayerProfile};
 use mcrs_minecraft_engine_server::{ShutdownPlugin, ShutdownRequest};
 use mcrs_minecraft_engine_world::session::{Place, Session, SessionPlacement};
-use mcrs_minecraft_engine_world::world::channels::{
-    FROM_DIM_CAPACITY, TO_DIM_CAPACITY, };
+use mcrs_minecraft_engine_world::world::channels::{FROM_DIM_CAPACITY, TO_DIM_CAPACITY};
 use mcrs_minecraft_network::OutboundReceiver;
 use mcrs_minecraft_network::event::run_event_loop;
 use mcrs_minecraft_network::metrics::PacketDispatcher;
