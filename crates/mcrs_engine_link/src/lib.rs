@@ -3,6 +3,7 @@
 
 // std: flume
 
+mod in_flight;
 mod inline_end;
 mod link;
 mod placement;
@@ -13,6 +14,7 @@ mod task_end;
 mod tasks;
 mod thread_end;
 
+pub use in_flight::InFlight;
 pub use inline_end::InlineEnd;
 pub use link::Link;
 pub use placement::Placement;

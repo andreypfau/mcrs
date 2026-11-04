@@ -48,14 +48,6 @@ impl<S: Stage> Link<S> {
         }
     }
 
-    #[must_use]
-    pub fn placement(&self) -> Placement {
-        match self.far {
-            FarEnd::Inline(_) => Placement::Inline,
-            FarEnd::Thread(_) => Placement::Thread,
-        }
-    }
-
     pub fn send(&mut self, input: S::Input) {
         match &mut self.far {
             FarEnd::Inline(end) => end.receive(input),
@@ -71,7 +63,7 @@ impl<S: Stage> Link<S> {
 
     /// Takes in what the far end has sent so far, so that [`Self::is_answered`] counts it,
     /// and holds the outputs for [`Self::outputs`]. An inline far end runs here.
-    pub fn take_in(&mut self) {
+    fn take_in(&mut self) {
         match &mut self.far {
             FarEnd::Inline(end) => {
                 if self.answered == self.sent {

@@ -12,16 +12,6 @@ pub struct Lent<W> {
 }
 
 impl<W> Lent<W> {
-    #[must_use]
-    pub fn cell(&self) -> CellId {
-        self.cell
-    }
-
-    #[must_use]
-    pub fn world(&self) -> &W {
-        &self.world
-    }
-
     pub fn world_mut(&mut self) -> &mut W {
         &mut self.world
     }

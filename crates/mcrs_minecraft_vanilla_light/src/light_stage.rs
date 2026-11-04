@@ -10,12 +10,21 @@ use mcrs_minecraft_light_engine::queue::{LightQueue, Priority};
 use mcrs_minecraft_light_engine::world::LightWorld;
 use mcrs_voxel::{BlockPos, ColumnPos};
 
-use crate::intake_budget::IntakeBudget;
 use crate::light_budget::LightBudget;
 use crate::light_epoch::LightEpoch;
 use crate::light_input::LightInput;
 use crate::light_output::LightOutput;
 use crate::pending_edits::PendingEdits;
+
+/// How many section columns the light stage takes in before it hands out the next epochs.
+///
+/// Loading a column costs a 256 block column sky rescan. Only section loads and unloads are
+/// held back: a block change takes effect the round it arrives, and there are never thousands
+/// of those at once. The rescan is cheap next to the epochs it feeds, and holding it back only
+/// starves them: a bulk load at render distance 96 admits its whole 38025 columns in under a
+/// second of intake. The bound only keeps the first epochs from waiting behind the whole
+/// intake.
+pub const COLUMNS_PER_ROUND: usize = 1024;
 
 /// The light of one dimension: the block and light data, the work on its way through the
 /// world and the columns that wait for their light to settle.
@@ -28,7 +37,6 @@ pub(crate) struct LightStage {
     queue: LightQueue,
     epoch: LightEpoch,
     budget: LightBudget,
-    intake: IntakeBudget,
     awaiting: FxHashSet<ColumnPos>,
     /// Whether something happened since the last check that can settle an awaited column.
     settle_due: bool,
@@ -57,7 +65,6 @@ impl Stage for LightStage {
                 self.settle_due = true;
             }
             LightInput::LightBudget(budget) => self.budget = budget,
-            LightInput::IntakeBudget(intake) => self.intake = intake,
         }
     }
 
@@ -102,7 +109,6 @@ impl LightStage {
             queue: LightQueue::default(),
             epoch: LightEpoch::default(),
             budget: LightBudget::default(),
-            intake: IntakeBudget::default(),
             awaiting: FxHashSet::default(),
             settle_due: false,
             relit: Vec::new(),
@@ -148,7 +154,7 @@ impl LightStage {
         // A column's edits go in one call so that a stack of section loads rescans
         // its 256 sky columns once rather than once per section — which is why the
         // budget counts columns and never splits one.
-        for (priority, edits) in self.pending.take_admitted(self.intake.columns_per_round) {
+        for (priority, edits) in self.pending.take_admitted(COLUMNS_PER_ROUND) {
             for (column, influence) in self.world.apply_edits(edits) {
                 self.queue.push_with_priority(column, influence, priority);
             }
@@ -327,7 +333,7 @@ mod tests {
     #[test]
     fn intake_is_bounded_per_round_and_loses_nothing() {
         let mut stage = light_stage();
-        let limit = stage.intake.columns_per_round;
+        let limit = COLUMNS_PER_ROUND;
         let columns = limit as i32 * 4 + 7;
         load_columns(&mut stage, columns);
 
@@ -348,7 +354,7 @@ mod tests {
     #[test]
     fn a_block_change_is_not_deferred_behind_a_bulk_load() {
         let mut stage = light_stage();
-        let limit = stage.intake.columns_per_round;
+        let limit = COLUMNS_PER_ROUND;
         let pos = BlockPos::new(8, 8, 8);
         load_columns(&mut stage, 1);
         stage.intake();
@@ -370,7 +376,7 @@ mod tests {
     #[test]
     fn the_most_urgent_column_is_admitted_before_the_backlog() {
         let mut stage = light_stage();
-        let limit = stage.intake.columns_per_round;
+        let limit = COLUMNS_PER_ROUND;
         load_columns(&mut stage, limit as i32 * 2);
 
         let urgent = ColumnPos::new(-1, 0);

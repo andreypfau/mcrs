@@ -50,12 +50,6 @@ impl LightLink {
         self.edits.is_empty() && self.link.is_answered()
     }
 
-    /// Takes in what the stage has sent so far, so that [`Self::is_idle`] counts all of it. It
-    /// publishes none of it: what the world holds does not change.
-    pub fn take_in(&mut self) {
-        self.link.take_in();
-    }
-
     /// Waits until the stage has answered everything handed to it so far, and publishes none
     /// of it. Edits pushed and not handed to the stage yet are not waited for.
     pub async fn answered(&mut self) {

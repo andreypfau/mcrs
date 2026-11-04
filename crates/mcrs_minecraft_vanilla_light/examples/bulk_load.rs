@@ -16,7 +16,7 @@ use bevy_ecs::schedule::ScheduleLabel;
 use mcrs_engine_link::Placement;
 use mcrs_minecraft_chunk::{PalettedContainer, VoxelId, VoxelPalette};
 use mcrs_minecraft_light_engine::prelude::*;
-use mcrs_minecraft_vanilla_light::{IntakeBudget, LightBudget, LightLink, LightPlugin};
+use mcrs_minecraft_vanilla_light::{COLUMNS_PER_ROUND, LightBudget, LightLink, LightPlugin};
 use mcrs_voxel::{BlockStateId, ColumnPos, SectionPos};
 
 fn filled(block: VoxelId) -> SectionBlocks {
@@ -97,7 +97,7 @@ fn main() {
                 publish: Last.intern(),
                 placement: Placement::Thread,
             });
-        let limit = app.world().resource::<IntakeBudget>().columns_per_round;
+        let limit = COLUMNS_PER_ROUND;
         {
             let mut light = app.world_mut().resource_mut::<LightLink>();
             for edit in edits {

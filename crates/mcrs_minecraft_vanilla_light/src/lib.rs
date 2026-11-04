@@ -1,7 +1,6 @@
 // std: bevy_ecs
 
 mod dim_light_plugin;
-mod intake_budget;
 mod light_budget;
 mod light_epoch;
 mod light_input;
@@ -13,8 +12,8 @@ mod lighting_plugin;
 mod pending_edits;
 
 pub use dim_light_plugin::emit_light_updates;
-pub use intake_budget::IntakeBudget;
 pub use light_budget::LightBudget;
 pub use light_link::LightLink;
 pub use light_plugin::{LightPlugin, LightSet, publish_light};
+pub use light_stage::COLUMNS_PER_ROUND;
 pub use lighting_plugin::LightingPlugin;

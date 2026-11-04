@@ -1,6 +1,6 @@
 use bevy_ecs::entity::Entity;
 use bevy_tasks::Task;
-use mcrs_engine_link::{Step, TaskId, TaskOutcome};
+use mcrs_engine_link::{InFlight, Step, TaskOutcome};
 use mcrs_minecraft_engine_world::aoi::min_column_distance;
 use mcrs_minecraft_engine_world::entity::player::chunk_view::ChunkTrackingView;
 use mcrs_minecraft_engine_world::palette::{ChunkBlocks, section_states};
@@ -46,11 +46,6 @@ impl ColumnKey {
     }
 }
 
-/// A column a view wants generated, with the sections that asked for it.
-pub(crate) struct PendingColumn {
-    pub(crate) sections: Vec<RequestedSection>,
-}
-
 /// One stage of one column, in flight on the generation pool.
 ///
 /// A halo column owns no entity, so nothing here names one: the store is keyed
@@ -59,9 +54,6 @@ pub(crate) struct PendingColumn {
 pub(crate) struct InFlightStage {
     pub(crate) col: ColumnPos,
     pub(crate) cancel: CancellationToken,
-    pub(crate) id: TaskId,
-    #[expect(dead_code, reason = "held so that dropping the stage cancels its task")]
-    pub(crate) task: Task<()>,
 }
 
 /// What a ladder stage hands back. A cancelled fill hands back nothing, and its task ends
@@ -113,10 +105,11 @@ impl Default for SchedulerConfig {
 pub(crate) struct GenerationStage {
     pub(crate) traces: Option<ColumnTraceLog>,
     pub(crate) ctx: Option<FillContext>,
-    pub(crate) pending: BTreeMap<ColumnKey, PendingColumn>,
+    /// The sections that asked for each wanted column.
+    pub(crate) pending: BTreeMap<ColumnKey, Vec<RequestedSection>>,
     /// Reverse index: column position -> current priority key.
     pub(crate) priority_index: FxHashMap<ColumnPos, ColumnKey>,
-    pub(crate) in_flight: Vec<InFlightStage>,
+    pub(crate) in_flight: InFlight<InFlightStage, Task<()>>,
     /// Columns whose stage changed since the last dispatch: they and their 3×3 may owe a
     /// stage now.
     pub(crate) touched: Vec<ColumnPos>,
@@ -183,7 +176,7 @@ impl Drop for GenerationStage {
     /// A fill on the pool stops at its next check of the token, rather than run to an end
     /// nobody takes.
     fn drop(&mut self) {
-        for stage in &self.in_flight {
+        for stage in self.in_flight.iter() {
             stage.cancel.cancel();
         }
     }
@@ -196,7 +189,7 @@ impl GenerationStage {
             ctx: None,
             pending: BTreeMap::new(),
             priority_index: FxHashMap::default(),
-            in_flight: Vec::new(),
+            in_flight: InFlight::default(),
             touched: Vec::new(),
             fresh: BTreeSet::new(),
             forgotten: Vec::new(),
@@ -238,13 +231,13 @@ impl GenerationStage {
         } = wanted;
         if let Some(key) = self.priority_index.get(&col) {
             if let Some(pending) = self.pending.get_mut(key) {
-                pending.sections.extend(sections);
+                pending.extend(sections);
             }
             return;
         }
         column_trace::mark(self.traces.as_ref(), col, ColumnStage::Queued);
         let key = ColumnKey::new(distance_sq, col);
-        self.pending.insert(key, PendingColumn { sections });
+        self.pending.insert(key, sections);
         self.priority_index.insert(col, key);
         self.fresh.insert(key);
         self.climbed.push(col);
@@ -299,11 +292,7 @@ impl GenerationStage {
         if let Some(pending) = self.pending.remove(&key) {
             self.abandoned.push(AbandonedColumn {
                 col,
-                sections: pending
-                    .sections
-                    .iter()
-                    .map(|section| section.entity)
-                    .collect(),
+                sections: pending.iter().map(|section| section.entity).collect(),
             });
         }
     }
@@ -317,7 +306,7 @@ impl GenerationStage {
             .saturating_mul(2);
         let reach = LOADING_RINGS.saturating_add(halo);
         let views = &self.views.views;
-        for stage in &self.in_flight {
+        for stage in self.in_flight.iter() {
             if !within(views, stage.col, reach) {
                 stage.cancel.cancel();
             }
@@ -358,11 +347,9 @@ impl GenerationStage {
     /// a later request refills it bit-identically, since a fill depends on nothing
     /// but the seed and the position.
     fn finish_stage(&mut self, outcome: TaskOutcome<StageResult>) {
-        let id = outcome.id();
-        let Some(at) = self.in_flight.iter().position(|stage| stage.id == id) else {
+        let Some(InFlightStage { col, .. }) = self.in_flight.retire(outcome.id()) else {
             return;
         };
-        let col = self.in_flight.swap_remove(at).col;
         let TaskOutcome::Finished { output: result, .. } = outcome else {
             self.store.forget(col);
             self.forgotten.push(col);
@@ -447,7 +434,6 @@ impl GenerationStage {
         let col = key.chunk_column_pos;
         let pending = self.pending.get(&key)?;
         let mut requested: Vec<(Entity, SectionPos)> = pending
-            .sections
             .iter()
             .map(|section| (section.entity, SectionPos::new(col.x, section.y, col.z)))
             .collect();

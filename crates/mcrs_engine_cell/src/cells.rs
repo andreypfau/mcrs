@@ -67,16 +67,6 @@ impl<W: CellWorld> Cells<W> {
         Some(lent?.world)
     }
 
-    #[must_use]
-    pub fn len(&self) -> usize {
-        self.cells.len()
-    }
-
-    #[must_use]
-    pub fn is_empty(&self) -> bool {
-        self.cells.is_empty()
-    }
-
     /// Sends `tick` with the input from `input` to every world, waits until every world has
     /// ticked, and gives the outputs in [`CellId`] order. A world that has stopped gives no
     /// output.
@@ -167,18 +157,19 @@ mod tests {
 
     fn sums(placements: [Placement; 3]) -> Vec<CellOutput<u64>> {
         let mut cells = Cells::new();
+        let mut ids = Vec::new();
         for (start, placement) in placements.into_iter().enumerate() {
-            cells.add(
+            ids.push(cells.add(
                 Sum {
                     total: start as u64 * 100,
                 },
                 placement,
-            );
+            ));
         }
+        let input = |cell| ids.iter().position(|&id| id == cell).unwrap() as u64 * 10;
         let mut outputs = Vec::new();
         for tick in 0..4 {
-            let ticked =
-                block_on(cells.tick(Tick(tick), |cell| cell.get() * 10)).expect("no world is lent");
+            let ticked = block_on(cells.tick(Tick(tick), input)).expect("no world is lent");
             outputs.extend(ticked);
         }
         outputs

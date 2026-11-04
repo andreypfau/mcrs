@@ -40,11 +40,6 @@ impl<I, O> SubAppWorld<I, O> {
         }
     }
 
-    #[must_use]
-    pub fn sub_app(&self) -> &SubApp {
-        &self.sub_app
-    }
-
     pub fn sub_app_mut(&mut self) -> &mut SubApp {
         &mut self.sub_app
     }

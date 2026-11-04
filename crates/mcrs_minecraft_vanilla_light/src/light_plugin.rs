@@ -14,7 +14,6 @@ use mcrs_minecraft_light_engine::level::LightBounds;
 use mcrs_minecraft_light_engine::world::LightWorld;
 use mcrs_voxel::ColumnPos;
 
-use crate::intake_budget::IntakeBudget;
 use crate::light_budget::LightBudget;
 use crate::light_input::LightInput;
 use crate::light_link::LightLink;
@@ -54,7 +53,6 @@ impl Plugin for LightPlugin {
         let link = Link::new(LightStage::new(world), self.placement);
         app.insert_resource(LightLink::new(link))
             .init_resource::<LightBudget>()
-            .init_resource::<IntakeBudget>()
             .add_message::<SectionRelit>()
             .add_message::<ColumnLightSettled>()
             .configure_sets(Last, LightSet::Publish.before(LightSet::Intake))
@@ -167,12 +165,9 @@ fn write_light(
     }
 }
 
-fn send_budgets(budget: Res<LightBudget>, intake: Res<IntakeBudget>, mut light: ResMut<LightLink>) {
+fn send_budgets(budget: Res<LightBudget>, mut light: ResMut<LightLink>) {
     if budget.is_changed() {
         light.send(LightInput::LightBudget(*budget));
-    }
-    if intake.is_changed() {
-        light.send(LightInput::IntakeBudget(*intake));
     }
 }
 

@@ -131,12 +131,7 @@ impl GenerationStage {
             }
         });
         self.store.set_stage(col, stage);
-        self.in_flight.push(InFlightStage {
-            col,
-            cancel,
-            id,
-            task,
-        });
+        self.in_flight.push(id, InFlightStage { col, cancel }, task);
     }
 }
 

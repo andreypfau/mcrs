@@ -1,20 +1,13 @@
 use bevy_tasks::{Task, TaskPool};
 
-use mcrs_engine_link::{TaskEnd, TaskId};
+use mcrs_engine_link::{InFlight, TaskEnd, TaskId};
 use mcrs_minecraft_core::BoundingBox;
 use mcrs_minecraft_light_engine::epoch::{LightJob, LightUpdate};
 
 /// The epochs in flight, each with the area it may still write into.
 #[derive(Default)]
 pub(crate) struct LightEpoch {
-    in_flight: Vec<InFlight>,
-}
-
-struct InFlight {
-    id: TaskId,
-    area: BoundingBox,
-    /// Dropping it cancels the epoch.
-    _task: Task<()>,
+    in_flight: InFlight<BoundingBox, Task<()>>,
 }
 
 impl LightEpoch {
@@ -28,13 +21,11 @@ impl LightEpoch {
 
     /// Whether an epoch under way may still write into `area`.
     pub(crate) fn touches(&self, area: BoundingBox) -> bool {
-        self.in_flight
-            .iter()
-            .any(|epoch| epoch.area.intersects(area))
+        self.in_flight.iter().any(|epoch| epoch.intersects(area))
     }
 
     pub(crate) fn areas(&self) -> Vec<BoundingBox> {
-        self.in_flight.iter().map(|epoch| epoch.area).collect()
+        self.in_flight.iter().copied().collect()
     }
 
     /// Runs `job` on `pool` and finishes `end` with its output.
@@ -44,19 +35,11 @@ impl LightEpoch {
         let task = pool.spawn(async move {
             end.finish(job.run());
         });
-        self.in_flight.push(InFlight {
-            id,
-            area,
-            _task: task,
-        });
+        self.in_flight.push(id, area, task);
     }
 
     /// Takes the epoch with `id` off the epochs in flight, and tells whether it was one.
     pub(crate) fn retire(&mut self, id: TaskId) -> bool {
-        let Some(at) = self.in_flight.iter().position(|epoch| epoch.id == id) else {
-            return false;
-        };
-        self.in_flight.swap_remove(at);
-        true
+        self.in_flight.retire(id).is_some()
     }
 }

@@ -676,7 +676,7 @@ fn assert_region_agrees(consumer: Consumer, radius: i32, drives: &[Drive]) {
 /// every nest the column grew.
 #[test]
 fn a_dead_first_section_does_not_take_the_column_s_block_entities_with_it() {
-    use crate::generation_stage::{ColumnKey, PendingColumn};
+    use crate::generation_stage::ColumnKey;
     use mcrs_minecraft_block_entity::{BeeOccupant, GeneratedBlockEntity};
     use mcrs_minecraft_engine_world::world::dimension::InDimension;
     use mcrs_minecraft_engine_world::world::storage::block_entity::BlockEntity;
@@ -698,12 +698,10 @@ fn a_dead_first_section_does_not_take_the_column_s_block_entities_with_it() {
         let key = ColumnKey::new(0, col);
         generation.pending.insert(
             key,
-            PendingColumn {
-                sections: vec![
-                    RequestedSection { entity: dead, y: 0 },
-                    RequestedSection { entity: live, y: 1 },
-                ],
-            },
+            vec![
+                RequestedSection { entity: dead, y: 0 },
+                RequestedSection { entity: live, y: 1 },
+            ],
         );
         generation.priority_index.insert(col, key);
         generation.store.insert_staged(
