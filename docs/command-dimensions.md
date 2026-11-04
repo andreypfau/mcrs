@@ -81,8 +81,7 @@ receives `Worlds`: the host, each dimension world in the dimension order, and
 
 - `SetGameMode` sets the component of the player. Its world sends the packets on its next tick.
 - `TeleportPlayer` in the same dimension sets the transform and sends `player_position`.
-- `TeleportPlayer` to another dimension calls `change_dimension`, the one operation that moves
-  a player between worlds. See "Change of dimension".
+- `TeleportPlayer` to another dimension calls `change_dimension`. See "Change of dimension".
 - `EditClock` changes a clock on the host and extracts the clocks into each world.
 
 An applier changes a player only through `Worlds::set_transform`, `Worlds::change_dimension`
@@ -94,31 +93,37 @@ command moves hears of the move after the move.
 
 ## Change of dimension
 
-`change_dimension` moves a player from one world to another. It takes the host world and the two
-dimension worlds, so only a seam between two ticks can call it. The steps are:
-
-1. The host runs its outbound flush. The packets that already have the old epoch leave first.
-2. The old world runs the eviction of a disconnect, so observers receive `remove_entities`.
-3. The new world spawns the player with its UUID, its host anchor and its owner. Its view and
-   its trackers start new there.
-4. Each component in `CarriedComponents` of the old world moves to the new entity. The old
-   entity is despawned.
-5. The host places the session in the new dimension.
-6. The host sends `respawn` and then the packets that a join sends after `login`
-   (`enter_level_packets`), in the order of DIM-CHG-003.
-
-A plugin of a dimension world adds a component of the player to `CarriedComponents` with
-`carry_on_dimension_change`. The list holds one function pointer for each component type. A
-component that is not in the list stays in the old world and is despawned with the old entity.
-The dimension worlds read the state of a player in each tick, so this state stays on the entity
-in the dimension world and does not move to the host.
+A player changes dimension as a `Departure`. A departure holds the session, the key of the new
+dimension, the arrival and the carried state of the player (`CarriedPlayer`). The carried state
+is a plain struct of the components that go with the player. A component that is not in it stays
+in the old world and is despawned with the old entity.
 
 A system of a dimension world cannot reach another world. A move that a dimension decides in its
-tick, for example a portal, writes the message `ChangeDimensionRequest`. Between two ticks, after
-the pending commands, the host applies the requests of each world through `change_dimension`
-(`apply_dimension_change_requests`). The order is the dimension order and then the order of
-writing. A request that names no running dimension, or the dimension of its own world, is an
-error in the log.
+tick, for example a portal, writes the message `ChangeDimensionRequest`. At the end of tick T,
+the old world takes the carried state of each player that a request names, in the order of
+writing. Then it despawns the player and puts the departure in its output, after its packets.
+A request that names the dimension of its own world is an error in the log.
+
+The host reads the departures when it takes the outputs, in the dimension order. For each
+departure, the steps are:
+
+1. The host runs its outbound flush. The packets that already have the old epoch leave first.
+2. The host places the session in the new dimension, which changes its epoch.
+3. The host claims the teleport id of the arrival from the carried state.
+4. The host sends `respawn` and then the packets that a join sends after `login`
+   (`enter_level_packets`), in the order of DIM-CHG-003.
+5. The host puts `ToDim::Transfer(PlayerTransfer::Arrive)` in the input of the new dimension
+   for tick T+1.
+
+In tick T+1, the new world spawns the player before the serverbound packets of the tick reach
+it. Its view and its trackers start new there. A departure that names no other running
+dimension, or whose session is no longer placed in the old dimension, goes back to the old
+world as `PlayerTransfer::Return`. The player is then absent from tick T+1 of the old world and
+comes back at its old transform.
+
+The command pass holds every world between two ticks. Thus `change_dimension` makes the
+departure, sends the packets of step 1 to step 4 and spawns the player in the new world at once.
+A later effect, a later stage and a later line then find the player in the new world.
 
 ## Why the result is synchronous
 

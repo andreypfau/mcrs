@@ -5,7 +5,8 @@ use bevy_ecs::world::World;
 use mcrs_minecraft_engine::ability::PlayerGameMode;
 use mcrs_minecraft_engine::bus::OutboundPlayerPacket;
 use mcrs_minecraft_engine::dim;
-use mcrs_minecraft_engine::dimension_change::{Arrival, DimensionChangeError, DimensionChanger};
+use mcrs_minecraft_engine::dimension_change::{Arrival, DimensionChangeError};
+use mcrs_minecraft_engine::player_dimension_change;
 use mcrs_minecraft_engine_world::entity::physics::Transform;
 use mcrs_minecraft_engine_world::session::PlayerSession;
 use mcrs_minecraft_game_mode::GameMode;
@@ -22,10 +23,7 @@ pub enum PlayerChangeError {
     /// No dimension runs at the index, or the destination is the dimension of the player.
     #[error("no dimension runs at this index")]
     NoDimension,
-    /// The world the player leaves has no [`DimensionChanger`].
-    #[error("the world of the player has no dimension changer")]
-    NoDimensionChanger,
-    /// The [`DimensionChanger`] did not move the player.
+    /// The player did not change dimension.
     #[error("the player did not change dimension: {0}")]
     DimensionChange(DimensionChangeError),
 }
@@ -86,8 +84,8 @@ impl Worlds<'_, '_> {
         Ok(entry.entity)
     }
 
-    /// Moves the player of the session `player` to the dimension at `destination`
-    /// through the [`DimensionChanger`] of the world it leaves. Returns the entity of the player
+    /// Moves the player of the session `player` to the dimension at `destination` at once, as
+    /// a departure of the world it leaves that arrives at once. Returns the entity of the player
     /// in its new world.
     pub fn change_dimension(
         &mut self,
@@ -103,12 +101,10 @@ impl Worlds<'_, '_> {
             .worlds
             .get_disjoint_mut([entry.dimension, destination])
             .map_err(|_| PlayerChangeError::NoDimension)?;
-        let &DimensionChanger(change_dimension) = from
-            .get_resource::<DimensionChanger>()
-            .ok_or(PlayerChangeError::NoDimensionChanger)?;
         let transform = arrival.transform;
-        let arrived = change_dimension(self.host, from, to, entry.entity, arrival)
-            .map_err(PlayerChangeError::DimensionChange)?;
+        let arrived =
+            player_dimension_change::change_dimension(self.host, from, to, entry.entity, arrival)
+                .map_err(PlayerChangeError::DimensionChange)?;
         entry.dimension = destination;
         entry.entity = arrived;
         entry.transform = transform;

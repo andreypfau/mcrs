@@ -17,6 +17,7 @@ pub mod column_view;
 mod column_waiters;
 pub mod consume_inbound_player_spawn;
 pub mod default_game_mode;
+pub mod departure;
 pub mod despawn_inbound_player;
 pub mod dim;
 pub mod dim_cells;

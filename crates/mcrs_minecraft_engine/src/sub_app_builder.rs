@@ -113,7 +113,11 @@ pub fn spawn_dim_subapp(
 
     let label_entity = app
         .world_mut()
-        .spawn((DimSubAppHandle, request.dimension.clone()))
+        .spawn((
+            DimSubAppHandle,
+            request.dimension.clone(),
+            DimensionTypeId(request.dimension_type),
+        ))
         .id();
 
     app.world_mut()

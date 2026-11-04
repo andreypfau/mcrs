@@ -1,4 +1,5 @@
 use crate::bus::{InboundPlayerDespawn, InboundPlayerPacket, InboundPlayerSpawn, PlayerLatency};
+use crate::departure::PlayerTransfer;
 
 /// What the host hands a dimension world for its next tick.
 ///
@@ -16,4 +17,6 @@ pub enum ToDim {
     /// player's in-dim entity, which it finds through its `DimPlayerIndex`.
     Despawn(InboundPlayerDespawn),
     Latency(PlayerLatency),
+    /// A player that changes dimension arrives in this dim, or comes back to it.
+    Transfer(Box<PlayerTransfer>),
 }

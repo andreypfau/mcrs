@@ -11,11 +11,11 @@ pub mod chunk_view;
 #[derive(Component, Default)]
 pub struct Player;
 
-/// Asks the host to move `player`, an entity of the world that writes the request, to the
-/// dimension `to` at `transform`. A system of one dimension cannot reach another world, so a
-/// portal, and any other move that a dimension decides inside its tick, writes this request.
-/// The host applies the requests between two ticks, in the order of the dimensions and then in
-/// the order of writing. The player arrives with the packets of a dimension change.
+/// Asks to move `player`, an entity of the world that writes the request, to the dimension `to`
+/// at `transform`. A system of one dimension cannot reach another world, so a portal, and any
+/// other move that a dimension decides inside its tick, writes this request. At the end of the
+/// tick the world lets the player go, in the order of writing, and the player arrives in `to` on
+/// the next tick, with the packets of a dimension change.
 #[derive(Message, Clone, Debug)]
 pub struct ChangeDimensionRequest {
     pub player: Entity,

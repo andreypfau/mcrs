@@ -1,8 +1,5 @@
 //! The move of a player from one dimension world to another.
 
-use bevy_ecs::entity::Entity;
-use bevy_ecs::resource::Resource;
-use bevy_ecs::world::World;
 use bevy_math::DVec3;
 use mcrs_minecraft_core::Look;
 use mcrs_minecraft_engine_world::entity::physics::Transform;
@@ -47,11 +44,11 @@ impl Arrival {
     }
 }
 
-/// Why a [`DimensionChanger`] did not move a player.
+/// Why a player did not change dimension.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, thiserror::Error)]
 pub enum DimensionChangeError {
-    /// The new world holds no dimension.
-    #[error("the new world holds no dimension")]
+    /// No other running dimension is the one the player changes to.
+    #[error("no other running dimension is the one the player changes to")]
     NoDimension,
     /// The old world holds no such player.
     #[error("the old world holds no such player")]
@@ -63,21 +60,3 @@ pub enum DimensionChangeError {
     #[error("the player lacks the state its arrival sends")]
     NoArrivalState,
 }
-
-/// How a dimension world moves one of its players, an entity of the first dimension world, into
-/// the second as the same player, with the host world in reach. Gives the entity of the player
-/// in the new world.
-///
-/// The embedder must insert one in each dimension world, from the plugin that owns the players
-/// there. A world without one keeps its players: a move to another dimension, such as a
-/// teleport there, fails and the player stays where it is.
-#[derive(Resource, Clone, Copy)]
-pub struct DimensionChanger(
-    pub  fn(
-        &mut World,
-        &mut World,
-        &mut World,
-        Entity,
-        Arrival,
-    ) -> Result<Entity, DimensionChangeError>,
-);

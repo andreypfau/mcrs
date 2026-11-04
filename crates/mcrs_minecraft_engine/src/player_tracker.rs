@@ -12,8 +12,7 @@ use crate::column_held::{
 };
 use crate::entity_tracker::EntityTracker;
 use crate::join_message::announce_joins;
-use crate::latency::{Latency, apply_latency};
-use crate::player_dimension_change::CarryOnDimensionChangeExt;
+use crate::latency::apply_latency;
 use crate::player_list::{ListPolicy, PlayerList, update_player_list};
 use crate::track_entities::{forget_removed_player, track_entities};
 
@@ -38,7 +37,6 @@ impl Plugin for PlayerTrackerPlugin {
         app.init_resource::<PlayerList>();
         app.init_resource::<ListPolicy>();
         app.add_observer(forget_removed_player);
-        app.carry_on_dimension_change::<Latency>();
         app.configure_sets(
             FixedPostUpdate,
             PlayerTrackerSet.after(VoxelUpdateSet::NetworkSync),

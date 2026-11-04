@@ -1,3 +1,5 @@
+use std::mem;
+
 use bevy_app::SubApp;
 use bevy_ecs::change_detection::DetectChangesMut;
 use bevy_ecs::message::Messages;
@@ -7,7 +9,6 @@ use bevy_ecs::world::World;
 use mcrs_engine_cell::{SubAppWorld, Tick};
 use mcrs_minecraft_core::Versioned;
 use mcrs_minecraft_engine_registries::RegistrySnapshot;
-use mcrs_minecraft_engine_world::entity::player::ChangeDimensionRequest;
 use mcrs_minecraft_engine_world::session::PlayerSession;
 use mcrs_minecraft_engine_world::world::lifecycle::trace::{ColumnTraceLog, TraceEvent};
 use mcrs_minecraft_environment::world_clock::WorldClocks;
@@ -18,7 +19,9 @@ use crate::bus::{
 };
 use crate::channel_types::ToDim;
 use crate::clock::GameTime;
+use crate::departure::{Departure, PlayerTransfer};
 use crate::ops::OpList;
+use crate::player_dimension_change;
 
 /// A dimension world as the host ticks it.
 pub type DimWorld = SubAppWorld<DimInput, DimOutput>;
@@ -44,8 +47,8 @@ pub struct DimOutput {
     pub(crate) released: Vec<PlayerSession>,
     pub(crate) attached: Vec<OutboundPlayerAttached>,
     pub(crate) traces: Vec<TraceEvent>,
-    /// The dimension changes that the tick asked for and that wait in the world.
-    pub(crate) dimension_changes: usize,
+    /// The players that left the dimension in the tick, after the packets of the tick.
+    pub(crate) departures: Vec<Departure>,
 }
 
 /// The messages of the input of this tick, until the inbox drain writes them at the sync point.
@@ -53,6 +56,17 @@ pub struct DimOutput {
 pub(crate) struct DimInbox {
     control: Vec<ToDim>,
     serverbound: Vec<InboundPlayerPacket>,
+    transfers: Vec<PlayerTransfer>,
+}
+
+impl DimInbox {
+    pub(crate) fn holds_transfers(&self) -> bool {
+        !self.transfers.is_empty()
+    }
+
+    pub(crate) fn take_transfers(&mut self) -> Vec<PlayerTransfer> {
+        mem::take(&mut self.transfers)
+    }
 }
 
 pub(crate) fn dim_world(sub_app: SubApp) -> DimWorld {
@@ -80,6 +94,8 @@ fn apply_input(world: &mut World, _tick: Tick, input: DimInput) {
 
 fn take_output(world: &mut World) -> DimOutput {
     let mut output = DimOutput::default();
+    // After every schedule of the tick, so the player is in no system's view once it leaves.
+    player_dimension_change::depart_players(world, &mut output.departures);
     if let Some(mut packets) = world.get_resource_mut::<Messages<OutboundPlayerPacket>>() {
         output.packets.extend(packets.drain());
     }
@@ -94,9 +110,6 @@ fn take_output(world: &mut World) -> DimOutput {
     if let Some(log) = world.get_resource::<ColumnTraceLog>() {
         output.traces.extend(log.drain());
     }
-    output.dimension_changes = world
-        .get_resource::<Messages<ChangeDimensionRequest>>()
-        .map_or(0, Messages::len);
     output
 }
 
@@ -124,6 +137,7 @@ pub(crate) fn drain_dim_inbox(
             ToDim::Serverbound(packet) => {
                 serverbound.write(packet);
             }
+            ToDim::Transfer(transfer) => inbox.transfers.push(*transfer),
         }
     }
     serverbound.write_batch(inbox.serverbound.drain(..));

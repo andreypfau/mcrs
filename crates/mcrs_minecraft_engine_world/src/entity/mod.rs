@@ -56,7 +56,8 @@ impl SectionEntities {
     }
 }
 
-fn add_entity_to_chunk(
+/// Enters each entity that has no old transform yet in the entities of its section.
+pub fn add_entity_to_chunk(
     dim_chunks: Query<&SectionIndex>,
     mut chunks: Query<&mut SectionEntities>,
     entities: Query<

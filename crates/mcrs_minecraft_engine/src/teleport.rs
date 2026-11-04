@@ -12,7 +12,7 @@ pub const MAX_Y: f64 = 20_000_000.0;
 
 /// The server-side state of the teleports of a player: the ids it sent and the client did not
 /// confirm yet, and the transform the client last knew.
-#[derive(Component, Debug, Default)]
+#[derive(Component, Clone, Debug, Default)]
 pub struct TeleportState {
     /// Counts up as teleports are made.
     teleport_id_counter: u32,

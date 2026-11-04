@@ -2,6 +2,7 @@ use crate::bus::{OutboundPlayerAttached, OutboundPlayerPacket, PacketTarget};
 use crate::dim_cells::{DimCells, DimTicked};
 use crate::dim_inputs::DimInputs;
 use crate::disconnect::Departing;
+use crate::player_dimension_change;
 use bevy_app::App;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::Messages;
@@ -48,6 +49,9 @@ pub fn take_dim_outputs(world: &mut World) {
             && let Some(dimension) = world.get::<ResourceKeyBuf<DimensionKey>>(label)
         {
             sink.record(dimension.as_str(), output.traces);
+        }
+        for departure in output.departures {
+            player_dimension_change::route_departure(world, label, departure);
         }
     }
     world.insert_resource(taken);

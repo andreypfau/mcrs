@@ -4,7 +4,6 @@ use std::mem;
 use bevy_app::{App, Last, MainScheduleOrder, Plugin, SubApp};
 use bevy_ecs::change_detection::DetectChanges;
 use bevy_ecs::entity::Entity;
-use bevy_ecs::message::Messages;
 use bevy_ecs::resource::Resource;
 use bevy_ecs::schedule::ScheduleLabel;
 use bevy_ecs::world::{Mut, World};
@@ -13,7 +12,6 @@ use bevy_tasks::block_on;
 use mcrs_engine_cell::{CellId, Cells, Lent, Placement, Tick};
 use mcrs_minecraft_core::Versioned;
 use mcrs_minecraft_engine_registries::RegistrySnapshot;
-use mcrs_minecraft_engine_world::entity::player::ChangeDimensionRequest;
 use mcrs_minecraft_environment::world_clock::WorldClocks;
 
 use crate::clock::GameTime;
@@ -49,7 +47,6 @@ pub struct DimCells {
     labels: BTreeMap<CellId, Entity>,
     tick: Tick,
     outputs: Vec<DimTicked>,
-    dimension_changes: usize,
 }
 
 impl Default for DimCells {
@@ -59,7 +56,6 @@ impl Default for DimCells {
             labels: BTreeMap::new(),
             tick: Tick::default(),
             outputs: Vec::new(),
-            dimension_changes: 0,
         }
     }
 }
@@ -120,8 +116,8 @@ impl DimCells {
 
     /// The world of `label`, lent out of its cell until the next tick gives it back.
     ///
-    /// Transitional: a pass that reads or writes a dimension world between ticks borrows it this
-    /// way, until it becomes a message to the world.
+    /// Transitional: only the command pass and tests read or write a dimension world between
+    /// ticks this way, until commands become messages to the world.
     pub fn sub_app_mut(&mut self, label: Entity) -> Option<&mut SubApp> {
         let cell = self.cell_of(label)?;
         let worlds = self.worlds.get();
@@ -142,20 +138,6 @@ impl DimCells {
             .lent
             .values_mut()
             .map(|lent| lent.world_mut().sub_app_mut())
-    }
-
-    /// Whether a world asked for a dimension change that waits in it.
-    pub(crate) fn take_dimension_changes(&mut self) -> bool {
-        let asked = self.dimension_changes > 0;
-        self.dimension_changes = 0;
-        let lent_asks = self.worlds.get().lent.values().any(|lent| {
-            lent.world()
-                .sub_app()
-                .world()
-                .get_resource::<Messages<ChangeDimensionRequest>>()
-                .is_some_and(|requests| !requests.is_empty())
-        });
-        asked || lent_asks
     }
 
     pub(crate) fn take_outputs(&mut self, into: &mut Vec<DimTicked>) {
@@ -190,7 +172,6 @@ impl DimCells {
             let Some(&label) = self.labels.get(&ticked.cell) else {
                 continue;
             };
-            self.dimension_changes += ticked.output.dimension_changes;
             self.outputs.push(DimTicked {
                 label,
                 output: ticked.output,

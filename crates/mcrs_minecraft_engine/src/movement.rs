@@ -18,7 +18,6 @@ use mcrs_minecraft_protocol_game::serverbound::{
 };
 
 use crate::bus::{OutboundPlayerPacket, PacketPayload};
-use crate::player_dimension_change::CarryOnDimensionChangeExt;
 use crate::teleport::{MAX_XZ, MAX_Y, TeleportState};
 use mcrs_minecraft_engine_world::session::Owner;
 
@@ -32,7 +31,6 @@ impl Plugin for MovementPlugin {
         app.add_observer(handle_move_status_only);
         app.add_observer(handle_accept_teleportation);
         app.add_message::<PlayerMovement>();
-        app.carry_on_dimension_change::<TeleportState>();
         app.add_systems(FixedUpdate, process_movement.in_set(TickSet::ClientInput));
         app.add_systems(
             FixedPostUpdate,

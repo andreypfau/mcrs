@@ -1,6 +1,5 @@
 use crate::ability::{PlayerFlying, PlayerGameMode, PlayerOpLevel};
 use crate::bus::{OutboundPlayerPacket, PacketPayload, to};
-use crate::player_dimension_change::CarryOnDimensionChangeExt;
 use crate::player_list::{self, PlayerList};
 use crate::session::GameProfile;
 use bevy_app::{App, Plugin};
@@ -25,10 +24,7 @@ impl Plugin for GameModePlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<PlayerList>();
         app.add_observer(handle_change_game_mode)
-            .add_observer(handle_player_abilities)
-            .carry_on_dimension_change::<PlayerGameMode>()
-            .carry_on_dimension_change::<PlayerFlying>()
-            .carry_on_dimension_change::<ListedGameMode>();
+            .add_observer(handle_player_abilities);
     }
 }
 

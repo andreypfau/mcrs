@@ -4,7 +4,7 @@ use bevy_math::DVec3;
 use mcrs_minecraft_chat_server::ChatPlugin;
 use mcrs_minecraft_engine::ability::{PlayerFlying, PlayerGameMode};
 use mcrs_minecraft_engine::bus::{OutboundPlayerPacket, PacketPayload, PacketTarget, to};
-use mcrs_minecraft_engine::player_dimension_change;
+use mcrs_minecraft_engine::dim::take_dim_outputs;
 use mcrs_minecraft_engine::session::GameProfile;
 use mcrs_minecraft_engine_world::entity::physics::{Rotation, Transform};
 use mcrs_minecraft_engine_world::entity::player::ChangeDimensionRequest;
@@ -98,9 +98,15 @@ fn a_request_written_in_a_dimension_moves_the_player_with_the_packets_of_the_cha
             transform,
         });
 
-    let packets = server.ticks(anchor, 1);
-
+    let left = server.ticks(anchor, 1);
     assert!(player_in(&mut server, overworld, anchor).is_none());
+    assert!(
+        player_in(&mut server, end, anchor).is_none(),
+        "the player arrives on the next tick of the new dimension"
+    );
+    let mut packets = left;
+    packets.extend(server.ticks(anchor, 1));
+
     let (arrived, at) = player_in(&mut server, end, anchor).unwrap();
     assert_eq!(at, transform);
     assert_eq!(
@@ -177,7 +183,8 @@ fn packets_the_old_dimension_still_holds_leave_before_the_respawn_under_the_old_
             transform,
         });
 
-    player_dimension_change::apply_dimension_change_requests(&mut server.app);
+    server.app.update();
+    take_dim_outputs(server.app.world_mut());
 
     let sent: Vec<OutboundPlayerPacket> = server
         .app
@@ -251,19 +258,12 @@ fn a_change_the_player_cannot_complete_leaves_it_where_it_is() {
                 transform,
             });
 
-        player_dimension_change::apply_dimension_change_requests(&mut server.app);
-        let mut sent: Vec<PacketPayload> = server
-            .app
-            .world_mut()
-            .resource_mut::<Messages<OutboundPlayerPacket>>()
-            .drain()
-            .map(|packet| packet.data)
-            .collect();
-        sent.extend(server.ticks(anchor, 1));
+        let sent = server.ticks(anchor, 2);
 
         assert!(player_in(&mut server, end, anchor).is_none(), "{case}");
-        assert!(
-            player_in(&mut server, overworld, anchor).is_some(),
+        assert_eq!(
+            player_in(&mut server, overworld, anchor).map(|(_, at)| at),
+            Some(transform),
             "{case}"
         );
         assert!(
