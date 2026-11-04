@@ -3,6 +3,7 @@
 
 // std: mcrs_engine_link
 
+mod box_partition;
 mod cell_id;
 mod cell_output;
 mod cell_stage;
@@ -14,6 +15,7 @@ mod sub_app_world;
 mod tick;
 mod tick_error;
 
+pub use box_partition::{BoxPartition, CellIndex, ChunkKey, Leaf, LeafSize};
 pub use cell_id::CellId;
 pub use cell_output::CellOutput;
 pub use cell_world::CellWorld;
