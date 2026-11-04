@@ -35,7 +35,7 @@ use mcrs_minecraft_engine_world::world::sub_app::DimAppLabel;
 use mcrs_minecraft_heightmap::{MotionHeightmap, SurfaceHeightmap};
 use mcrs_minecraft_server::MinecraftServerPlugins;
 use mcrs_minecraft_simulation::BlockUpdateFlags;
-use mcrs_minecraft_vanilla_light::LightActor;
+use mcrs_minecraft_vanilla_light::LightLink;
 use mcrs_minecraft_vanilla_worldgen::generation_is_idle;
 use mcrs_minecraft_worldgen_generator::stages::FillContext;
 use mcrs_voxel::{BlockPos, BlockStateId, SectionPos};
@@ -74,10 +74,10 @@ fn dimension_world(app: &mut App, label: Entity) -> &mut World {
 
 fn steps_ended(world: &mut World) -> bool {
     let light_idle = world
-        .get_resource_mut::<LightActor>()
-        .is_none_or(|mut actor| {
-            actor.take_in_replies();
-            actor.is_idle()
+        .get_resource_mut::<LightLink>()
+        .is_none_or(|mut light| {
+            light.take_in();
+            light.is_idle()
         });
     generation_is_idle(world) && light_idle
 }

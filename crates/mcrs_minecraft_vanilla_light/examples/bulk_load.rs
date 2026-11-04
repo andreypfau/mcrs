@@ -13,9 +13,10 @@ use std::time::{Duration, Instant};
 
 use bevy_app::{App, Last, TaskPoolPlugin};
 use bevy_ecs::schedule::ScheduleLabel;
+use mcrs_engine_link::Placement;
 use mcrs_minecraft_chunk::{PalettedContainer, VoxelId, VoxelPalette};
 use mcrs_minecraft_light_engine::prelude::*;
-use mcrs_minecraft_vanilla_light::{IntakeBudget, LightActor, LightBudget, LightPlugin};
+use mcrs_minecraft_vanilla_light::{IntakeBudget, LightBudget, LightLink, LightPlugin};
 use mcrs_voxel::{BlockStateId, ColumnPos, SectionPos};
 
 fn filled(block: VoxelId) -> SectionBlocks {
@@ -94,12 +95,13 @@ fn main() {
                 bounds,
                 sky: true,
                 publish: Last.intern(),
+                placement: Placement::Thread,
             });
         let limit = app.world().resource::<IntakeBudget>().columns_per_round;
         {
-            let mut actor = app.world_mut().resource_mut::<LightActor>();
+            let mut light = app.world_mut().resource_mut::<LightLink>();
             for edit in edits {
-                actor.push(edit);
+                light.push(edit);
             }
         }
         let mut tick = 0usize;
@@ -119,13 +121,13 @@ fn main() {
                 worst = took;
                 worst_at = tick;
             }
-            if app.world().resource::<LightActor>().is_idle() {
+            if app.world().resource::<LightLink>().is_idle() {
                 break;
             }
             std::thread::sleep(Duration::from_millis(1));
         }
         println!(
-            "app.update() with the light actor at {limit} columns per round: settled after \
+            "app.update() with the light stage at {limit} columns per round: settled after \
              {tick} updates, {:?} wall, first update {first:?}, worst update {worst:?} \
              (update {worst_at})",
             started.elapsed()

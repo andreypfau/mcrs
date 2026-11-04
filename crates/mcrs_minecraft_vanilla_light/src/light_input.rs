@@ -11,8 +11,8 @@ pub(crate) struct QueuedEdit {
     pub(crate) priority: Priority,
 }
 
-/// What a dimension tells its light actor.
-pub(crate) enum ToLight {
+/// What a dimension tells its light stage.
+pub(crate) enum LightInput {
     Edits(Vec<QueuedEdit>),
     /// The columns the players stand in, to re-score the waiting work against.
     Players(Vec<ColumnPos>),

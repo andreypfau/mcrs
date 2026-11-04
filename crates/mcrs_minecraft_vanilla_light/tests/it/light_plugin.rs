@@ -1,17 +1,19 @@
 use std::sync::Arc;
+use std::time::{Duration, Instant};
 
 use crate::fixture::{AIR, TORCH, filled, registry, state};
 use bevy_app::{App, Last, TaskPoolPlugin};
 use bevy_ecs::schedule::ScheduleLabel;
+use mcrs_engine_link::Placement;
 use mcrs_minecraft_chunk::{BlockLight, SkyLight};
 use mcrs_minecraft_light_engine::prelude::*;
-use mcrs_minecraft_vanilla_light::{LightActor, LightPlugin, LightSet};
-use mcrs_voxel::SectionPos;
+use mcrs_minecraft_vanilla_light::{LightLink, LightPlugin, LightSet};
+use mcrs_voxel::{BlockPos, SectionPos};
 
 fn settle(app: &mut App) {
     for _ in 0..1000 {
         app.update();
-        if app.world().resource::<LightActor>().is_idle() {
+        if app.world().resource::<LightLink>().is_idle() {
             return;
         }
         std::thread::sleep(std::time::Duration::from_millis(1));
@@ -28,13 +30,14 @@ fn a_torch_lights_its_neighbour_through_the_plugin() {
             bounds: LightBounds::new(0, 1),
             sky: true,
             publish: Last.intern(),
+            placement: Placement::Thread,
         });
 
     let sections: Vec<SectionPos> = (0..2).map(|y| SectionPos::new(0, y, 0)).collect();
     for pos in &sections {
         let entity = app.world_mut().spawn(*pos).id();
         app.world_mut()
-            .resource_mut::<LightActor>()
+            .resource_mut::<LightLink>()
             .push(Edit::LoadSection {
                 entity: entity.to_bits(),
                 pos: *pos,
@@ -44,9 +47,9 @@ fn a_torch_lights_its_neighbour_through_the_plugin() {
     settle(&mut app);
 
     app.world_mut()
-        .resource_mut::<LightActor>()
+        .resource_mut::<LightLink>()
         .push(Edit::SetBlock {
-            pos: mcrs_voxel::BlockPos::new(8, 8, 8),
+            pos: BlockPos::new(8, 8, 8),
             block: state(TORCH),
         });
     settle(&mut app);
@@ -73,11 +76,11 @@ fn a_section_respawned_the_tick_its_predecessor_died_is_still_published() {
     use bevy_ecs::prelude::*;
 
     fn load_added_sections(
-        mut actor: ResMut<LightActor>,
+        mut light: ResMut<LightLink>,
         added: Query<(Entity, &SectionPos), Added<SectionPos>>,
     ) {
         for (entity, pos) in &added {
-            actor.push(Edit::LoadSection {
+            light.push(Edit::LoadSection {
                 entity: entity.to_bits(),
                 pos: *pos,
                 blocks: Arc::new(filled(AIR)),
@@ -92,6 +95,7 @@ fn a_section_respawned_the_tick_its_predecessor_died_is_still_published() {
             bounds: LightBounds::new(0, 0),
             sky: true,
             publish: Last.intern(),
+            placement: Placement::Thread,
         })
         .add_systems(Last, load_added_sections.before(LightSet::Intake));
 
@@ -108,4 +112,80 @@ fn a_section_respawned_the_tick_its_predecessor_died_is_still_published() {
         app.world().get::<SkyLight>(new).is_some(),
         "the respawned section was published"
     );
+}
+
+type Snapshot = Vec<(SectionPos, Option<BlockLight>, Option<SkyLight>)>;
+
+/// The light of every section after each tick, where each tick waits for the stage to answer
+/// what the tick handed it before the next one starts.
+fn light_by_tick(placement: Placement) -> Vec<Snapshot> {
+    let mut app = App::new();
+    app.add_plugins(TaskPoolPlugin::default())
+        .add_plugins(LightPlugin {
+            registry: registry(),
+            bounds: LightBounds::new(0, 1),
+            sky: true,
+            publish: Last.intern(),
+            placement,
+        });
+    for x in 0..2 {
+        for y in 0..2 {
+            let pos = SectionPos::new(x, y, 0);
+            let entity = app.world_mut().spawn(pos).id();
+            app.world_mut()
+                .resource_mut::<LightLink>()
+                .push(Edit::LoadSection {
+                    entity: entity.to_bits(),
+                    pos,
+                    blocks: Arc::new(filled(AIR)),
+                });
+        }
+    }
+
+    let mut snapshots = Vec::new();
+    for tick in 0..4 {
+        if tick == 1 {
+            for pos in [BlockPos::new(15, 15, 8), BlockPos::new(3, 20, 3)] {
+                app.world_mut()
+                    .resource_mut::<LightLink>()
+                    .push(Edit::SetBlock {
+                        pos,
+                        block: state(TORCH),
+                    });
+            }
+        }
+        app.update();
+        let deadline = Instant::now() + Duration::from_secs(5);
+        loop {
+            let mut light = app.world_mut().resource_mut::<LightLink>();
+            light.take_in();
+            if light.is_idle() {
+                break;
+            }
+            assert!(Instant::now() < deadline, "the stage never answered");
+            std::thread::sleep(Duration::from_millis(1));
+        }
+        let mut sections = app
+            .world_mut()
+            .query::<(&SectionPos, Option<&BlockLight>, Option<&SkyLight>)>();
+        let mut snapshot: Snapshot = sections
+            .iter(app.world())
+            .map(|(pos, block, sky)| (*pos, block.cloned(), sky.cloned()))
+            .collect();
+        snapshot.sort_by_key(|(pos, ..)| (pos.x, pos.y, pos.z));
+        snapshots.push(snapshot);
+    }
+    snapshots
+}
+
+#[test]
+fn inline_and_thread_placements_publish_the_same_light_at_the_same_ticks() {
+    let inline = light_by_tick(Placement::Inline);
+    assert!(
+        inline
+            .last()
+            .is_some_and(|last| last.iter().all(|(_, block, _)| block.is_some())),
+        "every section is lit by the end"
+    );
+    assert_eq!(inline, light_by_tick(Placement::Thread));
 }

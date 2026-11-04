@@ -91,7 +91,7 @@ impl Pump {
     }
 
     fn tick(&mut self, edits: Vec<Edit>) {
-        // Publish first, exactly like the light actor retires an epoch before it dispatches more.
+        // Publish first, exactly like the light stage retires an epoch before it dispatches more.
         for (_, update) in std::mem::take(&mut self.in_flight) {
             self.world.apply(update);
         }

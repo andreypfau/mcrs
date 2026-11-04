@@ -3,6 +3,7 @@ use std::sync::Arc;
 use bevy_app::{App, Last, Plugin};
 use bevy_ecs::prelude::*;
 use bevy_ecs::schedule::InternedScheduleLabel;
+use mcrs_engine_link::{Link, Placement};
 use rustc_hash::FxHashMap;
 
 use mcrs_minecraft_chunk::{BlockLight, SkyLight};
@@ -13,27 +14,26 @@ use mcrs_minecraft_light_engine::level::LightBounds;
 use mcrs_minecraft_light_engine::world::LightWorld;
 use mcrs_voxel::ColumnPos;
 
-use crate::from_light::FromLight;
 use crate::intake_budget::IntakeBudget;
-use crate::light_actor::LightActor;
 use crate::light_budget::LightBudget;
-use crate::light_state::LightState;
-use crate::light_thread::LightThread;
-use crate::to_light::ToLight;
+use crate::light_input::LightInput;
+use crate::light_link::LightLink;
+use crate::light_output::LightOutput;
+use crate::light_stage::LightStage;
 
 /// The tick-loop steps.
 #[derive(SystemSet, Hash, Eq, PartialEq, Debug, Clone)]
 pub enum LightSet {
-    /// What the light actor published is written into [`BlockLight`] and [`SkyLight`], in the
+    /// What the light stage published is written into [`BlockLight`] and [`SkyLight`], in the
     /// schedule [`LightPlugin::publish`] names.
     Publish,
-    /// The edits pushed to the [`LightActor`] and any change to the budgets go to the actor, in
+    /// The edits pushed to the [`LightLink`] and any change to the budgets go to the stage, in
     /// `Last`.
     Intake,
 }
 
-/// Light computed by a light actor, a thread of its own per world. The actor stops when the
-/// world drops its [`LightActor`].
+/// Light computed by a light stage, one per world, at the far end of a [`LightLink`]. The stage
+/// stops when the world drops its [`LightLink`].
 pub struct LightPlugin {
     pub registry: Arc<LightRegistry>,
     pub bounds: LightBounds,
@@ -42,24 +42,23 @@ pub struct LightPlugin {
     /// The schedule the light lands in. A world whose simulation reads the light names the
     /// start of its tick, so the light changes only at a tick boundary.
     pub publish: InternedScheduleLabel,
+    /// Where the stage runs. [`Placement::Inline`] lights everything handed to the stage in
+    /// [`LightSet::Publish`], on the thread of the world.
+    pub placement: Placement,
 }
 
 impl Plugin for LightPlugin {
     fn build(&self, app: &mut App) {
         let world = LightWorld::new(Arc::clone(&self.registry), self.bounds);
         let world = if self.sky { world } else { world.without_sky() };
-        app.insert_resource(LightThread::spawn(LightState::new(world)))
+        let link = Link::new(LightStage::new(world), self.placement);
+        app.insert_resource(LightLink::new(link))
             .init_resource::<LightBudget>()
             .init_resource::<IntakeBudget>()
             .add_message::<SectionRelit>()
             .add_message::<ColumnLightSettled>()
             .configure_sets(Last, LightSet::Publish.before(LightSet::Intake))
-            .add_systems(
-                self.publish,
-                publish_light
-                    .run_if(light_replied)
-                    .in_set(LightSet::Publish),
-            )
+            .add_systems(self.publish, publish_light.in_set(LightSet::Publish))
             .add_systems(
                 Last,
                 (send_budgets, send_edits).chain().in_set(LightSet::Intake),
@@ -67,23 +66,18 @@ impl Plugin for LightPlugin {
     }
 }
 
-/// Whether the light actor has replies that [`publish_light`] has not taken yet.
-pub fn light_replied(actor: Res<LightActor>) -> bool {
-    actor.has_replies()
-}
-
-/// Writes what the light actor published since the last run into the sections, and answers
+/// Writes what the light stage published since the last run into the sections, and answers
 /// the columns whose light settled.
 ///
-/// The actor's replies are cut into batches by its thread timing, so they are folded into one
-/// latest answer per section and written in section order: what lands, and the messages it
-/// raises, do not depend on how the replies were cut.
+/// The outputs of the stage are cut into batches by its thread timing, so they are folded into
+/// one latest answer per section and written in section order: what lands, and the messages it
+/// raises, do not depend on how the outputs were cut.
 #[expect(
     clippy::too_many_arguments,
     reason = "a Bevy system: each resource and query is its own parameter so the scheduler sees the access"
 )]
 pub fn publish_light(
-    mut actor: ResMut<LightActor>,
+    mut light: ResMut<LightLink>,
     mut commands: Commands,
     mut lit: Query<(&mut BlockLight, &mut SkyLight)>,
     mut relit: MessageWriter<SectionRelit>,
@@ -92,15 +86,14 @@ pub fn publish_light(
     mut sections: Local<Vec<PublishedLight>>,
     mut columns: Local<Vec<ColumnPos>>,
 ) {
-    while let Some(reply) = actor.receive() {
-        match reply {
-            FromLight::Relit(published) => {
-                for light in published {
-                    fold_light(&mut latest, light);
+    for output in light.outputs() {
+        match output {
+            LightOutput::Relit(published) => {
+                for published in published {
+                    fold_light(&mut latest, published);
                 }
             }
-            FromLight::Settled(answered) => columns.extend(answered),
-            FromLight::Idle { .. } => {}
+            LightOutput::Settled(answered) => columns.extend(answered),
         }
     }
     sections.extend(latest.drain().map(|(_, light)| light));
@@ -174,15 +167,15 @@ fn write_light(
     }
 }
 
-fn send_budgets(light: Res<LightBudget>, intake: Res<IntakeBudget>, mut actor: ResMut<LightActor>) {
-    if light.is_changed() {
-        actor.send(ToLight::LightBudget(*light));
+fn send_budgets(budget: Res<LightBudget>, intake: Res<IntakeBudget>, mut light: ResMut<LightLink>) {
+    if budget.is_changed() {
+        light.send(LightInput::LightBudget(*budget));
     }
     if intake.is_changed() {
-        actor.send(ToLight::IntakeBudget(*intake));
+        light.send(LightInput::IntakeBudget(*intake));
     }
 }
 
-fn send_edits(mut actor: ResMut<LightActor>) {
-    actor.send_edits();
+fn send_edits(mut light: ResMut<LightLink>) {
+    light.send_edits();
 }

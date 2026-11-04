@@ -22,7 +22,7 @@ use mcrs_minecraft_protocol_game::clientbound::ClientboundLightUpdate;
 use mcrs_minecraft_protocol_game::light_codec::{RowLight, unpack_light_data};
 use mcrs_minecraft_simulation::BlockUpdateFlags;
 use mcrs_minecraft_vanilla_light::emit_light_updates;
-use mcrs_minecraft_vanilla_light::{LightActor, LightBudget};
+use mcrs_minecraft_vanilla_light::{LightBudget, LightLink};
 use mcrs_voxel::{BlockPos, BlockStateId, ColumnPos, SectionPos};
 
 use crate::host_app;
@@ -94,7 +94,7 @@ fn settle(app: &mut App, label: DimAppLabel) {
             .get(&label.intern())
             .expect("the dimension sub-app exists")
             .world();
-        if world.resource::<LightActor>().is_idle() {
+        if world.resource::<LightLink>().is_idle() {
             return;
         }
         std::thread::sleep(std::time::Duration::from_millis(2));
@@ -416,7 +416,7 @@ fn the_column_under_the_player_is_lit_before_the_far_ones() {
             .get_mut(&label.intern())
             .expect("the dimension sub-app exists")
             .world_mut();
-        if !world.resource::<LightActor>().is_idle() {
+        if !world.resource::<LightLink>().is_idle() {
             std::thread::sleep(std::time::Duration::from_millis(2));
         }
         let newly: Vec<ColumnPos> = world

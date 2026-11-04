@@ -1,10 +1,10 @@
 use rustc_hash::FxHashSet;
 
-use bevy_tasks::TaskPool;
-use flume::Sender;
+use bevy_tasks::{AsyncComputeTaskPool, TaskPool};
+use mcrs_engine_link::{Stage, Step, TaskOutcome};
 use mcrs_minecraft_core::BoundingBox;
 use mcrs_minecraft_engine_world::aoi::min_column_distance;
-use mcrs_minecraft_light_engine::epoch::PublishedLight;
+use mcrs_minecraft_light_engine::epoch::{LightUpdate, PublishedLight};
 use mcrs_minecraft_light_engine::level::SECTION_WIDTH;
 use mcrs_minecraft_light_engine::queue::{LightQueue, Priority};
 use mcrs_minecraft_light_engine::world::LightWorld;
@@ -13,13 +13,16 @@ use mcrs_voxel::{BlockPos, ColumnPos};
 use crate::intake_budget::IntakeBudget;
 use crate::light_budget::LightBudget;
 use crate::light_epoch::LightEpoch;
-use crate::light_inbox::{FinishedEpoch, LightInbox};
+use crate::light_input::LightInput;
+use crate::light_output::LightOutput;
 use crate::pending_edits::PendingEdits;
-use crate::to_light::ToLight;
 
-/// Everything a light actor owns: the block and light data, the work on its way through the
+/// The light of one dimension: the block and light data, the work on its way through the
 /// world and the columns that wait for their light to settle.
-pub(crate) struct LightState {
+///
+/// Each step takes in the most urgent edits, hands the next epochs to the async compute pool,
+/// and emits the light of the epochs that ended and the columns that settled.
+pub(crate) struct LightStage {
     world: LightWorld,
     pending: PendingEdits,
     queue: LightQueue,
@@ -29,9 +32,69 @@ pub(crate) struct LightState {
     awaiting: FxHashSet<ColumnPos>,
     /// Whether something happened since the last check that can settle an awaited column.
     settle_due: bool,
+    /// Light published into the world and not emitted yet.
+    relit: Vec<PublishedLight>,
 }
 
-impl LightState {
+impl Stage for LightStage {
+    const NAME: &'static str = "light";
+
+    type Input = LightInput;
+    type Output = LightOutput;
+    type TaskOutput = LightUpdate;
+
+    fn receive(&mut self, input: LightInput) {
+        match input {
+            LightInput::Edits(edits) => {
+                for queued in edits {
+                    self.pending
+                        .push_with_priority(queued.edit, queued.priority);
+                }
+            }
+            LightInput::Players(players) => self.reprioritize(&players),
+            LightInput::AwaitColumns(columns) => {
+                self.awaiting.extend(columns);
+                self.settle_due = true;
+            }
+            LightInput::LightBudget(budget) => self.budget = budget,
+            LightInput::IntakeBudget(intake) => self.intake = intake,
+        }
+    }
+
+    fn finish(&mut self, outcome: TaskOutcome<LightUpdate>) {
+        let published = self.retire(outcome);
+        self.relit.extend(published);
+    }
+
+    fn step(&mut self, step: &mut Step<'_, Self>) {
+        self.intake();
+        // Without a task pool there is no worker to hand a batch to, so the queue keeps it
+        // and the light lags until one exists.
+        if let Some(pool) = AsyncComputeTaskPool::try_get() {
+            self.dispatch(pool, step);
+        }
+        if !self.relit.is_empty() {
+            step.emit(LightOutput::Relit(std::mem::take(&mut self.relit)));
+        }
+        // After the light it waited on, so the dimension has that light before it sends the
+        // column.
+        let settled = self.take_settled();
+        if !settled.is_empty() {
+            step.emit(LightOutput::Settled(settled));
+        }
+    }
+
+    /// Edits held back by the intake budget are work in themselves.
+    fn has_work(&self) -> bool {
+        !self.pending.is_empty()
+    }
+
+    fn is_idle(&self) -> bool {
+        self.pending.is_empty() && self.queue.is_empty() && !self.epoch.is_running()
+    }
+}
+
+impl LightStage {
     pub(crate) fn new(world: LightWorld) -> Self {
         Self {
             world,
@@ -42,24 +105,7 @@ impl LightState {
             intake: IntakeBudget::default(),
             awaiting: FxHashSet::default(),
             settle_due: false,
-        }
-    }
-
-    pub(crate) fn receive(&mut self, message: ToLight) {
-        match message {
-            ToLight::Edits(edits) => {
-                for queued in edits {
-                    self.pending
-                        .push_with_priority(queued.edit, queued.priority);
-                }
-            }
-            ToLight::Players(players) => self.reprioritize(&players),
-            ToLight::AwaitColumns(columns) => {
-                self.awaiting.extend(columns);
-                self.settle_due = true;
-            }
-            ToLight::LightBudget(budget) => self.budget = budget,
-            ToLight::IntakeBudget(intake) => self.intake = intake,
+            relit: Vec::new(),
         }
     }
 
@@ -79,28 +125,23 @@ impl LightState {
     }
 
     /// Publishes a finished epoch into the world and hands back what changed.
-    pub(crate) fn retire(&mut self, finished: FinishedEpoch) -> Vec<PublishedLight> {
-        if !self.epoch.retire(finished.id) {
+    fn retire(&mut self, outcome: TaskOutcome<LightUpdate>) -> Vec<PublishedLight> {
+        if !self.epoch.retire(outcome.id()) {
             return Vec::new();
         }
         self.settle_due = true;
-        match finished.update {
-            Some(update) => self.world.apply(update),
-            None => {
+        match outcome {
+            TaskOutcome::Finished { output, .. } => self.world.apply(output),
+            TaskOutcome::Dropped { .. } => {
                 tracing::error!("a light epoch ended without its update");
                 Vec::new()
             }
         }
     }
 
-    /// Whether edits wait that the next [`Self::intake`] takes in.
-    pub(crate) fn has_intake(&self) -> bool {
-        !self.pending.is_empty()
-    }
-
     /// Applies the most urgent edits to the world, up to the budget, and queues their
     /// lighting work.
-    pub(crate) fn intake(&mut self) {
+    fn intake(&mut self) {
         if self.pending.is_empty() {
             return;
         }
@@ -115,7 +156,7 @@ impl LightState {
     }
 
     /// Hands the most urgent queued work, up to the budget, to `pool`.
-    pub(crate) fn dispatch(&mut self, pool: &TaskPool, inbox: &Sender<LightInbox>) {
+    fn dispatch(&mut self, pool: &TaskPool, step: &mut Step<'_, Self>) {
         if self.queue.is_empty() {
             return;
         }
@@ -136,12 +177,12 @@ impl LightState {
             let Some(job) = self.world.prepare_batch(batch) else {
                 continue;
             };
-            self.epoch.spawn(pool, inbox.clone(), job);
+            self.epoch.spawn(pool, step.begin_task(), job);
         }
     }
 
     /// Takes the awaited columns whose light has settled, neighbours included.
-    pub(crate) fn take_settled(&mut self) -> Vec<ColumnPos> {
+    fn take_settled(&mut self) -> Vec<ColumnPos> {
         if !std::mem::take(&mut self.settle_due) || self.awaiting.is_empty() {
             return Vec::new();
         }
@@ -162,11 +203,6 @@ impl LightState {
         });
         settled
     }
-
-    /// Whether the actor owes no light for anything it was handed.
-    pub(crate) fn is_idle(&self) -> bool {
-        self.pending.is_empty() && self.queue.is_empty() && !self.epoch.is_running()
-    }
 }
 
 /// How urgent the light of `column` is: the same distance to the nearest player that the
@@ -176,7 +212,7 @@ pub(crate) fn player_priority(column: ColumnPos, players: &[ColumnPos]) -> Prior
     min_column_distance(&column, players).clamp(0, Priority::MAX as i32) as Priority
 }
 
-/// What the actor still owes, asked of the column a player waits on.
+/// What the stage still owes, asked of the column a player waits on.
 struct Owed<'a> {
     world: &'a LightWorld,
     pending: &'a PendingEdits,
@@ -240,7 +276,7 @@ mod tests {
     use mcrs_minecraft_light_engine::world::Edit;
     use mcrs_voxel::{BlockStateId, SectionPos};
 
-    use crate::to_light::QueuedEdit;
+    use crate::light_input::QueuedEdit;
 
     const AIR: VoxelId = VoxelId(0);
     const TORCH: VoxelId = VoxelId(2);
@@ -249,7 +285,7 @@ mod tests {
         BlockStateId::checked(block.0, 3).expect("a block of the test table")
     }
 
-    fn light_state() -> LightState {
+    fn light_stage() -> LightStage {
         let registry = Arc::new(LightRegistry::new(
             vec![
                 LightProperties::AIR,
@@ -261,7 +297,7 @@ mod tests {
                 outside: AIR,
             },
         ));
-        LightState::new(LightWorld::new(registry, LightBounds::new(0, 1)))
+        LightStage::new(LightWorld::new(registry, LightBounds::new(0, 1)))
     }
 
     fn load(column: ColumnPos, priority: Priority) -> Vec<QueuedEdit> {
@@ -277,77 +313,77 @@ mod tests {
             .collect()
     }
 
-    fn load_columns(state: &mut LightState, columns: i32) {
+    fn load_columns(stage: &mut LightStage, columns: i32) {
         let edits = (0..columns)
             .flat_map(|x| load(ColumnPos::new(x, 0), DEFAULT_PRIORITY))
             .collect();
-        state.receive(ToLight::Edits(edits));
+        stage.receive(LightInput::Edits(edits));
     }
 
-    fn loaded(state: &LightState) -> usize {
-        state.world.loaded_sections().count()
+    fn loaded(stage: &LightStage) -> usize {
+        stage.world.loaded_sections().count()
     }
 
     #[test]
     fn intake_is_bounded_per_round_and_loses_nothing() {
-        let mut state = light_state();
-        let limit = state.intake.columns_per_round;
+        let mut stage = light_stage();
+        let limit = stage.intake.columns_per_round;
         let columns = limit as i32 * 4 + 7;
-        load_columns(&mut state, columns);
+        load_columns(&mut stage, columns);
 
-        state.intake();
-        assert_eq!(loaded(&state), limit * 2);
-        assert!(state.has_intake());
+        stage.intake();
+        assert_eq!(loaded(&stage), limit * 2);
+        assert!(stage.has_work());
 
         let mut rounds = 1;
-        while state.has_intake() {
-            state.intake();
+        while stage.has_work() {
+            stage.intake();
             rounds += 1;
             assert!(rounds < 100, "intake never drained");
         }
         assert_eq!(rounds, (columns as usize).div_ceil(limit));
-        assert_eq!(loaded(&state), columns as usize * 2);
+        assert_eq!(loaded(&stage), columns as usize * 2);
     }
 
     #[test]
     fn a_block_change_is_not_deferred_behind_a_bulk_load() {
-        let mut state = light_state();
-        let limit = state.intake.columns_per_round;
+        let mut stage = light_stage();
+        let limit = stage.intake.columns_per_round;
         let pos = BlockPos::new(8, 8, 8);
-        load_columns(&mut state, 1);
-        state.intake();
+        load_columns(&mut stage, 1);
+        stage.intake();
 
-        load_columns(&mut state, limit as i32 * 3);
-        state.receive(ToLight::Edits(vec![QueuedEdit {
+        load_columns(&mut stage, limit as i32 * 3);
+        stage.receive(LightInput::Edits(vec![QueuedEdit {
             edit: Edit::SetBlock {
                 pos,
                 block: state_of(TORCH),
             },
             priority: DEFAULT_PRIORITY,
         }]));
-        state.intake();
+        stage.intake();
 
-        assert!(state.has_intake());
-        assert_eq!(state.world.block_at(pos), TORCH);
+        assert!(stage.has_work());
+        assert_eq!(stage.world.block_at(pos), TORCH);
     }
 
     #[test]
     fn the_most_urgent_column_is_admitted_before_the_backlog() {
-        let mut state = light_state();
-        let limit = state.intake.columns_per_round;
-        load_columns(&mut state, limit as i32 * 2);
+        let mut stage = light_stage();
+        let limit = stage.intake.columns_per_round;
+        load_columns(&mut stage, limit as i32 * 2);
 
         let urgent = ColumnPos::new(-1, 0);
-        state.receive(ToLight::Edits(load(urgent, 0)));
-        state.intake();
+        stage.receive(LightInput::Edits(load(urgent, 0)));
+        stage.intake();
 
         assert!(
-            state
+            stage
                 .world
                 .section(SectionPos::new(urgent.x, 0, urgent.z))
                 .is_some()
         );
-        assert!(state.has_intake());
+        assert!(stage.has_work());
     }
 
     /// A seam is lit against whatever stands beside it, so a column is only
@@ -355,20 +391,23 @@ mod tests {
     #[test]
     fn a_column_is_not_settled_while_a_neighbour_still_has_lighting_work() {
         let column = ColumnPos::new(0, 0);
-        let mut state = light_state();
-        state.receive(ToLight::AwaitColumns(vec![column]));
+        let mut stage = light_stage();
+        stage.receive(LightInput::AwaitColumns(vec![column]));
         assert_eq!(
-            state.take_settled(),
+            stage.take_settled(),
             [column],
             "nothing is owed to the column or its ring"
         );
 
-        let mut state = light_state();
-        state.receive(ToLight::Edits(load(ColumnPos::new(1, 0), DEFAULT_PRIORITY)));
-        state.intake();
-        state.receive(ToLight::AwaitColumns(vec![column]));
+        let mut stage = light_stage();
+        stage.receive(LightInput::Edits(load(
+            ColumnPos::new(1, 0),
+            DEFAULT_PRIORITY,
+        )));
+        stage.intake();
+        stage.receive(LightInput::AwaitColumns(vec![column]));
         assert!(
-            state.take_settled().is_empty(),
+            stage.take_settled().is_empty(),
             "the neighbour's work will repair this column's seam"
         );
     }

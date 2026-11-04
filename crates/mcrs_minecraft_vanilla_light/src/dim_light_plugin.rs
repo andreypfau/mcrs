@@ -5,6 +5,7 @@ use std::sync::Arc;
 use bevy_app::{App, FixedUpdate, Last, Plugin};
 use bevy_ecs::prelude::*;
 use bevy_ecs::schedule::ScheduleLabel;
+use mcrs_engine_link::Placement;
 use mcrs_minecraft_engine::light_codec::{LightCodecParams, build_delta_light_data};
 use mcrs_minecraft_engine_world::aoi::PlayerObservers;
 use mcrs_minecraft_engine_world::block_update::BlockPlaced;
@@ -23,10 +24,10 @@ use mcrs_minecraft_light_engine::block::LightRegistry;
 use mcrs_minecraft_light_engine::prelude::{Edit, LightBounds};
 use mcrs_voxel::{ColumnPos, SectionPos};
 
-use crate::light_actor::LightActor;
+use crate::light_input::LightInput;
+use crate::light_link::LightLink;
 use crate::light_plugin::{LightPlugin, LightSet};
-use crate::light_state::player_priority;
-use crate::to_light::ToLight;
+use crate::light_stage::player_priority;
 
 use mcrs_minecraft_heightmap::SurfaceHeightmap;
 use rustc_hash::FxHashMap;
@@ -36,8 +37,8 @@ use mcrs_minecraft_engine::bus::{
     OutboundPlayerPacket, PacketPayload, PacketPriority, PacketTarget,
 };
 
-/// A dimension's side of the light engine: what it hands the light actor before intake, and
-/// what it sends once the actor's light has been published.
+/// A dimension's side of the light engine: what it hands the light stage before intake, and
+/// what it sends once the stage's light has been published.
 #[derive(SystemSet, Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub(crate) enum DimLightSet {
     Feed,
@@ -57,10 +58,11 @@ impl Plugin for DimLightPlugin {
             bounds: self.bounds,
             sky: self.sky,
             publish: FixedUpdate.intern(),
+            placement: Placement::Thread,
         })
         .configure_sets(FixedUpdate, LightSet::Publish.in_set(TickSet::DomainInput))
         .configure_sets(Last, DimLightSet::Feed.before(LightSet::Intake))
-        // `Last` sees what the whole tick landed and placed, and hands it to the actor before
+        // `Last` sees what the whole tick landed and placed, and hands it to the stage before
         // the tick ends.
         .add_systems(
             Last,
@@ -84,22 +86,22 @@ impl Plugin for DimLightPlugin {
     }
 }
 
-/// Hands the light actor each column that waits for its light. The actor answers once the
+/// Hands the light stage each column that waits for its light. The stage answers once the
 /// light around the column has settled, and [`publish_light`] passes the answer on.
-fn await_light(mut awaiting: MessageReader<ColumnAwaitsLight>, mut actor: ResMut<LightActor>) {
+fn await_light(mut awaiting: MessageReader<ColumnAwaitsLight>, mut light: ResMut<LightLink>) {
     let columns: Vec<ColumnPos> = awaiting
         .read()
         .map(|&ColumnAwaitsLight(column)| column)
         .collect();
     if !columns.is_empty() {
-        actor.send(ToLight::AwaitColumns(columns));
+        light.send(LightInput::AwaitColumns(columns));
     }
 }
 
-/// Hands the light actor where the players stand once one of them has moved to another
+/// Hands the light stage where the players stand once one of them has moved to another
 /// column, so the waiting light work is re-scored against them.
 fn reprioritize_light_work(
-    mut actor: ResMut<LightActor>,
+    mut light: ResMut<LightLink>,
     players: Query<&Transform, With<Player>>,
     mut scored_for: Local<Vec<ColumnPos>>,
     mut player_columns: Local<Vec<ColumnPos>>,
@@ -110,11 +112,11 @@ fn reprioritize_light_work(
         return;
     }
     scored_for.clone_from(&*player_columns);
-    actor.send(ToLight::Players(player_columns.clone()));
+    light.send(LightInput::Players(player_columns.clone()));
 }
 
 fn feed_light_edits(
-    mut actor: ResMut<LightActor>,
+    mut light: ResMut<LightLink>,
     mut stages: MessageReader<SectionStageChanged>,
     blocks: Query<&ChunkBlocks>,
     players: Query<&Transform, With<Player>>,
@@ -125,7 +127,7 @@ fn feed_light_edits(
     player_columns.extend(players.iter().map(|at| ColumnPos::from(at.translation)));
     let mut queue = |edit: Edit| {
         let priority = player_priority(edit.column(), &player_columns);
-        actor.push_with_priority(edit, priority);
+        light.push_with_priority(edit, priority);
     };
 
     for change in stages.read() {
@@ -152,7 +154,7 @@ fn feed_light_edits(
 /// Hands the sky scan each column's surface, so a section holding no block of a
 /// column costs it two seam tests rather than sixteen reads.
 fn feed_column_surfaces(
-    mut actor: ResMut<LightActor>,
+    mut light: ResMut<LightLink>,
     columns: Query<(&ColumnPosComponent, &SurfaceHeightmap), Changed<SurfaceHeightmap>>,
     players: Query<&Transform, With<Player>>,
     mut player_columns: Local<Vec<ColumnPos>>,
@@ -163,7 +165,7 @@ fn feed_column_surfaces(
     player_columns.clear();
     player_columns.extend(players.iter().map(|at| ColumnPos::from(at.translation)));
     for (pos, surface) in &columns {
-        actor.push_with_priority(
+        light.push_with_priority(
             Edit::SetColumnSurface {
                 column: pos.0,
                 surface: Arc::new(surface.0.clone()),

@@ -299,9 +299,9 @@ sharding document (decision 20). It is also the mode of the tests.
 |---|---|
 | Cell | one dimension sub-app: a tree with one leaf for each world |
 | Muxer and Coordinator | the host world: bridge, sessions, column waiters, game time |
-| Link | `ToDim` and `FromDim`, the light actor, the generation actor, each with its own channels |
+| Link | `mcrs_engine_link` for light; `ToDim` and `FromDim` and the generation actor, each with its own channels |
 | Data layer | none apart: cold columns live in the dimension until they unload |
-| Stage | the light engine and the world generator, driven by their actors |
+| Stage | the light engine as a `Stage` on a `Link`; the world generator, driven by its actor |
 
 ---
 

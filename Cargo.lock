@@ -3487,6 +3487,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "mcrs_engine_link"
+version = "0.5.8"
+dependencies = [
+ "flume",
+ "tracing",
+]
+
+[[package]]
 name = "mcrs_minecraft_anvil"
 version = "0.5.8"
 dependencies = [
@@ -4895,7 +4903,7 @@ dependencies = [
  "bevy_app",
  "bevy_ecs",
  "bevy_tasks",
- "flume",
+ "mcrs_engine_link",
  "mcrs_minecraft_block",
  "mcrs_minecraft_chunk",
  "mcrs_minecraft_core",

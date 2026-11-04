@@ -1,6 +1,6 @@
 use bevy_ecs::resource::Resource;
 
-/// How many section columns the light actor takes in before it hands out the next epochs.
+/// How many section columns the light stage takes in before it hands out the next epochs.
 ///
 /// Loading a column costs a 256 block column sky rescan. Only section loads and
 /// unloads are held back — a block change takes effect the round it arrives,
