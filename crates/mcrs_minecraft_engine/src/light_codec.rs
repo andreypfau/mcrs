@@ -8,6 +8,8 @@ use mcrs_minecraft_engine_world::world::storage::column::{ColumnSections, Sectio
 use mcrs_minecraft_protocol_game::chunk::{LightChunk, LightData};
 use std::borrow::Cow;
 
+use crate::stored_column::StoredColumn;
+
 /// One row of the light packet's section sequence. The packet carries a
 /// section below and a section above the dimension's real Y range, so the
 /// sequence is one padding row, every real section, then one padding row.
@@ -170,6 +172,64 @@ pub fn build_delta_light_data(
         (WireRow::Loaded(e), LightLayer::Sky) => changed_sky.contains(&e),
         _ => false,
     })
+}
+
+/// Build a wire-ready `LightData` for a column from the data layer, with the light it held when
+/// it went cold.
+pub(crate) fn build_stored_light_data(
+    stored: &StoredColumn,
+    has_sky_light: bool,
+) -> LightData<'static> {
+    let mut sky_mask: Vec<u64> = Vec::new();
+    let mut block_mask: Vec<u64> = Vec::new();
+    let mut empty_sky_mask: Vec<u64> = Vec::new();
+    let mut empty_block_mask: Vec<u64> = Vec::new();
+    let rows = stored.sections.len() + 2;
+    let mut sky_arrays: Vec<LightChunk> = Vec::with_capacity(rows);
+    let mut block_arrays: Vec<LightChunk> = Vec::with_capacity(rows);
+    let sections = stored.sections.iter().map(Some);
+    let padded = std::iter::once(None)
+        .chain(sections)
+        .chain(std::iter::once(None));
+    for (bit_idx, section) in padded.enumerate() {
+        let row = match section {
+            Some(_) => WireRow::Loaded(Entity::PLACEHOLDER),
+            None if bit_idx == 0 => WireRow::BottomPadding,
+            None => WireRow::TopPadding,
+        };
+        pack_chunk(
+            row,
+            section
+                .and_then(|section| section.block_light.as_ref())
+                .map(|light| &light.0),
+            LightLayer::Block,
+            has_sky_light,
+            bit_idx,
+            &mut block_mask,
+            &mut empty_block_mask,
+            &mut block_arrays,
+        );
+        pack_chunk(
+            row,
+            section
+                .and_then(|section| section.sky_light.as_ref())
+                .map(|light| &light.0),
+            LightLayer::Sky,
+            has_sky_light,
+            bit_idx,
+            &mut sky_mask,
+            &mut empty_sky_mask,
+            &mut sky_arrays,
+        );
+    }
+    LightData {
+        sky_light_mask: Cow::Owned(sky_mask),
+        block_light_mask: Cow::Owned(block_mask),
+        empty_sky_light_mask: Cow::Owned(empty_sky_mask),
+        empty_block_light_mask: Cow::Owned(empty_block_mask),
+        sky_light_arrays: Cow::Owned(sky_arrays),
+        block_light_arrays: Cow::Owned(block_arrays),
+    }
 }
 
 fn build_light_data(

@@ -1,42 +1,28 @@
 use std::collections::vec_deque::Drain;
+use std::vec;
 
 use bevy_app::{App, FixedUpdate, Plugin};
 use bevy_ecs::entity::Entity;
-use bevy_ecs::message::MessageReader;
-use bevy_ecs::prelude::{Commands, Component, Has, Local, ParamSet, Query, Res, ResMut, Resource};
+use bevy_ecs::prelude::Resource;
 use bevy_ecs::schedule::{IntoScheduleConfigs, SystemSet};
 use mcrs_engine_link::{Link, Placement};
 use mcrs_engine_store::{
     ChunkVersion, NoDisk, StoreInput, StoreOutput, StoreStage, VersionedChunk,
 };
-use mcrs_minecraft_chunk::{BlockLight, SkyLight};
-use mcrs_minecraft_engine_world::palette::{BiomePalette, ChunkBlocks};
 use mcrs_minecraft_engine_world::tick::TickSet;
-use mcrs_minecraft_engine_world::world::dimension::InDimension;
 use mcrs_minecraft_engine_world::world::lifecycle::column_loading::ColumnLoading;
-use mcrs_minecraft_engine_world::world::lifecycle::stage::{
-    SectionStage, SectionStageChanged, SectionStages,
-};
 use mcrs_minecraft_engine_world::world::lifecycle::ticket::{
     ChunkSpawnSet, ColumnCoolSet, SectionEntitySet,
 };
-use mcrs_minecraft_engine_world::world::light_gate::{
-    ColumnLightGate, ColumnLightSettled, LightGated,
-};
-use mcrs_minecraft_engine_world::world::storage::block_entity::{
-    BlockEntity, SectionBlockEntities, spawn_block_entities,
-};
-use mcrs_minecraft_engine_world::world::storage::column::{
-    ColumnIndex, ColumnSections, SectionLookup,
-};
-use mcrs_minecraft_heightmap::{
-    ColumnHeightmapSet, MotionHeightmap, NoLeavesHeightmap, SolidHeightmap, SurfaceHeightmap,
-};
-use mcrs_voxel::{ColumnPos, SectionPos};
-use rustc_hash::FxHashMap;
+use mcrs_minecraft_engine_world::world::storage::column::ColumnLifecycleSet;
+use mcrs_voxel::ColumnPos;
+use rustc_hash::{FxHashMap, FxHashSet};
 
-use crate::heightmap::PendingColumnHeightmaps;
-use crate::stored_column::{StoredColumn, StoredSection};
+use crate::cold_columns::{mark_changed_sections, mark_final_light, write_cold_columns};
+use crate::column_view::ColumnViewSet;
+use crate::hot_ticket::{HotColumns, raise_hot_ticket, release_hot_ticket, track_hot_tickets};
+use crate::stored_column::StoredColumn;
+use crate::stored_columns_landing::{fetch_loading_columns, land_stored_columns};
 
 /// The disk under the data layer of a dimension. The data layer lives in memory only for now.
 pub type ColumnDisk = NoDisk<ColumnPos, StoredColumn>;
@@ -44,8 +30,10 @@ pub type ColumnDisk = NoDisk<ColumnPos, StoredColumn>;
 /// The data layer of a dimension world, at the far end of a link: the last version of each
 /// column that went cold.
 ///
-/// A column that stops being loaded writes its last version here, and a column that a ticket
-/// loads again is taken from here before it is generated.
+/// With it, only the hot columns stay in the dimension: the columns that a player simulates,
+/// and the columns that a view waits on while they are generated and lit. A column that stops
+/// being loaded writes its last version here. A column that a ticket loads again is taken from
+/// here before it is generated, and a view gets a cold column from here.
 pub struct ColumnStorePlugin {
     pub placement: Placement,
 }
@@ -56,13 +44,36 @@ pub struct ColumnStoreLink {
     link: Link<StoreStage<ColumnDisk>>,
     /// The version of the last column the world wrote. The world is the only writer.
     written: ChunkVersion,
-    /// The columns whose sections wait for an answer of the data layer.
-    reads: FxHashMap<ColumnPos, ColumnRead>,
+    /// The columns that wait for an answer of the data layer.
+    pub(crate) reads: FxHashMap<ColumnPos, ColumnRead>,
+    /// The answers that views wait on, for the view to take.
+    pub(crate) viewed: Vec<ViewedColumn>,
+    /// Every column the world wrote. The data layer has no disk under it, so these are the
+    /// only columns it can hold, and a request for any other one is not worth a round trip.
+    written_columns: FxHashSet<ColumnPos>,
 }
 
-struct ColumnRead {
-    dim: Entity,
-    sections: Vec<Entity>,
+pub(crate) struct ColumnRead {
+    pub(crate) dim: Entity,
+    /// The sections of the dimension that wait to take the column back.
+    pub(crate) sections: Vec<Entity>,
+    pub(crate) viewed: Viewed,
+    /// An answer older than this version was asked for before the world wrote a later one.
+    pub(crate) at_least: ChunkVersion,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Viewed {
+    No,
+    Yes,
+}
+
+/// The answer of the data layer for a column that a view waits on. `None` when the data layer
+/// holds no version of it.
+pub(crate) struct ViewedColumn {
+    pub(crate) dim: Entity,
+    pub(crate) column: ColumnPos,
+    pub(crate) stored: Option<StoredColumn>,
 }
 
 impl ColumnStoreLink {
@@ -72,7 +83,14 @@ impl ColumnStoreLink {
             link: Link::new(StoreStage::new(ColumnDisk::new()), placement),
             written: ChunkVersion::default(),
             reads: FxHashMap::default(),
+            viewed: Vec::new(),
+            written_columns: FxHashSet::default(),
         }
+    }
+
+    /// Whether the data layer may hold a version of `column`.
+    pub(crate) fn may_hold(&self, column: ColumnPos) -> bool {
+        self.written_columns.contains(&column)
     }
 
     /// Waits until the data layer has answered every request sent so far, and lands none of it.
@@ -80,8 +98,9 @@ impl ColumnStoreLink {
         self.link.answered().await;
     }
 
-    fn put(&mut self, column: ColumnPos, chunk: StoredColumn) {
+    pub(crate) fn put(&mut self, column: ColumnPos, chunk: StoredColumn) {
         self.written = self.written.next();
+        self.written_columns.insert(column);
         self.link.send(StoreInput::Put {
             key: column,
             chunk: VersionedChunk {
@@ -89,22 +108,41 @@ impl ColumnStoreLink {
                 chunk,
             },
         });
+        // The answer to the read in flight is older than this version, so it is asked again.
+        if let Some(read) = self.reads.get_mut(&column) {
+            read.at_least = self.written;
+            self.link.send(StoreInput::Get { key: column });
+        }
     }
 
-    /// Asks for `column` on behalf of `section`, once for all the sections that wait on it.
-    fn get(&mut self, dim: Entity, column: ColumnPos, section: Entity) {
-        let read = self.reads.entry(column).or_insert_with(|| {
+    fn read(&mut self, dim: Entity, column: ColumnPos) -> &mut ColumnRead {
+        self.reads.entry(column).or_insert_with(|| {
             self.link.send(StoreInput::Get { key: column });
             ColumnRead {
                 dim,
                 sections: Vec::new(),
+                viewed: Viewed::No,
+                at_least: ChunkVersion::default(),
             }
-        });
-        read.sections.push(section);
+        })
     }
 
-    fn outputs(&mut self) -> Drain<'_, StoreOutput<ColumnPos, StoredColumn>> {
+    /// Asks for `column` on behalf of `section`, once for all that wait on it.
+    pub(crate) fn take(&mut self, dim: Entity, column: ColumnPos, section: Entity) {
+        self.read(dim, column).sections.push(section);
+    }
+
+    /// Asks for `column` on behalf of the views that wait on it, once for all that wait on it.
+    pub(crate) fn view(&mut self, dim: Entity, column: ColumnPos) {
+        self.read(dim, column).viewed = Viewed::Yes;
+    }
+
+    pub(crate) fn outputs(&mut self) -> Drain<'_, StoreOutput<ColumnPos, StoredColumn>> {
         self.link.outputs()
+    }
+
+    pub(crate) fn take_viewed(&mut self) -> vec::Drain<'_, ViewedColumn> {
+        self.viewed.drain(..)
     }
 }
 
@@ -113,230 +151,33 @@ impl ColumnStoreLink {
 #[derive(SystemSet, Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct StoredColumnLandSet;
 
-/// The light of the column, and of the eight around it, settled while it was loaded, so the
-/// light it holds is the light it keeps when it goes cold.
-#[derive(Component, Clone, Copy, Debug, Default)]
-#[component(storage = "SparseSet")]
-pub struct ColumnLightFinal;
-
 impl Plugin for ColumnStorePlugin {
     fn build(&self, app: &mut App) {
         app.insert_resource(ColumnStoreLink::new(self.placement));
+        app.register_required_components::<ColumnLoading, HotColumns>();
+        app.add_observer(raise_hot_ticket);
+        app.add_observer(release_hot_ticket);
         app.add_systems(
             FixedUpdate,
             (
                 land_stored_columns
                     .in_set(TickSet::DomainInput)
                     .in_set(StoredColumnLandSet),
-                write_cold_columns.in_set(ColumnCoolSet),
+                (mark_changed_sections, write_cold_columns)
+                    .chain()
+                    .in_set(ColumnCoolSet),
                 fetch_loading_columns
                     .in_set(ChunkSpawnSet)
                     .after(SectionEntitySet),
                 mark_final_light
                     .in_set(TickSet::Project)
-                    .after(ColumnLightGate),
+                    .after(ColumnLifecycleSet)
+                    .before(ColumnCoolSet),
+                track_hot_tickets
+                    .in_set(TickSet::Project)
+                    .after(ColumnLifecycleSet)
+                    .before(ColumnViewSet),
             ),
         );
     }
-}
-
-/// Sends the data layer a request for each column whose sections a ticket loads, before they
-/// are generated. A section that the data layer did not hold comes back as `Loading` and goes
-/// on to generation.
-fn fetch_loading_columns(
-    mut stages: ParamSet<(MessageReader<SectionStageChanged>, SectionStages)>,
-    mut loading: Local<Vec<SectionStageChanged>>,
-    mut store: ResMut<ColumnStoreLink>,
-) {
-    loading.extend(stages.p0().read().filter(|change| {
-        change.to == SectionStage::Loading && change.from != Some(SectionStage::Fetching)
-    }));
-    let mut stages = stages.p1();
-    for change in loading.drain(..) {
-        if stages.get(change.section) != Some(SectionStage::Loading) {
-            continue;
-        }
-        stages.set(change.section, SectionStage::Fetching);
-        store.get(change.dim, ColumnPos::from(change.pos), change.section);
-    }
-}
-
-fn land_stored_columns(
-    mut store: ResMut<ColumnStoreLink>,
-    mut stages: SectionStages,
-    positions: Query<&SectionPos>,
-    mut pending_heightmaps: ResMut<PendingColumnHeightmaps>,
-    mut commands: Commands,
-    mut answers: Local<Vec<StoreOutput<ColumnPos, StoredColumn>>>,
-) {
-    answers.extend(store.outputs());
-    for answer in answers.drain(..) {
-        let (column, stored) = match answer {
-            StoreOutput::Found { key, chunk } => (key, Some(chunk.chunk)),
-            // The data layer lives in memory only, so it never fails to read.
-            StoreOutput::Missing { key } | StoreOutput::Unreadable { key } => (key, None),
-        };
-        let Some(read) = store.reads.remove(&column) else {
-            continue;
-        };
-        let Some(stored) = stored else {
-            for section in read.sections {
-                if stages.get(section) == Some(SectionStage::Fetching) {
-                    stages.set(section, SectionStage::Loading);
-                }
-            }
-            continue;
-        };
-        let mut landed_rows: Vec<i32> = Vec::new();
-        for section in read.sections {
-            if stages.get(section) != Some(SectionStage::Fetching) {
-                continue;
-            }
-            let Some(content) = positions
-                .get(section)
-                .ok()
-                .and_then(|pos| stored.section(pos.y).map(|content| (pos.y, content)))
-            else {
-                stages.set(section, SectionStage::Loading);
-                continue;
-            };
-            let (y, content) = content;
-            let mut entity = commands.entity(section);
-            entity.try_insert((content.blocks.clone(), content.biomes.clone()));
-            if let Some(light) = &content.block_light {
-                entity.try_insert(light.clone());
-            }
-            if let Some(light) = &content.sky_light {
-                entity.try_insert(light.clone());
-            }
-            stages.set(section, SectionStage::Loaded);
-            landed_rows.push(y);
-        }
-        let block_entities = stored
-            .block_entities
-            .iter()
-            .filter(|entry| landed_rows.contains(&(entry.position().y >> SectionPos::BITS)))
-            .cloned()
-            .collect();
-        spawn_block_entities(&mut commands, InDimension(read.dim), block_entities);
-        if let Some(maps) = stored.heightmaps {
-            pending_heightmaps.0.insert((read.dim, column), maps);
-        }
-    }
-}
-
-fn mark_final_light(
-    mut settled: MessageReader<ColumnLightSettled>,
-    indices: Query<&ColumnIndex>,
-    mut commands: Commands,
-) {
-    for &ColumnLightSettled(column) in settled.read() {
-        for index in &indices {
-            if let Some(slot) = index.get(&column) {
-                commands.entity(slot.entity).try_insert(ColumnLightFinal);
-            }
-        }
-    }
-}
-
-type SectionContent = (
-    &'static SectionStage,
-    &'static ChunkBlocks,
-    &'static BiomePalette,
-    Option<&'static BlockLight>,
-    Option<&'static SkyLight>,
-    Option<&'static SectionBlockEntities>,
-);
-
-type ColumnContent = (
-    &'static ColumnSections,
-    Has<ColumnLightFinal>,
-    Option<(
-        &'static SurfaceHeightmap,
-        &'static SolidHeightmap,
-        &'static MotionHeightmap,
-        &'static NoLeavesHeightmap,
-    )>,
-);
-
-/// Writes the last version of each column that stopped being loaded, while its sections still
-/// hold their blocks. A column that never landed whole, or whose light never settled, keeps
-/// the version the data layer already holds.
-fn write_cold_columns(
-    dims: Query<(&ColumnLoading, &ColumnIndex)>,
-    columns: Query<ColumnContent>,
-    sections: Query<SectionContent>,
-    block_entities: Query<&BlockEntity>,
-    light_gated: Option<Res<LightGated>>,
-    mut store: ResMut<ColumnStoreLink>,
-) {
-    for (loading, index) in &dims {
-        for &column in loading.cooling() {
-            if loading.is_column_loaded(column) {
-                continue;
-            }
-            let Some(slot) = index.get(&column) else {
-                continue;
-            };
-            let Ok((column_sections, light_final, heightmaps)) = columns.get(slot.entity) else {
-                continue;
-            };
-            if light_gated.is_some() && !light_final {
-                continue;
-            }
-            let Some(stored) = stored_column(column_sections, &sections, &block_entities) else {
-                continue;
-            };
-            store.put(
-                column,
-                StoredColumn {
-                    heightmaps: heightmaps.map(|(surface, solid, motion, no_leaves)| {
-                        ColumnHeightmapSet {
-                            surface: surface.clone(),
-                            solid: solid.clone(),
-                            motion: motion.clone(),
-                            no_leaves: no_leaves.clone(),
-                        }
-                    }),
-                    ..stored
-                },
-            );
-        }
-    }
-}
-
-/// The sections and block entities of a column, or `None` when a section has not landed.
-fn stored_column(
-    column: &ColumnSections,
-    sections: &Query<SectionContent>,
-    block_entities: &Query<&BlockEntity>,
-) -> Option<StoredColumn> {
-    let mut stored = StoredColumn {
-        min_section_y: column.min_section_y,
-        sections: Vec::with_capacity(column.sections.len()),
-        block_entities: Vec::new(),
-        heightmaps: None,
-    };
-    for lookup in column.iter() {
-        let SectionLookup::Loaded(section) = lookup else {
-            return None;
-        };
-        let (stage, blocks, biomes, block_light, sky_light, held) = sections.get(section).ok()?;
-        if *stage != SectionStage::Loaded {
-            return None;
-        }
-        stored.sections.push(StoredSection {
-            blocks: blocks.clone(),
-            biomes: biomes.clone(),
-            block_light: block_light.cloned(),
-            sky_light: sky_light.cloned(),
-        });
-        stored.block_entities.extend(
-            held.into_iter()
-                .flat_map(|held| held.iter())
-                .filter_map(|entity| block_entities.get(*entity).ok())
-                .map(|BlockEntity(entry)| entry.clone()),
-        );
-    }
-    Some(stored)
 }

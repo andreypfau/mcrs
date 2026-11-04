@@ -15,10 +15,12 @@ use mcrs_minecraft_engine_server::runner;
 use mcrs_minecraft_engine_world::block_update::BlockSetRequest;
 use mcrs_minecraft_engine_world::entity::physics::Transform;
 use mcrs_minecraft_engine_world::entity::player::Player;
-use mcrs_minecraft_engine_world::entity::player::chunk_view::PlayerViewDistance;
+use mcrs_minecraft_engine_world::entity::player::chunk_view::{PlayerViewDistance, SentChunkView};
 use mcrs_minecraft_engine_world::palette::ChunkBlocks;
 use mcrs_minecraft_engine_world::session::{Owner, PlayerSession};
 use mcrs_minecraft_engine_world::world::dimension::InDimension;
+use mcrs_minecraft_engine_world::world::lifecycle::column_loading::LOADING_RINGS;
+use mcrs_minecraft_engine_world::world::lifecycle::simulation::SimulationDistance;
 use mcrs_minecraft_engine_world::world::lifecycle::stage::SectionStage;
 use mcrs_minecraft_engine_world::world::storage::column::ColumnIndex;
 use mcrs_minecraft_engine_world::world::storage::section::SectionIndex;
@@ -160,4 +162,108 @@ fn a_change_survives_the_column_going_cold_and_coming_back() {
         Some(glowstone),
         "the column came back from the generator, not from the data layer"
     );
+}
+
+#[test]
+fn a_view_wider_than_the_hot_area_is_sent_whole_and_only_the_hot_area_stays_loaded() {
+    let mut app = server();
+    let label = label_of(&app, OVERWORLD);
+    tick_until(&mut app, label, "the generation context loaded", |world| {
+        world.contains_resource::<FillContext>()
+    });
+    let world = dimension_world(&mut app, label);
+    world.insert_resource(SimulationDistance {
+        horizontal: 1,
+        vertical: u8::MAX,
+    });
+    let dimension = dimension_entity(world);
+    let player = world
+        .spawn((
+            Player,
+            Transform::from_translation(DVec3::new(8.5, 100.0, 8.5)),
+            PlayerViewDistance {
+                distance: 5,
+                ..PlayerViewDistance::default()
+            },
+            ColumnView::default(),
+            InDimension(dimension),
+            Owner(PlayerSession(1)),
+        ))
+        .id();
+    // The simulation area one ring wider, and the rings that load with each of its columns.
+    let loaded_reach = 2 + LOADING_RINGS;
+
+    tick_until(&mut app, label, "the whole view was sent", |world| {
+        let Some(view) = world.get::<SentChunkView>(player).and_then(|sent| sent.0) else {
+            return false;
+        };
+        let Some(mut columns) = world.get_mut::<ColumnView>(player) else {
+            return false;
+        };
+        columns.acknowledge_batch(64.0);
+        let mut whole = true;
+        view.each_column(|column| whole &= columns.holds(column));
+        whole
+    });
+    tick_until(&mut app, label, "the cold columns left", |world| {
+        world.get::<ColumnIndex>(dimension).is_some_and(|index| {
+            index
+                .keys()
+                .all(|column| column.x.abs().max(column.z.abs()) <= loaded_reach)
+        })
+    });
+    let view = dimension_world(&mut app, label)
+        .get::<SentChunkView>(player)
+        .and_then(|sent| sent.0)
+        .expect("the view was applied");
+    assert!(
+        i32::from(view.distance) > loaded_reach,
+        "the view reaches past the loaded columns"
+    );
+
+    let world = dimension_world(&mut app, label);
+    let late = world
+        .spawn((
+            Player,
+            Transform::from_translation(DVec3::new(8.5, 100.0, 8.5)),
+            PlayerViewDistance {
+                distance: 5,
+                ..PlayerViewDistance::default()
+            },
+            ColumnView::default(),
+            InDimension(dimension),
+            Owner(PlayerSession(2)),
+        ))
+        .id();
+    tick_until(&mut app, label, "the late view was sent", |world| {
+        let generating = world
+            .query::<&SectionStage>()
+            .iter(world)
+            .any(|stage| *stage == SectionStage::Generating);
+        assert!(
+            !generating,
+            "a column the data layer holds was generated again"
+        );
+        // A view loads a column of the edge of the hot area with the rings it needs to light
+        // it. Every column past those it gets from the data layer.
+        let loaded_past_the_edge = world.get::<ColumnIndex>(dimension).is_some_and(|index| {
+            index
+                .keys()
+                .any(|column| column.x.abs().max(column.z.abs()) > loaded_reach + LOADING_RINGS)
+        });
+        assert!(
+            !loaded_past_the_edge,
+            "a cold column was loaded instead of sent from the data layer"
+        );
+        let Some(view) = world.get::<SentChunkView>(late).and_then(|sent| sent.0) else {
+            return false;
+        };
+        let Some(mut columns) = world.get_mut::<ColumnView>(late) else {
+            return false;
+        };
+        columns.acknowledge_batch(64.0);
+        let mut whole = true;
+        view.each_column(|column| whole &= columns.holds(column));
+        whole
+    });
 }

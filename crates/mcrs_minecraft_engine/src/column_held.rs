@@ -1,11 +1,13 @@
 use bevy_ecs::lifecycle::{Discard, Insert};
 use bevy_ecs::message::{Message, MessageReader, MessageWriter};
 use bevy_ecs::observer::On;
-use bevy_ecs::prelude::{Entity, Query, With, Without};
+use bevy_ecs::prelude::{Added, Entity, Query, With, Without};
 use mcrs_minecraft_engine_world::aoi::PlayerObservers;
 use mcrs_minecraft_engine_world::entity::player::Player;
 use mcrs_minecraft_engine_world::world::dimension::InDimension;
-use mcrs_minecraft_engine_world::world::storage::column::{Column, ColumnIndex};
+use mcrs_minecraft_engine_world::world::storage::column::{
+    Column, ColumnIndex, ColumnPosComponent,
+};
 use mcrs_voxel::ColumnPos;
 
 use crate::column_view::ColumnView;
@@ -42,6 +44,28 @@ pub fn mirror_held_columns(
         } else if !observers.0.contains(&change.player) {
             observers.0.push(change.player);
         }
+    }
+}
+
+/// A column that comes into the dimension again may already be on the clients of players that
+/// got it from the data layer while it was cold. Their observers start with them.
+pub(crate) fn announce_spawned_columns(
+    spawned: Query<(&ColumnPosComponent, &InDimension), Added<Column>>,
+    views: Query<(Entity, &ColumnView, &InDimension)>,
+    mut held: MessageWriter<ColumnHeld>,
+) {
+    for (column, column_dim) in &spawned {
+        held.write_batch(
+            views
+                .iter()
+                .filter(|(_, view, in_dim)| in_dim.0 == column_dim.0 && view.holds(column.0))
+                .map(|(player, ..)| ColumnHeld {
+                    player,
+                    dim: column_dim.0,
+                    column: column.0,
+                    held: true,
+                }),
+        );
     }
 }
 
