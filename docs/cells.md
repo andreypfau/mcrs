@@ -200,6 +200,8 @@ The Muxer sends the input of a player to the cell that owns the player.
 In a cold chunk, entities are visible but do not move, as in vanilla. A cold snapshot holds its
 entities. A cell publishes its entities within their tracking range.
 
+`replication.md` describes how the Muxer sends entities to many viewers at a bounded cost.
+
 ---
 
 # 7. The data layer
