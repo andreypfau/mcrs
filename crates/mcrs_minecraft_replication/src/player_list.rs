@@ -414,16 +414,17 @@ impl<F: Fn(EntityId, EntityId) -> bool> Relisting<'_, F> {
             entry.idle_since = (!(self.sees)(self.viewer, subject)).then_some(self.tick);
             unlisted.push(record.uuid);
         }
-        if !listed.is_empty() {
-            out.push(Dispatch {
-                viewer: self.viewer,
-                packet: listed_packet(&listed)?,
-            });
-        }
+        // The unlisting goes first, so the client never lists more than the cap.
         if !unlisted.is_empty() {
             out.push(Dispatch {
                 viewer: self.viewer,
                 packet: unlisted_packet(&unlisted)?,
+            });
+        }
+        if !listed.is_empty() {
+            out.push(Dispatch {
+                viewer: self.viewer,
+                packet: listed_packet(&listed)?,
             });
         }
         Ok(())
