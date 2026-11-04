@@ -3,48 +3,13 @@
 
 use bevy_app::App;
 use bevy_ecs::entity::Entity;
-use bevy_ecs::system::RunSystemOnce;
-use mcrs_minecraft_engine::bus::{
-    InboundPlayerDespawn, OutboundPlayerAttached, OutboundPlayerDisconnect,
-};
-use mcrs_minecraft_engine::channel_types::ToDim;
-use mcrs_minecraft_engine::dim_inputs::DimInputs;
-use mcrs_minecraft_engine::disconnect::{
-    DisconnectProtocolPlugin, Disconnects, PendingDisconnectQueue, drain_pending_disconnects,
-    filter_inflight_for_disconnect,
-};
-use mcrs_minecraft_engine::session::SessionBundle;
-use mcrs_minecraft_engine_world::session::{
-    Place, PlayerSessionCounter, Session, SessionPlacement,
-};
+use mcrs_minecraft_engine::disconnect::PendingDisconnectQueue;
+use mcrs_minecraft_engine_world::session::{Place, Session};
 
-fn build_app() -> App {
-    let mut app = App::new();
-    app.add_message::<OutboundPlayerAttached>();
-    app.add_message::<OutboundPlayerDisconnect>();
-    app.add_message::<InboundPlayerDespawn>();
-    app.init_resource::<PlayerSessionCounter>();
-    app.init_resource::<DimInputs>();
-    app.add_plugins(DisconnectProtocolPlugin);
-    app
-}
-
-fn register_dim_channel(app: &mut App, dim: Entity) {
-    app.world_mut().resource_mut::<DimInputs>().insert(dim);
-}
-
-fn insert_player(app: &mut App, host_anchor: Entity, dim: Entity) {
-    let session = app
-        .world_mut()
-        .resource_mut::<PlayerSessionCounter>()
-        .next();
-    app.world_mut()
-        .entity_mut(host_anchor)
-        .insert(SessionBundle::placed(
-            session,
-            SessionPlacement::new(Place::InDim(dim), 0),
-        ));
-}
+use crate::disconnect_support::{
+    build_app, despawn_count, disconnect, insert_player, register_dim_channel, run_drain,
+    run_filter,
+};
 
 fn session_count(app: &mut App) -> usize {
     app.world_mut()
@@ -56,44 +21,11 @@ fn session_count(app: &mut App) -> usize {
 fn spawn_anchors(app: &mut App, count: usize, dim: Entity) -> Vec<Entity> {
     let mut anchors = Vec::with_capacity(count);
     for _ in 0..count {
-        let e = app.world_mut().spawn_empty().id();
-        insert_player(app, e, dim);
-        anchors.push(e);
+        let host_anchor = app.world_mut().spawn_empty().id();
+        insert_player(app, host_anchor, Place::InDim(dim));
+        anchors.push(host_anchor);
     }
     anchors
-}
-
-fn fire_disconnect(app: &mut App, anchors: &[Entity]) {
-    let anchors = anchors.to_vec();
-    app.world_mut()
-        .run_system_once(move |mut disconnects: Disconnects| {
-            for &host_anchor in &anchors {
-                disconnects.disconnect(host_anchor);
-            }
-        })
-        .expect("disconnect batch runs");
-}
-
-fn tick_first_schedule(app: &mut App) {
-    app.world_mut()
-        .run_system_once(drain_pending_disconnects)
-        .expect("First-schedule drain");
-}
-
-fn tick_update_schedule(app: &mut App) {
-    app.world_mut()
-        .run_system_once(filter_inflight_for_disconnect)
-        .expect("Update-schedule filter");
-}
-
-/// The despawns that `dim` holds for its next tick, which never comes here.
-fn dim_despawn_count(app: &App, dim: Entity) -> usize {
-    app.world()
-        .resource::<DimInputs>()
-        .control(dim)
-        .iter()
-        .filter(|msg| matches!(msg, ToDim::Despawn(..)))
-        .count()
 }
 
 #[test]
@@ -103,10 +35,10 @@ fn e4_1_100_simultaneous_disconnects_process_32_per_tick() {
     register_dim_channel(&mut app, dim);
     let anchors = spawn_anchors(&mut app, 100, dim);
 
-    fire_disconnect(&mut app, &anchors);
-    tick_update_schedule(&mut app);
+    disconnect(&mut app, &anchors);
+    run_filter(&mut app);
 
-    let processed = dim_despawn_count(&app, dim);
+    let processed = despawn_count(&app, dim);
     assert_eq!(
         processed, 32,
         "exactly budget-count (32) processed in the first tick",
@@ -121,9 +53,9 @@ fn e4_1_100_simultaneous_disconnects_process_32_per_tick() {
     );
 
     // Tick 2: drain refills budget and processes 32 more.
-    tick_first_schedule(&mut app);
-    tick_update_schedule(&mut app);
-    let processed_2 = dim_despawn_count(&app, dim);
+    run_drain(&mut app);
+    run_filter(&mut app);
+    let processed_2 = despawn_count(&app, dim);
     assert_eq!(processed_2, 64, "32 + 32 processed");
     assert_eq!(
         app.world()
@@ -134,9 +66,9 @@ fn e4_1_100_simultaneous_disconnects_process_32_per_tick() {
     );
 
     // Tick 3: another 32.
-    tick_first_schedule(&mut app);
-    tick_update_schedule(&mut app);
-    let processed_3 = dim_despawn_count(&app, dim);
+    run_drain(&mut app);
+    run_filter(&mut app);
+    let processed_3 = despawn_count(&app, dim);
     assert_eq!(processed_3, 96);
     assert_eq!(
         app.world()
@@ -147,9 +79,9 @@ fn e4_1_100_simultaneous_disconnects_process_32_per_tick() {
     );
 
     // Tick 4: remaining 4 drained; queue empty.
-    tick_first_schedule(&mut app);
-    tick_update_schedule(&mut app);
-    let processed_4 = dim_despawn_count(&app, dim);
+    run_drain(&mut app);
+    run_filter(&mut app);
+    let processed_4 = despawn_count(&app, dim);
     assert_eq!(processed_4, 100);
     assert!(
         app.world()

@@ -6,49 +6,15 @@
 //! in-flight bus messages for the queued anchor that land on tick M's
 //! bus would slip past filter_inflight_for_disconnect.
 
-use bevy_app::App;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::Messages;
-use bevy_ecs::system::RunSystemOnce;
-use mcrs_minecraft_engine::bus::{
-    InboundPlayerDespawn, InboundPlayerSpawn, OutboundPlayerAttached, OutboundPlayerDisconnect,
-};
-use mcrs_minecraft_engine::dim_inputs::DimInputs;
+use mcrs_minecraft_engine::bus::OutboundPlayerAttached;
 use mcrs_minecraft_engine::disconnect::{
-    DisconnectBudget, DisconnectProtocolPlugin, DisconnectedThisTick, PendingDisconnectQueue,
-    drain_pending_disconnects, filter_inflight_for_disconnect,
+    DisconnectBudget, DisconnectedThisTick, PendingDisconnectQueue,
 };
-use mcrs_minecraft_engine::session::SessionBundle;
-use mcrs_minecraft_engine_world::session::{
-    Place, PlayerSession, PlayerSessionCounter, SessionPlacement,
-};
+use mcrs_minecraft_engine_world::session::{Place, PlayerSession};
 
-fn build_app() -> App {
-    let mut app = App::new();
-    app.add_message::<InboundPlayerSpawn>();
-    app.add_message::<OutboundPlayerAttached>();
-    app.add_message::<OutboundPlayerDisconnect>();
-    app.add_message::<InboundPlayerDespawn>();
-    app.init_resource::<PlayerSessionCounter>();
-    app.init_resource::<DimInputs>();
-    app.init_resource::<mcrs_minecraft_engine_world::world::sub_app::DimDespawnQueue>();
-    app.add_plugins(DisconnectProtocolPlugin);
-    app
-}
-
-fn insert_player(app: &mut App, host_anchor: Entity, dim: Entity) -> PlayerSession {
-    let session = app
-        .world_mut()
-        .resource_mut::<PlayerSessionCounter>()
-        .next();
-    app.world_mut()
-        .entity_mut(host_anchor)
-        .insert(SessionBundle::placed(
-            session,
-            SessionPlacement::new(Place::InDim(dim), 0),
-        ));
-    session
-}
+use crate::disconnect_support::{build_app, insert_player, run_drain, run_filter};
 
 #[test]
 fn a_drained_disconnect_drops_its_in_flight_messages_and_the_filter_forgets_it() {
@@ -56,8 +22,8 @@ fn a_drained_disconnect_drops_its_in_flight_messages_and_the_filter_forgets_it()
     let dim = Entity::from_raw_u32(3).unwrap();
     let host_anchor = app.world_mut().spawn_empty().id();
     let other = app.world_mut().spawn_empty().id();
-    let session = insert_player(&mut app, host_anchor, dim);
-    let other_session = insert_player(&mut app, other, dim);
+    let session = insert_player(&mut app, host_anchor, Place::InDim(dim));
+    let other_session = insert_player(&mut app, other, Place::InDim(dim));
     app.world_mut().resource_mut::<DisconnectBudget>().0 = 0;
     assert!(
         app.world_mut()
@@ -65,9 +31,7 @@ fn a_drained_disconnect_drops_its_in_flight_messages_and_the_filter_forgets_it()
             .push_back(host_anchor)
     );
 
-    app.world_mut()
-        .run_system_once(drain_pending_disconnects)
-        .expect("drain runs");
+    run_drain(&mut app);
     assert_eq!(
         app.world()
             .resource::<DisconnectedThisTick>()
@@ -84,9 +48,7 @@ fn a_drained_disconnect_drops_its_in_flight_messages_and_the_filter_forgets_it()
     attached.write(OutboundPlayerAttached {
         session: other_session,
     });
-    app.world_mut()
-        .run_system_once(filter_inflight_for_disconnect)
-        .expect("filter runs");
+    run_filter(&mut app);
 
     let kept: Vec<PlayerSession> = app
         .world_mut()
