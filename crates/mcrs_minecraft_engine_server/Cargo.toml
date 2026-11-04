@@ -35,7 +35,6 @@ bevy_math.workspace = true
 bevy_state.workspace = true
 bevy_time.workspace = true
 bytes.workspace = true
-flume.workspace = true
 rand.workspace = true
 thiserror.workspace = true
 tracing.workspace = true

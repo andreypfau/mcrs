@@ -1,10 +1,13 @@
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::Messages;
 use bevy_math::DVec3;
+use mcrs_engine_link::Placement;
 use mcrs_minecraft_chat_server::ChatPlugin;
 use mcrs_minecraft_engine::ability::{PlayerFlying, PlayerGameMode};
 use mcrs_minecraft_engine::bus::{OutboundPlayerPacket, PacketPayload, PacketTarget, to};
 use mcrs_minecraft_engine::dim::take_dim_outputs;
+use mcrs_minecraft_engine::entity_replication::{self, Answers};
+use mcrs_minecraft_engine::muxer_placement::MuxerPlacement;
 use mcrs_minecraft_engine::session::GameProfile;
 use mcrs_minecraft_engine_world::entity::physics::{Rotation, Transform};
 use mcrs_minecraft_engine_world::entity::player::ChangeDimensionRequest;
@@ -223,6 +226,67 @@ fn packets_the_old_dimension_still_holds_leave_before_the_respawn_under_the_old_
     assert!(
         !epochs.is_empty() && epochs.iter().all(|&at| at == arrived),
         "the respawn and every later packet carry the new epoch {arrived}: {epochs:?}"
+    );
+}
+
+#[test]
+fn the_muxer_bytes_of_the_dimension_left_reach_the_mover_before_its_respawn() {
+    for muxer in [Placement::Inline, Placement::Thread] {
+        muxer_bytes_precede_the_respawn(muxer);
+    }
+}
+
+fn muxer_bytes_precede_the_respawn(muxer: Placement) {
+    let mut app = host_app::make_host_app();
+    app.insert_resource(MuxerPlacement(muxer));
+    let mut server = PlayServer::start_in(
+        app,
+        &[
+            ("minecraft:overworld", "minecraft:overworld"),
+            ("minecraft:the_end", "minecraft:the_end"),
+        ],
+        &[],
+        0,
+    );
+    let (mover, _) = server.join(Uuid::new_v4(), "Mover");
+    let (watched, _) = server.join(Uuid::new_v4(), "Watched");
+    let overworld = server.dim;
+    let session = server.session_of(mover).unwrap();
+    let (player, transform) = player_in(&mut server, overworld, mover).unwrap();
+    let (walker, walked) = player_in(&mut server, overworld, watched).unwrap();
+    let world = server.world();
+    world.get_mut::<Transform>(walker).unwrap().translation = walked.translation + DVec3::X;
+    world
+        .resource_mut::<Messages<ChangeDimensionRequest>>()
+        .write(ChangeDimensionRequest {
+            player,
+            to: the_end(),
+            transform,
+        });
+
+    server.app.update();
+    take_dim_outputs(server.app.world_mut());
+    entity_replication::deliver(server.app.world_mut(), Answers::All);
+
+    let sent: Vec<OutboundPlayerPacket> = server
+        .app
+        .world_mut()
+        .resource_mut::<Messages<OutboundPlayerPacket>>()
+        .drain()
+        .collect();
+    let packets = host_app::sent_to(session, sent);
+    let respawn = position_of(&packets, |packet| {
+        matches!(packet, PacketPayload::Respawn(_))
+    });
+    let replicated: Vec<usize> = packets
+        .iter()
+        .enumerate()
+        .filter(|(_, packet)| matches!(packet, PacketPayload::Replication(_)))
+        .map(|(at, _)| at)
+        .collect();
+    assert!(
+        !replicated.is_empty() && replicated.iter().all(|&at| at < respawn),
+        "{muxer:?}: the move of the watched player in the tick the mover left comes before the respawn {respawn}: {replicated:?}"
     );
 }
 

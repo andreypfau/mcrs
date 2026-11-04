@@ -25,6 +25,7 @@ use crate::dim::DimSubAppHandle;
 use crate::dim_inputs::DimInputs;
 use crate::dimension_change::{Arrival, DimensionChangeError};
 use crate::enter_level_packets::enter_level_packets;
+use crate::entity_replication::{self, Answers};
 use crate::game_mode;
 use crate::minecraft_entity::EntityBundle;
 
@@ -215,7 +216,10 @@ fn send(host: &mut World, dim: Entity, transfer: PlayerTransfer) {
 /// there, after the packets of the dimension it leaves.
 fn announce(host: &mut World, anchor: Entity, destination: Destination, departure: &mut Departure) {
     // The packets stamped for the dimension the player leaves go out before its epoch changes,
-    // or the bridge drops them as stale.
+    // or the bridge drops them as stale. The muxer bytes of that dimension are among them, and
+    // the muxer may still work on them, so the host waits for it here.
+    entity_replication::leave(host, departure.session);
+    entity_replication::deliver(host, Answers::All);
     if let Err(error) = host.try_run_schedule(OutboundFlush) {
         tracing::warn!("the packets of a player leaving were not flushed: {error}");
     }

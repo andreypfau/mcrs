@@ -8,6 +8,7 @@ use bevy_ecs::entity::Entity;
 use bevy_ecs::resource::Resource;
 use bevy_ecs::world::World;
 use bevy_tasks::block_on;
+use flume::Sender;
 use mcrs_engine_link::{Link, Placement};
 use mcrs_engine_muxer::{
     EntityEvent, EntityId, MuxerInput, MuxerStage, SubjectEvent, TileDeltas, TileKey, View,
@@ -23,6 +24,7 @@ use crate::muxer_placement::MuxerPlacement;
 use crate::player_list_policy::PlayerListPolicy;
 use crate::player_tiles::VIEW_RADIUS;
 use crate::session::SessionConnection;
+use crate::tick_wake::TickWake;
 use crate::tile_delta_log::{LoggedDeltas, TileDeltaLog};
 
 /// Whether [`deliver`] waits for the muxer to answer every input.
@@ -61,10 +63,11 @@ struct WorldPlayer {
 }
 
 impl EntityReplication {
+    /// A muxer on a thread of its own sends `wake` a message each time it hands out bytes.
     #[must_use]
-    pub fn new(placement: Placement, policy: ListPolicy) -> Self {
+    pub fn new(placement: Placement, policy: ListPolicy, wake: Sender<()>) -> Self {
         Self {
-            link: Link::new(MuxerStage::new(), placement),
+            link: Link::new_with_wake(MuxerStage::new(), placement, wake),
             policy,
             worlds: BTreeSet::new(),
             viewers: BTreeMap::new(),
@@ -167,6 +170,18 @@ impl EntityReplication {
         }
     }
 
+    /// Unsubscribes the player of `session` from the world it watches. The bytes the muxer owes
+    /// it there still come out, and none after them.
+    pub fn leave(&mut self, session: PlayerSession) {
+        let viewer = ViewerId(session.0);
+        if let Some(watch) = self.viewers.remove(&viewer) {
+            self.link.send(MuxerInput::Unsubscribe {
+                world: watch.world,
+                viewer,
+            });
+        }
+    }
+
     /// Hands `latency` of the player of `session` to the muxer of the world it watches.
     pub fn send_latency(&mut self, session: PlayerSession, latency: i32) {
         let viewer = ViewerId(session.0);
@@ -243,6 +258,14 @@ pub fn publish(world: &mut World, label: Entity, deltas: TileDeltas<PlayerData>)
     }
 }
 
+/// Unsubscribes the player of `session` from the world it watches, as
+/// [`EntityReplication::leave`] does.
+pub fn leave(world: &mut World, session: PlayerSession) {
+    if let Some(mut replication) = world.get_resource_mut::<EntityReplication>() {
+        replication.leave(session);
+    }
+}
+
 /// Appends the bytes that the muxer handed out for each viewer to the outbound packets of its
 /// session.
 pub fn deliver(world: &mut World, answers: Answers) {
@@ -268,7 +291,8 @@ fn replication_mut(world: &mut World) -> bevy_ecs::world::Mut<'_, EntityReplicat
             .copied()
             .unwrap_or_default()
             .0;
-        world.insert_resource(EntityReplication::new(placement, policy));
+        let wake = world.get_resource_or_init::<TickWake>().waker();
+        world.insert_resource(EntityReplication::new(placement, policy, wake));
     }
     world.resource_mut::<EntityReplication>()
 }

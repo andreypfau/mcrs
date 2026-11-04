@@ -1,10 +1,10 @@
 use bevy_app::{App, AppExit};
-use bevy_ecs::resource::Resource;
 use mcrs_minecraft_engine::between_ticks::run_between_ticks;
 use mcrs_minecraft_engine::bridge::run_pending_flush;
 use mcrs_minecraft_engine::dim::{drain_dim_despawn_queue, take_dim_outputs};
 use mcrs_minecraft_engine::entity_replication::{self, Answers};
 use mcrs_minecraft_engine::sub_app_builder::drain_dim_spawn_queue;
+use mcrs_minecraft_engine::tick_wake::TickWake;
 use std::num::NonZeroU32;
 use std::time::Instant;
 
@@ -23,55 +23,36 @@ pub fn run_server_loop(app: App) -> AppExit {
 }
 
 /// What the host does after each tick: it takes the dimensions' output, runs what plugins
-/// added to `BetweenTicks` and spawns or despawns dimensions. Last, it waits for the entity bytes
-/// of the tick from the muxer, which works on them meanwhile when it has a thread of its own.
+/// added to `BetweenTicks` and spawns or despawns dimensions. A muxer on a thread of its own
+/// works on the entity bytes of the tick meanwhile, and [`drain_until`] hands them over as they
+/// arrive.
 pub fn between_ticks(app: &mut App) {
     take_dim_outputs(app.world_mut());
     run_between_ticks(app);
     drain_dim_spawn_queue(app);
     drain_dim_despawn_queue(app);
-    entity_replication::deliver(app.world_mut(), Answers::All);
 }
 
 /// Hands what the tick wrote for the clients to the sockets, then waits for `deadline`. A wake
-/// before the deadline hands over again. Nothing here changes what a tick reads.
+/// before the deadline, such as the muxer handing out bytes, hands over again. Nothing here
+/// changes what a tick reads.
 pub fn drain_until(app: &mut App, deadline: Instant) {
     loop {
         drain(app);
-        if !wait_for_wake(app, deadline) {
+        let woken = app
+            .world_mut()
+            .get_resource_or_init::<TickWake>()
+            .wait(deadline);
+        if !woken {
             return;
         }
     }
 }
 
-/// Hands what the host holds for the clients to the sockets.
+/// Hands what the host holds for the clients to the sockets, with the entity bytes the muxer
+/// has handed out so far.
 pub fn drain(app: &mut App) {
-    run_pending_flush(app.world_mut());
-}
-
-/// Where the server loop waits between ticks. Nothing wakes it yet; the sender it keeps makes
-/// the wait last until the deadline instead of ending at once.
-#[derive(Resource)]
-struct TickWake {
-    _sender: flume::Sender<()>,
-    receiver: flume::Receiver<()>,
-}
-
-impl Default for TickWake {
-    fn default() -> Self {
-        let (sender, receiver) = flume::bounded(1);
-        Self {
-            _sender: sender,
-            receiver,
-        }
-    }
-}
-
-/// Waits until a wake arrives or `deadline` passes, and tells whether a wake arrived.
-fn wait_for_wake(app: &mut App, deadline: Instant) -> bool {
-    app.world_mut()
-        .get_resource_or_init::<TickWake>()
-        .receiver
-        .recv_deadline(deadline)
-        .is_ok()
+    let world = app.world_mut();
+    entity_replication::deliver(world, Answers::Ready);
+    run_pending_flush(world);
 }

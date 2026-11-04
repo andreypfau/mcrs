@@ -26,6 +26,7 @@ use mcrs_minecraft_engine::channel_types::ToDim;
 use mcrs_minecraft_engine::dim::{DimSubAppHandle, take_dim_outputs};
 use mcrs_minecraft_engine::dim_cells::{DimCells, DimCellsPlugin};
 use mcrs_minecraft_engine::dim_inputs::DimInputs;
+use mcrs_minecraft_engine::entity_replication::{self, Answers};
 use mcrs_minecraft_engine::ops::{DefaultOpLevel, OpList, OpListEntry};
 use mcrs_minecraft_engine::session::{HostAnchorRef, SessionBundle, SessionConnection};
 use mcrs_minecraft_engine::sub_app_builder::drain_dim_spawn_queue;
@@ -283,6 +284,7 @@ impl PlayServer {
         for _ in 0..n {
             self.app.update();
             mcrs_minecraft_engine_server::runner::between_ticks(&mut self.app);
+            entity_replication::deliver(self.app.world_mut(), Answers::All);
             packets.extend(
                 self.app
                     .world_mut()

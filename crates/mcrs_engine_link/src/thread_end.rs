@@ -15,6 +15,7 @@ pub(crate) struct ThreadEnd<S: Stage> {
     stage: S,
     inputs: Receiver<S::Input>,
     replies: Sender<Reply<S::Output>>,
+    wake: Option<Sender<()>>,
     tasks: Tasks<S::TaskOutput>,
     outputs: Vec<S::Output>,
     seen: u64,
@@ -31,11 +32,13 @@ impl<S: Stage> ThreadEnd<S> {
         stage: S,
         inputs: Receiver<S::Input>,
         replies: Sender<Reply<S::Output>>,
+        wake: Option<Sender<()>>,
     ) -> Self {
         Self {
             stage,
             inputs,
             replies,
+            wake,
             tasks: Tasks::new(),
             outputs: Vec::new(),
             seen: 0,
@@ -88,8 +91,13 @@ impl<S: Stage> ThreadEnd<S> {
     fn step(&mut self) -> Result<(), SendError<Reply<S::Output>>> {
         self.stage
             .step(&mut Step::new(&mut self.outputs, &mut self.tasks));
+        let emitted = !self.outputs.is_empty();
         for output in self.outputs.drain(..) {
             self.replies.send(Reply::Output(output))?;
+        }
+        if emitted && let Some(wake) = &self.wake {
+            // A full channel already holds a wake, and a closed one has nobody to wake.
+            let _ = wake.try_send(());
         }
         // After the outputs, so the near end holds them by the time it counts the inputs answered.
         if self.seen != self.reported && self.stage.is_idle() {

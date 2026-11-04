@@ -54,6 +54,7 @@ pub mod replicated;
 pub mod session;
 pub mod sub_app_builder;
 pub mod teleport;
+pub mod tick_wake;
 pub mod tile_delta_log;
 pub mod tile_events;
 pub mod world_plugin;

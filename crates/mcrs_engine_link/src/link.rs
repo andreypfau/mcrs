@@ -36,9 +36,20 @@ impl<S: Stage> Link<S> {
     /// Places `stage` as `placement` asks. A stage whose thread does not start runs
     /// [`Placement::Inline`].
     pub fn new(stage: S, placement: Placement) -> Self {
+        Self::place(stage, placement, None)
+    }
+
+    /// As [`Self::new`], and a far end on a thread of its own sends `wake` a message each time
+    /// it hands out outputs, so that the near end can block on a channel of its choice until
+    /// they arrive. An inline far end runs only when the near end asks, so it never wakes.
+    pub fn new_with_wake(stage: S, placement: Placement, wake: Sender<()>) -> Self {
+        Self::place(stage, placement, Some(wake))
+    }
+
+    fn place(stage: S, placement: Placement, wake: Option<Sender<()>>) -> Self {
         let far = match placement {
             Placement::Inline => FarEnd::Inline(InlineEnd::new(stage)),
-            Placement::Thread => spawn(stage),
+            Placement::Thread => spawn(stage, wake),
         };
         Self {
             far,
@@ -123,10 +134,10 @@ fn hold<O>(held: &mut VecDeque<O>, answered: &mut u64, reply: Reply<O>) {
     }
 }
 
-fn spawn<S: Stage>(stage: S) -> FarEnd<S> {
+fn spawn<S: Stage>(stage: S, wake: Option<Sender<()>>) -> FarEnd<S> {
     let (inputs, inputs_receiver) = flume::unbounded();
     let (replies_sender, replies) = flume::unbounded();
-    let end = ThreadEnd::new(stage, inputs_receiver, replies_sender);
+    let end = ThreadEnd::new(stage, inputs_receiver, replies_sender, wake);
     // The end goes over a channel and not into the closure, so a failed spawn hands it back.
     let (handover, handed) = flume::bounded::<ThreadEnd<S>>(1);
     let spawned = thread::Builder::new()
@@ -227,6 +238,18 @@ mod tests {
         let expected = [None, None, Some(4), Some(8)];
         assert_eq!(answers(Placement::Inline), expected);
         assert_eq!(answers(Placement::Thread), expected);
+    }
+
+    #[test]
+    fn a_thread_far_end_wakes_the_near_end_once_its_outputs_wait() {
+        let (wake, woken) = flume::bounded(1);
+        let mut link = Link::new_with_wake(Doubler::default(), Placement::Thread, wake);
+        link.send(2);
+
+        woken.recv().expect("the thread wakes the near end");
+
+        let outputs: Vec<Option<u8>> = link.outputs().collect();
+        assert_eq!(outputs, [Some(4)]);
     }
 
     #[test]
