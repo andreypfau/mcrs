@@ -1,12 +1,13 @@
 //! Loads the embedded server with bots over TCP and reports how long its ticks take.
 //!
 //! ```text
-//! cargo run --release -p mcrs_minecraft_server --example tick_load -- <bots> <single|parallel> [apart|together] [seconds] [dimensions] [thread|inline]
+//! cargo run --release -p mcrs_minecraft_server --example tick_load -- <bots> <single|parallel> [apart|together] [seconds] [dimensions] [thread|inline] [simulation]
 //! ```
 //!
 //! `single` ticks every world inline on the server thread, `parallel` gives each world a thread.
-//! The last argument places the muxer: on a thread of its own, the default, or inline on the server
-//! thread.
+//! `thread|inline` places the muxer: on a thread of its own, the default, or inline on the server
+//! thread. `simulation` is the simulation distance of every dimension, 10 by default. Below the
+//! view distance of the bots, the view reaches past the hot area into cold space.
 //!
 //! ```text
 //! ```
@@ -29,14 +30,18 @@ use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
 use std::sync::{Arc, mpsc};
 use std::time::{Duration, Instant};
 
-use bevy_app::{App, PluginGroup};
+use bevy_app::{App, Plugin, PluginGroup};
 use bevy_ecs::entity::Entity;
 use bevy_math::DVec3;
 use mcrs_minecraft_core::VERSION;
+use mcrs_minecraft_engine::coordinator::dim_cells::DimCells;
 use mcrs_minecraft_engine::muxer::entity_replication::EntityReplication;
 use mcrs_minecraft_engine_server::{
     BoundAddress, GameMode, Placement, ServerNetworkPlugin, runner,
 };
+use mcrs_minecraft_engine_world::world::lifecycle::simulation::SimulationDistance;
+use mcrs_minecraft_engine_world::world::storage::column::ColumnIndex;
+use mcrs_minecraft_engine_world::world::sub_app::AddDimensionPlugins;
 use mcrs_minecraft_network::ServerSideConnection;
 use mcrs_minecraft_network::join::{Join, Joined, join};
 use mcrs_minecraft_network::metrics::{BridgeTelemetry, PacketKind, PacketKinds};
@@ -160,6 +165,7 @@ fn main() -> anyhow::Result<()> {
     let muxer: Placement = args
         .get(6)
         .map_or(Ok(Placement::Thread), |name| name.parse())?;
+    let simulation: Option<u8> = args.get(7).map(|distance| distance.parse()).transpose()?;
     anyhow::ensure!(
         (1..=DIMENSIONS.len()).contains(&dimensions),
         "dimensions must be 1 to {}",
@@ -176,6 +182,12 @@ fn main() -> anyhow::Result<()> {
     plugins.worlds.default_game_mode = GameMode::Creative;
     let mut app = App::new();
     app.add_plugins(plugins.build());
+    if let Some(horizontal) = simulation {
+        app.add_dimension_plugin(Simulation(SimulationDistance {
+            horizontal,
+            vertical: u8::MAX,
+        }));
+    }
     let address = app.world().resource::<BoundAddress>().0;
 
     let stop = Arc::new(AtomicBool::new(false));
@@ -201,7 +213,7 @@ fn main() -> anyhow::Result<()> {
         tokio::time::sleep(Duration::from_secs(seconds)).await;
     });
     stop.store(true, Ordering::Relaxed);
-    let times = times_recv.recv()?;
+    let (times, columns) = times_recv.recv()?;
     server
         .join()
         .map_err(|_| anyhow::anyhow!("the server thread panicked"))?;
@@ -221,15 +233,35 @@ fn main() -> anyhow::Result<()> {
     );
     report("drain", measured.iter().map(|times| times.drain));
     report_traffic(measured);
+    println!(
+        "dimension columns: mean {:.0}, max {}",
+        columns.iter().sum::<usize>() as f64 / columns.len().max(1) as f64,
+        columns.iter().max().copied().unwrap_or(0),
+    );
     report_bots(&counts, dimensions);
     Ok(())
 }
 
-/// `run_server_loop`, timing the tick and the hand-over to the sockets after it.
-fn run_timed(mut app: App, stop: &AtomicBool) -> Vec<TickTimes> {
+/// The simulation distance of a dimension world.
+#[derive(Clone)]
+struct Simulation(SimulationDistance);
+
+impl Plugin for Simulation {
+    fn build(&self, app: &mut App) {
+        app.insert_resource(self.0);
+    }
+}
+
+/// Ticks between two counts of the columns the dimension worlds hold.
+const COLUMN_SAMPLE_TICKS: usize = 20;
+
+/// `run_server_loop`, timing the tick and the hand-over to the sockets after it, and counting
+/// the columns of the dimension worlds now and then, outside the timed parts.
+fn run_timed(mut app: App, stop: &AtomicBool) -> (Vec<TickTimes>, Vec<usize>) {
     app.finish();
     app.cleanup();
     let mut times = Vec::new();
+    let mut columns = Vec::new();
     let mut sent: HashMap<Entity, u64> = HashMap::new();
     while !stop.load(Ordering::Relaxed) {
         let start = Instant::now();
@@ -252,8 +284,26 @@ fn run_timed(mut app: App, stop: &AtomicBool) -> Vec<TickTimes> {
             traffic,
             session_bytes,
         });
+        if times.len() % COLUMN_SAMPLE_TICKS == 0 {
+            columns.push(dimension_columns(&mut app));
+        }
     }
-    times
+    (times, columns)
+}
+
+/// The columns every dimension world holds.
+fn dimension_columns(app: &mut App) -> usize {
+    let Some(mut cells) = app.world_mut().get_resource_mut::<DimCells>() else {
+        return 0;
+    };
+    cells
+        .sub_apps_mut()
+        .map(|sub_app| {
+            let world = sub_app.world_mut();
+            let mut indices = world.query::<&ColumnIndex>();
+            indices.iter(world).map(|index| index.len()).sum::<usize>()
+        })
+        .sum()
 }
 
 /// The bytes each connection was handed since the last call.
