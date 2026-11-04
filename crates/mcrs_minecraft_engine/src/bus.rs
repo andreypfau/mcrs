@@ -25,7 +25,6 @@ use mcrs_voxel::ColumnPos;
 use smallvec::SmallVec;
 use std::borrow::Cow;
 use std::sync::Arc;
-use std::time::Instant;
 
 #[derive(Message, Clone, Debug)]
 pub struct OutboundPlayerPacket {
@@ -45,7 +44,6 @@ pub struct InboundPlayerPacket {
     pub session: PlayerSession,
     pub id: i32,
     pub data: Bytes,
-    pub timestamp: Instant,
     /// Raises the typed event of the frame's row, which a check of the frame found; `None` for a
     /// row without a structure.
     pub trigger: Option<Trigger>,

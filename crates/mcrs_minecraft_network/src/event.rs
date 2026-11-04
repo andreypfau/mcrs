@@ -1,4 +1,3 @@
-use crate::Instant;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::event::EntityEvent;
 use bevy_ecs::prelude::Commands;
@@ -17,16 +16,14 @@ use tracing::error;
 #[derive(EntityEvent)]
 pub struct Received<R: Row> {
     pub entity: Entity,
-    pub timestamp: Instant,
     data: Bytes,
     row: PhantomData<fn() -> R>,
 }
 
 impl<R: Row> Received<R> {
-    pub fn new(entity: Entity, data: Bytes, timestamp: Instant) -> Self {
+    pub fn new(entity: Entity, data: Bytes) -> Self {
         Self {
             entity,
-            timestamp,
             data,
             row: PhantomData,
         }
@@ -59,7 +56,6 @@ impl<R: Row> std::fmt::Debug for Received<R> {
         f.debug_struct("Received")
             .field("entity", &self.entity)
             .field("row", &R::Packet::NAME)
-            .field("timestamp", &self.timestamp)
             .finish_non_exhaustive()
     }
 }
@@ -69,21 +65,21 @@ impl<R: Row> std::fmt::Debug for Received<R> {
 #[derive(Clone, Copy)]
 pub struct Trigger {
     name: &'static str,
-    raise: fn(&mut Commands, Entity, Bytes, Instant),
+    raise: fn(&mut Commands, Entity, Bytes),
 }
 
 impl Trigger {
     pub fn of<R: Row>() -> Self {
         Self {
             name: R::Packet::NAME,
-            raise: |commands, entity, data, timestamp| {
-                commands.trigger(Received::<R>::new(entity, data, timestamp));
+            raise: |commands, entity, data| {
+                commands.trigger(Received::<R>::new(entity, data));
             },
         }
     }
 
-    pub fn raise(self, commands: &mut Commands, entity: Entity, data: Bytes, timestamp: Instant) {
-        (self.raise)(commands, entity, data, timestamp);
+    pub fn raise(self, commands: &mut Commands, entity: Entity, data: Bytes) {
+        (self.raise)(commands, entity, data);
     }
 }
 
@@ -161,9 +157,7 @@ mod loop_plugin {
                             break;
                         }
                         match dispatcher.dispatch(state, pkt.id, &pkt.payload) {
-                            Ok(Some(trigger)) => {
-                                trigger.raise(&mut commands, entity, pkt.payload, pkt.timestamp)
-                            }
+                            Ok(Some(trigger)) => trigger.raise(&mut commands, entity, pkt.payload),
                             Ok(None) => {}
                             Err(malformed) => {
                                 // chisle: once the server accepts a login the game disconnects

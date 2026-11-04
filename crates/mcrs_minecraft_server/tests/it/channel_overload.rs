@@ -84,7 +84,6 @@ fn packet(session: PlayerSession, id: i32) -> InboundPlayerPacket {
         session,
         id,
         data: Bytes::new(),
-        timestamp: std::time::Instant::now(),
         trigger: None,
     }
 }

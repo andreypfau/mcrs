@@ -342,7 +342,6 @@ impl PlayServer {
             .with_play(mcrs_minecraft_engine::game_packets::GAME_SERVERBOUND)
             .dispatch(ConnectionState::Game, P::ID, &data)
             .unwrap();
-        let timestamp = std::time::Instant::now();
         let world = self.app.world_mut();
         if let (Some(trigger), Some(connection)) = (
             trigger,
@@ -350,7 +349,7 @@ impl PlayServer {
                 .get::<SessionConnection>(anchor)
                 .map(SessionConnection::entity),
         ) {
-            trigger.raise(&mut world.commands(), connection, data.clone(), timestamp);
+            trigger.raise(&mut world.commands(), connection, data.clone());
             world.flush();
         }
         let dim = world
@@ -365,7 +364,6 @@ impl PlayServer {
                 id: P::ID,
                 trigger,
                 data,
-                timestamp,
             }),
         );
     }

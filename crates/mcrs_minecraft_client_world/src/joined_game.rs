@@ -234,7 +234,6 @@ mod tests {
                 &mut self.app.world_mut().commands(),
                 self.connection,
                 data.into(),
-                mcrs_minecraft_network::Instant::now(),
             );
             self.app.world_mut().flush();
         }

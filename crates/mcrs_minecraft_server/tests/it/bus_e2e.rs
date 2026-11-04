@@ -165,7 +165,6 @@ fn inbound_latency_is_zero_host_ticks() {
             session,
             id: 0xCAFE,
             data: Bytes::new(),
-            timestamp: std::time::Instant::now(),
             trigger: None,
         });
 
@@ -252,7 +251,6 @@ fn messages_sent_before_a_dimension_boots_arrive_in_order_on_its_first_tick() {
                         session,
                         id,
                         data: Bytes::new(),
-                        timestamp: std::time::Instant::now(),
                         trigger: None,
                     }))
                     .is_ok()

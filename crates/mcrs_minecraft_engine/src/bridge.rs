@@ -660,12 +660,7 @@ pub fn bridge_inbound_to_channel(
             continue;
         };
         if let (Some(trigger), Some(connection)) = (msg.trigger, connection) {
-            trigger.raise(
-                &mut commands,
-                connection.entity(),
-                msg.data.clone(),
-                msg.timestamp,
-            );
+            trigger.raise(&mut commands, connection.entity(), msg.data.clone());
         }
         if !route_serverbound(placement, &mut pending, &dim_channels, msg)
             && let Some(connection) = connection
@@ -800,7 +795,7 @@ pub fn bridge_inbound(
                             }
                         };
                     if let Some(trigger) = trigger {
-                        trigger.raise(&mut commands, entity, pkt.payload.clone(), pkt.timestamp);
+                        trigger.raise(&mut commands, entity, pkt.payload.clone());
                     }
                     let ends_state = dispatcher.ends_state(ConnectionState::Game, pkt.id);
 
@@ -817,7 +812,6 @@ pub fn bridge_inbound(
                                 session,
                                 id: pkt.id,
                                 data: pkt.payload,
-                                timestamp: pkt.timestamp,
                                 trigger,
                             },
                         )
@@ -884,7 +878,6 @@ mod tests {
             session,
             id,
             data: Bytes::new(),
-            timestamp: std::time::Instant::now(),
             trigger: None,
         }
     }

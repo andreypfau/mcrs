@@ -71,12 +71,7 @@ fn dispatch_inbound_to_dim(
             "dispatch_inbound_to_dim: routing packet to dim entity"
         );
         if let Some(trigger) = msg.trigger {
-            trigger.raise(
-                &mut commands,
-                in_dim_entity,
-                msg.data.clone(),
-                msg.timestamp,
-            );
+            trigger.raise(&mut commands, in_dim_entity, msg.data.clone());
         }
     }
 }

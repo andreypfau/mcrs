@@ -149,7 +149,6 @@ fn send<P: Encode + Packet>(app: &mut App, client: &Client, packet: &P) {
         &mut app.world_mut().commands(),
         client.connection,
         data.into(),
-        mcrs_minecraft_network::Instant::now(),
     );
     app.world_mut().flush();
 }
