@@ -1,7 +1,6 @@
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::Messages;
 use bevy_ecs::prelude::With;
-use bevy_ecs::system::Res;
 use bevy_ecs::world::World;
 use mcrs_minecraft_dimension::{Dimension as DimensionKey, DimensionType};
 use mcrs_minecraft_engine_world::entity::physics::Transform;
@@ -24,7 +23,6 @@ use crate::departure::{CarriedPlayer, Departure, PlayerTransfer};
 use crate::dim;
 use crate::dim::DimSubAppHandle;
 use crate::dim_inputs::DimInputs;
-use crate::dim_tick::DimInbox;
 use crate::dimension_change::{Arrival, DimensionChangeError};
 use crate::enter_level_packets::enter_level_packets;
 use crate::game_mode;
@@ -87,17 +85,13 @@ fn depart(
     })
 }
 
-pub(crate) fn transfers_waiting(inbox: Res<DimInbox>) -> bool {
-    inbox.holds_transfers()
-}
-
 /// Spawns the players that the host handed this world in the input of this tick, before their
 /// serverbound packets of the same tick reach them.
 pub(crate) fn receive_transfers(world: &mut World) {
-    let Some(mut inbox) = world.get_resource_mut::<DimInbox>() else {
+    let Some(mut messages) = world.get_resource_mut::<Messages<PlayerTransfer>>() else {
         return;
     };
-    let transfers = inbox.take_transfers();
+    let transfers: Vec<PlayerTransfer> = messages.drain().collect();
     for transfer in transfers {
         match transfer {
             PlayerTransfer::Arrive(departure) => {

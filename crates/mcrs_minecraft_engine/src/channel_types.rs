@@ -1,16 +1,13 @@
-use crate::bus::{InboundPlayerDespawn, InboundPlayerPacket, InboundPlayerSpawn};
+use crate::bus::{InboundPlayerDespawn, InboundPlayerSpawn};
 use crate::departure::PlayerTransfer;
 
-/// What the host hands a dimension world for its next tick.
+/// A lifecycle message that the host hands a dimension world for its next tick. It is never
+/// shed, unlike a serverbound packet.
 ///
 /// A player is named by its `PlayerSession`, never by an entity of either world, so the two
-/// sides could run in different processes. `Serverbound` is the sole sheddable class; the
-/// control variants are never shed.
+/// sides could run in different processes.
 #[derive(Clone, Debug)]
 pub enum ToDim {
-    /// A packet arriving from the network, routed to this dim. Sheddable: loss is recoverable
-    /// like ordinary network packet loss.
-    Serverbound(InboundPlayerPacket),
     /// Spawn a player into this dim (default-reset components; no faithful snapshot).
     Spawn(InboundPlayerSpawn),
     /// The host signals that a player disconnected. The dim should despawn the

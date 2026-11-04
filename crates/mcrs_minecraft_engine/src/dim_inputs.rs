@@ -62,15 +62,6 @@ impl DimInputs {
         }
     }
 
-    /// Queues `message` in its class. Returns `false` when the dimension is gone or the
-    /// serverbound packets of its next tick are full.
-    pub fn send(&mut self, dim: Entity, message: ToDim) -> bool {
-        match message {
-            ToDim::Serverbound(packet) => self.try_send_serverbound(dim, packet).is_ok(),
-            control => self.send_control(dim, control),
-        }
-    }
-
     /// The control messages that wait for the next tick of `dim`.
     pub fn control(&self, dim: Entity) -> &[ToDim] {
         self.0

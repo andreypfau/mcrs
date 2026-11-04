@@ -148,6 +148,8 @@ pub fn spawn_dim_subapp(
     // `OutboundPlayerAttached` is written by `consume_inbound_player_spawn` and handed to the
     // host in the output of the tick to attach the session.
     sub_app.add_message::<crate::bus::OutboundPlayerAttached>();
+    // Written by `drain_dim_inbox` from `ToDim::Transfer` and read by `receive_transfers`.
+    sub_app.add_message::<crate::departure::PlayerTransfer>();
     sub_app.add_message::<mcrs_minecraft_engine_world::entity::player::ChangeDimensionRequest>();
     // The sub-app builder is the single source of truth for these registrations — `BlockUpdatePlugin`
     // no longer registers them and instead debug-asserts they are already in

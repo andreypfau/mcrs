@@ -7,7 +7,6 @@ use crate::player_dimension_change;
 use bevy_app::App;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::Messages;
-use bevy_ecs::resource::Resource;
 use bevy_ecs::world::World;
 use mcrs_minecraft_dimension::Dimension as DimensionKey;
 use mcrs_minecraft_engine_world::session::{
@@ -18,21 +17,16 @@ use mcrs_minecraft_engine_world::world::sub_app::DimDespawnQueue;
 use mcrs_minecraft_resource::ResourceKeyBuf;
 use tracing::{debug, warn};
 
-/// What the host took from the dimensions and has not handled yet, kept from one take to the
-/// next for its capacity.
-#[derive(Resource, Default)]
-struct TakenOutputs(Vec<DimTicked>);
-
 /// Takes what the dimension worlds handed over in their last tick, the dimensions in the order
 /// they ticked: stamps and writes their packets to the host, forgets the players they released,
 /// attaches the sessions they spawned a player for, records their column traces and hands their
 /// tile deltas to the muxer. The entity bytes that the muxer has ready go out with the packets.
 pub fn take_dim_outputs(world: &mut World) {
-    let mut taken = world.remove_resource::<TakenOutputs>().unwrap_or_default();
-    if let Some(mut cells) = world.get_resource_mut::<DimCells>() {
-        cells.take_outputs(&mut taken.0);
-    }
-    for DimTicked { label, output } in taken.0.drain(..) {
+    let taken = world
+        .get_resource_mut::<DimCells>()
+        .map(|mut cells| cells.take_outputs())
+        .unwrap_or_default();
+    for DimTicked { label, output } in taken {
         for packet in output.packets {
             deliver(world, packet);
         }
@@ -57,7 +51,6 @@ pub fn take_dim_outputs(world: &mut World) {
             player_dimension_change::route_departure(world, label, departure);
         }
     }
-    world.insert_resource(taken);
     entity_replication::deliver(world, Answers::Ready);
 }
 

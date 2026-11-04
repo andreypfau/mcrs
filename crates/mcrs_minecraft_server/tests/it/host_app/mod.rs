@@ -298,7 +298,7 @@ impl PlayServer {
             .app
             .world_mut()
             .resource_mut::<DimInputs>()
-            .send(dim, message);
+            .send_control(dim, message);
         assert!(sent, "the dimension takes the message");
     }
 
@@ -376,15 +376,20 @@ impl PlayServer {
             .and_then(|placement| placement.place().dim())
             .unwrap_or(self.dim);
         let session = self.session_of(anchor).expect("the anchor has a session");
-        self.submit_to(
-            dim,
-            ToDim::Serverbound(InboundPlayerPacket {
-                session,
-                id: P::ID,
-                trigger,
-                data,
-            }),
-        );
+        let sent = self
+            .app
+            .world_mut()
+            .resource_mut::<DimInputs>()
+            .try_send_serverbound(
+                dim,
+                InboundPlayerPacket {
+                    session,
+                    id: P::ID,
+                    trigger,
+                    data,
+                },
+            );
+        assert!(sent.is_ok(), "the dimension takes the packet");
     }
 
     /// Queues `packet` from `anchor` and returns the packets of the next two ticks.

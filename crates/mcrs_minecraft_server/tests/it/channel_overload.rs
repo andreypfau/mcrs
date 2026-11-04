@@ -2,7 +2,6 @@ use crate::mock_connection;
 
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::Messages;
-use bevy_ecs::system::{IntoSystem, System};
 use bevy_ecs::world::World;
 use bytes::Bytes;
 use mcrs_minecraft_engine::bridge::{bridge_inbound_to_channel, forward_pending_inbound};
@@ -71,10 +70,9 @@ fn register_session(
 }
 
 fn run_bridge(world: &mut World) {
-    let mut sys = IntoSystem::into_system(bridge_inbound_to_channel);
-    sys.initialize(world);
-    let _ = sys.run((), world);
-    sys.apply_deferred(world);
+    world
+        .run_system_cached(bridge_inbound_to_channel)
+        .expect("the bridge runs");
 }
 
 fn packet(session: PlayerSession, id: i32) -> InboundPlayerPacket {
@@ -96,10 +94,9 @@ fn fill(world: &mut World, dim: Entity, player: PlayerSession) {
 }
 
 fn run_forward(world: &mut World) {
-    let mut sys = IntoSystem::into_system(forward_pending_inbound);
-    sys.initialize(world);
-    let _ = sys.run((), world);
-    sys.apply_deferred(world);
+    world
+        .run_system_cached(forward_pending_inbound)
+        .expect("the forward runs");
 }
 
 /// The input of a tick is shared by every player of the dimension, so finding it full says

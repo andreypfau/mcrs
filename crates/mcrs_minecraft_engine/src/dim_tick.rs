@@ -1,5 +1,3 @@
-use std::mem;
-
 use bevy_app::SubApp;
 use bevy_ecs::change_detection::DetectChangesMut;
 use bevy_ecs::message::Messages;
@@ -62,17 +60,6 @@ pub struct DimOutput {
 pub(crate) struct DimInbox {
     control: Vec<ToDim>,
     serverbound: Vec<InboundPlayerPacket>,
-    transfers: Vec<PlayerTransfer>,
-}
-
-impl DimInbox {
-    pub(crate) fn holds_transfers(&self) -> bool {
-        !self.transfers.is_empty()
-    }
-
-    pub(crate) fn take_transfers(&mut self) -> Vec<PlayerTransfer> {
-        mem::take(&mut self.transfers)
-    }
 }
 
 pub(crate) fn dim_world(sub_app: SubApp) -> DimWorld {
@@ -129,6 +116,7 @@ pub(crate) fn drain_dim_inbox(
     mut spawns: ResMut<Messages<InboundPlayerSpawn>>,
     mut despawns: ResMut<Messages<InboundPlayerDespawn>>,
     mut serverbound: ResMut<Messages<InboundPlayerPacket>>,
+    mut transfers: ResMut<Messages<PlayerTransfer>>,
 ) {
     let inbox = &mut *inbox;
     for message in inbox.control.drain(..) {
@@ -139,10 +127,9 @@ pub(crate) fn drain_dim_inbox(
             ToDim::Despawn(despawn) => {
                 despawns.write(despawn);
             }
-            ToDim::Serverbound(packet) => {
-                serverbound.write(packet);
+            ToDim::Transfer(transfer) => {
+                transfers.write(*transfer);
             }
-            ToDim::Transfer(transfer) => inbox.transfers.push(*transfer),
         }
     }
     serverbound.write_batch(inbox.serverbound.drain(..));

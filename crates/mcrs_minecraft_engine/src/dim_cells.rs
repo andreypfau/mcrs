@@ -140,8 +140,8 @@ impl DimCells {
             .map(|lent| lent.world_mut().sub_app_mut())
     }
 
-    pub(crate) fn take_outputs(&mut self, into: &mut Vec<DimTicked>) {
-        into.append(&mut self.outputs);
+    pub(crate) fn take_outputs(&mut self) -> Vec<DimTicked> {
+        mem::take(&mut self.outputs)
     }
 
     fn cell_of(&self, label: Entity) -> Option<CellId> {

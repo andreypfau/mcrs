@@ -1,6 +1,7 @@
 //! A player that leaves its dimension world, as a value that crosses to the host and on to the
 //! world it arrives in.
 
+use bevy_ecs::message::Message;
 use bevy_ecs::world::EntityWorldMut;
 use mcrs_minecraft_dimension::Dimension as DimensionKey;
 use mcrs_minecraft_engine_world::entity::EntityUuid;
@@ -30,7 +31,7 @@ pub struct Departure {
 }
 
 /// What the host hands a dimension world for a player that changes dimension.
-#[derive(Clone, Debug)]
+#[derive(Message, Clone, Debug)]
 pub enum PlayerTransfer {
     /// The player arrives in this world from another one.
     Arrive(Departure),
