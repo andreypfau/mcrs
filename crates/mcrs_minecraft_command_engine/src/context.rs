@@ -29,7 +29,7 @@ impl<'w, 's, S: CommandSet> CommandContext<'w, 's, S> {
         self.source_of(&call.source)
     }
 
-    /// The source of `state`, with the rank of its dimension in the dimension order. The host
+    /// The source of `state`, with the rank of its dimension in the dimension order. The world
     /// fills the targets before a line parses, so a dimension they lack fails the source.
     pub(crate) fn source_of(
         &self,

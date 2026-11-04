@@ -33,8 +33,7 @@ impl<E> Default for SuggestionScratch<E> {
     }
 }
 
-/// Answers a queued suggestion request in the world of its source dimension, with the graph and
-/// the targets lent to it. The reply goes to the outbox.
+/// Answers a queued suggestion request of a player of this world. The reply goes to the outbox.
 pub(crate) fn answer_suggestion<S: CommandSet>(
     queued: InRef<QueuedSuggestion>,
     context: CommandContext<S>,

@@ -12,6 +12,7 @@ use crate::movement::MovementPlugin;
 use crate::op_level::send_op_level;
 use crate::persistence;
 use crate::player_dimension_change::receive_transfers;
+use crate::player_order::{OrderedPlayer, obey_orders};
 use bevy_app::{App, FixedPreUpdate, FixedUpdate, Plugin, Update};
 use bevy_ecs::schedule::IntoScheduleConfigs;
 use bevy_ecs::schedule::common_conditions::on_message;
@@ -43,6 +44,15 @@ impl Plugin for DimPlayerPlugin {
                 .run_if(on_message::<PlayerTransfer>)
                 .in_set(DimInboxDrain)
                 .after(drain_dim_inbox)
+                .before(add_entity_to_chunk),
+        );
+        app.add_message::<OrderedPlayer>();
+        app.add_systems(
+            FixedPreUpdate,
+            obey_orders
+                .run_if(on_message::<OrderedPlayer>)
+                .in_set(DimInboxDrain)
+                .after(receive_transfers)
                 .before(add_entity_to_chunk),
         );
         app.add_systems(

@@ -1,5 +1,5 @@
 //! The command engine: the command tree, the registration of commands and their handlers, and
-//! the pass that parses and runs the command lines of the players across every dimension world.
+//! the run of the command lines of the players inside the tick of each dimension world.
 //! It registers no command and knows no argument type: the application composes a
 //! [`CommandSet`].
 
@@ -49,10 +49,9 @@ pub use effect_queue::EffectQueue;
 pub use invocation::Invocation;
 pub use modified::{Modified, ModifyResult};
 pub use operator_broadcast::OperatorBroadcast;
-pub use pass::run_pending_commands;
 pub use player_entry::PlayerEntry;
 pub use plugin::CommandPlugin;
-pub use registrar::{CommandRegistrar, Handler, NodeRef};
+pub use registrar::{CommandRegistrar, Handler, HandlerWorld, NodeRef};
 pub use source_state::{SourceState, level_of};
 pub use system_message::{system_chat, system_message};
 pub use worlds::{PlayerChangeError, Worlds};

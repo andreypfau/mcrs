@@ -1,6 +1,6 @@
 use bevy_app::{App, AppExit};
 use mcrs_minecraft_engine::between_ticks::{
-    drain_dim_despawn_queue, drain_dim_spawn_queue, run_between_ticks, take_dim_outputs,
+    drain_dim_despawn_queue, drain_dim_spawn_queue, take_dim_outputs,
 };
 use mcrs_minecraft_engine::muxer::bridge::run_pending_flush;
 use mcrs_minecraft_engine::muxer::entity_replication::{self, Answers};
@@ -22,13 +22,12 @@ pub fn run_server_loop(app: App) -> AppExit {
     )
 }
 
-/// What the host does after each tick: it takes the dimensions' output, runs what plugins
-/// added to `BetweenTicks` and spawns or despawns dimensions. A muxer on a thread of its own
+/// What the host does after each tick: it takes the dimensions' output and spawns or despawns
+/// dimensions. A muxer on a thread of its own
 /// works on the entity bytes of the tick meanwhile, and [`drain_until`] hands them over as they
 /// arrive.
 pub fn between_ticks(app: &mut App) {
     take_dim_outputs(app.world_mut());
-    run_between_ticks(app);
     drain_dim_spawn_queue(app);
     drain_dim_despawn_queue(app);
 }

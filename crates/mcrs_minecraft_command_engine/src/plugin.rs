@@ -1,23 +1,31 @@
 use crate::command_limits::CommandLimits;
 use crate::command_outbox::CommandOutbox;
-use crate::command_queue::{CommandQueue, queue_command_line, queue_suggestion_request};
+use crate::command_queue::{
+    CommandQueue, queue_command_line, queue_suggestion_request, reject_illegal_command_line,
+};
 use crate::command_set::CommandSet;
 use crate::command_targets::CommandTargets;
-use crate::command_tree::{CommandTree, CommandTreeBuilder, CommandTreePackets, send_command_tree};
+use crate::command_tree::{
+    CommandTree, CommandTreeBuilder, CommandTreePackets, SetGraph, send_command_tree,
+};
 use crate::handlers::{CommandHandlers, ModifierHandlers};
-use crate::pass::PassBuffers;
-use crate::pass::run_pending_commands;
+use crate::pass::{PassBuffers, commands_pending, run_commands};
 use crate::running_command::RunningCommand;
-use bevy_app::{App, Plugin, Update};
+use bevy_app::{App, FixedPreUpdate, Plugin, Update};
 use bevy_ecs::schedule::IntoScheduleConfigs;
 use mcrs_command::GraphBuilder;
 use mcrs_minecraft_engine::ability::{AnswerOpLevel, OpLevelAnnounced};
-use mcrs_minecraft_engine::between_ticks::BetweenTicks;
+use mcrs_minecraft_engine::command_handoff::CommandHandoff;
+use mcrs_minecraft_engine::dim_tick::DimInboxDrain;
+use mcrs_minecraft_engine::drain_player_despawn::drain_inbound_player_despawn;
+use mcrs_minecraft_engine::minecraft_entity::InboundDispatch;
+use mcrs_minecraft_engine_world::entity::add_entity_to_chunk;
 use mcrs_minecraft_engine_world::world::sub_app::AddDimensionPlugins;
 use std::marker::PhantomData;
 
 /// Owns the command tree of the set `S`: plugins register commands while the app builds, and
-/// the tree freezes when it finishes.
+/// the tree freezes when it finishes. Every dimension world gets a copy of the tree and runs the
+/// command lines of its players in its own tick.
 pub struct CommandPlugin<S>(PhantomData<fn() -> S>);
 
 impl<S> CommandPlugin<S> {
@@ -39,13 +47,7 @@ impl<S: CommandSet> Plugin for CommandPlugin<S> {
             next: 0,
         });
         app.init_resource::<CommandLimits>();
-        app.init_resource::<PassBuffers<S>>();
-        app.init_resource::<CommandQueue>();
-        app.add_observer(queue_command_line)
-            .add_observer(queue_suggestion_request);
-        app.world_mut()
-            .get_resource_or_init::<BetweenTicks>()
-            .add(run_pending_commands::<S>);
+        app.add_observer(reject_illegal_command_line);
     }
 
     fn finish(&self, app: &mut App) {
@@ -59,12 +61,20 @@ impl<S: CommandSet> Plugin for CommandPlugin<S> {
                 return;
             }
         };
+        let limits = app
+            .world()
+            .get_resource::<CommandLimits>()
+            .copied()
+            .unwrap_or_default();
         match CommandTreePackets::new::<S>(&graph) {
             Ok(packets) => {
-                app.insert_resource(CommandTree::<S> { graph: Some(graph) });
+                app.insert_resource(CommandTree::<S> {
+                    graph: Some(graph.clone()),
+                });
                 app.add_dimension_plugin(DimCommandPlugin::<S> {
                     packets,
-                    set: PhantomData,
+                    graph,
+                    limits,
                 });
             }
             Err(error) => tracing::error!("the command tree does not encode: {error:#}"),
@@ -72,18 +82,20 @@ impl<S: CommandSet> Plugin for CommandPlugin<S> {
     }
 }
 
-/// Holds the handlers the host runs in a dimension world, the resources the host lends to it,
-/// and the `commands` packets the world sends.
-struct DimCommandPlugin<S> {
+/// The command tree, the handlers and the command run of one dimension world, and the
+/// `commands` packets the world sends.
+struct DimCommandPlugin<S: CommandSet> {
     packets: CommandTreePackets,
-    set: PhantomData<fn() -> S>,
+    graph: SetGraph<S>,
+    limits: CommandLimits,
 }
 
-impl<S> Clone for DimCommandPlugin<S> {
+impl<S: CommandSet> Clone for DimCommandPlugin<S> {
     fn clone(&self) -> Self {
         Self {
             packets: self.packets.clone(),
-            set: PhantomData,
+            graph: self.graph.clone(),
+            limits: self.limits,
         }
     }
 }
@@ -91,13 +103,30 @@ impl<S> Clone for DimCommandPlugin<S> {
 impl<S: CommandSet> Plugin for DimCommandPlugin<S> {
     fn build(&self, app: &mut App) {
         app.insert_resource(self.packets.clone());
-        app.init_resource::<CommandTree<S>>();
+        app.insert_resource(CommandTree::<S> {
+            graph: Some(self.graph.clone()),
+        });
+        app.insert_resource(self.limits);
         app.init_resource::<CommandHandlers>();
         app.init_resource::<ModifierHandlers>();
         app.init_resource::<RunningCommand>();
         app.init_resource::<CommandTargets>();
         app.init_resource::<CommandOutbox>();
+        app.init_resource::<CommandQueue>();
+        app.init_resource::<PassBuffers>();
         app.add_message::<OpLevelAnnounced>();
+        app.add_message::<CommandHandoff>();
+        app.add_observer(queue_command_line)
+            .add_observer(queue_suggestion_request);
         app.add_systems(Update, send_command_tree.in_set(AnswerOpLevel));
+        app.add_systems(
+            FixedPreUpdate,
+            run_commands::<S>
+                .run_if(commands_pending)
+                .after(DimInboxDrain)
+                .after(InboundDispatch)
+                .after(drain_inbound_player_despawn)
+                .before(add_entity_to_chunk),
+        );
     }
 }

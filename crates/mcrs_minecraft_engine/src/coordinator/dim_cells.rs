@@ -10,7 +10,7 @@ use bevy_ecs::schedule::IntoScheduleConfigs;
 use bevy_ecs::world::World;
 use bevy_platform::cell::SyncCell;
 use bevy_tasks::block_on;
-use mcrs_engine_cell::{CellId, Cells, Lent, Placement, Tick};
+use mcrs_engine_cell::{CellId, Cells, Placement, Tick};
 use mcrs_minecraft_core::Versioned;
 use mcrs_minecraft_engine_registries::RegistrySnapshot;
 use mcrs_minecraft_environment::world_clock::WorldClocks;
@@ -18,9 +18,12 @@ use mcrs_minecraft_environment::world_clock::WorldClocks;
 use crate::coordinator::clock::GameTime;
 use crate::coordinator::entity_id_ranges::EntityIdRanges;
 use crate::coordinator::ops::OpList;
+use crate::coordinator::roster::PlayerRoster;
+use crate::coordinator::running_dimensions::RunningDimensions;
 use crate::dim_tick;
 use crate::dim_tick::{DimInput, DimOutput, DimWorld, TickDimensions, TickDimensionsSet};
 use crate::entity_ids::EntityIdRange;
+use crate::player_roster::RosterRow;
 use crate::to_coordinator::RoutedInput;
 use crate::to_muxer::{DimClosed, DimDelivered, DimOpened};
 use rustc_hash::FxHashMap;
@@ -32,6 +35,8 @@ impl Plugin for DimCellsPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<DimCells>();
         app.init_resource::<EntityIdRanges>();
+        app.init_resource::<PlayerRoster>();
+        app.init_resource::<RunningDimensions>();
         app.add_message::<DimOpened>();
         app.add_message::<DimClosed>();
         app.add_message::<DimDelivered>();
@@ -74,7 +79,8 @@ impl Default for DimCells {
 #[derive(Default)]
 struct Worlds {
     cells: Cells<DimWorld>,
-    lent: BTreeMap<CellId, Lent<DimWorld>>,
+    #[cfg(feature = "world-access")]
+    lent: BTreeMap<CellId, mcrs_engine_cell::Lent<DimWorld>>,
 }
 
 /// The output of the dimension of `label` for one tick.
@@ -100,6 +106,7 @@ impl DimCells {
         };
         self.labels.remove(&cell);
         let worlds = self.worlds.get();
+        #[cfg(feature = "world-access")]
         worlds.lent.remove(&cell);
         block_on(worlds.cells.remove(cell));
         true
@@ -127,8 +134,9 @@ impl DimCells {
 
     /// The world of `label`, lent out of its cell until the next tick gives it back.
     ///
-    /// Transitional: only the command pass and tests read or write a dimension world between
-    /// ticks this way, until commands become messages to the world.
+    /// For tests and tools only: the parts of the server send a dimension world messages and
+    /// never read or write it between ticks.
+    #[cfg(feature = "world-access")]
     pub fn sub_app_mut(&mut self, label: Entity) -> Option<&mut SubApp> {
         let cell = self.cell_of(label)?;
         let worlds = self.worlds.get();
@@ -140,6 +148,7 @@ impl DimCells {
     }
 
     /// Every world, lent out as [`Self::sub_app_mut`] lends one, in the order they tick.
+    #[cfg(feature = "world-access")]
     pub fn sub_apps_mut(&mut self) -> impl Iterator<Item = &mut SubApp> {
         let worlds = self.worlds.get();
         for &cell in self.labels.keys() {
@@ -165,6 +174,7 @@ impl DimCells {
     fn tick(&mut self, mut input: impl FnMut(Entity) -> DimInput) {
         let worlds = self.worlds.get();
         let labels = &self.labels;
+        #[cfg(feature = "world-access")]
         for (_, lent) in mem::take(&mut worlds.lent) {
             worlds.cells.give_back(lent);
         }
@@ -191,6 +201,7 @@ impl DimCells {
     }
 }
 
+#[cfg(feature = "world-access")]
 fn lend(worlds: &mut Worlds, cell: CellId) {
     if worlds.lent.contains_key(&cell) {
         return;
@@ -206,6 +217,7 @@ struct Globals {
     clocks: Option<WorldClocks>,
     ops: Option<OpList>,
     registries: Option<Versioned<RegistrySnapshot>>,
+    dimensions: Option<RunningDimensions>,
 }
 
 impl Globals {
@@ -215,12 +227,14 @@ impl Globals {
             clocks: changed(host),
             ops: changed(host),
             registries: changed(host),
+            dimensions: changed(host),
         }
     }
 
     fn input(
         &self,
         routed: Option<RoutedInput>,
+        players: Option<Vec<RosterRow>>,
         entity_id_grant: Option<EntityIdRange>,
     ) -> DimInput {
         let (control, serverbound) = routed.map_or_else(Default::default, |routed| {
@@ -231,6 +245,8 @@ impl Globals {
             clocks: self.clocks.clone(),
             ops: self.ops.clone(),
             registries: self.registries.clone(),
+            dimensions: self.dimensions.clone(),
+            players,
             control,
             serverbound,
             entity_id_grant,
@@ -245,7 +261,9 @@ fn changed<R: Resource + Clone>(host: &World) -> Option<R> {
 }
 
 /// Ticks every dimension world once with the copies of the host resources and the input that
-/// the muxer routed during the update, with the entity id ranges granted after the last tick, and keeps the outputs for the host to take between ticks.
+/// the muxer routed during the update, with the entity id ranges granted after the last tick
+/// and, for a world that runs commands, the players of the other worlds. It keeps the outputs
+/// for the host to take between ticks.
 pub fn tick_dimensions(world: &mut World) {
     let globals = Globals::read(world);
     let mut routed: FxHashMap<Entity, RoutedInput> = world
@@ -261,7 +279,23 @@ pub fn tick_dimensions(world: &mut World) {
         .get_resource_mut::<EntityIdRanges>()
         .map(|mut ranges| ranges.take_granted())
         .unwrap_or_default();
+    let mut players: FxHashMap<Entity, Vec<RosterRow>> = world
+        .get_resource::<PlayerRoster>()
+        .map(|roster| {
+            routed
+                .values()
+                .filter(|routed| routed.carries_commands())
+                .map(|routed| (routed.dim, roster.others(routed.dim)))
+                .collect()
+        })
+        .unwrap_or_default();
     if let Some(mut cells) = world.get_resource_mut::<DimCells>() {
-        cells.tick(|label| globals.input(routed.remove(&label), granted.remove(&label)));
+        cells.tick(|label| {
+            globals.input(
+                routed.remove(&label),
+                players.remove(&label),
+                granted.remove(&label),
+            )
+        });
     }
 }

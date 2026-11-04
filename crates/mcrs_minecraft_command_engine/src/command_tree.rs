@@ -12,8 +12,8 @@ use mcrs_minecraft_engine_world::session::PlayerSession;
 use mcrs_minecraft_protocol::{Packet, anyhow};
 use mcrs_minecraft_protocol_game::clientbound::ClientboundCommands;
 
-/// The command graph. The host owns it and lends it to the world in which a line parses, gets
-/// suggestions or runs; in every other world it is empty.
+/// The command graph. The host keeps the graph it froze, and every dimension world holds a copy,
+/// in which the lines of its players parse, get suggestions and run.
 #[derive(Resource)]
 pub struct CommandTree<S: CommandSet> {
     pub(crate) graph: Option<SetGraph<S>>,
@@ -29,7 +29,7 @@ impl<S: CommandSet> Default for CommandTree<S> {
 }
 
 impl<S: CommandSet> CommandTree<S> {
-    /// The frozen graph, in the world it is lent to.
+    /// The frozen graph.
     pub fn graph(&self) -> Option<&SetGraph<S>> {
         self.graph.as_ref()
     }

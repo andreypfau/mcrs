@@ -5,7 +5,9 @@ use mcrs_minecraft_core::Look;
 use mcrs_minecraft_engine_world::entity::physics::Transform;
 use mcrs_minecraft_protocol::VarInt;
 use mcrs_minecraft_protocol_game::PositionFlags;
-use mcrs_minecraft_protocol_game::clientbound::ClientboundPlayerPosition;
+use mcrs_minecraft_protocol_game::clientbound::{
+    ClientboundPlayerLookAt, ClientboundPlayerPosition,
+};
 
 /// Where a player arrives: its transform, and what `player_position` tells the client, whose
 /// relative axes carry the change and not the value.
@@ -19,6 +21,8 @@ pub struct Arrival {
     pub look: Look,
     /// The axes and angles `player_position` sends as a change.
     pub flags: PositionFlags,
+    /// What the player turns to once it is there, sent after `player_position`.
+    pub look_at: Option<ClientboundPlayerLookAt>,
 }
 
 impl Arrival {
@@ -29,6 +33,7 @@ impl Arrival {
             position: transform.translation,
             look: transform.rotation.into(),
             flags: PositionFlags::default(),
+            look_at: None,
         }
     }
 

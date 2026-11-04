@@ -1,13 +1,10 @@
 use crate::command_targets::CommandTargets;
-use bevy_ecs::entity::Entity;
-use bevy_ecs::prelude::DetectChangesMut;
 use bevy_ecs::world::World;
-use mcrs_minecraft_engine::ability::PlayerGameMode;
 use mcrs_minecraft_engine::bus::OutboundPlayerPacket;
+use mcrs_minecraft_engine::coordinator::clock::EditClock;
+use mcrs_minecraft_engine::dim_mail::{self, DimMail};
 use mcrs_minecraft_engine::dimension_change::{Arrival, DimensionChangeError};
-use mcrs_minecraft_engine::muxer::dim_outputs;
-use mcrs_minecraft_engine::player_dimension_change;
-use mcrs_minecraft_engine_world::entity::physics::Transform;
+use mcrs_minecraft_engine::player_order::{self, OrderedPlayer, PlayerOrder, TeleportOrder};
 use mcrs_minecraft_engine_world::session::PlayerSession;
 use mcrs_minecraft_game_mode::GameMode;
 
@@ -17,102 +14,76 @@ pub enum PlayerChangeError {
     /// No online player has the session.
     #[error("no online player has this session")]
     NotOnline,
-    /// The world of the player does not hold its entity.
-    #[error("the world of the player does not hold its entity")]
-    NotInWorld,
-    /// No dimension runs at the index, or the destination is the dimension of the player.
+    /// No dimension runs at the index.
     #[error("no dimension runs at this index")]
     NoDimension,
-    /// The player did not change dimension.
-    #[error("the player did not change dimension: {0}")]
-    DimensionChange(DimensionChangeError),
+    /// The world that holds the player did not change it.
+    #[error("the player did not change: {0}")]
+    Change(DimensionChangeError),
 }
 
-/// The host and every dimension world, lent to the appliers of the effects of one run, between
-/// two ticks. A player of [`CommandTargets`] changes only through [`Worlds::set_transform`],
-/// [`Worlds::change_dimension`] and [`Worlds::set_game_mode`], which keep its entry current for
-/// the later effects, stages and lines of the pass.
-pub struct Worlds<'s, 'w> {
-    pub(crate) host: &'s mut World,
-    pub(crate) worlds: &'s mut [&'w mut World],
-    pub(crate) targets: &'s mut CommandTargets,
+/// The world a run of a handler happened in, lent to the appliers of its effects. A player that
+/// this world holds changes at once; a player of another world changes in the next tick of that
+/// world, through an order. A player of [`CommandTargets`] changes only through
+/// [`Worlds::teleport`] and [`Worlds::set_game_mode`], which keep its entry current for the later
+/// effects, stages and lines of the tick.
+pub struct Worlds<'w> {
+    pub(crate) world: &'w mut World,
+    pub(crate) targets: &'w mut CommandTargets,
 }
 
-impl Worlds<'_, '_> {
+impl Worlds<'_> {
     /// The dimensions in the dimension order and the online players, as the effects so far
     /// left them.
     pub fn targets(&self) -> &CommandTargets {
         self.targets
     }
 
-    /// The host world and every dimension world in the dimension order.
-    pub fn host_and_worlds(&mut self) -> (&mut World, impl Iterator<Item = &mut World>) {
-        (
-            &mut *self.host,
-            self.worlds.iter_mut().map(|world| &mut **world),
-        )
+    /// The world the run happened in.
+    pub fn world_mut(&mut self) -> &mut World {
+        self.world
     }
 
-    /// The dimension world at `index` in the dimension order.
-    pub fn world_mut(&mut self, index: usize) -> Option<&mut World> {
-        self.worlds.get_mut(index).map(|world| &mut **world)
-    }
-
-    /// Sends `packet` after everything the dimensions handed over before it.
+    /// Sends `packet` after everything this world wrote before it.
     pub fn deliver(&mut self, packet: OutboundPlayerPacket) {
-        dim_outputs::deliver(self.host, packet);
+        self.world.write_message(packet);
     }
 
-    /// Sets the transform of the player of the session `player` in the world that holds
-    /// it. Returns the entity of the player there.
-    pub fn set_transform(
-        &mut self,
-        player: PlayerSession,
-        transform: Transform,
-    ) -> Result<Entity, PlayerChangeError> {
-        let entry = self
-            .targets
-            .player_mut(player)
-            .ok_or(PlayerChangeError::NotOnline)?;
-        let mut current = self
-            .worlds
-            .get_mut(entry.dimension)
-            .and_then(|world| world.get_mut::<Transform>(entry.entity))
-            .ok_or(PlayerChangeError::NotInWorld)?;
-        *current = transform;
-        entry.transform = transform;
-        Ok(entry.entity)
-    }
-
-    /// Moves the player of the session `player` to the dimension at `destination` at once, as
-    /// a departure of the world it leaves that arrives at once. Returns the entity of the player
-    /// in its new world.
-    pub fn change_dimension(
+    /// Moves the player of the session `player` to `arrival` in the dimension at `destination`.
+    /// A player of this world that goes to another dimension leaves after the tick.
+    pub fn teleport(
         &mut self,
         player: PlayerSession,
         destination: usize,
         arrival: Arrival,
-    ) -> Result<Entity, PlayerChangeError> {
+    ) -> Result<(), PlayerChangeError> {
+        let to = self
+            .targets
+            .dimensions
+            .get(destination)
+            .ok_or(PlayerChangeError::NoDimension)?
+            .key
+            .clone();
         let entry = self
             .targets
             .player_mut(player)
             .ok_or(PlayerChangeError::NotOnline)?;
-        let [from, to] = self
-            .worlds
-            .get_disjoint_mut([entry.dimension, destination])
-            .map_err(|_| PlayerChangeError::NoDimension)?;
-        let transform = arrival.transform;
-        let arrived =
-            player_dimension_change::change_dimension(self.host, from, to, entry.entity, arrival)
-                .map_err(PlayerChangeError::DimensionChange)?;
         entry.dimension = destination;
-        entry.entity = arrived;
-        entry.transform = transform;
-        Ok(arrived)
+        entry.transform = arrival.transform;
+        let order = TeleportOrder { to, arrival };
+        match entry.entity {
+            Some(entity) => {
+                player_order::teleport(self.world, entity, order).map_err(PlayerChangeError::Change)
+            }
+            None => {
+                send(self.world, player, PlayerOrder::Teleport(order));
+                Ok(())
+            }
+        }
     }
 
-    /// Sets the game mode of the player of the session `player`. Its world sends the
-    /// packets of the change on its next tick.
+    /// Sets the game mode of the player of the session `player`. Its world sends the packets of
+    /// the change.
     pub fn set_game_mode(
         &mut self,
         player: PlayerSession,
@@ -122,13 +93,26 @@ impl Worlds<'_, '_> {
             .targets
             .player_mut(player)
             .ok_or(PlayerChangeError::NotOnline)?;
-        let mut current = self
-            .worlds
-            .get_mut(entry.dimension)
-            .and_then(|world| world.get_mut::<PlayerGameMode>(entry.entity))
-            .ok_or(PlayerChangeError::NotInWorld)?;
-        current.set_if_neq(PlayerGameMode(mode));
         entry.mode = mode;
-        Ok(())
+        match entry.entity {
+            Some(entity) => player_order::set_game_mode(self.world, entity, mode)
+                .map_err(PlayerChangeError::Change),
+            None => {
+                send(self.world, player, PlayerOrder::SetGameMode(mode));
+                Ok(())
+            }
+        }
     }
+
+    /// Changes a world clock: this world reads the change at once, and the other worlds in
+    /// their next tick.
+    pub fn edit_clock(&mut self, edit: EditClock) {
+        dim_mail::edit_clock(self.world, edit);
+    }
+}
+
+fn send(world: &mut World, session: PlayerSession, order: PlayerOrder) {
+    world
+        .get_resource_or_init::<DimMail>()
+        .order(OrderedPlayer { session, order });
 }

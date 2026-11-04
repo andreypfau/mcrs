@@ -2,33 +2,40 @@ use bevy_ecs::entity::Entity;
 use bevy_ecs::message::Messages;
 use bevy_ecs::prelude::With;
 use bevy_ecs::world::World;
+use mcrs_engine_muxer::EntityEvent;
 use mcrs_minecraft_dimension::Dimension as DimensionKey;
 use mcrs_minecraft_engine_world::entity::physics::Transform;
 use mcrs_minecraft_engine_world::entity::player::{ChangeDimensionRequest, Player};
 use mcrs_minecraft_engine_world::session::{Owner, PlayerSession};
 use mcrs_minecraft_engine_world::world::dimension::{Dimension, InDimension};
-use mcrs_minecraft_engine_world::world::sub_app::DimensionLabel;
+use mcrs_minecraft_replication::PlayerData;
 use mcrs_minecraft_resource::ResourceKeyBuf;
 
 use crate::ability::OpLevelAnnounced;
 use crate::column_view::ColumnView;
-use crate::coordinator::destination;
 use crate::departure::{CarriedPlayer, Departure, PlayerTransfer};
 use crate::dimension_change::{Arrival, DimensionChangeError};
+use crate::game_mode::ListedGameMode;
 use crate::minecraft_entity::EntityBundle;
-use crate::muxer::departure_routing;
+use crate::player_order::{DepartureRequest, DepartureRequests};
+use crate::replicated::Replicated;
+use crate::tile_events::TileEvents;
 
 /// Lets go of each player that a [`ChangeDimensionRequest`] of this tick names, in the order of
-/// writing, into `departures`. A request that this world cannot meet leaves the player where it
-/// is.
+/// writing, then of each player that a command sends away, into `departures`. A request that
+/// this world cannot meet leaves the player where it is.
 pub(crate) fn depart_players(world: &mut World, departures: &mut Vec<Departure>) {
-    let Some(mut written) = world.get_resource_mut::<Messages<ChangeDimensionRequest>>() else {
-        return;
-    };
-    if written.is_empty() {
+    let ordered = world
+        .get_resource_mut::<DepartureRequests>()
+        .map(|mut requests| requests.take())
+        .unwrap_or_default();
+    let requests: Vec<ChangeDimensionRequest> = world
+        .get_resource_mut::<Messages<ChangeDimensionRequest>>()
+        .map(|mut written| written.drain().collect())
+        .unwrap_or_default();
+    if requests.is_empty() && ordered.is_empty() {
         return;
     }
-    let requests: Vec<ChangeDimensionRequest> = written.drain().collect();
     let own = world
         .query_filtered::<&ResourceKeyBuf<DimensionKey>, With<Dimension>>()
         .single(world)
@@ -47,6 +54,19 @@ pub(crate) fn depart_players(world: &mut World, departures: &mut Vec<Departure>)
             }
         }
     }
+    for DepartureRequest {
+        player,
+        to,
+        arrival,
+    } in ordered
+    {
+        match depart(world, player, to, arrival) {
+            Ok(departure) => departures.push(departure),
+            Err(error) => {
+                tracing::error!(?player, "a player did not change dimension: {error}");
+            }
+        }
+    }
 }
 
 /// Takes the carried state of `player` and despawns it. Its viewers here lose it.
@@ -62,8 +82,20 @@ fn depart(
     let Some(&Owner(session)) = leaving.get::<Owner>() else {
         return Err(DimensionChangeError::NoPlayer);
     };
+    let listed = leaving
+        .get::<Replicated>()
+        .zip(leaving.get::<ListedGameMode>())
+        .filter(|(replicated, listed)| replicated.game_mode != listed.0)
+        .map(|(replicated, listed)| (replicated.tile, replicated.id, listed.0));
     let carried = CarriedPlayer::take(&mut leaving)?;
-    leaving.despawn();
+    // A game mode that changed in the tick the player leaves reaches its viewers before its
+    // despawn, as the publish of the next tick would have sent it.
+    if let Some((tile, id, mode)) = listed
+        && let Some(mut events) = world.get_resource_mut::<TileEvents>()
+    {
+        events.push(tile, id, EntityEvent::Data(PlayerData::GameMode(mode)));
+    }
+    world.despawn(player);
     Ok(Departure {
         session,
         to,
@@ -138,42 +170,4 @@ fn place(
     ));
     carried.insert_into(&mut player);
     Ok(player.id())
-}
-
-/// Moves `player`, an entity of `from`, into the dimension of `to` at once, through the same
-/// departure that a [`ChangeDimensionRequest`] makes. Gives its entity in `to`. A caller that
-/// holds every world between two ticks uses this, so that the player is in `to` for the rest of
-/// what the caller does.
-///
-/// It reads the coordinator and the muxer of `host` in one call: the command pass that calls it
-/// lends every world at once and answers in the same pass, so a round trip of messages does not
-/// fit.
-pub fn change_dimension(
-    host: &mut World,
-    from: &mut World,
-    to: &mut World,
-    player: Entity,
-    arrival: Arrival,
-) -> Result<Entity, DimensionChangeError> {
-    let source = from
-        .get_resource::<DimensionLabel>()
-        .ok_or(DimensionChangeError::NoPlayer)?
-        .0;
-    let key = to
-        .query_filtered::<&ResourceKeyBuf<DimensionKey>, With<Dimension>>()
-        .single(to)
-        .map_err(|_| DimensionChangeError::NoDimension)?
-        .clone();
-    let destination = destination::find(host, &key)
-        .filter(|found| found.label != source)
-        .ok_or(DimensionChangeError::NoDimension)?;
-    let session = from
-        .get::<Owner>(player)
-        .ok_or(DimensionChangeError::NoPlayer)?
-        .0;
-    let anchor = departure_routing::placed_anchor(host, session, source)
-        .ok_or(DimensionChangeError::NotPlaced)?;
-    let mut departure = depart(from, player, key, arrival)?;
-    departure_routing::announce(host, anchor, destination, &mut departure);
-    arrive(to, departure)
 }

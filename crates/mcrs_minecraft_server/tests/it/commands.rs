@@ -18,6 +18,7 @@ use mcrs_minecraft_core::LookAnchor;
 use mcrs_minecraft_engine::bus::{PacketPayload, PacketTarget};
 use mcrs_minecraft_engine_world::entity::physics::Transform;
 use mcrs_minecraft_engine_world::session::PlayerSession;
+use mcrs_minecraft_engine_world::world::sub_app::AddDimensionPlugins;
 use mcrs_minecraft_game_mode::GameMode;
 use mcrs_minecraft_item::ItemHoverMap;
 use mcrs_minecraft_protocol::uuid::Uuid;
@@ -26,7 +27,7 @@ use mcrs_minecraft_protocol_game::serverbound::{
     ServerboundChatCommand, ServerboundCommandSuggestion,
 };
 use mcrs_minecraft_protocol_game::text::{IntoText, Text};
-use mcrs_minecraft_server::operator_broadcast::broadcast_to_operators;
+use mcrs_minecraft_server::operator_broadcast::OperatorBroadcastPlugin;
 
 use mcrs_minecraft_block_entity::GeneratedBlockEntity;
 use mcrs_minecraft_command_tree::{CommandNode, NumberRange, ParserProperties};
@@ -107,7 +108,7 @@ fn start_in(dimensions: &[(&str, &str)], limits: Limits) -> PlayServer {
     app.insert_resource(AdvanceTime(false));
     app.add_plugins(WorldClockHostPlugin);
     app.add_plugins(CommandPlugin::<VanillaCommands>::new());
-    app.add_observer(broadcast_to_operators);
+    app.add_dimension_plugin(OperatorBroadcastPlugin);
     app.add_plugins(VanillaCommandsPlugin);
     app.add_command(echo_at("echo"), run_echo).unwrap();
     app.add_command(echo_at("shout"), run_echo).unwrap();
@@ -472,7 +473,7 @@ fn an_admin_message_reaches_only_the_other_listed_operators_of_every_dimension()
     const WATCHER: Uuid = Uuid::from_u128(3);
     let mut app = host_app::make_host_app();
     app.add_plugins(CommandPlugin::<VanillaCommands>::new());
-    app.add_observer(broadcast_to_operators);
+    app.add_dimension_plugin(OperatorBroadcastPlugin);
     app.add_plugins(VanillaCommandsPlugin);
     let mut server = PlayServer::start_in(
         app,
@@ -575,7 +576,7 @@ fn clashing(r: &mut CommandRegistrar<'_, VanillaCommands, ()>) -> Result<Echo, B
 fn a_command_whose_nodes_clash_is_not_registered_at_all() {
     let mut app = host_app::make_host_app();
     app.add_plugins(CommandPlugin::<VanillaCommands>::new());
-    app.add_observer(broadcast_to_operators);
+    app.add_dimension_plugin(OperatorBroadcastPlugin);
     app.add_command(echo_at("echo"), run_echo).unwrap();
     let clash = app.add_command(clashing, run_echo);
     assert!(
@@ -1883,6 +1884,9 @@ fn nearest_compares_coordinates_across_dimensions_and_later_commands_see_the_mov
     );
 
     command(&mut server, op, "tp @p[name=!Op] ~ ~ ~");
+    // The Nether leaves the player in the tick after the order, and the Overworld takes it in
+    // the tick after that.
+    server.ticks_all(1);
     assert!(server.player_in(nether, nether_player).is_none());
     assert_eq!(
         transform_in(&mut server, overworld, nether_player).translation,
@@ -1931,15 +1935,10 @@ fn mark(worlds: &mut Worlds, Mark(player): Mark) {
     let Some(entry) = worlds.targets().player(player) else {
         return;
     };
-    let (dimension, entity) = (entry.dimension, entry.entity);
-    let Some(&held) = worlds
-        .world_mut(dimension)
-        .and_then(|world| world.get::<Transform>(entity))
-    else {
-        return;
-    };
-    let (host, _) = worlds.host_and_worlds();
-    host.resource_mut::<Marks>()
+    let (dimension, held) = (entry.dimension, entry.transform);
+    worlds
+        .world_mut()
+        .get_resource_or_init::<Marks>()
         .0
         .push((dimension, held.translation));
 }
@@ -1984,9 +1983,8 @@ fn the_effects_of_one_run_apply_in_the_order_of_writing_across_effect_types() {
     app.insert_resource(AdvanceTime(false));
     app.add_plugins(WorldClockHostPlugin);
     app.add_plugins(CommandPlugin::<VanillaCommands>::new());
-    app.add_observer(broadcast_to_operators);
+    app.add_dimension_plugin(OperatorBroadcastPlugin);
     app.add_plugins(VanillaCommandsPlugin);
-    app.init_resource::<Marks>();
     app.add_command_effect(mark);
     app.add_command(
         |r: &mut CommandRegistrar<'_, VanillaCommands, ()>| {
@@ -2008,7 +2006,7 @@ fn the_effects_of_one_run_apply_in_the_order_of_writing_across_effect_types() {
     let (op, _) = server.join(OPERATOR, "Op");
     command(&mut server, op, "bounce");
     assert_eq!(
-        server.app.world().resource::<Marks>().0,
+        server.world().resource::<Marks>().0,
         [
             (1, DVec3::new(3.5, 64.0, 0.5)),
             (0, DVec3::new(7.5, 64.0, 0.5))
@@ -2102,7 +2100,7 @@ fn an_observer_that_cancels_a_command_reads_the_targets_of_the_pass() {
         event.cancelled = targets
             .players()
             .iter()
-            .any(|player| player.entity == event.player());
+            .any(|player| player.entity == Some(event.player()));
     }
     let mut server = start();
     let (op, _) = server.join(OPERATOR, "Op");

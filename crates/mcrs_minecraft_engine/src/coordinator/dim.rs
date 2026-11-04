@@ -10,11 +10,14 @@ use tracing::{debug, warn};
 use crate::coordinator::destination;
 use crate::coordinator::dim_cells::{DimCells, DimTicked};
 use crate::coordinator::entity_id_ranges::EntityIdRanges;
+use crate::coordinator::roster::PlayerRoster;
+use crate::coordinator::running_dimensions::RunningDimensions;
 use crate::to_muxer::{DimClosed, DimDelivered, RoutedDeparture};
 
 /// Takes what the dimension worlds handed over in their last tick, the dimensions in the order
-/// they ticked: records their column traces, grants the entity id ranges they ask for, picks the destination of each player that left
-/// them, and hands the rest to the muxer.
+/// they ticked: records their column traces, grants the entity id ranges they ask for, keeps
+/// the players they report, applies the clock changes they made, picks the destination of each
+/// player that left them, and hands the rest to the muxer.
 pub(crate) fn take_dim_outputs(world: &mut World) {
     let taken = world
         .get_resource_mut::<DimCells>()
@@ -32,6 +35,12 @@ pub(crate) fn take_dim_outputs(world: &mut World) {
         {
             ranges.answer(label);
         }
+        if let Some(mut roster) = world.get_resource_mut::<PlayerRoster>() {
+            roster.report(label, output.roster);
+        }
+        for edit in output.clock_edits {
+            world.trigger(edit);
+        }
         let departures: Vec<RoutedDeparture> = output
             .departures
             .into_iter()
@@ -44,6 +53,8 @@ pub(crate) fn take_dim_outputs(world: &mut World) {
             attached: output.attached,
             tiles: output.tiles,
             departures,
+            orders: output.orders,
+            handoffs: output.handoffs,
         });
     }
 }
@@ -69,6 +80,12 @@ pub(crate) fn drain_dim_despawn_queue(app: &mut App) {
             warn!(?entity, "DimDespawnQueue entry names no dimension world");
         }
         world.write_message(DimClosed { dim: entity });
+        if let Some(mut roster) = world.get_resource_mut::<PlayerRoster>() {
+            roster.forget(entity);
+        }
+        if let Some(mut running) = world.get_resource_mut::<RunningDimensions>() {
+            running.remove(entity);
+        }
 
         // The `OnRemove<DimSubAppHandle>` observer queues an entity that is despawned already.
         match world.get_entity_mut(entity) {

@@ -21,7 +21,7 @@ use crate::to_muxer::{Destination, RoutedDeparture};
 const KEEP_ATTRIBUTES_AND_DATA: u8 = 0x03;
 
 /// The host anchor of `session` while the session is placed in the dimension `source`.
-pub fn placed_anchor(host: &World, session: PlayerSession, source: Entity) -> Option<Entity> {
+fn placed_anchor(host: &World, session: PlayerSession, source: Entity) -> Option<Entity> {
     host.get_resource::<SessionAnchors>()
         .and_then(|anchors| anchors.get(session))
         .filter(|&anchor| {
@@ -65,12 +65,7 @@ fn send(host: &mut World, dim: Entity, transfer: PlayerTransfer) {
 
 /// Places the session of `departure` in `destination` and sends it the packets of a respawn
 /// there, after the packets of the dimension it leaves.
-pub fn announce(
-    host: &mut World,
-    anchor: Entity,
-    destination: Destination,
-    departure: &mut Departure,
-) {
+fn announce(host: &mut World, anchor: Entity, destination: Destination, departure: &mut Departure) {
     // The packets stamped for the dimension the player leaves go out before its epoch changes,
     // or the bridge drops them as stale. The muxer bytes of that dimension are among them, and
     // the muxer may still work on them, so the host waits for it here.
@@ -107,4 +102,10 @@ pub fn announce(
         game_mode::abilities(carried.game_mode.0, carried.flying),
         |packet| dim_outputs::deliver(host, packet),
     );
+    if let Some(look_at) = departure.arrival.look_at.clone() {
+        dim_outputs::deliver(
+            host,
+            bus::to(session, PacketPayload::PlayerLookAt(look_at)).critical(),
+        );
+    }
 }

@@ -157,6 +157,15 @@ impl<S> Default for SourceLists<S> {
     }
 }
 
+/// Where a run of a chain starts: at stage `stage` with `sources`, after the stages before it
+/// cost `cost`.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Resume<S> {
+    pub stage: usize,
+    pub sources: Vec<S>,
+    pub cost: usize,
+}
+
 /// Runs each modifier stage over the whole source list, then the run stage for each source of
 /// the last list.
 pub fn execute<S, H, X: Executor<S, H>>(
@@ -166,15 +175,42 @@ pub fn execute<S, H, X: Executor<S, H>>(
     executor: &mut X,
     lists: &mut SourceLists<S>,
 ) -> End {
+    lists.current.clear();
+    lists.current.push(source);
+    run_from(stages, 0, 0, limits, executor, lists)
+}
+
+/// Runs the chain on from the stage of `resume`, as [`execute`] runs it from the first stage. A
+/// run that moved part of its sources elsewhere goes on there with this.
+pub fn resume<S, H, X: Executor<S, H>>(
+    stages: &[Stage<H>],
+    resume: Resume<S>,
+    limits: Limits,
+    executor: &mut X,
+    lists: &mut SourceLists<S>,
+) -> End {
+    lists.current.clear();
+    lists.current.extend(resume.sources);
+    run_from(stages, resume.stage, resume.cost, limits, executor, lists)
+}
+
+fn run_from<S, H, X: Executor<S, H>>(
+    stages: &[Stage<H>],
+    start: usize,
+    mut cost: usize,
+    limits: Limits,
+    executor: &mut X,
+    lists: &mut SourceLists<S>,
+) -> End {
     let SourceLists { current, next } = lists;
-    current.clear();
-    current.push(source);
     let Some((last, modifiers)) = stages.split_last() else {
         return End::Failed;
     };
-    let mut forked = false;
-    let mut cost = 0usize;
-    for (index, stage) in modifiers.iter().enumerate() {
+    if start > modifiers.len() {
+        return End::Failed;
+    }
+    let mut forked = modifiers.iter().take(start).any(|stage| stage.forks);
+    for (index, stage) in modifiers.iter().enumerate().skip(start) {
         forked |= stage.forks;
         let Some(modifier) = &stage.modifier else {
             continue;

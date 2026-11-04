@@ -1,5 +1,6 @@
 //! The muxer and the coordinator talk only through the messages of `to_muxer` and
-//! `to_coordinator`: neither tree names the other, nor the state that the other owns.
+//! `to_coordinator`: neither tree names the other, nor the state that the other owns, and no
+//! module outside the two trees reaches into both but the steps between two ticks.
 
 use std::fs;
 use std::io;
@@ -73,6 +74,34 @@ fn the_muxer_names_nothing_of_the_coordinator() -> io::Result<()> {
 fn the_coordinator_names_nothing_of_the_muxer() -> io::Result<()> {
     let forbidden: Vec<&str> = ["crate::muxer"].into_iter().chain(MUXER_STATE).collect();
     let found = offences("coordinator", &forbidden)?;
+    assert!(found.is_empty(), "{}", found.join("\n"));
+    Ok(())
+}
+
+/// The modules outside the two trees that may name both: the crate root, which adds both
+/// plugins, and the steps between two ticks, which let the coordinator act and then the muxer.
+const GLUE: [&str; 2] = ["lib.rs", "between_ticks.rs"];
+
+#[test]
+fn no_other_module_names_both_trees() -> io::Result<()> {
+    let mut found = Vec::new();
+    for entry in fs::read_dir(SOURCE)? {
+        let path = entry?.path();
+        let glue = path
+            .file_name()
+            .and_then(|name| name.to_str())
+            .is_some_and(|name| GLUE.contains(&name));
+        if glue || !path.is_file() {
+            continue;
+        }
+        let text = fs::read_to_string(&path)?;
+        let both = ["crate::coordinator", "crate::muxer"]
+            .iter()
+            .all(|tree| text.lines().any(|line| names(line, tree)));
+        if both {
+            found.push(path.display().to_string());
+        }
+    }
     assert!(found.is_empty(), "{}", found.join("\n"));
     Ok(())
 }

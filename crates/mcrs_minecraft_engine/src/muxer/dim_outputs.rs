@@ -6,21 +6,27 @@ use mcrs_minecraft_engine_world::session::{
 };
 
 use crate::bus::{OutboundPlayerAttached, OutboundPlayerPacket, PacketTarget};
+use crate::channel_types::ToDim;
 use crate::muxer::departure_routing;
+use crate::muxer::dim_inputs::DimInputs;
 use crate::muxer::disconnect::Departing;
 use crate::muxer::entity_replication::{self, Answers};
+use crate::player_order::OrderedPlayer;
 use crate::to_muxer::DimDelivered;
 
 /// Takes what the dimensions handed over in their last tick, in the order they ticked: stamps
 /// and writes their packets to the host, forgets the players they released, attaches the
 /// sessions they spawned a player for, hands their tile deltas to the entity muxer and routes
-/// the players that left them. The entity bytes that the entity muxer has ready go out with the
-/// packets.
+/// the players that left them. Then it routes the orders for players to the dimension that holds
+/// each player, and the command runs that go on elsewhere to their dimension. The entity bytes
+/// that the entity muxer has ready go out with the packets.
 pub(crate) fn receive(world: &mut World) {
     let delivered: Vec<DimDelivered> = world
         .get_resource_mut::<Messages<DimDelivered>>()
         .map(|mut messages| messages.drain().collect())
         .unwrap_or_default();
+    let mut orders = Vec::new();
+    let mut handoffs = Vec::new();
     for DimDelivered {
         dim,
         packets,
@@ -28,8 +34,12 @@ pub(crate) fn receive(world: &mut World) {
         attached,
         tiles,
         departures,
+        orders: ordered,
+        handoffs: handed_off,
     } in delivered
     {
+        orders.extend(ordered);
+        handoffs.extend(handed_off);
         for packet in packets {
             deliver(world, packet);
         }
@@ -48,7 +58,37 @@ pub(crate) fn receive(world: &mut World) {
             departure_routing::route_departure(world, dim, departure);
         }
     }
+    for order in orders {
+        route_order(world, order);
+    }
+    for handoff in handoffs {
+        let to = handoff.to;
+        let sent = world
+            .get_resource_mut::<DimInputs>()
+            .is_some_and(|mut inputs| inputs.send_control(to, ToDim::Command(Box::new(handoff))));
+        if !sent {
+            tracing::error!(dim = ?to, "a command run goes on in a dimension that takes no input");
+        }
+    }
     entity_replication::deliver(world, Answers::Ready);
+}
+
+/// Sends `order` to the dimension where the session of its player is placed.
+fn route_order(world: &mut World, order: OrderedPlayer) {
+    let session = order.session;
+    let dim = world
+        .get_resource::<SessionAnchors>()
+        .and_then(|anchors| anchors.get(session))
+        .and_then(|anchor| world.get::<SessionPlacement>(anchor))
+        .and_then(|placement| placement.place().dim());
+    let sent = dim.is_some_and(|dim| {
+        world
+            .get_resource_mut::<DimInputs>()
+            .is_some_and(|mut inputs| inputs.send_control(dim, ToDim::Order(order)))
+    });
+    if !sent {
+        tracing::error!(?session, "an order names a player that no dimension holds");
+    }
 }
 
 pub fn forget_departures(world: &mut World, matches: impl Fn(&Departing) -> bool) {

@@ -9,17 +9,20 @@ use mcrs_minecraft_protocol::uuid::Uuid;
 pub struct PlayerEntry {
     /// The session: the identity of the player in every dimension.
     pub session: PlayerSession,
-    /// The position of its dimension in [`CommandTargets::dimensions`](crate::CommandTargets::dimensions)(crate::CommandTargets::dimensions).
+    /// The position of its dimension in [`CommandTargets::dimensions`](crate::CommandTargets::dimensions),
+    /// as the effects so far left it.
     pub dimension: usize,
-    /// The entity of the player in the world of its dimension.
-    pub entity: Entity,
+    /// The entity of the player in the world the command runs in; `None` when another world
+    /// holds the player.
+    pub entity: Option<Entity>,
     /// The UUID of the profile of the player.
     pub uuid: Uuid,
     /// The name of the profile of the player.
     pub name: String,
-    /// The transform of the player, as the effects of the pass so far left it.
+    /// The transform of the player, as the effects so far left it. A player of another world
+    /// is where that world left it at the end of the last tick.
     pub transform: Transform,
-    /// The game mode of the player, as the effects of the pass so far left it.
+    /// The game mode of the player, as the effects so far left it.
     pub mode: GameMode,
     /// The session id: sessions count up as players join, so it orders the player list, and a
     /// change of dimension keeps it.

@@ -10,11 +10,13 @@ pub(crate) enum Command<W: CellWorld> {
     Tick { tick: Tick, input: W::Input },
     Lend,
     Return(W),
+    Stop,
 }
 
 pub(crate) enum Reply<W: CellWorld> {
     Ticked(W::Output),
     Lent(W),
+    Stopped(W),
 }
 
 /// The far end of the link to one world. The world moves out on a lend and back on a return,
@@ -60,6 +62,11 @@ impl<W: CellWorld> Stage for CellStage<W> {
                     }
                 }
                 Command::Return(world) => self.world = Some(world),
+                Command::Stop => {
+                    if let Some(world) = self.world.take() {
+                        step.emit(Reply::Stopped(world));
+                    }
+                }
             }
         }
     }

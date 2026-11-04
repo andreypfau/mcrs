@@ -38,10 +38,12 @@ pub(crate) fn build(
     let mode = registrar
         .arg(gamemode, "gamemode", GameModeArgument)
         .runs(())
+        .in_any_world()
         .id()?;
     let target = registrar
         .arg(mode, "target", EntityArgument::PLAYERS)
         .runs(())
+        .in_any_world()
         .id()?;
     Ok(GameModeCommand { mode, target })
 }

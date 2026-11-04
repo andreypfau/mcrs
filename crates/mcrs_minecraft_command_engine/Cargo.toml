@@ -1,6 +1,6 @@
 [package]
 name = "mcrs_minecraft_command_engine"
-description = "The command tree, the registration of commands and the pass that runs the command lines of the players across the dimension worlds"
+description = "The command tree, the registration of commands and the run of the command lines of the players inside the tick of each dimension world"
 version.workspace = true
 edition.workspace = true
 license.workspace = true

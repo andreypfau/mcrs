@@ -81,7 +81,7 @@ impl CommandOutput<'_> {
         self.outbox.forked.push(source);
     }
 
-    /// An effect for the host to apply after this run, in the order of writing across all
+    /// An effect for the world to apply after this run, in the order of writing across all
     /// effect types, before the messages of the run go out.
     pub fn effect<E: Send + Sync + 'static>(&mut self, queue: &mut EffectQueue<E>, effect: E) {
         queue.values.push_back(effect);

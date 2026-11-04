@@ -10,11 +10,16 @@ use mcrs_engine_cell::Placement;
 use tracing::{error, warn};
 
 use crate::bus::{InboundPlayerSpawn, OutboundPlayerPacket};
+use crate::command_handoff::CommandHandoff;
 use crate::coordinator::dim::DimSubAppHandle;
 use crate::coordinator::dim_cells::DimCells;
 use crate::coordinator::entity_id_ranges::EntityIdRanges;
+use crate::coordinator::running_dimensions::{RunningDimension, RunningDimensions};
+use crate::dim_mail::DimMail;
 use crate::dim_tick::{DimInbox, DimInboxDrain, drain_dim_inbox, inbox_holds_messages};
 use crate::entity_ids::{CellEntityIds, assign_global_entity_id};
+use crate::player_order::{DepartureRequests, OrderedPlayer};
+use crate::player_roster::{ForeignPlayers, OwnPlayers, report_own_players};
 use crate::to_muxer::DimOpened;
 use mcrs_minecraft_engine_world::block_update::{BlockPlaced, BlockSetRequest};
 
@@ -120,6 +125,13 @@ pub fn spawn_dim_subapp(
 
     app.world_mut()
         .write_message(DimOpened { dim: label_entity });
+    app.world_mut()
+        .get_resource_or_init::<RunningDimensions>()
+        .insert(RunningDimension {
+            label: label_entity,
+            key: request.dimension.clone(),
+            dimension_type: request.dimension_type,
+        });
 
     let traces_columns = app.world().contains_resource::<ColumnTraceSink>();
     let mut sub_app = SubApp::new();
@@ -148,6 +160,14 @@ pub fn spawn_dim_subapp(
     // Written by `drain_dim_inbox` from `ToDim::Transfer` and read by `receive_transfers`.
     sub_app.add_message::<crate::departure::PlayerTransfer>();
     sub_app.add_message::<mcrs_minecraft_engine_world::entity::player::ChangeDimensionRequest>();
+    // Written by `drain_dim_inbox` from `ToDim::Order` and `ToDim::Command`.
+    sub_app.add_message::<OrderedPlayer>();
+    sub_app.add_message::<CommandHandoff>();
+    sub_app.init_resource::<DimMail>();
+    sub_app.init_resource::<DepartureRequests>();
+    sub_app.init_resource::<ForeignPlayers>();
+    sub_app.init_resource::<OwnPlayers>();
+    sub_app.add_systems(Last, report_own_players);
     // The sub-app builder is the single source of truth for these registrations — `BlockUpdatePlugin`
     // no longer registers them and instead debug-asserts they are already in
     // place, so a mistaken host-side `add_plugins(BlockUpdatePlugin)` fails
@@ -268,6 +288,11 @@ pub fn spawn_dim_subapp(
     );
     sub_app.insert_resource(
         host.get_resource::<crate::coordinator::ops::OpList>()
+            .cloned()
+            .unwrap_or_default(),
+    );
+    sub_app.insert_resource(
+        host.get_resource::<RunningDimensions>()
             .cloned()
             .unwrap_or_default(),
     );

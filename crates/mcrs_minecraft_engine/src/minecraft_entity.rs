@@ -6,7 +6,7 @@ use bevy_ecs::component::Component;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::MessageReader;
 use bevy_ecs::prelude::{Commands, ContainsEntity};
-use bevy_ecs::schedule::IntoScheduleConfigs;
+use bevy_ecs::schedule::{IntoScheduleConfigs, SystemSet};
 use bevy_ecs::system::Res;
 use derive_more::{Deref, DerefMut};
 use mcrs_minecraft_engine_world::entity::physics::Transform;
@@ -22,10 +22,17 @@ impl Plugin for MinecraftEntityPlugin {
         app.add_plugins(DimPlayerPlugin);
         app.add_systems(
             FixedPreUpdate,
-            dispatch_inbound_to_dim.after(crate::dim_tick::DimInboxDrain),
+            dispatch_inbound_to_dim
+                .in_set(InboundDispatch)
+                .after(crate::dim_tick::DimInboxDrain),
         );
     }
 }
+
+/// The set that raises the serverbound packets of a tick on the players of the dimension, in
+/// `FixedPreUpdate`. What their observers queue is ready after it.
+#[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
+pub struct InboundDispatch;
 
 #[derive(Bundle)]
 pub struct EntityBundle {

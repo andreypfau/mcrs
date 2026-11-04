@@ -19,11 +19,16 @@ use crate::bus::{
     OutboundPlayerPacket, OutboundPlayerReleased,
 };
 use crate::channel_types::ToDim;
-use crate::coordinator::clock::GameTime;
+use crate::command_handoff::CommandHandoff;
+use crate::coordinator::clock::{EditClock, GameTime};
 use crate::coordinator::ops::OpList;
+use crate::coordinator::running_dimensions::RunningDimensions;
 use crate::departure::{Departure, PlayerTransfer};
+use crate::dim_mail::DimMail;
 use crate::entity_ids::{CellEntityIds, EntityIdRange, EntityIdRequest};
 use crate::player_dimension_change;
+use crate::player_order::OrderedPlayer;
+use crate::player_roster::{ForeignPlayers, OwnPlayers, RosterRow};
 use crate::tile_events::TileEvents;
 
 /// The host schedule that ticks the dimension worlds, right after `Last`: each world takes
@@ -55,6 +60,9 @@ pub struct DimInput {
     pub(crate) clocks: Option<WorldClocks>,
     pub(crate) ops: Option<OpList>,
     pub(crate) registries: Option<Versioned<RegistrySnapshot>>,
+    pub(crate) dimensions: Option<RunningDimensions>,
+    /// The players of the other worlds, in a tick whose input carries commands.
+    pub(crate) players: Option<Vec<RosterRow>>,
     pub(crate) control: Vec<ToDim>,
     pub(crate) serverbound: Vec<InboundPlayerPacket>,
     /// The range that the coordinator grants for the request of the last tick.
@@ -78,6 +86,14 @@ pub struct DimOutput {
     pub(crate) tiles: TileDeltas<PlayerData>,
     /// Present when the dimension holds few free entity ids.
     pub(crate) entity_id_request: Option<EntityIdRequest>,
+    /// The players of the dimension at the end of the tick.
+    pub(crate) roster: Vec<RosterRow>,
+    /// The orders of the tick for players that other dimensions hold.
+    pub(crate) orders: Vec<OrderedPlayer>,
+    /// The changes to the world clocks that the tick made.
+    pub(crate) clock_edits: Vec<EditClock>,
+    /// The command runs of the tick that go on in other dimensions.
+    pub(crate) handoffs: Vec<CommandHandoff>,
 }
 
 /// The messages of the input of this tick, until the inbox drain writes them at the sync point.
@@ -103,6 +119,12 @@ fn apply_input(world: &mut World, _tick: Tick, input: DimInput) {
     }
     if let Some(registries) = input.registries {
         mcrs_minecraft_engine_registries::apply_registries(world, registries);
+    }
+    if let Some(dimensions) = input.dimensions {
+        world.insert_resource(dimensions);
+    }
+    if let Some(mut foreign) = world.get_resource_mut::<ForeignPlayers>() {
+        foreign.0 = input.players.unwrap_or_default();
     }
     if let Some(range) = input.entity_id_grant
         && let Some(mut ids) = world.get_resource_mut::<CellEntityIds>()
@@ -139,6 +161,20 @@ fn take_output(world: &mut World) -> DimOutput {
     output.entity_id_request = world
         .get_resource::<CellEntityIds>()
         .and_then(CellEntityIds::request);
+    if let Some(mut own) = world.get_resource_mut::<OwnPlayers>() {
+        output.roster = std::mem::take(&mut own.0);
+        let departures = &output.departures;
+        output.roster.retain(|row| {
+            !departures
+                .iter()
+                .any(|departure| departure.session == row.session)
+        });
+    }
+    if let Some(mut mail) = world.get_resource_mut::<DimMail>() {
+        output.orders = std::mem::take(&mut mail.orders);
+        output.clock_edits = std::mem::take(&mut mail.clock_edits);
+        output.handoffs = std::mem::take(&mut mail.handoffs);
+    }
     output
 }
 
@@ -150,6 +186,8 @@ pub(crate) fn drain_dim_inbox(
     mut despawns: ResMut<Messages<InboundPlayerDespawn>>,
     mut serverbound: ResMut<Messages<InboundPlayerPacket>>,
     mut transfers: ResMut<Messages<PlayerTransfer>>,
+    mut orders: ResMut<Messages<OrderedPlayer>>,
+    mut handoffs: ResMut<Messages<CommandHandoff>>,
 ) {
     let inbox = &mut *inbox;
     for message in inbox.control.drain(..) {
@@ -162,6 +200,12 @@ pub(crate) fn drain_dim_inbox(
             }
             ToDim::Transfer(transfer) => {
                 transfers.write(*transfer);
+            }
+            ToDim::Order(order) => {
+                orders.write(order);
+            }
+            ToDim::Command(handoff) => {
+                handoffs.write(*handoff);
             }
         }
     }

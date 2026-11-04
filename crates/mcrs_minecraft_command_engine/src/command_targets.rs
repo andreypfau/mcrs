@@ -7,9 +7,9 @@ use mcrs_minecraft_resource::ResourceLocation;
 use rustc_hash::FxHashMap;
 
 /// The dimensions in the dimension order and the online players of all of them in
-/// the order of the player list. The host collects it at the start of a pass, and the
-/// [`Worlds`](crate::Worlds) operations that change a player update its entry; a
-/// handler reads it in the world it runs in.
+/// the order of the player list. A world collects it before it runs the commands of a tick: its
+/// own players as they are, and those of the other worlds as they were at the end of the last
+/// tick. The [`Worlds`](crate::Worlds) operations that change a player update its entry.
 #[derive(Resource, Debug, Default)]
 pub struct CommandTargets {
     pub(crate) dimensions: Vec<DimensionEntry>,

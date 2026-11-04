@@ -137,12 +137,14 @@ fn conditions(
         .arg(dimension, "dimension", DimensionArgument)
         .runs(branch(Test::Dimension))
         .fork(execute, branch(Test::Dimension))
+        .in_any_world()
         .id()?;
     let entity = registrar.literal(parent, "entity").id()?;
     let entities = registrar
         .arg(entity, "entities", EntityArgument::ENTITIES)
         .runs(branch(Test::Entity))
         .fork(execute, branch(Test::Entity))
+        .in_any_world()
         .id()?;
     Ok(ConditionArgs {
         block_pos,
@@ -162,11 +164,13 @@ fn positioned(
     let position = registrar
         .arg(positioned, "pos", Vec3Argument)
         .modify(execute, Branch::Positioned)
+        .in_any_world()
         .id()?;
     let as_node = registrar.literal(positioned, "as").id()?;
     let as_targets = registrar
         .arg(as_node, "targets", EntityArgument::ENTITIES)
         .fork(execute, Branch::PositionedAs)
+        .in_any_world()
         .id()?;
     let over = registrar.literal(positioned, "over").id()?;
     let heightmap = registrar
@@ -189,11 +193,13 @@ fn rotated(
     let rotation = registrar
         .arg(rotated, "rot", RotationArgument)
         .modify(execute, Branch::Rotated)
+        .in_any_world()
         .id()?;
     let as_node = registrar.literal(rotated, "as").id()?;
     let as_targets = registrar
         .arg(as_node, "targets", EntityArgument::ENTITIES)
         .fork(execute, Branch::RotatedAs)
+        .in_any_world()
         .id()?;
     Ok(RotatedArgs {
         rotation,
@@ -214,10 +220,12 @@ fn facing(
     let anchor = registrar
         .arg(targets, "anchor", EntityAnchorArgument)
         .fork(execute, Branch::FacingEntity)
+        .in_any_world()
         .id()?;
     let position = registrar
         .arg(facing, "pos", Vec3Argument)
         .modify(execute, Branch::Facing)
+        .in_any_world()
         .id()?;
     Ok(FacingArgs {
         position,
@@ -245,11 +253,13 @@ pub(crate) fn build(
     let as_targets = registrar
         .arg(as_node, "targets", EntityArgument::ENTITIES)
         .fork(execute, Branch::As)
+        .in_any_world()
         .id()?;
     let at = registrar.literal(execute, "at").id()?;
     let at_targets = registrar
         .arg(at, "targets", EntityArgument::ENTITIES)
         .fork(execute, Branch::At)
+        .in_any_world()
         .id()?;
     let positioned = positioned(registrar, execute)?;
     let rotated = rotated(registrar, execute)?;
@@ -258,16 +268,19 @@ pub(crate) fn build(
     let align = registrar
         .arg(align, "axes", SwizzleArgument)
         .modify(execute, Branch::Align)
+        .in_any_world()
         .id()?;
     let anchored = registrar.literal(execute, "anchored").id()?;
     let anchored = registrar
         .arg(anchored, "anchor", EntityAnchorArgument)
         .modify(execute, Branch::Anchored)
+        .in_any_world()
         .id()?;
     let in_node = registrar.literal(execute, "in").id()?;
     let dimension = registrar
         .arg(in_node, "dimension", DimensionArgument)
         .modify(execute, Branch::In)
+        .in_any_world()
         .id()?;
     Ok(ExecuteCommand {
         as_targets,

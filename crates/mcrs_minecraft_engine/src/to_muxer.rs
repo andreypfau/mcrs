@@ -9,7 +9,9 @@ use mcrs_minecraft_replication::PlayerData;
 use mcrs_minecraft_resource::{Id, ResourceKeyBuf};
 
 use crate::bus::{InboundPlayerSpawn, OutboundPlayerAttached, OutboundPlayerPacket};
+use crate::command_handoff::CommandHandoff;
 use crate::departure::Departure;
+use crate::player_order::OrderedPlayer;
 
 /// The dimension `dim` runs and takes input from now on.
 #[derive(Message, Clone, Copy, Debug)]
@@ -38,6 +40,11 @@ pub struct DimDelivered {
     pub tiles: TileDeltas<PlayerData>,
     /// The players that left the dimension in the tick, after the packets of the tick.
     pub departures: Vec<RoutedDeparture>,
+    /// The orders of the tick for players of other dimensions, for the dimension that holds
+    /// each player once every departure of the tick is routed.
+    pub orders: Vec<OrderedPlayer>,
+    /// The command runs of the tick that go on in the dimension each one names.
+    pub handoffs: Vec<CommandHandoff>,
 }
 
 /// A player that left its dimension, with the dimension that the coordinator sends it to.

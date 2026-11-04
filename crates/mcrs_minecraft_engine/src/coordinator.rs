@@ -18,4 +18,6 @@ pub mod dimension_order;
 pub mod entity_id_ranges;
 pub mod join;
 pub mod ops;
+pub mod roster;
+pub mod running_dimensions;
 pub mod sub_app_builder;

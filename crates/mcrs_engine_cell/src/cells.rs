@@ -62,9 +62,16 @@ impl<W: CellWorld> Cells<W> {
     /// Stops the world of `cell` and hands it back. It gives `None` when the world is lent
     /// out or has stopped, and then the world goes when its [`Lent`] goes.
     pub async fn remove(&mut self, cell: CellId) -> Option<W> {
-        let lent = self.lend(cell).await;
-        self.cells.remove(&cell);
-        Some(lent?.world)
+        let mut entry = self.cells.remove(&cell)?;
+        if entry.whereabouts == Whereabouts::Lent {
+            return None;
+        }
+        entry.link.send(Command::Stop);
+        entry.link.answered().await;
+        entry.link.outputs().find_map(|reply| match reply {
+            Reply::Stopped(world) => Some(world),
+            Reply::Ticked(_) | Reply::Lent(_) => None,
+        })
     }
 
     /// Sends `tick` with the input from `input` to every world, waits until every world has
@@ -105,7 +112,7 @@ impl<W: CellWorld> Cells<W> {
     /// Takes the world of `cell` out between two ticks. No world ticks until it is given back.
     /// It gives `None` when the world is lent out already or has stopped.
     ///
-    /// Transitional, as [`Lent`] says.
+    /// For tests and tools only, as [`Lent`] says.
     pub async fn lend(&mut self, cell: CellId) -> Option<Lent<W>> {
         let entry = self.cells.get_mut(&cell)?;
         if entry.whereabouts == Whereabouts::Lent {
@@ -115,7 +122,7 @@ impl<W: CellWorld> Cells<W> {
         entry.link.answered().await;
         let world = entry.link.outputs().find_map(|reply| match reply {
             Reply::Lent(world) => Some(world),
-            Reply::Ticked(_) => None,
+            Reply::Ticked(_) | Reply::Stopped(_) => None,
         })?;
         entry.whereabouts = Whereabouts::Lent;
         Some(Lent { cell, world })

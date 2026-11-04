@@ -4131,6 +4131,7 @@ dependencies = [
  "mcrs_minecraft_block",
  "mcrs_minecraft_block_entity",
  "mcrs_minecraft_chunk",
+ "mcrs_minecraft_command",
  "mcrs_minecraft_core",
  "mcrs_minecraft_dimension",
  "mcrs_minecraft_dimension_environment",
