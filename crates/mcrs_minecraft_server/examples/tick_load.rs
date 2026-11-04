@@ -39,7 +39,7 @@ use mcrs_minecraft_engine_server::{
 };
 use mcrs_minecraft_network::ServerSideConnection;
 use mcrs_minecraft_network::join::{Join, Joined, join};
-use mcrs_minecraft_network::metrics::{BridgeTelemetry, PacketKinds};
+use mcrs_minecraft_network::metrics::{BridgeTelemetry, PacketKind, PacketKinds};
 use mcrs_minecraft_network::packet_io::PacketIo;
 use mcrs_minecraft_protocol::anyhow;
 use mcrs_minecraft_protocol::packets::common::serverbound::KeepAlive;
@@ -90,12 +90,13 @@ struct TickTimes {
     tick: Duration,
     between_ticks: Duration,
     drain: Duration,
+    /// What the bridge handed to the connections up to the end of the tick.
     traffic: Traffic,
     /// The bytes appended to each connection during the tick.
     session_bytes: Vec<u64>,
 }
 
-/// What the bridge handed to the connections during one tick and the drains after it.
+/// What the bridge handed to the connections since the server started.
 #[derive(Clone, Copy, Default)]
 struct Traffic {
     messages: u64,
@@ -228,7 +229,6 @@ fn run_timed(mut app: App, stop: &AtomicBool) -> Vec<TickTimes> {
     let mut times = Vec::new();
     let mut sent: HashMap<Entity, u64> = HashMap::new();
     while !stop.load(Ordering::Relaxed) {
-        let before = Traffic::of(&app);
         let start = Instant::now();
         app.update();
         let between = Instant::now();
@@ -240,7 +240,7 @@ fn run_timed(mut app: App, stop: &AtomicBool) -> Vec<TickTimes> {
         runner::drain(&mut app);
         let drain = drained.elapsed();
         runner::drain_until(&mut app, start + TICK);
-        let traffic = Traffic::of(&app).since(before);
+        let traffic = Traffic::of(&app);
         let session_bytes = session_bytes(&mut app, &mut sent);
         times.push(TickTimes {
             tick,
@@ -267,25 +267,12 @@ fn session_bytes(app: &mut App, sent: &mut HashMap<Entity, u64>) -> Vec<u64> {
 
 /// The packets and bytes the bridge handed to the connections, per tick and per connection.
 fn report_traffic(measured: &[TickTimes]) {
-    let ticks = measured.len().max(1) as f64;
-    let mut total = Traffic::default();
-    for times in measured {
-        let traffic = &times.traffic;
-        total.messages += traffic.messages;
-        total.encode_calls += traffic.encode_calls;
-        total.shared_appends += traffic.shared_appends;
-        total.shared_bytes += traffic.shared_bytes;
-        total.shared_frames += traffic.shared_frames;
-        total.framed_appends += traffic.framed_appends;
-        total.tile_encodes += traffic.tile_encodes;
-        total.packets.entity_move += traffic.packets.entity_move;
-        total.packets.spawn += traffic.packets.spawn;
-        total.packets.remove += traffic.packets.remove;
-        total.packets.player_info += traffic.packets.player_info;
-        total.packets.replication += traffic.packets.replication;
-        total.packets.chunk += traffic.packets.chunk;
-        total.packets.other += traffic.packets.other;
-    }
+    let (Some(first), Some(last)) = (measured.first(), measured.last()) else {
+        return;
+    };
+    // The traffic of the first measured tick is in the snapshot that the others count from.
+    let ticks = measured.len().saturating_sub(1).max(1) as f64;
+    let total = last.traffic.since(first.traffic);
     let a_tick = |count: u64| count as f64 / ticks;
     println!(
         "messages: {:.1} a tick, encode calls: {:.1} a tick, shared appends: {:.1} a tick ({:.1} KB a tick shared)",
@@ -303,16 +290,11 @@ fn report_traffic(measured: &[TickTimes]) {
         a_tick(total.shared_frames),
         a_tick(total.framed_appends),
     );
-    println!(
-        "packets a tick: move {:.1}, spawn {:.1}, remove {:.1}, player info {:.1}, muxer {:.1}, chunk {:.1}, other {:.1}",
-        a_tick(total.packets.entity_move),
-        a_tick(total.packets.spawn),
-        a_tick(total.packets.remove),
-        a_tick(total.packets.player_info),
-        a_tick(total.packets.replication),
-        a_tick(total.packets.chunk),
-        a_tick(total.packets.other),
-    );
+    let kinds: Vec<String> = PacketKind::ALL
+        .iter()
+        .map(|&kind| format!("{} {:.1}", kind.name(), a_tick(total.packets.get(kind))))
+        .collect();
+    println!("packets a tick: {}", kinds.join(", "));
     let mut bytes: Vec<u64> = measured
         .iter()
         .flat_map(|times| times.session_bytes.iter().copied())

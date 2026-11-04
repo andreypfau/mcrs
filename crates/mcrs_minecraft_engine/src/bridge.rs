@@ -538,10 +538,6 @@ fn write_payload<W: WritePacket>(sink: &mut W, data: PacketPayload) -> anyhow::R
         PacketPayload::GameEvent(p) => sink.write_packet_fallible(&p),
         PacketPayload::PlayerLookAt(p) => sink.write_packet_fallible(&p),
         PacketPayload::PlayerAbilities(p) => sink.write_packet_fallible(&p),
-        PacketPayload::EntityMove(p) => sink.write_packet_fallible(&p),
-        PacketPayload::EntityMoveRotate(p) => sink.write_packet_fallible(&p),
-        PacketPayload::EntityRotate(p) => sink.write_packet_fallible(&p),
-        PacketPayload::HeadRotation(p) => sink.write_packet_fallible(&p),
         PacketPayload::ChunkLoad { .. }
         | PacketPayload::Commands(_)
         | PacketPayload::Replication(_) => {

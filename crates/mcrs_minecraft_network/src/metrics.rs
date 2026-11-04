@@ -45,7 +45,6 @@ pub struct BridgeTelemetry {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PacketKind {
     EntityMove,
-    Spawn,
     Remove,
     PlayerInfo,
     /// A packet of the entity muxer: a spawn, a move, a removal or a player list update, which
@@ -55,17 +54,32 @@ pub enum PacketKind {
     Other,
 }
 
+impl PacketKind {
+    pub const ALL: [Self; 6] = [
+        Self::EntityMove,
+        Self::Remove,
+        Self::PlayerInfo,
+        Self::Replication,
+        Self::Chunk,
+        Self::Other,
+    ];
+
+    #[must_use]
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::EntityMove => "move",
+            Self::Remove => "remove",
+            Self::PlayerInfo => "player info",
+            Self::Replication => "muxer",
+            Self::Chunk => "chunk",
+            Self::Other => "other",
+        }
+    }
+}
+
 /// Packets handed to connections, by [`PacketKind`].
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-pub struct PacketKinds {
-    pub entity_move: u64,
-    pub spawn: u64,
-    pub remove: u64,
-    pub player_info: u64,
-    pub replication: u64,
-    pub chunk: u64,
-    pub other: u64,
-}
+pub struct PacketKinds([u64; PacketKind::ALL.len()]);
 
 impl PacketKinds {
     pub fn count(&mut self, kind: PacketKind) {
@@ -73,28 +87,23 @@ impl PacketKinds {
     }
 
     pub fn add(&mut self, kind: PacketKind, packets: u64) {
-        let slot = match kind {
-            PacketKind::EntityMove => &mut self.entity_move,
-            PacketKind::Spawn => &mut self.spawn,
-            PacketKind::Remove => &mut self.remove,
-            PacketKind::PlayerInfo => &mut self.player_info,
-            PacketKind::Replication => &mut self.replication,
-            PacketKind::Chunk => &mut self.chunk,
-            PacketKind::Other => &mut self.other,
-        };
-        *slot = slot.saturating_add(packets);
+        if let Some(slot) = self.0.get_mut(kind as usize) {
+            *slot = slot.saturating_add(packets);
+        }
     }
 
+    #[must_use]
+    pub fn get(&self, kind: PacketKind) -> u64 {
+        self.0.get(kind as usize).copied().unwrap_or(0)
+    }
+
+    #[must_use]
     pub fn since(self, earlier: Self) -> Self {
-        Self {
-            entity_move: self.entity_move.saturating_sub(earlier.entity_move),
-            spawn: self.spawn.saturating_sub(earlier.spawn),
-            remove: self.remove.saturating_sub(earlier.remove),
-            player_info: self.player_info.saturating_sub(earlier.player_info),
-            replication: self.replication.saturating_sub(earlier.replication),
-            chunk: self.chunk.saturating_sub(earlier.chunk),
-            other: self.other.saturating_sub(earlier.other),
+        let mut counts = self.0;
+        for (count, earlier) in counts.iter_mut().zip(earlier.0) {
+            *count = count.saturating_sub(earlier);
         }
+        Self(counts)
     }
 }
 

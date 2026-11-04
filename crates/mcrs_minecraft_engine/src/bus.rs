@@ -12,11 +12,10 @@ use mcrs_minecraft_protocol_game::clientbound::{
     ClientboundBlockUpdate, ClientboundChunkBatchFinished, ClientboundChunkBatchStart,
     ClientboundChunkCacheRadius, ClientboundCommandSuggestions, ClientboundEntityEvent,
     ClientboundEntityPositionSync, ClientboundForgetLevelChunk, ClientboundGameEvent,
-    ClientboundLightUpdate, ClientboundLogin, ClientboundMoveEntityPos,
-    ClientboundMoveEntityPosRot, ClientboundMoveEntityRot, ClientboundPlayerAbilities,
-    ClientboundPlayerLookAt, ClientboundPlayerPosition, ClientboundRemoveEntities,
-    ClientboundRespawn, ClientboundRotateHead, ClientboundSetChunkCacheCenter, ClientboundSetTime,
-    ClientboundSystemChatPacket, ClientboundTabList,
+    ClientboundLightUpdate, ClientboundLogin, ClientboundPlayerAbilities, ClientboundPlayerLookAt,
+    ClientboundPlayerPosition, ClientboundRemoveEntities, ClientboundRespawn,
+    ClientboundSetChunkCacheCenter, ClientboundSetTime, ClientboundSystemChatPacket,
+    ClientboundTabList,
 };
 use mcrs_minecraft_resource::ResourceKeyBuf;
 use mcrs_voxel::ColumnPos;
@@ -140,10 +139,6 @@ pub enum PacketPayload {
     Replication(Vec<Bytes>),
     RemoveEntities(ClientboundRemoveEntities),
     EntityPosSync(ClientboundEntityPositionSync),
-    EntityMove(ClientboundMoveEntityPos),
-    EntityMoveRotate(ClientboundMoveEntityPosRot),
-    EntityRotate(ClientboundMoveEntityRot),
-    HeadRotation(ClientboundRotateHead),
     PlayerLogin(ClientboundLogin),
     /// Moves the client to another dimension; it keeps its player.
     Respawn(ClientboundRespawn),
@@ -174,11 +169,7 @@ pub enum PacketPayload {
 impl PacketPayload {
     pub fn kind(&self) -> PacketKind {
         match self {
-            Self::EntityPosSync(_)
-            | Self::EntityMove(_)
-            | Self::EntityMoveRotate(_)
-            | Self::EntityRotate(_)
-            | Self::HeadRotation(_) => PacketKind::EntityMove,
+            Self::EntityPosSync(_) => PacketKind::EntityMove,
             Self::Replication(_) => PacketKind::Replication,
             Self::RemoveEntities(_) => PacketKind::Remove,
             Self::PlayerInfoUpdate { .. } | Self::TabList(_) => PacketKind::PlayerInfo,
