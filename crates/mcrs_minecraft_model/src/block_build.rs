@@ -554,6 +554,11 @@ mod tests {
             Tint::stem(3)
         );
         assert_eq!(tint("stone", &[], Some(0)), Tint::None);
+        assert_eq!(tint("lime_banner", &[], Some(0)), Tint::dye(5));
+        assert_eq!(
+            tint("black_wall_banner", &[("facing", "north")], Some(0)),
+            Tint::dye(15)
+        );
     }
 
     fn ambient_occlusion_reads_its_neighbours_from_the_corpus() {

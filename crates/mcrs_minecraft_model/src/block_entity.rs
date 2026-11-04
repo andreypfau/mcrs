@@ -264,6 +264,9 @@ fn emit(quads: &mut Vec<BakedQuad>, layer: &Layer, sprite: usize, part: &Part, p
             });
         }
     }
+    for child in &part.children {
+        emit(quads, layer, sprite, child, pose);
+    }
 }
 
 /// `ModelPart.Cube`'s six faces: the direction, the corners in pixels and the texel rectangle
@@ -808,6 +811,26 @@ mod tests {
             .is_none()
         );
         assert!(bake("minecraft:stone", &[]).is_none());
+    }
+
+    #[test]
+    fn child_parts_are_drawn_in_their_parent_pose() {
+        // Only a piglin's ears reach past its head's five pixels to each side.
+        let baked = bake("minecraft:piglin_head", &[("rotation", "0")]).unwrap();
+        let ears = baked
+            .quads
+            .iter()
+            .flat_map(|quad| quad.positions)
+            .filter(|p| (p.x - 0.5).abs() > 5.0 / 16.0 + 1e-4)
+            .count();
+        assert!(ears > 0, "the ears are missing");
+        // The bell's lip, a child of its body, is the only box wider than six pixels.
+        let (min, max) = bounds(
+            "minecraft:bell",
+            &[("attachment", "floor"), ("facing", "north")],
+        );
+        assert!(near(min, Vec3::new(4.0, 4.0, 4.0) / 16.0), "{min}");
+        assert!(near(max, Vec3::new(12.0, 13.0, 12.0) / 16.0), "{max}");
     }
 
     #[test]
