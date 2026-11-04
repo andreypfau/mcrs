@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use bevy_app::SubApp;
 use bevy_ecs::world::World;
+use mcrs_engine_link::Placement;
 use mcrs_minecraft_biome::source::{BiomeSource, MultiNoiseBiomeSource};
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_engine::heightmap::BlockHeightmapPredicates;
@@ -30,7 +31,9 @@ pub(crate) fn build_dimension_world(
     sub_app: &mut SubApp,
 ) {
     insert_fill_context(host, build, sub_app);
-    sub_app.add_plugins(ChunkPlugin);
+    sub_app.add_plugins(ChunkPlugin {
+        placement: Placement::Thread,
+    });
     sub_app.insert_resource(
         host.get_resource::<SlowColumnThreshold>()
             .copied()

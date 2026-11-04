@@ -4940,7 +4940,7 @@ dependencies = [
  "bevy_state",
  "bevy_tasks",
  "fixedbitset",
- "flume",
+ "mcrs_engine_link",
  "mcrs_minecraft_assets",
  "mcrs_minecraft_biome",
  "mcrs_minecraft_biome_file",

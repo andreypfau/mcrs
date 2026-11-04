@@ -46,7 +46,7 @@ bevy_reflect.workspace = true
 bevy_state.workspace = true
 bevy_tasks.workspace = true
 fixedbitset.workspace = true
-flume = { workspace = true, features = ["select"] }
+mcrs_engine_link.workspace = true
 rustc-hash.workspace = true
 thiserror.workspace = true
 tracing.workspace = true

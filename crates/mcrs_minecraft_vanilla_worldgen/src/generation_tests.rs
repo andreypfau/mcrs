@@ -1,24 +1,24 @@
-use crate::chunk_plugin::{
-    CHUNK_TASK_POOL, integrate_generated_columns, request_columns, request_section,
-    send_fill_context,
-};
-use crate::generation_actor::{GenerationActor, SchedulerConfig};
-use crate::generation_link::GeneratorLink;
+use crate::chunk_plugin::{CHUNK_TASK_POOL, ColumnLatency, integrate_generated_columns};
+use crate::generation_input::{GenerationInput, RequestedSection, ViewUpdate, WantedColumn};
+use crate::generation_link::GenerationLink;
+use crate::generation_output::{GenerationOutput, SectionContent};
+use crate::generation_stage::{GenerationStage, SchedulerConfig};
 use bevy_app::{App, Update};
 use bevy_ecs::entity::Entity;
-use bevy_ecs::prelude::resource_exists_and_changed;
-use bevy_ecs::schedule::IntoScheduleConfigs;
-use bevy_tasks::TaskPoolBuilder;
+use bevy_ecs::world::World;
+use bevy_tasks::{TaskPoolBuilder, block_on};
+use mcrs_engine_link::{InlineEnd, Link, Placement, Stage as _};
 use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_biome::source::MultiNoiseBiomeSource;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_engine::heightmap::PendingColumnHeightmaps;
+use mcrs_minecraft_engine_world::aoi::min_column_distance;
 use mcrs_minecraft_engine_world::palette::ChunkBlocks;
-use mcrs_minecraft_engine_world::world::lifecycle::stage::{SectionStage, SectionStageChanged};
+use mcrs_minecraft_engine_world::world::lifecycle::stage::SectionStageChanged;
 use mcrs_minecraft_item::Items;
 use mcrs_minecraft_resource::{ResourceKeyBuf, ResourceLocationBuf};
 use mcrs_minecraft_worldgen_generator::ColumnBlocks;
-use mcrs_minecraft_worldgen_generator::stages::{FillContext, fill_pooled, run_region};
+use mcrs_minecraft_worldgen_generator::stages::{fill_pooled, run_region};
 use mcrs_minecraft_worldgen_generator::staging::{
     FilledSnapshot, RegionSnapshots, Stage, region_column,
 };
@@ -31,10 +31,9 @@ use mcrs_minecraft_worldgen_generator::tests::ladder::{
 use mcrs_minecraft_worldgen_generator::tests::surface::{
     fill_context as surface_fill_context, overworld_biome_registry, overworld_material_router,
 };
-use mcrs_voxel::{ColumnPos, SectionPos};
+use mcrs_voxel::ColumnPos;
 use std::collections::BTreeMap;
 use std::sync::Arc;
-use std::time::{Duration, Instant};
 
 /// The order a view asks for the columns in. Every one of them is unobservable
 /// in the finished world, and each puts the stages of neighbouring columns into
@@ -84,7 +83,7 @@ enum Evict {
 struct Drive {
     /// Stages allowed on the pool at once: one, two, or what the machine has.
     in_flight: usize,
-    /// Stages dispatched per pass of the actor.
+    /// Stages dispatched per step of the generation stage.
     batch: usize,
     order: Order,
     evict: Evict,
@@ -98,14 +97,14 @@ fn default_batch() -> usize {
     SchedulerConfig::default().max_dispatch_per_pass
 }
 
-/// How many ticks that find something to evict actually evict it. Bounded, or a
-/// column evicted every tick would never reach the delivery — and counted in
-/// ticks that found something rather than in ticks, because how far the ladder
-/// has climbed by any given tick is a question about the machine's load.
+/// How many steps that find something to evict actually evict it. Bounded, or a
+/// column evicted every step would never reach the top of its ladder — and counted
+/// in steps that found something rather than in steps, because how far the ladder
+/// has climbed by any given step is a question about the machine's load.
 const EVICT_FIRINGS: usize = 6;
 
 fn force_eviction(
-    actor: &mut GenerationActor,
+    generation: &mut GenerationStage,
     wanted: &[ColumnPos],
     evict: Evict,
     after_a_merge: bool,
@@ -122,7 +121,7 @@ fn force_eviction(
         .collect();
     if after_a_merge
         && !wanted.iter().any(|col| {
-            actor
+            generation
                 .store
                 .stage(*col)
                 .is_some_and(|at| at >= Stage::Merged(0))
@@ -132,11 +131,11 @@ fn force_eviction(
     }
     let mut evicted = 0;
     for col in halo {
-        if actor.is_in_flight(col) || actor.store.stage(col) != Some(Stage::Filled) {
+        if generation.is_in_flight(col) || generation.store.stage(col) != Some(Stage::Filled) {
             continue;
         }
         let under_a_run = (0..9).any(|slot| {
-            actor
+            generation
                 .store
                 .stage(region_column(col, slot))
                 .is_some_and(|at| at >= Stage::Ran(0))
@@ -144,18 +143,19 @@ fn force_eviction(
         if evict == Evict::UnderARun && !under_a_run {
             continue;
         }
-        actor.evict(col);
+        generation.evict(col);
         evicted += 1;
     }
     evicted
 }
 
-/// Drive the real generation actor, stepped on the test's thread between the
-/// dimension's request and integration systems, to the delivery of every wanted
-/// column, and read the blocks back off the delivered sections.
+/// Drive the real generation stage by hand, one step at a time, to the
+/// generation of every wanted column, and read the blocks back off the
+/// generated sections. Between its steps the stage waits for one ladder stage
+/// on the pool to end, so the steps see the pool's own interleaving.
 #[expect(
     clippy::too_many_lines,
-    reason = "the helper drives the dimension's real systems to delivery and reads the blocks back, and the scheduling and the read-back share one world"
+    reason = "the helper drives the real stage to the top of every ladder and reads the blocks back, and the stepping and the read-back share one stage"
 )]
 fn run_parallel(dim: &Dimension, wanted: &[ColumnPos], drive: Drive) -> (Region, usize) {
     let y_sections = &dim.ctx.y_sections;
@@ -167,71 +167,69 @@ fn run_parallel(dim: &Dimension, wanted: &[ColumnPos], drive: Drive) -> (Region,
             .build()
     });
 
-    let mut app = App::new();
-    dim.install(&mut app);
-    app.insert_resource(Items(Arc::default()));
-    app.add_message::<SectionStageChanged>();
-    let dimension_entity = app.world_mut().spawn_empty().id();
-    app.init_resource::<PendingColumnHeightmaps>();
-    let link = GeneratorLink::new();
-    app.insert_resource(link.generator);
-    let mut actor = GenerationActor::new(
-        link.inbox,
+    let mut end = InlineEnd::new(GenerationStage::new(
         None,
         SchedulerConfig {
             max_in_flight: drive.in_flight,
             max_dispatch_per_pass: drive.batch,
             ..Default::default()
         },
-    );
-    app.add_systems(
-        Update,
-        (
-            send_fill_context.run_if(resource_exists_and_changed::<FillContext>),
-            request_columns,
-            integrate_generated_columns,
-        )
-            .chain(),
-    );
+    ));
+    end.receive(GenerationInput::Context(Box::new(dim.ctx.clone())));
+    let mut entities = World::new();
 
     let rungs = dim.ctx.rungs();
     let requests = ordered(wanted, drive.order);
     let mut sections: BTreeMap<ColumnPos, Vec<Entity>> = BTreeMap::new();
+    let mut generated: BTreeMap<Entity, ChunkBlocks> = BTreeMap::new();
     let mut next = 0usize;
     let mut evicted = 0usize;
     let mut firings = 0usize;
-    let deadline = Instant::now() + Duration::from_secs(600);
 
     loop {
-        if next < requests.len() {
-            let col = requests[next];
+        if let Some(&col) = requests.get(next) {
             next += 1;
-            let ids = y_sections
+            let requested: Vec<RequestedSection> = y_sections
                 .iter()
-                .map(|&y| {
-                    request_section(
-                        app.world_mut(),
-                        dimension_entity,
-                        SectionPos::new(col.x, y, col.z),
-                    )
+                .map(|&y| RequestedSection {
+                    entity: entities.spawn_empty().id(),
+                    y,
                 })
                 .collect();
-            sections.insert(col, ids);
+            sections.insert(
+                col,
+                requested.iter().map(|section| section.entity).collect(),
+            );
+            end.receive(GenerationInput::Want(WantedColumn {
+                col,
+                distance_sq: min_column_distance(&col, &[]),
+                sections: requested,
+            }));
         }
 
-        app.update();
-        actor.settle();
+        for output in end.step() {
+            let GenerationOutput::Generated(column) = output else {
+                panic!("{drive:?} abandoned a column with no view sent");
+            };
+            for section in column.sections {
+                let SectionContent::Blocks(content) = section.content else {
+                    panic!("{drive:?} generated {:?} without its blocks", column.col);
+                };
+                generated.insert(section.entity, content.blocks);
+            }
+        }
 
+        let generation = end.stage_mut();
         match drive.evict {
             Evict::OnTicks if firings < EVICT_FIRINGS => {
-                let n = force_eviction(&mut actor, wanted, drive.evict, false, rungs);
+                let n = force_eviction(generation, wanted, drive.evict, false, rungs);
                 if n > 0 {
                     firings += 1;
                     evicted += n;
                 }
             }
             Evict::UnderARun if firings < 2 => {
-                let n = force_eviction(&mut actor, wanted, drive.evict, firings == 1, rungs);
+                let n = force_eviction(generation, wanted, drive.evict, firings == 1, rungs);
                 if n > 0 {
                     firings += 1;
                     evicted += n;
@@ -240,27 +238,32 @@ fn run_parallel(dim: &Dimension, wanted: &[ColumnPos], drive: Drive) -> (Region,
             _ => {}
         }
 
-        let delivered = next == requests.len()
-            && sections.values().flatten().all(|entity| {
-                app.world().get::<SectionStage>(*entity) == Some(&SectionStage::Loaded)
-            });
-        if delivered {
+        let all_requested = next == requests.len();
+        if all_requested
+            && sections
+                .values()
+                .flatten()
+                .all(|entity| generated.contains_key(entity))
+        {
             break;
         }
+        if end.stage().has_work() {
+            continue;
+        }
+        let ended = block_on(end.wait());
         assert!(
-            Instant::now() < deadline,
-            "{drive:?} never delivered the region"
+            ended.is_some() || !all_requested,
+            "{drive:?} stopped with nothing on the pool before it generated the region"
         );
-        std::thread::sleep(Duration::from_millis(1));
     }
 
-    // What a column was delivered with is what it stays. The merged blocks
-    // outlive the delivery — a section ticketed later is delivered from them —
+    // What a column was generated with is what it stays. The merged blocks
+    // outlive the emission — a section ticketed later is generated from them —
     // so a re-merge after an eviction has to land on the same column.
     let standing: Vec<(ColumnPos, Column)> = wanted
         .iter()
         .filter_map(|col| {
-            let merged = actor.store.merged(*col)?;
+            let merged = end.stage().store.merged(*col)?;
             Some((*col, decode(&merged.sections)))
         })
         .collect();
@@ -271,10 +274,9 @@ fn run_parallel(dim: &Dimension, wanted: &[ColumnPos], drive: Drive) -> (Region,
             let column = entities
                 .iter()
                 .map(|entity| {
-                    let blocks = app
-                        .world()
-                        .get::<ChunkBlocks>(*entity)
-                        .unwrap_or_else(|| panic!("{col:?} was delivered without its blocks"));
+                    let blocks = generated
+                        .get(entity)
+                        .unwrap_or_else(|| panic!("{col:?} was generated without its blocks"));
                     (0..ColumnBlocks::SECTION_VOLUME)
                         .map(|index| {
                             blocks
@@ -290,17 +292,17 @@ fn run_parallel(dim: &Dimension, wanted: &[ColumnPos], drive: Drive) -> (Region,
         .collect();
 
     for (col, merged) in standing {
-        let delivered = region.get(&col).expect("every wanted column was delivered");
+        let landed = region.get(&col).expect("every wanted column was generated");
         assert_eq!(
             merged.len(),
-            delivered.len(),
+            landed.len(),
             "{drive:?}: the merged {col:?} carries a different number of sections"
         );
-        for (slot, (merged, delivered)) in merged.iter().zip(delivered.iter()).enumerate() {
+        for (slot, (merged, landed)) in merged.iter().zip(landed.iter()).enumerate() {
             assert!(
-                merged == delivered,
+                merged == landed,
                 "{drive:?}: the merged {col:?} left section slot {slot} \
-                 unlike the one it delivered"
+                 unlike the one it generated"
             );
         }
     }
@@ -674,8 +676,7 @@ fn assert_region_agrees(consumer: Consumer, radius: i32, drives: &[Drive]) {
 /// every nest the column grew.
 #[test]
 fn a_dead_first_section_does_not_take_the_column_s_block_entities_with_it() {
-    use crate::generation_actor::{ColumnKey, PendingColumn};
-    use crate::generation_link::RequestedSection;
+    use crate::generation_stage::{ColumnKey, PendingColumn};
     use mcrs_minecraft_block_entity::{BeeOccupant, GeneratedBlockEntity};
     use mcrs_minecraft_engine_world::world::dimension::InDimension;
     use mcrs_minecraft_engine_world::world::storage::block_entity::BlockEntity;
@@ -684,9 +685,8 @@ fn a_dead_first_section_does_not_take_the_column_s_block_entities_with_it() {
     app.add_message::<SectionStageChanged>();
     app.init_resource::<PendingColumnHeightmaps>();
     app.insert_resource(Items(Arc::default()));
-    let link = GeneratorLink::new();
-    app.insert_resource(link.generator);
-    let mut actor = GenerationActor::new(link.inbox, None, SchedulerConfig::default());
+    app.init_resource::<ColumnLatency>();
+    let mut generation = GenerationStage::new(None, SchedulerConfig::default());
 
     let dim = app.world_mut().spawn_empty().id();
     let dead = app.world_mut().spawn(InDimension(dim)).id();
@@ -696,18 +696,17 @@ fn a_dead_first_section_does_not_take_the_column_s_block_entities_with_it() {
     let col = ColumnPos::new(4, 9);
     {
         let key = ColumnKey::new(0, col);
-        actor.pending.insert(
+        generation.pending.insert(
             key,
             PendingColumn {
                 sections: vec![
                     RequestedSection { entity: dead, y: 0 },
                     RequestedSection { entity: live, y: 1 },
                 ],
-                queued: Instant::now(),
             },
         );
-        actor.priority_index.insert(col, key);
-        actor.store.insert_staged(
+        generation.priority_index.insert(col, key);
+        generation.store.insert_staged(
             col,
             0,
             Arc::new(FilledSnapshot {
@@ -727,11 +726,14 @@ fn a_dead_first_section_does_not_take_the_column_s_block_entities_with_it() {
                 ticks: Vec::new(),
             }),
         );
-        actor.store.set_stage(col, Stage::Merged(0));
-        actor.climbed.push(col);
+        generation.store.set_stage(col, Stage::Merged(0));
+        generation.climbed.push(col);
     }
 
-    actor.settle();
+    // An inline stage runs only once it owes an answer, and an empty view update is one.
+    let mut link = Link::new(generation, Placement::Inline);
+    link.send(GenerationInput::Views(ViewUpdate::default()));
+    app.insert_resource(GenerationLink::new(link));
     app.add_systems(Update, integrate_generated_columns);
     app.update();
 
@@ -741,23 +743,23 @@ fn a_dead_first_section_does_not_take_the_column_s_block_entities_with_it() {
         .iter(app.world())
         .filter(|held| matches!(held.0, GeneratedBlockEntity::Beehive { .. }))
         .count();
-    assert_eq!(nests, 1, "the delivered column's nest was dropped");
+    assert_eq!(nests, 1, "the generated column's nest was dropped");
 }
 
-/// A delivery owes only the sections it was asked for — the ticket layer caps
+/// A generated column owes only the sections it was asked for — the ticket layer caps
 /// how many it spawns a tick and cuts a column's sections across two of them —
 /// while the fill covers the whole dimension, because the bedrock floor is a
 /// material rule and a column surfaced over a slice would be left open at the
 /// bottom.
 #[test]
-fn a_delivery_carrying_part_of_a_column_still_lays_its_bedrock_floor() {
+fn a_column_generated_for_part_of_its_sections_still_lays_its_bedrock_floor() {
     use bevy_app::App;
     use bevy_ecs::entity::Entity;
     use mcrs_minecraft_biome::source::BiomeSource;
     use mcrs_voxel::ColumnPos;
     use mcrs_voxel::SectionPos;
 
-    use crate::generation_actor::carried_sections;
+    use crate::generation_stage::carried_sections;
     use mcrs_minecraft_worldgen_generator::stages::fill_column;
     use mcrs_minecraft_worldgen_generator::task::CancellationToken;
 
@@ -791,11 +793,11 @@ fn a_delivery_carrying_part_of_a_column_still_lays_its_bedrock_floor() {
         .expect("the fill was not cancelled");
 
     let bottom = y_sections[0];
-    let delivered: Vec<_> = carried_sections(&sections, &snapshot.sections, bottom).collect();
+    let landed: Vec<_> = carried_sections(&sections, &snapshot.sections, bottom).collect();
     assert_eq!(
-        delivered.len(),
+        landed.len(),
         carried.len(),
-        "the delivery returned sections it was not asked for"
+        "the generated column returned sections it was not asked for"
     );
     let bedrock = VoxelId::from(
         corpus()
@@ -803,7 +805,7 @@ fn a_delivery_carrying_part_of_a_column_still_lays_its_bedrock_floor() {
             .unwrap()
             .number(),
     );
-    let floor = delivered
+    let floor = landed
         .iter()
         .find(|(_, pos, _)| pos.y == carried[0])
         .expect("the bottom section came back");
@@ -879,7 +881,7 @@ fn a_fixed_source_stores_the_ids_the_loader_numbered_its_biomes_with() {
 }
 
 #[test]
-fn the_parallel_ladder_delivers_ores_that_write_across_columns() {
+fn the_parallel_ladder_generates_ores_that_write_across_columns() {
     let drive = Drive {
         in_flight: 2,
         batch: default_batch(),
@@ -896,7 +898,7 @@ mod exhaustive {
     /// order, batch size and eviction the definition leaves free, for each program
     /// `Run` has.
     #[test]
-    fn the_parallel_ladder_delivers_the_oracle_region() {
+    fn the_parallel_ladder_generates_the_oracle_region() {
         for consumer in [
             Consumer::BetaOre,
             Consumer::ModernOre,
@@ -928,7 +930,7 @@ mod exhaustive {
     /// twenty-one fills per run, so the interior columns are further from the edge
     /// of the region than any dependency reaches.
     #[test]
-    fn the_parallel_ladder_delivers_the_large_oracle_region() {
+    fn the_parallel_ladder_generates_the_large_oracle_region() {
         for consumer in [
             Consumer::BetaOre,
             Consumer::ModernOre,

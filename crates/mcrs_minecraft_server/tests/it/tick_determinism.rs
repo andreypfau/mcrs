@@ -15,6 +15,7 @@ use bevy_ecs::message::Messages;
 use bevy_ecs::prelude::With;
 use bevy_ecs::world::World;
 use bevy_math::DVec3;
+use bevy_tasks::block_on;
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_chunk::{BlockLight, LightStorage, SkyLight};
 use mcrs_minecraft_engine::column_view::ColumnView;
@@ -36,7 +37,7 @@ use mcrs_minecraft_heightmap::{MotionHeightmap, SurfaceHeightmap};
 use mcrs_minecraft_server::MinecraftServerPlugins;
 use mcrs_minecraft_simulation::BlockUpdateFlags;
 use mcrs_minecraft_vanilla_light::LightLink;
-use mcrs_minecraft_vanilla_worldgen::generation_is_idle;
+use mcrs_minecraft_vanilla_worldgen::GenerationLink;
 use mcrs_minecraft_worldgen_generator::stages::FillContext;
 use mcrs_voxel::{BlockPos, BlockStateId, SectionPos};
 
@@ -72,32 +73,24 @@ fn dimension_world(app: &mut App, label: Entity) -> &mut World {
     app.sub_app_mut(DimAppLabel(label)).world_mut()
 }
 
-fn steps_ended(world: &mut World) -> bool {
-    let light_idle = world
-        .get_resource_mut::<LightLink>()
-        .is_none_or(|mut light| {
-            light.take_in();
-            light.is_idle()
-        });
-    generation_is_idle(world) && light_idle
+fn drain_outbox(app: &mut App, label: Entity) {
+    dimension_world(app, label).run_schedule(OutboxDrain);
+    runner::drain_woken(app);
 }
 
-/// Waits as the server loop does between ticks, draining the dimension's outbox meanwhile: the
-/// drain may run at any moment between ticks, so it must not change what the next tick sees.
+/// Waits as the server loop does between ticks, draining the dimension's outbox before and
+/// after: the drain may run at any moment between ticks, so it must not change what the next
+/// tick sees.
 fn wait_for_steps(app: &mut App, label: Entity) {
-    let deadline = Instant::now() + PATIENCE;
-    loop {
-        dimension_world(app, label).run_schedule(OutboxDrain);
-        runner::drain_woken(app);
-        if steps_ended(dimension_world(app, label)) {
-            return;
-        }
-        assert!(
-            Instant::now() < deadline,
-            "the generation and light steps never caught up with the tick"
-        );
-        std::thread::sleep(Duration::from_millis(1));
+    drain_outbox(app, label);
+    let world = dimension_world(app, label);
+    if let Some(mut generation) = world.get_resource_mut::<GenerationLink>() {
+        block_on(generation.answered());
     }
+    if let Some(mut light) = world.get_resource_mut::<LightLink>() {
+        block_on(light.answered());
+    }
+    drain_outbox(app, label);
 }
 
 fn dimension_entity(world: &mut World) -> Entity {

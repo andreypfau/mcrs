@@ -20,7 +20,7 @@ use crate::structures::{StructurePlugin, build_dimension_structures};
 /// `OnEnter(AppState::Playing)`.
 #[derive(Clone, Debug)]
 pub struct WorldGenPlugin {
-    /// A column that takes longer than this from request to delivery is logged.
+    /// A column that takes longer than this from its request to its landing is logged.
     pub slow_column_threshold: Duration,
 }
 

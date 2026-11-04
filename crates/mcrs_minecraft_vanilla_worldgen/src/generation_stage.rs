@@ -1,10 +1,6 @@
-use std::collections::{BTreeMap, BTreeSet};
-use std::mem;
-use std::sync::Arc;
-use std::time::Instant;
-
 use bevy_ecs::entity::Entity;
-use bevy_ecs::prelude::Resource;
+use bevy_tasks::Task;
+use mcrs_engine_link::{Step, TaskId, TaskOutcome};
 use mcrs_minecraft_engine_world::aoi::min_column_distance;
 use mcrs_minecraft_engine_world::entity::player::chunk_view::ChunkTrackingView;
 use mcrs_minecraft_engine_world::palette::{ChunkBlocks, section_states};
@@ -19,13 +15,17 @@ use mcrs_minecraft_worldgen_generator::staging::{
 use mcrs_minecraft_worldgen_generator::task::{CancellationToken, ColumnSource};
 use mcrs_voxel::{ColumnPos, SectionPos};
 use rustc_hash::FxHashMap;
+use std::collections::{BTreeMap, BTreeSet};
+use std::mem;
+use std::sync::Arc;
 use tracing::trace;
 
-use crate::generation_link::{
-    DeliveredColumn, DeliveredSection, GenerationReport, GenerationRequest, GeneratorInbox,
-    RequestedSection, SectionBlocks, SectionContent, ViewUpdate, WantedColumn,
+use crate::chunk_plugin::CHUNK_TASK_POOL;
+use crate::generation_input::{GenerationInput, RequestedSection, ViewUpdate, WantedColumn};
+use crate::generation_output::{
+    AbandonedColumn, GeneratedColumn, GeneratedSection, GenerationOutput, SectionBlocks,
+    SectionContent,
 };
-use crate::handoff::{Finished, HandedOff, Handoff};
 
 /// Sort key for the priority queue. Lower distance_sq values are dequeued first.
 /// The column position (col_x, col_z) serves as a tiebreaker for determinism.
@@ -46,41 +46,41 @@ impl ColumnKey {
     }
 }
 
-/// A column a view wants delivered, with the sections that asked for it.
+/// A column a view wants generated, with the sections that asked for it.
 pub(crate) struct PendingColumn {
     pub(crate) sections: Vec<RequestedSection>,
-    /// When the column joined the queue, so a column that arrives late can say
-    /// whether it waited for a worker or for the work itself.
-    pub(crate) queued: Instant,
 }
 
 /// One stage of one column, in flight on the generation pool.
 ///
 /// A halo column owns no entity, so nothing here names one: the store is keyed
-/// by position alone, and the sections a delivery owes are read off the request
-/// that wanted the column, at the moment it is delivered.
+/// by position alone, and the sections a generated column owes are read off the
+/// request that wanted it, at the moment it is emitted.
 pub(crate) struct InFlightStage {
     pub(crate) col: ColumnPos,
     pub(crate) cancel: CancellationToken,
-    pub(crate) task: HandedOff,
+    pub(crate) id: TaskId,
+    #[expect(dead_code, reason = "held so that dropping the stage cancels its task")]
+    pub(crate) task: Task<()>,
 }
 
-/// What a stage hands back. `None` from the task itself means cancelled.
+/// What a ladder stage hands back. A cancelled fill hands back nothing, and its task ends
+/// dropped.
 pub(crate) enum StageResult {
     Filled(Box<FilledSnapshot>),
     Ran(usize, Vec<(ColumnPos, ColumnDelta)>),
     Merged(usize, Box<FilledSnapshot>),
 }
 
-/// Concurrency limits of a dimension's generation actor.
-#[derive(Resource, Clone, Debug)]
+/// Concurrency limits of a dimension's generation stage.
+#[derive(Clone, Debug)]
 pub(crate) struct SchedulerConfig {
     /// Maximum number of concurrent stage tasks. A column's fill and the run
     /// and merge of each of its rungs all share this budget, so it bounds the
     /// pool, not the column count.
     pub(crate) max_in_flight: usize,
-    /// Maximum stages one dispatch pass hands to the pool. A pass runs after each batch of
-    /// events the actor takes in.
+    /// Maximum stages one dispatch pass hands to the pool. A pass runs in each step of the
+    /// generation stage.
     pub(crate) max_dispatch_per_pass: usize,
     /// Number of threads in the chunk generation thread pool.
     pub(crate) num_threads: usize,
@@ -99,42 +99,24 @@ impl Default for SchedulerConfig {
     }
 }
 
-/// Whether the dimension still listens to its actor.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum Link {
-    Open,
-    Closed,
-}
-
-enum Event {
-    Request(Result<GenerationRequest, flume::RecvError>),
-    Finished(Result<Finished<Option<StageResult>>, flume::RecvError>),
-}
-
-/// The generation of one dimension's columns, on a thread of its own.
+/// The generation of one dimension's columns.
 ///
-/// `pending` is the set of columns a view wants delivered, ordered by distance.
+/// `pending` is the set of columns a view wants generated, ordered by distance.
 /// An entry stays there for the whole of its ladder, so sections ticketed after
-/// its first stage was dispatched still reach the delivery. Everything the
+/// its first stage was dispatched still reach the generated column. Everything the
 /// ladder materialises — filled snapshots and the deltas one merge each
 /// consumes — lives in `store`, keyed by position alone.
 ///
-/// The actor blocks until the dimension asks for something or a stage finishes. Each
-/// finished stage changes what its own 3×3 is owed, so the actor dispatches from there,
-/// and a column that is newly wanted owes its whole shell; nothing walks every wanted
+/// Each finished ladder stage changes what its own 3×3 is owed, so the step dispatches from
+/// there, and a column that is newly wanted owes its whole shell; nothing walks every wanted
 /// column again.
-pub(crate) struct GenerationActor {
-    inbox: GeneratorInbox,
-    /// The requests taken in, and how many of them the last idle report covered.
-    seen: u64,
-    reported: u64,
+pub(crate) struct GenerationStage {
     pub(crate) traces: Option<ColumnTraceLog>,
     pub(crate) ctx: Option<FillContext>,
     pub(crate) pending: BTreeMap<ColumnKey, PendingColumn>,
     /// Reverse index: column position -> current priority key.
     pub(crate) priority_index: FxHashMap<ColumnPos, ColumnKey>,
     pub(crate) in_flight: Vec<InFlightStage>,
-    pub(crate) handoff: Handoff<Option<StageResult>>,
     /// Columns whose stage changed since the last dispatch: they and their 3×3 may owe a
     /// stage now.
     pub(crate) touched: Vec<ColumnPos>,
@@ -142,86 +124,89 @@ pub(crate) struct GenerationActor {
     pub(crate) fresh: BTreeSet<ColumnKey>,
     /// Columns whose stage was cancelled since the last dispatch, and that may owe a fill again.
     pub(crate) forgotten: Vec<ColumnPos>,
-    /// Columns whose stage moved, or that became wanted, since the last delivery: the ones
+    /// Columns whose stage moved, or that became wanted, since the last emission: the ones
     /// that may have reached the top of the ladder.
     pub(crate) climbed: Vec<ColumnPos>,
     /// Columns wanted since the views were last checked against them.
     unscreened: Vec<ColumnPos>,
     views: ViewUpdate,
+    /// Columns that left every view, emitted with the next step.
+    abandoned: Vec<AbandonedColumn>,
     /// The one owner of every materialised value of the ladder.
     pub(crate) store: StagingStore,
     pub(crate) config: SchedulerConfig,
 }
 
-impl GenerationActor {
-    pub(crate) fn new(
-        inbox: GeneratorInbox,
-        traces: Option<ColumnTraceLog>,
-        config: SchedulerConfig,
-    ) -> Self {
+impl mcrs_engine_link::Stage for GenerationStage {
+    const NAME: &'static str = "ColumnGen";
+
+    type Input = GenerationInput;
+    type Output = GenerationOutput;
+    type TaskOutput = StageResult;
+
+    fn receive(&mut self, input: GenerationInput) {
+        match input {
+            GenerationInput::Context(ctx) => self.ctx = Some(*ctx),
+            GenerationInput::Want(wanted) => self.want(wanted),
+            GenerationInput::Views(update) => self.screen(update),
+        }
+    }
+
+    fn finish(&mut self, outcome: TaskOutcome<StageResult>) {
+        self.finish_stage(outcome);
+    }
+
+    fn step(&mut self, step: &mut Step<'_, Self>) {
+        for column in self.abandoned.drain(..) {
+            step.emit(GenerationOutput::Abandoned(column));
+        }
+        self.dispatch(step);
+        self.emit_generated(step);
+    }
+
+    /// A dispatch pass cut short by its own limit, with room left on the pool, is work in
+    /// itself.
+    fn has_work(&self) -> bool {
+        let dispatchable = self.ctx.is_some()
+            && CHUNK_TASK_POOL.get().is_some()
+            && self.in_flight.len() < self.config.max_in_flight
+            && !(self.forgotten.is_empty() && self.touched.is_empty() && self.fresh.is_empty());
+        dispatchable || !self.abandoned.is_empty() || !self.climbed.is_empty()
+    }
+
+    fn is_idle(&self) -> bool {
+        self.pending.is_empty() && self.in_flight.is_empty() && self.abandoned.is_empty()
+    }
+}
+
+impl Drop for GenerationStage {
+    /// A fill on the pool stops at its next check of the token, rather than run to an end
+    /// nobody takes.
+    fn drop(&mut self) {
+        for stage in &self.in_flight {
+            stage.cancel.cancel();
+        }
+    }
+}
+
+impl GenerationStage {
+    pub(crate) fn new(traces: Option<ColumnTraceLog>, config: SchedulerConfig) -> Self {
         Self {
-            inbox,
-            seen: 0,
-            reported: 0,
             traces,
             ctx: None,
             pending: BTreeMap::new(),
             priority_index: FxHashMap::default(),
             in_flight: Vec::new(),
-            handoff: Handoff::default(),
             touched: Vec::new(),
             fresh: BTreeSet::new(),
             forgotten: Vec::new(),
             climbed: Vec::new(),
             unscreened: Vec::new(),
             views: ViewUpdate::default(),
+            abandoned: Vec::new(),
             store: StagingStore::default(),
             config,
         }
-    }
-
-    /// Runs until the dimension drops its end of the link.
-    pub(crate) fn run(mut self) {
-        loop {
-            let event = flume::Selector::new()
-                .recv(&self.inbox.requests, Event::Request)
-                .recv(self.handoff.receiver(), Event::Finished)
-                .wait();
-            match event {
-                Event::Request(Ok(request)) => self.handle(request),
-                Event::Finished(Ok(finished)) => self.finish(finished),
-                Event::Request(Err(_)) | Event::Finished(Err(_)) => break,
-            }
-            if self.settle() == Link::Closed {
-                break;
-            }
-        }
-        for stage in &self.in_flight {
-            stage.cancel.cancel();
-        }
-    }
-
-    /// Takes in every event that is already waiting, dispatches what they made owed and
-    /// delivers what reached the top of its ladder. Once nothing is owed, it tells the
-    /// dimension how many requests that covers.
-    pub(crate) fn settle(&mut self) -> Link {
-        while let Ok(request) = self.inbox.requests.try_recv() {
-            self.handle(request);
-        }
-        while let Ok(finished) = self.handoff.receiver().try_recv() {
-            self.finish(finished);
-        }
-        self.dispatch();
-        if self.deliver() == Link::Closed {
-            return Link::Closed;
-        }
-        if self.seen != self.reported && self.pending.is_empty() && self.in_flight.is_empty() {
-            if !self.report(GenerationReport::Idle { seen: self.seen }) {
-                return Link::Closed;
-            }
-            self.reported = self.seen;
-        }
-        Link::Open
     }
 
     pub(crate) fn rungs(&self) -> usize {
@@ -242,18 +227,9 @@ impl GenerationActor {
         self.forgotten.push(col);
     }
 
-    fn handle(&mut self, request: GenerationRequest) {
-        self.seen = self.seen.wrapping_add(1);
-        match request {
-            GenerationRequest::Context(ctx) => self.ctx = Some(*ctx),
-            GenerationRequest::Want(wanted) => self.want(wanted),
-            GenerationRequest::Views(update) => self.screen(update),
-        }
-    }
-
     /// A column stays in the queue for the whole of its ladder, so sections that
     /// arrive after its first stage was dispatched merge into the same entry and
-    /// reach the same delivery.
+    /// reach the same generated column.
     fn want(&mut self, wanted: WantedColumn) {
         let WantedColumn {
             col,
@@ -268,13 +244,7 @@ impl GenerationActor {
         }
         column_trace::mark(self.traces.as_ref(), col, ColumnStage::Queued);
         let key = ColumnKey::new(distance_sq, col);
-        self.pending.insert(
-            key,
-            PendingColumn {
-                sections,
-                queued: Instant::now(),
-            },
-        );
+        self.pending.insert(key, PendingColumn { sections });
         self.priority_index.insert(col, key);
         self.fresh.insert(key);
         self.climbed.push(col);
@@ -300,17 +270,15 @@ impl GenerationActor {
                     .filter_map(|col| self.priority_index.get(col).copied())
                     .collect()
             };
-            let mut abandoned = Vec::new();
+            let mut abandoned = false;
             for key in stale {
                 if !self.within_views(key.chunk_column_pos, LOADING_RINGS) {
-                    self.abandon(key, &mut abandoned);
+                    self.abandon(key);
+                    abandoned = true;
                 }
             }
-            if views_moved || !abandoned.is_empty() {
+            if views_moved || abandoned {
                 self.evict_outside_halo();
-            }
-            if !abandoned.is_empty() {
-                self.report(GenerationReport::Abandoned(abandoned));
             }
         }
         if previous.players != self.views.players && !self.views.players.is_empty() {
@@ -322,13 +290,21 @@ impl GenerationActor {
         within(&self.views.views, col, slack)
     }
 
-    fn abandon(&mut self, key: ColumnKey, abandoned: &mut Vec<Entity>) {
+    fn abandon(&mut self, key: ColumnKey) {
         trace!("Canceling stale column {:?}", key);
-        column_trace::forget(self.traces.as_ref(), key.chunk_column_pos);
-        self.priority_index.remove(&key.chunk_column_pos);
+        let col = key.chunk_column_pos;
+        column_trace::forget(self.traces.as_ref(), col);
+        self.priority_index.remove(&col);
         self.fresh.remove(&key);
         if let Some(pending) = self.pending.remove(&key) {
-            abandoned.extend(pending.sections.iter().map(|section| section.entity));
+            self.abandoned.push(AbandonedColumn {
+                col,
+                sections: pending
+                    .sections
+                    .iter()
+                    .map(|section| section.entity)
+                    .collect(),
+            });
         }
     }
 
@@ -381,16 +357,13 @@ impl GenerationActor {
     /// A cancelled stage leaves nothing behind: the column drops off the ladder, and
     /// a later request refills it bit-identically, since a fill depends on nothing
     /// but the seed and the position.
-    fn finish(&mut self, finished: Finished<Option<StageResult>>) {
-        let Some(at) = self
-            .in_flight
-            .iter()
-            .position(|stage| stage.task.id == finished.id)
-        else {
+    fn finish_stage(&mut self, outcome: TaskOutcome<StageResult>) {
+        let id = outcome.id();
+        let Some(at) = self.in_flight.iter().position(|stage| stage.id == id) else {
             return;
         };
         let col = self.in_flight.swap_remove(at).col;
-        let Some(result) = finished.output.flatten() else {
+        let TaskOutcome::Finished { output: result, .. } = outcome else {
             self.store.forget(col);
             self.forgotten.push(col);
             return;
@@ -448,7 +421,7 @@ impl GenerationActor {
     ///
     /// Every unit that could write into it has run and its delta has been merged,
     /// so nothing writes into the column after this.
-    fn deliver(&mut self) -> Link {
+    fn emit_generated(&mut self, step: &mut Step<'_, Self>) {
         let done = top_of_ladder(self.rungs());
         let mut ready: Vec<ColumnKey> = self
             .climbed
@@ -464,17 +437,13 @@ impl GenerationActor {
         ready.sort_unstable();
         ready.dedup();
         for key in ready {
-            let Some(column) = self.take_delivery(key) else {
-                continue;
-            };
-            if !self.report(GenerationReport::Delivered(Box::new(column))) {
-                return Link::Closed;
+            if let Some(column) = self.take_generated(key) {
+                step.emit(GenerationOutput::Generated(Box::new(column)));
             }
         }
-        Link::Open
     }
 
-    fn take_delivery(&mut self, key: ColumnKey) -> Option<DeliveredColumn> {
+    fn take_generated(&mut self, key: ColumnKey) -> Option<GeneratedColumn> {
         let col = key.chunk_column_pos;
         let pending = self.pending.get(&key)?;
         let mut requested: Vec<(Entity, SectionPos)> = pending
@@ -493,7 +462,7 @@ impl GenerationActor {
             return None;
         };
         let bottom = merged.y_sections.first().copied().unwrap_or(0);
-        let sections: Vec<DeliveredSection> =
+        let sections: Vec<GeneratedSection> =
             carried_sections(&requested, &merged.sections, bottom)
                 .map(|(entity, pos, section)| {
                     let content = match (section, states) {
@@ -512,30 +481,24 @@ impl GenerationActor {
                         (Some(_), None) => SectionContent::Unchecked,
                         (None, _) => SectionContent::Missing,
                     };
-                    DeliveredSection { entity, content }
+                    GeneratedSection { entity, content }
                 })
                 .collect();
         let maps = merged.maps.clone();
         let source = merged.source;
 
-        let pending = self.pending.remove(&key)?;
+        self.pending.remove(&key)?;
         self.priority_index.remove(&col);
         self.fresh.remove(&key);
         self.store.set_stage(col, Stage::Delivered);
-        Some(DeliveredColumn {
+        Some(GeneratedColumn {
             col,
-            queued: pending.queued,
             source,
             maps,
             block_entities: self.store.take_block_entities(col),
             entities: self.store.take_entities(col),
             sections,
         })
-    }
-
-    /// Whether the dimension took the report.
-    fn report(&self, report: GenerationReport) -> bool {
-        self.inbox.reports.send(report).is_ok()
     }
 }
 
@@ -561,7 +524,7 @@ pub(crate) fn top_of_ladder(rungs: usize) -> Stage {
     }
 }
 
-/// The sections a delivery owes, copied out of the whole column it generated.
+/// The sections a generated column owes, copied out of the whole column.
 /// `bottom` is the section the column buffer starts at.
 pub(crate) fn carried_sections<'a>(
     sections_data: &'a [(Entity, SectionPos)],
