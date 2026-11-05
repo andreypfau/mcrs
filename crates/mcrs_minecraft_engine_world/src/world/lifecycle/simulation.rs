@@ -317,15 +317,12 @@ pub(crate) fn track_simulation_tickets(
 /// The simulation area that an entity other than a player holds, such as the ticket of a player
 /// of another cell of the world. The [`SimulationTicket`] of the entity follows it.
 #[derive(Component, Clone, Copy, Debug, PartialEq, Eq)]
-pub struct HeldSimulationArea {
-    dim: Entity,
-    area: SimulationArea,
-}
+pub struct HeldSimulationArea(SimulationTicket);
 
 impl HeldSimulationArea {
     #[must_use]
     pub fn new(dim: Entity, area: SimulationArea) -> Self {
-        Self { dim, area }
+        Self(SimulationTicket::new(dim, area))
     }
 }
 
@@ -339,8 +336,7 @@ pub(crate) fn track_held_simulation_areas(
     mut commands: Commands,
 ) {
     let owned = owned.as_deref();
-    for (holder, area, held) in &mut holders {
-        let wanted = SimulationTicket::new(area.dim, area.area);
+    for (holder, &HeldSimulationArea(wanted), held) in &mut holders {
         follow(&mut dims, &mut commands, owned, holder, wanted, held);
     }
 }
