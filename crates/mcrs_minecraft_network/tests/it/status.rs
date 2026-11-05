@@ -253,8 +253,12 @@ fn the_default_status_response_carries_a_64_by_64_png_icon() {
     let favicon = status.favicon.unwrap();
     let base64 = favicon.strip_prefix("data:image/png;base64,").unwrap();
     let png = STANDARD.decode(base64).unwrap();
-    assert_eq!(png[..4], [0x89, b'P', b'N', b'G']);
-    assert_eq!(png[16..24], [0, 0, 0, 64, 0, 0, 0, 64]);
+    assert_eq!(png[..4], [0x89, b'P', b'N', b'G'], "PNG signature");
+    assert_eq!(
+        png[16..24],
+        [0, 0, 0, 64, 0, 0, 0, 64],
+        "IHDR width and height"
+    );
 }
 
 #[test]
