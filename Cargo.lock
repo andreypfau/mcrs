@@ -3518,7 +3518,6 @@ name = "mcrs_engine_muxer"
 version = "0.5.8"
 dependencies = [
  "bytes",
- "mcrs_engine_link",
 ]
 
 [[package]]
