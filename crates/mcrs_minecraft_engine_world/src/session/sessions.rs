@@ -1,8 +1,8 @@
-use bevy_ecs::component::Component;
+use bevy_ecs::component::{Component, Mutable};
 use bevy_ecs::entity::Entity;
 use bevy_ecs::lifecycle::HookContext;
 use bevy_ecs::resource::Resource;
-use bevy_ecs::world::{DeferredWorld, World};
+use bevy_ecs::world::{DeferredWorld, FromWorld, World};
 use rustc_hash::FxHashMap;
 
 /// The name of one connection of a player, in every world and on both sides of the
@@ -19,33 +19,22 @@ pub struct PlayerSession(pub u64);
 pub struct Owner(pub PlayerSession);
 
 impl Owner {
-    fn index(mut world: DeferredWorld, ctx: HookContext) {
-        let Some(&Owner(session)) = world.get::<Owner>(ctx.entity) else {
-            return;
-        };
-        let entity = ctx.entity;
-        match world.get_resource_mut::<DimPlayerIndex>() {
-            Some(mut index) => {
-                index.0.insert(session, entity);
-            }
-            None => world.commands().queue(move |world: &mut World| {
-                world
-                    .get_resource_or_init::<DimPlayerIndex>()
-                    .0
-                    .insert(session, entity);
-            }),
-        }
+    fn index(world: DeferredWorld, ctx: HookContext) {
+        index_session(
+            world,
+            ctx,
+            |&Owner(session)| session,
+            |index: &mut DimPlayerIndex| &mut index.0,
+        );
     }
 
-    fn unindex(mut world: DeferredWorld, ctx: HookContext) {
-        let Some(&Owner(session)) = world.get::<Owner>(ctx.entity) else {
-            return;
-        };
-        if let Some(mut index) = world.get_resource_mut::<DimPlayerIndex>()
-            && index.0.get(&session) == Some(&ctx.entity)
-        {
-            index.0.remove(&session);
-        }
+    fn unindex(world: DeferredWorld, ctx: HookContext) {
+        unindex_session(
+            world,
+            ctx,
+            |&Owner(session)| session,
+            |index: &mut DimPlayerIndex| &mut index.0,
+        );
     }
 }
 
@@ -57,32 +46,62 @@ impl Owner {
 pub struct Session(pub PlayerSession);
 
 impl Session {
-    fn index(mut world: DeferredWorld, ctx: HookContext) {
-        let Some(&Session(session)) = world.get::<Session>(ctx.entity) else {
-            return;
-        };
-        let entity = ctx.entity;
-        match world.get_resource_mut::<SessionAnchors>() {
-            Some(mut anchors) => {
-                anchors.0.insert(session, entity);
-            }
-            None => world.commands().queue(move |world: &mut World| {
-                world
-                    .get_resource_or_init::<SessionAnchors>()
-                    .0
-                    .insert(session, entity);
-            }),
-        }
+    fn index(world: DeferredWorld, ctx: HookContext) {
+        index_session(
+            world,
+            ctx,
+            |&Session(session)| session,
+            |anchors: &mut SessionAnchors| &mut anchors.0,
+        );
     }
 
-    fn unindex(mut world: DeferredWorld, ctx: HookContext) {
-        let Some(&Session(session)) = world.get::<Session>(ctx.entity) else {
-            return;
-        };
-        if let Some(mut anchors) = world.get_resource_mut::<SessionAnchors>()
-            && anchors.0.get(&session) == Some(&ctx.entity)
-        {
-            anchors.0.remove(&session);
+    fn unindex(world: DeferredWorld, ctx: HookContext) {
+        unindex_session(
+            world,
+            ctx,
+            |&Session(session)| session,
+            |anchors: &mut SessionAnchors| &mut anchors.0,
+        );
+    }
+}
+
+/// Enters the entity of `ctx` under the session of its `C` in the map of `R`. Without `R`, a
+/// command makes it first.
+fn index_session<C: Component, R: Resource<Mutability = Mutable> + FromWorld>(
+    mut world: DeferredWorld,
+    ctx: HookContext,
+    session_of: fn(&C) -> PlayerSession,
+    map: fn(&mut R) -> &mut FxHashMap<PlayerSession, Entity>,
+) {
+    let Some(session) = world.get::<C>(ctx.entity).map(session_of) else {
+        return;
+    };
+    let entity = ctx.entity;
+    match world.get_resource_mut::<R>() {
+        Some(mut resource) => {
+            map(&mut resource).insert(session, entity);
+        }
+        None => world.commands().queue(move |world: &mut World| {
+            map(&mut world.get_resource_or_init::<R>()).insert(session, entity);
+        }),
+    }
+}
+
+/// Removes the entry of the entity of `ctx` from the map of `R`, unless a later entity of the
+/// same session replaced it.
+fn unindex_session<C: Component, R: Resource<Mutability = Mutable>>(
+    mut world: DeferredWorld,
+    ctx: HookContext,
+    session_of: fn(&C) -> PlayerSession,
+    map: fn(&mut R) -> &mut FxHashMap<PlayerSession, Entity>,
+) {
+    let Some(session) = world.get::<C>(ctx.entity).map(session_of) else {
+        return;
+    };
+    if let Some(mut resource) = world.get_resource_mut::<R>() {
+        let entries = map(&mut resource);
+        if entries.get(&session) == Some(&ctx.entity) {
+            entries.remove(&session);
         }
     }
 }
