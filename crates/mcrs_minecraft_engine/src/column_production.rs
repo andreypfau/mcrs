@@ -105,7 +105,6 @@ struct Wanted {
     written: Option<ChunkVersion>,
     /// A block of the column changed since its content was taken from the dimension.
     changed: Changed,
-    keep: Keep,
 }
 
 struct Content {
@@ -138,14 +137,6 @@ enum Ask {
 enum Changed {
     No,
     Yes,
-}
-
-/// Whether the data layer keeps the final column.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum Keep {
-    Store,
-    /// The disk did not read the column, so a generated one must not take its place.
-    ViewOnly,
 }
 
 /// Whether the dimension world lights its columns.
@@ -191,7 +182,6 @@ impl ColumnProduction {
             light: Ask::NotAsked,
             written: store.last_written(column),
             changed: Changed::No,
-            keep: Keep::Store,
         });
     }
 
@@ -331,9 +321,8 @@ impl ColumnProduction {
             Source::Generation => Some(ChunkVersion::default()),
             Source::DataLayer(_) | Source::Dimension => None,
         };
-        if let Some(version) = version
-            && wanted.keep == Keep::Store
-        {
+        // The link keeps a column that the disk did not read from this write.
+        if let Some(version) = version {
             store.put_lit(
                 column,
                 VersionedChunk {
@@ -393,11 +382,7 @@ impl ColumnProduction {
                         lights,
                     );
                 }
-                StoreOutput::Missing { .. } => self.fetch_generated(fetch.dim, column),
-                StoreOutput::Unreadable { .. } => {
-                    if let Some(wanted) = self.wanted.get_mut(&column) {
-                        wanted.keep = Keep::ViewOnly;
-                    }
+                StoreOutput::Missing { .. } | StoreOutput::Unreadable { .. } => {
                     self.fetch_generated(fetch.dim, column);
                 }
             }

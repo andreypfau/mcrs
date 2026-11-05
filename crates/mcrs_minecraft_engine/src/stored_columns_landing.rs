@@ -94,6 +94,9 @@ pub(crate) fn land_stored_columns(
                 }
             }
             StoreOutput::Missing { .. } | StoreOutput::Unreadable { .. } => {
+                if matches!(answer, StoreOutput::Unreadable { .. }) {
+                    store.mark_unreadable(column);
+                }
                 for &section in &read.sections {
                     if stages.get(section) == Some(SectionStage::Fetching) {
                         stages.set(section, SectionStage::Loading);

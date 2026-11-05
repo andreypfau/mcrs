@@ -13,7 +13,7 @@ use mcrs_minecraft_engine_world::world::lifecycle::ticket::{
 };
 use mcrs_minecraft_engine_world::world::storage::column::ColumnLifecycleSet;
 use mcrs_voxel::ColumnPos;
-use rustc_hash::FxHashMap;
+use rustc_hash::{FxHashMap, FxHashSet};
 
 use crate::cold_columns::{mark_changed_sections, mark_final_light, write_cold_columns};
 use crate::column_production::{ColdStageLandSet, ColumnProduction, advance_production};
@@ -66,6 +66,9 @@ pub struct ColumnStoreLink {
     /// so the writes are the only changed columns it holds, and a request for another column of
     /// this cell is not worth a round trip.
     written_columns: FxHashMap<ColumnPos, ChunkVersion>,
+    /// The columns whose version the disk did not read. The world plays a generated column in
+    /// their place, but never writes over the version on the disk, which may still be repaired.
+    unreadable: FxHashSet<ColumnPos>,
 }
 
 pub(crate) struct ColumnRead {
@@ -109,6 +112,7 @@ impl ColumnStoreLink {
             viewed: Vec::new(),
             fetched: Vec::new(),
             written_columns: FxHashMap::default(),
+            unreadable: FxHashSet::default(),
         }
     }
 
@@ -134,7 +138,20 @@ impl ColumnStoreLink {
         self.answers.extend(answers);
     }
 
+    /// Keeps the disk version of `column` safe from every later write.
+    pub(crate) fn mark_unreadable(&mut self, column: ColumnPos) {
+        self.unreadable.insert(column);
+    }
+
+    /// Whether the world may write `column`: not when the disk holds a version it did not read.
+    pub(crate) fn is_writable(&self, column: ColumnPos) -> bool {
+        !self.unreadable.contains(&column)
+    }
+
     pub(crate) fn put(&mut self, column: ColumnPos, chunk: StoredColumn) {
+        if !self.is_writable(column) {
+            return;
+        }
         self.written = self.written.next();
         self.written_columns.insert(column, self.written);
         self.sent.push(StoreInput::Put {
@@ -154,6 +171,9 @@ impl ColumnStoreLink {
     /// Keeps the final light of a version the data layer already holds, or of a generated
     /// column at version zero. A later version that the world wrote meanwhile stays.
     pub(crate) fn put_lit(&mut self, column: ColumnPos, chunk: VersionedChunk<StoredColumn>) {
+        if !self.is_writable(column) {
+            return;
+        }
         self.sent.push(StoreInput::Put { key: column, chunk });
     }
 
