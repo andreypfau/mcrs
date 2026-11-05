@@ -14,7 +14,7 @@ use mcrs_minecraft_light_engine::level::LightBounds;
 use mcrs_minecraft_light_engine::world::{Edit, LightWorld};
 use mcrs_voxel::ColumnPos;
 
-use crate::light_input::{LightInput, QueuedEdit};
+use crate::light_link::LightLink;
 use crate::light_output::LightOutput;
 use crate::light_stage::{LightStage, player_priority};
 
@@ -29,7 +29,7 @@ pub(crate) struct ColdLightPlugin {
 
 /// The near end of the link to the light stage of cold space.
 #[derive(Resource)]
-pub struct ColdLightLink(Link<LightStage>);
+pub struct ColdLightLink(LightLink);
 
 impl ColdLightLink {
     /// Waits until the stage has answered everything handed to it so far, and hands out none
@@ -45,12 +45,10 @@ impl Plugin for ColdLightPlugin {
     fn build(&self, app: &mut App) {
         let world = LightWorld::new(Arc::clone(&self.registry), self.bounds);
         let world = if self.sky { world } else { world.without_sky() };
-        app.insert_resource(ColdLightLink(Link::new(
-            LightStage::awaited_only(world),
-            Placement::Thread,
-        )))
-        .add_systems(FixedUpdate, land_cold_light.in_set(ColdStageLandSet::Light))
-        .add_systems(Last, send_cold_light);
+        let link = Link::new(LightStage::awaited_only(world), Placement::Thread);
+        app.insert_resource(ColdLightLink(LightLink::new(link)))
+            .add_systems(FixedUpdate, land_cold_light.in_set(ColdStageLandSet::Light))
+            .add_systems(Last, send_cold_light);
     }
 }
 
@@ -64,31 +62,22 @@ fn send_cold_light(
 ) {
     player_columns.clear();
     player_columns.extend(players.iter().map(|at| ColumnPos::from(at.translation)));
-    let edits: Vec<QueuedEdit> = production
-        .take_light_edits()
-        .map(|edit| {
-            let edit = match edit {
-                ColdLightEdit::Load { pos, blocks } => Edit::LoadSection {
-                    pos,
-                    entity: 0,
-                    blocks: blocks.0,
-                },
-                ColdLightEdit::Unload { pos } => Edit::UnloadSection { pos },
-                ColdLightEdit::SetBlock { pos, state } => Edit::SetBlock { pos, block: state },
-            };
-            QueuedEdit {
-                priority: player_priority(edit.column(), &player_columns),
-                edit,
-            }
-        })
-        .collect();
-    if !edits.is_empty() {
-        light.0.send(LightInput::Edits(edits));
+    let light = &mut light.0;
+    for edit in production.take_light_edits() {
+        let edit = match edit {
+            ColdLightEdit::Load { pos, blocks } => Edit::LoadSection {
+                pos,
+                entity: 0,
+                blocks: blocks.0,
+            },
+            ColdLightEdit::Unload { pos } => Edit::UnloadSection { pos },
+            ColdLightEdit::SetBlock { pos, state } => Edit::SetBlock { pos, block: state },
+        };
+        let priority = player_priority(edit.column(), &player_columns);
+        light.push_with_priority(edit, priority);
     }
-    let awaits: Vec<ColumnPos> = production.take_light_awaits().collect();
-    if !awaits.is_empty() {
-        light.0.send(LightInput::AwaitColumns(awaits));
-    }
+    light.await_columns(production.take_light_awaits());
+    light.send_edits();
 }
 
 /// Hands the data layer the light of each column whose light settled.
