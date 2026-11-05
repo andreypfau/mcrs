@@ -462,8 +462,10 @@ argument `creativ`. The second message has `...` and `de creativ`, then the key
     message as a system message when the game rule `send_command_feedback` is true.
   - When the broadcast flag is set and `send_command_feedback` is true, every other online
     operator receives a message. It is the translation `chat.type.admin` with the display name
-    of the source and the message, in gray and italic. The server log receives the same text when
-    `log_admin_commands` is true.
+    of the source and the message, in gray and italic.
+  - When the broadcast flag is set and a player is the source, the server log receives the same
+    text when `log_admin_commands` is true. The value of `send_command_feedback` does not change
+    this. `whitelist.md`, R25, shows this.
   - A command fails with an error with no position. The player receives the error text in red.
   - A command that fails in an unexpected way gives the player the translation
     `command.failed` in red. The hover text of that message is unspecified.
