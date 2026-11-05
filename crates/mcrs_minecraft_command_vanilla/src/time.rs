@@ -6,7 +6,6 @@ use mcrs_minecraft_command_argument::ResourceArgument;
 use mcrs_minecraft_command_argument::{TimeArgument, TimeMarkerArgument, TimelineArgument};
 use mcrs_minecraft_command_engine::{
     Call, CommandFailure, CommandOutput, CommandRegistrar, CommandResult, EffectQueue, Feedback,
-    Worlds,
 };
 use mcrs_minecraft_command_registry::DimensionClock;
 use mcrs_minecraft_engine::coordinator::clock::{EditClock, GameTime};
@@ -462,12 +461,6 @@ pub(crate) fn run(
     };
     feedback.success(&call.invocation, outcome.message, audience);
     Ok(outcome.result)
-}
-
-/// Applies a clock edit to the clocks this world reads, so the rest of its tick reads the new
-/// times, and sends it to the coordinator, which owns the clocks and tells the other worlds.
-pub(crate) fn apply(worlds: &mut Worlds, edit: EditClock) {
-    worlds.edit_clock(edit);
 }
 
 #[cfg(test)]

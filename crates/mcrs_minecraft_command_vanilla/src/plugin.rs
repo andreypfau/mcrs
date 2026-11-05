@@ -3,7 +3,7 @@ use crate::locate;
 use crate::{execute, gamemode, teleport, time};
 use bevy_app::{App, Plugin};
 use core::fmt::Display;
-use mcrs_minecraft_command_engine::AppCommandsExt;
+use mcrs_minecraft_command_engine::{AppCommandsExt, Worlds};
 
 /// The vanilla commands: `execute`, `gamemode`, `teleport` with its alias `tp`, `locate` (feature
 /// `locate`) and `time`, and their effects: [`TeleportPlayer`](crate::TeleportPlayer),
@@ -15,7 +15,7 @@ impl Plugin for VanillaCommandsPlugin {
     fn build(&self, app: &mut App) {
         app.add_command_effect(teleport::apply)
             .add_command_effect(gamemode::apply)
-            .add_command_effect(time::apply);
+            .add_command_effect(|worlds: &mut Worlds<'_>, edit| worlds.edit_clock(edit));
         report(
             "execute",
             app.add_modifying_command(execute::build, execute::run, execute::modify),

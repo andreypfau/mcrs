@@ -1,6 +1,5 @@
 use crate::command_targets::CommandTargets;
 use bevy_ecs::world::World;
-use mcrs_minecraft_engine::bus::OutboundPlayerPacket;
 use mcrs_minecraft_engine::coordinator::clock::EditClock;
 use mcrs_minecraft_engine::dim_mail::{self, DimMail};
 use mcrs_minecraft_engine::dimension_change::{Arrival, DimensionChangeError};
@@ -42,11 +41,6 @@ impl Worlds<'_> {
     /// The world the run happened in.
     pub fn world_mut(&mut self) -> &mut World {
         self.world
-    }
-
-    /// Sends `packet` after everything this world wrote before it.
-    pub fn deliver(&mut self, packet: OutboundPlayerPacket) {
-        self.world.write_message(packet);
     }
 
     /// Moves the player of the session `player` to `arrival` in the dimension at `destination`.
