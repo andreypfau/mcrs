@@ -49,13 +49,6 @@ use mcrs_minecraft_protocol::{Decode, Encode, Packet, VarInt};
 use mcrs_minecraft_protocol_game::clientbound::ClientboundLogin;
 use mcrs_minecraft_vanilla_light::LightingPlugin;
 
-/// Build a host `App` wired for the production per-dim sub-app builder path.
-///
-/// Registers the host-side bus messages, the dimension cells, the spawn/despawn
-/// queues and registries that the dimension tick and `take_dim_outputs`
-/// read — without them the first `app.update()` after a spawn drain panics.
-/// The message set is the union required across the sub-app tests, so callers
-/// that need only a subset still get a valid host app.
 /// The asset plugin over the repository's assets and the game's data pack, with the pack
 /// sources a dimension's sub-app reads.
 pub fn add_assets(app: &mut App) {
@@ -78,6 +71,13 @@ pub fn add_assets(app: &mut App) {
     });
 }
 
+/// Build a host `App` wired for the production per-dim sub-app builder path.
+///
+/// Registers the host-side bus messages, the dimension cells, the spawn/despawn
+/// queues and registries that the dimension tick and `take_dim_outputs`
+/// read — without them the first `app.update()` after a spawn drain panics.
+/// The message set is the union required across the sub-app tests, so callers
+/// that need only a subset still get a valid host app.
 pub fn make_host_app() -> App {
     let mut app = App::new();
     // The worldgen startup uses AssetServer::load, which spawns
