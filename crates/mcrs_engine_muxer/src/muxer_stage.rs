@@ -1,10 +1,10 @@
 use std::collections::{BTreeMap, VecDeque};
+use std::num::NonZeroU32;
 
 use mcrs_engine_link::{Stage, Step};
 
 use crate::entity_id::{ViewerId, WorldId};
 use crate::muxer::Muxer;
-use crate::muxer_settings::MuxerSettings;
 use crate::replication_codec::ReplicationCodec;
 use crate::tile_delta::TileDeltas;
 use crate::view::View;
@@ -13,12 +13,12 @@ use crate::viewer_bytes::ViewerBytes;
 /// A call to the [`Muxer`] of one world, sent over a link.
 #[non_exhaustive]
 pub enum MuxerInput<C: ReplicationCodec> {
-    /// Starts the muxer of `world` with `codec` and `settings`. A world that is open already
-    /// keeps its muxer.
+    /// Starts the muxer of `world` with `codec` and tiles `tile_width` wide. A world that is
+    /// open already keeps its muxer.
     Open {
         world: WorldId,
         codec: C,
-        settings: MuxerSettings,
+        tile_width: NonZeroU32,
     },
     /// Drops the muxer of `world` and the bytes it has not handed out.
     Close {
@@ -68,43 +68,35 @@ impl<C: ReplicationCodec> MuxerStage<C> {
     }
 
     fn apply(&mut self, input: MuxerInput<C>) {
-        match input {
+        let world = match input {
             MuxerInput::Open {
                 world,
                 codec,
-                settings,
+                tile_width,
             } => {
                 self.worlds
                     .entry(world)
-                    .or_insert_with(|| Muxer::new(codec, settings));
+                    .or_insert_with(|| Muxer::new(codec, tile_width));
+                return;
             }
             MuxerInput::Close { world } => {
                 self.worlds.remove(&world);
+                return;
             }
-            MuxerInput::Publish { world, deltas } => {
-                if let Some(muxer) = self.worlds.get_mut(&world) {
-                    muxer.publish(&deltas);
-                }
-            }
-            MuxerInput::Subscribe {
-                world,
-                viewer,
-                view,
-            } => {
-                if let Some(muxer) = self.worlds.get_mut(&world) {
-                    muxer.subscribe(viewer, view);
-                }
-            }
-            MuxerInput::Unsubscribe { world, viewer } => {
-                if let Some(muxer) = self.worlds.get_mut(&world) {
-                    muxer.unsubscribe(viewer);
-                }
-            }
-            MuxerInput::Codec { world, input } => {
-                if let Some(muxer) = self.worlds.get_mut(&world) {
-                    muxer.codec_mut().receive(input);
-                }
-            }
+            MuxerInput::Publish { world, .. }
+            | MuxerInput::Subscribe { world, .. }
+            | MuxerInput::Unsubscribe { world, .. }
+            | MuxerInput::Codec { world, .. } => world,
+        };
+        let Some(muxer) = self.worlds.get_mut(&world) else {
+            return;
+        };
+        match input {
+            MuxerInput::Publish { deltas, .. } => muxer.publish(&deltas),
+            MuxerInput::Subscribe { viewer, view, .. } => muxer.subscribe(viewer, view),
+            MuxerInput::Unsubscribe { viewer, .. } => muxer.unsubscribe(viewer),
+            MuxerInput::Codec { input, .. } => muxer.codec_mut().receive(input),
+            MuxerInput::Open { .. } | MuxerInput::Close { .. } => {}
         }
     }
 }

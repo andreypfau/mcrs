@@ -10,8 +10,8 @@ use bevy_ecs::world::{FromWorld, World};
 use bevy_tasks::block_on;
 use mcrs_engine_link::{Link, Placement};
 use mcrs_engine_muxer::{
-    EntityEvent, EntityId, MuxerInput, MuxerSettings, MuxerStage, SubjectEvent, TileDeltas,
-    TileKey, View, ViewerBytes, ViewerId, WorldId,
+    EntityEvent, EntityId, MuxerInput, MuxerStage, SubjectEvent, TileDeltas, TileKey, View,
+    ViewerBytes, ViewerId, WorldId,
 };
 use mcrs_minecraft_engine_world::session::{PlayerSession, SessionAnchors};
 use mcrs_minecraft_replication::{PlayerCodec, PlayerData, PlayerInput};
@@ -92,10 +92,7 @@ impl EntityReplication {
             self.link.send(MuxerInput::Open {
                 world,
                 codec: PlayerCodec::default(),
-                settings: MuxerSettings {
-                    tile_width: TILE_WIDTH,
-                    ..MuxerSettings::default()
-                },
+                tile_width: TILE_WIDTH,
             });
         }
         for delta in &deltas.tiles {

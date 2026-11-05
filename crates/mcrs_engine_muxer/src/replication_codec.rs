@@ -52,7 +52,7 @@ pub trait ReplicationCodec {
     fn receive(&mut self, input: Self::Input);
 
     /// The latest position of `subject` as `[x, y, z]`, in the units of the
-    /// [`MuxerSettings::tile_width`](crate::MuxerSettings::tile_width). The muxer measures the
+    /// tile width of the [`Muxer`](crate::Muxer). The muxer measures the
     /// distance of the tiles to a viewer from the position of its own subject.
     fn position(&self, subject: EntityId) -> Option<[f64; 3]>;
 }

@@ -3,7 +3,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use bytes::Bytes;
 
 use crate::entity_id::EntityId;
-use crate::planner::Measured;
+use crate::planner::{Measured, Point};
 use crate::subscription::Subscription;
 use crate::tier::Tier;
 use crate::tile_blob::TileBlob;
@@ -24,6 +24,8 @@ pub(crate) struct Viewer {
     /// The bytes of a tick as a moving average over 16 ticks, times 16.
     average_sixteenths: u64,
     pub(crate) measured: Measured,
+    /// The position of the last plan, when that plan changed nothing.
+    pub(crate) settled_at: Option<Point>,
 }
 
 impl Viewer {
@@ -36,6 +38,7 @@ impl Viewer {
             counted: 0,
             average_sixteenths: 0,
             measured: Measured::default(),
+            settled_at: None,
         }
     }
 

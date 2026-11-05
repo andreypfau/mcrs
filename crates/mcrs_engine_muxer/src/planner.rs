@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
+use std::num::NonZeroU32;
 
-use crate::muxer_settings::MuxerSettings;
 use crate::subscription::{LAYERS, LayerState, Subscription, layer_ranks};
 use crate::tier::Tier;
 use crate::tile_key::TileKey;
@@ -11,8 +11,13 @@ const REACH: [f64; 3] = [32.0, 64.0, 128.0];
 /// A tile leaves a tier only this far behind the distance of the tier.
 const REACH_HYSTERESIS: f64 = 8.0;
 
-/// The ticks of a second, in which the budget counts its bytes.
-pub(crate) const TICKS_PER_SECOND: u64 = 20;
+/// The maximum number of subjects in the visible set of a viewer, K. The cap admits a tile while
+/// the sum is K or less, and removes it when the sum is more than 1.25 × K.
+const CAP: usize = 200;
+
+/// The bytes of a tick that a viewer receives on average before the planner lowers its tiers:
+/// 32 KiB a second.
+pub(crate) const BUDGET: u64 = 32 * 1024 / 20;
 
 /// Over the budget, the planner lowers one layer each this many ticks.
 const LOWER_EVERY_TICKS: u32 = 10;
@@ -25,14 +30,6 @@ const RAISE_EVERY_TICKS: u32 = 40;
 pub(crate) struct Point {
     pub(crate) x: f64,
     pub(crate) z: f64,
-}
-
-/// What the planner reads of one viewer.
-#[derive(Clone, Copy, Debug)]
-pub(crate) struct ViewerState<'a> {
-    pub(crate) settings: &'a MuxerSettings,
-    pub(crate) position: Point,
-    pub(crate) subscriptions: &'a BTreeMap<TileKey, Subscription>,
 }
 
 /// A tile in the view of a viewer and the number of its subjects.
@@ -68,8 +65,9 @@ struct Placed {
     count: usize,
 }
 
-/// The subscriptions of a viewer for the next tick: which layers of the tiles in `headers` it
-/// receives and at which tier. It reads no clock and no state but its inputs.
+/// The subscriptions for the next tick of a viewer at `position` that holds `subscriptions`:
+/// which layers of the tiles in `headers` it receives and at which tier. It reads no clock and no
+/// state but its inputs.
 ///
 /// The tiles go in the order of distance. The cap admits layers in that order while the sum of
 /// their subjects is K or less, and keeps a layer that it admitted until the sum is more than
@@ -79,16 +77,18 @@ struct Placed {
 /// layer by one tier. Below 70% of the budget, it raises the lowered layer that waited longest.
 #[must_use]
 pub(crate) fn plan(
-    viewer: &ViewerState<'_>,
+    tile_width: NonZeroU32,
+    position: Point,
+    subscriptions: &BTreeMap<TileKey, Subscription>,
     headers: &[TileHeader],
     measured: Measured,
 ) -> Vec<SubscriptionChange> {
-    let width = f64::from(viewer.settings.tile_width.get());
+    let width = f64::from(tile_width.get());
     let mut order: Vec<Placed> = headers
         .iter()
         .map(|header| Placed {
             tile: header.tile,
-            distance: distance(viewer.position, header.tile, width),
+            distance: distance(position, header.tile, width),
             count: header.count,
         })
         .collect();
@@ -98,21 +98,21 @@ pub(crate) fn plan(
             .then_with(|| a.tile.cmp(&b.tile))
     });
 
-    let mut next: Vec<Planned> = admit(viewer, &order);
-    adjust_to_budget(viewer.settings, &mut next, measured);
+    let mut next: Vec<Planned> = admit(subscriptions, &order);
+    adjust_to_budget(&mut next, measured);
 
     let mut changes = Vec::new();
     for planned in &next {
         let subscription =
             Some(planned.subscription).filter(|subscription| subscription.visible_ranks() > 0);
-        if viewer.subscriptions.get(&planned.tile).copied() != subscription {
+        if subscriptions.get(&planned.tile).copied() != subscription {
             changes.push(SubscriptionChange {
                 tile: planned.tile,
                 subscription,
             });
         }
     }
-    for tile in viewer.subscriptions.keys() {
+    for tile in subscriptions.keys() {
         if !headers.iter().any(|header| header.tile == *tile) {
             changes.push(SubscriptionChange {
                 tile: *tile,
@@ -145,15 +145,14 @@ impl Planned {
 }
 
 /// The layers that the cap admits, with the tier of each, in the order of `order`.
-fn admit(viewer: &ViewerState<'_>, order: &[Placed]) -> Vec<Planned> {
-    let cap = viewer.settings.cap as usize;
-    let release = cap.saturating_add(cap / 4);
-    let crowded = order.iter().map(|placed| placed.count).sum::<usize>() > cap;
+fn admit(subscriptions: &BTreeMap<TileKey, Subscription>, order: &[Placed]) -> Vec<Planned> {
+    let release = CAP.saturating_add(CAP / 4);
+    let crowded = order.iter().map(|placed| placed.count).sum::<usize>() > CAP;
     let mut sum = 0usize;
     let mut beyond = false;
     let mut next = Vec::with_capacity(order.len());
     for placed in order {
-        let old = viewer.subscriptions.get(&placed.tile);
+        let old = subscriptions.get(&placed.tile);
         let reach = reach(old.map(|old| old.reach), placed.distance);
         let mut subscription = Subscription {
             reach,
@@ -170,7 +169,7 @@ fn admit(viewer: &ViewerState<'_>, order: &[Placed]) -> Vec<Planned> {
             if size == 0 {
                 break;
             }
-            let limit = if was.tier.is_some() { release } else { cap };
+            let limit = if was.tier.is_some() { release } else { CAP };
             if sum.saturating_add(size) > limit {
                 beyond = true;
                 break;
@@ -203,8 +202,7 @@ fn admit(viewer: &ViewerState<'_>, order: &[Placed]) -> Vec<Planned> {
 
 /// Lowers or raises one layer of `next` by one tier when the bytes call for it, and lets each
 /// lowered layer gather priority.
-fn adjust_to_budget(settings: &MuxerSettings, next: &mut [Planned], measured: Measured) {
-    let budget = u64::from(settings.budget) / TICKS_PER_SECOND;
+fn adjust_to_budget(next: &mut [Planned], measured: Measured) {
     for planned in next.iter_mut() {
         let reach = planned.subscription.reach;
         for layer in &mut planned.subscription.layers {
@@ -215,9 +213,7 @@ fn adjust_to_budget(settings: &MuxerSettings, next: &mut [Planned], measured: Me
             }
         }
     }
-    let over = measured.average > budget;
-    let calm = measured.average.saturating_mul(10) < budget.saturating_mul(7);
-    if over && measured.over % LOWER_EVERY_TICKS == 1 {
+    if lowers(measured) {
         let last = next
             .iter_mut()
             .rev()
@@ -227,7 +223,7 @@ fn adjust_to_budget(settings: &MuxerSettings, next: &mut [Planned], measured: Me
             layer.lowered = layer.lowered.saturating_add(1);
             layer.tier = layer.tier.map(|tier| tier.lowered(1));
         }
-    } else if calm && measured.calm > 0 && measured.calm.is_multiple_of(RAISE_EVERY_TICKS) {
+    } else if raises(measured) {
         let mut longest: Option<&mut LayerState> = None;
         for planned in next.iter_mut() {
             for layer in planned.filled_layers() {
@@ -245,6 +241,21 @@ fn adjust_to_budget(settings: &MuxerSettings, next: &mut [Planned], measured: Me
             layer.tier = layer.tier.map(Tier::raised);
         }
     }
+}
+
+fn lowers(measured: Measured) -> bool {
+    measured.average > BUDGET && measured.over % LOWER_EVERY_TICKS == 1
+}
+
+fn raises(measured: Measured) -> bool {
+    let calm = measured.average.saturating_mul(10) < BUDGET.saturating_mul(7);
+    calm && measured.calm > 0 && measured.calm.is_multiple_of(RAISE_EVERY_TICKS)
+}
+
+/// Whether a plan reads `measured`. A plan that does not, from the position and the tiles of a
+/// plan that changed nothing, changes nothing again.
+pub(crate) fn reads_budget(measured: Measured) -> bool {
+    lowers(measured) || raises(measured)
 }
 
 /// The tier of a tile at `distance` that had the tier `old`. A tile enters a nearer tier at its
@@ -293,12 +304,9 @@ mod tests {
 
     const WIDTH: f64 = 32.0;
 
-    fn settings(cap: u32) -> MuxerSettings {
-        MuxerSettings {
-            cap,
-            ..MuxerSettings::default()
-        }
-    }
+    /// Over the budget, and so far below it that the budget calls the bytes calm.
+    const OVER: u64 = BUDGET * 3 / 2;
+    const CALM: u64 = 10;
 
     fn tile(x: i32) -> TileKey {
         TileKey::new(x, 0, 0)
@@ -311,18 +319,13 @@ mod tests {
 
     /// Applies the changes of one plan to `subscriptions`.
     fn step(
-        settings: &MuxerSettings,
         position: Point,
         subscriptions: &mut BTreeMap<TileKey, Subscription>,
         headers: &[TileHeader],
         measured: Measured,
     ) {
-        let viewer = ViewerState {
-            settings,
-            position,
-            subscriptions,
-        };
-        for change in plan(&viewer, headers, measured) {
+        let width = NonZeroU32::new(WIDTH as u32).unwrap();
+        for change in plan(width, position, subscriptions, headers, measured) {
             match change.subscription {
                 Some(subscription) => subscriptions.insert(change.tile, subscription),
                 None => subscriptions.remove(&change.tile),
@@ -349,7 +352,6 @@ mod tests {
 
     #[test]
     fn the_cap_admits_up_to_k_and_removes_only_above_a_quarter_more() {
-        let settings = settings(100);
         let mut subscriptions = BTreeMap::new();
         let crowd = |near: usize| {
             [
@@ -359,67 +361,57 @@ mod tests {
                 },
                 TileHeader {
                     tile: tile(1),
-                    count: 70,
+                    count: 140,
                 },
             ]
         };
 
         step(
-            &settings,
             at(16.0),
             &mut subscriptions,
-            &crowd(40),
+            &crowd(120),
             Measured::default(),
         );
         assert_eq!(
-            visible(&subscriptions, &crowd(40)),
-            72,
-            "40 near, then the first 32 of the far tile: its second layer would pass 100"
+            visible(&subscriptions, &crowd(120)),
+            152,
+            "120 near, then the first 32 of the far tile: its second layer would pass 200"
         );
 
         step(
-            &settings,
             at(16.0),
             &mut subscriptions,
-            &crowd(55),
+            &crowd(190),
             Measured::default(),
         );
         assert_eq!(
-            visible(&subscriptions, &crowd(55)),
-            87,
-            "a sum of 87 stays under 125, so the far tile keeps its layer"
+            visible(&subscriptions, &crowd(190)),
+            222,
+            "a sum of 222 stays under 250, so the far tile keeps its layer"
         );
 
         step(
-            &settings,
             at(16.0),
             &mut subscriptions,
-            &crowd(100),
+            &crowd(240),
             Measured::default(),
         );
         assert_eq!(
-            visible(&subscriptions, &crowd(100)),
-            100,
-            "a sum of 132 is more than 125, so the far tile goes"
+            visible(&subscriptions, &crowd(240)),
+            240,
+            "a sum of 272 is more than 250, so the far tile goes"
         );
     }
 
     #[test]
     fn a_tile_takes_the_tier_of_its_distance_and_leaves_it_only_8_blocks_later() {
-        let settings = settings(200);
         let mut subscriptions = BTreeMap::new();
         let headers = [TileHeader {
             tile: tile(2),
             count: 1,
         }];
         let tier_at = |subscriptions: &mut BTreeMap<TileKey, Subscription>, x: f64| {
-            step(
-                &settings,
-                at(x),
-                subscriptions,
-                &headers,
-                Measured::default(),
-            );
+            step(at(x), subscriptions, &headers, Measured::default());
             tiers(subscriptions).first().copied().flatten()
         };
 
@@ -442,10 +434,6 @@ mod tests {
 
     #[test]
     fn the_budget_lowers_the_farthest_layer_first_then_raises_it_when_calm() {
-        let settings = MuxerSettings {
-            budget: 20 * 100,
-            ..MuxerSettings::default()
-        };
         let mut subscriptions = BTreeMap::new();
         let headers = [
             TileHeader {
@@ -458,21 +446,15 @@ mod tests {
             },
         ];
         let position = at(16.0);
-        step(
-            &settings,
-            position,
-            &mut subscriptions,
-            &headers,
-            Measured::default(),
-        );
+        step(position, &mut subscriptions, &headers, Measured::default());
         let near = tiers(&subscriptions);
 
         let over = Measured {
-            average: 150,
+            average: OVER,
             over: 1,
             calm: 0,
         };
-        step(&settings, position, &mut subscriptions, &headers, over);
+        step(position, &mut subscriptions, &headers, over);
         let lowered = tiers(&subscriptions);
         assert_eq!(
             lowered.get(..3),
@@ -487,21 +469,17 @@ mod tests {
 
         for calm in 1..=RAISE_EVERY_TICKS {
             let measured = Measured {
-                average: 10,
+                average: CALM,
                 over: 0,
                 calm,
             };
-            step(&settings, position, &mut subscriptions, &headers, measured);
+            step(position, &mut subscriptions, &headers, measured);
         }
         assert_eq!(tiers(&subscriptions), near, "calm bytes give the tier back");
     }
 
     #[test]
     fn the_accumulator_raises_a_far_lowered_layer_that_waited_longer_than_a_near_one() {
-        let settings = MuxerSettings {
-            budget: 20 * 100,
-            ..MuxerSettings::default()
-        };
         let headers = [
             TileHeader {
                 tile: tile(0),
@@ -514,31 +492,19 @@ mod tests {
         ];
         let position = at(16.0);
         let mut subscriptions = BTreeMap::new();
-        step(
-            &settings,
-            position,
-            &mut subscriptions,
-            &headers,
-            Measured::default(),
-        );
+        step(position, &mut subscriptions, &headers, Measured::default());
         let natural = tiers(&subscriptions);
         let over = Measured {
-            average: 150,
+            average: OVER,
             over: 1,
             calm: 0,
         };
         // The far layer goes down first; long after, the near one.
-        step(&settings, position, &mut subscriptions, &headers, over);
+        step(position, &mut subscriptions, &headers, over);
         for _ in 0..200 {
-            step(
-                &settings,
-                position,
-                &mut subscriptions,
-                &headers,
-                Measured::default(),
-            );
+            step(position, &mut subscriptions, &headers, Measured::default());
         }
-        step(&settings, position, &mut subscriptions, &headers, over);
+        step(position, &mut subscriptions, &headers, over);
         let far_lowered = |subscriptions: &BTreeMap<TileKey, Subscription>| {
             subscriptions
                 .get(&tile(3))
@@ -550,11 +516,11 @@ mod tests {
         );
 
         let calm = Measured {
-            average: 10,
+            average: CALM,
             over: 0,
             calm: RAISE_EVERY_TICKS,
         };
-        step(&settings, position, &mut subscriptions, &headers, calm);
+        step(position, &mut subscriptions, &headers, calm);
 
         assert!(
             !far_lowered(&subscriptions),

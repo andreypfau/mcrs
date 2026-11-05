@@ -1,10 +1,11 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::mem;
+use std::num::NonZeroU32;
 
 use crate::entity_event::{EntityEvent, SubjectEvent};
 use crate::entity_id::{EntityId, ViewerId};
-use crate::muxer_settings::MuxerSettings;
-use crate::planner::{Point, SubscriptionChange, TICKS_PER_SECOND, TileHeader, ViewerState, plan};
+use crate::planner;
+use crate::planner::{BUDGET, Point, SubscriptionChange, TileHeader};
 use crate::replication_codec::{BlobKind, Hold, ReplicationCodec};
 use crate::subscription::{LAYERS, Subscription, layer_ranks};
 use crate::tier::Tier;
@@ -26,7 +27,9 @@ use crate::viewer_bytes::ViewerBytes;
 #[derive(Debug)]
 pub struct Muxer<C> {
     codec: C,
-    settings: MuxerSettings,
+    /// The width of a tile on X and Z, in the units of the game. The distance of a tile to a
+    /// viewer is the distance on X and Z from the viewer to the nearest point of the tile.
+    tile_width: NonZeroU32,
     tiles: BTreeMap<TileKey, TileStream>,
     /// The tile of each subject.
     homes: BTreeMap<EntityId, TileKey>,
@@ -38,6 +41,8 @@ pub struct Muxer<C> {
     unsent: BTreeSet<TileKey>,
     /// The keyframes of this tick, shared by the viewers that change tier in it.
     keyframes: BTreeMap<TileTier, TileBlob>,
+    headers: Vec<TileHeader>,
+    candidates: Vec<EntityId>,
     tick: u64,
 }
 
@@ -64,10 +69,10 @@ struct Settled {
 
 impl<C: ReplicationCodec> Muxer<C> {
     #[must_use]
-    pub fn new(codec: C, settings: MuxerSettings) -> Self {
+    pub fn new(codec: C, tile_width: NonZeroU32) -> Self {
         Self {
             codec,
-            settings,
+            tile_width,
             tiles: BTreeMap::new(),
             homes: BTreeMap::new(),
             viewers: BTreeMap::new(),
@@ -75,12 +80,14 @@ impl<C: ReplicationCodec> Muxer<C> {
             owed: Vec::new(),
             unsent: BTreeSet::new(),
             keyframes: BTreeMap::new(),
+            headers: Vec::new(),
+            candidates: Vec::new(),
             tick: 0,
         }
     }
 
-    #[must_use]
-    pub fn codec(&self) -> &C {
+    #[cfg(test)]
+    fn codec(&self) -> &C {
         &self.codec
     }
 
@@ -105,11 +112,15 @@ impl<C: ReplicationCodec> Muxer<C> {
         self.send_moves(&settled);
         self.send_settled(settled);
 
-        let budget = u64::from(self.settings.budget) / TICKS_PER_SECOND;
         for state in self.viewers.values_mut() {
-            state.measure(budget);
+            state.measure(BUDGET);
         }
-        let viewers: Vec<ViewerId> = self.viewers.keys().copied().collect();
+        let viewers: Vec<ViewerId> = self
+            .viewers
+            .iter()
+            .filter(|(_, state)| !self.is_settled(state, &memberships))
+            .map(|(&viewer, _)| viewer)
+            .collect();
         for viewer in viewers {
             self.replan(viewer);
         }
@@ -228,6 +239,8 @@ impl<C: ReplicationCodec> Muxer<C> {
             }
             crossed.push(subject);
         }
+        crossed.sort_unstable();
+        crossed.dedup();
         Some(Membership {
             tile,
             before: before?,
@@ -252,6 +265,7 @@ impl<C: ReplicationCodec> Muxer<C> {
                 self.codec.refresh(*subject);
             }
         }
+        let candidates = &mut self.candidates;
         for viewer in &stream.viewers {
             let Some(state) = self.viewers.get_mut(viewer) else {
                 continue;
@@ -260,16 +274,21 @@ impl<C: ReplicationCodec> Muxer<C> {
                 .subscriptions
                 .get(&membership.tile)
                 .map_or(0, Subscription::visible_ranks);
-            let mut candidates = membership.crossed.clone();
             let boundary = (0..LAYERS - 1)
                 .zip(&shifted)
                 .find(|(layer, _)| layer_ranks(*layer).end == visible);
-            if let Some((_, shifted)) = boundary {
-                candidates.extend(shifted);
-            }
-            candidates.sort_unstable();
-            candidates.dedup();
-            for subject in candidates {
+            let candidates: &[EntityId] = match boundary {
+                Some((_, shifted)) => {
+                    candidates.clear();
+                    candidates.extend(&membership.crossed);
+                    candidates.extend(shifted);
+                    candidates.sort_unstable();
+                    candidates.dedup();
+                    candidates
+                }
+                None => &membership.crossed,
+            };
+            for &subject in candidates {
                 let wanted = wanted(&self.tiles, &self.homes, state, subject);
                 let held = state.held.contains(&subject);
                 match wanted {
@@ -374,15 +393,21 @@ impl<C: ReplicationCodec> Muxer<C> {
         }
     }
 
-    /// Plans the subscriptions of `viewer` and sends what they change: spawns for the layers it
-    /// gains, removals for the layers it loses, and keyframes for the layers that change tier.
-    fn replan(&mut self, viewer: ViewerId) {
-        let Some(state) = self.viewers.get(&viewer) else {
-            return;
-        };
-        let view = state.view;
-        let width = f64::from(self.settings.tile_width.get());
-        let position = match view
+    /// Whether a plan of `state` would change nothing: its last plan changed nothing, and since
+    /// then it kept its position, no tile of its view changed its subjects, and the budget does
+    /// not act.
+    fn is_settled(&self, state: &Viewer, memberships: &[Membership]) -> bool {
+        state.settled_at == Some(self.position(&state.view))
+            && !planner::reads_budget(state.measured)
+            && !memberships
+                .iter()
+                .any(|membership| state.view.contains(membership.tile))
+    }
+
+    /// Where the planner measures the distances of the tiles of `view` from.
+    fn position(&self, view: &View) -> Point {
+        let width = f64::from(self.tile_width.get());
+        match view
             .subject
             .and_then(|subject| self.codec.position(subject))
         {
@@ -391,23 +416,38 @@ impl<C: ReplicationCodec> Muxer<C> {
                 x: (f64::from(view.center.x) + 0.5) * width,
                 z: (f64::from(view.center.z) + 0.5) * width,
             },
+        }
+    }
+
+    /// Plans the subscriptions of `viewer` and sends what they change: spawns for the layers it
+    /// gains, removals for the layers it loses, and keyframes for the layers that change tier.
+    fn replan(&mut self, viewer: ViewerId) {
+        let Some(state) = self.viewers.get(&viewer) else {
+            return;
         };
-        let headers: Vec<TileHeader> = view
-            .tiles()
-            .map(|tile| TileHeader {
+        let position = self.position(&state.view);
+        let mut headers = mem::take(&mut self.headers);
+        headers.clear();
+        headers.extend(state.view.tiles().map(|tile| {
+            TileHeader {
                 tile,
                 count: self
                     .tiles
                     .get(&tile)
                     .map_or(0, |stream| stream.subjects.len()),
-            })
-            .collect();
-        let viewer_state = ViewerState {
-            settings: &self.settings,
+            }
+        }));
+        let changes = planner::plan(
+            self.tile_width,
             position,
-            subscriptions: &state.subscriptions,
-        };
-        let changes = plan(&viewer_state, &headers, state.measured);
+            &state.subscriptions,
+            &headers,
+            state.measured,
+        );
+        self.headers = headers;
+        if let Some(state) = self.viewers.get_mut(&viewer) {
+            state.settled_at = changes.is_empty().then_some(position);
+        }
         let mut lost = Vec::new();
         for change in changes {
             self.resubscribe(viewer, change, &mut lost);
@@ -625,7 +665,7 @@ mod tests {
     const FAR: TileKey = TileKey::new(10, 0, 0);
 
     fn muxer() -> Muxer<TextCodec> {
-        Muxer::new(TextCodec::default(), MuxerSettings::default())
+        Muxer::new(TextCodec::default(), NonZeroU32::new(32).unwrap())
     }
 
     fn view(center: TileKey, subject: Option<u64>) -> View {
@@ -788,26 +828,25 @@ mod tests {
 
     #[test]
     fn a_crowd_past_the_cap_is_cut_by_layer_and_the_viewer_holds_no_more_than_k() {
-        let mut muxer = Muxer::new(
-            TextCodec::default(),
-            MuxerSettings {
-                cap: 50,
-                ..MuxerSettings::default()
-            },
-        );
-        let spawns: Vec<SubjectEvent<()>> = (1..=120)
+        let mut muxer = muxer();
+        let spawns: Vec<SubjectEvent<()>> = (1..=300)
             .map(|subject| event(subject, EntityEvent::Spawn(())))
             .collect();
         publish(&mut muxer, 0, at(ORIGIN, spawns));
         muxer.subscribe(ViewerId(1), view(ORIGIN, None));
         let spawned = text(&mut muxer)[&1].matches("bundle").count();
-        assert_eq!(spawned, 32, "layer 0 fits in 50, layer 1 does not");
+        assert_eq!(spawned, 96, "layers 0 and 1 fit in 200, layer 2 does not");
 
-        let moves: Vec<SubjectEvent<()>> = (1..=120)
+        let moves: Vec<SubjectEvent<()>> = (1..=300)
             .map(|subject| event(subject, EntityEvent::Move(())))
             .collect();
+        // Four ticks, so the tiers of layers 0 and 1 are each due once.
         publish(&mut muxer, 2, at(ORIGIN, moves));
+        publish(&mut muxer, 4, Vec::new());
         let moved = text(&mut muxer)[&1].matches("move").count();
-        assert_eq!(moved, 32, "the viewer gets the moves of layer 0 only");
+        assert_eq!(
+            moved, 96,
+            "the viewer gets the moves of layers 0 and 1 only"
+        );
     }
 }
