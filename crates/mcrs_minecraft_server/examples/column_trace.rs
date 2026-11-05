@@ -11,53 +11,34 @@ use std::collections::BTreeMap;
 use std::fmt;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::time::{Duration, Instant};
+use std::time::Instant;
 
-use bevy_app::{App, Plugin, PluginGroup};
+use bevy_app::{App, PluginGroup};
 use bevy_math::DVec3;
-use mcrs_minecraft_core::VERSION;
-use mcrs_minecraft_engine_server::{BoundAddress, GameMode, ServerNetworkPlugin, runner};
-use mcrs_minecraft_engine_world::world::lifecycle::simulation::SimulationDistance;
-use mcrs_minecraft_engine_world::world::sub_app::AddDimensionPlugins;
+use mcrs_minecraft_engine_server::{BoundAddress, runner};
 use mcrs_minecraft_network::ReceivedPacket;
-use mcrs_minecraft_network::join::{Join, Joined, join};
-use mcrs_minecraft_network::packet_io::PacketIo;
 use mcrs_minecraft_protocol::anyhow;
-use mcrs_minecraft_protocol::packets::common::serverbound::KeepAlive;
-use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundKeepAlive;
-use mcrs_minecraft_protocol::packets::game::serverbound::ServerboundKeepAlive;
-use mcrs_minecraft_protocol::uuid::Uuid;
 use mcrs_minecraft_protocol::{Decode, Packet, WritePacket};
 use mcrs_minecraft_protocol_game::MoveFlags;
 use mcrs_minecraft_protocol_game::chunk::LightData;
 use mcrs_minecraft_protocol_game::clientbound::{
-    ClientboundBlockUpdate, ClientboundChunkBatchFinished, ClientboundForgetLevelChunk,
-    ClientboundLevelChunkWithLight, ClientboundLightUpdate, ClientboundPlayerPosition,
-    ClientboundSectionBlocksUpdate,
+    ClientboundBlockUpdate, ClientboundForgetLevelChunk, ClientboundLevelChunkWithLight,
+    ClientboundLightUpdate, ClientboundSectionBlocksUpdate,
 };
 use mcrs_minecraft_protocol_game::light_codec::{RowLight, unpack_light_data};
-use mcrs_minecraft_protocol_game::serverbound::{
-    ServerboundAcceptTeleportation, ServerboundChunkBatchReceived, ServerboundMovePlayerPos,
-};
-use mcrs_minecraft_server::MinecraftServerPlugins;
+use mcrs_minecraft_protocol_game::serverbound::ServerboundMovePlayerPos;
 use mcrs_voxel::ColumnPos;
 
-const ASSETS: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../assets");
-const TICK: Duration = Duration::from_millis(50);
+use common::{Answered, TICK};
+
+#[path = "common/mod.rs"]
+mod common;
+
 /// The ticks the bot stands at spawn before it flies, so that the first view is sent whole.
 const WARMUP_TICKS: u32 = 200;
 /// The light rows of an overworld column: its 24 sections and one padding row at each end.
 const OVERWORLD_ROWS: usize = 26;
 const ROW_BYTES: usize = 2048;
-
-#[derive(Clone)]
-struct Simulation(SimulationDistance);
-
-impl Plugin for Simulation {
-    fn build(&self, app: &mut App) {
-        app.insert_resource(self.0);
-    }
-}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 enum Kind {
@@ -92,6 +73,8 @@ struct Trace {
     held: BTreeMap<ColumnPos, Vec<[u8; ROW_BYTES]>>,
     light_updates: usize,
     light_updates_changing_nothing: usize,
+    /// The columns that the ends of the batches counted.
+    batched: usize,
 }
 
 impl Trace {
@@ -185,7 +168,10 @@ impl Trace {
                 *by_distance.entry((event.kind, event.distance)).or_default() += 1;
             }
         }
-        println!("columns sent more than once: {sent_again}");
+        println!(
+            "columns sent more than once: {sent_again}, columns in batches: {}",
+            self.batched
+        );
         println!(
             "light updates for held columns: {}, changing no row: {}",
             self.light_updates, self.light_updates_changing_nothing
@@ -212,19 +198,9 @@ fn main() -> anyhow::Result<()> {
         .transpose()?;
     let view_distance: u8 = args.get(4).map_or(Ok(12), |count| count.parse())?;
 
-    let mut plugins = MinecraftServerPlugins::default();
-    plugins.core.asset_path = Some(ASSETS.to_owned());
-    plugins.network = ServerNetworkPlugin::embedded();
-    plugins.network.announce_on_lan = false;
-    plugins.worlds.default_game_mode = GameMode::Creative;
     let mut app = App::new();
-    app.add_plugins(plugins.build());
-    if let Some(horizontal) = simulation {
-        app.add_dimension_plugin(Simulation(SimulationDistance {
-            horizontal,
-            vertical: u8::MAX,
-        }));
-    }
+    app.add_plugins(common::plugins().build());
+    common::set_simulation_distance(&mut app, simulation);
     let address = app.world().resource::<BoundAddress>().0;
     let stop = Arc::new(AtomicBool::new(false));
     let server_stop = stop.clone();
@@ -253,51 +229,20 @@ async fn fly(
     speed: f64,
     view_distance: u8,
 ) -> anyhow::Result<Trace> {
-    let io = PacketIo::connect(address).await?;
-    let Joined { mut connection, .. } = join(
-        io,
-        Join {
-            server_address: address.ip().to_string(),
-            server_port: address.port(),
-            remote_addr: address,
-            username: "tracer".to_owned(),
-            profile_id: Uuid::nil(),
-            protocol_version: VERSION.protocol_version,
-            view_distance,
-            holds_vanilla_pack: false,
-        },
-    )
-    .await?;
+    let mut connection = common::join_bot(address, "tracer".to_owned(), view_distance).await?;
     let step = DVec3::new(speed, 0.0, 0.0);
     let mut position: Option<DVec3> = None;
     let mut trace = Trace::default();
     let mut interval = tokio::time::interval(TICK);
     for tick in 0..ticks {
         interval.tick().await;
-        let bot = position.map_or(ColumnPos::new(0, 0), |at| {
-            ColumnPos::new((at.x / 16.0).floor() as i32, (at.z / 16.0).floor() as i32)
-        });
+        let bot = position.map_or(ColumnPos::new(0, 0), ColumnPos::from);
         while let Some(packet) = connection.try_recv()? {
-            let body = &mut &packet.payload[..];
-            if packet.id == ClientboundPlayerPosition::ID {
-                let teleport = ClientboundPlayerPosition::decode(body)?;
-                position = Some(teleport.position);
-                connection.write_packet(&ServerboundAcceptTeleportation {
-                    teleport_id: teleport.teleport_id,
-                    position: teleport.position.into(),
-                    look: teleport.look,
-                });
-            } else if packet.id == ClientboundChunkBatchFinished::ID {
-                connection.write_packet(&ServerboundChunkBatchReceived {
-                    desired_chunks_per_tick: 64.0,
-                });
-            } else if packet.id == ClientboundKeepAlive::ID {
-                let keep_alive = ClientboundKeepAlive::decode(body)?;
-                connection.write_packet(&ServerboundKeepAlive(KeepAlive {
-                    payload: keep_alive.0.payload,
-                }));
-            } else {
-                trace.record(&packet, tick, bot)?;
+            match common::answer(&mut connection, &packet)? {
+                Answered::Teleported(to) => position = Some(to),
+                Answered::Batch { columns } => trace.batched += columns,
+                Answered::KeepAlive => {}
+                Answered::Other => trace.record(&packet, tick, bot)?,
             }
         }
         if let Some(at) = position.as_mut()

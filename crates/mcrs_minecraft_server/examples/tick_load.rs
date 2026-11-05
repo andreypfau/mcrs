@@ -1,17 +1,14 @@
 //! Loads the embedded server with bots over TCP and reports how long its ticks take.
 //!
 //! ```text
-//! cargo run --release -p mcrs_minecraft_server --example tick_load -- <bots> <single|parallel> [apart|together] [seconds] [dimensions] [thread|inline] [simulation] [cells]
+//! cargo run --release -p mcrs_minecraft_server --example tick_load -- <bots> <inline|thread> [apart|together] [seconds] [dimensions] [thread|inline] [simulation] [cells]
 //! ```
 //!
-//! `single` ticks every world inline on the server thread, `parallel` gives each world a thread.
+//! `inline` ticks every world on the server thread, `thread` gives each world a thread.
 //! `thread|inline` places the muxer: on a thread of its own, the default, or inline on the server
 //! thread. `simulation` is the simulation distance of every dimension, 10 by default. Below the
 //! view distance of the bots, the view reaches past the hot area into cold space. `cells` is the
 //! number of cells of each dimension world, 1 by default; more cells divide each world by region.
-//!
-//! ```text
-//! ```
 //!
 //! The bots spread over the dimensions in turn: bot 0 in the overworld, bot 1 in the nether,
 //! bot 2 in the end, and so on. The bots
@@ -31,38 +28,23 @@ use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
 use std::sync::{Arc, mpsc};
 use std::time::{Duration, Instant};
 
-use bevy_app::{App, Plugin, PluginGroup};
+use bevy_app::{App, PluginGroup};
 use bevy_math::DVec3;
-use mcrs_minecraft_core::VERSION;
 use mcrs_minecraft_engine::coordinator::dim_cells::DimCells;
 use mcrs_minecraft_engine::muxer::muxer_link::MuxerLink;
-use mcrs_minecraft_engine_server::{
-    BoundAddress, GameMode, Placement, ServerNetworkPlugin, WorldCells, runner,
-};
-use mcrs_minecraft_engine_world::world::lifecycle::simulation::SimulationDistance;
+use mcrs_minecraft_engine_server::{BoundAddress, Placement, WorldCells, runner};
 use mcrs_minecraft_engine_world::world::storage::column::ColumnIndex;
-use mcrs_minecraft_engine_world::world::sub_app::AddDimensionPlugins;
-use mcrs_minecraft_network::join::{Join, Joined, join};
 use mcrs_minecraft_network::metrics::{BridgeTelemetry, PacketKind};
-use mcrs_minecraft_network::packet_io::PacketIo;
 use mcrs_minecraft_protocol::anyhow;
-use mcrs_minecraft_protocol::packets::common::serverbound::KeepAlive;
-use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundKeepAlive;
-use mcrs_minecraft_protocol::packets::game::serverbound::ServerboundKeepAlive;
-use mcrs_minecraft_protocol::uuid::Uuid;
-use mcrs_minecraft_protocol::{Bounded, Decode, Packet, VarInt, WritePacket};
+use mcrs_minecraft_protocol::{Bounded, VarInt, WritePacket};
 use mcrs_minecraft_protocol_game::MoveFlags;
-use mcrs_minecraft_protocol_game::clientbound::{
-    ClientboundChunkBatchFinished, ClientboundPlayerPosition,
-};
-use mcrs_minecraft_protocol_game::serverbound::{
-    ServerboundAcceptTeleportation, ServerboundChatCommand, ServerboundChunkBatchReceived,
-    ServerboundMovePlayerPos,
-};
-use mcrs_minecraft_server::MinecraftServerPlugins;
+use mcrs_minecraft_protocol_game::serverbound::{ServerboundChatCommand, ServerboundMovePlayerPos};
 
-const ASSETS: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../assets");
-const TICK: Duration = Duration::from_millis(50);
+use common::{Answered, TICK};
+
+#[path = "common/mod.rs"]
+mod common;
+
 const VIEW_DISTANCE: u8 = 8;
 const BLOCKS_PER_TICK: f64 = 0.6;
 const DIMENSIONS: [&str; 3] = [
@@ -105,11 +87,9 @@ struct TickTimes {
 fn main() -> anyhow::Result<()> {
     let args: Vec<String> = std::env::args().collect();
     let bots: usize = args.get(1).map_or(Ok(30), |count| count.parse())?;
-    let worlds = match args.get(2).map(String::as_str) {
-        None | Some("parallel") => Placement::Thread,
-        Some("single") => Placement::Inline,
-        Some(other) => anyhow::bail!("unknown mode {other:?}, expected single or parallel"),
-    };
+    let worlds: Placement = args
+        .get(2)
+        .map_or(Ok(Placement::Thread), |name| name.parse())?;
     let spread: Spread = args.get(3).map_or(Ok(Spread::Apart), |name| name.parse())?;
     let seconds: u64 = args.get(4).map_or(Ok(40), |count| count.parse())?;
     let dimensions: usize = args.get(5).map_or(Ok(3), |count| count.parse())?;
@@ -130,23 +110,14 @@ fn main() -> anyhow::Result<()> {
         DIMENSIONS.len()
     );
 
-    let mut plugins = MinecraftServerPlugins::default();
-    plugins.core.asset_path = Some(ASSETS.to_owned());
+    let mut plugins = common::plugins();
     plugins.core.worlds = worlds;
     plugins.core.muxer = muxer;
     plugins.core.cells = WorldCells { cells };
-    plugins.network = ServerNetworkPlugin::embedded();
-    plugins.network.announce_on_lan = false;
     plugins.worlds.default_op_level = 2;
-    plugins.worlds.default_game_mode = GameMode::Creative;
     let mut app = App::new();
     app.add_plugins(plugins.build());
-    if let Some(horizontal) = simulation {
-        app.add_dimension_plugin(Simulation(SimulationDistance {
-            horizontal,
-            vertical: u8::MAX,
-        }));
-    }
+    common::set_simulation_distance(&mut app, simulation);
     let address = app.world().resource::<BoundAddress>().0;
 
     let stop = Arc::new(AtomicBool::new(false));
@@ -202,16 +173,6 @@ fn main() -> anyhow::Result<()> {
     );
     report_bots(&counts, dimensions);
     Ok(())
-}
-
-/// The simulation distance of a dimension world.
-#[derive(Clone)]
-struct Simulation(SimulationDistance);
-
-impl Plugin for Simulation {
-    fn build(&self, app: &mut App) {
-        app.insert_resource(self.0);
-    }
 }
 
 /// Ticks between two counts of the columns the dimension worlds hold.
@@ -488,21 +449,7 @@ async fn bot(
     dimensions: usize,
     counts: &Counts,
 ) -> anyhow::Result<()> {
-    let io = PacketIo::connect(address).await?;
-    let Joined { mut connection, .. } = join(
-        io,
-        Join {
-            server_address: address.ip().to_string(),
-            server_port: address.port(),
-            remote_addr: address,
-            username: format!("bot{index}"),
-            profile_id: Uuid::nil(),
-            protocol_version: VERSION.protocol_version,
-            view_distance: VIEW_DISTANCE,
-            holds_vanilla_pack: false,
-        },
-    )
-    .await?;
+    let mut connection = common::join_bot(address, format!("bot{index}"), VIEW_DISTANCE).await?;
     counts.joined.fetch_add(1, Ordering::Relaxed);
 
     let heading = match spread {
@@ -521,27 +468,10 @@ async fn bot(
             if let Some(bot) = counts.bots.get(index) {
                 bot.bytes.fetch_add(bytes as u64, Ordering::Relaxed);
             }
-            let body = &mut &packet.payload[..];
-            if packet.id == ClientboundPlayerPosition::ID {
-                let teleport = ClientboundPlayerPosition::decode(body)?;
-                position = Some(teleport.position);
-                connection.write_packet(&ServerboundAcceptTeleportation {
-                    teleport_id: teleport.teleport_id,
-                    position: teleport.position.into(),
-                    look: teleport.look,
-                });
-            } else if packet.id == ClientboundChunkBatchFinished::ID {
-                let finished = ClientboundChunkBatchFinished::decode(body)?;
-                let columns = usize::try_from(finished.batch_size.0).unwrap_or(0);
-                counts.received(index, columns);
-                connection.write_packet(&ServerboundChunkBatchReceived {
-                    desired_chunks_per_tick: 64.0,
-                });
-            } else if packet.id == ClientboundKeepAlive::ID {
-                let keep_alive = ClientboundKeepAlive::decode(body)?;
-                connection.write_packet(&ServerboundKeepAlive(KeepAlive {
-                    payload: keep_alive.0.payload,
-                }));
+            match common::answer(&mut connection, &packet)? {
+                Answered::Teleported(to) => position = Some(to),
+                Answered::Batch { columns } => counts.received(index, columns),
+                Answered::KeepAlive | Answered::Other => {}
             }
         }
         if let Some(at) = position.as_mut() {
