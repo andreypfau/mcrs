@@ -622,12 +622,14 @@ impl Loader {
         slot: u32,
         cave: &mut CaveCull,
     ) -> Result<Placement, Box<SectionMesh>> {
-        if let Some(held) = self.stale.remove(&mesh.section) {
-            self.release(mesh.section, held, cave);
-        }
+        // The stale mesh stays drawn until the new one has room: a section deferred for want
+        // of room keeps its old mesh rather than a hole.
         let Some([quads, models, faces]) = self.reserve(&mesh) else {
             return Err(Box::new(mesh));
         };
+        if let Some(held) = self.stale.remove(&mesh.section) {
+            self.release(mesh.section, held, cave);
+        }
 
         let mut placed = mesh.groups;
         let mut first = 0usize;
