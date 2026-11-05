@@ -118,7 +118,7 @@ fn spawn_dimension(id: &str, dimension_type: &str) -> (App, Entity) {
     (app, handle)
 }
 
-/// Stands in for `apply_voxel_set_requests`, which writes the palette and then
+/// Stands in for the block simulation, which writes the palette and then
 /// the message; the chunk index it resolves through is not wired here.
 fn place_torch(app: &mut App, label: Entity, at: BlockPos) -> u8 {
     let blocks = app.world().resource::<Blocks>().clone();

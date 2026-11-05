@@ -1,4 +1,4 @@
-pub use crate::voxel_update::{BlockPlaced, BlockSetRequest, BlockUpdatePlugin};
+pub use crate::voxel_update::{BlockPlaced, BlockSetRequest};
 use bevy_ecs::entity::Entity;
 use mcrs_minecraft_simulation::BlockUpdateFlags;
 use mcrs_voxel::{BlockPos, BlockStateId};

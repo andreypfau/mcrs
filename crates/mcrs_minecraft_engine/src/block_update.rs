@@ -17,8 +17,6 @@ use mcrs_voxel::LocalPos;
 use mcrs_voxel::SectionPos;
 use rustc_hash::{FxHashMap, FxHashSet};
 
-pub use mcrs_minecraft_engine_world::block_update::BlockUpdatePlugin;
-
 use crate::bus::{PacketPayload, PacketPriority};
 use crate::column_change::ColumnChange;
 use crate::column_streams::ColumnStreams;
@@ -72,8 +70,9 @@ pub fn publish_block_changes(
     }
 }
 
-/// Publishes the block changes of a dimension. Pairs with `BlockUpdatePlugin`, which supplies the
-/// message types and the set-block reader; both are registered into each dimension world.
+/// Publishes the block changes of a dimension. Pairs with
+/// [`BlockSimulationPlugin`](crate::block_simulation::BlockSimulationPlugin), which reports each
+/// block it placed; both are registered into each dimension world.
 pub struct BlockUpdateWirePlugin;
 
 impl Plugin for BlockUpdateWirePlugin {

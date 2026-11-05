@@ -93,9 +93,8 @@ impl Default for DimensionBlockRules {
     }
 }
 
-/// The block simulation of a dimension world under the rules `B`. It takes the place of the
-/// plain block writes of `BlockUpdatePlugin`: each [`BlockSetRequest`] is a set of the kernel,
-/// with all its flags.
+/// The block simulation of a dimension world under the rules `B`: each [`BlockSetRequest`] is a
+/// set of the kernel, with all its flags.
 pub struct BlockSimulationPlugin<B> {
     rules: B,
 }

@@ -1,11 +1,8 @@
-use crate::owned_columns::OwnedColumns;
 use crate::world::storage::view::WorldViewMut;
-use bevy_app::{FixedPostUpdate, FixedUpdate, Plugin};
 use bevy_ecs::entity::Entity;
-use bevy_ecs::message::{Message, MessageReader, MessageWriter, Messages};
+use bevy_ecs::message::{Message, MessageWriter};
 use bevy_ecs::resource::Resource;
-use bevy_ecs::schedule::{IntoScheduleConfigs, SystemSet};
-use bevy_ecs::system::{Res, ResMut};
+use bevy_ecs::schedule::SystemSet;
 use mcrs_minecraft_simulation::BlockUpdateFlags;
 use mcrs_minecraft_volume::BlockVolumeMut;
 use mcrs_voxel::SectionPos;
@@ -15,36 +12,6 @@ use mcrs_voxel::{BlockPos, BlockStateId};
 pub enum VoxelUpdateSet {
     ApplyChanges,
     NetworkSync,
-}
-
-#[derive(Default)]
-pub struct BlockUpdatePlugin;
-
-impl Plugin for BlockUpdatePlugin {
-    fn build(&self, app: &mut bevy_app::App) {
-        // Messages<BlockSetRequest> and Messages<BlockPlaced> are
-        // registered by the caller (the per-dim sub-app builder) before
-        // this plugin runs. Registering them here would re-export the
-        // buffers if the plugin were ever added host-side by mistake,
-        // hiding the per-dim invariant.
-        debug_assert!(
-            app.world().contains_resource::<Messages<BlockSetRequest>>(),
-            "BlockUpdatePlugin requires Messages<BlockSetRequest> registered by the per-dim sub-app builder before add_plugins",
-        );
-        debug_assert!(
-            app.world().contains_resource::<Messages<BlockPlaced>>(),
-            "BlockUpdatePlugin requires Messages<BlockPlaced> registered by the per-dim sub-app builder before add_plugins",
-        );
-        app.configure_sets(
-            FixedUpdate,
-            VoxelUpdateSet::ApplyChanges.in_set(crate::tick::TickSet::WorldWrite),
-        );
-        app.configure_sets(FixedPostUpdate, VoxelUpdateSet::NetworkSync);
-        app.add_systems(
-            FixedUpdate,
-            apply_voxel_set_requests.in_set(VoxelUpdateSet::ApplyChanges),
-        );
-    }
 }
 
 #[derive(Message)]
@@ -80,36 +47,6 @@ pub struct HaloBlockChanges(pub Vec<HaloBlockChange>);
 pub struct HaloBlockChange {
     pub dimension: Entity,
     pub write: CellBlockWrite,
-}
-
-pub fn apply_voxel_set_requests(
-    mut reader: MessageReader<BlockSetRequest>,
-    mut blocks: WorldViewMut,
-    mut writer: MessageWriter<BlockPlaced>,
-    owned: Option<Res<OwnedColumns>>,
-    mut foreign: Option<ResMut<ForeignBlockWrites>>,
-    mut halo: Option<ResMut<HaloBlockChanges>>,
-) {
-    if let Some(halo) = halo.as_mut() {
-        apply_halo_changes(&mut blocks, &mut writer, &mut halo.0);
-    }
-    for request in reader.read() {
-        let write = CellBlockWrite {
-            pos: request.pos,
-            new_state: request.new_state,
-            flags: request.flags,
-            recursion_left: request.recursion_left,
-        };
-        if let Some(owned) = owned.as_deref()
-            && !owned.owns_block(request.pos)
-        {
-            if let Some(foreign) = foreign.as_mut() {
-                foreign.0.push(write);
-            }
-            continue;
-        }
-        apply_write(&mut blocks, &mut writer, request.dimension, write);
-    }
 }
 
 /// Applies the changes of the halo that the owners sent, before any write of the tick. They only
@@ -162,7 +99,7 @@ fn write_block(
             target: "voxel_update",
             ?dimension,
             pos = ?write.pos,
-            "apply_voxel_set_requests: dimension lookup failed; dropping",
+            "a block write names no dimension; dropping",
         );
         return Written::Dropped;
     };
@@ -179,7 +116,7 @@ fn write_block(
                 target: "voxel_update",
                 %why,
                 pos = ?write.pos,
-                "apply_voxel_set_requests: dropping",
+                "a block write found no section; dropping",
             );
             return Written::Dropped;
         }
@@ -217,6 +154,7 @@ mod tests {
     use crate::palette::air_section;
     use crate::world::dimension::DimensionTypeConfig;
     use crate::world::storage::section::SectionIndex;
+    use bevy_ecs::message::Messages;
     use bevy_ecs::system::SystemState;
     use bevy_ecs::world::World;
     use mcrs_minecraft_volume::BlockVolume;

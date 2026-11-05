@@ -18,7 +18,6 @@ mod anvil_block_states;
 mod aoi_drain_disconnect_filters_inflight;
 mod aoi_mass_disconnect_budget;
 mod aoi_on_player_disconnect_cleanup;
-mod aoi_tnt_cascade_restored;
 mod block_entities;
 mod block_loot_addressing;
 mod bridge_dispatch;

@@ -193,11 +193,7 @@ pub fn spawn_dim_subapp(
         sub_app.init_resource::<ForeignPlayers>();
         sub_app.init_resource::<OwnPlayers>();
         sub_app.add_systems(Last, report_own_players);
-        // The sub-app builder is the single source of truth for these registrations — `BlockUpdatePlugin`
-        // no longer registers them and instead debug-asserts they are already in
-        // place, so a mistaken host-side `add_plugins(BlockUpdatePlugin)` fails
-        // loud at plugin load rather than silently exporting the buffers to the
-        // host world.
+        // The block messages live in the dimension world alone, so the host never buffers them.
         sub_app.add_message::<BlockSetRequest>();
         sub_app.add_message::<BlockPlaced>();
         sub_app.add_message::<crate::column_change::ColumnChange>();
