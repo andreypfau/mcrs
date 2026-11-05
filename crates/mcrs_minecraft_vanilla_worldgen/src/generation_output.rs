@@ -29,8 +29,6 @@ pub(crate) struct GeneratedSection {
 
 pub(crate) enum SectionContent {
     Blocks(SectionBlocks),
-    /// The section has blocks, but no block table to check them against.
-    Unchecked,
     Missing,
 }
 

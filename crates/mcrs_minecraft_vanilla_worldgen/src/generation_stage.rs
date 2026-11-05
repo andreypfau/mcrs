@@ -1,6 +1,5 @@
 use bevy_tasks::{Task, TaskPool, TaskPoolBuilder};
 use mcrs_engine_link::{InFlight, Step, TaskOutcome};
-use mcrs_minecraft_engine::column_ticks::ColumnTicks;
 use mcrs_minecraft_engine_world::aoi::min_column_distance;
 use mcrs_minecraft_engine_world::entity::player::chunk_view::ChunkTrackingView;
 use mcrs_minecraft_engine_world::palette::{ChunkBlocks, section_states};
@@ -429,10 +428,12 @@ impl GenerationStage {
     }
 
     fn take_generated(&mut self, key: ColumnKey) -> Option<GeneratedColumn> {
+        // A column reaches the top of its ladder only after the context arrived.
+        let ctx = self.ctx.as_ref()?;
         let col = key.chunk_column_pos;
         let mut requested = self.pending.get(&key)?.clone();
         requested.sort_unstable();
-        let states = self.ctx.as_ref().map(|ctx| ctx.blocks.state_count());
+        let states = ctx.blocks.state_count();
         // Straight from the snapshot the store keeps, without a copy of the blocks between.
         let Some(merged) = self.store.merged(col) else {
             // The store was evicted under the request; the column keeps its place in the
@@ -445,23 +446,18 @@ impl GenerationStage {
         let sections: Vec<GeneratedSection> =
             carried_sections(&requested, &merged.sections, bottom)
                 .map(|(y, section)| {
-                    let content = match (section, states) {
-                        (Some((blocks, biomes)), Some(states)) => {
-                            SectionContent::Blocks(SectionBlocks {
-                                blocks: ChunkBlocks::new(section_states(blocks, states)),
-                                biomes: biomes.clone(),
-                            })
-                        }
-                        (Some(_), None) => SectionContent::Unchecked,
-                        (None, _) => SectionContent::Missing,
+                    let content = match section {
+                        Some((blocks, biomes)) => SectionContent::Blocks(SectionBlocks {
+                            blocks: ChunkBlocks::new(section_states(blocks, states)),
+                            biomes: biomes.clone(),
+                        }),
+                        None => SectionContent::Missing,
                     };
                     GeneratedSection { y, content }
                 })
                 .collect();
         let maps = merged.maps.clone();
-        let ticks = self.ctx.as_ref().map_or_else(ColumnTicks::default, |ctx| {
-            generated_ticks::column_ticks(&merged.ticks, &ctx.blocks)
-        });
+        let ticks = generated_ticks::column_ticks(&merged.ticks, &ctx.blocks);
 
         self.pending.remove(&key)?;
         self.priority_index.remove(&col);
