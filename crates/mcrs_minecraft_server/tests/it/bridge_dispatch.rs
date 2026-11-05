@@ -251,6 +251,48 @@ fn chunk_load_encodes() {
     assert!(!blob.is_empty(), "blob must be non-empty");
 }
 
+/// A `section_blocks_update` goes out as one whole frame: its length, its id and its body.
+#[test]
+fn section_blocks_update_encodes() {
+    use mcrs_minecraft_protocol::Encode;
+    use mcrs_minecraft_protocol_game::chunk::ChunkBlockUpdateEntry;
+    use mcrs_minecraft_protocol_game::clientbound::ClientboundSectionBlocksUpdate;
+    use mcrs_voxel::SectionPos;
+
+    let packet = ClientboundSectionBlocksUpdate {
+        chunk_pos: SectionPos::new(12, -4, 12),
+        blocks: vec![
+            ChunkBlockUpdateEntry::new().with_off_x(10).with_off_y(6),
+            ChunkBlockUpdateEntry::new().with_off_x(10).with_off_y(7),
+        ]
+        .into(),
+    };
+    let mut body = Vec::new();
+    packet.encode(&mut body).unwrap();
+
+    let mut world = build_dispatch_world();
+    let (socket, mut rx) = spawn_mock_connection(&mut world);
+    world
+        .get_mut::<OutboundQueue>(socket)
+        .expect("OutboundQueue")
+        .push(OutboundPlayerPacket {
+            target: PacketTarget::AllPlayers,
+            priority: PacketPriority::Normal,
+            data: PacketPayload::SectionBlocksUpdate(packet),
+            session: PlayerSession(0),
+            epoch: 0,
+        });
+
+    run_dispatch(&mut world);
+
+    let mut decoder = PacketDecoder::new();
+    decoder.queue_bytes(BytesMut::from(&rx.try_recv().expect("one blob")[..]));
+    let frame = decoder.try_next_packet().unwrap().expect("one frame");
+    assert_eq!(frame.id, ClientboundSectionBlocksUpdate::ID);
+    assert_eq!(&frame.body[..], &body[..]);
+    assert!(decoder.try_next_packet().unwrap().is_none());
+}
+
 /// A column that three connections receive at two compression thresholds is framed once for
 /// each threshold, and each connection reads it back at its own threshold.
 #[test]

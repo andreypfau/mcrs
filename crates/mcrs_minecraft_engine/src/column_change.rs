@@ -1,4 +1,5 @@
 use bevy_ecs::message::Message;
+use mcrs_minecraft_engine_world::session::PlayerSession;
 use mcrs_voxel::ColumnPos;
 
 use crate::bus::{PacketPayload, PacketPriority};
@@ -9,4 +10,6 @@ pub struct ColumnChange {
     pub column: ColumnPos,
     pub priority: PacketPriority,
     pub payload: PacketPayload,
+    /// A holder that does not get the change, because its client made the change itself.
+    pub except: Option<PlayerSession>,
 }
