@@ -7,8 +7,9 @@
 
 This document states how a player breaks a block in creative mode, and what the server sends for
 it. It states only what a client, the server console and the server files show. It does not
-prescribe an architecture. Every rule comes from a vanilla server in offline mode. Section 8 gives
-the experiments, and section 9 gives the captured results.
+prescribe an architecture. Most rules come from a vanilla server in offline mode. A rule with a
+`source_suggested` label comes from the reference implementation. Section 8 gives the experiments,
+and section 9 gives the captured results.
 
 Scope: creative mode only. This document does not state break progress, tools, survival mode or
 block placement. It will grow to cover them.
@@ -26,6 +27,7 @@ block placement. It will grow to cover them.
 - **Sequence**: the last field of the `player_action` packet.
 - **Acknowledgement**: one clientbound `block_changed_ack` packet.
 - **Block cube**: the cube from the block position `(x, y, z)` to `(x + 1, y + 1, z + 1)`.
+- **Block corner**: the point `(x, y, z)` of the block position.
 - **Eye position**: the position of the player, with 1.62 added to `y`.
 - **Break**: the server changes the block at the position to air.
 - **Refusal**: the block at the position does not change.
@@ -33,6 +35,10 @@ block placement. It will grow to cover them.
 ### 0.2 Provenance
 
 - `black_box_confirmed`: shown by a captured result in section 9.
+- `source_suggested_black_box_confirmed`: taken from the reference implementation, and consistent
+  with a captured result in section 9.
+- `source_suggested`: taken from the reference implementation, with no captured result. Section 8
+  attaches an experiment.
 - `unresolved`: not decided. Section 7 collects these items.
 
 All the results come from one vanilla server and scripted clients on one machine. A rule that rests
@@ -54,14 +60,29 @@ a block. See results R1 and R2.
 |--------|-------------------------|
 | 0 | The block breaks, unless section 3 refuses it. |
 | 1 | An acknowledgement only. |
-| 2 | An acknowledgement to the breaker. Each observer gets `block_destruction` with progress 255. |
+| 2 | An acknowledgement to the breaker. An observer near the block gets `block_destruction` with progress 255 (BRK-REQ-006). |
 | 3 | An acknowledgement only. |
+
+Actions 4 to 8 do not act on a block. This document does not state them.
 
 **BRK-REQ-003** (`black_box_confirmed`, wire). An action of 9 closes the connection, because the
 packet does not decode. The block does not change. See result R3. This rule rests on one observation.
 
 **BRK-REQ-004** (`black_box_confirmed`, semantic). The face has no effect on a break. The values 0, 1,
 2, 5 and 9 all break the block. See results R1 and R4.
+
+**BRK-REQ-005** (`source_suggested`, semantic). The server ignores a request, and sends no
+acknowledgement, until the client has loaded. The client has loaded after it sends `player_loaded`, or
+60 ticks after the player joins or respawns. See experiment E28.
+
+**BRK-REQ-006** (`source_suggested`, semantic). For action 2, an observer gets `block_destruction` when
+the distance from its position to the block corner is less than 32. The breaker does not get it. See
+experiment E29.
+
+The reference implementation keeps the position of the last break progress, which is `(0, 0, 0)` at
+first. For action 2 at another position, it also sends `block_destruction` with progress 255 for the
+kept position. Action 3 at the kept position can break the block there. This document leaves these two
+results unspecified.
 
 ## 2. A break
 
@@ -83,28 +104,33 @@ R13 show.
 **BRK-BRK-005** (`black_box_confirmed`, semantic). A creative break does not send
 `block_destruction`. See result R1.
 
-**BRK-BRK-006** (`black_box_confirmed`, semantic). An observer gets the `level_event` only within a
-distance. An observer gets the new block state while its client holds the chunk. See result R10. The
-limit of the `level_event` is between 63 and 65 blocks along one axis (U1).
+**BRK-BRK-006** (`source_suggested_black_box_confirmed`, semantic). An observer in the same dimension
+gets the `level_event` when the distance from its position to the block corner is less than 64. An
+observer gets the new block state while its client holds the chunk. See result R10.
 
-**BRK-BRK-007** (`black_box_confirmed`, semantic). The server answers no later than about one tick
-after the request. The largest delay in result R9 is 49.9 ms. The exact tick is unresolved (U2).
+**BRK-BRK-007** (`source_suggested_black_box_confirmed`, semantic). The server handles a request
+between two ticks. In the next tick, it sends the changed block states, and then the acknowledgement.
+The server sends the `block_update` of a refusal when it handles the request. In result R9, the largest
+delay to the first packet is 49.9 ms.
 
 **BRK-BRK-008** (`black_box_confirmed`, semantic). Bedrock, barrier, end portal frame, structure void,
 light, moving piston, nether portal and end portal break like any other block. See result R5.
 
-**BRK-BRK-009** (`black_box_confirmed`, semantic). A start action on fire extinguishes it. The breaker
-and each observer get `level_event` with type 1009, and then the new block state. They do not get type
-2001. See result R5. This rule rests on one block type.
+**BRK-BRK-009** (`source_suggested_black_box_confirmed`, semantic). A start action on fire or soul fire
+extinguishes it. The breaker and each observer get `level_event` with type 1009, and then the new block
+state. They do not get type 2001. See result R5. Result R5 tests only fire.
 
 ## 3. Refusals
 
 ### 3.1 Reach
 
-**BRK-RCH-001** (`black_box_confirmed`, semantic). A start action is refused when the distance from
-the eye position to the nearest point of the block cube is 6.0 or more. A distance less than 6.0 is in
-reach. See results R7 and R8. The breaker gets one acknowledgement and no block state. An observer
-gets nothing.
+**BRK-RCH-001** (`source_suggested_black_box_confirmed`, semantic). A start action is refused when the
+distance from the eye position to the nearest point of the block cube is 6.0 or more. A distance less
+than 6.0 is in reach. See results R7 and R8. The breaker gets one acknowledgement and no block state. An
+observer gets nothing.
+
+The limit is the value of the `minecraft:block_interaction_range` attribute, plus 1.0. The attribute is
+4.5 by default, and creative mode adds 0.5 to it.
 
 **BRK-RCH-002** (`black_box_confirmed`, semantic). The distance uses the block cube, and not the
 shape of the block. A bottom slab has the same limit as a full block when the breaker is above it. See
@@ -120,21 +146,35 @@ nothing where the table states it.
 |------|--------|----------|
 | The selected hotbar slot holds an item that cannot break blocks (BRK-REF-002) | R11 | Gets nothing, R11 |
 | The player is in adventure mode or spectator mode | R14 | Gets nothing, R14 |
-| The position is outside the world border | R15 | Not observed |
-| The position is above the height limit, and in reach | R15 | Not observed |
+| The position is outside the world border | R15 | Gets nothing, BRK-ORD-001 |
+| The position is above the height limit, and in reach | R15 | Gets nothing, BRK-ORD-001 |
 
 For the position above the height limit, the state id in the packet is 18655, and not 0.
 
-**BRK-REF-002** (`black_box_confirmed`, semantic). All swords, the trident, the mace and the debug stick
-refuse a break. An axe, a hoe, shears, a spear, a pickaxe, a stick and an empty hand do not refuse a
-break. Only the selected hotbar slot counts. The other hotbar slots and the off hand have no effect.
-See result R11. The list of items outside these results is unresolved (U3).
+**BRK-REF-002** (`source_suggested_black_box_confirmed`, semantic). The item in the selected hotbar slot
+refuses a break in two cases:
+
+- The `minecraft:tool` component of the item has `can_destroy_blocks_in_creative` set to false.
+- The item is the debug stick.
+
+In result R11, all swords, the trident and the mace have this component value. An axe, a hoe, shears, a
+spear, a pickaxe, a stick and an empty hand do not refuse a break. Only the selected hotbar slot counts.
+The other hotbar slots and the off hand have no effect. See result R11.
+
+For an operator of level 2 or higher, the debug stick also selects a block property and sends a
+message. This document does not state that behaviour.
 
 **BRK-REF-003** (`black_box_confirmed`, semantic). A command block, a structure block and a jigsaw
 block refuse a break when the player is not an operator. An operator breaks them. See result R16. In a
 refusal, the breaker gets `block_update` with the current state two times. For a structure block and a
-jigsaw block, the breaker then gets `block_entity_data`. The acknowledgement comes last. The operator
-level that this needs is unresolved (U4).
+jigsaw block, the breaker then gets `block_entity_data`. The acknowledgement comes last. BRK-REF-004
+states the operator level.
+
+**BRK-REF-004** (`source_suggested`, semantic). The refusal of BRK-REF-003 also applies to a chain
+command block, a repeating command block, a test block and a test instance block. A player with an
+operator level of 2 or higher breaks these blocks. The server sends the second `block_update`, and the
+`block_entity_data`, to each player whose client holds the chunk. The observer is one of these players.
+A test block and a test instance block also send `block_entity_data`. See experiment E30.
 
 ### 3.3 Refusals that send only an acknowledgement
 
@@ -145,39 +185,70 @@ acknowledgement and no block state.
 |------|--------|
 | The block is out of reach (BRK-RCH-001) | R7 |
 | The position is air | R17 |
-| The position holds water or lava, at any level | R18, R25 |
+| The position holds water or lava, at a level from 0 to 8 | R18, R25 |
 | The position is below the height limit | R15 |
 
 **BRK-ACK-002** (`black_box_confirmed`, semantic). For a start action on air, an observer gets
 `level_event` with type 2001 and data 0. An observer gets no block state. See result R17. This rule
 rests on one observation.
 
-**BRK-ACK-003** (`black_box_confirmed`, semantic). A block that holds a water source changes to a water
-source. The breaker gets `block_update` with the state of a water source, and then one acknowledgement.
-An observer gets `level_event` with type 2001 and the state id of the old block, and then the same block
-state. No item drops. See results R19 and R26. The tested blocks are in R26. A block of the same type
-with no water changes to air. Each block type rests on one observation.
+**BRK-ACK-003** (`source_suggested_black_box_confirmed`, semantic). A block of one part that holds a
+water source changes to a water source. The breaker gets `block_update` with the state of a water
+source, and then one acknowledgement. An observer gets `level_event` with type 2001 and the state id of
+the old block, and then the same block state. No item drops. See results R19 and R26. The tested blocks
+are in R26. A block of the same type with no water changes to air. Each block type rests on one
+observation. Section 4 states the packets for tall seagrass.
 
-**BRK-ACK-004** (`black_box_confirmed`, semantic). For a start action on water or lava, at any level, an
-observer gets `level_event` with type 2001 and the state id of the fluid. An observer gets no block
-state. The fluid stays. See result R25.
+**BRK-ACK-004** (`black_box_confirmed`, semantic). For a start action on water or lava, at a level from
+0 to 8, an observer gets `level_event` with type 2001 and the state id of the fluid. An observer gets no
+block state. The fluid stays. See result R25.
+
+**BRK-ACK-005** (`source_suggested`, semantic). Water or lava at a level from 9 to 15 changes to the
+same fluid at level 8. The breaker gets `block_update` with the new state, and then one acknowledgement.
+An observer gets `level_event` with type 2001 and the old state id, and then the new block state. See
+experiment E31.
 
 ### 3.4 Spawn protection
 
-**BRK-SPN-001** (`black_box_confirmed`, semantic). With `spawn-protection=16`, a start action is
-refused when all of these conditions are true. See results R20 and R21.
+**BRK-SPN-001** (`source_suggested_black_box_confirmed`, semantic). A start action is refused when all of
+these conditions are true. See results R20 and R21.
 
+- The value of `spawn-protection` is more than 0.
+- The block is in the dimension of the world spawn.
 - At least one operator exists.
-- The player is not an operator.
-- The block position is at most 16 blocks from the world spawn block on the `x` axis, in each direction.
+- The player is not an operator, at any operator level.
+- The larger of the two distances on the `x` axis and on the `z` axis, from the world spawn block to the
+  block position, is at most the value of `spawn-protection`.
 
-The limit on the `z` axis is unresolved (U5). An operator breaks the block, and the break is normal. A
-server with no operator does not refuse, as result R21 shows.
+The `y` coordinate has no effect. An operator breaks the block, and the break is normal. A server with
+no operator does not refuse, as result R21 shows. Results R20 and R21 test only the `x` axis, with
+`spawn-protection=16`. Experiment E33 tests the other conditions.
 
 **BRK-SPN-002** (`black_box_confirmed`, wire). In this refusal, the breaker gets `system_chat` in the
 overlay position, and then one acknowledgement. The breaker gets no block state. The message is the
 translation key `build.spawn_protection` in red, with the argument `x, y, z`. See result R20. An
 observer gets nothing.
+
+### 3.5 The order of the checks
+
+**BRK-ORD-001** (`source_suggested`, semantic). The server applies the checks in this order. The first
+check that refuses the request sets the result.
+
+1. Reach (BRK-RCH-001), for each action.
+2. A position above the height limit (BRK-REF-001), for each action.
+3. Spawn protection (BRK-SPN-001), for the start action.
+4. The world border (BRK-REF-001), for the start action.
+5. In creative mode, the held item (BRK-REF-002), and then the blocks of BRK-REF-003. In adventure
+   mode or spectator mode, the game mode (BRK-REF-001).
+
+Thus actions 1, 2 and 3 above the height limit also get `block_update`. An item that refuses a break
+also refuses on air, on a fluid and below the height limit, and sends `block_update`. Only the refusal
+of BRK-REF-003 sends a packet to an observer. See experiment E32.
+
+**BRK-ORD-002** (`source_suggested`, semantic). Steps 2 to 4 do not refuse a position below the height
+limit. When no check refuses it, the break changes nothing, so the breaker gets only the
+acknowledgement. An observer gets
+`level_event` with type 2001 and data 18655, the state id of void air. See experiment E32.
 
 ## 4. Blocks that have more than one part
 
@@ -223,8 +294,9 @@ and the new block state of the sand. See result R23. `block-simulation.md` state
 
 ## 6. Several requests and the sequence
 
-**BRK-SEQ-001** (`black_box_confirmed`, semantic). Requests that the server handles in one tick get one
-acknowledgement. It carries the highest sequence of those requests, whichever came last. See result R6.
+**BRK-SEQ-001** (`black_box_confirmed`, semantic). Requests that the server handles between two ticks
+get one acknowledgement (BRK-BRK-007). It carries the highest sequence of those requests, whichever
+came last. See result R6.
 
 **BRK-SEQ-002** (`black_box_confirmed`, semantic). Requests about 200 ms apart each get their own
 acknowledgement. See result R9.
@@ -242,24 +314,13 @@ R24. This rule rests on one observation.
 
 ## 7. Unresolved
 
-- **U1**: the exact distance limit of the `level_event` to an observer, and how it counts distance.
-- **U2**: the tick in which the server handles a request and sends the answer. The results show only
-  arrival times at the client.
-- **U3**: the full list of items that refuse a break. The experiments tested the items of R11.
-- **U4**: the operator level that a command block, a structure block and a jigsaw block need. The
-  experiments used the default level of the `op` command.
-- **U5**: spawn protection on the `z` axis, on a diagonal, with a spawn that is not at the origin, and
-  the operator level that it needs.
 - **U7**: a position in reach in a chunk that is not loaded. The only tested position was also out of
   reach.
-- **U8**: what an observer gets for a start action outside the world border, or above the height limit.
-- **U9**: the eye position when the player sneaks, swims or has another pose, and the effect of an
-  attribute that changes reach. All experiments used a player that stands. Result R8 confirms the
-  height 1.62 only to within 0.05.
-- **U10**: why a position above the height limit sends a block state and a position below it does not.
-  Each case rests on two observations.
+- **U9**: the eye position when the player sneaks, swims or has another pose. All experiments used a
+  player that stands. Result R8 confirms the height 1.62 only to within 0.05.
 - **U11**: two breaks in one tick in different sections.
-- **U12**: blocks that hold water outside R26.
+- **U13**: other blocks that act differently in a creative break. For example, a piston head also
+  removes its piston, and a beehive with bees or honey drops itself.
 
 ## 8. Experiments
 
@@ -298,6 +359,17 @@ Before each step, set the block with `setblock`, and read the packets that arriv
 | E24 | Send the sequences 0, 1, 2147483646, 2147483647 and -1. | R24 |
 | E25 | Wall a block position in stone. Set water and lava there, at the levels of R25. Wait until the breaker gets the `block_update`, and send the start action at once, before the fluid changes. Do each level that is not a source three times, and each source once. | R25 |
 | E26 | Wall a block position in stone. Set each block of R26 there. Send the start action. Read the block and the item entities. For tall seagrass, hit each part. | R26 |
+
+Experiments E28 to E33 test the `source_suggested` rules. Nobody has run them yet.
+
+| Experiment | Steps | Rule |
+|------------|-------|------|
+| E28 | Send the start action before the client sends `player_loaded`. Then send `player_loaded` and send the start action again. | BRK-REQ-005 |
+| E29 | Put the observer 31 blocks and then 33 blocks from the block corner. Send action 2. | BRK-REQ-006 |
+| E30 | Break each block of BRK-REF-004 without `op`, with operator level 1 and with operator level 2. Read the packets of the observer. | BRK-REF-004 |
+| E31 | Set water and lava at the levels 9 and 15. Send the start action. | BRK-ACK-005 |
+| E32 | Hold a diamond sword. Send the start action on air, on water and at `y=-65`. Send actions 1, 2 and 3 at `y=320`. With an empty hand, send the start action at `y=-65` and read the observer. | BRK-ORD-001, BRK-ORD-002 |
+| E33 | Do E20 on the `z` axis, on a diagonal, with an operator of level 1, and in the nether. | BRK-SPN-001 |
 
 ## 9. Captured results
 
