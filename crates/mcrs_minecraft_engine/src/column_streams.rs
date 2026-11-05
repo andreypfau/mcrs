@@ -141,6 +141,7 @@ pub struct ColumnStreams {
 impl ColumnStreams {
     /// Streams that publish the changes of `columns`, as if the muxer had asked for them and
     /// got their versions.
+    #[cfg(feature = "world-access")]
     pub fn subscribed_to(columns: impl IntoIterator<Item = ColumnPos>) -> Self {
         Self {
             subscribed: columns.into_iter().collect(),

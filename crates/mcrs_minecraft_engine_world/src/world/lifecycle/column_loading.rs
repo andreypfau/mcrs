@@ -90,7 +90,8 @@ impl ColumnLoading {
         });
     }
 
-    pub fn has_ticket(&self, column: ColumnPos) -> bool {
+    #[cfg(test)]
+    pub(crate) fn has_ticket(&self, column: ColumnPos) -> bool {
         self.tickets.contains(column)
     }
 
