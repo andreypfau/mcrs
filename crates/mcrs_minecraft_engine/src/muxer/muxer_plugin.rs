@@ -44,21 +44,14 @@ impl Plugin for MuxerPlugin {
             bridge::attach_outbound_queue.after(NetworkSet::SpawnConnections),
         );
 
-        // One chain: threads would only add the cost of handing its systems out, on a flush
-        // that runs after every drain.
+        // One chain: threads would only add the cost of handing its two systems out.
         app.init_resource::<bridge::PendingConnections>();
-        app.init_resource::<bridge::FlushScope>();
         let mut flush = Schedule::new(bridge::OutboundFlush);
         flush.set_executor(SingleThreadedExecutor::new());
         app.add_schedule(flush);
         app.add_systems(
             bridge::OutboundFlush,
-            (
-                bridge::bridge_outbound,
-                bridge::dispatch_encode.run_if(bridge::flushes_every_connection),
-                bridge::dispatch_pending.run_if(bridge::flushes_pending_connections),
-            )
-                .chain(),
+            (bridge::bridge_outbound, bridge::dispatch_encode).chain(),
         );
         app.add_systems(
             FixedPostUpdate,

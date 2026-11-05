@@ -6,23 +6,13 @@ use bevy_ecs::prelude::Commands;
 use bevy_ecs::query::{With, Without};
 use bevy_ecs::resource::Resource;
 use bevy_ecs::system::{Local, Query, Res, ResMut};
+use bevy_ecs::world::World;
 
-/// Bridges the bus to the sockets and writes them: run in the tick's `FixedPostUpdate` and
-/// again between ticks, so a packet a dimension produced off the tick leaves at once. The
-/// [`FlushScope`] tells which connections it writes.
+/// Bridges the bus to the sockets and writes every connection, which also finds the writers
+/// that died: run in the tick's `FixedPostUpdate`. Between ticks, [`run_pending_flush`] writes
+/// only the connections that hold something.
 #[derive(ScheduleLabel, Debug, Clone, PartialEq, Eq, Hash)]
 pub struct OutboundFlush;
-
-/// Which connections an [`OutboundFlush`] writes.
-#[derive(Resource, Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub enum FlushScope {
-    /// Every connection, which also finds the writers that died.
-    #[default]
-    Every,
-    /// Only the [`PendingConnections`], so a flush between ticks costs what it sends rather
-    /// than one visit per connection.
-    Pending,
-}
 
 /// The connections that hold what their writer has not taken yet: a packet that
 /// `bridge_outbound` queued, or bytes a full writer left behind.
@@ -32,24 +22,23 @@ pub struct PendingConnections {
     visiting: Vec<Entity>,
 }
 
-pub fn run_outbound_flush(world: &mut bevy_ecs::world::World) {
+pub fn run_outbound_flush(world: &mut World) {
     world.run_schedule(OutboundFlush);
 }
 
-/// An [`OutboundFlush`] of the [`PendingConnections`] alone. Absent without the plugin that
-/// adds the flush.
-pub fn run_pending_flush(world: &mut bevy_ecs::world::World) {
-    *world.get_resource_or_init::<FlushScope>() = FlushScope::Pending;
-    let _ = world.try_run_schedule(OutboundFlush);
-    *world.get_resource_or_init::<FlushScope>() = FlushScope::Every;
-}
-
-pub fn flushes_every_connection(scope: Option<Res<FlushScope>>) -> bool {
-    scope.is_none_or(|scope| *scope == FlushScope::Every)
-}
-
-pub fn flushes_pending_connections(scope: Option<Res<FlushScope>>) -> bool {
-    scope.is_some_and(|scope| *scope == FlushScope::Pending)
+/// Bridges the bus to the sockets and writes the [`PendingConnections`] alone, so a packet a
+/// dimension produced off the tick leaves at once, for the cost of what it sends. Does nothing
+/// without the plugin that adds the flush.
+pub fn run_pending_flush(world: &mut World) {
+    if !world.contains_resource::<PendingConnections>() {
+        return;
+    }
+    if let Err(error) = world.run_system_cached(bridge_outbound) {
+        warn!("the outbound packets were not bridged: {error}");
+    }
+    if let Err(error) = world.run_system_cached(dispatch_pending) {
+        warn!("the pending connections were not written: {error}");
+    }
 }
 
 use bytes::{BufMut, Bytes, BytesMut};
@@ -311,45 +300,29 @@ pub fn dispatch_encode(
     mut commands: Commands,
     mut telemetry: ResMut<BridgeTelemetry>,
     mut pending: Option<ResMut<PendingConnections>>,
+    mut every: Local<Vec<Entity>>,
     mut frames: Local<SharedFrames>,
     mut wakes: Local<WriterWakes>,
 ) {
-    if let Some(pending) = pending.as_deref_mut() {
-        pending.connections.clear();
-    }
-    for (_, queue, _) in &players {
-        count_recipients(queue, &mut frames);
-    }
-    for (entity, mut queue, mut conn) in &mut players {
-        dispatch_connection(
-            entity,
-            &mut queue,
-            &mut conn,
-            &mut commands,
-            &mut telemetry,
-            &mut frames,
-            &mut wakes,
-        );
-        if conn.raw.unsent_bytes() > 0
-            && let Some(pending) = pending.as_deref_mut()
-        {
-            pending.connections.push(entity);
+    every.extend(players.iter().map(|(entity, ..)| entity));
+    let mut left_behind = Vec::new();
+    let left_behind = match pending.as_deref_mut() {
+        Some(pending) => {
+            pending.connections.clear();
+            &mut pending.connections
         }
-    }
-    wakes.wake_all();
-    frames.clear();
-}
-
-/// Counts the connections that receive each packet serialized once, so that only a packet of
-/// more than one connection costs a frame on this thread.
-fn count_recipients(queue: &OutboundQueue, frames: &mut SharedFrames) {
-    for sub_queue in [&queue.critical, &queue.high, &queue.normal, &queue.low] {
-        for queued in sub_queue {
-            if let QueuedPacket::Encoded(encoded) = queued {
-                frames.add_recipient(&encoded.packet);
-            }
-        }
-    }
+        None => &mut left_behind,
+    };
+    dispatch_listed(
+        &mut players,
+        &every,
+        left_behind,
+        &mut commands,
+        &mut telemetry,
+        &mut frames,
+        &mut wakes,
+    );
+    every.clear();
 }
 
 /// [`dispatch_encode`] for the [`PendingConnections`] alone. A connection with nothing queued
@@ -367,33 +340,62 @@ pub fn dispatch_pending(
         connections,
         visiting,
     } = &mut *pending;
-    std::mem::swap(connections, visiting);
+    mem::swap(connections, visiting);
     visiting.sort_unstable();
     visiting.dedup();
-    for &entity in visiting.iter() {
+    dispatch_listed(
+        &mut players,
+        visiting,
+        connections,
+        &mut commands,
+        &mut telemetry,
+        &mut frames,
+        &mut wakes,
+    );
+    visiting.clear();
+}
+
+/// Hands the queued packets of each `listed` connection to its writer. A connection whose writer
+/// is left with bytes it has not taken goes to `left_behind`.
+fn dispatch_listed(
+    players: &mut Query<(Entity, &mut OutboundQueue, &mut ServerSideConnection)>,
+    listed: &[Entity],
+    left_behind: &mut Vec<Entity>,
+    commands: &mut Commands,
+    telemetry: &mut BridgeTelemetry,
+    frames: &mut SharedFrames,
+    wakes: &mut WriterWakes,
+) {
+    for &entity in listed {
         if let Ok((_, queue, _)) = players.get(entity) {
-            count_recipients(queue, &mut frames);
+            count_recipients(queue, frames);
         }
     }
-    for entity in visiting.drain(..) {
+    for &entity in listed {
         let Ok((entity, mut queue, mut conn)) = players.get_mut(entity) else {
             continue;
         };
         dispatch_connection(
-            entity,
-            &mut queue,
-            &mut conn,
-            &mut commands,
-            &mut telemetry,
-            &mut frames,
-            &mut wakes,
+            entity, &mut queue, &mut conn, commands, telemetry, frames, wakes,
         );
         if conn.raw.unsent_bytes() > 0 {
-            connections.push(entity);
+            left_behind.push(entity);
         }
     }
     wakes.wake_all();
     frames.clear();
+}
+
+/// Counts the connections that receive each packet serialized once, so that only a packet of
+/// more than one connection costs a frame on this thread.
+fn count_recipients(queue: &OutboundQueue, frames: &mut SharedFrames) {
+    for sub_queue in [&queue.critical, &queue.high, &queue.normal, &queue.low] {
+        for queued in sub_queue {
+            if let QueuedPacket::Encoded(encoded) = queued {
+                frames.add_recipient(&encoded.packet);
+            }
+        }
+    }
 }
 
 fn dispatch_connection(
