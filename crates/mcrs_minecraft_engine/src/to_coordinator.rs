@@ -26,6 +26,22 @@ pub struct RoutedInput {
 }
 
 impl RoutedInput {
+    /// No input yet for the dimension `dim`.
+    #[must_use]
+    pub fn new(dim: Entity) -> Self {
+        Self {
+            dim,
+            control: Vec::new(),
+            serverbound: Vec::new(),
+            column_requests: Vec::new(),
+        }
+    }
+
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.control.is_empty() && self.serverbound.is_empty() && self.column_requests.is_empty()
+    }
+
     /// Whether the dimension runs commands in its next tick: a command line or a suggestion
     /// request from a player, or a command run that goes on there. A tick that runs commands
     /// reads the players of every dimension.

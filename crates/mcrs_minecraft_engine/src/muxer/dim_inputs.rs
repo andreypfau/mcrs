@@ -19,20 +19,12 @@ use crate::to_muxer::{DimClosed, DimOpened};
 /// What the host holds for each dimension world until its next tick, by the label entity of the
 /// dimension.
 #[derive(Resource, Default)]
-pub struct DimInputs(FxHashMap<Entity, PendingInput>);
-
-/// The messages of one dimension for its next tick, each class in the order it was sent.
-#[derive(Default)]
-struct PendingInput {
-    control: Vec<ToDim>,
-    serverbound: Vec<InboundPlayerPacket>,
-    column_requests: Vec<ColumnRequest>,
-}
+pub struct DimInputs(FxHashMap<Entity, RoutedInput>);
 
 impl DimInputs {
     /// Takes input for the dimension `dim` from now on.
     pub fn insert(&mut self, dim: Entity) {
-        self.0.entry(dim).or_default();
+        self.0.entry(dim).or_insert_with(|| RoutedInput::new(dim));
     }
 
     /// Stops taking input for the dimension `dim` and drops what it holds.
@@ -108,23 +100,9 @@ impl DimInputs {
 /// Hands the coordinator the input that each dimension got during the update, for its tick.
 pub fn route_dim_inputs(mut inputs: ResMut<DimInputs>, mut routed: MessageWriter<RoutedInput>) {
     for (&dim, pending) in &mut inputs.0 {
-        if pending.control.is_empty()
-            && pending.serverbound.is_empty()
-            && pending.column_requests.is_empty()
-        {
-            continue;
+        if !pending.is_empty() {
+            routed.write(mem::replace(pending, RoutedInput::new(dim)));
         }
-        let PendingInput {
-            control,
-            serverbound,
-            column_requests,
-        } = mem::take(pending);
-        routed.write(RoutedInput {
-            dim,
-            control,
-            serverbound,
-            column_requests,
-        });
     }
 }
 
