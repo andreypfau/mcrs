@@ -29,12 +29,10 @@ use rustc_hash::FxHashMap;
 #[derive(Component, Clone, Copy, Debug, PartialEq, Eq)]
 pub struct HotTicket {
     dim: Entity,
-    center: ColumnPos,
-    radius: i32,
-    simulation: SimulationArea,
+    ticket: CarriedTicket,
 }
 
-/// A hot ticket as it crosses from one cell of a world to another.
+/// A hot ticket without its dimension, as it crosses from one cell of a world to another.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct CarriedTicket {
     pub(crate) center: ColumnPos,
@@ -73,20 +71,11 @@ pub struct CellCrossing;
 
 impl HotTicket {
     pub(crate) fn carried(self) -> CarriedTicket {
-        CarriedTicket {
-            center: self.center,
-            radius: self.radius,
-            simulation: self.simulation,
-        }
+        self.ticket
     }
 
-    pub(crate) fn in_dim(dim: Entity, carried: CarriedTicket) -> Self {
-        Self {
-            dim,
-            center: carried.center,
-            radius: carried.radius,
-            simulation: carried.simulation,
-        }
+    pub(crate) fn in_dim(dim: Entity, ticket: CarriedTicket) -> Self {
+        Self { dim, ticket }
     }
 
     pub(crate) fn dim(self) -> Entity {
@@ -94,9 +83,15 @@ impl HotTicket {
     }
 
     pub(crate) fn simulation(self) -> SimulationArea {
-        self.simulation
+        self.ticket.simulation
     }
 
+    fn columns(self) -> impl Iterator<Item = ColumnPos> {
+        self.ticket.columns()
+    }
+}
+
+impl CarriedTicket {
     fn contains(self, column: ColumnPos) -> bool {
         (column.x - self.center.x).abs() <= self.radius
             && (column.z - self.center.z).abs() <= self.radius
@@ -173,6 +168,7 @@ impl HotColumns {
         old: HotTicket,
         new: HotTicket,
     ) {
+        let (old, new) = (old.ticket, new.ticket);
         for column in new.columns().filter(|column| !old.contains(*column)) {
             self.change(loading, owned, column, Change::Raise);
         }
@@ -208,9 +204,14 @@ pub(crate) fn track_hot_tickets(
         let viewed = view.map_or(simulated, |view| i32::from(view.distance).saturating_add(1));
         let wanted = HotTicket {
             dim: in_dim.0,
-            center: ColumnPos::from(transform.translation),
-            radius: simulated.min(viewed),
-            simulation: SimulationArea::around(SectionPos::from(transform.translation), *distance),
+            ticket: CarriedTicket {
+                center: ColumnPos::from(transform.translation),
+                radius: simulated.min(viewed),
+                simulation: SimulationArea::around(
+                    SectionPos::from(transform.translation),
+                    *distance,
+                ),
+            },
         };
         // The first ticket is raised once it lands, so a player despawned before then holds
         // nothing that would never be released.
@@ -277,7 +278,7 @@ pub(crate) fn move_remote_ticket(world: &mut World, holder: Entity, carried: Car
         *held = new;
     }
     if let Some(mut area) = world.get_mut::<HeldSimulationArea>(holder) {
-        area.set_if_neq(HeldSimulationArea::new(new.dim, new.simulation));
+        area.set_if_neq(HeldSimulationArea::new(new.dim, new.simulation()));
     }
 }
 
