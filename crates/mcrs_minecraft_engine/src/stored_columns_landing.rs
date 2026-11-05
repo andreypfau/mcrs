@@ -111,13 +111,9 @@ pub(crate) fn land_stored_columns(
                 );
                 kept.map(|chunk| StoreOutput::Found { key, chunk })
             }
-            StoreOutput::Missing { key } => {
+            unheld @ (StoreOutput::Missing { .. } | StoreOutput::Unreadable { .. }) => {
                 drop_sections(&read, &mut stages);
-                Some(StoreOutput::Missing { key })
-            }
-            StoreOutput::Unreadable { key } => {
-                drop_sections(&read, &mut stages);
-                Some(StoreOutput::Unreadable { key })
+                Some(unheld)
             }
         };
         if read.produced == Produced::Yes
