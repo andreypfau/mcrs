@@ -71,7 +71,8 @@ pub(crate) fn take_dim_outputs(world: &mut World) {
             roster.move_row(session, from, to);
         }
     }
-    for DimMerged { label, output } in merged {
+    for DimMerged { label, mut output } in merged {
+        output.tiles.coalesce();
         for edit in output.clock_edits {
             world.trigger(edit);
         }
