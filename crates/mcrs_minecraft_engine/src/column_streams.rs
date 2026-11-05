@@ -553,7 +553,8 @@ fn take_lit_columns(
         let Some(mut relit) = streams.relit.remove(&column) else {
             continue;
         };
-        let Some(slot) = column_index.get(&column) else {
+        // A column asked for again gets its light with the next version.
+        let Some(slot) = column_index.get(&column).filter(|_| streams.holds(column)) else {
             continue;
         };
         relit.retain_unheld(streams.held.get_mut(&column), &light);
