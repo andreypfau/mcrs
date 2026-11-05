@@ -447,44 +447,29 @@ impl DimCells {
         }
         for ask in asks {
             if let Some(cell) = self.owner(label, ask.column) {
-                self.mail
-                    .entry(cell)
-                    .or_default()
-                    .push(CellMessage::Ask(ask));
+                self.mail_to(cell, CellMessage::Ask(ask));
             }
         }
         for answer in answers {
             if let Some(cell) = self.cell_at(label, answer.to) {
-                self.mail
-                    .entry(cell)
-                    .or_default()
-                    .push(CellMessage::Answer(answer));
+                self.mail_to(cell, CellMessage::Answer(answer));
             }
         }
         for write in writes {
             if let Some(cell) = self.owner(label, ColumnPos::from(write.pos)) {
-                self.mail
-                    .entry(cell)
-                    .or_default()
-                    .push(CellMessage::Write(write));
+                self.mail_to(cell, CellMessage::Write(write));
             }
         }
         for mail in simulation {
             match mail.column() {
                 Some(column) => {
                     if let Some(cell) = self.owner(label, column) {
-                        self.mail
-                            .entry(cell)
-                            .or_default()
-                            .push(CellMessage::Simulation(mail));
+                        self.mail_to(cell, CellMessage::Simulation(mail));
                     }
                 }
                 None => {
                     for &cell in &others {
-                        self.mail
-                            .entry(cell)
-                            .or_default()
-                            .push(CellMessage::Simulation(mail));
+                        self.mail_to(cell, CellMessage::Simulation(mail));
                     }
                 }
             }
@@ -496,12 +481,13 @@ impl DimCells {
                 continue;
             };
             moves.push(CellMove { session, from, to });
-            self.mail
-                .entry(to)
-                .or_default()
-                .push(CellMessage::Cross(Box::new(crossing)));
+            self.mail_to(to, CellMessage::Cross(Box::new(crossing)));
         }
         moves
+    }
+
+    fn mail_to(&mut self, cell: CellId, message: CellMessage) {
+        self.mail.entry(cell).or_default().push(message);
     }
 
     /// Forgets the cell of a player that left its dimension.
