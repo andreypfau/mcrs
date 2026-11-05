@@ -7,7 +7,7 @@ use std::time::{Duration, Instant};
 use bevy_app::{App, Last, PluginGroup};
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::{MessageReader, Messages};
-use bevy_ecs::prelude::{IntoScheduleConfigs, ResMut, Resource, With};
+use bevy_ecs::prelude::{ResMut, Resource, With};
 use bevy_ecs::world::World;
 use bevy_math::DVec3;
 use mcrs_minecraft_block::definition::Blocks;
@@ -35,7 +35,6 @@ use mcrs_minecraft_protocol_game::clientbound::ClientboundLevelChunkWithLight;
 use mcrs_minecraft_protocol_game::light_codec::{ColumnLight, RowLight, unpack_light_data};
 use mcrs_minecraft_server::MinecraftServerPlugins;
 use mcrs_minecraft_simulation::BlockUpdateFlags;
-use mcrs_minecraft_vanilla_light::emit_light_updates;
 use mcrs_minecraft_worldgen_generator::stages::FillContext;
 use mcrs_voxel::{BlockPos, BlockStateId, ColumnPos, SectionPos};
 use rustc_hash::FxHashMap;
@@ -430,7 +429,7 @@ fn a_column_that_turns_hot_sends_no_light_its_viewers_already_hold() {
     });
     let sub_app = host_app::sub_app(&mut app, label);
     sub_app.init_resource::<Published>();
-    sub_app.add_systems(Last, capture_published.after(emit_light_updates));
+    sub_app.add_systems(Last, capture_published);
     let world = dimension_world(&mut app, label);
     world.insert_resource(SimulationDistance {
         horizontal: 1,

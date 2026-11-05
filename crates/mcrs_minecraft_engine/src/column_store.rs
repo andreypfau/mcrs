@@ -74,10 +74,6 @@ pub struct ColumnStoreLink {
     /// so the writes are the only changed columns it holds, and a request for another column of
     /// this cell is not worth a round trip.
     written_columns: FxHashMap<ColumnPos, ChunkVersion>,
-    /// The columns whose final light the data layer keeps. A read of one for the sections of
-    /// the dimension goes to the data layer and not to generation, so the dimension lands the
-    /// light that the views got.
-    lit_columns: FxHashSet<ColumnPos>,
     /// The columns whose version the disk did not read. The world plays a generated column in
     /// their place, but never writes over the version on the disk, which may still be repaired.
     unreadable: FxHashSet<ColumnPos>,
@@ -118,14 +114,6 @@ pub(crate) enum ReadFrom {
     Store,
     /// The generation of the world: a found column is new, and a missing one was dropped.
     Generation,
-}
-
-/// Who starts a read. The production of cold columns lights a column from its blocks alone,
-/// so only the sections of the dimension need the light that the data layer keeps.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum Reader {
-    Sections,
-    Production,
 }
 
 /// Whether the production of cold columns waits on a read.
@@ -172,7 +160,6 @@ impl ColumnStoreLink {
             viewed: Vec::new(),
             fetched: Vec::new(),
             written_columns: FxHashMap::default(),
-            lit_columns: FxHashSet::default(),
             unreadable: FxHashSet::default(),
             others: OtherColumns::default(),
             asked: Vec::new(),
@@ -378,22 +365,14 @@ impl ColumnStoreLink {
         if !self.is_writable(column) {
             return;
         }
-        self.lit_columns.insert(column);
         self.sent.push(StoreInput::Put { key: column, chunk });
     }
 
     /// The read of `column`, sent to its owner when the owner holds it hot, to the generation of
     /// the world when no cell wrote it and the cell generates through its world, and to the data
     /// layer otherwise.
-    fn read(&mut self, dim: Entity, column: ColumnPos, reader: Reader) -> &mut ColumnRead {
-        let origin = match self.origin(column) {
-            ColumnOrigin::Generation
-                if reader == Reader::Sections && self.lit_columns.contains(&column) =>
-            {
-                ColumnOrigin::DataLayer
-            }
-            origin => origin,
-        };
+    fn read(&mut self, dim: Entity, column: ColumnPos) -> &mut ColumnRead {
+        let origin = self.origin(column);
         self.reads.entry(column).or_insert_with(|| {
             let from = match (self.owned, origin, self.generation) {
                 (Some(owned), ColumnOrigin::Owner, _) => {
@@ -424,14 +403,12 @@ impl ColumnStoreLink {
 
     /// Asks for `column` on behalf of `section`, once for all that wait on it.
     pub(crate) fn take(&mut self, dim: Entity, column: ColumnPos, section: Entity) {
-        self.read(dim, column, Reader::Sections)
-            .sections
-            .push(section);
+        self.read(dim, column).sections.push(section);
     }
 
     /// Asks for `column` on behalf of the production of cold columns.
     pub(crate) fn fetch(&mut self, dim: Entity, column: ColumnPos) {
-        self.read(dim, column, Reader::Production).produced = Produced::Yes;
+        self.read(dim, column).produced = Produced::Yes;
     }
 
     pub(crate) fn outputs(&mut self) -> vec::Drain<'_, ColumnStoreOutput> {

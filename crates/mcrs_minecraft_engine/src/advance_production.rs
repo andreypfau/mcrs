@@ -27,9 +27,7 @@ impl HeldColumns<'_> {
     /// Whether views hold `column` with the light of the data layer: the muxer subscribes to
     /// it and waits on no version of it, and the dimension does not light it.
     pub(crate) fn lit_by_data_layer(&self, column: ColumnPos) -> bool {
-        self.streams.is_subscribed(column)
-            && !self.streams.is_pending(column)
-            && !self.loading.lights(column)
+        self.streams.holds(column) && !self.loading.lights(column)
     }
 }
 

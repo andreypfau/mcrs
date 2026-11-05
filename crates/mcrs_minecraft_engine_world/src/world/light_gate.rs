@@ -1,9 +1,7 @@
-use bevy_ecs::component::Component;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::Message;
 use bevy_ecs::resource::Resource;
 use bevy_ecs::schedule::SystemSet;
-use mcrs_minecraft_chunk::LightStorage;
 use mcrs_voxel::ColumnPos;
 
 /// Present in a dimension world whose columns wait for their light to settle before they are
@@ -19,20 +17,12 @@ pub struct SectionRelit {
     pub sky: bool,
 }
 
-/// The light of a section that the clients holding its column hold. The light the dimension
-/// writes later is a change to them only where it differs from it.
-#[derive(Component, Clone, Debug, Default)]
-#[component(storage = "SparseSet")]
-pub struct SentLight {
-    pub block: Option<LightStorage>,
-    pub sky: Option<LightStorage>,
-}
-
-/// A column whose sections and light have landed, waiting for its light to settle.
+/// A column whose light the dimension waits on.
 #[derive(Message, Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ColumnAwaitsLight(pub ColumnPos);
 
-/// A column whose light, and the light of the eight around it, has settled.
+/// A column whose light is final: the column and the eight around it are loaded and lit, and the
+/// work that reached them before the light stage took the column in is done.
 #[derive(Message, Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ColumnLightSettled(pub ColumnPos);
 

@@ -48,6 +48,7 @@ mod foreign_views;
 pub mod game_mode;
 pub mod game_profile;
 pub mod heightmap;
+mod held_light;
 pub mod hot_ticket;
 pub mod light_codec;
 pub mod minecraft_entity;

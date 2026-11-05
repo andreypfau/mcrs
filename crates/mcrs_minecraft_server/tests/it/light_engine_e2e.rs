@@ -1,6 +1,6 @@
 use bevy_app::{App, Last};
 use bevy_ecs::message::MessageReader;
-use bevy_ecs::prelude::{Entity, IntoScheduleConfigs, ResMut, Resource};
+use bevy_ecs::prelude::{Entity, ResMut, Resource};
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_chunk::{BlockLight, SkyLight};
 use mcrs_minecraft_engine::between_ticks::drain_dim_spawn_queue;
@@ -18,7 +18,6 @@ use mcrs_minecraft_engine_world::world::storage::column::ColumnIndex;
 use mcrs_minecraft_protocol_game::clientbound::ClientboundLightUpdate;
 use mcrs_minecraft_protocol_game::light_codec::{RowLight, unpack_light_data};
 use mcrs_minecraft_simulation::BlockUpdateFlags;
-use mcrs_minecraft_vanilla_light::emit_light_updates;
 use mcrs_minecraft_vanilla_light::{LightBudget, LightLink};
 use mcrs_voxel::{BlockPos, BlockStateId, ColumnPos, SectionPos};
 
@@ -38,8 +37,8 @@ fn filled(block: BlockStateId) -> SectionStates {
     SectionStates::homogeneous(block)
 }
 
-/// Spawn one column of section entities exactly as `integrate_generated_columns`
-/// does, then pump until the engine has nothing left to do.
+/// Spawn the column at the origin and the eight around it, whose blocks reach its light, as
+/// `integrate_generated_columns` does, then pump until the engine has nothing left to do.
 fn light_one_column(app: &mut App, label: Entity, stone_floor: bool) {
     let blocks = app.world().resource::<Blocks>().clone();
     let air = state(&blocks, "minecraft:air");
@@ -57,9 +56,12 @@ fn light_one_column(app: &mut App, label: Entity, stone_floor: bool) {
         .single(world)
         .expect("the dimension's shape");
     let min_section = config.min_y >> 4;
-    for y in min_section..min_section + config.section_count as i32 {
-        let solid = stone_floor && y == STONE_SECTION_Y;
-        let pos = SectionPos::new(0, y, 0);
+    let rows = min_section..min_section + config.section_count as i32;
+    let sections = ColumnPos::new(0, 0)
+        .square(1)
+        .flat_map(|column| rows.clone().map(move |y| SectionPos::new(column.x, y, column.z)));
+    for pos in sections {
+        let solid = stone_floor && pos.y == STONE_SECTION_Y;
         let section = world
             .spawn((
                 pos,
@@ -231,7 +233,7 @@ fn torch_delta(subscribed: bool) -> Vec<ColumnChange> {
     let (mut app, label) = spawn_dimension("minecraft:overworld", "minecraft:overworld");
     let sub_app = host_app::sub_app(&mut app, label);
     sub_app.init_resource::<CapturedLightUpdates>();
-    sub_app.add_systems(Last, capture_light_updates.after(emit_light_updates));
+    sub_app.add_systems(Last, capture_light_updates);
 
     light_one_column(&mut app, label, true);
 

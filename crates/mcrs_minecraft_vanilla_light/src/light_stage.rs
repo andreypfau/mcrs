@@ -1,4 +1,4 @@
-use rustc_hash::FxHashSet;
+use rustc_hash::FxHashMap;
 
 use bevy_tasks::{AsyncComputeTaskPool, Task, TaskPool};
 use mcrs_engine_link::{InFlight, Stage, Step, TaskOutcome};
@@ -35,14 +35,43 @@ pub(crate) struct LightStage {
     pending: PendingEdits,
     queue: LightQueue,
     /// The epochs in flight, each with the area it may still write into.
-    epochs: InFlight<BoundingBox, Task<()>>,
+    epochs: InFlight<Epoch, Task<()>>,
+    /// The epochs handed out so far, which numbers the next one.
+    dispatched: u64,
     budget: LightBudget,
-    awaiting: FxHashSet<ColumnPos>,
+    awaiting: FxHashMap<ColumnPos, Settle>,
     /// Whether something happened since the last check that can settle an awaited column.
     settle_due: bool,
     /// Light published into the world and not emitted yet.
     relit: Vec<PublishedLight>,
     relit_output: RelitOutput,
+}
+
+/// An epoch in flight: the area it may still write into, and its place in the order of
+/// dispatch.
+struct Epoch {
+    area: BoundingBox,
+    seq: u64,
+}
+
+/// How far an awaited column is from an answer.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Settle {
+    /// The column or a column around it is not loaded yet, or still has work queued.
+    Draining,
+    /// Every column around it is loaded and its queued work went out in the epochs before
+    /// this one. Later epochs carry only work that arrived after that, so the answer does not
+    /// wait for them: work that keeps arriving cannot hold a column back for ever.
+    Retiring(u64),
+}
+
+/// What an awaited column gets in this step.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Answer {
+    Wait,
+    Lit,
+    /// The column left the stage, so its light never settles.
+    Drop,
 }
 
 /// Whether a light stage hands back the light of each epoch and answers an awaited column by
@@ -70,7 +99,9 @@ impl Stage for LightStage {
             }
             LightInput::Players(players) => self.reprioritize(&players),
             LightInput::AwaitColumns(columns) => {
-                self.awaiting.extend(columns);
+                for column in columns {
+                    self.awaiting.entry(column).or_insert(Settle::Draining);
+                }
                 self.settle_due = true;
             }
             LightInput::LightBudget(budget) => self.budget = budget,
@@ -132,8 +163,9 @@ impl LightStage {
             pending: PendingEdits::default(),
             queue: LightQueue::default(),
             epochs: InFlight::default(),
+            dispatched: 0,
             budget: LightBudget::default(),
-            awaiting: FxHashSet::default(),
+            awaiting: FxHashMap::default(),
             settle_due: false,
             relit: Vec::new(),
             relit_output: RelitOutput::Emit,
@@ -207,7 +239,7 @@ impl LightStage {
         if free == 0 {
             return;
         }
-        let occupied: Vec<BoundingBox> = self.epochs.iter().copied().collect();
+        let occupied: Vec<BoundingBox> = self.epochs.iter().map(|epoch| epoch.area).collect();
         for batch in self
             .queue
             .drain_batches(self.budget.cells_per_epoch, &occupied, free)
@@ -219,49 +251,48 @@ impl LightStage {
             };
             let end = step.begin_task();
             let id = end.id();
-            let area = job.area();
+            let epoch = Epoch {
+                area: job.area(),
+                seq: self.dispatched,
+            };
+            self.dispatched = self.dispatched.wrapping_add(1);
             let task = pool.spawn(async move {
                 end.finish(job.run());
             });
-            self.epochs.push(id, area, task);
+            self.epochs.push(id, epoch, task);
         }
     }
 
-    /// Takes the awaited columns whose light has settled, neighbours included.
+    /// Takes the awaited columns whose light is lit, neighbours included, and lets go of the
+    /// columns that left the stage.
     fn take_settled(&mut self) -> Vec<ColumnPos> {
-        let owed = Owed {
-            world: &self.world,
-            pending: &self.pending,
-            queue: &self.queue,
-            epochs: &self.epochs,
-        };
+        let mut awaiting = std::mem::take(&mut self.awaiting);
+        let owed = self.owed();
         let mut settled = Vec::new();
-        self.awaiting.retain(|&column| {
-            if owed.settled_around(column) {
+        awaiting.retain(|&column, settle| match owed.answer(column, settle) {
+            Answer::Wait => true,
+            Answer::Lit => {
                 settled.push(column);
                 false
-            } else {
-                true
             }
+            Answer::Drop => false,
         });
+        self.awaiting = awaiting;
         settled
     }
 
-    /// Takes the awaited columns whose light has settled, neighbours included, with that
-    /// light.
+    /// Takes the awaited columns whose light is lit, neighbours included, with that light.
     fn take_lit(&mut self) -> Vec<LitColumn> {
-        let owed = Owed {
-            world: &self.world,
-            pending: &self.pending,
-            queue: &self.queue,
-            epochs: &self.epochs,
-        };
+        let mut awaiting = std::mem::take(&mut self.awaiting);
+        let owed = self.owed();
+        let bounds = owed.world.bounds();
         let mut lit = Vec::new();
-        self.awaiting.retain(|&column| {
-            if !owed.settled_around(column) {
-                return true;
+        awaiting.retain(|&column, settle| {
+            match owed.answer(column, settle) {
+                Answer::Wait => return true,
+                Answer::Drop => return false,
+                Answer::Lit => {}
             }
-            let bounds = owed.world.bounds();
             let sections = (bounds.min_section_y..=bounds.max_section_y)
                 .filter_map(|y| {
                     let pos = SectionPos::new(column.x, y, column.z);
@@ -275,7 +306,18 @@ impl LightStage {
             lit.push(LitColumn { column, sections });
             false
         });
+        self.awaiting = awaiting;
         lit
+    }
+
+    fn owed(&self) -> Owed<'_> {
+        Owed {
+            world: &self.world,
+            pending: &self.pending,
+            queue: &self.queue,
+            epochs: &self.epochs,
+            dispatched: self.dispatched,
+        }
     }
 }
 
@@ -291,29 +333,61 @@ struct Owed<'a> {
     world: &'a LightWorld,
     pending: &'a PendingEdits,
     queue: &'a LightQueue,
-    epochs: &'a InFlight<BoundingBox, Task<()>>,
+    epochs: &'a InFlight<Epoch, Task<()>>,
+    dispatched: u64,
 }
 
 impl Owed<'_> {
-    /// Whether the light of one column is finished, neighbours included.
+    /// Whether the light of one column is lit, neighbours included.
     ///
-    /// A column is sent once and its light travels with it, so anything the
-    /// engine still owes it would arrive too late. The neighbours count because
-    /// a seam is lit against whatever stands beside it: a column whose
-    /// neighbour is still being lit holds the darker edge that neighbour's work
-    /// is about to repair.
-    fn settled_around(&self, column: ColumnPos) -> bool {
-        for dx in -1..=1 {
-            for dz in -1..=1 {
-                let neighbour =
-                    ColumnPos::new(column.x.saturating_add(dx), column.z.saturating_add(dz));
-                if self.pending.holds(neighbour) || self.queue.priority_of(neighbour).is_some() {
-                    return false;
-                }
-            }
+    /// A column is sent once and its light travels with it, so anything the engine still owes
+    /// it would arrive too late. The neighbours count because a seam is lit against whatever
+    /// stands beside it: a column whose neighbour is not loaded, or is still being lit, holds
+    /// the darker edge that the neighbour's work is about to repair.
+    fn answer(&self, column: ColumnPos, settle: &mut Settle) -> Answer {
+        if !self.holds(column) {
+            return Answer::Drop;
         }
+        if *settle == Settle::Draining {
+            let drained = column
+                .square(1)
+                .all(|near| !self.pending.holds(near) && self.queue.priority_of(near).is_none())
+                && column.square(1).all(|near| self.loaded(near));
+            if !drained {
+                return Answer::Wait;
+            }
+            *settle = Settle::Retiring(self.dispatched);
+        }
+        let Settle::Retiring(cut) = *settle else {
+            return Answer::Wait;
+        };
+        let area = self.ring_area(column);
+        if self
+            .epochs
+            .iter()
+            .any(|epoch| epoch.seq < cut && epoch.area.intersects(area))
+        {
+            return Answer::Wait;
+        }
+        Answer::Lit
+    }
+
+    /// Whether the column is in the stage or on its way into it.
+    fn holds(&self, column: ColumnPos) -> bool {
+        self.pending.holds(column) || self.loaded(column)
+    }
+
+    /// A column loads and unloads whole, so its lowest section stands for it.
+    fn loaded(&self, column: ColumnPos) -> bool {
+        let bottom = self.world.bounds().min_section_y;
+        self.world
+            .section(SectionPos::new(column.x, bottom, column.z))
+            .is_some()
+    }
+
+    fn ring_area(&self, column: ColumnPos) -> BoundingBox {
         let bounds = self.world.bounds();
-        let area = BoundingBox {
+        BoundingBox {
             min: BlockPos::new(
                 column.x.saturating_sub(1).saturating_mul(SECTION_WIDTH),
                 bounds.min_light_y(),
@@ -332,8 +406,7 @@ impl Owed<'_> {
                     .saturating_mul(SECTION_WIDTH)
                     .saturating_sub(1),
             ),
-        };
-        !self.epochs.iter().any(|epoch| epoch.intersects(area))
+        }
     }
 }
 
@@ -461,28 +534,44 @@ mod tests {
     }
 
     /// A seam is lit against whatever stands beside it, so a column is only
-    /// finished once its neighbours are.
+    /// finished once its neighbours are loaded and lit.
     #[test]
-    fn a_column_is_not_settled_while_a_neighbour_still_has_lighting_work() {
+    fn a_column_is_lit_only_once_the_eight_around_it_are_loaded_and_lit() {
         let column = ColumnPos::new(0, 0);
+        let last = ColumnPos::new(1, 1);
         let mut stage = light_stage();
-        stage.receive(LightInput::AwaitColumns(vec![column]));
-        assert_eq!(
-            stage.take_settled(),
-            [column],
-            "nothing is owed to the column or its ring"
-        );
-
-        let mut stage = light_stage();
-        stage.receive(LightInput::Edits(load(
-            ColumnPos::new(1, 0),
-            DEFAULT_PRIORITY,
-        )));
+        let ring = column.square(1).filter(|near| *near != last);
+        stage.receive(LightInput::Edits(
+            ring.flat_map(|near| load(near, DEFAULT_PRIORITY)).collect(),
+        ));
         stage.intake();
+        stage.queue = LightQueue::default();
         stage.receive(LightInput::AwaitColumns(vec![column]));
         assert!(
             stage.take_settled().is_empty(),
+            "a neighbour that is not loaded yet changes this column's seam"
+        );
+
+        stage.receive(LightInput::Edits(load(last, DEFAULT_PRIORITY)));
+        stage.intake();
+        assert!(
+            stage.take_settled().is_empty(),
             "the neighbour's work will repair this column's seam"
+        );
+
+        stage.queue = LightQueue::default();
+        assert_eq!(stage.take_settled(), [column]);
+    }
+
+    #[test]
+    fn a_column_that_leaves_the_stage_is_never_answered() {
+        let column = ColumnPos::new(0, 0);
+        let mut stage = light_stage();
+        stage.receive(LightInput::AwaitColumns(vec![column]));
+        assert!(stage.take_settled().is_empty());
+        assert!(
+            stage.awaiting.is_empty(),
+            "a column that is not in the stage would wait for ever"
         );
     }
 }
