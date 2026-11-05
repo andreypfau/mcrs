@@ -95,18 +95,12 @@ pub struct ReportedView {
 struct Dim {
     /// The cells, in the order of their index.
     cells: Vec<CellId>,
-    /// The division over the cells, for a dimension of more than one cell.
-    division: Option<Division>,
-    store: SharedStore<ColumnDisk, CellId>,
-}
-
-/// How the cells of a dimension divide its columns.
-#[derive(Clone, Copy, Debug)]
-struct Division {
-    partition: BoxPartition,
+    /// The division of the columns over the cells, for a dimension of more than one cell.
+    partition: Option<BoxPartition>,
     /// A cell reads the columns within this many columns of its boxes: its halo, and at least
     /// the columns next to a column that it lights in cold space.
     read_reach: u32,
+    store: SharedStore<ColumnDisk, CellId>,
 }
 
 /// The place of a cell in its dimension, and what the other cells sent it for its next tick.
@@ -134,7 +128,8 @@ impl Dim {
     fn new() -> Self {
         Self {
             cells: Vec::new(),
-            division: None,
+            partition: None,
+            read_reach: 0,
             store: SharedStore::new(ColumnDisk::new(), Placement::Thread),
         }
     }
@@ -146,19 +141,16 @@ impl Dim {
 
     /// The cell that owns `column`.
     fn owner(&self, column: ColumnPos) -> Option<CellId> {
-        match self.division {
-            Some(division) => self.cell_at(division.partition.owner(column_key(column))),
+        match self.partition {
+            Some(partition) => self.cell_at(partition.owner(column_key(column))),
             None => self.cells.first().copied(),
         }
     }
 
     /// Whether the cell `index` reads `column`.
     fn reads(&self, index: CellIndex, column: ColumnPos) -> bool {
-        self.division.is_some_and(|division| {
-            division
-                .partition
-                .reaches(index, column_key(column), division.read_reach)
-        })
+        self.partition
+            .is_some_and(|partition| partition.reaches(index, column_key(column), self.read_reach))
     }
 }
 
@@ -218,10 +210,9 @@ impl DimCells {
     /// Divides the dimension of `label` over its cells by `partition`, each cell with a halo of
     /// `halo` columns.
     pub(crate) fn divide(&mut self, label: Entity, partition: BoxPartition, halo: u32) {
-        self.dims.entry(label).or_insert_with(Dim::new).division = Some(Division {
-            partition,
-            read_reach: halo.max(1),
-        });
+        let dim = self.dims.entry(label).or_insert_with(Dim::new);
+        dim.partition = Some(partition);
+        dim.read_reach = halo.max(1);
     }
 
     /// Stops every world of `label`. Returns `false` when no world has that label.
@@ -626,7 +617,7 @@ fn place(
     position: DVec3,
 ) -> Option<CellId> {
     let cell = dim.owner(ColumnPos::from(position))?;
-    if dim.division.is_some() {
+    if dim.partition.is_some() {
         sessions.insert(session, cell);
     }
     Some(cell)
@@ -643,9 +634,7 @@ fn part(
     label: Entity,
     cell: CellId,
 ) -> &mut RoutedInput {
-    split
-        .entry(cell)
-        .or_insert_with(|| RoutedInput::new(label))
+    split.entry(cell).or_insert_with(|| RoutedInput::new(label))
 }
 
 #[cfg(feature = "world-access")]
