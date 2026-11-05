@@ -5,7 +5,6 @@
 
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
-use std::time::Duration;
 
 use bevy_app::{App, AppExit, PluginGroup, Update};
 use bevy_ecs::message::MessageWriter;
@@ -61,9 +60,7 @@ async fn main() -> AppExit {
             default_game_mode: game_mode(variable("MCRS_DEFAULT_GAMEMODE").as_deref()),
             ..Default::default()
         },
-        world_gen: WorldGenPlugin {
-            slow_column_threshold: slow_column_threshold(variable("MCRS_SLOW_CHUNK_MS").as_deref()),
-        },
+        world_gen: WorldGenPlugin,
         network: ServerNetworkPlugin {
             announce_on_lan: on_off(
                 "MCRS_LAN_ANNOUNCE",
@@ -256,32 +253,6 @@ fn positive_count<T: FromStr + Default + PartialOrd>(
             bevy_log::error!(raw, "{name} is not a positive number; using the default");
             default
         }
-    }
-}
-
-/// `MCRS_SLOW_CHUNK_MS` is the latency in milliseconds above which a column is logged.
-fn slow_column_threshold(value: Option<&str>) -> Duration {
-    Duration::from_millis(value.and_then(|ms| ms.parse().ok()).unwrap_or(250))
-}
-
-async fn shutdown_signal() {
-    #[cfg(unix)]
-    {
-        use tokio::signal::unix::{SignalKind, signal};
-        match signal(SignalKind::terminate()) {
-            Ok(mut terminate) => {
-                tokio::select! {
-                    _ = tokio::signal::ctrl_c() => {}
-                    _ = terminate.recv() => {}
-                }
-                return;
-            }
-            Err(error) => bevy_log::error!("SIGTERM is not handled: {error}"),
-        }
-    }
-    if let Err(error) = tokio::signal::ctrl_c().await {
-        bevy_log::error!("Ctrl+C is not handled: {error}");
-        std::future::pending::<()>().await;
     }
 }
 

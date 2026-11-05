@@ -22,7 +22,7 @@ use tracing::warn;
 use crate::generation_input::{GenerationInput, RequestedSection, ViewUpdate, WantedColumn};
 use crate::generation_link::GenerationLink;
 use crate::generation_output::{GeneratedColumn, GenerationOutput, SectionContent};
-use crate::generation_stage::{GenerationStage, SchedulerConfig};
+use crate::generation_stage::{GenerationStage, SchedulerConfig, init_chunk_task_pool};
 
 /// The generation of each world, in the host: one stage for each world generates the whole
 /// columns that every cell of the world asks for, for its hot sections and for its data layer
@@ -122,8 +122,10 @@ pub(crate) fn build_world_generation(
     };
     let first = build.type_config.min_y >> SectionPos::BITS;
     let count = i32::try_from(build.type_config.section_count).unwrap_or(0);
+    let config = SchedulerConfig::default();
+    init_chunk_task_pool(&config);
     let mut link = GenerationLink::new(Link::new(
-        GenerationStage::new(None, SchedulerConfig::default()),
+        GenerationStage::new(None, config),
         Placement::Thread,
     ));
     link.send(GenerationInput::Context(Box::new(fill.clone())));
@@ -184,7 +186,7 @@ pub(crate) fn deliver_world_columns(
                 stored: stored_column(*column),
             },
             GenerationOutput::Abandoned(column) => GenerationAnswer {
-                column: column.col,
+                column,
                 stored: None,
             },
         }));

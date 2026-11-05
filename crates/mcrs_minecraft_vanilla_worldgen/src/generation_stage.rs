@@ -1,4 +1,4 @@
-use bevy_tasks::Task;
+use bevy_tasks::{Task, TaskPool, TaskPoolBuilder};
 use mcrs_engine_link::{InFlight, Step, TaskOutcome};
 use mcrs_minecraft_engine::column_ticks::ColumnTicks;
 use mcrs_minecraft_engine_world::aoi::min_column_distance;
@@ -17,16 +17,27 @@ use mcrs_voxel::{ColumnPos, SectionPos};
 use rustc_hash::FxHashMap;
 use std::collections::{BTreeMap, BTreeSet};
 use std::mem;
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 use tracing::trace;
 
-use crate::chunk_plugin::CHUNK_TASK_POOL;
 use crate::generated_ticks;
 use crate::generation_input::{GenerationInput, RequestedSection, ViewUpdate, WantedColumn};
 use crate::generation_output::{
-    AbandonedColumn, GeneratedColumn, GeneratedSection, GenerationOutput, SectionBlocks,
-    SectionContent,
+    GeneratedColumn, GeneratedSection, GenerationOutput, SectionBlocks, SectionContent,
 };
+
+/// The pool that every generation stage of the process runs its ladder stages on.
+pub(crate) static CHUNK_TASK_POOL: OnceLock<TaskPool> = OnceLock::new();
+
+/// Builds [`CHUNK_TASK_POOL`] unless it is built already.
+pub(crate) fn init_chunk_task_pool(config: &SchedulerConfig) {
+    CHUNK_TASK_POOL.get_or_init(|| {
+        TaskPoolBuilder::new()
+            .thread_name("ChunkGen".to_string())
+            .num_threads(config.num_threads)
+            .build()
+    });
+}
 
 /// Sort key for the priority queue. Lower distance_sq values are dequeued first.
 /// The column position (col_x, col_z) serves as a tiebreaker for determinism.
@@ -125,7 +136,7 @@ pub(crate) struct GenerationStage<T> {
     unscreened: Vec<ColumnPos>,
     views: ViewUpdate,
     /// Columns that left every view, emitted with the next step.
-    abandoned: Vec<AbandonedColumn<T>>,
+    abandoned: Vec<ColumnPos>,
     /// The one owner of every materialised value of the ladder.
     pub(crate) store: StagingStore,
     pub(crate) config: SchedulerConfig,
@@ -290,11 +301,8 @@ impl<T: Copy + Send + 'static> GenerationStage<T> {
         column_trace::forget(self.traces.as_ref(), col);
         self.priority_index.remove(&col);
         self.fresh.remove(&key);
-        if let Some(pending) = self.pending.remove(&key) {
-            self.abandoned.push(AbandonedColumn {
-                col,
-                sections: pending.iter().map(|section| section.tag).collect(),
-            });
+        if self.pending.remove(&key).is_some() {
+            self.abandoned.push(col);
         }
     }
 
@@ -466,7 +474,6 @@ impl<T: Copy + Send + 'static> GenerationStage<T> {
                 })
                 .collect();
         let maps = merged.maps.clone();
-        let source = merged.source;
         let ticks = self.ctx.as_ref().map_or_else(ColumnTicks::default, |ctx| {
             generated_ticks::column_ticks(&merged.ticks, &ctx.blocks)
         });
@@ -475,12 +482,12 @@ impl<T: Copy + Send + 'static> GenerationStage<T> {
         self.priority_index.remove(&col);
         self.fresh.remove(&key);
         self.store.set_stage(col, Stage::Delivered);
+        // Nothing spawns generated entities yet, so they leave the store unspawned.
+        self.store.take_entities(col);
         Some(GeneratedColumn {
             col,
-            source,
             maps,
             block_entities: self.store.take_block_entities(col),
-            entities: self.store.take_entities(col),
             sections,
             ticks,
         })

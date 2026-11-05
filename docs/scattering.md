@@ -192,7 +192,7 @@ and the views of each tick. The actor sends back each delivered column, the
 sections of each abandoned column, and a report when it owes nothing more.
 The dimension takes the reports in at the start of each tick, in the order of
 the column positions
-(`crates/mcrs_minecraft_vanilla_worldgen/src/chunk_plugin.rs`, `integrate_generated_columns`).
+(`crates/mcrs_minecraft_vanilla_worldgen/src/world_generation.rs`, `deliver_world_columns`).
 Nothing takes them in between ticks.
 
 ### 3.2 The stage ladder
@@ -366,7 +366,7 @@ the front, `GenerationActor::pending`). An entry asks for a target stage, and
 it is ready by Q6.
 
 **Q5. A request names a target stage, and requests propagate by Q1.** A view
-that wants column `U` (`crates/mcrs_minecraft_vanilla_worldgen/src/chunk_plugin.rs`, `request_columns`;
+that wants column `U` (`crates/mcrs_minecraft_vanilla_worldgen/src/world_generation.rs`, `ask_world_columns`;
 `GenerationActor::want`) asks for
 `Delivered(U)`; the actor derives `Run` over the 3×3 and `Filled` over the
 5×5, each at the priority of the column that needs it, never stored beyond the

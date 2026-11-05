@@ -82,7 +82,7 @@ pub fn add_assets(app: &mut App) {
 
 pub fn make_host_app() -> App {
     let mut app = App::new();
-    // ChunkPlugin's worldgen startup uses AssetServer::load, which spawns
+    // The worldgen startup uses AssetServer::load, which spawns
     // onto IoTaskPool; TaskPoolPlugin must run first or sub-app Startup panics.
     app.add_plugins(TaskPoolPlugin {
         task_pool_options: bevy_app::TaskPoolOptions::with_num_threads(2),

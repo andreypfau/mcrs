@@ -12,8 +12,9 @@ use mcrs_minecraft_worldgen_generator::task::CancellationToken;
 use mcrs_voxel::ColumnPos;
 use tracing::trace;
 
-use crate::chunk_plugin::CHUNK_TASK_POOL;
-use crate::generation_stage::{GenerationStage, InFlightStage, StageResult, top_of_ladder};
+use crate::generation_stage::{
+    CHUNK_TASK_POOL, GenerationStage, InFlightStage, StageResult, top_of_ladder,
+};
 
 /// The next stage a column is owed, once its neighbourhood allows it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

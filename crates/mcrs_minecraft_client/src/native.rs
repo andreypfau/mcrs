@@ -402,9 +402,7 @@ fn host_integrated_server(
             default_game_mode: knobs.default_game_mode(),
             ..Default::default()
         },
-        world_gen: WorldGenPlugin {
-            slow_column_threshold: knobs.slow_column_threshold(),
-        },
+        world_gen: WorldGenPlugin,
         network: ServerNetworkPlugin {
             bind_address: config::integrated_bind_address(open_to_lan),
             // The host shares this process, so only LAN guests gain from compression.

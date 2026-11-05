@@ -29,7 +29,7 @@ impl Default for MinecraftServerPlugins {
                 ..Default::default()
             },
             worlds: DimensionWorldsPlugin::default(),
-            world_gen: WorldGenPlugin::default(),
+            world_gen: WorldGenPlugin,
             network: ServerNetworkPlugin::default(),
         }
     }

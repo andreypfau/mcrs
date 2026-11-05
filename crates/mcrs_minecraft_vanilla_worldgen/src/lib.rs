@@ -1,6 +1,5 @@
 // std: bevy_ecs
 
-mod chunk_plugin;
 mod dimension_world;
 mod features;
 mod generated_ticks;
