@@ -127,7 +127,9 @@ pub(crate) fn write_cold_columns(
                 Origin::Generated if unlit && !ticks_changed => continue,
                 Origin::Unchanged | Origin::Generated | Origin::Kept => {}
             }
-            if let Some(mut stored) = snapshots.take(slot.entity) {
+            // The light of the dimension may lag the last change, so the data layer lights the
+            // column again from its blocks before a view gets it.
+            if let Some(mut stored) = snapshots.take_unlit(slot.entity) {
                 if let Some(taken) = taken {
                     stored.ticks = taken.ticks;
                 }

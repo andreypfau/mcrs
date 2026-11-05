@@ -434,7 +434,7 @@ impl ColumnProduction {
             };
             if let Some(stored) = index
                 .get(&column)
-                .and_then(|slot| snapshots.take(slot.entity))
+                .and_then(|slot| snapshots.take_unlit(slot.entity))
             {
                 self.arrive(column, stored, Source::Dimension, lights);
             }

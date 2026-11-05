@@ -42,10 +42,27 @@ pub(crate) struct ColumnSnapshots<'w, 's> {
     block_entities: Query<'w, 's, &'static BlockEntity>,
 }
 
+/// Whether a snapshot holds the light of the dimension.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Light {
+    Keep,
+    Drop,
+}
+
 impl ColumnSnapshots<'_, '_> {
     /// The sections, block entities, heightmaps and light of the column entity `column` now,
     /// or `None` while a section has not landed.
     pub(crate) fn take(&self, column: Entity) -> Option<StoredColumn> {
+        self.snapshot(column, Light::Keep)
+    }
+
+    /// The snapshot of [`Self::take`] without the light, which the data layer computes again
+    /// from the blocks.
+    pub(crate) fn take_unlit(&self, column: Entity) -> Option<StoredColumn> {
+        self.snapshot(column, Light::Drop)
+    }
+
+    fn snapshot(&self, column: Entity, light: Light) -> Option<StoredColumn> {
         let (column_sections, heightmaps) = self.columns.get(column).ok()?;
         let mut stored = StoredColumn {
             min_section_y: column_sections.min_section_y,
@@ -57,7 +74,10 @@ impl ColumnSnapshots<'_, '_> {
                 motion: motion.clone(),
                 no_leaves: no_leaves.clone(),
             }),
-            lit_by: LitBy::Dimension,
+            lit_by: match light {
+                Light::Keep => LitBy::Dimension,
+                Light::Drop => LitBy::Unlit,
+            },
             ticks: ColumnTicks::default(),
         };
         for lookup in column_sections.iter() {
@@ -72,8 +92,8 @@ impl ColumnSnapshots<'_, '_> {
             stored.sections.push(StoredSection {
                 blocks: blocks.clone(),
                 biomes: biomes.clone(),
-                block_light: block_light.cloned(),
-                sky_light: sky_light.cloned(),
+                block_light: block_light.filter(|_| light == Light::Keep).cloned(),
+                sky_light: sky_light.filter(|_| light == Light::Keep).cloned(),
             });
             stored.block_entities.extend(
                 held.into_iter()
