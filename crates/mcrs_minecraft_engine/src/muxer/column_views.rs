@@ -122,7 +122,7 @@ impl PlayerColumns {
     }
 
     fn center(&self) -> ColumnPos {
-        ColumnPos::new(self.view.center.x, self.view.center.z)
+        ColumnPos::from(self.view.center)
     }
 
     /// The columns a tick may ask for: a column costs the dimension a whole column's worth of
@@ -146,6 +146,7 @@ struct Picked {
 
 impl ColumnViews {
     /// Whether the client of `session` holds `column`.
+    #[cfg(any(test, feature = "world-access"))]
     #[must_use]
     pub fn holds(&self, session: PlayerSession, column: ColumnPos) -> bool {
         self.players
@@ -154,6 +155,7 @@ impl ColumnViews {
     }
 
     /// The view that the muxer serves the client of `session`.
+    #[cfg(feature = "world-access")]
     #[must_use]
     pub fn view(&self, session: PlayerSession) -> Option<ChunkTrackingView> {
         self.players.get(&session).map(|player| player.view)
@@ -403,14 +405,7 @@ impl ColumnViews {
                 continue;
             };
             nearest.extend(player.queued.iter().copied());
-            let center = player.center();
-            let budget = player.raise_budget();
-            if budget < nearest.len() {
-                nearest
-                    .select_nth_unstable_by_key(budget, |column| column.distance_squared(center));
-                nearest.truncate(budget);
-            }
-            nearest.sort_unstable_by_key(|column| column.distance_squared(center));
+            keep_nearest(nearest, player.center(), player.raise_budget());
             let dim = player.dim;
             for column in nearest.iter().copied() {
                 player.set(column, Some(ColumnState::Wanted));
@@ -453,13 +448,7 @@ impl ColumnViews {
             }));
             // Nearest to where the player is now, not to where they were when the column came
             // ready: one step of the player invalidates any order settled earlier.
-            let center = player.center();
-            if allowed < nearest.len() {
-                nearest
-                    .select_nth_unstable_by_key(allowed, |column| column.distance_squared(center));
-                nearest.truncate(allowed);
-            }
-            nearest.sort_unstable_by_key(|column| column.distance_squared(center));
+            keep_nearest(&mut nearest, player.center(), allowed);
             picked.extend(nearest.drain(..).map(|column| Picked {
                 session,
                 at: DimColumn { dim, column },
@@ -538,6 +527,15 @@ impl ColumnViews {
             }
         }
     }
+}
+
+/// Keeps the `count` columns of `columns` nearest `center`, nearest first.
+fn keep_nearest(columns: &mut Vec<ColumnPos>, center: ColumnPos, count: usize) {
+    if count < columns.len() {
+        columns.select_nth_unstable_by_key(count, |column| column.distance_squared(center));
+        columns.truncate(count);
+    }
+    columns.sort_unstable_by_key(|column| column.distance_squared(center));
 }
 
 /// Cache center and radius, sent Critical: the client renders nothing without them. The radius is
