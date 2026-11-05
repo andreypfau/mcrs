@@ -338,6 +338,10 @@ fn stored_light(light_gated: bool, has_sky_light: bool) -> StoredLight {
 /// dimension lights by now is taken from the dimension instead, so a version older than the
 /// hot one never goes out. A column that the views hold and that the data layer lit again goes
 /// out as a change of its light.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "a system takes its params as arguments"
+)]
 pub(crate) fn land_viewed_columns(
     mut store: Option<ResMut<ColumnStoreLink>>,
     mut dims: Query<(
@@ -351,6 +355,7 @@ pub(crate) fn land_viewed_columns(
     registries: Res<CurrentRegistries>,
     mut versions: MessageWriter<ColumnVersion>,
     mut changes: MessageWriter<ColumnChange>,
+    mut taken: Local<Vec<ReadyColumn>>,
 ) {
     let Some(store) = store.as_deref_mut() else {
         return;
@@ -396,12 +401,21 @@ pub(crate) fn land_viewed_columns(
             continue;
         }
         streams.published(ViewSource::DataLayer, column);
-        let light = stored_light(light_gated.is_some(), has_sky_light);
-        // The encode logged why; the column stays unsent rather than produced again.
-        if let Some(packet) = encode_stored_column(column, &stored, direct_bits, light) {
-            versions.write(ColumnVersion { column, packet });
-        }
+        taken.push(ReadyColumn {
+            column,
+            stored,
+            light: stored_light(light_gated.is_some(), has_sky_light),
+            packet: None,
+        });
     }
+    encode_ready(&mut taken, direct_bits);
+    // The encode logged why a column has no packet; it stays unsent rather than produced again.
+    versions.write_batch(taken.drain(..).filter_map(|ready| {
+        Some(ColumnVersion {
+            column: ready.column,
+            packet: ready.packet?,
+        })
+    }));
 }
 
 /// Sends a column that waits to be taken from the dimension back to the queue once the
@@ -558,17 +572,19 @@ fn promote_lit_columns(
 }
 
 /// A column taken from the sections of the dimension, and its packet once encoded.
-struct ReadyColumn {
+pub(crate) struct ReadyColumn {
     column: ColumnPos,
     stored: StoredColumn,
+    light: StoredLight,
     packet: Option<Bytes>,
 }
 
 /// Encodes every column of `ready`, spread over the compute pool when there is more than one.
-fn encode_ready(mut ready: &mut [ReadyColumn], direct_bits: DirectBits, light: StoredLight) {
+fn encode_ready(mut ready: &mut [ReadyColumn], direct_bits: DirectBits) {
     let encode_all = |_, ready: &mut [ReadyColumn]| {
         for column in ready {
-            column.packet = encode_stored_column(column.column, &column.stored, direct_bits, light);
+            column.packet =
+                encode_stored_column(column.column, &column.stored, direct_bits, column.light);
         }
     };
     let pool = ComputeTaskPool::try_get();
@@ -631,14 +647,11 @@ fn publish_ready_columns(
             taken.push(ReadyColumn {
                 column,
                 stored,
+                light: stored_light(light_gated.is_some(), has_sky_light),
                 packet: None,
             });
         }
-        encode_ready(
-            &mut taken,
-            direct_bits,
-            stored_light(light_gated.is_some(), has_sky_light),
-        );
+        encode_ready(&mut taken, direct_bits);
         versions.write_batch(taken.drain(..).filter_map(|ready| {
             Some(ColumnVersion {
                 column: ready.column,
