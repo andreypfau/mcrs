@@ -7,7 +7,7 @@ use mcrs_minecraft_engine::ability::{PlayerFlying, PlayerGameMode};
 use mcrs_minecraft_engine::between_ticks::take_dim_outputs;
 use mcrs_minecraft_engine::bus::{OutboundPlayerPacket, PacketPayload, PacketTarget, to};
 use mcrs_minecraft_engine::game_profile::GameProfile;
-use mcrs_minecraft_engine::muxer::entity_replication::{self, Answers};
+use mcrs_minecraft_engine::muxer::muxer_link::{self, Answers};
 use mcrs_minecraft_engine::muxer::muxer_placement::MuxerPlacement;
 use mcrs_minecraft_engine_world::entity::physics::{Rotation, Transform};
 use mcrs_minecraft_engine_world::entity::player::ChangeDimensionRequest;
@@ -267,7 +267,7 @@ fn muxer_bytes_precede_the_respawn(muxer: Placement) {
 
     server.app.update();
     take_dim_outputs(server.app.world_mut());
-    entity_replication::deliver(server.app.world_mut(), Answers::All);
+    muxer_link::deliver(server.app.world_mut(), Answers::All);
 
     let sent: Vec<OutboundPlayerPacket> = server
         .app

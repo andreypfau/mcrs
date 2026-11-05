@@ -27,9 +27,8 @@ use mcrs_minecraft_engine::channel_types::ToDim;
 use mcrs_minecraft_engine::coordinator::dim::DimSubAppHandle;
 use mcrs_minecraft_engine::coordinator::dim_cells::{DimCells, DimCellsPlugin};
 use mcrs_minecraft_engine::coordinator::ops::{DefaultOpLevel, OpList, OpListEntry};
-use mcrs_minecraft_engine::muxer::column_view_link;
 use mcrs_minecraft_engine::muxer::dim_inputs::{DimInputs, DimInputsPlugin};
-use mcrs_minecraft_engine::muxer::entity_replication::{self, Answers};
+use mcrs_minecraft_engine::muxer::muxer_link::{self, Answers};
 use mcrs_minecraft_engine::muxer::session::{HostAnchorRef, SessionBundle, SessionConnection};
 use mcrs_minecraft_engine::to_coordinator::JoinRequested;
 use mcrs_minecraft_engine::to_muxer::JoinPlaced;
@@ -289,8 +288,7 @@ impl PlayServer {
         for _ in 0..n {
             self.app.update();
             mcrs_minecraft_engine_server::runner::between_ticks(&mut self.app);
-            column_view_link::deliver(self.app.world_mut(), Answers::All);
-            entity_replication::deliver(self.app.world_mut(), Answers::All);
+            muxer_link::deliver(self.app.world_mut(), Answers::All);
             packets.extend(
                 self.app
                     .world_mut()

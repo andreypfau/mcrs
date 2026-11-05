@@ -33,9 +33,8 @@ use mcrs_minecraft_engine::bus::{
 use mcrs_minecraft_engine::channel_types::ToDim;
 use mcrs_minecraft_engine::coordinator::dim_cells::DimCells;
 use mcrs_minecraft_engine::game_profile::GameProfile;
-use mcrs_minecraft_engine::muxer::column_view_link::{self, ColumnViewLink};
 use mcrs_minecraft_engine::muxer::dim_inputs::DimInputs;
-use mcrs_minecraft_engine::muxer::entity_replication::{self, Answers};
+use mcrs_minecraft_engine::muxer::muxer_link::{self, Answers, MuxerLink};
 use mcrs_minecraft_engine::muxer::session::{HostAnchorRef, SessionBundle};
 use mcrs_minecraft_engine::world_kinds::WorldKinds;
 use mcrs_minecraft_engine_server::{Placement, WorldCells, runner};
@@ -161,8 +160,7 @@ fn wait_for_steps(app: &mut App, label: Entity) {
 fn tick(app: &mut App, label: Entity) -> Vec<OutboundPlayerPacket> {
     app.update();
     runner::between_ticks(app);
-    column_view_link::deliver(app.world_mut(), Answers::All);
-    entity_replication::deliver(app.world_mut(), Answers::All);
+    muxer_link::deliver(app.world_mut(), Answers::All);
     let packets = app
         .world_mut()
         .resource_mut::<Messages<OutboundPlayerPacket>>()
@@ -597,7 +595,7 @@ fn run_cold_light(cells: u32) -> ColdLightRun {
         }
         if let Some(viewer) = viewer {
             app.world_mut()
-                .resource_mut::<ColumnViewLink>()
+                .resource_mut::<MuxerLink>()
                 .acknowledge_batch(viewer, 64.0);
         }
         let packets = tick(&mut app, label);

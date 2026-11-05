@@ -3,16 +3,17 @@ use std::mem;
 
 use bevy_ecs::entity::Entity;
 use mcrs_engine_link::{Stage, Step};
+use mcrs_engine_muxer::{MuxerInput, Muxers, ViewerBytes};
 use mcrs_minecraft_engine_world::session::PlayerSession;
+use mcrs_minecraft_replication::PlayerCodec;
 use rustc_hash::FxHashSet;
 
 use crate::bus::OutboundPlayerPacket;
 use crate::muxer::column_views::{ColumnViews, DimColumns, DimRequests};
 
-/// A call to the [`ColumnViewStage`], sent over the link of the muxer.
-#[derive(Clone, Debug)]
-pub enum ColumnViewInput {
-    /// What the dimension `dim` published in one tick.
+/// A call to the [`MuxerStage`], sent over the link of the muxer.
+pub enum MuxerCall {
+    /// What the dimension `dim` published for the views in one tick.
     Dim { dim: Entity, columns: DimColumns },
     /// The client of `session` took a batch and managed `desired_columns_per_tick`.
     Acknowledge {
@@ -24,83 +25,93 @@ pub enum ColumnViewInput {
     /// The end of what the host took between two ticks: the stage sends the next batches to
     /// every player that is not `blocked`, and the requests for the dimensions.
     Send { blocked: Vec<PlayerSession> },
+    /// A call to the entity muxer of one world.
+    Entities(MuxerInput<PlayerCodec>),
 }
 
-/// What the [`ColumnViewStage`] hands back to the host.
-#[derive(Clone, Debug)]
-pub enum ColumnViewOutput {
-    /// Packets for the clients, in the order they go out, not stamped yet.
+/// What the [`MuxerStage`] hands back to the host.
+pub enum MuxerOutput {
+    /// Packets of the views for the clients, in the order they go out, not stamped yet.
     Packets(Vec<OutboundPlayerPacket>),
     Requests(DimRequests),
+    /// The entity bytes of one viewer.
+    Entities(ViewerBytes),
 }
 
-/// The views of the players as a [`Stage`], so that the placement of the muxer moves them off
-/// the server thread.
+/// The views of the players and the entity muxers of the worlds as one [`Stage`], so that the
+/// placement of the muxer moves them off the server thread. It applies the calls in the order
+/// they came, then emits the entity bytes of each viewer.
 #[derive(Default)]
-pub struct ColumnViewStage {
+pub struct MuxerStage {
     views: ColumnViews,
-    inputs: VecDeque<ColumnViewInput>,
+    entities: Muxers<PlayerCodec>,
+    calls: VecDeque<MuxerCall>,
     blocked: FxHashSet<PlayerSession>,
     out: Vec<OutboundPlayerPacket>,
 }
 
-impl ColumnViewStage {
+impl MuxerStage {
     /// The views that the stage serves.
+    #[cfg(feature = "world-access")]
     #[must_use]
     pub fn views(&self) -> &ColumnViews {
         &self.views
     }
 
-    fn apply(&mut self, input: ColumnViewInput, step: &mut Step<'_, Self>) {
-        match input {
-            ColumnViewInput::Dim { dim, columns } => {
+    fn apply(&mut self, call: MuxerCall, step: &mut Step<'_, Self>) {
+        match call {
+            MuxerCall::Dim { dim, columns } => {
                 self.views.take_dim(dim, columns, &mut self.out);
             }
-            ColumnViewInput::Acknowledge {
+            MuxerCall::Acknowledge {
                 session,
                 desired_columns_per_tick,
             } => self
                 .views
                 .acknowledge_batch(session, desired_columns_per_tick),
-            ColumnViewInput::CloseDim { dim } => self.views.close_dim(dim),
-            ColumnViewInput::Send { blocked } => {
+            MuxerCall::CloseDim { dim } => self.views.close_dim(dim),
+            MuxerCall::Send { blocked } => {
                 self.blocked.clear();
                 self.blocked.extend(blocked);
                 self.views.send(&self.blocked, &mut self.out);
                 if !self.out.is_empty() {
-                    step.emit(ColumnViewOutput::Packets(mem::take(&mut self.out)));
+                    step.emit(MuxerOutput::Packets(mem::take(&mut self.out)));
                 }
                 for requests in self.views.take_requests() {
-                    step.emit(ColumnViewOutput::Requests(requests));
+                    step.emit(MuxerOutput::Requests(requests));
                 }
             }
+            MuxerCall::Entities(input) => self.entities.apply(input),
         }
     }
 }
 
-impl Stage for ColumnViewStage {
-    const NAME: &'static str = "column views";
+impl Stage for MuxerStage {
+    const NAME: &'static str = "muxer";
 
-    type Input = ColumnViewInput;
-    type Output = ColumnViewOutput;
+    type Input = MuxerCall;
+    type Output = MuxerOutput;
     type TaskOutput = ();
 
-    fn receive(&mut self, input: Self::Input) {
-        self.inputs.push_back(input);
+    fn receive(&mut self, call: Self::Input) {
+        self.calls.push_back(call);
     }
 
     fn step(&mut self, step: &mut Step<'_, Self>) {
-        while let Some(input) = self.inputs.pop_front() {
-            self.apply(input, step);
+        while let Some(call) = self.calls.pop_front() {
+            self.apply(call, step);
         }
         // A view that a dimension opened or closed without a send after it still tells its
         // client at once.
         if !self.out.is_empty() {
-            step.emit(ColumnViewOutput::Packets(mem::take(&mut self.out)));
+            step.emit(MuxerOutput::Packets(mem::take(&mut self.out)));
+        }
+        for bytes in self.entities.take_output() {
+            step.emit(MuxerOutput::Entities(bytes));
         }
     }
 
     fn has_work(&self) -> bool {
-        !self.inputs.is_empty()
+        !self.calls.is_empty()
     }
 }

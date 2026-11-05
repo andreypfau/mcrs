@@ -7,12 +7,12 @@ use mcrs_minecraft_engine_world::session::{
 
 use crate::bus::{OutboundPlayerAttached, OutboundPlayerPacket, PacketTarget};
 use crate::channel_types::ToDim;
-use crate::muxer::column_view_link;
 use crate::muxer::column_views::DimColumns;
 use crate::muxer::departure_routing;
 use crate::muxer::dim_inputs::DimInputs;
 use crate::muxer::disconnect::Departing;
-use crate::muxer::entity_replication::{self, Answers};
+use crate::muxer::entity_replication;
+use crate::muxer::muxer_link::{self, Answers};
 use crate::player_order::OrderedPlayer;
 use crate::to_muxer::DimDelivered;
 
@@ -33,7 +33,7 @@ pub(crate) fn receive(world: &mut World) {
     let departs = delivered
         .iter()
         .any(|delivered| !delivered.departures.is_empty());
-    column_view_link::deliver(
+    muxer_link::deliver(
         world,
         if departs {
             Answers::All
@@ -58,7 +58,7 @@ pub(crate) fn receive(world: &mut World) {
     } in delivered
     {
         // Before the departures: a view that the dimension closed sends nothing after a respawn.
-        column_view_link::receive(
+        muxer_link::receive(
             world,
             dim,
             DimColumns {
@@ -69,8 +69,8 @@ pub(crate) fn receive(world: &mut World) {
         );
         orders.extend(ordered);
         handoffs.extend(handed_off);
-        for packet in packets {
-            deliver(world, packet);
+        if !packets.is_empty() {
+            deliver_all(world, packets);
         }
         for session in released {
             forget_departures(world, |departing| {
@@ -99,9 +99,8 @@ pub(crate) fn receive(world: &mut World) {
             tracing::error!(dim = ?to, "a command run goes on in a dimension that takes no input");
         }
     }
-    column_view_link::send(world);
-    column_view_link::deliver(world, Answers::Ready);
-    entity_replication::deliver(world, Answers::Ready);
+    muxer_link::send(world);
+    muxer_link::deliver(world, Answers::Ready);
 }
 
 /// Sends `order` to the dimension where the session of its player is placed.

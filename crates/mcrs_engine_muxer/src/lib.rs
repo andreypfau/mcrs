@@ -4,13 +4,13 @@
 //! at most a cap of subjects, and within a budget of bytes. Its chunk side keeps the version
 //! stream of each chunk that a viewer holds or waits for.
 
-// std: mcrs_engine_link
+// std: bytes
 
 mod chunk_stream;
 mod entity_event;
 mod entity_id;
 mod muxer;
-mod muxer_stage;
+mod muxers;
 mod planner;
 mod replication_codec;
 mod subscription;
@@ -29,7 +29,7 @@ pub use chunk_stream::{ChunkStream, StreamNeed, StreamVersion};
 pub use entity_event::{EntityEvent, SubjectEvent};
 pub use entity_id::{EntityId, ViewerId, WorldId};
 pub use muxer::Muxer;
-pub use muxer_stage::{MuxerInput, MuxerStage};
+pub use muxers::{MuxerInput, Muxers};
 pub use replication_codec::{BlobKind, Hold, ReplicationCodec};
 pub use tier::Tier;
 pub use tile_blob::{SubjectRange, TileBlob};

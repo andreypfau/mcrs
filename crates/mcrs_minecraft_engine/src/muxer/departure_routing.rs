@@ -14,7 +14,8 @@ use crate::game_mode;
 use crate::muxer::bridge::OutboundFlush;
 use crate::muxer::dim_inputs::DimInputs;
 use crate::muxer::dim_outputs;
-use crate::muxer::entity_replication::{self, Answers};
+use crate::muxer::entity_replication;
+use crate::muxer::muxer_link::{self, Answers};
 use crate::to_muxer::{Destination, RoutedDeparture};
 
 /// Both bits of the data to keep: the attribute modifiers and the entity data.
@@ -70,7 +71,7 @@ fn announce(host: &mut World, anchor: Entity, destination: Destination, departur
     // or the bridge drops them as stale. The muxer bytes of that dimension are among them, and
     // the muxer may still work on them, so the host waits for it here.
     entity_replication::leave(host, departure.session);
-    entity_replication::deliver(host, Answers::All);
+    muxer_link::deliver(host, Answers::All);
     if let Err(error) = host.try_run_schedule(OutboundFlush) {
         tracing::warn!("the packets of a player leaving were not flushed: {error}");
     }

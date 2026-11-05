@@ -3,8 +3,7 @@ use mcrs_minecraft_engine::between_ticks::{
     drain_dim_despawn_queue, drain_dim_spawn_queue, take_dim_outputs,
 };
 use mcrs_minecraft_engine::muxer::bridge::run_pending_flush;
-use mcrs_minecraft_engine::muxer::column_view_link;
-use mcrs_minecraft_engine::muxer::entity_replication::{self, Answers};
+use mcrs_minecraft_engine::muxer::muxer_link::{self, Answers};
 use mcrs_minecraft_engine::muxer::tick_wake::TickWake;
 use std::num::NonZeroU32;
 use std::time::Instant;
@@ -52,7 +51,6 @@ pub fn drain_until(app: &mut App, deadline: Instant) {
 /// packets of the views that the muxer has handed out so far.
 pub fn drain(app: &mut App) {
     let world = app.world_mut();
-    column_view_link::deliver(world, Answers::Ready);
-    entity_replication::deliver(world, Answers::Ready);
+    muxer_link::deliver(world, Answers::Ready);
     run_pending_flush(world);
 }

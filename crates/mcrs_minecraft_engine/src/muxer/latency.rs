@@ -1,7 +1,7 @@
 //! The latency of a player, which the host measures on the wire and hands to the muxer for its
 //! player list entry.
 
-use crate::muxer::entity_replication::EntityReplication;
+use crate::muxer::muxer_link::MuxerLink;
 use crate::muxer::session::HostAnchorRef;
 use bevy_ecs::component::Component;
 use bevy_ecs::prelude::{Changed, Query, ResMut};
@@ -23,14 +23,14 @@ impl Latency {
 pub fn forward_latency(
     connections: Query<(&Latency, &HostAnchorRef), Changed<Latency>>,
     sessions: Query<&Session>,
-    replication: Option<ResMut<EntityReplication>>,
+    muxer: Option<ResMut<MuxerLink>>,
 ) {
-    let Some(mut replication) = replication else {
+    let Some(mut muxer) = muxer else {
         return;
     };
     for (&Latency(latency), &HostAnchorRef(anchor)) in &connections {
         if let Ok(&Session(session)) = sessions.get(anchor) {
-            replication.send_latency(session, latency);
+            muxer.send_latency(session, latency);
         }
     }
 }

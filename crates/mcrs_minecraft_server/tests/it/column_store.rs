@@ -14,8 +14,8 @@ use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_engine::bus::PacketPayload;
 use mcrs_minecraft_engine::column_change::ColumnChange;
 use mcrs_minecraft_engine::column_version::ColumnVersion;
-use mcrs_minecraft_engine::muxer::column_view_link::ColumnViewLink;
 use mcrs_minecraft_engine::muxer::column_views::ColumnViews;
+use mcrs_minecraft_engine::muxer::muxer_link::MuxerLink;
 use mcrs_minecraft_engine_server::{Placement, runner};
 use mcrs_minecraft_engine_world::block_update::BlockSetRequest;
 use mcrs_minecraft_engine_world::entity::physics::Transform;
@@ -86,7 +86,7 @@ fn tick_until_sent(
     let deadline = Instant::now() + PATIENCE;
     loop {
         check(dimension_world(app, label));
-        let mut link = app.world_mut().resource_mut::<ColumnViewLink>();
+        let mut link = app.world_mut().resource_mut::<MuxerLink>();
         link.acknowledge_batch(session, 64.0);
         let stage = link.inline_stage().expect("the views run inline");
         if sent(stage.views()) {

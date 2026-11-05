@@ -35,7 +35,7 @@ use bevy_app::{App, Plugin, PluginGroup};
 use bevy_math::DVec3;
 use mcrs_minecraft_core::VERSION;
 use mcrs_minecraft_engine::coordinator::dim_cells::DimCells;
-use mcrs_minecraft_engine::muxer::entity_replication::EntityReplication;
+use mcrs_minecraft_engine::muxer::muxer_link::MuxerLink;
 use mcrs_minecraft_engine_server::{
     BoundAddress, GameMode, Placement, ServerNetworkPlugin, WorldCells, runner,
 };
@@ -243,8 +243,8 @@ fn run_timed(mut app: App, stop: &AtomicBool, counts: &Counts) -> (Vec<TickTimes
         let telemetry = *app.world().resource::<BridgeTelemetry>();
         let tile_encodes = app
             .world()
-            .get_resource::<EntityReplication>()
-            .map_or(0, EntityReplication::published_tiles);
+            .get_resource::<MuxerLink>()
+            .map_or(0, MuxerLink::published_tiles);
         times.push(TickTimes {
             tick,
             between_ticks,

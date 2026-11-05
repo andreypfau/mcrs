@@ -10,8 +10,6 @@
 mod batch_pacing;
 pub mod bridge;
 pub mod bridge_queue;
-pub mod column_view_link;
-pub mod column_view_stage;
 pub mod column_views;
 pub mod departure_routing;
 pub mod dim_inputs;
@@ -22,9 +20,12 @@ pub mod entity_replication;
 pub mod game_packets;
 pub mod join;
 pub mod latency;
+pub mod muxer_link;
 pub mod muxer_placement;
 pub mod muxer_plugin;
+pub mod muxer_stage;
 pub mod online_count;
 pub mod session;
 pub mod tick_wake;
+#[cfg(feature = "world-access")]
 pub mod tile_delta_log;

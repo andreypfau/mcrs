@@ -296,15 +296,17 @@ impl PlayerCodec {
     fn update_list(&mut self) -> Result<()> {
         let mut roster: Vec<Member<'_>> = Vec::new();
         if self.list.reads_roster(self.tick, self.generation) {
-            roster.extend(self.subjects.iter().map(|(&subject, state)| Member {
-                player: subject,
-                position: state
-                    .motion
-                    .latest()
-                    .map_or_else(Default::default, |pose| pose.position),
-                profile: state.profile(),
-                game_mode: state.game_mode,
-                latency: self.latency.get(&state.viewer).copied().unwrap_or(0),
+            roster.extend(self.subjects.iter().map(|(&subject, state)| {
+                Member {
+                    player: subject,
+                    position: state
+                        .motion
+                        .latest()
+                        .map_or_else(Default::default, |pose| pose.position),
+                    profile: state.profile(),
+                    game_mode: state.game_mode,
+                    latency: self.latency.get(&state.viewer).copied().unwrap_or(0),
+                }
             }));
         }
         let holds = &self.holds;
