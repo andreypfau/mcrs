@@ -22,8 +22,15 @@ const STEM: u8 = 4;
 const STEM_AGES: u8 = 8;
 const REDSTONE: u8 = STEM + STEM_AGES;
 const REDSTONE_POWERS: u8 = 16;
+const DYE: u8 = REDSTONE + REDSTONE_POWERS;
 
-pub const FIXED_TINTS: usize = (REDSTONE + REDSTONE_POWERS) as usize;
+/// `CommonColors.TEXTURE_TINT_COLORS`, by dye id: what a banner's base layer is multiplied by.
+const DYE_COLORS: [u32; 16] = [
+    0xf9fffe, 0xf9801d, 0xc74ebd, 0x3ab3da, 0xfed83d, 0x80c71f, 0xf38baa, 0x474f52, 0x9d9d97,
+    0x169c9c, 0x8932b8, 0x3c44aa, 0x835432, 0x5e7c16, 0xb02e26, 0x1d1d21,
+];
+
+pub const FIXED_TINTS: usize = DYE as usize + DYE_COLORS.len();
 
 impl Tint {
     pub const SPRUCE_LEAVES: Tint = Tint::Fixed(SPRUCE_LEAVES);
@@ -37,6 +44,17 @@ impl Tint {
 
     pub fn redstone(power: u8) -> Tint {
         Tint::Fixed(REDSTONE + power.min(REDSTONE_POWERS - 1))
+    }
+
+    /// The colour of the dye with this id, white past the sixteen.
+    pub fn dye(id: u8) -> Tint {
+        Tint::Fixed(
+            DYE + if (id as usize) < DYE_COLORS.len() {
+                id
+            } else {
+                0
+            },
+        )
     }
 
     /// The number the shader reads: 0 for none, then the biome maps, then the fixed colours.
@@ -67,7 +85,11 @@ fn fixed_color(index: u8) -> u32 {
             let age = (index - STEM) as u32;
             (age * 32) << 16 | (255 - age * 8) << 8 | (age * 4)
         }
-        REDSTONE.. => redstone_color(index - REDSTONE),
+        REDSTONE..DYE => redstone_color(index - REDSTONE),
+        DYE.. => DYE_COLORS
+            .get((index - DYE) as usize)
+            .copied()
+            .unwrap_or(0xffffff),
     }
 }
 
