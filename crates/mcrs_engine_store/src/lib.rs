@@ -17,7 +17,6 @@ mod store_output;
 mod store_stage;
 mod versioned_chunk;
 
-pub use chunk_cache::ChunkCache;
 pub use chunk_version::ChunkVersion;
 pub use disk_store::DiskStore;
 pub use disk_write::DiskWrite;

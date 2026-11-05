@@ -27,11 +27,6 @@ impl<D: DiskStore> StoreStage<D> {
         }
     }
 
-    #[must_use]
-    pub fn cache(&self) -> &ChunkCache<D::Key, D::Chunk> {
-        &self.cache
-    }
-
     fn answer(&mut self, key: D::Key) -> StoreOutput<D::Key, D::Chunk> {
         if let Some(chunk) = self.cache.get(key) {
             return StoreOutput::Found {
@@ -81,9 +76,7 @@ impl<D: DiskStore> Stage for StoreStage<D> {
     fn step(&mut self, step: &mut Step<'_, Self>) {
         while let Some(input) = self.inputs.pop_front() {
             match input {
-                StoreInput::Put { key, chunk } => {
-                    self.cache.put(key, chunk);
-                }
+                StoreInput::Put { key, chunk } => self.cache.put(key, chunk),
                 StoreInput::Get { key } => step.emit(self.answer(key)),
                 StoreInput::Flush => self.flush(),
             }
