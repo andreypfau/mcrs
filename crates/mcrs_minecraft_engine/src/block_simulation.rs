@@ -14,7 +14,7 @@ use std::mem;
 use bevy_app::{App, FixedPostUpdate, FixedUpdate, Plugin, SubApp};
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::{MessageReader, MessageWriter};
-use bevy_ecs::prelude::{Query, With};
+use bevy_ecs::prelude::{Added, Query, With};
 use bevy_ecs::resource::Resource;
 use bevy_ecs::schedule::IntoScheduleConfigs;
 use bevy_ecs::system::{Res, ResMut, SystemParam};
@@ -181,6 +181,7 @@ pub struct BlockSimulation {
     /// The random ticks of each block state under the rules, once the block table landed.
     random_table: Option<RandomTickTable>,
     random_seed: Option<StreamSeed>,
+    /// The sections that take random ticks, sorted, as the last step found them.
     random_sections: Vec<SectionPos>,
     drops: Vec<ItemStack>,
 }
@@ -366,6 +367,7 @@ struct Kernel<'w, B: BlockBehaviour<WorldKinds> + Send + 'static> {
 #[derive(SystemParam)]
 struct RandomTicking<'w, 's> {
     sections: Query<'w, 's, &'static SectionPos, With<EntityTicking>>,
+    started: Query<'w, 's, (), Added<EntityTicking>>,
     speed: Option<Res<'w, RandomTickSpeed>>,
     seed: Option<Res<'w, WorldSeed>>,
 }
@@ -484,12 +486,19 @@ fn run_block_simulation<B: BlockBehaviour<WorldKinds> + BlockDrops + Send + 'sta
     });
     let speed = random.speed.as_deref().copied().unwrap_or_default().0;
     let mut sections = mem::take(&mut simulation.random_sections);
-    if speed > 0 && !table.is_empty() {
+    // A section that stops alone lowers the count; one that starts is in `started`.
+    if !random.started.is_empty() || random.sections.iter().len() != sections.len() {
+        sections.clear();
         sections.extend(random.sections.iter().copied());
         // The picks of a section do not depend on the order; what one pick sets for the
         // picks of a later section does.
         sections.sort_unstable_by_key(|section| (section.x, section.z, section.y));
     }
+    let ticking: &[SectionPos] = if speed > 0 && !table.is_empty() {
+        &sections
+    } else {
+        &[]
+    };
     let seed = *simulation.random_seed.get_or_insert_with(|| {
         let world_seed = random.seed.as_deref().map_or(0, |seed| seed.0);
         let key = dimension_key.map_or("", |key| key.as_str());
@@ -514,7 +523,7 @@ fn run_block_simulation<B: BlockBehaviour<WorldKinds> + BlockDrops + Send + 'sta
     for (phase, messages, chains) in phases {
         if phase == Phase::BlockEvents {
             let picks = RandomPicks {
-                sections: &sections,
+                sections: ticking,
                 speed,
                 table,
                 seed,
@@ -544,7 +553,6 @@ fn run_block_simulation<B: BlockBehaviour<WorldKinds> + BlockDrops + Send + 'sta
             tracing::error!(%error, ?phase, "the block step refused its input");
         }
     }
-    sections.clear();
     simulation.random_sections = sections;
 
     for write in out.writes.drain(..) {
