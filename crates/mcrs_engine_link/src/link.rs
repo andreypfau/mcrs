@@ -125,6 +125,16 @@ impl<S: Stage> Link<S> {
     pub fn is_answered(&self) -> bool {
         self.answered == self.sent
     }
+
+    /// The stage, when it runs [`Placement::Inline`]. A stage on a thread of its own is out of
+    /// reach of the near end.
+    #[must_use]
+    pub fn inline_stage(&self) -> Option<&S> {
+        match &self.far {
+            FarEnd::Inline(end) => Some(end.stage()),
+            FarEnd::Thread(_) => None,
+        }
+    }
 }
 
 fn hold<O>(held: &mut VecDeque<O>, answered: &mut u64, reply: Reply<O>) {

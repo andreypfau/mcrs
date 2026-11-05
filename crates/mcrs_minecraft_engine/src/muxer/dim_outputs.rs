@@ -7,7 +7,8 @@ use mcrs_minecraft_engine_world::session::{
 
 use crate::bus::{OutboundPlayerAttached, OutboundPlayerPacket, PacketTarget};
 use crate::channel_types::ToDim;
-use crate::muxer::column_views;
+use crate::muxer::column_view_link;
+use crate::muxer::column_views::DimColumns;
 use crate::muxer::departure_routing;
 use crate::muxer::dim_inputs::DimInputs;
 use crate::muxer::disconnect::Departing;
@@ -26,6 +27,20 @@ pub(crate) fn receive(world: &mut World) {
         .get_resource_mut::<Messages<DimDelivered>>()
         .map(|mut messages| messages.drain().collect())
         .unwrap_or_default();
+    // A departure places its session in another dimension, and a packet of the views is
+    // stamped with the placement it is delivered under: what the views sent for the old
+    // placement goes out first.
+    let departs = delivered
+        .iter()
+        .any(|delivered| !delivered.departures.is_empty());
+    column_view_link::deliver(
+        world,
+        if departs {
+            Answers::All
+        } else {
+            Answers::Ready
+        },
+    );
     let mut orders = Vec::new();
     let mut handoffs = Vec::new();
     for DimDelivered {
@@ -43,7 +58,15 @@ pub(crate) fn receive(world: &mut World) {
     } in delivered
     {
         // Before the departures: a view that the dimension closed sends nothing after a respawn.
-        column_views::receive(world, dim, views, column_versions, column_changes);
+        column_view_link::receive(
+            world,
+            dim,
+            DimColumns {
+                views,
+                versions: column_versions,
+                changes: column_changes,
+            },
+        );
         orders.extend(ordered);
         handoffs.extend(handed_off);
         for packet in packets {
@@ -76,7 +99,8 @@ pub(crate) fn receive(world: &mut World) {
             tracing::error!(dim = ?to, "a command run goes on in a dimension that takes no input");
         }
     }
-    column_views::send(world);
+    column_view_link::send(world);
+    column_view_link::deliver(world, Answers::Ready);
     entity_replication::deliver(world, Answers::Ready);
 }
 
@@ -112,27 +136,80 @@ pub fn forget_departures(world: &mut World, matches: impl Fn(&Departing) -> bool
 
 /// Stamps `packet` with the session and the epoch of its player and writes it to the host's
 /// outbound packets.
-pub fn deliver(world: &mut World, packet: OutboundPlayerPacket) {
-    let (session, epoch) = match &packet.target {
-        PacketTarget::SinglePlayer(target) => world
+pub fn deliver(world: &mut World, mut packet: OutboundPlayerPacket) {
+    Stamp::of(world, &packet.target).apply(&mut packet);
+    world
+        .resource_mut::<Messages<OutboundPlayerPacket>>()
+        .write(packet);
+}
+
+/// As [`deliver`] for each of `packets`. The packets of one player come in a run, so a run
+/// costs one look up of its player.
+pub fn deliver_all(world: &mut World, mut packets: Vec<OutboundPlayerPacket>) {
+    let mut last: Option<SessionStamp> = None;
+    for packet in &mut packets {
+        let stamp = match (&packet.target, last) {
+            (PacketTarget::SinglePlayer(target), Some(last)) if *target == last.target => {
+                last.stamp
+            }
+            (PacketTarget::SinglePlayer(target), _) => {
+                let stamp = Stamp::of(world, &packet.target);
+                last = Some(SessionStamp {
+                    target: *target,
+                    stamp,
+                });
+                stamp
+            }
+            _ => Stamp::NONE,
+        };
+        stamp.apply(packet);
+    }
+    world
+        .resource_mut::<Messages<OutboundPlayerPacket>>()
+        .write_batch(packets);
+}
+
+/// The session and the epoch of the player that a packet addresses.
+#[derive(Clone, Copy, Debug)]
+struct Stamp {
+    session: PlayerSession,
+    epoch: u32,
+}
+
+/// The stamp of the packets for `target`.
+#[derive(Clone, Copy, Debug)]
+struct SessionStamp {
+    target: PlayerSession,
+    stamp: Stamp,
+}
+
+impl Stamp {
+    /// No session: the bridge sends such a packet for one player to no one.
+    const NONE: Self = Self {
+        session: PlayerSession(0),
+        epoch: 0,
+    };
+
+    /// A packet for one player is stamped with its session, and any other packet with none.
+    fn of(world: &World, target: &PacketTarget) -> Self {
+        let PacketTarget::SinglePlayer(target) = target else {
+            return Self::NONE;
+        };
+        world
             .get_resource::<SessionAnchors>()
             .and_then(|anchors| anchors.get(*target))
             .and_then(|anchor| world.get_entity(anchor).ok())
             .and_then(|anchor| {
-                Some((
-                    anchor.get::<Session>()?.0,
-                    anchor.get::<SessionPlacement>()?.epoch(),
-                ))
+                Some(Self {
+                    session: anchor.get::<Session>()?.0,
+                    epoch: anchor.get::<SessionPlacement>()?.epoch(),
+                })
             })
-            .unwrap_or((PlayerSession(0), 0)),
-        _ => (PlayerSession(0), 0),
-    };
+            .unwrap_or(Self::NONE)
+    }
 
-    world
-        .resource_mut::<Messages<OutboundPlayerPacket>>()
-        .write(OutboundPlayerPacket {
-            session,
-            epoch,
-            ..packet
-        });
+    fn apply(self, packet: &mut OutboundPlayerPacket) {
+        packet.session = self.session;
+        packet.epoch = self.epoch;
+    }
 }

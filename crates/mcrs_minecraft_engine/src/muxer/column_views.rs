@@ -2,22 +2,18 @@
 //! view, whichever dimension or data layer makes the column, and sends the columns to the
 //! client nearest first, at the rate that the client answers with.
 
+use std::mem;
+
 use bevy_ecs::entity::Entity;
-use bevy_ecs::observer::On;
-use bevy_ecs::prelude::{Query, ResMut, Resource};
-use bevy_ecs::world::World;
+use mcrs_engine_muxer::{ChunkStream, StreamNeed, ViewerId};
 use mcrs_minecraft_engine_world::entity::player::chunk_view::ChunkTrackingView;
-use mcrs_minecraft_engine_world::session::{
-    PlayerSession, Session, SessionAnchors, SessionPlacement,
-};
+use mcrs_minecraft_engine_world::session::PlayerSession;
 use mcrs_minecraft_engine_world::world::lifecycle::ticket::MAX_SPAWNS_PER_TICK;
-use mcrs_minecraft_network::event::Received;
 use mcrs_minecraft_protocol::VarInt;
 use mcrs_minecraft_protocol_game::clientbound::{
     ClientboundChunkBatchFinished, ClientboundChunkBatchStart, ClientboundChunkCacheRadius,
     ClientboundForgetLevelChunk, ClientboundSetChunkCacheCenter,
 };
-use mcrs_minecraft_protocol_game::serverbound::ServerboundChunkBatchReceived;
 use mcrs_voxel::ColumnPos;
 use rustc_hash::{FxHashMap, FxHashSet};
 
@@ -26,10 +22,6 @@ use crate::column_change::ColumnChange;
 use crate::column_request::ColumnRequest;
 use crate::column_version::ColumnVersion;
 use crate::muxer::batch_pacing::BatchPacing;
-use crate::muxer::column_feed::{ColumnFeed, FeedNeed};
-use crate::muxer::dim_inputs::DimInputs;
-use crate::muxer::dim_outputs;
-use crate::muxer::session::HostAnchorRef;
 use crate::player_view::PlayerView;
 
 /// A ceiling on one batch, not the rate: the client's answer is what paces the load, and a cap
@@ -40,12 +32,26 @@ use crate::player_view::PlayerView;
 const MAX_BATCH_BYTES: usize = 4 * mcrs_minecraft_network::MAX_QUEUED_BYTES_PER_SOCKET;
 
 /// The views of the players and the version streams of the columns they hold or wait for.
-#[derive(Resource, Default)]
+#[derive(Default)]
 pub struct ColumnViews {
     players: FxHashMap<PlayerSession, PlayerColumns>,
-    feeds: FxHashMap<DimColumn, ColumnFeed>,
+    feeds: FxHashMap<DimColumn, ChunkStream<ColumnChange>>,
     /// What the muxer asks of each dimension in its next tick.
     requests: FxHashMap<Entity, Vec<ColumnRequest>>,
+    sessions: Vec<PlayerSession>,
+    nearest: Vec<ColumnPos>,
+    picked: Vec<Picked>,
+}
+
+/// What the muxer asks of the dimension `dim` in its next tick.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct DimRequests {
+    pub dim: Entity,
+    pub requests: Vec<ColumnRequest>,
+}
+
+fn viewer(session: PlayerSession) -> ViewerId {
+    ViewerId(session.0)
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -164,11 +170,11 @@ impl ColumnViews {
         self.requests.entry(dim).or_default().push(request);
     }
 
-    fn need(&mut self, at: DimColumn, need: FeedNeed) {
+    fn need(&mut self, at: DimColumn, need: StreamNeed) {
         match need {
-            FeedNeed::Nothing => {}
-            FeedNeed::Version => self.request(at.dim, ColumnRequest::Want(at.column)),
-            FeedNeed::Drop => {
+            StreamNeed::Nothing => {}
+            StreamNeed::Version => self.request(at.dim, ColumnRequest::Want(at.column)),
+            StreamNeed::Drop => {
                 self.feeds.remove(&at);
                 self.request(at.dim, ColumnRequest::Drop(at.column));
             }
@@ -180,7 +186,7 @@ impl ColumnViews {
         let Some(feed) = self.feeds.get_mut(&at) else {
             return;
         };
-        let need = feed.leave(session);
+        let need = feed.leave(viewer(session));
         self.need(at, need);
     }
 
@@ -286,7 +292,7 @@ impl ColumnViews {
             column: version.column,
         };
         if let Some(feed) = self.feeds.get_mut(&at) {
-            feed.publish(version);
+            feed.publish(version.packet);
         }
     }
 
@@ -306,9 +312,14 @@ impl ColumnViews {
             return;
         };
         let need = feed.log(&change);
-        if !feed.holders.is_empty() {
+        if !feed.holders().is_empty() {
             out.push(OutboundPlayerPacket {
-                target: PacketTarget::PlayerSet(feed.holders.iter().copied().collect()),
+                target: PacketTarget::PlayerSet(
+                    feed.holders()
+                        .iter()
+                        .map(|holder| PlayerSession(holder.0))
+                        .collect(),
+                ),
                 priority: change.priority,
                 data: change.payload,
                 session: PlayerSession(0),
@@ -318,11 +329,69 @@ impl ColumnViews {
         self.need(at, need);
     }
 
+    /// Takes what the dimension `dim` published in one tick: the views of its players, then the
+    /// versions of the columns, then the changes of the tick, which come after the versions.
+    pub fn take_dim(
+        &mut self,
+        dim: Entity,
+        published: DimColumns,
+        out: &mut Vec<OutboundPlayerPacket>,
+    ) {
+        let DimColumns {
+            views,
+            versions,
+            changes,
+        } = published;
+        for view in views {
+            self.apply_view(dim, view, out);
+        }
+        for version in versions {
+            self.take_version(dim, version);
+        }
+        for change in changes {
+            self.take_change(dim, change, out);
+        }
+    }
+
+    /// Asks the dimensions for the columns the views want, and sends each player that is not
+    /// `blocked` the next batch of the columns whose version is in. Every player that takes a
+    /// version gets the same bytes.
+    pub fn send(
+        &mut self,
+        blocked: &FxHashSet<PlayerSession>,
+        out: &mut Vec<OutboundPlayerPacket>,
+    ) {
+        let mut nearest = mem::take(&mut self.nearest);
+        self.raise_queued(blocked, &mut nearest);
+        nearest.clear();
+        self.nearest = nearest;
+        let mut picked = mem::take(&mut self.picked);
+        self.pick(blocked, &mut picked);
+        self.send_batches(&picked, out);
+        picked.clear();
+        self.picked = picked;
+    }
+
+    /// What the views ask of each dimension, since the last call.
+    pub fn take_requests(&mut self) -> impl Iterator<Item = DimRequests> + '_ {
+        self.requests
+            .drain()
+            .map(|(dim, requests)| DimRequests { dim, requests })
+    }
+
+    /// The players in the order of their sessions, in a buffer that the caller hands back.
+    fn sorted_sessions(&mut self) -> Vec<PlayerSession> {
+        let mut sessions = mem::take(&mut self.sessions);
+        sessions.clear();
+        sessions.extend(self.players.keys().copied());
+        sessions.sort_unstable_by_key(|session| session.0);
+        sessions
+    }
+
     /// Asks for the queued columns of each player, nearest first, up to the budget of a tick.
     fn raise_queued(&mut self, blocked: &FxHashSet<PlayerSession>, nearest: &mut Vec<ColumnPos>) {
-        let mut sessions: Vec<PlayerSession> = self.players.keys().copied().collect();
-        sessions.sort_unstable_by_key(|session| session.0);
-        for session in sessions {
+        let sessions = self.sorted_sessions();
+        for &session in &sessions {
             if blocked.contains(&session) {
                 continue;
             }
@@ -344,19 +413,19 @@ impl ColumnViews {
             }
             for column in nearest.drain(..) {
                 let at = DimColumn { dim, column };
-                let need = self.feeds.entry(at).or_default().wait(session);
+                let need = self.feeds.entry(at).or_default().wait(viewer(session));
                 self.need(at, need);
             }
         }
+        self.sessions = sessions;
     }
 
     /// Picks the next batch of each player that has room for one, nearest first, into `picked`,
     /// ordered by player.
     fn pick(&mut self, blocked: &FxHashSet<PlayerSession>, picked: &mut Vec<Picked>) {
-        let mut sessions: Vec<PlayerSession> = self.players.keys().copied().collect();
-        sessions.sort_unstable_by_key(|session| session.0);
-        let mut nearest: Vec<ColumnPos> = Vec::new();
-        for session in sessions {
+        let sessions = self.sorted_sessions();
+        let mut nearest = mem::take(&mut self.nearest);
+        for &session in &sessions {
             if blocked.contains(&session) {
                 continue;
             }
@@ -376,7 +445,7 @@ impl ColumnViews {
                         dim,
                         column: *column,
                     })
-                    .is_some_and(|feed| feed.version.is_some())
+                    .is_some_and(|feed| feed.version().is_some())
             }));
             // Nearest to where the player is now, not to where they were when the column came
             // ready: one step of the player invalidates any order settled earlier.
@@ -392,6 +461,8 @@ impl ColumnViews {
                 at: DimColumn { dim, column },
             }));
         }
+        self.sessions = sessions;
+        self.nearest = nearest;
     }
 
     /// Sends every player its batch, bracketed by a start and a finish, each column followed by
@@ -411,10 +482,10 @@ impl ColumnViews {
                 let Some(feed) = self.feeds.get_mut(&picked.at) else {
                     continue;
                 };
-                let Some(version) = &feed.version else {
+                let Some(version) = feed.version() else {
                     continue;
                 };
-                let packet = &version.packet;
+                let packet = &version.bytes;
                 if sends == 0 {
                     out.push(
                         to(
@@ -440,7 +511,7 @@ impl ColumnViews {
                     packet.priority = change.priority;
                     out.push(packet);
                 }
-                feed.hold(session);
+                feed.hold(viewer(session));
                 if let Some(player) = self.players.get_mut(&session) {
                     player.set(picked.at.column, Some(ColumnState::Sent));
                 }
@@ -497,96 +568,18 @@ fn send_cache_view(
     }
 }
 
-/// Takes what the dimension `dim` published in one tick: the views of its players, then the
-/// versions of the columns, then the changes of the tick, which come after the versions.
-pub fn receive(
-    world: &mut World,
-    dim: Entity,
-    views: Vec<PlayerView>,
-    versions: Vec<ColumnVersion>,
-    changes: Vec<ColumnChange>,
-) {
-    if views.is_empty() && versions.is_empty() && changes.is_empty() {
-        return;
-    }
-    let mut out = Vec::new();
-    {
-        let mut column_views = world.get_resource_or_init::<ColumnViews>();
-        for view in views {
-            column_views.apply_view(dim, view, &mut out);
-        }
-        for version in versions {
-            column_views.take_version(dim, version);
-        }
-        for change in changes {
-            column_views.take_change(dim, change, &mut out);
-        }
-    }
-    for packet in out {
-        dim_outputs::deliver(world, packet);
-    }
+/// What a dimension published for the views in one tick.
+#[derive(Clone, Debug, Default)]
+pub struct DimColumns {
+    pub views: Vec<PlayerView>,
+    pub versions: Vec<ColumnVersion>,
+    pub changes: Vec<ColumnChange>,
 }
 
-/// The players whose session is placed in another dimension than the one that reported their
-/// view, so that no column of the old dimension reaches them after a respawn.
-fn blocked_sessions(world: &World, views: &ColumnViews) -> FxHashSet<PlayerSession> {
-    let Some(anchors) = world.get_resource::<SessionAnchors>() else {
-        return FxHashSet::default();
-    };
-    views
-        .players
-        .iter()
-        .filter(|(session, player)| {
-            anchors
-                .get(**session)
-                .and_then(|anchor| world.get::<SessionPlacement>(anchor))
-                .is_some_and(|placement| placement.place().dim() != Some(player.dim))
-        })
-        .map(|(session, _)| *session)
-        .collect()
-}
-
-/// Asks the dimensions for the columns the views want, and sends each player the next batch of
-/// the columns whose version is in. Every player that takes a version gets the same bytes.
-pub fn send(world: &mut World) {
-    let Some(mut views) = world.remove_resource::<ColumnViews>() else {
-        return;
-    };
-    let blocked = blocked_sessions(world, &views);
-    let mut nearest = Vec::new();
-    views.raise_queued(&blocked, &mut nearest);
-    let mut picked = Vec::new();
-    views.pick(&blocked, &mut picked);
-    let mut out = Vec::new();
-    views.send_batches(&picked, &mut out);
-    if let Some(mut inputs) = world.get_resource_mut::<DimInputs>() {
-        for (dim, requests) in views.requests.drain() {
-            inputs.send_column_requests(dim, requests);
-        }
-    } else {
-        views.requests.clear();
-    }
-    world.insert_resource(views);
-    for packet in out {
-        dim_outputs::deliver(world, packet);
-    }
-}
-
-/// The client has taken a batch.
-pub fn acknowledge_batch(
-    on: On<Received<ServerboundChunkBatchReceived>>,
-    connections: Query<&HostAnchorRef>,
-    sessions: Query<&Session>,
-    views: Option<ResMut<ColumnViews>>,
-) {
-    let (Some(ack), Some(mut views)) = (on.packet(), views) else {
-        return;
-    };
-    let Ok(&HostAnchorRef(anchor)) = connections.get(on.entity) else {
-        return;
-    };
-    if let Ok(&Session(session)) = sessions.get(anchor) {
-        views.acknowledge_batch(session, ack.desired_chunks_per_tick);
+impl DimColumns {
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.views.is_empty() && self.versions.is_empty() && self.changes.is_empty()
     }
 }
 
@@ -649,12 +642,8 @@ mod tests {
     }
 
     fn send(views: &mut ColumnViews) -> Vec<OutboundPlayerPacket> {
-        let blocked = FxHashSet::default();
-        views.raise_queued(&blocked, &mut Vec::new());
-        let mut picked = Vec::new();
-        views.pick(&blocked, &mut picked);
         let mut out = Vec::new();
-        views.send_batches(&picked, &mut out);
+        views.send(&FxHashSet::default(), &mut out);
         out
     }
 
@@ -788,6 +777,9 @@ mod tests {
 
         assert!(wants(&views, old).contains(&ColumnRequest::Drop(column)));
         assert!(wants(&views, new).contains(&ColumnRequest::Want(column)));
-        assert!(!views.holds(session, column), "the respawn drops what the client held");
+        assert!(
+            !views.holds(session, column),
+            "the respawn drops what the client held"
+        );
     }
 }

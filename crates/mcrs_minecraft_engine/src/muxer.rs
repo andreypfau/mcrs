@@ -10,7 +10,8 @@
 mod batch_pacing;
 pub mod bridge;
 pub mod bridge_queue;
-mod column_feed;
+pub mod column_view_link;
+pub mod column_view_stage;
 pub mod column_views;
 pub mod departure_routing;
 pub mod dim_inputs;

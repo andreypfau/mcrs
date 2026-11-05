@@ -31,6 +31,7 @@ use mcrs_minecraft_engine::bus::{
 use mcrs_minecraft_engine::channel_types::ToDim;
 use mcrs_minecraft_engine::coordinator::dim_cells::DimCells;
 use mcrs_minecraft_engine::game_profile::GameProfile;
+use mcrs_minecraft_engine::muxer::column_view_link;
 use mcrs_minecraft_engine::muxer::dim_inputs::DimInputs;
 use mcrs_minecraft_engine::muxer::entity_replication::{self, Answers};
 use mcrs_minecraft_engine::muxer::session::{HostAnchorRef, SessionBundle};
@@ -143,6 +144,7 @@ fn wait_for_steps(app: &mut App, label: Entity) {
 fn tick(app: &mut App, label: Entity) -> Vec<OutboundPlayerPacket> {
     app.update();
     runner::between_ticks(app);
+    column_view_link::deliver(app.world_mut(), Answers::All);
     entity_replication::deliver(app.world_mut(), Answers::All);
     let packets = app
         .world_mut()

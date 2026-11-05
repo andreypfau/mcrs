@@ -11,8 +11,9 @@ use bevy_ecs::prelude::With;
 use bevy_ecs::world::World;
 use bevy_math::DVec3;
 use mcrs_minecraft_block::definition::Blocks;
+use mcrs_minecraft_engine::muxer::column_view_link::ColumnViewLink;
 use mcrs_minecraft_engine::muxer::column_views::ColumnViews;
-use mcrs_minecraft_engine_server::runner;
+use mcrs_minecraft_engine_server::{Placement, runner};
 use mcrs_minecraft_engine_world::block_update::BlockSetRequest;
 use mcrs_minecraft_engine_world::entity::physics::Transform;
 use mcrs_minecraft_engine_world::entity::player::Player;
@@ -41,6 +42,8 @@ fn server() -> App {
     plugins.core.asset_path = Some(ASSETS.to_owned());
     plugins.network.announce_on_lan = false;
     plugins.worlds.seed = 4;
+    // Inline, so the test reads the views where the muxer serves them.
+    plugins.core.muxer = Placement::Inline;
     let mut app = App::new();
     app.add_plugins(plugins.build());
     app.finish();
@@ -74,9 +77,10 @@ fn tick_until_sent(
     let deadline = Instant::now() + PATIENCE;
     loop {
         check(dimension_world(app, label));
-        let mut views = app.world_mut().resource_mut::<ColumnViews>();
-        views.acknowledge_batch(session, 64.0);
-        if sent(&views) {
+        let mut link = app.world_mut().resource_mut::<ColumnViewLink>();
+        link.acknowledge_batch(session, 64.0);
+        let stage = link.inline_stage().expect("the views run inline");
+        if sent(stage.views()) {
             return;
         }
         assert!(Instant::now() < deadline, "{what} never happened");
