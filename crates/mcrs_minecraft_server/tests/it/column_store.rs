@@ -4,13 +4,16 @@
 
 use std::time::{Duration, Instant};
 
-use bevy_app::{App, PluginGroup};
+use bevy_app::{App, Last, PluginGroup};
 use bevy_ecs::entity::Entity;
-use bevy_ecs::message::Messages;
-use bevy_ecs::prelude::With;
+use bevy_ecs::message::{MessageReader, Messages};
+use bevy_ecs::prelude::{IntoScheduleConfigs, ResMut, Resource, With};
 use bevy_ecs::world::World;
 use bevy_math::DVec3;
 use mcrs_minecraft_block::definition::Blocks;
+use mcrs_minecraft_engine::bus::PacketPayload;
+use mcrs_minecraft_engine::column_change::ColumnChange;
+use mcrs_minecraft_engine::column_version::ColumnVersion;
 use mcrs_minecraft_engine::muxer::column_view_link::ColumnViewLink;
 use mcrs_minecraft_engine::muxer::column_views::ColumnViews;
 use mcrs_minecraft_engine_server::{Placement, runner};
@@ -20,19 +23,25 @@ use mcrs_minecraft_engine_world::entity::player::Player;
 use mcrs_minecraft_engine_world::entity::player::chunk_view::{PlayerViewDistance, SentChunkView};
 use mcrs_minecraft_engine_world::palette::ChunkBlocks;
 use mcrs_minecraft_engine_world::session::{Owner, PlayerSession};
-use mcrs_minecraft_engine_world::world::dimension::InDimension;
+use mcrs_minecraft_engine_world::world::dimension::{DimensionTypeConfig, InDimension};
 use mcrs_minecraft_engine_world::world::lifecycle::column_loading::LOADING_RINGS;
 use mcrs_minecraft_engine_world::world::lifecycle::simulation::SimulationDistance;
 use mcrs_minecraft_engine_world::world::lifecycle::stage::SectionStage;
 use mcrs_minecraft_engine_world::world::storage::column::ColumnIndex;
 use mcrs_minecraft_engine_world::world::storage::section::SectionIndex;
+use mcrs_minecraft_protocol::{Decode, VarInt};
+use mcrs_minecraft_protocol_game::chunk::LightData;
+use mcrs_minecraft_protocol_game::clientbound::ClientboundLevelChunkWithLight;
+use mcrs_minecraft_protocol_game::light_codec::{ColumnLight, RowLight, unpack_light_data};
 use mcrs_minecraft_server::MinecraftServerPlugins;
 use mcrs_minecraft_simulation::BlockUpdateFlags;
+use mcrs_minecraft_vanilla_light::emit_light_updates;
 use mcrs_minecraft_worldgen_generator::stages::FillContext;
 use mcrs_voxel::{BlockPos, BlockStateId, ColumnPos, SectionPos};
+use rustc_hash::FxHashMap;
 
 use crate::configuration_registries::ASSETS;
-use crate::host_app::{label_of, world as dimension_world};
+use crate::host_app::{self, label_of, world as dimension_world};
 
 const OVERWORLD: &str = "minecraft:overworld";
 const PATIENCE: Duration = Duration::from_secs(120);
@@ -298,5 +307,162 @@ fn a_view_wider_than_the_hot_area_is_sent_whole_and_loads_nothing_past_it() {
                 "a cold column was loaded instead of sent from the data layer"
             );
         },
+    );
+}
+
+/// What the dimension handed the muxer for the columns it subscribes to, in the order the
+/// muxer applies it.
+#[derive(Resource, Default)]
+struct Published(Vec<PublishedColumn>);
+
+enum PublishedColumn {
+    Version(ColumnVersion),
+    Light(ColumnPos, LightData<'static>),
+}
+
+fn capture_published(
+    mut versions: MessageReader<ColumnVersion>,
+    mut changes: MessageReader<ColumnChange>,
+    mut published: ResMut<Published>,
+) {
+    for version in versions.read() {
+        published.0.push(PublishedColumn::Version(version.clone()));
+    }
+    for change in changes.read() {
+        if let PacketPayload::LightUpdate(update) = &change.payload {
+            published.0.push(PublishedColumn::Light(
+                change.column,
+                update.light_data.clone(),
+            ));
+        }
+    }
+}
+
+fn light_rows(light: &ColumnLight) -> impl Iterator<Item = &RowLight> {
+    light.sky.iter().chain(&light.block)
+}
+
+/// Plays what the dimension published onto the light rows of every column it sent, as the
+/// clients hold them, and counts the light updates that changed no row.
+fn light_updates_changing_nothing(rows: usize, published: &[PublishedColumn]) -> usize {
+    let mut held: FxHashMap<ColumnPos, Vec<[u8; 2048]>> = FxHashMap::default();
+    let mut changing_nothing = 0;
+    for entry in published {
+        match entry {
+            PublishedColumn::Version(version) => {
+                let mut packet = &version.packet[..];
+                VarInt::decode(&mut packet).expect("the version starts with its packet id");
+                let chunk = ClientboundLevelChunkWithLight::decode(&mut packet)
+                    .expect("the version is a chunk packet");
+                let light = unpack_light_data(&chunk.light_data, rows).expect("the light unpacks");
+                let rows = light_rows(&light)
+                    .map(|row| match row {
+                        RowLight::Filled(chunk) => chunk.0,
+                        RowLight::Unchanged | RowLight::Empty => [0; 2048],
+                    })
+                    .collect();
+                held.insert(version.column, rows);
+            }
+            PublishedColumn::Light(column, data) => {
+                let update = unpack_light_data(data, rows).expect("the update unpacks");
+                let Some(held) = held.get_mut(column) else {
+                    continue;
+                };
+                let mut changed = false;
+                for (row, next) in held.iter_mut().zip(light_rows(&update)) {
+                    let next = match next {
+                        RowLight::Unchanged => continue,
+                        RowLight::Empty => [0; 2048],
+                        RowLight::Filled(chunk) => chunk.0,
+                    };
+                    changed |= *row != next;
+                    *row = next;
+                }
+                if !changed {
+                    changing_nothing += 1;
+                }
+            }
+        }
+    }
+    changing_nothing
+}
+
+#[test]
+fn a_column_that_turns_hot_sends_no_light_its_viewers_already_hold() {
+    let mut app = server();
+    let label = label_of(&app, OVERWORLD);
+    tick_until(&mut app, label, "the generation context loaded", |world| {
+        world.contains_resource::<FillContext>()
+    });
+    let sub_app = host_app::sub_app(&mut app, label);
+    sub_app.init_resource::<Published>();
+    sub_app.add_systems(Last, capture_published.after(emit_light_updates));
+    let world = dimension_world(&mut app, label);
+    world.insert_resource(SimulationDistance {
+        horizontal: 1,
+        vertical: u8::MAX,
+    });
+    let rows = world
+        .query::<&DimensionTypeConfig>()
+        .single(world)
+        .expect("the dimension's shape")
+        .section_count as usize
+        + 2;
+    let dimension = dimension_entity(world);
+    let session = PlayerSession(1);
+    let player = world
+        .spawn((
+            Player,
+            Transform::from_translation(DVec3::new(8.5, 100.0, 8.5)),
+            PlayerViewDistance {
+                distance: 5,
+                ..PlayerViewDistance::default()
+            },
+            SentChunkView::default(),
+            InDimension(dimension),
+            Owner(session),
+        ))
+        .id();
+    tick_until_sent(
+        &mut app,
+        label,
+        session,
+        "the whole view was sent",
+        |views| holds_whole_view(views, session),
+        |_| {},
+    );
+
+    // Each step moves a ring of columns that the view holds with the light of the data layer
+    // into the area that the dimension lights.
+    for step in 1..=4 {
+        dimension_world(&mut app, label)
+            .get_mut::<Transform>(player)
+            .expect("the player stands somewhere")
+            .translation
+            .x = 8.5 + 16.0 * f64::from(step);
+        tick_until_sent(
+            &mut app,
+            label,
+            session,
+            "the moved view was sent",
+            |views| holds_whole_view(views, session),
+            |_| {},
+        );
+        for _ in 0..40 {
+            app.update();
+            runner::between_ticks(&mut app);
+            runner::drain(&mut app);
+        }
+    }
+
+    let published = &dimension_world(&mut app, label).resource::<Published>().0;
+    let lit = published
+        .iter()
+        .filter(|entry| matches!(entry, PublishedColumn::Light(..)))
+        .count();
+    assert_eq!(
+        light_updates_changing_nothing(rows, published),
+        0,
+        "of {lit} light updates, some repeated the light that the viewers held"
     );
 }

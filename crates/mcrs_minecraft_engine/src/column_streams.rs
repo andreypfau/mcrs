@@ -4,10 +4,10 @@ use bevy_ecs::entity::Entity;
 use bevy_ecs::lifecycle::Discard;
 use bevy_ecs::message::{MessageReader, MessageWriter};
 use bevy_ecs::prelude::{
-    Added, Changed, Component, Has, Local, On, Or, Query, Ref, Resource, With, Without,
+    Added, Changed, Commands, Component, Has, Local, On, Or, Query, Ref, Resource, With, Without,
 };
 use bevy_ecs::schedule::{IntoScheduleConfigs, SystemSet};
-use bevy_ecs::system::{Res, ResMut};
+use bevy_ecs::system::{Res, ResMut, SystemParam};
 use bevy_tasks::{ComputeTaskPool, ParallelSliceMut};
 use bytes::Bytes;
 use mcrs_minecraft_block::definition::Blocks;
@@ -27,7 +27,7 @@ use mcrs_minecraft_engine_world::world::lifecycle::ticket::{ChunkSpawnSet, Secti
 use mcrs_minecraft_engine_world::world::lifecycle::trace as column_trace;
 use mcrs_minecraft_engine_world::world::lifecycle::trace::{ColumnStage, ColumnTraceLog};
 use mcrs_minecraft_engine_world::world::light_gate::{
-    ColumnAwaitsLight, ColumnLightGate, ColumnLightSettled, LightGated, SectionRelit,
+    ColumnAwaitsLight, ColumnLightGate, ColumnLightSettled, LightGated, SectionRelit, SentLight,
 };
 use mcrs_minecraft_engine_world::world::storage::column::{ColumnIndex, ColumnLifecycleSet};
 use mcrs_minecraft_engine_world::world::storage::section::SectionIndex;
@@ -158,6 +158,9 @@ pub struct ColumnStreams {
     pending: FxHashMap<ColumnPos, Pending>,
     /// The loading tickets of the columns published in the last tick, to let go of.
     released_tickets: Vec<ColumnPos>,
+    /// The columns whose version this tick took from the sections of the dimension, after the
+    /// light of the tick was written into them.
+    lit_this_tick: FxHashSet<ColumnPos>,
 }
 
 impl ColumnStreams {
@@ -174,6 +177,13 @@ impl ColumnStreams {
     #[must_use]
     pub fn is_subscribed(&self, column: ColumnPos) -> bool {
         self.subscribed.contains(&column)
+    }
+
+    /// Whether this tick published a version of `column` that holds the light that the tick
+    /// wrote, so that light is no change to the muxer.
+    #[must_use]
+    pub fn published_light_of_this_tick(&self, column: ColumnPos) -> bool {
+        self.lit_this_tick.contains(&column)
     }
 
     /// Whether the muxer waits on a version of `column`.
@@ -233,6 +243,7 @@ impl ColumnStreams {
 
 fn release_published_tickets(mut dims: Query<(&mut ColumnLoading, &mut ColumnStreams)>) {
     for (mut loading, mut streams) in &mut dims {
+        streams.lit_this_tick.clear();
         for column in streams.released_tickets.drain(..) {
             loading.remove_ticket(column);
         }
@@ -348,6 +359,7 @@ pub(crate) fn land_viewed_columns(
         &mut ColumnStreams,
         &mut ColumnLoading,
         &HotColumns,
+        &SectionIndex,
         Has<HasSkyLight>,
     )>,
     light_gated: Option<Res<LightGated>>,
@@ -355,6 +367,7 @@ pub(crate) fn land_viewed_columns(
     registries: Res<CurrentRegistries>,
     mut versions: MessageWriter<ColumnVersion>,
     mut changes: MessageWriter<ColumnChange>,
+    mut sent_lights: SentLights,
     mut taken: Local<Vec<ReadyColumn>>,
 ) {
     let Some(store) = store.as_deref_mut() else {
@@ -368,7 +381,7 @@ pub(crate) fn land_viewed_columns(
         delivery,
     } in store.take_viewed()
     {
-        let Ok((mut streams, mut loading, hot, has_sky_light)) = dims.get_mut(dim) else {
+        let Ok((mut streams, mut loading, hot, sections, has_sky_light)) = dims.get_mut(dim) else {
             continue;
         };
         if delivery == Delivery::Light {
@@ -376,6 +389,7 @@ pub(crate) fn land_viewed_columns(
                 && streams.state(column).is_none()
                 && !hot.lights(column);
             if held && light_gated.is_some() {
+                sent_lights.note(sections, column, &stored, Unkept::Keep);
                 changes.write(ColumnChange {
                     column,
                     priority: PacketPriority::High,
@@ -401,6 +415,7 @@ pub(crate) fn land_viewed_columns(
             continue;
         }
         streams.published(ViewSource::DataLayer, column);
+        sent_lights.note(sections, column, &stored, Unkept::Keep);
         taken.push(ReadyColumn {
             column,
             stored,
@@ -564,6 +579,55 @@ fn promote_lit_columns(
     }
 }
 
+/// The [`SentLight`] of the sections of a dimension, kept as the views get whole columns.
+#[derive(SystemParam)]
+pub(crate) struct SentLights<'w, 's> {
+    commands: Commands<'w, 's>,
+    sent: Query<'w, 's, &'static mut SentLight>,
+}
+
+/// What a whole column does to a section that keeps no [`SentLight`].
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Unkept {
+    /// The light of the column is not the light of the dimension, so the section keeps it.
+    Keep,
+    /// The light of the column is the light of the dimension, which sends every later change
+    /// of it, so the section needs none.
+    Skip,
+}
+
+impl SentLights<'_, '_> {
+    /// Keeps on each section of `column` that the dimension holds the light that the views get
+    /// with `stored`.
+    fn note(
+        &mut self,
+        sections: &SectionIndex,
+        column: ColumnPos,
+        stored: &StoredColumn,
+        unkept: Unkept,
+    ) {
+        for (y, section) in (stored.min_section_y..).zip(&stored.sections) {
+            let Some(entity) = sections.get(SectionPos::new(column.x, y, column.z)) else {
+                continue;
+            };
+            let block = section.block_light.as_ref().map(|light| light.0.clone());
+            let sky = section.sky_light.as_ref().map(|light| light.0.clone());
+            match self.sent.get_mut(entity) {
+                Ok(mut sent) => {
+                    sent.block = block;
+                    sent.sky = sky;
+                }
+                Err(_) if unkept == Unkept::Keep => {
+                    self.commands
+                        .entity(entity)
+                        .try_insert(SentLight { block, sky });
+                }
+                Err(_) => {}
+            }
+        }
+    }
+}
+
 /// A column taken from the sections of the dimension, and its packet once encoded.
 pub(crate) struct ReadyColumn {
     column: ColumnPos,
@@ -613,7 +677,12 @@ fn encode_ready(
     reason = "a system takes its params as arguments"
 )]
 fn publish_ready_columns(
-    mut dims: Query<(&ColumnIndex, &mut ColumnStreams, Has<HasSkyLight>)>,
+    mut dims: Query<(
+        &ColumnIndex,
+        &SectionIndex,
+        &mut ColumnStreams,
+        Has<HasSkyLight>,
+    )>,
     snapshots: ColumnSnapshots,
     light_gated: Option<Res<LightGated>>,
     store: Option<Res<ColumnStoreLink>>,
@@ -621,12 +690,13 @@ fn publish_ready_columns(
     registries: Res<CurrentRegistries>,
     mut versions: MessageWriter<ColumnVersion>,
     traces: Option<Res<ColumnTraceLog>>,
+    mut sent_lights: SentLights,
     mut ready: Local<Vec<ColumnPos>>,
     mut taken: Local<Vec<ReadyColumn>>,
 ) {
     let source = ViewSource::of(store.as_deref());
     let direct_bits = DirectBits::of(&blocks, &registries);
-    for (column_index, mut streams, has_sky_light) in &mut dims {
+    for (column_index, sections, mut streams, has_sky_light) in &mut dims {
         streams.in_state(Pending::Ready, &mut ready);
         for column in ready.drain(..) {
             let stored = column_index
@@ -649,6 +719,8 @@ fn publish_ready_columns(
                 continue;
             };
             column_trace::mark(traces.as_deref(), column, ColumnStage::Sent);
+            sent_lights.note(sections, column, &stored, Unkept::Skip);
+            streams.lit_this_tick.insert(column);
             streams.published(source, column);
             taken.push(ReadyColumn {
                 column,

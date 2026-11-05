@@ -6,6 +6,7 @@ use bevy_app::{App, FixedUpdate, Last, Plugin};
 use bevy_ecs::prelude::*;
 use bevy_ecs::schedule::ScheduleLabel;
 use mcrs_engine_link::Placement;
+use mcrs_minecraft_chunk::{BlockLight, LightLayer, SkyLight};
 use mcrs_minecraft_engine::column_change::ColumnChange;
 use mcrs_minecraft_engine::column_production::ColumnProduction;
 use mcrs_minecraft_engine::column_streams::ColumnStreams;
@@ -19,7 +20,7 @@ use mcrs_minecraft_engine_world::tick::TickSet;
 use mcrs_minecraft_engine_world::world::dimension::InDimension;
 use mcrs_minecraft_engine_world::world::lifecycle::stage::SectionStageChanged;
 use mcrs_minecraft_engine_world::world::light_gate::{
-    ColumnAwaitsLight, ColumnLightGate, LightGated, SectionRelit,
+    ColumnAwaitsLight, ColumnLightGate, LightGated, SectionRelit, SentLight,
 };
 use mcrs_minecraft_engine_world::world::storage::column::{ColumnIndex, ColumnPosComponent};
 use mcrs_minecraft_light_engine::block::LightRegistry;
@@ -186,10 +187,12 @@ fn feed_column_surfaces(
 /// changed, for a column that the muxer subscribes to.
 ///
 /// A column at the outer ring of a hot area is lit here without its outer neighbours, so its
-/// light goes out from the data layer and not from here.
+/// light goes out from the data layer and not from here. A row whose light is the
+/// [`SentLight`] that the clients hold is no change to them.
 pub fn emit_light_updates(
     mut relit: MessageReader<SectionRelit>,
     sections: Query<(&SectionPos, &InDimension)>,
+    mut lit: Query<(&BlockLight, &SkyLight, Option<&mut SentLight>)>,
     column_indices: Query<(&ColumnIndex, &ColumnStreams, Option<&HotColumns>)>,
     codec_params: LightCodecParams,
     mut changes: MessageWriter<ColumnChange>,
@@ -210,18 +213,24 @@ pub fn emit_light_updates(
         }
     }
 
-    for ((dim, column_pos), (block_rows, sky_rows)) in by_column.drain() {
+    for ((dim, column_pos), (mut block_rows, mut sky_rows)) in by_column.drain() {
         let Some(column_entity) = column_indices
             .get(dim)
             .ok()
             .filter(|(_, streams, hot)| {
                 streams.is_subscribed(column_pos)
+                    && !streams.published_light_of_this_tick(column_pos)
                     && hot.is_none_or(|hot| !hot.is_outer_ring(column_pos))
             })
             .and_then(|(index, ..)| index.0.get(&column_pos).map(|slot| slot.entity))
         else {
             continue;
         };
+        block_rows.retain(|&section| note_sent(&mut lit, section, LightLayer::Block));
+        sky_rows.retain(|&section| note_sent(&mut lit, section, LightLayer::Sky));
+        if block_rows.is_empty() && sky_rows.is_empty() {
+            continue;
+        }
         changes.write(ColumnChange {
             column: column_pos,
             // A column's light is sent in full exactly once, so a shed delta is
@@ -239,4 +248,25 @@ pub fn emit_light_updates(
             }),
         });
     }
+}
+
+/// Whether the clients holding `section` lack its current `layer`, which they hold once this
+/// returns. A section with no [`SentLight`] went out with no light to compare with.
+fn note_sent(
+    lit: &mut Query<(&BlockLight, &SkyLight, Option<&mut SentLight>)>,
+    section: Entity,
+    layer: LightLayer,
+) -> bool {
+    let Ok((block, sky, Some(mut sent))) = lit.get_mut(section) else {
+        return true;
+    };
+    let (now, held) = match layer {
+        LightLayer::Block => (&block.0, &mut sent.block),
+        LightLayer::Sky => (&sky.0, &mut sent.sky),
+    };
+    if held.as_ref() == Some(now) {
+        return false;
+    }
+    *held = Some(now.clone());
+    true
 }

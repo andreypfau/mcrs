@@ -6,11 +6,13 @@ use mcrs_minecraft_engine_world::world::dimension::InDimension;
 use mcrs_minecraft_engine_world::world::lifecycle::stage::{
     SectionStage, SectionStageChanged, SectionStages,
 };
+use mcrs_minecraft_engine_world::world::light_gate::SentLight;
 use mcrs_minecraft_engine_world::world::storage::block_entity::spawn_block_entities;
 use mcrs_voxel::{ColumnPos, SectionPos};
 
 use crate::column_asks::ColumnOrigin;
 use crate::column_store::{ColumnRead, ColumnStoreLink, FetchedColumn, Produced, ReadFrom};
+use crate::column_streams::ColumnStreams;
 use crate::column_ticks::LandedTicks;
 use crate::heightmap::PendingColumnHeightmaps;
 use crate::stored_column::{StoredColumn, StoredSection};
@@ -46,11 +48,16 @@ pub(crate) fn fetch_loading_columns(
 
 /// Lands each answer of the data layer: in the sections that wait to take the column back, and
 /// in the answers that the production of cold columns waits on.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "a Bevy system: each resource and query is its own parameter so the scheduler sees the access"
+)]
 pub(crate) fn land_stored_columns(
     mut store: ResMut<ColumnStoreLink>,
     mut stages: SectionStages,
     positions: Query<&SectionPos>,
     mut pending_heightmaps: ResMut<PendingColumnHeightmaps>,
+    streams: Query<&ColumnStreams>,
     mut commands: Commands,
     mut answers: Local<Vec<StoreOutput<ColumnPos, StoredColumn>>>,
     mut landed_ticks: Option<ResMut<LandedTicks>>,
@@ -99,6 +106,10 @@ pub(crate) fn land_stored_columns(
                     column,
                     sections: &read.sections,
                     from: read.from,
+                    held: match streams.get(read.dim) {
+                        Ok(streams) if streams.is_subscribed(column) => Held::ByViews,
+                        _ => Held::ByNone,
+                    },
                 };
                 land_column(
                     landing,
@@ -148,12 +159,20 @@ struct Landing<'a> {
     column: ColumnPos,
     sections: &'a [Entity],
     from: ReadFrom,
+    held: Held,
+}
+
+/// Whether views hold the column that lands, with the light that the data layer stored.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Held {
+    ByViews,
+    ByNone,
 }
 
 /// Puts the blocks of `stored` into the sections that wait for them, with its block entities,
-/// heightmaps and scheduled ticks. The light stays behind: the data layer may light the version
-/// again at any time, so the dimension lights the sections itself, and what it simulates does
-/// not depend on when that happened.
+/// heightmaps and scheduled ticks. The dimension lights the sections itself, since the data layer
+/// may light the version again at any time and what the dimension simulates must not depend on
+/// when that happened. The stored light stays only as the [`SentLight`] of the views that hold it.
 fn land_column(
     landing: Landing<'_>,
     stored: StoredColumn,
@@ -191,6 +210,14 @@ fn land_column(
         };
         let mut entity = commands.entity(section);
         entity.try_insert((content.blocks, content.biomes));
+        if landing.held == Held::ByViews
+            && (content.block_light.is_some() || content.sky_light.is_some())
+        {
+            entity.try_insert(SentLight {
+                block: content.block_light.map(|light| light.0),
+                sky: content.sky_light.map(|light| light.0),
+            });
+        }
         if landing.from == ReadFrom::Store {
             entity.try_insert(TakenFromStore);
         }
