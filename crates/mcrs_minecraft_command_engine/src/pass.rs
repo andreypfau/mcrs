@@ -52,14 +52,6 @@ type PlayerRow = (
     &'static PlayerGameMode,
 );
 
-/// Where a run of a chain starts.
-enum Start {
-    /// At the first stage, for the source of the line.
-    Line(SourceState),
-    /// Where another world left it.
-    Handoff(Resume<SourceState>),
-}
-
 /// Whether this world has commands to run in this tick.
 pub(crate) fn commands_pending(
     queue: Res<CommandQueue>,
@@ -199,7 +191,12 @@ impl Run<'_> {
             return event.line;
         }
         let CommandEvent { source, line, .. } = event;
-        self.chain(player, line, source.clone(), Start::Line(source))
+        let start = Resume {
+            stage: 0,
+            sources: vec![source.clone()],
+            cost: 0,
+        };
+        self.chain(player, line, source, start)
     }
 
     /// Runs on the part of a run that another world handed over.
@@ -217,11 +214,11 @@ impl Run<'_> {
         let Some(origin) = parsed else {
             return;
         };
-        let start = Start::Handoff(Resume {
+        let start = Resume {
             stage,
             sources,
             cost,
-        });
+        };
         self.chain(output, line, origin, start);
     }
 
@@ -232,7 +229,7 @@ impl Run<'_> {
         output: PlayerSession,
         line: String,
         origin: SourceState,
-        start: Start,
+        start: Resume<SourceState>,
     ) -> String {
         let Some(mut running) = self.world.get_resource_mut::<RunningCommand>() else {
             return line;
@@ -241,24 +238,15 @@ impl Run<'_> {
         self.stages.clear();
         self.stages.extend_from_slice(running.chain.stages());
         self.deferred.clear();
-        let (first, spent) = match &start {
-            Start::Line(_) => (0, 0),
-            Start::Handoff(resume) => (resume.stage, resume.cost),
-        };
+        let first = start.stage;
+        let spent = start.cost;
         let mut executor = DimExecutor {
             world: self.world,
             here: self.here,
             output,
             deferred: self.deferred,
         };
-        let end = match start {
-            Start::Line(source) => {
-                mcrs_command::execute(self.stages, source, self.limits, &mut executor, self.lists)
-            }
-            Start::Handoff(resume) => {
-                mcrs_command::resume(self.stages, resume, self.limits, &mut executor, self.lists)
-            }
-        };
+        let end = mcrs_command::resume(self.stages, start, self.limits, &mut executor, self.lists);
         if end == End::SequenceLimit {
             tracing::info!(
                 "a command stopped at the limit of {} stages and runs",
@@ -325,7 +313,7 @@ fn collect_targets(world: &mut World, buffers: &mut PassBuffers, here: Entity) {
         .players
         .get_or_insert_with(|| world.query_filtered::<PlayerRow, With<Player>>());
     let requests = world.get_resource::<DepartureRequests>();
-    let mut filled = 0;
+    targets.players.clear();
     for (entity, &Owner(session), profile, transform, mode) in players.iter(world) {
         let dimension = requests
             .and_then(|requests| requests.destination(entity))
@@ -339,69 +327,36 @@ fn collect_targets(world: &mut World, buffers: &mut PassBuffers, here: Entity) {
         let Some(dimension) = dimension else {
             continue;
         };
-        reuse(
-            &mut targets.players,
-            filled,
-            PlayerEntry {
-                session,
-                dimension,
-                entity: Some(entity),
-                uuid: profile.id,
-                name: String::new(),
-                transform: *transform,
-                mode: mode.0,
-                list_order: session.0,
-            },
-            &profile.username,
-        );
-        filled += 1;
+        targets.players.push(PlayerEntry {
+            session,
+            dimension,
+            entity: Some(entity),
+            uuid: profile.id,
+            name: profile.username.clone(),
+            transform: *transform,
+            mode: mode.0,
+            list_order: session.0,
+        });
     }
     if let Some(foreign) = world.get_resource::<ForeignPlayers>() {
         for row in foreign.rows() {
             let Some(dimension) = targets.dimension_of(row.dim) else {
                 continue;
             };
-            reuse(
-                &mut targets.players,
-                filled,
-                PlayerEntry {
-                    session: row.session,
-                    dimension,
-                    entity: None,
-                    uuid: row.uuid,
-                    name: String::new(),
-                    transform: row.transform,
-                    mode: row.mode,
-                    list_order: row.session.0,
-                },
-                &row.name,
-            );
-            filled += 1;
+            targets.players.push(PlayerEntry {
+                session: row.session,
+                dimension,
+                entity: None,
+                uuid: row.uuid,
+                name: row.name.clone(),
+                transform: row.transform,
+                mode: row.mode,
+                list_order: row.session.0,
+            });
         }
     }
-    targets.players.truncate(filled);
     targets.index_players();
     world.insert_resource(targets);
-}
-
-/// Writes `entry` with `name` at `index` of `players`, in the name buffer of the entry that was
-/// there.
-fn reuse(players: &mut Vec<PlayerEntry>, index: usize, entry: PlayerEntry, name: &str) {
-    match players.get_mut(index) {
-        Some(reused) => {
-            let mut buffer = std::mem::take(&mut reused.name);
-            buffer.clear();
-            buffer.push_str(name);
-            *reused = PlayerEntry {
-                name: buffer,
-                ..entry
-            };
-        }
-        None => players.push(PlayerEntry {
-            name: name.to_owned(),
-            ..entry
-        }),
-    }
 }
 
 /// The running dimensions in the dimension order, with the scale of each dimension type.
