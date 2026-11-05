@@ -1,8 +1,8 @@
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::MessageReader;
-use bevy_ecs::prelude::{Commands, Component, Local, ParamSet, Query, ResMut};
+use bevy_ecs::prelude::{Commands, Component, Local, ParamSet, Query, ResMut, Single, With};
 use mcrs_engine_store::{ChunkVersion, StoreOutput};
-use mcrs_minecraft_engine_world::world::dimension::InDimension;
+use mcrs_minecraft_engine_world::world::dimension::{Dimension, InDimension};
 use mcrs_minecraft_engine_world::world::lifecycle::stage::{
     SectionStage, SectionStageChanged, SectionStages,
 };
@@ -40,13 +40,18 @@ pub(crate) fn fetch_loading_columns(
             continue;
         }
         stages.set(change.section, SectionStage::Fetching);
-        store.take(change.dim, column, change.section);
+        store.take(column, change.section);
     }
 }
 
 /// Lands each answer of the data layer: in the sections that wait to take the column back, and
 /// in the answers that the production of cold columns waits on.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "a Bevy system: each resource and query is its own parameter so the scheduler sees the access"
+)]
 pub(crate) fn land_stored_columns(
+    dim: Single<Entity, With<Dimension>>,
     mut store: ResMut<ColumnStoreLink>,
     mut stages: SectionStages,
     positions: Query<&SectionPos>,
@@ -95,7 +100,7 @@ pub(crate) fn land_stored_columns(
                     Produced::No => None,
                 };
                 let landing = Landing {
-                    dim: read.dim,
+                    dim: *dim,
                     column,
                     sections: &read.sections,
                     from: read.from,

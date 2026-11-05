@@ -1,7 +1,6 @@
 use std::mem;
 use std::vec;
 
-use bevy_ecs::entity::Entity;
 use bevy_ecs::prelude::Resource;
 use mcrs_engine_store::{ChunkVersion, StoreOutput, VersionedChunk};
 use mcrs_minecraft_engine_world::entity::player::chunk_view::ChunkTrackingView;
@@ -18,7 +17,7 @@ use crate::column_light::ColumnLight;
 use crate::column_snapshot::ColumnSnapshots;
 use crate::column_store::{ColumnStoreLink, Delivery, ReadFrom, ViewedColumn};
 use crate::stored_column::{LitBy, StoredColumn};
-use crate::wanted_column::{Ask, Changed, Content, Fetch, Source, Wanted};
+use crate::wanted_column::{Ask, Changed, Content, Source, Wanted};
 
 /// The stages in cold space: the data layer generates and lights each column that a view waits
 /// on and that the dimension does not light, and hands the final column to the view.
@@ -39,7 +38,7 @@ use crate::wanted_column::{Ask, Changed, Content, Fetch, Source, Wanted};
 pub struct ColumnProduction {
     wanted: FxHashMap<ColumnPos, Wanted>,
     /// The columns whose content is on its way, and where from.
-    fetching: FxHashMap<ColumnPos, Fetch>,
+    fetching: FxHashMap<ColumnPos, Source>,
     /// The columns whose blocks the light stage of cold space holds.
     lit_world: FxHashSet<ColumnPos>,
     light_edits: Vec<ColdLightEdit>,
@@ -102,25 +101,24 @@ impl ColumnProduction {
         self.halo_changes.extend(changes);
     }
 
-    /// Produces `column` for the views of `dim` that wait on it, once for all of them.
-    pub(crate) fn want(&mut self, dim: Entity, column: ColumnPos, store: &ColumnStoreLink) {
+    /// Produces `column` for the views that wait on it, once for all of them.
+    pub(crate) fn want(&mut self, column: ColumnPos, store: &ColumnStoreLink) {
         self.wanted
             .entry(column)
-            .or_insert_with(|| Wanted::new(dim, Delivery::Version, store.last_written(column)))
+            .or_insert_with(|| Wanted::new(Delivery::Version, store.last_written(column)))
             .delivery = Delivery::Version;
     }
 
     /// Lights `column`, which views hold, again and hands its light to them.
-    fn relight(&mut self, dim: Entity, column: ColumnPos, store: &ColumnStoreLink) {
+    fn relight(&mut self, column: ColumnPos, store: &ColumnStoreLink) {
         self.wanted
             .entry(column)
-            .or_insert_with(|| Wanted::new(dim, Delivery::Light, store.last_written(column)));
+            .or_insert_with(|| Wanted::new(Delivery::Light, store.last_written(column)));
     }
 
     /// Sends `column` on its way from the dimension, the data layer or generation.
     fn fetch(
         &mut self,
-        dim: Entity,
         column: ColumnPos,
         loading: Option<&ColumnLoading>,
         store: &mut ColumnStoreLink,
@@ -131,15 +129,15 @@ impl ColumnProduction {
         let source = if loading.is_some_and(|loading| loading.is_column_loaded(column)) {
             Source::Dimension
         } else if store.origin(column) != ColumnOrigin::Generation {
-            store.fetch(dim, column);
+            store.fetch(column);
             Source::DataLayer(ChunkVersion::default())
         } else {
             if store.generates() {
-                store.fetch(dim, column);
+                store.fetch(column);
             }
             Source::Generation
         };
-        self.fetching.insert(column, Fetch { dim, source });
+        self.fetching.insert(column, source);
     }
 
     /// Takes in the content of `column`: into the light stage, and into the wanted column.
@@ -259,7 +257,6 @@ impl ColumnProduction {
             );
         }
         store.viewed.push(ViewedColumn {
-            dim: wanted.dim,
             column,
             stored,
             delivery: wanted.delivery,
@@ -306,7 +303,7 @@ impl ColumnProduction {
                         if let Some(held) = held
                             && held.lit_by_data_layer(near)
                         {
-                            self.relight(held.dim, near, store);
+                            self.relight(near, store);
                         }
                     }
                 }
@@ -319,10 +316,11 @@ impl ColumnProduction {
     pub(crate) fn take_store_answers(&mut self, store: &mut ColumnStoreLink, lights: Lights) {
         for fetched in store.take_fetched() {
             let column = fetched.column;
-            let Some(fetch) = self.fetching.get(&column).copied() else {
-                continue;
-            };
-            if fetch.source == Source::Dimension {
+            if self
+                .fetching
+                .get(&column)
+                .is_none_or(|source| *source == Source::Dimension)
+            {
                 continue;
             }
             match (fetched.answer, fetched.from) {
@@ -358,19 +356,16 @@ impl ColumnProduction {
         pending.extend(
             self.fetching
                 .iter()
-                .filter(|(_, fetch)| fetch.source == Source::Dimension)
+                .filter(|(_, source)| **source == Source::Dimension)
                 .map(|(column, _)| *column),
         );
         pending.sort_unstable();
         for column in pending.drain(..) {
-            let Some(fetch) = self.fetching.get(&column).copied() else {
-                continue;
-            };
             let Some((_, index, _)) =
                 dim_row.filter(|(loading, ..)| loading.is_column_loaded(column))
             else {
                 self.fetching.remove(&column);
-                self.fetch(fetch.dim, column, None, store);
+                self.fetch(column, None, store);
                 continue;
             };
             if let Some(stored) = index
@@ -422,9 +417,8 @@ impl ColumnProduction {
             let Some(wanted) = self.wanted.get(&column) else {
                 continue;
             };
-            let dim = wanted.dim;
             let Some(content) = &wanted.content else {
-                self.fetch(dim, column, loading, store);
+                self.fetch(column, loading, store);
                 continue;
             };
             if wanted.light != Ask::NotAsked {
@@ -440,7 +434,7 @@ impl ColumnProduction {
             for neighbour in column.square(1) {
                 if !self.lit_world.contains(&neighbour) {
                     ring_held = false;
-                    self.fetch(dim, neighbour, loading, store);
+                    self.fetch(neighbour, loading, store);
                 }
             }
             if ring_held && let Some(wanted) = self.wanted.get_mut(&column) {

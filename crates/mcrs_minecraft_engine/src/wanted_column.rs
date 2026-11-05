@@ -1,4 +1,3 @@
-use bevy_ecs::entity::Entity;
 use mcrs_engine_store::ChunkVersion;
 
 use crate::column_store::Delivery;
@@ -6,7 +5,6 @@ use crate::stored_column::StoredColumn;
 
 /// A column that a view waits on, or a column that views hold and whose light is lit again.
 pub(crate) struct Wanted {
-    pub(crate) dim: Entity,
     pub(crate) delivery: Delivery,
     pub(crate) content: Option<Content>,
     pub(crate) light: Ask,
@@ -33,12 +31,6 @@ pub(crate) enum Source {
     Generation,
 }
 
-#[derive(Clone, Copy, Debug)]
-pub(crate) struct Fetch {
-    pub(crate) dim: Entity,
-    pub(crate) source: Source,
-}
-
 /// Whether the light stage owes a wanted column its light.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Ask {
@@ -53,9 +45,8 @@ pub(crate) enum Changed {
 }
 
 impl Wanted {
-    pub(crate) fn new(dim: Entity, delivery: Delivery, written: Option<ChunkVersion>) -> Self {
+    pub(crate) fn new(delivery: Delivery, written: Option<ChunkVersion>) -> Self {
         Self {
-            dim,
             delivery,
             content: None,
             light: Ask::NotAsked,

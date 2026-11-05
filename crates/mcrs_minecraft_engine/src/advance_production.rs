@@ -1,4 +1,3 @@
-use bevy_ecs::entity::Entity;
 use bevy_ecs::message::MessageReader;
 use bevy_ecs::prelude::{Local, Query, Res, ResMut};
 use mcrs_minecraft_engine_world::block_update::BlockPlaced;
@@ -18,7 +17,6 @@ use crate::foreign_views::ForeignViews;
 /// The columns that the views of the muxer hold from a dimension.
 #[derive(Clone, Copy)]
 pub(crate) struct HeldColumns<'a> {
-    pub(crate) dim: Entity,
     pub(crate) streams: &'a ColumnStreams,
     pub(crate) loading: &'a ColumnLoading,
 }
@@ -41,7 +39,7 @@ pub(crate) fn advance_production(
     mut production: ResMut<ColumnProduction>,
     mut store: ResMut<ColumnStoreLink>,
     dims: Query<(&ColumnLoading, &ColumnIndex, &DimensionTypeConfig)>,
-    held: Query<(Entity, &ColumnStreams, &ColumnLoading)>,
+    held: Query<(&ColumnStreams, &ColumnLoading)>,
     snapshots: ColumnSnapshots,
     sent_views: Query<&SentChunkView>,
     foreign_views: Option<Res<ForeignViews>>,
@@ -63,11 +61,7 @@ pub(crate) fn advance_production(
     let held = held
         .iter()
         .next()
-        .map(|(dim, streams, loading)| HeldColumns {
-            dim,
-            streams,
-            loading,
-        });
+        .map(|(streams, loading)| HeldColumns { streams, loading });
     // A halo change that the dimension applied comes again as a placed block, and a block set
     // to the state it holds changes nothing.
     let halo_changes = production.take_halo_changes();

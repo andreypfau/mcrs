@@ -57,9 +57,10 @@ fn light_one_column(app: &mut App, label: Entity, stone_floor: bool) {
         .expect("the dimension's shape");
     let min_section = config.min_y >> 4;
     let rows = min_section..min_section + config.section_count as i32;
-    let sections = ColumnPos::new(0, 0)
-        .square(1)
-        .flat_map(|column| rows.clone().map(move |y| SectionPos::new(column.x, y, column.z)));
+    let sections = ColumnPos::new(0, 0).square(1).flat_map(|column| {
+        rows.clone()
+            .map(move |y| SectionPos::new(column.x, y, column.z))
+    });
     for pos in sections {
         let solid = stone_floor && pos.y == STONE_SECTION_Y;
         let section = world

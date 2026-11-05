@@ -1,6 +1,5 @@
 use bevy_app::{App, FixedUpdate, Plugin};
 use bevy_ecs::change_detection::DetectChanges;
-use bevy_ecs::entity::Entity;
 use bevy_ecs::lifecycle::Discard;
 use bevy_ecs::message::{MessageReader, MessageWriter};
 use bevy_ecs::prelude::{
@@ -306,7 +305,7 @@ fn light_change(column: ColumnPos, light_data: LightData<'static>) -> ColumnChan
 )]
 pub(crate) fn land_viewed_columns(
     mut store: ResMut<ColumnStoreLink>,
-    mut dims: Query<(&mut ColumnStreams, &ColumnLoading, Has<HasSkyLight>)>,
+    dims: Single<(&mut ColumnStreams, &ColumnLoading, Has<HasSkyLight>)>,
     light_gated: Option<Res<LightGated>>,
     blocks: Res<Blocks>,
     registries: Res<CurrentRegistries>,
@@ -315,16 +314,13 @@ pub(crate) fn land_viewed_columns(
     mut taken: Local<Vec<ReadyColumn>>,
 ) {
     let direct_bits = DirectBits::of(&blocks, &registries);
+    let (mut streams, loading, has_sky_light) = dims.into_inner();
     for ViewedColumn {
-        dim,
         column,
         stored,
         delivery,
     } in store.take_viewed()
     {
-        let Ok((mut streams, loading, has_sky_light)) = dims.get_mut(dim) else {
-            continue;
-        };
         match delivery {
             Delivery::Light => {
                 // The dimension sends the light of a column that it lights.
@@ -389,12 +385,12 @@ fn requeue_unlit_columns(
 /// Starts the work of each wanted column: the dimension waits for a column that it lights,
 /// and the data layer makes the others.
 fn raise_wanted_columns(
-    mut dims: Query<(Entity, &mut ColumnStreams, &ColumnLoading)>,
+    mut dims: Query<(&mut ColumnStreams, &ColumnLoading)>,
     store: Res<ColumnStoreLink>,
     mut production: ResMut<ColumnProduction>,
     mut queued: Local<Vec<ColumnPos>>,
 ) {
-    for (dim, mut streams, loading) in &mut dims {
+    for (mut streams, loading) in &mut dims {
         streams.in_state(Pending::Queued, &mut queued);
         for column in queued.drain(..) {
             if loading.lights(column) {
@@ -402,7 +398,7 @@ fn raise_wanted_columns(
                 streams.awaited.push(column);
             } else {
                 streams.set(column, Pending::Fetching);
-                production.want(dim, column, &store);
+                production.want(column, &store);
             }
         }
     }

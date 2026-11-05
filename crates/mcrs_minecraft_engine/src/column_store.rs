@@ -98,7 +98,6 @@ enum Generation {
 }
 
 pub(crate) struct ColumnRead {
-    pub(crate) dim: Entity,
     /// The sections of the dimension that wait to take the column back.
     pub(crate) sections: Vec<Entity>,
     pub(crate) produced: Produced,
@@ -126,7 +125,6 @@ pub(crate) enum Produced {
 /// A final cold column for the views: a version that they wait on, or the new light of a
 /// column that they hold.
 pub(crate) struct ViewedColumn {
-    pub(crate) dim: Entity,
     pub(crate) column: ColumnPos,
     pub(crate) stored: StoredColumn,
     pub(crate) delivery: Delivery,
@@ -371,7 +369,7 @@ impl ColumnStoreLink {
     /// The read of `column`, sent to its owner when the owner holds it hot, to the generation of
     /// the world when no cell wrote it and the cell generates through its world, and to the data
     /// layer otherwise.
-    fn read(&mut self, dim: Entity, column: ColumnPos) -> &mut ColumnRead {
+    fn read(&mut self, column: ColumnPos) -> &mut ColumnRead {
         let origin = self.origin(column);
         self.reads.entry(column).or_insert_with(|| {
             let from = match (self.owned, origin, self.generation) {
@@ -392,7 +390,6 @@ impl ColumnStoreLink {
                 }
             };
             ColumnRead {
-                dim,
                 sections: Vec::new(),
                 produced: Produced::No,
                 at_least: ChunkVersion::default(),
@@ -402,13 +399,13 @@ impl ColumnStoreLink {
     }
 
     /// Asks for `column` on behalf of `section`, once for all that wait on it.
-    pub(crate) fn take(&mut self, dim: Entity, column: ColumnPos, section: Entity) {
-        self.read(dim, column).sections.push(section);
+    pub(crate) fn take(&mut self, column: ColumnPos, section: Entity) {
+        self.read(column).sections.push(section);
     }
 
     /// Asks for `column` on behalf of the production of cold columns.
-    pub(crate) fn fetch(&mut self, dim: Entity, column: ColumnPos) {
-        self.read(dim, column).produced = Produced::Yes;
+    pub(crate) fn fetch(&mut self, column: ColumnPos) {
+        self.read(column).produced = Produced::Yes;
     }
 
     pub(crate) fn outputs(&mut self) -> vec::Drain<'_, ColumnStoreOutput> {
