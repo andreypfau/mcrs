@@ -64,6 +64,7 @@ mcrs_minecraft_environment = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_chunk = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_heightmap = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_simulation.workspace = true
+mcrs_minecraft_random.workspace = true
 mcrs_minecraft_entity.workspace = true
 mcrs_minecraft_nbt.workspace = true
 rustc-hash.workspace = true

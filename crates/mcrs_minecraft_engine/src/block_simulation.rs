@@ -4,8 +4,10 @@
 //! The order of one tick is the order of vanilla. At the sync point, the halo takes the changes
 //! of the owners, the ticks of the columns that landed join the queues, and the messages of the
 //! other cells and then the block writes of the tick apply. Then the scheduled block ticks run,
-//! then the scheduled fluid ticks, then the block events. Neighbour and shape updates run inside
-//! the phase that causes them.
+//! then the scheduled fluid ticks, then the random ticks, then the block events. Neighbour and
+//! shape updates run inside the phase that causes them. The block events that a block took go to
+//! the clients that hold its column, and the items of a destroyed block go out as
+//! [`ItemDropped`].
 
 use std::mem;
 
@@ -17,6 +19,7 @@ use bevy_ecs::resource::Resource;
 use bevy_ecs::schedule::IntoScheduleConfigs;
 use bevy_ecs::system::{Res, ResMut, SystemParam};
 use mcrs_minecraft_block::definition::Blocks;
+use mcrs_minecraft_dimension::Dimension as DimensionKey;
 use mcrs_minecraft_engine_world::block_update::{BlockPlaced, BlockSetRequest};
 use mcrs_minecraft_engine_world::owned_columns::{self, OwnedColumns};
 use mcrs_minecraft_engine_world::tick::TickSet;
@@ -24,22 +27,30 @@ use mcrs_minecraft_engine_world::voxel_update::{
     self, CellBlockWrite, ForeignBlockWrites, HaloBlockChanges, VoxelUpdateSet,
 };
 use mcrs_minecraft_engine_world::world::dimension::Dimension;
-use mcrs_minecraft_engine_world::world::lifecycle::simulation::BlockTicking;
+use mcrs_minecraft_engine_world::world::lifecycle::simulation::{BlockTicking, EntityTicking};
 use mcrs_minecraft_engine_world::world::storage::view::WorldViewMut;
+use mcrs_minecraft_item::ItemStack;
+use mcrs_minecraft_resource::ResourceKeyBuf;
 use mcrs_minecraft_simulation::{
     BlockBehaviour, BlockShard, ChainLedger, ChainOrigin, Env, GameTick, KernelConfig, Message,
-    MessageBody, PartitionKind, Phase, PhaseInput, SavedTick, SectionProperties, SectionTicksRef,
-    ShardId, SimulatedSections, StepAt, StepOutput, StepReport, SubTick, TickKind, TickQueue,
-    VanillaOrder,
+    MessageBody, PartitionKind, Phase, PhaseInput, RandomPicks, RandomTickTable, SavedTick,
+    SectionProperties, SectionTicksRef, ShardId, SimulatedSections, StepAt, StepOutput, StepReport,
+    StreamSeed, SubTick, TickKind, TickQueue, VanillaOrder,
 };
 use mcrs_minecraft_volume::{Access, Volume};
 use mcrs_voxel::{ColumnPos, SectionPos};
 use rustc_hash::FxHashSet;
 
+use crate::block_drops::{self, BlockDrops, ItemDropped};
+use crate::block_events;
 use crate::cell_volume::CellVolume;
+use crate::column_change::ColumnChange;
+use crate::column_streams::ColumnStreams;
 use crate::column_ticks::{ColumnTicks, LandedTicks, StoredTick};
 use crate::coordinator::clock::GameTime;
+use crate::random_tick_speed::RandomTickSpeed;
 use crate::world_kinds::{WorldFacts, WorldKinds};
+use crate::world_seed::WorldSeed;
 
 /// Rules under which no block reacts: no block has a behaviour that a specification states yet.
 /// Writes, neighbour and shape updates, scheduled ticks and block events still run, and a tick
@@ -48,6 +59,8 @@ use crate::world_kinds::{WorldFacts, WorldKinds};
 pub struct InertBlocks;
 
 impl BlockBehaviour<WorldKinds> for InertBlocks {}
+
+impl BlockDrops for InertBlocks {}
 
 /// The rules of the blocks of a dimension world.
 #[derive(Resource, Clone, Copy, Debug, Default)]
@@ -94,7 +107,9 @@ impl<B> BlockSimulationPlugin<B> {
     }
 }
 
-impl<B: BlockBehaviour<WorldKinds> + Clone + Send + 'static> Plugin for BlockSimulationPlugin<B> {
+impl<B: BlockBehaviour<WorldKinds> + BlockDrops + Clone + Send + 'static> Plugin
+    for BlockSimulationPlugin<B>
+{
     fn build(&self, app: &mut App) {
         app.configure_sets(
             FixedUpdate,
@@ -104,6 +119,8 @@ impl<B: BlockBehaviour<WorldKinds> + Clone + Send + 'static> Plugin for BlockSim
         app.insert_resource(BlockRules(self.rules.clone()));
         app.init_resource::<BlockSimulation>();
         app.init_resource::<LandedTicks>();
+        app.add_message::<ColumnChange>();
+        app.add_message::<ItemDropped>();
         app.add_systems(
             FixedUpdate,
             run_block_simulation::<B>.in_set(VoxelUpdateSet::ApplyChanges),
@@ -163,6 +180,11 @@ pub struct BlockSimulation {
     held: FxHashSet<SectionPos>,
     /// The columns in which a saved tick activated since they landed.
     activated: FxHashSet<ColumnPos>,
+    /// The random ticks of each block state under the rules, once the block table landed.
+    random_table: Option<RandomTickTable>,
+    random_seed: Option<StreamSeed>,
+    random_sections: Vec<SectionPos>,
+    drops: Vec<ItemStack>,
 }
 
 impl BlockSimulation {
@@ -366,24 +388,46 @@ struct Kernel<'w, B: BlockBehaviour<WorldKinds> + Send + 'static> {
     time: Option<Res<'w, GameTime>>,
 }
 
+/// The sections that take random ticks, and what their picks draw from.
+#[derive(SystemParam)]
+struct RandomTicking<'w, 's> {
+    sections: Query<'w, 's, &'static SectionPos, With<EntityTicking>>,
+    speed: Option<Res<'w, RandomTickSpeed>>,
+    seed: Option<Res<'w, WorldSeed>>,
+}
+
+/// Where the outcome of a step goes besides the blocks.
+#[derive(SystemParam)]
+struct StepOutlets<'w, 's> {
+    streams: Query<'w, 's, &'static ColumnStreams>,
+    changes: MessageWriter<'w, ColumnChange>,
+    dropped: MessageWriter<'w, ItemDropped>,
+}
+
 #[expect(
     clippy::too_many_lines,
-    reason = "the sync point, the three phases and the hand-off of their output are one ordered step"
+    reason = "the sync point, the four phases and the hand-off of their output are one ordered step"
 )]
-fn run_block_simulation<B: BlockBehaviour<WorldKinds> + Send + 'static>(
+#[expect(
+    clippy::too_many_arguments,
+    reason = "each parameter is a distinct part of the world that the step reads or writes"
+)]
+fn run_block_simulation<B: BlockBehaviour<WorldKinds> + BlockDrops + Send + 'static>(
     mut requests: MessageReader<BlockSetRequest>,
     mut blocks: WorldViewMut,
     mut placed: MessageWriter<BlockPlaced>,
     ticking: Query<(), With<BlockTicking>>,
-    dims: Query<Entity, With<Dimension>>,
+    dims: Query<(Entity, Option<&ResourceKeyBuf<DimensionKey>>), With<Dimension>>,
     mut links: CellLinks,
     mut kernel: Kernel<B>,
+    random: RandomTicking,
+    mut outlets: StepOutlets,
 ) {
     if let Some(halo) = links.halo.as_mut() {
         voxel_update::apply_halo_changes(&mut blocks, &mut placed, &mut halo.0);
     }
     let owned = links.owned.as_deref();
-    let Ok(dimension) = dims.single() else {
+    let Ok((dimension, dimension_key)) = dims.single() else {
         requests.clear();
         return;
     };
@@ -460,12 +504,30 @@ fn run_block_simulation<B: BlockBehaviour<WorldKinds> + Send + 'static>(
         )
     });
 
+    let rules = &kernel.rules.0;
+    let table = simulation.random_table.get_or_insert_with(|| {
+        RandomTickTable::new(definitions.states(), |state| rules.random_ticks(state))
+    });
+    let speed = random.speed.as_deref().copied().unwrap_or_default().0;
+    let mut sections = mem::take(&mut simulation.random_sections);
+    if speed > 0 && !table.is_empty() {
+        sections.extend(random.sections.iter().copied());
+        // The picks of a section do not depend on the order; what one pick sets for the
+        // picks of a later section does.
+        sections.sort_unstable_by_key(|section| (section.x, section.z, section.y));
+    }
+    let seed = *simulation.random_seed.get_or_insert_with(|| {
+        let world_seed = random.seed.as_deref().map_or(0, |seed| seed.0);
+        let key = dimension_key.map_or("", |key| key.as_str());
+        StreamSeed::new(world_seed as i64, key)
+    });
+
     let facts = WorldFacts::new(definitions);
     let config = simulation.config;
     let env = Env {
         partition,
         facts: &facts,
-        behaviour: &kernel.rules.0,
+        behaviour: rules,
         policy: &VanillaOrder,
         kind: PartitionKind::Shard,
         config: &config,
@@ -476,6 +538,22 @@ fn run_block_simulation<B: BlockBehaviour<WorldKinds> + Send + 'static>(
         (Phase::BlockEvents, [].as_slice(), [].as_slice()),
     ];
     for (phase, messages, chains) in phases {
+        if phase == Phase::BlockEvents {
+            let picks = RandomPicks {
+                sections: &sections,
+                speed,
+                table,
+                seed,
+            };
+            mcrs_minecraft_simulation::random_step(
+                &mut simulation.shard,
+                now,
+                &mut volume,
+                &env,
+                picks,
+                &mut out,
+            );
+        }
         let input = PhaseInput {
             inbound: messages,
             ledgers: chains,
@@ -492,6 +570,8 @@ fn run_block_simulation<B: BlockBehaviour<WorldKinds> + Send + 'static>(
             tracing::error!(%error, ?phase, "the block step refused its input");
         }
     }
+    sections.clear();
+    simulation.random_sections = sections;
 
     for write in out.writes.drain(..) {
         let chunk_pos = SectionPos::from(write.pos);
@@ -507,6 +587,15 @@ fn run_block_simulation<B: BlockBehaviour<WorldKinds> + Send + 'static>(
             flags: write.flags,
         });
     }
+    if let Ok(streams) = outlets.streams.get(dimension) {
+        block_events::publish_block_events(&out.delivered, streams, &mut outlets.changes);
+    }
+    block_drops::drop_items(
+        rules,
+        &out.destroyed,
+        &mut simulation.drops,
+        &mut outlets.dropped,
+    );
     if owned.is_some() {
         simulation
             .mail

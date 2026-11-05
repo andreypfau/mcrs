@@ -324,6 +324,14 @@ pub fn spawn_dim_subapp(
                 .cloned()
                 .unwrap_or_default(),
         );
+        sub_app.insert_resource(
+            host.get_resource::<crate::random_tick_speed::RandomTickSpeed>()
+                .copied()
+                .unwrap_or_default(),
+        );
+        if let Some(seed) = host.get_resource::<crate::world_seed::WorldSeed>() {
+            sub_app.insert_resource(*seed);
+        }
 
         // Before the dimension entity spawns, so a plugin can still register required components and
         // hooks for its components and its observers see it spawn.

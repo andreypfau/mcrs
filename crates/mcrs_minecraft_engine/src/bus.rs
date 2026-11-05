@@ -9,13 +9,13 @@ use mcrs_minecraft_network::event::Trigger;
 use mcrs_minecraft_network::metrics::PacketKind;
 use mcrs_minecraft_protocol::uuid::Uuid;
 use mcrs_minecraft_protocol_game::clientbound::{
-    ClientboundBlockUpdate, ClientboundChunkBatchFinished, ClientboundChunkBatchStart,
-    ClientboundChunkCacheRadius, ClientboundCommandSuggestions, ClientboundEntityEvent,
-    ClientboundEntityPositionSync, ClientboundForgetLevelChunk, ClientboundGameEvent,
-    ClientboundLightUpdate, ClientboundLogin, ClientboundPlayerAbilities, ClientboundPlayerLookAt,
-    ClientboundPlayerPosition, ClientboundRemoveEntities, ClientboundRespawn,
-    ClientboundSetChunkCacheCenter, ClientboundSetTime, ClientboundSystemChatPacket,
-    ClientboundTabList,
+    ClientboundBlockEvent, ClientboundBlockUpdate, ClientboundChunkBatchFinished,
+    ClientboundChunkBatchStart, ClientboundChunkCacheRadius, ClientboundCommandSuggestions,
+    ClientboundEntityEvent, ClientboundEntityPositionSync, ClientboundForgetLevelChunk,
+    ClientboundGameEvent, ClientboundLightUpdate, ClientboundLogin, ClientboundPlayerAbilities,
+    ClientboundPlayerLookAt, ClientboundPlayerPosition, ClientboundRemoveEntities,
+    ClientboundRespawn, ClientboundSetChunkCacheCenter, ClientboundSetTime,
+    ClientboundSystemChatPacket, ClientboundTabList,
 };
 use mcrs_minecraft_resource::ResourceKeyBuf;
 use mcrs_voxel::ColumnPos;
@@ -123,6 +123,9 @@ pub enum PacketPayload {
     LightUpdate(ClientboundLightUpdate<'static>),
     Test(TestPayload),
     BlockUpdate(ClientboundBlockUpdate),
+    /// A block event that a block took. It is not a change of the column: a client that takes
+    /// the column later does not get it.
+    BlockEvent(ClientboundBlockEvent),
     /// A `level_chunk_with_light` packet with its id, encoded once for every player that
     /// receives the column in the same drain.
     ChunkLoad {

@@ -15,7 +15,7 @@ use std::time::{Duration, Instant};
 
 use bevy_app::{App, Last, PluginGroup};
 use bevy_ecs::entity::Entity;
-use bevy_ecs::message::Messages;
+use bevy_ecs::message::{MessageReader, Messages};
 use bevy_ecs::prelude::{Has, ResMut, Resource, With};
 use bevy_ecs::world::World;
 use bevy_math::{DVec3, Vec2};
@@ -24,6 +24,8 @@ use mcrs_minecraft_block::block_keys::Block;
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_block::definition::schema::PropertyValue;
 use mcrs_minecraft_chunk::{BlockLight, LightStorage, SkyLight};
+use mcrs_minecraft_core::Direction;
+use mcrs_minecraft_engine::block_drops::{BlockDrops, ItemDropped};
 use mcrs_minecraft_engine::block_simulation::{BlockSimulationPlugin, DimensionBlockRules};
 use mcrs_minecraft_engine::bus::{
     InboundPlayerSpawn, OutboundPlayerPacket, PacketPayload, PlayerTransferSnapshot,
@@ -54,12 +56,16 @@ use mcrs_minecraft_protocol::uuid::Uuid;
 use mcrs_minecraft_protocol::{Decode, Packet, VarInt};
 use mcrs_minecraft_protocol_game::chunk::{LightChunk, LightData};
 use mcrs_minecraft_protocol_game::clientbound::{
-    ClientboundAddEntity, ClientboundLevelChunkWithLight, ClientboundRemoveEntities,
+    ClientboundAddEntity, ClientboundBlockEvent, ClientboundLevelChunkWithLight,
+    ClientboundRemoveEntities,
 };
+use mcrs_minecraft_random::legacy::LegacyRandom;
+use mcrs_minecraft_item::ItemStack;
+use mcrs_minecraft_item::item_keys::Item;
 use mcrs_minecraft_resource::Id;
 use mcrs_minecraft_server::MinecraftServerPlugins;
 use mcrs_minecraft_simulation::{
-    BlockBehaviour, BlockFacts, BlockUpdateFlags, Cx, SimulationVolume, TickPriority,
+    BlockBehaviour, BlockFacts, BlockUpdateFlags, Cx, RandomTicks, SimulationVolume, TickPriority,
 };
 use mcrs_minecraft_vanilla_light::{ColdLightLink, LightLink};
 use mcrs_minecraft_vanilla_worldgen::WorldGeneration;
@@ -878,6 +884,8 @@ impl BlockBehaviour<WorldKinds> for Relay {
     }
 }
 
+impl BlockDrops for Relay {}
+
 fn lit_lamp(app: &App) -> BlockStateId {
     let blocks = app.world().resource::<Blocks>();
     let lamp = blocks.block("minecraft:redstone_lamp").expect("a lamp");
@@ -1168,4 +1176,318 @@ fn a_cell_with_no_player_and_no_remote_ticket_skips_its_schedules() {
         "every cell ticks the player or its remote ticket: {:?}",
         runs(&mut app, label)
     );
+}
+
+/// Probe rules, not the rules of any game block: a note block that is placed queues a block
+/// event, which it takes.
+#[derive(Clone, Copy, Debug)]
+struct Chime {
+    note: BlockStateId,
+}
+
+const CHIME_ACTION: u8 = 1;
+const CHIME_PARAM: u8 = 2;
+const CHIME: BlockPos = BlockPos::new(-3, 120, 5);
+
+impl Chime {
+    fn install(sub_app: &mut bevy_app::SubApp) {
+        let note = sub_app
+            .world()
+            .resource::<Blocks>()
+            .default_state("minecraft:note_block")
+            .expect("a note block");
+        sub_app.add_plugins(BlockSimulationPlugin::new(Chime { note }));
+    }
+}
+
+impl BlockBehaviour<WorldKinds> for Chime {
+    fn placed<V: SimulationVolume, F: BlockFacts<WorldKinds>>(
+        &self,
+        cx: &mut Cx<'_, WorldKinds, V, F, Self>,
+        at: BlockPos,
+        new: BlockStateId,
+        _old: BlockStateId,
+        _moved_by_piston: bool,
+    ) {
+        if new == self.note {
+            let (action, param) = (i32::from(CHIME_ACTION), i32::from(CHIME_PARAM));
+            cx.queue_block_event(at, Block::NoteBlock.id(), action, param);
+        }
+    }
+
+    fn block_event<V: SimulationVolume, F: BlockFacts<WorldKinds>>(
+        &self,
+        _cx: &mut Cx<'_, WorldKinds, V, F, Self>,
+        _at: BlockPos,
+        _state: BlockStateId,
+        _a: i32,
+        _b: i32,
+    ) -> bool {
+        true
+    }
+}
+
+impl BlockDrops for Chime {}
+
+/// The block events that each client got after the note block was placed, and the columns that
+/// the far client held.
+struct ChimeRun {
+    near: Vec<ClientboundBlockEvent>,
+    far: Vec<ClientboundBlockEvent>,
+    far_loaded: BTreeSet<(i32, i32)>,
+}
+
+fn block_events(packets: Vec<PacketPayload>) -> Vec<ClientboundBlockEvent> {
+    packets
+        .into_iter()
+        .filter_map(|packet| match packet {
+            PacketPayload::BlockEvent(event) => Some(event),
+            _ => None,
+        })
+        .collect()
+}
+
+/// In two cells, the note block is in the west cell. Both clients stand in the east cell: the
+/// near one holds the column of the note block, the far one does not.
+fn run_chime() -> ChimeRun {
+    let mut app = server_with(2, DimensionBlockRules::new(Chime::install));
+    let label = label_of(&app, OVERWORLD);
+    wait_for_generation(&mut app, label);
+    let note = state(&app, "minecraft:note_block");
+    let near = admit(&mut app, label, "near", DVec3::new(8.5, 100.0, 8.5), 2);
+    let far = admit(&mut app, label, "far", DVec3::new(200.5, 100.0, 8.5), 2);
+    let column = ColumnPos::from(CHIME);
+    let mut near_client = Client::default();
+    let mut far_client = Client::default();
+    let deadline = Instant::now() + PATIENCE;
+    while !near_client.loaded.contains(&(column.x, column.z)) {
+        assert!(
+            Instant::now() < deadline,
+            "the near client never got the column"
+        );
+        let packets = tick(&mut app, label);
+        near_client.take(sent_to(near, packets.clone()));
+        far_client.take(sent_to(far, packets));
+    }
+
+    place(&mut app, label, near, CHIME, note);
+    let mut near_events = Vec::new();
+    let mut far_events = Vec::new();
+    for _ in 0..5 {
+        let packets = tick(&mut app, label);
+        near_events.extend(block_events(sent_to(near, packets.clone())));
+        far_client.take(sent_to(far, packets.clone()));
+        far_events.extend(block_events(sent_to(far, packets)));
+    }
+    ChimeRun {
+        near: near_events,
+        far: far_events,
+        far_loaded: far_client.loaded,
+    }
+}
+
+#[test]
+fn a_client_that_holds_the_column_gets_the_block_event_of_another_cell() {
+    let run = run_chime();
+    let event = ClientboundBlockEvent {
+        pos: CHIME,
+        action: CHIME_ACTION,
+        param: CHIME_PARAM,
+        block: VarInt(i32::from(Block::NoteBlock.id().number())),
+    };
+    assert_eq!(run.near, [event]);
+}
+
+#[test]
+fn a_client_that_does_not_hold_the_column_gets_no_block_event() {
+    let run = run_chime();
+    let column = ColumnPos::from(CHIME);
+    assert!(
+        !run.far_loaded.is_empty() && !run.far_loaded.contains(&(column.x, column.z)),
+        "the far client holds other columns only: {:?}",
+        run.far_loaded
+    );
+    assert_eq!(run.far, []);
+}
+
+/// Probe rules, not the rules of any game block: a random tick turns a note block into a lit
+/// lamp.
+#[derive(Clone, Copy, Debug)]
+struct Sprout {
+    note: BlockStateId,
+    lit: BlockStateId,
+}
+
+impl Sprout {
+    fn install(sub_app: &mut bevy_app::SubApp) {
+        let blocks = sub_app.world().resource::<Blocks>();
+        let lamp = blocks.block("minecraft:redstone_lamp").expect("a lamp");
+        let sprout = Sprout {
+            note: blocks
+                .default_state("minecraft:note_block")
+                .expect("a note block"),
+            lit: lamp
+                .with(lamp.default_state_id, "lit", &PropertyValue::Bool(true))
+                .expect("a lit lamp"),
+        };
+        sub_app.add_plugins(BlockSimulationPlugin::new(sprout));
+    }
+}
+
+impl BlockBehaviour<WorldKinds> for Sprout {
+    fn random_ticks(&self, state: BlockStateId) -> RandomTicks {
+        if state == self.note {
+            RandomTicks::BLOCK
+        } else {
+            RandomTicks::empty()
+        }
+    }
+
+    fn random_tick<V: SimulationVolume, F: BlockFacts<WorldKinds>>(
+        &self,
+        cx: &mut Cx<'_, WorldKinds, V, F, Self>,
+        at: BlockPos,
+        _state: BlockStateId,
+        _random: &mut LegacyRandom,
+    ) {
+        cx.set(at, self.lit, BlockUpdateFlags::CLIENTS, 512);
+    }
+}
+
+impl BlockDrops for Sprout {}
+
+/// A layer of note blocks on each side of the boundary, and the blocks of each layer that a random
+/// tick reached.
+fn run_sprouts(cells: u32) -> BTreeSet<(i32, i32)> {
+    let mut app = server_with(cells, DimensionBlockRules::new(Sprout::install));
+    let label = label_of(&app, OVERWORLD);
+    wait_for_generation(&mut app, label);
+    let note = state(&app, "minecraft:note_block");
+    let lit = lit_lamp(&app);
+    let west = admit(&mut app, label, "west", DVec3::new(-8.5, 100.0, 8.5), 2);
+    let east = admit(&mut app, label, "east", DVec3::new(8.5, 100.0, 8.5), 2);
+    let layer = |x: i32, z: i32| BlockPos::new(x, 120, z);
+    let mut reached = BTreeSet::new();
+    for at in 0..TICKS {
+        if at == 25 {
+            for x in -16..16 {
+                let owner = if x < 0 { west } else { east };
+                for z in 0..16 {
+                    place(&mut app, label, owner, layer(x, z), note);
+                }
+            }
+        }
+        tick(&mut app, label);
+    }
+    for x in -16..16 {
+        for z in 0..16 {
+            if block_at(&mut app, label, layer(x, z)) == Some(lit) {
+                reached.insert((x, z));
+            }
+        }
+    }
+    reached
+}
+
+/// The random ticks of the simulation area reach the blocks that take them on both sides of the
+/// boundary, in a world of one cell and in a world of two cells. Each side takes about
+/// 3 / 16 of a block a tick.
+#[test]
+fn random_ticks_reach_the_blocks_of_the_simulation_area_in_every_cell() {
+    for cells in [1, 2] {
+        let reached = run_sprouts(cells);
+        let west = reached.iter().filter(|(x, _)| *x < 0).count();
+        let east = reached.len() - west;
+        assert!(
+            west > 0 && east > 0 && reached.len() <= 2 * 3 * (TICKS - 25),
+            "in {cells} cells, random ticks reached {west} blocks in the west and {east} in the east"
+        );
+    }
+}
+
+/// Probe rules, not the rules of any game block: a shape update breaks a note block, which
+/// drops one note block item.
+#[derive(Clone, Copy, Debug)]
+struct Fragile {
+    note: BlockStateId,
+}
+
+impl Fragile {
+    fn install(sub_app: &mut bevy_app::SubApp) {
+        let note = sub_app
+            .world()
+            .resource::<Blocks>()
+            .default_state("minecraft:note_block")
+            .expect("a note block");
+        sub_app.add_plugins(BlockSimulationPlugin::new(Fragile { note }));
+        sub_app.init_resource::<SeenDrops>();
+        sub_app.add_systems(Last, record_drops);
+    }
+}
+
+impl BlockBehaviour<WorldKinds> for Fragile {
+    fn update_shape<V: SimulationVolume, F: BlockFacts<WorldKinds>>(
+        &self,
+        _cx: &mut Cx<'_, WorldKinds, V, F, Self>,
+        _at: BlockPos,
+        state: BlockStateId,
+        _from: Direction,
+        _neighbour: BlockPos,
+        _neighbour_state: BlockStateId,
+    ) -> BlockStateId {
+        if state == self.note {
+            BlockStateId::AIR
+        } else {
+            state
+        }
+    }
+}
+
+impl BlockDrops for Fragile {
+    fn drops(&self, _at: BlockPos, state: BlockStateId, drops: &mut Vec<ItemStack>) {
+        if state == self.note {
+            drops.push(ItemStack::new(Item::NoteBlock.id(), 1));
+        }
+    }
+}
+
+#[derive(Resource, Default)]
+struct SeenDrops(Vec<ItemDropped>);
+
+fn record_drops(mut dropped: MessageReader<ItemDropped>, mut seen: ResMut<SeenDrops>) {
+    seen.0.extend(dropped.read().copied());
+}
+
+/// A block that a shape update destroys leaves the items that the rules name for it, at its
+/// position.
+#[test]
+fn a_block_that_a_shape_update_destroys_drops_the_items_of_the_rules() {
+    let mut app = server_with(1, DimensionBlockRules::new(Fragile::install));
+    let label = label_of(&app, OVERWORLD);
+    wait_for_generation(&mut app, label);
+    let note = state(&app, "minecraft:note_block");
+    let stone = state(&app, "minecraft:stone");
+    let pos = BlockPos::new(3, 120, 5);
+    let east = admit(&mut app, label, "east", DVec3::new(8.5, 100.0, 8.5), 2);
+    for at in 0..40 {
+        match at {
+            25 => place(&mut app, label, east, pos, note),
+            30 => place(&mut app, label, east, BlockPos::new(4, 120, 5), stone),
+            _ => {}
+        }
+        tick(&mut app, label);
+    }
+
+    let seen = cell_worlds(&mut app, label)[0]
+        .resource::<SeenDrops>()
+        .0
+        .clone();
+    assert_eq!(
+        seen,
+        [ItemDropped {
+            at: pos,
+            stack: ItemStack::new(Item::NoteBlock.id(), 1),
+        }]
+    );
+    assert_eq!(block_at(&mut app, label, pos), Some(BlockStateId::AIR));
 }

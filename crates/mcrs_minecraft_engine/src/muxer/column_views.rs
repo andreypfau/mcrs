@@ -311,7 +311,11 @@ impl ColumnViews {
         let Some(feed) = self.feeds.get_mut(&at) else {
             return;
         };
-        let need = feed.log(&change);
+        // A block event shows once, to the clients that hold the column when it happens.
+        let need = match change.payload {
+            PacketPayload::BlockEvent(_) => StreamNeed::Nothing,
+            _ => feed.log(&change),
+        };
         if !feed.holders().is_empty() {
             out.push(OutboundPlayerPacket {
                 target: PacketTarget::PlayerSet(
@@ -588,7 +592,9 @@ mod tests {
     use super::*;
     use bevy_ecs::world::World as EcsWorld;
     use bytes::Bytes;
-    use mcrs_minecraft_protocol_game::clientbound::ClientboundBlockUpdate;
+    use mcrs_minecraft_protocol_game::clientbound::{
+        ClientboundBlockEvent, ClientboundBlockUpdate,
+    };
     use mcrs_voxel::{BlockPos, SectionPos};
 
     use crate::bus::PacketPriority;
@@ -681,6 +687,44 @@ mod tests {
         assert!(
             matches!(&out[..], [packet] if matches!(&packet.target, PacketTarget::PlayerSet(set) if set.as_slice() == [session])),
             "a change after the send goes to the holder: {out:?}"
+        );
+    }
+
+    #[test]
+    fn a_block_event_reaches_only_the_clients_that_hold_the_column_when_it_happens() {
+        let dim = dim();
+        let session = PlayerSession(1);
+        let column = ColumnPos::new(0, 0);
+        let mut views = ColumnViews::default();
+        look(&mut views, dim, session, 0);
+        send(&mut views);
+        let event = ColumnChange {
+            column,
+            priority: PacketPriority::Normal,
+            payload: PacketPayload::BlockEvent(ClientboundBlockEvent {
+                pos: BlockPos::new(0, 0, 0),
+                action: 1,
+                param: 0,
+                block: VarInt(1),
+            }),
+        };
+
+        publish(&mut views, dim, column, b"column");
+        let mut out = Vec::new();
+        views.take_change(dim, event.clone(), &mut out);
+        assert!(out.is_empty(), "nobody holds the column yet");
+        let sent = send(&mut views);
+        assert!(
+            !sent
+                .iter()
+                .any(|packet| matches!(packet.data, PacketPayload::BlockEvent(_))),
+            "the event does not follow the column to a client that waited for it: {sent:?}"
+        );
+
+        views.take_change(dim, event, &mut out);
+        assert!(
+            matches!(&out[..], [packet] if matches!(packet.data, PacketPayload::BlockEvent(_))),
+            "an event after the send goes to the holder: {out:?}"
         );
     }
 
