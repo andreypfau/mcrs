@@ -1,7 +1,7 @@
 use std::collections::VecDeque;
 use std::convert::Infallible;
 
-use mcrs_engine_link::{Stage, Step, TaskOutcome};
+use mcrs_engine_link::{Stage, Step};
 
 use crate::cell_world::CellWorld;
 use crate::tick::Tick;
@@ -46,8 +46,6 @@ impl<W: CellWorld> Stage for CellStage<W> {
         self.commands.push_back(input);
     }
 
-    fn finish(&mut self, _outcome: TaskOutcome<Infallible>) {}
-
     fn step(&mut self, step: &mut Step<'_, Self>) {
         for command in self.commands.drain(..) {
             match command {
@@ -73,9 +71,5 @@ impl<W: CellWorld> Stage for CellStage<W> {
 
     fn has_work(&self) -> bool {
         !self.commands.is_empty()
-    }
-
-    fn is_idle(&self) -> bool {
-        self.commands.is_empty()
     }
 }

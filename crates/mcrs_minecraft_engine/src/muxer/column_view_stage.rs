@@ -2,7 +2,7 @@ use std::collections::VecDeque;
 use std::mem;
 
 use bevy_ecs::entity::Entity;
-use mcrs_engine_link::{Stage, Step, TaskOutcome};
+use mcrs_engine_link::{Stage, Step};
 use mcrs_minecraft_engine_world::session::PlayerSession;
 use rustc_hash::FxHashSet;
 
@@ -89,8 +89,6 @@ impl Stage for ColumnViewStage {
         self.inputs.push_back(input);
     }
 
-    fn finish(&mut self, _outcome: TaskOutcome<()>) {}
-
     fn step(&mut self, step: &mut Step<'_, Self>) {
         while let Some(input) = self.inputs.pop_front() {
             self.apply(input, step);
@@ -104,9 +102,5 @@ impl Stage for ColumnViewStage {
 
     fn has_work(&self) -> bool {
         !self.inputs.is_empty()
-    }
-
-    fn is_idle(&self) -> bool {
-        self.inputs.is_empty()
     }
 }

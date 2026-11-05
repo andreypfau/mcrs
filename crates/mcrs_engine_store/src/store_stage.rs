@@ -1,6 +1,6 @@
 use std::collections::VecDeque;
 
-use mcrs_engine_link::{Stage, Step, TaskOutcome};
+use mcrs_engine_link::{Stage, Step};
 use tracing::error;
 
 use crate::chunk_cache::ChunkCache;
@@ -71,8 +71,6 @@ impl<D: DiskStore> Stage for StoreStage<D> {
         self.inputs.push_back(input);
     }
 
-    fn finish(&mut self, _outcome: TaskOutcome<()>) {}
-
     fn step(&mut self, step: &mut Step<'_, Self>) {
         while let Some(input) = self.inputs.pop_front() {
             match input {
@@ -85,10 +83,6 @@ impl<D: DiskStore> Stage for StoreStage<D> {
 
     fn has_work(&self) -> bool {
         !self.inputs.is_empty()
-    }
-
-    fn is_idle(&self) -> bool {
-        self.inputs.is_empty()
     }
 }
 

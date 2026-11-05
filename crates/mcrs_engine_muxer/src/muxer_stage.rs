@@ -1,6 +1,6 @@
 use std::collections::{BTreeMap, VecDeque};
 
-use mcrs_engine_link::{Stage, Step, TaskOutcome};
+use mcrs_engine_link::{Stage, Step};
 
 use crate::entity_id::{ViewerId, WorldId};
 use crate::muxer::Muxer;
@@ -125,8 +125,6 @@ where
         self.inputs.push_back(input);
     }
 
-    fn finish(&mut self, _outcome: TaskOutcome<()>) {}
-
     fn step(&mut self, step: &mut Step<'_, Self>) {
         while let Some(input) = self.inputs.pop_front() {
             self.apply(input);
@@ -140,9 +138,5 @@ where
 
     fn has_work(&self) -> bool {
         !self.inputs.is_empty()
-    }
-
-    fn is_idle(&self) -> bool {
-        self.inputs.is_empty()
     }
 }

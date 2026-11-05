@@ -18,7 +18,10 @@ pub trait Stage: Send + Sized + 'static {
 
     fn receive(&mut self, input: Self::Input);
 
-    fn finish(&mut self, outcome: TaskOutcome<Self::TaskOutput>);
+    /// Takes the outcome of a task of the stage. A stage that starts no task keeps the default.
+    fn finish(&mut self, outcome: TaskOutcome<Self::TaskOutput>) {
+        drop(outcome);
+    }
 
     /// Does the work that the inputs and the task outcomes so far allow, and emits its outputs.
     fn step(&mut self, step: &mut Step<'_, Self>);
@@ -26,6 +29,9 @@ pub trait Stage: Send + Sized + 'static {
     /// Whether a further step makes progress without a new input or a task outcome.
     fn has_work(&self) -> bool;
 
-    /// Whether the stage owes no output for any input it received.
-    fn is_idle(&self) -> bool;
+    /// Whether the stage owes no output for any input it received. By default, a stage that
+    /// has no work owes nothing.
+    fn is_idle(&self) -> bool {
+        !self.has_work()
+    }
 }
