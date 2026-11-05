@@ -83,6 +83,17 @@ impl OwnedColumns {
         self.partition
             .reaches(self.index, column_key(column), self.halo)
     }
+
+    /// Whether another cell may read `column`: a cell reads the columns of its halo, and the
+    /// columns next to a column that it lights in cold space.
+    #[must_use]
+    pub fn is_read_by_others(&self, column: ColumnPos) -> bool {
+        let reach = self.halo.max(1);
+        (0..self.partition.cells().get())
+            .map(CellIndex)
+            .filter(|index| *index != self.index)
+            .any(|index| self.partition.reaches(index, column_key(column), reach))
+    }
 }
 
 /// Whether the world of `owned` owns `column`: every column when it is the only cell.

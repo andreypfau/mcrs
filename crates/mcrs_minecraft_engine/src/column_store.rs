@@ -1,6 +1,6 @@
 use std::vec;
 
-use bevy_app::{App, FixedUpdate, Plugin};
+use bevy_app::{App, FixedUpdate, Last, Plugin};
 use bevy_ecs::entity::Entity;
 use bevy_ecs::prelude::Resource;
 use bevy_ecs::schedule::{IntoScheduleConfigs, SystemSet};
@@ -15,9 +15,15 @@ use mcrs_minecraft_engine_world::world::storage::column::ColumnLifecycleSet;
 use mcrs_voxel::ColumnPos;
 use rustc_hash::{FxHashMap, FxHashSet};
 
+use crate::cell_mail::CellMail;
 use crate::cold_columns::{mark_changed_sections, mark_final_light, write_cold_columns};
+use crate::column_asks::{
+    ColumnAnswer, ColumnAsk, ColumnHold, ColumnOrigin, Hold, OtherColumns, OwnerReply,
+    answer_column_asks,
+};
 use crate::column_production::{ColdStageLandSet, ColumnProduction, advance_production};
 use crate::column_streams::{ColumnStreamSet, land_viewed_columns, report_player_views};
+use crate::heightmap::update_column_heightmaps;
 use crate::hot_ticket::{HotColumns, raise_hot_ticket, release_hot_ticket, track_hot_tickets};
 use crate::stored_column::StoredColumn;
 use crate::stored_columns_landing::{fetch_loading_columns, land_stored_columns};
@@ -69,6 +75,14 @@ pub struct ColumnStoreLink {
     /// The columns whose version the disk did not read. The world plays a generated column in
     /// their place, but never writes over the version on the disk, which may still be repaired.
     unreadable: FxHashSet<ColumnPos>,
+    /// The columns of the other cells of the world that this cell can read.
+    others: OtherColumns,
+    /// The asks of the other cells for columns of this cell, until the owner answers them.
+    asked: Vec<ColumnAsk>,
+    /// What this tick hands the other cells: asks, answers and reports of columns.
+    out_asks: Vec<ColumnAsk>,
+    out_answers: Vec<ColumnAnswer>,
+    out_holds: Vec<ColumnHold>,
 }
 
 pub(crate) struct ColumnRead {
@@ -87,11 +101,22 @@ pub(crate) enum Produced {
     Yes,
 }
 
-/// A final cold column that views wait on.
+/// A final cold column for the views: a version that they wait on, or the new light of a
+/// column that they hold.
 pub(crate) struct ViewedColumn {
     pub(crate) dim: Entity,
     pub(crate) column: ColumnPos,
     pub(crate) stored: StoredColumn,
+    pub(crate) delivery: Delivery,
+}
+
+/// What a [`ViewedColumn`] gives the views.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Delivery {
+    /// The version of the column, for the views that wait on it.
+    Version,
+    /// The light of the column only, as a change for the views that hold it.
+    Light,
 }
 
 /// An answer of the data layer that the production of a cold column waits on.
@@ -113,14 +138,86 @@ impl ColumnStoreLink {
             fetched: Vec::new(),
             written_columns: FxHashMap::default(),
             unreadable: FxHashSet::default(),
+            others: OtherColumns::default(),
+            asked: Vec::new(),
+            out_asks: Vec::new(),
+            out_answers: Vec::new(),
+            out_holds: Vec::new(),
         }
     }
 
-    /// Whether the data layer may hold a version of `column` that a cell wrote. Another cell
-    /// writes the columns it owns, and only the data layer knows which.
-    pub(crate) fn may_hold(&self, column: ColumnPos) -> bool {
-        self.written_columns.contains_key(&column)
-            || !owned_columns::owns(self.owned.as_ref(), column)
+    /// Where this cell gets `column` when it does not hold it. The data layer has no disk under
+    /// it, so the writes are the only columns that it holds.
+    pub(crate) fn origin(&self, column: ColumnPos) -> ColumnOrigin {
+        if !owned_columns::owns(self.owned.as_ref(), column) {
+            return self.others.origin(column);
+        }
+        if self.written_columns.contains_key(&column) {
+            ColumnOrigin::DataLayer
+        } else {
+            ColumnOrigin::Generation
+        }
+    }
+
+    /// Tells the other cells of a change of `hold.column`, when they can read it.
+    pub(crate) fn report(&mut self, hold: ColumnHold) {
+        if self
+            .owned
+            .is_some_and(|owned| owned.is_read_by_others(hold.column))
+        {
+            self.out_holds.push(hold);
+        }
+    }
+
+    pub(crate) fn note_hold(&mut self, hold: ColumnHold) {
+        self.others.note(hold);
+    }
+
+    pub(crate) fn receive_ask(&mut self, ask: ColumnAsk) {
+        self.asked.push(ask);
+    }
+
+    /// Answers each ask that `reply` answers now, and keeps the others for a later tick.
+    pub(crate) fn answer_asks(&mut self, mut reply: impl FnMut(ColumnPos) -> Option<OwnerReply>) {
+        let out = &mut self.out_answers;
+        self.asked.retain(|ask| match reply(ask.column) {
+            Some(reply) => {
+                out.push(ColumnAnswer {
+                    to: ask.from,
+                    column: ask.column,
+                    reply,
+                });
+                false
+            }
+            None => true,
+        });
+    }
+
+    /// Takes the answer of the owner of a column that this cell asked for: the column lands as
+    /// an answer of the data layer. A column that the owner let go of is asked of the data
+    /// layer when a cell wrote it, and is generated otherwise.
+    pub(crate) fn receive_answer(&mut self, answer: ColumnAnswer) {
+        let key = answer.column;
+        match answer.reply {
+            OwnerReply::Snapshot(chunk) => self.answers.push(StoreOutput::Found {
+                key,
+                chunk: VersionedChunk {
+                    version: ChunkVersion::default(),
+                    chunk: *chunk,
+                },
+            }),
+            OwnerReply::NotHeld if self.others.is_written(key) => {
+                self.sent.push(StoreInput::Get { key });
+            }
+            OwnerReply::NotHeld => self.answers.push(StoreOutput::Missing { key }),
+        }
+    }
+
+    /// Moves what this tick hands the other cells into `mail`.
+    pub(crate) fn take_mail(&mut self, mail: &mut CellMail) {
+        mail.asks.append(&mut self.out_asks);
+        mail.answers.append(&mut self.out_answers);
+        mail.holds.append(&mut self.out_holds);
     }
 
     /// The last version of `column` that the world wrote.
@@ -154,6 +251,10 @@ impl ColumnStoreLink {
         }
         self.written = self.written.next();
         self.written_columns.insert(column, self.written);
+        self.report(ColumnHold {
+            column,
+            hold: Hold::Written,
+        });
         self.sent.push(StoreInput::Put {
             key: column,
             chunk: VersionedChunk {
@@ -177,9 +278,21 @@ impl ColumnStoreLink {
         self.sent.push(StoreInput::Put { key: column, chunk });
     }
 
+    /// The read of `column`, sent to its owner when the owner holds it hot and to the data layer
+    /// otherwise. The caller checks that one of them holds the column.
     fn read(&mut self, dim: Entity, column: ColumnPos) -> &mut ColumnRead {
+        let ask = match (self.owned, self.origin(column)) {
+            (Some(owned), ColumnOrigin::Owner) => Some(ColumnAsk {
+                from: owned.index(),
+                column,
+            }),
+            _ => None,
+        };
         self.reads.entry(column).or_insert_with(|| {
-            self.sent.push(StoreInput::Get { key: column });
+            match ask {
+                Some(ask) => self.out_asks.push(ask),
+                None => self.sent.push(StoreInput::Get { key: column }),
+            }
             ColumnRead {
                 dim,
                 sections: Vec::new(),
@@ -257,5 +370,8 @@ impl Plugin for ColumnStorePlugin {
                     .before(land_viewed_columns),
             ),
         );
+        if self.owned.is_some() {
+            app.add_systems(Last, answer_column_asks.after(update_column_heightmaps));
+        }
     }
 }

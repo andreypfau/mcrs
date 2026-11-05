@@ -44,6 +44,15 @@ pub(crate) struct LightStage {
     settle_due: bool,
     /// Light published into the world and not emitted yet.
     relit: Vec<PublishedLight>,
+    relit_output: RelitOutput,
+}
+
+/// Whether a light stage hands back the light of each epoch, or only the light of the columns
+/// that wait for it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum RelitOutput {
+    Emit,
+    Drop,
 }
 
 impl Stage for LightStage {
@@ -76,7 +85,9 @@ impl Stage for LightStage {
 
     fn finish(&mut self, outcome: TaskOutcome<LightUpdate>) {
         let published = self.retire(outcome);
-        self.relit.extend(published);
+        if self.relit_output == RelitOutput::Emit {
+            self.relit.extend(published);
+        }
     }
 
     fn step(&mut self, step: &mut Step<'_, Self>) {
@@ -126,6 +137,16 @@ impl LightStage {
             awaiting_light: FxHashSet::default(),
             settle_due: false,
             relit: Vec::new(),
+            relit_output: RelitOutput::Emit,
+        }
+    }
+
+    /// A stage that answers only the columns awaited with their light, for a world that takes
+    /// nothing else from it.
+    pub(crate) fn awaited_only(world: LightWorld) -> Self {
+        Self {
+            relit_output: RelitOutput::Drop,
+            ..Self::new(world)
         }
     }
 

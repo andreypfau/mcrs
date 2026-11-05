@@ -10,6 +10,7 @@ use mcrs_minecraft_engine_world::world::storage::column::{
 };
 
 use crate::block_simulation::{BlockSimulation, TickChange};
+use crate::column_asks::{ColumnHold, Hold};
 use crate::column_snapshot::ColumnSnapshots;
 use crate::column_store::ColumnStoreLink;
 use crate::coordinator::clock::GameTime;
@@ -102,6 +103,10 @@ pub(crate) fn write_cold_columns(
             if loading.is_column_loaded(column) || !owned_columns::owns(owned.as_deref(), column) {
                 continue;
             }
+            store.report(ColumnHold {
+                column,
+                hold: Hold::Cold,
+            });
             let Some(slot) = index.get(&column) else {
                 continue;
             };

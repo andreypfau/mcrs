@@ -1,7 +1,7 @@
 use bevy_app::{App, FixedUpdate, Plugin};
 use bevy_ecs::prelude::{Local, Query, With, resource_exists_and_changed};
 use bevy_ecs::schedule::IntoScheduleConfigs;
-use bevy_ecs::system::ResMut;
+use bevy_ecs::system::{Res, ResMut};
 use mcrs_engine_link::{Link, Placement};
 use mcrs_minecraft_engine::column_production::{ColdStageLandSet, ColumnProduction};
 use mcrs_minecraft_engine::column_streams::ColumnStreamSet;
@@ -15,8 +15,8 @@ use mcrs_minecraft_worldgen_generator::stages::FillContext;
 use mcrs_voxel::{ColumnPos, SectionPos};
 use tracing::warn;
 
-use crate::chunk_plugin::{send_fill_context, send_views};
-use crate::generation_input::{GenerationInput, RequestedSection, WantedColumn};
+use crate::chunk_plugin::send_fill_context;
+use crate::generation_input::{GenerationInput, RequestedSection, ViewUpdate, WantedColumn};
 use crate::generation_link::GenerationLink;
 use crate::generation_output::{GeneratedColumn, GenerationOutput, SectionContent};
 use crate::generation_stage::{GenerationStage, SchedulerConfig};
@@ -42,7 +42,7 @@ impl Plugin for ColdGenerationPlugin {
                 (
                     send_fill_context::<i32>.run_if(resource_exists_and_changed::<FillContext>),
                     request_cold_columns,
-                    send_views::<i32>,
+                    send_cold_views,
                 )
                     .chain()
                     .in_set(TickSet::Project)
@@ -77,6 +77,22 @@ fn request_cold_columns(
                 .collect(),
         }));
     }
+}
+
+/// Tells the generation stage of cold space the views that the data layer serves, which hold
+/// the views of the players of the other cells of the world, so it drops what left all of them.
+fn send_cold_views(
+    production: Res<ColumnProduction>,
+    mut generation: ResMut<GenerationLink<i32>>,
+    players: Query<&Transform, With<Player>>,
+) {
+    generation.send(GenerationInput::Views(ViewUpdate {
+        views: production.views().to_vec(),
+        players: players
+            .iter()
+            .map(|transform| ColumnPos::from(transform.translation))
+            .collect(),
+    }));
 }
 
 /// Hands the data layer what the generation stage of cold space generated or dropped.

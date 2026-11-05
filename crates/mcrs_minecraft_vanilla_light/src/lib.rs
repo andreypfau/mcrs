@@ -12,6 +12,7 @@ mod light_stage;
 mod lighting_plugin;
 mod pending_edits;
 
+pub use cold_light::ColdLightLink;
 pub use dim_light_plugin::emit_light_updates;
 pub use light_budget::LightBudget;
 pub use light_link::LightLink;

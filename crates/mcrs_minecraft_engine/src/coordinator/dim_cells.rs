@@ -384,11 +384,33 @@ impl DimCells {
             writes,
             crossings,
             simulation,
+            views,
+            holds,
+            asks,
+            answers,
         } = mail;
         for &cell in &others {
             let inbox = self.mail.entry(cell).or_default();
             inbox.extend(tickets.iter().copied().map(CellMessage::Ticket));
             inbox.extend(halo.iter().copied().map(CellMessage::Halo));
+            inbox.extend(views.iter().copied().map(CellMessage::View));
+            inbox.extend(holds.iter().copied().map(CellMessage::Hold));
+        }
+        for ask in asks {
+            if let Some(cell) = self.owner(label, ask.column) {
+                self.mail
+                    .entry(cell)
+                    .or_default()
+                    .push(CellMessage::Ask(ask));
+            }
+        }
+        for answer in answers {
+            if let Some(cell) = self.cell_at(label, answer.to) {
+                self.mail
+                    .entry(cell)
+                    .or_default()
+                    .push(CellMessage::Answer(answer));
+            }
         }
         for write in writes {
             if let Some(cell) = self.owner(label, ColumnPos::from(write.pos)) {

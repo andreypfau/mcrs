@@ -22,8 +22,13 @@ use mcrs_minecraft_simulation::BlockUpdateFlags;
 
 use crate::block_simulation::{BlockSimulation, SimulationMail};
 use crate::cell_crossing::{self, Crossing};
+use crate::column_asks::{ColumnAnswer, ColumnAsk, ColumnHold};
+use crate::column_production::{BlockChange, ColumnProduction};
+use crate::column_store::ColumnStoreLink;
 use crate::dim_tick::{DimInboxDrain, drain_dim_inbox};
+use crate::foreign_views::ForeignViews;
 use crate::hot_ticket::{RemoteTickets, TicketMail, TicketUpdate};
+use crate::player_view::PlayerView;
 
 /// A message from another cell of the same world.
 #[derive(Clone, Debug)]
@@ -38,6 +43,14 @@ pub enum CellMessage {
     Cross(Box<Crossing>),
     /// A message of the block kernels of the other cell.
     Simulation(SimulationMail),
+    /// The view of a player of the other cell changed.
+    View(PlayerView),
+    /// A column of the other cell that this cell can read became hot, went cold or was written.
+    Hold(ColumnHold),
+    /// The other cell asks for a column of this cell.
+    Ask(ColumnAsk),
+    /// The owner of a column that this cell asked for answers.
+    Answer(ColumnAnswer),
 }
 
 /// What a cell hands the other cells of its world after one tick.
@@ -48,6 +61,10 @@ pub struct CellMail {
     pub(crate) writes: Vec<CellBlockWrite>,
     pub(crate) crossings: Vec<Crossing>,
     pub(crate) simulation: Vec<SimulationMail>,
+    pub(crate) views: Vec<PlayerView>,
+    pub(crate) holds: Vec<ColumnHold>,
+    pub(crate) asks: Vec<ColumnAsk>,
+    pub(crate) answers: Vec<ColumnAnswer>,
 }
 
 /// The messages of the other cells for this tick, until the sync point applies them.
@@ -74,6 +91,7 @@ impl Plugin for CellMailPlugin {
         app.init_resource::<RemoteTickets>();
         app.init_resource::<ForeignBlockWrites>();
         app.init_resource::<HaloBlockChanges>();
+        app.init_resource::<ForeignViews>();
         app.add_systems(
             FixedPreUpdate,
             receive_cell_mail
@@ -107,6 +125,7 @@ fn receive_cell_mail(world: &mut World) {
     let mut halo = Vec::new();
     let mut writes = Vec::new();
     let mut crossings = Vec::new();
+    let mut answers = Vec::new();
     for message in messages {
         match message {
             CellMessage::Ticket(update) => {
@@ -120,7 +139,36 @@ fn receive_cell_mail(world: &mut World) {
                     simulation.receive(mail);
                 }
             }
+            CellMessage::View(view) => {
+                if let Some(mut views) = world.get_resource_mut::<ForeignViews>() {
+                    views.apply(view);
+                }
+            }
+            CellMessage::Hold(hold) => {
+                if let Some(mut store) = world.get_resource_mut::<ColumnStoreLink>() {
+                    store.note_hold(hold);
+                }
+            }
+            CellMessage::Ask(ask) => {
+                if let Some(mut store) = world.get_resource_mut::<ColumnStoreLink>() {
+                    store.receive_ask(ask);
+                }
+            }
+            CellMessage::Answer(answer) => answers.push(answer),
         }
+    }
+    // After the reports of the same tick, so a column that its owner let go of is asked of the
+    // data layer when its owner wrote it.
+    if let Some(mut store) = world.get_resource_mut::<ColumnStoreLink>() {
+        for answer in answers {
+            store.receive_answer(answer);
+        }
+    }
+    if let Some(mut production) = world.get_resource_mut::<ColumnProduction>() {
+        production.note_halo_changes(halo.iter().map(|write| BlockChange {
+            pos: write.pos,
+            state: write.new_state,
+        }));
     }
     if let Some(dimension) = dimension {
         if let Some(mut changes) = world.get_resource_mut::<HaloBlockChanges>() {
@@ -140,6 +188,9 @@ fn receive_cell_mail(world: &mut World) {
         }
     }
     for crossing in crossings {
+        if let Some(mut views) = world.get_resource_mut::<ForeignViews>() {
+            views.forget(crossing.session());
+        }
         if let Err(error) = cell_crossing::arrive(world, crossing) {
             tracing::error!("a player did not arrive from another cell: {error}");
         }
@@ -180,5 +231,14 @@ pub(crate) fn take_cell_mail(world: &mut World, mail: &mut CellMail) {
     }
     if let Some(mut simulation) = world.get_resource_mut::<BlockSimulation>() {
         simulation.take_mail(&mut mail.simulation);
+    }
+    if let Some(mut store) = world.get_resource_mut::<ColumnStoreLink>() {
+        store.take_mail(mail);
+    }
+    if world.contains_resource::<OwnedColumns>()
+        && let Some(views) = world.get_resource::<Messages<PlayerView>>()
+    {
+        mail.views
+            .extend(views.iter_current_update_messages().copied());
     }
 }

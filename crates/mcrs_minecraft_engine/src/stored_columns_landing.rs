@@ -9,6 +9,7 @@ use mcrs_minecraft_engine_world::world::lifecycle::stage::{
 use mcrs_minecraft_engine_world::world::storage::block_entity::spawn_block_entities;
 use mcrs_voxel::{ColumnPos, SectionPos};
 
+use crate::column_asks::ColumnOrigin;
 use crate::column_store::{ColumnStoreLink, FetchedColumn, Produced};
 use crate::column_ticks::LandedTicks;
 use crate::heightmap::PendingColumnHeightmaps;
@@ -33,7 +34,9 @@ pub(crate) fn fetch_loading_columns(
     let mut stages = stages.p1();
     for change in loading.drain(..) {
         let column = ColumnPos::from(change.pos);
-        if !store.may_hold(column) || stages.get(change.section) != Some(SectionStage::Loading) {
+        if store.origin(column) == ColumnOrigin::Generation
+            || stages.get(change.section) != Some(SectionStage::Loading)
+        {
             continue;
         }
         stages.set(change.section, SectionStage::Fetching);

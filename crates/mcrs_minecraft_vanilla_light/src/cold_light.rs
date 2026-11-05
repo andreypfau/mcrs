@@ -29,20 +29,27 @@ pub(crate) struct ColdLightPlugin {
 
 /// The near end of the link to the light stage of cold space.
 #[derive(Resource)]
-struct ColdLightLink(Link<LightStage>);
+pub struct ColdLightLink(Link<LightStage>);
+
+impl ColdLightLink {
+    /// Waits until the stage has answered everything handed to it so far, and hands out none
+    /// of it.
+    ///
+    /// For tests and tools only, to make the answers land at the same tick in every run.
+    pub async fn answered(&mut self) {
+        self.0.answered().await;
+    }
+}
 
 impl Plugin for ColdLightPlugin {
     fn build(&self, app: &mut App) {
         let world = LightWorld::new(Arc::clone(&self.registry), self.bounds);
         let world = if self.sky { world } else { world.without_sky() };
         app.insert_resource(ColdLightLink(Link::new(
-            LightStage::new(world),
+            LightStage::awaited_only(world),
             Placement::Thread,
         )))
-        .add_systems(
-            FixedUpdate,
-            land_cold_light.in_set(ColdStageLandSet::Light),
-        )
+        .add_systems(FixedUpdate, land_cold_light.in_set(ColdStageLandSet::Light))
         .add_systems(Last, send_cold_light);
     }
 }

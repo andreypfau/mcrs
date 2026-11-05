@@ -31,19 +31,23 @@ use mcrs_minecraft_engine_world::world::light_gate::{
 };
 use mcrs_minecraft_engine_world::world::storage::column::{ColumnIndex, ColumnLifecycleSet};
 use mcrs_minecraft_engine_world::world::storage::section::SectionIndex;
+use mcrs_minecraft_protocol::VarInt;
+use mcrs_minecraft_protocol_game::clientbound::ClientboundLightUpdate;
 use mcrs_minecraft_registries::CurrentRegistries;
 use mcrs_voxel::{ColumnPos, SectionPos};
 use rustc_hash::{FxHashMap, FxHashSet};
 use tracing::warn;
 
+use crate::bus::{PacketPayload, PacketPriority};
 use crate::column_change::ColumnChange;
 use crate::column_packet::{DirectBits, StoredLight, encode_stored_column};
 use crate::column_production::ColumnProduction;
 use crate::column_request::ColumnRequest;
 use crate::column_snapshot::ColumnSnapshots;
-use crate::column_store::{ColumnStoreLink, ViewedColumn};
+use crate::column_store::{ColumnStoreLink, Delivery, ViewedColumn};
 use crate::column_version::ColumnVersion;
 use crate::hot_ticket::{CellCrossing, HotColumns};
+use crate::light_codec::build_stored_light_data;
 use crate::player_view::PlayerView;
 use crate::stored_column::StoredColumn;
 
@@ -170,6 +174,11 @@ impl ColumnStreams {
     #[must_use]
     pub fn is_subscribed(&self, column: ColumnPos) -> bool {
         self.subscribed.contains(&column)
+    }
+
+    /// Whether the muxer waits on a version of `column`.
+    pub(crate) fn is_pending(&self, column: ColumnPos) -> bool {
+        self.pending.contains_key(&column)
     }
 
     fn state(&self, column: ColumnPos) -> Option<Pending> {
@@ -327,7 +336,8 @@ fn stored_light(light_gated: bool, has_sky_light: bool) -> StoredLight {
 
 /// Publishes each column that the data layer finished for the muxer. A column that the
 /// dimension lights by now is taken from the dimension instead, so a version older than the
-/// hot one never goes out.
+/// hot one never goes out. A column that the views hold and that the data layer lit again goes
+/// out as a change of its light.
 pub(crate) fn land_viewed_columns(
     mut store: Option<ResMut<ColumnStoreLink>>,
     mut dims: Query<(
@@ -340,6 +350,7 @@ pub(crate) fn land_viewed_columns(
     blocks: Res<Blocks>,
     registries: Res<CurrentRegistries>,
     mut versions: MessageWriter<ColumnVersion>,
+    mut changes: MessageWriter<ColumnChange>,
 ) {
     let Some(store) = store.as_deref_mut() else {
         return;
@@ -349,11 +360,29 @@ pub(crate) fn land_viewed_columns(
         dim,
         column,
         stored,
+        delivery,
     } in store.take_viewed()
     {
         let Ok((mut streams, mut loading, hot, has_sky_light)) = dims.get_mut(dim) else {
             continue;
         };
+        if delivery == Delivery::Light {
+            let held = streams.is_subscribed(column)
+                && streams.state(column).is_none()
+                && !hot.lights(column);
+            if held && light_gated.is_some() {
+                changes.write(ColumnChange {
+                    column,
+                    priority: PacketPriority::High,
+                    payload: PacketPayload::LightUpdate(ClientboundLightUpdate {
+                        x: VarInt(column.x),
+                        z: VarInt(column.z),
+                        light_data: build_stored_light_data(&stored, has_sky_light),
+                    }),
+                });
+            }
+            continue;
+        }
         if streams.state(column) != Some(Pending::Fetching) {
             continue;
         }

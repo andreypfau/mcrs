@@ -31,7 +31,7 @@ use mcrs_minecraft_engine::bus::{
 use mcrs_minecraft_engine::channel_types::ToDim;
 use mcrs_minecraft_engine::coordinator::dim_cells::DimCells;
 use mcrs_minecraft_engine::game_profile::GameProfile;
-use mcrs_minecraft_engine::muxer::column_view_link;
+use mcrs_minecraft_engine::muxer::column_view_link::{self, ColumnViewLink};
 use mcrs_minecraft_engine::muxer::dim_inputs::DimInputs;
 use mcrs_minecraft_engine::muxer::entity_replication::{self, Answers};
 use mcrs_minecraft_engine::muxer::session::{HostAnchorRef, SessionBundle};
@@ -45,18 +45,23 @@ use mcrs_minecraft_engine_world::palette::ChunkBlocks;
 use mcrs_minecraft_engine_world::session::{
     Owner, Place, PlayerSession, PlayerSessionCounter, SessionPlacement,
 };
-use mcrs_minecraft_engine_world::world::dimension::Dimension;
-use mcrs_minecraft_engine_world::world::lifecycle::simulation::{BlockTicking, EntityTicking};
+use mcrs_minecraft_engine_world::world::dimension::{Dimension, DimensionTypeConfig};
+use mcrs_minecraft_engine_world::world::lifecycle::simulation::{
+    BlockTicking, EntityTicking, SimulationDistance,
+};
 use mcrs_minecraft_engine_world::world::lifecycle::stage::SectionStage;
-use mcrs_minecraft_protocol::Packet;
 use mcrs_minecraft_protocol::uuid::Uuid;
-use mcrs_minecraft_protocol_game::clientbound::{ClientboundAddEntity, ClientboundRemoveEntities};
+use mcrs_minecraft_protocol::{Decode, Packet, VarInt};
+use mcrs_minecraft_protocol_game::chunk::{LightChunk, LightData};
+use mcrs_minecraft_protocol_game::clientbound::{
+    ClientboundAddEntity, ClientboundLevelChunkWithLight, ClientboundRemoveEntities,
+};
 use mcrs_minecraft_resource::Id;
 use mcrs_minecraft_server::MinecraftServerPlugins;
 use mcrs_minecraft_simulation::{
     BlockBehaviour, BlockFacts, BlockUpdateFlags, Cx, SimulationVolume, TickPriority,
 };
-use mcrs_minecraft_vanilla_light::LightLink;
+use mcrs_minecraft_vanilla_light::{ColdLightLink, LightLink};
 use mcrs_minecraft_vanilla_worldgen::GenerationLink;
 use mcrs_minecraft_worldgen_generator::stages::FillContext;
 use mcrs_voxel::{BlockPos, BlockStateId, ColumnPos, LocalPos, SectionPos};
@@ -67,6 +72,7 @@ use crate::host_app::{label_of, replicated, sent_to};
 const OVERWORLD: &str = "minecraft:overworld";
 const TICKS: usize = 90;
 const COLD_TICKS: usize = 100;
+const COLD_LIGHT_TICKS: usize = 220;
 const PATIENCE: Duration = Duration::from_secs(120);
 
 fn server(cells: u32) -> App {
@@ -137,6 +143,12 @@ fn wait_for_steps(app: &mut App, label: Entity) {
         if let Some(mut light) = world.get_resource_mut::<LightLink>() {
             block_on(light.answered());
         }
+        if let Some(mut generation) = world.get_resource_mut::<GenerationLink<i32>>() {
+            block_on(generation.answered());
+        }
+        if let Some(mut light) = world.get_resource_mut::<ColdLightLink>() {
+            block_on(light.answered());
+        }
     }
 }
 
@@ -155,8 +167,15 @@ fn tick(app: &mut App, label: Entity) -> Vec<OutboundPlayerPacket> {
     packets
 }
 
-/// Places a session in `label` and sends the spawn of its player at `position`.
-fn admit(app: &mut App, label: Entity, name: &str, position: DVec3) -> PlayerSession {
+/// Places a session in `label` and sends the spawn of its player at `position`, with a client
+/// that sees `view_distance` columns far.
+fn admit(
+    app: &mut App,
+    label: Entity,
+    name: &str,
+    position: DVec3,
+    view_distance: u8,
+) -> PlayerSession {
     let session = app
         .world_mut()
         .resource_mut::<PlayerSessionCounter>()
@@ -183,7 +202,9 @@ fn admit(app: &mut App, label: Entity, name: &str, position: DVec3) -> PlayerSes
                 username: name.into(),
                 position,
                 rotation: Vec2::ZERO,
-                client_info: Some(crate::support::client_info_with_view_distance(2)),
+                client_info: Some(crate::support::client_info_with_view_distance(
+                    view_distance,
+                )),
             },
             dimensions: Vec::new().into(),
         }),
@@ -254,6 +275,69 @@ struct Client {
     blocks: BTreeMap<(i32, i32, i32), u16>,
     /// The entity packets of the client, in order.
     entities: Vec<(i32, Vec<u8>)>,
+    /// The light that the client holds of each section row of each column, as the columns and
+    /// the light updates set it.
+    light: BTreeMap<(i32, i32), BTreeMap<usize, RowLight>>,
+}
+
+/// The block light and the sky light of one section row of a column on the client, one value
+/// for each block. An empty value is a layer that the client got no light for.
+#[derive(Clone, Debug, Default, PartialEq)]
+struct RowLight {
+    block: Vec<u8>,
+    sky: Vec<u8>,
+}
+
+/// One light layer of a `LightData` row by row: the values of a row that the data sets, and a
+/// dark row for a row that the data marks empty.
+fn light_rows(mask: &[u64], empty: &[u64], arrays: &[LightChunk]) -> BTreeMap<usize, Vec<u8>> {
+    let bit = |words: &[u64], row: usize| {
+        words
+            .get(row / 64)
+            .is_some_and(|word| word >> (row % 64) & 1 == 1)
+    };
+    let rows = (mask.len().max(empty.len())) * 64;
+    let mut arrays = arrays.iter();
+    let mut out = BTreeMap::new();
+    for row in 0..rows {
+        if bit(mask, row) {
+            let array = arrays.next().expect("an array for each row of the mask");
+            out.insert(
+                row,
+                array
+                    .0
+                    .iter()
+                    .flat_map(|byte| [byte & 0x0F, byte >> 4])
+                    .collect(),
+            );
+        } else if bit(empty, row) {
+            out.insert(row, vec![0; SectionPos::VOLUME]);
+        }
+    }
+    out
+}
+
+impl Client {
+    fn take_light(&mut self, column: (i32, i32), data: &LightData<'_>, whole: bool) {
+        let rows = self.light.entry(column).or_default();
+        if whole {
+            rows.clear();
+        }
+        for (row, values) in light_rows(
+            &data.block_light_mask,
+            &data.empty_block_light_mask,
+            &data.block_light_arrays,
+        ) {
+            rows.entry(row).or_default().block = values;
+        }
+        for (row, values) in light_rows(
+            &data.sky_light_mask,
+            &data.empty_sky_light_mask,
+            &data.sky_light_arrays,
+        ) {
+            rows.entry(row).or_default().sky = values;
+        }
+    }
 }
 
 impl Client {
@@ -262,11 +346,20 @@ impl Client {
             match packet {
                 PacketPayload::PlayerLogin(_) => self.logins += 1,
                 PacketPayload::Respawn(_) => self.respawns += 1,
-                PacketPayload::ChunkLoad { column, .. } => {
+                PacketPayload::ChunkLoad { column, packet } => {
                     self.loaded.insert((column.x, column.z));
+                    let mut bytes = &packet[..];
+                    VarInt::decode(&mut bytes).expect("the packet id");
+                    let chunk = ClientboundLevelChunkWithLight::decode(&mut bytes)
+                        .expect("a column packet");
+                    self.take_light((column.x, column.z), &chunk.light_data, true);
+                }
+                PacketPayload::LightUpdate(update) => {
+                    self.take_light((update.x.0, update.z.0), &update.light_data, false);
                 }
                 PacketPayload::ChunkUnload(forget) => {
                     self.forgotten.insert((forget.x, forget.z));
+                    self.light.remove(&(forget.x, forget.z));
                 }
                 PacketPayload::BlockUpdate(update) => {
                     let pos = update.block_pos;
@@ -389,14 +482,14 @@ fn run_cold_boundary(cells: u32) -> ColdRun {
     let glowstone = state(&app, "minecraft:glowstone");
 
     // Region 0 starts at x = 0, and the light of a block at x = 0 reaches into region -1.
-    let east = admit(&mut app, label, "east", DVec3::new(8.5, 100.0, 8.5));
+    let east = admit(&mut app, label, "east", DVec3::new(8.5, 100.0, 8.5), 2);
     for at in 0..COLD_TICKS {
         match at {
             30 => place(&mut app, label, east, BlockPos::new(0, 92, 3), glowstone),
             // Far enough that no ticket loads the boundary, so its owner writes the column.
             35 => walk(&mut app, label, east, DVec3::new(320.0, 0.0, 0.0)),
             60 => {
-                admit(&mut app, label, "west", DVec3::new(-8.5, 100.0, 8.5));
+                admit(&mut app, label, "west", DVec3::new(-8.5, 100.0, 8.5), 2);
             }
             _ => {}
         }
@@ -409,6 +502,118 @@ fn run_cold_boundary(cells: u32) -> ColdRun {
         sections: owned_sections(&mut app, label, &columns),
         ticking: ticking_sections(&mut app, label, &columns),
     }
+}
+
+/// The light of a column at a box edge as a client got it from the data layer, and as the
+/// dimension lit it once it was hot.
+struct ColdLightRun {
+    client: BTreeMap<(i32, i32), BTreeMap<usize, RowLight>>,
+    hot: BTreeMap<(i32, i32), BTreeMap<usize, RowLight>>,
+}
+
+/// The light of `columns` at their owners, by wire row: the rows of the sections, one up from
+/// the row below the world.
+fn owned_light(
+    app: &mut App,
+    label: Entity,
+    columns: &[ColumnPos],
+) -> BTreeMap<(i32, i32), BTreeMap<usize, RowLight>> {
+    let min_y = cell_worlds(app, label)
+        .into_iter()
+        .next()
+        .map(|world| {
+            world
+                .query::<&DimensionTypeConfig>()
+                .iter(world)
+                .next()
+                .expect("the dimension type")
+                .min_y
+                >> SectionPos::BITS
+        })
+        .expect("a cell");
+    let mut light = BTreeMap::new();
+    for ((x, y, z), section) in owned_sections(app, label, columns) {
+        let dark = |values: Vec<u8>| match values.is_empty() {
+            true => vec![0; SectionPos::VOLUME],
+            false => values,
+        };
+        let row = usize::try_from(y - min_y + 1).expect("a row in the world");
+        light.entry((x, z)).or_insert_with(BTreeMap::new).insert(
+            row,
+            RowLight {
+                block: dark(section.block_light),
+                sky: dark(section.sky_light),
+            },
+        );
+    }
+    light
+}
+
+/// A viewer sees the columns at the box edge from the data layer while their neighbour across
+/// the edge is hot in its owner, with changes that its owner never wrote: one before the data
+/// layer lit the cold column, one after the client got it.
+fn run_cold_light(cells: u32) -> ColdLightRun {
+    let mut app = server(cells);
+    let label = label_of(&app, OVERWORLD);
+    wait_for_generation(&mut app, label);
+    for world in cell_worlds(&mut app, label) {
+        world.insert_resource(SimulationDistance {
+            horizontal: 1,
+            vertical: u8::MAX,
+        });
+    }
+    let glowstone = state(&app, "minecraft:glowstone");
+    let edge = [ColumnPos::new(-1, 0), ColumnPos::new(0, 0)];
+
+    // Column 0 is in the outer ring of the hot area around column 4: hot, and lit from the
+    // data layer. Column -1 is cold and in another region.
+    let east = admit(&mut app, label, "east", DVec3::new(72.5, 100.0, 8.5), 2);
+    let mut viewer = None;
+    let mut client = Client::default();
+    let mut seen = BTreeMap::new();
+    for at in 0..COLD_LIGHT_TICKS {
+        match at {
+            40 => place(&mut app, label, east, BlockPos::new(0, 100, 4), glowstone),
+            45 => {
+                viewer = Some(admit(
+                    &mut app,
+                    label,
+                    "viewer",
+                    DVec3::new(72.5, 100.0, 8.5),
+                    6,
+                ));
+            }
+            110 => place(&mut app, label, east, BlockPos::new(1, 101, 12), glowstone),
+            150 => {
+                seen = client.light.clone();
+                admit(&mut app, label, "probe", DVec3::new(-8.5, 100.0, 8.5), 2);
+            }
+            _ => {}
+        }
+        if let Some(viewer) = viewer {
+            app.world_mut()
+                .resource_mut::<ColumnViewLink>()
+                .acknowledge_batch(viewer, 64.0);
+        }
+        let packets = tick(&mut app, label);
+        if let Some(viewer) = viewer {
+            client.take(sent_to(viewer, packets));
+        }
+    }
+    let hot = owned_light(&mut app, label, &edge);
+    // The rows below and above the world carry no section to compare with.
+    let client = seen
+        .into_iter()
+        .filter(|(column, _)| edge.contains(&ColumnPos::new(column.0, column.1)))
+        .map(|(column, mut rows)| {
+            rows.retain(|row, _| {
+                hot.get(&column)
+                    .is_some_and(|sections| sections.contains_key(row))
+            });
+            (column, rows)
+        })
+        .collect();
+    ColdLightRun { client, hot }
 }
 
 struct Run {
@@ -431,8 +636,8 @@ fn run(cells: u32) -> Run {
     let stone = state(&app, "minecraft:stone");
 
     // Region -1 and region 0 meet at x = 0: one cell owns each side.
-    let west = admit(&mut app, label, "west", DVec3::new(-8.5, 100.0, 8.5));
-    let east = admit(&mut app, label, "east", DVec3::new(8.5, 100.0, 8.5));
+    let west = admit(&mut app, label, "west", DVec3::new(-8.5, 100.0, 8.5), 2);
+    let east = admit(&mut app, label, "east", DVec3::new(8.5, 100.0, 8.5), 2);
     let sessions = [west, east];
     let mut clients = [Client::default(), Client::default()];
     let mut first_holders = Vec::new();
@@ -722,8 +927,8 @@ fn run_relay_line(cells: u32) -> LineRun {
     let lit = lit_lamp(&app);
     let source = state(&app, "minecraft:redstone_block");
 
-    let west = admit(&mut app, label, "west", DVec3::new(-8.5, 100.0, 8.5));
-    let east = admit(&mut app, label, "east", DVec3::new(8.5, 100.0, 8.5));
+    let west = admit(&mut app, label, "west", DVec3::new(-8.5, 100.0, 8.5), 2);
+    let east = admit(&mut app, label, "east", DVec3::new(8.5, 100.0, 8.5), 2);
     let mut lit_at = BTreeMap::new();
     for at in 0..TICKS {
         match at {
@@ -805,7 +1010,7 @@ fn run_slow_tick(cells: u32) -> SlowRun {
     let section = SectionPos::from(pos);
 
     // The column of x = 0 is in region 0: the cell of the player owns it in both worlds.
-    let east = admit(&mut app, label, "east", DVec3::new(8.5, 100.0, 8.5));
+    let east = admit(&mut app, label, "east", DVec3::new(8.5, 100.0, 8.5), 2);
     let mut run = SlowRun::default();
     for at in 0..220 {
         match at {
@@ -851,4 +1056,64 @@ fn a_scheduled_tick_survives_a_cold_column_with_its_remaining_delay() {
             "the tick runs {left} ticks after the column ticks again in {cells} cells: {run:?}"
         );
     }
+}
+
+type ColumnLight = BTreeMap<(i32, i32), BTreeMap<usize, RowLight>>;
+
+/// The blocks whose light differs between `left` and `right`, by column, row and layer.
+fn light_differences(left: &ColumnLight, right: &ColumnLight) -> Vec<String> {
+    let mut differences = Vec::new();
+    let columns: BTreeSet<&(i32, i32)> = left.keys().chain(right.keys()).collect();
+    for column in columns {
+        let (Some(left), Some(right)) = (left.get(column), right.get(column)) else {
+            differences.push(format!("{column:?} is on one side only"));
+            continue;
+        };
+        let rows: BTreeSet<&usize> = left.keys().chain(right.keys()).collect();
+        for row in rows {
+            let empty = RowLight::default();
+            let (left, right) = (
+                left.get(row).unwrap_or(&empty),
+                right.get(row).unwrap_or(&empty),
+            );
+            for (layer, left, right) in [
+                ("block", &left.block, &right.block),
+                ("sky", &left.sky, &right.sky),
+            ] {
+                let differ = left.len().max(right.len())
+                    - left.iter().zip(right).filter(|(l, r)| l == r).count();
+                if differ > 0 {
+                    differences.push(format!("{column:?} row {row} {layer}: {differ} blocks"));
+                }
+            }
+        }
+    }
+    differences
+}
+
+#[test]
+fn a_cold_column_at_a_box_edge_has_the_light_of_one_cell_and_of_the_dimension() {
+    let one = run_cold_light(1);
+    let two = run_cold_light(2);
+
+    assert_eq!(
+        one.client.len(),
+        2,
+        "the client got both columns of the edge"
+    );
+    assert_eq!(
+        light_differences(&one.client, &one.hot),
+        Vec::<String>::new(),
+        "the client of one cell holds other light than the dimension"
+    );
+    assert_eq!(
+        light_differences(&one.client, &two.client),
+        Vec::<String>::new(),
+        "the client of two cells holds other light"
+    );
+    assert_eq!(
+        light_differences(&one.hot, &two.hot),
+        Vec::<String>::new(),
+        "two cells light the edge otherwise"
+    );
 }
