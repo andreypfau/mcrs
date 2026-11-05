@@ -207,8 +207,8 @@ that sent it.
 | Block events | a message to the owner of the column | one tick |
 | Redstone, fluids, pistons, explosions | no block has rules yet, because no specification states them. Their rules use the four rows above | the delays of the four rows above |
 | Ticking of the sections of a player | each cell marks the sections that it owns from the simulation area of each ticket: its own tickets and the remote tickets. A cell never marks a section of its halo | one tick for the cells that do not own the player |
-| Data layer | one data layer for the world. Each cell writes only the columns that it owns. A cell reads a column of another cell from the owner when the owner holds it hot, and from the data layer otherwise. A column that the data layer does not hold goes on to the generation of the world. Each cell reports to the others when a column that they can read becomes hot or goes cold. A column keeps its scheduled ticks, each with its delay from the game time of the write | one tick for an answer of the data layer, two ticks for an answer of the owner, one tick after the generation finishes the column |
-| Generation | one generation stage for the world, in the host. Each cell asks it for the columns that the data layer does not hold, for its hot sections and for its cold columns. The stage generates a column once for all cells that ask for it | one tick after the stage finishes the column, the same tick for each cell |
+| Data layer | one data layer for the world. Each cell writes only the columns that it owns. A cell reads a column of another cell from the owner when the owner holds it hot, from the data layer when a cell wrote it, and from the generation of the world otherwise. Each cell reports to the others when a column that they can read becomes hot, goes cold or is written. A column keeps its scheduled ticks, each with its delay from the game time of the write | one tick for an answer of the data layer, two ticks for an answer of the owner, one tick after the generation finishes the column |
+| Generation | one generation stage for the world, in the host. Each cell asks it for the columns that no cell holds, for its hot sections and for its cold columns. The stage generates a column once for all cells that ask for it | one tick after the stage finishes the column, the same tick for each cell |
 
 ---
 
@@ -318,11 +318,12 @@ of a column is the only writer of the column, so the owner numbers the versions 
 A cell reads a column of another cell from the owner of the column when the owner holds it hot.
 The owner may hold changes that it did not write yet. The owner answers at the end of its next
 tick with the blocks of the column. The changes of that tick also go to the halo of the other
-cells, so the column misses none of them. A cell reads every other column from the data layer.
-When the data layer does not hold the column, the cell asks the generation of the world for it.
-Each cell tells the other cells when a column that they can read becomes hot in it or goes
-cold. A cell thus knows where each read goes in the tick that needs the column. An owner that
-lets the column go before it answers says so, and the cell asks the data layer.
+cells, so the column misses none of them. A cell reads a column that is cold in its owner from
+the data layer when a cell wrote it, and from the generation of the world otherwise. Each cell
+tells the other cells when a column that they can read becomes hot in it, goes cold or is
+written. A cell thus knows where each read goes in the tick that needs the column, with no round
+trip to the data layer before generation. An owner that lets the column go before it answers
+says so, and the cell asks the data layer or generation.
 
 The rules of a dimension world with a data layer:
 
@@ -337,9 +338,10 @@ The rules of a dimension world with a data layer:
 - The world never writes a column whose version the disk did not read (`Unreadable`). A section
   that a ticket loads plays a generated column in its place, and the data layer makes a
   generated column for a view, but neither replaces the version on the disk.
-- A section that a ticket loads asks the data layer, or the owner when another cell holds the
-  column hot. A section that the data layer does not hold goes on to generation. The section
-  takes the blocks of the answer, not its light. The dimension lights the section again.
+- A section that a ticket loads asks the data layer first, when the cell wrote its column or
+  another cell owns its column. A section that the data layer does not hold goes on to
+  generation. The section takes the blocks of the answer, not its light. The dimension lights
+  the section again.
 - The host runs one generation stage for each world. A cell asks it for a column in the output
   of a tick, and gets the column in the input of the tick after the stage finished it, as an
   answer of the data layer. The stage generates each column once, for all the cells that ask
@@ -356,7 +358,7 @@ The rules of a dimension world with a data layer:
   asks the owner, and the production takes the blocks of a loaded column from the sections of
   the cell. It takes the blocks of the column and of the eight columns around it from the cell
   when the cell holds the column, also as halo. Else it takes them from the data layer of the
-  world, or from the generation of the world when the data layer does not hold the column.
+  world when a cell wrote the column. Else the generation of the world makes them.
   Then the light stage of cold space lights the column. The dimension
   encodes the final column once and publishes it for all clients that wait on it.
 - A light level reaches 15 blocks, so the blocks of a column and of the eight columns around it
@@ -505,7 +507,9 @@ Each step leaves a working server and passes the determinism test.
    in the dimension. Done (sections 7 and 11), with these parts left:
    - The disk store of Minecraft: Anvil region files that the data layer reads and writes, a
      `Flush` at each autosave and at shutdown, and an eviction of the columns that the disk
-     holds. Check: a column that a player changed is the same after a restart.
+     holds. Check: a column that a player changed is the same after a restart. A cell sends
+     the read of a column that no cell wrote to generation, because the data layer holds only
+     the writes. With a disk, such a read goes to the data layer first.
    - The view in the Muxer:
      - The view square, the pace of the batches and the packets of a batch are of Minecraft.
        A view generic over a chunk codec, as `ReplicationCodec` is for entities, moves them into
