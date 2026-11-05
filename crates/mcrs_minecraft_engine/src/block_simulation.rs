@@ -188,26 +188,6 @@ pub struct BlockSimulation {
 }
 
 impl BlockSimulation {
-    pub fn shard(&self) -> &BlockShard<WorldKinds> {
-        &self.shard
-    }
-
-    /// The scheduled block ticks and fluid ticks of `section`, held or active.
-    #[must_use]
-    pub fn ticks_in(&self, section: SectionPos) -> usize {
-        let block = self
-            .shard
-            .block_ticks()
-            .section_ticks(section)
-            .map_or(0, |ticks| ticks.len());
-        let fluid = self
-            .shard
-            .fluid_ticks()
-            .section_ticks(section)
-            .map_or(0, |ticks| ticks.len());
-        block.saturating_add(fluid)
-    }
-
     pub(crate) fn receive(&mut self, mail: SimulationMail) {
         match mail {
             SimulationMail::Message(message) => self.inbound.push(message),
