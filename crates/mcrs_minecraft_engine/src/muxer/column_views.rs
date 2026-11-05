@@ -6,7 +6,7 @@ use std::mem;
 
 use bevy_ecs::entity::Entity;
 use mcrs_engine_muxer::{ChunkStream, StreamNeed, ViewerId};
-use mcrs_minecraft_engine_world::entity::player::chunk_view::ChunkTrackingView;
+use mcrs_minecraft_engine_world::entity::player::chunk_view::{ChunkTrackingView, VIEW_MARGIN};
 use mcrs_minecraft_engine_world::session::PlayerSession;
 use mcrs_minecraft_engine_world::world::lifecycle::ticket::MAX_SPAWNS_PER_TICK;
 use mcrs_minecraft_protocol::VarInt;
@@ -540,7 +540,8 @@ impl ColumnViews {
     }
 }
 
-/// Cache center and radius, sent Critical: the client renders nothing without them.
+/// Cache center and radius, sent Critical: the client renders nothing without them. The radius is
+/// the view distance of the login, without the ring that the view holds past it.
 fn send_cache_view(
     old: Option<ChunkTrackingView>,
     new: ChunkTrackingView,
@@ -564,7 +565,7 @@ fn send_cache_view(
             to(
                 session,
                 PacketPayload::SetChunkCacheRadius(ClientboundChunkCacheRadius {
-                    radius: VarInt(i32::from(new.distance)),
+                    radius: VarInt(i32::from(new.distance.saturating_sub(VIEW_MARGIN))),
                 }),
             )
             .critical(),

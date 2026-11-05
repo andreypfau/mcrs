@@ -16,6 +16,11 @@ impl Default for PlayerViewDistance {
     }
 }
 
+/// The ring of columns that a view holds past the view distance of the client. The client draws a
+/// column only with its neighbours, so the edge of its view distance needs one more ring. The
+/// login and the cache radius both tell the client the view distance, without the ring.
+pub const VIEW_MARGIN: u8 = 1;
+
 /// The view the client was last told about.
 #[derive(Component, Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct SentChunkView(pub Option<ChunkTrackingView>);

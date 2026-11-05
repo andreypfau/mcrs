@@ -14,7 +14,7 @@ use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_chunk::{BlockLight, SkyLight};
 use mcrs_minecraft_engine_world::entity::physics::Transform;
 use mcrs_minecraft_engine_world::entity::player::chunk_view::{
-    ChunkTrackingView, PlayerViewDistance, SentChunkView,
+    ChunkTrackingView, PlayerViewDistance, SentChunkView, VIEW_MARGIN,
 };
 use mcrs_minecraft_engine_world::session::Owner;
 use mcrs_minecraft_engine_world::tick::TickSet;
@@ -296,7 +296,7 @@ pub(crate) fn report_player_views(
         let min_section_y = type_config.min_y >> SectionPos::BITS;
         let view = ChunkTrackingView::with_y_bounds(
             SectionPos::from(transform.translation),
-            distance.distance + 1,
+            distance.distance.saturating_add(VIEW_MARGIN),
             distance.vert_distance + 1,
             min_section_y,
             min_section_y + type_config.section_count as i32 - 1,

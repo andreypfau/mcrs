@@ -52,6 +52,8 @@ use mcrs_minecraft_engine_world::world::lifecycle::simulation::{
     BlockTicking, EntityTicking, SimulationDistance,
 };
 use mcrs_minecraft_engine_world::world::lifecycle::stage::SectionStage;
+use mcrs_minecraft_item::ItemStack;
+use mcrs_minecraft_item::item_keys::Item;
 use mcrs_minecraft_protocol::uuid::Uuid;
 use mcrs_minecraft_protocol::{Decode, Packet, VarInt};
 use mcrs_minecraft_protocol_game::chunk::{LightChunk, LightData};
@@ -60,8 +62,6 @@ use mcrs_minecraft_protocol_game::clientbound::{
     ClientboundRemoveEntities,
 };
 use mcrs_minecraft_random::legacy::LegacyRandom;
-use mcrs_minecraft_item::ItemStack;
-use mcrs_minecraft_item::item_keys::Item;
 use mcrs_minecraft_resource::Id;
 use mcrs_minecraft_server::MinecraftServerPlugins;
 use mcrs_minecraft_simulation::{
@@ -1490,4 +1490,27 @@ fn a_block_that_a_shape_update_destroys_drops_the_items_of_the_rules() {
         }]
     );
     assert_eq!(block_at(&mut app, label, pos), Some(BlockStateId::AIR));
+}
+
+/// The login and the cache radius tell the client the same view distance, without the ring of
+/// columns that the view holds past it.
+#[test]
+fn the_login_and_the_cache_radius_tell_the_same_view_distance() {
+    let mut app = server(1);
+    let label = label_of(&app, OVERWORLD);
+    let session = admit(&mut app, label, "viewer", DVec3::new(8.5, 100.0, 8.5), 3);
+    let mut logins = Vec::new();
+    let mut radii = Vec::new();
+    let deadline = Instant::now() + PATIENCE;
+    while radii.is_empty() {
+        assert!(Instant::now() < deadline, "the view never sent its radius");
+        for packet in sent_to(session, tick(&mut app, label)) {
+            match packet {
+                PacketPayload::PlayerLogin(login) => logins.push(login.chunk_radius.0),
+                PacketPayload::SetChunkCacheRadius(radius) => radii.push(radius.radius.0),
+                _ => {}
+            }
+        }
+    }
+    assert_eq!((logins, radii), (vec![3], vec![3]));
 }
