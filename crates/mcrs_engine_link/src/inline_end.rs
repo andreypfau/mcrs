@@ -3,7 +3,6 @@ use std::vec::Drain;
 
 use crate::stage::Stage;
 use crate::step::Step;
-use crate::task_end::TaskId;
 use crate::tasks::Tasks;
 
 /// A far end on the thread of its caller. The stage runs only when the caller asks.
@@ -51,13 +50,14 @@ impl<S: Stage> InlineEnd<S> {
         self.outputs.drain(..)
     }
 
-    /// Waits until a task of the stage ends, gives the stage its outcome, and tells which task
-    /// it was. It gives `None` at once when no task is open.
-    pub async fn wait(&mut self) -> Option<TaskId> {
-        let outcome = self.tasks.next().await?;
-        let id = outcome.id();
+    /// Blocks until a task of the stage ends, gives the stage its outcome, and tells whether a
+    /// task ended. It returns at once when no task is open.
+    pub fn wait(&mut self) -> bool {
+        let Some(outcome) = self.tasks.wait() else {
+            return false;
+        };
         self.stage.finish(outcome);
-        Some(id)
+        true
     }
 
     /// Steps the stage until it owes nothing, or until it cannot make progress, and appends its
@@ -71,10 +71,9 @@ impl<S: Stage> InlineEnd<S> {
             if self.stage.has_work() {
                 continue;
             }
-            let Some(outcome) = self.tasks.wait() else {
+            if !self.wait() {
                 return;
-            };
-            self.stage.finish(outcome);
+            }
         }
     }
 

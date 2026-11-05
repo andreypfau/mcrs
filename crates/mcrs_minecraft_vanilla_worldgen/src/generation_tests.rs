@@ -229,9 +229,9 @@ fn run_parallel(dim: &Dimension, wanted: &[ColumnPos], drive: Drive) -> (Region,
         if end.stage().has_work() {
             continue;
         }
-        let ended = block_on(end.wait());
+        let ended = end.wait();
         assert!(
-            ended.is_some() || !all_requested,
+            ended || !all_requested,
             "{drive:?} stopped with nothing on the pool before it generated the region"
         );
     }
