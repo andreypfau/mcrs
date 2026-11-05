@@ -219,3 +219,85 @@ fn land_column(
             .insert((landing.dim, landing.column), maps);
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use bevy_ecs::message::Messages;
+    use bevy_ecs::system::RunSystemOnce;
+    use bevy_ecs::world::World;
+    use mcrs_engine_store::{StoreInput, VersionedChunk};
+
+    use crate::column_ticks::ColumnTicks;
+
+    fn empty_column() -> StoredColumn {
+        StoredColumn {
+            min_section_y: 0,
+            sections: Vec::new(),
+            block_entities: Vec::new(),
+            heightmaps: None,
+            ticks: ColumnTicks::default(),
+        }
+    }
+
+    /// Lands `answer` for a read of its column, then writes the column back as a cold column
+    /// and as its final light, and gives the columns that the writes reach the data layer for.
+    fn written_after(answer: StoreOutput<ColumnPos, StoredColumn>) -> Vec<ColumnPos> {
+        let column = match &answer {
+            StoreOutput::Found { key, .. }
+            | StoreOutput::Missing { key }
+            | StoreOutput::Unreadable { key } => *key,
+        };
+        let mut world = World::new();
+        world.init_resource::<Messages<SectionStageChanged>>();
+        world.init_resource::<PendingColumnHeightmaps>();
+        let dim = world.spawn(Dimension).id();
+        let section = world
+            .spawn((
+                SectionStage::Fetching,
+                SectionPos::new(column.x, 0, column.z),
+                InDimension(dim),
+            ))
+            .id();
+        let mut store = ColumnStoreLink::new(None);
+        store.take(column, section);
+        store.receive(vec![answer]);
+        world.insert_resource(store);
+        world.run_system_once(land_stored_columns).unwrap();
+
+        let mut store = world.resource_mut::<ColumnStoreLink>();
+        store.put(column, empty_column());
+        store.put_lit(
+            column,
+            VersionedChunk {
+                version: ChunkVersion::default(),
+                chunk: empty_column(),
+            },
+        );
+        let mut sent = Vec::new();
+        store.take_sent(&mut sent);
+        sent.into_iter()
+            .filter_map(|input| match input {
+                StoreInput::Put { key, .. } => Some(key),
+                StoreInput::Get { .. } | StoreInput::Flush => None,
+            })
+            .collect()
+    }
+
+    #[test]
+    fn a_column_that_the_disk_did_not_read_is_never_written_over() {
+        let column = ColumnPos::new(2, -3);
+
+        assert_eq!(
+            written_after(StoreOutput::Missing { key: column }),
+            [column, column],
+            "a column that the disk does not hold is written"
+        );
+        assert_eq!(
+            written_after(StoreOutput::Unreadable { key: column }),
+            [],
+            "a write replaced the version that the disk could not read"
+        );
+    }
+}
