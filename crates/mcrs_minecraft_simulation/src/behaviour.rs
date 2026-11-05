@@ -1,7 +1,9 @@
 use crate::SimulationVolume;
 use crate::cx::Cx;
+use crate::random_tick::RandomTicks;
 use crate::tick_queue::Kinds;
 use mcrs_minecraft_core::Direction;
+use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_voxel::{BlockPos, BlockStateId};
 
 pub trait BlockFacts<K: Kinds> {
@@ -35,6 +37,33 @@ pub trait BlockBehaviour<K: Kinds>: Sync + Sized {
         _at: BlockPos,
         _state: BlockStateId,
         _fluid: K::Fluid,
+    ) {
+    }
+
+    /// The random ticks that `state` takes. The step asks once for each state.
+    fn random_ticks(&self, _state: BlockStateId) -> RandomTicks {
+        RandomTicks::empty()
+    }
+
+    /// A random pick of a section found `state`, which takes block random ticks, at `at`.
+    fn random_tick<V: SimulationVolume, F: BlockFacts<K>>(
+        &self,
+        _cx: &mut Cx<'_, K, V, F, Self>,
+        _at: BlockPos,
+        _state: BlockStateId,
+        _random: &mut LegacyRandom,
+    ) {
+    }
+
+    /// A random pick of a section found `state`, whose fluid takes random ticks, at `at`. It
+    /// runs after the block random tick of the same pick, with the state that the pick read.
+    fn fluid_random_tick<V: SimulationVolume, F: BlockFacts<K>>(
+        &self,
+        _cx: &mut Cx<'_, K, V, F, Self>,
+        _at: BlockPos,
+        _state: BlockStateId,
+        _fluid: K::Fluid,
+        _random: &mut LegacyRandom,
     ) {
     }
 
