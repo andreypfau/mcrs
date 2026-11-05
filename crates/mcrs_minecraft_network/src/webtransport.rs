@@ -94,15 +94,18 @@ pub(crate) async fn start_accept_loop(shared: SharedNetworkState, endpoint: Endp
     let mut gate = AcceptGate::new();
 
     loop {
+        let Some(slot) = gate.handshake_slot().await else {
+            return;
+        };
         let incoming = endpoint.accept().await;
         let remote_addr = incoming.remote_address();
-        let Some(guard) = gate.admit(remote_addr.ip()) else {
+        if !gate.admit(remote_addr.ip()) {
             incoming.refuse();
             continue;
-        };
+        }
         let shared = shared.clone();
         tokio::spawn(async move {
-            let _guard = guard;
+            let _slot = slot;
             match timeout(
                 HANDLE_CONNECTION_TIMEOUT,
                 handle_session(shared, incoming, remote_addr),

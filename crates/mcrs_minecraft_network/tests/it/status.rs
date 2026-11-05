@@ -2,6 +2,7 @@ use base64::Engine;
 use base64::engine::general_purpose::STANDARD;
 use bevy_app::App;
 use mcrs_minecraft_core::VERSION;
+use mcrs_minecraft_network::connect::GLOBAL_HANDSHAKE_CAP;
 use mcrs_minecraft_network::packet_io::PacketIo;
 use mcrs_minecraft_network::{BoundAddress, NetworkPlugin, StatusPlayers, StatusPublisher};
 use mcrs_minecraft_protocol::handshake::Intent;
@@ -68,21 +69,43 @@ fn status_json(address: SocketAddr) -> String {
 
 fn status_exchange(address: SocketAddr) -> anyhow::Result<String> {
     tokio::runtime::Runtime::new().unwrap().block_on(async {
-        tokio::time::timeout(Duration::from_secs(10), async {
-            let mut io = PacketIo::connect(address).await?;
-            io.send_packet(&ServerboundHandshake {
-                protocol_version: VarInt(VERSION.protocol_version),
-                server_address: Bounded("127.0.0.1"),
-                server_port: address.port(),
-                intent: Intent::Status,
-            })
-            .await?;
-            io.send_packet(&StatusRequest).await?;
-            Ok(io.recv_packet::<StatusResponse>().await?.json.to_owned())
-        })
-        .await
-        .unwrap()
+        tokio::time::timeout(Duration::from_secs(10), status_request(address))
+            .await
+            .unwrap()
     })
+}
+
+async fn status_request(address: SocketAddr) -> anyhow::Result<String> {
+    let mut io = PacketIo::connect(address).await?;
+    io.send_packet(&ServerboundHandshake {
+        protocol_version: VarInt(VERSION.protocol_version),
+        server_address: Bounded("127.0.0.1"),
+        server_port: address.port(),
+        intent: Intent::Status,
+    })
+    .await?;
+    io.send_packet(&StatusRequest).await?;
+    Ok(io.recv_packet::<StatusResponse>().await?.json.to_owned())
+}
+
+#[test]
+fn a_connection_beyond_the_handshake_cap_waits_for_a_slot_instead_of_closing() {
+    let (_app, address) = server(1, "", Vec::new());
+
+    let answered = tokio::runtime::Runtime::new().unwrap().block_on(async {
+        let mut silent = Vec::new();
+        for _ in 0..GLOBAL_HANDSHAKE_CAP {
+            silent.push(TcpStream::connect(address).await.unwrap());
+        }
+        let status = tokio::spawn(status_request(address));
+        // Long enough for the server to take the request while every slot is held.
+        tokio::time::sleep(Duration::from_millis(200)).await;
+        drop(silent);
+        tokio::time::timeout(Duration::from_secs(10), status).await
+    });
+
+    let json = answered.unwrap().unwrap().unwrap();
+    assert!(json.contains("\"players\""), "a status response: {json}");
 }
 
 #[test]

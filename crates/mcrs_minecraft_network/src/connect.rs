@@ -5,9 +5,9 @@ use socket2::SockRef;
 use std::collections::HashMap;
 use std::net::IpAddr;
 use std::sync::Arc;
-use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::{Duration, Instant};
 use tokio::net::TcpListener;
+use tokio::sync::{OwnedSemaphorePermit, Semaphore};
 use tokio::time::timeout;
 use tracing::{error, info, warn};
 
@@ -51,12 +51,9 @@ impl TokenBucket {
 }
 
 /// Decision function separated from the async loop so it is testable without a real socket.
-pub fn accept_decision(bucket: &mut TokenBucket, inflight: usize) -> AcceptOutcome {
+pub fn accept_decision(bucket: &mut TokenBucket) -> AcceptOutcome {
     if !bucket.consume(ACCEPT_BUCKET_CAP, ACCEPT_REFILL_PER_SEC) {
         return AcceptOutcome::RateLimited;
-    }
-    if inflight >= GLOBAL_HANDSHAKE_CAP {
-        return AcceptOutcome::CapExceeded;
     }
     AcceptOutcome::Accept
 }
@@ -65,16 +62,6 @@ pub fn accept_decision(bucket: &mut TokenBucket, inflight: usize) -> AcceptOutco
 pub enum AcceptOutcome {
     Accept,
     RateLimited,
-    CapExceeded,
-}
-
-/// RAII guard that decrements the in-flight counter on drop.
-pub(crate) struct InflightGuard(Arc<AtomicUsize>);
-
-impl Drop for InflightGuard {
-    fn drop(&mut self) {
-        self.0.fetch_sub(1, Ordering::Relaxed);
-    }
 }
 
 /// Shared admission control for every listener: a per-IP token bucket plus one
@@ -83,7 +70,7 @@ pub(crate) struct AcceptGate {
     // HashMap is safe without locks: a gate is owned by a single accept task.
     per_ip_buckets: HashMap<IpAddr, TokenBucket>,
     last_sweep: Instant,
-    inflight: Arc<AtomicUsize>,
+    handshakes: Arc<Semaphore>,
 }
 
 impl AcceptGate {
@@ -91,11 +78,20 @@ impl AcceptGate {
         Self {
             per_ip_buckets: HashMap::new(),
             last_sweep: Instant::now(),
-            inflight: Arc::new(AtomicUsize::new(0)),
+            handshakes: Arc::new(Semaphore::new(GLOBAL_HANDSHAKE_CAP)),
         }
     }
 
-    pub(crate) fn admit(&mut self, ip: IpAddr) -> Option<InflightGuard> {
+    /// Waits until fewer than [`GLOBAL_HANDSHAKE_CAP`] handshakes are in flight. The accept loop
+    /// takes the slot before it accepts, so a burst beyond the cap waits in the listen backlog: a
+    /// connection that it accepted and then dropped reads as a refusal to a client that did
+    /// nothing wrong.
+    pub(crate) async fn handshake_slot(&self) -> Option<OwnedSemaphorePermit> {
+        self.handshakes.clone().acquire_owned().await.ok()
+    }
+
+    /// Whether the accepted connection from `ip` may go on to its handshake.
+    pub(crate) fn admit(&mut self, ip: IpAddr) -> bool {
         // A full bucket behaves as a new one, so dropping it bounds the map by the
         // addresses seen within the last two refill periods: a bucket drained just
         // before a sweep is full only after it, and survives to the next one.
@@ -108,39 +104,23 @@ impl AcceptGate {
             }
             self.last_sweep = Instant::now();
         }
-        let current_inflight = self.inflight.load(Ordering::Relaxed);
-
         // The per-IP bucket blunts remote connection floods. An integrated
         // server reconnects over loopback far faster than its 0.5/s refill,
         // where a silent refusal reads as a hang.
-        let outcome = if ip.is_loopback() {
-            if current_inflight >= GLOBAL_HANDSHAKE_CAP {
-                AcceptOutcome::CapExceeded
-            } else {
-                AcceptOutcome::Accept
-            }
-        } else {
-            let bucket = self
-                .per_ip_buckets
-                .entry(ip)
-                .or_insert_with(|| TokenBucket::new(ACCEPT_BUCKET_CAP));
-            accept_decision(bucket, current_inflight)
-        };
-
-        match outcome {
+        if ip.is_loopback() {
+            return true;
+        }
+        let bucket = self
+            .per_ip_buckets
+            .entry(ip)
+            .or_insert_with(|| TokenBucket::new(ACCEPT_BUCKET_CAP));
+        match accept_decision(bucket) {
+            AcceptOutcome::Accept => true,
             AcceptOutcome::RateLimited => {
                 warn!("accept-rate limit exceeded for {ip}");
-                return None;
+                false
             }
-            AcceptOutcome::CapExceeded => {
-                warn!("global handshake cap reached ({current_inflight})");
-                return None;
-            }
-            AcceptOutcome::Accept => {}
         }
-
-        self.inflight.fetch_add(1, Ordering::Relaxed);
-        Some(InflightGuard(self.inflight.clone()))
     }
 }
 
@@ -153,14 +133,17 @@ pub(crate) async fn start_accept_loop(shared: SharedNetworkState, listener: TcpL
     let mut gate = AcceptGate::new();
 
     loop {
+        let Some(slot) = gate.handshake_slot().await else {
+            return;
+        };
         match listener.accept().await {
             Ok((socket, remote_addr)) => {
-                let Some(guard) = gate.admit(remote_addr.ip()) else {
+                if !gate.admit(remote_addr.ip()) {
                     continue;
-                };
+                }
                 let shared = shared.clone();
                 tokio::spawn(async move {
-                    let _guard = guard;
+                    let _slot = slot;
                     if let Err(e) = timeout(
                         HANDLE_CONNECTION_TIMEOUT,
                         handle_connection(shared, socket, remote_addr),
