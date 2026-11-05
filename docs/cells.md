@@ -490,7 +490,9 @@ Each step leaves a working server and passes the determinism test.
    in the dimension. Done, with these parts left:
    - The disk store of Minecraft: Anvil region files that the data layer reads and writes, a
      `Flush` at each autosave and at shutdown, and an eviction of the columns that the disk
-     holds. Check: a column that a player changed is the same after a restart.
+     holds. Check: a column that a player changed is the same after a restart. A cell sends
+     the read of a column that no cell wrote to generation, because the data layer holds only
+     the writes. With a disk, such a read goes to the data layer first.
    - The stages in cold space. Done: the data layer generates and lights each column that a
      view needs and that the dimension does not light, and a view loads no column into the
      dimension. Parts left:
