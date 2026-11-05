@@ -2,7 +2,7 @@
 //! shows.
 //!
 //! A viewer has the entries of its visible set, which are not listed, and at most
-//! [`LISTED_CAP`] listed entries that a [`ListPolicy`] chooses. An entry that nothing needs any
+//! [`LISTED_CAP`] listed entries: the nearest players. An entry that nothing needs any
 //! more stays on the client for [`ENTRY_LINGER_TICKS`], so a subject at the edge of the track
 //! radius does not send its profile again on each return.
 
@@ -10,7 +10,7 @@ use crate::list_packets::{
     EntryLatency, Profile, latency_packet, listed_packet, profile_entry, remove_packet,
     unlisted_packet,
 };
-use crate::list_policy::{Candidate, ListPolicy, ListRequest};
+use crate::nearest::nearest;
 use bytes::Bytes;
 use glam::DVec3;
 use mcrs_engine_muxer::EntityId;
@@ -239,7 +239,6 @@ impl PlayerList {
     pub fn update<F: Fn(EntityId, EntityId) -> bool>(
         &mut self,
         clock: Clock,
-        policy: ListPolicy,
         roster: &[Member<'_>],
         sees: F,
         out: &mut Vec<Dispatch>,
@@ -250,8 +249,6 @@ impl PlayerList {
             subjects,
             removals,
         } = self;
-        let mut candidates: Vec<Candidate> = Vec::new();
-        let mut chosen: Vec<EntityId> = Vec::new();
         for (&viewer, entries) in viewers.iter_mut() {
             let new = entries.chosen_at.is_none();
             if !new && !due(tick, entries.phase, LIST_INTERVAL_TICKS) {
@@ -260,31 +257,8 @@ impl PlayerList {
             if entries.chosen_at != Some(generation)
                 && let Some(own) = member(roster, viewer)
             {
-                if candidates.is_empty() {
-                    candidates.extend(roster.iter().map(|member| Candidate {
-                        player: member.player,
-                        position: member.position,
-                    }));
-                }
-                chosen.clear();
-                (policy.0)(
-                    &ListRequest {
-                        viewer: Candidate {
-                            player: viewer,
-                            position: own.position,
-                        },
-                        candidates: &candidates,
-                        limit: LISTED_CAP.saturating_sub(1),
-                    },
-                    &mut chosen,
-                );
+                let listed = nearest(viewer, own.position, roster, LISTED_CAP.saturating_sub(1));
                 entries.chosen_at = Some(generation);
-                let listed: BTreeSet<EntityId> = chosen
-                    .iter()
-                    .copied()
-                    .filter(|&player| player != viewer)
-                    .take(LISTED_CAP.saturating_sub(1))
-                    .collect();
                 let relisting = Relisting {
                     viewer,
                     tick,
@@ -526,8 +500,7 @@ mod tests {
     #[test]
     fn an_entry_that_nothing_needs_is_removed_after_the_linger() -> Result<()> {
         let mut list = list_of_two();
-        let roster = [member_at(FIRST, 0.0), member_at(SECOND, 500.0)];
-        let policy = ListPolicy(|_, _| {});
+        let roster = [member_at(FIRST, 0.0)];
         let _ = list.acquire(FIRST, SECOND);
         list.release(FIRST, SECOND, 100);
         let mut out = Vec::new();
@@ -536,7 +509,6 @@ mod tests {
                 tick: 1,
                 generation: 1,
             },
-            policy,
             &roster,
             |_, _| false,
             &mut out,
@@ -547,14 +519,14 @@ mod tests {
             tick: 100 + ENTRY_LINGER_TICKS - 20,
             generation: 1,
         };
-        list.update(before, policy, &roster, |_, _| false, &mut out)?;
+        list.update(before, &roster, |_, _| false, &mut out)?;
         assert!(out.is_empty(), "{out:?}");
 
         let after = Clock {
             tick: 100 + ENTRY_LINGER_TICKS,
             generation: 1,
         };
-        list.update(after, policy, &roster, |_, _| false, &mut out)?;
+        list.update(after, &roster, |_, _| false, &mut out)?;
         let expected = Dispatch {
             viewer: FIRST,
             packet: remove_packet(vec![Uuid::from_u128(2)])?,

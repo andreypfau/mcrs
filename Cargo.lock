@@ -4214,7 +4214,6 @@ dependencies = [
  "mcrs_minecraft_protocol",
  "mcrs_minecraft_protocol_game",
  "mcrs_minecraft_registries",
- "mcrs_minecraft_replication",
  "mcrs_minecraft_resource",
  "mcrs_minecraft_save",
  "mcrs_minecraft_text",

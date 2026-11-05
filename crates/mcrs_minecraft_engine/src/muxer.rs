@@ -25,7 +25,6 @@ pub mod latency;
 pub mod muxer_placement;
 pub mod muxer_plugin;
 pub mod online_count;
-pub mod player_list_policy;
 pub mod session;
 pub mod tick_wake;
 pub mod tile_delta_log;

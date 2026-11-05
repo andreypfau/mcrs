@@ -5,8 +5,8 @@
 mod delta_base;
 mod encode;
 mod list_packets;
-mod list_policy;
 mod motion;
+mod nearest;
 mod player_codec;
 mod player_data;
 mod player_input;
@@ -16,7 +16,6 @@ mod player_spawn;
 pub use delta_base::{KEYFRAME_INTERVAL_TICKS, Pose};
 pub use encode::record;
 pub use list_packets::{Profile, game_mode_packet};
-pub use list_policy::*;
 pub use player_codec::*;
 pub use player_data::*;
 pub use player_input::*;

@@ -15,7 +15,6 @@ mcrs_engine_link.workspace = true
 mcrs_minecraft_text.workspace = true
 mcrs_minecraft_save.workspace = true
 mcrs_minecraft_engine_registries.workspace = true
-mcrs_minecraft_replication.workspace = true
 mcrs_minecraft_resource.workspace = true
 mcrs_minecraft_assets.workspace = true
 mcrs_minecraft_client_jar = { workspace = true, optional = true }

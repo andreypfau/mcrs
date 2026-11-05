@@ -15,13 +15,12 @@ use mcrs_engine_muxer::{
     TileKey, View, ViewerBytes, ViewerId, WorldId,
 };
 use mcrs_minecraft_engine_world::session::{PlayerSession, SessionAnchors};
-use mcrs_minecraft_replication::{ListPolicy, PlayerCodec, PlayerData, PlayerInput};
+use mcrs_minecraft_replication::{PlayerCodec, PlayerData, PlayerInput};
 
 use crate::bus::{PacketPayload, to};
 use crate::muxer::dim_outputs;
 use crate::muxer::latency::Latency;
 use crate::muxer::muxer_placement::MuxerPlacement;
-use crate::muxer::player_list_policy::PlayerListPolicy;
 use crate::muxer::session::SessionConnection;
 use crate::muxer::tick_wake::TickWake;
 use crate::muxer::tile_delta_log::{LoggedDeltas, TileDeltaLog};
@@ -40,7 +39,6 @@ pub enum Answers {
 #[derive(Resource)]
 pub struct EntityReplication {
     link: Link<MuxerStage<PlayerCodec>>,
-    policy: ListPolicy,
     worlds: BTreeSet<WorldId>,
     viewers: BTreeMap<ViewerId, Watch>,
     /// The viewer of each player, by the world it is in.
@@ -65,10 +63,9 @@ struct WorldPlayer {
 impl EntityReplication {
     /// A muxer on a thread of its own sends `wake` a message each time it hands out bytes.
     #[must_use]
-    pub fn new(placement: Placement, policy: ListPolicy, wake: Sender<()>) -> Self {
+    pub fn new(placement: Placement, wake: Sender<()>) -> Self {
         Self {
             link: Link::new_with_wake(MuxerStage::new(), placement, wake),
-            policy,
             worlds: BTreeSet::new(),
             viewers: BTreeMap::new(),
             players: BTreeMap::new(),
@@ -103,7 +100,7 @@ impl EntityReplication {
         if self.worlds.insert(world) {
             self.link.send(MuxerInput::Open {
                 world,
-                codec: PlayerCodec::new(self.policy),
+                codec: PlayerCodec::default(),
                 settings: MuxerSettings {
                     tile_width: TILE_WIDTH,
                     ..MuxerSettings::default()
@@ -290,13 +287,8 @@ fn replication_mut(world: &mut World) -> bevy_ecs::world::Mut<'_, EntityReplicat
         let placement = world
             .get_resource::<MuxerPlacement>()
             .map_or(Placement::Inline, |placement| placement.0);
-        let policy = world
-            .get_resource::<PlayerListPolicy>()
-            .copied()
-            .unwrap_or_default()
-            .0;
         let wake = world.get_resource_or_init::<TickWake>().waker();
-        world.insert_resource(EntityReplication::new(placement, policy, wake));
+        world.insert_resource(EntityReplication::new(placement, wake));
     }
     world.resource_mut::<EntityReplication>()
 }

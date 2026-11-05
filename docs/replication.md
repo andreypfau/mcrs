@@ -319,8 +319,7 @@ Rules for the budget:
 
 The implementation today has these values and limits:
 
-- The default policy lists the nearest players. `ListPolicy` holds a function, and the
-  `list_policy` field of `ServerCorePlugin` sets it, so a party or an operator policy can replace it.
+- The policy lists the nearest players. No other policy exists yet.
 - The candidates of the policy are the players of the dimension of the viewer. The reference lists
   all players of the server. When a player changes dimension, the viewers of the old dimension
   remove its entry, and it removes their entries. This is `intentional_deviation`.

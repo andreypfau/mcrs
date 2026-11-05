@@ -1,7 +1,6 @@
 use crate::delta_base::DeltaBase;
 use crate::encode::record;
 use crate::list_packets::{Profile, game_mode_packet};
-use crate::list_policy::ListPolicy;
 use crate::motion::Motion;
 use crate::player_data::PlayerData;
 use crate::player_input::PlayerInput;
@@ -33,7 +32,6 @@ use uuid::Uuid;
 /// [`record`](crate::record)).
 #[derive(Debug, Default)]
 pub struct PlayerCodec {
-    policy: ListPolicy,
     list: PlayerList,
     subjects: BTreeMap<EntityId, Subject>,
     /// The own subject of each viewer.
@@ -82,15 +80,6 @@ struct Message {
 }
 
 impl PlayerCodec {
-    /// A codec whose player lists show the players that `policy` chooses.
-    #[must_use]
-    pub fn new(policy: ListPolicy) -> Self {
-        Self {
-            policy,
-            ..Self::default()
-        }
-    }
-
     fn owe(&mut self, viewer: ViewerId, packet: Bytes) {
         if !self.forgotten.contains(&viewer) {
             self.owed.entry(viewer).or_default().push(packet);
@@ -331,9 +320,7 @@ impl PlayerCodec {
             tick: self.tick,
             generation: self.generation,
         };
-        let result = self
-            .list
-            .update(clock, self.policy, &roster, sees, &mut self.dispatches);
+        let result = self.list.update(clock, &roster, sees, &mut self.dispatches);
         for Dispatch { viewer, packet } in mem::take(&mut self.dispatches) {
             if let Some(state) = self.subjects.get(&viewer) {
                 let viewer = state.viewer;
