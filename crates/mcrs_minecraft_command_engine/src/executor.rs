@@ -17,6 +17,7 @@ use mcrs_command::{Executor, Failure};
 use mcrs_minecraft_engine::bus::OutboundPlayerPacket;
 use mcrs_minecraft_engine_world::session::PlayerSession;
 use mcrs_minecraft_text::Text;
+use std::mem;
 
 /// The sources of one stage that go on in the world of the dimension `to`.
 pub(crate) struct Deferred {
@@ -105,7 +106,7 @@ pub(crate) fn settle(world: &mut World) {
     let Some(mut outbox) = world.get_resource_mut::<CommandOutbox>() else {
         return;
     };
-    let mut effects = std::mem::take(&mut outbox.effects);
+    let effects = mem::take(&mut outbox.effects);
     if !effects.is_empty()
         && let Some(mut targets) = world.remove_resource::<CommandTargets>()
     {
@@ -113,28 +114,21 @@ pub(crate) fn settle(world: &mut World) {
             world,
             targets: &mut targets,
         };
-        for apply in effects.drain(..) {
+        for apply in effects {
             apply(&mut worlds);
         }
         world.insert_resource(targets);
     }
-    effects.clear();
     let Some(mut outbox) = world.get_resource_mut::<CommandOutbox>() else {
         return;
     };
-    outbox.effects = effects;
-    let mut packets = std::mem::take(&mut outbox.packets);
-    let mut broadcasts = std::mem::take(&mut outbox.broadcasts);
+    let packets = mem::take(&mut outbox.packets);
+    let broadcasts = mem::take(&mut outbox.broadcasts);
     if let Some(mut messages) = world.get_resource_mut::<Messages<OutboundPlayerPacket>>() {
-        messages.write_batch(packets.drain(..));
+        messages.write_batch(packets);
     }
-    for broadcast in broadcasts.drain(..) {
+    for broadcast in broadcasts {
         world.trigger(broadcast);
-    }
-    if let Some(mut outbox) = world.get_resource_mut::<CommandOutbox>() {
-        packets.clear();
-        outbox.packets = packets;
-        outbox.broadcasts = broadcasts;
     }
 }
 
@@ -157,11 +151,7 @@ impl Executor<SourceState, Handler> for DimExecutor<'_> {
         let modified: Option<ModifyResult> = self.call(invocation, |world| {
             world.get_resource::<ModifierHandlers>()?.get(key, branch)
         });
-        let mut forked = self
-            .world
-            .get_resource_mut::<CommandOutbox>()
-            .map(|mut outbox| std::mem::take(&mut outbox.forked))
-            .unwrap_or_default();
+        let mut outbox = self.world.get_resource_mut::<CommandOutbox>();
         let result = match modified.unwrap_or_else(|| Err(CommandFailure::failed())) {
             Ok(Modified::None) => Ok(()),
             Ok(Modified::One(source)) => {
@@ -169,14 +159,15 @@ impl Executor<SourceState, Handler> for DimExecutor<'_> {
                 Ok(())
             }
             Ok(Modified::Forked) => {
-                out.append(&mut forked);
+                if let Some(outbox) = outbox.as_mut() {
+                    out.append(&mut outbox.forked);
+                }
                 Ok(())
             }
             Err(failure) => Err(failure),
         };
-        forked.clear();
-        if let Some(mut outbox) = self.world.get_resource_mut::<CommandOutbox>() {
-            outbox.forked = forked;
+        if let Some(mut outbox) = outbox {
+            outbox.forked.clear();
         }
         result
     }
