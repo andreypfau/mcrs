@@ -3,7 +3,6 @@ use crate::intent::status_frame;
 use crate::metrics::Malformed;
 use crate::{ConnectionState, NetworkSet, RawConnection};
 use crate::{connect, event, lan, webtransport};
-use base64::Engine;
 use base64::engine::general_purpose::STANDARD;
 use bevy_app::{App, AppExit, FixedPreUpdate, Plugin, PostStartup, Update};
 use bevy_ecs::change_detection::{DetectChanges, ResMut};
@@ -51,7 +50,10 @@ const SERVER_ICON: &[u8] = include_bytes!(concat!(
     "/../../assets/mcrs/server-icon.png"
 ));
 
+/// The mc.rs icon as a `data:` URL for the `favicon` key of the status response.
+#[must_use]
 pub fn default_favicon() -> String {
+    use base64::Engine;
     format!("data:image/png;base64,{}", STANDARD.encode(SERVER_ICON))
 }
 
