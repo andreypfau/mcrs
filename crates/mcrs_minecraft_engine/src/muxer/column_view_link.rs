@@ -5,9 +5,8 @@
 use bevy_ecs::entity::Entity;
 use bevy_ecs::observer::On;
 use bevy_ecs::prelude::{Query, ResMut, Resource};
-use bevy_ecs::world::{Mut, World};
+use bevy_ecs::world::{FromWorld, Mut, World};
 use bevy_tasks::block_on;
-use flume::Sender;
 use mcrs_engine_link::{Link, Placement};
 use mcrs_minecraft_engine_world::session::{
     PlayerSession, Session, SessionAnchors, SessionPlacement,
@@ -35,16 +34,22 @@ pub struct ColumnViewLink {
     view_dims: FxHashMap<PlayerSession, Entity>,
 }
 
-impl ColumnViewLink {
-    /// Stages on a thread of their own send `wake` a message each time they hand out output.
-    #[must_use]
-    pub fn new(placement: Placement, wake: Sender<()>) -> Self {
+/// Placed as the [`MuxerPlacement`] says, inline without one. A stage on a thread of its own
+/// wakes the [`TickWake`] each time it hands out output.
+impl FromWorld for ColumnViewLink {
+    fn from_world(world: &mut World) -> Self {
+        let placement = world
+            .get_resource::<MuxerPlacement>()
+            .map_or(Placement::Inline, |placement| placement.0);
+        let wake = world.get_resource_or_init::<TickWake>().waker();
         Self {
             link: Link::new_with_wake(ColumnViewStage::default(), placement, wake),
             view_dims: FxHashMap::default(),
         }
     }
+}
 
+impl ColumnViewLink {
     /// The stage, when it runs on the host thread.
     #[must_use]
     pub fn inline_stage(&self) -> Option<&ColumnViewStage> {
@@ -87,7 +92,9 @@ pub(crate) fn receive(world: &mut World, dim: Entity, columns: DimColumns) {
     if columns.is_empty() {
         return;
     }
-    link_mut(world).take_dim(dim, columns);
+    world
+        .get_resource_or_init::<ColumnViewLink>()
+        .take_dim(dim, columns);
 }
 
 /// Ends what the host took between two ticks: the views send their next batches to every
@@ -111,7 +118,10 @@ pub(crate) fn send(world: &mut World) {
                 .map(|(session, _)| *session),
         );
     }
-    link_mut(world).link.send(ColumnViewInput::Send { blocked });
+    world
+        .get_resource_or_init::<ColumnViewLink>()
+        .link
+        .send(ColumnViewInput::Send { blocked });
 }
 
 /// Hands the packets that the views sent to the clients, and their requests to the
@@ -153,15 +163,4 @@ pub fn acknowledge_batch(
     if let Ok(&Session(session)) = sessions.get(anchor) {
         link.acknowledge_batch(session, ack.desired_chunks_per_tick);
     }
-}
-
-fn link_mut(world: &mut World) -> Mut<'_, ColumnViewLink> {
-    if !world.contains_resource::<ColumnViewLink>() {
-        let placement = world
-            .get_resource::<MuxerPlacement>()
-            .map_or(Placement::Inline, |placement| placement.0);
-        let wake = world.get_resource_or_init::<TickWake>().waker();
-        world.insert_resource(ColumnViewLink::new(placement, wake));
-    }
-    world.resource_mut::<ColumnViewLink>()
 }

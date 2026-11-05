@@ -6,9 +6,8 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use bevy_ecs::entity::Entity;
 use bevy_ecs::resource::Resource;
-use bevy_ecs::world::World;
+use bevy_ecs::world::{FromWorld, World};
 use bevy_tasks::block_on;
-use flume::Sender;
 use mcrs_engine_link::{Link, Placement};
 use mcrs_engine_muxer::{
     EntityEvent, EntityId, MuxerInput, MuxerSettings, MuxerStage, SubjectEvent, TileDeltas,
@@ -40,18 +39,12 @@ pub enum Answers {
 pub struct EntityReplication {
     link: Link<MuxerStage<PlayerCodec>>,
     worlds: BTreeSet<WorldId>,
-    viewers: BTreeMap<ViewerId, Watch>,
+    /// The player that each viewer subscribes with.
+    viewers: BTreeMap<ViewerId, WorldPlayer>,
     /// The viewer of each player, by the world it is in.
     players: BTreeMap<WorldPlayer, ViewerId>,
     inputs: Vec<MuxerInput<PlayerCodec>>,
     published_tiles: u64,
-}
-
-/// What a viewer subscribes to.
-#[derive(Clone, Copy, Debug)]
-struct Watch {
-    world: WorldId,
-    subject: EntityId,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -60,10 +53,14 @@ struct WorldPlayer {
     subject: EntityId,
 }
 
-impl EntityReplication {
-    /// A muxer on a thread of its own sends `wake` a message each time it hands out bytes.
-    #[must_use]
-    pub fn new(placement: Placement, wake: Sender<()>) -> Self {
+/// Placed as the [`MuxerPlacement`] says, inline without one. A muxer on a thread of its own
+/// wakes the [`TickWake`] each time it hands out bytes.
+impl FromWorld for EntityReplication {
+    fn from_world(world: &mut World) -> Self {
+        let placement = world
+            .get_resource::<MuxerPlacement>()
+            .map_or(Placement::Inline, |placement| placement.0);
+        let wake = world.get_resource_or_init::<TickWake>().waker();
         Self {
             link: Link::new_with_wake(MuxerStage::new(), placement, wake),
             worlds: BTreeSet::new(),
@@ -73,7 +70,9 @@ impl EntityReplication {
             published_tiles: 0,
         }
     }
+}
 
+impl EntityReplication {
     /// The world of the dimension `label` in the muxer.
     #[must_use]
     pub fn world_of(label: Entity) -> WorldId {
@@ -84,14 +83,6 @@ impl EntityReplication {
     #[must_use]
     pub fn published_tiles(&self) -> u64 {
         self.published_tiles
-    }
-
-    /// The dimension whose tiles the player of `session` subscribes to.
-    #[must_use]
-    pub fn watched_world(&self, session: PlayerSession) -> Option<WorldId> {
-        self.viewers
-            .get(&ViewerId(session.0))
-            .map(|watch| watch.world)
     }
 
     /// Hands the tile deltas of one tick of `world` to the muxer, then subscribes each player
@@ -140,7 +131,7 @@ impl EntityReplication {
                         viewer,
                     });
                 }
-                self.viewers.insert(viewer, Watch { world, subject });
+                self.viewers.insert(viewer, player);
                 self.players.insert(player, viewer);
                 self.inputs.push(subscribe(world, viewer, tile, subject));
             }
@@ -161,7 +152,7 @@ impl EntityReplication {
                 if self
                     .viewers
                     .get(&viewer)
-                    .is_some_and(|watch| watch.world == world && watch.subject == subject)
+                    .is_some_and(|watch| *watch == player)
                 {
                     self.viewers.remove(&viewer);
                 }
@@ -252,7 +243,7 @@ pub fn publish(world: &mut World, label: Entity, deltas: TileDeltas<PlayerData>)
         .into_iter()
         .filter_map(|session| Some((session, latency_of(world, session)?)))
         .collect();
-    let mut replication = replication_mut(world);
+    let mut replication = world.get_resource_or_init::<EntityReplication>();
     replication.publish(EntityReplication::world_of(label), deltas);
     for (session, latency) in latencies {
         replication.send_latency(session, latency);
@@ -280,17 +271,6 @@ pub fn deliver(world: &mut World, answers: Answers) {
             to(PlayerSession(viewer.0), PacketPayload::Replication(chunks)),
         );
     }
-}
-
-fn replication_mut(world: &mut World) -> bevy_ecs::world::Mut<'_, EntityReplication> {
-    if !world.contains_resource::<EntityReplication>() {
-        let placement = world
-            .get_resource::<MuxerPlacement>()
-            .map_or(Placement::Inline, |placement| placement.0);
-        let wake = world.get_resource_or_init::<TickWake>().waker();
-        world.insert_resource(EntityReplication::new(placement, wake));
-    }
-    world.resource_mut::<EntityReplication>()
 }
 
 fn latency_of(world: &World, session: PlayerSession) -> Option<i32> {
