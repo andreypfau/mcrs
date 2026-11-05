@@ -51,6 +51,14 @@ impl Uploads {
             .push_back(upload);
     }
 
+    /// The oldest upload still waiting, taken off the queue.
+    pub fn pop(&self) -> Option<Upload> {
+        self.0
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .pop_front()
+    }
+
     pub fn waiting(&self) -> usize {
         self.0.lock().unwrap_or_else(PoisonError::into_inner).len()
     }
@@ -160,68 +168,64 @@ pub(super) fn apply_uploads(params: &mut UploadParams, encoder: &mut CommandEnco
     while budget > 0 {
         let mut pending = match terrain.arenas.pending.take() {
             Some(pending) => pending,
-            None => {
-                let next = uploads
-                    .0
-                    .lock()
-                    .unwrap_or_else(PoisonError::into_inner)
-                    .pop_front();
-                match next {
-                    None => break,
-                    Some(Upload::Tints { origin, size, data }) => {
-                        let _writing = info_span!("upload tints").entered();
-                        write_tint_square(&terrain.sprites.tints, queue, origin, size, &data);
-                        budget = budget.saturating_sub(data.len());
-                        continue;
+            None => match uploads.pop() {
+                None => break,
+                Some(Upload::Tints { origin, size, data }) => {
+                    let _writing = info_span!("upload tints").entered();
+                    write_tint_square(&terrain.sprites.tints, queue, origin, size, &data);
+                    budget = budget.saturating_sub(data.len());
+                    continue;
+                }
+                Some(Upload::Sprites(upload)) => {
+                    let _adding = info_span!("upload sprites").entered();
+                    let (spent, rebound) =
+                        terrain.sprites.update(&upload, device, encoder, &mut belt);
+                    if rebound {
+                        terrain.binds.rebuild_draw(
+                            &terrain.arenas,
+                            &terrain.frame,
+                            &terrain.sprites,
+                            device,
+                            pipeline_cache,
+                        );
                     }
-                    Some(Upload::Sprites(upload)) => {
-                        let _adding = info_span!("upload sprites").entered();
-                        let (spent, rebound) =
-                            terrain.sprites.update(&upload, device, encoder, &mut belt);
-                        if rebound {
-                            terrain.binds.rebuild_draw(
-                                &terrain.arenas,
-                                &terrain.frame,
-                                &terrain.sprites,
-                                device,
-                                pipeline_cache,
-                            );
-                        }
-                        budget = budget.saturating_sub(spent);
-                        continue;
+                    budget = budget.saturating_sub(spent);
+                    continue;
+                }
+                Some(Upload::Geometry(placement)) => {
+                    let rebind = terrain.arenas.fit(&placement, device, encoder);
+                    if rebind.draw {
+                        terrain.binds.rebuild_draw(
+                            &terrain.arenas,
+                            &terrain.frame,
+                            &terrain.sprites,
+                            device,
+                            pipeline_cache,
+                        );
                     }
-                    Some(Upload::Geometry(placement)) => {
-                        let rebind = terrain.arenas.fit(&placement, device, encoder);
-                        if rebind.draw {
-                            terrain.binds.rebuild_draw(
-                                &terrain.arenas,
-                                &terrain.frame,
-                                &terrain.sprites,
-                                device,
-                                pipeline_cache,
-                            );
-                        }
-                        if rebind.cull || rebind.draw {
-                            terrain.binds.rebuild_cull(
-                                &terrain.arenas,
-                                &terrain.frame,
-                                &terrain.hiz.view,
-                                device,
-                                pipeline_cache,
-                            );
-                        }
-                        Pending {
-                            placement,
-                            part: 0,
-                            done: 0,
-                        }
+                    if rebind.cull || rebind.draw {
+                        terrain.binds.rebuild_cull(
+                            &terrain.arenas,
+                            &terrain.frame,
+                            &terrain.hiz.view,
+                            device,
+                            pipeline_cache,
+                        );
+                    }
+                    Pending {
+                        placement,
+                        part: 0,
+                        done: 0,
                     }
                 }
-            }
+            },
         };
         let parts = pending.placement.parts(&terrain.arenas);
+        // A placement with a draw list kills the records of replaced meshes in place and adds
+        // their replacements, so it lands in one frame: a frame between the two draws a hole.
+        let whole = pending.placement.draws.is_some();
         let copying = info_span!("upload copy").entered();
-        while budget > 0
+        while (whole || budget > 0)
             && let Some(&(buffer, offset, data)) = parts.get(pending.part)
         {
             if data.is_empty() {
@@ -230,7 +234,7 @@ pub(super) fn apply_uploads(params: &mut UploadParams, encoder: &mut CommandEnco
                 continue;
             }
             let left = data.len() - pending.done;
-            let mut take = left.min(budget);
+            let mut take = if whole { left } else { left.min(budget) };
             if take < left {
                 take -= take % COPY_BUFFER_ALIGNMENT as usize;
                 if take == 0 {
@@ -245,7 +249,7 @@ pub(super) fn apply_uploads(params: &mut UploadParams, encoder: &mut CommandEnco
             };
             belt.write_buffer(encoder, buffer, offset + pending.done as u64, size)
                 .copy_from_slice(chunk);
-            budget -= take;
+            budget = budget.saturating_sub(take);
             pending.done += take;
             if pending.done == data.len() {
                 pending.part += 1;
