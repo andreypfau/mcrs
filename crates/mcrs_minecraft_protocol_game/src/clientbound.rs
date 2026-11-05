@@ -51,6 +51,16 @@ pub struct ClientboundBlockDestruction {
     pub progress: i8,
 }
 
+/// A block event that a block took, for the clients that show its effect. The client gets only
+/// the low 8 bits of each argument.
+#[derive(Clone, Debug, PartialEq, Eq, Encode, Decode)]
+pub struct ClientboundBlockEvent {
+    pub pos: BlockPos,
+    pub action: u8,
+    pub param: u8,
+    pub block: VarInt,
+}
+
 #[derive(Clone, Debug, Encode, Decode)]
 pub struct ClientboundBlockUpdate {
     pub block_pos: BlockPos,

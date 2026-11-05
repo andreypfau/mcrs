@@ -11,6 +11,7 @@
 mod common;
 
 mod alloc_free;
+mod block_event_wire;
 
 mod chat_wire;
 mod chunk_wire;
