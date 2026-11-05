@@ -205,6 +205,7 @@ that sent it.
 | Neighbour and shape updates | a block reads its neighbours across the boundary from the halo. An update of a block of another cell is a message to the owner. The owner runs it in its chain at the sync point, and the chain keeps the count of updates that it reached in the sender | one tick, and the update reads the halo of the owner after the halo change of the same tick |
 | Scheduled block and fluid ticks | only the owner of a column holds its ticks. A tick for a block of another cell is a message to the owner, with its due tick | none when the delay is one tick or more, because the due tick does not change |
 | Block events | a message to the owner of the column | one tick |
+| Block break of a player | the cell of the player reads the block from its columns or its halo. A write into a column of another cell is a message to the owner. The level events and the block destruction go to the clients that hold the column, and the breaker gets its acknowledgement after the column changes of the tick | none in a column of the cell. One tick for a column of another cell, so the breaker gets the acknowledgement one tick before the new block state |
 | Redstone, fluids, pistons, explosions | no block has rules yet, because no specification states them. Their rules use the four rows above | the delays of the four rows above |
 | Ticking of the sections of a player | each cell marks the sections that it owns from the simulation area of each ticket: its own tickets and the remote tickets. A cell never marks a section of its halo | one tick for the cells that do not own the player |
 | Data layer | one data layer for the world. Each cell writes only the columns that it owns. A cell reads a column of another cell from the owner when the owner holds it hot, from the data layer when a cell wrote it, and from the generation of the world otherwise. Each cell reports to the others when a column that they can read becomes hot, goes cold or is written. A column keeps its scheduled ticks, each with its delay from the game time of the write | one tick for an answer of the data layer, two ticks for an answer of the owner, one tick after the generation finishes the column |
@@ -528,6 +529,8 @@ Each step leaves a working server and passes the determinism test.
      entity (its position, motion, pickup delay, age and merge) and a codec for entities that
      are not players.
    - The muxer selects the clients of a block event by the columns that they hold, not by the
-     distance of 64 blocks of SIM-BEV-004.
+     distance of 64 blocks of SIM-BEV-004. The same applies to the level events of a break,
+     which `spec/block-breaking.md` sends within 64 blocks, and to the block destruction of an
+     abort, which it sends within 32 blocks.
 5. Split and merge in the Coordinator, with moves at the tick boundary.
 6. `Placement::Remote`: a cell in another process.

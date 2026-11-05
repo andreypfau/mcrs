@@ -249,6 +249,7 @@ fn take_output(world: &mut World) -> DimOutput {
     drain_into(world, &mut output.client.views);
     drain_into(world, &mut output.client.column_versions);
     drain_into(world, &mut output.client.column_changes);
+    drain_into(world, &mut output.client.block_acks);
     if let Some(mut store) = world.get_resource_mut::<ColumnStoreLink>() {
         store.take_sent(&mut output.store_inputs);
         store.take_generation_asks(&mut output.generation_asks);

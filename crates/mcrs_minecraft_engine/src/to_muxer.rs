@@ -8,6 +8,7 @@ use mcrs_minecraft_engine_world::session::PlayerSession;
 use mcrs_minecraft_replication::PlayerData;
 use mcrs_minecraft_resource::{Id, ResourceKeyBuf};
 
+use crate::block_action_ack::BlockActionAck;
 use crate::bus::{InboundPlayerSpawn, OutboundPlayerAttached, OutboundPlayerPacket};
 use crate::column_change::ColumnChange;
 use crate::column_version::ColumnVersion;
@@ -62,6 +63,8 @@ pub struct ClientOutput {
     pub column_versions: Vec<ColumnVersion>,
     /// The changes of the tick to the columns that the muxer subscribes to, after the versions.
     pub column_changes: Vec<ColumnChange>,
+    /// The acknowledgements of the block actions of the tick, after the changes.
+    pub block_acks: Vec<BlockActionAck>,
 }
 
 impl ClientOutput {
@@ -77,6 +80,7 @@ impl ClientOutput {
         self.views.extend(other.views);
         self.column_versions.extend(other.column_versions);
         self.column_changes.extend(other.column_changes);
+        self.block_acks.extend(other.block_acks);
     }
 }
 

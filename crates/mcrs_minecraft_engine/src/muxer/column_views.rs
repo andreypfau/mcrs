@@ -11,12 +11,14 @@ use mcrs_minecraft_engine_world::session::PlayerSession;
 use mcrs_minecraft_engine_world::world::lifecycle::ticket::MAX_SPAWNS_PER_TICK;
 use mcrs_minecraft_protocol::VarInt;
 use mcrs_minecraft_protocol_game::clientbound::{
-    ClientboundChunkBatchFinished, ClientboundChunkBatchStart, ClientboundChunkCacheRadius,
-    ClientboundForgetLevelChunk, ClientboundSetChunkCacheCenter,
+    ClientboundBlockChangedAck, ClientboundChunkBatchFinished, ClientboundChunkBatchStart,
+    ClientboundChunkCacheRadius, ClientboundForgetLevelChunk, ClientboundSetChunkCacheCenter,
 };
 use mcrs_voxel::ColumnPos;
 use rustc_hash::{FxHashMap, FxHashSet};
+use smallvec::SmallVec;
 
+use crate::block_action_ack::BlockActionAck;
 use crate::bus::{OutboundPlayerPacket, PacketPayload, PacketTarget, to};
 use crate::column_change::ColumnChange;
 use crate::column_request::ColumnRequest;
@@ -313,19 +315,22 @@ impl ColumnViews {
         let Some(feed) = self.feeds.get_mut(&at) else {
             return;
         };
-        // A block event shows once, to the clients that hold the column when it happens.
+        // An event shows once, to the clients that hold the column when it happens.
         let need = match change.payload {
-            PacketPayload::BlockEvent(_) => StreamNeed::Nothing,
+            PacketPayload::BlockEvent(_)
+            | PacketPayload::LevelEvent(_)
+            | PacketPayload::BlockDestruction(_) => StreamNeed::Nothing,
             _ => feed.log(&change),
         };
-        if !feed.holders().is_empty() {
+        let holders: SmallVec<[PlayerSession; 8]> = feed
+            .holders()
+            .iter()
+            .map(|holder| PlayerSession(holder.0))
+            .filter(|&holder| Some(holder) != change.except)
+            .collect();
+        if !holders.is_empty() {
             out.push(OutboundPlayerPacket {
-                target: PacketTarget::PlayerSet(
-                    feed.holders()
-                        .iter()
-                        .map(|holder| PlayerSession(holder.0))
-                        .collect(),
-                ),
+                target: PacketTarget::PlayerSet(holders),
                 priority: change.priority,
                 data: change.payload,
                 session: PlayerSession(0),
@@ -347,6 +352,7 @@ impl ColumnViews {
             views,
             versions,
             changes,
+            acks,
         } = published;
         for view in views {
             self.apply_view(dim, view, out);
@@ -357,6 +363,14 @@ impl ColumnViews {
         for change in changes {
             self.take_change(dim, change, out);
         }
+        out.extend(acks.into_iter().map(|ack| {
+            to(
+                ack.session,
+                PacketPayload::BlockChangedAck(ClientboundBlockChangedAck {
+                    sequence: VarInt(ack.sequence),
+                }),
+            )
+        }));
     }
 
     /// Asks the dimensions for the columns the views want, and sends each player that is not
@@ -569,12 +583,16 @@ pub struct DimColumns {
     pub views: Vec<PlayerView>,
     pub versions: Vec<ColumnVersion>,
     pub changes: Vec<ColumnChange>,
+    pub acks: Vec<BlockActionAck>,
 }
 
 impl DimColumns {
     #[must_use]
     pub fn is_empty(&self) -> bool {
-        self.views.is_empty() && self.versions.is_empty() && self.changes.is_empty()
+        self.views.is_empty()
+            && self.versions.is_empty()
+            && self.changes.is_empty()
+            && self.acks.is_empty()
     }
 }
 
@@ -584,7 +602,7 @@ mod tests {
     use bevy_ecs::world::World as EcsWorld;
     use bytes::Bytes;
     use mcrs_minecraft_protocol_game::clientbound::{
-        ClientboundBlockEvent, ClientboundBlockUpdate,
+        ClientboundBlockEvent, ClientboundBlockUpdate, ClientboundLevelEvent,
     };
     use mcrs_voxel::{BlockPos, SectionPos};
 
@@ -635,6 +653,7 @@ mod tests {
                 block_pos: BlockPos::new(column.x * 16, 0, column.z * 16),
                 block_state_id: mcrs_minecraft_protocol_game::block::BlockStateNumber(1),
             }),
+            except: None,
         }
     }
 
@@ -698,6 +717,7 @@ mod tests {
                 param: 0,
                 block: VarInt(1),
             }),
+            except: None,
         };
 
         publish(&mut views, dim, column, b"column");
@@ -716,6 +736,71 @@ mod tests {
         assert!(
             matches!(&out[..], [packet] if matches!(packet.data, PacketPayload::BlockEvent(_))),
             "an event after the send goes to the holder: {out:?}"
+        );
+    }
+
+    #[test]
+    fn an_event_skips_the_client_that_caused_it_and_the_acks_follow_the_changes() {
+        let dim = dim();
+        let (breaker, watcher) = (PlayerSession(1), PlayerSession(2));
+        let column = ColumnPos::new(0, 0);
+        let mut views = ColumnViews::default();
+        for session in [breaker, watcher] {
+            look(&mut views, dim, session, 0);
+        }
+        send(&mut views);
+        publish(&mut views, dim, column, b"column");
+        send(&mut views);
+        let event = ColumnChange {
+            column,
+            priority: PacketPriority::Normal,
+            payload: PacketPayload::LevelEvent(ClientboundLevelEvent {
+                effect: 2001,
+                pos: BlockPos::new(0, 0, 0),
+                effect_data: 1,
+                global: false,
+            }),
+            except: Some(breaker),
+        };
+
+        let mut out = Vec::new();
+        views.take_dim(
+            dim,
+            DimColumns {
+                changes: vec![event, block_change(column)],
+                acks: vec![BlockActionAck {
+                    session: breaker,
+                    sequence: 5,
+                }],
+                ..DimColumns::default()
+            },
+            &mut out,
+        );
+
+        let sent: Vec<(&str, Vec<PlayerSession>)> = out
+            .iter()
+            .map(|packet| {
+                let to = match &packet.target {
+                    PacketTarget::PlayerSet(set) => set.to_vec(),
+                    PacketTarget::SinglePlayer(session) => vec![*session],
+                    _ => Vec::new(),
+                };
+                let kind = match packet.data {
+                    PacketPayload::LevelEvent(_) => "event",
+                    PacketPayload::BlockUpdate(_) => "change",
+                    PacketPayload::BlockChangedAck(_) => "ack",
+                    _ => "other",
+                };
+                (kind, to)
+            })
+            .collect();
+        assert_eq!(
+            sent,
+            [
+                ("event", vec![watcher]),
+                ("change", vec![breaker, watcher]),
+                ("ack", vec![breaker]),
+            ]
         );
     }
 

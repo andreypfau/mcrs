@@ -44,7 +44,7 @@ use mcrs_voxel::{ColumnPos, SectionPos};
 use rustc_hash::FxHashSet;
 
 use crate::block_drops::{BlockDrops, ItemDropped};
-use crate::block_update::publish_block_changes;
+use crate::block_update::{publish_block_changes, remove_replaced_block_entities};
 use crate::bus::{PacketPayload, PacketPriority};
 use crate::cell_mail::CellOutbox;
 use crate::cell_volume::CellVolume;
@@ -111,7 +111,8 @@ impl<B: BlockBehaviour<WorldKinds> + BlockDrops + Clone + Send + 'static> Plugin
         );
         app.add_systems(
             FixedPostUpdate,
-            publish_block_changes.in_set(VoxelUpdateSet::NetworkSync),
+            (publish_block_changes, remove_replaced_block_entities)
+                .in_set(VoxelUpdateSet::NetworkSync),
         );
     }
 }
@@ -555,6 +556,7 @@ fn publish_block_events(
                 param: event.b as u8,
                 block: VarInt(i32::from(event.block.number())),
             }),
+            except: None,
         });
     }
 }
