@@ -4,7 +4,8 @@ use bevy_ecs::entity::Entity;
 use bevy_ecs::lifecycle::Discard;
 use bevy_ecs::message::{MessageReader, MessageWriter};
 use bevy_ecs::prelude::{
-    Added, Changed, Commands, Component, Has, Local, On, Or, Query, Ref, Resource, With, Without,
+    Added, Changed, Commands, Component, Has, Local, On, Or, Query, Ref, Resource, Single, With,
+    Without,
 };
 use bevy_ecs::schedule::{IntoScheduleConfigs, SystemSet};
 use bevy_ecs::system::{Res, ResMut, SystemParam};
@@ -73,9 +74,8 @@ impl Plugin for ColumnStreamPlugin {
         app.add_systems(
             FixedUpdate,
             (
-                // The tickets must precede the spawn that follows in the same tick.
                 (
-                    release_published_tickets,
+                    clear_lit_this_tick,
                     take_column_requests,
                     report_player_views,
                     land_viewed_columns,
@@ -123,41 +123,12 @@ enum Pending {
     Ready,
 }
 
-impl Pending {
-    /// Whether the stream holds a loading ticket on a column in this state. With a data layer
-    /// the hot tickets load every column that the dimension publishes, so a stream holds none.
-    fn holds_ticket(self, source: ViewSource) -> bool {
-        source == ViewSource::Dimension
-            && matches!(self, Self::Awaiting | Self::Lighting | Self::Ready)
-    }
-}
-
-/// Where the dimension gets the columns that are not loaded.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum ViewSource {
-    /// A wanted column is loaded with a ticket until the dimension publishes it.
-    Dimension,
-    /// The data layer makes each wanted column that the dimension does not light.
-    DataLayer,
-}
-
-impl ViewSource {
-    fn of(store: Option<&ColumnStoreLink>) -> Self {
-        match store {
-            Some(_) => Self::DataLayer,
-            None => Self::Dimension,
-        }
-    }
-}
-
 /// The columns of a dimension that the muxer subscribes to, and the columns that it waits on
 /// a version of.
 #[derive(Component, Default)]
 pub struct ColumnStreams {
     subscribed: FxHashSet<ColumnPos>,
     pending: FxHashMap<ColumnPos, Pending>,
-    /// The loading tickets of the columns published in the last tick, to let go of.
-    released_tickets: Vec<ColumnPos>,
     /// The columns whose version this tick took from the sections of the dimension, after the
     /// light of the tick was written into them.
     lit_this_tick: FxHashSet<ColumnPos>,
@@ -207,61 +178,23 @@ impl ColumnStreams {
         columns.sort_unstable();
     }
 
-    /// Moves `column` to `next`, and takes or lets go of its loading ticket to match.
-    fn set(
-        &mut self,
-        loading: &mut ColumnLoading,
-        source: ViewSource,
-        column: ColumnPos,
-        next: Option<Pending>,
-    ) {
-        let previous = match next {
-            Some(next) => self.pending.insert(column, next),
-            None => self.pending.remove(&column),
-        };
-        let held = previous.is_some_and(|previous| previous.holds_ticket(source));
-        let holds = next.is_some_and(|next| next.holds_ticket(source));
-        if held && !holds {
-            loading.remove_ticket(column);
-        } else if holds && !held {
-            loading.add_ticket(column);
-        }
-    }
-
-    /// Takes `column` out of the pending columns once its version is out. The send runs apart
-    /// from the tickets, so its ticket goes in the next tick.
-    fn published(&mut self, source: ViewSource, column: ColumnPos) {
-        if self
-            .pending
-            .remove(&column)
-            .is_some_and(|previous| previous.holds_ticket(source))
-        {
-            self.released_tickets.push(column);
-        }
+    fn set(&mut self, column: ColumnPos, next: Pending) {
+        self.pending.insert(column, next);
     }
 }
 
-fn release_published_tickets(mut dims: Query<(&mut ColumnLoading, &mut ColumnStreams)>) {
-    for (mut loading, mut streams) in &mut dims {
+fn clear_lit_this_tick(mut dims: Query<&mut ColumnStreams>) {
+    for mut streams in &mut dims {
         streams.lit_this_tick.clear();
-        for column in streams.released_tickets.drain(..) {
-            loading.remove_ticket(column);
-        }
     }
 }
 
 /// Applies the requests of the muxer to the dimension of this world.
 fn take_column_requests(
     mut requests: ResMut<ColumnRequests>,
-    mut dims: Query<(&mut ColumnStreams, &mut ColumnLoading)>,
-    store: Option<Res<ColumnStoreLink>>,
+    streams: Option<Single<&mut ColumnStreams>>,
 ) {
-    if requests.0.is_empty() {
-        return;
-    }
-    let source = ViewSource::of(store.as_deref());
-    // A dimension world holds one dimension.
-    let Some((mut streams, mut loading)) = dims.iter_mut().next() else {
+    let Some(mut streams) = streams else {
         requests.0.clear();
         return;
     };
@@ -270,12 +203,12 @@ fn take_column_requests(
             ColumnRequest::Want(column) => {
                 streams.subscribed.insert(column);
                 if streams.state(column).is_none() {
-                    streams.set(&mut loading, source, column, Some(Pending::Queued));
+                    streams.set(column, Pending::Queued);
                 }
             }
             ColumnRequest::Drop(column) => {
                 streams.subscribed.remove(&column);
-                streams.set(&mut loading, source, column, None);
+                streams.pending.remove(&column);
             }
         }
     }
@@ -354,10 +287,9 @@ fn stored_light(light_gated: bool, has_sky_light: bool) -> StoredLight {
     reason = "a system takes its params as arguments"
 )]
 pub(crate) fn land_viewed_columns(
-    mut store: Option<ResMut<ColumnStoreLink>>,
+    mut store: ResMut<ColumnStoreLink>,
     mut dims: Query<(
         &mut ColumnStreams,
-        &mut ColumnLoading,
         &HotColumns,
         &SectionIndex,
         Has<HasSkyLight>,
@@ -370,9 +302,6 @@ pub(crate) fn land_viewed_columns(
     mut sent_lights: SentLights,
     mut taken: Local<Vec<ReadyColumn>>,
 ) {
-    let Some(store) = store.as_deref_mut() else {
-        return;
-    };
     let direct_bits = DirectBits::of(&blocks, &registries);
     for ViewedColumn {
         dim,
@@ -381,7 +310,7 @@ pub(crate) fn land_viewed_columns(
         delivery,
     } in store.take_viewed()
     {
-        let Ok((mut streams, mut loading, hot, sections, has_sky_light)) = dims.get_mut(dim) else {
+        let Ok((mut streams, hot, sections, has_sky_light)) = dims.get_mut(dim) else {
             continue;
         };
         if delivery == Delivery::Light {
@@ -406,15 +335,10 @@ pub(crate) fn land_viewed_columns(
             continue;
         }
         if hot.lights(column) {
-            streams.set(
-                &mut loading,
-                ViewSource::DataLayer,
-                column,
-                Some(Pending::Queued),
-            );
+            streams.set(column, Pending::Queued);
             continue;
         }
-        streams.published(ViewSource::DataLayer, column);
+        streams.pending.remove(&column);
         sent_lights.note(sections, column, &stored, Unkept::Keep);
         taken.push(ReadyColumn {
             column,
@@ -429,10 +353,10 @@ pub(crate) fn land_viewed_columns(
 /// Sends a column that waits to be taken from the dimension back to the queue once the
 /// dimension stops lighting it, so the data layer makes it instead.
 fn requeue_unlit_columns(
-    mut dims: Query<(&mut ColumnStreams, &mut ColumnLoading, Ref<HotColumns>)>,
+    mut dims: Query<(&mut ColumnStreams, Ref<HotColumns>)>,
     mut unlit: Local<Vec<ColumnPos>>,
 ) {
-    for (mut streams, mut loading, hot) in &mut dims {
+    for (mut streams, hot) in &mut dims {
         if !hot.is_changed() {
             continue;
         }
@@ -446,46 +370,28 @@ fn requeue_unlit_columns(
                 .map(|(column, _)| *column),
         );
         for column in unlit.drain(..) {
-            streams.set(
-                &mut loading,
-                ViewSource::DataLayer,
-                column,
-                Some(Pending::Queued),
-            );
+            streams.set(column, Pending::Queued);
         }
     }
 }
 
 /// Starts the work of each wanted column: the dimension waits for a column that it lights,
-/// and the data layer makes the others. Without a data layer the column is loaded with a
-/// ticket.
+/// and the data layer makes the others.
 fn raise_wanted_columns(
-    mut dims: Query<(
-        Entity,
-        &mut ColumnStreams,
-        &mut ColumnLoading,
-        Option<&HotColumns>,
-    )>,
-    store: Option<Res<ColumnStoreLink>>,
-    mut production: Option<ResMut<ColumnProduction>>,
-    traces: Option<Res<ColumnTraceLog>>,
+    mut dims: Query<(Entity, &mut ColumnStreams, &HotColumns)>,
+    store: Res<ColumnStoreLink>,
+    mut production: ResMut<ColumnProduction>,
     mut queued: Local<Vec<ColumnPos>>,
 ) {
-    let source = ViewSource::of(store.as_deref());
-    for (dim, mut streams, mut loading, hot) in &mut dims {
+    for (dim, mut streams, hot) in &mut dims {
         streams.in_state(Pending::Queued, &mut queued);
         for column in queued.drain(..) {
-            if let (Some(store), Some(production)) = (store.as_deref(), production.as_deref_mut()) {
-                if hot.is_some_and(|hot| hot.lights(column)) {
-                    streams.set(&mut loading, source, column, Some(Pending::Awaiting));
-                } else {
-                    streams.set(&mut loading, source, column, Some(Pending::Fetching));
-                    production.want(dim, column, store);
-                }
-                continue;
+            if hot.lights(column) {
+                streams.set(column, Pending::Awaiting);
+            } else {
+                streams.set(column, Pending::Fetching);
+                production.want(dim, column, &store);
             }
-            streams.set(&mut loading, source, column, Some(Pending::Awaiting));
-            column_trace::mark(traces.as_deref(), column, ColumnStage::Ticketed);
         }
     }
 }
@@ -685,7 +591,6 @@ fn publish_ready_columns(
     )>,
     snapshots: ColumnSnapshots,
     light_gated: Option<Res<LightGated>>,
-    store: Option<Res<ColumnStoreLink>>,
     blocks: Res<Blocks>,
     registries: Res<CurrentRegistries>,
     mut versions: MessageWriter<ColumnVersion>,
@@ -694,7 +599,6 @@ fn publish_ready_columns(
     mut ready: Local<Vec<ColumnPos>>,
     mut taken: Local<Vec<ReadyColumn>>,
 ) {
-    let source = ViewSource::of(store.as_deref());
     let direct_bits = DirectBits::of(&blocks, &registries);
     for (column_index, sections, mut streams, has_sky_light) in &mut dims {
         streams.in_state(Pending::Ready, &mut ready);
@@ -709,19 +613,13 @@ fn publish_ready_columns(
                     col_z = column.z,
                     "a ready column lost a section before it went out"
                 );
-                // Without tickets of its own, a stream waits for the column wherever it now is.
-                // Neither move takes or lets go of a ticket.
-                let next = match source {
-                    ViewSource::Dimension => Pending::Awaiting,
-                    ViewSource::DataLayer => Pending::Queued,
-                };
-                streams.pending.insert(column, next);
+                streams.set(column, Pending::Queued);
                 continue;
             };
             column_trace::mark(traces.as_deref(), column, ColumnStage::Sent);
             sent_lights.note(sections, column, &stored, Unkept::Skip);
             streams.lit_this_tick.insert(column);
-            streams.published(source, column);
+            streams.pending.remove(&column);
             taken.push(ReadyColumn {
                 column,
                 stored,
