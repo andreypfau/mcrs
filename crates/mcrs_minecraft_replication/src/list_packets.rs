@@ -18,13 +18,6 @@ pub struct Profile<'a> {
     pub properties: &'a [Property],
 }
 
-/// The round trip to a player in milliseconds.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) struct EntryLatency {
-    pub player_uuid: Uuid,
-    pub latency: i32,
-}
-
 /// The packet that adds the entry of `profile`. It does not set the listing, so a new entry is
 /// not listed.
 pub(crate) fn profile_entry(profile: &Profile<'_>, game_mode: GameMode) -> Result<Bytes> {
@@ -54,24 +47,13 @@ pub fn game_mode_packet(uuid: Uuid, game_mode: GameMode) -> Result<Bytes> {
     })
 }
 
-fn latency_entries(entries: &[EntryLatency], listed: bool) -> Vec<PlayerListEntry<'static>> {
-    entries
-        .iter()
-        .map(|entry| PlayerListEntry {
-            player_uuid: entry.player_uuid,
-            listed,
-            ping: entry.latency,
-            ..Default::default()
-        })
-        .collect()
-}
-
-pub(crate) fn listed_packet(entries: &[EntryLatency]) -> Result<Bytes> {
+/// The packet that lists `entries` with their `ping`.
+pub(crate) fn listed_packet(entries: Vec<PlayerListEntry<'static>>) -> Result<Bytes> {
     record(&ClientboundPlayerInfoUpdate {
         actions: PlayerListActions::new()
             .with_update_listed(true)
             .with_update_latency(true),
-        entries: Cow::Owned(latency_entries(entries, true)),
+        entries: Cow::Owned(entries),
     })
 }
 
@@ -89,10 +71,11 @@ pub(crate) fn unlisted_packet(players: &[Uuid]) -> Result<Bytes> {
     })
 }
 
-pub(crate) fn latency_packet(entries: &[EntryLatency]) -> Result<Bytes> {
+/// The packet that gives the `ping` of `entries`.
+pub(crate) fn latency_packet(entries: Vec<PlayerListEntry<'static>>) -> Result<Bytes> {
     record(&ClientboundPlayerInfoUpdate {
         actions: PlayerListActions::new().with_update_latency(true),
-        entries: Cow::Owned(latency_entries(entries, false)),
+        entries: Cow::Owned(entries),
     })
 }
 

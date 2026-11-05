@@ -7,8 +7,7 @@
 //! radius does not send its profile again on each return.
 
 use crate::list_packets::{
-    EntryLatency, Profile, latency_packet, listed_packet, profile_entry, remove_packet,
-    unlisted_packet,
+    Profile, latency_packet, listed_packet, profile_entry, remove_packet, unlisted_packet,
 };
 use crate::nearest::nearest;
 use bytes::Bytes;
@@ -16,6 +15,7 @@ use glam::DVec3;
 use mcrs_engine_muxer::EntityId;
 use mcrs_minecraft_game_mode::GameMode;
 use mcrs_minecraft_protocol::Result;
+use mcrs_minecraft_protocol_game::player_list::PlayerListEntry;
 use std::collections::{BTreeMap, BTreeSet};
 use std::mem;
 use uuid::Uuid;
@@ -336,7 +336,7 @@ impl<F: Fn(EntityId, EntityId) -> bool> Relisting<'_, F> {
         chosen: &BTreeSet<EntityId>,
         out: &mut Vec<Dispatch>,
     ) -> Result<()> {
-        let mut listed: Vec<EntryLatency> = Vec::new();
+        let mut listed: Vec<PlayerListEntry<'static>> = Vec::new();
         for &subject in chosen {
             let (Some(record), Some(member)) =
                 (subjects.get_mut(&subject), member(self.roster, subject))
@@ -368,9 +368,11 @@ impl<F: Fn(EntityId, EntityId) -> bool> Relisting<'_, F> {
                     );
                 }
             }
-            listed.push(EntryLatency {
+            listed.push(PlayerListEntry {
                 player_uuid: record.uuid,
-                latency,
+                listed: true,
+                ping: latency,
+                ..Default::default()
             });
         }
         let mut unlisted: Vec<Uuid> = Vec::new();
@@ -398,7 +400,7 @@ impl<F: Fn(EntityId, EntityId) -> bool> Relisting<'_, F> {
         if !listed.is_empty() {
             out.push(Dispatch {
                 viewer: self.viewer,
-                packet: listed_packet(&listed)?,
+                packet: listed_packet(listed)?,
             });
         }
         Ok(())
@@ -434,7 +436,7 @@ fn send_latency(
     roster: &[Member<'_>],
     out: &mut Vec<Dispatch>,
 ) -> Result<()> {
-    let mut changed: Vec<EntryLatency> = Vec::new();
+    let mut changed: Vec<PlayerListEntry<'static>> = Vec::new();
     for (&subject, entry) in &mut entries.entries {
         if entry.listing != Listing::Listed {
             continue;
@@ -447,15 +449,16 @@ fn send_latency(
             continue;
         };
         entry.sent_latency = latency;
-        changed.push(EntryLatency {
+        changed.push(PlayerListEntry {
             player_uuid: record.uuid,
-            latency,
+            ping: latency,
+            ..Default::default()
         });
     }
     if !changed.is_empty() {
         out.push(Dispatch {
             viewer,
-            packet: latency_packet(&changed)?,
+            packet: latency_packet(changed)?,
         });
     }
     Ok(())
