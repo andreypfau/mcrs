@@ -10,7 +10,6 @@ use mcrs_minecraft_chunk::{BlockLight, LightLayer, SkyLight};
 use mcrs_minecraft_engine::column_change::ColumnChange;
 use mcrs_minecraft_engine::column_production::ColumnProduction;
 use mcrs_minecraft_engine::column_streams::ColumnStreams;
-use mcrs_minecraft_engine::hot_ticket::HotColumns;
 use mcrs_minecraft_engine::light_codec::{LightCodecParams, build_delta_light_data};
 use mcrs_minecraft_engine_world::block_update::BlockPlaced;
 use mcrs_minecraft_engine_world::entity::physics::Transform;
@@ -18,6 +17,7 @@ use mcrs_minecraft_engine_world::entity::player::Player;
 use mcrs_minecraft_engine_world::palette::ChunkBlocks;
 use mcrs_minecraft_engine_world::tick::TickSet;
 use mcrs_minecraft_engine_world::world::dimension::{DimensionTypeConfig, InDimension};
+use mcrs_minecraft_engine_world::world::lifecycle::column_loading::ColumnLoading;
 use mcrs_minecraft_engine_world::world::lifecycle::stage::SectionStageChanged;
 use mcrs_minecraft_engine_world::world::light_gate::{
     ColumnAwaitsLight, ColumnLightGate, ColumnLightSettled, LightGated, SectionRelit, SentLight,
@@ -226,7 +226,7 @@ pub fn emit_light_updates(
         &SectionIndex,
         &DimensionTypeConfig,
         &ColumnStreams,
-        Option<&HotColumns>,
+        &ColumnLoading,
     )>,
     codec_params: LightCodecParams,
     mut changes: MessageWriter<ColumnChange>,
@@ -251,12 +251,12 @@ pub fn emit_light_updates(
     settled_now.extend(settled.read().map(|&ColumnLightSettled(column)| column));
 
     held_back.retain(|&(dim, column_pos), held| {
-        let Ok((index, section_index, rows, streams, hot)) = column_indices.get(dim) else {
+        let Ok((index, section_index, rows, streams, loading)) = column_indices.get(dim) else {
             return false;
         };
         if !streams.is_subscribed(column_pos)
             || streams.published_light_of_this_tick(column_pos)
-            || hot.is_some_and(|hot| hot.is_outer_ring(column_pos))
+            || (loading.is_column_loaded(column_pos) && !loading.lights(column_pos))
         {
             return false;
         }
@@ -265,7 +265,7 @@ pub fn emit_light_updates(
         };
         match held.wait {
             Wait::Ring => {
-                if ring_lit(index, section_index, rows, hot, &lit, column_pos) {
+                if ring_lit(index, section_index, rows, loading, &lit, column_pos) {
                     light.await_columns([column_pos]);
                     held.wait = Wait::Settle;
                 }
@@ -309,13 +309,13 @@ fn ring_lit(
     columns: &ColumnIndex,
     sections: &SectionIndex,
     rows: &DimensionTypeConfig,
-    hot: Option<&HotColumns>,
+    loading: &ColumnLoading,
     lit: &Query<(&BlockLight, &SkyLight, Option<&mut SentLight>)>,
     column: ColumnPos,
 ) -> bool {
     let first = rows.min_y >> SectionPos::BITS;
     let count = i32::try_from(rows.section_count).unwrap_or(0);
-    let every_row = hot.is_some_and(|hot| hot.lights(column));
+    let every_row = loading.lights(column);
     column
         .square(1)
         .filter(|near| every_row || columns.0.contains_key(near))

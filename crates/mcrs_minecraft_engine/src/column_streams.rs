@@ -47,7 +47,7 @@ use crate::column_request::ColumnRequest;
 use crate::column_snapshot::ColumnSnapshots;
 use crate::column_store::{ColumnStoreLink, Delivery, ViewedColumn};
 use crate::column_version::ColumnVersion;
-use crate::hot_ticket::{CellCrossing, HotColumns};
+use crate::hot_ticket::CellCrossing;
 use crate::light_codec::build_stored_light_data;
 use crate::player_view::PlayerView;
 use crate::stored_column::StoredColumn;
@@ -290,7 +290,7 @@ pub(crate) fn land_viewed_columns(
     mut store: ResMut<ColumnStoreLink>,
     mut dims: Query<(
         &mut ColumnStreams,
-        &HotColumns,
+        &ColumnLoading,
         &SectionIndex,
         Has<HasSkyLight>,
     )>,
@@ -310,13 +310,13 @@ pub(crate) fn land_viewed_columns(
         delivery,
     } in store.take_viewed()
     {
-        let Ok((mut streams, hot, sections, has_sky_light)) = dims.get_mut(dim) else {
+        let Ok((mut streams, loading, sections, has_sky_light)) = dims.get_mut(dim) else {
             continue;
         };
         if delivery == Delivery::Light {
             let held = streams.is_subscribed(column)
                 && streams.state(column).is_none()
-                && !hot.lights(column);
+                && !loading.lights(column);
             if held && light_gated.is_some() {
                 sent_lights.note(sections, column, &stored, Unkept::Keep);
                 changes.write(ColumnChange {
@@ -334,7 +334,7 @@ pub(crate) fn land_viewed_columns(
         if streams.state(column) != Some(Pending::Fetching) {
             continue;
         }
-        if hot.lights(column) {
+        if loading.lights(column) {
             streams.set(column, Pending::Queued);
             continue;
         }
@@ -353,11 +353,11 @@ pub(crate) fn land_viewed_columns(
 /// Sends a column that waits to be taken from the dimension back to the queue once the
 /// dimension stops lighting it, so the data layer makes it instead.
 fn requeue_unlit_columns(
-    mut dims: Query<(&mut ColumnStreams, Ref<HotColumns>)>,
+    mut dims: Query<(&mut ColumnStreams, Ref<ColumnLoading>)>,
     mut unlit: Local<Vec<ColumnPos>>,
 ) {
-    for (mut streams, hot) in &mut dims {
-        if !hot.is_changed() {
+    for (mut streams, loading) in &mut dims {
+        if !loading.is_changed() {
             continue;
         }
         unlit.extend(
@@ -365,7 +365,8 @@ fn requeue_unlit_columns(
                 .pending
                 .iter()
                 .filter(|(column, state)| {
-                    matches!(state, Pending::Awaiting | Pending::Lighting) && !hot.lights(**column)
+                    matches!(state, Pending::Awaiting | Pending::Lighting)
+                        && !loading.lights(**column)
                 })
                 .map(|(column, _)| *column),
         );
@@ -378,15 +379,15 @@ fn requeue_unlit_columns(
 /// Starts the work of each wanted column: the dimension waits for a column that it lights,
 /// and the data layer makes the others.
 fn raise_wanted_columns(
-    mut dims: Query<(Entity, &mut ColumnStreams, &HotColumns)>,
+    mut dims: Query<(Entity, &mut ColumnStreams, &ColumnLoading)>,
     store: Res<ColumnStoreLink>,
     mut production: ResMut<ColumnProduction>,
     mut queued: Local<Vec<ColumnPos>>,
 ) {
-    for (dim, mut streams, hot) in &mut dims {
+    for (dim, mut streams, loading) in &mut dims {
         streams.in_state(Pending::Queued, &mut queued);
         for column in queued.drain(..) {
-            if hot.lights(column) {
+            if loading.lights(column) {
                 streams.set(column, Pending::Awaiting);
             } else {
                 streams.set(column, Pending::Fetching);

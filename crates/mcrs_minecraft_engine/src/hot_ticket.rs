@@ -1,9 +1,9 @@
-use std::iter::once;
-
 use bevy_ecs::change_detection::DetectChangesMut;
 use bevy_ecs::lifecycle::{Add, Discard};
 use bevy_ecs::observer::On;
-use bevy_ecs::prelude::{Commands, Component, Entity, Has, Query, Res, ResMut, With, Without};
+use bevy_ecs::prelude::{
+    Commands, Component, Entity, Has, Query, Res, ResMut, Single, With, Without,
+};
 use bevy_ecs::resource::Resource;
 use bevy_ecs::world::World;
 use mcrs_minecraft_engine_world::entity::physics::Transform;
@@ -11,9 +11,7 @@ use mcrs_minecraft_engine_world::entity::player::Player;
 use mcrs_minecraft_engine_world::entity::player::chunk_view::PlayerViewDistance;
 use mcrs_minecraft_engine_world::owned_columns::{self, OwnedColumns};
 use mcrs_minecraft_engine_world::session::{Owner, PlayerSession};
-use mcrs_minecraft_engine_world::world::dimension::InDimension;
-use mcrs_minecraft_engine_world::world::lifecycle::column_loading::{ColumnLoading, LOADING_RINGS};
-use mcrs_minecraft_engine_world::world::lifecycle::coverage::Coverage;
+use mcrs_minecraft_engine_world::world::lifecycle::column_loading::ColumnLoading;
 use mcrs_minecraft_engine_world::world::lifecycle::simulation::{
     HeldSimulationArea, SimulationArea, SimulationDistance,
 };
@@ -25,16 +23,10 @@ use rustc_hash::FxHashMap;
 /// the player is near. Beyond them, a view gets the columns from the data layer.
 ///
 /// It also holds the simulation area of the player, so that the other cells of a world mark
-/// the sections of the area that they own as ticking.
+/// the sections of the area that they own as ticking. It crosses from one cell of a world to
+/// another as it is.
 #[derive(Component, Clone, Copy, Debug, PartialEq, Eq)]
 pub struct HotTicket {
-    dim: Entity,
-    ticket: CarriedTicket,
-}
-
-/// A hot ticket without its dimension, as it crosses from one cell of a world to another.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct CarriedTicket {
     pub(crate) center: ColumnPos,
     pub(crate) radius: i32,
     pub(crate) simulation: SimulationArea,
@@ -45,7 +37,7 @@ pub struct CarriedTicket {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct TicketUpdate {
     pub(crate) session: PlayerSession,
-    pub(crate) ticket: Option<CarriedTicket>,
+    pub(crate) ticket: Option<HotTicket>,
 }
 
 /// The ticket updates of this tick for the other cells of the world. Only a world with
@@ -70,115 +62,46 @@ pub(crate) struct RemoteTickets(pub(crate) FxHashMap<PlayerSession, Entity>);
 pub struct CellCrossing;
 
 impl HotTicket {
-    pub(crate) fn carried(self) -> CarriedTicket {
-        self.ticket
-    }
-
-    pub(crate) fn in_dim(dim: Entity, ticket: CarriedTicket) -> Self {
-        Self { dim, ticket }
-    }
-
-    pub(crate) fn dim(self) -> Entity {
-        self.dim
-    }
-
-    pub(crate) fn simulation(self) -> SimulationArea {
-        self.ticket.simulation
-    }
-
-    fn columns(self) -> impl Iterator<Item = ColumnPos> {
-        self.ticket.columns()
-    }
-}
-
-impl CarriedTicket {
-    fn contains(self, column: ColumnPos) -> bool {
-        (column.x - self.center.x).abs() <= self.radius
-            && (column.z - self.center.z).abs() <= self.radius
-    }
-
     fn columns(self) -> impl Iterator<Item = ColumnPos> {
         self.center.square(self.radius)
     }
+
+    fn contains(self, column: ColumnPos) -> bool {
+        self.center.chebyshev_distance(column) <= self.radius
+    }
+
+    /// Moves the ticket from `old` to `self`, through only the columns that it leaves or
+    /// enters.
+    fn moved_from(self, old: Self, loading: &mut ColumnLoading, owned: Option<&OwnedColumns>) {
+        let entered = self.columns().filter(|column| !old.contains(*column));
+        shift(entered, loading, owned, Change::Raise);
+        let left = old.columns().filter(|column| !self.contains(*column));
+        shift(left, loading, owned, Change::Lower);
+    }
 }
 
-/// The columns of a dimension that some hot ticket loads, so that a view takes them from the
-/// dimension: they tick, or a block that ticks can reach them, so the dimension may hold a
-/// version later than the data layer.
-#[derive(Component, Debug, Default)]
-pub struct HotColumns {
-    centers: Coverage<ColumnPos>,
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Change {
+    Raise,
+    Lower,
 }
 
-impl HotColumns {
-    #[must_use]
-    pub fn is_hot(&self, column: ColumnPos) -> bool {
-        column
-            .square(LOADING_RINGS)
-            .any(|loaded| self.centers.contains(loaded))
-    }
-
-    /// Whether the dimension holds `column` and the eight around it, so it lights the column
-    /// from the blocks of its neighbours and a view takes the column from the dimension. The
-    /// outer ring of a hot area is hot but not lit this way: a view gets it from the data layer.
-    #[must_use]
-    pub fn lights(&self, column: ColumnPos) -> bool {
-        column
-            .square(LOADING_RINGS.saturating_sub(1))
-            .any(|loaded| self.centers.contains(loaded))
-    }
-
-    /// Whether `column` is hot and the dimension does not light it from the blocks of all its
-    /// neighbours.
-    #[must_use]
-    pub fn is_outer_ring(&self, column: ColumnPos) -> bool {
-        self.is_hot(column) && !self.lights(column)
-    }
-
-    /// A cell of a world with several cells raises only the columns within the halo of its
-    /// boxes, so the columns that it owns load exactly as in a world of one cell.
-    fn change(
-        &mut self,
-        loading: &mut ColumnLoading,
-        owned: Option<&OwnedColumns>,
-        column: ColumnPos,
-        change: Change,
-    ) {
-        if !owned_columns::reaches(owned, column) {
-            return;
-        }
+/// Raises or lowers the ticket of each column. A cell of a world with several cells raises only
+/// the columns within the halo of its boxes, so the columns that it owns load exactly as in a
+/// world of one cell.
+fn shift(
+    columns: impl Iterator<Item = ColumnPos>,
+    loading: &mut ColumnLoading,
+    owned: Option<&OwnedColumns>,
+    change: Change,
+) {
+    for column in columns.filter(|column| owned_columns::reaches(owned, *column)) {
         match change {
-            Change::Raise => {
-                self.centers.raise(once(column), |_| {});
-                loading.add_ticket(column);
-            }
-            Change::Lower => {
-                self.centers.lower(once(column), |_| {});
-                loading.remove_ticket(column);
-            }
-        }
-    }
-
-    /// Moves a ticket of one dimension from `old` to `new`, through only the columns that it
-    /// leaves or enters.
-    fn move_ticket(
-        &mut self,
-        loading: &mut ColumnLoading,
-        owned: Option<&OwnedColumns>,
-        old: HotTicket,
-        new: HotTicket,
-    ) {
-        let (old, new) = (old.ticket, new.ticket);
-        for column in new.columns().filter(|column| !old.contains(*column)) {
-            self.change(loading, owned, column, Change::Raise);
-        }
-        for column in old.columns().filter(|column| !new.contains(*column)) {
-            self.change(loading, owned, column, Change::Lower);
+            Change::Raise => loading.add_ticket(column),
+            Change::Lower => loading.remove_ticket(column),
         }
     }
 }
-
-type HotDims<'w, 's> = Query<'w, 's, (&'static mut ColumnLoading, &'static mut HotColumns)>;
 
 pub(crate) fn track_hot_tickets(
     distance: Res<SimulationDistance>,
@@ -189,29 +112,22 @@ pub(crate) fn track_hot_tickets(
             Entity,
             &Owner,
             &Transform,
-            &InDimension,
             Option<&PlayerViewDistance>,
             Option<&mut HotTicket>,
         ),
         With<Player>,
     >,
-    mut dims: HotDims,
+    mut loading: Single<&mut ColumnLoading>,
     mut commands: Commands,
 ) {
     let owned = owned.as_deref();
     let simulated = i32::from(distance.horizontal).saturating_add(1);
-    for (player, &Owner(session), transform, in_dim, view, held) in &mut players {
+    for (player, &Owner(session), transform, view, held) in &mut players {
         let viewed = view.map_or(simulated, |view| i32::from(view.distance).saturating_add(1));
         let wanted = HotTicket {
-            dim: in_dim.0,
-            ticket: CarriedTicket {
-                center: ColumnPos::from(transform.translation),
-                radius: simulated.min(viewed),
-                simulation: SimulationArea::around(
-                    SectionPos::from(transform.translation),
-                    *distance,
-                ),
-            },
+            center: ColumnPos::from(transform.translation),
+            radius: simulated.min(viewed),
+            simulation: SimulationArea::around(SectionPos::from(transform.translation), *distance),
         };
         // The first ticket is raised once it lands, so a player despawned before then holds
         // nothing that would never be released.
@@ -225,60 +141,33 @@ pub(crate) fn track_hot_tickets(
             continue;
         }
         post(mail.as_deref_mut(), session, Some(wanted));
-        if old.dim == wanted.dim
-            && let Ok((mut loading, mut hot)) = dims.get_mut(wanted.dim)
-        {
-            hot.move_ticket(&mut loading, owned, old, wanted);
-        } else {
-            shift(&mut dims, owned, old, Change::Lower);
-            shift(&mut dims, owned, wanted, Change::Raise);
-        }
+        wanted.moved_from(old, &mut loading, owned);
         *held = wanted;
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum Change {
-    Raise,
-    Lower,
-}
-
 fn post(mail: Option<&mut TicketMail>, session: PlayerSession, ticket: Option<HotTicket>) {
     if let Some(mail) = mail {
-        mail.0.push(TicketUpdate {
-            session,
-            ticket: ticket.map(HotTicket::carried),
-        });
+        mail.0.push(TicketUpdate { session, ticket });
     }
 }
 
-fn shift(dims: &mut HotDims, owned: Option<&OwnedColumns>, ticket: HotTicket, change: Change) {
-    let Ok((mut loading, mut hot)) = dims.get_mut(ticket.dim) else {
-        return;
-    };
-    for column in ticket.columns() {
-        hot.change(&mut loading, owned, column, change);
-    }
-}
-
-/// Moves the hot ticket that `holder` holds for a player of another cell to `carried`.
-pub(crate) fn move_remote_ticket(world: &mut World, holder: Entity, carried: CarriedTicket) {
+/// Moves the hot ticket that `holder` holds for a player of another cell to `new`.
+pub(crate) fn move_remote_ticket(world: &mut World, holder: Entity, new: HotTicket) {
     let Some(old) = world.get::<HotTicket>(holder).copied() else {
         return;
     };
-    let new = HotTicket::in_dim(old.dim, carried);
     let owned = world.get_resource::<OwnedColumns>().copied();
-    if let Ok(mut dim) = world.get_entity_mut(new.dim)
-        && let Ok((mut loading, mut hot)) =
-            dim.get_components_mut::<(&mut ColumnLoading, &mut HotColumns)>()
-    {
-        hot.move_ticket(&mut loading, owned.as_ref(), old, new);
-    }
+    let mut dims = world.query::<(Entity, &mut ColumnLoading)>();
+    let Ok((dim, mut loading)) = dims.single_mut(world) else {
+        return;
+    };
+    new.moved_from(old, &mut loading, owned.as_ref());
     if let Some(mut held) = world.get_mut::<HotTicket>(holder) {
         *held = new;
     }
     if let Some(mut area) = world.get_mut::<HeldSimulationArea>(holder) {
-        area.set_if_neq(HeldSimulationArea::new(new.dim, new.simulation()));
+        area.set_if_neq(HeldSimulationArea::new(dim, new.simulation));
     }
 }
 
@@ -286,10 +175,15 @@ pub(crate) fn raise_hot_ticket(
     add: On<Add, HotTicket>,
     held: Query<&HotTicket>,
     owned: Option<Res<OwnedColumns>>,
-    mut dims: HotDims,
+    mut loading: Single<&mut ColumnLoading>,
 ) {
     if let Ok(ticket) = held.get(add.event().entity) {
-        shift(&mut dims, owned.as_deref(), *ticket, Change::Raise);
+        shift(
+            ticket.columns(),
+            &mut loading,
+            owned.as_deref(),
+            Change::Raise,
+        );
     }
 }
 
@@ -301,17 +195,27 @@ pub(crate) fn release_hot_ticket(
     remote: Query<&HotTicket, With<RemoteTicket>>,
     owned: Option<Res<OwnedColumns>>,
     mut mail: Option<ResMut<TicketMail>>,
-    mut dims: HotDims,
+    mut loading: Single<&mut ColumnLoading>,
 ) {
     let entity = discard.event().entity;
     if let Ok(ticket) = remote.get(entity) {
-        shift(&mut dims, owned.as_deref(), *ticket, Change::Lower);
+        shift(
+            ticket.columns(),
+            &mut loading,
+            owned.as_deref(),
+            Change::Lower,
+        );
         return;
     }
     let Ok((ticket, owner, crossing)) = held.get(entity) else {
         return;
     };
-    shift(&mut dims, owned.as_deref(), *ticket, Change::Lower);
+    shift(
+        ticket.columns(),
+        &mut loading,
+        owned.as_deref(),
+        Change::Lower,
+    );
     if let Some(&Owner(session)) = owner
         && !crossing
     {

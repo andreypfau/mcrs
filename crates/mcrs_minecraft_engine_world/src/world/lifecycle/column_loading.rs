@@ -99,6 +99,15 @@ impl ColumnLoading {
         self.covered.contains(column)
     }
 
+    /// Whether a ticket within one column of `column` loads it and the eight around it, so the
+    /// dimension lights it from the blocks of its neighbours. The outer ring of the columns that
+    /// a ticket loads is loaded but not lit this way.
+    pub fn lights(&self, column: ColumnPos) -> bool {
+        column
+            .square(LOADING_RINGS - 1)
+            .any(|near| self.tickets.contains(near))
+    }
+
     /// The columns that stopped being loaded since the sections were last released. A column
     /// that a ticket loads again in the meantime stays in the list.
     pub fn cooling(&self) -> &[ColumnPos] {

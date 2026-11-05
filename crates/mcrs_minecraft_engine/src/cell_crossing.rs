@@ -21,7 +21,7 @@ use mcrs_voxel::ColumnPos;
 use crate::departure::CarriedPlayer;
 use crate::dimension_change::DimensionChangeError;
 use crate::hot_ticket;
-use crate::hot_ticket::{CarriedTicket, CellCrossing, HotTicket, RemoteTicket, RemoteTickets};
+use crate::hot_ticket::{CellCrossing, HotTicket, RemoteTicket, RemoteTickets};
 use crate::player_dimension_change;
 use crate::replicated::Replicated;
 
@@ -33,7 +33,7 @@ pub struct Crossing {
     pub(crate) carried: CarriedPlayer,
     pub(crate) replicated: Option<Replicated>,
     pub(crate) view: SentChunkView,
-    pub(crate) ticket: Option<CarriedTicket>,
+    pub(crate) ticket: Option<HotTicket>,
 }
 
 impl Crossing {
@@ -102,7 +102,7 @@ fn cross(world: &mut World, player: Entity) -> Result<Crossing, DimensionChangeE
         carried,
         replicated,
         view,
-        ticket: ticket.map(HotTicket::carried),
+        ticket,
     })
 }
 
@@ -132,7 +132,7 @@ pub(crate) fn arrive(
     }
     if let Some(carried) = ticket {
         arrived.insert((
-            HotTicket::in_dim(dimension, carried),
+            carried,
             SimulationTicket::new(dimension, carried.simulation),
         ));
     }
@@ -141,11 +141,7 @@ pub(crate) fn arrive(
 
 /// Holds `ticket` for the player of `session` of another cell, or lets its ticket go. A player
 /// of this cell keeps its own ticket.
-pub(crate) fn update_remote(
-    world: &mut World,
-    session: PlayerSession,
-    ticket: Option<CarriedTicket>,
-) {
+pub(crate) fn update_remote(world: &mut World, session: PlayerSession, ticket: Option<HotTicket>) {
     let own = world
         .get_resource::<DimPlayerIndex>()
         .is_some_and(|index| index.0.contains_key(&session));
@@ -158,22 +154,23 @@ pub(crate) fn update_remote(
     match (ticket, held) {
         (Some(ticket), Some(holder)) => hot_ticket::move_remote_ticket(world, holder, ticket),
         (Some(ticket), None) => {
-            if let Ok(dimension) = player_dimension_change::own_dimension(world) {
-                hold_remote(world, session, HotTicket::in_dim(dimension, ticket));
-            }
+            hold_remote(world, session, ticket);
         }
         (None, _) => release_remote(world, session),
     }
 }
 
 fn hold_remote(world: &mut World, session: PlayerSession, ticket: HotTicket) {
+    let Ok(dimension) = player_dimension_change::own_dimension(world) else {
+        return;
+    };
     // The ticket goes in with the area it holds, so the area ticks at once.
     let holder = world
         .spawn((
             RemoteTicket,
             ticket,
-            SimulationTicket::new(ticket.dim(), ticket.simulation()),
-            HeldSimulationArea::new(ticket.dim(), ticket.simulation()),
+            SimulationTicket::new(dimension, ticket.simulation),
+            HeldSimulationArea::new(dimension, ticket.simulation),
         ))
         .id();
     world

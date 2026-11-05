@@ -14,14 +14,13 @@ use crate::column_snapshot::ColumnSnapshots;
 use crate::column_store::ColumnStoreLink;
 use crate::column_streams::ColumnStreams;
 use crate::foreign_views::ForeignViews;
-use crate::hot_ticket::HotColumns;
 
 /// The columns that the views of the muxer hold from a dimension.
 #[derive(Clone, Copy)]
 pub(crate) struct HeldColumns<'a> {
     pub(crate) dim: Entity,
     pub(crate) streams: &'a ColumnStreams,
-    pub(crate) hot: Option<&'a HotColumns>,
+    pub(crate) loading: &'a ColumnLoading,
 }
 
 impl HeldColumns<'_> {
@@ -30,7 +29,7 @@ impl HeldColumns<'_> {
     pub(crate) fn lit_by_data_layer(&self, column: ColumnPos) -> bool {
         self.streams.is_subscribed(column)
             && !self.streams.is_pending(column)
-            && self.hot.is_none_or(|hot| !hot.lights(column))
+            && !self.loading.lights(column)
     }
 }
 
@@ -44,7 +43,7 @@ pub(crate) fn advance_production(
     mut production: ResMut<ColumnProduction>,
     mut store: ResMut<ColumnStoreLink>,
     dims: Query<(&ColumnLoading, &ColumnIndex, &DimensionTypeConfig)>,
-    held: Query<(Entity, &ColumnStreams, Option<&HotColumns>)>,
+    held: Query<(Entity, &ColumnStreams, &ColumnLoading)>,
     snapshots: ColumnSnapshots,
     sent_views: Query<&SentChunkView>,
     foreign_views: Option<Res<ForeignViews>>,
@@ -66,7 +65,11 @@ pub(crate) fn advance_production(
     let held = held
         .iter()
         .next()
-        .map(|(dim, streams, hot)| HeldColumns { dim, streams, hot });
+        .map(|(dim, streams, loading)| HeldColumns {
+            dim,
+            streams,
+            loading,
+        });
     // A halo change that the dimension applied comes again as a placed block, and a block set
     // to the state it holds changes nothing.
     let halo_changes = production.take_halo_changes();

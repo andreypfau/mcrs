@@ -7,7 +7,6 @@ use bevy_ecs::schedule::{IntoScheduleConfigs, SystemSet};
 use mcrs_engine_store::{ChunkVersion, NoDisk, StoreInput, StoreOutput, VersionedChunk};
 use mcrs_minecraft_engine_world::owned_columns::{self, OwnedColumns};
 use mcrs_minecraft_engine_world::tick::TickSet;
-use mcrs_minecraft_engine_world::world::lifecycle::column_loading::ColumnLoading;
 use mcrs_minecraft_engine_world::world::lifecycle::ticket::{
     ChunkSpawnSet, ColumnCoolSet, SectionEntitySet,
 };
@@ -27,7 +26,7 @@ use crate::column_light::ColdStageLandSet;
 use crate::column_production::ColumnProduction;
 use crate::column_streams::{ColumnStreamSet, land_viewed_columns, report_player_views};
 use crate::heightmap::update_column_heightmaps;
-use crate::hot_ticket::{HotColumns, raise_hot_ticket, release_hot_ticket, track_hot_tickets};
+use crate::hot_ticket::{raise_hot_ticket, release_hot_ticket, track_hot_tickets};
 use crate::stored_column::StoredColumn;
 use crate::stored_columns_landing::{fetch_loading_columns, land_stored_columns};
 
@@ -463,7 +462,6 @@ impl Plugin for ColumnStorePlugin {
                 .in_set(TickSet::DomainInput)
                 .after(StoredColumnLandSet),
         );
-        app.register_required_components::<ColumnLoading, HotColumns>();
         app.add_observer(raise_hot_ticket);
         app.add_observer(release_hot_ticket);
         app.add_systems(
