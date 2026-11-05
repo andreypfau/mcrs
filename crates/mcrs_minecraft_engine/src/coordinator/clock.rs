@@ -79,16 +79,6 @@ fn apply_clock_edit(
     ));
 }
 
-/// Copies the host's game time into a dimension.
-pub fn extract_game_time(main_world: &World, sub_world: &mut World) {
-    if let (Some(&time), Some(mut current)) = (
-        main_world.get_resource::<GameTime>(),
-        sub_world.get_resource_mut::<GameTime>(),
-    ) {
-        current.set_if_neq(time);
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;

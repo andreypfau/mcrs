@@ -55,36 +55,18 @@ pub fn apply_halo_changes(
     writer: &mut MessageWriter<BlockPlaced>,
     changes: &mut Vec<HaloBlockChange>,
 ) {
-    changes.retain(|change| {
-        write_block(blocks, writer, change.dimension, change.write) == Written::Landing
-    });
+    changes.retain(|change| apply_write(blocks, writer, change.dimension, change.write));
 }
 
 /// Stores `write` in its section and reports the change, with no neighbour or shape update.
+/// Returns whether the section is in the dimension but its blocks did not land yet, so the
+/// write did not apply.
 pub fn apply_write(
     blocks: &mut WorldViewMut,
     writer: &mut MessageWriter<BlockPlaced>,
     dimension: Entity,
     write: CellBlockWrite,
-) {
-    write_block(blocks, writer, dimension, write);
-}
-
-/// What became of a write.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum Written {
-    Stored,
-    /// The section is in the dimension, but its blocks did not land yet.
-    Landing,
-    Dropped,
-}
-
-fn write_block(
-    blocks: &mut WorldViewMut,
-    writer: &mut MessageWriter<BlockPlaced>,
-    dimension: Entity,
-    write: CellBlockWrite,
-) -> Written {
+) -> bool {
     let Some(mut view) = blocks.get_mut(dimension) else {
         // Stale dimension Entity. Treated as suspicious because the
         // dimension typically outlives a single FixedUpdate; the
@@ -96,14 +78,14 @@ fn write_block(
             pos = ?write.pos,
             "a block write names no dimension; dropping",
         );
-        return Written::Dropped;
+        return false;
     };
     let chunk_pos = SectionPos::from(write.pos);
     let old_state = match view.set_block(write.pos, write.new_state) {
         Ok(old_state) => old_state,
         Err(why) => {
             if view.section_entity(chunk_pos).is_some() {
-                return Written::Landing;
+                return true;
             }
             // A voxel update can arrive for a section that just unloaded;
             // this is expected and not an error.
@@ -113,14 +95,14 @@ fn write_block(
                 pos = ?write.pos,
                 "a block write found no section; dropping",
             );
-            return Written::Dropped;
+            return false;
         }
     };
     if old_state == write.new_state {
-        return Written::Stored;
+        return false;
     }
     let Some(chunk) = view.section_entity(chunk_pos) else {
-        return Written::Stored;
+        return false;
     };
     writer.write(BlockPlaced {
         chunk,
@@ -130,7 +112,7 @@ fn write_block(
         new_state: write.new_state,
         flags: write.flags,
     });
-    Written::Stored
+    false
 }
 
 #[derive(Message, Clone, Copy)]

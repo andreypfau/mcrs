@@ -225,7 +225,6 @@ fn render(
     stages.clear();
     sent.clear();
     let mut counts = [0usize; ColumnStage::ALL.len()];
-    let mut sources = [0usize; 2];
     let mut off_map = 0usize;
     let mut slowest: Option<(ColumnPos, ColumnStage, Duration)> = None;
 
@@ -235,11 +234,6 @@ fn render(
         }
         if let Some(after) = sample.sent_after {
             sent.push(after);
-        }
-        match sample.source {
-            Some("save") => sources[0] += 1,
-            Some(_) => sources[1] += 1,
-            None => {}
         }
         let dx = sample.pos.x - centre.x;
         let dz = sample.pos.z - centre.z;
@@ -287,7 +281,7 @@ fn render(
     let block = format!(
         "chunk map (F6)  {SPAN}x{SPAN} at ({}, {})  {} traced, {off_map} off-map\n\
          {tally}\n\
-         ticket to sent  p50 {}  p95 {}  max {}   from disk {}, generated {}\n\
+         ticket to sent  p50 {}  p95 {}  max {}\n\
          {}",
         centre.x,
         centre.z,
@@ -295,8 +289,6 @@ fn render(
         quantile(0.5),
         quantile(0.95),
         quantile(1.0),
-        sources[0],
-        sources[1],
         match slowest {
             Some((pos, stage, held)) => format!(
                 "waiting longest  ({}, {}) in {} for {}",

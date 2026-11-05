@@ -9,7 +9,7 @@ use mcrs_minecraft_engine_world::world::storage::column::{
     ColumnIndex, ColumnSections, SectionLookup,
 };
 
-use crate::block_simulation::{BlockSimulation, TickChange};
+use crate::block_simulation::BlockSimulation;
 use crate::column_asks::{ColumnHold, Hold};
 use crate::column_snapshot::ColumnSnapshots;
 use crate::column_store::ColumnStoreLink;
@@ -124,9 +124,7 @@ pub(crate) fn write_cold_columns(
                 continue;
             };
             let unlit = light_gated.is_some() && !light_final;
-            let ticks_changed = taken
-                .as_ref()
-                .is_some_and(|taken| taken.change == TickChange::Changed);
+            let ticks_changed = taken.as_ref().is_some_and(|taken| taken.changed);
             match origin {
                 Origin::Unchanged if !ticks_changed => continue,
                 Origin::Generated if unlit && !ticks_changed => continue,

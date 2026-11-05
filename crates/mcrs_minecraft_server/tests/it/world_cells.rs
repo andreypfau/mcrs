@@ -91,7 +91,6 @@ fn server_with(cells: u32, rules: DimensionBlockRules) -> App {
     plugins.core.muxer = Placement::Inline;
     plugins.core.cells = WorldCells {
         cells: NonZeroU32::new(cells).unwrap(),
-        ..WorldCells::default()
     };
     plugins.network.announce_on_lan = false;
     plugins.worlds.seed = 4;

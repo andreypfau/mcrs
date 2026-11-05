@@ -134,10 +134,7 @@ fn main() -> anyhow::Result<()> {
     plugins.core.asset_path = Some(ASSETS.to_owned());
     plugins.core.worlds = worlds;
     plugins.core.muxer = muxer;
-    plugins.core.cells = WorldCells {
-        cells,
-        ..WorldCells::default()
-    };
+    plugins.core.cells = WorldCells { cells };
     plugins.network = ServerNetworkPlugin::embedded();
     plugins.network.announce_on_lan = false;
     plugins.worlds.default_op_level = 2;

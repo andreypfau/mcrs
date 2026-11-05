@@ -149,20 +149,12 @@ impl SimulationMail {
     }
 }
 
-/// Whether the ticks of a column changed since the column landed.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum TickChange {
-    /// The column holds only the saved ticks it landed with, none of them activated.
-    Unchanged,
-    /// A saved tick activated, or the column holds a tick scheduled since it landed.
-    Changed,
-}
-
 /// The ticks that a column held when it went cold.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct TakenTicks {
     pub ticks: ColumnTicks,
-    pub change: TickChange,
+    /// A saved tick activated, or the column holds a tick scheduled since it landed.
+    pub changed: bool,
 }
 
 /// The queues of the block kernels of a dimension world, and what crosses to the other cells.
@@ -246,17 +238,13 @@ impl BlockSimulation {
             }
         }
         let activated = self.activated.remove(&column);
-        let change = if activated || !block.active.is_empty() || !fluid.active.is_empty() {
-            TickChange::Changed
-        } else {
-            TickChange::Unchanged
-        };
+        let changed = activated || !block.active.is_empty() || !fluid.active.is_empty();
         TakenTicks {
             ticks: ColumnTicks {
                 block: block.into_list(),
                 fluid: fluid.into_list(),
             },
-            change,
+            changed,
         }
     }
 }

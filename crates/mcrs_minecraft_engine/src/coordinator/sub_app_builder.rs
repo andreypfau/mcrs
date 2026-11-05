@@ -159,8 +159,7 @@ pub fn spawn_dim_subapp(
         mcrs_minecraft_engine_registries::extract_registries(app.world(), sub_app.world_mut());
 
         sub_app.init_resource::<DimInbox>();
-        let owned =
-            (cells.cells.get() > 1).then(|| OwnedColumns::new(partition, index, cells.halo));
+        let owned = (cells.cells.get() > 1).then(|| OwnedColumns::new(partition, index));
         if let Some(owned) = owned {
             sub_app.add_plugins(CellMailPlugin { owned });
         }

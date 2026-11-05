@@ -67,7 +67,6 @@ struct Trace {
     stage: ColumnStage,
     entered: Instant,
     first: Instant,
-    source: Option<&'static str>,
     sent_after: Option<Duration>,
     /// When each stage was entered, after `first`; a stage the column skipped stays empty.
     reached: [Option<Duration>; STAGES],
@@ -78,7 +77,6 @@ pub struct ColumnSample {
     pub stage: ColumnStage,
     pub in_stage: Duration,
     pub age: Duration,
-    pub source: Option<&'static str>,
     pub sent_after: Option<Duration>,
     pub reached: [Option<Duration>; STAGES],
 }
@@ -106,10 +104,6 @@ pub enum TraceEvent {
         stage: ColumnStage,
         at: Instant,
     },
-    Source {
-        pos: ColumnPos,
-        source: &'static str,
-    },
     Forget(ColumnPos),
 }
 
@@ -134,11 +128,6 @@ impl ColumnTraces {
     pub fn apply(&mut self, event: TraceEvent) {
         match event {
             TraceEvent::Mark { pos, stage, at } => self.mark(pos, stage, at),
-            TraceEvent::Source { pos, source } => {
-                if let Some(trace) = self.0.get_mut(&pos) {
-                    trace.source = Some(source);
-                }
-            }
             TraceEvent::Forget(pos) => {
                 self.0.remove(&pos);
             }
@@ -174,7 +163,6 @@ impl ColumnTraces {
                         stage,
                         entered: now,
                         first: now,
-                        source: None,
                         sent_after: None,
                         reached,
                     },
@@ -190,7 +178,6 @@ impl ColumnTraces {
             stage: trace.stage,
             in_stage: now - trace.entered,
             age: now - trace.first,
-            source: trace.source,
             sent_after: trace.sent_after,
             reached: trace.reached,
         }));
@@ -230,12 +217,6 @@ impl ColumnTraceLog {
 pub fn mark(log: Option<&ColumnTraceLog>, pos: ColumnPos, stage: ColumnStage) {
     if let Some(log) = log {
         log.record(TraceEvent::mark(pos, stage));
-    }
-}
-
-pub fn set_source(log: Option<&ColumnTraceLog>, pos: ColumnPos, source: &'static str) {
-    if let Some(log) = log {
-        log.record(TraceEvent::Source { pos, source });
     }
 }
 
@@ -304,10 +285,6 @@ mod tests {
                 stage: ColumnStage::Queued,
                 at: at(7),
             },
-            TraceEvent::Source {
-                pos,
-                source: "saved",
-            },
             TraceEvent::Mark {
                 pos,
                 stage: ColumnStage::Sent,
@@ -323,7 +300,6 @@ mod tests {
             panic!("one column traced, got {}", out.len());
         };
         assert_eq!(sample.stage, ColumnStage::Sent);
-        assert_eq!(sample.source, Some("saved"));
         assert_eq!(sample.sent_after, Some(Duration::from_millis(9)));
         assert_eq!(
             sample.reached[ColumnStage::Queued as usize],

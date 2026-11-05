@@ -4,6 +4,8 @@ use bevy_ecs::resource::Resource;
 use mcrs_engine_cell::{BoxPartition, CellIndex, ChunkKey, Leaf, LeafSize};
 use mcrs_voxel::{BlockPos, ColumnPos};
 
+use crate::world::lifecycle::column_loading::LOADING_RINGS;
+
 /// The width of a region file in columns: the minimum leaf of a cell on X and Z.
 pub const REGION_COLUMNS: NonZeroU32 = match NonZeroU32::new(32) {
     Some(width) => width,
@@ -42,19 +44,18 @@ pub fn column_key(column: ColumnPos) -> ChunkKey {
 pub struct OwnedColumns {
     partition: BoxPartition,
     index: CellIndex,
-    halo: u32,
 }
+
+/// The columns past its boxes whose tickets a cell raises: the loading rings of a ticket, so a
+/// column at the edge of a box is lit with all its neighbours, as in a world of one cell.
+const HALO: u32 = LOADING_RINGS.unsigned_abs();
 
 impl OwnedColumns {
     /// The columns of the cell `index` in `partition`, which raises the tickets of the columns
-    /// within `halo` columns of its boxes.
+    /// within the loading rings of its boxes.
     #[must_use]
-    pub fn new(partition: BoxPartition, index: CellIndex, halo: u32) -> Self {
-        Self {
-            partition,
-            index,
-            halo,
-        }
+    pub fn new(partition: BoxPartition, index: CellIndex) -> Self {
+        Self { partition, index }
     }
 
     #[must_use]
@@ -75,19 +76,17 @@ impl OwnedColumns {
     /// Whether `column` is within the halo of the boxes of this cell.
     #[must_use]
     pub fn reaches(&self, column: ColumnPos) -> bool {
-        self.partition
-            .reaches(self.index, column_key(column), self.halo)
+        self.partition.reaches(self.index, column_key(column), HALO)
     }
 
     /// Whether another cell may read `column`: a cell reads the columns of its halo, and the
     /// columns next to a column that it lights in cold space.
     #[must_use]
     pub fn is_read_by_others(&self, column: ColumnPos) -> bool {
-        let reach = self.halo.max(1);
         (0..self.partition.cells().get())
             .map(CellIndex)
             .filter(|index| *index != self.index)
-            .any(|index| self.partition.reaches(index, column_key(column), reach))
+            .any(|index| self.partition.reaches(index, column_key(column), HALO))
     }
 }
 
