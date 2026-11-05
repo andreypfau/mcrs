@@ -781,7 +781,7 @@ mod tests {
         let first = cells.add(label, CellIndex(0), SubApp::new(), Placement::Inline);
         let second = cells.add(label, CellIndex(1), SubApp::new(), Placement::Inline);
         let partition = region_partition(NonZeroU32::MIN.saturating_add(1));
-        cells.divide(label, partition, 1);
+        cells.divide(label, partition);
         let cell_of = |position: DVec3| match partition.owner(column_key(ColumnPos::from(position)))
         {
             CellIndex(0) => first,
