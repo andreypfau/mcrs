@@ -503,6 +503,21 @@ fn the_chunk_cache_view_is_told_once_after_the_login_and_once_after_a_respawn() 
             assert!(center < batch && radius < batch, "{when}: {packets:?}");
         }
     }
+    // The client sees 2 columns far; the ring of columns that the view holds past it stays
+    // out of both values.
+    let told: Vec<i32> = joined
+        .iter()
+        .filter_map(|packet| match packet {
+            PacketPayload::PlayerLogin(login) => Some(login.chunk_radius.0),
+            PacketPayload::SetChunkCacheRadius(radius) => Some(radius.radius.0),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(
+        told,
+        [2, 2],
+        "the login and the cache radius tell the view distance"
+    );
 }
 
 #[test]
