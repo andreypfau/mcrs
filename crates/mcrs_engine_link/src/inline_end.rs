@@ -11,8 +11,8 @@ use crate::tasks::Tasks;
 /// caller that steps a stage by hand, such as a test that looks into the stage between its
 /// steps, holds one of its own.
 pub struct InlineEnd<S: Stage> {
-    stage: S,
-    tasks: Tasks<S::TaskOutput>,
+    pub(crate) stage: S,
+    pub(crate) tasks: Tasks<S::TaskOutput>,
     outputs: Vec<S::Output>,
 }
 

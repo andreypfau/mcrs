@@ -2,7 +2,7 @@ use std::collections::VecDeque;
 use std::collections::vec_deque::Drain;
 use std::thread;
 
-use flume::{Receiver, SendError, Sender};
+use flume::{Receiver, Sender};
 
 use crate::inline_end::InlineEnd;
 use crate::placement::Placement;
@@ -33,8 +33,8 @@ struct ThreadLink<S: Stage> {
 }
 
 impl<S: Stage> Link<S> {
-    /// Places `stage` as `placement` asks. A stage whose thread does not start runs
-    /// [`Placement::Inline`].
+    /// Places `stage` as `placement` asks. A stage whose thread does not start answers nothing,
+    /// as a stopped far end.
     pub fn new(stage: S, placement: Placement) -> Self {
         Self::place(stage, placement, None)
     }
@@ -148,26 +148,14 @@ fn spawn<S: Stage>(stage: S, wake: Option<Sender<()>>) -> FarEnd<S> {
     let (inputs, inputs_receiver) = flume::unbounded();
     let (replies_sender, replies) = flume::unbounded();
     let end = ThreadEnd::new(stage, inputs_receiver, replies_sender, wake);
-    // The end goes over a channel and not into the closure, so a failed spawn hands it back.
-    let (handover, handed) = flume::bounded::<ThreadEnd<S>>(1);
     let spawned = thread::Builder::new()
         .name(S::NAME.to_owned())
-        .spawn(move || {
-            if let Ok(end) = handed.recv() {
-                end.run();
-            }
-        });
-    let end = match spawned {
-        Ok(_) => match handover.send(end) {
-            Ok(()) => return FarEnd::Thread(ThreadLink { inputs, replies }),
-            Err(SendError(end)) => end,
-        },
-        Err(error) => {
-            tracing::warn!(%error, stage = S::NAME, "the stage thread did not start, so the stage runs inline");
-            end
-        }
-    };
-    FarEnd::Inline(end.into_inline())
+        .spawn(move || end.run());
+    if let Err(error) = spawned {
+        // The channels of the stage are gone with it, so the link acts as a stopped far end.
+        tracing::error!(%error, stage = S::NAME, "the stage thread did not start");
+    }
+    FarEnd::Thread(ThreadLink { inputs, replies })
 }
 
 #[cfg(test)]
