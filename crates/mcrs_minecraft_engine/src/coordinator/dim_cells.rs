@@ -25,6 +25,7 @@ use crate::cell_mail::{CellMail, CellMessage};
 use crate::channel_types::ToDim;
 use crate::column_request::ColumnRequest;
 use crate::column_store::{ColumnDisk, ColumnStoreInput, ColumnStoreOutput};
+use crate::command_handoff::CommandHandoff;
 use crate::coordinator::clock::GameTime;
 use crate::coordinator::entity_id_ranges::EntityIdRanges;
 use crate::coordinator::ops::OpList;
@@ -307,6 +308,15 @@ impl DimCells {
             .or_else(|| self.home(label))
     }
 
+    /// The cell that runs `handoff`: the owner of the column of its first source, whose blocks
+    /// the stage reads, or the cell that holds the player who sent the line.
+    fn handoff_cell(&self, label: Entity, handoff: &CommandHandoff) -> Option<CellId> {
+        match handoff.sources.first() {
+            Some(source) => self.owner(label, ColumnPos::from(source.position)),
+            None => self.holder(label, handoff.output),
+        }
+    }
+
     /// Splits what the muxer routed to the dimension of `routed.dim` by the cell that owns
     /// each part: a player goes to the cell that owns the column it arrives in, its packets to
     /// the cell that holds it, a column request to the owner of the column.
@@ -329,7 +339,7 @@ impl DimCells {
                 }
                 ToDim::Despawn(despawn) => self.holder(label, despawn.session),
                 ToDim::Order(order) => self.holder(label, order.session),
-                ToDim::Command(_) => self.home(label),
+                ToDim::Command(handoff) => self.handoff_cell(label, handoff),
             };
             if let Some(cell) = cell {
                 part(&mut split, label, cell).control.push(message);
@@ -619,5 +629,70 @@ pub fn tick_dimensions(world: &mut World) {
                 mail.remove(&cell).unwrap_or_default(),
             )
         });
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use mcrs_minecraft_command::CommandLevel;
+    use mcrs_minecraft_core::LookAnchor;
+    use mcrs_minecraft_engine_world::owned_columns::region_partition;
+    use std::num::NonZeroU32;
+
+    use crate::command_handoff::SourceState;
+
+    fn handoff(label: Entity, position: DVec3) -> ToDim {
+        let source = SourceState {
+            level: CommandLevel::All,
+            player: None,
+            dimension: label,
+            position,
+            yaw: 0.0,
+            pitch: 0.0,
+            anchor: LookAnchor::Feet,
+        };
+        ToDim::Command(Box::new(CommandHandoff {
+            to: label,
+            output: PlayerSession(1),
+            line: "execute if block ~ ~ ~ stone".into(),
+            origin: source.clone(),
+            stage: 1,
+            sources: vec![source],
+            cost: 0,
+        }))
+    }
+
+    #[test]
+    fn a_handoff_goes_to_the_cell_that_owns_the_column_of_its_source() {
+        let label = Entity::PLACEHOLDER;
+        let mut cells = DimCells::default();
+        let first = cells.add(label, CellIndex(0), SubApp::new(), Placement::Inline);
+        let second = cells.add(label, CellIndex(1), SubApp::new(), Placement::Inline);
+        let partition = region_partition(NonZeroU32::MIN.saturating_add(1));
+        cells.divide(label, partition);
+        let cell_of = |position: DVec3| match partition.owner(column_key(ColumnPos::from(position)))
+        {
+            CellIndex(0) => first,
+            _ => second,
+        };
+        let west = DVec3::new(-8.0, 64.0, 8.0);
+        let east = DVec3::new(8.0, 64.0, 8.0);
+        assert_ne!(cell_of(west), cell_of(east), "x = 0 is a region boundary");
+
+        for position in [west, east] {
+            let split = cells.split(RoutedInput {
+                dim: label,
+                control: vec![handoff(label, position)],
+                serverbound: Vec::new(),
+                column_requests: Vec::new(),
+            });
+            let receivers: Vec<CellId> = split.keys().copied().collect();
+            assert_eq!(
+                receivers,
+                [cell_of(position)],
+                "the handoff at {position:?}"
+            );
+        }
     }
 }
