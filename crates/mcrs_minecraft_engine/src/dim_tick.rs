@@ -272,17 +272,13 @@ fn take_output(world: &mut World) -> DimOutput {
     // After every schedule of the tick, so the player is in no system's view once it leaves.
     player_dimension_change::depart_players(world, &mut output.departures);
     cell_mail::take_cell_mail(world, &mut output.cell_mail);
-    if let Some(mut packets) = world.get_resource_mut::<Messages<OutboundPlayerPacket>>() {
-        output.packets.extend(packets.drain());
-    }
+    drain_into(world, &mut output.packets);
     if let Some(mut released) = world.get_resource_mut::<Messages<OutboundPlayerReleased>>() {
         output
             .released
             .extend(released.drain().map(|released| released.session));
     }
-    if let Some(mut attached) = world.get_resource_mut::<Messages<OutboundPlayerAttached>>() {
-        output.attached.extend(attached.drain());
-    }
+    drain_into(world, &mut output.attached);
     if let Some(log) = world.get_resource::<ColumnTraceLog>() {
         output.traces.extend(log.drain());
     }
