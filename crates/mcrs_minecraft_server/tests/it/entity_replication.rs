@@ -287,19 +287,20 @@ impl Scene {
     fn first_sees_second_at(&self) -> Option<DVec3> {
         self.viewers[0].client.position_of(self.uuids[1])
     }
-}
 
-#[test]
-fn two_players_near_each_other_see_each_other_and_never_themselves() {
-    let scene = Scene::two_players();
-
-    assert!(scene.first_sees_second_at().is_some());
-    assert!(
-        scene.viewers[1]
-            .client
-            .position_of(scene.uuids[0])
-            .is_some()
-    );
+    /// How many players the first viewer shows at their position in `at`, by index.
+    fn shown_at(&self, at: &[DVec3]) -> usize {
+        let client = &self.viewers[0].client;
+        self.uuids
+            .iter()
+            .zip(at)
+            .filter(|(uuid, at)| {
+                client
+                    .position_of(**uuid)
+                    .is_some_and(|seen| seen.distance(**at) < 1e-3)
+            })
+            .count()
+    }
 }
 
 #[test]
@@ -311,6 +312,13 @@ fn a_player_that_walks_away_moves_on_the_client_and_is_removed_out_of_range() {
 
 fn walk_away(muxer: Placement) {
     let mut scene = Scene::crowd_with(2, 2, muxer);
+    assert!(
+        scene.viewers[1]
+            .client
+            .position_of(scene.uuids[0])
+            .is_some(),
+        "{muxer:?}: the second player sees the first"
+    );
     let start = scene.first_sees_second_at().unwrap();
 
     for step in 1..=20 {
@@ -395,32 +403,15 @@ fn a_crowd_past_the_cap_shows_at_most_the_cap_and_moves_each_player_it_shows() {
         }
         scene.tick(1);
     }
-    let client = &scene.viewers[0].client;
-    let frozen = scene
-        .uuids
-        .iter()
-        .zip(&start)
-        .filter(|(uuid, start)| {
-            client
-                .position_of(**uuid)
-                .is_some_and(|seen| seen.distance(**start) < 1e-3)
-        })
-        .count();
-    assert_eq!(frozen, 0, "every player that the client shows moved");
+    assert_eq!(
+        scene.shown_at(&start),
+        0,
+        "every player that the client shows moved"
+    );
 
     let exact = |scene: &mut Scene| {
         let at: Vec<DVec3> = (0..players).map(|index| scene.position(index)).collect();
-        let client = &scene.viewers[0].client;
-        scene
-            .uuids
-            .iter()
-            .zip(&at)
-            .filter(|(uuid, at)| {
-                client
-                    .position_of(**uuid)
-                    .is_some_and(|seen| seen.distance(**at) < 1e-3)
-            })
-            .count()
+        scene.shown_at(&at)
     };
     scene.tick(2);
     assert!(
