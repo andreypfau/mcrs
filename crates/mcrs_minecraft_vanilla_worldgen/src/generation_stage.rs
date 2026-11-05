@@ -1,7 +1,6 @@
 use bevy_tasks::{Task, TaskPool, TaskPoolBuilder};
 use mcrs_engine_link::{InFlight, Step, TaskOutcome};
 use mcrs_minecraft_engine_world::aoi::min_column_distance;
-use mcrs_minecraft_engine_world::entity::player::chunk_view::ChunkTrackingView;
 use mcrs_minecraft_engine_world::palette::{ChunkBlocks, section_states};
 use mcrs_minecraft_engine_world::world::lifecycle::column_loading::LOADING_RINGS;
 use mcrs_minecraft_worldgen_generator::saved::SectionData;
@@ -286,7 +285,7 @@ impl GenerationStage {
     }
 
     fn within_views(&self, col: ColumnPos, slack: i32) -> bool {
-        within(&self.views.views, col, slack)
+        self.views.views.iter().any(|view| view.reaches(col, slack))
     }
 
     fn abandon(&mut self, key: ColumnKey) {
@@ -309,14 +308,15 @@ impl GenerationStage {
         let reach = LOADING_RINGS.saturating_add(halo);
         let views = &self.views.views;
         for stage in self.in_flight.iter() {
-            if !within(views, stage.col, reach) {
+            if !views.iter().any(|view| view.reaches(stage.col, reach)) {
                 stage.cancel.cancel();
             }
         }
         // A stage still on the pool will write its answer into the store, so its
         // column must survive the eviction that runs beside its cancellation.
-        self.store
-            .retain(|col, stage| stage.in_flight() || within(views, col, reach));
+        self.store.retain(|col, stage| {
+            stage.in_flight() || views.iter().any(|view| view.reaches(col, reach))
+        });
     }
 
     fn reprioritize(&mut self) {
@@ -478,14 +478,6 @@ impl GenerationStage {
 struct KeyChange {
     old: ColumnKey,
     new: ColumnKey,
-}
-
-fn within(views: &[ChunkTrackingView], col: ColumnPos, slack: i32) -> bool {
-    views.iter().any(|view| {
-        let reach = i64::from(view.distance) + i64::from(slack);
-        i64::from(col.x.abs_diff(view.center.x)) <= reach
-            && i64::from(col.z.abs_diff(view.center.z)) <= reach
-    })
 }
 
 /// The stage a column stands at once it owes nothing more: the merge of the

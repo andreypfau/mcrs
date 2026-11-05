@@ -143,7 +143,7 @@ impl ColumnProduction {
     /// Takes in the content of `column`: into the light stage, and into the wanted column.
     fn arrive(&mut self, column: ColumnPos, stored: StoredColumn, source: Source, lights: Lights) {
         self.fetching.remove(&column);
-        if lights == Lights::Yes && within(&self.views, column, 1) {
+        if lights == Lights::Yes && self.views.iter().any(|view| view.reaches(column, 1)) {
             for (y, section) in (stored.min_section_y..).zip(&stored.sections) {
                 self.light_edits.push(ColdLightEdit::Load {
                     pos: SectionPos::new(column.x, y, column.z),
@@ -171,7 +171,8 @@ impl ColumnProduction {
         }
         self.views = views;
         let views = &self.views;
-        self.wanted.retain(|column, _| within(views, *column, 0));
+        self.wanted
+            .retain(|column, _| views.iter().any(|view| view.reaches(*column, 0)));
         let Some(rows) = rows else {
             return;
         };
@@ -179,7 +180,7 @@ impl ColumnProduction {
         let count = i32::try_from(rows.section_count).unwrap_or(0);
         let light_edits = &mut self.light_edits;
         self.lit_world.retain(|column| {
-            if within(views, *column, 1) {
+            if views.iter().any(|view| view.reaches(*column, 1)) {
                 return true;
             }
             for y in first..first.saturating_add(count) {
@@ -443,13 +444,4 @@ impl ColumnProduction {
             }
         }
     }
-}
-
-/// Whether some view reaches `column` with `slack` columns to spare.
-fn within(views: &[ChunkTrackingView], column: ColumnPos, slack: i32) -> bool {
-    views.iter().any(|view| {
-        let reach = i64::from(view.distance) + i64::from(slack);
-        i64::from(column.x.abs_diff(view.center.x)) <= reach
-            && i64::from(column.z.abs_diff(view.center.z)) <= reach
-    })
 }

@@ -90,6 +90,14 @@ impl ChunkTrackingView {
             && z.saturating_sub(self.center.z).unsigned_abs() <= self.distance as u32
     }
 
+    /// Whether the view holds `column`, or would with `slack` more rings.
+    #[must_use]
+    pub fn reaches(&self, column: ColumnPos, slack: i32) -> bool {
+        let reach = i64::from(self.distance) + i64::from(slack);
+        i64::from(column.x.abs_diff(self.center.x)) <= reach
+            && i64::from(column.z.abs_diff(self.center.z)) <= reach
+    }
+
     pub fn contains(&self, pos: &SectionPos) -> bool {
         // Saturating ops keep an extreme self.center.y from panicking in
         // debug builds.
