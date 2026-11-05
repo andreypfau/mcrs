@@ -4,14 +4,13 @@ use std::collections::VecDeque;
 
 use crate::entity::physics::Transform;
 use crate::entity::player::Player;
-use crate::owned_columns::OwnedColumns;
 use crate::palette::ChunkBlocks;
 use crate::tick::TickSet;
 use crate::world::dimension::InDimension;
 use crate::world::lifecycle::column_loading::{ColumnLoading, is_loaded};
 use crate::world::lifecycle::simulation::{
     SectionSimulation, SimulationDistance, raise_simulation_ticket, release_simulation_ticket,
-    track_simulation_tickets,
+    track_held_simulation_areas, track_simulation_tickets,
 };
 use crate::world::lifecycle::stage::{SectionStage, SectionStageChanged, SectionStages};
 use crate::world::lifecycle::trace::{self, ColumnStage, ColumnTraceLog};
@@ -61,7 +60,8 @@ impl Plugin for TicketPlugin {
         app.add_systems(
             FixedUpdate,
             (
-                track_simulation_tickets
+                (track_simulation_tickets, track_held_simulation_areas)
+                    .chain()
                     .in_set(ChunkSpawnSet)
                     .before(SectionEntitySet),
                 (
@@ -179,7 +179,6 @@ pub fn spawn_chunks(
     mut stages: SectionStages,
     players: Query<(&Transform, &InDimension), With<Player>>,
     traces: Option<Res<ColumnTraceLog>>,
-    owned: Option<Res<OwnedColumns>>,
     mut centers: Local<Vec<SectionPos>>,
     mut keys_to_process: Local<Vec<SectionPos>>,
 ) {
@@ -219,7 +218,7 @@ pub fn spawn_chunks(
                 trace::mark(traces.as_deref(), pos.into(), ColumnStage::Spawned);
                 let mut section = commands.spawn(SectionBundle::new(InDimension(dim), pos));
                 if let Some(simulation) = simulation {
-                    simulation.mark_spawned(&mut section, pos, owned.as_deref());
+                    simulation.mark_spawned(&mut section, pos);
                 }
                 let section = section.id();
                 section_index.insert(pos, section);

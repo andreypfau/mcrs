@@ -106,7 +106,7 @@ fn receive_cell_mail(world: &mut World) {
     for message in messages {
         match message {
             CellMessage::Ticket(update) => {
-                cell_crossing::update_remote(world, update.session, update.square);
+                cell_crossing::update_remote(world, update.session, update.ticket);
             }
             CellMessage::Halo(write) => halo.push(write),
             CellMessage::Write(write) => writes.push(write),

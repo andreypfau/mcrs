@@ -13,11 +13,15 @@ use mcrs_minecraft_engine_world::entity::player::chunk_view::SentChunkView;
 use mcrs_minecraft_engine_world::owned_columns::OwnedColumns;
 use mcrs_minecraft_engine_world::session::{DimPlayerIndex, Owner, PlayerSession};
 use mcrs_minecraft_engine_world::world::dimension::Dimension;
+use mcrs_minecraft_engine_world::world::lifecycle::simulation::{
+    HeldSimulationArea, SimulationTicket,
+};
 use mcrs_voxel::ColumnPos;
 
 use crate::departure::CarriedPlayer;
 use crate::dimension_change::DimensionChangeError;
-use crate::hot_ticket::{CellCrossing, HotTicket, RemoteTicket, RemoteTickets, TicketSquare};
+use crate::hot_ticket;
+use crate::hot_ticket::{CarriedTicket, CellCrossing, HotTicket, RemoteTicket, RemoteTickets};
 use crate::player_dimension_change;
 use crate::replicated::Replicated;
 
@@ -29,7 +33,7 @@ pub struct Crossing {
     pub(crate) carried: CarriedPlayer,
     pub(crate) replicated: Option<Replicated>,
     pub(crate) view: SentChunkView,
-    pub(crate) ticket: Option<TicketSquare>,
+    pub(crate) ticket: Option<CarriedTicket>,
 }
 
 impl Crossing {
@@ -98,12 +102,13 @@ fn cross(world: &mut World, player: Entity) -> Result<Crossing, DimensionChangeE
         carried,
         replicated,
         view,
-        ticket: ticket.map(HotTicket::square),
+        ticket: ticket.map(HotTicket::carried),
     })
 }
 
 /// Spawns the player of `crossing` where it stood, with what its viewers and its client know
-/// of it. Its remote ticket here becomes its own.
+/// of it. Its remote ticket here becomes its own, and so does its simulation area, so its
+/// sections tick on with no tick between.
 pub(crate) fn arrive(
     world: &mut World,
     crossing: Crossing,
@@ -123,18 +128,21 @@ pub(crate) fn arrive(
     if let Some(replicated) = replicated {
         arrived.insert((replicated, CrossedAt(transform)));
     }
-    if let Some(square) = ticket {
-        arrived.insert(HotTicket::in_dim(dimension, square));
+    if let Some(carried) = ticket {
+        arrived.insert((
+            HotTicket::in_dim(dimension, carried),
+            SimulationTicket::new(dimension, carried.simulation),
+        ));
     }
     Ok(player)
 }
 
-/// Holds `square` for the player of `session` of another cell, or lets its ticket go. A player
+/// Holds `ticket` for the player of `session` of another cell, or lets its ticket go. A player
 /// of this cell keeps its own ticket.
 pub(crate) fn update_remote(
     world: &mut World,
     session: PlayerSession,
-    square: Option<TicketSquare>,
+    ticket: Option<CarriedTicket>,
 ) {
     let own = world
         .get_resource::<DimPlayerIndex>()
@@ -142,15 +150,30 @@ pub(crate) fn update_remote(
     if own {
         return;
     }
-    release_remote(world, session);
-    let (Some(square), Ok(dimension)) = (square, own_dimension(world)) else {
-        return;
-    };
-    hold_remote(world, session, HotTicket::in_dim(dimension, square));
+    let held = world
+        .get_resource::<RemoteTickets>()
+        .and_then(|tickets| tickets.0.get(&session).copied());
+    match (ticket, held) {
+        (Some(ticket), Some(holder)) => hot_ticket::move_remote_ticket(world, holder, ticket),
+        (Some(ticket), None) => {
+            if let Ok(dimension) = own_dimension(world) {
+                hold_remote(world, session, HotTicket::in_dim(dimension, ticket));
+            }
+        }
+        (None, _) => release_remote(world, session),
+    }
 }
 
 fn hold_remote(world: &mut World, session: PlayerSession, ticket: HotTicket) {
-    let holder = world.spawn((RemoteTicket, ticket)).id();
+    // The ticket goes in with the area it holds, so the area ticks at once.
+    let holder = world
+        .spawn((
+            RemoteTicket,
+            ticket,
+            SimulationTicket::new(ticket.dim(), ticket.simulation()),
+            HeldSimulationArea::new(ticket.dim(), ticket.simulation()),
+        ))
+        .id();
     world
         .get_resource_or_init::<RemoteTickets>()
         .0
