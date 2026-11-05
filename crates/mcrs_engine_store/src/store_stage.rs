@@ -1,42 +1,71 @@
 use std::collections::VecDeque;
 
 use mcrs_engine_link::{Stage, Step};
+use rustc_hash::FxHashMap;
 use tracing::error;
 
-use crate::chunk_cache::ChunkCache;
 use crate::disk_store::DiskStore;
-use crate::disk_write::DiskWrite;
 use crate::store_input::StoreInput;
 use crate::store_output::StoreOutput;
+use crate::versioned_chunk::VersionedChunk;
 
-/// The data layer as a stage: the cache and the disk store under it. It answers the requests
-/// in the order it receives them, so a request sent after a put sees that put.
-pub struct StoreStage<D: DiskStore> {
-    cache: ChunkCache<D::Key, D::Chunk>,
+/// The data layer as a stage: the chunks in memory, by key, over the disk store. It answers the
+/// requests in the order it receives them, so a request sent after a put sees that put.
+pub(crate) struct StoreStage<D: DiskStore> {
+    cache: FxHashMap<D::Key, Cached<D::Chunk>>,
     disk: D,
     inputs: VecDeque<StoreInput<D::Key, D::Chunk>>,
 }
 
+struct Cached<C> {
+    chunk: VersionedChunk<C>,
+    disk: DiskState,
+}
+
+/// Whether the disk holds the version that the cache holds.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum DiskState {
+    Written,
+    Unwritten,
+}
+
 impl<D: DiskStore> StoreStage<D> {
-    #[must_use]
-    pub fn new(disk: D) -> Self {
+    pub(crate) fn new(disk: D) -> Self {
         Self {
-            cache: ChunkCache::new(),
+            cache: FxHashMap::default(),
             disk,
             inputs: VecDeque::new(),
         }
     }
 
+    /// Keeps `chunk` as the version of `key` that the disk does not hold yet. It keeps a later
+    /// version that it already holds instead.
+    fn put(&mut self, key: D::Key, chunk: VersionedChunk<D::Chunk>) {
+        if self
+            .cache
+            .get(&key)
+            .is_some_and(|held| held.chunk.version > chunk.version)
+        {
+            return;
+        }
+        let disk = DiskState::Unwritten;
+        self.cache.insert(key, Cached { chunk, disk });
+    }
+
     fn answer(&mut self, key: D::Key) -> StoreOutput<D::Key, D::Chunk> {
-        if let Some(chunk) = self.cache.get(key) {
+        if let Some(cached) = self.cache.get(&key) {
             return StoreOutput::Found {
                 key,
-                chunk: chunk.clone(),
+                chunk: cached.chunk.clone(),
             };
         }
         match self.disk.read(key) {
             Ok(Some(chunk)) => {
-                self.cache.insert_read(key, chunk.clone());
+                let cached = Cached {
+                    chunk: chunk.clone(),
+                    disk: DiskState::Written,
+                };
+                self.cache.insert(key, cached);
                 StoreOutput::Found { key, chunk }
             }
             Ok(None) => StoreOutput::Missing { key },
@@ -47,16 +76,17 @@ impl<D: DiskStore> StoreStage<D> {
         }
     }
 
+    /// Writes each version that the disk does not hold yet.
     fn flush(&mut self) {
-        let disk = &mut self.disk;
-        self.cache
-            .write_unwritten(|key, chunk| match disk.write(key, chunk) {
-                Ok(()) => DiskWrite::Done,
-                Err(err) => {
-                    error!(%err, "the disk store did not write a chunk");
-                    DiskWrite::Failed
-                }
-            });
+        for (key, cached) in &mut self.cache {
+            if cached.disk == DiskState::Written {
+                continue;
+            }
+            match self.disk.write(*key, &cached.chunk) {
+                Ok(()) => cached.disk = DiskState::Written,
+                Err(err) => error!(%err, "the disk store did not write a chunk"),
+            }
+        }
     }
 }
 
@@ -74,7 +104,7 @@ impl<D: DiskStore> Stage for StoreStage<D> {
     fn step(&mut self, step: &mut Step<'_, Self>) {
         while let Some(input) = self.inputs.pop_front() {
             match input {
-                StoreInput::Put { key, chunk } => self.cache.put(key, chunk),
+                StoreInput::Put { key, chunk } => self.put(key, chunk),
                 StoreInput::Get { key } => step.emit(self.answer(key)),
                 StoreInput::Flush => self.flush(),
             }
@@ -90,7 +120,6 @@ impl<D: DiskStore> Stage for StoreStage<D> {
 mod tests {
     use super::*;
     use crate::chunk_version::ChunkVersion;
-    use crate::versioned_chunk::VersionedChunk;
     use core::convert::Infallible;
     use mcrs_engine_link::{Link, Placement};
     use rustc_hash::FxHashMap;
