@@ -1,5 +1,6 @@
 //! The world a tick produces must not depend on where the worlds tick or on the order in which
-//! the generation and light steps ended.
+//! the generation and light steps ended. The world has two cells, so with threads the cells tick
+//! at the same time and exchange the columns at their boundary.
 //!
 //! Each run ticks in lockstep: after every tick it waits until the generation and light steps
 //! that the tick started have ended, without applying their writes. The writes then reach every
@@ -7,85 +8,35 @@
 
 use std::fmt;
 use std::hash::{DefaultHasher, Hash, Hasher};
-use std::time::{Duration, Instant};
 
-use bevy_app::{App, PluginGroup};
+use bevy_app::App;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::Messages;
 use bevy_ecs::prelude::With;
 use bevy_ecs::world::World;
 use bevy_math::DVec3;
-use bevy_tasks::block_on;
-use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_chunk::{BlockLight, LightStorage, SkyLight};
-use mcrs_minecraft_engine::coordinator::dim_cells::DimCells;
 use mcrs_minecraft_engine::muxer::tile_delta_log::TileDeltaLog;
-use mcrs_minecraft_engine_server::{Placement, runner};
+use mcrs_minecraft_engine_server::Placement;
 use mcrs_minecraft_engine_world::block_update::BlockSetRequest;
 use mcrs_minecraft_engine_world::entity::physics::Transform;
 use mcrs_minecraft_engine_world::entity::player::Player;
-use mcrs_minecraft_engine_world::entity::player::chunk_view::{PlayerViewDistance, SentChunkView};
 use mcrs_minecraft_engine_world::palette::ChunkBlocks;
-use mcrs_minecraft_engine_world::session::{Owner, PlayerSession};
-use mcrs_minecraft_engine_world::world::dimension::InDimension;
+use mcrs_minecraft_engine_world::session::PlayerSession;
 use mcrs_minecraft_engine_world::world::lifecycle::stage::SectionStage;
 use mcrs_minecraft_engine_world::world::storage::block_entity::BlockEntity;
-use mcrs_minecraft_engine_world::world::storage::column::{ColumnIndex, ColumnPosComponent};
+use mcrs_minecraft_engine_world::world::storage::column::ColumnPosComponent;
 use mcrs_minecraft_heightmap::{MotionHeightmap, SurfaceHeightmap};
-use mcrs_minecraft_server::MinecraftServerPlugins;
 use mcrs_minecraft_simulation::BlockUpdateFlags;
-use mcrs_minecraft_vanilla_light::LightLink;
-use mcrs_minecraft_vanilla_worldgen::WorldGeneration;
-use mcrs_minecraft_worldgen_generator::stages::FillContext;
 use mcrs_voxel::{BlockPos, BlockStateId, SectionPos};
 
-use crate::configuration_registries::ASSETS;
-use crate::host_app::{label_of, world as dimension_world};
+use crate::host_app::label_of;
+use crate::world_server::{
+    OVERWORLD, Terrain, WorldServer, block_state, cell_worlds, dimension_of, lockstep_tick,
+    spawn_viewer, wait_for_generation,
+};
 
-const OVERWORLD: &str = "minecraft:overworld";
 const TICKS: usize = 60;
-const PATIENCE: Duration = Duration::from_secs(120);
-
-fn server(worlds: Placement) -> App {
-    let mut plugins = MinecraftServerPlugins::embedded();
-    plugins.core.asset_path = Some(ASSETS.to_owned());
-    plugins.core.worlds = worlds;
-    plugins.network.announce_on_lan = false;
-    plugins.worlds.seed = 4;
-    let mut app = App::new();
-    app.add_plugins(plugins.build());
-    app.finish();
-    app.cleanup();
-    crate::support::update_until_playing(&mut app);
-    runner::between_ticks(&mut app);
-    app
-}
-
-fn tick(app: &mut App) {
-    app.update();
-    runner::between_ticks(app);
-    runner::drain(app);
-}
-
-/// Waits between ticks until the generation, light and store steps that the tick started have
-/// ended.
-fn wait_for_steps(app: &mut App, label: Entity) {
-    block_on(app.world_mut().resource_mut::<DimCells>().stores_answered());
-    if let Some(mut generation) = app.world_mut().get_resource_mut::<WorldGeneration>() {
-        block_on(generation.answered());
-    }
-    let world = dimension_world(app, label);
-    if let Some(mut light) = world.get_resource_mut::<LightLink>() {
-        block_on(light.answered());
-    }
-}
-
-fn dimension_entity(world: &mut World) -> Entity {
-    world
-        .query_filtered::<Entity, With<ColumnIndex>>()
-        .single(world)
-        .expect("the dimension entity")
-}
 
 struct Scenario {
     dimension: Entity,
@@ -226,58 +177,40 @@ fn world_hash(world: &mut World, hashed: Hashed) -> u64 {
     hasher.finish()
 }
 
-/// The hash of the dimension after each tick of the scenario, and of its blocks after the last.
+/// The hash of every cell of the dimension after each tick of the scenario, and of their blocks
+/// after the last.
 fn run(worlds: Placement) -> Vec<u64> {
-    let mut app = server(worlds);
-    let label = label_of(&app, OVERWORLD);
-    // The generation context comes from assets, which load off the tick; nothing generates
-    // before the player arrives, so the ticks it takes are not part of the scenario.
-    let deadline = Instant::now() + PATIENCE;
-    while !dimension_world(&mut app, label).contains_resource::<FillContext>() {
-        assert!(
-            Instant::now() < deadline,
-            "the generation context never loaded"
-        );
-        tick(&mut app);
+    let mut app = WorldServer {
+        worlds,
+        cells: 2,
+        terrain: Terrain::Vanilla,
+        ..WorldServer::default()
     }
-    let blocks = app.world().resource::<Blocks>().clone();
-    let state = |name: &str| {
-        blocks
-            .block(name)
-            .unwrap_or_else(|| panic!("{name} is declared"))
-            .default_state_id
-    };
-    let world = dimension_world(&mut app, label);
-    let dimension = dimension_entity(world);
-    let player = world
-        .spawn((
-            Player,
-            Transform::from_translation(DVec3::new(8.5, 100.0, 8.5)),
-            PlayerViewDistance {
-                distance: 2,
-                ..PlayerViewDistance::default()
-            },
-            SentChunkView::default(),
-            InDimension(dimension),
-            Owner(PlayerSession(1)),
-        ))
-        .id();
+    .start();
+    let label = label_of(&app, OVERWORLD);
+    wait_for_generation(&mut app, label);
+    let glowstone = block_state(&app, "minecraft:glowstone");
+    let stone = block_state(&app, "minecraft:stone");
+    // The first cell owns region 0, which starts at x = 0; the light of the blocks at x = 0
+    // reaches the second cell.
+    let world = first_cell(&mut app, label);
     let scenario = Scenario {
-        dimension,
-        player,
-        glowstone: state("minecraft:glowstone"),
-        stone: state("minecraft:stone"),
+        dimension: dimension_of(world),
+        player: spawn_viewer(world, PlayerSession(1), DVec3::new(8.5, 100.0, 8.5), 2),
+        glowstone,
+        stone,
     };
 
     app.init_resource::<TileDeltaLog>();
     let mut published_tiles = 0;
     let mut hashes = Vec::with_capacity(TICKS + 1);
     for at in 0..TICKS {
-        scenario.script(dimension_world(&mut app, label), at);
-        tick(&mut app);
-        wait_for_steps(&mut app, label);
+        scenario.script(first_cell(&mut app, label), at);
+        lockstep_tick(&mut app, label);
         let mut hasher = DefaultHasher::new();
-        world_hash(dimension_world(&mut app, label), Hashed::WithoutBlocks).hash(&mut hasher);
+        for world in cell_worlds(&mut app, label) {
+            world_hash(world, Hashed::WithoutBlocks).hash(&mut hasher);
+        }
         // The tile deltas are a pure output of the tick, so the runs publish the same ones.
         let logged = std::mem::take(&mut app.world_mut().resource_mut::<TileDeltaLog>().0);
         for entry in logged.iter().filter(|entry| entry.dimension == label) {
@@ -286,25 +219,35 @@ fn run(worlds: Placement) -> Vec<u64> {
         }
         hashes.push(hasher.finish());
     }
-    hashes.push(world_hash(
-        dimension_world(&mut app, label),
-        Hashed::WithBlocks,
-    ));
-    let world = dimension_world(&mut app, label);
-    let loaded = world
-        .query::<&SectionStage>()
-        .iter(world)
-        .filter(|stage| **stage == SectionStage::Loaded)
-        .count();
+    let mut hasher = DefaultHasher::new();
+    let mut loaded = Vec::new();
+    for world in cell_worlds(&mut app, label) {
+        world_hash(world, Hashed::WithBlocks).hash(&mut hasher);
+        loaded.push(
+            world
+                .query::<&SectionStage>()
+                .iter(world)
+                .filter(|stage| **stage == SectionStage::Loaded)
+                .count(),
+        );
+    }
+    hashes.push(hasher.finish());
     assert!(
-        loaded > 0,
-        "the scenario generated nothing, so it compares nothing"
+        loaded.iter().all(|&loaded| loaded > 0),
+        "a cell generated nothing, so it compares nothing: {loaded:?}"
     );
     assert!(
         published_tiles > 0,
         "the player published no tile delta, so the deltas compare nothing"
     );
     hashes
+}
+
+fn first_cell(app: &mut App, label: Entity) -> &mut World {
+    cell_worlds(app, label)
+        .into_iter()
+        .next()
+        .expect("the world has a cell")
 }
 
 /// Whether a hash covers the blocks of every section. Light and stages cover each tick; the
@@ -324,12 +267,10 @@ fn first_divergence(left: &[u64], right: &[u64]) -> Option<usize> {
 #[test]
 fn the_world_a_tick_produces_does_not_depend_on_the_threads() {
     let inline = run(Placement::Inline);
-    for worlds in [Placement::Thread, Placement::Thread] {
-        let other = run(worlds);
-        assert_eq!(
-            first_divergence(&inline, &other),
-            None,
-            "{worlds:?} diverges from Inline at the tick shown (the last entry holds the blocks)"
-        );
-    }
+    let threads = run(Placement::Thread);
+    assert_eq!(
+        first_divergence(&inline, &threads),
+        None,
+        "the threads diverge from Inline at the tick shown (the last entry holds the blocks)"
+    );
 }
