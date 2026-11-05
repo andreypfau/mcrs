@@ -225,9 +225,9 @@ the form. Confidence: high.
 
 Provenance: `black_box_confirmed` (R2, R16). Kind: semantic. Confidence: high.
 
-### WL-CMD-003: A new name in offline mode
+### WL-CMD-003: A name of a player that is not online
 
-- **Behavior:** this rule applies in offline mode to a name that the server does not know and that
+- **Behavior:** this rule applies in offline mode to a name of a player that is not online and that
   no account holds.
 - **Behavior:** `whitelist add` stores the name with the same case as in the command. The id of
   the entry is the version 3 UUID of `OfflinePlayer:<name>`.
@@ -275,8 +275,8 @@ online, and WL-DEV-004 records the reference behaviour. Kind: semantic. Confiden
   `send_command_feedback` does not change this. `log_admin_commands` does not change what a player
   receives.
 
-Provenance: `black_box_confirmed` (R22, R25). The results in R25 come from one run. Kind: semantic.
-Confidence: high.
+Provenance: `black_box_confirmed` (R22, R25). Kind: semantic. Confidence: high for the replies in
+R22. Confidence: medium for the conditions, which rest on one run (R25).
 
 ### WL-CMD-006: The result of the command
 
@@ -355,7 +355,8 @@ Provenance: `black_box_confirmed` (R14). Kind: semantic. Confidence: high.
 
 - **Rule:** WL-CMD-004.
 - **Reference:** the vanilla server also matches the name of a player that joined before, with any
-  case. After `WlUp` joins and leaves, `whitelist remove wlup` removes the entry of `WlUp` (R21).
+  case. After `WlUp` joins, `whitelist remove wlup` removes the entry of `WlUp` (R21). `bans.md`,
+  R14, shows the same match for `ban` after the player leaves and after a restart.
 - **This server:** it does not keep the players that joined. In offline mode, the client chooses the
   name, so a record of each name grows without a limit. `whitelist remove wlup` fails for the entry
   of `WlUp` when that player is not online. `whitelist remove WlUp` removes it.

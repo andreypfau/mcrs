@@ -128,14 +128,14 @@ removes all the expired bans from the ban list. The file keeps them until the ne
 **BAN-EXP-003** (`black_box_confirmed`, semantic). After a join of a player with a ban, `ban` for a
 player whose ban has expired works as for a new ban. The new ban replaces the expired ban in the
 file. A server can allow this earlier, as BAN-EXP-002 does not fix the time of the removal. See
-result R15.
+result R15. The rule rests on one observation.
 
 On a vanilla server, before that join, `ban` for that player replies
 `Nothing changed. The player is already banned` and does not change the file. A differential test
 ignores `ban` for a player whose expired ban is still in the ban list.
 
 **BAN-EXP-004** (`black_box_confirmed`, semantic). `pardon` for an expired ban that the ban list still
-holds removes it, with the usual reply. See result R15.
+holds removes it, with the usual reply. See result R15. The rule rests on one observation.
 
 ## 4. Commands
 
@@ -181,11 +181,13 @@ R1 and R6.
 it selects. See result R9.
 
 **BAN-CMD-006** (`black_box_confirmed`, semantic). In offline mode, a name of a player that is online
-matches with any case. The ban has the id and the name of that player. See result R14.
+matches with any case. The ban has the id and the name of that player. See result R14. This part
+rests on one observation.
 
 For a name of a player that is not online and that no account holds, `ban` stores the name with the
-same case as in the command. The id is the version 3 UUID of `OfflinePlayer:<name>`. Thus `ban Steve`
-refuses the player `Steve` and does not refuse the player `steve`. See results R13 and R14, and U7.
+same case as in the command. The id is the version 3 UUID of `OfflinePlayer:<name>`. Thus
+`ban BlCaseOne` refuses the player `BlCaseOne` and does not refuse the player `blcaseone`. See
+results R13 and R14, and U7.
 The rule corrects the reference for some names, and BAN-DEV-002 records the reference behaviour.
 
 **BAN-CMD-007** (`black_box_confirmed`, semantic). `ban-ip` accepts the name of a player that is
