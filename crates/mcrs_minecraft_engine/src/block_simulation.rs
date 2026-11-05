@@ -587,7 +587,9 @@ fn run_block_simulation<B: BlockBehaviour<WorldKinds> + BlockDrops + Send + 'sta
             flags: write.flags,
         });
     }
-    if let Ok(streams) = outlets.streams.get(dimension) {
+    if !out.delivered.is_empty()
+        && let Ok(streams) = outlets.streams.get(dimension)
+    {
         block_events::publish_block_events(&out.delivered, streams, &mut outlets.changes);
     }
     block_drops::drop_items(
