@@ -47,7 +47,6 @@ pub struct BridgeTelemetry {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PacketKind {
     EntityMove,
-    Remove,
     PlayerInfo,
     /// A packet of the entity muxer: a spawn, a move, a removal or a player list update, which
     /// the bridge counts without reading its id.
@@ -57,9 +56,8 @@ pub enum PacketKind {
 }
 
 impl PacketKind {
-    pub const ALL: [Self; 6] = [
+    pub const ALL: [Self; 5] = [
         Self::EntityMove,
-        Self::Remove,
         Self::PlayerInfo,
         Self::Replication,
         Self::Chunk,
@@ -70,7 +68,6 @@ impl PacketKind {
     pub const fn name(self) -> &'static str {
         match self {
             Self::EntityMove => "move",
-            Self::Remove => "remove",
             Self::PlayerInfo => "player info",
             Self::Replication => "muxer",
             Self::Chunk => "chunk",
