@@ -828,6 +828,7 @@ impl Loader {
             streams,
             owners,
             sections,
+            stale,
             ..
         } = self;
         let stream = &mut streams[index];
@@ -848,7 +849,15 @@ impl Loader {
         let mut last_slot = NO_SLOT;
         for (at, group) in packed.iter_mut().enumerate() {
             let owner = owners[group.section as usize];
-            if let Some(resident) = sections.resident_mut(owner) {
+            // A relit section owns two slots until its new mesh replaces the stale one, so the
+            // slot, not the position, tells which of the two the records belong to.
+            let holder = match sections.resident_mut(owner) {
+                Some(resident) if resident.slot == group.section => Some(resident),
+                _ => stale
+                    .get_mut(&owner)
+                    .filter(|held| held.slot == group.section),
+            };
+            if let Some(resident) = holder {
                 if group.section != last_slot {
                     resident.groups[index] = (at as u32, 0);
                 }
@@ -2125,6 +2134,62 @@ mod tests {
             loader.free_slots.contains(&old),
             "and the old mesh gives its slot back"
         );
+    }
+
+    #[test]
+    fn a_packed_stream_moves_the_records_of_a_mesh_kept_for_a_relight() {
+        use mcrs_minecraft_client_world::columns::{Column, Extent, Section};
+
+        let stone = mcrs_voxel::BlockStateId::checked(1, 2).expect("a state past air");
+        let mut loader = loader();
+        let mut cave = CaveCull::new(1 << 8, true);
+        let mut store = ColumnStore::default();
+        store.enter(Extent {
+            min_section_y: 0,
+            sections: 1,
+        });
+        for x in -1..=2 {
+            for z in -1..=1 {
+                let section = Section {
+                    blocks: Box::new([stone; mcrs_minecraft_mesh::SECTION_VOLUME]),
+                    biomes: PalettedContainer::Homogeneous(0),
+                    states: vec![stone],
+                };
+                store.insert(ColumnPos::new(x, z), Column::unlit(0, vec![Some(section)]));
+            }
+        }
+        adopt(&mut loader, &mut store, &mut cave);
+        let (first, relit) = ([1, 0, 0], [0, 0, 0]);
+        for (at, quads) in [(first, 2), (relit, 3)] {
+            loader.sections.dequeue(at);
+            let slot = loader.take_slot().expect("a free slot");
+            if loader
+                .place(one_greedy_group(at, slot, quads), slot, &mut cave)
+                .is_err()
+            {
+                panic!("the arena has room");
+            }
+        }
+        loader.relit.insert(relit);
+        loader.remesh_relit(&store, &mut cave);
+        loader.evict(first, &mut cave);
+        loader.pack_stream(0);
+
+        loader.sections.dequeue(relit);
+        let new = loader.take_slot().expect("a free slot");
+        if loader
+            .place(one_greedy_group(relit, new, 5), new, &mut cave)
+            .is_err()
+        {
+            panic!("the arena has room");
+        }
+        let drawn: Vec<u32> = loader.streams[0]
+            .groups
+            .iter()
+            .map(|group| group.quad_count)
+            .filter(|&count| count != 0)
+            .collect();
+        assert_eq!(drawn, [5], "the kept mesh leaves the stream it was packed into");
     }
 
     fn a_mesh_read_out_of_a_column_the_server_took_back_is_thrown_away() {
