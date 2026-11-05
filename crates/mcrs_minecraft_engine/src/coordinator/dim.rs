@@ -42,7 +42,7 @@ pub(crate) fn take_dim_outputs(world: &mut World) {
         {
             sink.record(dimension.as_str(), mem::take(&mut output.traces));
         }
-        if output.entity_id_request.is_some()
+        if output.wants_entity_ids
             && let Some(mut ranges) = world.get_resource_mut::<EntityIdRanges>()
         {
             ranges.answer(cell);

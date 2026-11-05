@@ -38,7 +38,7 @@ use crate::coordinator::ops::OpList;
 use crate::coordinator::running_dimensions::RunningDimensions;
 use crate::departure::{Departure, PlayerTransfer};
 use crate::dim_mail::DimMail;
-use crate::entity_ids::{CellEntityIds, EntityIdRange, EntityIdRequest};
+use crate::entity_ids::{CellEntityIds, EntityIdRange};
 use crate::hot_ticket::RemoteTicket;
 use crate::player_dimension_change;
 use crate::player_order::OrderedPlayer;
@@ -107,8 +107,8 @@ pub struct DimOutput {
     /// The changes of the players of the tick, for the muxer. A player that departs in the tick
     /// despawns in them.
     pub(crate) tiles: TileDeltas<PlayerData>,
-    /// Present when the dimension holds few free entity ids.
-    pub(crate) entity_id_request: Option<EntityIdRequest>,
+    /// Whether the dimension holds few free entity ids and asks for a range.
+    pub(crate) wants_entity_ids: bool,
     /// The players of the dimension at the end of the tick.
     pub(crate) roster: Vec<RosterRow>,
     /// The orders of the tick for players that other dimensions hold.
@@ -285,9 +285,9 @@ fn take_output(world: &mut World) -> DimOutput {
     if let Some(mut events) = world.get_resource_mut::<TileEvents>() {
         output.tiles = events.take();
     }
-    output.entity_id_request = world
+    output.wants_entity_ids = world
         .get_resource::<CellEntityIds>()
-        .and_then(CellEntityIds::request);
+        .is_some_and(CellEntityIds::wants_range);
     if let Some(mut own) = world.get_resource_mut::<OwnPlayers>() {
         output.roster = std::mem::take(&mut own.0);
         let departures = &output.departures;

@@ -59,10 +59,6 @@ impl EntityIdRange {
     }
 }
 
-/// A cell asks the coordinator for one more [`EntityIdRange`] in the output of a tick.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct EntityIdRequest;
-
 /// The ranges that the cell holds, in the order the coordinator granted them.
 #[derive(Resource, Debug, Default)]
 pub struct CellEntityIds {
@@ -86,11 +82,12 @@ impl CellEntityIds {
         self.ranges.push_back(range);
     }
 
-    /// Asks for a range when fewer than half of [`ENTITY_ID_RANGE_LEN`] ids remain.
+    /// Whether the cell asks the coordinator for one more [`EntityIdRange`]: fewer than half of
+    /// [`ENTITY_ID_RANGE_LEN`] ids remain.
     #[must_use]
-    pub(crate) fn request(&self) -> Option<EntityIdRequest> {
+    pub(crate) fn wants_range(&self) -> bool {
         let remaining: u64 = self.ranges.iter().map(|range| range.remaining()).sum();
-        (remaining < ENTITY_ID_RANGE_LEN / 2).then_some(EntityIdRequest)
+        remaining < ENTITY_ID_RANGE_LEN / 2
     }
 }
 
