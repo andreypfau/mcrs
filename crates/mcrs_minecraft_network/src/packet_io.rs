@@ -346,15 +346,18 @@ async fn writer_loop<W: AsyncWrite + Unpin>(
     signal: Arc<WriterSignal>,
 ) {
     let mut writer = BufWriter::with_capacity(64 * 1024, sink);
+    let mut chunks = Vec::new();
     loop {
         // Read before the channel: a close seen here comes after every send of the connection.
         let closed = signal.is_closed();
         match rx.try_recv() {
             Ok(batch) => {
-                let bytes = frames.frame(batch);
-                if writer.write_all(&bytes).await.is_err() {
-                    signal.mark_disconnected();
-                    return;
+                frames.frame_into(batch, &mut chunks);
+                for chunk in chunks.drain(..) {
+                    if writer.write_all(&chunk).await.is_err() {
+                        signal.mark_disconnected();
+                        return;
+                    }
                 }
             }
             Err(TryRecvError::Empty) => {

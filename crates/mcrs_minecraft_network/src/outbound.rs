@@ -177,7 +177,9 @@ impl FrameWriter {
         Self { encoder }
     }
 
-    pub(crate) fn frame(&mut self, batch: OutboundBatch) -> BytesMut {
+    /// Frames `batch` into `chunks`, to write in order. A frame the server thread made goes as
+    /// the bytes the connections share, never copied.
+    pub(crate) fn frame_into(&mut self, batch: OutboundBatch, chunks: &mut Vec<Bytes>) {
         for part in batch.parts {
             match part {
                 OutboundPart::Packets(records) => {
@@ -186,11 +188,21 @@ impl FrameWriter {
                     }
                 }
                 OutboundPart::Shared(packet) => self.append(&packet),
-                OutboundPart::Framed(frame) => self.encoder.append_frames(&frame),
+                OutboundPart::Framed(frame) => {
+                    self.take_into(chunks);
+                    chunks.push(frame);
+                }
                 OutboundPart::Compression(threshold) => self.encoder.set_compression(threshold),
             }
         }
-        self.encoder.take()
+        self.take_into(chunks);
+    }
+
+    fn take_into(&mut self, chunks: &mut Vec<Bytes>) {
+        let framed = self.encoder.take();
+        if !framed.is_empty() {
+            chunks.push(framed.freeze());
+        }
     }
 
     fn append(&mut self, packet: &[u8]) {
@@ -206,6 +218,7 @@ impl FrameWriter {
 pub struct OutboundReceiver {
     batches: tokio::sync::mpsc::Receiver<OutboundBatch>,
     frames: FrameWriter,
+    chunks: Vec<Bytes>,
 }
 
 #[cfg(not(target_family = "wasm"))]
@@ -214,6 +227,7 @@ impl OutboundReceiver {
         Self {
             batches,
             frames: FrameWriter::new(PacketEncoder::new()),
+            chunks: Vec::new(),
         }
     }
 
@@ -222,9 +236,9 @@ impl OutboundReceiver {
     pub fn try_recv(&mut self) -> Result<Bytes, tokio::sync::mpsc::error::TryRecvError> {
         loop {
             let batch = self.batches.try_recv()?;
-            let frames = self.frames.frame(batch);
-            if !frames.is_empty() {
-                return Ok(frames.freeze());
+            self.frames.frame_into(batch, &mut self.chunks);
+            if !self.chunks.is_empty() {
+                return Ok(self.chunks.drain(..).flatten().collect());
             }
         }
     }

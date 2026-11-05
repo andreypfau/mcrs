@@ -41,10 +41,6 @@ impl PacketEncoder {
     }
 
     /// Appends frames that an encoder at this threshold made earlier.
-    pub fn append_frames(&mut self, frames: &[u8]) {
-        self.buf.extend_from_slice(frames);
-    }
-
     pub fn take(&mut self) -> BytesMut {
         self.buf.split()
     }
