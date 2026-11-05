@@ -486,19 +486,16 @@ fn run_block_simulation<B: BlockBehaviour<WorldKinds> + BlockDrops + Send + 'sta
     });
     let speed = random.speed.as_deref().copied().unwrap_or_default().0;
     let mut sections = mem::take(&mut simulation.random_sections);
-    // A section that stops alone lowers the count; one that starts is in `started`.
-    if !random.started.is_empty() || random.sections.iter().len() != sections.len() {
+    if speed == 0 || table.is_empty() {
+        sections.clear();
+    } else if random.sections.iter().len() != sections.len() || !random.started.is_empty() {
+        // A section that stops alone lowers the count; one that starts is in `started`.
         sections.clear();
         sections.extend(random.sections.iter().copied());
         // The picks of a section do not depend on the order; what one pick sets for the
         // picks of a later section does.
         sections.sort_unstable_by_key(|section| (section.x, section.z, section.y));
     }
-    let ticking: &[SectionPos] = if speed > 0 && !table.is_empty() {
-        &sections
-    } else {
-        &[]
-    };
     let seed = *simulation.random_seed.get_or_insert_with(|| {
         let world_seed = random.seed.as_deref().map_or(0, |seed| seed.0);
         let key = dimension_key.map_or("", |key| key.as_str());
@@ -523,7 +520,7 @@ fn run_block_simulation<B: BlockBehaviour<WorldKinds> + BlockDrops + Send + 'sta
     for (phase, messages, chains) in phases {
         if phase == Phase::BlockEvents {
             let picks = RandomPicks {
-                sections: ticking,
+                sections: &sections,
                 speed,
                 table,
                 seed,
