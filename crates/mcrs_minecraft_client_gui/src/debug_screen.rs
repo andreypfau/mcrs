@@ -29,7 +29,6 @@ fn ui_needed(needed: Option<Res<UiNeeded>>) -> bool {
     needed.is_some_and(|needed| needed.wanted())
 }
 
-/// The chunk map and light levels are optional: an app may show the overlay without them.
 fn update_ui_needed(
     overlay: Res<DebugOverlay>,
     map: Option<Res<ChunkMap>>,
