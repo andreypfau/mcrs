@@ -1,13 +1,13 @@
 use std::collections::VecDeque;
 use std::{iter, mem};
 
-use bytes::{BufMut, Bytes, BytesMut};
-use mcrs_minecraft_protocol::{CompressionThreshold, Encode, Packet, PacketEncoder};
+use bytes::{Bytes, BytesMut};
+use mcrs_minecraft_protocol::{
+    CompressionThreshold, Encode, Packet, PacketEncoder, RECORD_LENGTH_BYTES, write_record,
+};
 use tracing::warn;
 
 use crate::packet_io::MAX_QUEUED_BYTES_PER_SOCKET;
-
-const RECORD_LENGTH_BYTES: usize = size_of::<u32>();
 
 /// A piece of what a connection hands its writer, which frames and compresses the pieces in
 /// order.
@@ -79,20 +79,7 @@ impl WriterQueue {
 
     /// A packet that fails to encode leaves nothing behind.
     pub(crate) fn append<P: Packet + Encode>(&mut self, packet: &P) -> anyhow::Result<()> {
-        let start = self.records.len();
-        self.records.put_u32(0);
-        if let Err(error) = packet.encode_with_id((&mut self.records).writer()) {
-            self.records.truncate(start);
-            return Err(error.into());
-        }
-        let body = self.records.len() - start - RECORD_LENGTH_BYTES;
-        let Ok(length) = u32::try_from(body) else {
-            self.records.truncate(start);
-            anyhow::bail!("{} is {body} bytes long", P::NAME);
-        };
-        if let Some(prefix) = self.records.get_mut(start..start + RECORD_LENGTH_BYTES) {
-            prefix.copy_from_slice(&length.to_be_bytes());
-        }
+        write_record(&mut self.records, packet)?;
         if self.records.len() >= MAX_QUEUED_BYTES_PER_SOCKET {
             self.close_records();
         }
