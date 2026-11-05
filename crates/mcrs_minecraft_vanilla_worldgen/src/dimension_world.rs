@@ -2,10 +2,12 @@ use std::sync::Arc;
 
 use bevy_app::SubApp;
 use bevy_ecs::world::World;
+use mcrs_engine_cell::CellIndex;
 use mcrs_engine_link::Placement;
 use mcrs_minecraft_biome::source::{BiomeSource, MultiNoiseBiomeSource};
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_engine::heightmap::BlockHeightmapPredicates;
+use mcrs_minecraft_engine_world::owned_columns::OwnedColumns;
 use mcrs_minecraft_engine_world::world::dimension_builders::DimensionBuild;
 use mcrs_minecraft_engine_world::world::dimension_list::DimensionList;
 use mcrs_minecraft_engine_world::world::world_save::WorldSave;
@@ -30,7 +32,15 @@ pub(crate) fn build_dimension_world(
     build: &DimensionBuild<'_>,
     sub_app: &mut SubApp,
 ) {
-    insert_fill_context(host, build, sub_app);
+    // The host generates the columns of a world from the context of its first cell, so the
+    // other cells need none.
+    let first_cell = sub_app
+        .world()
+        .get_resource::<OwnedColumns>()
+        .is_none_or(|owned| owned.index() == CellIndex(0));
+    if first_cell {
+        insert_fill_context(host, build, sub_app);
+    }
     sub_app.add_plugins(ChunkPlugin {
         placement: Placement::Thread,
     });

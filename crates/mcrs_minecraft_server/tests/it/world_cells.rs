@@ -100,12 +100,14 @@ fn server_with(cells: u32, rules: DimensionBlockRules) -> App {
     app
 }
 
-/// Ticks until every cell of `label` can generate.
+/// Ticks until the world of `label` can generate: its first cell holds the context that the
+/// generation of the world runs with.
 fn wait_for_generation(app: &mut App, label: Entity) {
     let deadline = Instant::now() + PATIENCE;
     while !cell_worlds(app, label)
         .into_iter()
-        .all(|world| world.contains_resource::<FillContext>())
+        .next()
+        .is_some_and(|world| world.contains_resource::<FillContext>())
     {
         assert!(
             Instant::now() < deadline,
