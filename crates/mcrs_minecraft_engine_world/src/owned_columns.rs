@@ -63,11 +63,6 @@ impl OwnedColumns {
     }
 
     #[must_use]
-    pub fn partition(&self) -> BoxPartition {
-        self.partition
-    }
-
-    #[must_use]
     pub fn owns(&self, column: ColumnPos) -> bool {
         self.partition.owner(column_key(column)) == self.index
     }

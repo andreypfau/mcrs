@@ -83,12 +83,6 @@ impl ColumnProduction {
         self.lit.push(light);
     }
 
-    /// The views that the stages of cold space serve, for a stage that drops what left them.
-    #[must_use]
-    pub fn views(&self) -> &[ChunkTrackingView] {
-        &self.views
-    }
-
     /// Whether no column waits on a stage of cold space, and the light stage holds no column.
     pub(crate) fn is_idle(&self) -> bool {
         self.wanted.is_empty()

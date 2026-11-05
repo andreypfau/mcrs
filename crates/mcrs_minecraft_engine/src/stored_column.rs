@@ -32,14 +32,6 @@ pub enum LitBy {
     DataLayer,
 }
 
-impl StoredColumn {
-    #[must_use]
-    pub fn section(&self, y: i32) -> Option<&StoredSection> {
-        let index = usize::try_from(y.checked_sub(self.min_section_y)?).ok()?;
-        self.sections.get(index)
-    }
-}
-
 /// One section of a [`StoredColumn`]. The light is absent in a world that does not light its
 /// columns.
 #[derive(Clone, Debug)]

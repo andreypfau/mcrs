@@ -33,11 +33,6 @@ impl ColumnTicks {
         self.block.is_empty() && self.fluid.is_empty()
     }
 
-    #[must_use]
-    pub fn len(&self) -> usize {
-        self.block.len().saturating_add(self.fluid.len())
-    }
-
     /// Only the ticks in the section rows of `rows`.
     pub fn retain_rows(&mut self, rows: &[i32]) {
         let kept = |pos: BlockPos| rows.contains(&SectionPos::from(pos).y);
