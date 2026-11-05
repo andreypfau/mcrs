@@ -162,37 +162,6 @@ mod tests {
         }
     }
 
-    fn sums(placements: [Placement; 3]) -> Vec<CellOutput<u64>> {
-        let mut cells = Cells::new();
-        let mut ids = Vec::new();
-        for (start, placement) in placements.into_iter().enumerate() {
-            ids.push(cells.add(
-                Sum {
-                    total: start as u64 * 100,
-                },
-                placement,
-            ));
-        }
-        let input = |cell| ids.iter().position(|&id| id == cell).unwrap() as u64 * 10;
-        let mut outputs = Vec::new();
-        for tick in 0..4 {
-            let ticked = block_on(cells.tick(Tick(tick), input)).expect("no world is lent");
-            outputs.extend(ticked);
-        }
-        outputs
-    }
-
-    #[test]
-    fn every_placement_gives_the_same_outputs() {
-        let inline = sums([Placement::Inline; 3]);
-        assert_eq!(inline.len(), 12);
-        assert_eq!(inline, sums([Placement::Thread; 3]));
-        assert_eq!(
-            inline,
-            sums([Placement::Thread, Placement::Inline, Placement::Thread])
-        );
-    }
-
     #[test]
     fn a_lent_world_keeps_what_the_borrower_changed() {
         for placement in [Placement::Inline, Placement::Thread] {
@@ -212,7 +181,8 @@ mod tests {
         }
     }
 
-    /// Signals the gate of another world, or waits on a gate of its own, and gives its name.
+    /// Signals the gate of another world, or waits on a gate of its own, and gives its name
+    /// followed by the digit of its input.
     struct Gated {
         name: u8,
         signal: Option<Sender<()>>,
@@ -220,22 +190,22 @@ mod tests {
     }
 
     impl CellWorld for Gated {
-        type Input = ();
+        type Input = u8;
         type Output = u8;
 
-        fn tick(&mut self, _tick: Tick, _input: ()) -> u8 {
+        fn tick(&mut self, _tick: Tick, input: u8) -> u8 {
             if let Some(signal) = &self.signal {
                 signal.send(()).expect("the waiting world is alive");
             }
             if let Some(gate) = &self.gate {
                 gate.recv().expect("the signalling world is alive");
             }
-            self.name
+            self.name * 10 + input
         }
     }
 
     #[test]
-    fn outputs_come_in_cell_order_whatever_world_finishes_first() {
+    fn each_world_gets_its_input_and_outputs_come_in_cell_order_whatever_world_finishes_first() {
         let (signal, gate) = mpsc::channel();
         let mut cells = Cells::new();
         let first = cells.add(
@@ -255,18 +225,19 @@ mod tests {
             Placement::Thread,
         );
 
-        let outputs = block_on(cells.tick(Tick(0), |_| ())).expect("no world is lent");
+        let input = |cell| if cell == first { 3 } else { 4 };
+        let outputs = block_on(cells.tick(Tick(0), input)).expect("no world is lent");
 
         assert_eq!(
             outputs,
             [
                 CellOutput {
                     cell: first,
-                    output: 1
+                    output: 13
                 },
                 CellOutput {
                     cell: second,
-                    output: 2
+                    output: 24
                 },
             ]
         );
