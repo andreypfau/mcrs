@@ -7,8 +7,8 @@ pub(crate) enum LightOutput {
     Relit(Vec<PublishedLight>),
     /// Awaited columns whose light, and the light of the eight around them, has settled.
     Settled(Vec<ColumnPos>),
-    /// Columns awaited with their light, with the light of each of their loaded sections once
-    /// the light of the eight around them has settled too.
+    /// Awaited columns of a stage that hands back nothing else, with the light of each of their
+    /// loaded sections once the light of the eight around them has settled too.
     Lit(Vec<LitColumn>),
 }
 

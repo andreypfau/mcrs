@@ -38,8 +38,6 @@ pub(crate) struct LightStage {
     epochs: InFlight<BoundingBox, Task<()>>,
     budget: LightBudget,
     awaiting: FxHashSet<ColumnPos>,
-    /// The columns awaited with their light.
-    awaiting_light: FxHashSet<ColumnPos>,
     /// Whether something happened since the last check that can settle an awaited column.
     settle_due: bool,
     /// Light published into the world and not emitted yet.
@@ -47,8 +45,8 @@ pub(crate) struct LightStage {
     relit_output: RelitOutput,
 }
 
-/// Whether a light stage hands back the light of each epoch, or only the light of the columns
-/// that wait for it.
+/// Whether a light stage hands back the light of each epoch and answers an awaited column by
+/// its position, or hands back only the light of each awaited column.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum RelitOutput {
     Emit,
@@ -73,10 +71,6 @@ impl Stage for LightStage {
             LightInput::Players(players) => self.reprioritize(&players),
             LightInput::AwaitColumns(columns) => {
                 self.awaiting.extend(columns);
-                self.settle_due = true;
-            }
-            LightInput::AwaitLight(columns) => {
-                self.awaiting_light.extend(columns);
                 self.settle_due = true;
             }
             LightInput::LightBudget(budget) => self.budget = budget,
@@ -105,13 +99,19 @@ impl Stage for LightStage {
         if !std::mem::take(&mut self.settle_due) {
             return;
         }
-        let settled = self.take_settled();
-        if !settled.is_empty() {
-            step.emit(LightOutput::Settled(settled));
-        }
-        let lit = self.take_lit();
-        if !lit.is_empty() {
-            step.emit(LightOutput::Lit(lit));
+        match self.relit_output {
+            RelitOutput::Emit => {
+                let settled = self.take_settled();
+                if !settled.is_empty() {
+                    step.emit(LightOutput::Settled(settled));
+                }
+            }
+            RelitOutput::Drop => {
+                let lit = self.take_lit();
+                if !lit.is_empty() {
+                    step.emit(LightOutput::Lit(lit));
+                }
+            }
         }
     }
 
@@ -134,15 +134,14 @@ impl LightStage {
             epochs: InFlight::default(),
             budget: LightBudget::default(),
             awaiting: FxHashSet::default(),
-            awaiting_light: FxHashSet::default(),
             settle_due: false,
             relit: Vec::new(),
             relit_output: RelitOutput::Emit,
         }
     }
 
-    /// A stage that answers only the columns awaited with their light, for a world that takes
-    /// nothing else from it.
+    /// A stage that answers only the awaited columns, each with its light, for a world that
+    /// takes nothing else from it.
     pub(crate) fn awaited_only(world: LightWorld) -> Self {
         Self {
             relit_output: RelitOutput::Drop,
@@ -248,8 +247,8 @@ impl LightStage {
         settled
     }
 
-    /// Takes the columns awaited with their light whose light has settled, neighbours
-    /// included, with that light.
+    /// Takes the awaited columns whose light has settled, neighbours included, with that
+    /// light.
     fn take_lit(&mut self) -> Vec<LitColumn> {
         let owed = Owed {
             world: &self.world,
@@ -258,7 +257,7 @@ impl LightStage {
             epochs: &self.epochs,
         };
         let mut lit = Vec::new();
-        self.awaiting_light.retain(|&column| {
+        self.awaiting.retain(|&column| {
             if !owed.settled_around(column) {
                 return true;
             }

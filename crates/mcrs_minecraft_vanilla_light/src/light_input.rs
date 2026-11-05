@@ -15,9 +15,8 @@ pub(crate) enum LightInput {
     Edits(Vec<QueuedEdit>),
     /// The columns the players stand in, to re-score the waiting work against.
     Players(Vec<ColumnPos>),
-    /// Columns to answer once the light around them has settled.
+    /// Columns to answer once the light around them has settled, with their light when the
+    /// stage hands back nothing else.
     AwaitColumns(Vec<ColumnPos>),
-    /// Columns to answer with their light once the light around them has settled.
-    AwaitLight(Vec<ColumnPos>),
     LightBudget(LightBudget),
 }

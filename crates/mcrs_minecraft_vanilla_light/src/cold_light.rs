@@ -87,7 +87,7 @@ fn send_cold_light(
     }
     let awaits: Vec<ColumnPos> = production.take_light_awaits().collect();
     if !awaits.is_empty() {
-        light.0.send(LightInput::AwaitLight(awaits));
+        light.0.send(LightInput::AwaitColumns(awaits));
     }
 }
 
