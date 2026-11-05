@@ -17,6 +17,7 @@ pub mod client_info;
 pub mod cold_columns;
 pub mod column_asks;
 pub mod column_change;
+pub mod column_generation;
 mod column_packet;
 pub mod column_production;
 pub mod column_request;

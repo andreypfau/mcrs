@@ -35,7 +35,7 @@ use mcrs_minecraft_heightmap::{MotionHeightmap, SurfaceHeightmap};
 use mcrs_minecraft_server::MinecraftServerPlugins;
 use mcrs_minecraft_simulation::BlockUpdateFlags;
 use mcrs_minecraft_vanilla_light::LightLink;
-use mcrs_minecraft_vanilla_worldgen::GenerationLink;
+use mcrs_minecraft_vanilla_worldgen::WorldGeneration;
 use mcrs_minecraft_worldgen_generator::stages::FillContext;
 use mcrs_voxel::{BlockPos, BlockStateId, SectionPos};
 
@@ -71,10 +71,10 @@ fn tick(app: &mut App) {
 /// ended.
 fn wait_for_steps(app: &mut App, label: Entity) {
     block_on(app.world_mut().resource_mut::<DimCells>().stores_answered());
-    let world = dimension_world(app, label);
-    if let Some(mut generation) = world.get_resource_mut::<GenerationLink>() {
+    if let Some(mut generation) = app.world_mut().get_resource_mut::<WorldGeneration>() {
         block_on(generation.answered());
     }
+    let world = dimension_world(app, label);
     if let Some(mut light) = world.get_resource_mut::<LightLink>() {
         block_on(light.answered());
     }

@@ -16,7 +16,7 @@ use mcrs_minecraft_engine_world::world::lifecycle::trace::{ColumnTraceLog, Trace
 use mcrs_minecraft_engine_world::world::storage::column::ColumnPosComponent;
 use mcrs_minecraft_environment::world_clock::WorldClocks;
 use mcrs_minecraft_replication::PlayerData;
-use mcrs_voxel::SectionPos;
+use mcrs_voxel::{ColumnPos, SectionPos};
 
 use crate::bus::{
     InboundPlayerDespawn, InboundPlayerPacket, InboundPlayerSpawn, OutboundPlayerAttached,
@@ -26,6 +26,7 @@ use crate::cell_mail;
 use crate::cell_mail::{CellInbox, CellMail, CellMessage};
 use crate::channel_types::ToDim;
 use crate::column_change::ColumnChange;
+use crate::column_generation::GenerationAnswer;
 use crate::column_production::ColumnProduction;
 use crate::column_request::ColumnRequest;
 use crate::column_store::{ColumnStoreInput, ColumnStoreLink, ColumnStoreOutput};
@@ -87,6 +88,8 @@ pub struct DimInput {
     pub(crate) cell_mail: Vec<CellMessage>,
     /// The answers of the data layer of the world to the requests of this cell.
     pub(crate) store_answers: Vec<ColumnStoreOutput>,
+    /// What the generation of the world made of the columns that this cell asked for.
+    pub(crate) generated: Vec<GenerationAnswer>,
 }
 
 /// What a dimension world hands the host after one tick.
@@ -124,6 +127,8 @@ pub struct DimOutput {
     pub(crate) cell_mail: CellMail,
     /// The requests of the tick to the data layer of the world, in order.
     pub(crate) store_inputs: Vec<ColumnStoreInput>,
+    /// The columns that the tick asks the generation of the world for.
+    pub(crate) generation_asks: Vec<ColumnPos>,
 }
 
 impl DimOutput {
@@ -255,6 +260,11 @@ fn apply_input(world: &mut World, _tick: Tick, input: DimInput) {
     {
         store.receive(input.store_answers);
     }
+    if !input.generated.is_empty()
+        && let Some(mut store) = world.get_resource_mut::<ColumnStoreLink>()
+    {
+        store.receive_generated(input.generated);
+    }
 }
 
 fn take_output(world: &mut World) -> DimOutput {
@@ -301,6 +311,7 @@ fn take_output(world: &mut World) -> DimOutput {
     drain_into(world, &mut output.column_changes);
     if let Some(mut store) = world.get_resource_mut::<ColumnStoreLink>() {
         store.take_sent(&mut output.store_inputs);
+        store.take_generation_asks(&mut output.generation_asks);
     }
     output
 }

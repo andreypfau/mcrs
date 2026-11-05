@@ -19,7 +19,7 @@ use rustc_hash::{FxHashMap, FxHashSet};
 
 use crate::column_asks::ColumnOrigin;
 use crate::column_snapshot::ColumnSnapshots;
-use crate::column_store::{ColumnStoreLink, Delivery, ViewedColumn};
+use crate::column_store::{ColumnStoreLink, Delivery, ReadFrom, ViewedColumn};
 use crate::column_streams::ColumnStreams;
 use crate::foreign_views::ForeignViews;
 use crate::hot_ticket::HotColumns;
@@ -35,8 +35,8 @@ use crate::stored_column::{LitBy, StoredColumn};
 /// stage holds goes to the stage too. A column is final when its light and the light of the
 /// eight around it have settled.
 ///
-/// The game supplies the stages. Its generation takes [`Self::take_generation`] and answers
-/// with [`Self::generated`]; its light takes [`Self::take_light_edits`] and
+/// The game supplies the stages. The generation is the generation of the world, which the data
+/// layer reaches through [`ColumnStoreLink`]; the light takes [`Self::take_light_edits`] and
 /// [`Self::take_light_awaits`] and answers with [`Self::lit`]. A world without a light stage
 /// sends its columns unlit. The dimension that ticks never reads what this produces, so the
 /// simulation does not depend on when a cold column is done.
@@ -47,10 +47,8 @@ pub struct ColumnProduction {
     fetching: FxHashMap<ColumnPos, Fetch>,
     /// The columns whose blocks the light stage of cold space holds.
     lit_world: FxHashSet<ColumnPos>,
-    generate: Vec<ColumnPos>,
     light_edits: Vec<ColdLightEdit>,
     light_awaits: Vec<ColumnPos>,
-    generated: Vec<GeneratedColumn>,
     lit: Vec<ColumnLight>,
     /// The changes of the halo that the owners sent for this tick.
     halo_changes: Vec<BlockChange>,
@@ -84,11 +82,10 @@ impl HeldColumns<'_> {
     }
 }
 
-/// Where the stages of cold space hand their answers to the data layer, at the start of the
+/// Where the light stage of cold space hands its answers to the data layer, at the start of the
 /// tick, after the answers of the data layer itself.
 #[derive(SystemSet, Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ColdStageLandSet {
-    Generation,
     Light,
 }
 
@@ -121,11 +118,6 @@ pub struct LitSection {
     pub y: i32,
     pub block_light: BlockLight,
     pub sky_light: SkyLight,
-}
-
-struct GeneratedColumn {
-    column: ColumnPos,
-    stored: Option<StoredColumn>,
 }
 
 /// A column that a view waits on, or a column that views hold and whose light is lit again.
@@ -198,17 +190,6 @@ impl Wanted {
 }
 
 impl ColumnProduction {
-    /// The columns to generate whole, for the generation stage of cold space.
-    pub fn take_generation(&mut self) -> vec::Drain<'_, ColumnPos> {
-        self.generate.drain(..)
-    }
-
-    /// The answer of generation for `column`: its blocks, block entities and heightmaps, or
-    /// `None` when generation dropped it.
-    pub fn generated(&mut self, column: ColumnPos, stored: Option<StoredColumn>) {
-        self.generated.push(GeneratedColumn { column, stored });
-    }
-
     /// The edits for the light stage of cold space, in order.
     pub fn take_light_edits(&mut self) -> vec::Drain<'_, ColdLightEdit> {
         self.light_edits.drain(..)
@@ -236,10 +217,8 @@ impl ColumnProduction {
         self.wanted.is_empty()
             && self.fetching.is_empty()
             && self.lit_world.is_empty()
-            && self.generate.is_empty()
             && self.light_edits.is_empty()
             && self.light_awaits.is_empty()
-            && self.generated.is_empty()
             && self.lit.is_empty()
             && self.halo_changes.is_empty()
     }
@@ -280,22 +259,12 @@ impl ColumnProduction {
             store.fetch(dim, column);
             Source::DataLayer(ChunkVersion::default())
         } else {
-            self.generate.push(column);
+            if store.generates() {
+                store.fetch(dim, column);
+            }
             Source::Generation
         };
         self.fetching.insert(column, Fetch { dim, source });
-    }
-
-    /// Sends `column` to generation after the data layer held no version of it.
-    fn fetch_generated(&mut self, dim: Entity, column: ColumnPos) {
-        self.generate.push(column);
-        self.fetching.insert(
-            column,
-            Fetch {
-                dim,
-                source: Source::Generation,
-            },
-        );
     }
 
     /// Takes in the content of `column`: into the light stage, and into the wanted column.
@@ -474,11 +443,11 @@ impl ColumnProduction {
             let Some(fetch) = self.fetching.get(&column).copied() else {
                 continue;
             };
-            if !matches!(fetch.source, Source::DataLayer(_)) {
+            if fetch.source == Source::Dimension {
                 continue;
             }
-            match fetched.answer {
-                StoreOutput::Found { chunk, .. } => {
+            match (fetched.answer, fetched.from) {
+                (StoreOutput::Found { chunk, .. }, ReadFrom::Store) => {
                     self.arrive(
                         column,
                         chunk.chunk,
@@ -486,21 +455,10 @@ impl ColumnProduction {
                         lights,
                     );
                 }
-                StoreOutput::Missing { .. } | StoreOutput::Unreadable { .. } => {
-                    self.fetch_generated(fetch.dim, column);
+                (StoreOutput::Found { chunk, .. }, ReadFrom::Generation) => {
+                    self.arrive(column, chunk.chunk, Source::Generation, lights);
                 }
-            }
-        }
-    }
-
-    fn take_generated(&mut self, lights: Lights) {
-        for GeneratedColumn { column, stored } in mem::take(&mut self.generated) {
-            if self.fetching.get(&column).map(|fetch| fetch.source) != Some(Source::Generation) {
-                continue;
-            }
-            match stored {
-                Some(stored) => self.arrive(column, stored, Source::Generation, lights),
-                None => {
+                (StoreOutput::Missing { .. } | StoreOutput::Unreadable { .. }, _) => {
                     self.fetching.remove(&column);
                     self.wanted.remove(&column);
                 }
@@ -655,7 +613,6 @@ pub(crate) fn advance_production(
         .chain(halo_changes);
     production.note_block_changes(changes, held, store, lights);
     production.take_store_answers(store, lights);
-    production.take_generated(lights);
     production.take_snapshots(dim_row, &snapshots, store, lights, &mut pending);
     production.take_light(loading, store);
     production.move_wanted(loading, store, lights, &mut pending);

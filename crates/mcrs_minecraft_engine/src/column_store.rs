@@ -21,6 +21,7 @@ use crate::column_asks::{
     ColumnAnswer, ColumnAsk, ColumnHold, ColumnOrigin, Hold, OtherColumns, OwnerReply,
     answer_column_asks,
 };
+use crate::column_generation::GenerationAnswer;
 use crate::column_production::{ColdStageLandSet, ColumnProduction, advance_production};
 use crate::column_streams::{ColumnStreamSet, land_viewed_columns, report_player_views};
 use crate::heightmap::update_column_heightmaps;
@@ -83,6 +84,16 @@ pub struct ColumnStoreLink {
     out_asks: Vec<ColumnAsk>,
     out_answers: Vec<ColumnAnswer>,
     out_holds: Vec<ColumnHold>,
+    generation: Generation,
+    /// The columns of this tick to generate, for the generation of the world.
+    generation_asks: Vec<ColumnPos>,
+}
+
+/// Whether a cell generates the columns that no cell holds through the generation of its world.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Generation {
+    Off,
+    World,
 }
 
 pub(crate) struct ColumnRead {
@@ -92,6 +103,16 @@ pub(crate) struct ColumnRead {
     pub(crate) produced: Produced,
     /// An answer older than this version was asked for before the world wrote a later one.
     pub(crate) at_least: ChunkVersion,
+    pub(crate) from: ReadFrom,
+}
+
+/// Where a read waits for its column.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum ReadFrom {
+    /// The owner, or the data layer: the answer is a version that the world already holds.
+    Store,
+    /// The generation of the world: a found column is new, and a missing one was dropped.
+    Generation,
 }
 
 /// Whether the production of cold columns waits on a read.
@@ -123,6 +144,7 @@ pub(crate) enum Delivery {
 pub(crate) struct FetchedColumn {
     pub(crate) column: ColumnPos,
     pub(crate) answer: ColumnStoreOutput,
+    pub(crate) from: ReadFrom,
 }
 
 impl ColumnStoreLink {
@@ -143,7 +165,55 @@ impl ColumnStoreLink {
             out_asks: Vec::new(),
             out_answers: Vec::new(),
             out_holds: Vec::new(),
+            generation: Generation::Off,
+            generation_asks: Vec::new(),
         }
+    }
+
+    /// Generates the columns that no cell holds through the generation of the world, which the
+    /// host runs for all cells of the world: the asks go in the output of a tick, and the
+    /// answers land as answers of the data layer.
+    pub fn generate_through_world(&mut self) {
+        self.generation = Generation::World;
+    }
+
+    /// Whether the columns that no cell holds come from the generation of the world.
+    pub(crate) fn generates(&self) -> bool {
+        self.generation == Generation::World
+    }
+
+    /// Moves the asks of this tick for the generation of the world into `out`.
+    pub(crate) fn take_generation_asks(&mut self, out: &mut Vec<ColumnPos>) {
+        out.append(&mut self.generation_asks);
+    }
+
+    /// Keeps what the generation of the world made for the next landing.
+    pub(crate) fn receive_generated(&mut self, answers: Vec<GenerationAnswer>) {
+        self.answers
+            .extend(answers.into_iter().map(|answer| match answer.stored {
+                Some(chunk) => StoreOutput::Found {
+                    key: answer.column,
+                    chunk: VersionedChunk {
+                        version: ChunkVersion::default(),
+                        chunk,
+                    },
+                },
+                None => StoreOutput::Missing { key: answer.column },
+            }));
+    }
+
+    /// Sends the read of `column` on to the generation of the world, after the owner or the
+    /// data layer did not hold the column.
+    pub(crate) fn read_generated(&mut self, column: ColumnPos) -> bool {
+        if !self.generates() {
+            return false;
+        }
+        let Some(read) = self.reads.get_mut(&column) else {
+            return false;
+        };
+        read.from = ReadFrom::Generation;
+        self.generation_asks.push(column);
+        true
     }
 
     /// Where this cell gets `column` when it does not hold it. The data layer has no disk under
@@ -170,6 +240,7 @@ impl ColumnStoreLink {
             && self.out_asks.is_empty()
             && self.out_answers.is_empty()
             && self.out_holds.is_empty()
+            && self.generation_asks.is_empty()
     }
 
     /// Tells the other cells of a change of `hold.column`, when they can read it.
@@ -222,7 +293,11 @@ impl ColumnStoreLink {
             OwnerReply::NotHeld if self.others.is_written(key) => {
                 self.sent.push(StoreInput::Get { key });
             }
-            OwnerReply::NotHeld => self.answers.push(StoreOutput::Missing { key }),
+            OwnerReply::NotHeld => {
+                if !self.read_generated(key) {
+                    self.answers.push(StoreOutput::Missing { key });
+                }
+            }
         }
     }
 
@@ -278,6 +353,7 @@ impl ColumnStoreLink {
         // The answer to the read in flight is older than this version, so it is asked again.
         if let Some(read) = self.reads.get_mut(&column) {
             read.at_least = self.written;
+            read.from = ReadFrom::Store;
             self.sent.push(StoreInput::Get { key: column });
         }
     }
@@ -291,26 +367,35 @@ impl ColumnStoreLink {
         self.sent.push(StoreInput::Put { key: column, chunk });
     }
 
-    /// The read of `column`, sent to its owner when the owner holds it hot and to the data layer
-    /// otherwise. The caller checks that one of them holds the column.
+    /// The read of `column`, sent to its owner when the owner holds it hot, to the generation of
+    /// the world when no cell wrote it and the cell generates through its world, and to the data
+    /// layer otherwise.
     fn read(&mut self, dim: Entity, column: ColumnPos) -> &mut ColumnRead {
-        let ask = match (self.owned, self.origin(column)) {
-            (Some(owned), ColumnOrigin::Owner) => Some(ColumnAsk {
-                from: owned.index(),
-                column,
-            }),
-            _ => None,
-        };
+        let origin = self.origin(column);
         self.reads.entry(column).or_insert_with(|| {
-            match ask {
-                Some(ask) => self.out_asks.push(ask),
-                None => self.sent.push(StoreInput::Get { key: column }),
-            }
+            let from = match (self.owned, origin, self.generation) {
+                (Some(owned), ColumnOrigin::Owner, _) => {
+                    self.out_asks.push(ColumnAsk {
+                        from: owned.index(),
+                        column,
+                    });
+                    ReadFrom::Store
+                }
+                (_, ColumnOrigin::Generation, Generation::World) => {
+                    self.generation_asks.push(column);
+                    ReadFrom::Generation
+                }
+                _ => {
+                    self.sent.push(StoreInput::Get { key: column });
+                    ReadFrom::Store
+                }
+            };
             ColumnRead {
                 dim,
                 sections: Vec::new(),
                 produced: Produced::No,
                 at_least: ChunkVersion::default(),
+                from,
             }
         })
     }
@@ -349,8 +434,7 @@ impl Plugin for ColumnStorePlugin {
         app.init_resource::<ColumnProduction>();
         app.configure_sets(
             FixedUpdate,
-            (ColdStageLandSet::Generation, ColdStageLandSet::Light)
-                .chain()
+            ColdStageLandSet::Light
                 .in_set(TickSet::DomainInput)
                 .after(StoredColumnLandSet),
         );

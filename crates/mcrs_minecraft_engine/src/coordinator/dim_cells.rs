@@ -23,6 +23,7 @@ use rustc_hash::FxHashMap;
 
 use crate::cell_mail::{CellMail, CellMessage};
 use crate::channel_types::ToDim;
+use crate::column_generation::{GenerationAnswer, GenerationAsk};
 use crate::column_request::ColumnRequest;
 use crate::column_store::{ColumnDisk, ColumnStoreInput, ColumnStoreOutput};
 use crate::command_handoff::CommandHandoff;
@@ -36,6 +37,7 @@ use crate::dim_tick;
 use crate::dim_tick::{DimInput, DimOutput, DimWorld, TickDimensions, TickDimensionsSet};
 use crate::entity_ids::EntityIdRange;
 use crate::player_roster::RosterRow;
+use crate::player_view::PlayerView;
 use crate::to_coordinator::RoutedInput;
 use crate::to_muxer::{DimClosed, DimDelivered, DimOpened};
 
@@ -81,8 +83,17 @@ pub struct DimCells {
     mail: BTreeMap<CellId, Vec<CellMessage>>,
     /// The data layer of each dimension, which all its cells share.
     stores: BTreeMap<Entity, SharedStore<ColumnDisk, CellId>>,
+    /// What the generation of its world made for each cell, for its next tick.
+    generated: BTreeMap<CellId, Vec<GenerationAnswer>>,
     tick: Tick,
     outputs: Vec<DimTicked>,
+}
+
+/// A view of a player that a cell of the world of `label` reported.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ReportedView {
+    pub label: Entity,
+    pub view: PlayerView,
 }
 
 /// The dimension of a cell and the place of the cell in its dimension.
@@ -101,6 +112,7 @@ impl Default for DimCells {
             sessions: FxHashMap::default(),
             mail: BTreeMap::new(),
             stores: BTreeMap::new(),
+            generated: BTreeMap::new(),
             tick: Tick::default(),
             outputs: Vec::new(),
         }
@@ -167,6 +179,7 @@ impl DimCells {
         for cell in cells {
             self.cells.remove(&cell);
             self.mail.remove(&cell);
+            self.generated.remove(&cell);
             #[cfg(feature = "world-access")]
             worlds.lent.remove(&cell);
             block_on(worlds.cells.remove(cell));
@@ -263,6 +276,42 @@ impl DimCells {
         for store in self.stores.values_mut() {
             store.answered().await;
         }
+    }
+
+    /// The columns that each cell asked the generation of its world for in the last tick, in
+    /// the order of the cells.
+    pub fn take_generation_asks(&mut self) -> Vec<GenerationAsk> {
+        let mut asks = Vec::new();
+        for ticked in &mut self.outputs {
+            asks.extend(
+                ticked
+                    .output
+                    .generation_asks
+                    .drain(..)
+                    .map(|column| GenerationAsk {
+                        label: ticked.label,
+                        cell: ticked.cell,
+                        column,
+                    }),
+            );
+        }
+        asks
+    }
+
+    /// The views of the players that each cell reported in the last tick, with the label of the
+    /// world of the cell.
+    pub fn reported_views(&self) -> impl Iterator<Item = ReportedView> + '_ {
+        self.outputs.iter().flat_map(|ticked| {
+            ticked.output.views.iter().map(move |view| ReportedView {
+                label: ticked.label,
+                view: *view,
+            })
+        })
+    }
+
+    /// Hands `answer` of the generation of its world to `cell`, in the input of its next tick.
+    pub fn deliver_generated(&mut self, cell: CellId, answer: GenerationAnswer) {
+        self.generated.entry(cell).or_default().push(answer);
     }
 
     pub(crate) fn take_outputs(&mut self) -> Vec<DimTicked> {
@@ -472,9 +521,11 @@ impl DimCells {
         for (_, lent) in mem::take(&mut worlds.lent) {
             worlds.cells.give_back(lent);
         }
+        let generated = &mut self.generated;
         let ticked = block_on(worlds.cells.tick(self.tick, |cell| {
             let mut input = input(cell);
             input.store_answers = answers.remove(&cell).unwrap_or_default();
+            input.generated = generated.remove(&cell).unwrap_or_default();
             input
         }));
         self.tick = Tick(self.tick.0.wrapping_add(1));
@@ -599,6 +650,7 @@ impl Globals {
             column_requests,
             cell_mail,
             store_answers: Vec::new(),
+            generated: Vec::new(),
         }
     }
 }

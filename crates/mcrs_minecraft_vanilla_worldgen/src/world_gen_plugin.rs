@@ -4,6 +4,7 @@ use bevy_app::{App, Plugin};
 use bevy_ecs::schedule::IntoScheduleConfigs;
 use bevy_state::prelude::OnEnter;
 use mcrs_minecraft_assets::AppState;
+use mcrs_minecraft_engine::dim_tick::{TickDimensions, TickDimensionsSet};
 use mcrs_minecraft_engine_world::world::dimension_builders::DimensionBuilders;
 use mcrs_minecraft_engine_world::world::sub_app::DimSpawnEnqueue;
 
@@ -13,6 +14,9 @@ use crate::features::FeaturePlugin;
 use crate::modern_carvers::ModernCarverPlugin;
 use crate::routers::build_dimension_routers;
 use crate::structures::{StructurePlugin, build_dimension_structures};
+use crate::world_generation::{
+    WorldGeneration, ask_world_columns, build_world_generation, deliver_world_columns,
+};
 
 /// Generates and reads the columns of every dimension. The host inserts the
 /// [`DimensionList`](mcrs_minecraft_engine_world::world::dimension_list::DimensionList),
@@ -42,8 +46,16 @@ impl Plugin for WorldGenPlugin {
                 .after(build_dimension_structures)
                 .before(DimSpawnEnqueue),
         );
-        app.world_mut()
-            .get_resource_or_init::<DimensionBuilders>()
-            .add(build_dimension_world);
+        let mut builders = app.world_mut().get_resource_or_init::<DimensionBuilders>();
+        builders.add(build_dimension_world);
+        builders.add_host(build_world_generation);
+        app.init_resource::<WorldGeneration>();
+        app.add_systems(
+            TickDimensions,
+            (
+                deliver_world_columns.before(TickDimensionsSet::Tick),
+                ask_world_columns.after(TickDimensionsSet::Tick),
+            ),
+        );
     }
 }

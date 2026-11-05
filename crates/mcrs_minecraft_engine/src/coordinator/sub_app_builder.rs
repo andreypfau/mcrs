@@ -38,7 +38,9 @@ use mcrs_minecraft_engine_world::tick::TickSet;
 use mcrs_minecraft_engine_world::world::dimension::{
     DimensionBundle, DimensionPlugin, DimensionTypeConfig, DimensionTypeId, HasSkyLight, HasWeather,
 };
-use mcrs_minecraft_engine_world::world::dimension_builders::{DimensionBuild, DimensionBuilders};
+use mcrs_minecraft_engine_world::world::dimension_builders::{
+    DimensionBuild, DimensionBuilders, DimensionHostBuilder,
+};
 use mcrs_minecraft_engine_world::world::lifecycle::trace::{ColumnTraceLog, ColumnTraceSink};
 use mcrs_minecraft_engine_world::world::storage::column::ColumnLifecycleSet;
 use mcrs_minecraft_engine_world::world::sub_app::{
@@ -325,13 +327,23 @@ pub fn spawn_dim_subapp(
 
         // Before the dimension entity spawns, so a plugin can still register required components and
         // hooks for its components and its observers see it spawn.
+        let build = DimensionBuild {
+            dimension: &request.dimension,
+            type_config,
+            has_sky_light: has_sky,
+        };
         if let Some(builders) = app.world().get_resource::<DimensionBuilders>() {
-            let build = DimensionBuild {
-                dimension: &request.dimension,
-                type_config,
-                has_sky_light: has_sky,
-            };
             builders.build(app.world(), &build, &mut sub_app);
+        }
+        if index == CellIndex(0) {
+            let hosts: Vec<DimensionHostBuilder> = app
+                .world()
+                .get_resource::<DimensionBuilders>()
+                .map(|builders| builders.hosts().to_vec())
+                .unwrap_or_default();
+            for host in hosts {
+                host(app.world_mut(), label_entity, &build, sub_app.world());
+            }
         }
         if let Some(plugins) = app.world().get_resource::<DimensionPlugins>() {
             plugins.build(&request.dimension, &mut sub_app);

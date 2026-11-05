@@ -1,7 +1,6 @@
 // std: bevy_ecs
 
 mod chunk_plugin;
-mod cold_generation;
 mod dimension_world;
 mod features;
 mod generated_ticks;
@@ -18,6 +17,7 @@ mod structures;
 mod template_asset;
 mod template_handle;
 mod world_gen_plugin;
+mod world_generation;
 mod worldgen_registries_plugin;
 
 pub use generation_link::GenerationLink;
@@ -25,4 +25,5 @@ pub use routers::{DimensionRouter, DimensionRouters};
 pub use template_asset::{TemplateAsset, WorldgenAssetsPlugin, pool_templates};
 pub use template_handle::template_handle;
 pub use world_gen_plugin::WorldGenPlugin;
+pub use world_generation::WorldGeneration;
 pub use worldgen_registries_plugin::WorldgenRegistriesPlugin;

@@ -62,7 +62,7 @@ use mcrs_minecraft_simulation::{
     BlockBehaviour, BlockFacts, BlockUpdateFlags, Cx, SimulationVolume, TickPriority,
 };
 use mcrs_minecraft_vanilla_light::{ColdLightLink, LightLink};
-use mcrs_minecraft_vanilla_worldgen::GenerationLink;
+use mcrs_minecraft_vanilla_worldgen::WorldGeneration;
 use mcrs_minecraft_worldgen_generator::stages::FillContext;
 use mcrs_voxel::{BlockPos, BlockStateId, ColumnPos, LocalPos, SectionPos};
 
@@ -136,15 +136,12 @@ fn cell_worlds(app: &mut App, label: Entity) -> Vec<&mut World> {
 /// Waits between ticks until the generation, light and store steps of every cell have ended.
 fn wait_for_steps(app: &mut App, label: Entity) {
     block_on(app.world_mut().resource_mut::<DimCells>().stores_answered());
+    if let Some(mut generation) = app.world_mut().get_resource_mut::<WorldGeneration>() {
+        block_on(generation.answered());
+    }
     for world in cell_worlds(app, label) {
-        if let Some(mut generation) = world.get_resource_mut::<GenerationLink>() {
-            block_on(generation.answered());
-        }
         if let Some(mut light) = world.get_resource_mut::<LightLink>() {
             block_on(light.answered());
-        }
-        if let Some(mut generation) = world.get_resource_mut::<GenerationLink<i32>>() {
-            block_on(generation.answered());
         }
         if let Some(mut light) = world.get_resource_mut::<ColdLightLink>() {
             block_on(light.answered());

@@ -11,7 +11,7 @@ use bevy_ecs::schedule::IntoScheduleConfigs;
 use bevy_ecs::system::{Commands, Res, ResMut};
 use bevy_tasks::{TaskPool, TaskPoolBuilder};
 use mcrs_engine_link::{Link, Placement};
-use mcrs_minecraft_engine::column_production::ColumnProduction;
+use mcrs_minecraft_engine::column_store::ColumnStoreLink;
 use mcrs_minecraft_engine::column_store::StoredColumnLandSet;
 use mcrs_minecraft_engine::column_ticks::LandedTicks;
 use mcrs_minecraft_engine::heightmap::PendingColumnHeightmaps;
@@ -34,7 +34,6 @@ use mcrs_voxel::{ColumnPos, SectionPos};
 use rustc_hash::FxHashMap;
 use tracing::{info, trace};
 
-use crate::cold_generation::ColdGenerationPlugin;
 use crate::generation_input::{GenerationInput, RequestedSection, ViewUpdate, WantedColumn};
 use crate::generation_link::GenerationLink;
 use crate::generation_output::{GeneratedColumn, GenerationOutput, SectionContent};
@@ -60,16 +59,17 @@ impl Plugin for ChunkPlugin {
                 .num_threads(config.num_threads)
                 .build()
         });
+        // A world with a data layer generates through the generation of its world, which lands
+        // each column as an answer of the data layer.
+        if let Some(mut store) = app.world_mut().get_resource_mut::<ColumnStoreLink>() {
+            store.generate_through_world();
+            return;
+        }
         let traces = app.world().get_resource::<ColumnTraceLog>().cloned();
         let link: Link<GenerationStage<Entity>> =
             Link::new(GenerationStage::new(traces, config), self.placement);
         app.insert_resource(GenerationLink::new(link));
         app.init_resource::<ColumnLatency>();
-        if app.world().contains_resource::<ColumnProduction>() {
-            app.add_plugins(ColdGenerationPlugin {
-                placement: self.placement,
-            });
-        }
         // The chunks a view ticketed this tick are spawned this tick and requested right
         // after. What the stage generated since lands at the start of the next tick.
         app.add_systems(

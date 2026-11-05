@@ -10,10 +10,10 @@ use mcrs_minecraft_engine_world::world::storage::block_entity::spawn_block_entit
 use mcrs_voxel::{ColumnPos, SectionPos};
 
 use crate::column_asks::ColumnOrigin;
-use crate::column_store::{ColumnStoreLink, FetchedColumn, Produced};
+use crate::column_store::{ColumnRead, ColumnStoreLink, FetchedColumn, Produced, ReadFrom};
 use crate::column_ticks::LandedTicks;
 use crate::heightmap::PendingColumnHeightmaps;
-use crate::stored_column::StoredColumn;
+use crate::stored_column::{StoredColumn, StoredSection};
 
 /// The section came back from the data layer, so the data layer already holds its blocks.
 #[derive(Component, Clone, Copy, Debug, Default)]
@@ -34,7 +34,7 @@ pub(crate) fn fetch_loading_columns(
     let mut stages = stages.p1();
     for change in loading.drain(..) {
         let column = ColumnPos::from(change.pos);
-        if store.origin(column) == ColumnOrigin::Generation
+        if (store.origin(column) == ColumnOrigin::Generation && !store.generates())
             || stages.get(change.section) != Some(SectionStage::Loading)
         {
             continue;
@@ -70,87 +70,151 @@ pub(crate) fn land_stored_columns(
         {
             continue;
         }
+        let missing = !matches!(answer, StoreOutput::Found { .. });
+        if missing && matches!(answer, StoreOutput::Unreadable { .. }) {
+            store.mark_unreadable(column);
+        }
+        // A column that neither its owner nor the data layer holds is generated.
+        if missing
+            && store
+                .reads
+                .get(&column)
+                .is_some_and(|read| read.from == ReadFrom::Store)
+            && store.read_generated(column)
+        {
+            continue;
+        }
         let Some(read) = store.reads.remove(&column) else {
             continue;
         };
-        match &answer {
-            StoreOutput::Found { chunk, .. } => {
-                let rows = land_sections(
+        let answer = match answer {
+            StoreOutput::Found { key, chunk } => {
+                // The production of cold columns keeps a copy; else the sections take the column.
+                let kept = match read.produced {
+                    Produced::Yes => Some(chunk.clone()),
+                    Produced::No => None,
+                };
+                let landing = Landing {
+                    dim: read.dim,
+                    column,
+                    sections: &read.sections,
+                    from: read.from,
+                };
+                land_column(
+                    landing,
+                    chunk.chunk,
                     &mut stages,
                     &positions,
                     &mut commands,
-                    read.dim,
-                    &read.sections,
-                    &chunk.chunk,
+                    &mut pending_heightmaps,
+                    landed_ticks.as_deref_mut(),
                 );
-                if let Some(landed_ticks) = landed_ticks.as_mut() {
-                    let mut ticks = chunk.chunk.ticks.clone();
-                    ticks.retain_rows(&rows);
-                    landed_ticks.land(column, ticks);
-                }
-                if let Some(maps) = &chunk.chunk.heightmaps
-                    && !read.sections.is_empty()
-                {
-                    pending_heightmaps
-                        .0
-                        .insert((read.dim, column), maps.clone());
-                }
+                kept.map(|chunk| StoreOutput::Found { key, chunk })
             }
-            StoreOutput::Missing { .. } | StoreOutput::Unreadable { .. } => {
-                if matches!(answer, StoreOutput::Unreadable { .. }) {
-                    store.mark_unreadable(column);
-                }
-                for &section in &read.sections {
-                    if stages.get(section) == Some(SectionStage::Fetching) {
-                        stages.set(section, SectionStage::Loading);
-                    }
-                }
+            StoreOutput::Missing { key } => {
+                drop_sections(&read, &mut stages);
+                Some(StoreOutput::Missing { key })
             }
-        }
-        if read.produced == Produced::Yes {
-            store.fetched.push(FetchedColumn { column, answer });
+            StoreOutput::Unreadable { key } => {
+                drop_sections(&read, &mut stages);
+                Some(StoreOutput::Unreadable { key })
+            }
+        };
+        if read.produced == Produced::Yes
+            && let Some(answer) = answer
+        {
+            store.fetched.push(FetchedColumn {
+                column,
+                answer,
+                from: read.from,
+            });
         }
     }
 }
 
-/// Puts the blocks of `stored` into the sections that wait for them. The light stays behind:
-/// the data layer may light the version again at any time, so the dimension lights the
-/// sections itself, and what it simulates does not depend on when that happened. Returns the rows
-/// that landed.
-fn land_sections(
+/// Sends the sections of a read that found no column back to loading. The generation drops a
+/// column only once it left every view, so then the sections go too.
+fn drop_sections(read: &ColumnRead, stages: &mut SectionStages) {
+    let next = match read.from {
+        ReadFrom::Store => SectionStage::Loading,
+        ReadFrom::Generation => SectionStage::Unloading,
+    };
+    for &section in &read.sections {
+        if stages.get(section) == Some(SectionStage::Fetching) {
+            stages.set(section, next);
+        }
+    }
+}
+
+/// The sections of one column that wait for an answer, and where the answer came from.
+struct Landing<'a> {
+    dim: Entity,
+    column: ColumnPos,
+    sections: &'a [Entity],
+    from: ReadFrom,
+}
+
+/// Puts the blocks of `stored` into the sections that wait for them, with its block entities,
+/// heightmaps and scheduled ticks. The light stays behind: the data layer may light the version
+/// again at any time, so the dimension lights the sections itself, and what it simulates does
+/// not depend on when that happened.
+fn land_column(
+    landing: Landing<'_>,
+    stored: StoredColumn,
     stages: &mut SectionStages,
     positions: &Query<&SectionPos>,
     commands: &mut Commands,
-    dim: Entity,
-    sections: &[Entity],
-    stored: &StoredColumn,
-) -> Vec<i32> {
+    pending_heightmaps: &mut PendingColumnHeightmaps,
+    landed_ticks: Option<&mut LandedTicks>,
+) {
+    let StoredColumn {
+        min_section_y,
+        sections,
+        block_entities,
+        heightmaps,
+        mut ticks,
+        ..
+    } = stored;
+    let mut contents: Vec<Option<StoredSection>> = sections.into_iter().map(Some).collect();
     let mut landed_rows: Vec<i32> = Vec::new();
-    for &section in sections {
+    for &section in landing.sections {
         if stages.get(section) != Some(SectionStage::Fetching) {
             continue;
         }
         let Some(y) = positions.get(section).ok().map(|pos| pos.y) else {
             continue;
         };
-        let Some(content) = stored.section(y) else {
+        let content = y
+            .checked_sub(min_section_y)
+            .and_then(|index| usize::try_from(index).ok())
+            .and_then(|index| contents.get_mut(index))
+            .and_then(Option::take);
+        let Some(content) = content else {
             stages.set(section, SectionStage::Loading);
             continue;
         };
-        commands.entity(section).try_insert((
-            content.blocks.clone(),
-            content.biomes.clone(),
-            TakenFromStore,
-        ));
+        let mut entity = commands.entity(section);
+        entity.try_insert((content.blocks, content.biomes));
+        if landing.from == ReadFrom::Store {
+            entity.try_insert(TakenFromStore);
+        }
         stages.set(section, SectionStage::Loaded);
         landed_rows.push(y);
     }
-    let block_entities = stored
-        .block_entities
-        .iter()
+    let block_entities = block_entities
+        .into_iter()
         .filter(|entry| landed_rows.contains(&(entry.position().y >> SectionPos::BITS)))
-        .cloned()
         .collect();
-    spawn_block_entities(commands, InDimension(dim), block_entities);
-    landed_rows
+    spawn_block_entities(commands, InDimension(landing.dim), block_entities);
+    if let Some(landed_ticks) = landed_ticks {
+        ticks.retain_rows(&landed_rows);
+        landed_ticks.land(landing.column, ticks);
+    }
+    if let Some(maps) = heightmaps
+        && !landing.sections.is_empty()
+    {
+        pending_heightmaps
+            .0
+            .insert((landing.dim, landing.column), maps);
+    }
 }
