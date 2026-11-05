@@ -14,7 +14,10 @@ use mcrs_minecraft_engine::muxer::disconnect::{
 };
 use mcrs_minecraft_engine_world::session::{Place, PlayerSession};
 
-use crate::disconnect_support::{build_app, insert_player, run_drain, run_filter};
+use crate::disconnect_support::{
+    build_app, despawn_count, disconnect, insert_player, register_dim_channel, run_drain,
+    run_filter,
+};
 
 #[test]
 fn a_drained_disconnect_drops_its_in_flight_messages_and_the_filter_forgets_it() {
@@ -67,5 +70,23 @@ fn a_drained_disconnect_drops_its_in_flight_messages_and_the_filter_forgets_it()
             .host_anchors
             .is_empty(),
         "the next tick starts with no disconnected anchor"
+    );
+}
+
+#[test]
+fn a_joining_player_that_disconnects_sends_its_dimension_a_despawn_and_loses_its_anchor() {
+    let mut app = build_app();
+    let host_anchor = app.world_mut().spawn_empty().id();
+    let dim = Entity::from_raw_u32(402).unwrap();
+    register_dim_channel(&mut app, dim);
+    insert_player(&mut app, host_anchor, Place::Joining(dim));
+
+    disconnect(&mut app, &[host_anchor]);
+    run_filter(&mut app);
+
+    assert_eq!(despawn_count(&app, dim), 1);
+    assert!(
+        app.world().get_entity(host_anchor).is_err(),
+        "the session is despawned"
     );
 }

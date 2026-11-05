@@ -29,7 +29,7 @@ fn spawn_anchors(app: &mut App, count: usize, dim: Entity) -> Vec<Entity> {
 }
 
 #[test]
-fn e4_1_100_simultaneous_disconnects_process_32_per_tick() {
+fn a_hundred_simultaneous_disconnects_are_processed_32_per_tick() {
     let mut app = build_app();
     let dim = Entity::from_raw_u32(900).unwrap();
     register_dim_channel(&mut app, dim);
