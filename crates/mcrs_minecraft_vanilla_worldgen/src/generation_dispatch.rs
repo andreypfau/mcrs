@@ -56,7 +56,7 @@ enum Pass {
     Spent,
 }
 
-impl<T: Copy + Send + 'static> GenerationStage<T> {
+impl GenerationStage {
     /// Dispatches what changed since the last pass made owed.
     ///
     /// The derived requests are computed here and nowhere stored: they are a
@@ -134,19 +134,19 @@ impl<T: Copy + Send + 'static> GenerationStage<T> {
     }
 }
 
-struct Dispatcher<'a, 'step, T: Copy + Send + 'static> {
+struct Dispatcher<'a, 'step> {
     pool: &'a TaskPool,
     ctx: &'a FillContext,
-    step: &'a mut Step<'step, GenerationStage<T>>,
+    step: &'a mut Step<'step, GenerationStage>,
 }
 
-impl<T: Copy + Send + 'static> Dispatcher<'_, '_, T> {
+impl Dispatcher<'_, '_> {
     /// Dispatches what the columns whose stage changed, or was cancelled, made owed. What
     /// the budget does not cover waits for the next pass, which the next finished stage
     /// starts.
     fn continue_ladders(
         &mut self,
-        generation: &mut GenerationStage<T>,
+        generation: &mut GenerationStage,
         remaining: &mut usize,
     ) -> Pass {
         let mut worklist = std::mem::take(&mut generation.forgotten);
@@ -187,7 +187,7 @@ impl<T: Copy + Send + 'static> Dispatcher<'_, '_, T> {
     }
 
     /// Walks the shells of the wanted columns nobody has walked yet, nearest first.
-    fn walk_fresh(&mut self, generation: &mut GenerationStage<T>, remaining: &mut usize) {
+    fn walk_fresh(&mut self, generation: &mut GenerationStage, remaining: &mut usize) {
         while let Some(&key) = generation.fresh.first() {
             if self.walk_shell(generation, remaining, key.chunk_column_pos) == Pass::Spent {
                 return;
@@ -199,7 +199,7 @@ impl<T: Copy + Send + 'static> Dispatcher<'_, '_, T> {
     /// Dispatches what the shell of the wanted column `u` owes, nearest rung first.
     fn walk_shell(
         &mut self,
-        generation: &mut GenerationStage<T>,
+        generation: &mut GenerationStage,
         remaining: &mut usize,
         u: ColumnPos,
     ) -> Pass {
@@ -230,7 +230,7 @@ impl<T: Copy + Send + 'static> Dispatcher<'_, '_, T> {
 
     fn dispatch(
         &mut self,
-        generation: &mut GenerationStage<T>,
+        generation: &mut GenerationStage,
         remaining: &mut usize,
         v: ColumnPos,
         owed: Owed,

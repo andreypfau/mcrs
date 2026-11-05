@@ -11,7 +11,7 @@ use mcrs_minecraft_worldgen_generator::staging::{
     ColumnDelta, FilledSnapshot, Stage, StagingStore,
 };
 use mcrs_minecraft_worldgen_generator::task::{CancellationToken, ColumnSource};
-use mcrs_voxel::{ColumnPos, SectionPos};
+use mcrs_voxel::ColumnPos;
 use rustc_hash::FxHashMap;
 use std::collections::{BTreeMap, BTreeSet};
 use std::mem;
@@ -19,7 +19,7 @@ use std::sync::{Arc, OnceLock};
 use tracing::trace;
 
 use crate::generated_ticks;
-use crate::generation_input::{GenerationInput, RequestedSection, ViewUpdate, WantedColumn};
+use crate::generation_input::{GenerationInput, ViewUpdate, WantedColumn};
 use crate::generation_output::{
     GeneratedColumn, GeneratedSection, GenerationOutput, SectionBlocks, SectionContent,
 };
@@ -112,10 +112,10 @@ impl Default for SchedulerConfig {
 /// Each finished ladder stage changes what its own 3×3 is owed, so the step dispatches from
 /// there, and a column that is newly wanted owes its whole shell; nothing walks every wanted
 /// column again.
-pub(crate) struct GenerationStage<T> {
+pub(crate) struct GenerationStage {
     pub(crate) ctx: Option<FillContext>,
-    /// The sections that asked for each wanted column.
-    pub(crate) pending: BTreeMap<ColumnKey, Vec<RequestedSection<T>>>,
+    /// The section rows wanted of each wanted column.
+    pub(crate) pending: BTreeMap<ColumnKey, Vec<i32>>,
     /// Reverse index: column position -> current priority key.
     pub(crate) priority_index: FxHashMap<ColumnPos, ColumnKey>,
     pub(crate) in_flight: InFlight<InFlightStage, Task<()>>,
@@ -139,14 +139,14 @@ pub(crate) struct GenerationStage<T> {
     pub(crate) config: SchedulerConfig,
 }
 
-impl<T: Copy + Send + 'static> mcrs_engine_link::Stage for GenerationStage<T> {
+impl mcrs_engine_link::Stage for GenerationStage {
     const NAME: &'static str = "ColumnGen";
 
-    type Input = GenerationInput<T>;
-    type Output = GenerationOutput<T>;
+    type Input = GenerationInput;
+    type Output = GenerationOutput;
     type TaskOutput = StageResult;
 
-    fn receive(&mut self, input: GenerationInput<T>) {
+    fn receive(&mut self, input: GenerationInput) {
         match input {
             GenerationInput::Context(ctx) => self.ctx = Some(*ctx),
             GenerationInput::Want(wanted) => self.want(wanted),
@@ -181,7 +181,7 @@ impl<T: Copy + Send + 'static> mcrs_engine_link::Stage for GenerationStage<T> {
     }
 }
 
-impl<T> Drop for GenerationStage<T> {
+impl Drop for GenerationStage {
     /// A fill on the pool stops at its next check of the token, rather than run to an end
     /// nobody takes.
     fn drop(&mut self) {
@@ -191,7 +191,7 @@ impl<T> Drop for GenerationStage<T> {
     }
 }
 
-impl<T: Copy + Send + 'static> GenerationStage<T> {
+impl GenerationStage {
     pub(crate) fn new(config: SchedulerConfig) -> Self {
         Self {
             ctx: None,
@@ -231,20 +231,20 @@ impl<T: Copy + Send + 'static> GenerationStage<T> {
     /// A column stays in the queue for the whole of its ladder, so sections that
     /// arrive after its first stage was dispatched merge into the same entry and
     /// reach the same generated column.
-    fn want(&mut self, wanted: WantedColumn<T>) {
+    fn want(&mut self, wanted: WantedColumn) {
         let WantedColumn {
             col,
             distance_sq,
-            sections,
+            rows,
         } = wanted;
         if let Some(key) = self.priority_index.get(&col) {
             if let Some(pending) = self.pending.get_mut(key) {
-                pending.extend(sections);
+                pending.extend(rows);
             }
             return;
         }
         let key = ColumnKey::new(distance_sq, col);
-        self.pending.insert(key, sections);
+        self.pending.insert(key, rows);
         self.priority_index.insert(col, key);
         self.fresh.insert(key);
         self.climbed.push(col);
@@ -428,14 +428,10 @@ impl<T: Copy + Send + 'static> GenerationStage<T> {
         }
     }
 
-    fn take_generated(&mut self, key: ColumnKey) -> Option<GeneratedColumn<T>> {
+    fn take_generated(&mut self, key: ColumnKey) -> Option<GeneratedColumn> {
         let col = key.chunk_column_pos;
-        let pending = self.pending.get(&key)?;
-        let mut requested: Vec<(T, SectionPos)> = pending
-            .iter()
-            .map(|section| (section.tag, SectionPos::new(col.x, section.y, col.z)))
-            .collect();
-        requested.sort_by_key(|(_, pos)| pos.y);
+        let mut requested = self.pending.get(&key)?.clone();
+        requested.sort_unstable();
         let states = self.ctx.as_ref().map(|ctx| ctx.blocks.state_count());
         // Straight from the snapshot the store keeps, without a copy of the blocks between.
         let Some(merged) = self.store.merged(col) else {
@@ -446,9 +442,9 @@ impl<T: Copy + Send + 'static> GenerationStage<T> {
             return None;
         };
         let bottom = merged.y_sections.first().copied().unwrap_or(0);
-        let sections: Vec<GeneratedSection<T>> =
+        let sections: Vec<GeneratedSection> =
             carried_sections(&requested, &merged.sections, bottom)
-                .map(|(tag, _, section)| {
+                .map(|(y, section)| {
                     let content = match (section, states) {
                         (Some((blocks, biomes)), Some(states)) => {
                             SectionContent::Blocks(SectionBlocks {
@@ -459,7 +455,7 @@ impl<T: Copy + Send + 'static> GenerationStage<T> {
                         (Some(_), None) => SectionContent::Unchecked,
                         (None, _) => SectionContent::Missing,
                     };
-                    GeneratedSection { tag, content }
+                    GeneratedSection { y, content }
                 })
                 .collect();
         let maps = merged.maps.clone();
@@ -507,18 +503,17 @@ pub(crate) fn top_of_ladder(rungs: usize) -> Stage {
 
 /// The sections a generated column owes, copied out of the whole column.
 /// `bottom` is the section the column buffer starts at.
-pub(crate) fn carried_sections<'a, T: Copy>(
-    sections_data: &'a [(T, SectionPos)],
+pub(crate) fn carried_sections<'a>(
+    rows: &'a [i32],
     column: &'a [Option<SectionData>],
     bottom: i32,
-) -> impl Iterator<Item = (T, SectionPos, Option<&'a SectionData>)> + 'a {
-    sections_data.iter().map(move |&(tag, pos)| {
-        let section = pos
-            .y
+) -> impl Iterator<Item = (i32, Option<&'a SectionData>)> + 'a {
+    rows.iter().map(move |&y| {
+        let section = y
             .checked_sub(bottom)
             .and_then(|slot| usize::try_from(slot).ok())
             .and_then(|slot| column.get(slot))
             .and_then(Option::as_ref);
-        (tag, pos, section)
+        (y, section)
     })
 }

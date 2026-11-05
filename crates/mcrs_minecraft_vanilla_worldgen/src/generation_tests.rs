@@ -1,8 +1,6 @@
-use crate::generation_input::{GenerationInput, RequestedSection, ViewUpdate, WantedColumn};
+use crate::generation_input::{GenerationInput, ViewUpdate, WantedColumn};
 use crate::generation_output::{GenerationOutput, SectionContent};
 use crate::generation_stage::{CHUNK_TASK_POOL, GenerationStage, SchedulerConfig};
-use bevy_ecs::entity::Entity;
-use bevy_ecs::world::World;
 use bevy_tasks::{TaskPoolBuilder, block_on};
 use mcrs_engine_link::{InlineEnd, Link, Placement, Stage as _};
 use mcrs_minecraft_biome::Biome;
@@ -99,7 +97,7 @@ fn default_batch() -> usize {
 const EVICT_FIRINGS: usize = 6;
 
 fn force_eviction(
-    generation: &mut GenerationStage<Entity>,
+    generation: &mut GenerationStage,
     wanted: &[ColumnPos],
     evict: Evict,
     after_a_merge: bool,
@@ -168,12 +166,10 @@ fn run_parallel(dim: &Dimension, wanted: &[ColumnPos], drive: Drive) -> (Region,
         ..Default::default()
     }));
     end.receive(GenerationInput::Context(Box::new(dim.ctx.clone())));
-    let mut entities = World::new();
 
     let rungs = dim.ctx.rungs();
     let requests = ordered(wanted, drive.order);
-    let mut sections: BTreeMap<ColumnPos, Vec<Entity>> = BTreeMap::new();
-    let mut generated: BTreeMap<Entity, ChunkBlocks> = BTreeMap::new();
+    let mut generated: BTreeMap<ColumnPos, BTreeMap<i32, ChunkBlocks>> = BTreeMap::new();
     let mut next = 0usize;
     let mut evicted = 0usize;
     let mut firings = 0usize;
@@ -181,18 +177,10 @@ fn run_parallel(dim: &Dimension, wanted: &[ColumnPos], drive: Drive) -> (Region,
     loop {
         if let Some(&col) = requests.get(next) {
             next += 1;
-            let requested: Vec<RequestedSection<Entity>> = y_sections
-                .iter()
-                .map(|&y| RequestedSection {
-                    tag: entities.spawn_empty().id(),
-                    y,
-                })
-                .collect();
-            sections.insert(col, requested.iter().map(|section| section.tag).collect());
             end.receive(GenerationInput::Want(WantedColumn {
                 col,
                 distance_sq: min_column_distance(&col, &[]),
-                sections: requested,
+                rows: y_sections.to_vec(),
             }));
         }
 
@@ -200,11 +188,12 @@ fn run_parallel(dim: &Dimension, wanted: &[ColumnPos], drive: Drive) -> (Region,
             let GenerationOutput::Generated(column) = output else {
                 panic!("{drive:?} abandoned a column with no view sent");
             };
+            let rows = generated.entry(column.col).or_default();
             for section in column.sections {
                 let SectionContent::Blocks(content) = section.content else {
                     panic!("{drive:?} generated {:?} without its blocks", column.col);
                 };
-                generated.insert(section.tag, content.blocks);
+                rows.insert(section.y, content.blocks);
             }
         }
 
@@ -229,10 +218,11 @@ fn run_parallel(dim: &Dimension, wanted: &[ColumnPos], drive: Drive) -> (Region,
 
         let all_requested = next == requests.len();
         if all_requested
-            && sections
-                .values()
-                .flatten()
-                .all(|entity| generated.contains_key(entity))
+            && requests.iter().all(|col| {
+                generated
+                    .get(col)
+                    .is_some_and(|rows| y_sections.iter().all(|y| rows.contains_key(y)))
+            })
         {
             break;
         }
@@ -257,14 +247,15 @@ fn run_parallel(dim: &Dimension, wanted: &[ColumnPos], drive: Drive) -> (Region,
         })
         .collect();
 
-    let region: Region = sections
-        .into_iter()
-        .map(|(col, entities)| {
-            let column = entities
+    let region: Region = requests
+        .iter()
+        .map(|&col| {
+            let column = y_sections
                 .iter()
-                .map(|entity| {
+                .map(|y| {
                     let blocks = generated
-                        .get(entity)
+                        .get(&col)
+                        .and_then(|rows| rows.get(y))
                         .unwrap_or_else(|| panic!("{col:?} was generated without its blocks"));
                     (0..ColumnBlocks::SECTION_VOLUME)
                         .map(|index| {
@@ -658,19 +649,16 @@ fn assert_region_agrees(consumer: Consumer, radius: i32, drives: &[Drive]) {
     );
 }
 
-fn want_rows(link: &mut Link<GenerationStage<i32>>, col: ColumnPos, rows: &[i32]) {
+fn want_rows(link: &mut Link<GenerationStage>, col: ColumnPos, rows: &[i32]) {
     link.send(GenerationInput::Want(WantedColumn {
         col,
         distance_sq: 0,
-        sections: rows
-            .iter()
-            .map(|&y| RequestedSection { tag: y, y })
-            .collect(),
+        rows: rows.to_vec(),
     }));
 }
 
 /// Waits for the stage to answer, and returns the blocks of each section it generated by row.
-fn generated_rows(link: &mut Link<GenerationStage<i32>>) -> BTreeMap<i32, ChunkBlocks> {
+fn generated_rows(link: &mut Link<GenerationStage>) -> BTreeMap<i32, ChunkBlocks> {
     block_on(link.answered());
     let mut rows = BTreeMap::new();
     for output in link.outputs() {
@@ -679,9 +667,9 @@ fn generated_rows(link: &mut Link<GenerationStage<i32>>) -> BTreeMap<i32, ChunkB
         };
         for section in column.sections {
             let SectionContent::Blocks(content) = section.content else {
-                panic!("row {} was generated without its blocks", section.tag);
+                panic!("row {} was generated without its blocks", section.y);
             };
-            rows.insert(section.tag, content.blocks);
+            rows.insert(section.y, content.blocks);
         }
     }
     rows
@@ -759,7 +747,7 @@ fn the_ladder_generates_the_filled_column(placement: Placement) {
 #[test]
 fn a_column_that_left_every_view_is_abandoned() {
     let mut link = Link::new(
-        GenerationStage::<i32>::new(SchedulerConfig::default()),
+        GenerationStage::new(SchedulerConfig::default()),
         Placement::Inline,
     );
     let stale = ColumnPos::new(100, 100);
@@ -792,11 +780,7 @@ fn a_column_that_left_every_view_is_abandoned() {
 /// bottom.
 #[test]
 fn a_column_generated_for_part_of_its_sections_still_lays_its_bedrock_floor() {
-    use bevy_app::App;
-    use bevy_ecs::entity::Entity;
     use mcrs_minecraft_biome::source::BiomeSource;
-    use mcrs_voxel::ColumnPos;
-    use mcrs_voxel::SectionPos;
 
     use crate::generation_stage::carried_sections;
     use mcrs_minecraft_worldgen_generator::stages::fill_column;
@@ -815,16 +799,6 @@ fn a_column_generated_for_part_of_its_sections_still_lays_its_bedrock_floor() {
 
     let col = ColumnPos::new(3, -7);
     let carried = [-4, 3, 4];
-    let mut app = App::new();
-    let sections: Vec<(Entity, SectionPos)> = carried
-        .iter()
-        .map(|&y| {
-            (
-                app.world_mut().spawn_empty().id(),
-                SectionPos::new(col.x, y, col.z),
-            )
-        })
-        .collect();
 
     let y_sections = ctx.y_sections.clone();
     let mut column = ColumnBlocks::new(&y_sections);
@@ -832,7 +806,7 @@ fn a_column_generated_for_part_of_its_sections_still_lays_its_bedrock_floor() {
         .expect("the fill was not cancelled");
 
     let bottom = y_sections[0];
-    let landed: Vec<_> = carried_sections(&sections, &snapshot.sections, bottom).collect();
+    let landed: Vec<_> = carried_sections(&carried, &snapshot.sections, bottom).collect();
     assert_eq!(
         landed.len(),
         carried.len(),
@@ -846,9 +820,9 @@ fn a_column_generated_for_part_of_its_sections_still_lays_its_bedrock_floor() {
     );
     let floor = landed
         .iter()
-        .find(|(_, pos, _)| pos.y == carried[0])
+        .find(|(y, _)| *y == carried[0])
         .expect("the bottom section came back");
-    let (palette, _) = floor.2.expect("the bottom section carries blocks");
+    let (palette, _) = floor.1.expect("the bottom section carries blocks");
     let mut states = Vec::with_capacity(ColumnBlocks::SECTION_VOLUME);
     palette.0.for_each(|state| states.push(state));
     // The palette runs y, then z, then x, so the first layer is the floor of

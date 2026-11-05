@@ -19,7 +19,7 @@ use mcrs_voxel::{ColumnPos, SectionPos};
 use rustc_hash::FxHashMap;
 use tracing::warn;
 
-use crate::generation_input::{GenerationInput, RequestedSection, ViewUpdate, WantedColumn};
+use crate::generation_input::{GenerationInput, ViewUpdate, WantedColumn};
 use crate::generation_output::{GeneratedColumn, GenerationOutput, SectionContent};
 use crate::generation_stage::{GenerationStage, SchedulerConfig, init_chunk_task_pool};
 
@@ -36,7 +36,7 @@ pub struct WorldGeneration {
 }
 
 struct WorldStage {
-    link: Link<GenerationStage<i32>>,
+    link: Link<GenerationStage>,
     rows: Range<i32>,
     /// The cells that wait on each column the stage generates.
     askers: FxHashMap<ColumnPos, Vec<CellId>>,
@@ -78,11 +78,7 @@ impl WorldStage {
             self.link.send(GenerationInput::Want(WantedColumn {
                 col: column,
                 distance_sq: min_column_distance(&column, players),
-                sections: self
-                    .rows
-                    .clone()
-                    .map(|y| RequestedSection { tag: y, y })
-                    .collect(),
+                rows: self.rows.clone().collect(),
             }));
         }
         if !askers.contains(&cell) {
@@ -203,15 +199,15 @@ pub(crate) fn deliver_world_columns(
 }
 
 /// The column as the data layer keeps it, unlit, or `None` when a section has no blocks.
-fn stored_column(column: GeneratedColumn<i32>) -> Option<StoredColumn> {
-    let min_section_y = column.sections.first()?.tag;
+fn stored_column(column: GeneratedColumn) -> Option<StoredColumn> {
+    let min_section_y = column.sections.first()?.y;
     let mut sections = Vec::with_capacity(column.sections.len());
     for section in column.sections {
         let SectionContent::Blocks(content) = section.content else {
             warn!(
                 x = column.col.x,
                 z = column.col.z,
-                y = section.tag,
+                y = section.y,
                 "a generated column lacks the blocks of a section"
             );
             return None;
