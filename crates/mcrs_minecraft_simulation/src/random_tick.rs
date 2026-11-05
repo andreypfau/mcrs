@@ -3,13 +3,14 @@ use crate::behaviour::{BlockBehaviour, BlockFacts};
 use crate::cx::Cx;
 use crate::output::StepOutput;
 use crate::scalar::GameTick;
+use crate::section;
 use crate::shard::{BlockShard, Env};
 use crate::stream::{StreamKey, StreamSeed};
 use crate::tick_queue::Kinds;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_volume::{Access, SectionBlocks};
-use mcrs_voxel::{BlockPos, BlockStateId, LocalPos, SectionPos};
+use mcrs_voxel::{BlockStateId, LocalPos, SectionPos};
 
 bitflags::bitflags! {
     /// The random ticks that a block state takes.
@@ -26,7 +27,6 @@ bitflags::bitflags! {
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct RandomTickTable {
     kinds: Vec<RandomTicks>,
-    ticking: usize,
 }
 
 impl RandomTickTable {
@@ -48,7 +48,6 @@ impl RandomTickTable {
             }
             if let Some(slot) = table.kinds.get_mut(index) {
                 *slot = kinds;
-                table.ticking = table.ticking.saturating_add(1);
             }
         }
         table
@@ -57,7 +56,7 @@ impl RandomTickTable {
     /// No state takes random ticks.
     #[must_use]
     pub fn is_empty(&self) -> bool {
-        self.ticking == 0
+        self.kinds.is_empty()
     }
 
     #[must_use]
@@ -109,15 +108,6 @@ pub fn random_step<K, V, F, B, P>(
     }
 }
 
-fn block_in(section: SectionPos, local: LocalPos) -> BlockPos {
-    let at = |section: i32, local: u8| section.wrapping_shl(4) | i32::from(local);
-    BlockPos::new(
-        at(section.x, local.x()),
-        at(section.y, local.y()),
-        at(section.z, local.z()),
-    )
-}
-
 impl<K, V, F, B> Cx<'_, K, V, F, B>
 where
     K: Kinds,
@@ -144,7 +134,7 @@ where
         table: &RandomTickTable,
     ) {
         let local = LocalPos::from_index(random.next_u32_bound(4096) as usize);
-        let at = block_in(section, local);
+        let at = section::block_pos(section, local);
         let Ok(state) = self.volume.block(at) else {
             return;
         };
