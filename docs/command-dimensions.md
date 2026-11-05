@@ -173,8 +173,9 @@ dimension before the run stage can therefore run more than the sequence limit in
 ## Network ids
 
 A player takes its network id from its session (`player_network_id`). Thus it keeps the id in
-every dimension (DIM-CHG-001). Every other entity takes an id from its own index. Players take
-the odd ids and other entities the even ids, so the ids of two allocators never meet.
+every dimension (DIM-CHG-001). Every other entity takes a `GlobalEntityId` from a range of
+even ids that the coordinator grants its cell (`entity_ids`). Players take the odd ids, so the
+two kinds of id never meet.
 
 ## Stored values
 
