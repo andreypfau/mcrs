@@ -968,7 +968,7 @@ impl BlockCatalog {
         self.baking = Some(pool.spawn(async move {
             block_catalog::extend(&pack, &mut catalog, &definitions, &states);
             let items = bake_items_too.then(|| {
-                let started = std::time::Instant::now();
+                let started = bevy::platform::time::Instant::now();
                 let items = bake_items(&pack, &mut catalog.sprites)
                     .unwrap_or_else(|reason| panic!("cannot bake the item models: {reason}"));
                 info!(items = items.by_id.len(), elapsed = ?started.elapsed(), "baked the item models");
