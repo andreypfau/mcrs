@@ -56,4 +56,5 @@ mod subapp_lifecycle;
 mod support;
 mod tick_determinism;
 mod world_cells;
+mod world_server;
 mod worldgen_y_range_clamp;

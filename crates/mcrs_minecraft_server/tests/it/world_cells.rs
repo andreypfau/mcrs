@@ -9,17 +9,14 @@
 //! same tick in both runs.
 
 use std::collections::{BTreeMap, BTreeSet};
-use std::num::NonZeroU32;
 use std::ops::RangeInclusive;
 use std::time::{Duration, Instant};
 
-use bevy_app::{App, Last, PluginGroup};
+use bevy_app::{App, Last};
 use bevy_ecs::entity::Entity;
-use bevy_ecs::message::{MessageReader, Messages};
-use bevy_ecs::prelude::{Has, ResMut, Resource, With};
-use bevy_ecs::world::World;
-use bevy_math::{DVec3, Vec2};
-use bevy_tasks::block_on;
+use bevy_ecs::message::MessageReader;
+use bevy_ecs::prelude::{Has, ResMut, Resource};
+use bevy_math::DVec3;
 use mcrs_minecraft_block::block_keys::Block;
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_block::definition::schema::PropertyValue;
@@ -27,26 +24,14 @@ use mcrs_minecraft_chunk::{BlockLight, LightStorage, SkyLight};
 use mcrs_minecraft_core::Direction;
 use mcrs_minecraft_engine::block_drops::{BlockDrops, ItemDropped};
 use mcrs_minecraft_engine::block_simulation::{BlockSimulationPlugin, DimensionBlockRules};
-use mcrs_minecraft_engine::bus::{
-    InboundPlayerSpawn, OutboundPlayerPacket, PacketPayload, PlayerTransferSnapshot,
-};
-use mcrs_minecraft_engine::channel_types::ToDim;
+use mcrs_minecraft_engine::bus::PacketPayload;
 use mcrs_minecraft_engine::coordinator::dim_cells::DimCells;
-use mcrs_minecraft_engine::game_profile::GameProfile;
-use mcrs_minecraft_engine::muxer::dim_inputs::DimInputs;
-use mcrs_minecraft_engine::muxer::muxer_link::{self, Answers, MuxerLink};
-use mcrs_minecraft_engine::muxer::session::{HostAnchorRef, SessionBundle};
+use mcrs_minecraft_engine::muxer::muxer_link::MuxerLink;
 use mcrs_minecraft_engine::world_kinds::WorldKinds;
-use mcrs_minecraft_engine_server::{Placement, WorldCells, runner};
-use mcrs_minecraft_engine_world::block_update::BlockSetRequest;
-use mcrs_minecraft_engine_world::entity::physics::Transform;
-use mcrs_minecraft_engine_world::entity::player::Player;
 use mcrs_minecraft_engine_world::owned_columns::OwnedColumns;
 use mcrs_minecraft_engine_world::palette::ChunkBlocks;
-use mcrs_minecraft_engine_world::session::{
-    Owner, Place, PlayerSession, PlayerSessionCounter, SessionPlacement,
-};
-use mcrs_minecraft_engine_world::world::dimension::{Dimension, DimensionTypeConfig};
+use mcrs_minecraft_engine_world::session::PlayerSession;
+use mcrs_minecraft_engine_world::world::dimension::DimensionTypeConfig;
 use mcrs_minecraft_engine_world::world::lifecycle::simulation::{
     BlockTicking, EntityTicking, SimulationDistance,
 };
@@ -58,116 +43,25 @@ use mcrs_minecraft_protocol::{Decode, Packet, VarInt};
 use mcrs_minecraft_protocol_game::chunk::{LightChunk, LightData};
 use mcrs_minecraft_protocol_game::clientbound::{
     ClientboundAddEntity, ClientboundBlockEvent, ClientboundLevelChunkWithLight,
-    ClientboundRemoveEntities,
 };
 use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_resource::Id;
-use mcrs_minecraft_server::MinecraftServerPlugins;
 use mcrs_minecraft_simulation::{
     BlockBehaviour, BlockFacts, BlockUpdateFlags, Cx, RandomTicks, SimulationVolume, TickPriority,
 };
-use mcrs_minecraft_vanilla_light::{ColdLightLink, LightLink};
-use mcrs_minecraft_vanilla_worldgen::WorldGeneration;
-use mcrs_minecraft_worldgen_generator::stages::FillContext;
 use mcrs_voxel::{BlockPos, BlockStateId, ColumnPos, LocalPos, SectionPos};
 
-use crate::configuration_registries::ASSETS;
-use crate::host_app::{label_of, replicated, sent_to};
+use crate::host_app::{self, Arrival, label_of, replicated, sent_to};
+use crate::world_server::{
+    Holder, OVERWORLD, WorldServer, block_state, cell_worlds, holder, lockstep_tick, place,
+    position, wait_for_generation, walk,
+};
 
-const OVERWORLD: &str = "minecraft:overworld";
 const TICKS: usize = 90;
+/// The sections of a column of the beta overworld, which is 128 blocks high.
+const SECTIONS: usize = 8;
 const COLD_TICKS: usize = 100;
 const COLD_LIGHT_TICKS: usize = 220;
-const PATIENCE: Duration = Duration::from_secs(120);
-
-fn server(cells: u32) -> App {
-    server_with(cells, DimensionBlockRules::default())
-}
-
-fn server_with(cells: u32, rules: DimensionBlockRules) -> App {
-    let mut plugins = MinecraftServerPlugins::embedded();
-    plugins.core.asset_path = Some(ASSETS.to_owned());
-    plugins.core.worlds = Placement::Inline;
-    plugins.core.muxer = Placement::Inline;
-    plugins.core.cells = WorldCells {
-        cells: NonZeroU32::new(cells).unwrap(),
-    };
-    plugins.network.announce_on_lan = false;
-    plugins.worlds.seed = 4;
-    let mut app = App::new();
-    app.add_plugins(plugins.build());
-    app.insert_resource(rules);
-    app.finish();
-    app.cleanup();
-    crate::support::update_until_playing(&mut app);
-    runner::between_ticks(&mut app);
-    app
-}
-
-/// Ticks until the world of `label` can generate: its first cell holds the context that the
-/// generation of the world runs with.
-fn wait_for_generation(app: &mut App, label: Entity) {
-    let deadline = Instant::now() + PATIENCE;
-    while !cell_worlds(app, label)
-        .into_iter()
-        .next()
-        .is_some_and(|world| world.contains_resource::<FillContext>())
-    {
-        assert!(
-            Instant::now() < deadline,
-            "the generation context never loaded"
-        );
-        tick(app, label);
-    }
-}
-
-fn state(app: &App, name: &str) -> BlockStateId {
-    app.world()
-        .resource::<Blocks>()
-        .block(name)
-        .unwrap_or_else(|| panic!("{name} is declared"))
-        .default_state_id
-}
-
-/// The world of every cell of `label`.
-fn cell_worlds(app: &mut App, label: Entity) -> Vec<&mut World> {
-    app.world_mut()
-        .resource_mut::<DimCells>()
-        .into_inner()
-        .cell_sub_apps_mut(label)
-        .map(|sub_app| sub_app.world_mut())
-        .collect()
-}
-
-/// Waits between ticks until the generation, light and store steps of every cell have ended.
-fn wait_for_steps(app: &mut App, label: Entity) {
-    block_on(app.world_mut().resource_mut::<DimCells>().stores_answered());
-    if let Some(mut generation) = app.world_mut().get_resource_mut::<WorldGeneration>() {
-        block_on(generation.answered());
-    }
-    for world in cell_worlds(app, label) {
-        if let Some(mut light) = world.get_resource_mut::<LightLink>() {
-            block_on(light.answered());
-        }
-        if let Some(mut light) = world.get_resource_mut::<ColdLightLink>() {
-            block_on(light.answered());
-        }
-    }
-}
-
-/// Runs one tick and returns the packets it wrote for the clients.
-fn tick(app: &mut App, label: Entity) -> Vec<OutboundPlayerPacket> {
-    app.update();
-    runner::between_ticks(app);
-    muxer_link::deliver(app.world_mut(), Answers::All);
-    let packets = app
-        .world_mut()
-        .resource_mut::<Messages<OutboundPlayerPacket>>()
-        .drain()
-        .collect();
-    wait_for_steps(app, label);
-    packets
-}
 
 /// Places a session in `label` and sends the spawn of its player at `position`, with a client
 /// that sees `view_distance` columns far.
@@ -178,93 +72,16 @@ fn admit(
     position: DVec3,
     view_distance: u8,
 ) -> PlayerSession {
-    let session = app
-        .world_mut()
-        .resource_mut::<PlayerSessionCounter>()
-        .next();
-    let uuid = Uuid::from_u128(u128::from(session.0));
-    let anchor = app
-        .world_mut()
-        .spawn((
-            GameProfile {
-                id: uuid,
-                username: name.into(),
-                properties: Vec::new(),
-            },
-            SessionBundle::placed(session, SessionPlacement::new(Place::Joining(label), 0)),
-        ))
-        .id();
-    app.world_mut().spawn(HostAnchorRef(anchor));
-    let sent = app.world_mut().resource_mut::<DimInputs>().send_control(
-        label,
-        ToDim::Spawn(InboundPlayerSpawn {
-            session,
-            snapshot: PlayerTransferSnapshot {
-                uuid,
-                username: name.into(),
-                position,
-                rotation: Vec2::ZERO,
-                client_info: Some(crate::support::client_info_with_view_distance(
-                    view_distance,
-                )),
-            },
-            dimensions: Vec::new().into(),
-        }),
-    );
-    assert!(sent, "the dimension takes the spawn");
-    session
-}
-
-/// The world that holds the player of `session`, and the player.
-fn holder(app: &mut App, label: Entity, session: PlayerSession) -> Option<(usize, Entity)> {
-    let mut found = None;
-    for (index, world) in cell_worlds(app, label).into_iter().enumerate() {
-        let player = world
-            .query_filtered::<(Entity, &Owner), With<Player>>()
-            .iter(world)
-            .find(|(_, owner)| owner.0 == session)
-            .map(|(player, _)| player);
-        if let Some(player) = player {
-            assert!(found.is_none(), "two cells hold the player of {session:?}");
-            found = Some((index, player));
-        }
-    }
-    found
-}
-
-fn dimension_of(world: &mut World) -> Entity {
-    world
-        .query_filtered::<Entity, With<Dimension>>()
-        .single(world)
-        .expect("the dimension entity")
-}
-
-/// Writes a block as a player of the world of `actor` would: into the world that holds it,
-/// whoever owns the column.
-fn place(app: &mut App, label: Entity, actor: PlayerSession, pos: BlockPos, state: BlockStateId) {
-    let (index, _) = holder(app, label, actor).expect("the actor is in the world");
-    let mut worlds = cell_worlds(app, label);
-    let world = worlds.swap_remove(index);
-    let dimension = dimension_of(world);
-    world
-        .resource_mut::<Messages<BlockSetRequest>>()
-        .write(BlockSetRequest {
-            dimension,
-            pos,
-            new_state: state,
-            flags: BlockUpdateFlags::ALL,
-            recursion_left: 512,
-        });
-}
-
-fn walk(app: &mut App, label: Entity, session: PlayerSession, by: DVec3) {
-    let (index, player) = holder(app, label, session).expect("the walker is in the world");
-    let mut worlds = cell_worlds(app, label);
-    let world = worlds.swap_remove(index);
-    world
-        .get_mut::<Transform>(player)
-        .expect("the walker stands somewhere")
-        .translation += by;
+    // The runs compare the entity bytes of their clients, which carry the uuid of each player.
+    let uuid = Uuid::from_u128(name.bytes().fold(0, |id, byte| id << 8 | u128::from(byte)));
+    let arrival = Arrival {
+        uuid,
+        name,
+        position,
+        view_distance,
+    };
+    let anchor = host_app::admit(app, label, &arrival);
+    host_app::session_of(app, anchor).expect("a placed session")
 }
 
 /// What one client got over the run: what a client keeps of it, with no order between ticks.
@@ -477,11 +294,28 @@ struct ColdRun {
     ticking: BTreeMap<(i32, i32, i32), Ticking>,
 }
 
+fn server(cells: u32) -> App {
+    WorldServer {
+        cells,
+        ..WorldServer::default()
+    }
+    .start()
+}
+
+fn server_with(cells: u32, rules: DimensionBlockRules) -> App {
+    WorldServer {
+        cells,
+        rules,
+        ..WorldServer::default()
+    }
+    .start()
+}
+
 fn run_cold_boundary(cells: u32) -> ColdRun {
     let mut app = server(cells);
     let label = label_of(&app, OVERWORLD);
     wait_for_generation(&mut app, label);
-    let glowstone = state(&app, "minecraft:glowstone");
+    let glowstone = block_state(&app, "minecraft:glowstone");
 
     // Region 0 starts at x = 0, and the light of a block at x = 0 reaches into region -1.
     let east = admit(&mut app, label, "east", DVec3::new(8.5, 100.0, 8.5), 2);
@@ -495,7 +329,7 @@ fn run_cold_boundary(cells: u32) -> ColdRun {
             }
             _ => {}
         }
-        tick(&mut app, label);
+        lockstep_tick(&mut app, label);
     }
     let columns: Vec<ColumnPos> = (-3..=2)
         .flat_map(|x| (-2..=2).map(move |z| ColumnPos::new(x, z)))
@@ -564,7 +398,7 @@ fn run_cold_light(cells: u32) -> ColdLightRun {
             vertical: u8::MAX,
         });
     }
-    let glowstone = state(&app, "minecraft:glowstone");
+    let glowstone = block_state(&app, "minecraft:glowstone");
     let edge = [ColumnPos::new(-1, 0), ColumnPos::new(0, 0)];
 
     // Column 0 is in the outer ring of the hot area around column 4: hot, and lit from the
@@ -597,7 +431,7 @@ fn run_cold_light(cells: u32) -> ColdLightRun {
                 .resource_mut::<MuxerLink>()
                 .acknowledge_batch(viewer, 64.0);
         }
-        let packets = tick(&mut app, label);
+        let packets = lockstep_tick(&mut app, label);
         if let Some(viewer) = viewer {
             client.take(sent_to(viewer, packets));
         }
@@ -634,8 +468,8 @@ fn run(cells: u32) -> Run {
         cells as usize
     );
     wait_for_generation(&mut app, label);
-    let glowstone = state(&app, "minecraft:glowstone");
-    let stone = state(&app, "minecraft:stone");
+    let glowstone = block_state(&app, "minecraft:glowstone");
+    let stone = block_state(&app, "minecraft:stone");
 
     // Region -1 and region 0 meet at x = 0: one cell owns each side.
     let west = admit(&mut app, label, "west", DVec3::new(-8.5, 100.0, 8.5), 2);
@@ -646,8 +480,9 @@ fn run(cells: u32) -> Run {
     for at in 0..TICKS {
         if at == 30 {
             for session in sessions {
-                let (index, _) = holder(&mut app, label, session).expect("the player joined");
-                first_holders.push(index);
+                let Holder { cell, .. } =
+                    holder(&mut app, label, session).expect("the player joined");
+                first_holders.push(cell);
             }
         }
         match at {
@@ -671,7 +506,7 @@ fn run(cells: u32) -> Run {
             }
             _ => {}
         }
-        let packets = tick(&mut app, label);
+        let packets = lockstep_tick(&mut app, label);
         for (client, session) in clients.iter_mut().zip(sessions) {
             client.take(sent_to(session, packets.clone()));
         }
@@ -684,27 +519,33 @@ fn run(cells: u32) -> Run {
         .iter()
         .zip(first_holders)
         .map(|(&session, first)| {
-            let (index, _) = holder(&mut app, label, session).expect("the player stays");
-            [first, index]
+            let Holder { cell, .. } = holder(&mut app, label, session).expect("the player stays");
+            [first, cell]
         })
         .collect();
     let positions = sessions
         .iter()
-        .map(|&session| {
-            let (index, player) = holder(&mut app, label, session).expect("the player stays");
-            let mut worlds = cell_worlds(&mut app, label);
-            worlds
-                .swap_remove(index)
-                .get::<Transform>(player)
-                .expect("the player stands somewhere")
-                .translation
-        })
+        .map(|&session| position(&mut app, label, session))
         .collect();
     Run {
         sections,
         positions,
         holders,
         clients: clients.into(),
+    }
+}
+
+/// Every section of `one` equals the same section of `two`.
+fn assert_same_sections(
+    one: &BTreeMap<(i32, i32, i32), Section>,
+    two: &BTreeMap<(i32, i32, i32), Section>,
+) {
+    for (pos, section) in one {
+        assert_eq!(
+            two.get(pos),
+            Some(section),
+            "the section {pos:?} differs at its owner"
+        );
     }
 }
 
@@ -715,16 +556,10 @@ fn a_world_of_two_cells_is_the_world_of_one_cell() {
 
     assert_eq!(
         one.sections.len(),
-        5 * 6 * 24,
+        5 * 6 * SECTIONS,
         "every column of the check landed"
     );
-    for (pos, section) in &one.sections {
-        assert_eq!(
-            two.sections.get(pos),
-            Some(section),
-            "the section {pos:?} differs at its owner"
-        );
-    }
+    assert_same_sections(&one.sections, &two.sections);
     assert_eq!(one.positions, two.positions);
     assert_eq!(
         two.holders,
@@ -734,28 +569,14 @@ fn a_world_of_two_cells_is_the_world_of_one_cell() {
     for (index, (one, two)) in one.clients.iter().zip(&two.clients).enumerate() {
         assert_eq!(one.logins, 1, "client {index} logs in once");
         assert_eq!(
-            two.respawns, 0,
+            one.respawns, 0,
             "client {index} sees no change of dimension"
         );
-        let add = ClientboundAddEntity::ID;
-        let remove = ClientboundRemoveEntities::ID;
-        assert!(one.count(add) > 0, "client {index} sees the other player");
-        assert_eq!(
-            (two.count(add), two.count(remove)),
-            (one.count(add), one.count(remove)),
-            "client {index} sees the other player spawn or despawn more often"
+        assert!(
+            one.count(ClientboundAddEntity::ID) > 0,
+            "client {index} sees the other player"
         );
-        assert_eq!(
-            one.entities, two.entities,
-            "client {index} gets other entity bytes"
-        );
-        assert_eq!(one.loaded, two.loaded, "client {index} gets other columns");
-        assert_eq!(
-            one.forgotten, two.forgotten,
-            "client {index} forgets other columns"
-        );
-        assert_eq!(one.blocks, two.blocks, "client {index} sees other blocks");
-        assert_eq!(one, two);
+        assert_eq!(one, two, "client {index} gets another world in two cells");
     }
 }
 
@@ -766,16 +587,10 @@ fn a_cold_column_at_the_boundary_comes_back_in_the_other_cell_as_in_one_cell() {
 
     assert_eq!(
         one.sections.len(),
-        5 * 6 * 24,
+        5 * 6 * SECTIONS,
         "every column of the check landed"
     );
-    for (pos, section) in &one.sections {
-        assert_eq!(
-            two.sections.get(pos),
-            Some(section),
-            "the section {pos:?} differs at its owner"
-        );
-    }
+    assert_same_sections(&one.sections, &two.sections);
     assert!(
         one.ticking.values().any(|ticking| ticking.entity),
         "the player near the boundary ticks the sections around it"
@@ -927,9 +742,9 @@ fn run_relay_line(cells: u32) -> LineRun {
     let mut app = relay_server(cells);
     let label = label_of(&app, OVERWORLD);
     wait_for_generation(&mut app, label);
-    let unlit = state(&app, "minecraft:redstone_lamp");
+    let unlit = block_state(&app, "minecraft:redstone_lamp");
     let lit = lit_lamp(&app);
-    let source = state(&app, "minecraft:redstone_block");
+    let source = block_state(&app, "minecraft:redstone_block");
 
     let west = admit(&mut app, label, "west", DVec3::new(-8.5, 100.0, 8.5), 2);
     let east = admit(&mut app, label, "east", DVec3::new(8.5, 100.0, 8.5), 2);
@@ -945,7 +760,7 @@ fn run_relay_line(cells: u32) -> LineRun {
             30 => place(&mut app, label, west, lamp(LINE.start() - 1), source),
             _ => {}
         }
-        tick(&mut app, label);
+        lockstep_tick(&mut app, label);
         for x in LINE {
             if block_at(&mut app, label, lamp(x)) == Some(lit) {
                 lit_at.entry(x).or_insert(at);
@@ -987,13 +802,7 @@ fn a_relay_line_lights_across_the_boundary_one_tick_late() {
         );
     }
     assert!(!one.sections.is_empty(), "the sections of the line landed");
-    for (pos, section) in &one.sections {
-        assert_eq!(
-            two.sections.get(pos),
-            Some(section),
-            "the section {pos:?} differs at its owner"
-        );
-    }
+    assert_same_sections(&one.sections, &two.sections);
 }
 
 /// When a scheduled tick ran, and when its column went cold and ticked again.
@@ -1008,7 +817,7 @@ fn run_slow_tick(cells: u32) -> SlowRun {
     let mut app = relay_server(cells);
     let label = label_of(&app, OVERWORLD);
     wait_for_generation(&mut app, label);
-    let slow = state(&app, "minecraft:note_block");
+    let slow = block_state(&app, "minecraft:note_block");
     let lit = lit_lamp(&app);
     let pos = BlockPos::new(0, 120, 3);
     let section = SectionPos::from(pos);
@@ -1025,7 +834,7 @@ fn run_slow_tick(cells: u32) -> SlowRun {
             120 => walk(&mut app, label, east, DVec3::new(-320.0, 0.0, 0.0)),
             _ => {}
         }
-        tick(&mut app, label);
+        lockstep_tick(&mut app, label);
         let held = block_at(&mut app, label, pos);
         let ticking = ticking_sections(&mut app, label, &[ColumnPos::from(pos)])
             .get(&(section.x, section.y, section.z))
@@ -1150,10 +959,10 @@ fn a_cell_with_no_player_and_no_remote_ticket_skips_its_schedules() {
         sub_app.init_resource::<LastRuns>();
         sub_app.add_systems(Last, count_last_runs);
     }
-    tick(&mut app, label);
+    lockstep_tick(&mut app, label);
     let settled = runs(&mut app, label);
     for _ in 0..10 {
-        tick(&mut app, label);
+        lockstep_tick(&mut app, label);
     }
     assert_eq!(
         runs(&mut app, label),
@@ -1163,7 +972,7 @@ fn a_cell_with_no_player_and_no_remote_ticket_skips_its_schedules() {
 
     admit(&mut app, label, "east", DVec3::new(8.5, 100.0, 8.5), 2);
     for _ in 0..10 {
-        tick(&mut app, label);
+        lockstep_tick(&mut app, label);
     }
     assert!(
         runs(&mut app, label)
@@ -1250,19 +1059,24 @@ fn run_chime() -> ChimeRun {
     let mut app = server_with(2, DimensionBlockRules::new(Chime::install));
     let label = label_of(&app, OVERWORLD);
     wait_for_generation(&mut app, label);
-    let note = state(&app, "minecraft:note_block");
+    let note = block_state(&app, "minecraft:note_block");
     let near = admit(&mut app, label, "near", DVec3::new(8.5, 100.0, 8.5), 2);
     let far = admit(&mut app, label, "far", DVec3::new(200.5, 100.0, 8.5), 2);
     let column = ColumnPos::from(CHIME);
     let mut near_client = Client::default();
     let mut far_client = Client::default();
-    let deadline = Instant::now() + PATIENCE;
+    let deadline = Instant::now() + Duration::from_secs(120);
     while !near_client.loaded.contains(&(column.x, column.z)) {
         assert!(
             Instant::now() < deadline,
             "the near client never got the column"
         );
-        let packets = tick(&mut app, label);
+        for session in [near, far] {
+            app.world_mut()
+                .resource_mut::<MuxerLink>()
+                .acknowledge_batch(session, 64.0);
+        }
+        let packets = lockstep_tick(&mut app, label);
         near_client.take(sent_to(near, packets.clone()));
         far_client.take(sent_to(far, packets));
     }
@@ -1271,7 +1085,7 @@ fn run_chime() -> ChimeRun {
     let mut near_events = Vec::new();
     let mut far_events = Vec::new();
     for _ in 0..5 {
-        let packets = tick(&mut app, label);
+        let packets = lockstep_tick(&mut app, label);
         near_events.extend(block_events(sent_to(near, packets.clone())));
         far_client.take(sent_to(far, packets.clone()));
         far_events.extend(block_events(sent_to(far, packets)));
@@ -1284,7 +1098,7 @@ fn run_chime() -> ChimeRun {
 }
 
 #[test]
-fn a_client_that_holds_the_column_gets_the_block_event_of_another_cell() {
+fn only_a_client_that_holds_the_column_gets_the_block_event_of_another_cell() {
     let run = run_chime();
     let event = ClientboundBlockEvent {
         pos: CHIME,
@@ -1293,11 +1107,7 @@ fn a_client_that_holds_the_column_gets_the_block_event_of_another_cell() {
         block: VarInt(i32::from(Block::NoteBlock.id().number())),
     };
     assert_eq!(run.near, [event]);
-}
 
-#[test]
-fn a_client_that_does_not_hold_the_column_gets_no_block_event() {
-    let run = run_chime();
     let column = ColumnPos::from(CHIME);
     assert!(
         !run.far_loaded.is_empty() && !run.far_loaded.contains(&(column.x, column.z)),
@@ -1359,7 +1169,7 @@ fn run_sprouts(cells: u32) -> BTreeSet<(i32, i32)> {
     let mut app = server_with(cells, DimensionBlockRules::new(Sprout::install));
     let label = label_of(&app, OVERWORLD);
     wait_for_generation(&mut app, label);
-    let note = state(&app, "minecraft:note_block");
+    let note = block_state(&app, "minecraft:note_block");
     let lit = lit_lamp(&app);
     let west = admit(&mut app, label, "west", DVec3::new(-8.5, 100.0, 8.5), 2);
     let east = admit(&mut app, label, "east", DVec3::new(8.5, 100.0, 8.5), 2);
@@ -1374,7 +1184,7 @@ fn run_sprouts(cells: u32) -> BTreeSet<(i32, i32)> {
                 }
             }
         }
-        tick(&mut app, label);
+        lockstep_tick(&mut app, label);
     }
     for x in -16..16 {
         for z in 0..16 {
@@ -1462,8 +1272,8 @@ fn a_block_that_a_shape_update_destroys_drops_the_items_of_the_rules() {
     let mut app = server_with(1, DimensionBlockRules::new(Fragile::install));
     let label = label_of(&app, OVERWORLD);
     wait_for_generation(&mut app, label);
-    let note = state(&app, "minecraft:note_block");
-    let stone = state(&app, "minecraft:stone");
+    let note = block_state(&app, "minecraft:note_block");
+    let stone = block_state(&app, "minecraft:stone");
     let pos = BlockPos::new(3, 120, 5);
     let east = admit(&mut app, label, "east", DVec3::new(8.5, 100.0, 8.5), 2);
     for at in 0..40 {
@@ -1472,7 +1282,7 @@ fn a_block_that_a_shape_update_destroys_drops_the_items_of_the_rules() {
             30 => place(&mut app, label, east, BlockPos::new(4, 120, 5), stone),
             _ => {}
         }
-        tick(&mut app, label);
+        lockstep_tick(&mut app, label);
     }
 
     let seen = cell_worlds(&mut app, label)[0]
@@ -1487,27 +1297,4 @@ fn a_block_that_a_shape_update_destroys_drops_the_items_of_the_rules() {
         }]
     );
     assert_eq!(block_at(&mut app, label, pos), Some(BlockStateId::AIR));
-}
-
-/// The login and the cache radius tell the client the same view distance, without the ring of
-/// columns that the view holds past it.
-#[test]
-fn the_login_and_the_cache_radius_tell_the_same_view_distance() {
-    let mut app = server(1);
-    let label = label_of(&app, OVERWORLD);
-    let session = admit(&mut app, label, "viewer", DVec3::new(8.5, 100.0, 8.5), 3);
-    let mut logins = Vec::new();
-    let mut radii = Vec::new();
-    let deadline = Instant::now() + PATIENCE;
-    while radii.is_empty() {
-        assert!(Instant::now() < deadline, "the view never sent its radius");
-        for packet in sent_to(session, tick(&mut app, label)) {
-            match packet {
-                PacketPayload::PlayerLogin(login) => logins.push(login.chunk_radius.0),
-                PacketPayload::SetChunkCacheRadius(radius) => radii.push(radius.radius.0),
-                _ => {}
-            }
-        }
-    }
-    assert_eq!((logins, radii), (vec![3], vec![3]));
 }

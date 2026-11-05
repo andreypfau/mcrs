@@ -286,26 +286,13 @@ impl PlayServer {
     pub fn ticks_all(&mut self, n: usize) -> Vec<OutboundPlayerPacket> {
         let mut packets = Vec::new();
         for _ in 0..n {
-            self.app.update();
-            mcrs_minecraft_engine_server::runner::between_ticks(&mut self.app);
-            muxer_link::deliver(self.app.world_mut(), Answers::All);
-            packets.extend(
-                self.app
-                    .world_mut()
-                    .resource_mut::<Messages<OutboundPlayerPacket>>()
-                    .drain(),
-            );
+            packets.extend(tick(&mut self.app));
         }
         packets
     }
 
     pub fn submit_to(&mut self, dim: Entity, message: ToDim) {
-        let sent = self
-            .app
-            .world_mut()
-            .resource_mut::<DimInputs>()
-            .send_control(dim, message);
-        assert!(sent, "the dimension takes the message");
+        submit_to(&mut self.app, dim, message);
     }
 
     /// Returns the host anchor of the new player and the packets of its first ticks.
@@ -322,39 +309,13 @@ impl PlayServer {
     /// Places a new session in `dim` and sends its spawn, without running a tick. Returns its
     /// host anchor.
     pub fn admit(&mut self, dim: Entity, uuid: Uuid, name: &str) -> Entity {
-        let session = self
-            .app
-            .world_mut()
-            .resource_mut::<PlayerSessionCounter>()
-            .next();
-        let anchor = self
-            .app
-            .world_mut()
-            .spawn((
-                GameProfile {
-                    id: uuid,
-                    username: name.into(),
-                    properties: Vec::new(),
-                },
-                SessionBundle::placed(session, SessionPlacement::new(Place::Joining(dim), 0)),
-            ))
-            .id();
-        self.app.world_mut().spawn(HostAnchorRef(anchor));
-        self.submit_to(
-            dim,
-            ToDim::Spawn(InboundPlayerSpawn {
-                session,
-                snapshot: PlayerTransferSnapshot {
-                    uuid,
-                    username: name.into(),
-                    position: DVec3::new(8.5, 64.0, 8.5),
-                    rotation: Vec2::ZERO,
-                    client_info: Some(crate::support::client_info_with_view_distance(2)),
-                },
-                dimensions: Vec::new().into(),
-            }),
-        );
-        anchor
+        let arrival = Arrival {
+            uuid,
+            name,
+            position: DVec3::new(8.5, 64.0, 8.5),
+            view_distance: 2,
+        };
+        admit(&mut self.app, dim, &arrival)
     }
 
     /// Raises `packet` from `anchor` on its connection in the host, then queues it in the
@@ -421,16 +382,85 @@ impl PlayServer {
 
     /// The session the host anchor `anchor` carries, while it is connected.
     pub fn session_of(&self, anchor: Entity) -> Option<PlayerSession> {
-        self.app
-            .world()
-            .get::<Session>(anchor)
-            .map(|session| session.0)
+        session_of(&self.app, anchor)
     }
 
     pub fn game_mode(&mut self, anchor: Entity) -> GameMode {
         let player = self.player(anchor);
         self.world().get::<PlayerGameMode>(player).unwrap().0
     }
+}
+
+/// Runs one update, hands the dimension outputs on, delivers every answer of the muxer, and
+/// returns the packets sent.
+pub fn tick(app: &mut App) -> Vec<OutboundPlayerPacket> {
+    app.update();
+    mcrs_minecraft_engine_server::runner::between_ticks(app);
+    muxer_link::deliver(app.world_mut(), Answers::All);
+    app.world_mut()
+        .resource_mut::<Messages<OutboundPlayerPacket>>()
+        .drain()
+        .collect()
+}
+
+pub fn submit_to(app: &mut App, dim: Entity, message: ToDim) {
+    let sent = app
+        .world_mut()
+        .resource_mut::<DimInputs>()
+        .send_control(dim, message);
+    assert!(sent, "the dimension takes the message");
+}
+
+/// The session the host anchor `anchor` carries, while it is connected.
+pub fn session_of(app: &App, anchor: Entity) -> Option<PlayerSession> {
+    app.world().get::<Session>(anchor).map(|session| session.0)
+}
+
+/// A player that joins: who it is, where it stands and how far its client sees.
+pub struct Arrival<'a> {
+    pub uuid: Uuid,
+    pub name: &'a str,
+    pub position: DVec3,
+    pub view_distance: u8,
+}
+
+/// Places a new session in `dim` and sends the spawn of its player, without running a tick.
+/// Returns its host anchor.
+pub fn admit(app: &mut App, dim: Entity, arrival: &Arrival<'_>) -> Entity {
+    let session = app
+        .world_mut()
+        .resource_mut::<PlayerSessionCounter>()
+        .next();
+    let anchor = app
+        .world_mut()
+        .spawn((
+            GameProfile {
+                id: arrival.uuid,
+                username: arrival.name.into(),
+                properties: Vec::new(),
+            },
+            SessionBundle::placed(session, SessionPlacement::new(Place::Joining(dim), 0)),
+        ))
+        .id();
+    app.world_mut().spawn(HostAnchorRef(anchor));
+    submit_to(
+        app,
+        dim,
+        ToDim::Spawn(InboundPlayerSpawn {
+            session,
+            snapshot: PlayerTransferSnapshot {
+                uuid: arrival.uuid,
+                username: arrival.name.into(),
+                position: arrival.position,
+                rotation: Vec2::ZERO,
+                client_info: Some(crate::support::client_info_with_view_distance(
+                    arrival.view_distance,
+                )),
+            },
+            dimensions: Vec::new().into(),
+        }),
+    );
+    anchor
 }
 
 /// The packets of the muxer in `packets`, in order: the id of each packet and its body.

@@ -4,26 +4,23 @@
 
 use std::time::{Duration, Instant};
 
-use bevy_app::{App, Last, PluginGroup};
+use bevy_app::{App, Last};
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::{MessageReader, Messages};
-use bevy_ecs::prelude::{ResMut, Resource, With};
+use bevy_ecs::prelude::{ResMut, Resource};
 use bevy_ecs::world::World;
 use bevy_math::DVec3;
-use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_engine::bus::PacketPayload;
 use mcrs_minecraft_engine::column_change::ColumnChange;
 use mcrs_minecraft_engine::column_version::ColumnVersion;
 use mcrs_minecraft_engine::muxer::column_views::ColumnViews;
 use mcrs_minecraft_engine::muxer::muxer_link::MuxerLink;
-use mcrs_minecraft_engine_server::{Placement, runner};
 use mcrs_minecraft_engine_world::block_update::BlockSetRequest;
 use mcrs_minecraft_engine_world::entity::physics::Transform;
-use mcrs_minecraft_engine_world::entity::player::Player;
-use mcrs_minecraft_engine_world::entity::player::chunk_view::{PlayerViewDistance, SentChunkView};
+use mcrs_minecraft_engine_world::entity::player::chunk_view::SentChunkView;
 use mcrs_minecraft_engine_world::palette::ChunkBlocks;
-use mcrs_minecraft_engine_world::session::{Owner, PlayerSession};
-use mcrs_minecraft_engine_world::world::dimension::{DimensionTypeConfig, InDimension};
+use mcrs_minecraft_engine_world::session::PlayerSession;
+use mcrs_minecraft_engine_world::world::dimension::DimensionTypeConfig;
 use mcrs_minecraft_engine_world::world::lifecycle::column_loading::LOADING_RINGS;
 use mcrs_minecraft_engine_world::world::lifecycle::simulation::SimulationDistance;
 use mcrs_minecraft_engine_world::world::lifecycle::stage::SectionStage;
@@ -33,42 +30,28 @@ use mcrs_minecraft_protocol::{Decode, VarInt};
 use mcrs_minecraft_protocol_game::chunk::LightData;
 use mcrs_minecraft_protocol_game::clientbound::ClientboundLevelChunkWithLight;
 use mcrs_minecraft_protocol_game::light_codec::{ColumnLight, RowLight, unpack_light_data};
-use mcrs_minecraft_server::MinecraftServerPlugins;
 use mcrs_minecraft_simulation::BlockUpdateFlags;
-use mcrs_minecraft_worldgen_generator::stages::FillContext;
 use mcrs_voxel::{BlockPos, BlockStateId, ColumnPos, SectionPos};
 use rustc_hash::FxHashMap;
 
-use crate::configuration_registries::ASSETS;
 use crate::host_app::{self, label_of, world as dimension_world};
+use crate::world_server::{
+    OVERWORLD, WorldServer, block_state, dimension_of, spawn_viewer, tick_until,
+    wait_for_generation,
+};
 
-const OVERWORLD: &str = "minecraft:overworld";
 const PATIENCE: Duration = Duration::from_secs(120);
 
-fn server() -> App {
-    let mut plugins = MinecraftServerPlugins::embedded();
-    plugins.core.asset_path = Some(ASSETS.to_owned());
-    plugins.network.announce_on_lan = false;
-    plugins.worlds.seed = 4;
-    // Inline, so the test reads the views where the muxer serves them.
-    plugins.core.muxer = Placement::Inline;
-    let mut app = App::new();
-    app.add_plugins(plugins.build());
-    app.finish();
-    app.cleanup();
-    crate::support::update_until_playing(&mut app);
-    runner::between_ticks(&mut app);
-    app
-}
-
-fn tick_until(app: &mut App, label: Entity, what: &str, done: impl Fn(&mut World) -> bool) {
-    let deadline = Instant::now() + PATIENCE;
-    while !done(dimension_world(app, label)) {
-        assert!(Instant::now() < deadline, "{what} never happened");
-        app.update();
-        runner::between_ticks(app);
-        runner::drain(app);
+/// A server whose overworld can generate, and its label.
+fn server() -> (App, Entity) {
+    let mut app = WorldServer {
+        worlds: mcrs_minecraft_engine_server::Placement::Thread,
+        ..WorldServer::default()
     }
+    .start();
+    let label = label_of(&app, OVERWORLD);
+    wait_for_generation(&mut app, label);
+    (app, label)
 }
 
 /// Ticks until the muxer has sent the client of `session` what `sent` asks for. Nothing answers
@@ -92,9 +75,7 @@ fn tick_until_sent(
             return;
         }
         assert!(Instant::now() < deadline, "{what} never happened");
-        app.update();
-        runner::between_ticks(app);
-        runner::drain(app);
+        host_app::tick(app);
     }
 }
 
@@ -106,13 +87,6 @@ fn holds_whole_view(views: &ColumnViews, session: PlayerSession) -> bool {
     let mut whole = true;
     view.each_column(|column| whole &= views.holds(session, column));
     whole
-}
-
-fn dimension_entity(world: &mut World) -> Entity {
-    world
-        .query_filtered::<Entity, With<ColumnIndex>>()
-        .single(world)
-        .expect("the dimension entity")
 }
 
 fn block_at(world: &mut World, dimension: Entity, pos: BlockPos) -> Option<BlockStateId> {
@@ -138,34 +112,13 @@ fn holds_column(world: &mut World, dimension: Entity, column: ColumnPos) -> bool
 
 #[test]
 fn a_change_survives_the_column_going_cold_and_coming_back() {
-    let mut app = server();
-    let label = label_of(&app, OVERWORLD);
-    tick_until(&mut app, label, "the generation context loaded", |world| {
-        world.contains_resource::<FillContext>()
-    });
-    let glowstone = app
-        .world()
-        .resource::<Blocks>()
-        .block("minecraft:glowstone")
-        .expect("glowstone is declared")
-        .default_state_id;
+    let (mut app, label) = server();
+    let glowstone = block_state(&app, "minecraft:glowstone");
     let world = dimension_world(&mut app, label);
-    let dimension = dimension_entity(world);
+    let dimension = dimension_of(world);
     let session = PlayerSession(1);
-    let player = world
-        .spawn((
-            Player,
-            Transform::from_translation(DVec3::new(8.5, 100.0, 8.5)),
-            PlayerViewDistance {
-                distance: 2,
-                ..PlayerViewDistance::default()
-            },
-            SentChunkView::default(),
-            InDimension(dimension),
-            Owner(session),
-        ))
-        .id();
-    let pos = BlockPos::new(8, 250, 8);
+    let player = spawn_viewer(world, session, DVec3::new(8.5, 100.0, 8.5), 2);
+    let pos = BlockPos::new(8, 120, 8);
     let column = ColumnPos::new(0, 0);
 
     tick_until_sent(
@@ -216,31 +169,15 @@ fn a_change_survives_the_column_going_cold_and_coming_back() {
 
 #[test]
 fn a_view_wider_than_the_hot_area_is_sent_whole_and_loads_nothing_past_it() {
-    let mut app = server();
-    let label = label_of(&app, OVERWORLD);
-    tick_until(&mut app, label, "the generation context loaded", |world| {
-        world.contains_resource::<FillContext>()
-    });
+    let (mut app, label) = server();
     let world = dimension_world(&mut app, label);
     world.insert_resource(SimulationDistance {
         horizontal: 1,
         vertical: u8::MAX,
     });
-    let dimension = dimension_entity(world);
+    let dimension = dimension_of(world);
     let session = PlayerSession(1);
-    let player = world
-        .spawn((
-            Player,
-            Transform::from_translation(DVec3::new(8.5, 100.0, 8.5)),
-            PlayerViewDistance {
-                distance: 5,
-                ..PlayerViewDistance::default()
-            },
-            SentChunkView::default(),
-            InDimension(dimension),
-            Owner(session),
-        ))
-        .id();
+    let player = spawn_viewer(world, session, DVec3::new(8.5, 100.0, 8.5), 5);
     // The simulation area one ring wider, and the rings that load with each of its columns.
     let loaded_reach = 2 + LOADING_RINGS;
     let loaded_past_the_hot_area = |world: &mut World| {
@@ -275,17 +212,7 @@ fn a_view_wider_than_the_hot_area_is_sent_whole_and_loads_nothing_past_it() {
 
     let world = dimension_world(&mut app, label);
     let late = PlayerSession(2);
-    world.spawn((
-        Player,
-        Transform::from_translation(DVec3::new(8.5, 100.0, 8.5)),
-        PlayerViewDistance {
-            distance: 5,
-            ..PlayerViewDistance::default()
-        },
-        SentChunkView::default(),
-        InDimension(dimension),
-        Owner(late),
-    ));
+    spawn_viewer(world, late, DVec3::new(8.5, 100.0, 8.5), 5);
     tick_until_sent(
         &mut app,
         label,
@@ -422,11 +349,7 @@ fn light_updates_without_a_block_change(published: &[PublishedColumn]) -> Vec<Co
 
 #[test]
 fn a_column_that_turns_hot_sends_no_light_its_viewers_already_hold() {
-    let mut app = server();
-    let label = label_of(&app, OVERWORLD);
-    tick_until(&mut app, label, "the generation context loaded", |world| {
-        world.contains_resource::<FillContext>()
-    });
+    let (mut app, label) = server();
     let sub_app = host_app::sub_app(&mut app, label);
     sub_app.init_resource::<Published>();
     sub_app.add_systems(Last, capture_published);
@@ -441,21 +364,8 @@ fn a_column_that_turns_hot_sends_no_light_its_viewers_already_hold() {
         .expect("the dimension's shape")
         .section_count as usize
         + 2;
-    let dimension = dimension_entity(world);
     let session = PlayerSession(1);
-    let player = world
-        .spawn((
-            Player,
-            Transform::from_translation(DVec3::new(8.5, 100.0, 8.5)),
-            PlayerViewDistance {
-                distance: 5,
-                ..PlayerViewDistance::default()
-            },
-            SentChunkView::default(),
-            InDimension(dimension),
-            Owner(session),
-        ))
-        .id();
+    let player = spawn_viewer(world, session, DVec3::new(8.5, 100.0, 8.5), 5);
     tick_until_sent(
         &mut app,
         label,
@@ -482,9 +392,7 @@ fn a_column_that_turns_hot_sends_no_light_its_viewers_already_hold() {
             |_| {},
         );
         for _ in 0..40 {
-            app.update();
-            runner::between_ticks(&mut app);
-            runner::drain(&mut app);
+            host_app::tick(&mut app);
         }
     }
 
