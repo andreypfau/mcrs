@@ -1,7 +1,7 @@
 use rustc_hash::FxHashSet;
 
-use bevy_tasks::{AsyncComputeTaskPool, TaskPool};
-use mcrs_engine_link::{Stage, Step, TaskOutcome};
+use bevy_tasks::{AsyncComputeTaskPool, Task, TaskPool};
+use mcrs_engine_link::{InFlight, Stage, Step, TaskOutcome};
 use mcrs_minecraft_core::BoundingBox;
 use mcrs_minecraft_engine_world::aoi::min_column_distance;
 use mcrs_minecraft_light_engine::epoch::{LightUpdate, PublishedLight, SectionLight};
@@ -11,7 +11,6 @@ use mcrs_minecraft_light_engine::world::LightWorld;
 use mcrs_voxel::{BlockPos, ColumnPos, SectionPos};
 
 use crate::light_budget::LightBudget;
-use crate::light_epoch::LightEpoch;
 use crate::light_input::LightInput;
 use crate::light_output::{LightOutput, LitColumn};
 use crate::pending_edits::PendingEdits;
@@ -35,7 +34,8 @@ pub(crate) struct LightStage {
     world: LightWorld,
     pending: PendingEdits,
     queue: LightQueue,
-    epoch: LightEpoch,
+    /// The epochs in flight, each with the area it may still write into.
+    epochs: InFlight<BoundingBox, Task<()>>,
     budget: LightBudget,
     awaiting: FxHashSet<ColumnPos>,
     /// The columns awaited with their light.
@@ -121,7 +121,7 @@ impl Stage for LightStage {
     }
 
     fn is_idle(&self) -> bool {
-        self.pending.is_empty() && self.queue.is_empty() && !self.epoch.is_running()
+        self.pending.is_empty() && self.queue.is_empty() && self.epochs.is_empty()
     }
 }
 
@@ -131,7 +131,7 @@ impl LightStage {
             world,
             pending: PendingEdits::default(),
             queue: LightQueue::default(),
-            epoch: LightEpoch::default(),
+            epochs: InFlight::default(),
             budget: LightBudget::default(),
             awaiting: FxHashSet::default(),
             awaiting_light: FxHashSet::default(),
@@ -167,7 +167,7 @@ impl LightStage {
 
     /// Publishes a finished epoch into the world and hands back what changed.
     fn retire(&mut self, outcome: TaskOutcome<LightUpdate>) -> Vec<PublishedLight> {
-        if !self.epoch.retire(outcome.id()) {
+        if self.epochs.retire(outcome.id()).is_none() {
             return Vec::new();
         }
         self.settle_due = true;
@@ -204,11 +204,11 @@ impl LightStage {
         let free = self
             .budget
             .epochs_in_flight
-            .saturating_sub(self.epoch.running_count());
+            .saturating_sub(self.epochs.len());
         if free == 0 {
             return;
         }
-        let occupied = self.epoch.areas();
+        let occupied: Vec<BoundingBox> = self.epochs.iter().copied().collect();
         for batch in self
             .queue
             .drain_batches(self.budget.cells_per_epoch, &occupied, free)
@@ -218,7 +218,13 @@ impl LightStage {
             let Some(job) = self.world.prepare_batch(batch) else {
                 continue;
             };
-            self.epoch.spawn(pool, step.begin_task(), job);
+            let end = step.begin_task();
+            let id = end.id();
+            let area = job.area();
+            let task = pool.spawn(async move {
+                end.finish(job.run());
+            });
+            self.epochs.push(id, area, task);
         }
     }
 
@@ -228,7 +234,7 @@ impl LightStage {
             world: &self.world,
             pending: &self.pending,
             queue: &self.queue,
-            epoch: &self.epoch,
+            epochs: &self.epochs,
         };
         let mut settled = Vec::new();
         self.awaiting.retain(|&column| {
@@ -249,7 +255,7 @@ impl LightStage {
             world: &self.world,
             pending: &self.pending,
             queue: &self.queue,
-            epoch: &self.epoch,
+            epochs: &self.epochs,
         };
         let mut lit = Vec::new();
         self.awaiting_light.retain(|&column| {
@@ -286,7 +292,7 @@ struct Owed<'a> {
     world: &'a LightWorld,
     pending: &'a PendingEdits,
     queue: &'a LightQueue,
-    epoch: &'a LightEpoch,
+    epochs: &'a InFlight<BoundingBox, Task<()>>,
 }
 
 impl Owed<'_> {
@@ -328,7 +334,7 @@ impl Owed<'_> {
                     .saturating_sub(1),
             ),
         };
-        !self.epoch.touches(area)
+        !self.epochs.iter().any(|epoch| epoch.intersects(area))
     }
 }
 
