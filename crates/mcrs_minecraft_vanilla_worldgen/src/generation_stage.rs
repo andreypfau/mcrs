@@ -1,5 +1,6 @@
 use bevy_tasks::Task;
 use mcrs_engine_link::{InFlight, Step, TaskOutcome};
+use mcrs_minecraft_engine::column_ticks::ColumnTicks;
 use mcrs_minecraft_engine_world::aoi::min_column_distance;
 use mcrs_minecraft_engine_world::entity::player::chunk_view::ChunkTrackingView;
 use mcrs_minecraft_engine_world::palette::{ChunkBlocks, section_states};
@@ -20,6 +21,7 @@ use std::sync::Arc;
 use tracing::trace;
 
 use crate::chunk_plugin::CHUNK_TASK_POOL;
+use crate::generated_ticks;
 use crate::generation_input::{GenerationInput, RequestedSection, ViewUpdate, WantedColumn};
 use crate::generation_output::{
     AbandonedColumn, GeneratedColumn, GeneratedSection, GenerationOutput, SectionBlocks,
@@ -449,18 +451,12 @@ impl<T: Copy + Send + 'static> GenerationStage<T> {
         let bottom = merged.y_sections.first().copied().unwrap_or(0);
         let sections: Vec<GeneratedSection<T>> =
             carried_sections(&requested, &merged.sections, bottom)
-                .map(|(tag, pos, section)| {
+                .map(|(tag, _, section)| {
                     let content = match (section, states) {
                         (Some((blocks, biomes)), Some(states)) => {
                             SectionContent::Blocks(SectionBlocks {
                                 blocks: ChunkBlocks::new(section_states(blocks, states)),
                                 biomes: biomes.clone(),
-                                ticks: merged
-                                    .ticks
-                                    .iter()
-                                    .filter(|tick| SectionPos::from(tick.pos()) == pos)
-                                    .copied()
-                                    .collect(),
                             })
                         }
                         (Some(_), None) => SectionContent::Unchecked,
@@ -471,6 +467,9 @@ impl<T: Copy + Send + 'static> GenerationStage<T> {
                 .collect();
         let maps = merged.maps.clone();
         let source = merged.source;
+        let ticks = self.ctx.as_ref().map_or_else(ColumnTicks::default, |ctx| {
+            generated_ticks::column_ticks(&merged.ticks, &ctx.blocks)
+        });
 
         self.pending.remove(&key)?;
         self.priority_index.remove(&col);
@@ -483,6 +482,7 @@ impl<T: Copy + Send + 'static> GenerationStage<T> {
             block_entities: self.store.take_block_entities(col),
             entities: self.store.take_entities(col),
             sections,
+            ticks,
         })
     }
 }

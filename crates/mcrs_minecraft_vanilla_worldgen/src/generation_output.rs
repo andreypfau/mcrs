@@ -1,8 +1,7 @@
 use mcrs_minecraft_block_entity::GeneratedBlockEntity;
+use mcrs_minecraft_engine::column_ticks::ColumnTicks;
 use mcrs_minecraft_engine_world::palette::{BiomePalette, ChunkBlocks};
 use mcrs_minecraft_heightmap::ColumnHeightmapSet;
-use mcrs_minecraft_simulation::PendingTick;
-use mcrs_minecraft_worldgen_feature::placer::GenerationKinds;
 use mcrs_minecraft_worldgen_feature_place::entity::GeneratedEntity;
 use mcrs_minecraft_worldgen_generator::task::ColumnSource;
 use mcrs_voxel::ColumnPos;
@@ -23,6 +22,8 @@ pub(crate) struct GeneratedColumn<T> {
     pub(crate) entities: Vec<GeneratedEntity>,
     /// The sections the requests asked for, bottom first.
     pub(crate) sections: Vec<GeneratedSection<T>>,
+    /// The ticks that generation scheduled in the column, in the order it asked.
+    pub(crate) ticks: ColumnTicks,
 }
 
 pub(crate) struct GeneratedSection<T> {
@@ -40,8 +41,6 @@ pub(crate) enum SectionContent {
 pub(crate) struct SectionBlocks {
     pub(crate) blocks: ChunkBlocks,
     pub(crate) biomes: BiomePalette,
-    /// The ticks generation scheduled in the section, in the order it asked.
-    pub(crate) ticks: Vec<PendingTick<GenerationKinds>>,
 }
 
 pub(crate) struct AbandonedColumn<T> {

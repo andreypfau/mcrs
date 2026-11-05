@@ -3,6 +3,8 @@ use mcrs_minecraft_chunk::{BlockLight, SkyLight};
 use mcrs_minecraft_engine_world::palette::{BiomePalette, ChunkBlocks};
 use mcrs_minecraft_heightmap::ColumnHeightmapSet;
 
+use crate::column_ticks::ColumnTicks;
+
 /// The last version of a column, as the data layer keeps it. A client receives whole columns,
 /// so Minecraft keys the data layer by column and not by section.
 #[derive(Clone, Debug)]
@@ -14,6 +16,8 @@ pub struct StoredColumn {
     pub block_entities: Vec<GeneratedBlockEntity>,
     pub heightmaps: Option<ColumnHeightmapSet>,
     pub lit_by: LitBy,
+    /// The scheduled ticks of the column, with their delays from the game time of the write.
+    pub ticks: ColumnTicks,
 }
 
 /// Where the light of a [`StoredColumn`] was computed.

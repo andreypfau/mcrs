@@ -20,6 +20,7 @@ use mcrs_minecraft_engine_world::voxel_update::{
 use mcrs_minecraft_engine_world::world::dimension::Dimension;
 use mcrs_minecraft_simulation::BlockUpdateFlags;
 
+use crate::block_simulation::{BlockSimulation, SimulationMail};
 use crate::cell_crossing::{self, Crossing};
 use crate::dim_tick::{DimInboxDrain, drain_dim_inbox};
 use crate::hot_ticket::{RemoteTickets, TicketMail, TicketUpdate};
@@ -35,6 +36,8 @@ pub enum CellMessage {
     Write(CellBlockWrite),
     /// A player of the other cell walked into a column of this cell.
     Cross(Box<Crossing>),
+    /// A message of the block kernels of the other cell.
+    Simulation(SimulationMail),
 }
 
 /// What a cell hands the other cells of its world after one tick.
@@ -44,6 +47,7 @@ pub struct CellMail {
     pub(crate) halo: Vec<CellBlockWrite>,
     pub(crate) writes: Vec<CellBlockWrite>,
     pub(crate) crossings: Vec<Crossing>,
+    pub(crate) simulation: Vec<SimulationMail>,
 }
 
 /// The messages of the other cells for this tick, until the sync point applies them.
@@ -111,6 +115,11 @@ fn receive_cell_mail(world: &mut World) {
             CellMessage::Halo(write) => halo.push(write),
             CellMessage::Write(write) => writes.push(write),
             CellMessage::Cross(crossing) => crossings.push(*crossing),
+            CellMessage::Simulation(mail) => {
+                if let Some(mut simulation) = world.get_resource_mut::<BlockSimulation>() {
+                    simulation.receive(mail);
+                }
+            }
         }
     }
     if let Some(dimension) = dimension {
@@ -168,5 +177,8 @@ pub(crate) fn take_cell_mail(world: &mut World, mail: &mut CellMail) {
     }
     if let Some(mut writes) = world.get_resource_mut::<ForeignBlockWrites>() {
         mail.writes.append(&mut writes.0);
+    }
+    if let Some(mut simulation) = world.get_resource_mut::<BlockSimulation>() {
+        simulation.take_mail(&mut mail.simulation);
     }
 }

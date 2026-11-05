@@ -12,6 +12,7 @@ use mcrs_minecraft_heightmap::{
     ColumnHeightmapSet, MotionHeightmap, NoLeavesHeightmap, SolidHeightmap, SurfaceHeightmap,
 };
 
+use crate::column_ticks::ColumnTicks;
 use crate::stored_column::{LitBy, StoredColumn, StoredSection};
 
 type ColumnContent = (
@@ -57,6 +58,7 @@ impl ColumnSnapshots<'_, '_> {
                 no_leaves: no_leaves.clone(),
             }),
             lit_by: LitBy::Dimension,
+            ticks: ColumnTicks::default(),
         };
         for lookup in column_sections.iter() {
             let SectionLookup::Loaded(section) = lookup else {

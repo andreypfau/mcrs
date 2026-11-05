@@ -8,7 +8,7 @@ pub fn remove_block<P: Into<BlockPos>>(dimension: Entity, pos: P) -> BlockSetReq
         dimension,
         pos: pos.into(),
         new_state: BlockStateId::AIR,
-        flags: BlockUpdateFlags::all(),
+        flags: BlockUpdateFlags::ALL,
         recursion_left: 512,
     }
 }

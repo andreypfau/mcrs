@@ -91,9 +91,7 @@ pub fn apply_voxel_set_requests(
     mut halo: Option<ResMut<HaloBlockChanges>>,
 ) {
     if let Some(halo) = halo.as_mut() {
-        for HaloBlockChange { dimension, write } in halo.0.drain(..) {
-            apply(&mut blocks, &mut writer, dimension, write);
-        }
+        apply_halo_changes(&mut blocks, &mut writer, &mut halo.0);
     }
     for request in reader.read() {
         let write = CellBlockWrite {
@@ -110,11 +108,24 @@ pub fn apply_voxel_set_requests(
             }
             continue;
         }
-        apply(&mut blocks, &mut writer, request.dimension, write);
+        apply_write(&mut blocks, &mut writer, request.dimension, write);
     }
 }
 
-fn apply(
+/// Applies the changes of the halo that the owners sent, before any write of the tick. They only
+/// change the copy: no neighbour hears of them.
+pub fn apply_halo_changes(
+    blocks: &mut WorldViewMut,
+    writer: &mut MessageWriter<BlockPlaced>,
+    changes: &mut Vec<HaloBlockChange>,
+) {
+    for HaloBlockChange { dimension, write } in changes.drain(..) {
+        apply_write(blocks, writer, dimension, write);
+    }
+}
+
+/// Stores `write` in its section and reports the change, with no neighbour or shape update.
+pub fn apply_write(
     blocks: &mut WorldViewMut,
     writer: &mut MessageWriter<BlockPlaced>,
     dimension: Entity,

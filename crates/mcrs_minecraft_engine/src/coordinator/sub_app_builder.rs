@@ -24,7 +24,8 @@ use crate::player_roster::{ForeignPlayers, OwnPlayers, report_own_players};
 use crate::to_muxer::DimOpened;
 use mcrs_minecraft_engine_world::block_update::{BlockPlaced, BlockSetRequest};
 
-use crate::block_update::{BlockUpdatePlugin, BlockUpdateWirePlugin};
+use crate::block_simulation::DimensionBlockRules;
+use crate::block_update::BlockUpdateWirePlugin;
 use crate::column_store::ColumnStorePlugin;
 use crate::heightmap::{BlockHeightmapPredicates, DimHeightmapPlugin};
 use crate::minecraft_entity::MinecraftEntityPlugin;
@@ -270,7 +271,11 @@ pub fn spawn_dim_subapp(
             ..AssetPlugin::default()
         });
         sub_app.add_plugins(PlayerTrackerPlugin);
-        sub_app.add_plugins(BlockUpdatePlugin);
+        app.world()
+            .get_resource::<DimensionBlockRules>()
+            .copied()
+            .unwrap_or_default()
+            .install(&mut sub_app);
         sub_app.add_plugins(BlockUpdateWirePlugin);
         sub_app.add_plugins(MinecraftEntityPlugin);
         sub_app.add_plugins(DimHeightmapPlugin);

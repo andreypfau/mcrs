@@ -373,6 +373,7 @@ impl DimCells {
             halo,
             writes,
             crossings,
+            simulation,
         } = mail;
         for &cell in &others {
             let inbox = self.mail.entry(cell).or_default();
@@ -385,6 +386,26 @@ impl DimCells {
                     .entry(cell)
                     .or_default()
                     .push(CellMessage::Write(write));
+            }
+        }
+        for mail in simulation {
+            match mail.column() {
+                Some(column) => {
+                    if let Some(cell) = self.owner(label, column) {
+                        self.mail
+                            .entry(cell)
+                            .or_default()
+                            .push(CellMessage::Simulation(mail));
+                    }
+                }
+                None => {
+                    for &cell in &others {
+                        self.mail
+                            .entry(cell)
+                            .or_default()
+                            .push(CellMessage::Simulation(mail));
+                    }
+                }
             }
         }
         let mut moves = Vec::new();

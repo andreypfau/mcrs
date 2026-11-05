@@ -28,6 +28,23 @@ impl<K: Kinds> BlockShard<K> {
     pub fn new() -> Self {
         Self::default()
     }
+
+    pub fn block_ticks(&self) -> &TickQueue<K::Block> {
+        &self.block_ticks
+    }
+
+    /// For the owner of the sections: to hold saved ticks, activate them and take a section out.
+    pub fn block_ticks_mut(&mut self) -> &mut TickQueue<K::Block> {
+        &mut self.block_ticks
+    }
+
+    pub fn fluid_ticks(&self) -> &TickQueue<K::Fluid> {
+        &self.fluid_ticks
+    }
+
+    pub fn fluid_ticks_mut(&mut self) -> &mut TickQueue<K::Fluid> {
+        &mut self.fluid_ticks
+    }
 }
 
 impl<K: Kinds> Default for BlockShard<K> {

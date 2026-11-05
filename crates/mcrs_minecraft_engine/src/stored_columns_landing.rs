@@ -10,6 +10,7 @@ use mcrs_minecraft_engine_world::world::storage::block_entity::spawn_block_entit
 use mcrs_voxel::{ColumnPos, SectionPos};
 
 use crate::column_store::{ColumnStoreLink, FetchedColumn, Produced};
+use crate::column_ticks::LandedTicks;
 use crate::heightmap::PendingColumnHeightmaps;
 use crate::stored_column::StoredColumn;
 
@@ -49,6 +50,7 @@ pub(crate) fn land_stored_columns(
     mut pending_heightmaps: ResMut<PendingColumnHeightmaps>,
     mut commands: Commands,
     mut answers: Local<Vec<StoreOutput<ColumnPos, StoredColumn>>>,
+    mut landed_ticks: Option<ResMut<LandedTicks>>,
 ) {
     answers.extend(store.outputs());
     for answer in answers.drain(..) {
@@ -70,7 +72,7 @@ pub(crate) fn land_stored_columns(
         };
         match &answer {
             StoreOutput::Found { chunk, .. } => {
-                land_sections(
+                let rows = land_sections(
                     &mut stages,
                     &positions,
                     &mut commands,
@@ -78,6 +80,11 @@ pub(crate) fn land_stored_columns(
                     &read.sections,
                     &chunk.chunk,
                 );
+                if let Some(landed_ticks) = landed_ticks.as_mut() {
+                    let mut ticks = chunk.chunk.ticks.clone();
+                    ticks.retain_rows(&rows);
+                    landed_ticks.land(column, ticks);
+                }
                 if let Some(maps) = &chunk.chunk.heightmaps
                     && !read.sections.is_empty()
                 {
@@ -102,7 +109,8 @@ pub(crate) fn land_stored_columns(
 
 /// Puts the blocks of `stored` into the sections that wait for them. The light stays behind:
 /// the data layer may light the version again at any time, so the dimension lights the
-/// sections itself, and what it simulates does not depend on when that happened.
+/// sections itself, and what it simulates does not depend on when that happened. Returns the rows
+/// that landed.
 fn land_sections(
     stages: &mut SectionStages,
     positions: &Query<&SectionPos>,
@@ -110,7 +118,7 @@ fn land_sections(
     dim: Entity,
     sections: &[Entity],
     stored: &StoredColumn,
-) {
+) -> Vec<i32> {
     let mut landed_rows: Vec<i32> = Vec::new();
     for &section in sections {
         if stages.get(section) != Some(SectionStage::Fetching) {
@@ -138,4 +146,5 @@ fn land_sections(
         .cloned()
         .collect();
     spawn_block_entities(commands, InDimension(dim), block_entities);
+    landed_rows
 }

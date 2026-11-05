@@ -10,6 +10,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::num::NonZeroU32;
+use std::ops::RangeInclusive;
 use std::time::{Duration, Instant};
 
 use bevy_app::{App, PluginGroup};
@@ -19,8 +20,11 @@ use bevy_ecs::prelude::{Has, With};
 use bevy_ecs::world::World;
 use bevy_math::{DVec3, Vec2};
 use bevy_tasks::block_on;
+use mcrs_minecraft_block::block_keys::Block;
 use mcrs_minecraft_block::definition::Blocks;
+use mcrs_minecraft_block::definition::schema::PropertyValue;
 use mcrs_minecraft_chunk::{BlockLight, LightStorage, SkyLight};
+use mcrs_minecraft_engine::block_simulation::{BlockSimulationPlugin, DimensionBlockRules};
 use mcrs_minecraft_engine::bus::{
     InboundPlayerSpawn, OutboundPlayerPacket, PacketPayload, PlayerTransferSnapshot,
 };
@@ -30,6 +34,7 @@ use mcrs_minecraft_engine::game_profile::GameProfile;
 use mcrs_minecraft_engine::muxer::dim_inputs::DimInputs;
 use mcrs_minecraft_engine::muxer::entity_replication::{self, Answers};
 use mcrs_minecraft_engine::muxer::session::{HostAnchorRef, SessionBundle};
+use mcrs_minecraft_engine::world_kinds::WorldKinds;
 use mcrs_minecraft_engine_server::{Placement, WorldCells, runner};
 use mcrs_minecraft_engine_world::block_update::BlockSetRequest;
 use mcrs_minecraft_engine_world::entity::physics::Transform;
@@ -45,12 +50,15 @@ use mcrs_minecraft_engine_world::world::lifecycle::stage::SectionStage;
 use mcrs_minecraft_protocol::Packet;
 use mcrs_minecraft_protocol::uuid::Uuid;
 use mcrs_minecraft_protocol_game::clientbound::{ClientboundAddEntity, ClientboundRemoveEntities};
+use mcrs_minecraft_resource::Id;
 use mcrs_minecraft_server::MinecraftServerPlugins;
-use mcrs_minecraft_simulation::BlockUpdateFlags;
+use mcrs_minecraft_simulation::{
+    BlockBehaviour, BlockFacts, BlockUpdateFlags, Cx, SimulationVolume, TickPriority,
+};
 use mcrs_minecraft_vanilla_light::LightLink;
 use mcrs_minecraft_vanilla_worldgen::GenerationLink;
 use mcrs_minecraft_worldgen_generator::stages::FillContext;
-use mcrs_voxel::{BlockPos, BlockStateId, ColumnPos, SectionPos};
+use mcrs_voxel::{BlockPos, BlockStateId, ColumnPos, LocalPos, SectionPos};
 
 use crate::configuration_registries::ASSETS;
 use crate::host_app::{label_of, replicated, sent_to};
@@ -61,6 +69,10 @@ const COLD_TICKS: usize = 100;
 const PATIENCE: Duration = Duration::from_secs(120);
 
 fn server(cells: u32) -> App {
+    server_with(cells, DimensionBlockRules::default())
+}
+
+fn server_with(cells: u32, rules: DimensionBlockRules) -> App {
     let mut plugins = MinecraftServerPlugins::embedded();
     plugins.core.asset_path = Some(ASSETS.to_owned());
     plugins.core.worlds = Placement::Inline;
@@ -73,6 +85,7 @@ fn server(cells: u32) -> App {
     plugins.worlds.seed = 4;
     let mut app = App::new();
     app.add_plugins(plugins.build());
+    app.insert_resource(rules);
     app.finish();
     app.cleanup();
     crate::support::update_until_playing(&mut app);
@@ -214,7 +227,7 @@ fn place(app: &mut App, label: Entity, actor: PlayerSession, pos: BlockPos, stat
             dimension,
             pos,
             new_state: state,
-            flags: BlockUpdateFlags::all(),
+            flags: BlockUpdateFlags::ALL,
             recursion_left: 512,
         });
 }
@@ -563,6 +576,277 @@ fn a_cold_column_at_the_boundary_comes_back_in_the_other_cell_as_in_one_cell() {
             two.ticking.get(pos),
             Some(ticking),
             "the section {pos:?} ticks otherwise at its owner"
+        );
+    }
+}
+
+const RELAY_DELAY: usize = 2;
+const SLOW_DELAY: usize = 60;
+
+/// Probe rules, not the rules of any game block. An unlit redstone lamp next to a lit one or to a
+/// redstone block lights [`RELAY_DELAY`] ticks after a neighbour changed, so a line of lamps
+/// lights one lamp after the other. A note block that is placed turns into a lit lamp
+/// [`SLOW_DELAY`] ticks later.
+#[derive(Clone, Copy, Debug)]
+struct Relay {
+    unlit: BlockStateId,
+    lit: BlockStateId,
+    source: BlockStateId,
+    slow: BlockStateId,
+}
+
+impl Relay {
+    fn install(sub_app: &mut bevy_app::SubApp) {
+        let blocks = sub_app.world().resource::<Blocks>();
+        let lamp = blocks.block("minecraft:redstone_lamp").expect("a lamp");
+        let relay = Relay {
+            unlit: lamp.default_state_id,
+            lit: lamp
+                .with(lamp.default_state_id, "lit", &PropertyValue::Bool(true))
+                .expect("a lit lamp"),
+            source: blocks
+                .default_state("minecraft:redstone_block")
+                .expect("a redstone block"),
+            slow: blocks
+                .default_state("minecraft:note_block")
+                .expect("a note block"),
+        };
+        sub_app.add_plugins(BlockSimulationPlugin::new(relay));
+    }
+}
+
+impl BlockBehaviour<WorldKinds> for Relay {
+    fn block_tick<V: SimulationVolume, F: BlockFacts<WorldKinds>>(
+        &self,
+        cx: &mut Cx<'_, WorldKinds, V, F, Self>,
+        at: BlockPos,
+        state: BlockStateId,
+    ) {
+        if state == self.unlit || state == self.slow {
+            cx.set(at, self.lit, BlockUpdateFlags::ALL, 512);
+        }
+    }
+
+    fn placed<V: SimulationVolume, F: BlockFacts<WorldKinds>>(
+        &self,
+        cx: &mut Cx<'_, WorldKinds, V, F, Self>,
+        at: BlockPos,
+        new: BlockStateId,
+        _old: BlockStateId,
+        _moved_by_piston: bool,
+    ) {
+        if new == self.slow {
+            let delay = SLOW_DELAY as i32;
+            cx.schedule_block_tick(at, Block::NoteBlock.id(), delay, TickPriority::Normal);
+        }
+    }
+
+    fn neighbour_changed<V: SimulationVolume, F: BlockFacts<WorldKinds>>(
+        &self,
+        cx: &mut Cx<'_, WorldKinds, V, F, Self>,
+        at: BlockPos,
+        state: BlockStateId,
+        _source: Id<Block>,
+        _moved_by_piston: bool,
+    ) {
+        let lamp = Block::RedstoneLamp.id();
+        if state != self.unlit || cx.has_scheduled_block_tick(at, lamp) {
+            return;
+        }
+        let neighbours = [
+            BlockPos::new(at.x - 1, at.y, at.z),
+            BlockPos::new(at.x + 1, at.y, at.z),
+            BlockPos::new(at.x, at.y - 1, at.z),
+            BlockPos::new(at.x, at.y + 1, at.z),
+            BlockPos::new(at.x, at.y, at.z - 1),
+            BlockPos::new(at.x, at.y, at.z + 1),
+        ];
+        let powered = neighbours.into_iter().any(|pos| {
+            cx.state(pos)
+                .is_ok_and(|state| state == self.lit || state == self.source)
+        });
+        if powered {
+            let delay = RELAY_DELAY as i32;
+            cx.schedule_block_tick(at, lamp, delay, TickPriority::Normal);
+        }
+    }
+}
+
+fn lit_lamp(app: &App) -> BlockStateId {
+    let blocks = app.world().resource::<Blocks>();
+    let lamp = blocks.block("minecraft:redstone_lamp").expect("a lamp");
+    lamp.with(lamp.default_state_id, "lit", &PropertyValue::Bool(true))
+        .expect("a lit lamp")
+}
+
+fn relay_server(cells: u32) -> App {
+    server_with(cells, DimensionBlockRules::new(Relay::install))
+}
+
+/// The block at `pos` at the cell that owns its column, while that cell holds it.
+fn block_at(app: &mut App, label: Entity, pos: BlockPos) -> Option<BlockStateId> {
+    let section = SectionPos::from(pos);
+    for world in cell_worlds(app, label) {
+        let owned = world.get_resource::<OwnedColumns>().copied();
+        if owned.is_some_and(|owned| !owned.owns_block(pos)) {
+            continue;
+        }
+        let mut query = world.query::<(&SectionPos, &ChunkBlocks)>();
+        if let Some((_, blocks)) = query.iter(world).find(|(at, _)| **at == section) {
+            return Some(blocks.get(LocalPos::from(pos)));
+        }
+    }
+    None
+}
+
+/// The lamps of the line run from x = -6 to x = 5, across the boundary at x = 0.
+const LINE: RangeInclusive<i32> = -6..=5;
+
+fn lamp(x: i32) -> BlockPos {
+    BlockPos::new(x, 120, 5)
+}
+
+/// The tick at which each lamp of the line lit, and the sections of the line at their owners.
+struct LineRun {
+    lit_at: BTreeMap<i32, usize>,
+    sections: BTreeMap<(i32, i32, i32), Section>,
+}
+
+fn run_relay_line(cells: u32) -> LineRun {
+    let mut app = relay_server(cells);
+    let label = label_of(&app, OVERWORLD);
+    wait_for_generation(&mut app, label);
+    let unlit = state(&app, "minecraft:redstone_lamp");
+    let lit = lit_lamp(&app);
+    let source = state(&app, "minecraft:redstone_block");
+
+    let west = admit(&mut app, label, "west", DVec3::new(-8.5, 100.0, 8.5));
+    let east = admit(&mut app, label, "east", DVec3::new(8.5, 100.0, 8.5));
+    let mut lit_at = BTreeMap::new();
+    for at in 0..TICKS {
+        match at {
+            25 => {
+                for x in LINE {
+                    let owner = if x < 0 { west } else { east };
+                    place(&mut app, label, owner, lamp(x), unlit);
+                }
+            }
+            30 => place(&mut app, label, west, lamp(LINE.start() - 1), source),
+            _ => {}
+        }
+        tick(&mut app, label);
+        for x in LINE {
+            if block_at(&mut app, label, lamp(x)) == Some(lit) {
+                lit_at.entry(x).or_insert(at);
+            }
+        }
+    }
+    let columns: Vec<ColumnPos> = LINE.map(|x| ColumnPos::from(lamp(x))).collect();
+    LineRun {
+        lit_at,
+        sections: owned_sections(&mut app, label, &columns),
+    }
+}
+
+/// A line of relays across the boundary lights in a world of two cells as in a world of one
+/// cell. The first relay past the boundary hears of its neighbour one tick late, so it and every
+/// relay after it light one tick later.
+#[test]
+fn a_relay_line_lights_across_the_boundary_one_tick_late() {
+    let one = run_relay_line(1);
+    let two = run_relay_line(2);
+
+    let first = *one
+        .lit_at
+        .get(LINE.start())
+        .expect("the first relay lights in one cell");
+    for x in LINE {
+        let steps = usize::try_from(x - LINE.start()).expect("the line runs east");
+        let one_at = first + RELAY_DELAY * steps;
+        assert_eq!(
+            one.lit_at.get(&x),
+            Some(&one_at),
+            "in one cell, the relay at x = {x} lights {RELAY_DELAY} ticks after the one before it"
+        );
+        let delay = usize::from(x >= 0);
+        assert_eq!(
+            two.lit_at.get(&x),
+            Some(&(one_at + delay)),
+            "in two cells, the relay at x = {x} lights {delay} ticks later"
+        );
+    }
+    assert!(!one.sections.is_empty(), "the sections of the line landed");
+    for (pos, section) in &one.sections {
+        assert_eq!(
+            two.sections.get(pos),
+            Some(section),
+            "the section {pos:?} differs at its owner"
+        );
+    }
+}
+
+/// When a scheduled tick ran, and when its column went cold and ticked again.
+#[derive(Debug, Default)]
+struct SlowRun {
+    cooled_at: Option<usize>,
+    ticking_again_at: Option<usize>,
+    ran_at: Option<usize>,
+}
+
+fn run_slow_tick(cells: u32) -> SlowRun {
+    let mut app = relay_server(cells);
+    let label = label_of(&app, OVERWORLD);
+    wait_for_generation(&mut app, label);
+    let slow = state(&app, "minecraft:note_block");
+    let lit = lit_lamp(&app);
+    let pos = BlockPos::new(0, 120, 3);
+    let section = SectionPos::from(pos);
+
+    // The column of x = 0 is in region 0: the cell of the player owns it in both worlds.
+    let east = admit(&mut app, label, "east", DVec3::new(8.5, 100.0, 8.5));
+    let mut run = SlowRun::default();
+    for at in 0..220 {
+        match at {
+            30 => place(&mut app, label, east, pos, slow),
+            // Far enough that no ticket loads the column; the tick has 55 ticks left then.
+            35 => walk(&mut app, label, east, DVec3::new(320.0, 0.0, 0.0)),
+            // Later than the tick was due, so a due time that counts the cold ticks shows.
+            120 => walk(&mut app, label, east, DVec3::new(-320.0, 0.0, 0.0)),
+            _ => {}
+        }
+        tick(&mut app, label);
+        let held = block_at(&mut app, label, pos);
+        let ticking = ticking_sections(&mut app, label, &[ColumnPos::from(pos)])
+            .get(&(section.x, section.y, section.z))
+            .is_some_and(|ticking| ticking.block);
+        if at > 35 && held.is_none() {
+            run.cooled_at.get_or_insert(at);
+        }
+        if run.cooled_at.is_some() && ticking && held.is_some() {
+            run.ticking_again_at.get_or_insert(at);
+        }
+        if held == Some(lit) {
+            run.ran_at.get_or_insert(at);
+        }
+    }
+    run
+}
+
+/// A scheduled tick of a column that goes cold runs after the column ticks again, with the delay
+/// that it had left when the column went cold: the cold ticks do not count.
+#[test]
+fn a_scheduled_tick_survives_a_cold_column_with_its_remaining_delay() {
+    for cells in [1, 2] {
+        let run = run_slow_tick(cells);
+        let cooled_at = run.cooled_at.expect("the column goes cold");
+        let back = run.ticking_again_at.expect("the column ticks again");
+        let left = 30 + SLOW_DELAY - cooled_at;
+        let ran_at = run.ran_at.unwrap_or_else(|| {
+            panic!("the tick of the cold column never runs in {cells} cells: {run:?}")
+        });
+        assert!(
+            ran_at.abs_diff(back + left) <= 1,
+            "the tick runs {left} ticks after the column ticks again in {cells} cells: {run:?}"
         );
     }
 }

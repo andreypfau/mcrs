@@ -9,9 +9,12 @@ use mcrs_minecraft_engine_world::world::storage::column::{
     ColumnIndex, ColumnSections, SectionLookup,
 };
 
+use crate::block_simulation::{BlockSimulation, TickChange};
 use crate::column_snapshot::ColumnSnapshots;
 use crate::column_store::ColumnStoreLink;
+use crate::coordinator::clock::GameTime;
 use crate::stored_columns_landing::TakenFromStore;
+use mcrs_minecraft_simulation::GameTick;
 
 /// The light of the column, and of the eight around it, settled while it was loaded, so the
 /// light it holds is the light it keeps when it goes cold.
@@ -75,7 +78,12 @@ enum Origin {
 /// A column that never landed whole keeps the version the data layer already holds, and so
 /// does a column that the data layer handed back and that did not change. A generated column
 /// whose light never settled is not written: its light at the edge of the loaded space was
-/// lit without the neighbours, and the data layer generates the same column again.
+/// lit without the neighbours, and the data layer generates the same column again. Either column
+/// is written still when its scheduled ticks changed since it landed, so that they are kept.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "the write reads the marks, the content and the ticks of each column that cools"
+)]
 pub(crate) fn write_cold_columns(
     dims: Query<(&ColumnLoading, &ColumnIndex)>,
     columns: Query<ColumnMarks>,
@@ -84,7 +92,10 @@ pub(crate) fn write_cold_columns(
     light_gated: Option<Res<LightGated>>,
     owned: Option<Res<OwnedColumns>>,
     mut store: ResMut<ColumnStoreLink>,
+    mut simulation: Option<ResMut<BlockSimulation>>,
+    time: Option<Res<GameTime>>,
 ) {
+    let now = GameTick(time.as_deref().map_or(0, |time| time.0));
     for (loading, index) in &dims {
         for &column in loading.cooling() {
             // A column of the halo is a copy: its owner writes it.
@@ -97,16 +108,29 @@ pub(crate) fn write_cold_columns(
             let Ok((column_sections, light_final)) = columns.get(slot.entity) else {
                 continue;
             };
+            // The sections go now, so their ticks leave the queues whether or not they are kept.
+            let min_y = column_sections.min_section_y;
+            let rows = (0..column_sections.sections.len())
+                .map_while(|index| i32::try_from(index).ok()?.checked_add(min_y));
+            let taken = simulation
+                .as_mut()
+                .map(|simulation| simulation.take_column(column, rows, now));
             let Some(origin) = origin(column_sections, &marks) else {
                 continue;
             };
             let unlit = light_gated.is_some() && !light_final;
+            let ticks_changed = taken
+                .as_ref()
+                .is_some_and(|taken| taken.change == TickChange::Changed);
             match origin {
-                Origin::Unchanged => continue,
-                Origin::Generated if unlit => continue,
-                Origin::Generated | Origin::Kept => {}
+                Origin::Unchanged if !ticks_changed => continue,
+                Origin::Generated if unlit && !ticks_changed => continue,
+                Origin::Unchanged | Origin::Generated | Origin::Kept => {}
             }
-            if let Some(stored) = snapshots.take(slot.entity) {
+            if let Some(mut stored) = snapshots.take(slot.entity) {
+                if let Some(taken) = taken {
+                    stored.ticks = taken.ticks;
+                }
                 store.put(column, stored);
             }
         }

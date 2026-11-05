@@ -6,10 +6,12 @@ use crate::muxer::muxer_plugin::MuxerPlugin;
 pub mod ability;
 pub mod between_ticks;
 pub mod block_entity_packet;
+pub mod block_simulation;
 pub mod block_update;
 pub mod bus;
 pub mod cell_crossing;
 pub mod cell_mail;
+mod cell_volume;
 pub mod channel_types;
 pub mod client_info;
 pub mod cold_columns;
@@ -20,6 +22,7 @@ pub mod column_request;
 mod column_snapshot;
 pub mod column_store;
 pub mod column_streams;
+pub mod column_ticks;
 pub mod column_version;
 pub mod command_handoff;
 pub mod consume_inbound_player_spawn;
@@ -60,6 +63,7 @@ pub mod teleport;
 pub mod tile_events;
 pub mod to_coordinator;
 pub mod to_muxer;
+pub mod world_kinds;
 pub mod world_seed;
 
 /// The host: the coordinator and the muxer, in one world.

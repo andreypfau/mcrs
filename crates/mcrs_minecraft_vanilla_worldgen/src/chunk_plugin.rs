@@ -13,6 +13,7 @@ use bevy_tasks::{TaskPool, TaskPoolBuilder};
 use mcrs_engine_link::{Link, Placement};
 use mcrs_minecraft_engine::column_production::ColumnProduction;
 use mcrs_minecraft_engine::column_store::StoredColumnLandSet;
+use mcrs_minecraft_engine::column_ticks::LandedTicks;
 use mcrs_minecraft_engine::heightmap::PendingColumnHeightmaps;
 use mcrs_minecraft_engine_world::aoi::min_column_distance;
 use mcrs_minecraft_engine_world::entity::physics::Transform;
@@ -27,8 +28,6 @@ use mcrs_minecraft_engine_world::world::lifecycle::ticket::ChunkSpawnSet;
 use mcrs_minecraft_engine_world::world::lifecycle::trace as column_trace;
 use mcrs_minecraft_engine_world::world::lifecycle::trace::{ColumnStage, ColumnTraceLog};
 use mcrs_minecraft_engine_world::world::storage::block_entity::spawn_block_entities;
-use mcrs_minecraft_simulation::PendingTick;
-use mcrs_minecraft_worldgen_feature::placer::GenerationKinds;
 use mcrs_minecraft_worldgen_generator::stages::FillContext;
 use mcrs_minecraft_worldgen_generator::task::ColumnSource;
 use mcrs_voxel::{ColumnPos, SectionPos};
@@ -188,6 +187,8 @@ pub(crate) fn integrate_generated_columns(
     slow_threshold: Option<Res<SlowColumnThreshold>>,
     mut latency: ResMut<ColumnLatency>,
     traces: Option<Res<ColumnTraceLog>>,
+    mut landed_ticks: Option<ResMut<LandedTicks>>,
+    positions: Query<&SectionPos>,
 ) {
     let threshold = slow_threshold.as_deref().copied().unwrap_or_default().0;
     for output in generation.outputs() {
@@ -215,6 +216,7 @@ pub(crate) fn integrate_generated_columns(
             block_entities,
             entities,
             sections,
+            ticks,
         } = column;
         // Any live section of the column answers for the whole column. The
         // first-requested one may already have been despawned while the rest of
@@ -241,14 +243,15 @@ pub(crate) fn integrate_generated_columns(
             pending_heightmaps.0.insert((dim.0, col), maps);
         }
 
+        let mut landed_rows = Vec::new();
         for section in sections {
             let entity = section.tag;
             match section.content {
                 SectionContent::Blocks(content) => {
                     let mut commands = commands.entity(entity);
                     commands.try_insert((content.blocks, content.biomes));
-                    if !content.ticks.is_empty() {
-                        commands.try_insert(GeneratedTicks(content.ticks));
+                    if let Ok(pos) = positions.get(entity) {
+                        landed_rows.push(pos.y);
                     }
                     // One cancelled while it generated keeps the blocks for a ticket that
                     // takes it back, but stays on its way out.
@@ -262,6 +265,11 @@ pub(crate) fn integrate_generated_columns(
                 }
                 SectionContent::Missing => stages.set(entity, SectionStage::Unloading),
             }
+        }
+        if let Some(landed_ticks) = landed_ticks.as_mut() {
+            let mut ticks = ticks;
+            ticks.retain_rows(&landed_rows);
+            landed_ticks.land(col, ticks);
         }
     }
 }
@@ -324,11 +332,6 @@ impl ColumnLatency {
         );
     }
 }
-
-/// The ticks generation scheduled in a section, in the order it asked, held for the
-/// simulation that runs the section.
-#[derive(bevy_ecs::prelude::Component, Clone, Debug, PartialEq)]
-pub(crate) struct GeneratedTicks(pub Vec<PendingTick<GenerationKinds>>);
 
 #[cfg(test)]
 pub(crate) fn request_section(

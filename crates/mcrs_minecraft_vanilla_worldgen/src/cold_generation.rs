@@ -122,5 +122,6 @@ fn stored_column(column: GeneratedColumn<i32>) -> Option<StoredColumn> {
         block_entities: column.block_entities,
         heightmaps: column.maps,
         lit_by: LitBy::Unlit,
+        ticks: column.ticks,
     })
 }

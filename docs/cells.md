@@ -180,8 +180,9 @@ A write into a chunk of another cell is a message to its owner.
 
 Each domain has one rule across a cell boundary: a halo read, a message to the owner, or a
 limit. A message that a cell sends during tick `T` applies at tick `T + 1`. At the sync point,
-a cell applies the tickets first, then the halo changes, then the writes, then the players
-that arrive. Each kind keeps the order of the cells that sent it.
+a cell applies the tickets first, then the halo changes, then the messages of the block
+kernels, then the writes, then the players that arrive. Each kind keeps the order of the cells
+that sent it.
 
 | Domain | Rule | Delay |
 |---|---|---|
@@ -196,9 +197,13 @@ that arrive. Each kind keeps the order of the cells that sent it.
 | Commands and selectors | a command runs in the cell of its player. The players of the other cells of the world are players of the same dimension, and an effect on one of them is an order to its cell | one tick for an order |
 | Chat, player list, world clocks | the host serves the whole world, as for one cell | none |
 | Entity ids | the coordinator grants a range to each cell | none |
-| Neighbour and shape updates, redstone, fluids, scheduled ticks, pistons, explosions | not supported across cells yet. The server does not run them in a dimension yet. The simulation kernels mark a section of another cell as `Foreign` and send a write to it as a message | — |
+| Block write of the block kernels into a column of another cell | the kernels see a section of the halo as `Read`. A set into it is a message to the owner, which applies it with all its flags in its block step | one tick, and one more for the halo of the writer |
+| Neighbour and shape updates | a block reads its neighbours across the boundary from the halo. An update of a block of another cell is a message to the owner. The owner runs it in its chain at the sync point, and the chain keeps the count of updates that it reached in the sender | one tick, and the update reads the halo of the owner after the halo change of the same tick |
+| Scheduled block and fluid ticks | only the owner of a column holds its ticks. A tick for a block of another cell is a message to the owner, with its due tick | none when the delay is one tick or more, because the due tick does not change |
+| Block events | a message to the owner of the column | one tick |
+| Redstone, fluids, pistons, explosions | no block has rules yet, because no specification states them. Their rules use the four rows above | the delays of the four rows above |
 | Ticking of the sections of a player | each cell marks the sections that it owns from the simulation area of each ticket: its own tickets and the remote tickets. A cell never marks a section of its halo | one tick for the cells that do not own the player |
-| Data layer | one data layer for the world. Each cell writes only the columns that it owns, and reads any column | the answer comes at the next tick, as for one cell |
+| Data layer | one data layer for the world. Each cell writes only the columns that it owns, and reads any column. A column keeps its scheduled ticks, each with its delay from the game time of the write | the answer comes at the next tick, as for one cell |
 
 ---
 
@@ -433,7 +438,7 @@ sharding document (decision 20). It is also the mode of the tests.
 
 | This document | Today |
 |---|---|
-| Cell | one dimension sub-app in `mcrs_engine_cell::Cells` (`DimCells`). A world has one cell by default, or a static division by region over the count of the server's `cells` field (`WorldCells`, `mcrs_engine_cell::BoxPartition`). Each cell owns the columns of its regions (`OwnedColumns`) and holds a halo of the columns around them. The coordinator splits the input of a world by the owner: a player to the cell of the column it arrives in, its packets to the cell that holds it, a column request to the owner of the column. It merges the outputs of the cells of a world into one output for the muxer, and hands the messages between the cells (`cell_mail`: tickets, halo changes, writes, players that cross) to their next tick. The cells of all worlds tick in lockstep after the host's `Last`, placed `Inline` or on a `Thread` by the server's `worlds` field. It loads only the columns of its hot tickets and the two rings around them. It reports the view of each player, publishes a version of each column that the muxer wants, and publishes each change of the blocks and the light of a column that the muxer subscribes to (`column_streams`, `block_update`, `emit_light_updates`). Without a data layer, a wanted column loads with a ticket until the dimension publishes it |
+| Cell | one dimension sub-app in `mcrs_engine_cell::Cells` (`DimCells`). A world has one cell by default, or a static division by region over the count of the server's `cells` field (`WorldCells`, `mcrs_engine_cell::BoxPartition`). Each cell owns the columns of its regions (`OwnedColumns`) and holds a halo of the columns around them. The coordinator splits the input of a world by the owner: a player to the cell of the column it arrives in, its packets to the cell that holds it, a column request to the owner of the column. It merges the outputs of the cells of a world into one output for the muxer, and hands the messages between the cells (`cell_mail`: tickets, halo changes, writes, players that cross) to their next tick. The cells of all worlds tick in lockstep after the host's `Last`, placed `Inline` or on a `Thread` by the server's `worlds` field. It loads only the columns of its hot tickets and the two rings around them. It reports the view of each player, publishes a version of each column that the muxer wants, and publishes each change of the blocks and the light of a column that the muxer subscribes to (`column_streams`, `block_update`, `emit_light_updates`). Without a data layer, a wanted column loads with a ticket until the dimension publishes it. Each cell runs the block kernels of `mcrs_minecraft_simulation` in its tick (`block_simulation`): the block writes, the scheduled block ticks, the scheduled fluid ticks and the block events, in this order. The ticks and the events run only in the sections that the cell marks `BlockTicking`. The host names the block rules (`DimensionBlockRules`). A message of the kernels goes to the owner of its column (`cell_mail`) |
 | Muxer | for entities, `mcrs_engine_muxer::MuxerStage` on a link from the host, placed by the server's `muxer` field (`Thread` by default): tiles, subscriptions, delta bases, spawn bundles and the player list, with the Minecraft codec of `mcrs_minecraft_replication`; for the rest, the `muxer` module tree of `mcrs_minecraft_engine` in the host world: connections and the bridge, sessions and their placement, the input it routes to the owner dimension, the orders and the command handoffs it routes to the dimension of a player or of a handoff, the host side of entity replication, and the view of each player (`muxer::column_views`): the columns of the view and their order by distance, the batches and their pace by the answer of the client, the center, the radius and the forgets, and the version stream of each column, whose bytes the muxer sends to every client that takes the version, with the changes after it |
 | Coordinator | the `coordinator` module tree of `mcrs_minecraft_engine` in the host world: the dimension worlds and their lockstep tick, the spawn and despawn queues, game time and world clocks, the operator list, the ranges of global entity ids that it grants to each dimension world, the dimension of a player that joins or changes dimension, the running dimensions and the players that each dimension reports. It and the muxer share one world but talk only through the messages of `to_muxer` and `to_coordinator` |
 | Link | `mcrs_engine_link` for light and generation; the host and each dimension exchange one `DimInput` and one `DimOutput` a tick over the cell's link: the coordinator puts the input that the muxer routed into the `DimInput`, and answers a request for entity ids in a `DimOutput` with a range in the next `DimInput`, and hands the packets and the tile deltas of each `DimOutput` to the muxer, which sends the tile deltas on to the entity muxer over its link. The requests of the muxer for column versions go in the `DimInput`, and the views of the players, the column versions and the column changes come back in the `DimOutput`. A command runs inside the tick of one dimension: the muxer routes the command line to the dimension of the player, an effect on a player of another dimension leaves in the `DimOutput` as an order that the muxer routes to the dimension of the player, a stage that reads another dimension leaves as a handoff to that dimension, and a clock change leaves for the coordinator, which sends the clocks to every dimension in the next `DimInput`. Each `DimOutput` reports the players of its dimension, and the coordinator puts the players of the other dimensions in the `DimInput` of a dimension that runs commands. No part lends a world; only tests read a world between ticks |
@@ -486,8 +491,9 @@ Each step leaves a working server and passes the determinism test.
        data layer its blocks, remove that path.
      - The dimension makes the view square of a player from its position. The muxer takes the
        square as it is.
-   - The scheduled ticks of a section, which a cold column does not keep yet. A column that the
-     data layer generates drops the ticks that generation scheduled.
+   - Done: a cold column keeps its scheduled ticks with their delays from the game time of
+     the write, and a column that the data layer generates keeps the ticks that generation
+     scheduled, with no delay. A tick activates when its section runs ticks again.
 4. Let a cell own a box, not a whole world. Add the halo and the messages between cells. Divide
    statically, for example by region files. Test one cell against many cells. Done: a world
    divides by region over a fixed count of cells, and a test runs each scenario with one cell
@@ -501,9 +507,13 @@ Each step leaves a working server and passes the determinism test.
      the same limit for a neighbour that only the owner holds. Check: a block that a player
      changes in a hot column at a boundary is in the halo of a cell that loads the column
      later.
-   - Neighbour and shape updates, redstone, fluids, scheduled ticks, pistons and explosions
-     across a boundary. They are not in the dimension yet. Check: a redstone line across a
-     boundary gives the same states as in a world of one cell, a tick later at most.
+   - Done: the dimension runs the block kernels (`block_simulation`), and neighbour and shape
+     updates, scheduled ticks and block events cross a boundary as section 4 states. Check:
+     a line of probe relays across a boundary lights as in a world of one cell, one tick later
+     past the boundary. Parts left: the rules of the blocks (redstone, fluids, pistons,
+     explosions) wait for their specifications; the dimension runs `InertBlocks` until then.
+     The dimension does not send the block events that the kernels deliver to the clients, and
+     drops the items of a block that an update destroys.
    - A command handoff runs in the first cell of its world. Check: a stage that reads blocks
      of another cell reads the blocks of their owner.
    - A cell that ticks no player and holds no remote ticket still ticks. Check: the tick of a
