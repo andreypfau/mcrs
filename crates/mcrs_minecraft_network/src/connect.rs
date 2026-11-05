@@ -50,20 +50,6 @@ impl TokenBucket {
     }
 }
 
-/// Decision function separated from the async loop so it is testable without a real socket.
-pub fn accept_decision(bucket: &mut TokenBucket) -> AcceptOutcome {
-    if !bucket.consume(ACCEPT_BUCKET_CAP, ACCEPT_REFILL_PER_SEC) {
-        return AcceptOutcome::RateLimited;
-    }
-    AcceptOutcome::Accept
-}
-
-#[derive(Debug, PartialEq, Eq)]
-pub enum AcceptOutcome {
-    Accept,
-    RateLimited,
-}
-
 /// Shared admission control for every listener: a per-IP token bucket plus one
 /// global cap on handshakes still in flight.
 pub(crate) struct AcceptGate {
@@ -114,13 +100,11 @@ impl AcceptGate {
             .per_ip_buckets
             .entry(ip)
             .or_insert_with(|| TokenBucket::new(ACCEPT_BUCKET_CAP));
-        match accept_decision(bucket) {
-            AcceptOutcome::Accept => true,
-            AcceptOutcome::RateLimited => {
-                warn!("accept-rate limit exceeded for {ip}");
-                false
-            }
+        let admitted = bucket.consume(ACCEPT_BUCKET_CAP, ACCEPT_REFILL_PER_SEC);
+        if !admitted {
+            warn!("accept-rate limit exceeded for {ip}");
         }
+        admitted
     }
 }
 
