@@ -33,7 +33,7 @@ use smallvec::SmallVec;
 use std::collections::VecDeque;
 use tracing::warn;
 
-use crate::bus::{OutboundPlayerAttached, OutboundPlayerDisconnect};
+use crate::bus::OutboundPlayerAttached;
 use crate::channel_types::ToDim;
 use crate::game_profile::GameProfile;
 use crate::muxer::dim_inputs::DimInputs;
@@ -284,7 +284,6 @@ pub fn filter_inflight_for_disconnect(
     mut disconnected_this_tick: ResMut<DisconnectedThisTick>,
     anchors: Res<SessionAnchors>,
     mut attached_msgs: ResMut<Messages<OutboundPlayerAttached>>,
-    mut disconnect_msgs: ResMut<Messages<OutboundPlayerDisconnect>>,
 ) {
     if disconnected_this_tick.host_anchors.is_empty() {
         return;
@@ -305,14 +304,6 @@ pub fn filter_inflight_for_disconnect(
         .collect();
     for msg in kept_attached {
         attached_msgs.write(msg);
-    }
-
-    let kept_disconnects: Vec<OutboundPlayerDisconnect> = disconnect_msgs
-        .drain()
-        .filter(|msg| !disconnected.contains(&msg.host_anchor))
-        .collect();
-    for msg in kept_disconnects {
-        disconnect_msgs.write(msg);
     }
 
     disconnected_this_tick.host_anchors.clear();

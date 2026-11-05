@@ -2,7 +2,7 @@ use bevy_app::App;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::system::RunSystemOnce;
 use mcrs_minecraft_engine::bus::{
-    InboundPlayerDespawn, InboundPlayerSpawn, OutboundPlayerAttached, OutboundPlayerDisconnect,
+    InboundPlayerDespawn, InboundPlayerSpawn, OutboundPlayerAttached,
 };
 use mcrs_minecraft_engine::channel_types::ToDim;
 use mcrs_minecraft_engine::muxer::dim_inputs::DimInputs;
@@ -21,7 +21,6 @@ pub fn build_app() -> App {
     let mut app = App::new();
     app.add_message::<InboundPlayerSpawn>();
     app.add_message::<OutboundPlayerAttached>();
-    app.add_message::<OutboundPlayerDisconnect>();
     app.add_message::<InboundPlayerDespawn>();
     app.init_resource::<PlayerSessionCounter>();
     app.init_resource::<DimInputs>();

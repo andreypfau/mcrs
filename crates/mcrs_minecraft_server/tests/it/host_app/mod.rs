@@ -21,8 +21,7 @@ use mcrs_minecraft_engine::between_ticks::drain_dim_spawn_queue;
 use mcrs_minecraft_engine::between_ticks::take_dim_outputs;
 use mcrs_minecraft_engine::bus::{
     InboundPlayerDespawn, InboundPlayerPacket, InboundPlayerSpawn, OutboundPlayerAttached,
-    OutboundPlayerDisconnect, OutboundPlayerPacket, PacketPayload, PacketTarget,
-    PlayerTransferSnapshot,
+    OutboundPlayerPacket, PacketPayload, PacketTarget, PlayerTransferSnapshot,
 };
 use mcrs_minecraft_engine::channel_types::ToDim;
 use mcrs_minecraft_engine::coordinator::dim::DimSubAppHandle;
@@ -96,7 +95,6 @@ pub fn make_host_app() -> App {
     app.add_message::<OutboundPlayerPacket>();
     app.add_message::<InboundPlayerPacket>();
     app.add_message::<OutboundPlayerAttached>();
-    app.add_message::<OutboundPlayerDisconnect>();
     app.add_message::<InboundPlayerDespawn>();
 
     app.add_plugins(DimCellsPlugin);

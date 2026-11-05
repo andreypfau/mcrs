@@ -13,9 +13,9 @@ use mcrs_minecraft_protocol_game::clientbound::{
     ClientboundChunkBatchStart, ClientboundChunkCacheRadius, ClientboundCommandSuggestions,
     ClientboundEntityEvent, ClientboundEntityPositionSync, ClientboundForgetLevelChunk,
     ClientboundGameEvent, ClientboundLightUpdate, ClientboundLogin, ClientboundPlayerAbilities,
-    ClientboundPlayerLookAt, ClientboundPlayerPosition, ClientboundRemoveEntities,
-    ClientboundRespawn, ClientboundSetChunkCacheCenter, ClientboundSetTime,
-    ClientboundSystemChatPacket, ClientboundTabList,
+    ClientboundPlayerLookAt, ClientboundPlayerPosition, ClientboundRespawn,
+    ClientboundSetChunkCacheCenter, ClientboundSetTime, ClientboundSystemChatPacket,
+    ClientboundTabList,
 };
 use mcrs_minecraft_resource::ResourceKeyBuf;
 use mcrs_voxel::ColumnPos;
@@ -59,11 +59,6 @@ pub struct InboundPlayerSpawn {
 #[derive(Message, Clone, Debug)]
 pub struct OutboundPlayerAttached {
     pub session: PlayerSession,
-}
-
-#[derive(Message, Clone, Debug)]
-pub struct OutboundPlayerDisconnect {
-    pub host_anchor: Entity,
 }
 
 #[derive(Message, Clone, Debug)]
@@ -140,7 +135,6 @@ pub enum PacketPayload {
     /// The entity bytes of one viewer from the muxer: records of packets with their ids, which
     /// other viewers share.
     Replication(Vec<Bytes>),
-    RemoveEntities(ClientboundRemoveEntities),
     EntityPosSync(ClientboundEntityPositionSync),
     PlayerLogin(ClientboundLogin),
     /// Moves the client to another dimension; it keeps its player.
@@ -174,7 +168,6 @@ impl PacketPayload {
         match self {
             Self::EntityPosSync(_) => PacketKind::EntityMove,
             Self::Replication(_) => PacketKind::Replication,
-            Self::RemoveEntities(_) => PacketKind::Remove,
             Self::PlayerInfoUpdate { .. } | Self::TabList(_) => PacketKind::PlayerInfo,
             Self::ChunkLoad { .. }
             | Self::ChunkUnload(_)

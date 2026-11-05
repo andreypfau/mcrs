@@ -559,7 +559,6 @@ fn write_payload<W: WritePacket>(sink: &mut W, data: PacketPayload) -> anyhow::R
         }
         PacketPayload::ChunkBatchStart(p) => sink.write_packet_fallible(&p),
         PacketPayload::ChunkBatchFinished(p) => sink.write_packet_fallible(&p),
-        PacketPayload::RemoveEntities(p) => sink.write_packet_fallible(&p),
         PacketPayload::PlayerLogin(p) => sink.write_packet_fallible(&p),
         PacketPayload::Respawn(p) => sink.write_packet_fallible(&p),
         PacketPayload::OpLevelEntityEvent(p) => sink.write_packet_fallible(&p),

@@ -10,7 +10,6 @@ use mcrs_minecraft_protocol::VarInt;
 use mcrs_minecraft_protocol_game::clientbound::ClientboundBlockUpdate;
 use mcrs_minecraft_protocol_game::clientbound::ClientboundEntityPositionSync;
 use mcrs_minecraft_protocol_game::clientbound::ClientboundLightUpdate;
-use mcrs_minecraft_protocol_game::clientbound::ClientboundRemoveEntities;
 use mcrs_minecraft_protocol_game::clientbound::PositionPath;
 
 use bevy_ecs::entity::Entity;
@@ -448,15 +447,6 @@ fn only_test_remains_counted_drop() {
             target: PacketTarget::AllPlayers,
             priority: PacketPriority::Normal,
             data: PacketPayload::Replication(vec![bytes::Bytes::new()]),
-            session: PlayerSession(0),
-            epoch: 0,
-        });
-        q.push(OutboundPlayerPacket {
-            target: PacketTarget::AllPlayers,
-            priority: PacketPriority::Normal,
-            data: PacketPayload::RemoveEntities(ClientboundRemoveEntities {
-                entity_ids: vec![VarInt(3)],
-            }),
             session: PlayerSession(0),
             epoch: 0,
         });

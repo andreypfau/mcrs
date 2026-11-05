@@ -2,9 +2,7 @@ use bevy_app::App;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::system::{IntoSystem, System};
 use bytes::BytesMut;
-use mcrs_minecraft_engine::bus::{
-    InboundPlayerDespawn, OutboundPlayerAttached, OutboundPlayerDisconnect,
-};
+use mcrs_minecraft_engine::bus::{InboundPlayerDespawn, OutboundPlayerAttached};
 use mcrs_minecraft_engine::channel_types::ToDim;
 use mcrs_minecraft_engine::game_profile::GameProfile;
 use mcrs_minecraft_engine::muxer::dim_inputs::DimInputs;
@@ -55,7 +53,6 @@ fn server(host: Option<SingleplayerProfile>) -> App {
     app.init_resource::<mcrs_minecraft_engine_world::session::PlayerSessionCounter>();
     app.add_message::<InboundPlayerDespawn>();
     app.add_message::<OutboundPlayerAttached>();
-    app.add_message::<OutboundPlayerDisconnect>();
     app.init_resource::<DimInputs>();
     app.add_plugins(DisconnectProtocolPlugin);
     if let Some(host) = host {

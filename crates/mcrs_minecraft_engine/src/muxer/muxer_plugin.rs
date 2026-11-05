@@ -5,9 +5,7 @@ use mcrs_minecraft_engine_world::session::{PlayerSessionCounter, SessionAnchors}
 use mcrs_minecraft_network::NetworkSet;
 use mcrs_minecraft_network::metrics::{BridgeTelemetry, PacketDispatcher};
 
-use crate::bus::{
-    InboundPlayerPacket, OutboundPlayerAttached, OutboundPlayerDisconnect, OutboundPlayerPacket,
-};
+use crate::bus::{InboundPlayerPacket, OutboundPlayerAttached, OutboundPlayerPacket};
 use crate::muxer::bridge;
 use crate::muxer::column_view_link;
 use crate::muxer::dim_inputs::DimInputsPlugin;
@@ -35,7 +33,6 @@ impl Plugin for MuxerPlugin {
         app.add_message::<OutboundPlayerPacket>();
         app.add_message::<InboundPlayerPacket>();
         app.add_message::<OutboundPlayerAttached>();
-        app.add_message::<OutboundPlayerDisconnect>();
         // The commands of `attach_outbound_queue` apply at the end of FixedPreUpdate, so every
         // connection that `SpawnConnections` spawned carries an `OutboundQueue` by
         // FixedPostUpdate.
