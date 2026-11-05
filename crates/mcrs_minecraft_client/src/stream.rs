@@ -115,6 +115,9 @@ pub struct Loader {
     sections: Sections,
     /// Sections whose light a delta rewrote, present or not.
     relit: HashSet<[i32; 3]>,
+    /// The meshes of relit sections, drawn on until the new mesh of the section is placed so
+    /// that a relight never opens a hole.
+    stale: HashMap<[i32; 3], Resident>,
     meshing: Vec<MeshingSection>,
     scratches: Vec<Scratch>,
     streams: [Stream; STREAMS],
@@ -273,6 +276,7 @@ impl Loader {
             sections_total: 0,
             sections: Sections::default(),
             relit: HashSet::new(),
+            stale: HashMap::new(),
             meshing: Vec::new(),
             scratches: Vec::new(),
             streams: std::array::from_fn(|_| Stream::new()),
@@ -371,7 +375,14 @@ impl Loader {
                 self.relit.insert(at);
                 continue;
             }
-            self.evict(at, cave);
+            if let Some(held) = self.sections.take_resident(at) {
+                if self.meshable(at, store) {
+                    self.stale.insert(at, held);
+                    self.enqueue(at);
+                    continue;
+                }
+                self.release(at, held, cave);
+            }
             if self.meshable(at, store) {
                 self.enqueue(at);
             }
@@ -464,9 +475,15 @@ impl Loader {
     }
 
     fn evict(&mut self, section: [i32; 3], cave: &mut CaveCull) {
-        let Some(held) = self.sections.take_resident(section) else {
-            return;
-        };
+        if let Some(held) = self.stale.remove(&section) {
+            self.release(section, held, cave);
+        }
+        if let Some(held) = self.sections.take_resident(section) {
+            self.release(section, held, cave);
+        }
+    }
+
+    fn release(&mut self, section: [i32; 3], held: Resident, cave: &mut CaveCull) {
         self.quads.free(held.quads);
         self.models.free(held.models);
         self.faces.free(held.faces);
@@ -497,6 +514,9 @@ impl Loader {
             return;
         }
         for (at, held) in self.sections.residents() {
+            cave.set_section(at, held.slot, held.connectivity);
+        }
+        for (&at, held) in &self.stale {
             cave.set_section(at, held.slot, held.connectivity);
         }
     }
@@ -602,6 +622,9 @@ impl Loader {
         slot: u32,
         cave: &mut CaveCull,
     ) -> Result<Placement, Box<SectionMesh>> {
+        if let Some(held) = self.stale.remove(&mesh.section) {
+            self.release(mesh.section, held, cave);
+        }
         let Some([quads, models, faces]) = self.reserve(&mesh) else {
             return Err(Box::new(mesh));
         };
@@ -2033,6 +2056,74 @@ mod tests {
         assert!(
             loader.take_wanted(8, &store).is_empty(),
             "a section handed out once is not handed out again"
+        );
+    }
+
+    #[test]
+    fn a_relit_section_draws_its_old_mesh_until_the_new_one_is_placed() {
+        use mcrs_minecraft_client_world::columns::{Column, Extent, Section};
+
+        let stone = mcrs_voxel::BlockStateId::checked(1, 2).expect("a state past air");
+        let mut loader = loader();
+        let mut cave = CaveCull::new(1 << 8, true);
+        let mut store = ColumnStore::default();
+        store.enter(Extent {
+            min_section_y: 0,
+            sections: 1,
+        });
+        for x in -1..=1 {
+            for z in -1..=1 {
+                let section = Section {
+                    blocks: Box::new([stone; mcrs_minecraft_mesh::SECTION_VOLUME]),
+                    biomes: PalettedContainer::Homogeneous(0),
+                    states: vec![stone],
+                };
+                store.insert(ColumnPos::new(x, z), Column::unlit(0, vec![Some(section)]));
+            }
+        }
+        adopt(&mut loader, &mut store, &mut cave);
+        let centre = [0, 0, 0];
+        let drawn = |loader: &Loader| -> Vec<u32> {
+            loader.streams[0]
+                .groups
+                .iter()
+                .filter(|group| group.quad_count != 0)
+                .map(|group| group.quad_count)
+                .collect()
+        };
+        loader.sections.dequeue(centre);
+        let old = loader.take_slot().expect("a free slot");
+        if loader
+            .place(one_greedy_group(centre, old, 3), old, &mut cave)
+            .is_err()
+        {
+            panic!("the arena has room");
+        }
+
+        loader.relit.insert(centre);
+        loader.remesh_relit(&store, &mut cave);
+        assert!(
+            loader.sections.is_queued(centre),
+            "the section is meshed again"
+        );
+        assert_eq!(drawn(&loader), [3], "while the mesh it had stays drawn");
+
+        loader.sections.dequeue(centre);
+        let new = loader.take_slot().expect("a free slot");
+        if loader
+            .place(one_greedy_group(centre, new, 5), new, &mut cave)
+            .is_err()
+        {
+            panic!("the arena has room");
+        }
+        assert_eq!(
+            drawn(&loader),
+            [5],
+            "the new mesh takes the place of the old one"
+        );
+        assert!(
+            loader.free_slots.contains(&old),
+            "and the old mesh gives its slot back"
         );
     }
 
