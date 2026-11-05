@@ -24,11 +24,6 @@ impl RunningDimensions {
         self.0.iter()
     }
 
-    /// The running dimension of `key`.
-    pub fn find(&self, key: &ResourceKeyBuf<DimensionKey>) -> Option<&RunningDimension> {
-        self.0.iter().find(|dimension| dimension.key == *key)
-    }
-
     pub(crate) fn insert(&mut self, dimension: RunningDimension) {
         self.0.push(dimension);
         self.0
