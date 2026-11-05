@@ -1,9 +1,12 @@
-//! A world divided into cells must look the same as the world of one cell: the blocks and the
-//! light of every column at its owner, where each player stands, and what each client gets.
+//! A world divided into cells must look the same as the world of one cell: the blocks, the light
+//! and the ticking markers of every column at its owner, where each player stands, and what each
+//! client gets.
 //!
-//! The players stand on both sides of the boundary between two regions, place blocks and light
-//! on both sides of it, and walk across it. Each run waits after every tick for the generation
-//! and light steps of every cell, so the stages land at the same tick in both runs.
+//! In one scenario, the players stand on both sides of the boundary between two regions, place
+//! blocks and light on both sides of it, and walk across it. In the other, a column at the
+//! boundary changes and goes cold, and then a player of the other cell comes near it. Each run
+//! waits after every tick for the generation, light and store steps, so the stages land at the
+//! same tick in both runs.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::num::NonZeroU32;
@@ -12,7 +15,7 @@ use std::time::{Duration, Instant};
 use bevy_app::{App, PluginGroup};
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::Messages;
-use bevy_ecs::prelude::With;
+use bevy_ecs::prelude::{Has, With};
 use bevy_ecs::world::World;
 use bevy_math::{DVec3, Vec2};
 use bevy_tasks::block_on;
@@ -37,6 +40,7 @@ use mcrs_minecraft_engine_world::session::{
     Owner, Place, PlayerSession, PlayerSessionCounter, SessionPlacement,
 };
 use mcrs_minecraft_engine_world::world::dimension::Dimension;
+use mcrs_minecraft_engine_world::world::lifecycle::simulation::{BlockTicking, EntityTicking};
 use mcrs_minecraft_engine_world::world::lifecycle::stage::SectionStage;
 use mcrs_minecraft_protocol::Packet;
 use mcrs_minecraft_protocol::uuid::Uuid;
@@ -53,6 +57,7 @@ use crate::host_app::{label_of, replicated, sent_to};
 
 const OVERWORLD: &str = "minecraft:overworld";
 const TICKS: usize = 90;
+const COLD_TICKS: usize = 100;
 const PATIENCE: Duration = Duration::from_secs(120);
 
 fn server(cells: u32) -> App {
@@ -73,6 +78,29 @@ fn server(cells: u32) -> App {
     crate::support::update_until_playing(&mut app);
     runner::between_ticks(&mut app);
     app
+}
+
+/// Ticks until every cell of `label` can generate.
+fn wait_for_generation(app: &mut App, label: Entity) {
+    let deadline = Instant::now() + PATIENCE;
+    while !cell_worlds(app, label)
+        .into_iter()
+        .all(|world| world.contains_resource::<FillContext>())
+    {
+        assert!(
+            Instant::now() < deadline,
+            "the generation context never loaded"
+        );
+        tick(app, label);
+    }
+}
+
+fn state(app: &App, name: &str) -> BlockStateId {
+    app.world()
+        .resource::<Blocks>()
+        .block(name)
+        .unwrap_or_else(|| panic!("{name} is declared"))
+        .default_state_id
 }
 
 /// The world of every cell of `label`.
@@ -300,6 +328,74 @@ fn owned_sections(
     sections
 }
 
+/// The ticking markers of one section, at the cell that owns its column.
+#[derive(Debug, PartialEq)]
+struct Ticking {
+    block: bool,
+    entity: bool,
+}
+
+/// The ticking markers of the loaded sections of `columns` at their owners. No cell marks a
+/// section of its halo.
+fn ticking_sections(
+    app: &mut App,
+    label: Entity,
+    columns: &[ColumnPos],
+) -> BTreeMap<(i32, i32, i32), Ticking> {
+    let mut ticking = BTreeMap::new();
+    for world in cell_worlds(app, label) {
+        let owned = world.get_resource::<OwnedColumns>().copied();
+        let mut query = world.query::<(&SectionPos, Has<BlockTicking>, Has<EntityTicking>)>();
+        for (pos, block, entity) in query.iter(world) {
+            let column = ColumnPos::from(*pos);
+            if owned.is_some_and(|owned| !owned.owns(column)) {
+                assert!(!block && !entity, "the section {pos:?} of the halo ticks");
+                continue;
+            }
+            if columns.contains(&column) {
+                ticking.insert((pos.x, pos.y, pos.z), Ticking { block, entity });
+            }
+        }
+    }
+    ticking
+}
+
+/// What a world looks like after a column of one cell at the boundary changed, went cold, and
+/// a player of the other cell came near it.
+struct ColdRun {
+    sections: BTreeMap<(i32, i32, i32), Section>,
+    ticking: BTreeMap<(i32, i32, i32), Ticking>,
+}
+
+fn run_cold_boundary(cells: u32) -> ColdRun {
+    let mut app = server(cells);
+    let label = label_of(&app, OVERWORLD);
+    wait_for_generation(&mut app, label);
+    let glowstone = state(&app, "minecraft:glowstone");
+
+    // Region 0 starts at x = 0, and the light of a block at x = 0 reaches into region -1.
+    let east = admit(&mut app, label, "east", DVec3::new(8.5, 100.0, 8.5));
+    for at in 0..COLD_TICKS {
+        match at {
+            30 => place(&mut app, label, east, BlockPos::new(0, 92, 3), glowstone),
+            // Far enough that no ticket loads the boundary, so its owner writes the column.
+            35 => walk(&mut app, label, east, DVec3::new(320.0, 0.0, 0.0)),
+            60 => {
+                admit(&mut app, label, "west", DVec3::new(-8.5, 100.0, 8.5));
+            }
+            _ => {}
+        }
+        tick(&mut app, label);
+    }
+    let columns: Vec<ColumnPos> = (-3..=2)
+        .flat_map(|x| (-2..=2).map(move |z| ColumnPos::new(x, z)))
+        .collect();
+    ColdRun {
+        sections: owned_sections(&mut app, label, &columns),
+        ticking: ticking_sections(&mut app, label, &columns),
+    }
+}
+
 struct Run {
     sections: BTreeMap<(i32, i32, i32), Section>,
     positions: Vec<DVec3>,
@@ -315,26 +411,9 @@ fn run(cells: u32) -> Run {
         app.world().resource::<DimCells>().cell_count(label),
         cells as usize
     );
-    let deadline = Instant::now() + PATIENCE;
-    while !cell_worlds(&mut app, label)
-        .into_iter()
-        .all(|world| world.contains_resource::<FillContext>())
-    {
-        assert!(
-            Instant::now() < deadline,
-            "the generation context never loaded"
-        );
-        tick(&mut app, label);
-    }
-    let blocks = app.world().resource::<Blocks>().clone();
-    let state = |name: &str| {
-        blocks
-            .block(name)
-            .unwrap_or_else(|| panic!("{name} is declared"))
-            .default_state_id
-    };
-    let glowstone = state("minecraft:glowstone");
-    let stone = state("minecraft:stone");
+    wait_for_generation(&mut app, label);
+    let glowstone = state(&app, "minecraft:glowstone");
+    let stone = state(&app, "minecraft:stone");
 
     // Region -1 and region 0 meet at x = 0: one cell owns each side.
     let west = admit(&mut app, label, "west", DVec3::new(-8.5, 100.0, 8.5));
@@ -455,5 +534,35 @@ fn a_world_of_two_cells_is_the_world_of_one_cell() {
         );
         assert_eq!(one.blocks, two.blocks, "client {index} sees other blocks");
         assert_eq!(one, two);
+    }
+}
+
+#[test]
+fn a_cold_column_at_the_boundary_comes_back_in_the_other_cell_as_in_one_cell() {
+    let one = run_cold_boundary(1);
+    let two = run_cold_boundary(2);
+
+    assert_eq!(
+        one.sections.len(),
+        5 * 6 * 24,
+        "every column of the check landed"
+    );
+    for (pos, section) in &one.sections {
+        assert_eq!(
+            two.sections.get(pos),
+            Some(section),
+            "the section {pos:?} differs at its owner"
+        );
+    }
+    assert!(
+        one.ticking.values().any(|ticking| ticking.entity),
+        "the player near the boundary ticks the sections around it"
+    );
+    for (pos, ticking) in &one.ticking {
+        assert_eq!(
+            two.ticking.get(pos),
+            Some(ticking),
+            "the section {pos:?} ticks otherwise at its owner"
+        );
     }
 }

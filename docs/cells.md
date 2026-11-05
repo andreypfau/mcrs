@@ -124,9 +124,10 @@ Minecraft a box is a region: 32 x 32 columns, and the whole height of the world.
 repeat in a grid of the cells, so two neighbour boxes have different owners when the count
 allows it. A cell owns every box of its place in the grid.
 
-Each cell is a whole world of its own: the same domains, stages and data layer. It owns the
-columns of its boxes. It also holds the halo: the columns of the other cells within the halo
-width of its boxes. A cell never changes a column of its halo.
+Each cell is a whole world of its own: the same domains and stages. The cells of a world share
+one data layer (section 7). A cell owns the columns of its boxes. It also holds the halo: the
+columns of the other cells within the halo width of its boxes. A cell never changes a column of
+its halo.
 
 A cell raises a ticket only on a column within the halo width of its boxes. The halo width is
 a world parameter. Its default is the loading rings of a ticket (2 columns). With this width,
@@ -185,7 +186,7 @@ that arrive. Each kind keeps the order of the cells that sent it.
 | Domain | Rule | Delay |
 |---|---|---|
 | Player that walks across | a move at the end of the tick; the new owner spawns it with its session, its wire id, its view, its replication state and its hot ticket. The client gets no packet of the move, and the viewers see no despawn | none: the old owner publishes the tick of the move, the new owner the next tick |
-| Hot ticket of a player | the owner sends each change to the other cells. Each cell keeps a remote ticket and raises it on its own columns and on its halo | one tick for the cells that do not own the player |
+| Hot ticket of a player | the owner sends each change to the other cells. The ticket holds the simulation area of the player. Each cell keeps a remote ticket and raises it on its own columns and on its halo | one tick for the cells that do not own the player |
 | Block change in an owned column | the owner applies it, and sends it to the other cells for their halo | one tick for the halo |
 | Block write into a column of another cell | a message to the owner, which applies it with all its flags | one tick, and one more for the halo of the writer |
 | Light at the edge | each cell lights its columns from its halo | the delay of the halo change |
@@ -196,7 +197,8 @@ that arrive. Each kind keeps the order of the cells that sent it.
 | Chat, player list, world clocks | the host serves the whole world, as for one cell | none |
 | Entity ids | the coordinator grants a range to each cell | none |
 | Neighbour and shape updates, redstone, fluids, scheduled ticks, pistons, explosions | not supported across cells yet. The server does not run them in a dimension yet. The simulation kernels mark a section of another cell as `Foreign` and send a write to it as a message | — |
-| Ticking of the sections of a remote player | not supported across cells yet: a cell marks the sections of its own players only, and only those it owns | — |
+| Ticking of the sections of a player | each cell marks the sections that it owns from the simulation area of each ticket: its own tickets and the remote tickets. A cell never marks a section of its halo | one tick for the cells that do not own the player |
+| Data layer | one data layer for the world. Each cell writes only the columns that it owns, and reads any column | the answer comes at the next tick, as for one cell |
 
 ---
 
@@ -287,8 +289,15 @@ The stage answers in the order of the inputs, so a `Get` after a `Put` sees that
 
 Minecraft keys the data layer by column, because a client receives whole columns. One column
 version holds the blocks, the biomes and the light of each section, the block entities and the
-heightmaps. Each dimension world has a link of its own. The world is the only writer of its
-columns, so it numbers the versions it writes.
+heightmaps.
+
+Each dimension has one data layer, which all its cells share. The coordinator holds it on a
+link (`mcrs_engine_store::SharedStore`). A cell puts its requests in the output of its tick. The
+coordinator sends them to the data layer after the tick, the writes of all cells first. The
+coordinator gives each answer to the cell that asked, in the input of the next tick. The owner
+of a column is the only writer of the column, so the owner numbers the versions that it writes.
+A cell reads a column of another cell from the data layer, because only the data layer knows
+whether the owner wrote it.
 
 The rules of a dimension world with a data layer:
 
@@ -299,17 +308,20 @@ The rules of a dimension world with a data layer:
   version. It does not write a column that came from the data layer and did not change. It does
   not write a generated column whose light did not settle, because that light at the edge of the
   loaded space was lit without the neighbours.
-- A section that a ticket loads asks the data layer first. A section that the data layer does
-  not hold goes on to generation. The section takes the blocks of the answer, not its light. The
+- A section that a ticket loads asks the data layer first, when the cell wrote its column or
+  another cell owns its column. A section that the data layer does not hold goes on to
+  generation. The section takes the blocks of the answer, not its light. The
   dimension lights the section again.
 - The dimension publishes a version of a column from its sections when it holds the column and
   the eight columns around it. The dimension then lights the column from the blocks of its
   neighbours. The data layer makes each other column that the Muxer wants, also a column of the
   outer ring of a hot area. A view holds no ticket, so a view loads no column into the dimension.
-- The data layer makes the final version of each column that the Muxer wants. It takes the
-  blocks of the column and of the eight columns around it from the dimension when the dimension
-  holds the column. Else it takes them from its cache when the world wrote the column. Else
-  generation makes them. Then the light stage of cold space lights the column. The dimension
+- The data layer makes the final version of each column that the Muxer wants. The production
+  of cold columns (`ColumnProduction`) runs in the cell that owns the column, because the Muxer
+  asks the owner, and the production takes the blocks of a loaded column from the sections of
+  the cell. It takes the blocks of the column and of the eight columns around it from the cell
+  when the cell holds the column, also as halo. Else it takes them from the data layer of the
+  world when a cell wrote the column. Else generation makes them. Then the light stage of cold space lights the column. The dimension
   encodes the final column once and publishes it for all clients that wait on it.
 - A light level reaches 15 blocks, so the blocks of a column and of the eight columns around it
   decide the light of the column. The light stage of cold space holds the latest blocks of each
@@ -425,7 +437,7 @@ sharding document (decision 20). It is also the mode of the tests.
 | Muxer | for entities, `mcrs_engine_muxer::MuxerStage` on a link from the host, placed by the server's `muxer` field (`Thread` by default): tiles, subscriptions, delta bases, spawn bundles and the player list, with the Minecraft codec of `mcrs_minecraft_replication`; for the rest, the `muxer` module tree of `mcrs_minecraft_engine` in the host world: connections and the bridge, sessions and their placement, the input it routes to the owner dimension, the orders and the command handoffs it routes to the dimension of a player or of a handoff, the host side of entity replication, and the view of each player (`muxer::column_views`): the columns of the view and their order by distance, the batches and their pace by the answer of the client, the center, the radius and the forgets, and the version stream of each column, whose bytes the muxer sends to every client that takes the version, with the changes after it |
 | Coordinator | the `coordinator` module tree of `mcrs_minecraft_engine` in the host world: the dimension worlds and their lockstep tick, the spawn and despawn queues, game time and world clocks, the operator list, the ranges of global entity ids that it grants to each dimension world, the dimension of a player that joins or changes dimension, the running dimensions and the players that each dimension reports. It and the muxer share one world but talk only through the messages of `to_muxer` and `to_coordinator` |
 | Link | `mcrs_engine_link` for light and generation; the host and each dimension exchange one `DimInput` and one `DimOutput` a tick over the cell's link: the coordinator puts the input that the muxer routed into the `DimInput`, and answers a request for entity ids in a `DimOutput` with a range in the next `DimInput`, and hands the packets and the tile deltas of each `DimOutput` to the muxer, which sends the tile deltas on to the entity muxer over its link. The requests of the muxer for column versions go in the `DimInput`, and the views of the players, the column versions and the column changes come back in the `DimOutput`. A command runs inside the tick of one dimension: the muxer routes the command line to the dimension of the player, an effect on a player of another dimension leaves in the `DimOutput` as an order that the muxer routes to the dimension of the player, a stage that reads another dimension leaves as a handoff to that dimension, and a clock change leaves for the coordinator, which sends the clocks to every dimension in the next `DimInput`. Each `DimOutput` reports the players of its dimension, and the coordinator puts the players of the other dimensions in the `DimInput` of a dimension that runs commands. No part lends a world; only tests read a world between ticks |
-| Data layer | `mcrs_engine_store::StoreStage` on a link from each dimension world, placed on a `Thread`, with the column store of `mcrs_minecraft_engine` (`column_store`, `cold_columns`, `stored_columns_landing`, `hot_ticket`) and no disk under it. `ColumnProduction` in the dimension world drives the stages of cold space: a second generation stage (`cold_generation` in `mcrs_minecraft_vanilla_worldgen`) and a second light stage (`cold_light` in `mcrs_minecraft_vanilla_light`), each on a `Thread`. The link to the data layer and `ColumnProduction` stay in the dimension world: the dimension publishes a cold column that the muxer wants in its `DimOutput`. Anvil is read only by the generation stages, for the columns of a save that the data layer does not hold |
+| Data layer | one `mcrs_engine_store::SharedStore` for each dimension in the coordinator (`DimCells`), placed on a `Thread`, with no disk under it. Each cell reaches it through the column store of `mcrs_minecraft_engine` (`column_store`, `cold_columns`, `stored_columns_landing`, `hot_ticket`): the requests go in the `DimOutput` of a tick and the answers come in the `DimInput` of the next tick. `ColumnProduction` in each cell drives the stages of cold space for the columns that the cell owns: a second generation stage (`cold_generation` in `mcrs_minecraft_vanilla_worldgen`) and a second light stage (`cold_light` in `mcrs_minecraft_vanilla_light`), each on a `Thread`. The cell publishes a cold column that the muxer wants in its `DimOutput`. Anvil is read only by the generation stages, for the columns of a save that the data layer does not hold |
 | Stage | the light engine and the world generator, each as a `Stage` on a `Link` |
 
 ---
@@ -469,8 +481,8 @@ Each step leaves a working server and passes the determinism test.
        crate does not know column streams: a stream generic over a chunk codec, as
        `ReplicationCodec` is for entities, is the next step. On a thread, the Muxer can also
        take the encode from the dimension.
-     - The muxer reaches the data layer through the dimension world, which holds the link and
-       `ColumnProduction`. A link of the muxer to the data layer, and a dimension that sends the
+     - The muxer reaches the data layer through the cell that owns a column, which holds
+       `ColumnProduction`. A link of the muxer to the data layer, and a cell that sends the
        data layer its blocks, remove that path.
      - The dimension makes the view square of a player from its position. The muxer takes the
        square as it is.
@@ -478,20 +490,17 @@ Each step leaves a working server and passes the determinism test.
      data layer generates drops the ticks that generation scheduled.
 4. Let a cell own a box, not a whole world. Add the halo and the messages between cells. Divide
    statically, for example by region files. Test one cell against many cells. Done: a world
-   divides by region over a fixed count of cells, and a test runs one scenario with one cell
-   and with two cells (`world_cells` in the tests of `mcrs_minecraft_server`). Section 4 lists
+   divides by region over a fixed count of cells, and a test runs each scenario with one cell
+   and with two cells (`world_cells` in the tests of `mcrs_minecraft_server`). The cells of a
+   world share one data layer, and each cell ticks the sections that it owns from all tickets. Section 4 lists
    the rule of each domain. Parts left:
-   - The data layer is a link of each cell. A cell writes only its own columns to it, but it
-     reads only its own data layer. A column of the halo that its owner wrote and let go cold
-     loads in a neighbour from generation, without the changes of the owner. Check: a block
-     that a player changed near a boundary is in the halo of the neighbour after the column
-     went cold and came back.
-   - The cold production of a column at the edge of a box takes the blocks of its neighbours
-     from the halo only while the cell holds them. Else it takes generated blocks. Check: the
-     light of a cold column next to a changed column of another cell has no seam.
-   - A cell marks the ticking sections of its own players only. A remote ticket loads columns
-     but does not tick them. Check: when a system reads `BlockTicking`, a section near a
-     player of another cell ticks as in a world of one cell.
+   - A cell loads a column of its halo from the data layer of the world. When the owner holds
+     the column hot and the cell does not, the data layer can hold a version older than the
+     owner. The halo then lacks the changes since the last write of the owner, until the
+     column goes cold in both cells. The cold production of a column at the edge of a box has
+     the same limit for a neighbour that only the owner holds. Check: a block that a player
+     changes in a hot column at a boundary is in the halo of a cell that loads the column
+     later.
    - Neighbour and shape updates, redstone, fluids, scheduled ticks, pistons and explosions
      across a boundary. They are not in the dimension yet. Check: a redstone line across a
      boundary gives the same states as in a world of one cell, a tick later at most.
