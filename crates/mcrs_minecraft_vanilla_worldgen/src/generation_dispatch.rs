@@ -2,8 +2,6 @@ use std::future::Future;
 
 use bevy_tasks::TaskPool;
 use mcrs_engine_link::Step;
-use mcrs_minecraft_engine_world::world::lifecycle::trace as column_trace;
-use mcrs_minecraft_engine_world::world::lifecycle::trace::ColumnStage;
 use mcrs_minecraft_worldgen_generator::stages::{
     FillContext, fill_pooled, merge_column, run_region,
 };
@@ -240,7 +238,6 @@ impl<T: Copy + Send + 'static> Dispatcher<'_, '_, T> {
         let ctx = self.ctx;
         match owed {
             Owed::Fill => {
-                column_trace::mark(generation.traces.as_ref(), v, ColumnStage::Generating);
                 let ctx = ctx.clone();
                 generation.spawn(
                     self.step,

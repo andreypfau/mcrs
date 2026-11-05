@@ -5,8 +5,6 @@ use mcrs_minecraft_engine_world::aoi::min_column_distance;
 use mcrs_minecraft_engine_world::entity::player::chunk_view::ChunkTrackingView;
 use mcrs_minecraft_engine_world::palette::{ChunkBlocks, section_states};
 use mcrs_minecraft_engine_world::world::lifecycle::column_loading::LOADING_RINGS;
-use mcrs_minecraft_engine_world::world::lifecycle::trace as column_trace;
-use mcrs_minecraft_engine_world::world::lifecycle::trace::{ColumnStage, ColumnTraceLog};
 use mcrs_minecraft_worldgen_generator::saved::SectionData;
 use mcrs_minecraft_worldgen_generator::stages::FillContext;
 use mcrs_minecraft_worldgen_generator::staging::{
@@ -115,7 +113,6 @@ impl Default for SchedulerConfig {
 /// there, and a column that is newly wanted owes its whole shell; nothing walks every wanted
 /// column again.
 pub(crate) struct GenerationStage<T> {
-    pub(crate) traces: Option<ColumnTraceLog>,
     pub(crate) ctx: Option<FillContext>,
     /// The sections that asked for each wanted column.
     pub(crate) pending: BTreeMap<ColumnKey, Vec<RequestedSection<T>>>,
@@ -195,9 +192,8 @@ impl<T> Drop for GenerationStage<T> {
 }
 
 impl<T: Copy + Send + 'static> GenerationStage<T> {
-    pub(crate) fn new(traces: Option<ColumnTraceLog>, config: SchedulerConfig) -> Self {
+    pub(crate) fn new(config: SchedulerConfig) -> Self {
         Self {
-            traces,
             ctx: None,
             pending: BTreeMap::new(),
             priority_index: FxHashMap::default(),
@@ -247,7 +243,6 @@ impl<T: Copy + Send + 'static> GenerationStage<T> {
             }
             return;
         }
-        column_trace::mark(self.traces.as_ref(), col, ColumnStage::Queued);
         let key = ColumnKey::new(distance_sq, col);
         self.pending.insert(key, sections);
         self.priority_index.insert(col, key);
@@ -298,7 +293,6 @@ impl<T: Copy + Send + 'static> GenerationStage<T> {
     fn abandon(&mut self, key: ColumnKey) {
         trace!("Canceling stale column {:?}", key);
         let col = key.chunk_column_pos;
-        column_trace::forget(self.traces.as_ref(), col);
         self.priority_index.remove(&col);
         self.fresh.remove(&key);
         if self.pending.remove(&key).is_some() {
@@ -378,11 +372,8 @@ impl<T: Copy + Send + 'static> GenerationStage<T> {
         }
         self.touched.extend(col.square(1));
         self.climbed.push(col);
-        let traces = self.traces.as_ref();
         match result {
             StageResult::Filled(snapshot) => {
-                column_trace::mark(traces, col, ColumnStage::Filled);
-                column_trace::set_source(traces, col, snapshot.source.label());
                 let source = snapshot.source;
                 self.store.insert_filled(*snapshot);
                 // A column the save already holds was decorated before it was
@@ -399,14 +390,12 @@ impl<T: Copy + Send + 'static> GenerationStage<T> {
                 self.store.set_stage(col, stage);
             }
             StageResult::Ran(rung, deltas) => {
-                column_trace::mark(traces, col, ColumnStage::Ran);
                 for (target, delta) in deltas {
                     self.store.push_delta(col, rung, target, delta);
                 }
                 self.store.set_stage(col, Stage::Ran(rung as u8));
             }
             StageResult::Merged(rung, merged) => {
-                column_trace::mark(traces, col, ColumnStage::Merged);
                 self.store.insert_staged(col, rung, Arc::new(*merged));
                 self.store.set_stage(col, Stage::Merged(rung as u8));
             }

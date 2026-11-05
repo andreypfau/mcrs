@@ -123,7 +123,7 @@ pub(crate) fn build_world_generation(
     let count = i32::try_from(build.type_config.section_count).unwrap_or(0);
     let config = SchedulerConfig::default();
     init_chunk_task_pool(&config);
-    let mut link = Link::new(GenerationStage::new(None, config), Placement::Thread);
+    let mut link = Link::new(GenerationStage::new(config), Placement::Thread);
     link.send(GenerationInput::Context(Box::new(fill.clone())));
     host.get_resource_or_init::<WorldGeneration>()
         .worlds

@@ -162,14 +162,11 @@ fn run_parallel(dim: &Dimension, wanted: &[ColumnPos], drive: Drive) -> (Region,
             .build()
     });
 
-    let mut end = InlineEnd::new(GenerationStage::new(
-        None,
-        SchedulerConfig {
-            max_in_flight: drive.in_flight,
-            max_dispatch_per_pass: drive.batch,
-            ..Default::default()
-        },
-    ));
+    let mut end = InlineEnd::new(GenerationStage::new(SchedulerConfig {
+        max_in_flight: drive.in_flight,
+        max_dispatch_per_pass: drive.batch,
+        ..Default::default()
+    }));
     end.receive(GenerationInput::Context(Box::new(dim.ctx.clone())));
     let mut entities = World::new();
 
@@ -711,14 +708,11 @@ fn the_ladder_generates_the_filled_column(placement: Placement) {
     let ctx = bare_fill_context(Arc::new(build_beta_router()));
     let y_sections = ctx.y_sections.clone();
     let mut link = Link::new(
-        GenerationStage::new(
-            None,
-            SchedulerConfig {
-                max_in_flight: 64,
-                max_dispatch_per_pass: 64,
-                num_threads: 2,
-            },
-        ),
+        GenerationStage::new(SchedulerConfig {
+            max_in_flight: 64,
+            max_dispatch_per_pass: 64,
+            num_threads: 2,
+        }),
         placement,
     );
     link.send(GenerationInput::Context(Box::new(ctx.clone())));
@@ -765,7 +759,7 @@ fn the_ladder_generates_the_filled_column(placement: Placement) {
 #[test]
 fn a_column_that_left_every_view_is_abandoned() {
     let mut link = Link::new(
-        GenerationStage::<i32>::new(None, SchedulerConfig::default()),
+        GenerationStage::<i32>::new(SchedulerConfig::default()),
         Placement::Inline,
     );
     let stale = ColumnPos::new(100, 100);
