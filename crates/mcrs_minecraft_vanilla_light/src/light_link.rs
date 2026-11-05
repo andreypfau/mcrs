@@ -2,6 +2,7 @@ use std::collections::vec_deque::Drain;
 
 use bevy_ecs::resource::Resource;
 use mcrs_engine_link::Link;
+use mcrs_voxel::ColumnPos;
 
 use mcrs_minecraft_light_engine::queue::{DEFAULT_PRIORITY, Priority};
 use mcrs_minecraft_light_engine::world::Edit;
@@ -19,6 +20,11 @@ use crate::light_stage::LightStage;
 pub struct LightLink {
     link: Link<LightStage>,
     edits: Vec<QueuedEdit>,
+    /// Columns that wait for their light, handed over after the edits of the same tick: the
+    /// stage answers a column once nothing it was handed is owed to it, so an await that
+    /// overtakes the load of a neighbour that landed in the same tick is answered without the
+    /// light of that neighbour.
+    awaits: Vec<ColumnPos>,
 }
 
 impl LightLink {
@@ -26,6 +32,7 @@ impl LightLink {
         Self {
             link,
             edits: Vec::new(),
+            awaits: Vec::new(),
         }
     }
 
@@ -47,7 +54,7 @@ impl LightLink {
     /// edit is fine for rendering and not fine for simulation.
     #[must_use]
     pub fn is_idle(&self) -> bool {
-        self.edits.is_empty() && self.link.is_answered()
+        self.edits.is_empty() && self.awaits.is_empty() && self.link.is_answered()
     }
 
     /// Waits until the stage has answered everything handed to it so far, and publishes none
@@ -60,10 +67,19 @@ impl LightLink {
         self.link.send(input);
     }
 
+    /// Asks for the light of `columns` once it settles, with the edits pushed this tick.
+    pub(crate) fn await_columns(&mut self, columns: impl IntoIterator<Item = ColumnPos>) {
+        self.awaits.extend(columns);
+    }
+
     pub(crate) fn send_edits(&mut self) {
         if !self.edits.is_empty() {
             let edits = std::mem::take(&mut self.edits);
             self.send(LightInput::Edits(edits));
+        }
+        if !self.awaits.is_empty() {
+            let awaits = std::mem::take(&mut self.awaits);
+            self.send(LightInput::AwaitColumns(awaits));
         }
     }
 

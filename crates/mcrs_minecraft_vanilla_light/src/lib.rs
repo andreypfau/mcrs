@@ -12,7 +12,7 @@ mod lighting_plugin;
 mod pending_edits;
 
 pub use cold_light::ColdLightLink;
-pub use dim_light_plugin::emit_light_updates;
+pub use dim_light_plugin::{HeldBack, emit_light_updates};
 pub use light_budget::LightBudget;
 pub use light_link::LightLink;
 pub use light_plugin::{LightPlugin, LightSet, publish_light};

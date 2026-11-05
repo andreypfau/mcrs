@@ -17,12 +17,13 @@ use mcrs_minecraft_engine_world::entity::physics::Transform;
 use mcrs_minecraft_engine_world::entity::player::Player;
 use mcrs_minecraft_engine_world::palette::ChunkBlocks;
 use mcrs_minecraft_engine_world::tick::TickSet;
-use mcrs_minecraft_engine_world::world::dimension::InDimension;
+use mcrs_minecraft_engine_world::world::dimension::{DimensionTypeConfig, InDimension};
 use mcrs_minecraft_engine_world::world::lifecycle::stage::SectionStageChanged;
 use mcrs_minecraft_engine_world::world::light_gate::{
-    ColumnAwaitsLight, ColumnLightGate, LightGated, SectionRelit, SentLight,
+    ColumnAwaitsLight, ColumnLightGate, ColumnLightSettled, LightGated, SectionRelit, SentLight,
 };
 use mcrs_minecraft_engine_world::world::storage::column::{ColumnIndex, ColumnPosComponent};
+use mcrs_minecraft_engine_world::world::storage::section::SectionIndex;
 use mcrs_minecraft_light_engine::block::LightRegistry;
 use mcrs_minecraft_light_engine::prelude::{Edit, LightBounds};
 use mcrs_voxel::{ColumnPos, SectionPos};
@@ -34,7 +35,7 @@ use crate::light_plugin::{LightPlugin, LightSet};
 use crate::light_stage::player_priority;
 
 use mcrs_minecraft_heightmap::SurfaceHeightmap;
-use rustc_hash::FxHashMap;
+use rustc_hash::{FxHashMap, FxHashSet};
 
 use mcrs_minecraft_engine::bus::{PacketPayload, PacketPriority};
 
@@ -70,6 +71,12 @@ impl Plugin for DimLightPlugin {
         })
         .configure_sets(FixedUpdate, LightSet::Publish.in_set(TickSet::DomainInput))
         .configure_sets(Last, DimLightSet::Feed.before(LightSet::Intake))
+        .configure_sets(
+            Last,
+            DimLightSet::Emit
+                .after(DimLightSet::Feed)
+                .before(LightSet::Intake),
+        )
         // `Last` sees what the whole tick landed and placed, and hands it to the stage before
         // the tick ends.
         .add_systems(
@@ -97,13 +104,7 @@ impl Plugin for DimLightPlugin {
 /// Hands the light stage each column that waits for its light. The stage answers once the
 /// light around the column has settled, and [`publish_light`] passes the answer on.
 fn await_light(mut awaiting: MessageReader<ColumnAwaitsLight>, mut light: ResMut<LightLink>) {
-    let columns: Vec<ColumnPos> = awaiting
-        .read()
-        .map(|&ColumnAwaitsLight(column)| column)
-        .collect();
-    if !columns.is_empty() {
-        light.send(LightInput::AwaitColumns(columns));
-    }
+    light.await_columns(awaiting.read().map(|&ColumnAwaitsLight(column)| column));
 }
 
 /// Hands the light stage where the players stand once one of them has moved to another
@@ -183,53 +184,102 @@ fn feed_column_surfaces(
     }
 }
 
+/// The light changes of one column that wait until its light is final.
+#[derive(Default)]
+pub struct HeldBack {
+    block: Vec<Entity>,
+    sky: Vec<Entity>,
+    wait: Wait,
+}
+
+/// What the light of a held-back column waits on.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+enum Wait {
+    /// The stage has not lit every section of the column and of the eight around it.
+    #[default]
+    Ring,
+    /// The stage was asked to answer once no work it holds reaches the column.
+    Settle,
+}
+
 /// Turns a published light change into a `ClientboundLightUpdate` carrying only the rows that
 /// changed, for a column that the muxer subscribes to.
 ///
 /// A column at the outer ring of a hot area is lit here without its outer neighbours, so its
-/// light goes out from the data layer and not from here. A row whose light is the
-/// [`SentLight`] that the clients hold is no change to them.
+/// light goes out from the data layer and not from here. A change goes out only once the light
+/// of the column is final: the stage has lit the eight around it and holds no work that reaches
+/// it. Light lit while a neighbour is still on its way is light that the neighbour changes back,
+/// and the clients would draw both changes. A row whose light is the [`SentLight`] that the
+/// clients hold is no change to them.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "a Bevy system: each resource and query is its own parameter so the scheduler sees the access"
+)]
 pub fn emit_light_updates(
     mut relit: MessageReader<SectionRelit>,
+    mut settled: MessageReader<ColumnLightSettled>,
+    mut light: ResMut<LightLink>,
     sections: Query<(&SectionPos, &InDimension)>,
     mut lit: Query<(&BlockLight, &SkyLight, Option<&mut SentLight>)>,
-    column_indices: Query<(&ColumnIndex, &ColumnStreams, Option<&HotColumns>)>,
+    column_indices: Query<(
+        &ColumnIndex,
+        &SectionIndex,
+        &DimensionTypeConfig,
+        &ColumnStreams,
+        Option<&HotColumns>,
+    )>,
     codec_params: LightCodecParams,
     mut changes: MessageWriter<ColumnChange>,
-    mut by_column: Local<FxHashMap<(Entity, ColumnPos), (Vec<Entity>, Vec<Entity>)>>,
+    mut held_back: Local<FxHashMap<(Entity, ColumnPos), HeldBack>>,
+    mut settled_now: Local<FxHashSet<ColumnPos>>,
 ) {
     for change in relit.read() {
         let Ok((pos, in_dim)) = sections.get(change.section) else {
             continue;
         };
-        let rows = by_column
+        let held = held_back
             .entry((in_dim.0, ColumnPos::from(*pos)))
             .or_default();
-        if change.block && !rows.0.contains(&change.section) {
-            rows.0.push(change.section);
+        if change.block && !held.block.contains(&change.section) {
+            held.block.push(change.section);
         }
-        if change.sky && !rows.1.contains(&change.section) {
-            rows.1.push(change.section);
+        if change.sky && !held.sky.contains(&change.section) {
+            held.sky.push(change.section);
         }
     }
+    settled_now.clear();
+    settled_now.extend(settled.read().map(|&ColumnLightSettled(column)| column));
 
-    for ((dim, column_pos), (mut block_rows, mut sky_rows)) in by_column.drain() {
-        let Some(column_entity) = column_indices
-            .get(dim)
-            .ok()
-            .filter(|(_, streams, hot)| {
-                streams.is_subscribed(column_pos)
-                    && !streams.published_light_of_this_tick(column_pos)
-                    && hot.is_none_or(|hot| !hot.is_outer_ring(column_pos))
-            })
-            .and_then(|(index, ..)| index.0.get(&column_pos).map(|slot| slot.entity))
-        else {
-            continue;
+    held_back.retain(|&(dim, column_pos), held| {
+        let Ok((index, section_index, rows, streams, hot)) = column_indices.get(dim) else {
+            return false;
         };
-        block_rows.retain(|&section| note_sent(&mut lit, section, LightLayer::Block));
-        sky_rows.retain(|&section| note_sent(&mut lit, section, LightLayer::Sky));
-        if block_rows.is_empty() && sky_rows.is_empty() {
-            continue;
+        if !streams.is_subscribed(column_pos)
+            || streams.published_light_of_this_tick(column_pos)
+            || hot.is_some_and(|hot| hot.is_outer_ring(column_pos))
+        {
+            return false;
+        }
+        let Some(column_entity) = index.0.get(&column_pos).map(|slot| slot.entity) else {
+            return false;
+        };
+        match held.wait {
+            Wait::Ring => {
+                if ring_lit(index, section_index, rows, hot, &lit, column_pos) {
+                    light.await_columns([column_pos]);
+                    held.wait = Wait::Settle;
+                }
+                return true;
+            }
+            Wait::Settle if !settled_now.contains(&column_pos) => return true,
+            Wait::Settle => {}
+        }
+        held.block
+            .retain(|&section| note_sent(&mut lit, section, LightLayer::Block));
+        held.sky
+            .retain(|&section| note_sent(&mut lit, section, LightLayer::Sky));
+        if held.block.is_empty() && held.sky.is_empty() {
+            return false;
         }
         changes.write(ColumnChange {
             column: column_pos,
@@ -241,17 +291,44 @@ pub fn emit_light_updates(
                 z: VarInt(column_pos.z),
                 light_data: build_delta_light_data(
                     column_entity,
-                    &block_rows,
-                    &sky_rows,
+                    &held.block,
+                    &held.sky,
                     &codec_params,
                 ),
             }),
         });
-    }
+        false
+    });
 }
 
-/// Whether the clients holding `section` lack its current `layer`, which they hold once this
-/// returns. A section with no [`SentLight`] went out with no light to compare with.
+/// Whether the stage has lit `column` and the eight around it. The light of a cell reaches one
+/// column out, so until then the light of `column` is not final. Where the dimension lights
+/// `column` every neighbour is on its way and each of its sections counts; elsewhere only the
+/// sections the dimension holds count.
+fn ring_lit(
+    columns: &ColumnIndex,
+    sections: &SectionIndex,
+    rows: &DimensionTypeConfig,
+    hot: Option<&HotColumns>,
+    lit: &Query<(&BlockLight, &SkyLight, Option<&mut SentLight>)>,
+    column: ColumnPos,
+) -> bool {
+    let first = rows.min_y >> SectionPos::BITS;
+    let count = i32::try_from(rows.section_count).unwrap_or(0);
+    let every_row = hot.is_some_and(|hot| hot.lights(column));
+    column
+        .square(1)
+        .filter(|near| every_row || columns.0.contains_key(near))
+        .all(|near| {
+            (first..first.saturating_add(count)).all(|y| {
+                match sections.get(SectionPos::new(near.x, y, near.z)) {
+                    Some(section) => lit.contains(section),
+                    None => !every_row,
+                }
+            })
+        })
+}
+
 fn note_sent(
     lit: &mut Query<(&BlockLight, &SkyLight, Option<&mut SentLight>)>,
     section: Entity,

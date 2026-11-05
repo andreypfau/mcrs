@@ -318,6 +318,7 @@ struct Published(Vec<PublishedColumn>);
 enum PublishedColumn {
     Version(ColumnVersion),
     Light(ColumnPos, LightData<'static>),
+    Block(ColumnPos),
 }
 
 fn capture_published(
@@ -329,11 +330,15 @@ fn capture_published(
         published.0.push(PublishedColumn::Version(version.clone()));
     }
     for change in changes.read() {
-        if let PacketPayload::LightUpdate(update) = &change.payload {
-            published.0.push(PublishedColumn::Light(
+        match &change.payload {
+            PacketPayload::LightUpdate(update) => published.0.push(PublishedColumn::Light(
                 change.column,
                 update.light_data.clone(),
-            ));
+            )),
+            PacketPayload::BlockUpdate(_) => {
+                published.0.push(PublishedColumn::Block(change.column));
+            }
+            _ => {}
         }
     }
 }
@@ -382,9 +387,38 @@ fn light_updates_changing_nothing(rows: usize, published: &[PublishedColumn]) ->
                     changing_nothing += 1;
                 }
             }
+            PublishedColumn::Block(_) => {}
         }
     }
     changing_nothing
+}
+
+/// The light updates of a column that the clients hold while no block within one column of it
+/// changed. The light of such a column is the light it went out with, so each of them is light
+/// the clients draw only until the next one takes it back.
+fn light_updates_without_a_block_change(published: &[PublishedColumn]) -> Vec<ColumnPos> {
+    let changed: Vec<ColumnPos> = published
+        .iter()
+        .filter_map(|entry| match entry {
+            PublishedColumn::Block(column) => Some(*column),
+            _ => None,
+        })
+        .collect();
+    let mut held = Vec::new();
+    let mut unprompted = Vec::new();
+    for entry in published {
+        match entry {
+            PublishedColumn::Version(version) => held.push(version.column),
+            PublishedColumn::Light(column, _)
+                if held.contains(column)
+                    && !column.square(1).any(|near| changed.contains(&near)) =>
+            {
+                unprompted.push(*column);
+            }
+            PublishedColumn::Light(..) | PublishedColumn::Block(_) => {}
+        }
+    }
+    unprompted
 }
 
 #[test]
@@ -464,5 +498,10 @@ fn a_column_that_turns_hot_sends_no_light_its_viewers_already_hold() {
         light_updates_changing_nothing(rows, published),
         0,
         "of {lit} light updates, some repeated the light that the viewers held"
+    );
+    assert_eq!(
+        light_updates_without_a_block_change(published),
+        [],
+        "a column goes out with its final light, so only a changed block changes it"
     );
 }
