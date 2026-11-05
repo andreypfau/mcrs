@@ -25,7 +25,6 @@
 //! The tick report covers the ticks after the first third of the run; the column report covers
 //! each bot over the whole run, by the dimension the bot ends up in.
 
-use std::collections::HashMap;
 use std::num::NonZeroU32;
 use std::str::FromStr;
 use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
@@ -33,7 +32,6 @@ use std::sync::{Arc, mpsc};
 use std::time::{Duration, Instant};
 
 use bevy_app::{App, Plugin, PluginGroup};
-use bevy_ecs::entity::Entity;
 use bevy_math::DVec3;
 use mcrs_minecraft_core::VERSION;
 use mcrs_minecraft_engine::coordinator::dim_cells::DimCells;
@@ -44,16 +42,15 @@ use mcrs_minecraft_engine_server::{
 use mcrs_minecraft_engine_world::world::lifecycle::simulation::SimulationDistance;
 use mcrs_minecraft_engine_world::world::storage::column::ColumnIndex;
 use mcrs_minecraft_engine_world::world::sub_app::AddDimensionPlugins;
-use mcrs_minecraft_network::ServerSideConnection;
 use mcrs_minecraft_network::join::{Join, Joined, join};
-use mcrs_minecraft_network::metrics::{BridgeTelemetry, PacketKind, PacketKinds};
+use mcrs_minecraft_network::metrics::{BridgeTelemetry, PacketKind};
 use mcrs_minecraft_network::packet_io::PacketIo;
 use mcrs_minecraft_protocol::anyhow;
 use mcrs_minecraft_protocol::packets::common::serverbound::KeepAlive;
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundKeepAlive;
 use mcrs_minecraft_protocol::packets::game::serverbound::ServerboundKeepAlive;
 use mcrs_minecraft_protocol::uuid::Uuid;
-use mcrs_minecraft_protocol::{Bounded, Decode, Packet, WritePacket};
+use mcrs_minecraft_protocol::{Bounded, Decode, Packet, VarInt, WritePacket};
 use mcrs_minecraft_protocol_game::MoveFlags;
 use mcrs_minecraft_protocol_game::clientbound::{
     ClientboundChunkBatchFinished, ClientboundPlayerPosition,
@@ -98,59 +95,11 @@ struct TickTimes {
     between_ticks: Duration,
     drain: Duration,
     /// What the bridge handed to the connections up to the end of the tick.
-    traffic: Traffic,
-    /// The bytes appended to each connection during the tick.
-    session_bytes: Vec<u64>,
-}
-
-/// What the bridge handed to the connections since the server started.
-#[derive(Clone, Copy, Default)]
-struct Traffic {
-    messages: u64,
-    encode_calls: u64,
-    shared_appends: u64,
-    shared_bytes: u64,
-    shared_frames: u64,
-    framed_appends: u64,
-    packets: PacketKinds,
+    telemetry: BridgeTelemetry,
+    /// The tile deltas handed to the muxer up to the end of the tick.
     tile_encodes: u64,
-    replication_bytes: u64,
-}
-
-impl Traffic {
-    fn of(app: &App) -> Self {
-        let telemetry = app.world().resource::<BridgeTelemetry>();
-        Self {
-            tile_encodes: app
-                .world()
-                .get_resource::<EntityReplication>()
-                .map_or(0, EntityReplication::published_tiles),
-            messages: telemetry.outbound_messages_consumed_total,
-            encode_calls: telemetry.encode_calls_total,
-            shared_appends: telemetry.shared_appends_total,
-            shared_bytes: telemetry.shared_bytes_total,
-            shared_frames: telemetry.shared_frames_total,
-            framed_appends: telemetry.framed_appends_total,
-            packets: telemetry.packets,
-            replication_bytes: telemetry.replication_bytes_total,
-        }
-    }
-
-    fn since(self, earlier: Self) -> Self {
-        Self {
-            messages: self.messages.saturating_sub(earlier.messages),
-            encode_calls: self.encode_calls.saturating_sub(earlier.encode_calls),
-            shared_appends: self.shared_appends.saturating_sub(earlier.shared_appends),
-            shared_bytes: self.shared_bytes.saturating_sub(earlier.shared_bytes),
-            shared_frames: self.shared_frames.saturating_sub(earlier.shared_frames),
-            framed_appends: self.framed_appends.saturating_sub(earlier.framed_appends),
-            packets: self.packets.since(earlier.packets),
-            tile_encodes: self.tile_encodes.saturating_sub(earlier.tile_encodes),
-            replication_bytes: self
-                .replication_bytes
-                .saturating_sub(earlier.replication_bytes),
-        }
-    }
+    /// The bytes of packet ids and bodies that each joined bot received during the tick.
+    session_bytes: Vec<u64>,
 }
 
 fn main() -> anyhow::Result<()> {
@@ -206,12 +155,15 @@ fn main() -> anyhow::Result<()> {
     let stop = Arc::new(AtomicBool::new(false));
     let (times_send, times_recv) = mpsc::channel();
     let server_stop = stop.clone();
-    let server = mcrs_minecraft_engine_server::spawn_server_thread(app, move |app| {
-        times_send.send(run_timed(app, &server_stop)).ok();
-    })?;
-
     let started = Instant::now();
     let counts = Arc::new(Counts::new(bots, started));
+    let server_counts = counts.clone();
+    let server = mcrs_minecraft_engine_server::spawn_server_thread(app, move |app| {
+        times_send
+            .send(run_timed(app, &server_stop, &server_counts))
+            .ok();
+    })?;
+
     let runtime = tokio::runtime::Runtime::new()?;
     runtime.block_on(async {
         for index in 0..bots {
@@ -270,12 +222,12 @@ const COLUMN_SAMPLE_TICKS: usize = 20;
 
 /// `run_server_loop`, timing the tick and the hand-over to the sockets after it, and counting
 /// the columns of the dimension worlds now and then, outside the timed parts.
-fn run_timed(mut app: App, stop: &AtomicBool) -> (Vec<TickTimes>, Vec<usize>) {
+fn run_timed(mut app: App, stop: &AtomicBool, counts: &Counts) -> (Vec<TickTimes>, Vec<usize>) {
     app.finish();
     app.cleanup();
     let mut times = Vec::new();
     let mut columns = Vec::new();
-    let mut sent: HashMap<Entity, u64> = HashMap::new();
+    let mut received = vec![0; counts.bots.len()];
     while !stop.load(Ordering::Relaxed) {
         let start = Instant::now();
         app.update();
@@ -288,14 +240,18 @@ fn run_timed(mut app: App, stop: &AtomicBool) -> (Vec<TickTimes>, Vec<usize>) {
         runner::drain(&mut app);
         let drain = drained.elapsed();
         runner::drain_until(&mut app, start + TICK);
-        let traffic = Traffic::of(&app);
-        let session_bytes = session_bytes(&mut app, &mut sent);
+        let telemetry = *app.world().resource::<BridgeTelemetry>();
+        let tile_encodes = app
+            .world()
+            .get_resource::<EntityReplication>()
+            .map_or(0, EntityReplication::published_tiles);
         times.push(TickTimes {
             tick,
             between_ticks,
             drain,
-            traffic,
-            session_bytes,
+            telemetry,
+            tile_encodes,
+            session_bytes: session_bytes(counts, &mut received),
         });
         if times.len() % COLUMN_SAMPLE_TICKS == 0 {
             columns.push(dimension_columns(&mut app));
@@ -319,14 +275,15 @@ fn dimension_columns(app: &mut App) -> usize {
         .sum()
 }
 
-/// The bytes each connection was handed since the last call.
-fn session_bytes(app: &mut App, sent: &mut HashMap<Entity, u64>) -> Vec<u64> {
-    let mut query = app.world_mut().query::<(Entity, &ServerSideConnection)>();
+/// The bytes each joined bot received since the last call.
+fn session_bytes(counts: &Counts, received: &mut [u64]) -> Vec<u64> {
     let mut deltas = Vec::new();
-    for (entity, connection) in query.iter(app.world()) {
-        let total = connection.raw.appended_bytes();
-        let last = sent.insert(entity, total).unwrap_or(0);
-        deltas.push(total.saturating_sub(last));
+    for (bot, last) in counts.bots.iter().zip(received) {
+        let total = bot.bytes.load(Ordering::Relaxed);
+        if total > 0 {
+            deltas.push(total.saturating_sub(*last));
+        }
+        *last = total;
     }
     deltas
 }
@@ -338,27 +295,35 @@ fn report_traffic(measured: &[TickTimes]) {
     };
     // The traffic of the first measured tick is in the snapshot that the others count from.
     let ticks = measured.len().saturating_sub(1).max(1) as f64;
-    let total = last.traffic.since(first.traffic);
+    let total = &last.telemetry;
+    let earlier = &first.telemetry;
     let a_tick = |count: u64| count as f64 / ticks;
+    let since = |count: u64, earlier: u64| a_tick(count.saturating_sub(earlier));
     println!(
         "messages: {:.1} a tick, encode calls: {:.1} a tick, shared appends: {:.1} a tick ({:.1} KB a tick shared)",
-        a_tick(total.messages),
-        a_tick(total.encode_calls),
-        a_tick(total.shared_appends),
-        a_tick(total.shared_bytes) / 1e3,
+        since(
+            total.outbound_messages_consumed_total,
+            earlier.outbound_messages_consumed_total
+        ),
+        since(total.encode_calls_total, earlier.encode_calls_total),
+        since(total.shared_appends_total, earlier.shared_appends_total),
+        since(total.shared_bytes_total, earlier.shared_bytes_total) / 1e3,
     );
     println!(
         "muxer tile encodes: {:.1} a tick",
-        a_tick(total.tile_encodes)
+        since(last.tile_encodes, first.tile_encodes)
     );
     println!(
         "shared frames made: {:.1} a tick, appends of a made frame: {:.1} a tick",
-        a_tick(total.shared_frames),
-        a_tick(total.framed_appends),
+        since(total.shared_frames_total, earlier.shared_frames_total),
+        since(total.framed_appends_total, earlier.framed_appends_total),
     );
     let kinds: Vec<String> = PacketKind::ALL
         .iter()
-        .map(|&kind| format!("{} {:.1}", kind.name(), a_tick(total.packets.get(kind))))
+        .map(|&kind| {
+            let count = since(total.packets.get(kind), earlier.packets.get(kind));
+            format!("{} {count:.1}", kind.name())
+        })
         .collect();
     println!("packets a tick: {}", kinds.join(", "));
     let mut bytes: Vec<u64> = measured
@@ -379,7 +344,10 @@ fn report_traffic(measured: &[TickTimes]) {
     let sessions = last.session_bytes.len().max(1) as f64;
     println!(
         "muxer bytes a session a tick: mean {:.0}",
-        a_tick(total.replication_bytes) / sessions,
+        since(
+            total.replication_bytes_total,
+            earlier.replication_bytes_total
+        ) / sessions,
     );
 }
 
@@ -436,6 +404,8 @@ impl Counts {
 
 /// The columns one bot received, and when the first and the last of them arrived.
 struct BotCounts {
+    /// The bytes of packet ids and bodies received since the join, without framing or compression.
+    bytes: AtomicU64,
     columns: AtomicUsize,
     first_millis: AtomicU64,
     last_millis: AtomicU64,
@@ -444,6 +414,7 @@ struct BotCounts {
 impl Default for BotCounts {
     fn default() -> Self {
         Self {
+            bytes: AtomicU64::new(0),
             columns: AtomicUsize::new(0),
             first_millis: AtomicU64::new(u64::MAX),
             last_millis: AtomicU64::new(0),
@@ -548,6 +519,11 @@ async fn bot(
     loop {
         ticks.tick().await;
         while let Some(packet) = connection.try_recv()? {
+            let id = VarInt(packet.id).written_size();
+            let bytes = packet.payload.len().saturating_add(id);
+            if let Some(bot) = counts.bots.get(index) {
+                bot.bytes.fetch_add(bytes as u64, Ordering::Relaxed);
+            }
             let body = &mut &packet.payload[..];
             if packet.id == ClientboundPlayerPosition::ID {
                 let teleport = ClientboundPlayerPosition::decode(body)?;

@@ -98,15 +98,6 @@ impl PacketKinds {
     pub fn get(&self, kind: PacketKind) -> u64 {
         self.0.get(kind as usize).copied().unwrap_or(0)
     }
-
-    #[must_use]
-    pub fn since(self, earlier: Self) -> Self {
-        let mut counts = self.0;
-        for (count, earlier) in counts.iter_mut().zip(earlier.0) {
-            *count = count.saturating_sub(earlier);
-        }
-        Self(counts)
-    }
 }
 
 type Check =
