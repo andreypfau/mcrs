@@ -4,7 +4,7 @@ use crate::list_packets::{Profile, game_mode_packet};
 use crate::motion::Motion;
 use crate::player_data::PlayerData;
 use crate::player_input::PlayerInput;
-use crate::player_list::{Clock, Dispatch, Member, PlayerList, ProfileNeed};
+use crate::player_list::{Dispatch, Member, PlayerList, ProfileNeed};
 use crate::player_spawn::PlayerSpawn;
 use bytes::{Bytes, BytesMut};
 use glam::DVec3;
@@ -294,10 +294,9 @@ impl PlayerCodec {
     }
 
     fn update_list(&mut self) -> Result<()> {
-        let roster: Vec<Member<'_>> = self
-            .subjects
-            .iter()
-            .map(|(&subject, state)| Member {
+        let mut roster: Vec<Member<'_>> = Vec::new();
+        if self.list.reads_roster(self.tick, self.generation) {
+            roster.extend(self.subjects.iter().map(|(&subject, state)| Member {
                 player: subject,
                 position: state
                     .motion
@@ -306,8 +305,8 @@ impl PlayerCodec {
                 profile: state.profile(),
                 game_mode: state.game_mode,
                 latency: self.latency.get(&state.viewer).copied().unwrap_or(0),
-            })
-            .collect();
+            }));
+        }
         let holds = &self.holds;
         let subjects = &self.subjects;
         let sees = |viewer: EntityId, subject: EntityId| {
@@ -316,17 +315,21 @@ impl PlayerCodec {
                 .and_then(|state| holds.get(&state.viewer))
                 .is_some_and(|held| held.contains(&subject))
         };
-        let clock = Clock {
-            tick: self.tick,
-            generation: self.generation,
-        };
-        let result = self.list.update(clock, &roster, sees, &mut self.dispatches);
-        for Dispatch { viewer, packet } in mem::take(&mut self.dispatches) {
+        let result = self.list.update(
+            self.tick,
+            self.generation,
+            &roster,
+            sees,
+            &mut self.dispatches,
+        );
+        let mut dispatches = mem::take(&mut self.dispatches);
+        for Dispatch { viewer, packet } in dispatches.drain(..) {
             if let Some(state) = self.subjects.get(&viewer) {
                 let viewer = state.viewer;
                 self.owe(viewer, packet);
             }
         }
+        self.dispatches = dispatches;
         result
     }
 }
@@ -420,12 +423,8 @@ impl ReplicationCodec for PlayerCodec {
         );
     }
 
-    fn receive(&mut self, input: PlayerInput) {
-        match input {
-            PlayerInput::Latency { viewer, latency } => {
-                self.latency.insert(viewer, latency);
-            }
-        }
+    fn receive(&mut self, PlayerInput { viewer, latency }: PlayerInput) {
+        self.latency.insert(viewer, latency);
     }
 }
 

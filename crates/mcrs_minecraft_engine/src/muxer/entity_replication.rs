@@ -177,7 +177,7 @@ impl EntityReplication {
         if let Some(watch) = self.viewers.get(&viewer) {
             self.link.send(MuxerInput::Codec {
                 world: watch.world,
-                input: PlayerInput::Latency { viewer, latency },
+                input: PlayerInput { viewer, latency },
             });
         }
     }

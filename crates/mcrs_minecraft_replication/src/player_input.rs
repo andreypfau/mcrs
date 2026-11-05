@@ -1,9 +1,9 @@
 use mcrs_engine_muxer::ViewerId;
 
-/// A message of the host to a [`PlayerCodec`](crate::PlayerCodec).
-#[non_exhaustive]
+/// A message of the host to a [`PlayerCodec`](crate::PlayerCodec): the round trip of `viewer` in
+/// milliseconds, which the host measures on the wire.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum PlayerInput {
-    /// The round trip of `viewer` in milliseconds, which the host measures on the wire.
-    Latency { viewer: ViewerId, latency: i32 },
+pub struct PlayerInput {
+    pub viewer: ViewerId,
+    pub latency: i32,
 }

@@ -50,15 +50,6 @@ pub struct Member<'a> {
     pub latency: i32,
 }
 
-/// The time of one update of the list.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct Clock {
-    /// The tracker tick. No interval of the list reads the wall clock.
-    pub tick: u64,
-    /// Changes whenever a player joins, leaves or changes section.
-    pub generation: u64,
-}
-
 /// A packet for one viewer.
 #[derive(Clone, Debug, PartialEq, Eq)]
 #[must_use]
@@ -232,18 +223,31 @@ impl PlayerList {
         cached_profile(record, profile, game_mode)
     }
 
+    /// Whether [`Self::update`] at `tick` reads its roster: a viewer chooses its listed entries
+    /// again, or gets the latency of its listed entries.
+    #[must_use]
+    pub fn reads_roster(&self, tick: u64, generation: u64) -> bool {
+        self.viewers.values().any(|entries| {
+            let chooses = (entries.chosen_at.is_none()
+                || due(tick, entries.phase, LIST_INTERVAL_TICKS))
+                && entries.chosen_at != Some(generation);
+            chooses || due(tick, entries.phase, LATENCY_INTERVAL_TICKS)
+        })
+    }
+
     /// Chooses the listed entries of each viewer, gathers the latency of the listed entries and
-    /// the removal of the entries that nothing needs any more. `roster` holds the tracked
-    /// players sorted by player. `sees(viewer, subject)` tells whether the visible set of the
-    /// viewer holds the subject. After an error, the dispatches in `out` stay valid.
+    /// the removal of the entries that nothing needs any more. `tick` is the tracker tick, and
+    /// `generation` changes whenever a player joins, leaves or changes section. `roster` holds
+    /// the tracked players sorted by player. `sees(viewer, subject)` tells whether the visible
+    /// set of the viewer holds the subject. After an error, the dispatches in `out` stay valid.
     pub fn update<F: Fn(EntityId, EntityId) -> bool>(
         &mut self,
-        clock: Clock,
+        tick: u64,
+        generation: u64,
         roster: &[Member<'_>],
         sees: F,
         out: &mut Vec<Dispatch>,
     ) -> Result<()> {
-        let Clock { tick, generation } = clock;
         let Self {
             viewers,
             subjects,
@@ -507,29 +511,15 @@ mod tests {
         let _ = list.acquire(FIRST, SECOND);
         list.release(FIRST, SECOND, 100);
         let mut out = Vec::new();
-        list.update(
-            Clock {
-                tick: 1,
-                generation: 1,
-            },
-            &roster,
-            |_, _| false,
-            &mut out,
-        )?;
+        list.update(1, 1, &roster, |_, _| false, &mut out)?;
         out.clear();
 
-        let before = Clock {
-            tick: 100 + ENTRY_LINGER_TICKS - 20,
-            generation: 1,
-        };
-        list.update(before, &roster, |_, _| false, &mut out)?;
+        let before = 100 + ENTRY_LINGER_TICKS - 20;
+        list.update(before, 1, &roster, |_, _| false, &mut out)?;
         assert!(out.is_empty(), "{out:?}");
 
-        let after = Clock {
-            tick: 100 + ENTRY_LINGER_TICKS,
-            generation: 1,
-        };
-        list.update(after, &roster, |_, _| false, &mut out)?;
+        let after = 100 + ENTRY_LINGER_TICKS;
+        list.update(after, 1, &roster, |_, _| false, &mut out)?;
         let expected = Dispatch {
             viewer: FIRST,
             packet: remove_packet(vec![Uuid::from_u128(2)])?,
