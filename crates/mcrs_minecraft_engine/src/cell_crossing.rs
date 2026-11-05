@@ -12,7 +12,7 @@ use mcrs_minecraft_engine_world::entity::player::Player;
 use mcrs_minecraft_engine_world::entity::player::chunk_view::SentChunkView;
 use mcrs_minecraft_engine_world::owned_columns::OwnedColumns;
 use mcrs_minecraft_engine_world::session::{DimPlayerIndex, Owner, PlayerSession};
-use mcrs_minecraft_engine_world::world::dimension::Dimension;
+use mcrs_minecraft_engine_world::world::dimension::InDimension;
 use mcrs_minecraft_engine_world::world::lifecycle::simulation::{
     HeldSimulationArea, SimulationTicket,
 };
@@ -123,8 +123,10 @@ pub(crate) fn arrive(
     release_remote(world, session);
     let transform = carried.transform;
     let player = player_dimension_change::place(world, session, transform, carried, view)?;
-    let dimension = own_dimension(world)?;
     let mut arrived = world.entity_mut(player);
+    let Some(&InDimension(dimension)) = arrived.get::<InDimension>() else {
+        return Err(DimensionChangeError::NoDimension);
+    };
     if let Some(replicated) = replicated {
         arrived.insert((replicated, CrossedAt(transform)));
     }
@@ -156,7 +158,7 @@ pub(crate) fn update_remote(
     match (ticket, held) {
         (Some(ticket), Some(holder)) => hot_ticket::move_remote_ticket(world, holder, ticket),
         (Some(ticket), None) => {
-            if let Ok(dimension) = own_dimension(world) {
+            if let Ok(dimension) = player_dimension_change::own_dimension(world) {
                 hold_remote(world, session, HotTicket::in_dim(dimension, ticket));
             }
         }
@@ -187,11 +189,4 @@ fn release_remote(world: &mut World, session: PlayerSession) {
     if let Some(holder) = held {
         world.despawn(holder);
     }
-}
-
-fn own_dimension(world: &mut World) -> Result<Entity, DimensionChangeError> {
-    world
-        .query_filtered::<Entity, With<Dimension>>()
-        .single(world)
-        .map_err(|_| DimensionChangeError::NoDimension)
 }

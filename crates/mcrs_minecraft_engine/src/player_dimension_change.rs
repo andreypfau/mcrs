@@ -167,10 +167,7 @@ pub(crate) fn place(
     carried: CarriedPlayer,
     view: SentChunkView,
 ) -> Result<Entity, DimensionChangeError> {
-    let dimension = world
-        .query_filtered::<Entity, With<Dimension>>()
-        .single(world)
-        .map_err(|_| DimensionChangeError::NoDimension)?;
+    let dimension = own_dimension(world)?;
     let mut player = world.spawn((
         EntityBundle {
             minecraft_entity: Default::default(),
@@ -184,4 +181,12 @@ pub(crate) fn place(
     ));
     carried.insert_into(&mut player);
     Ok(player.id())
+}
+
+/// The dimension entity of this world.
+pub(crate) fn own_dimension(world: &mut World) -> Result<Entity, DimensionChangeError> {
+    world
+        .query_filtered::<Entity, With<Dimension>>()
+        .single(world)
+        .map_err(|_| DimensionChangeError::NoDimension)
 }
