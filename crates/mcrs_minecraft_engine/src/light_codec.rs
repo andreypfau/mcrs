@@ -31,6 +31,36 @@ pub(crate) fn wire_rows(chunks: &ColumnSections) -> impl Iterator<Item = WireRow
         .chain(std::iter::once(WireRow::TopPadding))
 }
 
+/// The masks and the arrays of one light layer of a packet, filled row by row.
+#[derive(Debug, Default)]
+pub(crate) struct LayerPacker {
+    mask: Vec<u64>,
+    empty_mask: Vec<u64>,
+    arrays: Vec<LightChunk>,
+}
+
+impl LayerPacker {
+    fn with_capacity(rows: usize) -> Self {
+        Self {
+            mask: Vec::new(),
+            empty_mask: Vec::new(),
+            arrays: Vec::with_capacity(rows),
+        }
+    }
+}
+
+/// The light packet that the packed layers make.
+fn light_data(block: LayerPacker, sky: LayerPacker) -> LightData<'static> {
+    LightData {
+        sky_light_mask: Cow::Owned(sky.mask),
+        block_light_mask: Cow::Owned(block.mask),
+        empty_sky_light_mask: Cow::Owned(sky.empty_mask),
+        empty_block_light_mask: Cow::Owned(block.empty_mask),
+        sky_light_arrays: Cow::Owned(sky.arrays),
+        block_light_arrays: Cow::Owned(block.arrays),
+    }
+}
+
 /// Wire-mapping decision matrix dispatcher for a single (chunk, layer) pair.
 ///
 /// The bit `bit_idx` is interpreted relative to the mask `Vec<u64>` words:
@@ -42,20 +72,19 @@ pub(crate) fn wire_rows(chunks: &ColumnSections) -> impl Iterator<Item = WireRow
 /// component's `LightStorage`. The `has_sky_light` flag is consulted only for
 /// `TopPadding` (sky synthesis is gated on the dimension having a sky) and for
 /// the Loaded+sky-missing-in-skyless-dim row.
-#[expect(
-    clippy::too_many_arguments,
-    reason = "the packer fills the three wire buffers in one pass, so each buffer and the row's layer, sky flag and bit index stay separate parameters"
-)]
 pub(crate) fn pack_chunk(
     chunk: WireRow,
     storage: Option<&LightStorage>,
     layer: LightLayer,
     has_sky_light: bool,
     bit_idx: usize,
-    mask: &mut Vec<u64>,
-    empty_mask: &mut Vec<u64>,
-    arrays: &mut Vec<LightChunk>,
+    out: &mut LayerPacker,
 ) {
+    let LayerPacker {
+        mask,
+        empty_mask,
+        arrays,
+    } = out;
     match chunk {
         WireRow::BottomPadding => {
             set_bit(empty_mask, bit_idx);
@@ -180,13 +209,9 @@ pub(crate) fn build_stored_light_data(
     stored: &StoredColumn,
     has_sky_light: bool,
 ) -> LightData<'static> {
-    let mut sky_mask: Vec<u64> = Vec::new();
-    let mut block_mask: Vec<u64> = Vec::new();
-    let mut empty_sky_mask: Vec<u64> = Vec::new();
-    let mut empty_block_mask: Vec<u64> = Vec::new();
     let rows = stored.sections.len() + 2;
-    let mut sky_arrays: Vec<LightChunk> = Vec::with_capacity(rows);
-    let mut block_arrays: Vec<LightChunk> = Vec::with_capacity(rows);
+    let mut block = LayerPacker::with_capacity(rows);
+    let mut sky = LayerPacker::with_capacity(rows);
     let sections = stored.sections.iter().map(Some);
     let padded = std::iter::once(None)
         .chain(sections)
@@ -205,9 +230,7 @@ pub(crate) fn build_stored_light_data(
             LightLayer::Block,
             has_sky_light,
             bit_idx,
-            &mut block_mask,
-            &mut empty_block_mask,
-            &mut block_arrays,
+            &mut block,
         );
         pack_chunk(
             row,
@@ -217,19 +240,10 @@ pub(crate) fn build_stored_light_data(
             LightLayer::Sky,
             has_sky_light,
             bit_idx,
-            &mut sky_mask,
-            &mut empty_sky_mask,
-            &mut sky_arrays,
+            &mut sky,
         );
     }
-    LightData {
-        sky_light_mask: Cow::Owned(sky_mask),
-        block_light_mask: Cow::Owned(block_mask),
-        empty_sky_light_mask: Cow::Owned(empty_sky_mask),
-        empty_block_light_mask: Cow::Owned(empty_block_mask),
-        sky_light_arrays: Cow::Owned(sky_arrays),
-        block_light_arrays: Cow::Owned(block_arrays),
-    }
+    light_data(block, sky)
 }
 
 fn build_light_data(
@@ -245,13 +259,9 @@ fn build_light_data(
     };
     let has_sky_light = params.has_sky_lights.get(in_dim.0).is_ok();
 
-    let mut sky_mask: Vec<u64> = Vec::new();
-    let mut block_mask: Vec<u64> = Vec::new();
-    let mut empty_sky_mask: Vec<u64> = Vec::new();
-    let mut empty_block_mask: Vec<u64> = Vec::new();
     let rows = wire_rows(chunk_index).count();
-    let mut sky_arrays: Vec<LightChunk> = Vec::with_capacity(rows);
-    let mut block_arrays: Vec<LightChunk> = Vec::with_capacity(rows);
+    let mut block = LayerPacker::with_capacity(rows);
+    let mut sky = LayerPacker::with_capacity(rows);
 
     for (bit_idx, lookup) in wire_rows(chunk_index).enumerate() {
         let chunk_entity = match lookup {
@@ -272,9 +282,7 @@ fn build_light_data(
                 LightLayer::Block,
                 has_sky_light,
                 bit_idx,
-                &mut block_mask,
-                &mut empty_block_mask,
-                &mut block_arrays,
+                &mut block,
             );
         }
         if pack_row(lookup, LightLayer::Sky) {
@@ -284,21 +292,11 @@ fn build_light_data(
                 LightLayer::Sky,
                 has_sky_light,
                 bit_idx,
-                &mut sky_mask,
-                &mut empty_sky_mask,
-                &mut sky_arrays,
+                &mut sky,
             );
         }
     }
-
-    LightData {
-        sky_light_mask: Cow::Owned(sky_mask),
-        block_light_mask: Cow::Owned(block_mask),
-        empty_sky_light_mask: Cow::Owned(empty_sky_mask),
-        empty_block_light_mask: Cow::Owned(empty_block_mask),
-        sky_light_arrays: Cow::Owned(sky_arrays),
-        block_light_arrays: Cow::Owned(block_arrays),
-    }
+    light_data(block, sky)
 }
 
 #[cfg(test)]
@@ -384,12 +382,8 @@ mod tests {
             (WireRow::TopPadding, None, None),
         ];
 
-        let mut block_mask: Vec<u64> = Vec::new();
-        let mut sky_mask: Vec<u64> = Vec::new();
-        let mut empty_block_mask: Vec<u64> = Vec::new();
-        let mut empty_sky_mask: Vec<u64> = Vec::new();
-        let mut block_arrays: Vec<LightChunk> = Vec::new();
-        let mut sky_arrays: Vec<LightChunk> = Vec::new();
+        let mut block = LayerPacker::default();
+        let mut sky = LayerPacker::default();
 
         let has_sky_light = true;
 
@@ -400,9 +394,7 @@ mod tests {
                 LightLayer::Block,
                 has_sky_light,
                 bit_idx,
-                &mut block_mask,
-                &mut empty_block_mask,
-                &mut block_arrays,
+                &mut block,
             );
             pack_chunk(
                 *chunk,
@@ -410,11 +402,19 @@ mod tests {
                 LightLayer::Sky,
                 has_sky_light,
                 bit_idx,
-                &mut sky_mask,
-                &mut empty_sky_mask,
-                &mut sky_arrays,
+                &mut sky,
             );
         }
+        let LayerPacker {
+            mask: block_mask,
+            empty_mask: empty_block_mask,
+            arrays: block_arrays,
+        } = block;
+        let LayerPacker {
+            mask: sky_mask,
+            empty_mask: empty_sky_mask,
+            arrays: sky_arrays,
+        } = sky;
 
         assert_eq!(
             block_arrays.len() as u32,
