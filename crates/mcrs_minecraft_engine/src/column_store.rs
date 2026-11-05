@@ -55,7 +55,7 @@ pub struct ColumnStorePlugin {
 
 /// The near end of the data layer of a dimension world: the requests of this tick go out in the
 /// output of the tick, and the answers come in the input of a later tick.
-#[derive(Resource)]
+#[derive(Resource, Default)]
 pub struct ColumnStoreLink {
     owned: Option<OwnedColumns>,
     /// The requests of this tick, in order.
@@ -91,8 +91,9 @@ pub struct ColumnStoreLink {
 }
 
 /// Whether a cell generates the columns that no cell holds through the generation of its world.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 enum Generation {
+    #[default]
     Off,
     World,
 }
@@ -151,21 +152,7 @@ impl ColumnStoreLink {
     pub fn new(owned: Option<OwnedColumns>) -> Self {
         Self {
             owned,
-            sent: Vec::new(),
-            answers: Vec::new(),
-            written: ChunkVersion::default(),
-            reads: FxHashMap::default(),
-            viewed: Vec::new(),
-            fetched: Vec::new(),
-            written_columns: FxHashMap::default(),
-            unreadable: FxHashSet::default(),
-            others: OtherColumns::default(),
-            asked: Vec::new(),
-            out_asks: Vec::new(),
-            out_answers: Vec::new(),
-            out_holds: Vec::new(),
-            generation: Generation::Off,
-            generation_asks: Vec::new(),
+            ..Self::default()
         }
     }
 

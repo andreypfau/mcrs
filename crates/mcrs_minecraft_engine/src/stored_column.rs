@@ -15,21 +15,20 @@ pub struct StoredColumn {
     pub sections: Vec<StoredSection>,
     pub block_entities: Vec<GeneratedBlockEntity>,
     pub heightmaps: Option<ColumnHeightmapSet>,
-    pub lit_by: LitBy,
     /// The scheduled ticks of the column, with their delays from the game time of the write.
     pub ticks: ColumnTicks,
 }
 
-/// Where the light of a [`StoredColumn`] was computed.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum LitBy {
-    /// Nothing lit it yet: the sections hold no light.
-    Unlit,
-    /// The dimension lit it while the column was loaded. The light may lag the blocks, or miss
-    /// a neighbour that went cold first.
-    Dimension,
-    /// The data layer lit it from its blocks and the blocks of the eight around it.
-    DataLayer,
+impl StoredColumn {
+    /// Whether the column holds light. Only the data layer keeps light, which it lit from the
+    /// blocks of the column and of the eight around it, so a kept column with light holds its
+    /// final light.
+    #[must_use]
+    pub fn is_lit(&self) -> bool {
+        self.sections
+            .iter()
+            .any(|section| section.block_light.is_some() || section.sky_light.is_some())
+    }
 }
 
 /// One section of a [`StoredColumn`]. The light is absent in a world that does not light its

@@ -16,7 +16,7 @@ use crate::column_asks::ColumnOrigin;
 use crate::column_light::ColumnLight;
 use crate::column_snapshot::ColumnSnapshots;
 use crate::column_store::{ColumnStoreLink, Delivery, ReadFrom, ViewedColumn};
-use crate::stored_column::{LitBy, StoredColumn};
+use crate::stored_column::StoredColumn;
 use crate::wanted_column::{Ask, Changed, Content, Source, Wanted};
 
 /// The stages in cold space: the data layer generates and lights each column that a view waits
@@ -240,7 +240,6 @@ impl ColumnProduction {
                     held.sky_light = Some(section.sky_light);
                 }
             }
-            stored.lit_by = LitBy::DataLayer;
         }
         let version = match source {
             Source::DataLayer(version) if relit => Some(version),
@@ -425,8 +424,7 @@ impl ColumnProduction {
             if wanted.light != Ask::NotAsked {
                 continue;
             }
-            let final_light =
-                content.stored.lit_by == LitBy::DataLayer && wanted.delivery == Delivery::Version;
+            let final_light = content.stored.is_lit() && wanted.delivery == Delivery::Version;
             if lights == Lights::No || final_light {
                 self.finish(column, None, loading, store);
                 continue;

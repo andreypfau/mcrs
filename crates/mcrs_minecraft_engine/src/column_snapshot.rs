@@ -13,7 +13,7 @@ use mcrs_minecraft_heightmap::{
 };
 
 use crate::column_ticks::ColumnTicks;
-use crate::stored_column::{LitBy, StoredColumn, StoredSection};
+use crate::stored_column::{StoredColumn, StoredSection};
 
 type ColumnContent = (
     &'static ColumnSections,
@@ -74,10 +74,6 @@ impl ColumnSnapshots<'_, '_> {
                 motion: motion.clone(),
                 no_leaves: no_leaves.clone(),
             }),
-            lit_by: match light {
-                Light::Keep => LitBy::Dimension,
-                Light::Drop => LitBy::Unlit,
-            },
             ticks: ColumnTicks::default(),
         };
         for lookup in column_sections.iter() {

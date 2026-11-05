@@ -10,7 +10,7 @@ use mcrs_engine_link::{Link, Placement};
 use mcrs_minecraft_engine::column_generation::GenerationAnswer;
 use mcrs_minecraft_engine::coordinator::dim_cells::DimCells;
 use mcrs_minecraft_engine::player_view::PlayerView;
-use mcrs_minecraft_engine::stored_column::{LitBy, StoredColumn, StoredSection};
+use mcrs_minecraft_engine::stored_column::{StoredColumn, StoredSection};
 use mcrs_minecraft_engine_world::aoi::min_column_distance;
 use mcrs_minecraft_engine_world::entity::player::chunk_view::ChunkTrackingView;
 use mcrs_minecraft_engine_world::world::dimension_builders::DimensionBuild;
@@ -224,7 +224,6 @@ fn stored_column(column: GeneratedColumn) -> Option<StoredColumn> {
         sections,
         block_entities: column.block_entities,
         heightmaps: column.maps,
-        lit_by: LitBy::Unlit,
         ticks: column.ticks,
     })
 }
