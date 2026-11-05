@@ -15,6 +15,7 @@ use mcrs_minecraft_engine_world::world::storage::column::ColumnLifecycleSet;
 use mcrs_voxel::ColumnPos;
 use rustc_hash::{FxHashMap, FxHashSet};
 
+use crate::advance_production::advance_production;
 use crate::cell_mail::CellMail;
 use crate::cold_columns::{mark_changed_sections, mark_final_light, write_cold_columns};
 use crate::column_asks::{
@@ -22,7 +23,8 @@ use crate::column_asks::{
     answer_column_asks,
 };
 use crate::column_generation::GenerationAnswer;
-use crate::column_production::{ColdStageLandSet, ColumnProduction, advance_production};
+use crate::column_light::ColdStageLandSet;
+use crate::column_production::ColumnProduction;
 use crate::column_streams::{ColumnStreamSet, land_viewed_columns, report_player_views};
 use crate::heightmap::update_column_heightmaps;
 use crate::hot_ticket::{HotColumns, raise_hot_ticket, release_hot_ticket, track_hot_tickets};

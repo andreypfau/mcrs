@@ -2,28 +2,23 @@ use std::mem;
 use std::vec;
 
 use bevy_ecs::entity::Entity;
-use bevy_ecs::message::MessageReader;
-use bevy_ecs::prelude::{Local, Query, Res, ResMut, Resource};
-use bevy_ecs::schedule::SystemSet;
+use bevy_ecs::prelude::Resource;
 use mcrs_engine_store::{ChunkVersion, StoreOutput, VersionedChunk};
-use mcrs_minecraft_chunk::{BlockLight, SkyLight};
-use mcrs_minecraft_engine_world::block_update::BlockPlaced;
-use mcrs_minecraft_engine_world::entity::player::chunk_view::{ChunkTrackingView, SentChunkView};
-use mcrs_minecraft_engine_world::palette::ChunkBlocks;
+use mcrs_minecraft_engine_world::entity::player::chunk_view::ChunkTrackingView;
 use mcrs_minecraft_engine_world::world::dimension::DimensionTypeConfig;
 use mcrs_minecraft_engine_world::world::lifecycle::column_loading::ColumnLoading;
-use mcrs_minecraft_engine_world::world::light_gate::LightGated;
 use mcrs_minecraft_engine_world::world::storage::column::ColumnIndex;
 use mcrs_voxel::{BlockPos, BlockStateId, ColumnPos, SectionPos};
 use rustc_hash::{FxHashMap, FxHashSet};
 
+use crate::advance_production::HeldColumns;
+use crate::cold_light_edit::ColdLightEdit;
 use crate::column_asks::ColumnOrigin;
+use crate::column_light::ColumnLight;
 use crate::column_snapshot::ColumnSnapshots;
 use crate::column_store::{ColumnStoreLink, Delivery, ReadFrom, ViewedColumn};
-use crate::column_streams::ColumnStreams;
-use crate::foreign_views::ForeignViews;
-use crate::hot_ticket::HotColumns;
 use crate::stored_column::{LitBy, StoredColumn};
+use crate::wanted_column::{Ask, Changed, Content, Fetch, Source, Wanted};
 
 /// The stages in cold space: the data layer generates and lights each column that a view waits
 /// on and that the dimension does not light, and hands the final column to the view.
@@ -57,136 +52,18 @@ pub struct ColumnProduction {
     views: Vec<ChunkTrackingView>,
 }
 
+/// Whether the dimension world lights its columns.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Lights {
+    Yes,
+    No,
+}
+
 /// A block that changed, as the light stage of cold space takes it.
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct BlockChange {
     pub(crate) pos: BlockPos,
     pub(crate) state: BlockStateId,
-}
-
-/// The columns that the views of the muxer hold from a dimension.
-#[derive(Clone, Copy)]
-struct HeldColumns<'a> {
-    dim: Entity,
-    streams: &'a ColumnStreams,
-    hot: Option<&'a HotColumns>,
-}
-
-impl HeldColumns<'_> {
-    /// Whether views hold `column` with the light of the data layer: the muxer subscribes to
-    /// it and waits on no version of it, and the dimension does not light it.
-    fn lit_by_data_layer(&self, column: ColumnPos) -> bool {
-        self.streams.is_subscribed(column)
-            && !self.streams.is_pending(column)
-            && self.hot.is_none_or(|hot| !hot.lights(column))
-    }
-}
-
-/// Where the light stage of cold space hands its answers to the data layer, at the start of the
-/// tick, after the answers of the data layer itself.
-#[derive(SystemSet, Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum ColdStageLandSet {
-    Light,
-}
-
-/// An edit for the light stage of cold space.
-#[derive(Clone, Debug)]
-pub enum ColdLightEdit {
-    Load {
-        pos: SectionPos,
-        blocks: ChunkBlocks,
-    },
-    Unload {
-        pos: SectionPos,
-    },
-    SetBlock {
-        pos: BlockPos,
-        state: BlockStateId,
-    },
-}
-
-/// The settled light of one column from the light stage of cold space.
-#[derive(Clone, Debug)]
-pub struct ColumnLight {
-    pub column: ColumnPos,
-    pub sections: Vec<LitSection>,
-}
-
-/// The light of one section of a [`ColumnLight`].
-#[derive(Clone, Debug)]
-pub struct LitSection {
-    pub y: i32,
-    pub block_light: BlockLight,
-    pub sky_light: SkyLight,
-}
-
-/// A column that a view waits on, or a column that views hold and whose light is lit again.
-struct Wanted {
-    dim: Entity,
-    delivery: Delivery,
-    content: Option<Content>,
-    light: Ask,
-    /// The last version the world wrote when the content was fetched. A later write makes
-    /// the content stale.
-    written: Option<ChunkVersion>,
-    /// A block of the column changed since its content was taken from the dimension.
-    changed: Changed,
-    /// A block within the reach of light changed after the light was asked for, so the answer
-    /// may lack it.
-    ring_changed: Changed,
-}
-
-struct Content {
-    stored: StoredColumn,
-    source: Source,
-}
-
-/// Where the content of a column came from.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum Source {
-    Dimension,
-    DataLayer(ChunkVersion),
-    Generation,
-}
-
-#[derive(Clone, Copy, Debug)]
-struct Fetch {
-    dim: Entity,
-    source: Source,
-}
-
-/// Whether the light stage owes a wanted column its light.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum Ask {
-    NotAsked,
-    Asked,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum Changed {
-    No,
-    Yes,
-}
-
-/// Whether the dimension world lights its columns.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum Lights {
-    Yes,
-    No,
-}
-
-impl Wanted {
-    fn new(dim: Entity, delivery: Delivery, written: Option<ChunkVersion>) -> Self {
-        Self {
-            dim,
-            delivery,
-            content: None,
-            light: Ask::NotAsked,
-            written,
-            changed: Changed::No,
-            ring_changed: Changed::No,
-        }
-    }
 }
 
 impl ColumnProduction {
@@ -221,6 +98,10 @@ impl ColumnProduction {
             && self.light_awaits.is_empty()
             && self.lit.is_empty()
             && self.halo_changes.is_empty()
+    }
+
+    pub(crate) fn take_halo_changes(&mut self) -> Vec<BlockChange> {
+        mem::take(&mut self.halo_changes)
     }
 
     pub(crate) fn note_halo_changes(&mut self, changes: impl IntoIterator<Item = BlockChange>) {
@@ -288,7 +169,11 @@ impl ColumnProduction {
 
     /// Drops what left every view: the wanted columns, and the columns of the light stage that
     /// no wanted column can need.
-    fn screen(&mut self, views: Vec<ChunkTrackingView>, rows: Option<&DimensionTypeConfig>) {
+    pub(crate) fn screen(
+        &mut self,
+        views: Vec<ChunkTrackingView>,
+        rows: Option<&DimensionTypeConfig>,
+    ) {
         if views == self.views {
             return;
         }
@@ -393,7 +278,7 @@ impl ColumnProduction {
     /// whose content the dimension gave as changed. A light level reaches one column out, so a
     /// column within one column of the change that views hold with light of the data layer is
     /// lit again, and an answer of light asked for before the change is asked for again.
-    fn note_block_changes(
+    pub(crate) fn note_block_changes(
         &mut self,
         changes: impl IntoIterator<Item = BlockChange>,
         held: Option<HeldColumns>,
@@ -437,7 +322,7 @@ impl ColumnProduction {
 
     /// Takes the answers of the data layer: a column it holds arrives, a column it does not
     /// hold goes to generation.
-    fn take_store_answers(&mut self, store: &mut ColumnStoreLink, lights: Lights) {
+    pub(crate) fn take_store_answers(&mut self, store: &mut ColumnStoreLink, lights: Lights) {
         for fetched in store.take_fetched() {
             let column = fetched.column;
             let Some(fetch) = self.fetching.get(&column).copied() else {
@@ -468,7 +353,7 @@ impl ColumnProduction {
 
     /// Takes the content of each column fetched from the dimension once all its sections
     /// landed, or fetches it elsewhere once the dimension stops loading it.
-    fn take_snapshots(
+    pub(crate) fn take_snapshots(
         &mut self,
         dim_row: Option<(&ColumnLoading, &ColumnIndex, &DimensionTypeConfig)>,
         snapshots: &ColumnSnapshots,
@@ -503,7 +388,11 @@ impl ColumnProduction {
         }
     }
 
-    fn take_light(&mut self, loading: Option<&ColumnLoading>, store: &mut ColumnStoreLink) {
+    pub(crate) fn take_light(
+        &mut self,
+        loading: Option<&ColumnLoading>,
+        store: &mut ColumnStoreLink,
+    ) {
         for light in mem::take(&mut self.lit) {
             let column = light.column;
             let asked = self
@@ -526,7 +415,7 @@ impl ColumnProduction {
 
     /// Fetches what each wanted column lacks, and asks for its light once the eight around it
     /// are in the light stage.
-    fn move_wanted(
+    pub(crate) fn move_wanted(
         &mut self,
         loading: Option<&ColumnLoading>,
         store: &mut ColumnStoreLink,
@@ -566,56 +455,6 @@ impl ColumnProduction {
             }
         }
     }
-}
-
-/// Moves each column that a view waits on along: fetches its content and the blocks of the
-/// eight around it, asks for its light, and hands the final column to the views.
-#[expect(
-    clippy::too_many_arguments,
-    reason = "a Bevy system: each resource and query is its own parameter so the scheduler sees the access"
-)]
-pub(crate) fn advance_production(
-    mut production: ResMut<ColumnProduction>,
-    mut store: ResMut<ColumnStoreLink>,
-    dims: Query<(&ColumnLoading, &ColumnIndex, &DimensionTypeConfig)>,
-    held: Query<(Entity, &ColumnStreams, Option<&HotColumns>)>,
-    snapshots: ColumnSnapshots,
-    sent_views: Query<&SentChunkView>,
-    foreign_views: Option<Res<ForeignViews>>,
-    mut placed: MessageReader<BlockPlaced>,
-    light_gated: Option<Res<LightGated>>,
-    mut pending: Local<Vec<ColumnPos>>,
-) {
-    let lights = match light_gated {
-        Some(_) => Lights::Yes,
-        None => Lights::No,
-    };
-    let store = &mut *store;
-    // A dimension world holds one dimension.
-    let dim_row = dims.iter().next();
-    let loading = dim_row.map(|(loading, ..)| loading);
-    let mut views: Vec<ChunkTrackingView> = sent_views.iter().filter_map(|view| view.0).collect();
-    views.extend(foreign_views.iter().flat_map(|foreign| foreign.views()));
-    production.screen(views, dim_row.map(|(.., rows)| rows));
-    let held = held
-        .iter()
-        .next()
-        .map(|(dim, streams, hot)| HeldColumns { dim, streams, hot });
-    // A halo change that the dimension applied comes again as a placed block, and a block set
-    // to the state it holds changes nothing.
-    let halo_changes = mem::take(&mut production.halo_changes);
-    let changes = placed
-        .read()
-        .map(|placed| BlockChange {
-            pos: placed.block_pos,
-            state: placed.new_state,
-        })
-        .chain(halo_changes);
-    production.note_block_changes(changes, held, store, lights);
-    production.take_store_answers(store, lights);
-    production.take_snapshots(dim_row, &snapshots, store, lights, &mut pending);
-    production.take_light(loading, store);
-    production.move_wanted(loading, store, lights, &mut pending);
 }
 
 /// Whether some view reaches `column` with `slack` columns to spare.

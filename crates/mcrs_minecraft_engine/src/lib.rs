@@ -4,6 +4,7 @@ use crate::coordinator::coordinator_plugin::CoordinatorPlugin;
 use crate::muxer::muxer_plugin::MuxerPlugin;
 
 pub mod ability;
+mod advance_production;
 pub mod between_ticks;
 pub mod block_entity_packet;
 pub mod block_simulation;
@@ -15,9 +16,11 @@ mod cell_volume;
 pub mod channel_types;
 pub mod client_info;
 pub mod cold_columns;
+pub mod cold_light_edit;
 pub mod column_asks;
 pub mod column_change;
 pub mod column_generation;
+pub mod column_light;
 mod column_packet;
 pub mod column_production;
 pub mod column_request;
@@ -66,6 +69,7 @@ pub mod teleport;
 pub mod tile_events;
 pub mod to_coordinator;
 pub mod to_muxer;
+mod wanted_column;
 pub mod world_kinds;
 pub mod world_seed;
 
