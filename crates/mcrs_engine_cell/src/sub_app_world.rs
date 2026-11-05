@@ -14,10 +14,14 @@ use crate::tick::Tick;
 /// `PreUpdate`, the five fixed schedules, `Update`, `PostUpdate` and `Last`, each exactly once,
 /// then `take`. The fixed schedules do not follow `Time<Fixed>`: one tick is one fixed step.
 /// A schedule that the sub-app lacks is skipped.
+///
+/// With an idle check, a tick after the first one whose input leaves the world idle runs no
+/// schedule: it only applies the input and takes the output.
 pub struct SubAppWorld<I, O> {
     sub_app: SubApp,
     apply: fn(&mut World, Tick, I),
     take: fn(&mut World) -> O,
+    is_idle: Option<fn(&mut World) -> bool>,
     phase: Phase,
 }
 
@@ -36,8 +40,20 @@ impl<I, O> SubAppWorld<I, O> {
             sub_app,
             apply,
             take,
+            is_idle: None,
             phase: Phase::Starting,
         }
+    }
+
+    /// Skips the schedules of each tick after which `is_idle` finds the world idle.
+    ///
+    /// `is_idle` must hold only when the schedules would change nothing that a later tick or
+    /// the output can see, and it must read the world alone, so that a skip happens at the
+    /// same tick in every run.
+    #[must_use]
+    pub fn with_idle_check(mut self, is_idle: fn(&mut World) -> bool) -> Self {
+        self.is_idle = Some(is_idle);
+        self
     }
 
     pub fn sub_app_mut(&mut self) -> &mut SubApp {
@@ -51,7 +67,8 @@ impl<I: Send + 'static, O: Send + 'static> CellWorld for SubAppWorld<I, O> {
 
     fn tick(&mut self, tick: Tick, input: I) -> O {
         let world = self.sub_app.world_mut();
-        if self.phase == Phase::Starting {
+        let phase = self.phase;
+        if phase == Phase::Starting {
             run(
                 world,
                 [PreStartup.intern(), Startup.intern(), PostStartup.intern()],
@@ -59,6 +76,14 @@ impl<I: Send + 'static, O: Send + 'static> CellWorld for SubAppWorld<I, O> {
             self.phase = Phase::Running;
         }
         (self.apply)(world, tick, input);
+        if let Some(is_idle) = self.is_idle
+            && phase == Phase::Running
+            && is_idle(world)
+        {
+            let output = (self.take)(world);
+            world.clear_trackers();
+            return output;
+        }
         run(
             world,
             [
@@ -118,6 +143,31 @@ mod tests {
 
     fn take(world: &mut World) -> Vec<u64> {
         world.resource::<Log>().0.clone()
+    }
+
+    fn idle_after_three(world: &mut World) -> bool {
+        world.resource::<Log>().0.len() > 3
+    }
+
+    #[test]
+    fn an_idle_world_takes_its_input_and_runs_no_schedule() {
+        let mut sub_app = SubApp::new();
+        sub_app.init_resource::<Log>();
+        sub_app.add_systems(FixedUpdate, fixed);
+        let world = SubAppWorld::new(sub_app, apply, take).with_idle_check(idle_after_three);
+        let mut cells = Cells::new();
+        cells.add(world, Placement::Inline);
+
+        let mut last = Vec::new();
+        for tick in 1..=5 {
+            let outputs = block_on(cells.tick(Tick(tick), |_| 0)).expect("no world is lent");
+            last = outputs
+                .into_iter()
+                .flat_map(|output| output.output)
+                .collect();
+        }
+
+        assert_eq!(last, [101, 201, 301, 400, 500]);
     }
 
     #[test]

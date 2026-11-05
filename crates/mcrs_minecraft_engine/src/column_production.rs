@@ -231,6 +231,19 @@ impl ColumnProduction {
         &self.views
     }
 
+    /// Whether no column waits on a stage of cold space, and the light stage holds no column.
+    pub(crate) fn is_idle(&self) -> bool {
+        self.wanted.is_empty()
+            && self.fetching.is_empty()
+            && self.lit_world.is_empty()
+            && self.generate.is_empty()
+            && self.light_edits.is_empty()
+            && self.light_awaits.is_empty()
+            && self.generated.is_empty()
+            && self.lit.is_empty()
+            && self.halo_changes.is_empty()
+    }
+
     pub(crate) fn note_halo_changes(&mut self, changes: impl IntoIterator<Item = BlockChange>) {
         self.halo_changes.extend(changes);
     }

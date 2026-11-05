@@ -13,10 +13,10 @@ use std::num::NonZeroU32;
 use std::ops::RangeInclusive;
 use std::time::{Duration, Instant};
 
-use bevy_app::{App, PluginGroup};
+use bevy_app::{App, Last, PluginGroup};
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::Messages;
-use bevy_ecs::prelude::{Has, With};
+use bevy_ecs::prelude::{Has, ResMut, Resource, With};
 use bevy_ecs::world::World;
 use bevy_math::{DVec3, Vec2};
 use bevy_tasks::block_on;
@@ -1115,5 +1115,58 @@ fn a_cold_column_at_a_box_edge_has_the_light_of_one_cell_and_of_the_dimension() 
         light_differences(&one.hot, &two.hot),
         Vec::<String>::new(),
         "two cells light the edge otherwise"
+    );
+}
+
+#[derive(Resource, Default)]
+struct LastRuns(usize);
+
+fn count_last_runs(mut runs: ResMut<LastRuns>) {
+    runs.0 += 1;
+}
+
+/// How often the schedules of each cell of `label` ran so far.
+fn runs(app: &mut App, label: Entity) -> Vec<usize> {
+    cell_worlds(app, label)
+        .into_iter()
+        .map(|world| world.resource::<LastRuns>().0)
+        .collect()
+}
+
+#[test]
+fn a_cell_with_no_player_and_no_remote_ticket_skips_its_schedules() {
+    let mut app = server(4);
+    let label = label_of(&app, OVERWORLD);
+    for sub_app in app
+        .world_mut()
+        .resource_mut::<DimCells>()
+        .into_inner()
+        .cell_sub_apps_mut(label)
+    {
+        sub_app.init_resource::<LastRuns>();
+        sub_app.add_systems(Last, count_last_runs);
+    }
+    tick(&mut app, label);
+    let settled = runs(&mut app, label);
+    for _ in 0..10 {
+        tick(&mut app, label);
+    }
+    assert_eq!(
+        runs(&mut app, label),
+        settled,
+        "an idle cell ran its schedules"
+    );
+
+    admit(&mut app, label, "east", DVec3::new(8.5, 100.0, 8.5), 2);
+    for _ in 0..10 {
+        tick(&mut app, label);
+    }
+    assert!(
+        runs(&mut app, label)
+            .iter()
+            .zip(&settled)
+            .all(|(runs, idle)| *runs >= idle + 8),
+        "every cell ticks the player or its remote ticket: {:?}",
+        runs(&mut app, label)
     );
 }

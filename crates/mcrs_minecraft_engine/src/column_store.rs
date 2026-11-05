@@ -159,6 +159,19 @@ impl ColumnStoreLink {
         }
     }
 
+    /// Whether no request, answer or ask waits in the link.
+    pub(crate) fn is_idle(&self) -> bool {
+        self.sent.is_empty()
+            && self.answers.is_empty()
+            && self.reads.is_empty()
+            && self.viewed.is_empty()
+            && self.fetched.is_empty()
+            && self.asked.is_empty()
+            && self.out_asks.is_empty()
+            && self.out_answers.is_empty()
+            && self.out_holds.is_empty()
+    }
+
     /// Tells the other cells of a change of `hold.column`, when they can read it.
     pub(crate) fn report(&mut self, hold: ColumnHold) {
         if self

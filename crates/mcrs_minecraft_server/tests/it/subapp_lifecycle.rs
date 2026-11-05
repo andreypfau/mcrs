@@ -10,6 +10,7 @@ use mcrs_minecraft_engine::between_ticks::drain_dim_spawn_queue;
 use mcrs_minecraft_engine::bus::InboundPlayerSpawn;
 use mcrs_minecraft_engine::coordinator::dim::DimSubAppHandle;
 use mcrs_minecraft_engine::coordinator::dim_cells::DimCells;
+use mcrs_minecraft_engine_world::entity::player::Player;
 use mcrs_minecraft_engine_world::session::{PlayerSessionCounter, Session};
 use mcrs_minecraft_engine_world::world::dimension::Dimension;
 use mcrs_minecraft_engine_world::world::dimension_list::DimensionList;
@@ -100,6 +101,8 @@ struct ScheduleHits {
 
 fn install_counters(sub_app: &mut bevy_app::SubApp) {
     sub_app.init_resource::<ScheduleHits>();
+    // A world with no player skips its schedules; this one must run every one of them.
+    sub_app.world_mut().spawn(Player);
     sub_app.add_systems(PreStartup, |mut h: ResMut<ScheduleHits>| h.pre_startup += 1);
     sub_app.add_systems(Startup, |mut h: ResMut<ScheduleHits>| h.startup += 1);
     sub_app.add_systems(PostStartup, |mut h: ResMut<ScheduleHits>| {

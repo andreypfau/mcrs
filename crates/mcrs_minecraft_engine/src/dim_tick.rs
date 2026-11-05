@@ -1,5 +1,6 @@
 use bevy_app::SubApp;
 use bevy_ecs::change_detection::DetectChangesMut;
+use bevy_ecs::component::ComponentId;
 use bevy_ecs::message::{Message, Messages};
 use bevy_ecs::resource::Resource;
 use bevy_ecs::schedule::{ScheduleLabel, SystemSet};
@@ -9,10 +10,13 @@ use mcrs_engine_cell::{SubAppWorld, Tick};
 use mcrs_engine_muxer::{TileDelta, TileDeltas};
 use mcrs_minecraft_core::Versioned;
 use mcrs_minecraft_engine_registries::RegistrySnapshot;
+use mcrs_minecraft_engine_world::entity::player::Player;
 use mcrs_minecraft_engine_world::session::PlayerSession;
 use mcrs_minecraft_engine_world::world::lifecycle::trace::{ColumnTraceLog, TraceEvent};
+use mcrs_minecraft_engine_world::world::storage::column::ColumnPosComponent;
 use mcrs_minecraft_environment::world_clock::WorldClocks;
 use mcrs_minecraft_replication::PlayerData;
+use mcrs_voxel::SectionPos;
 
 use crate::bus::{
     InboundPlayerDespawn, InboundPlayerPacket, InboundPlayerSpawn, OutboundPlayerAttached,
@@ -22,6 +26,7 @@ use crate::cell_mail;
 use crate::cell_mail::{CellInbox, CellMail, CellMessage};
 use crate::channel_types::ToDim;
 use crate::column_change::ColumnChange;
+use crate::column_production::ColumnProduction;
 use crate::column_request::ColumnRequest;
 use crate::column_store::{ColumnStoreInput, ColumnStoreLink, ColumnStoreOutput};
 use crate::column_streams::ColumnRequests;
@@ -33,6 +38,7 @@ use crate::coordinator::running_dimensions::RunningDimensions;
 use crate::departure::{Departure, PlayerTransfer};
 use crate::dim_mail::DimMail;
 use crate::entity_ids::{CellEntityIds, EntityIdRange, EntityIdRequest};
+use crate::hot_ticket::RemoteTicket;
 use crate::player_dimension_change;
 use crate::player_order::OrderedPlayer;
 use crate::player_roster::{ForeignPlayers, OwnPlayers, RosterRow};
@@ -170,7 +176,40 @@ pub(crate) struct DimInbox {
 }
 
 pub(crate) fn dim_world(sub_app: SubApp) -> DimWorld {
-    SubAppWorld::new(sub_app, apply_input, take_output)
+    SubAppWorld::new(sub_app, apply_input, take_output).with_idle_check(is_idle)
+}
+
+/// Whether a tick would change nothing in the world: it holds no player, no ticket of another
+/// cell and no section, and no input or answer waits in it. The copies of the host resources
+/// that the input carries still land, and a later tick reacts to them.
+fn is_idle(world: &mut World) -> bool {
+    let holds_none = |world: &World, component: Option<ComponentId>| {
+        component.is_none_or(|component| {
+            world
+                .archetypes()
+                .iter()
+                .all(|archetype| archetype.is_empty() || !archetype.contains(component))
+        })
+    };
+    holds_none(world, world.component_id::<Player>())
+        && holds_none(world, world.component_id::<RemoteTicket>())
+        && holds_none(world, world.component_id::<SectionPos>())
+        && holds_none(world, world.component_id::<ColumnPosComponent>())
+        && world
+            .get_resource::<DimInbox>()
+            .is_none_or(|inbox| inbox.control.is_empty() && inbox.serverbound.is_empty())
+        && world
+            .get_resource::<CellInbox>()
+            .is_none_or(|inbox| inbox.0.is_empty())
+        && world
+            .get_resource::<ColumnRequests>()
+            .is_none_or(|requests| requests.0.is_empty())
+        && world
+            .get_resource::<ColumnStoreLink>()
+            .is_none_or(ColumnStoreLink::is_idle)
+        && world
+            .get_resource::<ColumnProduction>()
+            .is_none_or(ColumnProduction::is_idle)
 }
 
 fn apply_input(world: &mut World, _tick: Tick, input: DimInput) {
