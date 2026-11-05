@@ -237,9 +237,7 @@ mod tests {
         let landing = world.spawn_empty().id();
         let mut index = SectionIndex::new();
         index.insert(SectionPos::new(0, 0, 0), landing);
-        let dimension = world
-            .spawn((index, DimensionTypeConfig::new(0, 16)))
-            .id();
+        let dimension = world.spawn((index, DimensionTypeConfig::new(0, 16))).id();
         let stone = BlockStateId::checked(1, 2).expect("a state past air");
         let pos = BlockPos::new(3, 4, 5);
         let change = |pos: BlockPos| HaloBlockChange {
@@ -262,7 +260,10 @@ mod tests {
 
         world.entity_mut(landing).insert(air_section());
         apply(&mut world, &mut changes);
-        assert!(changes.is_empty(), "the change applied once its section landed");
+        assert!(
+            changes.is_empty(),
+            "the change applied once its section landed"
+        );
         let mut state: SystemState<WorldViewMut> = SystemState::new(&mut world);
         let mut blocks = state.get_mut(&mut world).expect("valid params");
         let view = blocks.get_mut(dimension).expect("a dimension");
