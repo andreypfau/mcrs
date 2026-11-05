@@ -40,6 +40,8 @@ pub struct Placement {
     pub draws: Option<Vec<Draw>>,
 }
 
+/// Uploads waiting for the GPU. They land one after another in the order they were pushed,
+/// and the per-frame budget may cut any of them between frames.
 #[derive(Resource, Clone, Default)]
 pub struct Uploads(Arc<Mutex<VecDeque<Upload>>>);
 
@@ -221,11 +223,8 @@ pub(super) fn apply_uploads(params: &mut UploadParams, encoder: &mut CommandEnco
             },
         };
         let parts = pending.placement.parts(&terrain.arenas);
-        // A placement with a draw list kills the records of replaced meshes in place and adds
-        // their replacements, so it lands in one frame: a frame between the two draws a hole.
-        let whole = pending.placement.draws.is_some();
         let copying = info_span!("upload copy").entered();
-        while (whole || budget > 0)
+        while budget > 0
             && let Some(&(buffer, offset, data)) = parts.get(pending.part)
         {
             if data.is_empty() {
@@ -234,7 +233,7 @@ pub(super) fn apply_uploads(params: &mut UploadParams, encoder: &mut CommandEnco
                 continue;
             }
             let left = data.len() - pending.done;
-            let mut take = if whole { left } else { left.min(budget) };
+            let mut take = left.min(budget);
             if take < left {
                 take -= take % COPY_BUFFER_ALIGNMENT as usize;
                 if take == 0 {

@@ -115,13 +115,15 @@ pub struct Loader {
     sections: Sections,
     /// Sections whose light a delta rewrote, present or not.
     relit: HashSet<[i32; 3]>,
-    /// The meshes of relit sections, drawn on until the new mesh of the section is placed so
-    /// that a relight never opens a hole.
-    stale: HashMap<[i32; 3], Resident>,
-    /// Arena room of released meshes. The GPU draws their records until the next flush lands,
-    /// so the room is given back only once that flush is queued: a mesh written into it any
-    /// earlier would be drawn under the records of the mesh it replaced.
-    retired: Vec<Room>,
+    /// Geometry of the meshes placed since the last flush. The flush queues it behind the kills
+    /// of the meshes whose room it reuses.
+    geometry: Vec<Placement>,
+    /// Meshes replaced since the last flush. The GPU draws them until the records of their
+    /// replacements land, so their records die, and their room and slot come back, only behind
+    /// those records.
+    replaced: Vec<Resident>,
+    /// Group blocks of rebuilt streams, which the GPU draws until the new draw list lands.
+    retired_blocks: Vec<Block>,
     meshing: Vec<MeshingSection>,
     scratches: Vec<Scratch>,
     streams: [Stream; STREAMS],
@@ -173,13 +175,6 @@ enum PackLoad {
     Ready(Arc<Pack>),
 }
 
-/// The arena room one mesh holds.
-struct Room {
-    quads: Block,
-    models: Block,
-    faces: Block,
-}
-
 struct Resident {
     quads: Block,
     models: Block,
@@ -190,14 +185,24 @@ struct Resident {
     groups: [(u32, u32); STREAMS],
 }
 
-enum SectionState {
+/// A section's drawn mesh and what the pipeline does for it, apart: a relit section stays
+/// drawn while it is queued and meshed again.
+#[derive(Default)]
+struct Section {
+    resident: Option<Resident>,
+    work: Work,
+}
+
+#[derive(Clone, Copy, Default, PartialEq, Eq)]
+enum Work {
+    #[default]
+    Idle,
     Queued,
     /// On the compute pool. An orphaned mesh was read out of a column that left or was sent
     /// again meanwhile, so the world it holds is one nobody holds any more.
     Meshing {
         orphaned: bool,
     },
-    Resident(Resident),
     /// Meshed with no room in the arena, until an eviction or the camera moving makes some.
     Deferred,
 }
@@ -211,9 +216,8 @@ struct Stream {
     dead: usize,
     touched: Vec<(u32, u32)>,
     rebuild: bool,
-    /// The arena had no room for this stream even with every stream packed tight, so it stops
-    /// asking until a rebuild elsewhere moves room around; retrying every frame would lay out
-    /// and send every stream again for nothing.
+    /// The arena had no room for a new block beside the one the GPU draws, so the stream
+    /// draws what its block holds; set to warn once.
     starved: bool,
 }
 
@@ -287,8 +291,9 @@ impl Loader {
             sections_total: 0,
             sections: Sections::default(),
             relit: HashSet::new(),
-            stale: HashMap::new(),
-            retired: Vec::new(),
+            geometry: Vec::new(),
+            replaced: Vec::new(),
+            retired_blocks: Vec::new(),
             meshing: Vec::new(),
             scratches: Vec::new(),
             streams: std::array::from_fn(|_| Stream::new()),
@@ -320,15 +325,12 @@ impl Loader {
         (-1..=1).all(|dz| (-1..=1).all(|dx| store.holds(ColumnPos::new(pos.x + dx, pos.z + dz))))
     }
 
-    /// Holds blocks, has nowhere to be but the arena, and borders only columns that have
-    /// arrived.
+    /// Holds blocks, is not on the pool, and borders only columns that have arrived.
     fn meshable(&self, at: [i32; 3], store: &ColumnStore) -> bool {
-        !matches!(
-            self.sections.state(at),
-            Some(SectionState::Resident(_) | SectionState::Meshing { .. })
-        ) && store
-            .stored_section(SectionPos::new(at[0], at[1], at[2]))
-            .is_some()
+        !self.sections.is_meshing(at)
+            && store
+                .stored_section(SectionPos::new(at[0], at[1], at[2]))
+                .is_some()
             && self.surrounded(ColumnPos::new(at[0], at[2]), store)
     }
 
@@ -369,7 +371,7 @@ impl Loader {
                 }
                 for step in 0..extent.sections {
                     let at = [column.x, extent.min_section_y + step as i32, column.z];
-                    if self.meshable(at, store) {
+                    if self.sections.resident(at).is_none() && self.meshable(at, store) {
                         self.enqueue(at);
                     }
                 }
@@ -380,23 +382,16 @@ impl Loader {
     /// A section whose light a delta rewrote has to be meshed again, and so do the
     /// six around it: a face samples the light of the cell it faces, which for a
     /// face on the section boundary lies in the neighbour. One still being meshed
-    /// waits for the next frame, since the task holds the light it started with.
+    /// waits for the next frame, since the task holds the light it started with. The mesh
+    /// a section has stays drawn until the new one replaces it.
     fn remesh_relit(&mut self, store: &ColumnStore, cave: &mut CaveCull) {
         for at in std::mem::take(&mut self.relit) {
             if self.sections.is_meshing(at) {
                 self.relit.insert(at);
-                continue;
-            }
-            if let Some(held) = self.sections.take_resident(at) {
-                if self.meshable(at, store) {
-                    self.stale.insert(at, held);
-                    self.enqueue(at);
-                    continue;
-                }
-                self.release(at, held, cave);
-            }
-            if self.meshable(at, store) {
+            } else if self.meshable(at, store) {
                 self.enqueue(at);
+            } else {
+                self.evict(at, cave);
             }
         }
     }
@@ -455,10 +450,7 @@ impl Loader {
         let eye = self.camera;
         let (_, heap) = self.farthest.as_mut()?;
         while let Some(&(_, at)) = heap.peek() {
-            if !matches!(
-                self.sections.states.get(&at),
-                Some(SectionState::Resident(_))
-            ) {
+            if self.sections.resident(at).is_none() {
                 heap.pop();
                 continue;
             }
@@ -487,49 +479,43 @@ impl Loader {
     }
 
     fn evict(&mut self, section: [i32; 3], cave: &mut CaveCull) {
-        if let Some(held) = self.stale.remove(&section) {
-            self.release(section, held, cave);
-        }
         if let Some(held) = self.sections.take_resident(section) {
             self.release(section, held, cave);
         }
     }
 
+    /// Kills the records of a mesh that leaves the screen and gives its room and slot back at
+    /// once: the next flush queues the kill ahead of any geometry written into the room.
     fn release(&mut self, section: [i32; 3], held: Resident, cave: &mut CaveCull) {
-        let room = Room {
-            quads: held.quads,
-            models: held.models,
-            faces: held.faces,
-        };
-        if held.slot == NO_SLOT {
-            self.free_room(room);
-        } else {
-            self.retired.push(room);
+        if held.slot != NO_SLOT {
+            self.doom(&held);
             for (stream, &(first, count)) in self.streams.iter_mut().zip(&held.groups) {
-                if count == 0 {
-                    continue;
-                }
-                let (first, end) = (first as usize, (first + count) as usize);
-                for group in &mut stream.groups[first..end] {
-                    group.quad_count = 0;
-                }
-                stream.dead += count as usize;
-                stream.touched.push((first as u32, end as u32));
-                if stream.dead * 2 >= stream.groups.len() {
-                    stream.rebuild = true;
-                }
+                kill(stream, first, count);
+                stream.touched.push((first, first + count));
             }
             self.free_slots.push(held.slot);
-            self.dirty = true;
         }
+        self.free_room(&held);
         cave.forget(section);
         self.evicted += 1;
     }
 
-    fn free_room(&mut self, room: Room) {
-        self.quads.free(room.quads);
-        self.models.free(room.models);
-        self.faces.free(room.faces);
+    /// Counts a mesh's records dead before they are zeroed, so a stream they fill with dead
+    /// records is rebuilt.
+    fn doom(&mut self, held: &Resident) {
+        for (stream, &(_, count)) in self.streams.iter_mut().zip(&held.groups) {
+            stream.dead += count as usize;
+            if count != 0 && stream.dead * 2 >= stream.groups.len() {
+                stream.rebuild = true;
+            }
+        }
+        self.dirty = true;
+    }
+
+    fn free_room(&mut self, held: &Resident) {
+        self.quads.free(held.quads);
+        self.models.free(held.models);
+        self.faces.free(held.faces);
     }
 
     fn follow(&mut self, cave: &mut CaveCull) {
@@ -537,9 +523,6 @@ impl Loader {
             return;
         }
         for (at, held) in self.sections.residents() {
-            cave.set_section(at, held.slot, held.connectivity);
-        }
-        for (&at, held) in &self.stale {
             cave.set_section(at, held.slot, held.connectivity);
         }
     }
@@ -639,20 +622,17 @@ impl Loader {
         }
     }
 
+    /// Places a mesh in the arena, in place of the one its section held, or hands it back
+    /// when there is no room.
     fn place(
         &mut self,
         mesh: SectionMesh,
         slot: u32,
         cave: &mut CaveCull,
-    ) -> Result<Placement, Box<SectionMesh>> {
-        // The stale mesh stays drawn until the new one has room: a section deferred for want
-        // of room keeps its old mesh rather than a hole.
+    ) -> Result<(), Box<SectionMesh>> {
         let Some([quads, models, faces]) = self.reserve(&mesh) else {
             return Err(Box::new(mesh));
         };
-        if let Some(held) = self.stale.remove(&mesh.section) {
-            self.release(mesh.section, held, cave);
-        }
 
         let mut placed = mesh.groups;
         let mut first = 0usize;
@@ -687,6 +667,20 @@ impl Loader {
         } else {
             self.dirty = true;
             self.owners[slot as usize] = section;
+            self.geometry.push(Placement {
+                quads: ((quads.offset * QUAD_WORDS * 4) as u64, mesh.simple),
+                vertices: ((models.offset * 4 * 3 * 4) as u64, mesh.complex),
+                faces: ((faces.offset * FACE_BYTES) as u64, mesh.faces),
+                sections: (
+                    (slot as usize * size_of::<SectionDesc>()) as u64,
+                    vec![SectionDesc {
+                        section,
+                        scale: 1,
+                        face_base: faces.offset as u32,
+                    }],
+                ),
+                ..Placement::default()
+            });
             slot
         };
         cave.set_section(section, slot, mesh.connectivity);
@@ -695,7 +689,7 @@ impl Loader {
             ColumnPos::new(section[0], section[2]),
             ColumnStage::Meshed,
         ));
-        self.sections.settle(
+        let replaced = self.sections.settle(
             section,
             Resident {
                 quads,
@@ -706,32 +700,21 @@ impl Loader {
                 groups: ranges,
             },
         );
-
-        Ok(Placement {
-            quads: ((quads.offset * QUAD_WORDS * 4) as u64, mesh.simple),
-            vertices: ((models.offset * 4 * 3 * 4) as u64, mesh.complex),
-            faces: ((faces.offset * FACE_BYTES) as u64, mesh.faces),
-            sections: match slot {
-                NO_SLOT => (0, Vec::new()),
-                slot => (
-                    (slot as usize * size_of::<SectionDesc>()) as u64,
-                    vec![SectionDesc {
-                        section,
-                        scale: 1,
-                        face_base: faces.offset as u32,
-                    }],
-                ),
-            },
-            ..Placement::default()
-        })
+        if let Some(held) = replaced {
+            if held.slot == NO_SLOT {
+                self.free_room(&held);
+            } else {
+                self.doom(&held);
+                self.replaced.push(held);
+            }
+        }
+        Ok(())
     }
 
-    /// Writes the records each stream touched since the last flush, after any stream that
-    /// outgrew its block or filled it with dead records has been given a new one. What lies
-    /// past a stream's block is left for the rebuild that reaches it.
-    fn flush(&mut self) -> Option<Placement> {
-        self.rebuild_blocks();
-        let mut groups = Vec::new();
+    /// The touched records of every stream as runs to write into its block. What lies past a
+    /// stream's block waits for the rebuild that reaches it.
+    fn touched_runs(&mut self) -> Vec<(u64, Vec<Group>)> {
+        let mut runs = Vec::new();
         for stream in &mut self.streams {
             let capacity = stream.block.capacity() as u32;
             let mut ranges = std::mem::take(&mut stream.touched);
@@ -747,20 +730,16 @@ impl Loader {
                     _ => merged.push((first, end)),
                 }
             }
-            if stream.rebuild {
-                // What lies past the block is written once the rebuild goes through.
-                stream.touched.push((capacity, stream.groups.len() as u32));
-            }
             for (first, end) in merged {
-                let offset = (stream.block.offset + first as usize) * size_of::<Group>();
-                groups.push((
-                    offset as u64,
-                    stream.groups[first as usize..end as usize].to_vec(),
-                ));
+                stream.write(first, end, &mut runs);
             }
+            stream.touched = ranges;
         }
-        let draws = self
-            .streams
+        runs
+    }
+
+    fn draws(&self) -> Vec<Draw> {
+        self.streams
             .iter()
             .enumerate()
             .map(|(index, stream)| Draw {
@@ -769,125 +748,129 @@ impl Loader {
                 group_count: stream.groups.len().min(stream.block.capacity()) as u32,
                 quad_count: stream.quads_end,
             })
-            .collect();
-        for room in std::mem::take(&mut self.retired) {
-            self.free_room(room);
-        }
-        Some(Placement {
-            groups,
-            draws: Some(draws),
-            ..Placement::default()
-        })
+            .collect()
     }
 
-    /// Queues the records changed since the last flush, which also hands the room of every
-    /// released mesh back to the arenas.
+    /// Queues what changed since the last flush so that the GPU never draws a hole where a
+    /// mesh was replaced, nor a record over quads another mesh wrote. The uploads land one
+    /// after another, each cut anywhere by the per-frame budget:
+    ///
+    /// 1. The touched records, killing released meshes before their room is written again.
+    ///    New records lie past the draw list the GPU holds, so they draw nothing yet.
+    /// 2. The geometry of the meshes placed.
+    /// 3. Rebuilt streams in fresh blocks, and the draw list, which the GPU swaps in only once
+    ///    the whole upload has landed.
+    /// 4. The kills of replaced meshes, which the GPU draws until the swap.
+    ///
+    /// Replaced room and slots and the blocks rebuilt streams left come back once all of it
+    /// is queued.
     fn flush_to(&mut self, uploads: &Uploads) {
-        if (self.dirty || !self.retired.is_empty())
-            && let Some(placement) = self.flush()
-        {
-            self.dirty = false;
+        if !self.dirty {
+            return;
+        }
+        self.dirty = false;
+        let touched = self.touched_runs();
+        if !touched.is_empty() {
+            uploads.push(Upload::Geometry(Placement {
+                groups: touched,
+                ..Placement::default()
+            }));
+        }
+        for placement in self.geometry.drain(..) {
             uploads.push(Upload::Geometry(placement));
         }
+        self.rebuild_blocks();
+        uploads.push(Upload::Geometry(Placement {
+            groups: self.touched_runs(),
+            draws: Some(self.draws()),
+            ..Placement::default()
+        }));
+        let mut kills = Vec::new();
+        let mut replaced = std::mem::take(&mut self.replaced);
+        for held in replaced.drain(..) {
+            for (stream, &(first, count)) in self.streams.iter_mut().zip(&held.groups) {
+                kill(stream, first, count);
+                let end = (first + count).min(stream.block.capacity() as u32);
+                if first < end {
+                    stream.write(first, end, &mut kills);
+                }
+            }
+            self.free_room(&held);
+            self.free_slots.push(held.slot);
+        }
+        self.replaced = replaced;
+        if !kills.is_empty() {
+            uploads.push(Upload::Geometry(Placement {
+                groups: kills,
+                ..Placement::default()
+            }));
+        }
+        for block in self.retired_blocks.drain(..) {
+            self.groups.free(block);
+        }
     }
 
-    /// Places a landed mesh, making room by giving back retired room first and then by evicting
-    /// the farthest resident, or leaves the section waiting for room.
-    fn land(&mut self, mesh: SectionMesh, slot: u32, cave: &mut CaveCull, uploads: &Uploads) {
+    /// Places a landed mesh, making room by evicting the farthest resident, or for a relit
+    /// section in a full arena by giving up the mesh it replaces, or leaves the section waiting
+    /// for room.
+    fn land(&mut self, mesh: SectionMesh, slot: u32, cave: &mut CaveCull) {
         let at = mesh.section;
         let here = self.distance(at);
         let mut pending = mesh;
         loop {
-            match self.place(pending, slot, cave) {
-                Ok(placement) => {
+            let back = match self.place(pending, slot, cave) {
+                Ok(()) => {
                     self.placed(at);
-                    if !placement.sections.1.is_empty() {
-                        uploads.push(Upload::Geometry(placement));
-                    }
                     return;
                 }
-                Err(back) => {
-                    pending = *back;
-                    if !self.retired.is_empty() {
-                        self.flush_to(uploads);
-                        continue;
-                    }
-                    let Some(victim) = self.victim(here) else {
-                        self.sections.defer(at);
-                        self.free_slots.push(slot);
-                        return;
-                    };
-                    // The victim is the farthest resident, so meshing it again could only end
-                    // deferred; it waits for the camera to move instead.
-                    self.evict(victim, cave);
-                    self.sections.defer(victim);
-                }
+                Err(back) => back,
+            };
+            pending = *back;
+            if let Some(victim) = self.victim(here) {
+                // The victim is the farthest resident, so meshing it again could only end
+                // deferred; it waits for the camera to move instead.
+                self.evict(victim, cave);
+                self.sections.defer(victim);
+            } else if let Some(own) = self.sections.take_resident(at) {
+                self.release(at, own, cave);
+            } else {
+                self.sections.defer(at);
+                self.free_slots.push(slot);
+                return;
             }
         }
     }
 
     /// Gives a fresh block to every stream that outgrew the one it has or filled it with dead
-    /// records. The block a stream leaves is room for the one it takes, since every record is
-    /// written again; when what the arena has left is enough but not in one piece, every stream
-    /// is laid out again to put it back together.
+    /// records. The GPU draws the old block until the new draw list lands, so the new block is
+    /// taken beside it, and a stream the arena has no such room for draws what its block holds.
     fn rebuild_blocks(&mut self) {
-        let mut in_pieces = false;
         for index in 0..STREAMS {
             let stream = &mut self.streams[index];
-            if !stream.rebuild || stream.starved {
+            if !stream.rebuild {
                 continue;
             }
-            let stale = std::mem::replace(&mut stream.block, Block::EMPTY);
-            self.groups.free(stale);
-            match self.groups.alloc(stream.live().max(MIN_BLOCK)) {
-                Some(block) => {
-                    stream.block = block;
-                    // A rebuild that goes through moves room around, so a stream that was
-                    // refused can ask again.
-                    for stream in &mut self.streams {
-                        stream.starved = false;
-                    }
-                    self.pack_stream(index);
+            let Some(block) = self.groups.alloc(stream.live().max(MIN_BLOCK)) else {
+                if !stream.starved {
+                    stream.starved = true;
+                    warn!(
+                        stream = index,
+                        live = stream.live(),
+                        held = self.groups.held(),
+                        capacity = self.groups.capacity(),
+                        "the group arena has no room to rebuild this stream; it draws only what \
+                         its block holds and the rest of its sections stay off the screen"
+                    );
                 }
-                None => in_pieces = true,
-            }
-        }
-        if in_pieces {
-            self.repack_streams();
-        }
-    }
-
-    /// Lays every stream out again, the largest first so the blocks stack without leaving a
-    /// hole a later one cannot use. A stream the arena cannot hold even packed tight takes the
-    /// largest block it can, since one that takes none draws nothing at all.
-    fn repack_streams(&mut self) {
-        for stream in &mut self.streams {
-            let stale = std::mem::replace(&mut stream.block, Block::EMPTY);
-            self.groups.free(stale);
-        }
-        let mut order: [usize; STREAMS] = std::array::from_fn(|index| index);
-        order.sort_unstable_by_key(|&index| std::cmp::Reverse(self.streams[index].live()));
-        for index in order {
-            let stream = &mut self.streams[index];
-            let live = stream.live();
-            let mut want = live.max(MIN_BLOCK).next_power_of_two();
-            while stream.block.capacity() == 0 {
-                match self.groups.alloc(want) {
-                    Some(block) => stream.block = block,
-                    None if want > MIN_BLOCK => want /= 2,
-                    None => break,
-                }
-            }
-            stream.starved = stream.block.capacity() < live;
-            if stream.starved {
-                warn!(
-                    stream = index,
-                    live,
-                    held = self.groups.held(),
-                    capacity = self.groups.capacity(),
-                    "the group arena cannot hold every stream packed tight; this one draws \
-                     only what its block holds and the rest of its sections stay off the screen"
-                );
+                continue;
+            };
+            stream.starved = false;
+            self.retired_blocks
+                .push(std::mem::replace(&mut stream.block, block));
+            // A replaced mesh leaves a rebuilt stream with the old block rather than by a kill.
+            for held in &mut self.replaced {
+                let (first, count) = std::mem::take(&mut held.groups[index]);
+                kill(stream, first, count);
             }
             self.pack_stream(index);
         }
@@ -902,7 +885,6 @@ impl Loader {
             streams,
             owners,
             sections,
-            stale,
             ..
         } = self;
         let stream = &mut streams[index];
@@ -922,16 +904,7 @@ impl Loader {
         let mut quads = 0u32;
         let mut last_slot = NO_SLOT;
         for (at, group) in packed.iter_mut().enumerate() {
-            let owner = owners[group.section as usize];
-            // A relit section owns two slots until its new mesh replaces the stale one, so the
-            // slot, not the position, tells which of the two the records belong to.
-            let holder = match sections.resident_mut(owner) {
-                Some(resident) if resident.slot == group.section => Some(resident),
-                _ => stale
-                    .get_mut(&owner)
-                    .filter(|held| held.slot == group.section),
-            };
-            if let Some(resident) = holder {
+            if let Some(resident) = sections.resident_mut(owners[group.section as usize]) {
                 if group.section != last_slot {
                     resident.groups[index] = (at as u32, 0);
                 }
@@ -965,6 +938,28 @@ impl Stream {
     /// The records the stream still draws, the dead ones it has not been rebuilt out of aside.
     fn live(&self) -> usize {
         self.groups.len() - self.dead
+    }
+
+    /// Adds the records from `first` to `end` as a run at their place in the block.
+    fn write(&self, first: u32, end: u32, runs: &mut Vec<(u64, Vec<Group>)>) {
+        let Some(records) = self.groups.get(first as usize..end as usize) else {
+            return;
+        };
+        let offset = (self.block.offset + first as usize) * size_of::<Group>();
+        runs.push((offset as u64, records.to_vec()));
+    }
+}
+
+/// Stops drawing the records from `first` on. Only the count is zeroed, so a record the
+/// budget cuts in two reads either its own quads or none.
+fn kill(stream: &mut Stream, first: u32, count: u32) {
+    if let Some(groups) = stream
+        .groups
+        .get_mut(first as usize..first as usize + count as usize)
+    {
+        for group in groups {
+            group.quad_count = 0;
+        }
     }
 }
 
@@ -1177,7 +1172,7 @@ const MIN_BLOCK: usize = 256;
 /// counts the status reads kept beside the states by the only code that changes them.
 #[derive(Default)]
 struct Sections {
-    states: HashMap<[i32; 3], SectionState>,
+    states: HashMap<[i32; 3], Section>,
     queue: MeshQueue,
     tally: Tally,
 }
@@ -1190,47 +1185,41 @@ struct Tally {
     deferred: HashSet<[i32; 3]>,
 }
 
-impl Tally {
-    fn enter(&mut self, at: [i32; 3], state: &SectionState) {
-        match state {
-            SectionState::Queued => self.queued += 1,
-            SectionState::Resident(_) => self.residents += 1,
-            SectionState::Deferred => {
-                self.deferred.insert(at);
-            }
-            SectionState::Meshing { .. } => {}
-        }
-    }
-
-    fn leave(&mut self, at: [i32; 3], state: &SectionState) {
-        match state {
-            SectionState::Queued => self.queued -= 1,
-            SectionState::Resident(_) => self.residents -= 1,
-            SectionState::Deferred => {
-                self.deferred.remove(&at);
-            }
-            SectionState::Meshing { .. } => {}
-        }
-    }
-}
-
 impl Sections {
-    fn state(&self, at: [i32; 3]) -> Option<&SectionState> {
-        self.states.get(&at)
+    fn work(&self, at: [i32; 3]) -> Work {
+        self.states
+            .get(&at)
+            .map_or(Work::Idle, |section| section.work)
     }
 
-    fn replace(&mut self, at: [i32; 3], next: Option<SectionState>) -> Option<SectionState> {
-        if let Some(next) = &next {
-            self.tally.enter(at, next);
+    fn set_work(&mut self, at: [i32; 3], work: Work) {
+        let entry = self.states.entry(at).or_default();
+        match entry.work {
+            Work::Queued => self.tally.queued -= 1,
+            Work::Deferred => {
+                self.tally.deferred.remove(&at);
+            }
+            Work::Idle | Work::Meshing { .. } => {}
         }
-        let previous = match next {
-            Some(next) => self.states.insert(at, next),
-            None => self.states.remove(&at),
-        };
-        if let Some(previous) = &previous {
-            self.tally.leave(at, previous);
+        match work {
+            Work::Queued => self.tally.queued += 1,
+            Work::Deferred => {
+                self.tally.deferred.insert(at);
+            }
+            Work::Idle | Work::Meshing { .. } => {}
         }
-        previous
+        entry.work = work;
+        self.prune(at);
+    }
+
+    fn prune(&mut self, at: [i32; 3]) {
+        if self
+            .states
+            .get(&at)
+            .is_some_and(|section| section.work == Work::Idle && section.resident.is_none())
+        {
+            self.states.remove(&at);
+        }
     }
 
     fn queued(&self) -> usize {
@@ -1239,45 +1228,40 @@ impl Sections {
 
     #[cfg(test)]
     fn is_queued(&self, at: [i32; 3]) -> bool {
-        matches!(self.state(at), Some(SectionState::Queued))
+        self.work(at) == Work::Queued
     }
 
     fn is_meshing(&self, at: [i32; 3]) -> bool {
-        matches!(self.state(at), Some(SectionState::Meshing { .. }))
+        matches!(self.work(at), Work::Meshing { .. })
     }
 
-    #[cfg(test)]
-    fn is_resident(&self, at: [i32; 3]) -> bool {
-        matches!(self.state(at), Some(SectionState::Resident(_)))
-    }
-
-    fn residents(&self) -> impl Iterator<Item = ([i32; 3], &Resident)> {
-        self.states.iter().filter_map(|(at, state)| match state {
-            SectionState::Resident(held) => Some((*at, held)),
-            _ => None,
-        })
+    fn resident(&self, at: [i32; 3]) -> Option<&Resident> {
+        self.states.get(&at)?.resident.as_ref()
     }
 
     fn resident_mut(&mut self, at: [i32; 3]) -> Option<&mut Resident> {
-        match self.states.get_mut(&at) {
-            Some(SectionState::Resident(held)) => Some(held),
-            _ => None,
-        }
+        self.states.get_mut(&at)?.resident.as_mut()
     }
 
-    /// Only a section nothing holds, or one waiting for room, can be queued.
+    fn residents(&self) -> impl Iterator<Item = ([i32; 3], &Resident)> {
+        self.states
+            .iter()
+            .filter_map(|(at, section)| Some((*at, section.resident.as_ref()?)))
+    }
+
+    /// Only a section that is not queued or on the pool can be queued.
     fn enqueue(&mut self, at: [i32; 3], camera: [i32; 3]) {
-        if !matches!(self.state(at), None | Some(SectionState::Deferred)) {
+        if !matches!(self.work(at), Work::Idle | Work::Deferred) {
             return;
         }
-        self.replace(at, Some(SectionState::Queued));
+        self.set_work(at, Work::Queued);
         self.queue.push(at, camera);
     }
 
     #[cfg(test)]
     fn dequeue(&mut self, at: [i32; 3]) {
-        if matches!(self.state(at), Some(SectionState::Queued)) {
-            self.replace(at, None);
+        if self.is_queued(at) {
+            self.set_work(at, Work::Idle);
         }
     }
 
@@ -1292,9 +1276,11 @@ impl Sections {
             tally,
         } = self;
         let at = queue.pop_nearest(camera, tally.queued, |at| {
-            matches!(states.get(&at), Some(SectionState::Queued))
+            states
+                .get(&at)
+                .is_some_and(|section| section.work == Work::Queued)
         })?;
-        self.replace(at, None);
+        self.set_work(at, Work::Idle);
         Some(at)
     }
 
@@ -1302,53 +1288,55 @@ impl Sections {
     fn rebucket(&mut self, camera: [i32; 3]) {
         let Self { states, queue, .. } = self;
         queue.rebucket(camera, |at| {
-            matches!(states.get(&at), Some(SectionState::Queued))
+            states
+                .get(&at)
+                .is_some_and(|section| section.work == Work::Queued)
         });
     }
 
     fn start_meshing(&mut self, at: [i32; 3]) {
-        self.replace(at, Some(SectionState::Meshing { orphaned: false }));
+        self.set_work(at, Work::Meshing { orphaned: false });
     }
 
     /// Ends a section's meshing, telling whether the mesh was orphaned on the way.
     fn finish_meshing(&mut self, at: [i32; 3]) -> Option<bool> {
-        match self.state(at) {
-            Some(SectionState::Meshing { orphaned }) => {
-                let orphaned = *orphaned;
-                self.replace(at, None);
-                Some(orphaned)
-            }
-            _ => None,
+        let Work::Meshing { orphaned } = self.work(at) else {
+            return None;
+        };
+        self.set_work(at, Work::Idle);
+        Some(orphaned)
+    }
+
+    /// Makes `held` the section's drawn mesh, handing back the one it replaces.
+    fn settle(&mut self, at: [i32; 3], held: Resident) -> Option<Resident> {
+        let replaced = self.states.entry(at).or_default().resident.replace(held);
+        if replaced.is_none() {
+            self.tally.residents += 1;
         }
+        replaced
     }
 
-    fn settle(&mut self, at: [i32; 3], held: Resident) {
-        self.replace(at, Some(SectionState::Resident(held)));
-    }
-
+    /// A section that is queued or on the pool goes on with that instead.
     fn defer(&mut self, at: [i32; 3]) {
-        self.replace(at, Some(SectionState::Deferred));
+        if self.work(at) == Work::Idle {
+            self.set_work(at, Work::Deferred);
+        }
     }
 
     fn take_resident(&mut self, at: [i32; 3]) -> Option<Resident> {
-        if !matches!(self.state(at), Some(SectionState::Resident(_))) {
-            return None;
-        }
-        match self.replace(at, None) {
-            Some(SectionState::Resident(held)) => Some(held),
-            _ => None,
-        }
+        let held = self.states.get_mut(&at)?.resident.take()?;
+        self.tally.residents -= 1;
+        self.prune(at);
+        Some(held)
     }
 
     /// The section's column left: it stops waiting, and a mesh still being read out of it is
-    /// orphaned. A resident section is the caller's to evict.
+    /// orphaned. A resident mesh is the caller's to evict.
     fn depart(&mut self, at: [i32; 3]) {
-        match self.states.get_mut(&at) {
-            Some(SectionState::Meshing { orphaned }) => *orphaned = true,
-            Some(SectionState::Queued | SectionState::Deferred) => {
-                self.replace(at, None);
-            }
-            Some(SectionState::Resident(_)) | None => {}
+        match self.work(at) {
+            Work::Meshing { .. } => self.set_work(at, Work::Meshing { orphaned: true }),
+            Work::Queued | Work::Deferred => self.set_work(at, Work::Idle),
+            Work::Idle => {}
         }
     }
 
@@ -1597,7 +1585,6 @@ type Landed = ([i32; 3], u32, (SectionMesh, Scratch));
 fn place_meshes(
     mut loader: ResMut<Loader>,
     mut cave: ResMut<CaveCull>,
-    uploads: Res<Uploads>,
     store: Res<ColumnStore>,
     mut meshed: Local<Vec<Landed>>,
 ) {
@@ -1617,7 +1604,7 @@ fn place_meshes(
         if loader.discard_orphan(at, slot, &store) {
             continue;
         }
-        loader.land(mesh, slot, &mut cave, &uploads);
+        loader.land(mesh, slot, &mut cave);
     }
 
     loader.remesh_relit(&store, &mut cave);
@@ -1834,54 +1821,137 @@ mod tests {
     fn one_draw_a_bucket_covers_every_section_placed_in_it() {
         let mut loader = loader();
         let mut cave = CaveCull::new(1 << 8, true);
+        let mut gpu = Gpu::default();
 
-        let near = loader
-            .place(one_greedy_group([0, 0, 0], 0, 3), 0, &mut cave)
-            .unwrap_or_else(|_| panic!("the arena has room"));
-        let far = loader
-            .place(one_greedy_group([1, 0, 0], 1, 5), 1, &mut cave)
-            .unwrap_or_else(|_| panic!("the arena has room"));
-        assert_ne!(
-            near.quads.0, far.quads.0,
-            "two sections cannot share arena room"
-        );
-        assert_ne!(
-            near.sections.0, far.sections.0,
-            "nor a row of the section table"
-        );
-
-        let flushed = loader.flush().expect("the group arena has room");
-        let draws = flushed
-            .draws
-            .expect("a flush hands over the whole draw list");
+        for (slot, (at, quads)) in [([0, 0, 0], 3), ([1, 0, 0], 5)].into_iter().enumerate() {
+            loader
+                .place(
+                    one_greedy_group(at, slot as u32, quads),
+                    slot as u32,
+                    &mut cave,
+                )
+                .unwrap_or_else(|_| panic!("the arena has room"));
+        }
+        gpu.flush(&mut loader, |_| {});
         assert_eq!(
-            draws.len(),
+            gpu.draws.len(),
             STREAMS,
             "one draw a bucket, however many sections"
         );
-        assert_eq!(draws[0].group_count, 2);
-        assert_eq!(draws[0].quad_count, 8);
+        assert_eq!(gpu.draws[0].quad_count, 8);
         assert_eq!(
-            flushed.groups[0]
-                .1
-                .iter()
-                .map(|g| g.quad_count)
-                .collect::<Vec<_>>(),
+            gpu.drawn().iter().map(|g| g.quad_count).collect::<Vec<_>>(),
             [3, 5],
             "the blend order of a bucket runs across the sections in it"
         );
 
         loader.evict([0, 0, 0], &mut cave);
-        let flushed = loader.flush().expect("the group arena has room");
-        let draws = flushed
-            .draws
-            .expect("a flush hands over the whole draw list");
-        assert_eq!(draws[0].group_count, 1);
-        assert_eq!(draws[0].quad_count, 5);
+        gpu.flush(&mut loader, |_| {});
+        assert_eq!(gpu.draws[0].group_count, 1);
+        assert_eq!(gpu.draws[0].quad_count, 5);
         assert_eq!(
-            flushed.groups[0].1[0].quad_count, 5,
+            gpu.drawn().iter().map(|g| g.quad_count).collect::<Vec<_>>(),
+            [5],
             "what the evicted section held is given back, not left as a hole"
         );
+    }
+
+    /// Flushes the loader, handing back what it queued.
+    fn flushed(loader: &mut Loader) -> Vec<Placement> {
+        let uploads = Uploads::default();
+        loader.flush_to(&uploads);
+        std::iter::from_fn(|| uploads.pop())
+            .filter_map(|upload| match upload {
+                Upload::Geometry(placement) => Some(placement),
+                _ => None,
+            })
+            .collect()
+    }
+
+    /// The terrain buffers as the GPU holds them, landed a word at a time because the upload
+    /// budget may cut an upload anywhere. A placement's draw list swaps in once it has landed.
+    #[derive(Default)]
+    struct Gpu {
+        /// The section whose mesh last wrote each quad.
+        quads: HashMap<u64, [i32; 3]>,
+        slots: HashMap<u32, [i32; 3]>,
+        groups: HashMap<u64, Group>,
+        draws: Vec<Draw>,
+    }
+
+    impl Gpu {
+        /// Flushes the loader and lands what it queued. After every word it checks that no
+        /// drawn record reads quads the mesh of another section wrote, then calls `check`.
+        fn flush(&mut self, loader: &mut Loader, mut check: impl FnMut(&Self)) {
+            for placement in flushed(loader) {
+                if let Some(desc) = placement.sections.1.first() {
+                    let first = placement.quads.0 / (QUAD_WORDS * 4) as u64;
+                    for quad in first..first + placement.quads.1.len() as u64 {
+                        self.quads.insert(quad, desc.section);
+                        self.check(&mut check);
+                    }
+                    let slot = placement.sections.0 / size_of::<SectionDesc>() as u64;
+                    self.slots.insert(slot as u32, desc.section);
+                    self.check(&mut check);
+                }
+                for (offset, records) in placement.groups {
+                    let first = offset / size_of::<Group>() as u64;
+                    for (at, record) in (first..).zip(records) {
+                        self.land_record(at, record, &mut check);
+                    }
+                }
+                if let Some(draws) = placement.draws {
+                    self.draws = draws;
+                    self.check(&mut check);
+                }
+            }
+        }
+
+        fn land_record(&mut self, at: u64, record: Group, check: &mut impl FnMut(&Self)) {
+            for word in 0..5 {
+                let held = self.groups.entry(at).or_default();
+                match word {
+                    0 => held.quad_base = record.quad_base,
+                    1 => held.quad_count = record.quad_count,
+                    2 => held.section = record.section,
+                    3 => held.face = record.face,
+                    _ => held.bounds = record.bounds,
+                }
+                self.check(check);
+            }
+        }
+
+        fn check(&self, check: &mut impl FnMut(&Self)) {
+            for group in self.drawn() {
+                let section = self.slots.get(&group.section);
+                for quad in group.quad_base..group.quad_base + group.quad_count {
+                    assert_eq!(
+                        self.quads.get(&u64::from(quad)),
+                        section,
+                        "a drawn record reads only quads the mesh of its own section wrote"
+                    );
+                }
+            }
+            check(self);
+        }
+
+        /// The records the greedy stream draws.
+        fn drawn(&self) -> Vec<Group> {
+            let Some(greedy) = self.draws.first() else {
+                return Vec::new();
+            };
+            (greedy.first_group..greedy.first_group + greedy.group_count)
+                .filter_map(|index| self.groups.get(&u64::from(index)).copied())
+                .filter(|group| group.quad_count != 0)
+                .collect()
+        }
+
+        fn drawn_sections(&self) -> Vec<[i32; 3]> {
+            self.drawn()
+                .iter()
+                .filter_map(|group| self.slots.get(&group.section).copied())
+                .collect()
+        }
     }
 
     fn blended_sections(loader: &Loader, stream: usize) -> Vec<[i32; 3]> {
@@ -1908,7 +1978,7 @@ mod tests {
                 .place(mesh, slot as u32, &mut cave)
                 .unwrap_or_else(|_| panic!("the arena has room"));
         }
-        loader.flush().expect("the group arena has room");
+        flushed(&mut loader);
         assert_eq!(
             blended_sections(&loader, blended_stream),
             [[-3, 0, 0], [3, 0, 0], [0, 0, 2], [0, 1, 0], [1, 0, 0]],
@@ -1916,7 +1986,7 @@ mod tests {
         );
 
         loader.look_from(Vec3::new(4.0 * 16.0 + 8.0, 8.0, 8.0));
-        loader.flush().expect("the group arena has room");
+        flushed(&mut loader);
         assert_eq!(
             blended_sections(&loader, blended_stream),
             [[-3, 0, 0], [0, 0, 2], [0, 1, 0], [1, 0, 0], [3, 0, 0]],
@@ -1924,7 +1994,7 @@ mod tests {
         );
 
         loader.evict([0, 1, 0], &mut cave);
-        loader.flush().expect("the group arena has room");
+        flushed(&mut loader);
         assert_eq!(
             blended_sections(&loader, blended_stream),
             [[-3, 0, 0], [0, 0, 2], [1, 0, 0], [3, 0, 0]],
@@ -1967,18 +2037,18 @@ mod tests {
             quads: 1 << 12,
             models: 1 << 12,
             faces: 1 << 14,
-            groups: 1 << 12,
+            groups: 1 << 13,
             sections: 1 << 10,
             upload: 0,
             tint_size: [512; 2],
         });
         let mut cave = CaveCull::new(1 << 10, true);
 
-        // Streams growing at their own rates leave the arena holding its room in pieces: at
-        // 342 sections these three want 256, 1024 and 2048 records, which is 3584 of the 4096
-        // the arena has and more than any one piece of what is left holds.
+        // Each stream takes its new block beside the one the GPU draws, from an arena sized to
+        // hold two of each, and gives the old one back behind the draw list that leaves it.
         let counts = [1u32, 3, 2];
         let placed = 342u32;
+        let mut draws = Vec::new();
         for index in 0..placed {
             loader
                 .place(
@@ -1987,16 +2057,12 @@ mod tests {
                     &mut cave,
                 )
                 .unwrap_or_else(|_| panic!("the arena has room"));
-            loader
-                .flush()
+            draws = flushed(&mut loader)
+                .into_iter()
+                .find_map(|placement| placement.draws)
                 .expect("a flush hands over the whole draw list");
         }
 
-        let draws = loader
-            .flush()
-            .expect("a flush hands over the whole draw list")
-            .draws
-            .expect("the whole draw list");
         assert_eq!(
             [
                 draws[0].group_count,
@@ -2111,13 +2177,12 @@ mod tests {
         );
     }
 
-    #[test]
-    fn a_relit_section_draws_its_old_mesh_until_the_new_one_is_placed() {
+    /// Stone in the nine columns around the origin, so the section there is meshable, and a
+    /// loader whose quad arena holds `meshes` meshes of three quads.
+    fn relit_fixture(meshes: usize) -> (Loader, ColumnStore) {
         use mcrs_minecraft_client_world::columns::{Column, Extent, Section};
 
         let stone = mcrs_voxel::BlockStateId::checked(1, 2).expect("a state past air");
-        let mut loader = loader();
-        let mut cave = CaveCull::new(1 << 8, true);
         let mut store = ColumnStore::default();
         store.enter(Extent {
             min_section_y: 0,
@@ -2133,223 +2198,98 @@ mod tests {
                 store.insert(ColumnPos::new(x, z), Column::unlit(0, vec![Some(section)]));
             }
         }
-        adopt(&mut loader, &mut store, &mut cave);
-        let centre = [0, 0, 0];
-        let drawn = |loader: &Loader| -> Vec<u32> {
-            loader.streams[0]
-                .groups
-                .iter()
-                .filter(|group| group.quad_count != 0)
-                .map(|group| group.quad_count)
-                .collect()
-        };
-        loader.sections.dequeue(centre);
-        let old = loader.take_slot().expect("a free slot");
-        if loader
-            .place(one_greedy_group(centre, old, 3), old, &mut cave)
-            .is_err()
-        {
-            panic!("the arena has room");
-        }
-
-        loader.relit.insert(centre);
-        loader.remesh_relit(&store, &mut cave);
-        assert!(
-            loader.sections.is_queued(centre),
-            "the section is meshed again"
-        );
-        assert_eq!(drawn(&loader), [3], "while the mesh it had stays drawn");
-
-        loader.sections.dequeue(centre);
-        let new = loader.take_slot().expect("a free slot");
-        if loader
-            .place(one_greedy_group(centre, new, 5), new, &mut cave)
-            .is_err()
-        {
-            panic!("the arena has room");
-        }
-        assert_eq!(
-            drawn(&loader),
-            [5],
-            "the new mesh takes the place of the old one"
-        );
-        assert!(
-            loader.free_slots.contains(&old),
-            "and the old mesh gives its slot back"
-        );
-    }
-
-    #[test]
-    fn a_packed_stream_moves_the_records_of_a_mesh_kept_for_a_relight() {
-        use mcrs_minecraft_client_world::columns::{Column, Extent, Section};
-
-        let stone = mcrs_voxel::BlockStateId::checked(1, 2).expect("a state past air");
-        let mut loader = loader();
-        let mut cave = CaveCull::new(1 << 8, true);
-        let mut store = ColumnStore::default();
-        store.enter(Extent {
-            min_section_y: 0,
-            sections: 1,
+        let loader = Loader::new(&Budget {
+            quads: 4 * meshes,
+            models: 1 << 12,
+            faces: 1 << 16,
+            groups: 1 << 12,
+            sections: 1 << 8,
+            upload: 0,
+            tint_size: [512; 2],
         });
-        for x in -1..=2 {
-            for z in -1..=1 {
-                let section = Section {
-                    blocks: Box::new([stone; mcrs_minecraft_mesh::SECTION_VOLUME]),
-                    biomes: PalettedContainer::Homogeneous(0),
-                    states: vec![stone],
-                };
-                store.insert(ColumnPos::new(x, z), Column::unlit(0, vec![Some(section)]));
-            }
-        }
-        adopt(&mut loader, &mut store, &mut cave);
-        let (first, relit) = ([1, 0, 0], [0, 0, 0]);
-        for (at, quads) in [(first, 2), (relit, 3)] {
-            loader.sections.dequeue(at);
-            let slot = loader.take_slot().expect("a free slot");
-            if loader
-                .place(one_greedy_group(at, slot, quads), slot, &mut cave)
-                .is_err()
-            {
-                panic!("the arena has room");
-            }
-        }
-        loader.relit.insert(relit);
-        loader.remesh_relit(&store, &mut cave);
-        loader.evict(first, &mut cave);
-        loader.pack_stream(0);
-
-        loader.sections.dequeue(relit);
-        let new = loader.take_slot().expect("a free slot");
-        if loader
-            .place(one_greedy_group(relit, new, 5), new, &mut cave)
-            .is_err()
-        {
-            panic!("the arena has room");
-        }
-        let drawn: Vec<u32> = loader.streams[0]
-            .groups
-            .iter()
-            .map(|group| group.quad_count)
-            .filter(|&count| count != 0)
-            .collect();
-        assert_eq!(
-            drawn,
-            [5],
-            "the kept mesh leaves the stream it was packed into"
-        );
+        (loader, store)
     }
 
-    /// The terrain buffers as the GPU holds them once each upload has landed, a placement with a
-    /// draw list landing whole as the render world lands it.
-    #[derive(Default)]
-    struct Gpu {
-        groups: HashMap<usize, Group>,
-        draws: Vec<Draw>,
-        /// The section whose mesh last wrote each quad.
-        quad_sections: HashMap<usize, [i32; 3]>,
-        slot_sections: HashMap<u32, [i32; 3]>,
-    }
-
-    impl Gpu {
-        fn land_all(&mut self, uploads: &Uploads, mut check: impl FnMut(&Self)) {
-            while let Some(upload) = uploads.pop() {
-                let Upload::Geometry(placement) = upload else {
-                    continue;
-                };
-                let quad_bytes = (QUAD_WORDS * 4) as u64;
-                if let Some(desc) = placement.sections.1.first() {
-                    let slot = placement.sections.0 / size_of::<SectionDesc>() as u64;
-                    self.slot_sections.insert(slot as u32, desc.section);
-                    let first = (placement.quads.0 / quad_bytes) as usize;
-                    for quad in first..first + placement.quads.1.len() {
-                        self.quad_sections.insert(quad, desc.section);
-                    }
-                }
-                for (offset, records) in placement.groups {
-                    let first = offset as usize / size_of::<Group>();
-                    for (index, record) in records.into_iter().enumerate() {
-                        self.groups.insert(first + index, record);
-                    }
-                }
-                if let Some(draws) = placement.draws {
-                    self.draws = draws;
-                }
-                check(self);
-            }
-        }
-
-        fn drawn(&self) -> Vec<Group> {
-            let greedy = &self.draws[0];
-            (greedy.first_group..greedy.first_group + greedy.group_count)
-                .filter_map(|index| self.groups.get(&(index as usize)).copied())
-                .filter(|group| group.quad_count != 0)
-                .collect()
-        }
+    /// Lands a mesh of three quads for `at` the way the pool hands it over, returning its slot.
+    fn land_mesh(loader: &mut Loader, at: [i32; 3], cave: &mut CaveCull) -> u32 {
+        let slot = loader.take_slot().expect("a free slot");
+        loader.sections.dequeue(at);
+        loader.land(one_greedy_group(at, slot, 3), slot, cave);
+        slot
     }
 
     #[test]
-    fn no_frame_draws_a_relit_section_out_of_room_another_mesh_was_written_into() {
-        use mcrs_minecraft_client_world::columns::{Column, Extent, Section};
-
-        let stone = mcrs_voxel::BlockStateId::checked(1, 2).expect("a state past air");
-        let mut loader = loader();
+    fn no_frame_draws_a_hole_or_foreign_quads_where_a_relit_section_is_replaced() {
+        let (mut loader, mut store) = relit_fixture(4);
         let mut cave = CaveCull::new(1 << 8, true);
-        let uploads = Uploads::default();
         let mut gpu = Gpu::default();
-        let mut store = ColumnStore::default();
-        store.enter(Extent {
-            min_section_y: 0,
-            sections: 1,
-        });
-        for x in -1..=1 {
-            for z in -1..=1 {
-                let section = Section {
-                    blocks: Box::new([stone; mcrs_minecraft_mesh::SECTION_VOLUME]),
-                    biomes: PalettedContainer::Homogeneous(0),
-                    states: vec![stone],
-                };
-                store.insert(ColumnPos::new(x, z), Column::unlit(0, vec![Some(section)]));
-            }
-        }
         adopt(&mut loader, &mut store, &mut cave);
-        let (relit, other) = ([0, 0, 0], [5, 0, 0]);
-        loader.sections.dequeue(relit);
-        let old = loader.take_slot().expect("a free slot");
-        loader.land(one_greedy_group(relit, old, 3), old, &mut cave, &uploads);
-        loader.flush_to(&uploads);
-        gpu.land_all(&uploads, |_| {});
+        let (relit, far) = ([0, 0, 0], [40, 0, 0]);
+        let mut slot = land_mesh(&mut loader, relit, &mut cave);
+        for at in [far, [1, 0, 0], [-1, 0, 0]] {
+            land_mesh(&mut loader, at, &mut cave);
+        }
+        gpu.flush(&mut loader, |_| {});
+
+        // The first relight finds the arena full and evicts the far section, whose room the
+        // new mesh takes; the second finds the room the first gave back, and leaves the stream
+        // dead enough to be rebuilt.
+        for _ in 0..2 {
+            loader.relit.insert(relit);
+            loader.remesh_relit(&store, &mut cave);
+            assert!(
+                loader.sections.is_queued(relit),
+                "the section is meshed again"
+            );
+            let old = slot;
+            slot = land_mesh(&mut loader, relit, &mut cave);
+            gpu.flush(&mut loader, |gpu| {
+                assert!(
+                    gpu.drawn_sections().contains(&relit),
+                    "the relit section is drawn after every word that lands"
+                );
+            });
+            assert_eq!(
+                gpu.drawn_sections()
+                    .iter()
+                    .filter(|&&at| at == relit)
+                    .count(),
+                1,
+                "the new mesh takes the place of the old one"
+            );
+            assert!(
+                loader.free_slots.contains(&old),
+                "and the old mesh gives its slot back"
+            );
+        }
+        assert!(!gpu.drawn_sections().contains(&far));
+        assert_eq!(
+            loader.quads.held(),
+            3 * 4,
+            "the old mesh gives its room back"
+        );
+    }
+
+    #[test]
+    fn a_relit_section_in_a_full_arena_takes_the_room_of_the_mesh_it_replaces() {
+        let (mut loader, mut store) = relit_fixture(1);
+        let mut cave = CaveCull::new(1 << 8, true);
+        let mut gpu = Gpu::default();
+        adopt(&mut loader, &mut store, &mut cave);
+        let relit = [0, 0, 0];
+        land_mesh(&mut loader, relit, &mut cave);
+        gpu.flush(&mut loader, |_| {});
 
         loader.relit.insert(relit);
         loader.remesh_relit(&store, &mut cave);
-        loader.sections.dequeue(relit);
-        // Both meshes were admitted before the frame they land in, so each has its slot.
-        let new = loader.take_slot().expect("a free slot");
-        let next = loader.take_slot().expect("a free slot");
-        loader.land(one_greedy_group(relit, new, 3), new, &mut cave, &uploads);
-        loader.land(one_greedy_group(other, next, 3), next, &mut cave, &uploads);
-        loader.flush_to(&uploads);
-
-        gpu.land_all(&uploads, |gpu| {
-            let drawn = gpu.drawn();
-            let sections: Vec<[i32; 3]> = drawn
-                .iter()
-                .filter_map(|group| gpu.slot_sections.get(&group.section).copied())
-                .collect();
-            assert!(
-                sections.contains(&relit),
-                "the relit section is drawn after every upload"
-            );
-            for group in drawn {
-                let section = gpu.slot_sections.get(&group.section);
-                for quad in group.quad_base..group.quad_base + group.quad_count {
-                    assert_eq!(
-                        gpu.quad_sections.get(&(quad as usize)),
-                        section,
-                        "a drawn record reads only quads the mesh of its own section wrote"
-                    );
-                }
-            }
-        });
+        let new = land_mesh(&mut loader, relit, &mut cave);
+        gpu.flush(&mut loader, |_| {});
+        assert_eq!(
+            loader.sections.resident(relit).map(|held| held.slot),
+            Some(new),
+            "the new mesh is placed rather than left waiting for room nobody gives back"
+        );
+        assert_eq!(gpu.drawn_sections(), [relit]);
     }
 
     fn a_mesh_read_out_of_a_column_the_server_took_back_is_thrown_away() {
@@ -2396,7 +2336,10 @@ mod tests {
             loader.discard_orphan(centre, slot, &store),
             "the mesh was read out of a column nobody holds any more"
         );
-        assert!(!loader.sections.is_resident(centre), "so it is not drawn");
+        assert!(
+            loader.sections.resident(centre).is_none(),
+            "so it is not drawn"
+        );
         assert_eq!(loader.free_slots, vec![slot], "and its slot goes back");
         assert!(
             !loader.sections.is_queued(centre),
@@ -2511,47 +2454,7 @@ mod tests {
         use super::*;
 
         #[test]
-        fn a_stream_needing_the_whole_arena_still_draws_every_section() {
-            let mut loader = Loader::new(&Budget {
-                quads: 1 << 12,
-                models: 1 << 12,
-                faces: 1 << 16,
-                groups: 1 << 12,
-                sections: 1 << 12,
-                upload: 0,
-                tint_size: [512; 2],
-            });
-            let mut cave = CaveCull::new(1 << 12, true);
-
-            // Past a thousand records the ask is a class the arena only has one of, so the
-            // block the stream leaves has to be the room the next one comes out of.
-            let placed = 3000u32;
-            for index in 0..placed {
-                loader
-                    .place(
-                        one_greedy_group([index as i32, 0, 0], index, 1),
-                        index,
-                        &mut cave,
-                    )
-                    .unwrap_or_else(|_| panic!("the arena has room"));
-                loader
-                    .flush()
-                    .expect("a flush hands over the whole draw list");
-            }
-
-            let draws = loader
-                .flush()
-                .expect("a flush hands over the whole draw list")
-                .draws
-                .expect("the whole draw list");
-            assert_eq!(
-                draws[0].group_count, placed,
-                "every section placed is a record the draw reaches"
-            );
-            assert_eq!(draws[0].quad_count, placed);
-        }
-        #[test]
-        fn a_stream_the_arena_cannot_hold_stops_asking_instead_of_sending_itself_again() {
+        fn a_stream_the_arena_cannot_rebuild_beside_its_block_stops_sending_itself_again() {
             let mut loader = Loader::new(&Budget {
                 quads: 1 << 13,
                 models: 1 << 12,
@@ -2563,8 +2466,10 @@ mod tests {
             });
             let mut cave = CaveCull::new(1 << 13, true);
 
-            let placed = 5000u32;
-            for index in 0..placed {
+            // Past 2048 records the stream wants the whole arena, which it cannot take while
+            // the GPU still draws the block it has.
+            let mut last = Vec::new();
+            for index in 0..3000u32 {
                 loader
                     .place(
                         one_greedy_group([index as i32, 0, 0], index, 1),
@@ -2572,21 +2477,20 @@ mod tests {
                         &mut cave,
                     )
                     .unwrap_or_else(|_| panic!("the arena has room"));
-                loader
-                    .flush()
-                    .expect("a flush hands over the whole draw list");
+                last = flushed(&mut loader);
             }
 
-            let flushed = loader
-                .flush()
+            let draws = last
+                .iter()
+                .find_map(|placement| placement.draws.as_ref())
                 .expect("a flush hands over the whole draw list");
             assert_eq!(
-                flushed.draws.expect("the whole draw list")[0].group_count,
-                1 << 12,
-                "a stream past what the arena can ever give it draws what its block holds"
+                draws[0].group_count,
+                1 << 11,
+                "a stream past what the arena can give it draws what its block holds"
             );
             assert!(
-                flushed.groups.is_empty(),
+                last.iter().all(|placement| placement.groups.is_empty()),
                 "and stops packing and sending itself again for the room that is not coming"
             );
         }
