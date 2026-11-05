@@ -38,8 +38,9 @@ pub enum ModifierError {
 /// form gives what `ARGB`'s three-channel form gives. Floats and integers follow `FloatModifier`
 /// and `IntegerModifier` (integers wrap as Java's do), booleans `BooleanModifier`.
 ///
-/// `blend_to_gray`, `append` and `overlay` are not composed yet: no shipped timeline or dimension
-/// uses the first, and the other two only touch gameplay lists.
+/// `blend_to_gray`, `append` and `overlay` are not composed yet. No data file uses the first:
+/// only the game's built-in rain and thunder layers do, and nothing here models weather yet. The
+/// other two only touch gameplay lists.
 pub fn apply(
     op: Operation,
     subject: &AttributeValue,
