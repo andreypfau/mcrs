@@ -5,8 +5,10 @@
 
 use bevy_ecs::entity::Entity;
 use mcrs_engine_cell::CellId;
+use mcrs_engine_store::{ChunkVersion, StoreOutput, VersionedChunk};
 use mcrs_voxel::ColumnPos;
 
+use crate::column_store::ColumnStoreOutput;
 use crate::stored_column::StoredColumn;
 
 /// A cell of the world of `label` asks the generation of the world for `column`.
@@ -23,4 +25,22 @@ pub struct GenerationAsk {
 pub struct GenerationAnswer {
     pub column: ColumnPos,
     pub stored: Option<StoredColumn>,
+}
+
+/// A generated column lands as an answer of the data layer at version zero: the world never
+/// wrote it.
+impl From<GenerationAnswer> for ColumnStoreOutput {
+    fn from(answer: GenerationAnswer) -> Self {
+        let key = answer.column;
+        match answer.stored {
+            Some(chunk) => StoreOutput::Found {
+                key,
+                chunk: VersionedChunk {
+                    version: ChunkVersion::default(),
+                    chunk,
+                },
+            },
+            None => StoreOutput::Missing { key },
+        }
+    }
 }

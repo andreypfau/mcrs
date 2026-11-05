@@ -21,7 +21,6 @@ use crate::column_asks::{
     ColumnAnswer, ColumnAsk, ColumnHold, ColumnOrigin, Hold, OtherColumns, OwnerReply,
     answer_column_asks,
 };
-use crate::column_generation::GenerationAnswer;
 use crate::column_light::ColdStageLandSet;
 use crate::column_production::ColumnProduction;
 use crate::column_streams::{ColumnStreamSet, land_viewed_columns, report_player_views};
@@ -171,21 +170,6 @@ impl ColumnStoreLink {
     /// Moves the asks of this tick for the generation of the world into `out`.
     pub(crate) fn take_generation_asks(&mut self, out: &mut Vec<ColumnPos>) {
         out.append(&mut self.generation_asks);
-    }
-
-    /// Keeps what the generation of the world made for the next landing.
-    pub(crate) fn receive_generated(&mut self, answers: Vec<GenerationAnswer>) {
-        self.answers
-            .extend(answers.into_iter().map(|answer| match answer.stored {
-                Some(chunk) => StoreOutput::Found {
-                    key: answer.column,
-                    chunk: VersionedChunk {
-                        version: ChunkVersion::default(),
-                        chunk,
-                    },
-                },
-                None => StoreOutput::Missing { key: answer.column },
-            }));
     }
 
     /// Sends the read of `column` on to the generation of the world, after the owner or the

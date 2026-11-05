@@ -26,7 +26,6 @@ use crate::cell_mail;
 use crate::cell_mail::{CellInbox, CellMail};
 use crate::channel_types::ToDim;
 use crate::column_change::ColumnChange;
-use crate::column_generation::GenerationAnswer;
 use crate::column_production::ColumnProduction;
 use crate::column_request::ColumnRequest;
 use crate::column_store::{ColumnStoreInput, ColumnStoreLink, ColumnStoreOutput};
@@ -86,10 +85,9 @@ pub struct DimInput {
     pub(crate) column_requests: Vec<ColumnRequest>,
     /// What the other cells of the world sent in their last tick, in the order of the cells.
     pub(crate) cell_mail: CellMail,
-    /// The answers of the data layer of the world to the requests of this cell.
+    /// The answers of the data layer of the world to the requests of this cell, and what the
+    /// generation of the world made of the columns that this cell asked for.
     pub(crate) store_answers: Vec<ColumnStoreOutput>,
-    /// What the generation of the world made of the columns that this cell asked for.
-    pub(crate) generated: Vec<GenerationAnswer>,
 }
 
 /// What a dimension world hands the host after one tick.
@@ -238,11 +236,6 @@ fn apply_input(world: &mut World, _tick: Tick, input: DimInput) {
         && let Some(mut store) = world.get_resource_mut::<ColumnStoreLink>()
     {
         store.receive(input.store_answers);
-    }
-    if !input.generated.is_empty()
-        && let Some(mut store) = world.get_resource_mut::<ColumnStoreLink>()
-    {
-        store.receive_generated(input.generated);
     }
 }
 

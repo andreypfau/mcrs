@@ -46,9 +46,10 @@ pub struct OwnedColumns {
     index: CellIndex,
 }
 
-/// The columns past its boxes whose tickets a cell raises: the loading rings of a ticket, so a
-/// column at the edge of a box is lit with all its neighbours, as in a world of one cell.
-const HALO: u32 = LOADING_RINGS.unsigned_abs();
+/// The columns past its boxes whose tickets a cell raises and that it reads: the loading rings
+/// of a ticket, so a column at the edge of a box is lit with all its neighbours, as in a world
+/// of one cell.
+pub const HALO: u32 = LOADING_RINGS.unsigned_abs();
 
 impl OwnedColumns {
     /// The columns of the cell `index` in `partition`, which raises the tickets of the columns

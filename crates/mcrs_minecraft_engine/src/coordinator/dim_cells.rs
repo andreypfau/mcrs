@@ -15,7 +15,7 @@ use mcrs_engine_cell::{BoxPartition, CellId, CellIndex, Cells, Placement, Tick};
 use mcrs_engine_store::{SharedStore, StoreInput};
 use mcrs_minecraft_core::Versioned;
 use mcrs_minecraft_engine_registries::RegistrySnapshot;
-use mcrs_minecraft_engine_world::owned_columns::column_key;
+use mcrs_minecraft_engine_world::owned_columns::{HALO, column_key};
 use mcrs_minecraft_engine_world::session::PlayerSession;
 use mcrs_minecraft_environment::world_clock::WorldClocks;
 use mcrs_voxel::ColumnPos;
@@ -79,7 +79,7 @@ pub struct DimCells {
     /// The cell that holds the player of each session, in a dimension of several cells.
     sessions: FxHashMap<PlayerSession, CellId>,
     /// What the generation of its world made for each cell, for its next tick.
-    generated: BTreeMap<CellId, Vec<GenerationAnswer>>,
+    generated: BTreeMap<CellId, Vec<ColumnStoreOutput>>,
     tick: Tick,
     outputs: Vec<DimTicked>,
 }
@@ -97,9 +97,6 @@ struct Dim {
     cells: Vec<CellId>,
     /// The division of the columns over the cells, for a dimension of more than one cell.
     partition: Option<BoxPartition>,
-    /// A cell reads the columns within this many columns of its boxes: its halo, and at least
-    /// the columns next to a column that it lights in cold space.
-    read_reach: u32,
     store: SharedStore<ColumnDisk, CellId>,
 }
 
@@ -129,7 +126,6 @@ impl Dim {
         Self {
             cells: Vec::new(),
             partition: None,
-            read_reach: 0,
             store: SharedStore::new(ColumnDisk::new(), Placement::Thread),
         }
     }
@@ -150,7 +146,7 @@ impl Dim {
     /// Whether the cell `index` reads `column`.
     fn reads(&self, index: CellIndex, column: ColumnPos) -> bool {
         self.partition
-            .is_some_and(|partition| partition.reaches(index, column_key(column), self.read_reach))
+            .is_some_and(|partition| partition.reaches(index, column_key(column), HALO))
     }
 }
 
@@ -207,12 +203,9 @@ impl DimCells {
         cell
     }
 
-    /// Divides the dimension of `label` over its cells by `partition`, each cell with a halo of
-    /// `halo` columns.
-    pub(crate) fn divide(&mut self, label: Entity, partition: BoxPartition, halo: u32) {
-        let dim = self.dims.entry(label).or_insert_with(Dim::new);
-        dim.partition = Some(partition);
-        dim.read_reach = halo.max(1);
+    /// Divides the dimension of `label` over its cells by `partition`.
+    pub(crate) fn divide(&mut self, label: Entity, partition: BoxPartition) {
+        self.dims.entry(label).or_insert_with(Dim::new).partition = Some(partition);
     }
 
     /// Stops every world of `label`. Returns `false` when no world has that label.
@@ -352,7 +345,7 @@ impl DimCells {
 
     /// Hands `answer` of the generation of its world to `cell`, in the input of its next tick.
     pub fn deliver_generated(&mut self, cell: CellId, answer: GenerationAnswer) {
-        self.generated.entry(cell).or_default().push(answer);
+        self.generated.entry(cell).or_default().push(answer.into());
     }
 
     pub(crate) fn take_outputs(&mut self) -> Vec<DimTicked> {
@@ -553,7 +546,9 @@ impl DimCells {
         let ticked = block_on(worlds.cells.tick(self.tick, |cell| {
             let mut input = input(cell);
             input.store_answers = answers.remove(&cell).unwrap_or_default();
-            input.generated = generated.remove(&cell).unwrap_or_default();
+            input
+                .store_answers
+                .extend(generated.remove(&cell).unwrap_or_default());
             if let Some(cell) = cells.get_mut(&cell) {
                 input.cell_mail = mem::take(&mut cell.inbox);
             }
@@ -695,7 +690,6 @@ impl Globals {
             column_requests,
             cell_mail: CellMail::default(),
             store_answers: Vec::new(),
-            generated: Vec::new(),
         }
     }
 }
