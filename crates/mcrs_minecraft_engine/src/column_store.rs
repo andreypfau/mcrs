@@ -1,14 +1,11 @@
-use std::collections::vec_deque::Drain;
 use std::vec;
 
 use bevy_app::{App, FixedUpdate, Plugin};
 use bevy_ecs::entity::Entity;
 use bevy_ecs::prelude::Resource;
 use bevy_ecs::schedule::{IntoScheduleConfigs, SystemSet};
-use mcrs_engine_link::{Link, Placement};
-use mcrs_engine_store::{
-    ChunkVersion, NoDisk, StoreInput, StoreOutput, StoreStage, VersionedChunk,
-};
+use mcrs_engine_store::{ChunkVersion, NoDisk, StoreInput, StoreOutput, VersionedChunk};
+use mcrs_minecraft_engine_world::owned_columns::{self, OwnedColumns};
 use mcrs_minecraft_engine_world::tick::TickSet;
 use mcrs_minecraft_engine_world::world::lifecycle::column_loading::ColumnLoading;
 use mcrs_minecraft_engine_world::world::lifecycle::ticket::{
@@ -28,8 +25,15 @@ use crate::stored_columns_landing::{fetch_loading_columns, land_stored_columns};
 /// The disk under the data layer of a dimension. The data layer lives in memory only for now.
 pub type ColumnDisk = NoDisk<ColumnPos, StoredColumn>;
 
-/// The data layer of a dimension world, at the far end of a link: the last version of each
-/// column that went cold.
+/// What a cell asks of the data layer of its world.
+pub type ColumnStoreInput = StoreInput<ColumnPos, StoredColumn>;
+
+/// What the data layer of a world answers a cell.
+pub type ColumnStoreOutput = StoreOutput<ColumnPos, StoredColumn>;
+
+/// The data layer of a dimension: the last version of each column that went cold. The
+/// coordinator holds one data layer for each dimension, and every cell of the dimension reaches
+/// it through the input and the output of its tick.
 ///
 /// With it, only the hot columns stay in the dimension: the columns that a player simulates and
 /// the rings that load with them. A column that stops being loaded writes its last version
@@ -37,14 +41,20 @@ pub type ColumnDisk = NoDisk<ColumnPos, StoredColumn>;
 /// gets every column that the dimension does not light from here, and the data layer generates
 /// and lights a column that it does not hold with [`ColumnProduction`].
 pub struct ColumnStorePlugin {
-    pub placement: Placement,
+    /// The columns of the cell, in a dimension of several cells.
+    pub owned: Option<OwnedColumns>,
 }
 
-/// The near end of the link to the data layer of a dimension world.
+/// The near end of the data layer of a dimension world: the requests of this tick go out in the
+/// output of the tick, and the answers come in the input of a later tick.
 #[derive(Resource)]
 pub struct ColumnStoreLink {
-    link: Link<StoreStage<ColumnDisk>>,
-    /// The version of the last column the world wrote. The world is the only writer.
+    owned: Option<OwnedColumns>,
+    /// The requests of this tick, in order.
+    sent: Vec<ColumnStoreInput>,
+    /// The answers that arrived and did not land yet, in the order of the requests.
+    answers: Vec<ColumnStoreOutput>,
+    /// The version of the last column this cell wrote. Only the owner of a column writes it.
     written: ChunkVersion,
     /// The columns that wait for an answer of the data layer.
     pub(crate) reads: FxHashMap<ColumnPos, ColumnRead>,
@@ -52,9 +62,9 @@ pub struct ColumnStoreLink {
     pub(crate) viewed: Vec<ViewedColumn>,
     /// The answers that the production of cold columns waits on.
     pub(crate) fetched: Vec<FetchedColumn>,
-    /// The last version of every column the world wrote. The data layer has no disk under it,
-    /// so the world's writes are the only changed columns it holds, and a request for any other
-    /// one is not worth a round trip.
+    /// The last version of every column this cell wrote. The data layer has no disk under it,
+    /// so the writes are the only changed columns it holds, and a request for another column of
+    /// this cell is not worth a round trip.
     written_columns: FxHashMap<ColumnPos, ChunkVersion>,
 }
 
@@ -84,14 +94,16 @@ pub(crate) struct ViewedColumn {
 /// An answer of the data layer that the production of a cold column waits on.
 pub(crate) struct FetchedColumn {
     pub(crate) column: ColumnPos,
-    pub(crate) answer: StoreOutput<ColumnPos, StoredColumn>,
+    pub(crate) answer: ColumnStoreOutput,
 }
 
 impl ColumnStoreLink {
     #[must_use]
-    pub fn new(placement: Placement) -> Self {
+    pub fn new(owned: Option<OwnedColumns>) -> Self {
         Self {
-            link: Link::new(StoreStage::new(ColumnDisk::new()), placement),
+            owned,
+            sent: Vec::new(),
+            answers: Vec::new(),
             written: ChunkVersion::default(),
             reads: FxHashMap::default(),
             viewed: Vec::new(),
@@ -100,9 +112,11 @@ impl ColumnStoreLink {
         }
     }
 
-    /// Whether the data layer may hold a version of `column` that the world wrote.
+    /// Whether the data layer may hold a version of `column` that a cell wrote. Another cell
+    /// writes the columns it owns, and only the data layer knows which.
     pub(crate) fn may_hold(&self, column: ColumnPos) -> bool {
         self.written_columns.contains_key(&column)
+            || !owned_columns::owns(self.owned.as_ref(), column)
     }
 
     /// The last version of `column` that the world wrote.
@@ -110,15 +124,20 @@ impl ColumnStoreLink {
         self.written_columns.get(&column).copied()
     }
 
-    /// Waits until the data layer has answered every request sent so far, and lands none of it.
-    pub async fn answered(&mut self) {
-        self.link.answered().await;
+    /// Moves the requests of this tick into `out`.
+    pub(crate) fn take_sent(&mut self, out: &mut Vec<ColumnStoreInput>) {
+        out.append(&mut self.sent);
+    }
+
+    /// Keeps answers of the data layer for the next landing.
+    pub(crate) fn receive(&mut self, answers: Vec<ColumnStoreOutput>) {
+        self.answers.extend(answers);
     }
 
     pub(crate) fn put(&mut self, column: ColumnPos, chunk: StoredColumn) {
         self.written = self.written.next();
         self.written_columns.insert(column, self.written);
-        self.link.send(StoreInput::Put {
+        self.sent.push(StoreInput::Put {
             key: column,
             chunk: VersionedChunk {
                 version: self.written,
@@ -128,19 +147,19 @@ impl ColumnStoreLink {
         // The answer to the read in flight is older than this version, so it is asked again.
         if let Some(read) = self.reads.get_mut(&column) {
             read.at_least = self.written;
-            self.link.send(StoreInput::Get { key: column });
+            self.sent.push(StoreInput::Get { key: column });
         }
     }
 
     /// Keeps the final light of a version the data layer already holds, or of a generated
     /// column at version zero. A later version that the world wrote meanwhile stays.
     pub(crate) fn put_lit(&mut self, column: ColumnPos, chunk: VersionedChunk<StoredColumn>) {
-        self.link.send(StoreInput::Put { key: column, chunk });
+        self.sent.push(StoreInput::Put { key: column, chunk });
     }
 
     fn read(&mut self, dim: Entity, column: ColumnPos) -> &mut ColumnRead {
         self.reads.entry(column).or_insert_with(|| {
-            self.link.send(StoreInput::Get { key: column });
+            self.sent.push(StoreInput::Get { key: column });
             ColumnRead {
                 dim,
                 sections: Vec::new(),
@@ -160,8 +179,8 @@ impl ColumnStoreLink {
         self.read(dim, column).produced = Produced::Yes;
     }
 
-    pub(crate) fn outputs(&mut self) -> Drain<'_, StoreOutput<ColumnPos, StoredColumn>> {
-        self.link.outputs()
+    pub(crate) fn outputs(&mut self) -> vec::Drain<'_, ColumnStoreOutput> {
+        self.answers.drain(..)
     }
 
     pub(crate) fn take_viewed(&mut self) -> vec::Drain<'_, ViewedColumn> {
@@ -180,7 +199,7 @@ pub struct StoredColumnLandSet;
 
 impl Plugin for ColumnStorePlugin {
     fn build(&self, app: &mut App) {
-        app.insert_resource(ColumnStoreLink::new(self.placement));
+        app.insert_resource(ColumnStoreLink::new(self.owned));
         app.init_resource::<ColumnProduction>();
         app.configure_sets(
             FixedUpdate,

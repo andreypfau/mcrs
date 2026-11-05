@@ -23,6 +23,7 @@ use crate::cell_mail::{CellInbox, CellMail, CellMessage};
 use crate::channel_types::ToDim;
 use crate::column_change::ColumnChange;
 use crate::column_request::ColumnRequest;
+use crate::column_store::{ColumnStoreInput, ColumnStoreLink, ColumnStoreOutput};
 use crate::column_streams::ColumnRequests;
 use crate::column_version::ColumnVersion;
 use crate::command_handoff::CommandHandoff;
@@ -78,6 +79,8 @@ pub struct DimInput {
     pub(crate) column_requests: Vec<ColumnRequest>,
     /// What the other cells of the world sent in their last tick, in the order of the cells.
     pub(crate) cell_mail: Vec<CellMessage>,
+    /// The answers of the data layer of the world to the requests of this cell.
+    pub(crate) store_answers: Vec<ColumnStoreOutput>,
 }
 
 /// What a dimension world hands the host after one tick.
@@ -113,11 +116,14 @@ pub struct DimOutput {
     pub(crate) column_changes: Vec<ColumnChange>,
     /// What the tick hands the other cells of the world. A world of one cell hands nothing.
     pub(crate) cell_mail: CellMail,
+    /// The requests of the tick to the data layer of the world, in order.
+    pub(crate) store_inputs: Vec<ColumnStoreInput>,
 }
 
 impl DimOutput {
     /// Appends what another cell of the same dimension handed over in the same tick. The entity
-    /// id request, the roster and the messages between the cells stay with each cell.
+    /// id request, the roster, the messages between the cells and the requests to the data layer
+    /// stay with each cell.
     pub(crate) fn merge(&mut self, other: Self) {
         self.packets.extend(other.packets);
         self.released.extend(other.released);
@@ -205,6 +211,11 @@ fn apply_input(world: &mut World, _tick: Tick, input: DimInput) {
     {
         requests.0.extend(input.column_requests);
     }
+    if !input.store_answers.is_empty()
+        && let Some(mut store) = world.get_resource_mut::<ColumnStoreLink>()
+    {
+        store.receive(input.store_answers);
+    }
 }
 
 fn take_output(world: &mut World) -> DimOutput {
@@ -249,6 +260,9 @@ fn take_output(world: &mut World) -> DimOutput {
     drain_into(world, &mut output.views);
     drain_into(world, &mut output.column_versions);
     drain_into(world, &mut output.column_changes);
+    if let Some(mut store) = world.get_resource_mut::<ColumnStoreLink>() {
+        store.take_sent(&mut output.store_inputs);
+    }
     output
 }
 

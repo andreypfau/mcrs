@@ -18,7 +18,7 @@ use bevy_math::DVec3;
 use bevy_tasks::block_on;
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_chunk::{BlockLight, LightStorage, SkyLight};
-use mcrs_minecraft_engine::column_store::ColumnStoreLink;
+use mcrs_minecraft_engine::coordinator::dim_cells::DimCells;
 use mcrs_minecraft_engine::muxer::tile_delta_log::TileDeltaLog;
 use mcrs_minecraft_engine_server::{Placement, runner};
 use mcrs_minecraft_engine_world::block_update::BlockSetRequest;
@@ -67,17 +67,16 @@ fn tick(app: &mut App) {
     runner::drain(app);
 }
 
-/// Waits between ticks until the generation and light steps that the tick started have ended.
+/// Waits between ticks until the generation, light and store steps that the tick started have
+/// ended.
 fn wait_for_steps(app: &mut App, label: Entity) {
+    block_on(app.world_mut().resource_mut::<DimCells>().stores_answered());
     let world = dimension_world(app, label);
     if let Some(mut generation) = world.get_resource_mut::<GenerationLink>() {
         block_on(generation.answered());
     }
     if let Some(mut light) = world.get_resource_mut::<LightLink>() {
         block_on(light.answered());
-    }
-    if let Some(mut store) = world.get_resource_mut::<ColumnStoreLink>() {
-        block_on(store.answered());
     }
 }
 

@@ -154,10 +154,10 @@ pub fn spawn_dim_subapp(
         mcrs_minecraft_engine_registries::extract_registries(app.world(), sub_app.world_mut());
 
         sub_app.init_resource::<DimInbox>();
-        if cells.cells.get() > 1 {
-            sub_app.add_plugins(CellMailPlugin {
-                owned: OwnedColumns::new(partition, index, cells.halo),
-            });
+        let owned =
+            (cells.cells.get() > 1).then(|| OwnedColumns::new(partition, index, cells.halo));
+        if let Some(owned) = owned {
+            sub_app.add_plugins(CellMailPlugin { owned });
         }
 
         // Only the messages that a dimension writes or reads inside its own world are registered:
@@ -274,9 +274,7 @@ pub fn spawn_dim_subapp(
         sub_app.add_plugins(BlockUpdateWirePlugin);
         sub_app.add_plugins(MinecraftEntityPlugin);
         sub_app.add_plugins(DimHeightmapPlugin);
-        sub_app.add_plugins(ColumnStorePlugin {
-            placement: Placement::Thread,
-        });
+        sub_app.add_plugins(ColumnStorePlugin { owned });
         let default_op_level = app
             .world()
             .get_resource::<crate::coordinator::ops::DefaultOpLevel>()

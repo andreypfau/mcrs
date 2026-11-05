@@ -12,6 +12,7 @@ use bevy_math::DVec3;
 use bevy_platform::cell::SyncCell;
 use bevy_tasks::block_on;
 use mcrs_engine_cell::{BoxPartition, CellId, CellIndex, Cells, Placement, Tick};
+use mcrs_engine_store::{SharedStore, StoreInput};
 use mcrs_minecraft_core::Versioned;
 use mcrs_minecraft_engine_registries::RegistrySnapshot;
 use mcrs_minecraft_engine_world::owned_columns::column_key;
@@ -23,6 +24,7 @@ use rustc_hash::FxHashMap;
 use crate::cell_mail::{CellMail, CellMessage};
 use crate::channel_types::ToDim;
 use crate::column_request::ColumnRequest;
+use crate::column_store::{ColumnDisk, ColumnStoreInput, ColumnStoreOutput};
 use crate::coordinator::clock::GameTime;
 use crate::coordinator::entity_id_ranges::EntityIdRanges;
 use crate::coordinator::ops::OpList;
@@ -76,6 +78,8 @@ pub struct DimCells {
     sessions: FxHashMap<PlayerSession, CellId>,
     /// The messages between the cells of one dimension, for their next tick.
     mail: BTreeMap<CellId, Vec<CellMessage>>,
+    /// The data layer of each dimension, which all its cells share.
+    stores: BTreeMap<Entity, SharedStore<ColumnDisk, CellId>>,
     tick: Tick,
     outputs: Vec<DimTicked>,
 }
@@ -95,6 +99,7 @@ impl Default for DimCells {
             partitions: BTreeMap::new(),
             sessions: FxHashMap::default(),
             mail: BTreeMap::new(),
+            stores: BTreeMap::new(),
             tick: Tick::default(),
             outputs: Vec::new(),
         }
@@ -138,6 +143,9 @@ impl DimCells {
             .cells
             .add(dim_tick::dim_world(sub_app), placement);
         self.cells.insert(cell, CellPlace { label, index });
+        self.stores
+            .entry(label)
+            .or_insert_with(|| SharedStore::new(ColumnDisk::new(), Placement::Thread));
         cell
     }
 
@@ -153,6 +161,7 @@ impl DimCells {
             return false;
         }
         self.partitions.remove(&label);
+        self.stores.remove(&label);
         let worlds = self.worlds.get();
         for cell in cells {
             self.cells.remove(&cell);
@@ -243,6 +252,16 @@ impl DimCells {
             .lent
             .values_mut()
             .map(|lent| lent.world_mut().sub_app_mut())
+    }
+
+    /// Waits until the data layer of every dimension has answered every request sent so far.
+    ///
+    /// For tests and tools only, to make the answers land at the same tick in every run.
+    #[cfg(feature = "world-access")]
+    pub async fn stores_answered(&mut self) {
+        for store in self.stores.values_mut() {
+            store.answered().await;
+        }
     }
 
     pub(crate) fn take_outputs(&mut self) -> Vec<DimTicked> {
@@ -388,13 +407,23 @@ impl DimCells {
         self.sessions.remove(&session);
     }
 
-    fn tick(&mut self, input: impl FnMut(CellId) -> DimInput) {
+    fn tick(&mut self, mut input: impl FnMut(CellId) -> DimInput) {
+        let mut answers: BTreeMap<CellId, Vec<ColumnStoreOutput>> = BTreeMap::new();
+        for store in self.stores.values_mut() {
+            for answer in store.answers() {
+                answers.entry(answer.to).or_default().push(answer.output);
+            }
+        }
         let worlds = self.worlds.get();
         #[cfg(feature = "world-access")]
         for (_, lent) in mem::take(&mut worlds.lent) {
             worlds.cells.give_back(lent);
         }
-        let ticked = block_on(worlds.cells.tick(self.tick, input));
+        let ticked = block_on(worlds.cells.tick(self.tick, |cell| {
+            let mut input = input(cell);
+            input.store_answers = answers.remove(&cell).unwrap_or_default();
+            input
+        }));
         self.tick = Tick(self.tick.0.wrapping_add(1));
         let outputs = match ticked {
             Ok(outputs) => outputs,
@@ -412,6 +441,34 @@ impl DimCells {
                 cell: ticked.cell,
                 output: ticked.output,
             });
+        }
+        self.send_to_stores();
+    }
+
+    /// Sends the requests of the cells of this tick to the data layer of their dimension: the
+    /// writes of all cells first, so a cell that reads a column in the tick in which its owner
+    /// wrote it sees the write, then the other requests, each cell in its order.
+    fn send_to_stores(&mut self) {
+        let mut rest: Vec<ColumnStoreInput> = Vec::new();
+        for ticked in &mut self.outputs {
+            let Some(store) = self.stores.get_mut(&ticked.label) else {
+                continue;
+            };
+            for input in mem::take(&mut ticked.output.store_inputs) {
+                match input {
+                    StoreInput::Put { .. } => store.send(ticked.cell, input),
+                    StoreInput::Get { .. } | StoreInput::Flush => rest.push(input),
+                }
+            }
+            ticked.output.store_inputs = mem::take(&mut rest);
+        }
+        for ticked in &mut self.outputs {
+            let Some(store) = self.stores.get_mut(&ticked.label) else {
+                continue;
+            };
+            for input in mem::take(&mut ticked.output.store_inputs) {
+                store.send(ticked.cell, input);
+            }
         }
     }
 }
@@ -488,6 +545,7 @@ impl Globals {
             entity_id_grant,
             column_requests,
             cell_mail,
+            store_answers: Vec::new(),
         }
     }
 }

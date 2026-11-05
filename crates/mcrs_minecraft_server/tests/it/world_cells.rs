@@ -22,7 +22,6 @@ use mcrs_minecraft_engine::bus::{
     InboundPlayerSpawn, OutboundPlayerPacket, PacketPayload, PlayerTransferSnapshot,
 };
 use mcrs_minecraft_engine::channel_types::ToDim;
-use mcrs_minecraft_engine::column_store::ColumnStoreLink;
 use mcrs_minecraft_engine::coordinator::dim_cells::DimCells;
 use mcrs_minecraft_engine::game_profile::GameProfile;
 use mcrs_minecraft_engine::muxer::dim_inputs::DimInputs;
@@ -88,15 +87,13 @@ fn cell_worlds(app: &mut App, label: Entity) -> Vec<&mut World> {
 
 /// Waits between ticks until the generation, light and store steps of every cell have ended.
 fn wait_for_steps(app: &mut App, label: Entity) {
+    block_on(app.world_mut().resource_mut::<DimCells>().stores_answered());
     for world in cell_worlds(app, label) {
         if let Some(mut generation) = world.get_resource_mut::<GenerationLink>() {
             block_on(generation.answered());
         }
         if let Some(mut light) = world.get_resource_mut::<LightLink>() {
             block_on(light.answered());
-        }
-        if let Some(mut store) = world.get_resource_mut::<ColumnStoreLink>() {
-            block_on(store.answered());
         }
     }
 }
