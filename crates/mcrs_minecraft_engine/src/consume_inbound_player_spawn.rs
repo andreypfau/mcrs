@@ -30,7 +30,7 @@ use mcrs_minecraft_engine_world::world::dimension::{Dimension, DimensionTypeId, 
 use mcrs_minecraft_engine_world::world::lifecycle::simulation::SimulationDistance;
 use mcrs_minecraft_game_mode::GameMode;
 use mcrs_minecraft_protocol::VarInt;
-use mcrs_minecraft_protocol_game::clientbound::{ClientboundChunkCacheRadius, ClientboundLogin};
+use mcrs_minecraft_protocol_game::clientbound::ClientboundLogin;
 use mcrs_minecraft_protocol_game::player::PlayerSpawnInfo;
 use mcrs_minecraft_resource::ResourceKeyBuf;
 use tracing::{debug, info};
@@ -140,15 +140,6 @@ pub(crate) fn consume_inbound_player_spawn(
                         listed: true,
                     }],
                 },
-            )
-            .critical(),
-        );
-        packet_writer.write(
-            to(
-                session,
-                PacketPayload::SetChunkCacheRadius(ClientboundChunkCacheRadius {
-                    radius: VarInt(i32::from(view_distance.distance)),
-                }),
             )
             .critical(),
         );

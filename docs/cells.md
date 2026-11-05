@@ -258,7 +258,8 @@ bots apart, the encode on the host cost 3.5 ms between ticks and took only 0.4 m
 The owner of a player reports where the player stands and how far it sees. The Muxer makes the
 view from that report: it asks for the columns of the view nearest first, sends them at the rate
 that the client answers with, and sends the center and the radius of the view and the forget of
-each column that leaves it.
+each column that leaves it. Only the view sends the center and the radius. The login and the
+respawn do not send them, and the view sends them before its first batch.
 
 The Muxer hides moves between cells. An entity keeps one network ID in the whole world, so a
 client sees no despawn and spawn when the entity changes its owner.

@@ -473,6 +473,39 @@ fn the_game_mode_is_told_once_on_login_and_once_on_a_dimension_change() {
 }
 
 #[test]
+fn the_chunk_cache_view_is_told_once_after_the_login_and_once_after_a_respawn() {
+    let (mut server, anchor, overworld, _, joined) = walker_and_its_join();
+    request_the_end(&mut server, overworld, anchor);
+    let changed = server.ticks(anchor, 3);
+
+    let is_center =
+        |packet: &PacketPayload| matches!(packet, PacketPayload::SetChunkCacheCenter(_));
+    let is_radius =
+        |packet: &PacketPayload| matches!(packet, PacketPayload::SetChunkCacheRadius(_));
+    let is_login = |packet: &PacketPayload| matches!(packet, PacketPayload::PlayerLogin(_));
+    let is_respawn = |packet: &PacketPayload| matches!(packet, PacketPayload::Respawn(_));
+    for (when, packets, entered) in [
+        ("login", &joined, position_of(&joined, is_login)),
+        ("change", &changed, position_of(&changed, is_respawn)),
+    ] {
+        assert_eq!(count(packets, is_center), 1, "{when}: {packets:?}");
+        assert_eq!(count(packets, is_radius), 1, "{when}: {packets:?}");
+        let center = position_of(packets, is_center);
+        let radius = position_of(packets, is_radius);
+        assert!(
+            entered < center && entered < radius,
+            "{when}: the client takes the view after it entered the level: {packets:?}"
+        );
+        if let Some(batch) = packets
+            .iter()
+            .position(|packet| matches!(packet, PacketPayload::ChunkBatchStart(_)))
+        {
+            assert!(center < batch && radius < batch, "{when}: {packets:?}");
+        }
+    }
+}
+
+#[test]
 fn the_chat_mode_a_player_chose_holds_after_a_dimension_change() {
     let (mut server, anchor, overworld, _, _) = walker_and_its_join();
     server.queue(anchor, &client_information(ChatMode::Hidden));
