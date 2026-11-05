@@ -60,7 +60,6 @@ pub(crate) struct WriterQueue {
     records: BytesMut,
     open: OutboundBatch,
     closed: VecDeque<OutboundBatch>,
-    appended: u64,
     compression: CompressionThreshold,
 }
 
@@ -76,11 +75,6 @@ impl WriterQueue {
     /// The threshold the writer frames the next appended packet at.
     pub(crate) fn compression(&self) -> CompressionThreshold {
         self.compression
-    }
-
-    /// Bytes of packet bodies, with ids and before framing, appended since the queue was made.
-    pub(crate) fn appended_bytes(&self) -> u64 {
-        self.appended
     }
 
     /// A packet that fails to encode leaves nothing behind.
@@ -99,7 +93,6 @@ impl WriterQueue {
         if let Some(prefix) = self.records.get_mut(start..start + RECORD_LENGTH_BYTES) {
             prefix.copy_from_slice(&length.to_be_bytes());
         }
-        self.appended = self.appended.saturating_add(u64::from(length));
         if self.records.len() >= MAX_QUEUED_BYTES_PER_SOCKET {
             self.close_records();
         }
@@ -108,7 +101,6 @@ impl WriterQueue {
 
     /// Queues a packet that `encode_with_id` wrote once for every connection that receives it.
     pub(crate) fn append_shared(&mut self, packet: Bytes) {
-        self.appended = self.appended.saturating_add(packet.len() as u64);
         self.close_records();
         self.push(OutboundPart::Shared(packet));
     }
@@ -116,19 +108,14 @@ impl WriterQueue {
     /// Queues packets that other connections may share, each behind its length as a big-endian
     /// `u32`, as [`Self::append`] writes them. Returns how many packets `records` holds.
     pub(crate) fn append_records(&mut self, records: Bytes) -> usize {
-        let mut count = 0;
-        for packet in packets(&records) {
-            self.appended = self.appended.saturating_add(packet.len() as u64);
-            count += 1;
-        }
+        let count = packets(&records).count();
         self.close_records();
         self.push(OutboundPart::Packets(records));
         count
     }
 
-    /// Queues frames made at [`Self::compression`] for a packet of `packet_len` bytes.
-    pub(crate) fn append_framed(&mut self, frame: Bytes, packet_len: usize) {
-        self.appended = self.appended.saturating_add(packet_len as u64);
+    /// Queues frames made at [`Self::compression`].
+    pub(crate) fn append_framed(&mut self, frame: Bytes) {
         self.close_records();
         self.push(OutboundPart::Framed(frame));
     }

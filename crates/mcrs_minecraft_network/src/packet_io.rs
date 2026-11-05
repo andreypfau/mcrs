@@ -585,12 +585,6 @@ impl RawConnection {
         self.queue.append(pkt)
     }
 
-    /// Bytes of packet bodies, with ids and before framing and compression, appended since the
-    /// connection was made.
-    pub fn appended_bytes(&self) -> u64 {
-        self.queue.appended_bytes()
-    }
-
     /// Queues `records` without a copy: packets with their ids, each behind its length as a
     /// big-endian `u32`, which other connections may share. The writer frames each packet. Returns
     /// how many packets `records` holds; it ends at a length that runs past its end.
@@ -611,7 +605,7 @@ impl RawConnection {
             self.queue.append_shared(packet);
             return Ok(SharedAppend::Unframed);
         };
-        self.queue.append_framed(found.frame, packet.len());
+        self.queue.append_framed(found.frame);
         Ok(found.append)
     }
 
