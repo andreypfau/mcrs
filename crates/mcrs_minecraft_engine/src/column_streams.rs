@@ -408,14 +408,7 @@ pub(crate) fn land_viewed_columns(
             packet: None,
         });
     }
-    encode_ready(&mut taken, direct_bits);
-    // The encode logged why a column has no packet; it stays unsent rather than produced again.
-    versions.write_batch(taken.drain(..).filter_map(|ready| {
-        Some(ColumnVersion {
-            column: ready.column,
-            packet: ready.packet?,
-        })
-    }));
+    encode_ready(&mut taken, direct_bits, &mut versions);
 }
 
 /// Sends a column that waits to be taken from the dimension back to the queue once the
@@ -579,8 +572,13 @@ pub(crate) struct ReadyColumn {
     packet: Option<Bytes>,
 }
 
-/// Encodes every column of `ready`, spread over the compute pool when there is more than one.
-fn encode_ready(mut ready: &mut [ReadyColumn], direct_bits: DirectBits) {
+/// Encodes every column of `ready`, spread over the compute pool when there is more than one,
+/// and publishes a version of each one it took off `ready`.
+fn encode_ready(
+    ready: &mut Vec<ReadyColumn>,
+    direct_bits: DirectBits,
+    versions: &mut MessageWriter<ColumnVersion>,
+) {
     let encode_all = |_, ready: &mut [ReadyColumn]| {
         for column in ready {
             column.packet =
@@ -589,15 +587,23 @@ fn encode_ready(mut ready: &mut [ReadyColumn], direct_bits: DirectBits) {
     };
     let pool = ComputeTaskPool::try_get();
     let threads = pool.map_or(1, |pool| pool.thread_num()).max(1);
-    match pool.filter(|_| ready.len() > 1 && threads > 1) {
+    let mut columns = ready.as_mut_slice();
+    match pool.filter(|_| columns.len() > 1 && threads > 1) {
         Some(pool) => {
             // Columns differ in cost, so each thread gets several small chunks rather than one
             // share.
-            let chunk = ready.len().div_ceil(threads * 4).max(1);
-            ready.par_chunk_map_mut(pool, chunk, encode_all);
+            let chunk = columns.len().div_ceil(threads * 4).max(1);
+            columns.par_chunk_map_mut(pool, chunk, encode_all);
         }
-        None => encode_all(0, ready),
+        None => encode_all(0, columns),
     }
+    // The encode logged why a column has no packet; it stays unsent rather than produced again.
+    versions.write_batch(ready.drain(..).filter_map(|ready| {
+        Some(ColumnVersion {
+            column: ready.column,
+            packet: ready.packet?,
+        })
+    }));
 }
 
 /// Publishes a version of each ready column, taken from the sections of the dimension and
@@ -651,12 +657,6 @@ fn publish_ready_columns(
                 packet: None,
             });
         }
-        encode_ready(&mut taken, direct_bits);
-        versions.write_batch(taken.drain(..).filter_map(|ready| {
-            Some(ColumnVersion {
-                column: ready.column,
-                packet: ready.packet?,
-            })
-        }));
+        encode_ready(&mut taken, direct_bits, &mut versions);
     }
 }
