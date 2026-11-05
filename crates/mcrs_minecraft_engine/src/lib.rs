@@ -44,7 +44,7 @@ pub mod dimension_generators;
 pub mod drain_player_despawn;
 pub mod enter_level_packets;
 pub mod entity_ids;
-mod foreign_views;
+pub mod foreign_views;
 pub mod game_mode;
 pub mod game_profile;
 pub mod heightmap;

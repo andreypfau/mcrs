@@ -13,13 +13,11 @@ pub(crate) enum GenerationInput {
     Views(ViewUpdate),
 }
 
-/// Sections of one column that a view ticketed, to be generated together.
+/// A column that a cell asked for.
 pub(crate) struct WantedColumn {
     pub(crate) col: ColumnPos,
-    /// Squared XZ distance to the nearest player when the sections were ticketed.
+    /// Squared XZ distance to the nearest player when the column was asked for.
     pub(crate) distance_sq: i32,
-    /// The section rows wanted.
-    pub(crate) rows: Vec<i32>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq)]

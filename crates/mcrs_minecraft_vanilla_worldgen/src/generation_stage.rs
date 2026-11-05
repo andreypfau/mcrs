@@ -1,9 +1,10 @@
 use bevy_tasks::{Task, TaskPool, TaskPoolBuilder};
 use mcrs_engine_link::{InFlight, Step, TaskOutcome};
+use mcrs_minecraft_engine::column_generation::GenerationAnswer;
+use mcrs_minecraft_engine::stored_column::{StoredColumn, StoredSection};
 use mcrs_minecraft_engine_world::aoi::min_column_distance;
 use mcrs_minecraft_engine_world::palette::{ChunkBlocks, section_states};
 use mcrs_minecraft_engine_world::world::lifecycle::column_loading::LOADING_RINGS;
-use mcrs_minecraft_worldgen_generator::saved::SectionData;
 use mcrs_minecraft_worldgen_generator::stages::FillContext;
 use mcrs_minecraft_worldgen_generator::staging::{
     ColumnDelta, FilledSnapshot, Stage, StagingStore,
@@ -11,16 +12,14 @@ use mcrs_minecraft_worldgen_generator::staging::{
 use mcrs_minecraft_worldgen_generator::task::{CancellationToken, ColumnSource};
 use mcrs_voxel::ColumnPos;
 use rustc_hash::FxHashMap;
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeSet;
 use std::mem;
+use std::ops::Range;
 use std::sync::{Arc, OnceLock};
-use tracing::trace;
+use tracing::{trace, warn};
 
 use crate::generated_ticks;
 use crate::generation_input::{GenerationInput, ViewUpdate, WantedColumn};
-use crate::generation_output::{
-    GeneratedColumn, GeneratedSection, GenerationOutput, SectionBlocks, SectionContent,
-};
 
 /// The pool that every generation stage of the process runs its ladder stages on.
 pub(crate) static CHUNK_TASK_POOL: OnceLock<TaskPool> = OnceLock::new();
@@ -102,8 +101,7 @@ impl Default for SchedulerConfig {
 /// The generation of one dimension's columns.
 ///
 /// `pending` is the set of columns a view wants generated, ordered by distance.
-/// An entry stays there for the whole of its ladder, so sections ticketed after
-/// its first stage was dispatched still reach the generated column. Everything the
+/// An entry stays there for the whole of its ladder. Everything the
 /// ladder materialises — filled snapshots and the deltas one merge each
 /// consumes — lives in `store`, keyed by position alone.
 ///
@@ -112,8 +110,9 @@ impl Default for SchedulerConfig {
 /// column again.
 pub(crate) struct GenerationStage {
     pub(crate) ctx: Option<FillContext>,
-    /// The section rows wanted of each wanted column.
-    pub(crate) pending: BTreeMap<ColumnKey, Vec<i32>>,
+    /// The section rows of the dimension, which a generated column carries.
+    rows: Range<i32>,
+    pub(crate) pending: BTreeSet<ColumnKey>,
     /// Reverse index: column position -> current priority key.
     pub(crate) priority_index: FxHashMap<ColumnPos, ColumnKey>,
     pub(crate) in_flight: InFlight<InFlightStage, Task<()>>,
@@ -141,7 +140,7 @@ impl mcrs_engine_link::Stage for GenerationStage {
     const NAME: &'static str = "ColumnGen";
 
     type Input = GenerationInput;
-    type Output = GenerationOutput;
+    type Output = GenerationAnswer;
     type TaskOutput = StageResult;
 
     fn receive(&mut self, input: GenerationInput) {
@@ -158,7 +157,10 @@ impl mcrs_engine_link::Stage for GenerationStage {
 
     fn step(&mut self, step: &mut Step<'_, Self>) {
         for column in self.abandoned.drain(..) {
-            step.emit(GenerationOutput::Abandoned(column));
+            step.emit(GenerationAnswer {
+                column,
+                stored: None,
+            });
         }
         self.dispatch(step);
         self.emit_generated(step);
@@ -190,10 +192,11 @@ impl Drop for GenerationStage {
 }
 
 impl GenerationStage {
-    pub(crate) fn new(config: SchedulerConfig) -> Self {
+    pub(crate) fn new(config: SchedulerConfig, rows: Range<i32>) -> Self {
         Self {
             ctx: None,
-            pending: BTreeMap::new(),
+            rows,
+            pending: BTreeSet::new(),
             priority_index: FxHashMap::default(),
             in_flight: InFlight::default(),
             touched: Vec::new(),
@@ -226,23 +229,15 @@ impl GenerationStage {
         self.forgotten.push(col);
     }
 
-    /// A column stays in the queue for the whole of its ladder, so sections that
-    /// arrive after its first stage was dispatched merge into the same entry and
-    /// reach the same generated column.
+    /// A column stays in the queue for the whole of its ladder, so a second ask while it
+    /// climbs gets the same generated column.
     fn want(&mut self, wanted: WantedColumn) {
-        let WantedColumn {
-            col,
-            distance_sq,
-            rows,
-        } = wanted;
-        if let Some(key) = self.priority_index.get(&col) {
-            if let Some(pending) = self.pending.get_mut(key) {
-                pending.extend(rows);
-            }
+        let WantedColumn { col, distance_sq } = wanted;
+        if self.priority_index.contains_key(&col) {
             return;
         }
         let key = ColumnKey::new(distance_sq, col);
-        self.pending.insert(key, rows);
+        self.pending.insert(key);
         self.priority_index.insert(col, key);
         self.fresh.insert(key);
         self.climbed.push(col);
@@ -293,7 +288,7 @@ impl GenerationStage {
         let col = key.chunk_column_pos;
         self.priority_index.remove(&col);
         self.fresh.remove(&key);
-        if self.pending.remove(&key).is_some() {
+        if self.pending.remove(&key) {
             self.abandoned.push(col);
         }
     }
@@ -333,8 +328,8 @@ impl GenerationStage {
             })
             .collect();
         for KeyChange { old, new } in updates {
-            if let Some(pending) = self.pending.remove(&old) {
-                self.pending.insert(new, pending);
+            if self.pending.remove(&old) {
+                self.pending.insert(new);
                 self.priority_index.insert(new.chunk_column_pos, new);
             }
             if self.fresh.remove(&old) {
@@ -421,18 +416,21 @@ impl GenerationStage {
         ready.sort_unstable();
         ready.dedup();
         for key in ready {
-            if let Some(column) = self.take_generated(key) {
-                step.emit(GenerationOutput::Generated(Box::new(column)));
+            if let Some(answer) = self.take_generated(key) {
+                step.emit(answer);
             }
         }
     }
 
-    fn take_generated(&mut self, key: ColumnKey) -> Option<GeneratedColumn> {
+    /// The column of `key` as the data layer keeps it, unlit, or no column when a section has
+    /// no blocks.
+    fn take_generated(&mut self, key: ColumnKey) -> Option<GenerationAnswer> {
         // A column reaches the top of its ladder only after the context arrived.
         let ctx = self.ctx.as_ref()?;
         let col = key.chunk_column_pos;
-        let mut requested = self.pending.get(&key)?.clone();
-        requested.sort_unstable();
+        if !self.pending.contains(&key) {
+            return None;
+        }
         let states = ctx.blocks.state_count();
         // Straight from the snapshot the store keeps, without a copy of the blocks between.
         let Some(merged) = self.store.merged(col) else {
@@ -443,34 +441,53 @@ impl GenerationStage {
             return None;
         };
         let bottom = merged.y_sections.first().copied().unwrap_or(0);
-        let sections: Vec<GeneratedSection> =
-            carried_sections(&requested, &merged.sections, bottom)
-                .map(|(y, section)| {
-                    let content = match section {
-                        Some((blocks, biomes)) => SectionContent::Blocks(SectionBlocks {
-                            blocks: ChunkBlocks::new(section_states(blocks, states)),
-                            biomes: biomes.clone(),
-                        }),
-                        None => SectionContent::Missing,
-                    };
-                    GeneratedSection { y, content }
+        let sections: Option<Vec<StoredSection>> = self
+            .rows
+            .clone()
+            .map(|y| {
+                let (blocks, biomes) = y
+                    .checked_sub(bottom)
+                    .and_then(|slot| usize::try_from(slot).ok())
+                    .and_then(|slot| merged.sections.get(slot))
+                    .and_then(Option::as_ref)?;
+                Some(StoredSection {
+                    blocks: ChunkBlocks::new(section_states(blocks, states)),
+                    biomes: biomes.clone(),
+                    block_light: None,
+                    sky_light: None,
                 })
-                .collect();
-        let maps = merged.maps.clone();
+            })
+            .collect();
+        let heightmaps = merged.maps.clone();
         let ticks = generated_ticks::column_ticks(&merged.ticks, &ctx.blocks);
 
-        self.pending.remove(&key)?;
+        self.pending.remove(&key);
         self.priority_index.remove(&col);
         self.fresh.remove(&key);
         self.store.set_stage(col, Stage::Delivered);
         // Nothing spawns generated entities yet, so they leave the store unspawned.
         self.store.take_entities(col);
-        Some(GeneratedColumn {
-            col,
-            maps,
-            block_entities: self.store.take_block_entities(col),
-            sections,
-            ticks,
+        let block_entities = self.store.take_block_entities(col);
+        let stored = match sections {
+            Some(sections) => Some(StoredColumn {
+                min_section_y: self.rows.start,
+                sections,
+                block_entities,
+                heightmaps,
+                ticks,
+            }),
+            None => {
+                warn!(
+                    x = col.x,
+                    z = col.z,
+                    "a generated column lacks the blocks of a section"
+                );
+                None
+            }
+        };
+        Some(GenerationAnswer {
+            column: col,
+            stored,
         })
     }
 }
@@ -487,21 +504,4 @@ pub(crate) fn top_of_ladder(rungs: usize) -> Stage {
         Some(last) => Stage::Merged(last as u8),
         None => Stage::Filled,
     }
-}
-
-/// The sections a generated column owes, copied out of the whole column.
-/// `bottom` is the section the column buffer starts at.
-pub(crate) fn carried_sections<'a>(
-    rows: &'a [i32],
-    column: &'a [Option<SectionData>],
-    bottom: i32,
-) -> impl Iterator<Item = (i32, Option<&'a SectionData>)> + 'a {
-    rows.iter().map(move |&y| {
-        let section = y
-            .checked_sub(bottom)
-            .and_then(|slot| usize::try_from(slot).ok())
-            .and_then(|slot| column.get(slot))
-            .and_then(Option::as_ref);
-        (y, section)
-    })
 }

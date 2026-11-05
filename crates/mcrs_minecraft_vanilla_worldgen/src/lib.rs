@@ -5,7 +5,6 @@ mod features;
 mod generated_ticks;
 mod generation_dispatch;
 mod generation_input;
-mod generation_output;
 mod generation_stage;
 #[cfg(test)]
 mod generation_tests;

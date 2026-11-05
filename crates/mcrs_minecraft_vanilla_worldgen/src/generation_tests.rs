@@ -1,11 +1,11 @@
 use crate::generation_input::{GenerationInput, ViewUpdate, WantedColumn};
-use crate::generation_output::{GenerationOutput, SectionContent};
 use crate::generation_stage::{CHUNK_TASK_POOL, GenerationStage, SchedulerConfig};
 use bevy_tasks::{TaskPoolBuilder, block_on};
 use mcrs_engine_link::{InlineEnd, Link, Placement, Stage as _};
 use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_biome::source::MultiNoiseBiomeSource;
 use mcrs_minecraft_chunk::VoxelId;
+use mcrs_minecraft_engine::column_generation::GenerationAnswer;
 use mcrs_minecraft_engine_world::aoi::min_column_distance;
 use mcrs_minecraft_engine_world::entity::player::chunk_view::ChunkTrackingView;
 use mcrs_minecraft_engine_world::palette::ChunkBlocks;
@@ -26,7 +26,26 @@ use mcrs_minecraft_worldgen_generator::tests::surface::{
 };
 use mcrs_voxel::ColumnPos;
 use std::collections::BTreeMap;
+use std::ops::Range;
 use std::sync::Arc;
+
+/// Every row of `y_sections`, which run without a gap.
+fn all_rows(y_sections: &[i32]) -> Range<i32> {
+    let first = y_sections.first().copied().unwrap_or(0);
+    let last = y_sections.last().copied().unwrap_or(first - 1);
+    first..last + 1
+}
+
+/// The blocks of each row of a generated column, or `None` when the stage dropped it.
+fn generated_blocks(answer: GenerationAnswer) -> Option<BTreeMap<i32, ChunkBlocks>> {
+    let stored = answer.stored?;
+    let rows = stored.min_section_y..;
+    Some(
+        rows.zip(stored.sections)
+            .map(|(y, section)| (y, section.blocks))
+            .collect(),
+    )
+}
 
 /// The order a view asks for the columns in. Every one of them is unobservable
 /// in the finished world, and each puts the stages of neighbouring columns into
@@ -160,11 +179,14 @@ fn run_parallel(dim: &Dimension, wanted: &[ColumnPos], drive: Drive) -> (Region,
             .build()
     });
 
-    let mut end = InlineEnd::new(GenerationStage::new(SchedulerConfig {
-        max_in_flight: drive.in_flight,
-        max_dispatch_per_pass: drive.batch,
-        ..Default::default()
-    }));
+    let mut end = InlineEnd::new(GenerationStage::new(
+        SchedulerConfig {
+            max_in_flight: drive.in_flight,
+            max_dispatch_per_pass: drive.batch,
+            ..Default::default()
+        },
+        all_rows(y_sections),
+    ));
     end.receive(GenerationInput::Context(Box::new(dim.ctx.clone())));
 
     let rungs = dim.ctx.rungs();
@@ -180,21 +202,15 @@ fn run_parallel(dim: &Dimension, wanted: &[ColumnPos], drive: Drive) -> (Region,
             end.receive(GenerationInput::Want(WantedColumn {
                 col,
                 distance_sq: min_column_distance(&col, &[]),
-                rows: y_sections.to_vec(),
             }));
         }
 
-        for output in end.step() {
-            let GenerationOutput::Generated(column) = output else {
-                panic!("{drive:?} abandoned a column with no view sent");
+        for answer in end.step() {
+            let column = answer.column;
+            let Some(rows) = generated_blocks(answer) else {
+                panic!("{drive:?} dropped {column:?} with no view sent");
             };
-            let rows = generated.entry(column.col).or_default();
-            for section in column.sections {
-                let SectionContent::Blocks(content) = section.content else {
-                    panic!("{drive:?} generated {:?} without its blocks", column.col);
-                };
-                rows.insert(section.y, content.blocks);
-            }
+            generated.entry(column).or_default().extend(rows);
         }
 
         let generation = end.stage_mut();
@@ -649,11 +665,10 @@ fn assert_region_agrees(consumer: Consumer, radius: i32, drives: &[Drive]) {
     );
 }
 
-fn want_rows(link: &mut Link<GenerationStage>, col: ColumnPos, rows: &[i32]) {
+fn want(link: &mut Link<GenerationStage>, col: ColumnPos) {
     link.send(GenerationInput::Want(WantedColumn {
         col,
         distance_sq: 0,
-        rows: rows.to_vec(),
     }));
 }
 
@@ -661,16 +676,11 @@ fn want_rows(link: &mut Link<GenerationStage>, col: ColumnPos, rows: &[i32]) {
 fn generated_rows(link: &mut Link<GenerationStage>) -> BTreeMap<i32, ChunkBlocks> {
     block_on(link.answered());
     let mut rows = BTreeMap::new();
-    for output in link.outputs() {
-        let GenerationOutput::Generated(column) = output else {
-            panic!("the stage abandoned a column with no view sent");
+    for answer in link.outputs() {
+        let Some(blocks) = generated_blocks(answer) else {
+            panic!("the stage dropped a column with no view sent");
         };
-        for section in column.sections {
-            let SectionContent::Blocks(content) = section.content else {
-                panic!("row {} was generated without its blocks", section.y);
-            };
-            rows.insert(section.y, content.blocks);
-        }
+        rows.extend(blocks);
     }
     rows
 }
@@ -695,34 +705,27 @@ fn the_ladder_generates_the_filled_column(placement: Placement) {
     let col = ColumnPos::new(1, -2);
     let ctx = bare_fill_context(Arc::new(build_beta_router()));
     let y_sections = ctx.y_sections.clone();
+    let rows = all_rows(&y_sections);
     let mut link = Link::new(
-        GenerationStage::new(SchedulerConfig {
-            max_in_flight: 64,
-            max_dispatch_per_pass: 64,
-            num_threads: 2,
-        }),
+        GenerationStage::new(
+            SchedulerConfig {
+                max_in_flight: 64,
+                max_dispatch_per_pass: 64,
+                num_threads: 2,
+            },
+            rows.clone(),
+        ),
         placement,
     );
     link.send(GenerationInput::Context(Box::new(ctx.clone())));
 
-    let carried = [-1, 0, 4];
-    want_rows(&mut link, col, &carried);
-    let mut generated = generated_rows(&mut link);
+    want(&mut link, col);
+    let generated = generated_rows(&mut link);
     assert_eq!(
         generated.keys().copied().collect::<Vec<i32>>(),
-        carried,
+        rows.collect::<Vec<i32>>(),
         "{placement:?}: the ladder never generated the column"
     );
-
-    // A row asked for after the column was generated must come from the same merged blocks,
-    // not from the snapshot the neighbours read.
-    want_rows(&mut link, col, &[5]);
-    let late = generated_rows(&mut link);
-    assert!(
-        late.contains_key(&5),
-        "{placement:?}: a row asked for after the column was generated never landed"
-    );
-    generated.extend(late);
 
     let mut buffer = ColumnBlocks::new(&y_sections);
     let alone = fill_column(&ctx, col, &mut buffer, &CancellationToken::new())
@@ -747,11 +750,11 @@ fn the_ladder_generates_the_filled_column(placement: Placement) {
 #[test]
 fn a_column_that_left_every_view_is_abandoned() {
     let mut link = Link::new(
-        GenerationStage::new(SchedulerConfig::default()),
+        GenerationStage::new(SchedulerConfig::default(), 0..1),
         Placement::Inline,
     );
     let stale = ColumnPos::new(100, 100);
-    want_rows(&mut link, stale, &[0]);
+    want(&mut link, stale);
     link.send(GenerationInput::Views(ViewUpdate {
         views: vec![ChunkTrackingView {
             center: mcrs_voxel::SectionPos::new(0, 0, 0),
@@ -765,24 +768,18 @@ fn a_column_that_left_every_view_is_abandoned() {
     block_on(link.answered());
     let abandoned: Vec<ColumnPos> = link
         .outputs()
-        .filter_map(|output| match output {
-            GenerationOutput::Abandoned(column) => Some(column),
-            GenerationOutput::Generated(_) => None,
-        })
+        .filter(|answer| answer.stored.is_none())
+        .map(|answer| answer.column)
         .collect();
     assert_eq!(abandoned, [stale], "a stale column is dropped");
 }
 
-/// A generated column owes only the sections it was asked for — the ticket layer caps
-/// how many it spawns a tick and cuts a column's sections across two of them —
-/// while the fill covers the whole dimension, because the bedrock floor is a
-/// material rule and a column surfaced over a slice would be left open at the
-/// bottom.
+/// The fill covers the whole dimension, because the bedrock floor is a material rule and a
+/// column surfaced over a slice would be left open at the bottom.
 #[test]
-fn a_column_generated_for_part_of_its_sections_still_lays_its_bedrock_floor() {
+fn a_filled_column_lays_its_bedrock_floor() {
     use mcrs_minecraft_biome::source::BiomeSource;
 
-    use crate::generation_stage::carried_sections;
     use mcrs_minecraft_worldgen_generator::stages::fill_column;
     use mcrs_minecraft_worldgen_generator::task::CancellationToken;
 
@@ -798,31 +795,21 @@ fn a_column_generated_for_part_of_its_sections_still_lays_its_bedrock_floor() {
     );
 
     let col = ColumnPos::new(3, -7);
-    let carried = [-4, 3, 4];
 
     let y_sections = ctx.y_sections.clone();
     let mut column = ColumnBlocks::new(&y_sections);
     let snapshot = fill_column(&ctx, col, &mut column, &CancellationToken::new())
         .expect("the fill was not cancelled");
 
-    let bottom = y_sections[0];
-    let landed: Vec<_> = carried_sections(&carried, &snapshot.sections, bottom).collect();
-    assert_eq!(
-        landed.len(),
-        carried.len(),
-        "the generated column returned sections it was not asked for"
-    );
     let bedrock = VoxelId::from(
         corpus()
             .default_state("minecraft:bedrock")
             .unwrap()
             .number(),
     );
-    let floor = landed
-        .iter()
-        .find(|(y, _)| *y == carried[0])
-        .expect("the bottom section came back");
-    let (palette, _) = floor.1.expect("the bottom section carries blocks");
+    let (palette, _) = snapshot.sections[0]
+        .as_ref()
+        .expect("the bottom section carries blocks");
     let mut states = Vec::with_capacity(ColumnBlocks::SECTION_VOLUME);
     palette.0.for_each(|state| states.push(state));
     // The palette runs y, then z, then x, so the first layer is the floor of

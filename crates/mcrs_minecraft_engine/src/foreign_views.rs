@@ -6,21 +6,18 @@ use mcrs_minecraft_engine_world::session::PlayerSession;
 
 use crate::player_view::PlayerView;
 
-/// The views of the players of the other cells of the world, by session in a fixed order. The muxer asks the owner of a
-/// column for it, whoever views it, so the stages of cold space of a cell serve these views as
-/// well as the views of its own players.
+/// The views of players by session, in a fixed order. In a cell, the views of the players of the
+/// other cells of the world: the muxer asks the owner of a column for it, whoever views it, so
+/// the stages of cold space of a cell serve these views as well as the views of its own players.
 #[derive(Resource, Debug, Default)]
-pub(crate) struct ForeignViews(BTreeMap<u64, ChunkTrackingView>);
+pub struct ForeignViews(BTreeMap<u64, ChunkTrackingView>);
 
 impl ForeignViews {
-    pub(crate) fn apply(&mut self, view: PlayerView) {
+    /// Takes in a view that a cell reported, and tells whether the views changed.
+    pub fn apply(&mut self, view: PlayerView) -> bool {
         match view.view {
-            Some(tracked) => {
-                self.0.insert(view.session.0, tracked);
-            }
-            None => {
-                self.0.remove(&view.session.0);
-            }
+            Some(tracked) => self.0.insert(view.session.0, tracked) != Some(tracked),
+            None => self.0.remove(&view.session.0).is_some(),
         }
     }
 
@@ -29,7 +26,7 @@ impl ForeignViews {
         self.0.remove(&session.0);
     }
 
-    pub(crate) fn views(&self) -> impl Iterator<Item = ChunkTrackingView> + '_ {
+    pub fn views(&self) -> impl Iterator<Item = ChunkTrackingView> + '_ {
         self.0.values().copied()
     }
 }
