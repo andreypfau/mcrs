@@ -24,7 +24,7 @@ use mcrs_minecraft_engine_world::block_update::{BlockPlaced, BlockSetRequest};
 use mcrs_minecraft_engine_world::owned_columns::{self, OwnedColumns};
 use mcrs_minecraft_engine_world::tick::TickSet;
 use mcrs_minecraft_engine_world::voxel_update::{
-    self, CellBlockWrite, ForeignBlockWrites, HaloBlockChanges, VoxelUpdateSet,
+    self, CellBlockWrite, HaloBlockChanges, VoxelUpdateSet,
 };
 use mcrs_minecraft_engine_world::world::dimension::Dimension;
 use mcrs_minecraft_engine_world::world::lifecycle::simulation::{BlockTicking, EntityTicking};
@@ -43,6 +43,7 @@ use rustc_hash::FxHashSet;
 
 use crate::block_drops::{self, BlockDrops, ItemDropped};
 use crate::block_events;
+use crate::cell_mail::CellOutbox;
 use crate::cell_volume::CellVolume;
 use crate::column_change::ColumnChange;
 use crate::column_streams::ColumnStreams;
@@ -173,8 +174,6 @@ pub struct BlockSimulation {
     /// The messages of the other cells for the next step, in the order of the cells.
     inbound: Vec<Message<WorldKinds>>,
     ledgers: Vec<ChainLedger>,
-    /// What this cell sends the other cells after the tick.
-    mail: Vec<SimulationMail>,
     /// The sections with saved ticks that wait for their section to run ticks.
     held: FxHashSet<SectionPos>,
     /// The columns in which a saved tick activated since they landed.
@@ -192,10 +191,6 @@ impl BlockSimulation {
             SimulationMail::Message(message) => self.inbound.push(message),
             SimulationMail::Ledger(ledger) => self.ledgers.push(ledger),
         }
-    }
-
-    pub(crate) fn take_mail(&mut self, out: &mut Vec<SimulationMail>) {
-        out.append(&mut self.mail);
     }
 
     /// Holds the saved ticks of a column that landed. The k-th tick of a list of m ticks gets the
@@ -354,7 +349,7 @@ impl<T: TickKind> Taken<T> {
 #[derive(SystemParam)]
 struct CellLinks<'w> {
     owned: Option<Res<'w, OwnedColumns>>,
-    foreign: Option<ResMut<'w, ForeignBlockWrites>>,
+    outbox: Option<ResMut<'w, CellOutbox>>,
     halo: Option<ResMut<'w, HaloBlockChanges>>,
 }
 
@@ -441,8 +436,8 @@ fn run_block_simulation<B: BlockBehaviour<WorldKinds> + BlockDrops + Send + 'sta
             continue;
         }
         if !owned_columns::owns(owned, ColumnPos::from(request.pos)) {
-            if let Some(foreign) = links.foreign.as_mut() {
-                foreign.0.push(cell_write(request));
+            if let Some(outbox) = links.outbox.as_mut() {
+                outbox.0.writes.push(cell_write(request));
             }
             continue;
         }
@@ -577,13 +572,10 @@ fn run_block_simulation<B: BlockBehaviour<WorldKinds> + BlockDrops + Send + 'sta
         &mut simulation.drops,
         &mut outlets.dropped,
     );
-    if owned.is_some() {
-        simulation
-            .mail
-            .extend(out.outbound.drain(..).map(SimulationMail::Message));
-        simulation
-            .mail
-            .extend(out.chains.drain(..).map(SimulationMail::Ledger));
+    if let Some(outbox) = links.outbox.as_mut() {
+        let mail = &mut outbox.0.simulation;
+        mail.extend(out.outbound.drain(..).map(SimulationMail::Message));
+        mail.extend(out.chains.drain(..).map(SimulationMail::Ledger));
     }
     out.outbound.clear();
     out.chains.clear();

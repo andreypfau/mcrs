@@ -149,7 +149,7 @@ pub fn spawn_dim_subapp(
     if cells.cells.get() > 1 {
         app.world_mut()
             .get_resource_or_init::<DimCells>()
-            .divide(label_entity, partition);
+            .divide(label_entity, partition, cells.halo);
     }
     // Each cell is a whole dimension world that owns the columns of its regions.
     for index in (0..partition.cells().get()).map(CellIndex) {

@@ -33,11 +33,6 @@ pub struct CellBlockWrite {
     pub recursion_left: i16,
 }
 
-/// The writes of this tick into columns that another cell owns, for their owners. Only a world
-/// with [`OwnedColumns`] holds it.
-#[derive(Resource, Debug, Default)]
-pub struct ForeignBlockWrites(pub Vec<CellBlockWrite>);
-
 /// The changes of the halo that the owners sent for this tick. They apply before the requests
 /// of the tick, and only change the copy: no neighbour hears of them.
 #[derive(Resource, Debug, Default)]

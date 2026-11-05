@@ -23,7 +23,7 @@ use crate::bus::{
     OutboundPlayerPacket, OutboundPlayerReleased,
 };
 use crate::cell_mail;
-use crate::cell_mail::{CellInbox, CellMail, CellMessage};
+use crate::cell_mail::{CellInbox, CellMail};
 use crate::channel_types::ToDim;
 use crate::column_change::ColumnChange;
 use crate::column_generation::GenerationAnswer;
@@ -85,7 +85,7 @@ pub struct DimInput {
     /// What the muxer asks of the version streams of the columns, in the order it asked.
     pub(crate) column_requests: Vec<ColumnRequest>,
     /// What the other cells of the world sent in their last tick, in the order of the cells.
-    pub(crate) cell_mail: Vec<CellMessage>,
+    pub(crate) cell_mail: CellMail,
     /// The answers of the data layer of the world to the requests of this cell.
     pub(crate) store_answers: Vec<ColumnStoreOutput>,
     /// What the generation of the world made of the columns that this cell asked for.
@@ -226,7 +226,8 @@ fn apply_input(world: &mut World, _tick: Tick, input: DimInput) {
     if !input.cell_mail.is_empty()
         && let Some(mut inbox) = world.get_resource_mut::<CellInbox>()
     {
-        inbox.0.extend(input.cell_mail);
+        let mut mail = input.cell_mail;
+        inbox.0.append(&mut mail);
     }
     if !input.column_requests.is_empty()
         && let Some(mut requests) = world.get_resource_mut::<ColumnRequests>()

@@ -21,7 +21,7 @@ use mcrs_minecraft_environment::world_clock::WorldClocks;
 use mcrs_voxel::ColumnPos;
 use rustc_hash::FxHashMap;
 
-use crate::cell_mail::{CellMail, CellMessage};
+use crate::cell_mail::CellMail;
 use crate::channel_types::ToDim;
 use crate::column_generation::{GenerationAnswer, GenerationAsk};
 use crate::column_request::ColumnRequest;
@@ -74,15 +74,10 @@ impl Plugin for DimCellsPlugin {
 pub struct DimCells {
     // A world holds a `SubApp`, which is `Send` but not `Sync`. Only `&mut` reaches it.
     worlds: SyncCell<Worlds>,
-    cells: BTreeMap<CellId, CellPlace>,
-    /// The division of each dimension that has more than one cell.
-    partitions: BTreeMap<Entity, BoxPartition>,
+    dims: BTreeMap<Entity, Dim>,
+    cells: BTreeMap<CellId, Cell>,
     /// The cell that holds the player of each session, in a dimension of several cells.
     sessions: FxHashMap<PlayerSession, CellId>,
-    /// The messages between the cells of one dimension, for their next tick.
-    mail: BTreeMap<CellId, Vec<CellMessage>>,
-    /// The data layer of each dimension, which all its cells share.
-    stores: BTreeMap<Entity, SharedStore<ColumnDisk, CellId>>,
     /// What the generation of its world made for each cell, for its next tick.
     generated: BTreeMap<CellId, Vec<GenerationAnswer>>,
     tick: Tick,
@@ -96,26 +91,74 @@ pub struct ReportedView {
     pub view: PlayerView,
 }
 
-/// The dimension of a cell and the place of the cell in its dimension.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-struct CellPlace {
+/// One dimension: its cells and the data layer that they share.
+struct Dim {
+    /// The cells, in the order of their index.
+    cells: Vec<CellId>,
+    /// The division over the cells, for a dimension of more than one cell.
+    division: Option<Division>,
+    store: SharedStore<ColumnDisk, CellId>,
+}
+
+/// How the cells of a dimension divide its columns.
+#[derive(Clone, Copy, Debug)]
+struct Division {
+    partition: BoxPartition,
+    /// A cell reads the columns within this many columns of its boxes: its halo, and at least
+    /// the columns next to a column that it lights in cold space.
+    read_reach: u32,
+}
+
+/// The place of a cell in its dimension, and what the other cells sent it for its next tick.
+struct Cell {
     label: Entity,
     index: CellIndex,
+    inbox: CellMail,
 }
 
 impl Default for DimCells {
     fn default() -> Self {
         Self {
             worlds: SyncCell::new(Worlds::default()),
+            dims: BTreeMap::new(),
             cells: BTreeMap::new(),
-            partitions: BTreeMap::new(),
             sessions: FxHashMap::default(),
-            mail: BTreeMap::new(),
-            stores: BTreeMap::new(),
             generated: BTreeMap::new(),
             tick: Tick::default(),
             outputs: Vec::new(),
         }
+    }
+}
+
+impl Dim {
+    fn new() -> Self {
+        Self {
+            cells: Vec::new(),
+            division: None,
+            store: SharedStore::new(ColumnDisk::new(), Placement::Thread),
+        }
+    }
+
+    fn cell_at(&self, index: CellIndex) -> Option<CellId> {
+        let position = usize::try_from(index.0).ok()?;
+        self.cells.get(position).copied()
+    }
+
+    /// The cell that owns `column`.
+    fn owner(&self, column: ColumnPos) -> Option<CellId> {
+        match self.division {
+            Some(division) => self.cell_at(division.partition.owner(column_key(column))),
+            None => self.cells.first().copied(),
+        }
+    }
+
+    /// Whether the cell `index` reads `column`.
+    fn reads(&self, index: CellIndex, column: ColumnPos) -> bool {
+        self.division.is_some_and(|division| {
+            division
+                .partition
+                .reaches(index, column_key(column), division.read_reach)
+        })
     }
 }
 
@@ -142,7 +185,8 @@ pub(crate) struct CellMove {
 }
 
 impl DimCells {
-    /// Places the world of the cell `index` of the dimension of `label`.
+    /// Places the world of the cell `index` of the dimension of `label`. The cells of a
+    /// dimension come in the order of their index.
     pub(crate) fn add(
         &mut self,
         label: Entity,
@@ -155,30 +199,39 @@ impl DimCells {
             .get()
             .cells
             .add(dim_tick::dim_world(sub_app), placement);
-        self.cells.insert(cell, CellPlace { label, index });
-        self.stores
+        self.cells.insert(
+            cell,
+            Cell {
+                label,
+                index,
+                inbox: CellMail::default(),
+            },
+        );
+        self.dims
             .entry(label)
-            .or_insert_with(|| SharedStore::new(ColumnDisk::new(), Placement::Thread));
+            .or_insert_with(Dim::new)
+            .cells
+            .push(cell);
         cell
     }
 
-    /// Divides the dimension of `label` over its cells by `partition`.
-    pub(crate) fn divide(&mut self, label: Entity, partition: BoxPartition) {
-        self.partitions.insert(label, partition);
+    /// Divides the dimension of `label` over its cells by `partition`, each cell with a halo of
+    /// `halo` columns.
+    pub(crate) fn divide(&mut self, label: Entity, partition: BoxPartition, halo: u32) {
+        self.dims.entry(label).or_insert_with(Dim::new).division = Some(Division {
+            partition,
+            read_reach: halo.max(1),
+        });
     }
 
     /// Stops every world of `label`. Returns `false` when no world has that label.
     pub(crate) fn remove(&mut self, label: Entity) -> bool {
-        let cells: Vec<CellId> = self.cells_of(label).collect();
-        if cells.is_empty() {
+        let Some(dim) = self.dims.remove(&label) else {
             return false;
-        }
-        self.partitions.remove(&label);
-        self.stores.remove(&label);
+        };
         let worlds = self.worlds.get();
-        for cell in cells {
+        for cell in dim.cells {
             self.cells.remove(&cell);
-            self.mail.remove(&cell);
             self.generated.remove(&cell);
             #[cfg(feature = "world-access")]
             worlds.lent.remove(&cell);
@@ -190,37 +243,34 @@ impl DimCells {
     }
 
     /// The number of dimensions.
+    #[cfg(feature = "world-access")]
     #[must_use]
     pub fn len(&self) -> usize {
-        self.labels().count()
+        self.dims.len()
     }
 
+    #[cfg(feature = "world-access")]
     #[must_use]
     pub fn is_empty(&self) -> bool {
-        self.cells.is_empty()
+        self.dims.is_empty()
     }
 
     #[must_use]
     pub fn contains(&self, label: Entity) -> bool {
-        self.home(label).is_some()
+        self.dims.contains_key(&label)
     }
 
-    /// The labels of the dimensions, in the order they tick.
+    /// The labels of the dimensions.
+    #[cfg(feature = "world-access")]
     pub fn labels(&self) -> impl Iterator<Item = Entity> + '_ {
-        let mut seen: Vec<Entity> = Vec::new();
-        self.cells.values().filter_map(move |place| {
-            if seen.contains(&place.label) {
-                return None;
-            }
-            seen.push(place.label);
-            Some(place.label)
-        })
+        self.dims.keys().copied()
     }
 
     /// The number of cells of the dimension of `label`.
+    #[cfg(feature = "world-access")]
     #[must_use]
     pub fn cell_count(&self, label: Entity) -> usize {
-        self.cells_of(label).count()
+        self.dims.get(&label).map_or(0, |dim| dim.cells.len())
     }
 
     /// The world of the first cell of `label`, lent out of its cell until the next tick gives
@@ -230,7 +280,7 @@ impl DimCells {
     /// never read or write it between ticks.
     #[cfg(feature = "world-access")]
     pub fn sub_app_mut(&mut self, label: Entity) -> Option<&mut SubApp> {
-        let cell = self.home(label)?;
+        let cell = self.cells_of(label).next()?;
         let worlds = self.worlds.get();
         lend(worlds, cell);
         worlds
@@ -273,8 +323,8 @@ impl DimCells {
     /// For tests and tools only, to make the answers land at the same tick in every run.
     #[cfg(feature = "world-access")]
     pub async fn stores_answered(&mut self) {
-        for store in self.stores.values_mut() {
-            store.answered().await;
+        for dim in self.dims.values_mut() {
+            dim.store.answered().await;
         }
     }
 
@@ -318,30 +368,17 @@ impl DimCells {
         mem::take(&mut self.outputs)
     }
 
+    /// The cells of the dimension of `label`, in the order of their index.
     pub(crate) fn cells_of(&self, label: Entity) -> impl Iterator<Item = CellId> + '_ {
-        self.cells
-            .iter()
-            .filter(move |(_, place)| place.label == label)
-            .map(|(&cell, _)| cell)
-    }
-
-    fn home(&self, label: Entity) -> Option<CellId> {
-        self.cells_of(label).next()
-    }
-
-    fn cell_at(&self, label: Entity, index: CellIndex) -> Option<CellId> {
-        self.cells
-            .iter()
-            .find(|(_, place)| **place == CellPlace { label, index })
-            .map(|(&cell, _)| cell)
+        self.dims
+            .get(&label)
+            .into_iter()
+            .flat_map(|dim| dim.cells.iter().copied())
     }
 
     /// The cell of `label` that owns `column`.
     fn owner(&self, label: Entity, column: ColumnPos) -> Option<CellId> {
-        match self.partitions.get(&label) {
-            Some(partition) => self.cell_at(label, partition.owner(column_key(column))),
-            None => self.home(label),
-        }
+        self.dims.get(&label)?.owner(column)
     }
 
     /// The cell of `label` that holds the player of `session`, or the first cell.
@@ -354,7 +391,7 @@ impl DimCells {
                     .get(cell)
                     .is_some_and(|place| place.label == label)
             })
-            .or_else(|| self.home(label))
+            .or_else(|| self.cells_of(label).next())
     }
 
     /// The cell that runs `handoff`: the owner of the column of its first source, whose blocks
@@ -413,20 +450,23 @@ impl DimCells {
     /// The cell that a player of `session` arriving at `position` goes to. It holds the player
     /// from now on.
     fn place(&mut self, label: Entity, session: PlayerSession, position: DVec3) -> Option<CellId> {
-        let cell = self.owner(label, ColumnPos::from(position))?;
-        if self.partitions.contains_key(&label) {
-            self.sessions.insert(session, cell);
-        }
-        Some(cell)
+        let dim = self.dims.get(&label)?;
+        place(dim, &mut self.sessions, session, position)
     }
 
     /// Hands what the cell `from` sent the other cells of its dimension to them, for their next
-    /// tick, and returns the players that went to another cell.
+    /// tick, and returns the players that went to another cell. A change of a block goes only to
+    /// the cells that read its column.
     pub(crate) fn post(&mut self, from: CellId, mail: CellMail) -> Vec<CellMove> {
-        let Some(&CellPlace { label, .. }) = self.cells.get(&from) else {
+        let Self {
+            dims,
+            cells,
+            sessions,
+            ..
+        } = self;
+        let Some(dim) = cells.get(&from).and_then(|cell| dims.get(&cell.label)) else {
             return Vec::new();
         };
-        let others: Vec<CellId> = self.cells_of(label).filter(|cell| *cell != from).collect();
         let CellMail {
             tickets,
             halo,
@@ -438,38 +478,50 @@ impl DimCells {
             asks,
             answers,
         } = mail;
-        for &cell in &others {
-            let inbox = self.mail.entry(cell).or_default();
-            inbox.extend(tickets.iter().copied().map(CellMessage::Ticket));
-            inbox.extend(halo.iter().copied().map(CellMessage::Halo));
-            inbox.extend(views.iter().copied().map(CellMessage::View));
-            inbox.extend(holds.iter().copied().map(CellMessage::Hold));
+        for &to in &dim.cells {
+            if to == from {
+                continue;
+            }
+            let Some(cell) = cells.get_mut(&to) else {
+                continue;
+            };
+            let inbox = &mut cell.inbox;
+            inbox.tickets.extend_from_slice(&tickets);
+            let index = cell.index;
+            inbox.halo.extend(
+                halo.iter()
+                    .filter(|write| dim.reads(index, ColumnPos::from(write.pos))),
+            );
+            inbox.views.extend_from_slice(&views);
+            inbox.holds.extend_from_slice(&holds);
         }
         for ask in asks {
-            if let Some(cell) = self.owner(label, ask.column) {
-                self.mail_to(cell, CellMessage::Ask(ask));
+            if let Some(inbox) = inbox(cells, dim.owner(ask.column)) {
+                inbox.asks.push(ask);
             }
         }
         for answer in answers {
-            if let Some(cell) = self.cell_at(label, answer.to) {
-                self.mail_to(cell, CellMessage::Answer(answer));
+            if let Some(inbox) = inbox(cells, dim.cell_at(answer.to)) {
+                inbox.answers.push(answer);
             }
         }
         for write in writes {
-            if let Some(cell) = self.owner(label, ColumnPos::from(write.pos)) {
-                self.mail_to(cell, CellMessage::Write(write));
+            if let Some(inbox) = inbox(cells, dim.owner(ColumnPos::from(write.pos))) {
+                inbox.writes.push(write);
             }
         }
         for mail in simulation {
             match mail.column() {
                 Some(column) => {
-                    if let Some(cell) = self.owner(label, column) {
-                        self.mail_to(cell, CellMessage::Simulation(mail));
+                    if let Some(inbox) = inbox(cells, dim.owner(column)) {
+                        inbox.simulation.push(mail);
                     }
                 }
                 None => {
-                    for &cell in &others {
-                        self.mail_to(cell, CellMessage::Simulation(mail));
+                    for &to in dim.cells.iter().filter(|to| **to != from) {
+                        if let Some(inbox) = inbox(cells, Some(to)) {
+                            inbox.simulation.push(mail);
+                        }
                     }
                 }
             }
@@ -477,17 +529,15 @@ impl DimCells {
         let mut moves = Vec::new();
         for crossing in crossings {
             let session = crossing.session();
-            let Some(to) = self.place(label, session, crossing.position()) else {
+            let Some(to) = place(dim, sessions, session, crossing.position()) else {
                 continue;
             };
             moves.push(CellMove { session, from, to });
-            self.mail_to(to, CellMessage::Cross(Box::new(crossing)));
+            if let Some(inbox) = inbox(cells, Some(to)) {
+                inbox.crossings.push(crossing);
+            }
         }
         moves
-    }
-
-    fn mail_to(&mut self, cell: CellId, message: CellMessage) {
-        self.mail.entry(cell).or_default().push(message);
     }
 
     /// Forgets the cell of a player that left its dimension.
@@ -497,8 +547,8 @@ impl DimCells {
 
     fn tick(&mut self, mut input: impl FnMut(CellId) -> DimInput) {
         let mut answers: BTreeMap<CellId, Vec<ColumnStoreOutput>> = BTreeMap::new();
-        for store in self.stores.values_mut() {
-            for answer in store.answers() {
+        for dim in self.dims.values_mut() {
+            for answer in dim.store.answers() {
                 answers.entry(answer.to).or_default().push(answer.output);
             }
         }
@@ -508,10 +558,14 @@ impl DimCells {
             worlds.cells.give_back(lent);
         }
         let generated = &mut self.generated;
+        let cells = &mut self.cells;
         let ticked = block_on(worlds.cells.tick(self.tick, |cell| {
             let mut input = input(cell);
             input.store_answers = answers.remove(&cell).unwrap_or_default();
             input.generated = generated.remove(&cell).unwrap_or_default();
+            if let Some(cell) = cells.get_mut(&cell) {
+                input.cell_mail = mem::take(&mut cell.inbox);
+            }
             input
         }));
         self.tick = Tick(self.tick.0.wrapping_add(1));
@@ -523,11 +577,11 @@ impl DimCells {
             }
         };
         for ticked in outputs {
-            let Some(&CellPlace { label, .. }) = self.cells.get(&ticked.cell) else {
+            let Some(cell) = self.cells.get(&ticked.cell) else {
                 continue;
             };
             self.outputs.push(DimTicked {
-                label,
+                label: cell.label,
                 cell: ticked.cell,
                 output: ticked.output,
             });
@@ -541,26 +595,46 @@ impl DimCells {
     fn send_to_stores(&mut self) {
         let mut rest: Vec<ColumnStoreInput> = Vec::new();
         for ticked in &mut self.outputs {
-            let Some(store) = self.stores.get_mut(&ticked.label) else {
+            let Some(dim) = self.dims.get_mut(&ticked.label) else {
                 continue;
             };
             for input in mem::take(&mut ticked.output.store_inputs) {
                 match input {
-                    StoreInput::Put { .. } => store.send(ticked.cell, input),
+                    StoreInput::Put { .. } => dim.store.send(ticked.cell, input),
                     StoreInput::Get { .. } | StoreInput::Flush => rest.push(input),
                 }
             }
             ticked.output.store_inputs = mem::take(&mut rest);
         }
         for ticked in &mut self.outputs {
-            let Some(store) = self.stores.get_mut(&ticked.label) else {
+            let Some(dim) = self.dims.get_mut(&ticked.label) else {
                 continue;
             };
             for input in mem::take(&mut ticked.output.store_inputs) {
-                store.send(ticked.cell, input);
+                dim.store.send(ticked.cell, input);
             }
         }
     }
+}
+
+/// The cell of `dim` that a player of `session` arriving at `position` goes to. In a divided
+/// dimension, it holds the player from now on.
+fn place(
+    dim: &Dim,
+    sessions: &mut FxHashMap<PlayerSession, CellId>,
+    session: PlayerSession,
+    position: DVec3,
+) -> Option<CellId> {
+    let cell = dim.owner(ColumnPos::from(position))?;
+    if dim.division.is_some() {
+        sessions.insert(session, cell);
+    }
+    Some(cell)
+}
+
+/// What the other cells sent `cell` for its next tick.
+fn inbox(cells: &mut BTreeMap<CellId, Cell>, cell: Option<CellId>) -> Option<&mut CellMail> {
+    cells.get_mut(&cell?).map(|cell| &mut cell.inbox)
 }
 
 /// The input of `cell` in `split`, empty until a part goes to it.
@@ -569,12 +643,9 @@ fn part(
     label: Entity,
     cell: CellId,
 ) -> &mut RoutedInput {
-    split.entry(cell).or_insert_with(|| RoutedInput {
-        dim: label,
-        control: Vec::new(),
-        serverbound: Vec::new(),
-        column_requests: Vec::new(),
-    })
+    split
+        .entry(cell)
+        .or_insert_with(|| RoutedInput::new(label))
 }
 
 #[cfg(feature = "world-access")]
@@ -612,7 +683,6 @@ impl Globals {
         routed: Option<RoutedInput>,
         players: Option<Vec<RosterRow>>,
         entity_id_grant: Option<EntityIdRange>,
-        cell_mail: Vec<CellMessage>,
     ) -> DimInput {
         let (control, serverbound, column_requests) = match routed {
             Some(RoutedInput {
@@ -634,7 +704,7 @@ impl Globals {
             serverbound,
             entity_id_grant,
             column_requests,
-            cell_mail,
+            cell_mail: CellMail::default(),
             store_answers: Vec::new(),
             generated: Vec::new(),
         }
@@ -669,7 +739,6 @@ pub fn tick_dimensions(world: &mut World) {
     for routed in routed {
         split.append(&mut cells.split(routed));
     }
-    let mut mail = mem::take(&mut cells.mail);
     let mut players: FxHashMap<CellId, Vec<RosterRow>> = world
         .get_resource::<PlayerRoster>()
         .map(|roster| {
@@ -686,7 +755,6 @@ pub fn tick_dimensions(world: &mut World) {
                 split.remove(&cell),
                 players.remove(&cell),
                 granted.remove(&cell),
-                mail.remove(&cell).unwrap_or_default(),
             )
         });
     }
@@ -730,7 +798,7 @@ mod tests {
         let first = cells.add(label, CellIndex(0), SubApp::new(), Placement::Inline);
         let second = cells.add(label, CellIndex(1), SubApp::new(), Placement::Inline);
         let partition = region_partition(NonZeroU32::MIN.saturating_add(1));
-        cells.divide(label, partition);
+        cells.divide(label, partition, 1);
         let cell_of = |position: DVec3| match partition.owner(column_key(ColumnPos::from(position)))
         {
             CellIndex(0) => first,
