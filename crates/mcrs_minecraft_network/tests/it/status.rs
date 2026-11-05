@@ -97,9 +97,12 @@ fn a_connection_beyond_the_handshake_cap_waits_for_a_slot_instead_of_closing() {
         for _ in 0..GLOBAL_HANDSHAKE_CAP {
             silent.push(TcpStream::connect(address).await.unwrap());
         }
-        let status = tokio::spawn(status_request(address));
-        // Long enough for the server to take the request while every slot is held.
-        tokio::time::sleep(Duration::from_millis(200)).await;
+        let mut status = tokio::spawn(status_request(address));
+        let early = tokio::time::timeout(Duration::from_millis(200), &mut status).await;
+        assert!(
+            early.is_err(),
+            "the request ends while every slot is held: {early:?}"
+        );
         drop(silent);
         tokio::time::timeout(Duration::from_secs(10), status).await
     });
