@@ -54,22 +54,20 @@ impl Path<'_> {
 pub struct DeltaBase {
     pub position: DVec3,
     pub look: Look,
+    /// The yaw of the body and of the head, which a player turns together.
     pub yaw: ByteAngle,
     pub pitch: ByteAngle,
-    pub head_yaw: ByteAngle,
     /// The tick of the last absolute position that the viewers received.
     keyframe_tick: u64,
 }
 
 impl DeltaBase {
     pub fn new(pose: &Pose, tick: u64) -> Self {
-        let yaw = ByteAngle::from_degrees(pose.look.yaw);
         Self {
             position: pose.position,
             look: pose.look,
-            yaw,
+            yaw: ByteAngle::from_degrees(pose.look.yaw),
             pitch: ByteAngle::from_degrees(pose.look.pitch),
-            head_yaw: yaw,
             keyframe_tick: tick,
         }
     }
@@ -130,7 +128,7 @@ impl DeltaBase {
                 on_ground: true,
             })?),
         };
-        let head = self.head_packet(id, next.head_yaw)?;
+        let head = self.head_packet(id, next.yaw)?;
         *self = next;
         for packet in body.iter().chain(&head) {
             bytes.extend_from_slice(packet);
@@ -153,7 +151,7 @@ impl DeltaBase {
             look: pose.look,
             on_ground: true,
         })?;
-        let head = self.head_packet(id, next.head_yaw)?;
+        let head = self.head_packet(id, next.yaw)?;
         *self = next;
         bytes.extend_from_slice(&sync);
         if let Some(head) = &head {
@@ -173,7 +171,7 @@ impl DeltaBase {
         })?;
         let head = record(&ClientboundRotateHead {
             entity_id: id,
-            y_head_rot: self.head_yaw,
+            y_head_rot: self.yaw,
         })?;
         bytes.extend_from_slice(&sync);
         bytes.extend_from_slice(&head);
@@ -181,7 +179,7 @@ impl DeltaBase {
     }
 
     fn head_packet(&self, id: VarInt, head_yaw: ByteAngle) -> Result<Option<bytes::Bytes>> {
-        if head_yaw == self.head_yaw {
+        if head_yaw == self.yaw {
             return Ok(None);
         }
         Ok(Some(record(&ClientboundRotateHead {

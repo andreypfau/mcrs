@@ -438,7 +438,7 @@ fn add_player(id: VarInt, uuid: Uuid, base: &DeltaBase) -> Result<Bytes> {
         movement: LpVec3(DVec3::ZERO),
         pitch: base.pitch,
         yaw: base.yaw,
-        head_yaw: base.head_yaw,
+        head_yaw: base.yaw,
         data: VarInt(0),
     })
 }

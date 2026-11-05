@@ -58,9 +58,6 @@ pub enum DimensionChangeError {
     /// The old world holds no such player.
     #[error("the old world holds no such player")]
     NoPlayer,
-    /// The session of the player is no longer placed in the old dimension.
-    #[error("the session of the player is no longer placed in the old dimension")]
-    NotPlaced,
     /// The player lacks the state its arrival sends.
     #[error("the player lacks the state its arrival sends")]
     NoArrivalState,
