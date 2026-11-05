@@ -5,7 +5,6 @@ mod features;
 mod generated_ticks;
 mod generation_dispatch;
 mod generation_input;
-mod generation_link;
 mod generation_output;
 mod generation_stage;
 #[cfg(test)]
@@ -19,7 +18,6 @@ mod world_gen_plugin;
 mod world_generation;
 mod worldgen_registries_plugin;
 
-pub use generation_link::GenerationLink;
 pub use routers::{DimensionRouter, DimensionRouters};
 pub use template_asset::{TemplateAsset, WorldgenAssetsPlugin, pool_templates};
 pub use template_handle::template_handle;

@@ -20,7 +20,6 @@ use rustc_hash::FxHashMap;
 use tracing::warn;
 
 use crate::generation_input::{GenerationInput, RequestedSection, ViewUpdate, WantedColumn};
-use crate::generation_link::GenerationLink;
 use crate::generation_output::{GeneratedColumn, GenerationOutput, SectionContent};
 use crate::generation_stage::{GenerationStage, SchedulerConfig, init_chunk_task_pool};
 
@@ -37,7 +36,7 @@ pub struct WorldGeneration {
 }
 
 struct WorldStage {
-    link: GenerationLink<i32>,
+    link: Link<GenerationStage<i32>>,
     rows: Range<i32>,
     /// The cells that wait on each column the stage generates.
     askers: FxHashMap<ColumnPos, Vec<CellId>>,
@@ -124,10 +123,7 @@ pub(crate) fn build_world_generation(
     let count = i32::try_from(build.type_config.section_count).unwrap_or(0);
     let config = SchedulerConfig::default();
     init_chunk_task_pool(&config);
-    let mut link = GenerationLink::new(Link::new(
-        GenerationStage::new(None, config),
-        Placement::Thread,
-    ));
+    let mut link = Link::new(GenerationStage::new(None, config), Placement::Thread);
     link.send(GenerationInput::Context(Box::new(fill.clone())));
     host.get_resource_or_init::<WorldGeneration>()
         .worlds
