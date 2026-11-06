@@ -37,12 +37,15 @@ impl ColumnPos {
     }
 
     /// The columns within `radius` of this one on both axes, a square `2 * radius + 1` wide.
-    /// A coordinate past the `i32` range stops at its end.
+    /// Columns past the `i32` range are left out.
     pub fn square(self, radius: i32) -> impl Iterator<Item = Self> {
-        (radius.saturating_neg()..=radius).flat_map(move |dz| {
-            (radius.saturating_neg()..=radius)
-                .map(move |dx| Self::new(self.x.saturating_add(dx), self.z.saturating_add(dz)))
-        })
+        (radius.saturating_neg()..=radius)
+            .filter_map(move |dz| self.z.checked_add(dz))
+            .flat_map(move |z| {
+                (radius.saturating_neg()..=radius)
+                    .filter_map(move |dx| self.x.checked_add(dx))
+                    .map(move |x| Self::new(x, z))
+            })
     }
 
     pub const fn min_block_x(self) -> i32 {
@@ -114,5 +117,26 @@ impl From<[i32; 2]> for ColumnPos {
 impl From<ColumnPos> for [i32; 2] {
     fn from(pos: ColumnPos) -> Self {
         [pos.x, pos.z]
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn square_at_the_i32_edge_leaves_out_the_columns_past_it() {
+        let expected = [
+            ColumnPos::new(i32::MAX - 1, -1),
+            ColumnPos::new(i32::MAX, -1),
+            ColumnPos::new(i32::MAX - 1, 0),
+            ColumnPos::new(i32::MAX, 0),
+            ColumnPos::new(i32::MAX - 1, 1),
+            ColumnPos::new(i32::MAX, 1),
+        ];
+        assert!(
+            ColumnPos::new(i32::MAX, 0).square(1).eq(expected),
+            "the square holds each in-range column once"
+        );
     }
 }
