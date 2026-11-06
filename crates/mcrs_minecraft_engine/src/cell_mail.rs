@@ -186,16 +186,16 @@ fn receive_cell_mail(world: &mut World) {
     if let Some(mut changes) = world.get_resource_mut::<HaloBlockChanges>() {
         changes.0.extend(halo);
     }
-    if let Some(dimension) = dimension {
-        if let Some(mut requests) = world.get_resource_mut::<Messages<BlockSetRequest>>() {
-            requests.write_batch(writes.into_iter().map(|write| BlockSetRequest {
-                dimension,
-                pos: write.pos,
-                new_state: write.new_state,
-                flags: write.flags,
-                recursion_left: write.recursion_left,
-            }));
-        }
+    if let Some(dimension) = dimension
+        && let Some(mut requests) = world.get_resource_mut::<Messages<BlockSetRequest>>()
+    {
+        requests.write_batch(writes.into_iter().map(|write| BlockSetRequest {
+            dimension,
+            pos: write.pos,
+            new_state: write.new_state,
+            flags: write.flags,
+            recursion_left: write.recursion_left,
+        }));
     }
     for crossing in crossings {
         if let Some(mut views) = world.get_resource_mut::<ForeignViews>() {
