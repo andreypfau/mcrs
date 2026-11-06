@@ -1,7 +1,4 @@
-use bevy_app::{
-    App, First, FixedFirst, FixedLast, FixedPostUpdate, FixedPreUpdate, FixedUpdate, Last,
-    PluginsState, PostStartup, PostUpdate, PreStartup, PreUpdate, Startup, SubApp, Update,
-};
+use bevy_app::{App, FixedPreUpdate, FixedUpdate, Last, PluginsState, SubApp};
 use bevy_asset::AssetPlugin;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::schedule::IntoScheduleConfigs;
@@ -48,23 +45,7 @@ use mcrs_minecraft_engine_world::world::sub_app::{
 use mcrs_minecraft_engine_world::world::world_save::WorldSave;
 use mcrs_minecraft_engine_world::world_cells::WorldCells;
 use mcrs_minecraft_engine_world::world_placement::WorldPlacement;
-use mcrs_minecraft_heightmap::HeightmapPredicates;
 use mcrs_minecraft_registries::CurrentRegistries;
-
-#[derive(Clone)]
-pub struct DimRegistryBundle {
-    pub heightmap_predicates: Option<HeightmapPredicates>,
-    pub world_save: Option<WorldSave>,
-}
-
-pub fn gather_dim_registries(world: &bevy_ecs::world::World) -> DimRegistryBundle {
-    DimRegistryBundle {
-        heightmap_predicates: world
-            .get_resource::<BlockHeightmapPredicates>()
-            .map(|predicates| predicates.0.clone()),
-        world_save: world.get_resource::<WorldSave>().cloned(),
-    }
-}
 
 /// Builds the worlds of a dimension, one for each of its cells as [`WorldCells`] says, and
 /// places them in the host's [`DimCells`]. Returns the label entity of the dimension.
@@ -77,11 +58,7 @@ pub fn gather_dim_registries(world: &bevy_ecs::world::World) -> DimRegistryBundl
     clippy::too_many_lines,
     reason = "a dimension's sub-app is assembled in the order its schedules and plugins require, and each step relies on the previous one"
 )]
-pub fn spawn_dim_subapp(
-    app: &mut App,
-    request: &DimSpawnRequest,
-    registries: &DimRegistryBundle,
-) -> Result<Entity, DimSpawnError> {
+fn spawn_dim_subapp(app: &mut App, request: &DimSpawnRequest) -> Result<Entity, DimSpawnError> {
     let unknown = || UnknownDimensionType {
         dimension: request.dimension.as_str().to_owned(),
         dimension_type: request.dimension_type.number(),
@@ -164,26 +141,14 @@ pub fn spawn_dim_subapp(
         // Only the messages that a dimension writes or reads inside its own world are registered:
         // what crosses to the host goes in the input and the output of a tick.
         sub_app.add_message::<OutboundPlayerPacket>();
-        // `InboundPlayerSpawn` is written by `drain_dim_inbox` from `ToDim::Spawn`
-        // and read by `consume_inbound_player_spawn` (added by `MinecraftEntityPlugin`).
         sub_app.add_message::<InboundPlayerSpawn>();
-        // `InboundPlayerDespawn` is written by `drain_dim_inbox` from `ToDim::Despawn`
-        // and read by `drain_inbound_player_despawn` (added by `PlayerTrackerPlugin`).
         sub_app.add_message::<crate::bus::InboundPlayerDespawn>();
-        // Written by `despawn_inbound_player` once the player is saved, and handed to the host in
-        // the output of the tick.
         sub_app.add_message::<crate::bus::OutboundPlayerReleased>();
-        // `InboundPlayerPacket` is read by `dispatch_inbound_to_dim` (added by
-        // `MinecraftEntityPlugin`). Serverbound packets arrive via `drain_dim_inbox`.
         sub_app.add_message::<crate::bus::InboundPlayerPacket>();
-        // `OutboundPlayerAttached` is written by `consume_inbound_player_spawn` and handed to the
-        // host in the output of the tick to attach the session.
         sub_app.add_message::<crate::bus::OutboundPlayerAttached>();
-        // Written by `drain_dim_inbox` from `ToDim::Transfer` and read by `receive_transfers`.
         sub_app.add_message::<crate::departure::PlayerTransfer>();
         sub_app
             .add_message::<mcrs_minecraft_engine_world::entity::player::ChangeDimensionRequest>();
-        // Written by `drain_dim_inbox` from `ToDim::Order` and `ToDim::Command`.
         sub_app.add_message::<OrderedPlayer>();
         sub_app.add_message::<CommandHandoff>();
         sub_app.init_resource::<DimMail>();
@@ -213,22 +178,6 @@ pub fn spawn_dim_subapp(
         sub_app.insert_resource(mcrs_minecraft_engine_world::world::sub_app::DimensionLabel(
             label_entity,
         ));
-
-        // `init_schedule` keeps a schedule that `SubApp::new` already filled, such as `First` with
-        // `message_update_system`.
-        sub_app.init_schedule(First);
-        sub_app.init_schedule(PreStartup);
-        sub_app.init_schedule(Startup);
-        sub_app.init_schedule(PostStartup);
-        sub_app.init_schedule(PreUpdate);
-        sub_app.init_schedule(FixedFirst);
-        sub_app.init_schedule(FixedPreUpdate);
-        sub_app.init_schedule(FixedUpdate);
-        sub_app.init_schedule(FixedPostUpdate);
-        sub_app.init_schedule(FixedLast);
-        sub_app.init_schedule(Update);
-        sub_app.init_schedule(PostUpdate);
-        sub_app.init_schedule(Last);
 
         sub_app.add_systems(
             FixedPreUpdate,
@@ -287,16 +236,16 @@ pub fn spawn_dim_subapp(
             .copied()
             .unwrap_or_default();
         sub_app.insert_resource(default_game_mode);
-        if let Some(predicates) = &registries.heightmap_predicates {
-            sub_app.insert_resource(BlockHeightmapPredicates(predicates.clone()));
-        }
-        if let Some(save) = &registries.world_save {
-            sub_app.insert_resource(save.clone());
-        }
 
         // The first tick hands over only what changes after the spawn, so the world starts from
         // the copies of now.
         let host = app.world();
+        if let Some(predicates) = host.get_resource::<BlockHeightmapPredicates>() {
+            sub_app.insert_resource(predicates.clone());
+        }
+        if let Some(save) = host.get_resource::<WorldSave>() {
+            sub_app.insert_resource(save.clone());
+        }
         sub_app.insert_resource(
             host.get_resource::<mcrs_minecraft_environment::world_clock::WorldClocks>()
                 .cloned()
@@ -435,9 +384,8 @@ pub(crate) fn drain_dim_spawn_queue(app: &mut App) {
     if requests.is_empty() {
         return;
     }
-    let bundle = gather_dim_registries(app.world());
     for request in requests {
-        if let Err(error) = spawn_dim_subapp(app, &request, &bundle) {
+        if let Err(error) = spawn_dim_subapp(app, &request) {
             error!(%error, "a dimension was not spawned");
         }
     }
