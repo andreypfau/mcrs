@@ -3,6 +3,7 @@ use bevy::prelude::*;
 use bevy::window::{CursorGrabMode, CursorOptions, PrimaryWindow};
 use mcrs_minecraft_engine_world::entity::physics::Transform as PhysicsTransform;
 
+use mcrs_minecraft_client_world::attack_input::AttackInput;
 use mcrs_minecraft_client_world::local_player::{FlyingSpeed, LocalPlayerTick};
 use mcrs_minecraft_client_world::movement_input::MovementInput;
 use mcrs_minecraft_client_world::player::Player;
@@ -19,7 +20,12 @@ pub struct ClientInputPlugin;
 
 impl Plugin for ClientInputPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(FixedUpdate, read_movement_keys.before(LocalPlayerTick))
+        app.init_resource::<AttackInput>()
+            .add_systems(FixedUpdate, read_movement_keys.before(LocalPlayerTick))
+            .add_systems(
+                RunFixedMainLoop,
+                read_attack_input.in_set(RunFixedMainLoopSystems::BeforeFixedMainLoop),
+            )
             .add_systems(
                 Update,
                 (
@@ -55,6 +61,22 @@ fn pressed(keys: &ButtonInput<KeyCode>, cursor: &CursorOptions) -> MovementInput
         jump: keys.pressed(KeyCode::Space),
         shift: keys.pressed(KeyCode::ShiftLeft),
         sprint: keys.pressed(KeyCode::ControlLeft),
+    }
+}
+
+/// Runs before the ticks of the frame and before the click that grabs the cursor, so that
+/// click is no press. A frame can run no tick or several, so the presses wait for the next one.
+fn read_attack_input(
+    buttons: Res<ButtonInput<MouseButton>>,
+    screen: Option<Res<Screen>>,
+    cursor: Single<&CursorOptions, With<PrimaryWindow>>,
+    mut input: ResMut<AttackInput>,
+) {
+    let screen_open = cursor.grab_mode == CursorGrabMode::None || !screen_is_none(screen);
+    input.screen_open = screen_open;
+    input.down = !screen_open && buttons.pressed(MouseButton::Left);
+    if !screen_open && buttons.just_pressed(MouseButton::Left) {
+        input.presses = input.presses.saturating_add(1);
     }
 }
 
