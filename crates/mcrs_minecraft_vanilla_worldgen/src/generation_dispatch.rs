@@ -189,7 +189,7 @@ impl Dispatcher<'_, '_> {
     /// Walks the shells of the wanted columns nobody has walked yet, nearest first.
     fn walk_fresh(&mut self, generation: &mut GenerationStage, remaining: &mut usize) {
         while let Some(&key) = generation.fresh.first() {
-            if self.walk_shell(generation, remaining, key.chunk_column_pos) == Pass::Spent {
+            if self.walk_shell(generation, remaining, key.col) == Pass::Spent {
                 return;
             }
             generation.fresh.remove(&key);

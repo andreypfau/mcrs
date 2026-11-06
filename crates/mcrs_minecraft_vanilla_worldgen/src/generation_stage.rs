@@ -34,23 +34,11 @@ pub(crate) fn init_chunk_task_pool(config: &SchedulerConfig) {
     });
 }
 
-/// Sort key for the priority queue. Lower distance_sq values are dequeued first.
-/// The column position (col_x, col_z) serves as a tiebreaker for determinism.
+/// The order of the wanted columns: nearest to a player first, then by position.
 #[derive(Ord, PartialOrd, Eq, PartialEq, Clone, Copy, Debug)]
 pub(crate) struct ColumnKey {
-    /// Squared XZ distance to the nearest player. Primary sort key.
     pub(crate) distance_sq: i32,
-    /// Column position. Tiebreaker for deterministic ordering.
-    pub(crate) chunk_column_pos: ColumnPos,
-}
-
-impl ColumnKey {
-    pub(crate) fn new(distance_sq: i32, chunk_column_pos: ColumnPos) -> Self {
-        Self {
-            distance_sq,
-            chunk_column_pos,
-        }
-    }
+    pub(crate) col: ColumnPos,
 }
 
 /// One stage of one column, in flight on the generation pool.
@@ -100,8 +88,8 @@ impl Default for SchedulerConfig {
 
 /// The generation of one dimension's columns.
 ///
-/// `pending` is the set of columns a view wants generated, ordered by distance.
-/// An entry stays there for the whole of its ladder. Everything the
+/// `priority_index` holds the columns a view wants generated. An entry stays there for the
+/// whole of its ladder. Everything the
 /// ladder materialises — filled snapshots and the deltas one merge each
 /// consumes — lives in `store`, keyed by position alone.
 ///
@@ -112,8 +100,6 @@ pub(crate) struct GenerationStage {
     pub(crate) ctx: Option<FillContext>,
     /// The section rows of the dimension, which a generated column carries.
     rows: Range<i32>,
-    pub(crate) pending: BTreeSet<ColumnKey>,
-    /// Reverse index: column position -> current priority key.
     pub(crate) priority_index: FxHashMap<ColumnPos, ColumnKey>,
     pub(crate) in_flight: InFlight<InFlightStage, Task<()>>,
     /// Columns whose stage changed since the last dispatch: they and their 3×3 may owe a
@@ -177,7 +163,7 @@ impl mcrs_engine_link::Stage for GenerationStage {
     }
 
     fn is_idle(&self) -> bool {
-        self.pending.is_empty() && self.in_flight.is_empty() && self.abandoned.is_empty()
+        self.priority_index.is_empty() && self.in_flight.is_empty() && self.abandoned.is_empty()
     }
 }
 
@@ -196,7 +182,6 @@ impl GenerationStage {
         Self {
             ctx: None,
             rows,
-            pending: BTreeSet::new(),
             priority_index: FxHashMap::default(),
             in_flight: InFlight::default(),
             touched: Vec::new(),
@@ -236,8 +221,7 @@ impl GenerationStage {
         if self.priority_index.contains_key(&col) {
             return;
         }
-        let key = ColumnKey::new(distance_sq, col);
-        self.pending.insert(key);
+        let key = ColumnKey { distance_sq, col };
         self.priority_index.insert(col, key);
         self.fresh.insert(key);
         self.climbed.push(col);
@@ -248,7 +232,7 @@ impl GenerationStage {
     ///
     /// "Wanted" is widened by the halo: a column two away from one a view wants
     /// is still an input to its run, so it is neither cancelled nor evicted. The
-    /// pending columns change only by a request and by the views, so with the same views
+    /// wanted columns change only by a request and by the views, so with the same views
     /// only the columns wanted since the last update need a look.
     fn screen(&mut self, update: ViewUpdate) {
         let previous = mem::replace(&mut self.views, update);
@@ -265,7 +249,7 @@ impl GenerationStage {
             };
             let mut abandoned = false;
             for key in stale {
-                if !self.within_views(key.chunk_column_pos, LOADING_RINGS) {
+                if !self.within_views(key.col, LOADING_RINGS) {
                     self.abandon(key);
                     abandoned = true;
                 }
@@ -285,10 +269,9 @@ impl GenerationStage {
 
     fn abandon(&mut self, key: ColumnKey) {
         trace!("Canceling stale column {:?}", key);
-        let col = key.chunk_column_pos;
-        self.priority_index.remove(&col);
+        let col = key.col;
         self.fresh.remove(&key);
-        if self.pending.remove(&key) {
+        if self.priority_index.remove(&col).is_some() {
             self.abandoned.push(col);
         }
     }
@@ -323,15 +306,12 @@ impl GenerationStage {
                 let distance_sq = min_column_distance(&col, players);
                 (distance_sq != old.distance_sq).then_some(KeyChange {
                     old,
-                    new: ColumnKey::new(distance_sq, col),
+                    new: ColumnKey { distance_sq, col },
                 })
             })
             .collect();
         for KeyChange { old, new } in updates {
-            if self.pending.remove(&old) {
-                self.pending.insert(new);
-                self.priority_index.insert(new.chunk_column_pos, new);
-            }
+            self.priority_index.insert(new.col, new);
             if self.fresh.remove(&old) {
                 self.fresh.insert(new);
             }
@@ -342,14 +322,19 @@ impl GenerationStage {
     ///
     /// A cancelled stage leaves nothing behind: the column drops off the ladder, and
     /// a later request refills it bit-identically, since a fill depends on nothing
-    /// but the seed and the position.
+    /// but the seed and the position. A stage that panicked would panic again, so its column
+    /// waits for a new want.
     fn finish_stage(&mut self, outcome: TaskOutcome<StageResult>) {
-        let Some(InFlightStage { col, .. }) = self.in_flight.retire(outcome.id()) else {
+        let Some(InFlightStage { col, cancel }) = self.in_flight.retire(outcome.id()) else {
             return;
         };
         let TaskOutcome::Finished { output: result, .. } = outcome else {
             self.store.forget(col);
-            self.forgotten.push(col);
+            if cancel.is_cancelled() {
+                self.forgotten.push(col);
+            } else {
+                tracing::error!(?col, "the generation of a column panicked");
+            }
             return;
         };
         // The column may have been dropped, or sent back to `Filled` by the
@@ -427,8 +412,8 @@ impl GenerationStage {
     fn take_generated(&mut self, key: ColumnKey) -> Option<GenerationAnswer> {
         // A column reaches the top of its ladder only after the context arrived.
         let ctx = self.ctx.as_ref()?;
-        let col = key.chunk_column_pos;
-        if !self.pending.contains(&key) {
+        let col = key.col;
+        if self.priority_index.get(&col) != Some(&key) {
             return None;
         }
         let states = ctx.blocks.state_count();
@@ -461,7 +446,6 @@ impl GenerationStage {
         let heightmaps = merged.maps.clone();
         let ticks = generated_ticks::column_ticks(&merged.ticks, &ctx.blocks);
 
-        self.pending.remove(&key);
         self.priority_index.remove(&col);
         self.fresh.remove(&key);
         self.store.set_stage(col, Stage::Delivered);
