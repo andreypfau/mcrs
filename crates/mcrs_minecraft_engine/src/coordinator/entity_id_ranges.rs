@@ -8,10 +8,20 @@ use crate::entity_ids::EntityIdRange;
 
 /// The global entity ids that no cell holds yet, and the ranges granted for the next tick of
 /// each cell. The ranges never return, so no two cells share an id.
-#[derive(Resource, Debug, Default)]
+#[derive(Resource, Debug)]
 pub struct EntityIdRanges {
     next: u64,
     granted: BTreeMap<CellId, EntityIdRange>,
+}
+
+impl Default for EntityIdRanges {
+    /// Starts at 2: some packets use the id 0 to mean "no entity".
+    fn default() -> Self {
+        Self {
+            next: 2,
+            granted: BTreeMap::new(),
+        }
+    }
 }
 
 impl EntityIdRanges {
@@ -38,5 +48,20 @@ impl EntityIdRanges {
     /// The ranges for the next tick, by cell. A range for a cell that stopped is lost.
     pub(crate) fn take_granted(&mut self) -> BTreeMap<CellId, EntityIdRange> {
         mem::take(&mut self.granted)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use mcrs_engine_muxer::EntityId;
+
+    use super::*;
+    use crate::entity_ids::CellEntityIds;
+
+    #[test]
+    fn first_granted_id_is_not_zero() {
+        let mut ids = CellEntityIds::default();
+        ids.add(EntityIdRanges::default().grant().expect("a fresh range"));
+        assert_eq!(ids.allocate(), Some(EntityId(2)));
     }
 }
