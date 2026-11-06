@@ -15,8 +15,9 @@ anticheat software inspired it, but this document states only behaviour.
 The model covers gravity and collision on land, and creative flight. Section 8 lists the states
 that the model does not predict, and the fallback for each.
 
-The checks are in three layers. A network proxy runs the first two layers without a world. The
-server runs all three. Section 15 assigns each rule to one layer.
+Section 16 states the checks of a vehicle that the client controls. The checks are in three layers.
+A network proxy runs the first two layers without a world. The server runs all three. Section 15
+assigns each rule to one layer.
 
 ## 0. Conventions
 
@@ -119,6 +120,7 @@ Each rule has an ID with the prefix `MVC`. The second part names the section:
 | `MVC-CHK` | the checks of this server |
 | `MVC-RSP` | the response to a violation |
 | `MVC-MODE` | the modes of a client tick |
+| `MVC-VEH` | a vehicle that the client controls |
 | `MVC-CFG` | the configurable values |
 | `MVC-INV` | invariants |
 | `MVC-LAY` | the layers and the cost |
@@ -724,6 +726,23 @@ The server can drop a kept change when no box of a recorded tick, grown by the n
 MVC-MODE-003, can touch the block. The server can share the block states of a change between
 players. The probes of a change are different for each player.
 
+**MVC-PRED-019** (`design`, semantic, confidence: medium). The push of MVC-UNC-005 is one bounded
+input of each candidate. It does not double the number of candidates. In the try order of
+MVC-PRED-013, the server applies MVC-UNC-005 to each candidate before it goes to the next candidate.
+Thus a candidate costs at most two physics steps, and the number of pushers has no effect on the
+number of candidates.
+
+The server limits the bound of MVC-UNC-005 in two ways. The tick is coarse (MVC-MODE-003) in these
+conditions:
+
+- The number of possible pushers is more than `max_pushers`. The default is 24, the default of the
+  game rule `max_entity_cramming`.
+- On one axis, the width `H − L` of the bound is more than `max_push_width`. The default is 0.1
+  blocks.
+
+Thus the push gives a client at most `max_push_width` of freedom on each axis in a predicted tick.
+The cost of the bound is constant for each pusher.
+
 ## 5. Sources of uncertainty
 
 **MVC-UNC-001** (`design`, semantic, confidence: medium). Each source of uncertainty has one
@@ -743,6 +762,7 @@ treatment. The treatment is enumeration (MVC-PRED-006), a tolerance (MVC-PRED-00
 | An entity with a collision shape is near the box. | coarse mode | MVC-MODE-003 |
 | A state that the physics model does not cover. | coarse mode | MVC-MODE-003 |
 | The world border moves and is near the box. | coarse mode | MVC-MODE-003 |
+| A living entity or a boat can push the player. | a bounded input | MVC-UNC-004, MVC-UNC-005 |
 
 **MVC-UNC-002** (`design`, semantic, confidence: medium). A tolerance never carries to the next
 client tick. A source that the table does not list adds no tolerance.
@@ -750,6 +770,142 @@ client tick. A source that the table does not list adds no tolerance.
 **MVC-UNC-003** (`design`, semantic, confidence: low). The arithmetic tolerance covers only the
 error of the round of each operation. PHY-NUM-001 to PHY-NUM-006 state the precision of each
 operation, for example a 32-bit float or a 64-bit float. The server computes with that precision.
+
+**MVC-UNC-004** (`design`, semantic, confidence: medium). The push of the own player is a source of
+uncertainty (PHY-PSH-010). The client computes the push from the positions in its own view of the
+other entities (PHY-PSH-008). The server does not know these positions exactly, because the client
+interpolates them (PHY-CMP-001).
+
+For client tick N, a possible pusher is a living entity or a boat that meets these conditions:
+
+1. The server sent the entity to the client, and the client has not removed it.
+2. The position hull of the entity touches the box of a candidate with a volume that is more than
+   zero. For a boat, the box of the boat first grows by `0.2F` on `x` and `z` (PHY-PSH-009).
+3. The team rule of PHY-PSH-003 lets the entity push the player. The rule uses each team state
+   that the client can have (MVC-LAT-004). The `set_player_team` packets give the teams.
+
+The position hull is the smallest box that contains the box of the entity at each of these
+positions:
+
+- the newest position of the entity that is acknowledged for tick N or for tick N − 1;
+- the position before that one, because the client interpolates from it;
+- each position of the entity that is in a window for tick N or for tick N − 1.
+
+The player gets no push in tick N when one of these conditions is true for each candidate:
+
+- The player is a spectator.
+- The player is on a climbable block.
+- The player is a passenger.
+- The team rule of the player is `never`.
+
+A push of an entity applies in the same client tick or in the next client tick (PHY-PSH-008). Thus
+the server counts the possible pushers of tick N − 1 and of tick N together.
+
+**MVC-UNC-005** (`design`, semantic, confidence: medium). The push is an unknown vector
+`u = (u.x, 0, u.z)` that the client adds to the velocity of the player. The push of one pusher is
+not an arbitrary vector. PHY-PSH-004 gives it from `Δ = player − pusher`, with `Δ` in its horizontal
+axes. For the player as the candidate `C`, the push on the `x` axis is `f(Δ.x, Δ.z)`:
+
+- Let `m = max(|Δ.x|, |Δ.z|)`. When `m < 0.01F`, `f` is 0.
+- When `0.01F ≤ m < 1`, `f = 0.05F × Δ.x / sqrt(m)`.
+- When `m ≥ 1`, `f = 0.05F × Δ.x / m`.
+
+The push on the `z` axis is `f(Δ.z, Δ.x)`. The push has no vertical part.
+
+The server knows `Δ` only in a box: the position of the candidate minus the position hull of the
+pusher (MVC-UNC-004). Let this box be `[ax, bx] × [az, bz]`. For each pusher, the server computes an
+interval `[lo, hi]` for each horizontal axis. For the `x` axis, it uses these properties of `f`:
+
+1. `f` does not decrease when `Δ.x` increases, also across zero.
+2. When `|Δ.x|` is at least 0.01, `|f|` does not increase when `|Δ.z|` increases.
+
+Let `z0` be the smallest value of `|Δ.z|` in `[az, bz]`. It is 0 when the range contains 0. Then
+`lo = f(ax, z0)` and `hi = f(bx, z0)`. A hull that crosses zero on the `x` axis thus gives an
+interval with a negative end and a positive end.
+
+The cutoff at `m < 0.01F` needs one more rule. An end can have `|ax|` or `|bx|` less than 0.01 while
+the range of `|Δ.z|` reaches 0.01. For that end, the server uses `max(z0, 0.01)` in place of `z0`.
+The `z` axis uses the same rules with the axes swapped. The server rounds each end outward by the
+arithmetic tolerance (MVC-UNC-003).
+
+The push of a pusher is certain when two conditions are true in tick N − 1 and in tick N:
+
+- Each `Δ` of the box gives a box intersection with a volume that is more than zero (PHY-PSH-002).
+- `m ≥ 0.01F` for each `Δ` of the box.
+
+For a certain push, the interval is `[lo, hi]`. When the range of `Δ.x` does not contain 0, this
+interval does not contain 0, and it is narrow. For a push that is not certain, the interval is the
+smallest interval that contains `[lo, hi]` and 0.
+
+The bound of the push is the sum of the intervals of all pushers, for each axis. Let it be
+`[Lx, Hx] × [Lz, Hz]`. The server does not enumerate the pushers. It treats `u` as one bounded
+input, in these steps:
+
+1. Run the physics step with `u = 0`.
+2. For each horizontal axis, let `e` be the reported change minus the predicted change on that axis.
+   Set the component of `u` to `e`, clamped to the bound of that axis.
+3. When `u` is not zero, run the physics step again with the start velocity plus `u`.
+4. Compare the result of step 3 with the tick packets (MVC-PRED-009 to MVC-PRED-011).
+
+A reported change that needs a `u` outside the bound does not match in step 4. Thus it is a
+violation of the offset check. The result of step 3 has the velocity that the push gives. Thus the
+error of the push does not carry to the next client tick (MVC-UNC-002).
+
+For a silent tick, the server keeps `u = 0`. The distance test of MVC-PRED-010 then adds the
+tolerance `sqrt(Ux² + Uz²)`. `Ux` is the larger of `|Lx|` and `|Hx|`, and `Uz` is the larger of
+`|Lz|` and `|Hz|`.
+
+For 8 mobs of width 0.6 around a player at 0.45 blocks, with a hull of 0.1 blocks, each axis has the
+bound ±0.021 blocks. With a hull of 0.3 blocks, the bound is ±0.066 blocks. The bound `n × 0.05F`
+gave ±0.4 blocks.
+
+**MVC-UNC-006** (`design`, semantic, confidence: medium). The server can use a superset of the
+possible pushers of MVC-UNC-004. An example is each living entity and each boat in the near zone of
+the player (MVC-MODE-003), from a broadphase query. The superset must contain each possible pusher.
+
+For each entity of the superset, the server computes the interval of MVC-UNC-005 with the same
+rules. An entity that cannot push gives the interval `[0, 0]`, for one of these reasons:
+
+- No `Δ` of its box gives a box intersection with a volume that is more than zero (PHY-PSH-002).
+- The team rule of PHY-PSH-003 does not let it push the player in any team state that the client
+  can have.
+- The client does not have the entity.
+
+Thus the superset gives the same bound as the exact set of possible pushers. It does not reject a
+legit client, and it does not widen the bound. The count of MVC-PRED-019 counts only the entities
+whose interval is not `[0, 0]`.
+
+**MVC-UNC-007** (`design`, semantic, confidence: medium). The position hulls of MVC-UNC-004 need old
+positions of the entities near the player. The server keeps them in this way:
+
+- For each entity, the server keeps each position that it sends, as the client decodes it
+  (PHY-CMP-002), with the number of the server tick. Each entry has 3 f64 values and one 32-bit
+  integer, 28 bytes. All the players that track the entity share these entries, because the server
+  sends the same positions to each of them.
+- For each player, the server keeps the probe after the last packet of each server tick. This gives
+  the state of a position for each client tick (MVC-LAT-004). Each entry has 8 bytes.
+- The server keeps the entries of the last `max_hull_age` server ticks. The default is 40 server
+  ticks, 2 seconds. It also keeps the two newest entries of each entity at any age, because an
+  entity that does not move sends no position.
+
+A position hull needs entries from the position before the newest position that is acknowledged for
+tick N − 1. The server does not have this position when it is older than `max_hull_age` server ticks
+and is not one of the two newest entries. Then client tick N is coarse (MVC-MODE-003).
+
+This occurs only when the client has not acknowledged the positions of the last `max_hull_age`
+server ticks. Thus a legit client with a round trip of less than about 1.5 seconds never causes it.
+
+The memory for these limits is:
+
+| Part | Size |
+|------|------|
+| one entity | at most 42 entries of 28 bytes, 1176 bytes |
+| one player | 40 entries of 8 bytes, 320 bytes, and the list of the entities in its near zone |
+| one player, without shared entries | at most `max_pushers` entities of 1176 bytes, 28224 bytes, and 320 bytes |
+
+At the target of 10,000 players, the entries of the players without shared entries need at most
+about 285 MB. With shared entries, the size depends on the number of entities, not on the number of
+players.
 
 ## 6. Latency compensation
 
@@ -1019,6 +1175,21 @@ The bound does not apply in these conditions:
 
 On a server, a failure is a report to L2. On a proxy without L2, a failure is a disconnect.
 
+**MVC-CHK-025** (`design`, semantic, confidence: medium). The offset check detects a client that
+ignores the push when the bound of MVC-UNC-005 does not contain 0 on an axis. An example is a group
+of mobs on one side of the player, with a certain push. Then `u = 0` is outside the bound, and the
+tick is a violation of the offset check.
+
+When the bound contains 0, the offset check does not detect a client that ignores the push. An
+example is a ring of mobs around the player. In this case, the true push is also small.
+
+A client can select each `u` in the bound. Thus its advantage on each axis in one tick is at most
+the width of the bound, and at most `max_push_width`. For 8 mobs around a player with a hull of 0.1
+blocks, this is 0.041 blocks. The bound `n × 0.05F` gave 0.8 blocks.
+
+An implementation can add other tests of the push. Such a test is unspecified. It must not send a
+setback, and it must not disconnect the client.
+
 ### 7.6 Sprint
 
 **MVC-CHK-022** (`design`, semantic, confidence: medium). When MVC-PRED-007 applies, and the
@@ -1066,7 +1237,7 @@ of the tick. Then it is grown by 1 block on each side.
 | The near zone touches a block whose shape has a position offset (PHY-SHP-004). | the corpus does not give the offset shape |
 | The near zone touches a block whose collision shape has a coordinate that is not a multiple of 1/16. | the corpus rounds such a coordinate |
 | An entity that PHY-SHP-009 lists is at most 1 block from the box. | an entity collider that can move |
-| An entity that another entity can push is at most 0.5 blocks from the box. | the push between entities |
+| A `minecraft:sulfur_cube` is at most 0.5 blocks from the box, or MVC-PRED-019 or MVC-UNC-007 limits the push bound. | a push that MVC-UNC-005 does not bound |
 | The player glides with an elytra, or does a riptide attack. | their own models |
 | The near zone touches a chunk that is not loaded on the client, or a chunk whose load or unload is in a window. | PHY-GRV-020 |
 | The world border moves, and the box is at most 1 block from it. | the border moves with real time |
@@ -1092,9 +1263,10 @@ one treatment in this document:
 | a block with a position offset, a `moving_piston`, a shulker box | coarse | MVC-MODE-003, rows 5, 6 and 8 |
 | a block shape that the corpus rounds | coarse | MVC-MODE-003, row 9 |
 | a ridden entity | exempt | MVC-MODE-002 |
-| a boat or a minecart near the player | coarse | MVC-MODE-003, rows 10 and 11 |
+| a boat near the player | coarse, because a boat is a collider | MVC-MODE-003, row 10 |
+| a minecart near the player | predicted. A minecart does not push the own player on the client (PHY-PSH-009). | none |
 | elytra flight, riptide | coarse | MVC-MODE-003, row 12 |
-| an entity that pushes the player | coarse | MVC-MODE-003, row 11 |
+| an entity that pushes the player | a bounded input; coarse for a `sulfur_cube` or at the limits of MVC-PRED-019 and MVC-UNC-007 | MVC-UNC-004 to MVC-UNC-007, MVC-PRED-019, MVC-MODE-003, row 11 |
 | knockback, explosion, wind charge, fishing rod pull | enumeration in a window | MVC-LAT-004, MVC-LAT-009, MVC-LAT-013 |
 | ender pearl, chorus fruit, a teleport command | exempt until the accept, then a new start | MVC-MODE-002, MVC-LAT-008 |
 | a `happy_ghast` that moves | coarse | MVC-MODE-003, row 10 |
@@ -1202,6 +1374,10 @@ The default applies when the operator sets no value.
 | `max_open_windows` | 4 | MVC-PRED-016 |
 | `l1_speed_limit` | 10 blocks | MVC-CHK-024 |
 | `l1_elytra_limit` | 17.4 blocks | MVC-CHK-024 |
+| `max_pushers` | 24 | MVC-PRED-019 |
+| `max_push_width` | 0.1 blocks | MVC-PRED-019 |
+| `max_hull_age` | 40 server ticks | MVC-UNC-007 |
+| `vehicle_resend_interval` | 20 server ticks | MVC-VEH-013 |
 
 The value 2.0E-4 of MVC-PRED-010 and the count 20 of MVC-TICK-004 are constants of the client. They
 are not configurable.
@@ -1337,6 +1513,10 @@ These entries record where this server differs from a vanilla server.
   is not decided.
 - **U9**: closed. MVC-LAT-008 computes a destination from each candidate.
 - **U10**: whether the server keeps MVC-VAN-013 and MVC-VAN-014 in coarse mode as an extra limit.
+- **U11**: MVC-UNC-004 assumes that the push of each entity reaches one travel step of the player at
+  most one time. A change in the order of the entity ticks on the client can break this assumption.
+- **U12**: a test that detects a client that ignores the push when the bound contains 0
+  (MVC-CHK-025). The defaults of `max_push_width` and `max_pushers` need experiment C15.
 
 ## 14. Experiments
 
@@ -1380,6 +1560,12 @@ For a client agreement rule, use a vanilla client and record the serverbound pac
 | E24 | In survival mode, fall 10 blocks with the on-ground bit in each move packet. Read `Health`. Repeat without the bit until the player lands. | With the bit: no damage. Without the bit: fall damage. |
 | E25 | In survival mode, send `player_abilities` with the request to fly. Read `abilities.flying`. Repeat in creative mode. | Survival: `0b`. Creative: `1b`. |
 | E26 | Report the on-ground bit. Run `tp <name> ~ ~ ~`. Confirm with an accept at the destination. Read `OnGround`. | `0b`. |
+| E27 | Ride a boat that the scripted client controls. Send `move_vehicle` with `x` NaN. | Disconnect with `multiplayer.disconnect.invalid_vehicle_movement`. |
+| E28 | Ride a boat. Send `move_vehicle` 11 blocks away, then 9 blocks away in the air, then 1 block into a wall. Record the clientbound `move_vehicle` packets. | 11 blocks: a clientbound `move_vehicle` at the old position. 9 blocks in the air: no reply. Into the wall: a clientbound `move_vehicle` at the old position. |
+| E29 | Ride a boat in creative mode. Send `move_vehicle` packets 10 blocks above the ground at a constant height. Count the server ticks to the disconnect. | A disconnect with `multiplayer.disconnect.flying` after 81 server ticks. |
+| E30 | Ride a boat as the second passenger. Send `move_vehicle` 2 blocks away. | A clientbound `move_vehicle` at the position of the boat. |
+| E31 | Ride a boat. Run `ride <name> dismount`. Record the clientbound packets. | One `player_position` with the velocity bits and the rotation bits of `relative` set. |
+| E32 | With a vanilla client, steer a boat. Record the serverbound packets of one client tick. Send a clientbound `move_vehicle` from a modified server. | One `move_player_rot` and then one `move_vehicle` in each client tick. One extra `move_vehicle` after the clientbound packet, before the next tick packets. |
 
 ### 14.2 Conformance tests for this server
 
@@ -1407,6 +1593,9 @@ A scripted client tests the checks. Each test expects a setback, unless it state
 | C12 | Report a position inside a stone block. Expect a setback immediately. |
 | C13 | Send 30 client ticks in 1 second. Expect violations of the tick rate check, and a setback after the level passes 10. |
 | C14 | Do not answer one probe that brackets a `set_entity_motion`. Expect a disconnect after `max_ack_delay`. |
+| C15 | Stand in a pen with 8 to 24 mobs that walk. Use a vanilla client. Expect no setback. Record the width of the push bound in each tick. |
+| C16 | Steer a boat with a vanilla client at a delay of 500 ms, on water and on ice. Expect no vehicle setback. |
+| C17 | Steer a boat with a scripted client. Report the boat 11 blocks away in one tick. Expect a vehicle setback, and expect the server to ignore the next `move_vehicle` packets until one is at the setback position. |
 
 ## 15. Layers and cost
 
@@ -1539,9 +1728,14 @@ proxy can run the rule without the help of the server.
 | MVC-PRED-016 | L2 | the accepted state, the inputs, the world view | per candidate | no |
 | MVC-PRED-017 | L2 | the record, the kept block changes | per collider | no |
 | MVC-PRED-018 | L2 | the block changes that the server sends | constant | no |
+| MVC-PRED-019 | L2 | the candidates, the possible pushers | per candidate | no |
 | MVC-UNC-001 | L2 | the candidates | per candidate | no |
 | MVC-UNC-002 | L2 | the candidates | per candidate | no |
 | MVC-UNC-003 | L2 | the candidates | per candidate | no |
+| MVC-UNC-004 | L2 | the entities that the server sent, their positions, the teams | per collider | no |
+| MVC-UNC-005 | L2 | the candidates, the possible pushers | per candidate | no |
+| MVC-UNC-006 | L2 | the entities in the near zone | per collider | no |
+| MVC-UNC-007 | L2 | the positions that the server sends, the probes | constant | no |
 | MVC-LAT-001 | L1 | the clientbound changes, the probes and the answers | constant | yes |
 | MVC-LAT-002 | L1 | the clientbound changes, the probes and the answers | constant | yes |
 | MVC-LAT-003 | L1 | the clientbound changes, the probes and the answers | constant | yes |
@@ -1568,6 +1762,7 @@ proxy can run the rule without the help of the server.
 | MVC-CHK-022 | L2 | the candidates | per candidate | no |
 | MVC-CHK-023 | L0 | one serverbound packet | constant | yes |
 | MVC-CHK-024 | L1 | the reported positions, the clientbound velocity, abilities, effects and attributes | constant | yes |
+| MVC-CHK-025 | L2 | the value `u` of MVC-UNC-005 | constant | no |
 | MVC-MODE-001 | L2 | the world view, the entities near the player | per collider | no |
 | MVC-MODE-002 | L2 | the world view, the entities near the player | per collider | no |
 | MVC-MODE-003 | L2 | the world view, the entities near the player | per collider | no |
@@ -1602,6 +1797,20 @@ proxy can run the rule without the help of the server.
 | MVC-LAY-007 | L1 | the layers | constant | yes |
 | MVC-LAY-008 | L2 | the layers | constant | no |
 | MVC-LAY-009 | L1 | the handshake and the clientbound packets | constant | yes |
+| MVC-VEH-001 | L0 | one `move_vehicle` packet | constant | yes |
+| MVC-VEH-002 | L1 | the order of the serverbound packets | constant | yes |
+| MVC-VEH-003 | L0 | one serverbound `move_vehicle` | constant | yes |
+| MVC-VEH-004 | L1 | the ride state, the teleport state, the load state | constant | yes |
+| MVC-VEH-005 | L2 | the velocity of the vehicle on the server | constant | no |
+| MVC-VEH-006 | L2 | the world view, the move procedure | per collider | no |
+| MVC-VEH-007 | L2 | the world view | per collider | no |
+| MVC-VEH-008 | L2 | the position of the vehicle on the server | constant | no |
+| MVC-VEH-009 | L1 | the clientbound packets | constant | yes |
+| MVC-VEH-010 | L0 | one serverbound `move_vehicle` | constant | yes |
+| MVC-VEH-011 | L1 | the tick packets, the ride state, the clientbound velocity | constant | yes |
+| MVC-VEH-012 | L2 | the accepted position of the vehicle, the world view | per collider | no |
+| MVC-VEH-013 | L2 | the accepted position of the vehicle | constant | no |
+| MVC-VEH-014 | L2 | the teleport of the ride end | constant | no |
 
 **MVC-LAY-007** (`design`, semantic, confidence: medium). A proxy can run L0 and L1 without the help
 of the server. It obeys these rules:
@@ -1656,3 +1865,151 @@ The value is `(b + A) × (1 + B) × C`, clamped to the range of the attribute.
 
 When the proxy has no registry report for the protocol version, it does not run MVC-CHK-024. It runs
 the other rules of L0 and L1.
+
+## 16. A vehicle that the client controls
+
+A player that rides does not move by its own motion step (PHY-SRV-011). The vehicle sets the
+position of the player. When the client controls the vehicle, the client sends the motion of the
+vehicle. An example is a boat or a horse that the player steers. The physics model does not cover
+vehicles. Thus this section uses the checks of a vanilla server in coarse mode.
+
+### 16.1 Packets
+
+**MVC-VEH-001** (`source_suggested`, wire, confidence: high). The serverbound `move_vehicle` has
+these fields, in this order:
+
+| Field | Encoding |
+|-------|----------|
+| `x`, `y`, `z` | three big-endian 64-bit floats |
+| `yaw`, `pitch` | two big-endian 32-bit floats |
+| on-ground bit | boolean |
+
+The clientbound `move_vehicle` has the same fields without the boolean. See experiment E20.
+
+**MVC-VEH-002** (`source_suggested`, client agreement, confidence: medium). A legit client sends a
+`move_vehicle` in each client tick in which its player controls a vehicle that the client
+simulates. It sends it after the `move_player_rot` of MVC-PKT-011. When a clientbound `move_vehicle`
+arrives, the client does these steps between two client ticks:
+
+1. Compare the position of the packet with the position of the vehicle. When the distance is more
+   than `1.0E-5F`, set the vehicle to the position and the rotation of the packet.
+2. Send a `move_vehicle` with the position of the vehicle.
+
+See experiment E32.
+
+### 16.2 The checks of a vanilla server
+
+**MVC-VEH-003** (`source_suggested`, semantic, confidence: high). The server disconnects the client
+when a `move_vehicle` has a NaN in `x`, `y` or `z`. It also disconnects the client for a NaN or an
+infinite value in `yaw` or `pitch`. The translation key is
+`multiplayer.disconnect.invalid_vehicle_movement`. See experiment E27.
+
+**MVC-VEH-004** (`source_suggested`, semantic, confidence: medium). The server ignores a
+`move_vehicle` while a teleport is pending, and before the client has loaded. It checks a
+`move_vehicle` only when the player controls the root vehicle. That vehicle must also be the vehicle
+of the player at the last server tick. It clamps the position as MVC-VAN-002 states.
+
+**MVC-VEH-005** (`source_suggested`, semantic, confidence: medium). The server computes `d²`, the
+squared distance from the position of the vehicle at the start of the server tick to the reported
+position. It also computes `v²`, the squared length of the velocity of the vehicle on the server.
+When `d² − v²` is more than 100, the server sends a clientbound `move_vehicle` with the current
+position of the vehicle. It ignores the packet.
+
+The limit has no count of packets, and no game rule disables it. See experiment E28.
+
+**MVC-VEH-006** (`source_suggested`, semantic, confidence: medium). Next, the server moves the box
+of the vehicle from its last accepted position by the reported change (PHY-SRV-003). Let `r` be the
+reported position minus the result. As in MVC-VAN-010, the server always ignores the vertical part
+of `r`. The move is wrong when the squared horizontal length of `r` is more than 0.0625.
+
+The server refuses the packet when one of these conditions is true:
+
+- The move is wrong, and the box of the vehicle at its old position touches no collision shape.
+- The box at the reported position touches a collision shape that the old box does not touch. Both
+  boxes are smaller by 1.0E-5 on each side for this test.
+
+Creative mode, spectator mode and the grace time of MVC-VAN-011 do not change this rule. For a
+refusal, the server sets the vehicle to its old position with the reported rotation. Then it sends a
+clientbound `move_vehicle`. Otherwise it sets the vehicle to the reported position, and it takes the
+on-ground bit and the fall distance from the packet. See experiment E28.
+
+**MVC-VEH-007** (`source_suggested`, semantic, confidence: low). After an accepted `move_vehicle`,
+the server marks the vehicle as afloat as MVC-VAN-013 states for a player, with these differences:
+
+- A vehicle that flies, for example a `minecraft:happy_ghast`, is never afloat.
+- A vehicle without gravity is never afloat.
+- The fly permission and the effects of the player have no effect.
+
+MVC-VAN-014 applies with the gravity of the vehicle. The translation key of the disconnect is
+`multiplayer.disconnect.flying`. See experiment E29.
+
+**MVC-VEH-008** (`source_suggested`, semantic, confidence: medium). A player can send a
+`move_vehicle` while it rides a vehicle that it does not control. Then the server sends a
+clientbound `move_vehicle` with the position of the vehicle, in one of these conditions:
+
+- More than 20 server ticks passed after the last such reply.
+- The reported position is more than 1 block from the vehicle.
+
+See experiment E30.
+
+**MVC-VEH-009** (`source_suggested`, semantic, confidence: medium). When the ride ends, the server
+sends a teleport to the player (MVC-PKT-020). The position is absolute. The bits of the velocity and
+of the rotation in `relative` are set, with zero values. Thus the client keeps its velocity and its
+rotation. See experiment E31.
+
+### 16.3 The checks of this server
+
+**MVC-VEH-010** (`design`, semantic, confidence: high). L0 checks each serverbound `move_vehicle`:
+
+| Condition | Response |
+|-----------|----------|
+| `x`, `y` or `z` is NaN or infinite | disconnect with `multiplayer.disconnect.invalid_vehicle_movement` |
+| `yaw` or `pitch` is NaN or infinite | disconnect with `multiplayer.disconnect.invalid_vehicle_movement` |
+| a size other than 33 bytes after the packet id | disconnect |
+
+**MVC-VEH-011** (`design`, semantic, confidence: medium). L1 checks the `move_vehicle` packets in
+these ways:
+
+- In one client tick, at most one `move_vehicle` comes before the `client_tick_end`. The reply of
+  MVC-VEH-002 is between two client ticks, and it does not count. A second `move_vehicle` in a tick
+  is a violation of the packet check, and L1 drops it.
+- A `move_vehicle` while the player rides no vehicle in each state that the client can have
+  (MVC-LAT-004) is a violation of the packet check. L1 drops it.
+- MVC-CHK-024 applies to the positions of the vehicle. `L` is `l1_speed_limit`. `V` uses the
+  velocities of `set_entity_motion` for the vehicle.
+
+The tick count and the tick rate check do not change while the player rides (MVC-CHK-010). The count
+of silent ticks does not apply (MVC-TICK-004).
+
+**MVC-VEH-012** (`design`, semantic, confidence: medium). L2 does not predict a vehicle. Each client
+tick with a `move_vehicle` that the server checks is coarse for the vehicle. The player is exempt
+(MVC-MODE-002), and the vehicle sets its position (PHY-SRV-011). L2 applies these checks to the
+vehicle:
+
+- the coarse speed check of MVC-MODE-005 with MVC-VEH-005: the limit 100, and the velocity of the
+  vehicle on the server;
+- the collision check of MVC-CHK-005, with the box of the vehicle;
+- MVC-VEH-007, as the only check of gravity.
+
+L2 does not use the wrong move of MVC-VEH-006. It computes the fall distance of the vehicle from the
+accepted positions, with the on-ground status from the collision of the box below. It does not use
+the on-ground bit of the packet.
+
+**MVC-VEH-013** (`design`, semantic, confidence: medium). A setback of a vehicle is a clientbound
+`move_vehicle` with the last accepted position and the reported rotation of the vehicle. The packet
+has no id. Thus the server does these steps:
+
+1. After the setback, ignore each `move_vehicle` until one has a position that is less than
+   `offset_threshold` from the setback position. That packet confirms the setback.
+2. When no packet confirms the setback in `vehicle_resend_interval` server ticks, send the setback
+   again. The default is 20 server ticks.
+3. Do not send another setback while one is not confirmed.
+
+The player moves with the vehicle (PHY-SRV-011). Thus the player gets no separate setback.
+MVC-RSP-007 counts a setback of a vehicle as a setback.
+
+**MVC-VEH-014** (`design`, semantic, confidence: medium). The teleport of MVC-VEH-009 ends the
+coarse state of the vehicle. After its accept, the prediction of the player starts again as
+MVC-LAT-008 states. The velocity of the candidate is the velocity that the client keeps. The server
+does not know this velocity exactly. Thus the first client tick with a position packet after the
+accept is a resync tick (MVC-MODE-004).
