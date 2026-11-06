@@ -8,7 +8,6 @@ mod advance_production;
 pub mod between_ticks;
 pub mod block_drops;
 pub mod block_entity_packet;
-mod block_events;
 pub mod block_simulation;
 pub mod block_update;
 pub mod bus;

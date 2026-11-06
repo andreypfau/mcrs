@@ -456,7 +456,8 @@ impl DimCells {
             halo,
             writes,
             crossings,
-            simulation,
+            messages,
+            ledgers,
             views,
             holds,
             asks,
@@ -471,6 +472,7 @@ impl DimCells {
             };
             let inbox = &mut cell.inbox;
             inbox.tickets.extend_from_slice(&tickets);
+            inbox.ledgers.extend_from_slice(&ledgers);
             let index = cell.index;
             inbox.halo.extend(
                 halo.iter()
@@ -494,20 +496,9 @@ impl DimCells {
                 inbox.writes.push(write);
             }
         }
-        for mail in simulation {
-            match mail.column() {
-                Some(column) => {
-                    if let Some(inbox) = inbox(cells, dim.owner(column)) {
-                        inbox.simulation.push(mail);
-                    }
-                }
-                None => {
-                    for &to in dim.cells.iter().filter(|to| **to != from) {
-                        if let Some(inbox) = inbox(cells, Some(to)) {
-                            inbox.simulation.push(mail);
-                        }
-                    }
-                }
+        for message in messages {
+            if let Some(inbox) = inbox(cells, dim.owner(ColumnPos::from(message.section()))) {
+                inbox.messages.push(message);
             }
         }
         let mut moves = Vec::new();

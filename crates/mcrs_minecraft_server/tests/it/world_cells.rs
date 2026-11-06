@@ -706,7 +706,7 @@ fn lit_lamp(app: &App) -> BlockStateId {
 }
 
 fn relay_server(cells: u32) -> App {
-    server_with(cells, DimensionBlockRules::new(Relay::install))
+    server_with(cells, DimensionBlockRules(Relay::install))
 }
 
 /// The block at `pos` at the cell that owns its column, while that cell holds it.
@@ -1056,7 +1056,7 @@ fn block_events(packets: Vec<PacketPayload>) -> Vec<ClientboundBlockEvent> {
 /// In two cells, the note block is in the west cell. Both clients stand in the east cell: the
 /// near one holds the column of the note block, the far one does not.
 fn run_chime() -> ChimeRun {
-    let mut app = server_with(2, DimensionBlockRules::new(Chime::install));
+    let mut app = server_with(2, DimensionBlockRules(Chime::install));
     let label = label_of(&app, OVERWORLD);
     wait_for_generation(&mut app, label);
     let note = block_state(&app, "minecraft:note_block");
@@ -1166,7 +1166,7 @@ impl BlockDrops for Sprout {}
 /// A layer of note blocks on each side of the boundary, and the blocks of each layer that a random
 /// tick reached.
 fn run_sprouts(cells: u32) -> BTreeSet<(i32, i32)> {
-    let mut app = server_with(cells, DimensionBlockRules::new(Sprout::install));
+    let mut app = server_with(cells, DimensionBlockRules(Sprout::install));
     let label = label_of(&app, OVERWORLD);
     wait_for_generation(&mut app, label);
     let note = block_state(&app, "minecraft:note_block");
@@ -1269,7 +1269,7 @@ fn record_drops(mut dropped: MessageReader<ItemDropped>, mut seen: ResMut<SeenDr
 /// position.
 #[test]
 fn a_block_that_a_shape_update_destroys_drops_the_items_of_the_rules() {
-    let mut app = server_with(1, DimensionBlockRules::new(Fragile::install));
+    let mut app = server_with(1, DimensionBlockRules(Fragile::install));
     let label = label_of(&app, OVERWORLD);
     wait_for_generation(&mut app, label);
     let note = block_state(&app, "minecraft:note_block");

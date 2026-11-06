@@ -18,10 +18,10 @@ use mcrs_minecraft_engine_world::voxel_update::{
     CellBlockWrite, HaloBlockChange, HaloBlockChanges, VoxelUpdateSet,
 };
 use mcrs_minecraft_engine_world::world::dimension::Dimension;
-use mcrs_minecraft_simulation::BlockUpdateFlags;
+use mcrs_minecraft_simulation::{BlockUpdateFlags, ChainLedger, Message};
 use mcrs_voxel::ColumnPos;
 
-use crate::block_simulation::{BlockSimulation, SimulationMail};
+use crate::block_simulation::BlockSimulation;
 use crate::cell_crossing::{self, Crossing};
 use crate::column_asks::{ColumnAnswer, ColumnAsk, ColumnHold};
 use crate::column_production::{BlockChange, ColumnProduction};
@@ -30,6 +30,7 @@ use crate::dim_tick::{DimInboxDrain, drain_dim_inbox};
 use crate::foreign_views::ForeignViews;
 use crate::hot_ticket::{RemoteTickets, TicketMail, TicketUpdate};
 use crate::player_view::PlayerView;
+use crate::world_kinds::WorldKinds;
 
 /// What a cell hands the other cells of its world after one tick, or what the other cells
 /// handed it for its next tick, each kind in the order of the cells.
@@ -44,8 +45,11 @@ pub struct CellMail {
     pub(crate) writes: Vec<CellBlockWrite>,
     /// The players of a cell that walked into a column of another cell.
     pub(crate) crossings: Vec<Crossing>,
-    /// The messages of the block kernels.
-    pub(crate) simulation: Vec<SimulationMail>,
+    /// The writes, ticks, events and updates of the block kernels, each for the cell that owns
+    /// its section.
+    pub(crate) messages: Vec<Message<WorldKinds>>,
+    /// How far each chain that sent updates got, for every other cell.
+    pub(crate) ledgers: Vec<ChainLedger>,
     /// The views of the players of a cell that changed.
     pub(crate) views: Vec<PlayerView>,
     /// The columns of a cell that another cell can read and that became hot, went cold or were
@@ -64,7 +68,8 @@ impl CellMail {
             && self.halo.is_empty()
             && self.writes.is_empty()
             && self.crossings.is_empty()
-            && self.simulation.is_empty()
+            && self.messages.is_empty()
+            && self.ledgers.is_empty()
             && self.views.is_empty()
             && self.holds.is_empty()
             && self.asks.is_empty()
@@ -77,7 +82,8 @@ impl CellMail {
         self.halo.append(&mut other.halo);
         self.writes.append(&mut other.writes);
         self.crossings.append(&mut other.crossings);
-        self.simulation.append(&mut other.simulation);
+        self.messages.append(&mut other.messages);
+        self.ledgers.append(&mut other.ledgers);
         self.views.append(&mut other.views);
         self.holds.append(&mut other.holds);
         self.asks.append(&mut other.asks);
@@ -139,7 +145,8 @@ fn receive_cell_mail(world: &mut World) {
         halo,
         writes,
         crossings,
-        simulation,
+        mut messages,
+        mut ledgers,
         views,
         holds,
         asks,
@@ -153,9 +160,7 @@ fn receive_cell_mail(world: &mut World) {
         cell_crossing::update_remote(world, update.session, update.ticket);
     }
     if let Some(mut kernels) = world.get_resource_mut::<BlockSimulation>() {
-        for mail in simulation {
-            kernels.receive(mail);
-        }
+        kernels.receive(&mut messages, &mut ledgers);
     }
     if let Some(mut foreign) = world.get_resource_mut::<ForeignViews>() {
         for view in views {

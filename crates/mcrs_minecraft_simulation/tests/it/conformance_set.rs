@@ -267,10 +267,7 @@ fn sim_set_002_setting_the_same_state_again_does_nothing() {
         .step(100, Phase::BlockTicks, &trigger)
         .expect("owned message");
     let log = runner.behaviour.log();
-    assert_eq!(
-        check_sim_set_002_same_state(&log, out.writes.len()),
-        Ok(())
-    );
+    assert_eq!(check_sim_set_002_same_state(&log, out.writes.len()), Ok(()));
 
     let mut noisy = log.clone();
     if let Some(second) = noisy

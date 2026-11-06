@@ -10,7 +10,6 @@ use mcrs_voxel::{BlockPos, BlockStateId};
 
 #[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
 pub enum VoxelUpdateSet {
-    ApplyChanges,
     NetworkSync,
 }
 

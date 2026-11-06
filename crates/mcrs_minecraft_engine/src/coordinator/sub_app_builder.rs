@@ -25,7 +25,6 @@ use crate::to_muxer::DimOpened;
 use mcrs_minecraft_engine_world::block_update::{BlockPlaced, BlockSetRequest};
 
 use crate::block_simulation::DimensionBlockRules;
-use crate::block_update::BlockUpdateWirePlugin;
 use crate::column_store::ColumnStorePlugin;
 use crate::heightmap::{BlockHeightmapPredicates, DimHeightmapPlugin};
 use crate::minecraft_entity::MinecraftEntityPlugin;
@@ -195,7 +194,6 @@ pub fn spawn_dim_subapp(
         // The block messages live in the dimension world alone, so the host never buffers them.
         sub_app.add_message::<BlockSetRequest>();
         sub_app.add_message::<BlockPlaced>();
-        sub_app.add_message::<crate::column_change::ColumnChange>();
 
         sub_app.init_resource::<mcrs_minecraft_engine_world::session::DimPlayerIndex>();
         let mut entity_ids = CellEntityIds::default();
@@ -268,12 +266,12 @@ pub fn spawn_dim_subapp(
             ..AssetPlugin::default()
         });
         sub_app.add_plugins(PlayerTrackerPlugin);
-        app.world()
+        let rules = app
+            .world()
             .get_resource::<DimensionBlockRules>()
             .copied()
-            .unwrap_or_default()
-            .install(&mut sub_app);
-        sub_app.add_plugins(BlockUpdateWirePlugin);
+            .unwrap_or_default();
+        (rules.0)(&mut sub_app);
         sub_app.add_plugins(MinecraftEntityPlugin);
         sub_app.add_plugins(DimHeightmapPlugin);
         sub_app.add_plugins(ColumnStorePlugin { owned });

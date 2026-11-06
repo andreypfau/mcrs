@@ -18,6 +18,7 @@ use bevy_ecs::prelude::{Added, Query, With};
 use bevy_ecs::resource::Resource;
 use bevy_ecs::schedule::IntoScheduleConfigs;
 use bevy_ecs::system::{Res, ResMut, SystemParam};
+use mcrs_minecraft_block::block_keys::Block;
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_dimension::Dimension as DimensionKey;
 use mcrs_minecraft_engine_world::block_update::{BlockPlaced, BlockSetRequest};
@@ -30,19 +31,21 @@ use mcrs_minecraft_engine_world::world::dimension::Dimension;
 use mcrs_minecraft_engine_world::world::lifecycle::simulation::{BlockTicking, EntityTicking};
 use mcrs_minecraft_engine_world::world::storage::view::WorldViewMut;
 use mcrs_minecraft_item::ItemStack;
-use mcrs_minecraft_resource::ResourceKeyBuf;
+use mcrs_minecraft_protocol::VarInt;
+use mcrs_minecraft_protocol_game::clientbound::ClientboundBlockEvent;
+use mcrs_minecraft_resource::{Id, ResourceKeyBuf};
 use mcrs_minecraft_simulation::{
-    BlockBehaviour, BlockShard, ChainLedger, ChainOrigin, Env, GameTick, KernelConfig, Message,
-    MessageBody, PartitionKind, Phase, PhaseInput, RandomPicks, RandomTickTable, SavedTick,
-    SectionProperties, SectionTicksRef, ShardId, SimulatedSections, StepAt, StepOutput, StepReport,
+    BlockBehaviour, BlockEvent, BlockShard, ChainLedger, ChainOrigin, Env, GameTick, KernelConfig,
+    Message, MessageBody, PartitionKind, Phase, PhaseInput, RandomPicks, RandomTickTable,
+    SavedTick, SectionProperties, SectionTicksRef, ShardId, SimulatedSections, StepAt, StepOutput,
     StreamSeed, SubTick, TickKind, TickQueue, VanillaOrder,
 };
-use mcrs_minecraft_volume::{Access, Volume};
 use mcrs_voxel::{ColumnPos, SectionPos};
 use rustc_hash::FxHashSet;
 
-use crate::block_drops::{self, BlockDrops, ItemDropped};
-use crate::block_events;
+use crate::block_drops::{BlockDrops, ItemDropped};
+use crate::block_update::publish_block_changes;
+use crate::bus::{PacketPayload, PacketPriority};
 use crate::cell_mail::CellOutbox;
 use crate::cell_volume::CellVolume;
 use crate::column_change::ColumnChange;
@@ -71,24 +74,11 @@ pub struct BlockRules<B>(pub B);
 /// [`BlockSimulationPlugin`] to the world, which holds the registries of the host by then. Insert
 /// it into the host before the dimensions spawn; without it, the dimensions run [`InertBlocks`].
 #[derive(Resource, Clone, Copy, Debug)]
-pub struct DimensionBlockRules {
-    install: fn(&mut SubApp),
-}
-
-impl DimensionBlockRules {
-    #[must_use]
-    pub fn new(install: fn(&mut SubApp)) -> Self {
-        Self { install }
-    }
-
-    pub fn install(&self, sub_app: &mut SubApp) {
-        (self.install)(sub_app);
-    }
-}
+pub struct DimensionBlockRules(pub fn(&mut SubApp));
 
 impl Default for DimensionBlockRules {
     fn default() -> Self {
-        Self::new(|sub_app| {
+        Self(|sub_app| {
             sub_app.add_plugins(BlockSimulationPlugin::new(InertBlocks));
         })
     }
@@ -111,41 +101,18 @@ impl<B: BlockBehaviour<WorldKinds> + BlockDrops + Clone + Send + 'static> Plugin
     for BlockSimulationPlugin<B>
 {
     fn build(&self, app: &mut App) {
-        app.configure_sets(
-            FixedUpdate,
-            VoxelUpdateSet::ApplyChanges.in_set(TickSet::WorldWrite),
-        );
-        app.configure_sets(FixedPostUpdate, VoxelUpdateSet::NetworkSync);
         app.insert_resource(BlockRules(self.rules.clone()));
         app.init_resource::<BlockSimulation>();
         app.init_resource::<LandedTicks>();
-        app.add_message::<ColumnChange>();
         app.add_message::<ItemDropped>();
         app.add_systems(
             FixedUpdate,
-            run_block_simulation::<B>.in_set(VoxelUpdateSet::ApplyChanges),
+            run_block_simulation::<B>.in_set(TickSet::WorldWrite),
         );
-    }
-}
-
-/// A message of the block kernels from one cell of a world to another.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum SimulationMail {
-    /// A write, a tick, an event or an update for a section of the cell that receives it.
-    Message(Message<WorldKinds>),
-    /// How far a chain that sent updates got, for the cells that continue it.
-    Ledger(ChainLedger),
-}
-
-impl SimulationMail {
-    /// The column whose owner takes the message, or `None` for a ledger, which every other
-    /// cell takes.
-    #[must_use]
-    pub fn column(&self) -> Option<ColumnPos> {
-        match self {
-            Self::Message(message) => Some(ColumnPos::from(message.section())),
-            Self::Ledger(_) => None,
-        }
+        app.add_systems(
+            FixedPostUpdate,
+            publish_block_changes.in_set(VoxelUpdateSet::NetworkSync),
+        );
     }
 }
 
@@ -161,7 +128,6 @@ pub struct TakenTicks {
 #[derive(Resource, Default)]
 pub struct BlockSimulation {
     shard: BlockShard<WorldKinds>,
-    config: KernelConfig,
     out: StepOutput<WorldKinds>,
     /// The messages of the other cells for the next step, in the order of the cells.
     inbound: Vec<Message<WorldKinds>>,
@@ -179,11 +145,13 @@ pub struct BlockSimulation {
 }
 
 impl BlockSimulation {
-    pub(crate) fn receive(&mut self, mail: SimulationMail) {
-        match mail {
-            SimulationMail::Message(message) => self.inbound.push(message),
-            SimulationMail::Ledger(ledger) => self.ledgers.push(ledger),
-        }
+    pub(crate) fn receive(
+        &mut self,
+        messages: &mut Vec<Message<WorldKinds>>,
+        ledgers: &mut Vec<ChainLedger>,
+    ) {
+        self.inbound.append(messages);
+        self.ledgers.append(ledgers);
     }
 
     /// Holds the saved ticks of a column that landed. The k-th tick of a list of m ticks gets the
@@ -238,7 +206,7 @@ impl BlockSimulation {
             }
         }
         let activated = self.activated.remove(&column);
-        let changed = activated || !block.active.is_empty() || !fluid.active.is_empty();
+        let changed = activated || block.has_active() || fluid.has_active();
         TakenTicks {
             ticks: ColumnTicks {
                 block: block.into_list(),
@@ -276,27 +244,23 @@ fn hold_list<T: TickKind>(
 }
 
 struct Ordered<T> {
+    active: bool,
     sequence: SubTick,
     tick: StoredTick<T>,
 }
 
-struct Taken<T> {
-    held: Vec<Ordered<T>>,
-    active: Vec<Ordered<T>>,
-}
+struct Taken<T>(Vec<Ordered<T>>);
 
 impl<T> Default for Taken<T> {
     fn default() -> Self {
-        Self {
-            held: Vec::new(),
-            active: Vec::new(),
-        }
+        Self(Vec::new())
     }
 }
 
 impl<T: TickKind> Taken<T> {
     fn add(&mut self, ticks: SectionTicksRef<'_, T>, now: GameTick) {
-        self.held.extend(ticks.held().map(|tick| Ordered {
+        self.0.extend(ticks.held().map(|tick| Ordered {
+            active: false,
             sequence: tick.sequence,
             tick: StoredTick {
                 pos: tick.pos,
@@ -305,32 +269,29 @@ impl<T: TickKind> Taken<T> {
                 priority: tick.priority,
             },
         }));
-        self.active.extend(ticks.active().map(|tick| {
+        self.0.extend(ticks.active().map(|tick| {
             let delay = tick.key.due.0.saturating_sub(now.0);
             Ordered {
+                active: true,
                 sequence: tick.key.sequence,
                 tick: StoredTick {
                     pos: tick.pos,
                     kind: tick.kind,
-                    delay: i32::try_from(delay).unwrap_or(if delay < 0 {
-                        i32::MIN
-                    } else {
-                        i32::MAX
-                    }),
+                    delay: delay.clamp(i32::MIN.into(), i32::MAX.into()) as i32,
                     priority: tick.key.priority,
                 },
             }
         }));
     }
 
+    fn has_active(&self) -> bool {
+        self.0.iter().any(|ordered| ordered.active)
+    }
+
     fn into_list(mut self) -> Vec<StoredTick<T>> {
-        self.held.sort_by_key(|ordered| ordered.sequence);
-        self.active.sort_by_key(|ordered| ordered.sequence);
-        self.held
-            .into_iter()
-            .chain(self.active)
-            .map(|ordered| ordered.tick)
-            .collect()
+        self.0
+            .sort_by_key(|ordered| (ordered.active, ordered.sequence));
+        self.0.into_iter().map(|ordered| ordered.tick).collect()
     }
 }
 
@@ -348,7 +309,7 @@ struct Kernel<'w, B: BlockBehaviour<WorldKinds> + Send + 'static> {
     landed: ResMut<'w, LandedTicks>,
     rules: Res<'w, BlockRules<B>>,
     definitions: Option<Res<'w, Blocks>>,
-    time: Option<Res<'w, GameTime>>,
+    time: Res<'w, GameTime>,
 }
 
 /// The sections that take random ticks, and what their picks draw from.
@@ -356,7 +317,7 @@ struct Kernel<'w, B: BlockBehaviour<WorldKinds> + Send + 'static> {
 struct RandomTicking<'w, 's> {
     sections: Query<'w, 's, &'static SectionPos, With<EntityTicking>>,
     started: Query<'w, 's, (), Added<EntityTicking>>,
-    speed: Option<Res<'w, RandomTickSpeed>>,
+    speed: Res<'w, RandomTickSpeed>,
     seed: Option<Res<'w, WorldSeed>>,
 }
 
@@ -407,11 +368,11 @@ fn run_block_simulation<B: BlockBehaviour<WorldKinds> + BlockDrops + Send + 'sta
         }
         return;
     };
-    let now = GameTick(kernel.time.as_deref().map_or(0, |time| time.0));
+    let now = GameTick(kernel.time.0);
     let partition = ShardId(owned.map_or(0, |owned| owned.index().0));
     let simulation = &mut *kernel.simulation;
     let mut inbound = mem::take(&mut simulation.inbound);
-    let ledgers = mem::take(&mut simulation.ledgers);
+    let mut ledgers = mem::take(&mut simulation.ledgers);
     let mut out = mem::take(&mut simulation.out);
 
     let mut counter: u32 = 0;
@@ -459,20 +420,12 @@ fn run_block_simulation<B: BlockBehaviour<WorldKinds> + BlockDrops + Send + 'sta
         }
     }
     simulation.activate(&volume, now);
-    // A message for a column of the halo would make the step refuse the whole batch; the
-    // coordinator hands each message to its owner, so this drops nothing it routed.
-    inbound.retain(|message| {
-        !matches!(
-            volume.access(message.section()),
-            Access::Read | Access::Foreign
-        )
-    });
 
     let rules = &kernel.rules.0;
     let table = simulation.random_table.get_or_insert_with(|| {
         RandomTickTable::new(definitions.states(), |state| rules.random_ticks(state))
     });
-    let speed = random.speed.as_deref().copied().unwrap_or_default().0;
+    let speed = random.speed.0;
     let mut sections = mem::take(&mut simulation.random_sections);
     if speed == 0 || table.is_empty() {
         sections.clear();
@@ -491,7 +444,7 @@ fn run_block_simulation<B: BlockBehaviour<WorldKinds> + BlockDrops + Send + 'sta
     });
 
     let facts = WorldFacts::new(definitions);
-    let config = simulation.config;
+    let config = KernelConfig::default();
     let env = Env {
         partition,
         facts: &facts,
@@ -557,28 +510,53 @@ fn run_block_simulation<B: BlockBehaviour<WorldKinds> + BlockDrops + Send + 'sta
     if !out.delivered.is_empty()
         && let Ok(streams) = outlets.streams.get(dimension)
     {
-        block_events::publish_block_events(&out.delivered, streams, &mut outlets.changes);
+        publish_block_events(&out.delivered, streams, &mut outlets.changes);
     }
-    block_drops::drop_items(
-        rules,
-        &out.destroyed,
-        &mut simulation.drops,
-        &mut outlets.dropped,
-    );
+    for block in out.destroyed.iter().filter(|block| block.drops) {
+        rules.drops(block.pos, block.state, &mut simulation.drops);
+        for stack in simulation.drops.drain(..) {
+            outlets.dropped.write(ItemDropped {
+                at: block.pos,
+                stack,
+            });
+        }
+    }
     if let Some(outbox) = links.outbox.as_mut() {
-        let mail = &mut outbox.0.simulation;
-        mail.extend(out.outbound.drain(..).map(SimulationMail::Message));
-        mail.extend(out.chains.drain(..).map(SimulationMail::Ledger));
+        outbox.0.messages.append(&mut out.outbound);
+        outbox.0.ledgers.append(&mut out.chains);
     }
-    out.outbound.clear();
-    out.chains.clear();
-    out.marked.clear();
-    out.delivered.clear();
-    out.destroyed.clear();
-    out.report = StepReport::default();
+    out.clear();
     simulation.out = out;
     inbound.clear();
     simulation.inbound = inbound;
+    ledgers.clear();
+    simulation.ledgers = ledgers;
+}
+
+/// Publishes each event of `delivered` in a column that the muxer subscribes to. The muxer sends
+/// it to the clients that hold the column, as the owner of the column publishes its changes.
+fn publish_block_events(
+    delivered: &[BlockEvent<Id<Block>>],
+    streams: &ColumnStreams,
+    changes: &mut MessageWriter<ColumnChange>,
+) {
+    for event in delivered {
+        let column = ColumnPos::from(event.pos);
+        if !streams.is_subscribed(column) {
+            continue;
+        }
+        changes.write(ColumnChange {
+            column,
+            priority: PacketPriority::Normal,
+            // The client takes only the low 8 bits of each argument.
+            payload: PacketPayload::BlockEvent(ClientboundBlockEvent {
+                pos: event.pos,
+                action: event.a as u8,
+                param: event.b as u8,
+                block: VarInt(i32::from(event.block.number())),
+            }),
+        });
+    }
 }
 
 fn cell_write(request: &BlockSetRequest) -> CellBlockWrite {

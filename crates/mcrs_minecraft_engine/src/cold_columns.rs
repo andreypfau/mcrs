@@ -94,9 +94,9 @@ pub(crate) fn write_cold_columns(
     owned: Option<Res<OwnedColumns>>,
     mut store: ResMut<ColumnStoreLink>,
     mut simulation: Option<ResMut<BlockSimulation>>,
-    time: Option<Res<GameTime>>,
+    time: Res<GameTime>,
 ) {
-    let now = GameTick(time.as_deref().map_or(0, |time| time.0));
+    let now = GameTick(time.0);
     for (loading, index) in &dims {
         for &column in loading.cooling() {
             // A column of the halo is a copy: its owner writes it.
