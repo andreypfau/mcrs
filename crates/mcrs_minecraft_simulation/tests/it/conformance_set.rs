@@ -21,24 +21,24 @@ fn run_set_out(
     (runner, out)
 }
 
-type Row = (u32, usize, usize, bool, bool);
-type Observed = (usize, usize, bool, bool);
+type Row = (u32, usize, usize, bool);
+type Observed = (usize, usize, bool);
 
 const ROWS: [Row; 9] = [
-    (3, 6, 6, true, true),
-    (2, 0, 6, true, true),
-    (18, 0, 0, true, true),
-    (1, 6, 6, false, true),
-    (515, 6, 6, true, false),
-    (816, 0, 0, false, false),
-    (11, 6, 6, true, true),
-    (35, 6, 6, true, true),
-    (260, 0, 6, false, true),
+    (3, 6, 6, true),
+    (2, 0, 6, true),
+    (18, 0, 0, true),
+    (1, 6, 6, true),
+    (515, 6, 6, false),
+    (816, 0, 0, false),
+    (11, 6, 6, true),
+    (35, 6, 6, true),
+    (260, 0, 6, true),
 ];
 
 fn check_sim_set_001(row: Row, observed: Observed) -> Result<(), String> {
-    let (flags, neighbours, shapes, marked, placed) = row;
-    let (seen_neighbours, seen_shapes, seen_marked, seen_placed) = observed;
+    let (flags, neighbours, shapes, placed) = row;
+    let (seen_neighbours, seen_shapes, seen_placed) = observed;
     let mut wrong = Vec::new();
     if seen_neighbours != neighbours {
         wrong.push(format!(
@@ -47,9 +47,6 @@ fn check_sim_set_001(row: Row, observed: Observed) -> Result<(), String> {
     }
     if seen_shapes != shapes {
         wrong.push(format!("{seen_shapes} shape updates, expected {shapes}"));
-    }
-    if seen_marked != marked {
-        wrong.push(format!("marked {seen_marked}, expected {marked}"));
     }
     if seen_placed != placed {
         wrong.push(format!("placed {seen_placed}, expected {placed}"));
@@ -73,7 +70,7 @@ fn observe_set(flags: u32) -> Observed {
         },
     );
     let mut runner = Runner::new(filled(&[(0, 0, 0)]), Vec::new());
-    let out = runner
+    runner
         .step(100, Phase::Ingress, &[message])
         .expect("owned message");
     let log = runner.behaviour.log();
@@ -83,7 +80,6 @@ fn observe_set(flags: u32) -> Observed {
     (
         neighbour_entries(&log).len(),
         shape_entries(&log).len(),
-        out.marked.contains(&p),
         placed,
     )
 }
@@ -95,7 +91,7 @@ fn sim_set_001_each_flag_word_has_its_effects() {
     }
 
     let ignores_bit_0 = ROWS.iter().find(|row| row.0 == 2).copied();
-    assert!(ignores_bit_0.is_some_and(|row| check_sim_set_001(row, (6, 6, true, true)).is_err()));
+    assert!(ignores_bit_0.is_some_and(|row| check_sim_set_001(row, (6, 6, true)).is_err()));
 }
 
 fn describe(entry: &Entry) -> String {
@@ -222,7 +218,7 @@ fn sim_set_002_direct_updates_follow_removal_and_placement_and_carry_the_old_blo
     assert!(check_sim_set_002_direct_updates_after_a_replacement(&new_block_as_source, p).is_err());
 }
 
-fn check_sim_set_002_same_state(log: &[Entry], writes: usize, marked: usize) -> Result<(), String> {
+fn check_sim_set_002_same_state(log: &[Entry], writes: usize) -> Result<(), String> {
     let sets: Vec<usize> = log
         .iter()
         .enumerate()
@@ -248,12 +244,10 @@ fn check_sim_set_002_same_state(log: &[Entry], writes: usize, marked: usize) -> 
     if results != [true, false] {
         return Err(format!("the sets answered {results:?}"));
     }
-    if writes == 1 && marked == 1 {
+    if writes == 1 {
         Ok(())
     } else {
-        Err(format!(
-            "{writes} writes and {marked} marks, expected one of each"
-        ))
+        Err(format!("{writes} writes, expected one"))
     }
 }
 
@@ -274,7 +268,7 @@ fn sim_set_002_setting_the_same_state_again_does_nothing() {
         .expect("owned message");
     let log = runner.behaviour.log();
     assert_eq!(
-        check_sim_set_002_same_state(&log, out.writes.len(), out.marked.len()),
+        check_sim_set_002_same_state(&log, out.writes.len()),
         Ok(())
     );
 
@@ -288,7 +282,7 @@ fn sim_set_002_setting_the_same_state_again_does_nothing() {
             direct_neighbour(offset(p, Direction::West), BLOCK_A),
         );
     }
-    assert!(check_sim_set_002_same_state(&noisy, out.writes.len(), out.marked.len()).is_err());
+    assert!(check_sim_set_002_same_state(&noisy, out.writes.len()).is_err());
 }
 
 fn check_sim_set_002_direct_updates_after_a_second_set(

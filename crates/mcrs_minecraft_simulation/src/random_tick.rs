@@ -93,9 +93,6 @@ pub fn random_step<K, V, F, B, P>(
     F: BlockFacts<K>,
     B: BlockBehaviour<K>,
 {
-    if picks.speed == 0 || picks.table.is_empty() {
-        return;
-    }
     shard.chain.reset();
     let mut cx = Cx::new(shard, volume, out, env, now);
     for &section in picks.sections {
