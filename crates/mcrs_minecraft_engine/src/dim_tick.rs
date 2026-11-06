@@ -7,30 +7,24 @@ use bevy_ecs::schedule::{ScheduleLabel, SystemSet};
 use bevy_ecs::system::{Res, ResMut};
 use bevy_ecs::world::World;
 use mcrs_engine_cell::{SubAppWorld, Tick};
-use mcrs_engine_muxer::TileDeltas;
 use mcrs_minecraft_core::Versioned;
 use mcrs_minecraft_engine_registries::RegistrySnapshot;
 use mcrs_minecraft_engine_world::entity::player::Player;
-use mcrs_minecraft_engine_world::session::PlayerSession;
 use mcrs_minecraft_engine_world::world::lifecycle::trace::{ColumnTraceLog, TraceEvent};
 use mcrs_minecraft_engine_world::world::storage::column::ColumnPosComponent;
 use mcrs_minecraft_environment::world_clock::WorldClocks;
-use mcrs_minecraft_replication::PlayerData;
 use mcrs_voxel::{ColumnPos, SectionPos};
 
 use crate::bus::{
-    InboundPlayerDespawn, InboundPlayerPacket, InboundPlayerSpawn, OutboundPlayerAttached,
-    OutboundPlayerPacket, OutboundPlayerReleased,
+    InboundPlayerDespawn, InboundPlayerPacket, InboundPlayerSpawn, OutboundPlayerReleased,
 };
 use crate::cell_mail;
 use crate::cell_mail::{CellInbox, CellMail};
 use crate::channel_types::ToDim;
-use crate::column_change::ColumnChange;
 use crate::column_production::ColumnProduction;
 use crate::column_request::ColumnRequest;
 use crate::column_store::{ColumnStoreInput, ColumnStoreLink, ColumnStoreOutput};
 use crate::column_streams::ColumnRequests;
-use crate::column_version::ColumnVersion;
 use crate::command_handoff::CommandHandoff;
 use crate::coordinator::clock::{EditClock, GameTime};
 use crate::coordinator::ops::OpList;
@@ -42,8 +36,8 @@ use crate::hot_ticket::RemoteTicket;
 use crate::player_dimension_change;
 use crate::player_order::OrderedPlayer;
 use crate::player_roster::{ForeignPlayers, OwnPlayers, RosterRow};
-use crate::player_view::PlayerView;
 use crate::tile_events::TileEvents;
+use crate::to_muxer::ClientOutput;
 
 /// The host schedule that ticks the dimension worlds, right after `Last`: each world takes
 /// in what the host sent during the update.
@@ -93,34 +87,16 @@ pub struct DimInput {
 /// What a dimension world hands the host after one tick.
 #[derive(Default)]
 pub struct DimOutput {
-    /// The packets of the tick, in the order the dimension wrote them, each to one or more
-    /// clients. The host stamps their `session` and `epoch`.
-    pub(crate) packets: Vec<OutboundPlayerPacket>,
-    /// The sessions whose players the dimension saved and let go after a despawn.
-    pub(crate) released: Vec<PlayerSession>,
-    pub(crate) attached: Vec<OutboundPlayerAttached>,
+    pub(crate) client: ClientOutput,
     pub(crate) traces: Vec<TraceEvent>,
     /// The players that left the dimension in the tick, after the packets of the tick.
     pub(crate) departures: Vec<Departure>,
-    /// The changes of the players of the tick, for the muxer. A player that departs in the tick
-    /// despawns in them.
-    pub(crate) tiles: TileDeltas<PlayerData>,
     /// Whether the dimension holds few free entity ids and asks for a range.
     pub(crate) wants_entity_ids: bool,
     /// The players of the dimension at the end of the tick.
     pub(crate) roster: Vec<RosterRow>,
-    /// The orders of the tick for players that other dimensions hold.
-    pub(crate) orders: Vec<OrderedPlayer>,
     /// The changes to the world clocks that the tick made.
     pub(crate) clock_edits: Vec<EditClock>,
-    /// The command runs of the tick that go on in other dimensions.
-    pub(crate) handoffs: Vec<CommandHandoff>,
-    /// The views of the players that changed in the tick, in the order they changed.
-    pub(crate) views: Vec<PlayerView>,
-    /// The versions of the columns that the muxer wanted, published in the tick.
-    pub(crate) column_versions: Vec<ColumnVersion>,
-    /// The changes of the tick to the columns that the muxer subscribes to, after the versions.
-    pub(crate) column_changes: Vec<ColumnChange>,
     /// What the tick hands the other cells of the world. A world of one cell hands nothing.
     pub(crate) cell_mail: CellMail,
     /// The requests of the tick to the data layer of the world, in order.
@@ -130,22 +106,13 @@ pub struct DimOutput {
 }
 
 impl DimOutput {
-    /// Appends what another cell of the same dimension handed over in the same tick. The entity
-    /// id request, the roster, the messages between the cells and the requests to the data layer
-    /// stay with each cell. The tile deltas stay unsorted until [`TileDeltas::coalesce`].
+    /// Appends what another cell of the same dimension handed over in the same tick. The traces,
+    /// the entity id request, the roster, the messages between the cells and the requests to the
+    /// data layer stay with each cell.
     pub(crate) fn merge(&mut self, other: Self) {
-        self.packets.extend(other.packets);
-        self.released.extend(other.released);
-        self.attached.extend(other.attached);
-        self.traces.extend(other.traces);
+        self.client.append(other.client);
         self.departures.extend(other.departures);
-        self.tiles.tiles.extend(other.tiles.tiles);
-        self.orders.extend(other.orders);
         self.clock_edits.extend(other.clock_edits);
-        self.handoffs.extend(other.handoffs);
-        self.views.extend(other.views);
-        self.column_versions.extend(other.column_versions);
-        self.column_changes.extend(other.column_changes);
     }
 }
 
@@ -244,18 +211,19 @@ fn take_output(world: &mut World) -> DimOutput {
     // After every schedule of the tick, so the player is in no system's view once it leaves.
     player_dimension_change::depart_players(world, &mut output.departures);
     cell_mail::take_cell_mail(world, &mut output.cell_mail);
-    drain_into(world, &mut output.packets);
+    drain_into(world, &mut output.client.packets);
     if let Some(mut released) = world.get_resource_mut::<Messages<OutboundPlayerReleased>>() {
         output
+            .client
             .released
             .extend(released.drain().map(|released| released.session));
     }
-    drain_into(world, &mut output.attached);
+    drain_into(world, &mut output.client.attached);
     if let Some(log) = world.get_resource::<ColumnTraceLog>() {
         output.traces.extend(log.drain());
     }
     if let Some(mut events) = world.get_resource_mut::<TileEvents>() {
-        output.tiles = events.take();
+        output.client.tiles = events.take();
     }
     output.wants_entity_ids = world
         .get_resource::<CellEntityIds>()
@@ -270,13 +238,13 @@ fn take_output(world: &mut World) -> DimOutput {
         });
     }
     if let Some(mut mail) = world.get_resource_mut::<DimMail>() {
-        output.orders = std::mem::take(&mut mail.orders);
+        output.client.orders = std::mem::take(&mut mail.orders);
         output.clock_edits = std::mem::take(&mut mail.clock_edits);
-        output.handoffs = std::mem::take(&mut mail.handoffs);
+        output.client.handoffs = std::mem::take(&mut mail.handoffs);
     }
-    drain_into(world, &mut output.views);
-    drain_into(world, &mut output.column_versions);
-    drain_into(world, &mut output.column_changes);
+    drain_into(world, &mut output.client.views);
+    drain_into(world, &mut output.client.column_versions);
+    drain_into(world, &mut output.client.column_changes);
     if let Some(mut store) = world.get_resource_mut::<ColumnStoreLink>() {
         store.take_sent(&mut output.store_inputs);
         store.take_generation_asks(&mut output.generation_asks);

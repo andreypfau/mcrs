@@ -336,10 +336,15 @@ impl DimCells {
     /// world of the cell.
     pub fn reported_views(&self) -> impl Iterator<Item = ReportedView> + '_ {
         self.outputs.iter().flat_map(|ticked| {
-            ticked.output.views.iter().map(move |view| ReportedView {
-                label: ticked.label,
-                view: *view,
-            })
+            ticked
+                .output
+                .client
+                .views
+                .iter()
+                .map(move |view| ReportedView {
+                    label: ticked.label,
+                    view: *view,
+                })
         })
     }
 

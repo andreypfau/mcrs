@@ -14,7 +14,7 @@ use crate::muxer::disconnect::Departing;
 use crate::muxer::entity_replication;
 use crate::muxer::muxer_link::{self, Answers};
 use crate::player_order::OrderedPlayer;
-use crate::to_muxer::DimDelivered;
+use crate::to_muxer::{ClientOutput, DimDelivered};
 
 /// Takes what the dimensions handed over in their last tick, in the order they ticked: stamps
 /// and writes their packets to the host, forgets the players they released, attaches the
@@ -45,16 +45,19 @@ pub(crate) fn receive(world: &mut World) {
     let mut handoffs = Vec::new();
     for DimDelivered {
         dim,
-        packets,
-        released,
-        attached,
-        tiles,
+        client:
+            ClientOutput {
+                packets,
+                released,
+                attached,
+                tiles,
+                orders: ordered,
+                handoffs: handed_off,
+                views,
+                column_versions,
+                column_changes,
+            },
         departures,
-        orders: ordered,
-        handoffs: handed_off,
-        views,
-        column_versions,
-        column_changes,
     } in delivered
     {
         // Before the departures: a view that the dimension closed sends nothing after a respawn.

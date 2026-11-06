@@ -56,7 +56,7 @@ pub(crate) fn take_dim_outputs(world: &mut World) {
                 .departures
                 .iter()
                 .map(|departure| departure.session)
-                .chain(output.released.iter().copied());
+                .chain(output.client.released.iter().copied());
             for session in gone {
                 cells.forget_session(session);
             }
@@ -72,7 +72,7 @@ pub(crate) fn take_dim_outputs(world: &mut World) {
         }
     }
     for DimMerged { label, mut output } in merged {
-        output.tiles.coalesce();
+        output.client.tiles.coalesce();
         for edit in output.clock_edits {
             world.trigger(edit);
         }
@@ -83,16 +83,8 @@ pub(crate) fn take_dim_outputs(world: &mut World) {
             .collect();
         world.write_message(DimDelivered {
             dim: label,
-            packets: output.packets,
-            released: output.released,
-            attached: output.attached,
-            tiles: output.tiles,
+            client: output.client,
             departures,
-            orders: output.orders,
-            handoffs: output.handoffs,
-            views: output.views,
-            column_versions: output.column_versions,
-            column_changes: output.column_changes,
         });
     }
 }
