@@ -1,4 +1,5 @@
 use std::collections::BTreeSet;
+use std::ops::RangeInclusive;
 
 use crate::entity_id::{EntityId, ViewerId};
 use crate::subscription::layer_ranks;
@@ -43,24 +44,8 @@ impl TileStream {
     }
 
     /// The subjects of `layer` as a range of ids, or `None` when the layer is empty.
-    pub(crate) fn window(&self, layer: usize) -> Option<Window> {
-        let ranks = layer_ranks(layer);
-        Some(Window {
-            first: *self.subjects.get(ranks.start)?,
-            after: self.subjects.get(ranks.end).copied(),
-        })
-    }
-}
-
-/// The ids of the subjects of one layer: from `first`, and before `after`.
-#[derive(Clone, Copy, Debug)]
-pub(crate) struct Window {
-    first: EntityId,
-    after: Option<EntityId>,
-}
-
-impl Window {
-    pub(crate) fn contains(self, subject: EntityId) -> bool {
-        subject >= self.first && self.after.is_none_or(|after| subject < after)
+    pub(crate) fn window(&self, layer: usize) -> Option<RangeInclusive<EntityId>> {
+        let members = self.layer(layer);
+        Some(*members.first()?..=*members.last()?)
     }
 }

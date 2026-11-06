@@ -64,7 +64,7 @@ impl Viewer {
                 continue;
             };
             blob.append_kept(&mut self.chunks, |subject| {
-                window.contains(subject)
+                window.contains(&subject)
                     && Some(subject) != own
                     && !gained.iter().any(|gain| gain.subject == subject)
             });

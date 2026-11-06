@@ -498,7 +498,7 @@ impl<C: ReplicationCodec> Muxer<C> {
                                 .blob(self.tick, to, &stream.subjects, BlobKind::Keyframe)
                         });
                     blob.append_kept(&mut state.chunks, |subject| {
-                        window.contains(subject) && Some(subject) != own
+                        window.contains(&subject) && Some(subject) != own
                     });
                 }
                 _ => {}
