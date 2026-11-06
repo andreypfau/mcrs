@@ -6,9 +6,7 @@ use bevy_ecs::component::Component;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::prelude::With;
 use bevy_ecs::world::World;
-use bevy_math::DVec3;
 use mcrs_minecraft_engine_world::entity::physics::Transform;
-use mcrs_minecraft_engine_world::entity::player::Player;
 use mcrs_minecraft_engine_world::entity::player::chunk_view::SentChunkView;
 use mcrs_minecraft_engine_world::owned_columns::OwnedColumns;
 use mcrs_minecraft_engine_world::session::{DimPlayerIndex, Owner, PlayerSession};
@@ -18,7 +16,7 @@ use mcrs_minecraft_engine_world::world::lifecycle::simulation::{
 };
 use mcrs_voxel::ColumnPos;
 
-use crate::departure::CarriedPlayer;
+use crate::departure::{Carriable, CarriedPlayer};
 use crate::dimension_change::DimensionChangeError;
 use crate::hot_ticket;
 use crate::hot_ticket::{CellCrossing, HotTicket, RemoteTicket, RemoteTickets};
@@ -36,18 +34,6 @@ pub struct Crossing {
     pub(crate) ticket: Option<HotTicket>,
 }
 
-impl Crossing {
-    #[must_use]
-    pub fn session(&self) -> PlayerSession {
-        self.session
-    }
-
-    #[must_use]
-    pub fn position(&self) -> DVec3 {
-        self.carried.transform.translation
-    }
-}
-
 /// On a player that arrived from another cell in this tick, with the transform it arrived
 /// with: its viewers saw that pose already, so it publishes no move unless it moves again.
 #[derive(Component, Clone, Copy, Debug)]
@@ -56,13 +42,14 @@ pub struct CrossedAt(pub(crate) Transform);
 
 /// Lets go of each player that stands in a column that this cell does not own, into
 /// `crossings`. The cell keeps the hot ticket of the player as a remote ticket, as the other
-/// cells do, so the columns around the player stay hot in every cell.
+/// cells do, so the columns around the player stay hot in every cell. A player that cannot be
+/// carried stays where it is.
 pub(crate) fn cross_players(world: &mut World, crossings: &mut Vec<Crossing>) {
     let Some(owned) = world.get_resource::<OwnedColumns>().copied() else {
         return;
     };
     let leaving: Vec<Entity> = world
-        .query_filtered::<(Entity, &Transform), (With<Player>, With<Owner>)>()
+        .query_filtered::<(Entity, &Transform), (Carriable, With<Owner>)>()
         .iter(world)
         .filter(|(_, transform)| !owned.owns(ColumnPos::from(transform.translation)))
         .map(|(player, _)| player)
@@ -120,9 +107,9 @@ pub(crate) fn arrive(
         view,
         ticket,
     } = crossing;
-    release_remote(world, session);
     let transform = carried.transform;
     let player = player_dimension_change::place(world, session, transform, carried, view)?;
+    release_remote(world, session);
     let mut arrived = world.entity_mut(player);
     let Some(&InDimension(dimension)) = arrived.get::<InDimension>() else {
         return Err(DimensionChangeError::NoDimension);

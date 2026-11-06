@@ -199,7 +199,7 @@ fn receive_cell_mail(world: &mut World) {
     }
     for crossing in crossings {
         if let Some(mut views) = world.get_resource_mut::<ForeignViews>() {
-            views.forget(crossing.session());
+            views.forget(crossing.session);
         }
         if let Err(error) = cell_crossing::arrive(world, crossing) {
             tracing::error!("a player did not arrive from another cell: {error}");

@@ -499,8 +499,13 @@ impl DimCells {
         }
         let mut moves = Vec::new();
         for crossing in crossings {
-            let session = crossing.session();
-            let Some(to) = place(dim, sessions, session, crossing.position()) else {
+            let session = crossing.session;
+            let Some(to) = place(
+                dim,
+                sessions,
+                session,
+                crossing.carried.transform.translation,
+            ) else {
                 continue;
             };
             moves.push(CellMove { session, from, to });

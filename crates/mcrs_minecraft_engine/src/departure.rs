@@ -2,6 +2,7 @@
 //! world it arrives in.
 
 use bevy_ecs::message::Message;
+use bevy_ecs::query::With;
 use bevy_ecs::world::EntityWorldMut;
 use mcrs_minecraft_dimension::Dimension as DimensionKey;
 use mcrs_minecraft_engine_world::entity::EntityUuid;
@@ -58,6 +59,17 @@ pub(crate) struct CarriedPlayer {
     loaded_dat: Option<LoadedPlayerDat>,
     unreadable_dat: Option<UnreadablePlayerDat>,
 }
+
+/// The players that [`CarriedPlayer::take`] takes from.
+pub(crate) type Carriable = (
+    With<Player>,
+    With<EntityUuid>,
+    With<Transform>,
+    With<PlayerGameMode>,
+    With<PlayerFlying>,
+    With<PlayerOpLevel>,
+    With<TeleportState>,
+);
 
 impl CarriedPlayer {
     /// Takes the carried components out of `player`. Takes nothing when `player` is no player
