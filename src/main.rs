@@ -12,7 +12,7 @@ use bevy_log::{Level, LogPlugin, tracing_subscriber};
 use mcrs_minecraft_engine::coordinator::ops::{OPS_FILE, OpList};
 use mcrs_minecraft_engine_server::{
     DimensionWorldsPlugin, GameMode, NetworkCompressionThreshold, Placement, ServerCorePlugin,
-    ServerNetworkPlugin,
+    ServerNetworkPlugin, ShutdownRequest,
 };
 use mcrs_minecraft_server::MinecraftServerPlugins;
 use mcrs_minecraft_vanilla_light::LightingPlugin;
@@ -61,47 +61,7 @@ async fn main() -> AppExit {
             ..Default::default()
         },
         world_gen: WorldGenPlugin,
-        network: ServerNetworkPlugin {
-            announce_on_lan: on_off(
-                "MCRS_LAN_ANNOUNCE",
-                variable("MCRS_LAN_ANNOUNCE").as_deref(),
-                true,
-            ),
-            offer_known_packs: on_off(
-                "MCRS_KNOWN_PACKS",
-                variable("MCRS_KNOWN_PACKS").as_deref(),
-                true,
-            ),
-            compression_threshold: compression_threshold(
-                variable("MCRS_COMPRESSION_THRESHOLD").as_deref(),
-            ),
-            accepts_transfers: on_off(
-                "MCRS_ACCEPT_TRANSFERS",
-                variable("MCRS_ACCEPT_TRANSFERS").as_deref(),
-                false,
-            ),
-            hide_online_players: on_off(
-                "MCRS_HIDE_ONLINE_PLAYERS",
-                variable("MCRS_HIDE_ONLINE_PLAYERS").as_deref(),
-                false,
-            ),
-            enable_status: on_off(
-                "MCRS_ENABLE_STATUS",
-                variable("MCRS_ENABLE_STATUS").as_deref(),
-                true,
-            ),
-            send_buffer_bytes: positive_count(
-                "MCRS_SEND_BUFFER_BYTES",
-                variable("MCRS_SEND_BUFFER_BYTES").as_deref(),
-                ServerNetworkPlugin::default().send_buffer_bytes,
-            ),
-            accept_backlog: positive_count(
-                "MCRS_ACCEPT_BACKLOG",
-                variable("MCRS_ACCEPT_BACKLOG").as_deref(),
-                ServerNetworkPlugin::default().accept_backlog,
-            ),
-            ..Default::default()
-        },
+        network: network(),
     }
     .build();
     if !propagates_light(variable("MCRS_NO_LIGHTING").as_deref()) {
@@ -124,6 +84,50 @@ async fn main() -> AppExit {
         },
     );
     mcrs_minecraft_engine_server::run_server_loop(app)
+}
+
+fn network() -> ServerNetworkPlugin {
+    ServerNetworkPlugin {
+        announce_on_lan: on_off(
+            "MCRS_LAN_ANNOUNCE",
+            variable("MCRS_LAN_ANNOUNCE").as_deref(),
+            true,
+        ),
+        offer_known_packs: on_off(
+            "MCRS_KNOWN_PACKS",
+            variable("MCRS_KNOWN_PACKS").as_deref(),
+            true,
+        ),
+        compression_threshold: compression_threshold(
+            variable("MCRS_COMPRESSION_THRESHOLD").as_deref(),
+        ),
+        accepts_transfers: on_off(
+            "MCRS_ACCEPT_TRANSFERS",
+            variable("MCRS_ACCEPT_TRANSFERS").as_deref(),
+            false,
+        ),
+        hide_online_players: on_off(
+            "MCRS_HIDE_ONLINE_PLAYERS",
+            variable("MCRS_HIDE_ONLINE_PLAYERS").as_deref(),
+            false,
+        ),
+        enable_status: on_off(
+            "MCRS_ENABLE_STATUS",
+            variable("MCRS_ENABLE_STATUS").as_deref(),
+            true,
+        ),
+        send_buffer_bytes: positive_count(
+            "MCRS_SEND_BUFFER_BYTES",
+            variable("MCRS_SEND_BUFFER_BYTES").as_deref(),
+            ServerNetworkPlugin::default().send_buffer_bytes,
+        ),
+        accept_backlog: positive_count(
+            "MCRS_ACCEPT_BACKLOG",
+            variable("MCRS_ACCEPT_BACKLOG").as_deref(),
+            ServerNetworkPlugin::default().accept_backlog,
+        ),
+        ..Default::default()
+    }
 }
 
 fn variable(name: &str) -> Option<String> {
@@ -253,6 +257,27 @@ fn positive_count<T: FromStr + Default + PartialOrd>(
             bevy_log::error!(raw, "{name} is not a positive number; using the default");
             default
         }
+    }
+}
+
+async fn shutdown_signal() {
+    #[cfg(unix)]
+    {
+        use tokio::signal::unix::{SignalKind, signal};
+        match signal(SignalKind::terminate()) {
+            Ok(mut terminate) => {
+                tokio::select! {
+                    _ = tokio::signal::ctrl_c() => {}
+                    _ = terminate.recv() => {}
+                }
+                return;
+            }
+            Err(error) => bevy_log::error!("SIGTERM is not handled: {error}"),
+        }
+    }
+    if let Err(error) = tokio::signal::ctrl_c().await {
+        bevy_log::error!("Ctrl+C is not handled: {error}");
+        std::future::pending::<()>().await;
     }
 }
 

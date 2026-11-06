@@ -20,6 +20,8 @@ use std::io;
 use std::io::ErrorKind;
 use std::net::SocketAddr;
 use std::sync::Arc;
+#[cfg(not(target_family = "wasm"))]
+use std::time::Duration;
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, BufWriter};
 use tokio::sync::mpsc;
 use tokio::sync::mpsc::error::{TryRecvError, TrySendError};
@@ -185,7 +187,6 @@ impl<S: AsyncRead + AsyncWrite + Unpin> PacketIo<S> {
         let queue = WriterQueue::new(self.enc.compression());
         let (reader, writer) = self.stream.split_stream();
         let (inbound_switch, switches) = mpsc::unbounded_channel();
-        let reader = reader_loop(reader, self.dec, switches, incoming_sender);
         let writer = writer_loop(
             outgoing_receiver,
             writer,
@@ -217,8 +218,6 @@ impl<S: AsyncRead + AsyncWrite + Unpin> PacketIo<S> {
         RawConnection {
             outgoing: outgoing_sender,
             recv: incoming_receiver,
-            #[cfg(not(target_family = "wasm"))]
-            reader_task,
             remote_addr,
             switch_mode,
             announced_compression: None,
@@ -379,10 +378,6 @@ async fn writer_loop<W: AsyncWrite + Unpin>(
 pub struct RawConnection {
     outgoing: mpsc::Sender<OutboundBatch>,
     recv: mpsc::Receiver<ReceivedPacket>,
-    // A browser task cannot be aborted, so there it ends when its next read
-    // resolves and the incoming channel is found closed.
-    #[cfg(not(target_family = "wasm"))]
-    reader_task: tokio::task::JoinHandle<()>,
     pub remote_addr: SocketAddr,
     switch_mode: SwitchMode,
     announced_compression: Option<CompressionThreshold>,
@@ -416,8 +411,6 @@ enum InboundSwitch {
 
 impl Drop for RawConnection {
     fn drop(&mut self) {
-        #[cfg(not(target_family = "wasm"))]
-        self.reader_task.abort();
         self.signal.close();
     }
 }
@@ -433,14 +426,10 @@ impl RawConnection {
     ) -> (Self, OutboundReceiver, mpsc::Sender<ReceivedPacket>) {
         let (outgoing_tx, outgoing_rx) = mpsc::channel::<OutboundBatch>(outgoing_capacity);
         let (inbound_tx, inbound_rx) = mpsc::channel::<ReceivedPacket>(128);
-        let reader_task = tokio::spawn(async {
-            std::future::pending::<()>().await;
-        });
         let addr = SocketAddr::from(([127, 0, 0, 1], 0));
         let raw = RawConnection {
             outgoing: outgoing_tx,
             recv: inbound_rx,
-            reader_task,
             remote_addr: addr,
             switch_mode: SwitchMode::of_own_version(),
             announced_compression: None,
@@ -780,6 +769,32 @@ mod tests {
             })
             .await
             .unwrap();
+        });
+    }
+
+    #[test]
+    fn a_peer_still_sending_after_the_connection_drops_reads_its_last_packet_and_a_clean_close() {
+        let runtime = tokio::runtime::Runtime::new().unwrap();
+        runtime.block_on(async {
+            let (mut connection, mut peer) = loopback(SwitchMode::Immediate).await;
+            connection.append(&PingRequest { payload: 7 }).unwrap();
+            connection.flush().unwrap();
+            drop(connection);
+            tokio::time::sleep(Duration::from_millis(100)).await;
+
+            peer.write_all(&[0; 64]).await.unwrap();
+            tokio::time::sleep(Duration::from_millis(100)).await;
+
+            let mut received = Vec::new();
+            let result =
+                tokio::time::timeout(Duration::from_secs(10), peer.read_to_end(&mut received))
+                    .await
+                    .unwrap();
+            assert!(result.is_ok(), "{result:?}");
+            assert!(
+                !received.is_empty(),
+                "the packet written before the drop arrives"
+            );
         });
     }
 

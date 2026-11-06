@@ -29,6 +29,7 @@ tracing.workspace = true
 
 [target.'cfg(not(target_family = "wasm"))'.dependencies]
 socket2.workspace = true
+base64.workspace = true
 tokio.workspace = true
 wtransport.workspace = true
 
