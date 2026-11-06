@@ -27,10 +27,8 @@ pub struct OutboundPlayerPacket {
     pub target: PacketTarget,
     pub priority: PacketPriority,
     pub data: PacketPayload,
-    // Stamped by the bridge extract closure, not by dim systems.
-    // Default PlayerSession(0) / epoch 0 is safe: PlayerSession(0) never
-    // is a session's id (counter starts at 1), so unstamped
-    // packets are always dropped by bridge_outbound.
+    // `dim_outputs::deliver` stamps these, not the dimension. PlayerSession(0) is no session's
+    // id, so `bridge_outbound` drops an unstamped packet for one player.
     pub session: PlayerSession,
     pub epoch: u32,
 }
@@ -49,10 +47,8 @@ pub struct InboundPlayerPacket {
 pub struct InboundPlayerSpawn {
     pub session: PlayerSession,
     pub snapshot: PlayerTransferSnapshot,
-    /// Dimension keys forwarded from the host's
-    /// `DimensionList` so the per-dim spawn consumer can fill
-    /// `ClientboundLogin.dimensions` without reading the list resource
-    /// (which is host-only and absent from any DimWorld).
+    /// The keys of the host's `DimensionList`, which no dimension world holds, for
+    /// `ClientboundLogin.dimensions`.
     pub dimensions: Arc<[ResourceKeyBuf<mcrs_minecraft_dimension::Dimension>]>,
 }
 

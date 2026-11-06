@@ -137,6 +137,10 @@ pub fn bridge_outbound(
 
 /// The connections `msg` addresses. A recipient without a connection counts as
 /// `outbound_no_queue_total`.
+///
+/// Only a packet for one player is checked against the epoch of its session, since it may be
+/// in flight across a transfer. A broadcast is made for the players there now, so it is never
+/// stale, and it carries no epoch to check.
 fn resolve_recipients(
     msg: &OutboundPlayerPacket,
     anchors: &SessionAnchors,
@@ -150,8 +154,6 @@ fn resolve_recipients(
     };
     match &msg.target {
         PacketTarget::SinglePlayer(target) => {
-            // Session + epoch stamped at the dim boundary. PlayerSession(0) is
-            // no session's id, so unstamped packets are dropped here.
             let Some(anchor) = anchors.get(*target) else {
                 return;
             };
@@ -163,12 +165,6 @@ fn resolve_recipients(
             }
         }
         PacketTarget::AllInDim(dim_entity) => {
-            // Broadcasts are generated for whoever is in the dim *now*, so
-            // they are never stale: the per-session epoch stale-drop applies
-            // only to SinglePlayer packets that may be in flight across a
-            // transfer. Epoch-filtering here would wrongly drop every
-            // recipient whose epoch has advanced past a broadcast's
-            // unstamped epoch.
             for (_, placement, connection) in sessions {
                 if placement.place().dim() == Some(*dim_entity) {
                     add(connection);
@@ -176,17 +172,11 @@ fn resolve_recipients(
             }
         }
         PacketTarget::AllPlayers => {
-            // Not epoch-filtered — see AllInDim above. A fresh global
-            // broadcast must reach every current session regardless of how
-            // many dim transfers each has made.
             for (_, _, connection) in sessions {
                 add(connection);
             }
         }
         PacketTarget::PlayerSet(set) => {
-            // Not epoch-filtered — see AllInDim above. The recipient set is
-            // the current observer set computed this tick; each member must
-            // receive it at whatever epoch they currently hold.
             for &target in set {
                 if let Some(anchor) = anchors.get(target)
                     && let Ok((_, _, connection)) = sessions.get(anchor)
@@ -680,8 +670,6 @@ pub fn bridge_inbound(
     mut telemetry: ResMut<BridgeTelemetry>,
     mut dispatcher: ResMut<PacketDispatcher>,
 ) {
-    use mcrs_minecraft_text::Text;
-
     for (entity, mut conn, mut bucket, anchor_ref, state) in conns.iter_mut() {
         if *state != ConnectionState::Game {
             continue;
