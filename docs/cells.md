@@ -198,7 +198,7 @@ that sent it.
 | Collision, box queries | read the halo. The movement of the server takes the position of the client and does no collision yet | none |
 | View: column versions and changes | the coordinator sends each column request to the owner of the column. The owner publishes the version and the changes. Each cell sends each change of the view of its players to the other cells, and the stages of cold space of a cell serve the views of all players of the world | none for the version; one tick for the views of another cell |
 | Entity tiles | each cell publishes the tiles of its players. The coordinator merges the deltas of the cells of a world into one delta for each tile | none |
-| Commands and selectors | a command runs in the cell of its player. A handoff from another dimension runs in the cell that owns the column of its first source. The players of the other cells of the world are players of the same dimension, and an effect on one of them is an order to its cell | one tick for an order |
+| Commands and selectors | a command runs in the cell of its player. A stage that reads the blocks of the source dimension runs in the cell that owns the column of the source. A source in a column of another cell, or of another dimension, goes in a handoff. The coordinator splits each handoff by the owner of the column of each source. The players of the other cells of the world are players of the same dimension, and an effect on one of them is an order to its cell | one tick for an order and for a handoff |
 | Chat, player list, world clocks | the host serves the whole world, as for one cell | none |
 | Entity ids | the coordinator grants a range to each cell | none |
 | Block write of the block kernels into a column of another cell | the kernels see a section of the halo as `Read`. A set into it is a message to the owner, which applies it with all its flags in its block step | one tick, and one more for the halo of the writer |
@@ -529,8 +529,5 @@ Each step leaves a working server and passes the determinism test.
      are not players.
    - The muxer selects the clients of a block event by the columns that they hold, not by the
      distance of 64 blocks of SIM-BEV-004.
-   - A command handoff runs in the cell that owns the column of its first source. A source in
-     a column of another cell reads the halo. Check: a handoff whose sources are in several
-     cells reads the blocks of their owners.
 5. Split and merge in the Coordinator, with moves at the tick boundary.
 6. `Placement::Remote`: a cell in another process.

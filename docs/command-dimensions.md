@@ -58,6 +58,12 @@ The coordinator hands them to the muxer, and the muxer puts each one in the inpu
 for the next tick. That world parses the line again for the same source, and runs the chain on
 from the stage (`mcrs_command::resume`).
 
+In a world of more than one cell, a call with `SourceDimension` runs only in the cell that owns
+the column of the source. The halo of a cell is one tick behind its owner, so a read there can
+differ from a read in a world of one cell. A source in a column of another cell goes into a
+handoff for its own dimension. The coordinator splits each handoff by the owner of the column of
+each source, and gives each part to that cell.
+
 The vanilla `execute` modifiers, the conditions `entity` and `dimension`, `teleport` and
 `gamemode` run in any world. The conditions `block` and `loaded`, `positioned over`, `time` and
 `locate` run in the source dimension.
