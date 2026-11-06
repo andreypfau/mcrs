@@ -2,7 +2,7 @@ use crate::scalar::GameTick;
 use crate::sequence::SubTick;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::legacy::LegacyRandom;
-use mcrs_voxel::{BlockPos, SectionPos};
+use mcrs_voxel::{BlockPos, ColumnPos, SectionPos};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum StreamKey {
@@ -24,6 +24,10 @@ pub enum StreamKey {
     },
     Visit {
         anchor: SectionPos,
+    },
+    /// The precipitation picks of the columns of one tile.
+    Precipitation {
+        tile: ColumnPos,
     },
 }
 
@@ -53,6 +57,7 @@ impl StreamSeed {
             }
             StreamKey::Section { section } => mix_all(seed, 4, section_words(section)),
             StreamKey::Visit { anchor } => mix_all(seed, 5, section_words(anchor)),
+            StreamKey::Precipitation { tile } => mix_all(seed, 6, words(tile.x, 0, tile.z)),
         };
         LegacyRandom::new(seed)
     }

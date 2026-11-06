@@ -4,11 +4,12 @@ use crate::chain::Chain;
 use crate::event_queue::EventQueue;
 use crate::output::ChainLedger;
 use crate::policy::CollectScratch;
+use crate::precipitation::PrecipitationHit;
 use crate::scalar::{GameTick, ShardId};
 use crate::sequence::SequenceClock;
 use crate::tick_queue::{Collected, Kinds, TickQueue};
 use mcrs_minecraft_volume::PaletteBuffer;
-use mcrs_voxel::BlockPos;
+use mcrs_voxel::{BlockPos, ColumnPos};
 use rustc_hash::FxHashSet;
 
 pub struct BlockShard<K: Kinds> {
@@ -22,6 +23,8 @@ pub struct BlockShard<K: Kinds> {
     pub(crate) ticking: FxHashSet<(BlockPos, K::Block)>,
     pub(crate) palette: PaletteBuffer,
     pub(crate) chain: Chain<K>,
+    pub(crate) rained_columns: Vec<ColumnPos>,
+    pub(crate) rain_hits: Vec<PrecipitationHit>,
 }
 
 impl<K: Kinds> BlockShard<K> {
@@ -52,6 +55,8 @@ impl<K: Kinds> Default for BlockShard<K> {
             ticking: FxHashSet::default(),
             palette: PaletteBuffer::default(),
             chain: Chain::default(),
+            rained_columns: Vec::new(),
+            rain_hits: Vec::new(),
         }
     }
 }

@@ -8,6 +8,7 @@ mod event_queue;
 mod message;
 mod output;
 mod policy;
+mod precipitation;
 mod random_tick;
 mod scalar;
 mod schedule;
@@ -25,6 +26,9 @@ pub use event_queue::{BlockEvent, DrainEnd, Drained, EventQueue, QueuedEvent};
 pub use message::{ChainOrigin, Message, MessageBody, UpdateRequest};
 pub use output::{BlockWrite, ChainLedger, Destroyed, StepError, StepOutput, StepReport};
 pub use policy::{CollectScratch, OrderingPolicy, SemanticOrder, VanillaOrder};
+pub use precipitation::{
+    PRECIPITATION_GATE, PRECIPITATION_TILE, PrecipitationHit, precipitation_hits,
+};
 pub use random_tick::{RandomPicks, RandomTickTable, RandomTicks, random_step};
 pub use scalar::{GameTick, ShardId, TickPriority};
 pub use schedule::{PendingTick, ScheduleTicks};

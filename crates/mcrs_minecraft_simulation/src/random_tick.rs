@@ -1,3 +1,5 @@
+use core::mem;
+
 use crate::SimulationVolume;
 use crate::behaviour::{BlockBehaviour, BlockFacts};
 use crate::cx::Cx;
@@ -10,7 +12,9 @@ use crate::tick_queue::Kinds;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_volume::{Access, SectionBlocks};
-use mcrs_voxel::{BlockStateId, LocalPos, SectionPos};
+use mcrs_voxel::{BlockStateId, ColumnPos, LocalPos, SectionPos};
+
+use crate::precipitation::{PRECIPITATION_TILE, precipitation_hits};
 
 bitflags::bitflags! {
     /// The random ticks that a block state takes.
@@ -95,6 +99,10 @@ pub fn random_step<K, V, F, B, P>(
 {
     shard.chain.reset();
     let mut cx = Cx::new(shard, volume, out, env, now);
+    cx.precipitation_step(picks);
+    if picks.table.is_empty() {
+        return;
+    }
     for &section in picks.sections {
         if cx.ticks_randomly(section, picks.table) {
             let mut random = picks.seed.stream(now, StreamKey::Section { section });
@@ -112,6 +120,41 @@ where
     F: BlockFacts<K>,
     B: BlockBehaviour<K>,
 {
+    /// Runs the precipitation picks of each column that holds a writable section of `picks`,
+    /// tile by tile. Each tile draws from its own stream, so the hits do not depend on the
+    /// partition or on the order of the sections.
+    fn precipitation_step(&mut self, picks: RandomPicks<'_>) {
+        let mut columns = mem::take(&mut self.shard.rained_columns);
+        let mut hits = mem::take(&mut self.shard.rain_hits);
+        columns.clear();
+        columns.extend(
+            picks
+                .sections
+                .iter()
+                .filter(|&&section| self.volume.access(section) == Access::Write)
+                .map(|&section| ColumnPos::from(section)),
+        );
+        columns.sort_unstable_by_key(|column| (tile_of(*column), column.x, column.z));
+        columns.dedup();
+        for group in columns.chunk_by(|a, b| tile_of(*a) == tile_of(*b)) {
+            let Some(&first) = group.first() else {
+                continue;
+            };
+            let tile = tile_of(first);
+            let mut random = picks
+                .seed
+                .stream(self.now, StreamKey::Precipitation { tile });
+            hits.clear();
+            precipitation_hits(group, picks.speed, &mut random, &mut hits);
+            let behaviour = self.behaviour;
+            for hit in &hits {
+                behaviour.precipitation(self, hit.x, hit.z, &mut random);
+            }
+        }
+        self.shard.rained_columns = columns;
+        self.shard.rain_hits = hits;
+    }
+
     fn ticks_randomly(&mut self, section: SectionPos, table: &RandomTickTable) -> bool {
         if self.volume.access(section) != Access::Write {
             return false;
@@ -146,4 +189,12 @@ where
             behaviour.fluid_random_tick(self, at, state, fluid, random);
         }
     }
+}
+
+/// The tile of `column`, in tiles.
+fn tile_of(column: ColumnPos) -> ColumnPos {
+    ColumnPos::new(
+        column.x.div_euclid(PRECIPITATION_TILE),
+        column.z.div_euclid(PRECIPITATION_TILE),
+    )
 }

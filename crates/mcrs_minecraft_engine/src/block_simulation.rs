@@ -429,7 +429,7 @@ fn run_block_simulation<B: BlockBehaviour<WorldKinds> + BlockDrops + Send + 'sta
     });
     let speed = random.speed.0;
     let mut sections = mem::take(&mut simulation.random_sections);
-    if speed == 0 || table.is_empty() {
+    if speed == 0 {
         sections.clear();
     } else if random.sections.iter().len() != sections.len() || !random.started.is_empty() {
         // A section that stops alone lowers the count; one that starts is in `started`.

@@ -67,6 +67,17 @@ pub trait BlockBehaviour<K: Kinds>: Sync + Sized {
     ) {
     }
 
+    /// A precipitation pick hit the column of the block column `(x, z)`. The rules find its
+    /// surface and what the weather does there.
+    fn precipitation<V: SimulationVolume, F: BlockFacts<K>>(
+        &self,
+        _cx: &mut Cx<'_, K, V, F, Self>,
+        _x: i32,
+        _z: i32,
+        _random: &mut LegacyRandom,
+    ) {
+    }
+
     fn block_event<V: SimulationVolume, F: BlockFacts<K>>(
         &self,
         _cx: &mut Cx<'_, K, V, F, Self>,

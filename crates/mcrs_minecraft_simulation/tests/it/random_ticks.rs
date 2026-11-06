@@ -7,6 +7,7 @@ use mcrs_minecraft_simulation::{
 };
 use mcrs_minecraft_volume::Access;
 use mcrs_voxel::{BlockPos, BlockStateId, SectionPos};
+use std::sync::Mutex;
 use std::sync::atomic::{AtomicU32, Ordering};
 
 /// Block `A` takes random ticks. A random tick of `A` turns it into `B` when `replace` is set,
@@ -169,4 +170,76 @@ fn the_picks_of_a_section_do_not_depend_on_the_other_sections() {
     let alone = picked(&[first]);
     assert!(!alone.is_empty(), "the section takes picks");
     assert_eq!(picked(&[second, first]), alone);
+}
+
+/// Records the columns that precipitation picks hit.
+#[derive(Default)]
+struct Rain {
+    hits: Mutex<Vec<(i32, i32)>>,
+}
+
+impl BlockBehaviour<ProbeKinds> for Rain {
+    fn precipitation<V: SimulationVolume, F: BlockFacts<ProbeKinds>>(
+        &self,
+        _cx: &mut Cx<'_, ProbeKinds, V, F, Self>,
+        x: i32,
+        z: i32,
+        _random: &mut LegacyRandom,
+    ) {
+        self.hits.lock().expect("one step at a time").push((x, z));
+    }
+}
+
+/// SIM-RND-004: a writable column takes precipitation picks whatever its blocks are, a readable
+/// one takes none, and the hits of a column do not depend on the other sections or their order.
+#[test]
+fn precipitation_hits_writable_columns_only_and_do_not_depend_on_the_other_sections() {
+    let (first, halo, far) = (section(0, 0, 0), section(1, 0, 0), section(5, 0, 0));
+    let rained_on_first = |sections: &[SectionPos]| {
+        let mut host = Host::new();
+        host.insert(first, AIR);
+        host.insert(halo, AIR);
+        host.insert(far, AIR);
+        host.set_access(halo, Access::Read);
+        let rules = Rain::default();
+        let config = KernelConfig::default();
+        let env = Env {
+            partition: ShardId(0),
+            facts: &ProbeFacts,
+            behaviour: &rules,
+            policy: &SemanticOrder,
+            kind: PartitionKind::Shard,
+            config: &config,
+        };
+        let table = RandomTickTable::default();
+        let mut shard = BlockShard::new();
+        let mut out = StepOutput::default();
+        for now in 0..400 {
+            let picks = RandomPicks {
+                sections,
+                speed: 3,
+                table: &table,
+                seed: StreamSeed::new(4, "minecraft:overworld"),
+            };
+            random_step(&mut shard, GameTick(now), &mut host, &env, picks, &mut out);
+        }
+        let hits = rules.hits.into_inner().expect("one step at a time");
+        assert!(
+            hits.iter().all(|(x, _)| !(16..32).contains(x)),
+            "a readable column takes no pick"
+        );
+        let first_hits: Vec<(i32, i32)> = hits
+            .into_iter()
+            .filter(|&(x, z)| (0..16).contains(&x) && (0..16).contains(&z))
+            .collect();
+        first_hits
+    };
+
+    let alone = rained_on_first(&[first, halo]);
+    assert!(
+        (5..=50).contains(&alone.len()),
+        "about 400 * 3 / 48 = 25 hits, not {}",
+        alone.len()
+    );
+    assert_eq!(rained_on_first(&[far, halo, first]), alone);
 }
