@@ -315,7 +315,7 @@ pub fn dispatch_encode(
     };
     dispatch_listed(
         &mut players,
-        &every,
+        &mut every,
         left_behind,
         &mut commands,
         &mut telemetry,
@@ -356,28 +356,35 @@ pub fn dispatch_pending(
 }
 
 /// Hands the queued packets of each `listed` connection to its writer. A connection whose writer
-/// is left with bytes it has not taken goes to `left_behind`.
+/// is left with bytes it has not taken goes to `left_behind`. `listed` keeps only the connections
+/// that were written.
 fn dispatch_listed(
     players: &mut Query<(Entity, &mut OutboundQueue, &mut ServerSideConnection)>,
-    listed: &[Entity],
+    listed: &mut Vec<Entity>,
     left_behind: &mut Vec<Entity>,
     commands: &mut Commands,
     telemetry: &mut BridgeTelemetry,
     frames: &mut SharedFrames,
     wakes: &mut WriterWakes,
 ) {
-    for &entity in listed {
-        if let Ok((_, queue, _)) = players.get(entity) {
-            count_recipients(queue, frames);
+    // A shared packet is framed once only when more than one connection sends it, so the count
+    // comes after the kicks and the shedding.
+    listed.retain(|&entity| {
+        let Ok((entity, mut queue, mut conn)) = players.get_mut(entity) else {
+            return false;
+        };
+        let writable = ready_to_write(entity, &mut queue, &mut conn, commands, telemetry, wakes);
+        if writable {
+            count_recipients(&queue, frames);
         }
-    }
-    for &entity in listed {
+        writable
+    });
+    for &entity in listed.iter() {
         let Ok((entity, mut queue, mut conn)) = players.get_mut(entity) else {
             continue;
         };
-        dispatch_connection(
-            entity, &mut queue, &mut conn, commands, telemetry, frames, wakes,
-        );
+        write_queue(entity, &mut queue, &mut conn.raw, telemetry, frames);
+        conn.raw.send_written_deferred(wakes);
         if conn.raw.unsent_bytes() > 0 {
             left_behind.push(entity);
         }
@@ -398,16 +405,16 @@ fn count_recipients(queue: &OutboundQueue, frames: &mut SharedFrames) {
     }
 }
 
-fn dispatch_connection(
+/// Kicks a connection whose writer is dead or has stalled, and sheds the oldest packets of a
+/// queue that is too deep. Answers whether the connection is still to be written.
+fn ready_to_write(
     entity: Entity,
     queue: &mut OutboundQueue,
     conn: &mut ServerSideConnection,
     commands: &mut Commands,
     telemetry: &mut BridgeTelemetry,
-    frames: &mut SharedFrames,
     wakes: &mut WriterWakes,
-) {
-    // --- (1) Disconnected writer check ---
+) -> bool {
     if conn.raw.disconnected() {
         conn.raw
             .append(&ClientboundDisconnect {
@@ -418,11 +425,11 @@ fn dispatch_connection(
         warn!(conn = ?entity, "kick: the writer reported the socket dead");
         commands.entity(entity).remove::<ServerSideConnection>();
         telemetry.kick_overflow_total += 1;
-        return;
+        return false;
     }
 
-    // --- (1a) A writer that is behind takes what it can; one that has stalled for this
-    // much is a dead socket, not a slow one ---
+    // A writer that is behind takes what it can; one that has stalled for this much is a dead
+    // socket, not a slow one.
     if !conn.raw.flush_unsent_deferred(wakes) && conn.raw.unsent_bytes() > STALLED_WRITER_BYTES {
         warn!(
             conn = ?entity,
@@ -431,13 +438,11 @@ fn dispatch_connection(
         );
         commands.entity(entity).remove::<ServerSideConnection>();
         telemetry.kick_overflow_total += 1;
-        return;
+        return false;
     }
 
-    // --- (2) Drop policy: shed Normal first, then Low ---
-    // Only activate if total exceeds DEPTH_LIMIT; then drain down to
-    // DEPTH_DRAIN_TARGET so the queue stays below threshold for a few
-    // ticks before refilling.
+    // Past DEPTH_LIMIT, drain down to DEPTH_DRAIN_TARGET so the queue stays below the limit
+    // for a few ticks before it refills. Critical and High are never shed.
     if queue.total_len() > DEPTH_LIMIT {
         while queue.total_len() > DEPTH_DRAIN_TARGET {
             if queue.normal.pop_front().is_some() {
@@ -445,14 +450,11 @@ fn dispatch_connection(
             } else if queue.low.pop_front().is_some() {
                 telemetry.drop_low_total += 1;
             } else {
-                // Only Critical/High remain; never drop them.
                 break;
             }
         }
     }
-
-    write_queue(entity, queue, &mut conn.raw, telemetry, frames);
-    conn.raw.send_written_deferred(wakes);
+    true
 }
 
 /// Serializes the queue in priority order, behind anything written to the connection directly.

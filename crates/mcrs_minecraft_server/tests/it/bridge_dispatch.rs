@@ -398,6 +398,36 @@ fn a_shared_column_is_framed_once_for_each_threshold() {
     }
 }
 
+#[test]
+fn a_shared_packet_that_one_connection_sheds_is_not_framed_for_the_other() {
+    let mut world = build_dispatch_world();
+    let (sending, mut rx) = spawn_mock_connection(&mut world);
+    let (shedding, _shedding_rx) = spawn_mock_connection(&mut world);
+    let column = OutboundPlayerPacket {
+        target: PacketTarget::AllPlayers,
+        priority: PacketPriority::Normal,
+        data: chunk_load(&[0x80u8; 2000]),
+        session: PlayerSession(0),
+        epoch: 0,
+    };
+    for socket in [sending, shedding] {
+        world
+            .get_mut::<OutboundQueue>(socket)
+            .unwrap()
+            .push(column.clone());
+    }
+    enqueue_normal(&mut world, shedding, DEPTH_LIMIT);
+
+    run_dispatch(&mut world);
+
+    assert_eq!(
+        world.resource::<BridgeTelemetry>().shared_frames_total,
+        0,
+        "the one connection that sends the column leaves the framing to its writer"
+    );
+    assert!(rx.try_recv().is_ok());
+}
+
 /// Only `PacketPayload::Test` remains a counted-drop; the five real variants
 /// contribute zero to `encode_unhandled_total`.
 #[test]
