@@ -158,6 +158,8 @@ Task
     Physical unit of work Bevy runs on its task pool
 ```
 
+Where shards run, and how a player sees and simulates the world, is in `cells.md`: cells, the cell tree, the Muxer, the data layer and stages.
+
 The term **region file** is reserved for Anvil storage. Do not use `region` for simulation partitions, and do not use `cell` for any grouping of chunks.
 
 The only term for a simulation partition is **Shard**.
@@ -458,9 +460,11 @@ The ordering policy and the shard layout are inputs, never assumptions. One shar
 
 A driver owns the shards of a domain, steps them, delivers cross-shard messages in a stable sorted order at a sync point, and merges and splits shards. Without Bevy a driver is a loop.
 
+A driver can run a step beside the tick, on a thread of its own. The tick does not wait for such a step. The writes of the step are input of the first tick after the step ends. That tick applies them in a stable order. World generation and lighting run their steps beside the tick (decision 21).
+
 ## Bevy schedules; no custom scheduler
 
-The engine's driver is Bevy. There is no task graph, worker scheduler or dependency analyser of our own.
+Inside the tick, the engine's driver is Bevy. There is no task graph, worker scheduler or dependency analyser of our own.
 
 - Shards are data: an index or a component per domain.
 - One system per domain steps every shard of that domain, in parallel across shards (`par_iter` or similar).
@@ -534,6 +538,8 @@ DespawnEntity
 ```
 
 This makes cross-shard causality explicit. Messages are applied in a stable sorted order at a sync point, so the result does not depend on which shard finished first.
+
+The cells of one world follow the same rule. `cells.md` section 4 lists the message and the delay of each domain across a cell boundary.
 
 ---
 
@@ -621,6 +627,8 @@ When multiple valid execution orders exist, choose one of:
 Do not accidentally allow thread scheduling to become gameplay semantics.
 
 The same inputs give the same result regardless of thread count. Shard layout is derived from the inputs, so it is reproducible as well; a result that may differ between layouts, such as the sync point at which a cross-shard effect applies, is stated by the domain's ordering policy. Ties are broken by a stable key, such as a shard key and an insertion sequence, never by arrival from a thread.
+
+For a step beside the tick, thread timing decides only the tick that applies its writes, never their content or order. This is the third choice above. World generation and lighting accept it, and vanilla also computes both on worker threads.
 
 ---
 
@@ -887,6 +895,8 @@ For semantically nondeterministic systems, required invariants should match.
 
 This helps detect hidden dependencies that the shard formation failed to represent.
 
+Thread timing decides when a step beside the tick ends. A test of the whole tick therefore runs in lockstep: after each tick, it waits until the generation and light steps of the tick end. It applies nothing while it waits. Every run then receives the same writes at the same ticks. The test compares the blocks, light, heightmaps and entities after each tick between `Placement::Inline` and `Placement::Thread` of the worlds (`crates/mcrs_minecraft_server/tests/it/tick_determinism.rs`). It fails when the tick applies the writes by arrival, or at a moment between ticks.
+
 ---
 
 # 26. Data Locality
@@ -1046,6 +1056,18 @@ Protocol, serialization, player movement and world generation are exact. Redston
 
 One shard per domain over the whole world, with the vanilla ordering policy, is the exact-parity mode, and runs through the same code path as the sharded mode.
 
+## Decision 21
+
+World generation and lighting run their steps beside the tick (section 13).
+
+Each dimension has a driver loop on a thread of its own for each of the two domains. The tick sends the inputs of the steps, such as the wanted columns and the block changes.
+
+The writes of a step are input of the first tick after the step ends. The tick applies them at its start, before the input from clients: columns by position, light by section, never by arrival. This covers section stages, blocks, biomes, block entities, heightmaps, block light, sky light and the messages that they raise.
+
+Between ticks, the server loop only hands the packets of a tick to the sockets. That work changes nothing that a tick reads. With the same writes at the same ticks, the simulation gives the same world for any thread count and threading mode (section 25).
+
+A column goes out in the tick that applies the last write it needs.
+
 ---
 
 # 29. Open Design Questions
@@ -1098,6 +1120,8 @@ Determine whether EntityShard boundaries are:
 ## Commit semantics
 
 Determine whether mutation buffering and deterministic commit are required globally or only for selected domains.
+
+Resolved for the steps beside the tick: their writes commit at the start of a tick, in a stable order (decision 21).
 
 ## Distributed simulation
 
@@ -1160,8 +1184,9 @@ The intended server architecture can be summarized as:
               |               |               |
               v               v               v
       Bevy systems,     plain loop        host via FFI
-      par_iter per      (tests, tools)    (its own storage)
-      domain
+      par_iter per      (tests, tools,    (its own storage)
+      domain            steps beside
+                        the tick)
 ```
 
 Spatial indexing is based on:

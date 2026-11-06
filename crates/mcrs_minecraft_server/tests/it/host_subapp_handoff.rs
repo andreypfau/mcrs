@@ -1,28 +1,36 @@
 //! Integration tests for the host→SubApp player-connection handoff on initial
 //! join: the host-side emit, the per-dim consumer and the full round-trip.
 
-use bevy_app::{App, InternedAppLabel, Update};
+use std::collections::BTreeMap;
+
+use bevy_app::{App, Update};
 use bevy_ecs::change_detection::Tick;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::prelude::*;
 use bevy_math::{DVec3, Vec2};
 use bevy_state::prelude::NextState;
 use mcrs_minecraft_assets::AppState;
-use mcrs_minecraft_engine::bridge::{bridge_inbound_to_channel, bridge_player_attach};
+use mcrs_minecraft_engine::between_ticks::drain_dim_spawn_queue;
 use mcrs_minecraft_engine::bus::{InboundPlayerSpawn, PlayerTransferSnapshot};
-use mcrs_minecraft_engine::channel_types::{DimChannelsResource, ToDim};
-use mcrs_minecraft_engine::dim::DimSubAppHandle;
-use mcrs_minecraft_engine::session::GameProfile;
-use mcrs_minecraft_engine::session::HostAnchorRef;
-use mcrs_minecraft_engine::sub_app_builder::drain_dim_spawn_queue;
+use mcrs_minecraft_engine::channel_types::ToDim;
+use mcrs_minecraft_engine::coordinator::dim::DimSubAppHandle;
+use mcrs_minecraft_engine::coordinator::dim_cells::DimCells;
+use mcrs_minecraft_engine::dim_tick::{TickDimensions, TickDimensionsSet};
+use mcrs_minecraft_engine::game_profile::GameProfile;
+use mcrs_minecraft_engine::muxer::bridge::{bridge_inbound_to_channel, bridge_player_attach};
+use mcrs_minecraft_engine::muxer::dim_inputs::DimInputs;
+use mcrs_minecraft_engine::muxer::session::HostAnchorRef;
+use mcrs_minecraft_engine::to_coordinator::RoutedInput;
 use mcrs_minecraft_engine_server::login::{LoginPlugin, LoginState};
 use mcrs_minecraft_engine_world::session::PlayerSession;
-use mcrs_minecraft_engine_world::session::{Place, PlayerSessionCounter, SessionPlacement};
+use mcrs_minecraft_engine_world::session::{
+    Place, PlayerSessionCounter, Session, SessionPlacement,
+};
 use mcrs_minecraft_engine_world::world::sub_app::{DimSpawnQueue, DimSpawnRequest};
 use mcrs_minecraft_protocol::uuid::Uuid;
 use mcrs_minecraft_resource::{ResourceKeyBuf, ResourceLocationBuf};
 
-use mcrs_minecraft_engine_server::configuration::emit_initial_player_spawn;
+use mcrs_minecraft_engine_server::configuration::initial_player_spawn;
 
 use crate::support;
 use mcrs_minecraft_dimension::Dimension;
@@ -55,12 +63,20 @@ fn build_host_app() -> App {
     app.insert_resource(support::dimension_list_with_extra());
 
     app.init_resource::<PlayerSessionCounter>();
+    app.init_resource::<mcrs_minecraft_engine_world::session::SessionAnchors>();
     app.add_message::<InboundPlayerSpawn>();
     app.add_systems(Update, (bridge_inbound_to_channel, bridge_player_attach));
+    app.init_resource::<RoutedControl>();
+    app.add_systems(
+        TickDimensions,
+        keep_routed_control
+            .after(TickDimensionsSet::Route)
+            .before(TickDimensionsSet::Tick),
+    );
 
     app.add_plugins(LoginPlugin);
     // System under test
-    app.add_systems(Update, emit_initial_player_spawn);
+    app.add_systems(Update, initial_player_spawn());
 
     app
 }
@@ -100,60 +116,82 @@ fn transition_to_game(app: &mut App, connection_entity: Entity) {
         .insert(ConnectionState::Game);
 }
 
-/// A live dimension label on the host with its channels registered; returns the label and the
-/// receiving end of its control channel.
-fn live_dimension(
-    app: &mut App,
-    key: ResourceKeyBuf<Dimension>,
-) -> (Entity, flume::Receiver<ToDim>) {
-    use mcrs_minecraft_engine::channel_types::FromDim;
-    use mcrs_minecraft_engine_world::world::channels::{
-        FROM_DIM_CAPACITY, TO_DIM_CAPACITY, TO_DIM_CONTROL_CAPACITY,
-    };
-
+/// A live dimension label on the host that takes input but has no world to tick it.
+fn live_dimension(app: &mut App, key: ResourceKeyBuf<Dimension>) -> Entity {
     let label = app.world_mut().spawn((DimSubAppHandle, key)).id();
-    let (srv_tx, _srv_rx) = flume::bounded::<ToDim>(TO_DIM_CAPACITY);
-    let (ctl_tx, ctl_rx) = flume::bounded::<ToDim>(TO_DIM_CONTROL_CAPACITY);
-    let (_from_tx, from_rx) = flume::bounded::<FromDim>(FROM_DIM_CAPACITY);
-    app.world_mut()
-        .resource_mut::<DimChannelsResource>()
-        .insert(label, srv_tx, ctl_tx, from_rx);
-    (label, ctl_rx)
+    app.world_mut().resource_mut::<DimInputs>().insert(label);
+    label
+}
+
+/// The control messages that the muxer routed to each dimension, kept before the tick takes them.
+#[derive(Resource, Default)]
+struct RoutedControl(BTreeMap<Entity, Vec<ToDim>>);
+
+fn keep_routed_control(mut routed: MessageReader<RoutedInput>, mut kept: ResMut<RoutedControl>) {
+    for input in routed.read() {
+        kept.0
+            .entry(input.dim)
+            .or_default()
+            .extend(input.control.iter().cloned());
+    }
+}
+
+/// Takes the control messages that the muxer routed to `label` and those that wait for its next
+/// tick, as its tick would.
+fn take_control(app: &mut App, label: Entity) -> Vec<ToDim> {
+    let mut control = app
+        .world_mut()
+        .resource_mut::<RoutedControl>()
+        .0
+        .remove(&label)
+        .unwrap_or_default();
+    let mut inputs = app.world_mut().resource_mut::<DimInputs>();
+    control.extend_from_slice(inputs.control(label));
+    inputs.remove(label);
+    inputs.insert(label);
+    control
+}
+
+fn send_spawn(app: &mut App, label: Entity, spawn: InboundPlayerSpawn) {
+    let sent = app
+        .world_mut()
+        .resource_mut::<DimInputs>()
+        .send_control(label, ToDim::Spawn(spawn));
+    assert!(sent, "the dimension takes input");
 }
 
 // ---------------------------------------------------------------------------
-// host-side emit_initial_player_spawn
+// host-side initial player spawn
 // ---------------------------------------------------------------------------
 
 /// When a connection transitions to Game AND a live DimSubAppHandle label
-/// entity exists (with a registered channel), the host must send exactly one
-/// `ToDim::Spawn` into the dim's control channel and mark the session as
-/// joining that label.
-fn game_transition_emits_initial_spawn(
-    app: &mut App,
-    dim_label: Entity,
-    ctl_rx: &flume::Receiver<ToDim>,
-) {
+/// entity exists (taking input), the host must send exactly one
+/// `ToDim::Spawn` to the dim and mark the session as joining that label.
+fn game_transition_emits_initial_spawn(app: &mut App, dim_label: Entity) {
     let (connection_entity, host_anchor) = spawn_accepted_connection(app);
 
     // Transition to Game — the emit system should pick this up
     transition_to_game(app, connection_entity);
     app.update();
 
-    let spawns: Vec<ToDim> = ctl_rx
-        .try_iter()
+    let spawns: Vec<ToDim> = take_control(app, dim_label)
+        .into_iter()
         .filter(|m| matches!(m, ToDim::Spawn(..)))
         .collect();
     assert_eq!(
         spawns.len(),
         1,
-        "exactly one ToDim::Spawn should be sent to the dim's control channel"
+        "exactly one ToDim::Spawn should be sent to the dim"
     );
     match &spawns[0] {
-        ToDim::Spawn(InboundPlayerSpawn {
-            host_anchor: ha, ..
-        }) => {
-            assert_eq!(*ha, host_anchor, "spawn's host_anchor must match");
+        ToDim::Spawn(InboundPlayerSpawn { session, .. }) => {
+            assert_eq!(
+                Some(*session),
+                app.world()
+                    .get::<Session>(host_anchor)
+                    .map(|carried| carried.0),
+                "the spawn names the session of the host anchor"
+            );
         }
         _ => unreachable!(),
     }
@@ -209,8 +247,8 @@ fn join_with_live_nether_end_and_overworld(
     .into_iter()
     .map(|name| {
         let key = ResourceKeyBuf::<Dimension>::from(name);
-        let (label, control) = live_dimension(&mut app, key.clone());
-        (key, label, control)
+        let label = live_dimension(&mut app, key.clone());
+        (key, label)
     })
     .collect();
 
@@ -230,9 +268,13 @@ fn join_with_live_nether_end_and_overworld(
         Place::Joining(joined),
         "{saved:?}"
     );
-    for (key, _, control) in &live {
+    for (key, label) in &live {
         let spawns = usize::from(*key == expected);
-        assert_eq!(control.try_iter().count(), spawns, "{saved:?} into {key:?}");
+        assert_eq!(
+            take_control(&mut app, *label).len(),
+            spawns,
+            "{saved:?} into {key:?}"
+        );
     }
     std::fs::remove_dir_all(&save).unwrap();
 }
@@ -265,12 +307,7 @@ fn no_live_dim_no_spawn() {
     app.update();
 
     let world = app.world();
-    // No live dim → no channel found → emit_initial_player_spawn returned early.
-    // The session dim should still be PLACEHOLDER.
-    assert!(
-        world.resource::<DimChannelsResource>().iter().count() == 0,
-        "no channel should be registered when no DimSubAppHandle is live"
-    );
+    // No live dim → the request returned early.
 
     assert_eq!(
         world
@@ -290,7 +327,6 @@ fn no_live_dim_no_spawn() {
 /// must NOT spawn a second in-dim entity.
 fn no_duplicate_spawn_on_reread() {
     use mcrs_minecraft_engine_world::entity::player::Player;
-    use mcrs_minecraft_engine_world::world::sub_app::DimAppLabel;
 
     let mut app = build_host_app();
 
@@ -317,27 +353,21 @@ fn no_duplicate_spawn_on_reread() {
             .expect("one DimSubAppHandle")
     };
 
-    let host_anchor = app.world_mut().spawn_empty().id();
-    {
-        app.world()
-            .resource::<DimChannelsResource>()
-            .get(dim_label)
-            .expect("channel registered by spawn_dim_subapp")
-            .control_sender
-            .try_send(ToDim::Spawn(InboundPlayerSpawn {
-                host_anchor,
-                session: PlayerSession(0),
-                snapshot: PlayerTransferSnapshot {
-                    uuid: Uuid::new_v4(),
-                    username: "cursor_test".into(),
-                    position: DVec3::new(0.0, 64.0, 0.0),
-                    rotation: Vec2::ZERO,
-                    client_info: Some(crate::support::client_info_with_view_distance(12)),
-                },
-                dimensions: Vec::new().into(),
-            }))
-            .expect("control channel not full");
-    }
+    send_spawn(
+        &mut app,
+        dim_label,
+        InboundPlayerSpawn {
+            session: PlayerSession(1),
+            snapshot: PlayerTransferSnapshot {
+                uuid: Uuid::new_v4(),
+                username: "cursor_test".into(),
+                position: DVec3::new(0.0, 64.0, 0.0),
+                rotation: Vec2::ZERO,
+                client_info: Some(crate::support::client_info_with_view_distance(12)),
+            },
+            dimensions: Vec::new().into(),
+        },
+    );
 
     // Tick 1: consumer reads the spawn and materializes one entity
     app.update();
@@ -346,8 +376,7 @@ fn no_duplicate_spawn_on_reread() {
     app.update();
 
     let player_count = {
-        let sub = app.sub_app_mut(DimAppLabel(dim_label));
-        let world = sub.world_mut();
+        let world = crate::host_app::world(&mut app, dim_label);
         world
             .query_filtered::<Entity, With<Player>>()
             .iter(world)
@@ -361,7 +390,7 @@ fn no_duplicate_spawn_on_reread() {
 
 fn joining_players_share_the_baked_dimension_list(
     app: &mut App,
-    ctl_rx: &flume::Receiver<ToDim>,
+    dim_label: Entity,
     baked: &Arc<[ResourceKeyBuf<Dimension>]>,
 ) {
     for _ in 0..2 {
@@ -370,8 +399,8 @@ fn joining_players_share_the_baked_dimension_list(
     }
     app.update();
 
-    let lists: Vec<_> = ctl_rx
-        .try_iter()
+    let lists: Vec<_> = take_control(app, dim_label)
+        .into_iter()
         .filter_map(|message| match message {
             ToDim::Spawn(spawn) => Some(spawn.dimensions),
             _ => None,
@@ -401,22 +430,22 @@ fn entering_the_game_spawns_the_player_once_and_shares_the_baked_dimension_list(
     let list = support::dimension_list_with_extra();
     let baked = Arc::clone(list.keys());
     app.insert_resource(list);
-    let (dim_label, ctl_rx) = live_dimension(
+    let dim_label = live_dimension(
         &mut app,
         mcrs_minecraft_dimension::dimension_keys::OVERWORLD.into(),
     );
     row(&mut failed, "the transition sends one spawn", || {
-        game_transition_emits_initial_spawn(&mut app, dim_label, &ctl_rx)
+        game_transition_emits_initial_spawn(&mut app, dim_label)
     });
     row(
         &mut failed,
         "joining players share the baked dimension list",
-        || joining_players_share_the_baked_dimension_list(&mut app, &ctl_rx, &baked),
+        || joining_players_share_the_baked_dimension_list(&mut app, dim_label, &baked),
     );
     rows_hold(failed);
 }
 
-fn every_registry_resource_of_the_host_reaches_every_dimension(app: &App) {
+fn every_registry_resource_of_the_host_reaches_every_dimension(app: &mut App) {
     use mcrs_minecraft_block::definition::Blocks;
     use mcrs_minecraft_core::Versioned;
     use mcrs_minecraft_engine_registries::RegistrySnapshot;
@@ -447,8 +476,12 @@ fn every_registry_resource_of_the_host_reaches_every_dimension(app: &App) {
         "the host holds no registry resource to check: {candidates:?}"
     );
 
-    let host_snapshot = app.world().resource::<Versioned<RegistrySnapshot>>();
-    let dimensions: Vec<_> = app.sub_apps().sub_apps.values().collect();
+    let host_snapshot = Arc::clone(
+        app.world()
+            .resource::<Versioned<RegistrySnapshot>>()
+            .value(),
+    );
+    let dimensions = crate::host_app::sub_apps(app);
     assert_eq!(dimensions.len(), 2);
     for dimension in dimensions {
         let held = resource_names(dimension.world());
@@ -465,7 +498,7 @@ fn every_registry_resource_of_the_host_reaches_every_dimension(app: &App) {
         );
         let snapshot = dimension.world().resource::<Versioned<RegistrySnapshot>>();
         assert!(
-            Arc::ptr_eq(host_snapshot.value(), snapshot.value()),
+            Arc::ptr_eq(&host_snapshot, snapshot.value()),
             "a dimension holds its own snapshot, not the host's"
         );
     }
@@ -490,7 +523,7 @@ fn every_registry_resource_of_the_host_reaches_every_dimension_through_one_snaps
     row(
         &mut failed,
         "every registry resource of the host reaches every dimension",
-        || every_registry_resource_of_the_host_reaches_every_dimension(&app),
+        || every_registry_resource_of_the_host_reaches_every_dimension(&mut app),
     );
     row(
         &mut failed,
@@ -514,8 +547,6 @@ fn dimension_labels(app: &mut App) -> Vec<(Entity, ResourceKeyBuf<Dimension>)> {
 }
 
 fn a_registry_resource_is_not_changed_on_the_second_tick(app: &mut App) {
-    use mcrs_minecraft_engine_world::world::sub_app::DimAppLabel;
-
     let labels = dimension_labels(app);
     assert_eq!(labels.len(), 2);
     let overworld = labels
@@ -524,15 +555,11 @@ fn a_registry_resource_is_not_changed_on_the_second_tick(app: &mut App) {
         .expect("the overworld is live")
         .0;
 
-    let host_anchor = app.world_mut().spawn_empty().id();
-    app.world()
-        .resource::<DimChannelsResource>()
-        .get(overworld)
-        .expect("channel registered by spawn_dim_subapp")
-        .control_sender
-        .try_send(ToDim::Spawn(InboundPlayerSpawn {
-            host_anchor,
-            session: PlayerSession(0),
+    send_spawn(
+        app,
+        overworld,
+        InboundPlayerSpawn {
+            session: PlayerSession(1),
             snapshot: PlayerTransferSnapshot {
                 uuid: Uuid::new_v4(),
                 username: "second_tick".into(),
@@ -541,13 +568,13 @@ fn a_registry_resource_is_not_changed_on_the_second_tick(app: &mut App) {
                 client_info: Some(crate::support::client_info_with_view_distance(12)),
             },
             dimensions: Vec::new().into(),
-        }))
-        .expect("control channel not full");
+        },
+    );
 
     app.update();
     {
         use mcrs_minecraft_engine_world::entity::player::Player;
-        let world = app.sub_app_mut(DimAppLabel(overworld)).world_mut();
+        let world = crate::host_app::world(app, overworld);
         assert_eq!(
             world
                 .query_filtered::<Entity, With<Player>>()
@@ -559,14 +586,14 @@ fn a_registry_resource_is_not_changed_on_the_second_tick(app: &mut App) {
     let since: Vec<_> = labels
         .iter()
         .map(|(label, _)| {
-            let world = app.sub_app_mut(DimAppLabel(*label)).world_mut();
+            let world = crate::host_app::world(app, *label);
             (*label, world.increment_change_tick())
         })
         .collect();
     app.update();
 
     for (label, since) in since {
-        let world = app.sub_app(DimAppLabel(label)).world();
+        let world = crate::host_app::world(app, label);
         assert!(
             !registry_resources_changed_since(world, since),
             "a registry resource changed on a tick without a swap"
@@ -600,16 +627,16 @@ fn separate_load() -> mcrs_minecraft_registries::Registries {
         .unwrap_or_else(|error| panic!("the registries are unusable:\n{error}"))
 }
 
-fn assert_every_dimension_holds_the_hosts_registries(app: &App) {
+fn assert_every_dimension_holds_the_hosts_registries(app: &mut App) {
     use mcrs_minecraft_registries::{CurrentRegistries, Registries};
 
-    let host = app.world().resource::<CurrentRegistries>();
-    let dimensions = &app.sub_apps().sub_apps;
+    let host = Registries::clone(app.world().resource::<CurrentRegistries>());
+    let dimensions = crate::host_app::sub_apps(app);
     assert!(!dimensions.is_empty(), "the host has no dimensions");
-    for dimension in dimensions.values() {
+    for dimension in dimensions {
         let held = dimension.world().resource::<CurrentRegistries>();
         assert!(
-            Registries::ptr_eq(host, held),
+            Registries::ptr_eq(&host, held),
             "dimension holds registries of another load, not the host's"
         );
     }
@@ -621,7 +648,7 @@ fn every_dimension_holds_the_hosts_registries_arc() {
     crate::host_app::drive_to_playing(&mut app);
     crate::host_app::materialise_sub_apps(&mut app, &[OVERWORLD, NETHER]);
 
-    assert_every_dimension_holds_the_hosts_registries(&app);
+    assert_every_dimension_holds_the_hosts_registries(&mut app);
 }
 
 #[test]
@@ -634,33 +661,37 @@ fn a_dimension_holding_another_load_fails_the_pointer_check() {
     crate::host_app::materialise_sub_apps(&mut app, &[OVERWORLD, NETHER]);
 
     let other = separate_load();
-    app.sub_apps_mut()
-        .sub_apps
-        .values_mut()
+    crate::host_app::sub_apps(&mut app)
+        .into_iter()
         .next()
         .expect("a dimension is live")
         .world_mut()
         .insert_resource(CurrentRegistries::new(other));
 
-    assert_every_dimension_holds_the_hosts_registries(&app);
+    assert_every_dimension_holds_the_hosts_registries(&mut app);
 }
 
-fn snapshot_ticks(app: &mut App) -> Vec<(InternedAppLabel, Tick)> {
-    app.sub_apps_mut()
-        .sub_apps
-        .iter_mut()
-        .map(|(label, dimension)| (*label, dimension.world_mut().increment_change_tick()))
+fn snapshot_ticks(app: &mut App) -> Vec<(Entity, Tick)> {
+    let labels: Vec<Entity> = app.world().resource::<DimCells>().labels().collect();
+    labels
+        .into_iter()
+        .map(|label| {
+            (
+                label,
+                crate::host_app::world(app, label).increment_change_tick(),
+            )
+        })
         .collect()
 }
 
-fn dimensions_that_replaced_their_snapshot(app: &App, since: &[(InternedAppLabel, Tick)]) -> usize {
+fn dimensions_that_replaced_their_snapshot(app: &mut App, since: &[(Entity, Tick)]) -> usize {
     use mcrs_minecraft_core::Versioned;
     use mcrs_minecraft_engine_registries::RegistrySnapshot;
 
     since
         .iter()
         .filter(|(label, since)| {
-            let world = app.sub_apps().sub_apps[label].world();
+            let world = crate::host_app::world(app, *label);
             world
                 .get_resource_change_ticks::<Versioned<RegistrySnapshot>>()
                 .is_some_and(|ticks| ticks.is_changed(*since, world.read_change_tick()))
@@ -676,7 +707,7 @@ fn a_swapped_set_reaches_every_dimension_on_the_next_tick_and_an_idle_tick_repla
     let mut app = crate::host_app::make_host_app();
     crate::host_app::drive_to_playing(&mut app);
     crate::host_app::materialise_sub_apps(&mut app, &[OVERWORLD, NETHER]);
-    let dimensions = app.sub_apps().sub_apps.len();
+    let dimensions = app.world().resource::<DimCells>().len();
 
     let old = Registries::clone(app.world().resource::<CurrentRegistries>());
     replace_registries(app.world_mut(), separate_load());
@@ -684,8 +715,8 @@ fn a_swapped_set_reaches_every_dimension_on_the_next_tick_and_an_idle_tick_repla
     let since = snapshot_ticks(&mut app);
     app.update();
 
-    assert_every_dimension_holds_the_hosts_registries(&app);
-    for dimension in app.sub_apps().sub_apps.values() {
+    assert_every_dimension_holds_the_hosts_registries(&mut app);
+    for dimension in crate::host_app::sub_apps(&mut app) {
         let held = dimension.world().resource::<CurrentRegistries>();
         assert!(
             !Registries::ptr_eq(&old, held),
@@ -693,11 +724,50 @@ fn a_swapped_set_reaches_every_dimension_on_the_next_tick_and_an_idle_tick_repla
         );
     }
     assert_eq!(
-        dimensions_that_replaced_their_snapshot(&app, &since),
+        dimensions_that_replaced_their_snapshot(&mut app, &since),
         dimensions
     );
 
     let since = snapshot_ticks(&mut app);
     app.update();
-    assert_eq!(dimensions_that_replaced_their_snapshot(&app, &since), 0);
+    assert_eq!(dimensions_that_replaced_their_snapshot(&mut app, &since), 0);
+}
+
+#[test]
+fn a_burst_of_players_enters_the_game_in_one_tick_and_all_spawn() {
+    use mcrs_minecraft_engine_world::entity::player::Player;
+    use mcrs_minecraft_engine_world::world::sub_app::DimDespawnQueue;
+
+    let mut app = build_host_app();
+    crate::host_app::drive_to_playing(&mut app);
+    crate::host_app::materialise_sub_apps(
+        &mut app,
+        &[("minecraft:overworld", "minecraft:overworld")],
+    );
+    let dim_label = crate::host_app::label_of(&app, "minecraft:overworld");
+
+    let players = 64;
+    let connections: Vec<Entity> = (0..players)
+        .map(|_| spawn_accepted_connection(&mut app).0)
+        .collect();
+    for &connection in &connections {
+        transition_to_game(&mut app, connection);
+    }
+    for _ in 0..3 {
+        app.update();
+    }
+
+    assert!(
+        app.world().resource::<DimDespawnQueue>().0.is_empty(),
+        "a burst of joins is no reason to tear the dimension down"
+    );
+    let world = crate::host_app::world(&mut app, dim_label);
+    let spawned = world
+        .query_filtered::<Entity, With<Player>>()
+        .iter(world)
+        .count();
+    assert_eq!(
+        spawned, players,
+        "every player that entered the game must spawn in the dimension"
+    );
 }

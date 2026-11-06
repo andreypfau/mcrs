@@ -39,7 +39,6 @@ pub struct StepReport {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct StepOutput<K: Kinds> {
     pub writes: Vec<BlockWrite>,
-    pub marked: Vec<BlockPos>,
     pub outbound: Vec<Message<K>>,
     pub delivered: Vec<BlockEvent<K::Block>>,
     pub destroyed: Vec<Destroyed>,
@@ -51,13 +50,24 @@ impl<K: Kinds> Default for StepOutput<K> {
     fn default() -> Self {
         Self {
             writes: Vec::new(),
-            marked: Vec::new(),
             outbound: Vec::new(),
             delivered: Vec::new(),
             destroyed: Vec::new(),
             chains: Vec::new(),
             report: StepReport::default(),
         }
+    }
+}
+
+impl<K: Kinds> StepOutput<K> {
+    /// Empties the output and keeps the capacity of its lists.
+    pub fn clear(&mut self) {
+        self.writes.clear();
+        self.outbound.clear();
+        self.delivered.clear();
+        self.destroyed.clear();
+        self.chains.clear();
+        self.report = StepReport::default();
     }
 }
 

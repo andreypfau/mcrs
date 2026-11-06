@@ -18,9 +18,8 @@ use mcrs_minecraft_protocol_game::serverbound::{
 };
 
 use crate::bus::{OutboundPlayerPacket, PacketPayload};
-use crate::player_dimension_change::CarryOnDimensionChangeExt;
-use crate::session::HostAnchor;
 use crate::teleport::{MAX_XZ, MAX_Y, TeleportState};
+use mcrs_minecraft_engine_world::session::Owner;
 
 pub struct MovementPlugin;
 
@@ -32,8 +31,7 @@ impl Plugin for MovementPlugin {
         app.add_observer(handle_move_status_only);
         app.add_observer(handle_accept_teleportation);
         app.add_message::<PlayerMovement>();
-        app.carry_on_dimension_change::<TeleportState>();
-        app.add_systems(FixedUpdate, process_movement.in_set(TickSet::Input));
+        app.add_systems(FixedUpdate, process_movement.in_set(TickSet::ClientInput));
         app.add_systems(
             FixedPostUpdate,
             teleport.before(VoxelUpdateSet::NetworkSync),
@@ -125,13 +123,10 @@ pub(crate) fn process_movement(
 }
 
 fn teleport(
-    mut clients: Query<
-        (&HostAnchor, &mut TeleportState, &Transform),
-        (Changed<Transform>, With<HostAnchor>),
-    >,
+    mut clients: Query<(&Owner, &mut TeleportState, &Transform), (Changed<Transform>, With<Owner>)>,
     mut packet_writer: MessageWriter<OutboundPlayerPacket>,
 ) {
-    for (anchor, mut state, transform) in &mut clients {
+    for (owner, mut state, transform) in &mut clients {
         let synced = state.synced_transform();
         let changed_pos = transform.translation != synced.translation;
         let changed_rot = transform.rotation != synced.rotation;
@@ -140,7 +135,7 @@ fn teleport(
             let teleport_id = state.sent(*transform);
             packet_writer.write(
                 to(
-                    anchor.0,
+                    owner.0,
                     PacketPayload::PlayerPosition(ClientboundPlayerPosition {
                         teleport_id: VarInt(teleport_id),
                         position: transform.translation,
@@ -180,23 +175,23 @@ mod tests {
     use bevy_ecs::message::Messages;
     use bevy_ecs::system::RunSystemOnce;
     use bevy_ecs::world::World;
+    use mcrs_minecraft_engine_world::session::PlayerSession;
 
     #[test]
     fn a_server_move_sends_one_position_with_the_next_teleport_id_and_a_synced_one_none() {
         let mut world = World::new();
         world.init_resource::<Messages<OutboundPlayerPacket>>();
-        let moved_anchor = world.spawn_empty().id();
+        let moved_session = PlayerSession(1);
         let moved = world
             .spawn((
-                HostAnchor(moved_anchor),
+                Owner(moved_session),
                 Transform::default().with_translation(DVec3::new(1.0, 0.0, 0.0)),
                 TeleportState::default(),
             ))
             .id();
-        let synced_anchor = world.spawn_empty().id();
         let synced = world
             .spawn((
-                HostAnchor(synced_anchor),
+                Owner(PlayerSession(2)),
                 Transform::default(),
                 TeleportState::default(),
             ))
@@ -210,7 +205,7 @@ mod tests {
             .collect();
         assert_eq!(sent.len(), 1, "only the moved player is told");
         assert!(
-            matches!(sent[0].target, PacketTarget::SinglePlayer(anchor) if anchor == moved_anchor)
+            matches!(sent[0].target, PacketTarget::SinglePlayer(session) if session == moved_session)
         );
         let PacketPayload::PlayerPosition(position) = &sent[0].data else {
             panic!("a move is sent as a player position");

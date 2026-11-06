@@ -1,21 +1,23 @@
 use crate::inbound_rate::InboundRateBucket;
 use crate::intent::status_frame;
 use crate::metrics::Malformed;
-use crate::{ConnectionState, NetworkSet, RawConnection};
+use crate::{ConnectionState, NetworkSet, RawConnection, WriterWakes};
 use crate::{connect, event, lan, webtransport};
+use base64::engine::general_purpose::STANDARD;
 use bevy_app::{App, AppExit, FixedPreUpdate, Plugin, PostStartup, Update};
 use bevy_ecs::change_detection::{DetectChanges, ResMut};
 use bevy_ecs::prelude::Component;
 use bevy_ecs::resource::Resource;
 use bevy_ecs::schedule::IntoScheduleConfigs;
 use bevy_ecs::system::Res;
-use bevy_ecs::world::World;
+use bevy_ecs::world::{FromWorld, World};
 use bytes::Bytes;
 use mcrs_minecraft_protocol::packets::login::clientbound::ClientboundLoginDisconnect;
 use mcrs_minecraft_protocol::packets::{configuration, game};
 use mcrs_minecraft_protocol::uuid::Uuid;
 use mcrs_minecraft_protocol::{Bounded, Encode, Packet, WritePacket};
 use mcrs_minecraft_text::Text;
+use socket2::{Domain, Protocol, Socket, Type};
 use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -32,6 +34,7 @@ pub struct NetworkPlugin {
     pub announce_on_lan: bool,
     pub max_players: u32,
     pub motd: String,
+    pub favicon: Option<String>,
     /// A handshake with the transfer intent continues as a login only when this is set;
     /// otherwise the client gets `multiplayer.disconnect.transfers_disabled`.
     pub accepts_transfers: bool,
@@ -41,6 +44,27 @@ pub struct NetworkPlugin {
     /// Turned off, a status connection closes after the handshake without a packet; a login is
     /// not affected.
     pub enable_status: bool,
+    /// The kernel send buffer of each connection, in bytes. Autotuning would let every slow
+    /// reader pin up to 4 MiB of kernel memory, and a few hundred of them exhaust the network
+    /// memory of the host. macOS then fails sends with `ENOBUFS` after it may have queued part of
+    /// the bytes, so no writer can resume its stream. A fixed buffer keeps a slow reader's
+    /// backlog in its own outbound queue. 512 KiB still carries 5 MB/s at a round trip of 100 ms.
+    pub send_buffer_bytes: usize,
+    /// The length of the queue of connections the kernel completes before the accept loop takes
+    /// them. A burst of clients beyond this length gets connection resets.
+    pub accept_backlog: u32,
+}
+
+const SERVER_ICON: &[u8] = include_bytes!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../../assets/mcrs/server-icon.png"
+));
+
+/// The mc.rs icon as a `data:` URL for the `favicon` key of the status response.
+#[must_use]
+pub fn default_favicon() -> String {
+    use base64::Engine;
+    format!("data:image/png;base64,{}", STANDARD.encode(SERVER_ICON))
 }
 
 impl Default for NetworkPlugin {
@@ -50,9 +74,12 @@ impl Default for NetworkPlugin {
             announce_on_lan: true,
             max_players: 20,
             motd: "mcrs Server".to_owned(),
+            favicon: Some(default_favicon()),
             accepts_transfers: false,
             hide_online_players: false,
             enable_status: true,
+            send_buffer_bytes: 512 * 1024,
+            accept_backlog: 1024,
         }
     }
 }
@@ -117,6 +144,21 @@ impl Plugin for NetworkPlugin {
     }
 }
 
+fn bind_listener(address: SocketAddr, backlog: u32) -> std::io::Result<std::net::TcpListener> {
+    let socket = Socket::new(
+        Domain::for_address(address),
+        Type::STREAM,
+        Some(Protocol::TCP),
+    )?;
+    // std sets this on Unix; a restart must not wait for old connections in TIME_WAIT.
+    #[cfg(unix)]
+    socket.set_reuse_address(true)?;
+    socket.bind(&address.into())?;
+    socket.listen(i32::try_from(backlog).unwrap_or(i32::MAX))?;
+    socket.set_nonblocking(true)?;
+    Ok(socket.into())
+}
+
 fn build_plugin(app: &mut App, plugin: &NetworkPlugin) -> anyhow::Result<()> {
     let address = plugin.address;
     let announce_on_lan = plugin.announce_on_lan;
@@ -125,8 +167,7 @@ fn build_plugin(app: &mut App, plugin: &NetworkPlugin) -> anyhow::Result<()> {
 
     // Binding through std keeps this usable from a caller that is itself
     // already inside a tokio runtime, where `block_on` would panic.
-    let std_listener = std::net::TcpListener::bind(address)?;
-    std_listener.set_nonblocking(true)?;
+    let std_listener = bind_listener(address, plugin.accept_backlog)?;
     let bound = std_listener.local_addr()?;
     let listener = {
         let _guard = tokio_handle.enter();
@@ -143,9 +184,11 @@ fn build_plugin(app: &mut App, plugin: &NetworkPlugin) -> anyhow::Result<()> {
         max_players: plugin.max_players,
         status_recv,
         motd: plugin.motd.clone(),
+        favicon: plugin.favicon.clone(),
         accepts_transfers: plugin.accepts_transfers,
         hide_online_players: plugin.hide_online_players,
         enable_status: plugin.enable_status,
+        send_buffer_bytes: plugin.send_buffer_bytes,
     }));
     status_send.send_replace(status_frame(&StatusPlayers::default(), &shared_state.0)?);
 
@@ -273,9 +316,22 @@ pub(crate) struct SharedNetworkStateInner {
     pub(crate) max_players: u32,
     pub(crate) status_recv: tokio::sync::watch::Receiver<Bytes>,
     pub(crate) motd: String,
+    pub(crate) favicon: Option<String>,
     pub(crate) accepts_transfers: bool,
     pub(crate) hide_online_players: bool,
     pub(crate) enable_status: bool,
+    pub(crate) send_buffer_bytes: usize,
+}
+
+/// The writers of the server wake on its runtime; without the network plugin, on the thread of
+/// the flush.
+impl FromWorld for WriterWakes {
+    fn from_world(world: &mut World) -> Self {
+        match world.get_resource::<SharedNetworkState>() {
+            Some(shared) => Self::on_runtime(shared.0.tokio_handle.clone()),
+            None => Self::on_this_thread(),
+        }
+    }
 }
 
 #[derive(Component)]
@@ -312,8 +368,7 @@ impl ServerSideConnection {
             // Neither protocol has a disconnect packet; the connection only closes.
             ConnectionState::Handshaking | ConnectionState::Status => return Ok(()),
         }
-        let blob = self.raw.take_encoded();
-        self.raw.try_send_blob(blob);
+        self.raw.send_written();
         Ok(())
     }
 

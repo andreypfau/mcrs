@@ -206,8 +206,18 @@ impl<V: Hash + Eq + Copy, const DIM: usize> PalettedContainer<V, DIM> {
                 debug_assert!(bits_per_entry <= 15);
 
                 let cells = data.cube.as_flattened().as_flattened();
+                // Neighbouring cells mostly hold the same value, so the hash is only asked
+                // where the value changes.
+                let mut last: Option<(V, u32)> = None;
                 let packed = crate::pack_from(bits_per_entry as u32, cells, |key| {
-                    data.palette_index(key).map_or(0, |index| index as u32)
+                    if let Some((value, index)) = last
+                        && value == *key
+                    {
+                        return index;
+                    }
+                    let index = data.palette_index(key).map_or(0, |index| index as u32);
+                    last = Some((*key, index));
+                    index
                 });
 
                 (data.palette.clone().into_boxed_slice(), packed)

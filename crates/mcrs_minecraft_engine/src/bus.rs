@@ -6,43 +6,38 @@ use bytes::Bytes;
 use mcrs_minecraft_engine_world::session::PlayerSession;
 use mcrs_minecraft_game_mode::GameMode;
 use mcrs_minecraft_network::event::Trigger;
-use mcrs_minecraft_protocol::VarInt;
+use mcrs_minecraft_network::metrics::PacketKind;
 use mcrs_minecraft_protocol::uuid::Uuid;
-use mcrs_minecraft_protocol_game::chunk::{ChunkDataBlockEntity, LightData};
 use mcrs_minecraft_protocol_game::clientbound::{
-    ClientboundAddEntity, ClientboundBlockUpdate, ClientboundChunkBatchFinished,
+    ClientboundBlockEvent, ClientboundBlockUpdate, ClientboundChunkBatchFinished,
     ClientboundChunkBatchStart, ClientboundChunkCacheRadius, ClientboundCommandSuggestions,
     ClientboundEntityEvent, ClientboundEntityPositionSync, ClientboundForgetLevelChunk,
     ClientboundGameEvent, ClientboundLightUpdate, ClientboundLogin, ClientboundPlayerAbilities,
-    ClientboundPlayerLookAt, ClientboundPlayerPosition, ClientboundRemoveEntities,
-    ClientboundRespawn, ClientboundSetChunkCacheCenter, ClientboundSetTime,
-    ClientboundSystemChatPacket,
+    ClientboundPlayerLookAt, ClientboundPlayerPosition, ClientboundRespawn,
+    ClientboundSetChunkCacheCenter, ClientboundSetTime, ClientboundSystemChatPacket,
+    ClientboundTabList,
 };
 use mcrs_minecraft_resource::ResourceKeyBuf;
 use mcrs_voxel::ColumnPos;
 use smallvec::SmallVec;
 use std::sync::Arc;
-use std::time::Instant;
 
 #[derive(Message, Clone, Debug)]
 pub struct OutboundPlayerPacket {
     pub target: PacketTarget,
     pub priority: PacketPriority,
     pub data: PacketPayload,
-    // Stamped by the bridge extract closure, not by dim systems.
-    // Default PlayerSession(0) / epoch 0 is safe: PlayerSession(0) never
-    // is a session's id (counter starts at 1), so unstamped
-    // packets are always dropped by bridge_outbound.
+    // `dim_outputs::deliver` stamps these, not the dimension. PlayerSession(0) is no session's
+    // id, so `bridge_outbound` drops an unstamped packet for one player.
     pub session: PlayerSession,
     pub epoch: u32,
 }
 
 #[derive(Message, Clone, Debug)]
 pub struct InboundPlayerPacket {
-    pub player: Entity,
+    pub session: PlayerSession,
     pub id: i32,
     pub data: Bytes,
-    pub timestamp: Instant,
     /// Raises the typed event of the frame's row, which a check of the frame found; `None` for a
     /// row without a structure.
     pub trigger: Option<Trigger>,
@@ -50,29 +45,20 @@ pub struct InboundPlayerPacket {
 
 #[derive(Message, Clone, Debug)]
 pub struct InboundPlayerSpawn {
-    pub host_anchor: Entity,
     pub session: PlayerSession,
     pub snapshot: PlayerTransferSnapshot,
-    /// Dimension keys forwarded from the host's
-    /// `DimensionList` so the per-dim spawn consumer can fill
-    /// `ClientboundLogin.dimensions` without reading the list resource
-    /// (which is host-only and absent from any DimWorld).
+    /// The keys of the host's `DimensionList`, which no dimension world holds, for
+    /// `ClientboundLogin.dimensions`.
     pub dimensions: Arc<[ResourceKeyBuf<mcrs_minecraft_dimension::Dimension>]>,
 }
 
 #[derive(Message, Clone, Debug)]
 pub struct OutboundPlayerAttached {
-    pub host_anchor: Entity,
-}
-
-#[derive(Message, Clone, Debug)]
-pub struct OutboundPlayerDisconnect {
-    pub host_anchor: Entity,
+    pub session: PlayerSession,
 }
 
 #[derive(Message, Clone, Debug)]
 pub struct InboundPlayerDespawn {
-    pub host_anchor: Entity,
     pub session: PlayerSession,
 }
 
@@ -84,10 +70,11 @@ pub struct OutboundPlayerReleased {
 
 #[derive(Clone, Debug)]
 pub enum PacketTarget {
-    SinglePlayer(Entity),
+    SinglePlayer(PlayerSession),
+    /// Every session the host places in the dimension with this host label.
     AllInDim(Entity),
     AllPlayers,
-    PlayerSet(SmallVec<[Entity; 8]>),
+    PlayerSet(SmallVec<[PlayerSession; 8]>),
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -95,11 +82,10 @@ pub enum PacketPriority {
     Critical,
     High,
     Normal,
-    Low,
 }
 
-pub fn to(anchor: Entity, data: PacketPayload) -> OutboundPlayerPacket {
-    to_target(PacketTarget::SinglePlayer(anchor), data)
+pub fn to(session: PlayerSession, data: PacketPayload) -> OutboundPlayerPacket {
+    to_target(PacketTarget::SinglePlayer(session), data)
 }
 
 /// A packet for `target` at the normal priority, not yet stamped with a session.
@@ -125,26 +111,24 @@ impl OutboundPlayerPacket {
 #[derive(Clone, Debug)]
 pub enum PacketPayload {
     LightUpdate(ClientboundLightUpdate<'static>),
-    Test(TestPayload),
     BlockUpdate(ClientboundBlockUpdate),
-    /// Carries owned chunk bytes and light data so dispatch_encode can build
-    /// ClientboundLevelChunkWithLight without World access. The per-dim chunk
-    /// producer encodes sections into `chunk_bytes`; dispatch constructs the
-    /// borrowing ChunkData at encode time.
+    /// A block event that a block took. It is not a change of the column: a client that takes
+    /// the column later does not get it.
+    BlockEvent(ClientboundBlockEvent),
+    /// A `level_chunk_with_light` packet with its id, encoded once for every player that
+    /// receives the column in the same drain.
     ChunkLoad {
         column: ColumnPos,
-        chunk_bytes: Vec<u8>,
-        heightmaps: Vec<(VarInt, Vec<u64>)>,
-        light_data: LightData<'static>,
-        block_entities: Vec<ChunkDataBlockEntity<'static>>,
+        packet: Bytes,
     },
     ChunkUnload(ClientboundForgetLevelChunk),
     /// Brackets the columns of one send batch, which the client times to answer with the rate
     /// it can take them at.
     ChunkBatchStart(ClientboundChunkBatchStart),
     ChunkBatchFinished(ClientboundChunkBatchFinished),
-    PlayerEnteredView(ClientboundAddEntity),
-    PlayerLeftView(ClientboundRemoveEntities),
+    /// The entity bytes of one viewer from the muxer: records of packets with their ids, which
+    /// other viewers share.
+    Replication(Vec<Bytes>),
     EntityPosSync(ClientboundEntityPositionSync),
     PlayerLogin(ClientboundLogin),
     /// Moves the client to another dimension; it keeps its player.
@@ -161,6 +145,7 @@ pub enum PacketPayload {
     PlayerInfoUpdate {
         entries: Vec<PlayerInfoEntry>,
     },
+    TabList(ClientboundTabList<'static>),
     PlayerPosition(ClientboundPlayerPosition),
     PlayerLookAt(ClientboundPlayerLookAt),
     PlayerAbilities(ClientboundPlayerAbilities),
@@ -172,6 +157,22 @@ pub enum PacketPayload {
     SetTime(ClientboundSetTime),
 }
 
+impl PacketPayload {
+    pub fn kind(&self) -> PacketKind {
+        match self {
+            Self::EntityPosSync(_) => PacketKind::EntityMove,
+            Self::Replication(_) => PacketKind::Replication,
+            Self::PlayerInfoUpdate { .. } | Self::TabList(_) => PacketKind::PlayerInfo,
+            Self::ChunkLoad { .. }
+            | Self::ChunkUnload(_)
+            | Self::ChunkBatchStart(_)
+            | Self::ChunkBatchFinished(_)
+            | Self::LightUpdate(_) => PacketKind::Chunk,
+            _ => PacketKind::Other,
+        }
+    }
+}
+
 /// Owned player-list entry for use inside `PacketPayload::PlayerInfoUpdate`.
 /// Carries the fields needed for the AddPlayer + UpdateGameMode + UpdateListed
 /// action combination used during join.
@@ -181,11 +182,6 @@ pub struct PlayerInfoEntry {
     pub username: String,
     pub game_mode: GameMode,
     pub listed: bool,
-}
-
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub struct TestPayload {
-    pub seq: u32,
 }
 
 /// The state of a joining player that the host hands to the dimension that spawns it.

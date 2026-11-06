@@ -1,150 +1,84 @@
-use crate::answer_suggestion::answer_suggestion;
-use crate::command_event::CommandEvent;
 use crate::command_failure::{CommandFailure, CommandResult};
 use crate::command_outbox::CommandOutbox;
-use crate::command_queue::{QueuedLine, QueuedSuggestion};
-use crate::command_set::CommandSet;
 use crate::command_targets::CommandTargets;
-use crate::command_tree::CommandTree;
 use crate::handlers::{CommandHandlers, ModifierHandlers};
 use crate::invocation::Invocation;
 use crate::modified::{Modified, ModifyResult};
-use crate::parse_line::{LineToParse, parse_line};
-use crate::registrar::Handler;
-use crate::running_command::RunningCommand;
+use crate::registrar::{Handler, HandlerWorld};
 use crate::source_state::SourceState;
 use crate::system_message::system_message;
 use crate::worlds::Worlds;
-use bevy_ecs::component::Mutable;
 use bevy_ecs::entity::Entity;
+use bevy_ecs::message::Messages;
 use bevy_ecs::prelude::In;
-use bevy_ecs::resource::Resource;
 use bevy_ecs::system::SystemId;
 use bevy_ecs::world::World;
-use mcrs_command::{End, Executor, Failure, Limits, SourceLists, Stage};
-use mcrs_minecraft_engine::dim;
+use mcrs_command::{Executor, Failure};
+use mcrs_minecraft_engine::bus::OutboundPlayerPacket;
+use mcrs_minecraft_engine_world::owned_columns::{OwnedColumns, owns};
+use mcrs_minecraft_engine_world::session::PlayerSession;
 use mcrs_minecraft_text::Text;
+use mcrs_voxel::ColumnPos;
+use std::mem;
 
-/// The run of one command line. The line parses, and each stage call runs, in the world of the
-/// dimension of its source, with the graph, the line, the targets and the outbox lent to that
-/// world; what the call leaves in the outbox applies before the next call.
-pub(crate) struct PassExecutor<'a, 'w, S: CommandSet> {
-    pub(crate) host: &'a mut World,
-    pub(crate) worlds: &'a mut [&'w mut World],
-    pub(crate) tree: &'a mut CommandTree<S>,
-    pub(crate) targets: &'a mut CommandTargets,
-    pub(crate) running: &'a mut RunningCommand,
-    pub(crate) outbox: &'a mut CommandOutbox,
-    pub(crate) output: Entity,
+/// The sources of one stage that go on in the world of the dimension `to`.
+pub(crate) struct Deferred {
+    pub(crate) to: Entity,
+    pub(crate) stage: usize,
+    pub(crate) sources: Vec<SourceState>,
 }
 
-/// Swaps the values of the host and of `world`; a second swap gives them back.
-fn lend<S: CommandSet>(
-    world: &mut World,
-    tree: &mut CommandTree<S>,
-    targets: &mut CommandTargets,
-    running: &mut RunningCommand,
-    outbox: &mut CommandOutbox,
-) -> bool {
-    let present = world.contains_resource::<CommandTree<S>>()
-        && world.contains_resource::<CommandTargets>()
-        && world.contains_resource::<RunningCommand>()
-        && world.contains_resource::<CommandOutbox>();
-    if present {
-        swap_resource(world, tree);
-        swap_resource(world, targets);
-        swap_resource(world, running);
-        swap_resource(world, outbox);
-    }
-    present
+/// The run of one command line in the world of the dimension `here`. Each stage call runs here,
+/// and what the call leaves in the outbox applies before the next call. A call whose handler
+/// reads the world of the source dimension does not run when this world does not own the column
+/// of the source: its source goes into `deferred`, to go on in the world that owns it.
+pub(crate) struct DimExecutor<'a> {
+    pub(crate) world: &'a mut World,
+    pub(crate) here: Entity,
+    pub(crate) output: PlayerSession,
+    pub(crate) deferred: &'a mut Vec<Deferred>,
 }
 
-fn swap_resource<T: Resource<Mutability = Mutable>>(world: &mut World, value: &mut T) {
-    if let Some(mut resource) = world.get_resource_mut::<T>() {
-        std::mem::swap(&mut *resource, value);
-    }
+/// Where a stage call for a source runs.
+enum Place {
+    Here,
+    Elsewhere(Entity),
 }
 
-impl<S: CommandSet> PassExecutor<'_, '_, S> {
-    pub(crate) fn run_line(
-        &mut self,
-        queued: QueuedLine,
-        stages: &mut Vec<Stage<Handler>>,
-        lists: &mut SourceLists<SourceState>,
-        limits: Limits,
-    ) {
-        let (source, line) = match self.begin(queued) {
-            Ok(begun) => begun,
-            Err(line) => {
-                self.running.line = line;
-                return;
-            }
-        };
-        self.running.line = line;
-        stages.clear();
-        stages.extend_from_slice(self.running.chain.stages());
-        let end = mcrs_command::execute(stages, source, limits, self, lists);
-        if end == End::SequenceLimit {
-            tracing::info!(
-                "a command stopped at the limit of {} stages and runs",
-                limits.sequence.max(1)
-            );
+impl DimExecutor<'_> {
+    fn place(&self, handler: &Handler, source: &SourceState) -> Result<Place, CommandFailure> {
+        let runs = self
+            .world
+            .get_resource::<CommandTargets>()
+            .and_then(|targets| targets.dimension_of(source.dimension))
+            .is_some();
+        if !runs {
+            return Err(CommandFailure::failed());
         }
+        if handler.world == HandlerWorld::Any {
+            return Ok(Place::Here);
+        }
+        // The halo of a cell lags its owner by a tick, so only the owner reads a column as a
+        // world of one cell does.
+        let owned = self.world.get_resource::<OwnedColumns>();
+        if source.dimension != self.here || !owns(owned, ColumnPos::from(source.position)) {
+            return Ok(Place::Elsewhere(source.dimension));
+        }
+        Ok(Place::Here)
     }
 
-    /// Parses the line and offers it to the observers. The line comes back as the error when the
-    /// command must not run, so the caller can reuse its buffer.
-    fn begin(&mut self, queued: QueuedLine) -> Result<(SourceState, String), String> {
-        let Some(player) = self.targets.player(queued.player) else {
-            return Err(queued.line);
-        };
-        let (index, entity) = (player.dimension, player.entity);
-        let mut input = LineToParse {
-            queued,
-            chain: std::mem::take(&mut self.running.chain),
-        };
-        let parsed = self.in_world(index, |world| {
-            world.run_system_cached_with(parse_line::<S>, &mut input)
-        });
-        let LineToParse { queued, chain } = input;
-        self.running.chain = chain;
-        let source = match parsed {
-            Some(Ok(Some(source))) => source,
-            Some(Err(error)) => {
-                tracing::error!("a command line did not parse: {error}");
-                return Err(queued.line);
-            }
-            Some(Ok(None)) | None => return Err(queued.line),
-        };
-        let mut event = CommandEvent {
-            player: entity,
-            source,
-            line: queued.line,
-            cancelled: false,
-        };
-        if self
-            .in_world(index, |world| world.trigger_ref(&mut event))
-            .is_none()
-            || event.cancelled
+    fn defer(&mut self, to: Entity, stage: usize, source: &SourceState) {
+        match self
+            .deferred
+            .iter_mut()
+            .find(|deferred| deferred.to == to && deferred.stage == stage)
         {
-            return Err(event.line);
-        }
-        Ok((event.source, event.line))
-    }
-
-    pub(crate) fn answer(&mut self, queued: &QueuedSuggestion) {
-        let Some(index) = self
-            .targets
-            .player(queued.player)
-            .map(|player| player.dimension)
-        else {
-            return;
-        };
-        let answered = self.in_world(index, |world| {
-            world.run_system_cached_with(answer_suggestion::<S>, queued)
-        });
-        if let Some(Err(error)) = answered {
-            tracing::error!("a suggestion request was not answered: {error}");
+            Some(deferred) => deferred.sources.push(source.clone()),
+            None => self.deferred.push(Deferred {
+                to,
+                stage,
+                sources: vec![source.clone()],
+            }),
         }
     }
 
@@ -156,56 +90,57 @@ impl<S: CommandSet> PassExecutor<'_, '_, S> {
         }
     }
 
-    /// Runs `run` in the world at `index` with the host's values lent to it, then settles what
-    /// the run left. `None` when there is no such world or it lacks the command resources.
-    fn in_world<R>(&mut self, index: usize, run: impl FnOnce(&mut World) -> R) -> Option<R> {
-        let world = self.worlds.get_mut(index)?;
-        if !lend(world, self.tree, self.targets, self.running, self.outbox) {
-            return None;
-        }
-        let result = run(world);
-        lend(world, self.tree, self.targets, self.running, self.outbox);
-        self.settle(index);
-        Some(result)
-    }
-
-    /// Runs the system `pick` finds in the world of the source dimension, then settles what
-    /// the run left. `None` when that world has no such system or the system did not run.
+    /// Runs the system `pick` finds in this world, then settles what the run left. `None` when
+    /// the world has no such system or the system did not run.
     fn call<O: 'static>(
         &mut self,
         invocation: Invocation,
         pick: impl FnOnce(&World) -> Option<SystemId<In<Invocation>, O>>,
     ) -> Option<O> {
-        let index = self.targets.dimension_of(invocation.source.dimension)?;
-        let system = pick(self.worlds.get(index)?)?;
-        self.in_world(index, |world| world.run_system_with(system, invocation))?
+        let system = pick(self.world)?;
+        let result = self
+            .world
+            .run_system_with(system, invocation)
             .inspect_err(|error| tracing::error!("a command handler did not run: {error}"))
-            .ok()
-    }
-
-    /// Applies the effects of the run in the world at `index` in the order of writing, then
-    /// sends its messages.
-    fn settle(&mut self, index: usize) {
-        let mut effects = std::mem::take(&mut self.outbox.effects);
-        let mut worlds = Worlds {
-            host: self.host,
-            worlds: self.worlds,
-            targets: self.targets,
-        };
-        for apply in effects.drain(..) {
-            apply(&mut worlds, index);
-        }
-        self.outbox.effects = effects;
-        for packet in self.outbox.packets.drain(..) {
-            dim::deliver(self.host, packet);
-        }
-        for broadcast in self.outbox.broadcasts.drain(..) {
-            self.host.trigger(broadcast);
-        }
+            .ok();
+        settle(self.world);
+        result
     }
 }
 
-impl<S: CommandSet> Executor<SourceState, Handler> for PassExecutor<'_, '_, S> {
+/// Applies the effects that the last run left in the outbox of `world`, in the order of
+/// writing, then sends its messages.
+pub(crate) fn settle(world: &mut World) {
+    let Some(mut outbox) = world.get_resource_mut::<CommandOutbox>() else {
+        return;
+    };
+    let effects = mem::take(&mut outbox.effects);
+    if !effects.is_empty()
+        && let Some(mut targets) = world.remove_resource::<CommandTargets>()
+    {
+        let mut worlds = Worlds {
+            world,
+            targets: &mut targets,
+        };
+        for apply in effects {
+            apply(&mut worlds);
+        }
+        world.insert_resource(targets);
+    }
+    let Some(mut outbox) = world.get_resource_mut::<CommandOutbox>() else {
+        return;
+    };
+    let packets = mem::take(&mut outbox.packets);
+    let broadcasts = mem::take(&mut outbox.broadcasts);
+    if let Some(mut messages) = world.get_resource_mut::<Messages<OutboundPlayerPacket>>() {
+        messages.write_batch(packets);
+    }
+    for broadcast in broadcasts {
+        world.trigger(broadcast);
+    }
+}
+
+impl Executor<SourceState, Handler> for DimExecutor<'_> {
     type Error = CommandFailure;
 
     fn modify(
@@ -215,12 +150,16 @@ impl<S: CommandSet> Executor<SourceState, Handler> for PassExecutor<'_, '_, S> {
         source: &SourceState,
         out: &mut Vec<SourceState>,
     ) -> Result<(), CommandFailure> {
+        if let Place::Elsewhere(to) = self.place(modifier, source)? {
+            self.defer(to, stage, source);
+            return Ok(());
+        }
         let invocation = self.invocation(stage, source);
         let (key, branch) = (modifier.key, modifier.branch);
         let modified: Option<ModifyResult> = self.call(invocation, |world| {
             world.get_resource::<ModifierHandlers>()?.get(key, branch)
         });
-        let forked = &mut self.outbox.forked;
+        let mut outbox = self.world.get_resource_mut::<CommandOutbox>();
         let result = match modified.unwrap_or_else(|| Err(CommandFailure::failed())) {
             Ok(Modified::None) => Ok(()),
             Ok(Modified::One(source)) => {
@@ -228,12 +167,16 @@ impl<S: CommandSet> Executor<SourceState, Handler> for PassExecutor<'_, '_, S> {
                 Ok(())
             }
             Ok(Modified::Forked) => {
-                out.append(forked);
+                if let Some(outbox) = outbox.as_mut() {
+                    out.append(&mut outbox.forked);
+                }
                 Ok(())
             }
             Err(failure) => Err(failure),
         };
-        forked.clear();
+        if let Some(mut outbox) = outbox {
+            outbox.forked.clear();
+        }
         result
     }
 
@@ -243,6 +186,10 @@ impl<S: CommandSet> Executor<SourceState, Handler> for PassExecutor<'_, '_, S> {
         command: &Handler,
         source: &SourceState,
     ) -> Result<i32, CommandFailure> {
+        if let Place::Elsewhere(to) = self.place(command, source)? {
+            self.defer(to, stage, source);
+            return Ok(0);
+        }
         let invocation = self.invocation(stage, source);
         let (key, branch) = (command.key, command.branch);
         let result: CommandResult = self
@@ -262,7 +209,7 @@ impl<S: CommandSet> Executor<SourceState, Handler> for PassExecutor<'_, '_, S> {
         };
         let message: Text = failure.text();
         if let Some(packet) = system_message(self.output, &message) {
-            dim::deliver(self.host, packet);
+            self.world.write_message(packet);
         }
     }
 }

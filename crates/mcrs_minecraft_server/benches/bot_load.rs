@@ -16,29 +16,38 @@ use std::time::{Duration, Instant};
 #[path = "common/scale_bots.rs"]
 mod scale_bots;
 
-use scale_bots::{ScaleReport, run_profile_ticks};
+use scale_bots::{Layout, ScaleReport, run_profile_ticks};
 
 /// Even, so exactly `TICKS / 2` injection ticks occur (one BlockUpdate per bot
 /// on every even tick), and well past the halfway mark where the cross-dim
 /// transfer fires.
 const TICKS: u64 = 24;
 
-fn check(report: &ScaleReport, bots: usize, cross_dim_rate: f32) {
+fn check(report: &ScaleReport, bots: usize, cross_dim_rate: f32, layout: Layout) {
     assert_eq!(
         report.tick_count, TICKS,
         "run should execute exactly the tick budget"
     );
 
-    let expected_injected = bots as u64 * (TICKS / 2);
+    let injection_ticks = match layout {
+        Layout::Apart => TICKS / 2,
+        Layout::Together => TICKS,
+    };
+    let expected_injected = bots as u64 * injection_ticks;
     assert_eq!(
         report.packets_injected, expected_injected,
         "expected {expected_injected} injected packets",
     );
 
+    let recipients = match layout {
+        Layout::Apart => 1,
+        Layout::Together => report.bots_total as u64 / report.dims as u64,
+    };
+    let expected_queued = report.packets_injected * recipients;
     assert_eq!(
-        report.total_queued, report.packets_injected,
-        "every injected packet should route to a bot queue (queued={}, injected={})",
-        report.total_queued, report.packets_injected,
+        report.total_queued, expected_queued,
+        "every injected packet should route to each recipient queue (queued={}, expected={})",
+        report.total_queued, expected_queued,
     );
 
     let expected_transfers = (bots as f32 * cross_dim_rate) as u64;
@@ -61,8 +70,11 @@ fn check(report: &ScaleReport, bots: usize, cross_dim_rate: f32) {
     );
 }
 
-fn bench_profile(c: &mut Criterion, label: &str, dims: usize, bots: usize) {
-    let cross_dim_rate = 0.1;
+fn bench_profile(c: &mut Criterion, label: &str, dims: usize, bots: usize, layout: Layout) {
+    let cross_dim_rate = match layout {
+        Layout::Apart => 0.1,
+        Layout::Together => 0.0,
+    };
     let mut group = c.benchmark_group("bot_load");
     group.sample_size(10);
     group.bench_function(label, |b| {
@@ -70,9 +82,9 @@ fn bench_profile(c: &mut Criterion, label: &str, dims: usize, bots: usize) {
             let mut total = Duration::ZERO;
             for _ in 0..iters {
                 let start = Instant::now();
-                let report = run_profile_ticks(label, dims, bots, cross_dim_rate, TICKS);
+                let report = run_profile_ticks(label, dims, bots, cross_dim_rate, TICKS, layout);
                 total += start.elapsed();
-                check(&report, bots, cross_dim_rate);
+                check(&report, bots, cross_dim_rate, layout);
             }
             total
         });
@@ -81,12 +93,16 @@ fn bench_profile(c: &mut Criterion, label: &str, dims: usize, bots: usize) {
 }
 
 fn vanilla(c: &mut Criterion) {
-    bench_profile(c, "vanilla", 2, 100);
+    bench_profile(c, "vanilla", 2, 100, Layout::Apart);
 }
 
 fn minigame(c: &mut Criterion) {
-    bench_profile(c, "minigame", 20, 320);
+    bench_profile(c, "minigame", 20, 320, Layout::Apart);
 }
 
-criterion_group!(benches, vanilla, minigame);
+fn crowd(c: &mut Criterion) {
+    bench_profile(c, "crowd", 1, 100, Layout::Together);
+}
+
+criterion_group!(benches, vanilla, minigame, crowd);
 criterion_main!(benches);

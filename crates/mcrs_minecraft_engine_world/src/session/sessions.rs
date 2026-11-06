@@ -1,21 +1,121 @@
-use bevy_ecs::component::Component;
+use bevy_ecs::component::{Component, Mutable};
 use bevy_ecs::entity::Entity;
+use bevy_ecs::lifecycle::HookContext;
 use bevy_ecs::resource::Resource;
+use bevy_ecs::world::{DeferredWorld, FromWorld, World};
 use rustc_hash::FxHashMap;
 
-/// Never-reused process-global routing key. Copy + Hash + Eq.
+/// The name of one connection of a player, in every world and on both sides of the
+/// host↔dimension channels. The host never hands out a value twice, so a packet for a session
+/// that has ended reaches no later connection of the same profile. A change of dimension keeps
+/// it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct PlayerSession(pub u64);
 
-/// Marks a DimWorld player entity as owned by a session.
+/// Marks a DimWorld player entity as owned by a session, and enters it in the
+/// [`DimPlayerIndex`] of its world.
 #[derive(Component, Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[component(on_insert = Owner::index, on_discard = Owner::unindex)]
 pub struct Owner(pub PlayerSession);
 
+impl Owner {
+    fn index(world: DeferredWorld, ctx: HookContext) {
+        index_session(
+            world,
+            ctx,
+            |&Owner(session)| session,
+            |index: &mut DimPlayerIndex| &mut index.0,
+        );
+    }
+
+    fn unindex(world: DeferredWorld, ctx: HookContext) {
+        unindex_session(
+            world,
+            ctx,
+            |&Owner(session)| session,
+            |index: &mut DimPlayerIndex| &mut index.0,
+        );
+    }
+}
+
 /// A logged-in player on the host, carried by its host anchor entity for as long as the
-/// player is connected.
+/// player is connected, and entered in the host's [`SessionAnchors`].
 #[derive(Component, Clone, Copy, Debug, PartialEq, Eq)]
 #[require(SessionPlacement)]
+#[component(on_insert = Session::index, on_discard = Session::unindex)]
 pub struct Session(pub PlayerSession);
+
+impl Session {
+    fn index(world: DeferredWorld, ctx: HookContext) {
+        index_session(
+            world,
+            ctx,
+            |&Session(session)| session,
+            |anchors: &mut SessionAnchors| &mut anchors.0,
+        );
+    }
+
+    fn unindex(world: DeferredWorld, ctx: HookContext) {
+        unindex_session(
+            world,
+            ctx,
+            |&Session(session)| session,
+            |anchors: &mut SessionAnchors| &mut anchors.0,
+        );
+    }
+}
+
+/// Enters the entity of `ctx` under the session of its `C` in the map of `R`. Without `R`, a
+/// command makes it first.
+fn index_session<C: Component, R: Resource<Mutability = Mutable> + FromWorld>(
+    mut world: DeferredWorld,
+    ctx: HookContext,
+    session_of: fn(&C) -> PlayerSession,
+    map: fn(&mut R) -> &mut FxHashMap<PlayerSession, Entity>,
+) {
+    let Some(session) = world.get::<C>(ctx.entity).map(session_of) else {
+        return;
+    };
+    let entity = ctx.entity;
+    match world.get_resource_mut::<R>() {
+        Some(mut resource) => {
+            map(&mut resource).insert(session, entity);
+        }
+        None => world.commands().queue(move |world: &mut World| {
+            map(&mut world.get_resource_or_init::<R>()).insert(session, entity);
+        }),
+    }
+}
+
+/// Removes the entry of the entity of `ctx` from the map of `R`, unless a later entity of the
+/// same session replaced it.
+fn unindex_session<C: Component, R: Resource<Mutability = Mutable>>(
+    mut world: DeferredWorld,
+    ctx: HookContext,
+    session_of: fn(&C) -> PlayerSession,
+    map: fn(&mut R) -> &mut FxHashMap<PlayerSession, Entity>,
+) {
+    let Some(session) = world.get::<C>(ctx.entity).map(session_of) else {
+        return;
+    };
+    if let Some(mut resource) = world.get_resource_mut::<R>() {
+        let entries = map(&mut resource);
+        if entries.get(&session) == Some(&ctx.entity) {
+            entries.remove(&session);
+        }
+    }
+}
+
+/// Host-world index: session → the host anchor that carries its [`Session`]. The host resolves
+/// every session that a dimension names through it; it never crosses a boundary.
+#[derive(Resource, Default, Debug)]
+pub struct SessionAnchors(FxHashMap<PlayerSession, Entity>);
+
+impl SessionAnchors {
+    pub fn get(&self, session: PlayerSession) -> Option<Entity> {
+        self.0.get(&session).copied()
+    }
+}
 
 /// Where the host routes a session's packets.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -92,7 +192,7 @@ impl PlayerSessionCounter {
     }
 }
 
-/// Per-dim O(1) reverse map: session → dim-local entity.
+/// Per-dim O(1) reverse map: session → dim-local entity, kept by the hooks of [`Owner`].
 /// Inserted fresh when a DimSubApp is created; never crosses a boundary.
 #[derive(Resource, Default)]
 pub struct DimPlayerIndex(pub FxHashMap<PlayerSession, Entity>);

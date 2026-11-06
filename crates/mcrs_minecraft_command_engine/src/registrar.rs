@@ -9,6 +9,19 @@ use std::marker::PhantomData;
 pub struct Handler {
     pub(crate) key: HandlerKey,
     pub(crate) branch: u16,
+    pub(crate) world: HandlerWorld,
+}
+
+/// The world a handler runs in.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum HandlerWorld {
+    /// The world of the dimension of its source: the handler reads the blocks, the chunks or the
+    /// type of that dimension. A source of another dimension, or of a column of another cell,
+    /// goes on in the cell that owns its column in the next tick.
+    SourceDimension,
+    /// The world where the run is: the handler reads only the targets, the registries and the
+    /// copies of global state that every world holds.
+    Any,
 }
 
 pub(crate) type Builder<S> = GraphBuilder<<S as CommandSet>::Argument, PermissionCheck, Handler>;
@@ -83,7 +96,7 @@ impl<'a, S: CommandSet, B: Copy + PartialEq> CommandRegistrar<'a, S, B> {
         NodeRef::new(self, parent.into(), name, Some(argument.into()))
     }
 
-    fn handler(&mut self, branch: B, table: Table) -> Option<Handler> {
+    fn handler(&mut self, branch: B, table: Table, world: HandlerWorld) -> Option<Handler> {
         let index = match self
             .branches
             .iter()
@@ -107,6 +120,7 @@ impl<'a, S: CommandSet, B: Copy + PartialEq> CommandRegistrar<'a, S, B> {
         Some(Handler {
             key: self.key,
             branch: slot,
+            world,
         })
     }
 }
@@ -136,6 +150,7 @@ pub struct NodeRef<'r, 'a, S: CommandSet, B, K> {
     branch: Option<B>,
     redirect: Option<NodeId>,
     modifier: Option<Modifier<B>>,
+    world: HandlerWorld,
     handle: PhantomData<fn() -> K>,
 }
 
@@ -155,6 +170,7 @@ impl<'r, 'a, S: CommandSet, B: Copy + PartialEq, K: From<NodeId>> NodeRef<'r, 'a
             branch: None,
             redirect: None,
             modifier: None,
+            world: HandlerWorld::SourceDimension,
             handle: PhantomData,
         }
     }
@@ -197,6 +213,13 @@ impl<'r, 'a, S: CommandSet, B: Copy + PartialEq, K: From<NodeId>> NodeRef<'r, 'a
         self
     }
 
+    /// Lets the handlers of the node run in any world: they read nothing of the world of the
+    /// source dimension.
+    pub fn in_any_world(mut self) -> Self {
+        self.world = HandlerWorld::Any;
+        self
+    }
+
     /// Adds the node to the tree and gives its handle.
     pub fn id(self) -> Result<K, BuildError> {
         let registrar = self.registrar;
@@ -209,7 +232,7 @@ impl<'r, 'a, S: CommandSet, B: Copy + PartialEq, K: From<NodeId>> NodeRef<'r, 'a
         }?;
         if let Some(branch) = self.branch {
             let handler = registrar
-                .handler(branch, Table::Run)
+                .handler(branch, Table::Run, self.world)
                 .ok_or(BuildError::TooManyNodes)?;
             registrar.builder.executes(node, handler)?;
         }
@@ -218,7 +241,7 @@ impl<'r, 'a, S: CommandSet, B: Copy + PartialEq, K: From<NodeId>> NodeRef<'r, 'a
         }
         if let Some(Modifier { branch, mode }) = self.modifier {
             let handler = registrar
-                .handler(branch, Table::Modify)
+                .handler(branch, Table::Modify, self.world)
                 .ok_or(BuildError::TooManyNodes)?;
             registrar.builder.modifies(node, handler, mode)?;
         }

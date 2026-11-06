@@ -1,3 +1,4 @@
+use bevy_ecs::entity::Entity;
 use bevy_ecs::message::Message;
 use bevy_ecs::resource::Resource;
 use bevy_ecs::schedule::SystemSet;
@@ -8,11 +9,20 @@ use mcrs_voxel::ColumnPos;
 #[derive(Resource, Debug, Default, Clone, Copy)]
 pub struct LightGated;
 
-/// A column whose sections and light have landed, waiting for its light to settle.
+/// A section whose light was written, and which of its two layers was written.
+#[derive(Message, Clone, Copy, Debug, PartialEq, Eq)]
+pub struct SectionRelit {
+    pub section: Entity,
+    pub block: bool,
+    pub sky: bool,
+}
+
+/// A column whose light the dimension waits on.
 #[derive(Message, Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ColumnAwaitsLight(pub ColumnPos);
 
-/// A column whose light, and the light of the eight around it, has settled.
+/// A column whose light is final: the column and the eight around it are loaded and lit, and the
+/// work that reached them before the light stage took the column in is done.
 #[derive(Message, Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ColumnLightSettled(pub ColumnPos);
 

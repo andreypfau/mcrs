@@ -14,11 +14,11 @@ use mcrs_minecraft_command_engine::{
 };
 use mcrs_minecraft_core::Look;
 use mcrs_minecraft_core::LookAnchor;
-use mcrs_minecraft_engine::bus::{self, PacketPayload};
 use mcrs_minecraft_engine::dimension_change::Arrival;
 use mcrs_minecraft_engine::network_id;
-use mcrs_minecraft_engine::teleport::{MAX_XZ, MAX_Y, TeleportState};
+use mcrs_minecraft_engine::teleport::{MAX_XZ, MAX_Y};
 use mcrs_minecraft_engine_world::entity::physics::{Rotation, Transform};
+use mcrs_minecraft_engine_world::session::PlayerSession;
 use mcrs_minecraft_entity::PLAYER_EYE_HEIGHT;
 use mcrs_minecraft_protocol::VarInt;
 use mcrs_minecraft_protocol_game::clientbound::{ClientboundPlayerLookAt, LookAtEntity};
@@ -48,20 +48,20 @@ pub struct Teleport {
 pub enum Facing {
     /// A fixed position.
     Position(DVec3),
-    /// The player with this host anchor, at its feet or its eyes, read after each move.
+    /// The player of this session, at its feet or its eyes, read after each move.
     Player {
-        /// The host anchor of the player.
-        anchor: Entity,
+        /// The session of the player.
+        player: PlayerSession,
         /// The part of the player to face.
         at: LookAnchor,
     },
 }
 
-/// The command effect that moves the player with the host anchor `player`, in any dimension.
+/// The command effect that moves the player of the session `player`, in any dimension.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct TeleportPlayer {
-    /// The host anchor of the victim.
-    pub player: Entity,
+    /// The session of the victim.
+    pub player: PlayerSession,
     /// Where the victim goes.
     pub to: Teleport,
 }
@@ -100,10 +100,12 @@ pub(crate) fn build(
     let location = registrar
         .arg(teleport, "location", Vec3Argument)
         .runs(Branch::ToLocation)
+        .in_any_world()
         .id()?;
     let destination = registrar
         .arg(teleport, "destination", EntityArgument::ONE_ENTITY)
         .runs(Branch::ToEntity)
+        .in_any_world()
         .id()?;
     let targets = registrar
         .arg(teleport, "targets", EntityArgument::ENTITIES)
@@ -111,28 +113,34 @@ pub(crate) fn build(
     let target_location = registrar
         .arg(targets, "location", Vec3Argument)
         .runs(Branch::TargetsToLocation)
+        .in_any_world()
         .id()?;
     let rotation = registrar
         .arg(target_location, "rotation", RotationArgument)
         .runs(Branch::TargetsToLocationRotated)
+        .in_any_world()
         .id()?;
     let facing = registrar.literal(target_location, "facing").id()?;
     let entity = registrar.literal(facing, "entity").id()?;
     let facing_entity = registrar
         .arg(entity, "facingEntity", EntityArgument::ONE_ENTITY)
         .runs(Branch::TargetsFacingEntity)
+        .in_any_world()
         .id()?;
     let facing_anchor = registrar
         .arg(facing_entity, "facingAnchor", EntityAnchorArgument)
         .runs(Branch::TargetsFacingEntity)
+        .in_any_world()
         .id()?;
     let facing_location = registrar
         .arg(facing, "facingLocation", Vec3Argument)
         .runs(Branch::TargetsFacingLocation)
+        .in_any_world()
         .id()?;
     let target_destination = registrar
         .arg(targets, "destination", EntityArgument::ONE_ENTITY)
         .runs(Branch::TargetsToEntity)
+        .in_any_world()
         .id()?;
     registrar
         .literal(NodeId::ROOT, "tp")
@@ -240,7 +248,7 @@ fn destination(
                 context.arg(&call.invocation, command.target_location)?,
                 None,
                 Some(Facing::Player {
-                    anchor: entity.anchor,
+                    player: entity.session,
                     at,
                 }),
             )
@@ -317,7 +325,7 @@ pub(crate) fn run(
             output.effect(
                 &mut teleports,
                 TeleportPlayer {
-                    player: victim.anchor,
+                    player: victim.session,
                     to: destination.to,
                 },
             );
@@ -367,22 +375,22 @@ fn success_message(first: &PlayerEntry, moved: usize, destination: Destination) 
 /// before it. A victim that faces itself faces its destination `at`.
 fn facing(
     worlds: &Worlds,
-    victim: Entity,
+    victim: PlayerSession,
     at: DVec3,
     facing: Facing,
 ) -> Option<(DVec3, Option<LookAtEntity>)> {
     match facing {
         Facing::Position(position) => Some((position, None)),
-        Facing::Player { anchor, at: part } => {
-            let position = if anchor == victim {
+        Facing::Player { player, at: part } => {
+            let position = if player == victim {
                 at
             } else {
-                worlds.targets().player(anchor)?.transform.translation
+                worlds.targets().player(player)?.transform.translation
             };
             Some((
                 mcrs_minecraft_command::anchored(part, position, PLAYER_EYE_HEIGHT),
                 Some(LookAtEntity {
-                    id: VarInt(network_id::player_network_id(anchor)),
+                    id: VarInt(network_id::player_network_id(player)),
                     anchor: part,
                 }),
             ))
@@ -437,33 +445,13 @@ pub(crate) fn apply(worlds: &mut Worlds, TeleportPlayer { player, to }: Teleport
         position: step.position,
         look: step.look,
         flags: step.flags,
-    };
-    if origin == destination {
-        let entity = match worlds.set_transform(player, transform) {
-            Ok(entity) => entity,
-            Err(error) => {
-                tracing::error!(?player, "a teleport did not move its victim: {error}");
-                return;
-            }
-        };
-        let teleport_id = worlds
-            .world_mut(origin)
-            .and_then(|world| world.get_mut::<TeleportState>(entity))
-            .map(|mut state| state.sent(transform));
-        if let Some(teleport_id) = teleport_id {
-            let position = arrival.position_packet(teleport_id);
-            worlds.deliver(bus::to(player, PacketPayload::PlayerPosition(position)).critical());
-        }
-    } else if let Err(error) = worlds.change_dimension(player, destination, arrival) {
-        tracing::error!(?player, "a teleport did not move its victim: {error}");
-        return;
-    }
-    if let Some((target, entity)) = facing {
-        let look_at = ClientboundPlayerLookAt {
+        look_at: facing.map(|(target, entity)| ClientboundPlayerLookAt {
             from: to.anchor,
             target,
             entity,
-        };
-        worlds.deliver(bus::to(player, PacketPayload::PlayerLookAt(look_at)).critical());
+        }),
+    };
+    if let Err(error) = worlds.teleport(player, destination, arrival) {
+        tracing::error!(?player, "a teleport did not move its victim: {error}");
     }
 }

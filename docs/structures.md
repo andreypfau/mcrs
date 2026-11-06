@@ -776,7 +776,7 @@ frozen and counted but not placed.
 positions, and a concurrent memo from chunk position to an owning slice of
 starts (usually empty), each slot filled once by whichever task asks first.
 Generation lives outside the ECS (X1), and so does the index: it sits beside
-the staging store and the scheduler (`crates/mcrs_minecraft_vanilla_worldgen/src/chunk_plugin.rs`, `ColumnScheduler`) and is handed to fill and run tasks as an owning handle
+the staging store in the generation actor (`crates/mcrs_minecraft_vanilla_worldgen/src/generation_actor.rs`, `GenerationActor`) and is handed to fill and run tasks as an owning handle
 (X7). The sub-app receives the same handle as a read-only resource for the
 consumers of I4. Two tasks racing on one cell compute the same bits (St1); a
 once-cell per slot removes the duplicate work, and nothing else needs a lock.

@@ -15,7 +15,7 @@ use mcrs_minecraft_game_registries::registry_load::{test_network, test_registrie
 use mcrs_minecraft_item::damage_type::DamageType;
 use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_network::event::Received;
-use mcrs_minecraft_network::{ConnectionState, Instant, ServerSideConnection};
+use mcrs_minecraft_network::{ConnectionState, ServerSideConnection};
 use mcrs_minecraft_protocol::decode::PacketDecoder;
 use mcrs_minecraft_protocol::packets::configuration::serverbound::ServerboundSelectKnownPacks;
 use mcrs_minecraft_protocol::packets::configuration::{
@@ -435,7 +435,6 @@ fn a_known_pack_reply_is_compared_with_the_offer_that_connection_received() {
         .trigger(Received::<ServerboundSelectKnownPacks<'static>>::new(
             connection,
             reply.into(),
-            Instant::now(),
         ));
     app.world_mut().flush();
 
@@ -512,7 +511,6 @@ fn every_join_writes_the_registry_bytes_the_load_encoded() {
             .trigger(Received::<ServerboundSelectKnownPacks<'static>>::new(
                 connection,
                 body.into(),
-                Instant::now(),
             ));
         app.world_mut().flush();
         app.world_mut()

@@ -21,12 +21,78 @@ use crate::event::{Trigger, Triggers};
 #[derive(Resource, Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct BridgeTelemetry {
     pub drop_normal_total: u64,
-    pub drop_low_total: u64,
     pub kick_overflow_total: u64,
     pub kick_flood_total: u64,
     pub outbound_messages_consumed_total: u64,
-    pub encode_unhandled_total: u64,
     pub outbound_no_queue_total: u64,
+    /// Packets serialized for one recipient.
+    pub encode_calls_total: u64,
+    /// Packets serialized once and appended to a recipient as shared bytes.
+    pub shared_appends_total: u64,
+    /// Bytes of the shared appends, one count for each recipient.
+    pub shared_bytes_total: u64,
+    /// Frames made once for a shared packet and a compression threshold: each compresses the
+    /// packet once at most.
+    pub shared_frames_total: u64,
+    /// Shared appends that went as a frame made once, not framed again by the writer.
+    pub framed_appends_total: u64,
+    /// Bytes of the records of the entity muxer, one count for each recipient.
+    pub replication_bytes_total: u64,
+    pub packets: PacketKinds,
+}
+
+/// What an outbound packet is for, as far as replication cost goes.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PacketKind {
+    EntityMove,
+    PlayerInfo,
+    /// A packet of the entity muxer: a spawn, a move, a removal or a player list update, which
+    /// the bridge counts without reading its id.
+    Replication,
+    Chunk,
+    Other,
+}
+
+impl PacketKind {
+    pub const ALL: [Self; 5] = [
+        Self::EntityMove,
+        Self::PlayerInfo,
+        Self::Replication,
+        Self::Chunk,
+        Self::Other,
+    ];
+
+    #[must_use]
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::EntityMove => "move",
+            Self::PlayerInfo => "player info",
+            Self::Replication => "muxer",
+            Self::Chunk => "chunk",
+            Self::Other => "other",
+        }
+    }
+}
+
+/// Packets handed to connections, by [`PacketKind`].
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct PacketKinds([u64; PacketKind::ALL.len()]);
+
+impl PacketKinds {
+    pub fn count(&mut self, kind: PacketKind) {
+        self.add(kind, 1);
+    }
+
+    pub fn add(&mut self, kind: PacketKind, packets: u64) {
+        if let Some(slot) = self.0.get_mut(kind as usize) {
+            *slot = slot.saturating_add(packets);
+        }
+    }
+
+    #[must_use]
+    pub fn get(&self, kind: PacketKind) -> u64 {
+        self.0.get(kind as usize).copied().unwrap_or(0)
+    }
 }
 
 type Check =

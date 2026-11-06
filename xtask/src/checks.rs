@@ -30,8 +30,12 @@ const WASM32_PACKAGES: [&str; 11] = [
 
 const NO_STD_PACKAGES: [&str; 2] = ["mcrs_command", "mcrs_minecraft_chat"];
 
-const NO_BEVY_PACKAGES: [&str; 68] = [
+const NO_BEVY_PACKAGES: [&str; 73] = [
     "mcrs_command",
+    "mcrs_engine_cell",
+    "mcrs_engine_link",
+    "mcrs_engine_muxer",
+    "mcrs_engine_store",
     "mcrs_minecraft_anvil",
     "mcrs_minecraft_biome",
     "mcrs_minecraft_biome_file",
@@ -76,6 +80,7 @@ const NO_BEVY_PACKAGES: [&str; 68] = [
     "mcrs_minecraft_random",
     "mcrs_minecraft_registries",
     "mcrs_minecraft_registry_catalog",
+    "mcrs_minecraft_replication",
     "mcrs_minecraft_resource",
     "mcrs_minecraft_simulation",
     "mcrs_minecraft_snbt",

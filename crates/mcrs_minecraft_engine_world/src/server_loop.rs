@@ -1,10 +1,14 @@
 use bevy_app::prelude::*;
-use bevy_app::{App, Plugin, TaskPoolOptions, TaskPoolPlugin};
+use bevy_app::{App, Plugin, TaskPoolOptions, TaskPoolPlugin, TaskPoolThreadAssignmentPolicy};
 use bevy_asset::AssetPlugin;
-use bevy_ecs::schedule::SingleThreadedExecutor;
-use bevy_time::{Fixed, Time, TimePlugin};
+use bevy_ecs::schedule::{Schedules, SingleThreadedExecutor};
+use bevy_ecs::world::World;
+use bevy_time::{Fixed, Time, TimePlugin, TimeUpdateStrategy};
+use mcrs_engine_link::Placement;
 use std::num::NonZeroU32;
 use std::time::{Duration, Instant};
+
+use crate::world_placement::WorldPlacement;
 
 pub struct VoxelServerPlugin {
     pub tick_rate: NonZeroU32,
@@ -16,28 +20,41 @@ pub struct VoxelServerPlugin {
     /// `assets` against `BEVY_ASSET_ROOT` or the executable directory, which a
     /// server embedded in another process cannot rely on.
     pub asset_path: Option<String>,
+    /// Where the dimension worlds tick, as [`WorldPlacement`] says. Under
+    /// [`Placement::Inline`] an app that does not own the task pools still runs `par_iter` on the
+    /// host's compute pool.
+    pub worlds: Placement,
 }
 
 impl Plugin for VoxelServerPlugin {
     fn build(&self, app: &mut App) {
-        if self.owns_task_pools && cfg!(debug_assertions) {
-            app.add_plugins(TaskPoolPlugin {
-                task_pool_options: TaskPoolOptions::with_num_threads(1),
-            });
+        app.insert_resource(WorldPlacement(self.worlds));
+        let task_pool_options = if self.worlds == Placement::Inline && self.owns_task_pools {
+            TaskPoolOptions {
+                compute: TaskPoolThreadAssignmentPolicy {
+                    min_threads: 1,
+                    max_threads: 1,
+                    ..TaskPoolOptions::default().compute
+                },
+                ..TaskPoolOptions::default()
+            }
         } else {
-            app.add_plugins(TaskPoolPlugin::default());
-        }
+            TaskPoolOptions::default()
+        };
+        app.add_plugins(TaskPoolPlugin { task_pool_options });
 
         app.edit_schedule(Update, |schedule| {
             schedule.set_executor(SingleThreadedExecutor::new());
         });
-        #[cfg(debug_assertions)]
-        force_singlethread_schedules(app);
 
         if !app.is_plugin_added::<TimePlugin>() {
             app.add_plugins(TimePlugin);
         }
         app.insert_resource(Time::<Fixed>::from_hz(self.tick_rate.get() as f64));
+        // One host update is one tick: the host's fixed schedules run exactly once in it, as
+        // the dimensions' do, however late the update starts. Wall-clock time decides only
+        // when a tick starts, never what it does.
+        app.insert_resource(TimeUpdateStrategy::FixedTimesteps(1));
         // Dropping a notify fsevents watcher joins its CFRunLoop thread and
         // can block forever. The server has no hot-reload consumer.
         let mut assets = AssetPlugin {
@@ -48,6 +65,24 @@ impl Plugin for VoxelServerPlugin {
             assets.file_path = path.clone();
         }
         app.add_plugins(assets);
+    }
+
+    // After every plugin's `finish`, which may still add a schedule.
+    fn cleanup(&self, app: &mut App) {
+        if app.world().get_resource::<WorldPlacement>() == Some(&WorldPlacement(Placement::Inline))
+        {
+            run_schedules_on_one_thread(app.world_mut());
+        }
+    }
+}
+
+/// Gives every schedule of `world` a single-threaded executor.
+pub fn run_schedules_on_one_thread(world: &mut World) {
+    let Some(mut schedules) = world.get_resource_mut::<Schedules>() else {
+        return;
+    };
+    for (_, schedule) in schedules.iter_mut() {
+        schedule.set_executor(SingleThreadedExecutor::new());
     }
 }
 
@@ -75,19 +110,16 @@ pub fn spawn_server_thread(
         .spawn(move || run(app.into_inner()))
 }
 
-/// How long the loop sleeps between two calls of `idle` while it waits for the next tick.
-const IDLE_STEP: Duration = Duration::from_millis(2);
-
-/// Ticks the app at `tick_rate`. `between_ticks` runs once after every tick; `idle` runs then
-/// and again every `IDLE_STEP` until the next tick is due, which is where work that finished
-/// off the tick, a column read from the save above all, is passed on without waiting for the
-/// tick to come round. A plugin that asks the app to exit while it finishes stops the loop before
-/// the first tick.
+/// Ticks the app at `tick_rate`. `between_ticks` runs once after every tick. `until` then has
+/// the time up to the next tick, given as its deadline, to pass on what the tick wrote for the
+/// clients. It must not change what a tick reads, and it returns at the deadline: the loop
+/// starts the next tick as soon as it returns. A plugin that asks the app to exit
+/// while it finishes stops the loop before the first tick.
 pub fn run_server_loop(
     mut app: App,
     tick_rate: NonZeroU32,
     mut between_ticks: impl FnMut(&mut App),
-    mut idle: impl FnMut(&mut App),
+    mut until: impl FnMut(&mut App, Instant),
 ) -> AppExit {
     let tick = Duration::from_secs_f64(1.0 / tick_rate.get() as f64);
     app.finish();
@@ -102,40 +134,6 @@ pub fn run_server_loop(
         if let Some(exit) = app.should_exit() {
             return exit;
         }
-        loop {
-            idle(&mut app);
-            let Some(remaining) = tick.checked_sub(start.elapsed()) else {
-                break;
-            };
-            std::thread::sleep(remaining.min(IDLE_STEP));
-            if start.elapsed() >= tick {
-                break;
-            }
-        }
-    }
-}
-
-#[cfg(debug_assertions)]
-fn force_singlethread_schedules(app: &mut App) {
-    use bevy_ecs::schedule::ScheduleLabel;
-    for label in [
-        PreStartup.intern(),
-        Startup.intern(),
-        PostStartup.intern(),
-        First.intern(),
-        PreUpdate.intern(),
-        RunFixedMainLoop.intern(),
-        Update.intern(),
-        PostUpdate.intern(),
-        Last.intern(),
-        FixedFirst.intern(),
-        FixedPreUpdate.intern(),
-        FixedUpdate.intern(),
-        FixedPostUpdate.intern(),
-        FixedLast.intern(),
-    ] {
-        app.edit_schedule(label, |s| {
-            s.set_executor(SingleThreadedExecutor::new());
-        });
+        until(&mut app, start + tick);
     }
 }

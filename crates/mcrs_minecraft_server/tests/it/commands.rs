@@ -17,6 +17,8 @@ use mcrs_minecraft_command_vanilla::{
 use mcrs_minecraft_core::LookAnchor;
 use mcrs_minecraft_engine::bus::{PacketPayload, PacketTarget};
 use mcrs_minecraft_engine_world::entity::physics::Transform;
+use mcrs_minecraft_engine_world::session::PlayerSession;
+use mcrs_minecraft_engine_world::world::sub_app::AddDimensionPlugins;
 use mcrs_minecraft_game_mode::GameMode;
 use mcrs_minecraft_item::ItemHoverMap;
 use mcrs_minecraft_protocol::uuid::Uuid;
@@ -25,18 +27,19 @@ use mcrs_minecraft_protocol_game::serverbound::{
     ServerboundChatCommand, ServerboundCommandSuggestion,
 };
 use mcrs_minecraft_protocol_game::text::{IntoText, Text};
-use mcrs_minecraft_server::operator_broadcast::broadcast_to_operators;
+use mcrs_minecraft_server::operator_broadcast::OperatorBroadcastPlugin;
 
 use mcrs_minecraft_block_entity::GeneratedBlockEntity;
 use mcrs_minecraft_command_tree::{CommandNode, NumberRange, ParserProperties};
-use mcrs_minecraft_engine::clock::{GameTime, WorldClockHostPlugin};
+use mcrs_minecraft_engine::coordinator::clock::{GameTime, WorldClockHostPlugin};
 use mcrs_minecraft_engine_world::world::storage::block_entity::BlockEntity;
 use mcrs_minecraft_environment::world_clock::{AdvanceTime, WorldClockPlugin};
 use mcrs_minecraft_environment::world_clock::{ClockState, WorldClock, WorldClocks};
 use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_protocol::{Decode, Packet, VarLong};
 use mcrs_minecraft_protocol_game::clientbound::{
-    ClientboundCommands, ClientboundSetTime, ClockUpdate, LookAtEntity,
+    ClientboundCommands, ClientboundPlayerInfoRemove, ClientboundPlayerInfoUpdate,
+    ClientboundSetTime, ClockUpdate, LookAtEntity,
 };
 use mcrs_minecraft_protocol_game::text::{TextContent, TranslateArg};
 use mcrs_minecraft_registries::CurrentRegistries;
@@ -105,7 +108,7 @@ fn start_in(dimensions: &[(&str, &str)], limits: Limits) -> PlayServer {
     app.insert_resource(AdvanceTime(false));
     app.add_plugins(WorldClockHostPlugin);
     app.add_plugins(CommandPlugin::<VanillaCommands>::new());
-    app.add_observer(broadcast_to_operators);
+    app.add_dimension_plugin(OperatorBroadcastPlugin);
     app.add_plugins(VanillaCommandsPlugin);
     app.add_command(echo_at("echo"), run_echo).unwrap();
     app.add_command(echo_at("shout"), run_echo).unwrap();
@@ -470,7 +473,7 @@ fn an_admin_message_reaches_only_the_other_listed_operators_of_every_dimension()
     const WATCHER: Uuid = Uuid::from_u128(3);
     let mut app = host_app::make_host_app();
     app.add_plugins(CommandPlugin::<VanillaCommands>::new());
-    app.add_observer(broadcast_to_operators);
+    app.add_dimension_plugin(OperatorBroadcastPlugin);
     app.add_plugins(VanillaCommandsPlugin);
     let mut server = PlayServer::start_in(
         app,
@@ -504,11 +507,11 @@ fn an_admin_message_reaches_only_the_other_listed_operators_of_every_dimension()
     )
     .color(mcrs_minecraft_protocol_game::text::Color::GRAY)
     .italic();
-    let admin_to = |anchor: Entity| -> Vec<Text> {
+    let admin_to = |session: PlayerSession| -> Vec<Text> {
         packets
             .iter()
             .filter(|packet| {
-                matches!(&packet.target, PacketTarget::PlayerSet(set) if set.contains(&anchor))
+                matches!(&packet.target, PacketTarget::PlayerSet(set) if set.contains(&session))
             })
             .filter_map(|packet| match &packet.data {
                 PacketPayload::SystemChat(chat) => Some(chat.content.to_text().unwrap().map(&ItemHoverMap).unwrap()),
@@ -516,9 +519,9 @@ fn an_admin_message_reaches_only_the_other_listed_operators_of_every_dimension()
             })
             .collect()
     };
-    assert_eq!(admin_to(watcher), [admin]);
-    assert!(admin_to(guest).is_empty());
-    assert!(admin_to(op).is_empty());
+    assert_eq!(admin_to(server.session_of(watcher).unwrap()), [admin]);
+    assert!(admin_to(server.session_of(guest).unwrap()).is_empty());
+    assert!(admin_to(server.session_of(op).unwrap()).is_empty());
 }
 
 #[test]
@@ -573,7 +576,7 @@ fn clashing(r: &mut CommandRegistrar<'_, VanillaCommands, ()>) -> Result<Echo, B
 fn a_command_whose_nodes_clash_is_not_registered_at_all() {
     let mut app = host_app::make_host_app();
     app.add_plugins(CommandPlugin::<VanillaCommands>::new());
-    app.add_observer(broadcast_to_operators);
+    app.add_dimension_plugin(OperatorBroadcastPlugin);
     app.add_command(echo_at("echo"), run_echo).unwrap();
     let clash = app.add_command(clashing, run_echo);
     assert!(
@@ -591,8 +594,7 @@ fn a_command_whose_nodes_clash_is_not_registered_at_all() {
         .app
         .world()
         .resource::<mcrs_minecraft_command_engine::CommandTree<VanillaCommands>>()
-        .graph()
-        .unwrap();
+        .graph();
     let names: Vec<&str> = tree
         .node(NodeId::ROOT)
         .unwrap()
@@ -1513,13 +1515,13 @@ fn the_time_tree_and_its_server_suggestions_follow_the_clock() {
 
 fn seen_by(
     packets: &[mcrs_minecraft_engine::bus::OutboundPlayerPacket],
-    anchor: Entity,
+    session: PlayerSession,
 ) -> Vec<PacketPayload> {
     packets
         .iter()
         .filter(|packet| match &packet.target {
-            PacketTarget::SinglePlayer(target) => *target == anchor,
-            PacketTarget::PlayerSet(set) => set.contains(&anchor),
+            PacketTarget::SinglePlayer(target) => *target == session,
+            PacketTarget::PlayerSet(set) => set.contains(&session),
             PacketTarget::AllPlayers => true,
             _ => false,
         })
@@ -1591,11 +1593,18 @@ fn a_clock_change_in_one_dimension_reaches_every_player() {
             },
         );
         let packets = server.ticks_all(3);
-        assert_eq!(chats(&seen_by(&packets, op)), [message], "{line}");
+        assert_eq!(
+            chats(&seen_by(&packets, server.session_of(op).unwrap())),
+            [message],
+            "{line}"
+        );
         assert_eq!(clock(&server, OVERWORLD_CLOCK).total_ticks, total_ticks);
         for player in [op, guest] {
             assert_eq!(
-                without_game_time(set_times(&seen_by(&packets, player))),
+                without_game_time(set_times(&seen_by(
+                    &packets,
+                    server.session_of(player).unwrap()
+                ))),
                 [overworld_update(&server, total_ticks)],
                 "{line}"
             );
@@ -1615,7 +1624,7 @@ fn a_clock_change_in_one_dimension_reaches_every_player() {
 }
 
 #[test]
-fn a_game_mode_set_before_a_change_of_dimension_in_the_same_pass_reaches_every_player_list() {
+fn a_game_mode_set_before_a_change_of_dimension_in_the_same_pass_reaches_the_own_entry() {
     let mut server = start_in(
         &[
             ("minecraft:overworld", "minecraft:overworld"),
@@ -1638,19 +1647,41 @@ fn a_game_mode_set_before_a_change_of_dimension_in_the_same_pass_reaches_every_p
         },
     );
 
-    let seen = server.ticks(guest, 3);
+    let (op, guest) = (
+        server.session_of(op).unwrap(),
+        server.session_of(guest).unwrap(),
+    );
+    let packets = server.ticks_all(3);
 
-    let modes: Vec<GameMode> = seen
-        .iter()
-        .filter_map(|packet| match packet {
-            PacketPayload::PlayerInfoUpdate { entries } => Some(entries),
-            _ => None,
-        })
-        .flatten()
-        .filter(|entry| entry.player_uuid == OPERATOR)
-        .map(|entry| entry.game_mode)
-        .collect();
+    let mut modes: Vec<GameMode> = Vec::new();
+    for (id, body) in host_app::replicated(&host_app::sent_to(op, packets.clone())) {
+        if id != ClientboundPlayerInfoUpdate::ID {
+            continue;
+        }
+        let update = ClientboundPlayerInfoUpdate::decode(&mut body.as_slice()).unwrap();
+        if update.actions.update_game_mode() {
+            modes.extend(
+                update
+                    .entries
+                    .iter()
+                    .filter(|entry| entry.player_uuid == OPERATOR)
+                    .map(|entry| entry.game_mode),
+            );
+        }
+    }
     assert_eq!(modes, [GameMode::Spectator]);
+    assert!(
+        host_app::replicated(&host_app::sent_to(guest, packets))
+            .iter()
+            .filter(|(id, _)| *id == ClientboundPlayerInfoRemove::ID)
+            .any(
+                |(_, body)| ClientboundPlayerInfoRemove::decode(&mut body.as_slice())
+                    .unwrap()
+                    .players
+                    .contains(&OPERATOR)
+            ),
+        "a player of another dimension leaves the player list"
+    );
 }
 
 #[test]
@@ -1714,7 +1745,7 @@ fn execute_in_moves_the_source_player_to_another_dimension() {
 fn anchor_of(server: &mut PlayServer, uuid: Uuid) -> Entity {
     let world = server.app.world_mut();
     world
-        .query::<(Entity, &mcrs_minecraft_engine::session::GameProfile)>()
+        .query::<(Entity, &mcrs_minecraft_engine::game_profile::GameProfile)>()
         .iter(world)
         .find(|(_, profile)| profile.id == uuid)
         .map(|(anchor, _)| anchor)
@@ -1731,10 +1762,13 @@ fn mode_in(server: &mut PlayServer, dim: Entity, anchor: Entity) -> GameMode {
         .0
 }
 
-fn told(packets: &[mcrs_minecraft_engine::bus::OutboundPlayerPacket], anchor: Entity) -> Vec<Text> {
+fn told(
+    packets: &[mcrs_minecraft_engine::bus::OutboundPlayerPacket],
+    session: PlayerSession,
+) -> Vec<Text> {
     packets
         .iter()
-        .filter(|packet| matches!(packet.target, PacketTarget::SinglePlayer(target) if target == anchor))
+        .filter(|packet| matches!(packet.target, PacketTarget::SinglePlayer(target) if target == session))
         .filter_map(|packet| match &packet.data {
             PacketPayload::SystemChat(chat) => Some(chat.content.to_text().unwrap().map(&ItemHoverMap).unwrap()),
             _ => None,
@@ -1769,7 +1803,7 @@ fn gamemode_changes_players_of_every_dimension_unless_the_selector_is_world_limi
         GameMode::Adventure
     );
     assert_eq!(
-        told(&packets, op),
+        told(&packets, server.session_of(op).unwrap()),
         [
             Text::translate("commands.gamemode.success.self", vec![mode()]),
             Text::translate(
@@ -1783,11 +1817,11 @@ fn gamemode_changes_players_of_every_dimension_unless_the_selector_is_world_limi
         ]
     );
     assert_eq!(
-        told(&packets, nether_player),
+        told(&packets, server.session_of(nether_player).unwrap()),
         [Text::translate("gameMode.changed", vec![mode()])]
     );
     assert!(
-        packets.iter().any(|packet| matches!(packet.target, PacketTarget::SinglePlayer(target) if target == nether_player)
+        packets.iter().any(|packet| matches!(packet.target, PacketTarget::SinglePlayer(target) if Some(target) == server.session_of(nether_player))
             && matches!(packet.data, PacketPayload::GameEvent(_))),
         "the player in the Nether hears of its new mode from its own dimension"
     );
@@ -1808,7 +1842,7 @@ fn a_target_that_an_earlier_stage_changed_is_not_changed_again() {
     let packets = server.ticks_all(3);
     let mode = || Text::translate("gameMode.creative", vec![]);
     assert_eq!(
-        told(&packets, op),
+        told(&packets, server.session_of(op).unwrap()),
         [
             Text::translate("commands.gamemode.success.self", vec![mode()]),
             Text::translate(
@@ -1822,7 +1856,7 @@ fn a_target_that_an_earlier_stage_changed_is_not_changed_again() {
         ]
     );
     assert_eq!(
-        told(&packets, nether_player),
+        told(&packets, server.session_of(nether_player).unwrap()),
         [Text::translate("gameMode.changed", vec![mode()])]
     );
     assert_eq!(
@@ -1849,6 +1883,9 @@ fn nearest_compares_coordinates_across_dimensions_and_later_commands_see_the_mov
     );
 
     command(&mut server, op, "tp @p[name=!Op] ~ ~ ~");
+    // The Nether leaves the player in the tick after the order, and the Overworld takes it in
+    // the tick after that.
+    server.ticks_all(1);
     assert!(server.player_in(nether, nether_player).is_none());
     assert_eq!(
         transform_in(&mut server, overworld, nether_player).translation,
@@ -1888,7 +1925,7 @@ fn nearest_compares_coordinates_across_dimensions_and_later_commands_see_the_mov
 }
 
 #[derive(Clone, Copy)]
-struct Mark(Entity);
+struct Mark(PlayerSession);
 
 #[derive(Resource, Default)]
 struct Marks(Vec<(usize, DVec3)>);
@@ -1897,15 +1934,10 @@ fn mark(worlds: &mut Worlds, Mark(player): Mark) {
     let Some(entry) = worlds.targets().player(player) else {
         return;
     };
-    let (dimension, entity) = (entry.dimension, entry.entity);
-    let Some(&held) = worlds
-        .world_mut(dimension)
-        .and_then(|world| world.get::<Transform>(entity))
-    else {
-        return;
-    };
-    let (host, _) = worlds.host_and_worlds();
-    host.resource_mut::<Marks>()
+    let (dimension, held) = (entry.dimension, entry.transform);
+    worlds
+        .world_mut()
+        .get_resource_or_init::<Marks>()
         .0
         .push((dimension, held.translation));
 }
@@ -1917,7 +1949,7 @@ fn bounce(
     mut teleports: ResMut<EffectQueue<TeleportPlayer>>,
     mut marks: ResMut<EffectQueue<Mark>>,
 ) -> CommandResult {
-    let player = call.invocation.source.entity.unwrap();
+    let player = call.invocation.source.player.unwrap();
     let labels: Vec<Entity> = context
         .targets()
         .dimensions()
@@ -1950,9 +1982,8 @@ fn the_effects_of_one_run_apply_in_the_order_of_writing_across_effect_types() {
     app.insert_resource(AdvanceTime(false));
     app.add_plugins(WorldClockHostPlugin);
     app.add_plugins(CommandPlugin::<VanillaCommands>::new());
-    app.add_observer(broadcast_to_operators);
+    app.add_dimension_plugin(OperatorBroadcastPlugin);
     app.add_plugins(VanillaCommandsPlugin);
-    app.init_resource::<Marks>();
     app.add_command_effect(mark);
     app.add_command(
         |r: &mut CommandRegistrar<'_, VanillaCommands, ()>| {
@@ -1974,7 +2005,7 @@ fn the_effects_of_one_run_apply_in_the_order_of_writing_across_effect_types() {
     let (op, _) = server.join(OPERATOR, "Op");
     command(&mut server, op, "bounce");
     assert_eq!(
-        server.app.world().resource::<Marks>().0,
+        server.world().resource::<Marks>().0,
         [
             (1, DVec3::new(3.5, 64.0, 0.5)),
             (0, DVec3::new(7.5, 64.0, 0.5))
@@ -2068,7 +2099,7 @@ fn an_observer_that_cancels_a_command_reads_the_targets_of_the_pass() {
         event.cancelled = targets
             .players()
             .iter()
-            .any(|player| player.entity == event.player());
+            .any(|player| player.entity == Some(event.player()));
     }
     let mut server = start();
     let (op, _) = server.join(OPERATOR, "Op");

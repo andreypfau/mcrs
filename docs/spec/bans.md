@@ -125,6 +125,18 @@ ban from the ban list and from the file is unspecified. See results R7 and R8.
 On a vanilla server, `banlist` shows an expired ban until the join of a player with a ban. That join
 removes all the expired bans from the ban list. The file keeps them until the next write.
 
+**BAN-EXP-003** (`black_box_confirmed`, semantic). After a join of a player with a ban, `ban` for a
+player whose ban has expired works as for a new ban. The new ban replaces the expired ban in the
+file. A server can allow this earlier, as BAN-EXP-002 does not fix the time of the removal. See
+result R15. The rule rests on one observation.
+
+On a vanilla server, before that join, `ban` for that player replies
+`Nothing changed. The player is already banned` and does not change the file. A differential test
+ignores `ban` for a player whose expired ban is still in the ban list.
+
+**BAN-EXP-004** (`black_box_confirmed`, semantic). `pardon` for an expired ban that the ban list still
+holds removes it, with the usual reply. See result R15. The rule rests on one observation.
+
 ## 4. Commands
 
 ### 4.1 Replies
@@ -168,11 +180,15 @@ R1 and R6.
 **BAN-CMD-005** (`black_box_confirmed`, semantic). `ban` accepts a selector and bans each player that
 it selects. See result R9.
 
-**BAN-CMD-006** (`black_box_confirmed`, semantic). In offline mode, for a name that the server does
-not know and that no account holds, `ban` stores the name in lower case with the id of that
-lower-case name. A player whose name has an upper-case letter has another id and can join. See
-result R13 and U7. `whitelist.md`, WL-DEV-001, records the same behaviour for `whitelist add` as an
-accident of the reference, and WL-CMD-003 corrects it.
+**BAN-CMD-006** (`black_box_confirmed`, semantic). In offline mode, a name of a player that is online
+matches with any case. The ban has the id and the name of that player. See result R14. This part
+rests on one observation.
+
+For a name of a player that is not online and that no account holds, `ban` stores the name with the
+same case as in the command. The id is the version 3 UUID of `OfflinePlayer:<name>`. Thus
+`ban BlCaseOne` refuses the player `BlCaseOne` and does not refuse the player `blcaseone`. See
+results R13 and R14, and U7.
+The rule corrects the reference for some names, and BAN-DEV-002 records the reference behaviour.
 
 **BAN-CMD-007** (`black_box_confirmed`, semantic). `ban-ip` accepts the name of a player that is
 online, and it bans the address of that player. It disconnects each online player with that address,
@@ -192,6 +208,24 @@ console does not show this line. See results R10 and R11.
 - **Visible to the client:** yes. The first join fails with no reason.
 - **Test:** a differential test ignores the first join of a player whose ban has expired.
 
+### BAN-DEV-002: The case of a name that is not online
+
+- **Rule:** BAN-CMD-006.
+- **Reference, a player that joined before:** the name matches with any case, also after a restart.
+  The ban has the id and the name of that player. After `BlKnown` joins and leaves, `ban blknown`
+  and `ban BlKnown` both refuse `BlKnown` and do not refuse `blknown` (R14).
+- **Reference, a name that the server does not know:** the vanilla server stores the name in lower
+  case, with the id of the lower-case name. After `ban BlCaseOne`, the player `BlCaseOne` joins and
+  the server refuses the player `blcaseone` (R13). `whitelist.md`, WL-DEV-001, records the same
+  behaviour for `whitelist add`.
+- **This server:** it does not keep the players that joined, for the reason in `whitelist.md`,
+  WL-DEV-004. It uses the case in the command for each name that is not online. `ban BlKnown` refuses
+  `BlKnown`, as on the vanilla server. `ban blknown` does not refuse `BlKnown` when that player is not
+  online.
+- **Visible to the client:** yes, in the reply, in the ban file and at the join.
+- **Test:** a differential test uses the exact case for a player that joined before and is not
+  online. It skips `ban` with an upper-case letter for a name that the server does not know.
+
 ## 6. Unresolved
 
 - **U1**: the translation keys of the replies in BAN-CMD-001.
@@ -203,8 +237,8 @@ console does not show this line. See results R10 and R11.
 - **U5**: `banlist` with both kinds of ban.
 - **U6**: whether a server must stop or continue when a ban file is not valid JSON (BAN-FILE-007). A
   start with an empty ban list lets a banned player join. `whitelist.md`, WL-FILE-004, states that a
-  reload of a whitelist file that is not valid JSON empties the whitelist. That rule is about a
-  reload, not a start.
+  whitelist file that is not valid JSON gives an empty whitelist, at a reload and at a start. A
+  vanilla server thus treats the two kinds of file differently.
 - **U7**: `ban` looks for a name at an external service. A name that an account holds can get another
   result. The experiments did not test this.
 - **U8**: an IPv6 address, and an address ban with a host name.
@@ -232,6 +266,8 @@ lower-case names that no account holds, except where a step names a player.
 | E11 | Join as two players from one address. Run `ban-ip` with the name of one player and a reason. Join as a third player. Send a STATUS request. | R11 |
 | E12 | Run `ban blboth player reason` and `ban-ip 127.0.0.1 address reason`. Join as `blboth`. | R12 |
 | E13 | Run `ban BlCaseOne`. Join as `BlCaseOne` and as `blcaseone`. | R13 |
+| E14 | Use a new name with an upper-case letter for each step. Join and leave, run `ban` with the same case, and join in each case. Do this with `ban` in lower case. Do this with a restart before `ban`. Join, and run `ban` in lower case while the player is online. Run `ban` for a name that did not join, and join in each case. Read the file after each `ban`. | R14 |
+| E15 | Write four expired bans. Start the server. Run `ban` two times for the first name, and read the file. Run `pardon` for the second name, and run `banlist`. Join as the first name, and run `banlist`. Run `ban` for the third name, read the file, and join as that name. Join as the fourth name two times. | R15 |
 
 ## 8. Captured results
 
@@ -387,4 +423,42 @@ blboth: {"translate":"multiplayer.disconnect.banned.reason","with":["player reas
 ban BlCaseOne -> Banned blcaseone: Banned by an operator.
 BlCaseOne joins
 blcaseone refused
+```
+
+**R14.** `<N>` is a new name with an upper-case letter, and `<n>` is the same name in lower case.
+
+```text
+<N> joined and left, ban <N> -> Banned <N>: Banned by an operator.
+the file holds <N>, <N> refused, <n> joins
+
+<N> joined and left, ban <n> -> Banned <N>: Banned by an operator.
+the file holds <N>, <N> refused, <n> joins
+
+<N> joined, server restarted, ban <N> -> Banned <N>: Banned by an operator.
+the file holds <N>, <N> refused, <n> joins
+
+<N> online, ban <n> -> Banned <N>: Banned by an operator.
+the file holds <N>, <N> disconnected with multiplayer.disconnect.banned
+
+<N> did not join, ban <N> -> Banned <n>: Banned by an operator.
+the file holds <n>, <N> joins, <n> refused
+```
+
+**R15.** `a`, `b`, `c` and `d` are new names, each with an expired ban in the file.
+
+```text
+banlist -> There are 4 ban(s)
+ban a fresh reason -> Nothing changed. The player is already banned
+ban a second reason -> Nothing changed. The player is already banned
+the file still holds the old entry of a
+pardon b -> Unbanned b
+the file holds a, c and d
+banlist -> There are 3 ban(s)
+join as a: the connection closes before login_finished, with no login_disconnect
+banlist -> There are no bans
+the file holds a, c and d
+ban c after a join -> Banned c: after a join
+the file holds only c, with expires forever and reason "after a join"
+c: {"translate":"multiplayer.disconnect.banned.reason","with":["after a join"]}
+d joins, and joins again
 ```

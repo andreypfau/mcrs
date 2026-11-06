@@ -1,17 +1,20 @@
-use bevy_app::{App, AppLabel};
+use bevy_app::App;
 use bevy_app::{
     First, FixedUpdate, Last, PostStartup, PostUpdate, PreStartup, PreUpdate, Startup, Update,
 };
 use bevy_ecs::prelude::*;
 use bevy_time::{Fixed, Time};
 use mcrs_minecraft_block::definition::Blocks;
+use mcrs_minecraft_engine::between_ticks::drain_dim_despawn_queue;
+use mcrs_minecraft_engine::between_ticks::drain_dim_spawn_queue;
 use mcrs_minecraft_engine::bus::InboundPlayerSpawn;
-use mcrs_minecraft_engine::dim::{DimSubAppHandle, drain_dim_despawn_queue};
-use mcrs_minecraft_engine::sub_app_builder::drain_dim_spawn_queue;
+use mcrs_minecraft_engine::coordinator::dim::DimSubAppHandle;
+use mcrs_minecraft_engine::coordinator::dim_cells::DimCells;
+use mcrs_minecraft_engine_world::entity::player::Player;
 use mcrs_minecraft_engine_world::session::{PlayerSessionCounter, Session};
 use mcrs_minecraft_engine_world::world::dimension::Dimension;
 use mcrs_minecraft_engine_world::world::dimension_list::DimensionList;
-use mcrs_minecraft_engine_world::world::sub_app::{DimAppLabel, DimDespawnQueue};
+use mcrs_minecraft_engine_world::world::sub_app::DimDespawnQueue;
 use mcrs_minecraft_environment::world_clock::{ClockState, WorldClockPlugin, WorldClocks};
 use mcrs_minecraft_network::ServerSideConnection;
 use mcrs_minecraft_registries::{CurrentRegistries, Registries, Resolver};
@@ -26,7 +29,7 @@ fn dim_sub_apps_are_isolated_worlds_that_come_and_go() {
     host_app::enqueue_spawn(&mut app, "minecraft:overworld", "minecraft:overworld");
     host_app::enqueue_spawn(&mut app, "minecraft:the_nether", "minecraft:the_nether");
     drain_dim_spawn_queue(&mut app);
-    assert_eq!(app.sub_apps().sub_apps.len(), 2);
+    assert_eq!(app.world().resource::<DimCells>().len(), 2);
 
     let host_dimensions = app
         .world_mut()
@@ -44,12 +47,7 @@ fn dim_sub_apps_are_isolated_worlds_that_come_and_go() {
     assert_eq!(handles.len(), 2, "one host-side handle entity per sub-app");
 
     for &label in &handles {
-        let world = app
-            .sub_apps_mut()
-            .sub_apps
-            .get_mut(&DimAppLabel(label).intern())
-            .expect("sub-app under the handle's DimAppLabel")
-            .world_mut();
+        let world = host_app::world(&mut app, label);
         let dimensions = world.query::<&Dimension>().iter(world).count();
         assert_eq!(
             dimensions, 1,
@@ -81,12 +79,11 @@ fn dim_sub_apps_are_isolated_worlds_that_come_and_go() {
         .0
         .push(handles[0]);
     drain_dim_despawn_queue(&mut app);
-    assert_eq!(app.sub_apps().sub_apps.len(), 1);
+    let cells = app.world().resource::<DimCells>();
+    assert_eq!(cells.len(), 1);
     assert!(
-        app.sub_apps()
-            .sub_apps
-            .contains_key(&DimAppLabel(handles[1]).intern()),
-        "only the despawned dimension's sub-app is removed"
+        cells.contains(handles[1]),
+        "only the despawned dimension's world is removed"
     );
 }
 
@@ -104,6 +101,8 @@ struct ScheduleHits {
 
 fn install_counters(sub_app: &mut bevy_app::SubApp) {
     sub_app.init_resource::<ScheduleHits>();
+    // A world with no player skips its schedules; this one must run every one of them.
+    sub_app.world_mut().spawn(Player);
     sub_app.add_systems(PreStartup, |mut h: ResMut<ScheduleHits>| h.pre_startup += 1);
     sub_app.add_systems(Startup, |mut h: ResMut<ScheduleHits>| h.startup += 1);
     sub_app.add_systems(PostStartup, |mut h: ResMut<ScheduleHits>| {
@@ -135,11 +134,10 @@ fn overworld_clock(app: &App) -> Id<WorldClock> {
 
 fn sub_app_clock(app: &mut App, dim_label: Entity) -> ClockState {
     let overworld = overworld_clock(app);
-    *app.sub_app_mut(DimAppLabel(dim_label))
-        .world()
+    *host_app::world(app, dim_label)
         .resource::<WorldClocks>()
         .get(overworld)
-        .expect("the extract carried the overworld clock into the sub-world")
+        .expect("the tick input carried the overworld clock into the sub-world")
 }
 
 fn main_clock(app: &App) -> ClockState {
@@ -152,10 +150,11 @@ fn main_clock(app: &App) -> ClockState {
 /// Systems on every non-`Fixed` schedule of a sub-app run on each pump, with
 /// the `Startup` family once: an earlier driver chained only the `Fixed*`
 /// schedules and left `spawn_player`, loot loading and column-view attachment
-/// inert. The main app owns time and the clocks; each pump hands the sub-world
-/// the same values, overwriting any it advanced on its own.
+/// inert. The main app owns the clocks; a pump after the main app changed them hands the
+/// sub-world the same values, overwriting any it advanced on its own. The sub-world has no
+/// time.
 #[test]
-fn a_dim_sub_app_runs_the_whole_pipeline_on_the_main_app_time_and_clocks() {
+fn a_dim_sub_app_runs_the_whole_pipeline_on_the_main_app_clocks() {
     let mut app = host_app::make_host_app();
     app.add_message::<InboundPlayerSpawn>();
     app.add_plugins(WorldClockPlugin);
@@ -169,7 +168,7 @@ fn a_dim_sub_app_runs_the_whole_pipeline_on_the_main_app_time_and_clocks() {
         .query_filtered::<Entity, With<DimSubAppHandle>>()
         .single(app.world())
         .unwrap();
-    install_counters(app.sub_app_mut(DimAppLabel(dim_label)));
+    install_counters(host_app::sub_app(&mut app, dim_label));
 
     let before = main_clock(&app).total_ticks;
     for _ in 0..7 {
@@ -179,21 +178,19 @@ fn a_dim_sub_app_runs_the_whole_pipeline_on_the_main_app_time_and_clocks() {
     assert!(main_clock(&app).total_ticks >= before + 7);
     assert_eq!(sub_app_clock(&mut app, dim_label), main_clock(&app));
 
-    let host_fixed = *app.world().resource::<Time<Fixed>>();
-    let sub_fixed = *app
-        .sub_app(DimAppLabel(dim_label))
-        .world()
-        .resource::<Time<Fixed>>();
-    assert_eq!(host_fixed.elapsed(), sub_fixed.elapsed());
-    assert_eq!(host_fixed.delta(), sub_fixed.delta());
+    let sub_world = host_app::world(&mut app, dim_label);
+    assert!(
+        !sub_world.contains_resource::<Time>() && !sub_world.contains_resource::<Time<Fixed>>(),
+        "a dimension counts ticks and has no wall clock to read"
+    );
 
     let overworld = overworld_clock(&app);
-    app.sub_app_mut(DimAppLabel(dim_label))
-        .world_mut()
+    host_app::world(&mut app, dim_label)
         .resource_mut::<WorldClocks>()
         .get_mut(overworld)
         .unwrap()
         .total_ticks = 999_999;
+    app.world_mut().run_schedule(FixedUpdate);
     app.update();
     assert_eq!(sub_app_clock(&mut app, dim_label), main_clock(&app));
     assert_ne!(main_clock(&app).total_ticks, 999_999);
@@ -203,10 +200,7 @@ fn a_dim_sub_app_runs_the_whole_pipeline_on_the_main_app_time_and_clocks() {
     assert_eq!(sub_app_clock(&mut app, dim_label), main_clock(&app));
 
     const PUMPS: u32 = 3;
-    let hits = app
-        .sub_app(DimAppLabel(dim_label))
-        .world()
-        .resource::<ScheduleHits>();
+    let hits = host_app::world(&mut app, dim_label).resource::<ScheduleHits>();
     assert_eq!(
         *hits,
         ScheduleHits {

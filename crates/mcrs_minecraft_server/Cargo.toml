@@ -31,10 +31,14 @@ bevy_ecs = { workspace = true, features = ["multi_threaded"] }
 bevy_asset = { workspace = true, features = ["multi_threaded"] }
 
 [dev-dependencies]
+mcrs_engine_link.workspace = true
+mcrs_engine_muxer.workspace = true
+mcrs_minecraft_replication.workspace = true
 mcrs_minecraft_protocol.workspace = true
 mcrs_minecraft_protocol_game.workspace = true
 mcrs_minecraft_save.workspace = true
 mcrs_minecraft_engine_registries = { workspace = true, features = ["test-support"] }
+mcrs_minecraft_engine = { workspace = true, features = ["world-access"] }
 mcrs_minecraft_resource.workspace = true
 mcrs_voxel.workspace = true
 mcrs_minecraft_game_mode.workspace = true
@@ -60,6 +64,7 @@ mcrs_minecraft_environment = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_chunk = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_heightmap = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_simulation.workspace = true
+mcrs_minecraft_random.workspace = true
 mcrs_minecraft_entity.workspace = true
 mcrs_minecraft_nbt.workspace = true
 rustc-hash.workspace = true

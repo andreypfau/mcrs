@@ -1,15 +1,13 @@
-use bevy_app::{App, AppLabel, Last};
+use bevy_app::{App, Last};
 use bevy_ecs::message::MessageReader;
-use bevy_ecs::prelude::{Entity, IntoScheduleConfigs, ResMut, Resource};
+use bevy_ecs::prelude::{Entity, ResMut, Resource};
 use mcrs_minecraft_block::definition::Blocks;
-use mcrs_minecraft_chunk::{BlockLight, SkyLight, VoxelId};
-use mcrs_minecraft_engine::bus::{
-    OutboundPlayerPacket, PacketPayload, PacketPriority, PacketTarget,
-};
-use mcrs_minecraft_engine::column_view::ColumnView;
-use mcrs_minecraft_engine::dim::DimSubAppHandle;
-use mcrs_minecraft_engine::session::HostAnchor;
-use mcrs_minecraft_engine::sub_app_builder::drain_dim_spawn_queue;
+use mcrs_minecraft_chunk::{BlockLight, SkyLight};
+use mcrs_minecraft_engine::between_ticks::drain_dim_spawn_queue;
+use mcrs_minecraft_engine::bus::{PacketPayload, PacketPriority};
+use mcrs_minecraft_engine::column_change::ColumnChange;
+use mcrs_minecraft_engine::column_streams::ColumnStreams;
+use mcrs_minecraft_engine::coordinator::dim::DimSubAppHandle;
 use mcrs_minecraft_engine_world::block_update::BlockPlaced;
 use mcrs_minecraft_engine_world::entity::physics::Transform;
 use mcrs_minecraft_engine_world::entity::player::Player;
@@ -17,12 +15,10 @@ use mcrs_minecraft_engine_world::palette::{ChunkBlocks, SectionStates};
 use mcrs_minecraft_engine_world::world::dimension::{DimensionTypeConfig, InDimension};
 use mcrs_minecraft_engine_world::world::lifecycle::stage::{SectionStage, SectionStageChanged};
 use mcrs_minecraft_engine_world::world::storage::column::ColumnIndex;
-use mcrs_minecraft_engine_world::world::sub_app::DimAppLabel;
 use mcrs_minecraft_protocol_game::clientbound::ClientboundLightUpdate;
 use mcrs_minecraft_protocol_game::light_codec::{RowLight, unpack_light_data};
 use mcrs_minecraft_simulation::BlockUpdateFlags;
-use mcrs_minecraft_vanilla_light::emit_light_updates;
-use mcrs_minecraft_vanilla_light::{LightBudget, LightEpoch, LightWorkQueue, PendingEdits};
+use mcrs_minecraft_vanilla_light::{LightBudget, LightLink};
 use mcrs_voxel::{BlockPos, BlockStateId, ColumnPos, SectionPos};
 
 use crate::host_app;
@@ -41,18 +37,14 @@ fn filled(block: BlockStateId) -> SectionStates {
     SectionStates::homogeneous(block)
 }
 
-/// Spawn one column of section entities exactly as `process_completed_columns`
-/// does, then pump until the engine has nothing left to do.
-fn light_one_column(app: &mut App, label: DimAppLabel, stone_floor: bool) {
+/// Spawn the column at the origin and the eight around it, whose blocks reach its light, as
+/// `integrate_generated_columns` does, then pump until the engine has nothing left to do.
+fn light_one_column(app: &mut App, label: Entity, stone_floor: bool) {
     let blocks = app.world().resource::<Blocks>().clone();
     let air = state(&blocks, "minecraft:air");
     let stone = state(&blocks, "minecraft:stone");
 
-    let sub_app = app
-        .sub_apps_mut()
-        .sub_apps
-        .get_mut(&label.intern())
-        .expect("the dimension sub-app exists");
+    let sub_app = host_app::sub_app(app, label);
     let world = sub_app.world_mut();
     let dimension = world
         .query_filtered::<Entity, bevy_ecs::prelude::With<ColumnIndex>>()
@@ -64,9 +56,13 @@ fn light_one_column(app: &mut App, label: DimAppLabel, stone_floor: bool) {
         .single(world)
         .expect("the dimension's shape");
     let min_section = config.min_y >> 4;
-    for y in min_section..min_section + config.section_count as i32 {
-        let solid = stone_floor && y == STONE_SECTION_Y;
-        let pos = SectionPos::new(0, y, 0);
+    let rows = min_section..min_section + config.section_count as i32;
+    let sections = ColumnPos::new(0, 0).square(1).flat_map(|column| {
+        rows.clone()
+            .map(move |y| SectionPos::new(column.x, y, column.z))
+    });
+    for pos in sections {
+        let solid = stone_floor && pos.y == STONE_SECTION_Y;
         let section = world
             .spawn((
                 pos,
@@ -85,36 +81,23 @@ fn light_one_column(app: &mut App, label: DimAppLabel, stone_floor: bool) {
     settle(app, label);
 }
 
-fn settle(app: &mut App, label: DimAppLabel) {
+/// Updates until an update leaves the light stage owing nothing, and waits for the stage to
+/// answer between updates. A published answer can raise more light work, such as a new surface.
+fn settle(app: &mut App, label: Entity) {
     for _ in 0..400 {
         app.update();
-        let world = app
-            .sub_apps()
-            .sub_apps
-            .get(&label.intern())
-            .expect("the dimension sub-app exists")
-            .world();
-        let running = world.resource::<LightEpoch>().is_running();
-        if !running
-            && world.resource::<PendingEdits>().is_empty()
-            && world.resource::<LightWorkQueue>().0.is_empty()
-        {
+        let world = host_app::sub_app(app, label).world_mut();
+        let mut light = world.resource_mut::<LightLink>();
+        if light.is_idle() {
             return;
         }
-        if running {
-            std::thread::sleep(std::time::Duration::from_millis(2));
-        }
+        bevy_tasks::block_on(light.answered());
     }
     panic!("light never settled");
 }
 
-fn published(app: &mut App, label: DimAppLabel, pos: SectionPos) -> (BlockLight, SkyLight) {
-    let world = app
-        .sub_apps_mut()
-        .sub_apps
-        .get_mut(&label.intern())
-        .expect("the dimension sub-app exists")
-        .world_mut();
+fn published(app: &mut App, label: Entity, pos: SectionPos) -> (BlockLight, SkyLight) {
+    let world = host_app::sub_app(app, label).world_mut();
     let mut sections = world.query::<(&SectionPos, &BlockLight, &SkyLight)>();
     let (_, block, sky) = sections
         .iter(world)
@@ -123,7 +106,7 @@ fn published(app: &mut App, label: DimAppLabel, pos: SectionPos) -> (BlockLight,
     (block.clone(), sky.clone())
 }
 
-fn spawn_dimension(id: &str, dimension_type: &str) -> (App, DimAppLabel) {
+fn spawn_dimension(id: &str, dimension_type: &str) -> (App, Entity) {
     let mut app = host_app::make_host_app();
     host_app::enable_lighting(&mut app);
     host_app::enqueue_spawn(&mut app, id, dimension_type);
@@ -135,23 +118,19 @@ fn spawn_dimension(id: &str, dimension_type: &str) -> (App, DimAppLabel) {
         .map(|(entity, _)| entity)
         .next()
         .expect("one sub-app handle");
-    (app, DimAppLabel(handle))
+    (app, handle)
 }
 
-/// Stands in for `apply_voxel_set_requests`, which writes the palette and then
+/// Stands in for the block simulation, which writes the palette and then
 /// the message; the chunk index it resolves through is not wired here.
-fn place_torch(app: &mut App, label: DimAppLabel, at: BlockPos) -> u8 {
+fn place_torch(app: &mut App, label: Entity, at: BlockPos) -> u8 {
     let blocks = app.world().resource::<Blocks>().clone();
     let torch = state(&blocks, "minecraft:torch");
     let emission = blocks
         .state(blocks.default_state("minecraft:torch").unwrap())
         .light_emission;
 
-    let sub_app = app
-        .sub_apps_mut()
-        .sub_apps
-        .get_mut(&label.intern())
-        .expect("the dimension sub-app exists");
+    let sub_app = host_app::sub_app(app, label);
     let chunk_pos = SectionPos::from(at);
     let mut sections = sub_app.world_mut().query::<(Entity, &SectionPos)>();
     let chunk = sections
@@ -215,17 +194,17 @@ fn a_dimension_without_a_sky_publishes_none() {
 }
 
 #[derive(Resource, Default)]
-struct CapturedLightUpdates(Vec<OutboundPlayerPacket>);
+struct CapturedLightUpdates(Vec<ColumnChange>);
 
-/// Reads the dim's outbox in the same schedule the emitter writes it, before
-/// `flush_from_dim_outbox` drains it in the next tick's `FixedLast`.
+/// Reads the dim's outbox in the same schedule the emitter writes it, before the output of the
+/// tick drains it.
 fn capture_light_updates(
-    mut reader: MessageReader<OutboundPlayerPacket>,
+    mut reader: MessageReader<ColumnChange>,
     mut captured: ResMut<CapturedLightUpdates>,
 ) {
-    for packet in reader.read() {
-        if matches!(packet.data, PacketPayload::LightUpdate(_)) {
-            captured.0.push(packet.clone());
+    for change in reader.read() {
+        if matches!(change.payload, PacketPayload::LightUpdate(_)) {
+            captured.0.push(change.clone());
         }
     }
 }
@@ -249,81 +228,53 @@ fn nibble(
     (chunk.0[idx >> 1] >> ((idx & 1) * 4)) & 0x0F
 }
 
-/// Light one column, give it a viewing player that has (or has not) already
-/// received it, then place a torch and collect what the emitter sent.
-///
-/// Returns the player's host anchor, because that is how the bus addresses a
-/// player: the session registry is keyed by anchor, and the dimension world's
-/// own player entity resolves to nothing there.
-fn torch_delta(already_sent: bool) -> (Vec<OutboundPlayerPacket>, Entity) {
+/// Light one column, subscribe the muxer to it or not, then place a torch and collect what the
+/// dimension published.
+fn torch_delta(subscribed: bool) -> Vec<ColumnChange> {
     let (mut app, label) = spawn_dimension("minecraft:overworld", "minecraft:overworld");
-    let sub_app = app
-        .sub_apps_mut()
-        .sub_apps
-        .get_mut(&label.intern())
-        .expect("the dimension sub-app exists");
+    let sub_app = host_app::sub_app(&mut app, label);
     sub_app.init_resource::<CapturedLightUpdates>();
-    sub_app.add_systems(Last, capture_light_updates.after(emit_light_updates));
+    sub_app.add_systems(Last, capture_light_updates);
 
     light_one_column(&mut app, label, true);
 
     let column = ColumnPos::new(0, 0);
-    let _sub_app = app
-        .sub_apps_mut()
-        .sub_apps
-        .get_mut(&label.intern())
-        .expect("the dimension sub-app exists");
-    let anchor = app.world_mut().spawn_empty().id();
-    let sub_app = app
-        .sub_apps_mut()
-        .sub_apps
-        .get_mut(&label.intern())
-        .expect("the dimension sub-app exists");
+    let sub_app = host_app::sub_app(&mut app, label);
     let world = sub_app.world_mut();
     let dimension = world
         .query_filtered::<Entity, bevy_ecs::prelude::With<ColumnIndex>>()
         .iter(world)
         .next()
         .expect("the dimension entity");
-    let view = if already_sent {
-        ColumnView::holding([column])
-    } else {
-        ColumnView::default()
-    };
-    world.spawn((Player, view, HostAnchor(anchor), InDimension(dimension)));
+    if subscribed {
+        world
+            .entity_mut(dimension)
+            .insert(ColumnStreams::subscribed_to([column]));
+    }
     world.resource_mut::<CapturedLightUpdates>().0.clear();
 
     place_torch(&mut app, label, torch_at());
 
-    let captured = app
-        .sub_apps_mut()
-        .sub_apps
-        .get_mut(&label.intern())
-        .expect("the dimension sub-app exists")
+    host_app::sub_app(&mut app, label)
         .world()
         .resource::<CapturedLightUpdates>()
         .0
-        .clone();
-    (captured, anchor)
+        .clone()
 }
 
-/// A player that holds the column is sent every correction to its light, standing
-/// still or not.
+/// The muxer gets every correction to the light of a column it subscribes to.
 fn a_torch_sends_one_delta_carrying_only_the_rows_it_changed() {
-    let (captured, anchor) = torch_delta(true);
+    let captured = torch_delta(true);
 
-    assert_eq!(captured.len(), 1, "one packet for one column");
+    assert_eq!(captured.len(), 1, "one change for one column");
     let packet = &captured[0];
-    match &packet.target {
-        PacketTarget::PlayerSet(set) => assert_eq!(set.as_slice(), [anchor]),
-        other => panic!("expected a player set, got {other:?}"),
-    }
+    assert_eq!(packet.column, ColumnPos::new(0, 0));
     assert_eq!(
         packet.priority,
         PacketPriority::High,
         "a column's light is sent in full once, so a shed delta is never made good"
     );
-    let PacketPayload::LightUpdate(ClientboundLightUpdate { x, z, light_data }) = &packet.data
+    let PacketPayload::LightUpdate(ClientboundLightUpdate { x, z, light_data }) = &packet.payload
     else {
         unreachable!("filtered above");
     };
@@ -356,8 +307,8 @@ fn a_torch_sends_one_delta_carrying_only_the_rows_it_changed() {
     );
 }
 
-fn a_column_the_player_never_received_gets_no_delta() {
-    let (captured, _) = torch_delta(false);
+fn a_column_no_client_holds_gets_no_delta() {
+    let captured = torch_delta(false);
     assert!(
         captured.is_empty(),
         "a delta for an unsent column is meaningless: {captured:?}"
@@ -375,11 +326,7 @@ fn the_column_under_the_player_is_lit_before_the_far_ones() {
     let stone = state(&blocks, "minecraft:stone");
     let air = state(&blocks, "minecraft:air");
 
-    let sub_app = app
-        .sub_apps_mut()
-        .sub_apps
-        .get_mut(&label.intern())
-        .expect("the dimension sub-app exists");
+    let sub_app = host_app::sub_app(&mut app, label);
     // One column per epoch, so the order the queue hands work out is the order
     // light is published in.
     sub_app.insert_resource(LightBudget {
@@ -417,13 +364,8 @@ fn the_column_under_the_player_is_lit_before_the_far_ones() {
     let mut lit: Vec<(ColumnPos, usize)> = Vec::new();
     for tick in 0..400 {
         app.update();
-        let world = app
-            .sub_apps_mut()
-            .sub_apps
-            .get_mut(&label.intern())
-            .expect("the dimension sub-app exists")
-            .world_mut();
-        if world.resource::<LightEpoch>().is_running() {
+        let world = host_app::sub_app(&mut app, label).world_mut();
+        if !world.resource::<LightLink>().is_idle() {
             std::thread::sleep(std::time::Duration::from_millis(2));
         }
         let newly: Vec<ColumnPos> = world
@@ -459,60 +401,11 @@ fn the_column_under_the_player_is_lit_before_the_far_ones() {
     );
 }
 
-/// A seam is lit against whatever stands beside it, so a column is only
-/// finished once its neighbours are.
-#[test]
-fn a_column_is_not_sent_while_a_neighbour_still_has_lighting_work() {
-    use bevy_ecs::prelude::World;
-    use bevy_ecs::system::RunSystemOnce;
-    use mcrs_minecraft_light_engine::block::{LightProperties, LightRegistry, SpecialBlocks};
-    use mcrs_minecraft_light_engine::prelude::{Influence, LightBounds};
-    use mcrs_minecraft_light_engine::world::LightWorld;
-    use mcrs_minecraft_vanilla_light::{
-        LightEpoch, LightStatus, LightWorkQueue, Lighting, PendingEdits,
-    };
-    use std::sync::Arc;
-
-    let registry = Arc::new(LightRegistry::new(
-        vec![LightProperties::AIR, LightProperties::SOLID],
-        SpecialBlocks {
-            unloaded: VoxelId(1),
-            outside: VoxelId(0),
-        },
-    ));
-    let mut world = World::new();
-    world.insert_resource(Lighting(LightWorld::new(
-        registry,
-        LightBounds::new(-4, 19),
-    )));
-    world.init_resource::<LightWorkQueue>();
-    world.init_resource::<LightEpoch>();
-    world.init_resource::<PendingEdits>();
-
-    fn settled(status: LightStatus) -> bool {
-        status.settled_around(ColumnPos::new(0, 0))
-    }
-
-    assert!(
-        world.run_system_once(settled).unwrap(),
-        "nothing is owed to the column or its ring"
-    );
-
-    world.resource_mut::<LightWorkQueue>().0.push(
-        ColumnPos::new(1, 0),
-        Influence::around(BlockPos::new(16, 64, 0)),
-    );
-    assert!(
-        !world.run_system_once(settled).unwrap(),
-        "the neighbour's work will repair this column's seam"
-    );
-}
-
 #[test]
 fn the_dimension_lights_its_columns_and_sends_what_changed() {
     a_placed_torch_lights_its_neighbourhood();
     a_dimension_without_a_sky_publishes_none();
     a_torch_sends_one_delta_carrying_only_the_rows_it_changed();
-    a_column_the_player_never_received_gets_no_delta();
+    a_column_no_client_holds_gets_no_delta();
     the_column_under_the_player_is_lit_before_the_far_ones();
 }

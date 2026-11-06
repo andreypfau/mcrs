@@ -11,6 +11,7 @@ pub mod atlas;
 pub mod bake;
 mod block_build;
 pub mod block_catalog;
+mod block_entity;
 pub mod colormap;
 pub mod item_model_asset;
 pub mod item_model_bake;

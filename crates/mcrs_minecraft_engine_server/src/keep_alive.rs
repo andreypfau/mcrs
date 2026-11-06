@@ -6,8 +6,9 @@ use bevy_ecs::prelude::{Commands, Query, Res};
 use bevy_ecs::query::Changed;
 use bevy_ecs::schedule::IntoScheduleConfigs;
 use bevy_time::{Real, Time};
+use mcrs_minecraft_engine::muxer::latency::Latency;
 use mcrs_minecraft_network::event::Received;
-use mcrs_minecraft_network::{ConnectionState, ServerSideConnection};
+use mcrs_minecraft_network::{ConnectionState, Instant, ServerSideConnection};
 use mcrs_minecraft_protocol::WritePacket;
 use mcrs_minecraft_protocol::packets::configuration::clientbound::ClientboundKeepAlive as ConfigurationRequest;
 use mcrs_minecraft_protocol::packets::configuration::serverbound::ServerboundKeepAlive as ConfigurationResponse;
@@ -108,37 +109,56 @@ pub fn handle_keepalive(
 
 fn on_configuration_response(
     event: On<Received<ConfigurationResponse>>,
-    query: Query<(&ServerSideConnection, &mut KeepAlive)>,
+    query: Query<(&ServerSideConnection, &mut KeepAlive, Option<&Latency>)>,
+    time: Res<Time<Real>>,
     commands: Commands,
 ) {
     if let Some(packet) = event.packet() {
-        handle_keepalive_response(event.entity, packet.0, query, commands);
+        let arrived = arrival(event.arrival(), &time);
+        handle_keepalive_response(event.entity, packet.0, query, arrived, commands);
     }
 }
 
 fn on_game_response(
     event: On<Received<GameResponse>>,
-    query: Query<(&ServerSideConnection, &mut KeepAlive)>,
+    query: Query<(&ServerSideConnection, &mut KeepAlive, Option<&Latency>)>,
+    time: Res<Time<Real>>,
     commands: Commands,
 ) {
     if let Some(packet) = event.packet() {
-        handle_keepalive_response(event.entity, packet.0, query, commands);
+        let arrived = arrival(event.arrival(), &time);
+        handle_keepalive_response(event.entity, packet.0, query, arrived, commands);
     }
+}
+
+/// A response read in a later frame than it arrived still counts from its arrival, so the
+/// latency does not grow by the wait for the frame.
+fn arrival(arrival: Option<Instant>, time: &Time<Real>) -> Duration {
+    arrival.map_or(time.elapsed(), |at| {
+        at.saturating_duration_since(time.startup())
+    })
 }
 
 fn handle_keepalive_response(
     entity: Entity,
     keep_alive: mcrs_minecraft_protocol::packets::common::serverbound::KeepAlive,
-    mut query: Query<(&ServerSideConnection, &mut KeepAlive)>,
+    mut query: Query<(&ServerSideConnection, &mut KeepAlive, Option<&Latency>)>,
+    now: Duration,
     mut commands: Commands,
 ) {
-    let Ok((con, mut state)) = query.get_mut(entity) else {
+    let Ok((con, mut state, latency)) = query.get_mut(entity) else {
         return;
     };
     debug!("Keepalive response: {:?}", keep_alive);
     match *state {
         KeepAlive::Awaiting { challenge, sent } if keep_alive.payload == challenge => {
             *state = KeepAlive::Idle { since: sent };
+            let round_trip =
+                i32::try_from(now.saturating_sub(sent).as_millis()).unwrap_or(i32::MAX);
+            let sampled = latency.map_or(Latency(round_trip), |latency| latency.sample(round_trip));
+            if latency != Some(&sampled) {
+                commands.entity(entity).insert(sampled);
+            }
         }
         _ => {
             warn!(
@@ -149,5 +169,64 @@ fn handle_keepalive_response(
             );
             commands.entity(entity).remove::<ServerSideConnection>();
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use bevy_ecs::world::World;
+    use bytes::Bytes;
+    use mcrs_minecraft_network::RawConnection;
+
+    const CHALLENGE: i64 = 7;
+
+    fn respond(world: &mut World, connection: Entity, arrival: Instant) {
+        world.trigger(Received::<GameResponse>::arrived(
+            connection,
+            Bytes::copy_from_slice(&CHALLENGE.to_be_bytes()),
+            arrival,
+        ));
+        world.flush();
+    }
+
+    #[test]
+    fn latency_counts_to_the_arrival_and_is_not_rewritten_when_it_stays() {
+        let runtime = tokio::runtime::Runtime::new().unwrap();
+        let _guard = runtime.enter();
+        let startup = Instant::now();
+        let mut world = World::new();
+        let mut time = Time::<Real>::new(startup);
+        time.update_with_instant(startup);
+        time.update_with_instant(startup + Duration::from_millis(100));
+        world.insert_resource(time);
+        world.add_observer(on_game_response);
+        let (raw, _outgoing, _inbound) = RawConnection::new_for_test_full(1);
+        let awaiting = KeepAlive::Awaiting {
+            challenge: CHALLENGE,
+            sent: Duration::from_millis(40),
+        };
+        let connection = world
+            .spawn((ServerSideConnection { raw: Box::new(raw) }, awaiting))
+            .id();
+
+        respond(&mut world, connection, startup + Duration::from_millis(60));
+        assert_eq!(world.get::<Latency>(connection), Some(&Latency(20)));
+
+        let changed = |world: &World| {
+            world
+                .entity(connection)
+                .get_change_ticks::<Latency>()
+                .map(|ticks| ticks.changed)
+        };
+        let measured = changed(&world);
+        world.increment_change_tick();
+        world.entity_mut(connection).insert(awaiting);
+        respond(&mut world, connection, startup + Duration::from_millis(60));
+        assert_eq!(
+            changed(&world),
+            measured,
+            "a repeated round trip keeps the latency, so viewers get no update"
+        );
     }
 }

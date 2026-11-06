@@ -10,6 +10,7 @@ mod conformance_tick;
 mod determinism;
 mod events;
 mod probe;
+mod random_ticks;
 mod sequence;
 mod tick_model;
 mod ticks;

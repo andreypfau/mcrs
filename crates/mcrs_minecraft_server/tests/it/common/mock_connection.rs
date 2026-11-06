@@ -8,16 +8,18 @@ use bevy_ecs::entity::Entity;
 use bevy_ecs::message::Messages;
 use bevy_ecs::system::{IntoSystem, System};
 use bevy_ecs::world::World;
-use bytes::Bytes;
-use mcrs_minecraft_engine::bridge_queue::OutboundQueue;
 use mcrs_minecraft_engine::bus::{
-    OutboundPlayerPacket, PacketPayload, PacketPriority, PacketTarget, TestPayload,
+    OutboundPlayerPacket, PacketPayload, PacketPriority, PacketTarget,
 };
-use mcrs_minecraft_engine::session::{HostAnchorRef, SessionBundle};
+use mcrs_minecraft_engine::muxer::bridge_queue::{OutboundQueue, QueuedPacket};
+use mcrs_minecraft_engine::muxer::session::{HostAnchorRef, SessionBundle};
 use mcrs_minecraft_engine_world::session::{
-    Place, PlayerSession, PlayerSessionCounter, Session, SessionPlacement,
+    Place, PlayerSession, PlayerSessionCounter, SessionPlacement,
 };
+use mcrs_minecraft_network::OutboundReceiver;
 use mcrs_minecraft_network::RawConnection;
+use mcrs_minecraft_protocol::VarInt;
+use mcrs_minecraft_protocol_game::clientbound::ClientboundChunkBatchFinished;
 use tokio::sync::mpsc;
 
 /// Build a bare world with the resources needed for `bridge_outbound` tests.
@@ -25,6 +27,8 @@ pub fn build_bridge_world() -> World {
     let mut world = World::new();
     world.init_resource::<Messages<OutboundPlayerPacket>>();
     world.init_resource::<mcrs_minecraft_network::metrics::BridgeTelemetry>();
+    world.init_resource::<mcrs_minecraft_engine::muxer::bridge::PendingConnections>();
+    world.init_resource::<mcrs_minecraft_engine_world::session::SessionAnchors>();
     world
 }
 
@@ -67,7 +71,7 @@ pub fn write_packet(
         .write(OutboundPlayerPacket {
             target,
             priority,
-            data: PacketPayload::Test(TestPayload { seq }),
+            data: marker(seq),
             session,
             epoch,
         });
@@ -85,8 +89,7 @@ pub fn write_packet_broadcast(
     write_packet(world, target, PlayerSession(0), 0, priority, seq);
 }
 
-/// Write a test packet stamped for `session`, addressed to the host anchor
-/// carrying it, or to an entity no session lives on when none does.
+/// Write a test packet stamped for `session` and addressed to it.
 pub fn write_packet_stamped(
     world: &mut World,
     session: PlayerSession,
@@ -94,15 +97,9 @@ pub fn write_packet_stamped(
     priority: PacketPriority,
     seq: u32,
 ) {
-    let anchor = world
-        .query::<(Entity, &Session)>()
-        .iter(world)
-        .find(|(_, carried)| carried.0 == session)
-        .map(|(anchor, _)| anchor)
-        .unwrap_or(Entity::from_raw_u32(9999).expect("nonzero"));
     write_packet(
         world,
-        PacketTarget::SinglePlayer(anchor),
+        PacketTarget::SinglePlayer(session),
         session,
         epoch,
         priority,
@@ -139,8 +136,8 @@ where
 }
 
 /// Collect all packets from a connection entity's `OutboundQueue` in priority
-/// drain order (Critical → High → Normal → Low) into a flat `Vec`.
-pub fn drain_queue(world: &mut World, socket: Entity) -> Vec<OutboundPlayerPacket> {
+/// drain order (Critical → High → Normal) into a flat `Vec`.
+pub fn drain_queue(world: &mut World, socket: Entity) -> Vec<QueuedPacket> {
     let mut q = world
         .get_mut::<OutboundQueue>(socket)
         .expect("OutboundQueue present");
@@ -148,20 +145,34 @@ pub fn drain_queue(world: &mut World, socket: Entity) -> Vec<OutboundPlayerPacke
     out.extend(q.critical.drain(..));
     out.extend(q.high.drain(..));
     out.extend(q.normal.drain(..));
-    out.extend(q.low.drain(..));
     out
+}
+
+/// A small real packet that carries `seq`, so a test can tell its packets apart.
+pub fn marker(seq: u32) -> PacketPayload {
+    PacketPayload::ChunkBatchFinished(ClientboundChunkBatchFinished {
+        batch_size: VarInt(seq as i32),
+    })
+}
+
+/// The `seq` of a packet that [`marker`] made.
+pub fn marker_seq(payload: &PacketPayload) -> Option<u32> {
+    match payload {
+        PacketPayload::ChunkBatchFinished(packet) => Some(packet.batch_size.0 as u32),
+        _ => None,
+    }
 }
 
 /// Create a mock `RawConnection` backed by an in-memory mpsc channel.
 ///
-/// Returns the `(RawConnection, Receiver<Bytes>)` pair so tests can observe
+/// Returns the `(RawConnection, OutboundReceiver)` pair so tests can observe
 /// every blob that would be sent to a real socket.
 ///
 /// The dummy JoinHandle tasks are spawned onto a process-global single-thread
 /// runtime that lives for the entire test binary lifetime. Abort on
 /// `RawConnection` drop cleans up the handle slots; the runtime itself never
 /// shuts down.
-pub fn make_mock_raw_connection() -> (RawConnection, mpsc::Receiver<Bytes>) {
+pub fn make_mock_raw_connection() -> (RawConnection, OutboundReceiver) {
     use std::sync::OnceLock;
     use tokio::runtime::Runtime;
 
@@ -189,7 +200,7 @@ pub fn make_mock_raw_connection() -> (RawConnection, mpsc::Receiver<Bytes>) {
 /// observe outgoing blobs and inject incoming `ReceivedPacket` values.
 pub fn make_mock_raw_connection_full() -> (
     RawConnection,
-    mpsc::Receiver<Bytes>,
+    OutboundReceiver,
     mpsc::Sender<mcrs_minecraft_network::ReceivedPacket>,
 ) {
     use std::sync::OnceLock;

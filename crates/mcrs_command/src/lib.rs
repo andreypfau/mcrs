@@ -34,7 +34,9 @@ pub use argument_handle::ArgumentHandle;
 pub use build_error::BuildError;
 pub use contains::Contains;
 pub use error::{ErrorKind, LibraryError, SyntaxError};
-pub use exec::{Chain, End, Executor, Failure, Limits, SourceLists, Stage, execute};
+pub use exec::{
+    Chain, End, Executor, Failure, Limits, Resume, SourceLists, Stage, execute, resume,
+};
 pub use fork_mode::ForkMode;
 pub use graph::Graph;
 pub use graph_builder::GraphBuilder;

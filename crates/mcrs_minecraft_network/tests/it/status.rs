@@ -1,5 +1,8 @@
+use base64::Engine;
+use base64::engine::general_purpose::STANDARD;
 use bevy_app::App;
 use mcrs_minecraft_core::VERSION;
+use mcrs_minecraft_network::connect::GLOBAL_HANDSHAKE_CAP;
 use mcrs_minecraft_network::packet_io::PacketIo;
 use mcrs_minecraft_network::{BoundAddress, NetworkPlugin, StatusPlayers, StatusPublisher};
 use mcrs_minecraft_protocol::handshake::Intent;
@@ -18,6 +21,7 @@ use tokio::net::TcpStream;
 struct Status {
     players: Players,
     description: Option<String>,
+    favicon: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -65,21 +69,46 @@ fn status_json(address: SocketAddr) -> String {
 
 fn status_exchange(address: SocketAddr) -> anyhow::Result<String> {
     tokio::runtime::Runtime::new().unwrap().block_on(async {
-        tokio::time::timeout(Duration::from_secs(10), async {
-            let mut io = PacketIo::connect(address).await?;
-            io.send_packet(&ServerboundHandshake {
-                protocol_version: VarInt(VERSION.protocol_version),
-                server_address: Bounded("127.0.0.1"),
-                server_port: address.port(),
-                intent: Intent::Status,
-            })
-            .await?;
-            io.send_packet(&StatusRequest).await?;
-            Ok(io.recv_packet::<StatusResponse>().await?.json.to_owned())
-        })
-        .await
-        .unwrap()
+        tokio::time::timeout(Duration::from_secs(10), status_request(address))
+            .await
+            .unwrap()
     })
+}
+
+async fn status_request(address: SocketAddr) -> anyhow::Result<String> {
+    let mut io = PacketIo::connect(address).await?;
+    io.send_packet(&ServerboundHandshake {
+        protocol_version: VarInt(VERSION.protocol_version),
+        server_address: Bounded("127.0.0.1"),
+        server_port: address.port(),
+        intent: Intent::Status,
+    })
+    .await?;
+    io.send_packet(&StatusRequest).await?;
+    Ok(io.recv_packet::<StatusResponse>().await?.json.to_owned())
+}
+
+#[test]
+fn a_connection_beyond_the_handshake_cap_waits_for_a_slot_instead_of_closing() {
+    let (_app, address) = server(1, "", Vec::new());
+
+    let answered = tokio::runtime::Runtime::new().unwrap().block_on(async {
+        let mut silent = Vec::new();
+        for _ in 0..GLOBAL_HANDSHAKE_CAP {
+            silent.push(TcpStream::connect(address).await.unwrap());
+        }
+        let mut status = tokio::spawn(status_request(address));
+        let early = tokio::time::timeout(Duration::from_millis(200), &mut status).await;
+        assert!(
+            early.is_err(),
+            "the request ends while every slot is held: {early:?}"
+        );
+        drop(silent);
+        tokio::time::timeout(Duration::from_secs(10), status).await
+    });
+
+    let json = answered.unwrap().unwrap().unwrap();
+    assert!(json.contains("\"players\""), "a status response: {json}");
 }
 
 #[test]
@@ -239,4 +268,36 @@ fn an_empty_server_with_no_motd_sends_neither_sample_nor_description() {
     assert_eq!(status.players.online, 0);
     assert!(status.players.sample.is_none(), "{json}");
     assert!(status.description.is_none(), "{json}");
+}
+
+#[test]
+fn the_default_status_response_carries_a_64_by_64_png_icon() {
+    let (_app, address) = server_with(NetworkPlugin::default(), Vec::new());
+
+    let status: Status = serde_json::from_str(&status_json(address)).unwrap();
+
+    let favicon = status.favicon.unwrap();
+    let base64 = favicon.strip_prefix("data:image/png;base64,").unwrap();
+    let png = STANDARD.decode(base64).unwrap();
+    assert_eq!(png[..4], [0x89, b'P', b'N', b'G'], "PNG signature");
+    assert_eq!(
+        png[16..24],
+        [0, 0, 0, 64, 0, 0, 0, 64],
+        "IHDR width and height"
+    );
+}
+
+#[test]
+fn a_server_without_an_icon_omits_the_key() {
+    let (_app, address) = server_with(
+        NetworkPlugin {
+            favicon: None,
+            ..Default::default()
+        },
+        Vec::new(),
+    );
+
+    let json = status_json(address);
+
+    assert!(!json.contains("favicon"), "{json}");
 }

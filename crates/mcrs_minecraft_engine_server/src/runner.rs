@@ -1,13 +1,12 @@
 use bevy_app::{App, AppExit};
-use bevy_ecs::entity::Entity;
-use bevy_ecs::query::With;
-use mcrs_minecraft_engine::between_ticks::run_between_ticks;
-use mcrs_minecraft_engine::bridge::OutboundFlush;
-use mcrs_minecraft_engine::dim::{DimSubAppHandle, drain_dim_despawn_queue, pump_channels};
-use mcrs_minecraft_engine::sub_app_builder::drain_dim_spawn_queue;
-use mcrs_minecraft_engine_world::world::column_drain::ColumnDrain;
-use mcrs_minecraft_engine_world::world::sub_app::DimAppLabel;
+use mcrs_minecraft_engine::between_ticks::{
+    drain_dim_despawn_queue, drain_dim_spawn_queue, take_dim_outputs,
+};
+use mcrs_minecraft_engine::muxer::bridge::run_pending_flush;
+use mcrs_minecraft_engine::muxer::muxer_link::{self, Answers};
+use mcrs_minecraft_engine::muxer::tick_wake::TickWake;
 use std::num::NonZeroU32;
+use std::time::Instant;
 
 pub const DEFAULT_TPS: NonZeroU32 = match NonZeroU32::new(20) {
     Some(tps) => tps,
@@ -19,34 +18,39 @@ pub fn run_server_loop(app: App) -> AppExit {
         app,
         DEFAULT_TPS,
         between_ticks,
-        drain_columns,
+        drain_until,
     )
 }
 
-/// What the host does after each tick: it takes the dimensions' output, runs what plugins
-/// added to `BetweenTicks`, moves the players that changed dimension and spawns or despawns dimensions.
+/// What the host does after each tick: it takes the dimensions' output and spawns or despawns
+/// dimensions. A muxer on a thread of its own works on the entity bytes and the views of the
+/// tick meanwhile, and [`drain_until`] hands them over as they arrive.
 pub fn between_ticks(app: &mut App) {
-    pump_channels(app);
-    run_between_ticks(app);
-    mcrs_minecraft_engine::player_dimension_change::apply_dimension_change_requests(app);
+    take_dim_outputs(app.world_mut());
     drain_dim_spawn_queue(app);
     drain_dim_despawn_queue(app);
 }
 
-/// Passes on what landed since the tick: every dimension sends the columns whose sections
-/// are in, the host bridges them and writes the sockets.
-fn drain_columns(app: &mut App) {
-    let dims: Vec<Entity> = app
-        .world_mut()
-        .query_filtered::<Entity, With<DimSubAppHandle>>()
-        .iter(app.world())
-        .collect();
-    for dim in dims {
-        if let Some(sub_app) = app.get_sub_app_mut(DimAppLabel(dim)) {
-            sub_app.world_mut().run_schedule(ColumnDrain);
+/// Hands what the tick wrote for the clients to the sockets, then waits for `deadline`. A wake
+/// before the deadline, such as the muxer handing out bytes, hands over again. Nothing here
+/// changes what a tick reads.
+pub fn drain_until(app: &mut App, deadline: Instant) {
+    loop {
+        drain(app);
+        let woken = app
+            .world_mut()
+            .get_resource_or_init::<TickWake>()
+            .wait(deadline);
+        if !woken {
+            return;
         }
     }
-    pump_channels(app);
-    // Absent without `EnginePlugin`, which adds it.
-    let _ = app.world_mut().try_run_schedule(OutboundFlush);
+}
+
+/// Hands what the host holds for the clients to the sockets, with the entity bytes and the
+/// packets of the views that the muxer has handed out so far.
+pub fn drain(app: &mut App) {
+    let world = app.world_mut();
+    muxer_link::deliver(world, Answers::Ready);
+    run_pending_flush(world);
 }

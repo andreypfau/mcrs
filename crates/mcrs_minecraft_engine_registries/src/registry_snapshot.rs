@@ -36,6 +36,12 @@ pub fn extract_registries(main: &World, sub: &mut World) {
     }
 }
 
+/// Installs a snapshot that the host handed over, such as one in the input of a dimension tick.
+pub fn apply_registries(world: &mut World, snapshot: Versioned<RegistrySnapshot>) {
+    snapshot.value().insert_into(world);
+    world.insert_resource(snapshot);
+}
+
 /// Swaps only the `Registries`. The old `Blocks` and `Items` stay from the previous snapshot,
 /// so a dimension would see the new `Registries` beside items resolved against the old ones:
 /// tests only.

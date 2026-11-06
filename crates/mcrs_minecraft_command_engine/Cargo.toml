@@ -1,6 +1,6 @@
 [package]
 name = "mcrs_minecraft_command_engine"
-description = "The command tree, the registration of commands and the pass that runs the command lines of the players across the dimension worlds"
+description = "The command tree, the registration of commands and the run of the command lines of the players inside the tick of each dimension world"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -28,9 +28,11 @@ mcrs_minecraft_network = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_protocol.workspace = true
 mcrs_minecraft_registries = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_wire.workspace = true
+mcrs_voxel.workspace = true
 bevy_app.workspace = true
 bevy_ecs.workspace = true
 bevy_math.workspace = true
 bytes.workspace = true
+rustc-hash.workspace = true
 thiserror.workspace = true
 tracing.workspace = true

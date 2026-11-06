@@ -29,7 +29,7 @@ impl Default for MinecraftServerPlugins {
                 ..Default::default()
             },
             worlds: DimensionWorldsPlugin::default(),
-            world_gen: WorldGenPlugin::default(),
+            world_gen: WorldGenPlugin,
             network: ServerNetworkPlugin::default(),
         }
     }
@@ -73,6 +73,6 @@ pub struct VanillaChatPlugin;
 impl Plugin for VanillaChatPlugin {
     fn build(&self, app: &mut App) {
         app.add_dimension_plugin(ChatPlugin);
-        app.add_observer(operator_broadcast::broadcast_to_operators);
+        app.add_dimension_plugin(operator_broadcast::OperatorBroadcastPlugin);
     }
 }

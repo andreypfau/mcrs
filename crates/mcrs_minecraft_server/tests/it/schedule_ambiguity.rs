@@ -5,9 +5,8 @@ use bevy_ecs::schedule::{
 };
 use bevy_ecs::system::System;
 use bevy_ecs::world::World;
-use mcrs_minecraft_engine::dim::DimSubAppHandle;
-use mcrs_minecraft_engine::sub_app_builder::drain_dim_spawn_queue;
-use mcrs_minecraft_engine_world::world::sub_app::DimAppLabel;
+use mcrs_minecraft_engine::between_ticks::drain_dim_spawn_queue;
+use mcrs_minecraft_engine::coordinator::dim::DimSubAppHandle;
 use mcrs_minecraft_game_registries::dimension::{DimensionEntry, Dimensions};
 use mcrs_minecraft_game_registries::worldgen::chunk_generator::ChunkGenerator;
 use mcrs_minecraft_resource::ResourceKeyBuf;
@@ -107,10 +106,7 @@ fn no_simulation_schedule_has_an_unordered_conflicting_pair() {
         .query_filtered::<bevy_ecs::entity::Entity, bevy_ecs::query::With<DimSubAppHandle>>()
         .single(app.world())
         .expect("one dimension is spawned");
-    let dimension_world = app
-        .get_sub_app_mut(DimAppLabel(dimension))
-        .expect("the dimension has a sub-app")
-        .world_mut();
+    let dimension_world = crate::host_app::world(&mut app, dimension);
     reports.extend(ambiguous_schedules("dimension", dimension_world));
 
     assert!(reports.is_empty(), "{}", reports.join("\n"));

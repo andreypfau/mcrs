@@ -13,7 +13,7 @@ use mcrs_minecraft_save::{PlayerDat, read_player_dat, write_player_dat};
 use std::collections::BTreeMap;
 use tracing::error;
 
-use crate::session::GameProfile;
+use crate::game_profile::GameProfile;
 use mcrs_minecraft_dimension::Dimension;
 use mcrs_minecraft_engine_world::world::world_save::WorldSave;
 

@@ -15,7 +15,7 @@ pub struct CommandEvent {
 
 /// Read-only: the parse of the chain belongs to this line and this source.
 impl CommandEvent {
-    /// The host anchor of the player who sent the line.
+    /// The entity of the player who sent the line, in the world of the source dimension.
     pub fn player(&self) -> Entity {
         self.player
     }

@@ -1,30 +1,25 @@
 use std::sync::Arc;
 
 use crate::fixture::{AIR, TORCH, filled, registry, state};
-use bevy_app::{App, TaskPoolPlugin};
+use bevy_app::{App, Last, TaskPoolPlugin};
+use bevy_ecs::schedule::ScheduleLabel;
+use bevy_tasks::block_on;
+use mcrs_engine_link::Placement;
 use mcrs_minecraft_chunk::{BlockLight, SkyLight};
 use mcrs_minecraft_light_engine::prelude::*;
-use mcrs_minecraft_vanilla_light::{
-    IntakeBudget, LightEpoch, LightPlugin, LightSet, LightWorkQueue, Lighting, PendingEdits,
-};
-use mcrs_voxel::SectionPos;
+use mcrs_minecraft_vanilla_light::{LightLink, LightPlugin, LightSet};
+use mcrs_voxel::{BlockPos, SectionPos};
 
+/// One update that hands the stage the pushed edits, a wait for its answer, and one update
+/// that publishes the answer.
 fn settle(app: &mut App) {
-    for _ in 0..1000 {
-        app.update();
-        let world = app.world();
-        let running = world.resource::<LightEpoch>().is_running();
-        if !running
-            && world.resource::<PendingEdits>().is_empty()
-            && world.resource::<LightWorkQueue>().0.is_empty()
-        {
-            return;
-        }
-        if running {
-            std::thread::sleep(std::time::Duration::from_millis(1));
-        }
-    }
-    panic!("light never settled");
+    app.update();
+    block_on(app.world_mut().resource_mut::<LightLink>().answered());
+    app.update();
+    assert!(
+        app.world().resource::<LightLink>().is_idle(),
+        "the second update handed the stage nothing new"
+    );
 }
 
 #[test]
@@ -35,13 +30,15 @@ fn a_torch_lights_its_neighbour_through_the_plugin() {
             registry: registry(),
             bounds: LightBounds::new(0, 1),
             sky: true,
+            publish: Last.intern(),
+            placement: Placement::Thread,
         });
 
     let sections: Vec<SectionPos> = (0..2).map(|y| SectionPos::new(0, y, 0)).collect();
     for pos in &sections {
         let entity = app.world_mut().spawn(*pos).id();
         app.world_mut()
-            .resource_mut::<PendingEdits>()
+            .resource_mut::<LightLink>()
             .push(Edit::LoadSection {
                 entity: entity.to_bits(),
                 pos: *pos,
@@ -51,9 +48,9 @@ fn a_torch_lights_its_neighbour_through_the_plugin() {
     settle(&mut app);
 
     app.world_mut()
-        .resource_mut::<PendingEdits>()
+        .resource_mut::<LightLink>()
         .push(Edit::SetBlock {
-            pos: mcrs_voxel::BlockPos::new(8, 8, 8),
+            pos: BlockPos::new(8, 8, 8),
             block: state(TORCH),
         });
     settle(&mut app);
@@ -77,15 +74,14 @@ fn a_torch_lights_its_neighbour_through_the_plugin() {
 /// without anything having to notice that the old one died.
 #[test]
 fn a_section_respawned_the_tick_its_predecessor_died_is_still_published() {
-    use bevy_app::Last;
     use bevy_ecs::prelude::*;
 
     fn load_added_sections(
-        mut pending: ResMut<PendingEdits>,
+        mut light: ResMut<LightLink>,
         added: Query<(Entity, &SectionPos), Added<SectionPos>>,
     ) {
         for (entity, pos) in &added {
-            pending.push(Edit::LoadSection {
+            light.push(Edit::LoadSection {
                 entity: entity.to_bits(),
                 pos: *pos,
                 blocks: Arc::new(filled(AIR)),
@@ -99,6 +95,8 @@ fn a_section_respawned_the_tick_its_predecessor_died_is_still_published() {
             registry: registry(),
             bounds: LightBounds::new(0, 0),
             sky: true,
+            publish: Last.intern(),
+            placement: Placement::Thread,
         })
         .add_systems(Last, load_added_sections.before(LightSet::Intake));
 
@@ -117,103 +115,69 @@ fn a_section_respawned_the_tick_its_predecessor_died_is_still_published() {
     );
 }
 
-fn budgeted_app() -> App {
-    let mut app = App::new();
-    app.add_plugins(LightPlugin {
-        registry: registry(),
-        bounds: LightBounds::new(0, 1),
-        sky: true,
-    });
-    app
-}
+type Snapshot = Vec<(SectionPos, Option<BlockLight>, Option<SkyLight>)>;
 
-fn load_columns(app: &mut App, columns: i32) {
-    let mut pending = app.world_mut().resource_mut::<PendingEdits>();
-    for x in 0..columns {
+/// The light of every section after each tick, where each tick waits for the stage to answer
+/// what the tick handed it before the next one starts.
+fn light_by_tick(placement: Placement) -> Vec<Snapshot> {
+    let mut app = App::new();
+    app.add_plugins(TaskPoolPlugin::default())
+        .add_plugins(LightPlugin {
+            registry: registry(),
+            bounds: LightBounds::new(0, 1),
+            sky: true,
+            publish: Last.intern(),
+            placement,
+        });
+    for x in 0..2 {
         for y in 0..2 {
-            pending.push(Edit::LoadSection {
-                entity: 0,
-                pos: SectionPos::new(x, y, 0),
-                blocks: Arc::new(filled(AIR)),
-            });
+            let pos = SectionPos::new(x, y, 0);
+            let entity = app.world_mut().spawn(pos).id();
+            app.world_mut()
+                .resource_mut::<LightLink>()
+                .push(Edit::LoadSection {
+                    entity: entity.to_bits(),
+                    pos,
+                    blocks: Arc::new(filled(AIR)),
+                });
         }
     }
-}
 
-#[test]
-fn intake_is_bounded_per_tick_and_loses_nothing() {
-    let mut app = budgeted_app();
-    let limit = app.world().resource::<IntakeBudget>().columns_per_tick;
-    let columns = limit as i32 * 4 + 7;
-    load_columns(&mut app, columns);
-
-    app.update();
-    let loaded = |app: &App| {
-        app.world()
-            .resource::<Lighting>()
-            .0
-            .loaded_sections()
-            .count()
-    };
-    assert_eq!(loaded(&app), limit * 2);
-    assert!(!app.world().resource::<PendingEdits>().is_empty());
-
-    let mut ticks = 1;
-    while !app.world().resource::<PendingEdits>().is_empty() {
+    let mut snapshots = Vec::new();
+    for tick in 0..4 {
+        if tick == 1 {
+            for pos in [BlockPos::new(15, 15, 8), BlockPos::new(3, 20, 3)] {
+                app.world_mut()
+                    .resource_mut::<LightLink>()
+                    .push(Edit::SetBlock {
+                        pos,
+                        block: state(TORCH),
+                    });
+            }
+        }
         app.update();
-        ticks += 1;
-        assert!(ticks < 100, "intake never drained");
+        block_on(app.world_mut().resource_mut::<LightLink>().answered());
+        let mut sections = app
+            .world_mut()
+            .query::<(&SectionPos, Option<&BlockLight>, Option<&SkyLight>)>();
+        let mut snapshot: Snapshot = sections
+            .iter(app.world())
+            .map(|(pos, block, sky)| (*pos, block.cloned(), sky.cloned()))
+            .collect();
+        snapshot.sort_by_key(|(pos, ..)| (pos.x, pos.y, pos.z));
+        snapshots.push(snapshot);
     }
-    assert_eq!(ticks, (columns as usize).div_ceil(limit));
-    assert_eq!(loaded(&app), columns as usize * 2);
+    snapshots
 }
 
 #[test]
-fn a_block_change_is_not_deferred_behind_a_bulk_load() {
-    let mut app = budgeted_app();
-    let limit = app.world().resource::<IntakeBudget>().columns_per_tick;
-    let pos = mcrs_voxel::BlockPos::new(8, 8, 8);
-    load_columns(&mut app, 1);
-    app.update();
-
-    load_columns(&mut app, limit as i32 * 3);
-    app.world_mut()
-        .resource_mut::<PendingEdits>()
-        .push(Edit::SetBlock {
-            pos,
-            block: state(TORCH),
-        });
-    app.update();
-
-    assert!(!app.world().resource::<PendingEdits>().is_empty());
-    assert_eq!(app.world().resource::<Lighting>().0.block_at(pos), TORCH);
-}
-
-#[test]
-fn the_most_urgent_column_is_admitted_before_the_backlog() {
-    let mut app = budgeted_app();
-    let limit = app.world().resource::<IntakeBudget>().columns_per_tick;
-    load_columns(&mut app, limit as i32 * 2);
-
-    let urgent = SectionPos::new(-1, 0, 0);
-    app.world_mut()
-        .resource_mut::<PendingEdits>()
-        .push_with_priority(
-            Edit::LoadSection {
-                entity: 0,
-                pos: urgent,
-                blocks: Arc::new(filled(AIR)),
-            },
-            0,
-        );
-    app.update();
-
+fn inline_and_thread_placements_publish_the_same_light_at_the_same_ticks() {
+    let inline = light_by_tick(Placement::Inline);
     assert!(
-        app.world()
-            .resource::<Lighting>()
-            .0
-            .section(urgent)
-            .is_some()
+        inline
+            .last()
+            .is_some_and(|last| last.iter().all(|(_, block, _)| block.is_some())),
+        "every section is lit by the end"
     );
-    assert!(!app.world().resource::<PendingEdits>().is_empty());
+    assert_eq!(inline, light_by_tick(Placement::Thread));
 }

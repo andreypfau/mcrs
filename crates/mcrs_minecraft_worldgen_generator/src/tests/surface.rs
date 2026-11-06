@@ -490,7 +490,7 @@ pub fn overworld_biome_registry() -> (Registries, HashMap<String, u16>) {
 }
 
 /// The per-dimension inputs a column stage reads, resolved the way
-/// `dispatch_column_generation` resolves them for the pool.
+/// the generation actor resolves them for the pool.
 pub fn fill_context(
     router: NoiseRouter,
     material: MaterialProgram,

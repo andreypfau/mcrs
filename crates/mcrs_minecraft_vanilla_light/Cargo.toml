@@ -24,6 +24,8 @@ mcrs_minecraft_protocol.workspace = true
 bevy_app.workspace = true
 bevy_ecs.workspace = true
 bevy_tasks = { workspace = true, features = ["multi_threaded"] }
+mcrs_engine_link.workspace = true
+tracing.workspace = true
 rustc-hash.workspace = true
 smallvec.workspace = true
 

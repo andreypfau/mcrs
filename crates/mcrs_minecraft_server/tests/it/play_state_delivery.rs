@@ -10,18 +10,15 @@ use bevy_state::app::{AppExtStates, StatesPlugin};
 use bevy_state::prelude::NextState;
 use bevy_time::{Fixed, Time, TimePlugin};
 use mcrs_minecraft_assets::AppState;
+use mcrs_minecraft_engine::between_ticks::drain_dim_spawn_queue;
+use mcrs_minecraft_engine::between_ticks::take_dim_outputs;
 use mcrs_minecraft_engine::bus::{
     InboundPlayerDespawn, InboundPlayerPacket, InboundPlayerSpawn, OutboundPlayerAttached,
-    OutboundPlayerDisconnect, OutboundPlayerPacket, PacketPayload, PacketTarget,
-    PlayerTransferSnapshot,
+    OutboundPlayerPacket, PacketPayload, PacketTarget, PlayerTransferSnapshot,
 };
-use mcrs_minecraft_engine::dim::DimSubAppHandle;
-use mcrs_minecraft_engine::dim::pump_channels;
-use mcrs_minecraft_engine::session::SessionBundle;
-use mcrs_minecraft_engine::sub_app_builder::drain_dim_spawn_queue;
-use mcrs_minecraft_engine_world::session::{
-    Place, PlayerSession, PlayerSessionCounter, SessionPlacement,
-};
+use mcrs_minecraft_engine::coordinator::dim::DimSubAppHandle;
+use mcrs_minecraft_engine::muxer::session::SessionBundle;
+use mcrs_minecraft_engine_world::session::{Place, PlayerSessionCounter, SessionPlacement};
 use mcrs_minecraft_engine_world::world::sub_app::{
     DimDespawnQueue, DimSpawnQueue, DimSpawnRequest,
 };
@@ -48,12 +45,12 @@ fn build_host_app() -> App {
     support::insert_registries(&mut app);
 
     app.init_resource::<PlayerSessionCounter>();
-    app.init_resource::<mcrs_minecraft_engine::channel_types::DimChannelsResource>();
+    app.add_plugins(mcrs_minecraft_engine::coordinator::dim_cells::DimCellsPlugin);
+    app.add_plugins(mcrs_minecraft_engine::muxer::dim_inputs::DimInputsPlugin);
     app.add_message::<OutboundPlayerPacket>();
     app.add_message::<InboundPlayerPacket>();
     app.add_message::<InboundPlayerSpawn>();
     app.add_message::<OutboundPlayerAttached>();
-    app.add_message::<OutboundPlayerDisconnect>();
     app.add_message::<InboundPlayerDespawn>();
 
     app
@@ -92,51 +89,43 @@ fn play_login_targets_host_anchor() {
     let dim_label = spawn_subapp(&mut app);
 
     let host_anchor = app.world_mut().spawn_empty().id();
-    {
-        let session = app
-            .world_mut()
-            .resource_mut::<PlayerSessionCounter>()
-            .next();
-        app.world_mut()
-            .entity_mut(host_anchor)
-            .insert(SessionBundle::placed(
-                session,
-                SessionPlacement::new(Place::Joining(dim_label), 0),
-            ));
-    }
+    let session = app
+        .world_mut()
+        .resource_mut::<PlayerSessionCounter>()
+        .next();
+    app.world_mut()
+        .entity_mut(host_anchor)
+        .insert(SessionBundle::placed(
+            session,
+            SessionPlacement::new(Place::Joining(dim_label), 0),
+        ));
 
     {
         use mcrs_minecraft_engine::channel_types::ToDim;
-        app.world()
-            .resource::<mcrs_minecraft_engine::channel_types::DimChannelsResource>()
-            .get(dim_label)
-            .expect("channel registered for dim_label")
-            .control_sender
-            .try_send(ToDim::Spawn(InboundPlayerSpawn {
-                host_anchor,
-                session: PlayerSession(0),
-                snapshot: PlayerTransferSnapshot {
-                    uuid: Uuid::new_v4(),
-                    username: "target_test".into(),
-                    position: DVec3::new(0.0, 64.0, 0.0),
-                    rotation: bevy_math::Vec2::ZERO,
-                    client_info: Some(crate::support::client_info_with_view_distance(12)),
-                },
-                dimensions: Vec::new().into(),
-            }))
-            .expect("control channel not full");
+        let sent = app
+            .world_mut()
+            .resource_mut::<mcrs_minecraft_engine::muxer::dim_inputs::DimInputs>()
+            .send_control(
+                dim_label,
+                ToDim::Spawn(InboundPlayerSpawn {
+                    session,
+                    snapshot: PlayerTransferSnapshot {
+                        uuid: Uuid::new_v4(),
+                        username: "target_test".into(),
+                        position: DVec3::new(0.0, 64.0, 0.0),
+                        rotation: bevy_math::Vec2::ZERO,
+                        client_info: Some(crate::support::client_info_with_view_distance(12)),
+                    },
+                    dimensions: Vec::new().into(),
+                }),
+            );
+        assert!(sent, "the dimension takes input");
     }
 
-    // Tick 1: sub-app extract runs (nothing yet), then drain_to_dim_inbox routes
-    // Spawn; FixedLast flush runs (outbox empty); Update spawn consumer writes
-    // OutboundPlayerPacket. pump_channels: channel empty.
+    // The dimension spawns the player and hands over its play-login in the output of the
+    // tick, which the host takes into Messages<OutboundPlayerPacket>.
     app.update();
-    pump_channels(&mut app);
-
-    // Tick 2: sub-app FixedLast flush sends play-login to channel. pump_channels
-    // drains it into host Messages<OutboundPlayerPacket>.
-    app.update();
-    pump_channels(&mut app);
+    take_dim_outputs(app.world_mut());
 
     let packets: Vec<OutboundPlayerPacket> = app
         .world_mut()
@@ -150,14 +139,14 @@ fn play_login_targets_host_anchor() {
         .expect("PlayerLogin packet must be present");
 
     match &login_pkt.target {
-        PacketTarget::SinglePlayer(e) => {
+        PacketTarget::SinglePlayer(target) => {
             assert_eq!(
-                *e, host_anchor,
-                "PlayerLogin target must be the host-anchor entity, not the in-dim entity"
+                *target, session,
+                "PlayerLogin target must be the session, not an entity of either world"
             );
         }
         other => panic!(
-            "PlayerLogin target must be SinglePlayer(host_anchor), got {:?}",
+            "PlayerLogin target must be SinglePlayer(session), got {:?}",
             other
         ),
     }

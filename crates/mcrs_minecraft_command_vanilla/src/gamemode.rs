@@ -8,15 +8,16 @@ use mcrs_minecraft_command_argument_entity::EntityArgument;
 use mcrs_minecraft_command_engine::{
     Call, CommandOutput, CommandRegistrar, CommandResult, EffectQueue, Feedback, Worlds,
 };
+use mcrs_minecraft_engine_world::session::PlayerSession;
 use mcrs_minecraft_game_mode::GameMode;
 use mcrs_minecraft_text::{IntoText, Text};
 
-/// The command effect that sets the game mode of the player with the host anchor `player`, in
-/// any dimension.
+/// The command effect that sets the game mode of the player of the session `player`, in any
+/// dimension.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct SetGameMode {
-    /// The host anchor of the player.
-    pub player: Entity,
+    /// The session of the player.
+    pub player: PlayerSession,
     /// The game mode the player gets.
     pub mode: GameMode,
 }
@@ -37,10 +38,12 @@ pub(crate) fn build(
     let mode = registrar
         .arg(gamemode, "gamemode", GameModeArgument)
         .runs(())
+        .in_any_world()
         .id()?;
     let target = registrar
         .arg(mode, "target", EntityArgument::PLAYERS)
         .runs(())
+        .in_any_world()
         .id()?;
     Ok(GameModeCommand { mode, target })
 }
@@ -78,11 +81,11 @@ pub(crate) fn run(
             output.effect(
                 &mut modes,
                 SetGameMode {
-                    player: target.anchor,
+                    player: target.session,
                     mode,
                 },
             );
-            if Some(target.anchor) == call.invocation.source.entity {
+            if Some(target.session) == call.invocation.source.player {
                 output.success(
                     &call.invocation,
                     Text::translate("commands.gamemode.success.self", vec![mode_text(mode)]),
@@ -90,7 +93,7 @@ pub(crate) fn run(
                 );
             } else {
                 output.tell(
-                    target.anchor,
+                    target.session,
                     Text::translate("gameMode.changed", vec![mode_text(mode)]),
                 );
                 output.success(

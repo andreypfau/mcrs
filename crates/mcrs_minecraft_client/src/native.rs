@@ -37,7 +37,7 @@ use mcrs_minecraft_client_world::registries::ClientRegistriesPlugin;
 use mcrs_minecraft_client_world::registries::SessionSet;
 use mcrs_minecraft_client_world::{local_player, player};
 #[cfg(feature = "singleplayer")]
-use mcrs_minecraft_engine::ops::{OPS_FILE, OpList, OpListEntry};
+use mcrs_minecraft_engine::coordinator::ops::{OPS_FILE, OpList, OpListEntry};
 #[cfg(feature = "singleplayer")]
 use mcrs_minecraft_engine_server::login::SingleplayerProfile;
 #[cfg(feature = "singleplayer")]
@@ -402,9 +402,7 @@ fn host_integrated_server(
             default_game_mode: knobs.default_game_mode(),
             ..Default::default()
         },
-        world_gen: WorldGenPlugin {
-            slow_column_threshold: knobs.slow_column_threshold(),
-        },
+        world_gen: WorldGenPlugin,
         network: ServerNetworkPlugin {
             bind_address: config::integrated_bind_address(open_to_lan),
             // The host shares this process, so only LAN guests gain from compression.

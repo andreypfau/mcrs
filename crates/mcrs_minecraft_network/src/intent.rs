@@ -31,11 +31,13 @@ fn unsupported_version_reason(protocol_version: i32) -> Text {
 }
 
 #[derive(Serialize)]
-struct Status {
+struct Status<'a> {
     version: Version,
     players: Players,
     #[serde(skip_serializing_if = "Option::is_none")]
     description: Option<Text>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    favicon: Option<&'a str>,
 }
 
 #[derive(Serialize)]
@@ -158,6 +160,7 @@ pub(crate) fn status_frame(
             sample: samples,
         },
         description: (!shared.motd.is_empty()).then(|| Text::from(shared.motd.clone())),
+        favicon: shared.favicon.as_deref(),
     };
     let json = serde_json::to_string(&status)?;
     let mut encoder = PacketEncoder::new();

@@ -16,8 +16,8 @@ use mcrs_minecraft_dimension_environment::environment::Weather;
 use mcrs_minecraft_environment::world_clock::{ClockTimeMarkers, WorldClock, WorldClocks};
 use mcrs_minecraft_game_mode::GameMode;
 use mcrs_minecraft_item::{Items, JukeboxPlayable, JukeboxSong};
+use mcrs_minecraft_network::ConnectionState;
 use mcrs_minecraft_network::event;
-use mcrs_minecraft_network::{ConnectionState, Instant};
 use mcrs_minecraft_protocol::Encode;
 use mcrs_minecraft_protocol_game::clientbound::ClientboundRespawn;
 use mcrs_minecraft_protocol_game::player::PlayerSpawnInfo;
@@ -120,7 +120,6 @@ fn receive_respawn(
         .trigger(event::Received::<ClientboundRespawn>::new(
             connection,
             Bytes::from(bytes),
-            Instant::now(),
         ));
     app.world_mut().flush();
     app.update();

@@ -11,12 +11,12 @@
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use bevy_app::{App, TaskPoolPlugin};
+use bevy_app::{App, Last, TaskPoolPlugin};
+use bevy_ecs::schedule::ScheduleLabel;
+use mcrs_engine_link::Placement;
 use mcrs_minecraft_chunk::{PalettedContainer, VoxelId, VoxelPalette};
 use mcrs_minecraft_light_engine::prelude::*;
-use mcrs_minecraft_vanilla_light::{
-    IntakeBudget, LightBudget, LightEpoch, LightPlugin, LightWorkQueue, PendingEdits,
-};
+use mcrs_minecraft_vanilla_light::{COLUMNS_PER_ROUND, LightBudget, LightLink, LightPlugin};
 use mcrs_voxel::{BlockStateId, ColumnPos, SectionPos};
 
 fn filled(block: VoxelId) -> SectionBlocks {
@@ -94,19 +94,19 @@ fn main() {
                 registry: registry(),
                 bounds,
                 sky: true,
+                publish: Last.intern(),
+                placement: Placement::Thread,
             });
-        let limit = app.world().resource::<IntakeBudget>().columns_per_tick;
+        let limit = COLUMNS_PER_ROUND;
         {
-            let mut pending = app.world_mut().resource_mut::<PendingEdits>();
+            let mut light = app.world_mut().resource_mut::<LightLink>();
             for edit in edits {
-                pending.push(edit);
+                light.push(edit);
             }
         }
         let mut tick = 0usize;
         let mut worst = Duration::ZERO;
         let mut worst_at = 0usize;
-        let mut intake_ticks = 0usize;
-        let mut worst_waiting = 0usize;
         let mut first = Duration::ZERO;
         let started = Instant::now();
         loop {
@@ -121,25 +121,15 @@ fn main() {
                 worst = took;
                 worst_at = tick;
             }
-            let world = app.world();
-            if took == worst {
-                worst_waiting = world.resource::<LightWorkQueue>().0.len();
-            }
-            let drained = world.resource::<PendingEdits>().is_empty();
-            if drained && intake_ticks == 0 {
-                intake_ticks = tick;
-            }
-            if drained
-                && !world.resource::<LightEpoch>().is_running()
-                && world.resource::<LightWorkQueue>().0.is_empty()
-            {
+            if app.world().resource::<LightLink>().is_idle() {
                 break;
             }
+            bevy_tasks::block_on(app.world_mut().resource_mut::<LightLink>().answered());
         }
         println!(
-            "app.update() at {limit} columns per tick: intake drained after {intake_ticks} ticks, \
-             settled after {tick} ticks, {:?} wall, first tick {first:?}, worst tick {worst:?} \
-             (tick {worst_at}, {worst_waiting} columns waiting in the queue)",
+            "app.update() with the light stage at {limit} columns per round: settled after \
+             {tick} updates, {:?} wall, first update {first:?}, worst update {worst:?} \
+             (update {worst_at})",
             started.elapsed()
         );
         return;

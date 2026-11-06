@@ -178,7 +178,7 @@ impl SpriteRegistry {
             width,
             height,
             animation,
-        } = self.source(pack, id)?;
+        } = entity_square(id, self.source(pack, id)?);
         let image_size = (width, height);
         let (frame_width, frame_height) = match &animation {
             Some(animation) => animation.frame_size(image_size),
@@ -290,6 +290,39 @@ pub fn rgba(argb: u32) -> [u8; 4] {
 pub const MISSING_SIZE: u32 = 16;
 const MAGENTA: [u8; 4] = [0xF8, 0x00, 0xF8, 0xFF];
 const BLACK: [u8; 4] = [0x00, 0x00, 0x00, 0xFF];
+
+/// Entity textures such as a skull's or a book's are wider than tall; every layer of an array is
+/// square, so the image goes in the top-left corner and `block_entity` divides its UVs by the
+/// side. Block faces' UVs assume the whole layer, so other textures pass through as they are.
+fn entity_square(id: &str, source: Source) -> Source {
+    let entity = id
+        .split_once(':')
+        .map_or(id, |(_, path)| path)
+        .starts_with("entity/");
+    if !entity || source.animation.is_some() || source.width == source.height {
+        return source;
+    }
+    let side = source.width.max(source.height);
+    Source {
+        data: pad_square(&source.data, source.width, source.height),
+        width: side,
+        height: side,
+        animation: None,
+    }
+}
+
+/// `data`, `width` by `height` RGBA, in the top-left of a transparent square.
+fn pad_square(data: &[u8], width: u32, height: u32) -> Vec<u8> {
+    let side = width.max(height) as usize;
+    let row = width as usize * 4;
+    let mut out = vec![0; side * side * 4];
+    for (target, line) in out.chunks_exact_mut(side * 4).zip(data.chunks_exact(row)) {
+        if let Some(start) = target.get_mut(..row) {
+            start.copy_from_slice(line);
+        }
+    }
+    out
+}
 
 /// The pixels of the missing sprite, RGBA, `MISSING_SIZE` on each side.
 pub fn missing_pixels() -> Vec<u8> {

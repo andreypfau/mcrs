@@ -1,14 +1,13 @@
 //! The move of a player from one dimension world to another.
 
-use bevy_ecs::entity::Entity;
-use bevy_ecs::resource::Resource;
-use bevy_ecs::world::World;
 use bevy_math::DVec3;
 use mcrs_minecraft_core::Look;
 use mcrs_minecraft_engine_world::entity::physics::Transform;
 use mcrs_minecraft_protocol::VarInt;
 use mcrs_minecraft_protocol_game::PositionFlags;
-use mcrs_minecraft_protocol_game::clientbound::ClientboundPlayerPosition;
+use mcrs_minecraft_protocol_game::clientbound::{
+    ClientboundPlayerLookAt, ClientboundPlayerPosition,
+};
 
 /// Where a player arrives: its transform, and what `player_position` tells the client, whose
 /// relative axes carry the change and not the value.
@@ -22,6 +21,8 @@ pub struct Arrival {
     pub look: Look,
     /// The axes and angles `player_position` sends as a change.
     pub flags: PositionFlags,
+    /// What the player turns to once it is there, sent after `player_position`.
+    pub look_at: Option<ClientboundPlayerLookAt>,
 }
 
 impl Arrival {
@@ -32,6 +33,7 @@ impl Arrival {
             position: transform.translation,
             look: transform.rotation.into(),
             flags: PositionFlags::default(),
+            look_at: None,
         }
     }
 
@@ -47,40 +49,16 @@ impl Arrival {
     }
 }
 
-/// Why a [`DimensionChanger`] did not move a player.
+/// Why a player did not change dimension.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, thiserror::Error)]
 pub enum DimensionChangeError {
-    /// The new world holds no dimension.
-    #[error("the new world holds no dimension")]
+    /// No other running dimension is the one the player changes to.
+    #[error("no other running dimension is the one the player changes to")]
     NoDimension,
     /// The old world holds no such player.
     #[error("the old world holds no such player")]
     NoPlayer,
-    /// The player did not leave its dimension.
-    #[error("the player did not leave its dimension")]
-    NotLeft,
-    /// The session of the player is no longer placed in the old dimension.
-    #[error("the session of the player is no longer placed in the old dimension")]
-    NotPlaced,
     /// The player lacks the state its arrival sends.
     #[error("the player lacks the state its arrival sends")]
     NoArrivalState,
 }
-
-/// How a dimension world moves one of its players, an entity of the first dimension world, into
-/// the second as the same player, with the host world in reach. Gives the entity of the player
-/// in the new world.
-///
-/// The embedder must insert one in each dimension world, from the plugin that owns the players
-/// there. A world without one keeps its players: a move to another dimension, such as a
-/// teleport there, fails and the player stays where it is.
-#[derive(Resource, Clone, Copy)]
-pub struct DimensionChanger(
-    pub  fn(
-        &mut World,
-        &mut World,
-        &mut World,
-        Entity,
-        Arrival,
-    ) -> Result<Entity, DimensionChangeError>,
-);

@@ -3,8 +3,8 @@ use mcrs_command::ArgumentSet;
 use mcrs_minecraft_command::{ErrorText, Source, WireArgument};
 
 /// The arguments the command tree parses and what they read from a dimension world. An
-/// application composes one and names it on [`CommandPlugin`](crate::CommandPlugin), on
-/// [`run_pending_commands`](crate::run_pending_commands) and on the registrar of each command.
+/// application composes one and names it on [`CommandPlugin`](crate::CommandPlugin) and on the
+/// registrar of each command.
 pub trait CommandSet: Send + Sync + 'static {
     /// The argument type of an argument node.
     type Argument: WireArgument

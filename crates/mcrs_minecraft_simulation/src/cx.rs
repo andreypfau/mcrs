@@ -310,7 +310,6 @@ where
             behaviour.placed(self, pos, state, old, moved_by_piston);
         }
         if self.volume.block(pos).is_ok_and(|now| now == state) {
-            self.mark_for_clients(pos, flags);
             if flags.contains(BlockUpdateFlags::NEIGHBORS) {
                 self.update_neighbours(pos, self.facts.block_of(old), None);
             }
@@ -319,16 +318,6 @@ where
             }
         }
         true
-    }
-
-    fn mark_for_clients(&mut self, pos: BlockPos, flags: BlockUpdateFlags) {
-        let broadcasts = self
-            .volume
-            .properties(SectionPos::from(pos))
-            .contains(SectionProperties::BROADCASTS_CHANGES);
-        if flags.contains(BlockUpdateFlags::CLIENTS) && broadcasts {
-            self.out.marked.push(pos);
-        }
     }
 
     pub(crate) fn destroy(&mut self, pos: BlockPos, drops: bool, limit: u16) -> bool {

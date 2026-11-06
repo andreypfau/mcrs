@@ -1,17 +1,14 @@
 use std::collections::HashSet;
 
-use bevy_app::{App, AppLabel, Plugin, SubApp};
+use bevy_app::{App, Plugin, SubApp};
 use bevy_ecs::prelude::{Entity, Resource};
 use bevy_ecs::schedule::SystemSet;
 
 use mcrs_minecraft_dimension::{Dimension, DimensionType};
 use mcrs_minecraft_resource::{Id, ResourceKeyBuf};
 
-#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, AppLabel)]
-pub struct DimAppLabel(pub Entity);
-
-/// The host entity that labels the sub-app of this dimension world: the one name of the
-/// dimension that the host and every dimension world share.
+/// The host entity that labels this dimension world: the one name of the dimension that the
+/// host and every dimension world share.
 #[derive(Resource, Debug, Clone, Copy, PartialEq, Eq)]
 pub struct DimensionLabel(pub Entity);
 
@@ -28,12 +25,9 @@ pub struct DimSpawnQueue(pub Vec<DimSpawnRequest>);
 #[derive(SystemSet, Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct DimSpawnEnqueue;
 
-/// Queue of host-world `DimSubAppHandle` label entities awaiting sub-app teardown.
-/// Entries are the `Entity` values used as `DimAppLabel(Entity)` keys when the
-/// sub-app was inserted — **not** the `Dimension` entity that lives inside the
-/// sub-app's `World`. The outer runner loop drains this queue and calls
-/// `App::remove_sub_app(DimAppLabel(entity))` on each, then despawns the
-/// host-side handle entity.
+/// The host label entities of the dimension worlds to tear down: the [`DimensionLabel`]s, **not**
+/// the `Dimension` entities inside the worlds. The host drains it between ticks, stops each
+/// world and despawns its label entity.
 #[derive(Resource, Default)]
 pub struct DimDespawnQueue(pub Vec<Entity>);
 
@@ -48,8 +42,8 @@ pub struct DimDespawnQueue(pub Vec<Entity>);
 ///
 /// A dimension world does not run the stock `Main`. It runs the startup schedules on its first
 /// tick, then `First`, `PreUpdate`, the `Fixed*` schedules, `Update`, `PostUpdate` and `Last` once
-/// per host tick. It has no `StateTransition` or `TimePlugin`, and its time resources are copies of
-/// the host's.
+/// per host tick. It has no `StateTransition`, `TimePlugin` or `Time` resource: a dimension counts
+/// ticks, so nothing it simulates can depend on the wall clock.
 #[derive(Resource, Default)]
 pub struct DimensionPlugins(Vec<DimensionPluginEntry>);
 

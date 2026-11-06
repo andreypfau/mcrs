@@ -1,22 +1,19 @@
 use bevy_app::App;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::system::{IntoSystem, System};
-use bytes::{Bytes, BytesMut};
-use mcrs_minecraft_engine::bus::{
-    InboundPlayerDespawn, OutboundPlayerAttached, OutboundPlayerDisconnect,
-};
-use mcrs_minecraft_engine::channel_types::{DimChannelsResource, FromDim, ToDim};
-use mcrs_minecraft_engine::dim::pump_channels;
-use mcrs_minecraft_engine::disconnect::DisconnectProtocolPlugin;
-use mcrs_minecraft_engine::session::GameProfile;
-use mcrs_minecraft_engine::session::HostAnchorRef;
+use bytes::BytesMut;
+use mcrs_minecraft_engine::bus::{InboundPlayerDespawn, OutboundPlayerAttached};
+use mcrs_minecraft_engine::channel_types::ToDim;
+use mcrs_minecraft_engine::game_profile::GameProfile;
+use mcrs_minecraft_engine::muxer::dim_inputs::DimInputs;
+use mcrs_minecraft_engine::muxer::dim_outputs;
+use mcrs_minecraft_engine::muxer::disconnect::DisconnectProtocolPlugin;
+use mcrs_minecraft_engine::muxer::session::HostAnchorRef;
 use mcrs_minecraft_engine_server::configuration::on_configuration_ack;
 use mcrs_minecraft_engine_server::login::{LoginPlugin, LoginState, SingleplayerProfile};
 use mcrs_minecraft_engine_server::{ShutdownPlugin, ShutdownRequest};
 use mcrs_minecraft_engine_world::session::{Place, Session, SessionPlacement};
-use mcrs_minecraft_engine_world::world::channels::{
-    FROM_DIM_CAPACITY, TO_DIM_CAPACITY, TO_DIM_CONTROL_CAPACITY,
-};
+use mcrs_minecraft_network::OutboundReceiver;
 use mcrs_minecraft_network::event::run_event_loop;
 use mcrs_minecraft_network::metrics::PacketDispatcher;
 use mcrs_minecraft_network::{ConnectionState, ReceivedPacket, ServerSideConnection, SwitchMode};
@@ -40,7 +37,6 @@ use mcrs_minecraft_protocol::{
     Bounded, CompressionThreshold, Decode, Encode, Packet, VarInt, WritePacket,
 };
 use mcrs_minecraft_text::Text;
-use tokio::sync::mpsc;
 
 use crate::mock_connection;
 
@@ -57,8 +53,7 @@ fn server(host: Option<SingleplayerProfile>) -> App {
     app.init_resource::<mcrs_minecraft_engine_world::session::PlayerSessionCounter>();
     app.add_message::<InboundPlayerDespawn>();
     app.add_message::<OutboundPlayerAttached>();
-    app.add_message::<OutboundPlayerDisconnect>();
-    app.init_resource::<DimChannelsResource>();
+    app.init_resource::<DimInputs>();
     app.add_plugins(DisconnectProtocolPlugin);
     if let Some(host) = host {
         app.insert_resource(host);
@@ -68,7 +63,7 @@ fn server(host: Option<SingleplayerProfile>) -> App {
 
 struct Client {
     connection: Entity,
-    outgoing: mpsc::Receiver<Bytes>,
+    outgoing: OutboundReceiver,
     decoder: PacketDecoder,
     switch_mode: SwitchMode,
 }
@@ -143,7 +138,7 @@ fn send<P: Encode + Packet>(app: &mut App, client: &Client, packet: &P) {
     let mut data = Vec::new();
     packet.encode(&mut data).unwrap();
     let trigger = PacketDispatcher::serverbound()
-        .with_play(mcrs_minecraft_engine::game_packets::GAME_SERVERBOUND)
+        .with_play(mcrs_minecraft_engine::muxer::game_packets::GAME_SERVERBOUND)
         .dispatch(P::STATE, P::ID, &data)
         .unwrap()
         .unwrap();
@@ -151,21 +146,28 @@ fn send<P: Encode + Packet>(app: &mut App, client: &Client, packet: &P) {
         &mut app.world_mut().commands(),
         client.connection,
         data.into(),
-        mcrs_minecraft_network::Instant::now(),
     );
     app.world_mut().flush();
 }
 
-/// A dimension whose control messages the test reads and whose replies it writes.
-fn dimension(app: &mut App) -> (Entity, flume::Receiver<ToDim>, flume::Sender<FromDim>) {
+/// A dimension whose control messages the test reads, and that never ticks.
+fn dimension(app: &mut App) -> Entity {
     let dim = app.world_mut().spawn_empty().id();
-    let (serverbound, _) = flume::bounded(TO_DIM_CAPACITY);
-    let (control, to_dim) = flume::bounded(TO_DIM_CONTROL_CAPACITY);
-    let (from_dim, received) = flume::bounded(FROM_DIM_CAPACITY);
-    app.world_mut()
-        .resource_mut::<DimChannelsResource>()
-        .insert(dim, serverbound, control, received);
-    (dim, to_dim, from_dim)
+    app.world_mut().resource_mut::<DimInputs>().insert(dim);
+    dim
+}
+
+/// The despawn the host sent to `dim` last.
+fn last_despawn(app: &App, dim: Entity) -> Option<InboundPlayerDespawn> {
+    app.world()
+        .resource::<DimInputs>()
+        .control(dim)
+        .iter()
+        .rev()
+        .find_map(|message| match message {
+            ToDim::Despawn(despawn) => Some(despawn.clone()),
+            _ => None,
+        })
 }
 
 fn anchor(app: &App, client: &Client) -> Entity {
@@ -338,7 +340,7 @@ fn a_hello_under_an_empty_name_is_accepted_as_in_the_game() {
 #[test]
 fn a_second_login_under_a_name_ends_the_first_session_and_plays_once_its_player_is_saved() {
     let mut app = server(None);
-    let (dim, to_dim, from_dim) = dimension(&mut app);
+    let dim = dimension(&mut app);
 
     let mut first = connect(&mut app);
     send_hello(&mut app, &first, "Steve", Uuid::new_v4());
@@ -347,6 +349,7 @@ fn a_second_login_under_a_name_ends_the_first_session_and_plays_once_its_player_
         [LoginCompression::ID, ClientboundLoginFinished::ID]
     );
     let first_anchor = anchor(&app, &first);
+    let first_session = app.world().get::<Session>(first_anchor).unwrap().0;
     app.world_mut()
         .entity_mut(first.connection)
         .insert(ConnectionState::Game);
@@ -362,10 +365,10 @@ fn a_second_login_under_a_name_ends_the_first_session_and_plays_once_its_player_
         duplicate_login()
     );
     assert!(!connected(&app, &first));
-    let Ok(ToDim::Despawn(despawn)) = to_dim.try_recv() else {
+    let Some(despawn) = last_despawn(&app, dim) else {
         panic!("the first player's dimension is not told to let it go");
     };
-    assert_eq!(despawn.host_anchor, first_anchor);
+    assert_eq!(despawn.session, first_session);
 
     for _ in 0..3 {
         app.update();
@@ -381,12 +384,10 @@ fn a_second_login_under_a_name_ends_the_first_session_and_plays_once_its_player_
     );
     assert!(sessions_under(&mut app, STEVE).is_empty());
 
-    from_dim
-        .send(FromDim::Released {
-            session: despawn.session,
-        })
-        .unwrap();
-    pump_channels(&mut app);
+    // What the host does with a dimension that releases the session in its output.
+    dim_outputs::forget_departures(app.world_mut(), |departing| {
+        departing.dim == dim && departing.session == despawn.session
+    });
     app.update();
 
     assert_eq!(
@@ -445,7 +446,7 @@ fn a_shutdown_after_the_login_finished_disconnects_in_the_protocol_the_client_sw
 #[test]
 fn a_login_held_for_a_save_that_never_comes_ends_after_six_hundred_ticks() {
     let mut app = server(None);
-    let (dim, to_dim, _from_dim) = dimension(&mut app);
+    let dim = dimension(&mut app);
 
     let mut first = connect(&mut app);
     send_hello(&mut app, &first, "Steve", Uuid::new_v4());
@@ -460,7 +461,7 @@ fn a_login_held_for_a_save_that_never_comes_ends_after_six_hundred_ticks() {
 
     let mut second = connect(&mut app);
     send_hello(&mut app, &second, "Steve", Uuid::new_v4());
-    assert!(matches!(to_dim.try_recv(), Ok(ToDim::Despawn(_))));
+    assert!(last_despawn(&app, dim).is_some());
 
     for _ in 0..600 {
         app.update();
@@ -599,7 +600,7 @@ fn configuration_frames_sent_with_the_login_acknowledgement_count_no_decode_faul
     let mut app = server(None);
     app.insert_resource(
         PacketDispatcher::serverbound()
-            .with_play(mcrs_minecraft_engine::game_packets::GAME_SERVERBOUND),
+            .with_play(mcrs_minecraft_engine::muxer::game_packets::GAME_SERVERBOUND),
     );
     let (raw, _outgoing, inbound) = mock_connection::make_mock_raw_connection_full();
     let connection = app

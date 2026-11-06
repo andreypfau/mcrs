@@ -1,7 +1,7 @@
 use std::sync::{Arc, Mutex, PoisonError};
 use std::time::Duration;
 
-use bevy_ecs::prelude::{ResMut, Resource};
+use bevy_ecs::prelude::Resource;
 use bevy_platform::time::Instant;
 
 use mcrs_voxel::ColumnPos;
@@ -67,7 +67,6 @@ struct Trace {
     stage: ColumnStage,
     entered: Instant,
     first: Instant,
-    source: Option<&'static str>,
     sent_after: Option<Duration>,
     /// When each stage was entered, after `first`; a stage the column skipped stays empty.
     reached: [Option<Duration>; STAGES],
@@ -78,7 +77,6 @@ pub struct ColumnSample {
     pub stage: ColumnStage,
     pub in_stage: Duration,
     pub age: Duration,
-    pub source: Option<&'static str>,
     pub sent_after: Option<Duration>,
     pub reached: [Option<Duration>; STAGES],
 }
@@ -106,10 +104,6 @@ pub enum TraceEvent {
         stage: ColumnStage,
         at: Instant,
     },
-    Source {
-        pos: ColumnPos,
-        source: &'static str,
-    },
     Forget(ColumnPos),
 }
 
@@ -134,11 +128,6 @@ impl ColumnTraces {
     pub fn apply(&mut self, event: TraceEvent) {
         match event {
             TraceEvent::Mark { pos, stage, at } => self.mark(pos, stage, at),
-            TraceEvent::Source { pos, source } => {
-                if let Some(trace) = self.0.get_mut(&pos) {
-                    trace.source = Some(source);
-                }
-            }
             TraceEvent::Forget(pos) => {
                 self.0.remove(&pos);
             }
@@ -174,7 +163,6 @@ impl ColumnTraces {
                         stage,
                         entered: now,
                         first: now,
-                        source: None,
                         sent_after: None,
                         reached,
                     },
@@ -190,7 +178,6 @@ impl ColumnTraces {
             stage: trace.stage,
             in_stage: now - trace.entered,
             age: now - trace.first,
-            source: trace.source,
             sent_after: trace.sent_after,
             reached: trace.reached,
         }));
@@ -199,30 +186,43 @@ impl ColumnTraces {
 
 /// What a dimension has traced since the host last took it. Present only when the host shares
 /// its traces with a client, so a server nobody reads the trace of records nothing.
-#[derive(Resource, Default)]
-pub struct ColumnTraceLog(Vec<TraceEvent>);
+///
+/// Systems record through a shared borrow: a write borrow would keep every system that traces
+/// from running beside another, even in a server that records nothing. A clone records into the
+/// same log, from any thread.
+#[derive(Resource, Clone)]
+pub struct ColumnTraceLog {
+    sender: flume::Sender<TraceEvent>,
+    receiver: flume::Receiver<TraceEvent>,
+}
+
+impl Default for ColumnTraceLog {
+    fn default() -> Self {
+        let (sender, receiver) = flume::unbounded();
+        Self { sender, receiver }
+    }
+}
 
 impl ColumnTraceLog {
-    pub fn drain(&mut self) -> impl Iterator<Item = TraceEvent> + '_ {
-        self.0.drain(..)
+    pub fn drain(&self) -> impl Iterator<Item = TraceEvent> + '_ {
+        self.receiver.try_iter()
+    }
+
+    fn record(&self, event: TraceEvent) {
+        // Cannot fail: the log holds its own receiver.
+        let _ = self.sender.send(event);
     }
 }
 
-pub fn mark(log: &mut Option<ResMut<ColumnTraceLog>>, pos: ColumnPos, stage: ColumnStage) {
+pub fn mark(log: Option<&ColumnTraceLog>, pos: ColumnPos, stage: ColumnStage) {
     if let Some(log) = log {
-        log.0.push(TraceEvent::mark(pos, stage));
+        log.record(TraceEvent::mark(pos, stage));
     }
 }
 
-pub fn set_source(log: &mut Option<ResMut<ColumnTraceLog>>, pos: ColumnPos, source: &'static str) {
+pub fn forget(log: Option<&ColumnTraceLog>, pos: ColumnPos) {
     if let Some(log) = log {
-        log.0.push(TraceEvent::Source { pos, source });
-    }
-}
-
-pub fn forget(log: &mut Option<ResMut<ColumnTraceLog>>, pos: ColumnPos) {
-    if let Some(log) = log {
-        log.0.push(TraceEvent::Forget(pos));
+        log.record(TraceEvent::Forget(pos));
     }
 }
 
@@ -285,10 +285,6 @@ mod tests {
                 stage: ColumnStage::Queued,
                 at: at(7),
             },
-            TraceEvent::Source {
-                pos,
-                source: "saved",
-            },
             TraceEvent::Mark {
                 pos,
                 stage: ColumnStage::Sent,
@@ -304,7 +300,6 @@ mod tests {
             panic!("one column traced, got {}", out.len());
         };
         assert_eq!(sample.stage, ColumnStage::Sent);
-        assert_eq!(sample.source, Some("saved"));
         assert_eq!(sample.sent_after, Some(Duration::from_millis(9)));
         assert_eq!(
             sample.reached[ColumnStage::Queued as usize],

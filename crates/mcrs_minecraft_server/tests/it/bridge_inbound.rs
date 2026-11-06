@@ -11,17 +11,18 @@ use bevy_ecs::resource::Resource;
 use bevy_ecs::system::{IntoSystem, RunSystemOnce, System};
 use bevy_ecs::world::World;
 use bytes::BytesMut;
-use mcrs_minecraft_engine::bridge::bridge_inbound;
-use mcrs_minecraft_engine::bridge_queue::{
-    INBOUND_BUCKET_CAP, INBOUND_KICK_OVERFLOW_PACKETS, InboundRateBucket, OutboundQueue,
-};
 use mcrs_minecraft_engine::bus::{InboundPlayerPacket, OutboundPlayerPacket};
-use mcrs_minecraft_engine::channel_types::DimChannelsResource;
-use mcrs_minecraft_engine::session::{HostAnchorRef, SessionBundle};
+use mcrs_minecraft_engine::muxer::bridge::bridge_inbound;
+use mcrs_minecraft_engine::muxer::bridge_queue::OutboundQueue;
+use mcrs_minecraft_engine::muxer::dim_inputs::DimInputs;
+use mcrs_minecraft_engine::muxer::session::{HostAnchorRef, SessionBundle};
 use mcrs_minecraft_engine_world::session::{
     Place, PlayerSessionCounter, Session, SessionPlacement,
 };
 use mcrs_minecraft_network::event::{Received, run_event_loop};
+use mcrs_minecraft_network::inbound_rate::{
+    INBOUND_BUCKET_CAP, INBOUND_KICK_OVERFLOW_PACKETS, InboundRateBucket,
+};
 use mcrs_minecraft_network::metrics::{BridgeTelemetry, PacketDispatcher};
 use mcrs_minecraft_network::{ConnectionState, ReceivedPacket, ServerSideConnection};
 use mcrs_minecraft_protocol::Decode;
@@ -47,11 +48,11 @@ fn build_inbound_world() -> World {
     world.init_resource::<Messages<OutboundPlayerPacket>>();
     world.init_resource::<Messages<InboundPlayerPacket>>();
     world.init_resource::<PlayerSessionCounter>();
-    world.init_resource::<DimChannelsResource>();
+    world.init_resource::<DimInputs>();
     world.init_resource::<BridgeTelemetry>();
     world.insert_resource(
         PacketDispatcher::serverbound()
-            .with_play(mcrs_minecraft_engine::game_packets::GAME_SERVERBOUND),
+            .with_play(mcrs_minecraft_engine::muxer::game_packets::GAME_SERVERBOUND),
     );
     world
 }
@@ -208,55 +209,18 @@ fn inbound_rate_kick() {
     );
 }
 
-// ---------------------------------------------------------------------------
-// no_unattached_outbound_queue_after_fixed_preupdate
-// ---------------------------------------------------------------------------
-
-/// After `attach_outbound_queue` runs (FixedPreUpdate), every
-/// `ServerSideConnection` entity must also carry an `OutboundQueue`.
-/// This asserts the spawn→attach ordering window is closed.
-///
-/// Test creates a connection entity WITHOUT an OutboundQueue, runs
-/// `attach_outbound_queue`, and verifies the gap is closed.
 #[test]
-fn no_unattached_outbound_queue_after_fixed_preupdate() {
-    use bevy_ecs::query::{With, Without};
-    use mcrs_minecraft_engine::bridge::attach_outbound_queue;
+fn a_new_connection_has_an_outbound_queue_at_once() {
+    use mcrs_minecraft_engine::muxer::bridge::attach_outbound_queue;
 
     let mut world = World::new();
-    // Spawn a bare ServerSideConnection without OutboundQueue (simulates
-    // a freshly spawned connection from spawn_new_raw_connections).
+    world.add_observer(attach_outbound_queue);
     let (raw, _rx) = mock_connection::make_mock_raw_connection();
     let socket = world
         .spawn(ServerSideConnection { raw: Box::new(raw) })
         .id();
 
-    // Verify the gap exists before running.
-    let gap_before = world
-        .query_filtered::<Entity, (With<ServerSideConnection>, Without<OutboundQueue>)>()
-        .iter(&world)
-        .count();
-    assert_eq!(
-        gap_before, 1,
-        "should have one unattached connection before attach"
-    );
-
-    // Run attach_outbound_queue (simulating FixedPreUpdate).
-    let mut sys = IntoSystem::into_system(attach_outbound_queue);
-    sys.initialize(&mut world);
-    let _ = sys.run((), &mut world);
-    sys.apply_deferred(&mut world);
-
-    // After attach, no ServerSideConnection entity should lack OutboundQueue.
-    let gap_after = world
-        .query_filtered::<Entity, (With<ServerSideConnection>, Without<OutboundQueue>)>()
-        .iter(&world)
-        .count();
-    assert_eq!(
-        gap_after, 0,
-        "no ServerSideConnection should lack OutboundQueue after attach_outbound_queue"
-    );
-    let _ = socket;
+    assert!(world.get::<OutboundQueue>(socket).is_some());
 }
 
 // ---------------------------------------------------------------------------
@@ -268,11 +232,11 @@ fn no_unattached_outbound_queue_after_fixed_preupdate() {
 /// the disconnect tick.
 #[test]
 fn disconnect_clears_pending() {
-    use mcrs_minecraft_engine::disconnect::{LeavingSessions, process_disconnect};
+    use mcrs_minecraft_engine::muxer::disconnect::{LeavingSessions, process_disconnect};
 
     let mut world = World::new();
     world.init_resource::<PlayerSessionCounter>();
-    world.init_resource::<DimChannelsResource>();
+    world.init_resource::<DimInputs>();
 
     let dim = Entity::from_raw_u32(10).expect("nonzero");
     let in_dim = Entity::from_raw_u32(30).expect("nonzero");
@@ -297,14 +261,8 @@ fn disconnect_clears_pending() {
         .run_system_once(
             move |mut commands: bevy_ecs::prelude::Commands,
                   mut sessions: LeavingSessions,
-                  dim_channels: bevy_ecs::system::Res<DimChannelsResource>| {
-                process_disconnect(
-                    player,
-                    &mut sessions,
-                    &dim_channels,
-                    &mut mcrs_minecraft_engine_world::world::sub_app::DimDespawnQueue::default(),
-                    &mut commands,
-                );
+                  mut dim_channels: bevy_ecs::system::ResMut<DimInputs>| {
+                process_disconnect(player, &mut sessions, &mut dim_channels, &mut commands);
             },
         )
         .expect("process_disconnect system ran");

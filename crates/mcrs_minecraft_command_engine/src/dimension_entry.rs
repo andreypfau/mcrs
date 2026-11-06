@@ -5,7 +5,7 @@ use mcrs_minecraft_resource::ResourceKeyBuf;
 /// A dimension that runs, as a command sees it.
 #[derive(Clone, Debug)]
 pub struct DimensionEntry {
-    /// The host entity that labels the sub-app of the dimension.
+    /// The host entity that labels the world of the dimension.
     pub label: Entity,
     /// The identifier of the dimension.
     pub key: ResourceKeyBuf<Dimension>,

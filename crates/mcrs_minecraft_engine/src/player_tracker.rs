@@ -1,68 +1,29 @@
-//! The per-dim plugin that registers the player AoI systems into
-//! `FixedPostUpdate`. The plugin also keeps each column's `PlayerObservers`
-//! in line with the columns players hold.
+//! The per-dim plugin that drains the despawns of the players and publishes their tile events.
 
 use bevy_app::{App, FixedPostUpdate, FixedPreUpdate, Plugin};
-use bevy_ecs::prelude::{IntoScheduleConfigs, Query};
-use bevy_ecs::schedule::SystemSet;
-use mcrs_minecraft_engine_world::entity::physics::Transform;
+use bevy_ecs::prelude::IntoScheduleConfigs;
 use mcrs_minecraft_engine_world::voxel_update::VoxelUpdateSet;
 
-use crate::column_held::{
-    ColumnHeld, announce_held_columns, mirror_held_columns, withdraw_held_columns,
-};
-use crate::update_tracked_by::update_tracked_by;
+use crate::publish_player_tiles::{publish_player_despawn, publish_player_tiles};
+use crate::tile_events::TileEvents;
 
-/// `SystemSet` covering the AoI system. Living on its own set keeps the AoI
-/// work from inadvertently parallelising against simulation systems that
-/// touch the same Components.
-#[derive(SystemSet, Clone, Default, Hash, PartialEq, Eq, Debug)]
-pub struct PlayerTrackerSet;
-
-/// Run-criterion that gates `PlayerTrackerSet` so the AoI system body does
-/// not execute on ticks where no player's `Transform` changed. The
-/// stationary-zero-work invariant (`aoi_stationary_zero_work.rs`) asserts
-/// the gate stays shut across stationary ticks; the
-/// `Changed<Transform>` Query filter alone does NOT skip the system
-/// body, only the iteration — so we hoist the same predicate up to the
-/// schedule and skip the whole set when nothing moved.
-pub fn on_changed_transform(query: Query<(), bevy_ecs::prelude::Changed<Transform>>) -> bool {
-    !query.is_empty()
-}
-
-/// Per-dim plugin: registers the despawn drain in `FixedPreUpdate`, the observer mirror, and the AoI
-/// system in `FixedPostUpdate` gated by `on_changed_transform`.
+/// Per-dim plugin: registers the despawn drain in `FixedPreUpdate` and the tile events in
+/// `FixedPostUpdate`.
 pub struct PlayerTrackerPlugin;
 
 impl Plugin for PlayerTrackerPlugin {
     fn build(&self, app: &mut App) {
-        app.add_message::<ColumnHeld>();
-        app.add_observer(announce_held_columns);
-        app.add_observer(withdraw_held_columns);
-        app.configure_sets(
-            FixedPostUpdate,
-            PlayerTrackerSet.after(VoxelUpdateSet::NetworkSync),
-        );
-        // Must stay in FixedPreUpdate: the drain owns PlayerLeftView emission
-        // for removed players. update_tracked_by (FixedPostUpdate) never sees
-        // the left-view transition because the drain clears TrackedBy before
-        // update_tracked_by runs.
+        app.init_resource::<mcrs_minecraft_engine_world::session::DimPlayerIndex>();
+        app.init_resource::<TileEvents>();
+        app.add_observer(publish_player_despawn);
         app.add_systems(
             FixedPreUpdate,
             crate::drain_player_despawn::drain_inbound_player_despawn
-                .after(crate::sub_app_builder::DimInboxDrain),
+                .after(crate::dim_tick::DimInboxDrain),
         );
         app.add_systems(
             FixedPostUpdate,
-            mirror_held_columns
-                .before(PlayerTrackerSet)
-                .before(VoxelUpdateSet::NetworkSync),
-        );
-        app.add_systems(
-            FixedPostUpdate,
-            update_tracked_by
-                .in_set(PlayerTrackerSet)
-                .run_if(on_changed_transform),
+            publish_player_tiles.after(VoxelUpdateSet::NetworkSync),
         );
     }
 }

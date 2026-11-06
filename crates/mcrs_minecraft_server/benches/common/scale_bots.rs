@@ -17,24 +17,39 @@
 //! dependency on process-global metric atomics, that routing landed every
 //! packet and that teardown leaves no session behind.
 
-use mcrs_minecraft_protocol_game::clientbound::ClientboundBlockUpdate;
+use mcrs_minecraft_core::Look;
+use mcrs_minecraft_protocol::VarInt;
+use mcrs_minecraft_protocol_game::clientbound::{
+    ClientboundBlockUpdate, ClientboundEntityPositionSync, PositionPath,
+};
 use std::time::Instant;
 
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::Messages;
 use bevy_ecs::prelude::World;
 use bevy_ecs::system::{IntoSystem, System};
-use mcrs_minecraft_engine::bridge::bridge_outbound;
-use mcrs_minecraft_engine::bridge_queue::OutboundQueue;
+use bevy_math::DVec3;
 use mcrs_minecraft_engine::bus::{
     OutboundPlayerPacket, PacketPayload, PacketPriority, PacketTarget,
 };
-use mcrs_minecraft_engine::session::{HostAnchorRef, SessionBundle};
+use mcrs_minecraft_engine::muxer::bridge::bridge_outbound;
+use mcrs_minecraft_engine::muxer::bridge_queue::OutboundQueue;
+use mcrs_minecraft_engine::muxer::session::{HostAnchorRef, SessionBundle};
 use mcrs_minecraft_engine_world::session::{
     Place, PlayerSession, PlayerSessionCounter, Session, SessionPlacement,
 };
 use mcrs_minecraft_network::metrics::BridgeTelemetry;
 use mcrs_minecraft_protocol_game::block::BlockStateNumber;
+
+/// Where the bots stand, which decides what they send.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Layout {
+    /// Every second tick, each bot gets a block update addressed to it alone.
+    Apart,
+    /// Every tick, each bot moves and the move goes to every bot of its dimension, itself
+    /// included, as in a crowd where all see all.
+    Together,
+}
 
 /// Per-run report: the functional invariants the bench asserts on, all local
 /// to this run's `World`, alongside soft observational telemetry.
@@ -93,11 +108,14 @@ pub fn run_profile_ticks(
     bots_total: usize,
     cross_dim_rate: f32,
     ticks: u64,
+    layout: Layout,
 ) -> ScaleReport {
     let mut world = World::new();
     world.init_resource::<Messages<OutboundPlayerPacket>>();
     world.init_resource::<PlayerSessionCounter>();
     world.init_resource::<BridgeTelemetry>();
+    world.init_resource::<mcrs_minecraft_engine::muxer::bridge::PendingConnections>();
+    world.init_resource::<mcrs_minecraft_engine_world::session::SessionAnchors>();
 
     // Synthetic dimension entities — plain entity handles used as dim keys
     // in session placements. No dim sub-app is spawned; the harness exercises
@@ -154,12 +172,40 @@ pub fn run_profile_ticks(
         // stamped with that bot's real session so bridge_outbound resolves it
         // and routes it to the bot's OutboundQueue. BlockUpdate is a MAPPED
         // variant so it exercises the real fill path.
-        if tick_count.is_multiple_of(2) {
-            for (player, _socket, session) in &bot_entities {
+        if layout == Layout::Together {
+            for (index, (_player, _socket, session)) in bot_entities.iter().enumerate() {
+                let Some(dim) = dim_entities.get(index % dim_entities.len()) else {
+                    continue;
+                };
                 world
                     .resource_mut::<Messages<OutboundPlayerPacket>>()
                     .write(OutboundPlayerPacket {
-                        target: PacketTarget::SinglePlayer(*player),
+                        target: PacketTarget::AllInDim(*dim),
+                        priority: PacketPriority::Normal,
+                        data: PacketPayload::EntityPosSync(ClientboundEntityPositionSync {
+                            entity_id: VarInt(index as i32),
+                            position: PositionPath::Linear(DVec3::new(
+                                tick_count as f64 * 0.6,
+                                64.0,
+                                0.0,
+                            )),
+                            look: Look {
+                                yaw: 0.0,
+                                pitch: 0.0,
+                            },
+                            on_ground: true,
+                        }),
+                        session: *session,
+                        epoch: 0,
+                    });
+                packets_injected += 1;
+            }
+        } else if tick_count.is_multiple_of(2) {
+            for (_player, _socket, session) in &bot_entities {
+                world
+                    .resource_mut::<Messages<OutboundPlayerPacket>>()
+                    .write(OutboundPlayerPacket {
+                        target: PacketTarget::SinglePlayer(*session),
                         priority: PacketPriority::Normal,
                         data: PacketPayload::BlockUpdate(ClientboundBlockUpdate {
                             block_pos: mcrs_voxel::BlockPos::new(0, 64, 0),

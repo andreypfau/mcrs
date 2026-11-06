@@ -70,12 +70,12 @@ pub trait AppCommandsExt {
         N: 'static;
 
     /// Registers a command effect type: every dimension world gets an
-    /// [`EffectQueue<E>`](crate::EffectQueue), and the host applies each effect that a
+    /// [`EffectQueue<E>`](crate::EffectQueue), and the world applies each effect that a
     /// handler writes with `apply`, in the order of writing across all effect types. A later
     /// registration of the same type replaces `apply`.
     fn add_command_effect<E: Send + Sync + 'static>(
         &mut self,
-        apply: fn(&mut Worlds<'_, '_>, E),
+        apply: fn(&mut Worlds<'_>, E),
     ) -> &mut Self;
 }
 
@@ -232,7 +232,7 @@ impl AppCommandsExt for App {
 
     fn add_command_effect<E: Send + Sync + 'static>(
         &mut self,
-        apply: fn(&mut Worlds<'_, '_>, E),
+        apply: fn(&mut Worlds<'_>, E),
     ) -> &mut Self {
         self.add_dimension_plugin(EffectPlugin { apply })
     }

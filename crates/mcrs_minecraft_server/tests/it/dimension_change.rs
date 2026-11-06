@@ -1,22 +1,28 @@
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::Messages;
 use bevy_math::DVec3;
+use mcrs_engine_link::Placement;
 use mcrs_minecraft_chat_server::ChatPlugin;
 use mcrs_minecraft_engine::ability::{PlayerFlying, PlayerGameMode};
+use mcrs_minecraft_engine::between_ticks::take_dim_outputs;
 use mcrs_minecraft_engine::bus::{OutboundPlayerPacket, PacketPayload, PacketTarget, to};
-use mcrs_minecraft_engine::player_dimension_change;
-use mcrs_minecraft_engine::session::GameProfile;
+use mcrs_minecraft_engine::game_profile::GameProfile;
+use mcrs_minecraft_engine::muxer::muxer_link::{self, Answers};
+use mcrs_minecraft_engine::muxer::muxer_placement::MuxerPlacement;
 use mcrs_minecraft_engine_world::entity::physics::{Rotation, Transform};
 use mcrs_minecraft_engine_world::entity::player::ChangeDimensionRequest;
 use mcrs_minecraft_engine_world::session::{Place, SessionPlacement};
 use mcrs_minecraft_engine_world::world::sub_app::AddDimensionPlugins;
 use mcrs_minecraft_game_mode::GameMode;
-use mcrs_minecraft_protocol::VarInt;
 use mcrs_minecraft_protocol::setting::ChatMode;
 use mcrs_minecraft_protocol::uuid::Uuid;
-use mcrs_minecraft_protocol_game::clientbound::ClientboundChunkCacheRadius;
+use mcrs_minecraft_protocol::{Decode, Packet, VarInt};
+use mcrs_minecraft_protocol_game::clientbound::{
+    ClientboundAddEntity, ClientboundChunkCacheRadius,
+};
 use mcrs_minecraft_protocol_game::game_event::GameEventKind;
 use mcrs_minecraft_protocol_game::text::TextContent;
+use mcrs_minecraft_replication::LIST_INTERVAL_TICKS;
 use mcrs_minecraft_resource::{ResourceKeyBuf, ResourceLocationBuf};
 
 use crate::chat::{client_information, line};
@@ -98,9 +104,15 @@ fn a_request_written_in_a_dimension_moves_the_player_with_the_packets_of_the_cha
             transform,
         });
 
-    let packets = server.ticks(anchor, 1);
-
+    let left = server.ticks(anchor, 1);
     assert!(player_in(&mut server, overworld, anchor).is_none());
+    assert!(
+        player_in(&mut server, end, anchor).is_none(),
+        "the player arrives on the next tick of the new dimension"
+    );
+    let mut packets = left;
+    packets.extend(server.ticks(anchor, 1));
+
     let (arrived, at) = player_in(&mut server, end, anchor).unwrap();
     assert_eq!(at, transform);
     assert_eq!(
@@ -161,11 +173,12 @@ fn packets_the_old_dimension_still_holds_leave_before_the_respawn_under_the_old_
     let (mut server, anchor, overworld, _) = walker_in_the_overworld();
     let (player, transform) = player_in(&mut server, overworld, anchor).unwrap();
     let epoch = epoch_of(&server, anchor);
+    let session = server.session_of(anchor).unwrap();
     let world = server.world_in(overworld);
     world
         .resource_mut::<Messages<OutboundPlayerPacket>>()
         .write(to(
-            anchor,
+            session,
             PacketPayload::SetChunkCacheRadius(ClientboundChunkCacheRadius { radius: VarInt(31) }),
         ));
     world
@@ -176,7 +189,8 @@ fn packets_the_old_dimension_still_holds_leave_before_the_respawn_under_the_old_
             transform,
         });
 
-    player_dimension_change::apply_dimension_change_requests(&mut server.app);
+    server.app.update();
+    take_dim_outputs(server.app.world_mut());
 
     let sent: Vec<OutboundPlayerPacket> = server
         .app
@@ -203,7 +217,7 @@ fn packets_the_old_dimension_still_holds_leave_before_the_respawn_under_the_old_
     let arrived = epoch_of(&server, anchor);
     assert_ne!(arrived, epoch);
     let later = server.ticks_all(2);
-    let to_mover = |packet: &&OutboundPlayerPacket| matches!(packet.target, PacketTarget::SinglePlayer(target) if target == anchor);
+    let to_mover = |packet: &&OutboundPlayerPacket| matches!(packet.target, PacketTarget::SinglePlayer(target) if target == session);
     let epochs: Vec<u32> = sent[respawn..]
         .iter()
         .chain(&later)
@@ -213,6 +227,80 @@ fn packets_the_old_dimension_still_holds_leave_before_the_respawn_under_the_old_
     assert!(
         !epochs.is_empty() && epochs.iter().all(|&at| at == arrived),
         "the respawn and every later packet carry the new epoch {arrived}: {epochs:?}"
+    );
+}
+
+#[test]
+fn the_muxer_bytes_of_the_dimension_left_reach_the_mover_before_its_respawn() {
+    for muxer in [Placement::Inline, Placement::Thread] {
+        muxer_bytes_precede_the_respawn(muxer);
+    }
+}
+
+fn muxer_bytes_precede_the_respawn(muxer: Placement) {
+    let mut app = host_app::make_host_app();
+    app.insert_resource(MuxerPlacement(muxer));
+    let mut server = PlayServer::start_in(
+        app,
+        &[
+            ("minecraft:overworld", "minecraft:overworld"),
+            ("minecraft:the_end", "minecraft:the_end"),
+        ],
+        &[],
+        0,
+    );
+    let (mover, _) = server.join(Uuid::new_v4(), "Mover");
+    let (watched, _) = server.join(Uuid::new_v4(), "Watched");
+    let overworld = server.dim;
+    let session = server.session_of(mover).unwrap();
+    let (player, transform) = player_in(&mut server, overworld, mover).unwrap();
+    let (walker, walked) = player_in(&mut server, overworld, watched).unwrap();
+    let world = server.world();
+    world.get_mut::<Transform>(walker).unwrap().translation = walked.translation + DVec3::X;
+    world
+        .resource_mut::<Messages<ChangeDimensionRequest>>()
+        .write(ChangeDimensionRequest {
+            player,
+            to: the_end(),
+            transform,
+        });
+
+    server.app.update();
+    take_dim_outputs(server.app.world_mut());
+    muxer_link::deliver(server.app.world_mut(), Answers::All);
+
+    let sent: Vec<OutboundPlayerPacket> = server
+        .app
+        .world_mut()
+        .resource_mut::<Messages<OutboundPlayerPacket>>()
+        .drain()
+        .collect();
+    let packets = host_app::sent_to(session, sent);
+    let respawn = position_of(&packets, |packet| {
+        matches!(packet, PacketPayload::Respawn(_))
+    });
+    let replicated: Vec<usize> = packets
+        .iter()
+        .enumerate()
+        .filter(|(_, packet)| matches!(packet, PacketPayload::Replication(_)))
+        .map(|(at, _)| at)
+        .collect();
+    assert!(
+        !replicated.is_empty() && replicated.iter().all(|&at| at < respawn),
+        "{muxer:?}: the move of the watched player in the tick the mover left comes before the respawn {respawn}: {replicated:?}"
+    );
+
+    // The mover is alone in the End, so all muxer bytes after the respawn would come from the
+    // Overworld, such as its player list.
+    let later = server.ticks(mover, 2 * LIST_INTERVAL_TICKS as usize);
+    let records: Vec<i32> = host_app::replicated(&later)
+        .into_iter()
+        .map(|(id, _)| id)
+        .collect();
+    assert_eq!(
+        records,
+        Vec::<i32>::new(),
+        "{muxer:?}: the Overworld owes the mover nothing after its respawn"
     );
 }
 
@@ -250,19 +338,12 @@ fn a_change_the_player_cannot_complete_leaves_it_where_it_is() {
                 transform,
             });
 
-        player_dimension_change::apply_dimension_change_requests(&mut server.app);
-        let mut sent: Vec<PacketPayload> = server
-            .app
-            .world_mut()
-            .resource_mut::<Messages<OutboundPlayerPacket>>()
-            .drain()
-            .map(|packet| packet.data)
-            .collect();
-        sent.extend(server.ticks(anchor, 1));
+        let sent = server.ticks(anchor, 2);
 
         assert!(player_in(&mut server, end, anchor).is_none(), "{case}");
-        assert!(
-            player_in(&mut server, overworld, anchor).is_some(),
+        assert_eq!(
+            player_in(&mut server, overworld, anchor).map(|(_, at)| at),
+            Some(transform),
             "{case}"
         );
         assert!(
@@ -286,7 +367,8 @@ fn an_observer_in_the_new_dimension_sees_the_mover_with_its_network_id_and_no_li
             _ => None,
         })
         .unwrap();
-    let (greeter, _) = server.join_in(end, Uuid::new_v4(), "Greeter");
+    let greeter_uuid = Uuid::new_v4();
+    let (greeter, _) = server.join_in(end, greeter_uuid, "Greeter");
     let (player, transform) = player_in(&mut server, overworld, anchor).unwrap();
     server
         .world_in(overworld)
@@ -299,26 +381,37 @@ fn an_observer_in_the_new_dimension_sees_the_mover_with_its_network_id_and_no_li
 
     let packets = server.ticks_all(3);
 
-    let entered: Vec<VarInt> = packets
-        .iter()
-        .filter(|packet| {
-            matches!(packet.target, PacketTarget::SinglePlayer(target) if target == greeter)
-        })
-        .filter_map(|packet| match &packet.data {
-            PacketPayload::PlayerEnteredView(entity) if entity.uuid == walker => Some(entity.id),
-            _ => None,
-        })
+    let greeter = server.session_of(greeter).unwrap();
+    let entered: Vec<VarInt> = host_app::replicated(&host_app::sent_to(greeter, packets.clone()))
+        .into_iter()
+        .filter(|(id, _)| *id == ClientboundAddEntity::ID)
+        .map(|(_, body)| ClientboundAddEntity::decode(&mut body.as_slice()).unwrap())
+        .filter(|add| add.uuid == walker)
+        .map(|add| add.id)
         .collect();
     assert_eq!(
         entered,
         [VarInt(network_id)],
         "the walker keeps its network id"
     );
+    let mover = server.session_of(anchor).unwrap();
+    assert!(
+        host_app::replicated(&host_app::sent_to(mover, packets.clone()))
+            .into_iter()
+            .filter(|(id, _)| *id == ClientboundAddEntity::ID)
+            .any(|(_, body)| {
+                ClientboundAddEntity::decode(&mut body.as_slice())
+                    .unwrap()
+                    .uuid
+                    == greeter_uuid
+            }),
+        "the walker subscribes to the tiles of the new dimension and sees the greeter"
+    );
     assert!(
         !packets
             .iter()
             .any(|packet| matches!(packet.data, PacketPayload::PlayerInfoUpdate { .. })),
-        "the tab list does not change"
+        "the own entry of the walker is not sent again"
     );
 }
 
@@ -380,6 +473,54 @@ fn the_game_mode_is_told_once_on_login_and_once_on_a_dimension_change() {
 }
 
 #[test]
+fn the_chunk_cache_view_is_told_once_after_the_login_and_once_after_a_respawn() {
+    let (mut server, anchor, overworld, _, joined) = walker_and_its_join();
+    request_the_end(&mut server, overworld, anchor);
+    let changed = server.ticks(anchor, 3);
+
+    let is_center =
+        |packet: &PacketPayload| matches!(packet, PacketPayload::SetChunkCacheCenter(_));
+    let is_radius =
+        |packet: &PacketPayload| matches!(packet, PacketPayload::SetChunkCacheRadius(_));
+    let is_login = |packet: &PacketPayload| matches!(packet, PacketPayload::PlayerLogin(_));
+    let is_respawn = |packet: &PacketPayload| matches!(packet, PacketPayload::Respawn(_));
+    for (when, packets, entered) in [
+        ("login", &joined, position_of(&joined, is_login)),
+        ("change", &changed, position_of(&changed, is_respawn)),
+    ] {
+        assert_eq!(count(packets, is_center), 1, "{when}: {packets:?}");
+        assert_eq!(count(packets, is_radius), 1, "{when}: {packets:?}");
+        let center = position_of(packets, is_center);
+        let radius = position_of(packets, is_radius);
+        assert!(
+            entered < center && entered < radius,
+            "{when}: the client takes the view after it entered the level: {packets:?}"
+        );
+        if let Some(batch) = packets
+            .iter()
+            .position(|packet| matches!(packet, PacketPayload::ChunkBatchStart(_)))
+        {
+            assert!(center < batch && radius < batch, "{when}: {packets:?}");
+        }
+    }
+    // The client sees 2 columns far; the ring of columns that the view holds past it stays
+    // out of both values.
+    let told: Vec<i32> = joined
+        .iter()
+        .filter_map(|packet| match packet {
+            PacketPayload::PlayerLogin(login) => Some(login.chunk_radius.0),
+            PacketPayload::SetChunkCacheRadius(radius) => Some(radius.radius.0),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(
+        told,
+        [2, 2],
+        "the login and the cache radius tell the view distance"
+    );
+}
+
+#[test]
 fn the_chat_mode_a_player_chose_holds_after_a_dimension_change() {
     let (mut server, anchor, overworld, _, _) = walker_and_its_join();
     server.queue(anchor, &client_information(ChatMode::Hidden));
@@ -390,9 +531,10 @@ fn the_chat_mode_a_player_chose_holds_after_a_dimension_change() {
     server.queue(anchor, &line("hello"));
     let sent = server.ticks_all(2);
 
+    let session = server.session_of(anchor).unwrap();
     let told: Vec<String> = sent
         .iter()
-        .filter(|packet| matches!(packet.target, PacketTarget::SinglePlayer(target) if target == anchor))
+        .filter(|packet| matches!(packet.target, PacketTarget::SinglePlayer(target) if target == session))
         .filter_map(|packet| match &packet.data {
             PacketPayload::SystemChat(chat) => match &chat.content.to_text().unwrap().content {
                 TextContent::Translate { translate, .. } => Some(translate.to_string()),

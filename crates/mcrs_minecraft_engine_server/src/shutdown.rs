@@ -1,10 +1,9 @@
 use bevy_app::{App, AppExit, Plugin, Update};
-use bevy_ecs::change_detection::Res;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::{Message, MessageReader, MessageWriter};
 use bevy_ecs::query::With;
 use bevy_ecs::system::{Commands, Local, Query};
-use mcrs_minecraft_engine::disconnect::{Departing, PendingDisconnectQueue};
+use mcrs_minecraft_engine::muxer::disconnect::Departing;
 use mcrs_minecraft_network::ServerSideConnection;
 use mcrs_minecraft_protocol::ConnectionState;
 use mcrs_minecraft_text::Text;
@@ -12,7 +11,7 @@ use mcrs_minecraft_text::Text;
 use crate::login::LoginState;
 
 /// Asks the server to disconnect every connection, including those that arrive later, and to
-/// write [`AppExit::Success`] once no connection, queued disconnect or unsaved player is left.
+/// write [`AppExit::Success`] once no connection or unsaved player is left.
 #[derive(Message, Clone, Copy, Debug, PartialEq, Eq)]
 pub struct ShutdownRequest;
 
@@ -35,7 +34,6 @@ pub(crate) fn shutdown_system(
         &ConnectionState,
         Option<&LoginState>,
     )>,
-    pending: Res<PendingDisconnectQueue>,
     departing: Query<(), With<Departing>>,
     mut commands: Commands,
     mut exit: MessageWriter<AppExit>,
@@ -56,7 +54,7 @@ pub(crate) fn shutdown_system(
         commands.entity(entity).remove::<ServerSideConnection>();
     }
 
-    if connections.is_empty() && pending.entries.is_empty() && departing.is_empty() {
+    if connections.is_empty() && departing.is_empty() {
         exit.write(AppExit::Success);
     }
 }
@@ -70,7 +68,6 @@ mod tests {
     #[test]
     fn a_shutdown_request_exits_the_app() {
         let mut app = App::new();
-        app.init_resource::<PendingDisconnectQueue>();
         app.add_plugins(ShutdownPlugin);
         app.world_mut().write_message(ShutdownRequest);
         app.update();
@@ -80,7 +77,6 @@ mod tests {
     #[test]
     fn the_app_waits_for_a_departing_player() {
         let mut app = App::new();
-        app.init_resource::<PendingDisconnectQueue>();
         app.add_plugins(ShutdownPlugin);
         let player = app
             .world_mut()

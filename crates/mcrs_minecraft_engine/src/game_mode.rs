@@ -1,11 +1,8 @@
 use crate::ability::{PlayerFlying, PlayerGameMode, PlayerOpLevel};
-use crate::bus::to;
-use crate::bus::{OutboundPlayerPacket, PacketPayload, PacketTarget, PlayerInfoEntry, to_target};
-use crate::player_dimension_change::CarryOnDimensionChangeExt;
-use crate::session::GameProfile;
-use crate::session::HostAnchor;
+use crate::bus::{OutboundPlayerPacket, PacketPayload, to};
 use bevy_app::{App, Plugin};
 use bevy_ecs::prelude::*;
+use mcrs_minecraft_engine_world::session::Owner;
 use mcrs_minecraft_game_mode::GameMode;
 use mcrs_minecraft_network::event::Received;
 use mcrs_minecraft_protocol_game::GameEventKind;
@@ -24,16 +21,13 @@ pub struct GameModePlugin;
 impl Plugin for GameModePlugin {
     fn build(&self, app: &mut App) {
         app.add_observer(handle_change_game_mode)
-            .add_observer(handle_player_abilities)
-            .carry_on_dimension_change::<PlayerGameMode>()
-            .carry_on_dimension_change::<PlayerFlying>()
-            .carry_on_dimension_change::<ListedGameMode>();
+            .add_observer(handle_player_abilities);
     }
 }
 
 fn handle_change_game_mode(
     event: On<Received<ServerboundChangeGameMode>>,
-    mut players: Query<(&PlayerOpLevel, &mut PlayerGameMode), With<HostAnchor>>,
+    mut players: Query<(&PlayerOpLevel, &mut PlayerGameMode), With<Owner>>,
 ) {
     let Some(pkt) = event.packet() else {
         return;
@@ -54,7 +48,7 @@ fn handle_change_game_mode(
 
 fn handle_player_abilities(
     event: On<Received<ServerboundPlayerAbilities>>,
-    mut players: Query<(&PlayerGameMode, &mut PlayerFlying), With<HostAnchor>>,
+    mut players: Query<(&PlayerGameMode, &mut PlayerFlying), With<Owner>>,
 ) {
     let Some(pkt) = event.packet() else {
         return;
@@ -88,9 +82,9 @@ pub(crate) fn abilities(mode: GameMode, flying: PlayerFlying) -> ClientboundPlay
     }
 }
 
-/// Gives a player the abilities of its new game mode and tells it both, and tells every player
-/// of the server the new entry of its list. A mode that the login or a dimension
-/// change already told is not sent again.
+/// Gives a player the abilities of its new game mode and tells it both. The change of
+/// [`ListedGameMode`] tells the viewers that have its profile entry. A mode that the login or a
+/// dimension change already told is not sent again.
 // chisle: a player that flies near the ground keeps its flight on a change to creative, since
 // the server has no collision query for it yet; a ground test over the block world lifts it.
 pub(crate) fn send_game_mode(
@@ -99,15 +93,13 @@ pub(crate) fn send_game_mode(
             &PlayerGameMode,
             &mut ListedGameMode,
             &mut PlayerFlying,
-            &GameProfile,
-            &HostAnchor,
+            &Owner,
         ),
         Changed<PlayerGameMode>,
     >,
     mut writer: MessageWriter<OutboundPlayerPacket>,
 ) {
-    let mut entries = Vec::new();
-    for (mode, mut listed, mut flying, profile, &HostAnchor(host)) in &mut players {
+    for (mode, mut listed, mut flying, &Owner(session)) in &mut players {
         if listed.0 == mode.0 {
             continue;
         }
@@ -116,26 +108,13 @@ pub(crate) fn send_game_mode(
         flying.set_if_neq(PlayerFlying(abilities.flying));
         writer.write(
             to(
-                host,
+                session,
                 PacketPayload::GameEvent(ClientboundGameEvent {
                     game_event: GameEventKind::ChangeGameMode(mode.0),
                 }),
             )
             .critical(),
         );
-        writer.write(to(host, PacketPayload::PlayerAbilities(abilities)).critical());
-        entries.push(PlayerInfoEntry {
-            player_uuid: profile.id,
-            username: profile.username.clone(),
-            game_mode: mode.0,
-            listed: true,
-        });
+        writer.write(to(session, PacketPayload::PlayerAbilities(abilities)).critical());
     }
-    if entries.is_empty() {
-        return;
-    }
-    writer.write(to_target(
-        PacketTarget::AllPlayers,
-        PacketPayload::PlayerInfoUpdate { entries },
-    ));
 }

@@ -1,11 +1,11 @@
 use std::path::PathBuf;
 
 use bevy_app::{App, Plugin, Startup};
+use mcrs_minecraft_engine::EnginePlugin;
 use mcrs_minecraft_engine::ability::PlayerOpLevel;
-use mcrs_minecraft_engine::default_game_mode::DefaultGameMode;
+use mcrs_minecraft_engine::coordinator::default_game_mode::DefaultGameMode;
+use mcrs_minecraft_engine::coordinator::ops::{DefaultOpLevel, OpList};
 use mcrs_minecraft_engine::heightmap::HeightmapPredicatesPlugin;
-use mcrs_minecraft_engine::ops::{DefaultOpLevel, OpList};
-use mcrs_minecraft_engine::world_plugin::WorldPlugin;
 use mcrs_minecraft_engine::world_seed::WorldSeed;
 use mcrs_minecraft_engine_world::world::lifecycle::trace::ColumnTraceSink;
 use mcrs_minecraft_engine_world::world::world_save::WorldSave;
@@ -73,6 +73,6 @@ impl Plugin for DimensionWorldsPlugin {
         }
         app.add_systems(Startup, bake_dimensions);
         app.add_plugins(HeightmapPredicatesPlugin);
-        app.add_plugins(WorldPlugin);
+        app.add_plugins(EnginePlugin);
     }
 }

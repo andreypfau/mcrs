@@ -6,13 +6,12 @@ use mcrs_minecraft_command_argument::ResourceArgument;
 use mcrs_minecraft_command_argument::{TimeArgument, TimeMarkerArgument, TimelineArgument};
 use mcrs_minecraft_command_engine::{
     Call, CommandFailure, CommandOutput, CommandRegistrar, CommandResult, EffectQueue, Feedback,
-    Worlds,
 };
 use mcrs_minecraft_command_registry::DimensionClock;
-use mcrs_minecraft_engine::clock::{EditClock, GameTime};
+use mcrs_minecraft_engine::coordinator::clock::{EditClock, GameTime};
 use mcrs_minecraft_environment::registry_keys::WORLD_CLOCK;
 use mcrs_minecraft_environment::world_clock::{
-    self, ClockEdit, ClockState, ClockTimeMarker, WorldClock, WorldClocks,
+    ClockEdit, ClockState, ClockTimeMarker, WorldClock, WorldClocks,
 };
 use mcrs_minecraft_resource::Id;
 use mcrs_minecraft_resource::ResourceLocation;
@@ -151,6 +150,7 @@ pub(crate) fn build(
     let _ = registrar
         .literal(query, "gametime")
         .runs(Branch::GameTime)
+        .in_any_world()
         .id()?;
     Ok(TimeCommand { clock, default, of })
 }
@@ -461,16 +461,6 @@ pub(crate) fn run(
     };
     feedback.success(&call.invocation, outcome.message, audience);
     Ok(outcome.result)
-}
-
-/// Applies a clock edit on the host, which owns the clocks, then extracts the clocks into every
-/// world, so the rest of the run reads the new times.
-pub(crate) fn apply(worlds: &mut Worlds, edit: EditClock) {
-    let (host, dimensions) = worlds.host_and_worlds();
-    host.trigger(edit);
-    for world in dimensions {
-        world_clock::extract_world_clocks(host, world);
-    }
 }
 
 #[cfg(test)]

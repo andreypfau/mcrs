@@ -1,19 +1,13 @@
-use crate::chunk_plugin::{
-    CHUNK_TASK_POOL, ColumnScheduler, SchedulerConfig, deliver_merged_columns,
-    dispatch_column_generation, enqueue_pending_columns, process_completed_columns,
-    request_section,
-};
-use bevy_app::{App, Update};
-use bevy_ecs::entity::Entity;
-use bevy_ecs::schedule::IntoScheduleConfigs;
-use bevy_tasks::TaskPoolBuilder;
+use crate::generation_input::GenerationInput;
+use crate::generation_stage::{CHUNK_TASK_POOL, GenerationStage, SchedulerConfig};
+use bevy_tasks::{TaskPoolBuilder, block_on};
+use mcrs_engine_link::{InlineEnd, Link, Placement, Stage as _};
 use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_biome::source::MultiNoiseBiomeSource;
 use mcrs_minecraft_chunk::VoxelId;
-use mcrs_minecraft_engine::heightmap::PendingColumnHeightmaps;
+use mcrs_minecraft_engine::column_generation::GenerationAnswer;
+use mcrs_minecraft_engine_world::entity::player::chunk_view::ChunkTrackingView;
 use mcrs_minecraft_engine_world::palette::ChunkBlocks;
-use mcrs_minecraft_engine_world::world::lifecycle::stage::{SectionStage, SectionStageChanged};
-use mcrs_minecraft_item::Items;
 use mcrs_minecraft_resource::{ResourceKeyBuf, ResourceLocationBuf};
 use mcrs_minecraft_worldgen_generator::ColumnBlocks;
 use mcrs_minecraft_worldgen_generator::stages::{fill_pooled, run_region};
@@ -29,10 +23,28 @@ use mcrs_minecraft_worldgen_generator::tests::ladder::{
 use mcrs_minecraft_worldgen_generator::tests::surface::{
     fill_context as surface_fill_context, overworld_biome_registry, overworld_material_router,
 };
-use mcrs_voxel::{ColumnPos, SectionPos};
+use mcrs_voxel::ColumnPos;
 use std::collections::BTreeMap;
+use std::ops::Range;
 use std::sync::Arc;
-use std::time::{Duration, Instant};
+
+/// Every row of `y_sections`, which run without a gap.
+fn all_rows(y_sections: &[i32]) -> Range<i32> {
+    let first = y_sections.first().copied().unwrap_or(0);
+    let last = y_sections.last().copied().unwrap_or(first - 1);
+    first..last + 1
+}
+
+/// The blocks of each row of a generated column, or `None` when the stage dropped it.
+fn generated_blocks(answer: GenerationAnswer) -> Option<BTreeMap<i32, ChunkBlocks>> {
+    let stored = answer.stored?;
+    let rows = stored.min_section_y..;
+    Some(
+        rows.zip(stored.sections)
+            .map(|(y, section)| (y, section.blocks))
+            .collect(),
+    )
+}
 
 /// The order a view asks for the columns in. Every one of them is unobservable
 /// in the finished world, and each puts the stages of neighbouring columns into
@@ -82,7 +94,7 @@ enum Evict {
 struct Drive {
     /// Stages allowed on the pool at once: one, two, or what the machine has.
     in_flight: usize,
-    /// Stages dispatched per tick.
+    /// Stages dispatched per step of the generation stage.
     batch: usize,
     order: Order,
     evict: Evict,
@@ -93,17 +105,17 @@ fn machine_parallelism() -> usize {
 }
 
 fn default_batch() -> usize {
-    SchedulerConfig::default().max_dispatch_per_tick
+    SchedulerConfig::default().max_dispatch_per_pass
 }
 
-/// How many ticks that find something to evict actually evict it. Bounded, or a
-/// column evicted every tick would never reach the delivery — and counted in
-/// ticks that found something rather than in ticks, because how far the ladder
-/// has climbed by any given tick is a question about the machine's load.
+/// How many steps that find something to evict actually evict it. Bounded, or a
+/// column evicted every step would never reach the top of its ladder — and counted
+/// in steps that found something rather than in steps, because how far the ladder
+/// has climbed by any given step is a question about the machine's load.
 const EVICT_FIRINGS: usize = 6;
 
 fn force_eviction(
-    app: &mut App,
+    generation: &mut GenerationStage,
     wanted: &[ColumnPos],
     evict: Evict,
     after_a_merge: bool,
@@ -118,10 +130,9 @@ fn force_eviction(
             })
         })
         .collect();
-    let mut scheduler = app.world_mut().resource_mut::<ColumnScheduler>();
     if after_a_merge
         && !wanted.iter().any(|col| {
-            scheduler
+            generation
                 .store
                 .stage(*col)
                 .is_some_and(|at| at >= Stage::Merged(0))
@@ -131,11 +142,11 @@ fn force_eviction(
     }
     let mut evicted = 0;
     for col in halo {
-        if scheduler.is_in_flight(col) || scheduler.store.stage(col) != Some(Stage::Filled) {
+        if generation.is_in_flight(col) || generation.store.stage(col) != Some(Stage::Filled) {
             continue;
         }
         let under_a_run = (0..9).any(|slot| {
-            scheduler
+            generation
                 .store
                 .stage(region_column(col, slot))
                 .is_some_and(|at| at >= Stage::Ran(0))
@@ -143,18 +154,19 @@ fn force_eviction(
         if evict == Evict::UnderARun && !under_a_run {
             continue;
         }
-        scheduler.store.forget(col);
+        generation.evict(col);
         evicted += 1;
     }
     evicted
 }
 
-/// Drive the real scheduler — the same four systems the dimension runs — to the
-/// delivery of every wanted column, and read the blocks back off the delivered
-/// sections.
+/// Drive the real generation stage by hand, one step at a time, to the
+/// generation of every wanted column, and read the blocks back off the
+/// generated sections. Between its steps the stage waits for one ladder stage
+/// on the pool to end, so the steps see the pool's own interleaving.
 #[expect(
     clippy::too_many_lines,
-    reason = "the helper drives the dimension's real systems to delivery and reads the blocks back, and the scheduling and the read-back share one world"
+    reason = "the helper drives the real stage to the top of every ladder and reads the blocks back, and the stepping and the read-back share one stage"
 )]
 fn run_parallel(dim: &Dimension, wanted: &[ColumnPos], drive: Drive) -> (Region, usize) {
     let y_sections = &dim.ctx.y_sections;
@@ -166,68 +178,48 @@ fn run_parallel(dim: &Dimension, wanted: &[ColumnPos], drive: Drive) -> (Region,
             .build()
     });
 
-    let mut app = App::new();
-    dim.install(&mut app);
-    app.insert_resource(Items(Arc::default()));
-    app.add_message::<SectionStageChanged>();
-    let dimension_entity = app.world_mut().spawn_empty().id();
-    app.init_resource::<PendingColumnHeightmaps>();
-    app.insert_resource(ColumnScheduler {
-        config: SchedulerConfig {
+    let mut end = InlineEnd::new(GenerationStage::new(
+        SchedulerConfig {
             max_in_flight: drive.in_flight,
-            max_dispatch_per_tick: drive.batch,
+            max_dispatch_per_pass: drive.batch,
             ..Default::default()
         },
-        ..Default::default()
-    });
-    app.add_systems(
-        Update,
-        (
-            enqueue_pending_columns,
-            dispatch_column_generation,
-            process_completed_columns,
-            deliver_merged_columns,
-        )
-            .chain(),
-    );
+        all_rows(y_sections),
+    ));
+    end.receive(GenerationInput::Context(Box::new(dim.ctx.clone())));
 
     let rungs = dim.ctx.rungs();
     let requests = ordered(wanted, drive.order);
-    let mut sections: BTreeMap<ColumnPos, Vec<Entity>> = BTreeMap::new();
+    let mut generated: BTreeMap<ColumnPos, BTreeMap<i32, ChunkBlocks>> = BTreeMap::new();
     let mut next = 0usize;
     let mut evicted = 0usize;
     let mut firings = 0usize;
-    let deadline = Instant::now() + Duration::from_secs(600);
 
     loop {
-        if next < requests.len() {
-            let col = requests[next];
+        if let Some(&col) = requests.get(next) {
             next += 1;
-            let ids = y_sections
-                .iter()
-                .map(|&y| {
-                    request_section(
-                        app.world_mut(),
-                        dimension_entity,
-                        SectionPos::new(col.x, y, col.z),
-                    )
-                })
-                .collect();
-            sections.insert(col, ids);
+            end.receive(GenerationInput::Want(col));
         }
 
-        app.update();
+        for answer in end.step() {
+            let column = answer.column;
+            let Some(rows) = generated_blocks(answer) else {
+                panic!("{drive:?} dropped {column:?} with no view sent");
+            };
+            generated.entry(column).or_default().extend(rows);
+        }
 
+        let generation = end.stage_mut();
         match drive.evict {
             Evict::OnTicks if firings < EVICT_FIRINGS => {
-                let n = force_eviction(&mut app, wanted, drive.evict, false, rungs);
+                let n = force_eviction(generation, wanted, drive.evict, false, rungs);
                 if n > 0 {
                     firings += 1;
                     evicted += n;
                 }
             }
             Evict::UnderARun if firings < 2 => {
-                let n = force_eviction(&mut app, wanted, drive.evict, firings == 1, rungs);
+                let n = force_eviction(generation, wanted, drive.evict, firings == 1, rungs);
                 if n > 0 {
                     firings += 1;
                     evicted += n;
@@ -236,42 +228,47 @@ fn run_parallel(dim: &Dimension, wanted: &[ColumnPos], drive: Drive) -> (Region,
             _ => {}
         }
 
-        let delivered = next == requests.len()
-            && sections.values().flatten().all(|entity| {
-                app.world().get::<SectionStage>(*entity) == Some(&SectionStage::Loaded)
-            });
-        if delivered {
+        let all_requested = next == requests.len();
+        if all_requested
+            && requests.iter().all(|col| {
+                generated
+                    .get(col)
+                    .is_some_and(|rows| y_sections.iter().all(|y| rows.contains_key(y)))
+            })
+        {
             break;
         }
+        if end.stage().has_work() {
+            continue;
+        }
+        let ended = end.wait();
         assert!(
-            Instant::now() < deadline,
-            "{drive:?} never delivered the region"
+            ended || !all_requested,
+            "{drive:?} stopped with nothing on the pool before it generated the region"
         );
-        std::thread::sleep(Duration::from_millis(1));
     }
 
-    // What a column was delivered with is what it stays. The merged blocks
-    // outlive the delivery — a section ticketed later is delivered from them —
+    // What a column was generated with is what it stays. The merged blocks
+    // outlive the emission — a section ticketed later is generated from them —
     // so a re-merge after an eviction has to land on the same column.
-    let scheduler = app.world().resource::<ColumnScheduler>();
     let standing: Vec<(ColumnPos, Column)> = wanted
         .iter()
         .filter_map(|col| {
-            let merged = scheduler.store.merged(*col)?;
+            let merged = end.stage().store.merged(*col)?;
             Some((*col, decode(&merged.sections)))
         })
         .collect();
 
-    let region: Region = sections
-        .into_iter()
-        .map(|(col, entities)| {
-            let column = entities
+    let region: Region = requests
+        .iter()
+        .map(|&col| {
+            let column = y_sections
                 .iter()
-                .map(|entity| {
-                    let blocks = app
-                        .world()
-                        .get::<ChunkBlocks>(*entity)
-                        .unwrap_or_else(|| panic!("{col:?} was delivered without its blocks"));
+                .map(|y| {
+                    let blocks = generated
+                        .get(&col)
+                        .and_then(|rows| rows.get(y))
+                        .unwrap_or_else(|| panic!("{col:?} was generated without its blocks"));
                     (0..ColumnBlocks::SECTION_VOLUME)
                         .map(|index| {
                             blocks
@@ -287,17 +284,17 @@ fn run_parallel(dim: &Dimension, wanted: &[ColumnPos], drive: Drive) -> (Region,
         .collect();
 
     for (col, merged) in standing {
-        let delivered = region.get(&col).expect("every wanted column was delivered");
+        let landed = region.get(&col).expect("every wanted column was generated");
         assert_eq!(
             merged.len(),
-            delivered.len(),
+            landed.len(),
             "{drive:?}: the merged {col:?} carries a different number of sections"
         );
-        for (slot, (merged, delivered)) in merged.iter().zip(delivered.iter()).enumerate() {
+        for (slot, (merged, landed)) in merged.iter().zip(landed.iter()).enumerate() {
             assert!(
-                merged == delivered,
+                merged == landed,
                 "{drive:?}: the merged {col:?} left section slot {slot} \
-                 unlike the one it delivered"
+                 unlike the one it generated"
             );
         }
     }
@@ -664,85 +661,115 @@ fn assert_region_agrees(consumer: Consumer, radius: i32, drives: &[Drive]) {
     );
 }
 
-/// A column's block entities go to the dimension a live section names, and the
-/// first-enqueued section is not necessarily live: a single section can be
-/// unloaded on its own while the rest of the column stands, and the pending
-/// entry keeps it at the head. Resolving the dimension from that one alone drops
-/// every nest the column grew.
-#[test]
-fn a_dead_first_section_does_not_take_the_column_s_block_entities_with_it() {
-    use crate::chunk_plugin::{ColumnKey, PendingColumn};
-    use mcrs_minecraft_block_entity::{BeeOccupant, GeneratedBlockEntity};
-    use mcrs_minecraft_engine_world::world::dimension::InDimension;
-    use mcrs_minecraft_engine_world::world::storage::block_entity::BlockEntity;
-
-    let mut app = App::new();
-    app.add_message::<SectionStageChanged>();
-    app.init_resource::<PendingColumnHeightmaps>();
-    app.insert_resource(ColumnScheduler::default());
-    app.insert_resource(Items(Arc::default()));
-
-    let dim = app.world_mut().spawn_empty().id();
-    let dead = app.world_mut().spawn(InDimension(dim)).id();
-    let live = app.world_mut().spawn(InDimension(dim)).id();
-    app.world_mut().entity_mut(dead).despawn();
-
-    let col = ColumnPos::new(4, 9);
-    {
-        let mut scheduler = app.world_mut().resource_mut::<ColumnScheduler>();
-        scheduler.pending.insert(
-            ColumnKey::new(0, col),
-            PendingColumn::new(vec![(dead, 0), (live, 1)]),
-        );
-        scheduler.store.insert_staged(
-            col,
-            0,
-            Arc::new(FilledSnapshot {
-                col,
-                y_sections: Arc::from(vec![0, 1].as_slice()),
-                sections: vec![None, None],
-                terrain: None,
-                maps: None,
-                source: mcrs_minecraft_worldgen_generator::task::ColumnSource::Generated,
-                block_entities: vec![GeneratedBlockEntity::Beehive {
-                    x: 70,
-                    y: 20,
-                    z: 150,
-                    bees: vec![BeeOccupant::bee(11)],
-                }],
-                entities: Vec::new(),
-                ticks: Vec::new(),
-            }),
-        );
-        scheduler.store.set_stage(col, Stage::Merged(0));
-    }
-
-    app.add_systems(Update, deliver_merged_columns);
-    app.update();
-
-    let nests = app
-        .world_mut()
-        .query::<&BlockEntity>()
-        .iter(app.world())
-        .filter(|held| matches!(held.0, GeneratedBlockEntity::Beehive { .. }))
-        .count();
-    assert_eq!(nests, 1, "the delivered column's nest was dropped");
+fn want(link: &mut Link<GenerationStage>, col: ColumnPos) {
+    link.send(GenerationInput::Want(col));
 }
 
-/// A delivery owes only the sections it was asked for — the ticket layer caps
-/// how many it spawns a tick and cuts a column's sections across two of them —
-/// while the fill covers the whole dimension, because the bedrock floor is a
-/// material rule and a column surfaced over a slice would be left open at the
-/// bottom.
-#[test]
-fn a_delivery_carrying_part_of_a_column_still_lays_its_bedrock_floor() {
-    use bevy_app::App;
-    use bevy_ecs::entity::Entity;
-    use mcrs_minecraft_biome::source::BiomeSource;
-    use mcrs_voxel::ColumnPos;
-    use mcrs_voxel::SectionPos;
+/// Waits for the stage to answer, and returns the blocks of each section it generated by row.
+fn generated_rows(link: &mut Link<GenerationStage>) -> BTreeMap<i32, ChunkBlocks> {
+    block_on(link.answered());
+    let mut rows = BTreeMap::new();
+    for answer in link.outputs() {
+        let Some(blocks) = generated_blocks(answer) else {
+            panic!("the stage dropped a column with no view sent");
+        };
+        rows.extend(blocks);
+    }
+    rows
+}
 
-    use crate::chunk_plugin::carried_sections;
+/// The ladder must produce the column the fill alone produces: with no features to run, every
+/// delta is empty and the merge is the identity. This drives the whole of it — the derived 5x5
+/// of fills, the 3x3 of runs, the merge and the emission — through each placement of the stage,
+/// so a readiness or budget bug shows up as a column that never arrives.
+#[test]
+fn the_ladder_generates_the_column_the_fill_produced() {
+    for placement in [Placement::Inline, Placement::Thread] {
+        the_ladder_generates_the_filled_column(placement);
+    }
+}
+
+fn the_ladder_generates_the_filled_column(placement: Placement) {
+    use mcrs_minecraft_worldgen_generator::stages::fill_column;
+    use mcrs_minecraft_worldgen_generator::tests::{bare_fill_context, build_beta_router};
+
+    CHUNK_TASK_POOL.get_or_init(|| TaskPoolBuilder::new().num_threads(4).build());
+
+    let col = ColumnPos::new(1, -2);
+    let ctx = bare_fill_context(Arc::new(build_beta_router()));
+    let y_sections = ctx.y_sections.clone();
+    let rows = all_rows(&y_sections);
+    let mut link = Link::new(
+        GenerationStage::new(
+            SchedulerConfig {
+                max_in_flight: 64,
+                max_dispatch_per_pass: 64,
+                num_threads: 2,
+            },
+            rows.clone(),
+        ),
+        placement,
+    );
+    link.send(GenerationInput::Context(Box::new(ctx.clone())));
+
+    want(&mut link, col);
+    let generated = generated_rows(&mut link);
+    assert_eq!(
+        generated.keys().copied().collect::<Vec<i32>>(),
+        rows.collect::<Vec<i32>>(),
+        "{placement:?}: the ladder never generated the column"
+    );
+
+    let mut buffer = ColumnBlocks::new(&y_sections);
+    let alone = fill_column(&ctx, col, &mut buffer, &CancellationToken::new())
+        .expect("the fill was not cancelled");
+    let bottom = y_sections[0];
+    for (y, got) in &generated {
+        let want = alone.sections[(y - bottom) as usize]
+            .as_ref()
+            .expect("the fill produced this section");
+        for cell in 0..ColumnBlocks::SECTION_VOLUME {
+            let local = mcrs_voxel::LocalPos::from_index(cell);
+            let (x, ly, z) = (local.x() as usize, local.y() as usize, local.z() as usize);
+            assert_eq!(
+                got.get_cell(x, ly, z).map(VoxelId::from),
+                want.0.get_cell(x, ly, z),
+                "{placement:?}: section {y} diverged at ({x}, {ly}, {z})"
+            );
+        }
+    }
+}
+
+#[test]
+fn a_column_that_left_every_view_is_abandoned() {
+    let mut link = Link::new(
+        GenerationStage::new(SchedulerConfig::default(), 0..1),
+        Placement::Inline,
+    );
+    let stale = ColumnPos::new(100, 100);
+    want(&mut link, stale);
+    link.send(GenerationInput::Views(vec![ChunkTrackingView {
+        center: mcrs_voxel::SectionPos::new(0, 0, 0),
+        distance: 2,
+        vert_distance: 8,
+        min_section_y: i32::MIN,
+        max_section_y: i32::MAX,
+    }]));
+    block_on(link.answered());
+    let abandoned: Vec<ColumnPos> = link
+        .outputs()
+        .filter(|answer| answer.stored.is_none())
+        .map(|answer| answer.column)
+        .collect();
+    assert_eq!(abandoned, [stale], "a stale column is dropped");
+}
+
+/// The fill covers the whole dimension, because the bedrock floor is a material rule and a
+/// column surfaced over a slice would be left open at the bottom.
+#[test]
+fn a_filled_column_lays_its_bedrock_floor() {
+    use mcrs_minecraft_biome::source::BiomeSource;
+
     use mcrs_minecraft_worldgen_generator::stages::fill_column;
     use mcrs_minecraft_worldgen_generator::task::CancellationToken;
 
@@ -758,41 +785,21 @@ fn a_delivery_carrying_part_of_a_column_still_lays_its_bedrock_floor() {
     );
 
     let col = ColumnPos::new(3, -7);
-    let carried = [-4, 3, 4];
-    let mut app = App::new();
-    let sections: Vec<(Entity, SectionPos)> = carried
-        .iter()
-        .map(|&y| {
-            (
-                app.world_mut().spawn_empty().id(),
-                SectionPos::new(col.x, y, col.z),
-            )
-        })
-        .collect();
 
     let y_sections = ctx.y_sections.clone();
     let mut column = ColumnBlocks::new(&y_sections);
     let snapshot = fill_column(&ctx, col, &mut column, &CancellationToken::new())
         .expect("the fill was not cancelled");
 
-    let bottom = y_sections[0];
-    let delivered = carried_sections(&sections, &snapshot.sections, bottom);
-    assert_eq!(
-        delivered.len(),
-        carried.len(),
-        "the delivery returned sections it was not asked for"
-    );
     let bedrock = VoxelId::from(
         corpus()
             .default_state("minecraft:bedrock")
             .unwrap()
             .number(),
     );
-    let floor = delivered
-        .iter()
-        .find(|(_, pos, _)| pos.y == carried[0])
-        .expect("the bottom section came back");
-    let (palette, _) = floor.2.as_ref().expect("the bottom section carries blocks");
+    let (palette, _) = snapshot.sections[0]
+        .as_ref()
+        .expect("the bottom section carries blocks");
     let mut states = Vec::with_capacity(ColumnBlocks::SECTION_VOLUME);
     palette.0.for_each(|state| states.push(state));
     // The palette runs y, then z, then x, so the first layer is the floor of
@@ -864,7 +871,7 @@ fn a_fixed_source_stores_the_ids_the_loader_numbered_its_biomes_with() {
 }
 
 #[test]
-fn the_parallel_ladder_delivers_ores_that_write_across_columns() {
+fn the_parallel_ladder_generates_ores_that_write_across_columns() {
     let drive = Drive {
         in_flight: 2,
         batch: default_batch(),
@@ -881,7 +888,7 @@ mod exhaustive {
     /// order, batch size and eviction the definition leaves free, for each program
     /// `Run` has.
     #[test]
-    fn the_parallel_ladder_delivers_the_oracle_region() {
+    fn the_parallel_ladder_generates_the_oracle_region() {
         for consumer in [
             Consumer::BetaOre,
             Consumer::ModernOre,
@@ -913,7 +920,7 @@ mod exhaustive {
     /// twenty-one fills per run, so the interior columns are further from the edge
     /// of the region than any dependency reaches.
     #[test]
-    fn the_parallel_ladder_delivers_the_large_oracle_region() {
+    fn the_parallel_ladder_generates_the_large_oracle_region() {
         for consumer in [
             Consumer::BetaOre,
             Consumer::ModernOre,

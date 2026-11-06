@@ -13,21 +13,22 @@ use bevy_app::{App, Update};
 use bevy_ecs::schedule::IntoScheduleConfigs;
 use bevy_state::prelude::NextState;
 use mcrs_minecraft_assets::AppState;
-use mcrs_minecraft_engine::bridge::{
+use mcrs_minecraft_engine::between_ticks::drain_dim_spawn_queue;
+use mcrs_minecraft_engine::between_ticks::take_dim_outputs;
+use mcrs_minecraft_engine::bus::InboundPlayerSpawn;
+use mcrs_minecraft_engine::game_profile::GameProfile;
+use mcrs_minecraft_engine::muxer::bridge::{
     bridge_inbound_to_channel, bridge_outbound, bridge_player_attach, dispatch_encode,
     forward_pending_inbound,
 };
-use mcrs_minecraft_engine::bridge_queue::{InboundRateBucket, OutboundQueue};
-use mcrs_minecraft_engine::bus::InboundPlayerSpawn;
-use mcrs_minecraft_engine::dim::pump_channels;
-use mcrs_minecraft_engine::session::GameProfile;
-use mcrs_minecraft_engine::session::HostAnchorRef;
-use mcrs_minecraft_engine::sub_app_builder::drain_dim_spawn_queue;
-use mcrs_minecraft_engine_server::configuration::emit_initial_player_spawn;
+use mcrs_minecraft_engine::muxer::bridge_queue::OutboundQueue;
+use mcrs_minecraft_engine::muxer::session::HostAnchorRef;
+use mcrs_minecraft_engine_server::configuration::initial_player_spawn;
 use mcrs_minecraft_engine_server::login::{LoginPlugin, LoginState};
 use mcrs_minecraft_engine_world::session::{Place, SessionPlacement};
 use mcrs_minecraft_engine_world::world::sub_app::{DimSpawnQueue, DimSpawnRequest};
 use mcrs_minecraft_network::ServerSideConnection;
+use mcrs_minecraft_network::inbound_rate::InboundRateBucket;
 use mcrs_minecraft_protocol::uuid::Uuid;
 
 // ---------------------------------------------------------------------------
@@ -42,6 +43,7 @@ fn build_join_host_app() -> App {
     app.insert_resource(crate::support::dimension_list_with_extra());
 
     app.init_resource::<mcrs_minecraft_network::metrics::BridgeTelemetry>();
+    app.init_resource::<mcrs_minecraft_engine::muxer::bridge::PendingConnections>();
     app.init_resource::<mcrs_minecraft_engine_world::session::PlayerSessionCounter>();
     app.add_message::<InboundPlayerSpawn>();
 
@@ -57,7 +59,7 @@ fn build_join_host_app() -> App {
             .chain(),
     );
     app.add_plugins(LoginPlugin);
-    app.add_systems(Update, emit_initial_player_spawn);
+    app.add_systems(Update, initial_player_spawn());
 
     app
 }
@@ -134,30 +136,15 @@ fn e2e_join_releases_joining_world() {
         .entity_mut(connection_entity)
         .insert(ConnectionState::Game);
 
-    // Tick 1: emit_initial_player_spawn sends ToDim::Spawn on the control channel.
-    //         Sub-app extract runs (no output yet), then sub-app FixedPreUpdate
-    //         drain_to_dim_inbox routes Spawn → Messages<InboundPlayerSpawn>.
-    //         FixedLast flush_from_dim_outbox runs before Update (empty outbox).
-    //         Update consume_inbound_player_spawn spawns the in-dim entity,
-    //         writes OutboundPlayerAttached + play-login OutboundPlayerPacket(s).
-    //         pump_channels: from_dim channel empty (flush ran before spawn wrote).
-    app.update();
-    pump_channels(&mut app);
-
-    // Tick 2: extract drains sub-app Messages<OutboundPlayerAttached> (written tick 1)
-    //         → host Messages<OutboundPlayerAttached>. Sub-app FixedLast
-    //         flush_from_dim_outbox now drains the play-login packet(s) into the
-    //         FromDim channel. pump_channels drains the channel into host
-    //         Messages<OutboundPlayerPacket> with correct session stamp.
-    app.update();
-    pump_channels(&mut app);
-
-    // Tick 3: main First swaps host Messages; bridge_player_attach sees
-    //         OutboundPlayerAttached → attaches the session; bridge_outbound sees
-    //         play-login packets → routes to OutboundQueue; dispatch_encode encodes
-    //         and sends the blob.
-    app.update();
-    pump_channels(&mut app);
+    // Tick 1: the initial player spawn queues ToDim::Spawn for the dimension, which ticks
+    //         after the host: it spawns the player and hands over OutboundPlayerAttached and
+    //         the play-login packets in its output, which the host takes between ticks.
+    // Tick 2: bridge_player_attach attaches the session; bridge_outbound routes the
+    //         play-login packets to the OutboundQueue and dispatch_encode sends the blob.
+    for _ in 0..3 {
+        app.update();
+        take_dim_outputs(app.world_mut());
+    }
 
     // Assertion 1: handoff completed — the session is attached.
     let place = app

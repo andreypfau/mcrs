@@ -2,7 +2,7 @@ use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
 
 use bevy_app::{App, Plugin};
 use mcrs_minecraft_engine::client_info::ClientInfoPlugin;
-use mcrs_minecraft_network::NetworkPlugin;
+use mcrs_minecraft_network::{NetworkPlugin, default_favicon};
 
 use crate::configuration::{ConfigurationStatePlugin, KnownPackOffer};
 use crate::dimension_worlds_plugin::DimensionWorldsPlugin;
@@ -25,6 +25,7 @@ pub struct ServerNetworkPlugin {
     pub singleplayer_profile: Option<SingleplayerProfile>,
     pub max_players: u32,
     pub motd: String,
+    pub favicon: Option<String>,
     /// Turned on, a client that a transfer packet sends here logs in; turned off, it gets
     /// `multiplayer.disconnect.transfers_disabled`.
     pub accepts_transfers: bool,
@@ -34,6 +35,10 @@ pub struct ServerNetworkPlugin {
     /// Turned off, a status connection closes after the handshake without a packet; a login is
     /// not affected.
     pub enable_status: bool,
+    /// The kernel send buffer of each connection, in bytes.
+    pub send_buffer_bytes: usize,
+    /// The length of the kernel queue of connections that wait for the accept loop.
+    pub accept_backlog: u32,
 }
 
 impl ServerNetworkPlugin {
@@ -59,9 +64,12 @@ impl Default for ServerNetworkPlugin {
             singleplayer_profile: None,
             max_players: 20,
             motd: "mcrs Server".to_owned(),
+            favicon: Some(default_favicon()),
             accepts_transfers: false,
             hide_online_players: false,
             enable_status: true,
+            send_buffer_bytes: NetworkPlugin::default().send_buffer_bytes,
+            accept_backlog: NetworkPlugin::default().accept_backlog,
         }
     }
 }
@@ -78,9 +86,12 @@ impl Plugin for ServerNetworkPlugin {
             announce_on_lan: self.announce_on_lan,
             max_players: self.max_players,
             motd: self.motd.clone(),
+            favicon: self.favicon.clone(),
             accepts_transfers: self.accepts_transfers,
             hide_online_players: self.hide_online_players,
             enable_status: self.enable_status,
+            send_buffer_bytes: self.send_buffer_bytes,
+            accept_backlog: self.accept_backlog,
         });
         app.insert_resource(self.compression_threshold);
         app.add_plugins(LoginPlugin);

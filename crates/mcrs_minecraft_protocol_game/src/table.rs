@@ -2,6 +2,7 @@ mcrs_minecraft_protocol::extend_packet_table! {
     game_clientbound: ClientboundGamePacket<'a> extends mcrs_minecraft_protocol::packets::table::game_clientbound in (crate::clientbound) {
         "add_entity" => ClientboundAddEntity,
         "block_destruction" => ClientboundBlockDestruction,
+        "block_event" => ClientboundBlockEvent,
         "block_update" => ClientboundBlockUpdate,
         "chunk_batch_finished" => ClientboundChunkBatchFinished,
         "chunk_batch_start" => ClientboundChunkBatchStart,
@@ -51,6 +52,7 @@ mcrs_minecraft_protocol::extend_packet_table! {
         "set_player_inventory" => ClientboundSetPlayerInventory,
         "set_time" => ClientboundSetTime,
         "system_chat" => ClientboundSystemChatPacket<'a>,
+        "tab_list" => ClientboundTabList<'a>,
         "take_item_entity" => ClientboundTakeItemEntity,
         "update_advancements" => ClientboundUpdateAdvancements,
         "update_attributes" => ClientboundUpdateAttributes<'a>,

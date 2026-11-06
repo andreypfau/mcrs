@@ -110,7 +110,7 @@ fn a_chat_line_reaches_everyone_unless_it_is_rejected_or_the_sender_hides_chat()
 
         let told: Vec<String> = sent
             .iter()
-            .filter(|packet| matches!(packet.target, PacketTarget::SinglePlayer(target) if target == sender))
+            .filter(|packet| matches!(packet.target, PacketTarget::SinglePlayer(target) if Some(target) == server.session_of(sender)))
             .filter_map(|packet| match &packet.data {
                 PacketPayload::SystemChat(chat) => key(&chat.content.to_text().unwrap().map(&ItemHoverMap).unwrap()).map(str::to_owned),
                 _ => None,

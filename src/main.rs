@@ -4,21 +4,21 @@
 )]
 
 use std::path::{Path, PathBuf};
-use std::time::Duration;
+use std::str::FromStr;
 
 use bevy_app::{App, AppExit, PluginGroup, Update};
 use bevy_ecs::message::MessageWriter;
 use bevy_log::{Level, LogPlugin, tracing_subscriber};
-use mcrs_minecraft_engine::ops::{OPS_FILE, OpList};
+use mcrs_minecraft_engine::coordinator::ops::{OPS_FILE, OpList};
 use mcrs_minecraft_engine_server::{
-    DimensionWorldsPlugin, GameMode, NetworkCompressionThreshold, ServerNetworkPlugin,
-    ShutdownRequest,
+    DimensionWorldsPlugin, GameMode, NetworkCompressionThreshold, Placement, ServerCorePlugin,
+    ServerNetworkPlugin, ShutdownRequest,
 };
 use mcrs_minecraft_server::MinecraftServerPlugins;
 use mcrs_minecraft_vanilla_light::LightingPlugin;
 use mcrs_minecraft_vanilla_worldgen::WorldGenPlugin;
 
-const LOG_FILTER: &str = "mcrs_minecraft_server=debug,mcrs_minecraft_engine=debug,mcrs_minecraft_engine::column_view=trace,mcrs_minecraft_engine_world::entity::player::chunk_view=trace,mcrs_minecraft_network=debug";
+const LOG_FILTER: &str = "mcrs_minecraft_server=debug,mcrs_minecraft_engine=debug,mcrs_minecraft_engine::muxer::column_views=trace,mcrs_minecraft_engine_world::entity::player::chunk_view=trace,mcrs_minecraft_network=debug";
 
 #[tokio::main]
 async fn main() -> AppExit {
@@ -48,6 +48,10 @@ async fn main() -> AppExit {
         }
     };
     let mut server = MinecraftServerPlugins {
+        core: ServerCorePlugin {
+            worlds: worlds(variable("MCRS_WORLDS").as_deref()),
+            ..MinecraftServerPlugins::default().core
+        },
         worlds: DimensionWorldsPlugin {
             world: world_folder(),
             ops,
@@ -56,41 +60,8 @@ async fn main() -> AppExit {
             default_game_mode: game_mode(variable("MCRS_DEFAULT_GAMEMODE").as_deref()),
             ..Default::default()
         },
-        world_gen: WorldGenPlugin {
-            slow_column_threshold: slow_column_threshold(variable("MCRS_SLOW_CHUNK_MS").as_deref()),
-        },
-        network: ServerNetworkPlugin {
-            announce_on_lan: on_off(
-                "MCRS_LAN_ANNOUNCE",
-                variable("MCRS_LAN_ANNOUNCE").as_deref(),
-                true,
-            ),
-            offer_known_packs: on_off(
-                "MCRS_KNOWN_PACKS",
-                variable("MCRS_KNOWN_PACKS").as_deref(),
-                true,
-            ),
-            compression_threshold: compression_threshold(
-                variable("MCRS_COMPRESSION_THRESHOLD").as_deref(),
-            ),
-            accepts_transfers: on_off(
-                "MCRS_ACCEPT_TRANSFERS",
-                variable("MCRS_ACCEPT_TRANSFERS").as_deref(),
-                false,
-            ),
-            hide_online_players: on_off(
-                "MCRS_HIDE_ONLINE_PLAYERS",
-                variable("MCRS_HIDE_ONLINE_PLAYERS").as_deref(),
-                false,
-            ),
-            enable_status: on_off(
-                "MCRS_ENABLE_STATUS",
-                variable("MCRS_ENABLE_STATUS").as_deref(),
-                true,
-            ),
-            ..Default::default()
-        },
-        ..Default::default()
+        world_gen: WorldGenPlugin,
+        network: network(),
     }
     .build();
     if !propagates_light(variable("MCRS_NO_LIGHTING").as_deref()) {
@@ -113,6 +84,50 @@ async fn main() -> AppExit {
         },
     );
     mcrs_minecraft_engine_server::run_server_loop(app)
+}
+
+fn network() -> ServerNetworkPlugin {
+    ServerNetworkPlugin {
+        announce_on_lan: on_off(
+            "MCRS_LAN_ANNOUNCE",
+            variable("MCRS_LAN_ANNOUNCE").as_deref(),
+            true,
+        ),
+        offer_known_packs: on_off(
+            "MCRS_KNOWN_PACKS",
+            variable("MCRS_KNOWN_PACKS").as_deref(),
+            true,
+        ),
+        compression_threshold: compression_threshold(
+            variable("MCRS_COMPRESSION_THRESHOLD").as_deref(),
+        ),
+        accepts_transfers: on_off(
+            "MCRS_ACCEPT_TRANSFERS",
+            variable("MCRS_ACCEPT_TRANSFERS").as_deref(),
+            false,
+        ),
+        hide_online_players: on_off(
+            "MCRS_HIDE_ONLINE_PLAYERS",
+            variable("MCRS_HIDE_ONLINE_PLAYERS").as_deref(),
+            false,
+        ),
+        enable_status: on_off(
+            "MCRS_ENABLE_STATUS",
+            variable("MCRS_ENABLE_STATUS").as_deref(),
+            true,
+        ),
+        send_buffer_bytes: positive_count(
+            "MCRS_SEND_BUFFER_BYTES",
+            variable("MCRS_SEND_BUFFER_BYTES").as_deref(),
+            ServerNetworkPlugin::default().send_buffer_bytes,
+        ),
+        accept_backlog: positive_count(
+            "MCRS_ACCEPT_BACKLOG",
+            variable("MCRS_ACCEPT_BACKLOG").as_deref(),
+            ServerNetworkPlugin::default().accept_backlog,
+        ),
+        ..Default::default()
+    }
 }
 
 fn variable(name: &str) -> Option<String> {
@@ -173,6 +188,19 @@ fn world_preset(value: Option<&str>) -> String {
         .unwrap_or_else(|| "normal".to_owned())
 }
 
+/// `MCRS_WORLDS` is `inline` or `thread`, in any case; unset or anything else keeps the
+/// default placement.
+fn worlds(value: Option<&str>) -> Placement {
+    let default = ServerCorePlugin::default().worlds;
+    let Some(value) = value else {
+        return default;
+    };
+    value.trim().parse().unwrap_or_else(|error| {
+        bevy_log::warn!(value, worlds = ?default, "MCRS_WORLDS: {error}; keeping the default");
+        default
+    })
+}
+
 /// `MCRS_NO_LIGHTING=1` turns propagation off.
 fn propagates_light(value: Option<&str>) -> bool {
     !matches!(value, Some("1" | "true" | "on" | "yes"))
@@ -214,9 +242,22 @@ fn compression_threshold(value: Option<&str>) -> NetworkCompressionThreshold {
     }
 }
 
-/// `MCRS_SLOW_CHUNK_MS` is the latency in milliseconds above which a column is logged.
-fn slow_column_threshold(value: Option<&str>) -> Duration {
-    Duration::from_millis(value.and_then(|ms| ms.parse().ok()).unwrap_or(250))
+/// A positive whole number; unset or anything else keeps `default`.
+fn positive_count<T: FromStr + Default + PartialOrd>(
+    name: &str,
+    value: Option<&str>,
+    default: T,
+) -> T {
+    let Some(raw) = value.map(str::trim) else {
+        return default;
+    };
+    match raw.parse() {
+        Ok(count) if count > T::default() => count,
+        _ => {
+            bevy_log::error!(raw, "{name} is not a positive number; using the default");
+            default
+        }
+    }
 }
 
 async fn shutdown_signal() {

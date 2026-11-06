@@ -18,9 +18,9 @@ use crate::mock_connection;
 
 use bevy_ecs::message::Messages;
 use bevy_ecs::world::World;
-use mcrs_minecraft_engine::bridge::bridge_outbound;
-use mcrs_minecraft_engine::bridge_queue::OutboundQueue;
 use mcrs_minecraft_engine::bus::{OutboundPlayerPacket, PacketPriority};
+use mcrs_minecraft_engine::muxer::bridge::bridge_outbound;
+use mcrs_minecraft_engine::muxer::bridge_queue::OutboundQueue;
 use mcrs_minecraft_engine_world::session::{PlayerSession, SessionPlacement};
 
 use mock_connection::{
@@ -34,6 +34,7 @@ fn epoch_round_trip() {
     let mut world = World::new();
     world.init_resource::<Messages<OutboundPlayerPacket>>();
     world.init_resource::<mcrs_minecraft_network::metrics::BridgeTelemetry>();
+    world.init_resource::<mcrs_minecraft_engine::muxer::bridge::PendingConnections>();
 
     // --- Connect a player: register session at epoch 0 (first Overworld visit) ---
     let session = PlayerSession(1);

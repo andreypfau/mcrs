@@ -1,10 +1,10 @@
 use crate::set::VanillaContext;
-use bevy_ecs::entity::Entity;
 use bevy_math::DVec3;
 use mcrs_command::ArgumentHandle;
 use mcrs_minecraft_command::ErrorText;
 use mcrs_minecraft_command_argument_entity::{Candidate, EntityArgument, EntityBounds};
 use mcrs_minecraft_command_engine::{CommandFailure, Invocation, PlayerEntry};
+use mcrs_minecraft_engine_world::session::PlayerSession;
 use mcrs_minecraft_entity::entity_type_keys::EntityType;
 use mcrs_minecraft_entity::{PLAYER_HEIGHT, PLAYER_WIDTH};
 use mcrs_minecraft_game_mode::GameMode;
@@ -70,8 +70,8 @@ fn select_if_present<'c>(
     let targets = context.targets();
     let me = call
         .source
-        .entity
-        .and_then(|anchor| targets.player(anchor))
+        .player
+        .and_then(|session| targets.player(session))
         .map(PlayerCandidate);
     let mut random = |bound: usize| rand::random_range(0..bound.max(1));
     let mut candidates = mcrs_command::recycle(core::mem::take(&mut out.candidates));
@@ -103,7 +103,11 @@ pub(crate) enum SelfSource {
 }
 
 impl SelfSource {
-    fn require<P>(self, entity: Option<Entity>, player: Option<P>) -> Result<(), CommandFailure> {
+    fn require<P>(
+        self,
+        entity: Option<PlayerSession>,
+        player: Option<P>,
+    ) -> Result<(), CommandFailure> {
         let (satisfied, key) = match self {
             Self::Player => (player.is_some(), "permissions.requires.player"),
             Self::Entity => (entity.is_some(), "permissions.requires.entity"),
@@ -128,9 +132,9 @@ pub(crate) fn targets_or_self<'c>(
 ) -> Result<(), CommandFailure> {
     if !select_if_present(context, call, arg, out)? {
         out.found.clear();
-        let source = call.source.entity;
+        let source = call.source.player;
         out.found
-            .extend(source.and_then(|anchor| context.targets().player(anchor)));
+            .extend(source.and_then(|session| context.targets().player(session)));
         return needs.require(source, out.found.first());
     }
     if out.found.is_empty() {
@@ -215,7 +219,7 @@ mod tests {
 
     #[test]
     fn a_selectorless_branch_fails_with_what_its_source_lacks() {
-        let entity = Some(Entity::PLACEHOLDER);
+        let entity = Some(PlayerSession(1));
         let cases = [
             (
                 SelfSource::Player,

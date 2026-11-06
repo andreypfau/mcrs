@@ -1,18 +1,20 @@
 use crate::dimension_entry::DimensionEntry;
 use crate::player_entry::PlayerEntry;
-use bevy_ecs::entity::{Entity, EntityHashMap};
+use bevy_ecs::entity::Entity;
 use bevy_ecs::resource::Resource;
+use mcrs_minecraft_engine_world::session::PlayerSession;
 use mcrs_minecraft_resource::ResourceLocation;
+use rustc_hash::FxHashMap;
 
 /// The dimensions in the dimension order and the online players of all of them in
-/// the order of the player list. The host collects it at the start of a pass, and the
-/// [`Worlds`](crate::Worlds) operations that change a player update its entry; a
-/// handler reads it in the world it runs in.
+/// the order of the player list. A world collects it before it runs the commands of a tick: its
+/// own players as they are, and those of the other worlds as they were at the end of the last
+/// tick. The [`Worlds`](crate::Worlds) operations that change a player update its entry.
 #[derive(Resource, Debug, Default)]
 pub struct CommandTargets {
     pub(crate) dimensions: Vec<DimensionEntry>,
     pub(crate) players: Vec<PlayerEntry>,
-    pub(crate) by_anchor: EntityHashMap<usize>,
+    pub(crate) by_session: FxHashMap<PlayerSession, usize>,
 }
 
 impl CommandTargets {
@@ -45,24 +47,25 @@ impl CommandTargets {
             .find(|entry| entry.key.namespace() == id.namespace() && entry.key.path() == id.path())
     }
 
-    /// The online player with the host anchor `anchor`.
-    pub fn player(&self, anchor: Entity) -> Option<&PlayerEntry> {
-        self.players.get(*self.by_anchor.get(&anchor)?)
+    /// The online player of `session`.
+    pub fn player(&self, session: PlayerSession) -> Option<&PlayerEntry> {
+        self.players.get(*self.by_session.get(&session)?)
     }
 
-    pub(crate) fn player_mut(&mut self, anchor: Entity) -> Option<&mut PlayerEntry> {
-        self.players.get_mut(*self.by_anchor.get(&anchor)?)
+    pub(crate) fn player_mut(&mut self, session: PlayerSession) -> Option<&mut PlayerEntry> {
+        self.players.get_mut(*self.by_session.get(&session)?)
     }
 
     pub(crate) fn index_players(&mut self) {
-        self.players
-            .sort_unstable_by_key(|player| player.list_order);
-        self.by_anchor.clear();
-        self.by_anchor.extend(
+        // Sessions count up as players join and a change of dimension keeps them, so they give
+        // the order of the player list.
+        self.players.sort_unstable_by_key(|player| player.session.0);
+        self.by_session.clear();
+        self.by_session.extend(
             self.players
                 .iter()
                 .enumerate()
-                .map(|(index, player)| (player.anchor, index)),
+                .map(|(index, player)| (player.session, index)),
         );
     }
 }

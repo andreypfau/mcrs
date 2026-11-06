@@ -1,42 +1,36 @@
 //! Integration tests for `dispatch_encode`: drop policy, kick thresholds,
-//! single-blob coalescing, metric observability, and counted-drop variants.
+//! single-blob coalescing and shared framing.
 //!
 //! All tests use a mock RawConnection backed by an `mpsc::channel` so no real
 //! socket is needed. The receiver is kept by the test so it can assert exactly
 //! how many blobs arrive per tick.
 
 use crate::mock_connection;
-use mcrs_minecraft_entity::entity_type_keys::EntityType;
 use mcrs_minecraft_protocol::VarInt;
-use mcrs_minecraft_protocol_game::ByteAngle;
-use mcrs_minecraft_protocol_game::LpVec3;
-use mcrs_minecraft_protocol_game::clientbound::ClientboundAddEntity;
 use mcrs_minecraft_protocol_game::clientbound::ClientboundBlockUpdate;
-use mcrs_minecraft_protocol_game::clientbound::ClientboundEntityPositionSync;
-use mcrs_minecraft_protocol_game::clientbound::ClientboundLightUpdate;
-use mcrs_minecraft_protocol_game::clientbound::ClientboundRemoveEntities;
-use mcrs_minecraft_protocol_game::clientbound::PositionPath;
 
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::Messages;
 use bevy_ecs::system::{IntoSystem, System};
 use bevy_ecs::world::World;
-use bevy_math::DVec3;
-use bevy_tasks::{ComputeTaskPool, TaskPool};
-use bytes::Bytes;
-use mcrs_minecraft_core::Look;
-use mcrs_minecraft_engine::bridge::dispatch_encode;
-use mcrs_minecraft_engine::bridge_queue::{DEPTH_DRAIN_TARGET, DEPTH_LIMIT, OutboundQueue};
+use bytes::{Bytes, BytesMut};
 use mcrs_minecraft_engine::bus::{
-    OutboundPlayerPacket, PacketPayload, PacketPriority, PacketTarget, TestPayload,
+    OutboundPlayerPacket, PacketPayload, PacketPriority, PacketTarget,
 };
+use mcrs_minecraft_engine::muxer::bridge::{DEPTH_DRAIN_TARGET, DEPTH_LIMIT, dispatch_encode};
+use mcrs_minecraft_engine::muxer::bridge_queue::OutboundQueue;
 use mcrs_minecraft_engine_world::session::PlayerSession;
+use mcrs_minecraft_network::OutboundReceiver;
 use mcrs_minecraft_network::ServerSideConnection;
+use mcrs_minecraft_network::SwitchMode;
 use mcrs_minecraft_network::metrics::BridgeTelemetry;
-use mcrs_minecraft_protocol::uuid::Uuid;
-use mcrs_minecraft_protocol_game::chunk::LightData;
+use mcrs_minecraft_protocol::Packet;
+use mcrs_minecraft_protocol::packets::login::clientbound::LoginCompression;
+use mcrs_minecraft_protocol::{CompressionThreshold, Decode, PacketDecoder};
+use mcrs_minecraft_protocol_game::chunk::{ChunkData, LightData};
+use mcrs_minecraft_protocol_game::clientbound::ClientboundLevelChunkWithLight;
 use mcrs_voxel::ColumnPos;
-use tokio::sync::mpsc;
+use std::borrow::Cow;
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -44,20 +38,38 @@ use tokio::sync::mpsc;
 
 /// Build a minimal ECS world with the resources `dispatch_encode` needs.
 fn build_dispatch_world() -> World {
-    // With bevy_ecs `multi_threaded` on, `par_iter_mut` in `dispatch_encode` needs the pool
-    // that `TaskPoolPlugin` installs in a real app.
-    ComputeTaskPool::get_or_init(TaskPool::default);
     let mut world = World::new();
     world.init_resource::<Messages<OutboundPlayerPacket>>();
     world.init_resource::<BridgeTelemetry>();
+    world.init_resource::<mcrs_minecraft_engine::muxer::bridge::PendingConnections>();
     world
+}
+
+fn chunk_load(chunk_bytes: &[u8]) -> PacketPayload {
+    let column = ColumnPos::new(0, 0);
+    let mut packet = Vec::new();
+    ClientboundLevelChunkWithLight {
+        pos: column,
+        chunk_data: ChunkData {
+            heightmaps: Vec::new(),
+            data: chunk_bytes,
+            block_entities: Cow::Borrowed(&[]),
+        },
+        light_data: LightData::default(),
+    }
+    .encode_with_id(&mut packet)
+    .unwrap();
+    PacketPayload::ChunkLoad {
+        column,
+        packet: Bytes::from(packet),
+    }
 }
 
 /// Spawn a connection entity backed by an `mpsc::Receiver` that the test holds
 /// to observe blobs sent to the socket.
 ///
 /// Returns `(entity, receiver)`.
-fn spawn_mock_connection(world: &mut World) -> (Entity, mpsc::Receiver<Bytes>) {
+fn spawn_mock_connection(world: &mut World) -> (Entity, OutboundReceiver) {
     let (raw, rx) = mock_connection::make_mock_raw_connection();
     let entity = world
         .spawn((
@@ -68,51 +80,17 @@ fn spawn_mock_connection(world: &mut World) -> (Entity, mpsc::Receiver<Bytes>) {
     (entity, rx)
 }
 
-/// Push `count` Normal-priority test packets directly into `entity`'s
+/// Push `count` small packets at `priority` directly into `entity`'s
 /// `OutboundQueue` without going through `bridge_outbound`.
-fn enqueue_normal(world: &mut World, entity: Entity, count: usize) {
+fn enqueue(world: &mut World, entity: Entity, priority: PacketPriority, count: usize) {
     let mut q = world
         .get_mut::<OutboundQueue>(entity)
         .expect("OutboundQueue present");
     for i in 0..count {
         q.push(OutboundPlayerPacket {
             target: PacketTarget::AllPlayers,
-            priority: PacketPriority::Normal,
-            data: PacketPayload::Test(TestPayload { seq: i as u32 }),
-            session: PlayerSession(0),
-            epoch: 0,
-        });
-    }
-}
-
-/// Push `count` Low-priority test packets directly into `entity`'s
-/// `OutboundQueue`.
-fn enqueue_low(world: &mut World, entity: Entity, count: usize) {
-    let mut q = world
-        .get_mut::<OutboundQueue>(entity)
-        .expect("OutboundQueue present");
-    for i in 0..count {
-        q.push(OutboundPlayerPacket {
-            target: PacketTarget::AllPlayers,
-            priority: PacketPriority::Low,
-            data: PacketPayload::Test(TestPayload { seq: i as u32 }),
-            session: PlayerSession(0),
-            epoch: 0,
-        });
-    }
-}
-
-/// Push `count` Critical-priority test packets directly into `entity`'s
-/// `OutboundQueue`.
-fn enqueue_critical(world: &mut World, entity: Entity, count: usize) {
-    let mut q = world
-        .get_mut::<OutboundQueue>(entity)
-        .expect("OutboundQueue present");
-    for i in 0..count {
-        q.push(OutboundPlayerPacket {
-            target: PacketTarget::AllPlayers,
-            priority: PacketPriority::Critical,
-            data: PacketPayload::Test(TestPayload { seq: i as u32 }),
+            priority,
+            data: mock_connection::marker(i as u32),
             session: PlayerSession(0),
             epoch: 0,
         });
@@ -131,73 +109,40 @@ fn run_dispatch(world: &mut World) {
 // ---------------------------------------------------------------------------
 
 /// When total queue depth exceeds `DEPTH_LIMIT`, oldest Normal packets are
-/// dropped first, then oldest Low packets, until depth <= DEPTH_DRAIN_TARGET.
-/// Critical + High counts are unchanged.
+/// dropped until depth <= DEPTH_DRAIN_TARGET.
 #[test]
 fn drop_oldest_on_overflow() {
     let mut world = build_dispatch_world();
     let (socket, _rx) = spawn_mock_connection(&mut world);
 
-    // Fill past DEPTH_LIMIT: DEPTH_LIMIT+1 Normal + 2 Critical.
-    enqueue_critical(&mut world, socket, 2);
-    enqueue_normal(&mut world, socket, DEPTH_LIMIT - 1); // total = DEPTH_LIMIT+1
-
-    let before_normal = world.resource::<BridgeTelemetry>().drop_normal_total;
-    let before_low = world.resource::<BridgeTelemetry>().drop_low_total;
+    enqueue(&mut world, socket, PacketPriority::Critical, 2);
+    enqueue(&mut world, socket, PacketPriority::Normal, DEPTH_LIMIT - 1);
 
     run_dispatch(&mut world);
 
-    let after_normal = world.resource::<BridgeTelemetry>().drop_normal_total;
-    let after_low = world.resource::<BridgeTelemetry>().drop_low_total;
-
-    // We had 2 Critical + (DEPTH_LIMIT-1) Normal = DEPTH_LIMIT+1 total.
-    // Drops until <= DEPTH_DRAIN_TARGET:
-    //   need to drop (DEPTH_LIMIT+1 - DEPTH_DRAIN_TARGET) = (DEPTH_LIMIT - DEPTH_DRAIN_TARGET + 1) Normal.
-    let expected_normal_drops = (DEPTH_LIMIT + 1) - DEPTH_DRAIN_TARGET;
     assert_eq!(
-        after_normal - before_normal,
-        expected_normal_drops as u64,
-        "expected {} Normal drops, got {}",
-        expected_normal_drops,
-        after_normal - before_normal
+        world.resource::<BridgeTelemetry>().drop_normal_total,
+        ((DEPTH_LIMIT + 1) - DEPTH_DRAIN_TARGET) as u64
     );
-    assert_eq!(
-        after_low - before_low,
-        0,
-        "Low should not be dropped when Normal is available"
-    );
-
-    // Critical count must be untouched by the drop policy.
-    // (The entity may have been removed if connection closed, so check conditionally.)
-    // The important invariant is that critical/high are never dropped.
 }
 
-/// When Normal queue is exhausted, Low is dropped next.
+/// Once Normal is empty, the shedding stops: Critical is never dropped.
 #[test]
-fn drop_oldest_low_after_normal_exhausted() {
+fn shedding_stops_when_normal_is_empty() {
     let mut world = build_dispatch_world();
     let (socket, _rx) = spawn_mock_connection(&mut world);
 
-    // 2 Normal + many Low totalling DEPTH_LIMIT + 10.
-    let low_count = DEPTH_LIMIT + 8;
-    enqueue_normal(&mut world, socket, 2);
-    enqueue_low(&mut world, socket, low_count);
-
-    let before_normal = world.resource::<BridgeTelemetry>().drop_normal_total;
-    let before_low = world.resource::<BridgeTelemetry>().drop_low_total;
+    enqueue(&mut world, socket, PacketPriority::Normal, 2);
+    enqueue(
+        &mut world,
+        socket,
+        PacketPriority::Critical,
+        DEPTH_LIMIT + 8,
+    );
 
     run_dispatch(&mut world);
 
-    let after_normal = world.resource::<BridgeTelemetry>().drop_normal_total;
-    let after_low = world.resource::<BridgeTelemetry>().drop_low_total;
-
-    // All 2 Normal should be dropped first, then remaining from Low.
-    let total_drops = (2 + low_count) - DEPTH_DRAIN_TARGET;
-    let expected_normal_drops = 2usize.min(total_drops);
-    let expected_low_drops = total_drops - expected_normal_drops;
-
-    assert_eq!(after_normal - before_normal, expected_normal_drops as u64);
-    assert_eq!(after_low - before_low, expected_low_drops as u64);
+    assert_eq!(world.resource::<BridgeTelemetry>().drop_normal_total, 2);
 }
 
 // ---------------------------------------------------------------------------
@@ -215,7 +160,7 @@ fn deep_critical_queue_is_not_kicked() {
     let before_kick = world.resource::<BridgeTelemetry>().kick_overflow_total;
 
     for _ in 0..8 {
-        enqueue_critical(&mut world, socket, 512);
+        enqueue(&mut world, socket, PacketPriority::Critical, 512);
         run_dispatch(&mut world);
     }
 
@@ -234,7 +179,7 @@ fn deep_critical_queue_is_not_kicked() {
 // coalesce_single_write_per_tick
 // ---------------------------------------------------------------------------
 
-/// N queued packets produce exactly ONE `try_send_blob` call (one blob) per
+/// N queued packets produce exactly one hand-over to the writer per
 /// socket per tick. The receiver side sees exactly one blob arrive.
 #[test]
 fn coalesce_single_write_per_tick() {
@@ -279,8 +224,7 @@ fn coalesce_single_write_per_tick() {
 // per-variant encode tests
 // ---------------------------------------------------------------------------
 
-/// ChunkLoad encodes to a real ClientboundLevelChunkWithLight (non-empty blob) and
-/// does not increment encode_unhandled_total.
+/// ChunkLoad encodes to a real ClientboundLevelChunkWithLight (non-empty blob).
 #[test]
 fn chunk_load_encodes() {
     let mut world = build_dispatch_world();
@@ -293,128 +237,114 @@ fn chunk_load_encodes() {
         q.push(OutboundPlayerPacket {
             target: PacketTarget::AllPlayers,
             priority: PacketPriority::Critical,
-            data: PacketPayload::ChunkLoad {
-                heightmaps: vec![],
-                column: ColumnPos::new(0, 0),
-                chunk_bytes: vec![0x80u8; 2000],
-                light_data: LightData::default(),
-                block_entities: Vec::new(),
-            },
+            data: chunk_load(&[0x80u8; 2000]),
             session: PlayerSession(0),
             epoch: 0,
         });
     }
 
-    let before = world.resource::<BridgeTelemetry>().encode_unhandled_total;
     run_dispatch(&mut world);
-    let after = world.resource::<BridgeTelemetry>().encode_unhandled_total;
 
-    assert_eq!(
-        after - before,
-        0,
-        "ChunkLoad must not increment encode_unhandled_total"
-    );
     let blob = rx
         .try_recv()
         .expect("dispatch must produce a blob for ChunkLoad");
     assert!(!blob.is_empty(), "blob must be non-empty");
 }
 
-/// Only `PacketPayload::Test` remains a counted-drop; the five real variants
-/// contribute zero to `encode_unhandled_total`.
+/// A column that three connections receive at two compression thresholds is framed once for
+/// each threshold, and each connection reads it back at its own threshold.
 #[test]
-fn only_test_remains_counted_drop() {
+fn a_shared_column_is_framed_once_for_each_threshold() {
     let mut world = build_dispatch_world();
-    let (socket, _rx) = spawn_mock_connection(&mut world);
-
-    {
-        let mut q = world
-            .get_mut::<OutboundQueue>(socket)
-            .expect("OutboundQueue");
-        // One of each real variant — none should increment the unhandled counter.
-        q.push(OutboundPlayerPacket {
-            target: PacketTarget::AllPlayers,
-            priority: PacketPriority::Normal,
-            data: PacketPayload::LightUpdate(ClientboundLightUpdate {
-                x: VarInt(0),
-                z: VarInt(0),
-                light_data: LightData::default(),
-            }),
-            session: PlayerSession(0),
-            epoch: 0,
-        });
-        q.push(OutboundPlayerPacket {
-            target: PacketTarget::AllPlayers,
-            priority: PacketPriority::Critical,
-            data: PacketPayload::ChunkLoad {
-                heightmaps: vec![],
-                column: ColumnPos::new(0, 0),
-                chunk_bytes: vec![],
-                light_data: LightData::default(),
-                block_entities: Vec::new(),
-            },
-            session: PlayerSession(0),
-            epoch: 0,
-        });
-        q.push(OutboundPlayerPacket {
-            target: PacketTarget::AllPlayers,
-            priority: PacketPriority::Normal,
-            data: PacketPayload::EntityPosSync(ClientboundEntityPositionSync {
-                entity_id: VarInt(1),
-                position: PositionPath::Linear(DVec3::ZERO),
-                look: Look {
-                    yaw: 0.0,
-                    pitch: 0.0,
-                },
-                on_ground: false,
-            }),
-            session: PlayerSession(0),
-            epoch: 0,
-        });
-        q.push(OutboundPlayerPacket {
-            target: PacketTarget::AllPlayers,
-            priority: PacketPriority::Normal,
-            data: PacketPayload::PlayerEnteredView(ClientboundAddEntity {
-                id: VarInt(2),
-                uuid: Uuid::nil(),
-                kind: EntityType::SpruceBoat,
-                pos: DVec3::ZERO,
-                movement: LpVec3(DVec3::ZERO),
-                yaw: ByteAngle::from_degrees(0.0),
-                pitch: ByteAngle::from_degrees(0.0),
-                head_yaw: ByteAngle::from_degrees(0.0),
-                data: VarInt(0),
-            }),
-            session: PlayerSession(0),
-            epoch: 0,
-        });
-        q.push(OutboundPlayerPacket {
-            target: PacketTarget::AllPlayers,
-            priority: PacketPriority::Normal,
-            data: PacketPayload::PlayerLeftView(ClientboundRemoveEntities {
-                entity_ids: vec![VarInt(3)],
-            }),
-            session: PlayerSession(0),
-            epoch: 0,
-        });
-        // One Test packet: must increment by exactly 1.
-        q.push(OutboundPlayerPacket {
-            target: PacketTarget::AllPlayers,
-            priority: PacketPriority::Normal,
-            data: PacketPayload::Test(TestPayload { seq: 0 }),
-            session: PlayerSession(0),
-            epoch: 0,
-        });
+    let thresholds = [None, Some(256), Some(256)];
+    let mut sockets = Vec::new();
+    for threshold in thresholds {
+        let (mut raw, rx) = mock_connection::make_mock_raw_connection();
+        raw = raw.with_switch_mode(SwitchMode::Immediate);
+        if let Some(threshold) = threshold {
+            raw.announce_compression(CompressionThreshold(threshold));
+        }
+        let entity = world
+            .spawn((
+                ServerSideConnection { raw: Box::new(raw) },
+                OutboundQueue::default(),
+            ))
+            .id();
+        sockets.push((entity, rx, threshold));
+    }
+    let column = chunk_load(&[0x80u8; 2000]);
+    let PacketPayload::ChunkLoad { packet, .. } = &column else {
+        unreachable!("chunk_load makes a ChunkLoad");
+    };
+    let mut expected = &packet[..];
+    let expected_id = VarInt::decode(&mut expected).unwrap().0;
+    let expected_body = expected.to_vec();
+    for (socket, _, _) in &sockets {
+        world
+            .get_mut::<OutboundQueue>(*socket)
+            .unwrap()
+            .push(OutboundPlayerPacket {
+                target: PacketTarget::AllPlayers,
+                priority: PacketPriority::Critical,
+                data: column.clone(),
+                session: PlayerSession(0),
+                epoch: 0,
+            });
     }
 
-    let before = world.resource::<BridgeTelemetry>().encode_unhandled_total;
     run_dispatch(&mut world);
-    let after = world.resource::<BridgeTelemetry>().encode_unhandled_total;
+
+    let telemetry = *world.resource::<BridgeTelemetry>();
+    assert_eq!(
+        telemetry.shared_frames_total, 2,
+        "one frame for each threshold"
+    );
+    assert_eq!(telemetry.framed_appends_total, 3);
+    for (_, rx, threshold) in &mut sockets {
+        let mut decoder = PacketDecoder::new();
+        decoder.queue_bytes(BytesMut::from(&rx.try_recv().unwrap()[..]));
+        if let Some(threshold) = threshold {
+            let announce = decoder.try_next_packet().unwrap().unwrap();
+            assert_eq!(announce.id, LoginCompression::ID);
+            decoder.set_compression(CompressionThreshold(*threshold));
+        }
+        let frame = decoder.try_next_packet().unwrap().unwrap();
+        assert_eq!(frame.id, expected_id, "threshold {threshold:?}");
+        assert_eq!(
+            &frame.body[..],
+            &expected_body[..],
+            "threshold {threshold:?}"
+        );
+        assert!(decoder.try_next_packet().unwrap().is_none());
+    }
+}
+
+#[test]
+fn a_shared_packet_that_one_connection_sheds_is_not_framed_for_the_other() {
+    let mut world = build_dispatch_world();
+    let (sending, mut rx) = spawn_mock_connection(&mut world);
+    let (shedding, _shedding_rx) = spawn_mock_connection(&mut world);
+    let column = OutboundPlayerPacket {
+        target: PacketTarget::AllPlayers,
+        priority: PacketPriority::Normal,
+        data: chunk_load(&[0x80u8; 2000]),
+        session: PlayerSession(0),
+        epoch: 0,
+    };
+    for socket in [sending, shedding] {
+        world
+            .get_mut::<OutboundQueue>(socket)
+            .unwrap()
+            .push(column.clone());
+    }
+    enqueue(&mut world, shedding, PacketPriority::Normal, DEPTH_LIMIT);
+
+    run_dispatch(&mut world);
 
     assert_eq!(
-        after - before,
-        1,
-        "only the Test variant must increment encode_unhandled_total (by 1); got {}",
-        after - before
+        world.resource::<BridgeTelemetry>().shared_frames_total,
+        0,
+        "the one connection that sends the column leaves the framing to its writer"
     );
+    assert!(rx.try_recv().is_ok());
 }

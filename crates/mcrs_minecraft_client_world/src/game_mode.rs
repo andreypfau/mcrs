@@ -161,12 +161,7 @@ mod tests {
             .dispatch(P::STATE, P::ID, &data)
             .unwrap()
             .unwrap();
-        trigger.raise(
-            &mut app.world_mut().commands(),
-            connection,
-            data.into(),
-            mcrs_minecraft_network::Instant::now(),
-        );
+        trigger.raise(&mut app.world_mut().commands(), connection, data.into());
         app.world_mut().flush();
     }
 

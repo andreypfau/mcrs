@@ -225,16 +225,6 @@ impl Knobs {
             })
     }
 
-    /// `SLOW_CHUNK_MS` is the latency above which the integrated server logs a column.
-    #[cfg(all(feature = "singleplayer", not(target_family = "wasm")))]
-    pub fn slow_column_threshold(&self) -> std::time::Duration {
-        std::time::Duration::from_millis(
-            self.knob("SLOW_CHUNK_MS")
-                .and_then(|ms| ms.parse().ok())
-                .unwrap_or(250),
-        )
-    }
-
     /// `GPU_HOT=<workgroups>` burns that many workgroups of arithmetic after the frame's own passes.
     /// A composited window presents at the display's rate and leaves the GPU idle most of the frame,
     /// and it clocks down while it waits: the same cull dispatch read 0.25 ms in a 60 Hz window and

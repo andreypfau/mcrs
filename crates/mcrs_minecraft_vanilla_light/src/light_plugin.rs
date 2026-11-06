@@ -1,401 +1,177 @@
 use std::sync::Arc;
 
-use rustc_hash::FxHashSet;
-
 use bevy_app::{App, Last, Plugin};
 use bevy_ecs::prelude::*;
-use bevy_ecs::system::SystemParam;
-use bevy_tasks::{AsyncComputeTaskPool, Task, available_parallelism, block_on, poll_once};
-use mcrs_voxel::{BlockPos, ColumnPos};
+use bevy_ecs::schedule::InternedScheduleLabel;
+use mcrs_engine_link::{Link, Placement};
+use rustc_hash::FxHashMap;
 
 use mcrs_minecraft_chunk::{BlockLight, SkyLight};
-use mcrs_minecraft_core::BoundingBox;
+use mcrs_minecraft_engine_world::world::light_gate::{ColumnLightSettled, SectionRelit};
 use mcrs_minecraft_light_engine::block::LightRegistry;
-use mcrs_minecraft_light_engine::epoch::LightUpdate;
-use mcrs_minecraft_light_engine::level::{LightBounds, SECTION_WIDTH};
-use mcrs_minecraft_light_engine::queue::{DEFAULT_PRIORITY, LightQueue, Priority, PriorityColumns};
-use mcrs_minecraft_light_engine::world::{Edit, LightWorld};
+use mcrs_minecraft_light_engine::epoch::PublishedLight;
+use mcrs_minecraft_light_engine::level::LightBounds;
+use mcrs_minecraft_light_engine::world::LightWorld;
+use mcrs_voxel::ColumnPos;
 
-/// Owns the block and light data. The ECS holds only what has been published.
-#[derive(Resource)]
-pub struct Lighting(pub LightWorld);
+use crate::light_budget::LightBudget;
+use crate::light_input::LightInput;
+use crate::light_link::LightLink;
+use crate::light_output::LightOutput;
+use crate::light_stage::LightStage;
 
-/// Edits waiting to be applied. Push from any system ordered before
-/// [`LightSet::Intake`], which is where they reach the world and where the
-/// lighting work they create joins [`LightWorkQueue`]. The block change itself
-/// is never deferred — only the lighting is.
-#[derive(Resource, Default)]
-pub struct PendingEdits {
-    columns: PriorityColumns<Vec<Edit>>,
-    /// Columns no budget holds back.
-    immediate: FxHashSet<ColumnPos>,
-}
-
-impl PendingEdits {
-    pub fn push(&mut self, edit: Edit) {
-        self.push_with_priority(edit, DEFAULT_PRIORITY);
-    }
-
-    /// Lower is more urgent. A column keeps the most urgent priority it was
-    /// given while it waits.
-    pub fn push_with_priority(&mut self, edit: Edit, priority: Priority) {
-        let column = edit.column();
-        // A block change takes effect the tick it is pushed; a section load
-        // held back past one in the same column would then overwrite it.
-        if matches!(edit, Edit::SetBlock { .. }) {
-            self.immediate.insert(column);
-        }
-        self.columns.entry(column, priority, Vec::new).push(edit);
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.columns.is_empty()
-    }
-
-    pub fn reprioritize(&mut self, score: impl FnMut(ColumnPos) -> Priority) {
-        self.columns.reprioritize(score);
-    }
-
-    /// Whether this column has edits that have not reached the world yet.
-    pub fn holds(&self, column: ColumnPos) -> bool {
-        self.columns.contains(column)
-    }
-
-    /// The most urgent `limit` columns plus every column holding a block
-    /// change, each taken whole.
-    ///
-    /// Costs what it hands out, never what is waiting: a backlog of thousands
-    /// of columns is not re-read to admit fifty.
-    fn take_admitted(&mut self, limit: usize) -> Vec<(Priority, Vec<Edit>)> {
-        let immediate = std::mem::take(&mut self.immediate);
-        let mut admitted: Vec<ColumnPos> = immediate.iter().copied().collect();
-        admitted.extend(
-            self.columns
-                .order()
-                .map(|(_, column)| column)
-                .filter(|column| !immediate.contains(column))
-                .take(limit),
-        );
-        admitted
-            .into_iter()
-            .filter_map(|column| self.columns.remove(column))
-            .collect()
-    }
-}
-
-/// Lighting work that has been applied to the world but not yet computed.
-///
-/// Exposed so the game can re-order it as the player moves, the way vanilla
-/// re-sorts chunk tasks when a ticket level changes.
-#[derive(Resource, Default)]
-pub struct LightWorkQueue(pub LightQueue);
-
-/// How much lighting work may be under way at once.
-///
-/// The point is not to finish sooner but to keep any single pass bounded: light
-/// is allowed to lag, a pass that never ends is not.
-#[derive(Resource, Copy, Clone, Debug)]
-pub struct LightBudget {
-    /// Cells of working field one epoch may cover. Counting influences instead
-    /// bounds nothing: the batch is unioned into a single field and the cost of
-    /// an epoch is that field's volume, whether two influences or two thousand
-    /// spanned it.
-    pub cells_per_epoch: u64,
-    /// Epochs allowed in flight together.
-    pub epochs_in_flight: usize,
-}
-
-impl Default for LightBudget {
-    fn default() -> Self {
-        Self {
-            // The influence radius and the section rounding are paid for on the
-            // perimeter, and a perimeter grows with the square root of what it
-            // encloses, so a batch is worth making large — but only now that the
-            // queue hands out a block of columns rather than a slice of the ring
-            // it orders them in. A few dozen columns of a full-height world.
-            cells_per_epoch: 8 << 20,
-            // A slot beyond what the pool can actually start holds no epoch but
-            // still blocks its area against the next batch, so the ceiling is
-            // the pool's width and not the machine's.
-            epochs_in_flight: AsyncComputeTaskPool::try_get()
-                .map(|pool| pool.thread_num())
-                .unwrap_or_else(available_parallelism),
-        }
-    }
-}
-
-/// How many section columns one tick may take in.
-///
-/// Loading a column costs a 256 block column sky rescan. Only section loads and
-/// unloads are held back — a block change takes effect the tick it is pushed,
-/// and there are never thousands of those in one tick.
-#[derive(Resource, Copy, Clone, Debug)]
-pub struct IntakeBudget {
-    pub columns_per_tick: usize,
-}
-
-impl Default for IntakeBudget {
-    fn default() -> Self {
-        // The rescan is cheap next to the epochs it feeds, and holding it back
-        // only starves them: a bulk load at render distance 96 admits its whole
-        // 38025 columns in under a second of intake and spends the rest of the
-        // load relaxing. The ceiling that matters is the 15s keep-alive window,
-        // which this misses by orders of magnitude however many land at once.
-        Self {
-            columns_per_tick: 1024,
-        }
-    }
-}
-
-/// The epochs in flight.
-///
-/// This is also the answer to "has the light settled". Systems whose behaviour
-/// has to be reproducible — mob spawning, crop growth, saving a region — should
-/// run only when it has, because light published a tick later than an edit is
-/// fine for rendering and not fine for simulation.
-#[derive(Resource, Default)]
-pub struct LightEpoch(Vec<InFlight>);
-
-struct InFlight {
-    area: BoundingBox,
-    task: Task<LightUpdate>,
-}
-
-impl LightEpoch {
-    pub fn is_running(&self) -> bool {
-        !self.0.is_empty()
-    }
-
-    /// Whether an epoch under way may still write into `area`.
-    pub fn touches(&self, area: BoundingBox) -> bool {
-        self.0.iter().any(|epoch| epoch.area.intersects(area))
-    }
-}
-
-/// Whether the engine still owes anybody light.
-///
-/// Both questions are asked of the same four resources, so they are answered in
-/// one place: a plugin that is not installed owes nothing, which is what the
-/// optional resources mean.
-#[derive(SystemParam)]
-pub struct LightStatus<'w> {
-    lighting: Option<Res<'w, Lighting>>,
-    queue: Option<Res<'w, LightWorkQueue>>,
-    epoch: Option<Res<'w, LightEpoch>>,
-    pending: Option<Res<'w, PendingEdits>>,
-}
-
-impl LightStatus<'_> {
-    /// Whether the lighting plugin is installed at all.
-    pub fn is_installed(&self) -> bool {
-        self.lighting.is_some()
-    }
-
-    /// Whether the light of one column is finished, neighbours included.
-    ///
-    /// A column is sent once and its light travels with it, so anything the
-    /// engine still owes it would arrive too late. The neighbours count because
-    /// a seam is lit against whatever stands beside it: a column whose
-    /// neighbour is still being lit holds the darker edge that neighbour's work
-    /// is about to repair.
-    pub fn settled_around(&self, column: ColumnPos) -> bool {
-        let Some(lighting) = self.lighting.as_ref() else {
-            return true;
-        };
-        for dx in -1..=1 {
-            for dz in -1..=1 {
-                let neighbour = ColumnPos::new(column.x + dx, column.z + dz);
-                if self
-                    .pending
-                    .as_ref()
-                    .is_some_and(|pending| pending.holds(neighbour))
-                    || self
-                        .queue
-                        .as_ref()
-                        .is_some_and(|queue| queue.0.priority_of(neighbour).is_some())
-                {
-                    return false;
-                }
-            }
-        }
-        let bounds = lighting.0.bounds();
-        let area = BoundingBox {
-            min: BlockPos::new(
-                (column.x - 1) * SECTION_WIDTH,
-                bounds.min_light_y(),
-                (column.z - 1) * SECTION_WIDTH,
-            ),
-            max: BlockPos::new(
-                (column.x + 2) * SECTION_WIDTH - 1,
-                bounds.max_light_y(),
-                (column.z + 2) * SECTION_WIDTH - 1,
-            ),
-        };
-        !self.epoch.as_ref().is_some_and(|epoch| epoch.touches(area))
-    }
-}
-
-/// The tick-loop steps, in the order they must run.
-///
-/// Resource conflicts alone would serialise them but leave the order to the
-/// scheduler, and most of the orders that leaves open are wrong: dispatching
-/// before edits are collected loses a tick, and dispatching before publishing
-/// throws away a finished epoch.
+/// The tick-loop steps.
 #[derive(SystemSet, Hash, Eq, PartialEq, Debug, Clone)]
 pub enum LightSet {
-    /// A finished epoch is written into [`BlockLight`] and [`SkyLight`].
+    /// What the light stage published is written into [`BlockLight`] and [`SkyLight`], in the
+    /// schedule [`LightPlugin::publish`] names.
     Publish,
-    /// Edits are applied to the world and their lighting work is queued.
+    /// The edits pushed to the [`LightLink`] and any change to the budgets go to the stage, in
+    /// `Last`.
     Intake,
-    /// The most urgent queued work, up to the budget, is handed to a worker.
-    Dispatch,
 }
 
+/// Light computed by a light stage, one per world, at the far end of a [`LightLink`]. The stage
+/// stops when the world drops its [`LightLink`].
 pub struct LightPlugin {
     pub registry: Arc<LightRegistry>,
     pub bounds: LightBounds,
     /// Clear for a dimension with no sky, so the sky layer never gains a source.
     pub sky: bool,
+    /// The schedule the light lands in. A world whose simulation reads the light names the
+    /// start of its tick, so the light changes only at a tick boundary.
+    pub publish: InternedScheduleLabel,
+    /// Where the stage runs. [`Placement::Inline`] lights everything handed to the stage in
+    /// [`LightSet::Publish`], on the thread of the world.
+    pub placement: Placement,
 }
 
 impl Plugin for LightPlugin {
     fn build(&self, app: &mut App) {
         let world = LightWorld::new(Arc::clone(&self.registry), self.bounds);
-        app.insert_resource(Lighting(if self.sky { world } else { world.without_sky() }))
-            .init_resource::<PendingEdits>()
-            .init_resource::<LightWorkQueue>()
+        let world = if self.sky { world } else { world.without_sky() };
+        let link = Link::new(LightStage::new(world), self.placement);
+        app.insert_resource(LightLink::new(link))
             .init_resource::<LightBudget>()
-            .init_resource::<IntakeBudget>()
-            .init_resource::<LightEpoch>()
             .add_message::<SectionRelit>()
+            .add_message::<ColumnLightSettled>()
+            .configure_sets(Last, LightSet::Publish.before(LightSet::Intake))
+            .add_systems(self.publish, publish_light.in_set(LightSet::Publish))
             .add_systems(
                 Last,
-                (
-                    publish_light.in_set(LightSet::Publish),
-                    intake_edits.in_set(LightSet::Intake),
-                    dispatch_epoch.in_set(LightSet::Dispatch),
-                )
-                    .chain(),
+                (send_budgets, send_edits).chain().in_set(LightSet::Intake),
             );
     }
 }
 
-/// A section whose light `publish_light` wrote, and which of its two layers it wrote.
-#[derive(Message, Clone, Copy, Debug, PartialEq, Eq)]
-pub struct SectionRelit {
-    pub section: Entity,
-    pub block: bool,
-    pub sky: bool,
-}
-
+/// Writes what the light stage published since the last run into the sections, and answers
+/// the columns whose light settled.
+///
+/// The outputs of the stage are cut into batches by its thread timing, so they are folded into
+/// one latest answer per section and written in section order: what lands, and the messages it
+/// raises, do not depend on how the outputs were cut.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "a Bevy system: each resource and query is its own parameter so the scheduler sees the access"
+)]
 pub fn publish_light(
-    mut lighting: ResMut<Lighting>,
-    mut running: ResMut<LightEpoch>,
+    mut light: ResMut<LightLink>,
     mut commands: Commands,
     mut lit: Query<(&mut BlockLight, &mut SkyLight)>,
     mut relit: MessageWriter<SectionRelit>,
+    mut settled: MessageWriter<ColumnLightSettled>,
+    mut latest: Local<FxHashMap<u64, PublishedLight>>,
+    mut sections: Local<Vec<PublishedLight>>,
+    mut columns: Local<Vec<ColumnPos>>,
 ) {
-    let mut finished = Vec::new();
-    running
-        .0
-        .retain_mut(|epoch| match block_on(poll_once(&mut epoch.task)) {
-            Some(update) => {
-                finished.push(update);
-                false
+    for output in light.outputs() {
+        match output {
+            LightOutput::Relit(published) => {
+                for published in published {
+                    fold_light(&mut latest, published);
+                }
             }
-            None => true,
-        });
+            LightOutput::Settled(answered) => columns.extend(answered),
+            LightOutput::Lit(_) => {}
+        }
+    }
+    sections.extend(latest.drain().map(|(_, light)| light));
+    sections.sort_unstable_by_key(|light| light.entity);
+    for published in sections.drain(..) {
+        write_light(published, &mut commands, &mut lit, &mut relit);
+    }
+    columns.sort_unstable();
+    columns.dedup();
+    for column in columns.drain(..) {
+        settled.write(ColumnLightSettled(column));
+    }
+}
 
-    for published in finished
-        .into_iter()
-        .flat_map(|update| lighting.0.apply(update))
-    {
-        let section = Entity::from_bits(published.entity);
-        match lit.get_mut(section) {
-            // Only a real change should wake whatever rebuilds meshes, and the
-            // epoch already decided that: a layer it hands back is one whose
-            // answer moved, so assigning it wakes nothing that should have slept.
-            Ok((mut block, mut sky)) => {
+/// A later layer replaces an earlier one; a layer the later answer leaves out stays.
+fn fold_light(latest: &mut FxHashMap<u64, PublishedLight>, light: PublishedLight) {
+    match latest.get_mut(&light.entity) {
+        Some(earlier) => {
+            if light.block_light.is_some() {
+                earlier.block_light = light.block_light;
+            }
+            if light.sky_light.is_some() {
+                earlier.sky_light = light.sky_light;
+            }
+        }
+        None => {
+            latest.insert(light.entity, light);
+        }
+    }
+}
+
+fn write_light(
+    published: PublishedLight,
+    commands: &mut Commands,
+    lit: &mut Query<(&mut BlockLight, &mut SkyLight)>,
+    relit: &mut MessageWriter<SectionRelit>,
+) {
+    let section = Entity::from_bits(published.entity);
+    match lit.get_mut(section) {
+        // Only a real change should wake whatever rebuilds meshes, and the
+        // epoch already decided that: a layer it hands back is one whose
+        // answer moved, so assigning it wakes nothing that should have slept.
+        Ok((mut block, mut sky)) => {
+            relit.write(SectionRelit {
+                section,
+                block: published.block_light.is_some(),
+                sky: published.sky_light.is_some(),
+            });
+            if let Some(light) = published.block_light {
+                block.0 = light;
+            }
+            if let Some(light) = published.sky_light {
+                sky.0 = light;
+            }
+        }
+        // A section reaches its entity for the first time with both layers
+        // in hand, because nothing was published for it to match against.
+        Err(_) => {
+            if let Ok(mut entity) = commands.get_entity(section) {
+                entity.insert((
+                    BlockLight(published.block_light.unwrap_or_default()),
+                    SkyLight(published.sky_light.unwrap_or_default()),
+                ));
                 relit.write(SectionRelit {
                     section,
-                    block: published.block_light.is_some(),
-                    sky: published.sky_light.is_some(),
+                    block: true,
+                    sky: true,
                 });
-                if let Some(light) = published.block_light {
-                    block.0 = light;
-                }
-                if let Some(light) = published.sky_light {
-                    sky.0 = light;
-                }
-            }
-            // A section reaches its entity for the first time with both layers
-            // in hand, because nothing was published for it to match against.
-            Err(_) => {
-                if let Ok(mut entity) = commands.get_entity(section) {
-                    entity.insert((
-                        BlockLight(published.block_light.unwrap_or_default()),
-                        SkyLight(published.sky_light.unwrap_or_default()),
-                    ));
-                    relit.write(SectionRelit {
-                        section,
-                        block: true,
-                        sky: true,
-                    });
-                }
             }
         }
     }
 }
 
-fn intake_edits(
-    mut lighting: ResMut<Lighting>,
-    mut pending: ResMut<PendingEdits>,
-    mut queue: ResMut<LightWorkQueue>,
-    budget: Res<IntakeBudget>,
-) {
-    if pending.is_empty() {
-        return;
-    }
-    // A column's edits go in one call so that a stack of section loads rescans
-    // its 256 sky columns once rather than once per section — which is why the
-    // budget counts columns and never splits one across ticks.
-    for (priority, edits) in pending.take_admitted(budget.columns_per_tick) {
-        for (column, influence) in lighting.0.apply_edits(edits) {
-            queue.0.push_with_priority(column, influence, priority);
-        }
+fn send_budgets(budget: Res<LightBudget>, mut light: ResMut<LightLink>) {
+    if budget.is_changed() {
+        light.send(LightInput::LightBudget(*budget));
     }
 }
 
-pub fn dispatch_epoch(
-    mut lighting: ResMut<Lighting>,
-    mut queue: ResMut<LightWorkQueue>,
-    mut running: ResMut<LightEpoch>,
-    budget: Res<LightBudget>,
-) {
-    if queue.0.is_empty() {
-        return;
-    }
-    // Without a task pool there is no worker to hand the batch to, so the queue
-    // keeps it and the light simply lags until one exists.
-    let Some(pool) = AsyncComputeTaskPool::try_get() else {
-        return;
-    };
-    let free = budget.epochs_in_flight.saturating_sub(running.0.len());
-    if free == 0 {
-        return;
-    }
-    let occupied: Vec<BoundingBox> = running.0.iter().map(|epoch| epoch.area).collect();
-    for batch in queue
-        .0
-        .drain_batches(budget.cells_per_epoch, &occupied, free)
-    {
-        let Some(job) = lighting.0.prepare_batch(batch) else {
-            continue;
-        };
-        let area = job.area();
-        running.0.push(InFlight {
-            area,
-            task: pool.spawn(async move { job.run() }),
-        });
-    }
+fn send_edits(mut light: ResMut<LightLink>) {
+    light.send_edits();
 }

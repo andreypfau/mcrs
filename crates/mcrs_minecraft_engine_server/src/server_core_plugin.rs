@@ -1,6 +1,9 @@
 use bevy_app::{App, AppExit, Plugin};
+use mcrs_engine_link::Placement;
 use mcrs_minecraft_assets::packs::{BuiltinAsset, PackLayering, PackRoots};
+use mcrs_minecraft_engine::muxer::muxer_placement::MuxerPlacement;
 use mcrs_minecraft_engine_world::server_loop::VoxelServerPlugin;
+use mcrs_minecraft_engine_world::world_cells::WorldCells;
 use mcrs_minecraft_registries::RegistryAdditions;
 
 use crate::data_pack::DataPack;
@@ -22,6 +25,17 @@ pub struct ServerCorePlugin {
     /// The local packs of the pack root that the registries load and the assets layer, by
     /// directory name.
     pub local_packs: Vec<String>,
+    /// Where the worlds tick: [`Placement::Inline`] ticks every world on the server thread, one
+    /// after another, with deterministic schedules; [`Placement::Thread`] gives each world a
+    /// thread of its own, the default.
+    pub worlds: Placement,
+    /// How many cells each dimension world has: one, the default, or a static division of its
+    /// columns by region.
+    pub cells: WorldCells,
+    /// Where the muxer, which decides the entity bytes of each player, runs:
+    /// [`Placement::Inline`] on the server thread, [`Placement::Thread`] on a thread of its own,
+    /// the default.
+    pub muxer: Placement,
 }
 
 impl Default for ServerCorePlugin {
@@ -32,6 +46,9 @@ impl Default for ServerCorePlugin {
             data_pack: DataPack::default(),
             builtin_assets: |_| None,
             local_packs: vec!["mcrs".to_owned()],
+            worlds: Placement::Thread,
+            cells: WorldCells::default(),
+            muxer: Placement::Thread,
         }
     }
 }
@@ -65,10 +82,13 @@ impl Plugin for ServerCorePlugin {
             .get_resource_or_init::<RegistryAdditions>()
             .local_packs
             .extend(self.local_packs.iter().cloned());
+        app.insert_resource(MuxerPlacement(self.muxer));
+        app.insert_resource(self.cells);
         app.add_plugins(VoxelServerPlugin {
             tick_rate: DEFAULT_TPS,
             owns_task_pools: self.owns_task_pools,
             asset_path: self.asset_path.clone(),
+            worlds: self.worlds,
         });
         app.add_plugins(mcrs_minecraft_assets::MinecraftCorePlugin);
         app.add_plugins(mcrs_minecraft_engine_registries::RegistryLoadPlugin);

@@ -3,33 +3,34 @@ use crate::bus::{
     InboundPlayerSpawn, OutboundPlayerAttached, OutboundPlayerPacket, PacketPayload,
     PlayerInfoEntry, to,
 };
-use crate::column_view::ColumnView;
-use crate::default_game_mode::DefaultGameMode;
+use crate::coordinator::default_game_mode::DefaultGameMode;
+use crate::coordinator::ops::{DefaultOpLevel, OpList};
 use crate::dimension_change::Arrival;
 use crate::enter_level_packets::enter_level_packets;
 use crate::game_mode::{self, ListedGameMode};
+use crate::game_profile::GameProfile;
 use crate::minecraft_entity::EntityBundle;
 use crate::network_id;
 use crate::op_level::AnnouncedOpLevel;
-use crate::ops::{DefaultOpLevel, OpList};
 use crate::persistence;
 use crate::player_bundle::PlayerBundle;
-use crate::session::{GameProfile, HostAnchor};
+use crate::publish_player_tiles::AnnounceJoin;
 use crate::teleport::TeleportState;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::{MessageReader, MessageWriter};
-use bevy_ecs::prelude::{Commands, Query, Res, ResMut, With};
+use bevy_ecs::prelude::{Commands, Query, Res, With};
 use bevy_ecs::world::World;
 use mcrs_minecraft_dimension::Dimension as DimensionKey;
 use mcrs_minecraft_engine_world::entity::EntityUuid;
 use mcrs_minecraft_engine_world::entity::physics::Transform;
 use mcrs_minecraft_engine_world::entity::player::chunk_view::PlayerViewDistance;
-use mcrs_minecraft_engine_world::session::{DimPlayerIndex, Owner};
+use mcrs_minecraft_engine_world::entity::player::chunk_view::SentChunkView;
+use mcrs_minecraft_engine_world::session::Owner;
 use mcrs_minecraft_engine_world::world::dimension::{Dimension, DimensionTypeId, InDimension};
-use mcrs_minecraft_engine_world::world::lifecycle::ticket::SimulationDistance;
+use mcrs_minecraft_engine_world::world::lifecycle::simulation::SimulationDistance;
 use mcrs_minecraft_game_mode::GameMode;
 use mcrs_minecraft_protocol::VarInt;
-use mcrs_minecraft_protocol_game::clientbound::{ClientboundChunkCacheRadius, ClientboundLogin};
+use mcrs_minecraft_protocol_game::clientbound::ClientboundLogin;
 use mcrs_minecraft_protocol_game::player::PlayerSpawnInfo;
 use mcrs_minecraft_resource::ResourceKeyBuf;
 use tracing::{debug, info};
@@ -58,7 +59,6 @@ pub(crate) fn consume_inbound_player_spawn(
     mut packet_writer: MessageWriter<OutboundPlayerPacket>,
     dims: Query<(Entity, &ResourceKeyBuf<DimensionKey>, &DimensionTypeId), With<Dimension>>,
     mut commands: Commands,
-    mut dim_index: ResMut<DimPlayerIndex>,
     simulation_distance: Res<SimulationDistance>,
     default_game_mode: Res<DefaultGameMode>,
     ops: Res<OpList>,
@@ -97,10 +97,8 @@ pub(crate) fn consume_inbound_player_spawn(
             commands.entity(new_entity).insert(info.clone());
         }
         commands.queue(move |world: &mut World| persistence::load_player(world, new_entity));
-        dim_index.0.insert(spawn.session, new_entity);
-
-        let host = spawn.host_anchor;
-        let wire_id = network_id::player_network_id(host);
+        let session = spawn.session;
+        let wire_id = network_id::player_network_id(session);
         let spawn_pos = spawn.snapshot.position;
 
         info!(
@@ -110,19 +108,19 @@ pub(crate) fn consume_inbound_player_spawn(
         debug!(
             target: "mcrs_minecraft_engine::player",
             player = wire_id,
-            host_anchor = ?host,
+            ?session,
             "emit_play_login: emitting play ClientboundLogin for newly-materialized in-dim entity"
         );
 
         packet_writer.write(
             to(
-                host,
+                session,
                 login_packet(
                     spawn,
                     wire_id,
                     PlayerSpawnInfo::new(dimension_type.0, dim_key.clone(), default_game_mode.0),
                     view_distance.distance,
-                    simulation_distance.0,
+                    simulation_distance.horizontal,
                 ),
             )
             .critical(),
@@ -133,7 +131,7 @@ pub(crate) fn consume_inbound_player_spawn(
         // keeps block collisions even though login set the spectator mode.
         packet_writer.write(
             to(
-                host,
+                session,
                 PacketPayload::PlayerInfoUpdate {
                     entries: vec![PlayerInfoEntry {
                         player_uuid: spawn.snapshot.uuid,
@@ -145,17 +143,8 @@ pub(crate) fn consume_inbound_player_spawn(
             )
             .critical(),
         );
-        packet_writer.write(
-            to(
-                host,
-                PacketPayload::SetChunkCacheRadius(ClientboundChunkCacheRadius {
-                    radius: VarInt(i32::from(view_distance.distance)),
-                }),
-            )
-            .critical(),
-        );
         enter_level_packets(
-            host,
+            session,
             op_level,
             arrival.position_packet(login_teleport_id),
             game_mode::abilities(default_game_mode.0, PlayerFlying(false)),
@@ -166,12 +155,10 @@ pub(crate) fn consume_inbound_player_spawn(
 
         announced_levels.write(OpLevelAnnounced {
             player: new_entity,
-            host,
+            session,
             level: op_level,
         });
-        attached.write(OutboundPlayerAttached {
-            host_anchor: spawn.host_anchor,
-        });
+        attached.write(OutboundPlayerAttached { session });
     }
 }
 
@@ -223,8 +210,8 @@ fn spawn_player_entity(
                 view_distance,
                 ..Default::default()
             },
-            ColumnView::default(),
-            HostAnchor(spawn.host_anchor),
+            SentChunkView::default(),
+            AnnounceJoin,
             Owner(spawn.session),
             GameProfile {
                 id: spawn.snapshot.uuid,

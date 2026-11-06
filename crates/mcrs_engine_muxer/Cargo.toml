@@ -1,0 +1,14 @@
+[package]
+name = "mcrs_engine_muxer"
+description = "Fans the changes of a world out to its viewers: tiles and tile streams for entities, version streams for chunks, and bytes encoded once and shared"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+doctest = false
+
+[lints]
+workspace = true
+
+[dependencies]
+bytes.workspace = true

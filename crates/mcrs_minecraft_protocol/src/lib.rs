@@ -24,6 +24,7 @@ pub mod handshake;
 pub mod packets;
 pub mod profile;
 mod raw;
+mod record;
 pub mod registry;
 pub mod resource_pack;
 pub mod setting;
@@ -37,6 +38,7 @@ pub use mcrs_minecraft_wire::{
     Bounded, Context, Decode, Encode, Error, ErrorKind, RawBytes, Result, VarInt, VarLong,
 };
 pub use raw::EncodedBody;
+pub use record::{RECORD_LENGTH_BYTES, write_record};
 use serde::{Deserialize, Serialize};
 pub use {anyhow, bytes, mcrs_minecraft_nbt as nbt, mcrs_minecraft_wire as wire, uuid};
 

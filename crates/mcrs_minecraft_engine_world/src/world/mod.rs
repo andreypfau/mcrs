@@ -1,5 +1,4 @@
 pub mod channels;
-pub mod column_drain;
 pub mod dimension;
 pub mod dimension_builders;
 pub mod dimension_list;

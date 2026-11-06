@@ -1,19 +1,18 @@
 use std::panic::{AssertUnwindSafe, catch_unwind};
 
-use bevy_app::{App, AppLabel};
+use bevy_app::App;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::system::RunSystemOnce;
 use bevy_ecs::world::World;
 use mcrs_minecraft_dimension_environment::dimension_type::DimensionTypeFile;
+use mcrs_minecraft_engine::between_ticks::drain_dim_spawn_queue;
 use mcrs_minecraft_engine::bus::InboundPlayerSpawn;
-use mcrs_minecraft_engine::sub_app_builder::drain_dim_spawn_queue;
-use mcrs_minecraft_engine::world_plugin::enqueue_dim_spawns;
+use mcrs_minecraft_engine::coordinator::coordinator_plugin::enqueue_dim_spawns;
 use mcrs_minecraft_engine_world::session::PlayerSessionCounter;
 use mcrs_minecraft_engine_world::world::dimension::{
     DimensionTypeConfig, DimensionTypeId, HasSkyLight, HasWeather,
 };
 use mcrs_minecraft_engine_world::world::dimension_list::DimensionList;
-use mcrs_minecraft_engine_world::world::sub_app::DimAppLabel;
 use mcrs_minecraft_game_registries::dimension::Dimensions;
 use mcrs_minecraft_game_registries::registry_load::test_registries;
 use mcrs_minecraft_game_registries::worldgen::world_preset::WorldPreset;
@@ -37,13 +36,7 @@ fn host_spawning(dimensions: &Dimensions) -> App {
 }
 
 fn in_world<T>(app: &mut App, label: Entity, read: impl FnOnce(&mut World) -> T) -> T {
-    let world = app
-        .sub_apps_mut()
-        .sub_apps
-        .get_mut(&DimAppLabel(label).intern())
-        .expect("the dimension sub-app exists")
-        .world_mut();
-    read(world)
+    read(crate::host_app::world(app, label))
 }
 
 fn config_of(app: &mut App, label: Entity) -> DimensionTypeConfig {

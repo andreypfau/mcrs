@@ -30,7 +30,7 @@ pub fn air_section() -> ChunkBlocks {
 // different ID would silently break this count. The principled fix is to
 // consult the `IS_NOT_AIR` bit from `BlockStateLightTable.flags_for`, but that
 // requires plumbing the table through `non_air_block_count`'s callers in
-// `column_view`. Tracked as a follow-up.
+// the column encoders. Tracked as a follow-up.
 pub fn non_air_block_count(blocks: &BlockPalette) -> u16 {
     match &blocks.0 {
         Homogeneous(registry_id) if registry_id.0 != 0 => SectionPos::VOLUME as u16,

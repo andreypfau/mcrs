@@ -40,6 +40,7 @@ impl PacketEncoder {
         Ok(())
     }
 
+    /// Hands over the frames made so far and leaves the encoder empty.
     pub fn take(&mut self) -> BytesMut {
         self.buf.split()
     }
@@ -50,6 +51,10 @@ impl PacketEncoder {
 
     pub fn set_compression(&mut self, threshold: CompressionThreshold) {
         self.threshold = threshold;
+    }
+
+    pub fn compression(&self) -> CompressionThreshold {
+        self.threshold
     }
 }
 

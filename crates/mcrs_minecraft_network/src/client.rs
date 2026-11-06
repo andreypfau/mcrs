@@ -65,7 +65,7 @@ pub struct ClientConnection {
     dispatcher: PacketDispatcher,
     /// The frames of the bundle that the server opened and has not closed yet. A frame of a row
     /// without a structure counts towards the limit and raises nothing.
-    bundle: Option<Vec<(Option<Trigger>, Bytes, crate::Instant)>>,
+    bundle: Option<Vec<(Option<Trigger>, Bytes)>>,
     /// The state of the last frame that ended one. A frame behind it is read only once the
     /// state changes, because an observer can answer the end later than the same frame.
     ended: Option<ConnectionState>,
@@ -391,10 +391,10 @@ fn receive_packets(
                     );
                     break;
                 }
-                Some(bundle) => bundle.push((trigger, packet.payload, packet.timestamp)),
+                Some(bundle) => bundle.push((trigger, packet.payload)),
                 None => {
                     if let Some(trigger) = trigger {
-                        trigger.raise(&mut commands, entity, packet.payload, packet.timestamp);
+                        trigger.raise(&mut commands, entity, packet.payload);
                     }
                 }
             }
@@ -406,14 +406,10 @@ fn receive_packets(
     }
 }
 
-fn raise_bundle(
-    commands: &mut Commands,
-    entity: Entity,
-    bundle: Vec<(Option<Trigger>, Bytes, crate::Instant)>,
-) {
-    for (trigger, data, timestamp) in bundle {
+fn raise_bundle(commands: &mut Commands, entity: Entity, bundle: Vec<(Option<Trigger>, Bytes)>) {
+    for (trigger, data) in bundle {
         if let Some(trigger) = trigger {
-            trigger.raise(commands, entity, data, timestamp);
+            trigger.raise(commands, entity, data);
         }
     }
 }
@@ -523,6 +519,7 @@ fn on_keep_alive(
 #[cfg(not(target_family = "wasm"))]
 mod tests {
     use super::*;
+    use crate::OutboundReceiver;
     use bevy_app::Update;
     use bevy_ecs::prelude::ResMut;
     use bytes::BytesMut;
@@ -678,7 +675,7 @@ mod tests {
     struct Harness {
         app: App,
         inbound: mpsc::Sender<crate::ReceivedPacket>,
-        outgoing: mpsc::Receiver<bytes::Bytes>,
+        outgoing: OutboundReceiver,
         entity: Entity,
     }
 

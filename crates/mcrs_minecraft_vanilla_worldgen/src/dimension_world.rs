@@ -2,9 +2,12 @@ use std::sync::Arc;
 
 use bevy_app::SubApp;
 use bevy_ecs::world::World;
+use mcrs_engine_cell::CellIndex;
 use mcrs_minecraft_biome::source::{BiomeSource, MultiNoiseBiomeSource};
 use mcrs_minecraft_block::definition::Blocks;
+use mcrs_minecraft_engine::column_store::ColumnStoreLink;
 use mcrs_minecraft_engine::heightmap::BlockHeightmapPredicates;
+use mcrs_minecraft_engine_world::owned_columns::OwnedColumns;
 use mcrs_minecraft_engine_world::world::dimension_builders::DimensionBuild;
 use mcrs_minecraft_engine_world::world::dimension_list::DimensionList;
 use mcrs_minecraft_engine_world::world::world_save::WorldSave;
@@ -17,7 +20,6 @@ use mcrs_minecraft_worldgen_generator::saved::SavedColumns;
 use mcrs_minecraft_worldgen_generator::stages::{FillContext, dimension_y_sections};
 use tracing::{error, warn};
 
-use crate::chunk_plugin::{ChunkPlugin, SlowColumnThreshold};
 use crate::features::DimensionFeaturePrograms;
 use crate::modern_carvers::DimensionCarverBiomes;
 use crate::routers::DimensionRouters;
@@ -29,13 +31,20 @@ pub(crate) fn build_dimension_world(
     build: &DimensionBuild<'_>,
     sub_app: &mut SubApp,
 ) {
-    insert_fill_context(host, build, sub_app);
-    sub_app.add_plugins(ChunkPlugin);
-    sub_app.insert_resource(
-        host.get_resource::<SlowColumnThreshold>()
-            .copied()
-            .unwrap_or_default(),
-    );
+    // The host generates the columns of a world from the context of its first cell, so the
+    // other cells need none.
+    let first_cell = sub_app
+        .world()
+        .get_resource::<OwnedColumns>()
+        .is_none_or(|owned| owned.index() == CellIndex(0));
+    if first_cell {
+        insert_fill_context(host, build, sub_app);
+    }
+    // The world generates its columns in the host, and lands each one as an answer of the data
+    // layer.
+    if let Some(mut store) = sub_app.world_mut().get_resource_mut::<ColumnStoreLink>() {
+        store.generate_through_world();
+    }
     sub_app.insert_resource(
         host.get_resource::<DimensionStructures>()
             .cloned()

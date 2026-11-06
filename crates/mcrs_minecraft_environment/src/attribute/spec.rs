@@ -392,8 +392,8 @@ impl Draft {
                     packed,
                     form: ColorForm::Rgb | ColorForm::Unspecified,
                 },
-            )
-            | (
+            ) => Some(AttributeValue::Color(opaque_rgb(packed))),
+            (
                 AttributeType::ArgbColor,
                 Draft::Color {
                     packed,
@@ -588,8 +588,16 @@ impl<'de> Visitor<'de> for ColorDraft {
     }
 }
 
+/// The game keeps a vector component as an unbounded float; a byte holds only `[0, 1]`.
 fn as_8bit_channel(value: f32) -> u32 {
-    (value * 255.0).floor() as i32 as u32 & 0xFF
+    (value.clamp(0.0, 1.0) * 255.0).floor() as u32
+}
+
+/// The game holds an rgb colour as three floats, so the alpha byte of a packed rgb colour
+/// means nothing. It is kept opaque because `alpha_blend` reads the subject's alpha, and over
+/// an opaque subject that composite is the game's plain rgb lerp.
+fn opaque_rgb(packed: u32) -> u32 {
+    packed | 0xFF00_0000
 }
 
 fn serialize_typed<S: Serializer>(
@@ -665,6 +673,12 @@ fn row(
     range: AttributeRange,
     flags: u8,
 ) -> AttributeSpec {
+    let default = match (ty, default) {
+        (AttributeType::RgbColor, AttributeValue::Color(packed)) => {
+            AttributeValue::Color(opaque_rgb(packed))
+        }
+        (_, default) => default,
+    };
     AttributeSpec {
         id,
         ty,
@@ -858,6 +872,11 @@ mod tests {
             value(cloud_color, json!([1.0, 0.5, 0.0, 0.5])).unwrap(),
             AttributeValue::Color(0x7FFF_7F00)
         );
+        assert_eq!(
+            value(sky_color, json!([1.5, -0.5, 0.5])).unwrap(),
+            AttributeValue::Color(0xFFFF_007F),
+            "a component out of [0, 1] saturates"
+        );
         assert!(
             value(sky_color, json!([1.0, 0.5, 0.0, 0.5])).is_err(),
             "rgb takes 3"
@@ -885,6 +904,22 @@ mod tests {
             AttributeValue::Color(0x8010_2030)
         );
         assert!(argument(sky_color, Operation::Multiply, json!("#80102030")).is_err());
+    }
+
+    #[test]
+    fn an_rgb_colour_without_an_alpha_byte_blends_as_opaque() {
+        let sky_color = attribute("minecraft:visual/sky_color").unwrap();
+        let half_white = argument(sky_color, Operation::AlphaBlend, json!("#80ffffff")).unwrap();
+        // `ALPHA_BLEND_RGB` lerps by the argument's alpha: half of white over black.
+        for black in [
+            value(sky_color, json!(0)).unwrap(),
+            sky_color.default.clone(),
+        ] {
+            assert_eq!(
+                crate::attribute::apply(Operation::AlphaBlend, &black, &half_white).unwrap(),
+                AttributeValue::Color(0xFF80_8080)
+            );
+        }
     }
 
     #[test]
