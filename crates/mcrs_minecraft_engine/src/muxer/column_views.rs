@@ -367,14 +367,27 @@ impl ColumnViews {
         blocked: &FxHashSet<PlayerSession>,
         out: &mut Vec<OutboundPlayerPacket>,
     ) {
+        let mut sessions = mem::take(&mut self.sessions);
         let mut nearest = mem::take(&mut self.nearest);
-        self.raise_queued(blocked, &mut nearest);
-        nearest.clear();
-        self.nearest = nearest;
         let mut picked = mem::take(&mut self.picked);
-        self.pick(blocked, &mut picked);
+        sessions.extend(
+            self.players
+                .keys()
+                .copied()
+                .filter(|session| !blocked.contains(session)),
+        );
+        sessions.sort_unstable_by_key(|session| session.0);
+        // A player's raise touches only the columns of that player and the waiters of a feed,
+        // never a version, so each player can raise and then pick in one pass.
+        for &session in &sessions {
+            self.raise_queued(session, &mut nearest);
+            self.pick(session, &mut nearest, &mut picked);
+        }
         self.send_batches(&picked, out);
+        sessions.clear();
         picked.clear();
+        self.sessions = sessions;
+        self.nearest = nearest;
         self.picked = picked;
     }
 
@@ -385,77 +398,56 @@ impl ColumnViews {
             .map(|(dim, requests)| DimRequests { dim, requests })
     }
 
-    /// The players in the order of their sessions, in a buffer that the caller hands back.
-    fn sorted_sessions(&mut self) -> Vec<PlayerSession> {
-        let mut sessions = mem::take(&mut self.sessions);
-        sessions.clear();
-        sessions.extend(self.players.keys().copied());
-        sessions.sort_unstable_by_key(|session| session.0);
-        sessions
+    /// Asks for the queued columns of `session`, nearest first, up to the budget of a tick.
+    fn raise_queued(&mut self, session: PlayerSession, nearest: &mut Vec<ColumnPos>) {
+        let Some(player) = self.players.get_mut(&session) else {
+            return;
+        };
+        nearest.extend(player.queued.iter().copied());
+        keep_nearest(nearest, player.center(), player.raise_budget());
+        let dim = player.dim;
+        for column in nearest.iter().copied() {
+            player.set(column, Some(ColumnState::Wanted));
+        }
+        for column in nearest.drain(..) {
+            let at = DimColumn { dim, column };
+            let need = self.feeds.entry(at).or_default().wait(viewer(session));
+            self.need(at, need);
+        }
     }
 
-    /// Asks for the queued columns of each player, nearest first, up to the budget of a tick.
-    fn raise_queued(&mut self, blocked: &FxHashSet<PlayerSession>, nearest: &mut Vec<ColumnPos>) {
-        let sessions = self.sorted_sessions();
-        for &session in &sessions {
-            if blocked.contains(&session) {
-                continue;
-            }
-            let Some(player) = self.players.get_mut(&session) else {
-                continue;
-            };
-            nearest.extend(player.queued.iter().copied());
-            keep_nearest(nearest, player.center(), player.raise_budget());
-            let dim = player.dim;
-            for column in nearest.iter().copied() {
-                player.set(column, Some(ColumnState::Wanted));
-            }
-            for column in nearest.drain(..) {
-                let at = DimColumn { dim, column };
-                let need = self.feeds.entry(at).or_default().wait(viewer(session));
-                self.need(at, need);
-            }
+    /// Picks the next batch of `session` into `picked` when it has room for one, nearest first.
+    fn pick(
+        &mut self,
+        session: PlayerSession,
+        nearest: &mut Vec<ColumnPos>,
+        picked: &mut Vec<Picked>,
+    ) {
+        let Some(player) = self.players.get_mut(&session) else {
+            return;
+        };
+        player.pacing.refill();
+        let allowed = player.pacing.allowed();
+        if allowed == 0 {
+            return;
         }
-        self.sessions = sessions;
-    }
-
-    /// Picks the next batch of each player that has room for one, nearest first, into `picked`,
-    /// ordered by player.
-    fn pick(&mut self, blocked: &FxHashSet<PlayerSession>, picked: &mut Vec<Picked>) {
-        let sessions = self.sorted_sessions();
-        let mut nearest = mem::take(&mut self.nearest);
-        for &session in &sessions {
-            if blocked.contains(&session) {
-                continue;
-            }
-            let Some(player) = self.players.get_mut(&session) else {
-                continue;
-            };
-            player.pacing.refill();
-            let allowed = player.pacing.allowed();
-            if allowed == 0 {
-                continue;
-            }
-            let dim = player.dim;
-            let feeds = &self.feeds;
-            nearest.extend(player.wanted.iter().copied().filter(|column| {
-                feeds
-                    .get(&DimColumn {
-                        dim,
-                        column: *column,
-                    })
-                    .is_some_and(|feed| feed.version().is_some())
-            }));
-            // Nearest to where the player is now, not to where they were when the column came
-            // ready: one step of the player invalidates any order settled earlier.
-            keep_nearest(&mut nearest, player.center(), allowed);
-            picked.extend(nearest.drain(..).map(|column| Picked {
-                session,
-                at: DimColumn { dim, column },
-            }));
-        }
-        self.sessions = sessions;
-        self.nearest = nearest;
+        let dim = player.dim;
+        let feeds = &self.feeds;
+        nearest.extend(player.wanted.iter().copied().filter(|column| {
+            feeds
+                .get(&DimColumn {
+                    dim,
+                    column: *column,
+                })
+                .is_some_and(|feed| feed.version().is_some())
+        }));
+        // Nearest to where the player is now, not to where they were when the column came
+        // ready: one step of the player invalidates any order settled earlier.
+        keep_nearest(nearest, player.center(), allowed);
+        picked.extend(nearest.drain(..).map(|column| Picked {
+            session,
+            at: DimColumn { dim, column },
+        }));
     }
 
     /// Sends every player its batch, bracketed by a start and a finish, each column followed by
