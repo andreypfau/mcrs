@@ -135,17 +135,13 @@ where
     sys.apply_deferred(world);
 }
 
-/// Collect all packets from a connection entity's `OutboundQueue` in priority
-/// drain order (Critical → High → Normal) into a flat `Vec`.
+/// Collect all packets from a connection entity's `OutboundQueue`, in the order they go on the
+/// wire.
 pub fn drain_queue(world: &mut World, socket: Entity) -> Vec<QueuedPacket> {
     let mut q = world
         .get_mut::<OutboundQueue>(socket)
         .expect("OutboundQueue present");
-    let mut out = Vec::new();
-    out.extend(q.critical.drain(..));
-    out.extend(q.high.drain(..));
-    out.extend(q.normal.drain(..));
-    out
+    q.drain().map(|queued| queued.packet).collect()
 }
 
 /// A small real packet that carries `seq`, so a test can tell its packets apart.

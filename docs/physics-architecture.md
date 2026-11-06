@@ -1474,3 +1474,7 @@ E1..E8, T1 (any time)   D1 ─ D2 ─ D3 ─ D4 ─ D5 ─ D6 ─ D7
     for "loaded but not broadcasting": it drops the marks of a column that the muxer does not
     subscribe to, as for a section that no player sees. The complete column that the client gets
     later carries the change.
+33. §8.5 lists motion among the changes that are never shed. The entity records of the muxer are
+    still shed past the depth of a queue, as before. If the records carry a `set_entity_motion` of
+    the viewer itself, they must not be shed, and they must count as a predicted change for the
+    probes. Which entity packets of the muxer apply to the viewer?

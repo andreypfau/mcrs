@@ -28,6 +28,7 @@ mcrs_minecraft_protocol::extend_packet_table! {
         "move_minecart_along_track" => ClientboundMoveMinecartAlongTrack,
         "move_entity_rot" => ClientboundMoveEntityRot,
         "open_screen" => ClientboundOpenScreen<'a>,
+        "ping" => ClientboundPing,
         "player_abilities" => ClientboundPlayerAbilities,
         "player_chat" => ClientboundPlayerChat<'a>,
         "player_info_remove" => ClientboundPlayerInfoRemove,

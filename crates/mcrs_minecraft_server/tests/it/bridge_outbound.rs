@@ -118,13 +118,13 @@ fn packet_target_missing_queue_counted() {
 }
 
 // ---------------------------------------------------------------------------
-// priority_drain_order
+// write_order
 // ---------------------------------------------------------------------------
 
-/// Pushing Normal → High → Critical then draining in priority order
-/// yields Critical, High, Normal.
+/// MVC-LAT-001: the queue drains in the order of the writes, whatever their priority, so the
+/// client applies the changes in the order the server made them.
 #[test]
-fn priority_drain_order() {
+fn the_queue_drains_in_the_order_of_the_writes() {
     let mut world = build_bridge_world();
 
     let dim = Entity::from_raw_u32(500).expect("nonzero");
@@ -156,11 +156,7 @@ fn priority_drain_order() {
         })
         .collect();
 
-    assert_eq!(
-        seqs,
-        vec![1, 2, 3],
-        "drain order must be Critical(1) → High(2) → Normal(3)"
-    );
+    assert_eq!(seqs, vec![3, 2, 1]);
 }
 
 // ---------------------------------------------------------------------------
