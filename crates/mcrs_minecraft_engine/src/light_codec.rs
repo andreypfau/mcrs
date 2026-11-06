@@ -169,19 +169,6 @@ pub fn build_fullbright_light_data(rows: usize) -> LightData<'static> {
     }
 }
 
-/// Build a wire-ready `LightData` for the given column entity.
-///
-/// Returns `LightData::default()` if the column or its parent dimension is
-/// missing the required components — callers should treat that as an
-/// "ignore this column for now" signal rather than an error, since the
-/// reconcile lifecycle may not yet have attached state.
-pub fn build_full_light_data(
-    column_entity: Entity,
-    params: &LightCodecParams,
-) -> LightData<'static> {
-    build_light_data(column_entity, params, |_, _| true)
-}
-
 /// Build a `LightData` describing only the sections named in the changed
 /// slices. Every other row is left out of both masks, which the client reads as
 /// `RowLight::Unchanged` and leaves as it is — including the two padding rows,
