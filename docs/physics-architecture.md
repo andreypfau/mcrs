@@ -1397,3 +1397,6 @@ E1..E8, T1 (any time)   D1 ─ D2 ─ D3 ─ D4 ─ D5 ─ D6 ─ D7
     grown by `m`" do not state the sign of the distance outside the border, or whether the test is
     strict. The kernel uses the signed distance (negative outside) and strict comparisons.
 
+14. PHY-RCH-002 lists the blocks with an inside action only as examples. The table marks those
+    examples and the tags `pressure_plates`, `buttons`, `crops`, `cauldrons` and `fire`. A rest skip
+    (PHY-SKIP-004) needs the full set. Which blocks have an inside action?

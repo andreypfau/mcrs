@@ -1,0 +1,283 @@
+#![expect(
+    clippy::unwrap_used,
+    reason = "the corpus loaders fail the test by panicking"
+)]
+
+use std::sync::OnceLock;
+use std::time::Instant;
+
+use mcrs_minecraft_block::block_keys::Block;
+use mcrs_minecraft_block::definition::BlockDefinitions;
+use mcrs_minecraft_block::definition::build_block_definitions;
+use mcrs_minecraft_collision_table::collision_table;
+use mcrs_minecraft_collision_table::widen;
+use mcrs_minecraft_physics::Axis;
+use mcrs_minecraft_physics::BlockFlags;
+use mcrs_minecraft_physics::CollisionTable;
+use mcrs_minecraft_physics::ShapeClass;
+use mcrs_minecraft_registries::Tags;
+use mcrs_voxel::BlockStateId;
+
+fn definitions() -> &'static BlockDefinitions {
+    static DEFINITIONS: OnceLock<BlockDefinitions> = OnceLock::new();
+    DEFINITIONS.get_or_init(|| {
+        let directory = concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../assets/mcrs/block_definition"
+        );
+        let mut files: Vec<(String, Vec<u8>)> = std::fs::read_dir(directory)
+            .unwrap()
+            .map(|entry| entry.unwrap().path())
+            .filter(|path| {
+                path.extension()
+                    .is_some_and(|extension| extension == "json")
+            })
+            .map(|path| (path.display().to_string(), std::fs::read(&path).unwrap()))
+            .collect();
+        files.sort();
+        let names: Vec<&str> = Block::ALL
+            .iter()
+            .map(|block| block.as_static_str())
+            .collect();
+        build_block_definitions(&names, files).unwrap().0
+    })
+}
+
+fn tags() -> &'static Tags<Block> {
+    static TAGS: OnceLock<Tags<Block>> = OnceLock::new();
+    TAGS.get_or_init(|| {
+        mcrs_minecraft_game_registries::registry_load::test_registries()
+            .tags::<Block>()
+            .unwrap()
+    })
+}
+
+fn table() -> &'static CollisionTable {
+    static TABLE: OnceLock<CollisionTable> = OnceLock::new();
+    TABLE.get_or_init(|| collision_table(definitions(), tags()))
+}
+
+fn state(name: &str) -> BlockStateId {
+    definitions().default_state(name).unwrap()
+}
+
+#[test]
+fn every_corpus_coordinate_widens_exactly() {
+    let definitions = definitions();
+    let mut checked = 0;
+    for id in definitions.states() {
+        for bounds in definitions.shape(definitions.state(id).collision_shape) {
+            for value in bounds
+                .min
+                .to_array()
+                .into_iter()
+                .chain(bounds.max.to_array())
+            {
+                // Each corpus value is a multiple of half a pixel, which f32 and f64 both hold.
+                assert_eq!(
+                    (value * 32.0).fract(),
+                    0.0,
+                    "{value} is off the half-pixel grid"
+                );
+                assert_eq!(widen(value), f64::from(value));
+                checked += 1;
+            }
+        }
+    }
+    assert!(checked > 90_000, "only {checked} coordinates");
+    println!("{checked} corpus coordinates widen exactly");
+}
+
+#[test]
+fn a_rounded_corpus_value_widens_to_its_decimal() {
+    // 8.0001 pixels, as the corpus rounds an f32 constant, is 80001 / 160000 blocks.
+    let value = (8.0001_f64 / 16.0) as f32;
+    assert_eq!(widen(value), 80001.0 / 160000.0);
+}
+
+#[test]
+fn every_corpus_state_round_trips() {
+    let definitions = definitions();
+    let table = table();
+    assert_eq!(table.len(), definitions.state_count());
+    for id in definitions.states() {
+        let boxes: Vec<[f64; 6]> = definitions
+            .shape(definitions.state(id).collision_shape)
+            .iter()
+            .map(|bounds| {
+                let [a, b, c] = bounds.min.to_array().map(widen);
+                let [d, e, f] = bounds.max.to_array().map(widen);
+                [a, b, c, d, e, f]
+            })
+            .collect();
+        let class = table.state(id).class;
+        let shape = match class {
+            ShapeClass::Scaffolding { .. } | ShapeClass::PowderSnow => continue,
+            ShapeClass::Empty => {
+                assert!(boxes.is_empty(), "state {id:?} lost its boxes");
+                continue;
+            }
+            ShapeClass::FullCube => table.shape(table.full_cube()).unwrap(),
+            ShapeClass::OneBox(shape) | ShapeClass::Compound(shape) => table.shape(shape).unwrap(),
+        };
+        assert_eq!(
+            matches!(class, ShapeClass::OneBox(_) | ShapeClass::FullCube),
+            boxes.len() == 1
+        );
+        for bounds in &boxes {
+            for axis in Axis::ALL {
+                for face in [bounds[axis.index()], bounds[axis.index() + 3]] {
+                    let lines = shape.lines(axis);
+                    assert!(
+                        lines.iter().any(|line| (line - face).abs() < 1.0e-7),
+                        "state {id:?}: face {face} is not a line of {lines:?}"
+                    );
+                }
+            }
+        }
+        let [xs, ys, zs] = Axis::ALL.map(|axis| shape.lines(axis));
+        for (x, pair_x) in xs.windows(2).enumerate() {
+            for (y, pair_y) in ys.windows(2).enumerate() {
+                for (z, pair_z) in zs.windows(2).enumerate() {
+                    let middle = [
+                        (pair_x[0] + pair_x[1]) / 2.0,
+                        (pair_y[0] + pair_y[1]) / 2.0,
+                        (pair_z[0] + pair_z[1]) / 2.0,
+                    ];
+                    let inside = boxes.iter().any(|bounds| {
+                        (0..3).all(|axis| {
+                            bounds[axis] < middle[axis] && middle[axis] < bounds[axis + 3]
+                        })
+                    });
+                    assert_eq!(
+                        shape.is_solid(x, y, z),
+                        inside,
+                        "state {id:?}, cell ({x}, {y}, {z})"
+                    );
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn a_carpet_gives_its_faces_as_lines() {
+    let table = table();
+    let ShapeClass::OneBox(shape) = table.state(state("minecraft:white_carpet")).class else {
+        panic!("a carpet is one box");
+    };
+    assert_eq!(
+        table.shape(shape).unwrap().lines(Axis::Y),
+        [0.0, 1.0 / 16.0]
+    );
+}
+
+#[test]
+fn friction_is_the_corpus_value_with_the_default_of_0_6f() {
+    let table = table();
+    assert_eq!(
+        table.state(state("minecraft:stone")).motion.friction,
+        0.6_f32
+    );
+    assert_eq!(table.state(BlockStateId::AIR).motion.friction, 0.6_f32);
+    assert_eq!(
+        table.state(state("minecraft:ice")).motion.friction,
+        0.98_f32
+    );
+    assert_eq!(
+        table.state(state("minecraft:blue_ice")).motion.friction,
+        0.989_f32
+    );
+    assert_eq!(
+        table.state(state("minecraft:slime_block")).motion.friction,
+        0.8_f32
+    );
+}
+
+#[test]
+fn the_tags_and_names_set_their_flags_and_motion() {
+    let table = table();
+    let fence = table.state(state("minecraft:oak_fence"));
+    assert!(fence.flags.contains(BlockFlags::FENCE | BlockFlags::LARGE));
+    assert!(
+        table
+            .state(state("minecraft:cobblestone_wall"))
+            .flags
+            .contains(BlockFlags::WALL)
+    );
+    assert!(
+        table
+            .state(state("minecraft:oak_fence_gate"))
+            .flags
+            .contains(BlockFlags::FENCE_GATE)
+    );
+    assert!(
+        table
+            .state(state("minecraft:ladder"))
+            .flags
+            .contains(BlockFlags::CLIMBABLE)
+    );
+    let honey = table.state(state("minecraft:honey_block"));
+    assert!(honey.flags.contains(BlockFlags::SUPPRESSES_BOUNCE));
+    assert_eq!(
+        (honey.motion.speed_factor, honey.motion.jump_factor),
+        (0.4, 0.5)
+    );
+    assert_eq!(table.state(state("minecraft:red_bed")).motion.bounce, 0.75);
+    assert_eq!(
+        table.state(state("minecraft:slime_block")).motion.bounce,
+        1.0
+    );
+    assert_eq!(
+        table
+            .state(state("minecraft:soul_sand"))
+            .motion
+            .speed_factor,
+        0.4
+    );
+    let water = table.state(state("minecraft:water"));
+    assert!(
+        water
+            .flags
+            .contains(BlockFlags::FLUID | BlockFlags::OWN_SPEED_FACTOR)
+    );
+    assert!(
+        table
+            .state(state("minecraft:moving_piston"))
+            .flags
+            .contains(BlockFlags::MOVING_PISTON)
+    );
+    assert_eq!(
+        table.state(state("minecraft:powder_snow")).class,
+        ShapeClass::PowderSnow
+    );
+}
+
+#[test]
+fn scaffolding_gives_the_bottom_slab_only_with_distance_and_bottom() {
+    let definitions = definitions();
+    let table = table();
+    let block = definitions.block("minecraft:scaffolding").unwrap();
+    for offset in 0..block.state_count {
+        let id = block.state_at(offset).unwrap();
+        let distance = block.value_of(id, "distance").unwrap().to_string();
+        let bottom = block.value_of(id, "bottom").unwrap().to_string();
+        let expected = distance != "0" && bottom == "true";
+        assert_eq!(
+            table.state(id).class,
+            ShapeClass::Scaffolding { bottom: expected }
+        );
+    }
+}
+
+#[test]
+fn the_table_builds_in_less_than_100_ms() {
+    let (definitions, tags) = (definitions(), tags());
+    let started = Instant::now();
+    let built = collision_table(definitions, tags);
+    let elapsed = started.elapsed();
+    println!("built {} states in {elapsed:?}", built.len());
+    if !cfg!(debug_assertions) {
+        assert!(elapsed.as_millis() < 100, "the build took {elapsed:?}");
+    }
+}

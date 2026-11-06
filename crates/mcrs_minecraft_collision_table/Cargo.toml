@@ -1,0 +1,24 @@
+[package]
+name = "mcrs_minecraft_collision_table"
+description = "Builds the collision table of the physics kernel from the block definitions and the block tags"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+doctest = false
+
+[lints]
+workspace = true
+
+# std: the table and its shapes live in Vec and Box
+[dependencies]
+glam.workspace = true
+mcrs_minecraft_block.workspace = true
+mcrs_minecraft_physics.workspace = true
+mcrs_minecraft_registries.workspace = true
+mcrs_minecraft_resource.workspace = true
+mcrs_voxel.workspace = true
+
+[dev-dependencies]
+mcrs_minecraft_game_registries = { workspace = true, features = ["test-support"] }
+serde_json.workspace = true

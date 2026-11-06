@@ -3859,6 +3859,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "mcrs_minecraft_collision_table"
+version = "0.5.8"
+dependencies = [
+ "glam",
+ "mcrs_minecraft_block",
+ "mcrs_minecraft_game_registries",
+ "mcrs_minecraft_physics",
+ "mcrs_minecraft_registries",
+ "mcrs_minecraft_resource",
+ "mcrs_voxel",
+ "serde_json",
+]
+
+[[package]]
 name = "mcrs_minecraft_command"
 version = "0.5.8"
 dependencies = [
