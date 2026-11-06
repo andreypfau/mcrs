@@ -714,7 +714,7 @@ fn block_at(app: &mut App, label: Entity, pos: BlockPos) -> Option<BlockStateId>
     let section = SectionPos::from(pos);
     for world in cell_worlds(app, label) {
         let owned = world.get_resource::<OwnedColumns>().copied();
-        if owned.is_some_and(|owned| !owned.owns_block(pos)) {
+        if owned.is_some_and(|owned| !owned.owns(ColumnPos::from(pos))) {
             continue;
         }
         let mut query = world.query::<(&SectionPos, &ChunkBlocks)>();

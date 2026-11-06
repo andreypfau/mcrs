@@ -2,7 +2,7 @@ use std::num::NonZeroU32;
 
 use bevy_ecs::resource::Resource;
 use mcrs_engine_cell::{BoxPartition, CellIndex, ChunkKey, Leaf, LeafSize};
-use mcrs_voxel::{BlockPos, ColumnPos};
+use mcrs_voxel::ColumnPos;
 
 use crate::world::lifecycle::column_loading::LOADING_RINGS;
 
@@ -67,11 +67,6 @@ impl OwnedColumns {
     #[must_use]
     pub fn owns(&self, column: ColumnPos) -> bool {
         self.partition.owner(column_key(column)) == self.index
-    }
-
-    #[must_use]
-    pub fn owns_block(&self, pos: BlockPos) -> bool {
-        self.owns(ColumnPos::from(pos))
     }
 
     /// Whether `column` is within the halo of the boxes of this cell.

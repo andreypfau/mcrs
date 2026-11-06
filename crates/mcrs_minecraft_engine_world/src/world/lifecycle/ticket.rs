@@ -155,6 +155,13 @@ fn despawn_chunks(
 
 /// Squared distance to the nearest player, or zero when the dimension holds none: with nobody
 /// to be near, every section is equally worth spawning.
+/// A section that waits to spawn, with its distance to the nearest player.
+#[derive(Clone, Copy)]
+pub struct PendingSpawn {
+    distance_sq: i32,
+    pos: SectionPos,
+}
+
 fn nearest_player_distance_sq(pos: SectionPos, centers: &[SectionPos]) -> i32 {
     centers
         .iter()
@@ -180,7 +187,7 @@ pub fn spawn_chunks(
     players: Query<(&Transform, &InDimension), With<Player>>,
     traces: Option<Res<ColumnTraceLog>>,
     mut centers: Local<Vec<SectionPos>>,
-    mut keys_to_process: Local<Vec<SectionPos>>,
+    mut keys_to_process: Local<Vec<PendingSpawn>>,
 ) {
     for (dim, mut loading, mut section_index, simulation) in dims.iter_mut() {
         if loading.pending_spawn.is_empty() {
@@ -199,16 +206,18 @@ pub fn spawn_chunks(
         );
 
         keys_to_process.clear();
-        keys_to_process.extend(loading.pending_spawn.iter().copied());
+        keys_to_process.extend(loading.pending_spawn.iter().map(|&pos| PendingSpawn {
+            distance_sq: nearest_player_distance_sq(pos, &centers),
+            pos,
+        }));
         if MAX_SPAWNS_PER_TICK < keys_to_process.len() {
-            keys_to_process.select_nth_unstable_by_key(MAX_SPAWNS_PER_TICK, |pos| {
-                nearest_player_distance_sq(*pos, &centers)
-            });
+            keys_to_process
+                .select_nth_unstable_by_key(MAX_SPAWNS_PER_TICK, |pending| pending.distance_sq);
             keys_to_process.truncate(MAX_SPAWNS_PER_TICK);
         }
-        keys_to_process.sort_unstable_by_key(|pos| nearest_player_distance_sq(*pos, &centers));
+        keys_to_process.sort_unstable_by_key(|pending| pending.distance_sq);
 
-        for pos in keys_to_process.drain(..) {
+        for PendingSpawn { pos, .. } in keys_to_process.drain(..) {
             loading.pending_spawn.swap_remove(&pos);
             if !loading.is_loaded(pos) {
                 continue;
