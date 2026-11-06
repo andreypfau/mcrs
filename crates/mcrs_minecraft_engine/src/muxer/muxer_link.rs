@@ -14,7 +14,7 @@ use mcrs_minecraft_engine_world::session::{
 };
 use mcrs_minecraft_network::event::Received;
 use mcrs_minecraft_protocol_game::serverbound::ServerboundChunkBatchReceived;
-use rustc_hash::FxHashMap;
+use rustc_hash::{FxHashMap, FxHashSet};
 
 use crate::bus::{PacketPayload, to};
 use crate::muxer::column_views::{DimColumns, DimRequests};
@@ -128,7 +128,7 @@ pub(crate) fn receive(world: &mut World, dim: Entity, columns: DimColumns) {
 /// Ends what the host took between two ticks: the views send their next batches to every
 /// player whose session is in the dimension of its view.
 pub(crate) fn send(world: &mut World) {
-    let mut blocked = Vec::new();
+    let mut blocked = FxHashSet::default();
     if let Some(link) = world.get_resource::<MuxerLink>()
         && let Some(anchors) = world.get_resource::<SessionAnchors>()
     {

@@ -24,7 +24,7 @@ pub enum MuxerCall {
     CloseDim { dim: Entity },
     /// The end of what the host took between two ticks: the stage sends the next batches to
     /// every player that is not `blocked`, and the requests for the dimensions.
-    Send { blocked: Vec<PlayerSession> },
+    Send { blocked: FxHashSet<PlayerSession> },
     /// A call to the entity muxer of one world.
     Entities(MuxerInput<PlayerCodec>),
 }
@@ -46,7 +46,6 @@ pub struct MuxerStage {
     views: ColumnViews,
     entities: Muxers<PlayerCodec>,
     calls: VecDeque<MuxerCall>,
-    blocked: FxHashSet<PlayerSession>,
     out: Vec<OutboundPlayerPacket>,
 }
 
@@ -71,9 +70,7 @@ impl MuxerStage {
                 .acknowledge_batch(session, desired_columns_per_tick),
             MuxerCall::CloseDim { dim } => self.views.close_dim(dim),
             MuxerCall::Send { blocked } => {
-                self.blocked.clear();
-                self.blocked.extend(blocked);
-                self.views.send(&self.blocked, &mut self.out);
+                self.views.send(&blocked, &mut self.out);
                 if !self.out.is_empty() {
                     step.emit(MuxerOutput::Packets(mem::take(&mut self.out)));
                 }
