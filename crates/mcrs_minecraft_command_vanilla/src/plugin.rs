@@ -1,6 +1,6 @@
 #[cfg(feature = "locate")]
 use crate::locate;
-use crate::{execute, gamemode, teleport, time};
+use crate::{execute, gamemode, teleport, time, whitelist};
 use bevy_app::{App, Plugin};
 use core::fmt::Display;
 use mcrs_minecraft_command_engine::{AppCommandsExt, Worlds};
@@ -15,7 +15,8 @@ impl Plugin for VanillaCommandsPlugin {
     fn build(&self, app: &mut App) {
         app.add_command_effect(teleport::apply)
             .add_command_effect(gamemode::apply)
-            .add_command_effect(|worlds: &mut Worlds<'_>, edit| worlds.edit_clock(edit));
+            .add_command_effect(|worlds: &mut Worlds<'_>, edit| worlds.edit_clock(edit))
+            .add_command_effect(whitelist::apply);
         report(
             "execute",
             app.add_modifying_command(execute::build, execute::run, execute::modify),
@@ -25,6 +26,10 @@ impl Plugin for VanillaCommandsPlugin {
         #[cfg(feature = "locate")]
         report("locate", app.add_command(locate::build, locate::run));
         report("time", app.add_command(time::build, time::run));
+        report(
+            "whitelist",
+            app.add_command(whitelist::build, whitelist::run),
+        );
     }
 }
 

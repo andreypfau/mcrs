@@ -10,6 +10,7 @@ use bevy_app::{App, AppExit, PluginGroup, Update};
 use bevy_ecs::message::MessageWriter;
 use bevy_log::{Level, LogPlugin, tracing_subscriber};
 use mcrs_minecraft_engine::coordinator::ops::{OPS_FILE, OpList};
+use mcrs_minecraft_engine::whitelist::{WHITELIST_FILE, Whitelist};
 use mcrs_minecraft_engine_server::{
     DimensionWorldsPlugin, GameMode, NetworkCompressionThreshold, Placement, ServerCorePlugin,
     ServerNetworkPlugin, ShutdownRequest,
@@ -126,6 +127,17 @@ fn network() -> ServerNetworkPlugin {
             variable("MCRS_ACCEPT_BACKLOG").as_deref(),
             ServerNetworkPlugin::default().accept_backlog,
         ),
+        whitelist: Whitelist::read(Path::new(WHITELIST_FILE))
+            .enabled(on_off(
+                "MCRS_WHITE_LIST",
+                variable("MCRS_WHITE_LIST").as_deref(),
+                false,
+            ))
+            .enforced(on_off(
+                "MCRS_ENFORCE_WHITELIST",
+                variable("MCRS_ENFORCE_WHITELIST").as_deref(),
+                false,
+            )),
         ..Default::default()
     }
 }

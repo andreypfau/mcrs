@@ -54,6 +54,7 @@ mod session_lifecycle;
 mod subapp_lifecycle;
 mod support;
 mod tick_determinism;
+mod whitelist;
 mod world_cells;
 mod world_server;
 mod worldgen_y_range_clamp;

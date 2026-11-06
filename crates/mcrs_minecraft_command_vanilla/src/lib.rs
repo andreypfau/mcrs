@@ -14,6 +14,7 @@ mod select;
 mod set;
 mod teleport;
 mod time;
+mod whitelist;
 
 pub use gamemode::SetGameMode;
 pub use plugin::VanillaCommandsPlugin;
