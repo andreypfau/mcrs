@@ -63,7 +63,7 @@ Scope: creative mode first. Section 8 states survival mode at the level of packe
 
 The labels of `registry.md`, section 0.3, apply. The kinds of rule are those of `README.md`,
 section "Semantics, not accidents". Each rule states its label and its kind. All rules in this
-document have the label `source_suggested`. Nobody has run the experiments of section 11.
+document have the label `source_suggested`. Nobody has run the experiments of section 12.
 
 ### 0.3 ID prefixes
 
@@ -78,6 +78,7 @@ document have the label `source_suggested`. Nobody has run the experiments of se
 | `CBK-EFF` | the effects that the client shows |
 | `CBK-SRV` | survival mode |
 | `CBK-DST` | the crack stages of other players |
+| `CBK-LGT` | the light in the client world |
 
 ### 0.4 Packets
 
@@ -96,6 +97,8 @@ document have the label `source_suggested`. Nobody has run the experiments of se
 | PLAY, clientbound | `player_position` | 73 |
 | PLAY, clientbound | `player_abilities` | 65 |
 | PLAY, clientbound | `update_attributes` | 134 |
+| PLAY, clientbound | `light_update` | 49 |
+| PLAY, clientbound | `level_chunk_with_light` | 46 |
 
 Source of the ids: `assets/mcrs/reports/packets.json`.
 
@@ -380,7 +383,7 @@ These are the actions 1, 2, 4, 5, 6, 7 and 8.
 
 **CBK-SEQ-004** (`source_suggested`, semantic). The counter is a signed 32-bit integer. After
 2147483647, the next value is -2147483648. A vanilla server closes the connection on a negative
-sequence (BRK-SEQ-005). Section 10 records this.
+sequence (BRK-SEQ-005). Section 11 records this.
 
 ## 6. Prediction and reconciliation
 
@@ -551,7 +554,7 @@ When a survival press does not break at once, the hold applies in the tick of th
 first tick adds the progress of one tick.
 
 The client keeps the position and the item of the last break after the break ends. A hold on that
-position with that item continues the old break, and does not start a new break. Section 10, item
+position with that item continues the old break, and does not start a new break. Section 11, item
 CU6, records this.
 
 **CBK-SRV-003** (`source_suggested`, semantic). The break progress of one tick is `S / H / F`:
@@ -622,7 +625,108 @@ or less.
 **CBK-DST-004** (`source_suggested`, semantic). The client removes a crack that did not change for
 more than 400 ticks of world time. It does this check when the world time is a multiple of 20.
 
-## 10. Unresolved
+## 10. Light in the client world
+
+The client keeps sky light and block light for each section that it holds. It calculates light
+itself after a block change, and it also receives light from the server. In this section, a
+**frame** is one image that the client draws. A frame can follow zero, one or more ticks.
+
+### 10.1 When the client calculates light
+
+**CBK-LGT-001** (`source_suggested`, semantic). The client calculates light again after each block
+change in its own world. These changes all count:
+
+- a local break and its neighbour changes (CBK-PRD-002, CBK-PRD-004);
+- a block from `block_update` or `section_blocks_update` that applies at once (CBK-PRD-007);
+- a block that an acknowledgement restores (CBK-PRD-008).
+
+The block data of `level_chunk_with_light` is not such a change. The light of a new chunk comes
+only from the packet (CBK-LGT-007).
+
+**CBK-LGT-002** (`source_suggested`, semantic). A block change starts a light check only when the
+old state and the new state differ in one of these properties:
+
+- the light that the block absorbs;
+- the light that the block emits;
+- the use of the block shape for the light occlusion. A check starts when one of the two states
+  uses its shape, for example a slab or stairs.
+
+A check covers sky light and block light. For sky light, the client also updates the height in the
+column from which the sky light falls straight down. A dimension with no sky light has only block
+light.
+
+**CBK-LGT-003** (`source_suggested`, semantic). The client does not calculate light at the time of
+the block change. It collects the checks, and calculates all of them one time in each frame. The
+step comes after the ticks of the frame, and before the client prepares the image. Thus the block
+change and its light are in the same frame. The step has no limit: it completes each check that it
+collected, and the full propagation of each check.
+
+**CBK-LGT-004** (`source_suggested`, semantic). The propagation rules of the client are the rules of
+the server. A block gets the larger of its own emission and the light of each face neighbour,
+minus the absorption. Light does not pass between two faces whose shapes occlude each other. This
+document does not state the rules further.
+
+### 10.2 The extent
+
+**CBK-LGT-005** (`source_suggested`, semantic). The propagation crosses the borders of sections and
+of columns. It changes light only in sections for which the client holds light data. It does not
+enter a column that the client does not hold, or a section with no light data. A light source in a
+column counts only after the client has the light of that column (CBK-LGT-007).
+
+**CBK-LGT-006** (`source_suggested`, semantic). When the light of a block changes, the client marks
+for a new mesh each section that holds the block or one of its 26 neighbours. This is a cube of up
+to 3 × 3 × 3 sections.
+
+### 10.3 Light from the server
+
+**CBK-LGT-007** (`source_suggested`, semantic). The client does not apply the light of
+`light_update` or of `level_chunk_with_light` when it receives the packet. It adds the light to a
+queue. The block data of `level_chunk_with_light` applies at once. In each frame, before the
+calculation of CBK-LGT-003, the client takes a number of entries from the queue:
+
+| Entries in the queue | Entries that the client takes |
+|----------------------|-------------------------------|
+| fewer than 1000 | the larger of 10 and the number divided by 10, rounded down |
+| 1000 or more | all |
+
+One entry is the light of one packet.
+
+**CBK-LGT-008** (`source_suggested`, semantic). For each section that an entry names in its masks,
+the server light replaces the light of the client. The replacement is the full section of one
+layer: sky light or block light. A section in the empty mask gets light 0 in each block. A section
+that no mask names keeps the light of the client. The entry also enables the light of the column.
+
+**CBK-LGT-009** (`source_suggested`, semantic). In a frame, the client applies the replacements of
+CBK-LGT-008 after the calculation of CBK-LGT-003. The client does not calculate light again after a
+replacement. Thus the server light wins, also when it is older than the local light. The old light
+stays until the next check or the next packet for that section.
+
+**CBK-LGT-010** (`source_suggested`, semantic). Each section that an entry names gets a new mesh,
+together with its 26 neighbour sections.
+
+### 10.4 The mesh
+
+**CBK-LGT-011** (`source_suggested`, semantic). The client reads the blocks and the light for a new
+mesh in the same frame, after the light calculation. Thus a mesh shows the new block and the new light
+together. A block change marks for a new mesh each section that holds the block or one of its 26
+neighbours.
+
+**CBK-LGT-012** (`source_suggested`, semantic). The video option `options.prioritizeChunkUpdates`
+selects when a mesh is ready. Each value has a translation key:
+
+| Translation key | Result |
+|-----------------|--------|
+| `options.prioritizeChunkUpdates.none` (default) | Each mesh builds in the background, and shows in a later frame. |
+| `options.prioritizeChunkUpdates.byPlayer` | A section that a local change of the player marked builds in the same frame. A local break is such a change. The other sections build in the background. |
+| `options.prioritizeChunkUpdates.nearby` | As `byPlayer`. A section whose centre is nearer than the square root of 768 to the camera also builds in the same frame. |
+
+A section that a `block_update`, a `section_blocks_update`, an acknowledgement or only a light change
+marked is not a section of the player. A section that a local change and a light change both marked
+stays a section of the player. With the value `byPlayer`, a light change outside the sections of
+CBK-LGT-011 can thus show one or more frames after the block. With the default value, two sections
+can show their new meshes in different frames.
+
+## 11. Unresolved
 
 - **CU1**: the sequence after 2147483647 (CBK-SEQ-004). The vanilla client sends a negative sequence,
   and the vanilla server closes the connection. A player cannot reach this value in normal use. The
@@ -639,7 +743,14 @@ more than 400 ticks of world time. It does this check when the world time is a m
   finish and send the old block again. The vanilla client then adds progress to the old break, and
   later sends the action 3 with no action 0 before it. This can be a defect of the reference.
 
-## 11. Experiments
+- **CU7**: the light of a new chunk. Its blocks apply at once, and its light applies from the
+  queue of CBK-LGT-007, in the same frame or later. The client can show the new blocks with no light
+  for some frames. No experiment shows how long.
+- **CU8**: a `light_update` that the server sent before a local break, and that the client applies
+  after it. CBK-LGT-009 states that the older light then stays. No experiment shows this with a
+  vanilla server, which sends the light of a break after the block change.
+
+## 12. Experiments
 
 Use a vanilla client and a vanilla server of the game version in the table at the top of this
 document, with `online-mode=false` and `level-type=minecraft:flat`. Put a proxy between the client
@@ -660,10 +771,18 @@ and the server. The proxy logs each packet with the time, and it can hold or cha
 | X11 | In adventure mode and in spectator mode, press the attack input on stone. | CBK-INP-008, CBK-INP-009 |
 | X12 | Hold a spear and press the attack input on stone. | CBK-INP-005 |
 | X13 | Break a waterlogged slab in creative mode, and hold the attack input. | CBK-PRD-002, CBK-CRE-004 |
+| X14 | In a closed cave, break one block of the roof below the open sky. Let the proxy drop each `light_update`. Look at the light of the hole and of the floor. | CBK-LGT-001, CBK-LGT-003, CBK-LGT-005 |
+| X15 | Put a torch on a wall in a dark room. Break the torch, and then the wall block. Let the proxy drop each `light_update`. | CBK-LGT-001, CBK-LGT-002 |
+| X16 | Break a block at a section border and at a column border. Read the light of the debug screen on both sides. | CBK-LGT-005, CBK-LGT-006 |
+| X17 | Break a block that a torch lights. Let the proxy hold the `light_update` for 2 s, and then send it with the light of before the break. | CBK-LGT-008, CBK-LGT-009 |
+| X18 | Let the proxy send 50 `light_update` packets in one burst. Count the frames until the last one shows. | CBK-LGT-007 |
+| X19 | Record the screen at a high frame rate while you break a block next to a torch, with each value of `options.prioritizeChunkUpdates`. Compare the frame of the block with the frame of the light. | CBK-LGT-011, CBK-LGT-012 |
 
 ## Not in this document
 
 - The outline shape of each block state. The ray needs it (CBK-TGT-005).
+- The propagation rules of light (CBK-LGT-004), and the light properties of each block state. No
+  document under `docs/spec/` states them yet.
 - The entity test of the ray, and the attack on an entity.
 - The hit reactions of blocks at the start of a survival break, for example a note block.
 - The speed of an item for a block, the correct tool for a block, and the effects of enchantments
