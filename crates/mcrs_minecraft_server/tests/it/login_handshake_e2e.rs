@@ -21,13 +21,14 @@ use mcrs_minecraft_engine::muxer::bridge::{
     bridge_inbound_to_channel, bridge_outbound, bridge_player_attach, dispatch_encode,
     forward_pending_inbound,
 };
-use mcrs_minecraft_engine::muxer::bridge_queue::{InboundRateBucket, OutboundQueue};
+use mcrs_minecraft_engine::muxer::bridge_queue::OutboundQueue;
 use mcrs_minecraft_engine::muxer::session::HostAnchorRef;
 use mcrs_minecraft_engine_server::configuration::initial_player_spawn;
 use mcrs_minecraft_engine_server::login::{LoginPlugin, LoginState};
 use mcrs_minecraft_engine_world::session::{Place, SessionPlacement};
 use mcrs_minecraft_engine_world::world::sub_app::{DimSpawnQueue, DimSpawnRequest};
 use mcrs_minecraft_network::ServerSideConnection;
+use mcrs_minecraft_network::inbound_rate::InboundRateBucket;
 use mcrs_minecraft_protocol::uuid::Uuid;
 
 // ---------------------------------------------------------------------------

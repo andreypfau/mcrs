@@ -17,8 +17,8 @@ use bytes::{Bytes, BytesMut};
 use mcrs_minecraft_engine::bus::{
     OutboundPlayerPacket, PacketPayload, PacketPriority, PacketTarget,
 };
-use mcrs_minecraft_engine::muxer::bridge::dispatch_encode;
-use mcrs_minecraft_engine::muxer::bridge_queue::{DEPTH_DRAIN_TARGET, DEPTH_LIMIT, OutboundQueue};
+use mcrs_minecraft_engine::muxer::bridge::{DEPTH_DRAIN_TARGET, DEPTH_LIMIT, dispatch_encode};
+use mcrs_minecraft_engine::muxer::bridge_queue::OutboundQueue;
 use mcrs_minecraft_engine_world::session::PlayerSession;
 use mcrs_minecraft_network::OutboundReceiver;
 use mcrs_minecraft_network::ServerSideConnection;

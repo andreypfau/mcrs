@@ -13,15 +13,16 @@ use bevy_ecs::world::World;
 use bytes::BytesMut;
 use mcrs_minecraft_engine::bus::{InboundPlayerPacket, OutboundPlayerPacket};
 use mcrs_minecraft_engine::muxer::bridge::bridge_inbound;
-use mcrs_minecraft_engine::muxer::bridge_queue::{
-    INBOUND_BUCKET_CAP, INBOUND_KICK_OVERFLOW_PACKETS, InboundRateBucket, OutboundQueue,
-};
+use mcrs_minecraft_engine::muxer::bridge_queue::OutboundQueue;
 use mcrs_minecraft_engine::muxer::dim_inputs::DimInputs;
 use mcrs_minecraft_engine::muxer::session::{HostAnchorRef, SessionBundle};
 use mcrs_minecraft_engine_world::session::{
     Place, PlayerSessionCounter, Session, SessionPlacement,
 };
 use mcrs_minecraft_network::event::{Received, run_event_loop};
+use mcrs_minecraft_network::inbound_rate::{
+    INBOUND_BUCKET_CAP, INBOUND_KICK_OVERFLOW_PACKETS, InboundRateBucket,
+};
 use mcrs_minecraft_network::metrics::{BridgeTelemetry, PacketDispatcher};
 use mcrs_minecraft_network::{ConnectionState, ReceivedPacket, ServerSideConnection};
 use mcrs_minecraft_protocol::Decode;

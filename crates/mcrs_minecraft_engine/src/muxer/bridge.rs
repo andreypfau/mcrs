@@ -43,6 +43,7 @@ pub fn run_pending_flush(world: &mut World) {
 }
 
 use bytes::{BufMut, Bytes, BytesMut};
+use mcrs_minecraft_network::inbound_rate::InboundRateBucket;
 use mcrs_minecraft_network::metrics::{BridgeTelemetry, PacketDispatcher, PacketKind};
 use mcrs_minecraft_network::{
     ConnectionState, RawConnection, ServerSideConnection, SharedAppend, SharedFrames, WriterWakes,
@@ -58,10 +59,7 @@ use tracing::{trace, warn};
 
 use crate::bus::{InboundPlayerPacket, OutboundPlayerAttached, OutboundPlayerPacket};
 use crate::bus::{PacketPayload, PacketPriority, PacketTarget};
-use crate::muxer::bridge_queue::{
-    DEPTH_DRAIN_TARGET, DEPTH_LIMIT, InboundRateBucket, OutboundQueue,
-};
-use crate::muxer::bridge_queue::{EncodedPacket, QueuedPacket};
+use crate::muxer::bridge_queue::{EncodedPacket, OutboundQueue, QueuedPacket};
 use crate::muxer::dim_inputs::DimInputs;
 use crate::muxer::session::{HostAnchorRef, PendingInbound, SessionConnection};
 use mcrs_minecraft_engine_world::session::{Place, Session, SessionAnchors, SessionPlacement};
@@ -255,6 +253,11 @@ fn push_to_connection(
     }
     queue.push_queued(priority, packet);
 }
+
+/// The queued packets past which a connection sheds its Normal packets.
+pub const DEPTH_LIMIT: usize = 256;
+/// The queued packets that the shedding leaves.
+pub const DEPTH_DRAIN_TARGET: usize = 192;
 
 /// Sixteen batches at the socket's cap.
 const STALLED_WRITER_BYTES: usize = 16 * mcrs_minecraft_network::MAX_QUEUED_BYTES_PER_SOCKET;

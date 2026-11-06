@@ -2,18 +2,9 @@ use std::collections::VecDeque;
 
 use bevy_ecs::component::Component;
 use bytes::Bytes;
-pub use mcrs_minecraft_network::inbound_rate::{
-    INBOUND_BUCKET_CAP, INBOUND_KICK_OVERFLOW_PACKETS, INBOUND_REFILL_PER_SECOND, InboundRateBucket,
-};
 use mcrs_minecraft_network::metrics::PacketKind;
 
 use crate::bus::{OutboundPlayerPacket, PacketPayload, PacketPriority};
-
-// Outbound depth thresholds shared by bridge_outbound and dispatch_encode.
-// Keeping them here avoids a circular import and ensures both sides enforce
-// the same limits.
-pub const DEPTH_LIMIT: usize = 256;
-pub const DEPTH_DRAIN_TARGET: usize = 192;
 
 /// Per-connection priority outbound queue.
 ///
