@@ -56,6 +56,7 @@ pub(crate) fn receive(world: &mut World) {
                 views,
                 column_versions,
                 column_changes,
+                positions,
             },
         departures,
     } in delivered
@@ -68,6 +69,7 @@ pub(crate) fn receive(world: &mut World) {
                 views,
                 versions: column_versions,
                 changes: column_changes,
+                positions,
             },
         );
         orders.extend(ordered);

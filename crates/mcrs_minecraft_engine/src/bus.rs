@@ -14,8 +14,8 @@ use mcrs_minecraft_protocol_game::clientbound::{
     ClientboundEntityEvent, ClientboundEntityPositionSync, ClientboundForgetLevelChunk,
     ClientboundGameEvent, ClientboundLightUpdate, ClientboundLogin, ClientboundPlayerAbilities,
     ClientboundPlayerLookAt, ClientboundPlayerPosition, ClientboundRespawn,
-    ClientboundSetChunkCacheCenter, ClientboundSetTime, ClientboundSystemChatPacket,
-    ClientboundTabList,
+    ClientboundSectionBlocksUpdate, ClientboundSetChunkCacheCenter, ClientboundSetTime,
+    ClientboundSystemChatPacket, ClientboundTabList,
 };
 use mcrs_minecraft_resource::ResourceKeyBuf;
 use mcrs_voxel::ColumnPos;
@@ -112,6 +112,8 @@ impl OutboundPlayerPacket {
 pub enum PacketPayload {
     LightUpdate(ClientboundLightUpdate<'static>),
     BlockUpdate(ClientboundBlockUpdate),
+    /// The changes of more than one block of one section in one broadcast.
+    SectionBlocksUpdate(ClientboundSectionBlocksUpdate<'static>),
     /// A block event that a block took. It is not a change of the column: a client that takes
     /// the column later does not get it.
     BlockEvent(ClientboundBlockEvent),

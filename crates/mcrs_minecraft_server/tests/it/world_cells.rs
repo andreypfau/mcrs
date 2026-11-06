@@ -191,6 +191,17 @@ impl Client {
                     self.blocks
                         .insert((pos.x, pos.y, pos.z), update.block_state_id.0);
                 }
+                PacketPayload::SectionBlocksUpdate(update) => {
+                    let origin = update.chunk_pos;
+                    for entry in update.blocks.iter() {
+                        let pos = (
+                            origin.x * 16 + i32::from(entry.off_x()),
+                            origin.y * 16 + i32::from(entry.off_y()),
+                            origin.z * 16 + i32::from(entry.off_z()),
+                        );
+                        self.blocks.insert(pos, entry.block_state());
+                    }
+                }
                 _ => {}
             }
         }
@@ -705,10 +716,7 @@ impl BlockBehaviour<WorldKinds> for Relay {
 impl BlockDrops for Relay {}
 
 fn lit_lamp(app: &App) -> BlockStateId {
-    let blocks = app.world().resource::<Blocks>();
-    let lamp = blocks.block("minecraft:redstone_lamp").expect("a lamp");
-    lamp.with(lamp.default_state_id, "lit", &PropertyValue::Bool(true))
-        .expect("a lit lamp")
+    lit_lamp_in(app.world().resource::<Blocks>())
 }
 
 fn relay_server(cells: u32) -> App {
@@ -1443,4 +1451,116 @@ fn a_change_reaches_the_halo_of_every_cell_before_the_next_entity_pass() {
     let four = run_halo_probe(4);
     assert_eq!(one, [31], "the entity pass after the write sees it");
     assert_eq!(four, [31; 4]);
+}
+
+/// Probe rules, not the rules of any game block: a note block that is placed queues a block
+/// event, and the event lights a lamp south of it.
+#[derive(Clone, Copy, Debug)]
+struct Echo {
+    note: BlockStateId,
+    lit: BlockStateId,
+}
+
+const ECHO: BlockPos = BlockPos::new(1, 120, 1);
+const ECHO_BESIDE: BlockPos = BlockPos::new(2, 120, 1);
+const ECHO_LAMP: BlockPos = BlockPos::new(1, 120, 2);
+
+impl Echo {
+    fn install(sub_app: &mut bevy_app::SubApp) {
+        let echo = Echo {
+            note: sub_app
+                .world()
+                .resource::<Blocks>()
+                .default_state("minecraft:note_block")
+                .expect("a note block"),
+            lit: lit_lamp_in(sub_app.world().resource::<Blocks>()),
+        };
+        sub_app.add_plugins(BlockSimulationPlugin::new(echo));
+    }
+}
+
+fn lit_lamp_in(blocks: &Blocks) -> BlockStateId {
+    let lamp = blocks.block("minecraft:redstone_lamp").expect("a lamp");
+    lamp.with(lamp.default_state_id, "lit", &PropertyValue::Bool(true))
+        .expect("a lit lamp")
+}
+
+impl BlockBehaviour<WorldKinds> for Echo {
+    fn placed<V: SimulationVolume, F: BlockFacts<WorldKinds>>(
+        &self,
+        cx: &mut Cx<'_, WorldKinds, V, F, Self>,
+        at: BlockPos,
+        new: BlockStateId,
+        _old: BlockStateId,
+        _moved_by_piston: bool,
+    ) {
+        if new == self.note {
+            cx.queue_block_event(at, Block::NoteBlock.id(), 1, 0);
+        }
+    }
+
+    fn block_event<V: SimulationVolume, F: BlockFacts<WorldKinds>>(
+        &self,
+        cx: &mut Cx<'_, WorldKinds, V, F, Self>,
+        _at: BlockPos,
+        _state: BlockStateId,
+        _a: i32,
+        _b: i32,
+    ) -> bool {
+        cx.set(ECHO_LAMP, self.lit, BlockUpdateFlags::CLIENTS, 512);
+        true
+    }
+}
+
+impl BlockDrops for Echo {}
+
+/// The block packets and block events of one tick, in wire order.
+fn block_traffic(packets: Vec<PacketPayload>) -> Vec<String> {
+    packets
+        .into_iter()
+        .filter_map(|packet| match packet {
+            PacketPayload::BlockUpdate(update) => Some(format!("block {:?}", update.block_pos)),
+            PacketPayload::SectionBlocksUpdate(update) => {
+                Some(format!("section {} blocks", update.blocks.len()))
+            }
+            PacketPayload::BlockEvent(event) => Some(format!("event {:?}", event.pos)),
+            _ => None,
+        })
+        .collect()
+}
+
+/// SIM-SET-005, SIM-MODEL-107(a), SIM-TICK-002: the writes of a tick leave in one packet per
+/// section before the block events, and a write of a block event leaves in the next broadcast.
+#[test]
+fn a_broadcast_sends_one_packet_per_section_before_the_block_events() {
+    let mut app = server_with(1, DimensionBlockRules(Echo::install));
+    let label = label_of(&app, OVERWORLD);
+    wait_for_generation(&mut app, label);
+    let note = block_state(&app, "minecraft:note_block");
+    let stone = block_state(&app, "minecraft:stone");
+    let viewer = admit(&mut app, label, "viewer", DVec3::new(8.5, 100.0, 8.5), 2);
+    let column = ColumnPos::from(ECHO);
+    let mut client = Client::default();
+    let deadline = Instant::now() + Duration::from_secs(120);
+    while !client.loaded.contains(&(column.x, column.z)) {
+        assert!(Instant::now() < deadline, "the client never got the column");
+        app.world_mut()
+            .resource_mut::<MuxerLink>()
+            .acknowledge_batch(viewer, 64.0);
+        client.take(sent_to(viewer, lockstep_tick(&mut app, label)));
+    }
+
+    place(&mut app, label, viewer, ECHO, note);
+    place(&mut app, label, viewer, ECHO_BESIDE, stone);
+    let ticks: Vec<Vec<String>> = (0..2)
+        .map(|_| block_traffic(sent_to(viewer, lockstep_tick(&mut app, label))))
+        .collect();
+
+    assert_eq!(
+        ticks,
+        [
+            vec!["section 2 blocks".to_owned(), format!("event {ECHO:?}")],
+            vec![format!("block {ECHO_LAMP:?}")],
+        ]
+    );
 }

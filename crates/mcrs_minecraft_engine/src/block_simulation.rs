@@ -4,14 +4,15 @@
 //! The order of one tick is the order of vanilla. At the sync point, the ticks of the columns
 //! that landed join the queues, and the messages of the other cells and then the block writes of
 //! the tick apply. Then the scheduled block ticks run,
-//! then the scheduled fluid ticks, then the random ticks, then the block events. Neighbour and
-//! shape updates run inside the phase that causes them. The block events that a block took go to
-//! the clients that hold its column, and the items of a destroyed block go out as
-//! [`ItemDropped`].
+//! then the scheduled fluid ticks, then the random ticks, then the broadcast of the marked
+//! blocks, then the block events. Neighbour and shape updates run inside the phase that causes
+//! them. The block events that a block took go to the clients near it after the broadcast, so the
+//! changes that the events cause go out in the broadcast of the next tick. The items of a
+//! destroyed block go out as [`ItemDropped`].
 
 use std::mem;
 
-use bevy_app::{App, FixedPostUpdate, FixedUpdate, Plugin, SubApp};
+use bevy_app::{App, FixedUpdate, Plugin, SubApp};
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::{MessageReader, MessageWriter};
 use bevy_ecs::prelude::{Added, Query, With};
@@ -24,7 +25,7 @@ use mcrs_minecraft_dimension::Dimension as DimensionKey;
 use mcrs_minecraft_engine_world::block_update::{BlockPlaced, BlockSetRequest};
 use mcrs_minecraft_engine_world::owned_columns::{self, OwnedColumns};
 use mcrs_minecraft_engine_world::tick::TickSet;
-use mcrs_minecraft_engine_world::voxel_update::{self, CellBlockWrite, VoxelUpdateSet};
+use mcrs_minecraft_engine_world::voxel_update::{self, CellBlockWrite};
 use mcrs_minecraft_engine_world::world::dimension::Dimension;
 use mcrs_minecraft_engine_world::world::lifecycle::simulation::{BlockTicking, EntityTicking};
 use mcrs_minecraft_engine_world::world::storage::view::WorldViewMut;
@@ -33,16 +34,16 @@ use mcrs_minecraft_protocol::VarInt;
 use mcrs_minecraft_protocol_game::clientbound::ClientboundBlockEvent;
 use mcrs_minecraft_resource::{Id, ResourceKeyBuf};
 use mcrs_minecraft_simulation::{
-    BlockBehaviour, BlockEvent, BlockShard, ChainLedger, ChainOrigin, Env, GameTick, KernelConfig,
-    Message, MessageBody, PartitionKind, Phase, PhaseInput, RandomPicks, RandomTickTable,
-    SavedTick, SectionProperties, SectionTicksRef, ShardId, SimulatedSections, StepAt, StepOutput,
-    StreamSeed, SubTick, TickKind, TickQueue, VanillaOrder,
+    BlockBehaviour, BlockEvent, BlockShard, BlockUpdateFlags, BlockWrite, ChainLedger, ChainOrigin,
+    Env, GameTick, KernelConfig, Message, MessageBody, PartitionKind, Phase, PhaseInput,
+    RandomPicks, RandomTickTable, SavedTick, SectionProperties, SectionTicksRef, ShardId,
+    SimulatedSections, StepAt, StepOutput, StreamSeed, SubTick, TickKind, TickQueue, VanillaOrder,
 };
 use mcrs_voxel::{ColumnPos, SectionPos};
 use rustc_hash::FxHashSet;
 
 use crate::block_drops::{BlockDrops, ItemDropped};
-use crate::block_update::publish_block_changes;
+use crate::block_update::BroadcastMarks;
 use crate::bus::{PacketPayload, PacketPriority};
 use crate::cell_mail::CellOutbox;
 use crate::cell_volume::CellVolume;
@@ -102,14 +103,11 @@ impl<B: BlockBehaviour<WorldKinds> + BlockDrops + Clone + Send + 'static> Plugin
         app.insert_resource(BlockRules(self.rules.clone()));
         app.init_resource::<BlockSimulation>();
         app.init_resource::<LandedTicks>();
+        app.init_resource::<BroadcastMarks>();
         app.add_message::<ItemDropped>();
         app.add_systems(
             FixedUpdate,
             run_block_simulation::<B>.in_set(TickSet::WorldWrite),
-        );
-        app.add_systems(
-            FixedPostUpdate,
-            publish_block_changes.in_set(VoxelUpdateSet::NetworkSync),
         );
     }
 }
@@ -321,6 +319,7 @@ struct RandomTicking<'w, 's> {
 /// Where the outcome of a step goes besides the blocks.
 #[derive(SystemParam)]
 struct StepOutlets<'w, 's> {
+    marks: ResMut<'w, BroadcastMarks>,
     streams: Query<'w, 's, &'static ColumnStreams>,
     changes: MessageWriter<'w, ColumnChange>,
     dropped: MessageWriter<'w, ItemDropped>,
@@ -359,6 +358,15 @@ fn run_block_simulation<B: BlockBehaviour<WorldKinds> + BlockDrops + Send + 'sta
                 request.dimension,
                 cell_write(request),
             );
+            if request.flags.contains(BlockUpdateFlags::CLIENTS) {
+                outlets.marks.mark(request.pos);
+            }
+        }
+        if let Some(view) = blocks.get_mut(dimension) {
+            let streams = outlets.streams.get(dimension).ok();
+            outlets
+                .marks
+                .broadcast(&view, streams, &mut outlets.changes);
         }
         return;
     };
@@ -452,6 +460,8 @@ fn run_block_simulation<B: BlockBehaviour<WorldKinds> + BlockDrops + Send + 'sta
         (Phase::FluidTicks, [].as_slice(), [].as_slice()),
         (Phase::BlockEvents, [].as_slice(), [].as_slice()),
     ];
+    let streams = outlets.streams.get(dimension).ok();
+    let mut broadcast_cut = 0;
     for (phase, messages, chains) in phases {
         if phase == Phase::BlockEvents {
             let picks = RandomPicks {
@@ -468,6 +478,11 @@ fn run_block_simulation<B: BlockBehaviour<WorldKinds> + BlockDrops + Send + 'sta
                 picks,
                 &mut out,
             );
+            mark_client_writes(&mut outlets.marks, &out.writes);
+            outlets
+                .marks
+                .broadcast(&volume.view, streams, &mut outlets.changes);
+            broadcast_cut = out.writes.len();
         }
         let input = PhaseInput {
             inbound: messages,
@@ -486,6 +501,10 @@ fn run_block_simulation<B: BlockBehaviour<WorldKinds> + BlockDrops + Send + 'sta
         }
     }
     simulation.random_sections = sections;
+    mark_client_writes(
+        &mut outlets.marks,
+        out.writes.get(broadcast_cut..).unwrap_or_default(),
+    );
 
     for write in out.writes.drain(..) {
         let chunk_pos = SectionPos::from(write.pos);
@@ -502,7 +521,7 @@ fn run_block_simulation<B: BlockBehaviour<WorldKinds> + BlockDrops + Send + 'sta
         });
     }
     if !out.delivered.is_empty()
-        && let Ok(streams) = outlets.streams.get(dimension)
+        && let Some(streams) = streams
     {
         publish_block_events(&out.delivered, streams, &mut outlets.changes);
     }
@@ -527,8 +546,16 @@ fn run_block_simulation<B: BlockBehaviour<WorldKinds> + BlockDrops + Send + 'sta
     simulation.ledgers = ledgers;
 }
 
+fn mark_client_writes(marks: &mut BroadcastMarks, writes: &[BlockWrite]) {
+    for write in writes {
+        if write.flags.contains(BlockUpdateFlags::CLIENTS) {
+            marks.mark(write.pos);
+        }
+    }
+}
+
 /// Publishes each event of `delivered` in a column that the muxer subscribes to. The muxer sends
-/// it to the clients that hold the column, as the owner of the column publishes its changes.
+/// it to the clients that hold the column and stand near the block.
 fn publish_block_events(
     delivered: &[BlockEvent<Id<Block>>],
     streams: &ColumnStreams,

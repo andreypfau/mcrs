@@ -261,7 +261,7 @@ fn capture_published(
                 change.column,
                 update.light_data.clone(),
             )),
-            PacketPayload::BlockUpdate(_) => {
+            PacketPayload::BlockUpdate(_) | PacketPayload::SectionBlocksUpdate(_) => {
                 published.0.push(PublishedColumn::Block(change.column));
             }
             _ => {}

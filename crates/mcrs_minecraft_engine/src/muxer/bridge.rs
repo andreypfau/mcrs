@@ -501,6 +501,7 @@ fn write_payload<W: WritePacket>(sink: &mut W, data: PacketPayload) -> anyhow::R
     match data {
         PacketPayload::LightUpdate(p) => sink.write_packet_fallible(&p),
         PacketPayload::BlockUpdate(p) => sink.write_packet_fallible(&p),
+        PacketPayload::SectionBlocksUpdate(p) => sink.write_packet_fallible(&p),
         PacketPayload::BlockEvent(p) => sink.write_packet_fallible(&p),
         PacketPayload::ChunkUnload(p) => sink.write_packet_fallible(&p),
         PacketPayload::EntityPosSync(p) => sink.write_packet_fallible(&p),

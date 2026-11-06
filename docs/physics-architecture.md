@@ -1466,3 +1466,11 @@ E1..E8, T1 (any time)   D1 ─ D2 ─ D3 ─ D4 ─ D5 ─ D6 ─ D7
     checks?
 30. TP-CONFIRM-RES-002 and TP-CONFIRM-RES-003: the engine resends after 20 ticks (U1 allows 20 or
     21) and only for a move with a position, a rotation or neither; all move packets count (U5).
+31. SIM-BEV-004 selects the players by distance only. The muxer sends a block event to the
+    players that hold the column and stand within 64 blocks of the corner, so a player in range
+    that does not hold the column gets no event. Its client has no block there to animate. Is this
+    an allowed deviation, or must the muxer send it by distance alone?
+32. SIM-SET-005: a column that does not broadcast changes keeps its marks. The engine has no state
+    for "loaded but not broadcasting": it drops the marks of a column that the muxer does not
+    subscribe to, as for a section that no player sees. The complete column that the client gets
+    later carries the change.
