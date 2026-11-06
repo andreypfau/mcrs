@@ -25,7 +25,7 @@ use crate::cell_mail::CellMail;
 use crate::channel_types::ToDim;
 use crate::column_generation::{GenerationAnswer, GenerationAsk};
 use crate::column_request::ColumnRequest;
-use crate::column_store::{ColumnDisk, ColumnStoreInput, ColumnStoreOutput};
+use crate::column_store::{ColumnDisk, ColumnStoreOutput};
 use crate::command_handoff::CommandHandoff;
 use crate::coordinator::clock::GameTime;
 use crate::coordinator::entity_id_ranges::EntityIdRanges;
@@ -78,8 +78,6 @@ pub struct DimCells {
     cells: BTreeMap<CellId, Cell>,
     /// The cell that holds the player of each session, in a dimension of several cells.
     sessions: FxHashMap<PlayerSession, CellId>,
-    /// What the generation of its world made for each cell, for its next tick.
-    generated: BTreeMap<CellId, Vec<ColumnStoreOutput>>,
     tick: Tick,
     outputs: Vec<DimTicked>,
 }
@@ -100,11 +98,14 @@ struct Dim {
     store: SharedStore<ColumnDisk, CellId>,
 }
 
-/// The place of a cell in its dimension, and what the other cells sent it for its next tick.
+/// The place of a cell in its dimension, and what the other cells, the data layer and the
+/// generation of its world sent it for its next tick.
 struct Cell {
     label: Entity,
     index: CellIndex,
     inbox: CellMail,
+    store_answers: Vec<ColumnStoreOutput>,
+    generated: Vec<ColumnStoreOutput>,
 }
 
 impl Default for DimCells {
@@ -114,7 +115,6 @@ impl Default for DimCells {
             dims: BTreeMap::new(),
             cells: BTreeMap::new(),
             sessions: FxHashMap::default(),
-            generated: BTreeMap::new(),
             tick: Tick::default(),
             outputs: Vec::new(),
         }
@@ -193,6 +193,8 @@ impl DimCells {
                 label,
                 index,
                 inbox: CellMail::default(),
+                store_answers: Vec::new(),
+                generated: Vec::new(),
             },
         );
         self.dims
@@ -216,7 +218,6 @@ impl DimCells {
         let worlds = self.worlds.get();
         for cell in dim.cells {
             self.cells.remove(&cell);
-            self.generated.remove(&cell);
             #[cfg(feature = "world-access")]
             worlds.lent.remove(&cell);
             block_on(worlds.cells.remove(cell));
@@ -257,24 +258,11 @@ impl DimCells {
         self.dims.get(&label).map_or(0, |dim| dim.cells.len())
     }
 
-    /// The world of the first cell of `label`, lent out of its cell until the next tick gives
-    /// it back.
+    /// The world of each cell of `label`, lent out of its cell until the next tick gives it
+    /// back, in the order of the cells.
     ///
     /// For tests and tools only: the parts of the server send a dimension world messages and
     /// never read or write it between ticks.
-    #[cfg(feature = "world-access")]
-    pub fn sub_app_mut(&mut self, label: Entity) -> Option<&mut SubApp> {
-        let cell = self.cells_of(label).next()?;
-        let worlds = self.worlds.get();
-        lend(worlds, cell);
-        worlds
-            .lent
-            .get_mut(&cell)
-            .map(|lent| lent.world_mut().sub_app_mut())
-    }
-
-    /// The world of each cell of `label`, lent out as [`Self::sub_app_mut`] lends one, in the
-    /// order of the cells.
     #[cfg(feature = "world-access")]
     pub fn cell_sub_apps_mut(&mut self, label: Entity) -> impl Iterator<Item = &mut SubApp> {
         let cells: Vec<CellId> = self.cells_of(label).collect();
@@ -289,7 +277,7 @@ impl DimCells {
             .map(|(_, lent)| lent.world_mut().sub_app_mut())
     }
 
-    /// Every world, lent out as [`Self::sub_app_mut`] lends one, in the order they tick.
+    /// Every world, lent out as [`Self::cell_sub_apps_mut`] lends one, in the order they tick.
     #[cfg(feature = "world-access")]
     pub fn sub_apps_mut(&mut self) -> impl Iterator<Item = &mut SubApp> {
         let worlds = self.worlds.get();
@@ -350,7 +338,9 @@ impl DimCells {
 
     /// Hands `answer` of the generation of its world to `cell`, in the input of its next tick.
     pub fn deliver_generated(&mut self, cell: CellId, answer: GenerationAnswer) {
-        self.generated.entry(cell).or_default().push(answer.into());
+        if let Some(cell) = self.cells.get_mut(&cell) {
+            cell.generated.push(answer.into());
+        }
     }
 
     pub(crate) fn take_outputs(&mut self) -> Vec<DimTicked> {
@@ -398,9 +388,17 @@ impl DimCells {
     fn split(&mut self, routed: RoutedInput) -> BTreeMap<CellId, RoutedInput> {
         let label = routed.dim;
         let mut split: BTreeMap<CellId, RoutedInput> = BTreeMap::new();
+        let dim = self.dims.get(&label);
         for message in routed.control {
             let cell = match &message {
-                ToDim::Spawn(spawn) => self.place(label, spawn.session, spawn.snapshot.position),
+                ToDim::Spawn(spawn) => dim.and_then(|dim| {
+                    place(
+                        dim,
+                        &mut self.sessions,
+                        spawn.session,
+                        spawn.snapshot.position,
+                    )
+                }),
                 ToDim::Transfer(transfer) => {
                     let (session, position) = match &**transfer {
                         PlayerTransfer::Arrive(departure) => {
@@ -410,7 +408,7 @@ impl DimCells {
                             (departure.session, departure.carried.transform.translation)
                         }
                     };
-                    self.place(label, session, position)
+                    dim.and_then(|dim| place(dim, &mut self.sessions, session, position))
                 }
                 ToDim::Despawn(despawn) => self.holder(label, despawn.session),
                 ToDim::Order(order) => self.holder(label, order.session),
@@ -434,13 +432,6 @@ impl DimCells {
             }
         }
         split
-    }
-
-    /// The cell that a player of `session` arriving at `position` goes to. It holds the player
-    /// from now on.
-    fn place(&mut self, label: Entity, session: PlayerSession, position: DVec3) -> Option<CellId> {
-        let dim = self.dims.get(&label)?;
-        place(dim, &mut self.sessions, session, position)
     }
 
     /// Hands what the cell `from` sent the other cells of its dimension to them, for their next
@@ -526,10 +517,11 @@ impl DimCells {
     }
 
     fn tick(&mut self, mut input: impl FnMut(CellId) -> DimInput) {
-        let mut answers: BTreeMap<CellId, Vec<ColumnStoreOutput>> = BTreeMap::new();
         for dim in self.dims.values_mut() {
             for answer in dim.store.answers() {
-                answers.entry(answer.to).or_default().push(answer.output);
+                if let Some(cell) = self.cells.get_mut(&answer.to) {
+                    cell.store_answers.push(answer.output);
+                }
             }
         }
         let worlds = self.worlds.get();
@@ -537,16 +529,13 @@ impl DimCells {
         for (_, lent) in mem::take(&mut worlds.lent) {
             worlds.cells.give_back(lent);
         }
-        let generated = &mut self.generated;
         let cells = &mut self.cells;
         let ticked = block_on(worlds.cells.tick(self.tick, |cell| {
             let mut input = input(cell);
-            input.store_answers = answers.remove(&cell).unwrap_or_default();
-            input
-                .store_answers
-                .extend(generated.remove(&cell).unwrap_or_default());
             if let Some(cell) = cells.get_mut(&cell) {
                 input.cell_mail = mem::take(&mut cell.inbox);
+                input.store_answers = mem::take(&mut cell.store_answers);
+                input.store_answers.append(&mut cell.generated);
             }
             input
         }));
@@ -575,18 +564,17 @@ impl DimCells {
     /// writes of all cells first, so a cell that reads a column in the tick in which its owner
     /// wrote it sees the write, then the other requests, each cell in its order.
     fn send_to_stores(&mut self) {
-        let mut rest: Vec<ColumnStoreInput> = Vec::new();
         for ticked in &mut self.outputs {
             let Some(dim) = self.dims.get_mut(&ticked.label) else {
                 continue;
             };
-            for input in mem::take(&mut ticked.output.store_inputs) {
-                match input {
-                    StoreInput::Put { .. } => dim.store.send(ticked.cell, input),
-                    StoreInput::Get { .. } | StoreInput::Flush => rest.push(input),
-                }
+            let puts = ticked
+                .output
+                .store_inputs
+                .extract_if(.., |input| matches!(input, StoreInput::Put { .. }));
+            for input in puts {
+                dim.store.send(ticked.cell, input);
             }
-            ticked.output.store_inputs = mem::take(&mut rest);
         }
         for ticked in &mut self.outputs {
             let Some(dim) = self.dims.get_mut(&ticked.label) else {

@@ -153,7 +153,8 @@ pub fn sub_app(app: &mut App, label: Entity) -> &mut SubApp {
     app.world_mut()
         .resource_mut::<DimCells>()
         .into_inner()
-        .sub_app_mut(label)
+        .cell_sub_apps_mut(label)
+        .next()
         .expect("the dimension is running")
 }
 
