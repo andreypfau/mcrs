@@ -114,6 +114,7 @@ pub fn run_profile_ticks(
     world.init_resource::<Messages<OutboundPlayerPacket>>();
     world.init_resource::<PlayerSessionCounter>();
     world.init_resource::<BridgeTelemetry>();
+    world.init_resource::<mcrs_minecraft_engine::muxer::bridge::PendingConnections>();
     world.init_resource::<mcrs_minecraft_engine_world::session::SessionAnchors>();
 
     // Synthetic dimension entities — plain entity handles used as dim keys

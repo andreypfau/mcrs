@@ -143,6 +143,7 @@ impl Viewer {
     fn new(own_id: i32) -> Self {
         let mut world = World::new();
         world.init_resource::<BridgeTelemetry>();
+        world.init_resource::<mcrs_minecraft_engine::muxer::bridge::PendingConnections>();
         let (raw, frames) = mock_connection::make_mock_raw_connection();
         let connection = world
             .spawn((

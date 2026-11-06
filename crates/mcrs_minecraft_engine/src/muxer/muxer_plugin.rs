@@ -1,8 +1,7 @@
-use bevy_app::{App, FixedPostUpdate, FixedPreUpdate, Plugin, Update};
+use bevy_app::{App, FixedPostUpdate, Plugin, Update};
 use bevy_ecs::message::signal_message_update_system;
 use bevy_ecs::schedule::{IntoScheduleConfigs, Schedule, SingleThreadedExecutor};
 use mcrs_minecraft_engine_world::session::{PlayerSessionCounter, SessionAnchors};
-use mcrs_minecraft_network::NetworkSet;
 use mcrs_minecraft_network::metrics::{BridgeTelemetry, PacketDispatcher};
 
 use crate::bus::{InboundPlayerPacket, OutboundPlayerAttached, OutboundPlayerPacket};
@@ -33,13 +32,7 @@ impl Plugin for MuxerPlugin {
         app.add_message::<OutboundPlayerPacket>();
         app.add_message::<InboundPlayerPacket>();
         app.add_message::<OutboundPlayerAttached>();
-        // The commands of `attach_outbound_queue` apply at the end of FixedPreUpdate, so every
-        // connection that `SpawnConnections` spawned carries an `OutboundQueue` by
-        // FixedPostUpdate.
-        app.add_systems(
-            FixedPreUpdate,
-            bridge::attach_outbound_queue.after(NetworkSet::SpawnConnections),
-        );
+        app.add_observer(bridge::attach_outbound_queue);
 
         // One chain: threads would only add the cost of handing its two systems out.
         app.init_resource::<bridge::PendingConnections>();

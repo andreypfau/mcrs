@@ -42,6 +42,7 @@ fn build_join_host_app() -> App {
     app.insert_resource(crate::support::dimension_list_with_extra());
 
     app.init_resource::<mcrs_minecraft_network::metrics::BridgeTelemetry>();
+    app.init_resource::<mcrs_minecraft_engine::muxer::bridge::PendingConnections>();
     app.init_resource::<mcrs_minecraft_engine_world::session::PlayerSessionCounter>();
     app.add_message::<InboundPlayerSpawn>();
 

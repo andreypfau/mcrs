@@ -27,6 +27,7 @@ pub fn build_bridge_world() -> World {
     let mut world = World::new();
     world.init_resource::<Messages<OutboundPlayerPacket>>();
     world.init_resource::<mcrs_minecraft_network::metrics::BridgeTelemetry>();
+    world.init_resource::<mcrs_minecraft_engine::muxer::bridge::PendingConnections>();
     world.init_resource::<mcrs_minecraft_engine_world::session::SessionAnchors>();
     world
 }

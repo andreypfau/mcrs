@@ -208,55 +208,18 @@ fn inbound_rate_kick() {
     );
 }
 
-// ---------------------------------------------------------------------------
-// no_unattached_outbound_queue_after_fixed_preupdate
-// ---------------------------------------------------------------------------
-
-/// After `attach_outbound_queue` runs (FixedPreUpdate), every
-/// `ServerSideConnection` entity must also carry an `OutboundQueue`.
-/// This asserts the spawn→attach ordering window is closed.
-///
-/// Test creates a connection entity WITHOUT an OutboundQueue, runs
-/// `attach_outbound_queue`, and verifies the gap is closed.
 #[test]
-fn no_unattached_outbound_queue_after_fixed_preupdate() {
-    use bevy_ecs::query::{With, Without};
+fn a_new_connection_has_an_outbound_queue_at_once() {
     use mcrs_minecraft_engine::muxer::bridge::attach_outbound_queue;
 
     let mut world = World::new();
-    // Spawn a bare ServerSideConnection without OutboundQueue (simulates
-    // a freshly spawned connection from spawn_new_raw_connections).
+    world.add_observer(attach_outbound_queue);
     let (raw, _rx) = mock_connection::make_mock_raw_connection();
     let socket = world
         .spawn(ServerSideConnection { raw: Box::new(raw) })
         .id();
 
-    // Verify the gap exists before running.
-    let gap_before = world
-        .query_filtered::<Entity, (With<ServerSideConnection>, Without<OutboundQueue>)>()
-        .iter(&world)
-        .count();
-    assert_eq!(
-        gap_before, 1,
-        "should have one unattached connection before attach"
-    );
-
-    // Run attach_outbound_queue (simulating FixedPreUpdate).
-    let mut sys = IntoSystem::into_system(attach_outbound_queue);
-    sys.initialize(&mut world);
-    let _ = sys.run((), &mut world);
-    sys.apply_deferred(&mut world);
-
-    // After attach, no ServerSideConnection entity should lack OutboundQueue.
-    let gap_after = world
-        .query_filtered::<Entity, (With<ServerSideConnection>, Without<OutboundQueue>)>()
-        .iter(&world)
-        .count();
-    assert_eq!(
-        gap_after, 0,
-        "no ServerSideConnection should lack OutboundQueue after attach_outbound_queue"
-    );
-    let _ = socket;
+    assert!(world.get::<OutboundQueue>(socket).is_some());
 }
 
 // ---------------------------------------------------------------------------

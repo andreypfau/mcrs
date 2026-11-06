@@ -1,9 +1,10 @@
 use bevy_ecs::schedule::ScheduleLabel;
 
 use bevy_ecs::entity::Entity;
+use bevy_ecs::lifecycle::Add;
 use bevy_ecs::message::Messages;
+use bevy_ecs::observer::On;
 use bevy_ecs::prelude::Commands;
-use bevy_ecs::query::{With, Without};
 use bevy_ecs::resource::Resource;
 use bevy_ecs::system::{Local, Query, Res, ResMut};
 use bevy_ecs::world::World;
@@ -66,26 +67,9 @@ use crate::muxer::session::{HostAnchorRef, PendingInbound, SessionConnection};
 use mcrs_minecraft_engine_world::session::{Place, Session, SessionAnchors, SessionPlacement};
 use mcrs_minecraft_engine_world::world::channels::MAX_HELD_SERVERBOUND;
 
-/// Attach `OutboundQueue` to any connection entity that carries
-/// `ServerSideConnection` but not yet an `OutboundQueue`.
-///
-/// Runs in `FixedPreUpdate`, ordered after `spawn_new_raw_connections`, so by
-/// the time any `FixedPostUpdate` bridge system runs every connection entity
-/// carries it. The network crate's spawn system cannot insert the queue because
-/// it is defined in this crate; this system closes that cross-crate ownership gap.
-///
-/// Even with this ordering, `bridge_outbound` still treats a resolved target
-/// that lacks `OutboundQueue` as a counted event
-/// (`BridgeTelemetry::outbound_no_queue_total`) rather than a
-/// silent miss. The counter makes any residual race observable so no join
-/// packet is dropped silently.
-pub fn attach_outbound_queue(
-    mut commands: Commands,
-    new_connections: Query<Entity, (With<ServerSideConnection>, Without<OutboundQueue>)>,
-) {
-    for entity in &new_connections {
-        commands.entity(entity).insert(OutboundQueue::default());
-    }
+/// Gives each new connection its `OutboundQueue`, which the network crate cannot name.
+pub fn attach_outbound_queue(add: On<Add, ServerSideConnection>, mut commands: Commands) {
+    commands.entity(add.entity).insert(OutboundQueue::default());
 }
 
 /// What [`bridge_outbound`] reuses from one message to the next.
@@ -103,15 +87,14 @@ pub struct OutboundScratch {
 /// queue is handed over.
 ///
 /// A target that resolves to an entity with no `OutboundQueue` increments
-/// `BridgeTelemetry::outbound_no_queue_total` and is never silently dropped, so
-/// any residual spawn→attach race stays observable.
+/// `BridgeTelemetry::outbound_no_queue_total`.
 pub fn bridge_outbound(
     mut messages: ResMut<Messages<OutboundPlayerPacket>>,
     anchors: Res<SessionAnchors>,
     sessions: Query<(&Session, &SessionPlacement, Option<&SessionConnection>)>,
     mut queues: Query<&mut OutboundQueue>,
     mut telemetry: ResMut<BridgeTelemetry>,
-    mut pending: Option<ResMut<PendingConnections>>,
+    mut pending: ResMut<PendingConnections>,
     mut scratch: Local<OutboundScratch>,
 ) {
     let OutboundScratch { recipients, buffer } = &mut *scratch;
@@ -137,7 +120,7 @@ pub fn bridge_outbound(
             push_to_connection(
                 &mut queues,
                 &mut telemetry,
-                pending.as_deref_mut(),
+                &mut pending,
                 connection,
                 msg.priority,
                 packet.clone(),
@@ -146,7 +129,7 @@ pub fn bridge_outbound(
         push_to_connection(
             &mut queues,
             &mut telemetry,
-            pending.as_deref_mut(),
+            &mut pending,
             last,
             msg.priority,
             packet,
@@ -256,7 +239,7 @@ impl WritePacket for PacketBuffer {
 fn push_to_connection(
     queues: &mut Query<&mut OutboundQueue>,
     telemetry: &mut BridgeTelemetry,
-    pending: Option<&mut PendingConnections>,
+    pending: &mut PendingConnections,
     connection: Entity,
     priority: PacketPriority,
     packet: QueuedPacket,
@@ -267,9 +250,7 @@ fn push_to_connection(
     };
     // A queue is emptied whenever its connection is handed over, so one that holds packets
     // is already pending.
-    if queue.total_len() == 0
-        && let Some(pending) = pending
-    {
+    if queue.total_len() == 0 {
         pending.connections.push(connection);
     }
     queue.push_queued(priority, packet);
@@ -296,24 +277,17 @@ pub fn dispatch_encode(
     mut players: Query<(Entity, &mut OutboundQueue, &mut ServerSideConnection)>,
     mut commands: Commands,
     mut telemetry: ResMut<BridgeTelemetry>,
-    mut pending: Option<ResMut<PendingConnections>>,
+    mut pending: ResMut<PendingConnections>,
     mut every: Local<Vec<Entity>>,
     mut frames: Local<SharedFrames>,
     mut wakes: Local<WriterWakes>,
 ) {
     every.extend(players.iter().map(|(entity, ..)| entity));
-    let mut left_behind = Vec::new();
-    let left_behind = match pending.as_deref_mut() {
-        Some(pending) => {
-            pending.connections.clear();
-            &mut pending.connections
-        }
-        None => &mut left_behind,
-    };
+    pending.connections.clear();
     dispatch_listed(
         &mut players,
         &mut every,
-        left_behind,
+        &mut pending.connections,
         &mut commands,
         &mut telemetry,
         &mut frames,

@@ -41,6 +41,7 @@ fn build_dispatch_world() -> World {
     let mut world = World::new();
     world.init_resource::<Messages<OutboundPlayerPacket>>();
     world.init_resource::<BridgeTelemetry>();
+    world.init_resource::<mcrs_minecraft_engine::muxer::bridge::PendingConnections>();
     world
 }
 
