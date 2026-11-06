@@ -457,11 +457,6 @@ impl RawConnection {
     /// what it had no room for is kept.
     pub fn send_written(&mut self) -> bool {
         self.queue.close();
-        self.flush_unsent()
-    }
-
-    /// Sends what is waiting, in order, as far as the writer has room.
-    pub fn flush_unsent(&mut self) -> bool {
         let handed = self.send_unsent();
         if handed.sent {
             self.signal.wake();
@@ -476,7 +471,8 @@ impl RawConnection {
         self.flush_unsent_deferred(wakes)
     }
 
-    /// [`Self::flush_unsent`], with the wake of the writer left to [`WriterWakes::wake_all`].
+    /// Sends what is waiting, in order, as far as the writer has room, with the wake of the
+    /// writer left to [`WriterWakes::wake_all`].
     #[cfg(not(target_family = "wasm"))]
     pub fn flush_unsent_deferred(&mut self, wakes: &mut WriterWakes) -> bool {
         let handed = self.send_unsent();
