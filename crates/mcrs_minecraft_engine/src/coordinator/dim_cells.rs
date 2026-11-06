@@ -373,12 +373,35 @@ impl DimCells {
             .or_else(|| self.cells_of(label).next())
     }
 
-    /// The cell that runs `handoff`: the owner of the column of its first source, whose blocks
-    /// the stage reads, or the cell that holds the player who sent the line.
-    fn handoff_cell(&self, label: Entity, handoff: &CommandHandoff) -> Option<CellId> {
-        match handoff.sources.first() {
-            Some(source) => self.owner(label, ColumnPos::from(source.position)),
-            None => self.holder(label, handoff.output),
+    /// Splits `handoff` by the owner of the column of each source, whose blocks the stage
+    /// reads. A handoff with no source goes to the cell that holds the player who sent the line.
+    fn split_handoff(
+        &self,
+        split: &mut BTreeMap<CellId, RoutedInput>,
+        label: Entity,
+        mut handoff: CommandHandoff,
+    ) {
+        let sources = mem::take(&mut handoff.sources);
+        if sources.is_empty() {
+            if let Some(cell) = self.holder(label, handoff.output) {
+                let message = ToDim::Command(Box::new(handoff));
+                part(split, label, cell).control.push(message);
+            }
+            return;
+        }
+        let mut parts: BTreeMap<CellId, CommandHandoff> = BTreeMap::new();
+        for source in sources {
+            if let Some(cell) = self.owner(label, ColumnPos::from(source.position)) {
+                parts
+                    .entry(cell)
+                    .or_insert_with(|| handoff.clone())
+                    .sources
+                    .push(source);
+            }
+        }
+        for (cell, handoff) in parts {
+            let message = ToDim::Command(Box::new(handoff));
+            part(split, label, cell).control.push(message);
         }
     }
 
@@ -390,6 +413,13 @@ impl DimCells {
         let mut split: BTreeMap<CellId, RoutedInput> = BTreeMap::new();
         let dim = self.dims.get(&label);
         for message in routed.control {
+            let message = match message {
+                ToDim::Command(handoff) => {
+                    self.split_handoff(&mut split, label, *handoff);
+                    continue;
+                }
+                message => message,
+            };
             let cell = match &message {
                 ToDim::Spawn(spawn) => dim.and_then(|dim| {
                     place(
@@ -412,7 +442,7 @@ impl DimCells {
                 }
                 ToDim::Despawn(despawn) => self.holder(label, despawn.session),
                 ToDim::Order(order) => self.holder(label, order.session),
-                ToDim::Command(handoff) => self.handoff_cell(label, handoff),
+                ToDim::Command(_) => None,
             };
             if let Some(cell) = cell {
                 part(&mut split, label, cell).control.push(message);
@@ -764,7 +794,7 @@ mod tests {
     }
 
     #[test]
-    fn a_handoff_goes_to_the_cell_that_owns_the_column_of_its_source() {
+    fn a_handoff_goes_to_the_cells_that_own_the_columns_of_its_sources() {
         let label = Entity::PLACEHOLDER;
         let mut cells = DimCells::default();
         let first = cells.add(label, CellIndex(0), SubApp::new(), Placement::Inline);
@@ -793,6 +823,33 @@ mod tests {
                 [cell_of(position)],
                 "the handoff at {position:?}"
             );
+        }
+
+        let ToDim::Command(mut both) = handoff(label, west) else {
+            panic!("a command handoff");
+        };
+        both.sources.push(SourceState {
+            position: east,
+            ..both.origin.clone()
+        });
+        let split = cells.split(RoutedInput {
+            dim: label,
+            control: vec![ToDim::Command(both)],
+            serverbound: Vec::new(),
+            column_requests: Vec::new(),
+        });
+        for position in [west, east] {
+            let sources: Vec<DVec3> = split
+                .get(&cell_of(position))
+                .into_iter()
+                .flat_map(|input| &input.control)
+                .filter_map(|message| match message {
+                    ToDim::Command(handoff) => Some(handoff),
+                    _ => None,
+                })
+                .flat_map(|handoff| handoff.sources.iter().map(|source| source.position))
+                .collect();
+            assert_eq!(sources, [position], "the owner of {position:?}");
         }
     }
 }
