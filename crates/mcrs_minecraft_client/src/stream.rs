@@ -193,7 +193,7 @@ struct Section {
     work: Work,
 }
 
-#[derive(Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 enum Work {
     #[default]
     Idle,
@@ -785,20 +785,17 @@ impl Loader {
             draws: Some(self.draws()),
             ..Placement::default()
         }));
-        let mut kills = Vec::new();
         let mut replaced = std::mem::take(&mut self.replaced);
         for held in replaced.drain(..) {
             for (stream, &(first, count)) in self.streams.iter_mut().zip(&held.groups) {
                 kill(stream, first, count);
-                let end = (first + count).min(stream.block.capacity() as u32);
-                if first < end {
-                    stream.write(first, end, &mut kills);
-                }
+                stream.touched.push((first, first + count));
             }
             self.free_room(&held);
             self.free_slots.push(held.slot);
         }
         self.replaced = replaced;
+        let kills = self.touched_runs();
         if !kills.is_empty() {
             uploads.push(Upload::Geometry(Placement {
                 groups: kills,
@@ -1226,11 +1223,6 @@ impl Sections {
         self.tally.queued
     }
 
-    #[cfg(test)]
-    fn is_queued(&self, at: [i32; 3]) -> bool {
-        self.work(at) == Work::Queued
-    }
-
     fn is_meshing(&self, at: [i32; 3]) -> bool {
         matches!(self.work(at), Work::Meshing { .. })
     }
@@ -1260,7 +1252,7 @@ impl Sections {
 
     #[cfg(test)]
     fn dequeue(&mut self, at: [i32; 3]) {
-        if self.is_queued(at) {
+        if self.work(at) == Work::Queued {
             self.set_work(at, Work::Idle);
         }
     }
@@ -1282,16 +1274,6 @@ impl Sections {
         })?;
         self.set_work(at, Work::Idle);
         Some(at)
-    }
-
-    #[cfg(test)]
-    fn rebucket(&mut self, camera: [i32; 3]) {
-        let Self { states, queue, .. } = self;
-        queue.rebucket(camera, |at| {
-            states
-                .get(&at)
-                .is_some_and(|section| section.work == Work::Queued)
-        });
     }
 
     fn start_meshing(&mut self, at: [i32; 3]) {
@@ -2102,7 +2084,7 @@ mod tests {
 
         sections.enqueue(meshing, [0; 3]);
         sections.requeue_deferred([0; 3]);
-        assert!(sections.is_queued(waiting));
+        assert_eq!(sections.work(waiting), Work::Queued);
         assert!(sections.is_meshing(meshing));
         assert_eq!(sections.queued(), 1);
         assert_eq!(sections.pop_nearest([0; 3]), Some(waiting));
@@ -2161,7 +2143,7 @@ mod tests {
         store.insert(last, stone());
         adopt(&mut loader, &mut store, &mut cave);
         assert!(
-            loader.sections.is_queued([0, 0, 0]),
+            loader.sections.work([0, 0, 0]) == Work::Queued,
             "the centre column arrived first; only its last neighbour makes it meshable"
         );
         assert_ne!(
@@ -2238,7 +2220,7 @@ mod tests {
             loader.relit.insert(relit);
             loader.remesh_relit(&store, &mut cave);
             assert!(
-                loader.sections.is_queued(relit),
+                loader.sections.work(relit) == Work::Queued,
                 "the section is meshed again"
             );
             let old = slot;
@@ -2342,7 +2324,7 @@ mod tests {
         );
         assert_eq!(loader.free_slots, vec![slot], "and its slot goes back");
         assert!(
-            !loader.sections.is_queued(centre),
+            loader.sections.work(centre) != Work::Queued,
             "with the column gone there is nothing to mesh again"
         );
 
@@ -2353,12 +2335,12 @@ mod tests {
         store.insert(ColumnPos::new(0, 0), stone());
         adopt(&mut loader, &mut store, &mut cave);
         assert!(
-            !loader.sections.is_queued(centre),
+            loader.sections.work(centre) != Work::Queued,
             "the arrival cannot queue a section a task still holds"
         );
         assert!(loader.discard_orphan(centre, slot, &store));
         assert!(
-            loader.sections.is_queued(centre),
+            loader.sections.work(centre) == Work::Queued,
             "the column is back, so the section is meshed again out of what it holds now"
         );
     }
@@ -2512,7 +2494,12 @@ mod mesh_queue_tests {
         sections.dequeue(requeued);
         sections.enqueue(requeued, [0; 3]);
         sections.enqueue(other, [0; 3]);
-        sections.rebucket([0; 3]);
+        let Sections { states, queue, .. } = &mut sections;
+        queue.rebucket([0; 3], |at| {
+            states
+                .get(&at)
+                .is_some_and(|section| section.work == Work::Queued)
+        });
         assert_eq!(sections.pop_nearest([0; 3]), Some(requeued));
         assert_eq!(sections.pop_nearest([0; 3]), Some(other));
         assert_eq!(sections.pop_nearest([0; 3]), None);
