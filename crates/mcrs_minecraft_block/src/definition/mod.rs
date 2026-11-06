@@ -536,7 +536,7 @@ pub fn build_block_definitions<S: AsRef<str>>(
 const UNCLAIMED: BlockStateData = BlockStateData {
     light_emission: 0,
     light_dampening: 0,
-    friction: 0.0,
+    friction: 0.6,
     hardness: 0.0,
     explosion_resistance: 0.0,
     map_color: MapColor::NONE,
@@ -1165,6 +1165,13 @@ mod tests {
                 max: Vec3::ONE
             }]
         );
+    }
+
+    #[test]
+    fn a_state_past_the_end_has_the_default_friction() {
+        let definitions = build(&[file("minecraft:test", 0, "", "")]).unwrap();
+        let past_end = BlockStateId::checked(1, 2).unwrap();
+        assert_eq!(definitions.state(past_end).friction, 0.6_f32);
     }
 
     #[test]
