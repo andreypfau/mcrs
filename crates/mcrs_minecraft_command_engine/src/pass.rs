@@ -335,7 +335,6 @@ fn collect_targets(world: &mut World, buffers: &mut PassBuffers, here: Entity) {
             name: profile.username.clone(),
             transform: *transform,
             mode: mode.0,
-            list_order: session.0,
         });
     }
     if let Some(foreign) = world.get_resource::<ForeignPlayers>() {
@@ -351,7 +350,6 @@ fn collect_targets(world: &mut World, buffers: &mut PassBuffers, here: Entity) {
                 name: row.name.clone(),
                 transform: row.transform,
                 mode: row.mode,
-                list_order: row.session.0,
             });
         }
     }

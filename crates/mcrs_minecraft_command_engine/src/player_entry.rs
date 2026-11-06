@@ -24,7 +24,4 @@ pub struct PlayerEntry {
     pub transform: Transform,
     /// The game mode of the player, as the effects so far left it.
     pub mode: GameMode,
-    /// The session id: sessions count up as players join, so it orders the player list, and a
-    /// change of dimension keeps it.
-    pub(crate) list_order: u64,
 }

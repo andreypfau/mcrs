@@ -57,8 +57,9 @@ impl CommandTargets {
     }
 
     pub(crate) fn index_players(&mut self) {
-        self.players
-            .sort_unstable_by_key(|player| player.list_order);
+        // Sessions count up as players join and a change of dimension keeps them, so they give
+        // the order of the player list.
+        self.players.sort_unstable_by_key(|player| player.session.0);
         self.by_session.clear();
         self.by_session.extend(
             self.players
