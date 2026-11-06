@@ -7,21 +7,9 @@ pub(crate) enum GenerationInput {
     /// The context every ladder stage runs against. Until it arrives the stage queues what is
     /// wanted and generates nothing.
     Context(Box<FillContext>),
-    Want(WantedColumn),
-    /// What the views and the players are this tick. The stage drops what left every view and
-    /// orders what is left by the players' distance.
-    Views(ViewUpdate),
-}
-
-/// A column that a cell asked for.
-pub(crate) struct WantedColumn {
-    pub(crate) col: ColumnPos,
-    /// Squared XZ distance to the nearest player when the column was asked for.
-    pub(crate) distance_sq: i32,
-}
-
-#[derive(Clone, Debug, Default, PartialEq)]
-pub(crate) struct ViewUpdate {
-    pub(crate) views: Vec<ChunkTrackingView>,
-    pub(crate) players: Vec<ColumnPos>,
+    /// A column that a cell asked for, ordered by its distance to the nearest view center.
+    Want(ColumnPos),
+    /// What the views are this tick. The stage drops what left every view and orders what is
+    /// left by the distance to the view centers.
+    Views(Vec<ChunkTrackingView>),
 }

@@ -10,14 +10,13 @@ use mcrs_engine_link::{Link, Placement};
 use mcrs_minecraft_engine::column_generation::GenerationAnswer;
 use mcrs_minecraft_engine::coordinator::dim_cells::DimCells;
 use mcrs_minecraft_engine::foreign_views::ForeignViews;
-use mcrs_minecraft_engine_world::aoi::min_column_distance;
 
 use mcrs_minecraft_engine_world::world::dimension_builders::DimensionBuild;
 use mcrs_minecraft_worldgen_generator::stages::FillContext;
 use mcrs_voxel::{ColumnPos, SectionPos};
 use rustc_hash::FxHashMap;
 
-use crate::generation_input::{GenerationInput, ViewUpdate, WantedColumn};
+use crate::generation_input::GenerationInput;
 use crate::generation_stage::{GenerationStage, SchedulerConfig, init_chunk_task_pool};
 
 /// The generation of each world, in the host: one stage for each world generates the whole
@@ -52,34 +51,22 @@ impl WorldGeneration {
 }
 
 impl WorldStage {
-    fn ask(&mut self, cell: CellId, column: ColumnPos, players: &[ColumnPos]) {
+    fn ask(&mut self, cell: CellId, column: ColumnPos) {
         let askers = self.askers.entry(column).or_default();
         if askers.is_empty() {
-            self.link.send(GenerationInput::Want(WantedColumn {
-                col: column,
-                distance_sq: min_column_distance(&column, players),
-            }));
+            self.link.send(GenerationInput::Want(column));
         }
         if !askers.contains(&cell) {
             askers.push(cell);
         }
     }
 
-    fn players(&self) -> Vec<ColumnPos> {
-        self.views
-            .views()
-            .map(|view| ColumnPos::new(view.center.x, view.center.z))
-            .collect()
-    }
-
-    fn send_views(&mut self, players: Vec<ColumnPos>) {
+    fn send_views(&mut self) {
         if !mem::take(&mut self.views_changed) {
             return;
         }
-        self.link.send(GenerationInput::Views(ViewUpdate {
-            views: self.views.views().collect(),
-            players,
-        }));
+        self.link
+            .send(GenerationInput::Views(self.views.views().collect()));
     }
 }
 
@@ -126,18 +113,13 @@ pub(crate) fn ask_world_columns(
             stage.views_changed |= stage.views.apply(reported.view);
         }
     }
-    let asks = cells.take_generation_asks();
-    let mut players: BTreeMap<Entity, Vec<ColumnPos>> = BTreeMap::new();
-    for ask in asks {
-        let Some(stage) = generation.worlds.get_mut(&ask.label) else {
-            continue;
-        };
-        let players = players.entry(ask.label).or_insert_with(|| stage.players());
-        stage.ask(ask.cell, ask.column, players);
+    for ask in cells.take_generation_asks() {
+        if let Some(stage) = generation.worlds.get_mut(&ask.label) {
+            stage.ask(ask.cell, ask.column);
+        }
     }
-    for (label, stage) in &mut generation.worlds {
-        let players = players.remove(label).unwrap_or_else(|| stage.players());
-        stage.send_views(players);
+    for stage in generation.worlds.values_mut() {
+        stage.send_views();
     }
 }
 

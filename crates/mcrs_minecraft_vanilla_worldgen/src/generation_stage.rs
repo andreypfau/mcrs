@@ -3,6 +3,7 @@ use mcrs_engine_link::{InFlight, Step, TaskOutcome};
 use mcrs_minecraft_engine::column_generation::GenerationAnswer;
 use mcrs_minecraft_engine::stored_column::{StoredColumn, StoredSection};
 use mcrs_minecraft_engine_world::aoi::min_column_distance;
+use mcrs_minecraft_engine_world::entity::player::chunk_view::ChunkTrackingView;
 use mcrs_minecraft_engine_world::palette::{ChunkBlocks, section_states};
 use mcrs_minecraft_engine_world::world::lifecycle::column_loading::LOADING_RINGS;
 use mcrs_minecraft_worldgen_generator::stages::FillContext;
@@ -19,7 +20,7 @@ use std::sync::{Arc, OnceLock};
 use tracing::{trace, warn};
 
 use crate::generated_ticks;
-use crate::generation_input::{GenerationInput, ViewUpdate, WantedColumn};
+use crate::generation_input::GenerationInput;
 
 /// The pool that every generation stage of the process runs its ladder stages on.
 pub(crate) static CHUNK_TASK_POOL: OnceLock<TaskPool> = OnceLock::new();
@@ -114,7 +115,9 @@ pub(crate) struct GenerationStage {
     pub(crate) climbed: Vec<ColumnPos>,
     /// Columns wanted since the views were last checked against them.
     unscreened: Vec<ColumnPos>,
-    views: ViewUpdate,
+    views: Vec<ChunkTrackingView>,
+    /// The center of each view, where its player stands.
+    players: Vec<ColumnPos>,
     /// Columns that left every view, emitted with the next step.
     abandoned: Vec<ColumnPos>,
     /// The one owner of every materialised value of the ladder.
@@ -132,8 +135,8 @@ impl mcrs_engine_link::Stage for GenerationStage {
     fn receive(&mut self, input: GenerationInput) {
         match input {
             GenerationInput::Context(ctx) => self.ctx = Some(*ctx),
-            GenerationInput::Want(wanted) => self.want(wanted),
-            GenerationInput::Views(update) => self.screen(update),
+            GenerationInput::Want(col) => self.want(col),
+            GenerationInput::Views(views) => self.screen(views),
         }
     }
 
@@ -189,7 +192,8 @@ impl GenerationStage {
             forgotten: Vec::new(),
             climbed: Vec::new(),
             unscreened: Vec::new(),
-            views: ViewUpdate::default(),
+            views: Vec::new(),
+            players: Vec::new(),
             abandoned: Vec::new(),
             store: StagingStore::default(),
             config,
@@ -216,12 +220,14 @@ impl GenerationStage {
 
     /// A column stays in the queue for the whole of its ladder, so a second ask while it
     /// climbs gets the same generated column.
-    fn want(&mut self, wanted: WantedColumn) {
-        let WantedColumn { col, distance_sq } = wanted;
+    fn want(&mut self, col: ColumnPos) {
         if self.priority_index.contains_key(&col) {
             return;
         }
-        let key = ColumnKey { distance_sq, col };
+        let key = ColumnKey {
+            distance_sq: min_column_distance(&col, &self.players),
+            col,
+        };
         self.priority_index.insert(col, key);
         self.fresh.insert(key);
         self.climbed.push(col);
@@ -234,11 +240,11 @@ impl GenerationStage {
     /// is still an input to its run, so it is neither cancelled nor evicted. The
     /// wanted columns change only by a request and by the views, so with the same views
     /// only the columns wanted since the last update need a look.
-    fn screen(&mut self, update: ViewUpdate) {
-        let previous = mem::replace(&mut self.views, update);
+    fn screen(&mut self, views: Vec<ChunkTrackingView>) {
+        let views_moved = views != self.views;
+        self.views = views;
         let unscreened = mem::take(&mut self.unscreened);
-        let views_moved = previous.views != self.views.views;
-        if !self.views.views.is_empty() {
+        if !self.views.is_empty() {
             let stale: Vec<ColumnKey> = if views_moved {
                 self.priority_index.values().copied().collect()
             } else {
@@ -258,13 +264,17 @@ impl GenerationStage {
                 self.evict_outside_halo();
             }
         }
-        if previous.players != self.views.players && !self.views.players.is_empty() {
-            self.reprioritize();
+        let players = self.views.iter().map(|view| ColumnPos::from(view.center));
+        if !players.clone().eq(self.players.iter().copied()) {
+            self.players = players.collect();
+            if !self.players.is_empty() {
+                self.reprioritize();
+            }
         }
     }
 
     fn within_views(&self, col: ColumnPos, slack: i32) -> bool {
-        self.views.views.iter().any(|view| view.reaches(col, slack))
+        self.views.iter().any(|view| view.reaches(col, slack))
     }
 
     fn abandon(&mut self, key: ColumnKey) {
@@ -284,7 +294,7 @@ impl GenerationStage {
             .unwrap_or(i32::MAX)
             .saturating_mul(2);
         let reach = LOADING_RINGS.saturating_add(halo);
-        let views = &self.views.views;
+        let views = &self.views;
         for stage in self.in_flight.iter() {
             if !views.iter().any(|view| view.reaches(stage.col, reach)) {
                 stage.cancel.cancel();
@@ -298,7 +308,7 @@ impl GenerationStage {
     }
 
     fn reprioritize(&mut self) {
-        let players = &self.views.players;
+        let players = &self.players;
         let updates: Vec<KeyChange> = self
             .priority_index
             .iter()
