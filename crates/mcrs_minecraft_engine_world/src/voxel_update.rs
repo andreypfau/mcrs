@@ -22,8 +22,7 @@ pub struct BlockSetRequest {
     pub recursion_left: i16,
 }
 
-/// A block write that one cell of a world hands another: a write into a column of the other
-/// cell, or a change of a column of its own for the halo of the other cell.
+/// A block write that one cell of a world hands another, into a column of the other cell.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct CellBlockWrite {
     pub pos: BlockPos,
@@ -32,16 +31,17 @@ pub struct CellBlockWrite {
     pub recursion_left: i16,
 }
 
+/// A block that changed to `state`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct BlockChange {
+    pub pos: BlockPos,
+    pub state: BlockStateId,
+}
+
 /// The changes of the halo that the owners sent for this tick. They apply before the requests
 /// of the tick, and only change the copy: no neighbour hears of them.
 #[derive(Resource, Debug, Default)]
-pub struct HaloBlockChanges(pub Vec<HaloBlockChange>);
-
-#[derive(Clone, Copy, Debug)]
-pub struct HaloBlockChange {
-    pub dimension: Entity,
-    pub write: CellBlockWrite,
-}
+pub struct HaloBlockChanges(pub Vec<BlockChange>);
 
 /// Applies the changes of the halo that the owners sent, before any write of the tick. They only
 /// change the copy: no neighbour hears of them.
@@ -52,9 +52,18 @@ pub struct HaloBlockChange {
 pub fn apply_halo_changes(
     blocks: &mut WorldViewMut,
     writer: &mut MessageWriter<BlockPlaced>,
-    changes: &mut Vec<HaloBlockChange>,
+    dimension: Entity,
+    changes: &mut Vec<BlockChange>,
 ) {
-    changes.retain(|change| apply_write(blocks, writer, change.dimension, change.write));
+    changes.retain(|change| {
+        let write = CellBlockWrite {
+            pos: change.pos,
+            new_state: change.state,
+            flags: BlockUpdateFlags::empty(),
+            recursion_left: 0,
+        };
+        apply_write(blocks, writer, dimension, write)
+    });
 }
 
 /// Stores `write` in its section and reports the change, with no neighbour or shape update.
@@ -137,10 +146,10 @@ mod tests {
 
     type HaloParams<'w, 's> = (WorldViewMut<'w, 's>, MessageWriter<'w, BlockPlaced>);
 
-    fn apply(world: &mut World, changes: &mut Vec<HaloBlockChange>) {
+    fn apply(world: &mut World, dimension: Entity, changes: &mut Vec<BlockChange>) {
         let mut state: SystemState<HaloParams> = SystemState::new(world);
         let (mut blocks, mut writer) = state.get_mut(world).expect("valid params");
-        apply_halo_changes(&mut blocks, &mut writer, changes);
+        apply_halo_changes(&mut blocks, &mut writer, dimension, changes);
         state.apply(world);
     }
 
@@ -154,18 +163,10 @@ mod tests {
         let dimension = world.spawn((index, DimensionTypeConfig::new(0, 16))).id();
         let stone = BlockStateId::checked(1, 2).expect("a state past air");
         let pos = BlockPos::new(3, 4, 5);
-        let change = |pos: BlockPos| HaloBlockChange {
-            dimension,
-            write: CellBlockWrite {
-                pos,
-                new_state: stone,
-                flags: BlockUpdateFlags::empty(),
-                recursion_left: 0,
-            },
-        };
+        let change = |pos: BlockPos| BlockChange { pos, state: stone };
         let mut changes = vec![change(pos), change(BlockPos::new(40, 4, 5))];
 
-        apply(&mut world, &mut changes);
+        apply(&mut world, dimension, &mut changes);
         assert_eq!(
             changes.len(),
             1,
@@ -173,7 +174,7 @@ mod tests {
         );
 
         world.entity_mut(landing).insert(air_section());
-        apply(&mut world, &mut changes);
+        apply(&mut world, dimension, &mut changes);
         assert!(
             changes.is_empty(),
             "the change applied once its section landed"

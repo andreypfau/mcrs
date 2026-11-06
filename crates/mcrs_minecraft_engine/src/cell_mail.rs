@@ -15,16 +15,16 @@ use mcrs_minecraft_engine_world::block_update::{BlockPlaced, BlockSetRequest};
 use mcrs_minecraft_engine_world::entity::add_entity_to_chunk;
 use mcrs_minecraft_engine_world::owned_columns::OwnedColumns;
 use mcrs_minecraft_engine_world::voxel_update::{
-    CellBlockWrite, HaloBlockChange, HaloBlockChanges, VoxelUpdateSet,
+    BlockChange, CellBlockWrite, HaloBlockChanges, VoxelUpdateSet,
 };
 use mcrs_minecraft_engine_world::world::dimension::Dimension;
-use mcrs_minecraft_simulation::{BlockUpdateFlags, ChainLedger, Message};
+use mcrs_minecraft_simulation::{ChainLedger, Message};
 use mcrs_voxel::ColumnPos;
 
 use crate::block_simulation::BlockSimulation;
 use crate::cell_crossing::{self, Crossing};
 use crate::column_asks::{ColumnAnswer, ColumnAsk, ColumnHold};
-use crate::column_production::{BlockChange, ColumnProduction};
+use crate::column_production::ColumnProduction;
 use crate::column_store::ColumnStoreLink;
 use crate::dim_tick::{DimInboxDrain, drain_dim_inbox};
 use crate::foreign_views::ForeignViews;
@@ -40,7 +40,7 @@ pub struct CellMail {
     pub(crate) tickets: Vec<TicketUpdate>,
     /// The changes of the blocks of the columns of a cell, for the halo of the cells that read
     /// them.
-    pub(crate) halo: Vec<CellBlockWrite>,
+    pub(crate) halo: Vec<BlockChange>,
     /// The writes of a cell into the columns that another cell owns.
     pub(crate) writes: Vec<CellBlockWrite>,
     /// The players of a cell that walked into a column of another cell.
@@ -181,18 +181,12 @@ fn receive_cell_mail(world: &mut World) {
         }
     }
     if let Some(mut production) = world.get_resource_mut::<ColumnProduction>() {
-        production.note_halo_changes(halo.iter().map(|write| BlockChange {
-            pos: write.pos,
-            state: write.new_state,
-        }));
+        production.note_halo_changes(halo.iter().copied());
+    }
+    if let Some(mut changes) = world.get_resource_mut::<HaloBlockChanges>() {
+        changes.0.extend(halo);
     }
     if let Some(dimension) = dimension {
-        if let Some(mut changes) = world.get_resource_mut::<HaloBlockChanges>() {
-            changes.0.extend(
-                halo.into_iter()
-                    .map(|write| HaloBlockChange { dimension, write }),
-            );
-        }
         if let Some(mut requests) = world.get_resource_mut::<Messages<BlockSetRequest>>() {
             requests.write_batch(writes.into_iter().map(|write| BlockSetRequest {
                 dimension,
@@ -213,8 +207,7 @@ fn receive_cell_mail(world: &mut World) {
     }
 }
 
-/// Keeps each change of a column of this cell that another cell reads, for its halo. A halo
-/// copy takes the state only, so the change goes with no flags.
+/// Keeps each change of a column of this cell that another cell reads, for its halo.
 fn collect_halo_changes(
     mut placed: MessageReader<BlockPlaced>,
     owned: Res<OwnedColumns>,
@@ -223,11 +216,9 @@ fn collect_halo_changes(
     for placed in placed.read() {
         let column = ColumnPos::from(placed.block_pos);
         if owned.owns(column) && owned.is_read_by_others(column) {
-            outbox.0.halo.push(CellBlockWrite {
+            outbox.0.halo.push(BlockChange {
                 pos: placed.block_pos,
-                new_state: placed.new_state,
-                flags: BlockUpdateFlags::empty(),
-                recursion_left: 0,
+                state: placed.new_state,
             });
         }
     }

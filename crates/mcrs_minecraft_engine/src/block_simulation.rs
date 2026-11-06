@@ -348,14 +348,14 @@ fn run_block_simulation<B: BlockBehaviour<WorldKinds> + BlockDrops + Send + 'sta
     random: RandomTicking,
     mut outlets: StepOutlets,
 ) {
-    if let Some(halo) = links.halo.as_mut() {
-        voxel_update::apply_halo_changes(&mut blocks, &mut placed, &mut halo.0);
-    }
     let owned = links.owned.as_deref();
     let Ok((dimension, dimension_key)) = dims.single() else {
         requests.clear();
         return;
     };
+    if let Some(halo) = links.halo.as_mut() {
+        voxel_update::apply_halo_changes(&mut blocks, &mut placed, dimension, &mut halo.0);
+    }
     let Some(definitions) = kernel.definitions.as_deref() else {
         // The block table lands with the registries; until then a write is stored as it is.
         for request in requests.read() {

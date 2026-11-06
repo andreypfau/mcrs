@@ -4,10 +4,11 @@ use std::vec;
 use bevy_ecs::prelude::Resource;
 use mcrs_engine_store::{ChunkVersion, StoreOutput, VersionedChunk};
 use mcrs_minecraft_engine_world::entity::player::chunk_view::ChunkTrackingView;
+use mcrs_minecraft_engine_world::voxel_update::BlockChange;
 use mcrs_minecraft_engine_world::world::dimension::DimensionTypeConfig;
 use mcrs_minecraft_engine_world::world::lifecycle::column_loading::ColumnLoading;
 use mcrs_minecraft_engine_world::world::storage::column::ColumnIndex;
-use mcrs_voxel::{BlockPos, BlockStateId, ColumnPos, SectionPos};
+use mcrs_voxel::{ColumnPos, SectionPos};
 use rustc_hash::{FxHashMap, FxHashSet};
 
 use crate::advance_production::HeldColumns;
@@ -56,13 +57,6 @@ pub struct ColumnProduction {
 pub(crate) enum Lights {
     Yes,
     No,
-}
-
-/// A block that changed, as the light stage of cold space takes it.
-#[derive(Clone, Copy, Debug)]
-pub(crate) struct BlockChange {
-    pub(crate) pos: BlockPos,
-    pub(crate) state: BlockStateId,
 }
 
 impl ColumnProduction {

@@ -2,13 +2,14 @@ use bevy_ecs::message::MessageReader;
 use bevy_ecs::prelude::{Local, Query, Res, ResMut};
 use mcrs_minecraft_engine_world::block_update::BlockPlaced;
 use mcrs_minecraft_engine_world::entity::player::chunk_view::{ChunkTrackingView, SentChunkView};
+use mcrs_minecraft_engine_world::voxel_update::BlockChange;
 use mcrs_minecraft_engine_world::world::dimension::DimensionTypeConfig;
 use mcrs_minecraft_engine_world::world::lifecycle::column_loading::ColumnLoading;
 use mcrs_minecraft_engine_world::world::light_gate::LightGated;
 use mcrs_minecraft_engine_world::world::storage::column::ColumnIndex;
 use mcrs_voxel::ColumnPos;
 
-use crate::column_production::{BlockChange, ColumnProduction, Lights};
+use crate::column_production::{ColumnProduction, Lights};
 use crate::column_snapshot::ColumnSnapshots;
 use crate::column_store::ColumnStoreLink;
 use crate::column_streams::ColumnStreams;
