@@ -6,7 +6,7 @@ use mcrs_minecraft_core::BoundingBox;
 use mcrs_minecraft_engine_world::aoi::min_column_distance;
 use mcrs_minecraft_light_engine::epoch::{LightUpdate, PublishedLight, SectionLight};
 use mcrs_minecraft_light_engine::level::SECTION_WIDTH;
-use mcrs_minecraft_light_engine::queue::{LightQueue, Priority};
+use mcrs_minecraft_light_engine::queue::{DEFAULT_PRIORITY, LightQueue, Priority};
 use mcrs_minecraft_light_engine::world::LightWorld;
 use mcrs_voxel::{BlockPos, ColumnPos, SectionPos};
 
@@ -45,6 +45,8 @@ pub(crate) struct LightStage {
     /// Light published into the world and not emitted yet.
     relit: Vec<PublishedLight>,
     relit_output: RelitOutput,
+    /// The columns the players stand in, as last told.
+    players: Vec<ColumnPos>,
 }
 
 /// An epoch in flight: the area it may still write into, and its place in the order of
@@ -92,12 +94,15 @@ impl Stage for LightStage {
     fn receive(&mut self, input: LightInput) {
         match input {
             LightInput::Edits(edits) => {
-                for queued in edits {
-                    self.pending
-                        .push_with_priority(queued.edit, queued.priority);
+                for edit in edits {
+                    let priority = self.priority(edit.column());
+                    self.pending.push_with_priority(edit, priority);
                 }
             }
-            LightInput::Players(players) => self.reprioritize(&players),
+            LightInput::Players(players) => {
+                self.players = players;
+                self.reprioritize();
+            }
             LightInput::AwaitColumns(columns) => {
                 for column in columns {
                     self.awaiting.entry(column).or_insert(Settle::Draining);
@@ -169,6 +174,7 @@ impl LightStage {
             settle_due: false,
             relit: Vec::new(),
             relit_output: RelitOutput::Emit,
+            players: Vec::new(),
         }
     }
 
@@ -187,13 +193,24 @@ impl LightStage {
     /// was raised carries the distance from wherever the player was then. One flight across
     /// the world and the queue is sorted by a position nobody occupies, which leaves the
     /// column under the player waiting behind thousands raised earlier and further away.
-    fn reprioritize(&mut self, players: &[ColumnPos]) {
-        if players.is_empty() || (self.pending.is_empty() && self.queue.is_empty()) {
+    fn reprioritize(&mut self) {
+        if self.players.is_empty() || (self.pending.is_empty() && self.queue.is_empty()) {
             return;
         }
+        let players = &self.players;
         let score = |column: ColumnPos| player_priority(column, players);
         self.pending.reprioritize(score);
         self.queue.reprioritize(score);
+    }
+
+    /// How urgent the light of `column` is: the same distance to the nearest player that the
+    /// column scheduler treats as a ticket level, because a column is not sent until its light
+    /// is published.
+    fn priority(&self, column: ColumnPos) -> Priority {
+        if self.players.is_empty() {
+            return DEFAULT_PRIORITY;
+        }
+        player_priority(column, &self.players)
     }
 
     /// Publishes a finished epoch into the world and hands back what changed.
@@ -314,10 +331,7 @@ impl LightStage {
     }
 }
 
-/// How urgent the light of `column` is: the same distance to the nearest player that the
-/// column scheduler treats as a ticket level, because a column is not sent until its light
-/// is published.
-pub(crate) fn player_priority(column: ColumnPos, players: &[ColumnPos]) -> Priority {
+fn player_priority(column: ColumnPos, players: &[ColumnPos]) -> Priority {
     min_column_distance(&column, players).clamp(0, Priority::MAX as i32) as Priority
 }
 
@@ -412,11 +426,8 @@ mod tests {
     use mcrs_minecraft_chunk::{PalettedContainer, VoxelId, VoxelPalette};
     use mcrs_minecraft_light_engine::block::{LightProperties, LightRegistry, SpecialBlocks};
     use mcrs_minecraft_light_engine::level::LightBounds;
-    use mcrs_minecraft_light_engine::queue::DEFAULT_PRIORITY;
     use mcrs_minecraft_light_engine::world::Edit;
     use mcrs_voxel::{BlockStateId, SectionPos};
-
-    use crate::light_input::QueuedEdit;
 
     const AIR: VoxelId = VoxelId(0);
     const TORCH: VoxelId = VoxelId(2);
@@ -440,22 +451,19 @@ mod tests {
         LightStage::new(LightWorld::new(registry, LightBounds::new(0, 1)))
     }
 
-    fn load(column: ColumnPos, priority: Priority) -> Vec<QueuedEdit> {
+    fn load(column: ColumnPos) -> Vec<Edit> {
         (0..2)
-            .map(|y| QueuedEdit {
-                edit: Edit::LoadSection {
-                    entity: 0,
-                    pos: SectionPos::new(column.x, y, column.z),
-                    blocks: Arc::new(VoxelPalette(PalettedContainer::Homogeneous(state_of(AIR)))),
-                },
-                priority,
+            .map(|y| Edit::LoadSection {
+                entity: 0,
+                pos: SectionPos::new(column.x, y, column.z),
+                blocks: Arc::new(VoxelPalette(PalettedContainer::Homogeneous(state_of(AIR)))),
             })
             .collect()
     }
 
     fn load_columns(stage: &mut LightStage, columns: i32) {
         let edits = (0..columns)
-            .flat_map(|x| load(ColumnPos::new(x, 0), DEFAULT_PRIORITY))
+            .flat_map(|x| load(ColumnPos::new(x, 0)))
             .collect();
         stage.receive(LightInput::Edits(edits));
     }
@@ -494,12 +502,9 @@ mod tests {
         stage.intake();
 
         load_columns(&mut stage, limit as i32 * 3);
-        stage.receive(LightInput::Edits(vec![QueuedEdit {
-            edit: Edit::SetBlock {
-                pos,
-                block: state_of(TORCH),
-            },
-            priority: DEFAULT_PRIORITY,
+        stage.receive(LightInput::Edits(vec![Edit::SetBlock {
+            pos,
+            block: state_of(TORCH),
         }]));
         stage.intake();
 
@@ -514,7 +519,8 @@ mod tests {
         load_columns(&mut stage, limit as i32 * 2);
 
         let urgent = ColumnPos::new(-1, 0);
-        stage.receive(LightInput::Edits(load(urgent, 0)));
+        stage.receive(LightInput::Players(vec![urgent]));
+        stage.receive(LightInput::Edits(load(urgent)));
         stage.intake();
 
         assert!(
@@ -534,9 +540,7 @@ mod tests {
         let last = ColumnPos::new(1, 1);
         let mut stage = light_stage();
         let ring = column.square(1).filter(|near| *near != last);
-        stage.receive(LightInput::Edits(
-            ring.flat_map(|near| load(near, DEFAULT_PRIORITY)).collect(),
-        ));
+        stage.receive(LightInput::Edits(ring.flat_map(load).collect()));
         stage.intake();
         stage.queue = LightQueue::default();
         stage.receive(LightInput::AwaitColumns(vec![column]));
@@ -545,7 +549,7 @@ mod tests {
             "a neighbour that is not loaded yet changes this column's seam"
         );
 
-        stage.receive(LightInput::Edits(load(last, DEFAULT_PRIORITY)));
+        stage.receive(LightInput::Edits(load(last)));
         stage.intake();
         assert!(
             stage.take_settled().is_empty(),

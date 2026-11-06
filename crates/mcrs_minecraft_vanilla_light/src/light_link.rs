@@ -4,10 +4,9 @@ use bevy_ecs::resource::Resource;
 use mcrs_engine_link::Link;
 use mcrs_voxel::ColumnPos;
 
-use mcrs_minecraft_light_engine::queue::{DEFAULT_PRIORITY, Priority};
 use mcrs_minecraft_light_engine::world::Edit;
 
-use crate::light_input::{LightInput, QueuedEdit};
+use crate::light_input::LightInput;
 use crate::light_output::LightOutput;
 use crate::light_stage::LightStage;
 
@@ -19,12 +18,15 @@ use crate::light_stage::LightStage;
 #[derive(Resource)]
 pub struct LightLink {
     link: Link<LightStage>,
-    edits: Vec<QueuedEdit>,
+    edits: Vec<Edit>,
     /// Columns that wait for their light, handed over after the edits of the same tick: the
     /// stage answers a column once nothing it was handed is owed to it, so an await that
     /// overtakes the load of a neighbour that landed in the same tick is answered without the
     /// light of that neighbour.
     awaits: Vec<ColumnPos>,
+    /// The columns the players stood in when the stage was last told.
+    players: Vec<ColumnPos>,
+    next_players: Vec<ColumnPos>,
 }
 
 impl LightLink {
@@ -33,17 +35,26 @@ impl LightLink {
             link,
             edits: Vec::new(),
             awaits: Vec::new(),
+            players: Vec::new(),
+            next_players: Vec::new(),
         }
     }
 
+    /// The stage lights the column nearest a player first.
     pub fn push(&mut self, edit: Edit) {
-        self.push_with_priority(edit, DEFAULT_PRIORITY);
+        self.edits.push(edit);
     }
 
-    /// Lower is more urgent. A column keeps the most urgent priority it was
-    /// given while it waits.
-    pub fn push_with_priority(&mut self, edit: Edit, priority: Priority) {
-        self.edits.push(QueuedEdit { edit, priority });
+    /// Tells the stage where the players stand once one of them moved to another column, so it
+    /// scores the work against them. The stage keeps the last players when none is left.
+    pub(crate) fn update_players(&mut self, players: impl IntoIterator<Item = ColumnPos>) {
+        self.next_players.clear();
+        self.next_players.extend(players);
+        if self.next_players.is_empty() || self.next_players == self.players {
+            return;
+        }
+        std::mem::swap(&mut self.players, &mut self.next_players);
+        self.link.send(LightInput::Players(self.players.clone()));
     }
 
     /// Whether the stage has published the light of everything it was handed, as far as the

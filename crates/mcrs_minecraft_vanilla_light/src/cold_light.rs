@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use bevy_app::{App, FixedUpdate, Last, Plugin};
-use bevy_ecs::prelude::{IntoScheduleConfigs, Local, Query, ResMut, Resource, With};
+use bevy_ecs::prelude::{IntoScheduleConfigs, Query, ResMut, Resource, With};
 use mcrs_engine_link::{Link, Placement};
 use mcrs_minecraft_chunk::{BlockLight, SkyLight};
 use mcrs_minecraft_engine::cold_light_edit::ColdLightEdit;
@@ -16,7 +16,7 @@ use mcrs_voxel::ColumnPos;
 
 use crate::light_link::LightLink;
 use crate::light_output::LightOutput;
-use crate::light_stage::{LightStage, player_priority};
+use crate::light_stage::LightStage;
 
 /// The light stage of cold space: a second light stage that lights the columns the data layer
 /// produces, from the blocks the data layer hands it. It publishes into no section of the
@@ -58,11 +58,9 @@ fn send_cold_light(
     mut production: ResMut<ColumnProduction>,
     mut light: ResMut<ColdLightLink>,
     players: Query<&Transform, With<Player>>,
-    mut player_columns: Local<Vec<ColumnPos>>,
 ) {
-    player_columns.clear();
-    player_columns.extend(players.iter().map(|at| ColumnPos::from(at.translation)));
     let light = &mut light.0;
+    light.update_players(players.iter().map(|at| ColumnPos::from(at.translation)));
     for edit in production.take_light_edits() {
         let edit = match edit {
             ColdLightEdit::Load { pos, blocks } => Edit::LoadSection {
@@ -73,8 +71,7 @@ fn send_cold_light(
             ColdLightEdit::Unload { pos } => Edit::UnloadSection { pos },
             ColdLightEdit::SetBlock { pos, state } => Edit::SetBlock { pos, block: state },
         };
-        let priority = player_priority(edit.column(), &player_columns);
-        light.push_with_priority(edit, priority);
+        light.push(edit);
     }
     light.await_columns(production.take_light_awaits());
     light.send_edits();

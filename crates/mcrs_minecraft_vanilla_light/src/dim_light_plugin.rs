@@ -1,4 +1,3 @@
-use std::mem;
 use std::sync::Arc;
 
 use bevy_app::{App, FixedUpdate, Last, Plugin};
@@ -22,10 +21,8 @@ use mcrs_minecraft_light_engine::prelude::{Edit, LightBounds};
 use mcrs_voxel::ColumnPos;
 
 use crate::cold_light::ColdLightPlugin;
-use crate::light_input::LightInput;
 use crate::light_link::LightLink;
 use crate::light_plugin::{LightPlugin, LightSet};
-use crate::light_stage::player_priority;
 
 /// What a dimension hands its light stage before intake.
 #[derive(SystemSet, Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -85,36 +82,17 @@ fn await_light(mut awaiting: MessageReader<ColumnAwaitsLight>, mut light: ResMut
 
 /// Hands the light stage where the players stand once one of them has moved to another
 /// column, so the waiting light work is re-scored against them.
-fn reprioritize_light_work(
-    mut light: ResMut<LightLink>,
-    players: Query<&Transform, With<Player>>,
-    mut scored_for: Local<Vec<ColumnPos>>,
-    mut player_columns: Local<Vec<ColumnPos>>,
-) {
-    player_columns.clear();
-    player_columns.extend(players.iter().map(|at| ColumnPos::from(at.translation)));
-    if player_columns.is_empty() || *scored_for == *player_columns {
-        return;
-    }
-    mem::swap(&mut *scored_for, &mut *player_columns);
-    light.send(LightInput::Players(scored_for.clone()));
+fn reprioritize_light_work(mut light: ResMut<LightLink>, players: Query<&Transform, With<Player>>) {
+    light.update_players(players.iter().map(|at| ColumnPos::from(at.translation)));
 }
 
 fn feed_light_edits(
     mut light: ResMut<LightLink>,
     mut stages: MessageReader<SectionStageChanged>,
     blocks: Query<&ChunkBlocks>,
-    players: Query<&Transform, With<Player>>,
     mut placed: MessageReader<BlockPlaced>,
-    mut player_columns: Local<Vec<ColumnPos>>,
 ) {
-    player_columns.clear();
-    player_columns.extend(players.iter().map(|at| ColumnPos::from(at.translation)));
-    let mut queue = |edit: Edit| {
-        let priority = player_priority(edit.column(), &player_columns);
-        light.push_with_priority(edit, priority);
-    };
-
+    let mut queue = |edit: Edit| light.push(edit);
     for change in stages.read() {
         if change.left() {
             queue(Edit::UnloadSection { pos: change.pos });
@@ -141,21 +119,11 @@ fn feed_light_edits(
 fn feed_column_surfaces(
     mut light: ResMut<LightLink>,
     columns: Query<(&ColumnPosComponent, &SurfaceHeightmap), Changed<SurfaceHeightmap>>,
-    players: Query<&Transform, With<Player>>,
-    mut player_columns: Local<Vec<ColumnPos>>,
 ) {
-    if columns.is_empty() {
-        return;
-    }
-    player_columns.clear();
-    player_columns.extend(players.iter().map(|at| ColumnPos::from(at.translation)));
     for (pos, surface) in &columns {
-        light.push_with_priority(
-            Edit::SetColumnSurface {
-                column: pos.0,
-                surface: Arc::new(surface.0.clone()),
-            },
-            player_priority(pos.0, &player_columns),
-        );
+        light.push(Edit::SetColumnSurface {
+            column: pos.0,
+            surface: Arc::new(surface.0.clone()),
+        });
     }
 }
