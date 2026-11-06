@@ -1,8 +1,15 @@
 //! The bounds of a teleport and the teleport state of a player.
 
 use bevy_ecs::component::Component;
+use bevy_ecs::resource::Resource;
 use bevy_math::DVec3;
-use mcrs_minecraft_engine_world::entity::physics::Transform;
+use mcrs_minecraft_engine_world::entity::physics::{Rotation, Transform};
+use mcrs_minecraft_physics::{
+    PlayerRotation, PlayerState, Relative, SineTable, Teleport, apply_teleport,
+};
+use mcrs_minecraft_protocol::VarInt;
+use mcrs_minecraft_protocol_game::clientbound::ClientboundPlayerPosition;
+use mcrs_minecraft_protocol_game::{PositionFlag, PositionFlags};
 
 use crate::coordinator::clock::GameTime;
 
@@ -104,12 +111,121 @@ impl TeleportState {
     }
 }
 
+/// The sine table of the client, which a teleport that rotates the velocity reads.
+#[derive(Resource, Default)]
+pub struct ClientSine(pub SineTable);
+
+/// A teleport from `known`, the transform the client has, to `destination`. The position is
+/// absolute. The client keeps its velocity, as the server does not hold one, and its rotation
+/// when the rotation does not change.
+#[must_use]
+pub fn teleport_to(known: Transform, destination: Transform) -> Teleport {
+    let mut relative = Relative::VELOCITY_X | Relative::VELOCITY_Y | Relative::VELOCITY_Z;
+    let (yaw, pitch) = if destination.rotation == known.rotation {
+        relative |= Relative::YAW | Relative::PITCH;
+        (0.0, 0.0)
+    } else {
+        (destination.rotation.yaw(), destination.rotation.pitch())
+    };
+    Teleport {
+        position: destination.translation,
+        velocity: DVec3::ZERO,
+        yaw,
+        pitch,
+        relative,
+    }
+}
+
+/// The transform that the client computes from `known` for `teleport`.
+#[must_use]
+pub fn landing(sine: &SineTable, known: Transform, teleport: &Teleport) -> Transform {
+    let mut state = PlayerState::new(known.translation);
+    let mut rotation = PlayerRotation {
+        yaw: known.rotation.yaw(),
+        pitch: known.rotation.pitch(),
+    };
+    apply_teleport(sine, &mut state, &mut rotation, teleport);
+    Transform {
+        translation: state.position,
+        rotation: Rotation::new(rotation.yaw, rotation.pitch),
+    }
+}
+
+/// The `player_position` packet of `teleport` with the id `teleport_id`.
+#[must_use]
+pub fn position_packet(teleport_id: i32, teleport: &Teleport) -> ClientboundPlayerPosition {
+    const FLAGS: [(Relative, PositionFlag); 9] = [
+        (Relative::X, PositionFlag::X),
+        (Relative::Y, PositionFlag::Y),
+        (Relative::Z, PositionFlag::Z),
+        (Relative::YAW, PositionFlag::YRot),
+        (Relative::PITCH, PositionFlag::XRot),
+        (Relative::VELOCITY_X, PositionFlag::DeltaX),
+        (Relative::VELOCITY_Y, PositionFlag::DeltaY),
+        (Relative::VELOCITY_Z, PositionFlag::DeltaZ),
+        (Relative::ROTATE_VELOCITY, PositionFlag::RotateDelta),
+    ];
+    let flags: PositionFlags = FLAGS
+        .into_iter()
+        .filter(|(relative, _)| teleport.relative.contains(*relative))
+        .map(|(_, flag)| flag)
+        .collect();
+    ClientboundPlayerPosition {
+        teleport_id: VarInt(teleport_id),
+        position: teleport.position,
+        velocity: teleport.velocity,
+        look: mcrs_minecraft_core::Look {
+            yaw: teleport.yaw,
+            pitch: teleport.pitch,
+        },
+        flags,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     fn at(x: f64) -> Transform {
         Transform::default().with_translation(DVec3::new(x, 64.0, 0.0))
+    }
+
+    #[test]
+    fn a_teleport_that_keeps_the_rotation_sends_it_relative_and_keeps_the_velocity() {
+        let known = at(0.0).with_rotation(Rotation::new(720.0, 10.0));
+        let destination = at(5.0).with_rotation(known.rotation);
+        let packet = position_packet(7, &teleport_to(known, destination));
+        let relative: PositionFlags = [
+            PositionFlag::YRot,
+            PositionFlag::XRot,
+            PositionFlag::DeltaX,
+            PositionFlag::DeltaY,
+            PositionFlag::DeltaZ,
+        ]
+        .into_iter()
+        .collect();
+        assert_eq!(
+            (packet.teleport_id.0, packet.position, packet.velocity),
+            (7, DVec3::new(5.0, 64.0, 0.0), DVec3::ZERO),
+            "MVC-RSP-001: an absolute position"
+        );
+        assert_eq!(
+            (packet.look.yaw, packet.look.pitch, packet.flags),
+            (0.0, 0.0, relative),
+            "MVC-RSP-001: yaw and pitch 0 with both rotation bits"
+        );
+    }
+
+    #[test]
+    fn a_turn_sends_the_raw_rotation_and_the_client_lands_on_the_server_transform() {
+        let sine = SineTable::new();
+        let known = at(0.0);
+        let destination = at(5.0).with_rotation(Rotation::new(720.0, -30.0));
+        let teleport = teleport_to(known, destination);
+        let packet = position_packet(1, &teleport);
+        assert_eq!((packet.look.yaw, packet.look.pitch), (720.0, -30.0));
+        assert!(!packet.flags.contains(PositionFlag::YRot));
+        assert_eq!(landing(&sine, known, &teleport), destination, "PHY-SRV-010");
     }
 
     #[test]

@@ -61,6 +61,7 @@ use crate::bus::{InboundPlayerPacket, OutboundPlayerAttached, OutboundPlayerPack
 use crate::bus::{PacketPayload, PacketPriority, PacketTarget};
 use crate::muxer::bridge_queue::{EncodedPacket, OutboundQueue, QueuedPacket};
 use crate::muxer::dim_inputs::DimInputs;
+use crate::muxer::move_check::{MoveCheck, check_move};
 use crate::muxer::session::{HostAnchorRef, PendingInbound, SessionConnection};
 use mcrs_minecraft_engine_world::session::{Place, Session, SessionAnchors, SessionPlacement};
 use mcrs_minecraft_engine_world::world::channels::MAX_HELD_SERVERBOUND;
@@ -698,6 +699,12 @@ pub fn bridge_inbound(
                                 break;
                             }
                         };
+                    if check_move(pkt.id, &pkt.payload) == MoveCheck::NotFinite {
+                        conn.disconnect(ConnectionState::Game, MoveCheck::reason())
+                            .ok();
+                        commands.entity(entity).remove::<ServerSideConnection>();
+                        break;
+                    }
                     if let Some(trigger) = trigger {
                         trigger.raise_arrived(
                             &mut commands,

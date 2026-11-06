@@ -6,13 +6,10 @@ use bevy_ecs::prelude::{
 };
 use bevy_ecs::schedule::IntoScheduleConfigs;
 use bevy_math::DVec3;
-use mcrs_minecraft_core::Look;
 use mcrs_minecraft_engine_world::entity::physics::{Rotation, Transform};
 use mcrs_minecraft_engine_world::tick::TickSet;
 use mcrs_minecraft_engine_world::voxel_update::VoxelUpdateSet;
 use mcrs_minecraft_network::event::Received;
-use mcrs_minecraft_protocol::VarInt;
-use mcrs_minecraft_protocol_game::clientbound::ClientboundPlayerPosition;
 use mcrs_minecraft_protocol_game::serverbound::{
     ServerboundAcceptTeleportation, ServerboundMovePlayerPos, ServerboundMovePlayerPosRot,
     ServerboundMovePlayerRot, ServerboundMovePlayerStatusOnly,
@@ -20,7 +17,9 @@ use mcrs_minecraft_protocol_game::serverbound::{
 
 use crate::bus::{OutboundPlayerPacket, PacketPayload};
 use crate::coordinator::clock::GameTime;
-use crate::teleport::{AcceptOutcome, MAX_XZ, MAX_Y, TeleportState};
+use crate::teleport::{
+    AcceptOutcome, ClientSine, MAX_XZ, MAX_Y, TeleportState, landing, position_packet, teleport_to,
+};
 use mcrs_minecraft_engine_world::session::Owner;
 
 pub struct MovementPlugin;
@@ -33,6 +32,7 @@ impl Plugin for MovementPlugin {
         app.add_observer(handle_move_status_only);
         app.add_observer(handle_accept_teleportation);
         app.add_message::<PlayerMovement>();
+        app.init_resource::<ClientSine>();
         app.add_systems(FixedUpdate, process_movement.in_set(TickSet::ClientInput));
         app.add_systems(
             FixedPostUpdate,
@@ -116,7 +116,7 @@ pub(crate) fn process_movement(
         if state.pending().is_some() {
             if let Some(destination) = state.resend_due(*time) {
                 let id = state.sent(destination, *time);
-                packets.write(position_packet(owner, id, destination));
+                packets.write(resend(owner, id, destination));
             }
             continue;
         }
@@ -130,20 +130,13 @@ pub(crate) fn process_movement(
     }
 }
 
-fn position_packet(
-    owner: &Owner,
-    teleport_id: i32,
-    destination: Transform,
-) -> OutboundPlayerPacket {
+/// The resend or the correction of a pending teleport: the position of `destination`, and the
+/// client keeps its rotation and velocity.
+fn resend(owner: &Owner, teleport_id: i32, destination: Transform) -> OutboundPlayerPacket {
+    let teleport = teleport_to(destination, destination);
     to(
         owner.0,
-        PacketPayload::PlayerPosition(ClientboundPlayerPosition {
-            teleport_id: VarInt(teleport_id),
-            position: destination.translation,
-            velocity: DVec3::ZERO,
-            look: Look::default(),
-            flags: mcrs_minecraft_protocol_game::PositionFlags::default(),
-        }),
+        PacketPayload::PlayerPosition(position_packet(teleport_id, &teleport)),
     )
     .critical()
 }
@@ -151,17 +144,24 @@ fn position_packet(
 fn teleport(
     mut clients: Query<(&Owner, &mut TeleportState, &Transform), (Changed<Transform>, With<Owner>)>,
     time: Res<GameTime>,
+    sine: Res<ClientSine>,
     mut packet_writer: MessageWriter<OutboundPlayerPacket>,
 ) {
     for (owner, mut state, transform) in &mut clients {
-        let synced = state.synced_transform();
-        let changed_pos = transform.translation != synced.translation;
-        let changed_rot = transform.rotation != synced.rotation;
-
-        if changed_pos || changed_rot {
-            let teleport_id = state.sent(*transform, *time);
-            packet_writer.write(position_packet(owner, teleport_id, *transform));
+        let known = state.synced_transform();
+        if *transform == known {
+            continue;
         }
+        let teleport = teleport_to(known, *transform);
+        let destination = landing(&sine.0, known, &teleport);
+        let teleport_id = state.sent(destination, *time);
+        packet_writer.write(
+            to(
+                owner.0,
+                PacketPayload::PlayerPosition(position_packet(teleport_id, &teleport)),
+            )
+            .critical(),
+        );
     }
 }
 
@@ -184,7 +184,7 @@ fn handle_accept_teleportation(
         state.accept(accept.teleport_id.0, accept.position.into())
     {
         let id = state.sent(destination, *time);
-        packets.write(position_packet(owner, id, destination));
+        packets.write(resend(owner, id, destination));
     }
 }
 
@@ -202,6 +202,7 @@ mod tests {
         let mut world = World::new();
         world.init_resource::<Messages<OutboundPlayerPacket>>();
         world.init_resource::<GameTime>();
+        world.init_resource::<ClientSine>();
         let moved_session = PlayerSession(1);
         let moved = world
             .spawn((

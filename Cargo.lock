@@ -4160,6 +4160,7 @@ dependencies = [
  "mcrs_minecraft_item",
  "mcrs_minecraft_nbt",
  "mcrs_minecraft_network",
+ "mcrs_minecraft_physics",
  "mcrs_minecraft_protocol",
  "mcrs_minecraft_protocol_game",
  "mcrs_minecraft_registries",
