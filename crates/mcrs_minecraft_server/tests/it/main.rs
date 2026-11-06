@@ -15,8 +15,6 @@
 // Every file here is one module of a single test binary; a top-level
 // file under tests/ would be a separate crate and a separate link.
 mod anvil_block_states;
-mod aoi_drain_disconnect_filters_inflight;
-mod aoi_mass_disconnect_budget;
 mod block_entities;
 mod block_loot_addressing;
 mod bridge_dispatch;
@@ -36,7 +34,7 @@ mod dimension_change;
 mod dimension_list;
 mod dimension_plugins;
 mod dimension_type;
-mod disconnect_support;
+mod disconnect;
 mod entity_ids;
 mod entity_replication;
 mod epoch_round_trip;
