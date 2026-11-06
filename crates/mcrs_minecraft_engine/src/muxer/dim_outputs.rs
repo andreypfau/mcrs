@@ -75,9 +75,9 @@ pub(crate) fn receive(world: &mut World) {
         if !packets.is_empty() {
             deliver_all(world, packets);
         }
-        for session in released {
+        if !released.is_empty() {
             forget_departures(world, |departing| {
-                departing.dim == dim && departing.session == session
+                departing.dim == dim && released.contains(&departing.session)
             });
         }
         if !attached.is_empty()
