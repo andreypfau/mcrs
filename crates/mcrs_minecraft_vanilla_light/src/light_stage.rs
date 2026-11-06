@@ -283,31 +283,24 @@ impl LightStage {
 
     /// Takes the awaited columns whose light is lit, neighbours included, with that light.
     fn take_lit(&mut self) -> Vec<LitColumn> {
-        let mut awaiting = std::mem::take(&mut self.awaiting);
-        let owed = self.owed();
-        let bounds = owed.world.bounds();
-        let mut lit = Vec::new();
-        awaiting.retain(|&column, settle| {
-            match owed.answer(column, settle) {
-                Answer::Wait => return true,
-                Answer::Drop => return false,
-                Answer::Lit => {}
-            }
-            let sections = (bounds.min_section_y..=bounds.max_section_y)
-                .filter_map(|y| {
-                    let pos = SectionPos::new(column.x, y, column.z);
-                    owed.world.section(pos).map(|section| SectionLight {
-                        pos,
-                        block_light: Some(section.block_light.clone()),
-                        sky_light: Some(section.sky_light.clone()),
+        let settled = self.take_settled();
+        let bounds = self.world.bounds();
+        settled
+            .into_iter()
+            .map(|column| LitColumn {
+                column,
+                sections: (bounds.min_section_y..=bounds.max_section_y)
+                    .filter_map(|y| {
+                        let pos = SectionPos::new(column.x, y, column.z);
+                        self.world.section(pos).map(|section| SectionLight {
+                            pos,
+                            block_light: Some(section.block_light.clone()),
+                            sky_light: Some(section.sky_light.clone()),
+                        })
                     })
-                })
-                .collect();
-            lit.push(LitColumn { column, sections });
-            false
-        });
-        self.awaiting = awaiting;
-        lit
+                    .collect(),
+            })
+            .collect()
     }
 
     fn owed(&self) -> Owed<'_> {
@@ -348,18 +341,18 @@ impl Owed<'_> {
         if !self.holds(column) {
             return Answer::Drop;
         }
-        if *settle == Settle::Draining {
-            let drained = column
-                .square(1)
-                .all(|near| !self.pending.holds(near) && self.queue.priority_of(near).is_none())
-                && column.square(1).all(|near| self.loaded(near));
-            if !drained {
-                return Answer::Wait;
+        let cut = match *settle {
+            Settle::Retiring(cut) => cut,
+            Settle::Draining => {
+                let drained = column.square(1).all(|near| {
+                    !self.pending.holds(near) && self.queue.priority_of(near).is_none()
+                }) && column.square(1).all(|near| self.loaded(near));
+                if !drained {
+                    return Answer::Wait;
+                }
+                *settle = Settle::Retiring(self.dispatched);
+                self.dispatched
             }
-            *settle = Settle::Retiring(self.dispatched);
-        }
-        let Settle::Retiring(cut) = *settle else {
-            return Answer::Wait;
         };
         let area = self.ring_area(column);
         if self
