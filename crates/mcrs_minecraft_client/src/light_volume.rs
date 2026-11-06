@@ -998,6 +998,7 @@ mod tests {
         store(&mut app).enter(Dimension {
             name: "minecraft:the_nether".into(),
             extent: EXTENT,
+            sky_light: false,
         });
         store(&mut app).insert(lit, column(&[]));
         let same = settle(&mut app);
@@ -1017,6 +1018,7 @@ mod tests {
         store(&mut app).enter(Dimension {
             name: "minecraft:overworld".into(),
             extent: tall,
+            sky_light: true,
         });
         store(&mut app).insert(lit, column_in(tall, &[1]));
         let taller = settle(&mut app);

@@ -3847,6 +3847,7 @@ dependencies = [
  "mcrs_minecraft_game_registries",
  "mcrs_minecraft_item",
  "mcrs_minecraft_keys",
+ "mcrs_minecraft_light_engine",
  "mcrs_minecraft_nbt",
  "mcrs_minecraft_network",
  "mcrs_minecraft_protocol",

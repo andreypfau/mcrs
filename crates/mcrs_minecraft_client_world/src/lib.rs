@@ -11,6 +11,7 @@ pub mod block_target;
 pub mod chat;
 pub mod chat_history;
 mod chat_packets;
+mod client_light;
 pub mod columns;
 pub mod game_mode;
 pub mod game_packets;

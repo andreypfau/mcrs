@@ -36,6 +36,7 @@ mcrs_minecraft_game_mode.workspace = true
 mcrs_minecraft_game_registries.workspace = true
 mcrs_minecraft_item = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_keys.workspace = true
+mcrs_minecraft_light_engine.workspace = true
 mcrs_minecraft_nbt.workspace = true
 mcrs_minecraft_network = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_protocol.workspace = true

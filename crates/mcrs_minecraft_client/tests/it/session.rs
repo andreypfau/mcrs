@@ -138,6 +138,7 @@ fn overworld() -> Dimension {
     Dimension {
         name: "minecraft:overworld".to_owned(),
         extent: OVERWORLD_EXTENT,
+        sky_light: true,
     }
 }
 
