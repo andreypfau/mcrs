@@ -16,22 +16,16 @@ use mcrs_minecraft_protocol_game::clientbound::ClientboundCommands;
 /// in which the lines of its players parse, get suggestions and run.
 #[derive(Resource)]
 pub struct CommandTree<S: CommandSet> {
-    pub(crate) graph: Option<SetGraph<S>>,
+    pub(crate) graph: SetGraph<S>,
 }
 
 /// The command graph of the set `S`.
 pub type SetGraph<S> = Graph<<S as CommandSet>::Argument, PermissionCheck, Handler>;
 
-impl<S: CommandSet> Default for CommandTree<S> {
-    fn default() -> Self {
-        Self { graph: None }
-    }
-}
-
 impl<S: CommandSet> CommandTree<S> {
     /// The frozen graph.
-    pub fn graph(&self) -> Option<&SetGraph<S>> {
-        self.graph.as_ref()
+    pub fn graph(&self) -> &SetGraph<S> {
+        &self.graph
     }
 }
 

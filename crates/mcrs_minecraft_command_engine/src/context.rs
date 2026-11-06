@@ -93,7 +93,7 @@ impl<'w, 's, S: CommandSet> CommandContext<'w, 's, S> {
         let Some(span) = self.running.chain.span(call.stage, arg.node()) else {
             return Ok(None);
         };
-        let graph = self.tree.graph().ok_or_else(CommandFailure::failed)?;
+        let graph = self.tree.graph();
         let source = self.source(call)?;
         let line = self.line();
         match graph.value(line, span, arg, &source) {

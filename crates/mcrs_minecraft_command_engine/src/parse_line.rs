@@ -43,7 +43,7 @@ pub(crate) fn parse_line<S: CommandSet>(
         ParseSource::Player => player_source(context.targets(), &levels, *player)?.0,
         ParseSource::Given(state) => state.clone(),
     };
-    let graph = context.tree.graph()?;
+    let graph = context.tree.graph();
     let source = context.source_of(&state).ok()?;
     let parse = graph.parse(line, 0, &source, &mut scratch);
     if let Err(error) = parse.check(graph) {

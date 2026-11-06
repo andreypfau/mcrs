@@ -594,8 +594,7 @@ fn a_command_whose_nodes_clash_is_not_registered_at_all() {
         .app
         .world()
         .resource::<mcrs_minecraft_command_engine::CommandTree<VanillaCommands>>()
-        .graph()
-        .unwrap();
+        .graph();
     let names: Vec<&str> = tree
         .node(NodeId::ROOT)
         .unwrap()

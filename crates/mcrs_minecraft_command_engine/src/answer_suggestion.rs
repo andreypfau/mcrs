@@ -50,7 +50,8 @@ pub(crate) fn answer_suggestion<S: CommandSet>(
     if !edits_command_blocks && utf16_len(text) > CHAT_SUGGESTION_UNITS {
         return;
     }
-    let (Some(graph), Ok(source)) = (context.tree.graph(), context.source_of(&state)) else {
+    let graph = context.tree.graph();
+    let Ok(source) = context.source_of(&state) else {
         return;
     };
     let scratch = &mut *scratch;

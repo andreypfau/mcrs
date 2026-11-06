@@ -69,7 +69,7 @@ impl<S: CommandSet> Plugin for CommandPlugin<S> {
         match CommandTreePackets::new::<S>(&graph) {
             Ok(packets) => {
                 app.insert_resource(CommandTree::<S> {
-                    graph: Some(graph.clone()),
+                    graph: graph.clone(),
                 });
                 app.add_dimension_plugin(DimCommandPlugin::<S> {
                     packets,
@@ -104,7 +104,7 @@ impl<S: CommandSet> Plugin for DimCommandPlugin<S> {
     fn build(&self, app: &mut App) {
         app.insert_resource(self.packets.clone());
         app.insert_resource(CommandTree::<S> {
-            graph: Some(self.graph.clone()),
+            graph: self.graph.clone(),
         });
         app.insert_resource(self.limits);
         app.init_resource::<CommandHandlers>();
