@@ -1,84 +1,709 @@
-# Physics and movement checks: architecture
+# Entity simulation and movement checks: architecture
 
-Design note for collision, gravity, the one-tick step of every entity, and the movement checks of
-the player. Behaviour comes from `docs/spec/entity-physics.md` (PHY) and
-`docs/spec/movement-checks.md` (MVC). Structure follows
-`docs/minecraft-bevy-sharding-architecture.md` (ARCH), `docs/cells.md` (CELLS) and
-`docs/replication.md` (REPL). Physics is a domain inside a cell; it adds no partition, no
-scheduler and no transport of its own.
+Design note for the per-tick simulation of entities (collision, gravity, the push between
+entities), the work beside the tick (AI and similar), and the movement checks of the player.
+Behaviour comes from `docs/spec/entity-physics.md` (PHY), `docs/spec/movement-checks.md` (MVC)
+and `docs/spec/entity-ai-timing.md` (AIT). Structure follows
+`docs/minecraft-bevy-sharding-architecture.md` (ARCH). `docs/cells.md` (CELLS) and
+`docs/replication.md` (REPL) stay valid where this note does not say otherwise; CELLS has a status
+note that lists what this note supersedes.
 
-Users, each linking only what it needs:
+Target load: 10,000 players and 100,000 to 1,000,000 server-simulated entities in one world, at
+20 ticks per second.
 
-| User | Needs | Links |
-|------|-------|-------|
-| L7 proxy | L0 + L1 checks (MVC-LAY-002, MVC-LAY-003, MVC-LAY-007) | `mcrs_minecraft_move_validate` |
-| Anticheat on a foreign host | L0–L2 over the host's own block storage | `_move_validate`, `_move_predict`, `_physics` |
-| mcrs server | everything: physics in each cell, L0/L1 in the muxer bridge, L2 in the cell of the player | all four new crates and `mcrs_minecraft_engine` |
-| mcrs client | own-player tick (PHY-ORD-001) for local prediction | `_physics` |
-| Parity tools, `tools/vanilla-oracle` | the kernel alone | `_physics` |
+Where this note names a technique of other servers, it cites it as "technique" and states only
+the technique and its numbers.
 
-## 1. Policies this design relies on
+## 0. Decisions
+
+| Question | Decision | Section |
+|----------|----------|---------|
+| Hot-loop model | Jacobi tick: each entity reads a frozen start-of-tick state and writes only its own row. The entity pass is one parallel map, with no islands and no locks | §3 |
+| Sequential groups | two kinds, found from the start-of-tick state, one task each: collider groups in a pre-pass (PHY-CMP-018), explosion groups after the main pass (PHY-CMP-020) | §3.5 |
+| Unit of causality | one entity for one tick; a root vehicle with its passengers is one unit (PHY-ORD-014); a sequential group is one unit | §3.5, §3.6 |
+| Order key | the persisted birth key of PHY-CMP-013, not the network id: for the push order, the item phase (PHY-CMP-016), AI random streams, effects and claims | §4 |
+| Writers | one writer per row in each phase. The block domain writes rows in `WorldWrite` (PHY-BLK-001). Commands write through outside `Simulate`. A server vehicle places its riding player (PHY-SRV-011) | §3.7 |
+| Writes to other entities | one merge point (`DomainInput` of `T + 1`, PHY-CMP-015), local and mailed alike; one claim arbitration in the same tick, after the block domain (PHY-CMP-017) | §3.7 |
+| Frozen state | built once, at the freeze at the end of `DomainInput`, after every write that the next pass must see | §3.2 |
+| AI | the eight reflexes of AIT in the hot tick; decisions in an AI stage on an isolated pool, at the vanilla periods, applied with revalidation at `T + 1 … T + max_lag` (2); proposals granted atomically at the merge point; `AiDelay::Inline` in the exact-parity mode | §5 |
+| Data layout | hybrid: hot state in SoA rows that the kernel crate owns (`EntityRows`, `PlayerRows`, `BodyGrid`); cold state in ECS. Players are rows | §6 |
+| Partition | one world per dimension in a process, tiles as work units. A cell is a unit of placement across processes | §7 |
+| Players | L0/L1 in the muxer bridge, L2 in the world, in parallel with the entity pass | §8 |
+
+### 0.1 Non-goals
+
+These techniques of other servers change what a vanilla player sees. This design does not use
+them:
+
+- collision modes that differ from the reference;
+- freezing far mobs (an activation range), and AI or goal throttling by distance by default (the
+  reduced cadence of AIT-CDN-003 exists only as an operator's recorded deviation, §5.5);
+- a push cap that bumps a counter on both entities of a pair: it depends on the order and breaks
+  the Jacobi pass (the cap of §11.6 is the replacement);
+- faster experience orbs, an item merge at a fixed long interval, a smaller search radius for
+  villager points of interest;
+- deleting projectiles after a number of chunk loads (§5.1 defers instead);
+- pathfinding that reads the live world from another thread (racy; mobs wait in place);
+- ignoring "moved too quickly" while the server lags;
+- a null or air value for a reference across a partition (§7.3 reads the start-of-tick state);
+- foreign chunks as solid walls (§7.3 uses halos).
+
+## 1. Load model
+
+| Symbol | 100k | 1M | Source |
+|--------|------|----|--------|
+| awake entities (full physics tick) | 40% | 25% | assumption: most items and idle mobs rest (PHY-SKIP, PHY-SKIP-007) |
+| bodies in the grid (pushable or collider) | 60% | 60% | living entities, boats, minecarts, shulkers |
+| hard colliders (PHY-SHP-009) | 1% | 1% | boats, minecarts, shulkers, happy ghasts |
+| living entities with AI | 60% | 60% | assumption |
+| villager-class brains among them | 5% | 5% | assumption |
+| players | 10,000 | 10,000 | MVC-LAY-008 |
+| kernel cost of one awake entity | 0.75 µs | 0.75 µs | 0.6 µs physics + 0.1 µs push over ~3 neighbours + 0.05 µs steering |
+| hot columns | ~850k | ~850k | 10k players, simulation distance 6 (169 columns), half of them shared |
+| sections with random-tickable blocks | ~5M | ~5M | ~6 per hot column |
+
+All numbers are estimates from these assumptions and the kernel targets of §11.4. Benchmarks
+replace them (§10.6).
+
+## 2. Policies this design relies on
 
 | Domain | Policy | Rule | Consequence here |
 |--------|--------|------|------------------|
-| Own player tick, re-application, `resolve` query, PHY-SRV-008 velocity | exact, bit for bit | PHY-CMP-005 | one scalar f64 path, no tolerance, no reordering |
-| Server-simulated motion | semantic, 1e-6 per axis per tick | PHY-CMP-006, PHY-DEV-001 | optional local-frame f32 batch path |
-| Discrete results of server entities | exact | PHY-CMP-007 | batch path never decides these |
-| Tick order of server entities | semantic; colliders from start of tick | PHY-CMP-008, PHY-DEV-002 | every entity of a cell is an independent unit of work |
-| Block reads of server entities | semantic; blocks from start of tick | PHY-CMP-009/010, PHY-DEV-003 | physics runs before the block writes of the tick (§6.2); the result does not depend on the cell layout (PHY-INV-014) |
-| Skip of a fixed-point tick | exact (observably identical) | PHY-SKIP-001..005 | rest/wake machinery |
-| Exact-parity mode | one cell per world, every link `Inline` | ARCH Decision 20, CELLS §10, PHY-ORD-010/011 | the same systems, sequential in tick-list order |
-| L0/L1/L2 | layered, lower never reads higher | MVC-LAY-001..009 | L0/L1 in the muxer bridge, L2 in the cell |
-| Replication | semantic, rate may differ | REPL §4.7 | outbound positions go through tile deltas, never a packet of the cell |
+| Own player tick, re-application, `resolve`, PHY-SRV-008 velocity | exact | PHY-CMP-005 | one scalar f64 path |
+| Server-simulated motion | semantic, 1e-6 per tick | PHY-CMP-006, PHY-DEV-001 | optional f32 batch in air |
+| Discrete results | exact | PHY-CMP-007 | the batch never decides them |
+| Colliders | start of tick; hard colliders from the pre-pass | PHY-CMP-008, PHY-CMP-018, PHY-DEV-002 | §3.5 |
+| Explosions | sequential groups in birth-key order; other exploders as writes at `T + 1` | PHY-EXP-001/002, PHY-CMP-020, PHY-DEV-009 | §3.5 |
+| Block domain on entities | same tick, after the entity pass, in block order | PHY-BLK-001/002 | §3.7 |
+| Claims | once per tick after the block domain; `command < entity < block` | PHY-CMP-017 | §3.7 |
+| Push cap | mutual top-`K`, only with `max_entity_cramming` 0 | PHY-CMP-019, PHY-DEV-008 | §11.6 |
+| Item phase | an offset 0–3 from the birth key | PHY-CMP-016, PHY-DEV-007 | §6.6 |
+| Riding player | the vehicle writes its position; the client gives only the rotation | PHY-SRV-011 | §3.6 |
+| Blocks | end of the previous tick | PHY-CMP-009/010/011, PHY-DEV-003 | physics runs before every block write |
+| Push | start of tick, sum in key order | PHY-CMP-012, PHY-CMP-013, PHY-DEV-004 | a gather over the grid |
+| Crowd damage random value | a stream of (key, tick) | PHY-CMP-014, PHY-DEV-006 | no shared random source in the pass |
+| Writes to other entities | at the start of the next tick, in key order | PHY-CMP-015, PHY-DEV-005 | the merge point (§3.7) |
+| Mount trees | one unit, root first | PHY-ORD-014 | §3.6 |
+| Rest | exact skip; push and input rules | PHY-SKIP-001..007, PHY-INP-020 | rest per tile (§6.6) |
+| Layout independence | | PHY-INV-014, PHY-INV-015 | same result for any thread count, task split or cell layout |
+| Exact-parity mode | one world, sequential, live | ARCH Decision 20, PHY-ORD-010/011, PHY-PSH-006 | §3.8 |
+| AI timing | reflexes, delay, `max_lag` | AIT | §5 |
+| Push on the own player | bounded input, superset of pushers, kept positions | MVC-UNC-004..007, MVC-PRED-019 | §8.4 |
 
-## 2. Crate split
+## 3. The hot loop
 
-### 2.1 Crates
+### 3.1 Model
 
-| Crate | Bevy | Content | Deps |
-|-------|------|---------|------|
-| `mcrs_minecraft_physics` (new) | no, no tokio | f64 boxes; collision shapes with grid lines; per-state collision and motion tables; section brick masks (types only); world-view traits; collision query; move procedure; step-up; flags; one-tick step per category; sine table; rest detection; in-air batch | `mcrs_voxel`, `glam` |
-| `mcrs_minecraft_move_validate` (new) | no, no tokio | L0: value checks of MVC-CHK-023 over decoded fields. L1: per-connection state, client-tick assembly, probe planning and windows, tick-rate balance, packet check, L1 speed bound | `mcrs_minecraft_wire`, `glam` |
-| `mcrs_minecraft_move_predict` (new) | no, no tokio | L2: candidates, try order, fast path, replay, client world overlay, modes, checks, offset buffer, setback decision | `_physics`, `_move_validate` |
-| `mcrs_minecraft_engine_physics` (new) | yes | dimension plugin: tables as resources, section brick projection, `CollisionWorld` over `DimensionView` (owned + halo sections), collider snapshot, server entity tick, rest/wake, effect messages | `_physics`, `mcrs_minecraft_engine_world`, `mcrs_minecraft_block`, bevy |
-| `mcrs_minecraft_engine` (extended) | yes | L0/L1 hook in `muxer/bridge.rs`; L2 systems in `movement.rs` (now a set of `movement_*.rs` files); `Prediction` in `cell_crossing::Crossing`; entity crossing; tile events of server entities | adds `_move_validate`, `_move_predict`, `_engine_physics` |
-| `mcrs_minecraft_replication` (extended) | no | a codec for entities that are not players: on-ground, velocity, precise sync (§7) | — |
+Let `F_T` be the frozen state at the start of tick `T`. The freeze is the last step of
+`DomainInput`: after the merge point, the mailed writes of the block domain and the life cycle.
+The grid and the position table are rebuilt there, so every write that the next pass must see is in
+them, in one cell and in many. `F_T` is:
 
-The first three go in `NO_BEVY_PACKAGES`. They need `std` only for `f64::sqrt`
-(`// std: f64::sqrt`, correctly rounded as PHY-NUM-001 needs).
+- the block states at the end of tick `T − 1` (PHY-CMP-009);
+- the body grid: for each pushable or collidable entity and each player, its box and the fields of
+  PHY-RCH-006 at the start of `T`;
+- the position table: the position, rotation and kind of every entity and player (§6.5);
+- the world border and the loaded sections.
 
-There is no `mcrs_minecraft_engine_movement` crate. The L1 hook sits inside `bridge_inbound` and
-`write_queue`, and L2 needs `TeleportState`, `Crossing` and `DimInputs`. All of them are
-`pub(crate)` parts of `mcrs_minecraft_engine`, so a crate above it would have to reach back into
-it (a cycle). `mcrs_minecraft_engine_physics` sits below `mcrs_minecraft_engine`: it needs only the
-section storage and `OwnedColumns` of `mcrs_minecraft_engine_world`.
-
-The kernel is one crate, because both halves (shapes/query/move procedure and the tick model) have
-the same dependencies. The seam stays clean, so a split costs one move when a user needs only
-collision.
-
-The vanilla rows (PHY-ORD-005, PHY-GRV-017) are data the app supplies, never a default of the
-kernel (rust-style): a corpus file under `assets/mcrs/` once U2/U3 close, a const table in
-`mcrs_minecraft_server` until then.
-
-### 2.2 Dependency graph
+One tick of one server entity `e` is a function:
 
 ```text
-mcrs_voxel  glam                     mcrs_minecraft_wire
-     \      /                                |
-  mcrs_minecraft_physics          mcrs_minecraft_move_validate     <- proxy stops here
-      |          \                    /
-      |         mcrs_minecraft_move_predict                        <- foreign-host anticheat stops here
-      |                    |
-mcrs_minecraft_engine_physics          |
-  (+ engine_world, block, bevy)        |
-           \                           |
-            mcrs_minecraft_engine (muxer bridge, cells, movement)  <- server
+row'_e, effects_e = tick(row_e, steering_e, F_T + end boxes of the hard colliders)
 ```
 
-## 3. Kernel API
+It reads the zones of PHY-RCH-001 and PHY-RCH-006. It writes only `row'_e` and appends effects
+(PHY-RCH-002, PHY-CMP-015). PHY-INV-015 states that the result is then independent of the order of
+the entities, the thread count, the task split and the cell layout.
 
-### 3.1 World view
+The push follows PHY-CMP-012 with the order key of PHY-CMP-013 (§4). The crowd damage uses the
+neighbours of the gather. Its random value comes from a stream of the entity key and the tick
+(PHY-CMP-014), so the pass has no shared random source.
+
+### 3.2 What is frozen, and what that costs
+
+| State | How it stays frozen | Cost per tick |
+|-------|---------------------|---------------|
+| Blocks | by order: no block write between the sync point and `WorldWrite` | zero; a schedule test holds the order |
+| Bodies and positions of other entities | `BodyGrid`, rebuilt at the freeze | the rebuild of dirty tiles (§3.4) |
+| Hard colliders | `ColliderEnds`, which the pre-pass writes before the main pass | §3.5 |
+| Own row | read and written in place; no other entity reads `EntityRows` during the pass | zero |
+
+### 3.3 Jacobi against interaction islands
+
+| Cost at 1M | Jacobi | Islands (connected read zones, tick-list order inside) |
+|------------|--------|--------------------------------------------------------|
+| Partition work | none | ~2.5M pairs × 5 ns plus union-find at ~10 ns per pair: ~40 core-ms |
+| Largest serial unit | one mount tree | the largest island. Zones grow the box by ≥ 1 block (PHY-RCH-001), so they percolate at about one mob per 9 m². A village or a farm is one island: 50k × 0.75 µs = 37 ms on one core |
+| Wall time of the pass, 32 cores | ~7 ms | ≥ 37 ms in a dense area |
+| Parity gained | none needed (PHY-DEV-002/003/004) | closer to the reference order, which no policy requires |
+
+Decision: Jacobi. Islands stay only in the sequential exact-parity mode (§3.8).
+
+### 3.4 The body grid: rebuild against incremental update
+
+Per tile, the grid holds the public rows sorted by bucket (4 × 4 blocks, full height), then by key.
+A query merges the sorted runs of the buckets that it touches, which gives the order of
+PHY-CMP-012 step 4 without a sort.
+
+| Option | Write per tick at 1M | Cost | Complexity |
+|--------|----------------------|------|------------|
+| Full ping-pong of all hot fields | 110 MB | ~11 core-ms | low |
+| Rebuild dirty tiles (chosen) | 17 MB plus a counting sort | ~5.4 core-ms | low |
+| Incremental, second generation for movers | 12 MB | ~3 core-ms | high |
+
+A tile is dirty when a body in it moved, spawned, despawned or changed a field of PHY-RCH-006. A
+clean tile keeps its grid.
+
+### 3.5 Sequential groups
+
+Two rules make a small set of entities tick in sequence, in birth-key order. Each group is one task
+item. Groups run in parallel with each other. The freeze finds them from `F_T`, so the set of groups
+does not depend on the thread count or the layout.
+
+| | Collider group (PHY-CMP-018) | Explosion group (PHY-CMP-020) |
+|---|---|---|
+| Why | two moving hard colliders that read each other's start box overlap, and PHY-COL-003 then lets them pass | a TNT cannon needs the push of the charges in the move of the projectile in the same tick (PHY-EXP-002) |
+| Seeds | every awake hard collider (boats, rafts, minecarts, shulkers, happy ghasts) | every primed TNT with a fuse of 1 or less, from the timing wheel |
+| Growth | union of colliders whose read zones intersect, over the per-section list of hard colliders. A resting collider is not stepped: its start box is its end box | every entity whose read zone touches the reach (a cube of edge `4p`, grown by the displacement of the exploder), then every entity that an explosion of the group can ignite or move, until the group stops growing; groups that share an entity merge. Groups whose reaches intersect also merge, so two groups never remove the same block in parallel (spec request R3) |
+| Finding cost | union-find over ~10k colliders at 1M: < 0.5 core-ms | grid and position-table queries per seed: ~2 µs per seed |
+| Where | pre-pass in `Simulate`, before the main pass; publishes end boxes in `ColliderEnds` | the first step of `WorldWrite`, after the main pass and before the block step. Members are left out of the main pass. Blocks that an explosion removes are absent for the later members and for nobody else, as PHY-CMP-009 requires |
+| Reads | other colliders of the group live; everything else from `F_T` | other members live; blocks live (copy point plus the removals of the group); everything else from `F_T` |
+| Typical size | 1–3 | 1 TNT plus the entities in its reach: 1–20 |
+| Worst case | a pile of boats on ice: 500 colliders, 0.5 ms; 5,000, 5 ms on one task | a detonation of 1,000 primed TNT in one area: 1,000 explosions in one group |
+| Cost of one step | ~1 µs | ~0.3 ms: 1,352 rays × ~17 steps × ~10 ns, plus the exposure of each entity in reach |
+| Tail bound | serial; acceptable to ~5,000 colliders per group | serial chain of explosions, but the rays and the exposures of one explosion are independent and fan out over the pool: ~20 µs per explosion on 16 cores, so 1,000 explosions take ~30 ms wall instead of 300 ms |
+
+The main pass reads `ColliderEnds` for the collision with a hard collider, and the start-of-tick
+grid for the push. A boat is both: its collision box is its end box, its push box its start box.
+
+An exploder that does not show at the start of the tick (a fireball that hits a block) forms no
+group; its impulse and damage are writes at `T + 1` (PHY-DEV-009).
+
+### 3.6 Mount trees
+
+PHY-ORD-014: a root vehicle and its passengers are one unit, and one unit is one task item. The
+rows of a unit are contiguous in one tile. The vehicle reads the input of a controlling passenger
+from its start-of-tick row.
+
+- A server vehicle that carries a player sets the position of the player (PHY-ORD-014 step 3,
+  PHY-SRV-011). The pass does not write `PlayerRows`: it emits a `RiderPlaced` message, which the
+  player-row writer applies in `Project`, in the same tick, before the output. While the player
+  rides, `predict` takes only the rotation from the client and runs no movement check.
+- A vehicle that a client controls is written in `ClientInput` from the vehicle moves, before the
+  pass. The pass does not step it. Vehicle models are out of scope of PHY.
+
+### 3.7 Writers, the merge point and claims
+
+**One writer per row in each phase.**
+
+| Phase | Writer of `EntityRows` | Writer of `PlayerRows` |
+|-------|------------------------|------------------------|
+| `DomainInput` | the merge point: writes of `T − 1` from other entities (local and mailed), mailed block-domain writes, AI results, impulses, the life cycle (spawn, despawn); then the freeze | the merge point (writes on the server copy) |
+| `ClientInput` | commands (write-through), client-controlled vehicles | — |
+| `Simulate` | the collider pre-pass, then the main pass | `predict` |
+| `WorldWrite` | explosion groups; the block domain (PHY-BLK-001) in block order; the grants of the claim arbitration | — |
+| `Project` | tile moves of rows that left their tile | `RiderPlaced` |
+
+**Block domain (approved decision 1, PHY-BLK-001).** Pistons, slime and honey blocks that a piston
+moves (mover kind `piston`, PHY-BLK-002) and shulker boxes (`shulker_box`) move entities. The block
+domain runs after the entity pass. It reads `EntityRows` as the pass and the explosion groups left
+them and writes them directly, in block order. A piston thus moves a mob in the same tick, and the
+mob does not trail into a `moving_piston`. Pressure plates, tripwire and detector rails only read
+rows; a hopper makes a claim. A block in one cell that writes an entity of another cell sends the
+write in the cell mail; the owner applies it at the merge point, before the freeze, so the next
+pass sees it in either layout. Only the output of tick `T` (the tile event) and the readers later in
+the same block step differ: the exception of PHY-INV-014, bounded to that entity.
+
+**Commands write through.** A command runs in `ClientInput`, outside `Simulate`. It writes rows
+through the store API at once, so `/tp` followed by `execute at @s` in one function reads the new
+position. The grid keeps the start-of-tick row for other entities, and the tile becomes dirty.
+
+**The merge point.** A write from one entity to another (damage, knockback, removal, PHY-CMP-015)
+goes into the effect buffers of the tick. Every such write applies at one place: `DomainInput` of
+`T + 1`, before the freeze. Writes from another cell arrive in the cell mail of `T` and apply at
+the same place, so the f64 sum order is the same in each layout (finding M4). The order is
+`(target key, writer key, sequence)`.
+
+**Claims (PHY-CMP-017).** An exclusive action on an entity (a pickup by a player, a mob or a
+hopper, a merge of items or orbs, a removal) is a claim, not a write. Each writer appends claims to
+its buffer during the tick. One arbitration step runs at the end of `WorldWrite`, after the block
+domain, with one total writer key:
+
+```rust
+pub enum WriterKey {              // variant order is the order of PHY-CMP-017
+    Command { sequence: u64 },
+    Entity { key: BirthKey },
+    Block { pos: YzxPos },        // compared by y, then z, then x
+}
+```
+
+Per target, the lowest key wins. The winner and the target apply the grant in the same step (the
+item leaves, the inventory changes), before `Output`. Losers get nothing. Arbitration is a sort of
+the claims by `(target, writer key)` and one pass: ~100 ns per claim. This removes the item
+duplication between a player pickup, a hopper, a mob pickup and a merge.
+
+A claim from another cell arrives one tick late and joins the arbitration of `T + 1` in the owner.
+In one cell it would have joined the arbitration of `T`. Spec request R2 asks PHY to state that
+case.
+
+### 3.8 Exact-parity mode
+
+Exact-parity mode is one world with every link `Inline` (ARCH Decision 20). It uses none of
+PHY-CMP-008, 009, 012, 014, 015, 017, 018 or 020. `WorldWrite` then runs, in this order (PHY-ORD-010 steps 3 to 5):
+the scheduled block and fluid ticks and the block events; then `step_entities_in_order` over the
+rows in `TickListSeq` order, with a live collider view, sequential push (PHY-PSH-006) and immediate
+writes to other entities; then the block entities. The sequential driver is the only writer of
+`EntityRows` in that phase. AI runs with `AiDelay::Inline` (AIT-LAG-011): each decision runs in the
+AI step of its entity, inside this pass, against the live state, with `k = 0`. The kernel functions
+and the decision functions are the same as in the sharded mode.
+
+### 3.9 Schedule of a tick
+
+All systems are plugins of the world's sub-app, in the `TickSet` phases of `FixedUpdate`:
+
+```text
+DomainInput:  stage results (light, generation);
+              cell mail (halo changes [C1], HaloBodies, mailed writes and block-domain writes);
+              merge point: writes of T-1 by (target key, writer key, sequence); impulses;
+              AI decisions due at T by (issue tick, BirthKey), revalidated; proposals granted;
+              life cycle (row + ECS entity together); body-size and attribute projections
+              -> freeze: tile moves, grid and position table rebuild of dirty tiles,
+                 collider groups and explosion groups found from this state
+ClientInput:  ClientTick per player; commands (write-through); client-controlled vehicles;
+              client block edits only send BlockSetRequest
+Simulate:     collider groups (pre-pass) -> ColliderEnds
+              -> main pass (tasks over tiles; members of explosion groups left out)
+              || predict (par over players; PlayerRows)
+WorldWrite:   explosion groups (one task each; rays fan out)
+              -> block step (PHY-BLK-001: pistons, shulker boxes; hoppers claim)
+              -> claim arbitration and grants (PHY-CMP-017)
+              -> exact-parity mode only: block ticks, sequential entity pass, block entities
+Project:      RiderPlaced; project_section_bricks; trim_change_log
+Output:       tile events from mover lists; AI delta, block changes and player table to the AI
+              link; setbacks; cell mail (HaloBodies, writes, claims, crossings)
+```
+
+- Inside a task: no `Commands`, no structural change. The passes use `ComputeTaskPool` through
+  `par_chunk_map_mut`, as `column_streams` does. There is no scheduler of our own.
+- The entity domain has four barriers per tick (freeze, pre-pass, main pass, explosion groups);
+  each costs tens of microseconds.
+- `tests/it/schedule_ambiguity.rs` covers the new plugins.
+
+## 4. Keys
+
+| Key | What it is | Persisted | Used for |
+|-----|------------|-----------|----------|
+| `BirthKey` | PHY-CMP-013: the birth tick, the source key (kind, then the parent key, the block position, the chunk and attempt, the saved list position, the command sequence or the login order), the sequence. Kept across a change of dimension | yes, with the phase offset of PHY-CMP-016 | the push order, the item phase, the crowd damage stream (PHY-CMP-014), the collider and explosion groups, the AI random streams, the effect merge, claims |
+| `EntityId` | the global runtime id from the coordinator's ranges; the wire id | no | the slot map of the store, side tables, the protocol |
+| `Entity` | the Bevy entity of the cold state | no | ECS only |
+
+The network id comes from per-cell ranges and is not saved, so it is no order key (finding C1).
+
+The source key of kind `entity` holds the birth key of the parent, which holds the key of its own
+parent, with no bound on the depth. A row needs a fixed size. The stored form is:
+
+```rust
+pub struct BirthKey {             // 32 bytes; derives Ord in field order
+    tick: u64,
+    kind: SourceKind,             // load < player < command < spawn < block < entity
+    source: u128,                 // block: y, z, x packed in order; spawn: chunk and attempt;
+                                  // load: chunk and list position; command, player: sequence;
+                                  // entity: a 128-bit digest of the parent's stored key
+    sequence: u32,
+}
+```
+
+Every kind except `entity` keeps the exact order of PHY-CMP-013. For `entity`, two children of
+different parents born in the same tick compare by the digest, not by the parent keys. The order is
+still total, deterministic and the same in every layout and after a reload; only the rank between
+such siblings differs from the rule. A digest collision has a chance of about `10^-26` at 1M
+entities. Spec request R1 asks PHY to allow the digest.
+
+Grid rows carry the key, so the grid row grows to 80 bytes (§6.5).
+
+## 5. AI: reflexes in the tick, decisions in a pipeline
+
+AIT splits each part of the AI into a reflex or a decision (AIT-SPL-001). This section maps that
+split onto the tick and the AI stage.
+
+### 5.1 Reflexes in the hot tick
+
+The eight reflexes of AIT-RFX-001..008 run in the main pass, in the tick in which the reference
+runs them (AIT-INV-003). They read the start-of-tick state of AIT-SPL-002: the own row and steering
+state, the grid and the position table, the block copy of PHY-CMP-009. They write the own row, or
+make writes and claims of PHY-CMP-015/017.
+
+| Reflex | Rule | Per-tick work (AIT-SPL-003) |
+|--------|------|-----------------------------|
+| steering: path follower, move, look, jump control, body rotation | AIT-RFX-001 | fixed; ~50 ns |
+| creeper swell: start and continue, direction, counter, explosion | AIT-RFX-002 | fixed, one sight ray when it has a target |
+| melee and ranged attack: cooldown, reach, sight, hit, look, draw, release | AIT-RFX-003 | fixed, one sight ray |
+| door on the path | AIT-RFX-004 | fixed; the open and close are block writes |
+| escape: float in a fluid, climb out of powder snow | AIT-RFX-005 | fixed |
+| effects of damage | AIT-RFX-006 | at the merge point; a fact to the brain |
+| orb attraction | AIT-RFX-007 | one lookup in the player table and the per-column index |
+| due events of the AI | AIT-RFX-008 | O(due), from the timing wheel |
+
+Each reflex does at most one line-of-sight ray per tick (cached per tick, AIT-VAN-004), no path
+search, no entity search in a box larger than 8 blocks and no block search. Cost per living mob per
+tick: ~50 ns of fixed checks, plus a ray of up to the follow range (~250 ns) for the ~10% of mobs
+with an attack target, plus ~30 ns to issue its due decisions: ~0.1 µs on average, on top of the
+steering already in the 0.75 µs of an awake entity. AIT-INV-006: the hot cost of a mob does not
+depend on its AI. §11.1 counts it.
+
+Also hot, outside AIT: physics, push, crowd count; the due events of physics (fuse end, pickup delay,
+effect expiry); the projectile chunk-load budget per tile (technique: 10 per tick), which defers a
+projectile, never deletes it.
+
+### 5.2 Decisions and the AI stage
+
+The decisions of AIT-DEC-001 (goal and target selection, sensors, brain checks, path searches,
+panic and random positions, merge searches, despawn checks, points of interest, partner selection)
+run in the AI stage, a kernel without Bevy on a link per world.
+
+- **Issue (AIT-CDN-001).** The hot tick issues each part for each entity at its vanilla period
+  (AIT-VAN-025), with the phase from the birth key (AIT-DEV-003). The issue never depends on the
+  backlog, wall time or load. The job messages go out in `Output`.
+- **Snapshot (AIT-LAG-001).** A decision of issue tick `T` reads the bodies and steering states at
+  the start of `T`, the block copy of `T`, the player table of `T`, the facts before `T`, and the
+  brain state after the earlier decisions of its entity. The stage keeps a replica of the bodies
+  (~40 B each, from the mover lists) and a navigation projection: per block the path type byte and
+  tag bits (technique), 2 KB per section, built only near entities with AI.
+- **Path search on the copy (AIT U7).** The path search reads the navigation projection of `T`,
+  which is the start-of-tick block copy, not the live world. A change later in tick `T` reaches the
+  search of `T + 1`, as PHY-CMP-009 states for physics.
+- **Slices without a newer view.** A search must read only the projection of its issue tick, even
+  when its slices run over two stage ticks. The projection keeps the old version of each section
+  that changed in the last `max_lag + 1` ticks (copy on write; block changes touch few sections).
+  A slice yields the pool after ~200 µs and resumes on the same version. This answers AIT U2 for
+  the pool, not for the throughput (§11.3).
+- **Cheap inputs (technique).** A behaviour condition re-runs only when one of its inputs changed,
+  by a change counter on the memories. Only mobs with a path hear the block changes on it (an
+  active-navigator set per tile).
+- **Random values (AIT-LAG-008).** A stream of the world seed, the birth key, the issue tick and the
+  part.
+- **Output.** A decision writes only the brain and steering state of its entity (AIT-DEC-007,
+  AIT-INV-005). A change of another entity or of shared state is a proposal.
+
+### 5.3 Application at the merge point
+
+At the merge point of `T + k`, after the writes of PHY-CMP-015 (AIT-LAG-002):
+
+1. Decisions apply in the order `(issue tick, birth key)` (AIT-LAG-007).
+2. Each decision is checked again against the current state (AIT-LAG-005): a removed entity, a dead
+   or far target, a teleport, a path that starts too far from the mob, a control flag that a reflex
+   took. A stale decision drops whole, the steering keeps its current state, and a fact goes to the
+   brain (AIT-LAG-006). No new decision is computed in its place.
+3. Proposals are checked and granted in the same order (AIT-CPL-002). A grant changes every named
+   entity and object at once, so a pair action (breed, alert, gossip, golem summon, point of interest
+   claim, fish school, raid membership) is atomic. An entity takes part in at most one granted pair
+   action of a kind per merge point (AIT-CPL-003).
+4. An item merge grant (AIT-CPL-005) consumes items. It enters the claim arbitration of PHY-CMP-017
+   in this tick, with the writer key of the item that tries, next to the pickups by players and
+   hoppers. One item thus has one arbitration point per tick.
+5. Timers that a decision starts count from the application (AIT-LAG-010); a hold time ends by
+   AIT-LAG-009.
+
+### 5.4 Delay modes and `max_lag`
+
+| Mode | `k` | Where | Rule |
+|------|-----|-------|------|
+| `AiDelay::AtLeast(1)` | `1 ≤ k ≤ max_lag` | production, default | a decision applies at the first merge point after it is ready; at `T + max_lag` the tick waits for it (AIT-LAG-004) |
+| `AiDelay::Fixed(k)` | `1 ≤ k ≤ max_lag` | determinism tests, replays, one cell against many cells, in the sharded mode | the tick always waits for the decisions of `T' − k` (AIT-INV-002) |
+| `AiDelay::Inline` | `0` | the exact-parity mode only (AIT-LAG-011) | no AI stage: each decision runs in the AI step of its entity, inside the sequential entity pass, in vanilla order, against the live state. The same decision functions run over a live view. AIT-LAG-001..010 do not apply |
+
+`max_lag` defaults to 2 (AIT-LAG-003). A decision is never older than `max_lag` (AIT-INV-004).
+
+### 5.5 The AI stage is a pipeline
+
+With `max_lag` = 2, the stage has two ticks of latency, but no more. A tick waits once a decision
+is two ticks late. Latency headroom therefore does not help a stage that falls behind: the stage
+must finish one tick of AI work for each tick, on average and in each burst longer than two ticks.
+When the AI work of a tick needs more core time than the stage gets in 50 ms, the AI cost is on the
+critical path and the tick slows down.
+
+"Beside the tick" therefore means only this: AI work overlaps the tick and the time between ticks
+on other cores, and a short burst hides in the two ticks of lag. It does not mean that AI cost is
+free. §11.3 sizes the AI stage for throughput.
+
+When AI work exceeds the cores of the stage, the operator can, in this order:
+
+1. accept the slower tick (the server reports the wait at the merge point as a metric);
+2. lower the mob caps or the entity-ticking range of the world;
+3. enable the reduced cadence for far mobs (AIT-CDN-003), a recorded deviation, off by default
+   (AIT-DEV-006); it never applies within 32 blocks of a player, and never changes a reflex;
+4. raise `max_lag`, which makes each decision with a smaller allowed delay a deviation
+   (AIT-DEV-001) and only absorbs longer bursts, not a lack of throughput;
+5. add cores, or place cells in other processes.
+
+### 5.6 Pool isolation
+
+The stage runs on its own pool, not on the compute pool. Its threads run at a lower OS priority,
+or on cores that the compute pool does not use, so the OS never preempts a hot task at a barrier
+for an AI job. A job yields after ~200 µs.
+
+### 5.7 Player table
+
+Each cell keeps the player table of each dimension (AIT-CDN-002): the position at the end of the
+previous tick, spectator and alive flags; 32 B per player, 320 KB at 10k. The coordinator sends each
+change to each cell at the sync point, so a "nearest player" query gives the same answer in each
+layout. A per-column reverse index of near players at fixed radii, updated when a player changes
+column (technique), serves the despawn distances (AIT-VAN-020, AIT-CDN-004), the idle time, orb
+attraction, spawning, entity tracking and the player push.
+
+### 5.8 What the hot loop never waits for
+
+The tick never waits for the light and generation stages, the data layer or the disk, the muxer,
+encryption or the sockets. It waits for the AI stage only at `T + max_lag`, or always in
+`AiDelay::Fixed`.
+
+## 6. Data layout
+
+### 6.1 Options
+
+| Criterion at 1M, 25% awake | Plain Bevy components + `par_iter` | Hybrid: SoA rows in the kernel crate, cold state in ECS |
+|----------------------------|------------------------------------|---------------------------------------------------------|
+| Skip of resting entities | visits every entity: ~15 core-ms | per tile: a quiet tile costs zero (~2.3 core-ms in changed tiles) |
+| Block reads | hash + `Query::get` per section: +37 core-ms | per-task section cache: ~2.4 core-ms |
+| Snapshot and neighbours | a separate grid anyway | the grid is part of the store |
+| Change detection | `Changed<T>` scans over 1M (1–2 ms each) | mover lists from the pass |
+| Archetypes | hundreds of tables, small tasks | not in the hot path |
+| Locality and SIMD | spawn order | sorted by tile and class |
+| Estimated hot loop | ~260 core-ms | ~210 core-ms |
+
+Decision: hybrid. Each hot field has one home.
+
+### 6.2 Resources
+
+Bevy runs two systems in parallel only when their accesses do not conflict, so the store is
+several resources, one per writer:
+
+| Resource | Content | Written in `Simulate` by |
+|----------|---------|--------------------------|
+| `EntityRows` | the rows of server entities, one segment per tile | the collider pre-pass, then the entity pass |
+| `PlayerRows` | the rows of players, same columns | `predict` |
+| `BodyGrid` | the frozen grid and the position table | nobody (written at the freeze) |
+| `ColliderEnds` | end boxes of hard colliders | the pre-pass |
+
+`predict` takes `ResMut<PlayerRows>` and `Res<BodyGrid>`; the entity pass takes
+`ResMut<EntityRows>`, `Res<BodyGrid>` and `Res<ColliderEnds>`. Bevy runs them in parallel.
+
+### 6.3 Rows
+
+```rust
+pub struct TileRows {                       // SoA; sorted by motion class; mount trees contiguous
+    position: Vec<DVec3>,
+    velocity: Vec<DVec3>,
+    rotation: Vec<Rotation>,                // yaw, pitch, head yaw
+    pose: Vec<Pose>,
+    motion: Vec<MotionState>,               // flags, support, fall distance, jump delay
+    class: Vec<MotionClass>,
+    size: Vec<BodySize>,
+    rest: Vec<Rest>,
+    steering: Vec<Steering>,
+    key: Vec<BirthKey>,
+    id: Vec<EntityId>,
+    awake: Vec<u32>,
+    movers: Vec<u32>,
+}
+```
+
+- Side tables (stuck multiplier, client vehicle state, rare effects) are keyed by `EntityId`, never
+  by row, so a tile move does not break them.
+- One life cycle place: the system at the merge point creates the row and the ECS entity together,
+  and removes both together. No other system spawns or despawns an entity.
+- Players are rows (approved decision 3). `Transform` stops being the truth for a player: the
+  consumers that read it today (`column_streams`, `movement`, `cell_crossing`, persistence) read
+  `PlayerRows`. The muxer and the view get the position from the row.
+
+### 6.4 Classification
+
+| Data | Class (bevy-ecs) | Home | Writer |
+|------|------------------|------|--------|
+| position, velocity, rotation, pose, motion state, rest, steering | authoritative | rows | the writer of the phase (§3.7) |
+| motion class, birth key | authoritative, immutable | rows | the life cycle |
+| body size | materialized from class, pose, `scale`, baby | rows | one projection at the merge point |
+| accepted player state | authoritative (L2) | `PlayerRows` + `Prediction` | `predict` |
+| grid rows, position table | materialized, frozen | `BodyGrid` | the rebuild at the freeze |
+| mover lists | temporal fact of the tick | rows | the pass; read by tile events, the AI replica, the pusher history |
+| health, equipment, attributes, effects, team, custom data | authoritative | ECS | their systems |
+| attribute and effect values for motion | materialized | rows | one projection at the merge point |
+| brain state | authoritative | AI stage | the AI stage |
+| box, `pushable`, `push_targets` | derived on read | — | — |
+
+### 6.5 The grid row and the position table
+
+```rust
+pub struct GridRow {                        // 80 bytes; bodies only
+    pub position: DVec3,
+    pub half_width: f32,
+    pub height: f32,
+    pub key: BirthKey,
+    pub root_vehicle: EntityId,
+    pub team: TeamSlot,
+    pub flags: GridFlags,                   // pushable, push_targets, collider kind, spectator,
+                                            // no physics, carries passenger, is passenger
+}
+
+pub struct PositionRow {                    // 32 bytes; every entity and player
+    pub position: DVec3,
+    pub kind: KindSlot,                     // u16
+    pub flags: u16,
+    pub id: EntityId,
+}
+```
+
+The position table covers what the hot steps read outside the grid: a look target, the player that
+an orb moves to, a leash holder, the target of a homing bullet, and the reflexes. A reference to an
+entity in another cell reads the halo copy of this table, never a null.
+
+### 6.6 Rest and wake per tile
+
+- Each tile has a stamp: the largest of the block change counters of its sections and their ring,
+  the grid revision of the tile and its neighbours, the border revision, and the intents, impulses
+  and block-domain writes that target it.
+- A tile whose stamp did not change skips every resting row with no work.
+- In a changed tile, each resting row compares its zone stamp (10 ns). PHY-SKIP-005 allows extra
+  wakes.
+- The cheap exact path (technique): an entity on the ground, with zero horizontal velocity, only
+  gravity, and an unchanged floor section stays at rest without a full tick.
+- Enter rest: PHY-SKIP-001, 004, 006 and 007: no push with `m ≥ 0.01F`, a crowd count not more than
+  `n − 1`, an input with a squared length below `1.0E-7`.
+- The item phase is the offset of PHY-CMP-016, saved with the birth key; a skipped item writes
+  nothing.
+
+### 6.7 Block access and shapes
+
+The block storage stays as it is. Physics adds per section (technique):
+
+- the brick masks of the earlier version (`solid`, `full`, `large`, `action`, `coarse`, revision);
+- an air-only flag and a count of special states (shape larger than one block or context
+  dependent). With no special state, the scan margin shrinks and the edge and corner cells are
+  skipped.
+
+Per state, the `CollisionTable` holds the shape class (empty, full cube, one box, constant
+compound, context dependent) and bit flags (fluid, climbable, path type byte, tag bits). A
+one-box shape collides as a box list per axis, a full cube as a plain overlap; only compound shapes
+take the grid path. The shape context is built only when a context-dependent state is in the zone.
+The world border is tested only when the zone is near it. A task keeps a cache of 64 section
+references (~2.4 core-ms of lookups per tick at 1M).
+
+### 6.8 In-air batch
+
+Rows of one class are contiguous in a tile, so the in-air rows batch in f64 lanes of 4,
+bit-identical to the scalar path. The f32 variant of PHY-DEV-001 is a later lever.
+
+## 7. Partitioning
+
+### 7.1 Units
+
+| Unit | What it is for | Size |
+|------|----------------|------|
+| Tile | memory segment, work unit, grid unit, replication tile | 2 × 2 columns, full height |
+| Task | a batch of tiles, or a range of rows of one heavy tile, ~50–100 µs | adaptive |
+| Tile group | the work unit of the parallel muxer (REPL §7.12) | 8 × 8 tiles |
+| Cell | placement in another process or machine | a k-d area of region boxes |
+
+### 7.2 Cells against one world with tiles, in one process
+
+| Cost at 1M, 16 in-process cells | Cells | One world, tiles |
+|---------------------------------|-------|------------------|
+| Bodies near a boundary | 60k × 2 × 40 ns = 4.8 core-ms; 3.8 MB of mail per tick | none |
+| Halo sections | ~6% more sections; halo changes applied again | none |
+| Crossings | ~250 per tick × 2 µs | ~1.2k tile moves × 50 ns |
+| Boundary exceptions | C2, C3, C5 | none |
+| Serial parts of the schedule | in parallel across cells | once per world: the block kernel must step shards (§11.8) |
+
+Decision: one world per dimension in a process. Cells are for placement across processes. While
+the block kernel is serial, more cells in one process are a stopgap.
+
+### 7.3 Across processes
+
+| Case | Rule |
+|------|------|
+| A zone crosses into a neighbour's column | read the halo, `HaloBodies` (grid rows) and the halo copy of the position table, at the start of the tick |
+| An entity walks into a neighbour's column | hysteresis `N` = 8 blocks; a mount tree crosses as one unit; the brain state goes with it |
+| A displacement of 30 blocks or more in one tick that leaves the cell | it becomes a teleport at the next tick (technique). This bounds C2 |
+| Writes and block-domain writes for an entity of another cell | cell mail of `T`, applied at the merge point of `T + 1`, before the freeze, as local ones |
+| Claims on an entity of another cell | cell mail of `T`, arbitrated in the owner at `T + 1` (C5) |
+| Split and merge | starting numbers (technique): one ring of buffer sections; merge within one section; split only when the area holds at least 8 sections of 16 × 16 chunks and at least one sixth of it is dead |
+
+Conflicts in a layout of many cells:
+
+- **C1. Halo changes land after physics.** They must apply in `DomainInput` (CELLS §12 step 5).
+- **C2. A zone past the halo.** Bounded by the teleport rule above; reported as a metric.
+- **C3. A block action in another cell's column.** One tick later (PHY-INV-014).
+- **C4.** Removed: a block-domain write to an entity of another cell applies before the next pass
+  (PHY-BLK-001), because the freeze follows the merge point.
+- **C5. A claim from another cell.** It joins the arbitration one tick later. Spec request R2.
+
+## 8. Players and the movement checks
+
+### 8.1 Layers
+
+| Layer | Hook | Notes |
+|-------|------|-------|
+| L0 | `bridge_inbound`, after `PacketDispatcher::dispatch` | MVC-CHK-023 |
+| L1 | `bridge_inbound` and `write_queue`, per connection | `MoveGuard`; probes in wire order |
+| L1 → L2 | `DimInputs` | one `ClientTick` per client tick |
+| L2 | the world, `Simulate`, parallel over players | in parallel with the entity pass |
+
+`bridge_inbound` must become a parallel loop over connections (~5 ms serial at 50k packets per
+tick, ~0.4 ms after). The packet limiter defaults of other servers are inputs for the MVC authors
+(technique: all packets 500 per second over 7 s; place recipe 5 per second over 4 s; place or use
+item 8 per 300 ms).
+
+### 8.2 L2 next to the entity pass
+
+L2 reads `ClientView`, the grid, `ColliderEnds` and the pusher history; it writes `Prediction` and
+`PlayerRows`. Its accepted state enters the grid at the next freeze, so entities see the player at
+`T + 1`. A fast path (technique, where MVC allows it): with no collision in the tick and an
+unchanged box, the collision test of the new box is skipped.
+
+### 8.3 Pushed, pushing and riding players
+
+- A server entity pushes only the server copy of the player (PHY-PSH-008). L2 treats it as one
+  bounded input (MVC-UNC-004/005, MVC-PRED-019).
+- A player pushes server entities: its grid row is a pusher in their gather.
+- A player on a server vehicle: the vehicle places it through `RiderPlaced` (§3.6). A player that
+  controls a vehicle: the vehicle row is written in `ClientInput`. Vehicle checks need their own
+  specification (spec request R5).
+
+### 8.4 Pusher history
+
+MVC-UNC-006 lets L2 use a superset of pushers; MVC-UNC-007 states the kept positions: each position
+as the client decodes it, with its server tick (28 B), shared by all trackers, for `max_hull_age`
+= 40 ticks, plus the probe of each server tick per player (8 B). The muxer is the authority of what
+it sent, so it reports the tier-0 positions of tick `T` in the input of tick `T + 1`. L2 reads them
+through a trait:
+
+```rust
+pub trait PusherHistory {
+    fn positions(&self, entity: EntityId, ticks: TickRange, out: &mut Vec<SentPosition>);
+    fn candidates(&self, near: Aabb, out: &mut Vec<PusherCandidate>);
+}
+```
+
+The engine implements it over the muxer reports; a foreign host over its own tracker. Memory: ~100k
+entities near players × 20 entries × 28 B ≈ 56 MB.
+
+### 8.5 Crates
+
+| Crate | Bevy | Content |
+|-------|------|---------|
+| `mcrs_minecraft_physics` (new) | no | shapes, tables (types), brick masks, world and body views, query, move procedure, step-up, flags, ticks, push, rest, in-air batch, `TileRows`, `BodyGrid` and its rebuild |
+| `mcrs_minecraft_collision_table` (new) | no | builds `CollisionTable` from the block definitions of `mcrs_minecraft_block` (default features, no Bevy) |
+| `mcrs_minecraft_move_validate` (new) | no | L0, L1 |
+| `mcrs_minecraft_move_predict` (new) | no | L2, `ClientView`, `PusherHistory` |
+| `mcrs_minecraft_engine_physics` (new) | yes | the resources of §6.2, the passes, rest and wake, the merge point, claims, brick projection, tile events, the AI link |
+| `mcrs_minecraft_brain` (new, later) | no | the AI stage kernel |
+| `mcrs_minecraft_engine` (extended) | yes | L0/L1 hooks, L2 systems, crossing, `PlayerRows` consumers |
+| `mcrs_minecraft_replication` (extended) | no | the codec for entities that are not players (REPL §7.11) |
+
+A foreign-host anticheat links `_physics`, `_collision_table`, `_move_validate` and
+`_move_predict`, and implements `CollisionWorld`, `BodyView` and `PusherHistory`.
+
+## 9. Kernel API
 
 ```rust
 pub trait CollisionWorld {
@@ -87,759 +712,275 @@ pub trait CollisionWorld {
     fn border(&self) -> Option<&WorldBorder>;
 }
 
-pub enum SectionLookup<S> { Outside, Unloaded, Loaded(S) }   // PHY-SHP-007 step 6, PHY-GRV-020
+pub enum SectionLookup<S> { Outside, Unloaded, Loaded(S) }
 
 pub trait CollisionSection {
-    fn bricks(&self) -> &BrickMasks;
+    fn masks(&self) -> &SectionMasks;            // bricks, air-only flag, special count
     fn state(&self, at: LocalPos) -> BlockStateId;
 }
 
-/// Boxes of collidable entities (PHY-SHP-008, PHY-SHP-009). The driver chooses a start-of-tick
-/// snapshot (PHY-CMP-008) or a live view (exact-parity mode); the kernel does not know which.
-pub trait EntityColliders {
-    fn colliders(&self, query: Aabb, mover: ColliderKey, out: &mut Vec<Collider>);
-}
-```
-
-The cell's implementation (`CellCollisionWorld`, in `mcrs_minecraft_engine_physics`) wraps the
-existing `DimensionView` of `mcrs_minecraft_engine_world` plus a `Query<&SectionBricks>`. The halo
-is not a separate store: halo sections are ordinary loaded sections of the cell's world, kept
-current by `apply_halo_changes`, and `OwnedColumns` only marks them read-only (CELLS §3, the
-`CellVolume` of the block kernels does the same for writes). Physics only reads, so it needs no
-access distinction: owned and halo sections are both `Loaded`, a column outside the halo or not
-yet landed is `Unloaded`. A foreign host implements the trait over its own chunks (ARCH §13). L2
-wraps any implementation in `ClientView` (§5.4).
-
-The kernel does not know about the copy point of PHY-CMP-009. The driver hands it a view whose
-blocks are the state at the start of the tick (§6.2). The own player does not use that copy
-(PHY-CMP-011): L2 reads `ClientView`.
-
-### 3.2 Tables
-
-```rust
-pub struct CollisionTable {
-    states: Box<[StateCollision]>,      // indexed by BlockStateId, 4 bytes each
-    shapes: Box<[Shape]>,               // interned; 0 = empty, 1 = full cube
-    motion: Box<[BlockMotion]>,         // a few distinct rows (PHY-GRV-017)
+/// The driver picks the frozen grid plus `ColliderEnds`, or a live view (exact-parity mode).
+pub trait BodyView {
+    fn colliders(&self, query: Aabb, mover: BirthKey, out: &mut Vec<Collider>);    // PHY-SHP-009
+    fn neighbours(&self, of: &GridRow, out: &mut Vec<GridRow>);                     // PHY-RCH-006, key order
+    fn position(&self, entity: EntityId) -> Option<PositionRow>;                    // the position table
 }
 
-#[derive(Clone, Copy)]
-pub struct StateCollision {
-    pub shape: ShapeId,                 // u16
-    pub flags: StateFlags,              // u8: LARGE, CONTEXTUAL, INSIDE_ACTION, STEP_ACTION, COARSE, OFF_GRID
-    pub motion: MotionId,               // u8
-}
+pub fn tick_entity<W: CollisionWorld, B: BodyView>(
+    world: &W, bodies: &B, tables: &Tables, row: &MotionRow,
+    body: &mut Body, living: Option<&LivingInput>, stream: &KeyedStream,
+    effects: &mut EffectBuffer, scratch: &mut Scratch,
+) -> TickOutcome;
 
-pub enum ShapeClass { Empty, Full, Cell(Aabb), Grid(GridShapeId), Contextual(ContextualKind) }
+pub fn tick_mount_tree<W: CollisionWorld, B: BodyView>(/* a run of rows, root first */);
 
-pub struct GridShape {                  // PHY-SHP-005: per-axis grid lines, solid-cell bitset
-    lines: [SmallVec<[f64; 9]>; 3],
-    solid: BitBox,
-}
-
-pub enum ContextualKind { Scaffolding, PowderSnow, FluidSource }   // PHY-SHP-003
-```
-
-- `Cell(Aabb)` is a fast path valid only when no grid line of the shape falls strictly inside the
-  box on any axis. A box that spans several grid cells (for example `y` 0..0.75 on the 1/4 grid)
-  stops a penetrating mover at an interior line (PHY-COL-003); it must take the `Grid` path.
-- `Full` is the full cube: grid lines 0 and 1 only, so face clipping is exact.
-- `LARGE` (PHY-SHP-007 step 3) is precomputed per state.
-- `COARSE` comes from the block list of PHY-ORD-013, resolved to state ids when the table is built.
-  Slime and honey blocks are coarse only while a piston moves them, which is a `moving_piston`
-  state, so they need no flag of their own.
-- Shapes are built in f64 from the corpus boxes (PHY-SHP-002). `BlockDefinitions` stores f32
-  `Aabb`; the builder converts each value back to the pixel grid and recomputes f64, exact only for
-  dyadic values. U4/U6 shapes get `OFF_GRID` and feed MVC-MODE-003 row 9.
-- `mcrs_minecraft_core::voxel_shape` is an occlusion shape (f32, clipped to the unit cube). It is
-  not reused for collision.
-
-Size: ~30k states × 4 B = 120 KB plus a few hundred shapes; it stays in L2 cache on every core.
-The table is immutable after startup and every cell holds the same one.
-
-### 3.3 Per-section brick masks
-
-A section is 4×4×4 bricks of 4³ blocks. One `u64` per class, one bit per brick:
-
-```rust
-#[derive(Clone, Copy, Default, PartialEq)]
-pub struct BrickMasks {
-    pub solid: u64,       // brick has a non-empty or contextual collision shape
-    pub full: u64,        // every block in the brick is a full cube
-    pub large: u64,       // brick has a LARGE state (outer scan shell, PHY-SHP-007)
-    pub action: u64,      // brick has an inside action or a step action (PHY-RCH-002, PHY-SKIP-004)
-    pub coarse: u64,      // brick has a COARSE or OFF_GRID state (PHY-ORD-013, MVC-MODE-003 row 9)
-    pub revision: u32,    // bumped on any change; wake test of PHY-SKIP-002
-}
-```
-
-48 bytes per section. A query reads the masks of the bricks that its scan region touches:
-
-- brick not `solid` → no block reads for that brick;
-- brick `full` → every cell is `Full` without a block read;
-- outer shell of the scan region (PHY-SHP-007 steps 3–5) → read only bricks with `large`.
-
-Projection owner: one system, `project_section_bricks`, fed by the existing `BlockPlaced`
-messages. `apply_halo_changes` and `apply_write` both write `BlockPlaced`, so one input covers
-owned writes, writes from other cells and halo changes. A newly landed section computes all 64
-bricks once through its palette (~10 µs). A changed block recomputes its brick (~200 ns).
-
-### 3.4 Query and move procedure
-
-```rust
-pub struct Body {
-    pub position: DVec3,
-    pub velocity: DVec3,
-    pub size: BodySize,                 // f32 half width, height (PHY-BOX-001)
-    pub motion: MotionState,
-}
-
-pub struct MotionState {
-    pub flags: MoveFlags,               // on_ground, horizontal, vertical, below, minor (PHY-FLG-001..003)
-    pub support: Support,               // supporting block + "last search found nothing" (PHY-FLG-004)
-    pub fall_distance: f64,
-    pub stuck: DVec3,                   // PHY-MOV-002
-    pub jump_delay: u8,
-    pub rest: Rest,                     // §6.4
-}
-
-pub struct ShapeContext { pub feet_y: f64, pub fall_distance: f64, pub shift: bool, pub kind: ContextFlags }
-
-/// PHY-SRV-006 / PHY-SHP-012: no state change. Used by L2, by MVC-CHK-005 and by the pose tests.
-#[must_use]
-pub fn resolve<W: CollisionWorld, E: EntityColliders>(
-    world: &W, others: &E, table: &CollisionTable,
-    request: &ResolveRequest, scratch: &mut Scratch,
-) -> Resolved;
-
-/// PHY-MOV-001 steps 1–9.
-pub fn move_body<W: CollisionWorld, E: EntityColliders>(
-    world: &W, others: &E, table: &CollisionTable,
-    body: &mut Body, mover: MoverKind, displacement: DVec3,
-    effects: &mut Vec<PhysicsEffect>, scratch: &mut Scratch,
-) -> MoveReport;
-
-pub fn intersects<W: CollisionWorld, E: EntityColliders>(       // PHY-SHP-013, PHY-BOX-006, MVC-CHK-005
-    world: &W, others: &E, table: &CollisionTable, boxed: Aabb, context: &ShapeContext,
-) -> bool;
-
-/// PHY-RCH-001 / PHY-RCH-005: the columns a tick can read, for the halo test of §6.3.
-#[must_use]
-pub fn read_zone(body: &Body, row: &MotionRow, displacement: DVec3) -> Aabb;
-```
-
-`Scratch` holds reused buffers; a step never allocates once warm. The box is never stored:
-PHY-BOX-002 rebuilds it from the position after every change. Collider order is PHY-SHP-011
-exactly.
-
-### 3.5 One tick
-
-```rust
-pub struct MotionRow {                   // one row of PHY-ORD-005, plus PHY-ORD-009 flags
-    pub order: Order,                    // Player | Living | Omnidirectional | Flier | Item | FallingBlock
-                                         // | PrimedTnt | ExperienceOrb | Arrow | Thrown | Spit | Accelerated
-    pub gravity: f64,
-    pub horizontal_drag: f32,
-    pub vertical_drag: f32,
-    pub step_height: StepHeight,         // Attribute | Fixed(f32)
-    pub dimensions: PoseDimensions,
-    pub stuck_ignore: StuckSet,
-    pub powder_snow: PowderSnowFlags,
-    pub block_bounce_factor: f32,
-    pub travel_gate: TravelGate,
-    pub pushable: Pushable,              // PHY-ORD-009/012: Never | Always | Default
-    pub policy: Policy,                  // Exact | Semantic (PHY-CMP-005/006)
-}
-
-/// PHY-ORD-007: step(S, K, R, W) -> S'. Pure; the caller owns S and S'.
-pub fn tick_player<W: CollisionWorld, E: EntityColliders>(
-    world: &W, others: &E, tables: &Tables,
-    start: &PlayerState, keys: Keys, rotation: Rotation,
-    out: &mut PlayerState, effects: &mut Vec<PhysicsEffect>, scratch: &mut Scratch,
+pub fn tick_player<W: CollisionWorld, B: BodyView>(
+    world: &W, bodies: &B, tables: &Tables,
+    start: &PlayerState, keys: Keys, rotation: Rotation, push: PushInput,
+    out: &mut PlayerState, effects: &mut EffectBuffer, scratch: &mut Scratch,
 );
 
-/// PHY-ORD-002 / PHY-ORD-004 and the non-living orders of PHY-ORD-005.
-pub fn tick_entity<W: CollisionWorld, E: EntityColliders>(
-    world: &W, others: &E, tables: &Tables, row: &MotionRow,
-    body: &mut Body, living: Option<&LivingInput>, phase: TickPhase,
-    effects: &mut Vec<PhysicsEffect>, scratch: &mut Scratch,
-) -> TickOutcome;                        // Moved | Rested | Unchanged
+pub fn move_body<W: CollisionWorld, B: BodyView>(/* PHY-MOV-001; mover kinds include piston */);
+#[must_use] pub fn resolve<W: CollisionWorld, B: BodyView>(/* PHY-SRV-006 */) -> Resolved;
+#[must_use] pub fn read_zone(body: &Body, row: &MotionRow, displacement: DVec3) -> Aabb;
 ```
 
-`PhysicsEffect` is the deferred write of PHY-RCH-002 (step, inside and fall actions, bounce, game
-events). The driver delivers it as a `Message`; a write into a column of another cell becomes a
-`CellBlockWrite` in the cell mail, as every other domain does (CELLS §4). Dispatch is a `match` on
-`Order`.
-
-## 4. Data model (server, Bevy)
-
-### 4.1 Components of a server-simulated entity
-
-Each entity belongs to the cell that owns the column it stands in, as players already do
-(CELLS §3). Its global id is the existing `EntityId` from the coordinator's ranges
-(`entity_ids.rs`).
-
-| Component | Content | Class (bevy-ecs) | Writer |
-|-----------|---------|------------------|--------|
-| `Transform` (existing) | position f64, rotation | authoritative | physics step (`set_if_neq`) |
-| `Velocity` (existing) | DVec3 | authoritative | physics step, impulse sources |
-| `MotionState` | flags, support, fall distance, stuck, jump delay, rest | authoritative | physics step only |
-| `MotionClass(u16)` | index into `MotionTable` | authoritative, immutable after spawn | spawn |
-| `BodySize` | f32 half width, height, eye height | materialized from row + pose + `scale` + baby | `project_body_size` |
-| `LivingInput` | input vector f32, jump, speed | authoritative per tick | AI |
-| `MotionAttributes` | the ten attributes of PHY-SRV-005 | materialized | attribute projection |
-| `MotionEffects` | amplifiers of `slow_falling`, `levitation`, `jump_boost`, `weaving` | materialized | effect projection |
-| `TickListSeq(u64)` | position in the cell's tick list (PHY-ORD-010 step 4) | authoritative | the system that adds an entity to the tick list; re-entry and arrival from another cell take a new, larger value |
-| box | — | derived on read, never stored | — |
-| `pushable` | — | derived on read from `MotionRow::pushable` and state (PHY-ORD-012) | — |
-
-`MotionClass` has `#[require(Velocity, MotionState, BodySize)]`. Rows live in a `MotionTable`
-resource. The hot query is `(&mut Transform, &mut Velocity, &mut MotionState, &BodySize,
-&MotionClass)` plus `Option<&LivingInput>`; Bevy columns make it SoA by component, and non-living
-entities sit in narrow archetypes. Motion state is values, not markers: marker churn at 1% of 100k
-entities is ~1000 archetype moves per tick.
-
-`OldTransform` and `SectionEntities` in `mcrs_minecraft_engine_world/src/entity/` stay for now.
-The step emits `SectionCrossed { entity, from, to }`, so a later change can retire the
-`OldTransform` scan (bevy-ecs D1, D4).
-
-### 4.2 Player components (in the cell of the player)
-
-| Component | Content | Class | Writer |
-|-----------|---------|-------|--------|
-| `Prediction` | `Predictor` (§5.3) | authoritative (L2) | `predict` |
-| `Transform`, `Velocity` | first candidate's position and velocity | materialized (MVC-PRED-012) | `project_accepted_state` |
-| `TeleportState` (existing) | pending teleport ids and the synced transform | authoritative | setbacks and accepts (TP-CONFIRM) |
-
-`project_accepted_state` writes `Transform` and calls `TeleportState::sync`, as `process_movement`
-does today, so the existing `teleport` system sends no packet for an accepted move. A setback goes
-through `TeleportState::sent`; the existing `player_position` writer gains the velocity and the
-relative-rotation bits of MVC-RSP-001.
-
-`Prediction` crosses cells with the player: `cell_crossing::Crossing` gains a
-`prediction: Option<Box<Predictor>>` field, carried like `replicated` and `view` (CELLS §4, row 1).
-L1 state does not cross: it lives on the connection in the host.
-
-### 4.3 Change detection
-
-- Physics writes `Transform` and `Velocity` through `set_if_neq`. Resting entities do not mark
-  them, so tile events (§7) cost O(movers), as REPL §4.6 requires ("a subject that does not
-  change costs zero bytes").
-- Nothing filters on `Changed<MotionState>`.
-- Wake tests use `Ref<Velocity>::is_changed()`, `Ref<Transform>::is_changed()` and the same on the
-  attribute and effect projections.
-
-## 5. L0, L1, L2
-
-### 5.1 Where the hooks are
-
-The muxer side of the host owns the connections (CELLS §6). Every serverbound play packet passes
-`bridge_inbound` (`crates/mcrs_minecraft_engine/src/muxer/bridge.rs`) with its arrival
-`timestamp`, the `InboundRateBucket` and the `PacketDispatcher` frame check, and goes to the owner
-dimension through `DimInputs::try_send_serverbound`. Every clientbound packet leaves through
-`write_queue`, which fixes the final order on the wire (critical, then high, then normal).
-
-| Layer | Hook | Reuses | Adds |
-|-------|------|--------|------|
-| L0 | `bridge_inbound`, after `PacketDispatcher::dispatch` | the dispatcher's size and trailing-byte checks (MVC-CHK-023 size table, "bytes after the last field") and its disconnect path | `move_validate::check`: the value rows of MVC-CHK-023 (NaN, infinite, pitch, coordinate range, flag bits, command action) |
-| L1 inbound | `bridge_inbound`, per connection | `pkt.timestamp` as the arrival time (MVC-CHK-010); `InboundRateBucket` stays the flood limit | `MoveGuard` component on the connection: `move_validate::Connection` |
-| L1 outbound | `write_queue`, per connection, after the priority merge | `QueuedPacket::kind()` to classify | probe planning around predicted-state changes in wire order (MVC-LAT-001) |
-| L1 → L2 | `DimInputs` | the routing to the owner dimension, the hold while a session is unattached | move packets, `player_input`, `player_command` 1–2, `player_abilities`, `client_tick_end` and the answers to probes are folded into one `ClientTick` per client tick; other packets route as today |
-| L2 | the cell of the player, `TickSet::ClientInput` / `Simulate` | `TeleportState`, `Crossing` | `Prediction`, §5.3 |
-
-The keep-alive latency (`muxer/latency.rs`) stays the player-list latency. L1 uses its own
-`ping` probes, because MVC needs an acknowledgement at a known place in the client tick stream
-(MVC-TICK-002); a keep-alive answer has no such place.
-
-A proxy runs the same `check` and `Connection` in its own forwarding loop and inserts its probes
-itself (MVC-LAY-007). `ProtocolIds` comes from `assets/mcrs/reports/registries.json` for the
-protocol version of `intention` (MVC-LAY-009); without the report, CHK-024 is off.
-
-### 5.2 L0 and L1 API
-
-```rust
-#[must_use]
-pub fn check(direction: Direction, packet: &Decoded, body_len: usize) -> L0Output;
-
-pub struct Connection { /* MVC-LAY-003 state; bounded by max_ack_delay */ }
-
-impl Connection {
-    pub fn inbound(&mut self, at: Millis, packet: &L0Output, out: &mut L1Output);
-    pub fn outbound(&mut self, at: Millis, packet: &OutboundKind, out: &mut ProbePlan);
-}
-
-pub struct ClientTick {
-    pub index: u64,
-    pub moves: MoveSlot,
-    pub keys: KeyBits,
-    pub sprint: Option<SprintChange>,
-    pub fly_request: Option<bool>,
-    pub acknowledged: ProbeRange,        // MVC-TICK-002
-    pub changes: ChangeAcks,             // which predicted-state changes are applied / in window (MVC-LAT-004)
-    pub silent_run: u8,
-    pub reports: ReportSet,              // MVC-LAY-005
-}
-```
-
-`decode` stays where the frame is decoded: the server passes the fields that
-`mcrs_minecraft_protocol_game` already decodes; a proxy uses a small raw decoder in the crate for
-the dozen fixed-size packets. L1 never reads a clock (MVC-INV-003).
-
-The predicted-state changes on the wire come from two places: packets of the cell (motion,
-explode impulse, abilities, effects, attributes, `block_changed_ack`) and the column changes that
-the muxer stage serves from `ChunkStream` (block and section updates, chunk loads and forgets).
-Both meet in `write_queue`, so L1 sees one ordered stream. Each queued change carries a tag that
-L1 records with its probe pair: `ChangeTag::Column { column, tick }` for a column change (the
-tick that published it, CELLS §6), `ChangeTag::Player(kind)` otherwise.
-
-### 5.3 L2 (`mcrs_minecraft_move_predict`)
-
-```rust
-pub struct Predictor {
-    accepted: SmallVec<[Candidate; 2]>,
-    record: ReplayRing,                  // replay_depth = 20 (MVC-PRED-015)
-    windows: WindowQueue,                // non-block change contents keyed by probe (MVC-LAT-004/005)
-    columns: ColumnAcks,                 // per near column: newest applied tick, ticks in window (from ChangeAcks)
-    buffer: OffsetBuffer,                // MVC-RSP-004
-    levels: ViolationLevels,
-}
-
-pub fn predict<W: CollisionWorld, E: EntityColliders>(
-    predictor: &mut Predictor, tick: &ClientTick, view: &ClientView<'_, W>, near: &E,
-    tables: &Tables, config: &CheckConfig, scratch: &mut PredictScratch,
-) -> Verdict;
-
-pub enum Verdict { Accepted(AcceptedTick), Refused(Setback), Coarse(AcceptedTick), Exempt }
-```
-
-Per client tick:
-
-1. Mode (MVC-MODE-002/003): block triggers read only the `coarse` brick masks of the near zone.
-   Entity triggers (rows 10–11) query the collider and pushable snapshot of §6.1, which includes
-   the entities that neighbour cells sent (§6.3).
-2. Fast path (MVC-PRED-013/014): `tick_player` for the primary candidate only; ~1.05 steps per tick
-   for a legit client.
-3. On a miss, the full set, then replay (MVC-PRED-015/017), capped by `max_steps_per_tick`.
-
-### 5.4 Client world view and kept changes
-
-```rust
-pub struct ClientView<'a, W> {
-    base: &'a W,                         // CellCollisionWorld: owned + halo sections, current state
-    overrides: &'a [BlockOverride],      // old states of kept changes not applied, or in window
-    unloaded: &'a ColumnSet,             // columns not loaded on the client, or in a window
-}
-
-#[derive(Resource)]
-pub struct ChangeLog {                   // per cell
-    entries: VecDeque<LoggedChange>,     // tick, BlockPos, old, new
-}
-```
-
-- `ChangeLog` records every `BlockPlaced` of the cell's sections, owned and halo alike, with the
-  tick of the change: the owner's tick for an owned write, the publishing tick for a halo change.
-  These ticks are the ticks that tag the column changes of the muxer (§5.2), so the `(column,
-  tick)` acknowledgement from L1 selects the old or new state of a logged change.
-- For each tick, L2 classifies the logged changes in the read zone by MVC-LAT-004 from
-  `Predictor::columns`: not applied gives the old state, window gives both runs (MVC-LAT-006).
-  A replay (MVC-PRED-017) classifies for the replayed tick.
-- Retention (MVC-PRED-018): an entry stays while a player of the cell whose recorded boxes, grown
-  by the near zone, can touch it has not applied it for `replay_depth` client ticks.
-  `trim_change_log` is the one writer. The block states are stored once per cell, the probes once
-  per connection in L1: no copy per recipient (bevy-ecs D5).
-- A player that crosses cells carries `Predictor` with its `columns`; the new cell's `ChangeLog`
-  holds the same changes for the shared halo columns, because both cells logged the same owner
-  ticks.
-- `ClientView` reports a brick that holds an override as `solid` and not `full`.
-
-## 6. Server entity tick in a cell
-
-### 6.1 Units of work
-
-A cell is the unit of placement (CELLS §1). Inside a cell, PHY-RCH-004, PHY-CMP-008 and
-PHY-CMP-009 make each entity its own unit of work for physics: it reads the cell's sections at the
-start of the tick and a start-of-tick snapshot of colliders, and writes only itself and deferred effects (PHY-RCH-002). No new shard
-type is needed. The cell holds many such units, as CELLS §1 says of shards.
-
-```rust
-#[derive(Resource)]
-pub struct ColliderSnapshot {
-    colliders: FxHashMap<SectionPos, SmallVec<[SnapshotBody; 2]>>,   // PHY-SHP-009 entities
-    pushables: FxHashMap<SectionPos, SmallVec<[SnapshotBody; 4]>>,   // near player zones only, for MVC-MODE-003 row 11
-    border: Option<WorldBorder>,
-}
-```
-
-`snapshot_colliders` builds it at the start of `Simulate` from the cell's own entities plus the
-`HaloBodies` that neighbour cells sent (§6.3). Both are boxes at the end of the last tick, which
-is the start of this tick, so own and foreign colliders come from the same moment (PHY-CMP-008).
-Collidable entities are rare (~2k inserts, ~60 µs). Pushables are collected only for the
-sections near the cell's players.
-
-Exact-parity mode is one cell with every link `Inline` (CELLS §10). It uses neither PHY-CMP-008
-nor PHY-CMP-009 (PHY-ORD-010, PHY-CMP-011). The driver then runs `step_entities_in_order` in
-`TickSet::WorldWrite`, after the block step, because the block ticks and block events of the
-reference come before the entities (PHY-ORD-010 step 3). It is one sequential pass in
-`TickListSeq` order, with `LiveColliders` and the live blocks, so each entity sees the block
-changes and the boxes of the entities before it. Each block action applies at once through the
-block kernel. Passengers tick right after their vehicle, entities added in the pass wait for the
-next tick (PHY-ORD-011), and the server part of the players follows the pass (PHY-ORD-010
-step 6). Client ticks are applied before (step 1), and the host ticks dimensions in creation
-order (step 2).
-
-### 6.2 Block reads at the start of the tick
-
-PHY-CMP-009 lets a server entity read the blocks of the start of the tick: the state after the
-halo changes of the sync point, and before the client input and the block writes of this tick.
-There are two ways to give physics that state:
-
-- **Order.** Run physics on the live sections before any block write of the tick.
-- **Buffer.** Run physics anywhere, and keep the old state of each block that the tick writes, in
-  an overlay that every physics read checks.
-
-This design uses order. It costs nothing at run time. A buffer costs a copy for each write and a
-lookup for each block read in the hottest loop, and it needs a second brick mask to keep the
-fast path. Order needs two facts, and both hold in the code or need one change:
-
-- Every block write of a tick happens in `TickSet::WorldWrite` (`run_block_simulation` applies
-  each `BlockSetRequest`, the kernel writes and the `CellBlockWrite`s). Client input in
-  `ClientInput` and commands in `FixedPreUpdate` only send `BlockSetRequest`s. Physics runs in
-  `Simulate`, which comes before `WorldWrite`. A schedule test holds this: only `DomainInput` and
-  `WorldWrite` may take `WorldViewMut`.
-- The halo changes of tick T−1 must land before `Simulate` of T. Today `run_block_simulation`
-  applies them at the start of the block step, after `Simulate`, so a reader would see a
-  neighbour's change one tick later than the owner. They move to `DomainInput` (conflict C1). The
-  block step does not change: nothing writes blocks between `DomainInput` and its start.
-
-Block actions that the tick starts (PHY-RCH-002) are `PhysicsEffect`s. They apply in the same
-tick, in `WorldWrite`, against the current state (PHY-CMP-010). Physics sees them at T+1.
-
-### 6.3 Cell boundaries
-
-The cell rules are in CELLS §3 ("Ownership of players and entities") and the "Entity motion" row of
-CELLS §4.
-
-| Case | Rule here |
-|------|-----------|
-| Read zone crosses into a neighbour's column | read the halo, at the start of the tick (§6.2) |
-| Collidable or pushable entity of a neighbour in the read zone | `HaloBodies` (box, kind, pushable, `EntityId`), written in `Output` of T for the entities in the columns that the neighbour reads, and applied in `DomainInput` of T+1. These are the boxes at the start of T+1, the same moment as the reader's own colliders |
-| An entity walks into a neighbour's column | it moves only when it stands `N` = 8 blocks inside that column (hysteresis), as `EntityCrossing` in the cell mail at the end of the tick; players use the same rule. The new owner gives it a new `TickListSeq` at the end of its list (PHY-ORD-010: re-entry goes to the end) |
-| Read zone and the halo | with `N` = 8, a read zone stays in the owner's halo of 32 blocks for a horizontal displacement up to 21 blocks per tick (CELLS §3). Natural motion stays far below (PHY-RCH-003). Past that, only an impulse, a command or a teleport; `read_zone` detects it, and the step counts it in a metric (conflict C2) |
-| A block action in a neighbour's column | `CellBlockWrite` to the owner, applied in its block step of T+1 instead of T (conflict C3) |
-| Coupled entities across a boundary | one owner for the group (CELLS §3). Physics does not need it (PHY-INV-014); the push between entities will |
-| The vertical axis | a cell owns whole columns (`Leaf::Whole` on Y), so falls and the 25-block potent-sulfur probe of MVC-MODE-003 never cross a boundary |
-
-Property: with PHY-CMP-008 and PHY-CMP-009, a halo that covers each read zone, and `HaloBodies`
-for each collider in it, the physics result of each entity is the same for one cell and for any
-division, bit for bit (PHY-INV-014). The exceptions are conflicts C2 and C3.
-
-### 6.4 Rest and wake
-
-```rust
-pub enum Rest {
-    Awake,
-    Resting { since: GameTick, zone: ZoneStamp },   // max brick revision over the rest read zone
-}
-```
-
-- Enter: after a full tick with `S' == S` bit for bit (PHY-SKIP-001), no `action` brick in the
-  read zone (PHY-SKIP-004), zero stuck multiplier, zero input. Items take `v.y` from the phase
-  `(t + n) mod 4` while skipped (PHY-SKIP-003, PHY-CMP-007).
-- Read zone at rest: PHY-RCH-005 (box grown by 1 on `x` and `z`, `1 + h` up, `1 + h + |d.y|` down).
-- Wake (PHY-SKIP-002): a brick revision in a zone section above `zone` (halo changes bump it too,
-  through `BlockPlaced`), a section landing or leaving, a snapshot body in the zone (own or
-  `HaloBodies`), a border change, a changed `Ref<Velocity>`/`Ref<Transform>`/projection, non-zero
-  `LivingInput`. Extra wakes are allowed (PHY-SKIP-005).
-- The tick count advances every tick, skipped or not (PHY-SKIP-005); the skip path never writes it.
-- A cell with no ticket skips its schedules entirely (CELLS §4, `is_idle`). Its entities are in
-  cold space and do not tick in the reference either.
-
-### 6.5 In-air batch
-
-An awake entity whose swept read zone has no `solid`, `action` or `coarse` brick and no snapshot
-body moves with `r = d`. Its tick is integration only, batched per task in f64 lanes
-(bit-identical to scalar, no deviation). An f32 local-frame variant is allowed by PHY-DEV-001;
-REPL quantises moves to 1/4096 block, so a 1e-6 difference never reaches a relative move. Use it
-only if a benchmark shows the f64 batch is the bottleneck.
-
-## 7. Outbound positions
-
-Server entities replicate through the existing tile path, never through a packet of the cell
-(REPL §7.1):
-
-- A system next to `publish_player_tiles` (after `VoxelUpdateSet::NetworkSync`) pushes
-  `EntityEvent::Move` into `TileEvents` for each non-player entity whose `Transform` changed, and
-  `Enter`/`Leave` when it changes tile. Work is O(movers).
-- `mcrs_minecraft_replication` quantises to 1/4096 per tier delta base (`delta_base.rs`), sends a
-  keyframe (`entity_position_sync`) on overflow, on entering a tile and every
-  `KEYFRAME_INTERVAL_TICKS`.
-- What is missing for entities that are not players (CELLS §12 step 4 already names "a codec for
-  entities that are not players"): the codec writes `on_ground: true` for every move today. A
-  server entity needs its on-ground flag, `set_entity_motion` when the velocity changes by more
-  than `1.0E-7` squared, and a precise sync when PHY-CMP-002 asks for one (on-ground change;
-  falling block and TNT after a collision tick). `Pose` gains `on_ground` and a `precise` bit, and
-  a `Data` event carries the velocity. See conflict C4 for tiers against client-simulated
-  categories.
-
-## 8. Schedule inside a cell
-
-All systems are dimension plugins in the cell's sub-app. `TickSet` phases in `FixedUpdate`:
-
-```text
-DomainInput:  cell mail applies: halo changes of T-1 (moved here, C1) -> BlockPlaced,
-              crossings arrive (Prediction, EntityCrossing), HaloBodies
-              == the copy point of PHY-CMP-009: no block write until WorldWrite ==
-ClientInput:  drain ClientTick (from DimInputs); client block edits only send BlockSetRequest
-Simulate:     snapshot_colliders
-              -> predict              (par_iter over players)
-              -> [entity AI]          (outside this note; writes LivingInput)
-              -> step_entities        (par_iter over awake entities; batch in-air)
-              -> write_effects        (merge per-thread buffers, sort by (TickListSeq, seq))
-WorldWrite:   block step: requests, kernels, own block actions (PHY-CMP-010); actions for other
-              cells go to the cell mail as CellBlockWrite
-              -> step_entities_in_order (exact-parity mode only, run condition; replaces step_entities)
-Project:      project_section_bricks (BlockPlaced) || project_accepted_state || trim_change_log
-Output:       setbacks (TeleportState); tile events of entities; cross_players + cross_entities
-              (hysteresis N); HaloBodies (end-of-T boxes = start of T+1)
-```
-
-- `predict` and `step_entities` read only frozen inputs (the sections at the copy point and
-  `ColliderSnapshot`) and write disjoint components, so Bevy may run them concurrently. Each
-  saturates the compute pool on its own, so the overlap gains only tail balance.
-- Inside `par_iter`: no `Commands`, no structural change. Effects go into `Local<Parallel<Vec<_>>>`
-  and are sorted by `(TickListSeq, sequence)` before they become messages or cell mail; the cell
-  mail keeps the cell order (CELLS §4), so the result does not depend on thread timing.
-- The plugins join `MinecraftServerPlugins`; `tests/it/schedule_ambiguity.rs` covers them, and
-  `tests/it/tick_determinism.rs` compares `Inline` against `Thread` placements.
-
-## 9. Fit with cells
-
-| Part | Status | Against |
-|------|--------|---------|
-| Partition unit | reuses the cell; no `EntityShard` type | CELLS §1, §3 |
-| Ownership of entities | extends "owner of the column" with hysteresis `N` = 8 and groups (target in CELLS §3) | CELLS §3 |
-| Entity ids | reuses the coordinator's ranges and `EntityId` | REPL §7.2, `entity_ids.rs` |
-| World view of the kernel | reuses `DimensionView` over owned + halo sections; adds `SectionBricks` | CELLS §4 halo, `cell_volume.rs` |
-| Brick projection input | reuses `BlockPlaced` (owned, foreign writes and halo changes) | `voxel_update.rs` |
-| Halo width | reuses `HALO` = 2 columns; with `N` = 8 enough for a displacement up to 21 blocks per tick | CELLS §3, PHY-RCH-001/003/005; conflict C2 |
-| Block reads at the start of the tick | reuses the order `Simulate` before `WorldWrite`; moves the halo changes to `DomainInput` | PHY-CMP-009, CELLS §4 "Entity motion"; conflict C1 |
-| Static division | contiguous k-d areas instead of the interleaved grid (target in CELLS §3) | CELLS §3, §12 step 5 |
-| Deferred block actions across a boundary | reuses `CellBlockWrite` | CELLS §4; conflict C3 |
-| Entity colliders across a boundary | new `HaloBodies` mail kind; start-of-tick boxes, as own colliders | CELLS §4 "Entity motion", PHY-CMP-008 |
-| Entity crossing | extends `cell_crossing` (`Crossing` gains `Prediction`; new `EntityCrossing`) | CELLS §4 row 1 |
-| Tick, sync point, lockstep, idle skip | reuses | CELLS §4 |
-| Exact-parity mode | reuses one cell + `Inline` | CELLS §10, ARCH Decision 20 |
-| L0 | extends `bridge_inbound` after `PacketDispatcher` | CELLS §6 |
-| L1 | new `MoveGuard` on the connection; hooks in `bridge_inbound` and `write_queue` | conflict C5 |
-| L1 → L2 transport | reuses `DimInputs` and session placement | CELLS §6 "input to the owner cell" |
-| Probes around column changes | extends `ChunkStream` changes with a `(column, tick)` tag | CELLS §6 |
-| Kept changes (MVC-PRED-018) | new `ChangeLog` per cell, keyed by the owner's tick | — |
-| Setbacks | reuses `TeleportState` and its `player_position` writer | `teleport.rs`, `movement.rs` |
-| Outbound positions of entities | reuses tile deltas, delta bases, keyframes; extends the codec | REPL §7; conflict C4 |
-| Player position today | replaces `process_movement` ("takes the position of the client and does no collision yet") | CELLS §4 table |
-| Latency | keep-alive `Latency` unchanged; L1 uses play `ping` probes | `muxer/latency.rs` |
-
-Conflicts:
-
-- **C1. Halo changes land after physics.** `run_block_simulation` applies the halo changes of
-  T−1 at the start of the block step of T, after `Simulate`. PHY-INV-014 needs them before. Code
-  change: apply them in `DomainInput` (CELLS §12 step 5, first item).
-- **C2. A read zone beyond the halo.** With `N` = 8, only a horizontal displacement above 21
-  blocks per tick reaches past the halo (an impulse, a command). One cell may hold those columns
-  loaded where many cells do not, so PHY-INV-014's precondition fails for that tick. The step
-  reports it; no rule removes it.
-- **C3. A block action in another cell's column.** PHY-CMP-010 applies a block action in the same
-  tick. Across a boundary it is a `CellBlockWrite`, which the owner applies at T+1 (CELLS §4), so
-  physics sees it at T+2 instead of T+1. With hysteresis, this happens only for an entity in the
-  band of `N` blocks past its owner's boundary, or one whose box or path straddles a boundary.
-  Needs request R1.
-- **C4. Tiers against client-simulated categories.** PHY-CMP-001: the client simulates items,
-  falling blocks, TNT, arrows and thrown items from the last state, and sets the position from an
-  update with no interpolation. REPL tiers 1–3 send paths of steps at 5, 2 and 1 updates per
-  second, and REPL assumption C5 says the client interpolates. For those categories a far tier shows jumps at
-  each update and the client's own simulation in between. REPL §4.7 allows a different rate, but
-  REPL has no rule for categories that the client simulates. The codec also hard-codes
-  `on_ground: true`, which PHY-CMP-002 uses for precise syncs. Needs request R2.
-- **C5. Priority queues and shedding.** `write_queue` sends critical, then high, then normal, and
-  `ready_to_write` sheds normal packets past `DEPTH_LIMIT`. MVC needs every predicted-state change
-  to arrive, and each probe to stay between the same changes on the wire. So the L1 outbound hook
-  runs in `write_queue` after the merge, and every predicted-state change (`ColumnChange` with
-  `PacketPriority::Normal` today) must be high or critical, or exempt from shedding. Code change,
-  no spec change.
-- **C6. Serial host time.** `bridge_inbound` loops over connections on the host thread between
-  ticks, and the host time adds to the lockstep tick (cells tick after the host's `Last`). L0+L1
-  at ~100 ns per packet and ~50k packets per tick adds ~5 ms serial. `bridge_inbound` must become
-  a `par_iter_mut` over connections (each connection's bucket and `MoveGuard` are independent),
-  with routed output merged in connection order.
-
-## 10. Performance budget
-
-### 10.1 Parallelism model
-
-- Cells of all worlds tick in lockstep after the host's `Last`, `Inline` or one `Thread` each
-  (`worlds` field). The tick lasts as long as the slowest cell plus the host's serial work.
-- Inside a cell, `par_iter` runs on the process-wide compute pool, which all cell threads share.
-  Under `Placement::Inline` the server sizes that pool to 1 thread (`server_loop.rs`), which is
-  the deterministic test mode.
-- The static division today interleaves regions (32 × 32 columns, 512 blocks), so a boundary
-  falls every 512 blocks. The target is contiguous k-d areas balanced by cost (CELLS §3). Players
-  cluster, so even balanced areas leave a dense crowd in one cell (REPL §3 notes the same of
-  Folia). `par_iter` inside the hot cell carries a crowd; cells give balance and placement.
-
-### 10.2 Load and budget
-
-| Work | Where | Count per tick | Cost each | core-ms |
-|------|-------|----------------|-----------|---------|
-| L0+L1 | host, `bridge_inbound` / `write_queue` | ~50k packets | 100 ns | 5 (serial today, see C6) |
-| `predict`, fast path | cell of each player | 10k | 2.0 µs | 20 |
-| `step_entities`, awake | owner cell | 40k (60% at rest) | 1.0 µs | 40 |
-| `step_entities`, resting | owner cell | 60k | 15 ns | 1 |
-| `snapshot_colliders` | each cell | ~2k colliders + bodies from neighbours | 30 ns | 0.1–0.7 |
-| `HaloBodies` written and applied | cells with a boundary near entities | ~6k bodies with k-d areas; ~23k with the interleaved grid | 40 ns | 0.25 / 0.9 |
-| crossings (`EntityCrossing`, `Crossing`) | cells with a boundary | tens per tick; hysteresis removes the back-and-forth along a boundary | ~2 µs | < 0.1 |
-| `project_section_bricks` | each cell, owned + halo | ~10k changes; each halo reader counts a change again | 200 ns | ~2 with k-d / ~3 interleaved |
-| entity tile events | owner cell | ~40k movers | 50 ns | 2 |
-| **Total** | | | | **~70 core-ms (k-d); ~72 interleaved** |
-
-Target: physics and checks ≤ 5 ms wall of the 50 ms tick at 16 cores. Cases:
-
-- Spread load (players and entities over ≥ 16 cells): each cell does ~4 core-ms on its own thread,
-  with `par_iter` spare capacity: ~4–5 ms wall.
-- One crowd in one cell (worst case): that cell carries most of the 65 core-ms of cell work; its
-  `par_iter` systems spread it over the shared pool while the other cells idle: ~5–6 ms wall at 80%
-  efficiency. The serial parts of that one cell (snapshot, effect sort, cell mail, crossing)
-  must stay under 0.5 ms.
-- Boundaries: a band of 32 blocks on each side of a boundary holds ~23% of the area with a
-  boundary every 512 blocks (both axes), and ~6% with 16 k-d areas of ~2048 blocks. The core-ms
-  change is small (above); the gain is the mail per tick (~0.9 MB of `HaloBodies` against
-  ~0.25 MB), the duplicated halo sections in memory, and fewer entities near C2 and C3.
-- Host serial: 5 ms today if L0/L1 stay in the serial loop. After C6, ~0.4 ms wall at 16 cores.
-  This is the largest change against the first version of this note, which put L0/L1 on IO
-  threads.
-- New muxer load: 40k moving entities a tick become tile events. REPL budgets bytes per viewer;
-  the encode cost of non-player subjects is not in REPL's measurements yet (open question 4).
-
-### 10.3 Kernel targets (median, one core, warm cache)
+`KeyedStream` gives the value of PHY-CMP-014 from `(BirthKey, tick)`. `EffectBuffer` holds writes
+and claims with their `WriterKey`. Tables and brick masks are as in the earlier version.
+
+## 10. Verification
+
+### 10.1 Kernel tests without Bevy
+
+- PHY-GRV-007 factor, PHY-SKIP-003 rest values, PHY-SHP-005 slab lines.
+- PHY-PSH-004/005 pairs, bit for bit; PHY-CMP-012 crowds equal for any row order and task split.
+- Two boats driven into each other do not overlap after the collider pre-pass.
+- A TNT cannon: the projectile uses the push of the charges in the same tick (PHY-EXP-002), for any
+  task split and with the rays traced serially or fanned out.
+- Group finding: the same `F_T` gives the same collider and explosion groups for any row order.
+- A piston moves a mob in the same tick; the mob never overlaps the `moving_piston` (PHY-BLK-002).
+- `CollisionWorld`, `BodyView` and `PusherHistory` test doubles.
+
+### 10.2 Property tests
+
+- PHY-INV-001..013; masks and shape classes give the same result as reading every block; the f64
+  batch equals scalar.
+- Rest equals no rest under random wakes, push neighbours included.
+- Claims: for random claims of one item by players, hoppers, mobs, merges and commands, exactly
+  one claimant gets it, and the winner is the lowest `WriterKey`.
+
+### 10.3 Thread count, layout, keys
+
+- `tests/it/tick_determinism.rs` with entities, AI (`AiDelay::Fixed(1)`), players and pistons:
+  `Inline` against `Thread` gives equal world hashes and tile deltas.
+- One world against four cells: entity results equal, except C2, C3 and C5 cases, which the test
+  reports.
+- Save and load in the middle of a run: the run after the load equals the run without it (birth
+  keys, item phases, AI streams).
+- AI content: a slowed stage with `AtLeast(1)` gives the same sequence of results per entity as
+  `Fixed(1)`; no result applies later than `T + max_lag` (AIT-INV-001, AIT-INV-004).
+- Revalidation: a decision whose target died or whose mob teleported drops whole and sends a fact
+  (AIT-LAG-005/006). A breed grant changes both animals or neither (AIT-CPL-002).
+- Exact-parity mode runs with `AiDelay::Inline`.
+
+### 10.4 Regression tests for references across a boundary
+
+Each test runs with the two entities in one cell and in two cells (technique: the border bugs of
+other servers):
+
+- a pet teleports to its owner in another cell;
+- a leash whose holder is in another cell;
+- a fishing hook on an entity of another cell;
+- a selector whose box crosses a boundary;
+- a deflected projectile keeps its owner;
+- a creaking whose home block is in another cell;
+- block-break progress reaches every player in range.
+
+### 10.5 Vanilla parity
+
+- Server entities: PHY E1–E8, E15–E20, E28–E41 within 1e-6, flags exact; push and writes to other
+  entities within PHY-DEV-004/005.
+- Own player: PHY E9–E14, E21–E23, MVC C1–C7: bit for bit, no violation.
+
+### 10.6 Benchmarks
+
+- `crates/mcrs_minecraft_physics/benches/`: every row of §11.4; CI fails at 1.5× the target.
+- `tick_load` and `bot_load`: 10k players with 100k and 1M entities. They measure every row of
+  §11.1, the AI lag and the host time between ticks.
+
+## 11. Budget
+
+### 11.1 Whole tick
+
+Core-ms per tick. "In tick" rows share the compute pool inside the 50 ms tick. "Beside" rows run on
+their own threads and overlap the tick.
+
+| Work | Where | 100k | 1M | Note |
+|------|-------|------|----|------|
+| entity pass, awake | in tick | 30 | 187.5 | 0.75 µs × awake |
+| collider groups: finding and stepping | in tick | 0.4 | 3 | union-find over awake colliders; ~1 µs per step |
+| rest checks, due events, AI results applied (~10% of living per tick), life cycle, merge point | in tick | 1 | 9 | |
+| claim arbitration | in tick | 0.2 | 2 | ~20k claims at 1M × 100 ns |
+| grid and position table rebuild, section lookups, mover lists | in tick | 2 | 17 | |
+| game events and their listeners | in tick | 0.5 | 5 | 20% of movers emit a step event; listener lookup ~100 ns |
+| tile events | in tick | 2 | 12.5 | |
+| `predict` and the push input | in tick | 27 | 27 | 10k players |
+| block random ticks | in tick | 130 | 130 | 5M sections × 3 picks × ~9 ns; grows with players, not entities |
+| scheduled ticks, neighbour updates, block events | in tick | 50 | 50 | assumption |
+| block entities | in tick | 40 | 40 | ~200k × 0.2 µs, assumption |
+| explosion groups: finding and stepping | in tick | 3 | 3 | 10 explosions per tick × ~0.3 ms (rays and exposure), plus ~2 µs per seed to find the groups |
+| `Changed<T>` scans over cold ECS | in tick | 0.2 per scan | 1–2 per scan, serial | target zero at 1M: change lists instead |
+| sync point and serial parts | in tick, serial | 0.3 ms | 1 ms | wall time |
+| reflexes (AIT-RFX-001..008) and the issue of decisions, every living mob | in tick | 6 | 60 | ~0.1 µs per mob: fixed checks, one sight ray for ~10%, the job issue (§5.1) |
+| **In-tick total** | | **~293** | **~547** | |
+| muxer, parallel per tile group | beside | 57 | 95 | encode 3 tiers × 60 ns per mover + 5 µs per viewer |
+| encryption (CFB8, ~125 MB/s per core) | beside, network threads | 10–40 | 10–40 | 24–95 MB/s spread; 125–205 with all players in one crowd (315–512 MB/s) |
+| L0 + L1 | beside, host | 5 | 5 | parallel `bridge_inbound` |
+| AI stage, decisions | AI pool, pipelined (§5.5) | 144 | 1440 | 5% at 10 µs, 95% at 2 µs per mob per tick, averaged over the vanilla periods |
+| AI stage, path search | AI pool, pipelined | 30 | 300 | 0.5% of living per tick × 100 µs |
+
+The AI cost is calibrated on one data point of another server: about 23–31 µs per villager per tick
+in a region of ~585 villagers. This design assumes 10 µs for a villager-class brain and 2 µs for a
+simple mob, with conditions cached on a change counter and precomputed path types. At the observed
+cost (×3), the AI rows become ~520 core-ms at 100k and ~5.2 core-s at 1M.
+
+### 11.2 Wall time in the tick
+
+At 80% parallel efficiency, with block shards and the parallel muxer in place:
+
+| Cores on the compute pool | 100k | 1M |
+|---------------------------|------|----|
+| 16 | ~23 ms | ~43 ms |
+| 32 | ~11 ms | ~21 ms |
+| 48 | ~8 ms | ~14 ms |
+
+Without block shards, the block rows (~220 core-ms) run on one core: 220 ms, four ticks. This holds
+at 100k as well: random ticks grow with the hot sections of 10k players.
+
+Sequential groups add a tail: the wall time of a phase is at least its longest group.
+
+| Group | Typical tail | Worst case considered |
+|-------|--------------|-----------------------|
+| collider group | < 10 µs | 5,000 boats in one pile: ~5 ms |
+| explosion group | ~0.3 ms (one TNT) | a cannon of 100 charges: ~2 ms with fanned-out rays (30 ms without); 1,000 TNT: ~30 ms with fan-out |
+
+The collider tail sits before the main pass, the explosion tail after it. Both add to the tick, not
+to the core count.
+
+### 11.3 Machine fit
+
+`max_lag` = 2 makes the AI stage a pipeline (§5.5): it must sustain one tick of AI work per tick.
+At 80% efficiency a core gives 40 core-ms of work per 50 ms tick. Cores that the AI stage needs to
+hold 20 ticks per second:
+
+| AI cost | 100k | 1M |
+|---------|------|----|
+| target (2 µs simple mob, 10 µs villager-class) | 174 core-ms → **5 cores** | 1,740 core-ms → **44 cores** |
+| observed on another server (×3: 23–31 µs per villager) | 522 core-ms → **13 cores** | 5,220 core-ms → **131 cores** |
+
+The other work per tick: in the tick 293 (100k) or 547 (1M) core-ms; beside the tick the muxer
+(57 / 95), encryption (10–40) and L0/L1 (5).
+
+| Case | Dedicated pools (compute + AI + network) | Shared: AI at low priority fills the idle compute cores | Fits one machine |
+|------|------------------------------------------|---------------------------------------------------------|------------------|
+| 100k, AI at target | 16 + 5 + 3 = 24 cores | (293 + 102 + 174) / 40 → 16 cores | yes |
+| 100k, AI observed | 16 + 13 + 3 = 32 cores | (293 + 102 + 522) / 40 → 24 cores | yes |
+| 1M, AI at target | 32 + 44 + 4 = 80 cores | (547 + 140 + 1,740) / 40 → 61, so 64 cores, with no margin | barely |
+| 1M, AI observed | 32 + 131 + 4 = 167 cores | (547 + 140 + 5,220) / 40 → 148 cores | no |
+
+In the shared layout, the AI stage gets few cores while the compute pool runs (~21 ms of each tick
+at 1M on 32 cores) and all of them in the rest; the two ticks of lag absorb that swing, not a lack
+of throughput. When the AI stage does not keep up, AI cost is on the critical path: the tick waits
+at `T + max_lag`, and the operator follows §5.5.
+
+Locality and NUMA limit a 64-core machine before memory bandwidth does: the hot loop reads ~200 MB
+of rows and grid per tick, ~4 GB/s, far below the bandwidth. Tasks must keep tiles on one NUMA node.
+
+### 11.4 Kernel targets (median, one core, warm cache)
 
 | Benchmark | Target |
 |-----------|--------|
-| `resolve`, inert air | ≤ 60 ns |
-| `resolve`, walk on flat ground | ≤ 300 ns |
-| `resolve`, step-up onto a slab | ≤ 1.2 µs |
-| `tick_entity`, walker on ground | ≤ 600 ns |
-| `tick_entity`, item in air, scalar / f64 batch per entity | ≤ 80 ns / ≤ 30 ns |
-| `tick_player`, one candidate, walking | ≤ 1.5 µs |
-| `predict`, legit tick, fast path | ≤ 2.5 µs |
-| L0 `check` / L1 per packet | ≤ 30 ns / ≤ 100 ns |
-| brick recompute per block change / per new section | ≤ 300 ns / ≤ 10 µs |
+| `resolve`, inert air / flat ground / step-up onto a slab | ≤ 60 ns / ≤ 300 ns / ≤ 1.2 µs |
+| `tick_entity`, walker on ground, no neighbour | ≤ 600 ns |
+| push gather, 3 / 24 neighbours | ≤ 100 ns / ≤ 600 ns |
+| item in air, scalar / f64 batch | ≤ 80 ns / ≤ 30 ns |
+| grid rebuild per body; rest check in a changed tile | ≤ 15 ns; ≤ 10 ns |
+| claim arbitration per claim | ≤ 100 ns |
+| `tick_player`, one candidate; `predict`, fast path | ≤ 1.5 µs; ≤ 2.5 µs |
+| L0 / L1 per packet | ≤ 30 ns / ≤ 100 ns |
+| random tick pick | ≤ 10 ns |
+| AI step, simple mob / villager-class | ≤ 2 µs / ≤ 10 µs |
 
-### 10.4 Levers
+### 11.5 Memory at 1M
 
-| Lever | Expected gain | Spec dependency | Deviation entry |
-|-------|---------------|-----------------|-----------------|
-| Skip resting entities | 2–3× on entity cost | PHY-SKIP-001..005, PHY-RCH-005 | no |
-| Per-entity `par_iter` inside the cell | ~12× wall in a crowded cell | PHY-RCH-004, PHY-CMP-008/009 | PHY-DEV-002, PHY-DEV-003 |
-| Cells on threads | balance and placement; up to the cell count only for spread load | CELLS §3, §4 | no |
-| Brick masks + shape classes | 3–5× fewer block reads; 0 in air | none | no |
-| L2 fast path | ~3× on L2 | MVC-PRED-013..016 | no |
-| Parallel `bridge_inbound` (C6) | ~5 ms → ~0.4 ms of serial host time | none | no |
-| In-air batch, f64 / f32 local frame | 2–4× / further 2× on that subset | none / PHY-CMP-006 | no / PHY-DEV-001 |
-| `set_if_neq` + rest skip on tile events | muxer work O(movers) | REPL §4.6 | no |
-| Reduced tick rate for far entities | rejected: changes trajectories; idle cells and the reference ticking range already cover far space | — | — |
+| Part | Size |
+|------|------|
+| rows (~150 B with rotation, pose and key) | ~150 MB |
+| grid (80 B × 600k, two buffers during a rebuild) and position table (32 B × 1M) | ~130 MB |
+| pusher history | ~56 MB |
+| AI replica, brains, navigation projection | ~40 + 120 + 400 MB |
 
-## 11. Spec changes
+### 11.6 Crowds and the push cap
 
-All seven requests of the first version are resolved:
+The push costs `k²` pair tests in a crowd of `k`. With crowd damage on (`max_entity_cramming` >
+0), the damage bounds a stable crowd to about `n` (576 pairs at 24, ~6 µs). With crowd damage off,
+a farm of 5,000 entities in one block costs 25M pairs, ~125 ms. Approved decision 4: an optional
+cap, active only when crowd damage is off. Each entity uses only its `K` nearest neighbours, by the
+distance `m` of PHY-PSH-004, with ties broken by the pair `(min key, max key)`, which is the same
+from both sides. Each entity still writes only itself, so the pass stays order independent. The cap
+is an intentional deviation (PHY-CMP-019, PHY-DEV-008). Jacobi also spreads the rows of a heavy tile over
+several tasks.
 
-| # | Request | Resolved by | Where this note uses it |
-|---|---------|-------------|-------------------------|
-| S1 | Reference order of entity ticks | PHY-ORD-010, PHY-ORD-011 | `TickListSeq`, `step_entities_in_order` (§6.1) |
-| S2 | World view of a replay; retention | MVC-PRED-017, MVC-PRED-018 | `ChangeLog`, `ColumnAcks` (§5.4) |
-| S3 | "Pushable" as data | PHY-ORD-009, PHY-ORD-012 | `MotionRow::pushable`, derived on read |
-| S4 | Coarse blocks as data | PHY-ORD-013 | `COARSE` flag and `coarse` mask (§3.2, §3.3) |
-| S5 | Extra wakes allowed | PHY-SKIP-005 | per-section-revision wake (§6.4) |
-| S6 | Read zone at rest | PHY-RCH-005 | `ZoneStamp` (§6.4) |
-| S7 | Attribute and effect ids at a proxy | MVC-LAY-009 | `ProtocolIds` (§5.1) |
+### 11.7 Levers
 
-The fit with cells needed four more items:
+| Lever | Gain |
+|-------|------|
+| Jacobi pass over tiles | no serial island |
+| Rest per tile, cheap exact rest path | quiet tiles cost zero |
+| Shape classes, section masks, special count | 3–5× fewer block reads |
+| Rebuild only dirty tiles | ~40% of the rebuild |
+| Behaviour conditions on change counters, active-navigator set | the AI target cost of §11.1 |
+| One flush per connection per tick, none when empty (technique) | fewer socket writes |
+| Spread player-list latency and other all-to-all updates over buckets (technique) | removes bursts of ~10^8 entries at 10k players |
+| Tracker candidates from the per-column "players within view" list, full pass only when its change counter moved (technique) | muxer work proportional to changes |
+| In-air batch f64 / f32 | 2–4× / 2× more on that subset |
 
-| # | Request | Resolved by |
-|---|---------|-------------|
-| — | Colliders of another cell (earlier R1, R3) | not needed: `HaloBodies` are start-of-tick boxes, which PHY-CMP-008 allows |
-| — | Blocks at the start of the tick | PHY-CMP-009, PHY-CMP-010, PHY-CMP-011, PHY-DEV-003, PHY-INV-014 |
-| — | An "Entity motion" row in CELLS §4 (earlier R2) | done in `docs/cells.md`, with hysteresis, groups and contiguous areas in CELLS §3 |
+### 11.8 Preconditions for 1M
 
-Open requests. The own player stays exact in every item.
+1. **Block shards.** Random ticks, scheduled ticks and block entities step in parallel inside one
+   world. This is also a precondition for 10k players at 100k entities.
+2. **A parallel muxer** per tile group, and encryption on the network threads (REPL §7.12).
+3. **AI throughput**: 44 cores of AI work at the target cost (§11.3), so a machine of ~64 cores
+   shared or ~80 dedicated; at the observed cost, several processes or fewer AI mobs.
+4. **No `Changed<T>` scan** over a cold population larger than ~10k; change lists instead.
+5. **A parallel `bridge_inbound`.**
+6. **Correctness:** the persisted birth key (§4) and the claim arbitration (§3.7), before any
+   determinism or dupe test can pass.
 
-| # | To | Rule | Change | Visible effect | Test |
-|---|----|------|--------|----------------|------|
-| R1 | PHY / CELLS | PHY-CMP-010, PHY-INV-014, CELLS §4 "Block write into a column of another cell" | Resolved: PHY-INV-014 names it as an exception, bounded to one extra tick for the changed block only, and PHY-DEV-003 records it. Request was: state the delay of a block action that an entity starts in a column of another cell: the owner applies it at T+1, and physics sees it at T+2 instead of T+1. Either name it as an exception of PHY-INV-014, or let the owner apply such a write at its sync point, before the copy, so that the owner's copy of T+1 holds it. | a pressure plate or farmland under an entity in the band of `N` blocks reacts one tick later | one cell against many cells: equal, except entities whose read zone holds a block that a cross-cell action changed in the last tick |
-| R2 | REPL / PHY | REPL §7.4, PHY-CMP-001/002 | State the update rule for the categories that the client simulates (items, falling blocks, TNT, projectiles, orbs): tier paths, or the precise-update rule of PHY-CMP-002. Add the client behaviour of PHY-CMP-001 to REPL §5 as a rule-backed line. | far items jump at each update with tier paths | client model of REPL §7.10 decodes item updates; rest position equal within 1/4096 |
+## 12. Spec requests
 
-The second option of R1 still leaves the writer's halo one tick behind: the writer learns the
-result only from the halo changes of T+1. It removes the delay for the owner's entities only. The
-first option is simpler.
+Resolved: PHY-SKIP-006/007, PHY-INP-020, PHY-ORD-014, PHY-CMP-013 to 020, PHY-BLK-001/002,
+PHY-EXP-001/002, PHY-SRV-011, PHY-DEV-002 and 005 to 009, PHY-INV-015, MVC-UNC-006/007, and
+REPL §7.11 for the client-simulated categories, and the AI timing request (now AIT, with
+AIT-RFX, AIT-LAG, AIT-CPL and AIT-CDN). Open requests:
 
-No new intentional deviation is proposed. The design uses PHY-DEV-001 (optional), PHY-DEV-002 and
-PHY-DEV-003.
-
-## 12. Verification
-
-### 12.1 Kernel tests without Bevy
-
-- PHY-GRV-007: horizontal factor `0.546000063419342` on friction `0.6F`.
-- PHY-SKIP-003: walker rest `v.y = -0.0784000015258789`; item cycle `0, -0.04, -0.08, -0.12`.
-- PHY-SHP-005: bottom slab lines 0, 0.5, 1; a `y` 0..0.75 box stops a penetrating mover at 0.25.
-- PHY-COL-005, PHY-STP-005, PHY-NUM-005 table entries.
-- PHY-RCH-001/005: `read_zone` for a walker, an item, a resting walker.
-- A `CollisionWorld` test double: a `HashMap<BlockPos, BlockStateId>` world.
-
-### 12.2 Property tests
-
-- PHY-INV-001..013 on `resolve` and `move_body`; brick masks give the same `Resolved` as reading
-  every cell; f64 batch bit-identical to scalar, f32 within PHY-CMP-006.
-- Rest: skipping equals never skipping under random wakes (PHY-SKIP-001, PHY-SKIP-005), with the
-  item tick count advancing on skipped ticks.
-- Replay sees the original block states (MVC-PRED-017); no kept change is dropped early
-  (MVC-PRED-018).
-- MVC-INV-001, 003, 005, 006, 007 over random packet streams through L0–L2; L0/L1 fuzzed bytes.
-
-### 12.3 Thread count, cell layout, ambiguity
-
-- `tests/it/tick_determinism.rs` gains entities and scripted players: `Inline` against `Thread`
-  placements give equal world hashes, tile deltas included (REPL §7.10).
-- One cell against many cells: entity physics equal bit for bit (PHY-INV-014), except entities
-  in conflict C2 (read zone past the halo) or C3 (a cross-cell block action in the read zone in the
-  last tick). The test reports both cases and skips them. Players: equal L2 verdicts.
-- Halo order: a block change at T in one cell is in the copy of every cell at T+1 (C1 fixed).
-- Hysteresis: an entity that walks along a boundary crosses once; with groups, every member of a
-  group has the same owner from the tick after the group forms.
-- Exact-parity mode (one cell, `Inline`) against vanilla fixtures, bit for bit with the batch off.
-- `tests/it/schedule_ambiguity.rs` with the new plugins.
-
-### 12.4 Vanilla parity
-
-- Server entities: PHY E1–E8, E15–E20 from `tools/vanilla-oracle`, within 1e-6 and flags exact.
-- Own player: PHY E9–E14, E21–E23 and MVC C1–C7 as recorded serverbound packets: `tick_player`
-  bit for bit, L0–L2 with zero violations.
-
-### 12.5 Benchmarks
-
-- `crates/mcrs_minecraft_physics/benches/`: every row of §10.3, failing CI at 1.5× the target.
-- The existing `tick_load` example and `bot_load` bench gain entities and legit movement: 10k
-  players and 100k entities over 16 cells and in one cell, measuring the slowest cell and the host
-  time between ticks. Target ≤ 5 ms for the physics and movement sets of the slowest cell, and
-  ≤ 0.5 ms of L0/L1 host time.
+| # | Rule | Change | Reason |
+|---|------|--------|--------|
+| R1 | PHY-CMP-013 | Allow a fixed-size stored form of the source key of kind `entity`: a 128-bit digest of the parent key in place of the parent key itself | the parent key nests without a bound on the depth; a row needs a fixed size (§4) |
+| R2 | PHY-CMP-017 | State the case of a claim from another cell: it reaches the owner one tick later and joins the arbitration of the next tick, as an exception of PHY-INV-014 | the arbitration of one tick cannot hold a claim that is still in the cell mail |
+| R3 | PHY-CMP-020 | State the order of two explosion groups whose reaches intersect but share no entity, for example by merging them into one group | both can remove the same block or ignite the same TNT; in parallel the result would depend on timing |
+| R4 | PHY-CMP-020 | State that the rays of one explosion read the state at the step of that explosion, so an implementation can trace them in parallel | bounds the wall time of a large explosion group |
+| R5 | MVC, vehicle spec | State the checks of a client-controlled vehicle | PHY-SRV-011 leaves them to the vehicle model |
+| R6 | AIT-CPL-005 | Cite PHY-CMP-017, not PHY-CMP-015, and state that a granted item merge enters the claim arbitration of its tick, after the block domain | AIT-CPL-005 resolves the claims "in the order of the merge point", but PHY-CMP-017 arbitrates claims once per tick after the block domain; one item must have one arbitration point |
+| R7 | AIT U1, U6 | Close U1 (PHY-CMP-013 now defines the birth key) and U6 (this note now uses `AiDelay::Inline` with `k = 0` in the exact-parity mode) | both items are resolved |
+| R8 | AIT U2 | State that a path search may run in slices over at most `max_lag` stage ticks, provided that each slice reads the projection of the issue tick | the search reads only its snapshot (AIT-LAG-001); slicing over a versioned projection keeps that |
 
 ## 13. Open questions
 
-1. C6: parallelising `bridge_inbound` touches the muxer bridge; its owner decides the shape (par
-   over connections, or moving the per-connection part into the network reader task).
-2. U4/U6 in PHY: the corpus gives f32-rounded boxes, not grid lines. `OFF_GRID` shapes force
-   coarse mode near them until a corpus component gives exact values.
-3. The client's placeholder fly model (`local_player.rs`) could move to `tick_player`.
-4. Muxer cost of non-player subjects: REPL measured players only. 40k moving entities per tick
-   need a measurement of tile encode and keyframes before the entity codec lands.
-5. Push between entities (PHY §12) will couple entities; a cluster path inside a cell, and the
-   boundary rule for pushes across cells, wait for its spec.
-6. AI order: the AI set must run before `step_entities` and write only `LivingInput`.
+1. Block shards: the shard key (tile, or causal component) and the rule for a random tick that
+   writes a block in another shard.
+2. Brain state: persistence and the move to another cell.
+3. The muxer cost of 250k movers per tick, measured.
+4. The worst case of an explosion group (1,000 TNT) is ~30 ms wall even with fanned-out rays.
+5. U4/U6 in PHY: `OFF_GRID` shapes force coarse mode near them.
+6. Projectiles: the ray move and the hit detection read the grid; their spec will state the reach.

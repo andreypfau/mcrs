@@ -431,6 +431,57 @@ Limits of time dilation:
   - the visible set is equal to the expected set;
   - no tile starves for more than a limit.
 
+## 7.11 Subjects that the client simulates
+
+PHY-CMP-001 states that the client simulates items, falling blocks, primed TNT, arrows, thrown
+items, llama spit, accelerated projectiles and experience orbs from the last state that the server
+sent. It sets their position with no interpolation. A path of steps (tiers 1 to 3, C5) does not fit
+them: between two steps the client runs its own simulation, and each step is a jump.
+
+The rule for these categories:
+
+- They use no path of steps. At each tier, the Muxer sends the update of PHY-CMP-002: a relative
+  move or a precise sync, and `set_entity_motion` when the velocity changed by a squared distance
+  of more than `1.0E-7`.
+- The cell decides when an update is due, as PHY-CMP-002 states: a change of at least
+  `7.6293945E-6F` squared from the last sent position, the 60th tick of the subject, a change of
+  the on-ground flag, and a precise sync after a collision tick of a falling block or a primed TNT.
+  The tile delta carries the on-ground flag, a precise bit and the velocity.
+- A tier only lowers the rate to the update interval of the category (item and falling block 20,
+  TNT and thrown item 10, arrow 20, orb 20 ticks) at most. A tier never sends a position between
+  two updates.
+- A subject at rest sends nothing, so a field of items at rest costs zero bytes (principle 6).
+- When the budget binds, the Muxer removes such a subject from the visible set. It never lowers its
+  rate below the interval of its category.
+
+The codec of `mcrs_minecraft_replication` writes `on_ground: true` for every move today; the codec
+for entities that are not players carries the real flag.
+
+## 7.12 A parallel Muxer
+
+At 1M entities, about 250k subjects move in each tick. One Muxer link costs about 95 ms per tick
+for them: ~45 ms to encode three tiers at ~60 ns per subject, and ~50 ms to assemble the bytes of
+10k viewers at ~5 µs each. One link cannot carry that.
+
+The Muxer splits into tile groups (8 × 8 tiles):
+
+- Each tile group encodes the blobs of its tiles. A group owns its delta bases and keyframe caches.
+  Groups share no mutable state and run in parallel.
+- Viewer assembly is split by connection. Each viewer shard takes the immutable blobs of the tile
+  groups that its viewers subscribe to, and copies references, not bytes.
+- The order on the wire of one connection is the order of the tile groups by key, then of the tiles
+  by key, so the bytes do not depend on thread timing.
+- With 16 groups and 16 viewer shards, the 95 ms become ~6 ms of wall time beside the tick.
+
+Tracker candidates come from a per-column list of the players within view (technique). The full
+removal pass runs only when the change counter of that list moved. Tracking ranges follow the
+category, capped by the view distance.
+
+Encryption and the socket write run on the network threads, never on the Muxer or the tick.
+CFB8 at ~125 MB/s per core (an assumption until measured): 24–95 MB/s of egress with spread
+players needs 0.2–0.8 cores; 315–512 MB/s with all players in one crowd needs 2.5–4 cores. A
+connection gets at most one flush per tick, and none when it has nothing to send (technique).
+
 ---
 
 # 8. Steps
@@ -448,6 +499,7 @@ the step goes in the migration of `cells.md`, section 12.
 | 6 | after step 5 here, before step 3 | Tiers, layers, the cap, the budget, the accumulator, spawn bundles by distance. | 2,000 bots in one place: bytes for each viewer stay in the budget. No tile starves for more than 2 seconds. The frame rate of the vanilla client at 200, 500 and 1,000 visible players. |
 | 7 | before step 4 | A global `EntityId` from the Coordinator. | A subject that changes its owner cell causes no despawn and spawn on the client. |
 | 8 | before step 4 | A parallel flush: groups of connections on many threads. | CPU time for each 1,000 viewers. |
+| 8a | before 100k entities | The rule for subjects that the client simulates (section 7.11). The parallel Muxer per tile group, and encryption on the network threads (section 7.12). | A field of items at rest costs zero bytes. 250k moving subjects per tick take less than 10 ms of wall time beside the tick. |
 | 9 | after step 7 | M edges through `Placement::Remote`. Encryption on the edges. | The egress of a cell is the sum of tiles × M. 10,000 bots at M = 8. |
 | 10 | after step 9 here | Density control (section 7.9). | Tick time and bytes with 2,000 players in one tile. |
 

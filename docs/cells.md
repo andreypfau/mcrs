@@ -1,5 +1,27 @@
 # Cells, the Muxer and the Data Layer
 
+> **Status.** This is a working note, not an authority. The entity design in
+> `physics-architecture.md` and decisions 22 to 26 of `minecraft-bevy-sharding-architecture.md`
+> supersede these parts:
+>
+> - Section 3, "Static division": a cell is a unit of placement across processes. Inside a process,
+>   a world is one cell by default, and tiles are the work units of the entity domain. More cells
+>   in one process are a stopgap while the block kernel steps one shard per world.
+> - Section 3, "Ownership of players and entities": groups of coupled entities are not needed.
+>   With the push from the start of the tick (PHY-CMP-012, PHY-INV-015), each entity ticks alone.
+>   Hysteresis stays, for a layout of many cells.
+> - Section 4, row "Entity motion": the rule stays for a layout of many cells. The bodies near a
+>   boundary also carry the push fields of PHY-RCH-006, and the halo holds a copy of the position
+>   table of every entity. Writes to an entity of another cell, and block-domain writes to it,
+>   apply at the sync point before the next pass (PHY-CMP-015, PHY-BLK-001); a claim joins the
+>   arbitration of the next tick.
+> - Section 3, "A player belongs to the cell ...": the order key of entities is the birth key of
+>   PHY-CMP-013, not the id from the coordinator's ranges.
+> - Section 12, step 5: the last item (groups) is dropped. The other items stay, for a layout of
+>   many cells.
+>
+> The rest stays valid. Section 11 states the code as it is today.
+
 This document describes how the engine divides a world between owners, and how a player sees and
 simulates that world. It extends `minecraft-bevy-sharding-architecture.md`: shards and kernels
 stay as that document defines them. This document adds where shards run.
