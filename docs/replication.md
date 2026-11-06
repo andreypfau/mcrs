@@ -290,6 +290,9 @@ Rules for tiers and layers:
   1.25 × K.
 - Each viewer can have a maximum of 16 pinned subjects: its target, its attacker, its party, its
   vehicle. The Muxer encodes them for that viewer only. The cost is O(16 × N).
+- A subject inside the near zone of a viewer (MVC-MODE-003) is always in tier 0 for that viewer.
+  The cap and the budget never lower its tile below tier 0. The movement checks read the positions
+  that the viewer saw from tier 0 (MVC-UNC-007).
 
 Rules for the budget:
 

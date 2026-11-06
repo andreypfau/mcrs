@@ -504,7 +504,9 @@ A step can also read only a frozen view and write only its own item. Then the dr
 
 ## Bevy schedules; no custom scheduler
 
-Inside the tick, the engine's driver is Bevy. There is no task graph, worker scheduler or dependency analyser of our own.
+Inside the tick, the engine's driver is Bevy. There is no task graph, worker scheduler or dependency analyser of our own between systems.
+
+**Revised.** Inside one system, a domain can run its tile tasks with dependency counters: a task starts when the tasks it reads from have ended, and each ending task decrements the counters of its dependents. The counters live for one tick, on the Bevy compute pool. The entity domain uses them to overlap the sequential groups, the movement checks and the main pass, and the block domain to drive its colour phases without global barriers (`physics-architecture.md` §3.9). Bevy stays the scheduler between systems.
 
 - Shards are data: an index or a component per domain.
 - One system per domain steps every shard of that domain, in parallel across shards (`par_iter` or similar).
@@ -997,7 +999,7 @@ Do not:
 - assume section boundaries define causal independence;
 - map one shard to one thread;
 - add a dedicated shard abstraction to every subsystem without measured benefit;
-- build a task graph or scheduler beside Bevy's;
+- build a task graph or scheduler beside Bevy's between systems (dependency counters over tiles inside one system are allowed, decision 10);
 - make a domain's kernel depend on Bevy or tokio;
 - preserve vanilla bugs by default;
 - treat every differential mismatch as a defect in the new server.
@@ -1078,7 +1080,7 @@ Bevy schedules; there is no custom scheduler.
 
 Shards are data. One system per domain steps every shard of that domain in parallel, and cross-shard messages are applied in a stable sorted order at a sync point.
 
-**Revised.** A domain without shards, such as the entity pass, is one system that maps over its tiles on the Bevy compute pool (`par_chunk_map_mut` or similar). Task sizes adapt to the cost of the tiles. This is still Bevy's pool, not a scheduler of our own.
+**Revised.** A domain without shards, such as the entity pass, is one system that maps over its tiles on the Bevy compute pool. Inside that system, tile tasks start by per-tile dependency counters, so sequential groups and the main pass overlap and the block phases need no global barrier. The counters are local to one system and one tick; Bevy stays the scheduler between systems.
 
 ## Decision 11
 
