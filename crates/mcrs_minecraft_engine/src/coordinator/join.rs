@@ -1,13 +1,15 @@
 use std::sync::Arc;
 
+use bevy_ecs::entity::Entity;
 use bevy_ecs::message::{MessageReader, MessageWriter};
-use bevy_ecs::system::Res;
+use bevy_ecs::query::With;
+use bevy_ecs::system::{Query, Res};
 use mcrs_minecraft_dimension::Dimension as DimensionKey;
 use mcrs_minecraft_engine_world::world::dimension_list::DimensionList;
 use mcrs_minecraft_resource::ResourceKeyBuf;
 
 use crate::bus::InboundPlayerSpawn;
-use crate::coordinator::running_dimensions::RunningDimensions;
+use crate::coordinator::dim::DimSubAppHandle;
 use crate::to_coordinator::JoinRequested;
 use crate::to_muxer::JoinPlaced;
 
@@ -16,15 +18,15 @@ use crate::to_muxer::JoinPlaced;
 /// that finds no running dimension gets no answer, and the muxer asks again.
 pub fn place_joining_players(
     mut requests: MessageReader<JoinRequested>,
-    running: Res<RunningDimensions>,
+    live_dims: Query<(Entity, &ResourceKeyBuf<DimensionKey>), With<DimSubAppHandle>>,
     dimension_list: Res<DimensionList>,
     mut placed: MessageWriter<JoinPlaced>,
 ) {
     let live = |key: &ResourceKeyBuf<DimensionKey>| {
-        running
+        live_dims
             .iter()
-            .find(|dimension| dimension.key == *key)
-            .map(|dimension| dimension.label)
+            .find(|(_, live)| *live == key)
+            .map(|(label, _)| label)
     };
     for request in requests.read() {
         let Some(dim) = request
