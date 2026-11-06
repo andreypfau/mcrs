@@ -1444,6 +1444,10 @@ ticks of entities in one server tick occur in this order:
 An entity enters the tick list when it is added to a chunk that ticks entities, or when its chunk
 starts to tick entities. An entity that leaves the list and enters it again goes to the end.
 
+The exact-parity mode keeps this order. In that mode, an entity sees each block change that occurs
+before its own tick in the same server tick. The exact-parity mode does not use PHY-CMP-009 or
+PHY-DEV-003.
+
 **PHY-ORD-011** (`source_suggested`, semantic, confidence: medium). In the pass of step 4 of
 PHY-ORD-010, these rules apply:
 
@@ -1556,8 +1560,10 @@ and on `z`, and by `1 + h` up and down. One tick of the entity reads only this s
 
 - its own state: the fields of `S` in PHY-ORD-007, its type flags (PHY-ORD-009) and its
   dimensions;
-- the block states at the block positions that `C` touches;
-- the boxes of the entities that can be collided with (PHY-SHP-009) and that intersect `C`;
+- the block states at the block positions that `C` touches. Under PHY-CMP-009, these are the
+  block states at the end of the previous server tick;
+- the boxes of the entities that can be collided with (PHY-SHP-009) and that intersect `C`. Under
+  PHY-CMP-008, these are the boxes at the start of the server tick;
 - the values of the world border in this tick;
 - which chunks in `C` are loaded;
 - the data pack tags of section 0.5.
@@ -1621,7 +1627,11 @@ drag read only blocks and the entity itself. Thus the ticks of two entities are 
 no entity that can be collided with is in the read zone of either of them. The vanilla server
 ticks entities one after the other. An entity that ticks later sees the new box of a collider
 that ticked earlier. PHY-CMP-008 states when an implementation can read the boxes from the start
-of the tick.
+of the tick. PHY-CMP-009 states the same for the block states.
+
+With both rules, the tick of an
+entity reads only state from the start of the server tick and its own state. Thus the ticks of all
+server-simulated entities in one server tick are independent of each other.
 
 **PHY-RCH-005** (`source_suggested`, semantic, confidence: medium). For an entity at rest, the
 displacement `d` of PHY-RCH-001 is the largest requested displacement of its rest cycle
@@ -1748,6 +1758,26 @@ increases `|d.x|` or `|d.z|`, and never changes their signs.
 
 **PHY-INV-013** (`source_suggested`, semantic, confidence: medium). After a horizontal collision of
 an entity with the restitution 0, the velocity component of each clipped axis is zero.
+
+**PHY-INV-014** (`source_suggested`, semantic, confidence: medium). Let an implementation use
+PHY-CMP-008 and PHY-CMP-009. Let the world be split into cells. Each cell reads a copy of the
+blocks and the collider boxes of its neighbours. The copy holds the state at the end of the
+previous server tick. Thus it is the same copy in each layout.
+
+The copy of each cell must cover the
+read zone (PHY-RCH-001) of each entity in the cell. Then the physics result of each entity is the
+same for one cell and for each split into many cells, bit for bit.
+
+Exception "action across a cell boundary": an entity can start a block action in a column that
+another cell owns. This can be a step action, an inside action or a fall action. The owner applies that action one
+tick later than in a layout of one cell. Then physics sees the result of the action at `T + 2`, not
+at `T + 1`.
+
+The bound is one extra tick. It applies only to the block that the action changes. The
+other results stay the same in each layout.
+
+A copy that a cell makes after it handles the client packets breaks this invariant. The cell that
+owns a block would see a change by a packet in the same tick, and a neighbour cell one tick later.
 
 ## 11. The role of the server
 
@@ -1989,8 +2019,41 @@ the ticks of server-simulated entities. An implementation can give each entity t
 other colliders from the start of the tick. The reference gives the boxes after the ticks of the
 earlier entities. The difference is at most the displacement of one collider in one tick.
 
-PHY-DEV-002 records this relaxation. The own player is not in this rule, because the client of the player
-sees the colliders that the server sent (PHY-CMP-001).
+PHY-DEV-002 records this relaxation. The own player is not in this rule, because the client of the
+player sees the colliders that the server sent (PHY-CMP-001). PHY-CMP-009 states the same
+relaxation for the block states.
+
+**PHY-CMP-009** (`source_suggested`, semantic, confidence: medium). Policy `semantic`: the block
+states that the physics part of the tick of a server-simulated entity reads. An implementation can
+read each block state from a copy. The copy holds the block states at the end of the previous
+server tick. Thus the copy comes before the server handles the client packets (step 1 of
+PHY-ORD-010). The copy serves these reads:
+
+- the collision shapes (section 3) and the supporting block (PHY-FLG-004);
+- the block friction, the speed factor and the jump factor (section 6);
+- the stuck multipliers, the honey slide and the slime step (PHY-GRV-014, PHY-GRV-015,
+  PHY-GRV-018);
+- the climbable blocks (PHY-GRV-019) and the bounce restitution (PHY-RST-003);
+- the selection of the step actions, the inside actions and the fall actions that the tick
+  starts (PHY-RCH-002);
+- the coarse blocks of PHY-ORD-013.
+
+A block change after the copy becomes visible to physics at the next server tick. This applies to
+a change by a client packet, for example a player who breaks a block. It also applies to a change
+by a scheduled tick, a random tick, a block event or a block entity. A change by another entity
+or by a deferred block action is also late by one tick. The delay is at most one tick for each change.
+
+**PHY-CMP-010** (`source_suggested`, semantic, confidence: medium). Under PHY-CMP-009, a block
+action that the tick starts still applies in the same server tick, under the order of its domain
+(PHY-RCH-002). The action uses the block state at the time when it applies. If that block no
+longer has the state that started the action, the action does nothing. The physics of each entity
+sees the result of the action at the next server tick.
+
+**PHY-CMP-011** (`source_suggested`, client agreement, confidence: medium). PHY-CMP-009 does not
+apply to the own player. The client of the player has local authority, and it sees the block
+changes when their packets arrive. The re-application of PHY-SRV-003 and the query of PHY-SHP-012
+use the world view that `movement-checks.md` states. That view uses windows of acknowledgement for
+block changes. PHY-CMP-009 also does not apply in the exact-parity mode (PHY-ORD-010).
 
 ## 12. Out of scope
 
@@ -2016,8 +2079,8 @@ more important than a cleaner rule. This applies to PHY-COL-005, PHY-MOV-004, PH
 PHY-STP-005. Each client sees the result of the server-simulated rules of section 9 as the position
 of an entity. Thus this document keeps these rules too.
 
-The rules PHY-CMP-006 and PHY-CMP-008 permit two deviations for server-simulated entities. An
-implementation that uses one of them must state it.
+The rules PHY-CMP-006, PHY-CMP-008 and PHY-CMP-009 permit three deviations for server-simulated
+entities. An implementation that uses one of them must state it.
 
 ### PHY-DEV-001: Tolerance for server-simulated motion
 
@@ -2039,6 +2102,33 @@ implementation that uses one of them must state it.
   that moves can stop one tick later or one tick earlier. The difference is at most the
   displacement of the collider in one tick.
 - **Test:** a differential test skips an entity that has a collider that moves in its read zone.
+
+### PHY-DEV-003: Block states from the start of the tick
+
+- **Rule:** PHY-CMP-009.
+- **Reference:** the reference changes blocks and ticks entities in one order (PHY-ORD-010). An
+  entity sees each block change that occurred before its own tick in the same server tick. This
+  includes the changes by the client packets that the server handled before the tick. Block
+  ticks and block events occur before the entities. A block change by an entity is visible to the
+  entities that tick after it.
+- **Visible to the client:** yes, as a delay of one tick at most. Examples:
+  - A player breaks the block under an item at rest. In the reference, the server handles the
+    packet before the tick, and the item starts to fall in the next tick. Under PHY-CMP-009, the
+    copy does not contain the change, and the item starts to fall one tick later.
+  - A scheduled tick removes the block under an item at rest. In the reference, the item starts to
+    fall in the same tick. Under PHY-CMP-009, it starts to fall one tick later.
+  - A `falling_block` lands and places sand. In the reference, an entity that ticks later in the
+    same tick collides with the sand. Under PHY-CMP-009, the entity collides with it one tick later,
+    and it can move into the cell of the sand for one tick. In the next tick, the box
+    already overlaps the shape of the sand. That shape does not stop the box on an axis where the
+    overlap is more than `1.0E-7` (PHY-COL-003).
+  - Second effect, in a layout of many cells: an entity lands on `farmland` in a column that a
+    neighbour cell owns. The farmland changes to dirt one tick later than in a layout of one cell.
+    Physics sees the dirt at `T + 2` (PHY-INV-014).
+- **Test:** a differential test skips some entities. It skips an entity when a block in its read zone
+  changed after the previous server tick. For the second effect, the test accepts a delay of one
+  more tick for the block that the action changed. It compares the other blocks and entities with
+  no extra delay. It compares the next tick with a delay of one tick.
 
 ## 14. Unresolved
 
@@ -2114,6 +2204,7 @@ values are f64 values. Compare them bit for bit with the model.
 | E30 | Summon three armor stands with `Motion` towards one boat in the order A, B, C, then in the order C, B, A. Summon an armor stand that rides another. Record the positions of each tick. | PHY-ORD-010, PHY-ORD-011 |
 | E31 | Summon an armor stand, a bat, a parrot and a zombie next to a boat that moves. Record which entity the boat stops at. | PHY-ORD-012 |
 | E32 | Step 40 ticks with an item at rest on stone, then run `/data merge entity` with no change in each tick. Compare `Motion` with E28. | PHY-SKIP-005, PHY-RCH-005 |
+| E33 | Freeze the ticks. Put an item at rest on scaffolding with no support, so that a scheduled tick breaks the scaffolding. Step 1 tick and read `Pos` and `Motion`. Put an item at rest on stone, break the stone with the scripted client while the ticks are frozen, step 1 tick and read `Pos`. Summon sand above an armor stand that moves under it. | PHY-CMP-009, PHY-CMP-010, PHY-DEV-003 |
 
 The experiment of a supported rule also covers each `source_suggested` rule without a row above:
 

@@ -448,7 +448,7 @@ the step goes in the migration of `cells.md`, section 12.
 | 6 | after step 5 here, before step 3 | Tiers, layers, the cap, the budget, the accumulator, spawn bundles by distance. | 2,000 bots in one place: bytes for each viewer stay in the budget. No tile starves for more than 2 seconds. The frame rate of the vanilla client at 200, 500 and 1,000 visible players. |
 | 7 | before step 4 | A global `EntityId` from the Coordinator. | A subject that changes its owner cell causes no despawn and spawn on the client. |
 | 8 | before step 4 | A parallel flush: groups of connections on many threads. | CPU time for each 1,000 viewers. |
-| 9 | after step 6 | M edges through `Placement::Remote`. Encryption on the edges. | The egress of a cell is the sum of tiles × M. 10,000 bots at M = 8. |
+| 9 | after step 7 | M edges through `Placement::Remote`. Encryption on the edges. | The egress of a cell is the sum of tiles × M. 10,000 bots at M = 8. |
 | 10 | after step 9 here | Density control (section 7.9). | Tick time and bytes with 2,000 players in one tile. |
 
 ---

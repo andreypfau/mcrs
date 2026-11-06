@@ -120,9 +120,20 @@ the session of a player and the global ID of an entity.
 
 Before split and merge, the tree is static. A world has a fixed number of cells, one by
 default. A world of more cells divides its chunks into boxes of the minimum leaf size. In
-Minecraft a box is a region: 32 x 32 columns, and the whole height of the world. The boxes
-repeat in a grid of the cells, so two neighbour boxes have different owners when the count
-allows it. A cell owns every box of its place in the grid.
+Minecraft a box is a region: 32 x 32 columns, and the whole height of the world.
+
+The target division gives each cell one contiguous area of boxes. A k-d split on X and Z cuts
+the hot boxes into as many areas as there are cells. Each cut balances the cost that split and
+merge count: the tick time, the active chunks, the entities and the coupling across the cut.
+Split and merge then move a cut, or cut an area again, along lines of low coupling. Before a
+cost is measured, each cut halves the count of hot boxes.
+
+Cells do not exist to make the tick parallel. Inside a cell, each domain steps its shards with
+`par_iter` on the compute pool (sharding document, section 13), so one cell already uses every
+core. Cells exist for balance and for placement: a cell can move to another thread, process or
+machine. Every boundary costs mail: halo changes, bodies near the boundary, crossings and the
+messages of the block kernels. Fewer and shorter boundaries cost less. An interleaved grid, with
+a boundary every 32 columns, costs the most.
 
 Each cell is a whole world of its own: the same domains and stages. The cells of a world share
 one data layer (section 7). A cell owns the columns of its boxes. It also holds the halo: the
@@ -136,6 +147,39 @@ lights exactly as in a world of one cell, and every neighbour that its light rea
 A player belongs to the cell that owns the column it stands in. When a player stands in a
 column of another cell at the end of a tick, it moves to that cell. Its session, its wire id,
 its view and its replication state go with it.
+
+## Ownership of players and entities
+
+The target rule adds hysteresis. A player or an entity moves to another cell only when it stands
+at least `N` blocks inside a column of that cell, measured on X or Z from the boundary of the old
+owner. The default `N` is 8 blocks. An entity that walks along a boundary thus does not move
+between cells in every tick.
+
+`N` must keep the read zone of an entity (PHY-RCH-001, PHY-RCH-005) inside the halo of its owner.
+The halo is 2 columns, 32 blocks, past the boxes of the owner. An entity that stands `N` blocks
+past the boundary reads at most `N + w/2 + 1 + |d|` blocks past it, where `w` is its width and
+`d` its horizontal displacement in the tick. With `N = 8` and `w ≤ 4`, the read zone stays in the
+halo for `|d|` up to 21 blocks in a tick. Only an impulse, a command or a teleport moves an entity
+that fast.
+
+The target rule also groups entities. Two entities are coupled when their read zones overlap
+through an entity that another entity can collide with or push (PHY-SHP-009, PHY-ORD-012). A group
+is a set of entities that coupling joins, across a boundary. All entities of a group belong to one
+cell: the cell of the member with the lowest global entity id. Each cell decides the groups at the
+sync point, from the state at the start of the tick: its own entities and the bodies near the
+boundary that its neighbours sent (section 4). Both cells of a boundary see the same state, so
+they decide the same groups. A member that another cell owns moves at the end of the tick, so a
+group has one owner from the tick after it forms.
+
+Groups and hysteresis use one rule. A group overrides the position of its members. When a group
+ends, each member stays with the cell of the group until hysteresis moves it. A group forms only
+when the read zones of all its members fit in the halo of the cell of the group. Otherwise each
+member stays with its own cell.
+
+The physics of one tick does not need groups. It reads blocks and collider boxes from the start of
+the tick (PHY-CMP-008, PHY-CMP-009), so each entity ticks alone (PHY-INV-014). Groups are for the
+interactions that write another entity, such as the push between entities, which no specification
+states yet.
 
 ---
 
@@ -196,6 +240,7 @@ that sent it.
 | Block write into a column of another cell | a message to the owner, which applies it with all its flags | one tick, and one more for the halo of the writer |
 | Light at the edge | each cell lights its columns from its halo | the delay of the halo change |
 | Collision, box queries | read the halo. The movement of the server takes the position of the client and does no collision yet | none |
+| Entity motion | the physics of an entity reads the blocks of its read zone, its own columns and the halo, as they are at the start of the tick: after the halo changes of the sync point, before the input of the players and the writes of the tick (PHY-CMP-009). It reads the boxes of the colliders at the start of the tick (PHY-CMP-008): its own entities, and the bodies near the boundary that each neighbour sent at the end of the last tick. A block action that the tick starts in a column of another cell is a message to the owner, as a block write. An entity crosses with hysteresis, and a group of coupled entities has one owner (section 3) | none for blocks and colliders, so the physics of an entity is the same in each division (PHY-INV-014) while its read zone stays in the halo; one tick for a block action in a column of another cell, as a block write |
 | View: column versions and changes | the coordinator sends each column request to the owner of the column. The owner publishes the version and the changes. Each cell sends each change of the view of its players to the other cells, and the stages of cold space of a cell serve the views of all players of the world | none for the version; one tick for the views of another cell |
 | Entity tiles | each cell publishes the tiles of its players. The coordinator merges the deltas of the cells of a world into one delta for each tile | none |
 | Commands and selectors | a command runs in the cell of its player. A stage that reads the blocks of the source dimension runs in the cell that owns the column of the source. A source in a column of another cell, or of another dimension, goes in a handoff. The coordinator splits each handoff by the owner of the column of each source. The players of the other cells of the world are players of the same dimension, and an effect on one of them is an order to its cell | one tick for an order and for a handoff |
@@ -486,7 +531,7 @@ sharding document (decision 20). It is also the mode of the tests.
 
 | This document | Today |
 |---|---|
-| Cell | one dimension sub-app in `mcrs_engine_cell::Cells` (`DimCells`). A world has one cell, or a static division by region over the `cells` field of the server (`WorldCells`, `BoxPartition`). The cells of all worlds tick in lockstep after the `Last` of the host, `Inline` or on a `Thread` by the `worlds` field of the server.<br>- Ownership and the halo (section 3): `OwnedColumns`.<br>- The rules between cells (section 4): `cell_mail` and the `coordinator`. The coordinator routes each kind of `CellMail` to the cells that take it: a message of the block kernels to the owner of its column, and a chain ledger to every other cell.<br>- Columns for the muxer (section 6): `column_streams`, `held_light`, `block_update`.<br>- The block kernels of `mcrs_minecraft_simulation` (section 4): `block_simulation`, with the rules of the host (`DimensionBlockRules`), `RandomTickSpeed` and `ItemDropped` |
+| Cell | one dimension sub-app in `mcrs_engine_cell::Cells` (`DimCells`). A world has one cell, or a static division by region over the `cells` field of the server (`WorldCells`, `BoxPartition`). The cells of all worlds tick in lockstep after the `Last` of the host, `Inline` or on a `Thread` by the `worlds` field of the server.<br>- Ownership and the halo (section 3): `OwnedColumns`. The static division still interleaves the boxes in a grid of the cells (`BoxPartition`), so neighbour boxes have different owners. A player moves at the end of the first tick in a column of another cell, with no hysteresis. No entity that is not a player exists yet, so no entity crosses and no group forms.<br>- The halo changes apply in the block step (`run_block_simulation`, in `TickSet::WorldWrite`), not at the sync point. No domain reads blocks in the tick before that step yet.<br>- The rules between cells (section 4): `cell_mail` and the `coordinator`. The coordinator routes each kind of `CellMail` to the cells that take it: a message of the block kernels to the owner of its column, and a chain ledger to every other cell.<br>- Columns for the muxer (section 6): `column_streams`, `held_light`, `block_update`.<br>- The block kernels of `mcrs_minecraft_simulation` (section 4): `block_simulation`, with the rules of the host (`DimensionBlockRules`), `RandomTickSpeed` and `ItemDropped` |
 | Muxer | one `muxer::muxer_stage::MuxerStage` on a link from the host (`muxer::muxer_link`), placed by the server's `muxer` field (`Thread` by default). For entities, it holds the `mcrs_engine_muxer::Muxers` of the worlds: tiles, subscriptions, delta bases, spawn bundles and the player list, with the Minecraft codec of `mcrs_minecraft_replication`; for the rest, the `muxer` module tree of `mcrs_minecraft_engine` in the host world: connections and the bridge, sessions and their placement, the input it routes to the owner dimension, the orders and the command handoffs it routes to the dimension of a player or of a handoff, the host side of entity replication, and the host side of the views. The stage also holds the view of each player (`muxer::column_views`): the columns of the view and their order by distance, the batches and their pace by the answer of the client, the center, the radius and the forgets, and the version stream of each column (`mcrs_engine_muxer::ChunkStream`), whose bytes the muxer sends to every client that takes the version, with the changes after it |
 | Coordinator | the `coordinator` module tree of `mcrs_minecraft_engine` in the host world: the dimension worlds and their lockstep tick, the spawn and despawn queues, game time and world clocks, the operator list, the ranges of global entity ids that it grants to each dimension world, the dimension of a player that joins or changes dimension, the running dimensions and the players that each dimension reports. It and the muxer share one world but talk only through the messages of `to_muxer` and `to_coordinator` |
 | Link | `mcrs_engine_link` for light and generation; the host and each dimension exchange one `DimInput` and one `DimOutput` a tick over the cell's link: the coordinator puts the input that the muxer routed into the `DimInput`, and answers a request for entity ids in a `DimOutput` with a range in the next `DimInput`, and hands the packets and the tile deltas of each `DimOutput` to the muxer, which sends the tile deltas on to the entity muxer over its link. The requests of the muxer for column versions go in the `DimInput`, and the views of the players, the column versions and the column changes come back in the `DimOutput`. A command runs inside the tick of one dimension: the muxer routes the command line to the dimension of the player, an effect on a player of another dimension leaves in the `DimOutput` as an order that the muxer routes to the dimension of the player, a stage that reads another dimension leaves as a handoff to that dimension, and a clock change leaves for the coordinator, which sends the clocks to every dimension in the next `DimInput`. Each `DimOutput` reports the players of its dimension, and the coordinator puts the players of the other dimensions in the `DimInput` of a dimension that runs commands. No part lends a world; only tests read a world between ticks |
@@ -529,5 +574,22 @@ Each step leaves a working server and passes the determinism test.
      are not players.
    - The muxer selects the clients of a block event by the columns that they hold, not by the
      distance of 64 blocks of SIM-BEV-004.
-5. Split and merge in the Coordinator, with moves at the tick boundary.
-6. `Placement::Remote`: a cell in another process.
+5. Entity motion across cells (section 3, "Ownership of players and entities", and the row
+   "Entity motion" of section 4). Each step passes the determinism test and the test of one cell
+   against many cells:
+   - Apply the halo changes at the sync point, in `TickSet::DomainInput`, before any domain reads
+     blocks. The block step then starts from the same state. Check: a test that only
+     `DomainInput` and `WorldWrite` hold a mutable view of the blocks.
+   - Divide statically into contiguous areas: a k-d split on X and Z that halves the count of hot
+     boxes at each cut, in place of the interleaved grid of `BoxPartition`. Check: the mail of a
+     tick falls with the length of the boundaries, at the same tick time.
+   - Move a player with hysteresis of `N` blocks. Check: a player that walks along a boundary
+     crosses once.
+   - Send the bodies near the boundary at the end of each tick, and cross entities that are not
+     players, with the same hysteresis. Check: the physics of an entity is the same with one cell
+     and with many cells (PHY-INV-014).
+   - Decide the groups of coupled entities at the sync point, when a specification states the push
+     between entities.
+6. Split and merge in the Coordinator, with moves at the tick boundary. Split and merge move the
+   cuts of the k-d division.
+7. `Placement::Remote`: a cell in another process.
