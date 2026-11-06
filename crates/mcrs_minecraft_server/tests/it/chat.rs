@@ -11,7 +11,7 @@ use mcrs_minecraft_protocol_game::serverbound::{ServerboundChat, ServerboundClie
 use mcrs_minecraft_protocol_game::text::{IntoText, Text, TextContent};
 
 use crate::host_app::{self, PlayServer};
-use bevy_ecs::prelude::On;
+use bevy_ecs::prelude::{Commands, Entity, On, Resource};
 use mcrs_minecraft_chat_server::{ChatPlugin, PlayerChatEvent};
 use mcrs_minecraft_engine_world::world::sub_app::AddDimensionPlugins;
 
@@ -143,7 +143,10 @@ fn an_observer_that_cancels_a_chat_line_stops_its_broadcast() {
 
 #[test]
 fn an_observer_that_replaces_a_chat_line_changes_its_broadcast() {
-    fn censor(mut event: On<PlayerChatEvent>) {
+    #[derive(Resource)]
+    struct Speaker(Entity);
+    fn censor(mut event: On<PlayerChatEvent>, mut commands: Commands) {
+        commands.insert_resource(Speaker(event.player));
         event.text = "***".to_owned().into_text();
     }
     let mut app = host_app::make_host_app();
@@ -173,4 +176,6 @@ fn an_observer_that_replaces_a_chat_line_changes_its_broadcast() {
         ],
     );
     assert_eq!(heard, [expected]);
+    let player = server.player(sender);
+    assert_eq!(server.world().resource::<Speaker>().0, player);
 }
