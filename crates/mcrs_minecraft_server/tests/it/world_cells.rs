@@ -12,10 +12,11 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::ops::RangeInclusive;
 use std::time::{Duration, Instant};
 
-use bevy_app::{App, Last};
+use bevy_app::{App, FixedUpdate, Last};
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::MessageReader;
-use bevy_ecs::prelude::{Has, ResMut, Resource};
+use bevy_ecs::prelude::{Has, Query, ResMut, Resource};
+use bevy_ecs::schedule::IntoScheduleConfigs;
 use bevy_math::DVec3;
 use mcrs_minecraft_block::block_keys::Block;
 use mcrs_minecraft_block::definition::Blocks;
@@ -33,6 +34,7 @@ use mcrs_minecraft_engine::world_kinds::WorldKinds;
 use mcrs_minecraft_engine_world::owned_columns::OwnedColumns;
 use mcrs_minecraft_engine_world::palette::ChunkBlocks;
 use mcrs_minecraft_engine_world::session::PlayerSession;
+use mcrs_minecraft_engine_world::tick::TickSet;
 use mcrs_minecraft_engine_world::world::dimension::DimensionTypeConfig;
 use mcrs_minecraft_engine_world::world::lifecycle::simulation::{
     BlockTicking, EntityTicking, SimulationDistance,
@@ -1368,4 +1370,77 @@ fn a_command_at_a_player_of_another_cell_reads_the_columns_of_that_cell() {
             Vec::<Text>::new()
         )]
     );
+}
+
+const HALO_PROBE: BlockPos = BlockPos::new(1, 120, 1);
+
+/// Whether the entity pass of the last tick of a cell saw the probe block in its copy.
+#[derive(Resource, Default)]
+struct SeenAtSimulate {
+    probe: Option<BlockStateId>,
+    seen: bool,
+}
+
+fn look_at_probe(mut seen: ResMut<SeenAtSimulate>, sections: Query<(&SectionPos, &ChunkBlocks)>) {
+    let section = SectionPos::from(HALO_PROBE);
+    let state = sections
+        .iter()
+        .find(|(at, _)| **at == section)
+        .map(|(_, blocks)| blocks.get(LocalPos::from(HALO_PROBE)));
+    seen.seen = state.is_some() && state == seen.probe;
+}
+
+/// For each cell that holds the column of the probe, the tick at which its entity pass first
+/// saw the block that the owner placed.
+fn run_halo_probe(cells: u32) -> Vec<usize> {
+    let mut app = server(cells);
+    let label = label_of(&app, OVERWORLD);
+    wait_for_generation(&mut app, label);
+    let probe = block_state(&app, "minecraft:stone");
+    for sub_app in app
+        .world_mut()
+        .resource_mut::<DimCells>()
+        .into_inner()
+        .cell_sub_apps_mut(label)
+    {
+        sub_app.insert_resource(SeenAtSimulate {
+            probe: Some(probe),
+            seen: false,
+        });
+        sub_app.add_systems(FixedUpdate, look_at_probe.in_set(TickSet::Simulate));
+    }
+    let owner = admit(&mut app, label, "owner", DVec3::new(8.5, 100.0, 8.5), 2);
+    for (name, x, z) in [
+        ("west", -8.5, 8.5),
+        ("north", 8.5, -8.5),
+        ("corner", -8.5, -8.5),
+    ] {
+        admit(&mut app, label, name, DVec3::new(x, 100.0, z), 2);
+    }
+    let mut first_seen: Vec<Option<usize>> = vec![None; cells as usize];
+    for at in 0..40 {
+        if at == 30 {
+            place(&mut app, label, owner, HALO_PROBE, probe);
+        }
+        lockstep_tick(&mut app, label);
+        for (cell, world) in cell_worlds(&mut app, label).into_iter().enumerate() {
+            if world.resource::<SeenAtSimulate>().seen {
+                first_seen[cell].get_or_insert(at);
+            }
+        }
+    }
+    first_seen
+        .into_iter()
+        .map(|at| at.expect("each cell holds the column of the probe"))
+        .collect()
+}
+
+/// PHY-INV-014, PHY-CMP-009: a block that the owner sets in tick `T` is in the copy of every
+/// other cell before the entities of `T + 1` move, as in a world of one cell.
+#[test]
+fn a_change_reaches_the_halo_of_every_cell_before_the_next_entity_pass() {
+    let one = run_halo_probe(1);
+    let four = run_halo_probe(4);
+    assert_eq!(one, [31], "the entity pass after the write sees it");
+    assert_eq!(four, [31; 4]);
 }

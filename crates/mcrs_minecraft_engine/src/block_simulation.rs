@@ -1,9 +1,9 @@
 //! The block simulation of a dimension world: each tick it runs the step of the block kernels
 //! over the sections of the cell, with the rules of the blocks that the game supplies.
 //!
-//! The order of one tick is the order of vanilla. At the sync point, the halo takes the changes
-//! of the owners, the ticks of the columns that landed join the queues, and the messages of the
-//! other cells and then the block writes of the tick apply. Then the scheduled block ticks run,
+//! The order of one tick is the order of vanilla. At the sync point, the ticks of the columns
+//! that landed join the queues, and the messages of the other cells and then the block writes of
+//! the tick apply. Then the scheduled block ticks run,
 //! then the scheduled fluid ticks, then the random ticks, then the block events. Neighbour and
 //! shape updates run inside the phase that causes them. The block events that a block took go to
 //! the clients that hold its column, and the items of a destroyed block go out as
@@ -24,9 +24,7 @@ use mcrs_minecraft_dimension::Dimension as DimensionKey;
 use mcrs_minecraft_engine_world::block_update::{BlockPlaced, BlockSetRequest};
 use mcrs_minecraft_engine_world::owned_columns::{self, OwnedColumns};
 use mcrs_minecraft_engine_world::tick::TickSet;
-use mcrs_minecraft_engine_world::voxel_update::{
-    self, CellBlockWrite, HaloBlockChanges, VoxelUpdateSet,
-};
+use mcrs_minecraft_engine_world::voxel_update::{self, CellBlockWrite, VoxelUpdateSet};
 use mcrs_minecraft_engine_world::world::dimension::Dimension;
 use mcrs_minecraft_engine_world::world::lifecycle::simulation::{BlockTicking, EntityTicking};
 use mcrs_minecraft_engine_world::world::storage::view::WorldViewMut;
@@ -300,7 +298,6 @@ impl<T: TickKind> Taken<T> {
 struct CellLinks<'w> {
     owned: Option<Res<'w, OwnedColumns>>,
     outbox: Option<ResMut<'w, CellOutbox>>,
-    halo: Option<ResMut<'w, HaloBlockChanges>>,
 }
 
 #[derive(SystemParam)]
@@ -353,9 +350,6 @@ fn run_block_simulation<B: BlockBehaviour<WorldKinds> + BlockDrops + Send + 'sta
         requests.clear();
         return;
     };
-    if let Some(halo) = links.halo.as_mut() {
-        voxel_update::apply_halo_changes(&mut blocks, &mut placed, dimension, &mut halo.0);
-    }
     let Some(definitions) = kernel.definitions.as_deref() else {
         // The block table lands with the registries; until then a write is stored as it is.
         for request in requests.read() {
