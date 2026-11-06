@@ -372,6 +372,20 @@ impl LightVolumeFeed {
         }
     }
 
+    /// A block change can add or remove an emitter and change a veto, so the column's bricks
+    /// are built again as at its arrival, and the sections around it are coloured again.
+    fn reblock(
+        &mut self,
+        at: ColumnPos,
+        store: &ColumnStore,
+        scope: &Scope,
+        rows: impl Fn(&Column) -> Vec<i32>,
+    ) {
+        if let Some(column) = store.get(at) {
+            self.arrive(at, rows(column), scope, |c| store.holds(c));
+        }
+    }
+
     fn land(&mut self, queue: &VolumeQueue) {
         for section in self.evicting.drain(..) {
             queue.push(VolumeCommand::Evict { section });
@@ -511,8 +525,15 @@ fn feed_light_volume(
         changes.clear();
         feed.start(generation, &scope, &store, rows, &queue);
     } else {
+        let mut reblocked = HashSet::new();
         for change in changes.read() {
+            if let ColumnChange::Reblocked(at, _) = change {
+                reblocked.insert(ColumnPos::from(*at));
+            }
             feed.observe(change, &store, &scope, rows);
+        }
+        for at in reblocked {
+            feed.reblock(at, &store, &scope, rows);
         }
         feed.follow(&scope, |c| store.holds(c));
         if colours.is_changed() {
@@ -618,6 +639,31 @@ mod tests {
         feed.arrive(ColumnPos::new(8, 0), Vec::new(), &scope, |_| true);
         assert!(feed.dirty.iter().all(|section| section.x <= 8));
         assert_eq!(feed.dirty.len(), 2 * 3 * 4);
+    }
+
+    #[test]
+    fn a_block_change_builds_the_bricks_of_its_column_again_and_colours_around_it() {
+        let scope = scope(4);
+        let mut store = ColumnStore::default();
+        store.enter(EXTENT);
+        let at = ColumnPos::new(0, 0);
+        store.insert(at, Column::unlit(0, vec![None, None, None, None]));
+        let mut feed = LightVolumeFeed::default();
+        feed.arrive(at, vec![2], &scope, |column| store.holds(column));
+        feed.built
+            .extend(feed.to_build.drain().map(|section| (section, Vec::new())));
+        feed.dirty.clear();
+
+        feed.reblock(at, &store, &scope, |_: &Column| vec![2]);
+        assert!(
+            scope
+                .brick_rows()
+                .filter(|y| (y - 2).abs() <= 2)
+                .all(|y| feed.to_build.contains(&IVec3::new(at.x, y, at.z))),
+            "{:?}",
+            feed.to_build
+        );
+        assert!(feed.dirty.contains(&IVec3::new(at.x, 2, at.z)));
     }
 
     #[test]
