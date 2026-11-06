@@ -73,7 +73,9 @@ impl BlockFacts<WorldKinds> for WorldFacts<'_> {
     }
 
     fn is_rail(&self, state: BlockStateId) -> bool {
-        RAILS.iter().any(|rail| self.is_block(state, *rail))
+        self.definitions
+            .block_index(state)
+            .is_some_and(|block| RAILS.iter().any(|rail| rail.id() == block))
     }
 
     fn is_redstone_wire(&self, state: BlockStateId) -> bool {
