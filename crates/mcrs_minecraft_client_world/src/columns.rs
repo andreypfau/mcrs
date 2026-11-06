@@ -11,6 +11,7 @@ use bevy::ecs::prelude::{
 };
 use bevy::ecs::schedule::SystemSet;
 use bevy::log::error;
+use bevy::math::IVec3;
 use bevy::tasks::{AsyncComputeTaskPool, Task, futures::check_ready};
 use mcrs_minecraft_biome_file::BiomeFile;
 use mcrs_minecraft_block::definition::Blocks;
@@ -22,8 +23,9 @@ use mcrs_minecraft_protocol::{Decode, WritePacket};
 use mcrs_minecraft_protocol_game::ColumnPos;
 use mcrs_minecraft_protocol_game::chunk::{ChunkData, LightChunk, LightData};
 use mcrs_minecraft_protocol_game::clientbound::{
-    ClientboundChunkBatchFinished, ClientboundChunkBatchStart, ClientboundForgetLevelChunk,
-    ClientboundLevelChunkWithLight, ClientboundLightUpdate, ClientboundLogin, ClientboundRespawn,
+    ClientboundBlockChangedAck, ClientboundBlockUpdate, ClientboundChunkBatchFinished,
+    ClientboundChunkBatchStart, ClientboundForgetLevelChunk, ClientboundLevelChunkWithLight,
+    ClientboundLightUpdate, ClientboundLogin, ClientboundRespawn, ClientboundSectionBlocksUpdate,
 };
 use mcrs_minecraft_protocol_game::light_codec::{ColumnLight, RowLight, unpack_light_data};
 use mcrs_minecraft_protocol_game::player::PlayerSpawnInfo;
@@ -31,6 +33,7 @@ use mcrs_minecraft_protocol_game::serverbound::ServerboundChunkBatchReceived;
 use mcrs_minecraft_resource::Id;
 use mcrs_voxel::{BlockPos, BlockStateId, LocalPos, SectionPos};
 
+use crate::block_prediction::BlockPredictions;
 use crate::joined_game::CurrentDimension;
 use mcrs_minecraft_network::Instant;
 use mcrs_minecraft_network::client::{
@@ -79,8 +82,20 @@ impl From<Extent> for Dimension {
 pub struct Section {
     pub blocks: Box<[BlockStateId; SectionPos::VOLUME]>,
     pub biomes: PalettedContainer<u8, { Biomes::SIZE }>,
-    /// Every state the blocks hold.
+    /// Every state the blocks hold. A block change adds its state and removes none, so a state
+    /// can stay here after the last block of it is gone.
     pub states: Vec<BlockStateId>,
+}
+
+impl Section {
+    /// The biomes of a section the server sent empty are lost, so the first biome stands in.
+    fn air() -> Section {
+        Section {
+            blocks: Box::new([AIR; SectionPos::VOLUME]),
+            biomes: PalettedContainer::Homogeneous(0),
+            states: vec![AIR],
+        }
+    }
 }
 
 #[derive(Clone)]
@@ -101,6 +116,11 @@ pub enum ColumnChange {
     Departed(ColumnPos, Arc<Column>),
     /// The section rows a light update rewrote, by section y.
     Relit(ColumnPos, Vec<i32>),
+    /// A section the server sent empty now holds a block. It comes before the `Reblocked` of
+    /// that block.
+    Filled(SectionPos),
+    /// The block at the position now holds the state.
+    Reblocked(BlockPos, BlockStateId),
 }
 
 /// The columns the server has sent and not taken back, keyed by position, and the changes
@@ -160,6 +180,35 @@ impl ColumnStore {
         if let Some(old) = self.columns.remove(&pos) {
             self.changes.push(ColumnChange::Departed(pos, old));
         }
+    }
+
+    /// Writes one block of a resident column. Answers the state it replaced, or `None` when the
+    /// column is not resident, the position is outside the extent, or the block already holds
+    /// `state`.
+    pub fn set_block(&mut self, at: BlockPos, state: BlockStateId) -> Option<BlockStateId> {
+        let section_pos = SectionPos::from(at);
+        let column_pos = ColumnPos::from(at);
+        let cell = LocalPos::from(at).index();
+        let column = self.columns.get_mut(&column_pos)?;
+        let index = usize::try_from(section_pos.y - column.min_section_y).ok()?;
+        let old = match column.sections.get(index)? {
+            Some(section) => *section.blocks.get(cell)?,
+            None => AIR,
+        };
+        if old == state {
+            return None;
+        }
+        let slot = Arc::make_mut(column).sections.get_mut(index)?;
+        if slot.is_none() {
+            self.changes.push(ColumnChange::Filled(section_pos));
+        }
+        let section = slot.get_or_insert_with(Section::air);
+        *section.blocks.get_mut(cell)? = state;
+        if !section.states.contains(&state) {
+            section.states.push(state);
+        }
+        self.changes.push(ColumnChange::Reblocked(at, state));
+        Some(old)
     }
 
     /// Moves every change since the last drain to the end of `into`.
@@ -530,11 +579,15 @@ impl Plugin for ColumnCachePlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<ColumnStore>();
         app.init_resource::<Arrivals>();
+        app.init_resource::<BlockPredictions>();
         app.add_message::<ColumnChange>();
         app.add_observer(on_login);
         app.add_observer(on_respawn);
         app.add_observer(on_level_chunk);
         app.add_observer(on_light_update);
+        app.add_observer(on_block_update);
+        app.add_observer(on_section_blocks_update);
+        app.add_observer(on_block_changed_ack);
         app.add_observer(on_forget);
         app.add_observer(on_batch_start);
         app.add_observer(on_batch_finished);
@@ -564,10 +617,15 @@ impl Plugin for ColumnCachePlugin {
     }
 }
 
-fn clear_columns(mut store: ResMut<ColumnStore>, mut arrivals: ResMut<Arrivals>) {
+fn clear_columns(
+    mut store: ResMut<ColumnStore>,
+    mut arrivals: ResMut<Arrivals>,
+    mut predictions: ResMut<BlockPredictions>,
+) {
     if !store.holds_nothing() {
         store.clear();
     }
+    predictions.clear();
     if !arrivals.holds_nothing() {
         arrivals.clear();
     }
@@ -602,9 +660,17 @@ enum Arrival {
     /// `None` for a frame that decodes but has no dimension or biome registry to land in.
     Column(Task<Result<Option<(ColumnPos, Column)>>>),
     Light(ColumnPos, ColumnLight),
+    Blocks(Vec<BlockChange>),
+    Acknowledge(i32),
     Forget(ColumnPos),
     BatchStart,
     BatchEnd(u32),
+}
+
+/// A block state the server sent for one position.
+struct BlockChange {
+    pos: BlockPos,
+    state: BlockStateId,
 }
 
 /// The rate answered to the server is measured over a batch: not from the packets landing, but
@@ -749,6 +815,64 @@ fn on_light_update(
     }
 }
 
+/// A block update waits in the queue behind the column it changes, which may still decode.
+fn on_block_update(
+    event: On<Received<ClientboundBlockUpdate>>,
+    blocks: Res<Blocks>,
+    mut arrivals: ResMut<Arrivals>,
+) {
+    if let Some(update) = event.packet() {
+        let change = BlockChange {
+            pos: update.block_pos,
+            state: sent_state(update.block_state_id.0, &blocks),
+        };
+        arrivals.queue.push_back(Arrival::Blocks(vec![change]));
+    }
+}
+
+fn on_section_blocks_update(
+    event: On<Received<ClientboundSectionBlocksUpdate<'static>>>,
+    blocks: Res<Blocks>,
+    mut arrivals: ResMut<Arrivals>,
+) {
+    let Some(update) = event.packet() else {
+        return;
+    };
+    let origin = update.chunk_pos.0 * SectionPos::SIZE as i32;
+    let changes = update
+        .blocks
+        .iter()
+        .map(|entry| BlockChange {
+            pos: BlockPos::from(
+                origin
+                    + IVec3::new(
+                        i32::from(entry.off_x()),
+                        i32::from(entry.off_y()),
+                        i32::from(entry.off_z()),
+                    ),
+            ),
+            state: sent_state(entry.block_state(), &blocks),
+        })
+        .collect();
+    arrivals.queue.push_back(Arrival::Blocks(changes));
+}
+
+fn on_block_changed_ack(
+    event: On<Received<ClientboundBlockChangedAck>>,
+    mut arrivals: ResMut<Arrivals>,
+) {
+    if let Some(ack) = event.packet() {
+        arrivals
+            .queue
+            .push_back(Arrival::Acknowledge(ack.sequence.0));
+    }
+}
+
+/// A state past our table reads as air, as it does in a column.
+fn sent_state(number: u16, blocks: &Blocks) -> BlockStateId {
+    BlockStateId::checked(number, blocks.state_count()).unwrap_or(AIR)
+}
+
 fn on_forget(event: On<Received<ClientboundForgetLevelChunk>>, mut arrivals: ResMut<Arrivals>) {
     if let Some(forget) = event.packet() {
         arrivals
@@ -777,6 +901,7 @@ fn on_batch_finished(
 fn settle_columns(
     mut arrivals: ResMut<Arrivals>,
     mut store: ResMut<ColumnStore>,
+    mut predictions: ResMut<BlockPredictions>,
     mut changes: MessageWriter<ColumnChange>,
     mut drained: Local<Vec<ColumnChange>>,
     connection: Option<Single<(Entity, &mut ClientConnection)>>,
@@ -786,9 +911,26 @@ fn settle_columns(
     let arrivals = arrivals.bypass_change_detection();
     while let Some(arrival) = arrivals.queue.pop_front() {
         match arrival {
-            Arrival::Enter(dimension) => store.enter(dimension),
+            Arrival::Enter(dimension) => {
+                if store.dimension.as_ref() != Some(&dimension) {
+                    predictions.clear();
+                }
+                store.enter(dimension);
+            }
             Arrival::Forget(pos) => store.remove(pos),
             Arrival::Light(pos, light) => store.relight(pos, &light),
+            Arrival::Blocks(changes) => {
+                for change in changes {
+                    if let Some(state) = predictions.server_update(change.pos, change.state) {
+                        store.set_block(change.pos, state);
+                    }
+                }
+            }
+            Arrival::Acknowledge(sequence) => {
+                for settled in predictions.acknowledge(sequence) {
+                    store.set_block(settled.pos, settled.server_state);
+                }
+            }
             Arrival::BatchStart => arrivals.batch_started_at = Some(Instant::now()),
             Arrival::BatchEnd(batch_size) => {
                 let desired_chunks_per_tick = arrivals.rate_after_batch(batch_size);
@@ -1255,6 +1397,8 @@ mod tests {
             ColumnChange::Arrived(pos, _) => ("arrived", *pos, Vec::new()),
             ColumnChange::Departed(pos, _) => ("departed", *pos, Vec::new()),
             ColumnChange::Relit(pos, rows) => ("relit", *pos, rows.clone()),
+            ColumnChange::Filled(at) => ("filled", ColumnPos::from(*at), Vec::new()),
+            ColumnChange::Reblocked(at, _) => ("reblocked", ColumnPos::from(*at), Vec::new()),
         }
     }
 
@@ -1266,12 +1410,52 @@ mod tests {
     }
 
     #[test]
+    fn cbk_prd_007_a_predicted_block_takes_the_server_state_only_at_its_acknowledgement() {
+        let mut app = App::new();
+        app.init_resource::<ColumnStore>()
+            .init_resource::<Arrivals>()
+            .init_resource::<BlockPredictions>()
+            .add_message::<ColumnChange>()
+            .add_systems(Update, settle_columns);
+        let (stone, placed) = (state(1), state(2));
+        let (broken, beside) = (BlockPos::new(3, 4, 5), BlockPos::new(4, 4, 5));
+        let mut store = app.world_mut().resource_mut::<ColumnStore>();
+        store.enter(EXTENT);
+        store.insert(
+            ColumnPos::new(0, 0),
+            Column::unlit(EXTENT.min_section_y, vec![None; EXTENT.sections]),
+        );
+        store.set_block(broken, stone);
+        let old = store
+            .set_block(broken, AIR)
+            .expect("the column holds stone");
+        let mut predictions = app.world_mut().resource_mut::<BlockPredictions>();
+        let sequence = predictions.next_sequence();
+        predictions.record(sequence, broken, old);
+
+        let mut arrivals = app.world_mut().resource_mut::<Arrivals>();
+        let changes = [broken, beside].map(|pos| BlockChange { pos, state: placed });
+        arrivals.queue.push_back(Arrival::Blocks(changes.into()));
+        app.update();
+        let store = app.world().resource::<ColumnStore>();
+        assert_eq!(block(store, 3, 4, 5), AIR, "the prediction holds the block");
+        assert_eq!(block(store, 4, 4, 5), placed);
+
+        let mut arrivals = app.world_mut().resource_mut::<Arrivals>();
+        arrivals.queue.push_back(Arrival::Acknowledge(sequence));
+        app.update();
+        let store = app.world().resource::<ColumnStore>();
+        assert_eq!(block(store, 3, 4, 5), placed);
+    }
+
+    #[test]
     fn two_readers_each_see_every_change_in_order() {
         use bevy::ecs::change_detection::DetectChanges;
 
         let mut app = App::new();
         app.init_resource::<ColumnStore>()
             .init_resource::<Arrivals>()
+            .init_resource::<BlockPredictions>()
             .init_resource::<Seen<0>>()
             .init_resource::<Seen<1>>()
             .add_message::<ColumnChange>()

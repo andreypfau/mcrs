@@ -4,6 +4,7 @@
 
 #[cfg(not(target_family = "wasm"))]
 pub mod asset_source;
+pub mod block_prediction;
 pub mod chat;
 pub mod chat_history;
 mod chat_packets;
