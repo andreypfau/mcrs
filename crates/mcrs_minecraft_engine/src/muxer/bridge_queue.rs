@@ -17,9 +17,9 @@ pub const DEPTH_DRAIN_TARGET: usize = 192;
 
 /// Per-connection priority outbound queue.
 ///
-/// Four sub-deques ordered Critical → High → Normal → Low. `dispatch_encode`
+/// Three sub-deques ordered Critical → High → Normal. `dispatch_encode`
 /// drains in that order and enforces `DEPTH_LIMIT`/`DEPTH_DRAIN_TARGET`
-/// shedding on Normal/Low before flushing. Critical and High are never shed and
+/// shedding on Normal before flushing. Critical and High are never shed and
 /// never counted against the connection: how many the server produced in a tick
 /// says nothing about the client, which paces its own columns by acknowledging
 /// each batch.
@@ -28,7 +28,6 @@ pub struct OutboundQueue {
     pub critical: VecDeque<QueuedPacket>,
     pub high: VecDeque<QueuedPacket>,
     pub normal: VecDeque<QueuedPacket>,
-    pub low: VecDeque<QueuedPacket>,
 }
 
 impl OutboundQueue {
@@ -41,12 +40,11 @@ impl OutboundQueue {
             PacketPriority::Critical => self.critical.push_back(packet),
             PacketPriority::High => self.high.push_back(packet),
             PacketPriority::Normal => self.normal.push_back(packet),
-            PacketPriority::Low => self.low.push_back(packet),
         }
     }
 
     pub fn total_len(&self) -> usize {
-        self.critical.len() + self.high.len() + self.normal.len() + self.low.len()
+        self.critical.len() + self.high.len() + self.normal.len()
     }
 }
 

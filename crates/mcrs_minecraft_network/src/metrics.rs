@@ -21,11 +21,9 @@ use crate::event::{Trigger, Triggers};
 #[derive(Resource, Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct BridgeTelemetry {
     pub drop_normal_total: u64,
-    pub drop_low_total: u64,
     pub kick_overflow_total: u64,
     pub kick_flood_total: u64,
     pub outbound_messages_consumed_total: u64,
-    pub encode_unhandled_total: u64,
     pub outbound_no_queue_total: u64,
     /// Packets serialized for one recipient.
     pub encode_calls_total: u64,

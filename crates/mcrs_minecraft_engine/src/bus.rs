@@ -86,7 +86,6 @@ pub enum PacketPriority {
     Critical,
     High,
     Normal,
-    Low,
 }
 
 pub fn to(session: PlayerSession, data: PacketPayload) -> OutboundPlayerPacket {
@@ -116,7 +115,6 @@ impl OutboundPlayerPacket {
 #[derive(Clone, Debug)]
 pub enum PacketPayload {
     LightUpdate(ClientboundLightUpdate<'static>),
-    Test(TestPayload),
     BlockUpdate(ClientboundBlockUpdate),
     /// A block event that a block took. It is not a change of the column: a client that takes
     /// the column later does not get it.
@@ -188,11 +186,6 @@ pub struct PlayerInfoEntry {
     pub username: String,
     pub game_mode: GameMode,
     pub listed: bool,
-}
-
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub struct TestPayload {
-    pub seq: u32,
 }
 
 /// The state of a joining player that the host hands to the dimension that spawns it.

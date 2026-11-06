@@ -7,8 +7,8 @@ use mcrs_minecraft_assets::AppState;
 use mcrs_minecraft_engine::between_ticks::drain_dim_spawn_queue;
 use mcrs_minecraft_engine::between_ticks::take_dim_outputs;
 use mcrs_minecraft_engine::bus::{
-    InboundPlayerPacket, InboundPlayerSpawn, OutboundPlayerPacket, PacketPayload, PacketPriority,
-    PacketTarget, PlayerTransferSnapshot, TestPayload,
+    InboundPlayerPacket, InboundPlayerSpawn, OutboundPlayerPacket, PacketPriority, PacketTarget,
+    PlayerTransferSnapshot,
 };
 use mcrs_minecraft_engine::channel_types::ToDim;
 use mcrs_minecraft_engine::coordinator::dim::DimSubAppHandle;
@@ -21,6 +21,7 @@ use mcrs_minecraft_engine_world::session::{
 use mcrs_minecraft_engine_world::world::sub_app::{DimSpawnQueue, DimSpawnRequest};
 
 use crate::host_app;
+use crate::mock_connection::{marker, marker_seq};
 
 #[derive(Resource, Default)]
 struct OutboundLog(Vec<u32>);
@@ -72,11 +73,7 @@ fn record_host_outbound(
     mut log: ResMut<OutboundLog>,
 ) {
     for msg in msgs.drain() {
-        let seq = match msg.data {
-            PacketPayload::Test(TestPayload { seq }) => seq,
-            _ => continue,
-        };
-        log.0.push(seq);
+        log.0.extend(marker_seq(&msg.data));
     }
 }
 
@@ -105,7 +102,7 @@ fn outbound_latency_is_one_host_tick() {
         .write(OutboundPlayerPacket {
             target: PacketTarget::SinglePlayer(PlayerSession(0)),
             priority: PacketPriority::Normal,
-            data: PacketPayload::Test(TestPayload { seq: 0xDEAD }),
+            data: marker(0xDEAD),
             session: PlayerSession(0),
             epoch: 0,
         });

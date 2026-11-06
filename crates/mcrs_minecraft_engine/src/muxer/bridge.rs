@@ -227,9 +227,6 @@ fn encode_once(
     let QueuedPacket::Payload(payload) = queued else {
         return Ok(queued);
     };
-    if let PacketPayload::Test(_) = payload {
-        return Ok(QueuedPacket::Payload(payload));
-    }
     let kind = payload.kind();
     if let Err(error) = write_payload(buffer, payload) {
         buffer.0.clear();
@@ -396,7 +393,7 @@ fn dispatch_listed(
 /// Counts the connections that receive each packet serialized once, so that only a packet of
 /// more than one connection costs a frame on this thread.
 fn count_recipients(queue: &OutboundQueue, frames: &mut SharedFrames) {
-    for sub_queue in [&queue.critical, &queue.high, &queue.normal, &queue.low] {
+    for sub_queue in [&queue.critical, &queue.high, &queue.normal] {
         for queued in sub_queue {
             if let QueuedPacket::Encoded(encoded) = queued {
                 frames.add_recipient(&encoded.packet);
@@ -444,14 +441,8 @@ fn ready_to_write(
     // Past DEPTH_LIMIT, drain down to DEPTH_DRAIN_TARGET so the queue stays below the limit
     // for a few ticks before it refills. Critical and High are never shed.
     if queue.total_len() > DEPTH_LIMIT {
-        while queue.total_len() > DEPTH_DRAIN_TARGET {
-            if queue.normal.pop_front().is_some() {
-                telemetry.drop_normal_total += 1;
-            } else if queue.low.pop_front().is_some() {
-                telemetry.drop_low_total += 1;
-            } else {
-                break;
-            }
+        while queue.total_len() > DEPTH_DRAIN_TARGET && queue.normal.pop_front().is_some() {
+            telemetry.drop_normal_total += 1;
         }
     }
     true
@@ -469,9 +460,8 @@ fn write_queue(
         critical,
         high,
         normal,
-        low,
     } = queue;
-    for sub_queue in [critical, high, normal, low] {
+    for sub_queue in [critical, high, normal] {
         for queued in sub_queue.drain(..) {
             trace!(
                 target: "mcrs_minecraft_engine::bridge",
@@ -480,11 +470,6 @@ fn write_queue(
                 "dispatch_encode"
             );
             match queued {
-                QueuedPacket::Payload(PacketPayload::Test(_)) => {
-                    // Test-only payload; no wire packet. Counted-drop so
-                    // test assertions on encode_unhandled_total work.
-                    telemetry.encode_unhandled_total += 1;
-                }
                 QueuedPacket::Payload(payload) => {
                     telemetry.packets.count(payload.kind());
                     if let Err(error) = write_payload(raw, payload) {
@@ -590,7 +575,6 @@ fn write_payload<W: WritePacket>(sink: &mut W, data: PacketPayload) -> anyhow::R
         PacketPayload::SystemChat(p) => sink.write_packet_fallible(&p),
         PacketPayload::CommandSuggestions(p) => sink.write_packet_fallible(&p),
         PacketPayload::SetTime(p) => sink.write_packet_fallible(&p),
-        PacketPayload::Test(_) => Ok(()),
     }
 }
 

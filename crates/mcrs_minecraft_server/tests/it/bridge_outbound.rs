@@ -13,7 +13,7 @@ use smallvec::SmallVec;
 
 use mcrs_minecraft_engine_world::session::PlayerSession;
 use mock_connection::{
-    build_bridge_world, build_bridge_world_with_sessions, drain_queue, register_player,
+    build_bridge_world, build_bridge_world_with_sessions, drain_queue, marker_seq, register_player,
     register_session, run_system, spawn_connection, write_packet, write_packet_broadcast,
 };
 
@@ -121,8 +121,8 @@ fn packet_target_missing_queue_counted() {
 // priority_drain_order
 // ---------------------------------------------------------------------------
 
-/// Pushing Low → Normal → High → Critical then draining in priority order
-/// yields Critical, High, Normal, Low.
+/// Pushing Normal → High → Critical then draining in priority order
+/// yields Critical, High, Normal.
 #[test]
 fn priority_drain_order() {
     let mut world = build_bridge_world();
@@ -131,57 +131,35 @@ fn priority_drain_order() {
     let socket = spawn_connection(&mut world);
     let (_, session) = register_player(&mut world, socket, dim);
 
-    // Write in reverse-priority order.
-    write_packet(
-        &mut world,
-        PacketTarget::SinglePlayer(session),
-        session,
-        0,
-        PacketPriority::Low,
-        4,
-    );
-    write_packet(
-        &mut world,
-        PacketTarget::SinglePlayer(session),
-        session,
-        0,
-        PacketPriority::Normal,
-        3,
-    );
-    write_packet(
-        &mut world,
-        PacketTarget::SinglePlayer(session),
-        session,
-        0,
-        PacketPriority::High,
-        2,
-    );
-    write_packet(
-        &mut world,
-        PacketTarget::SinglePlayer(session),
-        session,
-        0,
-        PacketPriority::Critical,
-        1,
-    );
+    for (priority, seq) in [
+        (PacketPriority::Normal, 3),
+        (PacketPriority::High, 2),
+        (PacketPriority::Critical, 1),
+    ] {
+        write_packet(
+            &mut world,
+            PacketTarget::SinglePlayer(session),
+            session,
+            0,
+            priority,
+            seq,
+        );
+    }
 
     run_system(&mut world, bridge_outbound);
 
-    let packets = drain_queue(&mut world, socket);
-    assert_eq!(packets.len(), 4);
-
-    let seqs: Vec<u32> = packets
+    let seqs: Vec<u32> = drain_queue(&mut world, socket)
         .iter()
         .map(|p| match p {
-            QueuedPacket::Payload(mcrs_minecraft_engine::bus::PacketPayload::Test(t)) => t.seq,
-            _ => panic!("expected Test payload"),
+            QueuedPacket::Payload(payload) => marker_seq(payload).unwrap(),
+            _ => panic!("expected a payload"),
         })
         .collect();
 
     assert_eq!(
         seqs,
-        vec![1, 2, 3, 4],
-        "drain order must be Critical(1) → High(2) → Normal(3) → Low(4)"
+        vec![1, 2, 3],
+        "drain order must be Critical(1) → High(2) → Normal(3)"
     );
 }
 
