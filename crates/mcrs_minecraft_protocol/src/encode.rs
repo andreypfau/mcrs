@@ -40,7 +40,7 @@ impl PacketEncoder {
         Ok(())
     }
 
-    /// Appends frames that an encoder at this threshold made earlier.
+    /// Hands over the frames made so far and leaves the encoder empty.
     pub fn take(&mut self) -> BytesMut {
         self.buf.split()
     }
