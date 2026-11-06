@@ -229,6 +229,7 @@ Part A explains these terms. This list is here for quick reference.
 - **Partition time** and **world time**: the clocks of SIM-MODEL-004. There is one partition time for each partition.
 - **Work item**: a scheduled tick, a neighbor request, a shape update, a block event, a random pick or a set (SIM-MODEL-005).
 - **Cross-partition effect**: a work item that one partition makes, with a target that another partition owns or that no partition owns (SIM-MODEL-007).
+- **Footprint bound**: a box relative to the position of a handler call. The box contains each position that one call of that handler can read or write (SIM-MODEL-009).
 - **Ordering policy**: the rule that puts the work items of one queue in a partition into an order. It is also the rule that merges queues when partitions merge (SIM-MODEL-008).
 - **Instance**: an implementation, given by its value for each parameter of section A.5.
 
@@ -258,7 +259,10 @@ Each instance states the guarantee level that it gives:
   sections 1 to 9 holds. Items that depend on each other (SIM-MODEL-006) run in
   the order that the rules give. Items in conflict whose order the rules leave
   free run in an order that a stable rule selects. Independent items can run in
-  any order and at the same time.
+  any order and at the same time. Each chain (SIM-NBR-003) runs as one unit
+  (SIM-MODEL-102). Some items outside the chain are in conflict with an item of
+  the chain. Such an item does not run between the first and the last item of
+  the chain.
 - **Boundary.** The semantic level holds inside each partition. An item that
   crosses a partition boundary is a message (SIM-MODEL-007). The message runs
   later than vanilla runs the item, so other work can see an intermediate state.
@@ -446,6 +450,8 @@ Provenance: `derived`. Confidence: high.
 - The **footprint** of an item is the group of positions that it can read or
   write when it runs. For the machinery of this document, the footprint has a
   limit (A.2). What a block handler reads has a limit that the handler controls.
+  SIM-MODEL-009 gives this limit for each random-tick handler and each
+  neighbor-changed handler, as a footprint bound for each block type.
 
   For example, a piston reads positions up to 14 blocks away along its axis. It
   reads more positions to the side when it moves slime or honey blocks. The
@@ -467,9 +473,8 @@ Provenance: `derived`. Confidence: high.
   run. The shared counters of A.2 (sequence, budget, chain count, random state)
   are the only exception.
 
-Provenance: `derived`. Confidence: high for the definition, medium for the
-handler radii. The handler radii are part of block behavior, which this document
-does not include. They are given as examples only.
+Provenance: `derived`. Kind: semantic. Confidence: high for the definition. The handler radii
+in this rule are examples. SIM-MODEL-009 gives the bounds and their confidence.
 
 #### SIM-MODEL-007: Cross-partition effects
 
@@ -534,6 +539,172 @@ the threaded instance is not stable (B.3).
 
 Provenance: `derived`. Confidence: high.
 
+#### SIM-MODEL-009: Footprint bounds of block handlers
+
+- **Use.** An instance uses the footprint bound of an item to decide where the
+  item runs:
+  - If the bound, placed at the target of the item, is inside the halo of the
+    partition, the item can run synchronously in that partition.
+  - If not, the item crosses a partition boundary (A.0). At the boundary level,
+    the item follows SIM-MODEL-007. At the semantic level, an item of a chain
+    follows SIM-MODEL-102.
+
+  The block state at the target, at the time when the item runs, selects the row
+  of the tables below.
+- **What a bound contains.** The box contains each position at which one call of
+  the handler can do one of these things:
+  - read a block state, a fluid state, a block entity, a biome or a heightmap
+    value
+  - read a light value. A light read reads only the stored light value at that
+    position.
+  - set a block (SIM-SET-002). The box contains the position of the set, but not
+    the targets of the neighbor requests and shape updates of the set. These
+    requests and updates are new items, and each new item has its own bound.
+  - schedule a tick or queue a block event.
+- **Notation.** The columns `dx`, `dy` and `dz` give the box relative to the
+  position of the call. `±r` is the interval from −r to +r. `n` is a length that
+  the world state gives, not a constant. The column "Other effects" gives reads
+  and writes of entities and of other state that is not a block position.
+- A block type that is not in Table 1 has no random-tick handler, or a handler
+  with no effect. A block type that is not in Table 2 has no neighbor-changed
+  handler.
+- The bound is a property of one call. A group of items has no bound
+  (SIM-MODEL-006). Table 3 gives the groups that a handler of Table 1 or Table 2
+  can start, and that have no spatial bound.
+
+**Table 1. Random-tick handlers.** A lava block receives two fluid random ticks
+for each pick (SIM-RND-002). Each of them has the lava bound.
+
+| Block types | `dx` | `dy` | `dz` | Sets | Other effects |
+|-------------|------|------|------|------|---------------|
+| `grass_block`, `mycelium` | ±1 | −3..+2 | ±1 | the position (to dirt), or up to 4 dirt blocks in the box | none |
+| `crimson_nylium`, `warped_nylium` | 0 | 0..+1 | 0 | the position (to netherrack) | none |
+| `wheat`, `carrots`, `potatoes`, `beetroots`, `torchflower_crop` | ±1 | −1..0 | ±1 | the position | none |
+| `pitcher_crop` | ±1 | −1..+1 | ±1 | the position and the position above | none |
+| `pumpkin_stem`, `melon_stem` | ±1 | −1..0 | ±1 | the position, and the fruit at one horizontal neighbor | none |
+| each sapling, and `mangrove_propagule` that does not hang | ±10 | −13..+34 | ±10 | the blocks of one tree feature | none. Note 1 |
+| `mangrove_propagule` that hangs, `cocoa`, `nether_wart`, `sweet_berry_bush` | 0 | 0..+1 | 0 | the position | none |
+| `brown_mushroom`, `red_mushroom` | ±5 | −6..+5 | ±5 | one position in the box | none |
+| leaves with a decay state | 0 | 0 | 0 | the position (removed) | item drops |
+| `ice` | 0 | 0 | 0 | the position (water or air) | none |
+| `snow` | 0 | 0 | 0 | the position (removed) | item drops |
+| `farmland` | ±4 | 0..+1 | ±4 | the position | the rain at the position above. The entities on the block move up when it changes to dirt |
+| `sugar_cane` | 0 | −n..+1 | 0 | the position and the position above | none. Note 2 |
+| `cactus` | ±1 | −n..+1 | ±1 | the position and the position above | none. Note 2 |
+| `bamboo_sapling` | 0 | 0..+1 | 0 | the position above | none |
+| `bamboo` | 0 | −16..+1 | 0 | the position above and the 2 positions below | none |
+| `vine` | ±4 | −1..+1 | ±4 | the position, or one position at a distance of 1 on each axis | none |
+| `kelp`, `twisting_vines` | 0 | 0..+1 | 0 | the position above | none |
+| `weeping_vines`, `cave_vines` | 0 | −1..0 | 0 | the position below | none |
+| `chorus_flower` | ±2 | −5..+2 | ±2 | the position, the position above, and the horizontal neighbors | none |
+| `turtle_egg` | 0 | −1..0 | 0 | the position | turtles spawn when the eggs hatch |
+| each copper block that ages | ±4 | ±4 | ±4 | the position (a door: its lower half) | a copper chest reads the players that have it open. Note 3 |
+| `pointed_dripstone` | 0 | −22..+12 | 0 | the growth position, or mud to clay above the root | a tick at a cauldron in the box. The entities on the mud move up |
+| `icicle` | 0 | −15..+2 | 0 | the growth position, or the position (destroyed or falls) | a falling block, or item drops |
+| `sulfur_spike` | 0 | −13..+2 | 0 | the growth position | none |
+| `budding_amethyst` | ±1 | ±1 | ±1 | one face neighbor | none |
+| `redstone_ore`, `deepslate_redstone_ore` (lit) | 0 | 0 | 0 | the position | none |
+| `nether_portal` | 0 | −n..+1 | 0 | none | reads if a player is near enough for spawns. A zombified piglin spawns. Note 2 |
+| `open_eyeblossom`, `closed_eyeblossom` | ±3 | ±2 | ±3 | the position | ticks at the eyeblossoms of the same state in the box |
+| `potted_open_eyeblossom`, `potted_closed_eyeblossom` | 0 | 0 | 0 | the position | none |
+| `dried_ghast` | 0 | 0 | 0 | none | a tick at the position |
+| `lava` (fluid random tick) | ±3 | 0..+3 | ±3 | fire in the box | reads if a player is in the radius of the game rule `fire_spread_radius_around_player` |
+| `firefly_bush` | 0 | 0 | 0 | none | none |
+
+- **Note 1.** The tree features are data of the data pack. The bound is for the
+  features of the vanilla data pack. The largest extents come from these
+  features:
+  - the mangrove trees: the roots reach 9 blocks to the side and 13 blocks down,
+    and the canopy reaches 10 blocks to the side
+  - the mega jungle tree: the trunk can be 31 blocks high
+  - the cherry tree and the poplar trees: the canopy reaches 9 blocks to the side.
+
+  The box includes the search for a 2 × 2 group of blocks of the same type.
+  With other features, the bound is the extent of the largest feature that the
+  block type can select, plus 1 to the side. An instance that does not calculate this extent
+  must treat the handler of this row as a handler with no bound.
+- **Note 2.** `n` is the count of blocks of the same type in a vertical line
+  below the position. The handler reads down to the first block of another type.
+  It has no limit other than the vertical extent of the dimension. A natural
+  sugar cane or cactus has `n` ≤ 2, and a valid portal has `n` ≤ 20.
+- **Note 3.** The handler reads each position at a Manhattan distance of not
+  more than 4. The box is the smallest box that contains these positions.
+
+These blocks do not tick randomly, although their behavior looks like a random
+tick:
+- Fire and soul fire spread in their scheduled ticks.
+- The blocks `frosted_ice` and `scaffolding` change in their scheduled ticks.
+- Sculk spreads from the block entity of the sculk catalyst.
+
+**Table 2. Neighbor-changed handlers.**
+
+| Block types | `dx` | `dy` | `dz` | Sets | Other effects |
+|-------------|------|------|------|------|---------------|
+| `redstone_wire`, default evaluator | ±2 | ±2 | ±2 | the position | neighbor requests at the position and at its 6 neighbors. Table 3 |
+| `redstone_wire`, experimental evaluator (`minecraft:redstone_experiments`) | ±17 | ±17 | ±17 | the wires of the network in the box | neighbor requests near each wire that changes. Note 4. Table 3 |
+| `piston`, `sticky_piston` | ±14 | ±14 | ±14 | none | a block event at the position. Note 5 |
+| `piston_head` | ±1 | ±1 | ±1 | none | a neighbor request to the base |
+| `repeater`, `comparator` | ±2 | ±2 | ±2 | the position, if it cannot survive | a tick at the position. A comparator reads the item frames 2 blocks behind it |
+| `redstone_torch`, `redstone_wall_torch` | ±2 | ±2 | ±2 | none | a tick at the position |
+| `redstone_lamp`, each copper bulb | ±2 | ±2 | ±2 | the position | a tick at the position (the lamp) |
+| `powered_rail`, `activator_rail` | ±10 | ±10 | ±10 | the position | none |
+| `rail`, `detector_rail` | ±2 | ±2 | ±2 | the position and the connected rails next to it | none |
+| `dispenser`, `dropper`, `crafter` | ±2 | −2..+3 | ±2 | the position | a tick at the position |
+| each door | ±2 | −3..+3 | ±2 | the two halves of the door | none |
+| each trapdoor, each fence gate, `hopper`, `jukebox`, `big_dripleaf`, each head and skull, each shelf | ±2 | ±2 | ±2 | the position | none |
+| `note_block`, `bell` | ±2 | ±2 | ±2 | the position | a block event at the position |
+| `tnt` | ±2 | ±2 | ±2 | the position (removed) | a primed TNT spawns |
+| each command block | ±2 | ±2 | ±2 | none | a tick at the position |
+| `test_block` | ±2 | ±2 | ±2 | none | the result of its test |
+| `structure_block` | ±96 | ±96 | ±96 | the blocks of the structure (load mode) | the saved structures. Load mode spawns entities. Save mode reads entities |
+| `water`, `lava` (fluid blocks) | ±1 | ±1 | ±1 | the position (obsidian, cobblestone, stone or basalt) | a fluid tick at the position. Table 3 |
+| `sponge` | ±7 | ±7 | ±7 | the position (wet sponge) and up to 64 water positions | item drops of the plants that it removes |
+| `frosted_ice` | ±1 | ±1 | ±1 | the position (water) | none |
+
+- **Note 4.** A wire of the network changes only if its power came through the
+  wire of the call, or can now come through it. Such a wire is not more than 15
+  wires away. Each wire step moves 1 block to the side and not more than 1 block
+  up or down.
+- **Note 5.** The handler resolves the push: not more than 12 blocks, with
+  their slime and honey branches, and one destination block after each line.
+  Each position of the box that the handler reads is at a Manhattan distance of
+  not more than 14. The block event of the piston has the same bound.
+
+These handlers have a large reach but are not neighbor-changed handlers:
+- An observer reacts to a shape update. It schedules a tick at its own position.
+  Its tick updates the block behind it, and the neighbors of that block.
+- A tripwire hook has no neighbor-changed handler. Its line check runs in its
+  scheduled tick, and in the side effects of a set of a hook or a tripwire. The
+  check reads from 1 block behind the hook to 42 blocks in front of it, on the
+  line of the hook. It sets the tripwire blocks and the hook at the other end.
+
+**Table 3. Groups with no spatial bound.** Only the chain limit `M`
+(SIM-NBR-004), the update limit `L` (SIM-SHP-002) and the state of the world
+limit these groups.
+
+| Group | How it grows |
+|-------|--------------|
+| a redstone wire network | Each wire that changes power makes neighbor requests. The next wires and the components that react at once continue the chain. Examples of such components are lamps that turn on, doors, rails and pistons |
+| a piston contraption | A piston block event moves blocks. The sets of the move start chains, and these chains queue more piston events into the same drain (SIM-BEV-002, OQ-05) |
+| fluid contact | A fluid block that touches the other fluid changes to stone, cobblestone, obsidian or basalt. The set makes neighbor requests, and the next fluid blocks can change in the same chain |
+| a shape cascade | Each shape update can make more shape updates, up to `L` generations (SIM-SHP-002) |
+
+Provenance: `source_suggested`. Kind: semantic. The bounds come from the
+reference at `26.4-snapshot-7`. No experiment was run. Confidence: high for the boxes of
+radius 2 or less, medium for the other boxes. Each box is an upper bound, and
+some boxes are larger than necessary.
+
+Experiment (farmland, Table 1):
+1. Put a water source at the same height as a farmland block, 4 blocks away
+   on the x axis.
+2. Put a second farmland block 5 blocks away from a second water source.
+3. Keep the air above the two farmland blocks empty. Use clear weather.
+4. Use `random_tick_speed = 1000` for 200 ticks.
+
+Result expected from the sources: the first farmland stays at moisture 7. The
+second farmland changes to dirt. If the second farmland stays moist, the box of
+`farmland` is too small.
+
 ### A.2 Locality
 
 A property is *local* when it can be found from one section and a limited
@@ -553,7 +724,7 @@ partition, they are different from vanilla when there are several partitions.
 | scheduled tick: collect | the heads of the queues of all sections | the budget, the merge order across columns | SIM-SCH-006, SIM-SCH-008 |
 | block event | one position | FIFO order of the single queue. The drain runs until the queue is empty | SIM-BEV-001, SIM-BEV-002 |
 | random pick | one section | the position generator and the level random streams. The order in which sections are visited | SIM-RND-001..003 |
-| precipitation pick | one column surface | the same as random picks, and also the heightmap | SIM-RND-004 |
+| precipitation pick | the surface position of one column, the position below it and the 4 horizontal neighbors of that position | the same as random picks. The random streams can be for each group of columns. The heightmap of the column is local | SIM-RND-004 |
 | client sync | marks for each section | nothing (packets for each section) | SIM-SET-005 |
 | save | one record for each vanilla column | the sequences that a load restores, for each column record | SIM-SCH-012, SIM-SCH-013 |
 
@@ -561,7 +732,8 @@ Consequences:
 
 - Each **single step** of the machinery is local, with a radius of not more than
   2 blocks. Block handlers add their own radii, and each of these radii has a
-  limit (A.1, SIM-MODEL-006).
+  limit (SIM-MODEL-009). Some groups of items have no limit (SIM-MODEL-009,
+  Table 3).
 - The global items are a short list of **counters and orders**:
   - the scheduled-tick sequence
   - the scheduled-tick budget
@@ -608,6 +780,10 @@ Each contract gives (a) invariants, (b) freedoms and (c) parameters (A.5).
     only after its whole chain. At the boundary level, it returns after the part
     of its chain inside the halo of its partition.
   - The traversal does not recurse (SIM-NBR-003).
+  - At the exact and the semantic levels, a chain is one unit (A.0). Its items
+    run in the order of SIM-NBR-003, with only the freedom of (b). The block
+    events that the chain queues and the ticks that it schedules keep the order
+    of that traversal.
 - (a) A chain that stays inside one partition runs in that partition as
   SIM-NBR-003 gives.
 - (b) The order between requests of one chain that do not depend on each other
@@ -619,7 +795,52 @@ Each contract gives (a) invariants, (b) freedoms and (c) parameters (A.5).
   (SIM-MODEL-007). It runs later in the partition that receives it, as the start
   of a new chain in that partition. At the exact and the semantic levels, each
   chain runs in one partition.
+- (a) At the semantic level, a part of a chain must not be a message. This rule
+  applies to each chain, also to a chain that a random tick starts. Before an
+  item of a chain runs, the instance compares its footprint bound
+  (SIM-MODEL-009) with the halo. If the bound is not inside the halo, the
+  instance must complete the chain serially. The result must be the result of
+  one sequential order that the rules allow, with the chain as one unit. These
+  are examples of how an instance can do this:
+  - It undoes all effects of the work item that started the chain. Then it runs
+    that work item again in a serial step, with a halo that covers the
+    dimension. The second run uses the same random values as the first run.
+  - It runs the work item in a serial step from the start. It does this when
+    the work item is in a group whose chains left the halo in earlier steps.
+    It merges
+    the partitions of that group between steps (SIM-MODEL-002).
+
+  Other work items keep the freedoms of their own rules. For example, the
+  serial step can come after the picks of other sections (SIM-MODEL-106).
 - (c) P-CHAIN (scope of the chain and its count), P-FOREIGN, P-LOAD.
+
+Reason for the serial chain at the semantic level: the order inside a chain is
+observable in vanilla. A message would change results, not only an internal
+order:
+- A handler later in the chain reads the state that the items before it wrote.
+  For example, a piston that the chain reaches resolves its push from the blocks
+  at that time.
+- The chain queues block events and schedules ticks in the order of its
+  traversal. This order gives the order of the block event queue (SIM-BEV-001)
+  and the sequence of the ticks (SIM-SCH-003). Players see it as the order in
+  which pistons move, and as the order of two ticks with equal priority.
+- Players build circuits that use the update order of redstone wire. The
+  position of a component relative to the wire changes when that component
+  reacts.
+- A chain that gets to the chain limit `M` stops (SIM-NBR-004). The order gives
+  the items that ran before the stop. Players use this limit to stop updates on
+  purpose.
+- The set that started the chain returns after the whole chain. Then its
+  handler continues, and it reads the result. For example, a grass block does
+  not more than 4 sets in one random tick. Each set reads the result of the
+  chains before it.
+
+The time of a random tick is random, but the chain that it starts is not. A
+detector of crop growth or tree growth that drives a piston uses this chain. A
+message is allowed only at the boundary level (b).
+
+Provenance: `derived` from SIM-NBR-003, SIM-NBR-004, SIM-BEV-001 and
+SIM-SCH-003. Kind: semantic. Confidence: high.
 
 #### SIM-MODEL-103: Limits
 
@@ -690,7 +911,8 @@ Each contract gives (a) invariants, (b) freedoms and (c) parameters (A.5).
     random ticks at the rate of `k` uniform picks in each step. The picks are
     over the 4096 positions of the section, with replacement.
   - Precipitation has `k` picks for each column surface in each step. Each pick
-    has the probability 1/48.
+    is a hit with the probability 1/48. A column gets not more than `k` hits in
+    one step, and each hit has a uniform (x, z) in the column.
 - (b) The order in which sections are visited, the random streams and the pick
   algorithm are free if these two conditions are true:
   - Each pick is uniform over the positions of the section.
@@ -698,6 +920,8 @@ Each contract gives (a) invariants, (b) freedoms and (c) parameters (A.5).
 
   It is not necessary that the picks are independent. The picks of vanilla are
   correlated (SIM-RND-002).
+- (b) The precipitation gates of a group of columns can come from one stream for
+  the group. The order of the hits is free (SIM-RND-004).
 - (c) P-RNG, P-RANDOM.
 
 #### SIM-MODEL-107: Client sync
@@ -1606,7 +1830,7 @@ Provenance: `source_suggested`. Confidence: high.
     - The side bias ordinals are left = 0, right = 1.
     - `front_key = (front_axis_key << 1) | front_axis_direction` (axis direction positive = 0, negative = 1).
     - `front_axis_key` is 1 if up is vertical and front is on X. It is also 1 if up is horizontal and front is vertical. In all other cases, it is 0.
-  - A *fresh orientation* is the orientation with the index `nextInt(48)`, drawn from the level random, after its side bias is changed to left. This change clears the low bit of its index. Then a caller can change its up, and then its front.
+  - To get a *fresh orientation*, draw a uniform integer in 0..47 from the level random. The orientation with that index is the start. Then its side bias is changed to left. This change clears the low bit of its index. Then a caller can change its up, and then its front.
   - A *change of front* to f keeps the same up and side bias, with two exceptions. If f is the old up, up changes to the opposite of the old front. If f is the opposite of the old up, up changes to the old front.
   - A neighbors-around request made without an orientation argument draws a fresh orientation when the request is made. These requests come from step 3.2 of a set, and from all vanilla blocks that request in that way. The draw occurs before the chain limit is checked. As a result, even a discarded request draws.
   - A request made with an orientation argument that is absent draws a fresh orientation when its first update runs. If the request skips a direction X, the front of that orientation changes to the opposite of X. No vanilla caller makes such a request.
@@ -2342,13 +2566,22 @@ Provenance: `source_suggested`, with the table recalculated from the formula. Co
 - **Inputs:** a column `(sx, sz)` that SIM-RND-001 processes, and `k = random_tick_speed`.
 - **Relevant state:** the level random, the position generator, the motion-blocking heightmap of the column, the weather, and the biome at the surface.
 - **Preconditions:** the column is *random-ticked*.
-- **Behavior:** the server does these steps k times:
+- **Behavior:** in each level tick that runs normally, the server does these steps k times. It does them with or without rain, and also in a dimension without weather:
   1. Draw a uniform integer in [0, 48) from the level random.
   2. If the integer is 0, draw a position from the generator with base `(16·sx, 0, 16·sz)` and y mask 15. Then run precipitation at the (x, z) of that position. The y of the position is discarded, and the motion-blocking surface of the column replaces it.
 
-  Precipitation can change water below the surface to ice, with or without rain. While there is rain, precipitation can also do these two things:
-  - Add snow, up to `min(max_snow_accumulation_height, 8)` layers. The game rule `max_snow_accumulation_height` has the default 1 and the range 0–8. The value 0 disables snow.
-  - Let the block below the surface react to rain or snow.
+  The *surface position* is the position directly above the highest block at that (x, z) that blocks motion or holds a fluid. This height is the value of the `MOTION_BLOCKING` heightmap. The biome at the surface position selects the behavior. Precipitation does these steps in this order:
+  1. It changes the water at the position below the surface position to ice, with or without rain. The water must be a source in a water block, not a waterlogged block. The temperature at that position must allow snow, and its block light must be less than 10. At least one of its 4 horizontal neighbors must not be water.
+  2. While there is rain, it adds one snow layer at the surface position, up to `min(max_snow_accumulation_height, 8)` layers. The game rule `max_snow_accumulation_height` has the default 1 and the range 0–8. The value 0 disables snow. These conditions apply:
+     - The biome gives snow at that position.
+     - The block light is less than 10.
+     - Snow can stay at that position. The entities on the snow move up.
+  3. While there is rain, the block below the surface position reacts to the precipitation of the biome at that position. At this version, only cauldrons react:
+     - Under rain, an empty cauldron changes to a water cauldron with the probability 0.05.
+     - Under snow, an empty cauldron changes to a powder snow cauldron with the probability 0.1.
+     - A water cauldron under rain, or a powder snow cauldron under snow, adds one level with the same probability, up to level 3.
+
+     The probability draw comes from the level random.
 
   There is *rain* when these two conditions are true:
   - The dimension can have weather. That is, it has skylight, it has no ceiling, and its dimension key is not `minecraft:the_end`.
@@ -2358,14 +2591,22 @@ Provenance: `source_suggested`, with the table recalculated from the formula. Co
 
   A dimension without weather also makes the gate draws, and it also changes water to ice. This document does not include what precipitation does to individual blocks.
 - **Ordering constraints:** vanilla: the precipitation picks of a column run before the random-tick picks of its sections.
+- **Draws for a group of columns:** an instance can draw the gates of a group of `C` columns from one random stream for the group. Each (column, pick) of the group is one *slot*, so the group has `C × k` slots. These two procedures give the same distribution of hits:
+  - Draw one gate of probability 1/48 for each slot, independently. This is `k` gates for each column, as vanilla does.
+  - Draw the number of hits `m` from the binomial distribution with `C × k` trials and the probability 1/48. Then select `m` distinct slots, uniformly among all sets of `m` slots.
+
+  Each selected slot gives one hit to its column, with its own uniform (x, z) in that column. A procedure that selects columns with replacement does not give the same distribution. With it, a column can get more than `k` hits in one tick. The group, the stream and the order of the hits are free (SIM-MODEL-106(b)). It is not necessary to run the hits of a column before the random-tick picks of its sections, as vanilla does.
 - **Numeric semantics:** the gate is 1 in 48 for each pick. There are k gates for each column in each level tick.
 - **Postconditions:** none.
 - **Edge cases:** the gate draws take values from the level random, also when no pick comes after them.
 - **Invariants:** none.
 - **Vanilla grouping:** this rule is by its nature a rule for each column, for two reasons. It reads the heightmap of the column, and its rate is for each `(x, z)`, not for each section. A section-native host runs it one time for each random-ticked column (the xz index over its sections), at that rate. To get the same observable result, a host without heightmaps must find the same surface y.
-- **Conformance tests:** in a snowy biome, use `random_tick_speed = 0` during rain. Result: no snow is added. With the default value, snow is added.
+- **Conformance tests:**
+  - In a snowy biome, use `random_tick_speed = 0` during rain. Result: no snow is added. With the default value, snow is added.
+  - In a frozen biome, make a lake of water sources under the open sky. Use clear weather. Result: ice forms at the edges of the lake. Twin that must fail: if precipitation runs only during rain, no ice forms.
+  - Kernel test of a group draw: use a group of 64 columns and `k = 3`, for 100 000 steps. Result: the mean count of hits for each column and each step is 3 / 48 = 0.0625 (binomial tolerance). No column gets more than 3 hits in one step. Twin that must fail: a draw of columns with replacement gives a column more than 3 hits in some steps.
 
-Provenance: `source_suggested`. Confidence: high.
+Provenance: `source_suggested`, confirmed against the reference at `26.4-snapshot-7`. The group draw is `derived`. Independent gates of equal probability give a binomial count. For a given count, each set of hit slots has the same probability. Kind: semantic. Confidence: high.
 
 ---
 
@@ -2501,6 +2742,10 @@ Each question lists the rules that it affects and an experiment that answers it.
     For example, in a lock-step clock, a partition applies in the step of world time `W + 1` the messages that the steps of `W` sent. This example needs all messages of `W` before any step of `W + 1` starts: a barrier between the two, or an equal guarantee. Performance tests must measure the cost of this barrier together with the cost of the messages.
   - **Reason:** the semantic level across partitions needs a hand-over of sections during a step. A hand-over needs safe points to stop a step and a protocol to add a section to a halo. It also needs a rule against two steps that wait for each other. This project does not build it, because each such protocol adds defects.
   - **Consequence:** the formation rule keeps causally connected work in one partition, so crossings are rare. A cascade has no limit (SIM-MODEL-006), so formation cannot remove all crossings. A contraption that needs the exact order across a boundary runs correctly with one partition for each dimension (the exact level).
+  - **Note:** SIM-MODEL-102 gives a way to keep the semantic level for a chain without a hand-over. The instance undoes the work item and runs it again in a serial step. An instance that does this for each chain that leaves a halo can give the semantic level with more than one partition.
+- **OQ-13: Footprint bounds of other handlers** (SIM-MODEL-009).
+  - **Question:** SIM-MODEL-009 gives the bounds of random-tick handlers and neighbor-changed handlers only. What are the bounds of shape functions, scheduled-tick handlers, block event handlers and block entities?
+  - **Proposal:** add a table for each of these handler kinds, from the reference. Until then, an instance must not assume a bound for them. For example, the fire tick reads up to 4 blocks above the fire, and the piston block event has the bound of SIM-MODEL-009, Note 5.
 
 ---
 
@@ -2519,7 +2764,7 @@ order.
   can be formed from causal connectivity (SIM-MODEL-006), not from proximity.
   This is possible because of the footprint of each single step of the
   machinery. That footprint has a radius of at most 2 blocks, plus the bounded
-  radius of the handler itself (A.2).
+  radius of the handler itself (A.2, SIM-MODEL-009).
 - **Parallel steps.** Two partitions can step at the same time if their work
   meets the conditions of SIM-MODEL-006. These conditions also apply to the
   work that the steps create. If the shared
