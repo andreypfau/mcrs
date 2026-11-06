@@ -15,21 +15,6 @@ use crate::column_store::ColumnStoreLink;
 use crate::column_streams::ColumnStreams;
 use crate::foreign_views::ForeignViews;
 
-/// The columns that the views of the muxer hold from a dimension.
-#[derive(Clone, Copy)]
-pub(crate) struct HeldColumns<'a> {
-    pub(crate) streams: &'a ColumnStreams,
-    pub(crate) loading: &'a ColumnLoading,
-}
-
-impl HeldColumns<'_> {
-    /// Whether views hold `column` with the light of the data layer: the muxer subscribes to
-    /// it and waits on no version of it, and the dimension does not light it.
-    pub(crate) fn lit_by_data_layer(&self, column: ColumnPos) -> bool {
-        self.streams.holds(column) && !self.loading.lights(column)
-    }
-}
-
 /// Moves each column that a view waits on along: fetches its content and the blocks of the
 /// eight around it, asks for its light, and hands the final column to the views.
 #[expect(
@@ -39,14 +24,19 @@ impl HeldColumns<'_> {
 pub(crate) fn advance_production(
     mut production: ResMut<ColumnProduction>,
     mut store: ResMut<ColumnStoreLink>,
-    dims: Query<(&ColumnLoading, &ColumnIndex, &DimensionTypeConfig)>,
-    held: Query<(&ColumnStreams, &ColumnLoading)>,
+    dims: Query<(
+        &ColumnLoading,
+        &ColumnIndex,
+        &DimensionTypeConfig,
+        Option<&ColumnStreams>,
+    )>,
     snapshots: ColumnSnapshots,
     sent_views: Query<&SentChunkView>,
     foreign_views: Option<Res<ForeignViews>>,
     mut placed: MessageReader<BlockPlaced>,
     light_gated: Option<Res<LightGated>>,
     mut pending: Local<Vec<ColumnPos>>,
+    mut views: Local<Vec<ChunkTrackingView>>,
 ) {
     let lights = match light_gated {
         Some(_) => Lights::Yes,
@@ -54,15 +44,19 @@ pub(crate) fn advance_production(
     };
     let store = &mut *store;
     // A dimension world holds one dimension.
-    let dim_row = dims.iter().next();
-    let loading = dim_row.map(|(loading, ..)| loading);
-    let mut views: Vec<ChunkTrackingView> = sent_views.iter().filter_map(|view| view.0).collect();
+    let dim = dims.iter().next();
+    let dim_row = dim.map(|(loading, index, rows, _)| (loading, index, rows));
+    let loading = dim.map(|(loading, ..)| loading);
+    views.extend(sent_views.iter().filter_map(|view| view.0));
     views.extend(foreign_views.iter().flat_map(|foreign| foreign.views()));
-    production.screen(views, dim_row.map(|(.., rows)| rows));
-    let held = held
-        .iter()
-        .next()
-        .map(|(streams, loading)| HeldColumns { streams, loading });
+    production.screen(&mut views, dim.map(|(_, _, rows, _)| rows));
+    // Views hold such a column with the light of the data layer: the muxer subscribes to it
+    // and waits on no version of it, and the dimension does not light it.
+    let lit_by_data_layer = |column: ColumnPos| {
+        dim.is_some_and(|(loading, _, _, streams)| {
+            streams.is_some_and(|streams| streams.holds(column)) && !loading.lights(column)
+        })
+    };
     // A halo change that the dimension applied comes again as a placed block, and a block set
     // to the state it holds changes nothing.
     let halo_changes = production.take_halo_changes();
@@ -73,7 +67,7 @@ pub(crate) fn advance_production(
             state: placed.new_state,
         })
         .chain(halo_changes);
-    production.note_block_changes(changes, held, store, lights);
+    production.note_block_changes(changes, lit_by_data_layer, store, lights);
     production.take_store_answers(store, lights);
     production.take_snapshots(dim_row, &snapshots, store, lights, &mut pending);
     production.take_light(loading, store);

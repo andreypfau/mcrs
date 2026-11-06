@@ -11,7 +11,6 @@ use mcrs_minecraft_engine_world::world::storage::column::ColumnIndex;
 use mcrs_voxel::{ColumnPos, SectionPos};
 use rustc_hash::{FxHashMap, FxHashSet};
 
-use crate::advance_production::HeldColumns;
 use crate::cold_light_edit::ColdLightEdit;
 use crate::column_asks::ColumnOrigin;
 use crate::column_light::ColumnLight;
@@ -154,16 +153,18 @@ impl ColumnProduction {
     }
 
     /// Drops what left every view: the wanted columns, and the columns of the light stage that
-    /// no wanted column can need.
+    /// no wanted column can need. Takes the views out of `views`.
     pub(crate) fn screen(
         &mut self,
-        views: Vec<ChunkTrackingView>,
+        views: &mut Vec<ChunkTrackingView>,
         rows: Option<&DimensionTypeConfig>,
     ) {
-        if views == self.views {
+        if *views == self.views {
+            views.clear();
             return;
         }
-        self.views = views;
+        mem::swap(&mut self.views, views);
+        views.clear();
         let views = &self.views;
         self.wanted
             .retain(|column, _| views.iter().any(|view| view.reaches(*column, 0)));
@@ -256,9 +257,7 @@ impl ColumnProduction {
             delivery: wanted.delivery,
         });
     }
-}
 
-impl ColumnProduction {
     /// Hands each block change to the light stage of cold space, and marks a wanted column
     /// whose content the dimension gave as changed. A light level reaches one column out, so a
     /// column within one column of the change that views hold with light of the data layer is
@@ -266,7 +265,7 @@ impl ColumnProduction {
     pub(crate) fn note_block_changes(
         &mut self,
         changes: impl IntoIterator<Item = BlockChange>,
-        held: Option<HeldColumns>,
+        lit_by_data_layer: impl Fn(ColumnPos) -> bool,
         store: &ColumnStoreLink,
         lights: Lights,
     ) {
@@ -294,9 +293,7 @@ impl ColumnProduction {
                     }
                     Some(_) => {}
                     None => {
-                        if let Some(held) = held
-                            && held.lit_by_data_layer(near)
-                        {
+                        if lit_by_data_layer(near) {
                             self.relight(near, store);
                         }
                     }
@@ -378,16 +375,14 @@ impl ColumnProduction {
     ) {
         for light in mem::take(&mut self.lit) {
             let column = light.column;
-            let asked = self
+            let Some(wanted) = self
                 .wanted
-                .get(&column)
-                .is_some_and(|wanted| wanted.light == Ask::Asked);
-            if !asked {
+                .get_mut(&column)
+                .filter(|wanted| wanted.light == Ask::Asked)
+            else {
                 continue;
-            }
-            if let Some(wanted) = self.wanted.get_mut(&column)
-                && wanted.ring_changed == Changed::Yes
-            {
+            };
+            if wanted.ring_changed == Changed::Yes {
                 wanted.ring_changed = Changed::No;
                 wanted.light = Ask::NotAsked;
                 continue;

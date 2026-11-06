@@ -403,7 +403,7 @@ impl Plugin for ColumnStorePlugin {
         app.init_resource::<ColumnProduction>();
         app.configure_sets(
             FixedUpdate,
-            ColdStageLandSet::Light
+            ColdStageLandSet
                 .in_set(TickSet::DomainInput)
                 .after(StoredColumnLandSet),
         );

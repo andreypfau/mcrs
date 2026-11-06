@@ -47,7 +47,7 @@ impl Plugin for ColdLightPlugin {
         let world = if self.sky { world } else { world.without_sky() };
         let link = Link::new(LightStage::awaited_only(world), Placement::Thread);
         app.insert_resource(ColdLightLink(LightLink::new(link)))
-            .add_systems(FixedUpdate, land_cold_light.in_set(ColdStageLandSet::Light))
+            .add_systems(FixedUpdate, land_cold_light.in_set(ColdStageLandSet))
             .add_systems(Last, send_cold_light);
     }
 }
