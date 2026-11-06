@@ -192,16 +192,8 @@ that has no rule.
 | Entity ids, `crates/mcrs_minecraft_engine/src/network_id.rs`, `crates/mcrs_minecraft_engine/src/entity_ids.rs` | No cost when no entity spawns. One range of ids for each 4,096 entities that spawn. |
 | Encryption | None. The server runs in offline mode only. |
 
-Measurements that set the current design:
-
-- Without tiers, a session got 4.2 KB of muxer bytes in each tick with 300 bots together, and
-  6.3 KB with about 750 bots.
-- A wake of a writer from the server thread put the writer task in the shared queue of the
-  tokio runtime, which has a lock. With 300 bots together, the wake was 76% of the send, and the
-  wait for the lock was 60%. The flush then cost 0.5 to 0.66 ms, 1 ms and 1.6 to 2 ms in the
-  three runs above.
-- A parallel flush with groups of 64 connections on the compute pool did not decrease the time
-  of the flush.
+A parallel flush with groups of 64 connections on the compute pool does not decrease the time of
+the flush.
 
 ---
 
