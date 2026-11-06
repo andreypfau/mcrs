@@ -22,10 +22,12 @@ use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_block::definition::schema::PropertyValue;
 use mcrs_minecraft_chunk::{BlockLight, LightStorage, SkyLight};
 use mcrs_minecraft_core::Direction;
+use mcrs_minecraft_engine::ability::PlayerOpLevel;
 use mcrs_minecraft_engine::block_drops::{BlockDrops, ItemDropped};
 use mcrs_minecraft_engine::block_simulation::{BlockSimulationPlugin, DimensionBlockRules};
 use mcrs_minecraft_engine::bus::PacketPayload;
 use mcrs_minecraft_engine::coordinator::dim_cells::DimCells;
+use mcrs_minecraft_engine::coordinator::ops::DefaultOpLevel;
 use mcrs_minecraft_engine::muxer::muxer_link::MuxerLink;
 use mcrs_minecraft_engine::world_kinds::WorldKinds;
 use mcrs_minecraft_engine_world::owned_columns::OwnedColumns;
@@ -36,14 +38,16 @@ use mcrs_minecraft_engine_world::world::lifecycle::simulation::{
     BlockTicking, EntityTicking, SimulationDistance,
 };
 use mcrs_minecraft_engine_world::world::lifecycle::stage::SectionStage;
-use mcrs_minecraft_item::ItemStack;
 use mcrs_minecraft_item::item_keys::Item;
+use mcrs_minecraft_item::{ItemHoverMap, ItemStack};
 use mcrs_minecraft_protocol::uuid::Uuid;
-use mcrs_minecraft_protocol::{Decode, Packet, VarInt};
+use mcrs_minecraft_protocol::{Bounded, Decode, Packet, VarInt};
 use mcrs_minecraft_protocol_game::chunk::{LightChunk, LightData};
 use mcrs_minecraft_protocol_game::clientbound::{
     ClientboundAddEntity, ClientboundBlockEvent, ClientboundLevelChunkWithLight,
 };
+use mcrs_minecraft_protocol_game::serverbound::ServerboundChatCommand;
+use mcrs_minecraft_protocol_game::text::Text;
 use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_resource::Id;
 use mcrs_minecraft_simulation::{
@@ -51,7 +55,7 @@ use mcrs_minecraft_simulation::{
 };
 use mcrs_voxel::{BlockPos, BlockStateId, ColumnPos, LocalPos, SectionPos};
 
-use crate::host_app::{self, Arrival, label_of, replicated, sent_to};
+use crate::host_app::{self, Arrival, PlayServer, label_of, replicated, sent_to};
 use crate::world_server::{
     Holder, OVERWORLD, WorldServer, block_state, cell_worlds, holder, lockstep_tick, place,
     position, wait_for_generation, walk,
@@ -1297,4 +1301,71 @@ fn a_block_that_a_shape_update_destroys_drops_the_items_of_the_rules() {
         }]
     );
     assert_eq!(block_at(&mut app, label, pos), Some(BlockStateId::AIR));
+}
+
+#[test]
+fn a_command_at_a_player_of_another_cell_reads_the_columns_of_that_cell() {
+    let mut app = server(2);
+    let label = label_of(&app, OVERWORLD);
+    wait_for_generation(&mut app, label);
+    for world in cell_worlds(&mut app, label) {
+        world.insert_resource(DefaultOpLevel(PlayerOpLevel(2)));
+    }
+    let west_anchor = host_app::admit(
+        &mut app,
+        label,
+        &Arrival {
+            uuid: Uuid::from_u128(1),
+            name: "west",
+            position: DVec3::new(-8.5, 100.0, 8.5),
+            view_distance: 2,
+        },
+    );
+    let west = host_app::session_of(&app, west_anchor).expect("a placed session");
+    let east_position = DVec3::new(200.5, 100.0, 8.5);
+    let east = admit(&mut app, label, "east", east_position, 2);
+    let column = ColumnPos::from(east_position);
+    let mut east_client = Client::default();
+    let deadline = Instant::now() + Duration::from_secs(120);
+    while !east_client.loaded.contains(&(column.x, column.z)) {
+        assert!(
+            Instant::now() < deadline,
+            "the east client never got its column"
+        );
+        for session in [west, east] {
+            app.world_mut()
+                .resource_mut::<MuxerLink>()
+                .acknowledge_batch(session, 64.0);
+        }
+        east_client.take(sent_to(east, lockstep_tick(&mut app, label)));
+    }
+
+    let mut server = PlayServer { app, dim: label };
+    server.queue(
+        west_anchor,
+        &ServerboundChatCommand {
+            command: Bounded("execute at east if loaded ~ ~ ~"),
+        },
+    );
+    let chats: Vec<Text> = server
+        .ticks(west_anchor, 5)
+        .into_iter()
+        .filter_map(|packet| match packet {
+            PacketPayload::SystemChat(chat) => Some(
+                chat.content
+                    .to_text()
+                    .expect("a chat text")
+                    .map(&ItemHoverMap)
+                    .expect("a chat text"),
+            ),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(
+        chats,
+        [Text::translate(
+            "commands.execute.conditional.pass",
+            Vec::<Text>::new()
+        )]
+    );
 }

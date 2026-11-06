@@ -15,8 +15,10 @@ use bevy_ecs::system::SystemId;
 use bevy_ecs::world::World;
 use mcrs_command::{Executor, Failure};
 use mcrs_minecraft_engine::bus::OutboundPlayerPacket;
+use mcrs_minecraft_engine_world::owned_columns::{OwnedColumns, owns};
 use mcrs_minecraft_engine_world::session::PlayerSession;
 use mcrs_minecraft_text::Text;
+use mcrs_voxel::ColumnPos;
 use std::mem;
 
 /// The sources of one stage that go on in the world of the dimension `to`.
@@ -28,8 +30,8 @@ pub(crate) struct Deferred {
 
 /// The run of one command line in the world of the dimension `here`. Each stage call runs here,
 /// and what the call leaves in the outbox applies before the next call. A call whose handler
-/// reads the world of another source dimension does not run: its source goes into `deferred`,
-/// to go on in that world.
+/// reads the world of the source dimension does not run when this world does not own the column
+/// of the source: its source goes into `deferred`, to go on in the world that owns it.
 pub(crate) struct DimExecutor<'a> {
     pub(crate) world: &'a mut World,
     pub(crate) here: Entity,
@@ -53,7 +55,13 @@ impl DimExecutor<'_> {
         if !runs {
             return Err(CommandFailure::failed());
         }
-        if handler.world == HandlerWorld::SourceDimension && source.dimension != self.here {
+        if handler.world == HandlerWorld::Any {
+            return Ok(Place::Here);
+        }
+        // The halo of a cell lags its owner by a tick, so only the owner reads a column as a
+        // world of one cell does.
+        let owned = self.world.get_resource::<OwnedColumns>();
+        if source.dimension != self.here || !owns(owned, ColumnPos::from(source.position)) {
             return Ok(Place::Elsewhere(source.dimension));
         }
         Ok(Place::Here)

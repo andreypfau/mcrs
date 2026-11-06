@@ -16,7 +16,8 @@ pub struct Handler {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum HandlerWorld {
     /// The world of the dimension of its source: the handler reads the blocks, the chunks or the
-    /// type of that dimension. A source of another dimension goes on there in the next tick.
+    /// type of that dimension. A source of another dimension, or of a column of another cell,
+    /// goes on in the cell that owns its column in the next tick.
     SourceDimension,
     /// The world where the run is: the handler reads only the targets, the registries and the
     /// copies of global state that every world holds.
