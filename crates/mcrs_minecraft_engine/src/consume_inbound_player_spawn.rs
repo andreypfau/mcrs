@@ -3,6 +3,7 @@ use crate::bus::{
     InboundPlayerSpawn, OutboundPlayerAttached, OutboundPlayerPacket, PacketPayload,
     PlayerInfoEntry, to,
 };
+use crate::coordinator::clock::GameTime;
 use crate::coordinator::default_game_mode::DefaultGameMode;
 use crate::coordinator::ops::{DefaultOpLevel, OpList};
 use crate::dimension_change::Arrival;
@@ -64,6 +65,7 @@ pub(crate) fn consume_inbound_player_spawn(
     ops: Res<OpList>,
     default_op_level: Res<DefaultOpLevel>,
     mut announced_levels: MessageWriter<OpLevelAnnounced>,
+    time: Res<GameTime>,
 ) {
     for spawn in reader.read() {
         let Some((dim, dim_key, dimension_type)) = dims.iter().next() else {
@@ -82,7 +84,7 @@ pub(crate) fn consume_inbound_player_spawn(
         let arrival =
             Arrival::absolute(Transform::default().with_translation(spawn.snapshot.position));
         let mut teleport_state = TeleportState::default();
-        let login_teleport_id = teleport_state.sent(arrival.transform);
+        let login_teleport_id = teleport_state.sent(arrival.transform, *time);
         let new_entity = spawn_player_entity(
             &mut commands,
             spawn,

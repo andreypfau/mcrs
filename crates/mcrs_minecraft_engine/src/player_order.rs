@@ -16,6 +16,7 @@ use mcrs_minecraft_resource::ResourceKeyBuf;
 
 use crate::ability::PlayerGameMode;
 use crate::bus::{self, PacketPayload};
+use crate::coordinator::clock::GameTime;
 use crate::dimension_change::{Arrival, DimensionChangeError};
 use crate::teleport::TeleportState;
 
@@ -116,6 +117,10 @@ pub fn teleport(
     if let Some(mut requests) = world.get_resource_mut::<DepartureRequests>() {
         requests.cancel(player);
     }
+    let now = world
+        .get_resource::<GameTime>()
+        .copied()
+        .unwrap_or_default();
     let mut entity = world
         .get_entity_mut(player)
         .map_err(|_| DimensionChangeError::NoPlayer)?;
@@ -128,7 +133,7 @@ pub fn teleport(
     *transform = arrival.transform;
     let teleport_id = entity
         .get_mut::<TeleportState>()
-        .map(|mut state| state.sent(arrival.transform))
+        .map(|mut state| state.sent(arrival.transform, now))
         .ok_or(DimensionChangeError::NoArrivalState)?;
     let position = arrival.position_packet(teleport_id);
     world.write_message(bus::to(session, PacketPayload::PlayerPosition(position)).critical());

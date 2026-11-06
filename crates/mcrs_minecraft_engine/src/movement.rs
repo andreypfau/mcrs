@@ -1,7 +1,8 @@
 use crate::bus::to;
 use bevy_app::{FixedPostUpdate, FixedUpdate, Plugin};
 use bevy_ecs::prelude::{
-    Changed, DetectChangesMut, Entity, Message, MessageReader, MessageWriter, Mut, On, Query, With,
+    Changed, DetectChangesMut, Entity, Message, MessageReader, MessageWriter, Mut, On, Query, Res,
+    With,
 };
 use bevy_ecs::schedule::IntoScheduleConfigs;
 use bevy_math::DVec3;
@@ -18,7 +19,8 @@ use mcrs_minecraft_protocol_game::serverbound::{
 };
 
 use crate::bus::{OutboundPlayerPacket, PacketPayload};
-use crate::teleport::{MAX_XZ, MAX_Y, TeleportState};
+use crate::coordinator::clock::GameTime;
+use crate::teleport::{AcceptOutcome, MAX_XZ, MAX_Y, TeleportState};
 use mcrs_minecraft_engine_world::session::Owner;
 
 pub struct MovementPlugin;
@@ -100,30 +102,55 @@ pub struct PlayerMovement {
 
 pub(crate) fn process_movement(
     mut reader: MessageReader<PlayerMovement>,
-    mut query: Query<(Mut<TeleportState>, Mut<Transform>)>,
+    mut query: Query<(&Owner, Mut<TeleportState>, Mut<Transform>)>,
+    time: Res<GameTime>,
+    mut packets: MessageWriter<OutboundPlayerPacket>,
 ) {
     const MAX_POS: DVec3 = DVec3::new(MAX_XZ, MAX_Y, MAX_XZ);
     const MIN_POS: DVec3 = DVec3::new(-MAX_XZ, -MAX_Y, -MAX_XZ);
 
-    reader.read().for_each(|m| {
-        let Ok((mut state, mut transform)) = query.get_mut(m.entity) else {
-            return;
+    for movement in reader.read() {
+        let Ok((owner, mut state, mut transform)) = query.get_mut(movement.entity) else {
+            continue;
         };
-        if state.pending_teleports() > 0 {
-            return;
+        if state.pending().is_some() {
+            if let Some(destination) = state.resend_due(*time) {
+                let id = state.sent(destination, *time);
+                packets.write(position_packet(owner, id, destination));
+            }
+            continue;
         }
-        if let Some(p) = m.position {
-            transform.set_if_neq(transform.with_translation(p.clamp(MIN_POS, MAX_POS)));
+        if let Some(position) = movement.position {
+            transform.set_if_neq(transform.with_translation(position.clamp(MIN_POS, MAX_POS)));
         }
-        if let Some(l) = m.look {
-            transform.set_if_neq(transform.with_rotation(l));
+        if let Some(look) = movement.look {
+            transform.set_if_neq(transform.with_rotation(look));
         }
         state.sync(*transform);
-    })
+    }
+}
+
+fn position_packet(
+    owner: &Owner,
+    teleport_id: i32,
+    destination: Transform,
+) -> OutboundPlayerPacket {
+    to(
+        owner.0,
+        PacketPayload::PlayerPosition(ClientboundPlayerPosition {
+            teleport_id: VarInt(teleport_id),
+            position: destination.translation,
+            velocity: DVec3::ZERO,
+            look: Look::default(),
+            flags: mcrs_minecraft_protocol_game::PositionFlags::default(),
+        }),
+    )
+    .critical()
 }
 
 fn teleport(
     mut clients: Query<(&Owner, &mut TeleportState, &Transform), (Changed<Transform>, With<Owner>)>,
+    time: Res<GameTime>,
     mut packet_writer: MessageWriter<OutboundPlayerPacket>,
 ) {
     for (owner, mut state, transform) in &mut clients {
@@ -132,39 +159,32 @@ fn teleport(
         let changed_rot = transform.rotation != synced.rotation;
 
         if changed_pos || changed_rot {
-            let teleport_id = state.sent(*transform);
-            packet_writer.write(
-                to(
-                    owner.0,
-                    PacketPayload::PlayerPosition(ClientboundPlayerPosition {
-                        teleport_id: VarInt(teleport_id),
-                        position: transform.translation,
-                        velocity: DVec3::ZERO,
-                        look: Look::default(),
-                        flags: mcrs_minecraft_protocol_game::PositionFlags::default(),
-                    }),
-                )
-                .critical(),
-            );
+            let teleport_id = state.sent(*transform, *time);
+            packet_writer.write(position_packet(owner, teleport_id, *transform));
         }
     }
 }
 
-/// Decrement the pending-teleport counter when the client confirms a teleport.
-/// The server increments `pending_teleports` for every server-authoritative
-/// position it sends (login sync and each `teleport` emit); without this the
-/// counter would grow without bound and any gate on it would block the player
-/// permanently. `event.entity` is the in-dim player entity, matching the
-/// `TeleportState` owner.
+/// An accept of the pending teleport at its destination confirms it, so moves apply again. An
+/// accept at another position gets a correction: the position of an accept never becomes the
+/// position of the player.
 fn handle_accept_teleportation(
     event: On<Received<ServerboundAcceptTeleportation>>,
-    mut players: Query<&mut TeleportState>,
+    mut players: Query<(&Owner, &mut TeleportState)>,
+    time: Res<GameTime>,
+    mut packets: MessageWriter<OutboundPlayerPacket>,
 ) {
-    if event.packet().is_none() {
+    let Some(accept) = event.packet() else {
         return;
-    }
-    if let Ok(mut state) = players.get_mut(event.entity) {
-        state.confirm();
+    };
+    let Ok((owner, mut state)) = players.get_mut(event.entity) else {
+        return;
+    };
+    if let AcceptOutcome::Mismatch { destination } =
+        state.accept(accept.teleport_id.0, accept.position.into())
+    {
+        let id = state.sent(destination, *time);
+        packets.write(position_packet(owner, id, destination));
     }
 }
 
@@ -181,6 +201,7 @@ mod tests {
     fn a_server_move_sends_one_position_with_the_next_teleport_id_and_a_synced_one_none() {
         let mut world = World::new();
         world.init_resource::<Messages<OutboundPlayerPacket>>();
+        world.init_resource::<GameTime>();
         let moved_session = PlayerSession(1);
         let moved = world
             .spawn((
@@ -210,43 +231,102 @@ mod tests {
         let PacketPayload::PlayerPosition(position) = &sent[0].data else {
             panic!("a move is sent as a player position");
         };
-        assert_eq!(position.teleport_id.0, 0);
+        assert_eq!(position.teleport_id.0, 1, "TP-CONFIRM-ID-001");
         assert_eq!(position.position, DVec3::new(1.0, 0.0, 0.0));
 
-        let state = world.get::<TeleportState>(moved).unwrap();
-        assert_eq!(
-            (state.pending_teleports(), state.teleport_id_counter()),
-            (1, 1)
-        );
-        let state = world.get::<TeleportState>(synced).unwrap();
-        assert_eq!(
-            (state.pending_teleports(), state.teleport_id_counter()),
-            (0, 0)
-        );
+        let pending = |entity| {
+            world
+                .get::<TeleportState>(entity)
+                .unwrap()
+                .pending()
+                .map(|p| p.id)
+        };
+        assert_eq!((pending(moved), pending(synced)), (Some(1), None));
+    }
+
+    fn movement(entity: Entity, position: DVec3) -> PlayerMovement {
+        PlayerMovement {
+            entity,
+            position: Some(position),
+            look: None,
+        }
+    }
+
+    fn movement_world() -> World {
+        let mut world = World::new();
+        world.init_resource::<Messages<PlayerMovement>>();
+        world.init_resource::<Messages<OutboundPlayerPacket>>();
+        world.init_resource::<GameTime>();
+        world
+    }
+
+    fn sent_ids(world: &mut World) -> Vec<i32> {
+        world
+            .resource_mut::<Messages<OutboundPlayerPacket>>()
+            .drain()
+            .filter_map(|packet| match packet.data {
+                PacketPayload::PlayerPosition(position) => Some(position.teleport_id.0),
+                _ => None,
+            })
+            .collect()
     }
 
     #[test]
-    fn a_client_move_applies_only_once_every_teleport_is_confirmed() {
-        let mut world = World::new();
-        world.init_resource::<Messages<PlayerMovement>>();
+    fn a_client_move_applies_only_once_the_teleport_is_confirmed() {
+        let mut world = movement_world();
         let mut unconfirmed = TeleportState::default();
-        unconfirmed.sent(Transform::default());
-        let awaiting = world.spawn((Transform::default(), unconfirmed)).id();
+        unconfirmed.sent(Transform::default(), GameTime(0));
+        let awaiting = world
+            .spawn((Owner(PlayerSession(1)), Transform::default(), unconfirmed))
+            .id();
         let confirmed = world
-            .spawn((Transform::default(), TeleportState::default()))
+            .spawn((
+                Owner(PlayerSession(2)),
+                Transform::default(),
+                TeleportState::default(),
+            ))
             .id();
         let to = DVec3::new(5.0, 64.0, 5.0);
         for entity in [awaiting, confirmed] {
-            world.write_message(PlayerMovement {
-                entity,
-                position: Some(to),
-                look: None,
-            });
+            world.write_message(movement(entity, to));
         }
 
         world.run_system_once(process_movement).unwrap();
 
         let at = |entity| world.get::<Transform>(entity).unwrap().translation;
         assert_eq!((at(awaiting), at(confirmed)), (DVec3::ZERO, to));
+        assert_eq!(
+            sent_ids(&mut world),
+            [] as [i32; 0],
+            "the teleport is fresh"
+        );
+    }
+
+    #[test]
+    fn a_move_during_a_stale_teleport_resends_it_with_the_next_id() {
+        let mut world = movement_world();
+        let destination = Transform::default().with_translation(DVec3::new(3.0, 64.0, 0.0));
+        let mut state = TeleportState::default();
+        state.sent(destination, GameTime(0));
+        let player = world
+            .spawn((Owner(PlayerSession(1)), destination, state))
+            .id();
+        world.insert_resource(GameTime(20));
+        world.write_message(movement(player, DVec3::new(9.0, 64.0, 0.0)));
+
+        world.run_system_once(process_movement).unwrap();
+
+        assert_eq!(
+            sent_ids(&mut world),
+            [2],
+            "TP-CONFIRM-RES-002, TP-CONFIRM-ID-002"
+        );
+        let state = world.get::<TeleportState>(player).unwrap();
+        assert_eq!(
+            state.pending().map(|pending| pending.destination),
+            Some(destination),
+            "TP-CONFIRM-RES-004"
+        );
+        assert_eq!(world.get::<Transform>(player), Some(&destination));
     }
 }

@@ -14,6 +14,7 @@ use mcrs_minecraft_resource::ResourceKeyBuf;
 
 use crate::ability::{PlayerFlying, PlayerGameMode, PlayerOpLevel};
 use crate::client_info::ClientInfo;
+use crate::coordinator::clock::GameTime;
 use crate::dimension_change::{Arrival, DimensionChangeError};
 use crate::game_mode::ListedGameMode;
 use crate::game_profile::GameProfile;
@@ -51,6 +52,8 @@ pub(crate) struct CarriedPlayer {
     pub(crate) flying: PlayerFlying,
     pub(crate) op_level: PlayerOpLevel,
     pub(crate) teleport: TeleportState,
+    /// The game time at which the player left, when the host sends its arrival teleport.
+    pub(crate) departed_at: GameTime,
     profile: Option<GameProfile>,
     view_distance: Option<PlayerViewDistance>,
     client_info: Option<ClientInfo>,
@@ -93,6 +96,11 @@ impl CarriedPlayer {
         let Some(teleport) = player.take::<TeleportState>() else {
             return Err(DimensionChangeError::NoArrivalState);
         };
+        let departed_at = player
+            .world()
+            .get_resource::<GameTime>()
+            .copied()
+            .unwrap_or_default();
         Ok(Self {
             uuid,
             transform,
@@ -100,6 +108,7 @@ impl CarriedPlayer {
             flying,
             op_level,
             teleport,
+            departed_at,
             profile: player.take(),
             view_distance: player.take(),
             client_info: player.take(),

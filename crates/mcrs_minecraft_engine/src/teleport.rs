@@ -1,7 +1,10 @@
 //! The bounds of a teleport and the teleport state of a player.
 
 use bevy_ecs::component::Component;
+use bevy_math::DVec3;
 use mcrs_minecraft_engine_world::entity::physics::Transform;
+
+use crate::coordinator::clock::GameTime;
 
 /// The horizontal bound, in blocks, of a position a player can reach.
 pub const MAX_XZ_BLOCKS: i32 = 30_000_000;
@@ -10,46 +13,84 @@ pub const MAX_XZ: f64 = MAX_XZ_BLOCKS as f64;
 /// The vertical bound of a position a player can reach.
 pub const MAX_Y: f64 = 20_000_000.0;
 
-/// The server-side state of the teleports of a player: the ids it sent and the client did not
-/// confirm yet, and the transform the client last knew.
+/// The largest distance, in blocks, between the position of an accept and the destination of its
+/// teleport. The client computes the destination in its own arithmetic.
+pub const OFFSET_THRESHOLD: f64 = 0.001;
+
+/// The ticks after a teleport before a move resends it.
+pub const RESEND_INTERVAL: i64 = 20;
+
+/// The server-side state of the teleports of a player: the newest id it sent, the teleport the
+/// client did not confirm yet, and the transform the client last knew.
 #[derive(Component, Clone, Debug, Default)]
 pub struct TeleportState {
-    /// Counts up as teleports are made.
-    teleport_id_counter: u32,
-    /// The number of pending client teleports that have yet to receive a
-    /// confirmation. Inbound client position packets should be ignored while
-    /// this is nonzero.
-    pending_teleports: u32,
+    /// The id of the newest teleport; 0 before the first one.
+    last_id: i32,
+    pending: Option<PendingTeleport>,
     synced_transform: Transform,
 }
 
+/// A teleport the client did not confirm yet. Only the newest teleport can be pending: a newer
+/// one replaces it.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct PendingTeleport {
+    pub id: i32,
+    pub destination: Transform,
+    pub sent_at: GameTime,
+}
+
+/// What an accept does to the pending teleport.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum AcceptOutcome {
+    /// The accept confirmed the pending teleport; moves apply again.
+    Confirmed,
+    /// The accept names no pending teleport, or an older one; nothing changes.
+    Ignored,
+    /// The accept names the pending teleport at a position away from its destination. The
+    /// teleport stays pending, and the caller sends a correction to `destination`.
+    Mismatch { destination: Transform },
+}
+
 impl TeleportState {
-    /// The id the next teleport gets.
-    pub fn teleport_id_counter(&self) -> u32 {
-        self.teleport_id_counter
+    /// The teleport the client did not confirm yet.
+    pub fn pending(&self) -> Option<&PendingTeleport> {
+        self.pending.as_ref()
     }
 
-    /// The teleports the client did not confirm yet.
-    pub fn pending_teleports(&self) -> u32 {
-        self.pending_teleports
+    /// A teleport to `destination` that the caller sends to the client itself, at `now`: the id
+    /// of the packet, after which the `teleport` system treats `destination` as already sent.
+    pub fn sent(&mut self, destination: Transform, now: GameTime) -> i32 {
+        // The bound of the id is not stated; the id wraps like the VarInt it is sent as.
+        self.last_id = self.last_id.wrapping_add(1);
+        self.pending = Some(PendingTeleport {
+            id: self.last_id,
+            destination,
+            sent_at: now,
+        });
+        self.synced_transform = destination;
+        self.last_id
     }
 
-    /// Claim the next teleport id from the shared sequence and register a
-    /// pending confirmation. Used by both the login position sync and the
-    /// server-authoritative `teleport` system so login ids draw from the same
-    /// monotonic counter and can never alias a later teleport id.
-    pub fn next_teleport_id(&mut self) -> i32 {
-        let id = self.teleport_id_counter as i32;
-        self.teleport_id_counter = self.teleport_id_counter.wrapping_add(1);
-        self.pending_teleports = self.pending_teleports.wrapping_add(1);
-        id
+    /// The destination to send again when a move arrives at `now` while a teleport is pending.
+    pub fn resend_due(&self, now: GameTime) -> Option<Transform> {
+        self.pending
+            .filter(|pending| now.0.saturating_sub(pending.sent_at.0) >= RESEND_INTERVAL)
+            .map(|pending| pending.destination)
     }
 
-    /// A move the caller sends to the client itself: the next teleport id, after which the
-    /// `teleport` system treats `transform` as already sent.
-    pub fn sent(&mut self, transform: Transform) -> i32 {
-        self.synced_transform = transform;
-        self.next_teleport_id()
+    /// Applies an accept of `id` at `position`.
+    pub fn accept(&mut self, id: i32, position: DVec3) -> AcceptOutcome {
+        let Some(pending) = self.pending.filter(|pending| pending.id == id) else {
+            return AcceptOutcome::Ignored;
+        };
+        if position.distance(pending.destination.translation) < OFFSET_THRESHOLD {
+            self.pending = None;
+            AcceptOutcome::Confirmed
+        } else {
+            AcceptOutcome::Mismatch {
+                destination: pending.destination,
+            }
+        }
     }
 
     /// The transform the client last sent or received.
@@ -61,9 +102,65 @@ impl TeleportState {
     pub fn sync(&mut self, transform: Transform) {
         self.synced_transform = transform;
     }
+}
 
-    /// The client confirmed one pending teleport.
-    pub fn confirm(&mut self) {
-        self.pending_teleports = self.pending_teleports.saturating_sub(1);
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn at(x: f64) -> Transform {
+        Transform::default().with_translation(DVec3::new(x, 64.0, 0.0))
+    }
+
+    #[test]
+    fn the_first_teleport_has_id_1_and_each_later_one_the_next_id() {
+        let mut state = TeleportState::default();
+        let ids = [
+            state.sent(at(0.0), GameTime(0)),
+            state.sent(at(1.0), GameTime(0)),
+            state.sent(at(1.0), GameTime(0)),
+        ];
+        assert_eq!(ids, [1, 2, 3], "TP-CONFIRM-ID-001, TP-CONFIRM-ID-002");
+    }
+
+    #[test]
+    fn only_an_accept_of_the_newest_id_at_the_destination_confirms() {
+        let mut state = TeleportState::default();
+        let older = state.sent(at(0.0), GameTime(0));
+        let newest = state.sent(at(10.0), GameTime(0));
+        let destination = DVec3::new(10.0, 64.0, 0.0);
+
+        assert_eq!(state.accept(older, destination), AcceptOutcome::Ignored);
+        assert_eq!(state.accept(99, destination), AcceptOutcome::Ignored);
+        assert_eq!(
+            state.accept(newest, destination + DVec3::X * 5.0),
+            AcceptOutcome::Mismatch {
+                destination: at(10.0)
+            },
+            "MVC-LAT-008: an accept away from the destination is a correction",
+        );
+        assert!(state.pending().is_some(), "TP-CONFIRM-ACC-002");
+        assert_eq!(
+            state.accept(newest, destination + DVec3::X * 0.0005),
+            AcceptOutcome::Confirmed
+        );
+        assert!(state.pending().is_none());
+        assert_eq!(
+            state.accept(newest, destination),
+            AcceptOutcome::Ignored,
+            "nothing is pending"
+        );
+    }
+
+    #[test]
+    fn a_move_resends_the_pending_teleport_once_20_ticks_passed() {
+        let mut state = TeleportState::default();
+        state.sent(at(3.0), GameTime(100));
+        assert_eq!(state.resend_due(GameTime(119)), None);
+        assert_eq!(
+            state.resend_due(GameTime(120)),
+            Some(at(3.0)),
+            "TP-CONFIRM-RES-002"
+        );
     }
 }

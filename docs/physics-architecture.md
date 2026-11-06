@@ -1459,3 +1459,10 @@ E1..E8, T1 (any time)   D1 ─ D2 ─ D3 ─ D4 ─ D5 ─ D6 ─ D7
 28. PHY-PSH-008: the own player "uses the push in its next travel step", but the rule does not
     say where in the step. The kernel adds `PlayerInput::push` before the input acceleration.
 
+29. TP-CONFIRM-ACC-003 against MVC-LAT-008: the reference sets the position of the player to the
+    position of a confirming accept, also 5 blocks away from the destination. MVC-LAT-008 sends a
+    correction when the accept is `offset_threshold` or more away. The engine follows MVC-LAT-008:
+    a confirmed accept keeps the destination. Which rule wins for a server without the movement
+    checks?
+30. TP-CONFIRM-RES-002 and TP-CONFIRM-RES-003: the engine resends after 20 ticks (U1 allows 20 or
+    21) and only for a move with a position, a rotation or neither; all move packets count (U5).
