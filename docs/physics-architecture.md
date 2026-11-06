@@ -602,6 +602,7 @@ bit-identical to the scalar path. The f32 variant of PHY-DEV-001 is a later leve
 | Tile | memory segment, work unit, grid unit, replication tile | 2 × 2 columns, full height |
 | Task | a batch of tiles, or a range of rows of one heavy tile, ~50–100 µs | adaptive |
 | Tile group | the work unit of the parallel muxer (REPL §7.12) | 8 × 8 tiles |
+| Block tile | the work unit of the block domain, coloured 2 × 2 (§7.4) | 4 × 4 columns (2 × 2 tiles) |
 | Cell | placement in another process or machine | a k-d area of region boxes |
 
 ### 7.2 Cells against one world with tiles, in one process
@@ -636,6 +637,160 @@ Conflicts in a layout of many cells:
 - **C4.** Removed: a block-domain write to an entity of another cell applies before the next pass
   (PHY-BLK-001), because the freeze follows the merge point.
 - **C5. A claim from another cell.** It joins the arbitration one tick later. Spec request R2.
+
+### 7.4 Block shards, first step: random ticks
+
+Random ticks are the first block domain to step in parallel inside one world, because their spec
+fixes only a distribution. SIM-MODEL-106(b) leaves the order of sections, the random streams and the
+pick algorithm free, while each pick stays uniform over the 4096 positions of a section and the rate
+of each block is kept. P-RANDOM allows picks over a list of the positions that tick. The kernel
+(`mcrs_minecraft_simulation::random_tick::random_step`) already draws the picks of a section, and
+the handlers that they run, from a stream keyed by section and step (`StreamKey::Section`), so the
+picks do not depend on the order of the sections or on the partition.
+
+What costs today: `RandomTicking` in `block_simulation.rs` takes every section with
+`EntityTicking`, scans its palette (`ticks_randomly`), and makes `k` picks that mostly land on stone
+or air, all on one core.
+
+**Order in the level tick.** The driver runs `random_step` after the scheduled block and fluid
+ticks and before the block events (the `Phase::BlockEvents` branch), as SIM-TICK-002 and A.4 state.
+The colour phases below stay inside that slot: every colour phase and every overflow round of the
+random ticks ends before the block events start. The client broadcast of SIM-MODEL-107(a) must come
+after the random ticks and before the block events; changes that block events make go out in the
+next tick. Today the block step publishes all its writes at the end (`ColumnChange`), block events
+included: an existing gap, not caused by this section. The broadcast must cut the change list at the
+end of the random-tick slot.
+
+**Area as a maintained index.** A section takes random ticks when its simulation level is at most
+31 and its column reached block-ticking status (SIM-TICK-005, *random-ticked*). Each block tile keeps
+the list of such sections that hold at least one position whose state ticks randomly. The list
+changes on two events only: a ticket change that moves a section into or out of the area, and a
+count of ticking positions that crosses zero. A section of stone or air is never visited.
+
+**Positions that tick.** Each section keeps `ticking: Vec<u16>`, the local indices whose state has
+a non-empty `RandomTickTable::kinds`: a block random tick, a fluid random tick, or both
+(`RandomTicks::BLOCK | FLUID`; lava is a fluid that ticks). Its length is `n`.
+
+- Every write of the block step goes through one wrapper of `SectionBlocksMut::set`, which compares
+  the kinds of the old and the new state. A push is O(1). A removal finds the index by a scan of at
+  most `n` entries (≤ 4096 × 2 bytes, < 1 µs) and swap-removes it: a map from position to index would
+  cost 8 KB per section. The order of the list is not observable.
+- `voxel_update::apply_write` (client edits, halo changes) uses the same wrapper. A section that lands
+  (generation, data layer, halo) builds its list once from its palette (~10 µs).
+- The kernel reads the list through a new accessor of `SimulatedSections`, implemented by the cell
+  volume. The palette scan of `ticks_randomly` becomes `n > 0`.
+- Memory: ~2.1M listed sections × ~120 entries × 2 B ≈ 0.5 GB at 10k players.
+
+**Picks without misses.** For each listed section, `k` times:
+
+```text
+u = random(0..4096)          // the stream of the section and the step
+n = ticking.len()            // read again at each pick: a handler can change the list
+if u < n:
+    at = ticking[u]
+    state = block(at)        // the state now; it ticks, because the list is current
+    if kinds(state) has BLOCK: random_tick(at, state)
+    if kinds(state) has FLUID: fluid_random_tick(at, state, fluid_of(state))   // state read before the handler
+```
+
+A pick hits a ticking position with probability `n / 4096`, uniform among them, which is the
+distribution of a pick over all 4096 positions (SIM-RND-002 steps 2 to 4, SIM-MODEL-106). Because
+the list is kept on each write, a pick after a handler changed the section sees the section as it is
+now, as a pick over the 4096 positions does. No deviation entry is needed.
+
+**Precipitation picks (SIM-RND-004).** Each *random-ticked* column takes `k` picks of probability
+1/48 in **every** tick, with or without rain: water at the surface can freeze without rain, and a
+dimension without weather also makes the picks. A hit runs precipitation at a uniform `(x, z)` of the
+column, at the motion-blocking surface `y` of the column, not at the y of the pick. A tile with `C`
+random-ticked columns draws the number of hits `m` from Binomial(`C × k`, 1/48), then picks `m`
+distinct slots among the `C × k` (column, pick) slots. This is exactly `k` independent 1/48 gates per
+column. Picking columns with replacement would let a column take more than `k` hits, so it is not
+used. The draws come from a stream keyed by the block tile and the step (a new `StreamKey`). The tile
+grid is global, so the stream does not depend on the cells. The vanilla order "precipitation of a
+column before its sections" is a vanilla grouping, free under SIM-MODEL-106(b).
+
+**Reach of the handlers.** No production random-tick handler exists yet: the dimensions run
+`InertBlocks`, and only test behaviours implement `random_tick`. The reach of the vanilla handlers
+that will come (a design input until the block spec states them, request R9): grass and mycelium
+spread within 1 block horizontally; crops, cactus, sugar cane and vines within 1; leaves decay at
+their own position; copper ages from reads within 4; pointed dripstone reads up to ~11 blocks
+vertically; a sapling or a fungus grows a tree, with branches and leaves up to ~8 blocks
+horizontally. A write starts a neighbour chain, and a chain item has its own footprint: a piston
+reads up to 14 blocks along its axis, a tripwire hook up to 41 along its line (SIM-MODEL-006), and a
+chain has no bound as a group.
+
+**Parallel phases by tile colour.** The random ticks use block tiles of 4 × 4 columns (64 blocks; one
+block tile is 2 × 2 entity tiles). Block tiles are coloured on a global 2 × 2 pattern in world
+coordinates. In one colour phase, each tile of the colour owns its **region**: the tile plus a margin
+of 32 blocks on each side. The regions of one colour are disjoint and cover the plane, because tiles
+of one colour are 64 blocks apart. A task holds its region mutably, so tasks share no section.
+
+- An item runs synchronously in its task when its footprint stays in the region. With a margin of 32
+  blocks, every random-tick handler above fits, and so do the piston (14) and the 25-block margin
+  that A.5 names for most update paths. A 2 × 2 colouring of 2 × 2-column tiles would give a margin of
+  only 16 blocks; a 3 × 3 colouring of them would give 32 blocks but nine phases. Wider tiles keep four
+  phases.
+- An item whose footprint leaves the region (a tripwire line, a long chain) is a cross-partition
+  effect (SIM-MODEL-007, P-FOREIGN = message) to the tile that owns its target. It keeps its chain
+  count (SIM-NBR-004). After the four colour phases, overflow rounds run: each round runs the four
+  colours again, only for tiles with messages, in the order (source tile key, sequence). Rounds repeat
+  until no message is left, inside the random-tick slot. The chain limit bounds them.
+- A chain that crosses a region boundary runs at the boundary level of SIM-MODEL-102(b): its part on
+  the other side starts as a new chain later. At the semantic level each chain runs in one partition.
+  Request R10 asks the block spec to allow this for random ticks, or this design must run such a chain
+  serially. The rate is low: a random-tick write starts chains of a few items, and a chain leaves a
+  64-block region only through a long redstone or tripwire line.
+- The result does not depend on the thread count. The colouring is on the global grid, so it does
+  not depend on the cell count while cell boundaries follow block-tile boundaries (a region file is
+  8 × 8 block tiles). At a cell boundary the region reaches into the halo, which is read-only: a write
+  there is the cell message of CELLS §4.
+- Each task has its own chain state, scratch and output (today one `BlockShard` serves the whole
+  step and `shard.chain.reset()` runs once). Ticks that a handler schedules take a calculated sequence
+  (P-SEQ): the tile key, then a sequence in the task, merged after the slot, so the scheduled-tick
+  order does not depend on the threads.
+
+**Cost model.** Per tick: `S × k × c_draw + H × c_handler + P × c_rain`.
+
+| Term | Value at 10k players | Cost |
+|------|----------------------|------|
+| `S`, listed sections | ~2.5 per hot column (the surface section with grass and plants; caves with lava, dripstone or vines) × 850k ≈ 2.1M | |
+| `S × k × c_draw`, `k` = 3, `c_draw` ≈ 3 ns | 6.3M draws | ~19 core-ms |
+| `H = Σ k × n / 4096`, mean `n` ≈ 120 (a grass surface ~220, others ~20) | ~185k handler runs | |
+| `H × c_handler`, `c_handler` ≈ 0.3 µs (a light read, a few block reads; a set with updates in a few percent of runs) | | ~55 core-ms (range 37–185 for 0.2–1 µs) |
+| `P × c_rain`: 850k × 3 / 48 ≈ 53k precipitation runs × ~0.2 µs | | ~11 core-ms |
+| **Total** | | **~85 core-ms** (range ~70–215) |
+
+The handler term is the work that the reference does too. What goes away is the visit of every
+section, the palette scan, the misses, and the single core. With 16 tasks per phase or more, the
+four phases and the rounds cost ~85 / (cores × 0.8) plus ~5 barriers of tens of microseconds.
+
+**Code changes, against the real types.**
+
+1. `RandomTicking` stops being a query of every `EntityTicking` section with a palette scan. Each
+   block tile keeps its listed sections; `RandomPicks::sections` becomes the list of one task.
+2. A tracked write wrapper maintains `ticking` for every write of the block step and of
+   `apply_write`; landings rebuild it. `SimulatedSections` gains the accessor; `ticks_randomly`
+   reads `n`.
+3. `random_pick` draws `u` and indexes `ticking`; it keeps reading the state at the position and
+   the fluid of the state before the handler, as today.
+4. The driver gives each task its own `BlockShard` scratch and `StepOutput`, a cell volume that is
+   writable on the region and readable beyond, and merges the outputs in tile-key order.
+5. Precipitation runs per block tile with the binomial draw and the slot choice above.
+
+### 7.5 Block shards as a whole
+
+| Domain | Global items (A.2) | Same colour phases? | Order to build |
+|--------|--------------------|---------------------|----------------|
+| Random ticks, precipitation | streams, section order: both free | yes (§7.4) | 1 |
+| Block entities (hoppers, furnaces) | none beyond claims (PHY-CMP-017) | yes; small footprints | 2 |
+| Scheduled block and fluid ticks | the sequence (P-SEQ), the budget (P-BUDGET), the collect order (P-COLLECT) | yes, for ticks whose footprint fits the region. Each tile collects its due ticks by the global full key. The budget stays global and exact: when the due ticks of all tiles exceed the budget, a merge of the sorted keys of the tiles finds the key of the last tick that the budget admits, and each tile runs only its ticks up to that key. Below the budget, no merge is needed. Ticks scheduled in the phase take the calculated sequence of §7.4 | 3 |
+| Neighbour and shape updates | the chain: stack, order, count | they run inside the phase that causes them; a chain that leaves its region is an overflow message, at the boundary level | with each phase |
+| Block events | one FIFO per dimension, drained until empty (P-EVENTS) | per tile FIFO, with overflow rounds until all are empty; pistons and flying machines overflow often | 4 |
+| Redstone mechanisms, flying machines, long tripwires | chains and ticks that cross regions in every tick | no: the causal-component shards of ARCH §8 and §9. A component whose items overflowed in recent ticks merges the regions it touches into one task, by the union of their footprints, split again on a budget of ticks | 5 |
+
+The phases of a level tick keep their order (A.4): scheduled block ticks (all colours and rounds),
+then fluid ticks, then random ticks and precipitation, then the broadcast cut, then block events.
+Each phase ends with a barrier before the next one.
 
 ## 8. Players and the movement checks
 
@@ -825,14 +980,14 @@ their own threads and overlap the tick.
 | game events and their listeners | in tick | 0.5 | 5 | 20% of movers emit a step event; listener lookup ~100 ns |
 | tile events | in tick | 2 | 12.5 | |
 | `predict` and the push input | in tick | 27 | 27 | 10k players |
-| block random ticks | in tick | 130 | 130 | 5M sections × 3 picks × ~9 ns; grows with players, not entities |
+| random ticks and precipitation | in tick | 85 | 85 | §7.4: 2.1M listed sections × 3 draws × 3 ns + 185k handlers × 0.3 µs + 53k precipitation runs; range 70–215; grows with players, not entities |
 | scheduled ticks, neighbour updates, block events | in tick | 50 | 50 | assumption |
 | block entities | in tick | 40 | 40 | ~200k × 0.2 µs, assumption |
 | explosion groups: finding and stepping | in tick | 3 | 3 | 10 explosions per tick × ~0.3 ms (rays and exposure), plus ~2 µs per seed to find the groups |
 | `Changed<T>` scans over cold ECS | in tick | 0.2 per scan | 1–2 per scan, serial | target zero at 1M: change lists instead |
 | sync point and serial parts | in tick, serial | 0.3 ms | 1 ms | wall time |
 | reflexes (AIT-RFX-001..008) and the issue of decisions, every living mob | in tick | 6 | 60 | ~0.1 µs per mob: fixed checks, one sight ray for ~10%, the job issue (§5.1) |
-| **In-tick total** | | **~293** | **~547** | |
+| **In-tick total** | | **~248** | **~502** | |
 | muxer, parallel per tile group | beside | 57 | 95 | encode 3 tiers × 60 ns per mover + 5 µs per viewer |
 | encryption (CFB8, ~125 MB/s per core) | beside, network threads | 10–40 | 10–40 | 24–95 MB/s spread; 125–205 with all players in one crowd (315–512 MB/s) |
 | L0 + L1 | beside, host | 5 | 5 | parallel `bridge_inbound` |
@@ -850,12 +1005,14 @@ At 80% parallel efficiency, with block shards and the parallel muxer in place:
 
 | Cores on the compute pool | 100k | 1M |
 |---------------------------|------|----|
-| 16 | ~23 ms | ~43 ms |
-| 32 | ~11 ms | ~21 ms |
-| 48 | ~8 ms | ~14 ms |
+| 16 | ~19 ms | ~39 ms |
+| 32 | ~10 ms | ~20 ms |
+| 48 | ~7 ms | ~13 ms |
 
-Without block shards, the block rows (~220 core-ms) run on one core: 220 ms, four ticks. This holds
-at 100k as well: random ticks grow with the hot sections of 10k players.
+Without block shards, the block rows (~175 core-ms: random ticks 85, scheduled work 50, block
+entities 40) run on one core: 175 ms, three and a half ticks. This holds at 100k as well: the block
+domain grows with the hot sections of 10k players. Even the random ticks alone (~85 ms) exceed the
+tick on one core.
 
 Sequential groups add a tail: the wall time of a phase is at least its longest group.
 
@@ -878,15 +1035,15 @@ hold 20 ticks per second:
 | target (2 µs simple mob, 10 µs villager-class) | 174 core-ms → **5 cores** | 1,740 core-ms → **44 cores** |
 | observed on another server (×3: 23–31 µs per villager) | 522 core-ms → **13 cores** | 5,220 core-ms → **131 cores** |
 
-The other work per tick: in the tick 293 (100k) or 547 (1M) core-ms; beside the tick the muxer
+The other work per tick: in the tick 248 (100k) or 502 (1M) core-ms; beside the tick the muxer
 (57 / 95), encryption (10–40) and L0/L1 (5).
 
 | Case | Dedicated pools (compute + AI + network) | Shared: AI at low priority fills the idle compute cores | Fits one machine |
 |------|------------------------------------------|---------------------------------------------------------|------------------|
-| 100k, AI at target | 16 + 5 + 3 = 24 cores | (293 + 102 + 174) / 40 → 16 cores | yes |
-| 100k, AI observed | 16 + 13 + 3 = 32 cores | (293 + 102 + 522) / 40 → 24 cores | yes |
-| 1M, AI at target | 32 + 44 + 4 = 80 cores | (547 + 140 + 1,740) / 40 → 61, so 64 cores, with no margin | barely |
-| 1M, AI observed | 32 + 131 + 4 = 167 cores | (547 + 140 + 5,220) / 40 → 148 cores | no |
+| 100k, AI at target | 16 + 5 + 3 = 24 cores | (248 + 102 + 174) / 40 → 14, so 16 cores | yes |
+| 100k, AI observed | 16 + 13 + 3 = 32 cores | (248 + 102 + 522) / 40 → 22, so 24 cores | yes |
+| 1M, AI at target | 32 + 44 + 4 = 80 cores | (502 + 140 + 1,740) / 40 → 60, so 64 cores, with little margin | barely |
+| 1M, AI observed | 32 + 131 + 4 = 167 cores | (502 + 140 + 5,220) / 40 → 147 cores | no |
 
 In the shared layout, the AI stage gets few cores while the compute pool runs (~21 ms of each tick
 at 1M on 32 cores) and all of them in the rest; the two ticks of lag absorb that swing, not a lack
@@ -947,8 +1104,10 @@ several tasks.
 
 ### 11.8 Preconditions for 1M
 
-1. **Block shards.** Random ticks, scheduled ticks and block entities step in parallel inside one
-   world. This is also a precondition for 10k players at 100k entities.
+1. **Block shards** (§7.4, §7.5): random ticks with the maintained index and the colour phases
+   first, then block entities, scheduled ticks and block events, then causal-component shards for
+   mechanisms that cross regions. Without them the block domain takes ~175 ms on one core. This is
+   also a precondition for 10k players at 100k entities.
 2. **A parallel muxer** per tile group, and encryption on the network threads (REPL §7.12).
 3. **AI throughput**: 44 cores of AI work at the target cost (§11.3), so a machine of ~64 cores
    shared or ~80 dedicated; at the observed cost, several processes or fewer AI mobs.
@@ -966,19 +1125,23 @@ AIT-RFX, AIT-LAG, AIT-CPL and AIT-CDN). Open requests:
 
 | # | Rule | Change | Reason |
 |---|------|--------|--------|
-| R1 | PHY-CMP-013 | Allow a fixed-size stored form of the source key of kind `entity`: a 128-bit digest of the parent key in place of the parent key itself | the parent key nests without a bound on the depth; a row needs a fixed size (§4) |
-| R2 | PHY-CMP-017 | State the case of a claim from another cell: it reaches the owner one tick later and joins the arbitration of the next tick, as an exception of PHY-INV-014 | the arbitration of one tick cannot hold a claim that is still in the cell mail |
-| R3 | PHY-CMP-020 | State the order of two explosion groups whose reaches intersect but share no entity, for example by merging them into one group | both can remove the same block or ignite the same TNT; in parallel the result would depend on timing |
-| R4 | PHY-CMP-020 | State that the rays of one explosion read the state at the step of that explosion, so an implementation can trace them in parallel | bounds the wall time of a large explosion group |
-| R5 | MVC, vehicle spec | State the checks of a client-controlled vehicle | PHY-SRV-011 leaves them to the vehicle model |
-| R6 | AIT-CPL-005 | Cite PHY-CMP-017, not PHY-CMP-015, and state that a granted item merge enters the claim arbitration of its tick, after the block domain | AIT-CPL-005 resolves the claims "in the order of the merge point", but PHY-CMP-017 arbitrates claims once per tick after the block domain; one item must have one arbitration point |
-| R7 | AIT U1, U6 | Close U1 (PHY-CMP-013 now defines the birth key) and U6 (this note now uses `AiDelay::Inline` with `k = 0` in the exact-parity mode) | both items are resolved |
-| R8 | AIT U2 | State that a path search may run in slices over at most `max_lag` stage ticks, provided that each slice reads the projection of the issue tick | the search reads only its snapshot (AIT-LAG-001); slicing over a versioned projection keeps that |
+| R1 | PHY-CMP-013 | Resolved: PHY-CMP-013 (digest form). Allow a fixed-size stored form of the source key of kind `entity`: a 128-bit digest of the parent key in place of the parent key itself | the parent key nests without a bound on the depth; a row needs a fixed size (§4) |
+| R2 | PHY-CMP-017 | Resolved: PHY-CMP-017, PHY-INV-014 exception. State the case of a claim from another cell: it reaches the owner one tick later and joins the arbitration of the next tick, as an exception of PHY-INV-014 | the arbitration of one tick cannot hold a claim that is still in the cell mail |
+| R3 | PHY-CMP-020 | Resolved: PHY-CMP-020 step 4. State the order of two explosion groups whose reaches intersect but share no entity, for example by merging them into one group | both can remove the same block or ignite the same TNT; in parallel the result would depend on timing |
+| R4 | PHY-CMP-020 | Resolved: PHY-EXP-003, PHY-DEV-010. State that the rays of one explosion read the state at the step of that explosion, so an implementation can trace them in parallel | bounds the wall time of a large explosion group |
+| R5 | MVC, vehicle spec | Resolved: MVC-VEH-001..014. State the checks of a client-controlled vehicle | PHY-SRV-011 leaves them to the vehicle model |
+| R6 | AIT-CPL-005 | Resolved: AIT-CPL-005. Cite PHY-CMP-017, not PHY-CMP-015, and state that a granted item merge enters the claim arbitration of its tick, after the block domain | AIT-CPL-005 resolves the claims "in the order of the merge point", but PHY-CMP-017 arbitrates claims once per tick after the block domain; one item must have one arbitration point |
+| R7 | AIT U1, U6 | Resolved: AIT U1 and U6 closed. Close U1 (PHY-CMP-013 now defines the birth key) and U6 (this note now uses `AiDelay::Inline` with `k = 0` in the exact-parity mode) | both items are resolved |
+| R8 | AIT U2 | Resolved: AIT U2. State that a path search may run in slices over at most `max_lag` stage ticks, provided that each slice reads the projection of the issue tick | the search reads only its snapshot (AIT-LAG-001); slicing over a versioned projection keeps that |
+| R9 | block simulation spec, SIM-MODEL-006 | State a bound of the footprint of each random-tick handler and each neighbour-changed handler, as data per block | the driver decides from the bound whether an item runs in its region or is a message; today the radii are examples only |
+| R10 | SIM-MODEL-102(b), A.0 | Allow a chain that a random tick starts to cross a partition boundary at the semantic level, as a message in a later overflow round of the same phase; or state that it must run serially | at the semantic level each chain runs in one partition; the colour phases split the rare chain that leaves a 64-block region |
+| R11 | SIM-RND-004 | State that the precipitation draws of a group of columns may come from one stream per group, with the hits as distinct (column, pick) slots | the binomial draw per tile replaces `k` draws per column |
 
 ## 13. Open questions
 
-1. Block shards: the shard key (tile, or causal component) and the rule for a random tick that
-   writes a block in another shard.
+1. Block shards: the random-tick step of §7.4 is designed; open are the rate of chains that leave
+   a 64-block region (measure it), the serial fallback if R10 is refused, the cost of the budget cut
+   of the scheduled ticks when the budget binds, and when a causal component takes over from the colour phases.
 2. Brain state: persistence and the move to another cell.
 3. The muxer cost of 250k movers per tick, measured.
 4. The worst case of an explosion group (1,000 TNT) is ~30 ms wall even with fanned-out rays.
