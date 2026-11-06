@@ -43,7 +43,7 @@ pub fn run_pending_flush(world: &mut World) {
 }
 
 use bytes::{BufMut, Bytes, BytesMut};
-use mcrs_minecraft_network::inbound_rate::InboundRateBucket;
+use mcrs_minecraft_network::inbound_rate::{InboundPacketRate, InboundRateLimit};
 use mcrs_minecraft_network::metrics::{BridgeTelemetry, PacketDispatcher, PacketKind};
 use mcrs_minecraft_network::{
     ConnectionState, RawConnection, ServerSideConnection, SharedAppend, SharedFrames, WriterWakes,
@@ -661,17 +661,19 @@ pub fn bridge_inbound(
     mut conns: Query<(
         Entity,
         &mut ServerSideConnection,
-        &mut InboundRateBucket,
+        &mut InboundPacketRate,
         Option<&HostAnchorRef>,
         &ConnectionState,
     )>,
+    rate_limit: Option<Res<InboundRateLimit>>,
     mut commands: Commands,
     mut sessions: Query<(&Session, &SessionPlacement, &mut PendingInbound)>,
     mut dim_inputs: ResMut<DimInputs>,
     mut telemetry: ResMut<BridgeTelemetry>,
     mut dispatcher: ResMut<PacketDispatcher>,
 ) {
-    for (entity, mut conn, mut bucket, anchor_ref, state) in conns.iter_mut() {
+    let rate_limit = rate_limit.as_deref().copied().unwrap_or_default();
+    for (entity, mut conn, mut rate, anchor_ref, state) in conns.iter_mut() {
         if *state != ConnectionState::Game {
             continue;
         }
@@ -679,12 +681,9 @@ pub fn bridge_inbound(
         loop {
             match conn.raw.try_recv() {
                 Ok(Some(pkt)) => {
-                    if !bucket.consume_or_flag(pkt.timestamp) {
-                        conn.disconnect(
-                            ConnectionState::Game,
-                            Text::from("Connection flood detected"),
-                        )
-                        .ok();
+                    if !rate.count(pkt.timestamp, rate_limit) {
+                        conn.disconnect(ConnectionState::Game, InboundRateLimit::reason())
+                            .ok();
                         commands.entity(entity).remove::<ServerSideConnection>();
                         telemetry.kick_flood_total += 1;
                         break;

@@ -1,4 +1,4 @@
-use crate::inbound_rate::InboundRateBucket;
+use crate::inbound_rate::{InboundPacketRate, InboundRateLimit};
 use crate::intent::status_frame;
 use crate::metrics::Malformed;
 use crate::{ConnectionState, NetworkSet, RawConnection, WriterWakes};
@@ -53,6 +53,8 @@ pub struct NetworkPlugin {
     /// The length of the queue of connections the kernel completes before the accept loop takes
     /// them. A burst of clients beyond this length gets connection resets.
     pub accept_backlog: u32,
+    /// The largest average of packets per second of one connection; 0 turns the limit off.
+    pub rate_limit: InboundRateLimit,
 }
 
 const SERVER_ICON: &[u8] = include_bytes!(concat!(
@@ -80,6 +82,7 @@ impl Default for NetworkPlugin {
             enable_status: true,
             send_buffer_bytes: 512 * 1024,
             accept_backlog: 1024,
+            rate_limit: InboundRateLimit::default(),
         }
     }
 }
@@ -194,6 +197,7 @@ fn build_plugin(app: &mut App, plugin: &NetworkPlugin) -> anyhow::Result<()> {
 
     app.insert_resource(shared_state.clone());
     app.insert_resource(BoundAddress(bound));
+    app.insert_resource(plugin.rate_limit);
     insert_status(app, status_send);
 
     let mut webtransport_endpoint = {
@@ -335,7 +339,7 @@ impl FromWorld for WriterWakes {
 }
 
 #[derive(Component)]
-#[require(InboundRateBucket)]
+#[require(InboundPacketRate)]
 pub struct ServerSideConnection {
     pub raw: Box<RawConnection>,
 }
