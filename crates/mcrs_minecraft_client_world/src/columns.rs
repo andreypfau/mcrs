@@ -16,9 +16,10 @@ use bevy::tasks::{AsyncComputeTaskPool, Task, futures::check_ready};
 use mcrs_minecraft_biome_file::BiomeFile;
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_chunk::section::Biomes;
-use mcrs_minecraft_chunk::{PalettedContainer, SectionKind};
+use mcrs_minecraft_chunk::{LightStorage, PalettedContainer, SectionKind};
 use mcrs_minecraft_core::BoundingBox;
 use mcrs_minecraft_dimension_environment::dimension_type::DimensionTypeFile;
+use mcrs_minecraft_light_engine::block_light::block_light_registry;
 use mcrs_minecraft_protocol::{Decode, WritePacket};
 use mcrs_minecraft_protocol_game::ColumnPos;
 use mcrs_minecraft_protocol_game::chunk::{ChunkData, LightChunk, LightData};
@@ -34,6 +35,7 @@ use mcrs_minecraft_resource::Id;
 use mcrs_voxel::{BlockPos, BlockStateId, LocalPos, SectionPos};
 
 use crate::block_prediction::BlockPredictions;
+use crate::client_light;
 use crate::joined_game::CurrentDimension;
 use mcrs_minecraft_network::Instant;
 use mcrs_minecraft_network::client::{
@@ -66,14 +68,17 @@ pub struct Extent {
 pub struct Dimension {
     pub name: String,
     pub extent: Extent,
+    /// The dimension type has sky light, so the client lights the sky layer of a block change.
+    pub sky_light: bool,
 }
 
-/// A dimension with no name, for a store that only ever holds one.
+/// A dimension with no name and with sky light, for a store that only ever holds one.
 impl From<Extent> for Dimension {
     fn from(extent: Extent) -> Self {
         Dimension {
             name: String::new(),
             extent,
+            sky_light: true,
         }
     }
 }
@@ -130,6 +135,7 @@ pub struct ColumnStore {
     dimension: Option<Dimension>,
     columns: HashMap<ColumnPos, Arc<Column>>,
     changes: Vec<ColumnChange>,
+    light_checks: Vec<LightCheck>,
 }
 
 impl ColumnStore {
@@ -143,6 +149,7 @@ impl ColumnStore {
                 self.changes.push(ColumnChange::Departed(pos, column));
             }
             self.dimension = Some(dimension);
+            self.light_checks.clear();
         }
     }
 
@@ -151,6 +158,11 @@ impl ColumnStore {
             self.changes.push(ColumnChange::Departed(pos, column));
         }
         self.dimension = None;
+        self.light_checks.clear();
+    }
+
+    pub fn dimension(&self) -> Option<&Dimension> {
+        self.dimension.as_ref()
     }
 
     fn holds_nothing(&self) -> bool {
@@ -208,7 +220,68 @@ impl ColumnStore {
             section.states.push(state);
         }
         self.changes.push(ColumnChange::Reblocked(at, state));
+        self.light_checks.push(LightCheck {
+            pos: at,
+            old,
+            new: state,
+        });
         Some(old)
+    }
+
+    pub(crate) fn has_light_checks(&self) -> bool {
+        !self.light_checks.is_empty()
+    }
+
+    /// The block changes since the last call, for the light step to check.
+    pub(crate) fn take_light_checks(&mut self) -> Vec<LightCheck> {
+        std::mem::take(&mut self.light_checks)
+    }
+
+    /// The light of a section of a resident column. A section the server sent no light for is
+    /// dark in both layers.
+    pub(crate) fn section_light(&self, at: SectionPos) -> Option<SectionLight> {
+        let column = self.columns.get(&ColumnPos::from(at))?;
+        let row = column.light.get(column.light_row(at.y)?)?;
+        let Some(cells) = row else {
+            return Some(SectionLight::default());
+        };
+        let mut layer = Box::new([0u8; SectionPos::VOLUME]);
+        for (out, cell) in layer.iter_mut().zip(cells.iter()) {
+            *out = cell & 0x0f;
+        }
+        let sky = LightStorage::from_field(&layer);
+        for (out, cell) in layer.iter_mut().zip(cells.iter()) {
+            *out = cell >> 4;
+        }
+        Some(SectionLight {
+            sky,
+            block: LightStorage::from_field(&layer),
+        })
+    }
+
+    /// Replaces the layers of a section of a resident column that `light` holds.
+    pub(crate) fn set_section_light(&mut self, at: SectionPos, light: SectionLightChange) {
+        let pos = ColumnPos::from(at);
+        let Some(column) = self.columns.get_mut(&pos) else {
+            return;
+        };
+        let Some(index) = column.light_row(at.y) else {
+            return;
+        };
+        let Some(row) = Arc::make_mut(column).light.get_mut(index) else {
+            return;
+        };
+        let cells = row.get_or_insert_with(|| Box::new([0u8; SectionPos::VOLUME]));
+        let mut layer = Box::new([0u8; SectionPos::VOLUME]);
+        for (storage, shift) in [(light.sky, 0), (light.block, 4)] {
+            let Some(storage) = storage else { continue };
+            storage.write_field(&mut layer);
+            let keep = !(0x0f << shift);
+            for (cell, value) in cells.iter_mut().zip(layer.iter()) {
+                *cell = (*cell & keep) | (value << shift);
+            }
+        }
+        self.changes.push(ColumnChange::Relit(pos, vec![at.y]));
     }
 
     /// Moves every change since the last drain to the end of `into`.
@@ -458,6 +531,11 @@ impl Column {
         touched
     }
 
+    /// The index of the light row of section `sy`, within the rows or past them.
+    fn light_row(&self, sy: i32) -> Option<usize> {
+        usize::try_from(sy - self.min_section_y + 1).ok()
+    }
+
     #[inline]
     pub fn section(&self, sy: i32) -> Option<&Section> {
         let index = usize::try_from(sy - self.min_section_y).ok()?;
@@ -553,15 +631,19 @@ fn biome_ids(
     }
 }
 
-fn extent_of(registries: &Registries, current: &CurrentDimension) -> Option<Extent> {
+fn dimension_of(registries: &Registries, current: &CurrentDimension) -> Option<Dimension> {
     let dimension_types = registries.registry::<DimensionTypeFile>()?;
     let dimension_type = dimension_types.get(Id::checked(
         current.dimension_type.number(),
         dimension_types.len(),
     )?)?;
-    Some(Extent {
-        min_section_y: dimension_type.min_y >> SectionPos::BITS,
-        sections: usize::try_from(dimension_type.height).ok()? / SectionPos::SIZE,
+    Some(Dimension {
+        name: current.key.to_string(),
+        extent: Extent {
+            min_section_y: dimension_type.min_y >> SectionPos::BITS,
+            sections: usize::try_from(dimension_type.height).ok()? / SectionPos::SIZE,
+        },
+        sky_light: dimension_type.has_skylight,
     })
 }
 
@@ -667,6 +749,28 @@ enum Arrival {
     BatchEnd(u32),
 }
 
+/// A block change that the light step checks.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct LightCheck {
+    pub(crate) pos: BlockPos,
+    pub(crate) old: BlockStateId,
+    pub(crate) new: BlockStateId,
+}
+
+/// The two light layers of one section.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub(crate) struct SectionLight {
+    pub(crate) sky: LightStorage,
+    pub(crate) block: LightStorage,
+}
+
+/// The layers of one section that a light calculation changed.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct SectionLightChange<'a> {
+    pub(crate) sky: Option<&'a LightStorage>,
+    pub(crate) block: Option<&'a LightStorage>,
+}
+
 /// A block state the server sent for one position.
 struct BlockChange {
     pos: BlockPos,
@@ -705,13 +809,10 @@ impl Arrivals {
 
     fn enter(&mut self, registries: &Registries, spawn: &PlayerSpawnInfo) {
         let current = CurrentDimension::of(spawn);
-        match extent_of(registries, &current) {
-            Some(extent) => {
-                self.extent = Some(extent);
-                self.queue.push_back(Arrival::Enter(Dimension {
-                    name: current.key.to_string(),
-                    extent,
-                }));
+        match dimension_of(registries, &current) {
+            Some(dimension) => {
+                self.extent = Some(dimension.extent);
+                self.queue.push_back(Arrival::Enter(dimension));
             }
             None => error!(
                 "dimension type {} has no extent: columns have nowhere to sit",
@@ -896,12 +997,46 @@ fn on_batch_finished(
     }
 }
 
+/// The light of one `light_update`, held back until the local light of the frame is done.
+struct ServerLight {
+    pos: ColumnPos,
+    update: ColumnLight,
+}
+
+/// The local light of each block change comes before the server light of the same frame, so
+/// the server light wins over it. A column that arrives or leaves settles both first, so each
+/// lands on the column it was meant for.
+struct LightStep<'a> {
+    blocks: Option<&'a Blocks>,
+    server: Vec<ServerLight>,
+}
+
+impl LightStep<'_> {
+    fn settle(&mut self, store: &mut ResMut<ColumnStore>) {
+        if store.has_light_checks() {
+            let store = store.as_mut();
+            let checks = store.take_light_checks();
+            if let Some(blocks) = self.blocks {
+                client_light::relight(store, &block_light_registry(blocks), &checks);
+            }
+        }
+        for server in self.server.drain(..) {
+            store.relight(server.pos, &server.update);
+        }
+    }
+}
+
 /// Lands what has finished decoding, in packet order. The store is only borrowed mutably when
 /// something actually lands, so its change tick means a column moved.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "a Bevy system: each resource and writer is its own parameter"
+)]
 fn settle_columns(
     mut arrivals: ResMut<Arrivals>,
     mut store: ResMut<ColumnStore>,
     mut predictions: ResMut<BlockPredictions>,
+    blocks: Option<Res<Blocks>>,
     mut changes: MessageWriter<ColumnChange>,
     mut drained: Local<Vec<ColumnChange>>,
     connection: Option<Single<(Entity, &mut ClientConnection)>>,
@@ -909,16 +1044,24 @@ fn settle_columns(
 ) {
     let mut connection = connection.map(Single::into_inner);
     let arrivals = arrivals.bypass_change_detection();
+    let mut light = LightStep {
+        blocks: blocks.as_deref(),
+        server: Vec::new(),
+    };
     while let Some(arrival) = arrivals.queue.pop_front() {
         match arrival {
             Arrival::Enter(dimension) => {
+                light.settle(&mut store);
                 if store.dimension.as_ref() != Some(&dimension) {
                     predictions.clear();
                 }
                 store.enter(dimension);
             }
-            Arrival::Forget(pos) => store.remove(pos),
-            Arrival::Light(pos, light) => store.relight(pos, &light),
+            Arrival::Forget(pos) => {
+                light.settle(&mut store);
+                store.remove(pos);
+            }
+            Arrival::Light(pos, update) => light.server.push(ServerLight { pos, update }),
             Arrival::Blocks(changes) => {
                 for change in changes {
                     if let Some(state) = predictions.server_update(change.pos, change.state) {
@@ -945,7 +1088,10 @@ fn settle_columns(
                     arrivals.queue.push_front(Arrival::Column(task));
                     break;
                 }
-                Some(Ok(Some((pos, column)))) => store.insert(pos, column),
+                Some(Ok(Some((pos, column)))) => {
+                    light.settle(&mut store);
+                    store.insert(pos, column);
+                }
                 Some(Ok(None)) => {}
                 Some(Err(error)) => {
                     if let Some((entity, _)) = &connection {
@@ -961,6 +1107,7 @@ fn settle_columns(
             },
         }
     }
+    light.settle(&mut store);
     store.bypass_change_detection().drain_changes(&mut drained);
     changes.write_batch(drained.drain(..));
 }
@@ -1448,6 +1595,111 @@ mod tests {
         assert_eq!(block(store, 3, 4, 5), placed);
     }
 
+    fn corpus_state(name: &str) -> BlockStateId {
+        mcrs_minecraft_engine_registries::test_corpus()
+            .0
+            .default_state(name)
+            .expect("the corpus holds the block")
+    }
+
+    /// A store of one column: stone up to `y = 15` with one cell of cave at `(5, 14, 5)`, and
+    /// open sky above, with the sky light that the server sends for that.
+    fn cave_app() -> App {
+        let mut app = App::new();
+        app.init_resource::<ColumnStore>()
+            .init_resource::<Arrivals>()
+            .init_resource::<BlockPredictions>()
+            .insert_resource(mcrs_minecraft_engine_registries::test_corpus().0.clone())
+            .add_message::<ColumnChange>()
+            .add_systems(Update, settle_columns);
+        let stone = corpus_state("minecraft:stone");
+        let mut ground = Section::air();
+        ground.blocks.fill(stone);
+        ground.states = vec![stone];
+        let mut store = app.world_mut().resource_mut::<ColumnStore>();
+        store.enter(Extent {
+            min_section_y: 0,
+            sections: 2,
+        });
+        store.insert(
+            ColumnPos::new(0, 0),
+            Column::unlit(0, vec![Some(ground), None]),
+        );
+        store.set_block(BlockPos::new(5, 14, 5), AIR);
+        for sy in [1, 2] {
+            store.set_section_light(
+                SectionPos::new(0, sy, 0),
+                SectionLightChange {
+                    sky: Some(&LightStorage::Uniform(15)),
+                    block: None,
+                },
+            );
+        }
+        store.take_light_checks();
+        app
+    }
+
+    fn sky_and_block(app: &App, pos: BlockPos) -> (u8, u8) {
+        let light = app
+            .world()
+            .resource::<ColumnStore>()
+            .light(pos)
+            .expect("the column is resident");
+        (light & 0x0f, light >> 4)
+    }
+
+    fn server_sets(app: &mut App, pos: BlockPos, state: BlockStateId) {
+        app.world_mut()
+            .resource_mut::<Arrivals>()
+            .queue
+            .push_back(Arrival::Blocks(vec![BlockChange { pos, state }]));
+    }
+
+    #[test]
+    fn cbk_lgt_003_a_broken_roof_lets_the_sky_in_within_the_frame() {
+        let mut app = cave_app();
+        let cave = BlockPos::new(5, 14, 5);
+        app.update();
+        assert_eq!(sky_and_block(&app, cave), (0, 0));
+
+        server_sets(&mut app, BlockPos::new(5, 15, 5), AIR);
+        app.update();
+        assert_eq!(sky_and_block(&app, cave), (15, 0));
+    }
+
+    #[test]
+    fn cbk_lgt_001_a_placed_light_source_lights_and_its_break_darkens() {
+        let mut app = cave_app();
+        let source = BlockPos::new(5, 20, 5);
+        server_sets(&mut app, source, corpus_state("minecraft:glowstone"));
+        app.update();
+        assert_eq!(sky_and_block(&app, source + IVec3::Y).1, 14);
+        assert_eq!(sky_and_block(&app, BlockPos::new(5, 20, 15)).1, 5);
+
+        server_sets(&mut app, source, AIR);
+        app.update();
+        assert_eq!(sky_and_block(&app, source + IVec3::Y), (15, 0));
+    }
+
+    #[test]
+    fn cbk_lgt_009_server_light_of_the_frame_wins_over_the_local_light() {
+        let mut app = cave_app();
+        server_sets(&mut app, BlockPos::new(5, 15, 5), AIR);
+        let rows = 4;
+        let mut sky: Vec<RowLight> = (0..rows).map(|_| RowLight::Unchanged).collect();
+        sky[1] = RowLight::Empty;
+        let block = (0..rows).map(|_| RowLight::Unchanged).collect();
+        app.world_mut()
+            .resource_mut::<Arrivals>()
+            .queue
+            .push_back(Arrival::Light(
+                ColumnPos::new(0, 0),
+                ColumnLight { sky, block },
+            ));
+        app.update();
+        assert_eq!(sky_and_block(&app, BlockPos::new(5, 14, 5)), (0, 0));
+    }
+
     #[test]
     fn two_readers_each_see_every_change_in_order() {
         use bevy::ecs::change_detection::DetectChanges;
@@ -1548,6 +1800,7 @@ mod tests {
         let dimension = |name: &str| Dimension {
             name: name.to_owned(),
             extent: EXTENT,
+            sky_light: true,
         };
         let column = || Column::unlit(EXTENT.min_section_y, vec![None; EXTENT.sections]);
         let (a, b) = (ColumnPos::new(0, 0), ColumnPos::new(1, 0));
@@ -1596,26 +1849,36 @@ mod tests {
         };
 
         let overworld = named("minecraft:overworld", OVERWORLD.into());
+        let reach = |current| {
+            dimension_of(registries, current)
+                .map(|dimension| (dimension.extent, dimension.sky_light))
+        };
         assert_eq!(
-            extent_of(registries, &overworld),
-            Some(Extent {
-                min_section_y: -4,
-                sections: 24,
-            })
+            reach(&overworld),
+            Some((
+                Extent {
+                    min_section_y: -4,
+                    sections: 24,
+                },
+                true
+            ))
         );
         let nether = named("minecraft:the_nether", THE_NETHER.into());
         assert_eq!(
-            extent_of(registries, &nether),
-            Some(Extent {
-                min_section_y: 0,
-                sections: 16,
-            })
+            reach(&nether),
+            Some((
+                Extent {
+                    min_section_y: 0,
+                    sections: 16,
+                },
+                false
+            ))
         );
         let past = CurrentDimension::of(&PlayerSpawnInfo::new(
             Id::checked(types.len() as u16, types.len() + 1).unwrap(),
             OVERWORLD.into(),
             GameMode::Survival,
         ));
-        assert_eq!(extent_of(registries, &past), None, "no such dimension type");
+        assert_eq!(reach(&past), None, "no such dimension type");
     }
 }
