@@ -80,6 +80,8 @@ this server. Section 10 gives the experiments.
 - **Issue tick**: the tick in which the vanilla server runs the part that gives a decision.
 - **Snapshot**: the state that a decision reads (AIT-LAG-001).
 - **Application**: the step in which the hot tick changes the guidance state from a decision.
+- **Tile task**: the unit of work of the entity pass that ticks the entities of one tile
+  (`physics-architecture.md`).
 - **Delay**: the number of ticks from the issue tick of a decision to its application. The symbol is
   `k`.
 - **Allowed delay**: the largest delay of a part for which a player does not see a difference
@@ -97,9 +99,9 @@ this server. Section 10 gives the experiments.
 - **Birth key**: the order key of an entity, as PHY-CMP-013 defines it. It does not depend on the
   division of the world into cells, and the save keeps it.
 - **Phase offset**: the value from 0 to 3 that PHY-CMP-016 derives from the birth key.
-- **Merge point**: the one step at the start of a tick in which the decisions apply. The writes
-  between entities that are not claims also apply there (PHY-CMP-015). A claim does not apply at the
-  merge point. It enters the arbitration of PHY-CMP-017.
+- **Merge point**: the one global step at the start of a tick in which the proposals apply
+  (AIT-CPL-002). The writes between entities that are not claims also apply there (PHY-CMP-015). A
+  claim does not apply at the merge point. It enters the arbitration of PHY-CMP-017.
 - **Player table**: the positions of all players of one dimension at the end of the previous tick.
   Each cell has the same copy (AIT-CDN-002).
 - **Cadence class**: a group of mobs that use one reduced cadence (AIT-CDN-003).
@@ -591,6 +593,11 @@ a decision. The reason: a late direction lets the creeper explode after the play
 blocks away, or out of the line of sight. A late start lets the player stand next to the creeper for
 longer with no swell.
 
+A creeper whose counter reaches `Fuse` in this tick explodes in this tick. The hot tick knows this
+at the start of the tick: the counter plus the direction is `Fuse` or more. Thus the creeper is a
+seed of an explosion group (PHY-CMP-020, step 1). A primed TNT with a fuse of 1 or less is a seed in
+the same way.
+
 When the swell starts, it takes the flag `move`, and the hot tick stops the current path. The AI
 stage reads the state of the swell from the replica of its next snapshot. It must not start a goal
 that takes `move` while the swell runs.
@@ -723,11 +730,19 @@ The snapshot does not change while the AI stage computes the decision. A decisio
 its snapshot and of its random values (AIT-LAG-008). It reads nothing else, for example no wall time
 and no state of the AI stage.
 
-**AIT-LAG-002** (`design`, semantic, confidence: medium). A decision of issue tick `T` applies at
-the merge point of tick `T + k`, with `1 ≤ k ≤ max_lag`. It applies after the writes of PHY-CMP-015
-of that merge point, which are the writes that are not claims. A grant that makes a claim enters the
-arbitration of PHY-CMP-017 in the same tick `T + k`. Thus the hot tick of `T + k` uses the decision.
-The vanilla server uses it in the tick `T` itself, so the extra delay is `k` ticks.
+**AIT-LAG-002** (`design`, semantic, confidence: medium). A decision of issue tick `T` applies in
+tick `T + k`, with `1 ≤ k ≤ max_lag`. It applies before the hot step of its entity, after the
+changes that the merge point of that tick makes to the entity. The vanilla server uses the decision
+in the tick `T` itself, so the extra delay is `k` ticks.
+
+A decision writes only the guidance state of its own entity (AIT-DEC-007). Thus an implementation
+can apply it at the start of the tile task of its entity. The result is the same as an application
+at the merge point. A tick that applies all decisions at the merge point is one valid
+implementation, not a requirement.
+
+A proposal is not such a write. Each proposal goes to the merge point of tick `T + k`, and
+AIT-CPL-002 checks it there in one global order. A grant that makes a claim enters the arbitration
+of PHY-CMP-017 in the same tick `T + k`.
 
 **AIT-LAG-003** (`design`, semantic, confidence: medium). The default of `max_lag` is 2. The value
 comes from the smallest allowed delay in the table of AIT-DEC-003, which is 2 ticks. The goal
@@ -740,12 +755,12 @@ server reports the value at start.
 
 **AIT-LAG-004** (`design`, semantic, confidence: medium). The AI stage has two delay modes:
 
-- `AiDelay::AtLeast(1)`, the default: a decision of issue tick `T` applies at one merge point. That
-  is the first merge point of a tick `T' ≥ T + 1` that starts after the decision is ready. When
-  `T' = T + max_lag` and the decision is not ready, the hot tick waits for it at the merge point.
-- `AiDelay::Fixed(k)`, with `1 ≤ k ≤ max_lag`: each decision applies at `T + k`. At the merge point
-  of tick `T'`, the hot tick waits until each decision of issue tick `T' - k` is ready. The tests,
-  the replay tool and the determinism checks use this mode.
+- `AiDelay::AtLeast(1)`, the default: a decision of issue tick `T` applies in the first tick
+  `T' ≥ T + 1` that starts after the decision is ready. When `T' = T + max_lag` and the decision is
+  not ready, the hot tick waits for it before it applies it.
+- `AiDelay::Fixed(k)`, with `1 ≤ k ≤ max_lag`: each decision applies at `T + k`. In tick `T'`, the
+  hot tick waits until each decision of issue tick `T' - k` is ready. The tests, the replay tool and
+  the determinism checks use this mode.
 
 In both modes, the tick never applies a decision later than `T + max_lag`. A late AI stage makes the
 tick slower. It does not make a decision older. The server reports the time that the hot tick waits
@@ -781,11 +796,14 @@ decision:
 The hot tick does not compute a new decision in its place. The part runs again at its next vanilla
 slot (section 5). The fact lets that run see the reason.
 
-**AIT-LAG-007** (`design`, semantic, confidence: medium). At one merge point, the decisions apply in
-the order of the pair `(issue tick, birth key)`, from the lowest. The birth key compares as
-PHY-CMP-013 states. The decisions of one entity and one issue tick apply in the order of the steps
-of AIT-VAN-001. A decision of one entity never applies before a decision of the same entity with an
-earlier issue tick.
+**AIT-LAG-007** (`design`, semantic, confidence: medium). In one tick, the decisions apply in the
+order of the pair `(issue tick, birth key)`, from the lowest. The birth key compares as PHY-CMP-013
+states. Each decision writes only its own entity, so only the order inside one entity can change the
+result. The proposals at the merge point use the same order (AIT-CPL-002).
+
+The decisions of one entity and one issue tick apply in the order of the steps of AIT-VAN-001. A
+decision of one entity never applies before a decision of the same entity with an earlier issue
+tick.
 
 **AIT-LAG-008** (`design`, semantic, confidence: medium). A decision takes its random values from a
 stream. The stream is a function of the world seed, the birth key of the entity (PHY-CMP-013), the
@@ -878,10 +896,19 @@ the two items. The arbitration decides between it and the other claims on the sa
 a pickup or a transfer into a hopper. PHY-CMP-015 does not apply to a merge. The writer key is the
 birth key of the item that tries. A despawn is a claim of the removal in the same way.
 
-**AIT-CPL-006** (`design`, semantic, confidence: medium). A raid itself is not a part of the AI. The
-dimension ticks it in the hot tick, as step 3 of PHY-ORD-010 states. The decisions of a raider, for
-example its path to the centre of the raid, follow section 3. The raid changes its raiders directly.
-This is a write of a world object to an entity, and it applies at the merge point.
+**AIT-CPL-006** (`design`, semantic, confidence: medium). A raid itself is not a part of the AI. In
+the reference, the dimension ticks its raids before its entities in the same tick (step 3 of
+PHY-ORD-010). This server keeps that place. In each tick, the raid tick has this position:
+
+1. after the merge point of the tick;
+2. before the entity pass of the tick, thus before each tile task;
+3. after the block steps that PHY-ORD-010 puts before the raids.
+
+The raid tick reads the entities at their state after the merge point. The raid changes its raiders
+directly, before the entity pass, so each raider uses the change in the same tick. A change that is
+a claim enters the arbitration of PHY-CMP-017. A raider that the raid adds follows the rules of
+PHY-ORD-011 for a new entity. The decisions of a raider, for example its path to the centre of the
+raid, follow section 3.
 
 ## 5. The cadence
 
@@ -1100,7 +1127,7 @@ each experiment that has a random part at least 200 times, and record the distri
 | C1 | Run a world with mobs for 2000 ticks with `AiDelay::Fixed(1)`, two times. Compare the world hash in each tick. | AIT-INV-002 |
 | C2 | Repeat C1 with 1, 2 and 8 threads, and with 1 and 4 cells. Compare the world hash in each tick. | AIT-INV-001, AIT-INV-002 |
 | C3 | Run C1 with `AiDelay::AtLeast(1)`, and slow the AI stage at random. Compare the sequence of decisions of each entity with C1. Only the ticks of the applications can differ. | AIT-INV-001, AIT-LAG-004 |
-| C4 | In C3, check at each merge point that no decision is older than `max_lag`. | AIT-INV-004 |
+| C4 | In C3, check in each tick that no decision is older than `max_lag`. | AIT-INV-004 |
 | C5 | Slow the AI stage by 10 ticks in one tick. Check that the creeper swell, the melee hit and the door of E1, E3 and E4 occur in the same ticks as with no slowdown. | AIT-INV-003 |
 | C6 | Kill the target of a mob while its path decision waits. Check that the hot tick drops the decision and the mob keeps its old guidance state. | AIT-LAG-005, AIT-LAG-006 |
 | C7 | Give two animals the same partner in one issue tick. Run with 1 and 4 cells. Check that the same pair breeds in both runs. | AIT-CPL-002, AIT-CPL-003 |

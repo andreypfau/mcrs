@@ -2089,7 +2089,8 @@ when the server does this, and what it does with the result.
 **PHY-SRV-004** (`source_suggested`, semantic, confidence: medium). In the tick of a player on the
 server, the server applies the block effects (PHY-GRV-014, PHY-GRV-018) to its own copy of the
 player. It does not update the fall distance in that step (PHY-FALL-003). The velocity of that
-copy decreases by 0.98 in each tick (PHY-GRV-009).
+copy decreases by 0.98 in each tick (PHY-GRV-009). PHY-CMP-023 states each change of that velocity
+and its order.
 
 **PHY-SRV-011** (`source_suggested`, client agreement, confidence: medium). A player that rides a
 vehicle does not move by its own motion step. The vehicle sets the position of the player after
@@ -2407,11 +2408,8 @@ apply:
 - Two entities with the same birth tick and the same parent keep the order of their sequence.
 - Two entities with the same birth tick and different parents rank by the digest of the parents,
   not by the full keys of the parents.
-- Two different parent keys can have the same digest. Then the entities rank by the full keys of
-  the parents. An implementation can also drop the full keys. Then the fallback order uses three
-  values of each parent: the birth tick, the source key in the stored form, and the sequence.
-  If these values are equal too, it repeats the fallback with the parents of the parents. A key
-  of a kind other than `entity` has no digest, so the repetition ends.
+- Two different parent keys can have the same digest. Then the stored keys of two entities can be
+  equal. PHY-CMP-024 states the comparison for this case.
 
 The order of the digests does not follow the order of the full keys. This is permitted, because the
 order only needs to be total, fixed and independent of the layout.
@@ -2460,6 +2458,10 @@ The order-independent pass handles claims in this way:
 3. The claim with the lowest writer key wins. Only the winner gets the result, for example the
    item. The other claims have no effect.
 4. The winner and the target apply the result before the server sends the changes of the tick.
+5. One writer can win several claims in one tick, for example several items for one inventory. The
+   writer applies its grants in the order of the birth key of the targets. The lowest key comes
+   first. Thus the layout does not change the slots that the items fill. It also does not change
+   which item does not fit into a full inventory.
 
 The writer key is total over all writers. It compares first the kind of the writer, in this order:
 `command`, `entity`, `block`. Then it compares a second value. For an entity, this is the birth key.
@@ -2525,7 +2527,69 @@ visible behaviour of the reference: explosions in the order-independent pass.
 
 Some explosions do not show at the start of the tick, for example a fireball that hits a block.
 Such an exploder does not form a group. Its impulse and its damage are writes of PHY-CMP-015.
-PHY-DEV-009 records this case.
+PHY-DEV-009 records this case. PHY-CMP-022 states an opt-in mode for a large group.
+
+**PHY-CMP-021** (`source_suggested`, semantic, confidence: medium). This rule defines the state at
+the start of the tick of a player. It is the state after the server accepted the client moves of
+this tick (PHY-ORD-010, step 1). This state includes the position, the box and the pose. The rules
+PHY-CMP-008, PHY-CMP-012 and PHY-CMP-018 read the player in this state. Thus an entity sees a
+player move in the same tick, as in the reference.
+
+An implementation can handle the moves inside the tick, before the entity pass, and it then
+conforms. The copy of each cell must contain these player states before the entity pass
+(PHY-INV-014).
+
+An implementation can instead read each player at its state from the end of the previous tick, in
+each cell. PHY-DEV-012 records this choice.
+
+**PHY-CMP-022** (`source_suggested`, semantic, confidence: medium). Policy `semantic`, opt-in: the
+wave mode of an explosion group. The mode is off by default. An implementation can turn it on for a
+group with more than `N` members, where `N` is a setting. In the wave mode:
+
+1. Each explosion of the group traces its rays and its exposures. It uses the state of the group
+   at the start of the tick (PHY-EXP-003).
+2. For each member, sum the impulses and the damage of all explosions. The order of the sum is the
+   birth key of the exploders.
+3. The members then move, in the order of the birth key, with the summed impulses.
+4. The blocks of all explosions are removed after step 1. A block that two explosions remove is
+   removed one time.
+
+PHY-DEV-011 records this mode.
+
+**PHY-CMP-023** (`source_suggested`, semantic, confidence: medium). The copy of the player on the
+server gets these changes of its velocity. It never sends this velocity to the client of the
+player.
+
+1. When the server handles a move that goes up from the ground, the copy jumps (PHY-INP-005).
+2. During the entity pass, a server-simulated entity can push the copy and can give it an external
+   impulse. In the reference, the push lands in the tick of the pusher (PHY-PSH-006).
+   Under PHY-CMP-012, the copy is a push neighbour with its state of PHY-CMP-021. The push to the
+   copy then lands in the server part of the player.
+3. In the server part of the player (PHY-ORD-010, step 6), the copy does these steps in this order:
+   - It multiplies the velocity by 0.98 (PHY-GRV-009).
+   - It sets small components to zero (PHY-GRV-008).
+   - It applies the block effects (PHY-SRV-004).
+   - It pushes the server-simulated entities near it, and it gets the opposite push
+     (PHY-PSH-004).
+
+The copy does not do the travel step. `movement-checks.md` reads this velocity as the velocity that
+the server expects.
+
+**PHY-CMP-024** (`source_suggested`, semantic, confidence: medium). The comparison of two stored
+birth keys has these steps:
+
+1. Compare the birth ticks.
+2. Compare the kinds of the source keys, in the order of PHY-CMP-013.
+3. Compare the values of the source keys. A digest compares as an unsigned integer of 128 bits.
+4. Compare the sequences.
+5. If all these are equal, compare the UUIDs of the two entities, as unsigned integers of 128 bits.
+   The implementation must make the UUID when the entity comes into existence. The input is the
+   stored key of the parent, the birth tick and the sequence. The function must be independent of
+   the digest function.
+6. If the UUIDs are also equal, the order of the two entities is not specified.
+
+Step 6 occurs only when two independent functions of 128 bits both collide. Its probability for one
+pair is about `2^-256`.
 
 ## 12. Out of scope
 
@@ -2550,7 +2614,7 @@ more important than a cleaner rule. This applies to PHY-COL-005, PHY-MOV-004, PH
 PHY-STP-005. Each client sees the result of the server-simulated rules of section 9 as the position
 of an entity. Thus this document keeps these rules too.
 
-The rules PHY-CMP-006, PHY-CMP-008, PHY-CMP-009, PHY-CMP-012, PHY-CMP-014 to PHY-CMP-020 permit
+The rules PHY-CMP-006, PHY-CMP-008, PHY-CMP-009, PHY-CMP-012, PHY-CMP-014 to PHY-CMP-022 permit
 the deviations of this section for server-simulated entities. An implementation that uses one of them must state it.
 
 ### PHY-DEV-001: Tolerance for server-simulated motion
@@ -2685,6 +2749,33 @@ the deviations of this section for server-simulated entities. An implementation 
 - **Test:** a differential test compares the distribution of the destroyed blocks over many
   explosions. It does not compare the blocks of one explosion.
 
+### PHY-DEV-011: Wave mode of an explosion group
+
+- **Rule:** PHY-CMP-022. The mode is off by default.
+- **Reference:** the explosions of one tick act one after the other (PHY-EXP-002). A later
+  explosion sees the blocks, the positions and the velocities after the earlier explosions.
+- **Visible to the client:** yes.
+  - Craters differ. In the reference, a later explosion traces through the blocks that an earlier
+    explosion removed, so it can reach deeper. In the wave mode, each explosion sees the blocks of
+    the start of the tick.
+  - Cannons differ when their charges push each other in the same tick. In the reference, a charge
+    that an earlier charge pushes explodes at its new position. In the wave mode, it explodes at its
+    position from the start of the tick.
+- **Test:** a differential test runs with the wave mode off. With the mode on, it compares only the
+  number of removed blocks and the mean impulse.
+
+### PHY-DEV-012: Player positions from the end of the previous tick
+
+- **Rule:** PHY-CMP-021, the second paragraph.
+- **Reference:** the entities of a tick see the player at the position that the server accepted
+  before that tick.
+- **Visible to the client:** yes, a little. Under this choice, the entities see a player move one
+  tick later. A mob pushes the player, and the player pushes a mob, from a position that is one tick
+  old. The difference is at most the displacement of the player in one tick. The push to the copy
+  of the player on the server is not visible to the client.
+- **Test:** a differential test accepts a delay of one tick. This applies to each interaction of an
+  entity with the position of a player.
+
 ## 14. Unresolved
 
 - **U1**: the corpus in `assets/` is of `26.4-snapshot-4`. This document is of `26.4-snapshot-7`.
@@ -2776,6 +2867,9 @@ values are f64 values. Compare them bit for bit with the model.
 | E47 | Build a TNT cannon with 4 charges and 1 projectile TNT. Step each tick and read `Pos` and `Motion` of the projectile. Shoot a fireball into a crowd of pigs. | PHY-EXP-001, PHY-EXP-002, PHY-CMP-020 |
 | E48 | With a vanilla client, ride a minecart and a boat. Record the positions that the client sends and the positions that the server sends. | PHY-SRV-011 |
 | E49 | Put 40 pigs with speed 0 in a box of 1 × 1 blocks with `max_entity_cramming` at 0. Step 20 ticks and read `Pos`. | PHY-CMP-019, PHY-DEV-008 |
+| E50 | With the scripted client, move the player into a pig in one move packet. Step 1 tick and read `Motion` of the pig. | PHY-CMP-021, PHY-DEV-012 |
+| E51 | Drop 40 different items onto a player with a nearly full inventory in one tick. Read the slots after the tick. | PHY-CMP-017 |
+| E52 | Read the velocity that the server expects for a player that stands in a crowd of pigs and on a slime block. | PHY-CMP-023 |
 
 The experiment of a supported rule also covers each `source_suggested` rule without a row above:
 

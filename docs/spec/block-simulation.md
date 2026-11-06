@@ -560,6 +560,8 @@ Provenance: `derived`. Confidence: high.
   - set a block (SIM-SET-002). The box contains the position of the set, but not
     the targets of the neighbor requests and shape updates of the set. These
     requests and updates are new items, and each new item has its own bound.
+    The removal side effect and the placement side effect run inside the set.
+    Table 5 gives their bound, relative to the position of the set.
   - schedule a tick or queue a block event.
 - **Notation.** The columns `dx`, `dy` and `dz` give the box relative to the
   position of the call. `±r` is the interval from −r to +r. `n` is a length that
@@ -568,6 +570,10 @@ Provenance: `derived`. Confidence: high.
 - A block type that is not in Table 1 has no random-tick handler, or a handler
   with no effect. A block type that is not in Table 2 has no neighbor-changed
   handler.
+- Tables 4 to 7 give a default bound for shape functions, side effects,
+  scheduled-tick handlers and block-event handlers. A row of these tables gives
+  an exception to the default. A block type that is not in a row has the
+  default bound.
 - The bound is a property of one call. A group of items has no bound
   (SIM-MODEL-006). Table 3 gives the groups that a handler of Table 1 or Table 2
   can start, and that have no spatial bound.
@@ -688,11 +694,79 @@ limit these groups.
 | a piston contraption | A piston block event moves blocks. The sets of the move start chains, and these chains queue more piston events into the same drain (SIM-BEV-002, OQ-05) |
 | fluid contact | A fluid block that touches the other fluid changes to stone, cobblestone, obsidian or basalt. The set makes neighbor requests, and the next fluid blocks can change in the same chain |
 | a shape cascade | Each shape update can make more shape updates, up to `L` generations (SIM-SHP-002) |
+| a command block | The scheduled tick of a command block runs its command. A command can read and write any position (Table 6). The limits `M` and `L` do not limit the command |
+
+**Table 4. Shape functions.** The default bound is ±2 on each axis, relative to
+the target of the shape update. A shape function sets only its target, and it
+schedules ticks only at its target. Most vanilla shape functions read only the
+target, its neighbors and the positions next to these neighbors.
+
+| Block types | `dx` | `dy` | `dz` | Sets | Other effects |
+|-------------|------|------|------|------|---------------|
+| `nether_portal` | ±22 along the axis of the portal, 0 across | ±22 | | the target (air, if the frame is not complete) | none. Note 6 |
+
+- **Note 6.** The shape function looks for the portal frame. A frame is not
+  more than 21 blocks wide and 21 blocks high, without its corners.
+
+**Table 5. Side effects of placement and removal.** The default bound is ±2 on
+each axis, relative to the position of the set. Neighbor requests and comparator
+output updates that a side effect makes are new items. A container that a set
+removes drops its contents as item entities.
+
+| Block types | Side effect | `dx` | `dy` | `dz` | Sets | Other effects |
+|-------------|-------------|------|------|------|------|---------------|
+| `fire`, `soul_fire` | placement in a dimension that allows nether portals | ±22 | ±22 | ±22 | the portal blocks of a complete frame | none. Note 6 |
+| `tripwire` | placement and removal | ±42 | 0 | ±42 | the tripwire blocks of the line, and the hooks at its ends | none. Note 7 |
+| `tripwire_hook` | removal | −1..+42 along the facing | 0 | 0 across | the tripwire blocks of the line, and the hook at the other end | none |
+| `piston`, `sticky_piston` | placement | ±14 | ±14 | ±14 | none | a block event at the position. Note 5 |
+| `redstone_wire` | placement and removal | the bound of the evaluator in Table 2 | | | the wires of the network in the box | neighbor requests |
+| `sponge` | placement | ±7 | ±7 | ±7 | the position and up to 64 water positions | item drops |
+| `carved_pumpkin`, `jack_o_lantern` | placement | ±2 | ±2 | ±2 | the blocks of a golem pattern (removed) | a golem spawns |
+| `piston_head` | removal | ±1 along the facing | | | the base (destroyed) | item drops |
+| `tnt` | placement | ±2 | ±2 | ±2 | the position (removed) | a primed TNT spawns |
+
+- **Note 7.** The side effect looks for a hook along the x axis and along the
+  z axis. It does not look farther than 41 blocks. Then the hook checks its
+  line (Table 6).
+
+**Table 6. Scheduled-tick handlers.** The default bound is ±2 on each axis.
+
+| Block types | `dx` | `dy` | `dz` | Sets | Other effects |
+|-------------|------|------|------|------|---------------|
+| `fire` | ±2 | −2..+5 | ±2 | fire at ±1, −1..+4, ±1. A block that burns is removed | primed TNT. Reads the rain and the players in the radius of the game rule `fire_spread_radius_around_player` |
+| `water`, `lava` (fluid ticks) | ±5 | −1..+1 | ±5 | the position, the position below, and the 4 horizontal neighbors | none |
+| `tripwire_hook` | −1..+42 along the facing | 0 | 0 across | the tripwire blocks of the line, and the hook at the other end | none |
+| `dispenser` | ±11 | −14..+35 | ±11 | the effect of the item at the front position | entities in front. Note 8 |
+| each cauldron | 0 | 0..+23 | 0 | the position | none. The handler reads the stalactite above the cauldron and the fluid above its root |
+| `bubble_column` | 0 | 0..+n | 0 | the column of water above | none. Note 9 |
+| `pointed_dripstone`, `icicle`, `sulfur_spike` | 0 | −n..0 | 0 | the blocks of a stalactite that falls | falling blocks. Note 9 |
+| `open_eyeblossom`, `closed_eyeblossom` | ±3 | ±2 | ±3 | the position | ticks at the eyeblossoms of the same state in the box |
+| `redstone_torch`, `redstone_wall_torch` | ±2 | ±2 | ±2 | the position | the record of recent toggles of the dimension |
+| each command block | no bound | | | the effects of the command | Table 3 |
+
+- **Note 8.** The front position is the neighbor in the direction of the
+  dispenser. The largest vanilla effect is bone meal on a young tree in front of
+  the dispenser (Table 1, Note 1).
+  An item can also light fire at the front position. That set then has the bound
+  of Table 5.
+- **Note 9.** `n` is the length of the line of water above the bubble column,
+  or of the stalactite below the position.
+
+**Table 7. Block-event handlers.** The default bound is ±1 on each axis. The
+handler reads and writes its position and its block entity. A note block also
+reads the block above it.
+
+| Block types | `dx` | `dy` | `dz` | Sets | Other effects |
+|-------------|------|------|------|------|---------------|
+| `piston`, `sticky_piston` | ±14 | ±14 | ±14 | the blocks that the piston moves or destroys | item drops. Note 5 |
 
 Provenance: `source_suggested`. Kind: semantic. The bounds come from the
 reference at `26.4-snapshot-7`. No experiment was run. Confidence: high for the boxes of
 radius 2 or less, medium for the other boxes. Each box is an upper bound, and
 some boxes are larger than necessary.
+
+The defaults of Tables 4 to 7 come from a review of each vanilla handler of
+these kinds. Confidence: medium.
 
 Experiment (farmland, Table 1):
 1. Put a water source at the same height as a farmland block, 4 blocks away
@@ -804,7 +878,8 @@ Each contract gives (a) invariants, (b) freedoms and (c) parameters (A.5).
   are examples of how an instance can do this:
   - It undoes all effects of the work item that started the chain. Then it runs
     that work item again in a serial step, with a halo that covers the
-    dimension. The second run uses the same random values as the first run.
+    dimension. The second run uses the same position and the same random
+    values as the first run (SIM-RND-001).
   - It runs the work item in a serial step from the start. It does this when
     the work item is in a group whose chains left the halo in earlier steps.
     It merges
@@ -2495,7 +2570,10 @@ Provenance: `source_suggested`, and the packet id is `black_box_confirmed` by `.
 - **Relevant state:** the game rule `random_tick_speed` (integer ≥ 0, default 3), and the section properties (SIM-TICK-005).
 - **Preconditions:** the world is not a debug world.
 - **Behavior:** each *loaded* section that is *random-ticked* receives its picks (SIM-RND-002) one time in each level tick. Precipitation picks are separate. They run for each column (SIM-RND-004).
-- **Ordering constraints:** observable: each random-ticked section is processed one time only in each level tick. The picks of a section do not interleave with the picks of another section. Vanilla: see Vanilla grouping.
+- **Ordering constraints:**
+  - Observable: each random-ticked section receives its picks one time only in each level tick.
+  - The order of the picks across sections is free (SIM-MODEL-106(b)). The picks of two sections can interleave. Vanilla does not interleave them (Vanilla grouping).
+  - A pick that runs again after an undo (SIM-MODEL-102) is the same pick, not a new pick. It uses the same position and the same random values. As a result, the distribution and the rate do not change. Only the order of the picks changes.
 - **Numeric semantics:** `random_tick_speed`: default 3, minimum 0.
 - **Postconditions:** none.
 - **Edge cases:** when `random_tick_speed = 0`, there are no precipitation picks and no random ticks.
@@ -2743,9 +2821,9 @@ Each question lists the rules that it affects and an experiment that answers it.
   - **Reason:** the semantic level across partitions needs a hand-over of sections during a step. A hand-over needs safe points to stop a step and a protocol to add a section to a halo. It also needs a rule against two steps that wait for each other. This project does not build it, because each such protocol adds defects.
   - **Consequence:** the formation rule keeps causally connected work in one partition, so crossings are rare. A cascade has no limit (SIM-MODEL-006), so formation cannot remove all crossings. A contraption that needs the exact order across a boundary runs correctly with one partition for each dimension (the exact level).
   - **Note:** SIM-MODEL-102 gives a way to keep the semantic level for a chain without a hand-over. The instance undoes the work item and runs it again in a serial step. An instance that does this for each chain that leaves a halo can give the semantic level with more than one partition.
-- **OQ-13: Footprint bounds of other handlers** (SIM-MODEL-009).
-  - **Question:** SIM-MODEL-009 gives the bounds of random-tick handlers and neighbor-changed handlers only. What are the bounds of shape functions, scheduled-tick handlers, block event handlers and block entities?
-  - **Proposal:** add a table for each of these handler kinds, from the reference. Until then, an instance must not assume a bound for them. For example, the fire tick reads up to 4 blocks above the fire, and the piston block event has the bound of SIM-MODEL-009, Note 5.
+- **OQ-13: Footprint bounds of block entities** (SIM-MODEL-009).
+  - **Question:** SIM-MODEL-009 gives the bounds of random-tick handlers, neighbor-changed handlers, shape functions, side effects, scheduled-tick handlers and block-event handlers. What are the bounds of the ticks of block entities, for example hoppers, beacons, conduits and sculk catalysts?
+  - **Proposal:** add a table for block entities, from the reference. Until then, an instance must not assume a bound for the tick of a block entity.
 
 ---
 
