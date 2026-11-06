@@ -21,11 +21,15 @@ use mcrs_minecraft_physics::EntityState;
 use mcrs_minecraft_physics::GridFlags;
 use mcrs_minecraft_physics::GridRow;
 use mcrs_minecraft_physics::KeyedStream;
+use mcrs_minecraft_physics::Keys;
 use mcrs_minecraft_physics::LANES;
 use mcrs_minecraft_physics::ListedBodies;
 use mcrs_minecraft_physics::Living;
 use mcrs_minecraft_physics::MotionRow;
 use mcrs_minecraft_physics::NoBodies;
+use mcrs_minecraft_physics::PlayerInput;
+use mcrs_minecraft_physics::PlayerRotation;
+use mcrs_minecraft_physics::PlayerState;
 use mcrs_minecraft_physics::Probe;
 use mcrs_minecraft_physics::PushRules;
 use mcrs_minecraft_physics::PushTargets;
@@ -45,6 +49,7 @@ use mcrs_minecraft_physics::push_entity;
 use mcrs_minecraft_physics::resolve;
 use mcrs_minecraft_physics::tick_entity;
 use mcrs_minecraft_physics::tick_in_air;
+use mcrs_minecraft_physics::tick_player;
 use mcrs_voxel::BlockStateId;
 use mcrs_voxel::LocalPos;
 use mcrs_voxel::SectionPos;
@@ -268,6 +273,66 @@ fn bench_entities(c: &mut Criterion) {
     });
 }
 
+fn bench_player(c: &mut Criterion) {
+    let blocks = TestBlocks::new();
+    let tables = Tables::new(blocks.table.clone());
+    let floor = 20;
+    let world = DenseWorld::new(&tables.collision, |_, y, _| {
+        if y == floor {
+            blocks.stone
+        } else {
+            BlockStateId::AIR
+        }
+    });
+    let view = View {
+        world: &world,
+        bodies: &NoBodies,
+        tables: &tables,
+    };
+    let mut scratch = Scratch::new();
+    let mut actions = Vec::new();
+    let mut state = PlayerState::new(DVec3::new(30.5, f64::from(floor + 1), 30.5));
+    let mut out = state;
+    let input = PlayerInput {
+        keys: Keys {
+            forward: true,
+            ..Keys::default()
+        },
+        rotation: PlayerRotation {
+            yaw: 30.0,
+            pitch: 0.0,
+        },
+        ..PlayerInput::default()
+    };
+    for _ in 0..3 {
+        tick_player(
+            view,
+            Side::OwnClient,
+            &state,
+            &PlayerInput::default(),
+            &mut out,
+            &mut actions,
+            &mut scratch,
+        );
+        state = out;
+    }
+    c.bench_function("tick_player/walk_on_ground", |b| {
+        b.iter(|| {
+            actions.clear();
+            tick_player(
+                view,
+                Side::OwnClient,
+                black_box(&state),
+                &input,
+                &mut out,
+                &mut actions,
+                &mut scratch,
+            );
+            out.velocity
+        })
+    });
+}
+
 fn bench_push(c: &mut Criterion) {
     let mob = |index: u32, x: f64, z: f64| {
         let id = EntityId(u64::from(index) + 1);
@@ -323,5 +388,11 @@ fn bench_push(c: &mut Criterion) {
 
 const SERVER: Side = Side::Server { authority: true };
 
-criterion_group!(kernel, bench_resolve, bench_entities, bench_push);
+criterion_group!(
+    kernel,
+    bench_resolve,
+    bench_entities,
+    bench_push,
+    bench_player
+);
 criterion_main!(kernel);

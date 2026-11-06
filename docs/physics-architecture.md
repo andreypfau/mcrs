@@ -950,11 +950,17 @@ pub struct PlayerState {
 
 pub struct PlayerRotation { pub yaw: f32, pub pitch: f32 }   // raw, never wrapped (PHY-NUM-005)
 
+/// `input` holds the keys, the rotation of the tick, the push to use, and the facts that S does
+/// not hold (spectator, passenger, sleep, food, the sprint window; see §15).
 pub fn tick_player<W: CollisionWorld, B: BodyView>(
-    world: &W, bodies: &B, tables: &Tables, side: Side,
-    start: &PlayerState, keys: Keys, rotation: PlayerRotation, push: PushInput,
-    out: &mut PlayerState, effects: &mut EffectBuffer, scratch: &mut Scratch,
+    view: View<'_, W, B>, side: Side, start: &PlayerState, input: &PlayerInput,
+    out: &mut PlayerState, actions: &mut Vec<BlockAction>, scratch: &mut Scratch,
 );                                          // derives the box from the pose on read
+/// PHY-CMP-023 step 3, on the server copy; step 1 is `server_jump`.
+pub fn server_part<B: BodyView, W: CollisionWorld>(
+    view: View<'_, W, B>, state: &mut PlayerState, copy: &ServerCopy<'_>,
+    actions: &mut Vec<BlockAction>, scratch: &mut Scratch,
+) -> PushOutcome;
 
 /// `entity` holds the body, the living state (`None` for items, orbs, TNT and falling blocks),
 /// the age, the phase offset and the rest state. `wake` is true when the read zone or the entity
@@ -989,13 +995,14 @@ pub fn query_colliders<W: CollisionWorld, B: BodyView>(
 
 /// PHY-SRV-008: the velocity at the end of an observed player tick. With one horizontal collision
 /// flag, the candidates are `x` clipped, `z` clipped and both clipped.
-pub fn observed_velocity(
-    tables: &Tables, observed: DVec3, ground0: bool, end_flags: MoveFlags,
-    start: &PlayerState, world: &impl CollisionWorld,
-) -> VelocityCandidates;                    // SmallVec<[DVec3; 3]>
+pub fn observed_velocity<W: CollisionWorld, B: BodyView>(
+    view: View<'_, W, B>, start: &PlayerState, observation: &Observation,
+) -> VelocityCandidates;                    // up to three, and whether `y` is known
 
 /// PHY-SRV-010: apply a `player_position` packet; rotation values are f32.
-pub fn apply_teleport(state: &mut PlayerState, rotation: &mut PlayerRotation, packet: &Teleport);
+pub fn apply_teleport(
+    sine: &SineTable, state: &mut PlayerState, rotation: &mut PlayerRotation, packet: &Teleport,
+);
 
 /// PHY-MOV-001. A `piston` move first passes `limit_piston` (PHY-BLK-002), which the block
 /// domain calls with the sums of the entity for the game tick.
@@ -1433,4 +1440,22 @@ E1..E8, T1 (any time)   D1 ─ D2 ─ D3 ─ D4 ─ D5 ─ D6 ─ D7
     length or multiplied by its reciprocal. The kernel divides.
 21. PHY-CMP-016: the console of the server does not print the network id, so the parity test fits
     the phase offset of each item (0 to 3) to the recorded rest cycle.
+22. PHY-ORD-007: S holds no jump key of the previous tick, which PHY-INP-018 needs for "the jump
+    key changes to down", and no spectator, passenger, sleep or food state, which PHY-INP-008,
+    PHY-INP-010 and PHY-BOX-006 read. The kernel takes them outside `PlayerState`: `Keys`
+    carries the press of the jump key, and `PlayerFacts` the rest.
+23. PHY-INP-015: "when the flight state starts on the ground, the player jumps" does not say
+    whether this is the jump of PHY-INP-005 or the impulse of PHY-INP-013. The kernel does not
+    add it yet.
+24. PHY-INP-011 needs the blocks that cause suffocation. No rule and no corpus component gives
+    that property, so the kernel does not push the player out of blocks yet.
+25. PHY-INP-001 step 2: "normalize in f32" does not state the operation. The kernel multiplies by
+    `f32(1 / length)`, as step 6 does.
+26. PHY-SRV-008: the observed displacement comes from two positions, and `new - old` can differ
+    from the resolved move of the client by one unit in the last place. Then the candidate
+    differs by the same amount. The exact policy of PHY-CMP-005 needs a statement for this case.
+27. PHY-SRV-010 step 7 changes the old position and rotation, which `PlayerState` does not hold.
+    The kernel leaves them to the caller.
+28. PHY-PSH-008: the own player "uses the push in its next travel step", but the rule does not
+    say where in the step. The kernel adds `PlayerInput::push` before the input acceleration.
 

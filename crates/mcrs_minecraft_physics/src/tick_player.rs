@@ -1,0 +1,448 @@
+use glam::DVec3;
+
+use crate::Aabb;
+use crate::BirthKey;
+use crate::BlockAction;
+use crate::BodyView;
+use crate::CollisionWorld;
+use crate::Dimensions;
+use crate::Keys;
+use crate::MotionAttributes;
+use crate::MoveInput;
+use crate::Mover;
+use crate::Physics;
+use crate::PlayerFacts;
+use crate::PlayerRotation;
+use crate::PlayerState;
+use crate::Pose;
+use crate::QueryEntity;
+use crate::Scratch;
+use crate::Side;
+use crate::SourceKind;
+use crate::StuckIgnore;
+use crate::View;
+use crate::block_effects;
+use crate::block_effects::EffectContext;
+use crate::query;
+use crate::sine_table::yaw_radians;
+use crate::tick_entity::jump_power;
+use crate::tolerance::CLIP;
+use crate::tolerance::COLLISION;
+use crate::travel;
+use crate::travel::TravelInput;
+
+const DRAG: f32 = 0.98;
+const JUMP_DELAY: u8 = 10;
+/// The ticks after a press of the jump key in which a second press toggles the flight state.
+const FLIGHT_WINDOW: u8 = 7;
+const WORLD_EDGE: f64 = 2.999_999_9e7;
+/// The modifier of the sprint state on `movement_speed`, with the operation "multiply total".
+const SPRINT_BOOST: f32 = 0.3;
+const FLIGHT_IMPULSE: f32 = 3.0;
+
+/// What one tick of a player reads besides its state and the world.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct PlayerInput {
+    pub keys: Keys,
+    /// The rotation of this tick; it applies before the tick.
+    pub rotation: PlayerRotation,
+    pub facts: PlayerFacts,
+    /// The push of other entities that the player uses in this tick.
+    pub push: DVec3,
+}
+
+/// One tick of a player on the side that simulates it, from `start` into `out`.
+pub fn tick_player<W: CollisionWorld, B: BodyView>(
+    view: View<'_, W, B>,
+    side: Side,
+    start: &PlayerState,
+    input: &PlayerInput,
+    out: &mut PlayerState,
+    actions: &mut Vec<BlockAction>,
+    scratch: &mut Scratch,
+) {
+    *out = *start;
+    let keys = input.keys;
+    let facts = input.facts;
+    let yaw = input.rotation.yaw;
+    if facts.spectator || facts.passenger {
+        out.flags.on_ground = false;
+    }
+    out.sprint_timer = out.sprint_timer.saturating_sub(1);
+    out.crouching = crouch_state(view, start, &facts, scratch);
+    let move_input = input_vector(&keys, out, &facts);
+    let sprint = sprint_state(start, out, &keys, &facts, move_input.forward);
+    let flight = flight_state(start, out, &keys, &facts);
+    if flight && side == Side::OwnClient {
+        out.velocity.y += flight_impulse(&keys, out.flight_speed);
+    }
+    out.jump_timer = out.jump_timer.saturating_sub(1);
+    if flight {
+        out.fall_distance = 0.0;
+    }
+    out.jump_delay = out.jump_delay.saturating_sub(1);
+    zero_small_speeds(&mut out.velocity);
+    let attributes = out.attributes;
+    let dimensions = dimensions_of(out.pose, &attributes);
+    let mut body = out.body();
+    player_jump(view, out, &mut body, &keys, flight, sprint, yaw);
+    if out.effects.slow_falling || out.effects.levitation.is_some() {
+        body.fall_distance = 0.0;
+    }
+    body.velocity += input.push;
+    let gravity = effective_gravity(&attributes, out.effects.slow_falling, body.velocity.y);
+    let mover = Mover {
+        key: BirthKey::new(0, SourceKind::Player, 0, 0),
+        width: dimensions.width,
+        height: dimensions.height,
+        step_height: attributes.step_height as f32,
+        physics: physics_of(&facts),
+        side,
+        shift: keys.shift,
+        keeps_to_edges: !flight,
+        restitution: attributes.bounciness,
+        block_bounce_factor: 1.0,
+        gravity,
+        vertical_drag: travel::modifier(DRAG, attributes.air_drag_modifier as f32),
+        movement_efficiency: Some(attributes.movement_efficiency as f32),
+        powder_snow_solid: false,
+        walks_on_powder_snow: false,
+        intent: (side == Side::OwnClient).then(|| intent(&view.tables.sine, move_input, yaw)),
+    };
+    let start_position = body.position;
+    let air_speed = air_speed(flight, sprint, out.flight_speed);
+    let travel_input = TravelInput {
+        mover: &mover,
+        attributes: &attributes,
+        effects: &out.effects,
+        input: move_input,
+        speed: movement_speed(&attributes, sprint),
+        air_speed,
+        yaw,
+        jump: keys.jump,
+        omnidirectional: false,
+        climbs_powder_snow: false,
+        gravity,
+        player: true,
+    };
+    let kept_y = body.velocity.y;
+    let moved = travel::travel(view, &travel_input, &mut body, scratch);
+    if flight && !facts.passenger {
+        body.velocity.y = kept_y * 0.6;
+    }
+    let dy = if body.position == start_position {
+        0.0
+    } else {
+        moved.resolved.y
+    };
+    let context = EffectContext {
+        mover: &mover,
+        stuck_ignore: StuckIgnore::None,
+        powder_snow_needs_inside: true,
+        start: start_position,
+        dy,
+        flying: flight,
+        living: true,
+        updates_fall: true,
+    };
+    block_effects::apply(view, &context, &mut body, None, actions);
+    let flight_end = flight && !(body.flags.on_ground && !facts.spectator);
+    body.position.x = body.position.x.clamp(-WORLD_EDGE, WORLD_EDGE);
+    body.position.z = body.position.z.clamp(-WORLD_EDGE, WORLD_EDGE);
+    out.set_body(&body);
+    out.pose = select_pose(view, out, &keys, &facts, flight_end, scratch);
+    out.shift0 = keys.shift;
+    out.forward0 = move_input.forward;
+    out.sprint0 = sprint;
+    out.flight0 = flight_end;
+}
+
+/// The gravity after the effect `slow_falling`, which caps it at 0.01 while the player does not
+/// rise.
+fn effective_gravity(attributes: &MotionAttributes, slow_falling: bool, vertical: f64) -> f64 {
+    if slow_falling && vertical <= 0.0 {
+        attributes.gravity.min(0.01)
+    } else {
+        attributes.gravity
+    }
+}
+
+/// A spectator has no physics.
+fn physics_of(facts: &PlayerFacts) -> Physics {
+    if facts.spectator {
+        Physics::Pass
+    } else {
+        Physics::Collide
+    }
+}
+
+/// The vertical impulse of a flying player from the jump and shift keys.
+fn flight_impulse(keys: &Keys, flight_speed: f32) -> f64 {
+    let direction = f64::from(i8::from(keys.jump) - i8::from(keys.shift));
+    direction * f64::from(flight_speed * FLIGHT_IMPULSE)
+}
+
+/// Sets a horizontal speed below `0.003` and a small vertical speed to zero.
+fn zero_small_speeds(velocity: &mut DVec3) {
+    if velocity.x * velocity.x + velocity.z * velocity.z < 9.0e-6 {
+        velocity.x = 0.0;
+        velocity.z = 0.0;
+    }
+    if velocity.y.abs() < 0.003 {
+        velocity.y = 0.0;
+    }
+}
+
+/// The jump of a player: the jump delay, the jump power and the sprint boost.
+fn player_jump<W: CollisionWorld, B: BodyView>(
+    view: View<'_, W, B>,
+    out: &mut PlayerState,
+    body: &mut crate::Body,
+    keys: &Keys,
+    flight: bool,
+    sprint: bool,
+    yaw: f32,
+) {
+    if !keys.jump || flight {
+        out.jump_delay = 0;
+        return;
+    }
+    if !body.flags.on_ground || out.jump_delay != 0 {
+        return;
+    }
+    let power = jump_power(
+        view,
+        body,
+        out.attributes.jump_strength,
+        out.effects.jump_boost,
+    );
+    if let Some(power) = power {
+        body.velocity.y = power.max(body.velocity.y);
+        if sprint {
+            let angle = yaw_radians(yaw);
+            let sine = &view.tables.sine;
+            body.velocity += DVec3::new(
+                -f64::from(sine.sin(angle)) * 0.2,
+                0.0,
+                f64::from(sine.cos(angle)) * 0.2,
+            );
+        }
+    }
+    out.jump_delay = JUMP_DELAY;
+}
+
+/// The speed of the input acceleration off the ground.
+fn air_speed(flight: bool, sprint: bool, flight_speed: f32) -> f32 {
+    if flight {
+        if sprint {
+            flight_speed * 2.0
+        } else {
+            flight_speed
+        }
+    } else if sprint {
+        0.025_999_999
+    } else {
+        0.02
+    }
+}
+
+/// The dimensions of a player in a pose, scaled by the `scale` attribute.
+#[must_use]
+pub fn dimensions_of(pose: Pose, attributes: &MotionAttributes) -> Dimensions {
+    pose.player_dimensions().scaled(attributes.scale as f32)
+}
+
+/// `f32(movement_speed)`, with the sprint modifier when the sprint state is on.
+fn movement_speed(attributes: &MotionAttributes, sprint: bool) -> f32 {
+    let mut value = attributes.movement_speed;
+    if sprint {
+        value *= 1.0 + f64::from(SPRINT_BOOST);
+    }
+    value.clamp(0.0, 1024.0) as f32
+}
+
+/// The input vector from the keys, all in f32.
+fn input_vector(keys: &Keys, state: &PlayerState, facts: &PlayerFacts) -> MoveInput {
+    let axis = |positive: bool, negative: bool| f32::from(i8::from(positive) - i8::from(negative));
+    let mut left = axis(keys.left, keys.right);
+    let mut forward = axis(keys.forward, keys.back);
+    let length = (left * left + forward * forward).sqrt();
+    if length < 1.0e-4 {
+        left = 0.0;
+        forward = 0.0;
+    } else {
+        let scale = 1.0 / length;
+        left *= scale;
+        forward *= scale;
+        left *= DRAG;
+        forward *= DRAG;
+    }
+    if state.item_use.using && !facts.passenger {
+        left *= state.item_use.speed_multiplier;
+        forward *= state.item_use.speed_multiplier;
+    }
+    let crawling = state.pose == Pose::Swimming && !state.swimming;
+    if state.crouching || crawling {
+        let factor = state.attributes.sneaking_speed as f32;
+        left *= factor;
+        forward *= factor;
+    }
+    let length = (left * left + forward * forward).sqrt();
+    if length > 0.0 {
+        let scale = 1.0 / length;
+        let (unit_left, unit_forward) = (left * scale, forward * scale);
+        let (small, large) = if unit_left.abs() < unit_forward.abs() {
+            (unit_left.abs(), unit_forward.abs())
+        } else {
+            (unit_forward.abs(), unit_left.abs())
+        };
+        let ratio = small / large;
+        let target = (length * (1.0 + ratio * ratio).sqrt()).min(1.0);
+        left = unit_left * target;
+        forward = unit_forward * target;
+    }
+    MoveInput {
+        sideways: left,
+        vertical: 0.0,
+        forward,
+    }
+}
+
+/// The intended horizontal direction for the minor collision flag: the input rotated by the yaw,
+/// with the table values widened before the products.
+fn intent(sine: &crate::SineTable, input: MoveInput, yaw: f32) -> DVec3 {
+    let angle = yaw_radians(yaw);
+    let sin = f64::from(sine.sin(angle));
+    let cos = f64::from(sine.cos(angle));
+    let x = f64::from(input.sideways);
+    let z = f64::from(input.forward);
+    DVec3::new(x * cos - z * sin, 0.0, z * cos + x * sin)
+}
+
+/// The crouch state of this tick, from the shift key and the flight state of the previous tick.
+fn crouch_state<W: CollisionWorld, B: BodyView>(
+    view: View<'_, W, B>,
+    start: &PlayerState,
+    facts: &PlayerFacts,
+    scratch: &mut Scratch,
+) -> bool {
+    if start.flight0 || start.swimming || facts.passenger {
+        return false;
+    }
+    if collides_in(view, start, Pose::Crouching, scratch) {
+        return false;
+    }
+    start.shift0 || (!facts.sleeping && collides_in(view, start, Pose::Standing, scratch))
+}
+
+/// The sprint state after step 6 of the tick.
+fn sprint_state(
+    start: &PlayerState,
+    out: &mut PlayerState,
+    keys: &Keys,
+    facts: &PlayerFacts,
+    forward: f32,
+) -> bool {
+    let forward_before = start.forward0 > CLIP as f32;
+    if start.shift0 || keys.back || out.item_use.slows() {
+        out.sprint_timer = 0;
+    }
+    let crawling = out.pose == Pose::Swimming && !out.swimming;
+    let allowed = !out.effects.blindness && (facts.fed || out.may_fly);
+    let moving = forward > CLIP as f32;
+    let mut sprint = start.sprint0;
+    let may_start =
+        !sprint && moving && allowed && !out.item_use.slows() && !out.crouching && !crawling;
+    if may_start {
+        if !forward_before {
+            if out.sprint_timer > 0 {
+                sprint = true;
+            } else {
+                out.sprint_timer = facts.sprint_window;
+            }
+        }
+        if keys.sprint {
+            sprint = true;
+        }
+    }
+    if sprint && !out.swimming {
+        let blocked = start.flags.horizontal_collision && !start.flags.minor_collision;
+        if !allowed || !moving || blocked {
+            sprint = false;
+        }
+    }
+    sprint
+}
+
+/// The flight state after step 6 of the tick.
+fn flight_state(
+    start: &PlayerState,
+    out: &mut PlayerState,
+    keys: &Keys,
+    facts: &PlayerFacts,
+) -> bool {
+    if facts.spectator {
+        return true;
+    }
+    let mut flight = start.flight0;
+    if out.may_fly && !out.swimming && keys.jump_pressed {
+        if out.jump_timer > 0 {
+            flight = !flight;
+            out.jump_timer = 0;
+        } else {
+            out.jump_timer = FLIGHT_WINDOW;
+        }
+    }
+    flight
+}
+
+/// The pose at the end of the tick.
+fn select_pose<W: CollisionWorld, B: BodyView>(
+    view: View<'_, W, B>,
+    state: &PlayerState,
+    keys: &Keys,
+    facts: &PlayerFacts,
+    flight: bool,
+    scratch: &mut Scratch,
+) -> Pose {
+    let desired = if facts.sleeping {
+        Pose::Sleeping
+    } else if state.swimming {
+        Pose::Swimming
+    } else if keys.shift && !flight {
+        Pose::Crouching
+    } else {
+        Pose::Standing
+    };
+    if collides_in(view, state, Pose::Swimming, scratch) {
+        return state.pose;
+    }
+    if facts.spectator || facts.passenger || !collides_in(view, state, desired, scratch) {
+        return desired;
+    }
+    if !collides_in(view, state, Pose::Crouching, scratch) {
+        return Pose::Crouching;
+    }
+    Pose::Swimming
+}
+
+/// True when the box of the pose, shrunk by `1.0E-7`, meets a collider.
+fn collides_in<W: CollisionWorld, B: BodyView>(
+    view: View<'_, W, B>,
+    state: &PlayerState,
+    pose: Pose,
+    scratch: &mut Scratch,
+) -> bool {
+    let dimensions = dimensions_of(pose, &state.attributes);
+    let bounds =
+        Aabb::of_body(state.position, dimensions.width, dimensions.height).deflate(COLLISION);
+    let entity = QueryEntity {
+        key: BirthKey::new(0, SourceKind::Player, 0, 0),
+        position: state.position,
+        fall_distance: state.fall_distance,
+        shift: state.shift0,
+        powder_snow_solid: false,
+        walks_on_powder_snow: false,
+    };
+    query::intersects(view, &entity, bounds, &mut scratch.entities)
+}

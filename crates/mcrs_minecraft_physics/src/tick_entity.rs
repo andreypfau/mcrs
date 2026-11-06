@@ -2,11 +2,13 @@ use glam::DVec3;
 use mcrs_voxel::BlockPos;
 
 use crate::Aabb;
+use crate::BirthKey;
 use crate::BlockAction;
 use crate::Body;
 use crate::BodyView;
 use crate::Category;
 use crate::CollisionWorld;
+use crate::Dimensions;
 use crate::EntityState;
 use crate::Living;
 use crate::MotionRow;
@@ -152,24 +154,7 @@ fn tick_living<W: CollisionWorld, B: BodyView>(
     } else {
         travel::modifier(DRAG, air_drag)
     };
-    let mut mover = Mover {
-        key: entity.key,
-        width: dimensions.width,
-        height: dimensions.height,
-        step_height: attributes.step_height as f32,
-        physics: Physics::Collide,
-        side,
-        shift: false,
-        keeps_to_edges: false,
-        restitution: attributes.bounciness,
-        block_bounce_factor: row.block_bounce_factor,
-        gravity: 0.0,
-        vertical_drag,
-        movement_efficiency: Some(attributes.movement_efficiency as f32),
-        powder_snow_solid: row.powder_snow_solid,
-        walks_on_powder_snow: living.walks_on_powder_snow,
-        intent: None,
-    };
+    let mut mover = living_mover(entity.key, side, row, &living, vertical_drag, dimensions);
     if !living.jump {
         living.jump_delay = 0;
     } else if body.flags.on_ground && living.jump_delay == 0 {
@@ -217,14 +202,65 @@ fn tick_living<W: CollisionWorld, B: BodyView>(
         start,
         dy,
         flying: false,
+        living: true,
+        updates_fall: true,
     };
     block_effects::apply(view, &context, body, Some(&mut living), actions);
     entity.living = Some(living);
     TickOutcome::default()
 }
 
+/// The mover of a living entity that is not a player; the travel step sets its gravity.
+fn living_mover(
+    key: BirthKey,
+    side: Side,
+    row: &MotionRow,
+    living: &Living,
+    vertical_drag: f32,
+    dimensions: Dimensions,
+) -> Mover {
+    let attributes = &living.attributes;
+    Mover {
+        key,
+        width: dimensions.width,
+        height: dimensions.height,
+        step_height: attributes.step_height as f32,
+        physics: Physics::Collide,
+        side,
+        shift: false,
+        keeps_to_edges: false,
+        restitution: attributes.bounciness,
+        block_bounce_factor: row.block_bounce_factor,
+        gravity: 0.0,
+        vertical_drag,
+        movement_efficiency: Some(attributes.movement_efficiency as f32),
+        powder_snow_solid: row.powder_snow_solid,
+        walks_on_powder_snow: living.walks_on_powder_snow,
+        intent: None,
+    }
+}
+
 /// Sets the vertical velocity of a jump from the ground.
 fn jump<W: CollisionWorld, B: BodyView>(view: View<'_, W, B>, body: &mut Body, living: &Living) {
+    let attributes = &living.attributes;
+    if let Some(power) = jump_power(
+        view,
+        body,
+        attributes.jump_strength,
+        living.effects.jump_boost,
+    ) {
+        body.velocity.y = power.max(body.velocity.y);
+    }
+}
+
+/// The widened jump power from the jump factor of the blocks under the body, or `None` when it
+/// is not more than `1.0E-5F`.
+pub(crate) fn jump_power<W: CollisionWorld, B: BodyView>(
+    view: View<'_, W, B>,
+    body: &Body,
+    jump_strength: f64,
+    jump_boost: Option<u8>,
+) -> Option<f64> {
     let table = &view.tables.collision;
     let floor = BlockPos::new(
         floor_block(body.position.x),
@@ -236,15 +272,9 @@ fn jump<W: CollisionWorld, B: BodyView>(view: View<'_, W, B>, body: &mut Body, l
         let below = offset_block(view.world, table, body, MOVEMENT_OFFSET);
         factor = table.state(state_at(view.world, below)).motion.jump_factor;
     }
-    let boost = living
-        .effects
-        .jump_boost
-        .map_or(0.0, |level| 0.1_f32 * (f32::from(level) + 1.0));
-    let power = (living.attributes.jump_strength as f32) * 1.0 * factor + boost;
-    if f64::from(power) <= CLIP {
-        return;
-    }
-    body.velocity.y = f64::from(power).max(body.velocity.y);
+    let boost = jump_boost.map_or(0.0, |level| 0.1_f32 * (f32::from(level) + 1.0));
+    let power = (jump_strength as f32) * 1.0 * factor + boost;
+    (f64::from(power) > CLIP).then_some(f64::from(power))
 }
 
 fn tick_other<W: CollisionWorld, B: BodyView>(
@@ -329,6 +359,8 @@ fn tick_other<W: CollisionWorld, B: BodyView>(
         start,
         dy,
         flying: false,
+        living: false,
+        updates_fall: true,
     };
     block_effects::apply(view, &context, body, None, actions);
     if resting_item {

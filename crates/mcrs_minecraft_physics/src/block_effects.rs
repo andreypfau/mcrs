@@ -32,6 +32,10 @@ pub(crate) struct EffectContext<'a> {
     pub(crate) dy: f64,
     /// A player with the flight state on ignores every stuck multiplier.
     pub(crate) flying: bool,
+    pub(crate) living: bool,
+    /// False for the server copy of a player, whose fall distance comes from the moves of the
+    /// client.
+    pub(crate) updates_fall: bool,
 }
 
 /// Applies the step action, the blocks inside the path of the box, and the fall distance.
@@ -60,10 +64,12 @@ pub(crate) fn apply<W: CollisionWorld, B: BodyView>(
     // The vanilla server resets the fall distance for the centre path before it adds the fall of
     // the tick, and resets it for a stuck multiplier after: an entity that descends a ladder
     // keeps the fall of one tick, and one that falls into a cobweb ends the tick at 0.
-    if living.is_some() && centre_resets_fall(view, context, body) {
-        body.fall_distance = 0.0;
+    if context.updates_fall {
+        if context.living && centre_resets_fall(view, context, body) {
+            body.fall_distance = 0.0;
+        }
+        fall_distance(view, context, body, actions);
     }
-    fall_distance(view, context, body, actions);
     let touched_powder_snow = inside_blocks(view, context, body, living.as_deref(), actions);
     if let Some(living) = living {
         living.in_powder_snow = touched_powder_snow;
