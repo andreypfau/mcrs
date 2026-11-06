@@ -51,6 +51,7 @@ pub mod game_profile;
 pub mod heightmap;
 mod held_light;
 mod hot_ticket;
+mod json_list;
 mod light_codec;
 pub mod minecraft_entity;
 mod movement;
@@ -75,6 +76,7 @@ mod tile_events;
 pub mod to_coordinator;
 pub mod to_muxer;
 mod wanted_column;
+pub mod whitelist;
 pub mod world_kinds;
 pub mod world_seed;
 

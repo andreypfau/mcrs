@@ -16,9 +16,11 @@ use mcrs_minecraft_protocol::packets::login::serverbound::{
 use mcrs_minecraft_protocol::{CompressionThreshold, uuid};
 use mcrs_minecraft_text::Text;
 
+use mcrs_minecraft_engine::coordinator::ops::OpList;
 use mcrs_minecraft_engine::game_profile::GameProfile;
 use mcrs_minecraft_engine::muxer::disconnect::Departing;
 use mcrs_minecraft_engine::muxer::session::{HostAnchorRef, SessionBundle, SessionConnection};
+use mcrs_minecraft_engine::whitelist::{EnforceWhitelist, Whitelist};
 use mcrs_minecraft_engine_world::session::{
     Place, PlayerSessionCounter, Session, SessionPlacement,
 };
@@ -44,6 +46,8 @@ impl bevy_app::Plugin for LoginPlugin {
     fn build(&self, app: &mut bevy_app::App) {
         app.insert_resource(ChatSessionId(uuid::Uuid::new_v4()));
         app.init_resource::<ServerTicks>();
+        app.init_resource::<Whitelist>();
+        app.init_resource::<OpList>();
         app.init_resource::<NetworkCompressionThreshold>();
         app.add_systems(
             bevy_app::First,
@@ -63,6 +67,33 @@ impl bevy_app::Plugin for LoginPlugin {
                 .before(crate::shutdown::shutdown_system)
                 .run_if(any_with_component::<LoginStarted>),
         );
+        app.add_observer(enforce_whitelist);
+    }
+}
+
+fn enforce_whitelist(
+    _: On<EnforceWhitelist>,
+    whitelist: Res<Whitelist>,
+    mut connections: Query<(
+        Entity,
+        &mut ServerSideConnection,
+        &ConnectionState,
+        &GameProfile,
+        Option<&LoginState>,
+    )>,
+    mut commands: Commands,
+) {
+    for (connection, mut con, &state, profile, login) in &mut connections {
+        if whitelist.contains(&profile.id) {
+            continue;
+        }
+        tracing::info!(name = %profile.username, "disconnected: not whitelisted");
+        disconnect(
+            &mut con,
+            client_protocol(state, login),
+            not_whitelisted_reason(),
+        );
+        commands.entity(connection).remove::<ServerSideConnection>();
     }
 }
 
@@ -136,6 +167,10 @@ fn invalid_player_name_reason() -> Text {
             "Internal Exception: java.lang.IllegalStateException: Invalid characters in username",
         )],
     )
+}
+
+pub fn not_whitelisted_reason() -> Text {
+    Text::translate("multiplayer.disconnect.not_whitelisted", Vec::new())
 }
 
 pub fn duplicate_login_reason() -> Text {
@@ -216,6 +251,19 @@ impl SessionsById<'_, '_> {
 }
 
 #[derive(SystemParam)]
+pub struct JoinCheck<'w> {
+    whitelist: Res<'w, Whitelist>,
+    ops: Res<'w, OpList>,
+    host: Option<Res<'w, SingleplayerProfile>>,
+}
+
+impl JoinCheck<'_> {
+    pub fn allows(&self, id: &uuid::Uuid) -> bool {
+        self.whitelist.allows(id) || self.ops.get(id).is_some()
+    }
+}
+
+#[derive(SystemParam)]
 pub struct LoginReplies<'w> {
     session_id: Res<'w, ChatSessionId>,
     compression: Res<'w, NetworkCompressionThreshold>,
@@ -240,7 +288,7 @@ pub fn handle_hello_packet(
     mut session_connections: Query<(&mut ServerSideConnection, &ConnectionState), With<LoginState>>,
     sessions: SessionsById,
     replies: LoginReplies,
-    host: Option<Res<SingleplayerProfile>>,
+    join_check: JoinCheck,
     mut commands: Commands,
 ) {
     let (Ok(mut con), Some(pkt)) = (query.get_mut(event.entity), event.packet()) else {
@@ -258,7 +306,15 @@ pub fn handle_hello_packet(
             .remove::<ServerSideConnection>();
         return;
     }
-    let profile = hello_profile(&pkt.username, host.as_deref());
+    let profile = hello_profile(&pkt.username, join_check.host.as_deref());
+    if !join_check.allows(&profile.id) {
+        tracing::info!(name = %profile.username, "login refused: not whitelisted");
+        disconnect(&mut con, ConnectionState::Login, not_whitelisted_reason());
+        commands
+            .entity(event.entity)
+            .remove::<ServerSideConnection>();
+        return;
+    }
     tracing::debug!(?profile, "login hello");
     replies.announce_compression(&mut con);
     let mut must_wait = sessions.saving(profile.id);

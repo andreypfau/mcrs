@@ -40,6 +40,7 @@ use crate::player_roster::RosterRow;
 use crate::player_view::PlayerView;
 use crate::to_coordinator::RoutedInput;
 use crate::to_muxer::{DimClosed, DimDelivered, DimOpened};
+use crate::whitelist::Whitelist;
 
 /// Ticks the dimension worlds once in every host update, in lockstep.
 pub struct DimCellsPlugin;
@@ -666,6 +667,7 @@ struct Globals {
     game_time: GameTime,
     clocks: Option<WorldClocks>,
     ops: Option<OpList>,
+    whitelist: Option<Whitelist>,
     registries: Option<Versioned<RegistrySnapshot>>,
     dimensions: Option<RunningDimensions>,
 }
@@ -676,6 +678,7 @@ impl Globals {
             game_time: host.get_resource::<GameTime>().copied().unwrap_or_default(),
             clocks: changed(host),
             ops: changed(host),
+            whitelist: changed(host),
             registries: changed(host),
             dimensions: changed(host),
         }
@@ -700,6 +703,7 @@ impl Globals {
             game_time: self.game_time,
             clocks: self.clocks.clone(),
             ops: self.ops.clone(),
+            whitelist: self.whitelist.clone(),
             registries: self.registries.clone(),
             dimensions: self.dimensions.clone(),
             players,

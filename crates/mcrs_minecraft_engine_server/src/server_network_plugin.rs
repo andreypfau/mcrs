@@ -2,6 +2,7 @@ use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
 
 use bevy_app::{App, Plugin};
 use mcrs_minecraft_engine::client_info::ClientInfoPlugin;
+use mcrs_minecraft_engine::whitelist::Whitelist;
 use mcrs_minecraft_network::{NetworkPlugin, default_favicon};
 
 use crate::configuration::{ConfigurationStatePlugin, KnownPackOffer};
@@ -39,6 +40,7 @@ pub struct ServerNetworkPlugin {
     pub send_buffer_bytes: usize,
     /// The length of the kernel queue of connections that wait for the accept loop.
     pub accept_backlog: u32,
+    pub whitelist: Whitelist,
 }
 
 impl ServerNetworkPlugin {
@@ -70,6 +72,7 @@ impl Default for ServerNetworkPlugin {
             enable_status: true,
             send_buffer_bytes: NetworkPlugin::default().send_buffer_bytes,
             accept_backlog: NetworkPlugin::default().accept_backlog,
+            whitelist: Whitelist::default(),
         }
     }
 }
@@ -102,5 +105,6 @@ impl Plugin for ServerNetworkPlugin {
         }
         app.add_plugins(StatusPlugin);
         app.add_plugins(crate::shutdown::ShutdownPlugin);
+        app.insert_resource(self.whitelist.clone());
     }
 }

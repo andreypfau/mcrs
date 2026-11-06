@@ -114,6 +114,11 @@ tick reads the new time. The world sends the change in its output. The coordinat
 the clocks that it owns, sends `set_time` to every player, and sends the clocks to every world
 in the next input.
 
+`dim_mail::edit_whitelist` changes the copy of the whitelist in this world at once, except for a
+reload. The world sends the change in its output. The host applies it to the whitelist that it
+owns and writes the file. The host sends the whitelist to every world in the next input. A
+reload reads the file only on the host, after the earlier changes of the tick.
+
 The admin message of a command is an `OperatorBroadcast` event in the world of the run. The
 server observes it there. It sends the message to each player of `CommandTargets` that the copy
 of the operator list names, but the source.
@@ -196,7 +201,8 @@ two kinds of id never meet.
 | `ForeignPlayers` | copy of the rows of `PlayerRoster` for the other worlds | each dimension world; replaced by each input |
 | `RunningDimensions` | truth: the dimensions that run | the coordinator; each world holds a copy |
 | `DepartureRequests` | temporal fact: the players that the commands of a tick send away | each dimension world; emptied after the tick |
-| `DimMail` | temporal fact: the orders, clock changes and handoffs of a tick | each dimension world; emptied into the output of the tick |
+| `Whitelist` | truth: the whitelist and its two settings | the host; each dimension world holds a copy |
+| `DimMail` | temporal fact: the orders, clock changes, whitelist changes and handoffs of a tick | each dimension world; emptied into the output of the tick |
 | `CommandOutbox` | temporal fact: the order of the effects and the messages of one call | each dimension world; emptied after each call |
 | `EffectQueue<E>` | temporal fact: the effects of one type that a call wrote | each dimension world; emptied by the effects of the call |
 | `DimensionLabel` | truth: the name of the dimension of a world | the sub-app builder |

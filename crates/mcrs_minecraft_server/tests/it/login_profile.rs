@@ -4,11 +4,15 @@ use bevy_ecs::system::{IntoSystem, System};
 use bytes::BytesMut;
 use mcrs_minecraft_engine::bus::{InboundPlayerDespawn, OutboundPlayerAttached};
 use mcrs_minecraft_engine::channel_types::ToDim;
+use mcrs_minecraft_engine::coordinator::ops::{OpList, OpListEntry};
 use mcrs_minecraft_engine::game_profile::GameProfile;
 use mcrs_minecraft_engine::muxer::dim_inputs::DimInputs;
 use mcrs_minecraft_engine::muxer::dim_outputs;
 use mcrs_minecraft_engine::muxer::disconnect::DisconnectProtocolPlugin;
 use mcrs_minecraft_engine::muxer::session::HostAnchorRef;
+use mcrs_minecraft_engine::whitelist::{
+    EditWhitelist, Whitelist, WhitelistEntry, WhitelistHostPlugin,
+};
 use mcrs_minecraft_engine_server::configuration::on_configuration_ack;
 use mcrs_minecraft_engine_server::login::{LoginPlugin, LoginState, SingleplayerProfile};
 use mcrs_minecraft_engine_server::{ShutdownPlugin, ShutdownRequest};
@@ -49,6 +53,7 @@ const GUEST: Uuid = uuid!("404198aa-cc64-3021-9fdf-8766c0d0096c");
 fn server(host: Option<SingleplayerProfile>) -> App {
     let mut app = App::new();
     app.add_plugins(LoginPlugin);
+    app.add_plugins(WhitelistHostPlugin);
     app.init_resource::<mcrs_minecraft_network::metrics::BridgeTelemetry>();
     app.init_resource::<mcrs_minecraft_engine_world::session::PlayerSessionCounter>();
     app.add_message::<InboundPlayerDespawn>();
@@ -659,4 +664,197 @@ fn configuration_frames_sent_with_the_login_acknowledgement_count_no_decode_faul
             "{state:?}"
         );
     }
+}
+
+fn assert_not_whitelisted(app: &mut App, username: &str) {
+    let mut client = connect(app);
+    send_hello(app, &client, username, Uuid::new_v4());
+    assert_eq!(
+        login_disconnect_reason(&client.received(app)),
+        serde_json::json!({"translate": "multiplayer.disconnect.not_whitelisted"})
+    );
+    assert!(!connected(app, &client));
+}
+
+#[test]
+fn wl_join_001_without_the_check_a_player_that_is_not_listed_joins() {
+    let mut app = server(None);
+    app.insert_resource(Whitelist::default());
+    hello(&mut app, "Steve", Uuid::new_v4());
+}
+
+#[test]
+fn wl_join_002_a_player_that_is_not_listed_is_refused() {
+    let mut app = server(None);
+    app.insert_resource(Whitelist::default().enabled(true));
+    assert_not_whitelisted(&mut app, "Steve");
+}
+
+#[test]
+fn wl_join_003_the_profile_id_decides_and_not_the_name() {
+    let mut app = server(None);
+    app.insert_resource(
+        Whitelist::new([
+            WhitelistEntry {
+                uuid: STEVE,
+                name: "Other".to_owned(),
+            },
+            WhitelistEntry {
+                uuid: Uuid::from_u128(1),
+                name: "Guest".to_owned(),
+            },
+        ])
+        .enabled(true),
+    );
+    hello(&mut app, "Steve", Uuid::new_v4());
+    assert_not_whitelisted(&mut app, "Guest");
+}
+
+#[test]
+fn wl_join_004_an_operator_that_is_not_listed_joins() {
+    let mut app = server(None);
+    app.insert_resource(Whitelist::default().enabled(true));
+    app.insert_resource(OpList::new([OpListEntry {
+        uuid: STEVE,
+        name: "Steve".to_owned(),
+        level: 4,
+        bypasses_player_limit: false,
+    }]));
+    hello(&mut app, "Steve", Uuid::new_v4());
+}
+
+fn not_whitelisted() -> Text {
+    Text::translate("multiplayer.disconnect.not_whitelisted", Vec::new())
+}
+
+fn in_play(app: &mut App, name: &str) -> Client {
+    let mut client = connect(app);
+    send_hello(app, &client, name, Uuid::new_v4());
+    client.received(app);
+    app.world_mut()
+        .entity_mut(client.connection)
+        .insert(ConnectionState::Game);
+    client
+}
+
+fn turn_the_check_on(app: &mut App) {
+    app.world_mut().trigger(EditWhitelist::SetEnabled(true));
+    app.update();
+}
+
+#[test]
+fn wl_enf_001_without_enforcement_a_player_that_is_not_listed_stays() {
+    let mut app = server(None);
+    app.insert_resource(Whitelist::default());
+    let mut client = in_play(&mut app, "Steve");
+
+    turn_the_check_on(&mut app);
+
+    assert!(connected(&app, &client));
+    assert!(client.received(&mut app).is_empty());
+}
+
+#[test]
+fn wl_enf_002_with_enforcement_only_a_player_that_is_not_listed_is_disconnected() {
+    let mut app = server(None);
+    app.insert_resource(
+        Whitelist::new([WhitelistEntry {
+            uuid: GUEST,
+            name: "Guest".to_owned(),
+        }])
+        .enforced(true),
+    );
+    let mut steve = in_play(&mut app, "Steve");
+    let mut guest = in_play(&mut app, "Guest");
+
+    turn_the_check_on(&mut app);
+
+    assert_eq!(
+        play_disconnect_reason(&steve.received(&mut app)),
+        not_whitelisted()
+    );
+    assert!(!connected(&app, &steve));
+    assert!(connected(&app, &guest));
+    assert!(guest.received(&mut app).is_empty());
+}
+
+#[test]
+fn wl_enf_002_a_remove_disconnects_with_the_check_on_and_not_with_the_check_off() {
+    for (enabled, stays) in [(true, false), (false, true)] {
+        let mut app = server(None);
+        app.insert_resource(
+            Whitelist::new([WhitelistEntry {
+                uuid: STEVE,
+                name: "Steve".to_owned(),
+            }])
+            .enabled(enabled)
+            .enforced(true),
+        );
+        let client = in_play(&mut app, "Steve");
+        app.update();
+
+        app.world_mut().trigger(EditWhitelist::Remove(STEVE));
+        app.update();
+
+        assert_eq!(connected(&app, &client), stays, "{enabled}");
+    }
+}
+
+#[test]
+fn wl_enf_002_a_player_after_the_login_finished_gets_the_packet_of_configuration() {
+    let mut app = server(None);
+    app.insert_resource(Whitelist::default().enforced(true));
+    let mut client = connect(&mut app);
+    send_hello(&mut app, &client, "Steve", Uuid::new_v4());
+    client.received(&mut app);
+
+    turn_the_check_on(&mut app);
+
+    let frames = client.received(&mut app);
+    let [frame] = &frames[..] else {
+        panic!("{frames:?}");
+    };
+    assert_eq!(
+        frame.id,
+        configuration::clientbound::ClientboundDisconnect::ID
+    );
+    let packet =
+        configuration::clientbound::ClientboundDisconnect::decode(&mut &frame.body[..]).unwrap();
+    assert_eq!(packet.reason, not_whitelisted());
+}
+
+#[test]
+fn wl_enf_003_enforcement_also_disconnects_an_operator_that_is_not_listed() {
+    let mut app = server(None);
+    app.insert_resource(Whitelist::default().enforced(true));
+    app.insert_resource(OpList::new([OpListEntry {
+        uuid: STEVE,
+        name: "Steve".to_owned(),
+        level: 4,
+        bypasses_player_limit: false,
+    }]));
+    let client = in_play(&mut app, "Steve");
+
+    turn_the_check_on(&mut app);
+
+    assert!(!connected(&app, &client));
+}
+
+#[test]
+fn wl_enf_003_an_add_does_not_disconnect_an_operator_that_is_not_listed() {
+    let mut app = server(None);
+    app.insert_resource(Whitelist::default().enabled(true).enforced(true));
+    app.insert_resource(OpList::new([OpListEntry {
+        uuid: STEVE,
+        name: "Steve".to_owned(),
+        level: 4,
+        bypasses_player_limit: false,
+    }]));
+    let client = in_play(&mut app, "Steve");
+
+    app.world_mut()
+        .trigger(EditWhitelist::Add(WhitelistEntry::offline("Guest")));
+    app.update();
+
+    assert!(connected(&app, &client));
 }

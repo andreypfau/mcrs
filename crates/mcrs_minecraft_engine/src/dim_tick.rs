@@ -38,6 +38,7 @@ use crate::player_order::OrderedPlayer;
 use crate::player_roster::{ForeignPlayers, OwnPlayers, RosterRow};
 use crate::tile_events::TileEvents;
 use crate::to_muxer::ClientOutput;
+use crate::whitelist::{EditWhitelist, Whitelist};
 
 /// The host schedule that ticks the dimension worlds, right after `Last`: each world takes
 /// in what the host sent during the update.
@@ -67,6 +68,7 @@ pub struct DimInput {
     pub(crate) game_time: GameTime,
     pub(crate) clocks: Option<WorldClocks>,
     pub(crate) ops: Option<OpList>,
+    pub(crate) whitelist: Option<Whitelist>,
     pub(crate) registries: Option<Versioned<RegistrySnapshot>>,
     pub(crate) dimensions: Option<RunningDimensions>,
     /// The players of the other worlds, in a tick whose input carries commands.
@@ -97,6 +99,8 @@ pub struct DimOutput {
     pub(crate) roster: Vec<RosterRow>,
     /// The changes to the world clocks that the tick made.
     pub(crate) clock_edits: Vec<EditClock>,
+    /// The changes to the whitelist that the tick made.
+    pub(crate) whitelist_edits: Vec<EditWhitelist>,
     /// What the tick hands the other cells of the world. A world of one cell hands nothing.
     pub(crate) cell_mail: CellMail,
     /// The requests of the tick to the data layer of the world, in order.
@@ -113,6 +117,7 @@ impl DimOutput {
         self.client.append(other.client);
         self.departures.extend(other.departures);
         self.clock_edits.extend(other.clock_edits);
+        self.whitelist_edits.extend(other.whitelist_edits);
     }
 }
 
@@ -173,6 +178,9 @@ fn apply_input(world: &mut World, _tick: Tick, input: DimInput) {
     }
     if let Some(ops) = input.ops {
         world.insert_resource(ops);
+    }
+    if let Some(whitelist) = input.whitelist {
+        world.insert_resource(whitelist);
     }
     if let Some(registries) = input.registries {
         mcrs_minecraft_engine_registries::apply_registries(world, registries);
@@ -244,6 +252,7 @@ fn take_output(world: &mut World) -> DimOutput {
     if let Some(mut mail) = world.get_resource_mut::<DimMail>() {
         output.client.orders = std::mem::take(&mut mail.orders);
         output.clock_edits = std::mem::take(&mut mail.clock_edits);
+        output.whitelist_edits = std::mem::take(&mut mail.whitelist_edits);
         output.client.handoffs = std::mem::take(&mut mail.handoffs);
     }
     drain_into(world, &mut output.client.views);
