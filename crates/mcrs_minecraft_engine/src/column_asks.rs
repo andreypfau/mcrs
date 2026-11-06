@@ -117,7 +117,7 @@ pub(crate) fn answer_column_asks(
     spawned: Query<&ColumnPosComponent, Added<ColumnPosComponent>>,
 ) {
     for &ColumnPosComponent(column) in &spawned {
-        if owned.owns(column) && owned.is_read_by_others(column) {
+        if owned.owns(column) {
             store.report(ColumnHold {
                 column,
                 hold: Hold::Hot,

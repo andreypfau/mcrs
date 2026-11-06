@@ -1,9 +1,7 @@
 use bevy_ecs::change_detection::DetectChangesMut;
 use bevy_ecs::lifecycle::{Add, Discard};
 use bevy_ecs::observer::On;
-use bevy_ecs::prelude::{
-    Commands, Component, Entity, Has, Query, Res, ResMut, Single, With, Without,
-};
+use bevy_ecs::prelude::{Commands, Component, Entity, Has, Query, Res, ResMut, Single, With};
 use bevy_ecs::resource::Resource;
 use bevy_ecs::world::World;
 use mcrs_minecraft_engine_world::entity::physics::Transform;
@@ -191,23 +189,12 @@ pub(crate) fn raise_hot_ticket(
 /// the other cells, which hold its ticket as a [`RemoteTicket`].
 pub(crate) fn release_hot_ticket(
     discard: On<Discard, HotTicket>,
-    held: Query<(&HotTicket, Option<&Owner>, Has<CellCrossing>), Without<RemoteTicket>>,
-    remote: Query<&HotTicket, With<RemoteTicket>>,
+    held: Query<(&HotTicket, Option<&Owner>, Has<CellCrossing>)>,
     owned: Option<Res<OwnedColumns>>,
     mut mail: Option<ResMut<TicketMail>>,
     mut loading: Single<&mut ColumnLoading>,
 ) {
-    let entity = discard.event().entity;
-    if let Ok(ticket) = remote.get(entity) {
-        shift(
-            ticket.columns(),
-            &mut loading,
-            owned.as_deref(),
-            Change::Lower,
-        );
-        return;
-    }
-    let Ok((ticket, owner, crossing)) = held.get(entity) else {
+    let Ok((ticket, owner, crossing)) = held.get(discard.event().entity) else {
         return;
     };
     shift(
@@ -216,6 +203,7 @@ pub(crate) fn release_hot_ticket(
         owned.as_deref(),
         Change::Lower,
     );
+    // A remote ticket has no owner here.
     if let Some(&Owner(session)) = owner
         && !crossing
     {
