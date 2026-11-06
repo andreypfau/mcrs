@@ -10,7 +10,7 @@ use mcrs_minecraft_network::event::Received;
 use mcrs_minecraft_protocol::setting::ChatMode;
 use mcrs_minecraft_protocol_game::serverbound::ServerboundChat;
 use mcrs_minecraft_text::{Color, IntoText, RawText, Text, is_allowed_chat_character};
-use tracing::info;
+use tracing::{info, warn};
 
 /// Broadcasts the chat messages of the players as system messages.
 #[derive(Clone, Copy, Debug, Default)]
@@ -78,11 +78,15 @@ fn handle_chat(
         info!("<{}> {:?}", username, chat_event.text);
         let text: Text = Text::translate(
             "chat.type.text",
-            vec![username.into_text(), chat_event.text],
+            vec![username.clone().into_text(), chat_event.text],
         );
 
-        let Ok(text) = RawText::from_text(&text) else {
-            return;
+        let text = match RawText::from_text(&text) {
+            Ok(text) => text,
+            Err(err) => {
+                warn!(player = %username, "dropping a chat line that does not encode: {err:?}");
+                return;
+            }
         };
 
         world.write_message(to_target(PacketTarget::AllPlayers, system_chat(text)));
