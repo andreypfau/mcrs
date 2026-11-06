@@ -123,6 +123,12 @@ pub(crate) struct DimInbox {
     serverbound: Vec<InboundPlayerPacket>,
 }
 
+impl DimInbox {
+    fn is_empty(&self) -> bool {
+        self.control.is_empty() && self.serverbound.is_empty()
+    }
+}
+
 pub(crate) fn dim_world(sub_app: SubApp) -> DimWorld {
     SubAppWorld::new(sub_app, apply_input, take_output).with_idle_check(is_idle)
 }
@@ -131,21 +137,19 @@ pub(crate) fn dim_world(sub_app: SubApp) -> DimWorld {
 /// cell and no section, and no input or answer waits in it. The copies of the host resources
 /// that the input carries still land, and a later tick reacts to them.
 fn is_idle(world: &mut World) -> bool {
-    let holds_none = |world: &World, component: Option<ComponentId>| {
-        component.is_none_or(|component| {
-            world
-                .archetypes()
-                .iter()
-                .all(|archetype| archetype.is_empty() || !archetype.contains(component))
-        })
-    };
-    holds_none(world, world.component_id::<Player>())
-        && holds_none(world, world.component_id::<RemoteTicket>())
-        && holds_none(world, world.component_id::<SectionPos>())
-        && holds_none(world, world.component_id::<ColumnPosComponent>())
+    let busy: [Option<ComponentId>; 4] = [
+        world.component_id::<Player>(),
+        world.component_id::<RemoteTicket>(),
+        world.component_id::<SectionPos>(),
+        world.component_id::<ColumnPosComponent>(),
+    ];
+    let holds_busy = world.archetypes().iter().any(|archetype| {
+        !archetype.is_empty() && busy.iter().flatten().any(|&id| archetype.contains(id))
+    });
+    !holds_busy
         && world
             .get_resource::<DimInbox>()
-            .is_none_or(|inbox| inbox.control.is_empty() && inbox.serverbound.is_empty())
+            .is_none_or(DimInbox::is_empty)
         && world
             .get_resource::<CellInbox>()
             .is_none_or(|inbox| inbox.0.is_empty())
@@ -294,5 +298,5 @@ pub(crate) fn drain_dim_inbox(
 }
 
 pub(crate) fn inbox_holds_messages(inbox: Res<DimInbox>) -> bool {
-    !inbox.control.is_empty() || !inbox.serverbound.is_empty()
+    !inbox.is_empty()
 }

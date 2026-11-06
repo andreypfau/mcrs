@@ -67,8 +67,8 @@ impl<I: Send + 'static, O: Send + 'static> CellWorld for SubAppWorld<I, O> {
 
     fn tick(&mut self, tick: Tick, input: I) -> O {
         let world = self.sub_app.world_mut();
-        let phase = self.phase;
-        if phase == Phase::Starting {
+        let starting = self.phase == Phase::Starting;
+        if starting {
             run(
                 world,
                 [PreStartup.intern(), Startup.intern(), PostStartup.intern()],
@@ -76,29 +76,24 @@ impl<I: Send + 'static, O: Send + 'static> CellWorld for SubAppWorld<I, O> {
             self.phase = Phase::Running;
         }
         (self.apply)(world, tick, input);
-        if let Some(is_idle) = self.is_idle
-            && phase == Phase::Running
-            && is_idle(world)
-        {
-            let output = (self.take)(world);
-            world.clear_trackers();
-            return output;
+        let idle = !starting && self.is_idle.is_some_and(|is_idle| is_idle(world));
+        if !idle {
+            run(
+                world,
+                [
+                    First.intern(),
+                    PreUpdate.intern(),
+                    FixedFirst.intern(),
+                    FixedPreUpdate.intern(),
+                    FixedUpdate.intern(),
+                    FixedPostUpdate.intern(),
+                    FixedLast.intern(),
+                    Update.intern(),
+                    PostUpdate.intern(),
+                    Last.intern(),
+                ],
+            );
         }
-        run(
-            world,
-            [
-                First.intern(),
-                PreUpdate.intern(),
-                FixedFirst.intern(),
-                FixedPreUpdate.intern(),
-                FixedUpdate.intern(),
-                FixedPostUpdate.intern(),
-                FixedLast.intern(),
-                Update.intern(),
-                PostUpdate.intern(),
-                Last.intern(),
-            ],
-        );
         let output = (self.take)(world);
         world.clear_trackers();
         output
