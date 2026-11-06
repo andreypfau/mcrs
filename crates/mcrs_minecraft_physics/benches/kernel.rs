@@ -10,6 +10,7 @@ use criterion::Criterion;
 use criterion::criterion_group;
 use criterion::criterion_main;
 use glam::DVec3;
+use mcrs_engine_muxer::EntityId;
 use mcrs_minecraft_physics::Aabb;
 use mcrs_minecraft_physics::BirthKey;
 use mcrs_minecraft_physics::Body;
@@ -17,11 +18,17 @@ use mcrs_minecraft_physics::CollisionSection;
 use mcrs_minecraft_physics::CollisionTable;
 use mcrs_minecraft_physics::CollisionWorld;
 use mcrs_minecraft_physics::EntityState;
+use mcrs_minecraft_physics::GridFlags;
+use mcrs_minecraft_physics::GridRow;
+use mcrs_minecraft_physics::KeyedStream;
 use mcrs_minecraft_physics::LANES;
+use mcrs_minecraft_physics::ListedBodies;
 use mcrs_minecraft_physics::Living;
 use mcrs_minecraft_physics::MotionRow;
 use mcrs_minecraft_physics::NoBodies;
 use mcrs_minecraft_physics::Probe;
+use mcrs_minecraft_physics::PushRules;
+use mcrs_minecraft_physics::PushTargets;
 use mcrs_minecraft_physics::QueryEntity;
 use mcrs_minecraft_physics::Scratch;
 use mcrs_minecraft_physics::SectionLookup;
@@ -29,10 +36,12 @@ use mcrs_minecraft_physics::SectionMasks;
 use mcrs_minecraft_physics::Side;
 use mcrs_minecraft_physics::SourceKind;
 use mcrs_minecraft_physics::Tables;
+use mcrs_minecraft_physics::TeamSlot;
 use mcrs_minecraft_physics::TestBlocks;
 use mcrs_minecraft_physics::View;
 use mcrs_minecraft_physics::WorldBorder;
 use mcrs_minecraft_physics::in_open_air;
+use mcrs_minecraft_physics::push_entity;
 use mcrs_minecraft_physics::resolve;
 use mcrs_minecraft_physics::tick_entity;
 use mcrs_minecraft_physics::tick_in_air;
@@ -259,7 +268,60 @@ fn bench_entities(c: &mut Criterion) {
     });
 }
 
+fn bench_push(c: &mut Criterion) {
+    let mob = |index: u32, x: f64, z: f64| {
+        let id = EntityId(u64::from(index) + 1);
+        GridRow {
+            position: DVec3::new(x, 0.0, z),
+            half_width: 0.3,
+            height: 1.95,
+            key: BirthKey::new(0, SourceKind::Spawn, 0, index),
+            id,
+            root_vehicle: id,
+            team: TeamSlot::default(),
+            flags: GridFlags::PUSHABLE,
+            push_targets: PushTargets::Each,
+        }
+    };
+    let mut scratch = Scratch::new();
+    for count in [3_u32, 24] {
+        let rows: Vec<GridRow> = (0..=count)
+            .map(|index| {
+                mob(
+                    index,
+                    0.5 + f64::from(index % 5) * 0.1,
+                    0.5 + f64::from(index / 5) * 0.1,
+                )
+            })
+            .collect();
+        let bodies = ListedBodies {
+            colliders: Vec::new(),
+            rows: rows.clone(),
+        };
+        let of = rows[0];
+        let stream = KeyedStream::new(&of.key, 1);
+        let rules = PushRules {
+            max_entity_cramming: 64,
+            cap: 24,
+        };
+        c.bench_function(&format!("push_gather/{count}_neighbours"), |b| {
+            b.iter(|| {
+                let mut velocity = DVec3::ZERO;
+                push_entity(
+                    &bodies,
+                    black_box(&of),
+                    &rules,
+                    &stream,
+                    &mut velocity,
+                    &mut scratch,
+                );
+                velocity
+            })
+        });
+    }
+}
+
 const SERVER: Side = Side::Server { authority: true };
 
-criterion_group!(kernel, bench_resolve, bench_entities);
+criterion_group!(kernel, bench_resolve, bench_entities, bench_push);
 criterion_main!(kernel);

@@ -964,6 +964,13 @@ pub fn tick_entity<W: CollisionWorld, B: BodyView>(
     view: View<'_, W, B>, side: Side, row: &MotionRow, entity: &mut EntityState, wake: bool,
     actions: &mut Vec<BlockAction>, scratch: &mut Scratch,
 ) -> TickOutcome;
+/// PHY-CMP-012: the push of the neighbours from the start-of-tick grid, added to `velocity` in
+/// the order of their birth keys; the crowd draw of PHY-CMP-014 comes from `stream`; with
+/// `max_entity_cramming` 0 only mutual `cap`-nearest pairs push (PHY-CMP-019).
+pub fn push_entity<B: BodyView>(
+    bodies: &B, of: &GridRow, rules: &PushRules, stream: &KeyedStream, velocity: &mut DVec3,
+    scratch: &mut Scratch,
+) -> PushOutcome;                           // pushed (PHY-SKIP-006), crowd damage, candidates
 /// The in-air batch: four rows of one class whose read zone is in loaded sections of air only
 /// (`in_open_air`); the result equals `tick_entity`, bit for bit.
 pub fn tick_in_air(row: &MotionRow, lanes: &mut [EntityState; 4]) -> [TickOutcome; 4];

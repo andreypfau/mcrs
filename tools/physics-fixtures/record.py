@@ -127,6 +127,20 @@ def experiments():
         dict(tag="item", kind="item", pos=(3.5, 1.0, 0.5),
              nbt=f"Item:{items},PickupDelay:32767,Age:-32768,Motion:[0.0d,0.0d,0.0d]"),
     ]))
+    for distance in ["0.3", "0.05", "0.005"]:
+        found.append(dict(name=f"e34_push_{distance.replace('.', '_')}", rule="E34", ticks=5, blocks=floor(), entities=[
+            dict(tag="a", kind="zombie", pos=(0.5, 1.0, 0.5), nbt="NoAI:1b,OnGround:1b,Motion:[0.0d,0.0d,0.0d]"),
+            dict(tag="b", kind="zombie", pos=(0.5 + float(distance), 1.0, 0.5), nbt="NoAI:1b,OnGround:1b,Motion:[0.0d,0.0d,0.0d]"),
+        ]))
+    box = floor() + [((-1, 1, -1), (1, 2, -1), "glass"), ((-1, 1, 1), (1, 2, 1), "glass"),
+                     ((-1, 1, 0), (-1, 2, 0), "glass"), ((1, 1, 0), (1, 2, 0), "glass")]
+    for order in ["ab", "ba"]:
+        entities = {
+            "a": dict(tag="a", kind="zombie", pos=(0.4, 1.0, 0.45), nbt="NoAI:1b,OnGround:1b,Motion:[0.0d,0.0d,0.0d]"),
+            "b": dict(tag="b", kind="zombie", pos=(0.6, 1.0, 0.55), nbt="NoAI:1b,OnGround:1b,Motion:[0.0d,0.0d,0.0d]"),
+        }
+        found.append(dict(name=f"e35_crowd_{order}", rule="E35", ticks=5, blocks=box,
+                          entities=[entities[tag] for tag in order]))
     return found
 
 
@@ -326,7 +340,7 @@ def main():
         console.run([
             "gamerule spawn_mobs false", "gamerule doMobSpawning false",
             "gamerule random_tick_speed 0", "gamerule randomTickSpeed 0",
-            "gamerule advance_time false", "gamerule doDaylightCycle false",
+            "gamerule advance_time false", "gamerule doDaylightCycle false", "time set midnight",
         ] + [f"forceload add {x} -16 {min(x + 1007, span)} 16" for x in range(-16, span, 1008)])
         time.sleep(5)
         runs = [record(console, main_group)]
