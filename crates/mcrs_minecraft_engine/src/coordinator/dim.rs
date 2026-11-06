@@ -10,13 +10,12 @@ use mcrs_minecraft_engine_world::world::sub_app::DimDespawnQueue;
 use mcrs_minecraft_resource::ResourceKeyBuf;
 use tracing::{debug, warn};
 
-use crate::coordinator::destination;
 use crate::coordinator::dim_cells::{CellMove, DimCells, DimTicked};
 use crate::coordinator::entity_id_ranges::EntityIdRanges;
 use crate::coordinator::roster::PlayerRoster;
 use crate::coordinator::running_dimensions::RunningDimensions;
 use crate::dim_tick::DimOutput;
-use crate::to_muxer::{DimClosed, DimDelivered, RoutedDeparture};
+use crate::to_muxer::{Destination, DimClosed, DimDelivered, RoutedDeparture};
 
 /// Takes what the dimension worlds handed over in their last tick, the cells in the order they
 /// ticked: records their column traces, grants the entity id ranges they ask for, keeps the
@@ -76,10 +75,23 @@ pub(crate) fn take_dim_outputs(world: &mut World) {
         for edit in output.clock_edits {
             world.trigger(edit);
         }
+        let running = world.get_resource::<RunningDimensions>();
         let departures: Vec<RoutedDeparture> = output
             .departures
             .into_iter()
-            .map(|departure| destination::route(world, label, departure))
+            .map(|departure| RoutedDeparture {
+                destination: running.and_then(|running| {
+                    running
+                        .iter()
+                        .find(|found| found.key == departure.to && found.label != label)
+                        .map(|found| Destination {
+                            label: found.label,
+                            key: found.key.clone(),
+                            dimension_type: found.dimension_type,
+                        })
+                }),
+                departure,
+            })
             .collect();
         world.write_message(DimDelivered {
             dim: label,

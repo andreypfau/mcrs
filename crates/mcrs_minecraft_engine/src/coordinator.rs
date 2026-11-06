@@ -11,7 +11,6 @@
 pub mod clock;
 pub mod coordinator_plugin;
 pub mod default_game_mode;
-pub mod destination;
 pub mod dim;
 pub mod dim_cells;
 pub mod dimension_order;
