@@ -83,13 +83,6 @@ impl ChunkTrackingView {
         self.center.z + (self.distance as i32 + 1)
     }
 
-    /// Whether any section of this column is still tracked. A column only
-    /// truly leaves the view when its XZ does.
-    pub fn contains_column(&self, x: i32, z: i32) -> bool {
-        x.saturating_sub(self.center.x).unsigned_abs() <= self.distance as u32
-            && z.saturating_sub(self.center.z).unsigned_abs() <= self.distance as u32
-    }
-
     /// Whether the view holds `column`, or would with `slack` more rings.
     #[must_use]
     pub fn reaches(&self, column: ColumnPos, slack: i32) -> bool {
@@ -143,11 +136,10 @@ impl ChunkTrackingView {
         let max_z = old.max_z().max(new.max_z());
         for x in min_x..=max_x {
             for z in min_z..=max_z {
-                let was = old.contains_column(x, z);
-                let is = new.contains_column(x, z);
-                match (was, is) {
-                    (false, true) => on_load(ColumnPos::new(x, z)),
-                    (true, false) => on_unload(ColumnPos::new(x, z)),
+                let column = ColumnPos::new(x, z);
+                match (old.reaches(column, 0), new.reaches(column, 0)) {
+                    (false, true) => on_load(column),
+                    (true, false) => on_unload(column),
                     _ => {}
                 }
             }
@@ -170,14 +162,14 @@ mod contains_column_tests {
         assert!(!stepped.contains(&evicted));
 
         // Its column is still tracked, so the column must not be torn down.
-        assert!(stepped.contains_column(evicted.x, evicted.z));
+        assert!(stepped.reaches(ColumnPos::new(evicted.x, evicted.z), 0));
     }
 
     #[test]
     fn a_column_outside_the_horizontal_reach_is_gone() {
         let view = ChunkTrackingView::new(SectionPos::new(0, 4, 0), 12, 8);
-        assert!(view.contains_column(12, -12));
-        assert!(!view.contains_column(13, 0));
-        assert!(!view.contains_column(0, -13));
+        assert!(view.reaches(ColumnPos::new(12, -12), 0));
+        assert!(!view.reaches(ColumnPos::new(13, 0), 0));
+        assert!(!view.reaches(ColumnPos::new(0, -13), 0));
     }
 }
