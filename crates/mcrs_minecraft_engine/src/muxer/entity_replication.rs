@@ -193,18 +193,17 @@ pub fn publish(world: &mut World, label: Entity, deltas: TileDeltas<PlayerData>)
             deltas: deltas.clone(),
         });
     }
-    let spawned: Vec<PlayerSession> = deltas
+    let latencies: Vec<(PlayerSession, i32)> = deltas
         .tiles
         .iter()
         .flat_map(|delta| &delta.events)
         .filter_map(|event| match &event.event {
-            EntityEvent::Spawn(PlayerData::Spawn(spawn)) => Some(PlayerSession(spawn.viewer.0)),
+            EntityEvent::Spawn(PlayerData::Spawn(spawn)) => {
+                let session = PlayerSession(spawn.viewer.0);
+                Some((session, latency_of(world, session)?))
+            }
             _ => None,
         })
-        .collect();
-    let latencies: Vec<(PlayerSession, i32)> = spawned
-        .into_iter()
-        .filter_map(|session| Some((session, latency_of(world, session)?)))
         .collect();
     let mut muxer = world.get_resource_or_init::<MuxerLink>();
     let MuxerLink { link, entities, .. } = &mut *muxer;
