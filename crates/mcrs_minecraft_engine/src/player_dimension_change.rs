@@ -41,24 +41,22 @@ pub(crate) fn depart_players(world: &mut World, departures: &mut Vec<Departure>)
         .single(world)
         .ok()
         .cloned();
-    for request in requests {
+    let written = requests.into_iter().filter_map(|request| {
         if own.as_ref() == Some(&request.to) {
             tracing::error!(to = %request.to, "a dimension change names its own dimension");
-            continue;
+            return None;
         }
-        let arrival = Arrival::absolute(request.transform);
-        match depart(world, request.player, request.to, arrival) {
-            Ok(departure) => departures.push(departure),
-            Err(error) => {
-                tracing::error!(player = ?request.player, "a player did not change dimension: {error}");
-            }
-        }
-    }
+        Some(DepartureRequest {
+            player: request.player,
+            to: request.to,
+            arrival: Arrival::absolute(request.transform),
+        })
+    });
     for DepartureRequest {
         player,
         to,
         arrival,
-    } in ordered
+    } in written.chain(ordered)
     {
         match depart(world, player, to, arrival) {
             Ok(departure) => departures.push(departure),
