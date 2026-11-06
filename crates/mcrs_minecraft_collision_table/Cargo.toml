@@ -21,4 +21,7 @@ mcrs_voxel.workspace = true
 
 [dev-dependencies]
 mcrs_minecraft_game_registries = { workspace = true, features = ["test-support"] }
+mcrs_minecraft_physics = { workspace = true, features = ["testing"] }
+mcrs_engine_muxer.workspace = true
+serde.workspace = true
 serde_json.workspace = true

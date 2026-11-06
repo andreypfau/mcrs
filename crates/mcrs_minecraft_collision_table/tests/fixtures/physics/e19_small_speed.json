@@ -1,0 +1,163 @@
+{
+ "name": "e19_small_speed",
+ "rule": "E19",
+ "origin": [
+  1488,
+  100,
+  0
+ ],
+ "blocks": [
+  {
+   "min": [
+    -2,
+    0,
+    -4
+   ],
+   "max": [
+    12,
+    0,
+    4
+   ],
+   "block": "minecraft:stone"
+  }
+ ],
+ "entities": [
+  {
+   "tag": "a",
+   "kind": "armor_stand",
+   "pos": [
+    0.5,
+    1.0,
+    0.5
+   ],
+   "nbt": "Motion:[0.1d,0.0d,0.0001d],OnGround:1b",
+   "ticks": [
+    {
+     "pos": [
+      1488.5,
+      101.0,
+      0.5
+     ],
+     "motion": [
+      0.1,
+      0.0,
+      0.0001
+     ],
+     "on_ground": true,
+     "fall_distance": 0.0
+    },
+    {
+     "pos": [
+      1488.6,
+      101.0,
+      0.5
+     ],
+     "motion": [
+      0.05460000634193421,
+      -0.0784000015258789,
+      0.0
+     ],
+     "on_ground": false,
+     "fall_distance": 0.0
+    },
+    {
+     "pos": [
+      1488.6546000063418,
+      101.0,
+      0.5
+     ],
+     "motion": [
+      0.04968600720310228,
+      -0.0784000015258789,
+      0.0
+     ],
+     "on_ground": true,
+     "fall_distance": 0.0
+    },
+    {
+     "pos": [
+      1488.7042860135448,
+      101.0,
+      0.5
+     ],
+     "motion": [
+      0.027128563083947732,
+      -0.0784000015258789,
+      0.0
+     ],
+     "on_ground": true,
+     "fall_distance": 0.0
+    }
+   ]
+  },
+  {
+   "tag": "b",
+   "kind": "armor_stand",
+   "pos": [
+    0.5,
+    1.0,
+    2.5
+   ],
+   "nbt": "Motion:[0.002d,0.0d,0.002d],OnGround:1b",
+   "ticks": [
+    {
+     "pos": [
+      1488.5,
+      101.0,
+      2.5
+     ],
+     "motion": [
+      0.002,
+      0.0,
+      0.002
+     ],
+     "on_ground": true,
+     "fall_distance": 0.0
+    },
+    {
+     "pos": [
+      1488.5,
+      101.0,
+      2.5
+     ],
+     "motion": [
+      0.0,
+      -0.0784000015258789,
+      0.0
+     ],
+     "on_ground": false,
+     "fall_distance": 0.0
+    },
+    {
+     "pos": [
+      1488.5,
+      101.0,
+      2.5
+     ],
+     "motion": [
+      0.0,
+      -0.0784000015258789,
+      0.0
+     ],
+     "on_ground": true,
+     "fall_distance": 0.0
+    },
+    {
+     "pos": [
+      1488.5,
+      101.0,
+      2.5
+     ],
+     "motion": [
+      0.0,
+      -0.0784000015258789,
+      0.0
+     ],
+     "on_ground": true,
+     "fall_distance": 0.0
+    }
+   ]
+  }
+ ],
+ "version": "26.4-snapshot-4"
+}

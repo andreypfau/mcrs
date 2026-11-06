@@ -3,59 +3,20 @@
     reason = "the corpus loaders fail the test by panicking"
 )]
 
-use std::sync::OnceLock;
 use std::time::Instant;
 
-use mcrs_minecraft_block::block_keys::Block;
-use mcrs_minecraft_block::definition::BlockDefinitions;
-use mcrs_minecraft_block::definition::build_block_definitions;
 use mcrs_minecraft_collision_table::collision_table;
 use mcrs_minecraft_collision_table::widen;
 use mcrs_minecraft_physics::Axis;
 use mcrs_minecraft_physics::BlockFlags;
-use mcrs_minecraft_physics::CollisionTable;
 use mcrs_minecraft_physics::ShapeClass;
-use mcrs_minecraft_registries::Tags;
 use mcrs_voxel::BlockStateId;
 
-fn definitions() -> &'static BlockDefinitions {
-    static DEFINITIONS: OnceLock<BlockDefinitions> = OnceLock::new();
-    DEFINITIONS.get_or_init(|| {
-        let directory = concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/../../assets/mcrs/block_definition"
-        );
-        let mut files: Vec<(String, Vec<u8>)> = std::fs::read_dir(directory)
-            .unwrap()
-            .map(|entry| entry.unwrap().path())
-            .filter(|path| {
-                path.extension()
-                    .is_some_and(|extension| extension == "json")
-            })
-            .map(|path| (path.display().to_string(), std::fs::read(&path).unwrap()))
-            .collect();
-        files.sort();
-        let names: Vec<&str> = Block::ALL
-            .iter()
-            .map(|block| block.as_static_str())
-            .collect();
-        build_block_definitions(&names, files).unwrap().0
-    })
-}
+mod common;
 
-fn tags() -> &'static Tags<Block> {
-    static TAGS: OnceLock<Tags<Block>> = OnceLock::new();
-    TAGS.get_or_init(|| {
-        mcrs_minecraft_game_registries::registry_load::test_registries()
-            .tags::<Block>()
-            .unwrap()
-    })
-}
-
-fn table() -> &'static CollisionTable {
-    static TABLE: OnceLock<CollisionTable> = OnceLock::new();
-    TABLE.get_or_init(|| collision_table(definitions(), tags()))
-}
+use common::definitions;
+use common::table;
+use common::tags;
 
 fn state(name: &str) -> BlockStateId {
     definitions().default_state(name).unwrap()
@@ -144,11 +105,7 @@ fn every_corpus_state_round_trips() {
                         (pair_y[0] + pair_y[1]) / 2.0,
                         (pair_z[0] + pair_z[1]) / 2.0,
                     ];
-                    let inside = boxes.iter().any(|bounds| {
-                        (0..3).all(|axis| {
-                            bounds[axis] < middle[axis] && middle[axis] < bounds[axis + 3]
-                        })
-                    });
+                    let inside = boxes.iter().any(|bounds| contains(bounds, middle));
                     assert_eq!(
                         shape.is_solid(x, y, z),
                         inside,
@@ -280,4 +237,10 @@ fn the_table_builds_in_less_than_100_ms() {
     if !cfg!(debug_assertions) {
         assert!(elapsed.as_millis() < 100, "the build took {elapsed:?}");
     }
+}
+
+fn contains(bounds: &[f64; 6], point: [f64; 3]) -> bool {
+    let [x0, y0, z0, x1, y1, z1] = *bounds;
+    let [x, y, z] = point;
+    x0 < x && x < x1 && y0 < y && y < y1 && z0 < z && z < z1
 }

@@ -1,6 +1,9 @@
 //! Property tests of the invariants of the move procedure, over random worlds of the test table.
 //! A debug build runs a short sweep; a release build runs 10^6 cases for each property.
-#![expect(clippy::indexing_slicing, reason = "the generators index small fixed tables")]
+#![expect(
+    clippy::indexing_slicing,
+    reason = "the generators index small fixed tables"
+)]
 
 use glam::DVec3;
 use mcrs_minecraft_physics::Aabb;

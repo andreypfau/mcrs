@@ -1,5 +1,8 @@
 //! The kernel targets of the physics design note, on one core with a warm cache.
-#![expect(clippy::indexing_slicing, reason = "a dense test world indexes its sections")]
+#![expect(
+    clippy::indexing_slicing,
+    reason = "a dense test world indexes its sections"
+)]
 
 use std::hint::black_box;
 
@@ -9,21 +12,30 @@ use criterion::criterion_main;
 use glam::DVec3;
 use mcrs_minecraft_physics::Aabb;
 use mcrs_minecraft_physics::BirthKey;
+use mcrs_minecraft_physics::Body;
 use mcrs_minecraft_physics::CollisionSection;
 use mcrs_minecraft_physics::CollisionTable;
 use mcrs_minecraft_physics::CollisionWorld;
+use mcrs_minecraft_physics::EntityState;
+use mcrs_minecraft_physics::LANES;
+use mcrs_minecraft_physics::Living;
+use mcrs_minecraft_physics::MotionRow;
 use mcrs_minecraft_physics::NoBodies;
 use mcrs_minecraft_physics::Probe;
 use mcrs_minecraft_physics::QueryEntity;
 use mcrs_minecraft_physics::Scratch;
 use mcrs_minecraft_physics::SectionLookup;
 use mcrs_minecraft_physics::SectionMasks;
+use mcrs_minecraft_physics::Side;
 use mcrs_minecraft_physics::SourceKind;
 use mcrs_minecraft_physics::Tables;
 use mcrs_minecraft_physics::TestBlocks;
 use mcrs_minecraft_physics::View;
 use mcrs_minecraft_physics::WorldBorder;
+use mcrs_minecraft_physics::in_open_air;
 use mcrs_minecraft_physics::resolve;
+use mcrs_minecraft_physics::tick_entity;
+use mcrs_minecraft_physics::tick_in_air;
 use mcrs_voxel::BlockStateId;
 use mcrs_voxel::LocalPos;
 use mcrs_voxel::SectionPos;
@@ -161,5 +173,93 @@ fn bench_resolve(c: &mut Criterion) {
     }
 }
 
-criterion_group!(kernel, bench_resolve);
+fn bench_entities(c: &mut Criterion) {
+    let blocks = TestBlocks::new();
+    let tables = Tables::new(blocks.table.clone());
+    let floor = 20;
+    let world = DenseWorld::new(&tables.collision, |_, y, _| {
+        if y == floor {
+            blocks.stone
+        } else {
+            BlockStateId::AIR
+        }
+    });
+    let view = View {
+        world: &world,
+        bodies: &NoBodies,
+        tables: &tables,
+    };
+    let mut scratch = Scratch::new();
+    let mut actions = Vec::new();
+    let key = BirthKey::new(0, SourceKind::Command, 0, 0);
+    let walker_row = MotionRow::zombie();
+    let mut walker = EntityState::new(
+        key,
+        Body {
+            position: DVec3::new(20.5, f64::from(floor + 1), 20.5),
+            velocity: DVec3::new(0.1, -0.0784, 0.05),
+            ..Body::default()
+        },
+        Some(Living::default()),
+    );
+    walker.body.flags.on_ground = true;
+    c.bench_function("tick_entity/walker_on_ground", |b| {
+        b.iter(|| {
+            let mut state = walker;
+            state.body.velocity.x = 0.1;
+            actions.clear();
+            tick_entity(
+                view,
+                SERVER,
+                &walker_row,
+                black_box(&mut state),
+                true,
+                &mut actions,
+                &mut scratch,
+            )
+        })
+    });
+    let item_row = MotionRow::item();
+    let item = EntityState::new(
+        key,
+        Body {
+            position: DVec3::new(32.5, 50.0, 32.5),
+            velocity: DVec3::new(0.01, 0.2, -0.01),
+            ..Body::default()
+        },
+        None,
+    );
+    c.bench_function("tick_entity/item_in_air", |b| {
+        b.iter(|| {
+            let mut state = item;
+            actions.clear();
+            tick_entity(
+                view,
+                SERVER,
+                &item_row,
+                black_box(&mut state),
+                false,
+                &mut actions,
+                &mut scratch,
+            )
+        })
+    });
+    let mut entities = Vec::new();
+    c.bench_function("tick_in_air/item_per_lane", |b| {
+        b.iter(|| {
+            let mut lanes = [item; LANES];
+            let clear = lanes
+                .iter()
+                .all(|lane| in_open_air(view, &item_row, lane, &mut entities));
+            if clear {
+                tick_in_air(&item_row, black_box(&mut lanes));
+            }
+            lanes
+        })
+    });
+}
+
+const SERVER: Side = Side::Server { authority: true };
+
+criterion_group!(kernel, bench_resolve, bench_entities);
 criterion_main!(kernel);

@@ -914,9 +914,8 @@ pub enum Collider { Block { shape: ShapeId, at: BlockPos }, Entity(Aabb), Border
 
 pub struct Tables {
     pub collision: CollisionTable,
-    pub motion: MotionTable,                // rows of PHY-ORD-005 and flags of PHY-ORD-009
     pub sine: SineTable,                    // PHY-NUM-005: 65536 f32 entries
-}
+}                                           // a `MotionRow` (PHY-ORD-005, ORD-009) goes with each call
 
 /// Which side runs the step: the flags, gravity and the bounce differ (PHY-FLG-002/003,
 /// PHY-GRV-004, PHY-RST-001).
@@ -957,11 +956,17 @@ pub fn tick_player<W: CollisionWorld, B: BodyView>(
     out: &mut PlayerState, effects: &mut EffectBuffer, scratch: &mut Scratch,
 );                                          // derives the box from the pose on read
 
+/// `entity` holds the body, the living state (`None` for items, orbs, TNT and falling blocks),
+/// the age, the phase offset and the rest state. `wake` is true when the read zone or the entity
+/// changed since the last tick. The block actions (step, inside, fall, bounce) go to `actions`;
+/// B0 bins them into the `EffectBuffer`. The keyed stream joins with the push (K4).
 pub fn tick_entity<W: CollisionWorld, B: BodyView>(
-    world: &W, bodies: &B, tables: &Tables, side: Side, row: &MotionRow,
-    body: &mut Body, living: Option<&LivingInput>, stream: &KeyedStream,
-    effects: &mut EffectBuffer, scratch: &mut Scratch,
+    view: View<'_, W, B>, side: Side, row: &MotionRow, entity: &mut EntityState, wake: bool,
+    actions: &mut Vec<BlockAction>, scratch: &mut Scratch,
 ) -> TickOutcome;
+/// The in-air batch: four rows of one class whose read zone is in loaded sections of air only
+/// (`in_open_air`); the result equals `tick_entity`, bit for bit.
+pub fn tick_in_air(row: &MotionRow, lanes: &mut [EntityState; 4]) -> [TickOutcome; 4];
 
 pub fn tick_mount_tree<W: CollisionWorld, B: BodyView>(/* a run of rows, root first */);
 
@@ -1400,3 +1405,25 @@ E1..E8, T1 (any time)   D1 ─ D2 ─ D3 ─ D4 ─ D5 ─ D6 ─ D7
 14. PHY-RCH-002 lists the blocks with an inside action only as examples. The table marks those
     examples and the tags `pressure_plates`, `buttons`, `crops`, `cauldrons` and `fire`. A rest skip
     (PHY-SKIP-004) needs the full set. Which blocks have an inside action?
+15. PHY-ORD-005 gives the walker category the `step_height` attribute with the default 0.6. The
+    vanilla server (E4, E5 fixtures) shows an armor stand with the default attributes that stops
+    at a carpet and a bottom slab, and steps with an explicit attribute of 0.6 or 1.0. The kernel
+    gives the armor stand a default of 0 as type data. Is the default of the attribute per type?
+16. PHY-ORD-001 step 14 puts the fall distance after the blocks inside the box. The E7, E8 and E17
+    fixtures show this order instead: the reset of `fall_damage_resetting` for the centre path, then
+    the fall of the tick (PHY-FALL-001), then the stuck multipliers with their reset. A falling
+    armor stand ends the tick in which it enters a cobweb at 0, and keeps 0.15 while it descends a
+    ladder. The kernel follows the fixtures.
+17. PHY-FALL-002: an item that falls through a sweet berry bush, which is in the tag
+    `fall_damage_resetting`, keeps its fall distance (E7). The kernel applies the reset of the
+    centre path to a living entity only. Which entities does the rule cover?
+18. PHY-ORD-005, item: in the three ticks of four that skip `M` and `D`, the rest values of
+    PHY-SKIP-003 need the bounce to be skipped too. The kernel skips it; the E28 and E32 fixtures
+    agree.
+19. PHY-GRV-002: the rule does not say which `v.y` selects the effective gravity of
+    `slow_falling`. The kernel reads `v.y` at the start of the travel step, after the jump.
+20. PHY-INP-002 step 2: "normalize in f64" does not say whether the components are divided by the
+    length or multiplied by its reciprocal. The kernel divides.
+21. PHY-CMP-016: the console of the server does not print the network id, so the parity test fits
+    the phase offset of each item (0 to 3) to the recorded rest cycle.
+
