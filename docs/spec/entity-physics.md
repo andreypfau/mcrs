@@ -55,6 +55,7 @@ the reference implementation. No experiment has confirmed them yet. Section 15 g
   the entity (section 5.2).
 - **Block friction**, **speed factor**, **jump factor**, **bounce restitution**: the four motion
   properties of a block (section 6.6).
+- **Crowd damage**: the damage of the type `cramming` that an entity takes in a crowd (PHY-PSH-007).
 - **Stuck multiplier**: a vector that a block sets on an entity inside it. The next move
   multiplies the requested displacement by it (section 6.5).
 - **Fall distance**: the vertical distance that an entity has fallen after it last touched the
@@ -157,6 +158,8 @@ Each rule has an ID with the prefix `PHY`. The second part names the section.
 | `PHY-RCH` | the causal reach of one tick |
 | `PHY-SKIP` | ticks that an implementation can skip |
 | `PHY-CMP` | the compatibility policy of each category |
+| `PHY-BLK` | writes of the block domain to entities |
+| `PHY-EXP` | the timing of explosions |
 | `PHY-DEV` | intentional deviations |
 
 ### 0.4 Scope
@@ -171,7 +174,6 @@ These subjects are out of scope:
 - fluids;
 - elytra flight and riptide;
 - vehicles and riders;
-- the push between entities;
 - the motion that a piston gives;
 - fall damage;
 - the hit detection of projectiles;
@@ -531,7 +533,9 @@ touch. This test shrinks the new box and the old box by `1.0E-5F`.
 procedure has a mover kind and a requested displacement `d`. The mover kinds are `self`,
 `player`, `piston`, `shulker` and `shulker_box`. The tick of an entity calls the procedure with
 `self`. The server calls it with `player` for the displacement that a client sends (section 11).
-The other kinds come from blocks and entities that push (section 12).
+
+The kinds `piston` and `shulker_box` come from the block domain (PHY-BLK-002). The kind
+`shulker` comes from a shulker that opens.
 
 The procedure has these steps, in this order:
 
@@ -1210,6 +1214,21 @@ starts or stops an item use.
 An item use slows the player when the player uses an item and the use does not permit the sprint
 state. PHY-INP-001 step 4 applies the multiplier when the player is not a passenger.
 
+**PHY-INP-020** (`source_suggested`, client agreement, confidence: medium). The movement input of
+a living entity that is not a player decays in this way:
+
+1. At the start of each AI step, the entity multiplies its sideways and forward input by `0.98F`
+   (PHY-INP-003). The vertical input does not decay.
+2. The AI then can set new values. A move control without a move target sets the forward input to
+   exactly 0. It sets the sideways input only for a side step.
+3. A value that only decays never reaches exactly zero. The f32 product stops at a small
+   denormal value, because `0.98F` times that value rounds back to it.
+4. An input vector with a squared length less than `1.0E-7` has no effect on motion
+   (PHY-INP-002, step 1). This occurs after a finite number of ticks.
+
+The input is not in the saved data of the entity and the server does not send it. Thus its value
+below the limit of step 4 is not observable.
+
 ## 8. Fall distance
 
 **PHY-FALL-001** (`source_suggested`, client agreement, confidence: medium). The side with local
@@ -1289,7 +1308,7 @@ authority, a living entity that is not a player does these steps in one tick:
 6. If the effect `slow_falling` or `levitation` is active, set the fall distance to 0.
 7. Do the travel step of its category (PHY-ORD-004 or the table of PHY-ORD-005).
 8. Apply the block effects, as in step 14 of PHY-ORD-001.
-9. Push other entities (section 12).
+9. Push other entities (PHY-PSH-001).
 
 **PHY-ORD-003** (`source_suggested`, semantic, confidence: medium). The travel step of a living
 entity selects one model:
@@ -1348,8 +1367,8 @@ The parameters of the rows:
 - Item, bounce: after the drag, if the on-ground flag is true and `v.y < 0`, multiply `v.y` by
   -0.5.
 - Item, rest: an item on the ground with `v.x² + v.z² ≤ 1.0E-5F` skips `M` and `D` in three ticks
-  of four. Let `t` be the number of ticks that the item has existed, and let `n` be its network id.
-  The item skips `M` and `D` when the remainder of `(t + n) / 4` is not 0.
+  of four. Let `t` be the number of ticks that the item has existed, and let `n` be its phase
+  offset (PHY-CMP-016). The item skips `M` and `D` when the remainder of `(t + n) / 4` is not 0.
 - Item, push: on the server, shrink the box of an item by `1.0E-7`. If that box has a collision,
   the item has no physics in that tick, and the server pushes it to a free side.
 - `falling_block`, ground rule: on the server, before the drag, if the on-ground flag is true,
@@ -1401,6 +1420,7 @@ rule.
 | `block_bounce_factor` | the factor `k` on the bounce restitution of a block (PHY-RST-003) | `1.0F` | `0.8F` |
 | `travel_gate` | a condition that stops the travel step (PHY-ORD-002) | for a mob, the `NoAI` flag; else none | not used |
 | `pushable` | other entities can push the entity (PHY-ORD-012) | the condition of PHY-ORD-012 | false |
+| `push_targets` | the entities that the entity pushes in its own tick (PHY-PSH-001) | each candidate | none |
 
 The exception list:
 
@@ -1419,6 +1439,8 @@ The exception list:
 | `creaking` | `pushable` | the condition of PHY-ORD-012, and false when it cannot move |
 | `warden` | `pushable` | the condition of PHY-ORD-012, and false while it digs down or comes up |
 | each boat and raft, each minecart | `pushable` | true |
+| `armor_stand`, `bat` | `push_targets` | none |
+| `parrot` | `push_targets` | each candidate that is not a player |
 
 A state of an entity, for example the flight state of a player or an effect, is not a flag of this
 table. The rules that use such a state name it.
@@ -1489,11 +1511,30 @@ is in the read zone of PHY-RCH-001:
 
 The rows of PHY-ORD-008 that are not blocks stay in that rule.
 
+**PHY-ORD-014** (`source_suggested`, semantic, confidence: medium). A root vehicle and its
+passengers tick as one unit. The root vehicle ticks first. Then each passenger ticks, in the order
+of PHY-ORD-011. In the tick of a passenger, these rules apply:
+
+1. The velocity of the passenger changes to zero.
+2. The passenger does its tick.
+3. The vehicle sets the position of the passenger. It uses its own position after its step in
+   this tick, plus the attachment offset.
+
+Thus a passenger reads the state of its vehicle after the step of the vehicle in this tick. The
+client sees the passenger at the position of the vehicle in the same tick.
+
+In the order-independent
+pass (PHY-CMP-008, PHY-CMP-009, PHY-CMP-012), one unit is one task. Inside the unit, the order of
+this rule applies. A unit reads the other units only at their state from the start of the tick.
+A vehicle can have a passenger that controls it. The vehicle reads the input of that passenger
+from its state at the start of the tick.
+
 **PHY-ORD-007** (`source_suggested`, client agreement, confidence: medium). One tick of a player
 is a function `step(S, K, R, W) → S'`. It is deterministic (PHY-INV-008). The arguments are:
 
 - `S`, the player state at the start of the tick. It contains these values:
   - the position, the velocity and the pose;
+  - the yaw and the pitch at the end of the previous tick;
   - the five result flags and the supporting block;
   - the flag "the last search found no block" (PHY-FLG-004);
   - the fall distance, the stuck multiplier and the jump delay;
@@ -1542,7 +1583,7 @@ a tick as coarse.
 | a block shape that the corpus rounds (U4) | the shape is not exact |
 | a ridden entity, a boat, a minecart | the vehicle model |
 | elytra flight, riptide | their own models |
-| an entity that pushes the player | the push between entities |
+| an entity that pushes the player | the push of PHY-PSH-007, which the client computes from its own view |
 | knockback, explosion, wind charge, fishing rod pull, ender pearl, chorus fruit, a teleport command | external impulses and teleports (PHY-SRV-009, PHY-SRV-010) |
 | a `happy_ghast` that moves while the player stands on it | an entity collider that moves |
 | a chunk that is not loaded on the client | PHY-GRV-020 |
@@ -1550,8 +1591,9 @@ a tick as coarse.
 ### 9.4 Causal reach of one tick
 
 A design that splits the world into shards needs to know which state one tick of one entity reads
-and writes. These rules state that reach for the physics part of the tick: sections 2 to 9. The AI,
-the push between entities and the other subjects of section 12 have their own reach.
+and writes. These rules state that reach for the physics part of the tick: sections 2 to 9. PHY-RCH-006
+states the reach of the push between entities (section 9.6). The AI and the subjects of section 12
+have their own reach.
 
 **PHY-RCH-001** (`source_suggested`, semantic, confidence: medium). Let `B` be the box at the start
 of the tick. Let `d` be the largest requested displacement of the tick, and `h` the step height.
@@ -1559,7 +1601,8 @@ To make the read zone `C`, start with the union of `B` and `B` moved by `d`. Gro
 and on `z`, and by `1 + h` up and down. One tick of the entity reads only this state:
 
 - its own state: the fields of `S` in PHY-ORD-007, its type flags (PHY-ORD-009) and its
-  dimensions;
+  dimensions. The yaw and the pose are part of this state. The input acceleration reads the yaw,
+  and the box comes from the pose;
 - the block states at the block positions that `C` touches. Under PHY-CMP-009, these are the
   block states at the end of the previous server tick;
 - the boxes of the entities that can be collided with (PHY-SHP-009) and that intersect `C`. Under
@@ -1648,6 +1691,18 @@ Thus the read zone of an entity at rest is its box, grown by 1 on `x` and on `z`
 grown by `1 + h` up, and by `1 + h + |d.y|` down. A change in this zone wakes the entity
 (PHY-SKIP-002).
 
+**PHY-RCH-006** (`source_suggested`, semantic, confidence: medium). The push reads the entities
+whose box intersects the box of the entity. For each of them, it reads these values:
+
+- the position, the box, and the flags `pushable` and `push_targets`;
+- the spectator state and the physics state;
+- the team and its collision rule;
+- the root vehicle, and whether it carries a passenger or is a passenger.
+
+Under PHY-CMP-012, these are the values at the start of the server tick. The box of the entity is
+also its box at the start of the tick. Under PHY-CMP-012, the push writes only the velocity and the
+health of its own entity.
+
 ### 9.5 Ticks that can be skipped
 
 **PHY-SKIP-001** (`source_suggested`, semantic, confidence: medium). A tick is a fixed point when
@@ -1677,7 +1732,7 @@ point. `D` is the vertical drag and `g` the effective gravity.
 | Category | Velocity at the end of each tick at rest |
 |----------|------------------------------------------|
 | living, walker | `(±0, (+0.0 - g) × D, ±0)`. With the defaults, `v.y` is `-0.0784000015258789`. The signs of the zero components stay as they are. |
-| item | a cycle of 4 ticks. Let `t` be the tick count of the item and `n` its network id. When the remainder of `(t + n) / 4` is 0, the item moves and `v.y` ends at 0. In the next three ticks, `v.y` ends at `-0.04`, `-0.08` and `-0.12`. `v.x` and `v.z` must be zero. |
+| item | a cycle of 4 ticks. Let `t` be the tick count of the item and `n` its phase offset (PHY-CMP-016). When the remainder of `(t + n) / 4` is 0, the item moves and `v.y` ends at 0. In the next three ticks, `v.y` ends at `-0.04`, `-0.08` and `-0.12`. `v.x` and `v.z` must be zero. |
 | primed TNT | `(±0, -0.0, ±0)` |
 | experience orb | `(±0, +0.0, ±0)`, when no player is near enough to attract it |
 
@@ -1702,6 +1757,219 @@ limits apply:
   item cycle reads it.
 - When a block with a step action or an inside action is present, a full tick can run that action
   (PHY-SKIP-004). The rule of PHY-SKIP-004 applies to such an entity in all cases.
+
+**PHY-SKIP-006** (`source_suggested`, semantic, confidence: medium). The push changes the skip
+rules of PHY-SKIP-001 and PHY-SKIP-002:
+
+- An entity that gets a push in a tick is not at a fixed point in that tick. It gets a push when,
+  for a neighbour of PHY-CMP-012, a direction applies and `m ≥ 0.01F` (PHY-PSH-004).
+- An entity at rest must wake when an entity enters or leaves the push zone of PHY-RCH-006. It
+  must also wake when a value of PHY-RCH-006 changes for an entity in that zone.
+- An entity at rest must wake when the count of PHY-PSH-007 is more than `n - 1`, because crowd
+  damage can occur.
+
+Thus the exact skip condition with the push is: the entity gets no push, and the count of its
+neighbours is not more than `n - 1`. Two entities whose boxes intersect with `m < 0.01F` get no
+push. They can rest.
+
+**PHY-SKIP-007** (`source_suggested`, semantic, confidence: medium). For PHY-SKIP-002, an input
+counts as zero when the squared length of the input vector is less than `1.0E-7`. An idle mob
+rests under these conditions:
+
+- its move control has no target, so the forward input is 0;
+- the squared length of the input vector is less than `1.0E-7` (PHY-INP-020);
+- it has no jump input;
+- the conditions of PHY-SKIP-001, PHY-SKIP-002 and PHY-SKIP-006 are true.
+
+During the skip, the input can keep its last value. The value is not observable, and its decay
+cannot make it larger than the limit. When the entity wakes, the AI sets the input again.
+
+### 9.6 The push between entities
+
+**PHY-PSH-001** (`source_suggested`, semantic, confidence: medium). Each living entity pushes other
+entities in step 9 of its tick (PHY-ORD-002). The push occurs after the travel step and the block
+effects of that tick. The server does it for each living entity that ticks. The client does it for
+each living entity that it ticks, with the restriction of PHY-PSH-002. The server does it for a
+player in the server part of the player (PHY-ORD-010, step 6).
+
+The flag `push_targets` of PHY-ORD-009 states which candidates an entity pushes.
+
+**PHY-PSH-002** (`source_suggested`, semantic, confidence: medium). The candidates of a pusher `P`
+are the other entities whose box intersects the box of `P` with a volume that is more than zero.
+The box of `P` is its box after its own move in this tick. The query does not grow the box. A
+candidate `C` must also meet all these conditions:
+
+- `C` is not a spectator, and its flag `pushable` is true (PHY-ORD-012);
+- the team rule of PHY-PSH-003 lets `P` push `C`;
+- on the client, `C` is the own player. The client does not push other candidates.
+
+**PHY-PSH-003** (`source_suggested`, semantic, confidence: medium). The team rule uses the
+collision rule of the team of each entity. An entity without a team has the rule `always`.
+
+1. If the rule of `P` is `never`, `P` pushes no candidate.
+2. If the rule of `C` is `never`, `P` does not push `C`.
+3. Let `same` be true when `P` has a team and that team is allied to the team of `C`.
+4. If one of the two rules is `pushOwnTeam` and `same` is true, `P` does not push `C`.
+5. Else, if neither rule is `pushOtherTeams`, `P` pushes `C`.
+6. Else, `P` pushes `C` only when `same` is true.
+
+On the client, the client applies steps 2 to 6 only to the own player.
+
+**PHY-PSH-004** (`source_suggested`, semantic, confidence: medium). For one pusher `P` and one
+candidate `C`, the push is this computation. All values are f64. The constants `0.01F` and `0.05F`
+are widened.
+
+1. If `P` and `C` ride the same root vehicle, or one of them has no physics, stop.
+2. `xa = P.x - C.x`, and `za = P.z - C.z`.
+3. `m = max(|xa|, |za|)`. If `m < 0.01F`, stop.
+4. `s = sqrt(m)`. `xa = xa / s`, and `za = za / s`.
+5. `k = 1 / s`. If `k > 1`, `k = 1`. `xa = xa × k`, and `za = za × k`.
+6. `xa = xa × 0.05F`, and `za = za × 0.05F`.
+7. If `C` carries no passenger and its flag `pushable` is true, add `(-xa, 0, -za)` to the velocity
+   of `C`.
+8. If `P` carries no passenger and its flag `pushable` is true, add `(xa, 0, za)` to the velocity of
+   `P`.
+
+The distance `m` is the larger horizontal axis distance, not the Euclidean distance. The push has
+no vertical part. Each component of one push has an absolute value of at most `0.05F`. An addition
+occurs only when the three components are finite.
+
+**PHY-PSH-005** (`source_suggested`, semantic, confidence: medium). PHY-PSH-004 is antisymmetric.
+When `P` and `C` change roles, `xa` and `za` change their sign exactly, and `m`, `s` and `k` stay
+the same. Thus the two entities of a pair get equal and opposite pushes, bit for bit.
+
+**PHY-PSH-006** (`source_suggested`, semantic, confidence: medium). The reference applies the push
+in sequence, in the order of the ticks (PHY-ORD-010). These effects follow:
+
+- A pair of entities that push each other gets the push two times in one tick: one time in the tick
+  of each entity.
+- The two pushes use different positions. The first push uses the position of the earlier entity
+  after its move, and the position of the later entity before its move.
+- The later entity uses the push of the earlier entity in its own travel step of the same tick. The
+  earlier entity uses the push of the later entity in its next tick.
+
+**PHY-PSH-007** (`source_suggested`, semantic, confidence: medium). Crowd damage: only the
+server does it, in step 9, before the pushes. Let `n` be the value of the game rule
+`max_entity_cramming`, with the default 24.
+
+1. If `n ≤ 0`, stop.
+2. If the number of candidates of PHY-PSH-002 is not more than `n - 1`, stop.
+3. Draw a random integer from 0 to 3 from the random source of the entity. If it is not 0, stop.
+4. Count the candidates that are not passengers. If the count is more than `n - 1`, the entity
+   takes 6.0 damage of the type `cramming`.
+
+**PHY-PSH-008** (`source_suggested`, client agreement, confidence: medium). The push of the own
+player:
+
+- On the client, the tick of each other living entity pushes the own player, with the positions of
+  the view of the client. The tick of a boat on the client also pushes the own player
+  (PHY-PSH-009). The own player uses the push in its next travel step. When the other entity
+  ticks before it on the client, it uses the push in the same tick.
+- The tick of the own player on the client pushes no entity (PHY-PSH-002).
+- On the server, the tick of a server-simulated entity pushes the server copy of the player. The
+  server does not send that velocity to the client of the player. Thus the server does not push the
+  player in the result that the client sees.
+- On the server, the player pushes server-simulated entities in its server part.
+
+**PHY-PSH-009** (`source_suggested`, semantic, confidence: low). Vehicles push in other ways. This
+document states only the hooks:
+
+- A boat queries the pushable entities in its box, grown by `0.2F` on `x` and `z` and shrunk by
+  `0.01F` on `y`. It can take a candidate as a passenger. Else it pushes the candidate with
+  PHY-PSH-004, when the bottom of the candidate is not above the bottom of the boat. For another
+  boat, the condition is that the bottom of that boat is below the top of this boat.
+- A minecart pushes only on the server. It uses the Euclidean horizontal distance, with a minimum
+  squared distance of `1.0E-4F`, and the factors `0.1F` and 0.5. The other entity gets one quarter
+  of the push. A push between two minecarts has its own rule.
+- An armor stand pushes only a minecart that a player can ride, when the squared distance is at
+  most 0.2.
+- The contact push of a `sulfur_cube` on a player is not part of this model. The side effects of a
+  push by an `iron_golem`, a `warden` or a cube mob are also not part of it.
+
+**PHY-PSH-010** (`source_suggested`, semantic, confidence: medium). `movement-checks.md` must treat
+the push of the own player as a source of uncertainty, not as an exact value. The client computes it
+from interpolated positions that the server does not know (PHY-CMP-001). The checker needs these
+values:
+
+- the list of the living entities and the boats whose box can touch the box of the player. The
+  list uses the view of the client and the team rules of PHY-PSH-003;
+- the bound: each such entity adds at most `0.05F` to `|v.x|` and to `|v.z|` in one tick, and
+  nothing to `v.y`;
+- the conditions in which the player gets no push: a spectator, an entity on a climbable block, a
+  passenger, the team rule `never`;
+- the fact that a push applies in the same tick or in the next tick, as PHY-PSH-008 states.
+
+### 9.7 Writes of the block domain to entities
+
+**PHY-BLK-001** (`source_suggested`, semantic, confidence: medium). The block domain changes
+server-simulated entities in the same tick, as the reference does. Its writes occur after the
+entity pass of the tick and before the next tick, in the order of the block domain. These are the
+writes:
+
+- a piston, a sticky piston, and the slime and honey blocks that a piston moves. They move
+  entities with the mover kind `piston` (PHY-BLK-002). A slime block that moves can also set the
+  velocity of an entity;
+- a shulker box that opens: it moves entities with the mover kind `shulker_box`;
+- a hopper: it claims items (PHY-CMP-017);
+- a pressure plate, a tripwire and a detector rail: they read the entities in their box, and they
+  change only blocks.
+
+The block domain reads each entity at its state after the entity pass of the tick. The next entity
+pass reads the result. This is the order of the reference, so this rule is not a deviation. A
+block in one cell can write an entity in another cell. The owner of the entity must apply the write
+before the next entity pass. A layout that applies it one tick later uses the exception of
+PHY-INV-014, with the same bound of one tick, only for that entity.
+
+**PHY-BLK-002** (`source_suggested`, client agreement, confidence: medium). A move with the kind
+`piston` limits the requested displacement `d` before step 3 of the move procedure:
+
+1. If `|d|² ≤ 1.0E-7`, use `d` without a change.
+2. Use only the first axis of `x`, `y` and `z` on which `d` is not zero.
+3. Keep a sum of the piston displacement of the entity on each axis for the current game tick. At
+   the first piston move in a new game tick, set the sums to 0.
+4. Clamp the sum plus the component to the range from `-0.51` to `0.51`. The component is the
+   clamped value minus the old sum. Store the clamped value as the new sum.
+5. If the absolute value of the component is not more than `1.0E-5F`, the move stops. Else the
+   requested displacement is the component on that axis.
+
+A move with the kind `piston` does not apply the stuck multiplier (PHY-MOV-002), and it does not
+apply the edge back-off. The kinds `shulker` and `shulker_box` have no such limit.
+
+**PHY-EXP-001** (`source_suggested`, semantic, confidence: medium). In the reference, an entity
+that explodes does so in its own tick. A primed TNT explodes in the tick in which its fuse becomes
+0 or less. The explosion acts in the tick of the exploder:
+
+- It damages and pushes the entities in its reach. The push is an addition to the velocity.
+- An entity that ticks later in the same tick uses the push in its own tick. An entity that
+  ticked before uses it in the next tick.
+- It removes blocks. The entities that tick later see the blocks as removed.
+- A TNT block in the reach becomes a primed TNT with a short random fuse. The new entity ticks
+  first in the next tick (PHY-ORD-011).
+- The server sends the knockback of a player in the `explode` packet (PHY-SRV-009).
+
+**PHY-EXP-002** (`source_suggested`, semantic, confidence: medium). Several explosions in one tick
+occur in the order of the ticks of their exploders (PHY-ORD-010). A later explosion sees the
+velocities, the positions and the blocks that the earlier explosions changed. Thus a TNT cannon
+works: the charges explode first, and the projectile TNT ticks later in the same tick. The
+projectile uses the push of the charges in its own move of the same tick. The client sees the
+result as the position of the projectile.
+
+**PHY-EXP-003** (`source_suggested`, semantic, confidence: medium). One explosion in the reference
+has three parts, in this order:
+
+1. It traces its rays. There are 1352 rays, one for each cell on the surface of a cube of
+   16 × 16 × 16 cells. Each ray takes one random value from the random source of the dimension, in
+   a fixed order of the rays. A ray reads blocks and adds block positions to a set. It does not
+   remove a block.
+2. It damages and pushes the entities. The exposure of an entity also reads the blocks before the
+   removal.
+3. It removes the blocks of the set, in an order that a random shuffle gives.
+
+Thus no ray of one explosion sees a block that another ray of the same explosion removes. An
+implementation can trace the rays of one explosion in parallel, from the state at the step of
+that explosion. For the exact-parity mode, it must take the 1352 random values first, in the order
+of the rays. In the semantic mode, it can take each value from a stream. The stream is a function
+of the explosion and of the number of the ray. PHY-DEV-010 records this case.
 
 ## 10. Invariants
 
@@ -1768,6 +2036,9 @@ The copy of each cell must cover the
 read zone (PHY-RCH-001) of each entity in the cell. Then the physics result of each entity is the
 same for one cell and for each split into many cells, bit for bit.
 
+Exception "claim across a cell boundary": a claim from another cell can join the arbitration of
+the next tick (PHY-CMP-017). The bound is one tick, only for the target of the claim.
+
 Exception "action across a cell boundary": an entity can start a block action in a column that
 another cell owns. This can be a step action, an inside action or a fall action. The owner applies that action one
 tick later than in a layout of one cell. Then physics sees the result of the action at `T + 2`, not
@@ -1778,6 +2049,24 @@ other results stay the same in each layout.
 
 A copy that a cell makes after it handles the client packets breaks this invariant. The cell that
 owns a block would see a change by a packet in the same tick, and a neighbour cell one tick later.
+
+**PHY-INV-015** (`source_suggested`, semantic, confidence: medium). Let an implementation use
+PHY-CMP-008, PHY-CMP-009 and PHY-CMP-012. Then the tick of each server-simulated entity reads only
+its own state and state from the end of the previous server tick. It writes only its own state,
+except for the deferred block actions of PHY-RCH-002. Thus the physics result, with the push, is
+independent of the order of the entities. It is also independent of the number of threads and of
+the split into cells.
+
+The copy of each cell must cover the zones of PHY-RCH-001 and PHY-RCH-006. The exception of
+PHY-INV-014 stays.
+
+Three ordered parts keep this property, because their order does not depend on the layout:
+
+- the pre-pass of the colliders (PHY-CMP-018), which also reads the boxes of the colliders after
+  their step;
+- the explosion groups (PHY-CMP-020);
+- the block domain after the entity pass (PHY-BLK-001) and the arbitration of claims
+  (PHY-CMP-017).
 
 ## 11. The role of the server
 
@@ -1801,6 +2090,16 @@ when the server does this, and what it does with the result.
 server, the server applies the block effects (PHY-GRV-014, PHY-GRV-018) to its own copy of the
 player. It does not update the fall distance in that step (PHY-FALL-003). The velocity of that
 copy decreases by 0.98 in each tick (PHY-GRV-009).
+
+**PHY-SRV-011** (`source_suggested`, client agreement, confidence: medium). A player that rides a
+vehicle does not move by its own motion step. The vehicle sets the position of the player after
+the step of the vehicle (PHY-ORD-014). On the server, this is a write of the vehicle to the state
+of the player. While the player rides, the server uses only the rotation from the move packets of
+the client. The movement checks of the player do not apply.
+
+When the client controls the vehicle, the client sends the motion of the vehicle. The vehicle model
+and `movement-checks.md` handle it. The client also sets the position of the player from its own
+view of the vehicle. When the ride ends, the motion step of the client applies again.
 
 ### 11.2 The state that a checker can use
 
@@ -2016,8 +2315,9 @@ read, but not for the rules themselves.
 
 **PHY-CMP-008** (`source_suggested`, semantic, confidence: medium). Policy `semantic`: the order of
 the ticks of server-simulated entities. An implementation can give each entity the boxes of the
-other colliders from the start of the tick. The reference gives the boxes after the ticks of the
-earlier entities. The difference is at most the displacement of one collider in one tick.
+colliders after the pre-pass of PHY-CMP-018. It gives the boxes of the other entities from the
+start of the tick. The reference gives the boxes after the ticks of the earlier entities. The difference is
+at most the displacement of one collider in one tick.
 
 PHY-DEV-002 records this relaxation. The own player is not in this rule, because the client of the
 player sees the colliders that the server sent (PHY-CMP-001). PHY-CMP-009 states the same
@@ -2055,6 +2355,178 @@ changes when their packets arrive. The re-application of PHY-SRV-003 and the que
 use the world view that `movement-checks.md` states. That view uses windows of acknowledgement for
 block changes. PHY-CMP-009 also does not apply in the exact-parity mode (PHY-ORD-010).
 
+**PHY-CMP-012** (`source_suggested`, semantic, confidence: medium). Policy `semantic`: the push
+between server-simulated entities. An implementation can compute the push in this way:
+
+1. Each entity `E` finds its neighbours. A neighbour is an entity whose box intersects the box of
+   `E`. Both boxes are the boxes at the start of the tick.
+2. For each neighbour `O`, count the directions that apply: `O` pushes `E`, and `E` pushes `O`. Each
+   direction uses the conditions of PHY-PSH-002 to PHY-PSH-004 with the values at the start of the
+   tick.
+3. For each direction that applies, `E` gets the push that PHY-PSH-004 gives to it. Both directions
+   give the same vector to `E` (PHY-PSH-005).
+4. `E` adds the pushes to its own velocity in step 9 of its tick, one at a time. The order is the
+   birth key of `O` (PHY-CMP-013), from the lowest to the highest. For one `O`, the push from `O` comes first.
+5. The count of the crowd damage of PHY-PSH-007 uses the neighbours of step 1.
+
+Each entity writes only its own velocity and its own health. The fixed order of step 4 makes the
+f64 sum independent of the order of the ticks. PHY-DEV-004 records this relaxation. The own player
+is not in this rule (PHY-PSH-008, PHY-PSH-010).
+
+**PHY-CMP-013** (`source_suggested`, semantic, confidence: medium). The order key of each
+order-independent rule is the birth key of the entity. The network id is not an order key, because
+an implementation can give network ids in a way that depends on the layout. The birth key has three
+parts, compared in this order:
+
+1. the birth tick: the number of the server tick in which the entity came into existence;
+2. the source key: the key of the parent or of the source, as the table states;
+3. the sequence: the number of the entity among the entities of the same source and tick, from 0.
+
+| Way of birth | Source key |
+|--------------|------------|
+| another entity creates it, for example a drop, a projectile, a child or an experience orb | the kind `entity`, then the birth key of the parent |
+| a block creates it, for example a dispenser, a spawner, a primed TNT from a block or the drops of a block | the kind `block`, then the block position, compared by `y`, then `z`, then `x` |
+| a natural spawn | the kind `spawn`, then the chunk position, then the number of the spawn attempt in that chunk and tick |
+| a load from a save that has no birth key | the kind `load`, then the chunk position, then the position of the entity in the saved list of that chunk |
+| a command | the kind `command`, then the sequence number of the command in the tick |
+| a player that joins or respawns | the kind `player`, then the order of the login or the respawn in that tick |
+
+The kinds compare in this order: `load`, `player`, `command`, `spawn`, `block`, `entity`. The
+sequence of a source depends only on the order of the work of that source. Thus the birth key does
+not depend on the layout, on the thread count or on the network id.
+
+The birth key is saved with the entity, as data of this implementation. An entity that the
+implementation loads keeps its saved birth key. A change of dimension keeps the birth key. The
+vanilla server ignores this data, and the client never sees it.
+
+The source key of the kind `entity` contains the birth key of the parent. That key can nest to any
+depth. An implementation can store it in a fixed size, as a digest of 128 bits of the birth key of
+the parent. The digest is a fixed function of the full key. With this form, these order rules
+apply:
+
+- Two entities with the same birth tick and the same parent keep the order of their sequence.
+- Two entities with the same birth tick and different parents rank by the digest of the parents,
+  not by the full keys of the parents.
+- Two different parent keys can have the same digest. Then the entities rank by the full keys of
+  the parents. An implementation can also drop the full keys. Then the fallback order uses three
+  values of each parent: the birth tick, the source key in the stored form, and the sequence.
+  If these values are equal too, it repeats the fallback with the parents of the parents. A key
+  of a kind other than `entity` has no digest, so the repetition ends.
+
+The order of the digests does not follow the order of the full keys. This is permitted, because the
+order only needs to be total, fixed and independent of the layout.
+
+**PHY-CMP-014** (`source_suggested`, semantic, confidence: medium). Policy `semantic`: the random
+value of the crowd damage (PHY-PSH-007, step 3). An implementation can take this value from a
+stream. The stream is a function of the birth key (PHY-CMP-013) and of the tick number.
+
+It takes one value for each entity and each tick, and it uses the value only when step 3 runs. Thus the value does not
+depend on the order of the entities or on the other uses of a random value. The chance of 1 in 4
+stays the same. PHY-DEV-006 records this relaxation.
+
+**PHY-CMP-015** (`source_suggested`, semantic, confidence: medium). Policy `semantic`: a write from
+the tick of one entity to another entity. Examples are damage, knockback, a pickup of an item and
+the removal of an entity. In the order-independent pass, such a write does not change the target
+in the same tick. The writer records it, and the target applies it at the start of the next tick,
+before step 1 of its tick.
+
+When several writes have the same target, the target applies them in the order of the birth key
+of the writer (PHY-CMP-013). A claim, for example a pickup, uses PHY-CMP-017 instead. The push is
+not such a write, because each entity computes its own push (PHY-CMP-012). The block domain does
+not use this rule. Its writes apply in the same tick (PHY-BLK-001). PHY-DEV-005 records this
+relaxation.
+
+**PHY-CMP-016** (`source_suggested`, semantic, confidence: medium). A rule that reads the network
+id for the choice of a tick reads the phase offset in its place. The item rest cycle of
+PHY-ORD-005 and PHY-SKIP-003 is such a rule. The phase offset is a fixed function of the birth key,
+from 0 to 3. It is saved with the birth key.
+
+For a vanilla parity test, the test sets the
+phase offset of each item to the remainder of the vanilla network id divided by 4. The test reads
+that id from the `add_entity` packet of the vanilla server. PHY-DEV-007 records the difference.
+
+**PHY-CMP-017** (`source_suggested`, semantic, confidence: medium). Policy `semantic`: claims on one
+entity. A claim is a write that only one writer can make. Examples are these writes:
+
+- the pickup of an item by a player, a mob or a hopper;
+- the merge of two items or of two experience orbs;
+- the removal of an entity.
+
+The order-independent pass handles claims in this way:
+
+1. During the tick, each writer records a claim. It does not change the target.
+2. After the block domain of the tick (PHY-BLK-001), one arbitration step collects the claims of
+   each target.
+3. The claim with the lowest writer key wins. Only the winner gets the result, for example the
+   item. The other claims have no effect.
+4. The winner and the target apply the result before the server sends the changes of the tick.
+
+The writer key is total over all writers. It compares first the kind of the writer, in this order:
+`command`, `entity`, `block`. Then it compares a second value. For an entity, this is the birth key.
+For a block, this is the block position, by `y`, then `z`, then `x`. For a command, this is the
+sequence number of the command.
+
+This order follows the reference: commands run before the entities, and the hoppers tick after the
+entities. PHY-DEV-005 records the difference.
+
+The arbitration of a tick must contain each claim of that tick, also a claim from another cell. An
+implementation must deliver the claims of a tick to the owner of the target before the
+arbitration of that tick. A layout that delivers a claim one tick later uses the exception "claim
+across a cell boundary" of PHY-INV-014. Its bound is one tick, only for that target. The late claim
+joins the arbitration of the next tick. The target still has one winner in each tick, so an item
+cannot go to two writers.
+
+**PHY-CMP-018** (`source_suggested`, semantic, confidence: medium). Policy `semantic`: the colliders
+of PHY-SHP-009, for example boats, rafts, shulkers and a happy ghast. The order-independent pass
+steps them in a pre-pass, before the other entities:
+
+1. The colliders whose read zones (PHY-RCH-001) intersect form a group. Two groups that share a
+   collider are one group.
+2. Inside a group, the colliders step one after the other, in the order of the birth key. A
+   collider reads the box after the step of each earlier collider of the group. It reads the box
+   at the start of the tick of each other collider.
+3. A collider reads the boxes of the entities that are not colliders from the start of the tick.
+4. The pre-pass publishes the box of each collider after its step.
+
+The main pass then gives each entity the boxes of the colliders after the pre-pass. It gives the
+boxes of the other entities from the start of the tick (PHY-CMP-012). Two colliders of one group cannot pass
+through each other, because the later one always sees the box of the earlier one after its step.
+PHY-DEV-002 records the difference from the reference.
+
+**PHY-CMP-019** (`source_suggested`, semantic, confidence: medium). Policy `semantic`: a limit on the
+number of push neighbours. It applies only when the game rule `max_entity_cramming` is 0. Then the
+push of PHY-CMP-012 uses only the `K` nearest neighbours of each entity, with `K = 24` by default.
+
+1. The distance of a pair is `m` of PHY-PSH-004, from the positions at the start of the tick.
+2. Each entity sorts its neighbours by the distance, and then by the birth key.
+3. A pair pushes only when each entity of the pair is among the first `K` neighbours of the other.
+
+Step 3 makes the rule symmetric, so each pair still gets equal and opposite pushes (PHY-PSH-005).
+PHY-DEV-008 records the difference.
+
+**PHY-CMP-020** (`source_suggested`, semantic, confidence: medium). Policy `semantic`, with the
+visible behaviour of the reference: explosions in the order-independent pass.
+
+1. At the start of the tick, find each entity that explodes in this tick by a known rule. A primed
+   TNT with a fuse of 1 or less is such an entity.
+2. Make an explosion group. It contains these entities, and each entity whose read zone touches
+   the reach of one of their explosions. For a power `p`, the reach is a cube of edge `4p` around
+   the centre. Grow it by the largest displacement of the exploder in this tick.
+3. Add each entity that an explosion of the group can ignite or move, until the group does not
+   grow. Two groups that share an entity are one group.
+4. Two groups whose reaches intersect are also one group, even when they share no entity. Two
+   such explosions can remove the same block or ignite the same TNT block. The merge keeps the
+   order of the birth key for both.
+5. The entities of a group tick one after the other, in the order of the birth key. In the group,
+   an explosion changes the velocity and the health of the other members in that step (PHY-EXP-001). A
+   member that ticks later uses the impulse in the same tick. A member that ticked before uses it
+   in the next tick. The blocks that an explosion removes are absent for the later members.
+6. The group reads the entities outside it at their state from the start of the tick.
+
+Some explosions do not show at the start of the tick, for example a fireball that hits a block.
+Such an exploder does not form a group. Its impulse and its damage are writes of PHY-CMP-015.
+PHY-DEV-009 records this case.
+
 ## 12. Out of scope
 
 Each subject below has a hook in this model. This document does not state the model behind the
@@ -2066,8 +2538,7 @@ hook.
 | Elytra flight | PHY-ORD-003 selects the elytra model. PHY-BOX-004 gives the pose. |
 | Riptide | PHY-BOX-004 gives the `spin_attack` pose. The impulse is an external impulse (PHY-SRV-007). |
 | Vehicles and riders | PHY-STP-001 gives a ridden living entity a step height of at least 1. PHY-SHP-008 excludes the root vehicle. PHY-ORD-006 lists the vehicle categories. A rider has no travel step of its own. |
-| The push between entities | step 9 of PHY-ORD-002. |
-| Piston motion | the mover kinds `piston`, `shulker` and `shulker_box` of PHY-MOV-001, and step 2 of the move procedure. |
+| The geometry of a piston push | PHY-BLK-002 states the move. The selection of the entities that a piston moves, and the stick of slime and honey blocks, are in the block domain. |
 | Fall damage amounts | step 4 of PHY-FALL-001 calls the fall action of the block at the effect position. |
 | Hit detection of projectiles | the move `R` along a ray of PHY-ORD-005. |
 | Movement checks of the server | section 11 and `movement-checks.md`. |
@@ -2079,8 +2550,8 @@ more important than a cleaner rule. This applies to PHY-COL-005, PHY-MOV-004, PH
 PHY-STP-005. Each client sees the result of the server-simulated rules of section 9 as the position
 of an entity. Thus this document keeps these rules too.
 
-The rules PHY-CMP-006, PHY-CMP-008 and PHY-CMP-009 permit three deviations for server-simulated
-entities. An implementation that uses one of them must state it.
+The rules PHY-CMP-006, PHY-CMP-008, PHY-CMP-009, PHY-CMP-012, PHY-CMP-014 to PHY-CMP-020 permit
+the deviations of this section for server-simulated entities. An implementation that uses one of them must state it.
 
 ### PHY-DEV-001: Tolerance for server-simulated motion
 
@@ -2093,14 +2564,17 @@ entities. An implementation that uses one of them must state it.
 - **Test:** a differential test compares each position and velocity component with a tolerance of
   `1.0E-6` per tick. It compares the flags exactly, except within `1.0E-6` of a grid line.
 
-### PHY-DEV-002: Collider boxes from the start of the tick
+### PHY-DEV-002: Collider boxes after a pre-pass
 
-- **Rule:** PHY-CMP-008.
+- **Rule:** PHY-CMP-008, PHY-CMP-018.
 - **Reference:** the reference ticks entities one after the other. An entity sees the new box of a
-  collider that ticked before it in the same tick.
-- **Visible to the client:** yes, rarely. An entity that touches a boat, a shulker or a happy ghast
-  that moves can stop one tick later or one tick earlier. The difference is at most the
-  displacement of the collider in one tick.
+  collider that ticked before it in the same tick. It sees the old box of a collider that ticks
+  after it.
+- **Visible to the client:** yes, rarely. Under PHY-CMP-018, each entity that is not a collider
+  sees the new box of each collider. A boat, a shulker or a happy ghast can move. An entity that
+  ticks before it in the reference can stop one tick earlier. The bound is the displacement of the collider
+  in one tick. Two colliders do not pass through each other, as in the reference. Inside a group
+  of colliders, the order is the birth key, not the order of the ticks.
 - **Test:** a differential test skips an entity that has a collider that moves in its read zone.
 
 ### PHY-DEV-003: Block states from the start of the tick
@@ -2129,6 +2603,87 @@ entities. An implementation that uses one of them must state it.
   changed after the previous server tick. For the second effect, the test accepts a delay of one
   more tick for the block that the action changed. It compares the other blocks and entities with
   no extra delay. It compares the next tick with a delay of one tick.
+
+### PHY-DEV-004: The push from the start of the tick
+
+- **Rule:** PHY-CMP-012.
+- **Reference:** the reference pushes in sequence (PHY-PSH-006). The later entity of a pair uses the
+  push of the earlier entity in the same tick. The two pushes of a pair use different positions.
+- **Visible to the client:** yes, as a small difference in the motion of a crowd. The bound: for
+  each pair and each tick, each horizontal velocity component differs by at most `0.1`, which is two
+  pushes of `0.05F`. A push can arrive one tick later than in the reference. Examples:
+  - In a crowd in a hole of 1 × 1 blocks, the reference pushes the entities that tick later a bit
+    more in the same tick. Under PHY-CMP-012, the push is symmetric, and the crowd spreads in the
+    same way in each direction.
+  - In a mob farm, the paths of single mobs differ, but the mean flow of the mobs stays the same.
+  - The crowd damage uses the same count rule and the same chance of 1 in 4. Only the tick in which an
+    entity takes damage can differ, because the count uses the boxes from the start of the tick.
+- **Test:** a differential test compares one pair with a tolerance of `0.1` per tick for the
+  velocity. For a crowd, it compares the distribution of the positions and the rate of the crowd
+  damage. It does not compare each position.
+
+### PHY-DEV-005: Writes to other entities at the next tick
+
+- **Rule:** PHY-CMP-015.
+- **Reference:** the reference applies a write to another entity when the writer makes it. A target that ticks later
+  in the same tick sees the write in that tick.
+- **Visible to the client:** yes, as a delay of one tick at most. Examples:
+  - A mob hits another mob. In the reference, the target can use the knockback in its travel step
+    of the same tick. Under PHY-CMP-015, it uses the knockback one tick later.
+  - Two players or a player and a hopper touch one item in the same tick. In the reference, the
+    writer that acts first gets the item. Under PHY-CMP-017, the writer with the lowest writer key
+    gets it, in the same tick.
+  - The health of a target, and its death, can change one tick later.
+- **Test:** a differential test accepts a delay of one tick for each write to another entity. For a
+  conflict, it accepts each winner.
+
+### PHY-DEV-006: Keyed random value for crowd damage
+
+- **Rule:** PHY-CMP-014.
+- **Reference:** the reference takes the value from the random source of the entity. Other parts of
+  the tick of the entity, for example the AI, take values from the same source.
+- **Visible to the client:** no, as a distribution. The ticks with crowd damage differ from the
+  reference, but the chance stays 1 in 4.
+- **Test:** a differential test compares the rate of crowd damage, not the ticks.
+
+### PHY-DEV-007: Phase offset from the birth key
+
+- **Rule:** PHY-CMP-016.
+- **Reference:** the phase of the item rest cycle comes from the network id of the item.
+- **Visible to the client:** no in normal play. The phase changes the ticks in which an item at rest
+  moves by less than `0.0032` block. It also changes the value of `v.y` in the cycle. A position update
+  reaches the client only after a change of at least `0.00276` block (PHY-CMP-002).
+- **Test:** a parity test sets the phase offset from the vanilla network id (PHY-CMP-016).
+
+### PHY-DEV-008: Push limit without crowd damage
+
+- **Rule:** PHY-CMP-019.
+- **Reference:** the reference pushes every candidate, also when `max_entity_cramming` is 0.
+- **Visible to the client:** yes, but only when the game rule is 0. More than 24 entities must
+  touch one entity. The crowd presses closer together, because each entity gets at
+  most 24 pairs of pushes.
+- **Test:** a differential test with `max_entity_cramming` 0 skips each entity with more than `K`
+  neighbours.
+
+### PHY-DEV-009: Explosions that the start of the tick does not show
+
+- **Rule:** PHY-CMP-020.
+- **Reference:** each explosion acts in the tick of its exploder, in the order of the ticks.
+- **Visible to the client:** yes, as a delay of one tick at most. A fireball or a wither skull can
+  explode on a hit. It then pushes some entities one tick later than in the reference. These are
+  the entities that tick after it in the reference. Primed TNT, and thus TNT cannons, keep the behaviour of the reference.
+- **Test:** a differential test accepts a delay of one tick for the push and the damage of such an
+  explosion.
+
+### PHY-DEV-010: Keyed random values for the rays of an explosion
+
+- **Rule:** PHY-EXP-003, in the semantic mode.
+- **Reference:** each ray takes one value from the random source of the dimension, in the fixed
+  order of the rays. The other users of that source change the values.
+- **Visible to the client:** yes, as a different set of destroyed blocks in each run. The
+  distribution of the destroyed blocks stays the same.
+- **Test:** a differential test compares the distribution of the destroyed blocks over many
+  explosions. It does not compare the blocks of one explosion.
 
 ## 14. Unresolved
 
@@ -2205,6 +2760,22 @@ values are f64 values. Compare them bit for bit with the model.
 | E31 | Summon an armor stand, a bat, a parrot and a zombie next to a boat that moves. Record which entity the boat stops at. | PHY-ORD-012 |
 | E32 | Step 40 ticks with an item at rest on stone, then run `/data merge entity` with no change in each tick. Compare `Motion` with E28. | PHY-SKIP-005, PHY-RCH-005 |
 | E33 | Freeze the ticks. Put an item at rest on scaffolding with no support, so that a scheduled tick breaks the scaffolding. Step 1 tick and read `Pos` and `Motion`. Put an item at rest on stone, break the stone with the scripted client while the ticks are frozen, step 1 tick and read `Pos`. Summon sand above an armor stand that moves under it. | PHY-CMP-009, PHY-CMP-010, PHY-DEV-003 |
+| E34 | Set the base `movement_speed` of two pigs to 0. Summon them with a horizontal distance of 0.3, then 0.05, then 0.005. Step 1 tick and read `Motion` of each. | PHY-PSH-002, PHY-PSH-004, PHY-PSH-005 |
+| E35 | Summon two pigs with speed 0 in a box of 1 × 1 blocks, in the orders A, B and B, A. Step 5 ticks and read `Pos` and `Motion`. | PHY-PSH-006, PHY-DEV-004 |
+| E36 | Put 30 pigs with speed 0 in a box of 1 × 1 blocks with `max_entity_cramming` at 24, 0 and 31. Count the ticks with damage of the type `cramming`. | PHY-PSH-007 |
+| E37 | Put two pigs in teams with each collision rule. Step 1 tick and read `Motion`. Put a parrot and a bat next to a pig. | PHY-PSH-003, PHY-ORD-009 |
+| E38 | With a vanilla client, stand inside a pig and inside a boat, with and without a team rule `never`. Record the positions of the player. | PHY-PSH-008, PHY-PSH-010 |
+| E39 | Summon a zombie with `NoAI:0b` and give it a side step with a target, then remove the target. Read the input with a debug tool of mcrs, or read `Pos` for 200 ticks. | PHY-INP-020, PHY-SKIP-007 |
+| E40 | Put a pig on a boat that moves. Step 1 tick and read `Pos` of both. | PHY-ORD-014 |
+| E41 | Let a zombie hit a pig that ticks after it, then before it. Read `Motion` of the pig in the next 2 ticks. | PHY-CMP-015, PHY-DEV-005 |
+| E42 | Put two pigs with speed 0 at a horizontal distance of 0.005 and of 0.3. Step 20 ticks and read `Motion`. | PHY-SKIP-006 |
+| E43 | Drop items from a mob, a dispenser and a command in one tick, then save and load the world. Read the order of the items in each later rule that uses an order. | PHY-CMP-013, PHY-CMP-016 |
+| E44 | Put a pig on a piston that pushes up and to the side, and on a slime block that a piston moves. Step 3 ticks and read `Pos` and `Motion`. | PHY-BLK-001, PHY-BLK-002 |
+| E45 | Put one item in reach of a player and of a hopper in one tick. Read which one gets the item. | PHY-CMP-017 |
+| E46 | Move two boats towards each other on ice, with the summons in both orders. Step 10 ticks and read `Pos`. | PHY-CMP-018, PHY-DEV-002 |
+| E47 | Build a TNT cannon with 4 charges and 1 projectile TNT. Step each tick and read `Pos` and `Motion` of the projectile. Shoot a fireball into a crowd of pigs. | PHY-EXP-001, PHY-EXP-002, PHY-CMP-020 |
+| E48 | With a vanilla client, ride a minecart and a boat. Record the positions that the client sends and the positions that the server sends. | PHY-SRV-011 |
+| E49 | Put 40 pigs with speed 0 in a box of 1 × 1 blocks with `max_entity_cramming` at 0. Step 20 ticks and read `Pos`. | PHY-CMP-019, PHY-DEV-008 |
 
 The experiment of a supported rule also covers each `source_suggested` rule without a row above:
 
