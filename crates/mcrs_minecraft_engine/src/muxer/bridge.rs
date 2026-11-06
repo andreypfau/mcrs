@@ -748,7 +748,12 @@ pub fn bridge_inbound(
                             }
                         };
                     if let Some(trigger) = trigger {
-                        trigger.raise(&mut commands, entity, pkt.payload.clone());
+                        trigger.raise_arrived(
+                            &mut commands,
+                            entity,
+                            pkt.payload.clone(),
+                            pkt.timestamp,
+                        );
                     }
                     let ends_state = dispatcher.ends_state(ConnectionState::Game, pkt.id);
 

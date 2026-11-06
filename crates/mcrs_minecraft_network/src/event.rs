@@ -1,3 +1,4 @@
+use crate::Instant;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::event::EntityEvent;
 use bevy_ecs::prelude::Commands;
@@ -17,6 +18,7 @@ use tracing::error;
 pub struct Received<R: Row> {
     pub entity: Entity,
     data: Bytes,
+    arrival: Option<Instant>,
     row: PhantomData<fn() -> R>,
 }
 
@@ -25,8 +27,22 @@ impl<R: Row> Received<R> {
         Self {
             entity,
             data,
+            arrival: None,
             row: PhantomData,
         }
+    }
+
+    pub fn arrived(entity: Entity, data: Bytes, arrival: Instant) -> Self {
+        Self {
+            arrival: Some(arrival),
+            ..Self::new(entity, data)
+        }
+    }
+
+    /// When the socket reader took the frame. `None` for a frame that crossed into a dimension,
+    /// since the simulation reads no wall clock.
+    pub fn arrival(&self) -> Option<Instant> {
+        self.arrival
     }
 
     pub fn data(&self) -> &Bytes {
@@ -65,21 +81,36 @@ impl<R: Row> std::fmt::Debug for Received<R> {
 #[derive(Clone, Copy)]
 pub struct Trigger {
     name: &'static str,
-    raise: fn(&mut Commands, Entity, Bytes),
+    raise: fn(&mut Commands, Entity, Bytes, Option<Instant>),
 }
 
 impl Trigger {
     pub fn of<R: Row>() -> Self {
         Self {
             name: R::Packet::NAME,
-            raise: |commands, entity, data| {
-                commands.trigger(Received::<R>::new(entity, data));
+            raise: |commands, entity, data, arrival| {
+                commands.trigger(Received::<R> {
+                    entity,
+                    data,
+                    arrival,
+                    row: PhantomData,
+                });
             },
         }
     }
 
     pub fn raise(self, commands: &mut Commands, entity: Entity, data: Bytes) {
-        (self.raise)(commands, entity, data);
+        (self.raise)(commands, entity, data, None);
+    }
+
+    pub fn raise_arrived(
+        self,
+        commands: &mut Commands,
+        entity: Entity,
+        data: Bytes,
+        arrival: Instant,
+    ) {
+        (self.raise)(commands, entity, data, Some(arrival));
     }
 }
 
@@ -157,7 +188,12 @@ mod loop_plugin {
                             break;
                         }
                         match dispatcher.dispatch(state, pkt.id, &pkt.payload) {
-                            Ok(Some(trigger)) => trigger.raise(&mut commands, entity, pkt.payload),
+                            Ok(Some(trigger)) => trigger.raise_arrived(
+                                &mut commands,
+                                entity,
+                                pkt.payload,
+                                pkt.timestamp,
+                            ),
                             Ok(None) => {}
                             Err(malformed) => {
                                 // chisle: once the server accepts a login the game disconnects
