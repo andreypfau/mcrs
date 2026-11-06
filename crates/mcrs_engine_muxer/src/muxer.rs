@@ -43,6 +43,8 @@ pub struct Muxer<C> {
     keyframes: BTreeMap<TileTier, TileBlob>,
     headers: Vec<TileHeader>,
     candidates: Vec<EntityId>,
+    scratch_viewers: Vec<ViewerId>,
+    scratch_tiles: Vec<TileKey>,
     tick: u64,
 }
 
@@ -82,6 +84,8 @@ impl<C: ReplicationCodec> Muxer<C> {
             keyframes: BTreeMap::new(),
             headers: Vec::new(),
             candidates: Vec::new(),
+            scratch_viewers: Vec::new(),
+            scratch_tiles: Vec::new(),
             tick: 0,
         }
     }
@@ -115,15 +119,18 @@ impl<C: ReplicationCodec> Muxer<C> {
         for state in self.viewers.values_mut() {
             state.measure(BUDGET);
         }
-        let viewers: Vec<ViewerId> = self
-            .viewers
-            .iter()
-            .filter(|(_, state)| !self.is_settled(state, &memberships))
-            .map(|(&viewer, _)| viewer)
-            .collect();
-        for viewer in viewers {
+        let mut viewers = mem::take(&mut self.scratch_viewers);
+        viewers.clear();
+        viewers.extend(
+            self.viewers
+                .iter()
+                .filter(|(_, state)| !self.is_settled(state, &memberships))
+                .map(|(&viewer, _)| viewer),
+        );
+        for &viewer in &viewers {
             self.replan(viewer);
         }
+        self.scratch_viewers = viewers;
         for membership in &memberships {
             self.forget_if_empty(membership.tile);
         }
@@ -313,8 +320,11 @@ impl<C: ReplicationCodec> Muxer<C> {
     /// Encodes each tile and tier that is due and has events to send, and appends the bytes to
     /// the viewers of that tier.
     fn send_moves(&mut self, settled: &Settled) {
-        let tiles: Vec<TileKey> = self.unsent.iter().copied().collect();
-        for tile in tiles {
+        let mut tiles = mem::take(&mut self.scratch_tiles);
+        tiles.clear();
+        tiles.extend(self.unsent.iter().copied());
+        let mut receivers = mem::take(&mut self.scratch_viewers);
+        for &tile in &tiles {
             let Some(stream) = self.tiles.get_mut(&tile) else {
                 self.unsent.remove(&tile);
                 continue;
@@ -327,22 +337,18 @@ impl<C: ReplicationCodec> Muxer<C> {
                 if !unsent || !due(tile, tier, self.tick) {
                     continue;
                 }
-                let receivers: Vec<ViewerId> = stream
-                    .viewers
-                    .iter()
-                    .filter(|viewer| {
-                        self.viewers
-                            .get(viewer)
-                            .and_then(|state| state.subscriptions.get(&tile))
-                            .is_some_and(|subscription| {
-                                subscription
-                                    .layers
-                                    .iter()
-                                    .any(|layer| layer.tier == Some(tier))
-                            })
-                    })
-                    .copied()
-                    .collect();
+                receivers.clear();
+                receivers.extend(stream.viewers.iter().filter(|viewer| {
+                    self.viewers
+                        .get(viewer)
+                        .and_then(|state| state.subscriptions.get(&tile))
+                        .is_some_and(|subscription| {
+                            subscription
+                                .layers
+                                .iter()
+                                .any(|layer| layer.tier == Some(tier))
+                        })
+                }));
                 if receivers.is_empty() {
                     continue;
                 }
@@ -352,7 +358,7 @@ impl<C: ReplicationCodec> Muxer<C> {
                 if let Some(unsent) = stream.unsent.get_mut(tier.index()) {
                     *unsent = false;
                 }
-                for viewer in receivers {
+                for &viewer in &receivers {
                     let Some(state) = self.viewers.get_mut(&viewer) else {
                         continue;
                     };
@@ -364,6 +370,8 @@ impl<C: ReplicationCodec> Muxer<C> {
                 self.unsent.remove(&tile);
             }
         }
+        self.scratch_tiles = tiles;
+        self.scratch_viewers = receivers;
     }
 
     fn send_settled(&mut self, settled: Settled) {
