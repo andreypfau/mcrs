@@ -900,10 +900,17 @@ pub struct RemovedOverlay<'a, W> { base: &'a W, removed: &'a FxHashSet<BlockPos>
 
 /// The driver picks the front grid plus `ColliderEnds`, or a live view (exact-parity mode).
 pub trait BodyView {
-    fn colliders(&self, query: Aabb, mover: BirthKey, out: &mut Vec<Collider>);    // PHY-SHP-009
+    fn colliders(&self, query: Aabb, mover: BirthKey, out: &mut Vec<EntityCollider>); // PHY-SHP-009
     fn neighbours(&self, of: &GridRow, out: &mut Vec<GridRow>);                     // PHY-RCH-006
     fn position(&self, entity: EntityId) -> Option<PositionRow>;
 }
+
+/// The read-only inputs of every kernel function, passed as one value.
+pub struct View<'a, W, B> { pub world: &'a W, pub bodies: &'a B, pub tables: &'a Tables }
+
+/// A shape that can stop a box: a table shape at a block position, an entity box, or the space
+/// outside the world border. Index-based, so the scratch buffers hold no borrow of the tables.
+pub enum Collider { Block { shape: ShapeId, at: BlockPos }, Entity(Aabb), Border(BorderRegion) }
 
 pub struct Tables {
     pub collision: CollisionTable,
@@ -962,9 +969,10 @@ pub fn tick_mount_tree<W: CollisionWorld, B: BodyView>(/* a run of rows, root fi
 pub enum QueryVariant { Collision, Placement }      // placement: empty scaffolding and powder
                                                     // snow, no border source
 pub enum ColliderSource { Block { pos: BlockPos, state: BlockStateId }, Entity(EntityId), Border }
+pub struct SourcedCollider { pub collider: Collider, pub source: ColliderSource }
 pub fn query_colliders<W: CollisionWorld, B: BodyView>(
-    world: &W, bodies: &B, tables: &Tables, entity: &QueryEntity, query: Aabb,
-    feet: Option<f64>, variant: QueryVariant, out: &mut Vec<(Shape, ColliderSource)>,
+    view: View<'_, W, B>, entity: &QueryEntity, query: Aabb,
+    feet: Option<f64>, variant: QueryVariant, out: &mut Vec<SourcedCollider>,
 );
 
 /// PHY-SRV-008: the velocity at the end of an observed player tick. With one horizontal collision
@@ -977,14 +985,32 @@ pub fn observed_velocity(
 /// PHY-SRV-010: apply a `player_position` packet; rotation values are f32.
 pub fn apply_teleport(state: &mut PlayerState, rotation: &mut PlayerRotation, packet: &Teleport);
 
-pub fn move_body<W: CollisionWorld, B: BodyView>(/* PHY-MOV-001; mover kinds include piston */);
-#[must_use] pub fn resolve<W: CollisionWorld, B: BodyView>(/* PHY-SRV-006 */) -> Resolved;
+/// PHY-MOV-001. A `piston` move first passes `limit_piston` (PHY-BLK-002), which the block
+/// domain calls with the sums of the entity for the game tick.
+pub fn move_body<W: CollisionWorld, B: BodyView>(
+    view: View<'_, W, B>, mover: &Mover, body: &mut Body, kind: MoverKind, displacement: DVec3,
+    scratch: &mut Scratch,
+) -> MoveOutcome;
+/// PHY-SRV-006: resolves `probe.displacement` for `probe.bounds`, with step-up; changes no state.
+#[must_use] pub fn resolve<W: CollisionWorld, B: BodyView>(
+    view: View<'_, W, B>, probe: &Probe, scratch: &mut Scratch,
+) -> Resolved;                              // the step-up result keeps the plain displacement
+/// True when a block shape, an entity collider or the border overlaps the box (PHY-BOX-006,
+/// PHY-INP-010, PHY-INP-012); the caller shrinks the box as its rule states.
+#[must_use] pub fn intersects<W: CollisionWorld, B: BodyView>(
+    view: View<'_, W, B>, entity: &QueryEntity, bounds: Aabb, entities: &mut Vec<EntityCollider>,
+) -> bool;
 #[must_use] pub fn read_zone(body: &Body, row: &MotionRow, displacement: DVec3) -> Aabb;
 
 /// Writes and claims, binned by target tile.
 pub struct EffectBuffer { bins: SmallVec<[(TileKey, Vec<Keyed<Effect>>); 4]> }
 pub struct Keyed<E> { pub target: BirthKey, pub writer: WriterKey, pub sequence: u32, pub effect: E }
 ```
+
+The kernel functions take one `View` in place of the world, the bodies and the tables, and a
+query returns a `SourcedCollider` in place of a tuple. A function with more than seven inputs
+takes a struct (`Probe`, `Mover`). The behaviour is the same; the change keeps each signature
+short.
 
 **Boundaries that must be fixed now**, because the serial proposals depend on them (§14, step B0):
 
@@ -1351,3 +1377,23 @@ E1..E8, T1 (any time)   D1 ─ D2 ─ D3 ─ D4 ─ D5 ─ D6 ─ D7
    opt-in wave mode and speculation are later options.
 5. U4/U6 in PHY: `OFF_GRID` shapes force coarse mode near them.
 6. Projectiles: the ray move and the hit detection read the grid; their spec will state the reach.
+7. PHY-SHP-005 against §6.7 and §14 (K1, K2): the rule tries `n` from 0 to 3, so a carpet (one
+   pixel high) gives the two `y` lines 0 and `1/16`. §6.7 and the K2 test state 17 lines, which
+   needs `n` up to 4. The kernel follows the rule; one constant (`MAX_GRID_BITS`) changes it.
+   Which value does the reference use?
+8. PHY-SHP-005: "two values nearer than `1.0E-7` are one grid line" does not say which value
+   stays. The kernel keeps the lowest.
+9. PHY-FLG-004: the rule does not say what happens to "the last search found no block" while the
+   on-ground flag is false. The kernel keeps the flag as it is.
+10. PHY-MOV-002 against PHY-BLK-002: MOV-002 skips only the product for a `piston` move and still
+    clears the multiplier and the velocity; BLK-002 says a piston move "does not apply the stuck
+    multiplier". The kernel follows MOV-002.
+11. PHY-COL-002 step 1: the rule says a zero component resolves to zero, but not whether a `-0.0`
+    request gives `+0.0` or `-0.0`. The kernel gives `+0.0`. The sign shows only in a position of
+    exactly `-0.0`.
+12. PHY-FLG-003: the rule does not state how the client computes the angle between the two
+    vectors. The kernel compares `acos(a·b / sqrt(|a|²|b|²))` in f64 with the widened `0.13962634F`.
+13. PHY-SHP-010: "the distance to the nearest border line in `x` and `z`" and "inside the border
+    grown by `m`" do not state the sign of the distance outside the border, or whether the test is
+    strict. The kernel uses the signed distance (negative outside) and strict comparisons.
+

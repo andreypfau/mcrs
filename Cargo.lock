@@ -4598,6 +4598,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "mcrs_minecraft_physics"
+version = "0.5.8"
+dependencies = [
+ "bitflags 2.10.0",
+ "criterion",
+ "glam",
+ "mcrs_engine_muxer",
+ "mcrs_minecraft_physics",
+ "mcrs_voxel",
+]
+
+[[package]]
 name = "mcrs_minecraft_predicate"
 version = "0.5.8"
 dependencies = [
