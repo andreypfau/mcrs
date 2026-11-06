@@ -1,10 +1,4 @@
-use bevy_ecs::prelude::{Entity, Query, With};
-use bevy_ecs::system::SystemParam;
-use mcrs_minecraft_chunk::{
-    BlockLight, LightLayer, LightStorage, SectionNibbles as LightNibbles, SkyLight,
-};
-use mcrs_minecraft_engine_world::world::dimension::{HasSkyLight, InDimension};
-use mcrs_minecraft_engine_world::world::storage::column::{ColumnSections, SectionLookup};
+use mcrs_minecraft_chunk::{LightLayer, LightStorage, SectionNibbles as LightNibbles};
 use mcrs_minecraft_protocol_game::chunk::{LightChunk, LightData};
 use std::borrow::Cow;
 
@@ -16,19 +10,15 @@ use crate::stored_column::StoredColumn;
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum WireRow {
     BottomPadding,
-    Loaded(Entity),
-    Unloaded,
+    Section,
     TopPadding,
 }
 
-/// The padded row sequence for a column, in wire order.
-pub(crate) fn wire_rows(chunks: &ColumnSections) -> impl Iterator<Item = WireRow> + '_ {
-    std::iter::once(WireRow::BottomPadding)
-        .chain(chunks.iter().map(|lookup| match lookup {
-            SectionLookup::Loaded(e) => WireRow::Loaded(e),
-            _ => WireRow::Unloaded,
-        }))
-        .chain(std::iter::once(WireRow::TopPadding))
+/// The light of the section at `y` in one layer.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct SectionLight<'a> {
+    pub(crate) y: i32,
+    pub(crate) light: &'a LightStorage,
 }
 
 /// The masks and the arrays of one light layer of a packet, filled row by row.
@@ -61,17 +51,8 @@ fn light_data(block: LayerPacker, sky: LayerPacker) -> LightData<'static> {
     }
 }
 
-/// Wire-mapping decision matrix dispatcher for a single (chunk, layer) pair.
-///
-/// The bit `bit_idx` is interpreted relative to the mask `Vec<u64>` words:
-/// the bit is at position `bit_idx % 64` within word `bit_idx / 64`. Masks are
-/// grown on demand so the highest touched word is always present.
-///
-/// `storage` is `None` only when the parent dimension has no sky-light and the
-/// layer is `Sky`; in every other Loaded case the caller supplies the
-/// component's `LightStorage`. The `has_sky_light` flag is consulted only for
-/// `TopPadding` (sky synthesis is gated on the dimension having a sky) and for
-/// the Loaded+sky-missing-in-skyless-dim row.
+/// Packs the light of one row in `layer` at `bit_idx`. `storage` is `None` for a section
+/// with no light of the layer.
 pub(crate) fn pack_chunk(
     chunk: WireRow,
     storage: Option<&LightStorage>,
@@ -102,7 +83,7 @@ pub(crate) fn pack_chunk(
                 set_bit(empty_mask, bit_idx);
             }
         },
-        WireRow::Loaded(_) => {
+        WireRow::Section => {
             if matches!(layer, LightLayer::Sky) && !has_sky_light {
                 set_bit(empty_mask, bit_idx);
                 return;
@@ -121,12 +102,6 @@ pub(crate) fn pack_chunk(
                 }
             }
         }
-        WireRow::Unloaded => {
-            // Neither mask bit is set — vanilla treats unloaded chunks as
-            // "absent from the column" rather than "present but empty". The
-            // bit index still advances in the outer iterator so wire ordering
-            // stays aligned with the padded row indices.
-        }
     }
 }
 
@@ -140,15 +115,6 @@ fn set_bit(mask: &mut Vec<u64>, bit_idx: usize) {
     if let Some(word) = mask.get_mut(word_idx) {
         *word |= 1u64 << bit;
     }
-}
-
-#[derive(SystemParam)]
-pub struct LightCodecParams<'w, 's> {
-    pub chunk_indexes: Query<'w, 's, &'static ColumnSections>,
-    pub block_lights: Query<'w, 's, &'static BlockLight>,
-    pub sky_lights: Query<'w, 's, &'static SkyLight>,
-    pub in_dimensions: Query<'w, 's, &'static InDimension>,
-    pub has_sky_lights: Query<'w, 's, (), With<HasSkyLight>>,
 }
 
 /// Sky at full, block at nothing, for every row a column puts on the wire.
@@ -169,25 +135,48 @@ pub fn build_fullbright_light_data(rows: usize) -> LightData<'static> {
     }
 }
 
-/// Build a `LightData` describing only the sections named in the changed
-/// slices. Every other row is left out of both masks, which the client reads as
-/// `RowLight::Unchanged` and leaves as it is — including the two padding rows,
-/// which a delta never synthesizes.
-///
-/// Changed sections arrive as entities because that is what a change-detection
-/// query hands the caller, and a delta touches a handful of sections, so a
-/// linear scan is cheaper than making the caller build a set.
-pub fn build_delta_light_data(
-    column_entity: Entity,
-    changed_block: &[Entity],
-    changed_sky: &[Entity],
-    params: &LightCodecParams,
+/// A `LightData` with only the rows of `block` and `sky`. The client leaves every other row,
+/// the padding rows too, as it is.
+pub(crate) fn build_delta_light_data(
+    min_section_y: i32,
+    has_sky_light: bool,
+    block: &mut [SectionLight<'_>],
+    sky: &mut [SectionLight<'_>],
 ) -> LightData<'static> {
-    build_light_data(column_entity, params, |row, layer| match (row, layer) {
-        (WireRow::Loaded(e), LightLayer::Block) => changed_block.contains(&e),
-        (WireRow::Loaded(e), LightLayer::Sky) => changed_sky.contains(&e),
-        _ => false,
-    })
+    light_data(
+        pack_sections(min_section_y, has_sky_light, block, LightLayer::Block),
+        pack_sections(min_section_y, has_sky_light, sky, LightLayer::Sky),
+    )
+}
+
+fn pack_sections(
+    min_section_y: i32,
+    has_sky_light: bool,
+    sections: &mut [SectionLight<'_>],
+    layer: LightLayer,
+) -> LayerPacker {
+    // The arrays go out in the order of their rows.
+    sections.sort_unstable_by_key(|section| section.y);
+    let mut packer = LayerPacker::with_capacity(sections.len());
+    for section in sections.iter() {
+        // Row 0 is the bottom padding.
+        let row = section
+            .y
+            .checked_sub(min_section_y)
+            .and_then(|index| usize::try_from(index).ok())
+            .and_then(|index| index.checked_add(1));
+        if let Some(row) = row {
+            pack_chunk(
+                WireRow::Section,
+                Some(section.light),
+                layer,
+                has_sky_light,
+                row,
+                &mut packer,
+            );
+        }
+    }
+    packer
 }
 
 /// Build a wire-ready `LightData` for a column from the data layer, with the light it held when
@@ -205,7 +194,7 @@ pub(crate) fn build_stored_light_data(
         .chain(std::iter::once(None));
     for (bit_idx, section) in padded.enumerate() {
         let row = match section {
-            Some(_) => WireRow::Loaded(Entity::PLACEHOLDER),
+            Some(_) => WireRow::Section,
             None if bit_idx == 0 => WireRow::BottomPadding,
             None => WireRow::TopPadding,
         };
@@ -233,71 +222,11 @@ pub(crate) fn build_stored_light_data(
     light_data(block, sky)
 }
 
-fn build_light_data(
-    column_entity: Entity,
-    params: &LightCodecParams,
-    pack_row: impl Fn(WireRow, LightLayer) -> bool,
-) -> LightData<'static> {
-    let Ok(chunk_index) = params.chunk_indexes.get(column_entity) else {
-        return LightData::default();
-    };
-    let Ok(in_dim) = params.in_dimensions.get(column_entity) else {
-        return LightData::default();
-    };
-    let has_sky_light = params.has_sky_lights.get(in_dim.0).is_ok();
-
-    let rows = wire_rows(chunk_index).count();
-    let mut block = LayerPacker::with_capacity(rows);
-    let mut sky = LayerPacker::with_capacity(rows);
-
-    for (bit_idx, lookup) in wire_rows(chunk_index).enumerate() {
-        let chunk_entity = match lookup {
-            WireRow::Loaded(e) => Some(e),
-            _ => None,
-        };
-        let block_storage = chunk_entity
-            .and_then(|e| params.block_lights.get(e).ok())
-            .map(|bl| &bl.0);
-        let sky_storage = chunk_entity
-            .and_then(|e| params.sky_lights.get(e).ok())
-            .map(|sl| &sl.0);
-
-        if pack_row(lookup, LightLayer::Block) {
-            pack_chunk(
-                lookup,
-                block_storage,
-                LightLayer::Block,
-                has_sky_light,
-                bit_idx,
-                &mut block,
-            );
-        }
-        if pack_row(lookup, LightLayer::Sky) {
-            pack_chunk(
-                lookup,
-                sky_storage,
-                LightLayer::Sky,
-                has_sky_light,
-                bit_idx,
-                &mut sky,
-            );
-        }
-    }
-    light_data(block, sky)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use bevy_ecs::entity::Entity;
-    use bevy_ecs::prelude::{In, World};
-    use bevy_ecs::system::RunSystemOnce;
     use mcrs_minecraft_protocol_game::light_codec::{RowLight, unpack_light_data};
     use std::sync::Arc;
-
-    fn fake_entity(index: u32) -> Entity {
-        Entity::from_raw_u32(index + 1).expect("valid entity index")
-    }
 
     fn bit_is_set(mask: &[u64], bit_idx: usize) -> bool {
         let word_idx = bit_idx / 64;
@@ -309,24 +238,6 @@ mod tests {
 
     fn popcount(mask: &[u64]) -> u32 {
         mask.iter().map(|w| w.count_ones()).sum()
-    }
-
-    #[test]
-    fn wire_rows_pads_loaded_and_unloaded() {
-        let mut si = ColumnSections::new(0, 3);
-        let e = fake_entity(11);
-        si.set_loaded(1, e);
-        let collected: Vec<_> = wire_rows(&si).collect();
-        assert_eq!(
-            collected,
-            vec![
-                WireRow::BottomPadding,
-                WireRow::Unloaded,
-                WireRow::Loaded(e),
-                WireRow::Unloaded,
-                WireRow::TopPadding,
-            ]
-        );
     }
 
     #[test]
@@ -344,28 +255,26 @@ mod tests {
 
         let rows: Vec<(WireRow, Option<LightStorage>, Option<LightStorage>)> = vec![
             (WireRow::BottomPadding, None, None),
-            (WireRow::Unloaded, None, None),
             (
-                WireRow::Loaded(fake_entity(1)),
+                WireRow::Section,
                 Some(LightStorage::Dense(Arc::new(nibble.clone()))),
                 Some(LightStorage::Uniform(0xF)),
             ),
             (
-                WireRow::Loaded(fake_entity(2)),
+                WireRow::Section,
                 Some(LightStorage::Uniform(0x5)),
                 Some(LightStorage::Uniform(0)),
             ),
             (
-                WireRow::Loaded(fake_entity(3)),
+                WireRow::Section,
                 Some(LightStorage::Empty),
                 Some(LightStorage::Empty),
             ),
             (
-                WireRow::Loaded(fake_entity(4)),
+                WireRow::Section,
                 Some(LightStorage::Uniform(0)),
                 Some(LightStorage::Dense(Arc::new(nibble))),
             ),
-            (WireRow::Unloaded, None, None),
             (WireRow::TopPadding, None, None),
         ];
 
@@ -434,36 +343,22 @@ mod tests {
             );
         }
 
-        // Verify the per-row expectations on the block layer.
-        // Row 0 BottomPadding: block empty.
-        assert!(bit_is_set(&empty_block_mask, 0));
-        // Row 1 Unloaded: neither.
-        assert!(!bit_is_set(&block_mask, 1));
-        assert!(!bit_is_set(&empty_block_mask, 1));
-        // Row 2 Mixed block: block mask set, array appended.
-        assert!(bit_is_set(&block_mask, 2));
-        // Row 3 Uniform(5) block: block mask set, synthesized payload.
-        assert!(bit_is_set(&block_mask, 3));
-        // Row 4 Null block: empty.
-        assert!(bit_is_set(&empty_block_mask, 4));
-        // Row 5 Uniform(0) block: empty.
-        assert!(bit_is_set(&empty_block_mask, 5));
-        // Row 7 TopPadding block: empty.
-        assert!(bit_is_set(&empty_block_mask, 7));
+        assert!(bit_is_set(&empty_block_mask, 0), "bottom padding");
+        assert!(bit_is_set(&block_mask, 1), "dense block");
+        assert!(bit_is_set(&block_mask, 2), "uniform 5 block");
+        assert!(bit_is_set(&empty_block_mask, 3), "no block light");
+        assert!(bit_is_set(&empty_block_mask, 4), "uniform 0 block");
+        assert!(bit_is_set(&empty_block_mask, 5), "top padding block");
 
-        // Sky layer per-row checks.
-        // Row 0 BottomPadding: sky empty.
-        assert!(bit_is_set(&empty_sky_mask, 0));
-        // Row 2 Uniform(0xF) sky: mask set, synthesized 0xFF payload.
-        assert!(bit_is_set(&sky_mask, 2));
-        // Row 3 Uniform(0) sky: empty.
-        assert!(bit_is_set(&empty_sky_mask, 3));
-        // Row 4 Null sky: empty.
-        assert!(bit_is_set(&empty_sky_mask, 4));
-        // Row 5 Mixed sky: mask set.
-        assert!(bit_is_set(&sky_mask, 5));
-        // Row 7 TopPadding sky in sky-having dim: mask set, 0xFF payload.
-        assert!(bit_is_set(&sky_mask, 7));
+        assert!(bit_is_set(&empty_sky_mask, 0), "bottom padding sky");
+        assert!(bit_is_set(&sky_mask, 1), "uniform 15 sky");
+        assert!(bit_is_set(&empty_sky_mask, 2), "uniform 0 sky");
+        assert!(bit_is_set(&empty_sky_mask, 3), "no sky light");
+        assert!(bit_is_set(&sky_mask, 4), "dense sky");
+        assert!(
+            bit_is_set(&sky_mask, 5),
+            "top padding sky in a dimension with sky"
+        );
 
         // Walk through arrays in bit order and confirm they line up with the
         // set bits of the corresponding mask. The wire format requires arrays
@@ -484,47 +379,6 @@ mod tests {
 
     const SECTIONS: usize = 5;
     const ROWS: usize = SECTIONS + 2;
-
-    fn column_world(has_sky_light: bool) -> (World, Entity, Vec<Entity>) {
-        let mut world = World::new();
-        let dimension = if has_sky_light {
-            world.spawn(HasSkyLight).id()
-        } else {
-            world.spawn_empty().id()
-        };
-        let mut chunks = ColumnSections::new(0, SECTIONS);
-        let sections: Vec<Entity> = (0..SECTIONS)
-            .map(|y| {
-                let section = world
-                    .spawn((
-                        BlockLight(LightStorage::Empty),
-                        SkyLight(LightStorage::Empty),
-                    ))
-                    .id();
-                chunks.set_loaded(y as i32, section);
-                section
-            })
-            .collect();
-        let column = world.spawn((chunks, InDimension(dimension))).id();
-        (world, column, sections)
-    }
-
-    fn delta(
-        world: &mut World,
-        column: Entity,
-        changed_block: Vec<Entity>,
-        changed_sky: Vec<Entity>,
-    ) -> LightData<'static> {
-        world
-            .run_system_once_with(
-                |input: In<(Entity, Vec<Entity>, Vec<Entity>)>, params: LightCodecParams| {
-                    let (column, block, sky) = input.0;
-                    build_delta_light_data(column, &block, &sky, &params)
-                },
-                (column, changed_block, changed_sky),
-            )
-            .expect("delta system runs")
-    }
 
     #[test]
     fn a_delta_carries_only_the_changed_rows() {
@@ -567,19 +421,13 @@ mod tests {
 
         for (has_sky, index, layer, storage, expected) in cases {
             let what = format!("{layer:?} {storage:?} in section {index}, sky {has_sky}");
-            let (mut world, column, sections) = column_world(has_sky);
-            let changed = vec![sections[index]];
+            let mut changed = [SectionLight {
+                y: index as i32,
+                light: &storage,
+            }];
             let data = match layer {
-                LightLayer::Block => {
-                    world
-                        .entity_mut(sections[index])
-                        .insert(BlockLight(storage));
-                    delta(&mut world, column, changed, Vec::new())
-                }
-                LightLayer::Sky => {
-                    world.entity_mut(sections[index]).insert(SkyLight(storage));
-                    delta(&mut world, column, Vec::new(), changed)
-                }
+                LightLayer::Block => build_delta_light_data(0, has_sky, &mut changed, &mut []),
+                LightLayer::Sky => build_delta_light_data(0, has_sky, &mut [], &mut changed),
             };
             let unpacked = unpack_light_data(&data, ROWS).expect("delta round-trips");
             let (rows, arrays) = match layer {

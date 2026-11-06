@@ -4,6 +4,7 @@ use mcrs_minecraft_chunk::{BlockLight, LightLayer, LightStorage, SkyLight};
 use mcrs_minecraft_engine_world::world::light_gate::SectionRelit;
 use mcrs_voxel::SectionPos;
 
+use crate::light_codec::SectionLight;
 use crate::stored_column::StoredColumn;
 
 /// The light of a column that the clients hold, one row for each section from the lowest up.
@@ -74,30 +75,47 @@ impl RelitSections {
         }
     }
 
+    /// The light of the sections that the clients do not hold, which it takes as held.
+    /// Without a record of what the clients hold, every relit section is a change to them.
+    pub(crate) fn take_unheld<'a>(
+        &self,
+        mut held: Option<&mut HeldLight>,
+        light: &'a Query<(&SectionPos, &BlockLight, &SkyLight)>,
+    ) -> UnheldLight<'a> {
+        let mut unheld = |sections: &[Entity], layer: LightLayer| -> Vec<SectionLight<'a>> {
+            sections
+                .iter()
+                .filter_map(|section| {
+                    let (pos, block, sky) = light.get(*section).ok()?;
+                    let now = match layer {
+                        LightLayer::Block => &block.0,
+                        LightLayer::Sky => &sky.0,
+                    };
+                    let changed = held
+                        .as_deref_mut()
+                        .is_none_or(|held| held.take(*pos, layer, now));
+                    changed.then_some(SectionLight {
+                        y: pos.y,
+                        light: now,
+                    })
+                })
+                .collect()
+        };
+        UnheldLight {
+            block: unheld(&self.block, LightLayer::Block),
+            sky: unheld(&self.sky, LightLayer::Sky),
+        }
+    }
+}
+
+/// The light of relit sections that the clients do not hold, by layer.
+pub(crate) struct UnheldLight<'a> {
+    pub(crate) block: Vec<SectionLight<'a>>,
+    pub(crate) sky: Vec<SectionLight<'a>>,
+}
+
+impl UnheldLight<'_> {
     pub(crate) fn is_empty(&self) -> bool {
         self.block.is_empty() && self.sky.is_empty()
-    }
-
-    /// Keeps the sections whose light the clients do not hold, and takes their light as held.
-    /// Without a record of what the clients hold, every relit section is a change to them.
-    pub(crate) fn retain_unheld(
-        &mut self,
-        mut held: Option<&mut HeldLight>,
-        light: &Query<(&SectionPos, &BlockLight, &SkyLight)>,
-    ) {
-        let mut unheld = |section: &Entity, layer: LightLayer| {
-            let Ok((pos, block, sky)) = light.get(*section) else {
-                return false;
-            };
-            let now = match layer {
-                LightLayer::Block => &block.0,
-                LightLayer::Sky => &sky.0,
-            };
-            held.as_deref_mut()
-                .is_none_or(|held| held.take(*pos, layer, now))
-        };
-        self.block
-            .retain(|section| unheld(section, LightLayer::Block));
-        self.sky.retain(|section| unheld(section, LightLayer::Sky));
     }
 }

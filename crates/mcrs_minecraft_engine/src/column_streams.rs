@@ -48,7 +48,7 @@ use crate::column_store::{ColumnStoreLink, Delivery, ViewedColumn};
 use crate::column_version::ColumnVersion;
 use crate::held_light::{HeldLight, RelitSections};
 use crate::hot_ticket::CellCrossing;
-use crate::light_codec::{LightCodecParams, build_delta_light_data, build_stored_light_data};
+use crate::light_codec::{build_delta_light_data, build_stored_light_data};
 use crate::player_view::PlayerView;
 use crate::stored_column::StoredColumn;
 
@@ -83,8 +83,7 @@ impl Plugin for ColumnStreamPlugin {
                 )
                     .chain()
                     .before(ChunkSpawnSet),
-                (note_relit_columns, project_ready_columns)
-                    .chain()
+                project_ready_columns
                     .after(raise_wanted_columns)
                     .before(ColumnLightGate),
                 (take_lit_columns, publish_ready_columns)
@@ -136,6 +135,10 @@ pub struct ColumnStreams {
     relit: FxHashMap<ColumnPos, RelitSections>,
     /// The columns that began to wait for their sections this tick.
     awaited: Vec<ColumnPos>,
+    /// The columns set to [`Pending::Queued`] since they were last taken, some of them stale.
+    queued: Vec<ColumnPos>,
+    /// The columns set to [`Pending::Ready`] since they were last taken, some of them stale.
+    ready: Vec<ColumnPos>,
 }
 
 impl ColumnStreams {
@@ -165,20 +168,35 @@ impl ColumnStreams {
         self.pending.get(&column).copied()
     }
 
-    /// The columns in `state`, in a fixed order, so the requests that follow do not depend on
-    /// the order of the map.
-    fn in_state(&self, state: Pending, columns: &mut Vec<ColumnPos>) {
-        columns.extend(
-            self.pending
-                .iter()
-                .filter(|(_, pending)| **pending == state)
-                .map(|(column, _)| *column),
-        );
+    /// Takes the columns in `state` from `queue`, in a fixed order, so the requests that follow
+    /// do not depend on the order in which the columns came.
+    fn take_in_state(
+        pending: &FxHashMap<ColumnPos, Pending>,
+        queue: &mut Vec<ColumnPos>,
+        state: Pending,
+        columns: &mut Vec<ColumnPos>,
+    ) {
+        columns.append(queue);
         columns.sort_unstable();
+        columns.dedup();
+        columns.retain(|column| pending.get(column) == Some(&state));
+    }
+
+    fn take_queued(&mut self, columns: &mut Vec<ColumnPos>) {
+        Self::take_in_state(&self.pending, &mut self.queued, Pending::Queued, columns);
+    }
+
+    fn take_ready(&mut self, columns: &mut Vec<ColumnPos>) {
+        Self::take_in_state(&self.pending, &mut self.ready, Pending::Ready, columns);
     }
 
     fn set(&mut self, column: ColumnPos, next: Pending) {
         self.pending.insert(column, next);
+        match next {
+            Pending::Queued => self.queued.push(column),
+            Pending::Ready => self.ready.push(column),
+            Pending::Fetching | Pending::Awaiting | Pending::Lighting => {}
+        }
     }
 
     fn forget(&mut self, column: ColumnPos) {
@@ -348,13 +366,13 @@ pub(crate) fn land_viewed_columns(
                 taken.push(ReadyColumn {
                     column,
                     stored,
-                    light: stored_light(light_gated.is_some(), has_sky_light),
                     packet: None,
                 });
             }
         }
     }
-    encode_ready(&mut taken, direct_bits, &mut versions);
+    let light = stored_light(light_gated.is_some(), has_sky_light);
+    encode_ready(&mut taken, direct_bits, light, &mut versions);
 }
 
 /// Sends a column that waits to be taken from the dimension back to the queue once the
@@ -392,7 +410,7 @@ fn raise_wanted_columns(
     mut queued: Local<Vec<ColumnPos>>,
 ) {
     for (mut streams, loading) in &mut dims {
-        streams.in_state(Pending::Queued, &mut queued);
+        streams.take_queued(&mut queued);
         for column in queued.drain(..) {
             if loading.lights(column) {
                 streams.set(column, Pending::Awaiting);
@@ -403,34 +421,6 @@ fn raise_wanted_columns(
             }
         }
     }
-}
-
-/// Keeps the sections of each held column that the dimension lit again, and asks the light
-/// stage to answer once the light of the column is final.
-fn note_relit_columns(
-    mut relit: MessageReader<SectionRelit>,
-    positions: Query<&SectionPos>,
-    streams: Option<Single<&mut ColumnStreams>>,
-    mut awaiting_light: MessageWriter<ColumnAwaitsLight>,
-    mut columns: Local<Vec<ColumnPos>>,
-) {
-    let Some(mut streams) = streams else {
-        return;
-    };
-    for change in relit.read() {
-        let Ok(pos) = positions.get(change.section) else {
-            continue;
-        };
-        let column = ColumnPos::from(*pos);
-        if !streams.holds(column) {
-            continue;
-        }
-        streams.relit.entry(column).or_default().note(change);
-        columns.push(column);
-    }
-    columns.sort_unstable();
-    columns.dedup();
-    awaiting_light.write_batch(columns.drain(..).map(ColumnAwaitsLight));
 }
 
 /// Whether the column entity and every section of `column` are in the dimension, each section
@@ -461,6 +451,9 @@ fn sections_landed(
 ///
 /// The light gate belongs before the publish: a client gets a column once, so a column whose
 /// light is not final stays black on the client.
+///
+/// A held column that the dimension lit again keeps the relit sections, and the light stage
+/// answers once the light of the column is final.
 #[expect(
     clippy::too_many_arguments,
     reason = "a system takes its params as arguments"
@@ -482,20 +475,31 @@ fn project_ready_columns(
     light_gated: Option<Res<LightGated>>,
     mut awaiting_light: MessageWriter<ColumnAwaitsLight>,
     mut candidates: Local<Vec<ColumnPos>>,
+    mut relit_held: Local<Vec<ColumnPos>>,
     traces: Option<Res<ColumnTraceLog>>,
 ) {
     let Some(dims) = dims else {
         return;
     };
     let (chunk_index, column_index, rows, mut streams) = dims.into_inner();
+    for change in relit.read() {
+        let Ok(pos) = positions.get(change.section) else {
+            continue;
+        };
+        let column = ColumnPos::from(*pos);
+        if streams.holds(column) {
+            streams.relit.entry(column).or_default().note(change);
+            relit_held.push(column);
+        } else {
+            candidates.push(column);
+        }
+    }
+    relit_held.sort_unstable();
+    relit_held.dedup();
+    awaiting_light.write_batch(relit_held.drain(..).map(ColumnAwaitsLight));
     candidates.append(&mut streams.awaited);
     for change in changes.read().filter(|change| change.landed()) {
         candidates.extend(ColumnPos::from(change.pos).square(1));
-    }
-    for change in relit.read() {
-        if let Ok(pos) = positions.get(change.section) {
-            candidates.push(ColumnPos::from(*pos));
-        }
     }
     if streams.pending.is_empty() {
         candidates.clear();
@@ -535,35 +539,46 @@ fn project_ready_columns(
 /// the light of a held column that the clients do not hold.
 fn take_lit_columns(
     mut settled: MessageReader<ColumnLightSettled>,
-    dims: Option<Single<(&ColumnIndex, &mut ColumnStreams)>>,
+    dims: Option<
+        Single<(
+            &ColumnIndex,
+            &DimensionTypeConfig,
+            Has<HasSkyLight>,
+            &mut ColumnStreams,
+        )>,
+    >,
     light: Query<(&SectionPos, &BlockLight, &SkyLight)>,
-    codec_params: LightCodecParams,
     mut changes: MessageWriter<ColumnChange>,
     traces: Option<Res<ColumnTraceLog>>,
 ) {
     let Some(dims) = dims else {
         return;
     };
-    let (column_index, mut streams) = dims.into_inner();
+    let (column_index, rows, has_sky_light, mut streams) = dims.into_inner();
+    let min_section_y = rows.min_y >> SectionPos::BITS;
     for &ColumnLightSettled(column) in settled.read() {
         if streams.state(column) == Some(Pending::Lighting) {
             column_trace::mark(traces.as_deref(), column, ColumnStage::Ready);
             streams.set(column, Pending::Ready);
             continue;
         }
-        let Some(mut relit) = streams.relit.remove(&column) else {
+        let Some(relit) = streams.relit.remove(&column) else {
             continue;
         };
         // A column asked for again gets its light with the next version.
-        let Some(slot) = column_index.get(&column).filter(|_| streams.holds(column)) else {
-            continue;
-        };
-        relit.retain_unheld(streams.held.get_mut(&column), &light);
-        if relit.is_empty() {
+        if !column_index.0.contains_key(&column) || !streams.holds(column) {
             continue;
         }
-        let light_data =
-            build_delta_light_data(slot.entity, &relit.block, &relit.sky, &codec_params);
+        let mut unheld = relit.take_unheld(streams.held.get_mut(&column), &light);
+        if unheld.is_empty() {
+            continue;
+        }
+        let light_data = build_delta_light_data(
+            min_section_y,
+            has_sky_light,
+            &mut unheld.block,
+            &mut unheld.sky,
+        );
         changes.write(light_change(column, light_data));
     }
 }
@@ -572,7 +587,6 @@ fn take_lit_columns(
 pub(crate) struct ReadyColumn {
     column: ColumnPos,
     stored: StoredColumn,
-    light: StoredLight,
     packet: Option<Bytes>,
 }
 
@@ -581,12 +595,12 @@ pub(crate) struct ReadyColumn {
 fn encode_ready(
     ready: &mut Vec<ReadyColumn>,
     direct_bits: DirectBits,
+    light: StoredLight,
     versions: &mut MessageWriter<ColumnVersion>,
 ) {
     let encode_all = |_, ready: &mut [ReadyColumn]| {
         for column in ready {
-            column.packet =
-                encode_stored_column(column.column, &column.stored, direct_bits, column.light);
+            column.packet = encode_stored_column(column.column, &column.stored, direct_bits, light);
         }
     };
     let pool = ComputeTaskPool::try_get();
@@ -629,7 +643,7 @@ fn publish_ready_columns(
 ) {
     let direct_bits = DirectBits::of(&blocks, &registries);
     for (column_index, mut streams, has_sky_light) in &mut dims {
-        streams.in_state(Pending::Ready, &mut ready);
+        streams.take_ready(&mut ready);
         for column in ready.drain(..) {
             let stored = column_index
                 .0
@@ -649,10 +663,10 @@ fn publish_ready_columns(
             taken.push(ReadyColumn {
                 column,
                 stored,
-                light: stored_light(light_gated.is_some(), has_sky_light),
                 packet: None,
             });
         }
-        encode_ready(&mut taken, direct_bits, &mut versions);
+        let light = stored_light(light_gated.is_some(), has_sky_light);
+        encode_ready(&mut taken, direct_bits, light, &mut versions);
     }
 }
