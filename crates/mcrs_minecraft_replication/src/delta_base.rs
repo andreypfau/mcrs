@@ -1,8 +1,7 @@
-use crate::encode::record;
 use bytes::BytesMut;
 use glam::DVec3;
 use mcrs_minecraft_core::Look;
-use mcrs_minecraft_protocol::{Result, VarInt};
+use mcrs_minecraft_protocol::{Result, VarInt, write_record};
 use mcrs_minecraft_protocol_game::ByteAngle;
 use mcrs_minecraft_protocol_game::clientbound::{
     ClientboundEntityPositionSync, ClientboundMoveEntityPos, ClientboundMoveEntityPosRot,
@@ -102,37 +101,45 @@ impl DeltaBase {
         let mut next = Self::new(&pose, self.keyframe_tick);
         let turned = (next.yaw, next.pitch) != (self.yaw, self.pitch);
         let still = delta == VecDelta::Linear([0; 3]) || delta == VecDelta::Stepped(Vec::new());
-        let body = match delta {
-            _ if still && !turned => {
-                // Only the exact look changed, below what a client can see: keep the old one so
-                // that a keyframe shows what the client has.
-                next.look = self.look;
-                None
-            }
-            _ if still => Some(record(&ClientboundMoveEntityRot {
-                entity_id: id,
-                y_rot: next.yaw,
-                x_rot: next.pitch,
-                on_ground: true,
-            })?),
-            delta if turned => Some(record(&ClientboundMoveEntityPosRot {
-                entity_id: id,
-                delta,
-                y_rot: next.yaw,
-                x_rot: next.pitch,
-                on_ground: true,
-            })?),
-            delta => Some(record(&ClientboundMoveEntityPos {
-                entity_id: id,
-                delta,
-                on_ground: true,
-            })?),
-        };
-        let head = self.head_packet(id, next.yaw)?;
-        *self = next;
-        for packet in body.iter().chain(&head) {
-            bytes.extend_from_slice(packet);
+        if still && !turned {
+            // Only the exact look changed, below what a client can see: keep the old one so that
+            // a keyframe shows what the client has.
+            next.look = self.look;
         }
+        all_or_nothing(bytes, |bytes| {
+            match delta {
+                _ if still && !turned => {}
+                _ if still => write_record(
+                    bytes,
+                    &ClientboundMoveEntityRot {
+                        entity_id: id,
+                        y_rot: next.yaw,
+                        x_rot: next.pitch,
+                        on_ground: true,
+                    },
+                )?,
+                delta if turned => write_record(
+                    bytes,
+                    &ClientboundMoveEntityPosRot {
+                        entity_id: id,
+                        delta,
+                        y_rot: next.yaw,
+                        x_rot: next.pitch,
+                        on_ground: true,
+                    },
+                )?,
+                delta => write_record(
+                    bytes,
+                    &ClientboundMoveEntityPos {
+                        entity_id: id,
+                        delta,
+                        on_ground: true,
+                    },
+                )?,
+            }
+            self.write_head(id, next.yaw, bytes)
+        })?;
+        *self = next;
         Ok(())
     }
 
@@ -145,48 +152,70 @@ impl DeltaBase {
         bytes: &mut BytesMut,
     ) -> Result<()> {
         let next = Self::new(pose, tick);
-        let sync = record(&ClientboundEntityPositionSync {
-            entity_id: id,
-            position: PositionPath::Linear(next.position),
-            look: pose.look,
-            on_ground: true,
+        all_or_nothing(bytes, |bytes| {
+            write_record(
+                bytes,
+                &ClientboundEntityPositionSync {
+                    entity_id: id,
+                    position: PositionPath::Linear(next.position),
+                    look: pose.look,
+                    on_ground: true,
+                },
+            )?;
+            self.write_head(id, next.yaw, bytes)
         })?;
-        let head = self.head_packet(id, next.yaw)?;
         *self = next;
-        bytes.extend_from_slice(&sync);
-        if let Some(head) = &head {
-            bytes.extend_from_slice(head);
-        }
         Ok(())
     }
 
     /// Appends the absolute position and head of `id` at this base, so a client that holds the
     /// subject at another base comes to this one.
     pub(crate) fn keyframe(&self, id: VarInt, bytes: &mut BytesMut) -> Result<()> {
-        let sync = record(&ClientboundEntityPositionSync {
-            entity_id: id,
-            position: PositionPath::Linear(self.position),
-            look: self.look,
-            on_ground: true,
-        })?;
-        let head = record(&ClientboundRotateHead {
-            entity_id: id,
-            y_head_rot: self.yaw,
-        })?;
-        bytes.extend_from_slice(&sync);
-        bytes.extend_from_slice(&head);
-        Ok(())
+        all_or_nothing(bytes, |bytes| {
+            write_record(
+                bytes,
+                &ClientboundEntityPositionSync {
+                    entity_id: id,
+                    position: PositionPath::Linear(self.position),
+                    look: self.look,
+                    on_ground: true,
+                },
+            )?;
+            write_record(
+                bytes,
+                &ClientboundRotateHead {
+                    entity_id: id,
+                    y_head_rot: self.yaw,
+                },
+            )
+        })
     }
 
-    fn head_packet(&self, id: VarInt, head_yaw: ByteAngle) -> Result<Option<bytes::Bytes>> {
+    fn write_head(&self, id: VarInt, head_yaw: ByteAngle, bytes: &mut BytesMut) -> Result<()> {
         if head_yaw == self.yaw {
-            return Ok(None);
+            return Ok(());
         }
-        Ok(Some(record(&ClientboundRotateHead {
-            entity_id: id,
-            y_head_rot: head_yaw,
-        })?))
+        write_record(
+            bytes,
+            &ClientboundRotateHead {
+                entity_id: id,
+                y_head_rot: head_yaw,
+            },
+        )
     }
+}
+
+/// Runs `write` on `bytes`, and takes back what it wrote when it fails.
+fn all_or_nothing(
+    bytes: &mut BytesMut,
+    write: impl FnOnce(&mut BytesMut) -> Result<()>,
+) -> Result<()> {
+    let start = bytes.len();
+    let written = write(bytes);
+    if written.is_err() {
+        bytes.truncate(start);
+    }
+    written
 }
 
 /// The steps from `from` along `waypoints`, without the steps that do not move, or `None` when
@@ -229,6 +258,7 @@ fn position_delta(from: DVec3, to: DVec3) -> Option<[i16; 3]> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::encode::record;
     use bytes::Bytes;
 
     fn at(x: f64, yaw: f32) -> Pose {
