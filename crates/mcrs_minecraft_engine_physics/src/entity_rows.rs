@@ -23,7 +23,8 @@ pub struct EntityRows {
     pub(crate) tiles: BTreeMap<TileKey, TileRows>,
     /// The tiles whose rows changed after the pass wrote their grid; the freeze writes it again.
     pub(crate) dirty: BTreeSet<TileKey>,
-    /// The tiles whose bodies, writes or blocks changed since the freeze.
+    /// The tiles whose blocks changed since the freeze. A body, a move or a write wakes no other
+    /// row: the push runs in each tick, and a write wakes its target.
     pub(crate) stirred: BTreeSet<TileKey>,
     /// The stirred tiles of the last freeze: a resting row in them or next to them runs a full
     /// tick in this pass.
@@ -50,7 +51,6 @@ impl EntityRows {
             .or_default()
             .insert_row(Row { state, motion, id });
         self.dirty.insert(tile);
-        self.stirred.insert(tile);
     }
 
     /// The rows of each tile, in tile order.
@@ -76,7 +76,6 @@ impl EntityRows {
             let to = tile_at(row.state.body.position);
             self.tiles.entry(to).or_default().insert_row(row);
             self.dirty.extend([from, to]);
-            self.stirred.extend([from, to]);
         }
     }
 

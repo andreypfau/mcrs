@@ -95,7 +95,6 @@ impl EntityRows {
         for step in steps.into_iter().flatten() {
             if let Some(bodies) = step.bodies {
                 self.install(grid, step.tile, bodies);
-                self.stirred.insert(step.tile);
             }
             expired.extend(step.expired);
             self.leaving.extend(step.left.into_iter().map(|id| Leaving {

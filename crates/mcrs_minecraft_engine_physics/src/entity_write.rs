@@ -32,7 +32,6 @@ impl EntityRows {
                 row.state.rest = Rest::Awake;
             }
             self.dirty.insert(tile);
-            self.stirred.insert(tile);
         }
     }
 }
