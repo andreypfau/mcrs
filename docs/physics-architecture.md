@@ -1583,3 +1583,13 @@ E1..E8, T1 (any time)   D1 ─ D2 ─ D3 ─ D4 ─ D5 ─ D6 ─ D7
 54. The column record of a save, a record without `yPos`. Resolved: SIM-SCH-018. The load does not
     read `yPos`; each section has its place from its own `Y`, and the dimension gives the lowest
     section. A record without `yPos` loads.
+55. MVC-LAT-008 against MVC-MODE-001, a relative teleport while the client moves. Open (spec).
+    The client applies a relative position or velocity to its state when the teleport arrives.
+    It runs its ticks until then. MVC-MODE-001 keeps the accepted state of an exempt tick, so
+    the destinations come from the state at the send. The recordings
+    `conformance/{us_east,europe,south_america}/e21_teleport_while_falling.txt` of a vanilla
+    client show 4 to 6 client ticks between the send and the arrival. The accept was then 2.47 to
+    4.10 blocks from each destination, which gave a setback. The implementation runs the
+    candidates of these exempt ticks with no check, when the teleport adds to a position or a
+    velocity of the client. A tick with no match keeps the accepted state. The spec must state
+    this, or another source of the state at the arrival.

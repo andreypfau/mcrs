@@ -39,6 +39,14 @@ use crate::kept_changes::KeptChanges;
 use crate::rollback::Edit;
 use crate::rollback::Rollback;
 
+/// The fields of a teleport that add to the value of the client.
+const KEPT_FROM_CLIENT: Relative = Relative::X
+    .union(Relative::Y)
+    .union(Relative::Z)
+    .union(Relative::VELOCITY_X)
+    .union(Relative::VELOCITY_Y)
+    .union(Relative::VELOCITY_Z);
+
 /// Layer 2 for one player: the candidates of its client, the record of its last client ticks
 /// and the response to a violation.
 #[derive(Clone, Debug)]
@@ -169,10 +177,13 @@ impl Prediction {
         pushers: &[Pusher],
         tick: &ClientTick,
     ) -> Outcome {
-        if self.pending.is_some() {
+        self.rotation = tick.input.rotation;
+        if let Some(teleport) = self.pending {
+            if teleport.relative.intersects(KEPT_FROM_CLIENT) {
+                self.follow(view, pushers, tick);
+            }
             return Outcome::from(Mode::Exempt);
         }
-        self.rotation = tick.input.rotation;
         if self
             .rollback
             .as_ref()
@@ -199,6 +210,41 @@ impl Prediction {
             .unwrap_or(self.first.applied);
         self.kept.trim(keep);
         outcome
+    }
+
+    /// A relative teleport applies to the state of the client when it arrives, so the candidates
+    /// follow the client ticks that run before that, with no check.
+    fn follow<W: CollisionWorld, B: BodyView>(
+        &mut self,
+        view: View<'_, W, B>,
+        pushers: &[Pusher],
+        tick: &ClientTick,
+    ) {
+        let mut start = mem::take(&mut self.spare);
+        start.clear();
+        start.extend(self.candidates());
+        let mut record = Record {
+            start,
+            tick: tick.clone(),
+            reference: self.reference,
+            rollback: self.rollback.clone(),
+            explored: false,
+        };
+        let context = Context {
+            view,
+            pushers,
+            kept: &self.kept,
+            limits: &self.limits,
+        };
+        let ran = candidates::run_tick(&context, &mut record, Search::All, &mut 0, &mut self.work);
+        let matched = 1..=self.limits.max_candidates;
+        if ran.is_ok() && matched.contains(&self.work.matched.len()) {
+            self.accept_matched();
+            if let Some(position) = tick.reported.position {
+                self.reference = position;
+            }
+        }
+        self.spare = record.start;
     }
 
     fn predict<W: CollisionWorld, B: BodyView>(
