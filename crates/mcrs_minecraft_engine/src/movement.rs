@@ -12,7 +12,7 @@ use mcrs_minecraft_engine_world::voxel_update::VoxelUpdateSet;
 use mcrs_minecraft_network::event::Received;
 use mcrs_minecraft_protocol_game::serverbound::{
     ServerboundAcceptTeleportation, ServerboundMovePlayerPos, ServerboundMovePlayerPosRot,
-    ServerboundMovePlayerRot, ServerboundMovePlayerStatusOnly,
+    ServerboundMovePlayerRot, ServerboundMovePlayerStatusOnly, ServerboundMoveVehicle,
 };
 
 use crate::bus::{OutboundPlayerPacket, PacketPayload};
@@ -31,6 +31,7 @@ impl Plugin for MovementPlugin {
         app.add_observer(handle_move_pos_rot);
         app.add_observer(handle_move_rot);
         app.add_observer(handle_move_status_only);
+        app.add_observer(handle_move_vehicle);
         app.add_observer(handle_accept_teleportation);
         app.add_message::<PlayerMovement>();
         app.init_resource::<ClientSine>();
@@ -84,6 +85,21 @@ fn handle_move_rot(
 
 fn handle_move_status_only(
     on: On<Received<ServerboundMovePlayerStatusOnly>>,
+    mut writer: MessageWriter<PlayerMovement>,
+) {
+    if on.packet().is_some() {
+        writer.write(PlayerMovement {
+            entity: on.entity,
+            position: None,
+            look: None,
+        });
+    }
+}
+
+/// The server has no vehicles, so a vehicle move moves nothing; it still counts as a move for the
+/// resend of a pending teleport.
+fn handle_move_vehicle(
+    on: On<Received<ServerboundMoveVehicle>>,
     mut writer: MessageWriter<PlayerMovement>,
 ) {
     if on.packet().is_some() {
@@ -375,23 +391,44 @@ mod tests {
     }
 
     #[test]
-    fn a_move_during_a_stale_teleport_resends_it_with_the_next_id() {
+    fn a_vehicle_move_after_21_ticks_resends_the_pending_teleport() {
+        use mcrs_minecraft_protocol::Encode;
+
         let mut world = movement_world();
+        world.add_observer(handle_move_vehicle);
         let destination = Transform::default().with_translation(DVec3::new(3.0, 64.0, 0.0));
         let mut state = TeleportState::default();
         state.sent(destination, GameTime(0));
         let player = world
             .spawn((Owner(PlayerSession(1)), destination, state))
             .id();
-        world.insert_resource(GameTime(20));
-        world.write_message(movement(player, DVec3::new(9.0, 64.0, 0.0)));
-
-        world.run_system_once(process_movement).unwrap();
+        let mut body = Vec::new();
+        ServerboundMoveVehicle {
+            position: DVec3::new(9.0, 64.0, 0.0).into(),
+            look: Default::default(),
+            on_ground: false,
+        }
+        .encode(&mut body)
+        .unwrap();
+        let resent_at = |world: &mut World, tick| {
+            world.insert_resource(GameTime(tick));
+            world.trigger(Received::<ServerboundMoveVehicle>::new(
+                player,
+                body.clone().into(),
+            ));
+            world.run_system_once(process_movement).unwrap();
+            sent_ids(world)
+        };
 
         assert_eq!(
-            sent_ids(&mut world),
+            resent_at(&mut world, 20),
+            [] as [i32; 0],
+            "TP-CONFIRM-RES-006"
+        );
+        assert_eq!(
+            resent_at(&mut world, 21),
             [2],
-            "TP-CONFIRM-RES-002, TP-CONFIRM-ID-002"
+            "TP-CONFIRM-RES-006, TP-CONFIRM-ID-002"
         );
         let state = world.get::<TeleportState>(player).unwrap();
         assert_eq!(

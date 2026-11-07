@@ -25,7 +25,7 @@ pub const MAX_Y: f64 = 20_000_000.0;
 /// teleport. The client computes the destination in its own arithmetic.
 pub const OFFSET_THRESHOLD: f64 = 0.001;
 
-/// The ticks after a teleport before a move resends it.
+/// A move resends the pending teleport once more than this many ticks passed after it was sent.
 pub const RESEND_INTERVAL: i64 = 20;
 
 /// The server-side state of the teleports of a player: the newest id it sent, the teleport the
@@ -68,8 +68,11 @@ impl TeleportState {
     /// A teleport to `destination` that the caller sends to the client itself, at `now`: the id
     /// of the packet, after which the `teleport` system treats `destination` as already sent.
     pub fn sent(&mut self, destination: Transform, now: GameTime) -> i32 {
-        // The bound of the id is not stated; the id wraps like the VarInt it is sent as.
-        self.last_id = self.last_id.wrapping_add(1);
+        self.last_id = self
+            .last_id
+            .checked_add(1)
+            .filter(|id| *id != i32::MAX)
+            .unwrap_or(0);
         self.pending = Some(PendingTeleport {
             id: self.last_id,
             destination,
@@ -82,7 +85,7 @@ impl TeleportState {
     /// The destination to send again when a move arrives at `now` while a teleport is pending.
     pub fn resend_due(&self, now: GameTime) -> Option<Transform> {
         self.pending
-            .filter(|pending| now.0.saturating_sub(pending.sent_at.0) >= RESEND_INTERVAL)
+            .filter(|pending| now.0.saturating_sub(pending.sent_at.0) > RESEND_INTERVAL)
             .map(|pending| pending.destination)
     }
 
@@ -241,6 +244,16 @@ mod tests {
             state.sent(at(1.0), GameTime(0)),
         ];
         assert_eq!(ids, [1, 2, 3], "TP-CONFIRM-ID-001, TP-CONFIRM-ID-002");
+
+        let mut state = TeleportState {
+            last_id: i32::MAX - 2,
+            ..TeleportState::default()
+        };
+        let ids = [
+            state.sent(at(0.0), GameTime(0)),
+            state.sent(at(0.0), GameTime(0)),
+        ];
+        assert_eq!(ids, [i32::MAX - 1, 0], "TP-CONFIRM-ID-003");
     }
 
     #[test]
@@ -279,14 +292,14 @@ mod tests {
     }
 
     #[test]
-    fn a_move_resends_the_pending_teleport_once_20_ticks_passed() {
+    fn a_move_resends_the_pending_teleport_once_more_than_20_ticks_passed() {
         let mut state = TeleportState::default();
         state.sent(at(3.0), GameTime(100));
-        assert_eq!(state.resend_due(GameTime(119)), None);
+        assert_eq!(state.resend_due(GameTime(120)), None, "TP-CONFIRM-RES-006");
         assert_eq!(
-            state.resend_due(GameTime(120)),
+            state.resend_due(GameTime(121)),
             Some(at(3.0)),
-            "TP-CONFIRM-RES-002"
+            "TP-CONFIRM-RES-002, TP-CONFIRM-RES-006"
         );
     }
 }
