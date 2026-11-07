@@ -222,7 +222,7 @@ mod tests {
             .iter()
             .map(|body| body.position - at.as_dvec3())
             .collect();
-        let ranges: [(&str, Vec<f64>, f64, f64); 4] = [
+        let ranges: [(&str, Vec<f64>, f64, f64); 5] = [
             (
                 "x",
                 offsets.iter().map(|offset| offset.x).collect(),
@@ -244,6 +244,12 @@ mod tests {
             (
                 "v.x",
                 bodies.iter().map(|body| body.velocity.x).collect(),
+                -0.1,
+                0.1,
+            ),
+            (
+                "v.z",
+                bodies.iter().map(|body| body.velocity.z).collect(),
                 -0.1,
                 0.1,
             ),

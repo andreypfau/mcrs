@@ -22,7 +22,7 @@ fn pool(threads: usize) -> TaskPool {
     TaskPoolBuilder::new().num_threads(threads).build()
 }
 
-fn scene() -> TestScene {
+fn dense_scene() -> TestScene {
     TestScene::new(2, 400, 400, 7)
 }
 
@@ -58,9 +58,13 @@ fn writes(rows: &mut EntityRows, tick: u64, reversed: bool) -> EntityWrites {
 }
 
 /// The rows and the grid after the run, as text that tells every bit of each value.
-fn run(threads: usize, tiles_per_task: usize, reversed: bool) -> (String, TestScene) {
+fn run(
+    mut scene: TestScene,
+    threads: usize,
+    tiles_per_task: usize,
+    reversed: bool,
+) -> (String, TestScene) {
     let pool = pool(threads);
-    let mut scene = scene();
     for tick in 0..TICKS {
         let mut writes = if tick % 10 == 3 {
             writes(&mut scene.rows, tick, reversed)
@@ -74,7 +78,7 @@ fn run(threads: usize, tiles_per_task: usize, reversed: bool) -> (String, TestSc
 
 #[test]
 fn inv_015_the_pass_gives_the_same_state_for_each_thread_count_and_task_split() {
-    let (expected, mut scene) = run(1, 1, false);
+    let (expected, mut scene) = run(dense_scene(), 1, 1, false);
     let resting = scene
         .rows
         .tiles_mut()
@@ -83,7 +87,7 @@ fn inv_015_the_pass_gives_the_same_state_for_each_thread_count_and_task_split() 
         .count();
     assert!(resting > 100, "the items rest after the fall: {resting}");
     for (threads, tiles_per_task, reversed) in [(2, 3, true), (8, 1, false), (8, 100, true)] {
-        let (actual, _) = run(threads, tiles_per_task, reversed);
+        let (actual, _) = run(dense_scene(), threads, tiles_per_task, reversed);
         assert!(
             actual == expected,
             "{threads} threads, {tiles_per_task} tiles per task, reversed bins {reversed}"
@@ -93,23 +97,86 @@ fn inv_015_the_pass_gives_the_same_state_for_each_thread_count_and_task_split() 
 
 #[test]
 fn the_grid_that_the_pass_writes_and_the_freeze_patches_equals_a_rebuild() {
-    let (_, mut scene) = run(4, 2, false);
-    scene.rows.apply_writes(&mut EntityWrites::default());
-    scene.rows.freeze(&pool(1), &mut scene.grid);
+    // The sparse scene has tiles in which every body walks, and tiles with no body that moves.
+    for start in [dense_scene(), TestScene::new(2, 12, 0, 3)] {
+        let (_, mut scene) = run(start, 4, 2, false);
+        scene.rows.apply_writes(&mut EntityWrites::default());
+        scene.rows.freeze(&pool(1), &mut scene.grid);
 
-    let mut rebuilt = EntityRows::default();
-    for (_, tile_rows) in scene.rows.tiles_mut() {
+        let mut rebuilt = EntityRows::default();
+        for (_, tile_rows) in scene.rows.tiles_mut() {
+            for row in tile_rows.rows_mut() {
+                rebuilt.spawn(row.id, *row.state, *row.motion);
+            }
+        }
+        let mut grid = BodyGrid::default();
+        rebuilt.freeze(&pool(1), &mut grid);
+        for (tile, _) in scene.rows.tiles_mut() {
+            assert_eq!(scene.grid.front(tile), grid.front(tile), "tile {tile:?}");
+        }
+        assert!(
+            scene.rows.tiles_mut().count() > 4,
+            "the rows spread over several tiles, so the patch moved rows between tiles"
+        );
+    }
+}
+
+#[test]
+fn cmp_015_a_write_adds_its_impulse_to_the_velocity_of_its_target_and_wakes_it() {
+    let (_, mut scene) = run(dense_scene(), 1, 1, false);
+    let mut resting = Vec::new();
+    for (tile, tile_rows) in scene.rows.tiles_mut() {
         for row in tile_rows.rows_mut() {
-            rebuilt.spawn(row.id, *row.state, *row.motion);
+            if matches!(row.state.rest, Rest::Resting(_)) {
+                resting.push((tile, row.id, row.state.key, row.state.body.velocity));
+            }
         }
     }
-    let mut grid = BodyGrid::default();
-    rebuilt.freeze(&pool(1), &mut grid);
-    for (tile, _) in scene.rows.tiles_mut() {
-        assert_eq!(scene.grid.front(tile), grid.front(tile), "tile {tile:?}");
-    }
-    assert!(
-        scene.rows.tiles_mut().count() > 4,
-        "the rows spread over several tiles, so the patch moved rows between tiles"
+    let [
+        (tile, target, key, velocity),
+        (_, other, _, other_velocity),
+        ..,
+    ] = resting[..]
+    else {
+        panic!("two resting rows: {}", resting.len());
+    };
+    let effect = DVec3::new(0.25, 0.5, -0.125);
+    let mut buffer = EffectBuffer::default();
+    buffer.push(
+        tile,
+        Keyed {
+            target: key,
+            target_id: target,
+            writer: WriterKey::Entity {
+                key: BirthKey::new(0, SourceKind::Entity, 0, 0),
+            },
+            sequence: 0,
+            effect,
+        },
     );
+    let mut writes = EntityWrites::default();
+    writes.0.gather(&mut buffer);
+    scene.rows.apply_writes(&mut writes);
+    let after: Vec<_> = scene
+        .rows
+        .tiles_mut()
+        .flat_map(|(_, tile_rows)| tile_rows.rows_mut())
+        .filter(|row| row.id == target || row.id == other)
+        .map(|row| (row.id, row.state.body.velocity, row.state.rest))
+        .collect();
+    for (id, velocity_after, rest) in after {
+        if id == target {
+            assert_eq!(
+                velocity_after,
+                velocity + effect,
+                "the target adds the impulse"
+            );
+            assert_eq!(rest, Rest::Awake, "the write wakes the target");
+        } else {
+            assert_eq!(
+                velocity_after, other_velocity,
+                "another row keeps its velocity"
+            );
+        }
+    }
 }

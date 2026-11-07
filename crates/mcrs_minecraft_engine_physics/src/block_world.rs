@@ -65,3 +65,41 @@ impl<S: SectionBlocks> CollisionSection for BlockSection<S> {
         self.blocks.get(at)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use mcrs_minecraft_physics::TestBlocks;
+    use mcrs_minecraft_volume::BlockVolumeMut;
+    use mcrs_minecraft_volume::SparseVolume;
+    use mcrs_voxel::BlockPos;
+
+    use super::*;
+
+    #[test]
+    fn the_masks_of_a_uniform_section_equal_the_masks_from_its_blocks() {
+        let blocks = TestBlocks::new();
+        let mut volume = SparseVolume::unbounded();
+        for (y, state) in [
+            (0, BlockStateId::AIR),
+            (1, blocks.stone),
+            (2, BlockStateId::AIR),
+        ] {
+            volume.insert(SectionPos::new(0, y, 0), state);
+        }
+        volume
+            .set_block(BlockPos::new(3, 40, 5), blocks.stone)
+            .unwrap();
+        let world = BlockWorld {
+            blocks: &volume,
+            table: &blocks.table,
+        };
+        for y in 0..3 {
+            let SectionLookup::Loaded(section) = world.section(SectionPos::new(0, y, 0)) else {
+                panic!("section {y} is loaded");
+            };
+            let expected =
+                (y < 2).then(|| SectionMasks::from_states(&blocks.table, |at| section.state(at)));
+            assert_eq!(section.masks(), expected.as_ref(), "section {y}");
+        }
+    }
+}

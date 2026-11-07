@@ -139,6 +139,32 @@ fn dev_014_an_item_on_the_ground_stops_and_rests() {
 }
 
 #[test]
+fn dev_014_only_an_item_on_the_ground_stops() {
+    let mut fixture = TestFixture::new();
+    floor(&mut fixture.world, fixture.blocks.stone);
+    let small = DVec3::new(5.0e-7, 0.0, -5.0e-7);
+    for (row, height, on_ground) in [
+        (MotionRow::item(), 1.5, false),
+        (MotionRow::experience_orb(), 1.0, true),
+    ] {
+        let mut state = entity(DVec3::new(0.5, height, 0.5), small, false);
+        state.body.flags.on_ground = on_ground;
+        tick(&mut fixture, &row, &mut state, true);
+        assert_eq!(
+            state.body.flags.on_ground, on_ground,
+            "the {:?} stays where it was",
+            row.category
+        );
+        assert!(
+            state.body.velocity.x != 0.0 && state.body.velocity.z != 0.0,
+            "the {:?} keeps its small speed: {}",
+            row.category,
+            state.body.velocity
+        );
+    }
+}
+
+#[test]
 fn fall_004_a_resetting_block_keeps_the_fall_of_the_tick() {
     let blocks = TestBlocks::new();
     for (row, living, block) in [
