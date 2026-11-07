@@ -6,7 +6,8 @@ pub mod spline;
 pub use args::{
     BlendedNoiseArguments, ClampArguments, FindTopSurfaceArguments, GradientArguments,
     IntervalSelectArguments, PowFunctionArguments, RoundFunctionArguments, ScaleValue,
-    SingleArgumentFunction, SmearScaleMultiplier, TwoArgumentFunction,
+    SingleArgumentFunction, SmearScaleMultiplier, TwoArgumentFunction, UpscaleArguments,
+    UpscaleAxis, UpscaleMode,
 };
 pub use settings::{Either, ValueRange};
 pub use spline::{ProtoMultipoint, ProtoSpline, SplinePoints};
@@ -18,7 +19,6 @@ use mcrs_minecraft_registries::dispatch;
 use mcrs_minecraft_resource::ResourceLocationBuf;
 use serde::{Deserialize, Serialize};
 use std::hash::{Hash, Hasher};
-use std::num::NonZeroU32;
 
 pub const MAX_REASONABLE_NOISE_VALUE: f32 = 1_000_000.0;
 
@@ -137,7 +137,10 @@ impl From<SingleArgumentFunction> for DensityFunctionHolder {
     }
 }
 
-#[dispatch(registry = crate::density_function_type_keys::DensityFunctionType)]
+#[dispatch(
+    registry = crate::density_function_type_keys::DensityFunctionType,
+    unsupported(DomainWarp)
+)]
 #[derive(Hash, Eq, PartialEq, Debug, Clone)]
 #[serde(deny_unknown_fields)]
 pub enum ProtoDensityFunction {
@@ -212,11 +215,7 @@ pub enum ProtoDensityFunction {
     IntervalSelect(IntervalSelectArguments),
     Cache(SingleArgumentFunction),
     BlendDensity(SingleArgumentFunction),
-    Interpolated {
-        input: DensityFunctionHolder,
-        cell_size_xz: NonZeroU32,
-        cell_size_y: NonZeroU32,
-    },
+    Upscale(UpscaleArguments),
     Slice {
         axis: Axis,
         coordinate: i32,
@@ -253,7 +252,8 @@ impl ProtoDensityFunction {
             | Reciprocal(x) | Negate(x) | Squeeze(x) | Log(x) | Sign(x) | Cache(x)
             | BlendDensity(x) => f(&x.input),
             Clamp(x) => f(&x.input),
-            Interpolated { input, .. } | Slice { input, .. } => f(input),
+            Upscale(x) => f(&x.input),
+            Slice { input, .. } => f(input),
             Noise {
                 shift_x,
                 shift_y,
