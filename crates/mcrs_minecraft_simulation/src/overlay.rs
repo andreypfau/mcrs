@@ -1,3 +1,5 @@
+use core::cell::Cell;
+
 use crate::access::{SectionProperties, SimulatedSections};
 use crate::random_tick::RandomTickTable;
 use crate::region::Region;
@@ -32,14 +34,17 @@ impl Overlay {
 
 /// The world as one tile task sees it: the region of its tile, under the writes of the task.
 /// Every section outside the region is [`Access::Foreign`].
-pub(crate) struct OverlaidVolume<'a, W> {
+pub(crate) struct OverlaidVolume<'a, W: BlockVolume> {
     pub(crate) world: &'a W,
     pub(crate) region: Region,
     pub(crate) overlay: &'a mut Overlay,
     pub(crate) table: &'a RandomTickTable,
+    /// The world section of the last read: the reads of a handler stay mostly in one section,
+    /// and finding a section costs several cache misses.
+    pub(crate) last: Cell<Option<(SectionPos, W::Section<'a>)>>,
 }
 
-impl<W: Volume> Volume for OverlaidVolume<'_, W> {
+impl<W: BlockVolume> Volume for OverlaidVolume<'_, W> {
     fn bounds(&self) -> BoundingBox {
         self.world.bounds()
     }
@@ -53,7 +58,7 @@ impl<W: Volume> Volume for OverlaidVolume<'_, W> {
     }
 }
 
-impl<W: BlockVolume> BlockVolume for OverlaidVolume<'_, W> {
+impl<'a, W: BlockVolume> BlockVolume for OverlaidVolume<'a, W> {
     type Section<'b>
         = OverlaidSection<'b, W::Section<'b>>
     where
@@ -73,16 +78,29 @@ impl<W: BlockVolume> BlockVolume for OverlaidVolume<'_, W> {
 
     fn block(&self, at: BlockPos) -> Result<BlockStateId, Unavailable> {
         let section = SectionPos::from(at);
-        self.access(section).check_read()?;
-        let written = self
+        let base = match self.last.take() {
+            // The region and the world do not change while the task runs: a section read once
+            // stays readable.
+            Some((held, base)) if held == section => base,
+            _ => {
+                self.access(section).check_read()?;
+                if !self.world.contains(at) {
+                    return Err(Unavailable::Outside);
+                }
+                let world: &'a W = self.world;
+                world.section(section)?
+            }
+        };
+        let local = LocalPos::from(at);
+        let state = self
             .overlay
             .sections
             .get(&section)
-            .and_then(|written| written.blocks.get(&local_index(LocalPos::from(at))));
-        match written {
-            Some(&state) => Ok(state),
-            None => self.world.block(at),
-        }
+            .and_then(|written| written.blocks.get(&local_index(local)))
+            .copied()
+            .unwrap_or_else(|| base.get(local));
+        self.last.set(Some((section, base)));
+        Ok(state)
     }
 }
 
@@ -116,7 +134,7 @@ impl<W: BlockVolume + SimulatedSections> BlockVolumeMut for OverlaidVolume<'_, W
     }
 }
 
-impl<W: SimulatedSections> SimulatedSections for OverlaidVolume<'_, W> {
+impl<W: BlockVolume + SimulatedSections> SimulatedSections for OverlaidVolume<'_, W> {
     fn properties(&self, section: SectionPos) -> SectionProperties {
         self.world.properties(section)
     }

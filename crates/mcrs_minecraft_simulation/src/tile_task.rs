@@ -1,3 +1,5 @@
+use core::cell::Cell;
+use core::hint::black_box;
 use core::ops::Range;
 
 use crate::SimulationVolume;
@@ -11,8 +13,10 @@ use crate::scalar::GameTick;
 use crate::shard::{BlockShard, Env};
 use crate::stream::SectionStreams;
 use crate::tick_queue::Kinds;
+use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::legacy::LegacyRandom;
-use mcrs_voxel::{BlockPos, ColumnPos};
+use mcrs_minecraft_volume::SectionBlocks;
+use mcrs_voxel::{BlockPos, ColumnPos, LocalPos, SectionPos};
 
 /// Runs a closure on each item of a slice, on any threads and in any order.
 pub trait Spread {
@@ -69,7 +73,7 @@ impl<K: Kinds> TileTask<K> {
     /// phases, then of the tiles. Keeps the buffers of the tasks it held.
     pub(crate) fn plan(tasks: &mut Vec<Self>, listed: &[ListedSection]) {
         let tile_of = |listed: &ListedSection| block_tile(ColumnPos::from(listed.section));
-        let mut used = 0;
+        let mut groups = Vec::new();
         let mut start: usize = 0;
         for group in listed.chunk_by(|a, b| tile_of(a) == tile_of(b)) {
             let Some(first) = group.first() else {
@@ -77,17 +81,20 @@ impl<K: Kinds> TileTask<K> {
             };
             let range = start..start.saturating_add(group.len());
             start = range.end;
+            groups.push((tile_of(first), range));
+        }
+        // A task is large: sorting the tasks themselves moves more memory than the step reads.
+        groups.sort_unstable_by_key(|(tile, _)| (colour(*tile), *tile));
+        tasks.truncate(groups.len());
+        for (used, (tile, range)) in groups.into_iter().enumerate() {
             match tasks.get_mut(used) {
                 Some(task) => {
-                    task.tile = tile_of(first);
+                    task.tile = tile;
                     task.listed = range;
                 }
-                None => tasks.push(Self::new(tile_of(first), range)),
+                None => tasks.push(Self::new(tile, range)),
             }
-            used = used.saturating_add(1);
         }
-        tasks.truncate(used);
-        tasks.sort_by_key(|task| (colour(task.tile), task.tile));
     }
 
     pub(crate) fn run<V, F, B, P>(
@@ -105,12 +112,37 @@ impl<K: Kinds> TileTask<K> {
     {
         self.shard.chain.reset();
         self.shard.random_touched.clear();
+        // Finding the block of a pick is a chain of cache misses. The chains of different sections
+        // do not depend on each other, so reading the first pick of each section ahead lets the
+        // processor wait for them together; the picks below then find their data in the cache.
+        // The draws are drawn again below, so the values do not change.
+        let listed = picks.listed.get(self.listed.clone()).unwrap_or_default();
+        for listed in listed {
+            let mut random = streams.stream(listed.section);
+            let ticking = u32::from(listed.ticking);
+            let Some(drawn) = (0..picks.speed)
+                .map(|_| random.next_u32_bound(SectionPos::VOLUME as u32))
+                .find(|&drawn| drawn < ticking)
+            else {
+                continue;
+            };
+            if let Some(&local) = world.random_ticking(listed.section).get(drawn as usize) {
+                let local = LocalPos::from_index(usize::from(local));
+                black_box(
+                    world
+                        .section(listed.section)
+                        .map(|section| section.get(local))
+                        .ok(),
+                );
+            }
+        }
         let region = Region::of(self.tile);
         let mut volume = OverlaidVolume {
             world,
             region,
             overlay: &mut self.overlay,
             table: picks.table,
+            last: Cell::default(),
         };
         let mut cx = Cx::new(&mut self.shard, &mut volume, &mut self.out, env, now);
         cx.task = Some(TileCx {

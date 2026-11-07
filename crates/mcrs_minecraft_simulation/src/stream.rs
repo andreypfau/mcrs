@@ -78,12 +78,14 @@ pub struct SectionStreams(u64);
 
 impl SectionStreams {
     /// The stream of [`StreamKey::Section`] for `section`.
+    #[inline]
     #[must_use]
     pub fn stream(&self, section: SectionPos) -> LegacyRandom {
         LegacyRandom::new(section_words(section).into_iter().fold(self.0, mix))
     }
 }
 
+#[inline]
 fn words(x: i32, y: i32, z: i32) -> [u64; 2] {
     [
         (x as u32 as u64).wrapping_shl(32) | u64::from(z as u32),
@@ -95,6 +97,7 @@ fn pos_words(pos: BlockPos) -> [u64; 2] {
     words(pos.x, pos.y, pos.z)
 }
 
+#[inline]
 fn section_words(section: SectionPos) -> [u64; 2] {
     words(section.x, section.y, section.z)
 }
@@ -103,6 +106,7 @@ fn mix_all<const N: usize>(seed: u64, tag: u64, words: [u64; N]) -> u64 {
     words.into_iter().fold(mix(seed, tag), mix)
 }
 
+#[inline]
 fn mix(seed: u64, word: u64) -> u64 {
     let mut z = (seed ^ word).wrapping_add(0x9E37_79B9_7F4A_7C15);
     z = (z ^ z.wrapping_shr(30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
