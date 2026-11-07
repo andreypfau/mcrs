@@ -55,9 +55,10 @@ in each frame. The document does not prescribe an architecture.
 - **Simulation distance**: the value `simulation_distance` of the login packet, in chunks.
 - **Loaded chunk**: a chunk column for which the client received the chunk data, and which the
   client did not unload after that.
-- **Ticking area**: the set of loaded chunks. A client entity ticks when the chunk that contains
-  its position is in the ticking area, it is not a passenger, and the tick rate of the server
-  does not freeze it.
+- **Ticking area**: the set of loaded chunks. A client entity is in the ticking area when the
+  chunk that contains its position is in the set and the entity is not a passenger. A client
+  entity ticks when it is in the ticking area and the tick rate of the server does not freeze
+  it. A frozen entity stays in the ticking area.
 - **Path**: the list of segments that an entity still has to travel in an interpolation. A
   segment has an end point (a position, a yaw and a pitch) and a weight in ticks.
 - **Packet names**: this document names a packet by its identifier in
@@ -293,7 +294,9 @@ Milestone: 1.
   6. A stepped path is a `VarInt` count, then that number of steps, then a Boolean
      `start immediately`. Each step is three `f64` values of a position and a `VarInt` tick
      count.
-  7. The end position of a stepped path is the position of its last step.
+  7. The end position of a stepped path is the position of its last step. A stepped path of a
+     position sync with a count of 0 has no end position: the packet is malformed, and the
+     client handles it as each malformed packet (it disconnects).
   8. A server sends a stepped form for an entity that records its positions between two
      updates. Each step is one recorded position. The tick count of a step is the number of
      server ticks since the step before it, or since the previous update for the first step. A
@@ -335,15 +338,19 @@ Milestone: 1.
 - **Behavior:**
   1. The delta base becomes the end position of the path.
   2. Let `D` be the distance from the current position to the end position.
-  3. When the entity does not tick, or `D` > 64 blocks, the client snaps (CENTS-INTERP-003)
-     to the end position and the rotation of the packet.
+  3. When the entity is not in the ticking area (section 0.1), or `D` > 64 blocks, the client
+     snaps (CENTS-INTERP-003) to the end position and the rotation of the packet. A frozen tick
+     rate does not cause a snap: a frozen entity in the ticking area starts an interpolation,
+     and the interpolation moves when the entity ticks again.
   4. Otherwise, the client starts an interpolation with the path and the rotation.
   5. The on-ground flag becomes the flag of the packet.
 - **Postconditions:** a position sync corrects the drift of the delta base.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: teleport a pig
-by 100 blocks with `/tp`. The pig appears at the new place in the next frame, with no movement
-between the two places.
+Provenance: `source_suggested`; item 3 `source_suggested_black_box_confirmed` (in the
+`pig_walk` capture of `26.4-snapshot-7`, a position sync arrives while the world is frozen, and
+the pig keeps its position and its path). Kind: semantic. Confidence: high. Experiment: teleport
+a pig by 100 blocks with `/tp`. The pig appears at the new place in the next frame, with no
+movement between the two places.
 Milestone: 1.
 
 ### CENTS-MOVE-004: Teleport
@@ -383,7 +390,7 @@ the interpolation.
      position of the reference point. A missing rotation is the yaw and the pitch of the
      reference point.
   2. When `N` is 0, the client snaps (CENTS-INTERP-003) to the end of the packet path, `y` and
-     `p`, and the path becomes empty with `T` = 0 and `W` = 0.
+     `p`, and the path becomes empty with `T` = 0 and `W` = 0. `Z` keeps its value.
   3. When the interpolation is active, and `Z` is equal to the end position of the packet
      path, `y` and `p`, the start changes nothing.
   4. When the packet path is stepped and its `start immediately` is `true`, the path becomes
@@ -464,14 +471,14 @@ Milestone: 1.
 ### CENTS-INTERP-004: Movement from other causes
 
 - **Inputs:** an active interpolation; a change `Δ` of the position of the entity, and a change
-  of its yaw and pitch, from a cause other than the interpolation, since the last tick of the
-  interpolation.
+  of its yaw and pitch, from a cause other than the interpolation. The client measures each
+  change from the position, the yaw and the pitch that the entity had at the end of the last
+  start or step of the interpolation.
 - **Behavior:**
-  1. When `|Δ|²` > `1e-5`, and the bounding box at the end point of the path moved by `Δ` has
-     no collision, all points of the path that remain move by `Δ`. The point where the entity
-     is moves by `Δ` too.
-  2. The yaw and the pitch of all points of the path that remain change by the change of the
-     yaw and the pitch.
+  1. When `|Δ|²` > `1e-5`, and the bounding box at `Z` moved by `Δ` has no collision, `Z`, all
+     end points of the path that remain, and the point `A` move by `Δ`.
+  2. The yaw and the pitch of `Z`, of all end points of the path that remain, and of `A` change
+     by the change of the yaw and the pitch. This item has no threshold and no collision test.
 - **Postconditions:** a snap or a teleport during an interpolation moves the rest of the path
   with the entity.
 
@@ -508,8 +515,10 @@ Milestone: 1.
 - **Inputs:** a living entity that ticks (section 0.1, "Ticking area").
 - **Behavior:** in each tick, the client does these steps in this order:
   1. The previous position, yaw and pitch become the current values.
-  2. When the interpolation is active, the client does one step (CENTS-INTERP-004, then
-     CENTS-INTERP-002).
+  2. The client does one step of the interpolation (CENTS-INTERP-002). The step occurs in each
+     tick, also when the interpolation is not active: then item 1 of CENTS-INTERP-002 empties
+     the path. A path can keep a segment after `T` reaches 0, because `T`, `W` and `d` are
+     `f32` values.
   3. The age increases by 1.
   4. When the hurt time is more than 0, it decreases by 1 (CENTS-HURT-001).
   5. When the entity is dying, the death time changes (CENTS-DEATH-002).
@@ -864,8 +873,13 @@ Milestone: 2.
 | hurt time | the current hurt time | `hurt_time` |
 | partial tick | `pt` | `frame_alpha` |
 | eye position | the frame position plus `(0, eye height, 0)` | — |
+| in-water flag | the flag of the last tick (CENTS-FLAG-002) | `is_in_water` |
+| upside down | the custom name of index 2 (`client-entity-render.md`, CEREN-PLACE-005) | — (it negates the relative head yaw and the pitch) |
+| vehicle and riders | `0.0` in milestones 1 and 2; later, the passenger list of `minecraft:set_passengers` | `is_riding`, `has_rider` |
 
-  The eye height is the term of section 0.1.
+  The eye height is the term of section 0.1. The renderer and the queries read these values
+  from one record of the frame. A value that a later milestone supplies has its default in that
+  record until then.
 - **Postconditions:** each query reads the same value in all expressions of one frame.
 
 Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: record a pig at

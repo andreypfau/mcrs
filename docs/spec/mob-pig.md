@@ -160,7 +160,7 @@ Confidence: medium. Milestone: 2.
 
 | Input | Query or state |
 |-------|----------------|
-| `walk_position` | `query.modified_distance_moved` |
+| `walk_position` | `query.modified_distance_moved`. For a baby, the value already includes the factor 3 of CENTS-WALK-001, item 6 |
 | `walk_speed` | `query.modified_move_speed` |
 | `head_yaw_degrees` | `query.target_y_rotation` |
 | `head_pitch_degrees` | `query.target_x_rotation` |

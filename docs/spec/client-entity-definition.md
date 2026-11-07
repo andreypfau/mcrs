@@ -349,14 +349,19 @@ evaluation. Confidence: medium. Milestone: 1.
 | `color`, `overlay_color`, `is_hurt_color`, `on_fire_color` | object | none | CENT-RC-006 |
 | `uv_anim`, `ignore_lighting`, `filter_lighting`, `light_color_multiplier`, `rebuild_animation_matrices` | | | later; ignored |
 
-  5. All geometries of one entity share one pose (EANIM-BLEND-001). The pose gives values by
-     bone name. A bone of a geometry takes the values of the pose bone with the same name.
+  5. All geometries of one entity share one pose (EANIM-BLEND-001). The pose gives, by bone
+     name, the change from the rest pose: a rotation, a position and a scale. A bone of a
+     geometry adds the change of the pose bone with the same name to its own rest pose. The
+     rest pose of a bone can be different in two geometries.
   6. A bone of a geometry that the pose does not name takes its rest pose.
+  7. `this` (MOL-VAR-007) and `override_previous_animation` (EANIM-BLEND-003) read the rest
+     pose of the bone in the geometry that the client poses.
 - **Postconditions:** each layer uses the pose of the frame. For example, a saddle geometry with
   the bone names of the body geometry moves with the body.
 
-Provenance: `documentation`; `design` for 5 and 6. Kind: semantic. Confidence: high.
-Milestone: 1.
+Provenance: `documentation`; `design` for 5 to 7 (a shared change from rest keeps a saddle on
+the body when the two geometries have different rest rotations). Kind: semantic. Confidence:
+high. Milestone: 1.
 
 ### CENT-RC-002: Resource expressions and arrays
 

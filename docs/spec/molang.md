@@ -883,10 +883,13 @@ unspecified. Confidence: high. Milestone: 1.
   2. The bits of `/` are unspecified. The relative error must be at most 2.5 ULP.
   3. A result that is NaN, `+∞` or `-∞` is unspecified.
   4. The CPU must not write a value that is NaN, `+∞` or `-∞` as an input of a GPU evaluation.
-     It writes `0.0` instead.
+     It writes `0.0` instead. The CPU writes a subnormal input as it is; the GPU can flush it
+     to zero.
   5. When the compiler cannot show at load that the argument of `math.sqrt`, `math.ln`,
-     `math.pow`, `math.exp`, `math.asin` or `math.acos` stays in the range where the result is
-     finite, the expression must not run on a GPU. It runs on the CPU.
+     `math.pow`, `math.exp`, `math.asin`, `math.acos`, or of an easing (MOL-MATH-003) with the
+     shape `circ`, `expo` or `elastic`, stays in the range where the result is finite, the
+     expression must not run on a GPU. It runs on the CPU. These easings call the functions of
+     the list.
   6. An overflow of `+`, `-` or `*` with finite inputs is not part of the test of item 5.
   7. The pose pass clamps each value that it samples from a channel to `[−1e6, 1e6]`. A NaN
      gives an unspecified finite value in that range.

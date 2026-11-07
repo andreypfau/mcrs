@@ -284,6 +284,21 @@ The entity host runs the stages in this order:
 Each stage reads the results of the stage before it. A stage does not read values that the same
 stage writes for another lane.
 
+### 9.6 Interface for consumers
+
+The animation crate and the render crate need these items from `mcrs_molang`. They are part of
+the public interface:
+
+- **One query slot.** A reader for the value of one slot of a query value set, for a lane, so
+  that a host can check or copy a single input without a full sample.
+- **Inputs and outputs of a program.** For each compiled `Program` and `Expression`, the list of
+  the variables that it reads, the variables that it writes, and the query slots that it reads.
+  A host uses the lists to find the inputs of a script without a second parse, and to skip a
+  script whose inputs did not change (CENT-SCR-006).
+- **Lane mask of the batch VM.** A batch run takes a mask of active lanes. An inactive lane keeps
+  its variables and gives no result. With the mask, a block with some inactive lanes stays in the
+  batch VM instead of a fall back to the scalar VM.
+
 ### 9.5 Random
 
 `math.random` and the functions built on it follow `docs/spec/molang.md`, MOL-RAND-001:
@@ -307,7 +322,7 @@ After the passes, the classifier gives each bone channel of each animation one c
 |---|---|---|
 | `Constant` | the value is `Constant` or `Load` | baked into the model table |
 | `Curve` | keyframes only, with time from the clock of the animation | GPU, from the curve table; CPU on the Minimal path |
-| `Pure` | an expression over the pose inputs (section 10.2), with no write, no string, no random call, no loop, no entity switch and no domain risk (section 10.3) | GPU, lowered WGSL; CPU twin on the Minimal path |
+| `Pure` | an expression over the pose inputs (section 10.2), with no write, no string, no random call, no loop, no entity switch and no domain risk (section 10.3) | GPU, lowered WGSL; the CPU batch VM on the Minimal path |
 | `State` | anything else | CPU batch VM; the result goes to the GPU as a scalar pose input |
 
 The class of a channel does not change after load. The specifications do not fix the processor of
@@ -391,8 +406,12 @@ fn <name>(opaque_zero: u32, i0: f32, i1: f32, …) -> f32
 
 The CPU twin (`mcrs_molang_wgsl::Twin`) runs a `PureProgram` with the algorithms of the library,
 operation for operation. Its result has the bits of the GPU result. Each float result is
-flushed to zero when it is subnormal, on the CPU and on the GPU. The twin is the reference of
-the GPU parity tests. The scalar VM stays the reference of the language.
+flushed to zero when it is subnormal, in the twin and on the GPU. The twin is the reference of
+the GPU parity tests, and only of those tests. The scalar VM stays the reference of the
+language. The Minimal path evaluates pure channels with the batch VM, which has the bits of the
+scalar VM; it agrees with the GPU paths within EANIM-GPU-003. A single set of bits for all
+paths would need the batch VM to use the slower algorithms of the library, and no consumer
+needs it. The scalar and batch VMs do not flush subnormal values.
 
 | Function | Algorithm in the library | Bits against the scalar VM |
 |---|---|---|

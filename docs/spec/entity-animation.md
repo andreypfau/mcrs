@@ -268,10 +268,15 @@ medium. Milestone: 1.
      pose.
   3. For `loop: true`, the client evaluates `loop_delay` each time that the time wraps. During
      the loop delay, the instance adds the pose at `t = 0`.
+  4. A delay counts down by the time step of the entity (EANIM-TIME-002), not by the time of
+     the frame. The frame in which the instance starts does not count toward the start delay.
+  5. When a loop delay ends, the time of the instance is 0. This also applies to a clip with
+     `anim_time_update`: its time starts again at 0.
 - **Postconditions:** none.
 
-Provenance: `documentation` for 1; `unresolved` for 2 and 3. Kind: semantic. Confidence: low.
-Milestone: later.
+Provenance: `documentation` for 1; `unresolved` for 2 and 3; `design` for 4 and 5 (the
+documentation states no unit for the countdown; the time step of the entity stops with the
+entity clock). Kind: semantic. Confidence: low. Milestone: later.
 
 ### EANIM-TIME-004: Start and restart
 
@@ -279,14 +284,17 @@ Milestone: later.
 - **Behavior:**
   1. The instance starts when the entity first plays the entry with a weight that is not 0.
   2. When the weight of the entry is 0 in a frame, the instance stops. It does not update its
-     time.
+     time. Only the weight of the `animate` entry or of a state entry stops an instance. A
+     `blend_weight` of the clip that is 0 removes the instance from the play list of that
+     frame (EANIM-BLEND-002, item 6), but the time of the instance continues.
   3. When the weight becomes not 0 again, the instance starts again with the time 0.
   4. A clip in a state of a controller starts again each time that the controller enters the
      state (EANIM-CTRL-002).
 - **Postconditions:** none.
 
-Provenance: `unresolved` for 2 and 3. The format reference does not state if a clip in the
-`animate` list starts again after its weight was 0. Kind: semantic. Confidence: low.
+Provenance: `unresolved` for 2 and 3; `design` for the `blend_weight` sentence of 2 (a clip
+that fades out by its own weight keeps its phase). The format reference does not state if a
+clip in the `animate` list starts again after its weight was 0. Kind: semantic. Confidence: low.
 Experiment: make a client entity that plays a clip of 2 s with `loop: false` and the weight
 `query.is_sneaking`. Sneak for 0.5 s, stand, and sneak again. Record if the clip plays from
 its start. Milestone: 1 for 1; 2 for 2 to 4.
@@ -513,9 +521,13 @@ architecture (`docs/molang.md` and `docs/entity-render.md`). Only the result is 
 
 | Value | Largest difference |
 |-------|--------------------|
-| rotation | `1e-3` radian for each Euler component |
-| position | `1e-3` model unit (one model unit is one pixel, `1/16` block) |
-| scale | `1e-4` |
+| rotation | `max(1e-3, 2⁻²⁰ · |r|)` radian for each Euler component, with `|r|` the larger of the two magnitudes |
+| position | `max(1e-3, 2⁻²⁰ · |x|)` model unit (one model unit is one pixel, `1/16` block) |
+| scale | `max(1e-4, 2⁻²⁰ · |x|)` |
+
+     The relative term applies when one `f32` step of the value is larger than the absolute
+     limit. That occurs above about 800 for a scale and above about 8000 for a rotation or a
+     position.
 
   2. These limits apply whichever processor evaluates a slot, also when the client has no
      GPU compute and the CPU evaluates every slot.
@@ -530,11 +542,21 @@ architecture (`docs/molang.md` and `docs/entity-render.md`). Only the result is 
      `client-entity-render.md`, `mob-pig.md` and `mob-frog.md` use these limits.
   6. The limits apply to an entity that the client draws with its full rig. An impostor of
      CEREN-VIS-003 has no pose to compare.
+  7. A test does not apply the limits to a value at a discontinuity of an inexact function.
+     A value is at a discontinuity when a change of `2⁻²⁰` relative to one input of the
+     channel moves the reference value by more than the limit. Examples are `math.trunc`, a
+     comparison or a branch on the result of `math.sin`, `math.cos`, `math.atan`,
+     `math.atan2`, `math.asin`, `math.acos`, `math.exp`, `math.ln` or `math.pow`. The test
+     reports the count of such values.
+  8. A value that is subnormal on one processor and zero on the other agrees. The CPU does not
+     flush subnormal inputs or results to zero; a GPU can.
 - **Postconditions:** the pose that the player sees is the same within these limits, whichever
   processor evaluates a slot.
 
 Provenance: `design` (the accuracy of the trigonometric functions of WGSL is about `2^−11`.
-A vanilla walk clip multiplies a cosine by about 80°, which gives about `7e-4` radian). Kind:
+A vanilla walk clip multiplies a cosine by about 80°, which gives about `7e-4` radian. The
+relative term of item 1 and item 7 come from the GPU fuzz of `mcrs_molang_wgsl`: above the
+absolute limits one `f32` step is too large, and at a discontinuity no tolerance holds). Kind:
 semantic. Confidence: medium. Milestone: 1.
 
 ---

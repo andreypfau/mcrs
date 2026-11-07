@@ -68,8 +68,9 @@ Encodings of the model records:
   in whole texels (`2 × i16`), the inflate as `i16` in steps of `1/8192` block (range ±4), the
   bone index (`u8`), and flags (`u8`: bits 0–5 face mask in the face order E, N, W, S, U, D,
   bit 6 mirror, bit 7 explicit).
-- **Explicit cuboid**: a cube with its own rotation, a cube with per-face UV, or a cube with a
-  box UV origin that is not a whole texel, cannot use the 32 B form. Its cuboid record sets
+- **Explicit cuboid**: a cube with its own rotation, a cube with per-face UV, a cube with a
+  box UV origin that is not a whole texel, or a cube whose box UV origin or inflate is out of
+  the range of its `i16` field, cannot use the 32 B form. Its cuboid record sets
   bit 7. Then the first 4 B of the record are the index of its first explicit face, and the
   face mask gives the faces that it has, in face order. The explicit faces of a model follow
   its last cuboid record: the face `k` takes the 32 B slots `2k` and `2k + 1` after it. The other fields of the record are not
@@ -463,8 +464,10 @@ runs in CI on native.
 The three paths share:
 
 - the static data of section 3 and the slot records of section 4;
-- the compiled channels: the WGSL of `mcrs_molang_wgsl` for the compute paths, and the CPU twin
-  of the same channels for the Minimal path (`docs/molang.md`, section 10);
+- the compiled channels: the WGSL of `mcrs_molang_wgsl` for the compute paths, and the CPU batch
+  VM of `mcrs_molang` for the same channels on the Minimal path (`docs/molang.md`, section 10).
+  The Minimal path does not use the CPU twin. Its poses agree with the GPU paths within
+  EANIM-GPU-003, not bit for bit;
 - the fragment shader and the shading of section 5.5;
 - the tier selection of section 5.1. On the Minimal path, the CPU selects the tier with the same
   rule.
@@ -562,7 +565,7 @@ faces. Write the results to `docs/perf/`.
    controller clip slots. The frog uses them; the pig does not.
 7. The Compatibility path: the bone texture, the fetch interface and the draw of face records
    as an instance-rate vertex buffer. CI forces this path on a native adapter.
-8. The Minimal path: the CPU cull and the CPU pose with the CPU twin. It is ready before the
+8. The Minimal path: the CPU cull and the CPU pose with the batch VM. It is ready before the
    WebGL2 backend of the client, and CI forces it on a native adapter.
 
 The shading of section 5.5, with the face factor and the overlay in the entity fragment shader,
