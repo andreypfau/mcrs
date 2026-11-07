@@ -16,7 +16,6 @@ use crate::PlayerFacts;
 use crate::PlayerRotation;
 use crate::PlayerState;
 use crate::Pose;
-use crate::QueryEntity;
 use crate::Scratch;
 use crate::Side;
 use crate::SourceKind;
@@ -24,6 +23,7 @@ use crate::StuckIgnore;
 use crate::View;
 use crate::block_effects;
 use crate::block_effects::EffectContext;
+use crate::push_out;
 use crate::query;
 use crate::sine_table::yaw_radians;
 use crate::tick_entity::jump_power;
@@ -73,6 +73,9 @@ pub fn tick_player<W: CollisionWorld, B: BodyView>(
     out.sprint_timer = out.sprint_timer.saturating_sub(1);
     out.crouching = crouch_state(view, start, &facts, scratch);
     let move_input = input_vector(&keys, out, &facts);
+    if !facts.spectator && !facts.passenger {
+        push_out::push_out_of_blocks(view.world, &view.tables.collision, out);
+    }
     let sprint = sprint_state(start, out, &keys, &facts, move_input.forward);
     let flight = flight_steps(view, side, start, out, input, sprint);
     out.jump_delay = out.jump_delay.saturating_sub(1);
@@ -466,13 +469,5 @@ fn collides_in<W: CollisionWorld, B: BodyView>(
     let dimensions = dimensions_of(pose, &state.attributes);
     let bounds =
         Aabb::of_body(state.position, dimensions.width, dimensions.height).deflate(COLLISION);
-    let entity = QueryEntity {
-        key: BirthKey::new(0, SourceKind::Player, 0, 0),
-        position: state.position,
-        fall_distance: state.fall_distance,
-        shift: state.shift0,
-        powder_snow_solid: false,
-        walks_on_powder_snow: false,
-    };
-    query::intersects(view, &entity, bounds, &mut scratch.entities)
+    query::intersects(view, &state.query_entity(), bounds, &mut scratch.entities)
 }

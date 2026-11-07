@@ -208,7 +208,7 @@ impl TestBlocks {
         let plain = BlockFlags::empty();
         let default = BlockMotion::DEFAULT;
         let _air = push(&[], plain, default);
-        let stone = push(&[cube([0.0; 3], [1.0; 3])], plain, default);
+        let stone = push(&[cube([0.0; 3], [1.0; 3])], BlockFlags::SUFFOCATES, default);
         let bottom_slab = push(&[cube([0.0; 3], [1.0, 0.5, 1.0])], plain, default);
         let top_slab = push(&[cube([0.0, 0.5, 0.0], [1.0; 3])], plain, default);
         let carpet = push(&[cube([0.0; 3], [1.0, PIXEL, 1.0])], plain, default);

@@ -234,6 +234,19 @@ fn psh_008_the_push_enters_the_velocity_before_the_zero_cutoff() {
 }
 
 #[test]
+fn inp_011_a_block_in_the_column_pushes_the_player_to_the_nearest_free_faces() {
+    let mut fixture = Fixture::on_stone();
+    fixture
+        .world
+        .set(BlockPos::new(0, 2, 0), fixture.blocks.stone);
+    let mut state = PlayerState::new(DVec3::new(0.4, 1.0, 0.5));
+    state.flags.on_ground = true;
+    let next = fixture.tick(&state, Keys::default(), 0.0);
+    assert!(next.position.x < state.position.x, "pushed west");
+    assert!(next.position.z > state.position.z, "pushed south");
+}
+
+#[test]
 fn inp_012_a_sneaking_player_stays_on_the_edge() {
     let mut fixture = Fixture::on_stone();
     fixture.world = TestWorld::new();

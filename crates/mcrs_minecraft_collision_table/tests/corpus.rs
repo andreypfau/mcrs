@@ -245,6 +245,43 @@ fn rch_007_marks_exactly_the_blocks_with_an_inside_action() {
 }
 
 #[test]
+fn inp_021_marks_the_states_that_cause_suffocation() {
+    let definitions = definitions();
+    let table = table();
+    let suffocates = |id: BlockStateId| table.state(id).flags.contains(BlockFlags::SUFFOCATES);
+    for name in [
+        "minecraft:stone",
+        "minecraft:farmland",
+        "minecraft:dirt_path",
+        "minecraft:soul_sand",
+        "minecraft:shulker_box",
+        "minecraft:piston",
+    ] {
+        assert!(suffocates(state(name)), "{name} causes suffocation");
+    }
+    for name in [
+        "minecraft:oak_leaves",
+        "minecraft:glass",
+        "minecraft:white_stained_glass",
+        "minecraft:waxed_oxidized_copper_grate",
+        "minecraft:mangrove_roots",
+        "minecraft:stone_slab",
+        "minecraft:air",
+    ] {
+        assert!(
+            !suffocates(state(name)),
+            "{name} does not cause suffocation"
+        );
+    }
+    let piston = definitions.block("minecraft:piston").unwrap();
+    for offset in 0..piston.state_count {
+        let id = piston.state_at(offset).unwrap();
+        let extended = piston.value_of(id, "extended").unwrap().to_string() == "true";
+        assert_eq!(suffocates(id), !extended);
+    }
+}
+
+#[test]
 fn scaffolding_gives_the_bottom_slab_only_with_distance_and_bottom() {
     let definitions = definitions();
     let table = table();

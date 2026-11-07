@@ -1,11 +1,14 @@
 use glam::DVec3;
 use mcrs_voxel::BlockPos;
 
+use crate::BirthKey;
 use crate::Body;
 use crate::MotionAttributes;
 use crate::MotionEffects;
 use crate::MoveFlags;
 use crate::Pose;
+use crate::QueryEntity;
+use crate::SourceKind;
 
 /// The state of a player at the start of a tick: the values that one tick reads and writes.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
@@ -84,6 +87,18 @@ impl PlayerState {
             position,
             flight_speed: 0.05,
             ..Self::default()
+        }
+    }
+
+    /// The player as the entity of a query of colliders.
+    pub(crate) fn query_entity(&self) -> QueryEntity {
+        QueryEntity {
+            key: BirthKey::new(0, SourceKind::Player, 0, 0),
+            position: self.position,
+            fall_distance: self.fall_distance,
+            shift: self.shift0,
+            powder_snow_solid: false,
+            walks_on_powder_snow: false,
         }
     }
 

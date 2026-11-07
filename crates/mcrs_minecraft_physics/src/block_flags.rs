@@ -42,5 +42,7 @@ bitflags::bitflags! {
         const COARSE_POTENT_SULFUR = 1 << 17;
         /// A piston, a piston head or a moving piston, which acts up to 2 blocks away.
         const COARSE_PISTON = 1 << 18;
+        /// The state causes suffocation: the client pushes its player out of it.
+        const SUFFOCATES = 1 << 19;
     }
 }

@@ -11,6 +11,7 @@ use mcrs_minecraft_physics::CollisionTableBuilder;
 use mcrs_minecraft_physics::ContextShape;
 use mcrs_minecraft_physics::StateSpec;
 use mcrs_minecraft_registries::Tags;
+use mcrs_minecraft_resource::TagId;
 use mcrs_minecraft_resource::TagKey;
 
 use crate::named_block::NamedBlock;
@@ -52,6 +53,11 @@ pub fn collision_table(definitions: &BlockDefinitions, tags: &Tags<Block>) -> Co
         .filter_map(|(key, flag)| Some((tags.id(*key)?, *flag)))
         .collect();
     let beds = tags.id(block_tag_keys::BEDS);
+    let suffocation_tags = SuffocationTags {
+        causes_suffocation: tags.id(block_tag_keys::CAUSES_SUFFOCATION),
+        leaves: tags.id(block_tag_keys::LEAVES),
+        shulker_boxes: tags.id(block_tag_keys::SHULKER_BOXES),
+    };
     let mut builder = CollisionTableBuilder::new();
     let mut boxes = Vec::new();
     for id in definitions.states() {
@@ -85,16 +91,8 @@ pub fn collision_table(definitions: &BlockDefinitions, tags: &Tags<Block>) -> Co
                 .iter()
                 .map(|bounds| {
                     Aabb::new(
-                        DVec3::new(
-                            widen(bounds.min.x),
-                            widen(bounds.min.y),
-                            widen(bounds.min.z),
-                        ),
-                        DVec3::new(
-                            widen(bounds.max.x),
-                            widen(bounds.max.y),
-                            widen(bounds.max.z),
-                        ),
+                        DVec3::from_array(bounds.min.to_array().map(widen)),
+                        DVec3::from_array(bounds.max.to_array().map(widen)),
                     )
                 }),
         );
@@ -109,6 +107,10 @@ pub fn collision_table(definitions: &BlockDefinitions, tags: &Tags<Block>) -> Co
             flags |= BlockFlags::OFF_GRID;
         }
         let name = owner.map_or("", |entry| entry.identifier.as_str());
+        let extended = owner.and_then(|entry| entry.value_of(id, "extended"));
+        if suffocation_tags.suffocates(suffocation_of(name, extended), in_tag, &boxes) {
+            flags |= BlockFlags::SUFFOCATES;
+        }
         let context = match name {
             "minecraft:scaffolding" => {
                 let distance = owner.and_then(|entry| entry.value_of(id, "distance"));
@@ -141,4 +143,57 @@ pub fn collision_table(definitions: &BlockDefinitions, tags: &Tags<Block>) -> Co
         });
     }
     builder.build()
+}
+
+/// The block tags of PHY-INP-021.
+struct SuffocationTags {
+    causes_suffocation: Option<TagId<Block>>,
+    leaves: Option<TagId<Block>>,
+    shulker_boxes: Option<TagId<Block>>,
+}
+
+impl SuffocationTags {
+    fn suffocates(
+        &self,
+        by_name: Suffocation,
+        in_tag: impl Fn(Option<TagId<Block>>) -> bool,
+        boxes: &[Aabb],
+    ) -> bool {
+        match by_name {
+            Suffocation::Never => false,
+            Suffocation::Always => true,
+            Suffocation::ByTag if in_tag(self.leaves) => false,
+            Suffocation::ByTag if in_tag(self.shulker_boxes) => true,
+            Suffocation::ByTag => in_tag(self.causes_suffocation) && is_full_cube(boxes),
+        }
+    }
+}
+
+/// Whether a state causes suffocation, by the name of its block.
+enum Suffocation {
+    Never,
+    Always,
+    /// The tags and the shape decide.
+    ByTag,
+}
+
+/// The table of PHY-INP-021. A shulker box counts as closed: the table has no block entity.
+fn suffocation_of(name: &str, extended: Option<&PropertyValue>) -> Suffocation {
+    let path = name.strip_prefix("minecraft:").unwrap_or(name);
+    match path {
+        "mangrove_roots" | "glass" | "tinted_glass" | "moving_piston" => Suffocation::Never,
+        _ if path.ends_with("_stained_glass") || path.ends_with("copper_grate") => {
+            Suffocation::Never
+        }
+        "farmland" | "soul_sand" | "dirt_path" | "mud" => Suffocation::Always,
+        "piston" | "sticky_piston" => match extended {
+            Some(PropertyValue::Bool(true)) => Suffocation::Never,
+            _ => Suffocation::Always,
+        },
+        _ => Suffocation::ByTag,
+    }
+}
+
+fn is_full_cube(boxes: &[Aabb]) -> bool {
+    matches!(boxes, [only] if only.min == DVec3::ZERO && only.max == DVec3::ONE)
 }
