@@ -4,8 +4,8 @@ use crate::region::Region;
 use crate::ticking_positions::{TickingPositions, local_index};
 use mcrs_minecraft_core::BoundingBox;
 use mcrs_minecraft_volume::{
-    Access, BlockVolume, BlockVolumeMut, ColumnLayout, Denied, Palette, PaletteBuffer,
-    PalettedSectionMut, SectionBlocks, Unavailable, Volume,
+    Access, BlockVolume, BlockVolumeMut, Denied, Palette, PaletteBuffer, PalettedSectionMut,
+    SectionBlocks, Unavailable, Volume,
 };
 use mcrs_voxel::{BlockPos, BlockStateId, LocalPos, SectionPos};
 use rustc_hash::FxHashMap;
@@ -50,10 +50,6 @@ impl<W: Volume> Volume for OverlaidVolume<'_, W> {
         } else {
             Access::Foreign
         }
-    }
-
-    fn column_layout(&self) -> Option<ColumnLayout> {
-        self.world.column_layout()
     }
 }
 
