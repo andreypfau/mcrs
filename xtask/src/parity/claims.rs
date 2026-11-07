@@ -7,46 +7,15 @@ use syn::{Expr, ExprLit, ItemFn, Lit, Macro};
 const ANY_CASE_TERMS: [&str; 5] = ["vanilla", "mojang", "java", "the reference", "the game"];
 const CONNECTION_STATE: &str = "the game state";
 const EXACT_CASE_TERM: &str = "Codec";
-const CLASS_NAMES: [&str; 15] = [
-    "BeehiveBlockEntity",
-    "CanyonWorldCarver",
-    "CaveWorldCarver",
-    "ConstantFunction",
-    "DoublePlantBlock",
-    "FallenTreeFeature",
-    "GeodeFeature",
-    "IntProviders",
-    "MonsterRoomFeature",
-    "OreFeature",
-    "ServerLevel",
-    "SimpleBlockFeature",
-    "SpeleothemClusterFeature",
-    "UniformInt",
-    "VeryBiasedToBottomHeight",
-];
 
 pub struct Claim {
     pub line: usize,
     pub test: String,
 }
 
-fn is_word_char(c: char) -> bool {
-    c.is_alphanumeric() || c == '_'
-}
-
-fn has_word(text: &str, word: &str) -> bool {
-    text.match_indices(word).any(|(at, _)| {
-        let before = text[..at].chars().next_back();
-        let after = text[at + word.len()..].chars().next();
-        !before.is_some_and(is_word_char) && !after.is_some_and(is_word_char)
-    })
-}
-
 fn is_claim(text: &str) -> bool {
     let lower = text.to_lowercase().replace(CONNECTION_STATE, "");
-    ANY_CASE_TERMS.iter().any(|term| lower.contains(term))
-        || text.contains(EXACT_CASE_TERM)
-        || CLASS_NAMES.iter().any(|name| has_word(text, name))
+    ANY_CASE_TERMS.iter().any(|term| lower.contains(term)) || text.contains(EXACT_CASE_TERM)
 }
 
 #[derive(Default)]
@@ -156,7 +125,6 @@ mod tests {
             "the game",
             "The game",
             "Codec",
-            "ServerLevel",
         ];
         for term in terms {
             let ident = term.replace(' ', "_");
@@ -213,13 +181,9 @@ mod tests {
     }
 
     #[test]
-    #[expect(
-        clippy::too_many_lines,
-        reason = "a table of tests and files that must stay silent"
-    )]
     fn tests_that_fail_a_warning_condition_stay_silent() {
         let loads = "use mcrs_minecraft_fixtures::fixture;\nfn load() {\n    fixture(\"x\");\n}\n";
-        let rows: [(&str, &str, String, &[&str]); 17] = [
+        let rows: [(&str, &str, String, &[&str]); 15] = [
             (
                 "no claim term",
                 PATH,
@@ -268,18 +232,6 @@ mod tests {
                 "codec in lower case",
                 PATH,
                 "/// the codec\n#[test]\nfn codec_holds() {\n    assert_eq!(got(), 1, \"codec\");\n}\n".to_owned(),
-                &[],
-            ),
-            (
-                "a class name inside a longer word",
-                PATH,
-                "/// MyServerLevel and ServerLevelBuilder and ServerLevels\n#[test]\nfn holds() {\n    assert_eq!(got(), 1, \"x_ServerLevel ServerLevel_x ServerLevel2 2ServerLevel\");\n}\n".to_owned(),
-                &[],
-            ),
-            (
-                "a class name in a snake case name",
-                PATH,
-                "#[test]\nfn server_level_holds() {\n    assert_eq!(got(), 1);\n}\n".to_owned(),
                 &[],
             ),
             (

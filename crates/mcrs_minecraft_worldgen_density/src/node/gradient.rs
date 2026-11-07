@@ -1,4 +1,4 @@
-use mcrs_minecraft_core::mth::{floor_div, floor_mod};
+use mcrs_minecraft_core::numeric::{floor_div, floor_mod};
 use mcrs_minecraft_noise::jmath::mul_add;
 use mcrs_minecraft_noise::sample_grid::{Axis, SampleGrid};
 

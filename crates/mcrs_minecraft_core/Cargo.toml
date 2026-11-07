@@ -1,6 +1,6 @@
 [package]
 name = "mcrs_minecraft_core"
-description = "Directions, Mth, shapes, codecs and the version"
+description = "Directions, numeric operations, shapes, codecs and the version"
 version.workspace = true
 edition.workspace = true
 
@@ -27,4 +27,5 @@ default = []
 bevy = ["dep:bevy_ecs", "mcrs_minecraft_resource/bevy", "mcrs_voxel/bevy"]
 
 [dev-dependencies]
+sha2.workspace = true
 mcrs_minecraft_resource.workspace = true

@@ -5,7 +5,7 @@ use std::sync::Arc;
 use mcrs_minecraft_block::block_keys::Block;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::Direction;
-use mcrs_minecraft_core::mth::clamped_map;
+use mcrs_minecraft_core::numeric::remap_clamped;
 use mcrs_minecraft_noise::stack::{NoiseStack, Octave};
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::worldgen::WorldgenRandom;
@@ -325,7 +325,7 @@ impl StateProvider {
                 scale,
                 states,
             } => {
-                let variety = clamped_map(
+                let variety = remap_clamped(
                     slow_noise_value(slow_noise, pos, *slow_scale) as f64,
                     -1.0,
                     1.0,

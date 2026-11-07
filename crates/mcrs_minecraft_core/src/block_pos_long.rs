@@ -1,6 +1,6 @@
 use mcrs_voxel::BlockPos;
 
-/// `BlockPos.asLong`: 26 bits of x, 26 of z and 12 of y, packed x-z-y.
+/// A packed block position: 26 bits of x, 26 of z and 12 of y, packed x-z-y.
 pub const fn block_pos_as_long(pos: BlockPos) -> i64 {
     const HORIZONTAL_MASK: i64 = (1 << 26) - 1;
     const Y_MASK: i64 = (1 << 12) - 1;

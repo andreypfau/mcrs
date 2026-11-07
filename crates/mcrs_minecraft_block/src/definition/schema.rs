@@ -49,7 +49,7 @@ pub struct Permutation {
     pub components: Components,
 }
 
-/// The block's properties in Java `StateDefinition` declaration order. The
+/// The block's properties in the order of the game's block-state report. The
 /// order decides state ids, so it is carried as a sequence and never as a map.
 #[derive(Debug, Default)]
 pub struct BlockProperties(pub Vec<BlockProperty>);
@@ -415,7 +415,7 @@ impl Serialize for InstrumentSound {
     }
 }
 
-/// `BlockBehaviour.Properties.instrument` — the instrument a note block placed
+/// The instrument a note block placed
 /// above the block plays. Unrelated to the note block's own `instrument`
 /// property, which is an ordinary block state property.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
@@ -493,7 +493,7 @@ impl Serialize for MapColor {
     }
 }
 
-/// `canSurvive` as data: the block stands when, for some condition, the
+/// The survival rule as data: the block stands when, for some condition, the
 /// neighbour on one of its `allowed_faces` is in `block_filter`. A face names
 /// the side of the neighbour the block is placed against, so `up` is the block
 /// below.
@@ -607,12 +607,14 @@ components! {
     "mcrs:fluid_state" => fluid_state: FluidStateDef,
     "mcrs:occlusion_shape" => occlusion_shape: BoxList,
     "mcrs:emissive_rendering" => emissive_rendering: bool,
+    "mcrs:occlusion_shade" => occlusion_shade: f32,
     "mcrs:block_sound_set" => block_sound_set: ResourceKeyBuf<BlockSoundSet>,
 }
 
 /// The components a state may leave unstated. Each is a component whose
 /// absence is itself the statement: no fluid, not replaceable, lava cannot
-/// ignite it, no block entity, no redstone signal.
+/// ignite it, no block entity, no redstone signal, the occlusion shade that the
+/// collision shape implies.
 pub const OPTIONAL_COMPONENTS: &[&str] = &[
     "mcrs:fluid_state",
     "mcrs:experience_drop",
@@ -623,6 +625,7 @@ pub const OPTIONAL_COMPONENTS: &[&str] = &[
     "minecraft:block_entity",
     "minecraft:redstone_producer",
     "mcrs:block_sound_set",
+    "mcrs:occlusion_shade",
 ];
 
 #[cfg(test)]

@@ -3,7 +3,7 @@ pub mod codec;
 pub mod direction;
 pub mod heightmap;
 pub mod mirror;
-pub mod mth;
+pub mod numeric;
 pub mod quart_pos;
 pub mod region_pos;
 pub mod rotation;
@@ -12,10 +12,12 @@ pub mod version;
 pub mod versioned;
 pub mod voxel_shape;
 
+mod atan_table;
 mod block_pos_long;
 mod block_state_number;
 mod look;
 mod look_anchor;
+mod sine_table;
 mod wire;
 
 pub use block_pos_long::block_pos_as_long;

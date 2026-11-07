@@ -1,5 +1,3 @@
-use mcrs_minecraft_core::mth::wrap_degrees;
-
 use serde::de::DeserializeOwned;
 use serde_json::json;
 
@@ -11,8 +9,7 @@ use mcrs_minecraft_worldgen_testing::vanilla_dir;
 use crate::dimension_type::{DimensionTypeEnvironment, DimensionTypeFile};
 use mcrs_minecraft_dimension::Dimension;
 use mcrs_minecraft_dimension::DimensionType;
-use mcrs_minecraft_environment::attribute::attribute;
-use mcrs_minecraft_environment::world_clock::{ClockState, WorldClocks};
+use mcrs_minecraft_environment::environment_attribute_keys::EnvironmentAttribute as A;
 
 const NOON: i64 = 6000;
 const MIDNIGHT: i64 = 18000;
@@ -105,195 +102,165 @@ fn tagged_timelines(tag: &str) -> Vec<Timeline> {
         .collect()
 }
 
+fn overworld_timeline(tracks: serde_json::Value) -> Timeline {
+    resolved(
+        serde_json::from_value::<Timeline<Named>>(json!({
+            "clock": "minecraft:overworld",
+            "period_ticks": 24000,
+            "tracks": tracks,
+        }))
+        .unwrap(),
+    )
+}
+
 fn dimension_key(id: &str) -> ResourceKeyBuf<Dimension> {
     ResourceKeyBuf::from_location(id.parse().unwrap())
 }
 
-fn shape<'a>(
-    id: &str,
-    (dimension_type, environment): &'a (DimensionType, DimensionTypeEnvironment),
-) -> DimensionEnvironment<'a> {
-    DimensionEnvironment::of(&dimension_key(id), dimension_type, environment)
-}
-
-fn build(id: &str, file: &str, timelines: &[Timeline]) -> EnvironmentAttributes {
-    let proto = dimension_type(file);
+fn build(file: &str, timelines: &[Timeline]) -> DimensionAttributes {
+    let (dimension_type, environment) = dimension_type(file);
     let borrowed: Vec<&Timeline> = timelines.iter().collect();
-    EnvironmentAttributes::build(&shape(id, &proto), &borrowed, clock_count()).unwrap()
+    let shape = DimensionEnvironment::of(
+        &dimension_key("minecraft:overworld"),
+        &dimension_type,
+        &environment,
+    );
+    DimensionAttributes::build(&shape, &borrowed, clock_count()).unwrap()
 }
 
-fn overworld() -> (EnvironmentAttributes, Vec<Timeline>) {
-    let timelines = tagged_timelines("in_overworld");
-    (
-        build("minecraft:overworld", "overworld.json", &timelines),
-        timelines,
-    )
+fn overworld() -> DimensionAttributes {
+    build("overworld.json", &tagged_timelines("in_overworld"))
 }
 
-/// The tick each clock stands at, read the way a frame reads it.
-fn ticks_at(attributes: &EnvironmentAttributes, total_ticks: i64, partial_tick: f32) -> Vec<f64> {
-    let mut clocks = WorldClocks::default();
-    for clock in attributes.clocks() {
-        clocks.insert(
-            *clock,
-            ClockState {
-                total_ticks,
-                partial_tick,
-                ..ClockState::default()
-            },
-        );
-    }
-    let mut ticks = Vec::new();
-    attributes.clock_ticks(&clocks, &mut ticks);
-    ticks
+fn ticks_at(attributes: &DimensionAttributes, total_ticks: i64) -> Vec<i64> {
+    vec![total_ticks; attributes.clocks().len()]
 }
 
-fn context(ticks: &[f64]) -> EnvironmentContext<'_> {
-    EnvironmentContext { ticks }
-}
-
-fn color(attributes: &EnvironmentAttributes, id: &str, ctx: &EnvironmentContext) -> u32 {
-    match attributes.value(id, ctx).unwrap() {
-        AttributeValue::Color(packed) => packed,
-        other => panic!("{id} is not a colour: {other:?}"),
-    }
-}
-
-fn float(attributes: &EnvironmentAttributes, id: &str, ctx: &EnvironmentContext) -> f32 {
-    match attributes.value(id, ctx).unwrap() {
+fn float(attributes: &DimensionAttributes, attribute: A, ticks: &[i64]) -> f32 {
+    match attributes
+        .value(attribute, &EnvironmentContext { ticks })
+        .unwrap()
+    {
         AttributeValue::Float(value) => value,
-        other => panic!("{id} is not a float: {other:?}"),
+        other => panic!("{attribute:?} is not a float: {other:?}"),
     }
 }
 
-// ── The five layers, each overriding what is beneath it ──────────────────────
-
 #[test]
-fn layer_one_is_the_registered_default() {
-    let (attributes, _timelines) = overworld();
-    let ticks = ticks_at(&attributes, NOON, 0.0);
-    let ctx = context(&ticks);
-
-    // nothing in the overworld touches night_vision_color
-    let spec = attribute("minecraft:visual/night_vision_color").unwrap();
-    assert_eq!(spec.default, AttributeValue::Color(0xFF99_9999));
-    assert_eq!(color(&attributes, spec.id, &ctx), 0xFF99_9999);
-}
-
-#[test]
-fn layer_two_is_the_dimension_and_beats_the_default() {
-    let (attributes, _timelines) = overworld();
-    let ticks = ticks_at(&attributes, NOON, 0.0);
-    let ctx = context(&ticks);
-
-    let ambient = "minecraft:visual/ambient_light_color";
+fn an_attribute_no_layer_names_holds_its_default() {
+    let attributes = overworld();
+    let ticks = ticks_at(&attributes, NOON);
+    let gray = 153.0 / 255.0;
     assert_eq!(
-        attribute(ambient).unwrap().default,
-        AttributeValue::Color(0xFF00_0000)
-    );
-    assert_eq!(color(&attributes, ambient, &ctx), 0xFF0A_0A0A);
-}
-
-// ── Positional layers ────────────────────────────────────────────────────────
-
-// ── End to end through a clock ───────────────────────────────────────────────
-
-// ── Sub-tick smoothing ───────────────────────────────────────────────────────
-
-#[test]
-fn the_sun_crosses_the_wrap_without_reversing() {
-    let (attributes, _timelines) = overworld();
-    let sun = "minecraft:visual/sun_angle";
-
-    // eight sub-tick steps either side of tick 6000, where the track's single
-    // revolution meets its own start
-    let angles: Vec<f32> = (0..160)
-        .map(|step| {
-            let total_ticks = NOON - 10 + step / 8;
-            let partial_tick = (step % 8) as f32 / 8.0;
-            let ticks = ticks_at(&attributes, total_ticks, partial_tick);
-            float(&attributes, sun, &context(&ticks))
-        })
-        .collect();
-
-    // The bezier ease solves its parameter to a tolerance, so consecutive
-    // samples can disagree by a few thousandths of a degree; anything larger
-    // going backwards would be the sun spinning the wrong way.
-    let jitter = 0.01;
-    let crossings = angles
-        .windows(2)
-        .filter(|pair| {
-            let delta = wrap_degrees(pair[1] - pair[0]);
-            assert!(
-                delta > -jitter,
-                "the sun went backwards: {} -> {}",
-                pair[0],
-                pair[1]
-            );
-            assert!(delta < 5.0, "the sun jumped: {} -> {}", pair[0], pair[1]);
-            pair[1] < pair[0] - jitter
-        })
-        .count();
-    assert_eq!(crossings, 1, "the sweep must cross 360 -> 0 exactly once");
-    assert!(
-        angles[0] > 300.0 && *angles.last().unwrap() < 60.0,
-        "{angles:?}"
+        attributes.value(
+            A::VisualNightVisionColor,
+            &EnvironmentContext { ticks: &ticks }
+        ),
+        Some(AttributeValue::Rgb([gray, gray, gray]))
     );
 }
 
 #[test]
-fn a_dimension_with_no_timelines_still_builds() {
-    let attributes = build("minecraft:overworld", "overworld.json", &[]);
+fn the_dimension_type_entry_replaces_the_default() {
+    let attributes = overworld();
+    let ticks = ticks_at(&attributes, NOON);
+    let ten = 10.0 / 255.0;
+    assert_eq!(
+        attributes.value(
+            A::VisualAmbientLightColor,
+            &EnvironmentContext { ticks: &ticks }
+        ),
+        Some(AttributeValue::Rgb([ten, ten, ten]))
+    );
+}
+
+#[test]
+fn a_dimension_with_no_timelines_holds_its_values_at_every_tick() {
+    let attributes = build("overworld.json", &[]);
     assert!(attributes.clocks().is_empty());
-
-    let ticks = ticks_at(&attributes, NOON, 0.0);
-    assert!(ticks.is_empty());
-    let ctx = context(&ticks);
-
-    // With no track the attribute holds the dimension constant at every tick.
-    let at_noon = float(&attributes, "minecraft:gameplay/sky_light_level", &ctx);
-    let ticks = ticks_at(&attributes, MIDNIGHT, 0.0);
-    let ctx = context(&ticks);
     assert_eq!(
-        at_noon,
-        float(&attributes, "minecraft:gameplay/sky_light_level", &ctx)
+        float(&attributes, A::GameplaySkyLightLevel, &[]),
+        float(&attributes, A::GameplaySkyLightLevel, &[MIDNIGHT])
     );
 }
 
-/// Two timelines writing one attribute stack in the order the dimension's
-/// tag lists them: the last one wins.
 #[test]
 fn the_timeline_listed_last_wins_the_attribute_they_share() {
-    fn overriding(level: f32) -> Timeline {
-        resolved(
-            serde_json::from_value::<Timeline<Named>>(json!({
-                "clock": "minecraft:overworld",
-                "period_ticks": 24000,
-                "tracks": {
-                    "minecraft:gameplay/sky_light_level": {
-                        "modifier": "override",
-                        "keyframes": [{ "ticks": 0, "value": level }],
-                    },
-                },
-            }))
-            .unwrap(),
-        )
-    }
+    let overriding = |level: f32| {
+        overworld_timeline(json!({
+            "minecraft:gameplay/sky_light_level": {
+                "keyframes": [{ "ticks": 0, "value": level }],
+            },
+        }))
+    };
+    let attributes = build("overworld.json", &[overriding(7.0), overriding(3.0)]);
+    assert_eq!(float(&attributes, A::GameplaySkyLightLevel, &[0]), 3.0);
+}
 
-    let (zulu, alpha) = (overriding(0.75), overriding(0.25));
-    let proto = dimension_type("overworld.json");
-    let attributes = EnvironmentAttributes::build(
-        &shape("minecraft:overworld", &proto),
-        &[&zulu, &alpha],
-        clock_count(),
-    )
-    .unwrap();
+#[test]
+fn the_range_clamps_once_after_the_last_layer() {
+    let shift = |modifier: &str, amount: f32| {
+        overworld_timeline(json!({
+            "minecraft:gameplay/sky_light_level": {
+                "modifier": modifier,
+                "keyframes": [{ "ticks": 0, "value": amount }],
+            },
+        }))
+    };
+    let raised = build("overworld.json", &[shift("add", 10.0)]);
+    assert_eq!(float(&raised, A::GameplaySkyLightLevel, &[0]), 15.0);
 
-    let ticks = ticks_at(&attributes, 0, 0.0);
-    let ctx = context(&ticks);
+    // A clamp between the layers would leave 15 - 10.
+    let raised_then_lowered = build(
+        "overworld.json",
+        &[shift("add", 10.0), shift("subtract", 10.0)],
+    );
     assert_eq!(
-        float(&attributes, "minecraft:gameplay/sky_light_level", &ctx),
-        0.25
+        float(&raised_then_lowered, A::GameplaySkyLightLevel, &[0]),
+        15.0
+    );
+}
+
+#[test]
+fn a_track_reads_whole_ticks_and_a_frame_moves_between_two_tick_values() {
+    let ramp = overworld_timeline(json!({
+        "minecraft:visual/cloud_height": {
+            "keyframes": [{ "ticks": 0, "value": 0.0 }, { "ticks": 100, "value": 100.0 }],
+        },
+    }));
+    let attributes = build("overworld.json", &[ramp]);
+    assert_eq!(float(&attributes, A::VisualCloudHeight, &[10]), 10.0);
+
+    let stack = attributes.stack(A::VisualCloudHeight).unwrap();
+    let frame = stack.frame_value(
+        &EnvironmentContext { ticks: &[10] },
+        &EnvironmentContext { ticks: &[11] },
+        0.25,
+    );
+    assert_eq!(frame, AttributeValue::Float(10.25));
+}
+
+#[test]
+fn the_sun_moves_forward_between_the_ticks_around_its_wrap() {
+    let attributes = overworld();
+    let stack = attributes.stack(A::VisualSunAngle).unwrap();
+    let ticks = |total| ticks_at(&attributes, total);
+    let (before, after) = (ticks(NOON - 1), ticks(NOON));
+    let previous = float(&attributes, A::VisualSunAngle, &before);
+    let current = float(&attributes, A::VisualSunAngle, &after);
+    let AttributeValue::Float(halfway) = stack.frame_value(
+        &EnvironmentContext { ticks: &before },
+        &EnvironmentContext { ticks: &after },
+        0.5,
+    ) else {
+        panic!("the sun angle is a float");
+    };
+    let forward = (current - previous).rem_euclid(360.0);
+    assert!(forward < 1.0, "{previous} -> {current}");
+    let moved = (halfway - previous).rem_euclid(360.0);
+    assert!(
+        (moved - forward / 2.0).abs() < 1.0e-3,
+        "{previous} -> {halfway} -> {current}"
     );
 }
 

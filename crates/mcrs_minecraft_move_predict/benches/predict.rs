@@ -149,9 +149,7 @@ criterion_group! {
 
 /// `--ticks <n>` runs the first n server ticks once, for an instruction count under callgrind.
 fn main() {
-    let ticks = std::env::args()
-        .skip_while(|argument| argument != "--ticks")
-        .nth(1);
+    let ticks = std::env::args().skip_while(|argument| argument != "--ticks").nth(1);
     let Some(ticks) = ticks.and_then(|ticks| ticks.parse::<usize>().ok()) else {
         benches();
         Criterion::default().configure_from_args().final_summary();

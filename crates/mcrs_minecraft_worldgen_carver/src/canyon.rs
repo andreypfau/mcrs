@@ -3,7 +3,7 @@ use crate::config::{CanyonShape, CarverConfig};
 use crate::mask::CarvingMask;
 use crate::target::{CarveTarget, SingleColumn};
 use crate::water::WaterMask;
-use mcrs_minecraft_core::mth::{cos_modern, sin_modern};
+use mcrs_minecraft_core::numeric::{cos_truncated, sin_truncated};
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_value_provider::HeightContext;
@@ -112,17 +112,17 @@ fn walk_canyon_into<T: CarveTarget>(
 
     for step in 0..distance {
         let mut horizontal_radius = 1.5
-            + (sin_modern(f64::from(
+            + (sin_truncated(f64::from(
                 step as f32 * std::f32::consts::PI / distance as f32,
             )) * thickness) as f64;
         let mut vertical_radius = horizontal_radius * y_scale;
         horizontal_radius *= shape.horizontal_radius_factor.sample(rng) as f64;
         vertical_radius = update_vertical_radius(rng, shape, vertical_radius, distance, step);
 
-        let cos_pitch = cos_modern(f64::from(pitch));
-        x += (cos_modern(f64::from(yaw)) * cos_pitch) as f64;
-        y += sin_modern(f64::from(pitch)) as f64;
-        z += (sin_modern(f64::from(yaw)) * cos_pitch) as f64;
+        let cos_pitch = cos_truncated(f64::from(pitch));
+        x += (cos_truncated(f64::from(yaw)) * cos_pitch) as f64;
+        y += sin_truncated(f64::from(pitch)) as f64;
+        z += (sin_truncated(f64::from(yaw)) * cos_pitch) as f64;
 
         pitch *= 0.7;
         pitch += pitch_velocity * 0.05;
@@ -184,7 +184,7 @@ fn update_vertical_radius(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use mcrs_minecraft_value_provider::{FloatProvider, HeightProvider, VerticalAnchor};
+    use mcrs_minecraft_value_provider::{FloatProvider, VerticalAnchor, HeightProvider};
 
     fn overworld() -> HeightContext {
         HeightContext {

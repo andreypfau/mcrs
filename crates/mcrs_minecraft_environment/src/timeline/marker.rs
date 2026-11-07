@@ -12,10 +12,15 @@ pub struct TimeMarker {
     pub show_in_commands: bool,
 }
 
+fn non_negative_ticks<'de, D: Deserializer<'de>>(d: D) -> Result<u32, D::Error> {
+    let ticks = i32::deserialize(d)?;
+    u32::try_from(ticks).map_err(|_| de::Error::custom(format!("ticks {ticks} is negative")))
+}
+
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct FullTimeMarker {
-    #[serde(deserialize_with = "super::non_negative_ticks")]
+    #[serde(deserialize_with = "non_negative_ticks")]
     ticks: u32,
     #[serde(default)]
     show_in_commands: bool,

@@ -28,9 +28,14 @@ const WASM32_PACKAGES: [&str; 11] = [
     "mcrs_minecraft_biome_file",
 ];
 
-const NO_STD_PACKAGES: [&str; 2] = ["mcrs_command", "mcrs_minecraft_chat"];
+const NO_STD_PACKAGES: [&str; 4] = [
+    "mcrs_command",
+    "mcrs_minecraft_chat",
+    "mcrs_molang",
+    "mcrs_molang_wgsl",
+];
 
-const NO_BEVY_PACKAGES: [&str; 80] = [
+const NO_BEVY_PACKAGES: [&str; 83] = [
     "mcrs_command",
     "mcrs_engine_cell",
     "mcrs_engine_link",
@@ -62,6 +67,7 @@ const NO_BEVY_PACKAGES: [&str; 80] = [
     "mcrs_minecraft_dimension_environment",
     "mcrs_minecraft_enchantment",
     "mcrs_minecraft_entity",
+    "mcrs_minecraft_entity_model",
     "mcrs_minecraft_environment",
     "mcrs_minecraft_fixtures",
     "mcrs_minecraft_game_mode",
@@ -109,6 +115,8 @@ const NO_BEVY_PACKAGES: [&str; 80] = [
     "mcrs_minecraft_worldgen_structure_place",
     "mcrs_minecraft_worldgen_surface",
     "mcrs_minecraft_worldgen_testing",
+    "mcrs_molang",
+    "mcrs_molang_wgsl",
     "mcrs_test_alloc",
     "mcrs_voxel",
 ];

@@ -22,6 +22,7 @@ struct Camera {
     hiz_levels: u32,
     quad_cull: u32,
     viewport: vec2<f32>,
+    shade_table: u32,
 }
 
 @group(0) @binding(0) var<uniform> params: Params;

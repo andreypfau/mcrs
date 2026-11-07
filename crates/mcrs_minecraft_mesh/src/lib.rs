@@ -6,24 +6,30 @@
     )
 )]
 
-pub mod ambient;
 pub mod arena;
 pub mod block;
 mod connectivity;
 mod cube;
+pub mod face_shade;
 mod fluid;
 mod model;
 pub mod pack;
 mod scratch;
+pub mod smooth_light;
+pub mod state_variants;
 mod sweep;
 pub mod tint;
+pub mod uv_orientation;
+pub mod variant_pick;
 
 use crate::block::{BlockInfo, Pass, face_axes};
+use crate::face_shade::ShadeTable;
 use crate::pack::{
     BOUNDS_HI_X, BOUNDS_HI_Y, BOUNDS_HI_Z, BOUNDS_LO_X, BOUNDS_LO_Y, BOUNDS_LO_Z, FACE_WORDS,
     Field, MODEL_OVERHANG, MODEL_STEPS, MODEL_X, MODEL_Y, MODEL_Z, QUAD_DROP, QUAD_FACE,
     QUAD_FLUID, QUAD_H, QUAD_W, QUAD_WORDS, QUAD_X, QUAD_Y, QUAD_Z,
 };
+use crate::smooth_light::SmoothLight;
 use mcrs_minecraft_volume::{BlockVolume, LightVolume};
 
 pub use connectivity::{CONNECT_ALL, Connectivity, OPEN, SEALED, along};
@@ -255,8 +261,12 @@ pub fn mesh_section(
     catalog: &[BlockInfo],
     section: [i32; 3],
     slot: u32,
+    smooth_light: SmoothLight,
+    shade: ShadeTable,
     scratch: &mut Scratch,
 ) -> SectionMesh {
+    scratch.smooth_light = smooth_light;
+    scratch.shade = shade;
     scratch.load(world, catalog, section.map(|n| n * SECTION_SIZE as i32));
 
     let mut sink = Sink {
@@ -398,7 +408,15 @@ pub fn mesh_world(
     };
     for &section in sections {
         let slot = batch.face_base.len() as u32;
-        let mesh = mesh_section(world, catalog, section, slot, scratch);
+        let mesh = mesh_section(
+            world,
+            catalog,
+            section,
+            slot,
+            SmoothLight::On,
+            ShadeTable::Default,
+            scratch,
+        );
         batch.simple.extend_from_slice(&mesh.simple);
         batch.quad_section.resize(batch.simple.len(), slot);
         batch.complex.extend_from_slice(&mesh.complex);
@@ -424,6 +442,8 @@ mod tests {
                 sprite: 1,
                 pass: Pass::Solid as u8,
                 tint: crate::tint::Tint::None,
+                emission: 0,
+                uv: crate::uv_orientation::UvOrientation::IDENTITY,
             }; 6],
         );
         catalog[STONE as usize].occludes = true;
@@ -435,8 +455,9 @@ mod tests {
             face: None,
             sprite: 0,
             pass: Pass::Cutout,
-            shade: 1.0,
+            shade: crate::face_shade::FaceShade::Factor(1.0),
             tint: crate::tint::Tint::None,
+            emission: 0,
         }];
 
         let subject = one_section_world(|x, y, z| match (x + y + z) % 4 {
@@ -446,11 +467,35 @@ mod tests {
         });
         let other = one_section_world(|x, _, z| if x > z { BUSH } else { STONE });
 
-        let fresh = mesh_section(&subject, &catalog, [0, 0, 0], 0, &mut Scratch::new());
+        let fresh = mesh_section(
+            &subject,
+            &catalog,
+            [0, 0, 0],
+            0,
+            SmoothLight::On,
+            ShadeTable::Default,
+            &mut Scratch::new(),
+        );
 
         let mut carried = Scratch::new();
-        mesh_section(&other, &catalog, [0, 0, 0], 0, &mut carried);
-        let again = mesh_section(&subject, &catalog, [0, 0, 0], 0, &mut carried);
+        mesh_section(
+            &other,
+            &catalog,
+            [0, 0, 0],
+            0,
+            SmoothLight::On,
+            ShadeTable::Default,
+            &mut carried,
+        );
+        let again = mesh_section(
+            &subject,
+            &catalog,
+            [0, 0, 0],
+            0,
+            SmoothLight::On,
+            ShadeTable::Default,
+            &mut carried,
+        );
 
         assert_eq!(fresh.faces, again.faces, "face attributes");
         assert_eq!(fresh.simple, again.simple, "greedy quads");
@@ -477,6 +522,8 @@ mod tests {
                 sprite: 1,
                 pass: Pass::Solid as u8,
                 tint: crate::tint::Tint::None,
+                emission: 0,
+                uv: crate::uv_orientation::UvOrientation::IDENTITY,
             }; 6],
         );
         catalog[STONE as usize].occludes = true;
@@ -488,13 +535,22 @@ mod tests {
             face: None,
             sprite: 0,
             pass: Pass::Cutout,
-            shade: 1.0,
+            shade: crate::face_shade::FaceShade::Factor(1.0),
             tint: crate::tint::Tint::None,
+            emission: 0,
         }];
 
         for (at, state) in [([3, 4, 5], STONE), ([15, 0, 9], STONE), ([7, 12, 0], BUSH)] {
             let world = one_section_world(|x, y, z| if [x, y, z] == at { state } else { 0 });
-            let mesh = mesh_section(&world, &catalog, [0, 0, 0], 0, &mut Scratch::new());
+            let mesh = mesh_section(
+                &world,
+                &catalog,
+                [0, 0, 0],
+                0,
+                SmoothLight::On,
+                ShadeTable::Default,
+                &mut Scratch::new(),
+            );
             assert!(!mesh.groups.is_empty());
             let cell = at.map(|n| n as f32);
             for group in &mesh.groups {
@@ -522,11 +578,20 @@ mod tests {
             face: None,
             sprite: 0,
             pass: Pass::Cutout,
-            shade: 1.0,
+            shade: crate::face_shade::FaceShade::Factor(1.0),
             tint: crate::tint::Tint::None,
+            emission: 0,
         }];
         let world = one_section_world(|_, y, _| if y == 0 { BUSH } else { 0 });
-        let mesh = mesh_section(&world, &catalog, [0, 0, 0], 0, &mut Scratch::new());
+        let mesh = mesh_section(
+            &world,
+            &catalog,
+            [0, 0, 0],
+            0,
+            SmoothLight::On,
+            ShadeTable::Default,
+            &mut Scratch::new(),
+        );
         assert_eq!(mesh.model_quads(), SECTION_SIZE * SECTION_SIZE);
         assert!(
             mesh.groups
@@ -545,6 +610,8 @@ mod tests {
             sprite,
             pass: Pass::Solid as u8,
             tint: crate::tint::Tint::None,
+            emission: 0,
+            uv: crate::uv_orientation::UvOrientation::IDENTITY,
         };
         let mut catalog: Vec<BlockInfo> = (0..3).map(|_| BlockInfo::default()).collect();
         catalog[STONE as usize].cube = Some([face(1); 6]);
@@ -579,7 +646,15 @@ mod tests {
             1 => SNOW,
             _ => 0,
         });
-        let mesh = mesh_section(&world, &catalog, [0, 0, 0], 0, &mut Scratch::new());
+        let mesh = mesh_section(
+            &world,
+            &catalog,
+            [0, 0, 0],
+            0,
+            SmoothLight::On,
+            ShadeTable::Default,
+            &mut Scratch::new(),
+        );
         let tops: Vec<_> = mesh
             .simple
             .iter()
@@ -605,6 +680,8 @@ mod tests {
                 sprite: 1,
                 pass: Pass::Solid as u8,
                 tint: crate::tint::Tint::None,
+                emission: 0,
+                uv: crate::uv_orientation::UvOrientation::IDENTITY,
             }; 6],
         );
         catalog[STONE as usize].occludes = true;
@@ -616,12 +693,21 @@ mod tests {
             face: None,
             sprite: 0,
             pass: Pass::Cutout,
-            shade: 1.0,
+            shade: crate::face_shade::FaceShade::Factor(1.0),
             tint: crate::tint::Tint::None,
+            emission: 0,
         }];
 
         let mut scratch = Scratch::new();
-        let mesh = mesh_section(&world, &catalog, [0, 0, 0], 0, &mut scratch);
+        let mesh = mesh_section(
+            &world,
+            &catalog,
+            [0, 0, 0],
+            0,
+            SmoothLight::On,
+            ShadeTable::Default,
+            &mut scratch,
+        );
 
         assert!(
             mesh.spans[0].quad_count > 0 && mesh.spans[3].quad_count > 0,

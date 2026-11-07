@@ -34,7 +34,7 @@ fn section_pos() -> SectionPos {
     SectionPos::new(2, 4, -1)
 }
 
-/// What `BeehiveDecorator` writes: two or three occupants, each with the hive's
+/// What the beehive tree decorator writes: two or three occupants, each with the hive's
 /// minimum stay.
 fn generated_nest() -> GeneratedBlockEntity {
     GeneratedBlockEntity::Beehive {
@@ -293,7 +293,7 @@ fn despawning_a_section_leaves_no_orphan_block_entity() {
     }
 }
 
-/// `BeehiveBlockEntity.Occupant.CODEC` requires `entity_data`, and a `bees`
+/// The game's occupant reader requires `entity_data`, and a `bees`
 /// element without it fails the list codec outright, so a vanilla reader loads
 /// the hive with no bees at all.
 #[test]

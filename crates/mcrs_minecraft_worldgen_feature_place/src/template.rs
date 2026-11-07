@@ -2,7 +2,7 @@ use glam::IVec3;
 use mcrs_minecraft_block_predicate::block_state::BlockState;
 use mcrs_minecraft_block_predicate::predicate::HeightmapName;
 use mcrs_minecraft_chunk::VoxelId;
-use mcrs_minecraft_core::mth::clamped_map;
+use mcrs_minecraft_core::numeric::remap_clamped;
 use mcrs_minecraft_core::{Axis, BoundingBox, Direction, dist_manhattan};
 use mcrs_minecraft_core::{Mirror, Rotation};
 use mcrs_minecraft_nbt::compound::NbtCompound;
@@ -217,7 +217,7 @@ impl PosRule {
         };
         let l = &self.linear;
         rng.next_f32()
-            <= clamped_map(
+            <= remap_clamped(
                 dist as f32,
                 l.min_dist as f32,
                 l.max_dist as f32,

@@ -12,7 +12,7 @@ const SWAMP_SKELETON_WEIGHT: u16 = 70;
 
 fn sky_color(temperature: f32) -> i32 {
     let temp = (temperature / 3.0).clamp(-1.0, 1.0);
-    mcrs_minecraft_core::mth::hsv_to_rgb(0.62222224 - temp * 0.05, 0.5 + temp * 0.1, 1.0)
+    mcrs_minecraft_core::numeric::hsv_to_rgb(0.62222224 - temp * 0.05, 0.5 + temp * 0.1, 1.0)
 }
 
 fn climate(temperature: f32, downfall: f32) -> Draft {

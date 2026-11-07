@@ -1,7 +1,7 @@
 use mcrs_minecraft_block_predicate::predicate::HeightmapName;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::Direction;
-use mcrs_minecraft_core::mth::{lerp, sin_modern};
+use mcrs_minecraft_core::numeric::{lerp, sin_truncated};
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::worldgen::WorldgenRandom;
 use mcrs_minecraft_worldgen_feature::placer::{Rule, WorldGenVolume};
@@ -99,7 +99,7 @@ fn do_place<W: WorldGenVolume>(
         let step = i as f32 / size as f32;
         let alpha = step as f64;
         let scale = rng.next_f64() * size as f64 / 16.0;
-        let bulge = (sin_modern((std::f32::consts::PI * step) as f64) + 1.0) as f64;
+        let bulge = (sin_truncated((std::f32::consts::PI * step) as f64) + 1.0) as f64;
         let radius = (bulge * scale + 1.0) / 2.0;
         spheres.push([
             lerp(alpha, x0, x1),

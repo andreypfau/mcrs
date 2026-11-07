@@ -1,4 +1,4 @@
-use mcrs_minecraft_core::mth::{clampf, jmax};
+use mcrs_minecraft_core::numeric::{clamp_f32, max_f32};
 use mcrs_minecraft_noise::jmath::mul_add;
 use mcrs_minecraft_noise::sample_grid::SampleGrid;
 use mcrs_minecraft_noise::simplex::SimplexNoise;
@@ -64,7 +64,7 @@ impl EndIslandParams {
                 let dx = (sub_section_x - offset_x * 2) as f32;
                 let dz = (sub_section_z - offset_z * 2) as f32;
                 let candidate = mul_add(-mul_add(dx, dx, dz * dz).sqrt(), island_size, 100.0);
-                height = jmax(height, clampf(candidate, -100.0, 80.0));
+                height = max_f32(height, clamp_f32(candidate, -100.0, 80.0));
             }
         }
         height

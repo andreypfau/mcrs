@@ -39,6 +39,7 @@
         { "origin": [-8, 0, -8], "size": [16, 16, 16] }
       ],
       "mcrs:emissive_rendering": false,
+      "mcrs:occlusion_shade": 0.2,
       "mcrs:block_sound_set": "minecraft:mud"
     },
     "permutations": []

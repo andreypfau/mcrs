@@ -5,7 +5,7 @@ use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::legacy::LegacyRandom;
 
 use crate::{FrequencyReduction, SpreadType, StructurePlacement};
-use mcrs_minecraft_core::mth::floor_div;
+use mcrs_minecraft_core::numeric::floor_div;
 
 pub const BIOME_SEARCH_QUARTS: i32 = 112 >> 2;
 

@@ -14,7 +14,7 @@ use uuid::Uuid;
 use mcrs_minecraft_game_registries::dimension::DimensionEntry;
 
 use mcrs_minecraft_dimension::Dimension;
-use mcrs_minecraft_environment::world_clock::ClockState;
+use mcrs_minecraft_environment::world_clock::ClockTime;
 
 #[derive(Debug, thiserror::Error)]
 pub enum SaveError {
@@ -112,7 +112,7 @@ impl Default for GameRules {
     }
 }
 
-pub type WorldClockStates = HashMap<ResourceLocationBuf, ClockState>;
+pub type WorldClockStates = HashMap<ResourceLocationBuf, ClockTime>;
 
 pub fn read_level_dat(world: &Path) -> Result<LevelDat, SaveError> {
     let path = world.join("level.dat");

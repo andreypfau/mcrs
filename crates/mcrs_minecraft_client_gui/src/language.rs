@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use bevy::prelude::Resource;
 
 use crate::font::Span;
-use mcrs_minecraft_model::model::Pack;
+use mcrs_minecraft_model::resource_set::ResourceSet;
 
 pub const EN_US: &str = "minecraft/lang/en_us.json";
 
@@ -11,7 +11,7 @@ pub const EN_US: &str = "minecraft/lang/en_us.json";
 pub struct Language(HashMap<String, String>);
 
 impl Language {
-    pub fn load(pack: &Pack) -> Result<Self, String> {
+    pub fn load(pack: &ResourceSet) -> Result<Self, String> {
         serde_json::from_slice(pack.read(EN_US)?)
             .map(Self)
             .map_err(|error| format!("{EN_US}: {error}"))
@@ -73,7 +73,7 @@ impl Language {
 impl Language {
     pub(crate) fn corpus() -> &'static Language {
         static LANGUAGE: std::sync::LazyLock<Language> =
-            std::sync::LazyLock::new(|| Language::load(Pack::corpus()).unwrap());
+            std::sync::LazyLock::new(|| Language::load(ResourceSet::corpus()).unwrap());
         &LANGUAGE
     }
 }

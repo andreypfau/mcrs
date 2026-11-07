@@ -5,7 +5,7 @@ use crate::mask::CarvingMask;
 use crate::target::{CarveTarget, SingleColumn};
 use crate::tunnel::{SplitSeeding, TrigIndex, TunnelShape, walk_tunnel_into};
 use crate::water::WaterMask;
-use mcrs_minecraft_core::mth::sin_modern;
+use mcrs_minecraft_core::numeric::sin_truncated;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_value_provider::{FloatProvider, HeightContext};
@@ -186,7 +186,7 @@ fn create_room_into<T: CarveTarget>(
     shape_kind: CarveShape<'_>,
 ) {
     let horizontal_radius =
-        1.5 + (sin_modern(f64::from(std::f32::consts::FRAC_PI_2)) * thickness) as f64;
+        1.5 + (sin_truncated(f64::from(std::f32::consts::FRAC_PI_2)) * thickness) as f64;
     target.carve(
         live,
         x + 1.0,
@@ -201,7 +201,7 @@ fn create_room_into<T: CarveTarget>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use mcrs_minecraft_value_provider::{HeightProvider, IntProvider, VerticalAnchor};
+    use mcrs_minecraft_value_provider::{VerticalAnchor, HeightProvider, IntProvider};
 
     fn overworld() -> HeightContext {
         HeightContext {
@@ -390,8 +390,8 @@ mod tests {
             8.0,
             40.0,
             8.0,
-            1.5 + (sin_modern(f64::from(std::f32::consts::FRAC_PI_2)) * 3.0) as f64,
-            1.5 + (sin_modern(f64::from(std::f32::consts::FRAC_PI_2)) * 3.0) as f64,
+            1.5 + (sin_truncated(f64::from(std::f32::consts::FRAC_PI_2)) * 3.0) as f64,
+            1.5 + (sin_truncated(f64::from(std::f32::consts::FRAC_PI_2)) * 3.0) as f64,
             CarveShape::Cave { floor_level: -0.7 },
             &WaterMask::default(),
             &mut centred,

@@ -7,7 +7,7 @@ use mcrs_minecraft_biome::{
 use mcrs_minecraft_core::codec::HexRgb;
 use mcrs_minecraft_environment::attribute::id::{self, Attribute};
 use mcrs_minecraft_environment::attribute::{
-    AttributeError, EnvironmentAttributeMap, MobSpawnSettings, Operation,
+    AttributeError, MobSpawnSettings, ModifierMap, Operation,
 };
 use mcrs_minecraft_registries::{KeySet, Named, Refs, Resolve, Resolved};
 use mcrs_minecraft_resource::{ResourceKey, ResourceKeyBuf, ResourceLocationBuf};
@@ -27,8 +27,8 @@ pub struct BiomeFile<M: Refs = Resolved> {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub temperature_modifier: Option<TemperatureModifier>,
     pub effects: BiomeEffects,
-    #[serde(default, skip_serializing_if = "EnvironmentAttributeMap::is_empty")]
-    pub attributes: EnvironmentAttributeMap,
+    #[serde(default, skip_serializing_if = "ModifierMap::is_empty")]
+    pub attributes: ModifierMap,
     #[serde(default)]
     pub carvers: M::Set<Carvers>,
     #[serde(default, serialize_with = "serialize_steps")]
@@ -87,12 +87,12 @@ pub struct NetworkBiome {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub temperature_modifier: Option<TemperatureModifier>,
     #[serde(deserialize_with = "syncable")]
-    pub attributes: EnvironmentAttributeMap,
+    pub attributes: ModifierMap,
     pub effects: BiomeEffects,
 }
 
-fn syncable<'de, D: serde::Deserializer<'de>>(d: D) -> Result<EnvironmentAttributeMap, D::Error> {
-    EnvironmentAttributeMap::deserialize(d).map(|attributes| attributes.filter_syncable())
+fn syncable<'de, D: serde::Deserializer<'de>>(d: D) -> Result<ModifierMap, D::Error> {
+    ModifierMap::deserialize(d).map(|attributes| attributes.filter_syncable())
 }
 
 mcrs_minecraft_registries::resolve_as_is!(NetworkBiome);

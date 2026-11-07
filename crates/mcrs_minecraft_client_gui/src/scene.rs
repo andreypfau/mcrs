@@ -24,7 +24,7 @@ use crate::tooltip::{Tooltip, TooltipSprites};
 use mcrs_minecraft_client_world::player::Player;
 use mcrs_minecraft_client_world::screen::Screen;
 use mcrs_minecraft_model::atlas::{MISSING_SIZE, decode_png, missing_pixels, rgba};
-use mcrs_minecraft_model::model::Pack;
+use mcrs_minecraft_model::resource_set::ResourceSet;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct GuiSize {
@@ -159,7 +159,7 @@ pub struct GuiAtlas(pub Arc<GuiAtlasData>);
 impl GuiAtlasData {
     /// Shelf-packs the GUI textures the screens blit, which are not square and so
     /// bypass the sprite arrays; the glint stays separate because it repeats.
-    pub fn load(pack: &Pack) -> Result<Self, String> {
+    pub fn load(pack: &ResourceSet) -> Result<Self, String> {
         let mut images = Vec::new();
         let mut glint = None;
         let mut font = None;
@@ -275,7 +275,7 @@ impl GuiAtlasData {
 /// The scaling of the background and the outline sprites of a tooltip. A sprite the pack lacks,
 /// or one with an error, is left out, so it draws the missing sprite.
 fn load_tooltip_sprites(
-    pack: &Pack,
+    pack: &ResourceSet,
     images: &mut Vec<(&'static str, Vec<u8>, u32, u32)>,
 ) -> [Option<Scaling>; 2] {
     TOOLTIP_SPRITES.map(|name| {
@@ -424,7 +424,7 @@ fn draw_screens(
 }
 
 /// Loads the GUI textures and the translations from `pack`, or says which of them it lacks.
-pub fn load_gui_atlas(pack: &Pack, commands: &mut Commands) -> Result<(), String> {
+pub fn load_gui_atlas(pack: &ResourceSet, commands: &mut Commands) -> Result<(), String> {
     let atlas = GuiAtlasData::load(pack).map_err(|reason| format!("the GUI textures: {reason}"))?;
     let language = Language::load(pack).map_err(|reason| format!("the translations: {reason}"))?;
     commands.insert_resource(GuiAtlas(Arc::new(atlas)));
@@ -640,7 +640,7 @@ mod tests {
 
         #[test]
         fn the_gui_atlas_holds_every_region_and_the_digit_widths() {
-            let atlas = GuiAtlasData::load(Pack::corpus()).unwrap();
+            let atlas = GuiAtlasData::load(ResourceSet::corpus()).unwrap();
             for name in GUI_TEXTURES
                 .iter()
                 .filter(|n| **n != "misc/enchanted_glint_item")

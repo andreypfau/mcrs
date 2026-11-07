@@ -13,7 +13,7 @@ use crate::proto::{
     DensityFunctionHolder, ProtoDensityFunction, ProtoSpline, UpscaleAxis, UpscaleMode,
 };
 use crate::router::{Aquifers, NoiseGeneratorSettings, NoiseRouter, RouterBlocks};
-use mcrs_minecraft_core::mth;
+use mcrs_minecraft_core::numeric;
 use mcrs_minecraft_noise::blended::BlendedNoise;
 use mcrs_minecraft_noise::interval::Interval;
 use mcrs_minecraft_noise::jmath;
@@ -445,7 +445,7 @@ impl<'a> Compiler<'a> {
                 let input = self.compile(&x.input)?;
                 let (min, max) = (x.min.0 as f32, x.max.0 as f32);
                 if let Some(value) = self.as_constant(input) {
-                    return Ok(self.constant(mth::clampf(value, min, max)));
+                    return Ok(self.constant(numeric::clamp_f32(value, min, max)));
                 }
                 Ok(self.intern(
                     Key::Clamp(input, min.to_bits(), max.to_bits()),
@@ -910,7 +910,7 @@ impl<'a> Compiler<'a> {
 
     fn pow(&mut self, base: NodeId, exponent: NodeId) -> NodeId {
         match (self.as_constant(base), self.as_constant(exponent)) {
-            (Some(a), Some(b)) => self.constant(mth::pow(a, b)),
+            (Some(a), Some(b)) => self.constant(numeric::pow_f32(a, b)),
             (Some(value), None) => self.const_binary(BinaryOp::Pow, exponent, value, true),
             (None, Some(value)) => self.const_exponent_pow(base, value),
             (None, None) => self.binary(BinaryOp::Pow, base, exponent),

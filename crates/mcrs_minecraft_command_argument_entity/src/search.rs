@@ -6,7 +6,7 @@ use glam::DVec3;
 use mcrs_command::Span;
 use mcrs_command::{Reader, eq_ignore_case};
 use mcrs_minecraft_command::{Lookup, ResourceError, Source};
-use mcrs_minecraft_core::mth::wrap_degrees;
+use mcrs_minecraft_core::numeric::wrap_degrees;
 use mcrs_minecraft_entity::{entity_type_keys::EntityType, registry_keys::ENTITY_TYPE};
 use mcrs_minecraft_game_mode::GameMode;
 use mcrs_minecraft_loot::registry_keys::PREDICATE;

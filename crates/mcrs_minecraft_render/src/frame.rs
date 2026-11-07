@@ -10,6 +10,7 @@ use super::Occlusion;
 use super::draws::PARAMS_STRIDE;
 use super::stats::args_reset;
 use super::terrain::Terrain;
+use mcrs_minecraft_mesh::face_shade::ShadeTable;
 use mcrs_minecraft_mesh::{SECTION_SIZE, STREAMS};
 
 use super::Budget;
@@ -37,6 +38,10 @@ impl CameraOrigin {
     }
 }
 
+/// The directional shade table of the dimension the camera is in.
+#[derive(Resource, Clone, Copy, Debug, Default, PartialEq, Eq, ExtractResource)]
+pub struct TerrainShade(pub ShadeTable);
+
 /// The frame's view, expressed against the origin of the section the camera stands in. Nothing
 /// here is an absolute world coordinate: at the edge of the world f32 has no block left to give.
 #[derive(Copy, Clone, Default, bytemuck::Pod, bytemuck::Zeroable)]
@@ -53,6 +58,8 @@ pub(super) struct CameraUniform {
     hiz_levels: u32,
     quad_cull: u32,
     viewport: [f32; 2],
+    shade_table: u32,
+    _pad_end: [u32; 3],
 }
 
 pub(super) const CAMERA_SIZE: u64 = size_of::<CameraUniform>() as u64;
@@ -132,6 +139,7 @@ pub(super) fn write_camera(
     views: Query<&ExtractedView, With<Camera3d>>,
     occlusion: Res<Occlusion>,
     quad_cull: Res<super::QuadCull>,
+    shade: Res<TerrainShade>,
     queue: Res<RenderQueue>,
 ) {
     let (Some(terrain), Some(origin), Some(view)) = (terrain, origin, views.iter().next()) else {
@@ -168,6 +176,7 @@ pub(super) fn write_camera(
             hiz_levels: if occlusion.0 { terrain.hiz.levels() } else { 0 },
             viewport: view.viewport.zw().as_vec2().to_array(),
             quad_cull: quad_cull.0 as u32,
+            shade_table: shade.0.shader_index(),
             ..default()
         }),
     );

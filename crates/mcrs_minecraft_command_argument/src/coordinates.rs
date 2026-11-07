@@ -1,7 +1,7 @@
 use crate::world_coordinate::WorldCoordinate;
 use glam::{BVec3, DVec3, Vec3};
 use mcrs_minecraft_command::Source;
-use mcrs_minecraft_core::mth::{cos_rounded, sin_rounded};
+use mcrs_minecraft_core::numeric::{cos_nearest, sin_nearest};
 
 /// A position as a command writes it, resolved against a source.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -23,13 +23,13 @@ pub(crate) fn local_position(
     [left, up, forwards]: [f64; 3],
 ) -> DVec3 {
     let (cos_yaw, sin_yaw) = (
-        cos_rounded(radians(yaw + 90.0)),
-        sin_rounded(radians(yaw + 90.0)),
+        cos_nearest(radians(yaw + 90.0)),
+        sin_nearest(radians(yaw + 90.0)),
     );
-    let (cos_pitch, sin_pitch) = (cos_rounded(radians(-pitch)), sin_rounded(radians(-pitch)));
+    let (cos_pitch, sin_pitch) = (cos_nearest(radians(-pitch)), sin_nearest(radians(-pitch)));
     let (cos_up_pitch, sin_up_pitch) = (
-        cos_rounded(radians(-pitch + 90.0)),
-        sin_rounded(radians(-pitch + 90.0)),
+        cos_nearest(radians(-pitch + 90.0)),
+        sin_nearest(radians(-pitch + 90.0)),
     );
     let forward = Vec3::new(cos_yaw * cos_pitch, sin_pitch, sin_yaw * cos_pitch).as_dvec3();
     let upward = Vec3::new(cos_yaw * cos_up_pitch, sin_up_pitch, sin_yaw * cos_up_pitch).as_dvec3();

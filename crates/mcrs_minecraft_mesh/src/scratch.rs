@@ -1,7 +1,8 @@
-use crate::ambient::{self, Neighbour, Sample};
 use crate::axis_mut;
 use crate::block::{AIR, BlockInfo, Pass, face_axes};
+use crate::face_shade::ShadeTable;
 use crate::pack::{FACE_NONE, FACE_WORDS, QUAD_WORDS};
+use crate::smooth_light::{CellLight, LightState, Sample, SmoothLight};
 use crate::{SECTION_SIZE, SECTION_VOLUME};
 use mcrs_minecraft_volume::{BlockVolume, LightVolume, SectionBlocks};
 use mcrs_voxel::{BlockPos, LocalPos, SectionPos};
@@ -12,8 +13,8 @@ pub(super) const BORDER: usize = SECTION_SIZE + 2;
 pub(super) const BORDER_VOLUME: usize = BORDER * BORDER * BORDER;
 pub(super) const COLUMNS: usize = BORDER * BORDER;
 
-/// Occlusion probes the block past a face's neighbour, so they reach one block further out than
-/// anything else the mesher reads.
+/// Smooth light asks whether the cell past a face's neighbour is open, so it reaches one block
+/// further out than anything else the mesher reads.
 const APRON: usize = SECTION_SIZE + 4;
 const APRON_VOLUME: usize = APRON * APRON * APRON;
 
@@ -26,9 +27,10 @@ const GRID: usize = SECTION_SIZE * SECTION_SIZE;
 
 pub struct Scratch {
     pub(super) states: Box<[u16; BORDER_VOLUME]>,
+    /// The variant choice of each cell, as `BlockInfo::choice_at` gives it.
+    pub(super) choices: Box<[u32; BORDER_VOLUME]>,
     pub(super) occludes: Box<[bool; BORDER_VOLUME]>,
-    neighbours: Box<[Neighbour; APRON_VOLUME]>,
-    pub(super) coords: Box<[u32; BORDER_VOLUME]>,
+    light_states: Box<[LightState; APRON_VOLUME]>,
     pub(super) light: Box<[u8; BORDER_VOLUME]>,
     pub(super) cube_columns: Box<[[u32; COLUMNS]; 3]>,
     pub(super) occlude_columns: Box<[[u32; COLUMNS]; 3]>,
@@ -48,6 +50,8 @@ pub struct Scratch {
     pub(super) simple_by_pass: [Vec<[u32; QUAD_WORDS]>; Pass::COUNT],
     pub(super) section_faces: Vec<[u32; FACE_WORDS]>,
     pub(super) complex_by_pass: [[Vec<u32>; FACE_GROUPS]; Pass::COUNT],
+    pub(super) smooth_light: SmoothLight,
+    pub(super) shade: ShadeTable,
 }
 
 #[derive(Copy, Clone)]
@@ -60,9 +64,9 @@ impl Scratch {
     pub fn new() -> Self {
         Self {
             states: Box::new([0; BORDER_VOLUME]),
+            choices: Box::new([0; BORDER_VOLUME]),
             occludes: Box::new([false; BORDER_VOLUME]),
-            neighbours: Box::new([Neighbour::default(); APRON_VOLUME]),
-            coords: Box::new([0; BORDER_VOLUME]),
+            light_states: Box::new([LightState::AIR; APRON_VOLUME]),
             light: Box::new([0; BORDER_VOLUME]),
             cube_columns: Box::new([[0; COLUMNS]; 3]),
             occlude_columns: Box::new([[0; COLUMNS]; 3]),
@@ -81,6 +85,8 @@ impl Scratch {
             simple_by_pass: Default::default(),
             section_faces: Vec::new(),
             complex_by_pass: Default::default(),
+            smooth_light: SmoothLight::default(),
+            shade: ShadeTable::default(),
         }
     }
 
@@ -131,21 +137,22 @@ impl Scratch {
                         None => (0, block_info(catalog, 0)),
                     };
                     put(&mut *self.states, index, state);
+                    let choice = info.choice_at([pos.x, pos.y, pos.z]);
+                    put(&mut *self.choices, index, choice);
+                    let (cube, drop) = info.cube_of(choice);
                     put(&mut *self.occludes, index, info.occludes);
-                    put(&mut *self.neighbours, apron_index(x, y, z), info.neighbour);
+                    put(&mut *self.light_states, apron_index(x, y, z), info.light);
                     // Light a store cannot give is open sky, as outside every loaded column.
                     let light = world.light(pos).unwrap_or(0x0f);
                     put(&mut *self.light, index, light);
-                    let coords = ambient::light_coords(info.emissive, info.emission, light);
-                    put(&mut *self.coords, index, coords);
                     let fluid = info.fluid.map_or(0, |fluid| {
                         fluid.amount | if fluid.lava { FLUID_LAVA } else { 0 }
                     });
                     put(&mut *self.fluid, index, fluid);
-                    let see_through = info.cube.is_some() && info.drop == 0 && !info.occludes;
+                    let see_through = cube.is_some() && drop == 0 && !info.occludes;
                     let cover = info.sturdy | if see_through { COVER_SEE_THROUGH } else { 0 };
                     put(&mut *self.cover, index, cover);
-                    if !info.occludes && info.cube.is_none() && fluid == 0 {
+                    if !info.occludes && cube.is_none() && fluid == 0 {
                         continue;
                     }
                     if fluid != 0 && inside(x) && inside(y) && inside(z) {
@@ -162,9 +169,9 @@ impl Scratch {
                     {
                         let column = column_index(axis, x, y, z);
                         let bit = 1u32 << (along + 1);
-                        if info.cube.is_some() {
+                        if cube.is_some() {
                             set_bit(cubes, column, bit);
-                            if axis == 1 && info.drop != 0 {
+                            if axis == 1 && drop != 0 {
                                 set_bit(&mut *self.lowered_columns, column, bit);
                             }
                         }
@@ -188,28 +195,25 @@ impl Scratch {
                     }
                     let state =
                         block(BlockPos::new(base[0] + x, base[1] + y, base[2] + z)) as usize;
-                    let neighbour = catalog
+                    let light = catalog
                         .get(state)
-                        .map_or(Neighbour::default(), |info| info.neighbour);
-                    put(&mut *self.neighbours, apron_index(x, y, z), neighbour);
+                        .map_or(LightState::AIR, |info| info.light);
+                    put(&mut *self.light_states, apron_index(x, y, z), light);
                 }
             }
         }
     }
 
-    /// What smooth lighting reads of the block at a border position.
+    /// What the light of a face reads of the cell at a section-local position. The light of a
+    /// cell past the border is dark, and no face reads it.
     pub(super) fn sample(&self, x: i32, y: i32, z: i32) -> Sample {
-        let neighbour = self
-            .neighbours
-            .get(apron_index(x, y, z))
-            .copied()
-            .unwrap_or_default();
+        let state = cell(&*self.light_states, apron_index(x, y, z));
         let light = if border(x) && border(y) && border(z) {
-            cell(&*self.coords, border_index(x, y, z))
+            CellLight::from_packed(cell(&*self.light, border_index(x, y, z)))
         } else {
-            0
+            CellLight::default()
         };
-        Sample { neighbour, light }
+        Sample { state, light }
     }
 
     pub(super) fn visible(

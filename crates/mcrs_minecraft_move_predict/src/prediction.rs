@@ -39,6 +39,14 @@ use crate::kept_changes::KeptChanges;
 use crate::rollback::Edit;
 use crate::rollback::Rollback;
 
+/// The fields of a teleport that add to the value of the client.
+const KEPT_FROM_CLIENT: Relative = Relative::X
+    .union(Relative::Y)
+    .union(Relative::Z)
+    .union(Relative::VELOCITY_X)
+    .union(Relative::VELOCITY_Y)
+    .union(Relative::VELOCITY_Z);
+
 /// Layer 2 for one player: the candidates of its client, the record of its last client ticks
 /// and the response to a violation.
 #[derive(Clone, Debug)]
@@ -54,8 +62,6 @@ pub struct Prediction {
     buffer: f64,
     pending: Option<Teleport>,
     resync: bool,
-    /// The last client tick had no match.
-    unmatched: bool,
     after_accept: bool,
     rollback: Option<Rollback>,
     work: Work,
@@ -78,7 +84,6 @@ impl Prediction {
             buffer: 0.0,
             pending: None,
             resync: false,
-            unmatched: false,
             after_accept: false,
             rollback: None,
             work: Work::default(),
@@ -123,7 +128,7 @@ impl Prediction {
         }
     }
 
-    /// A teleport goes out; the client ticks until its accept give no violation.
+    /// A teleport goes out; no client tick is predicted until its accept.
     pub fn teleport(&mut self, teleport: Teleport) {
         self.pending = Some(teleport);
     }
@@ -153,12 +158,7 @@ impl Prediction {
                 ..Outcome::default()
             };
         };
-        let added_to_unknown = self.resync
-            && teleport
-                .relative
-                .intersects(Relative::VELOCITY_X | Relative::VELOCITY_Y | Relative::VELOCITY_Z);
         self.restart(moved);
-        self.resync = self.unmatched || added_to_unknown;
         self.rotation = rotation;
         self.reference = moved.state.position;
         self.pending = None;
@@ -178,7 +178,12 @@ impl Prediction {
         tick: &ClientTick,
     ) -> Outcome {
         self.rotation = tick.input.rotation;
-        let pending = self.pending.is_some();
+        if let Some(teleport) = self.pending {
+            if teleport.relative.intersects(KEPT_FROM_CLIENT) {
+                self.follow(view, pushers, tick);
+            }
+            return Outcome::from(Mode::Exempt);
+        }
         if self
             .rollback
             .as_ref()
@@ -204,11 +209,42 @@ impl Prediction {
             .min()
             .unwrap_or(self.first.applied);
         self.kept.trim(keep);
-        self.unmatched = outcome.offset.is_some();
-        if pending {
-            return Outcome::from(Mode::Exempt);
-        }
         outcome
+    }
+
+    /// A relative teleport applies to the state of the client when it arrives, so the candidates
+    /// follow the client ticks that run before that, with no check.
+    fn follow<W: CollisionWorld, B: BodyView>(
+        &mut self,
+        view: View<'_, W, B>,
+        pushers: &[Pusher],
+        tick: &ClientTick,
+    ) {
+        let mut start = mem::take(&mut self.spare);
+        start.clear();
+        start.extend(self.candidates());
+        let mut record = Record {
+            start,
+            tick: tick.clone(),
+            reference: self.reference,
+            rollback: self.rollback.clone(),
+            explored: false,
+        };
+        let context = Context {
+            view,
+            pushers,
+            kept: &self.kept,
+            limits: &self.limits,
+        };
+        let ran = candidates::run_tick(&context, &mut record, Search::All, &mut 0, &mut self.work);
+        let matched = 1..=self.limits.max_candidates;
+        if ran.is_ok() && matched.contains(&self.work.matched.len()) {
+            self.accept_matched();
+            if let Some(position) = tick.reported.position {
+                self.reference = position;
+            }
+        }
+        self.spare = record.start;
     }
 
     fn predict<W: CollisionWorld, B: BodyView>(
@@ -249,11 +285,6 @@ impl Prediction {
         });
         let outcome = match result {
             Ok((_, true)) => self.matched(tick),
-            Ok((Some(best), false)) if self.pending.is_some() => Outcome {
-                offset: Some(best.offset),
-                ..Outcome::default()
-            },
-            Err(_) if self.pending.is_some() => self.coarse(tick),
             Ok((best, false)) => self.violation(tick, best),
             Err(stop) => self.stopped(tick, stop),
         };

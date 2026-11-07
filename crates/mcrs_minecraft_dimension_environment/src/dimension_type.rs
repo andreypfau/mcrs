@@ -4,7 +4,7 @@ use serde::{Deserialize, Deserializer, Serialize};
 use mcrs_minecraft_block::block_keys::Block;
 use mcrs_minecraft_core::codec::{Bounded, is_default};
 use mcrs_minecraft_dimension::{CardinalLight, DimensionType, Skybox};
-use mcrs_minecraft_environment::attribute::EnvironmentAttributeMap;
+use mcrs_minecraft_environment::attribute::ModifierMap;
 use mcrs_minecraft_environment::timeline::Timeline;
 use mcrs_minecraft_environment::world_clock::WorldClock;
 use mcrs_minecraft_registries::{IdSet, Named, Refs, Resolve, Resolved};
@@ -79,8 +79,8 @@ pub struct DimensionTypeFile<M: Refs = Resolved> {
     pub cardinal_light: CardinalLight,
     #[serde(default, skip_serializing_if = "is_default")]
     pub has_fixed_time: bool,
-    #[serde(default, skip_serializing_if = "EnvironmentAttributeMap::is_empty")]
-    pub attributes: EnvironmentAttributeMap,
+    #[serde(default, skip_serializing_if = "ModifierMap::is_empty")]
+    pub attributes: ModifierMap,
     #[serde(default, skip_serializing_if = "is_default")]
     pub timelines: M::Set<Timeline>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -126,7 +126,7 @@ impl Serialize for DimensionTypeFile<Named> {
 /// the column the environment stacks are built from.
 #[derive(Debug, Clone, PartialEq)]
 pub struct DimensionTypeEnvironment {
-    pub attributes: EnvironmentAttributeMap,
+    pub attributes: ModifierMap,
     pub timelines: IdSet<Timeline>,
     pub default_clock: Option<Id<WorldClock>>,
 }

@@ -1,0 +1,11 @@
+{
+  "layers": [
+    {
+      "geometry": "geometry.mcrs.block.bell",
+      "texture": "minecraft:entity/bell/bell_body",
+      "surface": "opaque",
+      "back_faces": false,
+      "placement": [[1.0, 0.0, 0.0, 0.0], [0.0, 1.0, 0.0, 0.0], [0.0, 0.0, 1.0, 0.0]]
+    }
+  ]
+}

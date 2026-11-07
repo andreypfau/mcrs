@@ -2,9 +2,9 @@ use crate::program::{Program, Workspace};
 use crate::router::NoiseRouter;
 use glam::IVec3;
 use mcrs_minecraft_chunk::VoxelId;
-use mcrs_minecraft_core::mth::clamped_map;
-use mcrs_minecraft_core::mth::floor_div;
-use mcrs_minecraft_core::mth::map;
+use mcrs_minecraft_core::numeric::floor_div;
+use mcrs_minecraft_core::numeric::remap;
+use mcrs_minecraft_core::numeric::remap_clamped;
 use mcrs_minecraft_noise::sample_grid::SampleGrid;
 use mcrs_minecraft_random::{Random, RandomSource};
 
@@ -360,13 +360,13 @@ impl<'a> FluidField<'a> {
         } else {
             let below_surface = f64::from(lowest_surface + 8 - centre.y);
             let factor = if under_global_fluid {
-                clamped_map(below_surface, 0.0, 64.0, 1.0, 0.0)
+                remap_clamped(below_surface, 0.0, 64.0, 1.0, 0.0)
             } else {
                 0.0
             };
             let noise = f64::from(self.sample(floodedness, centre)).clamp(-1.0, 1.0);
-            let fully_threshold = map(factor, 1.0, 0.0, -0.3, 0.8);
-            let partially_threshold = map(factor, 1.0, 0.0, -0.8, 0.4);
+            let fully_threshold = remap(factor, 1.0, 0.0, -0.3, 0.8);
+            let partially_threshold = remap(factor, 1.0, 0.0, -0.8, 0.4);
             (noise - partially_threshold, noise - fully_threshold)
         };
         if fully > 0.0 {

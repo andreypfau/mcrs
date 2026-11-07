@@ -1,0 +1,36 @@
+{
+  "layers": [
+    {
+      "when": "q.block_state('facing') == 'north'",
+      "geometry": "geometry.mcrs.block.wither_skeleton_skull",
+      "texture": "minecraft:entity/skeleton/wither_skeleton",
+      "surface": "blend",
+      "back_faces": true,
+      "placement": [[-1.0, 0.0, 0.0, 0.5], [0.0, -1.0, 0.0, 0.25], [0.0, 0.0, 1.0, 0.75]]
+    },
+    {
+      "when": "q.block_state('facing') == 'south'",
+      "geometry": "geometry.mcrs.block.wither_skeleton_skull",
+      "texture": "minecraft:entity/skeleton/wither_skeleton",
+      "surface": "blend",
+      "back_faces": true,
+      "placement": [[1.0, 0.0, 0.0, 0.5], [0.0, -1.0, 0.0, 0.25], [0.0, 0.0, -1.0, 0.25]]
+    },
+    {
+      "when": "q.block_state('facing') == 'west'",
+      "geometry": "geometry.mcrs.block.wither_skeleton_skull",
+      "texture": "minecraft:entity/skeleton/wither_skeleton",
+      "surface": "blend",
+      "back_faces": true,
+      "placement": [[0.0, 0.0, 1.0, 0.75], [0.0, -1.0, 0.0, 0.25], [1.0, 0.0, 0.0, 0.5]]
+    },
+    {
+      "when": "q.block_state('facing') == 'east'",
+      "geometry": "geometry.mcrs.block.wither_skeleton_skull",
+      "texture": "minecraft:entity/skeleton/wither_skeleton",
+      "surface": "blend",
+      "back_faces": true,
+      "placement": [[0.0, 0.0, -1.0, 0.25], [0.0, -1.0, 0.0, 0.25], [-1.0, 0.0, 0.0, 0.5]]
+    }
+  ]
+}

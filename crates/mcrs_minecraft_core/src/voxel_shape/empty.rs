@@ -1,4 +1,4 @@
-use super::{Aabb, FACE_MASK_EMPTY, ShapeRepr, VoxelShape};
+use super::{Aabb, VoxelShape, FACE_MASK_EMPTY, ShapeRepr};
 use glam::Vec3;
 
 pub(super) static EMPTY: VoxelShape = VoxelShape {

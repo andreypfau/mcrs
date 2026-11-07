@@ -11,7 +11,7 @@ use mcrs_minecraft_command_registry::DimensionClock;
 use mcrs_minecraft_engine::coordinator::clock::{EditClock, GameTime};
 use mcrs_minecraft_environment::registry_keys::WORLD_CLOCK;
 use mcrs_minecraft_environment::world_clock::{
-    ClockEdit, ClockState, ClockTimeMarker, WorldClock, WorldClocks,
+    ClockEdit, ClockTimeMarker, WorldClocks, ClockTime, WorldClock,
 };
 use mcrs_minecraft_resource::Id;
 use mcrs_minecraft_resource::ResourceLocation;
@@ -228,7 +228,7 @@ impl ClockCall<'_, '_, '_> {
             .into()
     }
 
-    fn act(&self, action: Action, state: ClockState) -> Result<Outcome, CommandFailure> {
+    fn act(&self, action: Action, state: ClockTime) -> Result<Outcome, CommandFailure> {
         match action {
             Action::Set => self.set(state.total_ticks),
             Action::SetMarker => self.set_marker(state.total_ticks),
@@ -266,7 +266,7 @@ impl ClockCall<'_, '_, '_> {
         ))
     }
 
-    fn add(&self, state: ClockState) -> Result<Outcome, CommandFailure> {
+    fn add(&self, state: ClockTime) -> Result<Outcome, CommandFailure> {
         let ticks = self.context.arg(&self.call.invocation, self.subtree.add)?;
         let mut next = state;
         next.apply(ClockEdit::AddTicks(ticks));
@@ -280,11 +280,7 @@ impl ClockCall<'_, '_, '_> {
         ))
     }
 
-    fn pause_or_resume(
-        &self,
-        action: Action,
-        state: ClockState,
-    ) -> Result<Outcome, CommandFailure> {
+    fn pause_or_resume(&self, action: Action, state: ClockTime) -> Result<Outcome, CommandFailure> {
         let pause = action == Action::Pause;
         if state.paused == pause {
             let key = if pause {
@@ -306,7 +302,7 @@ impl ClockCall<'_, '_, '_> {
         ))
     }
 
-    fn rate(&self, state: ClockState) -> Result<Outcome, CommandFailure> {
+    fn rate(&self, state: ClockTime) -> Result<Outcome, CommandFailure> {
         let rate = self.context.arg(&self.call.invocation, self.subtree.rate)?;
         if state.rate == rate {
             return Err(CommandFailure::translate(

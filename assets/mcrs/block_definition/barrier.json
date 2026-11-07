@@ -38,6 +38,7 @@
       "mcrs:use_shape_for_light_occlusion": false,
       "mcrs:occlusion_shape": [],
       "mcrs:emissive_rendering": false,
+      "mcrs:occlusion_shade": 1.0,
       "mcrs:block_sound_set": "minecraft:stone"
     },
     "permutations": [

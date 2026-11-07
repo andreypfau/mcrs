@@ -1,5 +1,5 @@
-pub mod molang;
 pub mod schema;
+pub mod state_condition;
 
 use core::time::Duration;
 use std::sync::Arc;
@@ -14,11 +14,11 @@ use bevy_asset::io::AssetSourceId;
 use glam::Vec3;
 use rustc_hash::{FxBuildHasher, FxHashMap};
 
-use self::molang::{MolangError, StateCondition};
 use self::schema::{
     BlockDefinitionFile, BlockProperties, BlockProperty, Components, LavaFlammable, ModelBox,
     NoteBlockInstrument, PlacementFilter, PropertyValue, Sticky,
 };
+use self::state_condition::{ConditionError, StateCondition, StateInputs};
 use crate::block_keys::Block;
 use crate::fluid_keys::Fluid;
 use crate::material::PushReaction;
@@ -29,6 +29,7 @@ use mcrs_minecraft_core::voxel_shape::Aabb;
 use mcrs_minecraft_resource::{Id, ResourceKeyBuf, ResourceLocation, ResourceLocationBuf};
 use mcrs_minecraft_sound::BlockSoundSet;
 use mcrs_minecraft_value_provider::IntProvider;
+use mcrs_molang::ScalarVm;
 use mcrs_voxel::BlockStateId;
 
 pub const CORPUS_DIRECTORY: &str = "mcrs/block_definition";
@@ -50,6 +51,8 @@ bitflags::bitflags! {
         const REDSTONE_CONDUCTOR = 1 << 11;
         const STICKY = 1 << 12;
         const LEGACY_SOLID = 1 << 13;
+        /// The state has the occlusion shade `0.2` rather than `1.0`.
+        const SHADES_CORNERS = 1 << 14;
     }
 }
 
@@ -111,6 +114,22 @@ pub struct BlockStateData {
     pub flags: BlockStateFlags,
 }
 
+impl BlockStateData {
+    pub const SHADED_OCCLUSION_SHADE: f32 = 0.2;
+    pub const OPEN_OCCLUSION_SHADE: f32 = 1.0;
+
+    /// The shade this state casts on the corners of the faces beside it under smooth light.
+    /// The corpus states only `0.2` and `1.0`.
+    #[must_use]
+    pub fn occlusion_shade(&self) -> f32 {
+        if self.flags.contains(BlockStateFlags::SHADES_CORNERS) {
+            Self::SHADED_OCCLUSION_SHADE
+        } else {
+            Self::OPEN_OCCLUSION_SHADE
+        }
+    }
+}
+
 #[derive(Debug)]
 pub struct BlockEntry {
     pub identifier: ResourceLocationBuf,
@@ -139,8 +158,7 @@ impl BlockEntry {
         )
     }
 
-    /// The state that differs from `id` in one property, the way vanilla's
-    /// `BlockState.setValue` does. One property is one digit of the state id,
+    /// The state that differs from `id` in one property. One property is one digit of the state id,
     /// so this is arithmetic over the layout rather than a search.
     pub fn with(
         &self,
@@ -455,7 +473,7 @@ pub enum BlockError {
     #[error("condition `{condition}`: {source}")]
     Condition {
         condition: String,
-        source: MolangError,
+        source: ConditionError,
     },
     #[error("{states} states starting at {base} do not fit the state id space")]
     StateSpace { base: u16, states: usize },
@@ -700,6 +718,8 @@ impl Builder {
             .map(Block::id)
             .contains(&id);
         let mut values = vec![0u8; properties.0.len()];
+        let mut inputs = StateInputs::new(&properties);
+        let mut vm = ScalarVm::new();
         for index in 0..state_count {
             let mut rest = index;
             for (slot, property) in values.iter_mut().zip(&properties.0).rev() {
@@ -707,9 +727,10 @@ impl Builder {
                 rest /= property.values.len();
             }
 
+            inputs.select(&values);
             let mut resolved = components.clone();
             for (condition, overlay) in &permutations {
-                if condition.matches(&values) {
+                if condition.matches(&mut vm, &inputs) {
                     resolved.overlay(overlay);
                 }
             }
@@ -833,6 +854,14 @@ impl Builder {
         );
         flag(legacy_solid(collision_box), BlockStateFlags::LEGACY_SOLID);
         flag(
+            components
+                .occlusion_shade
+                .map_or(fills_the_cube(collision_box), |shade| {
+                    shade < BlockStateData::OPEN_OCCLUSION_SHADE
+                }),
+            BlockStateFlags::SHADES_CORNERS,
+        );
+        flag(
             components.block_entity.is_some(),
             BlockStateFlags::HAS_BLOCK_ENTITY,
         );
@@ -864,11 +893,14 @@ impl Builder {
             .block_sound_set
             .as_ref()
             .map(|set| SoundSetId(intern(&mut self.sound_sets, set)));
-        let fluid = components.fluid_state.as_ref().map(|fluid| FluidState {
-            fluid: fluid.fluid.id(),
-            level: fluid.level,
-            source: fluid.source,
-        });
+        let fluid = components
+            .fluid_state
+            .as_ref()
+            .map(|fluid| FluidState {
+                fluid: fluid.fluid.id(),
+                level: fluid.level,
+                source: fluid.source,
+            });
 
         Ok(BlockStateData {
             light_emission: components
@@ -940,8 +972,8 @@ fn intern<T: Clone + PartialEq>(table: &mut Vec<T>, value: &T) -> u16 {
     }
 }
 
-/// Java's `Block.isShapeFullBlock`: the shape covers the whole block. The boxes
-/// of a `VoxelShape` never overlap, so covering the cube is the same as filling
+/// The shape covers the whole block. The boxes
+/// of a shape never overlap, so covering the cube is the same as filling
 /// its volume without leaving it.
 fn fills_the_cube(boxes: &[ModelBox]) -> bool {
     const EPSILON: f32 = 1.0 / 4096.0;
@@ -966,10 +998,10 @@ fn fills_the_cube(boxes: &[ModelBox]) -> bool {
     (volume - 16.0 * 16.0 * 16.0).abs() < 0.5
 }
 
-/// Java's `BlockBehaviour.calculateSolid`: the collision shape's bounds are
+/// Whether the block is solid: the collision shape's bounds are
 /// either large enough on average or a full block tall.
 ///
-/// The corpus carries no `forceSolidOn`/`forceSolidOff` component, so this is
+/// The corpus carries no component that forces solidity on or off, so this is
 /// the shape derivation alone and answers differently from the reference for
 /// the blocks it overrides by hand — signs, pressure plates, cobweb, snow,
 /// azalea, ladders, amethyst clusters, pointed dripstone and corals.
@@ -1327,8 +1359,8 @@ mod tests {
                 Id::checked(u16::try_from(at).ok()?, names.len())
             }
         };
-        let missing =
-            BlockSoundSets::resolve(&definitions, id_of(&["minecraft:decorated_pot"])).unwrap_err();
+        let missing = BlockSoundSets::resolve(&definitions, id_of(&["minecraft:decorated_pot"]))
+            .unwrap_err();
         assert_eq!(missing.as_str(), "minecraft:decorated_pot_cracked");
 
         let resolved = BlockSoundSets::resolve(&definitions, id_of(&LOADED)).unwrap();

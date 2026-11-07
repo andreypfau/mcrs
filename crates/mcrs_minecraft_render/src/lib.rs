@@ -39,7 +39,7 @@ use bevy::render::{Render, RenderApp, RenderStartup, RenderSystems};
 
 use mcrs_minecraft_mesh::STREAMS;
 
-pub use frame::{CameraOrigin, clip_from_relative};
+pub use frame::{CameraOrigin, TerrainShade, clip_from_relative};
 pub use layer::{LayerGroup, Shape};
 pub use pass::draw_layer_group;
 pub use pipeline::{TERRAIN_PIPELINES, stream_slot, terrain_slot};
@@ -256,6 +256,8 @@ impl Plugin for TerrainPlugin {
             .init_resource::<DrawMask>()
             .init_resource::<DebugViews>()
             .init_resource::<SelectedView>()
+            .init_resource::<TerrainShade>()
+            .add_plugins(ExtractResourcePlugin::<TerrainShade>::default())
             .add_plugins(ExtractResourcePlugin::<SelectedView>::default())
             .add_plugins(ExtractResourcePlugin::<Occlusion>::default())
             .add_plugins(ExtractResourcePlugin::<QuadCull>::default())

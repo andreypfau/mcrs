@@ -1,0 +1,36 @@
+{
+  "layers": [
+    {
+      "when": "q.block_state('facing') == 'north' && q.block_state('has_book') == true",
+      "geometry": "geometry.mcrs.block.book.lectern_book",
+      "texture": "minecraft:entity/enchantment/enchanting_table_book",
+      "surface": "opaque",
+      "back_faces": false,
+      "placement": [[0.0, 0.0, 1.0, 0.5], [0.923879533, 0.38268343200000005, 0.0, 1.014664571], [-0.38268343200000005, 0.923879533, 0.0, 0.384515058]]
+    },
+    {
+      "when": "q.block_state('facing') == 'south' && q.block_state('has_book') == true",
+      "geometry": "geometry.mcrs.block.book.lectern_book",
+      "texture": "minecraft:entity/enchantment/enchanting_table_book",
+      "surface": "opaque",
+      "back_faces": false,
+      "placement": [[0.0, 0.0, -1.0, 0.5], [0.923879533, 0.38268343200000005, 0.0, 1.014664571], [0.38268343200000005, -0.923879533, 0.0, 0.615484942]]
+    },
+    {
+      "when": "q.block_state('facing') == 'west' && q.block_state('has_book') == true",
+      "geometry": "geometry.mcrs.block.book.lectern_book",
+      "texture": "minecraft:entity/enchantment/enchanting_table_book",
+      "surface": "opaque",
+      "back_faces": false,
+      "placement": [[-0.38268343200000005, 0.923879533, 0.0, 0.384515058], [0.923879533, 0.38268343200000005, 0.0, 1.014664571], [0.0, 0.0, -1.0, 0.5]]
+    },
+    {
+      "when": "q.block_state('facing') == 'east' && q.block_state('has_book') == true",
+      "geometry": "geometry.mcrs.block.book.lectern_book",
+      "texture": "minecraft:entity/enchantment/enchanting_table_book",
+      "surface": "opaque",
+      "back_faces": false,
+      "placement": [[0.38268343200000005, -0.923879533, 0.0, 0.615484942], [0.923879533, 0.38268343200000005, 0.0, 1.014664571], [0.0, 0.0, 1.0, 0.5]]
+    }
+  ]
+}

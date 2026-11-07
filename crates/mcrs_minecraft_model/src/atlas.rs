@@ -1,5 +1,5 @@
 use crate::anim;
-use crate::model::{self, Pack};
+use crate::resource_set::{self, ResourceSet};
 use bevy::asset::RenderAssetUsages;
 use bevy::image::{CompressedImageFormats, ImageSampler, ImageType};
 use bevy::prelude::*;
@@ -100,7 +100,7 @@ impl SpriteRegistry {
     /// Registers the paletted permutations every `atlases/*.json` declares, so
     /// an id such as `minecraft:trims/items/chestplate_trim_quartz` interns
     /// although no such file exists.
-    pub fn load_atlases(&mut self, pack: &Pack) -> Result<(), String> {
+    pub fn load_atlases(&mut self, pack: &ResourceSet) -> Result<(), String> {
         for (id, bytes) in pack.entries("atlases", "json") {
             let sources: AtlasSources = serde_json::from_slice(bytes)
                 .map_err(|error| format!("cannot parse atlas {id}: {error}"))?;
@@ -109,8 +109,8 @@ impl SpriteRegistry {
         Ok(())
     }
 
-    fn source(&self, pack: &Pack, id: &str) -> Result<Source, String> {
-        let path = model::resource_path(id, "textures", "png");
+    fn source(&self, pack: &ResourceSet, id: &str) -> Result<Source, String> {
+        let path = resource_set::resource_path(id, "textures", "png");
         if let Some(bytes) = pack.get(&path) {
             let (data, width, height) = decode_png(bytes, &path)?;
             return Ok(Source {
@@ -121,7 +121,7 @@ impl SpriteRegistry {
             });
         }
         if let Some((base, mapping)) = self.permutations.get(id) {
-            let base_path = model::resource_path(base, "textures", "png");
+            let base_path = resource_set::resource_path(base, "textures", "png");
             let (mut data, width, height) = decode_png(pack.read(&base_path)?, &base_path)?;
             for pixel in data.as_chunks_mut::<4>().0 {
                 *pixel = rgba(mapping.apply(argb(pixel)));
@@ -133,7 +133,7 @@ impl SpriteRegistry {
                 animation: anim::read(pack, &base_path)?,
             });
         }
-        if model::split_id(id) == model::split_id(MISSING_SPRITE) {
+        if resource_set::split_id(id) == resource_set::split_id(MISSING_SPRITE) {
             return Ok(Source {
                 data: missing_pixels(),
                 width: MISSING_SIZE,
@@ -163,7 +163,7 @@ impl SpriteRegistry {
             .collect()
     }
 
-    pub fn intern(&mut self, pack: &Pack, id: &str) -> Result<u16, String> {
+    pub fn intern(&mut self, pack: &ResourceSet, id: &str) -> Result<u16, String> {
         if let Some(&sprite) = self.index.get(id) {
             return Ok(sprite);
         }
@@ -172,7 +172,7 @@ impl SpriteRegistry {
                 "{id} would be sprite {MAX_SPRITES}, past what a face can name"
             ));
         }
-        let path = model::resource_path(id, "textures", "png");
+        let path = resource_set::resource_path(id, "textures", "png");
         let Source {
             data,
             width,
@@ -292,8 +292,8 @@ const MAGENTA: [u8; 4] = [0xF8, 0x00, 0xF8, 0xFF];
 const BLACK: [u8; 4] = [0x00, 0x00, 0x00, 0xFF];
 
 /// Entity textures such as a skull's or a book's are wider than tall; every layer of an array is
-/// square, so the image goes in the top-left corner and `block_entity` divides its UVs by the
-/// side. Block faces' UVs assume the whole layer, so other textures pass through as they are.
+/// square, so the image goes in the top-left corner and `block_entity_model` divides its UVs by
+/// the side. Block faces' UVs assume the whole layer, so other textures pass through as they are.
 fn entity_square(id: &str, source: Source) -> Source {
     let entity = id
         .split_once(':')
@@ -365,7 +365,7 @@ impl AtlasSources {
     /// Every permuted sprite id with the base texture it copies and the palette swap it applies.
     /// Only paletted permutations create sprites here; the other sources name files that
     /// intern on demand.
-    fn permutations(&self, pack: &Pack) -> Result<Vec<(String, Permutation)>, String> {
+    fn permutations(&self, pack: &ResourceSet) -> Result<Vec<(String, Permutation)>, String> {
         let mut out = Vec::new();
         for source in &self.sources {
             let AtlasSource::PalettedPermutations {
@@ -395,8 +395,8 @@ impl AtlasSources {
 struct Palette(Vec<u32>);
 
 impl Palette {
-    fn load(pack: &Pack, id: &str) -> Result<Self, String> {
-        let path = model::resource_path(id, "textures/palettes", "png");
+    fn load(pack: &ResourceSet, id: &str) -> Result<Self, String> {
+        let path = resource_set::resource_path(id, "textures/palettes", "png");
         let (data, _, _) = decode_png(pack.read(&path)?, &path)?;
         Ok(Self(data.as_chunks::<4>().0.iter().map(argb).collect()))
     }
@@ -686,7 +686,7 @@ mod tests {
             "minecraft:block/dirt",
             "minecraft:block/oak_leaves",
         ] {
-            registry.intern(Pack::corpus(), id).unwrap();
+            registry.intern(ResourceSet::corpus(), id).unwrap();
         }
         let array = &registry.arrays()[0];
         let whole = array.mips(0);
@@ -702,13 +702,13 @@ mod tests {
     fn sprites_of_different_sizes_land_in_different_arrays() {
         let mut registry = SpriteRegistry::default();
         let small = registry
-            .intern(Pack::corpus(), "minecraft:block/stone")
+            .intern(ResourceSet::corpus(), "minecraft:block/stone")
             .unwrap();
         let large = registry
-            .intern(Pack::corpus(), "minecraft:block/water_flow")
+            .intern(ResourceSet::corpus(), "minecraft:block/water_flow")
             .unwrap();
         let also_small = registry
-            .intern(Pack::corpus(), "minecraft:block/dirt")
+            .intern(ResourceSet::corpus(), "minecraft:block/dirt")
             .unwrap();
         assert_eq!(
             (small, large, also_small),
@@ -755,7 +755,7 @@ mod tests {
     fn a_sequence_that_revisits_a_frame_lays_it_down_twice() {
         let mut registry = SpriteRegistry::default();
         registry
-            .intern(Pack::corpus(), "minecraft:block/lava_still")
+            .intern(ResourceSet::corpus(), "minecraft:block/lava_still")
             .unwrap();
         let array = &registry.arrays()[0];
         assert_eq!(array.layers(), 38);
@@ -766,13 +766,13 @@ mod tests {
     fn a_sequence_starting_part_way_through_the_image_starts_there() {
         let mut registry = SpriteRegistry::default();
         registry
-            .intern(Pack::corpus(), "minecraft:block/fire_0")
+            .intern(ResourceSet::corpus(), "minecraft:block/fire_0")
             .unwrap();
         let array = &registry.arrays()[0];
         assert_eq!(array.layers(), 32);
         let stride = (array.size * array.size * 4) as usize;
-        let image = Pack::corpus()
-            .read(&model::resource_path(
+        let image = ResourceSet::corpus()
+            .read(&resource_set::resource_path(
                 "minecraft:block/fire_0",
                 "textures",
                 "png",
@@ -793,8 +793,8 @@ mod tests {
     }
 
     fn source_frames(id: &str) -> Vec<Vec<u8>> {
-        let bytes = Pack::corpus()
-            .read(&model::resource_path(id, "textures", "png"))
+        let bytes = ResourceSet::corpus()
+            .read(&resource_set::resource_path(id, "textures", "png"))
             .unwrap();
         let image = Image::from_buffer(
             bytes,
@@ -818,16 +818,16 @@ mod tests {
     fn an_animation_names_its_own_layers_whatever_order_the_interning_took() {
         let mut registry = SpriteRegistry::default();
         let stone = registry
-            .intern(Pack::corpus(), "minecraft:block/stone")
+            .intern(ResourceSet::corpus(), "minecraft:block/stone")
             .unwrap();
         let kelp = registry
-            .intern(Pack::corpus(), "minecraft:block/kelp")
+            .intern(ResourceSet::corpus(), "minecraft:block/kelp")
             .unwrap();
         let dirt = registry
-            .intern(Pack::corpus(), "minecraft:block/dirt")
+            .intern(ResourceSet::corpus(), "minecraft:block/dirt")
             .unwrap();
         let seagrass = registry
-            .intern(Pack::corpus(), "minecraft:block/seagrass")
+            .intern(ResourceSet::corpus(), "minecraft:block/seagrass")
             .unwrap();
 
         let array = &registry.arrays()[0];
@@ -897,10 +897,10 @@ mod tests {
     fn a_sprite_is_interned_once() {
         let mut registry = SpriteRegistry::default();
         let first = registry
-            .intern(Pack::corpus(), "minecraft:block/stone")
+            .intern(ResourceSet::corpus(), "minecraft:block/stone")
             .unwrap();
         let again = registry
-            .intern(Pack::corpus(), "minecraft:block/stone")
+            .intern(ResourceSet::corpus(), "minecraft:block/stone")
             .unwrap();
         assert_eq!(first, again);
         assert_eq!(registry.len(), 1);
@@ -915,7 +915,7 @@ mod tests {
     }
 
     fn every_atlas_parses_and_the_item_trims_permute_into_sprites() {
-        let pack = Pack::corpus();
+        let pack = ResourceSet::corpus();
         let mut permuted = 0;
         for (id, bytes) in pack.entries("atlases", "json") {
             let sources: AtlasSources =
@@ -951,7 +951,9 @@ mod tests {
 
     fn the_missing_sprite_is_a_generated_checker() {
         let mut registry = SpriteRegistry::default();
-        let sprite = registry.intern(Pack::corpus(), MISSING_SPRITE).unwrap();
+        let sprite = registry
+            .intern(ResourceSet::corpus(), MISSING_SPRITE)
+            .unwrap();
         let pixels = registry.frames(sprite)[0];
         assert_eq!(pixels.len(), 16 * 16 * 4);
         assert_eq!(&pixels[..4], &[0, 0, 0, 0xFF]);

@@ -1,6 +1,6 @@
 use serde::Deserialize;
 
-use crate::model::Pack;
+use crate::resource_set::ResourceSet;
 
 #[derive(Deserialize)]
 struct File {
@@ -38,7 +38,7 @@ impl Frame {
     }
 }
 
-pub fn read(pack: &Pack, png: &str) -> Result<Option<Animation>, String> {
+pub fn read(pack: &ResourceSet, png: &str) -> Result<Option<Animation>, String> {
     let path = format!("{png}.mcmeta");
     let Some(bytes) = pack.get(&path) else {
         return Ok(None);

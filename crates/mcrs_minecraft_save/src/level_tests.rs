@@ -189,7 +189,7 @@ fn omitted_clock_fields_take_the_codec_defaults() {
 
     assert_eq!(
         clocks[&clock("minecraft:overworld")],
-        ClockState {
+        ClockTime {
             total_ticks: 1757,
             partial_tick: 0.25,
             rate: 2.0,
@@ -198,7 +198,7 @@ fn omitted_clock_fields_take_the_codec_defaults() {
     );
     assert_eq!(
         clocks[&clock("minecraft:the_end")],
-        ClockState {
+        ClockTime {
             total_ticks: 1757,
             partial_tick: 0.0,
             rate: 1.0,
@@ -209,14 +209,14 @@ fn omitted_clock_fields_take_the_codec_defaults() {
 
 #[test]
 fn a_clock_state_writes_back_only_what_the_save_held_and_round_trips() {
-    let written = mcrs_minecraft_nbt::to_nbt_compound(&ClockState {
+    let written = mcrs_minecraft_nbt::to_nbt_compound(&ClockTime {
         total_ticks: 1757,
-        ..ClockState::default()
+        ..ClockTime::default()
     })
     .unwrap();
     assert_eq!(keys(&written), ["total_ticks"]);
 
-    let written = mcrs_minecraft_nbt::to_nbt_compound(&ClockState {
+    let written = mcrs_minecraft_nbt::to_nbt_compound(&ClockTime {
         total_ticks: 1757,
         partial_tick: 0.25,
         rate: 0.5,

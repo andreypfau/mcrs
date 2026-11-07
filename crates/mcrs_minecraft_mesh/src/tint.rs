@@ -24,7 +24,7 @@ const REDSTONE: u8 = STEM + STEM_AGES;
 const REDSTONE_POWERS: u8 = 16;
 const DYE: u8 = REDSTONE + REDSTONE_POWERS;
 
-/// `CommonColors.TEXTURE_TINT_COLORS`, by dye id: what a banner's base layer is multiplied by.
+/// The texture tint of each dye, by dye id: what a banner's base layer is multiplied by.
 const DYE_COLORS: [u32; 16] = [
     0xf9fffe, 0xf9801d, 0xc74ebd, 0x3ab3da, 0xfed83d, 0x80c71f, 0xf38baa, 0x474f52, 0x9d9d97,
     0x169c9c, 0x8932b8, 0x3c44aa, 0x835432, 0x5e7c16, 0xb02e26, 0x1d1d21,

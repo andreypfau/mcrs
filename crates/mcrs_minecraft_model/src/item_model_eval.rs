@@ -49,7 +49,7 @@ impl<'w, L: Copy + Fn(Entity) -> Option<EntityRef<'w>>> EntityStack<'w, '_, L> {
         has_component(self.entity, self.items, kind)
     }
 
-    /// Vanilla's `hasNonDefault`: the value is not the prototype's, a
+    /// The value is not the prototype's, a
     /// tombstone included.
     fn has_non_default(&self, kind: DataComponentType) -> bool {
         has_non_default(self.entity, self.items, kind)

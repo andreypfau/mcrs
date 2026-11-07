@@ -2,7 +2,7 @@ use mcrs_minecraft_resource::ResourceLocationBuf;
 use std::io::Cursor;
 
 use glam::{DVec3, IVec3};
-use mcrs_minecraft_core::mth::wrap_degrees;
+use mcrs_minecraft_core::numeric::wrap_degrees;
 use mcrs_minecraft_core::{Direction, Mirror, Rotation};
 use mcrs_minecraft_entity::villager::VillagerData;
 use mcrs_minecraft_nbt::compound::NbtCompound;

@@ -1,6 +1,6 @@
 use bevy_math::{BVec3, DVec3};
 use mcrs_minecraft_core::Look;
-use mcrs_minecraft_core::mth::wrap_degrees;
+use mcrs_minecraft_core::numeric::wrap_degrees;
 use mcrs_minecraft_protocol_game::{PositionFlag, PositionFlags};
 
 /// The position and the rotation of a victim before or after a teleport.

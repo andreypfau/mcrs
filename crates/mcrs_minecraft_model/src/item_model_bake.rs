@@ -2,25 +2,28 @@ use mcrs_minecraft_resource::{ResourceLocation, ResourceLocationBuf};
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use bevy::math::{Mat4, Vec3};
+use bevy::math::{DVec3, Mat4, Vec3};
 use bevy::prelude::Resource;
+use mcrs_minecraft_core::Direction;
 
 use crate::atlas::{MISSING_SPRITE, SpriteRegistry};
-use crate::bake::{Dir, VariantRotation, draws_face, face_geometry};
 use crate::colormap::load_colormap;
+use crate::face_bake::{self, VariantTransform};
 use crate::item_model_asset::{
     ClientItem, ConditionProperty, RangeProperty, SelectSwitch, SpecialModel, TintSource,
     UnbakedItemModel,
 };
 use crate::item_model_generator;
 use crate::item_model_transform::compose;
-use crate::model::{Element, Face, GuiLight, ItemTransform, Pack, ResolvedModel, resolve_model};
+use crate::model_file::{DisplayContext, DisplayTransform, Element, FaceEntry, GuiLight};
+use crate::model_resolver::{MergedModel, ModelResolver};
+use crate::resource_set::ResourceSet;
 
 #[derive(Debug, Clone)]
 pub struct ItemQuad {
     pub positions: [Vec3; 4],
     pub uvs: [[f32; 2]; 4],
-    pub dir: Dir,
+    pub dir: Direction,
     pub sprite: u16,
     pub tint: Option<u32>,
 }
@@ -28,7 +31,8 @@ pub struct ItemQuad {
 #[derive(Debug)]
 pub struct BakedItemModel {
     pub quads: Vec<ItemQuad>,
-    pub display: ItemTransform,
+    /// The `gui` display transform, the identity when the model declares none.
+    pub display: DisplayTransform,
     pub gui_light: GuiLight,
 }
 
@@ -100,7 +104,7 @@ impl ItemModels {
 }
 
 struct Baker<'a> {
-    pack: &'a Pack,
+    resolver: ModelResolver<'a>,
     sprites: &'a mut SpriteRegistry,
     models: HashMap<String, Arc<BakedItemModel>>,
     missing: Arc<BakedItemModel>,
@@ -108,11 +112,11 @@ struct Baker<'a> {
 
 /// Bakes every `items/*.json` of the pack; a file that fails to parse, validate or bake
 /// fails the whole load, naming the file.
-pub fn bake_all(pack: &Pack, sprites: &mut SpriteRegistry) -> Result<ItemModels, String> {
+pub fn bake_all(pack: &ResourceSet, sprites: &mut SpriteRegistry) -> Result<ItemModels, String> {
     sprites.load_atlases(pack)?;
     let missing = Arc::new(missing_model(pack, sprites)?);
     let mut baker = Baker {
-        pack,
+        resolver: ModelResolver::new(pack),
         sprites,
         models: HashMap::new(),
         missing: missing.clone(),
@@ -255,17 +259,18 @@ impl Baker<'_> {
         if let Some(model) = self.models.get(id) {
             return Ok(model.clone());
         }
-        let resolved = resolve_model(self.pack, id)?;
-        let model = Arc::new(bake_model(self.pack, self.sprites, &resolved)?);
+        let pack = self.resolver.set();
+        let resolved = self.resolver.resolve(id);
+        let model = Arc::new(bake_model(pack, self.sprites, resolved)?);
         self.models.insert(id.to_string(), model.clone());
         Ok(model)
     }
 }
 
 fn bake_model(
-    pack: &Pack,
+    pack: &ResourceSet,
     sprites: &mut SpriteRegistry,
-    model: &ResolvedModel,
+    model: &MergedModel,
 ) -> Result<BakedItemModel, String> {
     let mut quads = Vec::new();
     if model.generated {
@@ -273,76 +278,84 @@ fn bake_model(
             let Some(texture) = model.textures.get(&format!("layer{layer}")) else {
                 break;
             };
-            let sprite = sprites.intern(pack, texture)?;
+            let sprite = sprites.intern(pack, &texture.sprite)?;
             let side = sprites
                 .sprite(sprite)
                 .and_then(|interned| sprites.arrays().get(usize::from(interned.array)))
-                .ok_or_else(|| format!("{texture} names no texture array"))?
+                .ok_or_else(|| format!("{} names no texture array", texture.sprite))?
                 .size;
             let frames = sprites.frames(sprite);
             quads.extend(item_model_generator::extrude(sprite, side, &frames, layer)?);
         }
     } else {
-        for element in &model.elements {
-            for dir in Dir::all() {
-                let Some(face) = element.faces.get(dir.name()) else {
-                    continue;
-                };
-                if !draws_face(element, dir) {
-                    continue;
-                }
-                let sprite = sprites.intern(pack, model.sprite_of(face)?)?;
-                quads.push(item_quad(element, dir, face, sprite)?);
-            }
+        for face in face_bake::bake_elements(&model.elements, VariantTransform::default())? {
+            let sprite = sprites.intern(pack, &model.sprite(&face.texture).sprite)?;
+            quads.push(ItemQuad {
+                positions: face.positions,
+                uvs: face.uvs,
+                dir: face.direction,
+                sprite,
+                tint: face.tint,
+            });
         }
     }
     Ok(BakedItemModel {
         quads,
-        display: model.display,
+        display: model
+            .display(DisplayContext::Gui)
+            .unwrap_or(DisplayTransform::IDENTITY),
         gui_light: model.gui_light,
     })
 }
 
-pub(super) fn item_quad(
-    element: &Element,
-    dir: Dir,
-    face: &Face,
-    sprite: u16,
-) -> Result<ItemQuad, String> {
-    let geometry = face_geometry(element, dir, face, VariantRotation::default(), false)?;
-    Ok(ItemQuad {
-        positions: geometry.positions,
-        uvs: geometry.uvs,
-        dir: geometry.facing,
-        sprite,
-        tint: face.tint_index,
-    })
+/// The quads of the faces of one element, each drawing `sprite`.
+pub(super) fn element_quads(element: Element, sprite: u16) -> Result<Vec<ItemQuad>, String> {
+    let faces = face_bake::bake_elements(&[element], VariantTransform::default())?;
+    Ok(faces
+        .into_iter()
+        .map(|face| ItemQuad {
+            positions: face.positions,
+            uvs: face.uvs,
+            dir: face.direction,
+            sprite,
+            tint: face.tint,
+        })
+        .collect())
+}
+
+/// An element from `from` to `to` in pixel space with no turn and one face entry per key.
+pub(super) fn plain_element(from: DVec3, to: DVec3, faces: [Option<FaceEntry>; 6]) -> Element {
+    Element {
+        from,
+        to,
+        rotation: None,
+        faces,
+        shade_direction_override: None,
+        light_emission: 0,
+    }
 }
 
 /// A full cube of the missing texture with no display transforms at all.
-fn missing_model(pack: &Pack, sprites: &mut SpriteRegistry) -> Result<BakedItemModel, String> {
+fn missing_model(
+    pack: &ResourceSet,
+    sprites: &mut SpriteRegistry,
+) -> Result<BakedItemModel, String> {
     let sprite = sprites.intern(pack, MISSING_SPRITE)?;
-    let element = Element {
-        from: [0.0; 3],
-        to: [16.0; 3],
-        rotation: None,
-        shade: true,
-        faces: HashMap::new(),
-    };
-    let face = Face {
+    let face = FaceEntry {
         texture: MISSING_SPRITE.to_string(),
         uv: None,
         cullface: None,
         rotation: 0,
-        tint_index: None,
+        tint: None,
     };
-    let quads = Dir::all()
-        .into_iter()
-        .map(|dir| item_quad(&element, dir, &face, sprite))
-        .collect::<Result<Vec<_>, _>>()?;
+    let element = plain_element(
+        DVec3::ZERO,
+        DVec3::splat(16.0),
+        std::array::from_fn(|_| Some(face.clone())),
+    );
     Ok(BakedItemModel {
-        quads,
-        display: ItemTransform::NONE,
+        quads: element_quads(element, sprite)?,
+        display: DisplayTransform::IDENTITY,
         gui_light: GuiLight::Side,
     })
 }
@@ -356,10 +369,10 @@ mod tests {
 
         #[test]
         fn every_item_of_the_corpus_bakes() {
-            let models = bake_all(Pack::corpus(), &mut SpriteRegistry::default()).unwrap();
+            let models = bake_all(ResourceSet::corpus(), &mut SpriteRegistry::default()).unwrap();
             assert_eq!(
                 models.by_id.len(),
-                Pack::corpus().entries("items", "json").count()
+                ResourceSet::corpus().entries("items", "json").count()
             );
             a_generated_item_is_extruded_and_front_lit(&models);
             an_unknown_id_is_the_missing_cube_without_display_transforms(&models);
@@ -379,7 +392,7 @@ mod tests {
         assert_eq!(model.gui_light, GuiLight::Front);
         assert!(model.quads.len() > 2);
         assert!(model.quads.iter().all(|q| q.tint == Some(0)));
-        assert_eq!(model.display, ItemTransform::NONE);
+        assert_eq!(model.display, DisplayTransform::IDENTITY);
     }
 
     fn an_unknown_id_is_the_missing_cube_without_display_transforms(models: &ItemModels) {
@@ -387,7 +400,7 @@ mod tests {
             panic!("missing is a plain model");
         };
         assert_eq!(model.quads.len(), 6);
-        assert_eq!(model.display, ItemTransform::NONE);
+        assert_eq!(model.display, DisplayTransform::IDENTITY);
         assert_eq!(model.gui_light, GuiLight::Side);
     }
 

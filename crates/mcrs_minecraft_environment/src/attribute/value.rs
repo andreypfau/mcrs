@@ -123,11 +123,20 @@ pub struct BedRule {
     pub error_message: Option<Text<Named>>,
 }
 
+fn unit_f32<'de, D: Deserializer<'de>>(deserializer: D) -> Result<f32, D::Error> {
+    let value = f32::deserialize(deserializer)?;
+    if (0.0..=1.0).contains(&value) {
+        Ok(value)
+    } else {
+        Err(de::Error::custom(format!("{value} is not in range [0; 1]")))
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct AmbientParticle {
     pub particle: ParticleOptions<Named>,
-    #[serde(deserialize_with = "crate::attribute::spec::unit_f32")]
+    #[serde(deserialize_with = "unit_f32")]
     pub probability: f32,
 }
 

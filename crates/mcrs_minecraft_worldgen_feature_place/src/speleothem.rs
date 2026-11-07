@@ -3,7 +3,7 @@ use mcrs_minecraft_block_predicate::block_state::BlockState;
 use mcrs_minecraft_block_predicate::predicate::HeightmapName;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::Direction;
-use mcrs_minecraft_core::mth::clamped_map;
+use mcrs_minecraft_core::numeric::remap_clamped;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::worldgen::WorldgenRandom;
 use mcrs_minecraft_value_provider::{FloatProvider, IntProvider};
@@ -13,7 +13,7 @@ use mcrs_minecraft_worldgen_feature::proto::SpeleothemPlacementMode;
 use mcrs_voxel::BlockPos;
 
 use crate::holds;
-use mcrs_minecraft_core::mth::{cos_modern, sin_modern};
+use mcrs_minecraft_core::numeric::{cos_truncated, sin_truncated};
 use mcrs_minecraft_worldgen_feature::column::scan_column;
 
 fn speleothem_profile(
@@ -180,7 +180,7 @@ pub fn place_speleothem_cluster<W: WorldGenVolume>(
     for dx in -x_radius..=x_radius {
         for dz in -z_radius..=z_radius {
             let from_edge = (x_radius - dx.abs()).min(z_radius - dz.abs());
-            let chance = clamped_map(
+            let chance = remap_clamped(
                 from_edge as f32,
                 0.0,
                 config.max_distance_from_edge_affecting_chance_of_speleothem as f32,
@@ -384,7 +384,7 @@ fn cluster_speleothem_height(
         return 0;
     }
     let from_center = dx.abs() + dz.abs();
-    let mean = clamped_map(
+    let mean = remap_clamped(
         from_center as f64,
         0.0,
         config.max_distance_from_center_affecting_height_bias as f64,
@@ -596,8 +596,8 @@ pub fn place_large_speleothem<W: WorldGenVolume>(
         Wind {
             origin_y: origin.y,
             speed: (
-                (cos_modern(direction as f64) * speed) as f64,
-                (sin_modern(direction as f64) * speed) as f64,
+                (cos_truncated(direction as f64) * speed) as f64,
+                (sin_truncated(direction as f64) * speed) as f64,
             ),
             max_offset: 16 - radius,
         }
@@ -642,8 +642,8 @@ fn circle_mostly_embedded<W: WorldGenVolume>(volume: &W, center: BlockPos, xz_ra
     let increment = 6.0f32 / xz_radius as f32;
     let mut angle = 0.0f32;
     while angle < std::f32::consts::TAU {
-        let dx = (cos_modern(angle as f64) * xz_radius as f32) as i32;
-        let dz = (sin_modern(angle as f64) * xz_radius as f32) as i32;
+        let dx = (cos_truncated(angle as f64) * xz_radius as f32) as i32;
+        let dz = (sin_truncated(angle as f64) * xz_radius as f32) as i32;
         let at = center + IVec3::new(dx, 0, dz);
         if world.is_empty_or_water_or_lava(volume.get(at)) {
             return false;

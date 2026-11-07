@@ -4,7 +4,7 @@ use crate::compile::{
 };
 use glam::IVec3;
 use mcrs_minecraft_chunk::VoxelId;
-use mcrs_minecraft_core::mth::{map, mth_floor};
+use mcrs_minecraft_core::numeric::{floor_to_i32, remap};
 use mcrs_minecraft_noise::interval::Interval;
 use mcrs_minecraft_noise::sample_grid::SampleGrid;
 use mcrs_minecraft_random::Random;
@@ -429,7 +429,7 @@ where
             return out.push((lo, hi, whenever));
         }
         for y in (lo..=hi).rev() {
-            let probability = map(
+            let probability = remap(
                 f64::from(y),
                 f64::from(true_at_and_below),
                 f64::from(false_at_and_above),
@@ -622,7 +622,7 @@ where
         let secondary = if secondary_depth_range == 0 {
             0
         } else {
-            map(
+            remap(
                 self.surface_secondary(),
                 -1.0,
                 1.0,
@@ -698,7 +698,7 @@ where
                 IVec3::new(self.block_x, 0, self.block_z),
             ),
         };
-        self.min_surface_level = mth_floor(level) + self.surface_depth - 8;
+        self.min_surface_level = floor_to_i32(level) + self.surface_depth - 8;
         self.min_surface_level
     }
 
@@ -1021,7 +1021,7 @@ where
                 } else if self.block_y >= false_at_and_above {
                     false
                 } else {
-                    let probability = map(
+                    let probability = remap(
                         f64::from(self.block_y),
                         f64::from(true_at_and_below),
                         f64::from(false_at_and_above),

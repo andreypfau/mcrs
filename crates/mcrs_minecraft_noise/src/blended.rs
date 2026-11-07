@@ -4,7 +4,7 @@ use crate::kernel::each_column;
 use crate::perlin::SmearedPerlinNoise;
 use crate::sample_grid::SampleGrid;
 use crate::stack::{ColumnScratch, NoiseStack};
-use mcrs_minecraft_core::mth;
+use mcrs_minecraft_core::numeric;
 use mcrs_minecraft_random::RandomSource;
 use std::cell::RefCell;
 use std::fmt;
@@ -176,7 +176,7 @@ impl BlendedNoise {
                     scratch,
                 );
                 for alpha in run.iter_mut() {
-                    *alpha = mth::clampf(*alpha + 0.5, 0.0, 1.0);
+                    *alpha = numeric::clamp_f32(*alpha + 0.5, 0.0, 1.0);
                 }
                 // An alpha pinned to an endpoint returns one limit untouched, so the
                 // other stack is never read and its sixteen octaves need not be

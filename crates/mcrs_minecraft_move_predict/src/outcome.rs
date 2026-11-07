@@ -27,7 +27,7 @@ pub enum Mode {
     /// The first position after a coarse tick: the reported position is accepted, with the
     /// velocity that the change of position gives.
     Resync,
-    /// A teleport is pending: the prediction runs with no check.
+    /// A teleport is pending: no prediction.
     Exempt,
 }
 

@@ -4,7 +4,7 @@ use crate::bus::{OutboundPlayerPacket, PacketPayload, PacketTarget, to_target};
 use bevy_app::{App, FixedUpdate, Plugin};
 use bevy_ecs::prelude::*;
 use mcrs_minecraft_environment::world_clock::{
-    AdvanceTime, ClockEdit, ClockState, WorldClock, WorldClocks,
+    AdvanceTime, ClockEdit, WorldClocks, ClockTime, WorldClock,
 };
 use mcrs_minecraft_protocol::{VarInt, VarLong};
 use mcrs_minecraft_protocol_game::clientbound::{ClientboundSetTime, ClockUpdate};
@@ -42,7 +42,7 @@ fn advance_game_time(mut time: ResMut<GameTime>) {
 }
 
 /// The `set_time` entry of one clock.
-fn clock_update(clock: Id<WorldClock>, state: &ClockState, advance_time: bool) -> ClockUpdate {
+fn clock_update(clock: Id<WorldClock>, state: &ClockTime, advance_time: bool) -> ClockUpdate {
     ClockUpdate {
         clock: VarInt(i32::from(clock.number())),
         total_ticks: VarLong(state.total_ticks),
@@ -84,7 +84,7 @@ mod tests {
     #[test]
     fn a_clock_that_does_not_advance_goes_out_with_rate_zero() {
         let clock = Id::<WorldClock>::checked(1, 3).unwrap();
-        let state = |paused| ClockState {
+        let state = |paused| ClockTime {
             total_ticks: 5,
             partial_tick: 0.25,
             rate: 2.0,

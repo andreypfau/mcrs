@@ -62,6 +62,8 @@ pub const FACE_SPRITE: Field = Field::new(0, 15, 16);
 pub const FACE_BLOCK_LIGHT: Field = Field::new(1, 0, 4 * FACE_LIGHT_CORNER_BITS);
 pub const FACE_SKY_LIGHT: Field = Field::new(2, 0, 4 * FACE_LIGHT_CORNER_BITS);
 pub const FACE_TINT: Field = Field::new(1, 24, 6);
+/// The bits of the cube face's `UvOrientation`.
+pub const FACE_UV: Field = Field::new(2, 24, 3);
 
 /// A full cube face's occlusion is one of five vanilla bytes, `255 - 51 * code`.
 pub const FACE_AO_CORNER_BITS: u32 = 3;
@@ -128,6 +130,7 @@ const FACE_FIELDS: &[(&str, Field)] = &[
     ("FACE_AO", FACE_AO),
     ("FACE_FLUID", FACE_FLUID),
     ("FACE_SPRITE", FACE_SPRITE),
+    ("FACE_UV", FACE_UV),
 ];
 
 #[cfg(test)]

@@ -1,0 +1,68 @@
+{
+  "layers": [
+    {
+      "when": "q.block_state('facing') == 'north'",
+      "geometry": "geometry.mcrs.block.decorated_pot_base",
+      "texture": "minecraft:entity/decorated_pot/decorated_pot_base",
+      "surface": "opaque",
+      "back_faces": false,
+      "placement": [[1.0, 0.0, 0.0, 0.0], [0.0, 1.0, 0.0, 0.0], [0.0, 0.0, 1.0, 0.0]]
+    },
+    {
+      "when": "q.block_state('facing') == 'north'",
+      "geometry": "geometry.mcrs.block.decorated_pot_sides",
+      "texture": "minecraft:entity/decorated_pot/decorated_pot_side",
+      "surface": "opaque",
+      "back_faces": false,
+      "placement": [[1.0, 0.0, 0.0, 0.0], [0.0, 1.0, 0.0, 0.0], [0.0, 0.0, 1.0, 0.0]]
+    },
+    {
+      "when": "q.block_state('facing') == 'south'",
+      "geometry": "geometry.mcrs.block.decorated_pot_base",
+      "texture": "minecraft:entity/decorated_pot/decorated_pot_base",
+      "surface": "opaque",
+      "back_faces": false,
+      "placement": [[-1.0, 0.0, 0.0, 1.0], [0.0, 1.0, 0.0, 0.0], [0.0, 0.0, -1.0, 1.0]]
+    },
+    {
+      "when": "q.block_state('facing') == 'south'",
+      "geometry": "geometry.mcrs.block.decorated_pot_sides",
+      "texture": "minecraft:entity/decorated_pot/decorated_pot_side",
+      "surface": "opaque",
+      "back_faces": false,
+      "placement": [[-1.0, 0.0, 0.0, 1.0], [0.0, 1.0, 0.0, 0.0], [0.0, 0.0, -1.0, 1.0]]
+    },
+    {
+      "when": "q.block_state('facing') == 'west'",
+      "geometry": "geometry.mcrs.block.decorated_pot_base",
+      "texture": "minecraft:entity/decorated_pot/decorated_pot_base",
+      "surface": "opaque",
+      "back_faces": false,
+      "placement": [[0.0, 0.0, 1.0, 0.0], [0.0, 1.0, 0.0, 0.0], [-1.0, 0.0, 0.0, 1.0]]
+    },
+    {
+      "when": "q.block_state('facing') == 'west'",
+      "geometry": "geometry.mcrs.block.decorated_pot_sides",
+      "texture": "minecraft:entity/decorated_pot/decorated_pot_side",
+      "surface": "opaque",
+      "back_faces": false,
+      "placement": [[0.0, 0.0, 1.0, 0.0], [0.0, 1.0, 0.0, 0.0], [-1.0, 0.0, 0.0, 1.0]]
+    },
+    {
+      "when": "q.block_state('facing') == 'east'",
+      "geometry": "geometry.mcrs.block.decorated_pot_base",
+      "texture": "minecraft:entity/decorated_pot/decorated_pot_base",
+      "surface": "opaque",
+      "back_faces": false,
+      "placement": [[0.0, 0.0, -1.0, 1.0], [0.0, 1.0, 0.0, 0.0], [1.0, 0.0, 0.0, 0.0]]
+    },
+    {
+      "when": "q.block_state('facing') == 'east'",
+      "geometry": "geometry.mcrs.block.decorated_pot_sides",
+      "texture": "minecraft:entity/decorated_pot/decorated_pot_side",
+      "surface": "opaque",
+      "back_faces": false,
+      "placement": [[0.0, 0.0, -1.0, 1.0], [0.0, 1.0, 0.0, 0.0], [1.0, 0.0, 0.0, 0.0]]
+    }
+  ]
+}

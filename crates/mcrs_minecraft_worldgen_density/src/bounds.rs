@@ -1,7 +1,7 @@
 use crate::node::gradient::{GradientParams, Tiling};
 use crate::program::{BinaryOp, Node, NodeId, RoundKind, UnaryOp};
 use glam::IVec3;
-use mcrs_minecraft_core::mth::jmax;
+use mcrs_minecraft_core::numeric::max_f32;
 use mcrs_minecraft_noise::interval::Interval;
 use mcrs_minecraft_noise::jmath::mul_add;
 use mcrs_minecraft_noise::sample_grid::Axis;
@@ -212,7 +212,7 @@ fn declared_leaf(node: &Node, at: impl Fn(NodeId) -> Interval) -> Option<Interva
             let coord_ranges: Vec<Interval> = coords.iter().map(|&id| at(id)).collect();
             spline.range(&coord_ranges)
         }
-        // `jmax`, so a NaI upper bound propagates NaN into `Interval::of` and
+        // `max_f32`, so a NaI upper bound propagates NaN into `Interval::of` and
         // aborts the load, as vanilla does.
         Node::FindTopSurface {
             upper_bound,
@@ -220,7 +220,7 @@ fn declared_leaf(node: &Node, at: impl Fn(NodeId) -> Interval) -> Option<Interva
             ..
         } => {
             let lower = *lower_bound as f32;
-            Interval::of(lower, jmax(lower, at(*upper_bound).max()))
+            Interval::of(lower, max_f32(lower, at(*upper_bound).max()))
         }
         _ => return None,
     })

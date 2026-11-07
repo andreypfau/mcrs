@@ -16,7 +16,7 @@ use mcrs_minecraft_registries::{CurrentRegistries, Registries};
 use mcrs_minecraft_model::colormap::colormap_rgba;
 use mcrs_minecraft_model::item_model_bake::{BakedItemModel, BakedNode, ItemModels};
 use mcrs_minecraft_model::item_model_eval::{EntityStack, Evaluator};
-use mcrs_minecraft_model::model::{GuiLight, ItemTransform};
+use mcrs_minecraft_model::model_file::{DisplayTransform, GuiLight};
 
 /// A slot-local GUI vertex: `pos` in pixels from the slot's top-left, `y` down and
 /// `z` out of the screen; `sprite` is the sprite id under the flag bits. The four vertices of a
@@ -204,7 +204,7 @@ fn collect<'w, 'm, L: Copy + Fn(Entity) -> Option<EntityRef<'w>>>(
 fn gui_matrix(model: &BakedItemModel, local: Mat4) -> Mat4 {
     let display = model.display;
     let centre = Mat4::from_translation(Vec3::splat(-0.5));
-    let posed = if display == ItemTransform::NONE {
+    let posed = if display == DisplayTransform::IDENTITY {
         centre
     } else {
         let radians = display.rotation_deg * (std::f32::consts::PI / 180.0);
@@ -311,7 +311,7 @@ mod tests {
     use mcrs_minecraft_model::atlas::SpriteRegistry;
     use mcrs_minecraft_model::item_model_asset::{ConditionProperty, RangeProperty, TintSource};
     use mcrs_minecraft_model::item_model_bake::bake_all;
-    use mcrs_minecraft_model::model::Pack;
+    use mcrs_minecraft_model::resource_set::ResourceSet;
 
     fn items() -> &'static Items {
         &test_corpus().1
@@ -319,7 +319,9 @@ mod tests {
 
     fn models() -> &'static ItemModels {
         static MODELS: OnceLock<ItemModels> = OnceLock::new();
-        MODELS.get_or_init(|| bake_all(Pack::corpus(), &mut SpriteRegistry::default()).unwrap())
+        MODELS.get_or_init(|| {
+            bake_all(ResourceSet::corpus(), &mut SpriteRegistry::default()).unwrap()
+        })
     }
 
     fn value(path: &str, count: i32, components: ComponentPatch) -> ItemStackValue {

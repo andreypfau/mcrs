@@ -1,9 +1,11 @@
-//! Composing the environment attribute layers of one dimension.
+//! The environment attribute layers of one dimension.
 //!
-//! Three layers stack: the registered default, the dimension's constants and
-//! the timeline tracks. Nothing here memoizes an effective value — a layer
-//! stack is derived once from immutable assets and every read composes it
-//! afresh.
+//! A value starts at the default of its attribute. The entry of the dimension type applies,
+//! then the track of each timeline of the dimension type's tag, in the order of the tag. The
+//! biome layer goes between the dimension type and the timelines, and the weather layer after
+//! the timelines; neither exists yet. A float that leaves its range after the last layer
+//! becomes the nearer bound. Nothing memoizes an effective value: every read composes the
+//! layers afresh, so a read after a change of a clock sees the new clock state.
 
 #[cfg(feature = "bevy")]
 use bevy_ecs::prelude::Resource;
@@ -13,12 +15,11 @@ use mcrs_minecraft_resource::{Id, ResourceKeyBuf};
 use crate::dimension_type::{DimensionTypeEnvironment, DimensionTypeFile};
 use mcrs_minecraft_dimension::{Dimension, DimensionType, Skybox};
 use mcrs_minecraft_environment::attribute::{
-    AttributeError, AttributeSpec, AttributeValue, ENVIRONMENT_ATTRIBUTES, EnvironmentAttributeMap,
-    apply,
+    AttributeValue, Interpolation, ModifierMap, default_value, info,
 };
-use mcrs_minecraft_environment::timeline::{AttributeTrackSampler, Timeline};
-use mcrs_minecraft_environment::world_clock::WorldClock;
-use mcrs_minecraft_environment::world_clock::WorldClocks;
+use mcrs_minecraft_environment::environment_attribute_keys::EnvironmentAttribute;
+use mcrs_minecraft_environment::timeline::{Timeline, Track};
+use mcrs_minecraft_environment::world_clock::{WorldClocks, WorldClock};
 
 /// How much it is raining and thundering, in `[0; 1]`.
 ///
@@ -32,10 +33,6 @@ pub struct Weather {
 
 #[derive(Debug, thiserror::Error)]
 pub enum EnvironmentError {
-    #[error(transparent)]
-    Attribute(#[from] AttributeError),
-    #[error("unknown environment attribute `{0}`; the registry is behind the game version")]
-    UnknownAttribute(String),
     #[error("a timeline runs on a clock the world clock registry does not hold")]
     UnknownClock,
     #[error("the registry set holds no `{0}` registry")]
@@ -47,32 +44,63 @@ pub enum EnvironmentError {
 #[derive(Debug, Clone)]
 struct TrackLayer {
     clock: usize,
-    sampler: AttributeTrackSampler,
+    period: Option<u32>,
+    track: Track,
 }
 
-/// One attribute's layers, with everything constant for the dimension already
+/// The layers of one attribute, with the default and the dimension type's entry already
 /// folded into `base`.
 #[derive(Debug, Clone)]
 pub struct AttributeStack {
-    pub spec: &'static AttributeSpec,
+    attribute: EnvironmentAttribute,
     base: AttributeValue,
-    layers: Vec<TrackLayer>,
+    tracks: Vec<TrackLayer>,
 }
 
 impl AttributeStack {
-    /// Whether a timeline track can still move this value.
-    pub fn is_dynamic(&self) -> bool {
-        !self.layers.is_empty()
+    #[must_use]
+    pub fn attribute(&self) -> EnvironmentAttribute {
+        self.attribute
     }
 
+    /// Whether a timeline track can still move this value.
+    #[must_use]
+    pub fn is_dynamic(&self) -> bool {
+        !self.tracks.is_empty()
+    }
+
+    /// The value at the whole ticks of `ctx`. A clock's partial tick has no effect.
+    #[must_use]
     pub fn evaluate(&self, ctx: &EnvironmentContext) -> AttributeValue {
-        self.layers
+        self.tracks
             .iter()
-            .fold(self.base.clone(), |value, TrackLayer { clock, sampler }| {
-                sampler
-                    .apply_at(&value, ctx.ticks.get(*clock).copied().unwrap_or(0.0))
-                    .unwrap_or(value)
+            .fold(self.base.clone(), |value, layer| {
+                let ticks = ctx.ticks.get(layer.clock).copied().unwrap_or(0);
+                layer.track.apply(value, ticks, layer.period)
             })
+            .sanitized(self.attribute)
+    }
+
+    /// The value in a frame: the values of the previous and the current tick, moved between
+    /// by `partial`, the frame's fraction of the current tick.
+    #[must_use]
+    pub fn frame_value(
+        &self,
+        previous: &EnvironmentContext,
+        current: &EnvironmentContext,
+        partial: f32,
+    ) -> AttributeValue {
+        let now = self.evaluate(current);
+        if !self.is_dynamic() {
+            return now;
+        }
+        AttributeValue::interpolate(
+            info(self.attribute).kind,
+            Interpolation::PartialTick,
+            partial,
+            &self.evaluate(previous),
+            &now,
+        )
     }
 }
 
@@ -82,7 +110,7 @@ impl AttributeStack {
 /// graph — an infiniburn tag has nothing to say about the sky.
 #[derive(Debug, Clone, Copy)]
 pub struct DimensionEnvironment<'a> {
-    pub attributes: &'a EnvironmentAttributeMap,
+    pub attributes: &'a ModifierMap,
     pub skybox: Skybox,
     pub can_have_weather: bool,
 }
@@ -104,41 +132,37 @@ impl<'a> DimensionEnvironment<'a> {
     }
 }
 
-/// The layer stacks of one dimension, one per registered attribute.
+/// The layer stacks of one dimension, one per attribute, in registry order.
 ///
-/// Derived once from the dimension type, the timelines its tag names and the
-/// attribute registry.
+/// Derived once from the dimension type and the timelines its tag names.
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "bevy", derive(Resource))]
-pub struct EnvironmentAttributes {
+pub struct DimensionAttributes {
     skybox: Skybox,
     clocks: Vec<Id<WorldClock>>,
     stacks: Vec<AttributeStack>,
 }
 
-impl EnvironmentAttributes {
+impl DimensionAttributes {
     pub fn build(
         dimension: &DimensionEnvironment,
         timelines: &[&Timeline],
         clock_count: usize,
     ) -> Result<Self, EnvironmentError> {
-        let mut stacks: Vec<AttributeStack> = ENVIRONMENT_ATTRIBUTES
-            .values()
-            .map(|spec| AttributeStack {
-                spec,
-                base: spec.default.clone(),
-                layers: Vec::new(),
+        let mut stacks: Vec<AttributeStack> = EnvironmentAttribute::ALL
+            .iter()
+            .map(|attribute| {
+                let base = default_value(*attribute);
+                AttributeStack {
+                    attribute: *attribute,
+                    base: match dimension.attributes.get(*attribute) {
+                        Some(entry) => entry.apply(base),
+                        None => base,
+                    },
+                    tracks: Vec::new(),
+                }
             })
             .collect();
-
-        for (id, entry) in &dimension.attributes.0 {
-            let stack = stack_of(&mut stacks, id.as_str())?;
-            // A modifier other than `override` has no specification yet, so the
-            // entry is skipped rather than failing the whole dimension.
-            if let Ok(value) = apply(entry.modifier, &stack.base, &entry.argument) {
-                stack.base = value;
-            }
-        }
 
         let mut clocks: Vec<Id<WorldClock>> = Vec::new();
         for timeline in timelines {
@@ -152,14 +176,18 @@ impl EnvironmentAttributes {
                     clocks.len() - 1
                 }
             };
-            for (id, sampler) in timeline.bake() {
-                stack_of(&mut stacks, id)?
-                    .layers
-                    .push(TrackLayer { clock, sampler });
+            for (attribute, track) in &timeline.tracks {
+                if let Some(stack) = stacks.get_mut(*attribute as usize) {
+                    stack.tracks.push(TrackLayer {
+                        clock,
+                        period: timeline.period_ticks,
+                        track: track.clone(),
+                    });
+                }
             }
         }
 
-        Ok(EnvironmentAttributes {
+        Ok(DimensionAttributes {
             skybox: dimension.skybox,
             clocks,
             stacks,
@@ -204,59 +232,52 @@ impl EnvironmentAttributes {
         )
     }
 
-    /// The stack index of `id`. Resolved while building, never during a frame.
-    pub fn index(id: &str) -> Option<usize> {
-        ENVIRONMENT_ATTRIBUTES.keys().position(|key| *key == id)
+    #[must_use]
+    pub fn stack(&self, attribute: EnvironmentAttribute) -> Option<&AttributeStack> {
+        self.stacks.get(attribute as usize)
     }
 
-    pub fn stack(&self, index: usize) -> Option<&AttributeStack> {
-        self.stacks.get(index)
-    }
-
+    #[must_use]
     pub fn stacks(&self) -> &[AttributeStack] {
         &self.stacks
     }
 
+    #[must_use]
     pub fn skybox(&self) -> Skybox {
         self.skybox
     }
 
+    #[must_use]
     pub fn clocks(&self) -> &[Id<WorldClock>] {
         &self.clocks
     }
 
-    /// The fractional tick of every clock this dimension's timelines run on,
-    /// in the order a track layer indexes them.
-    pub fn clock_ticks(&self, clocks: &WorldClocks, out: &mut Vec<f64>) {
+    /// The total ticks of every clock this dimension's timelines run on, in the order a track
+    /// layer indexes them. A clock without a state stands at 0.
+    pub fn clock_ticks(&self, clocks: &WorldClocks, out: &mut Vec<i64>) {
         out.clear();
-        out.extend(self.clocks.iter().map(|id| {
-            clocks.get(*id).map_or(0.0, |state| {
-                state.total_ticks as f64 + f64::from(state.partial_tick)
-            })
-        }));
+        out.extend(
+            self.clocks
+                .iter()
+                .map(|id| clocks.get(*id).map_or(0, |state| state.total_ticks)),
+        );
     }
 
-    /// Read one attribute by id. For tests and cold paths; a frame walks
-    /// [`EnvironmentAttributes::stack`] by index instead.
-    pub fn value(&self, id: &str, ctx: &EnvironmentContext) -> Option<AttributeValue> {
-        self.stack(Self::index(id)?)
-            .map(|stack| stack.evaluate(ctx))
+    /// The dimension value of `attribute` at the whole ticks of `ctx`.
+    #[must_use]
+    pub fn value(
+        &self,
+        attribute: EnvironmentAttribute,
+        ctx: &EnvironmentContext,
+    ) -> Option<AttributeValue> {
+        self.stack(attribute).map(|stack| stack.evaluate(ctx))
     }
 }
 
-/// Everything a layer stack needs that is not fixed for the dimension.
+/// Everything a layer stack needs that is not fixed for the dimension: the total ticks of each
+/// clock, as [`DimensionAttributes::clock_ticks`] orders them.
 pub struct EnvironmentContext<'a> {
-    pub ticks: &'a [f64],
-}
-
-fn stack_of<'s>(
-    stacks: &'s mut [AttributeStack],
-    id: &str,
-) -> Result<&'s mut AttributeStack, EnvironmentError> {
-    stacks
-        .iter_mut()
-        .find(|stack| stack.spec.id == id)
-        .ok_or_else(|| EnvironmentError::UnknownAttribute(id.to_owned()))
+    pub ticks: &'a [i64],
 }
 
 #[cfg(test)]

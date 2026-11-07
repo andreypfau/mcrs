@@ -1,0 +1,26 @@
+{
+  "format_version": "1.12.0",
+  "minecraft:geometry": [
+    {
+      "description": {
+        "identifier": "geometry.mcrs.block.standing_banner.flag",
+        "texture_width": 64.0,
+        "texture_height": 64.0
+      },
+      "bones": [
+        {
+          "name": "flag",
+          "pivot": [0.0, 68.0, 0.0],
+          "rotation": [-0.44999999999999996, 0.0, 0.0],
+          "cubes": [
+            {
+              "origin": [-10.0, 28.0, -2.0],
+              "size": [20.0, 40.0, 1.0],
+              "uv": [0.0, 0.0]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
