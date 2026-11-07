@@ -104,8 +104,17 @@ fn each_recording_of_a_predicted_cheat_module_is_flagged() {
         }
         let mut detected = 0;
         for path in &paths {
-            if !replay_file(path).unwrap().flags.is_empty() {
+            let tally = replay_file(path).unwrap();
+            if !tally.flags.is_empty() {
                 detected += 1;
+            } else if *module == "no_fall" {
+                assert_eq!(
+                    tally.accepted,
+                    without_on_ground_bits(path).unwrap().accepted,
+                    "{}: MVC-CHK-002 exempts the first client tick after an accept, and the server \
+                     never uses the on-ground bit",
+                    path.display()
+                );
             } else if PREDICTED_CHEATS.contains(module) {
                 missed.push(path.display().to_string());
             }
@@ -145,11 +154,24 @@ fn recordings(relative: &str) -> Vec<PathBuf> {
 }
 
 fn replay_file(path: &Path) -> Result<Tally, String> {
+    replay_edited(path, |_| {})
+}
+
+fn without_on_ground_bits(path: &Path) -> Result<Tally, String> {
+    replay_edited(path, |event| {
+        if let Event::Move(step) = event {
+            step.on_ground = false;
+        }
+    })
+}
+
+fn replay_edited(path: &Path, edit: impl FnMut(&mut Event)) -> Result<Tally, String> {
     let context = |error: String| format!("{}: {error}", path.display());
     let text = fs::read_to_string(path).map_err(|error| context(error.to_string()))?;
-    let recording: Recording = text
+    let mut recording: Recording = text
         .parse()
         .map_err(|error| context(format!("{error:?}")))?;
+    recording.events.iter_mut().for_each(edit);
     replay(&recording).map_err(context)
 }
 
@@ -158,6 +180,8 @@ struct Tally {
     predicted: usize,
     coarse: usize,
     flags: Vec<String>,
+    /// The accepted state after each client tick.
+    accepted: Vec<PlayerState>,
 }
 
 /// The server side of a recording: its world, layer 2 and the state the changes carry.
@@ -223,6 +247,7 @@ fn replay(recording: &Recording) -> Result<Tally, String> {
         } else if *event == Event::TickEnd {
             ticks += 1;
             let outcome = server.tick();
+            tally.accepted.push(*server.prediction.accepted());
             match outcome.mode {
                 Mode::Predicted => tally.predicted += 1,
                 Mode::Coarse => tally.coarse += 1,
