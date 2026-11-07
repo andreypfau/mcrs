@@ -43,6 +43,9 @@ const GROUND_BOUNCE: DVec3 = DVec3::new(0.7, -0.5, 0.7);
 const SMALL_SPEED: f64 = 0.003;
 const JUMP_DELAY: u8 = 10;
 const AIR_SPEED: f32 = 0.02;
+/// The ground factor alone never brings the horizontal speed of an item to zero, so without
+/// this cut an item never rests. It is at most the parity tolerance, so no client sees it.
+const ITEM_STOP: f64 = 1.0e-6;
 
 /// One tick of the physics part of a server-simulated entity that is not a player. `wake` is
 /// true when something in the read zone changed, or a write changed the entity, since its last
@@ -352,6 +355,13 @@ fn tick_other<W: CollisionWorld, B: BodyView>(
         outcome.landed = true;
     }
     drag_and_ground_rule(view, category, body, fall_velocity, gravity);
+    if category == Category::Item && body.flags.on_ground && matches!(side, Side::Server { .. }) {
+        for component in [&mut body.velocity.x, &mut body.velocity.z] {
+            if component.abs() <= ITEM_STOP {
+                *component = 0.0;
+            }
+        }
+    }
     outcome
 }
 

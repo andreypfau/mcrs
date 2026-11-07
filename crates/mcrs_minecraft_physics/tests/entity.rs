@@ -109,6 +109,35 @@ fn fall_into(row: &MotionRow, living: bool, block: BlockStateId) -> (f64, f64) {
     (state.body.fall_distance, start.y - state.body.position.y)
 }
 
+/// E53: an item with `Motion` `[0.1, 0, 0.07]` on stone has both horizontal components in
+/// `[-1.0E-6, 1.0E-6]` first at tick 67; from there they are 0 and the item rests.
+#[test]
+fn dev_014_an_item_on_the_ground_stops_and_rests() {
+    let mut fixture = TestFixture::new();
+    floor(&mut fixture.world, fixture.blocks.stone);
+    let first_stops: Vec<u32> = (0..4)
+        .map(|phase| {
+            let mut item = entity(DVec3::new(0.5, 1.0, 0.5), DVec3::new(0.1, 0.0, 0.07), false);
+            item.phase = phase;
+            let mut stop = None;
+            for tick_number in 1..=80 {
+                tick(&mut fixture, &MotionRow::item(), &mut item, false);
+                let [x, _, z] = item.body.velocity.to_array();
+                if x.abs() <= 1.0e-6 && z.abs() <= 1.0e-6 && stop.is_none() {
+                    assert_eq!([x, z], [0.0, 0.0], "the step cuts the small speed to 0");
+                    stop = Some(tick_number);
+                }
+            }
+            assert!(
+                matches!(item.rest, Rest::Resting(_)),
+                "the stopped item rests"
+            );
+            stop.unwrap_or(u32::MAX)
+        })
+        .collect();
+    assert!(first_stops.contains(&67), "{first_stops:?}");
+}
+
 #[test]
 fn fall_004_a_resetting_block_keeps_the_fall_of_the_tick() {
     let blocks = TestBlocks::new();
