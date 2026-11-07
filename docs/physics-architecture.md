@@ -1532,3 +1532,21 @@ E1..E8, T1 (any time)   D1 ─ D2 ─ D3 ─ D4 ─ D5 ─ D6 ─ D7
     one state without a lock. Layer 1 therefore runs in `bridge_inbound` and in the write of the
     queues; layer 0 runs on the reader of each connection. Moving layer 1 to the network threads
     needs the writer to pass the probe plan to the reader in the order of the wire.
+47. MVC-UNC-005, the ends of the push interval. Open (spec). The rule gives `lo = f(ax, z0)`.
+    When `ax > 0`, the push at `ax` gets smaller when `|Δz|` grows past `|Δx|`, so `f(ax, z0)` is
+    not the smallest push in the box: for `Δ = (0.5, 0.8)` the push is 0.028, and `f(0.5, 0)` is
+    0.035. A legit client can then fail the offset check. `mcrs_minecraft_move_predict` takes
+    each end as the extreme of `f` at the nearest `|Δz|`, at `0.01F` and at the farthest `|Δz|`.
+    This bound contains the bound of the rule.
+48. MVC-LAT-007, the candidate of a client that moves itself back. Open (spec). The rule adds
+    "one candidate at the position of the client at the time of the request", but a candidate
+    is a state after a client tick. The client moves itself before the tick, so
+    `mcrs_minecraft_move_predict` runs the tick from that position, with the velocity of the
+    first candidate.
+49. MVC-LAT-006 and MVC-LAT-005, uncertain blocks. Open (spec). MVC-LAT-005 states that the
+    client applies the changes in the order of the server, so the applied changes are always a
+    prefix of the changes in the window. `mcrs_minecraft_move_predict` therefore runs one
+    candidate for each prefix, with the world view of that prefix (MVC-PRED-017), for blocks and
+    for the other changes alike. With one uncertain block this equals the two runs of
+    MVC-LAT-006. With more, it runs every state that the client can have, and the tick is not
+    coarse because neither of the two world views matches.

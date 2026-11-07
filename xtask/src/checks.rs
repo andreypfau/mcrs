@@ -30,7 +30,7 @@ const WASM32_PACKAGES: [&str; 11] = [
 
 const NO_STD_PACKAGES: [&str; 2] = ["mcrs_command", "mcrs_minecraft_chat"];
 
-const NO_BEVY_PACKAGES: [&str; 78] = [
+const NO_BEVY_PACKAGES: [&str; 79] = [
     "mcrs_command",
     "mcrs_engine_cell",
     "mcrs_engine_link",
@@ -72,6 +72,7 @@ const NO_BEVY_PACKAGES: [&str; 78] = [
     "mcrs_minecraft_light_engine",
     "mcrs_minecraft_loot",
     "mcrs_minecraft_mesh",
+    "mcrs_minecraft_move_predict",
     "mcrs_minecraft_move_validate",
     "mcrs_minecraft_nbt",
     "mcrs_minecraft_network",

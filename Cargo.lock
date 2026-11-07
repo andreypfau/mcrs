@@ -4573,6 +4573,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "mcrs_minecraft_move_predict"
+version = "0.5.8"
+dependencies = [
+ "criterion",
+ "glam",
+ "mcrs_minecraft_client_ticks",
+ "mcrs_minecraft_move_validate",
+ "mcrs_minecraft_physics",
+ "mcrs_voxel",
+ "rustc-hash 2.1.1",
+]
+
+[[package]]
 name = "mcrs_minecraft_move_validate"
 version = "0.5.8"
 dependencies = [

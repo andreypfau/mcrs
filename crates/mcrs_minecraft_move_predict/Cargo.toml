@@ -1,0 +1,28 @@
+[package]
+name = "mcrs_minecraft_move_predict"
+description = "The movement checks with a world: the prediction of each client tick of a player from the physics model"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+doctest = false
+
+[lints]
+workspace = true
+
+# std: mcrs_minecraft_move_validate, for the reported move
+[dependencies]
+glam.workspace = true
+mcrs_voxel.workspace = true
+mcrs_minecraft_physics.workspace = true
+mcrs_minecraft_move_validate.workspace = true
+rustc-hash.workspace = true
+
+[dev-dependencies]
+criterion = { version = "0.7", default-features = false }
+mcrs_minecraft_client_ticks.workspace = true
+mcrs_minecraft_physics = { workspace = true, features = ["testing"] }
+
+[[bench]]
+name = "predict"
+harness = false
