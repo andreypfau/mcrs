@@ -40,6 +40,13 @@ impl StreamSeed {
         Self(dimension_random.next_java_long() as u64)
     }
 
+    /// The streams of [`StreamKey::Section`] in step `now`, with the mixes that all of them share
+    /// done once.
+    #[must_use]
+    pub fn sections(&self, now: GameTick) -> SectionStreams {
+        SectionStreams(mix(mix(self.0, now.0 as u64), SECTION_TAG))
+    }
+
     pub fn stream(&self, now: GameTick, key: StreamKey) -> LegacyRandom {
         let seed = mix(self.0, now.0 as u64);
         let seed = match key {
@@ -55,11 +62,25 @@ impl StreamSeed {
                 let [xz, y] = pos_words(pos);
                 mix_all(seed, 3, [xz, y, origin.get() as u64, u64::from(step)])
             }
-            StreamKey::Section { section } => mix_all(seed, 4, section_words(section)),
+            StreamKey::Section { section } => return self.sections(now).stream(section),
             StreamKey::Visit { anchor } => mix_all(seed, 5, section_words(anchor)),
             StreamKey::Precipitation { tile } => mix_all(seed, 6, words(tile.x, 0, tile.z)),
         };
         LegacyRandom::new(seed)
+    }
+}
+
+const SECTION_TAG: u64 = 4;
+
+/// The streams of the sections in one step: [`StreamSeed::sections`].
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct SectionStreams(u64);
+
+impl SectionStreams {
+    /// The stream of [`StreamKey::Section`] for `section`.
+    #[must_use]
+    pub fn stream(&self, section: SectionPos) -> LegacyRandom {
+        LegacyRandom::new(section_words(section).into_iter().fold(self.0, mix))
     }
 }
 

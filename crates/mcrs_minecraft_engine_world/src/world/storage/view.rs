@@ -1,6 +1,7 @@
 use bevy_ecs::prelude::{Entity, Query};
-use bevy_ecs::system::SystemParam;
+use bevy_ecs::system::{ResMut, SystemParam};
 use mcrs_minecraft_core::BoundingBox;
+use mcrs_minecraft_simulation::TickingSectionMut;
 use mcrs_minecraft_volume::{
     Access, BlockVolume, BlockVolumeMut, ColumnLayout, Denied, PalettedSection, PalettedSectionMut,
     SectionVolume, Unavailable, Volume,
@@ -9,6 +10,7 @@ use mcrs_voxel::{BlockPos, SectionPos};
 
 use crate::palette::ChunkBlocks;
 use crate::world::dimension::DimensionTypeConfig;
+use crate::world::storage::random_ticks::RandomTickIndex;
 use crate::world::storage::section::SectionIndex;
 
 type Dimensions<'w, 's> = Query<'w, 's, (&'static SectionIndex, &'static DimensionTypeConfig)>;
@@ -25,6 +27,7 @@ pub struct WorldView<'w, 's> {
 pub struct WorldViewMut<'w, 's> {
     dimensions: Dimensions<'w, 's>,
     sections: Query<'w, 's, &'static mut ChunkBlocks>,
+    random_ticks: Option<ResMut<'w, RandomTickIndex>>,
 }
 
 impl<'w, 's> WorldView<'w, 's> {
@@ -43,6 +46,7 @@ impl<'w, 's> WorldViewMut<'w, 's> {
         Some(DimensionViewMut {
             sections: Sections::of(&self.dimensions, dimension)?,
             blocks: &mut self.sections,
+            random_ticks: self.random_ticks.as_deref_mut(),
         })
     }
 }
@@ -55,15 +59,25 @@ pub struct DimensionView<'a, 'w, 's> {
 }
 
 /// The loaded sections of one dimension, writable. A write diverges the section from
-/// every snapshot taken of it and is storage only: nothing hears of it.
+/// every snapshot taken of it and is storage only: nothing hears of it, except the
+/// [`RandomTickIndex`] when the world holds one.
 pub struct DimensionViewMut<'a, 'w, 's> {
     sections: Sections<'a>,
     blocks: &'a mut Query<'w, 's, &'static mut ChunkBlocks>,
+    random_ticks: Option<&'a mut RandomTickIndex>,
 }
 
 impl DimensionViewMut<'_, '_, '_> {
     pub fn section_entity(&self, at: SectionPos) -> Option<Entity> {
         self.sections.index.get(at)
+    }
+
+    pub fn random_ticks(&self) -> Option<&RandomTickIndex> {
+        self.random_ticks.as_deref()
+    }
+
+    pub fn random_ticks_mut(&mut self) -> Option<&mut RandomTickIndex> {
+        self.random_ticks.as_deref_mut()
     }
 }
 
@@ -178,14 +192,18 @@ impl BlockVolume for DimensionViewMut<'_, '_, '_> {
 
 impl BlockVolumeMut for DimensionViewMut<'_, '_, '_> {
     type SectionMut<'a>
-        = PalettedSectionMut<'a>
+        = TickingSectionMut<'a, PalettedSectionMut<'a>>
     where
         Self: 'a;
 
-    fn section_mut(&mut self, at: SectionPos) -> Result<PalettedSectionMut<'_>, Denied> {
+    fn section_mut(&mut self, at: SectionPos) -> Result<Self::SectionMut<'_>, Denied> {
         let entity = self.sections.entity(at)?;
         let blocks = self.blocks.get_mut(entity).map_err(|_| Denied::Unloaded)?;
-        Ok(PalettedSectionMut(&mut blocks.into_inner().make_mut().0))
+        let blocks = PalettedSectionMut(&mut blocks.into_inner().make_mut().0);
+        Ok(match self.random_ticks.as_deref_mut() {
+            Some(index) => index.section_mut(at, blocks),
+            None => TickingSectionMut::untracked(blocks),
+        })
     }
 }
 

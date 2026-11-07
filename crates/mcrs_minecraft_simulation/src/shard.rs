@@ -9,7 +9,7 @@ use crate::scalar::{GameTick, ShardId};
 use crate::sequence::SequenceClock;
 use crate::tick_queue::{Collected, Kinds, TickQueue};
 use mcrs_minecraft_volume::PaletteBuffer;
-use mcrs_voxel::{BlockPos, ColumnPos};
+use mcrs_voxel::{BlockPos, ColumnPos, SectionPos};
 use rustc_hash::FxHashSet;
 
 pub struct BlockShard<K: Kinds> {
@@ -25,6 +25,7 @@ pub struct BlockShard<K: Kinds> {
     pub(crate) chain: Chain<K>,
     pub(crate) rained_columns: Vec<ColumnPos>,
     pub(crate) rain_hits: Vec<PrecipitationHit>,
+    pub(crate) random_touched: FxHashSet<SectionPos>,
 }
 
 impl<K: Kinds> BlockShard<K> {
@@ -57,6 +58,7 @@ impl<K: Kinds> Default for BlockShard<K> {
             chain: Chain::default(),
             rained_columns: Vec::new(),
             rain_hits: Vec::new(),
+            random_touched: FxHashSet::default(),
         }
     }
 }

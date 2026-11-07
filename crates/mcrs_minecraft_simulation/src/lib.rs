@@ -18,6 +18,7 @@ mod shard;
 mod step;
 mod stream;
 mod tick_queue;
+mod ticking_positions;
 
 pub use access::{PartitionKind, SectionProperties, SimulatedSections, SimulationVolume};
 pub use behaviour::{BlockBehaviour, BlockFacts};
@@ -29,17 +30,20 @@ pub use policy::{CollectScratch, OrderingPolicy, SemanticOrder, VanillaOrder};
 pub use precipitation::{
     PRECIPITATION_GATE, PRECIPITATION_TILE, PrecipitationHit, precipitation_hits,
 };
-pub use random_tick::{RandomPicks, RandomTickTable, RandomTicks, random_step};
+pub use random_tick::{
+    ListedSection, RandomPicks, RandomTickTable, RandomTicks, block_tile, random_step,
+};
 pub use scalar::{GameTick, ShardId, TickPriority};
 pub use schedule::{PendingTick, ScheduleTicks};
 pub use sequence::{SequenceClock, SubTick, TickKey};
 pub use shard::{BlockShard, ChainLimit, Env, KernelConfig, Phase, PhaseInput, StepAt};
 pub use step::step;
-pub use stream::{StreamKey, StreamSeed};
+pub use stream::{SectionStreams, StreamKey, StreamSeed};
 pub use tick_queue::{
     Collected, Kinds, Queued, SavedTick, ScheduledTick, SectionOccupied, SectionTicks,
     SectionTicksRef, TickKind, TickQueue,
 };
+pub use ticking_positions::{TickingPositions, TickingSectionMut};
 
 bitflags::bitflags! {
     #[derive(Copy, Clone, Debug, PartialEq, Eq)]

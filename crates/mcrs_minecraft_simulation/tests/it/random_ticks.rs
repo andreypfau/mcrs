@@ -2,11 +2,11 @@ use crate::probe::{A, AIR, B, C, Host, ProbeFacts, ProbeKinds, STATES, at, secti
 use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_simulation::{
     BlockBehaviour, BlockFacts, BlockShard, BlockUpdateFlags, Cx, Env, GameTick, KernelConfig,
-    PartitionKind, RandomPicks, RandomTickTable, RandomTicks, SemanticOrder, ShardId,
-    SimulationVolume, StepOutput, StreamSeed, random_step,
+    ListedSection, PartitionKind, RandomPicks, RandomTickTable, RandomTicks, SemanticOrder,
+    ShardId, SimulatedSections, SimulationVolume, StepOutput, StreamSeed, random_step,
 };
-use mcrs_minecraft_volume::Access;
-use mcrs_voxel::{BlockPos, BlockStateId, SectionPos};
+use mcrs_minecraft_volume::{Access, BlockVolume, BlockVolumeMut, SectionBlocksMut};
+use mcrs_voxel::{BlockPos, BlockStateId, LocalPos, SectionPos};
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicU32, Ordering};
 
@@ -55,6 +55,7 @@ fn run(
     ticks: i64,
 ) -> StepOutput<ProbeKinds> {
     let table = table(rules);
+    host.set_random_ticks(table.clone());
     let config = KernelConfig::default();
     let env = Env {
         partition: ShardId(0),
@@ -67,8 +68,16 @@ fn run(
     let mut shard = BlockShard::new();
     let mut out = StepOutput::default();
     for now in 0..ticks {
+        let listed: Vec<ListedSection> = sections
+            .iter()
+            .map(|&section| ListedSection {
+                section,
+                ticking: u16::try_from(host.random_ticking(section).len()).expect("4096 at most"),
+            })
+            .collect();
         let picks = RandomPicks {
             sections,
+            listed: &listed,
             speed,
             table: &table,
             seed: StreamSeed::new(4, "minecraft:overworld"),
@@ -121,26 +130,66 @@ fn picks_reach_only_writable_sections_that_hold_a_randomly_ticking_state() {
     );
 }
 
-/// One block that takes random ticks in a section gets `speed / 4096` of them in each step:
-/// the picks are uniform over all 4096 blocks of the section, on the three axes.
+/// SIM-RND-002: one probe in a section gets a mean of 3 * 10000 / 4096 = 7.32 ticks over 10,000
+/// steps at speed 3. 64 probes, one in each section, sum to 469 with a deviation of 21.6; a pick
+/// that skips the y offset gives about 117 for each probe.
 #[test]
 fn a_single_block_gets_its_share_of_the_picks() {
-    let target = section(0, 0, 0);
+    let sections: Vec<SectionPos> = (0..64).map(|i| section(i % 8, i / 8 - 4, 0)).collect();
     let mut host = Host::new();
-    host.insert(target, AIR);
-    host.put(at(5, 9, 13), A);
+    for (i, &target) in (0..).zip(&sections) {
+        host.insert(target, AIR);
+        host.put(at_in(target, i % 16, (i * 7) % 16, (i * 3) % 16), A);
+    }
     let rules = Picks {
         replace: false,
         ticks: AtomicU32::new(0),
     };
 
-    run(&mut host, &rules, &[target], 3, 10_000);
+    run(&mut host, &rules, &sections, 3, 10_000);
 
     let ticks = rules.ticks.load(Ordering::Relaxed);
     assert!(
-        (1..=16).contains(&ticks),
-        "about 3 * 10000 / 4096 = 7.3 ticks, not {ticks}"
+        (382..=556).contains(&ticks),
+        "a mean of 7.32 ticks for each of 64 probes, within 4 deviations of 469, not {ticks}"
     );
+}
+
+proptest::proptest! {
+    /// The listed positions of a section are the positions whose state ticks, as a scan of the
+    /// section finds them, after any sequence of sets and fills.
+    #[test]
+    fn the_listed_positions_are_the_ticking_positions_of_the_section(
+        writes in proptest::collection::vec((0usize..4096, 0usize..4, 0u8..8), 1..300),
+    ) {
+        let target = section(0, 0, 0);
+        let mut host = Host::new();
+        host.insert(target, C);
+        host.set_random_ticks(table(&Picks { replace: false, ticks: AtomicU32::new(0) }));
+        let states = [AIR, A, B, C];
+        for (index, state, kind) in writes {
+            let local = LocalPos::from_index(index);
+            let state = states[state];
+            let mut blocks = host.section_mut(target).expect("a writable section");
+            match kind {
+                0 => blocks.fill(state),
+                1 => blocks.fill_box(LocalPos::new(0, 0, 0), local, state),
+                _ => {
+                    blocks.set(local, state);
+                }
+            }
+        }
+        let mut listed = host.random_ticking(target).to_vec();
+        listed.sort_unstable();
+        let scanned: Vec<u16> = LocalPos::all()
+            .filter(|&local| {
+                host.block(at_in(target, local.x().into(), local.y().into(), local.z().into()))
+                    == Ok(A)
+            })
+            .map(|local| u16::try_from(local.index()).expect("a local index"))
+            .collect();
+        proptest::prop_assert_eq!(listed, scanned);
+    }
 }
 
 /// The picks of a section do not depend on the other sections of the step or their order, so a
@@ -217,6 +266,7 @@ fn precipitation_hits_writable_columns_only_and_do_not_depend_on_the_other_secti
         for now in 0..400 {
             let picks = RandomPicks {
                 sections,
+                listed: &[],
                 speed: 3,
                 table: &table,
                 seed: StreamSeed::new(4, "minecraft:overworld"),

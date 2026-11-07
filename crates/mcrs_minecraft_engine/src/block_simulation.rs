@@ -15,19 +15,25 @@ use std::mem;
 use bevy_app::{App, FixedUpdate, Plugin, SubApp};
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::{MessageReader, MessageWriter};
-use bevy_ecs::prelude::{Added, Query, With};
+use bevy_ecs::prelude::{Added, Has, Query, With};
 use bevy_ecs::resource::Resource;
-use bevy_ecs::schedule::IntoScheduleConfigs;
+use bevy_ecs::schedule::common_conditions::{not, resource_exists};
+use bevy_ecs::schedule::{IntoScheduleConfigs, SystemCondition};
 use bevy_ecs::system::{Res, ResMut, SystemParam};
+use bevy_ecs::world::World;
 use mcrs_minecraft_block::block_keys::Block;
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_dimension::Dimension as DimensionKey;
 use mcrs_minecraft_engine_world::block_update::{BlockPlaced, BlockSetRequest};
 use mcrs_minecraft_engine_world::owned_columns::{self, OwnedColumns};
+use mcrs_minecraft_engine_world::palette::ChunkBlocks;
 use mcrs_minecraft_engine_world::tick::TickSet;
 use mcrs_minecraft_engine_world::voxel_update::{self, CellBlockWrite};
 use mcrs_minecraft_engine_world::world::dimension::Dimension;
 use mcrs_minecraft_engine_world::world::lifecycle::simulation::{BlockTicking, EntityTicking};
+use mcrs_minecraft_engine_world::world::storage::random_ticks::{
+    RandomTickIndex, RandomTickIndexPlugin,
+};
 use mcrs_minecraft_engine_world::world::storage::view::WorldViewMut;
 use mcrs_minecraft_item::ItemStack;
 use mcrs_minecraft_protocol::VarInt;
@@ -35,10 +41,12 @@ use mcrs_minecraft_protocol_game::clientbound::ClientboundBlockEvent;
 use mcrs_minecraft_resource::{Id, ResourceKeyBuf};
 use mcrs_minecraft_simulation::{
     BlockBehaviour, BlockEvent, BlockShard, BlockUpdateFlags, BlockWrite, ChainLedger, ChainOrigin,
-    Env, GameTick, KernelConfig, Message, MessageBody, PartitionKind, Phase, PhaseInput,
-    RandomPicks, RandomTickTable, SavedTick, SectionProperties, SectionTicksRef, ShardId,
-    SimulatedSections, StepAt, StepOutput, StreamSeed, SubTick, TickKind, TickQueue, VanillaOrder,
+    Env, GameTick, KernelConfig, ListedSection, Message, MessageBody, PartitionKind, Phase,
+    PhaseInput, RandomPicks, RandomTickTable, SavedTick, SectionProperties, SectionTicksRef,
+    ShardId, SimulatedSections, StepAt, StepOutput, StreamSeed, SubTick, TickKind, TickQueue,
+    VanillaOrder,
 };
+use mcrs_minecraft_volume::PalettedSection;
 use mcrs_voxel::{ColumnPos, SectionPos};
 use rustc_hash::FxHashSet;
 
@@ -105,9 +113,17 @@ impl<B: BlockBehaviour<WorldKinds> + BlockDrops + Clone + Send + 'static> Plugin
         app.init_resource::<LandedTicks>();
         app.init_resource::<BroadcastMarks>();
         app.add_message::<ItemDropped>();
+        app.add_plugins(RandomTickIndexPlugin);
         app.add_systems(
             FixedUpdate,
-            run_block_simulation::<B>.in_set(TickSet::WorldWrite),
+            (
+                index_random_ticks::<B>.run_if(
+                    resource_exists::<Blocks>.and_then(not(resource_exists::<RandomTickIndex>)),
+                ),
+                run_block_simulation::<B>,
+            )
+                .chain()
+                .in_set(TickSet::WorldWrite),
         );
     }
 }
@@ -132,11 +148,13 @@ pub struct BlockSimulation {
     held: FxHashSet<SectionPos>,
     /// The columns in which a saved tick activated since they landed.
     activated: FxHashSet<ColumnPos>,
-    /// The random ticks of each block state under the rules, once the block table landed.
+    /// The random ticks of each block state under the rules, once the block table landed: the
+    /// table of the [`RandomTickIndex`].
     random_table: Option<RandomTickTable>,
     random_seed: Option<StreamSeed>,
     /// The sections that take random ticks, sorted, as the last step found them.
     random_sections: Vec<SectionPos>,
+    random_listed: Vec<ListedSection>,
     drops: Vec<ItemStack>,
 }
 
@@ -424,9 +442,7 @@ fn run_block_simulation<B: BlockBehaviour<WorldKinds> + BlockDrops + Send + 'sta
     simulation.activate(&volume, now);
 
     let rules = &kernel.rules.0;
-    let table = simulation.random_table.get_or_insert_with(|| {
-        RandomTickTable::new(definitions.states(), |state| rules.random_ticks(state))
-    });
+    let table = simulation.random_table.get_or_insert_default();
     let speed = random.speed.0;
     let mut sections = mem::take(&mut simulation.random_sections);
     if speed == 0 {
@@ -464,8 +480,14 @@ fn run_block_simulation<B: BlockBehaviour<WorldKinds> + BlockDrops + Send + 'sta
     let mut broadcast_cut = 0;
     for (phase, messages, chains) in phases {
         if phase == Phase::BlockEvents {
+            if speed != 0
+                && let Some(index) = volume.view.random_ticks_mut()
+            {
+                index.listed(&mut simulation.random_listed);
+            }
             let picks = RandomPicks {
                 sections: &sections,
+                listed: &simulation.random_listed,
                 speed,
                 table,
                 seed,
@@ -544,6 +566,26 @@ fn run_block_simulation<B: BlockBehaviour<WorldKinds> + BlockDrops + Send + 'sta
     simulation.inbound = inbound;
     ledgers.clear();
     simulation.ledgers = ledgers;
+}
+
+/// Lists the positions that tick randomly in each loaded section once the block table landed.
+/// From then on, block writes and the observers of [`RandomTickIndexPlugin`] keep the index.
+fn index_random_ticks<B: BlockBehaviour<WorldKinds> + Send + Sync + 'static>(world: &mut World) {
+    let (Some(definitions), Some(rules)) = (
+        world.get_resource::<Blocks>(),
+        world.get_resource::<BlockRules<B>>(),
+    ) else {
+        return;
+    };
+    let rules = &rules.0;
+    let table = RandomTickTable::new(definitions.states(), |state| rules.random_ticks(state));
+    let mut index = RandomTickIndex::new(table.clone());
+    let mut sections = world.query::<(&SectionPos, &ChunkBlocks, Has<EntityTicking>)>();
+    for (pos, blocks, random_ticked) in sections.iter(world) {
+        index.insert(*pos, &PalettedSection(&blocks.0.0), random_ticked);
+    }
+    world.insert_resource(index);
+    world.resource_mut::<BlockSimulation>().random_table = Some(table);
 }
 
 fn mark_client_writes(marks: &mut BroadcastMarks, writes: &[BlockWrite]) {

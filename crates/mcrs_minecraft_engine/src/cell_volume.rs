@@ -5,7 +5,7 @@ use mcrs_minecraft_core::BoundingBox;
 use mcrs_minecraft_engine_world::owned_columns::{self, OwnedColumns};
 use mcrs_minecraft_engine_world::world::lifecycle::simulation::BlockTicking;
 use mcrs_minecraft_engine_world::world::storage::view::DimensionViewMut;
-use mcrs_minecraft_simulation::{SectionProperties, SimulatedSections};
+use mcrs_minecraft_simulation::{SectionProperties, SimulatedSections, TickingSectionMut};
 use mcrs_minecraft_volume::{
     Access, BlockVolume, BlockVolumeMut, ColumnLayout, Denied, PalettedSection, PalettedSectionMut,
     Unavailable, Volume,
@@ -64,6 +64,12 @@ impl SimulatedSections for CellVolume<'_, '_, '_, '_> {
             loaded
         }
     }
+
+    fn random_ticking(&self, section: SectionPos) -> &[u16] {
+        self.view
+            .random_ticks()
+            .map_or(&[], |index| index.ticking(section))
+    }
 }
 
 impl BlockVolume for CellVolume<'_, '_, '_, '_> {
@@ -79,11 +85,11 @@ impl BlockVolume for CellVolume<'_, '_, '_, '_> {
 
 impl BlockVolumeMut for CellVolume<'_, '_, '_, '_> {
     type SectionMut<'b>
-        = PalettedSectionMut<'b>
+        = TickingSectionMut<'b, PalettedSectionMut<'b>>
     where
         Self: 'b;
 
-    fn section_mut(&mut self, at: SectionPos) -> Result<PalettedSectionMut<'_>, Denied> {
+    fn section_mut(&mut self, at: SectionPos) -> Result<Self::SectionMut<'_>, Denied> {
         if !self.owns(at) {
             return Err(Denied::ReadOnly);
         }

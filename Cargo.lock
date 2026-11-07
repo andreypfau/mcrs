@@ -4275,6 +4275,7 @@ dependencies = [
  "bevy_math",
  "bevy_platform",
  "bevy_time",
+ "criterion",
  "flume",
  "indexmap",
  "mcrs_engine_cell",
@@ -4283,6 +4284,7 @@ dependencies = [
  "mcrs_minecraft_chunk",
  "mcrs_minecraft_core",
  "mcrs_minecraft_dimension",
+ "mcrs_minecraft_random",
  "mcrs_minecraft_resource",
  "mcrs_minecraft_simulation",
  "mcrs_minecraft_volume",
@@ -4952,6 +4954,7 @@ dependencies = [
  "mcrs_minecraft_random",
  "mcrs_minecraft_volume",
  "mcrs_voxel",
+ "proptest",
  "rustc-hash 2.1.1",
  "thiserror 2.0.18",
 ]
