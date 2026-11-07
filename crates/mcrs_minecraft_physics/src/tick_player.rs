@@ -9,6 +9,7 @@ use crate::Dimensions;
 use crate::Keys;
 use crate::MotionAttributes;
 use crate::MoveInput;
+use crate::MovePath;
 use crate::Mover;
 use crate::Physics;
 use crate::PlayerFacts;
@@ -139,10 +140,12 @@ pub fn tick_player<W: CollisionWorld, B: BodyView>(
         mover: &mover,
         stuck_ignore: StuckIgnore::None,
         powder_snow_needs_inside: true,
-        start: start_position,
+        path: MovePath {
+            start: start_position,
+            end: body.position,
+        },
         dy,
         flying: flight,
-        living: true,
         updates_fall: true,
     };
     block_effects::apply(view, &context, &mut body, None, actions);

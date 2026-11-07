@@ -9,6 +9,7 @@ use crate::BodyView;
 use crate::CollisionWorld;
 use crate::InsideEffect;
 use crate::Living;
+use crate::MovePath;
 use crate::Mover;
 use crate::ShapeClass;
 use crate::StuckIgnore;
@@ -26,13 +27,12 @@ pub(crate) struct EffectContext<'a> {
     pub(crate) mover: &'a Mover,
     pub(crate) stuck_ignore: StuckIgnore,
     pub(crate) powder_snow_needs_inside: bool,
-    /// The position at the start of the tick: the start of the path through the blocks.
-    pub(crate) start: DVec3,
+    /// The path through the blocks.
+    pub(crate) path: MovePath,
     /// The vertical displacement of the moves of the tick.
     pub(crate) dy: f64,
     /// A player with the flight state on ignores every stuck multiplier.
     pub(crate) flying: bool,
-    pub(crate) living: bool,
     /// False for the server copy of a player, whose fall distance comes from the moves of the
     /// client.
     pub(crate) updates_fall: bool,
@@ -61,18 +61,12 @@ pub(crate) fn apply<W: CollisionWorld, B: BodyView>(
             body.velocity.z *= factor;
         }
     }
-    // The vanilla server resets the fall distance for the centre path before it adds the fall of
-    // the tick, and resets it for a stuck multiplier after: an entity that descends a ladder
-    // keeps the fall of one tick, and one that falls into a cobweb ends the tick at 0.
-    if context.updates_fall {
-        if context.living && centre_resets_fall(view, context, body) {
-            body.fall_distance = 0.0;
-        }
-        fall_distance(view, context, body, actions);
-    }
     let touched_powder_snow = inside_blocks(view, context, body, living.as_deref(), actions);
     if let Some(living) = living {
         living.in_powder_snow = touched_powder_snow;
+    }
+    if context.updates_fall {
+        fall_distance(view, context, body, actions);
     }
 }
 
@@ -87,8 +81,8 @@ fn inside_blocks<W: CollisionWorld, B: BodyView>(
 ) -> bool {
     let table = &view.tables.collision;
     let mover = context.mover;
-    let from = Aabb::of_body(context.start, mover.width, mover.height).deflate(CLIP);
-    let to = Aabb::of_body(body.position, mover.width, mover.height).deflate(CLIP);
+    let from = Aabb::of_body(context.path.start, mover.width, mover.height).deflate(CLIP);
+    let to = Aabb::of_body(context.path.end, mover.width, mover.height).deflate(CLIP);
     let delta = to.min - from.min;
     let low = from.min.min(to.min);
     let high = from.max.max(to.max);
@@ -99,13 +93,21 @@ fn inside_blocks<W: CollisionWorld, B: BodyView>(
                 let at = BlockPos::new(x, y, z);
                 let block = table.state(state_at(view.world, at));
                 let relevant = block.inside != InsideEffect::None
-                    || block.flags.contains(BlockFlags::INSIDE_ACTION);
+                    || block
+                        .flags
+                        .intersects(BlockFlags::INSIDE_ACTION | BlockFlags::FALL_DAMAGE_RESETTING);
                 if !relevant {
                     continue;
                 }
                 let cell = Aabb::new(at.as_dvec3(), at.as_dvec3() + DVec3::ONE);
-                if !sweeps_through(&from, delta, &cell) {
+                let Some(part) = sweep_part(&from, delta, &cell) else {
                     continue;
+                };
+                if context.updates_fall
+                    && block.flags.contains(BlockFlags::FALL_DAMAGE_RESETTING)
+                    && centre_resets_fall(context, delta, part, &cell)
+                {
+                    body.fall_distance = 0.0;
                 }
                 if block.flags.contains(BlockFlags::INSIDE_ACTION) {
                     actions.push(BlockAction::Inside(at));
@@ -120,36 +122,17 @@ fn inside_blocks<W: CollisionWorld, B: BodyView>(
     touched_powder_snow
 }
 
-/// True when the centre of the box passed through a block with the tag `fall_damage_resetting`.
-/// The vanilla server keeps the fall distance of an item that falls through a sweet berry bush,
-/// so only a living entity reads this rule.
-fn centre_resets_fall<W: CollisionWorld, B: BodyView>(
-    view: View<'_, W, B>,
-    context: &EffectContext<'_>,
-    body: &Body,
-) -> bool {
-    let table = &view.tables.collision;
-    let lift = DVec3::new(0.0, f64::from(context.mover.height) / 2.0, 0.0);
-    let from = context.start + lift;
-    let to = body.position + lift;
-    let centre = Aabb::new(from, from);
-    let low = from.min(to);
-    let high = from.max(to);
-    for z in floor_block(low.z)..=floor_block(high.z) {
-        for y in floor_block(low.y)..=floor_block(high.y) {
-            for x in floor_block(low.x)..=floor_block(high.x) {
-                let at = BlockPos::new(x, y, z);
-                let block = table.state(state_at(view.world, at));
-                let cell = Aabb::new(at.as_dvec3(), at.as_dvec3() + DVec3::ONE);
-                if block.flags.contains(BlockFlags::FALL_DAMAGE_RESETTING)
-                    && sweeps_through(&centre, to - from, &cell)
-                {
-                    return true;
-                }
-            }
-        }
+/// True when the centre of the box touches the cell in the part of the path in which the box
+/// touches it. A part shorter than the square root of `1.0E-7` never resets.
+fn centre_resets_fall(context: &EffectContext<'_>, delta: DVec3, part: Part, cell: &Aabb) -> bool {
+    let length = part.end - part.start;
+    if delta.length_squared() * length * length < COLLISION {
+        return false;
     }
-    false
+    let lift = DVec3::new(0.0, f64::from(context.mover.height) / 2.0, 0.0);
+    let from = context.path.start + lift + delta * part.start;
+    let centre = Aabb::new(from, from);
+    sweep_part(&centre, delta * length, cell).is_some()
 }
 
 fn inside_effect<W: CollisionWorld, B: BodyView>(
@@ -244,9 +227,16 @@ fn fall_distance<W: CollisionWorld, B: BodyView>(
     }
 }
 
-/// True when the box, moved by `delta` along the path, overlaps the cell with a volume that is
-/// more than zero at some point of the path.
-fn sweeps_through(from: &Aabb, delta: DVec3, cell: &Aabb) -> bool {
+/// The fractions of the path between which the box overlaps a cell.
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct Part {
+    start: f64,
+    end: f64,
+}
+
+/// The part of the path in which the box, moved by `delta`, overlaps the cell with a volume that
+/// is more than zero.
+fn sweep_part(from: &Aabb, delta: DVec3, cell: &Aabb) -> Option<Part> {
     let mut low = f64::NEG_INFINITY;
     let mut high = f64::INFINITY;
     for ((start_min, start_max), (cell_min, cell_max), step) in [
@@ -256,7 +246,7 @@ fn sweeps_through(from: &Aabb, delta: DVec3, cell: &Aabb) -> bool {
     ] {
         if step == 0.0 {
             if start_min >= cell_max || start_max <= cell_min {
-                return false;
+                return None;
             }
             continue;
         }
@@ -265,5 +255,8 @@ fn sweeps_through(from: &Aabb, delta: DVec3, cell: &Aabb) -> bool {
         low = low.max(enter.min(leave));
         high = high.min(enter.max(leave));
     }
-    low < high && low < 1.0 && high > 0.0
+    (low < high && low < 1.0 && high > 0.0).then(|| Part {
+        start: low.max(0.0),
+        end: high.min(1.0),
+    })
 }

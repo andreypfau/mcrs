@@ -1,6 +1,7 @@
 use crate::BirthKey;
 use crate::Body;
 use crate::Living;
+use crate::MovePath;
 use crate::Rest;
 
 /// The motion state of a server-simulated entity that is not a player.
@@ -16,6 +17,9 @@ pub struct EntityState {
     /// The phase offset from the birth key, from 0 to 3.
     pub phase: u8,
     pub rest: Rest,
+    /// The path of the last tick that moved the entity. A resting item applies the blocks inside
+    /// its box along this path.
+    pub last_path: MovePath,
 }
 
 impl EntityState {
@@ -29,6 +33,7 @@ impl EntityState {
             age: 0,
             phase: 0,
             rest: Rest::Awake,
+            last_path: MovePath::at(body.position),
         }
     }
 }

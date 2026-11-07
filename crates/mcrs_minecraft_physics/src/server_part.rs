@@ -5,6 +5,7 @@ use crate::BodyView;
 use crate::CollisionWorld;
 use crate::GridRow;
 use crate::KeyedStream;
+use crate::MovePath;
 use crate::Mover;
 use crate::Physics;
 use crate::PlayerState;
@@ -80,10 +81,12 @@ pub fn server_part<B: BodyView, W: CollisionWorld>(
         mover: &mover,
         stuck_ignore: StuckIgnore::None,
         powder_snow_needs_inside: true,
-        start: copy.start,
+        path: MovePath {
+            start: copy.start,
+            end: state.position,
+        },
         dy: 0.0,
         flying: state.flight0,
-        living: true,
         updates_fall: false,
     };
     let mut body = state.body();

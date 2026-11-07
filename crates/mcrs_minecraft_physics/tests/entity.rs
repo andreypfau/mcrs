@@ -146,6 +146,54 @@ fn skip_003_rest_states_on_a_flat_block_top() {
     assert_eq!(cycle, [-0.04, -0.04 - 0.04, -0.04 - 0.04 - 0.04, 0.0]);
 }
 
+/// The fall distance after one tick in which the entity, with a fall distance of 5, falls into
+/// `block`, and the drop of that tick.
+fn fall_into(row: &MotionRow, living: bool, block: BlockStateId) -> (f64, f64) {
+    let mut fixture = Fixture::new();
+    fixture.floor(fixture.blocks.stone);
+    fixture.world.set(BlockPos::new(0, 1, 0), block);
+    let start = DVec3::new(0.5, 2.2, 0.5);
+    let mut state = entity(start, DVec3::new(0.0, -0.5, 0.0), living);
+    state.body.fall_distance = 5.0;
+    fixture.tick(row, &mut state, true);
+    (state.body.fall_distance, start.y - state.body.position.y)
+}
+
+#[test]
+fn fall_004_an_item_resets_in_a_tagged_block_and_keeps_the_fall_of_the_tick() {
+    let blocks = TestBlocks::new();
+    let (fall, drop) = fall_into(&MotionRow::item(), false, blocks.sweet_berry_bush);
+    assert!(drop > 0.0, "the item falls");
+    assert_eq!(fall, drop);
+}
+
+#[test]
+fn fall_004_a_walker_in_a_cobweb_keeps_the_fall_of_the_tick() {
+    let blocks = TestBlocks::new();
+    let (fall, drop) = fall_into(&MotionRow::armor_stand(), true, blocks.cobweb);
+    assert!(drop > 0.0, "the walker falls");
+    assert_eq!(fall, drop);
+}
+
+#[test]
+fn ord_005_a_resting_item_applies_the_blocks_of_its_last_path() {
+    let mut fixture = Fixture::new();
+    fixture.floor(fixture.blocks.stone);
+    let cobweb = BlockPos::new(0, 2, 0);
+    fixture.world.set(cobweb, fixture.blocks.cobweb);
+    let mut item = entity(DVec3::new(0.5, 2.1, 0.5), DVec3::new(0.0, -1.2, 0.0), false);
+    fixture.tick(&MotionRow::item(), &mut item, true);
+    assert!(item.body.flags.on_ground, "the item lands");
+    let landed = item.body.position;
+    fixture.tick(&MotionRow::item(), &mut item, true);
+    assert_eq!(item.body.position, landed, "the item rests");
+    assert!(
+        fixture
+            .actions
+            .contains(&mcrs_minecraft_physics::BlockAction::Inside(cobweb))
+    );
+}
+
 #[test]
 fn grv_007_ground_drag_is_0_546000063419342() {
     assert_eq!(f64::from(0.6_f32 * 0.91_f32), 0.546000063419342);

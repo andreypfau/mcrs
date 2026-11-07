@@ -12,6 +12,7 @@ use crate::Dimensions;
 use crate::EntityState;
 use crate::Living;
 use crate::MotionRow;
+use crate::MovePath;
 use crate::Mover;
 use crate::MoverKind;
 use crate::Physics;
@@ -199,10 +200,12 @@ fn tick_living<W: CollisionWorld, B: BodyView>(
         mover: &mover,
         stuck_ignore: row.stuck_ignore,
         powder_snow_needs_inside: row.powder_snow_needs_inside,
-        start,
+        path: MovePath {
+            start,
+            end: body.position,
+        },
         dy,
         flying: false,
-        living: true,
         updates_fall: true,
     };
     block_effects::apply(view, &context, body, Some(&mut living), actions);
@@ -351,15 +354,18 @@ fn tick_other<W: CollisionWorld, B: BodyView>(
         let velocity = body.velocity;
         let moved = move_body(view, &mover, body, MoverKind::Own, velocity, scratch);
         dy = applied_dy(&moved.resolved, start, body.position);
+        entity.last_path = MovePath {
+            start,
+            end: body.position,
+        };
     }
     let context = EffectContext {
         mover: &mover,
         stuck_ignore: row.stuck_ignore,
         powder_snow_needs_inside: row.powder_snow_needs_inside,
-        start,
+        path: entity.last_path,
         dy,
         flying: false,
-        living: false,
         updates_fall: true,
     };
     block_effects::apply(view, &context, body, None, actions);

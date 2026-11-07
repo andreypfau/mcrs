@@ -9,6 +9,7 @@ use crate::CollisionWorld;
 use crate::EntityCollider;
 use crate::EntityState;
 use crate::MotionRow;
+use crate::MovePath;
 use crate::QueryEntity;
 use crate::Rest;
 use crate::SectionLookup;
@@ -119,6 +120,11 @@ pub(crate) fn air_step(row: &MotionRow, entity: &mut EntityState) {
     body.flags.below_collision = false;
     body.flags.on_ground = false;
     body.support = None;
+    body.support_missed = false;
+    entity.last_path = MovePath {
+        start,
+        end: body.position,
+    };
 }
 
 /// True when the box is in loaded sections whose blocks are all air.

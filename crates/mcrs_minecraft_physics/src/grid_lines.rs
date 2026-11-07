@@ -24,7 +24,9 @@ impl BoxLines {
     pub(crate) fn of(bounds: &Aabb) -> [Self; 3] {
         let bits = Axis::ALL.map(|axis| grid_bits(bounds.min_of(axis), bounds.max_of(axis)));
         match bits {
-            [Some(x), Some(y), Some(z)] => [BoxLines::Grid(x), BoxLines::Grid(y), BoxLines::Grid(z)],
+            [Some(x), Some(y), Some(z)] => {
+                [BoxLines::Grid(x), BoxLines::Grid(y), BoxLines::Grid(z)]
+            }
             _ => Axis::ALL.map(|axis| BoxLines::Faces(bounds.min_of(axis), bounds.max_of(axis))),
         }
     }

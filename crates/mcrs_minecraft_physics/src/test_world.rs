@@ -176,6 +176,7 @@ pub struct TestBlocks {
     pub honey: BlockStateId,
     pub bed: BlockStateId,
     pub cobweb: BlockStateId,
+    pub sweet_berry_bush: BlockStateId,
     pub scaffolding: BlockStateId,
     pub scaffolding_bottom: BlockStateId,
     pub powder_snow: BlockStateId,
@@ -301,7 +302,16 @@ impl TestBlocks {
                     })
                     .unwrap_or(BlockStateId::AIR)
             };
-        let cobweb = push_special(None, BlockFlags::INSIDE_ACTION, InsideEffect::Cobweb);
+        let cobweb = push_special(
+            None,
+            BlockFlags::INSIDE_ACTION | BlockFlags::FALL_DAMAGE_RESETTING,
+            InsideEffect::Cobweb,
+        );
+        let sweet_berry_bush = push_special(
+            None,
+            BlockFlags::INSIDE_ACTION | BlockFlags::FALL_DAMAGE_RESETTING,
+            InsideEffect::SweetBerryBush,
+        );
         let scaffolding = push_special(
             Some(ContextShape::Scaffolding { bottom: false }),
             BlockFlags::CLIMBABLE,
@@ -339,6 +349,7 @@ impl TestBlocks {
             honey,
             bed,
             cobweb,
+            sweet_berry_bush,
             scaffolding,
             scaffolding_bottom,
             powder_snow,
