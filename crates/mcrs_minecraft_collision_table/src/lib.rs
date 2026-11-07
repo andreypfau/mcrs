@@ -3,6 +3,7 @@
 //! classes, the flags and the motion data of each state.
 
 mod collision_table;
+mod inside_shape;
 mod named_block;
 mod widen;
 

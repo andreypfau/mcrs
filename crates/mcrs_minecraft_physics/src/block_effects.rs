@@ -8,12 +8,17 @@ use crate::Body;
 use crate::BodyView;
 use crate::CollisionWorld;
 use crate::InsideEffect;
+use crate::InsideShape;
 use crate::Living;
 use crate::MovePath;
 use crate::Mover;
+use crate::QueryVariant;
 use crate::ShapeClass;
+use crate::StateCollision;
 use crate::StuckIgnore;
 use crate::View;
+use crate::block_scan::ShapeContext;
+use crate::block_scan::entity_shape;
 use crate::block_scan::floor_block;
 use crate::block_scan::state_at;
 use crate::move_body::offset_block;
@@ -103,11 +108,17 @@ fn inside_blocks<W: CollisionWorld, B: BodyView>(
                 let Some(part) = sweep_part(&from, delta, &cell) else {
                     continue;
                 };
+                let shape = inside_boxes(view, context, body, block, at);
                 if context.updates_fall
                     && block.flags.contains(BlockFlags::FALL_DAMAGE_RESETTING)
-                    && centre_resets_fall(context, delta, part, &cell)
+                    && feet_reset_fall(context, delta, part, shape, at)
                 {
                     body.fall_distance = 0.0;
+                }
+                if let Some(boxes) = shape
+                    && !centre_touches(&from, delta, part, boxes, at)
+                {
+                    continue;
                 }
                 if block.flags.contains(BlockFlags::INSIDE_ACTION) {
                     actions.push(BlockAction::Inside(at));
@@ -122,17 +133,65 @@ fn inside_blocks<W: CollisionWorld, B: BodyView>(
     touched_powder_snow
 }
 
-/// True when the centre of the box touches the cell in the part of the path in which the box
-/// touches it. A part shorter than the square root of `1.0E-7` never resets.
-fn centre_resets_fall(context: &EffectContext<'_>, delta: DVec3, part: Part, cell: &Aabb) -> bool {
+/// The boxes of the inside shape of a block, relative to its position; `None` for the full cube.
+fn inside_boxes<'t, W: CollisionWorld, B: BodyView>(
+    view: View<'t, W, B>,
+    context: &EffectContext<'_>,
+    body: &Body,
+    block: StateCollision,
+    at: BlockPos,
+) -> Option<&'t [Aabb]> {
+    let table = &view.tables.collision;
+    match block.inside_shape {
+        InsideShape::FullCube => None,
+        InsideShape::Boxes(range) => Some(table.inside_boxes(range)),
+        InsideShape::Collision => {
+            let entity = context.mover.query_entity(body);
+            let shape_context = ShapeContext {
+                entity: &entity,
+                feet: body.position.y,
+                variant: QueryVariant::Collision,
+            };
+            let deep = entity_shape(table, block, at, &shape_context)
+                .is_some_and(|shape| shape == table.powder_snow_deep());
+            deep.then(|| table.inside_boxes(table.powder_snow_deep_inside()))
+        }
+    }
+}
+
+/// True when the bottom centre of the box touches the inside shape in the part of the path in
+/// which the box touches the cell. A part shorter than the square root of `1.0E-7` never resets.
+fn feet_reset_fall(
+    context: &EffectContext<'_>,
+    delta: DVec3,
+    part: Part,
+    shape: Option<&[Aabb]>,
+    at: BlockPos,
+) -> bool {
     let length = part.end - part.start;
     if delta.length_squared() * length * length < COLLISION {
         return false;
     }
-    let lift = DVec3::new(0.0, f64::from(context.mover.height) / 2.0, 0.0);
-    let from = context.path.start + lift + delta * part.start;
-    let centre = Aabb::new(from, from);
-    sweep_part(&centre, delta * length, cell).is_some()
+    let from = context.path.start + delta * part.start;
+    let feet = Aabb::new(from, from);
+    let cell = [Aabb::new(DVec3::ZERO, DVec3::ONE)];
+    shape
+        .unwrap_or(&cell)
+        .iter()
+        .any(|bounds| sweep_part(&feet, delta * length, &bounds.translate(at.as_dvec3())).is_some())
+}
+
+/// True when the centre of the box, along the part of the path, touches a box of the inside
+/// shape grown by half the size of the box less `1.0E-7`.
+fn centre_touches(from: &Aabb, delta: DVec3, part: Part, boxes: &[Aabb], at: BlockPos) -> bool {
+    let half = from.size() / 2.0 - DVec3::splat(COLLISION);
+    let start = (from.min + from.max) / 2.0 + delta * part.start;
+    let centre = Aabb::new(start, start);
+    let along = delta * (part.end - part.start);
+    boxes.iter().any(|bounds| {
+        let grown = bounds.translate(at.as_dvec3()).inflate(half);
+        sweep_part(&centre, along, &grown).is_some()
+    })
 }
 
 fn inside_effect<W: CollisionWorld, B: BodyView>(

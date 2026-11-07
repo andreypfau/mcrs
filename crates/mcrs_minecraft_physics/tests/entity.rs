@@ -176,6 +176,47 @@ fn fall_004_a_walker_in_a_cobweb_keeps_the_fall_of_the_tick() {
 }
 
 #[test]
+fn fall_004_the_feet_reset_the_fall_when_the_centre_stays_above_the_block() {
+    let mut fixture = Fixture::new();
+    fixture.floor(fixture.blocks.stone);
+    fixture
+        .world
+        .set(BlockPos::new(0, 1, 0), fixture.blocks.sweet_berry_bush);
+    let start = DVec3::new(0.5, 2.05, 0.5);
+    let mut item = entity(start, DVec3::new(0.0, -0.06, 0.0), false);
+    item.body.fall_distance = 5.0;
+    fixture.tick(&MotionRow::item(), &mut item, true);
+    let drop = start.y - item.body.position.y;
+    assert!(
+        item.body.position.y + 0.125 > 2.0,
+        "the centre stays above the block"
+    );
+    assert!(
+        (item.body.fall_distance - drop).abs() < 1.0e-12,
+        "only the fall of the tick"
+    );
+}
+
+#[test]
+fn rch_008_a_thin_inside_shape_acts_only_on_a_centre_that_reaches_it() {
+    let tripwire = BlockPos::new(0, 1, 0);
+    for (height, acts) in [(1.5, false), (1.05, true)] {
+        let mut fixture = Fixture::new();
+        fixture.world.set(tripwire, fixture.blocks.tripwire);
+        let mut item = entity(DVec3::new(0.5, height, 0.5), DVec3::ZERO, false);
+        item.no_gravity = true;
+        fixture.tick(&MotionRow::item(), &mut item, true);
+        assert_eq!(
+            fixture
+                .actions
+                .contains(&mcrs_minecraft_physics::BlockAction::Inside(tripwire)),
+            acts,
+            "an item at {height}"
+        );
+    }
+}
+
+#[test]
 fn ord_005_a_resting_item_applies_the_blocks_of_its_last_path() {
     let mut fixture = Fixture::new();
     fixture.floor(fixture.blocks.stone);

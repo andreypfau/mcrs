@@ -1,8 +1,11 @@
 use mcrs_voxel::BlockStateId;
 
+use crate::Aabb;
 use crate::BlockFlags;
 use crate::BlockMotion;
+use crate::BoxRange;
 use crate::InsideEffect;
+use crate::InsideShape;
 use crate::Shape;
 
 /// The index of a shape in a [`CollisionTable`].
@@ -31,6 +34,7 @@ pub struct StateCollision {
     pub class: ShapeClass,
     pub flags: BlockFlags,
     pub inside: InsideEffect,
+    pub inside_shape: InsideShape,
     pub motion: BlockMotion,
 }
 
@@ -39,6 +43,7 @@ impl StateCollision {
         class: ShapeClass::Empty,
         flags: BlockFlags::empty(),
         inside: InsideEffect::None,
+        inside_shape: InsideShape::FullCube,
         motion: BlockMotion::DEFAULT,
     };
 }
@@ -48,6 +53,8 @@ impl StateCollision {
 pub struct CollisionTable {
     pub(crate) states: Box<[StateCollision]>,
     pub(crate) shapes: Box<[Shape]>,
+    pub(crate) inside_boxes: Box<[Aabb]>,
+    pub(crate) powder_snow_deep_inside: BoxRange,
     pub(crate) full_cube: ShapeId,
     pub(crate) scaffolding_top: ShapeId,
     pub(crate) scaffolding_bottom: ShapeId,
@@ -82,6 +89,20 @@ impl CollisionTable {
     #[must_use]
     pub fn full_cube(&self) -> ShapeId {
         self.full_cube
+    }
+
+    /// The boxes of an inside shape, relative to the block position.
+    #[must_use]
+    pub fn inside_boxes(&self, range: BoxRange) -> &[Aabb] {
+        self.inside_boxes
+            .get(range.start as usize..range.end as usize)
+            .unwrap_or(&[])
+    }
+
+    /// The inside shape of powder snow for an entity that falls more than 2.5 blocks.
+    #[must_use]
+    pub fn powder_snow_deep_inside(&self) -> BoxRange {
+        self.powder_snow_deep_inside
     }
 
     /// The scaffolding shape for an entity above it: the top slab and the four corner posts.

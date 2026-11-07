@@ -15,6 +15,7 @@ use crate::CollisionTable;
 use crate::CollisionTableBuilder;
 use crate::CollisionWorld;
 use crate::ContextShape;
+use crate::InsideBoxes;
 use crate::InsideEffect;
 use crate::SectionLookup;
 use crate::SectionMasks;
@@ -177,6 +178,8 @@ pub struct TestBlocks {
     pub bed: BlockStateId,
     pub cobweb: BlockStateId,
     pub sweet_berry_bush: BlockStateId,
+    /// An attached tripwire: no collision, an inside action in a thin box above the floor.
+    pub tripwire: BlockStateId,
     pub scaffolding: BlockStateId,
     pub scaffolding_bottom: BlockStateId,
     pub powder_snow: BlockStateId,
@@ -201,6 +204,7 @@ impl TestBlocks {
                     context: None,
                     flags,
                     inside: InsideEffect::None,
+                    inside_shape: InsideBoxes::FullCube,
                     motion,
                 })
                 .unwrap_or(BlockStateId::AIR)
@@ -298,6 +302,10 @@ impl TestBlocks {
                         context,
                         flags,
                         inside,
+                        inside_shape: match context {
+                            Some(ContextShape::PowderSnow) => InsideBoxes::Collision,
+                            _ => InsideBoxes::FullCube,
+                        },
                         motion: default,
                     })
                     .unwrap_or(BlockStateId::AIR)
@@ -332,6 +340,19 @@ impl TestBlocks {
             BlockFlags::FLUID | BlockFlags::OWN_SPEED_FACTOR | BlockFlags::COARSE_NEAR,
             InsideEffect::None,
         );
+        let tripwire = builder
+            .push(StateSpec {
+                boxes: &[],
+                context: None,
+                flags: BlockFlags::INSIDE_ACTION,
+                inside: InsideEffect::None,
+                inside_shape: InsideBoxes::Boxes(&[cube(
+                    [0.0, PIXEL, 0.0],
+                    [1.0, 2.5 * PIXEL, 1.0],
+                )]),
+                motion: default,
+            })
+            .unwrap_or(BlockStateId::AIR);
         Self {
             table: builder.build(),
             stone,
@@ -350,6 +371,7 @@ impl TestBlocks {
             bed,
             cobweb,
             sweet_berry_bush,
+            tripwire,
             scaffolding,
             scaffolding_bottom,
             powder_snow,

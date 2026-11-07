@@ -6,8 +6,11 @@ use mcrs_voxel::BlockStateId;
 use crate::Aabb;
 use crate::BlockFlags;
 use crate::BlockMotion;
+use crate::BoxRange;
 use crate::CollisionTable;
+use crate::InsideBoxes;
 use crate::InsideEffect;
+use crate::InsideShape;
 use crate::Shape;
 use crate::ShapeClass;
 use crate::ShapeId;
@@ -22,6 +25,7 @@ pub struct StateSpec<'a> {
     pub context: Option<ContextShape>,
     pub flags: BlockFlags,
     pub inside: InsideEffect,
+    pub inside_shape: InsideBoxes<'a>,
     pub motion: BlockMotion,
 }
 
@@ -37,6 +41,8 @@ pub enum ContextShape {
 pub struct CollisionTableBuilder {
     states: Vec<StateCollision>,
     shapes: Vec<Shape>,
+    inside_boxes: Vec<Aabb>,
+    powder_snow_deep_inside: BoxRange,
     interned: HashMap<Vec<u64>, ShapeId>,
     full_cube: ShapeId,
     scaffolding_top: ShapeId,
@@ -52,6 +58,8 @@ impl CollisionTableBuilder {
         let mut builder = Self {
             states: Vec::new(),
             shapes: Vec::new(),
+            inside_boxes: Vec::new(),
+            powder_snow_deep_inside: BoxRange { start: 0, end: 0 },
             interned: HashMap::new(),
             full_cube: ShapeId(0),
             scaffolding_top: ShapeId(0),
@@ -74,9 +82,11 @@ impl CollisionTableBuilder {
         builder.scaffolding_bottom = builder
             .intern(&[unit(DVec3::ZERO, DVec3::new(1.0, post, 1.0))])
             .unwrap_or(ShapeId(0));
-        builder.powder_snow_deep = builder
-            .intern(&[unit(DVec3::ZERO, DVec3::new(1.0, f64::from(0.9_f32), 1.0))])
-            .unwrap_or(ShapeId(0));
+        let powder_snow_deep = [unit(DVec3::ZERO, DVec3::new(1.0, f64::from(0.9_f32), 1.0))];
+        builder.powder_snow_deep = builder.intern(&powder_snow_deep).unwrap_or(ShapeId(0));
+        builder.powder_snow_deep_inside = builder
+            .push_inside_boxes(&powder_snow_deep)
+            .unwrap_or(BoxRange { start: 0, end: 0 });
         builder
     }
 
@@ -92,10 +102,16 @@ impl CollisionTableBuilder {
             Some(ContextShape::PowderSnow) => ShapeClass::PowderSnow,
             None => self.class_of(spec.boxes),
         };
+        let inside_shape = match spec.inside_shape {
+            InsideBoxes::FullCube => InsideShape::FullCube,
+            InsideBoxes::Boxes(boxes) => InsideShape::Boxes(self.push_inside_boxes(boxes)?),
+            InsideBoxes::Collision => InsideShape::Collision,
+        };
         self.states.push(StateCollision {
             class,
             flags,
             inside: spec.inside,
+            inside_shape,
             motion: spec.motion,
         });
         BlockStateId::checked(number, self.states.len())
@@ -106,11 +122,20 @@ impl CollisionTableBuilder {
         CollisionTable {
             states: self.states.into_boxed_slice(),
             shapes: self.shapes.into_boxed_slice(),
+            inside_boxes: self.inside_boxes.into_boxed_slice(),
+            powder_snow_deep_inside: self.powder_snow_deep_inside,
             full_cube: self.full_cube,
             scaffolding_top: self.scaffolding_top,
             scaffolding_bottom: self.scaffolding_bottom,
             powder_snow_deep: self.powder_snow_deep,
         }
+    }
+
+    fn push_inside_boxes(&mut self, boxes: &[Aabb]) -> Option<BoxRange> {
+        let start = u32::try_from(self.inside_boxes.len()).ok()?;
+        self.inside_boxes.extend_from_slice(boxes);
+        let end = u32::try_from(self.inside_boxes.len()).ok()?;
+        Some(BoxRange { start, end })
     }
 
     fn class_of(&mut self, boxes: &[Aabb]) -> ShapeClass {

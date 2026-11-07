@@ -14,6 +14,8 @@ use mcrs_minecraft_registries::Tags;
 use mcrs_minecraft_resource::TagId;
 use mcrs_minecraft_resource::TagKey;
 
+use crate::inside_shape::InsideProperties;
+use crate::inside_shape::inside_shape;
 use crate::named_block::NamedBlock;
 use crate::widen::on_pixel_grid;
 use crate::widen::widen;
@@ -60,6 +62,8 @@ pub fn collision_table(definitions: &BlockDefinitions, tags: &Tags<Block>) -> Co
     };
     let mut builder = CollisionTableBuilder::new();
     let mut boxes = Vec::new();
+    let cauldron = cauldron_boxes(definitions);
+    let mut inside_boxes = Vec::new();
     for id in definitions.states() {
         let state = definitions.state(id);
         let owner = definitions.owner(id);
@@ -134,11 +138,16 @@ pub fn collision_table(definitions: &BlockDefinitions, tags: &Tags<Block>) -> Co
             jump_factor: named.jump_factor,
             bounce,
         };
+        let properties = InsideProperties {
+            level: owner.and_then(|entry| entry.value_of(id, "level")),
+            attached: owner.and_then(|entry| entry.value_of(id, "attached")),
+        };
         let _ = builder.push(StateSpec {
             boxes: &boxes,
             context,
             flags,
             inside: named.inside,
+            inside_shape: inside_shape(name, properties, &cauldron, &mut inside_boxes),
             motion,
         });
     }
@@ -163,7 +172,7 @@ impl SuffocationTags {
             Suffocation::Never => false,
             Suffocation::Always => true,
             Suffocation::ByTag if in_tag(self.leaves) => false,
-            Suffocation::ByTag if in_tag(self.shulker_boxes) => true,
+            Suffocation::ByTag if in_tag(self.shulker_boxes) => false,
             Suffocation::ByTag => in_tag(self.causes_suffocation) && is_full_cube(boxes),
         }
     }
@@ -177,7 +186,8 @@ enum Suffocation {
     ByTag,
 }
 
-/// The table of PHY-INP-021. A shulker box counts as closed: the table has no block entity.
+/// The table of PHY-INP-021. A shulker box never counts: the table does not know whether it is
+/// closed, and the box makes the tick coarse.
 fn suffocation_of(name: &str, extended: Option<&PropertyValue>) -> Suffocation {
     let path = name.strip_prefix("minecraft:").unwrap_or(name);
     match path {
@@ -192,6 +202,23 @@ fn suffocation_of(name: &str, extended: Option<&PropertyValue>) -> Suffocation {
         },
         _ => Suffocation::ByTag,
     }
+}
+
+/// The collision boxes of the empty cauldron, widened.
+fn cauldron_boxes(definitions: &BlockDefinitions) -> Vec<Aabb> {
+    let Some(id) = definitions.default_state("minecraft:cauldron") else {
+        return Vec::new();
+    };
+    definitions
+        .shape(definitions.state(id).collision_shape)
+        .iter()
+        .map(|bounds| {
+            Aabb::new(
+                DVec3::from_array(bounds.min.to_array().map(widen)),
+                DVec3::from_array(bounds.max.to_array().map(widen)),
+            )
+        })
+        .collect()
 }
 
 fn is_full_cube(boxes: &[Aabb]) -> bool {

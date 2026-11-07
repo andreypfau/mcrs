@@ -9,6 +9,7 @@ use mcrs_minecraft_collision_table::collision_table;
 use mcrs_minecraft_collision_table::widen;
 use mcrs_minecraft_physics::Axis;
 use mcrs_minecraft_physics::BlockFlags;
+use mcrs_minecraft_physics::InsideShape;
 use mcrs_minecraft_physics::ShapeClass;
 use mcrs_voxel::BlockStateId;
 
@@ -254,12 +255,12 @@ fn inp_021_marks_the_states_that_cause_suffocation() {
         "minecraft:farmland",
         "minecraft:dirt_path",
         "minecraft:soul_sand",
-        "minecraft:shulker_box",
         "minecraft:piston",
     ] {
         assert!(suffocates(state(name)), "{name} causes suffocation");
     }
     for name in [
+        "minecraft:shulker_box",
         "minecraft:oak_leaves",
         "minecraft:glass",
         "minecraft:white_stained_glass",
@@ -279,6 +280,30 @@ fn inp_021_marks_the_states_that_cause_suffocation() {
         let extended = piston.value_of(id, "extended").unwrap().to_string() == "true";
         assert_eq!(suffocates(id), !extended);
     }
+}
+
+#[test]
+fn rch_008_gives_the_inside_shapes_of_the_table() {
+    let table = table();
+    let shape = |name: &str| table.state(state(name)).inside_shape;
+    assert_eq!(shape("minecraft:stone"), InsideShape::FullCube);
+    assert_eq!(shape("minecraft:powder_snow"), InsideShape::Collision);
+    let InsideShape::Boxes(range) = shape("minecraft:lava_cauldron") else {
+        panic!("a lava cauldron has boxes");
+    };
+    let top = table
+        .inside_boxes(range)
+        .iter()
+        .map(|bounds| bounds.max.y)
+        .fold(f64::NEG_INFINITY, f64::max);
+    assert_eq!(top, 1.0, "the cauldron walls reach the top");
+    let InsideShape::Boxes(range) = shape("minecraft:end_portal") else {
+        panic!("an end portal has a box");
+    };
+    let [portal] = table.inside_boxes(range) else {
+        panic!("an end portal has one box");
+    };
+    assert_eq!((portal.min.y, portal.max.y), (6.0 / 16.0, 12.0 / 16.0));
 }
 
 #[test]

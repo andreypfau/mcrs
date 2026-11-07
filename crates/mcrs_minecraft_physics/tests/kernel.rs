@@ -9,6 +9,7 @@ use mcrs_minecraft_physics::BlockMotion;
 use mcrs_minecraft_physics::Collider;
 use mcrs_minecraft_physics::ColliderSource;
 use mcrs_minecraft_physics::CollisionTableBuilder;
+use mcrs_minecraft_physics::InsideBoxes;
 use mcrs_minecraft_physics::InsideEffect;
 use mcrs_minecraft_physics::NoBodies;
 use mcrs_minecraft_physics::Probe;
@@ -229,6 +230,7 @@ fn scan_reads_large_shapes_on_faces_only() {
         context: None,
         flags: BlockFlags::empty(),
         inside: InsideEffect::None,
+        inside_shape: InsideBoxes::FullCube,
         motion: BlockMotion::DEFAULT,
     };
     let _air = builder.push(spec(&[]));
