@@ -402,7 +402,7 @@ is the `y` of the block position.
 **PHY-SHP-004** (`unresolved`). Some shapes depend on a block entity or on the position:
 
 - a `moving_piston` gives the shape of the block that it moves;
-- a shulker box gives a shape that grows while the lid opens;
+- a shulker box gives a shape that grows while the lid opens. PHY-SHP-014 states this shape;
 - a block with a position offset has a shape that moves by an offset from a hash of the block
   position. Examples are `bamboo`, `pointed_dripstone`, `icicle` and `sulfur_spike`.
 
@@ -543,6 +543,29 @@ with a volume that is more than zero. The scan of PHY-SHP-007 uses the shrunk bo
 
 For example, take a test that finds a shape that the new box touches and the old box does not
 touch. This test shrinks the new box and the old box by `1.0E-5F`.
+
+**PHY-SHP-014** (`source_suggested`, client agreement, confidence: medium). The collision shape of
+a shulker box depends on the open progress `p` of its block entity. The shape is one box: the full
+cube, grown by `e = f32(0.5F × p)` in the direction of the property `facing`. `e` is widened. A
+shulker box without a block entity has the full cube.
+
+The progress is an f32 value from 0 to 1. The block entity has one of four states, and it
+changes `p` in each of its ticks:
+
+- `closed`: `p` is 0;
+- `opening`: add `0.1F` to `p`. At 1 or more, `p` changes to 1, and the state changes to `open`;
+- `open`: `p` is 1;
+- `closing`: subtract `0.1F` from `p`. At 0 or less, `p` changes to 0, and the state changes to
+  `closed`.
+
+The box starts to open when the first player opens it, and starts to close when the last player
+closes it. The server sends each change of the count of players to the client in a
+`block_event`. The client then computes the same progress, so this rule is client agreement.
+
+An implementation that does not know the state of the block entity must not use the full cube. It
+must treat a tick that can touch the box as coarse (PHY-ORD-008). It can use the full cube only
+when it knows that the box is closed. This applies to the player and to each server-simulated
+entity, because each client shows the shape that this rule gives.
 
 ## 4. The move procedure
 
@@ -1155,9 +1178,11 @@ The player crawls when it has the `swimming` pose and it is not in a fluid in wh
 
 **PHY-INP-011** (`source_suggested`, client agreement, confidence: low). In step 5 of PHY-ORD-001,
 the client pushes its player out of blocks that cause suffocation (PHY-INP-021). It tests four
-points in this order.
-The offsets on `x` and `z` are `(-0.35w, +0.35w)`, `(-0.35w, -0.35w)`, `(+0.35w, -0.35w)` and
-`(+0.35w, +0.35w)`, where `w` is the width. For each point:
+points in this order. The offsets on `x` and `z` are `(-0.35w, +0.35w)`, `(-0.35w, -0.35w)`,
+`(+0.35w, -0.35w)` and `(+0.35w, +0.35w)`, where `w` is the width.
+
+Each offset is the f32 width widened and multiplied by 0.35 in f64. The point is the position
+plus or minus that offset, in f64. For each point:
 
 1. Let the cell be the block position of the point at the height `y`.
 2. Make the column of the cell from `ymin` to `ymax` of the box. Shrink it by `1.0E-7`.
@@ -1169,6 +1194,15 @@ The offsets on `x` and `z` are `(-0.35w, +0.35w)`, `(-0.35w, -0.35w)`, `(+0.35w,
 6. Set the velocity component of that axis to `0.1` towards the selected side.
 
 This does not occur for a player without physics or for a passenger.
+
+The four points use the position at the start of step 5 of PHY-ORD-001. The push does not move the player, so
+each point uses the same position. Step 6 sets only one component and keeps the other two. A
+later point that selects the same axis replaces the value of an earlier point. A later point that
+selects the other axis keeps the value of the earlier point.
+
+In step 5 of this rule, the distance on `x` is `px - cx` to the west side and `1 - (px - cx)`
+to the east side. Here `px` is the `x` of the point
+and `cx` is the `x` of the cell. The `z` axis uses the same formulas.
 
 **PHY-INP-012** (`source_suggested`, client agreement, confidence: medium). The edge back-off
 keeps a player on a block edge while the shift key state is on. It applies in the move procedure
@@ -1340,7 +1374,7 @@ changes to 0 in each of these cases:
 - the entity slides on a honey block (PHY-GRV-015);
 - a living entity has the effect `slow_falling` or `levitation`, at the travel step;
 - a player has the flight state on and is not a passenger, in step 8 of PHY-ORD-001;
-- the centre of the entity passes through a block with the tag `fall_damage_resetting` in this
+- the position of the entity passes through a block with the tag `fall_damage_resetting` in this
   tick (PHY-FALL-004);
 - the entity rides another entity.
 
@@ -1357,7 +1391,10 @@ get the reset. The tag contains `cobweb`, `sweet_berry_bush` and the tag `climba
 The reset occurs in the step "the blocks inside the box" of PHY-ORD-001, step 14. The entity
 examines each block that its box touches along its path (PHY-GRV-014). For such a block with the
 tag, the entity also tests the part of the path in which the box touches the block. The reset
-occurs when the position of the entity on that part touches the inside shape of the block.
+occurs when the position of the entity on that part touches the inside shape of the block
+(PHY-RCH-008). The position is the point at the bottom centre of the box, not the centre of the
+box. The test uses the segment from the position at the start of the part to the position at its
+end.
 
 A part with a squared length less than `1.0E-7` gives no reset. The client does this. This rule
 keeps it for client agreement.
@@ -1858,6 +1895,25 @@ implementation can use that column to decide PHY-SKIP-004 for one entity.
 
 The cauldron action lowers the level only when the entity is on fire. The step actions of
 PHY-RCH-002 are the only step actions. A block without an entry has neither action.
+
+**PHY-RCH-008** (`source_suggested`, client agreement, confidence: medium). Each block has an
+inside shape. PHY-GRV-014 and PHY-FALL-004 test the box and the position against it. The inside
+shape is the full cube, except for the blocks of this table. The values are in pixels of `1/16`.
+
+| Blocks | Inside shape |
+|--------|--------------|
+| `water_cauldron`, `powder_snow_cauldron` with `level` `n` | the collision shape of `cauldron`, plus the box from `(2, 4, 2)` to `(14, 6 + 3n, 14)` |
+| `lava_cauldron` | the collision shape of `cauldron`, plus the box from `(2, 4, 2)` to `(14, 15, 14)` |
+| `powder_snow` | the collision shape for the entity (PHY-SHP-003). When that shape is empty, the full cube. |
+| `end_portal` | the box from `(0, 6, 0)` to `(16, 12, 16)` |
+| `tripwire` with `attached` true | the box from `(0, 1, 0)` to `(16, 2.5, 16)` |
+| `tripwire` with `attached` false | the box from `(0, 0, 0)` to `(16, 8, 16)` |
+
+For the full cube, the test of PHY-GRV-014 applies: the shrunk box touches the cell. For another
+shape, the test also needs a box of the shape. Grow that box on each axis by half the size of the
+entity box on that axis, minus `1.0E-7`. The block acts when the path of the centre of the entity
+box touches the grown box. The path goes from the centre at the start of the part to the centre
+at its end.
 
 ### 9.5 Ticks that can be skipped
 
@@ -2987,8 +3043,8 @@ for client agreement. A server that computes another result gives false setbacks
 - **U4**: the corpus rounds each shape value to `1.0E-4` pixel. A shape value that is not a
   multiple of `1.0E-4 / 16`, for example a value that comes from an f32 constant, is not exact.
   The exact f64 values are necessary for client agreement.
-- **U5**: the shapes of PHY-SHP-004. These are the offset function of a block position, the
-  shape of a shulker box while it opens, and the shape of a `moving_piston`.
+- **U5**: the shapes of PHY-SHP-004. These are the offset function of a block position and the
+  shape of a `moving_piston`. PHY-SHP-014 states the shape of a shulker box.
 - **U6**: the corpus gives the boxes of a shape, not its grid lines. PHY-SHP-005 derives the grid
   lines from the boxes, and this can differ from the reference when the game merged boxes with
   different grids. A corpus component with the grid lines of each axis would remove the doubt.
