@@ -221,22 +221,14 @@ fn living_mover(
 ) -> Mover {
     let attributes = &living.attributes;
     Mover {
-        key,
-        width: dimensions.width,
-        height: dimensions.height,
         step_height: attributes.step_height as f32,
-        physics: Physics::Collide,
-        side,
-        shift: false,
-        keeps_to_edges: false,
         restitution: attributes.bounciness,
         block_bounce_factor: row.block_bounce_factor,
-        gravity: 0.0,
         vertical_drag,
         movement_efficiency: Some(attributes.movement_efficiency as f32),
         powder_snow_solid: row.powder_snow_solid,
         walks_on_powder_snow: living.walks_on_powder_snow,
-        intent: None,
+        ..Mover::new(key, dimensions, side)
     }
 }
 
@@ -289,24 +281,11 @@ fn tick_other<W: CollisionWorld, B: BodyView>(
         return TickOutcome::default();
     }
     let gravity = if entity.no_gravity { 0.0 } else { row.gravity };
-
     let mut mover = Mover {
-        key: entity.key,
-        width: row.dimensions.width,
-        height: row.dimensions.height,
-        step_height: 0.0,
-        physics: Physics::Collide,
-        side,
-        shift: false,
-        keeps_to_edges: false,
-        restitution: 0.0,
         block_bounce_factor: row.block_bounce_factor,
         gravity,
-        vertical_drag: DRAG,
-        movement_efficiency: None,
         powder_snow_solid: row.powder_snow_solid,
-        walks_on_powder_snow: false,
-        intent: None,
+        ..Mover::new(entity.key, row.dimensions, side)
     };
     let mut outcome = TickOutcome::default();
     let moves = item_moves(entity);

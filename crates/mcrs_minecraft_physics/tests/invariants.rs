@@ -9,11 +9,11 @@ use glam::DVec3;
 use mcrs_minecraft_physics::Aabb;
 use mcrs_minecraft_physics::Body;
 use mcrs_minecraft_physics::Collider;
+use mcrs_minecraft_physics::Dimensions;
 use mcrs_minecraft_physics::MoveFlags;
 use mcrs_minecraft_physics::Mover;
 use mcrs_minecraft_physics::MoverKind;
 use mcrs_minecraft_physics::NoBodies;
-use mcrs_minecraft_physics::Physics;
 use mcrs_minecraft_physics::Probe;
 use mcrs_minecraft_physics::QueryEntity;
 use mcrs_minecraft_physics::QueryVariant;
@@ -153,23 +153,15 @@ impl Fixture {
     }
 
     fn mover(case: &Case) -> Mover {
+        let dimensions = Dimensions::scalable(case.width, case.height);
         Mover {
-            key: case.entity.key,
-            width: case.width,
-            height: case.height,
             step_height: case.step_height,
-            physics: Physics::Collide,
-            side: Side::Server { authority: true },
-            shift: false,
-            keeps_to_edges: false,
-            restitution: 0.0,
-            block_bounce_factor: 1.0,
             gravity: 0.08,
-            vertical_drag: 0.98,
-            movement_efficiency: None,
-            powder_snow_solid: false,
-            walks_on_powder_snow: false,
-            intent: None,
+            ..Mover::new(
+                case.entity.key,
+                dimensions,
+                Side::Server { authority: true },
+            )
         }
     }
 

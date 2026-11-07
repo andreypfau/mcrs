@@ -7,7 +7,6 @@ use crate::GridRow;
 use crate::KeyedStream;
 use crate::MovePath;
 use crate::Mover;
-use crate::Physics;
 use crate::PlayerState;
 use crate::PushOutcome;
 use crate::PushRules;
@@ -19,8 +18,7 @@ use crate::block_effects;
 use crate::block_effects::EffectContext;
 use crate::push;
 use crate::tick_entity::jump;
-use crate::tick_player::dimensions_of;
-use crate::travel;
+use crate::tick_player::player_mover;
 
 /// The decay of the velocity of the server copy of a player in each tick.
 const DECAY: f64 = 0.98;
@@ -56,25 +54,10 @@ pub fn server_part<B: BodyView, W: CollisionWorld>(
     if velocity.y.abs() < 0.003 {
         velocity.y = 0.0;
     }
-    let attributes = state.attributes;
-    let dimensions = dimensions_of(state.pose, &attributes);
     let mover = Mover {
-        key: row.key,
-        width: dimensions.width,
-        height: dimensions.height,
-        step_height: attributes.step_height as f32,
-        physics: Physics::Collide,
-        side: Side::Server { authority: false },
         shift: state.shift0,
         keeps_to_edges: !state.flight0,
-        restitution: attributes.bounciness,
-        block_bounce_factor: 1.0,
-        gravity: attributes.gravity,
-        vertical_drag: travel::modifier(0.98, attributes.air_drag_modifier as f32),
-        movement_efficiency: Some(attributes.movement_efficiency as f32),
-        powder_snow_solid: false,
-        walks_on_powder_snow: false,
-        intent: None,
+        ..player_mover(row.key, Side::Server { authority: false }, state)
     };
     let context = EffectContext {
         mover: &mover,

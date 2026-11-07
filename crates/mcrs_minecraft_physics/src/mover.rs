@@ -2,6 +2,7 @@ use glam::DVec3;
 
 use crate::BirthKey;
 use crate::Body;
+use crate::Dimensions;
 use crate::QueryEntity;
 use crate::Side;
 
@@ -43,6 +44,30 @@ pub struct Mover {
 }
 
 impl Mover {
+    /// A mover that collides, with no step height, restitution, gravity, movement efficiency,
+    /// powder snow rule or intent, a block bounce factor of 1 and a vertical drag of `0.98F`.
+    #[must_use]
+    pub fn new(key: BirthKey, dimensions: Dimensions, side: Side) -> Self {
+        Self {
+            key,
+            width: dimensions.width,
+            height: dimensions.height,
+            step_height: 0.0,
+            physics: Physics::Collide,
+            side,
+            shift: false,
+            keeps_to_edges: false,
+            restitution: 0.0,
+            block_bounce_factor: 1.0,
+            gravity: 0.0,
+            vertical_drag: 0.98,
+            movement_efficiency: None,
+            powder_snow_solid: false,
+            walks_on_powder_snow: false,
+            intent: None,
+        }
+    }
+
     /// The entity for a query of colliders, with the state of `body`.
     #[must_use]
     pub fn query_entity(&self, body: &Body) -> QueryEntity {

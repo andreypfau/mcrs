@@ -81,29 +81,17 @@ pub fn tick_player<W: CollisionWorld, B: BodyView>(
     out.jump_delay = out.jump_delay.saturating_sub(1);
     zero_small_speeds(&mut out.velocity);
     let attributes = out.attributes;
-    let dimensions = dimensions_of(out.pose, &attributes);
     let mut body = out.body();
     player_jump(view, out, &mut body, &keys, flight, sprint, yaw);
     if out.effects.slow_falling || out.effects.levitation.is_some() {
         body.fall_distance = 0.0;
     }
     let mover = Mover {
-        key: BirthKey::new(0, SourceKind::Player, 0, 0),
-        width: dimensions.width,
-        height: dimensions.height,
-        step_height: attributes.step_height as f32,
         physics: physics_of(&facts),
-        side,
         shift: keys.shift,
         keeps_to_edges: !flight,
-        restitution: attributes.bounciness,
-        block_bounce_factor: 1.0,
-        gravity: attributes.gravity,
-        vertical_drag: travel::modifier(DRAG, attributes.air_drag_modifier as f32),
-        movement_efficiency: Some(attributes.movement_efficiency as f32),
-        powder_snow_solid: false,
-        walks_on_powder_snow: false,
         intent: (side == Side::OwnClient).then(|| intent(&view.tables.sine, move_input, yaw)),
+        ..player_mover(BirthKey::new(0, SourceKind::Player, 0, 0), side, out)
     };
     let start_position = body.position;
     let air_speed = air_speed(flight, sprint, out.flight_speed);
@@ -187,6 +175,19 @@ fn flight_steps<W: CollisionWorld, B: BodyView>(
         out.fall_distance = 0.0;
     }
     flight
+}
+
+/// The mover of a player in its pose and with its attributes.
+pub(crate) fn player_mover(key: BirthKey, side: Side, state: &PlayerState) -> Mover {
+    let attributes = &state.attributes;
+    Mover {
+        step_height: attributes.step_height as f32,
+        restitution: attributes.bounciness,
+        gravity: attributes.gravity,
+        vertical_drag: travel::modifier(DRAG, attributes.air_drag_modifier as f32),
+        movement_efficiency: Some(attributes.movement_efficiency as f32),
+        ..Mover::new(key, dimensions_of(state.pose, attributes), side)
+    }
 }
 
 /// A spectator has no physics.
