@@ -1,12 +1,11 @@
-use mcrs_molang::{Expression, QueryRegistry, QuerySlot, VariableLayout, VariableSlot};
+use mcrs_molang::{Accesses, Expression, QueryRegistry, QuerySlot, VariableLayout, VariableSlot};
 
 use crate::animation_diagnostic::{AnimationDiagnostic, DiagnosticKind};
 use crate::client_entity_definition::ClientEntityDefinition;
 use crate::clip::Clip;
 use crate::clip_library::ClipLibrary;
-use crate::dependencies::Dependencies;
 use crate::entity_query::EntityQuery;
-use crate::field_compiler::{Field, FieldCompiler};
+use crate::field_compiler::FieldCompiler;
 
 /// What an element of the `animate` list plays.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -91,14 +90,14 @@ impl Rig {
         let initialize = (!scripts.initialize.is_empty()).then(|| {
             let entries: Vec<&str> = scripts.initialize.iter().map(String::as_str).collect();
             let context = format!("{identifier}/scripts/initialize");
-            compiler.compile_script(&entries, &context).expression
+            compiler.compile_script(&entries, &context)
         });
         let pre_animation = (!scripts.pre_animation.is_empty()).then(|| {
             let entries: Vec<&str> = scripts.pre_animation.iter().map(String::as_str).collect();
             let context = format!("{identifier}/scripts/pre_animation");
             compiler.compile_script(&entries, &context)
         });
-        let scale: Vec<Field> = scripts
+        let scale: Vec<Expression> = scripts
             .scale
             .iter()
             .zip(["scale", "scalex", "scaley", "scalez"])
@@ -126,8 +125,8 @@ impl Rig {
                 continue;
             };
             let weight = match &item.weight {
-                Some(json) => compiler.compile(json, &context).expression,
-                None => FieldCompiler::constant(1.0).expression,
+                Some(json) => compiler.compile(json, &context),
+                None => FieldCompiler::constant(1.0),
             };
             animate.push(AnimateEntry {
                 short_name: item.short_name.clone(),
@@ -136,15 +135,9 @@ impl Rig {
             });
         }
         let queries = bindings(&compiler.registry);
-        let pre_animation = pre_animation.map(|field| Script {
-            evaluation: evaluation(&compiler, &queries, &field.dependencies),
-            expressions: vec![field.expression],
-        });
-        let scale_dependencies = merge(scale.iter().map(|field| &field.dependencies));
-        let scale = Script {
-            evaluation: evaluation(&compiler, &queries, &scale_dependencies),
-            expressions: scale.into_iter().map(|field| field.expression).collect(),
-        };
+        let pre_animation =
+            pre_animation.map(|expression| Script::new(&compiler, vec![expression]));
+        let scale = Script::new(&compiler, scale);
         diagnostics.append(&mut compiler.diagnostics);
         Self {
             identifier: identifier.into(),
@@ -260,64 +253,26 @@ fn bindings(registry: &QueryRegistry) -> QueryBindings {
     bindings
 }
 
-fn merge<'a>(all: impl IntoIterator<Item = &'a Dependencies>) -> Dependencies {
-    let mut merged = Dependencies::default();
-    for dependencies in all {
-        for (into, from) in [
-            (&mut merged.queries, &dependencies.queries),
-            (&mut merged.reads, &dependencies.reads),
-            (&mut merged.writes, &dependencies.writes),
-        ] {
-            for name in from {
-                if !into.contains(name) {
-                    into.push(name.clone());
-                }
-            }
+impl Script {
+    /// A script can skip a frame when no input changed, when it does not read a variable that
+    /// it writes, and when no other expression writes its variables: then a skipped run is not
+    /// visible.
+    fn new(compiler: &FieldCompiler, expressions: Vec<Expression>) -> Self {
+        let mut accesses = Accesses::default();
+        for expression in &expressions {
+            accesses.merge(expression.accesses());
         }
-        merged.volatile |= dependencies.volatile;
-    }
-    merged
-}
-
-/// A script can skip a frame when no input changed, when it does not read a variable that it
-/// writes, and when no other expression writes its variables: then a skipped run is not visible.
-fn evaluation(
-    compiler: &FieldCompiler,
-    queries: &QueryBindings,
-    dependencies: &Dependencies,
-) -> Evaluation {
-    if dependencies.volatile
-        || dependencies.reads_own_write()
-        || compiler.has_other_writer(dependencies)
-    {
-        return Evaluation::EveryFrame;
-    }
-    let mut slots: Vec<QuerySlot> = queries
-        .host
-        .iter()
-        .filter(|host| {
-            dependencies
-                .queries
-                .iter()
-                .any(|name| **name == *host.query.name())
-        })
-        .map(|host| host.slot)
-        .collect();
-    if dependencies
-        .queries
-        .iter()
-        .any(|name| &**name == "delta_time")
-        && let Some(slot) = queries.delta_time
-    {
-        slots.push(slot);
-    }
-    let variables = dependencies
-        .reads
-        .iter()
-        .filter_map(|name| compiler.layout.slot(name))
-        .collect();
-    Evaluation::OnChange {
-        queries: slots,
-        variables,
+        let evaluation = if accesses.reads_own_write() || compiler.has_other_writer(&accesses) {
+            Evaluation::EveryFrame
+        } else {
+            Evaluation::OnChange {
+                queries: accesses.queries_read,
+                variables: accesses.variables_read,
+            }
+        };
+        Self {
+            expressions,
+            evaluation,
+        }
     }
 }

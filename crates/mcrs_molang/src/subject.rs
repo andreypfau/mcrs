@@ -111,6 +111,14 @@ impl QueryValues {
     pub fn set_number(&mut self, slot: QuerySlot, value: f32) {
         self.set(slot, Some(u64::from(value.to_bits())));
     }
+
+    /// The raw value of the slot, or `None` when it is missing.
+    #[must_use]
+    pub fn get(&self, slot: QuerySlot) -> Option<u64> {
+        let index = usize::from(slot.0);
+        let set = self.set.get(index).copied().unwrap_or(false);
+        self.raw.get(index).copied().filter(|_| set)
+    }
 }
 
 /// The inputs and the variable store of one run.

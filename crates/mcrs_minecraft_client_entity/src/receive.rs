@@ -229,15 +229,17 @@ fn on_position_sync(
         return;
     };
     let path = delta::sync_path(&packet.position);
-    let end = path.end().unwrap_or(motion.delta_base);
+    let Some(end) = path.end() else {
+        return;
+    };
     motion.delta_base = end;
     let rotation = Rotation {
         yaw: packet.look.yaw,
         pitch: packet.look.pitch,
     };
-    // A frozen world does not count: a capture shows a frozen pig that keeps its path.
-    let ticks = in_ticking_area(columns.as_deref(), motion.current.position);
-    if !ticks || motion.current.position.distance(end) > SNAP_DISTANCE {
+    // A frozen entity stays in the ticking area: a capture shows a frozen pig that keeps its path.
+    let ticking_area = in_ticking_area(columns.as_deref(), motion.current.position);
+    if !ticking_area || motion.current.position.distance(end) > SNAP_DISTANCE {
         motion.snap(Placement::new(end, rotation.yaw, rotation.pitch));
     } else {
         motion.start(Some(path), Some(rotation), client.traits().update_interval);

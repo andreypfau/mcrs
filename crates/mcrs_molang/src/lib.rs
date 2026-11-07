@@ -5,6 +5,7 @@
 
 extern crate alloc;
 
+mod accesses;
 mod batch;
 mod batch_subject;
 mod bytecode;
@@ -30,6 +31,7 @@ mod subject;
 mod syntax;
 mod value;
 
+pub use accesses::Accesses;
 pub use batch::BatchVm;
 pub use batch_subject::{BatchOutput, BatchQueries, BatchSubjects, BatchVariables};
 pub use bytecode::Program;

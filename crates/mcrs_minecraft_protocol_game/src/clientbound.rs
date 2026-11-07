@@ -6,7 +6,7 @@ use crate::chat::{ChatTypeId, CompletionAction, FilterMask, PackedSignature};
 use crate::chunk::ChunkBlockUpdateEntry;
 use crate::entity::{EquipmentSlot, Metadata};
 use crate::game_event::GameEventKind;
-use crate::item::{ProtoStack, MerchantOffer};
+use crate::item::{MerchantOffer, ProtoStack};
 use crate::minecart::MinecartStep;
 use crate::player::*;
 use crate::player_list::{PlayerListActions, PlayerListEntry};
@@ -132,7 +132,9 @@ pub struct PositionStep {
     pub tick_offset: VarInt,
 }
 
-#[derive(Clone, Debug, PartialEq, Encode, Decode)]
+/// The movement of a position sync. A decoder refuses a stepped path with no step: such a path
+/// has no end position.
+#[derive(Clone, Debug, PartialEq, Encode)]
 pub enum PositionPath {
     Linear(DVec3),
     /// `start_immediately` is true when the entity got a sudden change of movement since the
@@ -141,6 +143,30 @@ pub enum PositionPath {
         steps: Vec<PositionStep>,
         start_immediately: bool,
     },
+}
+
+impl mcrs_minecraft_protocol::Decode<'_> for PositionPath {
+    fn decode(r: &mut &[u8]) -> Result<Self> {
+        match VarInt::decode(r)?.0 {
+            0 => Ok(Self::Linear(mcrs_minecraft_protocol::Decode::decode(r)?)),
+            1 => {
+                let steps: Vec<PositionStep> = mcrs_minecraft_protocol::Decode::decode(r)?;
+                mcrs_minecraft_protocol::wire::ensure!(
+                    !steps.is_empty(),
+                    "a stepped PositionPath has no step and so no end position"
+                );
+                Ok(Self::Stepped {
+                    steps,
+                    start_immediately: bool::decode(r)?,
+                })
+            }
+            tag => Err(mcrs_minecraft_protocol::wire::ErrorKind::UnknownTag {
+                ty: "PositionPath",
+                tag,
+            }
+            .into()),
+        }
+    }
 }
 
 #[derive(Clone, Debug, Encode, Decode)]

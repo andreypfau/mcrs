@@ -4,6 +4,7 @@
 use alloc::vec;
 use alloc::vec::Vec;
 
+use crate::accesses::Accesses;
 use crate::bytecode::{Instr, Program, Reg};
 use crate::diagnostic::Span;
 use crate::ir::{Function, Op, Region, ValueId};
@@ -420,7 +421,9 @@ pub(crate) fn emit(function: &Function) -> Program {
     };
     emitter.walk(&function.body);
     let [number_registers, bits_registers] = emitter.counts;
+    let accesses = Accesses::of(&emitter.code);
     Program {
+        accesses,
         code: emitter.code,
         spans: emitter.spans,
         number_registers: number_registers.max(1),

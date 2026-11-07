@@ -37,6 +37,9 @@ pub struct Interpolation {
     total_weight: f32,
     /// The end point of the latest start. It stays when a start empties the path.
     target: Placement,
+    /// Where the entity was at the end of the latest start or step. A step measures the
+    /// movement from other causes from here.
+    settled: Placement,
 }
 
 impl Interpolation {
@@ -82,11 +85,13 @@ impl Interpolation {
         );
         if length == 0 {
             self.clear();
+            self.settled = end;
             return Start::Snap(end);
         }
         if self.is_active() && self.target == end {
             return Start::Unchanged;
         }
+        self.settled = current;
         if let PacketPath::Stepped {
             start_immediately: true,
             ..
@@ -150,6 +155,7 @@ impl Interpolation {
         if !self.is_active() {
             self.segments.clear();
             self.total_weight = 0.0;
+            self.settled = current;
             return current;
         }
         self.follow(current);
@@ -172,21 +178,23 @@ impl Interpolation {
         if self.segments.is_empty() {
             self.clear();
         }
+        self.settled = self.point;
         self.point
     }
 
-    /// Moves the rest of the path with the entity when another cause moved or turned it since
-    /// the latest tick.
+    /// Moves the target, the rest of the path and the point of the interpolation with the
+    /// entity when another cause moved or turned it since the latest start or step. A client
+    /// with no block collision shapes finds no collision at the moved target.
     fn follow(&mut self, current: Placement) {
-        let shift = current.position - self.point.position;
+        let shift = current.position - self.settled.position;
         let moves = shift.length_squared() > MIN_FOLLOW_DISTANCE_SQUARED;
-        let yaw_change = current.yaw - self.point.yaw;
-        let pitch_change = current.pitch - self.point.pitch;
+        let yaw_change = current.yaw - self.settled.yaw;
+        let pitch_change = current.pitch - self.settled.pitch;
         let points = self
             .segments
             .iter_mut()
             .map(|segment| &mut segment.end)
-            .chain([&mut self.point]);
+            .chain([&mut self.point, &mut self.target]);
         for point in points {
             if moves {
                 point.position += shift;
@@ -391,6 +399,59 @@ mod tests {
             last.position,
             DVec3::new(0.0, 10.0, 3.0),
             "a change below the threshold does not move the path"
+        );
+    }
+
+    #[test]
+    fn a_move_before_a_start_is_not_followed() {
+        let mut interpolation = Interpolation::default();
+        interpolation.start(at(0.0), linear(3.0), None, 3);
+        let current = interpolation.step(at(0.0), 1.0);
+        let lifted = Placement::new(current.position + DVec3::Y * 5.0, 0.0, 0.0);
+        interpolation.start(lifted, linear(6.0), None, 3);
+        let placements = walk(&mut interpolation, lifted, 3);
+        assert_close(&zs(&placements), &[8.0 / 3.0, 13.0 / 3.0, 6.0]);
+        assert_eq!(
+            placements[0].position.y, 0.0,
+            "the start measures later moves from the lifted position, so the lift is not followed"
+        );
+    }
+
+    #[test]
+    fn a_followed_move_also_moves_the_target_of_the_next_start() {
+        let mut interpolation = Interpolation::default();
+        interpolation.start(at(0.0), linear(3.0), None, 3);
+        let current = interpolation.step(at(0.0), 1.0);
+        let lifted = Placement::new(current.position + DVec3::Y * 10.0, 0.0, 0.0);
+        let current = interpolation.step(lifted, 1.0);
+        let turn = Some(Rotation {
+            yaw: 90.0,
+            pitch: 0.0,
+        });
+        interpolation.start(current, None, turn, 3);
+        let placements = walk(&mut interpolation, current, 3);
+        let heights: Vec<f64> = placements
+            .iter()
+            .map(|placement| placement.position.y)
+            .collect();
+        assert_close(&heights, &[10.0, 10.0, 10.0]);
+        assert_eq!(
+            placements[2],
+            Placement::new(DVec3::new(0.0, 10.0, 3.0), 90.0, 0.0)
+        );
+    }
+
+    #[test]
+    fn a_turn_from_another_cause_turns_the_rest_of_the_path() {
+        let mut interpolation = Interpolation::default();
+        interpolation.start(at(0.0), linear(3.0), None, 3);
+        let current = interpolation.step(at(0.0), 1.0);
+        let turned = Placement::new(current.position, 0.5, -0.25);
+        let placements = walk(&mut interpolation, turned, 2);
+        assert_eq!(
+            placements[1],
+            Placement::new(DVec3::new(0.0, 0.0, 3.0), 0.5, -0.25),
+            "a turn has no threshold"
         );
     }
 

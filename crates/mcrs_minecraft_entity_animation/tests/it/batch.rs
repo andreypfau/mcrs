@@ -1,8 +1,10 @@
 //! The batch run gives the poses of the scalar run, bit for bit.
 
 use mcrs_minecraft_entity_animation::{
-    BatchLanes, EntityAnimation, EntityQuery, Pose, PoseBatch, PoseBinding, QuerySource, Rig,
+    BatchLanes, ClientEntityDefinition, ClipLibrary, EntityAnimation, EntityQuery, Pose, PoseBatch,
+    PoseBinding, QuerySource, Rig,
 };
+use mcrs_minecraft_entity_model::{BakedGeometry, GeometryFile};
 use mcrs_molang::{ScalarVm, Value, string_hash};
 
 use crate::pack;
@@ -31,9 +33,8 @@ impl QuerySource for Lane {
     }
 }
 
-fn compare(rig: &Rig, geometry: &str) {
-    let geometries = pack::geometries(geometry);
-    let binding = PoseBinding::new(rig, &geometries[0]);
+fn compare(rig: &Rig, geometry: &BakedGeometry) {
+    let binding = PoseBinding::new(rig, geometry);
     let count = 300;
     let sources: Vec<Lane> = (0..count).map(|index| Lane { index }).collect();
     let mut scalar_entities = vec![EntityAnimation::new(rig); count];
@@ -70,11 +71,48 @@ fn compare(rig: &Rig, geometry: &str) {
             "{}: frame {frame} differs",
             rig.identifier
         );
+        assert!(
+            scalar_entities == batch_entities,
+            "{}: the variables or the instances of frame {frame} differ",
+            rig.identifier
+        );
     }
 }
 
 #[test]
 fn a_batch_run_gives_the_poses_of_a_scalar_run() {
-    compare(&pack::rig("pig"), "pig");
-    compare(&pack::rig("frog"), "frog");
+    compare(&pack::rig("pig"), &pack::geometries("pig")[0]);
+    compare(&pack::rig("frog"), &pack::geometries("frog")[0]);
+}
+
+#[test]
+fn a_batch_run_with_variables_and_some_lanes_idle_gives_the_poses_of_a_scalar_run() {
+    let definition = ClientEntityDefinition::parse(
+        r#"{"format_version": "1.10.0", "minecraft:client_entity": {"description": {
+            "identifier": "test", "animations": {"a": "animation.test.a", "b": "animation.test.b"},
+            "scripts": {
+                "pre_animation": ["v.swing = q.modified_distance_moved * 10;"],
+                "animate": [{"a": "q.is_in_water"}, {"b": "v.count = (v.count ?? 0) + 1; return 1;"}]
+            }}}}"#,
+    )
+    .unwrap();
+    let mut library = ClipLibrary::new();
+    library
+        .add_file(
+            r#"{"format_version": "1.8.0", "animations": {
+                "animation.test.a": {"loop": true, "bones": {"bone": {"rotation": ["v.swing + this", 0, 0]}}},
+                "animation.test.b": {"loop": true, "bones": {"bone": {"position": [0, "v.count * q.modified_move_speed", 0]}}}
+            }}"#,
+        )
+        .unwrap();
+    let mut diagnostics = Vec::new();
+    let rig = Rig::compile(&definition, &library, &mut diagnostics);
+    assert!(diagnostics.is_empty(), "{diagnostics:#?}");
+    let file: GeometryFile = r#"{"format_version": "1.12.0", "minecraft:geometry": [{
+        "description": {"identifier": "geometry.test", "texture_width": 16, "texture_height": 16},
+        "bones": [{"name": "bone", "pivot": [0, 0, 0], "rotation": [20, 0, 0]}]}]}"#
+        .parse()
+        .unwrap();
+    let geometry = file.geometries[0].bake(&mut Vec::new()).unwrap();
+    compare(&rig, &geometry);
 }

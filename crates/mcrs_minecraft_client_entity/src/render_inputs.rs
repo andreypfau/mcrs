@@ -77,8 +77,9 @@ pub struct FrameValues {
     pub clock: f32,
     pub body_yaw: f32,
     pub head_yaw: f32,
-    /// The head yaw relative to the body yaw.
+    /// The head yaw relative to the body yaw, negated for an upside-down entity.
     pub relative_head_yaw: f32,
+    /// Negated for an upside-down entity.
     pub pitch: f32,
     pub walk: WalkFrame,
     pub death_ticks: f32,
@@ -88,6 +89,14 @@ pub struct FrameValues {
     pub vertical_speed: f64,
     pub moving: bool,
     pub on_ground: bool,
+    /// The in-water flag of the latest tick.
+    pub in_water: bool,
+    /// The custom name turns the entity upside down.
+    pub upside_down: bool,
+    /// The entity rides another one. Always `false` until the client keeps passengers.
+    pub riding: bool,
+    /// Another entity rides this one. Always `false` until the client keeps passengers.
+    pub has_rider: bool,
     pub alive: bool,
     pub baby: bool,
     pub model_scale: f64,
@@ -165,6 +174,7 @@ impl RenderInputs<'_> {
         let size = if data.baby { traits.baby_scale } else { 1.0 };
         let eye_height = f64::from(traits.eye_height * size) * data.scale;
         let movement = motion.movement();
+        let upside_down_sign = if data.upside_down { -1.0 } else { 1.0 };
         FrameValues {
             partial_tick,
             position,
@@ -172,8 +182,8 @@ impl RenderInputs<'_> {
             clock: self.age.0 as f32 + partial_tick,
             body_yaw,
             head_yaw,
-            relative_head_yaw: angle::wrap(head_yaw - body_yaw),
-            pitch,
+            relative_head_yaw: upside_down_sign * angle::wrap(head_yaw - body_yaw),
+            pitch: upside_down_sign * pitch,
             walk,
             death_ticks,
             hurt_time,
@@ -181,6 +191,10 @@ impl RenderInputs<'_> {
             vertical_speed: movement.y * f64::from(TICKS_PER_SECOND),
             moving: movement.abs().max_element() > MOVING_DISTANCE,
             on_ground: motion.on_ground,
+            in_water: motion.in_water,
+            upside_down: data.upside_down,
+            riding: false,
+            has_rider: false,
             alive,
             baby: data.baby,
             model_scale: data.scale,

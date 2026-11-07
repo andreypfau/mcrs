@@ -8,7 +8,6 @@ mod channel;
 mod client_entity_definition;
 mod clip;
 mod clip_library;
-mod dependencies;
 mod entity_animation;
 mod entity_query;
 mod field_compiler;
@@ -20,6 +19,7 @@ mod pose_batch;
 mod pose_binding;
 mod query_source;
 mod rig;
+mod rig_query;
 
 pub use animation_diagnostic::{AnimationDiagnostic, DiagnosticKind};
 pub use channel::{Channel, Keyframe, LerpMode, Segment};

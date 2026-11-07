@@ -150,11 +150,26 @@ impl<const N: usize> BatchVm<N> {
         }
     }
 
-    /// Runs `program` once for each lane of `subjects`.
+    /// Runs `program` once for each of the first `subjects.lanes` lanes.
     pub fn run(
         &mut self,
         program: &Program,
         subjects: &mut BatchSubjects<'_, N>,
+    ) -> BatchOutput<'_, N> {
+        let mut lanes = [false; N];
+        for (lane, active) in lanes.iter_mut().enumerate() {
+            *active = lane < subjects.lanes;
+        }
+        self.run_masked(program, subjects, &lanes)
+    }
+
+    /// Runs `program` once for each lane that `lanes` marks active; `subjects.lanes` is not
+    /// read. An inactive lane keeps its variables, and its result is `0.0` or `0`.
+    pub fn run_masked(
+        &mut self,
+        program: &Program,
+        subjects: &mut BatchSubjects<'_, N>,
+        lanes: &[bool; N],
     ) -> BatchOutput<'_, N> {
         if self.numbers.len() < program.number_registers {
             self.numbers.resize(program.number_registers, [0.0; N]);
@@ -162,10 +177,8 @@ impl<const N: usize> BatchVm<N> {
         if self.bits.len() < program.bits_registers {
             self.bits.resize(program.bits_registers, [0; N]);
         }
-        for (lane, (mask, alive)) in self.mask.iter_mut().zip(&mut self.alive).enumerate() {
-            *mask = lane < subjects.lanes;
-            *alive = *mask;
-        }
+        self.mask = *lanes;
+        self.alive = *lanes;
         self.missing = [false; N];
         self.out_numbers = [0.0; N];
         self.out_bits = [0; N];

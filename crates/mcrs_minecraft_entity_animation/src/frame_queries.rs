@@ -27,6 +27,7 @@ pub struct FrameQueries<'a> {
     /// `None` for a type with no variant.
     pub variant: Option<VariantEntry>,
     pub time_of_day: f32,
+    /// An in-water flag of the host that adds to [`FrameValues::in_water`].
     pub in_water: bool,
 }
 
@@ -50,7 +51,9 @@ impl QuerySource for FrameQueries<'_> {
             EntityQuery::VerticalSpeed => Value::Number(frame.vertical_speed as f32),
             EntityQuery::IsMoving => Self::flag(frame.moving),
             EntityQuery::IsOnGround => Self::flag(frame.on_ground),
-            EntityQuery::IsInWater => Self::flag(self.in_water),
+            EntityQuery::IsInWater => Self::flag(frame.in_water || self.in_water),
+            EntityQuery::IsRiding => Self::flag(frame.riding),
+            EntityQuery::HasRider => Self::flag(frame.has_rider),
             EntityQuery::TargetXRotation | EntityQuery::HeadXRotation(Some(0)) => {
                 Value::Number(frame.pitch)
             }

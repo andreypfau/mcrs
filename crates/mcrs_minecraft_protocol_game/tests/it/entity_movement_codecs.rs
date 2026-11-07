@@ -8,7 +8,7 @@ use mcrs_minecraft_protocol::{Decode, Encode, VarInt};
 use mcrs_minecraft_protocol_game::ByteAngle;
 use mcrs_minecraft_protocol_game::clientbound::{
     ClientboundEntityPositionSync, ClientboundMoveEntityPos, ClientboundMoveEntityPosRot,
-    DeltaStep, VecDelta, PositionPath, PositionStep,
+    DeltaStep, PositionPath, PositionStep, VecDelta,
 };
 
 fn round_trip<'a, P: Encode + Decode<'a> + std::fmt::Debug>(packet: &P, buf: &'a mut Vec<u8>) -> P {
@@ -157,4 +157,14 @@ fn the_start_flag_comes_before_the_steps_of_a_delta_and_after_the_steps_of_a_syn
     let decoded = round_trip(&packet, &mut buf);
     assert_eq!(buf, expected);
     assert_eq!(decoded.position, packet.position);
+}
+
+#[test]
+fn a_stepped_sync_path_with_no_step_is_rejected() {
+    let mut buf = Vec::new();
+    VarInt(1).encode(&mut buf).unwrap();
+    VarInt(0).encode(&mut buf).unwrap();
+    false.encode(&mut buf).unwrap();
+    let mut r: &[u8] = &buf;
+    assert!(PositionPath::decode(&mut r).is_err());
 }

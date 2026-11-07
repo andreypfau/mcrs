@@ -5,8 +5,9 @@
 )]
 
 use mcrs_molang::{
-    CompileOptions, ErrorKind, Milestone, QueryRegistry, QueryValues, ScalarVm, Source, Subject,
-    UseContext, Value, VariableLayout, Variables, WarningKind, compile, compile_text, string_hash,
+    Arguments, CompileOptions, ErrorKind, Milestone, QueryDeclaration, QueryRegistry, QueryScope,
+    QuerySlot, QueryValues, Rate, ScalarVm, Source, Subject, UseContext, Value, ValueType,
+    VariableLayout, Variables, WarningKind, compile, compile_text, string_hash,
 };
 
 struct Run {
@@ -421,4 +422,58 @@ fn pure_queries_are_functions_of_their_arguments() {
     ] {
         assert_eq!(number(text), expected, "{text}");
     }
+}
+
+#[test]
+fn the_cpu_keeps_subnormal_results() {
+    let product = number("0.0000000001 * 0.0000000001 * 0.0000000001 * 0.0000000001 * 0.01");
+    assert!(
+        product.is_subnormal(),
+        "{product:e} must not be flushed to zero"
+    );
+}
+
+#[test]
+fn a_program_lists_the_slots_it_reads_and_writes_once() {
+    let mut registry = QueryRegistry::new(UseContext::Entity);
+    for name in ["a", "b"] {
+        registry.declare(QueryDeclaration {
+            name: name.into(),
+            arguments: Arguments::None,
+            result: ValueType::Number,
+            rate: Rate::EntityFrame,
+            scope: QueryScope::Entity,
+            milestone: Milestone::One,
+        });
+    }
+    let mut layout = VariableLayout::new();
+    let compiled = compile_text(
+        "v.out = v.out + q.b + v.in; return v.other ?? q.b;",
+        &mut layout,
+        &mut registry,
+        &options(Milestone::Two),
+    )
+    .unwrap_or_else(|errors| panic!("{errors:?}"));
+    let accesses = compiled.expression.accesses();
+    let slot = |name: &str| layout.slot(name).unwrap_or_else(|| panic!("v.{name}"));
+    let mut reads = vec![slot("in"), slot("other"), slot("out")];
+    reads.sort_unstable();
+    assert_eq!(accesses.variables_read, reads);
+    assert_eq!(accesses.variables_written, [slot("out")]);
+    assert!(accesses.reads_own_write());
+    assert_eq!(
+        accesses.queries_read.len(),
+        1,
+        "q.a is not read and q.b is listed one time: {:?}",
+        accesses.queries_read
+    );
+}
+
+#[test]
+fn a_query_slot_reads_back_its_value_or_missing() {
+    let mut values = QueryValues::new(2);
+    values.set_number(QuerySlot(1), 2.5);
+    assert_eq!(values.get(QuerySlot(1)), Some(u64::from(2.5f32.to_bits())));
+    assert_eq!(values.get(QuerySlot(0)), None);
+    assert_eq!(values.get(QuerySlot(9)), None);
 }

@@ -19,7 +19,8 @@ pub struct PoseBatch<const N: usize> {
     batch: BatchVm<N>,
     scalar: ScalarVm,
     queries: BatchQueries<N>,
-    /// Stays empty: a rig with variables runs each lane on the scalar VM.
+    /// Holds, during one program run, the variables that the program reads or writes; each
+    /// entity keeps its own variables between runs.
     variables: BatchVariables<N>,
     this: [f32; N],
     values: [f32; N],
@@ -88,21 +89,22 @@ impl<const N: usize> PoseBatch<N> {
             .min(clocks.len())
             .min(sources.len())
             .min(poses.len());
-        if rig.layout.number_slots() + rig.layout.bits_slots() > 0 {
-            let inputs = entities.iter_mut().zip(clocks).zip(sources).zip(poses);
-            for (((entity, clock), source), pose) in inputs {
-                entity.update(rig, &mut self.scalar, *clock, source);
-                entity.pose(rig, &mut self.scalar, binding, pose);
-            }
+        let (Some(entities), Some(poses)) = (entities.get_mut(..lanes), poses.get_mut(..lanes))
+        else {
             return;
+        };
+        let mut active = [false; N];
+        for lane in active.iter_mut().take(lanes) {
+            *lane = true;
         }
         for ((entity, clock), source) in entities.iter_mut().zip(clocks).zip(sources) {
             entity.begin_frame(rig, *clock, |query| source.query(query).map(Value::to_raw));
             entity.run_scripts(rig, &mut self.scalar);
         }
-        self.load(entities);
+        self.load(rig, entities);
+        self.this = [0.0; N];
         for (index, entry) in rig.animate.iter().enumerate() {
-            self.evaluate(&entry.weight, lanes);
+            self.evaluate(&entry.weight, entities, &active);
             for (lane, entity) in entities.iter_mut().enumerate() {
                 let weight = self.values.get(lane).copied().unwrap_or(0.0);
                 entity.update_instance(rig, &mut self.scalar, index, weight);
@@ -112,7 +114,7 @@ impl<const N: usize> PoseBatch<N> {
             pose.bones.clear();
             pose.bones.resize(rig.bones.len(), PoseBone::REST);
         }
-        self.load(entities);
+        self.load(rig, entities);
         for (index, entry) in rig.animate.iter().enumerate() {
             let AnimateTarget::Clip(clip) = entry.target;
             let Some(clip) = rig.clips.get(clip) else {
@@ -130,7 +132,10 @@ impl<const N: usize> PoseBatch<N> {
                     .map_or(0.0, |instance| instance.time);
                 set(&mut self.queries, lane, rig.queries.anim_time, anim_time);
             }
-            if self.times.iter().take(lanes).all(Option::is_none) {
+            for (lane, time) in active.iter_mut().zip(&self.times) {
+                *lane = time.is_some();
+            }
+            if !active.contains(&true) {
                 continue;
             }
             for clip_bone in &clip.bones {
@@ -144,16 +149,16 @@ impl<const N: usize> PoseBatch<N> {
                     let Some(channel) = channel else {
                         continue;
                     };
-                    let shared = shared_value(channel)
-                        .filter(|_| self.times.iter().take(lanes).all(Option::is_some));
                     let target = ChannelTarget {
                         kind,
                         rest,
                         bone: clip_bone.bone,
                         entry: index,
                     };
-                    match shared {
-                        Some(value) => self.shared_channel(rig, value, target, entities, poses),
+                    match shared_value(channel) {
+                        Some(value) => {
+                            self.shared_channel(rig, value, target, entities, poses, &active);
+                        }
                         None => self.lane_channel(rig, channel, target, entities, poses),
                     }
                 }
@@ -165,18 +170,19 @@ impl<const N: usize> PoseBatch<N> {
         }
     }
 
-    /// A channel whose value does not depend on the time: each axis runs once for all lanes.
+    /// A channel whose value does not depend on the time: each axis runs once for the lanes
+    /// of `active`.
     fn shared_channel(
         &mut self,
         rig: &Rig,
         value: &[Expression; 3],
         target: ChannelTarget,
-        entities: &[EntityAnimation],
+        entities: &mut [EntityAnimation],
         poses: &mut [Pose],
+        active: &[bool; N],
     ) {
-        let lanes = entities.len().min(poses.len());
         let mut samples = [[0.0f32; 3]; N];
-        for lane in 0..lanes {
+        for lane in 0..entities.len() {
             set(
                 &mut self.queries,
                 lane,
@@ -191,14 +197,19 @@ impl<const N: usize> PoseBatch<N> {
                     .get(target.bone)
                     .map_or(0.0, |bone| target.kind.current(bone, target.rest, axis));
             }
-            self.evaluate(expression, lanes);
+            self.evaluate(expression, entities, active);
             for (sample, value) in samples.iter_mut().zip(&self.values) {
                 if let Some(slot) = sample.get_mut(axis) {
                     *slot = *value;
                 }
             }
         }
-        for ((entity, pose), sample) in entities.iter().zip(poses.iter_mut()).zip(samples) {
+        let lanes = entities
+            .iter()
+            .zip(poses.iter_mut())
+            .zip(samples)
+            .zip(active);
+        for (((entity, pose), sample), _) in lanes.filter(|(_, active)| **active) {
             let weight = entity
                 .instances
                 .get(target.entry)
@@ -243,36 +254,62 @@ impl<const N: usize> PoseBatch<N> {
         }
     }
 
-    /// Runs an expression for the first `lanes` lanes into `values`.
-    fn evaluate(&mut self, expression: &Expression, lanes: usize) {
+    /// Runs an expression for the lanes of `active` into `values`. Lane `i` is the entity
+    /// `entities[i]`.
+    fn evaluate(
+        &mut self,
+        expression: &Expression,
+        entities: &mut [EntityAnimation],
+        active: &[bool; N],
+    ) {
         match expression {
             Expression::Constant(value) => self.values = [value.as_number(); N],
-            Expression::Program(program) => self.run_program(program, lanes),
+            Expression::Program(program) => self.run_program(program, entities, active),
         }
     }
 
-    fn run_program(&mut self, program: &Program, lanes: usize) {
+    /// Lends the program the variables that it reads or writes, and gives the written ones
+    /// back to each entity.
+    fn run_program(
+        &mut self,
+        program: &Program,
+        entities: &mut [EntityAnimation],
+        active: &[bool; N],
+    ) {
+        let accesses = program.accesses();
+        let lent = accesses
+            .variables_read
+            .iter()
+            .chain(&accesses.variables_written);
+        for slot in lent {
+            for (lane, entity) in entities.iter().enumerate() {
+                self.variables.set(lane, *slot, entity.variables.get(*slot));
+            }
+        }
         let mut subjects = BatchSubjects {
             variables: &mut self.variables,
             queries: &self.queries,
             this: &self.this,
-            lanes,
+            lanes: 0,
         };
-        if let BatchOutput::Numbers(numbers) = self.batch.run(program, &mut subjects) {
-            self.values = *numbers;
-        } else {
-            self.values = [0.0; N];
+        self.values = match self.batch.run_masked(program, &mut subjects, active) {
+            BatchOutput::Numbers(numbers) => *numbers,
+            BatchOutput::Bits(..) => [0.0; N],
+        };
+        for slot in &accesses.variables_written {
+            let lanes = entities.iter_mut().zip(active).enumerate();
+            for (lane, (entity, _)) in lanes.filter(|(_, (_, active))| **active) {
+                entity.variables.set(*slot, self.variables.get(lane, *slot));
+            }
         }
     }
 
     /// Copies the query values of each entity into the lanes.
-    fn load(&mut self, entities: &[EntityAnimation]) {
+    fn load(&mut self, rig: &Rig, entities: &[EntityAnimation]) {
         for (lane, entity) in entities.iter().enumerate() {
-            for (index, raw) in entity.raw_queries.iter().enumerate() {
-                let Ok(slot) = u16::try_from(index) else {
-                    break;
-                };
-                self.queries.set(lane, QuerySlot(slot), *raw);
+            let slots = (0..rig.queries.count).map_while(|index| u16::try_from(index).ok());
+            for slot in slots.map(QuerySlot) {
+                self.queries.set(lane, slot, entity.queries.get(slot));
             }
         }
     }

@@ -111,6 +111,15 @@ impl<const N: usize> BatchQueries<N> {
     pub fn set_number(&mut self, lane: usize, slot: QuerySlot, value: f32) {
         self.set(lane, slot, Some(u64::from(value.to_bits())));
     }
+
+    /// The raw value of a slot of a lane, or `None` when it is missing.
+    #[must_use]
+    pub fn get(&self, lane: usize, slot: QuerySlot) -> Option<u64> {
+        let index = usize::from(slot.0);
+        let set = *self.set.get(index)?.get(lane)?;
+        let raw = *self.bits.get(index)?.get(lane)?;
+        set.then_some(raw)
+    }
 }
 
 /// The inputs and stores of the lanes of one block.
@@ -120,6 +129,7 @@ pub struct BatchSubjects<'a, const N: usize> {
     pub queries: &'a BatchQueries<N>,
     pub this: &'a [f32; N],
     /// The number of lanes that hold a subject, from the first lane; at most `N`.
+    /// [`BatchVm::run_masked`](crate::BatchVm::run_masked) takes a mask instead.
     pub lanes: usize,
 }
 

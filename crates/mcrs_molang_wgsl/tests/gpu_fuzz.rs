@@ -1,6 +1,7 @@
 //! Generated pure programs on a real adapter: each GPU result must have the bits of the CPU
 //! twin, and must agree with the scalar VM within the pose tolerance of
-//! `docs/spec/entity-animation.md`, EANIM-GPU-003, after the clamp to `[-1e6, 1e6]`.
+//! `docs/spec/entity-animation.md`, EANIM-GPU-003, after the clamp to `[-1e6, 1e6]`. A value at
+//! a discontinuity is counted, not compared, and a subnormal value agrees with zero.
 //!
 //! `cargo test --release -p mcrs_molang_wgsl --test gpu_fuzz -- --ignored --nocapture`;
 //! `MCRS_GPU_FUZZ_PROGRAMS` sets the number of programs (default 10,000).
@@ -45,8 +46,8 @@ const STRIDE: usize = 8;
 const BATCH: usize = 128;
 /// The scale limit of EANIM-GPU-003, the smallest of its limits.
 const TOLERANCE: f32 = 1e-4;
-/// Above about 800, one rounding step of an `f32` is larger than [`TOLERANCE`]; there the
-/// comparison allows eight steps.
+/// `2^-20`: above about 800, one rounding step of an `f32` is larger than [`TOLERANCE`]; there
+/// the comparison allows eight steps.
 const RELATIVE_TOLERANCE: f32 = 1.0 / 1_048_576.0;
 
 struct Case {
@@ -180,11 +181,18 @@ fn close(a: f32, b: f32) -> bool {
     (a - b).abs() <= TOLERANCE.max(RELATIVE_TOLERANCE * a.abs().max(b.abs()))
 }
 
+/// The same bits, or a subnormal value on one side and a zero on the other: a GPU can flush a
+/// subnormal value to zero, and the CPU does not.
+fn same_or_flushed(a: f32, b: f32) -> bool {
+    a.to_bits() == b.to_bits() || (a.is_subnormal() && b == 0.0) || (b.is_subnormal() && a == 0.0)
+}
+
 /// Whether a relative change of `2^-20` in one input moves the scalar result or the GPU result
 /// past the tolerance. The input then sits at a discontinuity of one of them, for example a
 /// comparison of a sine with `0`: a difference in the last bits of an inexact function moves
-/// the discontinuity, and the two results can differ by any amount.
-fn ill_conditioned(case: &Case, lane: &[f32; STRIDE], reference: f32, gpu: f32) -> bool {
+/// the discontinuity, and the two results can differ by any amount. The GPU side matters too:
+/// `math.sin(-180)` is exactly 0 on one side only.
+fn at_discontinuity(case: &Case, lane: &[f32; STRIDE], reference: f32, gpu: f32) -> bool {
     let reference = pose_clamp(reference);
     let count = case.program.inputs().len();
     let mut twin = Twin::new();
@@ -541,10 +549,11 @@ struct Counts {
     lanes: usize,
     twin_not_finite: usize,
     twin_equal: usize,
+    twin_flushed: usize,
     twin_differs: usize,
     scalar_bit_equal: usize,
     scalar_within: usize,
-    scalar_beyond_ill_conditioned: usize,
+    scalar_beyond_at_discontinuity: usize,
     scalar_beyond_inexact_discontinuity: usize,
     scalar_beyond_unexplained: usize,
     scalar_not_finite: usize,
@@ -581,6 +590,8 @@ fn gpu_results_have_the_bits_of_the_twin_and_agree_with_the_scalar_vm() {
                 }
                 if gpu_value.to_bits() == twin_run.value.to_bits() {
                     counts.twin_equal += 1;
+                } else if same_or_flushed(gpu_value, twin_run.value) {
+                    counts.twin_flushed += 1;
                 } else {
                     counts.twin_differs += 1;
                     twin_findings.push(format!(
@@ -598,10 +609,10 @@ fn gpu_results_have_the_bits_of_the_twin_and_agree_with_the_scalar_vm() {
                 let clamped = pose_clamp(reference);
                 if clamped.to_bits() == gpu_value.to_bits() {
                     counts.scalar_bit_equal += 1;
-                } else if close(clamped, gpu_value) {
+                } else if same_or_flushed(clamped, gpu_value) || close(clamped, gpu_value) {
                     counts.scalar_within += 1;
-                } else if ill_conditioned(case, inputs, reference, gpu_value) {
-                    counts.scalar_beyond_ill_conditioned += 1;
+                } else if at_discontinuity(case, inputs, reference, gpu_value) {
+                    counts.scalar_beyond_at_discontinuity += 1;
                 } else if inexact_discontinuity(case, inputs) {
                     counts.scalar_beyond_inexact_discontinuity += 1;
                 } else {

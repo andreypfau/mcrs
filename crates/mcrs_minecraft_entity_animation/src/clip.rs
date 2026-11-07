@@ -61,21 +61,15 @@ impl Clip {
     ) -> Self {
         let field = |name: &str, default: f32, compiler: &mut FieldCompiler| match object.get(name)
         {
-            Some(json) => {
-                compiler
-                    .compile(json, &format!("{identifier}/{name}"))
-                    .expression
-            }
-            None => FieldCompiler::constant(default).expression,
+            Some(json) => compiler.compile(json, &format!("{identifier}/{name}")),
+            None => FieldCompiler::constant(default),
         };
         let blend_weight = field("blend_weight", 1.0, compiler);
         let start_delay = field("start_delay", 0.0, compiler);
         let loop_delay = field("loop_delay", 0.0, compiler);
         let time_update = match object.get("anim_time_update") {
             Some(json) => TimeUpdate::Expression(
-                compiler
-                    .compile(json, &format!("{identifier}/anim_time_update"))
-                    .expression,
+                compiler.compile(json, &format!("{identifier}/anim_time_update")),
             ),
             None => TimeUpdate::Clock,
         };

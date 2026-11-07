@@ -76,6 +76,9 @@ fn a_channel_over_pose_inputs_is_pure() {
         "math.asin(math.clamp(q.walk, -1, 1))",
         "math.pow(math.clamp(q.walk, 0.5, 4), math.clamp(q.walk, -8, 8))",
         "math.exp(math.min(q.walk, 80))",
+        "math.ease_in_circ(0, 1, math.clamp(q.walk, 0, 1))",
+        "math.ease_in_out_expo(0, 1, math.clamp(q.walk, 0, 1))",
+        "math.ease_in_elastic(0, 1, math.clamp(q.walk, 0, 1))",
     ] {
         assert!(
             matches!(classify(text), ChannelClass::Pure(_)),
@@ -103,6 +106,9 @@ fn a_channel_that_needs_the_cpu_states_why() {
         "math.pow(q.walk, 2)",
         "math.pow(math.clamp(q.walk, 2, 4), math.clamp(q.walk, 0, 200))",
         "math.ease_in_circ(0, 1, q.walk)",
+        "math.ease_in_out_circ(0, 1, q.walk)",
+        "math.ease_in_expo(0, 1, q.walk)",
+        "math.ease_out_elastic(0, 1, q.walk)",
     ] {
         assert!(
             matches!(reason(text), StateReason::DomainRisk(_)),

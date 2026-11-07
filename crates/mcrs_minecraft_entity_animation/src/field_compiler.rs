@@ -2,20 +2,12 @@ use std::collections::{HashMap, HashSet};
 
 use mcrs_minecraft_entity_model::Json;
 use mcrs_molang::{
-    CompileOptions, Expression, Milestone, QueryRegistry, Source, Value, VariableLayout,
-    WarningKind,
+    Accesses, CompileOptions, Expression, Milestone, QueryRegistry, Source, Value, VariableLayout,
+    VariableSlot, WarningKind,
 };
 
 use crate::animation_diagnostic::{AnimationDiagnostic, DiagnosticKind};
-use crate::dependencies::Dependencies;
 use crate::entity_query::EntityQuery;
-
-/// A compiled Molang field and the names it reads and writes.
-#[derive(Clone, Debug)]
-pub(crate) struct Field {
-    pub expression: Expression,
-    pub dependencies: Dependencies,
-}
 
 /// Compiles the Molang fields of one client entity into one variable layout and one query
 /// registry.
@@ -25,7 +17,7 @@ pub(crate) struct FieldCompiler {
     pub layout: VariableLayout,
     pub diagnostics: Vec<AnimationDiagnostic>,
     /// The number of compiled fields that write each variable.
-    writers: HashMap<Box<str>, u32>,
+    writers: HashMap<VariableSlot, u32>,
     warned: HashSet<String>,
 }
 
@@ -40,59 +32,55 @@ impl FieldCompiler {
         }
     }
 
-    pub fn constant(value: f32) -> Field {
-        Field {
-            expression: Expression::Constant(Value::Number(value)),
-            dependencies: Dependencies::default(),
-        }
+    pub fn constant(value: f32) -> Expression {
+        Expression::Constant(Value::Number(value))
     }
 
     /// Compiles a JSON value of a Molang field. A load error gives the constant `0.0`.
-    pub fn compile(&mut self, json: &Json, context: &str) -> Field {
+    pub fn compile(&mut self, json: &Json, context: &str) -> Expression {
         match json {
-            Json::Number(value) => self.compile_source(&Source::Number(*value), None, context),
-            Json::Bool(value) => self.compile_source(&Source::Bool(*value), None, context),
-            Json::String(text) => self.compile_source(&Source::Text(text), Some(text), context),
+            Json::Number(value) => self.compile_source(&Source::Number(*value), context),
+            Json::Bool(value) => self.compile_source(&Source::Bool(*value), context),
+            Json::String(text) => self.compile_source(&Source::Text(text), context),
             Json::Object(object) => {
                 let Some(inner) = object.get("expression") else {
-                    return self.compile_source(&Source::Other, None, context);
+                    return self.compile_source(&Source::Other, context);
                 };
                 let version = match object.get("version") {
                     None => None,
                     Some(Json::Number(version)) => Some(*version),
                     Some(_) => Some(f64::NAN),
                 };
-                let (expression, text) = match inner {
-                    Json::Number(value) => (Source::Number(*value), None),
-                    Json::Bool(value) => (Source::Bool(*value), None),
-                    Json::String(text) => (Source::Text(text), Some(text.as_str())),
-                    _ => (Source::Other, None),
+                let expression = match inner {
+                    Json::Number(value) => Source::Number(*value),
+                    Json::Bool(value) => Source::Bool(*value),
+                    Json::String(text) => Source::Text(text),
+                    _ => Source::Other,
                 };
                 let source = Source::Versioned {
                     expression: &expression,
                     version,
                 };
-                self.compile_source(&source, text, context)
+                self.compile_source(&source, context)
             }
-            Json::Null | Json::Array(_) => self.compile_source(&Source::Other, None, context),
+            Json::Null | Json::Array(_) => self.compile_source(&Source::Other, context),
         }
     }
 
     /// Compiles a script array: the entries joined with no text between them.
-    pub fn compile_script(&mut self, entries: &[&str], context: &str) -> Field {
-        let text = entries.concat();
-        self.compile_source(&Source::ScriptArray(entries), Some(&text), context)
+    pub fn compile_script(&mut self, entries: &[&str], context: &str) -> Expression {
+        self.compile_source(&Source::ScriptArray(entries), context)
     }
 
-    /// Whether a compiled field other than one with `dependencies` writes one of its variables.
-    pub fn has_other_writer(&self, dependencies: &Dependencies) -> bool {
-        dependencies
-            .writes
+    /// Whether a variable that `accesses` writes has more than one compiled field that writes it.
+    pub fn has_other_writer(&self, accesses: &Accesses) -> bool {
+        accesses
+            .variables_written
             .iter()
-            .any(|name| self.writers.get(name).copied().unwrap_or(0) > 1)
+            .any(|slot| self.writers.get(slot).copied().unwrap_or(0) > 1)
     }
 
-    fn compile_source(&mut self, source: &Source<'_>, text: Option<&str>, context: &str) -> Field {
+    fn compile_source(&mut self, source: &Source<'_>, context: &str) -> Expression {
         let options = CompileOptions {
             milestone: Milestone::Two,
             ..CompileOptions::default()
@@ -114,18 +102,11 @@ impl FieldCompiler {
                         ));
                     }
                 }
-                let dependencies = text
-                    .and_then(|text| mcrs_molang::parse(text).ok())
-                    .map(|syntax| Dependencies::of(&syntax))
-                    .unwrap_or_default();
-                for name in &dependencies.writes {
-                    let count = self.writers.entry(name.clone()).or_insert(0);
+                for slot in &compiled.expression.accesses().variables_written {
+                    let count = self.writers.entry(*slot).or_insert(0);
                     *count = count.saturating_add(1);
                 }
-                Field {
-                    expression: compiled.expression,
-                    dependencies,
-                }
+                compiled.expression
             }
             Err(errors) => {
                 for error in errors {

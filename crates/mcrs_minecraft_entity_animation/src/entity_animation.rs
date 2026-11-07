@@ -1,7 +1,7 @@
 use glam::Vec3;
 use mcrs_molang::{Expression, QuerySlot, QueryValues, ScalarVm, Subject, Value, Variables};
 
-use crate::clip::TimeUpdate;
+use crate::clip::{Clip, TimeUpdate};
 use crate::entity_query::EntityQuery;
 use crate::instance::{Instance, Phase, Step};
 use crate::query_source::QuerySource;
@@ -19,8 +19,6 @@ pub(crate) struct ScriptCache {
 pub struct EntityAnimation {
     pub(crate) variables: Variables,
     pub(crate) queries: QueryValues,
-    /// The raw value of each query slot, as in `queries`.
-    pub(crate) raw_queries: Vec<Option<u64>>,
     pub(crate) instances: Vec<Instance>,
     pub(crate) previous_clock: Option<f32>,
     pub(crate) clock: f32,
@@ -38,7 +36,6 @@ impl EntityAnimation {
         Self {
             variables: Variables::new(&rig.layout),
             queries: QueryValues::new(rig.queries.count),
-            raw_queries: vec![None; rig.queries.count],
             instances: vec![Instance::default(); rig.animate.len()],
             previous_clock: None,
             clock: 0.0,
@@ -199,19 +196,14 @@ impl EntityAnimation {
                 delta_time: if started { 0.0 } else { self.delta_time },
                 clock: self.clock,
             };
+            let in_loop_delay = instance.phase == Phase::LoopDelay;
             if instance.run_delay(step) {
-                let time = match &clip.time_update {
-                    TimeUpdate::Clock => instance.clock_time(step),
-                    TimeUpdate::Expression(expression) => {
-                        self.set_number(slots.anim_time, instance.time);
-                        self.set_number(slots.delta_time, instance.delta_time(step));
-                        self.number(vm, expression, 0.0)
-                    }
-                };
-                if instance.set_time(clip, time, self.clock) {
-                    self.set_number(slots.anim_time, instance.time);
-                    let delay = self.number(vm, &clip.loop_delay, 0.0);
-                    instance.begin_loop_delay(delay);
+                if in_loop_delay {
+                    // The time is 0 in the frame that ends a loop delay, also for a time
+                    // expression that does not read `query.anim_time`.
+                    instance.first_update = false;
+                } else {
+                    self.advance_time(vm, rig, clip, &mut instance, step);
                 }
             }
             self.set_number(slots.delta_time, self.delta_time);
@@ -224,6 +216,30 @@ impl EntityAnimation {
         }
     }
 
+    fn advance_time(
+        &mut self,
+        vm: &mut ScalarVm,
+        rig: &Rig,
+        clip: &Clip,
+        instance: &mut Instance,
+        step: Step,
+    ) {
+        let slots = &rig.queries;
+        let time = match &clip.time_update {
+            TimeUpdate::Clock => instance.clock_time(step),
+            TimeUpdate::Expression(expression) => {
+                self.set_number(slots.anim_time, instance.time);
+                self.set_number(slots.delta_time, instance.delta_time(step));
+                self.number(vm, expression, 0.0)
+            }
+        };
+        if instance.set_time(clip, time, self.clock) {
+            self.set_number(slots.anim_time, instance.time);
+            let delay = self.number(vm, &clip.loop_delay, 0.0);
+            instance.begin_loop_delay(delay);
+        }
+    }
+
     /// Whether a script runs in this frame. Updates the cached inputs.
     fn inputs_changed(&self, script: &Script, cache: &mut ScriptCache) -> bool {
         let Evaluation::OnChange { queries, variables } = &script.evaluation else {
@@ -231,7 +247,7 @@ impl EntityAnimation {
         };
         let inputs = queries
             .iter()
-            .map(|slot| self.raw_queries.get(usize::from(slot.0)).copied().flatten())
+            .map(|slot| self.queries.get(*slot))
             .chain(variables.iter().map(|slot| self.variables.get(*slot)));
         if let Some(held) = &cache.inputs
             && held.iter().copied().eq(inputs.clone())
@@ -243,9 +259,6 @@ impl EntityAnimation {
     }
 
     pub(crate) fn set_query(&mut self, slot: QuerySlot, raw: Option<u64>) {
-        if let Some(held) = self.raw_queries.get_mut(usize::from(slot.0)) {
-            *held = raw;
-        }
         self.queries.set(slot, raw);
     }
 

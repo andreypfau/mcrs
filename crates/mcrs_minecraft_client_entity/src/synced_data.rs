@@ -3,11 +3,13 @@ use mcrs_minecraft_entity::attribute_keys::Attribute;
 use mcrs_minecraft_entity::variant::{FrogVariant, PigVariant};
 use mcrs_minecraft_protocol_game::clientbound::{AttributeOperation, AttributeSnapshot};
 use mcrs_minecraft_protocol_game::entity::{MetaDataValue, MetadataEntry, Pose};
+use mcrs_minecraft_protocol_game::text::{Text, TextContent};
 use mcrs_minecraft_resource::Id;
 
 use crate::kind::{KindTraits, Life};
 
 const SHARED_FLAGS: u8 = 0;
+const CUSTOM_NAME: u8 = 2;
 const NAME_VISIBLE: u8 = 3;
 const POSE: u8 = 6;
 const TICKS_FROZEN: u8 = 7;
@@ -24,6 +26,9 @@ const SWIMMING: u8 = 1 << 4;
 const INVISIBLE: u8 = 1 << 5;
 const GLOWING: u8 = 1 << 6;
 
+/// The plain texts of a custom name that turn an entity upside down.
+pub const UPSIDE_DOWN_NAMES: [&str; 2] = ["Dinnerbone", "Grumm"];
+
 /// The frozen ticks from which an entity is fully frozen.
 pub const FULLY_FROZEN_TICKS: i32 = 140;
 
@@ -38,6 +43,8 @@ pub enum VariantId {
 #[derive(Component, Clone, Debug, PartialEq)]
 pub struct SyncedData {
     pub shared_flags: u8,
+    /// The plain text of the custom name is one of [`UPSIDE_DOWN_NAMES`].
+    pub upside_down: bool,
     pub name_visible: bool,
     pub pose: Pose,
     pub ticks_frozen: i32,
@@ -56,6 +63,7 @@ impl Default for SyncedData {
     fn default() -> Self {
         Self {
             shared_flags: 0,
+            upside_down: false,
             name_visible: false,
             pose: Pose::Standing,
             ticks_frozen: 0,
@@ -89,6 +97,9 @@ impl SyncedData {
         let mob = matches!(traits.life, Life::Mob(_));
         match (entry.index, &entry.value) {
             (SHARED_FLAGS, MetaDataValue::Byte(flags)) => self.shared_flags = *flags as u8,
+            (CUSTOM_NAME, MetaDataValue::OptionalText(name)) => {
+                self.upside_down = name.as_ref().is_some_and(is_upside_down_name);
+            }
             (NAME_VISIBLE, MetaDataValue::Boolean(visible)) => self.name_visible = *visible,
             (POSE, MetaDataValue::Pose(pose)) => self.pose = *pose,
             (TICKS_FROZEN, MetaDataValue::VarInt(ticks)) => self.ticks_frozen = ticks.0,
@@ -158,6 +169,21 @@ impl SyncedData {
     }
 }
 
+fn is_upside_down_name(name: &Text) -> bool {
+    let mut plain = String::new();
+    push_plain(name, &mut plain);
+    UPSIDE_DOWN_NAMES.contains(&plain.as_str())
+}
+
+fn push_plain(text: &Text, plain: &mut String) {
+    if let TextContent::Text { text } = &text.content {
+        plain.push_str(text);
+    }
+    for child in &text.extra {
+        push_plain(child, plain);
+    }
+}
+
 /// The smallest and the largest value of the attribute `minecraft:scale`.
 pub const SCALE_RANGE: (f64, f64) = (0.0625, 16.0);
 
@@ -219,6 +245,20 @@ mod tests {
         assert!(data.baby);
         assert!(data.is_fully_frozen());
         assert_eq!(data.variant, Some(VariantId::Pig(variant)));
+    }
+
+    #[test]
+    fn the_plain_text_of_the_custom_name_turns_an_entity_upside_down() {
+        let traits = KindTraits::of(EntityType::Pig);
+        let mut data = SyncedData::default();
+        let name = |text: Text| entry(2, MetaDataValue::OptionalText(Some(text)));
+        data.apply(&traits, &[name(Text::text("Dinner") + "bone")]);
+        assert!(data.upside_down, "the siblings count in the plain text");
+        data.apply(&traits, &[name(Text::text("dinnerbone"))]);
+        assert!(!data.upside_down, "the comparison is case sensitive");
+        data.apply(&traits, &[name(Text::text("Grumm"))]);
+        data.apply(&traits, &[entry(2, MetaDataValue::OptionalText(None))]);
+        assert!(!data.upside_down, "a removed name is not upside down");
     }
 
     #[test]

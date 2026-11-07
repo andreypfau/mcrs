@@ -199,6 +199,65 @@ fn a_start_delay_holds_the_time_and_a_weight_of_zero_restarts_the_clip() {
 }
 
 #[test]
+fn a_blend_weight_of_zero_hides_the_clip_but_keeps_its_time_running() {
+    let mut fixture = Fixture::new(
+        r#"{"animate": ["a"]}"#,
+        r#"{"animation.test.a": {"loop": true, "animation_length": 10, "blend_weight": "q.is_baby",
+            "bones": {"bone": {"position": {"0": [0, 0, 0], "10": [100, 0, 0]}}}}}"#,
+    );
+    fixture.frame(0.0, true);
+    close(fixture.frame(20.0, false)[1], Vec3::ZERO);
+    close(fixture.frame(40.0, true)[1], Vec3::new(20.0, 0.0, 0.0));
+}
+
+#[test]
+fn the_time_is_zero_in_the_frame_that_ends_a_loop_delay() {
+    let mut fixture = Fixture::new(
+        r#"{"animate": ["a"]}"#,
+        r#"{"animation.test.a": {"loop": true, "animation_length": 10, "loop_delay": 0.5,
+            "anim_time_update": "q.is_baby ? 12 : 3",
+            "bones": {"bone": {"position": {"0": [0, 0, 0], "10": [100, 0, 0]}}}}}"#,
+    );
+    close(fixture.frame(0.0, false)[1], Vec3::new(30.0, 0.0, 0.0));
+    close(fixture.frame(20.0, true)[1], Vec3::ZERO);
+    close(fixture.frame(40.0, false)[1], Vec3::ZERO);
+    close(fixture.frame(60.0, false)[1], Vec3::new(30.0, 0.0, 0.0));
+}
+
+#[test]
+fn each_geometry_adds_the_shared_change_to_its_own_rest_rotation() {
+    let mut fixture = Fixture::new(
+        r#"{"animate": ["a"]}"#,
+        r#"{"animation.test.a": {"loop": true, "bones": {"bone": {"rotation": [10, 0, 0]}}}}"#,
+    );
+    fixture.frame(0.0, false);
+    let saddle: GeometryFile = r#"{"format_version": "1.12.0", "minecraft:geometry": [{
+        "description": {"identifier": "geometry.saddle", "texture_width": 16, "texture_height": 16},
+        "bones": [{"name": "bone", "pivot": [0, 0, 0], "rotation": [5, 0, 0]}]}]}"#
+        .parse()
+        .unwrap();
+    let saddle = saddle.geometries[0].bake(&mut Vec::new()).unwrap();
+    let binding = PoseBinding::new(&fixture.rig, &fixture.geometry);
+    let mut pose = Pose::new(&fixture.rig);
+    fixture
+        .entity
+        .pose(&fixture.rig, &mut fixture.vm, &binding, &mut pose);
+    let saddle_binding = PoseBinding::new(&fixture.rig, &saddle);
+    let body = binding.model_transforms(&fixture.geometry, &pose)[0];
+    let saddle = saddle_binding.model_transforms(&saddle, &pose)[0];
+    let angle = |transform: glam::Affine3A| {
+        let up = transform.matrix3 * glam::Vec3A::Y;
+        up.z.atan2(up.y).to_degrees().abs()
+    };
+    assert!(
+        (angle(body) - 30.0).abs() < 1e-3 && (angle(saddle) - 15.0).abs() < 1e-3,
+        "the body turns 20 + 10 and the saddle 5 + 10 degrees: {} / {}",
+        angle(body),
+        angle(saddle)
+    );
+}
+
+#[test]
 fn script_arrays_are_one_program_and_a_script_runs_again_when_its_inputs_change() {
     let mut fixture = Fixture::new(
         r#"{

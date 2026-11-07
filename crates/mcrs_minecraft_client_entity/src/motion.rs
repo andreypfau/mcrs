@@ -14,6 +14,9 @@ pub struct Motion {
     /// The position that the next relative move of the server starts from.
     pub delta_base: DVec3,
     pub on_ground: bool,
+    /// The in-water flag of the latest tick. The client computes it from the fluids of its own
+    /// world; it stays `false` while no system of the client sets it.
+    pub in_water: bool,
     pub interpolation: Interpolation,
 }
 
@@ -25,6 +28,7 @@ impl Motion {
             previous: placement,
             delta_base,
             on_ground: false,
+            in_water: false,
             interpolation: Interpolation::default(),
         }
     }

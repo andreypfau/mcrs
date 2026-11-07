@@ -257,13 +257,13 @@ fn vector(json: &Json, compiler: &mut FieldCompiler, context: &str) -> Option<[E
     };
     match elements {
         [one] if is_scalar(one) => {
-            let expression = compiler.compile(one, context).expression;
+            let expression = compiler.compile(one, context);
             Some([expression.clone(), expression.clone(), expression])
         }
         [x, y, z] if is_scalar(x) && is_scalar(y) && is_scalar(z) => Some([
-            compiler.compile(x, &format!("{context}/x")).expression,
-            compiler.compile(y, &format!("{context}/y")).expression,
-            compiler.compile(z, &format!("{context}/z")).expression,
+            compiler.compile(x, &format!("{context}/x")),
+            compiler.compile(y, &format!("{context}/y")),
+            compiler.compile(z, &format!("{context}/z")),
         ]),
         _ => {
             compiler.diagnostics.push(AnimationDiagnostic::new(

@@ -4,6 +4,7 @@
 
 use alloc::vec::Vec;
 
+use crate::accesses::Accesses;
 use crate::diagnostic::Span;
 use crate::math::{BinaryFn, TernaryFn, UnaryFn};
 use crate::value::{Rate, ValueType};
@@ -163,6 +164,7 @@ pub struct Program {
     pub(crate) tables: Vec<Vec<u64>>,
     pub(crate) output: ValueType,
     pub(crate) rate: Rate,
+    pub(crate) accesses: Accesses,
 }
 
 impl Program {

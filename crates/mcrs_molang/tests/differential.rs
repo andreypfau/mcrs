@@ -180,7 +180,8 @@ fn scalar(expression: &Expression, compiled: &Compiled, lane: &Lane) -> (Value, 
     (value, variables)
 }
 
-fn check_batch_and_passes(text: &str, seed: u64, lanes: usize) -> Result<(), TestCaseError> {
+/// `active` marks the lanes that run; the other lanes must keep their variables.
+fn check_batch_and_passes(text: &str, seed: u64, active: u64) -> Result<(), TestCaseError> {
     let compiled = compile_both(text)?;
     let mut inputs = Inputs(seed);
     let lane_inputs: Vec<Lane> = (0..LANES)
@@ -201,21 +202,26 @@ fn check_batch_and_passes(text: &str, seed: u64, lanes: usize) -> Result<(), Tes
         this[index] = lane.this;
     }
 
+    let initial_variables = variables.clone();
+    let mut lanes = [false; LANES];
+    for (index, lane) in lanes.iter_mut().enumerate() {
+        *lane = active >> index & 1 == 1;
+    }
     let batch_results: Vec<Value> = match &compiled.optimized {
-        Expression::Constant(value) => vec![*value; lanes],
+        Expression::Constant(value) => vec![*value; LANES],
         Expression::Program(program) => {
             let mut vm = BatchVm::<LANES>::new();
             let mut subjects = BatchSubjects {
                 variables: &mut variables,
                 queries: &queries,
                 this: &this,
-                lanes,
+                lanes: 0,
             };
-            match vm.run(program, &mut subjects) {
+            match vm.run_masked(program, &mut subjects, &lanes) {
                 BatchOutput::Numbers(numbers) => {
-                    numbers[..lanes].iter().map(|n| Value::Number(*n)).collect()
+                    numbers.iter().map(|n| Value::Number(*n)).collect()
                 }
-                BatchOutput::Bits(bits, value_type) => bits[..lanes]
+                BatchOutput::Bits(bits, value_type) => bits
                     .iter()
                     .map(|raw| match value_type {
                         ValueType::String => Value::String(*raw),
@@ -226,7 +232,19 @@ fn check_batch_and_passes(text: &str, seed: u64, lanes: usize) -> Result<(), Tes
         }
     };
 
-    for (index, lane) in lane_inputs.iter().take(lanes).enumerate() {
+    for (index, lane) in lane_inputs.iter().enumerate() {
+        if !lanes[index] {
+            for (name, slot, _) in compiled.layout.iter() {
+                prop_assert_eq!(
+                    variables.get(index, slot),
+                    initial_variables.get(index, slot),
+                    "the inactive lane {} changed v.{}",
+                    index,
+                    name
+                );
+            }
+            continue;
+        }
         let (reference, reference_variables) = scalar(&compiled.reference, &compiled, lane);
         let (optimized, optimized_variables) = scalar(&compiled.optimized, &compiled, lane);
         prop_assert!(
@@ -286,9 +304,9 @@ fn batch_equals_scalar_and_passes_keep_every_bit() {
         cases: cases(2000),
         ..Config::default()
     });
-    let strategy = (program(Profile::Full), any::<u64>(), 1..=LANES);
-    let result = runner.run(&strategy, |(text, seed, lanes)| {
-        check_batch_and_passes(&text, seed, lanes)
+    let strategy = (program(Profile::Full), any::<u64>(), any::<u64>());
+    let result = runner.run(&strategy, |(text, seed, active)| {
+        check_batch_and_passes(&text, seed, active)
     });
     if let Err(error) = result {
         panic!("{error}");
