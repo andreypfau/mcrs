@@ -352,7 +352,6 @@ public final class PacketGoldens {
                             GameType.CREATIVE,
                             Optional.of(GameType.SURVIVAL),
                             false,
-                            false,
                             Optional.empty(),
                             5,
                             63
@@ -373,7 +372,6 @@ public final class PacketGoldens {
                             dimension("the_nether"),
                             GameType.SURVIVAL,
                             Optional.empty(),
-                            false,
                             true,
                             Optional.of(GlobalPos.of(dimension("overworld"), new BlockPos(1, 64, -3))),
                             0,
