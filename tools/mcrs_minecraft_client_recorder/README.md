@@ -14,8 +14,10 @@ The tool writes one recording for each step. These tests read the recordings:
   reads the same directory and `crates/mcrs_minecraft_move_predict/tests/fixtures/conformance`,
   subdirectories included. It prints the number of predicted ticks N and the bound 3/N of the
   false positive rate. With no recording, it prints that it skipped.
-- `each_cheat_module_reports_its_detection_rate` in the same file reads
-  `crates/mcrs_minecraft_move_predict/tests/fixtures/cheats/<module>`.
+- `each_recording_of_a_predicted_cheat_module_is_flagged` in the same file reads
+  `crates/mcrs_minecraft_move_predict/tests/fixtures/cheats/<module>` and prints the detection
+  rate of each module. Each recording of `fly`, `speed`, `no_fall`, `phase` and `step` must have a
+  flag. Layer 2 does not see `timer`, so its rate is only printed.
 
 Run them with
 `cargo nextest run -p mcrs_minecraft_move_predict --test conformance --no-capture`.

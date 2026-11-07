@@ -1,7 +1,7 @@
 //! Layer 2 against recordings of `tools/mcrs_minecraft_client_recorder`. A vanilla client in the
 //! conformance tests C1 to C7 of `docs/spec/movement-checks.md` and in the player experiments of
 //! `docs/spec/entity-physics.md` raises no flag. A client with a cheat module, in
-//! `tests/fixtures/cheats/<module>`, gives the detection rate of the module.
+//! `tests/fixtures/cheats/<module>`, raises a flag when the module changes the movement.
 //!
 //! The replay takes the time of each event at the proxy as the time of the server: a change goes
 //! out when the proxy passed it to the client, and the client ticks before its application predict
@@ -46,7 +46,11 @@ const HONEST: [&str; 2] = [
     "../mcrs_minecraft_physics/tests/fixtures/player",
 ];
 
-const CHEAT_MODULES: [&str; 6] = ["fly", "speed", "timer", "no_fall", "phase", "step"];
+/// The cheat modules that change the movement that layer 2 predicts.
+const PREDICTED_CHEATS: [&str; 5] = ["fly", "speed", "no_fall", "phase", "step"];
+
+/// A faster tick rate passes layer 2: the tick rate check of layer 1 sees it.
+const UNPREDICTED_CHEATS: [&str; 1] = ["timer"];
 
 #[test]
 fn a_vanilla_client_raises_no_flag() {
@@ -90,23 +94,33 @@ fn a_vanilla_client_raises_no_flag() {
 }
 
 #[test]
-fn each_cheat_module_reports_its_detection_rate() {
-    for module in CHEAT_MODULES {
+fn each_recording_of_a_predicted_cheat_module_is_flagged() {
+    let mut missed = Vec::new();
+    for module in PREDICTED_CHEATS.iter().chain(&UNPREDICTED_CHEATS) {
         let paths = recordings(&format!("tests/fixtures/cheats/{module}"));
         if paths.is_empty() {
             println!("{module}: skipped, no recordings");
             continue;
         }
-        let detected = paths
-            .iter()
-            .filter(|path| !replay_file(path).unwrap().flags.is_empty())
-            .count();
+        let mut detected = 0;
+        for path in &paths {
+            if !replay_file(path).unwrap().flags.is_empty() {
+                detected += 1;
+            } else if PREDICTED_CHEATS.contains(module) {
+                missed.push(path.display().to_string());
+            }
+        }
         println!(
             "{module}: {detected} of {} recordings flagged ({:.0} %)",
             paths.len(),
-            100.0 * detected as f64 / paths.len() as f64
+            100.0 * f64::from(detected) / paths.len() as f64
         );
     }
+    assert!(
+        missed.is_empty(),
+        "a module that changes the movement raises a flag in each recording:\n{}",
+        missed.join("\n")
+    );
 }
 
 /// The `.txt` files under the directory `relative` to the crate, in subdirectories too, sorted.

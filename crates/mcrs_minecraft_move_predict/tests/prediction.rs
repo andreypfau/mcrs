@@ -51,6 +51,10 @@ struct Session {
     prediction: Prediction,
     pushers: Vec<Pusher>,
     input: PlayerInput,
+    /// The sprint state, the flight state and the item use that the tick packets change.
+    sprint: Option<bool>,
+    flight: Option<bool>,
+    item_use: Option<bool>,
     scratch: Scratch,
 }
 
@@ -80,6 +84,9 @@ impl Session {
                 },
                 ..PlayerInput::default()
             },
+            sprint: None,
+            flight: None,
+            item_use: None,
             scratch: Scratch::new(),
         };
         for _ in 0..3 {
@@ -152,7 +159,9 @@ impl Session {
             input: self.input,
             reported,
             changes: states,
-            ..ClientTick::default()
+            sprint: self.sprint,
+            flight: self.flight,
+            item_use: self.item_use,
         };
         let view = View::new(&self.fixture.world, &NoBodies, &self.fixture.tables);
         self.prediction.tick(view, self.pushers.as_slice(), &tick)
@@ -445,10 +454,9 @@ fn pred_019_too_many_pushers_make_the_tick_coarse_and_the_next_position_resyncs(
     }
 }
 
-/// The client breaks the carpet `at`, walks two ticks, and gets the refusal: the kept carpet
-/// and the `block_changed_ack`. It returns the tick after the ack in which the client moves back
-/// to `back`.
-fn refused_break(session: &mut Session, at: BlockPos, back: DVec3) -> Outcome {
+/// The client breaks the carpet `at` and walks two ticks. The server refuses: it sends the
+/// carpet, which the client keeps, and one tick passes with the carpet applied in the order.
+fn refuse_break(session: &mut Session, at: BlockPos) {
     let carpet = session.fixture.blocks.carpet;
     session.client_world.set(at, BlockStateId::AIR);
     session.step(FORWARD);
@@ -458,14 +466,27 @@ fn refused_break(session: &mut Session, at: BlockPos, back: DVec3) -> Outcome {
         old: carpet,
         new: carpet,
     });
-    session.send(Change::BlockAck);
-    let window = ChangeStates {
-        applied: 0,
-        seen: 2,
+    session.client_applied = 1;
+    let kept = ChangeStates {
+        applied: 1,
+        seen: 1,
     };
-    session.client_world.set(at, carpet);
+    let outcome = session.tick(FORWARD, kept, 1, DVec3::ZERO, |_| {});
+    assert!(passes(outcome), "the client keeps the carpet: {outcome:?}");
+}
+
+/// The `block_changed_ack` arrives in a window. The client applies the kept carpet `at` and
+/// moves to `back` before its tick.
+fn ack_and_move(session: &mut Session, at: BlockPos, back: DVec3) -> Outcome {
+    session.send(Change::BlockAck);
+    session.client_world.set(at, session.fixture.blocks.carpet);
     session.client_applied = 2;
+    move_to(session, back, 2)
+}
+
+fn move_to(session: &mut Session, back: DVec3, seen: u64) -> Outcome {
     session.client.position = back;
+    let window = ChangeStates { applied: 1, seen };
     session.tick(FORWARD, window, 2, DVec3::ZERO, |_| {})
 }
 
@@ -481,15 +502,44 @@ fn on_carpets() -> (Session, BlockPos, BlockPos) {
     (session, under, far)
 }
 
-#[test]
-fn lat_007_the_client_moves_back_to_its_first_request_when_the_kept_state_meets_its_box() {
+/// The client breaks the carpet under it two times, one tick apart, and the server refuses.
+/// Gives the positions of the two requests.
+fn broken_two_times() -> (Session, BlockPos, [DVec3; 2]) {
     let (mut session, under, _) = on_carpets();
     session.prediction.block_requested(under);
     let first = session.client.position;
     session.step(FORWARD);
     session.prediction.block_requested(under);
-    let outcome = refused_break(&mut session, under, first);
+    let second = session.client.position;
+    refuse_break(&mut session, under);
+    (session, under, [first, second])
+}
+
+#[test]
+fn lat_007_the_client_moves_back_once_to_its_first_request_when_the_kept_state_meets_its_box() {
+    let (mut session, under, [first, _]) = broken_two_times();
+    let outcome = ack_and_move(&mut session, under, first);
     assert!(passes(outcome), "{outcome:?}");
+    let again = move_to(&mut session, first, 2);
+    assert!(
+        again.offset.is_some(),
+        "a run that applied the ack before does not move: {again:?}"
+    );
+}
+
+#[test]
+fn lat_007_a_later_request_keeps_the_first_position() {
+    let (mut session, under, [_, second]) = broken_two_times();
+    let outcome = ack_and_move(&mut session, under, second);
+    assert!(outcome.offset.is_some(), "{outcome:?}");
+}
+
+#[test]
+fn lat_007_a_client_does_not_move_back_before_the_ack_is_in_its_prefix() {
+    let (mut session, _, [first, _]) = broken_two_times();
+    session.send(Change::BlockAck);
+    let outcome = move_to(&mut session, first, 1);
+    assert!(outcome.offset.is_some(), "{outcome:?}");
 }
 
 #[test]
@@ -497,7 +547,25 @@ fn lat_007_a_client_does_not_move_back_when_no_kept_state_meets_its_box() {
     let (mut session, _, far) = on_carpets();
     session.prediction.block_requested(far);
     let first = session.client.position;
-    let outcome = refused_break(&mut session, far, first);
+    refuse_break(&mut session, far);
+    let outcome = ack_and_move(&mut session, far, first);
+    assert!(outcome.offset.is_some(), "{outcome:?}");
+}
+
+#[test]
+fn lat_007_a_request_after_the_ack_waits_for_a_later_ack() {
+    let (mut session, under, far) = on_carpets();
+    session.prediction.block_requested(far);
+    session.send(Change::BlockAck);
+    session.prediction.block_requested(under);
+    let second = session.client.position;
+    session.tick(FORWARD, ChangeStates::default(), 0, DVec3::ZERO, |_| {});
+    session.client.position = second;
+    let window = ChangeStates {
+        applied: 0,
+        seen: 1,
+    };
+    let outcome = session.tick(FORWARD, window, 1, DVec3::ZERO, |_| {});
     assert!(outcome.offset.is_some(), "{outcome:?}");
 }
 
@@ -517,4 +585,113 @@ fn pred_016_too_many_open_windows_at_the_step_cap_set_back() {
         }
     });
     assert!(outcome.setback.is_some(), "{outcome:?}");
+}
+
+#[test]
+fn pred_011_wrong_flags_are_flagged_and_do_not_select_candidates() {
+    let mut session = Session::new();
+    let all = ChangeStates::default();
+    let ground = session.tick(FORWARD, all, 0, DVec3::ZERO, |reported| {
+        reported.on_ground = !reported.on_ground;
+    });
+    assert!(ground.wrong_on_ground, "{ground:?}");
+    assert_eq!((ground.offset, ground.setback), (None, None), "{ground:?}");
+    let wall = session.tick(FORWARD, all, 0, DVec3::ZERO, |reported| {
+        reported.horizontal_collision = !reported.horizontal_collision;
+    });
+    assert!(wall.wrong_horizontal_collision, "{wall:?}");
+    assert!(!wall.wrong_on_ground, "{wall:?}");
+    assert!(passes(session.step(FORWARD)));
+}
+
+#[test]
+fn lat_005_an_impulse_adds_to_the_velocity_of_the_candidate() {
+    let mut session = Session::new();
+    session.step(FORWARD);
+    session.send(Change::Impulse(DVec3::new(0.1, 0.3, 0.0)));
+    for tick in 0..5 {
+        assert!(passes(session.step(FORWARD)), "tick {tick}");
+    }
+}
+
+#[test]
+fn pred_006_each_value_of_a_sprint_a_flight_and_an_item_use_change_passes() {
+    for combination in 0..8_u8 {
+        let [sprints, flies, uses] = [0, 1, 2].map(|bit| combination >> bit & 1 == 1);
+        let mut session = Session::new();
+        session.sprint = Some(true);
+        session.flight = Some(true);
+        session.item_use = Some(true);
+        session.client.sprint0 = sprints;
+        session.client.flight0 = flies;
+        session.client.item_use.using = uses;
+        let outcome = session.tick(FORWARD, ChangeStates::default(), 0, DVec3::ZERO, |_| {});
+        assert!(
+            passes(outcome),
+            "sprint {sprints}, flight {flies}, item use {uses}: {outcome:?}"
+        );
+    }
+}
+
+#[test]
+fn pred_008_the_offset_of_a_tick_is_the_smallest_offset_of_its_candidates() {
+    let mut session = Session::new();
+    session.sprint = Some(true);
+    session.client.sprint0 = false;
+    let outcome = session.tick(
+        FORWARD,
+        ChangeStates::default(),
+        0,
+        DVec3::ZERO,
+        |reported| {
+            if let Some(position) = &mut reported.position {
+                position.y += 0.05;
+            }
+        },
+    );
+    let offset = outcome
+        .offset
+        .expect("no candidate is 0.05 above the prediction");
+    assert!(
+        (offset - 0.05).abs() < 1e-9,
+        "the candidate without the sprint is only 0.05 away: {offset}"
+    );
+}
+
+#[test]
+fn rsp_004_the_buffer_decays_in_each_tick_without_a_violation() {
+    let mut session = Session::new();
+    let ahead = |reported: &mut Move| {
+        if let Some(position) = &mut reported.position {
+            position.x += 0.09;
+        }
+    };
+    for violation in 0..11 {
+        let outcome = session.tick(
+            Keys::default(),
+            ChangeStates::default(),
+            0,
+            DVec3::ZERO,
+            ahead,
+        );
+        assert!(
+            outcome.setback.is_none(),
+            "violation {violation}: the buffer is below 1"
+        );
+        session.client = *session.prediction.accepted();
+    }
+    for _ in 0..1000 {
+        session.step(Keys::default());
+    }
+    let outcome = session.tick(
+        Keys::default(),
+        ChangeStates::default(),
+        0,
+        DVec3::ZERO,
+        ahead,
+    );
+    assert!(
+        outcome.offset.is_some() && outcome.setback.is_none(),
+        "1000 ticks shrink the buffer of 0.99 by the factor 0.999^1000: {outcome:?}"
+    );
 }
