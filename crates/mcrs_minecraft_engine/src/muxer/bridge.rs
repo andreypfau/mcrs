@@ -470,6 +470,10 @@ fn write_queue(
         }
         {
             match queued {
+                QueuedPacket::Payload(PacketPayload::OwnEntityState(packet)) => {
+                    telemetry.packets.count(PacketKind::Other);
+                    append_encoded(entity, raw, packet, telemetry, frames);
+                }
                 QueuedPacket::Payload(payload) => {
                     telemetry.packets.count(payload.kind());
                     if let Err(error) = write_payload(raw, payload) {
@@ -558,7 +562,8 @@ fn write_payload<W: WritePacket>(sink: &mut W, data: PacketPayload) -> anyhow::R
         PacketPayload::PlayerAbilities(p) => sink.write_packet_fallible(&p),
         PacketPayload::ChunkLoad { .. }
         | PacketPayload::Commands(_)
-        | PacketPayload::Replication(_) => {
+        | PacketPayload::Replication(_)
+        | PacketPayload::OwnEntityState(_) => {
             anyhow::bail!("a serialized packet reached the encoder")
         }
         PacketPayload::ChunkBatchStart(p) => sink.write_packet_fallible(&p),

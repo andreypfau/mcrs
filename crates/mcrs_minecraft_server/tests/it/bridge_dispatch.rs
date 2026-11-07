@@ -362,6 +362,8 @@ fn a_shared_packet_that_one_connection_sheds_is_not_framed_for_the_other() {
 enum Wire {
     Update(i32),
     Event(i32),
+    /// An `update_attributes` of the entity of the viewer, with the entity id.
+    Own(i32),
     Position,
     Probe(i32),
 }
@@ -369,7 +371,7 @@ enum Wire {
 fn payload_of(wire: &Wire) -> (PacketPriority, PacketPayload) {
     use mcrs_minecraft_protocol_game::block::BlockStateNumber;
     use mcrs_minecraft_protocol_game::clientbound::{
-        ClientboundBlockEvent, ClientboundPlayerPosition,
+        ClientboundBlockEvent, ClientboundPlayerPosition, ClientboundUpdateAttributes,
     };
     use mcrs_voxel::BlockPos;
 
@@ -390,6 +392,19 @@ fn payload_of(wire: &Wire) -> (PacketPriority, PacketPayload) {
                 block: VarInt(1),
             }),
         ),
+        Wire::Own(entity_id) => {
+            let mut packet = Vec::new();
+            ClientboundUpdateAttributes {
+                entity_id: VarInt(entity_id),
+                attributes: Vec::new(),
+            }
+            .encode_with_id(&mut packet)
+            .unwrap();
+            (
+                PacketPriority::Normal,
+                PacketPayload::OwnEntityState(packet.into()),
+            )
+        }
         Wire::Position => (
             PacketPriority::Critical,
             PacketPayload::PlayerPosition(ClientboundPlayerPosition {
@@ -408,6 +423,7 @@ fn payload_of(wire: &Wire) -> (PacketPriority, PacketPayload) {
 fn wire_of(blob: &[u8]) -> Vec<Wire> {
     use mcrs_minecraft_protocol_game::clientbound::{
         ClientboundBlockEvent, ClientboundPing, ClientboundPlayerPosition,
+        ClientboundUpdateAttributes,
     };
 
     let mut decoder = PacketDecoder::new();
@@ -425,6 +441,12 @@ fn wire_of(blob: &[u8]) -> Vec<Wire> {
             ClientboundBlockEvent::ID => {
                 Wire::Event(ClientboundBlockEvent::decode(&mut body).unwrap().pos.x)
             }
+            ClientboundUpdateAttributes::ID => Wire::Own(
+                ClientboundUpdateAttributes::decode(&mut body)
+                    .unwrap()
+                    .entity_id
+                    .0,
+            ),
             ClientboundPlayerPosition::ID => Wire::Position,
             ClientboundPing::ID => Wire::Probe(ClientboundPing::decode(&mut body).unwrap().id),
             id => panic!("an unexpected packet {id}"),
@@ -433,9 +455,10 @@ fn wire_of(blob: &[u8]) -> Vec<Wire> {
     wire
 }
 
-/// MVC-LAT-001, MVC-TICK-002: a queue past its depth sheds only packets that the client may
-/// miss. Every block update and the teleport keep their place in the order of the writes, and
-/// the probes bracket the predicted changes of the flush on the wire.
+/// MVC-LAT-001, MVC-TICK-002, MVC-PKT-031: a queue past its depth sheds only packets that the
+/// client may miss. Every block update, the teleport and the state of the own entity keep their
+/// place in the order of the writes, and the probes bracket the predicted changes of the flush on
+/// the wire.
 #[test]
 fn a_shedding_queue_keeps_the_wire_order_of_the_predicted_changes_between_probes() {
     use mcrs_minecraft_engine::muxer::probes::Probes;
@@ -445,6 +468,7 @@ fn a_shedding_queue_keeps_the_wire_order_of_the_predicted_changes_between_probes
     world.entity_mut(socket).insert(Probes::default());
     let written: Vec<Wire> = (0..300)
         .map(|x| match x {
+            0 => Wire::Own(x),
             150 => Wire::Position,
             x if x % 10 == 5 => Wire::Update(x),
             x => Wire::Event(x),
@@ -479,11 +503,11 @@ fn a_shedding_queue_keeps_the_wire_order_of_the_predicted_changes_between_probes
         .collect();
     let first = expected
         .iter()
-        .position(|wire| matches!(wire, Wire::Update(_)))
+        .position(|wire| matches!(wire, Wire::Update(_) | Wire::Own(_)))
         .unwrap();
     let last = expected
         .iter()
-        .rposition(|wire| matches!(wire, Wire::Update(_)))
+        .rposition(|wire| matches!(wire, Wire::Update(_) | Wire::Own(_)))
         .unwrap();
     expected.insert(last + 1, Wire::Probe(1));
     expected.insert(first, Wire::Probe(0));

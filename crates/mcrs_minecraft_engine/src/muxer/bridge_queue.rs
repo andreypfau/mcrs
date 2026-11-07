@@ -92,7 +92,8 @@ pub struct EncodedPacket {
 
 impl QueuedPacket {
     /// Whether the packet changes what the client predicts its own moves with: the blocks and
-    /// columns it collides with and its abilities.
+    /// columns it collides with, its abilities, and the motion, data and attributes of its own
+    /// entity.
     #[must_use]
     pub fn changes_prediction(&self) -> bool {
         match self {
@@ -102,6 +103,7 @@ impl QueuedPacket {
                     | PacketPayload::SectionBlocksUpdate(_)
                     | PacketPayload::ChunkUnload(_)
                     | PacketPayload::PlayerAbilities(_)
+                    | PacketPayload::OwnEntityState(_)
             ),
             Self::Encoded(encoded) => encoded.kind == PacketKind::Chunk,
             Self::Records(_) => false,
