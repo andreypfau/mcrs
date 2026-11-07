@@ -87,42 +87,64 @@ pub enum QueuedPacket {
 #[derive(Clone, Debug)]
 pub struct EncodedPacket {
     pub kind: PacketKind,
+    /// The need of the payload it was serialized from, which the bytes no longer show.
+    pub need: Need,
     pub packet: Bytes,
 }
 
+/// What the client needs a packet for, which decides whether a deep queue may shed it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Need {
+    /// A change that the client predicts its own moves with.
+    PredictedChange,
+    /// A packet that the client must get for another reason, such as a teleport it confirms.
+    MustArrive,
+    /// A packet that the client may miss.
+    MayMiss,
+}
+
+impl Need {
+    /// The need of `payload`. The predicted changes are the blocks and columns the client
+    /// collides with, its abilities, and the motion, data and attributes of its own entity.
+    #[must_use]
+    pub fn of(payload: &PacketPayload) -> Self {
+        match payload {
+            PacketPayload::BlockUpdate(_)
+            | PacketPayload::SectionBlocksUpdate(_)
+            | PacketPayload::ChunkLoad { .. }
+            | PacketPayload::ChunkUnload(_)
+            | PacketPayload::PlayerAbilities(_)
+            | PacketPayload::OwnEntityState(_) => Self::PredictedChange,
+            PacketPayload::PlayerPosition(_)
+            | PacketPayload::Respawn(_)
+            | PacketPayload::PlayerLogin(_) => Self::MustArrive,
+            _ => Self::MayMiss,
+        }
+    }
+}
+
 impl QueuedPacket {
-    /// Whether the packet changes what the client predicts its own moves with: the blocks and
-    /// columns it collides with, its abilities, and the motion, data and attributes of its own
-    /// entity.
+    /// What the client needs the packet for.
+    #[must_use]
+    pub fn need(&self) -> Need {
+        match self {
+            Self::Payload(payload) => Need::of(payload),
+            Self::Encoded(encoded) => encoded.need,
+            Self::Records(_) => Need::MayMiss,
+        }
+    }
+
+    /// Whether the packet changes what the client predicts its own moves with.
     #[must_use]
     pub fn changes_prediction(&self) -> bool {
-        match self {
-            Self::Payload(payload) => matches!(
-                payload,
-                PacketPayload::BlockUpdate(_)
-                    | PacketPayload::SectionBlocksUpdate(_)
-                    | PacketPayload::ChunkUnload(_)
-                    | PacketPayload::PlayerAbilities(_)
-                    | PacketPayload::OwnEntityState(_)
-            ),
-            Self::Encoded(encoded) => encoded.kind == PacketKind::Chunk,
-            Self::Records(_) => false,
-        }
+        self.need() == Need::PredictedChange
     }
 
     /// Whether the client must get the packet: a change it predicts with, or a teleport, which
     /// it confirms.
     #[must_use]
     pub fn must_arrive(&self) -> bool {
-        self.changes_prediction()
-            || matches!(
-                self,
-                Self::Payload(
-                    PacketPayload::PlayerPosition(_)
-                        | PacketPayload::Respawn(_)
-                        | PacketPayload::PlayerLogin(_)
-                )
-            )
+        self.need() != Need::MayMiss
     }
 
     pub fn kind(&self) -> PacketKind {
@@ -137,9 +159,10 @@ impl QueuedPacket {
 impl From<PacketPayload> for QueuedPacket {
     fn from(payload: PacketPayload) -> Self {
         let kind = payload.kind();
+        let need = Need::of(&payload);
         match payload {
             PacketPayload::ChunkLoad { packet, .. } | PacketPayload::Commands(packet) => {
-                Self::Encoded(EncodedPacket { kind, packet })
+                Self::Encoded(EncodedPacket { kind, need, packet })
             }
             PacketPayload::Replication(records) => Self::Records(records),
             payload => Self::Payload(payload),

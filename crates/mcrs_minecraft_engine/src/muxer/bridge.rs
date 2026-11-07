@@ -60,7 +60,7 @@ use tracing::{trace, warn};
 
 use crate::bus::{InboundPlayerPacket, OutboundPlayerAttached, OutboundPlayerPacket};
 use crate::bus::{PacketPayload, PacketPriority, PacketTarget};
-use crate::muxer::bridge_queue::{EncodedPacket, OutboundQueue, Queued, QueuedPacket};
+use crate::muxer::bridge_queue::{EncodedPacket, Need, OutboundQueue, Queued, QueuedPacket};
 use crate::muxer::dim_inputs::DimInputs;
 use crate::muxer::move_check::{MoveCheck, check_move};
 use crate::muxer::probes::Probes;
@@ -202,6 +202,7 @@ fn encode_once(
         return Ok(queued);
     };
     let kind = payload.kind();
+    let need = Need::of(&payload);
     if let Err(error) = write_payload(buffer, payload) {
         buffer.0.clear();
         return Err(error);
@@ -209,6 +210,7 @@ fn encode_once(
     telemetry.encode_calls_total = telemetry.encode_calls_total.saturating_add(1);
     Ok(QueuedPacket::Encoded(EncodedPacket {
         kind,
+        need,
         packet: buffer.0.split().freeze(),
     }))
 }
