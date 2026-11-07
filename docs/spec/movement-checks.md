@@ -537,6 +537,8 @@ one move packet of any kind in one client tick is a violation of the packet chec
 
 **MVC-TICK-004** (`design`, semantic, confidence: medium). The server counts the silent ticks after
 each position packet. When the count reaches 20, the client tick is a violation of the packet check.
+Each later silent tick is also a violation, until the next position packet. A legit client sends a
+position packet at the latest in the 20th client tick (MVC-PKT-003), so it never gets one.
 These client ticks do not count:
 
 - a client tick before the client has loaded;
@@ -1006,7 +1008,8 @@ check:
   as acknowledged at the same time.
 
 **MVC-LAT-012** (`design`, semantic, confidence: medium). When a probe has no answer for
-`max_ack_delay`, the server disconnects the client. The default is 60 seconds.
+`max_ack_delay`, the server disconnects the client. The default is 60 seconds. Section 12 records
+this disconnect as D9.
 
 **MVC-LAT-013** (`design`, semantic, confidence: medium). The server uses no grace time after an
 external impulse (PHY-SRV-007). The window of MVC-LAT-004 covers each `set_entity_motion` and each
@@ -1092,9 +1095,16 @@ each `client_tick_end`, the server does these steps:
 1. Add `D` to `B`.
 2. When `B` is more than the current time, the client tick is a violation of the tick rate check.
    Subtract `D` from `B`.
-3. Set `B` to the larger of `B` and `C − tick_drift`. The default of `tick_drift` is 120 ms.
+3. Set `B` to the larger of `B` and `C − tick_drift`. The default of `tick_drift` is `10 × D`.
+   At 20 ticks each second, this is 500 ms.
 
 At the start, `B` is the time at which the server sends the first probe minus `tick_drift`.
+
+The vanilla client handles the packets that it received at the start of a frame. Then it runs
+the client ticks of that frame, at most 10. Thus the answer to a probe can come before up to 10
+client ticks of time that passed before the probe. A `tick_drift` of less than `10 × D` can then
+put `B` after the current time for a legit client at a low frame rate. That breaks MVC-INV-009.
+A value of `10 × D` covers each frame rate, because the client drops the ticks after the tenth.
 
 **MVC-CHK-011** (`design`, semantic, confidence: low). A violation of the tick rate check refuses
 the client tick. The server does no prediction step for it, and it sends a setback when the level of
@@ -1374,7 +1384,7 @@ The default applies when the operator sets no value.
 | `buffer_decay` | 0.999 for each client tick | MVC-RSP-004 |
 | `max_candidates` | 64 | MVC-PRED-004 |
 | `max_ack_delay` | 60 s | MVC-LAT-012 |
-| `tick_drift` | 120 ms | MVC-CHK-010 |
+| `tick_drift` | `10 × D`, 500 ms at 20 ticks each second | MVC-CHK-010 |
 | `tick_rate_setback_level` | 10 | MVC-CHK-011 |
 | on-ground setback level | none | MVC-CHK-002 |
 | packet setback level | none | MVC-CHK-020 |
@@ -1508,6 +1518,19 @@ These entries record where this server differs from a vanilla server.
 - **Visible to the client**: no, for a legit client. A client that sends another position in the
   accept gets a correction.
 - **Test**: a differential test does not send an accept at a position that is not the destination.
+
+**D9.**
+
+- **Rule**: MVC-LAT-012.
+- **Reference**: the vanilla server ignores an answer to a `ping`, and it does not disconnect a
+  client that does not answer. It disconnects a client that does not answer a `keep_alive`, after
+  15 to 30 seconds, with `disconnect.timeout`.
+- **Reason**: the server needs the answer to each probe to know the state of the client. Without
+  a limit, the memory of L1 for one connection has no bound (MVC-LAY-003).
+- **Visible to the client**: no, for a legit client. The vanilla client answers each `ping` and
+  each `keep_alive` in the order of arrival. A client that does not answer a probe for 60 seconds
+  also does not answer a `keep_alive`, so a vanilla server disconnects it earlier.
+- **Test**: a differential test does not send a stream that answers `keep_alive` but not `ping`.
 
 ## 13. Unresolved
 
