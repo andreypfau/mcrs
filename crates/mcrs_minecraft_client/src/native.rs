@@ -1,6 +1,7 @@
 use std::net::{SocketAddr, ToSocketAddrs};
 use std::path::{Path, PathBuf};
 
+use bevy::app::ScheduleRunnerPlugin;
 use bevy::asset::AssetPlugin;
 use bevy::asset::io::AssetSourceId;
 use bevy::asset::io::file::FileAssetReader;
@@ -11,11 +12,12 @@ use bevy::render::RenderPlugin;
 use bevy::render::render_resource::WgpuFeatures;
 use bevy::render::settings::WgpuSettings;
 use bevy::transform::TransformSystems;
+use bevy::window::ExitCondition;
 use bevy::window::{
     Monitor, MonitorSelection, PresentMode, PrimaryMonitor, WindowLevel, WindowMode,
     WindowPosition, WindowResolution,
 };
-use bevy::winit::{UpdateMode, WinitSettings};
+use bevy::winit::{UpdateMode, WinitPlugin, WinitSettings};
 use mcrs_minecraft_biome_file::BiomeFile;
 use mcrs_minecraft_datapack::DirectoryPacks;
 use mcrs_minecraft_dimension_environment::dimension_type::DimensionTypeFile;
@@ -29,6 +31,7 @@ use mcrs_minecraft_save::{self as save, SaveError};
 
 use mcrs_minecraft_assets::packs::PackRoots;
 use mcrs_minecraft_client::config::{Knobs, TerrainLimits};
+use mcrs_minecraft_client::scene_capture::SceneCapturePlugin;
 use mcrs_minecraft_client::screenshot;
 use mcrs_minecraft_client::{ClientPlugins, ClientTerrainPlugin, config, sky, vanilla};
 use mcrs_minecraft_client_gui::{chat_input, game_mode_switcher};
@@ -83,6 +86,9 @@ fn frame_mark() {
     tracing_tracy::client::frame_mark();
 }
 
+/// The size of the vanilla client's window when it opens.
+const SCENE_SIZE: UVec2 = UVec2::new(854, 480);
+
 #[expect(
     clippy::too_many_lines,
     reason = "the client's entry point builds the whole app, and its plugins, resources and systems read top to bottom in the order they are added"
@@ -95,6 +101,7 @@ pub fn run() -> AppExit {
     let save_data = world.as_deref().map(load_save).unwrap_or_default();
     let frozen_at = knobs.frozen_time();
     let resolution = knobs.resolution();
+    let scene = knobs.scene_dir();
     let view_distance = knobs.view_distance();
     let assets = AssetPlugin::default().file_path;
     // The client cannot run without the jar, so the first start fetches it before the window
@@ -143,61 +150,72 @@ pub fn run() -> AppExit {
         }),
     );
     vanilla::register(&mut app);
-    app.add_plugins(
-        DefaultPlugins
-            .set(bevy::app::TaskPoolPlugin { task_pool_options })
-            .set(AssetPlugin {
-                file_path: assets.clone(),
+    let defaults = DefaultPlugins
+        .set(bevy::app::TaskPoolPlugin { task_pool_options })
+        .set(AssetPlugin {
+            file_path: assets.clone(),
+            ..default()
+        })
+        .set(RenderPlugin {
+            render_creation: wgpu.into(),
+            ..default()
+        })
+        .set(LogPlugin {
+            custom_layer: tracy_layer,
+            ..default()
+        })
+        .set(WindowPlugin {
+            primary_window: scene.is_none().then(|| Window {
+                title: match &world {
+                    Some(world) => format!("mcrs — {}", world.display()),
+                    None => "mcrs".to_owned(),
+                },
+                mode: if knobs.fullscreen() && resolution.is_none() {
+                    WindowMode::BorderlessFullscreen(MonitorSelection::Primary)
+                } else {
+                    WindowMode::Windowed
+                },
+                position: WindowPosition::Centered(MonitorSelection::Primary),
+                // A window another one covers stops being presented, and a frame that gets no
+                // swapchain texture is a frame that is never drawn, so a sized window stays on
+                // top for the length of the measurement.
+                window_level: if resolution.is_some() {
+                    WindowLevel::AlwaysOnTop
+                } else {
+                    WindowLevel::Normal
+                },
+                resolution: match resolution {
+                    Some((width, height)) => {
+                        WindowResolution::new(width, height).with_scale_factor_override(1.0)
+                    }
+                    None => WindowResolution::default(),
+                },
+                present_mode: if knobs.vsync() {
+                    PresentMode::AutoVsync
+                } else {
+                    PresentMode::AutoNoVsync
+                },
+                #[cfg(feature = "dev")]
+                desired_maximum_frame_latency: knobs.frame_latency(),
                 ..default()
-            })
-            .set(RenderPlugin {
-                render_creation: wgpu.into(),
-                ..default()
-            })
-            .set(LogPlugin {
-                custom_layer: tracy_layer,
-                ..default()
-            })
-            .set(WindowPlugin {
-                primary_window: Some(Window {
-                    title: match &world {
-                        Some(world) => format!("mcrs — {}", world.display()),
-                        None => "mcrs".to_owned(),
-                    },
-                    mode: if knobs.fullscreen() && resolution.is_none() {
-                        WindowMode::BorderlessFullscreen(MonitorSelection::Primary)
-                    } else {
-                        WindowMode::Windowed
-                    },
-                    position: WindowPosition::Centered(MonitorSelection::Primary),
-                    // A window another one covers stops being presented, and a frame that gets no
-                    // swapchain texture is a frame that is never drawn, so a sized window stays on
-                    // top for the length of the measurement.
-                    window_level: if resolution.is_some() {
-                        WindowLevel::AlwaysOnTop
-                    } else {
-                        WindowLevel::Normal
-                    },
-                    resolution: match resolution {
-                        Some((width, height)) => {
-                            WindowResolution::new(width, height).with_scale_factor_override(1.0)
-                        }
-                        None => WindowResolution::default(),
-                    },
-                    present_mode: if knobs.vsync() {
-                        PresentMode::AutoVsync
-                    } else {
-                        PresentMode::AutoNoVsync
-                    },
-                    #[cfg(feature = "dev")]
-                    desired_maximum_frame_latency: knobs.frame_latency(),
-                    ..default()
-                }),
-                ..default()
-            })
-            .disable::<bevy::pbr::PbrPlugin>()
-            .disable::<bevy::light::LightPlugin>(),
-    )
+            }),
+            exit_condition: if scene.is_some() {
+                ExitCondition::DontExit
+            } else {
+                ExitCondition::OnAllClosed
+            },
+            ..default()
+        })
+        .disable::<bevy::pbr::PbrPlugin>()
+        .disable::<bevy::light::LightPlugin>();
+    app.add_plugins(if scene.is_some() {
+        // With the window feature on, the default plugins add no runner of their own.
+        defaults
+            .disable::<WinitPlugin>()
+            .add(ScheduleRunnerPlugin::default())
+    } else {
+        defaults
+    })
     .insert_resource(WinitSettings {
         focused_mode: UpdateMode::Continuous,
         unfocused_mode: UpdateMode::Continuous,
@@ -236,6 +254,13 @@ pub fn run() -> AppExit {
         ),
     );
 
+    if let Some(dir) = scene {
+        app.add_plugins(SceneCapturePlugin {
+            dir,
+            size: resolution.map_or(SCENE_SIZE, |(width, height)| UVec2::new(width, height)),
+        });
+    }
+
     // After `DefaultPlugins`: an embedded server leaves the task pools to its
     // host, so the host has to have built them before the server thread ticks.
     let username = knobs.username();
@@ -271,6 +296,7 @@ pub fn run() -> AppExit {
     app.add_plugins(mcrs_minecraft_client_world::columns::ColumnCachePlugin);
     app.init_resource::<mcrs_minecraft_client_world::screen::Screen>();
     app.add_plugins(mcrs_minecraft_client_world::game_mode::GameModePlugin);
+    app.add_plugins(mcrs_minecraft_client_entity::ClientEntityPlugin);
     app.add_plugins(game_mode_switcher::GameModeSwitcherPlugin);
     app.add_plugins(mcrs_minecraft_client_world::chat::ClientChatPlugin {
         command_history: knobs.command_history().or_else(|| {

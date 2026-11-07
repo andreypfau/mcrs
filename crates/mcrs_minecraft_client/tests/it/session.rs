@@ -13,7 +13,7 @@ use mcrs_minecraft_client_world::player::Player;
 use mcrs_minecraft_dimension::DimensionType;
 use mcrs_minecraft_dimension_environment::dimension_type::DimensionTypeFile;
 use mcrs_minecraft_dimension_environment::environment::Weather;
-use mcrs_minecraft_environment::world_clock::{ClockTimeMarkers, WorldClock, WorldClocks};
+use mcrs_minecraft_environment::world_clock::{ClockTimeMarkers, WorldClocks, WorldClock};
 use mcrs_minecraft_game_mode::GameMode;
 use mcrs_minecraft_item::{Items, JukeboxPlayable, JukeboxSong};
 use mcrs_minecraft_network::ConnectionState;
@@ -326,10 +326,7 @@ fn the_clock_markers_follow_the_session_set() {
         markers.values().any(|count| *count > 0),
         "the timelines declare time markers"
     );
-    assert_eq!(
-        app.world().resource::<WorldClocks>().len(),
-        clock_count(&app)
-    );
+    assert_eq!(app.world().resource::<WorldClocks>().len(), clock_count(&app));
 
     receive_registries(&mut app, connection, reversed("minecraft:world_clock"));
     app.update();
@@ -343,8 +340,5 @@ fn the_clock_markers_follow_the_session_set() {
         markers,
         "each clock keeps its markers under its new number"
     );
-    assert_eq!(
-        app.world().resource::<WorldClocks>().len(),
-        clock_count(&app)
-    );
+    assert_eq!(app.world().resource::<WorldClocks>().len(), clock_count(&app));
 }

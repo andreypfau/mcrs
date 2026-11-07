@@ -35,6 +35,8 @@ pub mod dev;
 pub mod input;
 pub mod light_volume;
 #[cfg(not(target_family = "wasm"))]
+pub mod scene_capture;
+#[cfg(not(target_family = "wasm"))]
 pub mod screenshot;
 pub mod sky;
 pub mod sky_state;
@@ -58,7 +60,10 @@ impl PluginGroup for ClientPlugins {
             .add(input::ClientInputPlugin)
             .add(local_player::LocalPlayerPlugin)
             .add(block_breaking::BlockBreakingPlugin)
-            .add(camera::CameraPlugin)
+            .add(camera::CameraPlugin {
+                render_distance: self.0.view_distance(),
+                fov: self.0.fov_options(),
+            })
             .add(mcrs_minecraft_client_gui::debug_screen::DebugScreenPlugin {
                 stats_interval: self.0.stats_interval(),
                 always_time_passes: self.0.always_time_passes(),
@@ -91,6 +96,8 @@ impl Plugin for ClientTerrainPlugin {
         .add_plugins(mcrs_minecraft_client_gui::gui_items::GuiItemsPlugin)
         .insert_resource(mcrs_minecraft_render::Occlusion(knobs.occlusion()))
         .insert_resource(mcrs_minecraft_render::Brightness(knobs.brightness()))
+        .insert_resource(knobs.light_options())
+        .insert_resource(knobs.clouds())
         .add_plugins(stream::StreamPlugin::new(
             budget,
             uploads,

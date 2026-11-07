@@ -3,7 +3,8 @@
 # verified against the package descriptor pinned in release.json, with online mode off on
 # loopback and the compression threshold of VANILLA_COMPRESSION (default -1, compression off;
 # 0 and up compress packets of that size and more). `serve` runs it until interrupted; `attempt`
-# (the default) runs one headless join of the MCRS client against it. Exit: 0 joined, 1 not
+# (the default) runs one headless join of the MCRS client against it. `fetch` only provisions the
+# server jar and prints its path, for the scene frame tests of mcrs_minecraft_client. Exit: 0 joined, 1 not
 # joined, 2 provisioning failed or a bad argument, 3 the Minecraft EULA is not accepted in this
 # environment.
 set -euo pipefail
@@ -47,12 +48,36 @@ valid_compression() {
     [[ $1 =~ ^0*([0-9]{1,10})$ ]] && ((10#${BASH_REMATCH[1]} <= 2147483647))
 }
 
+# Prints the path of the verified server jar of the corpus version.
+fetch_server() {
+    local id package_url package_sha1
+    id=$(jq -r '.id' "$release")
+    package_url=$(jq -r '.json.url' "$release")
+    package_sha1=$(jq -r '.json.sha1' "$release")
+
+    local work="$root/target/vanilla-server/$id"
+    mkdir -p "$work"
+
+    fetch_verified "$work/$id.json" "$package_url" "$package_sha1" || exit 2
+    local server_url server_sha1 server_size
+    server_url=$(jq -r '.downloads.server.url' "$work/$id.json")
+    server_sha1=$(jq -r '.downloads.server.sha1' "$work/$id.json")
+    server_size=$(jq -r '.downloads.server.size' "$work/$id.json")
+    fetch_verified "$work/server.jar" "$server_url" "$server_sha1" "$server_size" || exit 2
+    echo "$work/server.jar"
+}
+
 main() {
     local mode=${1:-attempt}
     case "$mode" in
-        attempt | serve) ;;
-        *) echo "usage: $0 [attempt|serve]" >&2; exit 2 ;;
+        attempt | serve | fetch) ;;
+        *) echo "usage: $0 [attempt|serve|fetch]" >&2; exit 2 ;;
     esac
+
+    if [ "$mode" = fetch ]; then
+        fetch_server
+        return
+    fi
 
     if [ "${MINECRAFT_EULA:-}" != true ]; then
         echo "The Minecraft EULA is not accepted in this environment." >&2
@@ -65,25 +90,13 @@ main() {
         exit 2
     fi
 
-    local id package_url package_sha1
-    id=$(jq -r '.id' "$release")
-    package_url=$(jq -r '.json.url' "$release")
-    package_sha1=$(jq -r '.json.sha1' "$release")
-
     if nc -z 127.0.0.1 "$port" 2>/dev/null; then
         echo "port $port is already in use" >&2
         exit 2
     fi
 
-    local work="$root/target/vanilla-server/$id"
-    mkdir -p "$work"
-
-    fetch_verified "$work/$id.json" "$package_url" "$package_sha1" || exit 2
-    local server_url server_sha1 server_size
-    server_url=$(jq -r '.downloads.server.url' "$work/$id.json")
-    server_sha1=$(jq -r '.downloads.server.sha1' "$work/$id.json")
-    server_size=$(jq -r '.downloads.server.size' "$work/$id.json")
-    fetch_verified "$work/server.jar" "$server_url" "$server_sha1" "$server_size" || exit 2
+    local work
+    work=$(dirname "$(fetch_server)") || exit 2
 
     echo "eula=true" >"$work/eula.txt"
     cat >"$work/server.properties" <<EOF
@@ -117,7 +130,7 @@ EOF
     [ -n "$up" ] || { echo "server never opened port $port, see $log" >&2; exit 2; }
 
     if [ "$mode" = serve ]; then
-        echo "vanilla $id listening on 127.0.0.1:$port, compression threshold $compression; interrupt to stop"
+        echo "vanilla $(basename "$work") listening on 127.0.0.1:$port, compression threshold $compression; interrupt to stop"
         wait "$server"
         return
     fi

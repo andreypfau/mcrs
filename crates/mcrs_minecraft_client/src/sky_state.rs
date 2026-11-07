@@ -2,7 +2,7 @@ use bevy::prelude::*;
 
 use mcrs_minecraft_dimension::Skybox;
 use mcrs_minecraft_dimension_environment::environment::{
-    AttributeStack, EnvironmentAttributes, EnvironmentContext, Weather,
+    AttributeStack, DimensionAttributes, EnvironmentContext, Weather,
 };
 use mcrs_minecraft_environment::attribute::AttributeValue;
 use mcrs_minecraft_environment::environment_attribute_keys::EnvironmentAttribute;
@@ -108,25 +108,35 @@ impl SkyValue {
 }
 
 fn stack_value(
-    attributes: &EnvironmentAttributes,
-    stack: usize,
+    attributes: &DimensionAttributes,
+    attribute: EnvironmentAttribute,
     ctx: &EnvironmentContext,
 ) -> SkyValue {
     attributes
-        .stack(stack)
+        .stack(attribute)
         .map_or(SkyValue::Scalar(0.0), |stack| {
             sky_value(&stack.evaluate(ctx))
         })
 }
 
 fn sky_value(value: &AttributeValue) -> SkyValue {
+    if let Some(packed) = value.packed_argb() {
+        return SkyValue::Color(packed);
+    }
     match value {
         AttributeValue::Float(v) => SkyValue::Scalar(*v),
-        AttributeValue::Color(packed) => SkyValue::Color(*packed),
         AttributeValue::Integer(v) => SkyValue::Scalar(*v as f32),
         AttributeValue::MoonPhase(phase) => SkyValue::Scalar(phase.index() as f32),
         _ => SkyValue::Scalar(0.0),
     }
+}
+
+/// The clock ticks of the previous and the current client tick, and how far the frame lies
+/// into the current tick.
+pub struct SkyTime<'a> {
+    pub previous: EnvironmentContext<'a>,
+    pub current: EnvironmentContext<'a>,
+    pub partial: f32,
 }
 
 /// The pipeline specialization key: everything that decides which shaders get
@@ -149,23 +159,17 @@ impl SkyKey {
 /// looking an attribute up by id.
 #[derive(Debug, Clone)]
 pub struct SkyLayout {
-    frame: Vec<(SkyField, usize)>,
-    constant: Vec<(SkyField, usize)>,
+    frame: Vec<SkyField>,
+    constant: Vec<SkyField>,
 }
 
 impl SkyLayout {
-    pub fn derive(attributes: &EnvironmentAttributes) -> Self {
-        let index = |id: &str| {
-            EnvironmentAttributes::index(id).expect("every sky field names a registered attribute")
-        };
-        let (frame, constant) = SkyField::ALL
-            .into_iter()
-            .map(|field| (field, index(field.attribute().as_static_str())))
-            .partition(|(_, stack)| {
-                attributes
-                    .stack(*stack)
-                    .is_some_and(AttributeStack::is_dynamic)
-            });
+    pub fn derive(attributes: &DimensionAttributes) -> Self {
+        let (frame, constant) = SkyField::ALL.into_iter().partition(|field| {
+            attributes
+                .stack(field.attribute())
+                .is_some_and(AttributeStack::is_dynamic)
+        });
 
         SkyLayout { frame, constant }
     }
@@ -174,19 +178,19 @@ impl SkyLayout {
     /// split between the two blocks is asserted on; a frame reads by index.
     #[cfg(test)]
     pub fn frame_fields(&self) -> impl Iterator<Item = SkyField> + '_ {
-        self.frame.iter().map(|(field, _)| *field)
+        self.frame.iter().copied()
     }
 
     #[cfg(test)]
     pub fn constant_fields(&self) -> impl Iterator<Item = SkyField> + '_ {
-        self.constant.iter().map(|(field, _)| *field)
+        self.constant.iter().copied()
     }
 
     /// The one evaluation pass a frame runs. Nothing it produces is kept.
     pub fn evaluate(
         &self,
-        attributes: &EnvironmentAttributes,
-        ctx: &EnvironmentContext,
+        attributes: &DimensionAttributes,
+        time: &SkyTime,
         camera: Vec3,
         weather: Weather,
         frame: &mut SkyFrame,
@@ -195,24 +199,26 @@ impl SkyLayout {
         frame.rain = weather.rain;
         frame.thunder = weather.thunder;
         frame.values.clear();
-        frame.values.extend(
-            self.frame
-                .iter()
-                .map(|(_, stack)| stack_value(attributes, *stack, ctx)),
-        );
+        frame.values.extend(self.frame.iter().map(|field| {
+            attributes
+                .stack(field.attribute())
+                .map_or(SkyValue::Scalar(0.0), |stack| {
+                    sky_value(&stack.frame_value(&time.previous, &time.current, time.partial))
+                })
+        }));
     }
 
     /// The dimension-constant block, rebuilt only when the dimension changes.
     pub fn constants(
         &self,
-        attributes: &EnvironmentAttributes,
+        attributes: &DimensionAttributes,
         ctx: &EnvironmentContext,
     ) -> SkyStatic {
         let skybox = attributes.skybox();
         let values: Vec<(SkyField, SkyValue)> = self
             .constant
             .iter()
-            .map(|(field, stack)| (*field, stack_value(attributes, *stack, ctx)))
+            .map(|field| (*field, stack_value(attributes, field.attribute(), ctx)))
             .collect();
 
         SkyStatic {
@@ -232,7 +238,7 @@ impl SkyLayout {
 /// what leaves the Nether and the End without them.
 fn effects(
     skybox: Skybox,
-    attributes: &EnvironmentAttributes,
+    attributes: &DimensionAttributes,
     ctx: &EnvironmentContext,
 ) -> SkyEffects {
     let mut effects = SkyEffects::DISC;
@@ -240,8 +246,8 @@ fn effects(
         effects |= SkyEffects::TWILIGHT | SkyEffects::CELESTIAL | SkyEffects::STARS;
         // A tracked colour can be transparent at this tick and opaque at the next, so only a
         // constant one can rule the clouds out.
-        let clouds = EnvironmentAttributes::index(SkyField::CloudColor.attribute().as_static_str())
-            .and_then(|index| attributes.stack(index))
+        let clouds = attributes
+            .stack(SkyField::CloudColor.attribute())
             .is_some_and(|stack| {
                 stack.is_dynamic() || sky_value(&stack.evaluate(ctx)).color() >> 24 != 0
             });
@@ -266,7 +272,7 @@ impl SkyFrame {
         let slot = layout
             .frame
             .iter()
-            .position(|(candidate, _)| *candidate == field)?;
+            .position(|candidate| *candidate == field)?;
         self.values.get(slot).copied()
     }
 }
@@ -309,11 +315,11 @@ mod tests {
     use serde_json::json;
 
     use mcrs_minecraft_dimension_environment::environment::{
-        DimensionEnvironment, EnvironmentAttributes, EnvironmentContext, Weather,
+        DimensionAttributes, DimensionEnvironment, EnvironmentContext, Weather,
     };
-    use mcrs_minecraft_environment::attribute::{AttributeValue, EnvironmentAttributeMap};
+    use mcrs_minecraft_environment::attribute::ModifierMap;
     use mcrs_minecraft_environment::timeline::Timeline;
-    use mcrs_minecraft_environment::world_clock::{ClockState, WorldClocks};
+    use mcrs_minecraft_environment::world_clock::{WorldClocks, ClockTime};
 
     use super::*;
     use super::{test_clock_count, test_resolved};
@@ -329,7 +335,7 @@ mod tests {
         #[serde(default)]
         skybox: Skybox,
         #[serde(default)]
-        attributes: EnvironmentAttributeMap,
+        attributes: ModifierMap,
     }
 
     fn dimension_type(name: &str) -> Dimension {
@@ -385,31 +391,26 @@ mod tests {
         }
     }
 
-    fn build(file: &str, timelines: &[Timeline]) -> EnvironmentAttributes {
+    fn build(file: &str, timelines: &[Timeline]) -> DimensionAttributes {
         let proto = dimension_type(file);
         let borrowed: Vec<&Timeline> = timelines.iter().collect();
-        EnvironmentAttributes::build(&shape(&proto), &borrowed, test_clock_count()).unwrap()
+        DimensionAttributes::build(&shape(&proto), &borrowed, test_clock_count()).unwrap()
     }
 
-    fn overworld() -> (EnvironmentAttributes, Vec<Timeline>) {
+    fn overworld() -> (DimensionAttributes, Vec<Timeline>) {
         let timelines = tagged_timelines("in_overworld");
         (build("overworld.json", &timelines), timelines)
     }
 
-    /// The tick each clock stands at, read the way a frame reads it.
-    fn ticks_at(
-        attributes: &EnvironmentAttributes,
-        total_ticks: i64,
-        partial_tick: f32,
-    ) -> Vec<f64> {
+    /// The total ticks each clock stands at.
+    fn ticks_at(attributes: &DimensionAttributes, total_ticks: i64) -> Vec<i64> {
         let mut clocks = WorldClocks::default();
         for clock in attributes.clocks() {
             clocks.insert(
                 *clock,
-                ClockState {
+                ClockTime {
                     total_ticks,
-                    partial_tick,
-                    ..ClockState::default()
+                    ..ClockTime::default()
                 },
             );
         }
@@ -418,21 +419,29 @@ mod tests {
         ticks
     }
 
-    fn context(ticks: &[f64]) -> EnvironmentContext<'_> {
+    fn context(ticks: &[i64]) -> EnvironmentContext<'_> {
         EnvironmentContext { ticks }
     }
 
-    fn color(attributes: &EnvironmentAttributes, id: &str, ctx: &EnvironmentContext) -> u32 {
-        match attributes.value(id, ctx).unwrap() {
-            AttributeValue::Color(packed) => packed,
-            other => panic!("{id} is not a colour: {other:?}"),
-        }
+    fn color(
+        attributes: &DimensionAttributes,
+        attribute: EnvironmentAttribute,
+        ctx: &EnvironmentContext,
+    ) -> u32 {
+        let value = attributes.value(attribute, ctx).unwrap();
+        value
+            .packed_argb()
+            .unwrap_or_else(|| panic!("{attribute:?} is not a colour: {value:?}"))
     }
 
-    fn float(attributes: &EnvironmentAttributes, id: &str, ctx: &EnvironmentContext) -> f32 {
-        match attributes.value(id, ctx).unwrap() {
+    fn float(
+        attributes: &DimensionAttributes,
+        attribute: EnvironmentAttribute,
+        ctx: &EnvironmentContext,
+    ) -> f32 {
+        match attributes.value(attribute, ctx).unwrap() {
             AttributeValue::Float(value) => value,
-            other => panic!("{id} is not a float: {other:?}"),
+            other => panic!("{attribute:?} is not a float: {other:?}"),
         }
     }
 
@@ -504,16 +513,20 @@ mod tests {
     fn one_pass_fills_the_frame_block_in_layout_order() {
         let (attributes, _timelines) = overworld();
         let layout = SkyLayout::derive(&attributes);
-        let ticks = ticks_at(&attributes, NOON, 0.0);
+        let ticks = ticks_at(&attributes, NOON);
         let weather = Weather {
             rain: 0.5,
             thunder: 0.25,
         };
 
         let mut frame = SkyFrame::default();
-        let ctx = EnvironmentContext { ticks: &ticks };
+        let time = SkyTime {
+            previous: context(&ticks),
+            current: context(&ticks),
+            partial: 0.5,
+        };
         let camera = Vec3::new(8.0, 64.0, -8.0);
-        layout.evaluate(&attributes, &ctx, camera, weather, &mut frame);
+        layout.evaluate(&attributes, &time, camera, weather, &mut frame);
 
         assert_eq!(frame.values.len(), layout.frame_fields().count());
         assert_eq!(frame.camera, [8.0, 64.0, -8.0]);
@@ -526,7 +539,7 @@ mod tests {
         // a second pass over the same context reuses the buffer and lands on the
         // same values: nothing is carried between frames
         let before = frame.values.clone();
-        layout.evaluate(&attributes, &ctx, camera, weather, &mut frame);
+        layout.evaluate(&attributes, &time, camera, weather, &mut frame);
         assert_eq!(frame.values, before);
     }
 
@@ -534,7 +547,7 @@ mod tests {
     fn the_overworld_draws_the_whole_sky() {
         let (attributes, _timelines) = overworld();
         let layout = SkyLayout::derive(&attributes);
-        let ticks = ticks_at(&attributes, NOON, 0.0);
+        let ticks = ticks_at(&attributes, NOON);
 
         let constants = layout.constants(&attributes, &context(&ticks));
         assert_eq!(constants.key.skybox, Skybox::Overworld);
@@ -552,10 +565,10 @@ mod tests {
         let borrowed: Vec<&Timeline> = nether_timelines.iter().collect();
         let proto = dimension_type("the_nether.json");
         let attributes =
-            EnvironmentAttributes::build(&shape(&proto), &borrowed, test_clock_count()).unwrap();
+            DimensionAttributes::build(&shape(&proto), &borrowed, test_clock_count()).unwrap();
 
         let layout = SkyLayout::derive(&attributes);
-        let ticks = ticks_at(&attributes, NOON, 0.0);
+        let ticks = ticks_at(&attributes, NOON);
         let ctx = context(&ticks);
         let constants = layout.constants(&attributes, &ctx);
 
@@ -566,26 +579,26 @@ mod tests {
         let overworld_draws = {
             let (overworld, _timelines) = overworld();
             SkyLayout::derive(&overworld)
-                .constants(&overworld, &context(&ticks_at(&overworld, NOON, 0.0)))
+                .constants(&overworld, &context(&ticks_at(&overworld, NOON)))
                 .key
                 .draws()
         };
         assert_eq!(overworld_draws - constants.key.draws(), 4);
 
         for id in [
-            "minecraft:visual/sun_angle",
-            "minecraft:visual/moon_angle",
-            "minecraft:visual/star_angle",
-            "minecraft:visual/star_brightness",
+            EnvironmentAttribute::VisualSunAngle,
+            EnvironmentAttribute::VisualMoonAngle,
+            EnvironmentAttribute::VisualStarAngle,
+            EnvironmentAttribute::VisualStarBrightness,
         ] {
             assert_eq!(
                 float(&attributes, id, &ctx),
                 0.0,
-                "{id} must be inert in the nether"
+                "{id:?} must be inert in the nether"
             );
         }
         assert_eq!(
-            color(&attributes, "minecraft:visual/cloud_color", &ctx) >> 24,
+            color(&attributes, EnvironmentAttribute::VisualCloudColor, &ctx) >> 24,
             0,
             "a fully transparent cloud colour is what removes the cloud draw"
         );

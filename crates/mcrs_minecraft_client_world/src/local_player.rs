@@ -49,19 +49,27 @@ enum MovePacket {
 }
 
 /// What the server was last told, which is what this tick's position and look
-/// are judged against.
+/// are judged against. Empty until the first teleport is accepted: a vanilla
+/// server disconnects a client that moves before the server has placed it.
 #[derive(Component, Debug, Clone, Copy, Default)]
-pub struct LastSentMovement {
+pub struct LastSentMovement(Option<SentMovement>);
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+struct SentMovement {
     position: DVec3,
     rotation: Rotation,
 }
 
 impl LastSentMovement {
+    fn place(&mut self, position: DVec3, rotation: Rotation) {
+        self.0 = Some(SentMovement { position, rotation });
+    }
+
     fn tick(&mut self, position: DVec3, rotation: Rotation) -> Option<MovePacket> {
-        let moved = position != self.position;
-        let turned = rotation != self.rotation;
-        self.position = position;
-        self.rotation = rotation;
+        let last = self.0.as_mut()?;
+        let moved = position != last.position;
+        let turned = rotation != last.rotation;
+        *last = SentMovement { position, rotation };
         match (moved, turned) {
             (true, true) => Some(MovePacket::PosRot),
             (true, false) => Some(MovePacket::Pos),
@@ -139,7 +147,7 @@ fn apply_server_teleport(
 /// landed on.
 fn accept_teleports(
     mut commands: Commands,
-    player: Single<(&mut PhysicsTransform, &mut Velocity), With<Player>>,
+    player: Single<(&mut PhysicsTransform, &mut Velocity, &mut LastSentMovement), With<Player>>,
     connection: Option<Single<(&mut ClientConnection, &mut PendingTeleports)>>,
     look: Option<Res<LookOverride>>,
     position: Option<Res<PositionOverride>>,
@@ -150,7 +158,7 @@ fn accept_teleports(
     if pending.0.is_empty() {
         return;
     }
-    let (mut transform, mut velocity) = player.into_inner();
+    let (mut transform, mut velocity, mut last_sent) = player.into_inner();
     let mut position = position.map(|position| position.0);
     for teleport in pending.0.drain(..) {
         apply_server_teleport(&sine.0, &mut transform, &mut velocity, &teleport);
@@ -170,6 +178,7 @@ fn accept_teleports(
             position: transform.translation.into(),
             look: transform.rotation.into(),
         });
+        last_sent.place(transform.translation, transform.rotation);
     }
 }
 
@@ -250,6 +259,28 @@ mod tests {
     use crate::player::look_direction;
     use mcrs_minecraft_core::Look;
     use mcrs_minecraft_protocol_game::PositionFlag;
+
+    #[test]
+    fn no_move_is_sent_before_the_first_accepted_teleport() {
+        let mut last_sent = LastSentMovement::default();
+        let rotation = Rotation::new(0.0, 0.0);
+        assert!(
+            last_sent
+                .tick(DVec3::new(0.5, 80.0, 0.5), rotation)
+                .is_none()
+        );
+
+        last_sent.place(DVec3::new(0.5, -60.0, 5.5), rotation);
+        assert!(
+            last_sent
+                .tick(DVec3::new(0.5, -60.0, 5.5), rotation)
+                .is_none()
+        );
+        assert!(matches!(
+            last_sent.tick(DVec3::new(0.5, -60.0, 6.5), rotation),
+            Some(MovePacket::Pos)
+        ));
+    }
 
     #[test]
     fn forward_moves_along_the_horizontal_look_direction() {

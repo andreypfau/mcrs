@@ -33,6 +33,7 @@ mcrs_minecraft_light_engine.workspace = true
 mcrs_minecraft_light_color = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_client_jar.workspace = true
 mcrs_minecraft_client_world.workspace = true
+mcrs_minecraft_client_entity.workspace = true
 mcrs_minecraft_client_gui.workspace = true
 bevy = { version = "0.19.1", default-features = false, features = [
     "std",
@@ -111,6 +112,9 @@ mcrs_minecraft_engine_registries = { workspace = true, features = ["test-support
 mcrs_minecraft_game_registries = { workspace = true, features = ["test-support"] }
 bytes.workspace = true
 mcrs_minecraft_fixtures.workspace = true
+# The scene frames are judged with NVIDIA's own FLIP code, so the numbers match its reference tool.
+nv-flip = "0.1.2"
+image = { version = "0.25", default-features = false, features = ["png"] }
 
 [build-dependencies]
 flate2.workspace = true

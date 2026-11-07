@@ -154,6 +154,7 @@ pub fn run() {
                 play: Some(mcrs_minecraft_client_world::game_packets::GAME_CLIENTBOUND),
             });
             app.add_plugins(mcrs_minecraft_client_world::columns::ColumnCachePlugin);
+            app.add_plugins(mcrs_minecraft_client_entity::ClientEntityPlugin);
         }
         None => warn!(
             "no ?server=<https url>&cert=<sha-256 hex>: the browser draws sky only. \

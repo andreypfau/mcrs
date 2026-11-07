@@ -69,10 +69,7 @@ pub fn display(
     displayer.add_to_group(GROUP, lines);
 }
 
-pub fn display_triangles(
-    mut displayer: ResMut<DebugScreenDisplayer>,
-    triangles: Res<DrawnTriangles>,
-) {
+pub fn display_triangles(mut displayer: ResMut<DebugScreenDisplayer>, triangles: Res<DrawnTriangles>) {
     displayer.add_to_group(
         terrain_debug_entry::GROUP,
         [format!(

@@ -4,11 +4,15 @@ use std::sync::Arc;
 #[cfg(all(feature = "singleplayer", not(target_family = "wasm")))]
 use std::net::{Ipv4Addr, SocketAddr};
 
+use crate::camera::FovOptions;
 use crate::cave::CaveCull;
+use crate::sky::Clouds;
+use crate::stream::LightOptions;
 use bevy::app::App;
 use bevy::ecs::resource::Resource;
 use mcrs_minecraft_client_gui::scene::{GuiConfig, GuiPlugin};
 use mcrs_minecraft_client_world::screen::Screen;
+use mcrs_minecraft_mesh::smooth_light::SmoothLight;
 use mcrs_minecraft_render::{Budget, FACE_BYTES, MODEL_BYTES, QUAD_BYTES, Uploads};
 
 #[cfg(not(target_family = "wasm"))]
@@ -313,6 +317,53 @@ impl Knobs {
 
     pub fn screenshot_dir(&self) -> Option<std::path::PathBuf> {
         self.knob("SCREENSHOT_DIR").map(std::path::PathBuf::from)
+    }
+
+    /// `SCENE_DIR=<dir>` runs with no window: the world camera draws into an image of
+    /// `RESOLUTION`, and each frame that `<dir>/request` names is written to `<dir>/<name>.png`.
+    pub fn scene_dir(&self) -> Option<std::path::PathBuf> {
+        self.knob("SCENE_DIR").map(std::path::PathBuf::from)
+    }
+
+    /// `FOV=<degrees>` and `FOV_EFFECT=<scale>` are vanilla's "FOV" and "FOV Effects" sliders.
+    pub fn fov_options(&self) -> FovOptions {
+        let default = FovOptions::default();
+        FovOptions {
+            fov: self
+                .parsed(
+                    "FOV",
+                    |fov| (30..=110).contains(fov),
+                    "a field of view from 30 to 110 degrees",
+                )
+                .unwrap_or(default.fov),
+            effect_scale: self
+                .parsed(
+                    "FOV_EFFECT",
+                    |scale: &f32| (0.0..=1.0).contains(scale),
+                    "an effect scale from 0 to 1",
+                )
+                .unwrap_or(default.effect_scale),
+        }
+    }
+
+    /// `SMOOTH_LIGHT=0` is vanilla's "Smooth Lighting" off.
+    pub fn light_options(&self) -> LightOptions {
+        LightOptions {
+            smooth_light: if self.flag("SMOOTH_LIGHT", true) {
+                SmoothLight::On
+            } else {
+                SmoothLight::Off
+            },
+        }
+    }
+
+    /// `CLOUDS=0` is vanilla's "Clouds" off.
+    pub fn clouds(&self) -> Clouds {
+        if self.flag("CLOUDS", true) {
+            Clouds::On
+        } else {
+            Clouds::Off
+        }
     }
 
     /// Vanilla's "Brightness" slider, from 0 (Moody) through 0.5 (the default) to 1 (Bright).

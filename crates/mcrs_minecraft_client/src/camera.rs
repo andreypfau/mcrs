@@ -1,84 +1,186 @@
+use bevy::camera::CameraUpdateSystems;
 use bevy::core_pipeline::tonemapping::Tonemapping;
 use bevy::math::DVec3;
 use bevy::prelude::*;
 use bevy::render::render_resource::TextureUsages;
 use bevy::render::view::Msaa;
-
-use mcrs_minecraft_engine_world::entity::physics::{OldTransform, Transform as PhysicsTransform};
-
-use mcrs_minecraft_client_world::local_player::{LocalPlayerTick, Sprint};
-use mcrs_minecraft_client_world::player::Player;
-use mcrs_minecraft_entity::PLAYER_EYE_HEIGHT;
+use mcrs_minecraft_client_world::local_player::{Flying, LocalPlayerTick, Sprint};
+use mcrs_minecraft_client_world::player::{Player, look_direction};
+use mcrs_minecraft_engine_world::entity::physics::{
+    OldTransform, Rotation, Transform as PhysicsTransform,
+};
 use mcrs_minecraft_render::CameraOrigin;
 
-const FAR_PLANE: f32 = 4000.0;
+const STANDING_EYE_HEIGHT: f32 = 1.62;
+const DEFAULT_WALKING_SPEED: f32 = 0.1;
+const BASE_MOVEMENT_SPEED: f32 = 0.1;
+const SPRINT_SPEED_MODIFIER: f32 = 0.3;
+const MIN_MOVEMENT_SPEED: f64 = 0.0;
+const MAX_MOVEMENT_SPEED: f64 = 1024.0;
+const FLYING_MODIFIER: f32 = 1.1;
+const MIN_ZOOM: f32 = 0.1;
+const MAX_ZOOM: f32 = 1.5;
+const NEAR_PLANE: f32 = 0.05;
+const BLOCKS_PER_CHUNK_OF_RENDER_DISTANCE: f32 = 64.0;
 
-#[derive(Component)]
-pub struct PlayerCamera;
-
-/// Vanilla's `Options` default. `fovEffectScale` stays at its default 1.0, which collapses
-/// `Mth.lerp(scale, 1.0, modifier)` to `modifier`.
-const FOV: f32 = 70.0;
-const FLYING_FOV_MODIFIER: f32 = 1.1;
-/// `1.1 * (1.3 + 1) / 2`, where `1.3` is `MOVEMENT_SPEED` scaled by the `+0.3`
-/// `ADD_MULTIPLIED_TOTAL` sprint modifier. Hard-coded because this player has no
-/// attribute system to look it up in.
-const SPRINTING_FOV_MODIFIER: f32 = 1.265;
-const FOV_FILTER_RATE: f32 = 0.5;
-const FOV_MODIFIER_MIN: f32 = 0.1;
-const FOV_MODIFIER_MAX: f32 = 1.5;
-
-#[derive(Component, Debug, Clone, Copy)]
-pub struct FovFilter {
-    current: f32,
-    previous: f32,
+/// Places the first-person camera of the local player in each frame and filters its eye height
+/// and zoom in each tick.
+pub struct CameraPlugin {
+    /// The render distance in chunks; the far plane of the view frustum follows it.
+    pub render_distance: u8,
+    pub fov: FovOptions,
 }
-
-/// Vanilla's field starts at the Java default of zero, so joining a world zooms
-/// the view open over the first few ticks. Starting settled skips that.
-impl Default for FovFilter {
-    fn default() -> Self {
-        Self {
-            current: FLYING_FOV_MODIFIER,
-            previous: FLYING_FOV_MODIFIER,
-        }
-    }
-}
-
-pub struct CameraPlugin;
 
 impl Plugin for CameraPlugin {
     fn build(&self, app: &mut App) {
-        app.add_observer(attach_camera)
-            .add_systems(FixedUpdate, tick_fov.after(LocalPlayerTick))
+        let far = f32::from(self.render_distance) * BLOCKS_PER_CHUNK_OF_RENDER_DISTANCE;
+        app.insert_resource(self.fov)
+            .register_required_components::<Player, Transform>()
+            .add_systems(Startup, move |commands: Commands| {
+                spawn_camera(commands, far)
+            })
+            .add_systems(FixedUpdate, tick_camera.before(LocalPlayerTick))
             .add_systems(
-                Update,
-                (
-                    align_render_transforms.after(crate::input::apply_mouse_look),
-                    apply_fov,
-                ),
+                PostUpdate,
+                place_camera
+                    .before(TransformSystems::Propagate)
+                    .before(CameraUpdateSystems),
             );
     }
 }
 
-fn attach_camera(add: On<Add, Player>, physics: Query<&PhysicsTransform>, mut commands: Commands) {
-    let player = add.entity;
-    let translation = physics
-        .get(player)
-        .map_or(Vec3::ZERO, |physics| physics.translation.as_vec3());
-    commands.entity(player).insert((
-        Transform::from_translation(translation),
-        // The camera hangs off the player, and visibility only reaches a child through a
-        // parent that takes part in it.
-        Visibility::default(),
-    ));
+/// The world camera, at the eye of the local player.
+#[derive(Component, Debug, Clone, Copy, Default)]
+pub struct PlayerCamera;
+
+/// The field of view that the user selects, and the scale of the changes that the state of the
+/// player makes to it.
+#[derive(Resource, Debug, Clone, Copy, PartialEq)]
+pub struct FovOptions {
+    /// Degrees, in `[30, 110]`.
+    pub fov: u8,
+    /// In `[0, 1]`.
+    pub effect_scale: f32,
+}
+
+impl Default for FovOptions {
+    fn default() -> Self {
+        Self {
+            fov: 70,
+            effect_scale: 1.0,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+struct Smoothed {
+    current: f32,
+    previous: f32,
+}
+
+impl Smoothed {
+    fn settled(value: f32) -> Self {
+        Self {
+            current: value,
+            previous: value,
+        }
+    }
+
+    fn approach(&mut self, target: f32) {
+        self.previous = self.current;
+        self.current += (target - self.current) * 0.5;
+    }
+
+    #[must_use]
+    fn at(self, partial_tick: f32) -> f32 {
+        self.previous + (self.current - self.previous) * partial_tick
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+struct ViewFilters {
+    eye: Smoothed,
+    zoom: Smoothed,
+}
+
+impl ViewFilters {
+    fn tick(&mut self, eye_height: f32, target_zoom: f32) {
+        self.eye.approach(eye_height);
+        self.zoom.approach(target_zoom);
+        self.zoom.current = self.zoom.current.clamp(MIN_ZOOM, MAX_ZOOM);
+    }
+}
+
+/// Empty until the first tick or frame that sees a local player, which starts both filters
+/// settled so the first frame of a world is already at the eye and at the target zoom.
+#[derive(Component, Debug, Default)]
+struct CameraFilters(Option<ViewFilters>);
+
+impl CameraFilters {
+    fn get_or_settle(&mut self, eye_height: f32, target_zoom: f32) -> &mut ViewFilters {
+        self.0.get_or_insert(ViewFilters {
+            eye: Smoothed::settled(eye_height),
+            zoom: Smoothed::settled(target_zoom),
+        })
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+struct Motion {
+    flying: bool,
+    sprinting: bool,
+}
+
+#[must_use]
+fn movement_speed(sprinting: bool) -> f32 {
+    let mut speed = f64::from(BASE_MOVEMENT_SPEED);
+    if sprinting {
+        speed *= 1.0 + f64::from(SPRINT_SPEED_MODIFIER);
+    }
+    speed.clamp(MIN_MOVEMENT_SPEED, MAX_MOVEMENT_SPEED) as f32
+}
+
+#[must_use]
+fn target_zoom(motion: Motion, walking_speed: f32, effect_scale: f32) -> f32 {
+    let mut modifier = 1.0;
+    if motion.flying {
+        modifier *= FLYING_MODIFIER;
+    }
+    if walking_speed != 0.0 {
+        modifier *= (movement_speed(motion.sprinting) / walking_speed + 1.0) / 2.0;
+    }
+    1.0 + (modifier - 1.0) * effect_scale
+}
+
+/// Vertical, in degrees.
+#[must_use]
+fn field_of_view(options: FovOptions, zoom: Smoothed, partial_tick: f32) -> f32 {
+    f32::from(options.fov) * zoom.at(partial_tick)
+}
+
+#[must_use]
+fn orientation(yaw: f32, pitch: f32) -> Quat {
+    Transform::IDENTITY
+        .looking_to(
+            look_direction(yaw, pitch),
+            look_direction(yaw, pitch - 90.0),
+        )
+        .rotation
+}
+
+/// The stored yaws are wrapped, so the turn between them is taken the short way round.
+#[must_use]
+fn frame_rotation(previous: Rotation, current: Rotation, partial_tick: f32) -> Quat {
+    let turn = (current.yaw() - previous.yaw() + 180.0).rem_euclid(360.0) - 180.0;
+    let yaw = previous.yaw() + turn * partial_tick;
+    let pitch = previous.pitch() + (current.pitch() - previous.pitch()) * partial_tick;
+    orientation(yaw, pitch)
+}
+
+fn spawn_camera(mut commands: Commands, far: f32) {
     commands.spawn((
         PlayerCamera,
-        FovFilter::default(),
-        Projection::Perspective(PerspectiveProjection {
-            far: FAR_PLANE,
-            ..default()
-        }),
+        CameraFilters::default(),
         Camera3d {
             // The cull reads the last frame's depth back as a pyramid.
             depth_texture_usages: (TextureUsages::RENDER_ATTACHMENT
@@ -86,103 +188,125 @@ fn attach_camera(add: On<Add, Player>, physics: Query<&PhysicsTransform>, mut co
                 .into(),
             ..default()
         },
-        // The sky pipelines are built for a single sample; multisampling the
-        // view would leave them unable to render into it.
+        // The sky pipelines are built for a single sample; multisampling the view would leave
+        // them unable to render into it.
         Msaa::Off,
-        // The default `TonyMcMapFace` tonemapper needs the `tonemapping_luts`
-        // feature, which nothing else here requires.
+        // The default tonemapper needs the `tonemapping_luts` feature, which nothing else here
+        // requires.
         Tonemapping::None,
-        Transform::from_xyz(0.0, PLAYER_EYE_HEIGHT as f32, 0.0),
-        ChildOf(player),
+        Projection::Perspective(PerspectiveProjection {
+            fov: f32::from(FovOptions::default().fov).to_radians(),
+            near: NEAR_PLANE,
+            near_clip_plane: Vec4::new(0.0, 0.0, -1.0, -NEAR_PLANE),
+            far,
+            ..default()
+        }),
     ));
 }
 
-/// The half-turn is not decoration: Minecraft measures the look direction off
-/// +Z while Bevy's camera looks down -Z, and the pitch sign flips with it.
-fn yaw_rotation(yaw: f32) -> Quat {
-    Quat::from_rotation_y(std::f32::consts::PI - yaw.to_radians())
-}
-
-fn pitch_rotation(pitch: f32) -> Quat {
-    Quat::from_rotation_x(-pitch.to_radians())
-}
-
-fn next_fov_modifier(current: f32, target: f32) -> f32 {
-    (current + (target - current) * FOV_FILTER_RATE).clamp(FOV_MODIFIER_MIN, FOV_MODIFIER_MAX)
-}
-
-/// `Camera.tickFov`.
-fn tick_fov(sprint: Single<&Sprint, With<Player>>, mut fov: Single<&mut FovFilter>) {
-    let target = if sprint.active {
-        SPRINTING_FOV_MODIFIER
-    } else {
-        FLYING_FOV_MODIFIER
+fn tick_camera(
+    options: Res<FovOptions>,
+    player: Single<(Has<Flying>, &Sprint), With<Player>>,
+    mut filters: Single<&mut CameraFilters, With<PlayerCamera>>,
+) {
+    let (flying, sprint) = *player;
+    let motion = Motion {
+        flying,
+        sprinting: sprint.active,
     };
-    fov.previous = fov.current;
-    fov.current = next_fov_modifier(fov.current, target);
+    let zoom = target_zoom(motion, DEFAULT_WALKING_SPEED, options.effect_scale);
+    filters
+        .get_or_settle(STANDING_EYE_HEIGHT, zoom)
+        .tick(STANDING_EYE_HEIGHT, zoom);
 }
 
-/// `Camera.alignWithEntity`, and the only writer of the player's and the camera's render
-/// transforms.
-fn align_render_transforms(
+fn place_camera(
     time: Res<Time<Fixed>>,
+    options: Res<FovOptions>,
     player: Single<
-        (&PhysicsTransform, &OldTransform, &mut Transform),
-        (With<Player>, Without<PlayerCamera>),
+        (
+            &PhysicsTransform,
+            &OldTransform,
+            Has<Flying>,
+            &Sprint,
+            &mut Transform,
+        ),
+        With<Player>,
     >,
-    camera: Single<&mut Transform, (With<PlayerCamera>, Without<Player>)>,
-    mut origin: ResMut<CameraOrigin>,
+    camera: Single<
+        (&mut CameraFilters, &mut Transform, &mut Projection),
+        (With<PlayerCamera>, Without<Player>),
+    >,
+    origin: Option<ResMut<CameraOrigin>>,
 ) {
-    let (physics, old_physics, mut transform) = player.into_inner();
-    let translation = old_physics
-        .translation
-        .lerp(physics.translation, time.overstep_fraction_f64());
-    transform.translation = translation.as_vec3();
-    transform.rotation = yaw_rotation(physics.rotation.yaw());
-    let pitch = pitch_rotation(physics.rotation.pitch());
-    let mut camera = camera.into_inner();
-    if camera.rotation != pitch {
-        camera.rotation = pitch;
-    }
-    *origin = CameraOrigin::of(translation + DVec3::Y * PLAYER_EYE_HEIGHT);
-}
+    let (current, previous, flying, sprint, mut body) = player.into_inner();
+    let (mut filters, mut camera, mut projection) = camera.into_inner();
+    let motion = Motion {
+        flying,
+        sprinting: sprint.active,
+    };
+    let filters = *filters.get_or_settle(
+        STANDING_EYE_HEIGHT,
+        target_zoom(motion, DEFAULT_WALKING_SPEED, options.effect_scale),
+    );
+    let partial_tick = time.overstep_fraction();
 
-fn apply_fov(
-    time: Res<Time<Fixed>>,
-    camera: Single<(&FovFilter, &mut Projection), With<PlayerCamera>>,
-) {
-    let (fov, projection) = camera.into_inner();
-    if let Projection::Perspective(perspective) = projection.into_inner() {
-        let modifier = fov.previous.lerp(fov.current, time.overstep_fraction());
-        perspective.fov = (FOV * modifier).to_radians();
+    let frame_position = previous
+        .translation
+        .lerp(current.translation, time.overstep_fraction_f64());
+    let eye = frame_position + DVec3::Y * f64::from(filters.eye.at(partial_tick));
+    let placed = Transform {
+        translation: eye.as_vec3(),
+        rotation: frame_rotation(previous.rotation, current.rotation, partial_tick),
+        ..Transform::IDENTITY
+    };
+    camera.set_if_neq(placed);
+    body.set_if_neq(Transform::from_translation(frame_position.as_vec3()));
+    if let Some(mut origin) = origin {
+        origin.set_if_neq(CameraOrigin::of(eye));
+    }
+
+    let fov = field_of_view(*options, filters.zoom, partial_tick).to_radians();
+    if let Projection::Perspective(perspective) = projection.as_ref()
+        && perspective.fov != fov
+        && let Projection::Perspective(perspective) = projection.as_mut()
+    {
+        perspective.fov = fov;
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use mcrs_minecraft_client_world::player::{look_direction, spawn_player};
 
     #[test]
-    fn a_spawned_player_carries_the_camera() {
-        let mut app = App::new();
-        app.add_plugins(CameraPlugin);
-        let player = spawn_player(app.world_mut(), DVec3::new(1.0, 64.0, 2.0), 0.0, 0.0);
-        let world = app.world_mut();
-        let parent = world
-            .query_filtered::<&ChildOf, With<PlayerCamera>>()
-            .single(world)
-            .ok()
-            .map(ChildOf::parent);
-        assert_eq!(parent, Some(player));
-        assert_eq!(
-            world.get::<Transform>(player).map(|t| t.translation),
-            Some(Vec3::new(1.0, 64.0, 2.0))
-        );
+    fn the_zoom_of_a_player_that_starts_to_sprint_while_flying_halves_its_way_to_the_target() {
+        let options = FovOptions::default();
+        let flying = Motion {
+            flying: true,
+            sprinting: false,
+        };
+        let sprinting = Motion {
+            flying: true,
+            sprinting: true,
+        };
+        let walking_speed = DEFAULT_WALKING_SPEED;
+        let start = target_zoom(flying, walking_speed, options.effect_scale);
+        assert!((start - 1.1).abs() < 1e-6, "flying alone is {start}");
+        let target = target_zoom(sprinting, walking_speed, options.effect_scale);
+        let mut filters = ViewFilters {
+            eye: Smoothed::settled(STANDING_EYE_HEIGHT),
+            zoom: Smoothed::settled(start),
+        };
+        for expected in [82.775, 85.6625, 87.10625, 87.828125, 88.18906] {
+            filters.tick(STANDING_EYE_HEIGHT, target);
+            let fov = f32::from(options.fov) * filters.zoom.current;
+            assert!((fov - expected).abs() < 1e-4, "{fov} != {expected}");
+        }
     }
 
     #[test]
-    fn the_camera_faces_where_minecraft_says_it_does() {
+    fn the_camera_looks_along_the_facing_vector() {
         for (yaw, pitch) in [
             (0.0, 0.0),
             (-139.9493, 8.099984),
@@ -191,25 +315,23 @@ mod tests {
             (-90.0, 90.0),
             (45.0, -90.0),
         ] {
-            let forward = (yaw_rotation(yaw) * pitch_rotation(pitch)) * Vec3::NEG_Z;
-            let expected = look_direction(yaw, pitch);
+            let rotation = Rotation::new(yaw, pitch);
+            let view = frame_rotation(rotation, rotation, 0.5) * Vec3::NEG_Z;
+            let facing = look_direction(yaw, pitch);
             assert!(
-                forward.abs_diff_eq(expected, 1e-5),
-                "yaw {yaw}, pitch {pitch}: {forward:?} != {expected:?}"
+                view.abs_diff_eq(facing, 1e-5),
+                "({yaw}, {pitch}): {view:?} != {facing:?}"
             );
         }
     }
 
     #[test]
-    fn the_field_of_view_eases_halfway_to_the_sprint_target_each_tick() {
-        let mut modifier = FovFilter::default().current;
-        for expected in [82.775, 85.6625, 87.10625, 87.828125, 88.18906] {
-            modifier = next_fov_modifier(modifier, SPRINTING_FOV_MODIFIER);
-            assert!(
-                (FOV * modifier - expected).abs() < 1e-4,
-                "{}",
-                FOV * modifier
-            );
-        }
+    fn a_frame_between_two_ticks_interpolates_the_zoom() {
+        let zoom = Smoothed {
+            current: 1.1825,
+            previous: 1.1,
+        };
+        let fov = field_of_view(FovOptions::default(), zoom, 0.25);
+        assert!((fov - 78.44375).abs() < 1e-4, "{fov}");
     }
 }
