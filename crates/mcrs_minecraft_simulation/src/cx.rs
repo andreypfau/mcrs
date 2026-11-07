@@ -266,9 +266,14 @@ where
         self.shard.events.queue(QueuedEvent { sequence, event });
     }
 
-    pub fn has_scheduled_block_tick(&self, pos: BlockPos, block: K::Block) -> bool {
-        if self.lane_for_tick(pos) != Lane::Own {
-            return false;
+    pub fn has_scheduled_block_tick(&mut self, pos: BlockPos, block: K::Block) -> bool {
+        match self.lane_for_tick(pos) {
+            Lane::Own => {}
+            Lane::Away => {
+                self.task_leaves();
+                return false;
+            }
+            Lane::Dropped => return false,
         }
         let Some(task) = &self.task else {
             return self.shard.block_ticks.contains(pos, block);

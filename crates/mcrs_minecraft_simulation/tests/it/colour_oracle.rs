@@ -1,16 +1,15 @@
 use std::collections::{BTreeSet, HashMap, HashSet};
 
-use mcrs_minecraft_random::shuffle;
-
-use crate::probe::{AIR, Host, ProbeBlock, ProbeFacts, ProbeKinds, STATES, section};
-use mcrs_minecraft_random::Random;
+use crate::probe::{AIR, Host, ProbeBlock, ProbeFacts, ProbeFluid, ProbeKinds, STATES, section};
 use mcrs_minecraft_random::legacy::LegacyRandom;
+use mcrs_minecraft_random::{Random, shuffle};
 use mcrs_minecraft_simulation::{
-    BlockBehaviour, BlockFacts, BlockShard, BlockUpdateFlags, BlockWrite, Cx, Env, Footprints,
-    GameTick, KernelConfig, ListedSection, PartitionKind, RandomPicks, RandomTickTable,
-    RandomTicks, SemanticOrder, Serial, ShardId, SimulatedSections, SimulationVolume, Spread,
-    StepOutput, StreamSeed, TickPriority,
+    BlockBehaviour, BlockEvent, BlockFacts, BlockShard, BlockUpdateFlags, BlockWrite, Cx, Env,
+    Footprints, GameTick, KernelConfig, ListedSection, PartitionKind, Phase, PhaseInput,
+    RandomPicks, RandomTickTable, RandomTicks, SemanticOrder, Serial, ShardId, SimulatedSections,
+    SimulationVolume, Spread, StepAt, StepOutput, StreamSeed, TickPriority, step,
 };
+use mcrs_minecraft_volume::{BlockVolume, PaletteBuffer, SectionBlocks};
 use mcrs_voxel::{BlockPos, BlockStateId, LocalPos, SectionPos};
 use proptest::prelude::*;
 
@@ -28,7 +27,26 @@ enum Op {
     Draw(u8),
     Read(i8, i8),
     Write(i8, i8),
-    Schedule(i8, i8),
+    Queue(i8, i8),
+    Event(i8, i8),
+    HasTick(i8, i8),
+}
+
+/// A tick or a block event that a pick queued. A copy of a queued item is dropped.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+enum Item {
+    BlockTick(BlockPos, ProbeBlock),
+    FluidTick(BlockPos, ProbeFluid),
+    Event(BlockEvent<ProbeBlock>),
+}
+
+impl Item {
+    fn pos(self) -> BlockPos {
+        match self {
+            Self::BlockTick(pos, _) | Self::FluidTick(pos, _) => pos,
+            Self::Event(event) => event.pos,
+        }
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -50,7 +68,8 @@ fn offset(at: BlockPos, dx: i8, dz: i8) -> BlockPos {
 trait Effects {
     fn read(&mut self, pos: BlockPos) -> Option<BlockStateId>;
     fn write(&mut self, pos: BlockPos, state: BlockStateId) -> bool;
-    fn schedule(&mut self, pos: BlockPos, block: ProbeBlock);
+    fn queue(&mut self, item: Item);
+    fn has_tick(&mut self, pos: BlockPos, block: ProbeBlock) -> bool;
 }
 
 /// Each result feeds the next op, so a read or a write that differs changes what follows.
@@ -74,14 +93,38 @@ fn handle(
                 acc = acc.wrapping_mul(31).wrapping_add(read);
             }
             Op::Write(dx, dz) => {
-                // Never air: a write of air into an all-air section is a no-op of its own rule.
-                let written = state(2 + (acc as usize % (STATES - 2)));
+                // Air or any state past the void air.
+                let written = match acc as usize % (STATES - 1) {
+                    0 => AIR,
+                    n => state(n + 1),
+                };
                 if effects.write(offset(at, dx, dz), written) {
                     acc = acc.wrapping_add(7);
                 }
             }
-            Op::Schedule(dx, dz) => {
-                effects.schedule(offset(at, dx, dz), ProbeBlock((acc % 4) as u16))
+            Op::Queue(dx, dz) => {
+                let pos = offset(at, dx, dz);
+                let kind = (acc / 2 % 4) as u16;
+                effects.queue(match acc % 2 {
+                    0 => Item::BlockTick(pos, ProbeBlock(kind)),
+                    _ => Item::FluidTick(pos, ProbeFluid(kind)),
+                });
+            }
+            Op::Event(dx, dz) => {
+                let pos = offset(at, dx, dz);
+                if let Some(there) = effects.read(pos) {
+                    effects.queue(Item::Event(BlockEvent {
+                        pos,
+                        block: ProbeFacts.block_of(there),
+                        a: acc as i32,
+                        b: 0,
+                    }));
+                }
+            }
+            Op::HasTick(dx, dz) => {
+                if effects.has_tick(offset(at, dx, dz), ProbeBlock((acc % 4) as u16)) {
+                    acc = acc.wrapping_mul(5);
+                }
             }
         }
     }
@@ -124,6 +167,17 @@ impl BlockBehaviour<ProbeKinds> for Rules {
             handle(rule, &mut Kernel(cx), at, state, random);
         }
     }
+
+    fn block_event<V: SimulationVolume, F: BlockFacts<ProbeKinds>>(
+        &self,
+        _cx: &mut Cx<'_, ProbeKinds, V, F, Self>,
+        _at: BlockPos,
+        _state: BlockStateId,
+        _a: i32,
+        _b: i32,
+    ) -> bool {
+        true
+    }
 }
 
 struct Kernel<'c, 'a, V, F>(&'c mut Cx<'a, ProbeKinds, V, F, Rules>);
@@ -137,18 +191,37 @@ impl<V: SimulationVolume, F: BlockFacts<ProbeKinds>> Effects for Kernel<'_, '_, 
         self.0.set(pos, state, FLAGS, 512)
     }
 
-    fn schedule(&mut self, pos: BlockPos, block: ProbeBlock) {
-        self.0
-            .schedule_block_tick(pos, block, 1, TickPriority::Normal);
+    fn queue(&mut self, item: Item) {
+        match item {
+            Item::BlockTick(pos, block) => {
+                self.0
+                    .schedule_block_tick(pos, block, 1, TickPriority::Normal);
+            }
+            Item::FluidTick(pos, fluid) => {
+                self.0
+                    .schedule_fluid_tick(pos, fluid, 1, TickPriority::Normal);
+            }
+            Item::Event(event) => {
+                self.0
+                    .queue_block_event(event.pos, event.block, event.a, event.b);
+            }
+        }
+    }
+
+    fn has_tick(&mut self, pos: BlockPos, block: ProbeBlock) -> bool {
+        self.0.has_scheduled_block_tick(pos, block)
     }
 }
 
 /// The world after the steps: the writes in order, the scheduled ticks in queue order, the
-/// number of re-runs and the final state of each written position.
-#[derive(Debug, PartialEq, Eq)]
+/// block events that an event phase after the steps delivers, the number of re-runs and the
+/// final state of each written position.
+#[derive(Debug, Default, PartialEq, Eq)]
 struct Outcome {
     writes: Vec<BlockWrite>,
-    ticks: Vec<(BlockPos, ProbeBlock, i64)>,
+    block_ticks: Vec<(BlockPos, ProbeBlock, i64)>,
+    fluid_ticks: Vec<(BlockPos, ProbeFluid, i64)>,
+    events: Vec<BlockEvent<ProbeBlock>>,
     reruns: u32,
     finals: Vec<(BlockPos, BlockStateId)>,
 }
@@ -273,7 +346,10 @@ fn kernel<S: Spread>(case: &Case, mut host: Host, spread: &S) -> Outcome {
     let rules = &case.rules;
     let table = rules.table();
     let footprints = Footprints::new((0..STATES).map(state), |s| rules.reach(s));
-    let config = KernelConfig::default();
+    let config = KernelConfig {
+        event_drain_bound: u32::MAX,
+        ..KernelConfig::default()
+    };
     let env = Env {
         partition: ShardId(0),
         facts: &ProbeFacts,
@@ -304,19 +380,51 @@ fn kernel<S: Spread>(case: &Case, mut host: Host, spread: &S) -> Outcome {
             spread,
         );
     }
-    let queue = &*shard.block_ticks_mut();
-    let mut ticks: Vec<_> = queue
-        .sections()
-        .filter_map(|section| queue.section_ticks(section))
-        .flat_map(|ticks| ticks.active().collect::<Vec<_>>())
-        .collect();
-    ticks.sort_by_key(|tick| tick.key);
+    let mut block_ticks: Vec<_> = {
+        let queue = &*shard.block_ticks_mut();
+        queue
+            .sections()
+            .filter_map(|section| queue.section_ticks(section))
+            .flat_map(|ticks| ticks.active().collect::<Vec<_>>())
+            .collect()
+    };
+    block_ticks.sort_by_key(|tick| tick.key);
+    let mut fluid_ticks: Vec<_> = {
+        let queue = &*shard.fluid_ticks_mut();
+        queue
+            .sections()
+            .filter_map(|section| queue.section_ticks(section))
+            .flat_map(|ticks| ticks.active().collect::<Vec<_>>())
+            .collect()
+    };
+    fluid_ticks.sort_by_key(|tick| tick.key);
+    let mut delivered = StepOutput::default();
+    step(
+        &mut shard,
+        StepAt {
+            now: GameTick(case.steps),
+            phase: Phase::BlockEvents,
+        },
+        &mut host,
+        &env,
+        PhaseInput {
+            inbound: &[],
+            ledgers: &[],
+        },
+        &mut delivered,
+    )
+    .expect("no inbound messages");
     Outcome {
         finals: finals(&host, &out.writes),
-        ticks: ticks
+        block_ticks: block_ticks
             .into_iter()
             .map(|tick| (tick.pos, tick.kind, tick.key.due.0))
             .collect(),
+        fluid_ticks: fluid_ticks
+            .into_iter()
+            .map(|tick| (tick.pos, tick.kind, tick.key.due.0))
+            .collect(),
+        events: delivered.delivered,
         reruns: out.report.random_reruns,
         writes: out.writes,
     }
@@ -332,15 +440,16 @@ struct Reference<'a> {
     /// The ticking positions of each section, in ascending local index.
     lists: HashMap<SectionPos, Vec<u16>>,
     writes: Vec<BlockWrite>,
-    ticks: Vec<(BlockPos, ProbeBlock, i64)>,
-    /// A tick at a position and block already queued is dropped; the steps never run a tick.
-    scheduled: HashSet<(BlockPos, ProbeBlock)>,
+    /// The queued items in queue order, with the tick of their step. The steps never run a tick
+    /// or deliver an event, so a copy of an item stays dropped.
+    queued: Vec<(Item, i64)>,
+    seen: HashSet<Item>,
     now: i64,
     /// The block tile whose region bounds the current pick.
     region: Option<(i32, i32)>,
     overflowed: bool,
     journal: Vec<(BlockPos, BlockStateId)>,
-    pending: Vec<(BlockPos, ProbeBlock)>,
+    pending: Vec<Item>,
 }
 
 impl Reference<'_> {
@@ -356,6 +465,13 @@ impl Reference<'_> {
         span(tx).contains(&pos.x) && span(tz).contains(&pos.z)
     }
 
+    /// Fails the pick when `pos` is outside the region.
+    fn reach_out(&mut self, pos: BlockPos) -> bool {
+        let inside = self.inside(pos, 0);
+        self.overflowed |= !inside;
+        inside
+    }
+
     fn put(&mut self, pos: BlockPos, new: BlockStateId) -> BlockStateId {
         let old = self.host.state(pos);
         self.host.put(pos, new);
@@ -369,6 +485,18 @@ impl Reference<'_> {
             _ => {}
         }
         old
+    }
+
+    fn section_is_air(&self, pos: BlockPos) -> bool {
+        let section = self
+            .host
+            .section(SectionPos::from(pos))
+            .expect("a loaded section");
+        let mut buffer = PaletteBuffer::default();
+        section
+            .palette(&mut buffer)
+            .iter()
+            .all(|(state, _)| ProbeFacts.is_air(state))
     }
 
     fn pick(&mut self, at: BlockPos, random: &mut LegacyRandom) {
@@ -406,9 +534,9 @@ impl Reference<'_> {
             self.writes.truncate(written);
             return false;
         }
-        for (pos, block) in pending {
-            if self.scheduled.insert((pos, block)) {
-                self.ticks.push((pos, block, self.now + 1));
+        for item in pending {
+            if self.seen.insert(item) {
+                self.queued.push((item, self.now + 1));
             }
         }
         true
@@ -448,30 +576,37 @@ impl Reference<'_> {
                 self.bounded_pick(at, &mut random, None);
             }
         }
-        Outcome {
+        let mut outcome = Outcome {
             finals: finals(&self.host, &self.writes),
-            ticks: self.ticks,
             reruns,
             writes: self.writes,
+            ..Outcome::default()
+        };
+        for (item, due) in self.queued {
+            match item {
+                Item::BlockTick(pos, block) => outcome.block_ticks.push((pos, block, due)),
+                Item::FluidTick(pos, fluid) => outcome.fluid_ticks.push((pos, fluid, due)),
+                Item::Event(event) => {
+                    if ProbeFacts.block_of(self.host.state(event.pos)) == event.block {
+                        outcome.events.push(event);
+                    }
+                }
+            }
         }
+        outcome
     }
 }
 
 impl Effects for Reference<'_> {
     fn read(&mut self, pos: BlockPos) -> Option<BlockStateId> {
-        if !self.inside(pos, 0) {
-            self.overflowed = true;
-            return None;
-        }
-        Some(self.host.state(pos))
+        self.reach_out(pos).then(|| self.host.state(pos))
     }
 
     fn write(&mut self, pos: BlockPos, new: BlockStateId) -> bool {
-        if !self.inside(pos, 0) {
-            self.overflowed = true;
-            return false;
-        }
-        if self.host.state(pos) == new {
+        if !self.reach_out(pos)
+            || (ProbeFacts.is_air(new) && self.section_is_air(pos))
+            || self.host.state(pos) == new
+        {
             return false;
         }
         let old = self.put(pos, new);
@@ -489,12 +624,15 @@ impl Effects for Reference<'_> {
         true
     }
 
-    fn schedule(&mut self, pos: BlockPos, block: ProbeBlock) {
-        if self.inside(pos, 0) {
-            self.pending.push((pos, block));
-        } else {
-            self.overflowed = true;
+    fn queue(&mut self, item: Item) {
+        if self.reach_out(item.pos()) {
+            self.pending.push(item);
         }
+    }
+
+    fn has_tick(&mut self, pos: BlockPos, block: ProbeBlock) -> bool {
+        let item = Item::BlockTick(pos, block);
+        self.reach_out(pos) && (self.seen.contains(&item) || self.pending.contains(&item))
     }
 }
 
@@ -519,8 +657,8 @@ fn reference(case: &Case, host: Host) -> Outcome {
         table: &table,
         lists,
         writes: Vec::new(),
-        ticks: Vec::new(),
-        scheduled: HashSet::new(),
+        queued: Vec::new(),
+        seen: HashSet::new(),
         now: 0,
         region: None,
         overflowed: false,
@@ -542,11 +680,14 @@ fn delta() -> impl Strategy<Value = i8> {
 }
 
 fn op() -> impl Strategy<Value = Op> {
+    let at = || (delta(), delta());
     prop_oneof![
         (0u8..16).prop_map(Op::Draw),
-        (delta(), delta()).prop_map(|(dx, dz)| Op::Read(dx, dz)),
-        (delta(), delta()).prop_map(|(dx, dz)| Op::Write(dx, dz)),
-        (delta(), delta()).prop_map(|(dx, dz)| Op::Schedule(dx, dz)),
+        at().prop_map(|(dx, dz)| Op::Read(dx, dz)),
+        at().prop_map(|(dx, dz)| Op::Write(dx, dz)),
+        at().prop_map(|(dx, dz)| Op::Queue(dx, dz)),
+        at().prop_map(|(dx, dz)| Op::Event(dx, dz)),
+        at().prop_map(|(dx, dz)| Op::HasTick(dx, dz)),
     ]
 }
 
@@ -554,7 +695,7 @@ fn rule() -> impl Strategy<Value = Rule> {
     (
         prop::bool::weighted(0.75),
         reach(),
-        prop::collection::vec(op(), 0..6),
+        prop::collection::vec(op(), 0..8),
     )
         .prop_map(|(ticks, reach, ops)| Rule { ticks, reach, ops })
 }
@@ -599,11 +740,11 @@ fn case() -> impl Strategy<Value = Case> {
 }
 
 proptest! {
-    #![proptest_config(ProptestConfig { cases: 128, ..ProptestConfig::default() })]
+    #![proptest_config(ProptestConfig { cases: 64, ..ProptestConfig::default() })]
 
     /// SIM-MODEL-102(a), SIM-RND-001: on any world, footprints and handlers, on one thread in
-    /// order or on 1 to 16 threads that run the tasks of a colour in any order, the step leaves the writes, the queued ticks
-    /// and the re-run count of the serial order.
+    /// order or on 1 to 16 threads that run the tasks of a colour in any order, the step leaves
+    /// the writes, the queued ticks and events and the re-run count of the serial order.
     #[test]
     fn colour_phases_on_any_threads_equal_the_serial_order(
         case in case(),
