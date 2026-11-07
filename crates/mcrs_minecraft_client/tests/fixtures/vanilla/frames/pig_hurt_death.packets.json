@@ -1,0 +1,387 @@
+{
+  "scene": "pig_hurt_death",
+  "version": "26.4-snapshot-4",
+  "packets": [
+    {
+      "updates_before": 1,
+      "packet": "minecraft:ticking_state",
+      "tick_rate": 20.0,
+      "frozen": true
+    },
+    {
+      "updates_before": 1,
+      "packet": "minecraft:set_entity_data",
+      "entity": 1,
+      "values": [
+        {
+          "index": 0,
+          "value": 32
+        }
+      ]
+    },
+    {
+      "updates_before": 11,
+      "packet": "minecraft:add_entity",
+      "entity": 2,
+      "uuid": "00000000-0000-0000-0000-000000000001",
+      "type": "minecraft:pig",
+      "position": [
+        -1.0,
+        -60.0,
+        0.5
+      ],
+      "velocity": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "yaw": 0.0,
+      "pitch": 0.0,
+      "head_yaw": 0.0,
+      "data": 0
+    },
+    {
+      "updates_before": 11,
+      "packet": "minecraft:set_entity_data",
+      "entity": 2,
+      "values": [
+        {
+          "index": 4,
+          "value": true
+        },
+        {
+          "index": 9,
+          "value": 10.0
+        },
+        {
+          "index": 15,
+          "value": 1
+        }
+      ]
+    },
+    {
+      "updates_before": 11,
+      "packet": "minecraft:add_entity",
+      "entity": 3,
+      "uuid": "00000000-0000-0000-0000-000000000002",
+      "type": "minecraft:pig",
+      "position": [
+        1.0,
+        -60.0,
+        0.5
+      ],
+      "velocity": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "yaw": 0.0,
+      "pitch": 0.0,
+      "head_yaw": 0.0,
+      "data": 0
+    },
+    {
+      "updates_before": 11,
+      "packet": "minecraft:set_entity_data",
+      "entity": 3,
+      "values": [
+        {
+          "index": 4,
+          "value": true
+        },
+        {
+          "index": 15,
+          "value": 1
+        }
+      ]
+    },
+    {
+      "updates_before": 11,
+      "packet": "minecraft:move_entity_pos",
+      "entity": 2,
+      "delta": {
+        "form": "single",
+        "units": [
+          0,
+          0,
+          0
+        ]
+      },
+      "path": {
+        "form": "single",
+        "position": [
+          -1.0,
+          -60.0,
+          0.5
+        ]
+      },
+      "on_ground": false
+    },
+    {
+      "updates_before": 11,
+      "packet": "minecraft:set_entity_data",
+      "entity": 2,
+      "values": [
+        {
+          "index": 4,
+          "value": true
+        },
+        {
+          "index": 9,
+          "value": 10.0
+        },
+        {
+          "index": 15,
+          "value": 1
+        }
+      ]
+    },
+    {
+      "updates_before": 11,
+      "packet": "minecraft:move_entity_pos",
+      "entity": 3,
+      "delta": {
+        "form": "single",
+        "units": [
+          0,
+          0,
+          0
+        ]
+      },
+      "path": {
+        "form": "single",
+        "position": [
+          1.0,
+          -60.0,
+          0.5
+        ]
+      },
+      "on_ground": false
+    },
+    {
+      "updates_before": 11,
+      "packet": "minecraft:set_entity_data",
+      "entity": 3,
+      "values": [
+        {
+          "index": 4,
+          "value": true
+        },
+        {
+          "index": 9,
+          "value": 1.0
+        },
+        {
+          "index": 15,
+          "value": 1
+        }
+      ]
+    },
+    {
+      "updates_before": 21,
+      "packet": "minecraft:damage_event",
+      "entity": 3,
+      "damage_type": "minecraft:generic",
+      "cause": -1,
+      "direct_cause": -1
+    },
+    {
+      "updates_before": 21,
+      "packet": "minecraft:entity_event",
+      "entity": 3,
+      "event": 3
+    },
+    {
+      "updates_before": 21,
+      "packet": "minecraft:set_entity_data",
+      "entity": 3,
+      "values": [
+        {
+          "index": 6,
+          "kind": "other"
+        },
+        {
+          "index": 9,
+          "value": 0.0
+        }
+      ]
+    },
+    {
+      "updates_before": 21,
+      "packet": "minecraft:set_entity_motion",
+      "entity": 3,
+      "velocity": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "updates_before": 26,
+      "packet": "minecraft:ticking_step",
+      "steps": 10
+    },
+    {
+      "updates_before": 46,
+      "packet": "minecraft:damage_event",
+      "entity": 2,
+      "damage_type": "minecraft:generic",
+      "cause": -1,
+      "direct_cause": -1
+    },
+    {
+      "updates_before": 46,
+      "packet": "minecraft:set_entity_data",
+      "entity": 2,
+      "values": [
+        {
+          "index": 9,
+          "value": 9.0
+        }
+      ]
+    },
+    {
+      "updates_before": 46,
+      "packet": "minecraft:set_entity_motion",
+      "entity": 2,
+      "velocity": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "updates_before": 71,
+      "packet": "minecraft:move_entity_pos",
+      "entity": 2,
+      "delta": {
+        "form": "stepped",
+        "steps": [
+          {
+            "units": [
+              0,
+              0,
+              0
+            ],
+            "ticks": 3
+          }
+        ]
+      },
+      "path": {
+        "form": "stepped",
+        "steps": [
+          {
+            "position": [
+              -1.0,
+              -60.0,
+              0.5
+            ],
+            "ticks": 3
+          }
+        ]
+      },
+      "on_ground": false
+    },
+    {
+      "updates_before": 71,
+      "packet": "minecraft:move_entity_pos",
+      "entity": 3,
+      "delta": {
+        "form": "stepped",
+        "steps": [
+          {
+            "units": [
+              0,
+              0,
+              0
+            ],
+            "ticks": 3
+          }
+        ]
+      },
+      "path": {
+        "form": "stepped",
+        "steps": [
+          {
+            "position": [
+              1.0,
+              -60.0,
+              0.5
+            ],
+            "ticks": 3
+          }
+        ]
+      },
+      "on_ground": false
+    },
+    {
+      "updates_before": 102,
+      "packet": "minecraft:ticking_step",
+      "steps": 5
+    },
+    {
+      "updates_before": 131,
+      "packet": "minecraft:move_entity_pos",
+      "entity": 2,
+      "delta": {
+        "form": "stepped",
+        "steps": [
+          {
+            "units": [
+              0,
+              0,
+              0
+            ],
+            "ticks": 3
+          }
+        ]
+      },
+      "path": {
+        "form": "stepped",
+        "steps": [
+          {
+            "position": [
+              -1.0,
+              -60.0,
+              0.5
+            ],
+            "ticks": 3
+          }
+        ]
+      },
+      "on_ground": false
+    },
+    {
+      "updates_before": 131,
+      "packet": "minecraft:move_entity_pos",
+      "entity": 3,
+      "delta": {
+        "form": "stepped",
+        "steps": [
+          {
+            "units": [
+              0,
+              0,
+              0
+            ],
+            "ticks": 3
+          }
+        ]
+      },
+      "path": {
+        "form": "stepped",
+        "steps": [
+          {
+            "position": [
+              1.0,
+              -60.0,
+              0.5
+            ],
+            "ticks": 3
+          }
+        ]
+      },
+      "on_ground": false
+    }
+  ]
+}

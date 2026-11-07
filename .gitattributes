@@ -51,3 +51,15 @@ crates/mcrs_minecraft_protocol/tests/fixtures/frames_golden.txt linguist-generat
 crates/mcrs_minecraft_game_registries/tests/fixtures/vanilla_player.dat linguist-generated
 crates/mcrs_minecraft_game_registries/tests/fixtures/registry_values.txt linguist-generated
 crates/mcrs_minecraft_collision_table/tests/fixtures/physics/*.json linguist-generated
+crates/mcrs_minecraft_model/tests/fixtures/vanilla/entity_models.json linguist-generated
+crates/mcrs_minecraft_model/tests/fixtures/vanilla/entity_animations.json linguist-generated
+crates/mcrs_minecraft_model/tests/fixtures/vanilla/entity_poses.json linguist-generated
+crates/mcrs_minecraft_model/tests/fixtures/vanilla/entity_types.json linguist-generated
+crates/mcrs_minecraft_model/tests/fixtures/vanilla/block_entity_poses.json linguist-generated
+crates/mcrs_minecraft_core/tests/fixtures/vanilla/numeric.json linguist-generated
+crates/mcrs_minecraft_model/tests/fixtures/vanilla/block_models.json linguist-generated
+crates/mcrs_minecraft_model/tests/fixtures/vanilla/block_faces.json linguist-generated
+crates/mcrs_minecraft_environment/tests/fixtures/vanilla/environment.json linguist-generated
+crates/mcrs_minecraft_mesh/tests/fixtures/vanilla/block_smooth_light.json linguist-generated
+crates/mcrs_minecraft_mesh/tests/fixtures/vanilla/block_occlusion_shade.json linguist-generated
+crates/mcrs_minecraft_client/tests/fixtures/vanilla/frames/** linguist-generated

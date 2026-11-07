@@ -384,5 +384,125 @@
         "to": "crates/mcrs_minecraft_game_registries/tests/fixtures"
       }
     ]
+  },
+  {
+    "name": "entity_models",
+    "task": "dumpEntityModels",
+    "outputs": [
+      {
+        "file": "entity_models.json",
+        "to": "crates/mcrs_minecraft_model/tests/fixtures/vanilla"
+      }
+    ]
+  },
+  {
+    "name": "entity_animations",
+    "task": "dumpEntityAnimations",
+    "outputs": [
+      {
+        "file": "entity_animations.json",
+        "to": "crates/mcrs_minecraft_model/tests/fixtures/vanilla"
+      }
+    ]
+  },
+  {
+    "name": "entity_poses",
+    "task": "dumpEntityPoses",
+    "outputs": [
+      {
+        "file": "entity_poses.json",
+        "to": "crates/mcrs_minecraft_model/tests/fixtures/vanilla"
+      }
+    ]
+  },
+  {
+    "name": "entity_types",
+    "task": "dumpEntityTypes",
+    "outputs": [
+      {
+        "file": "entity_types.json",
+        "to": "crates/mcrs_minecraft_model/tests/fixtures/vanilla"
+      }
+    ]
+  },
+  {
+    "name": "block_entity_poses",
+    "task": "dumpBlockEntityPoses",
+    "outputs": [
+      {
+        "file": "block_entity_poses.json",
+        "to": "crates/mcrs_minecraft_model/tests/fixtures/vanilla"
+      }
+    ]
+  },
+  {
+    "name": "numeric",
+    "task": "dumpNumeric",
+    "outputs": [
+      {
+        "file": "numeric.json",
+        "to": "crates/mcrs_minecraft_core/tests/fixtures/vanilla"
+      }
+    ]
+  },
+  {
+    "name": "block_models",
+    "task": "dumpBlockModels",
+    "outputs": [
+      {
+        "file": "block_models.json",
+        "to": "crates/mcrs_minecraft_model/tests/fixtures/vanilla"
+      }
+    ]
+  },
+  {
+    "name": "block_faces",
+    "task": "dumpBlockFaces",
+    "outputs": [
+      {
+        "file": "block_faces.json",
+        "to": "crates/mcrs_minecraft_model/tests/fixtures/vanilla"
+      }
+    ]
+  },
+  {
+    "name": "environment",
+    "task": "dumpEnvironment",
+    "outputs": [
+      {
+        "file": "environment.json",
+        "to": "crates/mcrs_minecraft_environment/tests/fixtures/vanilla"
+      }
+    ]
+  },
+  {
+    "name": "block_smooth_light",
+    "task": "dumpBlockSmoothLight",
+    "outputs": [
+      {
+        "file": "block_smooth_light.json",
+        "to": "crates/mcrs_minecraft_mesh/tests/fixtures/vanilla"
+      }
+    ]
+  },
+  {
+    "name": "block_occlusion_shade",
+    "task": "dumpBlockOcclusionShade",
+    "outputs": [
+      {
+        "file": "block_occlusion_shade.json",
+        "to": "crates/mcrs_minecraft_mesh/tests/fixtures/vanilla"
+      }
+    ]
+  },
+  {
+    "name": "client_frames",
+    "task": "captureClientFrames",
+    "outputs": [
+      {
+        "pattern": "*",
+        "to": "crates/mcrs_minecraft_client/tests/fixtures/vanilla/frames"
+      }
+    ]
   }
 ]

@@ -1,0 +1,19 @@
+{
+	"schemaVersion": 1,
+	"id": "mcrs_client_capture",
+	"version": "1.0.0",
+	"name": "mcrs client capture",
+	"environment": "client",
+	"entrypoints": {
+		"fabric-client-gametest": [
+			"mcrs.capture.SceneCapture"
+		]
+	},
+	"depends": {
+		"fabricloader": "*",
+		"fabric-client-gametest-api-v1": "*"
+	},
+	"mixins": [
+		"mcrs_client_capture.mixins.json"
+	]
+}

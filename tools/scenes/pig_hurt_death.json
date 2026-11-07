@@ -1,0 +1,98 @@
+{
+ "name": "pig_hurt_death",
+ "description": "A pig that dies and a pig that the server hurts, at fixed ticks of the death and the hurt.",
+ "resolution": [
+  854,
+  480
+ ],
+ "world": {
+  "type": "flat_default",
+  "seed": "1",
+  "generate_structures": false,
+  "game_rules": {
+   "advance_time": false,
+   "advance_weather": false,
+   "spawn_mobs": false,
+   "mob_drops": false
+  }
+ },
+ "options": {
+  "fov": "0.0",
+  "fovEffectScale": "0.0",
+  "bobView": "false",
+  "ao": "true",
+  "entityShadows": "false",
+  "renderClouds": "\"false\"",
+  "renderDistance": "5",
+  "gamma": "0.5",
+  "vignette": "false",
+  "entityDistanceScaling": "1.0",
+  "chunkSectionFadeInTime": "0.0",
+  "improvedTransparency": "false",
+  "mipmapLevels": "4"
+ },
+ "script": [
+  {
+   "commands": [
+    "gamerule minecraft:mob_drops false",
+    "time set 6000",
+    "weather clear",
+    "tick freeze"
+   ]
+  },
+  {
+   "wait": 10
+  },
+  {
+   "commands": [
+    "summon minecraft:pig -1.0 -60 0.5 {NoAI:1b,Silent:1b,PersistenceRequired:1b,UUID:[I;0,0,0,1],Rotation:[0f,0f]}",
+    "summon minecraft:pig 1.0 -60 0.5 {NoAI:1b,Silent:1b,PersistenceRequired:1b,UUID:[I;0,0,0,2],Rotation:[0f,0f],Health:1f}"
+   ]
+  },
+  {
+   "wait": 10
+  },
+  {
+   "command": "damage 00000000-0000-0000-0000-000000000002 5 minecraft:generic"
+  },
+  {
+   "wait": 5
+  },
+  {
+   "step": 10
+  },
+  {
+   "command": "damage 00000000-0000-0000-0000-000000000001 1 minecraft:generic"
+  },
+  {
+   "wait": 5
+  },
+  {
+   "capture": "death10_hurt10",
+   "at": {
+    "position": [
+     0.0,
+     -59.0,
+     4.0
+    ],
+    "yaw": 180,
+    "pitch": 10
+   }
+  },
+  {
+   "step": 5
+  },
+  {
+   "capture": "death15_hurt5",
+   "at": {
+    "position": [
+     0.0,
+     -59.0,
+     4.0
+    ],
+    "yaw": 180,
+    "pitch": 10
+   }
+  }
+ ]
+}
