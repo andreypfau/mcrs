@@ -154,10 +154,6 @@ fn a_clientbound_change_applies_at_the_answer_to_the_probe_after_it() {
     abilities.extend_from_slice(&0.1_f32.to_be_bytes());
     server.send(game_clientbound::NAMES, "player_abilities", &abilities);
     pump(&mut connection, &names, &mut observed);
-    assert!(
-        matches!(observed.first(), Some(Observed::Login(42))),
-        "the login gives the player"
-    );
 
     let at_client = client.received();
     let ping = id(game_clientbound::NAMES, "ping");
@@ -194,7 +190,7 @@ fn a_clientbound_change_applies_at_the_answer_to_the_probe_after_it() {
         .iter()
         .filter_map(|item| match item {
             Observed::Applied(event) | Observed::Sent(event) => Some(event),
-            Observed::Login(_) | Observed::Loaded => None,
+            Observed::Loaded => None,
         })
         .collect();
     assert_eq!(
@@ -208,12 +204,9 @@ fn a_clientbound_change_applies_at_the_answer_to_the_probe_after_it() {
             }),
             &Event::TickEnd,
             &Event::Abilities(Abilities {
-                invulnerable: false,
                 flying: true,
                 may_fly: true,
-                instant_build: false,
                 flying_speed: 0.05,
-                walking_speed: 0.1,
             }),
         ]
     );

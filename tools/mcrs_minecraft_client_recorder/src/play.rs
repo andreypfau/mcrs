@@ -1,9 +1,7 @@
 use glam::DVec3;
 use mcrs_minecraft_client_ticks::Abilities;
-use mcrs_minecraft_client_ticks::AcceptTeleport;
 use mcrs_minecraft_client_ticks::Attribute;
 use mcrs_minecraft_client_ticks::BlockChange;
-use mcrs_minecraft_client_ticks::Command;
 use mcrs_minecraft_client_ticks::Effect;
 use mcrs_minecraft_client_ticks::Event;
 use mcrs_minecraft_client_ticks::Keys;
@@ -29,16 +27,13 @@ use mcrs_minecraft_protocol_game::clientbound::ClientboundSectionBlocksUpdate;
 use mcrs_minecraft_protocol_game::clientbound::ClientboundUpdateAttributes;
 use mcrs_minecraft_protocol_game::player::PlayerAction;
 use mcrs_minecraft_protocol_game::serverbound::PlayerCommandAction;
-use mcrs_minecraft_protocol_game::serverbound::ServerboundAcceptTeleportation;
 use mcrs_minecraft_protocol_game::serverbound::ServerboundMovePlayerPos;
 use mcrs_minecraft_protocol_game::serverbound::ServerboundMovePlayerPosRot;
 use mcrs_minecraft_protocol_game::serverbound::ServerboundMovePlayerRot;
 use mcrs_minecraft_protocol_game::serverbound::ServerboundMovePlayerStatusOnly;
-use mcrs_minecraft_protocol_game::serverbound::ServerboundPlayerAbilities;
 use mcrs_minecraft_protocol_game::serverbound::ServerboundPlayerAction;
 use mcrs_minecraft_protocol_game::serverbound::ServerboundPlayerCommand;
 use mcrs_minecraft_protocol_game::serverbound::ServerboundPlayerInput;
-use mcrs_voxel::ColumnPos;
 
 use crate::names::Names;
 
@@ -102,12 +97,9 @@ pub(crate) fn decode_clientbound(
         "player_abilities" => {
             let packet = ClientboundPlayerAbilities::decode(r)?;
             Event::Abilities(Abilities {
-                invulnerable: packet.invulnerable,
                 flying: packet.flying,
                 may_fly: packet.may_fly,
-                instant_build: packet.instant_build,
                 flying_speed: packet.flying_speed,
-                walking_speed: packet.walking_speed,
             })
         }
         "update_attributes" => {
@@ -121,9 +113,7 @@ pub(crate) fn decode_clientbound(
         }
         "update_mob_effect" if is_player(r, player)? => Event::Effect(Effect {
             name: effect_name(VarInt::decode(r)?.0),
-            amplifier: VarInt::decode(r)?.0,
-            duration: VarInt::decode(r)?.0,
-            flags: u8::decode(r)?,
+            amplifier: u8::try_from(VarInt::decode(r)?.0)?,
         }),
         "remove_mob_effect" if is_player(r, player)? => {
             Event::RemoveEffect(effect_name(VarInt::decode(r)?.0))
@@ -154,10 +144,6 @@ pub(crate) fn decode_clientbound(
                 .collect();
             return Ok(Play::Events(events));
         }
-        "level_chunk_with_light" => {
-            let column = ColumnPos::decode(r)?;
-            Event::ChunkLoaded([column.x, column.z])
-        }
         "forget_level_chunk" => {
             let packet = ClientboundForgetLevelChunk::decode(r)?;
             Event::ChunkForgotten([packet.x, packet.z])
@@ -173,14 +159,6 @@ pub(crate) fn decode_serverbound(id: i32, mut body: &[u8]) -> anyhow::Result<Pla
     let event = match name_of(game_serverbound::NAMES, id) {
         "pong" => return Ok(Play::Ping(i32::decode(r)?)),
         "player_loaded" => return Ok(Play::Loaded),
-        "accept_teleportation" => {
-            let packet = ServerboundAcceptTeleportation::decode(r)?;
-            Event::AcceptTeleport(AcceptTeleport {
-                id: packet.teleport_id.0,
-                position: coordinates(packet.position),
-                rotation: rotation(packet.look),
-            })
-        }
         "player_input" => {
             let input = ServerboundPlayerInput::decode(r)?.input;
             Event::Input(Keys {
@@ -193,16 +171,11 @@ pub(crate) fn decode_serverbound(id: i32, mut body: &[u8]) -> anyhow::Result<Pla
                 sprint: input.sprint(),
             })
         }
-        "player_command" => Event::Command(match ServerboundPlayerCommand::decode(r)?.action {
-            PlayerCommandAction::StopSleeping => Command::StopSleeping,
-            PlayerCommandAction::StartSprinting => Command::StartSprinting,
-            PlayerCommandAction::StopSprinting => Command::StopSprinting,
-            PlayerCommandAction::StartRidingJump => Command::StartRidingJump,
-            PlayerCommandAction::StopRidingJump => Command::StopRidingJump,
-            PlayerCommandAction::OpenInventory => Command::OpenInventory,
-            PlayerCommandAction::StartFallFlying => Command::StartFallFlying,
-        }),
-        "player_abilities" => Event::Flying(ServerboundPlayerAbilities::decode(r)?.flying),
+        "player_command" => match ServerboundPlayerCommand::decode(r)?.action {
+            PlayerCommandAction::StartSprinting => Event::Sprinting(true),
+            PlayerCommandAction::StopSprinting => Event::Sprinting(false),
+            _ => return Ok(Play::Events(Vec::new())),
+        },
         "use_item" => Event::UseItem,
         "player_action"
             if ServerboundPlayerAction::decode(r)?.action == PlayerAction::ReleaseUseItem =>

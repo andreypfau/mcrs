@@ -47,7 +47,7 @@ server never sees them.
 ## The recording format
 
 `mcrs_minecraft_client_ticks` reads and writes the format. A recording is text, one item for
-each line. The first line is `client-ticks 1`. The header lines follow:
+each line. The first line is `client-ticks 1`. The header lines follow in this order:
 
 | Line | Meaning |
 |------|---------|
@@ -55,7 +55,6 @@ each line. The first line is `client-ticks 1`. The header lines follow:
 | `experiment <name>` | the experiment, for example `E9` |
 | `step <name>` | the step of the experiment |
 | `instruction <text>` | the text that the human read |
-| `entity <id>` | the network id of the player |
 | `fill <x0> <y0> <z0> <x1> <y1> <z1> <state>` | blocks of the step; all other blocks are air |
 
 The line `events` ends the header. Each event line after it starts with `<` for a clientbound
@@ -68,16 +67,14 @@ line is a tick in which the client sent no move packet.
 | `< teleport <id> <x> <y> <z> <vx> <vy> <vz> <yaw> <pitch> <relative>` | `player_position` |
 | `< motion <vx> <vy> <vz>` | `set_entity_motion` of the player |
 | `< explosion <x> <y> <z>` | the impulse of an `explode` that has one |
-| `< abilities <flags> <flying_speed> <walking_speed>` | `player_abilities` |
+| `< abilities <flying,may_fly> <flying_speed>` | `player_abilities` |
 | `< attribute <name> <base> [<id> <amount> <operation>]...` | one entry of `update_attributes` |
-| `< effect <name> <amplifier> <duration> <flags>` | `update_mob_effect` |
+| `< effect <name> <amplifier>` | `update_mob_effect` |
 | `< remove_effect <name>` | `remove_mob_effect` |
 | `< block <x> <y> <z> <state>` | `block_update`, or one entry of `section_blocks_update` |
-| `< chunk <x> <z>`, `< forget <x> <z>` | `level_chunk_with_light`, `forget_level_chunk` |
-| `> accept_teleport <id> <x> <y> <z> <yaw> <pitch>` | `accept_teleportation` |
+| `< forget <x> <z>` | `forget_level_chunk` |
 | `> input <keys>` | `player_input` |
-| `> command <action>` | `player_command` |
-| `> flying <true or false>` | the serverbound `player_abilities` |
+| `> sprint <true or false>` | `player_command` that starts or stops the sprint state |
 | `> use_item`, `> release_use_item` | `use_item`, `player_action` that releases the item |
 | `> move <x,y,z or -> <yaw,pitch or -> <flags>` | one of the four move packets |
 | `> tick` | `client_tick_end` |
@@ -111,3 +108,5 @@ The arena must have at most 32768 blocks, the limit of `fill`.
 - The tool accepts one client at a time. The server runs in offline mode on loopback.
 - The replay maps block states to the small block table of the physics kernel tests. A state
   outside that table stops the replay with a message.
+- The kernel applies the sprint boost itself. The replay finds the `movement_speed` modifiers
+  that follow the `> sprint` events of the recording and leaves them out.

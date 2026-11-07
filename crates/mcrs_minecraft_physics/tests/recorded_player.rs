@@ -56,6 +56,36 @@ fn own_player_follows_the_recorded_client_ticks() {
     }
 }
 
+#[test]
+fn the_sprint_modifier_of_the_recording_is_left_to_the_kernel() {
+    let recording: Recording = "client-ticks 1
+version test
+experiment E9
+step sprint
+instruction none
+events
+< attribute minecraft:movement_speed 0.1 test:armor 0.5 1
+> sprint true
+> tick
+< attribute minecraft:movement_speed 0.1 test:armor 0.5 1 test:sprint 0.30000001192092896 2
+> tick
+> sprint false
+> tick
+< attribute minecraft:movement_speed 0.1 test:armor 0.5 1
+> tick
+"
+    .parse()
+    .unwrap();
+    let sprint = sprint_modifiers(&recording);
+    assert_eq!(sprint, ["test:sprint"]);
+    let Some(Event::Attribute(sprinting)) = recording.events.get(3) else {
+        panic!("the fourth event is the update while the client sprints");
+    };
+    let mut attributes = MotionAttributes::default();
+    set_attribute(&mut attributes, sprinting, &sprint);
+    assert_eq!(attributes.movement_speed, 0.1 * (1.0 + 0.5));
+}
+
 /// Runs the kernel over the client ticks and compares each move packet bit for bit.
 fn replay(name: &str, recording: &Recording) -> Result<(), String> {
     let blocks = TestBlocks::new();
@@ -67,6 +97,7 @@ fn replay(name: &str, recording: &Recording) -> Result<(), String> {
         let state = test_state(&blocks, &fill.state)?;
         world.fill(BlockPos::new(x0, y0, z0), BlockPos::new(x1, y1, z1), state);
     }
+    let sprint = sprint_modifiers(recording);
     let mut state = PlayerState::new(DVec3::ZERO);
     let mut input = PlayerInput::default();
     let mut scratch = Scratch::new();
@@ -96,11 +127,11 @@ fn replay(name: &str, recording: &Recording) -> Result<(), String> {
                     state.flight0 = abilities.flying;
                     state.flight_speed = abilities.flying_speed;
                 }
-                Event::Attribute(attribute) => set_attribute(&mut state.attributes, attribute),
+                Event::Attribute(attribute) => {
+                    set_attribute(&mut state.attributes, attribute, &sprint);
+                }
                 Event::Effect(effect) => {
-                    let amplifier =
-                        u8::try_from(effect.amplifier).map_err(|error| error.to_string())?;
-                    set_effect(&mut state.effects, &effect.name, Some(amplifier));
+                    set_effect(&mut state.effects, &effect.name, Some(effect.amplifier));
                 }
                 Event::RemoveEffect(effect) => set_effect(&mut state.effects, effect, None),
                 Event::Block(change) => {
@@ -157,20 +188,52 @@ fn replay(name: &str, recording: &Recording) -> Result<(), String> {
     Ok(())
 }
 
-/// The value of an attribute: the base plus the additions, times the base multipliers, times
-/// each total multiplier.
-fn set_attribute(attributes: &mut MotionAttributes, attribute: &Attribute) {
-    let sum = |operation| -> f64 {
+/// The ids of the `movement_speed` modifiers that follow the sprint state of the client: each
+/// update while the client sprints has them, and no update while it does not.
+fn sprint_modifiers(recording: &Recording) -> Vec<String> {
+    let mut sprinting = false;
+    let mut while_sprinting: Option<Vec<String>> = None;
+    let mut otherwise = Vec::new();
+    for event in &recording.events {
+        match event {
+            Event::Sprinting(on) => sprinting = *on,
+            Event::Attribute(attribute) if attribute.name == "minecraft:movement_speed" => {
+                let ids: Vec<String> = attribute
+                    .modifiers
+                    .iter()
+                    .map(|modifier| modifier.id.clone())
+                    .collect();
+                match &mut while_sprinting {
+                    _ if !sprinting => otherwise.extend(ids),
+                    Some(kept) => kept.retain(|id| ids.contains(id)),
+                    None => while_sprinting = Some(ids),
+                }
+            }
+            _ => {}
+        }
+    }
+    let mut ids = while_sprinting.unwrap_or_default();
+    ids.retain(|id| !otherwise.contains(id));
+    ids
+}
+
+/// The value of an attribute without the sprint modifiers, which the kernel applies itself from
+/// the sprint state: the base plus the additions, times the base multipliers, times each total
+/// multiplier.
+fn set_attribute(attributes: &mut MotionAttributes, attribute: &Attribute, sprint: &[String]) {
+    let modifiers = || {
         attribute
             .modifiers
             .iter()
+            .filter(|modifier| !sprint.contains(&modifier.id))
+    };
+    let sum = |operation| -> f64 {
+        modifiers()
             .filter(|modifier| modifier.operation == operation)
             .map(|modifier| modifier.amount)
             .sum()
     };
-    let total = attribute
-        .modifiers
-        .iter()
+    let total = modifiers()
         .filter(|modifier| modifier.operation == 2)
         .fold(1.0, |product, modifier| product * (1.0 + modifier.amount));
     let value = (attribute.base + sum(0)) * (1.0 + sum(1)) * total;

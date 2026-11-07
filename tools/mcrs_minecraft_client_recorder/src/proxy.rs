@@ -45,8 +45,6 @@ pub(crate) enum Observed {
     Applied(Event),
     /// A serverbound event.
     Sent(Event),
-    /// `login`: the network id of the player.
-    Login(i32),
     /// The client has loaded the world.
     Loaded,
 }
@@ -132,7 +130,7 @@ impl Connection {
             return Ok(false);
         }
         while let Some(frame) = next_frame(&mut self.server)? {
-            self.server_frame(names, frame, out)?;
+            self.server_frame(names, frame)?;
         }
         flush(&mut self.client)?;
         Ok(true)
@@ -178,12 +176,7 @@ impl Connection {
         send_frame(&mut self.server.outgoing, &frame)
     }
 
-    fn server_frame(
-        &mut self,
-        names: &Names,
-        frame: Bytes,
-        out: &mut Vec<Observed>,
-    ) -> anyhow::Result<()> {
+    fn server_frame(&mut self, names: &Names, frame: Bytes) -> anyhow::Result<()> {
         let packet = decompress(frame.clone(), self.threshold, &mut self.server.inflater)?;
         let mut body = &packet[..];
         let id = VarInt::decode(&mut body)?.0;
@@ -205,10 +198,7 @@ impl Connection {
                 self.server.state = State::Configuration;
             }
             State::Play => match decode_clientbound(names, self.player, id, body)? {
-                Play::Login(player) => {
-                    self.player = Some(player);
-                    out.push(Observed::Login(player));
-                }
+                Play::Login(player) => self.player = Some(player),
                 Play::Bundle => self.in_bundle = !self.in_bundle,
                 Play::Events(events) => self.unprobed.extend(events),
                 Play::Loaded | Play::Ping(_) => {}

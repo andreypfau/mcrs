@@ -1,6 +1,5 @@
 use std::fmt;
 
-use crate::ParseErrorKind;
 use crate::fields::Fields;
 use crate::fields::bad;
 use crate::fields::parse_value;
@@ -25,18 +24,12 @@ pub enum Event {
     RemoveEffect(String),
     /// `block_update`, or one entry of `section_blocks_update`.
     Block(BlockChange),
-    /// `level_chunk_with_light`: the chunk x and z.
-    ChunkLoaded([i32; 2]),
     /// `forget_level_chunk`: the chunk x and z.
     ChunkForgotten([i32; 2]),
-    /// `accept_teleportation`.
-    AcceptTeleport(AcceptTeleport),
     /// `player_input`.
     Input(Keys),
-    /// `player_command`.
-    Command(Command),
-    /// `player_abilities`, serverbound: the request to fly or to stop.
-    Flying(bool),
+    /// `player_command` that starts (true) or stops (false) the sprint state.
+    Sprinting(bool),
     /// `use_item`.
     UseItem,
     /// `player_action` that releases the item in use.
@@ -63,14 +56,11 @@ pub struct Teleport {
     pub relative: u32,
 }
 
-#[derive(Copy, Clone, Debug, PartialEq)]
+#[derive(Copy, Clone, Debug, Default, PartialEq)]
 pub struct Abilities {
-    pub invulnerable: bool,
     pub flying: bool,
     pub may_fly: bool,
-    pub instant_build: bool,
     pub flying_speed: f32,
-    pub walking_speed: f32,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -91,9 +81,7 @@ pub struct Modifier {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Effect {
     pub name: String,
-    pub amplifier: i32,
-    pub duration: i32,
-    pub flags: u8,
+    pub amplifier: u8,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -101,13 +89,6 @@ pub struct BlockChange {
     pub position: [i32; 3],
     /// The state as `name[property=value,...]`.
     pub state: String,
-}
-
-#[derive(Copy, Clone, Debug, PartialEq)]
-pub struct AcceptTeleport {
-    pub id: i32,
-    pub position: [f64; 3],
-    pub rotation: Rotation,
 }
 
 #[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
@@ -121,17 +102,6 @@ pub struct Keys {
     pub sprint: bool,
 }
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
-pub enum Command {
-    StopSleeping,
-    StartSprinting,
-    StopSprinting,
-    StartRidingJump,
-    StopRidingJump,
-    OpenInventory,
-    StartFallFlying,
-}
-
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub struct Move {
     pub position: Option<[f64; 3]>,
@@ -140,47 +110,26 @@ pub struct Move {
     pub horizontal_collision: bool,
 }
 
-const COMMANDS: [(Command, &str); 7] = [
-    (Command::StopSleeping, "stop_sleeping"),
-    (Command::StartSprinting, "start_sprinting"),
-    (Command::StopSprinting, "stop_sprinting"),
-    (Command::StartRidingJump, "start_riding_jump"),
-    (Command::StopRidingJump, "stop_riding_jump"),
-    (Command::OpenInventory, "open_inventory"),
-    (Command::StartFallFlying, "start_fall_flying"),
-];
-
-struct Vec3<'a>(&'a [f64; 3]);
-
-impl fmt::Display for Vec3<'_> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let [x, y, z] = self.0;
-        write!(f, "{x} {y} {z}")
-    }
-}
-
 /// A flag of a type and its name in the text.
 type Flag<'a> = (&'a mut bool, &'static str);
 
 /// Writes the names whose flag is set, comma-separated, or `none`.
 fn write_flags(f: &mut fmt::Formatter<'_>, flags: &[Flag<'_>]) -> fmt::Result {
-    let mut first = true;
-    for (_, name) in flags.iter().filter(|(set, _)| **set) {
-        write!(f, "{}{name}", if first { "" } else { "," })?;
-        first = false;
+    let names: Vec<&str> = flags
+        .iter()
+        .filter(|(set, _)| **set)
+        .map(|(_, name)| *name)
+        .collect();
+    if names.is_empty() {
+        f.write_str("none")
+    } else {
+        f.write_str(&names.join(","))
     }
-    if first {
-        f.write_str("none")?;
-    }
-    Ok(())
 }
 
 /// Sets each flag that a comma-separated list names; `none` is the empty list.
-fn parse_flags(
-    word: &str,
-    field: &'static str,
-    flags: &mut [Flag<'_>],
-) -> Result<(), ParseErrorKind> {
+fn parse_flags(fields: &mut Fields<'_>, field: &str, flags: &mut [Flag<'_>]) -> Result<(), String> {
+    let word = fields.word(field)?;
     for name in word.split(',').filter(|name| *name != "none") {
         let (flag, _) = flags
             .iter_mut()
@@ -206,13 +155,8 @@ impl Keys {
 }
 
 impl Abilities {
-    fn flags(&mut self) -> [Flag<'_>; 4] {
-        [
-            (&mut self.invulnerable, "invulnerable"),
-            (&mut self.flying, "flying"),
-            (&mut self.may_fly, "may_fly"),
-            (&mut self.instant_build, "instant_build"),
-        ]
+    fn flags(&mut self) -> [Flag<'_>; 2] {
+        [(&mut self.flying, "flying"), (&mut self.may_fly, "may_fly")]
     }
 }
 
@@ -227,67 +171,49 @@ impl Move {
 
 impl fmt::Display for Event {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let vec3 = |[x, y, z]: &[f64; 3]| format!("{x} {y} {z}");
         match self {
             Self::Teleport(teleport) => write!(
                 f,
                 "< teleport {} {} {} {} {} {}",
                 teleport.id,
-                Vec3(&teleport.position),
-                Vec3(&teleport.velocity),
+                vec3(&teleport.position),
+                vec3(&teleport.velocity),
                 teleport.rotation.yaw,
                 teleport.rotation.pitch,
                 teleport.relative
             ),
-            Self::Motion(velocity) => write!(f, "< motion {}", Vec3(velocity)),
-            Self::Explosion(impulse) => write!(f, "< explosion {}", Vec3(impulse)),
+            Self::Motion(velocity) => write!(f, "< motion {}", vec3(velocity)),
+            Self::Explosion(impulse) => write!(f, "< explosion {}", vec3(impulse)),
             Self::Abilities(abilities) => {
                 f.write_str("< abilities ")?;
                 write_flags(f, &{ *abilities }.flags())?;
-                write!(f, " {} {}", abilities.flying_speed, abilities.walking_speed)
+                write!(f, " {}", abilities.flying_speed)
             }
             Self::Attribute(attribute) => {
                 write!(f, "< attribute {} {}", attribute.name, attribute.base)?;
                 for modifier in &attribute.modifiers {
-                    write!(
-                        f,
-                        " {} {} {}",
-                        modifier.id, modifier.amount, modifier.operation
-                    )?;
+                    let Modifier {
+                        id,
+                        amount,
+                        operation,
+                    } = modifier;
+                    write!(f, " {id} {amount} {operation}")?;
                 }
                 Ok(())
             }
-            Self::Effect(effect) => write!(
-                f,
-                "< effect {} {} {} {}",
-                effect.name, effect.amplifier, effect.duration, effect.flags
-            ),
+            Self::Effect(effect) => write!(f, "< effect {} {}", effect.name, effect.amplifier),
             Self::RemoveEffect(name) => write!(f, "< remove_effect {name}"),
             Self::Block(change) => {
                 let [x, y, z] = change.position;
                 write!(f, "< block {x} {y} {z} {}", change.state)
             }
-            Self::ChunkLoaded([x, z]) => write!(f, "< chunk {x} {z}"),
             Self::ChunkForgotten([x, z]) => write!(f, "< forget {x} {z}"),
-            Self::AcceptTeleport(accept) => write!(
-                f,
-                "> accept_teleport {} {} {} {}",
-                accept.id,
-                Vec3(&accept.position),
-                accept.rotation.yaw,
-                accept.rotation.pitch
-            ),
             Self::Input(keys) => {
                 f.write_str("> input ")?;
                 write_flags(f, &{ *keys }.flags())
             }
-            Self::Command(command) => {
-                let name = COMMANDS
-                    .iter()
-                    .find(|(known, _)| known == command)
-                    .map_or("", |(_, name)| name);
-                write!(f, "> command {name}")
-            }
-            Self::Flying(flying) => write!(f, "> flying {flying}"),
+            Self::Sprinting(sprinting) => write!(f, "> sprint {sprinting}"),
             Self::UseItem => f.write_str("> use_item"),
             Self::ReleaseUseItem => f.write_str("> release_use_item"),
             Self::Move(step) => {
@@ -309,7 +235,7 @@ impl fmt::Display for Event {
 
 impl Event {
     /// Parses one event line, the direction mark included.
-    pub(crate) fn parse(line: &str) -> Result<Self, ParseErrorKind> {
+    pub(crate) fn parse(line: &str) -> Result<Self, String> {
         let mut fields = Fields::new(line);
         let direction = fields.word("direction")?;
         let kind = fields.word("kind")?;
@@ -326,7 +252,12 @@ impl Event {
             }),
             ("<", "motion") => Self::Motion(fields.array3("velocity")?),
             ("<", "explosion") => Self::Explosion(fields.array3("impulse")?),
-            ("<", "abilities") => parse_abilities(&mut fields)?,
+            ("<", "abilities") => {
+                let mut abilities = Abilities::default();
+                parse_flags(&mut fields, "flags", &mut abilities.flags())?;
+                abilities.flying_speed = fields.value("flying_speed")?;
+                Self::Abilities(abilities)
+            }
             ("<", "attribute") => {
                 let name = fields.word("name")?.to_owned();
                 let base = fields.value("base")?;
@@ -347,71 +278,36 @@ impl Event {
             ("<", "effect") => Self::Effect(Effect {
                 name: fields.word("name")?.to_owned(),
                 amplifier: fields.value("amplifier")?,
-                duration: fields.value("duration")?,
-                flags: fields.value("flags")?,
             }),
             ("<", "remove_effect") => Self::RemoveEffect(fields.word("name")?.to_owned()),
             ("<", "block") => Self::Block(BlockChange {
                 position: fields.array3("position")?,
                 state: fields.word("state")?.to_owned(),
             }),
-            ("<", "chunk") => Self::ChunkLoaded([fields.value("x")?, fields.value("z")?]),
             ("<", "forget") => Self::ChunkForgotten([fields.value("x")?, fields.value("z")?]),
-            (">", "accept_teleport") => Self::AcceptTeleport(AcceptTeleport {
-                id: fields.value("id")?,
-                position: fields.array3("position")?,
-                rotation: Rotation {
-                    yaw: fields.value("yaw")?,
-                    pitch: fields.value("pitch")?,
-                },
-            }),
-            (">", "input") => parse_input(&mut fields)?,
-            (">", "command") => {
-                let name = fields.word("command")?;
-                let Some((command, _)) = COMMANDS.iter().find(|(_, known)| *known == name) else {
-                    return Err(bad("command", name));
-                };
-                Self::Command(*command)
+            (">", "input") => {
+                let mut keys = Keys::default();
+                parse_flags(&mut fields, "keys", &mut keys.flags())?;
+                Self::Input(keys)
             }
-            (">", "flying") => Self::Flying(fields.value("flying")?),
+            (">", "sprint") => Self::Sprinting(fields.value("sprint")?),
             (">", "use_item") => Self::UseItem,
             (">", "release_use_item") => Self::ReleaseUseItem,
             (">", "move") => parse_move(&mut fields)?,
             (">", "tick") => Self::TickEnd,
-            _ => return Err(ParseErrorKind::UnknownEvent(format!("{direction} {kind}"))),
+            _ => return Err(format!("unknown event `{direction} {kind}`")),
         };
         fields.end()?;
         Ok(event)
     }
 }
 
-fn parse_abilities(fields: &mut Fields<'_>) -> Result<Event, ParseErrorKind> {
-    let mut abilities = Abilities {
-        invulnerable: false,
-        flying: false,
-        may_fly: false,
-        instant_build: false,
-        flying_speed: 0.0,
-        walking_speed: 0.0,
-    };
-    parse_flags(fields.word("flags")?, "flags", &mut abilities.flags())?;
-    abilities.flying_speed = fields.value("flying_speed")?;
-    abilities.walking_speed = fields.value("walking_speed")?;
-    Ok(Event::Abilities(abilities))
-}
-
-fn parse_input(fields: &mut Fields<'_>) -> Result<Event, ParseErrorKind> {
-    let mut keys = Keys::default();
-    parse_flags(fields.word("keys")?, "keys", &mut keys.flags())?;
-    Ok(Event::Input(keys))
-}
-
-fn parse_move(fields: &mut Fields<'_>) -> Result<Event, ParseErrorKind> {
+fn parse_move(fields: &mut Fields<'_>) -> Result<Event, String> {
     let position = match fields.word("position")? {
         "-" => None,
         word => {
             let mut parts = word.split(',');
-            let mut axis = || -> Result<f64, ParseErrorKind> {
+            let mut axis = || -> Result<f64, String> {
                 parse_value("position", parts.next().unwrap_or_default())
             };
             Some([axis()?, axis()?, axis()?])
@@ -433,6 +329,6 @@ fn parse_move(fields: &mut Fields<'_>) -> Result<Event, ParseErrorKind> {
         on_ground: false,
         horizontal_collision: false,
     };
-    parse_flags(fields.word("flags")?, "flags", &mut step.flags())?;
+    parse_flags(fields, "flags", &mut step.flags())?;
     Ok(Event::Move(step))
 }

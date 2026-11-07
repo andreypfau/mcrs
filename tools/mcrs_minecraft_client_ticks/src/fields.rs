@@ -1,8 +1,6 @@
 use std::str::FromStr;
 use std::str::SplitWhitespace;
 
-use crate::ParseErrorKind;
-
 /// The space-separated fields of one line, read in order.
 pub(crate) struct Fields<'a> {
     rest: SplitWhitespace<'a>,
@@ -15,50 +13,37 @@ impl<'a> Fields<'a> {
         }
     }
 
-    pub(crate) fn word(&mut self, field: &'static str) -> Result<&'a str, ParseErrorKind> {
-        self.rest.next().ok_or(ParseErrorKind::MissingField(field))
+    pub(crate) fn word(&mut self, field: &str) -> Result<&'a str, String> {
+        self.rest
+            .next()
+            .ok_or_else(|| format!("the line ends before `{field}`"))
     }
 
     pub(crate) fn next_word(&mut self) -> Option<&'a str> {
         self.rest.next()
     }
 
-    pub(crate) fn value<T: FromStr>(&mut self, field: &'static str) -> Result<T, ParseErrorKind> {
+    pub(crate) fn value<T: FromStr>(&mut self, field: &str) -> Result<T, String> {
         let word = self.word(field)?;
         parse_value(field, word)
     }
 
-    pub(crate) fn array3<T: FromStr>(
-        &mut self,
-        field: &'static str,
-    ) -> Result<[T; 3], ParseErrorKind> {
+    pub(crate) fn array3<T: FromStr>(&mut self, field: &str) -> Result<[T; 3], String> {
         Ok([self.value(field)?, self.value(field)?, self.value(field)?])
     }
 
-    /// The rest of the line, with single spaces between its words.
-    pub(crate) fn rest_text(&mut self) -> String {
-        let words: Vec<&str> = self.rest.by_ref().collect();
-        words.join(" ")
-    }
-
-    pub(crate) fn end(mut self) -> Result<(), ParseErrorKind> {
+    pub(crate) fn end(mut self) -> Result<(), String> {
         match self.rest.next() {
-            Some(extra) => Err(ParseErrorKind::ExtraField(extra.to_owned())),
+            Some(extra) => Err(format!("extra field `{extra}`")),
             None => Ok(()),
         }
     }
 }
 
-pub(crate) fn parse_value<T: FromStr>(
-    field: &'static str,
-    word: &str,
-) -> Result<T, ParseErrorKind> {
+pub(crate) fn parse_value<T: FromStr>(field: &str, word: &str) -> Result<T, String> {
     word.parse().map_err(|_| bad(field, word))
 }
 
-pub(crate) fn bad(field: &'static str, value: &str) -> ParseErrorKind {
-    ParseErrorKind::BadField {
-        field,
-        value: value.to_owned(),
-    }
+pub(crate) fn bad(field: &str, value: &str) -> String {
+    format!("`{field}` has the bad value `{value}`")
 }

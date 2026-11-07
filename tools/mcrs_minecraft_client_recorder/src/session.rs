@@ -91,8 +91,6 @@ pub(crate) struct Session {
     out: PathBuf,
     phase: Phase,
     snapshot: Snapshot,
-    /// The network id of the player.
-    player: i32,
 }
 
 impl Session {
@@ -103,7 +101,6 @@ impl Session {
             out,
             phase: Phase::Waiting,
             snapshot: Snapshot::default(),
-            player: 0,
         }
     }
 
@@ -118,7 +115,6 @@ impl Session {
 
     pub(crate) fn observe(&mut self, observed: Observed) -> anyhow::Result<()> {
         match observed {
-            Observed::Login(player) => self.player = player,
             Observed::Loaded => {
                 if matches!(self.phase, Phase::Waiting) {
                     self.prompt(0);
@@ -225,7 +221,6 @@ impl Session {
                 experiment: self.scenario.experiment.clone(),
                 step: current.name.clone(),
                 instruction: current.instruction.clone(),
-                entity_id: self.player,
                 fills: current.fills.clone(),
             },
             events: segment.events,

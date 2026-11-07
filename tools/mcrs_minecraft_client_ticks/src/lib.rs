@@ -11,12 +11,9 @@ mod recording;
 mod tests;
 
 pub use error::ParseError;
-pub use error::ParseErrorKind;
 pub use event::Abilities;
-pub use event::AcceptTeleport;
 pub use event::Attribute;
 pub use event::BlockChange;
-pub use event::Command;
 pub use event::Effect;
 pub use event::Event;
 pub use event::Keys;

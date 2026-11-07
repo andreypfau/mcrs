@@ -5,16 +5,14 @@ version 1.0
 experiment E9
 step walk_stone
 instruction Hold W for 2 seconds.
-entity 7
 fill -4 99 -4 12 99 4 minecraft:oak_slab[type=bottom,waterlogged=false]
 events
-< abilities may_fly,instant_build 0.05 0.1
-< attribute minecraft:movement_speed 0.1 minecraft:sprinting 0.30000001192092896 2
+< abilities may_fly 0.05
+< attribute minecraft:movement_speed 0.1 test:boost 0.30000001192092896 2
 < teleport 3 0.5 100 0.5 0 0 0 -90.5 0 0
-> accept_teleport 3 0.5 100 0.5 -90.5 0
 > tick
 > input forward,sprint
-> command start_sprinting
+> sprint true
 > move 0.5,99.9216,0.5 - on_ground
 > tick
 < motion 0 -0.0784000015258789 0
@@ -57,7 +55,7 @@ fn a_recording_reads_back_as_written() {
 
 #[test]
 fn a_bad_line_names_its_number() {
-    let text = TEXT.replace("> command start_sprinting", "> command start_flying");
+    let text = TEXT.replace("> sprint true", "> sprint maybe");
     let error = text.parse::<Recording>().unwrap_err();
-    assert_eq!(error.line, 15);
+    assert_eq!(error.line, 13);
 }

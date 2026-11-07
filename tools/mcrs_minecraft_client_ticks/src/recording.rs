@@ -4,7 +4,6 @@ use std::str::FromStr;
 use crate::Event;
 use crate::FORMAT_LINE;
 use crate::ParseError;
-use crate::ParseErrorKind;
 use crate::fields::Fields;
 
 /// One recorded step of an experiment: the world it starts in and the packets of its client
@@ -26,8 +25,6 @@ pub struct Header {
     pub step: String,
     /// The text the human read before the step.
     pub instruction: String,
-    /// The network id of the player.
-    pub entity_id: i32,
     /// The blocks that the step placed, in order, into an empty world.
     pub fills: Vec<Fill>,
 }
@@ -68,7 +65,6 @@ impl fmt::Display for Recording {
         writeln!(f, "experiment {}", header.experiment)?;
         writeln!(f, "step {}", header.step)?;
         writeln!(f, "instruction {}", header.instruction)?;
-        writeln!(f, "entity {}", header.entity_id)?;
         for fill in &header.fills {
             writeln!(f, "fill {fill}")?;
         }
@@ -83,83 +79,66 @@ impl fmt::Display for Recording {
 impl FromStr for Recording {
     type Err = ParseError;
 
+    /// Reads the header lines in the order that [`fmt::Display`] writes them.
     fn from_str(text: &str) -> Result<Self, ParseError> {
-        let mut lines = text
-            .lines()
-            .enumerate()
-            .map(|(index, line)| (index + 1, line.trim()))
-            .filter(|(_, line)| !line.is_empty() && !line.starts_with('#'));
-        let error = |line: usize| move |kind: ParseErrorKind| ParseError { line, kind };
-        if lines.next().map(|(_, line)| line) != Some(FORMAT_LINE) {
+        let lines: Vec<&str> = text.lines().collect();
+        let field = |index: usize, keyword: &str| {
+            lines
+                .get(index)
+                .and_then(|line| line.strip_prefix(keyword)?.strip_prefix(' '))
+                .map(str::to_owned)
+                .ok_or_else(|| ParseError {
+                    line: index + 1,
+                    message: format!("expected `{keyword}`"),
+                })
+        };
+        if lines.first() != Some(&FORMAT_LINE) {
             return Err(ParseError {
                 line: 1,
-                kind: ParseErrorKind::Format,
+                message: format!("the recording does not start with `{FORMAT_LINE}`"),
             });
         }
-        let mut header = HeaderBuilder::default();
-        let mut last = 1;
-        for (number, line) in lines.by_ref() {
-            last = number;
-            if line == "events" {
-                break;
-            }
-            header.line(line).map_err(error(number))?;
-        }
-        let header = header.finish().map_err(error(last))?;
-        let mut events = Vec::new();
-        for (number, line) in lines {
-            events.push(Event::parse(line).map_err(error(number))?);
-        }
-        Ok(Self { header, events })
-    }
-}
-
-#[derive(Default)]
-struct HeaderBuilder {
-    version: Option<String>,
-    experiment: Option<String>,
-    step: Option<String>,
-    instruction: String,
-    entity_id: Option<i32>,
-    fills: Vec<Fill>,
-}
-
-impl HeaderBuilder {
-    fn line(&mut self, line: &str) -> Result<(), ParseErrorKind> {
-        let mut fields = Fields::new(line);
-        match fields.word("field")? {
-            "version" => self.version = Some(fields.word("version")?.to_owned()),
-            "experiment" => self.experiment = Some(fields.word("experiment")?.to_owned()),
-            "step" => self.step = Some(fields.word("step")?.to_owned()),
-            "instruction" => {
-                self.instruction = fields.rest_text();
-                return Ok(());
-            }
-            "entity" => self.entity_id = Some(fields.value("entity")?),
-            "fill" => self.fills.push(Fill {
-                min: fields.array3("min")?,
-                max: fields.array3("max")?,
-                state: fields.word("state")?.to_owned(),
-            }),
-            other => return Err(ParseErrorKind::UnknownHeader(other.to_owned())),
-        }
-        fields.end()
-    }
-
-    fn finish(self) -> Result<Header, ParseErrorKind> {
-        Ok(Header {
-            version: self
-                .version
-                .ok_or(ParseErrorKind::MissingHeader("version"))?,
-            experiment: self
-                .experiment
-                .ok_or(ParseErrorKind::MissingHeader("experiment"))?,
-            step: self.step.ok_or(ParseErrorKind::MissingHeader("step"))?,
-            instruction: self.instruction,
-            entity_id: self
-                .entity_id
-                .ok_or(ParseErrorKind::MissingHeader("entity"))?,
-            fills: self.fills,
+        let version = field(1, "version")?;
+        let experiment = field(2, "experiment")?;
+        let step = field(3, "step")?;
+        let instruction = field(4, "instruction")?;
+        let error = |line: usize| move |message: String| ParseError { line, message };
+        let start = lines
+            .iter()
+            .position(|line| *line == "events")
+            .ok_or_else(|| error(lines.len())("no `events` line".to_owned()))?;
+        let numbered = |range: std::ops::Range<usize>| {
+            lines.iter().enumerate().take(range.end).skip(range.start)
+        };
+        let fills = numbered(5..start)
+            .map(|(index, text)| parse_fill(text).map_err(error(index + 1)))
+            .collect::<Result<Vec<_>, _>>()?;
+        let events = numbered(start + 1..lines.len())
+            .map(|(index, text)| Event::parse(text).map_err(error(index + 1)))
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(Self {
+            header: Header {
+                version,
+                experiment,
+                step,
+                instruction,
+                fills,
+            },
+            events,
         })
     }
+}
+
+fn parse_fill(line: &str) -> Result<Fill, String> {
+    let mut fields = Fields::new(line);
+    if fields.word("fill")? != "fill" {
+        return Err("expected `fill` or `events`".to_owned());
+    }
+    let fill = Fill {
+        min: fields.array3("min")?,
+        max: fields.array3("max")?,
+        state: fields.word("state")?.to_owned(),
+    };
+    fields.end()?;
+    Ok(fill)
 }
