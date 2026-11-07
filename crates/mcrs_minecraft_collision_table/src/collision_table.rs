@@ -115,18 +115,9 @@ pub fn collision_table(definitions: &BlockDefinitions, tags: &Tags<Block>) -> Co
         if suffocation_tags.suffocates(suffocation_of(name, extended), in_tag, &boxes) {
             flags |= BlockFlags::SUFFOCATES;
         }
-        let context = match name {
-            "minecraft:scaffolding" => {
-                let distance = owner.and_then(|entry| entry.value_of(id, "distance"));
-                let bottom = owner.and_then(|entry| entry.value_of(id, "bottom"));
-                Some(ContextShape::Scaffolding {
-                    bottom: !matches!(distance, Some(PropertyValue::Int(0)))
-                        && matches!(bottom, Some(PropertyValue::Bool(true))),
-                })
-            }
-            "minecraft:powder_snow" => Some(ContextShape::PowderSnow),
-            _ => None,
-        };
+        let context = context_shape(name, |property| {
+            owner.and_then(|entry| entry.value_of(id, property))
+        });
         let bounce = if in_tag(beds) {
             BED_BOUNCE
         } else {
@@ -152,6 +143,20 @@ pub fn collision_table(definitions: &BlockDefinitions, tags: &Tags<Block>) -> Co
         });
     }
     builder.build()
+}
+
+fn context_shape<'a>(
+    name: &str,
+    value_of: impl Fn(&str) -> Option<&'a PropertyValue>,
+) -> Option<ContextShape> {
+    match name {
+        "minecraft:scaffolding" => Some(ContextShape::Scaffolding {
+            bottom: !matches!(value_of("distance"), Some(PropertyValue::Int(0)))
+                && matches!(value_of("bottom"), Some(PropertyValue::Bool(true))),
+        }),
+        "minecraft:powder_snow" => Some(ContextShape::PowderSnow),
+        _ => None,
+    }
 }
 
 /// The block tags of PHY-INP-021.

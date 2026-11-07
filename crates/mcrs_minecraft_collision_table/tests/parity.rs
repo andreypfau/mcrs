@@ -310,32 +310,8 @@ fn compare(body: &Body, expected: &Sample) -> Option<String> {
 
 const SERVER: Side = Side::Server { authority: true };
 
-/// The fixtures whose fall distances come from a version that adds the fall of the tick before
-/// the blocks inside the box.
-const FALL_ORDER_FIXTURES: [&str; 3] = ["e7_", "e8_", "e17_"];
-
-fn has_fall_order(path: &Path) -> bool {
-    path.file_name()
-        .and_then(|name| name.to_str())
-        .is_some_and(|name| {
-            FALL_ORDER_FIXTURES
-                .iter()
-                .any(|prefix| name.starts_with(prefix))
-        })
-}
-
 #[test]
 fn server_entities_follow_the_vanilla_fixtures() {
-    check_fixtures(|path| !has_fall_order(path));
-}
-
-#[test]
-#[ignore = "fixtures predate the target version; re-recorded with the version move"]
-fn server_entities_follow_the_vanilla_fall_fixtures() {
-    check_fixtures(has_fall_order);
-}
-
-fn check_fixtures(select: impl Fn(&Path) -> bool) {
     let tables = Tables::new(common::table().clone());
     let directory = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/physics");
     let mut paths: Vec<_> = std::fs::read_dir(&directory)
@@ -344,7 +320,6 @@ fn check_fixtures(select: impl Fn(&Path) -> bool) {
         .filter(|path| {
             path.extension()
                 .is_some_and(|extension| extension == "json")
-                && select(path)
         })
         .collect();
     paths.sort();
