@@ -2637,8 +2637,11 @@ change of dimension. It has these properties:
 
 - It increases by 1 at the start of each server tick, also in a tick in which the tick rate is
   frozen. A command can create an entity in such a tick.
-- The world save keeps its value, as data of this implementation. A load continues from that
-  value.
+- It never gives a value two times and never goes back, also after a crash. It can jump
+  forward.
+- The world save keeps a value of the clock, as data of this implementation. A load continues
+  from that value. The save can hold a value that is ahead of the clock by one autosave
+  interval or more. Then a crash after the save can not give a value that a tick already used.
 - No command changes it.
 - A save without the value starts the clock at the game time of that save.
 
