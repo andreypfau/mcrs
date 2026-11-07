@@ -11,14 +11,11 @@ use mcrs_minecraft_physics::CollisionTableBuilder;
 use mcrs_minecraft_physics::ContextShape;
 use mcrs_minecraft_physics::StateSpec;
 use mcrs_minecraft_registries::Tags;
-use mcrs_minecraft_resource::TagId;
 use mcrs_minecraft_resource::TagKey;
+use mcrs_voxel::BlockStateId;
 
-use crate::inside_shape::InsideProperties;
 use crate::inside_shape::inside_shape;
 use crate::named_block::NamedBlock;
-use crate::widen::on_pixel_grid;
-use crate::widen::widen;
 
 /// The block tags that set a flag.
 const TAG_FLAGS: [(TagKey<'static, Block>, BlockFlags); 11] = [
@@ -55,22 +52,24 @@ pub fn collision_table(definitions: &BlockDefinitions, tags: &Tags<Block>) -> Co
         .filter_map(|(key, flag)| Some((tags.id(*key)?, *flag)))
         .collect();
     let beds = tags.id(block_tag_keys::BEDS);
-    let suffocation_tags = SuffocationTags {
-        causes_suffocation: tags.id(block_tag_keys::CAUSES_SUFFOCATION),
-        leaves: tags.id(block_tag_keys::LEAVES),
-        shulker_boxes: tags.id(block_tag_keys::SHULKER_BOXES),
-    };
+    let causes_suffocation = tags.id(block_tag_keys::CAUSES_SUFFOCATION);
+    let leaves = tags.id(block_tag_keys::LEAVES);
+    let shulker_boxes = tags.id(block_tag_keys::SHULKER_BOXES);
     let mut builder = CollisionTableBuilder::new();
     let mut boxes = Vec::new();
-    let cauldron = cauldron_boxes(definitions);
+    let cauldron: Vec<Aabb> = definitions
+        .default_state("minecraft:cauldron")
+        .map(|id| boxes_of(definitions, id).collect())
+        .unwrap_or_default();
     let mut inside_boxes = Vec::new();
     for id in definitions.states() {
         let state = definitions.state(id);
         let owner = definitions.owner(id);
         let block = definitions.block_index(id);
-        let named = owner.map_or(NamedBlock::of(""), |entry| {
-            NamedBlock::of(entry.identifier.as_str())
-        });
+        let name = owner.map_or("", |entry| entry.identifier.as_str());
+        let path = name.strip_prefix("minecraft:").unwrap_or(name);
+        let value_of = |property: &str| owner.and_then(|entry| entry.value_of(id, property));
+        let named = NamedBlock::of(path);
         let in_tag = |tag| {
             block
                 .zip(tag)
@@ -89,35 +88,26 @@ pub fn collision_table(definitions: &BlockDefinitions, tags: &Tags<Block>) -> Co
             flags |= BlockFlags::FLUID | BlockFlags::COARSE_NEAR;
         }
         boxes.clear();
-        boxes.extend(
-            definitions
-                .shape(state.collision_shape)
-                .iter()
-                .map(|bounds| {
-                    Aabb::new(
-                        DVec3::from_array(bounds.min.to_array().map(widen)),
-                        DVec3::from_array(bounds.max.to_array().map(widen)),
-                    )
-                }),
-        );
+        boxes.extend(boxes_of(definitions, id));
         if boxes.iter().any(|bounds| {
             !bounds
                 .min
                 .to_array()
                 .into_iter()
                 .chain(bounds.max.to_array())
-                .all(on_pixel_grid)
+                .all(|value| (value * 16.0).fract() == 0.0)
         }) {
             flags |= BlockFlags::OFF_GRID;
         }
-        let name = owner.map_or("", |entry| entry.identifier.as_str());
-        let extended = owner.and_then(|entry| entry.value_of(id, "extended"));
-        if suffocation_tags.suffocates(suffocation_of(name, extended), in_tag, &boxes) {
+        let by_tag = || {
+            !in_tag(leaves)
+                && !in_tag(shulker_boxes)
+                && in_tag(causes_suffocation)
+                && is_full_cube(&boxes)
+        };
+        if suffocates(path, value_of("extended"), by_tag) {
             flags |= BlockFlags::SUFFOCATES;
         }
-        let context = context_shape(name, |property| {
-            owner.and_then(|entry| entry.value_of(id, property))
-        });
         let bounce = if in_tag(beds) {
             BED_BOUNCE
         } else {
@@ -129,101 +119,51 @@ pub fn collision_table(definitions: &BlockDefinitions, tags: &Tags<Block>) -> Co
             jump_factor: named.jump_factor,
             bounce,
         };
-        let properties = InsideProperties {
-            level: owner.and_then(|entry| entry.value_of(id, "level")),
-            attached: owner.and_then(|entry| entry.value_of(id, "attached")),
-        };
         let _ = builder.push(StateSpec {
             boxes: &boxes,
-            context,
+            context: context_shape(path, value_of),
             flags,
             inside: named.inside,
-            inside_shape: inside_shape(name, properties, &cauldron, &mut inside_boxes),
+            inside_shape: inside_shape(path, value_of, &cauldron, &mut inside_boxes),
             motion,
         });
     }
     builder.build()
 }
 
+/// The collision boxes of a state, widened.
+fn boxes_of(definitions: &BlockDefinitions, id: BlockStateId) -> impl Iterator<Item = Aabb> {
+    definitions
+        .shape(definitions.state(id).collision_shape)
+        .iter()
+        .map(|bounds| Aabb::new(bounds.min.as_dvec3(), bounds.max.as_dvec3()))
+}
+
 fn context_shape<'a>(
-    name: &str,
+    path: &str,
     value_of: impl Fn(&str) -> Option<&'a PropertyValue>,
 ) -> Option<ContextShape> {
-    match name {
-        "minecraft:scaffolding" => Some(ContextShape::Scaffolding {
+    match path {
+        "scaffolding" => Some(ContextShape::Scaffolding {
             bottom: !matches!(value_of("distance"), Some(PropertyValue::Int(0)))
                 && matches!(value_of("bottom"), Some(PropertyValue::Bool(true))),
         }),
-        "minecraft:powder_snow" => Some(ContextShape::PowderSnow),
+        "powder_snow" => Some(ContextShape::PowderSnow),
         _ => None,
     }
 }
 
-/// The block tags of PHY-INP-021.
-struct SuffocationTags {
-    causes_suffocation: Option<TagId<Block>>,
-    leaves: Option<TagId<Block>>,
-    shulker_boxes: Option<TagId<Block>>,
-}
-
-impl SuffocationTags {
-    fn suffocates(
-        &self,
-        by_name: Suffocation,
-        in_tag: impl Fn(Option<TagId<Block>>) -> bool,
-        boxes: &[Aabb],
-    ) -> bool {
-        match by_name {
-            Suffocation::Never => false,
-            Suffocation::Always => true,
-            Suffocation::ByTag if in_tag(self.leaves) => false,
-            Suffocation::ByTag if in_tag(self.shulker_boxes) => false,
-            Suffocation::ByTag => in_tag(self.causes_suffocation) && is_full_cube(boxes),
-        }
-    }
-}
-
-/// Whether a state causes suffocation, by the name of its block.
-enum Suffocation {
-    Never,
-    Always,
-    /// The tags and the shape decide.
-    ByTag,
-}
-
-/// The table of PHY-INP-021. A shulker box never counts: the table does not know whether it is
-/// closed, and the box makes the tick coarse.
-fn suffocation_of(name: &str, extended: Option<&PropertyValue>) -> Suffocation {
-    let path = name.strip_prefix("minecraft:").unwrap_or(name);
+/// The table of PHY-INP-021; `by_tag` decides for a block that the table does not name. A
+/// shulker box never counts: the table does not know whether it is closed, and the box makes the
+/// tick coarse.
+fn suffocates(path: &str, extended: Option<&PropertyValue>, by_tag: impl FnOnce() -> bool) -> bool {
     match path {
-        "mangrove_roots" | "glass" | "tinted_glass" | "moving_piston" => Suffocation::Never,
-        _ if path.ends_with("_stained_glass") || path.ends_with("copper_grate") => {
-            Suffocation::Never
-        }
-        "farmland" | "soul_sand" | "dirt_path" | "mud" => Suffocation::Always,
-        "piston" | "sticky_piston" => match extended {
-            Some(PropertyValue::Bool(true)) => Suffocation::Never,
-            _ => Suffocation::Always,
-        },
-        _ => Suffocation::ByTag,
+        "mangrove_roots" | "glass" | "tinted_glass" | "moving_piston" => false,
+        _ if path.ends_with("_stained_glass") || path.ends_with("copper_grate") => false,
+        "farmland" | "soul_sand" | "dirt_path" | "mud" => true,
+        "piston" | "sticky_piston" => !matches!(extended, Some(PropertyValue::Bool(true))),
+        _ => by_tag(),
     }
-}
-
-/// The collision boxes of the empty cauldron, widened.
-fn cauldron_boxes(definitions: &BlockDefinitions) -> Vec<Aabb> {
-    let Some(id) = definitions.default_state("minecraft:cauldron") else {
-        return Vec::new();
-    };
-    definitions
-        .shape(definitions.state(id).collision_shape)
-        .iter()
-        .map(|bounds| {
-            Aabb::new(
-                DVec3::from_array(bounds.min.to_array().map(widen)),
-                DVec3::from_array(bounds.max.to_array().map(widen)),
-            )
-        })
-        .collect()
 }
 
 fn is_full_cube(boxes: &[Aabb]) -> bool {

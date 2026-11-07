@@ -5,8 +5,5 @@
 mod collision_table;
 mod inside_shape;
 mod named_block;
-mod widen;
 
 pub use collision_table::collision_table;
-pub use widen::on_pixel_grid;
-pub use widen::widen;

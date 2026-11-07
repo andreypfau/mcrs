@@ -3,26 +3,18 @@ use mcrs_minecraft_block::definition::schema::PropertyValue;
 use mcrs_minecraft_physics::Aabb;
 use mcrs_minecraft_physics::InsideBoxes;
 
-/// The properties of a state that select its inside shape.
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub(crate) struct InsideProperties<'a> {
-    pub(crate) level: Option<&'a PropertyValue>,
-    pub(crate) attached: Option<&'a PropertyValue>,
-}
-
-/// The inside shape of PHY-RCH-008 for a block by its name. `cauldron` holds the collision boxes
+/// The inside shape of PHY-RCH-008 for a block by its name without the namespace. `cauldron` holds the collision boxes
 /// of the empty cauldron; `out` receives the boxes of a shape that is not the full cube.
-pub(crate) fn inside_shape<'a>(
-    name: &str,
-    properties: InsideProperties<'_>,
+pub(crate) fn inside_shape<'a, 'p>(
+    path: &str,
+    value_of: impl Fn(&str) -> Option<&'p PropertyValue>,
     cauldron: &[Aabb],
     out: &'a mut Vec<Aabb>,
 ) -> InsideBoxes<'a> {
     out.clear();
-    let path = name.strip_prefix("minecraft:").unwrap_or(name);
     match path {
         "water_cauldron" | "powder_snow_cauldron" => {
-            let level = match properties.level {
+            let level = match value_of("level") {
                 Some(PropertyValue::Int(level)) => f64::from(*level),
                 _ => 0.0,
             };
@@ -34,7 +26,7 @@ pub(crate) fn inside_shape<'a>(
             out.push(pixels([2.0, 4.0, 2.0], [14.0, 15.0, 14.0]));
         }
         "end_portal" => out.push(pixels([0.0, 6.0, 0.0], [16.0, 12.0, 16.0])),
-        "tripwire" => match properties.attached {
+        "tripwire" => match value_of("attached") {
             Some(PropertyValue::Bool(true)) => {
                 out.push(pixels([0.0, 1.0, 0.0], [16.0, 2.5, 16.0]));
             }

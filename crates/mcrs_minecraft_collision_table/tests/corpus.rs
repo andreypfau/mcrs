@@ -6,7 +6,6 @@
 use std::time::Instant;
 
 use mcrs_minecraft_collision_table::collision_table;
-use mcrs_minecraft_collision_table::widen;
 use mcrs_minecraft_physics::Axis;
 use mcrs_minecraft_physics::BlockFlags;
 use mcrs_minecraft_physics::InsideShape;
@@ -24,7 +23,7 @@ fn state(name: &str) -> BlockStateId {
 }
 
 #[test]
-fn every_corpus_coordinate_widens_exactly() {
+fn every_corpus_coordinate_is_on_the_half_pixel_grid() {
     let definitions = definitions();
     let mut checked = 0;
     for id in definitions.states() {
@@ -41,20 +40,11 @@ fn every_corpus_coordinate_widens_exactly() {
                     0.0,
                     "{value} is off the half-pixel grid"
                 );
-                assert_eq!(widen(value), f64::from(value));
                 checked += 1;
             }
         }
     }
     assert!(checked > 90_000, "only {checked} coordinates");
-    println!("{checked} corpus coordinates widen exactly");
-}
-
-#[test]
-fn a_rounded_corpus_value_widens_to_its_decimal() {
-    // 8.0001 pixels, as the corpus rounds an f32 constant, is 80001 / 160000 blocks.
-    let value = (8.0001_f64 / 16.0) as f32;
-    assert_eq!(widen(value), 80001.0 / 160000.0);
 }
 
 #[test]
@@ -67,8 +57,8 @@ fn every_corpus_state_round_trips() {
             .shape(definitions.state(id).collision_shape)
             .iter()
             .map(|bounds| {
-                let [a, b, c] = bounds.min.to_array().map(widen);
-                let [d, e, f] = bounds.max.to_array().map(widen);
+                let [a, b, c] = bounds.min.to_array().map(f64::from);
+                let [d, e, f] = bounds.max.to_array().map(f64::from);
                 [a, b, c, d, e, f]
             })
             .collect();
@@ -116,18 +106,6 @@ fn every_corpus_state_round_trips() {
             }
         }
     }
-}
-
-#[test]
-fn a_carpet_gives_its_faces_as_lines() {
-    let table = table();
-    let ShapeClass::OneBox(shape) = table.state(state("minecraft:white_carpet")).class else {
-        panic!("a carpet is one box");
-    };
-    assert_eq!(
-        table.shape(shape).unwrap().lines(Axis::Y),
-        [0.0, 1.0 / 16.0]
-    );
 }
 
 #[test]

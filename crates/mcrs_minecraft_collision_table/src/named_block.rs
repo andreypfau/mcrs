@@ -13,7 +13,8 @@ pub(crate) struct NamedBlock {
 }
 
 impl NamedBlock {
-    pub(crate) fn of(name: &str) -> Self {
+    /// The values of a block by its name without the namespace.
+    pub(crate) fn of(path: &str) -> Self {
         let mut named = Self {
             flags: BlockFlags::empty(),
             inside: InsideEffect::None,
@@ -21,7 +22,6 @@ impl NamedBlock {
             jump_factor: BlockMotion::DEFAULT.jump_factor,
             bounce: BlockMotion::DEFAULT.bounce,
         };
-        let path = name.strip_prefix("minecraft:").unwrap_or(name);
         match path {
             "slime_block" => {
                 named.bounce = 1.0;
