@@ -30,7 +30,6 @@ use mcrs_minecraft_physics::tick_player;
 use mcrs_voxel::BlockPos;
 
 #[test]
-#[ignore = "no client ticks are recorded yet; tools/mcrs_minecraft_client_recorder records E9 to E14 and E21 to E23"]
 fn own_player_follows_the_recorded_client_ticks() {
     let directory = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/player");
     let mut paths: Vec<_> = fs::read_dir(&directory)
@@ -140,6 +139,8 @@ fn replay(name: &str, recording: &Recording) -> Result<(), String> {
                     world.set(BlockPos::new(x, y, z), test_state(&blocks, &change.state)?);
                 }
                 Event::ChunkForgotten([x, z]) => world.unload_chunk(*x, *z),
+                Event::UseItem => state.item_use.using = true,
+                Event::ReleaseUseItem => state.item_use.using = false,
                 Event::Input(keys) => {
                     input.keys.forward = keys.forward;
                     input.keys.back = keys.backward;
