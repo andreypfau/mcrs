@@ -98,7 +98,7 @@
       0.0
      ],
      "on_ground": false,
-     "fall_distance": 0.07840000092983246
+     "fall_distance": 0.07840000152587834
     },
     {
      "pos": [
@@ -112,7 +112,7 @@
       0.0
      ],
      "on_ground": false,
-     "fall_distance": 0.23363199830055237
+     "fall_distance": 0.2336320060424839
     },
     {
      "pos": [
@@ -126,7 +126,7 @@
       0.0
      ],
      "on_ground": false,
-     "fall_distance": 0.46415936946868896
+     "fall_distance": 0.4641593749554431
     },
     {
      "pos": [
@@ -140,7 +140,7 @@
       0.0
      ],
      "on_ground": false,
-     "fall_distance": 0.7684761881828308
+     "fall_distance": 0.7684762024129839
     },
     {
      "pos": [
@@ -404,7 +404,7 @@
       0.0
      ],
      "on_ground": false,
-     "fall_distance": 3.0784000009298325
+     "fall_distance": 3.0784000015258783
     },
     {
      "pos": [
@@ -418,7 +418,7 @@
       0.0
      ],
      "on_ground": false,
-     "fall_distance": 3.2336319983005524
+     "fall_distance": 3.233632006042484
     },
     {
      "pos": [
@@ -432,7 +432,7 @@
       0.0
      ],
      "on_ground": false,
-     "fall_distance": 3.464159369468689
+     "fall_distance": 3.464159374955443
     },
     {
      "pos": [
@@ -446,7 +446,7 @@
       0.0
      ],
      "on_ground": false,
-     "fall_distance": 3.768476188182831
+     "fall_distance": 3.768476202412984
     },
     {
      "pos": [
@@ -661,5 +661,5 @@
    ]
   }
  ],
- "version": "26.4-snapshot-4"
+ "version": "26.4-snapshot-7"
 }
