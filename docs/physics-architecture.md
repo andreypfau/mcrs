@@ -594,7 +594,9 @@ PHY-ORD-008/013 (a state with a coordinate off the 1/16 grid; potent sulfur, whi
 up).
 
 - The one-box fast path tests the box as a box list per axis, but it still gives the grid lines of
-  the shape to the step-up (PHY-SHP-005, PHY-STP-004): a carpet has 17 lines on `y`.
+  the shape to the step-up (PHY-SHP-005, PHY-STP-004): a carpet has the two lines 0 and `1/16` on
+  `y`, and 0 and 1 on `x` and `z`. A box off the `1/8` grid on one axis keeps only its faces on all
+  three axes.
 - The exact scan visits positions with `x` fastest, then `y`, then `z` (PHY-SHP-007).
 - The shape context is built only when a context-dependent state is in the zone; the world border
   is tested only when the zone is near it.
@@ -935,6 +937,7 @@ pub struct PlayerState {
     pub sprint_timer: u8,
     pub jump_timer: u8,
     pub shift0: bool,
+    pub jump0: bool,                        // PHY-INP-018: the press of the jump key
     pub forward0: f32,
     pub sprint0: bool,
     pub flight0: bool,
@@ -950,8 +953,10 @@ pub struct PlayerState {
 
 pub struct PlayerRotation { pub yaw: f32, pub pitch: f32 }   // raw, never wrapped (PHY-NUM-005)
 
-/// `input` holds the keys, the rotation of the tick, the push to use, and the facts that S does
-/// not hold (spectator, passenger, sleep, food, the sprint window; see §15).
+/// `input` holds the keys `K` (with the auto-jump flag), the rotation `R` and the facts `F` of
+/// PHY-ORD-007 (spectator, passenger and a vehicle that takes a jump, sleep, food, the sprint
+/// window). `input.push` (PHY-PSH-008) adds to the velocity before step 1 of PHY-ORD-001. The
+/// old position and rotation stay with the caller (PHY-ORD-007, PHY-SRV-010 step 7).
 pub fn tick_player<W: CollisionWorld, B: BodyView>(
     view: View<'_, W, B>, side: Side, start: &PlayerState, input: &PlayerInput,
     out: &mut PlayerState, actions: &mut Vec<BlockAction>, scratch: &mut Scratch,
@@ -1049,7 +1054,8 @@ short.
 ### 10.1 Kernel tests without Bevy
 
 - PHY-GRV-007 factor `0.546000063419342`; PHY-SKIP-003 rest values; PHY-SHP-005 slab lines; a carpet
-  gives 17 lines on `y` through the one-box fast path; PHY-SHP-007 scan order.
+  gives the lines 0 and `1/16` on `y` through the one-box fast path; a box from `x = 0.25` to
+  `0.75` and `y = 0` to `1/16` gives only 0.25 and 0.75 on `x`; PHY-SHP-007 scan order.
 - PHY-NUM-005: sine table entries 0, 16384, 32768, 49152; raw yaw values above 360 and below −360.
 - PHY-PSH-004/005 pairs, bit for bit; PHY-CMP-012 crowds equal for any row order and task split.
 - PHY-SHP-012: tagged sources; `feet` of the old position gives the scaffolding shape from before the
@@ -1298,7 +1304,7 @@ working. Steps in one track run in sequence; tracks marked ∥ run in parallel w
 |------|-------|-------|-------|-------|------|
 | K0 | this note | §9 amended: `PlayerState`, raw yaw, sine table, `Side`, the three functions, the boundaries of B0 | PHY-ORD-007, PHY-NUM-005/007, PHY-SHP-012, PHY-SRV-008/010 | review | done in this revision |
 | K1 | `mcrs_minecraft_physics` | numbers (f64 with the f32 list), sine table, f64 boxes, shapes with grid lines, scan order, the collision algorithm, step-up, the move procedure, flags, bounce, `query_colliders`, `resolve`, `intersects` | PHY-NUM-001..007, PHY-BOX-001..006, PHY-SHP-001..013, PHY-COL-001..005, PHY-STP-001..005, PHY-MOV-001..004, PHY-FLG-001..005, PHY-RST-001..004 | property PHY-INV-001..013 (10^6 cases each); kernel PHY-COL-005, PHY-STP-005, PHY-NUM-005 entries, slab and carpet grid lines, scan order; `HashMap` test world | all tests pass; benches within 1.5× of §12.4 |
-| K2 | `mcrs_minecraft_collision_table` | build `CollisionTable` from the block definitions: f32 → f64 on the pixel grid, shape classes, grid lines, flags, coarse triggers, the motion rows | PHY-SHP-002, PHY-SHP-005, PHY-GRV-017, PHY-ORD-013 | every corpus state round-trips; the 90,186 corpus coordinates widen exactly; carpet 17 lines; default friction 0.6F | table built at startup in < 100 ms |
+| K2 | `mcrs_minecraft_collision_table` | build `CollisionTable` from the block definitions: f32 → f64 on the pixel grid, shape classes, grid lines, flags, coarse triggers, the motion rows | PHY-SHP-002, PHY-SHP-005, PHY-GRV-017, PHY-ORD-013 | every corpus state round-trips; the 90,186 corpus coordinates widen exactly; carpet lines 0 and `1/16` on `y`; default friction 0.6F | table built at startup in < 100 ms |
 | K3 | `mcrs_minecraft_physics` | `tick_entity` for walker, item, primed TNT, falling block, orb; rest; in-air batch | PHY-ORD-002, 004, 005, 009, PHY-GRV-001..020, PHY-INP-003, 020, PHY-SKIP-001..007, PHY-RCH-001..005, PHY-FALL-001..003 | parity E1–E8, E15–E20, E28, E32 from `tools/vanilla-oracle` within 1e-6; property: rest equals no rest; batch equals scalar | parity fixtures pass |
 | K4 | `mcrs_minecraft_physics` | push and crowd count; the cap | PHY-PSH-001..007, PHY-CMP-012, 014, 019 | kernel PSH-004/005 bit for bit; property: any row order and task split give equal velocities | E35 within PHY-DEV-004 |
 | K5 | `mcrs_minecraft_physics` | `PlayerState`, `tick_player` with `Side`, `observed_velocity`, `apply_teleport`, the server part in the order of PHY-CMP-023 | PHY-ORD-001, 007, PHY-INP-001..019, PHY-SRV-003, 004, 008, 010, PHY-GRV-009, PHY-CMP-023, PHY-BOX-006 | kernel tests per rule; parity E9–E14, E21–E23 once T1 records them | bit-exact on the recorded ticks |
@@ -1394,87 +1400,65 @@ E1..E8, T1 (any time)   D1 ─ D2 ─ D3 ─ D4 ─ D5 ─ D6 ─ D7
 3. The muxer cost of 250k movers per tick, measured.
 4. A single long chain bounds the worst case: 1,000 TNT (~30 ms) or a 15 ms redstone machine. The
    opt-in wave mode and speculation are later options.
-5. U4/U6 in PHY: `OFF_GRID` shapes force coarse mode near them.
+5. U4/U6 in PHY: `OFF_GRID` shapes force coarse mode near them. Still open (design). PHY-SHP-005
+   now states that a box off the `1/8` grid on one axis keeps only its faces on all three axes.
 6. Projectiles: the ray move and the hit detection read the grid; their spec will state the reach.
-7. PHY-SHP-005 against §6.7 and §14 (K1, K2): the rule tries `n` from 0 to 3, so a carpet (one
-   pixel high) gives the two `y` lines 0 and `1/16`. §6.7 and the K2 test state 17 lines, which
-   needs `n` up to 4. The kernel follows the rule; one constant (`MAX_GRID_BITS`) changes it.
-   Which value does the reference use?
-8. PHY-SHP-005: "two values nearer than `1.0E-7` are one grid line" does not say which value
-   stays. The kernel keeps the lowest.
-9. PHY-FLG-004: the rule does not say what happens to "the last search found no block" while the
-   on-ground flag is false. The kernel keeps the flag as it is.
-10. PHY-MOV-002 against PHY-BLK-002: MOV-002 skips only the product for a `piston` move and still
-    clears the multiplier and the velocity; BLK-002 says a piston move "does not apply the stuck
-    multiplier". The kernel follows MOV-002.
-11. PHY-COL-002 step 1: the rule says a zero component resolves to zero, but not whether a `-0.0`
-    request gives `+0.0` or `-0.0`. The kernel gives `+0.0`. The sign shows only in a position of
-    exactly `-0.0`.
-12. PHY-FLG-003: the rule does not state how the client computes the angle between the two
-    vectors. The kernel compares `acos(a·b / sqrt(|a|²|b|²))` in f64 with the widened `0.13962634F`.
-13. PHY-SHP-010: "the distance to the nearest border line in `x` and `z`" and "inside the border
-    grown by `m`" do not state the sign of the distance outside the border, or whether the test is
-    strict. The kernel uses the signed distance (negative outside) and strict comparisons.
-
-14. PHY-RCH-002 lists the blocks with an inside action only as examples. The table marks those
-    examples and the tags `pressure_plates`, `buttons`, `crops`, `cauldrons` and `fire`. A rest skip
-    (PHY-SKIP-004) needs the full set. Which blocks have an inside action?
-15. PHY-ORD-005 gives the walker category the `step_height` attribute with the default 0.6. The
-    vanilla server (E4, E5 fixtures) shows an armor stand with the default attributes that stops
-    at a carpet and a bottom slab, and steps with an explicit attribute of 0.6 or 1.0. The kernel
-    gives the armor stand a default of 0 as type data. Is the default of the attribute per type?
-16. PHY-ORD-001 step 14 puts the fall distance after the blocks inside the box. The E7, E8 and E17
-    fixtures show this order instead: the reset of `fall_damage_resetting` for the centre path, then
-    the fall of the tick (PHY-FALL-001), then the stuck multipliers with their reset. A falling
-    armor stand ends the tick in which it enters a cobweb at 0, and keeps 0.15 while it descends a
-    ladder. The kernel follows the fixtures.
-17. PHY-FALL-002: an item that falls through a sweet berry bush, which is in the tag
-    `fall_damage_resetting`, keeps its fall distance (E7). The kernel applies the reset of the
-    centre path to a living entity only. Which entities does the rule cover?
-18. PHY-ORD-005, item: in the three ticks of four that skip `M` and `D`, the rest values of
-    PHY-SKIP-003 need the bounce to be skipped too. The kernel skips it; the E28 and E32 fixtures
-    agree.
-19. PHY-GRV-002: the rule does not say which `v.y` selects the effective gravity of
-    `slow_falling`. The kernel reads `v.y` at the start of the travel step, after the jump.
-20. PHY-INP-002 step 2: "normalize in f64" does not say whether the components are divided by the
-    length or multiplied by its reciprocal. The kernel divides.
-21. PHY-CMP-016: the console of the server does not print the network id, so the parity test fits
-    the phase offset of each item (0 to 3) to the recorded rest cycle.
-22. PHY-ORD-007: S holds no jump key of the previous tick, which PHY-INP-018 needs for "the jump
-    key changes to down", and no spectator, passenger, sleep or food state, which PHY-INP-008,
-    PHY-INP-010 and PHY-BOX-006 read. The kernel takes them outside `PlayerState`: `Keys`
-    carries the press of the jump key, and `PlayerFacts` the rest.
-23. PHY-INP-015: "when the flight state starts on the ground, the player jumps" does not say
-    whether this is the jump of PHY-INP-005 or the impulse of PHY-INP-013. The kernel does not
-    add it yet.
-24. PHY-INP-011 needs the blocks that cause suffocation. No rule and no corpus component gives
-    that property, so the kernel does not push the player out of blocks yet.
-25. PHY-INP-001 step 2: "normalize in f32" does not state the operation. The kernel multiplies by
-    `f32(1 / length)`, as step 6 does.
-26. PHY-SRV-008: the observed displacement comes from two positions, and `new - old` can differ
-    from the resolved move of the client by one unit in the last place. Then the candidate
-    differs by the same amount. The exact policy of PHY-CMP-005 needs a statement for this case.
-27. PHY-SRV-010 step 7 changes the old position and rotation, which `PlayerState` does not hold.
-    The kernel leaves them to the caller.
-28. PHY-PSH-008: the own player "uses the push in its next travel step", but the rule does not
-    say where in the step. The kernel adds `PlayerInput::push` before the input acceleration.
-
-29. TP-CONFIRM-ACC-003 against MVC-LAT-008: the reference sets the position of the player to the
-    position of a confirming accept, also 5 blocks away from the destination. MVC-LAT-008 sends a
-    correction when the accept is `offset_threshold` or more away. The engine follows MVC-LAT-008:
-    a confirmed accept keeps the destination. Which rule wins for a server without the movement
-    checks?
-30. TP-CONFIRM-RES-002 and TP-CONFIRM-RES-003: the engine resends after 20 ticks (U1 allows 20 or
-    21) and only for a move with a position, a rotation or neither; all move packets count (U5).
-31. SIM-BEV-004 selects the players by distance only. The muxer sends a block event to the
-    players that hold the column and stand within 64 blocks of the corner, so a player in range
-    that does not hold the column gets no event. Its client has no block there to animate. Is this
-    an allowed deviation, or must the muxer send it by distance alone?
-32. SIM-SET-005: a column that does not broadcast changes keeps its marks. The engine has no state
-    for "loaded but not broadcasting": it drops the marks of a column that the muxer does not
-    subscribe to, as for a section that no player sees. The complete column that the client gets
-    later carries the change.
-33. §8.5 lists motion among the changes that are never shed. The entity records of the muxer are
-    still shed past the depth of a queue, as before. If the records carry a `set_entity_motion` of
-    the viewer itself, they must not be shed, and they must count as a predicted change for the
-    probes. Which entity packets of the muxer apply to the viewer?
+   Still open (no spec yet).
+7. Resolved: PHY-SHP-005, PHY-SHP-006. The reference tries `n` from 0 to 3, so a carpet has the
+   lines 0 and `1/16` on `y`. When one axis has no `n`, all three axes keep only the faces of the
+   box; §6.7, §10.1 and K2 now say so.
+8. Resolved: PHY-SHP-005. The union sorts the values and keeps the lowest of a group; a value `w`
+   joins the last kept value `k` when `w - 1.0E-7 ≤ k`.
+9. Resolved: PHY-FLG-004. With the on-ground flag false, the flag changes to false; it keeps its
+   value only when PHY-FLG-002 does not change the vertical flags.
+10. Resolved: PHY-BLK-002. MOV-002 is right: a `piston` move skips only the product and still
+    clears the multiplier and the velocity, unless the limit stops the move.
+11. Resolved: PHY-COL-002. A zero component gives `+0.0`, also for `-0.0`; the empty-collider and
+    `|d|² = 0` cases return `d` with its signs.
+12. Resolved: PHY-FLG-003. The kernel choice is the reference: `acos(a·b / sqrt(qa × qb))` in f64,
+    strict `<` against the widened `0.13962634F`; NaN gives false.
+13. Resolved: PHY-SHP-010. The distance is signed (negative outside), the `2m` test is strict, and
+    the grown border is half-open: `x ≥ xmin - m` and `x < xmax + m`, the same on `z`.
+14. Resolved: PHY-RCH-007, PHY-RCH-002. A new table lists every block with an inside action, with
+    the entities on which it acts; the tag `fall_damage_resetting` also counts. `crops` and
+    `cauldrons` are wrong as tags: the stems and the empty `cauldron` have no inside action.
+15. Resolved: PHY-STP-001, PHY-ORD-005. The base of `step_height` is type data; 0.6 is only the
+    default. `armor_stand` has 0, so the E4 and E5 fixtures are right.
+16. Resolved: PHY-ORD-001 step 14 stays as written; PHY-FALL-004 is new, and U1 of the spec notes
+    the fixtures. The fixtures are of `26.4-snapshot-4`, which adds the fall in the move. Snapshot 7
+    adds it after the blocks inside the box, so an armor stand ends the cobweb tick with that
+    tick's fall. The E7, E8 and E17 fixtures must be recorded again.
+17. Resolved: PHY-FALL-004, PHY-GRV-014. The reset for the tag applies to each entity that blocks
+    affect, an item too. Snapshot 4 reset it only in a move of 1 block or more; that explains E7.
+18. Resolved: PHY-ORD-005, item. A rest tick skips `M`, `D` and the bounce, applies `G`, and runs
+    `E` with the path of the last tick that moved.
+19. Resolved: PHY-GRV-002, PHY-SRV-008 step 4. `v.y` is the velocity after the move procedure,
+    before the climb rule sets 0.2, not the value at the start of the travel step.
+20. Resolved: PHY-INP-002. The components are divided by `sqrt(|i|²)`.
+21. Resolved: PHY-CMP-016. A test can fit the offset from four rest ticks in a row.
+22. Resolved: PHY-ORD-007, PHY-INP-018. `S` gains `jump0`; `K` gains the auto-jump flag; a new
+    argument `F` holds the spectator, passenger, sleep, food and sprint window facts. §9 adds `jump0`.
+23. Resolved: PHY-INP-015. It is the jump of PHY-INP-005, immediately in step 6, without the jump delay;
+    the impulse of PHY-INP-013 follows in step 7.
+24. Resolved: PHY-INP-021. The tag `causes_suffocation` and a full-cube collision shape, with a
+    table of blocks that never or always cause it, shulker boxes and pistons.
+25. Resolved: PHY-INP-001. The components are divided by `f32(sqrt(l² + f²))`. For the key values
+    0 and ±1, the product with `f32(1 / length)` gives the same bits.
+26. Resolved: PHY-CMP-005. SRV-008 is exact for its input; the checker compares positions with
+    `offset_threshold` and never compares candidate velocities bit for bit.
+27. Resolved: PHY-ORD-007, PHY-SRV-010 step 7. Step 1 of PHY-ORD-001 overwrites the old position
+    and rotation before any rule reads them, so they stay outside `PlayerState`.
+28. Resolved: PHY-PSH-008, PHY-ORD-007. The push is part of `v` before step 1, so the zero cutoff,
+    the jump and the input see it.
+29. Resolved: TP-CONFIRM-ACC-009, MVC D8. The reference snaps to the destination and then handles
+    the accept as a move with the vanilla checks. A server without the checks uses that; with the
+    checks, MVC-LAT-008 wins.
+30. Resolved: TP-CONFIRM-RES-006, TP-CONFIRM-ID-003. A resend needs more than 20 ticks (21), and
+    every `move_player_*` packet and `move_vehicle` count.
+31. Resolved: SIM-BEV-004, SIM DEV-06. Sending only to players that hold the column is an allowed
+    deviation; a client without the column ignores the event.
+32. Resolved: SIM-SET-005, SIM DEV-07. Dropping the marks is allowed when the complete column goes
+    to the client later.
+33. Resolved: MVC-PKT-031. Of the entity packets, only `set_entity_motion`, `set_entity_data` and
+    `update_attributes` go to the viewer about itself; they must never be shed and count as
+    predicted changes.

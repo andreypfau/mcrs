@@ -411,32 +411,46 @@ records this as U5.
 
 ### 3.2 Grid lines
 
-**PHY-SHP-005** (`source_suggested`, client agreement, confidence: low). The collision algorithm
-and the step-up use the grid lines of a shape, not only the faces of its boxes. On one axis, the
-grid lines of one box from `a` to `b` are:
+**PHY-SHP-005** (`source_suggested`, client agreement, confidence: medium). The collision
+algorithm and the step-up use the grid lines of a shape, not only the faces of its boxes. A box
+goes from `a` to `b` on each axis. Its grid lines come from these steps:
 
-1. Find the smallest `n` from 0 to 3 for which `a × 2^n` and `b × 2^n` both are within
-   `1.0E-7 × 2^n` of an integer.
-2. If `a < -1.0E-7`, `b > 1.0000001`, or no such `n` exists, the grid lines are `a` and `b`.
-3. Else, the grid lines are the multiples of `1/2^n` from 0 to 1.
+1. On each axis, find the smallest `n` from 0 to 3 that puts `a × 2^n` and `b × 2^n` near an
+   integer. Near means less than `1.0E-7 × 2^n` from it.
+2. On an axis with `a < -1.0E-7` or `b > 1.0000001`, no `n` exists.
+3. If no `n` exists on one axis, the grid lines on each axis are only `a` and `b`.
+4. Else, the grid lines on each axis are the multiples of `1/2^n` of that axis, from 0 to 1.
+
+The largest `n` is 3. Thus a face that is not on the grid of `1/8` gives step 3. For example, a
+carpet goes from `y = 0` to `1/16`. Its grid lines are 0 and `1/16` on `y`, and 0 and 1 on `x`
+and `z`. Another box goes from `x = 0.25` to `0.75` and from `y = 0` to `1/16`. Its grid lines on
+`x` are only 0.25 and 0.75.
+
+Step 3 also removes the grid lines of the axes that have an `n`. The client does this. This rule
+keeps it for client agreement.
 
 The game builds a shape from boxes. The grid lines of a shape on an axis are the union of the grid
-lines of these boxes. Two values nearer than `1.0E-7` are one grid line. A cell is solid when it is
-inside a box of the shape. The boxes of the corpus do not always give the boxes from which the game
-built the shape. Section 14 records this as U6.
+lines of these boxes. Two values that are `1.0E-7` or less apart are one grid line. The union
+keeps the lowest value of such a group. A cell is solid when it is inside a box of the shape.
+
+The boxes of the corpus do not always give the boxes from which the game built the shape. Section
+14 records this as U6.
+
+To make the union, sort the values from the lowest to the highest. Keep the first value. Compare
+each next value `w` with the last value `k` that the union kept. If `w - 1.0E-7 ≤ k`, `w` is the
+grid line `k`. Else, keep `w`.
 
 For example, the bottom slab from `y = 0` to `0.5` has the grid lines 0, 0.5 and 1 on `y`. The cell
 from 0.5 to 1 is open.
 
 **PHY-SHP-006** (`source_suggested`, client agreement, confidence: medium). The shape of an
 entity box gets its grid lines from PHY-SHP-005, as one box, with the world coordinates of the
-box. On most axes, this gives two grid lines: the minimum and the maximum of the box. Step 3 of
-PHY-SHP-005 can apply only to a box from `-1.0E-7` to `1.0000001` in world coordinates. Its
-faces must also be on the grid of `1/2^n`. Then the grid lines are the multiples of `1/2^n` from 0
-to 1.
+box. Usually, this gives two grid lines on each axis: the minimum and the maximum of the box. Step
+4 of PHY-SHP-005 applies only to a box from `-1.0E-7` to `1.0000001` on all three axes. Its faces must also be on the grid of `1/2^n` on each axis. Then the grid lines
+are the multiples of `1/2^n` from 0 to 1.
 
-A box with an edge shorter than `1.0E-7` gives the empty shape. A block box for which step 2 of
-PHY-SHP-005 applies has the two grid lines `a` and `b`.
+A box with an edge shorter than `1.0E-7` gives the empty shape. A block box for which step 3 of
+PHY-SHP-005 applies has the two grid lines `a` and `b` on each axis.
 
 ### 3.3 Colliders of one move
 
@@ -490,8 +504,13 @@ collider for an entity `E` and a query box `Q` when both conditions are true:
   `2m`;
 - the position of `E` is inside the border grown by `m` on each side.
 
-Here `m` is the largest of `|Q.xsize|`, `|Q.zsize|` and 1. The shape of the border is all space
-outside a region, at all heights. On `x`, the region goes from `floor(xmin)` to `ceil(xmax)` of the
+Here `m` is the largest of `|Q.xsize|`, `|Q.zsize|` and 1. The distance is the smallest of
+`x - xmin`, `xmax - x`, `z - zmin` and `zmax - z`, with the values of the border. It is less than
+zero outside the border. The position is inside the grown border when `x ≥ xmin - m`,
+`x < xmax + m`, `z ≥ zmin - m` and `z < zmax + m`. Thus the minimum side includes its line, and
+the maximum side does not.
+
+The shape of the border is all space outside a region, at all heights. On `x`, the region goes from `floor(xmin)` to `ceil(xmax)` of the
 border. On `z`, it goes from `floor(zmin)` to `ceil(zmax)` of the border. The border values are
 those of the current tick.
 
@@ -591,11 +610,15 @@ one axis at a time. The order of the axes is:
 
 For each axis in this order:
 
-1. If the component of `d` on the axis is exactly zero, the resolved component is zero.
+1. If the component of `d` on the axis is exactly zero, the resolved component is `+0.0`. This
+   is also true for a component of `-0.0`.
 2. Else, move the box by the resolved components of the earlier axes. Clip the component against
    each collider (PHY-COL-003 and PHY-COL-004). The result is the resolved component.
 
-If the list of colliders is empty, the resolved displacement is `d`.
+If the list of colliders is empty, the resolved displacement is `d`. This case and the case
+`|d|² = 0` of PHY-COL-001 keep each component of `d` with its sign. Thus a component of `-0.0`
+stays `-0.0` only in these two cases. The sign changes the position only when the position is
+exactly `-0.0`. The client does this. This rule keeps it for client agreement.
 
 **PHY-COL-003** (`source_suggested`, client agreement, confidence: medium). This rule clips a
 distance `t` on an axis `A` against one shape `S`, for the box `E`. Let `B` and `C` be the other
@@ -629,9 +652,21 @@ these results. They do not change to zero, except by the early exit of PHY-COL-0
 ### 4.3 Step-up
 
 **PHY-STP-001** (`source_suggested`, client agreement, confidence: medium). The step height of a
-living entity is `f32(step_height)`. The default of the attribute is 0.6. A living entity that a
-player controls has a step height of at least 1.0. Each other entity has a step height of 0, as
-data of its category (section 9).
+living entity is `f32(step_height)`. A living entity that a player controls has a step height of
+at least 1.0. Each other entity has a step height of 0, as data of its category (section 9).
+
+The base value of the attribute is data of the entity type. The default of the attribute is 0.6,
+for a type that does not give a base value. These types give a base value:
+
+| Type | Base value of `step_height` |
+|------|-----------------------------|
+| `armor_stand` | 0 |
+| `turtle`, `frog`, `axolotl`, `iron_golem`, `copper_golem`, `enderman`, `ravager`, `drowned` | 1.0 |
+| `horse`, `donkey`, `mule`, `llama`, `trader_llama`, `skeleton_horse`, `zombie_horse` | 1.0 |
+| `creaking` | 1.0625 |
+| `camel`, `camel_husk` | 1.5 |
+
+A `sulfur_cube` that carries a block has a step height of 0.
 
 **PHY-STP-002** (`source_suggested`, client agreement, confidence: medium). Let `r` be the resolved
 displacement of PHY-COL-002, and let `h` be the step height. Let `G` be true when `r.y` differs
@@ -705,6 +740,16 @@ the client widens the f32 sine and cosine before the f64 products. When the squa
 vector is less than `1.0E-5F`, the flag is false. The client uses this flag only to keep the
 sprint state (PHY-INP-009).
 
+The client computes the angle in f64 in these steps. Here `a` is the intended direction and `b`
+is `(r.x, r.z)`.
+
+1. Let `qa = a.x² + a.z²` and `qb = b.x² + b.z²`.
+2. Let `angle = acos((a.x × b.x + a.z × b.z) / sqrt(qa × qb))`.
+3. The flag is true when `angle < 0.13962634F`, with the limit widened.
+
+When the f64 error puts the quotient of step 2 above 1, `acos` gives NaN, and the flag is false.
+The client does this. This rule keeps it for client agreement.
+
 ### 5.2 Supporting block
 
 **PHY-FLG-004** (`source_suggested`, client agreement, confidence: medium). When the on-ground flag
@@ -721,6 +766,11 @@ If the search finds a block, the result is the supporting block. If the search a
 search both found no block, the result is also the supporting block. Else, the entity moves the
 area by `(-r.x, 0, -r.z)` and does the search again. The result of that search is the supporting
 block. When the on-ground flag is false, there is no supporting block.
+
+The flag "the last search found no block" changes in each call of this rule. When the on-ground
+flag is true, the flag is true when the last search of the call found no block. That search is the
+second search when the call made two. When the on-ground flag is false, the flag changes to false.
+The rule is called only when PHY-FLG-002 changes the vertical flags. Else the flag keeps its value.
 
 **PHY-FLG-005** (`source_suggested`, client agreement, confidence: medium). The entity finds three
 positions under it from the supporting block, with an offset `o`:
@@ -792,6 +842,11 @@ living entity, it is the `gravity` attribute (default 0.08).
 **PHY-GRV-002** (`source_suggested`, client agreement, confidence: medium). The effective gravity of
 a living entity with the effect `slow_falling` is `min(gravity, 0.01)` when `v.y ≤ 0`. Else the
 effective gravity is the gravity.
+
+In the travel step (PHY-ORD-004, step 6), `v.y` is the velocity after the move procedure of step
+4. That value includes the changes of the move: the collision (PHY-RST-001 to PHY-RST-003) and the
+stuck multiplier. It is the value before the climb rule of step 5 sets `v.y` to 0.2. The test
+`v.y ≤ 0` is true for `-0.0`.
 
 **PHY-GRV-003** (`source_suggested`, client agreement, confidence: medium). The effect `levitation`
 with the amplifier `a` replaces gravity for a living entity. The vertical velocity after the move
@@ -912,8 +967,9 @@ document are:
 A block that sets a stuck multiplier also sets the fall distance to 0. When two blocks set a
 multiplier in one tick, the last one applies. Section 14 records the order as U7.
 
-An entity ignores the stuck multiplier of a block, and also keeps its fall distance, in these
-cases:
+An entity ignores the stuck multiplier of a block, and the reset of the fall distance that comes
+with it, in these cases. The reset of PHY-FALL-002 for the tag `fall_damage_resetting` still
+applies.
 
 - the block is in the set `stuck_ignore` of the entity type (PHY-ORD-009);
 - the entity is a player with the flight state on. This case applies to each block.
@@ -992,8 +1048,9 @@ input vector of its player from the movement keys in each tick:
 
 1. The forward value is 1 for the forward key, -1 for the back key, and 0 for both or none. The
    left value is 1 for the left key, -1 for the right key, and 0 for both or none.
-2. Normalize the vector (left, forward) in f32. A vector with a length less than `1.0E-4F` becomes
-   zero.
+2. Normalize the vector (left, forward) in f32. The length is `f32(sqrt(l² + f²))`, with the sum
+   in f32. Divide each component by the length. A vector with a length less than `1.0E-4F`
+   becomes zero.
 3. If the vector is not zero, multiply it by `0.98F`.
 4. If the player uses an item and is not a passenger, multiply the vector by the item multiplier.
    The item multiplier is the speed multiplier of the item use, with the default `0.2F`.
@@ -1012,7 +1069,8 @@ Step 6 makes a diagonal input as long as a straight input, up to the length 1.
 `i` with a speed `s` to the velocity:
 
 1. If `|i|² < 1.0E-7`, add nothing.
-2. If `|i|² > 1`, normalize `i` in f64. A vector with a length less than `1.0E-5F` becomes zero.
+2. If `|i|² > 1`, normalize `i` in f64. The length is `sqrt(|i|²)`. Divide each component by
+   the length. A vector with a length less than `1.0E-5F`, widened, becomes zero.
 3. Multiply `i` by `s`, widened.
 4. Let `a` be the yaw angle of PHY-NUM-005. Let `sn = sinT(a)` and `cs = cosT(a)`, widened.
 5. Add `(i.x × cs - i.z × sn, i.y, i.z × cs + i.x × sn)` to the velocity.
@@ -1096,7 +1154,8 @@ crouch state is true when all these conditions are true:
 The player crawls when it has the `swimming` pose and it is not in a fluid in which it can swim.
 
 **PHY-INP-011** (`source_suggested`, client agreement, confidence: low). In step 5 of PHY-ORD-001,
-the client pushes its player out of blocks that cause suffocation. It tests four points in this order.
+the client pushes its player out of blocks that cause suffocation (PHY-INP-021). It tests four
+points in this order.
 The offsets on `x` and `z` are `(-0.35w, +0.35w)`, `(-0.35w, -0.35w)`, `(+0.35w, -0.35w)` and
 `(+0.35w, +0.35w)`, where `w` is the width. For each point:
 
@@ -1157,7 +1216,15 @@ distance of a player with the flight state on changes to 0 in step 8 of PHY-ORD-
 **PHY-INP-015** (`source_suggested`, client agreement, confidence: medium). The client can toggle
 the flight state of a player with the fly permission. It toggles the state when the player presses
 the jump key two times, and the player is not in the swim state. PHY-INP-018 states the interval
-between the two presses. When the flight state starts on the ground, the player jumps.
+between the two presses.
+
+When the flight state starts and the on-ground flag is true, the player jumps immediately, in step
+6 of PHY-ORD-001. This jump is the jump of PHY-INP-005, with the sprint
+boost when the sprint state is on. It does not read the jump delay and does not change it. The
+vertical impulse of PHY-INP-013 then adds in step 7, as in each tick with the flight state on.
+
+A passenger can toggle the flight state only when its vehicle takes the jump of a rider, as a
+horse does.
 
 At the end of the AI step, the flight state stops when the on-ground flag is true, except for a
 spectator. A spectator always has the flight state on.
@@ -1193,7 +1260,8 @@ player changes only in these cases:
 2. In step 6 of PHY-ORD-001, a spectator gets the flight state on.
 3. In step 6, a player with the fly permission can toggle it. The player must not be in the swim
    state. The jump key must change to down at most 6 ticks after the previous change to down. A
-   press from auto-jump does not count.
+   press from auto-jump does not count. The jump key changes to down when the jump key of `K` is
+   down and `jump0` is up (PHY-ORD-007).
 4. In step 15, the flight state stops when the on-ground flag is true, except for a spectator.
 
 The jump timer of case 3 decreases by 1 at the start of step 8 of PHY-ORD-001, when it is more
@@ -1229,6 +1297,28 @@ a living entity that is not a player decays in this way:
 The input is not in the saved data of the entity and the server does not send it. Thus its value
 below the limit of step 4 is not observable.
 
+**PHY-INP-021** (`source_suggested`, client agreement, confidence: medium). A block state causes
+suffocation (PHY-INP-011) in these cases:
+
+1. The block is in this table. The table gives the result.
+2. Else, the state causes suffocation when both conditions are true:
+   - the block has the tag `causes_suffocation`;
+   - the collision shape of the state for no context is the full cube.
+
+| Blocks | Causes suffocation |
+|--------|--------------------|
+| the tag `leaves`, `mangrove_roots`, `glass`, `tinted_glass`, each stained glass block, each copper grate, `moving_piston` | never |
+| `farmland`, `soul_sand`, `dirt_path`, `mud` | always |
+| each shulker box | when its block entity is closed, or when it has no block entity |
+| `piston`, `sticky_piston` | when the property `extended` is false |
+
+In vanilla, the tag `causes_suffocation` contains the tag `blocks_motion`. The copper grates are
+the eight blocks with the name `copper_grate`, with the prefixes of oxidation and wax.
+
+The test of step 3 of PHY-INP-011 uses the collision shape of the state for the player
+(PHY-SHP-003). A block intersects the column when that shape overlaps the shrunk column. The full
+cube overlaps when the column touches the cell with a volume more than zero.
+
 ## 8. Fall distance
 
 **PHY-FALL-001** (`source_suggested`, client agreement, confidence: medium). The side with local
@@ -1251,13 +1341,30 @@ changes to 0 in each of these cases:
 - a living entity has the effect `slow_falling` or `levitation`, at the travel step;
 - a player has the flight state on and is not a passenger, in step 8 of PHY-ORD-001;
 - the centre of the entity passes through a block with the tag `fall_damage_resetting` in this
-  tick;
+  tick (PHY-FALL-004);
 - the entity rides another entity.
 
 **PHY-FALL-003** (`source_suggested`, semantic, confidence: medium). The server keeps the fall
 distance of a player from the moves that the client sends. For each accepted move, it uses the
 displacement and the on-ground bit of the packet in PHY-FALL-001. If the move goes up, the fall
 distance changes to 0.
+
+**PHY-FALL-004** (`source_suggested`, client agreement, confidence: medium). The reset for the
+tag `fall_damage_resetting` applies to each entity that the blocks inside the box affect
+(PHY-GRV-014), not only to a living entity. Thus an `item`, a `falling_block` and a `tnt` also
+get the reset. The tag contains `cobweb`, `sweet_berry_bush` and the tag `climbable`.
+
+The reset occurs in the step "the blocks inside the box" of PHY-ORD-001, step 14. The entity
+examines each block that its box touches along its path (PHY-GRV-014). For such a block with the
+tag, the entity also tests the part of the path in which the box touches the block. The reset
+occurs when the position of the entity on that part touches the inside shape of the block.
+
+A part with a squared length less than `1.0E-7` gives no reset. The client does this. This rule
+keeps it for client agreement.
+
+The fall distance of the tick (PHY-FALL-001) adds
+after the reset. Thus an entity that falls into a cobweb ends that tick with the fall of that tick,
+not with 0.
 
 ## 9. Order of operations and entity categories
 
@@ -1349,8 +1456,8 @@ The column "Order" uses these letters:
 | Category | Examples | Gravity | Order | Horizontal drag | Vertical drag | Step height | Small velocity to zero | Collision |
 |----------|----------|---------|-------|-----------------|---------------|-------------|------------------------|-----------|
 | player | `player` | attribute, 0.08 | PHY-ORD-001 | `f × 0.91F` (PHY-GRV-007) | `0.98F` | attribute, 0.6 | horizontal length | box |
-| living, walker | `zombie`, `armor_stand` | attribute, 0.08 | PHY-ORD-002 | `f × 0.91F` | `0.98F` | attribute, 0.6 | per axis | box |
-| living, omnidirectional | `bee`, `parrot` | attribute, 0.08 | PHY-ORD-002 | `f × 0.91F` | `0.91F` | attribute, 0.6 | per axis | box |
+| living, walker | `zombie`, `armor_stand` | attribute, 0.08 | PHY-ORD-002 | `f × 0.91F` | `0.98F` | attribute, base of the type (PHY-STP-001) | per axis | box |
+| living, omnidirectional | `bee`, `parrot` | attribute, 0.08 | PHY-ORD-002 | `f × 0.91F` | `0.91F` | attribute, base of the type (PHY-STP-001) | per axis | box |
 | living, flier | `ghast` (speed `0.02F`), `phantom` (`0.2F`), `allay` (its speed), `happy_ghast` | none in this step | input, `M`, then `×0.91F` on all axes | `0.91F` | `0.91F` | attribute | per axis | box |
 | item | `item` | 0.04 | `G`, `M`, `E`, `D`, bounce | `0.98F`, `f32(0.98F × f)` on the ground | `0.98F` | 0 | none | box |
 | falling block | `falling_block` | 0.04 | `G`, `M`, `E`, ground rule, `D` | `0.98F` | `0.98F` | 0 | none | box |
@@ -1369,6 +1476,9 @@ The parameters of the rows:
 - Item, rest: an item on the ground with `v.x² + v.z² ≤ 1.0E-5F` skips `M` and `D` in three ticks
   of four. Let `t` be the number of ticks that the item has existed, and let `n` be its phase
   offset (PHY-CMP-016). The item skips `M` and `D` when the remainder of `(t + n) / 4` is not 0.
+  A tick that skips `M` and `D` also skips the bounce. It still applies `G`. Its `E` uses the
+  path of the last tick that did `M`, not a new path. Thus the blocks inside the box continue to
+  act on an item at rest, for example a hopper or a pressure plate.
 - Item, push: on the server, shrink the box of an item by `1.0E-7`. If that box has a collision,
   the item has no physics in that tick, and the server pushes it to a free side.
 - `falling_block`, ground rule: on the server, before the drag, if the on-ground flag is true,
@@ -1530,7 +1640,7 @@ A vehicle can have a passenger that controls it. The vehicle reads the input of 
 from its state at the start of the tick.
 
 **PHY-ORD-007** (`source_suggested`, client agreement, confidence: medium). One tick of a player
-is a function `step(S, K, R, W) → S'`. It is deterministic (PHY-INV-008). The arguments are:
+is a function `step(S, F, K, R, W) → S'`. It is deterministic (PHY-INV-008). The arguments are:
 
 - `S`, the player state at the start of the tick. It contains these values:
   - the position, the velocity and the pose;
@@ -1540,12 +1650,20 @@ is a function `step(S, K, R, W) → S'`. It is deterministic (PHY-INV-008). The 
   - the fall distance, the stuck multiplier and the jump delay;
   - the sprint timer and the jump timer;
   - `shift0`, the shift key of the previous tick, and the forward value of the previous tick;
+  - `jump0`, the jump key of the previous tick, with a press of auto-jump included;
   - the sprint state `sprint0` and the flight state `flight0`;
   - the crouch state, the swim state and the item use state;
   - the attributes and the effects;
   - the fly permission and the flight speed;
   - a flag that is true when the player was inside powder snow in the previous tick;
-- `K`, the keys of this tick: forward, back, left, right, jump, shift and sprint;
+- `F`, the facts of the player that the tick reads and does not change:
+  - the spectator game mode;
+  - the passenger state, and whether the vehicle takes the jump of a rider;
+  - the sleep state;
+  - the food level, or only whether it is more than 6;
+  - the sprint window of the client options (PHY-INP-017);
+- `K`, the keys of this tick: forward, back, left, right, jump, shift and sprint. `K` also has a
+  flag that is true when the jump key of this tick comes from auto-jump (PHY-INP-016);
 - `R`, the yaw and the pitch of this tick;
 - `W`, the world view: the block states, the loaded chunks, the entity colliders and the world
   border.
@@ -1562,9 +1680,15 @@ The step keeps three values of the flight state and two values of the sprint sta
 
 The crouch state of this tick comes from `shift0`, not from the shift key of `K`. The other rules
 of the tick use the shift key of `K`. `S'` contains the same values as `S`, at the end of the
-tick, and its `shift0` is the shift key of `K`. The result flags of `S'` are the
-flags of the last move of the tick. The step does not read a clock, a random value or a value that
-`S`, `K`, `R` and `W` do not contain. The rotation `R` applies before step 1.
+tick. Its `shift0` is the shift key of `K`, and its `jump0` is the jump key of `K`.
+
+The result flags of `S'` are the flags of the last move of the tick. The step does not read a
+clock, a random value or a value that `S`, `F`, `K`, `R` and `W` do not contain. The rotation `R`
+applies before step 1. The push of PHY-PSH-008 changes the velocity of `S` before the tick.
+
+The old position and the old rotation are not in `S`. Step 1 of PHY-ORD-001 sets them before a
+rule reads them. Thus they do not change the result of the tick, and step 7 of PHY-SRV-010 does
+not change the physics. An implementation can keep these values outside `S`.
 
 **PHY-ORD-008** (`source_suggested`, semantic, confidence: medium). This model does not cover the
 effects in this list. A tick in which one of them can act is not exact. A checker must treat such
@@ -1626,9 +1750,7 @@ another entity. It can write other state only through these block actions:
 - the step action of the block at the effect position: `magma_block`, `redstone_ore`,
   `deepslate_redstone_ore`, `turtle_egg`, `sculk_sensor`, `calibrated_sculk_sensor`,
   `sculk_shrieker`, `brittle_ice` and `slime_block`;
-- the inside action of a block in the box. Examples are pressure plates, buttons, tripwire,
-  crops, cauldrons, fire, portals, `wither_rose`, `sweet_berry_bush`, `big_dripleaf`, `lily_pad`,
-  `frogspawn`, `hopper` and `detector_rail`;
+- the inside action of a block in the box. PHY-RCH-007 gives the complete list;
 - the fall action when the entity lands: fall damage to the entity and its passengers, and blocks such as
   `farmland` and `turtle_egg`;
 - the bounce action and the game events `step`, `hit_ground` and `bounce`, which other blocks and
@@ -1702,6 +1824,40 @@ whose box intersects the box of the entity. For each of them, it reads these val
 Under PHY-CMP-012, these are the values at the start of the server tick. The box of the entity is
 also its box at the start of the tick. Under PHY-CMP-012, the push writes only the velocity and the
 health of its own entity.
+
+**PHY-RCH-007** (`source_suggested`, semantic, confidence: medium). A block has an inside action
+when it is in this table, or when it has the tag `fall_damage_resetting` (PHY-FALL-004). A fluid
+in the box also has an inside action, but the fluid model covers it (PHY-ORD-008). No other block
+has an inside action. The column "Entities" gives the entities on which the action can act. An
+implementation can use that column to decide PHY-SKIP-004 for one entity.
+
+| Blocks | Inside action | Entities |
+|--------|---------------|----------|
+| the tag `pressure_plates` | press the plate | each entity |
+| the tag `buttons` | press the button | an arrow, only for a wooden button |
+| `tripwire` | detect the entity | each entity |
+| `detector_rail` | detect the entity | a minecart |
+| `wheat`, `carrots`, `potatoes`, `beetroots`, `torchflower_crop`, `pitcher_crop` | break the crop | a `ravager`, with the game rule `mob_griefing` |
+| `fire`, `soul_fire` | stop the freeze, set the entity on fire, damage | each entity |
+| `campfire`, `soul_campfire` | damage, when the campfire is lit | a living entity |
+| `water_cauldron`, `powder_snow_cauldron` | stop the fire of the entity, and lower the level of the cauldron | each entity |
+| `lava_cauldron` | stop the freeze, set the entity on fire, damage | each entity |
+| `cactus` | damage | each entity |
+| `sweet_berry_bush` | stuck multiplier, damage | a living entity that is not a `fox` or a `bee` |
+| `cobweb` | stuck multiplier | each entity |
+| `powder_snow` | stuck multiplier, freeze | each entity (PHY-GRV-014) |
+| `honey_block` | the slide of PHY-GRV-015 | each entity |
+| `bubble_column` | changes `v.y` (PHY-ORD-008) | each entity |
+| `wither_rose` | the effect `wither` | a living entity |
+| `open_eyeblossom`, `closed_eyeblossom` | an effect | a `bee` |
+| `big_dripleaf` | tilt the leaf | an entity on the top of the leaf |
+| `lily_pad` | break the block | a boat |
+| `frogspawn` | break the block | a `falling_block` |
+| `hopper` | collect the entity | an `item` |
+| `nether_portal`, `end_portal`, `end_gateway` | teleport | an entity that can use a portal |
+
+The cauldron action lowers the level only when the entity is on fire. The step actions of
+PHY-RCH-002 are the only step actions. A block without an entry has neither action.
 
 ### 9.5 Ticks that can be skipped
 
@@ -1863,8 +2019,11 @@ player:
 
 - On the client, the tick of each other living entity pushes the own player, with the positions of
   the view of the client. The tick of a boat on the client also pushes the own player
-  (PHY-PSH-009). The own player uses the push in its next travel step. When the other entity
-  ticks before it on the client, it uses the push in the same tick.
+  (PHY-PSH-009). The push adds to the velocity of the own player immediately, between two ticks of
+  the own player. Thus it is part of `v` of `S` at the start of the next tick of the own player
+  (PHY-ORD-007). The zero cutoff of step 9, the jump and the input acceleration of PHY-ORD-001 all
+  see it. When the other entity ticks before the own player on the client, the push is in the
+  same tick.
 - The tick of the own player on the client pushes no entity (PHY-PSH-002).
 - On the server, the tick of a server-simulated entity pushes the server copy of the player. The
   server does not send that velocity to the client of the player. Thus the server does not push the
@@ -1932,8 +2091,10 @@ PHY-INV-014, with the same bound of one tick, only for that entity.
 5. If the absolute value of the component is not more than `1.0E-5F`, the move stops. Else the
    requested displacement is the component on that axis.
 
-A move with the kind `piston` does not apply the stuck multiplier (PHY-MOV-002), and it does not
-apply the edge back-off. The kinds `shulker` and `shulker_box` have no such limit.
+A move with the kind `piston` does not multiply `d` by the stuck multiplier. PHY-MOV-002 still
+sets the stuck multiplier and the velocity to zero, after the limit of this rule. A move that
+stops in step 5 does not do PHY-MOV-002. A move with the kind `piston` does not apply the edge
+back-off. The kinds `shulker` and `shulker_box` have no such limit.
 
 **PHY-EXP-001** (`source_suggested`, semantic, confidence: medium). In the reference, an entity
 that explodes does so in its own tick. A primed TNT explodes in the tick in which its fuse becomes
@@ -2156,7 +2317,8 @@ The result is the velocity before the zero cutoff of the next tick.
 3. Let `u_y = 0` when the vertical collision flag is true, else `u_y = Δ_y`. If the climb rule of
    PHY-GRV-019 step 3 applies, let `u_y = 0.2`.
 4. Without the flight state: with `levitation`, `y = u_y + (0.05 × (a + 1) - u_y) × 0.2`. Else
-   `y = u_y - g`, with the effective gravity `g` for `v.y = u_y` (PHY-GRV-002).
+   `y = u_y - g`, with the effective gravity `g` for `v.y = u_y` (PHY-GRV-002). Here `u_y` is
+   the value before the climb rule of step 3.
 5. Let `v_x = u_x × F` and `v_z = u_z × F`, where `F` is the widened f32 product of PHY-GRV-007.
    The ground friction of `F` uses `G0` and the block at the movement position at the start of the
    tick. Let `v_y = y × av`.
@@ -2206,7 +2368,8 @@ relative flags. The client applies it between two ticks, when the player is not 
    set, else `m_A`. `V` is the result of step 4.
 6. Set the position, and make the box again (PHY-BOX-002). Set the velocity, the yaw and the
    pitch.
-7. Apply steps 1 to 3 to the old position and the old rotation in the same way.
+7. Apply steps 1 to 3 to the old position and the old rotation in the same way. This step does
+   not change the next tick of the physics (PHY-ORD-007).
 
 Each rotation of step 4 uses `c = cosT` and `s = sinT` of the widened angle. A rotation about `x`
 gives `(x, y × c + z × s, z × c - y × s)`. A rotation about `y` gives
@@ -2290,6 +2453,15 @@ player. Each rule of sections 1 to 9 that applies to a player must give the resu
 client, bit for bit. The server re-application of PHY-SRV-003, the query of PHY-SHP-012 and the
 velocity of PHY-SRV-008 have the same policy. An implementation must not use the tolerance of
 PHY-CMP-006 for them, because `movement-checks.md` compares their results with the client.
+
+PHY-SRV-008 is exact for its input, not for the velocity of the client. The client computes the
+new position as `old + r`, in f64. The observed `Δ = new - old` can differ from `r` by the
+round-off of that sum and of this difference. The error is at most one unit in the last place of
+the larger coordinate.
+
+The candidate velocity then carries an error of the same size. The checker
+must compare positions with `offset_threshold` (MVC-PRED-009), which is much larger. It must not
+use bit equality of the candidate velocity.
 
 **PHY-CMP-006** (`source_suggested`, semantic, confidence: medium). Policy `semantic`, with a
 tolerance: each server-simulated entity. This covers living entities that are not players, and
@@ -2442,6 +2614,10 @@ from 0 to 3. It is saved with the birth key.
 For a vanilla parity test, the test sets the
 phase offset of each item to the remainder of the vanilla network id divided by 4. The test reads
 that id from the `add_entity` packet of the vanilla server. PHY-DEV-007 records the difference.
+
+A test without the packets can fit the phase offset to the record. The test selects the offset
+from 0 to 3 that gives the recorded ticks with `v.y` at 0 (PHY-SKIP-003). Four rest ticks in a row
+select one offset. The fit is valid only when the record has these four ticks.
 
 **PHY-CMP-017** (`source_suggested`, semantic, confidence: medium). Policy `semantic`: claims on one
 entity. A claim is a write that only one writer can make. Examples are these writes:
@@ -2776,12 +2952,32 @@ the deviations of this section for server-simulated entities. An implementation 
 - **Test:** a differential test accepts a delay of one tick. This applies to each interaction of an
   entity with the position of a player.
 
+### Known vanilla quirks
+
+The vanilla client does these things, and they look like accidents of its code. The rules keep them
+for client agreement. A server that computes another result gives false setbacks to its players.
+
+| Rule | Quirk |
+|------|-------|
+| PHY-SHP-005 | A box that is off the grid of `1/8` on one axis loses the grid lines of its other axes too. |
+| PHY-COL-002 | A request of `-0.0` on an axis gives `+0.0` when the move has colliders, and `-0.0` when it has none. |
+| PHY-FLG-003 | A quotient above 1 from f64 error gives NaN, and the minor collision flag is false for a move that is exactly along the input. |
+| PHY-FALL-004 | A part of the path with a squared length less than `1.0E-7` does not reset the fall distance, also inside a cobweb. |
+
 ## 14. Unresolved
 
 - **U1**: the corpus in `assets/` is of `26.4-snapshot-4`. This document is of `26.4-snapshot-7`.
   Before an implementation uses `minecraft:collision_box` and `minecraft:friction`, a maintainer
   must update the corpus. If the corpus stays the same, a test must show that these components did
   not change.
+
+  The physics fixtures of the vanilla server under
+  `crates/mcrs_minecraft_collision_table/tests/fixtures/physics/` are also of `26.4-snapshot-4`.
+  Snapshot 4 adds the fall of the tick in the move procedure, before the blocks inside the box. It
+  resets the fall distance for the tag `fall_damage_resetting` only in a move of 1 block or more.
+  Snapshot 7 uses PHY-ORD-001 step 14 and PHY-FALL-004. Thus the fall distances of the fixtures
+  E7, E8 and E17 do not apply to this document. A maintainer must record them again with
+  snapshot 7.
 - **U2**: no artefact gives the dimensions of each entity type and pose. A `dumpDefinitions`
   task for entity types could write the width, the height, the eye height, the fixed flag and the
   pose dimensions.

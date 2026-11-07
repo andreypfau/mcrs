@@ -344,6 +344,21 @@ when they apply to the player or to its world view:
 `player_position` and `respawn` are not in this list. The teleport flow handles them (MVC-LAT-008).
 `player_rotation` is not in this list, because the next move packet reports the rotation.
 
+**MVC-PKT-031** (`source_suggested`, semantic, confidence: high). The server sends the packets of a
+tracked entity to the players that track it. It also sends three of them to the player of that
+entity, when the entity is a player:
+
+- `set_entity_motion`, when the server sets the velocity of the entity, for example a knockback;
+- `set_entity_data`, with the changed values of the entity data;
+- `update_attributes`, with the changed attributes.
+
+The other packets of a tracked entity never go to its own player. Examples are the move and
+rotation packets, `teleport_entity`, `rotate_head`, `set_equipment` and `set_passengers`. Of the
+three packets, `set_entity_motion` and `update_attributes` change the prediction (MVC-PKT-030).
+`set_entity_data` changes the flags that select a mode of section 8, for example elytra flight. A
+server must not drop these three packets for the own player. It must treat them as
+predicted-state changes.
+
 ## 2. The checks of a vanilla server
 
 The rules of this section state what a vanilla server does. This server replaces some of them.
@@ -1485,9 +1500,11 @@ These entries record where this server differs from a vanilla server.
 **D8.**
 
 - **Rule**: MVC-LAT-008 and MVC-PRED-001.
-- **Reference**: the vanilla server sets the position of the player to the position in the accept
-  (TP-CONFIRM-ACC-003). In result R7 of `teleport-confirmation.md`, an accept 5 blocks away moves
-  the player.
+- **Reference**: the vanilla server sets the position of the player to the destination. Then it
+  handles the position in the accept as a move, with the checks of section 2 (TP-CONFIRM-ACC-003).
+  In result R7 of `teleport-confirmation.md`, an accept 5 blocks away passes these checks and moves
+  the player. This is a valid choice of the reference, not a defect. This server is stricter, because
+  a vanilla client sends the destination in its accept.
 - **Visible to the client**: no, for a legit client. A client that sends another position in the
   accept gets a correction.
 - **Test**: a differential test does not send an accept at a position that is not the destination.

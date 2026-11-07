@@ -1211,6 +1211,8 @@ list before it reports a difference from vanilla as a defect.
 | DEV-03 | Two saved elements with the same (position, type) both activate, and both run. | Activation keeps only the first element of each (position, type). Not more than one tick is pending for each pair. | SIM-SCH-004, SIM-SCH-013 |
 | DEV-04 | An area clear does not update the group behind "will tick this tick". If a query came before the clear, a cleared pair continues to answer true. | An area clear also removes the pair from that group. | SIM-SCH-010, SIM-SCH-016 |
 | DEV-05 | A column record can carry a non-empty `UpgradeData` compound from an old upgrade. When the column gets to block-ticking status, vanilla schedules the neighbor ticks of that compound. It does this again at each new transition while the column stays in memory. | This project refuses such a record at load with an error, as it refuses a record of another world version. | SIM-SCH-013, SIM-SCH-017 |
+| DEV-06 | The server sends a `block_event` to each player within 64 blocks of the corner, also to a player that does not hold the column. That client has no block at the position, so the event has no effect for it. | The server can send a `block_event` only to the players in range that hold the column of the position. The difference is not visible: a client without the column ignores the event. | SIM-BEV-004 |
+| DEV-07 | A column that does not broadcast changes keeps its marks, and sends them when it broadcasts again. The complete column that the client gets later also carries the change. | A column that no player can receive drops its marks, as a section that no player sees does. The difference is not visible, because the client gets the complete column before it can show the position. | SIM-SET-005 |
 
 Provenance of the vanilla column: `source_suggested`. No experiment was run.
 
@@ -1661,7 +1663,7 @@ Provenance: `source_suggested`. Confidence: high.
 
   For each sent position whose state has a block entity, the server then sends the data packet of that block entity, if it has one. Then the server clears the marks.
 
-  A column that does not broadcast changes at broadcast time keeps its marks, but it leaves the broadcast queue. The server queues it again when the column is ready to send again. A light change in a section without light marks also queues it again. A new block change does not queue it again.
+  A column that does not broadcast changes at broadcast time keeps its marks, but it leaves the broadcast queue. An instance can drop these marks when no player can receive the column, if it sends the complete column later (DEV-07). The server queues it again when the column is ready to send again. A light change in a section without light marks also queues it again. A new block change does not queue it again.
 - **Ordering constraints:** observable result: one packet for each marked section in each broadcast, with the states at broadcast time. Vanilla order: refer to Vanilla grouping.
 - **Numeric semantics:** for the packet ids, refer to 0.5.
 - **Postconditions:** through the broadcast, a client never sees an intermediate state of a position that changed two times between broadcasts. Some paths send a `block_update` immediately, outside the broadcast, with the state at that time:
@@ -2551,6 +2553,8 @@ Provenance: `source_suggested`. Confidence: high. A block event is a plain recor
   - the block, as its registry id (VarInt).
 
   The range is 64.0, with a strict inequality. The server selects the recipients by distance, not by the sections or columns that the players track.
+
+  An instance can also require that the player holds the column of P (DEV-06). A client without the column has no block at P, and the event has no effect there.
 - **Postconditions:** none.
 - **Edge cases:** if a handler returns "not delivered", nothing is sent. A property change inside the same block type does not discard the event.
 - **Invariants:** none.
