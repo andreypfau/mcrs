@@ -26,7 +26,7 @@ use crate::block_effects::EffectContext;
 use crate::push_out;
 use crate::query;
 use crate::sine_table::yaw_radians;
-use crate::tick_entity::jump_power;
+use crate::tick_entity::jump;
 use crate::tolerance::CLIP;
 use crate::tolerance::COLLISION;
 use crate::travel;
@@ -174,7 +174,15 @@ fn flight_steps<W: CollisionWorld, B: BodyView>(
     let flight = flight_state(start, out, &input.keys, &input.facts);
     if flight && !start.flight0 && out.flags.on_ground {
         let mut body = out.body();
-        jump(view, out, &mut body, sprint, input.rotation.yaw);
+        let sprint_yaw = sprint.then_some(input.rotation.yaw);
+        let strength = out.attributes.jump_strength;
+        jump(
+            view,
+            &mut body,
+            strength,
+            out.effects.jump_boost,
+            sprint_yaw,
+        );
         out.set_body(&body);
     }
     if flight && side == Side::OwnClient {
@@ -213,7 +221,7 @@ fn zero_small_speeds(velocity: &mut DVec3) {
     }
 }
 
-/// The jump of PHY-INP-004: the jump delay gates the jump from the ground.
+/// The jump of PHY-INP-004 and PHY-INP-005: the jump delay gates the jump from the ground.
 fn player_jump<W: CollisionWorld, B: BodyView>(
     view: View<'_, W, B>,
     out: &mut PlayerState,
@@ -230,37 +238,15 @@ fn player_jump<W: CollisionWorld, B: BodyView>(
     if !body.flags.on_ground || out.jump_delay != 0 {
         return;
     }
-    jump(view, out, body, sprint, yaw);
-    out.jump_delay = JUMP_DELAY;
-}
-
-/// The jump power and the sprint boost of PHY-INP-005.
-fn jump<W: CollisionWorld, B: BodyView>(
-    view: View<'_, W, B>,
-    state: &PlayerState,
-    body: &mut crate::Body,
-    sprint: bool,
-    yaw: f32,
-) {
-    let power = jump_power(
+    let strength = out.attributes.jump_strength;
+    jump(
         view,
         body,
-        state.attributes.jump_strength,
-        state.effects.jump_boost,
+        strength,
+        out.effects.jump_boost,
+        sprint.then_some(yaw),
     );
-    let Some(power) = power else {
-        return;
-    };
-    body.velocity.y = power.max(body.velocity.y);
-    if sprint {
-        let angle = yaw_radians(yaw);
-        let sine = &view.tables.sine;
-        body.velocity += DVec3::new(
-            -f64::from(sine.sin(angle)) * 0.2,
-            0.0,
-            f64::from(sine.cos(angle)) * 0.2,
-        );
-    }
+    out.jump_delay = JUMP_DELAY;
 }
 
 /// The speed of the input acceleration off the ground.

@@ -18,8 +18,7 @@ use crate::View;
 use crate::block_effects;
 use crate::block_effects::EffectContext;
 use crate::push;
-use crate::sine_table::yaw_radians;
-use crate::tick_entity::jump_power;
+use crate::tick_entity::jump;
 use crate::tick_player::dimensions_of;
 use crate::travel;
 
@@ -108,23 +107,15 @@ pub fn server_jump<W: CollisionWorld, B: BodyView>(
     state: &mut PlayerState,
     yaw: f32,
 ) {
-    let body = state.body();
-    let Some(power) = jump_power(
+    let mut body = state.body();
+    let attributes = &state.attributes;
+    let sprint_yaw = state.sprint0.then_some(yaw);
+    jump(
         view,
-        &body,
-        state.attributes.jump_strength,
+        &mut body,
+        attributes.jump_strength,
         state.effects.jump_boost,
-    ) else {
-        return;
-    };
-    state.velocity.y = power.max(state.velocity.y);
-    if state.sprint0 {
-        let angle = yaw_radians(yaw);
-        let sine = &view.tables.sine;
-        state.velocity += DVec3::new(
-            -f64::from(sine.sin(angle)) * 0.2,
-            0.0,
-            f64::from(sine.cos(angle)) * 0.2,
-        );
-    }
+        sprint_yaw,
+    );
+    state.set_body(&body);
 }

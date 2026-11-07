@@ -31,6 +31,7 @@ use crate::move_body::offset_block;
 use crate::open_air;
 use crate::query;
 use crate::rest::same_bits;
+use crate::sine_table::yaw_radians;
 use crate::support::MOVEMENT_OFFSET;
 use crate::tolerance::CLIP;
 use crate::tolerance::COLLISION;
@@ -154,7 +155,14 @@ fn tick_living<W: CollisionWorld, B: BodyView>(
     if !living.jump {
         living.jump_delay = 0;
     } else if body.flags.on_ground && living.jump_delay == 0 {
-        jump(view, body, &living);
+        let attributes = &living.attributes;
+        jump(
+            view,
+            body,
+            attributes.jump_strength,
+            living.effects.jump_boost,
+            None,
+        );
         living.jump_delay = JUMP_DELAY;
     }
     let effects = living.effects;
@@ -234,27 +242,16 @@ fn living_mover(
     }
 }
 
-/// Sets the vertical velocity of a jump from the ground.
-fn jump<W: CollisionWorld, B: BodyView>(view: View<'_, W, B>, body: &mut Body, living: &Living) {
-    let attributes = &living.attributes;
-    if let Some(power) = jump_power(
-        view,
-        body,
-        attributes.jump_strength,
-        living.effects.jump_boost,
-    ) {
-        body.velocity.y = power.max(body.velocity.y);
-    }
-}
-
-/// The widened jump power from the jump factor of the blocks under the body, or `None` when it
-/// is not more than `1.0E-5F`.
-pub(crate) fn jump_power<W: CollisionWorld, B: BodyView>(
+/// The jump from the ground: the jump power from the jump factor of the blocks under the body
+/// lifts the vertical velocity when the power is more than `1.0E-5F`. A sprint jump towards
+/// `sprint_yaw` also adds 0.2 in that direction.
+pub(crate) fn jump<W: CollisionWorld, B: BodyView>(
     view: View<'_, W, B>,
-    body: &Body,
+    body: &mut Body,
     jump_strength: f64,
     jump_boost: Option<u8>,
-) -> Option<f64> {
+    sprint_yaw: Option<f32>,
+) {
     let table = &view.tables.collision;
     let mut factor = table
         .state(state_at(view.world, block_at(body.position)))
@@ -265,8 +262,20 @@ pub(crate) fn jump_power<W: CollisionWorld, B: BodyView>(
         factor = table.state(state_at(view.world, below)).motion.jump_factor;
     }
     let boost = jump_boost.map_or(0.0, |level| 0.1_f32 * (f32::from(level) + 1.0));
-    let power = (jump_strength as f32) * 1.0 * factor + boost;
-    (f64::from(power) > CLIP).then_some(f64::from(power))
+    let power = f64::from((jump_strength as f32) * 1.0 * factor + boost);
+    if power <= CLIP {
+        return;
+    }
+    body.velocity.y = power.max(body.velocity.y);
+    if let Some(yaw) = sprint_yaw {
+        let angle = yaw_radians(yaw);
+        let sine = &view.tables.sine;
+        body.velocity += DVec3::new(
+            -f64::from(sine.sin(angle)) * 0.2,
+            0.0,
+            f64::from(sine.cos(angle)) * 0.2,
+        );
+    }
 }
 
 fn tick_other<W: CollisionWorld, B: BodyView>(
