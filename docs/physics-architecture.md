@@ -1538,11 +1538,6 @@ E1..E8, T1 (any time)   D1 ─ D2 ─ D3 ─ D4 ─ D5 ─ D6 ─ D7
 51. The entity data of an item entity. Resolved: PHY-CMP-026. Index 8, serializer 7, the stack.
 52. PHY-SKIP-003 and §1, the rest of an item. Resolved: PHY-ORD-005 "Item, stop", PHY-DEV-014. The
     40% of §1 stays: an item on stone rests within about 100 ticks (E53).
-53. MVC-LAT-006 and MVC-LAT-007, the state of an edited block before its `block_changed_ack`. Open
-    (spec). A kept state has the place of its `block_changed_ack`. Thus a prefix between the
-    `block_update` and the ack gives the state before the update. But after its own edit, the
-    client has the state of its edit, not that state. Example: the client breaks stone, and the
-    server accepts it. The update gives air, and a prefix before the ack gives stone. The client
-    has air and can walk into the cell. The rule does not state how the edit of the client enters
-    the order. `mcrs_minecraft_move_predict` still applies each `block_update` at its own place, so
-    a refused edit gives the kept state one prefix too early.
+53. MVC-LAT-006 and MVC-LAT-007, the state of an edited block before its `block_changed_ack`.
+    Resolved: MVC-LAT-006, MVC-LAT-007. The own edit enters the world view at the request, with no
+    window; until the ack, a prefix gives the state of the edit, and from the ack the kept state.

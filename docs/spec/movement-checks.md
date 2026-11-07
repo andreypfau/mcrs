@@ -966,6 +966,13 @@ changes that the client has applied at the start of a tick are a prefix of the c
 of the server. This applies to blocks and to the other predicted-state changes alike. A state that
 the client keeps for MVC-LAT-007 has the place of its `block_changed_ack` in this order.
 
+The own edit of the client (MVC-LAT-007) is not a change of the server. It enters the world view of
+the client at the request, before the physics step of the client tick that follows the request. It
+is certain in that tick and in each later tick, so it has no window. Until the client applies the
+`block_changed_ack`, a `block_update` for an edited block does not change the world view. Thus each
+prefix that does not contain the `block_changed_ack` gives the state of the edit at that block. A
+prefix that contains it gives the kept state.
+
 For each candidate, the server runs the physics step one time for each prefix that the candidate
 can have in the tick. The shortest prefix is the prefix of the candidate in the previous tick, or
 the applied changes of MVC-LAT-004 when they are more. The longest prefix ends at the last change
@@ -981,6 +988,13 @@ places a block with a sequence, it changes the block immediately. Then it waits 
 `block_changed_ack` with this sequence or a later sequence. Until then, it keeps each server state
 of `block_update` for that position and does not apply it. At the `block_changed_ack`, the client
 applies the kept state.
+
+The state of the edit is the state that the client computes for its action, for example air or the
+fluid of the cell for a break. For an accepted edit, the server uses its own new state. For a refused
+edit, the server uses the state that the action gives in its world view. When the server cannot
+compute that state, the edited block is not settled. The tick is coarse (MVC-MODE-003) when the
+grown box of MVC-LAT-006 touches it. Without a `block_update` before the `block_changed_ack`, the kept state is
+the state before the edit.
 
 When the box of the client then touches the kept state, the client moves itself to its position at
 the time of the request. The client does not move itself when a teleport arrived after the request.
