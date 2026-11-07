@@ -18,7 +18,7 @@ use crate::widen::on_pixel_grid;
 use crate::widen::widen;
 
 /// The block tags that set a flag.
-const TAG_FLAGS: [(TagKey<'static, Block>, BlockFlags); 12] = [
+const TAG_FLAGS: [(TagKey<'static, Block>, BlockFlags); 11] = [
     (block_tag_keys::CLIMBABLE, BlockFlags::CLIMBABLE),
     (block_tag_keys::FENCES, BlockFlags::FENCE),
     (block_tag_keys::WALLS, BlockFlags::WALL),
@@ -38,8 +38,7 @@ const TAG_FLAGS: [(TagKey<'static, Block>, BlockFlags); 12] = [
     (block_tag_keys::SHULKER_BOXES, BlockFlags::COARSE_NEAR),
     (block_tag_keys::PRESSURE_PLATES, BlockFlags::INSIDE_ACTION),
     (block_tag_keys::BUTTONS, BlockFlags::INSIDE_ACTION),
-    (block_tag_keys::CROPS, BlockFlags::INSIDE_ACTION),
-    (block_tag_keys::CAULDRONS, BlockFlags::INSIDE_ACTION),
+    (block_tag_keys::FIRE, BlockFlags::INSIDE_ACTION),
 ];
 
 /// The bounce restitution of each bed.
@@ -53,7 +52,6 @@ pub fn collision_table(definitions: &BlockDefinitions, tags: &Tags<Block>) -> Co
         .filter_map(|(key, flag)| Some((tags.id(*key)?, *flag)))
         .collect();
     let beds = tags.id(block_tag_keys::BEDS);
-    let fire = tags.id(block_tag_keys::FIRE);
     let mut builder = CollisionTableBuilder::new();
     let mut boxes = Vec::new();
     for id in definitions.states() {
@@ -74,7 +72,7 @@ pub fn collision_table(definitions: &BlockDefinitions, tags: &Tags<Block>) -> Co
                 flags |= *flag;
             }
         }
-        if in_tag(fire) {
+        if flags.contains(BlockFlags::FALL_DAMAGE_RESETTING) {
             flags |= BlockFlags::INSIDE_ACTION;
         }
         if state.fluid.is_some() {

@@ -72,16 +72,32 @@ const STEP_ACTIONS: [&str; 9] = [
     "slime_block",
 ];
 
-/// The blocks with an inside action that are not in a tag of [`crate::collision_table`].
-const INSIDE_ACTIONS: [&str; 10] = [
+/// The blocks with an inside action that are not in a tag of [`crate::collision_table`] and have
+/// no [`InsideEffect`].
+const INSIDE_ACTIONS: [&str; 25] = [
     "tripwire",
-    "nether_portal",
-    "end_portal",
-    "end_gateway",
+    "detector_rail",
+    "wheat",
+    "carrots",
+    "potatoes",
+    "beetroots",
+    "torchflower_crop",
+    "pitcher_crop",
+    "campfire",
+    "soul_campfire",
+    "water_cauldron",
+    "powder_snow_cauldron",
+    "lava_cauldron",
+    "cactus",
+    "bubble_column",
     "wither_rose",
+    "open_eyeblossom",
+    "closed_eyeblossom",
     "big_dripleaf",
     "lily_pad",
     "frogspawn",
     "hopper",
-    "detector_rail",
+    "nether_portal",
+    "end_portal",
+    "end_gateway",
 ];

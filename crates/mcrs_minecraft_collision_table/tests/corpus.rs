@@ -211,6 +211,40 @@ fn the_tags_and_names_set_their_flags_and_motion() {
 }
 
 #[test]
+fn rch_007_marks_exactly_the_blocks_with_an_inside_action() {
+    let table = table();
+    let marked = |name: &str| {
+        table
+            .state(state(name))
+            .flags
+            .contains(BlockFlags::INSIDE_ACTION)
+    };
+    for name in [
+        "minecraft:wheat",
+        "minecraft:pitcher_crop",
+        "minecraft:water_cauldron",
+        "minecraft:lava_cauldron",
+        "minecraft:soul_fire",
+        "minecraft:soul_campfire",
+        "minecraft:cactus",
+        "minecraft:open_eyeblossom",
+        "minecraft:bubble_column",
+        "minecraft:oak_pressure_plate",
+        "minecraft:ladder",
+    ] {
+        assert!(marked(name), "{name} has an inside action");
+    }
+    for name in [
+        "minecraft:pumpkin_stem",
+        "minecraft:melon_stem",
+        "minecraft:cauldron",
+        "minecraft:stone",
+    ] {
+        assert!(!marked(name), "{name} has no inside action");
+    }
+}
+
+#[test]
 fn scaffolding_gives_the_bottom_slab_only_with_distance_and_bottom() {
     let definitions = definitions();
     let table = table();
