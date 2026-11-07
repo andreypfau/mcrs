@@ -83,6 +83,7 @@ mcrs_minecraft_worldgen_generator = { workspace = true, features = ["bevy", "tes
 mcrs_minecraft_worldgen_density.workspace = true
 criterion = { version = "0.7", features = ["html_reports"] }
 mcrs_minecraft_anvil.workspace = true
+mcrs_minecraft_volume.workspace = true
 tokio.workspace = true
 
 [features]
@@ -92,4 +93,8 @@ telemetry-tracy = ["mcrs_minecraft_engine_server/telemetry-tracy", "mcrs_minecra
 
 [[bench]]
 name = "bot_load"
+harness = false
+
+[[bench]]
+name = "random_ticks_save"
 harness = false

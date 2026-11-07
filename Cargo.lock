@@ -4987,6 +4987,7 @@ dependencies = [
  "mcrs_minecraft_text",
  "mcrs_minecraft_vanilla_light",
  "mcrs_minecraft_vanilla_worldgen",
+ "mcrs_minecraft_volume",
  "mcrs_minecraft_worldgen_builtin",
  "mcrs_minecraft_worldgen_density",
  "mcrs_minecraft_worldgen_generator",
