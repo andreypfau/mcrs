@@ -1,13 +1,10 @@
 use glam::DVec3;
 use mcrs_minecraft_physics::Aabb;
+use mcrs_minecraft_physics::MIN_PUSH_DISTANCE;
+use mcrs_minecraft_physics::push_axis;
 
 use crate::Limits;
 use crate::Pusher;
-
-/// The smallest horizontal distance of a push: `0.01F`.
-const MIN_DISTANCE: f64 = 0.01_f32 as f64;
-/// The largest component of one push: `0.05F`.
-const STRENGTH: f64 = 0.05_f32 as f64;
 
 /// The sum of the possible pushes on the player, per horizontal axis.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
@@ -94,16 +91,6 @@ impl Interval {
     const ZERO: Self = Self { min: 0.0, max: 0.0 };
 }
 
-/// The push on one axis of `Δ = player − pusher`, from the along and the across component.
-fn push_axis(along: f64, across: f64) -> f64 {
-    let largest = along.abs().max(across.abs());
-    if largest < MIN_DISTANCE {
-        return 0.0;
-    }
-    let root = largest.sqrt();
-    along / root * (1.0 / root).min(1.0) * STRENGTH
-}
-
 /// The push on one axis over the range of `Δ`. The push grows with the along component, so the
 /// ends of its range are at the ends of that range. Across, it changes only at the nearest
 /// value, at the distance cutoff and at the farthest value.
@@ -114,8 +101,8 @@ fn interval(min_along: f64, max_along: f64, min_across: f64, max_across: f64) ->
         let (a, b) = (min_across.abs(), max_across.abs());
         (a.min(b), a.max(b))
     };
-    let across = [near, MIN_DISTANCE.clamp(near, far), far];
-    let pushes = |along: f64| across.map(|value| push_axis(along, value));
+    let across = [near, f64::from(MIN_PUSH_DISTANCE).clamp(near, far), far];
+    let pushes = |along: f64| across.map(|value| push_axis(along, value).unwrap_or(0.0));
     Interval {
         min: pushes(min_along)
             .into_iter()
@@ -144,5 +131,6 @@ fn certain(pusher: &Pusher, player: &Aabb, [min_dx, max_dx, min_dz, max_dz]: [f6
             min.abs().min(max.abs())
         }
     };
-    always_meets && nearest(min_dx, max_dx).max(nearest(min_dz, max_dz)) >= MIN_DISTANCE
+    always_meets
+        && nearest(min_dx, max_dx).max(nearest(min_dz, max_dz)) >= f64::from(MIN_PUSH_DISTANCE)
 }

@@ -5,22 +5,18 @@
 mod candidates;
 mod change;
 mod client_tick;
-mod client_view;
 mod kept_changes;
 mod limits;
 mod outcome;
 mod prediction;
 mod push_bound;
-mod pusher_history;
+mod pusher;
 
 pub use change::Change;
 pub use client_tick::ChangeStates;
 pub use client_tick::ClientTick;
-pub use client_view::ClientSection;
-pub use client_view::ClientView;
 pub use limits::Limits;
 pub use outcome::Mode;
 pub use outcome::Outcome;
 pub use prediction::Prediction;
-pub use pusher_history::Pusher;
-pub use pusher_history::PusherHistory;
+pub use pusher::Pusher;

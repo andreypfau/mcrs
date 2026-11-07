@@ -2,6 +2,7 @@ use std::collections::VecDeque;
 use std::mem;
 
 use glam::DVec3;
+use mcrs_minecraft_physics::BlockOverlay;
 use mcrs_minecraft_physics::BodyView;
 use mcrs_minecraft_physics::CollisionWorld;
 use mcrs_minecraft_physics::MoveFlags;
@@ -19,18 +20,17 @@ use mcrs_minecraft_physics::tick_player;
 
 use crate::Change;
 use crate::ClientTick;
-use crate::ClientView;
 use crate::Limits;
 use crate::Mode;
 use crate::Outcome;
-use crate::PusherHistory;
+use crate::Pusher;
 use crate::candidates;
 use crate::candidates::Candidate;
 use crate::candidates::Context;
 use crate::candidates::Record;
+use crate::candidates::Scored;
 use crate::candidates::Search;
 use crate::candidates::Stop;
-use crate::candidates::Tried;
 use crate::candidates::Work;
 use crate::kept_changes::KeptChanges;
 
@@ -151,10 +151,13 @@ impl Prediction {
     }
 
     /// Predicts one client tick from the tick packets and the world view of the client.
-    pub fn tick<W: CollisionWorld, B: BodyView, H: PusherHistory + ?Sized>(
+    /// `pushers` holds each living entity and boat near the player that the client has and that
+    /// the team rules can let push the player. Its hull also holds the position before the
+    /// oldest server tick that the client shows, because the client interpolates from it.
+    pub fn tick<W: CollisionWorld, B: BodyView>(
         &mut self,
         view: View<'_, W, B>,
-        history: &H,
+        pushers: &[Pusher],
         tick: &ClientTick,
     ) -> Outcome {
         if self.pending.is_some() {
@@ -170,7 +173,7 @@ impl Prediction {
         let outcome = if self.resync {
             self.resync(view, tick)
         } else {
-            self.predict(view, history, tick)
+            self.predict(view, pushers, tick)
         };
         // A candidate never applies fewer changes than the start it ran from, so the oldest
         // record holds the fewest.
@@ -188,10 +191,10 @@ impl Prediction {
         outcome
     }
 
-    fn predict<W: CollisionWorld, B: BodyView, H: PusherHistory + ?Sized>(
+    fn predict<W: CollisionWorld, B: BodyView>(
         &mut self,
         view: View<'_, W, B>,
-        history: &H,
+        pushers: &[Pusher],
         tick: &ClientTick,
     ) -> Outcome {
         let mut start = mem::take(&mut self.spare);
@@ -207,11 +210,11 @@ impl Prediction {
         let mut steps = 0;
         let context = Context {
             view,
-            history,
+            pushers,
             kept: &self.kept,
             limits: &self.limits,
         };
-        let tried = candidates::run_tick(
+        let best = candidates::run_tick(
             &context,
             &mut record,
             Search::First,
@@ -219,18 +222,18 @@ impl Prediction {
             &mut self.work,
         );
         self.records.push_back(record);
-        let result = tried.and_then(|tried| {
+        let result = best.and_then(|best| {
             let matched = !self.work.matched.is_empty()
                 || replay(&context, &mut self.records, &mut steps, &mut self.work)?;
-            Ok((tried, matched))
+            Ok((best, matched))
         });
         let outcome = match result {
             Ok((_, true)) => self.matched(tick),
-            Ok((tried, false)) => self.violation(tick, &tried),
+            Ok((best, false)) => self.violation(tick, best),
             Err(stop) => self.stopped(tick, stop),
         };
         if outcome.setback.is_none() && outcome.mode == Mode::Predicted {
-            self.drop_old_record(view, history);
+            self.drop_old_record(view, pushers);
         }
         if let Some(position) = tick.reported.position
             && outcome.setback.is_none()
@@ -242,17 +245,17 @@ impl Prediction {
 
     /// Before a record leaves, a tick in which the fast path left candidates out runs them all,
     /// so the accepted state holds each candidate that a later replay could need.
-    fn drop_old_record<W: CollisionWorld, B: BodyView, H: PusherHistory + ?Sized>(
+    fn drop_old_record<W: CollisionWorld, B: BodyView>(
         &mut self,
         view: View<'_, W, B>,
-        history: &H,
+        pushers: &[Pusher],
     ) {
         if self.records.len() <= self.limits.replay_depth {
             return;
         }
         let context = Context {
             view,
-            history,
+            pushers,
             kept: &self.kept,
             limits: &self.limits,
         };
@@ -292,8 +295,8 @@ impl Prediction {
         }
     }
 
-    fn violation(&mut self, tick: &ClientTick, tried: &Tried) -> Outcome {
-        let Some(best) = tried.best else {
+    fn violation(&mut self, tick: &ClientTick, best: Option<Scored>) -> Outcome {
+        let Some(best) = best else {
             return self.coarse(tick);
         };
         self.buffer += best.offset;
@@ -358,9 +361,9 @@ impl Prediction {
         let applied = start.applied.max(tick.changes.seen);
         self.kept.apply(&mut start.state, start.applied, applied);
         self.kept.undo_from(applied, &mut self.work.undone);
-        let world = ClientView {
+        let world = BlockOverlay {
             base: view.world,
-            undone: &self.work.undone,
+            blocks: &self.work.undone,
         };
         let client = View::new(&world, view.bodies, view.tables);
         let mut end = start.state;
@@ -449,8 +452,8 @@ impl Prediction {
 /// Runs every candidate of each record from the oldest one in which the fast path left
 /// candidates out. Returns true when each of these ticks has a match; the candidates of the
 /// newest tick are then in `work.matched`.
-fn replay<W: CollisionWorld, B: BodyView, H: PusherHistory + ?Sized>(
-    context: &Context<'_, W, B, H>,
+fn replay<W: CollisionWorld, B: BodyView>(
+    context: &Context<'_, W, B>,
     records: &mut VecDeque<Record>,
     steps: &mut u32,
     work: &mut Work,

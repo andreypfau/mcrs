@@ -1,5 +1,3 @@
-use std::ops::Range;
-
 use mcrs_minecraft_move_validate::Move;
 use mcrs_minecraft_physics::PlayerInput;
 
@@ -19,9 +17,6 @@ pub struct ClientTick {
     /// The item use after the tick packets, when a use starts or ends in the tick.
     pub item_use: Option<bool>,
     pub changes: ChangeStates,
-    /// The server ticks whose entity positions the client can show in this tick or the one
-    /// before, for the position hulls of the pushers.
-    pub server_ticks: Range<u32>,
 }
 
 /// The state of each change for one client tick. Changes are numbered from 0 in the order of

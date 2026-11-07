@@ -9,7 +9,7 @@ use crate::PushTargets;
 use crate::Scratch;
 
 /// The smallest horizontal distance of a push: `0.01F`.
-const MIN_DISTANCE: f32 = 0.01;
+pub const MIN_PUSH_DISTANCE: f32 = 0.01;
 
 /// The largest component of one push: `0.05F`.
 const STRENGTH: f32 = 0.05;
@@ -57,21 +57,23 @@ pub fn push_vector(pusher: &GridRow, candidate: &GridRow) -> Option<DVec3> {
     {
         return None;
     }
-    let mut xa = pusher.position.x - candidate.position.x;
-    let mut za = pusher.position.z - candidate.position.z;
-    let largest = xa.abs().max(za.abs());
-    if largest < f64::from(MIN_DISTANCE) {
+    let dx = pusher.position.x - candidate.position.x;
+    let dz = pusher.position.z - candidate.position.z;
+    let xa = push_axis(dx, dz)?;
+    let za = push_axis(dz, dx)?;
+    (xa.is_finite() && za.is_finite()).then_some(DVec3::new(xa, 0.0, za))
+}
+
+/// The push on one horizontal axis from the offset `along` on that axis and `across` on the
+/// other one. `None` when both offsets are nearer than `0.01F`.
+#[must_use]
+pub fn push_axis(along: f64, across: f64) -> Option<f64> {
+    let largest = along.abs().max(across.abs());
+    if largest < f64::from(MIN_PUSH_DISTANCE) {
         return None;
     }
     let root = largest.sqrt();
-    xa /= root;
-    za /= root;
-    let scale = (1.0 / root).min(1.0);
-    xa *= scale;
-    za *= scale;
-    xa *= f64::from(STRENGTH);
-    za *= f64::from(STRENGTH);
-    (xa.is_finite() && za.is_finite()).then_some(DVec3::new(xa, 0.0, za))
+    Some(along / root * (1.0 / root).min(1.0) * f64::from(STRENGTH))
 }
 
 /// True when `pusher` pushes `candidate` in its own tick: the candidate is not a spectator, is

@@ -12,6 +12,7 @@ mod block_action;
 mod block_effects;
 mod block_flags;
 mod block_motion;
+mod block_overlay;
 mod block_scan;
 mod body;
 mod body_grid;
@@ -57,7 +58,8 @@ mod push_out;
 mod push_targets;
 mod query;
 mod query_entity;
-mod removed_overlay;
+#[cfg(feature = "testing")]
+mod recorded_ticks;
 mod resolve;
 mod rest;
 mod scratch;
@@ -98,6 +100,8 @@ pub use birth_uuid::birth_uuid;
 pub use block_action::BlockAction;
 pub use block_flags::BlockFlags;
 pub use block_motion::BlockMotion;
+pub use block_overlay::BlockOverlay;
+pub use block_overlay::OverlaySection;
 pub use body::Body;
 pub use body_grid::BodyGrid;
 pub use body_view::BodyView;
@@ -160,8 +164,10 @@ pub use player_state::PlayerRotation;
 pub use player_state::PlayerState;
 pub use pose::Pose;
 pub use push::CROWD_DAMAGE;
+pub use push::MIN_PUSH_DISTANCE;
 pub use push::PushOutcome;
 pub use push::PushRules;
+pub use push::push_axis;
 pub use push::push_entity;
 pub use push::push_vector;
 pub use push::pushes;
@@ -170,8 +176,14 @@ pub use query::intersects;
 pub use query::query_colliders;
 pub use query_entity::QueryEntity;
 pub use query_entity::QueryVariant;
-pub use removed_overlay::OverlaySection;
-pub use removed_overlay::RemovedOverlay;
+#[cfg(feature = "testing")]
+pub use recorded_ticks::set_attribute;
+#[cfg(feature = "testing")]
+pub use recorded_ticks::set_effect;
+#[cfg(feature = "testing")]
+pub use recorded_ticks::sprint_modifiers;
+#[cfg(feature = "testing")]
+pub use recorded_ticks::test_state;
 pub use resolve::Probe;
 pub use resolve::Resolved;
 pub use resolve::StepUp;

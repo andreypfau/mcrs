@@ -3,6 +3,7 @@ use mcrs_engine_muxer::EntityId;
 use mcrs_engine_muxer::TileKey;
 use mcrs_minecraft_physics::Aabb;
 use mcrs_minecraft_physics::BirthKey;
+use mcrs_minecraft_physics::BlockOverlay;
 use mcrs_minecraft_physics::Body;
 use mcrs_minecraft_physics::BodyGrid;
 use mcrs_minecraft_physics::ColliderEnds;
@@ -16,7 +17,6 @@ use mcrs_minecraft_physics::MotionRow;
 use mcrs_minecraft_physics::NoBodies;
 use mcrs_minecraft_physics::PushTargets;
 use mcrs_minecraft_physics::QueryEntity;
-use mcrs_minecraft_physics::RemovedOverlay;
 use mcrs_minecraft_physics::SourceKind;
 use mcrs_minecraft_physics::Tables;
 use mcrs_minecraft_physics::TeamSlot;
@@ -30,7 +30,8 @@ use mcrs_minecraft_physics::WriterKey;
 use mcrs_minecraft_physics::YzxPos;
 use mcrs_minecraft_physics::intersects;
 use mcrs_voxel::BlockPos;
-use rustc_hash::FxHashSet;
+use mcrs_voxel::BlockStateId;
+use rustc_hash::FxHashMap;
 
 const TILE: TileKey = TileKey::new(0, 0, 0);
 
@@ -121,11 +122,11 @@ fn an_overlay_reads_removed_blocks_as_air_even_where_the_base_has_masks() {
     let mut world = TestWorld::new();
     world.fill(BlockPos::new(0, 0, 0), BlockPos::new(2, 0, 2), blocks.stone);
     world.build_masks(&blocks.table);
-    let mut removed = FxHashSet::default();
-    removed.insert(BlockPos::new(1, 0, 1));
-    let overlay = RemovedOverlay {
+    let mut removed = FxHashMap::default();
+    removed.insert(BlockPos::new(1, 0, 1), BlockStateId::AIR);
+    let overlay = BlockOverlay {
         base: &world,
-        removed: &removed,
+        blocks: &removed,
     };
     let entity = QueryEntity {
         key: key(0),

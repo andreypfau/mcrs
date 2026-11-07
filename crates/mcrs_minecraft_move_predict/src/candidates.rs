@@ -3,6 +3,7 @@ use std::mem;
 use glam::DVec3;
 use mcrs_minecraft_physics::Aabb;
 use mcrs_minecraft_physics::BlockAction;
+use mcrs_minecraft_physics::BlockOverlay;
 use mcrs_minecraft_physics::BodyView;
 use mcrs_minecraft_physics::CollisionWorld;
 use mcrs_minecraft_physics::PlayerInput;
@@ -17,10 +18,8 @@ use mcrs_voxel::BlockStateId;
 use rustc_hash::FxHashMap;
 
 use crate::ClientTick;
-use crate::ClientView;
 use crate::Limits;
 use crate::Pusher;
-use crate::PusherHistory;
 use crate::kept_changes::KeptChanges;
 use crate::push_bound::PushBound;
 
@@ -47,9 +46,9 @@ pub(crate) struct Record {
 }
 
 /// The read-only inputs of a prediction.
-pub(crate) struct Context<'a, W, B, H: ?Sized> {
+pub(crate) struct Context<'a, W, B> {
     pub(crate) view: View<'a, W, B>,
-    pub(crate) history: &'a H,
+    pub(crate) pushers: &'a [Pusher],
     pub(crate) kept: &'a KeptChanges,
     pub(crate) limits: &'a Limits,
 }
@@ -80,12 +79,6 @@ pub(crate) enum Stop {
     Unbounded,
 }
 
-#[derive(Clone, Copy, Debug, Default, PartialEq)]
-pub(crate) struct Tried {
-    /// The first candidate with the smallest offset, when none matches.
-    pub(crate) best: Option<Scored>,
-}
-
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) struct Scored {
     pub(crate) candidate: Candidate,
@@ -106,34 +99,35 @@ struct Trial {
 }
 
 /// Runs the candidates of the tick of `record` in the try order and marks whether each ran. The
-/// kept candidates go to `work.matched`, with the reported position.
-pub(crate) fn run_tick<W: CollisionWorld, B: BodyView, H: PusherHistory + ?Sized>(
-    context: &Context<'_, W, B, H>,
+/// kept candidates go to `work.matched`, with the reported position. Gives the first candidate
+/// with the smallest offset.
+pub(crate) fn run_tick<W: CollisionWorld, B: BodyView>(
+    context: &Context<'_, W, B>,
     record: &mut Record,
     search: Search,
     steps: &mut u32,
     work: &mut Work,
-) -> Result<Tried, Stop> {
+) -> Result<Option<Scored>, Stop> {
     let mut trials = mem::take(&mut work.trials);
     plan(record, &mut trials);
     let result = run_trials(context, record, &trials, search, steps, work);
     work.trials = trials;
-    let (tried, explored) = result?;
+    let (best, explored) = result?;
     record.explored = explored;
-    Ok(tried)
+    Ok(best)
 }
 
-fn run_trials<W: CollisionWorld, B: BodyView, H: PusherHistory + ?Sized>(
-    context: &Context<'_, W, B, H>,
+fn run_trials<W: CollisionWorld, B: BodyView>(
+    context: &Context<'_, W, B>,
     record: &Record,
     trials: &[Trial],
     search: Search,
     steps: &mut u32,
     work: &mut Work,
-) -> Result<(Tried, bool), Stop> {
+) -> Result<(Option<Scored>, bool), Stop> {
     let reported = record.tick.reported;
     work.matched.clear();
-    let mut tried = Tried::default();
+    let mut best: Option<Scored> = None;
     for (index, trial) in trials.iter().enumerate() {
         let Some(from) = record.start.get(trial.start) else {
             continue;
@@ -146,8 +140,8 @@ fn run_trials<W: CollisionWorld, B: BodyView, H: PusherHistory + ?Sized>(
             applied: trial.applied,
         };
         let score = run_trial(context, record, &mut candidate, steps, work)?;
-        if tried.best.is_none_or(|best| score.offset < best.offset) {
-            tried.best = Some(Scored {
+        if best.is_none_or(|best| score.offset < best.offset) {
+            best = Some(Scored {
                 candidate,
                 offset: score.offset,
             });
@@ -164,13 +158,13 @@ fn run_trials<W: CollisionWorld, B: BodyView, H: PusherHistory + ?Sized>(
         if search == Search::First && flags_match {
             work.matched.clear();
             work.matched.push(candidate);
-            return Ok((tried, index + 1 == trials.len()));
+            return Ok((best, index + 1 == trials.len()));
         }
         if !work.matched.contains(&candidate) {
             work.matched.push(candidate);
         }
     }
-    Ok((tried, true))
+    Ok((best, true))
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -181,8 +175,8 @@ struct Score {
 
 /// Runs one candidate; with a position, again with the push in the bound that comes nearest to
 /// the report.
-fn run_trial<W: CollisionWorld, B: BodyView, H: PusherHistory + ?Sized>(
-    context: &Context<'_, W, B, H>,
+fn run_trial<W: CollisionWorld, B: BodyView>(
+    context: &Context<'_, W, B>,
     record: &Record,
     candidate: &mut Candidate,
     steps: &mut u32,
@@ -193,9 +187,9 @@ fn run_trial<W: CollisionWorld, B: BodyView, H: PusherHistory + ?Sized>(
     let start = candidate.state;
     let bound = push_bound(context, tick, &start, work)?;
     context.kept.undo_from(candidate.applied, &mut work.undone);
-    let world = ClientView {
+    let world = BlockOverlay {
         base: context.view.world,
-        undone: &work.undone,
+        blocks: &work.undone,
     };
     let view = View::new(&world, context.view.bodies, context.view.tables);
     let mut input = PlayerInput {
@@ -240,8 +234,8 @@ fn run_trial<W: CollisionWorld, B: BodyView, H: PusherHistory + ?Sized>(
 }
 
 /// The push bound of the pushers near the candidate; zero for a player that no entity pushes.
-fn push_bound<W, B, H: PusherHistory + ?Sized>(
-    context: &Context<'_, W, B, H>,
+fn push_bound<W, B>(
+    context: &Context<'_, W, B>,
     tick: &ClientTick,
     start: &PlayerState,
     work: &mut Work,
@@ -256,9 +250,12 @@ fn push_bound<W, B, H: PusherHistory + ?Sized>(
         .expand_towards(start.velocity)
         .inflate(DVec3::splat(1.0));
     work.pushers.clear();
-    context
-        .history
-        .pushers(near, tick.server_ticks.clone(), &mut work.pushers);
+    work.pushers.extend(
+        context
+            .pushers
+            .iter()
+            .filter(|pusher| pusher.hull().intersects(&near)),
+    );
     PushBound::of(&work.pushers, &player, start.position, context.limits).ok_or(Stop::Unbounded)
 }
 

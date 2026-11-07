@@ -785,7 +785,7 @@ L0 and L1 leave the serial `bridge_inbound` loop (~5 ms at 50k packets per tick 
 
 ### 8.2 L2 next to the entity pass
 
-L2 reads `ClientView`, the front grid of the entities, the start-of-tick `ColliderEnds` view and the
+L2 reads a `BlockOverlay` of the client blocks, the front grid of the entities, the start-of-tick `ColliderEnds` view and the
 pusher history; it writes `Prediction`, `PlayerRows` and the player layer of the front grid.
 PHY-CMP-021 defines the start-of-tick state of a player as its state after the moves of this tick, so
 `predict` runs before the main pass: a main-pass tile starts when the players whose old position is
@@ -807,7 +807,7 @@ collision test of the new box is skipped.
 
 ### 8.3 The client world view and kept changes
 
-`ClientView` is an overlay over the current `CollisionWorld`:
+The client view is a `BlockOverlay` over the current `CollisionWorld`:
 
 - `uncertain: FxHashMap<BlockPos, (old, new)>`, the changes in a window (MVC-LAT-004, LAT-006);
 - `undone: FxHashMap<BlockPos, BlockStateId>`, the old states for a replayed tick (MVC-PRED-017);
@@ -837,15 +837,9 @@ player refers to it.
 MVC-UNC-006 lets L2 use a superset of pushers; MVC-UNC-007 states the kept positions. A pusher inside
 the near zone of a viewer is always in tier 0 for that viewer: tier 0 covers 32 blocks (REPL §7.4),
 and the near zone is smaller; the muxer must never lower such a tile below tier 0 by the cap or the
-budget. The muxer reports the tier-0 positions of tick `T` in the input of `T + 1`. L2 reads them
-through:
-
-```rust
-pub trait PusherHistory {
-    fn positions(&self, entity: EntityId, ticks: TickRange, out: &mut Vec<SentPosition>);
-    fn candidates(&self, near: Aabb, out: &mut Vec<PusherCandidate>);
-}
-```
+budget. The muxer reports the tier-0 positions of tick `T` in the input of `T + 1`. L2 takes them
+as a slice of `Pusher`: the hull of the positions of each pusher over the server ticks that the
+client can show, and the size of its box.
 
 ### 8.5 Probes and the write queue
 
@@ -883,14 +877,14 @@ an impulse that the server sends to the client (PHY-SRV-007) starts from it.
 | `mcrs_minecraft_physics` (new) | no | numbers and the sine table, shapes, tables (types), masks, world and body views, the query of PHY-SHP-012, the move procedure, step-up, flags, ticks, `PlayerState`, `tick_player`, PHY-SRV-008 and PHY-SRV-010, push, rest, in-air batch, `TileRows`, `BodyGrid`, `EffectBuffer` |
 | `mcrs_minecraft_collision_table` (new) | no | builds `CollisionTable` from the block definitions of `mcrs_minecraft_block` |
 | `mcrs_minecraft_move_validate` (new) | no | L0, L1 |
-| `mcrs_minecraft_move_predict` (new) | no | L2, `ClientView`, `KeptChanges`, `PusherHistory` |
+| `mcrs_minecraft_move_predict` (new) | no | L2, `KeptChanges`, `Pusher` |
 | `mcrs_minecraft_engine_physics` (new) | yes | the resources of §6.2, `entity_tick`, the freeze, the merge point and claims, the life cycle, brick projection, tile events, the AI link |
 | `mcrs_minecraft_brain` (new) | no | the AI stage kernel |
 | `mcrs_minecraft_engine` (extended) | yes | L0/L1 hooks on the network threads, L2 systems, crossing, `PlayerRows` consumers |
 | `mcrs_minecraft_replication` (extended) | no | the codec for entities that are not players (REPL §7.11) |
 
 A foreign-host anticheat links `_physics`, `_collision_table`, `_move_validate` and `_move_predict`,
-and implements `CollisionWorld`, `BodyView` and `PusherHistory`.
+implements `CollisionWorld` and `BodyView`, and gives the `Pusher` list of each player.
 
 ## 9. Kernel API
 
@@ -909,8 +903,8 @@ pub trait CollisionSection {
     fn state(&self, at: LocalPos) -> BlockStateId;
 }
 
-/// An overlay of removed blocks over a base world: explosion groups (§3.5).
-pub struct RemovedOverlay<'a, W> { base: &'a W, removed: &'a FxHashSet<BlockPos> }
+/// An overlay of block states over a base world: explosion groups (§3.5) and the client view (§8.3).
+pub struct BlockOverlay<'a, W> { base: &'a W, blocks: &'a FxHashMap<BlockPos, BlockStateId> }
 
 /// The driver picks the front grid plus `ColliderEnds`, or a live view (exact-parity mode).
 pub trait BodyView {
@@ -1058,8 +1052,8 @@ pub struct TileRows { state: Vec<EntityState>, motion: Vec<MotionRow>, id: Vec<E
 
 `EffectBuffer` and `TileQueues` are generic: the write, claim and decision types come with the
 steps that fill them (B2, B3, A3), and the kernel never reads them. `Keyed` carries `target_id`
-because the store finds a row by `EntityId` (§4); the order never reads it. `RemovedOverlay` returns
-no masks for a section with a removal, because the masks of the base do not know the removals.
+because the store finds a row by `EntityId` (§4); the order never reads it. `BlockOverlay` returns
+no masks for a section with an overlay block, because the masks of the base do not know the overlay.
 
 The kernel functions take one `View` in place of the world, the bodies and the tables, and a
 query returns a `SourcedCollider` in place of a tuple. A function with more than seven inputs
@@ -1071,7 +1065,7 @@ short.
 | Boundary | Why now |
 |----------|---------|
 | `EffectBuffer` bins by target tile, each entry with a `WriterKey` | the merge point and the claims run per target tile; a flat buffer forces a serial sort |
-| `RemovedOverlay` as a `CollisionWorld` | explosion groups run during `Simulate` and must not write blocks |
+| `BlockOverlay` as a `CollisionWorld` | explosion groups run during `Simulate` and must not write blocks |
 | `ColliderEnds` ready per tile | a main-pass tile waits only for the collider groups that touch it |
 | `BodyGrid` back buffer per tile | the pass writes the grid of its tile |
 | Row-only life cycle (`spawn_row`, `despawn_row`, `reserve_ids`) | items, orbs and projectiles never touch ECS |
@@ -1362,7 +1356,7 @@ working. Steps in one track run in sequence; tracks marked ∥ run in parallel w
 
 | Step | Crate | Scope | Rules | Tests | Exit |
 |------|-------|-------|-------|-------|------|
-| B0 | `mcrs_minecraft_physics` | the boundaries of §9: `EffectBuffer` bins with `WriterKey`, `RemovedOverlay`, `ColliderEnds` per tile, grid back buffer, row-only life cycle, `TileQueues`, `masks()` as `Option` | — | compile-level and unit tests | types stable; later steps only fill them |
+| B0 | `mcrs_minecraft_physics` | the boundaries of §9: `EffectBuffer` bins with `WriterKey`, `BlockOverlay`, `ColliderEnds` per tile, grid back buffer, row-only life cycle, `TileQueues`, `masks()` as `Option` | — | compile-level and unit tests | types stable; later steps only fill them |
 | B1 | `mcrs_minecraft_engine`, save | birth key, its digest form, the UUID made at birth, the phase offset, persistence | PHY-CMP-013, 016, 024 | save and load equality; one cell against four give equal keys | before any determinism test |
 | B2 | `mcrs_minecraft_engine_physics` | `EntityRows`, `BodyGrid` (grid in the pass, patch at the freeze), `entity_tick` over tiles with counters, rest per tile, bins, merge point per target tile, row-only items and orbs | PHY-CMP-008, 009, 012, 015, PHY-INV-015 | tick determinism for 1, 2, 8 threads and task splits; grid patch equals rebuild | 100k items and walkers at ≤ 5 ms on 16 cores |
 | B3 | `mcrs_minecraft_engine_physics` | claims per target tile; pickups, hoppers, merges, command kills | PHY-CMP-017 | property: one winner, lowest key, any thread count | dupe tests pass |
@@ -1377,7 +1371,7 @@ working. Steps in one track run in sequence; tracks marked ∥ run in parallel w
 |------|-------|-------|-------|-------|------|
 | C1 | `mcrs_minecraft_move_validate` | L0 on the network threads | MVC-CHK-023, MVC-LAY-002 | fuzz; value table | ≤ 30 ns per packet |
 | C2 | `mcrs_minecraft_move_validate` | L1 per connection, in stream order; probe planning | MVC-LAY-003, MVC-TICK-*, MVC-LAT-001..005, MVC-CHK-010 | MVC-INV-001..009 property tests | ≤ 100 ns per packet |
-| C3 | `mcrs_minecraft_move_predict` | L2: candidates, fast path, replay, `ClientView` overlay, `KeptChanges`, push input, `PusherHistory`, setbacks | MVC-PRED-001..019, MVC-LAT-004..008, MVC-UNC-001..007, MVC-RSP-001..004 | parity C1–C7 with zero violations; replay sees the original blocks | 10k scripted players at ≤ 28 core-ms |
+| C3 | `mcrs_minecraft_move_predict` | L2: candidates, fast path, replay, `BlockOverlay` client view, `KeptChanges`, push input, `Pusher` list, setbacks | MVC-PRED-001..019, MVC-LAT-004..008, MVC-UNC-001..007, MVC-RSP-001..004 | parity C1–C7 with zero violations; replay sees the original blocks | 10k scripted players at ≤ 28 core-ms |
 
 ### Track D — block shards (D1 ∥ with B)
 

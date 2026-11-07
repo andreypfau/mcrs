@@ -375,7 +375,7 @@ fn lat_008_an_accept_matches_the_destination_of_a_candidate() {
     let outcome = session.prediction.accept(&session.fixture.tables, far);
     let correction = outcome
         .setback
-        .expect("D8: an accept elsewhere gets a correction");
+        .expect("an accept elsewhere gets a correction");
     assert_eq!(correction.position, destination.position);
     assert_eq!(outcome.offset, Some(5.0));
 
