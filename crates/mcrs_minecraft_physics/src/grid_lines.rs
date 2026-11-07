@@ -1,3 +1,5 @@
+use crate::Aabb;
+use crate::Axis;
 use crate::tolerance::COLLISION;
 
 /// The largest power of two of the grid of one box: a box face on a grid of `1/2^n` with `n` up
@@ -17,18 +19,14 @@ pub(crate) enum BoxLines {
 }
 
 impl BoxLines {
-    /// The lines of the box from `min` to `max` on one axis.
-    pub(crate) fn of(min: f64, max: f64) -> Self {
-        if min < -COLLISION || max > 1.000_000_1 {
-            return BoxLines::Faces(min, max);
+    /// The lines of `bounds` on each axis. When one axis is off the grid of `1/2^MAX_GRID_BITS`,
+    /// every axis keeps only the faces.
+    pub(crate) fn of(bounds: &Aabb) -> [Self; 3] {
+        let bits = Axis::ALL.map(|axis| grid_bits(bounds.min_of(axis), bounds.max_of(axis)));
+        match bits {
+            [Some(x), Some(y), Some(z)] => [BoxLines::Grid(x), BoxLines::Grid(y), BoxLines::Grid(z)],
+            _ => Axis::ALL.map(|axis| BoxLines::Faces(bounds.min_of(axis), bounds.max_of(axis))),
         }
-        for bits in 0..=MAX_GRID_BITS {
-            let scale = f64::from(1_u32 << bits);
-            if on_grid(min, scale) && on_grid(max, scale) {
-                return BoxLines::Grid(bits);
-            }
-        }
-        BoxLines::Faces(min, max)
     }
 
     /// Writes the lines in ascending order into `out` and returns their number.
@@ -49,6 +47,16 @@ impl BoxLines {
             }
         }
     }
+}
+
+fn grid_bits(min: f64, max: f64) -> Option<u32> {
+    if min < -COLLISION || max > 1.000_000_1 {
+        return None;
+    }
+    (0..=MAX_GRID_BITS).find(|&bits| {
+        let scale = f64::from(1_u32 << bits);
+        on_grid(min, scale) && on_grid(max, scale)
+    })
 }
 
 fn on_grid(value: f64, scale: f64) -> bool {

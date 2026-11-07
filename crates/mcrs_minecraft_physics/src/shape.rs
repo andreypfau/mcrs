@@ -126,19 +126,19 @@ impl CellGrid for PlacedShape<'_> {
     }
 }
 
-/// The union of the grid lines of the boxes on one axis; values nearer than `1.0E-7` are one
-/// line, the lowest of them.
+/// The union of the grid lines of the boxes on one axis; a line joins the last kept line when it is
+/// at most `1.0E-7` above it.
 fn union_lines(boxes: &[Aabb], axis: Axis) -> Box<[f64]> {
     let mut all = Vec::with_capacity(boxes.len() * MAX_BOX_LINES);
     let mut buffer = [0.0; MAX_BOX_LINES];
     for bounds in boxes {
-        let count = BoxLines::of(bounds.min_of(axis), bounds.max_of(axis)).write(&mut buffer);
+        let count = axis.pick(&BoxLines::of(bounds)).write(&mut buffer);
         all.extend(buffer.iter().take(count));
     }
     all.sort_by(f64::total_cmp);
     let mut merged: Vec<f64> = Vec::with_capacity(all.len());
     for line in all {
-        if merged.last().is_none_or(|&last| line - last >= COLLISION) {
+        if merged.last().is_none_or(|&kept| line - COLLISION > kept) {
             merged.push(line);
         }
     }

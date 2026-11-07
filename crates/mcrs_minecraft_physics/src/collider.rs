@@ -102,13 +102,14 @@ impl BoxGrid {
         let mut lines = [[0.0; MAX_BOX_LINES]; 3];
         let mut counts = [0; 3];
         let mut cells = [0..0, 0..0, 0..0];
+        let box_lines = BoxLines::of(bounds);
         for axis in Axis::ALL {
             let (min, max) = (bounds.min_of(axis), bounds.max_of(axis));
             let slot = axis.index();
             let Some(axis_lines) = lines.get_mut(slot) else {
                 continue;
             };
-            let count = BoxLines::of(min, max).write(axis_lines);
+            let count = axis.pick(&box_lines).write(axis_lines);
             let mut first = None;
             let mut last = 0;
             for row in 0..count.saturating_sub(1) {

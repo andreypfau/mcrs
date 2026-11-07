@@ -94,6 +94,23 @@ fn carpet_is_one_box_with_its_faces_as_lines() {
 }
 
 #[test]
+fn shp_005_one_axis_off_the_eighth_grid_keeps_only_faces_on_every_axis() {
+    let shape = Shape::from_boxes(&[unit_box([0.25, 0.0, 0.0], [0.75, 1.0 / 16.0, 1.0])]).unwrap();
+    assert_eq!(shape.lines(Axis::X), [0.25, 0.75]);
+    assert_eq!(shape.lines(Axis::Y), [0.0, 1.0 / 16.0]);
+}
+
+#[test]
+fn shp_005_union_joins_a_line_exactly_one_tolerance_above_the_kept_line() {
+    let shape = Shape::from_boxes(&[
+        unit_box([0.1, 0.0, 0.0], [0.3, 1.0, 1.0]),
+        unit_box([0.3 + 1.0e-7, 0.0, 0.0], [0.6, 1.0, 1.0]),
+    ])
+    .unwrap();
+    assert_eq!(shape.lines(Axis::X), [0.1, 0.3, 0.6]);
+}
+
+#[test]
 fn box_on_a_quarter_grid_stops_at_an_inner_line() {
     // A box that penetrates a shape stops at the next grid line inside the shape.
     let shape = Shape::from_boxes(&[unit_box([0.25; 3], [0.75; 3])]).unwrap();
