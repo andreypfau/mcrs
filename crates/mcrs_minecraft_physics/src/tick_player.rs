@@ -91,7 +91,11 @@ pub fn tick_player<W: CollisionWorld, B: BodyView>(
         body.fall_distance = 0.0;
     }
     body.velocity += input.push;
-    let gravity = effective_gravity(&attributes, out.effects.slow_falling, body.velocity.y);
+    let gravity = travel::effective_gravity(
+        attributes.gravity,
+        out.effects.slow_falling,
+        body.velocity.y,
+    );
     let mover = Mover {
         key: BirthKey::new(0, SourceKind::Player, 0, 0),
         width: dimensions.width,
@@ -123,7 +127,7 @@ pub fn tick_player<W: CollisionWorld, B: BodyView>(
         jump: keys.jump,
         omnidirectional: false,
         climbs_powder_snow: false,
-        gravity,
+        gravity: attributes.gravity,
         player: true,
     };
     let kept_y = body.velocity.y;
@@ -158,16 +162,6 @@ pub fn tick_player<W: CollisionWorld, B: BodyView>(
     out.forward0 = move_input.forward;
     out.sprint0 = sprint;
     out.flight0 = flight_end;
-}
-
-/// The gravity after the effect `slow_falling`, which caps it at 0.01 while the player does not
-/// rise.
-fn effective_gravity(attributes: &MotionAttributes, slow_falling: bool, vertical: f64) -> f64 {
-    if slow_falling && vertical <= 0.0 {
-        attributes.gravity.min(0.01)
-    } else {
-        attributes.gravity
-    }
 }
 
 /// A spectator has no physics.

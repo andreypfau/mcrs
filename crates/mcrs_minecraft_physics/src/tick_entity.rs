@@ -174,11 +174,7 @@ fn tick_living<W: CollisionWorld, B: BodyView>(
         } else {
             attributes.gravity
         };
-        mover.gravity = if effects.slow_falling && body.velocity.y <= 0.0 {
-            base.min(0.01)
-        } else {
-            base
-        };
+        mover.gravity = travel::effective_gravity(base, effects.slow_falling, body.velocity.y);
         let input = TravelInput {
             mover: &mover,
             attributes: &attributes,
@@ -190,7 +186,7 @@ fn tick_living<W: CollisionWorld, B: BodyView>(
             jump: living.jump,
             omnidirectional,
             climbs_powder_snow: living.in_powder_snow && living.walks_on_powder_snow,
-            gravity: mover.gravity,
+            gravity: base,
             player: false,
         };
         let moved = travel::travel(view, &input, body, scratch);

@@ -195,6 +195,25 @@ fn ord_005_a_resting_item_applies_the_blocks_of_its_last_path() {
 }
 
 #[test]
+fn grv_002_slow_falling_reads_the_vertical_velocity_after_the_move() {
+    let mut fixture = Fixture::new();
+    fixture.floor(fixture.blocks.stone);
+    fixture
+        .world
+        .set(BlockPos::new(0, 3, 0), fixture.blocks.stone);
+    let mut zombie = entity(DVec3::new(0.5, 1.0, 0.5), DVec3::new(0.0, 0.3, 0.0), true);
+    if let Some(living) = zombie.living.as_mut() {
+        living.effects.slow_falling = true;
+    }
+    fixture.tick(&MotionRow::zombie(), &mut zombie, true);
+    assert!(
+        zombie.body.flags.vertical_collision,
+        "the head hits the block"
+    );
+    assert_eq!(zombie.body.velocity.y, -0.01 * f64::from(0.98_f32));
+}
+
+#[test]
 fn grv_007_ground_drag_is_0_546000063419342() {
     assert_eq!(f64::from(0.6_f32 * 0.91_f32), 0.546000063419342);
     let mut fixture = Fixture::new();

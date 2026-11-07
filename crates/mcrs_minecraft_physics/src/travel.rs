@@ -45,6 +45,7 @@ pub(crate) struct TravelInput<'a> {
     pub(crate) omnidirectional: bool,
     /// The entity climbs in this tick as it did inside powder snow in the previous tick.
     pub(crate) climbs_powder_snow: bool,
+    /// The gravity before the effect `slow_falling`.
     pub(crate) gravity: f64,
     pub(crate) player: bool,
 }
@@ -89,7 +90,13 @@ pub(crate) fn travel<W: CollisionWorld, B: BodyView>(
         body.fall_distance = 0.0;
     }
     let velocity = body.velocity;
-    let outcome = move_body::move_body(view, input.mover, body, MoverKind::Own, velocity, scratch);
+    let slow_falling = input.effects.slow_falling;
+    let mover = Mover {
+        gravity: effective_gravity(input.gravity, slow_falling, velocity.y),
+        ..*input.mover
+    };
+    let outcome = move_body::move_body(view, &mover, body, MoverKind::Own, velocity, scratch);
+    let gravity = effective_gravity(input.gravity, slow_falling, body.velocity.y);
     if (climb.is_some() || input.climbs_powder_snow)
         && (body.flags.horizontal_collision || input.jump)
     {
@@ -100,7 +107,7 @@ pub(crate) fn travel<W: CollisionWorld, B: BodyView>(
             let target = 0.05 * (f64::from(level) + 1.0);
             body.velocity.y + (target - body.velocity.y) * 0.2
         }
-        None => body.velocity.y - input.gravity,
+        None => body.velocity.y - gravity,
     };
     let air_drag = input.attributes.air_drag_modifier as f32;
     let horizontal_air = modifier(0.91, air_drag);
@@ -114,6 +121,16 @@ pub(crate) fn travel<W: CollisionWorld, B: BodyView>(
     body.velocity.z *= horizontal;
     body.velocity.y *= f64::from(vertical_air);
     outcome
+}
+
+/// The gravity after the effect `slow_falling`, which caps it at 0.01 while `vertical` is not
+/// above zero.
+pub(crate) fn effective_gravity(gravity: f64, slow_falling: bool, vertical: f64) -> f64 {
+    if slow_falling && vertical <= 0.0 {
+        gravity.min(0.01)
+    } else {
+        gravity
+    }
 }
 
 /// `mod(f, k) = clamp(1 - (1 - f) × k, 0, 1)`, in f32.

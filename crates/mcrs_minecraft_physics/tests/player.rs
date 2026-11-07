@@ -254,6 +254,29 @@ fn srv_008_the_observed_velocity_holds_the_velocity_of_the_tick() {
 }
 
 #[test]
+fn srv_008_slow_falling_reads_the_vertical_velocity_before_the_climb() {
+    let mut fixture = Fixture::on_stone();
+    fixture
+        .world
+        .set(BlockPos::new(0, 5, 0), fixture.blocks.scaffolding);
+    let mut state = PlayerState::new(DVec3::new(0.5, 5.2, 0.5));
+    state.effects.slow_falling = true;
+    let observation = Observation {
+        displacement: DVec3::new(0.0, -0.05, 0.0),
+        end_flags: MoveFlags::default(),
+        end_support: None,
+        flight: false,
+        jump: true,
+        shift: false,
+    };
+    let candidates = observed_velocity(fixture.view(), &state, &observation);
+    let [velocity] = candidates.as_slice() else {
+        panic!("one candidate without a horizontal collision");
+    };
+    assert_eq!(velocity.y, (0.2 - 0.01) * f64::from(0.98_f32));
+}
+
+#[test]
 fn srv_010_a_teleport_rotates_the_velocity_by_the_table() {
     let tables = Tables::new(TestBlocks::new().table);
     let mut state = PlayerState::new(DVec3::new(10.0, 64.0, -3.0));

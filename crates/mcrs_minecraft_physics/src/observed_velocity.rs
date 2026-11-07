@@ -13,6 +13,7 @@ use crate::block_scan::state_at;
 use crate::move_body::offset_block;
 use crate::support::EFFECT_OFFSET;
 use crate::support::MOVEMENT_OFFSET;
+use crate::travel;
 use crate::travel::modifier;
 
 /// What the server observed of one tick of a player.
@@ -90,6 +91,7 @@ pub fn observed_velocity<W: CollisionWorld, B: BodyView>(
     } else {
         delta.y
     };
+    let moved_vertical = vertical;
     if !stuck && climbs(view, start) && (flags.horizontal_collision || observation.jump) {
         vertical = 0.2;
     }
@@ -99,12 +101,11 @@ pub fn observed_velocity<W: CollisionWorld, B: BodyView>(
         let y = match start.effects.levitation {
             Some(level) => vertical + (0.05 * (f64::from(level) + 1.0) - vertical) * 0.2,
             None => {
-                let gravity = start.attributes.gravity;
-                let gravity = if start.effects.slow_falling && vertical <= 0.0 {
-                    gravity.min(0.01)
-                } else {
-                    gravity
-                };
+                let gravity = travel::effective_gravity(
+                    start.attributes.gravity,
+                    start.effects.slow_falling,
+                    moved_vertical,
+                );
                 vertical - gravity
             }
         };
