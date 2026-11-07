@@ -15,6 +15,7 @@ use mcrs_minecraft_engine_world::world::storage::column::ColumnPosComponent;
 use mcrs_minecraft_environment::world_clock::WorldClocks;
 use mcrs_voxel::{ColumnPos, SectionPos};
 
+use crate::banlist::{BanList, EditBans};
 use crate::bus::{
     InboundPlayerDespawn, InboundPlayerPacket, InboundPlayerSpawn, OutboundPlayerReleased,
 };
@@ -69,6 +70,7 @@ pub struct DimInput {
     pub(crate) clocks: Option<WorldClocks>,
     pub(crate) ops: Option<OpList>,
     pub(crate) whitelist: Option<Whitelist>,
+    pub(crate) bans: Option<BanList>,
     pub(crate) registries: Option<Versioned<RegistrySnapshot>>,
     pub(crate) dimensions: Option<RunningDimensions>,
     /// The players of the other worlds, in a tick whose input carries commands.
@@ -101,6 +103,8 @@ pub struct DimOutput {
     pub(crate) clock_edits: Vec<EditClock>,
     /// The changes to the whitelist that the tick made.
     pub(crate) whitelist_edits: Vec<EditWhitelist>,
+    /// The changes to the ban list that the tick made.
+    pub(crate) ban_edits: Vec<EditBans>,
     /// What the tick hands the other cells of the world. A world of one cell hands nothing.
     pub(crate) cell_mail: CellMail,
     /// The requests of the tick to the data layer of the world, in order.
@@ -118,6 +122,7 @@ impl DimOutput {
         self.departures.extend(other.departures);
         self.clock_edits.extend(other.clock_edits);
         self.whitelist_edits.extend(other.whitelist_edits);
+        self.ban_edits.extend(other.ban_edits);
     }
 }
 
@@ -181,6 +186,9 @@ fn apply_input(world: &mut World, _tick: Tick, input: DimInput) {
     }
     if let Some(whitelist) = input.whitelist {
         world.insert_resource(whitelist);
+    }
+    if let Some(bans) = input.bans {
+        world.insert_resource(bans);
     }
     if let Some(registries) = input.registries {
         mcrs_minecraft_engine_registries::apply_registries(world, registries);
@@ -253,6 +261,7 @@ fn take_output(world: &mut World) -> DimOutput {
         output.client.orders = std::mem::take(&mut mail.orders);
         output.clock_edits = std::mem::take(&mut mail.clock_edits);
         output.whitelist_edits = std::mem::take(&mut mail.whitelist_edits);
+        output.ban_edits = std::mem::take(&mut mail.ban_edits);
         output.client.handoffs = std::mem::take(&mut mail.handoffs);
     }
     drain_into(world, &mut output.client.views);

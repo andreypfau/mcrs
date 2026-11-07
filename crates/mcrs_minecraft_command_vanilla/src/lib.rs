@@ -2,6 +2,7 @@
 //! `time`, and the command effects they write.
 
 // std: bevy_ecs needs it.
+mod ban;
 mod dimension_view;
 mod execute;
 mod execute_view;

@@ -9,6 +9,7 @@ use std::str::FromStr;
 use bevy_app::{App, AppExit, PluginGroup, Update};
 use bevy_ecs::message::MessageWriter;
 use bevy_log::{Level, LogPlugin, tracing_subscriber};
+use mcrs_minecraft_engine::banlist::{BANLIST_FILE, BanList};
 use mcrs_minecraft_engine::coordinator::ops::{OPS_FILE, OpList};
 use mcrs_minecraft_engine::whitelist::{WHITELIST_FILE, Whitelist};
 use mcrs_minecraft_engine_server::{
@@ -138,6 +139,7 @@ fn network() -> ServerNetworkPlugin {
                 variable("MCRS_ENFORCE_WHITELIST").as_deref(),
                 false,
             )),
+        banlist: BanList::read(Path::new(BANLIST_FILE)),
         ..Default::default()
     }
 }

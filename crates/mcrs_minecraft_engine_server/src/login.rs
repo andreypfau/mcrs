@@ -16,6 +16,7 @@ use mcrs_minecraft_protocol::packets::login::serverbound::{
 use mcrs_minecraft_protocol::{CompressionThreshold, uuid};
 use mcrs_minecraft_text::Text;
 
+use mcrs_minecraft_engine::banlist::{BanEntry, BanList, EnforceBans};
 use mcrs_minecraft_engine::coordinator::ops::OpList;
 use mcrs_minecraft_engine::game_profile::GameProfile;
 use mcrs_minecraft_engine::muxer::disconnect::Departing;
@@ -47,6 +48,7 @@ impl bevy_app::Plugin for LoginPlugin {
         app.insert_resource(ChatSessionId(uuid::Uuid::new_v4()));
         app.init_resource::<ServerTicks>();
         app.init_resource::<Whitelist>();
+        app.init_resource::<BanList>();
         app.init_resource::<OpList>();
         app.init_resource::<NetworkCompressionThreshold>();
         app.add_systems(
@@ -67,6 +69,7 @@ impl bevy_app::Plugin for LoginPlugin {
                 .before(crate::shutdown::shutdown_system)
                 .run_if(any_with_component::<LoginStarted>),
         );
+        app.add_observer(enforce_bans);
         app.add_observer(enforce_whitelist);
     }
 }
@@ -92,6 +95,32 @@ fn enforce_whitelist(
             &mut con,
             client_protocol(state, login),
             not_whitelisted_reason(),
+        );
+        commands.entity(connection).remove::<ServerSideConnection>();
+    }
+}
+
+fn enforce_bans(
+    _: On<EnforceBans>,
+    bans: Res<BanList>,
+    mut connections: Query<(
+        Entity,
+        &mut ServerSideConnection,
+        &ConnectionState,
+        &GameProfile,
+        Option<&LoginState>,
+    )>,
+    mut commands: Commands,
+) {
+    for (connection, mut con, &state, profile, login) in &mut connections {
+        if bans.active(&profile.id).is_none() {
+            continue;
+        }
+        tracing::info!(name = %profile.username, "disconnected: banned");
+        disconnect(
+            &mut con,
+            client_protocol(state, login),
+            Text::translate("multiplayer.disconnect.banned", Vec::new()),
         );
         commands.entity(connection).remove::<ServerSideConnection>();
     }
@@ -167,6 +196,21 @@ fn invalid_player_name_reason() -> Text {
             "Internal Exception: java.lang.IllegalStateException: Invalid characters in username",
         )],
     )
+}
+
+pub fn banned_reason(entry: &BanEntry) -> Text {
+    let reason = match &entry.reason {
+        Some(reason) => Text::text(reason.clone()),
+        None => Text::translate("multiplayer.disconnect.banned.reason.default", Vec::new()),
+    };
+    let mut text = Text::translate("multiplayer.disconnect.banned.reason", vec![reason]);
+    if let Some(expiration) = entry.expiration_text() {
+        text.extra.push(Text::translate(
+            "multiplayer.disconnect.banned.expiration",
+            vec![Text::text(expiration)],
+        ));
+    }
+    text
 }
 
 pub fn not_whitelisted_reason() -> Text {
@@ -252,6 +296,7 @@ impl SessionsById<'_, '_> {
 
 #[derive(SystemParam)]
 pub struct JoinCheck<'w> {
+    bans: Res<'w, BanList>,
     whitelist: Res<'w, Whitelist>,
     ops: Res<'w, OpList>,
     host: Option<Res<'w, SingleplayerProfile>>,
@@ -307,6 +352,14 @@ pub fn handle_hello_packet(
         return;
     }
     let profile = hello_profile(&pkt.username, join_check.host.as_deref());
+    if let Some(ban) = join_check.bans.active(&profile.id) {
+        tracing::info!(name = %profile.username, "login refused: banned");
+        disconnect(&mut con, ConnectionState::Login, banned_reason(ban));
+        commands
+            .entity(event.entity)
+            .remove::<ServerSideConnection>();
+        return;
+    }
     if !join_check.allows(&profile.id) {
         tracing::info!(name = %profile.username, "login refused: not whitelisted");
         disconnect(&mut con, ConnectionState::Login, not_whitelisted_reason());

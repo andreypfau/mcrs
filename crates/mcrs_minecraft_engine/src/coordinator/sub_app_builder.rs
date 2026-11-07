@@ -267,6 +267,11 @@ fn spawn_dim_subapp(app: &mut App, request: &DimSpawnRequest) -> Result<Entity, 
                 .unwrap_or_default(),
         );
         sub_app.insert_resource(
+            host.get_resource::<crate::banlist::BanList>()
+                .cloned()
+                .unwrap_or_default(),
+        );
+        sub_app.insert_resource(
             host.get_resource::<RunningDimensions>()
                 .cloned()
                 .unwrap_or_default(),

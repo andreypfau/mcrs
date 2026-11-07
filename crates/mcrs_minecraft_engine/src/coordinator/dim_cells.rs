@@ -21,6 +21,7 @@ use mcrs_minecraft_environment::world_clock::WorldClocks;
 use mcrs_voxel::ColumnPos;
 use rustc_hash::FxHashMap;
 
+use crate::banlist::BanList;
 use crate::cell_mail::CellMail;
 use crate::channel_types::ToDim;
 use crate::column_generation::{GenerationAnswer, GenerationAsk};
@@ -668,6 +669,7 @@ struct Globals {
     clocks: Option<WorldClocks>,
     ops: Option<OpList>,
     whitelist: Option<Whitelist>,
+    bans: Option<BanList>,
     registries: Option<Versioned<RegistrySnapshot>>,
     dimensions: Option<RunningDimensions>,
 }
@@ -679,6 +681,7 @@ impl Globals {
             clocks: changed(host),
             ops: changed(host),
             whitelist: changed(host),
+            bans: changed(host),
             registries: changed(host),
             dimensions: changed(host),
         }
@@ -704,6 +707,7 @@ impl Globals {
             clocks: self.clocks.clone(),
             ops: self.ops.clone(),
             whitelist: self.whitelist.clone(),
+            bans: self.bans.clone(),
             registries: self.registries.clone(),
             dimensions: self.dimensions.clone(),
             players,
