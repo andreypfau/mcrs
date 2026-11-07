@@ -1,11 +1,10 @@
-use std::collections::HashMap;
-use std::collections::HashSet;
-
 use glam::DVec3;
 use mcrs_voxel::BlockPos;
 use mcrs_voxel::BlockStateId;
 use mcrs_voxel::LocalPos;
 use mcrs_voxel::SectionPos;
+use rustc_hash::FxHashMap;
+use rustc_hash::FxHashSet;
 
 use crate::Aabb;
 use crate::BlockFlags;
@@ -25,9 +24,9 @@ use crate::WorldBorder;
 /// A block world in a hash map, for tests and benchmarks.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct TestWorld {
-    blocks: HashMap<BlockPos, BlockStateId>,
-    unloaded: HashSet<(i32, i32)>,
-    masks: HashMap<SectionPos, SectionMasks>,
+    blocks: FxHashMap<BlockPos, BlockStateId>,
+    unloaded: FxHashSet<(i32, i32)>,
+    masks: FxHashMap<SectionPos, SectionMasks>,
     border: Option<WorldBorder>,
     min_y: i32,
     max_y: i32,
@@ -79,9 +78,9 @@ impl TestWorld {
 
     /// Gives each section with a block its masks, so the scan takes the masked path.
     pub fn build_masks(&mut self, table: &CollisionTable) {
-        let sections: HashSet<SectionPos> =
+        let sections: FxHashSet<SectionPos> =
             self.blocks.keys().map(|&at| SectionPos::from(at)).collect();
-        let mut masks = HashMap::new();
+        let mut masks = FxHashMap::default();
         for section in sections {
             let origin = section.min_block();
             let built = SectionMasks::from_states(table, |local| {
