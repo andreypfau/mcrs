@@ -1,9 +1,10 @@
 use crate::probe::{A, AIR, B, C, Host, ProbeFacts, ProbeKinds, STATES, at, section};
 use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_simulation::{
-    BlockBehaviour, BlockFacts, BlockShard, BlockUpdateFlags, Cx, Env, GameTick, KernelConfig,
-    ListedSection, PartitionKind, RandomPicks, RandomTickTable, RandomTicks, SemanticOrder,
-    ShardId, SimulatedSections, SimulationVolume, StepOutput, StreamSeed, random_step,
+    BlockBehaviour, BlockFacts, BlockShard, BlockUpdateFlags, Cx, Env, Footprints, GameTick,
+    KernelConfig, ListedSection, PartitionKind, RandomPicks, RandomTickTable, RandomTicks,
+    SemanticOrder, Serial, ShardId, SimulatedSections, SimulationVolume, StepOutput, StreamSeed,
+    random_step,
 };
 use mcrs_minecraft_volume::{Access, BlockVolume, BlockVolumeMut, SectionBlocksMut};
 use mcrs_voxel::{BlockPos, BlockStateId, LocalPos, SectionPos};
@@ -80,9 +81,18 @@ fn run(
             listed: &listed,
             speed,
             table: &table,
+            footprints: &Footprints::default(),
             seed: StreamSeed::new(4, "minecraft:overworld"),
         };
-        random_step(&mut shard, GameTick(now), host, &env, picks, &mut out);
+        random_step(
+            &mut shard,
+            GameTick(now),
+            host,
+            &env,
+            picks,
+            &mut out,
+            &Serial,
+        );
     }
     out
 }
@@ -269,9 +279,18 @@ fn precipitation_hits_writable_columns_only_and_do_not_depend_on_the_other_secti
                 listed: &[],
                 speed: 3,
                 table: &table,
+                footprints: &Footprints::default(),
                 seed: StreamSeed::new(4, "minecraft:overworld"),
             };
-            random_step(&mut shard, GameTick(now), &mut host, &env, picks, &mut out);
+            random_step(
+                &mut shard,
+                GameTick(now),
+                &mut host,
+                &env,
+                picks,
+                &mut out,
+                &Serial,
+            );
         }
         let hits = rules.hits.into_inner().expect("one step at a time");
         assert!(

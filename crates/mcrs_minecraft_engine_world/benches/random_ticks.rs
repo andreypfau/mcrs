@@ -1,7 +1,8 @@
 //! Random ticks of one step over the sections of 1,250 players (1/8 of 10k players: 262,144
 //! listed sections), on one core. Every section holds the same 120 ticking positions, so 2.9% of
-//! the picks run a handler, the rate of 185k handler runs in 6.3M picks. The handler does
-//! nothing: the cost of a real handler is added to the measured time.
+//! the picks run a handler, the rate of 185k handler runs in 6.3M picks. The handler reads the
+//! footprint of a grass block (SIM-MODEL-009, Table 1) and writes nothing: the cost of a real
+//! handler is added to the measured time.
 #![expect(clippy::expect_used, reason = "a bench reports a failure by panicking")]
 
 use std::hint::black_box;
@@ -13,9 +14,9 @@ use mcrs_minecraft_engine_world::palette::{ChunkBlocks, SectionStates};
 use mcrs_minecraft_engine_world::world::storage::random_ticks::RandomTickIndex;
 use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_simulation::{
-    BlockBehaviour, BlockFacts, BlockShard, Cx, Env, GameTick, KernelConfig, Kinds, PartitionKind,
-    RandomPicks, RandomTickTable, RandomTicks, SectionProperties, SemanticOrder, ShardId,
-    SimulatedSections, SimulationVolume, StepOutput, StreamSeed, random_step,
+    BlockBehaviour, BlockFacts, BlockShard, Cx, Env, Footprints, GameTick, KernelConfig, Kinds,
+    PartitionKind, RandomPicks, RandomTickTable, RandomTicks, SectionProperties, SemanticOrder,
+    Serial, ShardId, SimulatedSections, SimulationVolume, StepOutput, StreamSeed, random_step,
 };
 use mcrs_minecraft_volume::{
     Access, BlockVolume, BlockVolumeMut, Denied, PalettedSection, PalettedSectionMut,
@@ -73,12 +74,19 @@ struct Counted {
 impl BlockBehaviour<Bench> for Counted {
     fn random_tick<V: SimulationVolume, F: BlockFacts<Bench>>(
         &self,
-        _: &mut Cx<'_, Bench, V, F, Self>,
-        _: BlockPos,
+        cx: &mut Cx<'_, Bench, V, F, Self>,
+        at: BlockPos,
         _: BlockStateId,
         _: &mut LegacyRandom,
     ) {
         self.runs.fetch_add(1, Ordering::Relaxed);
+        for dx in -1..=1 {
+            for dy in -3..=2 {
+                for dz in -1..=1 {
+                    black_box(cx.state(BlockPos::new(at.x + dx, at.y + dy, at.z + dz)).ok());
+                }
+            }
+        }
     }
 }
 
@@ -164,6 +172,7 @@ fn random_ticks(c: &mut Criterion) {
         config: &config,
     };
     let seed = StreamSeed::new(4, "minecraft:overworld");
+    let footprints = Footprints::default();
     let mut listed = Vec::new();
     world.index.listed(&mut listed);
     let mut shard = BlockShard::new();
@@ -181,17 +190,27 @@ fn random_ticks(c: &mut Criterion) {
                 listed: &listed,
                 speed: 3,
                 table: &table,
+                footprints: &footprints,
                 seed,
             };
-            random_step(&mut shard, GameTick(now), &mut world, &env, picks, &mut out);
+            random_step(
+                &mut shard,
+                GameTick(now),
+                &mut world,
+                &env,
+                picks,
+                &mut out,
+                &Serial,
+            );
         });
     });
     let runs = behaviour.runs.load(Ordering::Relaxed) as f64;
     let picks = now as f64 * listed.len() as f64 * 3.0;
     println!(
-        "{} listed sections; {:.2}% of the picks ran a handler",
+        "{} listed sections; {:.2}% of the picks ran a handler; {} of {picks} picks ran again",
         listed.len(),
-        100.0 * runs / picks
+        100.0 * runs / picks,
+        out.report.random_reruns,
     );
 }
 

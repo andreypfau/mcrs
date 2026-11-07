@@ -5,11 +5,14 @@ mod behaviour;
 mod chain;
 mod cx;
 mod event_queue;
+mod footprints;
 mod message;
 mod output;
+mod overlay;
 mod policy;
 mod precipitation;
 mod random_tick;
+mod region;
 mod scalar;
 mod schedule;
 mod section;
@@ -19,11 +22,13 @@ mod step;
 mod stream;
 mod tick_queue;
 mod ticking_positions;
+mod tile_task;
 
 pub use access::{PartitionKind, SectionProperties, SimulatedSections, SimulationVolume};
 pub use behaviour::{BlockBehaviour, BlockFacts};
 pub use cx::Cx;
 pub use event_queue::{BlockEvent, DrainEnd, Drained, EventQueue, QueuedEvent};
+pub use footprints::Footprints;
 pub use message::{ChainOrigin, Message, MessageBody, UpdateRequest};
 pub use output::{BlockWrite, ChainLedger, Destroyed, StepError, StepOutput, StepReport};
 pub use policy::{CollectScratch, OrderingPolicy, SemanticOrder, VanillaOrder};
@@ -44,6 +49,7 @@ pub use tick_queue::{
     SectionTicksRef, TickKind, TickQueue,
 };
 pub use ticking_positions::{TickingPositions, TickingSectionMut};
+pub use tile_task::{Serial, Spread};
 
 bitflags::bitflags! {
     #[derive(Copy, Clone, Debug, PartialEq, Eq)]

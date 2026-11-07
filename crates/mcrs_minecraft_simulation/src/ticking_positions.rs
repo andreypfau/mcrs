@@ -2,8 +2,8 @@ use crate::random_tick::RandomTickTable;
 use mcrs_minecraft_volume::{Palette, PaletteBuffer, SectionBlocks, SectionBlocksMut};
 use mcrs_voxel::{BlockStateId, LocalPos};
 
-/// The local indices of the positions of one section whose state takes random ticks, in no
-/// fixed order.
+/// The local indices of the positions of one section whose state takes random ticks, in
+/// ascending order: the list depends only on the states, so undoing a write restores it.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct TickingPositions {
     positions: Vec<u16>,
@@ -36,15 +36,19 @@ impl TickingPositions {
         new: BlockStateId,
         table: &RandomTickTable,
     ) {
-        match (table.ticks(old), table.ticks(new)) {
-            (false, true) => self.positions.push(local_index(at)),
-            (true, false) => {
-                let index = local_index(at);
-                if let Some(slot) = self.positions.iter().position(|&listed| listed == index) {
-                    self.positions.swap_remove(slot);
-                }
+        let found = self.positions.binary_search(&local_index(at));
+        match (table.ticks(old), table.ticks(new), found) {
+            (false, true, Err(slot)) => self.positions.insert(slot, local_index(at)),
+            (true, false, Ok(slot)) => {
+                self.positions.remove(slot);
             }
             _ => {}
+        }
+    }
+
+    pub(crate) fn from_sorted(positions: &[u16]) -> Self {
+        Self {
+            positions: positions.to_vec(),
         }
     }
 
@@ -64,7 +68,7 @@ impl TickingPositions {
     }
 }
 
-fn local_index(at: LocalPos) -> u16 {
+pub(crate) fn local_index(at: LocalPos) -> u16 {
     // A section holds 4096 positions, so every local index fits.
     at.index() as u16
 }

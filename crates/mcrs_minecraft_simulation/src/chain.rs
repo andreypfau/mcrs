@@ -215,6 +215,9 @@ where
     }
 
     fn send_update(&mut self, request: UpdateRequest<K>) {
+        if self.task_leaves() {
+            return;
+        }
         let stamp = self.shard.clock.stamp(self.now);
         let own = self.origin_at(stamp);
         let chain = &mut self.shard.chain;
@@ -286,7 +289,9 @@ where
                 moved_by_piston,
             } => {
                 let behaviour = self.behaviour;
-                behaviour.neighbour_changed(self, target, state, block, moved_by_piston);
+                if self.fits(target, state) {
+                    behaviour.neighbour_changed(self, target, state, block, moved_by_piston);
+                }
                 false
             }
             UpdateRequest::Shape {
@@ -318,7 +323,9 @@ where
 
     fn run_single(&mut self, target: BlockPos, block: K::Block) {
         let behaviour = self.behaviour;
-        if let Ok(state) = self.state(target) {
+        if let Ok(state) = self.state(target)
+            && self.fits(target, state)
+        {
             behaviour.neighbour_changed(self, target, state, block, false);
         }
     }
@@ -342,6 +349,9 @@ where
         let Some(changed) = neighbour(target, from) else {
             return;
         };
+        if !self.fits(target, current) {
+            return;
+        }
         let behaviour = self.behaviour;
         let next = behaviour.update_shape(self, target, current, from, changed, neighbour_state);
         if next == current {

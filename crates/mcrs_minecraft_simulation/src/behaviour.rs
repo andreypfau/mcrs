@@ -1,5 +1,6 @@
 use crate::SimulationVolume;
 use crate::cx::Cx;
+use crate::footprints::Footprints;
 use crate::random_tick::RandomTicks;
 use crate::tick_queue::Kinds;
 use mcrs_minecraft_core::Direction;
@@ -43,6 +44,12 @@ pub trait BlockBehaviour<K: Kinds>: Sync + Sized {
     /// The random ticks that `state` takes. The step asks once for each state.
     fn random_ticks(&self, _state: BlockStateId) -> RandomTicks {
         RandomTicks::empty()
+    }
+
+    /// The footprint bound of the handlers of `state` (SIM-MODEL-009). The step asks once for
+    /// each state.
+    fn reach(&self, _state: BlockStateId) -> u8 {
+        Footprints::DEFAULT
     }
 
     /// A random pick of a section found `state`, which takes block random ticks, at `at`.

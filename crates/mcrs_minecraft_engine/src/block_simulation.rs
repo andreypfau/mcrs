@@ -21,6 +21,7 @@ use bevy_ecs::schedule::common_conditions::{not, resource_exists};
 use bevy_ecs::schedule::{IntoScheduleConfigs, SystemCondition};
 use bevy_ecs::system::{Res, ResMut, SystemParam};
 use bevy_ecs::world::World;
+use bevy_tasks::{ComputeTaskPool, ParallelSliceMut};
 use mcrs_minecraft_block::block_keys::Block;
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_dimension::Dimension as DimensionKey;
@@ -41,10 +42,10 @@ use mcrs_minecraft_protocol_game::clientbound::ClientboundBlockEvent;
 use mcrs_minecraft_resource::{Id, ResourceKeyBuf};
 use mcrs_minecraft_simulation::{
     BlockBehaviour, BlockEvent, BlockShard, BlockUpdateFlags, BlockWrite, ChainLedger, ChainOrigin,
-    Env, GameTick, KernelConfig, ListedSection, Message, MessageBody, PartitionKind, Phase,
-    PhaseInput, RandomPicks, RandomTickTable, SavedTick, SectionProperties, SectionTicksRef,
-    ShardId, SimulatedSections, StepAt, StepOutput, StreamSeed, SubTick, TickKind, TickQueue,
-    VanillaOrder,
+    Env, Footprints, GameTick, KernelConfig, ListedSection, Message, MessageBody, PartitionKind,
+    Phase, PhaseInput, RandomPicks, RandomTickTable, SavedTick, SectionProperties, SectionTicksRef,
+    Serial, ShardId, SimulatedSections, Spread, StepAt, StepOutput, StreamSeed, SubTick, TickKind,
+    TickQueue, VanillaOrder,
 };
 use mcrs_minecraft_volume::PalettedSection;
 use mcrs_voxel::{ColumnPos, SectionPos};
@@ -151,6 +152,7 @@ pub struct BlockSimulation {
     /// The random ticks of each block state under the rules, once the block table landed: the
     /// table of the [`RandomTickIndex`].
     random_table: Option<RandomTickTable>,
+    footprints: Footprints,
     random_seed: Option<StreamSeed>,
     /// The sections that take random ticks, sorted, as the last step found them.
     random_sections: Vec<SectionPos>,
@@ -490,6 +492,7 @@ fn run_block_simulation<B: BlockBehaviour<WorldKinds> + BlockDrops + Send + 'sta
                 listed: &simulation.random_listed,
                 speed,
                 table,
+                footprints: &simulation.footprints,
                 seed,
             };
             mcrs_minecraft_simulation::random_step(
@@ -499,6 +502,7 @@ fn run_block_simulation<B: BlockBehaviour<WorldKinds> + BlockDrops + Send + 'sta
                 &env,
                 picks,
                 &mut out,
+                &ComputePool,
             );
             mark_client_writes(&mut outlets.marks, &out.writes);
             outlets
@@ -579,13 +583,37 @@ fn index_random_ticks<B: BlockBehaviour<WorldKinds> + Send + Sync + 'static>(wor
     };
     let rules = &rules.0;
     let table = RandomTickTable::new(definitions.states(), |state| rules.random_ticks(state));
+    let footprints = Footprints::new(definitions.states(), |state| rules.reach(state));
     let mut index = RandomTickIndex::new(table.clone());
     let mut sections = world.query::<(&SectionPos, &ChunkBlocks, Has<EntityTicking>)>();
     for (pos, blocks, random_ticked) in sections.iter(world) {
         index.insert(*pos, &PalettedSection(&blocks.0.0), random_ticked);
     }
     world.insert_resource(index);
-    world.resource_mut::<BlockSimulation>().random_table = Some(table);
+    let mut simulation = world.resource_mut::<BlockSimulation>();
+    simulation.random_table = Some(table);
+    simulation.footprints = footprints;
+}
+
+/// The threads of the compute pool, or the calling thread without one.
+struct ComputePool;
+
+impl Spread for ComputePool {
+    fn spread<T: Send, R: Fn(&mut T) + Sync>(&self, items: &mut [T], run: &R) {
+        let Some(pool) =
+            ComputeTaskPool::try_get().filter(|pool| pool.thread_num() > 1 && items.len() > 1)
+        else {
+            return Serial.spread(items, run);
+        };
+        // Tiles differ in cost, so each thread gets several small chunks.
+        let chunk = items.len().div_ceil(pool.thread_num() * 4);
+        let mut items = items;
+        items.par_chunk_map_mut(pool, chunk, |_, chunk| {
+            for item in chunk {
+                run(item);
+            }
+        });
+    }
 }
 
 fn mark_client_writes(marks: &mut BroadcastMarks, writes: &[BlockWrite]) {
