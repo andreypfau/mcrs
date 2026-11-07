@@ -158,8 +158,7 @@ impl BlockEntry {
         self.state_at(offset - current * stride + target * stride)
     }
 
-    /// The state's value for one property, the way vanilla's
-    /// `BlockState.getValue` does.
+    /// The state's value for one property.
     pub fn value_of(&self, id: BlockStateId, property: &str) -> Option<&PropertyValue> {
         if !self.owns(id) {
             return None;
