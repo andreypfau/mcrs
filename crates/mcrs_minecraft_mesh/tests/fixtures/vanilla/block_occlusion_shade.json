@@ -1,7 +1,7 @@
 {
   "format": 1,
   "kind": "occlusion_shade",
-  "game_version": "26.4-snapshot-4",
+  "game_version": "26.4-snapshot-7",
   "rule": "a state not listed has the occlusion shade 0.2 when its collision shape is a full block, else 1.0",
   "exceptions": [
     {"state":"minecraft:glass","full_collision":true,"occlusion_shade":1.0},

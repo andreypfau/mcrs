@@ -1,6 +1,6 @@
 {
   "scene": "pig_idle",
-  "version": "26.4-snapshot-4",
+  "version": "26.4-snapshot-7",
   "packets": [
     {
       "updates_before": 1,
@@ -9,9 +9,9 @@
       "frozen": true
     },
     {
-      "updates_before": 2,
+      "updates_before": 1,
       "packet": "minecraft:set_entity_data",
-      "entity": 1,
+      "entity": 209,
       "values": [
         {
           "index": 0,
@@ -22,7 +22,7 @@
     {
       "updates_before": 11,
       "packet": "minecraft:add_entity",
-      "entity": 2,
+      "entity": 210,
       "uuid": "00000000-0000-0000-0000-000000000001",
       "type": "minecraft:pig",
       "position": [
@@ -43,7 +43,7 @@
     {
       "updates_before": 11,
       "packet": "minecraft:set_entity_data",
-      "entity": 2,
+      "entity": 210,
       "values": [
         {
           "index": 4,
@@ -62,7 +62,7 @@
     {
       "updates_before": 11,
       "packet": "minecraft:move_entity_pos",
-      "entity": 2,
+      "entity": 210,
       "delta": {
         "form": "single",
         "units": [
@@ -84,7 +84,7 @@
     {
       "updates_before": 11,
       "packet": "minecraft:set_entity_data",
-      "entity": 2,
+      "entity": 210,
       "values": [
         {
           "index": 4,
@@ -103,7 +103,7 @@
     {
       "updates_before": 71,
       "packet": "minecraft:move_entity_pos",
-      "entity": 2,
+      "entity": 210,
       "delta": {
         "form": "stepped",
         "steps": [
@@ -115,7 +115,8 @@
             ],
             "ticks": 3
           }
-        ]
+        ],
+        "start_immediately": false
       },
       "path": {
         "form": "stepped",
@@ -128,14 +129,15 @@
             ],
             "ticks": 3
           }
-        ]
+        ],
+        "start_immediately": false
       },
       "on_ground": false
     },
     {
       "updates_before": 131,
       "packet": "minecraft:move_entity_pos",
-      "entity": 2,
+      "entity": 210,
       "delta": {
         "form": "stepped",
         "steps": [
@@ -147,7 +149,8 @@
             ],
             "ticks": 3
           }
-        ]
+        ],
+        "start_immediately": false
       },
       "path": {
         "form": "stepped",
@@ -160,7 +163,8 @@
             ],
             "ticks": 3
           }
-        ]
+        ],
+        "start_immediately": false
       },
       "on_ground": false
     }

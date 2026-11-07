@@ -272,6 +272,7 @@ public final class EntityLog {
 					steps.add(s);
 				}
 				d.add("steps", steps);
+				d.addProperty("start_immediately", stepped.startImmediately());
 			}
 		}
 		return d;
@@ -294,6 +295,7 @@ public final class EntityLog {
 					steps.add(s);
 				}
 				p.add("steps", steps);
+				p.addProperty("start_immediately", stepped.startImmediately());
 			}
 		}
 		return p;

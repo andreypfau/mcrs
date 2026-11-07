@@ -1,12 +1,12 @@
 {
   "scene": "pig_hurt_death",
-  "version": "26.4-snapshot-4",
+  "version": "26.4-snapshot-7",
   "updates": [
     {
       "update": 27,
       "entities": [
         {
-          "entity": 2,
+          "entity": 207,
           "age": 1,
           "position": [
             -1.0,
@@ -32,7 +32,7 @@
           "death_time": 0
         },
         {
-          "entity": 3,
+          "entity": 208,
           "age": 1,
           "position": [
             1.0,
@@ -63,7 +63,7 @@
       "update": 28,
       "entities": [
         {
-          "entity": 2,
+          "entity": 207,
           "age": 2,
           "position": [
             -1.0,
@@ -89,7 +89,7 @@
           "death_time": 0
         },
         {
-          "entity": 3,
+          "entity": 208,
           "age": 2,
           "position": [
             1.0,
@@ -120,7 +120,7 @@
       "update": 29,
       "entities": [
         {
-          "entity": 2,
+          "entity": 207,
           "age": 3,
           "position": [
             -1.0,
@@ -146,7 +146,7 @@
           "death_time": 0
         },
         {
-          "entity": 3,
+          "entity": 208,
           "age": 3,
           "position": [
             1.0,
@@ -177,7 +177,7 @@
       "update": 30,
       "entities": [
         {
-          "entity": 2,
+          "entity": 207,
           "age": 4,
           "position": [
             -1.0,
@@ -203,7 +203,7 @@
           "death_time": 0
         },
         {
-          "entity": 3,
+          "entity": 208,
           "age": 4,
           "position": [
             1.0,
@@ -234,7 +234,7 @@
       "update": 31,
       "entities": [
         {
-          "entity": 2,
+          "entity": 207,
           "age": 5,
           "position": [
             -1.0,
@@ -260,7 +260,7 @@
           "death_time": 0
         },
         {
-          "entity": 3,
+          "entity": 208,
           "age": 5,
           "position": [
             1.0,
@@ -291,7 +291,7 @@
       "update": 32,
       "entities": [
         {
-          "entity": 2,
+          "entity": 207,
           "age": 6,
           "position": [
             -1.0,
@@ -317,7 +317,7 @@
           "death_time": 0
         },
         {
-          "entity": 3,
+          "entity": 208,
           "age": 6,
           "position": [
             1.0,
@@ -348,7 +348,7 @@
       "update": 33,
       "entities": [
         {
-          "entity": 2,
+          "entity": 207,
           "age": 7,
           "position": [
             -1.0,
@@ -374,7 +374,7 @@
           "death_time": 0
         },
         {
-          "entity": 3,
+          "entity": 208,
           "age": 7,
           "position": [
             1.0,
@@ -405,7 +405,7 @@
       "update": 34,
       "entities": [
         {
-          "entity": 2,
+          "entity": 207,
           "age": 8,
           "position": [
             -1.0,
@@ -431,7 +431,7 @@
           "death_time": 0
         },
         {
-          "entity": 3,
+          "entity": 208,
           "age": 8,
           "position": [
             1.0,
@@ -462,7 +462,7 @@
       "update": 35,
       "entities": [
         {
-          "entity": 2,
+          "entity": 207,
           "age": 9,
           "position": [
             -1.0,
@@ -488,7 +488,7 @@
           "death_time": 0
         },
         {
-          "entity": 3,
+          "entity": 208,
           "age": 9,
           "position": [
             1.0,
@@ -519,7 +519,7 @@
       "update": 36,
       "entities": [
         {
-          "entity": 2,
+          "entity": 207,
           "age": 10,
           "position": [
             -1.0,
@@ -545,7 +545,7 @@
           "death_time": 0
         },
         {
-          "entity": 3,
+          "entity": 208,
           "age": 10,
           "position": [
             1.0,
@@ -573,10 +573,10 @@
       ]
     },
     {
-      "update": 103,
+      "update": 104,
       "entities": [
         {
-          "entity": 2,
+          "entity": 207,
           "age": 11,
           "position": [
             -1.0,
@@ -602,7 +602,7 @@
           "death_time": 0
         },
         {
-          "entity": 3,
+          "entity": 208,
           "age": 11,
           "position": [
             1.0,
@@ -630,10 +630,10 @@
       ]
     },
     {
-      "update": 104,
+      "update": 105,
       "entities": [
         {
-          "entity": 2,
+          "entity": 207,
           "age": 12,
           "position": [
             -1.0,
@@ -659,7 +659,7 @@
           "death_time": 0
         },
         {
-          "entity": 3,
+          "entity": 208,
           "age": 12,
           "position": [
             1.0,
@@ -687,10 +687,10 @@
       ]
     },
     {
-      "update": 105,
+      "update": 106,
       "entities": [
         {
-          "entity": 2,
+          "entity": 207,
           "age": 13,
           "position": [
             -1.0,
@@ -716,7 +716,7 @@
           "death_time": 0
         },
         {
-          "entity": 3,
+          "entity": 208,
           "age": 13,
           "position": [
             1.0,
@@ -744,10 +744,10 @@
       ]
     },
     {
-      "update": 106,
+      "update": 107,
       "entities": [
         {
-          "entity": 2,
+          "entity": 207,
           "age": 14,
           "position": [
             -1.0,
@@ -773,7 +773,7 @@
           "death_time": 0
         },
         {
-          "entity": 3,
+          "entity": 208,
           "age": 14,
           "position": [
             1.0,
@@ -801,10 +801,10 @@
       ]
     },
     {
-      "update": 107,
+      "update": 108,
       "entities": [
         {
-          "entity": 2,
+          "entity": 207,
           "age": 15,
           "position": [
             -1.0,
@@ -830,7 +830,7 @@
           "death_time": 0
         },
         {
-          "entity": 3,
+          "entity": 208,
           "age": 15,
           "position": [
             1.0,

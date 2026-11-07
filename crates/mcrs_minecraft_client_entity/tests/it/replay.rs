@@ -475,19 +475,16 @@ fn replay(scene: &str) {
 }
 
 #[test]
-#[ignore = "artefacts are from the previous version"]
 fn pig_walk() {
     replay("pig_walk");
 }
 
 #[test]
-#[ignore = "artefacts are from the previous version"]
 fn pig_hurt_death() {
     replay("pig_hurt_death");
 }
 
 #[test]
-#[ignore = "artefacts are from the previous version"]
 fn pig_idle() {
     replay("pig_idle");
 }

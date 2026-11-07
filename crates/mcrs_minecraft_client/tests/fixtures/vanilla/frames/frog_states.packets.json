@@ -1,6 +1,6 @@
 {
   "scene": "frog_states",
-  "version": "26.4-snapshot-4",
+  "version": "26.4-snapshot-7",
   "packets": [
     {
       "updates_before": 1,
@@ -293,7 +293,8 @@
             ],
             "ticks": 3
           }
-        ]
+        ],
+        "start_immediately": false
       },
       "path": {
         "form": "stepped",
@@ -306,7 +307,8 @@
             ],
             "ticks": 3
           }
-        ]
+        ],
+        "start_immediately": false
       },
       "on_ground": false
     },
@@ -325,7 +327,8 @@
             ],
             "ticks": 3
           }
-        ]
+        ],
+        "start_immediately": false
       },
       "path": {
         "form": "stepped",
@@ -338,7 +341,8 @@
             ],
             "ticks": 3
           }
-        ]
+        ],
+        "start_immediately": false
       },
       "on_ground": false
     },
@@ -357,7 +361,8 @@
             ],
             "ticks": 3
           }
-        ]
+        ],
+        "start_immediately": false
       },
       "path": {
         "form": "stepped",
@@ -370,7 +375,8 @@
             ],
             "ticks": 3
           }
-        ]
+        ],
+        "start_immediately": false
       },
       "on_ground": false
     },
@@ -416,7 +422,8 @@
             ],
             "ticks": 3
           }
-        ]
+        ],
+        "start_immediately": false
       },
       "path": {
         "form": "stepped",
@@ -429,7 +436,8 @@
             ],
             "ticks": 3
           }
-        ]
+        ],
+        "start_immediately": false
       },
       "on_ground": false
     },
@@ -448,7 +456,8 @@
             ],
             "ticks": 3
           }
-        ]
+        ],
+        "start_immediately": false
       },
       "path": {
         "form": "stepped",
@@ -461,7 +470,8 @@
             ],
             "ticks": 3
           }
-        ]
+        ],
+        "start_immediately": false
       },
       "on_ground": false
     },
@@ -480,7 +490,8 @@
             ],
             "ticks": 3
           }
-        ]
+        ],
+        "start_immediately": false
       },
       "path": {
         "form": "stepped",
@@ -493,7 +504,8 @@
             ],
             "ticks": 3
           }
-        ]
+        ],
+        "start_immediately": false
       },
       "on_ground": false
     },
@@ -517,7 +529,8 @@
             ],
             "ticks": 3
           }
-        ]
+        ],
+        "start_immediately": false
       },
       "path": {
         "form": "stepped",
@@ -530,7 +543,8 @@
             ],
             "ticks": 3
           }
-        ]
+        ],
+        "start_immediately": false
       },
       "on_ground": false
     },
@@ -549,7 +563,8 @@
             ],
             "ticks": 3
           }
-        ]
+        ],
+        "start_immediately": false
       },
       "path": {
         "form": "stepped",
@@ -562,7 +577,8 @@
             ],
             "ticks": 3
           }
-        ]
+        ],
+        "start_immediately": false
       },
       "on_ground": false
     },
@@ -581,7 +597,8 @@
             ],
             "ticks": 3
           }
-        ]
+        ],
+        "start_immediately": false
       },
       "path": {
         "form": "stepped",
@@ -594,7 +611,8 @@
             ],
             "ticks": 3
           }
-        ]
+        ],
+        "start_immediately": false
       },
       "on_ground": false
     }

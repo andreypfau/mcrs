@@ -1,7 +1,7 @@
 {
   "format": 1,
   "kind": "poses",
-  "game_version": "26.4-snapshot-4",
+  "game_version": "26.4-snapshot-7",
   "units": {"length":"1/16 block (pixel)","axes":"model space: +Y down, -Z is the front of the entity, -X is its right side","rotation":"radians; a part applies Z, then Y, then X to its parent frame (a vertex is turned about X first)","pose":"position in pixels of the parent frame; rotation in radians; scale as a factor; values after the pose setup"},
   "cases": [
     {"model":"minecraft:pig","layer":"main","inputs":{"walk_position":0.0,"walk_speed":0.0,"head_yaw_degrees":-60.0,"head_pitch_degrees":-30.0,"age_ticks":13.37},"parts":{"root":{"position":[0.0,0.0,0.0],"rotation":[0.0,0.0,0.0],"scale":[1.0,1.0,1.0],"visible":true},"root/body":{"position":[0.0,11.0,2.0],"rotation":[1.5707964,0.0,0.0],"scale":[1.0,1.0,1.0],"visible":true},"root/head":{"position":[0.0,12.0,-6.0],"rotation":[-0.5235988,-1.0471976,0.0],"scale":[1.0,1.0,1.0],"visible":true},"root/left_front_leg":{"position":[3.0,18.0,-5.0],"rotation":[0.0,0.0,0.0],"scale":[1.0,1.0,1.0],"visible":true},"root/left_hind_leg":{"position":[3.0,18.0,7.0],"rotation":[-0.0,0.0,0.0],"scale":[1.0,1.0,1.0],"visible":true},"root/right_front_leg":{"position":[-3.0,18.0,-5.0],"rotation":[-0.0,0.0,0.0],"scale":[1.0,1.0,1.0],"visible":true},"root/right_hind_leg":{"position":[-3.0,18.0,7.0],"rotation":[0.0,0.0,0.0],"scale":[1.0,1.0,1.0],"visible":true}}},

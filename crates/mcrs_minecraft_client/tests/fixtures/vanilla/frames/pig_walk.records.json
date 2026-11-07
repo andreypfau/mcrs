@@ -1,6 +1,6 @@
 {
   "scene": "pig_walk",
-  "version": "26.4-snapshot-4",
+  "version": "26.4-snapshot-7",
   "frames": [
     {
       "image": "pig_walk.step4.png",
@@ -24,7 +24,7 @@
           "position": [
             0.5,
             -60.0,
-            -1.7849181896774098
+            -1.560552893919521
           ],
           "age": 4,
           "pose": "standing",
@@ -32,8 +32,8 @@
           "head_pitch": 0.0,
           "body_yaw": 0.0,
           "head_yaw": 0.0,
-          "walk_position": 0.41287166,
-          "walk_speed": 0.29830372,
+          "walk_position": 1.0031765,
+          "walk_speed": 0.50307465,
           "hurt_time": 0,
           "death_time": 0,
           "baby": false,
@@ -64,7 +64,7 @@
           "position": [
             0.5,
             -60.0,
-            -1.4288048432208598
+            -1.182397138707529
           ],
           "age": 6,
           "pose": "standing",
@@ -72,8 +72,8 @@
           "head_pitch": 0.0,
           "body_yaw": 0.0,
           "head_yaw": 0.0,
-          "walk_position": 1.4302773,
-          "walk_speed": 0.5696689,
+          "walk_position": 2.2706797,
+          "walk_speed": 0.6664879,
           "hurt_time": 0,
           "death_time": 0,
           "baby": false,
@@ -104,7 +104,7 @@
           "position": [
             0.5,
             -60.0,
-            -1.0142041448125383
+            -0.7922470227777012
           ],
           "age": 8,
           "pose": "standing",
@@ -112,8 +112,8 @@
           "head_pitch": 0.0,
           "body_yaw": 0.0,
           "head_yaw": 0.0,
-          "walk_position": 2.835007,
-          "walk_speed": 0.7387843,
+          "walk_position": 3.721084,
+          "walk_speed": 0.7399519,
           "hurt_time": 0,
           "death_time": 0,
           "baby": false,
