@@ -1,0 +1,13 @@
+{
+  "format_version": "1.8.0",
+  "render_controllers": {
+    "controller.render.frog": {
+      "geometry": "Geometry.default",
+      "materials": [{ "*": "Material.default" }],
+      "textures": [
+        "q.variant_asset != '' ? q.variant_asset : 'mcrs:missing'"
+      ],
+      "part_visibility": [{ "croaking_body": "q.pose == 'croaking'" }]
+    }
+  }
+}

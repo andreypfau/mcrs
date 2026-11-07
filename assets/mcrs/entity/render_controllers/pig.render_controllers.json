@@ -1,0 +1,17 @@
+{
+  "format_version": "1.8.0",
+  "render_controllers": {
+    "controller.render.pig": {
+      "geometry": "q.is_baby ? Geometry.baby : (q.variant_model == 'cold' ? Geometry.cold : Geometry.default)",
+      "materials": [{ "*": "Material.default" }],
+      "textures": [
+        "q.variant_asset != '' ? q.variant_asset : 'mcrs:missing'"
+      ]
+    },
+    "controller.render.pig_saddle": {
+      "geometry": "Geometry.saddle",
+      "materials": [{ "*": "Material.default" }],
+      "textures": ["q.equipment_texture('saddle', 'pig_saddle')"]
+    }
+  }
+}

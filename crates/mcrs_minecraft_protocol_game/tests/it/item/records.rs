@@ -9,9 +9,9 @@ use mcrs_minecraft_protocol::profile::Property;
 use mcrs_minecraft_protocol_game::item::harness::Sample;
 use mcrs_minecraft_protocol_game::item::{
     AttackRange, BlockState, BrewingFuel, BucketEntityData, Compostable, ContainerLoot,
-    CookingFuel, CustomData, CustomModelData, DebugStickState, Fireworks, Food, ItemComponentValue,
-    ItemDataComponent, ItemModel, LodestoneTracker, MapDecorations, NoteBlockSound, Profile,
-    ProfileIdentity, Recipes, ResolvableFloat, ResolvableInt, SignText, SignTextBack,
+    CookingFuel, CustomData, CustomModelData, DebugStickState, Fireworks, ResolvableFloat, Food,
+    ResolvableInt, ItemComponentValue, ItemDataComponent, ItemModel, LodestoneTracker,
+    MapDecorations, NoteBlockSound, Profile, ProfileIdentity, Recipes, SignText, SignTextBack,
     SignTextFront, TooltipDisplay, TooltipStyle, UseCooldown, UseEffects, Weapon, hash_ops,
 };
 use mcrs_minecraft_resource::{ResourceLocationBuf, rl};
@@ -276,7 +276,10 @@ fn text_bearing_records_match_vanilla() {
     }
 
     check("sign_empty", SignTextFront(SignText::default()));
-    check("sign_same_filtered", SignTextFront(sample::<SignText>(1)));
+    check(
+        "sign_same_filtered",
+        SignTextFront(sample::<SignText>(1)),
+    );
     check("sign_full", SignTextBack(sample::<SignText>(2)));
     assert_eq!(
         parse::<SignTextFront>(

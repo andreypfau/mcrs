@@ -3,8 +3,8 @@ use mcrs_minecraft_core::codec::Bounded;
 use mcrs_minecraft_item::data_component_type_keys::DataComponentType;
 use mcrs_minecraft_protocol::{Decode, Encode, VarInt};
 use mcrs_minecraft_protocol_game::item::{
-    ComponentPatch, CreativeSlotLock, CustomName, Damage, HashedPatchMap, ItemComponentValue, Lore,
-    MaxStackSize, Template, Text, Unbreakable, decode_delimited_patch, encode_delimited_patch,
+    ComponentPatch, CreativeSlotLock, CustomName, Damage, ItemComponentValue, Lore, MaxStackSize,
+    HashedPatchMap, Template, Text, Unbreakable, decode_delimited_patch, encode_delimited_patch,
     hash_ops,
 };
 use mcrs_minecraft_registries::FromWire;

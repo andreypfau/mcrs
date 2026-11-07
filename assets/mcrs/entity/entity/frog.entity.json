@@ -1,0 +1,29 @@
+{
+  "format_version": "1.10.0",
+  "minecraft:client_entity": {
+    "description": {
+      "identifier": "minecraft:frog",
+      "materials": { "default": "entity_alphatest" },
+      "geometry": { "default": "geometry.frog" },
+      "animations": {
+        "jump": "animation.frog.jump",
+        "croak": "animation.frog.croak",
+        "tongue": "animation.frog.tongue",
+        "walk": "animation.frog.walk",
+        "swim": "animation.frog.swim",
+        "idle_water": "animation.frog.idle_water"
+      },
+      "scripts": {
+        "animate": [
+          { "jump": "q.pose == 'long_jumping'" },
+          { "croak": "q.pose == 'croaking'" },
+          { "tongue": "q.pose == 'using_tongue'" },
+          { "walk": "q.is_in_water ? 0 : math.min(q.modified_move_speed * 2.5, 1)" },
+          { "swim": "q.is_in_water ? math.min(q.modified_move_speed * 2.5, 1) : 0" },
+          { "idle_water": "q.is_in_water && q.modified_move_speed <= 0.00001" }
+        ]
+      },
+      "render_controllers": ["controller.render.frog"]
+    }
+  }
+}

@@ -5,7 +5,7 @@ use mcrs_minecraft_protocol::{Result, VarInt, write_record};
 use mcrs_minecraft_protocol_game::ByteAngle;
 use mcrs_minecraft_protocol_game::clientbound::{
     ClientboundEntityPositionSync, ClientboundMoveEntityPos, ClientboundMoveEntityPosRot,
-    ClientboundMoveEntityRot, ClientboundRotateHead, DeltaStep, PositionPath, VecDelta,
+    ClientboundMoveEntityRot, ClientboundRotateHead, DeltaStep, VecDelta, PositionPath,
 };
 
 /// The steps of one block in a relative move.
@@ -92,7 +92,9 @@ impl DeltaBase {
         };
         let keyframe_due = tick.wrapping_sub(self.keyframe_tick) >= KEYFRAME_INTERVAL_TICKS;
         let delta = match path {
-            Path::Linear(position) => position_delta(self.position, position).map(VecDelta::Linear),
+            Path::Linear(position) => {
+                position_delta(self.position, position).map(VecDelta::Linear)
+            }
             Path::Stepped(waypoints) => stepped_delta(self.position, waypoints),
         };
         let Some(delta) = delta.filter(|_| !keyframe_due) else {
@@ -100,7 +102,10 @@ impl DeltaBase {
         };
         let mut next = Self::new(&pose, self.keyframe_tick);
         let turned = (next.yaw, next.pitch) != (self.yaw, self.pitch);
-        let still = delta == VecDelta::Linear([0; 3]) || delta == VecDelta::Stepped(Vec::new());
+        let still = match &delta {
+            VecDelta::Linear(delta) => *delta == [0; 3],
+            VecDelta::Stepped { steps, .. } => steps.is_empty(),
+        };
         if still && !turned {
             // Only the exact look changed, below what a client can see: keep the old one so that
             // a keyframe shows what the client has.
@@ -237,7 +242,11 @@ fn stepped_delta(from: DVec3, waypoints: &[Waypoint]) -> Option<VecDelta> {
         at = waypoint.position;
         waited = 0;
     }
-    Some(VecDelta::Stepped(steps))
+    // The steps start at the end of the path that the viewers last received, so they extend it.
+    Some(VecDelta::Stepped {
+        steps,
+        start_immediately: false,
+    })
 }
 
 /// The delta from `from` to `to` in steps, or `None` when an axis moves more than a relative
@@ -245,7 +254,7 @@ fn stepped_delta(from: DVec3, waypoints: &[Waypoint]) -> Option<VecDelta> {
 /// delta never carries into the next.
 fn position_delta(from: DVec3, to: DVec3) -> Option<[i16; 3]> {
     let step = |from: f64, to: f64| {
-        let steps = (to * STEPS_PER_BLOCK).round() - (from * STEPS_PER_BLOCK).round();
+        let steps = (to * STEPS_PER_BLOCK + 0.5).floor() - (from * STEPS_PER_BLOCK + 0.5).floor();
         (steps >= f64::from(i16::MIN) && steps <= f64::from(i16::MAX)).then_some(steps as i16)
     };
     Some([
@@ -370,16 +379,19 @@ mod tests {
 
         let expected = record(&ClientboundMoveEntityPos {
             entity_id: VarInt(3),
-            delta: VecDelta::Stepped(vec![
-                DeltaStep {
-                    ticks: VarInt(7),
-                    delta: [4096, 0, 0],
-                },
-                DeltaStep {
-                    ticks: VarInt(3),
-                    delta: [6144, 0, 0],
-                },
-            ]),
+            delta: VecDelta::Stepped {
+                steps: vec![
+                    DeltaStep {
+                        ticks: VarInt(7),
+                        delta: [4096, 0, 0],
+                    },
+                    DeltaStep {
+                        ticks: VarInt(3),
+                        delta: [6144, 0, 0],
+                    },
+                ],
+                start_immediately: false,
+            },
             on_ground: true,
         })?;
         assert_eq!(

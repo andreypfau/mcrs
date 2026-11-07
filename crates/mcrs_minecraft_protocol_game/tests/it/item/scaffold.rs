@@ -6,8 +6,8 @@ use mcrs_minecraft_item::{data_component_type_keys::DataComponentType, item_keys
 use mcrs_minecraft_protocol::{Decode, Encode, VarInt};
 use mcrs_minecraft_protocol_game::item::{
     ComponentMap, ComponentPatch, CreativeSlotLock, CustomData, CustomName, DelimitedStack,
-    HashedPatchMap, HashedStack, ItemComponentValue, ItemStackValue, Lore, MaxStackSize,
-    ProtoStack, Template, Text, Unbreakable, hash_ops,
+    ItemComponentValue, ItemStackValue, Lore, MaxStackSize, HashedPatchMap, ProtoStack, HashedStack,
+    Template, Text, Unbreakable, hash_ops,
 };
 use mcrs_minecraft_registries::{FromWire, IdSet, Named, Ref, Resolved, Wire};
 use mcrs_minecraft_resource::{Id, ResourceKeyBuf, rl};

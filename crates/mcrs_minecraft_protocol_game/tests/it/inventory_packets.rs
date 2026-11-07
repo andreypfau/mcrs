@@ -11,8 +11,8 @@ use mcrs_minecraft_protocol_game::ProtoStack;
 use mcrs_minecraft_protocol_game::clientbound::*;
 use mcrs_minecraft_protocol_game::item::Text as ItemText;
 use mcrs_minecraft_protocol_game::item::{
-    ComponentMap, ComponentPatch, ContainerInput, CustomName, Damage, DelimitedStack, HashedStack,
-    ItemCost, MaxStackSize, MerchantOffer, QuickCraftButton, QuickCraftKind, QuickCraftStage,
+    ComponentMap, ComponentPatch, ContainerInput, ItemCost, CustomName, Damage, DelimitedStack,
+    MaxStackSize, QuickCraftButton, QuickCraftKind, QuickCraftStage, HashedStack, MerchantOffer,
     Unbreakable,
 };
 use mcrs_minecraft_protocol_game::serverbound::*;

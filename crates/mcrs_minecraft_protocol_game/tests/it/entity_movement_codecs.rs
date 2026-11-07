@@ -8,7 +8,7 @@ use mcrs_minecraft_protocol::{Decode, Encode, VarInt};
 use mcrs_minecraft_protocol_game::ByteAngle;
 use mcrs_minecraft_protocol_game::clientbound::{
     ClientboundEntityPositionSync, ClientboundMoveEntityPos, ClientboundMoveEntityPosRot,
-    DeltaStep, PositionPath, PositionStep, VecDelta,
+    DeltaStep, VecDelta, PositionPath, PositionStep,
 };
 
 fn round_trip<'a, P: Encode + Decode<'a> + std::fmt::Debug>(packet: &P, buf: &'a mut Vec<u8>) -> P {
@@ -47,14 +47,23 @@ fn movement_packets_round_trip_with_the_step_count_in_the_properties() {
         ];
         let packet = ClientboundMoveEntityPosRot {
             entity_id: VarInt(7),
-            delta: VecDelta::Stepped(steps.clone()),
+            delta: VecDelta::Stepped {
+                steps: steps.clone(),
+                start_immediately: false,
+            },
             y_rot: ByteAngle(64),
             x_rot: ByteAngle(200),
             on_ground: false,
         };
         let mut buf = Vec::new();
         let decoded = round_trip(&packet, &mut buf);
-        assert_eq!(decoded.delta, VecDelta::Stepped(steps));
+        assert_eq!(
+            decoded.delta,
+            VecDelta::Stepped {
+                steps,
+                start_immediately: false,
+            }
+        );
         assert!(!decoded.on_ground);
         assert_eq!(decoded.y_rot.0, 64);
         assert_eq!(decoded.x_rot.0, 200);
@@ -66,10 +75,13 @@ fn movement_packets_round_trip_with_the_step_count_in_the_properties() {
     {
         for position in [
             PositionPath::Linear(DVec3::new(1.0, 2.0, 3.0)),
-            PositionPath::Stepped(vec![PositionStep {
-                position: DVec3::new(4.0, 5.0, 6.0),
-                tick_offset: VarInt(3),
-            }]),
+            PositionPath::Stepped {
+                steps: vec![PositionStep {
+                    position: DVec3::new(4.0, 5.0, 6.0),
+                    tick_offset: VarInt(3),
+                }],
+                start_immediately: false,
+            },
         ] {
             let packet = ClientboundEntityPositionSync {
                 entity_id: VarInt(1),
@@ -94,4 +106,55 @@ fn a_step_count_larger_than_the_input_is_rejected() {
     VarInt(1 | 4096 << 1).encode(&mut buf).unwrap();
     let mut r: &[u8] = &buf;
     assert!(ClientboundMoveEntityPos::decode(&mut r).is_err());
+}
+
+#[test]
+fn the_start_flag_comes_before_the_steps_of_a_delta_and_after_the_steps_of_a_sync() {
+    let step = DeltaStep {
+        ticks: VarInt(3),
+        delta: [10, 0, -10],
+    };
+    let packet = ClientboundMoveEntityPos {
+        entity_id: VarInt(7),
+        delta: VecDelta::Stepped {
+            steps: vec![step],
+            start_immediately: true,
+        },
+        on_ground: false,
+    };
+    let mut expected = Vec::new();
+    VarInt(7).encode(&mut expected).unwrap();
+    VarInt(1 << 1).encode(&mut expected).unwrap();
+    true.encode(&mut expected).unwrap();
+    step.encode(&mut expected).unwrap();
+    let mut buf = Vec::new();
+    let decoded = round_trip(&packet, &mut buf);
+    assert_eq!(buf, expected);
+    assert_eq!(decoded.delta, packet.delta);
+
+    let step = PositionStep {
+        position: DVec3::new(4.0, 5.0, 6.0),
+        tick_offset: VarInt(3),
+    };
+    let packet = ClientboundEntityPositionSync {
+        entity_id: VarInt(7),
+        position: PositionPath::Stepped {
+            steps: vec![step.clone()],
+            start_immediately: true,
+        },
+        look: Look::default(),
+        on_ground: false,
+    };
+    let mut expected = Vec::new();
+    VarInt(7).encode(&mut expected).unwrap();
+    VarInt(1).encode(&mut expected).unwrap();
+    VarInt(1).encode(&mut expected).unwrap();
+    step.encode(&mut expected).unwrap();
+    true.encode(&mut expected).unwrap();
+    Look::default().encode(&mut expected).unwrap();
+    false.encode(&mut expected).unwrap();
+    let mut buf = Vec::new();
+    let decoded = round_trip(&packet, &mut buf);
+    assert_eq!(buf, expected);
+    assert_eq!(decoded.position, packet.position);
 }

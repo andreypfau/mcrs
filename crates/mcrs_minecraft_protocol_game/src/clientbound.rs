@@ -6,7 +6,7 @@ use crate::chat::{ChatTypeId, CompletionAction, FilterMask, PackedSignature};
 use crate::chunk::ChunkBlockUpdateEntry;
 use crate::entity::{EquipmentSlot, Metadata};
 use crate::game_event::GameEventKind;
-use crate::item::{MerchantOffer, ProtoStack};
+use crate::item::{ProtoStack, MerchantOffer};
 use crate::minecart::MinecartStep;
 use crate::player::*;
 use crate::player_list::{PlayerListActions, PlayerListEntry};
@@ -108,6 +108,18 @@ pub struct ClientboundContainerSetSlot {
     pub item: ProtoStack<Wire>,
 }
 
+#[derive(Clone, Debug, PartialEq, Encode, Decode)]
+pub struct ClientboundDamageEvent {
+    pub entity_id: VarInt,
+    /// The numeric id of the damage type in the session registry `damage_type`.
+    pub damage_type: VarInt,
+    /// The network id of the entity that caused the damage, plus 1; 0 means none.
+    pub cause_entity_id: VarInt,
+    /// The network id of the entity that dealt the damage, plus 1; 0 means none.
+    pub direct_entity_id: VarInt,
+    pub source_position: Option<DVec3>,
+}
+
 #[derive(Clone, Debug, Encode, Decode)]
 pub struct ClientboundEntityEvent {
     pub entity_id: i32,
@@ -123,7 +135,12 @@ pub struct PositionStep {
 #[derive(Clone, Debug, PartialEq, Encode, Decode)]
 pub enum PositionPath {
     Linear(DVec3),
-    Stepped(Vec<PositionStep>),
+    /// `start_immediately` is true when the entity got a sudden change of movement since the
+    /// previous update: the client then drops the rest of its current path.
+    Stepped {
+        steps: Vec<PositionStep>,
+        start_immediately: bool,
+    },
 }
 
 #[derive(Clone, Debug, Encode, Decode)]
@@ -191,6 +208,13 @@ impl mcrs_minecraft_protocol::Decode<'_> for ParticleRandomization {
     }
 }
 
+#[derive(Clone, Debug, PartialEq, Encode, Decode)]
+pub struct ClientboundHurtAnimation {
+    pub entity_id: VarInt,
+    /// The yaw of the direction the hurt came from, in degrees.
+    pub yaw: f32,
+}
+
 #[derive(Clone, Debug, Encode, Decode)]
 pub struct ClientboundLightUpdate<'a> {
     pub x: VarInt,
@@ -226,7 +250,12 @@ pub struct DeltaStep {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum VecDelta {
     Linear([i16; 3]),
-    Stepped(Vec<DeltaStep>),
+    /// `start_immediately` is true when the entity got a sudden change of movement since the
+    /// previous update: the client then drops the rest of its current path.
+    Stepped {
+        steps: Vec<DeltaStep>,
+        start_immediately: bool,
+    },
 }
 
 impl Default for VecDelta {
@@ -241,14 +270,18 @@ impl VecDelta {
     pub fn step_count(&self) -> i32 {
         match self {
             Self::Linear(_) => 0,
-            Self::Stepped(steps) => steps.len() as i32,
+            Self::Stepped { steps, .. } => steps.len() as i32,
         }
     }
 
     fn encode(&self, mut w: impl Write) -> Result<()> {
         match self {
             Self::Linear(delta) => delta.encode(w),
-            Self::Stepped(steps) => {
+            Self::Stepped {
+                steps,
+                start_immediately,
+            } => {
+                start_immediately.encode(&mut w)?;
                 for step in steps {
                     step.encode(&mut w)?;
                 }
@@ -261,6 +294,7 @@ impl VecDelta {
         if step_count <= 0 {
             return Ok(Self::Linear(mcrs_minecraft_protocol::Decode::decode(r)?));
         }
+        let start_immediately = bool::decode(r)?;
         let step_count = step_count as usize;
         mcrs_minecraft_protocol::wire::ensure!(
             step_count <= r.len() / Self::MIN_ENCODED_STEP_LEN,
@@ -270,7 +304,10 @@ impl VecDelta {
         for _ in 0..step_count {
             steps.push(DeltaStep::decode(r)?);
         }
-        Ok(Self::Stepped(steps))
+        Ok(Self::Stepped {
+            steps,
+            start_immediately,
+        })
     }
 }
 
@@ -555,6 +592,30 @@ pub struct ClientboundSetPassengers {
 pub struct ClientboundSetPlayerInventory {
     pub slot: VarInt,
     pub contents: ProtoStack<Wire>,
+}
+
+#[derive(Clone, Debug, PartialEq, Encode, Decode)]
+pub struct ClientboundTeleportEntity {
+    pub entity_id: VarInt,
+    pub position: DVec3,
+    pub velocity: DVec3,
+    pub look: Look,
+    /// The axes whose value adds to the current value instead of replacing it.
+    pub relatives: PositionFlags,
+    pub on_ground: bool,
+}
+
+/// The tick rate of the server and whether it froze the ticks of the world.
+#[derive(Clone, Copy, Debug, PartialEq, Encode, Decode)]
+pub struct ClientboundTickingState {
+    pub tick_rate: f32,
+    pub frozen: bool,
+}
+
+/// The number of ticks that a frozen world runs before it stops again.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Encode, Decode)]
+pub struct ClientboundTickingStep {
+    pub steps: VarInt,
 }
 
 #[derive(Clone, Debug, PartialEq, Encode, Decode)]

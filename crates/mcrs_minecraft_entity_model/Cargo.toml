@@ -1,0 +1,17 @@
+[package]
+name = "mcrs_minecraft_entity_model"
+description = "Entity geometry files of the Bedrock format: reading, baking to a static model and the GPU model records"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+doctest = false
+
+[lints]
+workspace = true
+
+[dependencies]
+bytemuck = { version = "1", features = ["derive"] }
+glam.workspace = true
+serde.workspace = true
+serde_json.workspace = true

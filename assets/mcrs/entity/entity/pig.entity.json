@@ -1,0 +1,24 @@
+{
+  "format_version": "1.10.0",
+  "minecraft:client_entity": {
+    "description": {
+      "identifier": "minecraft:pig",
+      "materials": { "default": "entity_alphatest" },
+      "geometry": {
+        "default": "geometry.pig",
+        "cold": "geometry.pig.cold",
+        "baby": "geometry.pig.baby",
+        "saddle": "geometry.pig.saddle"
+      },
+      "animations": {
+        "walk": "animation.pig.walk",
+        "look_at_target": "animation.pig.look_at_target"
+      },
+      "scripts": { "animate": ["walk", "look_at_target"] },
+      "render_controllers": [
+        "controller.render.pig",
+        { "controller.render.pig_saddle": "q.equipment_texture('saddle', 'pig_saddle') != '' && !q.is_baby" }
+      ]
+    }
+  }
+}
