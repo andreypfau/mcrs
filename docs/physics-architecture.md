@@ -741,6 +741,10 @@ one colour are disjoint and cover the plane.
 - **Dependency-driven phases.** A block tile starts phase `p`, colour `c` when the tiles whose regions
   overlap its region finished `(p, c − 1)` and it finished `(p − 1)`. This is the same partial order
   as global barriers, so the result is identical, without the idle time of a barrier.
+  Decision for random ticks: the colours use global barriers. A commit of an overlay needs
+  exclusive access to the world, and a start by dependency needs in-place writes or layered
+  overlays. Change to dependency-driven phases only when a profile shows that the barriers cost
+  more than ~0.5 ms (S10).
 - **Determinism.** Whether a pick overflows depends only on its region and the bounds; the serial
   order is a stable key.
 - Each task has its own chain state, scratch and `StepOutput`; scheduled ticks take a calculated
@@ -751,7 +755,14 @@ sections × 3 × 3 ns ≈ 19 core-ms; ~185k handler runs × ~0.3 µs ≈ 55 core
 precipitation runs × 0.2 µs ≈ 11 core-ms; marks and log ≈ 7 core-ms. Total ~92 core-ms parallel, plus
 re-runs: only picks whose chain reaches a tripwire line, a structure or command block, an
 unmeasured tree or a long chain re-run; ≤ 0.1% of picks, an assumption to measure (≤ 0.3 ms, mostly
-in parallel with a doubled region).
+in parallel with a doubled region). Decision: an overflowed pick goes directly to the serial
+re-run, with no pass with a doubled region. Add that pass only when a measured re-run rate on a
+real save is more than 0.1% of picks.
+
+Measured on real saves (Hermitcraft S10, Meterstick FarmWorld and LagMachine, upgraded to the
+corpus version): 119–145 ticking positions per listed section, and 2.9–3.5% of picks run a handler.
+This agrees with the density of the model. One step on one core costs 24–89 ms for 258k listed
+sections. At 10k players this is ~200–725 core-ms, more than the budget of ~92 core-ms.
 
 ### 7.5 Block shards as a whole
 
@@ -1378,7 +1389,7 @@ working. Steps in one track run in sequence; tracks marked ∥ run in parallel w
 | Step | Crate | Scope | Rules | Tests | Exit |
 |------|-------|-------|-------|-------|------|
 | D1 | `mcrs_minecraft_simulation`, `mcrs_minecraft_engine` | ticking list, index per block tile, picks without misses, one task | SIM-RND-001..003, SIM-MODEL-106 | list equals palette scan; mean 7.32 ticks over 10,000 steps | random ticks at 10k players ≤ 92 core-ms |
-| D2 | same | colour phases, region-only access, bounds of Tables 1–7, undo and re-run with the same pick, dependency-driven phases | SIM-MODEL-009, 102(a), SIM-RND-001 | 1 and N threads equal; equal to the serial order | re-runs ≤ 0.1% of picks |
+| D2 | same | colour phases with barriers (§7.4), region-only access, bounds of Tables 1–7, undo and re-run with the same pick | SIM-MODEL-009, 102(a), SIM-RND-001 | 1 and N threads equal; equal to the serial order | re-runs ≤ 0.1% of picks |
 | D3 | same | precipitation per block tile | SIM-RND-004 | distribution | — |
 | D4 | same | block entities: one serial step per phase now; per block tile once SIM OQ-13 gives their bounds | SIM-TICK-002 step 12, PHY-CMP-017 | hopper claims | — |
 | D5 | same | scheduled ticks per block tile, budget cut, calculated sequence | SIM-SCH-001..012 | budget cut equals the global order | — |
