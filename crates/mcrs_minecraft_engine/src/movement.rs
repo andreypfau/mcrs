@@ -17,6 +17,7 @@ use mcrs_minecraft_protocol_game::serverbound::{
 
 use crate::bus::{OutboundPlayerPacket, PacketPayload};
 use crate::coordinator::clock::GameTime;
+use crate::movement_checks::MovementChecks;
 use crate::teleport::{
     AcceptOutcome, ClientSine, MAX_XZ, MAX_Y, TeleportState, landing, position_packet, teleport_to,
 };
@@ -33,6 +34,7 @@ impl Plugin for MovementPlugin {
         app.add_observer(handle_accept_teleportation);
         app.add_message::<PlayerMovement>();
         app.init_resource::<ClientSine>();
+        app.init_resource::<MovementChecks>();
         app.add_systems(FixedUpdate, process_movement.in_set(TickSet::ClientInput));
         app.add_systems(
             FixedPostUpdate,
@@ -106,9 +108,6 @@ pub(crate) fn process_movement(
     time: Res<GameTime>,
     mut packets: MessageWriter<OutboundPlayerPacket>,
 ) {
-    const MAX_POS: DVec3 = DVec3::new(MAX_XZ, MAX_Y, MAX_XZ);
-    const MIN_POS: DVec3 = DVec3::new(-MAX_XZ, -MAX_Y, -MAX_XZ);
-
     for movement in reader.read() {
         let Ok((owner, mut state, mut transform)) = query.get_mut(movement.entity) else {
             continue;
@@ -121,13 +120,18 @@ pub(crate) fn process_movement(
             continue;
         }
         if let Some(position) = movement.position {
-            transform.set_if_neq(transform.with_translation(position.clamp(MIN_POS, MAX_POS)));
+            transform.set_if_neq(transform.with_translation(reachable(position)));
         }
         if let Some(look) = movement.look {
             transform.set_if_neq(transform.with_rotation(look));
         }
         state.sync(*transform);
     }
+}
+
+fn reachable(position: DVec3) -> DVec3 {
+    const MAX_POS: DVec3 = DVec3::new(MAX_XZ, MAX_Y, MAX_XZ);
+    position.clamp(-MAX_POS, MAX_POS)
 }
 
 /// The resend or the correction of a pending teleport: the position of `destination`, and the
@@ -165,26 +169,36 @@ fn teleport(
     }
 }
 
-/// An accept of the pending teleport at its destination confirms it, so moves apply again. An
-/// accept at another position gets a correction: the position of an accept never becomes the
-/// position of the player.
+/// With the movement checks, an accept of the pending teleport at its destination confirms it, and
+/// an accept at another position gets a correction: the position of an accept never becomes the
+/// position of the player. Without them, an accept of the pending teleport confirms it and moves
+/// the player from the destination to the position and the rotation of the accept.
 fn handle_accept_teleportation(
     event: On<Received<ServerboundAcceptTeleportation>>,
-    mut players: Query<(&Owner, &mut TeleportState)>,
+    mut players: Query<(&Owner, &mut TeleportState, Mut<Transform>)>,
+    checks: Res<MovementChecks>,
     time: Res<GameTime>,
     mut packets: MessageWriter<OutboundPlayerPacket>,
 ) {
     let Some(accept) = event.packet() else {
         return;
     };
-    let Ok((owner, mut state)) = players.get_mut(event.entity) else {
+    let Ok((owner, mut state, mut transform)) = players.get_mut(event.entity) else {
         return;
     };
-    if let AcceptOutcome::Mismatch { destination } =
-        state.accept(accept.teleport_id.0, accept.position.into())
-    {
-        let id = state.sent(destination, *time);
-        packets.write(resend(owner, id, destination));
+    match state.accept(accept.teleport_id.0, accept.position.into(), *checks) {
+        AcceptOutcome::Mismatch { destination } => {
+            let id = state.sent(destination, *time);
+            packets.write(resend(owner, id, destination));
+        }
+        AcceptOutcome::Confirmed if *checks == MovementChecks::Off => {
+            transform.set_if_neq(Transform {
+                translation: reachable(accept.position.into()),
+                rotation: Rotation::new(accept.look.yaw, accept.look.pitch),
+            });
+            state.sync(*transform);
+        }
+        AcceptOutcome::Confirmed | AcceptOutcome::Ignored => {}
     }
 }
 
@@ -301,6 +315,63 @@ mod tests {
             [] as [i32; 0],
             "the teleport is fresh"
         );
+    }
+
+    #[test]
+    fn an_accept_away_from_the_destination_moves_the_player_only_without_the_checks() {
+        use mcrs_minecraft_core::Look;
+        use mcrs_minecraft_protocol::Encode;
+
+        let destination = Transform::default().with_translation(DVec3::new(3.0, 64.0, 0.0));
+        let away = Transform {
+            translation: DVec3::new(8.0, 64.0, 0.0),
+            rotation: Rotation::new(90.0, 10.0),
+        };
+        for (checks, expected) in [
+            (MovementChecks::On, destination),
+            (MovementChecks::Off, away),
+        ] {
+            let mut world = movement_world();
+            world.insert_resource(checks);
+            world.add_observer(handle_accept_teleportation);
+            let mut state = TeleportState::default();
+            let id = state.sent(destination, GameTime(0));
+            let player = world
+                .spawn((Owner(PlayerSession(1)), destination, state))
+                .id();
+            let mut body = Vec::new();
+            ServerboundAcceptTeleportation {
+                teleport_id: id.into(),
+                position: away.translation.into(),
+                look: Look {
+                    yaw: 90.0,
+                    pitch: 10.0,
+                },
+            }
+            .encode(&mut body)
+            .unwrap();
+
+            world.trigger(Received::<ServerboundAcceptTeleportation>::new(
+                player,
+                body.into(),
+            ));
+
+            assert_eq!(
+                world.get::<Transform>(player),
+                Some(&expected),
+                "TP-CONFIRM-ACC-009, MVC-LAT-008 with {checks:?}"
+            );
+            let corrected = checks == MovementChecks::On;
+            assert_eq!(
+                world
+                    .get::<TeleportState>(player)
+                    .unwrap()
+                    .pending()
+                    .is_some(),
+                corrected
+            );
+            assert_eq!(sent_ids(&mut world).len(), usize::from(corrected));
+        }
     }
 
     #[test]
