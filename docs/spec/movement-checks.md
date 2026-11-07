@@ -1019,7 +1019,25 @@ section. The accept is its acknowledgement. After the accept, the accepted state
 Its position is the destination of the teleport, as PHY-SRV-010 computes it. Its velocity is the
 velocity of the teleport, as PHY-SRV-010 computes it.
 
-For a relative field, the server computes the destination from each candidate before the teleport.
+The client applies the teleport between two client ticks, when the packet arrives. It sends the
+accept at that time, before the tick packets of its next tick. Thus each client tick before the
+accept is a tick before the teleport, and the teleport needs no window. The client runs 4 to 6 such
+ticks at a round trip of 187 to 282 ms (recordings `e21_teleport_while_falling`).
+
+While the teleport is pending, the server predicts each client tick from the accepted state, as
+section 4 states. This applies to a setback too. A tick in predicted mode with a match changes the
+accepted state. A tick in predicted mode with no match keeps the accepted state. A tick in coarse
+mode or resync mode changes the accepted state as MVC-MODE-001 states. These ticks give no
+violation and no setback, because the accept is the check. A vanilla server does not apply their
+positions (MVC-VAN-005).
+
+At the accept, the server applies PHY-SRV-010 to each candidate. A relative field adds to the value
+of the candidate, and an absolute field replaces it. The result flags, the supporting block and the
+fall distance stay as the candidate has them. The server does not know these values when the last
+tick before the accept has no match. It also does not know a value that a relative field adds to
+after a coarse tick, for example the velocity. In these cases, the tick after the accept is a
+resync tick (MVC-MODE-004).
+
 The accept matches when the distance from its position to one destination is less than
 `offset_threshold`. Then the server keeps the candidate of that destination.
 
@@ -1276,7 +1294,8 @@ catches a speed that comes from a forbidden sprint.
 - The player is in spectator mode.
 - The player rides.
 - The player sleeps or is dead.
-- The client has not loaded, or a teleport is pending.
+- The client has not loaded, or a teleport is pending. For a pending teleport, MVC-LAT-008 states
+  how the accepted state changes.
 - The camera of the client is another entity.
 - The game rule `player_movement_check` is false.
 
@@ -1375,8 +1394,8 @@ refused client tick. For a setback, the server uses the accepted state before th
 apply:
 
 - The server does not apply move packets (TP-CONFIRM-MOV-001).
-- The server runs no prediction step and sends no other setback. It sends a resend as
-  TP-CONFIRM-RES-002 states.
+- The server runs only the prediction of MVC-LAT-008, and sends no other setback. It sends a
+  resend as TP-CONFIRM-RES-002 states.
 - The tick rate check continues.
 
 **MVC-RSP-004** (`design`, semantic, confidence: low). The offset buffer starts at 0. For each
