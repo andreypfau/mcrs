@@ -34,6 +34,9 @@ use crate::rollback::Rollback;
 /// A silent tick of the client is within this distance of the reference position.
 const SILENT_DISTANCE: f64 = 2.0e-4;
 
+/// A block that stops the movement only touches the moved box, so the box grows by this much.
+const CONTACT: f64 = 1.0e-7;
+
 /// One possible state of the client after a client tick, and the number of changes it applied.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) struct Candidate {
@@ -85,6 +88,8 @@ pub(crate) enum Search {
 pub(crate) enum Stop {
     Steps,
     Unbounded,
+    /// The movement touches an edited block whose state the server cannot compute.
+    Unsettled,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -195,7 +200,8 @@ fn run_trial<W: CollisionWorld, B: BodyView>(
     let limits = context.limits;
     let start = candidate.state;
     let bound = push_bound(context, tick, &start, work)?;
-    context.kept.undo_from(candidate.applied, &mut work.undone);
+    let rollback = record.rollback.as_ref();
+    world_view(context.kept, rollback, candidate.applied, &mut work.undone);
     let world = BlockOverlay {
         base: context.view.world,
         blocks: &work.undone,
@@ -223,6 +229,15 @@ fn run_trial<W: CollisionWorld, B: BodyView>(
         Ok(())
     };
     step(&input, &mut candidate.state)?;
+    if let Some(rollback) = rollback {
+        let dimensions = dimensions_of(start.pose, &start.attributes);
+        let grown = Aabb::of_body(start.position, dimensions.width, dimensions.height)
+            .expand_towards(candidate.state.position - start.position)
+            .inflate(DVec3::splat(CONTACT));
+        if rollback.unsettled(candidate.applied, &grown) {
+            return Err(Stop::Unsettled);
+        }
+    }
     let Some(position) = tick.reported.position else {
         let distance = candidate.state.position.distance(record.reference);
         let tolerance = SILENT_DISTANCE + bound.reach();
@@ -240,6 +255,20 @@ fn run_trial<W: CollisionWorld, B: BodyView>(
         offset,
         matches: offset < limits.offset_threshold,
     })
+}
+
+/// The blocks of the world view of the client after `applied` changes, as an overlay on the
+/// world of the server.
+pub(crate) fn world_view(
+    kept: &KeptChanges,
+    rollback: Option<&Rollback>,
+    applied: u64,
+    blocks: &mut FxHashMap<BlockPos, BlockStateId>,
+) {
+    kept.undo_from(applied, blocks);
+    if let Some(rollback) = rollback {
+        rollback.cover(applied, blocks);
+    }
 }
 
 /// The push bound of the pushers near the candidate; zero for a player that no entity pushes.

@@ -506,10 +506,14 @@ fn on_carpets() -> (Session, BlockPos, BlockPos) {
 /// Gives the positions of the two requests.
 fn broken_two_times() -> (Session, BlockPos, [DVec3; 2]) {
     let (mut session, under, _) = on_carpets();
-    session.prediction.block_requested(under);
+    session
+        .prediction
+        .block_requested(under, Some(BlockStateId::AIR));
     let first = session.client.position;
     session.step(FORWARD);
-    session.prediction.block_requested(under);
+    session
+        .prediction
+        .block_requested(under, Some(BlockStateId::AIR));
     let second = session.client.position;
     refuse_break(&mut session, under);
     (session, under, [first, second])
@@ -545,7 +549,9 @@ fn lat_007_a_client_does_not_move_back_before_the_ack_is_in_its_prefix() {
 #[test]
 fn lat_007_a_client_does_not_move_back_when_no_kept_state_meets_its_box() {
     let (mut session, _, far) = on_carpets();
-    session.prediction.block_requested(far);
+    session
+        .prediction
+        .block_requested(far, Some(BlockStateId::AIR));
     let first = session.client.position;
     refuse_break(&mut session, far);
     let outcome = ack_and_move(&mut session, far, first);
@@ -555,9 +561,13 @@ fn lat_007_a_client_does_not_move_back_when_no_kept_state_meets_its_box() {
 #[test]
 fn lat_007_a_request_after_the_ack_waits_for_a_later_ack() {
     let (mut session, under, far) = on_carpets();
-    session.prediction.block_requested(far);
+    session
+        .prediction
+        .block_requested(far, Some(BlockStateId::AIR));
     session.send(Change::BlockAck);
-    session.prediction.block_requested(under);
+    session
+        .prediction
+        .block_requested(under, Some(BlockStateId::AIR));
     let second = session.client.position;
     session.tick(FORWARD, ChangeStates::default(), 0, DVec3::ZERO, |_| {});
     session.client.position = second;
@@ -567,6 +577,96 @@ fn lat_007_a_request_after_the_ack_waits_for_a_later_ack() {
     };
     let outcome = session.tick(FORWARD, window, 1, DVec3::ZERO, |_| {});
     assert!(outcome.offset.is_some(), "{outcome:?}");
+}
+
+/// A player in front of a wall of stone two blocks high at `x = 1`.
+fn before_a_wall() -> (Session, [BlockPos; 2]) {
+    let mut session = Session::new();
+    let stone = session.fixture.blocks.stone;
+    let wall = [BlockPos::new(1, 0, 0), BlockPos::new(1, 1, 0)];
+    for at in wall {
+        session.fixture.world.set(at, stone);
+        session.client_world.set(at, stone);
+    }
+    (session, wall)
+}
+
+/// The client breaks the wall. The server refuses: it sends the stone of each block, which the
+/// client keeps, and then the `block_changed_ack`, which has the number 2.
+fn refused_wall_break() -> Session {
+    let (mut session, wall) = before_a_wall();
+    let stone = session.fixture.blocks.stone;
+    for at in wall {
+        session
+            .prediction
+            .block_requested(at, Some(BlockStateId::AIR));
+        session.client_world.set(at, BlockStateId::AIR);
+        session.send(Change::Block {
+            at,
+            old: stone,
+            new: stone,
+        });
+    }
+    session.send(Change::BlockAck);
+    session.client_applied = 3;
+    session
+}
+
+/// Walks 15 honest ticks with these states of the changes; gives the `x` of the player.
+fn walk(session: &mut Session, states: ChangeStates) -> f64 {
+    for tick in 0..15 {
+        let outcome = session.tick(FORWARD, states, 3, DVec3::ZERO, |_| {});
+        assert!(passes(outcome), "tick {tick}: {outcome:?}");
+    }
+    session.prediction.accepted().position.x
+}
+
+#[test]
+fn lat_007_until_the_ack_the_client_has_its_edit_and_not_the_update() {
+    let mut session = refused_wall_break();
+    let before_ack = ChangeStates {
+        applied: 2,
+        seen: 2,
+    };
+    let x = walk(&mut session, before_ack);
+    assert!(x > 1.5, "the client walked into the cells it broke: {x}");
+}
+
+#[test]
+fn lat_007_the_kept_state_enters_at_the_ack() {
+    let mut session = refused_wall_break();
+    let stone = session.fixture.blocks.stone;
+    for y in 0..2 {
+        session.client_world.set(BlockPos::new(1, y, 0), stone);
+    }
+    let ack_in_window = ChangeStates {
+        applied: 2,
+        seen: 3,
+    };
+    let x = walk(&mut session, ack_in_window);
+    assert!(x < 1.0, "the kept stone stops the client: {x}");
+}
+
+#[test]
+fn lat_007_an_unsettled_edit_makes_a_tick_coarse_when_the_grown_box_touches_it() {
+    let mut session = Session::new();
+    session
+        .prediction
+        .block_requested(BlockPos::new(1, 0, 1), None);
+    let near = session.step(Keys::default());
+    assert!(
+        passes(near),
+        "a still player does not touch the block beside it: {near:?}"
+    );
+    session
+        .prediction
+        .block_requested(BlockPos::new(0, -1, 0), None);
+    let under = session.step(Keys::default());
+    assert_eq!(
+        under.mode,
+        Mode::Coarse,
+        "the player stands on the block: {under:?}"
+    );
 }
 
 #[test]

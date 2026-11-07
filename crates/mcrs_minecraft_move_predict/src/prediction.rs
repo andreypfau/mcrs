@@ -18,6 +18,7 @@ use mcrs_minecraft_physics::apply_teleport;
 use mcrs_minecraft_physics::observed_velocity;
 use mcrs_minecraft_physics::tick_player;
 use mcrs_voxel::BlockPos;
+use mcrs_voxel::BlockStateId;
 
 use crate::Change;
 use crate::ClientTick;
@@ -33,6 +34,7 @@ use crate::candidates::Scored;
 use crate::candidates::Search;
 use crate::candidates::Stop;
 use crate::candidates::Work;
+use crate::candidates::world_view;
 use crate::kept_changes::KeptChanges;
 use crate::rollback::Edit;
 use crate::rollback::Rollback;
@@ -97,19 +99,24 @@ impl Prediction {
         }
     }
 
-    /// The client edits the block `at` with a sequence: until its acknowledgement, the client
-    /// can move itself back to where it was at the first request for that block.
-    pub fn block_requested(&mut self, at: BlockPos) {
+    /// The client edits the block `at` with a sequence. From the next client tick on, its world
+    /// view has `state` at `at` until it applies the acknowledgement, and it can move itself back
+    /// to where it was at the first request for that block. `state` is the new state of an
+    /// accepted edit, or the state that a refused action gives in the world of the server; `None`
+    /// when the server cannot compute it.
+    pub fn block_requested(&mut self, at: BlockPos, state: Option<BlockStateId>) {
         let position = self.first.state.position;
         let rollback = match &mut self.rollback {
             Some(rollback) if rollback.ack.is_none() => rollback,
             _ => self.rollback.insert(Rollback::default()),
         };
-        if !rollback.edits.iter().any(|edit| edit.block == at) {
-            rollback.edits.push(Edit {
+        match rollback.edits.iter_mut().find(|edit| edit.block == at) {
+            Some(edit) => edit.state = state,
+            None => rollback.edits.push(Edit {
                 block: at,
                 position,
-            });
+                state,
+            }),
         }
     }
 
@@ -169,7 +176,7 @@ impl Prediction {
         if self
             .rollback
             .as_ref()
-            .is_some_and(|rollback| rollback.ack.is_some_and(|ack| ack < tick.changes.applied))
+            .is_some_and(|rollback| rollback.acked(tick.changes.applied))
         {
             self.rollback = None;
         }
@@ -323,7 +330,8 @@ impl Prediction {
         outcome
     }
 
-    /// The tick reached the cap of the physics steps, or the push bound cannot hold the pushers.
+    /// The tick reached the cap of the physics steps, the push bound cannot hold the pushers, or
+    /// the movement touches an edited block that is not settled.
     fn stopped(&mut self, tick: &ClientTick, stop: Stop) -> Outcome {
         let open = tick.changes.seen.saturating_sub(tick.changes.applied);
         if stop == Stop::Steps && open > self.limits.max_open_windows {
@@ -363,7 +371,12 @@ impl Prediction {
         let mut start = self.first;
         let applied = start.applied.max(tick.changes.seen);
         self.kept.apply(&mut start.state, start.applied, applied);
-        self.kept.undo_from(applied, &mut self.work.undone);
+        world_view(
+            &self.kept,
+            self.rollback.as_ref(),
+            applied,
+            &mut self.work.undone,
+        );
         let world = BlockOverlay {
             base: view.world,
             blocks: &self.work.undone,
