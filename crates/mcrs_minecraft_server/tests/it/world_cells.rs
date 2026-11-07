@@ -1333,13 +1333,31 @@ fn a_block_that_a_shape_update_destroys_drops_the_items_of_the_rules() {
         (position.x - 3.5).abs() < 1.25 && (position.z - 5.5).abs() < 1.25,
         "the item starts at the block: {position}"
     );
-    assert!(
-        position.y < 120.5,
-        "the pass moves the item: it falls from {position}"
-    );
     assert_eq!(
         world.resource::<ItemStacks>().0.get(&id),
         Some(&ItemStack::new(Item::NoteBlock.id(), 1))
+    );
+
+    // The item starts with 0.2 upward, so it is back near its start ten ticks later.
+    for _ in 0..20 {
+        lockstep_tick(&mut app, label);
+    }
+    let world = cell_worlds(&mut app, label)
+        .into_iter()
+        .next()
+        .expect("a cell");
+    let later = world
+        .resource_mut::<EntityRows>()
+        .tiles_mut()
+        .flat_map(|(_, rows)| {
+            rows.rows_mut()
+                .map(|row| row.state.body.position.y)
+                .collect::<Vec<_>>()
+        })
+        .next();
+    assert!(
+        later.is_some_and(|y| y < position.y),
+        "the pass moves the item: it falls from {position} to {later:?}"
     );
 }
 
