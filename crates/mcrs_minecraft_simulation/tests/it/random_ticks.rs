@@ -322,3 +322,49 @@ fn precipitation_hits_writable_columns_only_and_do_not_depend_on_the_other_secti
     );
     assert_eq!(rained_on_first(&[far, halo, first]), alone);
 }
+
+/// SIM-RND-001..003: the picks of a section with a fixed seed are the positions that the streams
+/// gave before the step was made faster. Half the section ticks, so draws both hit and miss, and
+/// each hit shrinks the list that the later draws index.
+#[test]
+fn the_picks_of_a_section_keep_their_positions_for_a_fixed_seed() {
+    let target = section(1, -1, 2);
+    let mut host = Host::new();
+    host.insert(target, C);
+    for local in LocalPos::all().filter(|local| local.y() < 8) {
+        host.put(
+            at_in(target, local.x().into(), local.y().into(), local.z().into()),
+            A,
+        );
+    }
+    let rules = Picks {
+        replace: true,
+        ticks: AtomicU32::new(0),
+    };
+
+    let out = run(&mut host, &rules, &[target], 3, 10);
+
+    let picked: Vec<(i32, i32, i32)> = out
+        .writes
+        .iter()
+        .map(|write| (write.pos.x, write.pos.y, write.pos.z))
+        .collect();
+    assert_eq!(
+        picked,
+        [
+            (16, -15, 41),
+            (17, -14, 33),
+            (16, -14, 46),
+            (27, -15, 32),
+            (30, -9, 35),
+            (17, -11, 43),
+            (23, -10, 41),
+            (24, -11, 37),
+            (19, -11, 36),
+            (20, -11, 42),
+            (23, -13, 37),
+            (19, -10, 33),
+            (19, -11, 47),
+        ]
+    );
+}
