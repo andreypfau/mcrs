@@ -406,13 +406,3 @@ fn cmp_023_the_server_copy_decays_before_the_cutoff() {
     );
     assert_eq!(state.velocity.x, 0.1 * 0.98);
 }
-
-#[test]
-#[ignore = "the vanilla client recorder (T1) does not exist yet; E9 to E14 and E21 to E23 need it"]
-fn own_player_follows_the_recorded_client_ticks() {
-    let directory = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/player");
-    assert!(
-        std::path::Path::new(directory).is_dir(),
-        "no recorded client ticks in {directory}"
-    );
-}
