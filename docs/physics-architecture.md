@@ -1471,3 +1471,11 @@ E1..E8, T1 (any time)   D1 ─ D2 ─ D3 ─ D4 ─ D5 ─ D6 ─ D7
     `upscale` and evaluate it only when each axis is `interpolate_linear` and the X and Z cell
     sizes are equal. The vanilla data uses only this form. The other modes and `domain_warp`
     need a specification.
+36. PHY-FALL-004 against PHY-FALL-002, the point of the fall reset. Resolved: the fall reset
+    tests the path of the bottom-centre position against the inside shape (PHY-FALL-002/004).
+37. PHY-FALL-004, the inside shapes of the blocks. Resolved: PHY-RCH-008 gives the inside shape
+    per block; the default is the full cube.
+38. PHY-INP-021, the shulker box. Resolved: PHY-SHP-014; an unknown open state means coarse,
+    never closed. The engine does not give the open progress to the kernel yet.
+39. PHY-INP-011, the order and the precision of the push out. Resolved: PHY-INP-011 states the
+    f64 offset and the overwrite per axis.
