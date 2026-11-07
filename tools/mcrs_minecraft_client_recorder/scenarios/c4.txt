@@ -18,6 +18,15 @@ ticks 300
 
 step wind_charge
 instruction After Go, look at the floor and throw the wind charge with the right mouse button. Do it again 3 times.
+input 61 none -90 90
+input 62 use
+input 64 none
+input 92 use
+input 94 none
+input 122 use
+input 124 none
+input 152 use
+input 154 none
 fill -16 99 -8 16 99 8 minecraft:stone
 run kill @e[type=minecraft:skeleton]
 run difficulty peaceful

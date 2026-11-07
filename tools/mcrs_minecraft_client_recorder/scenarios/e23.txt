@@ -5,6 +5,10 @@ arena -16 98 -16 48 110 16
 
 step double_tap_forward
 instruction After Go: tap W, then press and hold W for 2 seconds.
+input 61 forward
+input 63 none
+input 65 forward
+input 105 none
 fill -16 99 -16 48 99 16 minecraft:stone
 run gamemode survival @a
 run effect clear @a
@@ -13,6 +17,9 @@ ticks 120
 
 step sprint_while_using
 instruction After Go: hold the right mouse button to draw the bow, then hold Ctrl and W for 2 seconds, then release all.
+input 61 use
+input 71 use,forward,sprint
+input 111 none
 fill -16 99 -16 48 99 16 minecraft:stone
 run clear @a
 run item replace entity @a hotbar.0 with minecraft:bow
@@ -22,6 +29,14 @@ ticks 140
 
 step double_tap_jump
 instruction After Go: double-tap Space to fly, wait 1 second, double-tap Space to stop flying, and land.
+input 61 jump
+input 63 none
+input 65 jump
+input 67 none
+input 87 jump
+input 89 none
+input 91 jump
+input 93 none
 fill -16 99 -16 48 99 16 minecraft:stone
 run gamemode creative @a
 start 0.5 100 0.5 -90 0

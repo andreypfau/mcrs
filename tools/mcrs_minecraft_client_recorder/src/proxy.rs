@@ -32,6 +32,8 @@ use mcrs_minecraft_protocol::packets::table::login_clientbound;
 use mcrs_minecraft_protocol::packets::table::login_serverbound;
 use mcrs_minecraft_protocol_game::clientbound::ClientboundPing;
 
+use crate::cheat::Cheat;
+use crate::cheat::Module;
 use crate::delay::Delay;
 use crate::names::Names;
 use crate::play::Play;
@@ -50,6 +52,8 @@ pub(crate) enum Observed {
     Sent(u64, Event),
     /// The client has loaded the world.
     Loaded,
+    /// The cheat module changed what the server receives.
+    Rewritten,
 }
 
 #[derive(Copy, Clone, PartialEq, Eq)]
@@ -66,6 +70,8 @@ struct Inbound {
     stream: TcpStream,
     buffer: BytesMut,
     outgoing: Vec<u8>,
+    /// The compression of the frames from this peer.
+    threshold: CompressionThreshold,
     inflater: Option<Decompress>,
     state: State,
 }
@@ -84,7 +90,9 @@ struct Probe {
 pub(crate) struct Connection {
     client: Inbound,
     server: Inbound,
-    threshold: CompressionThreshold,
+    /// The threshold of `setup_compression`. Each direction switches compression on after its
+    /// frame of `login_finished` or `login_acknowledged`.
+    stored: CompressionThreshold,
     deflate: Option<Deflate>,
     in_bundle: bool,
     unprobed: Vec<(u64, Event)>,
@@ -95,6 +103,9 @@ pub(crate) struct Connection {
     start: Instant,
     from_client: Delay<Bytes>,
     to_client: Delay<Vec<u8>>,
+    cheat: Option<Cheat>,
+    /// The last frame from the client with a move packet, and its events.
+    last_move: Option<(Bytes, Vec<Event>)>,
 }
 
 impl Connection {
@@ -103,6 +114,7 @@ impl Connection {
         client: TcpStream,
         server: TcpStream,
         trace: &[Duration],
+        cheat: Option<Module>,
     ) -> anyhow::Result<Self> {
         for stream in [&client, &server] {
             stream.set_read_timeout(Some(POLL))?;
@@ -112,13 +124,14 @@ impl Connection {
             stream,
             buffer: BytesMut::new(),
             outgoing: Vec::new(),
+            threshold: CompressionThreshold::default(),
             inflater: None,
             state: State::Handshake,
         };
         Ok(Self {
             client: inbound(client),
             server: inbound(server),
-            threshold: CompressionThreshold::default(),
+            stored: CompressionThreshold::default(),
             deflate: None,
             in_bundle: false,
             unprobed: Vec::new(),
@@ -128,6 +141,8 @@ impl Connection {
             start: Instant::now(),
             from_client: Delay::new(trace.to_vec()),
             to_client: Delay::new(trace.to_vec()),
+            cheat: cheat.map(Cheat::new),
+            last_move: None,
         })
     }
 
@@ -166,8 +181,12 @@ impl Connection {
         u64::try_from(self.start.elapsed().as_micros()).unwrap_or(u64::MAX)
     }
 
-    fn client_frame(&mut self, frame: Bytes, out: &mut Vec<Observed>) -> anyhow::Result<()> {
-        let packet = decompress(frame.clone(), self.threshold, &mut self.client.inflater)?;
+    fn client_frame(&mut self, mut frame: Bytes, out: &mut Vec<Observed>) -> anyhow::Result<()> {
+        let packet = decompress(
+            frame.clone(),
+            self.client.threshold,
+            &mut self.client.inflater,
+        )?;
         let mut body = &packet[..];
         let id = VarInt::decode(&mut body)?.0;
         match self.client.state {
@@ -181,6 +200,9 @@ impl Connection {
             }
             State::Login if name_of(login_serverbound::NAMES, id) == "login_acknowledged" => {
                 self.client.state = State::Configuration;
+                send_frame(&mut self.server.outgoing, &frame)?;
+                self.client.threshold = self.stored;
+                return Ok(());
             }
             State::Configuration
                 if name_of(configuration_serverbound::NAMES, id) == "finish_configuration" =>
@@ -190,41 +212,92 @@ impl Connection {
             State::Play if name_of(game_serverbound::NAMES, id) == "configuration_acknowledged" => {
                 self.client.state = State::Configuration;
             }
-            State::Play => match decode_serverbound(id, body)? {
-                Play::Ping(probe) if self.probes.front().is_some_and(|front| front.id == probe) => {
-                    if let Some(answered) = self.probes.pop_front() {
-                        out.extend(
-                            answered
-                                .events
-                                .into_iter()
-                                .map(|(time, event)| Observed::Applied(time, event)),
-                        );
+            State::Play => {
+                let mut rewritten = None;
+                if let Some(cheat) = &mut self.cheat {
+                    let name = name_of(game_serverbound::NAMES, id);
+                    if name == "accept_teleportation" {
+                        cheat.teleported();
                     }
-                    return Ok(());
+                    if let Some(changed) = cheat.rewrite(name, body) {
+                        out.push(Observed::Rewritten);
+                        frame = reframe(id, &changed, self.client.threshold, &mut self.deflate)?;
+                        rewritten = Some(changed);
+                    }
                 }
-                Play::Loaded => out.push(Observed::Loaded),
-                Play::Events(events) => {
-                    let time = self.time();
-                    out.extend(events.into_iter().map(|event| Observed::Sent(time, event)));
-                }
-                Play::Login(_) | Play::Ping(_) | Play::Bundle => {}
-            },
+                return self.play_frame(id, rewritten.as_deref().unwrap_or(body), frame, out);
+            }
             State::Status | State::Login | State::Configuration => {}
         }
         send_frame(&mut self.server.outgoing, &frame)
     }
 
+    fn play_frame(
+        &mut self,
+        id: i32,
+        body: &[u8],
+        frame: Bytes,
+        out: &mut Vec<Observed>,
+    ) -> anyhow::Result<()> {
+        match decode_serverbound(id, body)? {
+            Play::Ping(probe) if self.probes.front().is_some_and(|front| front.id == probe) => {
+                if let Some(answered) = self.probes.pop_front() {
+                    out.extend(
+                        answered
+                            .events
+                            .into_iter()
+                            .map(|(time, event)| Observed::Applied(time, event)),
+                    );
+                }
+                return Ok(());
+            }
+            Play::Loaded => out.push(Observed::Loaded),
+            Play::Events(events) => {
+                let time = self.time();
+                let tick_end = events.contains(&Event::TickEnd);
+                if self.cheat.is_some()
+                    && events.iter().any(|event| matches!(event, Event::Move(_)))
+                {
+                    self.last_move = Some((frame.clone(), events.clone()));
+                }
+                out.extend(events.into_iter().map(|event| Observed::Sent(time, event)));
+                if tick_end && self.cheat.as_mut().is_some_and(Cheat::repeats_tick) {
+                    send_frame(&mut self.server.outgoing, &frame)?;
+                    if let Some((moved, events)) = &self.last_move {
+                        send_frame(&mut self.server.outgoing, moved)?;
+                        out.extend(
+                            events
+                                .iter()
+                                .map(|event| Observed::Sent(time, event.clone())),
+                        );
+                    }
+                    out.extend([Observed::Rewritten, Observed::Sent(time, Event::TickEnd)]);
+                }
+            }
+            Play::Login(_) | Play::Ping(_) | Play::Bundle => {}
+        }
+        send_frame(&mut self.server.outgoing, &frame)
+    }
+
     fn server_frame(&mut self, names: &Names, frame: Bytes) -> anyhow::Result<()> {
-        let packet = decompress(frame.clone(), self.threshold, &mut self.server.inflater)?;
+        let packet = decompress(
+            frame.clone(),
+            self.server.threshold,
+            &mut self.server.inflater,
+        )?;
         let mut body = &packet[..];
         let id = VarInt::decode(&mut body)?.0;
-        let mut compression = None;
+        let mut finished = false;
         match self.server.state {
             State::Login => match name_of(login_clientbound::NAMES, id) {
                 "setup_compression" => {
-                    compression = Some(LoginCompression::decode(&mut body)?.threshold.0);
+                    self.stored =
+                        CompressionThreshold(LoginCompression::decode(&mut body)?.threshold.0);
                 }
-                "login_finished" => self.server.state = State::Configuration,
+                "login_finished" => {
+                    self.server.state = State::Configuration;
+                    finished = true;
+                }
                 _ => {}
             },
             State::Configuration
@@ -248,8 +321,8 @@ impl Connection {
             State::Handshake | State::Status | State::Configuration => {}
         }
         send_frame(&mut self.client.outgoing, &frame)?;
-        if let Some(threshold) = compression {
-            self.threshold = CompressionThreshold(threshold);
+        if finished {
+            self.server.threshold = self.stored;
         }
         if !self.unprobed.is_empty() && !self.in_bundle {
             self.probe()?;
@@ -262,7 +335,7 @@ impl Connection {
         self.next_probe = self.next_probe.wrapping_add(1);
         let mut packet = BytesMut::new();
         ClientboundPing { id }.encode_with_id((&mut packet).writer())?;
-        encode_frame(&mut packet, 0, self.threshold, &mut self.deflate)?;
+        encode_frame(&mut packet, 0, self.server.threshold, &mut self.deflate)?;
         self.client.outgoing.extend_from_slice(&packet);
         self.probes.push_back(Probe {
             id,
@@ -312,6 +385,20 @@ fn next_frame(inbound: &mut Inbound) -> anyhow::Result<Option<Bytes>> {
         Err(error) if error.is_incomplete() => Ok(None),
         Err(error) => Err(error.into()),
     }
+}
+
+/// The frame of the packet `id` with `body`, without its length prefix.
+fn reframe(
+    id: i32,
+    body: &[u8],
+    threshold: CompressionThreshold,
+    deflate: &mut Option<Deflate>,
+) -> anyhow::Result<Bytes> {
+    let mut packet = BytesMut::new();
+    VarInt(id).encode((&mut packet).writer())?;
+    packet.extend_from_slice(body);
+    encode_frame(&mut packet, 0, threshold, deflate)?;
+    Ok(split_frame(&mut packet)?)
 }
 
 fn send_frame(outgoing: &mut Vec<u8>, frame: &[u8]) -> anyhow::Result<()> {

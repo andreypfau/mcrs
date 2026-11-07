@@ -4,6 +4,8 @@ arena -16 98 -16 48 110 16
 
 step walk_stone
 instruction Hold W for 2 seconds after Go, then release it.
+input 61 forward
+input 101 none
 fill -16 99 -16 48 99 16 minecraft:stone
 run gamemode survival @a
 run effect clear @a
@@ -12,30 +14,40 @@ ticks 120
 
 step sprint_stone
 instruction Hold Ctrl and W for 2 seconds after Go, then release both.
+input 61 forward,sprint
+input 101 none
 fill -16 99 -16 48 99 16 minecraft:stone
 start 0.5 100 0.5 -90 0
 ticks 120
 
 step sneak_stone
 instruction Hold Shift and W for 2 seconds after Go, then release both.
+input 61 forward,shift
+input 101 none
 fill -16 99 -16 48 99 16 minecraft:stone
 start 0.5 100 0.5 -90 0
 ticks 120
 
 step walk_ice
 instruction Hold W for 2 seconds after Go, then release it.
+input 61 forward
+input 101 none
 fill -16 99 -16 48 99 16 minecraft:ice
 start 0.5 100 0.5 -90 0
 ticks 120
 
 step sprint_ice
 instruction Hold Ctrl and W for 2 seconds after Go, then release both.
+input 61 forward,sprint
+input 101 none
 fill -16 99 -16 48 99 16 minecraft:ice
 start 0.5 100 0.5 -90 0
 ticks 120
 
 step sneak_ice
 instruction Hold Shift and W for 2 seconds after Go, then release both.
+input 61 forward,shift
+input 101 none
 fill -16 99 -16 48 99 16 minecraft:ice
 start 0.5 100 0.5 -90 0
 ticks 120

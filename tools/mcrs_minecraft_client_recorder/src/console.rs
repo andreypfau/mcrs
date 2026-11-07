@@ -36,7 +36,7 @@ impl Console {
         let mut text = format!(
             "online-mode=false\nserver-ip=127.0.0.1\nserver-port={port}\nlevel-name={LEVEL}\n\
              level-type=minecraft\\:flat\ngenerate-structures=false\nspawn-protection=0\n\
-             view-distance=6\nsimulation-distance=6\nenable-rcon=false\nenable-query=false\n"
+             view-distance=6\nsimulation-distance=6\nenable-rcon=false\nenable-query=false\nwhite-list=false\n"
         );
         for property in properties {
             text.push_str(property);
@@ -100,5 +100,12 @@ impl Console {
         self.run("stop")?;
         self.child.wait()?;
         Ok(())
+    }
+}
+
+/// A recorder that fails leaves no server behind on the port.
+impl Drop for Console {
+    fn drop(&mut self) {
+        let _ = self.child.kill();
     }
 }

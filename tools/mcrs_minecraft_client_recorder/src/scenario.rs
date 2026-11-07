@@ -18,6 +18,8 @@ pub(crate) struct Scenario {
 pub(crate) struct Step {
     pub(crate) name: String,
     pub(crate) instruction: String,
+    /// The `input` lines: what the input agent of `tools/vanilla-client` does in place of the human.
+    inputs: Vec<String>,
     pub(crate) fills: Vec<Fill>,
     /// Console commands after the fills, for example a game mode or an effect.
     pub(crate) commands: Vec<String>,
@@ -95,6 +97,7 @@ impl Scenario {
             self.steps.push(Step {
                 name: rest.to_owned(),
                 instruction: String::new(),
+                inputs: Vec::new(),
                 fills: Vec::new(),
                 commands: Vec::new(),
                 start: [0.0; 5],
@@ -109,6 +112,10 @@ impl Scenario {
         };
         match keyword {
             "instruction" => step.instruction = rest.to_owned(),
+            "input" => {
+                check_input(rest)?;
+                step.inputs.push(rest.to_owned());
+            }
             "fill" => {
                 let (bounds, state) = rest.rsplit_once(' ').context("no block state")?;
                 let [min, max] = cuboid(bounds)?;
@@ -144,6 +151,39 @@ impl Scenario {
         }
         Ok(())
     }
+}
+
+impl Step {
+    /// The script that the input agent reads: the `go` tick, then the `input` lines.
+    pub(crate) fn input_script(&self) -> String {
+        format!("go {}\n{}\n", self.go, self.inputs.join("\n"))
+    }
+}
+
+/// `<tick> <keys> [<yaw> <pitch>]`: from the client tick `tick` of the step on, the agent holds the
+/// keys; at that tick it also turns the view to the rotation.
+fn check_input(text: &str) -> anyhow::Result<()> {
+    const KEYS: [&str; 8] = [
+        "forward", "backward", "left", "right", "jump", "shift", "sprint", "use",
+    ];
+    let words: Vec<&str> = text.split_whitespace().collect();
+    let [tick, keys, rotation @ ..] = &words[..] else {
+        bail!("input needs a tick and keys");
+    };
+    tick.parse::<u32>()?;
+    let keys = *keys;
+    if keys != "none" && !keys.split(',').all(|key| KEYS.contains(&key)) {
+        bail!("the keys are `none` or a comma list of {KEYS:?}");
+    }
+    match rotation {
+        [] => {}
+        [yaw, pitch] => {
+            yaw.parse::<f32>()?;
+            pitch.parse::<f32>()?;
+        }
+        _ => bail!("the rotation is a yaw and a pitch"),
+    }
+    Ok(())
 }
 
 fn cuboid(text: &str) -> anyhow::Result<[[i32; 3]; 2]> {

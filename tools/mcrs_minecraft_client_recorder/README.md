@@ -4,8 +4,8 @@ Records the client ticks of a vanilla client for the player experiments of
 `docs/spec/entity-physics.md`, section 15: E9 to E14 and E21 to E23, and for the conformance
 tests C1 to C7 of `docs/spec/movement-checks.md`, section 14.2. The tool starts the
 vanilla dedicated server of the corpus version, listens as a proxy in front of it, and sets
-each step of an experiment up through the server console. A human plays the vanilla client.
-The tool writes one recording for each step. These tests read the recordings:
+each step of an experiment up through the server console. A human plays the vanilla client, or
+the input agent of `tools/vanilla-client` plays it (see "Record without a human"). The tool writes one recording for each step. These tests read the recordings:
 
 - `own_player_follows_the_recorded_client_ticks` in
   `crates/mcrs_minecraft_physics/tests/recorded_player.rs` reads
@@ -53,6 +53,24 @@ The second argument of `record.sh` is the output directory `<out>`. Without it, 
 of `e9` to `e23` go to `crates/mcrs_minecraft_physics/tests/fixtures/player`, and the others go
 to `crates/mcrs_minecraft_move_predict/tests/fixtures/conformance`.
 
+## Record without a human
+
+Set `AUTOPLAY=true`. The script then starts the vanilla client of `tools/vanilla-client` with an
+offline name, and the client joins the proxy. Before each step, the tool writes the `input` lines
+of the step to `target/vanilla-server/<version>-recorder/input.txt`, and it sets the step up
+without Enter. The input agent of the client reads the file when the title `Go` shows, and it
+holds the keys and sets the view rotation of each client tick. It changes no physics, no
+movement and no packet. The client window stays in the background, minimised, and never takes the
+keyboard focus. `MAX_FPS=<rate>` sets the frame rate and keeps the window open, because a
+minimised client draws 10 frames each second. The log of the client is `client.log` in the same
+directory.
+
+```sh
+MINECRAFT_EULA=true AUTOPLAY=true tools/mcrs_minecraft_client_recorder/record.sh e9
+MINECRAFT_EULA=true AUTOPLAY=true MAX_FPS=10 tools/mcrs_minecraft_client_recorder/record.sh c1 \
+    crates/mcrs_minecraft_move_predict/tests/fixtures/conformance/fps_10
+```
+
 ## Record with a delay
 
 The environment variable `DELAY_TRACE` names a trace file. The tool then holds the data between
@@ -77,6 +95,20 @@ Record one trace for each of these connections: a wired home connection, a home 
 other traffic, a mobile connection, and a host on another continent. Write the connection and the
 date in a comment on the first line.
 
+The traces in `traces/` come from one machine in Tokyo on a home Wi-Fi, on 2026-11-07. The
+machine had no wired connection and no mobile connection, so these traces do not exist yet. The
+first line of each trace names the host and its address.
+
+| Trace | Host | Median round trip |
+|-------|------|-------------------|
+| `lan` | the Wi-Fi gateway | 6 ms |
+| `tokyo` | `ntp.nict.jp`, Tokyo | 12 ms |
+| `us_east` | `mirror.math.princeton.edu`, New Jersey | 187 ms |
+| `europe` | `speedtest.tele2.net`, Sweden | 278 ms |
+| `south_america` | `speedtest.sao1.edgoo.net`, São Paulo | 282 ms |
+
+No trace has a median near 500 ms. C4 uses `south_america`, the trace with the largest median.
+
 The trace of C7 stalls each direction for 3 seconds after 900 frames, again and again:
 
 ```sh
@@ -87,6 +119,9 @@ The trace of C7 stalls each direction for 3 seconds after 900 frames, again and 
 ## The commands for the conformance tests
 
 Run each command, then do the steps of "Record one experiment". `<trace>` is a trace name.
+With `AUTOPLAY=true` in front of a command, no human is needed; for C2, use `MAX_FPS=<rate>` in
+place of the video settings. The client accepts a frame rate from 10 to 260 only, so the
+recordings of C2 are at 10, 20 and 144 frames each second.
 
 | Test | Command |
 |------|---------|
@@ -113,6 +148,30 @@ For each module of `fly`, `speed`, `timer`, `no_fall`, `phase` and `step`:
 3. Do the steps. Use the module in each step where it can change the movement.
 
 Do not commit a cheat client. Commit only the recordings.
+
+### Proxy-emulated modules
+
+The recordings in `cheats/` are proxy-emulated: no cheat client made them. A real cheat client of
+this version does not exist. With `CHEAT=<module>`, an honest vanilla client plays, and the proxy
+changes the serverbound movement as the module does. The client does not see the change. The
+server then has `allow-flight=true`, so that it does not kick a player that floats. A step in
+which the proxy changed no packet gives no recording.
+
+| Module | What the proxy changes |
+|--------|------------------------|
+| `fly` | The reported height never goes below the highest one since the last teleport. |
+| `speed` | Each reported horizontal movement is 1.5 times the movement of the client. |
+| `no_fall` | Each move packet has the on-ground flag. |
+| `phase` | Each reported position is 0.5 blocks lower, in the floor. |
+| `step` | A position on the ground with a horizontal collision is reported 1 block higher. |
+| `timer` | After each fourth client tick, the proxy sends the last move packet and `client_tick_end` again. |
+
+C1 has no wall, so `step` changes nothing in it. E13 has a wall:
+
+```sh
+MINECRAFT_EULA=true AUTOPLAY=true CHEAT=step tools/mcrs_minecraft_client_recorder/record.sh e13 \
+    crates/mcrs_minecraft_move_predict/tests/fixtures/cheats/step
+```
 
 ## How the tool finds the tick of a clientbound packet
 
@@ -176,6 +235,7 @@ conformance tests; C2 is C1 at other frame rates. A line that starts with `#` is
 | `arena <x0> <y0> <z0> <x1> <y1> <z1>` | the cuboid that each step fills with air first |
 | `step <name>` | starts a step |
 | `instruction <text>` | the text for the human |
+| `input <tick> <keys> [<yaw> <pitch>]` | from this client tick of the step, the input agent holds the keys; at this tick it also sets the rotation |
 | `fill <x0> <y0> <z0> <x1> <y1> <z1> <state>` | a console `fill`; it also goes into the header |
 | `run <command>` | a console command before the teleport |
 | `start <x> <y> <z> <yaw> <pitch>` | the teleport that starts the step |
@@ -183,7 +243,10 @@ conformance tests; C2 is C1 at other frame rates. A line that starts with `#` is
 | `ticks <count>` | the client ticks of the step; 200 by default |
 | `at <tick> <command>` | a console command at a client tick of the step |
 
-The arena must have at most 32768 blocks, the limit of `fill`.
+The arena must have at most 32768 blocks, the limit of `fill`. The keys of `input` are `none`
+or a comma list of `forward`, `backward`, `left`, `right`, `jump`, `shift`, `sprint` and `use`.
+The input agent takes the client tick after it sees the title `Go` as the tick after `go`.
+With a delay, the title comes later, and so do the inputs.
 
 ## Limits
 

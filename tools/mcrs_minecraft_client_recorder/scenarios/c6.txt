@@ -5,6 +5,7 @@ arena -16 98 -8 16 110 8
 
 step speed_and_jump_boost
 instruction Hold W and Space after Go until the title Stop shows.
+input 61 forward,jump
 fill -16 99 -8 16 99 8 minecraft:stone
 run gamemode survival @a
 run effect clear @a

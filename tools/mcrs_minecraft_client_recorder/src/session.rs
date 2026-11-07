@@ -45,6 +45,7 @@ struct Segment {
     /// Where the events that the client applies before its next tick go.
     gap: usize,
     ticks: u32,
+    rewritten: bool,
 }
 
 /// The state of the player that the client applied last, written at the start of each step.
@@ -90,16 +91,28 @@ pub(crate) struct Session {
     pub(crate) console: Console,
     scenario: Scenario,
     out: PathBuf,
+    /// Where the input agent of the client reads the script of the step; none when a human plays.
+    input: Option<PathBuf>,
+    /// The proxy emulates a cheat module: a step that it did not change is not a recording of it.
+    cheating: bool,
     phase: Phase,
     snapshot: Snapshot,
 }
 
 impl Session {
-    pub(crate) fn new(console: Console, scenario: Scenario, out: PathBuf) -> Self {
+    pub(crate) fn new(
+        console: Console,
+        scenario: Scenario,
+        out: PathBuf,
+        input: Option<PathBuf>,
+        cheating: bool,
+    ) -> Self {
         Self {
             console,
             scenario,
             out,
+            input,
+            cheating,
             phase: Phase::Waiting,
             snapshot: Snapshot::default(),
         }
@@ -110,6 +123,10 @@ impl Session {
     }
 
     /// True while a disconnect loses no recorded data.
+    pub(crate) fn is_scripted(&self) -> bool {
+        self.input.is_some()
+    }
+
     pub(crate) fn may_disconnect(&self) -> bool {
         matches!(self.phase, Phase::Waiting | Phase::Prompt(_) | Phase::Done)
     }
@@ -137,6 +154,7 @@ impl Session {
                             events,
                             gap,
                             ticks: 0,
+                            rewritten: false,
                         },
                     };
                 } else if let Phase::Recording { segment, .. } = &mut self.phase {
@@ -146,6 +164,11 @@ impl Session {
                 self.snapshot.apply(&event);
             }
             Observed::Sent(time, event) => self.sent(time, event)?,
+            Observed::Rewritten => {
+                if let Phase::Recording { segment, .. } = &mut self.phase {
+                    segment.rewritten = true;
+                }
+            }
         }
         Ok(())
     }
@@ -194,6 +217,14 @@ impl Session {
             return Ok(());
         };
         let current = step_at(&self.scenario, step)?;
+        if let Some(input) = &self.input {
+            fs::write(input, current.input_script())?;
+        }
+        // `fill` fails as a whole when a chunk of it is not loaded, as with a short view distance.
+        let [x0, _, z0] = self.scenario.arena.min;
+        let [x1, _, z1] = self.scenario.arena.max;
+        self.console
+            .run(&format!("forceload add {x0} {z0} {x1} {z1}"))?;
         self.console.run(&format!("fill {}", self.scenario.arena))?;
         for fill in &current.fills {
             self.console.run(&format!("fill {fill}"))?;
@@ -221,6 +252,21 @@ impl Session {
             return Ok(());
         };
         let current = step_at(&self.scenario, step)?;
+        if self.cheating && !segment.rewritten {
+            println!(
+                "the cheat module changed nothing in step {}: no recording",
+                current.name
+            );
+        } else {
+            self.write(current, segment)?;
+        }
+        if step + 1 < self.scenario.steps.len() {
+            self.prompt(step + 1);
+        }
+        Ok(())
+    }
+
+    fn write(&self, current: &Step, segment: Segment) -> anyhow::Result<()> {
         let (times, events) = segment.events.into_iter().unzip();
         let recording = Recording {
             header: Header {
@@ -241,9 +287,6 @@ impl Session {
         ));
         fs::write(&path, recording.to_string())?;
         println!("wrote {}", path.display());
-        if step + 1 < self.scenario.steps.len() {
-            self.prompt(step + 1);
-        }
         Ok(())
     }
 

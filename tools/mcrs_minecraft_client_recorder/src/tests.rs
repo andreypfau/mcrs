@@ -104,7 +104,8 @@ fn pump(connection: &mut Connection, names: &Names, observed: &mut Vec<Observed>
     }
 }
 
-/// Takes both peers through the handshake, a compressed login and the configuration.
+/// Takes both peers through the handshake, a login that switches compression on and the
+/// configuration.
 fn join(client: &mut Peer, server: &mut Peer, connection: &mut Connection, names: &Names) {
     let advance = |connection: &mut Connection| pump(connection, names, &mut Vec::new());
     let mut handshake = Vec::new();
@@ -125,11 +126,21 @@ fn join(client: &mut Peer, server: &mut Peer, connection: &mut Connection, names
         1,
         "the client has the compression packet"
     );
-    server.compress();
-    client.compress();
     server.send(login_clientbound::NAMES, "login_finished", &[1, 2, 3]);
     client.send(login_serverbound::NAMES, "login_acknowledged", &[]);
     advance(connection);
+    assert_eq!(
+        client.received().len(),
+        1,
+        "login_finished is not compressed"
+    );
+    assert_eq!(
+        server.received().len(),
+        2,
+        "login_acknowledged is not compressed"
+    );
+    server.compress();
+    client.compress();
     server.send(
         configuration_clientbound::NAMES,
         "finish_configuration",
@@ -148,7 +159,7 @@ fn a_clientbound_change_applies_at_the_answer_to_the_probe_after_it() {
     let names = Names::load(&Path::new(env!("CARGO_MANIFEST_DIR")).join("../..")).unwrap();
     let (mut client, proxy_client) = pair();
     let (mut server, proxy_server) = pair();
-    let mut connection = Connection::new(proxy_client, proxy_server, &[]).unwrap();
+    let mut connection = Connection::new(proxy_client, proxy_server, &[], None).unwrap();
     join(&mut client, &mut server, &mut connection, &names);
     let mut observed = Vec::new();
     server.send(game_clientbound::NAMES, "login", &42_i32.to_be_bytes());
@@ -193,7 +204,7 @@ fn a_clientbound_change_applies_at_the_answer_to_the_probe_after_it() {
         .iter()
         .filter_map(|item| match item {
             Observed::Applied(_, event) | Observed::Sent(_, event) => Some(event),
-            Observed::Loaded => None,
+            Observed::Loaded | Observed::Rewritten => None,
         })
         .collect();
     assert_eq!(

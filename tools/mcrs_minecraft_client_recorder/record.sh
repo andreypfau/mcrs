@@ -5,7 +5,9 @@
 # Without OUT_DIRECTORY, the recordings of e* go to crates/mcrs_minecraft_physics/tests/fixtures/player
 # and the others to crates/mcrs_minecraft_move_predict/tests/fixtures/conformance. DELAY_TRACE holds
 # the round trip samples of the delay between the client and the proxy. Relative paths start at the
-# root of the repository.
+# root of the repository. AUTOPLAY=true starts the vanilla client of tools/vanilla-client, whose
+# input agent plays the `input` lines of the scenario in place of a human; MAX_FPS then sets its
+# frame rate. CHEAT names a module that the proxy emulates on the serverbound movement.
 set -euo pipefail
 
 recorder_here=$(cd "$(dirname "$0")" && pwd)
@@ -41,5 +43,15 @@ case "$1" in
 esac
 
 cd "$recorder_root"
-exec cargo run --release -p mcrs_minecraft_client_recorder -- \
+if [ "${AUTOPLAY:-}" = true ]; then
+    export INPUT_FILE="$work/input.txt"
+    : >"$INPUT_FILE"
+    (
+        until nc -z 127.0.0.1 25565 2>/dev/null; do sleep 1; done
+        exec tools/vanilla-client/run.sh localhost:25565 "$INPUT_FILE" ${MAX_FPS:+"$MAX_FPS"}
+    ) >"$work/client.log" 2>&1 &
+    client=$!
+    trap 'kill "$client" 2>/dev/null || true' EXIT
+fi
+cargo run --release -p mcrs_minecraft_client_recorder -- \
     "$scenario" "$work" "${2:-$out}" ${DELAY_TRACE:+"$DELAY_TRACE"}

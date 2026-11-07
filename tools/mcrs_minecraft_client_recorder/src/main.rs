@@ -3,6 +3,7 @@
 //! in front of it, sets each step of the scenario up through the server console and writes one
 //! recording per step. See the README.
 
+mod cheat;
 mod console;
 mod delay;
 mod names;
@@ -27,6 +28,7 @@ use std::time::Duration;
 use anyhow::Context;
 use anyhow::bail;
 
+use crate::cheat::Module;
 use crate::console::Console;
 use crate::names::Names;
 use crate::proxy::Connection;
@@ -37,6 +39,10 @@ use crate::session::Session;
 const LISTEN_PORT: u16 = 25565;
 const SERVER_PORT: u16 = 25568;
 
+#[expect(
+    clippy::disallowed_methods,
+    reason = "record.sh passes the input file and the cheat module in the environment"
+)]
 fn main() -> anyhow::Result<()> {
     let arguments: Vec<String> = env::args().skip(1).collect();
     let usage =
@@ -51,11 +57,19 @@ fn main() -> anyhow::Result<()> {
         )?,
         _ => bail!(usage),
     };
+    let cheat: Option<Module> = env::var("CHEAT")
+        .ok()
+        .map(|name| name.parse())
+        .transpose()?;
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     let names = Names::load(&root)?;
-    let scenario: Scenario = fs::read_to_string(scenario)
+    let mut scenario: Scenario = fs::read_to_string(scenario)
         .with_context(|| format!("could not read {scenario}"))?
         .parse()?;
+    if cheat.is_some() {
+        // The vanilla server kicks a player that floats; the recording would end at the kick.
+        scenario.properties.push("allow-flight=true".to_owned());
+    }
     let mut console = Console::start(Path::new(server), SERVER_PORT, &scenario.properties)?;
     for command in [
         "gamerule spawn_mobs false",
@@ -64,7 +78,14 @@ fn main() -> anyhow::Result<()> {
     ] {
         console.run(command)?;
     }
-    let mut session = Session::new(console, scenario, PathBuf::from(out));
+    let input = env::var_os("INPUT_FILE").map(PathBuf::from);
+    let mut session = Session::new(
+        console,
+        scenario,
+        PathBuf::from(out),
+        input,
+        cheat.is_some(),
+    );
     let listener = TcpListener::bind(("127.0.0.1", LISTEN_PORT))?;
     listener.set_nonblocking(true)?;
     println!("connect the vanilla client to localhost:{LISTEN_PORT}");
@@ -82,7 +103,7 @@ fn main() -> anyhow::Result<()> {
     let mut observed = Vec::new();
     while !session.is_done() {
         if connection.is_none() {
-            connection = accept(&listener, &trace)?;
+            connection = accept(&listener, &trace, cheat)?;
         }
         if let Some(open) = connection.as_mut() {
             let alive = open.poll(&names, &mut observed)?;
@@ -97,19 +118,23 @@ fn main() -> anyhow::Result<()> {
             }
         }
         session.console.echo();
-        if terminal.try_iter().count() > 0 {
+        if terminal.try_iter().count() > 0 || session.is_scripted() {
             session.enter()?;
         }
     }
     session.console.stop()
 }
 
-fn accept(listener: &TcpListener, trace: &[Duration]) -> anyhow::Result<Option<Connection>> {
+fn accept(
+    listener: &TcpListener,
+    trace: &[Duration],
+    cheat: Option<Module>,
+) -> anyhow::Result<Option<Connection>> {
     match listener.accept() {
         Ok((client, _)) => {
             client.set_nonblocking(false)?;
             let server = TcpStream::connect(("127.0.0.1", SERVER_PORT))?;
-            Ok(Some(Connection::new(client, server, trace)?))
+            Ok(Some(Connection::new(client, server, trace, cheat)?))
         }
         Err(error) if error.kind() == io::ErrorKind::WouldBlock => {
             thread::sleep(Duration::from_millis(5));

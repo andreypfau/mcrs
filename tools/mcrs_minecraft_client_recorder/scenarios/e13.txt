@@ -5,6 +5,8 @@ arena -16 98 -16 48 110 16
 
 step angle_5
 instruction Hold Ctrl and W for 3 seconds after Go. Do not move the mouse.
+input 61 forward,sprint
+input 121 none
 fill -16 99 -16 48 99 16 minecraft:stone
 fill 8 100 -16 8 102 16 minecraft:stone
 run gamemode survival @a
@@ -14,6 +16,8 @@ ticks 160
 
 step angle_8
 instruction Hold Ctrl and W for 3 seconds after Go. Do not move the mouse.
+input 61 forward,sprint
+input 121 none
 fill -16 99 -16 48 99 16 minecraft:stone
 fill 8 100 -16 8 102 16 minecraft:stone
 start 0.5 100 0.5 -82 0
@@ -21,6 +25,8 @@ ticks 160
 
 step angle_12
 instruction Hold Ctrl and W for 3 seconds after Go. Do not move the mouse.
+input 61 forward,sprint
+input 121 none
 fill -16 99 -16 48 99 16 minecraft:stone
 fill 8 100 -16 8 102 16 minecraft:stone
 start 0.5 100 0.5 -78 0

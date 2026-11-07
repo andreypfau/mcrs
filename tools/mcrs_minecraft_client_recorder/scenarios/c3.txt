@@ -5,6 +5,20 @@ arena -16 98 -8 16 120 8
 
 step fly
 instruction After Go: press Space two times fast to fly. Hold Space 1 second, then W 2 seconds, then Shift until you land. Press Space two times fast to fly again, then two times fast to stop.
+input 61 jump
+input 63 none
+input 65 jump
+input 85 forward
+input 125 shift
+input 185 none
+input 190 jump
+input 192 none
+input 194 jump
+input 196 none
+input 206 jump
+input 208 none
+input 210 jump
+input 212 none
 fill -16 99 -8 16 99 8 minecraft:stone
 run gamemode creative @a
 run effect clear @a

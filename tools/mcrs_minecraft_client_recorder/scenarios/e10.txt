@@ -5,6 +5,10 @@ arena -16 98 -16 48 110 16
 
 step jump_stone
 instruction After Go, press Space once, wait 1 second, then hold Space for 2 seconds.
+input 61 jump
+input 63 none
+input 83 jump
+input 123 none
 fill -16 99 -16 48 99 16 minecraft:stone
 run gamemode survival @a
 run effect clear @a
@@ -13,18 +17,28 @@ ticks 140
 
 step jump_honey
 instruction After Go, press Space once, wait 1 second, then hold Space for 2 seconds.
+input 61 jump
+input 63 none
+input 83 jump
+input 123 none
 fill -16 99 -16 48 99 16 minecraft:honey_block
 start 0.5 100 0.5 -90 0
 ticks 140
 
 step sprint_jump
 instruction After Go, hold Ctrl and W, and hold Space for 2 seconds; then release all keys.
+input 61 forward,sprint,jump
+input 101 none
 fill -16 99 -16 48 99 16 minecraft:stone
 start 0.5 100 0.5 -90 0
 ticks 140
 
 step jump_boost
 instruction After Go, press Space once, wait 1 second, then hold Space for 2 seconds.
+input 61 jump
+input 63 none
+input 83 jump
+input 123 none
 fill -16 99 -16 48 99 16 minecraft:stone
 run effect give @a minecraft:jump_boost infinite 1 true
 start 0.5 100 0.5 -90 0

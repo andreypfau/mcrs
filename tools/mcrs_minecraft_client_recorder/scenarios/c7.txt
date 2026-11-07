@@ -5,6 +5,43 @@ arena -16 98 -8 16 110 8
 
 step walk_through_stalls
 instruction After Go, walk, jump and turn on the floor until the title Stop shows.
+input 61 forward -90 0
+input 81 forward,jump
+input 83 forward
+input 101 forward 0 0
+input 121 forward 90 0
+input 141 forward,jump
+input 143 forward
+input 201 forward 180 0
+input 241 forward -90 0
+input 261 forward,jump
+input 263 forward
+input 281 forward 0 0
+input 301 forward -90 0
+input 321 forward,jump
+input 323 forward
+input 341 forward 0 0
+input 361 forward 90 0
+input 381 forward,jump
+input 383 forward
+input 441 forward 180 0
+input 481 forward -90 0
+input 501 forward,jump
+input 503 forward
+input 521 forward 0 0
+input 541 forward -90 0
+input 561 forward,jump
+input 563 forward
+input 581 forward 0 0
+input 601 forward 90 0
+input 621 forward,jump
+input 623 forward
+input 681 forward 180 0
+input 721 forward -90 0
+input 741 forward,jump
+input 743 forward
+input 761 forward 0 0
+input 781 none
 fill -16 99 -8 16 99 8 minecraft:stone
 run gamemode survival @a
 run effect clear @a

@@ -7,6 +7,14 @@ arena -4 98 -4 120 110 4
 
 step drop_at_edge
 instruction After Go: double-tap Space to fly, hold Ctrl and W for 5 seconds, then double-tap Space to stop flying and fall.
+input 61 jump
+input 63 none
+input 65 jump
+input 67 forward,sprint
+input 167 jump
+input 169 none
+input 171 jump
+input 173 none
 fill -4 99 -4 120 99 4 minecraft:stone
 run gamemode creative @a
 run effect clear @a

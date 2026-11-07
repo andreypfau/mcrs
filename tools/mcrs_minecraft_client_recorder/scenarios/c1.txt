@@ -5,6 +5,8 @@ arena -16 98 -8 16 132 8
 
 step walk
 instruction Hold W for 2 seconds after Go, then release it.
+input 61 forward
+input 101 none
 fill -16 99 -8 16 99 8 minecraft:stone
 run gamemode survival @a
 run effect clear @a
@@ -14,24 +16,31 @@ ticks 120
 
 step sprint
 instruction Hold Ctrl and W for 2 seconds after Go, then release both.
+input 61 forward,sprint
+input 101 none
 fill -16 99 -8 16 99 8 minecraft:stone
 start -15.5 100 0.5 -90 0
 ticks 120
 
 step sneak_edge
 instruction Hold Shift and W after Go until the title Stop shows. The edge stops you.
+input 61 forward,shift
 fill -16 99 -8 0 99 8 minecraft:stone
 start -10.5 100 0.5 -90 0
 ticks 160
 
 step jump
 instruction Hold Space for 3 seconds after Go, then release it.
+input 61 jump
+input 121 none
 fill -16 99 -8 16 99 8 minecraft:stone
 start 0.5 100 0.5 -90 0
 ticks 140
 
 step sprint_jump
 instruction Hold Ctrl, W and Space for 2 seconds after Go, then release all.
+input 61 forward,sprint,jump
+input 101 none
 fill -16 99 -8 16 99 8 minecraft:stone
 start -15.5 100 0.5 -90 0
 ticks 120

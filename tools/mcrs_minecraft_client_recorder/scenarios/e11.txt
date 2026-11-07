@@ -5,6 +5,8 @@ arena -16 98 -16 48 110 16
 
 step yaw_0
 instruction Hold Shift and W for 3 seconds after Go. Do not move the mouse.
+input 61 forward,shift
+input 121 none
 fill -1 99 -1 1 99 1 minecraft:stone
 run gamemode survival @a
 run effect clear @a
@@ -13,42 +15,56 @@ ticks 140
 
 step yaw_45
 instruction Hold Shift and W for 3 seconds after Go. Do not move the mouse.
+input 61 forward,shift
+input 121 none
 fill -1 99 -1 1 99 1 minecraft:stone
 start 0.5 100 0.5 45 0
 ticks 140
 
 step yaw_90
 instruction Hold Shift and W for 3 seconds after Go. Do not move the mouse.
+input 61 forward,shift
+input 121 none
 fill -1 99 -1 1 99 1 minecraft:stone
 start 0.5 100 0.5 90 0
 ticks 140
 
 step yaw_135
 instruction Hold Shift and W for 3 seconds after Go. Do not move the mouse.
+input 61 forward,shift
+input 121 none
 fill -1 99 -1 1 99 1 minecraft:stone
 start 0.5 100 0.5 135 0
 ticks 140
 
 step yaw_180
 instruction Hold Shift and W for 3 seconds after Go. Do not move the mouse.
+input 61 forward,shift
+input 121 none
 fill -1 99 -1 1 99 1 minecraft:stone
 start 0.5 100 0.5 180 0
 ticks 140
 
 step yaw_225
 instruction Hold Shift and W for 3 seconds after Go. Do not move the mouse.
+input 61 forward,shift
+input 121 none
 fill -1 99 -1 1 99 1 minecraft:stone
 start 0.5 100 0.5 -135 0
 ticks 140
 
 step yaw_270
 instruction Hold Shift and W for 3 seconds after Go. Do not move the mouse.
+input 61 forward,shift
+input 121 none
 fill -1 99 -1 1 99 1 minecraft:stone
 start 0.5 100 0.5 -90 0
 ticks 140
 
 step yaw_315
 instruction Hold Shift and W for 3 seconds after Go. Do not move the mouse.
+input 61 forward,shift
+input 121 none
 fill -1 99 -1 1 99 1 minecraft:stone
 start 0.5 100 0.5 -45 0
 ticks 140
