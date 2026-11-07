@@ -1,10 +1,12 @@
 //! Random ticks of one step over the overworld of a real save, on one core.
 //!
 //! `MCRS_BENCH_WORLD` names a world directory of the current save format; without it the bench
-//! prints why and measures nothing. Every full column of the save is loaded and random-ticked.
-//! The states of the block types of SIM-MODEL-009 Table 1 tick randomly, and their handler reads
-//! the footprint of its row and writes nothing. The bench prints the picks of a step, the share
-//! that runs a handler, and the picks that run again.
+//! prints why and measures nothing. Every full column of the save is loaded into section entities
+//! of a dimension and random-ticked through the volume of a cell, as the engine does: the step
+//! lists the sections of the random tick index, then draws the precipitation and random picks.
+//! The states of the block types of SIM-MODEL-009 Table 1 tick randomly. One handler reads one
+//! block, the other the footprint of its row; neither writes. The bench prints the share of the
+//! picks that runs a handler, and asserts that no pick runs again.
 #![expect(
     clippy::expect_used,
     clippy::indexing_slicing,
@@ -15,27 +17,29 @@ use std::hint::black_box;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 
+use bevy_ecs::prelude::{Entity, Query, With, World};
+use bevy_ecs::system::SystemState;
 use criterion::{Criterion, criterion_group, criterion_main};
 use mcrs_minecraft_anvil::{Chunk, ChunkStatus, PaletteLookup, Properties, RegionFile};
 use mcrs_minecraft_block::definition::{BlockDefinitions, BlockEntry};
 use mcrs_minecraft_chunk::VoxelPalette;
-use mcrs_minecraft_core::BoundingBox;
+use mcrs_minecraft_engine::CellVolume;
 use mcrs_minecraft_engine_registries::test_corpus;
 use mcrs_minecraft_engine_world::palette::{ChunkBlocks, section_states};
+use mcrs_minecraft_engine_world::world::dimension::{DimensionTypeConfig, InDimension};
+use mcrs_minecraft_engine_world::world::lifecycle::simulation::BlockTicking;
 use mcrs_minecraft_engine_world::world::storage::random_ticks::RandomTickIndex;
+use mcrs_minecraft_engine_world::world::storage::section::{SectionBundle, SectionIndex};
+use mcrs_minecraft_engine_world::world::storage::view::WorldViewMut;
 use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_simulation::{
     BlockBehaviour, BlockFacts, BlockShard, Cx, Env, Footprints, GameTick, KernelConfig, Kinds,
-    PartitionKind, RandomPicks, RandomTickTable, RandomTicks, SectionProperties, SemanticOrder,
-    Serial, ShardId, SimulatedSections, SimulationVolume, StepOutput, StreamSeed, random_step,
+    PartitionKind, RandomPicks, RandomTickTable, RandomTicks, SemanticOrder, Serial, ShardId,
+    SimulationVolume, StepOutput, StreamSeed, random_step,
 };
-use mcrs_minecraft_volume::{
-    Access, BlockVolume, BlockVolumeMut, Denied, PalettedSection, PalettedSectionMut, Unavailable,
-    Volume,
-};
+use mcrs_minecraft_volume::PalettedSection;
 use mcrs_minecraft_worldgen_generator::saved::CorpusBlockStates;
 use mcrs_voxel::{BlockPos, BlockStateId, SectionPos};
-use rustc_hash::FxHashMap;
 
 /// The default of the game rule `random_tick_speed`.
 const SPEED: u32 = 3;
@@ -190,12 +194,20 @@ impl BlockFacts<Bench> for Facts {
     }
 }
 
-struct Reads {
-    rows: Vec<Option<Footprint>>,
+/// What a handler reads: the floor of a handler, or the whole footprint of its row.
+#[derive(Clone, Copy, Debug)]
+enum Handler {
+    OneRead,
+    FullBox,
+}
+
+struct Reads<'r> {
+    rows: &'r [Option<Footprint>],
+    handler: Handler,
     runs: AtomicU64,
 }
 
-impl BlockBehaviour<Bench> for Reads {
+impl BlockBehaviour<Bench> for Reads<'_> {
     fn random_ticks(&self, state: BlockStateId) -> RandomTicks {
         match self.rows.get(state.index()) {
             Some(Some(_)) => RandomTicks::BLOCK,
@@ -204,11 +216,7 @@ impl BlockBehaviour<Bench> for Reads {
     }
 
     fn reach(&self, state: BlockStateId) -> u8 {
-        self.rows
-            .get(state.index())
-            .copied()
-            .flatten()
-            .map_or(Footprints::DEFAULT, |row| row.dx as u8)
+        reach(self.rows, state)
     }
 
     fn random_tick<V: SimulationVolume, F: BlockFacts<Bench>>(
@@ -222,6 +230,10 @@ impl BlockBehaviour<Bench> for Reads {
             return;
         };
         self.runs.fetch_add(1, Ordering::Relaxed);
+        if let Handler::OneRead = self.handler {
+            black_box(cx.state(BlockPos::new(at.x, at.y + 1, at.z)).ok());
+            return;
+        }
         for _ in 0..row.calls {
             for dx in -row.dx..=row.dx {
                 for dy in row.low..=row.high {
@@ -238,58 +250,6 @@ impl BlockBehaviour<Bench> for Reads {
                 y -= 1;
             }
         }
-    }
-}
-
-/// The full columns of the overworld of a save.
-struct World {
-    sections: FxHashMap<SectionPos, ChunkBlocks>,
-    index: RandomTickIndex,
-}
-
-impl Volume for World {
-    fn bounds(&self) -> BoundingBox {
-        BoundingBox {
-            min: BlockPos::new(i32::MIN, -64, i32::MIN),
-            max: BlockPos::new(i32::MAX, 319, i32::MAX),
-        }
-    }
-
-    fn access(&self, section: SectionPos) -> Access {
-        if self.sections.contains_key(&section) {
-            Access::Write
-        } else {
-            Access::Unloaded
-        }
-    }
-}
-
-impl BlockVolume for World {
-    type Section<'a> = PalettedSection<'a>;
-
-    fn section(&self, at: SectionPos) -> Result<PalettedSection<'_>, Unavailable> {
-        self.sections
-            .get(&at)
-            .map(|blocks| PalettedSection(&blocks.0.0))
-            .ok_or(Unavailable::Unloaded)
-    }
-}
-
-impl BlockVolumeMut for World {
-    type SectionMut<'a> = PalettedSectionMut<'a>;
-
-    fn section_mut(&mut self, _: SectionPos) -> Result<PalettedSectionMut<'_>, Denied> {
-        Err(Denied::ReadOnly)
-    }
-}
-
-impl SimulatedSections for World {
-    fn properties(&self, _: SectionPos) -> SectionProperties {
-        SectionProperties::all()
-    }
-
-    fn random_ticking(&self, section: SectionPos) -> &[u16] {
-        self.index.ticking(section)
     }
 }
 
@@ -324,13 +284,22 @@ fn blocks_complete(chunk: &Chunk) -> bool {
         })
 }
 
-fn load(world: &Path, definitions: &BlockDefinitions, table: &RandomTickTable) -> World {
+/// The full columns of the overworld of a save, as the engine holds them: a section entity
+/// for each section, found through the section index of its dimension.
+struct Loaded {
+    world: World,
+    dimension: Entity,
+    sections: Vec<SectionPos>,
+}
+
+fn load(world: &Path, definitions: &BlockDefinitions, table: &RandomTickTable) -> Loaded {
     let lookup = CorpusBlockStates(definitions);
     let state_count = definitions.state_count();
-    let mut loaded = World {
-        sections: FxHashMap::default(),
-        index: RandomTickIndex::new(table.clone()),
-    };
+    let mut ecs = World::new();
+    let dimension = ecs.spawn_empty().id();
+    let mut section_index = SectionIndex::new();
+    let mut index = RandomTickIndex::new(table.clone());
+    let mut sections = Vec::new();
     let (mut columns, mut failed) = (0, 0);
     let mut first_error = None;
     let dir = region_dir(world);
@@ -355,8 +324,16 @@ fn load(world: &Path, definitions: &BlockDefinitions, table: &RandomTickTable) -
                         let states = section_states(&VoxelPalette(blocks), state_count);
                         let at = SectionPos::new(pos.x, i32::from(section.y), pos.z);
                         let blocks = ChunkBlocks::new(states);
-                        loaded.index.insert(at, &PalettedSection(&blocks.0.0), true);
-                        loaded.sections.insert(at, blocks);
+                        index.insert(at, &PalettedSection(&blocks.0.0), true);
+                        let entity = ecs
+                            .spawn((
+                                SectionBundle::new(InDimension(dimension), at),
+                                blocks,
+                                BlockTicking,
+                            ))
+                            .id();
+                        section_index.insert(at, entity);
+                        sections.push(at);
                     }
                 }
                 Ok(_) => {}
@@ -370,10 +347,50 @@ fn load(world: &Path, definitions: &BlockDefinitions, table: &RandomTickTable) -
     println!(
         "{}: {columns} columns with complete blocks, {} sections, {failed} columns failed{}",
         world.display(),
-        loaded.sections.len(),
+        sections.len(),
         first_error.map_or(String::new(), |error| format!(" (first: {error})")),
     );
-    loaded
+    ecs.entity_mut(dimension)
+        .insert((section_index, DimensionTypeConfig::new(-64, 384)));
+    let mut listed = Vec::new();
+    index.listed(&mut listed);
+    let ticking: usize = listed
+        .iter()
+        .map(|listed| usize::from(listed.ticking))
+        .sum();
+    println!(
+        "{} listed sections, {ticking} ticking positions ({:.1} for each listed section)",
+        listed.len(),
+        ticking as f64 / listed.len().max(1) as f64,
+    );
+    ecs.insert_resource(index);
+    sections.sort_unstable_by_key(|section| (section.x, section.z, section.y));
+    Loaded {
+        world: ecs,
+        dimension,
+        sections,
+    }
+}
+
+fn reach(rows: &[Option<Footprint>], state: BlockStateId) -> u8 {
+    rows.get(state.index())
+        .copied()
+        .flatten()
+        .map_or(Footprints::DEFAULT, |row| row.dx as u8)
+}
+
+/// The Table 1 row of each state.
+fn rows(definitions: &BlockDefinitions) -> Vec<Option<Footprint>> {
+    let mut rows = vec![None; definitions.state_count()];
+    for block in definitions.blocks() {
+        let base = usize::from(block.base_state_id.number());
+        for offset in 0..usize::from(block.state_count) {
+            let state = BlockStateId::checked((base + offset) as u16, definitions.state_count())
+                .expect("a state of the block");
+            rows[state.index()] = footprint(definitions, block, state);
+        }
+    }
+    rows
 }
 
 fn random_ticks_on_a_save(c: &mut Criterion) {
@@ -389,78 +406,86 @@ fn random_ticks_on_a_save(c: &mut Criterion) {
         return;
     };
     let definitions = &test_corpus().0.0;
-    let mut rows = vec![None; definitions.state_count()];
-    for block in definitions.blocks() {
-        let base = usize::from(block.base_state_id.number());
-        for offset in 0..usize::from(block.state_count) {
-            let state = BlockStateId::checked((base + offset) as u16, definitions.state_count())
-                .expect("a state of the block");
-            rows[state.index()] = footprint(definitions, block, state);
-        }
-    }
-    let behaviour = Reads {
-        rows,
-        runs: AtomicU64::new(0),
-    };
+    let rows = rows(definitions);
     let states = || definitions.states();
-    let table = RandomTickTable::new(states(), |state| behaviour.random_ticks(state));
-    let footprints = Footprints::new(states(), |state| behaviour.reach(state));
-    let mut world = load(Path::new(&world), definitions, &table);
-    let mut listed = Vec::new();
-    world.index.listed(&mut listed);
-    let ticking: usize = listed
-        .iter()
-        .map(|listed| usize::from(listed.ticking))
-        .sum();
-    let config = KernelConfig::default();
-    let env = Env {
-        partition: ShardId(0),
-        facts: &Facts,
-        behaviour: &behaviour,
-        policy: &SemanticOrder,
-        kind: PartitionKind::Shard,
-        config: &config,
+    let table = RandomTickTable::new(states(), |state| match rows[state.index()] {
+        Some(_) => RandomTicks::BLOCK,
+        None => RandomTicks::empty(),
+    });
+    let Loaded {
+        world: mut ecs,
+        dimension,
+        sections,
+    } = load(Path::new(&world), definitions, &table);
+    let mut state: SystemState<(WorldViewMut, Query<(), With<BlockTicking>>)> =
+        SystemState::new(&mut ecs);
+    let (mut blocks, ticking) = state.get_mut(&mut ecs).expect("valid params");
+    let mut volume = CellVolume {
+        view: blocks.get_mut(dimension).expect("a dimension"),
+        owned: None,
+        ticking: &ticking,
     };
+    let config = KernelConfig::default();
     let seed = StreamSeed::new(4, "minecraft:overworld");
+    let footprints = Footprints::new(states(), |state| reach(&rows, state));
+    let mut listed = Vec::new();
     let mut shard = BlockShard::new();
     let mut out = StepOutput::default();
     let mut now = 0;
-    c.bench_function("random step on a save", |b| {
-        b.iter(|| {
-            now += 1;
-            out.clear();
-            let picks = RandomPicks {
-                sections: &[],
-                listed: &listed,
-                speed: SPEED,
-                table: &table,
-                footprints: &footprints,
-                seed,
-            };
-            random_step(
-                &mut shard,
-                GameTick(now),
-                &mut world,
-                &env,
-                picks,
-                &mut out,
-                &Serial,
-            );
-            assert_eq!(
-                out.report.random_reruns, 0,
-                "a read-only handler of Table 1 fits"
-            );
+    for handler in [Handler::OneRead, Handler::FullBox] {
+        let behaviour = Reads {
+            rows: &rows,
+            handler,
+            runs: AtomicU64::new(0),
+        };
+        let env = Env {
+            partition: ShardId(0),
+            facts: &Facts,
+            behaviour: &behaviour,
+            policy: &SemanticOrder,
+            kind: PartitionKind::Shard,
+            config: &config,
+        };
+        let steps = now;
+        c.bench_function(&format!("random step on a save, {handler:?}"), |b| {
+            b.iter(|| {
+                now += 1;
+                out.clear();
+                volume
+                    .view
+                    .random_ticks_mut()
+                    .expect("the world holds a random tick index")
+                    .listed(&mut listed);
+                let picks = RandomPicks {
+                    sections: &sections,
+                    listed: &listed,
+                    speed: SPEED,
+                    table: &table,
+                    footprints: &footprints,
+                    seed,
+                };
+                random_step(
+                    &mut shard,
+                    GameTick(now),
+                    &mut volume,
+                    &env,
+                    picks,
+                    &mut out,
+                    &Serial,
+                );
+                assert_eq!(
+                    out.report.random_reruns, 0,
+                    "a read-only handler of Table 1 fits"
+                );
+            });
         });
-    });
-    let runs = behaviour.runs.load(Ordering::Relaxed) as f64;
-    let picks = now as f64 * listed.len() as f64 * f64::from(SPEED);
-    println!(
-        "{} listed sections, {ticking} ticking positions ({:.1} for each listed section); {:.0} picks a step; {:.3}% of the picks ran a handler",
-        listed.len(),
-        ticking as f64 / listed.len().max(1) as f64,
-        picks / now.max(1) as f64,
-        100.0 * runs / picks.max(1.0),
-    );
+        let runs = behaviour.runs.load(Ordering::Relaxed) as f64;
+        let picks = (now - steps) as f64 * listed.len() as f64 * f64::from(SPEED);
+        println!(
+            "{handler:?}: {:.3}% of the picks ran a handler",
+            100.0 * runs / picks.max(1.0)
+        );
+    }
 }
 
 criterion_group!(benches, random_ticks_on_a_save);

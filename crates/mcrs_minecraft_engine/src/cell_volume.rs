@@ -15,9 +15,9 @@ use mcrs_voxel::{ColumnPos, SectionPos};
 /// A loaded section of a column that the cell owns is writable. A loaded section of the halo is
 /// readable only: the kernels send a write, a tick, an event or an update into it to its owner.
 pub struct CellVolume<'v, 'a, 'w, 's> {
-    pub(crate) view: DimensionViewMut<'a, 'w, 's>,
-    pub(crate) owned: Option<&'v OwnedColumns>,
-    pub(crate) ticking: &'v TickingSections<'v, 'v>,
+    pub view: DimensionViewMut<'a, 'w, 's>,
+    pub owned: Option<&'v OwnedColumns>,
+    pub ticking: &'v TickingSections<'v, 'v>,
 }
 
 /// The sections that run scheduled ticks and deliver block events.

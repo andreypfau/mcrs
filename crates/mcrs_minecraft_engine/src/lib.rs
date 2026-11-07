@@ -77,6 +77,9 @@ mod wanted_column;
 pub mod world_kinds;
 pub mod world_seed;
 
+#[cfg(feature = "world-access")]
+pub use cell_volume::CellVolume;
+
 /// The host: the coordinator and the muxer, in one world.
 pub struct EnginePlugin;
 
