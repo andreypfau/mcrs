@@ -4,8 +4,9 @@ use std::time::Duration;
 use crate::probes::{Answer, Probes};
 use crate::{Action, ChangeState, ChangeView, Checked, Disconnect, Finding, Report, Serverbound};
 
-/// How far the balance of the tick rate check stays behind the newest answered probe.
-const TICK_DRIFT: Duration = Duration::from_millis(120);
+/// How far the balance of the tick rate check stays behind the newest answered probe: ten
+/// client ticks, because a client answers the probes of a frame and then runs up to ten ticks.
+const TICK_DRIFT: Duration = Duration::from_millis(500);
 /// How long a probe can wait for its answer before the connection ends.
 const MAX_ACK_DELAY: Duration = Duration::from_secs(60);
 const CLIENT_TICK: Duration = Duration::from_millis(50);

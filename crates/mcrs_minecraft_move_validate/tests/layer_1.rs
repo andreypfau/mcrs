@@ -301,7 +301,6 @@ fn links() -> impl Strategy<Value = Link> {
 /// after it answers a probe sent less than 30 ms before; the fourth is more than the default
 /// tick drift allows, and the level passes the setback level.
 #[test]
-#[ignore = "the default tick drift is shorter than one frame of a 5 fps client"]
 fn a_client_at_5_frames_each_second_on_a_fast_link_passes_the_tick_rate_check() {
     let log = simulate(Link {
         down_ms: 0,
