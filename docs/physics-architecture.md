@@ -1526,33 +1526,15 @@ E1..E8, T1 (any time)   D1 ─ D2 ─ D3 ─ D4 ─ D5 ─ D6 ─ D7
     one state without a lock. Layer 1 therefore runs in `bridge_inbound` and in the write of the
     queues; layer 0 runs on the reader of each connection. Moving layer 1 to the network threads
     needs the writer to pass the probe plan to the reader in the order of the wire.
-47. MVC-UNC-005, the ends of the push interval. Open (spec). The rule gives `lo = f(ax, z0)`.
-    When `ax > 0`, the push at `ax` gets smaller when `|Δz|` grows past `|Δx|`, so `f(ax, z0)` is
-    not the smallest push in the box: for `Δ = (0.5, 0.8)` the push is 0.028, and `f(0.5, 0)` is
-    0.035. A legit client can then fail the offset check. `mcrs_minecraft_move_predict` takes
-    each end as the extreme of `f` at the nearest `|Δz|`, at `0.01F` and at the farthest `|Δz|`.
-    This bound contains the bound of the rule.
-48. MVC-LAT-007, the candidate of a client that moves itself back. Open (spec). The rule adds
-    "one candidate at the position of the client at the time of the request", but a candidate
-    is a state after a client tick. The client moves itself before the tick, so
-    `mcrs_minecraft_move_predict` runs the tick from that position, with the velocity of the
-    first candidate.
-49. MVC-LAT-006 and MVC-LAT-005, uncertain blocks. Open (spec). MVC-LAT-005 states that the
-    client applies the changes in the order of the server, so the applied changes are always a
-    prefix of the changes in the window. `mcrs_minecraft_move_predict` therefore runs one
-    candidate for each prefix, with the world view of that prefix (MVC-PRED-017), for blocks and
-    for the other changes alike. With one uncertain block this equals the two runs of
-    MVC-LAT-006. With more, it runs every state that the client can have, and the tick is not
-    coarse because neither of the two world views matches.
-50. An item that a block drops (`ItemDropped`), its start position and velocity. Open. No rule
-    states the offset in the block and the start velocity. The row starts at the centre of the
-    block with zero velocity, and its birth source is the block.
-51. The entity data of an item entity, the index and the serializer of its stack. Open. Without
-    it a client gets an item entity with no stack and shows nothing, so the item rows are not
-    replicated yet (Track N).
-52. PHY-SKIP-003 and §1, the rest of an item. Open (design). An item on the ground keeps a
-    horizontal velocity that drops by `0.98F × f` in each tick that it moves, and nothing sets it
-    to zero. It reaches zero only by f64 underflow, after thousands of ticks, so a dropped item
-    with any horizontal speed does not rest within its 6000 ticks. In a test of 50,000 dropped
-    items, none rested after 100 ticks. The 40% of awake entities of §1 thus holds only for items
-    that land with no horizontal speed.
+47. MVC-UNC-005, the ends of the push interval. Resolved: MVC-UNC-005. Each end is the extreme of
+    `f` at the nearest `|Δz|`, at `0.01F` and at the farthest `|Δz|`; this is the exact range.
+48. MVC-LAT-007, the candidate of a client that moves itself back. Resolved: MVC-LAT-007. The move
+    changes only the position, so each run that first applies the ack and meets a kept state also
+    runs from the recorded position, with its own velocity.
+49. MVC-LAT-006 and MVC-LAT-005, uncertain blocks. Resolved: MVC-LAT-006, MVC-PRED-016. One run for
+    each prefix replaces the two runs; the tick is no longer coarse for uncertain blocks.
+50. An item that a block drops, its start position and velocity. Resolved: PHY-CMP-025, PHY-DEV-013; E54
+    confirms it.
+51. The entity data of an item entity. Resolved: PHY-CMP-026. Index 8, serializer 7, the stack.
+52. PHY-SKIP-003 and §1, the rest of an item. Resolved: PHY-ORD-005 "Item, stop", PHY-DEV-014. The
+    40% of §1 stays: an item on stone rests within about 100 ticks (E53).

@@ -707,8 +707,9 @@ Before a tick with an open window leaves the record, the server adds both candid
 to the accepted state. Thus a replay never needs a tick that is older than the record.
 
 **MVC-PRED-016** (`design`, semantic, confidence: low). In one client tick, the number of candidates
-is `K × 2^b + s`. `K` is the number of candidates of the accepted state. `b` is the number of
-inputs with two values (MVC-PRED-006, MVC-LAT-006). `s` is the number of candidates of MVC-LAT-007.
+is `K × p × 2^b + s`. `K` is the number of candidates of the accepted state. `p` is the number of
+prefixes of MVC-LAT-006. `b` is the number of inputs with two values (MVC-PRED-006). `s` is the
+number of runs of MVC-LAT-007.
 The client can make `b` large, because it controls the time of its answers.
 
 The cap is `max_steps_per_tick` physics steps in one client tick, replays included. The default is
@@ -773,8 +774,8 @@ treatment. The treatment is enumeration (MVC-PRED-006), a tolerance (MVC-PRED-00
 | The sprint state or the flight state changes in the tick. | enumeration | MVC-PRED-006 |
 | The use of an item starts or ends. | enumeration | MVC-PRED-006 |
 | The tick is silent. | exact step and a test of the distance | MVC-PRED-010 |
-| A block of the world view is in a window. | enumeration of two world views | MVC-LAT-006 |
-| The client moves itself back when its prediction of a block fails. | an extra candidate | MVC-LAT-007 |
+| A block of the world view is in a window. | enumeration of the prefixes | MVC-LAT-006 |
+| The client moves itself back when its prediction of a block fails. | an extra run | MVC-LAT-007 |
 | The velocity of `set_entity_motion` loses precision. | exact decoded value | MVC-LAT-009 |
 | An entity with a collision shape is near the box. | coarse mode | MVC-MODE-003 |
 | A state that the physics model does not cover. | coarse mode | MVC-MODE-003 |
@@ -834,16 +835,18 @@ pusher (MVC-UNC-004). Let this box be `[ax, bx] × [az, bz]`. For each pusher, t
 interval `[lo, hi]` for each horizontal axis. For the `x` axis, it uses these properties of `f`:
 
 1. `f` does not decrease when `Δ.x` increases, also across zero.
-2. When `|Δ.x|` is at least 0.01, `|f|` does not increase when `|Δ.z|` increases.
+2. For a fixed `Δ.x`, `|f|` does not increase when `|Δ.z|` increases. The exception is the
+   cutoff: when `|Δ.x| < 0.01F`, `f` is 0 for `|Δ.z| < 0.01F`.
 
-Let `z0` be the smallest value of `|Δ.z|` in `[az, bz]`. It is 0 when the range contains 0. Then
-`lo = f(ax, z0)` and `hi = f(bx, z0)`. A hull that crosses zero on the `x` axis thus gives an
-interval with a negative end and a positive end.
+Let `z0` be the smallest value of `|Δ.z|` in `[az, bz]`. It is 0 when the range contains 0. Let
+`z1` be the largest value of `|Δ.z|` in `[az, bz]`. Let `zc` be `0.01F`, clamped to `[z0, z1]`.
+Then `lo` is the smallest of `f(ax, z0)`, `f(ax, zc)` and `f(ax, z1)`. `hi` is the largest of
+`f(bx, z0)`, `f(bx, zc)` and `f(bx, z1)`. This interval is the exact range of `f` on the box.
 
-The cutoff at `m < 0.01F` needs one more rule. An end can have `|ax|` or `|bx|` less than 0.01 while
-the range of `|Δ.z|` reaches 0.01. For that end, the server uses `max(z0, 0.01)` in place of `z0`.
-The `z` axis uses the same rules with the axes swapped. The server rounds each end outward by the
-arithmetic tolerance (MVC-UNC-003).
+An example: for `ax > 0`, the push at `ax` is smallest at `z1`. For `Δ = (0.5, 0.8)` it is 0.028,
+and `f(0.5, 0)` is 0.035. A hull that crosses zero on the `x` axis gives an interval with a negative
+end and a positive end. The `z` axis uses the same rules with the axes swapped. The server rounds
+each end outward by the arithmetic tolerance (MVC-UNC-003).
 
 The push of a pusher is certain when two conditions are true in tick N − 1 and in tick N:
 
@@ -957,11 +960,21 @@ a value replaces the old value: abilities, effects, attributes and blocks. When 
 window at one time, the client applies them in the order of the server. A candidate never applies a
 later change before an earlier change.
 
-**MVC-LAT-006** (`design`, semantic, confidence: medium). Grow the box of a candidate by the
-movement of the tick. When that box touches uncertain blocks, the server runs the physics step two
-times. The first run uses the old state of each of these blocks. The second run uses the new state
-of each. When the box touches more than one uncertain block, and neither world view matches, the
-server classifies the tick as coarse.
+**MVC-LAT-006** (`source_suggested`, client agreement, confidence: medium). The client applies
+the packets in the order of the server, and it applies them between two client ticks. Thus the
+changes that the client has applied at the start of a tick are a prefix of the changes in the order
+of the server. This applies to blocks and to the other predicted-state changes alike. A state that
+the client keeps for MVC-LAT-007 has the place of its `block_changed_ack` in this order.
+
+For each candidate, the server runs the physics step one time for each prefix that the candidate
+can have in the tick. The shortest prefix is the prefix of the candidate in the previous tick, or
+the applied changes of MVC-LAT-004 when they are more. The longest prefix ends at the last change
+whose window contains the tick. Each run uses the world view and the other values of its prefix
+(MVC-PRED-017).
+
+Grow the box of the candidate by the movement of the tick. Two prefixes that give the same block
+states in this box and the same other values need only one run. Thus one uncertain block gives two
+runs: the old state and the new state.
 
 **MVC-LAT-007** (`source_suggested`, client agreement, confidence: low). When the client breaks or
 places a block with a sequence, it changes the block immediately. Then it waits for a
@@ -973,9 +986,19 @@ When the box of the client then touches the kept state, the client moves itself 
 the time of the request. The client does not move itself when a teleport arrived after the request.
 See experiment E16.
 
+The client records the position for each block at the first request that changes it. A later
+request for that block before the `block_changed_ack` keeps the first position. The client records
+the position before the physics step of the tick, so it is the position at the end of the previous
+client tick. The move occurs between two client ticks, when the client applies the
+`block_changed_ack`. It changes only the position. The velocity and the other values stay.
+
 The server treats this as a predicted-state change of the block. Its window starts at the request
-and ends when the probe after the `block_changed_ack` is acknowledged. In the window, the server
-adds one candidate at the position of the client at the time of the request.
+and ends when the probe after the `block_changed_ack` is acknowledged. Take each run of
+MVC-LAT-006 whose prefix contains the `block_changed_ack` and whose start state did not. When the
+box of its start state meets the collision shape of a kept state with a volume more than zero, the
+server also runs it from the recorded position. The client moves only when its own state of the
+block differs from the kept state. The server does not know the state of the client, so both runs
+are possible.
 
 **MVC-LAT-008** (`design`, semantic, confidence: medium). A teleport is not in the scheme of this
 section. The accept is its acknowledgement. After the accept, the accepted state has one candidate.
@@ -1267,7 +1290,7 @@ of the tick. Then it is grown by 1 block on each side.
 | The near zone touches a chunk that is not loaded on the client, or a chunk whose load or unload is in a window. | PHY-GRV-020 |
 | The world border moves, and the box is at most 1 block from it. | the border moves with real time |
 | The near zone touches a block whose effect on movement the physics model does not state. Sections 6.4 to 6.7 and PHY-RST-003 of the physics model state the block effects that it covers. | an effect that the model does not cover |
-| MVC-PRED-004, MVC-PRED-016 or MVC-LAT-006 selects coarse mode. | too many candidates, or uncertain blocks |
+| MVC-PRED-004 or MVC-PRED-016 selects coarse mode. | too many candidates |
 
 The test of 1/16 applies until the corpus gives exact shape values. A coordinate that is a multiple
 of 1/16 is exact.

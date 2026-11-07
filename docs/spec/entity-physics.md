@@ -1516,6 +1516,12 @@ The parameters of the rows:
   A tick that skips `M` and `D` also skips the bounce. It still applies `G`. Its `E` uses the
   path of the last tick that did `M`, not a new path. Thus the blocks inside the box continue to
   act on an item at rest, for example a hopper or a pressure plate.
+- Item, stop: on the server, after the drag of a tick that does `M`, if the on-ground flag is
+  true, set each of `v.x` and `v.z` with an absolute value of at most `1.0E-6` to 0. The reference
+  has no such step. In the reference, the ground factor makes `v.x` and `v.z` smaller in each tick
+  with `M`, but they do not become zero. With a factor above 0.5, for example `0.98F × 0.6F` on
+  stone, a value stops at the smallest positive f64 value, `4.9E-324`, after about 6000 ticks
+  (E53). PHY-DEV-014 records this step.
 - Item, push: on the server, shrink the box of an item by `1.0E-7`. If that box has a collision,
   the item has no physics in that tick, and the server pushes it to a free side.
 - `falling_block`, ground rule: on the server, before the drag, if the on-ground flag is true,
@@ -1949,7 +1955,9 @@ point. `D` is the vertical drag and `g` the effective gravity.
 | experience orb | `(±0, +0.0, ±0)`, when no player is near enough to attract it |
 
 A living entity with `g < 0.003 / D` has a different rest state, because the zero cutoff of
-PHY-GRV-008 removes `v.y`. The rest state of the item is periodic. A skip of a rest item must
+PHY-GRV-008 removes `v.y`. The rest state of the item is periodic. The step "Item, stop" of
+PHY-ORD-005 makes `v.x` and `v.z` of an item zero. On stone, an item that lands with a horizontal
+speed of 0.12 gets to its rest state in 67 ticks (E53). A skip of a rest item must
 give `v.y` from the phase, not from the last value.
 
 **PHY-SKIP-004** (`source_suggested`, semantic, confidence: medium). A skip of the physics part does
@@ -2847,6 +2855,37 @@ pair is about `2^-256`. Two children can have equal stored keys because the dige
 parents collide. Their UUIDs then differ, unless the UUIDs of the parents are also equal. Thus a
 collision upstream does not raise the probability of step 6 to `2^-128`.
 
+**PHY-CMP-025** (`source_suggested`, semantic, confidence: medium). Policy `semantic`: the start
+state of an item that a block drops. Let `(bx, by, bz)` be the block position. Let `U(a, b)` be
+`a + r × (b - a)`, with `r` a uniform f64 random value in `[0, 1)`. Let `w` and `h` be half the
+width and half the height of the item, both 0.125.
+
+A drop at the block, for example a drop of a block destruction (SIM-SET-004), starts with these
+values:
+
+- the position `(bx + 0.5 + U(-0.25, 0.25), by + 0.5 + U(-0.25, 0.25) - h, bz + 0.5 + U(-0.25, 0.25))`;
+- the velocity `(U(-0.1, 0.1), 0.2, U(-0.1, 0.1))`.
+
+A drop from one face of the block has the unit normal `(sx, sy, sz)` of the face. On each axis with
+a normal component of 0, the position and the velocity use the random values of the table. The
+other axis uses fixed values.
+
+| Axis | Position, component 0 | Position, component `s` | Velocity, component 0 | Velocity, component `s` |
+|------|-----------------------|-------------------------|-----------------------|-------------------------|
+| `x` | `bx + 0.5 + U(-0.25, 0.25)` | `bx + 0.5 + s × (0.5 + w)` | `U(-0.1, 0.1)` | `s × 0.1` |
+| `y` | `by + 0.5 + U(-0.25, 0.25) - h` | `by + 0.5 + s × (0.5 + h) - h` | `U(0, 0.1)` | `s × 0.1 + 0.1` |
+| `z` | `bz + 0.5 + U(-0.25, 0.25)` | `bz + 0.5 + s × (0.5 + w)` | `U(-0.1, 0.1)` | `s × 0.1` |
+
+The random values come from a stream that is a function of the birth key of the item
+(PHY-CMP-013). The block is the source of the birth key. PHY-DEV-013 records this choice. E54
+confirms the drop at the block. The drop from a face has no experiment yet.
+
+**PHY-CMP-026** (`source_suggested`, wire, confidence: medium). The entity data of an item entity
+has one value after the values of each entity. Its index is 8. Its serializer id is 7, the item
+stack. The value is the stack of the item, in the optional item stack form, with the count first.
+The server sends it in `set_entity_data` after the `add_entity` of the item. It sends it again when
+the stack changes. The client shows an item entity with an empty stack as nothing.
+
 ## 12. Out of scope
 
 Each subject below has a hook in this model. This document does not state the model behind the
@@ -3032,6 +3071,26 @@ the deviations of this section for server-simulated entities. An implementation 
 - **Test:** a differential test accepts a delay of one tick. This applies to each interaction of an
   entity with the position of a player.
 
+### PHY-DEV-013: Keyed random values for the drop of a block
+
+- **Rule:** PHY-CMP-025.
+- **Reference:** the offsets of the position come from the random source of the dimension. The
+  velocity comes from the random source of the new item.
+- **Visible to the client:** no, as a distribution. The values of one drop differ from the
+  reference, but each value has the same range and the same uniform distribution.
+- **Test:** a differential test compares the ranges of the start positions and velocities.
+
+### PHY-DEV-014: Zero horizontal speed of an item on the ground
+
+- **Rule:** PHY-ORD-005, the step "Item, stop".
+- **Reference:** `v.x` and `v.z` of an item on the ground become smaller in each tick with `M`. On
+  most blocks they never become zero, so the item never gets to the rest state of PHY-SKIP-003.
+- **Visible to the client:** no. Each removed component is at most `1.0E-6`, the tolerance of
+  PHY-CMP-006. The position of an item at rest does not change, because PHY-MOV-004 drops a move
+  shorter than `sqrt(1.0E-7)`. When the item moves again, the removed speed gives at most
+  `1.0E-6 / (1 - 0.98)`, `5.0E-5` block. This is less than the unit of `1/4096` block.
+- **Test:** a differential test compares `v.x` and `v.z` of an item on the ground within `1.0E-6`.
+
 ### Known vanilla quirks
 
 The vanilla client does these things, and they look like accidents of its code. The rules keep them
@@ -3146,6 +3205,8 @@ values are f64 values. Compare them bit for bit with the model.
 | E50 | With the scripted client, move the player into a pig in one move packet. Step 1 tick and read `Motion` of the pig. | PHY-CMP-021, PHY-DEV-012 |
 | E51 | Drop 40 different items onto a player with a nearly full inventory in one tick. Read the slots after the tick. | PHY-CMP-017 |
 | E52 | Read the velocity that the server expects for a player that stands in a crowd of pigs and on a slime block. | PHY-CMP-023 |
+| E53 | From the server console, summon an item with `Motion` `[0.1, 0, 0.07]` and `Age` -32768 on stone, ice and a slime block. Read `Motion` and `Pos` after each of the first 400 ticks, then after each 1000 ticks up to 12,000 ticks. | PHY-ORD-005, PHY-SKIP-003, PHY-DEV-014 |
+| E54 | From the server console, with the tick frozen, put dirt in the air and destroy it with `/setblock … air destroy`. Read `Pos` and `Motion` of the item, then remove it. Do this 1000 times. | PHY-CMP-025 |
 
 The experiment of a supported rule also covers each `source_suggested` rule without a row above:
 
@@ -3156,4 +3217,32 @@ The experiment of a supported rule also covers each `source_suggested` rule with
 
 ## 16. Captured results
 
-None yet.
+The results come from a vanilla dedicated server of `26.4-snapshot-7`, with no client. Set
+`pause-when-empty-seconds=-1`, or the server stops its ticks 60 seconds after the start.
+
+**E53**, one item for each block:
+
+| Block | Last change of `Pos` | First tick with each of `v.x` and `v.z` in `[-1.0E-6, 1.0E-6]` | `v.x` at tick 1008 | `v.x` from tick 6036 |
+|-------|----------------------|----------------------------------------------|---------------------------|-----------------------------|
+| `stone` | tick 27 | 67 | `5.37E-61` | `4.9E-324`, the same up to 12,000 ticks |
+| `ice` | tick 318 | before tick 1008 | `2.42E-7` | `2.12E-29`, and smaller after each 1000 ticks |
+| `slime_block` | tick 5 | 13 | `4.9E-323` | 0 from a tick between 1008 and 2013; `v.y` does not rest |
+
+In the first 400 ticks on stone, `v.x` changes in each tick up to tick 7, then only in the ticks
+11, 15, 19 and so on. This is the cycle of 4 ticks. On the slime block, the step action of the
+block makes `v.x` smaller by a factor below 0.5, so the value gets to 0.
+
+**E54**, 1000 drops of dirt from the block at `(10, -50, 30)`. The offset is the position minus
+the block position.
+
+| Value | Smallest | Largest | Mean | Distinct values |
+|-------|----------|---------|------|-----------------|
+| offset `x` | 0.2501 | 0.7500 | 0.5036 | 1000 |
+| offset `y` | 0.1257 | 0.6245 | 0.3734 | 1000 |
+| offset `z` | 0.2502 | 0.7490 | 0.4869 | 1000 |
+| `v.x` | -0.0989 | 0.0996 | 0.0016 | 1000 |
+| `v.y` | 0.2 | 0.2 | 0.2 | 1 |
+| `v.z` | -0.0993 | 0.0998 | 0.0040 | 1000 |
+
+The five bins of 0.1 of offset `x` hold 179, 204, 221, 197 and 199 drops. This agrees with a
+uniform distribution on `[0.25, 0.75)`.
