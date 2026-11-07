@@ -27,18 +27,6 @@ pub struct GridRow {
 impl GridRow {
     #[must_use]
     pub fn bounds(&self) -> Aabb {
-        let half_width = f64::from(self.half_width);
-        Aabb::new(
-            DVec3::new(
-                self.position.x - half_width,
-                self.position.y,
-                self.position.z - half_width,
-            ),
-            DVec3::new(
-                self.position.x + half_width,
-                self.position.y + f64::from(self.height),
-                self.position.z + half_width,
-            ),
-        )
+        Aabb::of_body(self.position, self.half_width * 2.0, self.height)
     }
 }

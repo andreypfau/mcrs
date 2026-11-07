@@ -403,6 +403,6 @@ fn item_moves(entity: &EntityState) -> bool {
 }
 
 /// The vertical displacement of the move, or zero when the move left the position as it was.
-fn applied_dy(resolved: &DVec3, start: DVec3, end: DVec3) -> f64 {
+pub(crate) fn applied_dy(resolved: &DVec3, start: DVec3, end: DVec3) -> f64 {
     if start == end { 0.0 } else { resolved.y }
 }

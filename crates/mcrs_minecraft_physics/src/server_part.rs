@@ -19,6 +19,7 @@ use crate::block_effects::EffectContext;
 use crate::push;
 use crate::tick_entity::jump;
 use crate::tick_player::player_mover;
+use crate::tick_player::zero_small_speeds;
 
 /// The decay of the velocity of the server copy of a player in each tick.
 const DECAY: f64 = 0.98;
@@ -46,14 +47,7 @@ pub fn server_part<B: BodyView, W: CollisionWorld>(
 ) -> PushOutcome {
     let row = copy.row;
     state.velocity *= DECAY;
-    let velocity = &mut state.velocity;
-    if velocity.x * velocity.x + velocity.z * velocity.z < 9.0e-6 {
-        velocity.x = 0.0;
-        velocity.z = 0.0;
-    }
-    if velocity.y.abs() < 0.003 {
-        velocity.y = 0.0;
-    }
+    zero_small_speeds(&mut state.velocity);
     let mover = Mover {
         shift: state.shift0,
         keeps_to_edges: !state.flight0,

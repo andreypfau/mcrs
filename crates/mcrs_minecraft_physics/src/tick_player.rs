@@ -26,6 +26,7 @@ use crate::block_effects::EffectContext;
 use crate::push_out;
 use crate::query;
 use crate::sine_table::yaw_radians;
+use crate::tick_entity::applied_dy;
 use crate::tick_entity::jump;
 use crate::tolerance::CLIP;
 use crate::tolerance::COLLISION;
@@ -113,11 +114,7 @@ pub fn tick_player<W: CollisionWorld, B: BodyView>(
     if flight && !facts.passenger {
         body.velocity.y = kept_y * 0.6;
     }
-    let dy = if body.position == start_position {
-        0.0
-    } else {
-        moved.resolved.y
-    };
+    let dy = applied_dy(&moved.resolved, start_position, body.position);
     let context = EffectContext {
         mover: &mover,
         stuck_ignore: StuckIgnore::None,
@@ -206,7 +203,7 @@ fn flight_impulse(keys: &Keys, flight_speed: f32) -> f64 {
 }
 
 /// Sets a horizontal speed below `0.003` and a small vertical speed to zero.
-fn zero_small_speeds(velocity: &mut DVec3) {
+pub(crate) fn zero_small_speeds(velocity: &mut DVec3) {
     if velocity.x * velocity.x + velocity.z * velocity.z < 9.0e-6 {
         velocity.x = 0.0;
         velocity.z = 0.0;
