@@ -12,7 +12,7 @@ id damage_type minecraft:lava 24
 id trim_material minecraft:amethyst 0
 id trim_pattern minecraft:coast 1
 id instrument minecraft:ponder_goat_horn 4
-id jukebox_song minecraft:pigstep 14
+id jukebox_song minecraft:pigstep 15
 id banner_pattern minecraft:creeper 4
 id painting_variant minecraft:kebab 24
 id consume_effect_type minecraft:apply_effects 0
@@ -69,22 +69,22 @@ consumable_default in {}
 consumable_default json {}
 consumable_default nbt 0a00
 consumable_default hash -982207288
-consumable_default wire 3fcccccd01f6030100
+consumable_default wire 3fcccccd01000100
 consumable_explicit in {"consume_seconds":1.6,"animation":"eat","sound":"minecraft:entity.generic.eat","has_consume_particles":true,"on_consume_effects":[]}
-consumable_explicit json {}
-consumable_explicit nbt 0a00
-consumable_explicit hash -982207288
-consumable_explicit wire 3fcccccd01f6030100
+consumable_explicit json {"sound":"minecraft:entity.generic.eat"}
+consumable_explicit nbt 0a080005736f756e64001c6d696e6563726166743a656e746974792e67656e657269632e65617400
+consumable_explicit hash -1537764575
+consumable_explicit wire 3fcccccd0101f6030100
 consumable_full in {"consume_seconds":2.5,"animation":"drink","sound":{"sound_id":"mcrs:sip","range":8.0},"has_consume_particles":false,"on_consume_effects":[{"type":"minecraft:apply_effects","effects":[{"id":"minecraft:speed","amplifier":1,"duration":100},{"id":"minecraft:slowness","duration":20,"ambient":true,"show_particles":false,"hidden_effect":{"duration":5}}],"probability":0.5},{"type":"minecraft:remove_effects","effects":["minecraft:speed","minecraft:slowness"]},{"type":"minecraft:remove_effects","effects":"minecraft:haste"},{"type":"minecraft:clear_all_effects"},{"type":"minecraft:teleport_randomly","diameter":8.0,"directional_particles":false},{"type":"minecraft:play_sound","sound":"minecraft:entity.item.break"},{"type":"minecraft:play_sound","sound":{"sound_id":"mcrs:ding"}}]}
 consumable_full json {"consume_seconds":2.5,"animation":"drink","sound":{"sound_id":"mcrs:sip","range":8.0},"has_consume_particles":false,"on_consume_effects":[{"effects":[{"id":"minecraft:speed","amplifier":1,"duration":100,"show_icon":true},{"id":"minecraft:slowness","duration":20,"ambient":true,"show_particles":false,"show_icon":false,"hidden_effect":{"duration":5,"show_icon":true}}],"probability":0.5,"type":"minecraft:apply_effects"},{"effects":["minecraft:speed","minecraft:slowness"],"type":"minecraft:remove_effects"},{"effects":"minecraft:haste","type":"minecraft:remove_effects"},{"type":"minecraft:clear_all_effects"},{"diameter":8.0,"directional_particles":false,"type":"minecraft:teleport_randomly"},{"sound":"minecraft:entity.item.break","type":"minecraft:play_sound"},{"sound":{"sound_id":"mcrs:ding"},"type":"minecraft:play_sound"}]}
 consumable_full nbt 0a0900126f6e5f636f6e73756d655f656666656374730a00000007090007656666656374730a000000020300086475726174696f6e0000006401000973686f775f69636f6e01010009616d706c6966696572010800026964000f6d696e6563726166743a7370656564000300086475726174696f6e0000001401000973686f775f69636f6e000a000d68696464656e5f6566666563740300086475726174696f6e0000000501000973686f775f69636f6e0100010007616d6269656e7401080002696400126d696e6563726166743a736c6f776e65737301000e73686f775f7061727469636c6573000005000b70726f626162696c6974793f0000000800047479706500176d696e6563726166743a6170706c795f6566666563747300090007656666656374730800000002000f6d696e6563726166743a737065656400126d696e6563726166743a736c6f776e6573730800047479706500186d696e6563726166743a72656d6f76655f656666656374730008000765666665637473000f6d696e6563726166743a68617374650800047479706500186d696e6563726166743a72656d6f76655f656666656374730008000474797065001b6d696e6563726166743a636c6561725f616c6c5f6566666563747300010015646972656374696f6e616c5f7061727469636c6573000500086469616d657465724100000008000474797065001b6d696e6563726166743a74656c65706f72745f72616e646f6d6c7900080005736f756e64001b6d696e6563726166743a656e746974792e6974656d2e627265616b0800047479706500146d696e6563726166743a706c61795f736f756e64000a0005736f756e64080008736f756e645f696400096d6372733a64696e67000800047479706500146d696e6563726166743a706c61795f736f756e64000a0005736f756e64080008736f756e645f696400086d6372733a73697005000572616e6765410000000005000f636f6e73756d655f7365636f6e6473402000000100156861735f636f6e73756d655f7061727469636c657300080009616e696d6174696f6e00056472696e6b00
 consumable_full hash 982421279
-consumable_full wire 402000000200086d6372733a73697001410000000007000200016400010100010014010000010005000101003f0000000103000101020202034100000000048e050400096d6372733a64696e6700
+consumable_full wire 40200000020100086d6372733a73697001410000000007000200016400010100010014010000010005000101003f0000000103000101020202034100000000048e050400096d6372733a64696e6700
 consumable_bare_ids in {"on_consume_effects":[{"type":"teleport_randomly"},{"type":"apply_effects","effects":[{"id":"speed"}],"probability":1.0}]}
 consumable_bare_ids json {"on_consume_effects":[{"type":"minecraft:teleport_randomly"},{"effects":[{"id":"minecraft:speed","show_icon":true}],"type":"minecraft:apply_effects"}]}
 consumable_bare_ids nbt 0a0900126f6e5f636f6e73756d655f656666656374730a0000000208000474797065001b6d696e6563726166743a74656c65706f72745f72616e646f6d6c7900090007656666656374730a0000000101000973686f775f69636f6e010800026964000f6d696e6563726166743a7370656564000800047479706500176d696e6563726166743a6170706c795f656666656374730000
 consumable_bare_ids hash -106188581
-consumable_bare_ids wire 3fcccccd01f60301020341800000010001000000000101003f800000
+consumable_bare_ids wire 3fcccccd010001020341800000010001000000000101003f800000
 death_protection_default in {}
 death_protection_default json {}
 death_protection_default nbt 0a00
@@ -199,7 +199,7 @@ jukebox_playable_ref in "minecraft:pigstep"
 jukebox_playable_ref json "minecraft:pigstep"
 jukebox_playable_ref nbt 0800116d696e6563726166743a70696773746570
 jukebox_playable_ref hash -1338710766
-jukebox_playable_ref wire 0f
+jukebox_playable_ref wire 10
 jukebox_playable_direct wire 008e05080004536f6e674148000007
 jukebox_playable_direct_sound wire 0000096d6372733a736f6e67000a0800097472616e736c6174650009736f6e672e6d637273003f80000000
 banner_patterns_empty in []
