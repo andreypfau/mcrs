@@ -761,8 +761,36 @@ real save is more than 0.1% of picks.
 
 Measured on real saves (Hermitcraft S10, Meterstick FarmWorld and LagMachine, upgraded to the
 corpus version): 119–145 ticking positions per listed section, and 2.9–3.5% of picks run a handler.
-This agrees with the density of the model. One step on one core costs 24–89 ms for 258k listed
-sections. At 10k players this is ~200–725 core-ms, more than the budget of ~92 core-ms.
+This agrees with the density of the model. The bench `random_ticks_save` steps Hermitcraft S10
+through the section entities and the cell volume of the engine: 2.2M loaded sections, 91k columns,
+258k listed sections, 22.7k handler runs in each step. Each step lists the sections of the index
+and runs precipitation. The engine passes one section of each column, sorted in the order of
+precipitation; before this, precipitation went through all 2.2M sections, and a step cost 197 ms.
+
+| Handler of the bench | One step, one core | At 10k players (× 8.1) |
+|----------------------|--------------------|------------------------|
+| reads one block | 34.7 ms (34.6–34.9) | ~282 core-ms |
+| reads its footprint of Table 1 | 74.3 ms (73.4–75.6) | ~604 core-ms |
+| same footprint, one section template for all sections (cache-hot) | 10.5 ms | ~85 core-ms |
+
+The density of the model is correct; its constants are not. They come from a cache-hot bench. On a
+real save the data of a pick is not in the cache:
+- A listed section costs ~52 ns, not 3 × 3 ns. The step reads the section from the index, makes
+  its stream, draws 3 values and checks the touched sets. At 10k players this is ~110 core-ms.
+- A pick that hits costs ~0.7 µs before the handler does work, not ~0.3 µs with the handler. The
+  tile of the index, the ticking positions, the section index, the section entity and its palette
+  are cold: one first read is a chain of 5–8 cache misses. At 10k players this is ~125 core-ms.
+- A read of the footprint costs ~30 ns: the full box adds ~1.7 µs to each handler run.
+- Precipitation costs ~19 ns for each column, ~14 core-ms at 10k players.
+
+Two changes did not move the number by more than 3% and are not kept: tiles listed in the order of
+the colour phases, so that the tile tasks need no reorder, and a slot map in place of the binary
+search of the index.
+The budget of ~92 core-ms is not reachable with this storage. It needs the data of a pick in a
+few cache lines: the ticking positions next to the blocks of the section, one lookup for each
+section in place of the section index, the entity and the palette, and a draw for each hit in place
+of a draw for each pick. The machine ran other jobs during the measurement (load 15–60 on 16
+cores), which makes a cache miss slower than on an idle machine.
 
 ### 7.5 Block shards as a whole
 
@@ -1552,3 +1580,8 @@ E1..E8, T1 (any time)   D1 ─ D2 ─ D3 ─ D4 ─ D5 ─ D6 ─ D7
 53. MVC-LAT-006 and MVC-LAT-007, the state of an edited block before its `block_changed_ack`.
     Resolved: MVC-LAT-006, MVC-LAT-007. The own edit enters the world view at the request, with no
     window; until the ack, a prefix gives the state of the edit, and from the ack the kept state.
+54. The column record of a save, a record without `yPos`. Open: no specification states the
+    format of a column record. The loader rejects a record without `yPos`. A column that an upgrade
+    did not write again can have no `yPos`. The three upgraded saves of the corpus (Hermitcraft S10,
+    FarmWorld, LagMachine) hold no such record: no record of them fails to load. The question:
+    does a missing `yPos` give the lowest section of the dimension, or does the record not load?
