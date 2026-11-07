@@ -186,16 +186,14 @@ where
     ) {
         let stamp = self.shard.clock.stamp(self.now);
         let due = due_after(self.now, delay);
+        let body = MessageBody::BlockTick {
+            pos,
+            block,
+            due,
+            priority,
+        };
         match self.lane_for_tick(pos) {
-            Lane::Own if self.task.is_some() => self.defer(
-                stamp,
-                MessageBody::BlockTick {
-                    pos,
-                    block,
-                    due,
-                    priority,
-                },
-            ),
+            Lane::Own if self.task.is_some() => self.defer(stamp, body),
             Lane::Own => self.push_block_tick(
                 pos,
                 block,
@@ -205,15 +203,7 @@ where
                     sequence: stamp,
                 },
             ),
-            Lane::Away => self.send(
-                stamp,
-                MessageBody::BlockTick {
-                    pos,
-                    block,
-                    due,
-                    priority,
-                },
-            ),
+            Lane::Away => self.send(stamp, body),
             Lane::Dropped => bump(&mut self.out.report.unaccepted_ticks),
         }
     }
@@ -227,16 +217,14 @@ where
     ) {
         let stamp = self.shard.clock.stamp(self.now);
         let due = due_after(self.now, delay);
+        let body = MessageBody::FluidTick {
+            pos,
+            fluid,
+            due,
+            priority,
+        };
         match self.lane_for_tick(pos) {
-            Lane::Own if self.task.is_some() => self.defer(
-                stamp,
-                MessageBody::FluidTick {
-                    pos,
-                    fluid,
-                    due,
-                    priority,
-                },
-            ),
+            Lane::Own if self.task.is_some() => self.defer(stamp, body),
             Lane::Own => self.push_fluid_tick(
                 pos,
                 fluid,
@@ -246,15 +234,7 @@ where
                     sequence: stamp,
                 },
             ),
-            Lane::Away => self.send(
-                stamp,
-                MessageBody::FluidTick {
-                    pos,
-                    fluid,
-                    due,
-                    priority,
-                },
-            ),
+            Lane::Away => self.send(stamp, body),
             Lane::Dropped => bump(&mut self.out.report.unaccepted_ticks),
         }
     }

@@ -13,7 +13,6 @@ use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_volume::Access;
 use mcrs_voxel::{BlockPos, BlockStateId, ColumnPos, LocalPos, SectionPos};
-use rustc_hash::FxHashSet;
 
 use crate::footprints::Footprints;
 use crate::output::OutputMark;
@@ -215,13 +214,11 @@ where
         reruns: &mut Vec<Rerun>,
     ) {
         let section = listed.section;
-        let touched_in =
-            |touched: &FxHashSet<SectionPos>| !touched.is_empty() && touched.contains(&section);
-        let touched = touched_in(&self.shard.random_touched)
+        let touched = self.shard.random_touched.contains(&section)
             || self
                 .task
                 .as_ref()
-                .is_some_and(|task| touched_in(&task.base.random_touched));
+                .is_some_and(|task| task.base.random_touched.contains(&section));
         let mut listed = if touched {
             self.volume.random_ticking(section).len()
         } else {
