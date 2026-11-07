@@ -28,6 +28,12 @@ take both roles for the same behaviour.
 - Text that says code is a port, a transcription or a mirror of the game's code.
 - A test, a tool or a script that reads the game's code.
 
+### Community terms
+
+The community of the game uses some names of the game's code as common terms. These names are
+allowed in all places: `ResourceKey`, `TagKey`, `BlockPos`, `SectionPos`, `ColumnPos` and
+`PalettedContainer`. A new name goes into this list only after a review.
+
 The output of the game is evidence and is allowed. A parity test compares our output with an
 artefact the game produced.
 
@@ -45,6 +51,13 @@ The world generation code stays as it is. The exception covers the crates
 design notes `docs/worldgen.md`, `docs/aquifer.md`, `docs/surface.md`, `docs/structures.md`,
 `docs/scattering.md` and `docs/heightmap.md`. New work in these places follows the rules above.
 A change that touches a name of the game's code there removes the name.
+
+## History
+
+Some old commit messages name the game's code. The history stays as it is, because a rewrite
+breaks every clone and every reference to a commit. A new commit message obeys the rules
+above. A local `commit-msg` hook of the specification author rejects a message that contains a
+name of the game's code.
 
 ## A new behaviour
 
