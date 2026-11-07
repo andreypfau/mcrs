@@ -21,12 +21,13 @@ impl WorldBorder {
             .min(self.max_z - at.z)
     }
 
-    /// True when the point is inside the border grown by `margin` on each side.
+    /// True when the point is inside the border grown by `margin` on each side; the minimum lines
+    /// are inside and the maximum lines outside.
     #[must_use]
     pub fn contains_with_margin(&self, at: DVec3, margin: f64) -> bool {
-        at.x > self.min_x - margin
+        at.x >= self.min_x - margin
             && at.x < self.max_x + margin
-            && at.z > self.min_z - margin
+            && at.z >= self.min_z - margin
             && at.z < self.max_z + margin
     }
 

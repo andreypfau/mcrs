@@ -150,6 +150,19 @@ fn clip_stops_at_exactly_zero_before_the_next_collider() {
 }
 
 #[test]
+fn col_002_negative_zero_survives_only_without_colliders() {
+    let blocks = TestBlocks::new();
+    let mover = unit_box([0.0; 3], [1.0; 3]);
+    let d = DVec3::new(-0.0, -0.5, -0.0);
+    let free = collide(&blocks.table, &[], mover, d);
+    assert_eq!(free.x.to_bits(), (-0.0_f64).to_bits());
+    let far = Collider::Entity(unit_box([5.0, 0.0, 0.0], [6.0, 1.0, 1.0]));
+    let blocked = collide(&blocks.table, &[far], mover, d);
+    assert_eq!(blocked.x.to_bits(), 0.0_f64.to_bits());
+    assert_eq!(blocked.z.to_bits(), 0.0_f64.to_bits());
+}
+
+#[test]
 fn step_up_takes_the_lowest_height_that_gains_distance() {
     let blocks = TestBlocks::new();
     let tables = Tables::new(blocks.table.clone());
@@ -305,6 +318,19 @@ fn feet_of_the_old_position_select_the_scaffolding_shape() {
         &mut found,
     );
     assert!(found.is_empty());
+}
+
+#[test]
+fn shp_010_grown_border_includes_its_minimum_lines_only() {
+    let border = WorldBorder {
+        min_x: -4.5,
+        max_x: 4.5,
+        min_z: -4.5,
+        max_z: 4.5,
+    };
+    assert!(border.contains_with_margin(DVec3::new(-5.5, 0.0, -5.5), 1.0));
+    assert!(!border.contains_with_margin(DVec3::new(5.5, 0.0, 0.0), 1.0));
+    assert!(!border.contains_with_margin(DVec3::new(0.0, 0.0, 5.5), 1.0));
 }
 
 #[test]
