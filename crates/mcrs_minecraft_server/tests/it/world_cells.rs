@@ -27,7 +27,7 @@ use mcrs_minecraft_engine::ability::PlayerOpLevel;
 use mcrs_minecraft_engine::block_drops::{BlockDrops, ItemDropped};
 use mcrs_minecraft_engine::block_simulation::{BlockSimulationPlugin, DimensionBlockRules};
 use mcrs_minecraft_engine::bus::{PacketPayload, PlayerTransferSnapshot};
-use mcrs_minecraft_engine::coordinator::clock::GameTime;
+use mcrs_minecraft_engine::coordinator::birth_clock::BirthClock;
 use mcrs_minecraft_engine::coordinator::dim_cells::DimCells;
 use mcrs_minecraft_engine::coordinator::ops::DefaultOpLevel;
 use mcrs_minecraft_engine::entity_birth::EntityBirth;
@@ -1597,7 +1597,7 @@ fn run_births(cells: u32) -> (Vec<Birth>, usize) {
     let label = label_of(&app, OVERWORLD);
     wait_for_generation(&mut app, label);
     // The wait above takes as many ticks as the generation needs; the scenario starts at one tick.
-    app.world_mut().insert_resource(GameTime(1000));
+    app.world_mut().insert_resource(BirthClock(1000));
     let batches = [
         vec![("a", -600.5), ("b", 8.5), ("c", 600.5)],
         vec![("d", -8.5), ("e", 1200.5)],

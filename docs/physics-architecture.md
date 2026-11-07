@@ -371,6 +371,10 @@ does not depend on the cells. A player keeps its key across a change of cell or 
 player file holds the key and the phase offset under `mcrs:birth`. A player keeps its own UUID, the
 UUID of its profile.
 
+The birth tick reads the birth clock of the coordinator. The file `data/mcrs/birth_clock.dat` holds
+the value that the clock reaches at the next save, one autosave interval ahead. After a crash, the
+clock thus continues above every tick that a saved key can hold.
+
 ## 5. AI: reflexes in the tick, decisions in a pipeline
 
 ### 5.1 Reflexes in the hot tick

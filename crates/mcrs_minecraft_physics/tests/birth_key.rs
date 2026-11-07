@@ -54,18 +54,19 @@ fn cmp_016_the_phase_offset_covers_zero_to_three_and_is_kept() {
 }
 
 #[test]
-fn cmp_024_the_birth_uuid_reads_the_full_parent_key_and_is_a_random_uuid() {
-    let parent = from_block(0, 0, 0);
-    let other_parent = from_block(0, 0, 1);
-    let uuid = birth_uuid(9, &BirthSource::Entity(parent), 0);
-    assert_eq!(uuid, birth_uuid(9, &BirthSource::Entity(parent), 0));
-    assert_ne!(uuid, birth_uuid(9, &BirthSource::Entity(other_parent), 0));
-    assert_ne!(uuid, birth_uuid(9, &BirthSource::Entity(parent), 1));
-    assert_ne!(uuid, birth_uuid(10, &BirthSource::Entity(parent), 0));
+fn cmp_024_children_with_equal_stored_keys_differ_by_the_uuid_of_their_parent() {
+    // Two parents whose digests collide give their children equal stored keys.
+    let child = BirthKey::born(9, &BirthSource::Entity(from_block(0, 0, 0)), 0);
+    let uuid = birth_uuid(&child, Some(1));
+    assert_ne!(uuid, birth_uuid(&child, Some(2)));
+    assert_ne!(uuid, birth_uuid(&child, None));
     assert_ne!(
-        uuid >> 64,
-        BirthKey::born(9, &BirthSource::Entity(parent), 0).digest() >> 64,
-        "the uuid is not the digest"
+        birth_uuid(&child, None),
+        birth_uuid(
+            &BirthKey::born(9, &BirthSource::Entity(from_block(0, 0, 0)), 1),
+            None
+        ),
+        "the uuid reads the stored key"
     );
     assert_eq!((uuid >> 76) & 0xF, 4, "version 4");
     assert_eq!((uuid >> 62) & 0x3, 2, "the variant of RFC 9562");

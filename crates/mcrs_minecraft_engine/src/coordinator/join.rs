@@ -10,7 +10,7 @@ use mcrs_minecraft_physics::{Birth, BirthKey, BirthSource};
 use mcrs_minecraft_resource::ResourceKeyBuf;
 
 use crate::bus::InboundPlayerSpawn;
-use crate::coordinator::clock::GameTime;
+use crate::coordinator::birth_clock::BirthClock;
 use crate::coordinator::dim::DimSubAppHandle;
 use crate::to_coordinator::JoinRequested;
 use crate::to_muxer::JoinPlaced;
@@ -44,11 +44,11 @@ pub fn place_joining_players(
     mut requests: MessageReader<JoinRequested>,
     live_dims: Query<(Entity, &ResourceKeyBuf<DimensionKey>), With<DimSubAppHandle>>,
     dimension_list: Res<DimensionList>,
-    time: Option<Res<GameTime>>,
+    clock: Option<Res<BirthClock>>,
     mut order: Local<JoinOrder>,
     mut placed: MessageWriter<JoinPlaced>,
 ) {
-    let tick = time.map_or(0, |time| u64::try_from(time.0).unwrap_or_default());
+    let tick = clock.map_or(0, |clock| clock.0);
     let live = |key: &ResourceKeyBuf<DimensionKey>| {
         live_dims
             .iter()

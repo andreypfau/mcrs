@@ -8,6 +8,7 @@ use mcrs_minecraft_engine_world::world::sub_app::{
 };
 use tracing::{debug, info, warn};
 
+use crate::coordinator::birth_clock::BirthClockPlugin;
 use crate::coordinator::clock::WorldClockHostPlugin;
 use crate::coordinator::dim::DimSubAppHandle;
 use crate::coordinator::dim_cells::DimCellsPlugin;
@@ -26,7 +27,7 @@ impl Plugin for CoordinatorPlugin {
                 queue.0.push(trigger.event().entity);
             },
         );
-        app.add_plugins(WorldClockHostPlugin);
+        app.add_plugins((WorldClockHostPlugin, BirthClockPlugin));
         app.add_systems(
             OnEnter(AppState::Playing),
             enqueue_dim_spawns.in_set(DimSpawnEnqueue),
