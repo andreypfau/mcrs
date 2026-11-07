@@ -338,7 +338,8 @@ pub fn frozen_ocean(deep: bool) -> Draft {
         .spawn(NAUTILUS, 2, 1, 1)
         .common_spawns()
         .spawn(DROWNED, 5, 1, 1)
-        .spawn(FROSTBITE, 25, 4, 4);
+        .spawn(FROSTBITE, 25, 4, 4)
+        .spawn(STRAY, 95, 4, 4);
     let mut g = Generation::default();
     icebergs(&mut g);
     overworld_features(&mut g);
@@ -499,7 +500,9 @@ pub fn river(frozen: bool) -> Draft {
     bushes(&mut g);
     default_vegetation(&mut g);
     let (temperature, water) = if frozen {
-        m.spawn(DROWNED, 1, 1, 1).spawn(FROSTBITE, 25, 4, 4);
+        m.spawn(DROWNED, 1, 1, 1)
+            .spawn(FROSTBITE, 25, 4, 4)
+            .spawn(STRAY, 95, 4, 4);
         (0.0, FROZEN_WATER_COLOR)
     } else {
         m.spawn(DROWNED, 100, 1, 1);
@@ -587,6 +590,7 @@ pub fn peaks(sound: SoundEvent, frostbite_weight: u16) -> Draft {
     let mut m = Mobs::default();
     m.spawn(GOAT, 5, 1, 3)
         .spawn(FROSTBITE, frostbite_weight, 4, 4)
+        .spawn(STRAY, 95, 4, 4)
         .common_spawns();
     let mut g = overworld_generation();
     frozen_springs(&mut g);
@@ -609,6 +613,7 @@ pub fn snowy_slopes() -> Draft {
     m.spawn(RABBIT, 4, 2, 3)
         .spawn(GOAT, 5, 1, 3)
         .spawn(FROSTBITE, 10, 4, 4)
+        .spawn(STRAY, 95, 4, 4)
         .common_spawns();
     let mut g = overworld_generation();
     frozen_springs(&mut g);
@@ -675,7 +680,7 @@ pub fn ice_caves() -> Draft {
     default_carvers_and_lakes(&mut g);
     default_crystal_formations(&mut g);
     default_monster_room(&mut g);
-    underground_variety(&mut g, false, false);
+    g.feature(UndergroundOres, placed_feature_keys::ORE_TUFF);
     ice_caves_ores(&mut g);
     default_soft_disks(&mut g);
     ice_caves_features(&mut g);
