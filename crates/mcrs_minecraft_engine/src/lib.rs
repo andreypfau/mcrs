@@ -61,7 +61,7 @@ mod player_bundle;
 mod player_dimension_change;
 pub mod player_order;
 pub mod player_roster;
-mod player_tiles;
+pub mod player_tiles;
 mod player_tracker;
 mod player_view;
 mod publish_player_tiles;
