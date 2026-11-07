@@ -366,6 +366,11 @@ algorithm and key), and is saved with the entity. Two entities compare equal onl
 functions collide, about `2^-256` per pair. The row keeps the UUID in a side table keyed by
 `EntityId`; the comparison reads it only on a tie.
 
+The coordinator gives the key of a login, in the order of the placements of the tick, so the key
+does not depend on the cells. A player keeps its key across a change of cell or dimension. The
+player file holds the key and the phase offset under `mcrs:birth`. A player keeps its own UUID, the
+UUID of its profile.
+
 ## 5. AI: reflexes in the tick, decisions in a pipeline
 
 ### 5.1 Reflexes in the hot tick
@@ -1500,3 +1505,13 @@ E1..E8, T1 (any time)   D1 ─ D2 ─ D3 ─ D4 ─ D5 ─ D6 ─ D7
     never closed. The engine does not give the open progress to the kernel yet.
 39. PHY-INP-011, the order and the precision of the push out. Resolved: PHY-INP-011 states the
     f64 offset and the overwrite per axis.
+40. PHY-CMP-013, a player with a saved birth key. Open. The load rule says that a loaded entity
+    keeps its saved key. The table gives a player that joins a new key of the kind `player`. The
+    code keeps the saved key and gives a new key only to a player without one.
+41. PHY-CMP-024, the input of the UUID. Open. The input is the stored key of the parent. Two
+    parents can have equal stored keys after one digest collision upstream. Their children then
+    have equal keys and equal UUIDs, with a chance of about `2^-128`, not `2^-256`. Must the input
+    also hold the UUID of the parent?
+42. PHY-CMP-013, the birth tick across a restart. Open. The game time does not come from the save
+    yet, so the tick count starts again. A new key can then equal a saved key. The birth tick needs
+    a counter that never repeats in one world.

@@ -13,6 +13,7 @@ use mcrs_minecraft_save::{PlayerDat, read_player_dat, write_player_dat};
 use std::collections::BTreeMap;
 use tracing::error;
 
+use crate::entity_birth::EntityBirth;
 use crate::game_profile::GameProfile;
 use mcrs_minecraft_dimension::Dimension;
 use mcrs_minecraft_engine_world::world::world_save::WorldSave;
@@ -80,6 +81,7 @@ pub fn save_player(world: &World, player: Entity) -> PlayerDat {
         inventory: loaded.inventory,
         selected_item_slot: loaded.selected_item_slot,
         equipment: loaded.equipment,
+        birth: world.get::<EntityBirth>(player).map(|birth| birth.0),
         rest: loaded.rest,
     }
 }

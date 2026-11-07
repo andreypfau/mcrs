@@ -4,6 +4,7 @@ use bevy_ecs::entity::Entity;
 use bevy_ecs::message::Message;
 use mcrs_minecraft_dimension::Dimension as DimensionKey;
 use mcrs_minecraft_engine_world::session::PlayerSession;
+use mcrs_minecraft_physics::Birth;
 use mcrs_minecraft_resource::ResourceKeyBuf;
 
 use mcrs_minecraft_protocol::Packet;
@@ -63,5 +64,7 @@ pub struct JoinRequested {
     pub session: PlayerSession,
     /// The dimension that the save of the player names.
     pub saved_dimension: Option<ResourceKeyBuf<DimensionKey>>,
+    /// The birth that the save of the player holds.
+    pub saved_birth: Option<Birth>,
     pub snapshot: PlayerTransferSnapshot,
 }
