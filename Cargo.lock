@@ -4220,11 +4220,14 @@ dependencies = [
  "mcrs_minecraft_engine",
  "mcrs_minecraft_engine_physics",
  "mcrs_minecraft_engine_world",
+ "mcrs_minecraft_game_registries",
  "mcrs_minecraft_item",
  "mcrs_minecraft_physics",
  "mcrs_minecraft_registries",
  "mcrs_minecraft_volume",
  "mcrs_voxel",
+ "serde",
+ "serde_json",
  "tracing",
 ]
 

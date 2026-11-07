@@ -153,6 +153,38 @@ def border_experiments():
     ])]
 
 
+def tile_experiments():
+    """The experiments across the edges of the tiles of the entity pass: each origin is a corner of
+    four tiles of 32 blocks, so x = 0 and z = 0 of the area are tile edges."""
+    items = '{id:"minecraft:stone",count:1}'
+    item = lambda tag, pos, motion: dict(
+        tag=tag, kind="item", pos=pos,
+        nbt=f"Item:{items},PickupDelay:32767,Age:-32768,Motion:[{motion}]")
+    zombie = lambda tag, pos: dict(
+        tag=tag, kind="zombie", pos=pos, nbt="NoAI:1b,OnGround:1b,Motion:[0.0d,0.0d,0.0d]")
+    return [
+        dict(name="t1_slide_across_tiles", rule="E3", ticks=40, origin=(2048, BASE_Y, 0),
+             blocks=[((-8, 0, -8), (8, 0, 8), "ice")], entities=[
+            item("x", (-1.5, 1.0, 4.5), "0.3d,0.0d,0.0d"),
+            item("z", (4.5, 1.0, 1.5), "0.0d,0.0d,-0.3d"),
+            item("corner", (-1.0, 3.0, -1.0), "0.15d,0.1d,0.15d"),
+            dict(tag="orb", kind="experience_orb", pos=(1.5, 1.0, -4.5), nbt="Value:1,Motion:[-0.3d,0.0d,0.0d]"),
+        ]),
+        dict(name="t2_push_across_tiles", rule="E42", ticks=20, origin=(2112, BASE_Y, 0),
+             blocks=[((-8, 0, -8), (8, 0, 8), "stone")], entities=[
+            zombie("a", (-0.15, 1.0, 3.5)), zombie("b", (0.15, 1.0, 3.5)),
+            zombie("c", (-0.0025, 1.0, 6.5)), zombie("d", (0.0025, 1.0, 6.5)),
+            zombie("e", (-4.5, 1.0, -0.15)), zombie("f", (-4.5, 1.0, 0.15)),
+        ]),
+        dict(name="t3_rest_broken_support", rule="E33", ticks=20, origin=(2176, BASE_Y, 0),
+             blocks=[((-8, 0, -8), (8, 0, 8), "stone"), ((0, 0, 2), (0, 0, 2), "air")],
+             changes=[(10, (-2, 0, 0), (-2, 0, 0), "air"), (10, (-1, 0, 2), (-1, 0, 2), "air")], entities=[
+            item("own", (-1.5, 1.0, 0.5), "0.0d,0.0d,0.0d"),
+            item("next", (0.05, 1.0, 2.5), "0.0d,0.0d,0.0d"),
+        ]),
+    ]
+
+
 class Console:
     def __init__(self, work):
         self.process = subprocess.Popen(
@@ -234,13 +266,17 @@ def selector(experiment, entity):
     return f"@e[tag={experiment['name']}_{entity['tag']},limit=1]"
 
 
-def build(console, experiment, origin):
+def fill(origin, low, high, block):
     ox, oy, oz = origin
-    commands = []
-    for low, high, block in experiment["blocks"]:
-        commands.append(
-            f"fill {ox + low[0]} {oy + low[1]} {oz + low[2]} {ox + high[0]} {oy + high[1]} {oz + high[2]} minecraft:{block}"
-        )
+    return f"fill {ox + low[0]} {oy + low[1]} {oz + low[2]} {ox + high[0]} {oy + high[1]} {oz + high[2]} minecraft:{block}"
+
+
+def box(low, high, block):
+    return dict(min=list(low), max=list(high), block=f"minecraft:{block}")
+
+
+def build(console, experiment, origin):
+    commands = [fill(origin, low, high, block) for low, high, block in experiment["blocks"]]
     for entity in experiment["entities"]:
         x, y, z = (origin[i] + entity["pos"][i] for i in range(3))
         tag = f"{experiment['name']}_{entity['tag']}"
@@ -281,7 +317,7 @@ def record(console, group):
             states[name][tag].append(parse(line))
 
     read()
-    for _ in range(longest):
+    for step in range(longest):
         merges = [
             f"data merge entity {selector(experiment, entity)} {{}}"
             for experiment in group if experiment.get("merge_each_tick")
@@ -289,6 +325,14 @@ def record(console, group):
         ]
         if merges:
             console.run(merges)
+        changes = [
+            fill(origin, low, high, block)
+            for experiment, origin in zip(group, origins)
+            for tick, low, high, block in experiment.get("changes", [])
+            if tick == step + 1
+        ]
+        if changes:
+            console.run(changes)
         before = game_time(console)
         console.run(["tick step 1"])
         while game_time(console) != before + 1:
@@ -301,8 +345,12 @@ def record(console, group):
             entry = dict(entity)
             entry["ticks"] = states[experiment["name"]][entity["tag"]][: experiment["ticks"] + 1]
             entities.append(entry)
-        blocks = [dict(min=list(low), max=list(high), block=f"minecraft:{block}") for low, high, block in experiment["blocks"]]
+        blocks = [box(low, high, block) for low, high, block in experiment["blocks"]]
         result = dict(name=experiment["name"], rule=experiment["rule"], origin=list(origin), blocks=blocks, entities=entities)
+        if "changes" in experiment:
+            result["changes"] = [
+                dict(tick=tick, **box(low, high, block)) for tick, low, high, block in experiment["changes"]
+            ]
         if "border" in experiment:
             cx, cz, size = experiment["border"]
             result["border"] = dict(center=[origin[0] + cx, origin[2] + cz], size=size)
@@ -341,25 +389,28 @@ def main():
             "gamerule spawn_mobs false", "gamerule doMobSpawning false",
             "gamerule random_tick_speed 0", "gamerule randomTickSpeed 0",
             "gamerule advance_time false", "gamerule doDaylightCycle false", "time set midnight",
-        ] + [f"forceload add {x} -16 {min(x + 1007, span)} 16" for x in range(-16, span, 1008)])
+        ] + [f"forceload add {x} -16 {min(x + 1007, span)} 16" for x in range(-16, span, 1008)]
+          + [f"forceload add {x - 16} -16 {x + 16} 16" for x in (e["origin"][0] for e in tile_experiments())])
         time.sleep(5)
         runs = [record(console, main_group)]
         reset(console, main_group)
         runs.append(record(console, [experiment for experiment in main_group if experiment["rule"] in ("E1", "E4", "E5")]))
         reset(console, main_group)
         runs.append(record(console, border_experiments()))
+        reset(console, main_group)
+        runs.append(record(console, tile_experiments()))
     finally:
         console.stop()
-    first, repeat, border = runs
+    first, repeat, border, tiles = runs
     repeated = {result["name"]: result for result in repeat}
-    for result in first + border:
+    for result in first + border + tiles:
         if result["name"] in repeated:
             result["repeat_equal"] = repeated[result["name"]]["entities"] == result["entities"]
         result["version"] = arguments.version
         with open(os.path.join(arguments.out, result["name"] + ".json"), "w") as file:
             json.dump(result, file, indent=1)
             file.write("\n")
-    print(f"wrote {len(first) + len(border)} fixtures to {arguments.out}")
+    print(f"wrote {len(first) + len(border) + len(tiles)} fixtures to {arguments.out}")
 
 
 if __name__ == "__main__":
