@@ -17,6 +17,7 @@ use mcrs_minecraft_physics::View;
 use mcrs_minecraft_physics::apply_teleport;
 use mcrs_minecraft_physics::observed_velocity;
 use mcrs_minecraft_physics::tick_player;
+use mcrs_voxel::BlockPos;
 
 use crate::Change;
 use crate::ClientTick;
@@ -33,6 +34,8 @@ use crate::candidates::Search;
 use crate::candidates::Stop;
 use crate::candidates::Work;
 use crate::kept_changes::KeptChanges;
+use crate::rollback::Edit;
+use crate::rollback::Rollback;
 
 /// Layer 2 for one player: the candidates of its client, the record of its last client ticks
 /// and the response to a violation.
@@ -54,14 +57,6 @@ pub struct Prediction {
     work: Work,
     /// The start candidates of a record that left, for the next record.
     spare: Vec<Candidate>,
-}
-
-/// A block edit of the client that waits for its `block_changed_ack`.
-#[derive(Clone, Copy, Debug, PartialEq)]
-struct Rollback {
-    position: DVec3,
-    /// The number of the `block_changed_ack` change, once written.
-    ack: Option<u64>,
 }
 
 impl Prediction {
@@ -102,13 +97,20 @@ impl Prediction {
         }
     }
 
-    /// The client edits a block with a sequence: until its acknowledgement, the client can move
-    /// itself back to where it is now.
-    pub fn block_requested(&mut self) {
-        self.rollback = Some(Rollback {
-            position: self.first.state.position,
-            ack: None,
-        });
+    /// The client edits the block `at` with a sequence: until its acknowledgement, the client
+    /// can move itself back to where it was at the first request for that block.
+    pub fn block_requested(&mut self, at: BlockPos) {
+        let position = self.first.state.position;
+        let rollback = match &mut self.rollback {
+            Some(rollback) if rollback.ack.is_none() => rollback,
+            _ => self.rollback.insert(Rollback::default()),
+        };
+        if !rollback.edits.iter().any(|edit| edit.block == at) {
+            rollback.edits.push(Edit {
+                block: at,
+                position,
+            });
+        }
     }
 
     /// A teleport goes out; no client tick is predicted until its accept.
@@ -166,6 +168,7 @@ impl Prediction {
         self.rotation = tick.input.rotation;
         if self
             .rollback
+            .as_ref()
             .is_some_and(|rollback| rollback.ack.is_some_and(|ack| ack < tick.changes.applied))
         {
             self.rollback = None;
@@ -204,7 +207,7 @@ impl Prediction {
             start,
             tick: tick.clone(),
             reference: self.reference,
-            rollback: self.rollback.map(|rollback| rollback.position),
+            rollback: self.rollback.clone(),
             explored: false,
         };
         let mut steps = 0;

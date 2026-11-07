@@ -2,16 +2,23 @@ use std::mem;
 
 use glam::DVec3;
 use mcrs_minecraft_physics::Aabb;
+use mcrs_minecraft_physics::BirthKey;
 use mcrs_minecraft_physics::BlockAction;
 use mcrs_minecraft_physics::BlockOverlay;
 use mcrs_minecraft_physics::BodyView;
+use mcrs_minecraft_physics::ColliderSource;
 use mcrs_minecraft_physics::CollisionWorld;
 use mcrs_minecraft_physics::PlayerInput;
 use mcrs_minecraft_physics::PlayerState;
+use mcrs_minecraft_physics::QueryEntity;
+use mcrs_minecraft_physics::QueryVariant;
 use mcrs_minecraft_physics::Scratch;
 use mcrs_minecraft_physics::Side;
+use mcrs_minecraft_physics::SourceKind;
+use mcrs_minecraft_physics::SourcedCollider;
 use mcrs_minecraft_physics::View;
 use mcrs_minecraft_physics::dimensions_of;
+use mcrs_minecraft_physics::query_colliders;
 use mcrs_minecraft_physics::tick_player;
 use mcrs_voxel::BlockPos;
 use mcrs_voxel::BlockStateId;
@@ -22,6 +29,7 @@ use crate::Limits;
 use crate::Pusher;
 use crate::kept_changes::KeptChanges;
 use crate::push_bound::PushBound;
+use crate::rollback::Rollback;
 
 /// A silent tick of the client is within this distance of the reference position.
 const SILENT_DISTANCE: f64 = 2.0e-4;
@@ -39,8 +47,7 @@ pub(crate) struct Record {
     pub(crate) start: Vec<Candidate>,
     pub(crate) tick: ClientTick,
     pub(crate) reference: DVec3,
-    /// The position that the client moves itself back to when its edit of a block fails.
-    pub(crate) rollback: Option<DVec3>,
+    pub(crate) rollback: Option<Rollback>,
     /// Every candidate of the tick ran.
     pub(crate) explored: bool,
 }
@@ -60,6 +67,7 @@ pub(crate) struct Work {
     pub(crate) undone: FxHashMap<BlockPos, BlockStateId>,
     pub(crate) pushers: Vec<Pusher>,
     pub(crate) actions: Vec<BlockAction>,
+    colliders: Vec<SourcedCollider>,
     pub(crate) scratch: Scratch,
     /// The kept candidates of the last tick that ran.
     pub(crate) matched: Vec<Candidate>,
@@ -110,6 +118,7 @@ pub(crate) fn run_tick<W: CollisionWorld, B: BodyView>(
 ) -> Result<Option<Scored>, Stop> {
     let mut trials = mem::take(&mut work.trials);
     plan(record, &mut trials);
+    add_moves_back(context, record, &mut trials, work);
     let result = run_trials(context, record, &trials, search, steps, work);
     work.trials = trials;
     let (best, explored) = result?;
@@ -260,7 +269,7 @@ fn push_bound<W, B>(
 }
 
 /// The candidates of the tick in the try order: per start candidate, the primary one first, then
-/// those that differ in more and more inputs; the candidate that moved itself back last.
+/// those that differ in more and more inputs.
 fn plan(record: &Record, trials: &mut Vec<Trial>) {
     trials.clear();
     let tick = &record.tick;
@@ -293,11 +302,71 @@ fn plan(record: &Record, trials: &mut Vec<Trial>) {
             group.sort_by_key(|trial| trial.differs);
         }
     }
-    if let (Some(position), Some(primary)) = (record.rollback, trials.first().copied()) {
-        trials.push(Trial {
-            position: Some(position),
-            ..primary
-        });
+}
+
+/// Appends a run from the recorded position of an edit for each run that applies the
+/// `block_changed_ack` first, when the kept state of the edited block meets its start box. The
+/// run keeps its velocity and its inputs.
+fn add_moves_back<W: CollisionWorld, B: BodyView>(
+    context: &Context<'_, W, B>,
+    record: &Record,
+    trials: &mut Vec<Trial>,
+    work: &mut Work,
+) {
+    let Some(Rollback {
+        edits,
+        ack: Some(ack),
+    }) = &record.rollback
+    else {
+        return;
+    };
+    for index in 0..trials.len() {
+        let Some(trial) = trials.get(index).copied() else {
+            continue;
+        };
+        let Some(from) = record.start.get(trial.start) else {
+            continue;
+        };
+        if from.applied > *ack || trial.applied <= *ack {
+            continue;
+        }
+        context.kept.undo_from(trial.applied, &mut work.undone);
+        let world = BlockOverlay {
+            base: context.view.world,
+            blocks: &work.undone,
+        };
+        let view = View::new(&world, context.view.bodies, context.view.tables);
+        let state = &from.state;
+        let dimensions = dimensions_of(state.pose, &state.attributes);
+        let bounds = Aabb::of_body(state.position, dimensions.width, dimensions.height);
+        let entity = QueryEntity {
+            key: BirthKey::new(0, SourceKind::Player, 0, 0),
+            position: state.position,
+            fall_distance: state.fall_distance,
+            shift: state.shift0,
+            powder_snow_solid: false,
+            walks_on_powder_snow: false,
+        };
+        work.colliders.clear();
+        query_colliders(
+            view,
+            &entity,
+            bounds,
+            None,
+            QueryVariant::Collision,
+            &mut work.colliders,
+        );
+        for edit in edits {
+            let meets = work.colliders.iter().any(|collider| {
+                matches!(collider.source, ColliderSource::Block { pos, .. } if pos == edit.block)
+            });
+            if meets {
+                trials.push(Trial {
+                    position: Some(edit.position),
+                    ..trial
+                });
+            }
+        }
     }
 }
 

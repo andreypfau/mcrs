@@ -11,6 +11,7 @@ mod outcome;
 mod prediction;
 mod push_bound;
 mod pusher;
+mod rollback;
 
 pub use change::Change;
 pub use client_tick::ChangeStates;

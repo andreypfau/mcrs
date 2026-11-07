@@ -445,21 +445,60 @@ fn pred_019_too_many_pushers_make_the_tick_coarse_and_the_next_position_resyncs(
     }
 }
 
-#[test]
-fn lat_007_the_client_moves_itself_back_when_its_edit_fails() {
-    let mut session = Session::new();
-    session.prediction.block_requested();
-    let back = session.client.position;
+/// The client breaks the carpet `at`, walks two ticks, and gets the refusal: the kept carpet
+/// and the `block_changed_ack`. It returns the tick after the ack in which the client moves back
+/// to `back`.
+fn refused_break(session: &mut Session, at: BlockPos, back: DVec3) -> Outcome {
+    let carpet = session.fixture.blocks.carpet;
+    session.client_world.set(at, BlockStateId::AIR);
     session.step(FORWARD);
     session.step(FORWARD);
+    session.send(Change::Block {
+        at,
+        old: carpet,
+        new: carpet,
+    });
     session.send(Change::BlockAck);
-    session.client.position = back;
     let window = ChangeStates {
         applied: 0,
-        seen: 1,
+        seen: 2,
     };
-    let outcome = session.tick(FORWARD, window, 1, DVec3::ZERO, |_| {});
+    session.client_world.set(at, carpet);
+    session.client_applied = 2;
+    session.client.position = back;
+    session.tick(FORWARD, window, 2, DVec3::ZERO, |_| {})
+}
+
+/// A player on a carpet at the origin cell, which also holds a carpet far away.
+fn on_carpets() -> (Session, BlockPos, BlockPos) {
+    let mut session = Session::new();
+    let carpet = session.fixture.blocks.carpet;
+    let (under, far) = (BlockPos::new(0, 0, 0), BlockPos::new(10, 0, 10));
+    for at in [under, far] {
+        session.fixture.world.set(at, carpet);
+        session.client_world.set(at, carpet);
+    }
+    (session, under, far)
+}
+
+#[test]
+fn lat_007_the_client_moves_back_to_its_first_request_when_the_kept_state_meets_its_box() {
+    let (mut session, under, _) = on_carpets();
+    session.prediction.block_requested(under);
+    let first = session.client.position;
+    session.step(FORWARD);
+    session.prediction.block_requested(under);
+    let outcome = refused_break(&mut session, under, first);
     assert!(passes(outcome), "{outcome:?}");
+}
+
+#[test]
+fn lat_007_a_client_does_not_move_back_when_no_kept_state_meets_its_box() {
+    let (mut session, _, far) = on_carpets();
+    session.prediction.block_requested(far);
+    let first = session.client.position;
+    let outcome = refused_break(&mut session, far, first);
+    assert!(outcome.offset.is_some(), "{outcome:?}");
 }
 
 #[test]
