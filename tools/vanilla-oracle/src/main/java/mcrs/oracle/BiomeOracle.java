@@ -79,7 +79,7 @@ public final class BiomeOracle {
                 new Column(2L, 20, -3)
             )
         );
-        RandomState borderState = RandomState.create(noises, BORDER_SEED, settings.value());
+        RandomState borderState = RandomState.createForTesting(noises, BORDER_SEED, settings.value());
         for (Column border : findBorders(biomeSource, borderState, columns)) {
             System.out.println("border chunk " + border.chunkX() + "," + border.chunkZ() + " at seed " + border.seed());
             columns.add(border);
@@ -92,7 +92,7 @@ public final class BiomeOracle {
             Bin.i32(out, SharedConstants.getCurrentVersion().dataVersion().version());
             Bin.i32(out, columns.size());
             for (Column column : columns) {
-                RandomState randomState = RandomState.create(noises, column.seed(), settings.value());
+                RandomState randomState = RandomState.createForTesting(noises, column.seed(), settings.value());
                 ProtoChunk chunk = fillBiomes(generator, containers, randomState, column.chunkX(), column.chunkZ());
                 write(out, column, chunk);
             }
