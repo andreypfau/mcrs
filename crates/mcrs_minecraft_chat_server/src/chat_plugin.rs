@@ -10,11 +10,18 @@ use mcrs_minecraft_network::event::Received;
 use mcrs_minecraft_protocol::setting::ChatMode;
 use mcrs_minecraft_protocol_game::serverbound::ServerboundChat;
 use mcrs_minecraft_text::{Color, IntoText, RawText, Text, is_allowed_chat_character};
-use tracing::info;
+use tracing::{info, warn};
 
 /// Broadcasts the chat messages of the players as system messages.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct ChatPlugin;
+
+#[derive(Event, Debug)]
+pub struct PlayerChatEvent {
+    pub player: Entity,
+    pub text: Text,
+    pub cancelled: bool,
+}
 
 impl Plugin for ChatPlugin {
     fn build(&self, app: &mut App) {
@@ -29,6 +36,7 @@ fn handle_chat(
     event: On<Received<ServerboundChat<'static>>>,
     sender_query: Query<(&GameProfile, Option<&ClientInfo>, &Owner)>,
     mut packet_writer: MessageWriter<OutboundPlayerPacket>,
+    mut commands: Commands,
 ) {
     let Some(pkt) = event.packet() else {
         return;
@@ -53,17 +61,34 @@ fn handle_chat(
         return;
     }
 
-    let text: Text = Text::translate(
-        "chat.type.text",
-        vec![
-            profile.username.clone().into_text(),
-            msg.to_string().into_text(),
-        ],
-    );
-    info!("<{}> {}", profile.username, msg);
+    let text = msg.to_string().into_text();
 
-    let Ok(text) = RawText::from_text(&text) else {
-        return;
+    let mut chat_event = PlayerChatEvent {
+        player: event.entity,
+        text,
+        cancelled: false,
     };
-    packet_writer.write(to_target(PacketTarget::AllPlayers, system_chat(text)));
+
+    let username = profile.username.clone();
+    commands.queue(move |world: &mut World| {
+        world.trigger_ref(&mut chat_event);
+        if chat_event.cancelled {
+            return;
+        }
+        info!("<{}> {:?}", username, chat_event.text);
+        let text: Text = Text::translate(
+            "chat.type.text",
+            vec![username.clone().into_text(), chat_event.text],
+        );
+
+        let text = match RawText::from_text(&text) {
+            Ok(text) => text,
+            Err(err) => {
+                warn!(player = %username, "dropping a chat line that does not encode: {err:?}");
+                return;
+            }
+        };
+
+        world.write_message(to_target(PacketTarget::AllPlayers, system_chat(text)));
+    })
 }
