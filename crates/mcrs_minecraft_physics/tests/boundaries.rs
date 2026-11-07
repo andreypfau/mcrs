@@ -246,7 +246,10 @@ fn rows_spawn_with_reserved_ids_and_despawn_by_id() {
         "both ids are used"
     );
 
-    assert_eq!(rows.despawn_row(first), Some(state(1.0)));
+    assert_eq!(
+        rows.despawn_row(first).map(|row| row.state),
+        Some(state(1.0))
+    );
     assert_eq!(rows.despawn_row(first), None, "the row is gone");
     assert_eq!(rows.ids(), &[second]);
 }

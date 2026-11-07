@@ -215,6 +215,8 @@ pub use tick_player::PlayerInput;
 pub use tick_player::dimensions_of;
 pub use tick_player::tick_player;
 pub use tile_queues::TileQueues;
+pub use tile_rows::Row;
+pub use tile_rows::RowMut;
 pub use tile_rows::TileRows;
 pub use view::View;
 pub use world_border::WorldBorder;
