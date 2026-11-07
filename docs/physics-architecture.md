@@ -1505,13 +1505,12 @@ E1..E8, T1 (any time)   D1 ─ D2 ─ D3 ─ D4 ─ D5 ─ D6 ─ D7
     never closed. The engine does not give the open progress to the kernel yet.
 39. PHY-INP-011, the order and the precision of the push out. Resolved: PHY-INP-011 states the
     f64 offset and the overwrite per axis.
-40. PHY-CMP-013, a player with a saved birth key. Open. The load rule says that a loaded entity
-    keeps its saved key. The table gives a player that joins a new key of the kind `player`. The
-    code keeps the saved key and gives a new key only to a player without one.
-41. PHY-CMP-024, the input of the UUID. Open. The input is the stored key of the parent. Two
-    parents can have equal stored keys after one digest collision upstream. Their children then
-    have equal keys and equal UUIDs, with a chance of about `2^-128`, not `2^-256`. Must the input
-    also hold the UUID of the parent?
-42. PHY-CMP-013, the birth tick across a restart. Open. The game time does not come from the save
-    yet, so the tick count starts again. A new key can then equal a saved key. The birth tick needs
-    a counter that never repeats in one world.
+40. PHY-CMP-013, a player with a saved birth key. Resolved: PHY-CMP-013. A player keeps its saved
+    key at each login and at a respawn; only a player without one gets a key of the kind `player`.
+41. PHY-CMP-024, the input of the UUID. Resolved: PHY-CMP-024. For the kind `entity` the input
+    also holds the UUID of the parent, so a digest collision upstream keeps about `2^-256`.
+42. PHY-CMP-013, the birth tick across a restart. Resolved: PHY-CMP-013. The birth tick is a birth
+    clock of the world: it advances in every server tick, also a frozen one, the save keeps it, and
+    no command changes it. The game time is saved and no command sets it, but it stops while the
+    tick rate is frozen, so it is not the birth tick. A save without the clock starts it at the game
+    time of the save.

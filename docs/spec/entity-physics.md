@@ -2607,7 +2607,7 @@ order-independent rule is the birth key of the entity. The network id is not an 
 an implementation can give network ids in a way that depends on the layout. The birth key has three
 parts, compared in this order:
 
-1. the birth tick: the number of the server tick in which the entity came into existence;
+1. the birth tick: the value of the birth clock of the world in the tick of the birth;
 2. the source key: the key of the parent or of the source, as the table states;
 3. the sequence: the number of the entity among the entities of the same source and tick, from 0.
 
@@ -2618,7 +2618,7 @@ parts, compared in this order:
 | a natural spawn | the kind `spawn`, then the chunk position, then the number of the spawn attempt in that chunk and tick |
 | a load from a save that has no birth key | the kind `load`, then the chunk position, then the position of the entity in the saved list of that chunk |
 | a command | the kind `command`, then the sequence number of the command in the tick |
-| a player that joins or respawns | the kind `player`, then the order of the login or the respawn in that tick |
+| a player that joins with no saved birth key | the kind `player`, then the order of the login in that tick |
 
 The kinds compare in this order: `load`, `player`, `command`, `spawn`, `block`, `entity`. The
 sequence of a source depends only on the order of the work of that source. Thus the birth key does
@@ -2627,6 +2627,25 @@ not depend on the layout, on the thread count or on the network id.
 The birth key is saved with the entity, as data of this implementation. An entity that the
 implementation loads keeps its saved birth key. A change of dimension keeps the birth key. The
 vanilla server ignores this data, and the client never sees it.
+
+A player keeps its saved birth key at each login, and also at a respawn. The player is the same
+entity with the same UUID, so it keeps its place in the order. Only a player without a saved
+birth key gets a new key of the kind `player`.
+
+The birth clock is a counter of each world, shared by all its dimensions, because a key survives a
+change of dimension. It has these properties:
+
+- It increases by 1 at the start of each server tick, also in a tick in which the tick rate is
+  frozen. A command can create an entity in such a tick.
+- The world save keeps its value, as data of this implementation. A load continues from that
+  value.
+- No command changes it.
+- A save without the value starts the clock at the game time of that save.
+
+The birth clock is not the game time and not a clock of `command-time.md`. The game time of the
+reference is saved, and no command sets it. But the game time does not advance while the tick
+rate is frozen, so two ticks can have the same game time. Thus the game time can not be the birth
+tick.
 
 The source key of the kind `entity` contains the birth key of the parent. That key can nest to any
 depth. An implementation can store it in a fixed size, as a digest of 128 bits of the birth key of
@@ -2816,12 +2835,14 @@ birth keys has these steps:
 4. Compare the sequences.
 5. If all these are equal, compare the UUIDs of the two entities, as unsigned integers of 128 bits.
    The implementation must make the UUID when the entity comes into existence. The input is the
-   stored key of the parent, the birth tick and the sequence. The function must be independent of
-   the digest function.
+   stored key of the entity. For the kind `entity`, the input also holds the UUID of the parent.
+   The function must be independent of the digest function.
 6. If the UUIDs are also equal, the order of the two entities is not specified.
 
 Step 6 occurs only when two independent functions of 128 bits both collide. Its probability for one
-pair is about `2^-256`.
+pair is about `2^-256`. Two children can have equal stored keys because the digests of their
+parents collide. Their UUIDs then differ, unless the UUIDs of the parents are also equal. Thus a
+collision upstream does not raise the probability of step 6 to `2^-128`.
 
 ## 12. Out of scope
 
