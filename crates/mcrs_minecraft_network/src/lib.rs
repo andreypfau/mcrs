@@ -97,7 +97,7 @@ impl SwitchMode {
         match protocol_version {
             PROTOCOL_26_3 => Some(Self::Immediate),
             PROTOCOL_26_4_SNAPSHOT_5 => Some(Self::Acknowledged),
-            own if own == mcrs_minecraft_core::VERSION.protocol_version => Some(Self::Immediate),
+            own if own == mcrs_minecraft_core::VERSION.protocol_version => Some(Self::Acknowledged),
             _ => None,
         }
     }
