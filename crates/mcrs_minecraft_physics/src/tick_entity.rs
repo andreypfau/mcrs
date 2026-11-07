@@ -172,12 +172,11 @@ fn tick_living<W: CollisionWorld, B: BodyView>(
     let start = body.position;
     let mut dy = 0.0;
     if living.travel == Travel::Open {
-        let base = if entity.no_gravity {
+        mover.gravity = if entity.no_gravity {
             0.0
         } else {
             attributes.gravity
         };
-        mover.gravity = travel::effective_gravity(base, effects.slow_falling, body.velocity.y);
         let input = TravelInput {
             mover: &mover,
             attributes: &attributes,
@@ -189,7 +188,6 @@ fn tick_living<W: CollisionWorld, B: BodyView>(
             jump: living.jump,
             omnidirectional,
             climbs_powder_snow: living.in_powder_snow && living.walks_on_powder_snow,
-            gravity: base,
             player: false,
         };
         let moved = travel::travel(view, &input, body, scratch);
@@ -212,7 +210,7 @@ fn tick_living<W: CollisionWorld, B: BodyView>(
     TickOutcome::default()
 }
 
-/// The mover of a living entity that is not a player; the travel step sets its gravity.
+/// The mover of a living entity that is not a player, with no gravity.
 fn living_mover(
     key: BirthKey,
     side: Side,

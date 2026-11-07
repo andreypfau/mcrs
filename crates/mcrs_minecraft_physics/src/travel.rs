@@ -29,6 +29,7 @@ const CLIMB_UP: f64 = 0.2;
 /// What the travel step of a living entity reads besides its body.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) struct TravelInput<'a> {
+    /// The mover, with its gravity before the effect `slow_falling`.
     pub(crate) mover: &'a Mover,
     pub(crate) attributes: &'a MotionAttributes,
     pub(crate) effects: &'a MotionEffects,
@@ -43,8 +44,6 @@ pub(crate) struct TravelInput<'a> {
     pub(crate) omnidirectional: bool,
     /// The entity climbs in this tick as it did inside powder snow in the previous tick.
     pub(crate) climbs_powder_snow: bool,
-    /// The gravity before the effect `slow_falling`.
-    pub(crate) gravity: f64,
     pub(crate) player: bool,
 }
 
@@ -83,11 +82,11 @@ pub(crate) fn travel<W: CollisionWorld, B: BodyView>(
     let velocity = body.velocity;
     let slow_falling = input.effects.slow_falling;
     let mover = Mover {
-        gravity: effective_gravity(input.gravity, slow_falling, velocity.y),
+        gravity: effective_gravity(input.mover.gravity, slow_falling, velocity.y),
         ..*input.mover
     };
     let outcome = move_body::move_body(view, &mover, body, MoverKind::Own, velocity, scratch);
-    let gravity = effective_gravity(input.gravity, slow_falling, body.velocity.y);
+    let gravity = effective_gravity(input.mover.gravity, slow_falling, body.velocity.y);
     if (climb.is_some() || input.climbs_powder_snow)
         && (body.flags.horizontal_collision || input.jump)
     {

@@ -300,6 +300,16 @@ fn srv_008_slow_falling_reads_the_vertical_velocity_before_the_climb() {
 }
 
 #[test]
+fn grv_002_a_slow_falling_player_falls_by_the_capped_gravity() {
+    let mut fixture = on_stone();
+    let mut state = PlayerState::new(DVec3::new(0.5, 10.0, 0.5));
+    state.velocity.y = -0.5;
+    state.effects.slow_falling = true;
+    let next = tick(&mut fixture, &state, Keys::default(), 0.0);
+    assert_eq!(next.velocity.y, (-0.5 - 0.01) * f64::from(0.98_f32));
+}
+
+#[test]
 fn srv_010_a_teleport_rotates_the_velocity_by_the_table() {
     let tables = Tables::new(TestBlocks::new().table);
     let mut state = PlayerState::new(DVec3::new(10.0, 64.0, -3.0));

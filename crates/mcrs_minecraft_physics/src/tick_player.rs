@@ -87,11 +87,6 @@ pub fn tick_player<W: CollisionWorld, B: BodyView>(
     if out.effects.slow_falling || out.effects.levitation.is_some() {
         body.fall_distance = 0.0;
     }
-    let gravity = travel::effective_gravity(
-        attributes.gravity,
-        out.effects.slow_falling,
-        body.velocity.y,
-    );
     let mover = Mover {
         key: BirthKey::new(0, SourceKind::Player, 0, 0),
         width: dimensions.width,
@@ -103,7 +98,7 @@ pub fn tick_player<W: CollisionWorld, B: BodyView>(
         keeps_to_edges: !flight,
         restitution: attributes.bounciness,
         block_bounce_factor: 1.0,
-        gravity,
+        gravity: attributes.gravity,
         vertical_drag: travel::modifier(DRAG, attributes.air_drag_modifier as f32),
         movement_efficiency: Some(attributes.movement_efficiency as f32),
         powder_snow_solid: false,
@@ -123,7 +118,6 @@ pub fn tick_player<W: CollisionWorld, B: BodyView>(
         jump: keys.jump,
         omnidirectional: false,
         climbs_powder_snow: false,
-        gravity: attributes.gravity,
         player: true,
     };
     let kept_y = body.velocity.y;
