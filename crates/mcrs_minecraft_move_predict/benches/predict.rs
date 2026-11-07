@@ -7,7 +7,6 @@ use std::time::Instant;
 
 use criterion::Criterion;
 use criterion::criterion_group;
-use criterion::criterion_main;
 use glam::DVec3;
 use mcrs_minecraft_move_predict::ClientTick;
 use mcrs_minecraft_move_predict::Limits;
@@ -15,14 +14,12 @@ use mcrs_minecraft_move_predict::Prediction;
 use mcrs_minecraft_move_predict::Pusher;
 use mcrs_minecraft_move_validate::Move;
 use mcrs_minecraft_physics::Keys;
-use mcrs_minecraft_physics::NoBodies;
 use mcrs_minecraft_physics::PlayerInput;
 use mcrs_minecraft_physics::PlayerRotation;
 use mcrs_minecraft_physics::PlayerState;
 use mcrs_minecraft_physics::Scratch;
 use mcrs_minecraft_physics::Side;
 use mcrs_minecraft_physics::TestFixture;
-use mcrs_minecraft_physics::View;
 use mcrs_minecraft_physics::tick_player;
 use mcrs_voxel::BlockPos;
 
@@ -86,7 +83,7 @@ fn script(fixture: &TestFixture) -> Vec<(PlayerState, Vec<ClientTick>)> {
         .collect()
 }
 
-fn predict(c: &mut Criterion) {
+fn floor() -> TestFixture {
     let mut fixture = TestFixture::new();
     let stone = fixture.blocks.stone;
     fixture.world.fill(
@@ -95,33 +92,47 @@ fn predict(c: &mut Criterion) {
         stone,
     );
     fixture.world.build_masks(&fixture.tables.collision);
+    fixture
+}
+
+fn fresh(players: &[(PlayerState, Vec<ClientTick>)]) -> Vec<Prediction> {
+    players
+        .iter()
+        .map(|(start, _)| Prediction::new(*start, Limits::default()))
+        .collect()
+}
+
+fn server_tick(
+    fixture: &TestFixture,
+    predictions: &mut [Prediction],
+    players: &[(PlayerState, Vec<ClientTick>)],
+    tick: usize,
+) {
+    for (prediction, (_, ticks)) in predictions.iter_mut().zip(players) {
+        let Some(client_tick) = ticks.get(tick) else {
+            continue;
+        };
+        let outcome = prediction.tick(fixture.view(), &[] as &[Pusher], client_tick);
+        assert!(outcome.offset.is_none(), "an honest client passes");
+        black_box(outcome);
+    }
+}
+
+fn predict(c: &mut Criterion) {
+    let fixture = floor();
     let players = script(&fixture);
-    let fresh = || -> Vec<Prediction> {
-        players
-            .iter()
-            .map(|(start, _)| Prediction::new(*start, Limits::default()))
-            .collect()
-    };
-    let mut predictions = fresh();
+    let mut predictions = fresh(&players);
     let mut tick = 0;
-    let view = View::new(&fixture.world, &NoBodies, &fixture.tables);
     c.bench_function("predict, 10k scripted players, one server tick", |b| {
         b.iter_custom(|iterations| {
             let mut elapsed = Duration::ZERO;
             for _ in 0..iterations {
                 if tick == TICKS {
                     tick = 0;
-                    predictions = fresh();
+                    predictions = fresh(&players);
                 }
                 let started = Instant::now();
-                for (prediction, (_, ticks)) in predictions.iter_mut().zip(&players) {
-                    let Some(client_tick) = ticks.get(tick) else {
-                        continue;
-                    };
-                    let outcome = prediction.tick(view, &[] as &[Pusher], client_tick);
-                    assert!(outcome.offset.is_none(), "an honest client passes");
-                    black_box(outcome);
-                }
+                server_tick(&fixture, &mut predictions, &players, tick);
                 elapsed += started.elapsed();
                 tick += 1;
             }
@@ -135,4 +146,19 @@ criterion_group! {
     config = Criterion::default().sample_size(20).measurement_time(Duration::from_secs(15));
     targets = predict
 }
-criterion_main!(benches);
+
+/// `--ticks <n>` runs the first n server ticks once, for an instruction count under callgrind.
+fn main() {
+    let ticks = std::env::args().skip_while(|argument| argument != "--ticks").nth(1);
+    let Some(ticks) = ticks.and_then(|ticks| ticks.parse::<usize>().ok()) else {
+        benches();
+        Criterion::default().configure_from_args().final_summary();
+        return;
+    };
+    let fixture = floor();
+    let players = script(&fixture);
+    let mut predictions = fresh(&players);
+    for tick in 0..ticks {
+        server_tick(&fixture, &mut predictions, &players, tick);
+    }
+}
