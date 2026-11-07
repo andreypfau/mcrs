@@ -166,7 +166,7 @@ fn a_single_block_gets_its_share_of_the_picks() {
 }
 
 proptest::proptest! {
-    /// The listed positions of a section are the positions whose state ticks, as a scan of the
+    /// The listed positions of a section are the positions whose state ticks, as a model of the
     /// section finds them, after any sequence of sets and fills.
     #[test]
     fn the_listed_positions_are_the_ticking_positions_of_the_section(
@@ -177,10 +177,19 @@ proptest::proptest! {
         host.insert(target, C);
         host.set_random_ticks(table(&Picks { replace: false, ticks: AtomicU32::new(0) }));
         let states = [AIR, A, B, C];
+        let mut model = [C; 4096];
         for (index, state, kind) in writes {
             let local = LocalPos::from_index(index);
             let state = states[state];
             let mut blocks = host.section_mut(target).expect("a writable section");
+            let written = |at: LocalPos| match kind {
+                0 => true,
+                1 => at.x() <= local.x() && at.y() <= local.y() && at.z() <= local.z(),
+                _ => at == local,
+            };
+            for at in LocalPos::all().filter(|&at| written(at)) {
+                model[at.index()] = state;
+            }
             match kind {
                 0 => blocks.fill(state),
                 1 => blocks.fill_box(LocalPos::new(0, 0, 0), local, state),
@@ -191,14 +200,15 @@ proptest::proptest! {
         }
         let mut listed = host.random_ticking(target).to_vec();
         listed.sort_unstable();
-        let scanned: Vec<u16> = LocalPos::all()
-            .filter(|&local| {
-                host.block(at_in(target, local.x().into(), local.y().into(), local.z().into()))
-                    == Ok(A)
-            })
+        for local in LocalPos::all() {
+            let at = at_in(target, local.x().into(), local.y().into(), local.z().into());
+            proptest::prop_assert_eq!(host.block(at), Ok(model[local.index()]));
+        }
+        let modelled: Vec<u16> = LocalPos::all()
+            .filter(|&local| model[local.index()] == A)
             .map(|local| u16::try_from(local.index()).expect("a local index"))
             .collect();
-        proptest::prop_assert_eq!(listed, scanned);
+        proptest::prop_assert_eq!(listed, modelled);
     }
 }
 

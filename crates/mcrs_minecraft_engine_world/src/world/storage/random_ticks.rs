@@ -57,7 +57,7 @@ struct IndexedSection {
 
 impl IndexedSection {
     fn is_listed(&self) -> bool {
-        self.random_ticked && !self.ticking.is_empty()
+        self.random_ticked && !self.ticking.as_slice().is_empty()
     }
 }
 
@@ -223,7 +223,7 @@ impl RandomTickIndex {
                     .map(|section| ListedSection {
                         section: section.pos,
                         // At most 4096 positions.
-                        ticking: section.ticking.len() as u16,
+                        ticking: section.ticking.as_slice().len() as u16,
                     }),
             );
         }

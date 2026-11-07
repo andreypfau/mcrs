@@ -56,16 +56,6 @@ impl TickingPositions {
     pub fn as_slice(&self) -> &[u16] {
         &self.positions
     }
-
-    #[must_use]
-    pub fn len(&self) -> usize {
-        self.positions.len()
-    }
-
-    #[must_use]
-    pub fn is_empty(&self) -> bool {
-        self.positions.is_empty()
-    }
 }
 
 pub(crate) fn local_index(at: LocalPos) -> u16 {
@@ -118,19 +108,8 @@ impl<S: SectionBlocksMut> SectionBlocks for TickingSectionMut<'_, S> {
         self.section.get(at)
     }
 
-    fn uniform(&self) -> Option<BlockStateId> {
-        self.section.uniform()
-    }
-
     fn palette<'s>(&'s self, buffer: &'s mut PaletteBuffer) -> Palette<'s> {
         self.section.palette(buffer)
-    }
-
-    fn for_each<F>(&self, f: F)
-    where
-        F: FnMut(LocalPos, BlockStateId),
-    {
-        self.section.for_each(f);
     }
 }
 
