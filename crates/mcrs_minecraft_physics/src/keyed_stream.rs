@@ -26,4 +26,11 @@ impl KeyedStream {
         }
         ((mix(self.seed) >> 32) % u64::from(bound)) as u32
     }
+
+    /// The uniform value number `draw` of the stream, in `[0, 1)`: 53 random bits, so each value
+    /// is exact in f64 and no draw rounds up to 1.
+    #[must_use]
+    pub fn unit(&self, draw: u64) -> f64 {
+        (mix(self.seed ^ mix(draw)) >> 11) as f64 / (1_u64 << 53) as f64
+    }
 }

@@ -1,6 +1,7 @@
 use mcrs_minecraft_physics::Birth;
 use mcrs_minecraft_physics::BirthKey;
 use mcrs_minecraft_physics::BirthSource;
+use mcrs_minecraft_physics::KeyedStream;
 use mcrs_minecraft_physics::birth_uuid;
 use mcrs_voxel::BlockPos;
 
@@ -70,4 +71,30 @@ fn cmp_024_children_with_equal_stored_keys_differ_by_the_uuid_of_their_parent() 
     );
     assert_eq!((uuid >> 76) & 0xF, 4, "version 4");
     assert_eq!((uuid >> 62) & 0x3, 2, "the variant of RFC 9562");
+}
+
+/// Ten bins of 0.1 over 1000 values, as E54 reads the offsets of 1000 drops.
+fn bins(values: impl Iterator<Item = f64>) -> [u32; 10] {
+    let mut bins = [0; 10];
+    for value in values {
+        assert!((0.0..1.0).contains(&value), "a unit value: {value}");
+        if let Some(bin) = bins.get_mut((value * 10.0) as usize) {
+            *bin += 1;
+        }
+    }
+    bins
+}
+
+#[test]
+fn dev_013_a_keyed_stream_draws_uniform_values_over_keys_and_over_draws() {
+    let over_keys =
+        bins((0..1000).map(|order| KeyedStream::new(&from_block(order, 0, 0), 3).unit(0)));
+    let stream = KeyedStream::new(&from_block(0, 0, 0), 3);
+    let over_draws = bins((0..1000).map(|draw| stream.unit(draw)));
+    for bins in [over_keys, over_draws] {
+        assert!(
+            bins.iter().all(|count| (60..=140).contains(count)),
+            "a uniform distribution puts about 100 values in each bin: {bins:?}"
+        );
+    }
 }

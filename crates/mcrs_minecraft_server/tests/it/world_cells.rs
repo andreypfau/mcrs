@@ -1328,10 +1328,10 @@ fn a_block_that_a_shape_update_destroys_drops_the_items_of_the_rules() {
     let [(id, position)] = items[..] else {
         panic!("one item row: {items:?}");
     };
-    assert_eq!(
-        (position.x, position.z),
-        (3.5, 5.5),
-        "the item starts at the centre of the block"
+    // PHY-CMP-025: 0.25 of random offset, then at most 0.1 per tick for the ten ticks since.
+    assert!(
+        (position.x - 3.5).abs() < 1.25 && (position.z - 5.5).abs() < 1.25,
+        "the item starts at the block: {position}"
     );
     assert!(
         position.y < 120.5,
