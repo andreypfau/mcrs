@@ -522,6 +522,9 @@ pub struct TileRows {                       // SoA; sorted by motion class; moun
 }
 ```
 
+The kernel steps one `EntityState` with its `MotionRow` (`tick_entity`), so B0 stores these two as
+columns next to `id`. B2 splits a column further only where a measurement shows a gain.
+
 - **Row-only entities.** Items, experience orbs and projectiles have no ECS entity. Their cold state
   (item stack, owner, pickup delay end tick, age end tick, projectile owner) lives in side tables
   keyed by `EntityId`. A spawn or a despawn is a row operation in its tile, in parallel over tiles.
@@ -1026,10 +1029,28 @@ pub fn move_body<W: CollisionWorld, B: BodyView>(
 ) -> bool;
 #[must_use] pub fn read_zone(body: &Body, row: &MotionRow, displacement: DVec3) -> Aabb;
 
-/// Writes and claims, binned by target tile.
-pub struct EffectBuffer { bins: SmallVec<[(TileKey, Vec<Keyed<Effect>>); 4]> }
-pub struct Keyed<E> { pub target: BirthKey, pub writer: WriterKey, pub sequence: u32, pub effect: E }
+/// Writes or claims of one task, binned by target tile. `E` is the write or the claim type.
+pub struct EffectBuffer<E> { bins: Vec<EffectBin<E>> }   // a bin: a tile and its entries
+pub struct Keyed<E> {
+    pub target: BirthKey, pub target_id: EntityId, pub writer: WriterKey, pub sequence: u32,
+    pub effect: E,
+}
+/// Per tile: late AI decisions (`T` = a decision), or the gathered bins (`T` = `Keyed<E>`),
+/// taken in the order (target, writer, sequence).
+pub struct TileQueues<T> { tiles: BTreeMap<TileKey, Vec<T>> }
+/// End boxes of the hard colliders per tile; `ready(tile)` is `None` until every collider group
+/// that touches the tile has finished.
+pub struct ColliderEnds { tiles: BTreeMap<TileKey, TileEnds> }
+/// Front and back buffer per tile; `swap` swaps only the tiles whose back buffer was written.
+pub struct BodyGrid { tiles: BTreeMap<TileKey, GridTile> }
+/// Row-only life cycle: `reserve_ids`, `spawn_row`, `despawn_row`.
+pub struct TileRows { state: Vec<EntityState>, motion: Vec<MotionRow>, id: Vec<EntityId>, .. }
 ```
+
+`EffectBuffer` and `TileQueues` are generic: the write, claim and decision types come with the
+steps that fill them (B2, B3, A3), and the kernel never reads them. `Keyed` carries `target_id`
+because the store finds a row by `EntityId` (§4); the order never reads it. `RemovedOverlay` returns
+no masks for a section with a removal, because the masks of the base do not know the removals.
 
 The kernel functions take one `View` in place of the world, the bodies and the tables, and a
 query returns a `SourcedCollider` in place of a tuple. A function with more than seven inputs

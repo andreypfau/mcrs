@@ -83,7 +83,7 @@ impl TestWorld {
             self.blocks.keys().map(|&at| SectionPos::from(at)).collect();
         let mut masks = HashMap::new();
         for section in sections {
-            let origin = BlockPos::new(section.x << 4, section.y << 4, section.z << 4);
+            let origin = section.min_block();
             let built = SectionMasks::from_states(table, 0, |local| {
                 self.get(BlockPos::new(
                     origin.x + i32::from(local.x()),
@@ -123,7 +123,7 @@ impl CollisionWorld for TestWorld {
     type Section<'a> = TestSection<'a>;
 
     fn section(&self, at: SectionPos) -> SectionLookup<TestSection<'_>> {
-        let origin = BlockPos::new(at.x << 4, at.y << 4, at.z << 4);
+        let origin = at.min_block();
         if origin.y + 15 < self.min_y || origin.y > self.max_y {
             return SectionLookup::Outside;
         }
