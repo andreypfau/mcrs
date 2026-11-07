@@ -42,9 +42,9 @@ impl Face {
     fn distance(self, cell: BlockPos, point: DVec3) -> f64 {
         match self {
             Face::West => point.x - f64::from(cell.x),
-            Face::East => f64::from(cell.x) + 1.0 - point.x,
+            Face::East => 1.0 - (point.x - f64::from(cell.x)),
             Face::North => point.z - f64::from(cell.z),
-            Face::South => f64::from(cell.z) + 1.0 - point.z,
+            Face::South => 1.0 - (point.z - f64::from(cell.z)),
         }
     }
 
