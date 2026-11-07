@@ -54,6 +54,7 @@ pub enum NetworkSet {
     RefreshStatus,
 }
 use bytes::Bytes;
+use mcrs_minecraft_move_validate::Verdict;
 
 #[cfg(all(feature = "bevy", not(target_family = "wasm")))]
 pub(crate) use server::SharedNetworkState;
@@ -70,6 +71,9 @@ pub struct ReceivedPacket {
     pub timestamp: Instant,
     pub id: i32,
     pub payload: Bytes,
+    /// Layer 0 of the movement checks, which the reader runs for a frame of the play state
+    /// once [`RawConnection::check_play_moves`] asks for it.
+    pub verdict: Option<Verdict>,
 }
 
 /// When each side of a login switches compression on, fixed by the protocol version of the

@@ -4182,6 +4182,7 @@ dependencies = [
  "mcrs_minecraft_game_registries",
  "mcrs_minecraft_heightmap",
  "mcrs_minecraft_item",
+ "mcrs_minecraft_move_validate",
  "mcrs_minecraft_nbt",
  "mcrs_minecraft_network",
  "mcrs_minecraft_physics",
@@ -4572,6 +4573,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "mcrs_minecraft_move_validate"
+version = "0.5.8"
+dependencies = [
+ "criterion",
+ "glam",
+ "mcrs_minecraft_protocol",
+]
+
+[[package]]
 name = "mcrs_minecraft_nbt"
 version = "0.5.8"
 dependencies = [
@@ -4595,6 +4605,7 @@ dependencies = [
  "bytes",
  "js-sys",
  "mcrs_minecraft_core",
+ "mcrs_minecraft_move_validate",
  "mcrs_minecraft_network",
  "mcrs_minecraft_protocol",
  "mcrs_minecraft_resource",

@@ -88,6 +88,7 @@ mcrs_minecraft_engine_server = { path = "crates/mcrs_minecraft_engine_server", d
 mcrs_voxel = { path = "crates/mcrs_voxel" }
 mcrs_minecraft_physics = { path = "crates/mcrs_minecraft_physics" }
 mcrs_minecraft_collision_table = { path = "crates/mcrs_minecraft_collision_table" }
+mcrs_minecraft_move_validate = { path = "crates/mcrs_minecraft_move_validate" }
 mcrs_engine_link = { path = "crates/mcrs_engine_link" }
 mcrs_minecraft_replication = { path = "crates/mcrs_minecraft_replication" }
 mcrs_engine_muxer = { path = "crates/mcrs_engine_muxer" }

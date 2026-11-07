@@ -44,7 +44,7 @@ pub fn run_pending_flush(world: &mut World) {
 
 use bytes::{BufMut, Bytes, BytesMut};
 use mcrs_minecraft_network::inbound_rate::{InboundPacketRate, InboundRateLimit};
-use mcrs_minecraft_network::metrics::{BridgeTelemetry, PacketDispatcher, PacketKind};
+use mcrs_minecraft_network::metrics::{BridgeTelemetry, Malformed, PacketDispatcher, PacketKind};
 use mcrs_minecraft_network::{
     ConnectionState, Instant, RawConnection, ServerSideConnection, SharedAppend, SharedFrames,
     WriterWakes,
@@ -62,11 +62,11 @@ use crate::bus::{InboundPlayerPacket, OutboundPlayerAttached, OutboundPlayerPack
 use crate::bus::{PacketPayload, PacketPriority, PacketTarget};
 use crate::muxer::bridge_queue::{EncodedPacket, Need, OutboundQueue, Queued, QueuedPacket};
 use crate::muxer::dim_inputs::DimInputs;
-use crate::muxer::move_check::{MoveCheck, check_move};
 use crate::muxer::probes::Probes;
 use crate::muxer::session::{HostAnchorRef, PendingInbound, SessionConnection};
 use mcrs_minecraft_engine_world::session::{Place, Session, SessionAnchors, SessionPlacement};
 use mcrs_minecraft_engine_world::world::channels::MAX_HELD_SERVERBOUND;
+use mcrs_minecraft_move_validate::Verdict;
 
 /// Gives each new connection its `OutboundQueue`, which the network crate cannot name.
 pub fn attach_outbound_queue(add: On<Add, ServerSideConnection>, mut commands: Commands) {
@@ -754,9 +754,20 @@ pub fn bridge_inbound(
                                 break;
                             }
                         };
-                    if check_move(pkt.id, &pkt.payload) == MoveCheck::NotFinite {
-                        conn.disconnect(ConnectionState::Game, MoveCheck::reason())
-                            .ok();
+                    if let Some(Verdict::Disconnect(refused)) = pkt.verdict {
+                        match refused.translation_key() {
+                            Some(key) => {
+                                conn.disconnect(ConnectionState::Game, Text::translate(key, []))
+                                    .ok();
+                            }
+                            None => conn.reject(
+                                ConnectionState::Game,
+                                &Malformed {
+                                    cause: refused.to_string(),
+                                    log: None,
+                                },
+                            ),
+                        }
                         commands.entity(entity).remove::<ServerSideConnection>();
                         break;
                     }

@@ -56,6 +56,7 @@ fn frame_at<P: Encode + Packet>(packet: &P, timestamp: Instant) -> ReceivedPacke
         timestamp,
         id: P::ID,
         payload: body.into(),
+        verdict: None,
     }
 }
 
@@ -86,6 +87,7 @@ fn raw_frame(id: i32) -> ReceivedPacket {
         timestamp: Instant::now(),
         id,
         payload: Bytes::new(),
+        verdict: None,
     }
 }
 
@@ -226,6 +228,7 @@ fn a_login_and_configuration_sent_in_one_burst_reaches_the_game_state() {
         timestamp: Instant::now(),
         id: ServerboundHello::ID,
         payload: Bytes::from(hello),
+        verdict: None,
     })
     .unwrap();
     tx.try_send(frame(&ServerboundLoginAcknowledged)).unwrap();

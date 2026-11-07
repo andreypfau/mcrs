@@ -20,7 +20,6 @@ pub mod entity_replication;
 pub mod game_packets;
 pub mod join;
 pub mod latency;
-pub mod move_check;
 pub mod muxer_link;
 pub mod muxer_placement;
 pub mod muxer_plugin;

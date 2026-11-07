@@ -585,6 +585,7 @@ fn frame<P: Encode + Packet>(packet: &P) -> ReceivedPacket {
         timestamp: mcrs_minecraft_network::Instant::now(),
         id: P::ID,
         payload: body.into(),
+        verdict: None,
     }
 }
 

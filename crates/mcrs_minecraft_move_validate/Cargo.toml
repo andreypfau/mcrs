@@ -1,0 +1,23 @@
+[package]
+name = "mcrs_minecraft_move_validate"
+description = "The movement checks without a world: one serverbound packet, and the stream of one connection"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+doctest = false
+
+[lints]
+workspace = true
+
+# std: mcrs_minecraft_protocol, for the packet ids of the play state
+[dependencies]
+glam.workspace = true
+mcrs_minecraft_protocol.workspace = true
+
+[dev-dependencies]
+criterion = { version = "0.7", default-features = false }
+
+[[bench]]
+name = "layers"
+harness = false

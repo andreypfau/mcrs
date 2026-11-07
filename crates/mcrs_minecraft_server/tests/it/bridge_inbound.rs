@@ -302,6 +302,7 @@ fn frame(id: i32, payload: &[u8]) -> ReceivedPacket {
         timestamp: Instant::now(),
         id,
         payload: bytes::Bytes::copy_from_slice(payload),
+        verdict: None,
     }
 }
 
