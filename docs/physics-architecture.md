@@ -1304,7 +1304,7 @@ working. Steps in one track run in sequence; tracks marked ∥ run in parallel w
 |------|-------|-------|-------|-------|------|
 | K0 | this note | §9 amended: `PlayerState`, raw yaw, sine table, `Side`, the three functions, the boundaries of B0 | PHY-ORD-007, PHY-NUM-005/007, PHY-SHP-012, PHY-SRV-008/010 | review | done in this revision |
 | K1 | `mcrs_minecraft_physics` | numbers (f64 with the f32 list), sine table, f64 boxes, shapes with grid lines, scan order, the collision algorithm, step-up, the move procedure, flags, bounce, `query_colliders`, `resolve`, `intersects` | PHY-NUM-001..007, PHY-BOX-001..006, PHY-SHP-001..013, PHY-COL-001..005, PHY-STP-001..005, PHY-MOV-001..004, PHY-FLG-001..005, PHY-RST-001..004 | property PHY-INV-001..013 (10^6 cases each); kernel PHY-COL-005, PHY-STP-005, PHY-NUM-005 entries, slab and carpet grid lines, scan order; `HashMap` test world | all tests pass; benches within 1.5× of §12.4 |
-| K2 | `mcrs_minecraft_collision_table` | build `CollisionTable` from the block definitions: f32 → f64 on the pixel grid, shape classes, grid lines, flags, coarse triggers, the motion rows | PHY-SHP-002, PHY-SHP-005, PHY-GRV-017, PHY-ORD-013 | every corpus state round-trips; the 90,186 corpus coordinates widen exactly; carpet lines 0 and `1/16` on `y`; default friction 0.6F | table built at startup in < 100 ms |
+| K2 | `mcrs_minecraft_collision_table` | build `CollisionTable` from the block definitions: f32 → f64 on the pixel grid, shape classes, grid lines, flags, coarse triggers, the motion rows | PHY-SHP-002, PHY-SHP-005, PHY-GRV-017, PHY-ORD-013 | every corpus state round-trips; the 440,436 corpus coordinates widen exactly; carpet lines 0 and `1/16` on `y`; default friction 0.6F | table built at startup in < 100 ms |
 | K3 | `mcrs_minecraft_physics` | `tick_entity` for walker, item, primed TNT, falling block, orb; rest; in-air batch | PHY-ORD-002, 004, 005, 009, PHY-GRV-001..020, PHY-INP-003, 020, PHY-SKIP-001..007, PHY-RCH-001..005, PHY-FALL-001..003 | parity E1–E8, E15–E20, E28, E32 from `tools/vanilla-oracle` within 1e-6; property: rest equals no rest; batch equals scalar | parity fixtures pass |
 | K4 | `mcrs_minecraft_physics` | push and crowd count; the cap | PHY-PSH-001..007, PHY-CMP-012, 014, 019 | kernel PSH-004/005 bit for bit; property: any row order and task split give equal velocities | E35 within PHY-DEV-004 |
 | K5 | `mcrs_minecraft_physics` | `PlayerState`, `tick_player` with `Side`, `observed_velocity`, `apply_teleport`, the server part in the order of PHY-CMP-023 | PHY-ORD-001, 007, PHY-INP-001..019, PHY-SRV-003, 004, 008, 010, PHY-GRV-009, PHY-CMP-023, PHY-BOX-006 | kernel tests per rule; parity E9–E14, E21–E23 once T1 records them | bit-exact on the recorded ticks |
@@ -1462,3 +1462,12 @@ E1..E8, T1 (any time)   D1 ─ D2 ─ D3 ─ D4 ─ D5 ─ D6 ─ D7
 33. Resolved: MVC-PKT-031. Of the entity packets, only `set_entity_motion`, `set_entity_data` and
     `update_attributes` go to the viewer about itself; they must never be shed and count as
     predicted changes.
+34. Decided: the player spawn info of `login` and `respawn` has one world flag in
+    `26.4-snapshot-7`, not two. We keep the flat world flag and remove the debug world flag.
+    Evidence: snapshot 7 makes debug worlds ordinary editable worlds, and the level of the game
+    also lost its debug flag. The bytes on the wire do not depend on this choice. Experiment:
+    record the `login` packet of a vanilla server with `level-type=flat`; the flag must be true.
+35. Open: the density functions `upscale` and `domain_warp` of `26.4-snapshot-7`. We read
+    `upscale` and evaluate it only when each axis is `interpolate_linear` and the X and Z cell
+    sizes are equal. The vanilla data uses only this form. The other modes and `domain_warp`
+    need a specification.
