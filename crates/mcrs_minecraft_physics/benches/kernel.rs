@@ -10,7 +10,6 @@ use criterion::Criterion;
 use criterion::criterion_group;
 use criterion::criterion_main;
 use glam::DVec3;
-use mcrs_engine_muxer::EntityId;
 use mcrs_minecraft_physics::Aabb;
 use mcrs_minecraft_physics::BirthKey;
 use mcrs_minecraft_physics::Body;
@@ -18,11 +17,9 @@ use mcrs_minecraft_physics::CollisionSection;
 use mcrs_minecraft_physics::CollisionTable;
 use mcrs_minecraft_physics::CollisionWorld;
 use mcrs_minecraft_physics::EntityState;
-use mcrs_minecraft_physics::GridFlags;
 use mcrs_minecraft_physics::GridRow;
 use mcrs_minecraft_physics::KeyedStream;
 use mcrs_minecraft_physics::Keys;
-use mcrs_minecraft_physics::LANES;
 use mcrs_minecraft_physics::ListedBodies;
 use mcrs_minecraft_physics::Living;
 use mcrs_minecraft_physics::MotionRow;
@@ -32,23 +29,19 @@ use mcrs_minecraft_physics::PlayerRotation;
 use mcrs_minecraft_physics::PlayerState;
 use mcrs_minecraft_physics::Probe;
 use mcrs_minecraft_physics::PushRules;
-use mcrs_minecraft_physics::PushTargets;
-use mcrs_minecraft_physics::QueryEntity;
 use mcrs_minecraft_physics::Scratch;
 use mcrs_minecraft_physics::SectionLookup;
 use mcrs_minecraft_physics::SectionMasks;
 use mcrs_minecraft_physics::Side;
 use mcrs_minecraft_physics::SourceKind;
 use mcrs_minecraft_physics::Tables;
-use mcrs_minecraft_physics::TeamSlot;
 use mcrs_minecraft_physics::TestBlocks;
+use mcrs_minecraft_physics::TestFixture;
 use mcrs_minecraft_physics::View;
 use mcrs_minecraft_physics::WorldBorder;
-use mcrs_minecraft_physics::in_open_air;
 use mcrs_minecraft_physics::push_entity;
 use mcrs_minecraft_physics::resolve;
 use mcrs_minecraft_physics::tick_entity;
-use mcrs_minecraft_physics::tick_in_air;
 use mcrs_minecraft_physics::tick_player;
 use mcrs_voxel::BlockStateId;
 use mcrs_voxel::LocalPos;
@@ -80,7 +73,7 @@ impl DenseWorld {
                             sz * 16 + i32::from(local.z()),
                         );
                     }
-                    let masks = SectionMasks::from_states(table, 0, |local| states[local.index()]);
+                    let masks = SectionMasks::from_states(table, |local| states[local.index()]);
                     sections.push(DenseSection { states, masks });
                 }
             }
@@ -117,14 +110,7 @@ impl CollisionWorld for DenseWorld {
 
 fn probe(position: DVec3, displacement: DVec3, on_ground: bool) -> Probe {
     Probe {
-        entity: QueryEntity {
-            key: BirthKey::new(0, SourceKind::Command, 0, 0),
-            position,
-            fall_distance: 0.0,
-            shift: false,
-            powder_snow_solid: false,
-            walks_on_powder_snow: false,
-        },
+        entity: TestFixture::query_entity(position),
         bounds: Aabb::of_body(position, 0.6, 1.95),
         displacement,
         step_height: 0.6,
@@ -145,11 +131,7 @@ fn bench_resolve(c: &mut Criterion) {
             BlockStateId::AIR
         }
     });
-    let view = View {
-        world: &world,
-        bodies: &NoBodies,
-        tables: &tables,
-    };
+    let view = View::new(&world, &NoBodies, &tables);
     let mut scratch = Scratch::new();
     let top = f64::from(floor + 1);
     let cases = [
@@ -198,11 +180,7 @@ fn bench_entities(c: &mut Criterion) {
             BlockStateId::AIR
         }
     });
-    let view = View {
-        world: &world,
-        bodies: &NoBodies,
-        tables: &tables,
-    };
+    let view = View::new(&world, &NoBodies, &tables);
     let mut scratch = Scratch::new();
     let mut actions = Vec::new();
     let key = BirthKey::new(0, SourceKind::Command, 0, 0);
@@ -258,19 +236,6 @@ fn bench_entities(c: &mut Criterion) {
             )
         })
     });
-    let mut entities = Vec::new();
-    c.bench_function("tick_in_air/item_per_lane", |b| {
-        b.iter(|| {
-            let mut lanes = [item; LANES];
-            let clear = lanes
-                .iter()
-                .all(|lane| in_open_air(view, &item_row, lane, &mut entities));
-            if clear {
-                tick_in_air(&item_row, black_box(&mut lanes));
-            }
-            lanes
-        })
-    });
 }
 
 fn bench_player(c: &mut Criterion) {
@@ -284,11 +249,7 @@ fn bench_player(c: &mut Criterion) {
             BlockStateId::AIR
         }
     });
-    let view = View {
-        world: &world,
-        bodies: &NoBodies,
-        tables: &tables,
-    };
+    let view = View::new(&world, &NoBodies, &tables);
     let mut scratch = Scratch::new();
     let mut actions = Vec::new();
     let mut state = PlayerState::new(DVec3::new(30.5, f64::from(floor + 1), 30.5));
@@ -334,25 +295,11 @@ fn bench_player(c: &mut Criterion) {
 }
 
 fn bench_push(c: &mut Criterion) {
-    let mob = |index: u32, x: f64, z: f64| {
-        let id = EntityId(u64::from(index) + 1);
-        GridRow {
-            position: DVec3::new(x, 0.0, z),
-            half_width: 0.3,
-            height: 1.95,
-            key: BirthKey::new(0, SourceKind::Spawn, 0, index),
-            id,
-            root_vehicle: id,
-            team: TeamSlot::default(),
-            flags: GridFlags::PUSHABLE,
-            push_targets: PushTargets::Each,
-        }
-    };
     let mut scratch = Scratch::new();
     for count in [3_u32, 24] {
         let rows: Vec<GridRow> = (0..=count)
             .map(|index| {
-                mob(
+                TestFixture::mob(
                     index,
                     0.5 + f64::from(index % 5) * 0.1,
                     0.5 + f64::from(index / 5) * 0.1,

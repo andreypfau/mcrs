@@ -51,13 +51,16 @@ impl StateCollision {
 /// The collision shapes, flags and motion data of every block state.
 #[derive(Clone, Debug, PartialEq)]
 pub struct CollisionTable {
-    pub(crate) states: Box<[StateCollision]>,
-    pub(crate) shapes: Box<[Shape]>,
-    pub(crate) inside_boxes: Box<[Aabb]>,
+    pub(crate) states: Vec<StateCollision>,
+    pub(crate) shapes: Vec<Shape>,
+    pub(crate) inside_boxes: Vec<Aabb>,
+    /// The inside shape of powder snow for an entity that falls more than 2.5 blocks.
     pub(crate) powder_snow_deep_inside: BoxRange,
     pub(crate) full_cube: ShapeId,
     pub(crate) scaffolding_top: ShapeId,
+    /// The bottom slab of a scaffolding, from `y = 0` to `2/16`.
     pub(crate) scaffolding_bottom: ShapeId,
+    /// The powder snow shape for an entity that falls more than 2.5 blocks.
     pub(crate) powder_snow_deep: ShapeId,
 }
 
@@ -99,27 +102,9 @@ impl CollisionTable {
             .unwrap_or(&[])
     }
 
-    /// The inside shape of powder snow for an entity that falls more than 2.5 blocks.
-    #[must_use]
-    pub fn powder_snow_deep_inside(&self) -> BoxRange {
-        self.powder_snow_deep_inside
-    }
-
     /// The scaffolding shape for an entity above it: the top slab and the four corner posts.
     #[must_use]
     pub fn scaffolding_top(&self) -> ShapeId {
         self.scaffolding_top
-    }
-
-    /// The bottom slab of a scaffolding, from `y = 0` to `2/16`.
-    #[must_use]
-    pub fn scaffolding_bottom(&self) -> ShapeId {
-        self.scaffolding_bottom
-    }
-
-    /// The powder snow shape for an entity that falls more than 2.5 blocks.
-    #[must_use]
-    pub fn powder_snow_deep(&self) -> ShapeId {
-        self.powder_snow_deep
     }
 }

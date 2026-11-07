@@ -7,7 +7,6 @@
 
 use glam::DVec3;
 use mcrs_minecraft_physics::Aabb;
-use mcrs_minecraft_physics::BirthKey;
 use mcrs_minecraft_physics::Body;
 use mcrs_minecraft_physics::Collider;
 use mcrs_minecraft_physics::MoveFlags;
@@ -21,10 +20,9 @@ use mcrs_minecraft_physics::QueryVariant;
 use mcrs_minecraft_physics::Resolved;
 use mcrs_minecraft_physics::Scratch;
 use mcrs_minecraft_physics::Side;
-use mcrs_minecraft_physics::SourceKind;
 use mcrs_minecraft_physics::SourcedCollider;
-use mcrs_minecraft_physics::Tables;
-use mcrs_minecraft_physics::TestBlocks;
+use mcrs_minecraft_physics::TestFixture;
+use mcrs_minecraft_physics::TestRng;
 use mcrs_minecraft_physics::TestWorld;
 use mcrs_minecraft_physics::View;
 use mcrs_minecraft_physics::collide;
@@ -41,41 +39,13 @@ const CASES: u32 = if cfg!(debug_assertions) {
 const CASES_PER_WORLD: u32 = 64;
 const EPSILON: f64 = 1.0e-7;
 
-struct Rng(u64);
-
-impl Rng {
-    fn next(&mut self) -> u64 {
-        self.0 = self.0.wrapping_add(0x9E37_79B9_7F4A_7C15);
-        let mut z = self.0;
-        z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
-        z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
-        z ^ (z >> 31)
-    }
-
-    fn unit(&mut self) -> f64 {
-        (self.next() >> 11) as f64 / (1_u64 << 53) as f64
-    }
-
-    fn range(&mut self, low: f64, high: f64) -> f64 {
-        low + (high - low) * self.unit()
-    }
-
-    fn below(&mut self, count: usize) -> usize {
-        (self.next() % count as u64) as usize
-    }
-
-    fn chance(&mut self, numerator: u64, denominator: u64) -> bool {
-        self.next() % denominator < numerator
-    }
-
-    /// A displacement component: often zero, sometimes tiny, else up to 2 blocks.
-    fn component(&mut self) -> f64 {
-        match self.below(8) {
-            0 | 1 => 0.0,
-            2 => self.range(-2.0e-7, 2.0e-7),
-            3 => self.range(-0.1, 0.1),
-            _ => self.range(-2.0, 2.0),
-        }
+/// A displacement component: often zero, sometimes tiny, else up to 2 blocks.
+fn component(rng: &mut TestRng) -> f64 {
+    match rng.below(8) {
+        0 | 1 => 0.0,
+        2 => rng.range(-2.0e-7, 2.0e-7),
+        3 => rng.range(-0.1, 0.1),
+        _ => rng.range(-2.0, 2.0),
     }
 }
 
@@ -90,29 +60,21 @@ struct Case {
 }
 
 struct Fixture {
-    blocks: TestBlocks,
-    tables: Tables,
-    rng: Rng,
-    world: TestWorld,
-    scratch: Scratch,
+    base: TestFixture,
+    rng: TestRng,
 }
 
 impl Fixture {
     fn new(seed: u64) -> Self {
-        let blocks = TestBlocks::new();
-        let tables = Tables::new(blocks.table.clone());
         Self {
-            blocks,
-            tables,
-            rng: Rng(seed),
-            world: TestWorld::new(),
-            scratch: Scratch::new(),
+            base: TestFixture::new(),
+            rng: TestRng(seed),
         }
     }
 
     fn reroll_world(&mut self) {
         let mut world = TestWorld::new();
-        let solid = self.blocks.solid_states();
+        let solid = self.base.blocks.solid_states();
         let density = self.rng.below(4) as u64 + 1;
         for z in -3..=3 {
             for y in -3..=3 {
@@ -124,7 +86,7 @@ impl Fixture {
                 }
             }
         }
-        self.world = world;
+        self.base.world = world;
     }
 
     fn case(&mut self, index: u32) -> Case {
@@ -142,17 +104,9 @@ impl Fixture {
         if rng.chance(1, 3) {
             position.y = position.y.round();
         }
-        let entity = QueryEntity {
-            key: BirthKey::new(0, SourceKind::Command, 0, 0),
-            position,
-            fall_distance: 0.0,
-            shift: false,
-            powder_snow_solid: false,
-            walks_on_powder_snow: false,
-        };
-        let displacement = DVec3::new(rng.component(), rng.component(), rng.component());
+        let displacement = DVec3::new(component(rng), component(rng), component(rng));
         Case {
-            entity,
+            entity: TestFixture::query_entity(position),
             bounds: Aabb::of_body(position, width, height),
             width,
             height,
@@ -163,27 +117,12 @@ impl Fixture {
     }
 
     fn view(&self) -> View<'_, TestWorld, NoBodies> {
-        View {
-            world: &self.world,
-            bodies: &NoBodies,
-            tables: &self.tables,
-        }
+        self.base.view()
     }
 
     fn resolve(&mut self, case: &Case) -> Resolved {
-        let probe = Probe {
-            entity: case.entity,
-            bounds: case.bounds,
-            displacement: case.displacement,
-            step_height: case.step_height,
-            on_ground: case.on_ground,
-        };
-        let view = View {
-            world: &self.world,
-            bodies: &NoBodies,
-            tables: &self.tables,
-        };
-        resolve(view, &probe, &mut self.scratch)
+        let view = View::new(&self.base.world, &NoBodies, &self.base.tables);
+        resolve(view, &probe(case), &mut self.base.scratch)
     }
 
     fn colliders(&self, case: &Case, query: Aabb) -> Vec<Collider> {
@@ -210,10 +149,10 @@ impl Fixture {
         let shrunk = bounds.deflate(EPSILON);
         colliders
             .iter()
-            .any(|collider| collider.intersects(&self.tables.collision, &shrunk))
+            .any(|collider| collider.intersects(&self.base.tables.collision, &shrunk))
     }
 
-    fn mover(&self, case: &Case) -> Mover {
+    fn mover(case: &Case) -> Mover {
         Mover {
             key: case.entity.key,
             width: case.width,
@@ -244,6 +183,16 @@ impl Fixture {
             },
             ..Body::default()
         }
+    }
+}
+
+fn probe(case: &Case) -> Probe {
+    Probe {
+        entity: case.entity,
+        bounds: case.bounds,
+        displacement: case.displacement,
+        step_height: case.step_height,
+        on_ground: case.on_ground,
     }
 }
 
@@ -325,7 +274,7 @@ fn inv_004_005_step_up_lifts_within_the_height_and_gains_distance() {
 #[test]
 fn inv_006_007_on_ground_after_a_landing() {
     run(6, |fixture, case| {
-        let mover = fixture.mover(case);
+        let mover = Fixture::mover(case);
         let mut body = Fixture::body(case);
         let colliders = fixture.neighbourhood(case);
         let outcome = move_body(
@@ -347,7 +296,7 @@ fn inv_006_007_on_ground_after_a_landing() {
         let bottom = case.bounds.min.y + r.y;
         let mut lines = Vec::new();
         let near = colliders.iter().any(|collider| {
-            collider.write_y_lines(&fixture.tables.collision, &mut lines);
+            collider.write_y_lines(&fixture.base.tables.collision, &mut lines);
             lines.iter().any(|line| (line - bottom).abs() <= EPSILON)
         });
         assert!(near, "on ground at {bottom} with no grid line under it");
@@ -374,7 +323,7 @@ fn inv_009_collider_order_changes_little() {
         if colliders.len() < 2 {
             return;
         }
-        let table = &fixture.tables.collision;
+        let table = &fixture.base.tables.collision;
         let ordered = collide(table, &colliders, case.bounds, case.displacement);
         colliders.reverse();
         let rotate = fixture.rng.below(colliders.len());
@@ -394,19 +343,8 @@ fn inv_010_no_collider_moves_the_whole_request() {
     let empty = TestWorld::new();
     for index in 0..CASES {
         let case = fixture.case(index);
-        let probe = Probe {
-            entity: case.entity,
-            bounds: case.bounds,
-            displacement: case.displacement,
-            step_height: case.step_height,
-            on_ground: case.on_ground,
-        };
-        let view = View {
-            world: &empty,
-            bodies: &NoBodies,
-            tables: &fixture.tables,
-        };
-        let resolved = resolve(view, &probe, &mut fixture.scratch);
+        let view = View::new(&empty, &NoBodies, &fixture.base.tables);
+        let resolved = resolve(view, &probe(&case), &mut fixture.base.scratch);
         assert_eq!(resolved.displacement, case.displacement);
     }
 }
@@ -417,7 +355,7 @@ fn inv_012_edge_back_off_only_shortens() {
         let mover = Mover {
             shift: true,
             keeps_to_edges: true,
-            ..fixture.mover(case)
+            ..Fixture::mover(case)
         };
         let mut body = Fixture::body(case);
         let d = DVec3::new(
@@ -446,7 +384,7 @@ fn inv_012_edge_back_off_only_shortens() {
 #[test]
 fn inv_013_a_clipped_axis_loses_its_speed() {
     run(13, |fixture, case| {
-        let mover = fixture.mover(case);
+        let mover = Fixture::mover(case);
         let mut body = Fixture::body(case);
         let outcome = move_body(
             fixture.view(),
@@ -472,13 +410,13 @@ fn section_masks_give_the_result_of_reading_every_block() {
     for index in 0..CASES {
         let case = fixture.case(index);
         if index.is_multiple_of(CASES_PER_WORLD) {
-            masked = fixture.world.clone();
-            masked.build_masks(&fixture.tables.collision);
+            masked = fixture.base.world.clone();
+            masked.build_masks(&fixture.base.tables.collision);
         }
         let plain = fixture.resolve(&case);
-        let original = core::mem::replace(&mut fixture.world, masked);
+        let original = core::mem::replace(&mut fixture.base.world, masked);
         let with_masks = fixture.resolve(&case);
-        masked = core::mem::replace(&mut fixture.world, original);
+        masked = core::mem::replace(&mut fixture.base.world, original);
         assert_eq!(plain, with_masks);
     }
 }
@@ -488,14 +426,7 @@ fn flg_004_a_move_off_the_ground_clears_the_missed_search() {
     let fixture = Fixture::new(0);
     let position = DVec3::new(0.5, 10.0, 0.5);
     let case = Case {
-        entity: QueryEntity {
-            key: BirthKey::new(0, SourceKind::Command, 0, 0),
-            position,
-            fall_distance: 0.0,
-            shift: false,
-            powder_snow_solid: false,
-            walks_on_powder_snow: false,
-        },
+        entity: TestFixture::query_entity(position),
         bounds: Aabb::of_body(position, 0.6, 1.8),
         width: 0.6,
         height: 1.8,
@@ -507,7 +438,7 @@ fn flg_004_a_move_off_the_ground_clears_the_missed_search() {
     body.support_missed = true;
     move_body(
         fixture.view(),
-        &fixture.mover(&case),
+        &Fixture::mover(&case),
         &mut body,
         MoverKind::Own,
         case.displacement,

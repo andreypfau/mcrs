@@ -22,13 +22,13 @@ use crate::Side;
 use crate::TickOutcome;
 use crate::Travel;
 use crate::View;
-use crate::air_batch;
 use crate::block_effects;
 use crate::block_effects::EffectContext;
 use crate::block_scan::floor_block;
 use crate::block_scan::state_at;
 use crate::move_body::move_body;
 use crate::move_body::offset_block;
+use crate::open_air;
 use crate::query;
 use crate::rest::same_bits;
 use crate::support::MOVEMENT_OFFSET;
@@ -61,15 +61,11 @@ pub fn tick_entity<W: CollisionWorld, B: BodyView>(
     }
     if cycle && let Rest::Resting(state) = entity.rest {
         entity.body = state;
-        return TickOutcome {
-            fixed_point: true,
-            skipped: true,
-            ..TickOutcome::default()
-        };
+        return TickOutcome::default();
     }
     let before = entity.body;
     let first_action = actions.len();
-    let mut outcome = match row.category {
+    let outcome = match row.category {
         Category::Walker | Category::Omnidirectional => {
             tick_living(view, side, row, entity, actions, scratch)
         }
@@ -86,9 +82,8 @@ pub fn tick_entity<W: CollisionWorld, B: BodyView>(
             (Category::Item, Rest::Awake) => None,
             _ => Some(before),
         };
-        outcome.fixed_point =
-            quiet && reference.is_some_and(|state| same_bits(&state, &entity.body));
-        entity.rest = if outcome.fixed_point {
+        let fixed_point = quiet && reference.is_some_and(|state| same_bits(&state, &entity.body));
+        entity.rest = if fixed_point {
             Rest::Resting(entity.body)
         } else if row.category == Category::Item {
             Rest::Candidate(entity.body)
@@ -284,8 +279,8 @@ fn tick_other<W: CollisionWorld, B: BodyView>(
     actions: &mut Vec<BlockAction>,
     scratch: &mut Scratch,
 ) -> TickOutcome {
-    if side.has_authority() && air_batch::in_open_air(view, row, entity, &mut scratch.entities) {
-        air_batch::air_step(row, entity);
+    if side.has_authority() && open_air::in_open_air(view, row, entity, &mut scratch.entities) {
+        open_air::air_step(row, entity);
         return TickOutcome::default();
     }
     let gravity = if entity.no_gravity { 0.0 } else { row.gravity };

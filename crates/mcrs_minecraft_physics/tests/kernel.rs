@@ -3,7 +3,6 @@ use core::f64::consts::PI;
 use glam::DVec3;
 use mcrs_minecraft_physics::Aabb;
 use mcrs_minecraft_physics::Axis;
-use mcrs_minecraft_physics::BirthKey;
 use mcrs_minecraft_physics::BlockFlags;
 use mcrs_minecraft_physics::BlockMotion;
 use mcrs_minecraft_physics::Collider;
@@ -13,16 +12,15 @@ use mcrs_minecraft_physics::InsideBoxes;
 use mcrs_minecraft_physics::InsideEffect;
 use mcrs_minecraft_physics::NoBodies;
 use mcrs_minecraft_physics::Probe;
-use mcrs_minecraft_physics::QueryEntity;
 use mcrs_minecraft_physics::QueryVariant;
 use mcrs_minecraft_physics::Scratch;
 use mcrs_minecraft_physics::Shape;
 use mcrs_minecraft_physics::SineTable;
-use mcrs_minecraft_physics::SourceKind;
 use mcrs_minecraft_physics::SourcedCollider;
 use mcrs_minecraft_physics::StateSpec;
 use mcrs_minecraft_physics::Tables;
 use mcrs_minecraft_physics::TestBlocks;
+use mcrs_minecraft_physics::TestFixture;
 use mcrs_minecraft_physics::TestWorld;
 use mcrs_minecraft_physics::View;
 use mcrs_minecraft_physics::WorldBorder;
@@ -31,17 +29,6 @@ use mcrs_minecraft_physics::query_colliders;
 use mcrs_minecraft_physics::resolve;
 use mcrs_minecraft_physics::yaw_radians;
 use mcrs_voxel::BlockPos;
-
-fn entity_at(position: DVec3) -> QueryEntity {
-    QueryEntity {
-        key: BirthKey::new(0, SourceKind::Command, 0, 0),
-        position,
-        fall_distance: 0.0,
-        shift: false,
-        powder_snow_solid: false,
-        walks_on_powder_snow: false,
-    }
-}
 
 fn unit_box(min: [f64; 3], max: [f64; 3]) -> Aabb {
     Aabb::new(DVec3::from_array(min), DVec3::from_array(max))
@@ -80,18 +67,6 @@ fn bottom_slab_has_three_lines_on_y_and_an_open_top_cell() {
     assert_eq!(slab.lines(Axis::X), [0.0, 1.0]);
     assert!(slab.is_solid(0, 0, 0));
     assert!(!slab.is_solid(0, 1, 0));
-}
-
-#[test]
-fn carpet_is_one_box_with_its_faces_as_lines() {
-    // One pixel is off the grid of 1/8, the finest grid of one box, so the faces are the lines.
-    let blocks = TestBlocks::new();
-    let class = blocks.table.state(blocks.carpet).class;
-    let mcrs_minecraft_physics::ShapeClass::OneBox(id) = class else {
-        panic!("a carpet is one box, not {class:?}");
-    };
-    let carpet = blocks.table.shape(id).unwrap();
-    assert_eq!(carpet.lines(Axis::Y), [0.0, 1.0 / 16.0]);
 }
 
 #[test]
@@ -178,17 +153,13 @@ fn step_up_takes_the_lowest_height_that_gains_distance() {
     let position = DVec3::new(0.5, 1.0, 0.5);
     let bounds = Aabb::of_body(position, 0.6, 1.95);
     let probe = Probe {
-        entity: entity_at(position),
+        entity: TestFixture::query_entity(position),
         bounds,
         displacement: DVec3::new(1.5, -0.08, 0.0),
         step_height: 0.6,
         on_ground: true,
     };
-    let view = View {
-        world: &world,
-        bodies: &NoBodies,
-        tables: &tables,
-    };
+    let view = View::new(&world, &NoBodies, &tables);
     let resolved = resolve(view, &probe, &mut Scratch::new());
     assert_eq!(
         resolved.displacement,
@@ -276,12 +247,8 @@ fn feet_of_the_old_position_select_the_scaffolding_shape() {
         max_z: 1.5,
     }));
     let query = unit_box([0.2, 0.5, 0.2], [0.8, 1.5, 0.8]);
-    let view = View {
-        world: &world,
-        bodies: &NoBodies,
-        tables: &tables,
-    };
-    let inside = entity_at(DVec3::new(0.5, 0.5, 0.5));
+    let view = View::new(&world, &NoBodies, &tables);
+    let inside = TestFixture::query_entity(DVec3::new(0.5, 0.5, 0.5));
     let mut found = Vec::new();
     query_colliders(
         view,
@@ -349,17 +316,13 @@ fn border_stops_a_box_at_the_rounded_edge() {
     let position = DVec3::new(4.0, 0.0, 0.0);
     let bounds = Aabb::of_body(position, 0.6, 1.8);
     let probe = Probe {
-        entity: entity_at(position),
+        entity: TestFixture::query_entity(position),
         bounds,
         displacement: DVec3::new(2.0, 0.0, 0.0),
         step_height: 0.0,
         on_ground: false,
     };
-    let view = View {
-        world: &world,
-        bodies: &NoBodies,
-        tables: &tables,
-    };
+    let view = View::new(&world, &NoBodies, &tables);
     let resolved = resolve(view, &probe, &mut Scratch::new());
     assert_eq!(resolved.displacement.x, 5.0 - bounds.max.x);
 }
@@ -370,13 +333,9 @@ fn colliders_of(
     query: Aabb,
     variant: QueryVariant,
 ) -> Vec<SourcedCollider> {
-    let view = View {
-        world,
-        bodies: &NoBodies,
-        tables,
-    };
+    let view = View::new(world, &NoBodies, tables);
     let mut found = Vec::new();
-    let entity = entity_at(query.min);
+    let entity = TestFixture::query_entity(query.min);
     query_colliders(view, &entity, query, None, variant, &mut found);
     found
 }

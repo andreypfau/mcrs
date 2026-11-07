@@ -61,16 +61,6 @@ impl Shape {
         matches!(self.cells, Cells::Block(_))
     }
 
-    /// True when the shape goes out of the unit cube on an axis.
-    #[must_use]
-    pub fn is_large(&self) -> bool {
-        Axis::ALL.into_iter().any(|axis| {
-            let lines = self.lines(axis);
-            lines.first().is_some_and(|&low| low < 0.0)
-                || lines.last().is_some_and(|&high| high > 1.0)
-        })
-    }
-
     /// True when the cell is solid. Indices out of the grid are open.
     #[must_use]
     pub fn is_solid(&self, x: usize, y: usize, z: usize) -> bool {

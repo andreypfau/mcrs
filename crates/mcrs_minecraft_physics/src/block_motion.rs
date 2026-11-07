@@ -16,9 +16,3 @@ impl BlockMotion {
         bounce: 0.0,
     };
 }
-
-impl Default for BlockMotion {
-    fn default() -> Self {
-        Self::DEFAULT
-    }
-}

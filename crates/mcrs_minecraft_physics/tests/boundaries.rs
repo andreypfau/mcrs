@@ -21,6 +21,7 @@ use mcrs_minecraft_physics::SourceKind;
 use mcrs_minecraft_physics::Tables;
 use mcrs_minecraft_physics::TeamSlot;
 use mcrs_minecraft_physics::TestBlocks;
+use mcrs_minecraft_physics::TestFixture;
 use mcrs_minecraft_physics::TestWorld;
 use mcrs_minecraft_physics::TileQueues;
 use mcrs_minecraft_physics::TileRows;
@@ -128,24 +129,12 @@ fn an_overlay_reads_removed_blocks_as_air_even_where_the_base_has_masks() {
     };
     let entity = QueryEntity {
         key: key(0),
-        position: DVec3::ZERO,
-        fall_distance: 0.0,
-        shift: false,
-        powder_snow_solid: false,
-        walks_on_powder_snow: false,
+        ..TestFixture::query_entity(DVec3::ZERO)
     };
     let inside = |x: f64| Aabb::new(DVec3::new(x, 0.2, 1.2), DVec3::new(x + 0.6, 0.8, 1.8));
     let mut found = Vec::new();
-    let base = View {
-        world: &world,
-        bodies: &NoBodies,
-        tables: &tables,
-    };
-    let over = View {
-        world: &overlay,
-        bodies: &NoBodies,
-        tables: &tables,
-    };
+    let base = View::new(&world, &NoBodies, &tables);
+    let over = View::new(&overlay, &NoBodies, &tables);
     assert!(
         intersects(base, &entity, inside(1.2), &mut found),
         "the base still holds the block"

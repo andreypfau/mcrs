@@ -165,7 +165,7 @@ pub(crate) fn entity_shape(
             if above && !entity.shift {
                 Some(table.scaffolding_top())
             } else if bottom && feet > f64::from(at.y) - CLIP {
-                Some(table.scaffolding_bottom())
+                Some(table.scaffolding_bottom)
             } else {
                 None
             }
@@ -173,7 +173,7 @@ pub(crate) fn entity_shape(
         ShapeClass::PowderSnow if placement => None,
         ShapeClass::PowderSnow => {
             if entity.fall_distance > 2.5 {
-                Some(table.powder_snow_deep())
+                Some(table.powder_snow_deep)
             } else if entity.powder_snow_solid
                 || (entity.walks_on_powder_snow && above && !entity.shift)
             {

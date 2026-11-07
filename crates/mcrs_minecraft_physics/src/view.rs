@@ -14,3 +14,14 @@ impl<W, B> Clone for View<'_, W, B> {
 }
 
 impl<W, B> Copy for View<'_, W, B> {}
+
+impl<'a, W, B> View<'a, W, B> {
+    #[must_use]
+    pub fn new(world: &'a W, bodies: &'a B, tables: &'a Tables) -> Self {
+        Self {
+            world,
+            bodies,
+            tables,
+        }
+    }
+}

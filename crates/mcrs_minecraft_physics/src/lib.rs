@@ -3,7 +3,6 @@
 //! host implements.
 
 mod aabb;
-mod air_batch;
 mod axis;
 mod birth;
 mod birth_key;
@@ -48,6 +47,7 @@ mod move_path;
 mod mover;
 mod mover_kind;
 mod observed_velocity;
+mod open_air;
 mod piston_limit;
 mod player_facts;
 mod player_state;
@@ -73,6 +73,8 @@ mod tables;
 mod team_slot;
 mod teleport;
 #[cfg(feature = "testing")]
+mod test_fixture;
+#[cfg(feature = "testing")]
 mod test_world;
 mod tick_entity;
 mod tick_outcome;
@@ -87,9 +89,6 @@ mod writer_key;
 mod yzx_pos;
 
 pub use aabb::Aabb;
-pub use air_batch::LANES;
-pub use air_batch::in_open_air;
-pub use air_batch::tick_in_air;
 pub use axis::Axis;
 pub use birth::Birth;
 pub use birth_key::BirthKey;
@@ -152,6 +151,7 @@ pub use mover_kind::MoverKind;
 pub use observed_velocity::Observation;
 pub use observed_velocity::VelocityCandidates;
 pub use observed_velocity::observed_velocity;
+pub use open_air::in_open_air;
 pub use piston_limit::PistonSums;
 pub use piston_limit::limit_piston;
 pub use player_facts::PlayerFacts;
@@ -168,7 +168,6 @@ pub use push::pushes;
 pub use push_targets::PushTargets;
 pub use query::intersects;
 pub use query::query_colliders;
-pub use query::touches;
 pub use query_entity::QueryEntity;
 pub use query_entity::QueryVariant;
 pub use removed_overlay::OverlaySection;
@@ -201,6 +200,10 @@ pub use team_slot::TeamSlot;
 pub use teleport::Relative;
 pub use teleport::Teleport;
 pub use teleport::apply_teleport;
+#[cfg(feature = "testing")]
+pub use test_fixture::TestFixture;
+#[cfg(feature = "testing")]
+pub use test_fixture::TestRng;
 #[cfg(feature = "testing")]
 pub use test_world::TestBlocks;
 #[cfg(feature = "testing")]

@@ -6,7 +6,6 @@ use crate::Aabb;
 use crate::BodyView;
 use crate::Collider;
 use crate::ColliderSource;
-use crate::CollisionTable;
 use crate::CollisionWorld;
 use crate::EntityCollider;
 use crate::QueryEntity;
@@ -15,7 +14,6 @@ use crate::SourcedCollider;
 use crate::View;
 use crate::block_scan;
 use crate::block_scan::ShapeContext;
-use crate::tolerance::CLIP;
 use crate::tolerance::COLLISION;
 
 /// Appends each collider of the query box `query` for the entity, in the order of the collision
@@ -99,13 +97,6 @@ pub fn intersects<W: CollisionWorld, B: BodyView>(
         ControlFlow::Break(())
     })
     .is_break()
-}
-
-/// True when the box, shrunk by `1.0E-5F` on each side, overlaps the collider with a volume that
-/// is more than zero: the intersection test outside the collision algorithm.
-#[must_use]
-pub fn touches(table: &CollisionTable, bounds: &Aabb, collider: &Collider) -> bool {
-    collider.intersects(table, &bounds.deflate(CLIP))
 }
 
 /// Appends the entities that can stop the box in `query`.

@@ -39,15 +39,8 @@ pub enum ContextShape {
 /// Builds a [`CollisionTable`]. The states get their ids in the order of [`Self::push`].
 #[derive(Debug)]
 pub struct CollisionTableBuilder {
-    states: Vec<StateCollision>,
-    shapes: Vec<Shape>,
-    inside_boxes: Vec<Aabb>,
-    powder_snow_deep_inside: BoxRange,
+    table: CollisionTable,
     interned: HashMap<Vec<u64>, ShapeId>,
-    full_cube: ShapeId,
-    scaffolding_top: ShapeId,
-    scaffolding_bottom: ShapeId,
-    powder_snow_deep: ShapeId,
 }
 
 const PIXEL: f64 = 1.0 / 16.0;
@@ -56,35 +49,41 @@ impl CollisionTableBuilder {
     #[must_use]
     pub fn new() -> Self {
         let mut builder = Self {
-            states: Vec::new(),
-            shapes: Vec::new(),
-            inside_boxes: Vec::new(),
-            powder_snow_deep_inside: BoxRange { start: 0, end: 0 },
+            table: CollisionTable {
+                states: Vec::new(),
+                shapes: Vec::new(),
+                inside_boxes: Vec::new(),
+                powder_snow_deep_inside: BoxRange { start: 0, end: 0 },
+                full_cube: ShapeId(0),
+                scaffolding_top: ShapeId(0),
+                scaffolding_bottom: ShapeId(0),
+                powder_snow_deep: ShapeId(0),
+            },
             interned: HashMap::new(),
-            full_cube: ShapeId(0),
-            scaffolding_top: ShapeId(0),
-            scaffolding_bottom: ShapeId(0),
-            powder_snow_deep: ShapeId(0),
         };
-        builder.full_cube = builder
-            .intern(&[unit(DVec3::ZERO, DVec3::ONE)])
+        builder.table.full_cube = builder
+            .intern(&[Aabb::new(DVec3::ZERO, DVec3::ONE)])
             .unwrap_or(ShapeId(0));
         let post = 2.0 * PIXEL;
         let far = 14.0 * PIXEL;
-        let scaffolding_top = [
-            unit(DVec3::new(0.0, far, 0.0), DVec3::ONE),
-            unit(DVec3::ZERO, DVec3::new(post, 1.0, post)),
-            unit(DVec3::new(far, 0.0, 0.0), DVec3::new(1.0, 1.0, post)),
-            unit(DVec3::new(0.0, 0.0, far), DVec3::new(post, 1.0, 1.0)),
-            unit(DVec3::new(far, 0.0, far), DVec3::ONE),
-        ];
-        builder.scaffolding_top = builder.intern(&scaffolding_top).unwrap_or(ShapeId(0));
-        builder.scaffolding_bottom = builder
-            .intern(&[unit(DVec3::ZERO, DVec3::new(1.0, post, 1.0))])
+        builder.table.scaffolding_top = builder
+            .intern(&[
+                Aabb::new(DVec3::new(0.0, far, 0.0), DVec3::ONE),
+                Aabb::new(DVec3::ZERO, DVec3::new(post, 1.0, post)),
+                Aabb::new(DVec3::new(far, 0.0, 0.0), DVec3::new(1.0, 1.0, post)),
+                Aabb::new(DVec3::new(0.0, 0.0, far), DVec3::new(post, 1.0, 1.0)),
+                Aabb::new(DVec3::new(far, 0.0, far), DVec3::ONE),
+            ])
             .unwrap_or(ShapeId(0));
-        let powder_snow_deep = [unit(DVec3::ZERO, DVec3::new(1.0, f64::from(0.9_f32), 1.0))];
-        builder.powder_snow_deep = builder.intern(&powder_snow_deep).unwrap_or(ShapeId(0));
-        builder.powder_snow_deep_inside = builder
+        builder.table.scaffolding_bottom = builder
+            .intern(&[Aabb::new(DVec3::ZERO, DVec3::new(1.0, post, 1.0))])
+            .unwrap_or(ShapeId(0));
+        let powder_snow_deep = [Aabb::new(
+            DVec3::ZERO,
+            DVec3::new(1.0, f64::from(0.9_f32), 1.0),
+        )];
+        builder.table.powder_snow_deep = builder.intern(&powder_snow_deep).unwrap_or(ShapeId(0));
+        builder.table.powder_snow_deep_inside = builder
             .push_inside_boxes(&powder_snow_deep)
             .unwrap_or(BoxRange { start: 0, end: 0 });
         builder
@@ -92,7 +91,7 @@ impl CollisionTableBuilder {
 
     /// Adds a state and returns its id, or `None` when the table is full.
     pub fn push(&mut self, spec: StateSpec<'_>) -> Option<BlockStateId> {
-        let number = u16::try_from(self.states.len()).ok()?;
+        let number = u16::try_from(self.table.states.len()).ok()?;
         let mut flags = spec.flags;
         if spec.boxes.iter().any(leaves_unit_cube) {
             flags |= BlockFlags::LARGE;
@@ -107,34 +106,26 @@ impl CollisionTableBuilder {
             InsideBoxes::Boxes(boxes) => InsideShape::Boxes(self.push_inside_boxes(boxes)?),
             InsideBoxes::Collision => InsideShape::Collision,
         };
-        self.states.push(StateCollision {
+        self.table.states.push(StateCollision {
             class,
             flags,
             inside: spec.inside,
             inside_shape,
             motion: spec.motion,
         });
-        BlockStateId::checked(number, self.states.len())
+        BlockStateId::checked(number, self.table.states.len())
     }
 
     #[must_use]
     pub fn build(self) -> CollisionTable {
-        CollisionTable {
-            states: self.states.into_boxed_slice(),
-            shapes: self.shapes.into_boxed_slice(),
-            inside_boxes: self.inside_boxes.into_boxed_slice(),
-            powder_snow_deep_inside: self.powder_snow_deep_inside,
-            full_cube: self.full_cube,
-            scaffolding_top: self.scaffolding_top,
-            scaffolding_bottom: self.scaffolding_bottom,
-            powder_snow_deep: self.powder_snow_deep,
-        }
+        self.table
     }
 
     fn push_inside_boxes(&mut self, boxes: &[Aabb]) -> Option<BoxRange> {
-        let start = u32::try_from(self.inside_boxes.len()).ok()?;
-        self.inside_boxes.extend_from_slice(boxes);
-        let end = u32::try_from(self.inside_boxes.len()).ok()?;
+        let inside_boxes = &mut self.table.inside_boxes;
+        let start = u32::try_from(inside_boxes.len()).ok()?;
+        inside_boxes.extend_from_slice(boxes);
+        let end = u32::try_from(inside_boxes.len()).ok()?;
         Some(BoxRange { start, end })
     }
 
@@ -142,10 +133,10 @@ impl CollisionTableBuilder {
         let Some(id) = self.intern(boxes) else {
             return ShapeClass::Empty;
         };
-        if id == self.full_cube {
+        if id == self.table.full_cube {
             return ShapeClass::FullCube;
         }
-        match self.shapes.get(id.0 as usize) {
+        match self.table.shape(id) {
             Some(shape) if shape.is_one_box() => ShapeClass::OneBox(id),
             Some(_) => ShapeClass::Compound(id),
             None => ShapeClass::Empty,
@@ -168,8 +159,9 @@ impl CollisionTableBuilder {
             return Some(id);
         }
         let shape = Shape::from_boxes(boxes)?;
-        let id = ShapeId(u32::try_from(self.shapes.len()).ok()?);
-        self.shapes.push(shape);
+        let shapes = &mut self.table.shapes;
+        let id = ShapeId(u32::try_from(shapes.len()).ok()?);
+        shapes.push(shape);
         self.interned.insert(key, id);
         Some(id)
     }
@@ -179,10 +171,6 @@ impl Default for CollisionTableBuilder {
     fn default() -> Self {
         Self::new()
     }
-}
-
-fn unit(min: DVec3, max: DVec3) -> Aabb {
-    Aabb::new(min, max)
 }
 
 fn leaves_unit_cube(bounds: &Aabb) -> bool {

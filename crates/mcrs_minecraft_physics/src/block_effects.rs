@@ -153,8 +153,8 @@ fn inside_boxes<'t, W: CollisionWorld, B: BodyView>(
                 variant: QueryVariant::Collision,
             };
             let deep = entity_shape(table, block, at, &shape_context)
-                .is_some_and(|shape| shape == table.powder_snow_deep());
-            deep.then(|| table.inside_boxes(table.powder_snow_deep_inside()))
+                .is_some_and(|shape| shape == table.powder_snow_deep);
+            deep.then(|| table.inside_boxes(table.powder_snow_deep_inside))
         }
     }
 }

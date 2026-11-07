@@ -6,24 +6,23 @@
 
 use glam::DVec3;
 use mcrs_minecraft_physics::BirthKey;
+use mcrs_minecraft_physics::BlockAction;
 use mcrs_minecraft_physics::Body;
 use mcrs_minecraft_physics::EntityState;
-use mcrs_minecraft_physics::LANES;
 use mcrs_minecraft_physics::Living;
 use mcrs_minecraft_physics::MotionRow;
 use mcrs_minecraft_physics::NoBodies;
 use mcrs_minecraft_physics::Rest;
-use mcrs_minecraft_physics::Scratch;
 use mcrs_minecraft_physics::Side;
 use mcrs_minecraft_physics::SourceKind;
-use mcrs_minecraft_physics::Tables;
 use mcrs_minecraft_physics::TestBlocks;
+use mcrs_minecraft_physics::TestFixture;
+use mcrs_minecraft_physics::TestRng;
 use mcrs_minecraft_physics::TestWorld;
 use mcrs_minecraft_physics::View;
 use mcrs_minecraft_physics::in_open_air;
 use mcrs_minecraft_physics::same_bits;
 use mcrs_minecraft_physics::tick_entity;
-use mcrs_minecraft_physics::tick_in_air;
 use mcrs_voxel::BlockPos;
 use mcrs_voxel::BlockStateId;
 
@@ -34,76 +33,22 @@ const CASES: u32 = if cfg!(debug_assertions) {
 };
 const SERVER: Side = Side::Server { authority: true };
 
-struct Rng(u64);
-
-impl Rng {
-    fn next(&mut self) -> u64 {
-        self.0 = self.0.wrapping_add(0x9E37_79B9_7F4A_7C15);
-        let mut z = self.0;
-        z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
-        z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
-        z ^ (z >> 31)
-    }
-
-    fn range(&mut self, low: f64, high: f64) -> f64 {
-        low + (high - low) * ((self.next() >> 11) as f64 / (1_u64 << 53) as f64)
-    }
-
-    fn below(&mut self, count: usize) -> usize {
-        (self.next() % count as u64) as usize
-    }
+fn floor(world: &mut TestWorld, state: BlockStateId) {
+    world.fill(BlockPos::new(-4, 0, -4), BlockPos::new(4, 0, 4), state);
 }
 
-struct Fixture {
-    blocks: TestBlocks,
-    tables: Tables,
-    world: TestWorld,
-    scratch: Scratch,
-    actions: Vec<mcrs_minecraft_physics::BlockAction>,
-}
-
-impl Fixture {
-    fn new() -> Self {
-        let blocks = TestBlocks::new();
-        let tables = Tables::new(blocks.table.clone());
-        Self {
-            blocks,
-            tables,
-            world: TestWorld::new(),
-            scratch: Scratch::new(),
-            actions: Vec::new(),
-        }
-    }
-
-    fn floor(&mut self, state: BlockStateId) {
-        self.world
-            .fill(BlockPos::new(-4, 0, -4), BlockPos::new(4, 0, 4), state);
-    }
-
-    fn tick(
-        &mut self,
-        row: &MotionRow,
-        entity: &mut EntityState,
-        wake: bool,
-    ) -> mcrs_minecraft_physics::TickOutcome {
-        let view = View {
-            world: &self.world,
-            bodies: &NoBodies,
-            tables: &self.tables,
-        };
-        self.actions.clear();
-        let outcome = tick_entity(
-            view,
-            SERVER,
-            row,
-            entity,
-            wake,
-            &mut self.actions,
-            &mut self.scratch,
-        );
-        entity.age = entity.age.wrapping_add(1);
-        outcome
-    }
+fn tick(fixture: &mut TestFixture, row: &MotionRow, entity: &mut EntityState, wake: bool) {
+    fixture.actions.clear();
+    tick_entity(
+        View::new(&fixture.world, &NoBodies, &fixture.tables),
+        SERVER,
+        row,
+        entity,
+        wake,
+        &mut fixture.actions,
+        &mut fixture.scratch,
+    );
+    entity.age = entity.age.wrapping_add(1);
 }
 
 fn entity(position: DVec3, velocity: DVec3, living: bool) -> EntityState {
@@ -116,11 +61,16 @@ fn entity(position: DVec3, velocity: DVec3, living: bool) -> EntityState {
     EntityState::new(BirthKey::new(0, SourceKind::Command, 0, 0), body, living)
 }
 
-fn velocity_after(fixture: &mut Fixture, row: &MotionRow, living: bool, ticks: u32) -> Vec<DVec3> {
+fn velocity_after(
+    fixture: &mut TestFixture,
+    row: &MotionRow,
+    living: bool,
+    ticks: u32,
+) -> Vec<DVec3> {
     let mut state = entity(DVec3::new(0.5, 3.0, 0.5), DVec3::ZERO, living);
     let mut seen = Vec::new();
     for _ in 0..ticks {
-        fixture.tick(row, &mut state, true);
+        tick(fixture, row, &mut state, true);
         seen.push(state.body.velocity);
     }
     seen
@@ -132,8 +82,8 @@ fn bits(vector: DVec3) -> [u64; 3] {
 
 #[test]
 fn skip_003_rest_states_on_a_flat_block_top() {
-    let mut fixture = Fixture::new();
-    fixture.floor(fixture.blocks.stone);
+    let mut fixture = TestFixture::new();
+    floor(&mut fixture.world, fixture.blocks.stone);
     let walker = velocity_after(&mut fixture, &MotionRow::armor_stand(), true, 40);
     assert_eq!(walker[39].y, -0.0784000015258789);
     assert_eq!(walker[39].y, walker[38].y);
@@ -149,43 +99,40 @@ fn skip_003_rest_states_on_a_flat_block_top() {
 /// The fall distance after one tick in which the entity, with a fall distance of 5, falls into
 /// `block`, and the drop of that tick.
 fn fall_into(row: &MotionRow, living: bool, block: BlockStateId) -> (f64, f64) {
-    let mut fixture = Fixture::new();
-    fixture.floor(fixture.blocks.stone);
+    let mut fixture = TestFixture::new();
+    floor(&mut fixture.world, fixture.blocks.stone);
     fixture.world.set(BlockPos::new(0, 1, 0), block);
     let start = DVec3::new(0.5, 2.2, 0.5);
     let mut state = entity(start, DVec3::new(0.0, -0.5, 0.0), living);
     state.body.fall_distance = 5.0;
-    fixture.tick(row, &mut state, true);
+    tick(&mut fixture, row, &mut state, true);
     (state.body.fall_distance, start.y - state.body.position.y)
 }
 
 #[test]
-fn fall_004_an_item_resets_in_a_tagged_block_and_keeps_the_fall_of_the_tick() {
+fn fall_004_a_resetting_block_keeps_the_fall_of_the_tick() {
     let blocks = TestBlocks::new();
-    let (fall, drop) = fall_into(&MotionRow::item(), false, blocks.sweet_berry_bush);
-    assert!(drop > 0.0, "the item falls");
-    assert_eq!(fall, drop);
-}
-
-#[test]
-fn fall_004_a_walker_in_a_cobweb_keeps_the_fall_of_the_tick() {
-    let blocks = TestBlocks::new();
-    let (fall, drop) = fall_into(&MotionRow::armor_stand(), true, blocks.cobweb);
-    assert!(drop > 0.0, "the walker falls");
-    assert_eq!(fall, drop);
+    for (row, living, block) in [
+        (MotionRow::item(), false, blocks.sweet_berry_bush),
+        (MotionRow::armor_stand(), true, blocks.cobweb),
+    ] {
+        let (fall, drop) = fall_into(&row, living, block);
+        assert!(drop > 0.0, "the {:?} falls", row.category);
+        assert_eq!(fall, drop);
+    }
 }
 
 #[test]
 fn fall_004_the_feet_reset_the_fall_when_the_centre_stays_above_the_block() {
-    let mut fixture = Fixture::new();
-    fixture.floor(fixture.blocks.stone);
+    let mut fixture = TestFixture::new();
+    floor(&mut fixture.world, fixture.blocks.stone);
     fixture
         .world
         .set(BlockPos::new(0, 1, 0), fixture.blocks.sweet_berry_bush);
     let start = DVec3::new(0.5, 2.05, 0.5);
     let mut item = entity(start, DVec3::new(0.0, -0.06, 0.0), false);
     item.body.fall_distance = 5.0;
-    fixture.tick(&MotionRow::item(), &mut item, true);
+    tick(&mut fixture, &MotionRow::item(), &mut item, true);
     let drop = start.y - item.body.position.y;
     assert!(
         item.body.position.y + 0.125 > 2.0,
@@ -201,15 +148,13 @@ fn fall_004_the_feet_reset_the_fall_when_the_centre_stays_above_the_block() {
 fn rch_008_a_thin_inside_shape_acts_only_on_a_centre_that_reaches_it() {
     let tripwire = BlockPos::new(0, 1, 0);
     for (height, acts) in [(1.5, false), (1.05, true)] {
-        let mut fixture = Fixture::new();
+        let mut fixture = TestFixture::new();
         fixture.world.set(tripwire, fixture.blocks.tripwire);
         let mut item = entity(DVec3::new(0.5, height, 0.5), DVec3::ZERO, false);
         item.no_gravity = true;
-        fixture.tick(&MotionRow::item(), &mut item, true);
+        tick(&mut fixture, &MotionRow::item(), &mut item, true);
         assert_eq!(
-            fixture
-                .actions
-                .contains(&mcrs_minecraft_physics::BlockAction::Inside(tripwire)),
+            fixture.actions.contains(&BlockAction::Inside(tripwire)),
             acts,
             "an item at {height}"
         );
@@ -218,27 +163,23 @@ fn rch_008_a_thin_inside_shape_acts_only_on_a_centre_that_reaches_it() {
 
 #[test]
 fn ord_005_a_resting_item_applies_the_blocks_of_its_last_path() {
-    let mut fixture = Fixture::new();
-    fixture.floor(fixture.blocks.stone);
+    let mut fixture = TestFixture::new();
+    floor(&mut fixture.world, fixture.blocks.stone);
     let cobweb = BlockPos::new(0, 2, 0);
     fixture.world.set(cobweb, fixture.blocks.cobweb);
     let mut item = entity(DVec3::new(0.5, 2.1, 0.5), DVec3::new(0.0, -1.2, 0.0), false);
-    fixture.tick(&MotionRow::item(), &mut item, true);
+    tick(&mut fixture, &MotionRow::item(), &mut item, true);
     assert!(item.body.flags.on_ground, "the item lands");
     let landed = item.body.position;
-    fixture.tick(&MotionRow::item(), &mut item, true);
+    tick(&mut fixture, &MotionRow::item(), &mut item, true);
     assert_eq!(item.body.position, landed, "the item rests");
-    assert!(
-        fixture
-            .actions
-            .contains(&mcrs_minecraft_physics::BlockAction::Inside(cobweb))
-    );
+    assert!(fixture.actions.contains(&BlockAction::Inside(cobweb)));
 }
 
 #[test]
 fn grv_002_slow_falling_reads_the_vertical_velocity_after_the_move() {
-    let mut fixture = Fixture::new();
-    fixture.floor(fixture.blocks.stone);
+    let mut fixture = TestFixture::new();
+    floor(&mut fixture.world, fixture.blocks.stone);
     fixture
         .world
         .set(BlockPos::new(0, 3, 0), fixture.blocks.stone);
@@ -246,7 +187,7 @@ fn grv_002_slow_falling_reads_the_vertical_velocity_after_the_move() {
     if let Some(living) = zombie.living.as_mut() {
         living.effects.slow_falling = true;
     }
-    fixture.tick(&MotionRow::zombie(), &mut zombie, true);
+    tick(&mut fixture, &MotionRow::zombie(), &mut zombie, true);
     assert!(
         zombie.body.flags.vertical_collision,
         "the head hits the block"
@@ -255,33 +196,16 @@ fn grv_002_slow_falling_reads_the_vertical_velocity_after_the_move() {
 }
 
 #[test]
-fn grv_007_ground_drag_is_0_546000063419342() {
-    assert_eq!(f64::from(0.6_f32 * 0.91_f32), 0.546000063419342);
-    let mut fixture = Fixture::new();
-    fixture.floor(fixture.blocks.stone);
-    let row = MotionRow::armor_stand();
-    let mut state = entity(
-        DVec3::new(0.5, 1.0, 0.5),
-        DVec3::new(0.0, -0.0784, 0.0),
-        true,
-    );
-    state.body.flags.on_ground = true;
-    fixture.tick(&row, &mut state, true);
-    state.body.velocity.x = 0.5;
-    fixture.tick(&row, &mut state, true);
-    assert_eq!(state.body.velocity.x, 0.5 * 0.546000063419342);
-}
-
-#[test]
 fn inv_011_horizontal_speed_decays_by_the_ground_factor() {
-    let mut fixture = Fixture::new();
+    assert_eq!(f64::from(0.6_f32 * 0.91_f32), 0.546000063419342);
+    let mut fixture = TestFixture::new();
     fixture.world.fill(
         BlockPos::new(-64, 0, -64),
         BlockPos::new(64, 0, 64),
         fixture.blocks.stone,
     );
     let row = MotionRow::armor_stand();
-    let mut rng = Rng(11);
+    let mut rng = TestRng(11);
     for _ in 0..CASES / 20 {
         let mut state = entity(
             DVec3::new(0.5, 1.0, 0.5),
@@ -289,12 +213,12 @@ fn inv_011_horizontal_speed_decays_by_the_ground_factor() {
             true,
         );
         state.body.flags.on_ground = true;
-        fixture.tick(&row, &mut state, true);
+        tick(&mut fixture, &row, &mut state, true);
         state.body.velocity.x = rng.range(-0.5, 0.5);
         state.body.velocity.z = rng.range(-0.5, 0.5);
         for _ in 0..40 {
             let before = state.body.velocity;
-            fixture.tick(&row, &mut state, true);
+            tick(&mut fixture, &row, &mut state, true);
             for (after, start) in [
                 (state.body.velocity.x, before.x),
                 (state.body.velocity.z, before.z),
@@ -311,7 +235,7 @@ fn inv_011_horizontal_speed_decays_by_the_ground_factor() {
 
 /// A random scene: a floor of a random state with random blocks on it, and an entity of a random
 /// category with a random start state.
-fn scene(fixture: &mut Fixture, rng: &mut Rng) -> (MotionRow, EntityState) {
+fn scene(fixture: &mut TestFixture, rng: &mut TestRng) -> (MotionRow, EntityState) {
     let mut world = TestWorld::new();
     let floors = [
         fixture.blocks.stone,
@@ -356,19 +280,19 @@ fn scene(fixture: &mut Fixture, rng: &mut Rng) -> (MotionRow, EntityState) {
 
 #[test]
 fn skip_rest_equals_no_rest() {
-    let mut fixture = Fixture::new();
-    let mut rng = Rng(5);
+    let mut fixture = TestFixture::new();
+    let mut rng = TestRng(5);
     for _ in 0..CASES / 10 {
         let (row, start) = scene(&mut fixture, &mut rng);
         let mut full = start;
         let mut skipping = start;
-        for tick in 0..60 {
-            fixture.tick(&row, &mut full, true);
+        for index in 0..60 {
+            tick(&mut fixture, &row, &mut full, true);
             let wake = rng.below(16) == 0;
-            fixture.tick(&row, &mut skipping, wake);
+            tick(&mut fixture, &row, &mut skipping, wake);
             assert!(
                 same_bits(&full.body, &skipping.body),
-                "tick {tick} of {:?}: {:?} against {:?}",
+                "tick {index} of {:?}: {:?} against {:?}",
                 row.category,
                 full.body,
                 skipping.body
@@ -378,8 +302,8 @@ fn skip_rest_equals_no_rest() {
 }
 
 #[test]
-fn batch_equals_scalar_in_open_air() {
-    let mut fixture = Fixture::new();
+fn the_open_air_path_equals_the_general_path() {
+    let mut fixture = TestFixture::new();
     fixture.world.fill(
         BlockPos::new(0, -64, 0),
         BlockPos::new(1, -64, 1),
@@ -388,7 +312,9 @@ fn batch_equals_scalar_in_open_air() {
     let plain = fixture.world.clone();
     let mut masked = fixture.world.clone();
     masked.build_masks(&fixture.tables.collision);
-    let mut rng = Rng(7);
+    let fast_view = View::new(&masked, &NoBodies, &fixture.tables);
+    let general_view = View::new(&plain, &NoBodies, &fixture.tables);
+    let mut rng = TestRng(7);
     let rows = [
         MotionRow::item(),
         MotionRow::primed_tnt(),
@@ -398,81 +324,45 @@ fn batch_equals_scalar_in_open_air() {
     let mut entities = Vec::new();
     for _ in 0..CASES {
         let row = rows[rng.below(rows.len())];
-        let mut lanes: [EntityState; LANES] = core::array::from_fn(|_| {
-            let position = DVec3::new(
-                rng.range(100.0, 200.0),
-                rng.range(100.0, 200.0),
-                rng.range(100.0, 200.0),
-            );
-            let velocity = DVec3::new(
-                rng.range(-2.0, 2.0),
-                rng.range(-2.0, 2.0),
-                rng.range(-2.0, 2.0),
-            );
-            let mut state = entity(position, velocity, false);
-            state.body.fall_distance = rng.range(0.0, 10.0);
-            state.no_gravity = rng.below(8) == 0;
-            state.phase = rng.below(4) as u8;
-            state.age = rng.below(1000) as u32;
-            if rng.below(4) == 0 {
-                state.body.velocity = DVec3::ZERO;
-                state.rest = Rest::Candidate(state.body);
-            }
-            state
-        });
-        let mut general = lanes;
-        let mut fast = lanes;
-        let fast_view = View {
-            world: &masked,
-            bodies: &NoBodies,
-            tables: &fixture.tables,
-        };
-        let general_view = View {
-            world: &plain,
-            bodies: &NoBodies,
-            tables: &fixture.tables,
-        };
-        for lane in &lanes {
-            assert!(in_open_air(fast_view, &row, lane, &mut entities));
-            assert!(!in_open_air(general_view, &row, lane, &mut entities));
+        let position = DVec3::new(
+            rng.range(100.0, 200.0),
+            rng.range(100.0, 200.0),
+            rng.range(100.0, 200.0),
+        );
+        let velocity = DVec3::new(
+            rng.range(-2.0, 2.0),
+            rng.range(-2.0, 2.0),
+            rng.range(-2.0, 2.0),
+        );
+        let mut general = entity(position, velocity, false);
+        general.body.fall_distance = rng.range(0.0, 10.0);
+        general.no_gravity = rng.below(8) == 0;
+        general.phase = rng.below(4) as u8;
+        general.age = rng.below(1000) as u32;
+        if rng.below(4) == 0 {
+            general.body.velocity = DVec3::ZERO;
+            general.rest = Rest::Candidate(general.body);
         }
-        tick_in_air(&row, &mut lanes);
-        let mut actions = Vec::new();
-        for (single, quick) in general.iter_mut().zip(&mut fast) {
+        let mut fast = general;
+        assert!(in_open_air(fast_view, &row, &fast, &mut entities));
+        assert!(!in_open_air(general_view, &row, &general, &mut entities));
+        for (view, state) in [(general_view, &mut general), (fast_view, &mut fast)] {
             tick_entity(
-                general_view,
+                view,
                 SERVER,
                 &row,
-                single,
+                state,
                 false,
-                &mut actions,
-                &mut fixture.scratch,
-            );
-            tick_entity(
-                fast_view,
-                SERVER,
-                &row,
-                quick,
-                false,
-                &mut actions,
+                &mut fixture.actions,
                 &mut fixture.scratch,
             );
         }
-        for ((batched, single), quick) in lanes.iter().zip(&general).zip(&fast) {
-            assert!(
-                same_bits(&batched.body, &single.body),
-                "{:?} against {:?}",
-                batched.body,
-                single.body
-            );
-            assert!(
-                same_bits(&quick.body, &single.body),
-                "{:?} against {:?}",
-                quick.body,
-                single.body
-            );
-            assert_eq!(batched.rest, single.rest);
-            assert_eq!(quick.rest, single.rest);
-        }
+        assert!(
+            same_bits(&fast.body, &general.body),
+            "{:?} against {:?}",
+            fast.body,
+            general.body
+        );
+        assert_eq!(fast.rest, general.rest);
     }
 }

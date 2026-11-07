@@ -215,11 +215,7 @@ fn replay(view: View<'_, TestWorld, ListedBodies>, entities: &mut [Simulated<'_>
             colliders: view.bodies.colliders.clone(),
             rows,
         };
-        let view = View {
-            world: view.world,
-            bodies: &bodies,
-            tables: view.tables,
-        };
+        let view = View::new(view.world, &bodies, view.tables);
         for (index, entity) in entities.iter_mut().enumerate() {
             if entity.failure.is_some() {
                 continue;
@@ -346,11 +342,7 @@ fn server_entities_follow_the_vanilla_fixtures() {
                 .collect(),
             rows: Vec::new(),
         };
-        let view = View {
-            world: &world,
-            bodies: &bodies,
-            tables: &tables,
-        };
+        let view = View::new(&world, &bodies, &tables);
         // An item rests in a cycle whose phase comes from its network id, which the console does
         // not print: each phase runs, and an item passes when one phase matches.
         let runs: Vec<Vec<Option<(usize, String)>>> = (0..4)

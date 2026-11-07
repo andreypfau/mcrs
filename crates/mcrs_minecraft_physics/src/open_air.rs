@@ -3,7 +3,6 @@ use mcrs_voxel::SectionPos;
 
 use crate::Aabb;
 use crate::BodyView;
-use crate::Category;
 use crate::CollisionSection;
 use crate::CollisionWorld;
 use crate::EntityCollider;
@@ -13,19 +12,14 @@ use crate::MovePath;
 use crate::QueryEntity;
 use crate::Rest;
 use crate::SectionLookup;
-use crate::TickOutcome;
 use crate::View;
 use crate::block_scan::floor_block;
 use crate::query;
-use crate::rest::same_bits;
 use crate::tick_entity::read_zone;
 
-/// The rows of one batch.
-pub const LANES: usize = 4;
-
 /// True when the next tick of the entity meets no block, no collider and no border: the read
-/// zone is in loaded sections of air only. Then [`tick_in_air`] gives the result of
-/// [`tick_entity`](crate::tick_entity) for it.
+/// zone is in loaded sections of air only. Then the open-air step gives the result of the full
+/// tick.
 #[must_use]
 pub fn in_open_air<W: CollisionWorld, B: BodyView>(
     view: View<'_, W, B>,
@@ -67,42 +61,7 @@ pub fn in_open_air<W: CollisionWorld, B: BodyView>(
     scratch_entities.is_empty()
 }
 
-/// One tick of four entities of one category in open air. The result is the result of
-/// [`tick_entity`](crate::tick_entity), bit for bit. A caller that wakes a row sets its rest to
-/// [`Rest::Awake`] first, as the scalar tick does.
-pub fn tick_in_air(row: &MotionRow, lanes: &mut [EntityState; LANES]) -> [TickOutcome; LANES] {
-    let mut outcomes = [TickOutcome::default(); LANES];
-    for (entity, outcome) in lanes.iter_mut().zip(&mut outcomes) {
-        let start = entity.body;
-        air_step(row, entity);
-        let item = row.category == Category::Item;
-        if item
-            && !entity
-                .age
-                .wrapping_add(u32::from(entity.phase))
-                .is_multiple_of(4)
-        {
-            continue;
-        }
-        let reference = match entity.rest {
-            Rest::Candidate(state) if item => Some(state),
-            _ if item => None,
-            _ => Some(start),
-        };
-        outcome.fixed_point = reference.is_some_and(|state| same_bits(&state, &entity.body));
-        entity.rest = if outcome.fixed_point {
-            Rest::Resting(entity.body)
-        } else if item {
-            Rest::Candidate(entity.body)
-        } else {
-            Rest::Awake
-        };
-    }
-    outcomes
-}
-
-/// The physics part of one tick in open air, for one entity: the operations of one lane of
-/// [`tick_in_air`].
+/// The physics part of one tick in open air.
 pub(crate) fn air_step(row: &MotionRow, entity: &mut EntityState) {
     let drag = f64::from(0.98_f32);
     let gravity = if entity.no_gravity { 0.0 } else { row.gravity };
