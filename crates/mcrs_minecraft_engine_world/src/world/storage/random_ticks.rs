@@ -6,7 +6,8 @@ use bevy_ecs::observer::On;
 use bevy_ecs::prelude::{Has, Query, ResMut};
 use bevy_ecs::resource::Resource;
 use mcrs_minecraft_simulation::{
-    ListedSection, RandomTickTable, TickingPositions, TickingSectionMut, block_tile,
+    ListedSection, PRECIPITATION_TILE, RandomTickTable, TickingPositions, TickingSectionMut,
+    block_tile,
 };
 use mcrs_minecraft_volume::{PaletteBuffer, PalettedSection, SectionBlocks, SectionBlocksMut};
 use mcrs_voxel::{ColumnPos, SectionPos};
@@ -41,12 +42,16 @@ pub struct RandomTickIndex {
 
 #[derive(Debug, Default)]
 struct BlockTile {
-    /// Sorted by [`order`].
+    /// Sorted by x, z, then y.
     sections: Vec<IndexedSection>,
     /// Slots of `sections`, sorted: each random-ticked section that holds a ticking position, and
     /// possibly some that no longer do.
     listed: Vec<u16>,
+    /// The first slot of each column of the tile in `sections`, then the end of the last.
+    columns: [u16; COLUMNS + 1],
 }
+
+const COLUMNS: usize = (PRECIPITATION_TILE * PRECIPITATION_TILE) as usize;
 
 #[derive(Debug)]
 struct IndexedSection {
@@ -61,21 +66,56 @@ impl IndexedSection {
     }
 }
 
-fn order(pos: SectionPos) -> (i32, i32, i32) {
-    (pos.x, pos.z, pos.y)
-}
-
 fn tile_of(pos: SectionPos) -> ColumnPos {
     block_tile(ColumnPos::from(pos))
 }
 
+/// The column of `pos` in its tile: ascending in the order of `BlockTile::sections`.
+fn column_in_tile(pos: SectionPos) -> usize {
+    (pos.x.rem_euclid(PRECIPITATION_TILE) * PRECIPITATION_TILE
+        + pos.z.rem_euclid(PRECIPITATION_TILE)) as usize
+}
+
 impl BlockTile {
+    /// The sections of a column lie in ascending y, mostly with no gap, so the slot of a section
+    /// is first guessed from the lowest one: a lookup reads one section, not a binary search.
     fn slot(&self, pos: SectionPos) -> Result<usize, usize> {
-        self.sections
-            .binary_search_by_key(&order(pos), |section| order(section.pos))
+        let column = column_in_tile(pos);
+        let start = self
+            .columns
+            .get(column)
+            .map_or(0, |&start| usize::from(start));
+        let end = self
+            .columns
+            .get(column + 1)
+            .map_or(start, |&end| usize::from(end));
+        let column = self.sections.get(start..end).unwrap_or_default();
+        let guess = column
+            .first()
+            .and_then(|lowest| usize::try_from(pos.y.wrapping_sub(lowest.pos.y)).ok());
+        if let Some(guess) = guess
+            && column.get(guess).is_some_and(|section| section.pos == pos)
+        {
+            return Ok(start + guess);
+        }
+        column
+            .binary_search_by_key(&pos.y, |section| section.pos.y)
+            .map(|slot| start + slot)
+            .map_err(|slot| start + slot)
     }
 
     fn relist(&mut self) {
+        let mut slot = 0;
+        for (column, start) in self.columns.iter_mut().enumerate() {
+            *start = slot;
+            while self
+                .sections
+                .get(usize::from(slot))
+                .is_some_and(|section| column_in_tile(section.pos) == column)
+            {
+                slot += 1;
+            }
+        }
         self.listed.clear();
         self.listed.extend(
             (0u16..)
@@ -210,7 +250,9 @@ impl RandomTickIndex {
             let Some(tile) = self.tiles.get_mut(tile_pos) else {
                 continue;
             };
-            let BlockTile { sections, listed } = tile;
+            let BlockTile {
+                sections, listed, ..
+            } = tile;
             listed.retain(|&slot| {
                 sections
                     .get(usize::from(slot))
@@ -286,6 +328,56 @@ mod tests {
             .resource_mut::<RandomTickIndex>()
             .listed(&mut out);
         out.iter().map(|listed| listed.section).collect()
+    }
+
+    #[test]
+    fn each_section_of_a_tile_answers_with_its_own_ticking_positions() {
+        let grass = BlockStateId::checked(1, 2).expect("a state past air");
+        let mut index = RandomTickIndex::new(RandomTickTable::new([grass], |_| RandomTicks::BLOCK));
+        let grass_section = ChunkBlocks::new(SectionStates::homogeneous(grass));
+        let air = air_section();
+        // Two columns of one tile, inserted out of order, with gaps; grass and air alternate so
+        // that a lookup one slot off answers wrong.
+        let sections = [
+            (5, 2, 9),
+            (4, 1, 8),
+            (5, 0, 9),
+            (4, 3, 8),
+            (5, -3, 9),
+            (4, -1, 8),
+        ];
+        let ticks = |y: i32| y.rem_euclid(2) == 0;
+        for (x, y, z) in sections {
+            let blocks = if ticks(y) { &grass_section } else { &air };
+            index.insert(
+                SectionPos::new(x, y, z),
+                &PalettedSection(&blocks.0.0),
+                true,
+            );
+        }
+        let check = |index: &RandomTickIndex, removed: Option<(i32, i32, i32)>| {
+            for (x, y, z) in sections {
+                let expected = if ticks(y) && Some((x, y, z)) != removed {
+                    4096
+                } else {
+                    0
+                };
+                assert_eq!(
+                    index.ticking(SectionPos::new(x, y, z)).len(),
+                    expected,
+                    "{x} {y} {z}"
+                );
+            }
+            assert!(index.ticking(SectionPos::new(5, 1, 9)).is_empty(), "a gap");
+            assert!(
+                index.ticking(SectionPos::new(6, 0, 9)).is_empty(),
+                "no column"
+            );
+        };
+        check(&index, None);
+
+        index.remove(SectionPos::new(5, 0, 9));
+        check(&index, Some((5, 0, 9)));
     }
 
     #[test]
