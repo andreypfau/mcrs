@@ -49,7 +49,6 @@ fn a_full_chunk_written_by_the_game_loads() {
     let loaded = load(&FULL);
     let chunk = &loaded.chunk;
     assert_eq!(chunk.pos, ColumnPos::new(3, -2));
-    assert_eq!(chunk.min_section_y, -4);
     assert_eq!(chunk.sections.len(), 24);
     assert_eq!(chunk.status, ChunkStatus::Full);
     assert_eq!(chunk.retrogen, None);
@@ -231,7 +230,7 @@ fn every_chunk_written_by_the_game_round_trips_over_what_the_shape_models() {
         ("chunk_retrogen_minimal", RETROGEN_MINIMAL.as_slice()),
     ] {
         let original = load(bytes);
-        let written = write_chunk(&original.chunk, &original.blocks, &original.biomes).unwrap();
+        let written = write_chunk(&original.chunk, -4, &original.blocks, &original.biomes).unwrap();
         let read = load(&written);
         assert_same_chunk(&read, &original, name);
 

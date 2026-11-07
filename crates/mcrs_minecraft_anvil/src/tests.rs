@@ -1109,7 +1109,6 @@ fn the_vanilla_shaped_extra_fields_are_accepted() {
     root.put_list("block_entities", vec![NbtTag::Compound(block_entity)]);
 
     let chunk = read_one(&fixture, ZLIB, &root).unwrap();
-    assert_eq!(chunk.min_section_y, -4);
     assert_eq!(chunk.status, ChunkStatus::Full);
     assert!(chunk.is_light_on);
     assert_eq!(chunk.inhabited_time, 42);
@@ -1184,7 +1183,7 @@ fn a_fluid_tick_that_does_not_load_is_dropped_and_the_rest_survive_a_save() {
         "{dropped:?}"
     );
 
-    let written = crate::write_chunk(&chunk, &blocks, &biomes).unwrap();
+    let written = crate::write_chunk(&chunk, -4, &blocks, &biomes).unwrap();
     let saved: NbtCompound =
         mcrs_minecraft_nbt::from_bytes(std::io::Cursor::new(&written[..])).unwrap();
     let Some(NbtTag::List(ticks)) = saved.get("fluid_ticks") else {
@@ -1377,7 +1376,7 @@ fn structure_starts_load_keyed_by_structure_and_write_back_unchanged() {
             "{what}"
         );
 
-        let written = crate::write_chunk(&chunk, &blocks, &biomes).unwrap();
+        let written = crate::write_chunk(&chunk, -4, &blocks, &biomes).unwrap();
         if case.written_as_read {
             assert_eq!(
                 write::root(&written).get("structures"),
@@ -1722,8 +1721,8 @@ pub(crate) mod write {
         let biomes = translation(&read.biomes, &original.biomes);
         let (a, b) = (&read.chunk, &original.chunk);
         assert_eq!(
-            (a.pos, a.min_section_y, &a.status, a.is_light_on),
-            (b.pos, b.min_section_y, &b.status, b.is_light_on),
+            (a.pos, &a.status, a.is_light_on),
+            (b.pos, &b.status, b.is_light_on),
             "{what}"
         );
         assert_eq!(
@@ -1832,7 +1831,12 @@ pub(crate) mod write {
         assert_eq!(originals.len(), chunks);
         let replaced: Vec<(ColumnPos, Vec<u8>)> = originals
             .iter()
-            .map(|(pos, n)| (*pos, write_chunk(&n.chunk, &n.blocks, &n.biomes).unwrap()))
+            .map(|(pos, n)| {
+                (
+                    *pos,
+                    write_chunk(&n.chunk, -4, &n.blocks, &n.biomes).unwrap(),
+                )
+            })
             .collect();
 
         let mut arrays = 0;
@@ -1885,7 +1889,7 @@ pub(crate) mod write {
         .unwrap();
         let pos = ColumnPos::new(0, 0);
         let original = read_named(&region, pos);
-        let nbt = write_chunk(&original.chunk, &original.blocks, &original.biomes).unwrap();
+        let nbt = write_chunk(&original.chunk, -4, &original.blocks, &original.biomes).unwrap();
         let read = read_named(&rewrite(&region, &[(pos, nbt.clone())], &dir.dir), pos);
         assert_same_chunk(&read, &original, name);
         root(&nbt).get_compound("retrogen").unwrap().clone()
@@ -1928,7 +1932,7 @@ pub(crate) mod write {
         assert!(original.chunk.sections[0].noise_biomes.is_some());
         assert!(original.chunk.sections[1].noise_biomes.is_none());
 
-        let nbt = write_chunk(&original.chunk, &original.blocks, &original.biomes).unwrap();
+        let nbt = write_chunk(&original.chunk, -4, &original.blocks, &original.biomes).unwrap();
         let written = root(&nbt);
         let sections = written.get_list("sections").unwrap();
         let has_key = |index: usize| {
@@ -1957,7 +1961,7 @@ pub(crate) mod write {
             .unwrap();
         let at = BlockPos::new(5, 70, 9);
         original.chunk.set_block(at, torch).unwrap();
-        let nbt = write_chunk(&original.chunk, &original.blocks, &original.biomes).unwrap();
+        let nbt = write_chunk(&original.chunk, -4, &original.blocks, &original.biomes).unwrap();
 
         let read = read_named(&rewrite(&region, &[(pos, nbt)], &dst.dir), pos);
         let section = read.chunk.sections.iter().find(|s| s.y == 70 >> 4).unwrap();
@@ -2014,7 +2018,7 @@ pub(crate) mod write {
             .chunk
             .set_block(BlockPos::new(1, 2, 3), glowstone)
             .unwrap();
-        let nbt = write_chunk(&edited.chunk, &edited.blocks, &edited.biomes).unwrap();
+        let nbt = write_chunk(&edited.chunk, -4, &edited.blocks, &edited.biomes).unwrap();
 
         assert_eq!(
             root(&nbt).get_int("DataVersion"),
@@ -2043,7 +2047,7 @@ pub(crate) mod write {
             .unwrap();
         let at = BlockPos::new(lit.x * 16 + 3, 64, lit.z * 16 + 4);
         edited.chunk.set_block(at, torch).unwrap();
-        let nbt = write_chunk(&edited.chunk, &edited.blocks, &edited.biomes).unwrap();
+        let nbt = write_chunk(&edited.chunk, -4, &edited.blocks, &edited.biomes).unwrap();
         assert!(root(&nbt).get("Heightmaps").is_none());
 
         let read = read_named(&rewrite(&region, &[(lit, nbt)], &dst.dir), lit);
@@ -2090,7 +2094,7 @@ pub(crate) mod write {
         chest.put_int("z", 2 * 16);
         chest.put("noise", NbtTag::ByteArray(noise));
         original.chunk.block_entities.push(chest);
-        let nbt = write_chunk(&original.chunk, &original.blocks, &original.biomes).unwrap();
+        let nbt = write_chunk(&original.chunk, -4, &original.blocks, &original.biomes).unwrap();
 
         let written = rewrite(&region, &[(pos, nbt)], &dst.dir);
         let bytes = std::fs::read(written.path()).unwrap();
@@ -2110,7 +2114,10 @@ pub(crate) mod write {
         let before = std::fs::read(region.path()).unwrap();
         let pos = ColumnPos::new(0, 0);
         let n = read_named(&region, pos);
-        let replaced = [(pos, write_chunk(&n.chunk, &n.blocks, &n.biomes).unwrap())];
+        let replaced = [(
+            pos,
+            write_chunk(&n.chunk, -4, &n.blocks, &n.biomes).unwrap(),
+        )];
 
         let same = region.path().to_path_buf();
         let spelled_otherwise = fixture.dir.join(".").join("r.0.0.mca");
@@ -2144,7 +2151,7 @@ pub(crate) mod write {
         );
         let region = RegionFile::open(fixture.region(0, 0, &single_slot(ZLIB, &root_in))).unwrap();
         let n = read_named(&region, ColumnPos::new(0, 0));
-        let root = root(&write_chunk(&n.chunk, &n.blocks, &n.biomes).unwrap());
+        let root = root(&write_chunk(&n.chunk, -4, &n.blocks, &n.biomes).unwrap());
         let NbtTag::Compound(section) = &root.get_list("sections").unwrap()[0] else {
             panic!("a section is not a compound");
         };
@@ -2166,7 +2173,10 @@ pub(crate) mod write {
         let region = fixture_region(&src, 40);
         let pos = ColumnPos::new(5, 0);
         let n = read_named(&region, pos);
-        let replaced = [(pos, write_chunk(&n.chunk, &n.blocks, &n.biomes).unwrap())];
+        let replaced = [(
+            pos,
+            write_chunk(&n.chunk, -4, &n.blocks, &n.biomes).unwrap(),
+        )];
 
         let written = rewrite(&region, &replaced, &dst.dir);
         let (before, after) = (

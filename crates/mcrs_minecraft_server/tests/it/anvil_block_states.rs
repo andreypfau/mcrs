@@ -93,11 +93,17 @@ fn section_with_light(y: i8, palette: Vec<NbtTag>, sky: u8, block: u8) -> NbtTag
 }
 
 fn chunk(sections: Vec<NbtTag>) -> Result<Chunk, ErrorKind> {
+    chunk_with_y_pos(Some(-4), sections)
+}
+
+fn chunk_with_y_pos(y_pos: Option<i32>, sections: Vec<NbtTag>) -> Result<Chunk, ErrorKind> {
     let mut root = NbtCompound::new();
     root.put_int("DataVersion", mcrs_minecraft_core::VERSION.world_version);
     root.put_int("xPos", 0);
     root.put_int("zPos", 0);
-    root.put_int("yPos", -4);
+    if let Some(y_pos) = y_pos {
+        root.put_int("yPos", y_pos);
+    }
     root.put_string("status", "minecraft:full".to_string());
     root.put_bool("isLightOn", true);
     root.put_long("InhabitedTime", 0);
@@ -333,8 +339,52 @@ fn a_saved_section_decodes_its_blocks_and_nothing_else() {
     assert_eq!(non_air_block_count(blocks), 0);
 }
 
+const OVERWORLD_SECTIONS: std::ops::Range<i32> = -4..20;
+
+fn overworld_sections_with_blocks(chunk: Chunk) -> Vec<i32> {
+    let y_sections: Vec<i32> = OVERWORLD_SECTIONS.collect();
+    column_sections(chunk.sections, &y_sections)
+        .into_iter()
+        .zip(OVERWORLD_SECTIONS)
+        .filter_map(|(section, y)| {
+            section
+                .is_some_and(|(blocks, _)| non_air_block_count(&blocks) > 0)
+                .then_some(y)
+        })
+        .collect()
+}
+
+/// SIM-SCH-018: a missing `Y` is section 0, and no `yPos` is needed to place it.
+fn a_record_without_y_pos_places_a_section_without_y_at_zero() {
+    let stone = corpus().block("minecraft:stone").unwrap();
+    let NbtTag::Compound(mut section) = section(5, vec![default_entry(stone)]) else {
+        unreachable!()
+    };
+    section.child_tags.retain(|(name, _)| name != "Y");
+    let chunk = chunk_with_y_pos(None, vec![NbtTag::Compound(section)])
+        .expect("a record without yPos loads");
+    assert_eq!(overworld_sections_with_blocks(chunk), [0]);
+}
+
+/// SIM-SCH-018: each section goes by its own `Y`, whatever `yPos` says, and a
+/// section above the dimension gives no blocks.
+fn a_wrong_y_pos_moves_no_section_and_an_outside_section_gives_no_blocks() {
+    let stone = corpus().block("minecraft:stone").unwrap();
+    let chunk = chunk_with_y_pos(
+        Some(7),
+        vec![
+            section(OVERWORLD_SECTIONS.end as i8, vec![default_entry(stone)]),
+            section(2, vec![default_entry(stone)]),
+        ],
+    )
+    .expect("a record with another yPos loads");
+    assert_eq!(overworld_sections_with_blocks(chunk), [2]);
+}
+
 #[test]
 fn a_saved_palette_resolves_against_the_corpus() {
+    a_record_without_y_pos_places_a_section_without_y_at_zero();
+    a_wrong_y_pos_moves_no_section_and_an_outside_section_gives_no_blocks();
     every_state_of_a_stair_and_a_note_block_round_trips();
     the_typed_cases_resolve_to_the_ids_the_corpus_states();
     a_decoded_chunk_resolves_every_section_palette();
