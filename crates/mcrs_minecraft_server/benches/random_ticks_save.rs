@@ -35,7 +35,7 @@ use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_simulation::{
     BlockBehaviour, BlockFacts, BlockShard, Cx, Env, Footprints, GameTick, KernelConfig, Kinds,
     PartitionKind, RandomPicks, RandomTickTable, RandomTicks, SemanticOrder, Serial, ShardId,
-    SimulationVolume, StepOutput, StreamSeed, random_step,
+    SimulationVolume, StepOutput, StreamSeed, block_tile, random_step,
 };
 use mcrs_minecraft_volume::PalettedSection;
 use mcrs_minecraft_worldgen_generator::saved::CorpusBlockStates;
@@ -365,7 +365,10 @@ fn load(world: &Path, definitions: &BlockDefinitions, table: &RandomTickTable) -
         ticking as f64 / listed.len().max(1) as f64,
     );
     ecs.insert_resource(index);
-    sections.sort_unstable_by_key(|section| (section.x, section.z));
+    sections.sort_unstable_by_key(|section| {
+        let column = ColumnPos::from(*section);
+        (block_tile(column), column.x, column.z)
+    });
     sections.dedup_by_key(|section| ColumnPos::from(*section));
     Loaded {
         world: ecs,

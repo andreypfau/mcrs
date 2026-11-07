@@ -77,7 +77,8 @@ impl RandomTickTable {
 #[derive(Clone, Copy, Debug)]
 pub struct RandomPicks<'a> {
     /// Sections that take random ticks this step. The columns of the writable ones take
-    /// precipitation picks, so one section of each column is enough.
+    /// precipitation picks, so one section of each column is enough. Sorted by the block tile,
+    /// then x and z of the column, they take no reorder.
     pub sections: &'a [SectionPos],
     /// The sections of `sections` that held a position whose state takes random ticks when the
     /// step started, grouped by block tile, in a stable order. Only a writable one takes picks.

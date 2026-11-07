@@ -45,7 +45,7 @@ use mcrs_minecraft_simulation::{
     Env, Footprints, GameTick, KernelConfig, ListedSection, Message, MessageBody, PartitionKind,
     Phase, PhaseInput, RandomPicks, RandomTickTable, SavedTick, SectionProperties, SectionTicksRef,
     Serial, ShardId, SimulatedSections, Spread, StepAt, StepOutput, StreamSeed, SubTick, TickKind,
-    TickQueue, VanillaOrder,
+    TickQueue, VanillaOrder, block_tile,
 };
 use mcrs_minecraft_volume::PalettedSection;
 use mcrs_voxel::{ColumnPos, SectionPos};
@@ -459,7 +459,10 @@ fn run_block_simulation<B: BlockBehaviour<WorldKinds> + BlockDrops + Send + 'sta
         columns.clear();
         columns.extend(random.sections.iter().copied());
         // The sections feed only precipitation, which takes each column once.
-        columns.sort_unstable_by_key(|section| (section.x, section.z));
+        columns.sort_unstable_by_key(|section| {
+            let column = ColumnPos::from(*section);
+            (block_tile(column), column.x, column.z)
+        });
         columns.dedup_by_key(|section| ColumnPos::from(*section));
     }
     let seed = *simulation.random_seed.get_or_insert_with(|| {
