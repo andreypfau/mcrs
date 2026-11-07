@@ -13,6 +13,7 @@ use mcrs_minecraft_physics::GridRow;
 use mcrs_minecraft_physics::MotionRow;
 use mcrs_minecraft_physics::PushTargets;
 use mcrs_minecraft_physics::TeamSlot;
+use mcrs_minecraft_physics::floor_block;
 
 use crate::tile_at::tile_at;
 
@@ -85,7 +86,7 @@ fn bucket(tile: TileKey, row: &GridRow) -> i32 {
 fn bucket_xz(tile: TileKey, position: DVec3) -> [i32; 2] {
     let width = TILE_WIDTH.get().cast_signed();
     let local = |value: f64, origin: i32| {
-        ((value.floor() as i32).saturating_sub(origin.saturating_mul(width)) / BUCKET)
+        (floor_block(value).saturating_sub(origin.saturating_mul(width)) / BUCKET)
             .clamp(0, BUCKETS - 1)
     };
     [local(position.x, tile.x), local(position.z, tile.z)]

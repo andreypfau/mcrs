@@ -186,9 +186,21 @@ pub(crate) fn entity_shape(
     }
 }
 
-/// The block that holds a coordinate, saturated to the range of `i32`.
-pub(crate) fn floor_block(value: f64) -> i32 {
-    value.floor() as i32
+/// The block that holds a coordinate: `value.floor() as i32` for every `f64`.
+#[must_use]
+pub fn floor_block(value: f64) -> i32 {
+    // Baseline x86_64 has no rounding instruction, so `f64::floor` is a libm call there; other
+    // targets floor and convert in one or two instructions.
+    if cfg!(all(target_arch = "x86_64", not(target_feature = "sse4.1"))) {
+        floor_by_truncation(value)
+    } else {
+        value.floor() as i32
+    }
+}
+
+fn floor_by_truncation(value: f64) -> i32 {
+    let truncated = value as i32;
+    truncated.saturating_sub(i32::from(f64::from(truncated) > value))
 }
 
 /// The block that holds a position.
@@ -248,6 +260,64 @@ impl<S> SectionCache<S> {
         match self.entries.get(slot) {
             Some(Some((_, SectionLookup::Loaded(section)))) => Some(section),
             _ => None,
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn floor_by_truncation_matches_floor_for_every_class_of_f64() {
+        let edges = [
+            0.0,
+            -0.0,
+            0.5,
+            -0.5,
+            1.0e-7,
+            -1.0e-7,
+            f64::MIN_POSITIVE,
+            -f64::MIN_POSITIVE,
+            3.0e7,
+            -3.0e7,
+            -3.0e7 - 0.5,
+            29_999_999.999_999_996,
+            -29_999_999.999_999_996,
+            f64::from(i32::MAX),
+            f64::from(i32::MAX) + 0.5,
+            f64::from(i32::MIN),
+            f64::from(i32::MIN) - 0.5,
+            f64::from(i32::MIN) + 0.5,
+            1.0e300,
+            -1.0e300,
+            f64::INFINITY,
+            f64::NEG_INFINITY,
+            f64::NAN,
+        ];
+        let mut state: u64 = 0x9e37_79b9_7f4a_7c15;
+        let random = (0..1_000_000).flat_map(|_| {
+            state ^= state << 13;
+            state ^= state >> 7;
+            state ^= state << 17;
+            let unit = (state >> 11) as f64 / (1_u64 << 53) as f64;
+            [f64::from_bits(state), unit * 6.0e7 - 3.0e7]
+        });
+        let integers = (-1000..=1000).flat_map(|whole: i32| {
+            let whole = f64::from(whole);
+            [
+                whole,
+                whole.next_down(),
+                whole.next_up(),
+                whole * 30_000.0 + 0.25,
+            ]
+        });
+        for value in edges.into_iter().chain(random).chain(integers) {
+            assert_eq!(
+                floor_by_truncation(value),
+                value.floor() as i32,
+                "{value:e}"
+            );
         }
     }
 }

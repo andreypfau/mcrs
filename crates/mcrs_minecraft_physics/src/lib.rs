@@ -102,6 +102,7 @@ pub use block_flags::BlockFlags;
 pub use block_motion::BlockMotion;
 pub use block_overlay::BlockOverlay;
 pub use block_overlay::OverlaySection;
+pub use block_scan::floor_block;
 pub use body::Body;
 pub use body_grid::BodyGrid;
 pub use body_view::BodyView;
