@@ -136,7 +136,7 @@ fn union_lines(boxes: &[Aabb], axis: Axis) -> Box<[f64]> {
 }
 
 /// The cells of `lines` whose middle is inside the interval.
-fn covered(lines: &[f64], min: f64, max: f64) -> Range<u16> {
+pub(crate) fn covered(lines: &[f64], min: f64, max: f64) -> Range<u16> {
     let mut first = None;
     let mut last = 0;
     for (index, pair) in lines.windows(2).enumerate() {
@@ -186,7 +186,7 @@ fn in_range(range: &Range<u16>, index: usize) -> bool {
     usize::from(range.start) <= index && index < usize::from(range.end)
 }
 
-fn overlaps(cells: &Range<u16>, rows: &Range<usize>) -> bool {
+pub(crate) fn overlaps(cells: &Range<u16>, rows: &Range<usize>) -> bool {
     usize::from(cells.start) < rows.end && rows.start < usize::from(cells.end)
 }
 

@@ -10,6 +10,8 @@ use crate::cell_grid;
 use crate::cell_grid::CellGrid;
 use crate::grid_lines::BoxLines;
 use crate::grid_lines::MAX_BOX_LINES;
+use crate::shape::covered;
+use crate::shape::overlaps;
 use crate::tolerance::COLLISION;
 
 /// A shape that can stop the box of an entity, in world coordinates.
@@ -69,29 +71,28 @@ impl Collider {
         match self {
             Collider::Block { shape, at } => {
                 if let Some(shape) = table.shape(*shape) {
-                    let grid = shape.at(at.as_dvec3());
-                    out.extend(
-                        (0..grid.line_count(Axis::Y)).map(|index| grid.line(Axis::Y, index)),
-                    );
+                    extend_y_lines(&shape.at(at.as_dvec3()), out);
                 }
             }
             Collider::Entity(bounds) => {
                 if let Some(grid) = BoxGrid::of(bounds) {
-                    out.extend(
-                        (0..grid.line_count(Axis::Y)).map(|index| grid.line(Axis::Y, index)),
-                    );
+                    extend_y_lines(&grid, out);
                 }
             }
-            Collider::Border(_) => out.extend([f64::NEG_INFINITY, f64::INFINITY]),
+            Collider::Border(region) => extend_y_lines(&BorderGrid::of(region), out),
         }
     }
+}
+
+fn extend_y_lines<G: CellGrid>(grid: &G, out: &mut Vec<f64>) {
+    out.extend((0..grid.line_count(Axis::Y)).map(|index| grid.line(Axis::Y, index)));
 }
 
 /// The shape of one box in world coordinates.
 struct BoxGrid {
     lines: [[f64; MAX_BOX_LINES]; 3],
     counts: [usize; 3],
-    cells: [Range<usize>; 3],
+    cells: [Range<u16>; 3],
 }
 
 impl BoxGrid {
@@ -101,34 +102,14 @@ impl BoxGrid {
         }
         let mut lines = [[0.0; MAX_BOX_LINES]; 3];
         let mut counts = [0; 3];
-        let mut cells = [0..0, 0..0, 0..0];
-        let box_lines = BoxLines::of(bounds);
-        for axis in Axis::ALL {
-            let (min, max) = (bounds.min_of(axis), bounds.max_of(axis));
-            let slot = axis.index();
-            let Some(axis_lines) = lines.get_mut(slot) else {
-                continue;
-            };
-            let count = axis.pick(&box_lines).write(axis_lines);
-            let mut first = None;
-            let mut last = 0;
-            for row in 0..count.saturating_sub(1) {
-                let start = axis_lines.get(row).copied().unwrap_or(0.0);
-                let end = axis_lines.get(row + 1).copied().unwrap_or(0.0);
-                let middle = (start + end) / 2.0;
-                if middle > min && middle < max {
-                    first.get_or_insert(row);
-                    last = row + 1;
-                }
-            }
-            if let Some(slot_count) = counts.get_mut(slot) {
-                *slot_count = count;
-            }
-            if let Some(slot_cells) = cells.get_mut(slot) {
-                let first = first.unwrap_or(0);
-                *slot_cells = first..last.max(first);
-            }
+        for ((out, count), box_lines) in lines.iter_mut().zip(&mut counts).zip(BoxLines::of(bounds))
+        {
+            *count = box_lines.write(out);
         }
+        let cells = Axis::ALL.map(|axis| {
+            let written = axis.pick(&lines).get(..*axis.pick(&counts)).unwrap_or(&[]);
+            covered(written, bounds.min_of(axis), bounds.max_of(axis))
+        });
         Some(Self {
             lines,
             counts,
@@ -150,7 +131,7 @@ impl CellGrid for BoxGrid {
         ranges
             .iter()
             .zip(&self.cells)
-            .all(|(rows, cells)| rows.start < cells.end && cells.start < rows.end)
+            .all(|(rows, cells)| overlaps(cells, rows))
     }
 }
 
