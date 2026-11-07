@@ -501,6 +501,7 @@ impl BlockBehaviour<ProbeKinds> for ProbeBehaviour {
     }
 }
 
+#[derive(Clone)]
 pub struct Host {
     volume: SparseVolume,
     overrides: HashMap<SectionPos, Access>,
