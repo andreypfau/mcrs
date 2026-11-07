@@ -159,56 +159,89 @@ fn the_queue_drains_in_the_order_of_the_writes() {
     assert_eq!(seqs, vec![3, 2, 1]);
 }
 
-/// MVC-LAT-001, MVC-TICK-002: a block update that the bridge serializes once for many players
-/// stays a predicted change in the queue of each one, so a deep queue never sheds it.
+/// MVC-LAT-001, MVC-TICK-002: a packet that the bridge serializes once for many players has the
+/// need it has for one player, so a deep queue sheds it exactly as it sheds the packet of one.
+/// A block update stays a predicted change, and the marks of a column batch always arrive.
 #[test]
-fn a_shared_block_update_survives_the_shedding_of_every_queue() {
+fn a_shared_packet_keeps_the_need_it_has_for_one_player() {
     use mcrs_minecraft_engine::bus::{OutboundPlayerPacket, PacketPayload};
+    use mcrs_minecraft_engine::muxer::bridge_queue::Need;
     use mcrs_minecraft_protocol::VarInt;
     use mcrs_minecraft_protocol_game::block::BlockStateNumber;
+    use mcrs_minecraft_protocol_game::chunk::LightData;
     use mcrs_minecraft_protocol_game::clientbound::{
-        ClientboundBlockEvent, ClientboundBlockUpdate,
+        ClientboundBlockEvent, ClientboundBlockUpdate, ClientboundChunkBatchFinished,
+        ClientboundChunkBatchStart, ClientboundLightUpdate,
     };
     use mcrs_voxel::BlockPos;
 
-    let mut world = build_bridge_world();
-    let dim = Entity::from_raw_u32(500).expect("nonzero");
-    let sockets = [spawn_connection(&mut world), spawn_connection(&mut world)];
-    for socket in sockets {
-        register_player(&mut world, socket, dim);
-    }
     let pos = BlockPos::new(1, 64, 0);
-    for data in [
-        PacketPayload::BlockUpdate(ClientboundBlockUpdate {
-            block_pos: pos,
-            block_state_id: BlockStateNumber(1),
-        }),
-        PacketPayload::BlockEvent(ClientboundBlockEvent {
-            pos,
-            action: 0,
-            param: 0,
-            block: VarInt(1),
-        }),
+    for (data, need) in [
+        (
+            PacketPayload::BlockUpdate(ClientboundBlockUpdate {
+                block_pos: pos,
+                block_state_id: BlockStateNumber(1),
+            }),
+            Need::PredictedChange,
+        ),
+        (
+            PacketPayload::BlockEvent(ClientboundBlockEvent {
+                pos,
+                action: 0,
+                param: 0,
+                block: VarInt(1),
+            }),
+            Need::MayMiss,
+        ),
+        (
+            PacketPayload::LightUpdate(ClientboundLightUpdate {
+                x: VarInt(0),
+                z: VarInt(0),
+                light_data: LightData::default(),
+            }),
+            Need::MayMiss,
+        ),
+        (
+            PacketPayload::ChunkBatchStart(ClientboundChunkBatchStart),
+            Need::MustArrive,
+        ),
+        (
+            PacketPayload::ChunkBatchFinished(ClientboundChunkBatchFinished {
+                batch_size: VarInt(1),
+            }),
+            Need::MustArrive,
+        ),
     ] {
-        world.write_message(OutboundPlayerPacket {
-            target: PacketTarget::AllInDim(dim),
-            priority: PacketPriority::Normal,
-            data,
-            session: PlayerSession(0),
-            epoch: 0,
-        });
-    }
+        let mut world = build_bridge_world();
+        let dim = Entity::from_raw_u32(500).expect("nonzero");
+        let sockets = [spawn_connection(&mut world), spawn_connection(&mut world)];
+        let lone = spawn_connection(&mut world);
+        let lone_dim = Entity::from_raw_u32(501).expect("nonzero");
+        for socket in sockets {
+            register_player(&mut world, socket, dim);
+        }
+        let (_, lone_session) = register_player(&mut world, lone, lone_dim);
+        for (target, session) in [
+            (PacketTarget::AllInDim(dim), PlayerSession(0)),
+            (PacketTarget::SinglePlayer(lone_session), lone_session),
+        ] {
+            world.write_message(OutboundPlayerPacket {
+                target,
+                priority: PacketPriority::Normal,
+                data: data.clone(),
+                session,
+                epoch: 0,
+            });
+        }
 
-    run_system(&mut world, bridge_outbound);
+        run_system(&mut world, bridge_outbound);
 
-    for socket in sockets {
-        let mut queue = world.get_mut::<OutboundQueue>(socket).unwrap();
-        assert_eq!(queue.shed_to(0), 1, "only the block event may go");
-        let kept: Vec<bool> = queue
-            .iter()
-            .map(|queued| queued.packet.changes_prediction())
+        let needs: Vec<Need> = [sockets[0], sockets[1], lone]
+            .into_iter()
+            .flat_map(|socket| drain_queue(&mut world, socket))
+            .map(|queued| queued.need())
             .collect();
-        assert_eq!(kept, [true]);
+        assert_eq!(needs, [need; 3], "{data:?}");
     }
 }
 

@@ -97,7 +97,8 @@ pub struct EncodedPacket {
 pub enum Need {
     /// A change that the client predicts its own moves with.
     PredictedChange,
-    /// A packet that the client must get for another reason, such as a teleport it confirms.
+    /// A packet that the client must get for another reason: a teleport it confirms, or a mark
+    /// of a column batch, whose pair the client times to set its column rate.
     MustArrive,
     /// A packet that the client may miss.
     MayMiss,
@@ -117,7 +118,9 @@ impl Need {
             | PacketPayload::OwnEntityState(_) => Self::PredictedChange,
             PacketPayload::PlayerPosition(_)
             | PacketPayload::Respawn(_)
-            | PacketPayload::PlayerLogin(_) => Self::MustArrive,
+            | PacketPayload::PlayerLogin(_)
+            | PacketPayload::ChunkBatchStart(_)
+            | PacketPayload::ChunkBatchFinished(_) => Self::MustArrive,
             _ => Self::MayMiss,
         }
     }

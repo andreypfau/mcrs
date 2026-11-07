@@ -19,7 +19,8 @@ use mcrs_minecraft_engine_world::session::{
 use mcrs_minecraft_network::OutboundReceiver;
 use mcrs_minecraft_network::RawConnection;
 use mcrs_minecraft_protocol::VarInt;
-use mcrs_minecraft_protocol_game::clientbound::ClientboundChunkBatchFinished;
+use mcrs_minecraft_protocol_game::clientbound::ClientboundBlockEvent;
+use mcrs_voxel::BlockPos;
 use tokio::sync::mpsc;
 
 /// Build a bare world with the resources needed for `bridge_outbound` tests.
@@ -146,15 +147,18 @@ pub fn drain_queue(world: &mut World, socket: Entity) -> Vec<QueuedPacket> {
 
 /// A small real packet that carries `seq`, so a test can tell its packets apart.
 pub fn marker(seq: u32) -> PacketPayload {
-    PacketPayload::ChunkBatchFinished(ClientboundChunkBatchFinished {
-        batch_size: VarInt(seq as i32),
+    PacketPayload::BlockEvent(ClientboundBlockEvent {
+        pos: BlockPos::new(0, 0, 0),
+        action: 0,
+        param: 0,
+        block: VarInt(seq as i32),
     })
 }
 
 /// The `seq` of a packet that [`marker`] made.
 pub fn marker_seq(payload: &PacketPayload) -> Option<u32> {
     match payload {
-        PacketPayload::ChunkBatchFinished(packet) => Some(packet.batch_size.0 as u32),
+        PacketPayload::BlockEvent(packet) => Some(packet.block.0 as u32),
         _ => None,
     }
 }
