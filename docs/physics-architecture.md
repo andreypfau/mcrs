@@ -767,30 +767,62 @@ through the section entities and the cell volume of the engine: 2.2M loaded sect
 and runs precipitation. The engine passes one section of each column, sorted in the order of
 precipitation; before this, precipitation went through all 2.2M sections, and a step cost 197 ms.
 
-| Handler of the bench | One step, one core | At 10k players (× 8.1) |
-|----------------------|--------------------|------------------------|
-| reads one block | 34.7 ms (34.6–34.9) | ~282 core-ms |
-| reads its footprint of Table 1 | 74.3 ms (73.4–75.6) | ~604 core-ms |
+| Handler of the bench | One step, one core: before / now | At 10k players (× 8.13): before / now |
+|----------------------|----------------------------------|---------------------------------------|
+| reads one block | 34.3–35.2 ms / 23.9–25.3 ms | ~282 / ~198 core-ms |
+| reads its footprint of Table 1 | 73.9–75.1 ms / 41.2–41.5 ms | ~604 / ~336 core-ms |
 | same footprint, one section template for all sections (cache-hot) | 10.5 ms | ~85 core-ms |
 
-The density of the model is correct; its constants are not. They come from a cache-hot bench. On a
-real save the data of a pick is not in the cache:
-- A listed section costs ~52 ns, not 3 × 3 ns. The step reads the section from the index, makes
-  its stream, draws 3 values and checks the touched sets. At 10k players this is ~110 core-ms.
-- A pick that hits costs ~0.7 µs before the handler does work, not ~0.3 µs with the handler. The
-  tile of the index, the ticking positions, the section index, the section entity and its palette
-  are cold: one first read is a chain of 5–8 cache misses. At 10k players this is ~125 core-ms.
-- A read of the footprint costs ~30 ns: the full box adds ~1.7 µs to each handler run.
-- Precipitation costs ~19 ns for each column, ~14 core-ms at 10k players.
+The two numbers of a row come from back-to-back runs at a load average of 7–15 on 16 cores. The
+density of the model is correct; its constants are not. They come from a cache-hot bench. On a
+real save the data of a pick is not in the cache. The bench splits one step of "reads one block"
+into these parts:
 
-Two changes did not move the number by more than 3% and are not kept: tiles listed in the order of
-the colour phases, so that the tile tasks need no reorder, and a slot map in place of the binary
-search of the index.
-The budget of ~92 core-ms is not reachable with this storage. It needs the data of a pick in a
-few cache lines: the ticking positions next to the blocks of the section, one lookup for each
-section in place of the section index, the entity and the palette, and a draw for each hit in place
-of a draw for each pick. The machine ran other jobs during the measurement (load 15–60 on 16
-cores), which makes a cache miss slower than on an idle machine.
+| Part | Unit cost | One step | At 10k players |
+|------|-----------|----------|----------------|
+| listed section: read from the list, stream, 3 draws, plan of the tile tasks | ~18 ns | 4.6 ms | ~37 core-ms |
+| precipitation: access of each column, then the gates | ~57 ns | 5.2 ms | ~42 core-ms |
+| pick that hits, before the handler reads | ~0.64 µs | 14.5 ms | ~118 core-ms |
+| read of the footprint after the first read | ~10 ns | +17 ms for the full box | ~138 core-ms |
+
+Before the warm-up pass, a hit split into: the access of the section ~165 ns, the ticking
+positions ~40 ns, the read of the picked block ~430 ns, the fit check and the handler ~105 ns.
+
+These changes are kept. Each one leaves the values of the streams as they were (test
+`the_picks_of_a_section_keep_their_positions_for_a_fixed_seed`):
+- A block tile finds a section through a table of the first slot of each column and a guess from
+  the lowest section of the column. The binary search over the sections of the tile cost ~240 ns
+  for each hit; the lookup of the ticking positions now costs ~40 ns. Step: −12%.
+- The section index keys its map by column, with a dense array of the sections of a column. The
+  map holds 91k entries in place of 2.2M, so it stays in the cache more often. Step: −4%.
+- A tile task keeps the world section of its last read. The reads of a footprint stay mostly in
+  one section, so a read costs ~10 ns, not ~30 ns. Full box: −15%.
+- A tile task first reads the block of the first pick of each listed section. The misses of
+  different sections then overlap. Step: −8 to −10%.
+- The plan sorts the pairs of tile and range, not the tile tasks: a sort of the large tasks moved
+  ~6% of the step in memory. The draw functions are inlined across crates (−3%).
+
+These changes moved the number by less than 2% and are not kept: a fast path that skips a section
+with no draw below its count, a read of a tile task that checks only the region, and a test for
+an empty touched set before its lookup. Before that, these did not move the number by more than
+3%: tiles listed in the order of the colour phases, and a slot map in place of the binary search
+of the index.
+
+The budget of ~92 core-ms (11.3 ms on the bench) is not reachable with this storage. The listed
+sections and precipitation alone cost 9.8 ms, so a hit must cost ≤ 66 ns, about one cache miss.
+The read of a picked block is a chain of dependent misses: the section index, the location of the
+entity, the row of its blocks, the shared palette, the boxed palette data and the boxed cube. The
+next levers change the storage, not the spec:
+- Store the cube of a section inline in its palette data, and reach the blocks of a section from
+  the section index without the entity. This removes 2–3 misses for each hit.
+- Keep the writable columns of precipitation in the host and update them when a column loads,
+  unloads or changes owner. This removes the access of each column in each step (~42 core-ms).
+- A draw for each hit in place of a draw for each pick lowers the cost of a listed section.
+  SIM-MODEL-106(b) allows it, but it changes the values of the streams, so it needs a new decision
+  and new expected values in the colour-phase tests.
+
+The machine ran other jobs during the measurement, which makes a cache miss slower than on an idle
+machine.
 
 ### 7.5 Block shards as a whole
 
