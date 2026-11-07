@@ -3,9 +3,9 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:pink_concrete",
-      "protocol_id": 775,
-      "base_state_id": 17023,
-      "default_state_id": 17023
+      "protocol_id": 784,
+      "base_state_id": 17846,
+      "default_state_id": 17846
     },
     "components": {
       "minecraft:light_emission": 0,

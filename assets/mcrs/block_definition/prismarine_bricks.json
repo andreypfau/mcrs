@@ -3,9 +3,9 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:prismarine_bricks",
-      "protocol_id": 582,
-      "base_state_id": 14481,
-      "default_state_id": 14481
+      "protocol_id": 586,
+      "base_state_id": 14892,
+      "default_state_id": 14892
     },
     "components": {
       "minecraft:light_emission": 0,

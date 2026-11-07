@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:stripped_crimson_stem",
-      "protocol_id": 188
+      "protocol_id": 200
     },
     "components": {
       "minecraft:attack_animation": {},

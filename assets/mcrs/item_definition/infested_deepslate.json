@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:infested_deepslate",
-      "protocol_id": 448
+      "protocol_id": 464
     },
     "components": {
       "minecraft:attack_animation": {},

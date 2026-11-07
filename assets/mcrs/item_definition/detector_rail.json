@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:detector_rail",
-      "protocol_id": 947
+      "protocol_id": 969
     },
     "components": {
       "minecraft:attack_animation": {},

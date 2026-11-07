@@ -3,9 +3,9 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:potted_azalea_bush",
-      "protocol_id": 1269,
-      "base_state_id": 35488,
-      "default_state_id": 35488
+      "protocol_id": 1291,
+      "base_state_id": 37547,
+      "default_state_id": 37547
     },
     "components": {
       "minecraft:light_emission": 0,

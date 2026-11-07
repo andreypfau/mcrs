@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:sulfur_brick_slab",
-      "protocol_id": 36
+      "protocol_id": 48
     },
     "components": {
       "minecraft:attack_animation": {},

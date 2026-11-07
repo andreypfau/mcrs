@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:ender_eye",
-      "protocol_id": 1280
+      "protocol_id": 1302
     },
     "components": {
       "minecraft:attack_animation": {},

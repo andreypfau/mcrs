@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:blue_bundle",
-      "protocol_id": 1167
+      "protocol_id": 1189
     },
     "components": {
       "minecraft:attack_animation": {},

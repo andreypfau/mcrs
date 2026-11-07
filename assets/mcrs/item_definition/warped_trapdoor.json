@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:warped_trapdoor",
-      "protocol_id": 924
+      "protocol_id": 946
     },
     "components": {
       "minecraft:attack_animation": {},

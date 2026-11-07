@@ -1,0 +1,46 @@
+{
+  "format_version": "1.21.130",
+  "minecraft:block": {
+    "description": {
+      "identifier": "minecraft:chiseled_soulshale",
+      "protocol_id": 1147,
+      "base_state_id": 33215,
+      "default_state_id": 33215
+    },
+    "components": {
+      "minecraft:light_emission": 0,
+      "minecraft:light_dampening": 15,
+      "minecraft:friction": 0.6,
+      "minecraft:map_color": "#3a8e8c",
+      "minecraft:collision_box": [
+        { "origin": [-8, 0, -8], "size": [16, 16, 16] }
+      ],
+      "minecraft:selection_box": [
+        { "origin": [-8, 0, -8], "size": [16, 16, 16] }
+      ],
+      "minecraft:destructible_by_explosion": {
+        "explosion_resistance": 6
+      },
+      "minecraft:redstone_conductivity": {
+        "redstone_conductor": true
+      },
+      "minecraft:movable": {
+        "movement_type": "push_pull"
+      },
+      "minecraft:instrument_sound": {
+        "down": "harp"
+      },
+      "minecraft:destructible_by_mining": {
+        "seconds_to_destroy": 2
+      },
+      "minecraft:loot": "minecraft:blocks/chiseled_soulshale",
+      "mcrs:use_shape_for_light_occlusion": false,
+      "mcrs:occlusion_shape": [
+        { "origin": [-8, 0, -8], "size": [16, 16, 16] }
+      ],
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:chiseled_soulshale"
+    },
+    "permutations": []
+  }
+}

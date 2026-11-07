@@ -3,9 +3,9 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:nether_sprouts",
-      "protocol_id": 961,
-      "base_state_id": 24324,
-      "default_state_id": 24324
+      "protocol_id": 970,
+      "base_state_id": 25147,
+      "default_state_id": 25147
     },
     "components": {
       "minecraft:light_emission": 0,

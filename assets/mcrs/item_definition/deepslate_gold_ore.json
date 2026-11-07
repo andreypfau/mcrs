@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:deepslate_gold_ore",
-      "protocol_id": 100
+      "protocol_id": 112
     },
     "components": {
       "minecraft:attack_animation": {},

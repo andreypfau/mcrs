@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:small_dripleaf",
-      "protocol_id": 339
+      "protocol_id": 351
     },
     "components": {
       "minecraft:attack_animation": {},

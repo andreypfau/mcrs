@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:chiseled_sandstone",
-      "protocol_id": 235
+      "protocol_id": 247
     },
     "components": {
       "minecraft:attack_animation": {},

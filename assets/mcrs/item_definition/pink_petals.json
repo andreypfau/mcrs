@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:pink_petals",
-      "protocol_id": 329
+      "protocol_id": 341
     },
     "components": {
       "minecraft:attack_animation": {},

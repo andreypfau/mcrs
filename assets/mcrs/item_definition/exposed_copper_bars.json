@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:exposed_copper_bars",
-      "protocol_id": 466
+      "protocol_id": 482
     },
     "components": {
       "minecraft:attack_animation": {},

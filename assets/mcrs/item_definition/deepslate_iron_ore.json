@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:deepslate_iron_ore",
-      "protocol_id": 96
+      "protocol_id": 108
     },
     "components": {
       "minecraft:attack_animation": {},

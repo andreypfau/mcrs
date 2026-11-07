@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:dead_tube_coral",
-      "protocol_id": 775
+      "protocol_id": 797
     },
     "components": {
       "minecraft:attack_animation": {},

@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:allay_spawn_egg",
-      "protocol_id": 1315
+      "protocol_id": 1337
     },
     "components": {
       "minecraft:attack_animation": {},

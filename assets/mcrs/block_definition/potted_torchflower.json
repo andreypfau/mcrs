@@ -3,9 +3,9 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:potted_torchflower",
-      "protocol_id": 463,
-      "base_state_id": 12374,
-      "default_state_id": 12374
+      "protocol_id": 467,
+      "base_state_id": 12785,
+      "default_state_id": 12785
     },
     "components": {
       "minecraft:light_emission": 0,

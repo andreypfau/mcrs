@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:cinnabar_slab",
-      "protocol_id": 41
+      "protocol_id": 53
     },
     "components": {
       "minecraft:attack_animation": {},

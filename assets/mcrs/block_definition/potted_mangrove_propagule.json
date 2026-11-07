@@ -3,9 +3,9 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:potted_mangrove_propagule",
-      "protocol_id": 473,
-      "base_state_id": 12384,
-      "default_state_id": 12384
+      "protocol_id": 477,
+      "base_state_id": 12795,
+      "default_state_id": 12795
     },
     "components": {
       "minecraft:light_emission": 0,

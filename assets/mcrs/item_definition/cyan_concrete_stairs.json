@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:cyan_concrete_stairs",
-      "protocol_id": 714
+      "protocol_id": 736
     },
     "components": {
       "minecraft:attack_animation": {},

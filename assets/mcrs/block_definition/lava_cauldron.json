@@ -3,9 +3,9 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:lava_cauldron",
-      "protocol_id": 439,
-      "base_state_id": 11200,
-      "default_state_id": 11200
+      "protocol_id": 443,
+      "base_state_id": 11611,
+      "default_state_id": 11611
     },
     "components": {
       "minecraft:light_emission": 15,

@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:flint",
-      "protocol_id": 1097
+      "protocol_id": 1119
     },
     "components": {
       "minecraft:attack_animation": {},

@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:chiseled_cinnabar",
-      "protocol_id": 52
+      "protocol_id": 64
     },
     "components": {
       "minecraft:attack_animation": {},

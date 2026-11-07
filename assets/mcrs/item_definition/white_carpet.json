@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:white_carpet",
-      "protocol_id": 580
+      "protocol_id": 597
     },
     "components": {
       "minecraft:attack_animation": {},

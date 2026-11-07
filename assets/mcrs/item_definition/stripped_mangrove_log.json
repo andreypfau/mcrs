@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:stripped_mangrove_log",
-      "protocol_id": 186
+      "protocol_id": 198
     },
     "components": {
       "minecraft:attack_animation": {},

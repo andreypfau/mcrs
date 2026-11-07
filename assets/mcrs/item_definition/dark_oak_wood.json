@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:dark_oak_wood",
-      "protocol_id": 210
+      "protocol_id": 222
     },
     "components": {
       "minecraft:attack_animation": {},

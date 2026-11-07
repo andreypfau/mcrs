@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:crimson_hyphae",
-      "protocol_id": 213
+      "protocol_id": 225
     },
     "components": {
       "minecraft:attack_animation": {},

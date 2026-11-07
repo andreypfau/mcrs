@@ -3,9 +3,9 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:redstone_block",
-      "protocol_id": 528,
-      "base_state_id": 13080,
-      "default_state_id": 13080
+      "protocol_id": 532,
+      "base_state_id": 13491,
+      "default_state_id": 13491
     },
     "components": {
       "minecraft:light_emission": 0,

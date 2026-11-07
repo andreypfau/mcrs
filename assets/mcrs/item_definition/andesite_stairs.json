@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:andesite_stairs",
-      "protocol_id": 799
+      "protocol_id": 821
     },
     "components": {
       "minecraft:attack_animation": {},

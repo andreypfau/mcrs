@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:abandoned_camp_map",
-      "protocol_id": 1255
+      "protocol_id": 1277
     },
     "components": {
       "minecraft:attack_animation": {},

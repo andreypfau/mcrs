@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:pearlescent_froglight",
-      "protocol_id": 1580
+      "protocol_id": 1603
     },
     "components": {
       "minecraft:attack_animation": {},

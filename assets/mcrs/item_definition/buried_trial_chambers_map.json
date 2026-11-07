@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:buried_trial_chambers_map",
-      "protocol_id": 1243
+      "protocol_id": 1265
     },
     "components": {
       "minecraft:attack_animation": {},

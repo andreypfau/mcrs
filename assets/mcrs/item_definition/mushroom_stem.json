@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:mushroom_stem",
-      "protocol_id": 463
+      "protocol_id": 479
     },
     "components": {
       "minecraft:attack_animation": {},

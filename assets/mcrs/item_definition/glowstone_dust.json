@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:glowstone_dust",
-      "protocol_id": 1191
+      "protocol_id": 1213
     },
     "components": {
       "minecraft:attack_animation": {},

@@ -3,9 +3,9 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:chiseled_nether_bricks",
-      "protocol_id": 1032,
-      "base_state_id": 26456,
-      "default_state_id": 26456
+      "protocol_id": 1041,
+      "base_state_id": 27279,
+      "default_state_id": 27279
     },
     "components": {
       "minecraft:light_emission": 0,

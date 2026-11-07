@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:moss_block",
-      "protocol_id": 333
+      "protocol_id": 345
     },
     "components": {
       "minecraft:attack_animation": {},

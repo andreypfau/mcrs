@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:mangrove_wood",
-      "protocol_id": 211
+      "protocol_id": 223
     },
     "components": {
       "minecraft:attack_animation": {},

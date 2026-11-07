@@ -3,9 +3,9 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:potted_azure_bluet",
-      "protocol_id": 480,
-      "base_state_id": 12391,
-      "default_state_id": 12391
+      "protocol_id": 484,
+      "base_state_id": 12802,
+      "default_state_id": 12802
     },
     "components": {
       "minecraft:light_emission": 0,

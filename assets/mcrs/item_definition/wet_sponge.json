@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:wet_sponge",
-      "protocol_id": 230
+      "protocol_id": 242
     },
     "components": {
       "minecraft:attack_animation": {},

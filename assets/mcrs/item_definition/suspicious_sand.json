@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:suspicious_sand",
-      "protocol_id": 89
+      "protocol_id": 101
     },
     "components": {
       "minecraft:attack_animation": {},

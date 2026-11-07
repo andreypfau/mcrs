@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:infested_mossy_stone_bricks",
-      "protocol_id": 445
+      "protocol_id": 461
     },
     "components": {
       "minecraft:attack_animation": {},

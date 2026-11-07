@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:cyan_concrete_slab",
-      "protocol_id": 730
+      "protocol_id": 752
     },
     "components": {
       "minecraft:attack_animation": {},

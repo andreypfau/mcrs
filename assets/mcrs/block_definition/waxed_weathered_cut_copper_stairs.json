@@ -26,9 +26,9 @@
           false
         ]
       },
-      "protocol_id": 1158,
-      "base_state_id": 31663,
-      "default_state_id": 31674
+      "protocol_id": 1180,
+      "base_state_id": 33722,
+      "default_state_id": 33733
     },
     "components": {
       "minecraft:light_emission": 0,

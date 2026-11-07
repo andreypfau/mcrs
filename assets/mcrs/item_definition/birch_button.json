@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:birch_button",
-      "protocol_id": 861
+      "protocol_id": 883
     },
     "components": {
       "minecraft:attack_animation": {},

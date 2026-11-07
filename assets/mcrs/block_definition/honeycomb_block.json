@@ -3,9 +3,9 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:honeycomb_block",
-      "protocol_id": 1005,
-      "base_state_id": 25180,
-      "default_state_id": 25180
+      "protocol_id": 1014,
+      "base_state_id": 26003,
+      "default_state_id": 26003
     },
     "components": {
       "minecraft:light_emission": 0,

@@ -3,9 +3,9 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:potted_warped_fungus",
-      "protocol_id": 1011,
-      "base_state_id": 25190,
-      "default_state_id": 25190
+      "protocol_id": 1020,
+      "base_state_id": 26013,
+      "default_state_id": 26013
     },
     "components": {
       "minecraft:light_emission": 0,

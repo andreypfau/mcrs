@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:cherry_stairs",
-      "protocol_id": 520
+      "protocol_id": 537
     },
     "components": {
       "minecraft:attack_animation": {},

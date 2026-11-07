@@ -3,9 +3,9 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:magenta_concrete",
-      "protocol_id": 771,
-      "base_state_id": 17019,
-      "default_state_id": 17019
+      "protocol_id": 780,
+      "base_state_id": 17842,
+      "default_state_id": 17842
     },
     "components": {
       "minecraft:light_emission": 0,

@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:mossy_cobblestone",
-      "protocol_id": 393
+      "protocol_id": 405
     },
     "components": {
       "minecraft:attack_animation": {},

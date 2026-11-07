@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:bamboo_mosaic_slab",
-      "protocol_id": 352
+      "protocol_id": 364
     },
     "components": {
       "minecraft:attack_animation": {},

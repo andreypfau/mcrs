@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:polished_tuff_stairs",
-      "protocol_id": 19
+      "protocol_id": 31
     },
     "components": {
       "minecraft:attack_animation": {},

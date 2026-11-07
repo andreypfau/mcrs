@@ -3,13 +3,15 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:porkchop",
-      "protocol_id": 1098
+      "protocol_id": 1120
     },
     "components": {
       "minecraft:attack_animation": {},
       "minecraft:attribute_modifiers": [],
       "minecraft:break_sound": "minecraft:entity.item.break",
-      "minecraft:consumable": {},
+      "minecraft:consumable": {
+        "sound": "minecraft:entity.generic.eat"
+      },
       "minecraft:enchantments": {},
       "minecraft:food": {
         "nutrition": 3,

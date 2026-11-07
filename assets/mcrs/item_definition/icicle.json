@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:icicle",
-      "protocol_id": 1575
+      "protocol_id": 1598
     },
     "components": {
       "minecraft:attack_animation": {},

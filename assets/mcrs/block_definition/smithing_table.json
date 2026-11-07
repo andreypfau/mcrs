@@ -3,9 +3,9 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:smithing_table",
-      "protocol_id": 937,
-      "base_state_id": 24163,
-      "default_state_id": 24163
+      "protocol_id": 946,
+      "base_state_id": 24986,
+      "default_state_id": 24986
     },
     "components": {
       "minecraft:light_emission": 0,

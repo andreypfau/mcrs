@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:composter",
-      "protocol_id": 1508
+      "protocol_id": 1531
     },
     "components": {
       "minecraft:attack_animation": {},

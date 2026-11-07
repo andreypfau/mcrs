@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:activator_rail",
-      "protocol_id": 949
+      "protocol_id": 971
     },
     "components": {
       "minecraft:attack_animation": {},

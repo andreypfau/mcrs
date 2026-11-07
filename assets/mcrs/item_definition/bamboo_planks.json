@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:bamboo_planks",
-      "protocol_id": 73
+      "protocol_id": 85
     },
     "components": {
       "minecraft:attack_animation": {},

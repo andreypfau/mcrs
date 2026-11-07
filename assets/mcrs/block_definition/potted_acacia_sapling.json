@@ -3,9 +3,9 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:potted_acacia_sapling",
-      "protocol_id": 468,
-      "base_state_id": 12379,
-      "default_state_id": 12379
+      "protocol_id": 472,
+      "base_state_id": 12790,
+      "default_state_id": 12790
     },
     "components": {
       "minecraft:light_emission": 0,

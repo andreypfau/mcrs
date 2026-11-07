@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:observer",
-      "protocol_id": 834
+      "protocol_id": 856
     },
     "components": {
       "minecraft:attack_animation": {},

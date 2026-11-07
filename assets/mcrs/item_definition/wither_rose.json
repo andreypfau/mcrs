@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:wither_rose",
-      "protocol_id": 313
+      "protocol_id": 325
     },
     "components": {
       "minecraft:attack_animation": {},

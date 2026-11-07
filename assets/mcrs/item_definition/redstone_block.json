@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:redstone_block",
-      "protocol_id": 827
+      "protocol_id": 849
     },
     "components": {
       "minecraft:attack_animation": {},

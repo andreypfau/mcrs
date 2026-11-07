@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:heavy_core",
-      "protocol_id": 116
+      "protocol_id": 128
     },
     "components": {
       "minecraft:attack_animation": {},

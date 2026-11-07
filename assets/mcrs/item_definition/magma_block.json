@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:magma_block",
-      "protocol_id": 650
+      "protocol_id": 672
     },
     "components": {
       "minecraft:attack_animation": {},

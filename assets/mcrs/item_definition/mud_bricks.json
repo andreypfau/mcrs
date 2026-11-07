@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:mud_bricks",
-      "protocol_id": 454
+      "protocol_id": 470
     },
     "components": {
       "minecraft:attack_animation": {},

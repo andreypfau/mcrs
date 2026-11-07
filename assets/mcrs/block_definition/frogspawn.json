@@ -3,9 +3,9 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:frogspawn",
-      "protocol_id": 1274,
-      "base_state_id": 35499,
-      "default_state_id": 35499
+      "protocol_id": 1296,
+      "base_state_id": 37558,
+      "default_state_id": 37558
     },
     "components": {
       "minecraft:light_emission": 0,

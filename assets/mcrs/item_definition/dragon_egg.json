@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:dragon_egg",
-      "protocol_id": 511
+      "protocol_id": 528
     },
     "components": {
       "minecraft:attack_animation": {},

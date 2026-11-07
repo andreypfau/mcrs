@@ -3,9 +3,9 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:nether_wart_block",
-      "protocol_id": 731,
-      "base_state_id": 16833,
-      "default_state_id": 16833
+      "protocol_id": 740,
+      "base_state_id": 17656,
+      "default_state_id": 17656
     },
     "components": {
       "minecraft:light_emission": 0,

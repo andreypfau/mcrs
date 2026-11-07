@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:magenta_concrete",
-      "protocol_id": 691
+      "protocol_id": 713
     },
     "components": {
       "minecraft:attack_animation": {},

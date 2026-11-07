@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:gray_terracotta",
-      "protocol_id": 568
+      "protocol_id": 585
     },
     "components": {
       "minecraft:attack_animation": {},

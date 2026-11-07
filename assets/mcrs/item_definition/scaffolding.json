@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:scaffolding",
-      "protocol_id": 824
+      "protocol_id": 846
     },
     "components": {
       "minecraft:attack_animation": {},

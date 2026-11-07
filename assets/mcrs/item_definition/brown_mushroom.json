@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:brown_mushroom",
-      "protocol_id": 317
+      "protocol_id": 329
     },
     "components": {
       "minecraft:attack_animation": {},

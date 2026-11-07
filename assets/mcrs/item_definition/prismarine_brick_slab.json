@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:prismarine_brick_slab",
-      "protocol_id": 370
+      "protocol_id": 382
     },
     "components": {
       "minecraft:attack_animation": {},

@@ -3,9 +3,9 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:crying_obsidian",
-      "protocol_id": 1008,
-      "base_state_id": 25183,
-      "default_state_id": 25183
+      "protocol_id": 1017,
+      "base_state_id": 26006,
+      "default_state_id": 26006
     },
     "components": {
       "minecraft:light_emission": 10,

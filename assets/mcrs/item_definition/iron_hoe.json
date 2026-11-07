@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:iron_hoe",
-      "protocol_id": 1050
+      "protocol_id": 1072
     },
     "components": {
       "minecraft:attack_animation": {},

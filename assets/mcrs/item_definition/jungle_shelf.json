@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:jungle_shelf",
-      "protocol_id": 383
+      "protocol_id": 395
     },
     "components": {
       "minecraft:attack_animation": {},

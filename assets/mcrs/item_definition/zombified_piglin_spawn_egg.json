@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:zombified_piglin_spawn_egg",
-      "protocol_id": 1366
+      "protocol_id": 1388
     },
     "components": {
       "minecraft:attack_animation": {},

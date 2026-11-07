@@ -3,9 +3,9 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:end_stone_bricks",
-      "protocol_id": 719,
-      "base_state_id": 16779,
-      "default_state_id": 16779
+      "protocol_id": 728,
+      "base_state_id": 17602,
+      "default_state_id": 17602
     },
     "components": {
       "minecraft:light_emission": 0,

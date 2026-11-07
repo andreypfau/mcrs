@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:birch_shelf",
-      "protocol_id": 379
+      "protocol_id": 391
     },
     "components": {
       "minecraft:attack_animation": {},

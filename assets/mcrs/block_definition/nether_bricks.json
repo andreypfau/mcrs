@@ -3,9 +3,9 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:nether_bricks",
-      "protocol_id": 431,
-      "base_state_id": 11070,
-      "default_state_id": 11070
+      "protocol_id": 435,
+      "base_state_id": 11481,
+      "default_state_id": 11481
     },
     "components": {
       "minecraft:light_emission": 0,

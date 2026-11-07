@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:chorus_plant",
-      "protocol_id": 397
+      "protocol_id": 409
     },
     "components": {
       "minecraft:attack_animation": {},

@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:iron_bars",
-      "protocol_id": 464
+      "protocol_id": 480
     },
     "components": {
       "minecraft:attack_animation": {},

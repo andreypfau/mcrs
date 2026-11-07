@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:peony",
-      "protocol_id": 602
+      "protocol_id": 624
     },
     "components": {
       "minecraft:attack_animation": {},

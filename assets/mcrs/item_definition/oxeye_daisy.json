@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:oxeye_daisy",
-      "protocol_id": 310
+      "protocol_id": 322
     },
     "components": {
       "minecraft:attack_animation": {},

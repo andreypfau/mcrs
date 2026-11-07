@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:coarse_dirt",
-      "protocol_id": 56
+      "protocol_id": 68
     },
     "components": {
       "minecraft:attack_animation": {},

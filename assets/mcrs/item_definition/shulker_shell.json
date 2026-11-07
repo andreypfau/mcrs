@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:shulker_shell",
-      "protocol_id": 1458
+      "protocol_id": 1480
     },
     "components": {
       "minecraft:attack_animation": {},

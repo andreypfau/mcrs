@@ -3,9 +3,9 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:brain_coral_block",
-      "protocol_id": 845,
-      "base_state_id": 18506,
-      "default_state_id": 18506
+      "protocol_id": 854,
+      "base_state_id": 19329,
+      "default_state_id": 19329
     },
     "components": {
       "minecraft:light_emission": 0,

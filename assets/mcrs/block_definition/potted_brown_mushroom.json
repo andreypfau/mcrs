@@ -3,9 +3,9 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:potted_brown_mushroom",
-      "protocol_id": 490,
-      "base_state_id": 12401,
-      "default_state_id": 12401
+      "protocol_id": 494,
+      "base_state_id": 12812,
+      "default_state_id": 12812
     },
     "components": {
       "minecraft:light_emission": 0,

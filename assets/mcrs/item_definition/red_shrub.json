@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:red_shrub",
-      "protocol_id": 241
+      "protocol_id": 253
     },
     "components": {
       "minecraft:attack_animation": {},

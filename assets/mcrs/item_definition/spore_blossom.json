@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:spore_blossom",
-      "protocol_id": 316
+      "protocol_id": 328
     },
     "components": {
       "minecraft:attack_animation": {},

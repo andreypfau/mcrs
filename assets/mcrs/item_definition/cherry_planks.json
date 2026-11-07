@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:cherry_planks",
-      "protocol_id": 68
+      "protocol_id": 80
     },
     "components": {
       "minecraft:attack_animation": {},

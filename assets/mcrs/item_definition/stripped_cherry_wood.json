@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:stripped_cherry_wood",
-      "protocol_id": 195
+      "protocol_id": 207
     },
     "components": {
       "minecraft:attack_animation": {},

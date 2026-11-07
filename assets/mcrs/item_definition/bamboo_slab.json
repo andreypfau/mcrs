@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:bamboo_slab",
-      "protocol_id": 351
+      "protocol_id": 363
     },
     "components": {
       "minecraft:attack_animation": {},

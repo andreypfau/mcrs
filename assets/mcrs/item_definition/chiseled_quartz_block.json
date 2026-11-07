@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:chiseled_quartz_block",
-      "protocol_id": 556
+      "protocol_id": 573
     },
     "components": {
       "minecraft:attack_animation": {},

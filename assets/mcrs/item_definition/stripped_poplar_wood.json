@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:stripped_poplar_wood",
-      "protocol_id": 199
+      "protocol_id": 211
     },
     "components": {
       "minecraft:attack_animation": {},

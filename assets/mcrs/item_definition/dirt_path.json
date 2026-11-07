@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:dirt_path",
-      "protocol_id": 598
+      "protocol_id": 620
     },
     "components": {
       "minecraft:attack_animation": {},

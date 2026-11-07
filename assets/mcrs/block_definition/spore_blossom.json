@@ -3,9 +3,9 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:spore_blossom",
-      "protocol_id": 1230,
-      "base_state_id": 33718,
-      "default_state_id": 33718
+      "protocol_id": 1252,
+      "base_state_id": 35777,
+      "default_state_id": 35777
     },
     "components": {
       "minecraft:light_emission": 0,

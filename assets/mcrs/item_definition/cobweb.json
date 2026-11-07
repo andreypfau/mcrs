@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:cobweb",
-      "protocol_id": 237
+      "protocol_id": 249
     },
     "components": {
       "minecraft:attack_animation": {},

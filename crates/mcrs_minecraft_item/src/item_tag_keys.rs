@@ -365,6 +365,8 @@ pub const STRIDER_TEMPT_ITEMS: TagKey<'static, crate::item_keys::Item> =
     TagKey::new(rl!("minecraft:strider_tempt_items"));
 pub const SULFUR_CUBE_ARCHETYPE_BOUNCY: TagKey<'static, crate::item_keys::Item> =
     TagKey::new(rl!("minecraft:sulfur_cube_archetype/bouncy"));
+pub const SULFUR_CUBE_ARCHETYPE_COLD: TagKey<'static, crate::item_keys::Item> =
+    TagKey::new(rl!("minecraft:sulfur_cube_archetype/cold"));
 pub const SULFUR_CUBE_ARCHETYPE_EXPLOSIVE: TagKey<'static, crate::item_keys::Item> =
     TagKey::new(rl!("minecraft:sulfur_cube_archetype/explosive"));
 pub const SULFUR_CUBE_ARCHETYPE_FAST_FLAT: TagKey<'static, crate::item_keys::Item> =

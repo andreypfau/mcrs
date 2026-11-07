@@ -3,9 +3,9 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:potted_oxeye_daisy",
-      "protocol_id": 485,
-      "base_state_id": 12396,
-      "default_state_id": 12396
+      "protocol_id": 489,
+      "base_state_id": 12807,
+      "default_state_id": 12807
     },
     "components": {
       "minecraft:light_emission": 0,

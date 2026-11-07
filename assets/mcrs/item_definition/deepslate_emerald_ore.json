@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:deepslate_emerald_ore",
-      "protocol_id": 104
+      "protocol_id": 116
     },
     "components": {
       "minecraft:attack_animation": {},

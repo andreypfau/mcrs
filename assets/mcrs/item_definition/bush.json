@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:bush",
-      "protocol_id": 240
+      "protocol_id": 252
     },
     "components": {
       "minecraft:attack_animation": {},

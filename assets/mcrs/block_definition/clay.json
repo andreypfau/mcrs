@@ -3,9 +3,9 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:clay",
-      "protocol_id": 330,
-      "base_state_id": 8616,
-      "default_state_id": 8616
+      "protocol_id": 334,
+      "base_state_id": 9027,
+      "default_state_id": 9027
     },
     "components": {
       "minecraft:light_emission": 0,

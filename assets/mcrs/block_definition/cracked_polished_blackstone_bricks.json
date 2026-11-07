@@ -3,9 +3,9 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:cracked_polished_blackstone_bricks",
-      "protocol_id": 1021,
-      "base_state_id": 25607,
-      "default_state_id": 25607
+      "protocol_id": 1030,
+      "base_state_id": 26430,
+      "default_state_id": 26430
     },
     "components": {
       "minecraft:light_emission": 0,

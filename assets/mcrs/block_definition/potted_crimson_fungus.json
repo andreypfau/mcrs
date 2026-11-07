@@ -3,9 +3,9 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:potted_crimson_fungus",
-      "protocol_id": 1010,
-      "base_state_id": 25189,
-      "default_state_id": 25189
+      "protocol_id": 1019,
+      "base_state_id": 26012,
+      "default_state_id": 26012
     },
     "components": {
       "minecraft:light_emission": 0,

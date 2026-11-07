@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:copper_ore",
-      "protocol_id": 97
+      "protocol_id": 109
     },
     "components": {
       "minecraft:attack_animation": {},

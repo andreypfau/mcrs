@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:barrier",
-      "protocol_id": 577
+      "protocol_id": 594
     },
     "components": {
       "minecraft:attack_animation": {},

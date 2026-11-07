@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:flower_pot",
-      "protocol_id": 1380
+      "protocol_id": 1402
     },
     "components": {
       "minecraft:attack_animation": {},

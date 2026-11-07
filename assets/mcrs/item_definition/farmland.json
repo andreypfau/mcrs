@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:farmland",
-      "protocol_id": 406
+      "protocol_id": 418
     },
     "components": {
       "minecraft:attack_animation": {},

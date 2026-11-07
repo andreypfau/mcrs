@@ -3,9 +3,9 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:cracked_deepslate_tiles",
-      "protocol_id": 1263,
-      "base_state_id": 35480,
-      "default_state_id": 35480
+      "protocol_id": 1285,
+      "base_state_id": 37539,
+      "default_state_id": 37539
     },
     "components": {
       "minecraft:light_emission": 0,

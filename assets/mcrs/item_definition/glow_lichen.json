@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:glow_lichen",
-      "protocol_id": 485
+      "protocol_id": 501
     },
     "components": {
       "minecraft:attack_animation": {},

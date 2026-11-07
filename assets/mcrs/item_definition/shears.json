@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:shears",
-      "protocol_id": 1257
+      "protocol_id": 1279
     },
     "components": {
       "minecraft:attack_animation": {},

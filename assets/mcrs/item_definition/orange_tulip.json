@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:orange_tulip",
-      "protocol_id": 307
+      "protocol_id": 319
     },
     "components": {
       "minecraft:attack_animation": {},

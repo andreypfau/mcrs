@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:bamboo_fence",
-      "protocol_id": 427
+      "protocol_id": 443
     },
     "components": {
       "minecraft:attack_animation": {},

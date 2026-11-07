@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:oak_stairs",
-      "protocol_id": 515
+      "protocol_id": 532
     },
     "components": {
       "minecraft:attack_animation": {},

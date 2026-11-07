@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:pale_oak_planks",
-      "protocol_id": 70
+      "protocol_id": 82
     },
     "components": {
       "minecraft:attack_animation": {},

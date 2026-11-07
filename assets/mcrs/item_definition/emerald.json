@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:emerald",
-      "protocol_id": 1014
+      "protocol_id": 1036
     },
     "components": {
       "minecraft:attack_animation": {},

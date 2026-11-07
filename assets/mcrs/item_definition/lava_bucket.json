@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:lava_bucket",
-      "protocol_id": 1131
+      "protocol_id": 1153
     },
     "components": {
       "minecraft:attack_animation": {},

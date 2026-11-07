@@ -3,9 +3,9 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:chiseled_tuff_bricks",
-      "protocol_id": 1089,
-      "base_state_id": 28061,
-      "default_state_id": 28061
+      "protocol_id": 1098,
+      "base_state_id": 28884,
+      "default_state_id": 28884
     },
     "components": {
       "minecraft:light_emission": 0,

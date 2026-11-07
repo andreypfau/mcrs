@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:polished_cinnabar",
-      "protocol_id": 44
+      "protocol_id": 56
     },
     "components": {
       "minecraft:attack_animation": {},

@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:golden_helmet",
-      "protocol_id": 1089
+      "protocol_id": 1111
     },
     "components": {
       "minecraft:attack_animation": {},
@@ -32,7 +32,8 @@
       "minecraft:equippable": {
         "slot": "head",
         "equip_sound": "minecraft:item.armor.equip_gold",
-        "asset_id": "minecraft:gold"
+        "asset_id": "minecraft:gold",
+        "shearing_sound": "minecraft:item.shears.snip"
       },
       "minecraft:interact_animation": {},
       "minecraft:item_model": "minecraft:golden_helmet",

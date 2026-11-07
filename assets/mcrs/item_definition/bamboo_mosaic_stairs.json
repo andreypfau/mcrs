@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:bamboo_mosaic_stairs",
-      "protocol_id": 526
+      "protocol_id": 543
     },
     "components": {
       "minecraft:attack_animation": {},

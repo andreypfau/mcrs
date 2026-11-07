@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:smooth_basalt",
-      "protocol_id": 438
+      "protocol_id": 454
     },
     "components": {
       "minecraft:attack_animation": {},

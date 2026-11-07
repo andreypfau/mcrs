@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:leather_boots",
-      "protocol_id": 1072
+      "protocol_id": 1094
     },
     "components": {
       "minecraft:attack_animation": {},
@@ -32,7 +32,8 @@
       "minecraft:equippable": {
         "slot": "feet",
         "equip_sound": "minecraft:item.armor.equip_leather",
-        "asset_id": "minecraft:leather"
+        "asset_id": "minecraft:leather",
+        "shearing_sound": "minecraft:item.shears.snip"
       },
       "minecraft:interact_animation": {},
       "minecraft:item_model": "minecraft:leather_boots",

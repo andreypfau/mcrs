@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:red_sandstone_wall",
-      "protocol_id": 535
+      "protocol_id": 552
     },
     "components": {
       "minecraft:attack_animation": {},

@@ -3,9 +3,9 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:raw_gold_block",
-      "protocol_id": 1268,
-      "base_state_id": 35487,
-      "default_state_id": 35487
+      "protocol_id": 1290,
+      "base_state_id": 37546,
+      "default_state_id": 37546
     },
     "components": {
       "minecraft:light_emission": 0,

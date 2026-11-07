@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:bone",
-      "protocol_id": 1218
+      "protocol_id": 1240
     },
     "components": {
       "minecraft:attack_animation": {},

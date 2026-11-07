@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:glowstone",
-      "protocol_id": 441
+      "protocol_id": 457
     },
     "components": {
       "minecraft:attack_animation": {},

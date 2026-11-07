@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:piglin_head",
-      "protocol_id": 1393
+      "protocol_id": 1415
     },
     "components": {
       "minecraft:attack_animation": {},
@@ -23,7 +23,9 @@
       "minecraft:enchantments": {},
       "minecraft:equippable": {
         "slot": "head",
-        "swappable": false
+        "equip_sound": "minecraft:item.armor.equip_generic",
+        "swappable": false,
+        "shearing_sound": "minecraft:item.shears.snip"
       },
       "minecraft:interact_animation": {},
       "minecraft:item_model": "minecraft:piglin_head",

@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:redstone_ore",
-      "protocol_id": 101
+      "protocol_id": 113
     },
     "components": {
       "minecraft:attack_animation": {},

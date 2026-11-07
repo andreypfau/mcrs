@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:lime_bed",
-      "protocol_id": 1226
+      "protocol_id": 1248
     },
     "components": {
       "minecraft:attack_animation": {},

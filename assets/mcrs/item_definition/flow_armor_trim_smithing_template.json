@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:flow_armor_trim_smithing_template",
-      "protocol_id": 1601
+      "protocol_id": 1624
     },
     "components": {
       "minecraft:attack_animation": {},

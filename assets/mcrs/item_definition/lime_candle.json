@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:lime_candle",
-      "protocol_id": 1559
+      "protocol_id": 1582
     },
     "components": {
       "minecraft:attack_animation": {},

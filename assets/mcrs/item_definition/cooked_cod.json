@@ -3,13 +3,15 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:cooked_cod",
-      "protocol_id": 1196
+      "protocol_id": 1218
     },
     "components": {
       "minecraft:attack_animation": {},
       "minecraft:attribute_modifiers": [],
       "minecraft:break_sound": "minecraft:entity.item.break",
-      "minecraft:consumable": {},
+      "minecraft:consumable": {
+        "sound": "minecraft:entity.generic.eat"
+      },
       "minecraft:enchantments": {},
       "minecraft:food": {
         "nutrition": 5,

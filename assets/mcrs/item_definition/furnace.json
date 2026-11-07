@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:furnace",
-      "protocol_id": 407
+      "protocol_id": 419
     },
     "components": {
       "minecraft:attack_animation": {},

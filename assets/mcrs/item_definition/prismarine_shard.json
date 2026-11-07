@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:prismarine_shard",
-      "protocol_id": 1401
+      "protocol_id": 1423
     },
     "components": {
       "minecraft:attack_animation": {},

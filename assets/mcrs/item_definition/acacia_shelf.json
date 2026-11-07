@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:acacia_shelf",
-      "protocol_id": 377
+      "protocol_id": 389
     },
     "components": {
       "minecraft:attack_animation": {},

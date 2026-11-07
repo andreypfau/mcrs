@@ -3,9 +3,9 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:polished_cinnabar",
-      "protocol_id": 1108,
-      "base_state_id": 29712,
-      "default_state_id": 29712
+      "protocol_id": 1117,
+      "base_state_id": 30535,
+      "default_state_id": 30535
     },
     "components": {
       "minecraft:light_emission": 0,

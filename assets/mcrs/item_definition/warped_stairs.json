@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:warped_stairs",
-      "protocol_id": 528
+      "protocol_id": 545
     },
     "components": {
       "minecraft:attack_animation": {},

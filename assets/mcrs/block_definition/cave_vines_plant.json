@@ -9,9 +9,9 @@
           false
         ]
       },
-      "protocol_id": 1229,
-      "base_state_id": 33716,
-      "default_state_id": 33717
+      "protocol_id": 1251,
+      "base_state_id": 35775,
+      "default_state_id": 35776
     },
     "components": {
       "minecraft:light_dampening": 0,

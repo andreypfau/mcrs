@@ -3,9 +3,9 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:potted_cherry_sapling",
-      "protocol_id": 469,
-      "base_state_id": 12380,
-      "default_state_id": 12380
+      "protocol_id": 473,
+      "base_state_id": 12791,
+      "default_state_id": 12791
     },
     "components": {
       "minecraft:light_emission": 0,

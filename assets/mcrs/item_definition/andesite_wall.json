@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:andesite_wall",
-      "protocol_id": 541
+      "protocol_id": 558
     },
     "components": {
       "minecraft:attack_animation": {},

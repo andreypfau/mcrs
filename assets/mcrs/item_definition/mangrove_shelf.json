@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:mangrove_shelf",
-      "protocol_id": 384
+      "protocol_id": 396
     },
     "components": {
       "minecraft:attack_animation": {},

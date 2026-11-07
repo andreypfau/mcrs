@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:bamboo_hanging_sign",
-      "protocol_id": 1126
+      "protocol_id": 1148
     },
     "components": {
       "minecraft:attack_animation": {},

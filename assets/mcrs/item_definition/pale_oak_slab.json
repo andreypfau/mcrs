@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:pale_oak_slab",
-      "protocol_id": 348
+      "protocol_id": 360
     },
     "components": {
       "minecraft:attack_animation": {},

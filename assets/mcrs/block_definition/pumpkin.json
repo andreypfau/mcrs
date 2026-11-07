@@ -3,9 +3,9 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:pumpkin",
-      "protocol_id": 410,
-      "base_state_id": 10068,
-      "default_state_id": 10068
+      "protocol_id": 414,
+      "base_state_id": 10479,
+      "default_state_id": 10479
     },
     "components": {
       "minecraft:light_emission": 0,

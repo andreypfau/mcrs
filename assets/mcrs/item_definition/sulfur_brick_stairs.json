@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:sulfur_brick_stairs",
-      "protocol_id": 37
+      "protocol_id": 49
     },
     "components": {
       "minecraft:attack_animation": {},

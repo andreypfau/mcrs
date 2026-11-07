@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:muddy_mangrove_roots",
-      "protocol_id": 174
+      "protocol_id": 186
     },
     "components": {
       "minecraft:attack_animation": {},

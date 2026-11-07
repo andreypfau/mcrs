@@ -3,9 +3,9 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:end_stone",
-      "protocol_id": 443,
-      "base_state_id": 11213,
-      "default_state_id": 11213
+      "protocol_id": 447,
+      "base_state_id": 11624,
+      "default_state_id": 11624
     },
     "components": {
       "minecraft:light_emission": 0,

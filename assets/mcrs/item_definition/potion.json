@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:potion",
-      "protocol_id": 1273
+      "protocol_id": 1295
     },
     "components": {
       "minecraft:attack_animation": {},

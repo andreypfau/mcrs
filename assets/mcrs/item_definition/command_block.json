@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:command_block",
-      "protocol_id": 529
+      "protocol_id": 546
     },
     "components": {
       "minecraft:attack_animation": {},

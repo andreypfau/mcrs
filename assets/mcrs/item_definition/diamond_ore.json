@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:diamond_ore",
-      "protocol_id": 107
+      "protocol_id": 119
     },
     "components": {
       "minecraft:attack_animation": {},

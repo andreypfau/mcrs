@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:prismarine",
-      "protocol_id": 637
+      "protocol_id": 659
     },
     "components": {
       "minecraft:attack_animation": {},

@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:copper_chain",
-      "protocol_id": 474
+      "protocol_id": 490
     },
     "components": {
       "minecraft:attack_animation": {},

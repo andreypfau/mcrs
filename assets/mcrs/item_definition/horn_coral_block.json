@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:horn_coral_block",
-      "protocol_id": 765
+      "protocol_id": 787
     },
     "components": {
       "minecraft:attack_animation": {},

@@ -3,9 +3,9 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:chiseled_red_sandstone",
-      "protocol_id": 650,
-      "base_state_id": 15097,
-      "default_state_id": 15097
+      "protocol_id": 659,
+      "base_state_id": 15920,
+      "default_state_id": 15920
     },
     "components": {
       "minecraft:light_emission": 0,

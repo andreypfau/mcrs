@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:mud_brick_slab",
-      "protocol_id": 363
+      "protocol_id": 375
     },
     "components": {
       "minecraft:attack_animation": {},

@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:deepslate_redstone_ore",
-      "protocol_id": 102
+      "protocol_id": 114
     },
     "components": {
       "minecraft:attack_animation": {},

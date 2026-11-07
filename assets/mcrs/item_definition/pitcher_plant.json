@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:pitcher_plant",
-      "protocol_id": 315
+      "protocol_id": 327
     },
     "components": {
       "minecraft:attack_animation": {},
