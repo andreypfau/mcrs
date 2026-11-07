@@ -8,7 +8,7 @@ pub struct Keys {
     pub jump: bool,
     pub shift: bool,
     pub sprint: bool,
-    /// The jump key changed to down in this tick, not by auto-jump: the press that toggles the
-    /// flight state.
-    pub jump_pressed: bool,
+    /// The jump key of this tick comes from auto-jump; such a press does not toggle the flight
+    /// state.
+    pub auto_jump: bool,
 }

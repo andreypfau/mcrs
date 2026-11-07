@@ -74,6 +74,10 @@ impl Fixture {
             rotation: PlayerRotation { yaw, pitch: 0.0 },
             ..PlayerInput::default()
         };
+        self.tick_with(state, &input)
+    }
+
+    fn tick_with(&mut self, state: &PlayerState, input: &PlayerInput) -> PlayerState {
         let mut out = PlayerState::default();
         let view = View {
             world: &self.world,
@@ -85,7 +89,7 @@ impl Fixture {
             view,
             Side::OwnClient,
             state,
-            &input,
+            input,
             &mut out,
             &mut self.actions,
             &mut self.scratch,
@@ -110,7 +114,7 @@ const FORWARD: Keys = Keys {
     jump: false,
     shift: false,
     sprint: false,
-    jump_pressed: false,
+    auto_jump: false,
 };
 
 #[test]
@@ -168,23 +172,65 @@ fn inp_018_two_presses_of_jump_toggle_the_flight_state() {
         state.may_fly = true;
         let press = Keys {
             jump: true,
-            jump_pressed: true,
             ..Keys::default()
         };
         state = fixture.tick(&state, press, 0.0);
         for _ in 1..gap {
             state = fixture.tick(&state, Keys::default(), 0.0);
         }
-        // The flight state ends on the ground at the end of the tick, so the toggle shows as the
-        // vertical impulse of the jump key in flight, with no jump from the ground.
         let toggled = fixture.tick(&state, press, 0.0);
-        let impulse = f64::from(0.05_f32 * 3.0);
-        assert_eq!(
-            toggled.position.y - state.position.y == impulse * 0.6 || toggled.jump_timer == 0,
-            flies,
-            "a gap of {gap} ticks"
-        );
+        assert_eq!(toggled.flight0, flies, "a gap of {gap} ticks");
     }
+}
+
+#[test]
+fn inp_018_a_held_or_automatic_jump_key_does_not_toggle_the_flight_state() {
+    let held = Keys {
+        jump: true,
+        ..Keys::default()
+    };
+    let automatic = Keys {
+        auto_jump: true,
+        ..held
+    };
+    for (jump0, keys) in [(true, held), (false, automatic)] {
+        let mut fixture = Fixture::on_stone();
+        let mut state = fixture.settled();
+        state.may_fly = true;
+        state.jump_timer = 3;
+        state.jump0 = jump0;
+        let next = fixture.tick(&state, keys, 0.0);
+        assert!(!next.flight0, "jump0 {jump0}, auto-jump {}", keys.auto_jump);
+        assert!(next.jump0);
+    }
+}
+
+#[test]
+fn inp_015_flight_that_starts_on_the_ground_jumps_before_the_impulse() {
+    let mut fixture = Fixture::on_stone();
+    let mut state = fixture.settled();
+    state.may_fly = true;
+    state.jump_timer = 3;
+    let press = Keys {
+        jump: true,
+        ..Keys::default()
+    };
+    let next = fixture.tick(&state, press, 0.0);
+    assert!(next.flight0);
+    let rise = f64::from(0.42_f32) + f64::from(0.05_f32 * 3.0);
+    assert_eq!(next.position.y - state.position.y, rise);
+}
+
+#[test]
+fn psh_008_the_push_enters_the_velocity_before_the_zero_cutoff() {
+    let mut fixture = Fixture::on_stone();
+    let state = fixture.settled();
+    let input = PlayerInput {
+        push: DVec3::new(0.002, 0.0, 0.0),
+        ..PlayerInput::default()
+    };
+    let next = fixture.tick_with(&state, &input);
+    assert_eq!(next.position.x, state.position.x);
 }
 
 #[test]

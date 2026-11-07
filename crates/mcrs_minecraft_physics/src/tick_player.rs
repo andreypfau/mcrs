@@ -48,7 +48,7 @@ pub struct PlayerInput {
     /// The rotation of this tick; it applies before the tick.
     pub rotation: PlayerRotation,
     pub facts: PlayerFacts,
-    /// The push of other entities that the player uses in this tick.
+    /// The push of other entities since the last tick; it adds to the velocity before the tick.
     pub push: DVec3,
 }
 
@@ -63,6 +63,7 @@ pub fn tick_player<W: CollisionWorld, B: BodyView>(
     scratch: &mut Scratch,
 ) {
     *out = *start;
+    out.velocity += input.push;
     let keys = input.keys;
     let facts = input.facts;
     let yaw = input.rotation.yaw;
@@ -73,14 +74,7 @@ pub fn tick_player<W: CollisionWorld, B: BodyView>(
     out.crouching = crouch_state(view, start, &facts, scratch);
     let move_input = input_vector(&keys, out, &facts);
     let sprint = sprint_state(start, out, &keys, &facts, move_input.forward);
-    let flight = flight_state(start, out, &keys, &facts);
-    if flight && side == Side::OwnClient {
-        out.velocity.y += flight_impulse(&keys, out.flight_speed);
-    }
-    out.jump_timer = out.jump_timer.saturating_sub(1);
-    if flight {
-        out.fall_distance = 0.0;
-    }
+    let flight = flight_steps(view, side, start, out, input, sprint);
     out.jump_delay = out.jump_delay.saturating_sub(1);
     zero_small_speeds(&mut out.velocity);
     let attributes = out.attributes;
@@ -90,7 +84,6 @@ pub fn tick_player<W: CollisionWorld, B: BodyView>(
     if out.effects.slow_falling || out.effects.levitation.is_some() {
         body.fall_distance = 0.0;
     }
-    body.velocity += input.push;
     let gravity = travel::effective_gravity(
         attributes.gravity,
         out.effects.slow_falling,
@@ -159,9 +152,36 @@ pub fn tick_player<W: CollisionWorld, B: BodyView>(
     out.set_body(&body);
     out.pose = select_pose(view, out, &keys, &facts, flight_end, scratch);
     out.shift0 = keys.shift;
+    out.jump0 = keys.jump;
     out.forward0 = move_input.forward;
     out.sprint0 = sprint;
     out.flight0 = flight_end;
+}
+
+/// Steps 6 to 8 of the tick for the flight state: the toggle, the jump when the flight starts on
+/// the ground, the vertical impulse and the reset of the fall distance. Returns the flight state.
+fn flight_steps<W: CollisionWorld, B: BodyView>(
+    view: View<'_, W, B>,
+    side: Side,
+    start: &PlayerState,
+    out: &mut PlayerState,
+    input: &PlayerInput,
+    sprint: bool,
+) -> bool {
+    let flight = flight_state(start, out, &input.keys, &input.facts);
+    if flight && !start.flight0 && out.flags.on_ground {
+        let mut body = out.body();
+        jump(view, out, &mut body, sprint, input.rotation.yaw);
+        out.set_body(&body);
+    }
+    if flight && side == Side::OwnClient {
+        out.velocity.y += flight_impulse(&input.keys, out.flight_speed);
+    }
+    out.jump_timer = out.jump_timer.saturating_sub(1);
+    if flight {
+        out.fall_distance = 0.0;
+    }
+    flight
 }
 
 /// A spectator has no physics.
@@ -190,7 +210,7 @@ fn zero_small_speeds(velocity: &mut DVec3) {
     }
 }
 
-/// The jump of a player: the jump delay, the jump power and the sprint boost.
+/// The jump of PHY-INP-004: the jump delay gates the jump from the ground.
 fn player_jump<W: CollisionWorld, B: BodyView>(
     view: View<'_, W, B>,
     out: &mut PlayerState,
@@ -207,25 +227,37 @@ fn player_jump<W: CollisionWorld, B: BodyView>(
     if !body.flags.on_ground || out.jump_delay != 0 {
         return;
     }
+    jump(view, out, body, sprint, yaw);
+    out.jump_delay = JUMP_DELAY;
+}
+
+/// The jump power and the sprint boost of PHY-INP-005.
+fn jump<W: CollisionWorld, B: BodyView>(
+    view: View<'_, W, B>,
+    state: &PlayerState,
+    body: &mut crate::Body,
+    sprint: bool,
+    yaw: f32,
+) {
     let power = jump_power(
         view,
         body,
-        out.attributes.jump_strength,
-        out.effects.jump_boost,
+        state.attributes.jump_strength,
+        state.effects.jump_boost,
     );
-    if let Some(power) = power {
-        body.velocity.y = power.max(body.velocity.y);
-        if sprint {
-            let angle = yaw_radians(yaw);
-            let sine = &view.tables.sine;
-            body.velocity += DVec3::new(
-                -f64::from(sine.sin(angle)) * 0.2,
-                0.0,
-                f64::from(sine.cos(angle)) * 0.2,
-            );
-        }
+    let Some(power) = power else {
+        return;
+    };
+    body.velocity.y = power.max(body.velocity.y);
+    if sprint {
+        let angle = yaw_radians(yaw);
+        let sine = &view.tables.sine;
+        body.velocity += DVec3::new(
+            -f64::from(sine.sin(angle)) * 0.2,
+            0.0,
+            f64::from(sine.cos(angle)) * 0.2,
+        );
     }
-    out.jump_delay = JUMP_DELAY;
 }
 
 /// The speed of the input acceleration off the ground.
@@ -268,9 +300,8 @@ fn input_vector(keys: &Keys, state: &PlayerState, facts: &PlayerFacts) -> MoveIn
         left = 0.0;
         forward = 0.0;
     } else {
-        let scale = 1.0 / length;
-        left *= scale;
-        forward *= scale;
+        left /= length;
+        forward /= length;
         left *= DRAG;
         forward *= DRAG;
     }
@@ -382,7 +413,9 @@ fn flight_state(
         return true;
     }
     let mut flight = start.flight0;
-    if out.may_fly && !out.swimming && keys.jump_pressed {
+    let pressed = keys.jump && !start.jump0 && !keys.auto_jump;
+    let may_toggle = out.may_fly && !out.swimming && (!facts.passenger || facts.vehicle_takes_jump);
+    if may_toggle && pressed {
         if out.jump_timer > 0 {
             flight = !flight;
             out.jump_timer = 0;

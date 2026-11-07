@@ -3,6 +3,8 @@
 pub struct PlayerFacts {
     pub spectator: bool,
     pub passenger: bool,
+    /// The vehicle of a passenger takes the jump of its rider, as a horse does.
+    pub vehicle_takes_jump: bool,
     pub sleeping: bool,
     /// The food level is more than 6.
     pub fed: bool,
@@ -15,6 +17,7 @@ impl Default for PlayerFacts {
         Self {
             spectator: false,
             passenger: false,
+            vehicle_takes_jump: false,
             sleeping: false,
             fed: true,
             sprint_window: 7,

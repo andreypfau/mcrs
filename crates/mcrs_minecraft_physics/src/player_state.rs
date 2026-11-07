@@ -24,6 +24,8 @@ pub struct PlayerState {
     pub jump_timer: u8,
     /// The shift key of the previous tick.
     pub shift0: bool,
+    /// The jump key of the previous tick, a press of auto-jump included.
+    pub jump0: bool,
     /// The forward value of the input of the previous tick.
     pub forward0: f32,
     pub sprint0: bool,
