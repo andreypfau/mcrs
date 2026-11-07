@@ -5,6 +5,7 @@ use crate::Event;
 use crate::FORMAT_LINE;
 use crate::ParseError;
 use crate::fields::Fields;
+use crate::fields::parse_value;
 
 /// One recorded step of an experiment: the world it starts in and the packets of its client
 /// ticks.
@@ -14,6 +15,10 @@ pub struct Recording {
     /// The events in the order the client applied or sent them. The first events give the state
     /// of the player before the step: abilities, attributes and effects, then the teleport.
     pub events: Vec<Event>,
+    /// The time of each event at the server side of the proxy, in microseconds, one for each
+    /// event: for a clientbound event the time the proxy received it from the server, for a
+    /// serverbound event the time the proxy passed it to the server.
+    pub times: Vec<u64>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -69,8 +74,8 @@ impl fmt::Display for Recording {
             writeln!(f, "fill {fill}")?;
         }
         writeln!(f, "events")?;
-        for event in &self.events {
-            writeln!(f, "{event}")?;
+        for (time, event) in self.times.iter().zip(&self.events) {
+            writeln!(f, "{time} {event}")?;
         }
         Ok(())
     }
@@ -113,9 +118,13 @@ impl FromStr for Recording {
         let fills = numbered(5..start)
             .map(|(index, text)| parse_fill(text).map_err(error(index + 1)))
             .collect::<Result<Vec<_>, _>>()?;
-        let events = numbered(start + 1..lines.len())
-            .map(|(index, text)| Event::parse(text).map_err(error(index + 1)))
-            .collect::<Result<Vec<_>, _>>()?;
+        let mut events = Vec::new();
+        let mut times = Vec::new();
+        for (index, text) in numbered(start + 1..lines.len()) {
+            let (time, event) = text.split_once(' ').unwrap_or_default();
+            times.push(parse_value("time", time).map_err(error(index + 1))?);
+            events.push(Event::parse(event).map_err(error(index + 1))?);
+        }
         Ok(Self {
             header: Header {
                 version,
@@ -125,6 +134,7 @@ impl FromStr for Recording {
                 fills,
             },
             events,
+            times,
         })
     }
 }

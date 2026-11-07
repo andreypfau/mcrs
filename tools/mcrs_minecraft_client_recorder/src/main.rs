@@ -4,6 +4,7 @@
 //! recording per step. See the README.
 
 mod console;
+mod delay;
 mod names;
 mod play;
 mod proxy;
@@ -21,6 +22,7 @@ use std::path::Path;
 use std::path::PathBuf;
 use std::sync::mpsc;
 use std::thread;
+use std::time::Duration;
 
 use anyhow::Context;
 use anyhow::bail;
@@ -37,8 +39,17 @@ const SERVER_PORT: u16 = 25568;
 
 fn main() -> anyhow::Result<()> {
     let arguments: Vec<String> = env::args().skip(1).collect();
-    let [scenario, server, out] = arguments.as_slice() else {
-        bail!("usage: mcrs_minecraft_client_recorder SCENARIO SERVER_DIRECTORY OUT_DIRECTORY");
+    let usage =
+        "usage: mcrs_minecraft_client_recorder SCENARIO SERVER_DIRECTORY OUT_DIRECTORY [TRACE]";
+    let [scenario, server, out, rest @ ..] = arguments.as_slice() else {
+        bail!(usage);
+    };
+    let trace = match rest {
+        [] => Vec::new(),
+        [trace] => delay::parse_trace(
+            &fs::read_to_string(trace).with_context(|| format!("could not read {trace}"))?,
+        )?,
+        _ => bail!(usage),
     };
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     let names = Names::load(&root)?;
@@ -71,7 +82,7 @@ fn main() -> anyhow::Result<()> {
     let mut observed = Vec::new();
     while !session.is_done() {
         if connection.is_none() {
-            connection = accept(&listener)?;
+            connection = accept(&listener, &trace)?;
         }
         if let Some(open) = connection.as_mut() {
             let alive = open.poll(&names, &mut observed)?;
@@ -93,15 +104,15 @@ fn main() -> anyhow::Result<()> {
     session.console.stop()
 }
 
-fn accept(listener: &TcpListener) -> anyhow::Result<Option<Connection>> {
+fn accept(listener: &TcpListener, trace: &[Duration]) -> anyhow::Result<Option<Connection>> {
     match listener.accept() {
         Ok((client, _)) => {
             client.set_nonblocking(false)?;
             let server = TcpStream::connect(("127.0.0.1", SERVER_PORT))?;
-            Ok(Some(Connection::new(client, server)?))
+            Ok(Some(Connection::new(client, server, trace)?))
         }
         Err(error) if error.kind() == io::ErrorKind::WouldBlock => {
-            thread::sleep(std::time::Duration::from_millis(5));
+            thread::sleep(Duration::from_millis(5));
             Ok(None)
         }
         Err(error) => Err(error.into()),

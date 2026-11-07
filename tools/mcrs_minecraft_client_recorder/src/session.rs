@@ -40,7 +40,8 @@ enum Phase {
 }
 
 struct Segment {
-    events: Vec<Event>,
+    /// The time of each event and the event.
+    events: Vec<(u64, Event)>,
     /// Where the events that the client applies before its next tick go.
     gap: usize,
     ticks: u32,
@@ -120,10 +121,15 @@ impl Session {
                     self.prompt(0);
                 }
             }
-            Observed::Applied(event) => {
+            Observed::Applied(time, event) => {
                 if let (Event::Teleport(_), Phase::Starting(step)) = (&event, &self.phase) {
-                    let mut events = self.snapshot.events();
-                    events.push(event.clone());
+                    let mut events: Vec<(u64, Event)> = self
+                        .snapshot
+                        .events()
+                        .into_iter()
+                        .map(|before| (time, before))
+                        .collect();
+                    events.push((time, event.clone()));
                     let gap = events.len();
                     self.phase = Phase::Recording {
                         step: *step,
@@ -134,17 +140,17 @@ impl Session {
                         },
                     };
                 } else if let Phase::Recording { segment, .. } = &mut self.phase {
-                    segment.events.insert(segment.gap, event.clone());
+                    segment.events.insert(segment.gap, (time, event.clone()));
                     segment.gap += 1;
                 }
                 self.snapshot.apply(&event);
             }
-            Observed::Sent(event) => self.sent(event)?,
+            Observed::Sent(time, event) => self.sent(time, event)?,
         }
         Ok(())
     }
 
-    fn sent(&mut self, event: Event) -> anyhow::Result<()> {
+    fn sent(&mut self, time: u64, event: Event) -> anyhow::Result<()> {
         let tick_end = event == Event::TickEnd;
         match &mut self.phase {
             Phase::Settling { step, ticks_left } if tick_end => {
@@ -156,7 +162,7 @@ impl Session {
                 }
             }
             Phase::Recording { step, segment } => {
-                segment.events.push(event);
+                segment.events.push((time, event));
                 if !tick_end {
                     return Ok(());
                 }
@@ -215,6 +221,7 @@ impl Session {
             return Ok(());
         };
         let current = step_at(&self.scenario, step)?;
+        let (times, events) = segment.events.into_iter().unzip();
         let recording = Recording {
             header: Header {
                 version: VERSION.id.to_owned(),
@@ -223,7 +230,8 @@ impl Session {
                 instruction: current.instruction.clone(),
                 fills: current.fills.clone(),
             },
-            events: segment.events,
+            events,
+            times,
         };
         fs::create_dir_all(&self.out)?;
         let path = self.out.join(format!(

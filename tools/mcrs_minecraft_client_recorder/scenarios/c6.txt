@@ -1,0 +1,17 @@
+# Conformance C6 of docs/spec/movement-checks.md, section 14.2: the speed attribute and the jump
+# boost effect change during a jump.
+experiment C6
+arena -16 98 -8 16 110 8
+
+step speed_and_jump_boost
+instruction Hold W and Space after Go until the title Stop shows.
+fill -16 99 -8 16 99 8 minecraft:stone
+run gamemode survival @a
+run effect clear @a
+start -15.5 100 0.5 -90 0
+at 70 attribute @a minecraft:movement_speed base set 0.15
+at 77 effect give @a minecraft:jump_boost 10 1
+at 85 attribute @a minecraft:movement_speed base reset
+at 93 effect clear @a minecraft:jump_boost
+at 101 effect give @a minecraft:jump_boost 10 3
+ticks 140

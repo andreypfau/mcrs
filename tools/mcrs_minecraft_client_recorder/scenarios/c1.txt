@@ -1,0 +1,44 @@
+# Conformance C1 and C2 of docs/spec/movement-checks.md, section 14.2: walk, sprint, sneak at an
+# edge, jump, sprint-jump and fall 30 blocks. Record it once for each delay trace and frame rate.
+experiment C1
+arena -16 98 -8 16 132 8
+
+step walk
+instruction Hold W for 2 seconds after Go, then release it.
+fill -16 99 -8 16 99 8 minecraft:stone
+run gamemode survival @a
+run effect clear @a
+run effect give @a minecraft:resistance infinite 4 true
+start -15.5 100 0.5 -90 0
+ticks 120
+
+step sprint
+instruction Hold Ctrl and W for 2 seconds after Go, then release both.
+fill -16 99 -8 16 99 8 minecraft:stone
+start -15.5 100 0.5 -90 0
+ticks 120
+
+step sneak_edge
+instruction Hold Shift and W after Go until the title Stop shows. The edge stops you.
+fill -16 99 -8 0 99 8 minecraft:stone
+start -10.5 100 0.5 -90 0
+ticks 160
+
+step jump
+instruction Hold Space for 3 seconds after Go, then release it.
+fill -16 99 -8 16 99 8 minecraft:stone
+start 0.5 100 0.5 -90 0
+ticks 140
+
+step sprint_jump
+instruction Hold Ctrl, W and Space for 2 seconds after Go, then release all.
+fill -16 99 -8 16 99 8 minecraft:stone
+start -15.5 100 0.5 -90 0
+ticks 120
+
+step fall
+instruction Release all keys and do nothing until Stop.
+fill -16 99 -8 16 99 8 minecraft:stone
+start 0.5 130 0.5 -90 0
+go 40
+ticks 120

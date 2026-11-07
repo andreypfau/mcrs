@@ -234,6 +234,20 @@ impl fmt::Display for Event {
 }
 
 impl Event {
+    /// True for a packet from the server to the client.
+    #[must_use]
+    pub fn is_clientbound(&self) -> bool {
+        !matches!(
+            self,
+            Self::Input(_)
+                | Self::Sprinting(_)
+                | Self::UseItem
+                | Self::ReleaseUseItem
+                | Self::Move(_)
+                | Self::TickEnd
+        )
+    }
+
     /// Parses one event line, the direction mark included.
     pub(crate) fn parse(line: &str) -> Result<Self, String> {
         let mut fields = Fields::new(line);

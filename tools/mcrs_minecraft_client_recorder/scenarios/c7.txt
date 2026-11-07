@@ -1,0 +1,12 @@
+# Conformance C7 of docs/spec/movement-checks.md, section 14.2: the connection stalls for 3 seconds
+# and then releases each held packet at one time. Record it with the trace freeze.rtt of the README.
+experiment C7
+arena -16 98 -8 16 110 8
+
+step walk_through_stalls
+instruction After Go, walk, jump and turn on the floor until the title Stop shows.
+fill -16 99 -8 16 99 8 minecraft:stone
+run gamemode survival @a
+run effect clear @a
+start 0.5 100 0.5 -90 0
+ticks 900

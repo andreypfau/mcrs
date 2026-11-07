@@ -26,4 +26,4 @@ pub use recording::Header;
 pub use recording::Recording;
 
 /// The first line of a recording; the number is the format version.
-pub const FORMAT_LINE: &str = "client-ticks 1";
+pub const FORMAT_LINE: &str = "client-ticks 2";

@@ -59,21 +59,21 @@ fn own_player_follows_the_recorded_client_ticks() {
 
 #[test]
 fn the_sprint_modifier_of_the_recording_is_left_to_the_kernel() {
-    let recording: Recording = "client-ticks 1
+    let recording: Recording = "client-ticks 2
 version test
 experiment E9
 step sprint
 instruction none
 events
-< attribute minecraft:movement_speed 0.1 test:armor 0.5 1
-> sprint true
-> tick
-< attribute minecraft:movement_speed 0.1 test:armor 0.5 1 test:sprint 0.30000001192092896 2
-> tick
-> sprint false
-> tick
-< attribute minecraft:movement_speed 0.1 test:armor 0.5 1
-> tick
+0 < attribute minecraft:movement_speed 0.1 test:armor 0.5 1
+0 > sprint true
+0 > tick
+0 < attribute minecraft:movement_speed 0.1 test:armor 0.5 1 test:sprint 0.30000001192092896 2
+0 > tick
+0 > sprint false
+0 > tick
+0 < attribute minecraft:movement_speed 0.1 test:armor 0.5 1
+0 > tick
 "
     .parse()
     .unwrap();

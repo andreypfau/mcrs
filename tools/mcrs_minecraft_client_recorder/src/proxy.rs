@@ -5,6 +5,7 @@ use std::io::Write;
 use std::mem;
 use std::net::TcpStream;
 use std::time::Duration;
+use std::time::Instant;
 
 use bytes::BufMut;
 use bytes::Bytes;
@@ -31,6 +32,7 @@ use mcrs_minecraft_protocol::packets::table::login_clientbound;
 use mcrs_minecraft_protocol::packets::table::login_serverbound;
 use mcrs_minecraft_protocol_game::clientbound::ClientboundPing;
 
+use crate::delay::Delay;
 use crate::names::Names;
 use crate::play::Play;
 use crate::play::decode_clientbound;
@@ -39,12 +41,13 @@ use crate::play::name_of;
 
 const POLL: Duration = Duration::from_millis(1);
 
-/// What the proxy saw, in the order the client applied or sent it.
+/// What the proxy saw, in the order the client applied or sent it, with the time of
+/// [`mcrs_minecraft_client_ticks::Recording::times`].
 pub(crate) enum Observed {
     /// A clientbound event; the client applied it before its next tick.
-    Applied(Event),
+    Applied(u64, Event),
     /// A serverbound event.
-    Sent(Event),
+    Sent(u64, Event),
     /// The client has loaded the world.
     Loaded,
 }
@@ -70,7 +73,7 @@ struct Inbound {
 /// A `ping` that the proxy sent after the events it brackets.
 struct Probe {
     id: i32,
-    events: Vec<Event>,
+    events: Vec<(u64, Event)>,
 }
 
 /// One client connection, forwarded to the server frame by frame.
@@ -84,15 +87,23 @@ pub(crate) struct Connection {
     threshold: CompressionThreshold,
     deflate: Option<Deflate>,
     in_bundle: bool,
-    unprobed: Vec<Event>,
+    unprobed: Vec<(u64, Event)>,
     probes: VecDeque<Probe>,
     next_probe: i32,
     /// The network id of the player, from `login`.
     player: Option<i32>,
+    start: Instant,
+    from_client: Delay<Bytes>,
+    to_client: Delay<Vec<u8>>,
 }
 
 impl Connection {
-    pub(crate) fn new(client: TcpStream, server: TcpStream) -> anyhow::Result<Self> {
+    /// `trace` holds the round trip samples of the delay between the client and the proxy.
+    pub(crate) fn new(
+        client: TcpStream,
+        server: TcpStream,
+        trace: &[Duration],
+    ) -> anyhow::Result<Self> {
         for stream in [&client, &server] {
             stream.set_read_timeout(Some(POLL))?;
             stream.set_nodelay(true)?;
@@ -114,6 +125,9 @@ impl Connection {
             probes: VecDeque::new(),
             next_probe: i32::MIN,
             player: None,
+            start: Instant::now(),
+            from_client: Delay::new(trace.to_vec()),
+            to_client: Delay::new(trace.to_vec()),
         })
     }
 
@@ -122,18 +136,34 @@ impl Connection {
         if !receive(&mut self.client)? {
             return Ok(false);
         }
+        let now = Instant::now();
         while let Some(frame) = next_frame(&mut self.client)? {
+            self.from_client.push(now, frame);
+        }
+        while let Some(frame) = self.from_client.pop_due(now) {
             self.client_frame(frame, out)?;
         }
         flush(&mut self.server)?;
         if !receive(&mut self.server)? {
             return Ok(false);
         }
+        let now = Instant::now();
         while let Some(frame) = next_frame(&mut self.server)? {
             self.server_frame(names, frame)?;
         }
-        flush(&mut self.client)?;
+        if !self.client.outgoing.is_empty() {
+            self.to_client
+                .push(now, mem::take(&mut self.client.outgoing));
+        }
+        while let Some(bytes) = self.to_client.pop_due(now) {
+            self.client.stream.write_all(&bytes)?;
+        }
         Ok(true)
+    }
+
+    /// The time since the connection opened, in microseconds.
+    fn time(&self) -> u64 {
+        u64::try_from(self.start.elapsed().as_micros()).unwrap_or(u64::MAX)
     }
 
     fn client_frame(&mut self, frame: Bytes, out: &mut Vec<Observed>) -> anyhow::Result<()> {
@@ -163,12 +193,20 @@ impl Connection {
             State::Play => match decode_serverbound(id, body)? {
                 Play::Ping(probe) if self.probes.front().is_some_and(|front| front.id == probe) => {
                     if let Some(answered) = self.probes.pop_front() {
-                        out.extend(answered.events.into_iter().map(Observed::Applied));
+                        out.extend(
+                            answered
+                                .events
+                                .into_iter()
+                                .map(|(time, event)| Observed::Applied(time, event)),
+                        );
                     }
                     return Ok(());
                 }
                 Play::Loaded => out.push(Observed::Loaded),
-                Play::Events(events) => out.extend(events.into_iter().map(Observed::Sent)),
+                Play::Events(events) => {
+                    let time = self.time();
+                    out.extend(events.into_iter().map(|event| Observed::Sent(time, event)));
+                }
                 Play::Login(_) | Play::Ping(_) | Play::Bundle => {}
             },
             State::Status | State::Login | State::Configuration => {}
@@ -200,7 +238,11 @@ impl Connection {
             State::Play => match decode_clientbound(names, self.player, id, body)? {
                 Play::Login(player) => self.player = Some(player),
                 Play::Bundle => self.in_bundle = !self.in_bundle,
-                Play::Events(events) => self.unprobed.extend(events),
+                Play::Events(events) => {
+                    let time = self.time();
+                    self.unprobed
+                        .extend(events.into_iter().map(|event| (time, event)));
+                }
                 Play::Loaded | Play::Ping(_) => {}
             },
             State::Handshake | State::Status | State::Configuration => {}

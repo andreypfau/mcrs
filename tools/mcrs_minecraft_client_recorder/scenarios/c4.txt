@@ -1,0 +1,27 @@
+# Conformance C4 of docs/spec/movement-checks.md, section 14.2: knockback from a mob and from a
+# wind charge. Record it with a delay trace of about 500 ms. The skeleton shoots from a distance,
+# so that no mob pushes the player: the replay has no pushers.
+experiment C4
+arena -16 98 -8 16 110 8
+
+step skeleton
+instruction Stand still and face the skeleton until Stop. Its arrows push you back.
+fill -16 99 -8 16 99 8 minecraft:stone
+run gamemode survival @a
+run effect clear @a
+run effect give @a minecraft:resistance infinite 4 true
+run difficulty easy
+run kill @e[type=minecraft:skeleton]
+run summon minecraft:skeleton 12.5 100 0.5
+start 0.5 100 0.5 -90 0
+ticks 300
+
+step wind_charge
+instruction After Go, look at the floor and throw the wind charge with the right mouse button. Do it again 3 times.
+fill -16 99 -8 16 99 8 minecraft:stone
+run kill @e[type=minecraft:skeleton]
+run difficulty peaceful
+run clear @a
+run give @a minecraft:wind_charge 4
+start 0.5 100 0.5 -90 0
+ticks 300

@@ -1,24 +1,24 @@
 use super::*;
 
-const TEXT: &str = "client-ticks 1
+const TEXT: &str = "client-ticks 2
 version 1.0
 experiment E9
 step walk_stone
 instruction Hold W for 2 seconds.
 fill -4 99 -4 12 99 4 minecraft:oak_slab[type=bottom,waterlogged=false]
 events
-< abilities may_fly 0.05
-< attribute minecraft:movement_speed 0.1 test:boost 0.30000001192092896 2
-< teleport 3 0.5 100 0.5 0 0 0 -90.5 0 0
-> tick
-> input forward,sprint
-> sprint true
-> move 0.5,99.9216,0.5 - on_ground
-> tick
-< motion 0 -0.0784000015258789 0
-> move - 12.25,-3.5 none
-> tick
-> input none
+1250 < abilities may_fly 0.05
+2500 < attribute minecraft:movement_speed 0.1 test:boost 0.30000001192092896 2
+3750 < teleport 3 0.5 100 0.5 0 0 0 -90.5 0 0
+5000 > tick
+6250 > input forward,sprint
+7500 > sprint true
+8750 > move 0.5,99.9216,0.5 - on_ground
+10000 > tick
+11250 < motion 0 -0.0784000015258789 0
+12500 > move - 12.25,-3.5 none
+13750 > tick
+15000 > input none
 ";
 
 #[test]
@@ -46,6 +46,10 @@ fn a_recording_reads_back_as_written() {
         })
     );
     assert_eq!(ticks[2][0], Event::Motion([0.0, -0.0784000015258789, 0.0]));
+    assert_eq!(
+        recording.times[8], 11250,
+        "each event keeps the time of its line"
+    );
     let Event::Attribute(attribute) = &ticks[0][1] else {
         panic!("the second event is the attribute");
     };

@@ -4,6 +4,7 @@ use std::net::TcpListener;
 use std::net::TcpStream;
 use std::path::Path;
 use std::time::Duration;
+use std::time::Instant;
 
 use bytes::BytesMut;
 use mcrs_minecraft_client_ticks::Abilities;
@@ -25,6 +26,8 @@ use mcrs_minecraft_protocol::packets::table::login_clientbound;
 use mcrs_minecraft_protocol::packets::table::login_serverbound;
 use mcrs_minecraft_protocol::packets::table::row_of;
 
+use crate::delay::Delay;
+use crate::delay::parse_trace;
 use crate::names::Names;
 use crate::proxy::Connection;
 use crate::proxy::Observed;
@@ -145,7 +148,7 @@ fn a_clientbound_change_applies_at_the_answer_to_the_probe_after_it() {
     let names = Names::load(&Path::new(env!("CARGO_MANIFEST_DIR")).join("../..")).unwrap();
     let (mut client, proxy_client) = pair();
     let (mut server, proxy_server) = pair();
-    let mut connection = Connection::new(proxy_client, proxy_server).unwrap();
+    let mut connection = Connection::new(proxy_client, proxy_server, &[]).unwrap();
     join(&mut client, &mut server, &mut connection, &names);
     let mut observed = Vec::new();
     server.send(game_clientbound::NAMES, "login", &42_i32.to_be_bytes());
@@ -189,7 +192,7 @@ fn a_clientbound_change_applies_at_the_answer_to_the_probe_after_it() {
     let events: Vec<&Event> = observed
         .iter()
         .filter_map(|item| match item {
-            Observed::Applied(event) | Observed::Sent(event) => Some(event),
+            Observed::Applied(_, event) | Observed::Sent(_, event) => Some(event),
             Observed::Loaded => None,
         })
         .collect();
@@ -231,4 +234,21 @@ fn every_scenario_parses() {
             path.display()
         );
     }
+}
+
+#[test]
+fn a_delayed_item_waits_half_its_round_trip_and_never_passes_an_earlier_one() {
+    let samples = parse_trace("# a stall\n400\n\n20 # then a short trip\n").unwrap();
+    let mut delay = Delay::new(samples);
+    let start = Instant::now();
+    delay.push(start, 1);
+    delay.push(start, 2);
+    let at = |millis| start + Duration::from_millis(millis);
+    assert_eq!(delay.pop_due(at(199)), None, "the first item waits 200 ms");
+    assert_eq!(delay.pop_due(at(200)), Some(1));
+    assert_eq!(
+        delay.pop_due(at(200)),
+        Some(2),
+        "the second item is due at 10 ms, but the connection keeps the order"
+    );
 }

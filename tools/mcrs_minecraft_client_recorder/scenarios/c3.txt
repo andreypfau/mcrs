@@ -1,0 +1,12 @@
+# Conformance C3 of docs/spec/movement-checks.md, section 14.2: fly in creative mode, land, and
+# start and stop the flight with a double jump.
+experiment C3
+arena -16 98 -8 16 120 8
+
+step fly
+instruction After Go: press Space two times fast to fly. Hold Space 1 second, then W 2 seconds, then Shift until you land. Press Space two times fast to fly again, then two times fast to stop.
+fill -16 99 -8 16 99 8 minecraft:stone
+run gamemode creative @a
+run effect clear @a
+start -10.5 100 0.5 -90 0
+ticks 300
