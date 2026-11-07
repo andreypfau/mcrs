@@ -3817,6 +3817,30 @@ dependencies = [
 ]
 
 [[package]]
+name = "mcrs_minecraft_client_recorder"
+version = "0.5.8"
+dependencies = [
+ "anyhow",
+ "bytes",
+ "flate2",
+ "glam",
+ "mcrs_minecraft_block",
+ "mcrs_minecraft_client_ticks",
+ "mcrs_minecraft_core",
+ "mcrs_minecraft_item",
+ "mcrs_minecraft_protocol",
+ "mcrs_minecraft_protocol_game",
+ "mcrs_voxel",
+]
+
+[[package]]
+name = "mcrs_minecraft_client_ticks"
+version = "0.5.8"
+dependencies = [
+ "thiserror 2.0.18",
+]
+
+[[package]]
 name = "mcrs_minecraft_client_world"
 version = "0.5.8"
 dependencies = [
@@ -4622,6 +4646,8 @@ dependencies = [
  "criterion",
  "glam",
  "mcrs_engine_muxer",
+ "mcrs_minecraft_client_ticks",
+ "mcrs_minecraft_core",
  "mcrs_minecraft_physics",
  "mcrs_voxel",
  "rustc-hash 2.1.1",

@@ -1,0 +1,28 @@
+# Double-tap forward, hold sprint while an item is in use, double-tap jump in creative mode, and
+# land. Rules PHY-INP-017, 018, 019, PHY-ORD-007.
+experiment E23
+arena -16 98 -16 48 110 16
+
+step double_tap_forward
+instruction After Go: tap W, then press and hold W for 2 seconds.
+fill -16 99 -16 48 99 16 minecraft:stone
+run gamemode survival @a
+run effect clear @a
+start 0.5 100 0.5 -90 0
+ticks 120
+
+step sprint_while_using
+instruction After Go: hold the right mouse button to draw the bow, then hold Ctrl and W for 2 seconds, then release all.
+fill -16 99 -16 48 99 16 minecraft:stone
+run clear @a
+run item replace entity @a hotbar.0 with minecraft:bow
+run item replace entity @a hotbar.1 with minecraft:arrow 64
+start 0.5 100 0.5 -90 0
+ticks 140
+
+step double_tap_jump
+instruction After Go: double-tap Space to fly, wait 1 second, double-tap Space to stop flying, and land.
+fill -16 99 -16 48 99 16 minecraft:stone
+run gamemode creative @a
+start 0.5 100 0.5 -90 0
+ticks 160

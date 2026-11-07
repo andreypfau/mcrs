@@ -1,0 +1,31 @@
+# Jump on stone, on honey and with jump_boost 1; sprint and jump. Rules PHY-INP-004, 005,
+# PHY-GRV-013.
+experiment E10
+arena -16 98 -16 48 110 16
+
+step jump_stone
+instruction After Go, press Space once, wait 1 second, then hold Space for 2 seconds.
+fill -16 99 -16 48 99 16 minecraft:stone
+run gamemode survival @a
+run effect clear @a
+start 0.5 100 0.5 -90 0
+ticks 140
+
+step jump_honey
+instruction After Go, press Space once, wait 1 second, then hold Space for 2 seconds.
+fill -16 99 -16 48 99 16 minecraft:honey_block
+start 0.5 100 0.5 -90 0
+ticks 140
+
+step sprint_jump
+instruction After Go, hold Ctrl and W, and hold Space for 2 seconds; then release all keys.
+fill -16 99 -16 48 99 16 minecraft:stone
+start 0.5 100 0.5 -90 0
+ticks 140
+
+step jump_boost
+instruction After Go, press Space once, wait 1 second, then hold Space for 2 seconds.
+fill -16 99 -16 48 99 16 minecraft:stone
+run effect give @a minecraft:jump_boost infinite 1 true
+start 0.5 100 0.5 -90 0
+ticks 140

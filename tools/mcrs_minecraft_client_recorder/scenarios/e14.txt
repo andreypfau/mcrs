@@ -1,0 +1,30 @@
+# Crouch under a slab of height 1.5 and stand up, at the scale 1, 0.5 and 2. Rules PHY-BOX-001
+# to 006, PHY-INP-010, 011. The top slabs at y = 101 leave 1.5 blocks above the floor.
+experiment E14
+arena -16 98 -16 48 110 16
+
+step scale_1
+instruction After Go: hold Shift and W until you are under the slabs, release W, release Shift, wait 1 second, then hold W for 2 seconds.
+fill -16 99 -16 48 99 16 minecraft:stone
+fill 4 101 -2 8 101 2 minecraft:smooth_stone_slab[type=top]
+run gamemode survival @a
+run effect clear @a
+run attribute @a minecraft:scale base reset
+start 0.5 100 0.5 -90 0
+ticks 240
+
+step scale_half
+instruction After Go: hold Shift and W until you are under the slabs, release W, release Shift, wait 1 second, then hold W for 2 seconds.
+fill -16 99 -16 48 99 16 minecraft:stone
+fill 4 101 -2 8 101 2 minecraft:smooth_stone_slab[type=top]
+run attribute @a minecraft:scale base set 0.5
+start 0.5 100 0.5 -90 0
+ticks 240
+
+step scale_double
+instruction After Go: hold Shift and W for 3 seconds, release both, wait 1 second, then hold W for 2 seconds.
+fill -16 99 -16 48 99 16 minecraft:stone
+fill 4 101 -2 8 101 2 minecraft:smooth_stone_slab[type=top]
+run attribute @a minecraft:scale base set 2
+start 0.5 100 0.5 -90 0
+ticks 240

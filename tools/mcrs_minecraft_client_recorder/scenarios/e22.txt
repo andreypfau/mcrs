@@ -1,0 +1,14 @@
+# With a view distance of 2, reach the edge of the loaded chunks and drop from a height. Rule
+# PHY-GRV-020. The flight outruns the chunks that the server sends.
+experiment E22
+property view-distance=2
+property simulation-distance=2
+arena -4 98 -4 120 110 4
+
+step drop_at_edge
+instruction After Go: double-tap Space to fly, hold Ctrl and W for 5 seconds, then double-tap Space to stop flying and fall.
+fill -4 99 -4 120 99 4 minecraft:stone
+run gamemode creative @a
+run effect clear @a
+start 0.5 105 0.5 -90 0
+ticks 400
