@@ -53,7 +53,6 @@ mod hot_ticket;
 mod light_codec;
 pub mod minecraft_entity;
 mod movement;
-pub mod movement_checks;
 pub mod muxer;
 pub mod network_id;
 mod op_level;

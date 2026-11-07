@@ -4579,6 +4579,7 @@ dependencies = [
  "criterion",
  "glam",
  "mcrs_minecraft_protocol",
+ "proptest",
 ]
 
 [[package]]

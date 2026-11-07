@@ -12,7 +12,6 @@ use mcrs_minecraft_protocol_game::clientbound::ClientboundPlayerPosition;
 use mcrs_minecraft_protocol_game::{PositionFlag, PositionFlags};
 
 use crate::coordinator::clock::GameTime;
-use crate::movement_checks::MovementChecks;
 
 /// The horizontal bound, in blocks, of a position a player can reach.
 pub const MAX_XZ_BLOCKS: i32 = 30_000_000;
@@ -89,15 +88,12 @@ impl TeleportState {
             .map(|pending| pending.destination)
     }
 
-    /// Applies an accept of `id` at `position`. Without the movement checks, an accept of the
-    /// pending id confirms it at any position.
-    pub fn accept(&mut self, id: i32, position: DVec3, checks: MovementChecks) -> AcceptOutcome {
+    /// Applies an accept of `id` at `position`.
+    pub fn accept(&mut self, id: i32, position: DVec3) -> AcceptOutcome {
         let Some(pending) = self.pending.filter(|pending| pending.id == id) else {
             return AcceptOutcome::Ignored;
         };
-        if checks == MovementChecks::Off
-            || position.distance(pending.destination.translation) < OFFSET_THRESHOLD
-        {
+        if position.distance(pending.destination.translation) < OFFSET_THRESHOLD {
             self.pending = None;
             AcceptOutcome::Confirmed
         } else {
@@ -263,16 +259,10 @@ mod tests {
         let newest = state.sent(at(10.0), GameTime(0));
         let destination = DVec3::new(10.0, 64.0, 0.0);
 
+        assert_eq!(state.accept(older, destination), AcceptOutcome::Ignored);
+        assert_eq!(state.accept(99, destination), AcceptOutcome::Ignored);
         assert_eq!(
-            state.accept(older, destination, MovementChecks::On),
-            AcceptOutcome::Ignored
-        );
-        assert_eq!(
-            state.accept(99, destination, MovementChecks::On),
-            AcceptOutcome::Ignored
-        );
-        assert_eq!(
-            state.accept(newest, destination + DVec3::X * 5.0, MovementChecks::On),
+            state.accept(newest, destination + DVec3::X * 5.0),
             AcceptOutcome::Mismatch {
                 destination: at(10.0)
             },
@@ -280,12 +270,12 @@ mod tests {
         );
         assert!(state.pending().is_some(), "TP-CONFIRM-ACC-002");
         assert_eq!(
-            state.accept(newest, destination + DVec3::X * 0.0005, MovementChecks::On),
+            state.accept(newest, destination + DVec3::X * 0.0005),
             AcceptOutcome::Confirmed
         );
         assert!(state.pending().is_none());
         assert_eq!(
-            state.accept(newest, destination, MovementChecks::On),
+            state.accept(newest, destination),
             AcceptOutcome::Ignored,
             "nothing is pending"
         );

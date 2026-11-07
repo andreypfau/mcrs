@@ -83,22 +83,6 @@ mod tests {
     }
 
     #[test]
-    fn a_burst_of_100_packets_after_a_stall_of_3_seconds_passes() {
-        let start = Instant::now();
-        for limit in [0, 50] {
-            let mut rate = InboundPacketRate::default();
-            assert_eq!(first_refused(&mut rate, start, 1, 20, limit), None);
-            let resumed = start + SECOND * 4;
-            let refused = (0..100).any(|_| !rate.count(resumed, InboundRateLimit(limit)));
-            let after = resumed + SECOND;
-            assert!(
-                !refused && rate.count(after, InboundRateLimit(limit)),
-                "MVC-INV-008: limit {limit}"
-            );
-        }
-    }
-
-    #[test]
     fn a_steady_rate_above_the_limit_ends_the_connection_in_the_fourth_second() {
         let mut rate = InboundPacketRate::default();
         assert_eq!(

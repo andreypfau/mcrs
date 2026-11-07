@@ -271,11 +271,6 @@ fn spawn_dim_subapp(app: &mut App, request: &DimSpawnRequest) -> Result<Entity, 
                 .copied()
                 .unwrap_or_default(),
         );
-        sub_app.insert_resource(
-            host.get_resource::<crate::movement_checks::MovementChecks>()
-                .copied()
-                .unwrap_or_default(),
-        );
         if let Some(seed) = host.get_resource::<crate::world_seed::WorldSeed>() {
             sub_app.insert_resource(*seed);
         }

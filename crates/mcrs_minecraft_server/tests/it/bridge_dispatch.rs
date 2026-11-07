@@ -457,15 +457,18 @@ fn wire_of(blob: &[u8]) -> Vec<Wire> {
 
 /// MVC-LAT-001, MVC-TICK-002, MVC-PKT-031: a queue past its depth sheds only packets that the
 /// client may miss. Every block update, the teleport and the state of the own entity keep their
-/// place in the order of the writes, and the probes bracket the predicted changes of the flush on
-/// the wire.
+/// place in the order of the writes, the probes bracket the predicted changes of the flush on the
+/// wire, and MVC-LAT-002: the flush of the tick ends with a probe.
 #[test]
 fn a_shedding_queue_keeps_the_wire_order_of_the_predicted_changes_between_probes() {
     use mcrs_minecraft_engine::muxer::probes::Probes;
 
     let mut world = build_dispatch_world();
     let (socket, mut rx) = spawn_mock_connection(&mut world);
-    world.entity_mut(socket).insert(Probes::default());
+    world.entity_mut(socket).insert((
+        Probes::default(),
+        mcrs_minecraft_network::ConnectionState::Game,
+    ));
     let written: Vec<Wire> = (0..300)
         .map(|x| match x {
             0 => Wire::Own(x),
@@ -509,6 +512,7 @@ fn a_shedding_queue_keeps_the_wire_order_of_the_predicted_changes_between_probes
         .iter()
         .rposition(|wire| matches!(wire, Wire::Update(_) | Wire::Own(_)))
         .unwrap();
+    expected.push(Wire::Probe(2));
     expected.insert(last + 1, Wire::Probe(1));
     expected.insert(first, Wire::Probe(0));
 

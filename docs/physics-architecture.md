@@ -1518,3 +1518,20 @@ E1..E8, T1 (any time)   D1 ─ D2 ─ D3 ─ D4 ─ D5 ─ D6 ─ D7
     no command changes it. The game time is saved and no command sets it, but it stops while the
     tick rate is frozen, so it is not the birth tick. A save without the clock starts it at the game
     time of the save.
+43. MVC-CHK-010, the default `tick_drift`. Open. A client at 5 frames each second runs 4 client
+    ticks in one frame, after it answers the probes of that frame. When the newest probe left
+    less than 30 ms before the frame and the round trip is short, the fourth tick puts the
+    balance 30 ms after the current time. The level then passes `tick_rate_setback_level`, which
+    breaks MVC-INV-009. The ignored test in `mcrs_minecraft_move_validate/tests/layer_1.rs` gives
+    the case. A drift of at least one frame of the slowest client (200 ms) passes it.
+44. MVC-TICK-004, the count of silent ticks after the 20th. Open. "When the count reaches 20" can
+    mean one report, or one report for each later silent tick. Layer 1 reports each silent tick
+    from the 20th on.
+45. MVC-LAT-012 against MVC-INV-008. Open. A vanilla server does not disconnect a client that
+    does not answer a `ping`, and section 12 has no deviation for the disconnect after
+    `max_ack_delay`.
+46. MVC-LAY-003 and §8.1, the thread of layer 1. Open (design). The order of the clientbound
+    packets is final only when `dispatch_encode` writes them, and both directions must meet in
+    one state without a lock. Layer 1 therefore runs in `bridge_inbound` and in the write of the
+    queues; layer 0 runs on the reader of each connection. Moving layer 1 to the network threads
+    needs the writer to pass the probe plan to the reader in the order of the wire.
