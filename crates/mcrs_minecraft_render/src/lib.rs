@@ -40,6 +40,7 @@ use bevy::render::{Render, RenderApp, RenderStartup, RenderSystems};
 use mcrs_minecraft_mesh::STREAMS;
 
 pub use frame::{CameraOrigin, TerrainShade, clip_from_relative};
+pub use gbuffer::{DeferredFrame, GBUFFER_FORMATS};
 pub use layer::{LayerGroup, Shape};
 pub use pass::draw_layer_group;
 pub use pipeline::{TERRAIN_PIPELINES, stream_slot, terrain_slot};
@@ -219,6 +220,8 @@ pub enum WorldPass {
     Opaque,
     Occlusion,
     OpaqueSecond,
+    /// The entity passes: after the depth pyramid of the full frame, before the lighting.
+    Entities,
     Lighting,
     Forward,
 }
@@ -231,6 +234,7 @@ impl WorldPass {
             Self::Opaque,
             Self::Occlusion,
             Self::OpaqueSecond,
+            Self::Entities,
             Self::Lighting,
             Self::Forward,
         )

@@ -258,6 +258,7 @@ pub fn run() -> AppExit {
         app.add_plugins(SceneCapturePlugin {
             dir,
             size: resolution.map_or(SCENE_SIZE, |(width, height)| UVec2::new(width, height)),
+            record: knobs.scene_record(),
         });
     }
 

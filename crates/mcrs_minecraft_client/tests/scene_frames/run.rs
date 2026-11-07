@@ -44,10 +44,14 @@ impl Paths {
     }
 }
 
-/// Whether the script summons its entities.
+/// Where the entities of a frame come from.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Entities {
+    /// The server summons them and sends their state: the full mode of CFC-CMP-002.
     Summon,
+    /// The client places them from the record of the vanilla client: the render mode of
+    /// CFC-CMP-002. The server summons nothing.
+    Record,
     /// Leaves out each `summon` command, so the world holds only the player. The background
     /// frames stay the same, since a run moves every entity away before it makes them.
     Skip,
@@ -55,8 +59,24 @@ pub enum Entities {
 
 /// Runs `scene` on a vanilla server, with the mcrs client as the capturing client, and writes
 /// each frame and each background frame to `<frames>/<scene>/<frame>.png`.
-pub fn capture(scene: &str, paths: &Paths, entities: Entities) {
+pub fn capture(scene: &str, paths: &Paths, entities: Entities) -> Entities {
     let scene = Scene::read(&paths.scenes.join(format!("{scene}.json")));
+    // A vanilla server cannot run a pose step, so such a scene is judged in the render mode
+    // only (CFC-CMP-002, item 4).
+    let has_pose = scene
+        .script
+        .iter()
+        .any(|step| matches!(step, Action::Pose { .. }));
+    let entities = if entities == Entities::Summon && has_pose {
+        Entities::Record
+    } else {
+        entities
+    };
+    let record = (entities == Entities::Record).then(|| {
+        paths
+            .vanilla_frames
+            .join(format!("{}.records.json", scene.name))
+    });
     let knobs =
         options::knobs(&scene.options).unwrap_or_else(|error| panic!("{}: {error}", scene.name));
     let out = paths.frames.join(&scene.name);
@@ -66,7 +86,13 @@ pub fn capture(scene: &str, paths: &Paths, entities: Entities) {
     std::fs::create_dir_all(&out).expect("the frame directory can be created");
 
     let mut server = VanillaServer::start(&server_jar(paths), &out.join("server"), &scene.world);
-    let mut client = McrsClient::start(server.port, &out, scene.resolution, &knobs);
+    let mut client = McrsClient::start(
+        server.port,
+        &out,
+        scene.resolution,
+        &knobs,
+        record.as_deref(),
+    );
     let deadline = Instant::now() + JOIN_TIMEOUT;
     while !server.wait_for_line("Capture joined the game", Duration::from_secs(1)) {
         client.assert_running("join the server");
@@ -107,10 +133,11 @@ pub fn capture(scene: &str, paths: &Paths, entities: Entities) {
     for (frame, at) in frames {
         take(&mut server, &mut client, &format!("{frame}.background"), at);
     }
+    entities
 }
 
 fn run_command(server: &mut VanillaServer, command: &str, entities: Entities) {
-    if entities == Entities::Skip && command.starts_with("summon ") {
+    if entities != Entities::Summon && command.starts_with("summon ") {
         return;
     }
     server.run(command);

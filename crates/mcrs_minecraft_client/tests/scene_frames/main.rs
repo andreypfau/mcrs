@@ -42,17 +42,19 @@ const SCENES: [&str; 6] = [
     "pig_grid",
 ];
 
-/// The scenes run without their entities unless `MCRS_SCENE_ENTITIES=summon`: the client cannot
-/// decode every entity move of a vanilla server yet, and mcrs draws no entity, so only the
-/// background frames are judged.
+/// `MCRS_SCENE_ENTITIES` picks where the entities come from: `summon` (the full mode, from the
+/// server), `record` (the render mode, from the record of the vanilla client) or `skip` (none,
+/// the default, for the terrain alone). A scene with a pose step always runs in the render mode
+/// when it has entities.
 fn capture_and_judge(scene: &str) {
     let paths = Paths::new();
-    let entities = if std::env::var("MCRS_SCENE_ENTITIES").is_ok_and(|value| value == "summon") {
-        Entities::Summon
-    } else {
-        Entities::Skip
+    let entities = match std::env::var("MCRS_SCENE_ENTITIES").as_deref() {
+        Ok("summon") => Entities::Summon,
+        Ok("record") => Entities::Record,
+        _ => Entities::Skip,
     };
-    run::capture(scene, &paths, entities);
+    let entities = run::capture(scene, &paths, entities);
+    println!("{scene}: entities {entities:?}");
     let scores = judge::judge(scene, &paths);
     judge::conclude(scene, &scores, &paths);
 }

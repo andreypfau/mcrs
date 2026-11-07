@@ -141,6 +141,8 @@ mcrs_minecraft_block = { path = "crates/mcrs_minecraft_block" }
 mcrs_molang = { path = "crates/mcrs_molang" }
 mcrs_molang_wgsl = { path = "crates/mcrs_molang_wgsl" }
 mcrs_minecraft_entity_animation = { path = "crates/mcrs_minecraft_entity_animation" }
+mcrs_minecraft_render_controller = { path = "crates/mcrs_minecraft_render_controller" }
+mcrs_minecraft_entity_render = { path = "crates/mcrs_minecraft_entity_render" }
 mcrs_minecraft_biome = { path = "crates/mcrs_minecraft_biome" }
 mcrs_minecraft_dimension = { path = "crates/mcrs_minecraft_dimension" }
 mcrs_minecraft_dimension_environment = { path = "crates/mcrs_minecraft_dimension_environment" }

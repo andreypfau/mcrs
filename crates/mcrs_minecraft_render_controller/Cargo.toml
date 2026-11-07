@@ -1,0 +1,17 @@
+[package]
+name = "mcrs_minecraft_render_controller"
+description = "Render controllers of a client entity: the layers, their geometry, texture and visible bones in a frame"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lib]
+doctest = false
+
+[lints]
+workspace = true
+
+[dependencies]
+mcrs_minecraft_entity_animation.workspace = true
+mcrs_minecraft_entity_model.workspace = true
+mcrs_molang.workspace = true

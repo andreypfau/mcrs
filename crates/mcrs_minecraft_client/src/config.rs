@@ -325,6 +325,12 @@ impl Knobs {
         self.knob("SCENE_DIR").map(std::path::PathBuf::from)
     }
 
+    /// `SCENE_RECORD=<record>` takes the entities of each scene frame from the frame of the same
+    /// name in the record of the vanilla client, the render mode of a comparison.
+    pub fn scene_record(&self) -> Option<std::path::PathBuf> {
+        self.knob("SCENE_RECORD").map(std::path::PathBuf::from)
+    }
+
     /// `FOV=<degrees>` and `FOV_EFFECT=<scale>` are vanilla's "FOV" and "FOV Effects" sliders.
     pub fn fov_options(&self) -> FovOptions {
         let default = FovOptions::default();

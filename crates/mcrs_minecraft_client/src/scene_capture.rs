@@ -8,7 +8,10 @@ use bevy::render::view::screenshot::{Screenshot, ScreenshotCaptured};
 
 use crate::Unsettled;
 use crate::camera::PlayerCamera;
+use crate::scene_record::{RecordedEntity, SceneRecord, place_recorded_entities};
 use crate::stream::Streaming;
+use mcrs_minecraft_item::definition::Items;
+use mcrs_minecraft_registries::CurrentRegistries;
 
 const REQUEST: &str = "request";
 
@@ -16,6 +19,9 @@ const REQUEST_POLL: Duration = Duration::from_millis(100);
 
 /// Forty client ticks, the wait of a vanilla capture after its chunks have arrived.
 const SETTLE: Duration = Duration::from_millis(40 * 50);
+
+/// How long the shots of a frame can differ before the frame fails (CFC-RUN-004).
+const SETTLE_TIMEOUT: Duration = Duration::from_secs(60);
 
 /// Draws the world camera into an image of `size` pixels, with no window and so no HUD. A frame
 /// whose name a test writes into `<dir>/request` goes to `<dir>/<name>.png` as 8-bit sRGB with no
@@ -25,6 +31,9 @@ const SETTLE: Duration = Duration::from_millis(40 * 50);
 pub struct SceneCapturePlugin {
     pub dir: PathBuf,
     pub size: UVec2,
+    /// The record of the vanilla client that gives the entities of each frame, in the render
+    /// mode of a comparison; `None` takes them from the server.
+    pub record: Option<PathBuf>,
 }
 
 impl Plugin for SceneCapturePlugin {
@@ -38,6 +47,9 @@ impl Plugin for SceneCapturePlugin {
         .add_message::<Unsettled>()
         .add_systems(PostStartup, aim_at_image)
         .add_systems(Update, (read_request, shoot_settled).chain());
+        if let Some(path) = &self.record {
+            app.insert_resource(SceneRecord { path: path.clone() });
+        }
     }
 }
 
@@ -56,6 +68,8 @@ struct Pending {
     shooting: bool,
     last_shot: Option<Vec<u8>>,
     polled_at: Duration,
+    /// When the first shot of the frame was taken.
+    first_shot: Option<Duration>,
 }
 
 fn aim_at_image(
@@ -80,7 +94,20 @@ fn aim_at_image(
     info!(dir = %capture.dir.display(), size = ?capture.size, "drawing scene frames off screen");
 }
 
-fn read_request(capture: Res<SceneCapture>, time: Res<Time<Real>>, mut pending: ResMut<Pending>) {
+#[expect(
+    clippy::too_many_arguments,
+    reason = "a request also places the entities of a record frame"
+)]
+fn read_request(
+    mut commands: Commands,
+    capture: Res<SceneCapture>,
+    time: Res<Time<Real>>,
+    record: Option<Res<SceneRecord>>,
+    placed: Query<Entity, With<RecordedEntity>>,
+    registries: Option<Res<CurrentRegistries>>,
+    items: Option<Res<Items>>,
+    mut pending: ResMut<Pending>,
+) {
     let now = time.elapsed();
     if pending.frame.is_some() || now < pending.polled_at + REQUEST_POLL {
         return;
@@ -94,6 +121,16 @@ fn read_request(capture: Res<SceneCapture>, time: Res<Time<Real>>, mut pending: 
         return;
     }
     info!(frame = name, "scene frame requested");
+    if let Some(record) = record.as_deref() {
+        place_recorded_entities(
+            name,
+            record,
+            &mut commands,
+            &placed,
+            registries.as_deref(),
+            items.as_deref(),
+        );
+    }
     *pending = Pending {
         frame: Some(name.to_owned()),
         polled_at: now,
@@ -129,10 +166,20 @@ fn shoot_settled(
         return;
     };
     pending.shooting = true;
+    pending.first_shot.get_or_insert(now);
     let dir = capture.dir.clone();
     commands.spawn(Screenshot::image(target)).observe(
-        move |captured: On<ScreenshotCaptured>, mut pending: ResMut<Pending>| {
+        move |captured: On<ScreenshotCaptured>,
+              time: Res<Time<Real>>,
+              mut pending: ResMut<Pending>| {
             if pending.last_shot != captured.image.data {
+                let started = pending.first_shot.unwrap_or_default();
+                if time.elapsed().saturating_sub(started) > SETTLE_TIMEOUT {
+                    error!(frame, "the frame did not settle in {SETTLE_TIMEOUT:?}");
+                    let _ = std::fs::write(dir.join(format!("{frame}.unsettled")), "");
+                    *pending = Pending::default();
+                    return;
+                }
                 pending.last_shot.clone_from(&captured.image.data);
                 pending.shooting = false;
                 pending.quiet_since = None;

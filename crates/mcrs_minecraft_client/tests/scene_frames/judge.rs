@@ -51,11 +51,16 @@ impl Score {
         self.frame.ends_with(BACKGROUND)
     }
 
+    /// The verdict of the work on entities (CFC-CMP-001, items 5 and 6): the mean in the mask
+    /// decides; the mean out of the mask and a background frame are information only.
     pub fn passes(&self, limits: Thresholds) -> bool {
         self.in_mask.is_none_or(|mean| mean <= limits.in_mask)
-            && self
-                .out_of_mask
-                .is_none_or(|mean| mean <= limits.out_of_mask)
+    }
+
+    /// Whether the mean out of the mask is within its limit, which is information only.
+    pub fn out_of_mask_within(&self, limits: Thresholds) -> bool {
+        self.out_of_mask
+            .is_none_or(|mean| mean <= limits.out_of_mask)
     }
 }
 
@@ -196,10 +201,16 @@ pub fn report(scores: &[Score]) -> String {
     let mut text = String::from("scene\tframe\tmask_px\tin_mask\tout_of_mask\tlimits\tverdict\n");
     for score in scores {
         let limits = thresholds(&score.scene);
-        let verdict = match (score.passes(limits), score.is_background()) {
-            (true, _) => "pass",
-            (false, true) => "FAIL",
-            (false, false) => "fail (not judged: mcrs draws no entity yet)",
+        let verdict = match (
+            score.is_background(),
+            score.passes(limits),
+            score.out_of_mask_within(limits),
+        ) {
+            (true, _, true) => "info",
+            (true, _, false) => "info (out of the mask over its limit)",
+            (false, true, true) => "pass",
+            (false, true, false) => "pass (out of the mask over its limit: information)",
+            (false, false, _) => "FAIL",
         };
         let _ = writeln!(
             text,
@@ -220,8 +231,8 @@ fn shown(mean: Option<f32>) -> String {
     mean.map_or_else(|| "-".to_owned(), |mean| format!("{mean:.4}"))
 }
 
-/// Writes the report of `scores` to `<report>/<name>.txt`, prints it, and fails when a judged
-/// frame is over its limits. Only background frames are judged until mcrs draws entities.
+/// Writes the report of `scores` to `<report>/<name>.txt`, prints it, and fails when the mean in
+/// the mask of a frame with entities is over its limit.
 pub fn conclude(name: &str, scores: &[Score], paths: &Paths) {
     let text = report(scores);
     let path = paths.report().join(format!("{name}.txt"));
@@ -230,11 +241,11 @@ pub fn conclude(name: &str, scores: &[Score], paths: &Paths) {
     println!("{text}report: {}", path.display());
     let failures: Vec<String> = scores
         .iter()
-        .filter(|score| score.is_background() && !score.passes(thresholds(&score.scene)))
+        .filter(|score| !score.is_background() && !score.passes(thresholds(&score.scene)))
         .map(|score| {
             let limits = thresholds(&score.scene);
             format!(
-                "{} {}: in the mask {} (limit {}), out of the mask {} (limit {})",
+                "{} {}: in the mask {} (limit {}); out of the mask {} (limit {}, information)",
                 score.scene,
                 score.frame,
                 shown(score.in_mask),

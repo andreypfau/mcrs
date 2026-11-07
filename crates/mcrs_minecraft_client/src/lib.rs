@@ -32,10 +32,12 @@ pub mod cave;
 pub mod config;
 #[cfg(feature = "dev")]
 pub mod dev;
+pub mod entities;
 pub mod input;
 pub mod light_volume;
 #[cfg(not(target_family = "wasm"))]
 pub mod scene_capture;
+pub mod scene_record;
 #[cfg(not(target_family = "wasm"))]
 pub mod screenshot;
 pub mod sky;
@@ -94,6 +96,7 @@ impl Plugin for ClientTerrainPlugin {
             timestamps: knobs.pass_timestamps(),
         })
         .add_plugins(mcrs_minecraft_client_gui::gui_items::GuiItemsPlugin)
+        .add_plugins(entities::ClientEntityRenderPlugin)
         .insert_resource(mcrs_minecraft_render::Occlusion(knobs.occlusion()))
         .insert_resource(mcrs_minecraft_render::Brightness(knobs.brightness()))
         .insert_resource(knobs.light_options())

@@ -1,0 +1,43 @@
+[package]
+name = "mcrs_minecraft_entity_render"
+description = "GPU-driven entity rendering: persistent slots, the entity cull, the pose and expand passes and the gbuffer draw of the face records"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lib]
+doctest = false
+
+[lints]
+workspace = true
+
+[dependencies]
+bevy = { version = "0.19.1", default-features = false, features = [
+    "std",
+    "bevy_asset",
+    "bevy_log",
+    "bevy_render",
+    "bevy_core_pipeline",
+] }
+bytemuck = { version = "1", features = ["derive"] }
+glam.workspace = true
+mcrs_minecraft_client_entity.workspace = true
+mcrs_minecraft_client_world.workspace = true
+mcrs_minecraft_entity.workspace = true
+mcrs_minecraft_entity_animation.workspace = true
+mcrs_minecraft_item = { workspace = true, features = ["bevy"] }
+mcrs_minecraft_render.workspace = true
+mcrs_minecraft_resource.workspace = true
+mcrs_minecraft_volume.workspace = true
+mcrs_voxel.workspace = true
+mcrs_minecraft_entity_model.workspace = true
+mcrs_minecraft_render_controller.workspace = true
+mcrs_molang.workspace = true
+mcrs_molang_wgsl.workspace = true
+wgpu = { version = "29", default-features = false, features = ["wgsl"] }
+
+[dev-dependencies]
+futures-lite = "2"
+serde.workspace = true
+serde_json.workspace = true
+wgpu = { version = "29", features = ["metal", "wgsl"] }

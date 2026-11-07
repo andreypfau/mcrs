@@ -51,6 +51,25 @@ impl Terrain {
         &self.binds.draw
     }
 
+    /// The depth pyramid that the second terrain pass builds from the depth of the full frame.
+    pub fn depth_pyramid(&self) -> &bevy::render::render_resource::TextureView {
+        &self.hiz.view
+    }
+
+    /// The levels of the depth pyramid that a cull can read in this frame; 0 when the
+    /// second terrain pass did not build it.
+    pub fn depth_pyramid_levels(
+        &self,
+        occlusion: &Occlusion,
+        pipeline_cache: &PipelineCache,
+    ) -> u32 {
+        if self.second_pass(occlusion, pipeline_cache) {
+            self.hiz.levels()
+        } else {
+            0
+        }
+    }
+
     pub fn draw_args(&self) -> &Buffer {
         &self.frame.args
     }

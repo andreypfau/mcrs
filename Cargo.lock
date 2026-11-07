@@ -3780,6 +3780,8 @@ dependencies = [
  "mcrs_minecraft_engine_server",
  "mcrs_minecraft_engine_world",
  "mcrs_minecraft_entity",
+ "mcrs_minecraft_entity_animation",
+ "mcrs_minecraft_entity_render",
  "mcrs_minecraft_environment",
  "mcrs_minecraft_fixtures",
  "mcrs_minecraft_game_mode",
@@ -3811,6 +3813,7 @@ dependencies = [
  "serde",
  "serde_json",
  "tracing-tracy 0.12.0",
+ "uuid",
  "wasm-bindgen-futures",
  "web-sys",
  "wgpu",
@@ -4443,6 +4446,32 @@ dependencies = [
 ]
 
 [[package]]
+name = "mcrs_minecraft_entity_render"
+version = "0.5.8"
+dependencies = [
+ "bevy",
+ "bytemuck",
+ "futures-lite",
+ "glam",
+ "mcrs_minecraft_client_entity",
+ "mcrs_minecraft_client_world",
+ "mcrs_minecraft_entity",
+ "mcrs_minecraft_entity_animation",
+ "mcrs_minecraft_entity_model",
+ "mcrs_minecraft_item",
+ "mcrs_minecraft_render",
+ "mcrs_minecraft_render_controller",
+ "mcrs_minecraft_resource",
+ "mcrs_minecraft_volume",
+ "mcrs_molang",
+ "mcrs_molang_wgsl",
+ "mcrs_voxel",
+ "serde",
+ "serde_json",
+ "wgpu",
+]
+
+[[package]]
 name = "mcrs_minecraft_environment"
 version = "0.5.8"
 dependencies = [
@@ -4982,6 +5011,15 @@ dependencies = [
  "bytemuck",
  "mcrs_minecraft_mesh",
  "wgpu",
+]
+
+[[package]]
+name = "mcrs_minecraft_render_controller"
+version = "0.5.8"
+dependencies = [
+ "mcrs_minecraft_entity_animation",
+ "mcrs_minecraft_entity_model",
+ "mcrs_molang",
 ]
 
 [[package]]

@@ -14,7 +14,8 @@ use mcrs_minecraft_block::definition::CORPUS_DIRECTORY;
 const BLOCK_ENTITY_DIRECTORIES: [&str; 3] = [DATA_DIRECTORY, GEOMETRY_DIRECTORY, CORPUS_DIRECTORY];
 
 /// The folders under `assets/<namespace>/` that the client reads.
-const FOLDERS: [&str; 7] = [
+const FOLDERS: [&str; 8] = [
+    "equipment",
     "blockstates",
     "models",
     "textures",

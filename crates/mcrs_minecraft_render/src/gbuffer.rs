@@ -14,7 +14,7 @@ use crate::uniform_buffer;
 /// Albedo and occlusion, normal and motion, then emissive, block light, sky light and roughness.
 /// Albedo stays in the bytes vanilla shades, so it is never an sRGB format: the lighting pass
 /// encodes for the target once.
-pub(crate) const GBUFFER_FORMATS: [TextureFormat; 3] = [
+pub const GBUFFER_FORMATS: [TextureFormat; 3] = [
     TextureFormat::Rgba8Unorm,
     TextureFormat::Rgba16Float,
     TextureFormat::Rgba16Float,
@@ -39,10 +39,11 @@ pub(crate) fn gbuffer_layout() -> BindGroupLayoutDescriptor {
 /// Everything the deferred path allocates. Nothing else may hold a clone of these
 /// textures or the bind group, or a resize would not free the ones it replaces.
 #[derive(Resource)]
-pub(crate) struct DeferredFrame {
+pub struct DeferredFrame {
+    /// Albedo and occlusion, normal and motion, then the light, in [`GBUFFER_FORMATS`].
     pub targets: [TextureView; 3],
-    pub lighting: Buffer,
-    pub bind_group: BindGroup,
+    pub(crate) lighting: Buffer,
+    pub(crate) bind_group: BindGroup,
     size: UVec2,
     depth: TextureId,
 }
