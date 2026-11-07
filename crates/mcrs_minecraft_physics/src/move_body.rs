@@ -173,7 +173,7 @@ fn set_flags(
 }
 
 /// True when the angle between the intended direction and the horizontal move is less than 8
-/// degrees.
+/// degrees. A quotient above 1 from rounding gives NaN and false, as the client computes it.
 fn is_minor(intent: DVec3, moved: DVec3) -> bool {
     let intent_squared = intent.length_squared();
     let moved_squared = moved.length_squared();
@@ -181,7 +181,7 @@ fn is_minor(intent: DVec3, moved: DVec3) -> bool {
         return false;
     }
     let cosine = intent.dot(moved) / (intent_squared * moved_squared).sqrt();
-    cosine.clamp(-1.0, 1.0).acos() < f64::from(MINOR_ANGLE)
+    cosine.acos() < f64::from(MINOR_ANGLE)
 }
 
 /// The velocity after a collision: the clipped components lose their speed, or bounce with the

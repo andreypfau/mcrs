@@ -59,8 +59,7 @@ impl MotionRow {
 
     #[must_use]
     pub fn armor_stand() -> Self {
-        // The vanilla server shows a step height of 0 for an armor stand with the default
-        // attributes: it stops at a carpet, and steps only with an explicit attribute.
+        // The base value of `step_height` is type data; the armor stand has 0, not the default 0.6.
         Self {
             step_height: 0.0,
             ..Self::living(
