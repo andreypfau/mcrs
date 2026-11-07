@@ -1,0 +1,16 @@
+{
+  "name": "mcrs-molang-diff",
+  "private": true,
+  "description": "Runs Molang expressions through molangjs, as a second opinion for differential tests of mcrs_molang",
+  "type": "module",
+  "license": "MIT OR Apache-2.0",
+  "bin": {
+    "molang-diff": "./runner.mjs"
+  },
+  "scripts": {
+    "test": "node smoke.mjs"
+  },
+  "dependencies": {
+    "molangjs": "1.7.1"
+  }
+}

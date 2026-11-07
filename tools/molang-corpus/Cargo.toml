@@ -1,0 +1,18 @@
+[package]
+name = "mcrs_molang_corpus"
+description = "Extracts the Molang expressions of Bedrock packs and reports aggregate statistics"
+version.workspace = true
+edition.workspace = true
+publish = false
+
+[lints]
+workspace = true
+
+[[bin]]
+name = "molang-corpus"
+path = "src/main.rs"
+
+[dependencies]
+anyhow.workspace = true
+serde.workspace = true
+serde_json.workspace = true

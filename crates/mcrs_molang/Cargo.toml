@@ -1,0 +1,26 @@
+[package]
+name = "mcrs_molang"
+description = "Molang compiler, scalar and batch evaluator, independent of any game host"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lib]
+doctest = false
+
+[lints]
+workspace = true
+
+[dependencies]
+hashbrown.workspace = true
+libm = "0.2.16"
+
+[dev-dependencies]
+criterion = { version = "0.7", features = ["html_reports"] }
+proptest = "1.11.0"
+serde.workspace = true
+serde_json.workspace = true
+
+[[bench]]
+name = "eval"
+harness = false
