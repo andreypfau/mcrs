@@ -482,3 +482,37 @@ fn section_masks_give_the_result_of_reading_every_block() {
         assert_eq!(plain, with_masks);
     }
 }
+
+#[test]
+fn flg_004_a_move_off_the_ground_clears_the_missed_search() {
+    let fixture = Fixture::new(0);
+    let position = DVec3::new(0.5, 10.0, 0.5);
+    let case = Case {
+        entity: QueryEntity {
+            key: BirthKey::new(0, SourceKind::Command, 0, 0),
+            position,
+            fall_distance: 0.0,
+            shift: false,
+            powder_snow_solid: false,
+            walks_on_powder_snow: false,
+        },
+        bounds: Aabb::of_body(position, 0.6, 1.8),
+        width: 0.6,
+        height: 1.8,
+        displacement: DVec3::new(0.0, -0.1, 0.0),
+        step_height: 0.6,
+        on_ground: true,
+    };
+    let mut body = Fixture::body(&case);
+    body.support_missed = true;
+    move_body(
+        fixture.view(),
+        &fixture.mover(&case),
+        &mut body,
+        MoverKind::Own,
+        case.displacement,
+        &mut Scratch::new(),
+    );
+    assert!(!body.flags.on_ground);
+    assert!(!body.support_missed);
+}

@@ -99,22 +99,10 @@ pub fn move_body<W: CollisionWorld, B: BodyView>(
         x: (d.x - r.x).abs() >= CLIP,
         z: (d.z - r.z).abs() >= CLIP,
     };
-    set_flags(&mut body.flags, mover, d, r, clipped);
+    let vertical_changed = set_flags(&mut body.flags, mover, d, r, clipped);
     let table = &view.tables.collision;
-    if body.flags.on_ground {
-        let bounds = Aabb::of_body(body.position, mover.width, mover.height);
-        let entity = mover.query_entity(body);
-        let context = ShapeContext {
-            entity: &entity,
-            feet: body.position.y,
-            variant: QueryVariant::Collision,
-        };
-        let found =
-            support::find_support(view.world, table, &context, &bounds, r, body.support_missed);
-        body.support = found.block;
-        body.support_missed = found.missed;
-    } else {
-        body.support = None;
+    if vertical_changed {
+        find_support(view, mover, body, r);
     }
     let bounce = if mover.side.has_authority() {
         collide_velocity(view.world, table, mover, body, d, r, clipped)
@@ -131,9 +119,48 @@ pub fn move_body<W: CollisionWorld, B: BodyView>(
     }
 }
 
-fn set_flags(flags: &mut MoveFlags, mover: &Mover, d: DVec3, r: DVec3, clipped: ClippedAxes) {
+/// Finds the supporting block after a move that changed the vertical flags.
+fn find_support<W: CollisionWorld, B: BodyView>(
+    view: View<'_, W, B>,
+    mover: &Mover,
+    body: &mut Body,
+    r: DVec3,
+) {
+    if !body.flags.on_ground {
+        body.support = None;
+        body.support_missed = false;
+        return;
+    }
+    let bounds = Aabb::of_body(body.position, mover.width, mover.height);
+    let entity = mover.query_entity(body);
+    let context = ShapeContext {
+        entity: &entity,
+        feet: body.position.y,
+        variant: QueryVariant::Collision,
+    };
+    let found = support::find_support(
+        view.world,
+        &view.tables.collision,
+        &context,
+        &bounds,
+        r,
+        body.support_missed,
+    );
+    body.support = found.block;
+    body.support_missed = found.missed;
+}
+
+/// Sets the collision flags and returns true when the vertical flags changed.
+fn set_flags(
+    flags: &mut MoveFlags,
+    mover: &Mover,
+    d: DVec3,
+    r: DVec3,
+    clipped: ClippedAxes,
+) -> bool {
     flags.horizontal_collision = clipped.x || clipped.z;
-    if d.y != 0.0 || mover.side.has_authority() {
+    let vertical_changed = d.y != 0.0 || mover.side.has_authority();
+    if vertical_changed {
         flags.vertical_collision = r.y != d.y;
         flags.below_collision = flags.vertical_collision && d.y < 0.0;
         flags.on_ground = flags.below_collision;
@@ -142,6 +169,7 @@ fn set_flags(flags: &mut MoveFlags, mover: &Mover, d: DVec3, r: DVec3, clipped: 
         && mover
             .intent
             .is_some_and(|intent| is_minor(intent, DVec3::new(r.x, 0.0, r.z)));
+    vertical_changed
 }
 
 /// True when the angle between the intended direction and the horizontal move is less than 8
