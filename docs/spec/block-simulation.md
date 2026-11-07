@@ -2481,6 +2481,23 @@ Provenance: `source_suggested`. Confidence: medium.
 
 ---
 
+### SIM-SCH-018: The height of the sections of a column record
+
+This rule is about the load of each column record, not only its ticks. No other specification states the column record.
+
+- **Inputs:** a column record of the world version that this game version uses, and its dimension.
+- **Relevant state:** the lowest section `Ymin` and the highest section `Ymax` of the dimension.
+- **Preconditions:** the record has a `status`. Vanilla treats a record without `status` as no record, and it generates the column again.
+- **Behavior:**
+  - The load does not read `yPos`. The dimension gives the lowest section of the column.
+  - Each element of `sections` gives its section by its own byte `Y`. A missing `Y` is 0.
+  - An element with `Y` from `Ymin` to `Ymax` gives the blocks and the biomes of section `Y`. An element outside that range gives only its light data.
+  - The save writes `yPos` as `Ymin`.
+- **Edge cases:** a record without `yPos` loads with no change. A record with a `yPos` that is not `Ymin` also loads with no change.
+- **Invariants:** the section of an element depends only on its `Y` and on the dimension.
+
+Provenance: `source_suggested`. Confidence: high. The reader of the reference never reads `yPos`. No experiment was done: a save of this world version always has `yPos`, so a test must remove the key from a record first.
+
 ## 6. Block events
 
 ### SIM-BEV-001: Fields and the queue

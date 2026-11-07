@@ -1580,8 +1580,6 @@ E1..E8, T1 (any time)   D1 ─ D2 ─ D3 ─ D4 ─ D5 ─ D6 ─ D7
 53. MVC-LAT-006 and MVC-LAT-007, the state of an edited block before its `block_changed_ack`.
     Resolved: MVC-LAT-006, MVC-LAT-007. The own edit enters the world view at the request, with no
     window; until the ack, a prefix gives the state of the edit, and from the ack the kept state.
-54. The column record of a save, a record without `yPos`. Open: no specification states the
-    format of a column record. The loader rejects a record without `yPos`. A column that an upgrade
-    did not write again can have no `yPos`. The three upgraded saves of the corpus (Hermitcraft S10,
-    FarmWorld, LagMachine) hold no such record: no record of them fails to load. The question:
-    does a missing `yPos` give the lowest section of the dimension, or does the record not load?
+54. The column record of a save, a record without `yPos`. Resolved: SIM-SCH-018. The load does not
+    read `yPos`; each section has its place from its own `Y`, and the dimension gives the lowest
+    section. A record without `yPos` loads.
