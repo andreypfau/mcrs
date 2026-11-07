@@ -9,6 +9,7 @@ use crate::CollisionWorld;
 use crate::PlayerState;
 use crate::QueryVariant;
 use crate::block_scan::ShapeContext;
+use crate::block_scan::block_at;
 use crate::block_scan::entity_shape;
 use crate::block_scan::floor_block;
 use crate::block_scan::state_at;
@@ -89,11 +90,7 @@ pub(crate) fn push_out_of_blocks<W: CollisionWorld>(
         (reach, reach),
     ] {
         let point = DVec3::new(position.x + offset_x, position.y, position.z + offset_z);
-        let cell = BlockPos::new(
-            floor_block(point.x),
-            floor_block(point.y),
-            floor_block(point.z),
-        );
+        let cell = block_at(point);
         if !column.blocked(cell) {
             continue;
         }

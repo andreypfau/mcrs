@@ -8,11 +8,10 @@ use crate::CollisionWorld;
 use crate::MoveFlags;
 use crate::PlayerState;
 use crate::View;
-use crate::block_scan::floor_block;
 use crate::block_scan::state_at;
 use crate::move_body::offset_block;
+use crate::move_body::speed_factor;
 use crate::support::EFFECT_OFFSET;
-use crate::support::MOVEMENT_OFFSET;
 use crate::travel;
 use crate::travel::modifier;
 
@@ -68,15 +67,10 @@ pub fn observed_velocity<W: CollisionWorld, B: BodyView>(
         support: observation.end_support,
         ..Body::default()
     };
-    let speed = speed_factor(view, &end, start.attributes.movement_efficiency as f32);
-    let start_body = start.body();
-    let ground = if start.flags.on_ground {
-        let below = offset_block(view.world, table, &start_body, MOVEMENT_OFFSET);
-        let friction = table.state(state_at(view.world, below)).motion.friction;
-        modifier(friction, start.attributes.friction_modifier as f32)
-    } else {
-        1.0
-    };
+    let efficiency = Some(start.attributes.movement_efficiency as f32);
+    let speed = f64::from(speed_factor(view.world, table, &end, efficiency));
+    let friction_modifier = start.attributes.friction_modifier as f32;
+    let ground = travel::ground_friction(view, &start.body(), friction_modifier);
     let air_drag = start.attributes.air_drag_modifier as f32;
     let horizontal = f64::from(ground * modifier(0.91, air_drag));
     let vertical_drag = f64::from(modifier(0.98, air_drag));
@@ -92,7 +86,8 @@ pub fn observed_velocity<W: CollisionWorld, B: BodyView>(
         delta.y
     };
     let moved_vertical = vertical;
-    if !stuck && climbs(view, start) && (flags.horizontal_collision || observation.jump) {
+    let climbs = travel::climbable(view, start.position).is_some();
+    if !stuck && climbs && (flags.horizontal_collision || observation.jump) {
         vertical = 0.2;
     }
     let vy = if observation.flight {
@@ -137,38 +132,4 @@ pub fn observed_velocity<W: CollisionWorld, B: BodyView>(
         count: clips.len(),
         vertical_known: !(observation.flight && flags.vertical_collision),
     }
-}
-
-/// The speed factor of the blocks under the body, mixed with `movement_efficiency`.
-fn speed_factor<W: CollisionWorld, B: BodyView>(
-    view: View<'_, W, B>,
-    body: &Body,
-    efficiency: f32,
-) -> f64 {
-    let table = &view.tables.collision;
-    let at = BlockPos::new(
-        floor_block(body.position.x),
-        floor_block(body.position.y),
-        floor_block(body.position.z),
-    );
-    let own = table.state(state_at(view.world, at));
-    let mut factor = own.motion.speed_factor;
-    if !own.flags.contains(BlockFlags::OWN_SPEED_FACTOR) && factor == 1.0 {
-        let below = offset_block(view.world, table, body, MOVEMENT_OFFSET);
-        factor = table.state(state_at(view.world, below)).motion.speed_factor;
-    }
-    f64::from(factor + efficiency * (1.0 - factor))
-}
-
-fn climbs<W: CollisionWorld, B: BodyView>(view: View<'_, W, B>, start: &PlayerState) -> bool {
-    let at = BlockPos::new(
-        floor_block(start.position.x),
-        floor_block(start.position.y),
-        floor_block(start.position.z),
-    );
-    view.tables
-        .collision
-        .state(state_at(view.world, at))
-        .flags
-        .contains(BlockFlags::CLIMBABLE)
 }

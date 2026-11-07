@@ -18,6 +18,7 @@ use crate::StateCollision;
 use crate::StuckIgnore;
 use crate::View;
 use crate::block_scan::ShapeContext;
+use crate::block_scan::block_at;
 use crate::block_scan::entity_shape;
 use crate::block_scan::floor_block;
 use crate::block_scan::state_at;
@@ -215,11 +216,7 @@ fn inside_effect<W: CollisionWorld, B: BodyView>(
         InsideEffect::SweetBerryBush => DVec3::new(f64::from(0.8_f32), 0.75, f64::from(0.8_f32)),
         InsideEffect::PowderSnow => {
             if context.powder_snow_needs_inside {
-                let floor = BlockPos::new(
-                    floor_block(body.position.x),
-                    floor_block(body.position.y),
-                    floor_block(body.position.z),
-                );
+                let floor = block_at(body.position);
                 let class = view
                     .tables
                     .collision

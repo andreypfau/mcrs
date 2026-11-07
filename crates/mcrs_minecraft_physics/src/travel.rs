@@ -14,13 +14,11 @@ use crate::Scratch;
 use crate::ShapeClass;
 use crate::SineTable;
 use crate::View;
-use crate::block_scan::floor_block;
+use crate::block_scan::block_at;
 use crate::block_scan::state_at;
 use crate::move_body;
-use crate::move_body::offset_block;
+use crate::move_body::friction_below;
 use crate::sine_table::yaw_radians;
-use crate::support::MOVEMENT_OFFSET;
-use mcrs_voxel::BlockPos;
 
 /// The largest horizontal speed and the fastest descent on a climbable block: `0.15F`.
 const CLIMB_SPEED: f32 = 0.15;
@@ -57,15 +55,8 @@ pub(crate) fn travel<W: CollisionWorld, B: BodyView>(
     body: &mut Body,
     scratch: &mut Scratch,
 ) -> MoveOutcome {
-    let table = &view.tables.collision;
     let on_ground = body.flags.on_ground;
-    let ground_friction = if on_ground {
-        let below = offset_block(view.world, table, body, MOVEMENT_OFFSET);
-        let block = table.state(state_at(view.world, below)).motion.friction;
-        modifier(block, input.attributes.friction_modifier as f32)
-    } else {
-        1.0
-    };
+    let ground_friction = ground_friction(view, body, input.attributes.friction_modifier as f32);
     let speed = if on_ground {
         if f64::from(ground_friction) > 0.6 {
             let cube = ground_friction * ground_friction * ground_friction;
@@ -77,7 +68,7 @@ pub(crate) fn travel<W: CollisionWorld, B: BodyView>(
         input.air_speed
     };
     accelerate(&view.tables.sine, body, input.input, speed, input.yaw);
-    let climb = climbable(view, body);
+    let climb = climbable(view, body.position);
     if let Some(block) = climb {
         let limit = f64::from(CLIMB_SPEED);
         body.velocity.x = body.velocity.x.clamp(-limit, limit);
@@ -133,6 +124,22 @@ pub(crate) fn effective_gravity(gravity: f64, slow_falling: bool, vertical: f64)
     }
 }
 
+/// The friction of the block under the body with the friction modifier, or 1 off the ground.
+pub(crate) fn ground_friction<W: CollisionWorld, B: BodyView>(
+    view: View<'_, W, B>,
+    body: &Body,
+    friction_modifier: f32,
+) -> f32 {
+    if body.flags.on_ground {
+        modifier(
+            friction_below(view.world, &view.tables.collision, body),
+            friction_modifier,
+        )
+    } else {
+        1.0
+    }
+}
+
 /// `mod(f, k) = clamp(1 - (1 - f) × k, 0, 1)`, in f32.
 pub(crate) fn modifier(factor: f32, modifier: f32) -> f32 {
     (1.0 - (1.0 - factor) * modifier).clamp(0.0, 1.0)
@@ -174,20 +181,21 @@ pub(crate) fn accelerate(
     );
 }
 
-/// The climbable block under the entity.
+/// The climbable block at the position of the entity.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum Climb {
+pub(crate) enum Climb {
     Scaffolding,
     Other,
 }
 
-fn climbable<W: CollisionWorld, B: BodyView>(view: View<'_, W, B>, body: &Body) -> Option<Climb> {
-    let at = BlockPos::new(
-        floor_block(body.position.x),
-        floor_block(body.position.y),
-        floor_block(body.position.z),
-    );
-    let block = view.tables.collision.state(state_at(view.world, at));
+pub(crate) fn climbable<W: CollisionWorld, B: BodyView>(
+    view: View<'_, W, B>,
+    position: DVec3,
+) -> Option<Climb> {
+    let block = view
+        .tables
+        .collision
+        .state(state_at(view.world, block_at(position)));
     if !block.flags.contains(BlockFlags::CLIMBABLE) {
         return None;
     }

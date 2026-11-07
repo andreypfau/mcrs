@@ -18,7 +18,7 @@ use crate::QueryVariant;
 use crate::Scratch;
 use crate::View;
 use crate::block_scan::ShapeContext;
-use crate::block_scan::floor_block;
+use crate::block_scan::block_at;
 use crate::block_scan::state_at;
 use crate::edge_back_off;
 use crate::edge_back_off::Edge;
@@ -244,23 +244,38 @@ fn apply_speed_factor<W: CollisionWorld>(
     mover: &Mover,
     body: &mut Body,
 ) {
-    let at = BlockPos::new(
-        floor_block(body.position.x),
-        floor_block(body.position.y),
-        floor_block(body.position.z),
-    );
-    let own = table.state(state_at(world, at));
+    let factor = f64::from(speed_factor(world, table, body, mover.movement_efficiency));
+    body.velocity.x *= factor;
+    body.velocity.z *= factor;
+}
+
+/// The speed factor of the blocks under the body, mixed with `efficiency`.
+pub(crate) fn speed_factor<W: CollisionWorld>(
+    world: &W,
+    table: &CollisionTable,
+    body: &Body,
+    efficiency: Option<f32>,
+) -> f32 {
+    let own = table.state(state_at(world, block_at(body.position)));
     let mut factor = own.motion.speed_factor;
     if !own.flags.contains(BlockFlags::OWN_SPEED_FACTOR) && factor == 1.0 {
         let below = offset_block(world, table, body, MOVEMENT_OFFSET);
         factor = table.state(state_at(world, below)).motion.speed_factor;
     }
-    if let Some(efficiency) = mover.movement_efficiency {
+    if let Some(efficiency) = efficiency {
         factor += efficiency * (1.0 - factor);
     }
-    let factor = f64::from(factor);
-    body.velocity.x *= factor;
-    body.velocity.z *= factor;
+    factor
+}
+
+/// The friction of the block under the body.
+pub(crate) fn friction_below<W: CollisionWorld>(
+    world: &W,
+    table: &CollisionTable,
+    body: &Body,
+) -> f32 {
+    let below = offset_block(world, table, body, MOVEMENT_OFFSET);
+    table.state(state_at(world, below)).motion.friction
 }
 
 /// The block under the body for an offset, from its supporting block.

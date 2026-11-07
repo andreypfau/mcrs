@@ -1,5 +1,4 @@
 use glam::DVec3;
-use mcrs_voxel::BlockPos;
 
 use crate::Aabb;
 use crate::BirthKey;
@@ -24,8 +23,9 @@ use crate::Travel;
 use crate::View;
 use crate::block_effects;
 use crate::block_effects::EffectContext;
-use crate::block_scan::floor_block;
+use crate::block_scan::block_at;
 use crate::block_scan::state_at;
+use crate::move_body::friction_below;
 use crate::move_body::move_body;
 use crate::move_body::offset_block;
 use crate::open_air;
@@ -256,12 +256,10 @@ pub(crate) fn jump_power<W: CollisionWorld, B: BodyView>(
     jump_boost: Option<u8>,
 ) -> Option<f64> {
     let table = &view.tables.collision;
-    let floor = BlockPos::new(
-        floor_block(body.position.x),
-        floor_block(body.position.y),
-        floor_block(body.position.z),
-    );
-    let mut factor = table.state(state_at(view.world, floor)).motion.jump_factor;
+    let mut factor = table
+        .state(state_at(view.world, block_at(body.position)))
+        .motion
+        .jump_factor;
     if factor == 1.0 {
         let below = offset_block(view.world, table, body, MOVEMENT_OFFSET);
         factor = table.state(state_at(view.world, below)).motion.jump_factor;
@@ -382,14 +380,7 @@ fn drag_and_ground_rule<W: CollisionWorld, B: BodyView>(
 ) {
     let drag = f64::from(DRAG);
     let ground = if body.flags.on_ground {
-        let below = offset_block(view.world, &view.tables.collision, body, MOVEMENT_OFFSET);
-        let friction = view
-            .tables
-            .collision
-            .state(state_at(view.world, below))
-            .motion
-            .friction;
-        f64::from(DRAG * friction)
+        f64::from(DRAG * friction_below(view.world, &view.tables.collision, body))
     } else {
         drag
     };

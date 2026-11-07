@@ -1,5 +1,6 @@
 use core::ops::ControlFlow;
 
+use glam::DVec3;
 use mcrs_voxel::BlockPos;
 use mcrs_voxel::BlockStateId;
 use mcrs_voxel::LocalPos;
@@ -188,6 +189,15 @@ pub(crate) fn entity_shape(
 /// The block that holds a coordinate, saturated to the range of `i32`.
 pub(crate) fn floor_block(value: f64) -> i32 {
     value.floor() as i32
+}
+
+/// The block that holds a position.
+pub(crate) fn block_at(position: DVec3) -> BlockPos {
+    BlockPos::new(
+        floor_block(position.x),
+        floor_block(position.y),
+        floor_block(position.z),
+    )
 }
 
 /// The block state at a position; a block out of the world or in a chunk that is not loaded is
