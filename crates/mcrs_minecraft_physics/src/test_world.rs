@@ -26,6 +26,7 @@ use crate::WorldBorder;
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct TestWorld {
     blocks: HashMap<BlockPos, BlockStateId>,
+    unloaded: HashSet<(i32, i32)>,
     masks: HashMap<SectionPos, SectionMasks>,
     border: Option<WorldBorder>,
     min_y: i32,
@@ -66,6 +67,10 @@ impl TestWorld {
     #[must_use]
     pub fn get(&self, at: BlockPos) -> BlockStateId {
         self.blocks.get(&at).copied().unwrap_or(BlockStateId::AIR)
+    }
+
+    pub fn unload_chunk(&mut self, chunk_x: i32, chunk_z: i32) {
+        self.unloaded.insert((chunk_x, chunk_z));
     }
 
     pub fn set_border(&mut self, border: Option<WorldBorder>) {
@@ -122,6 +127,9 @@ impl CollisionWorld for TestWorld {
         if origin.y + 15 < self.min_y || origin.y > self.max_y {
             return SectionLookup::Outside;
         }
+        if self.unloaded.contains(&(at.x, at.z)) {
+            return SectionLookup::Unloaded;
+        }
         SectionLookup::Loaded(TestSection {
             world: self,
             origin,
@@ -167,6 +175,8 @@ pub struct TestBlocks {
     /// An attached tripwire: no collision, an inside action in a thin box above the floor.
     pub tripwire: BlockStateId,
     pub scaffolding: BlockStateId,
+    pub powder_snow: BlockStateId,
+    pub water: BlockStateId,
 }
 
 const PIXEL: f64 = 1.0 / 16.0;
@@ -285,7 +295,10 @@ impl TestBlocks {
                         context,
                         flags,
                         inside,
-                        inside_shape: InsideBoxes::FullCube,
+                        inside_shape: match context {
+                            Some(ContextShape::PowderSnow) => InsideBoxes::Collision,
+                            _ => InsideBoxes::FullCube,
+                        },
                         motion: default,
                     })
                     .unwrap_or(BlockStateId::AIR)
@@ -303,6 +316,16 @@ impl TestBlocks {
         let scaffolding = push_special(
             Some(ContextShape::Scaffolding { bottom: false }),
             BlockFlags::CLIMBABLE,
+            InsideEffect::None,
+        );
+        let powder_snow = push_special(
+            Some(ContextShape::PowderSnow),
+            BlockFlags::INSIDE_ACTION,
+            InsideEffect::PowderSnow,
+        );
+        let water = push_special(
+            None,
+            BlockFlags::FLUID | BlockFlags::OWN_SPEED_FACTOR | BlockFlags::COARSE_NEAR,
             InsideEffect::None,
         );
         let tripwire = builder
@@ -338,6 +361,8 @@ impl TestBlocks {
             sweet_berry_bush,
             tripwire,
             scaffolding,
+            powder_snow,
+            water,
         }
     }
 
