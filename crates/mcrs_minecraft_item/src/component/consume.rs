@@ -122,11 +122,8 @@ pub struct Consumable<M: Refs = Resolved> {
     pub consume_seconds: f32,
     #[serde(default = "eat", skip_serializing_if = "is_eat")]
     pub animation: ItemUseAnimation,
-    #[serde(
-        default = "generic_eat::<M>",
-        skip_serializing_if = "is_generic_eat::<M>"
-    )]
-    pub sound: Sound<M>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sound: Option<Sound<M>>,
     #[serde(
         default = "default_true",
         skip_serializing_if = "std::clone::Clone::clone"
@@ -144,20 +141,12 @@ fn is_eat(animation: &ItemUseAnimation) -> bool {
     *animation == ItemUseAnimation::Eat
 }
 
-fn generic_eat<M: Refs>() -> Sound<M> {
-    Ref::of(SoundEvent::EntityGenericEat)
-}
-
-fn is_generic_eat<M: Refs>(sound: &Sound<M>) -> bool {
-    *sound == generic_eat::<M>()
-}
-
 impl<M: Refs> Default for Consumable<M> {
     fn default() -> Self {
         Consumable {
             consume_seconds: consume_seconds_default(),
             animation: eat(),
-            sound: generic_eat::<M>(),
+            sound: None,
             has_consume_particles: true,
             on_consume_effects: Vec::new(),
         }
@@ -263,10 +252,10 @@ impl Sample for Consumable {
             Consumable {
                 consume_seconds: 2.5,
                 animation: ItemUseAnimation::Drink,
-                sound: Ref::Inline(Arc::new(SoundEventValue {
+                sound: Some(Ref::Inline(Arc::new(SoundEventValue {
                     sound_id: rl!("mcrs:sip").to_buf(),
                     range: Some(8.0),
-                })),
+                }))),
                 has_consume_particles: false,
                 on_consume_effects: every_consume_effect(),
             },
