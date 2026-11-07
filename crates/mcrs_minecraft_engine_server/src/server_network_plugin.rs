@@ -1,6 +1,7 @@
 use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
 
 use bevy_app::{App, Plugin};
+use mcrs_minecraft_engine::banlist::BanList;
 use mcrs_minecraft_engine::client_info::ClientInfoPlugin;
 use mcrs_minecraft_engine::whitelist::Whitelist;
 use mcrs_minecraft_network::{NetworkPlugin, default_favicon};
@@ -41,6 +42,7 @@ pub struct ServerNetworkPlugin {
     /// The length of the kernel queue of connections that wait for the accept loop.
     pub accept_backlog: u32,
     pub whitelist: Whitelist,
+    pub banlist: BanList,
 }
 
 impl ServerNetworkPlugin {
@@ -73,6 +75,7 @@ impl Default for ServerNetworkPlugin {
             send_buffer_bytes: NetworkPlugin::default().send_buffer_bytes,
             accept_backlog: NetworkPlugin::default().accept_backlog,
             whitelist: Whitelist::default(),
+            banlist: BanList::default(),
         }
     }
 }
@@ -106,5 +109,6 @@ impl Plugin for ServerNetworkPlugin {
         app.add_plugins(StatusPlugin);
         app.add_plugins(crate::shutdown::ShutdownPlugin);
         app.insert_resource(self.whitelist.clone());
+        app.insert_resource(self.banlist.clone());
     }
 }

@@ -1,4 +1,4 @@
-use crate::json_list::write_atomic;
+use crate::json_list::{parse_json_list, read_json_list, write_atomic};
 use bevy_app::{App, Plugin};
 use bevy_ecs::prelude::{Commands, Event, On, ResMut, Resource};
 use mcrs_minecraft_network::client::offline_player_uuid;
@@ -71,13 +71,6 @@ pub enum EditWhitelist {
     Remove(Uuid),
     SetEnabled(bool),
     Reload,
-}
-
-#[derive(Deserialize)]
-#[serde(untagged)]
-enum FileEntry {
-    Entry(WhitelistEntry),
-    Ignored(serde::de::IgnoredAny),
 }
 
 impl Whitelist {
@@ -184,7 +177,13 @@ impl Whitelist {
             return;
         };
         match std::fs::read(&path) {
-            Ok(bytes) => self.entries = Self::new(Self::parse_entries(&path, &bytes)).entries,
+            Ok(bytes) => {
+                let entries = parse_json_list(&path, &bytes).unwrap_or_else(|err| {
+                    tracing::warn!("malformed {}: {err}", path.display());
+                    vec![]
+                });
+                self.entries = Self::new(entries).entries;
+            }
             Err(err) if err.kind() == ErrorKind::NotFound => {}
             Err(err) => tracing::warn!("failed to read {}: {err}", path.display()),
         }
@@ -195,40 +194,10 @@ impl Whitelist {
     }
 
     pub fn read_entries(path: &Path) -> Vec<WhitelistEntry> {
-        let bytes = match std::fs::read(path) {
-            Ok(bytes) => bytes,
-            Err(err) if err.kind() == ErrorKind::NotFound => {
-                if let Err(err) = std::fs::write(path, "[]") {
-                    tracing::warn!("failed to create {}: {err}", path.display());
-                }
-                return vec![];
-            }
-            Err(err) => {
-                tracing::warn!("failed to read {}: {err}", path.display());
-                return vec![];
-            }
-        };
-        Self::parse_entries(path, &bytes)
-    }
-
-    fn parse_entries(path: &Path, bytes: &[u8]) -> Vec<WhitelistEntry> {
-        let entries = match serde_json::from_slice::<Vec<FileEntry>>(bytes) {
-            Ok(entries) => entries,
-            Err(err) => {
-                tracing::warn!("malformed {}: {err}", path.display());
-                return vec![];
-            }
-        };
-        let mut result = Vec::new();
-
-        for entry in entries {
-            match entry {
-                FileEntry::Entry(entry) => result.push(entry),
-                FileEntry::Ignored(_) => continue,
-            }
-        }
-
-        result
+        read_json_list(path).unwrap_or_else(|err| {
+            tracing::warn!("failed to read {}: {err}", path.display());
+            vec![]
+        })
     }
 }
 
@@ -395,6 +364,17 @@ mod tests {
     }
 
     #[test]
+    fn a_write_that_cannot_finish_leaves_the_file_as_it_was() {
+        let path = temp_file("unfinished");
+        std::fs::write(&path, "[]").unwrap();
+        std::fs::create_dir_all(path.with_file_name("unfinished.tmp")).unwrap();
+
+        assert!(Whitelist::new([wa()]).save(&path).is_err());
+
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), "[]");
+    }
+
+    #[test]
     fn a_reload_that_cannot_read_the_file_keeps_the_whitelist() {
         let path = temp_file("unreadable");
         std::fs::write(
@@ -410,17 +390,6 @@ mod tests {
 
         assert!(whitelist.contains(&WA));
         std::fs::remove_dir(&path).unwrap();
-    }
-
-    #[test]
-    fn a_write_that_cannot_finish_leaves_the_file_as_it_was() {
-        let path = temp_file("unfinished");
-        std::fs::write(&path, "[]").unwrap();
-        std::fs::create_dir_all(path.with_file_name("unfinished.tmp")).unwrap();
-
-        assert!(Whitelist::new([wa()]).save(&path).is_err());
-
-        assert_eq!(std::fs::read_to_string(&path).unwrap(), "[]");
     }
 
     #[test]

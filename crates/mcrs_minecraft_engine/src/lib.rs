@@ -5,6 +5,7 @@ use crate::muxer::muxer_plugin::MuxerPlugin;
 
 pub mod ability;
 mod advance_production;
+pub mod banlist;
 pub mod between_ticks;
 pub mod block_action_ack;
 mod block_break;

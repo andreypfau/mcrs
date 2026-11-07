@@ -8,7 +8,7 @@ use mcrs_command::{
 use mcrs_minecraft_block::registry_keys::BLOCK;
 use mcrs_minecraft_command::{PermissionCheck, Source, WireArgument};
 use mcrs_minecraft_command_argument::{
-    BlockPosArgument, RotationArgument, SwizzleArgument, Vec3Argument,
+    BlockPosArgument, PlayerNameArgument, RotationArgument, SwizzleArgument, Vec3Argument,
 };
 use mcrs_minecraft_command_argument::{
     DimensionArgument, EntityAnchorArgument, GameModeArgument, HeightmapArgument, ResourceArgument,
@@ -73,6 +73,8 @@ pub enum VanillaArgument {
     TimeMarker(TimeMarkerArgument),
     /// A timeline of a clock.
     Timeline(TimelineArgument),
+    /// The name of a player that may not be online.
+    PlayerName(PlayerNameArgument),
 }
 
 macro_rules! variant_conversions {
@@ -119,6 +121,7 @@ variant_conversions! {
     Resource(ResourceArgument)
     TimeMarker(TimeMarkerArgument)
     Timeline(TimelineArgument)
+    PlayerName(PlayerNameArgument)
 }
 
 fn check<S, A: Argument<S>>(
@@ -167,6 +170,7 @@ impl<L: VanillaLookup> ArgumentSet<Source<'_, L>> for VanillaArgument {
             VanillaArgument::Resource(argument) => check(argument, reader, source),
             VanillaArgument::TimeMarker(argument) => check(argument, reader, source),
             VanillaArgument::Timeline(argument) => check(argument, reader, source),
+            VanillaArgument::PlayerName(argument) => check(argument, reader, source),
         }
     }
 
@@ -191,6 +195,7 @@ impl<L: VanillaLookup> ArgumentSet<Source<'_, L>> for VanillaArgument {
             VanillaArgument::Resource(argument) => argument.suggest(source, builder),
             VanillaArgument::TimeMarker(argument) => argument.suggest(source, context, builder),
             VanillaArgument::Timeline(argument) => argument.suggest(source, context, builder),
+            VanillaArgument::PlayerName(argument) => argument.suggest(source, builder),
             VanillaArgument::Swizzle(_)
             | VanillaArgument::Integer(_)
             | VanillaArgument::Long(_)
@@ -344,7 +349,9 @@ impl WireArgument for VanillaArgument {
     fn suggestion_type(&self) -> Option<ResourceLocation<'static>> {
         matches!(
             self,
-            VanillaArgument::TimeMarker(_) | VanillaArgument::Timeline(_)
+            VanillaArgument::TimeMarker(_)
+                | VanillaArgument::Timeline(_)
+                | VanillaArgument::PlayerName(_)
         )
         .then_some(ASK_SERVER)
     }
@@ -411,6 +418,10 @@ impl WireArgument for VanillaArgument {
                 parser::RESOURCE,
                 registry(TimelineArgument::RESOURCE.registry),
             ),
+            VanillaArgument::PlayerName(_) => (
+                parser::BRIGADIER_STRING,
+                ParserProperties::String(StringMode::Word),
+            ),
         };
         Ok(ArgumentParser {
             id: parser_id(key)?,
@@ -426,6 +437,17 @@ mod tests {
     use std::collections::BTreeMap;
 
     const ITEM: ResourceLocation<'static> = mcrs_minecraft_resource::rl!("minecraft:item");
+
+    #[test]
+    fn a_player_name_is_a_word_that_the_server_suggests() {
+        let argument = VanillaArgument::from(PlayerNameArgument::Banned);
+
+        assert_eq!(argument.suggestion_type(), Some(ASK_SERVER));
+        assert_eq!(
+            argument.wire().unwrap().properties,
+            ParserProperties::String(StringMode::Word)
+        );
+    }
 
     #[derive(Deserialize)]
     struct Registries {
