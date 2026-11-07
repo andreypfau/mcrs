@@ -154,8 +154,10 @@ pub struct BlockSimulation {
     random_table: Option<RandomTickTable>,
     footprints: Footprints,
     random_seed: Option<StreamSeed>,
-    /// The sections that take random ticks, sorted, as the last step found them.
-    random_sections: Vec<SectionPos>,
+    /// One section of each column that takes random ticks, as the last step found them, and
+    /// the number of sections that take random ticks then.
+    random_columns: Vec<SectionPos>,
+    random_sections: usize,
     random_listed: Vec<ListedSection>,
     drops: Vec<ItemStack>,
 }
@@ -446,16 +448,19 @@ fn run_block_simulation<B: BlockBehaviour<WorldKinds> + BlockDrops + Send + 'sta
     let rules = &kernel.rules.0;
     let table = simulation.random_table.get_or_insert_default();
     let speed = random.speed.0;
-    let mut sections = mem::take(&mut simulation.random_sections);
+    let mut columns = mem::take(&mut simulation.random_columns);
+    let count = random.sections.iter().len();
     if speed == 0 {
-        sections.clear();
-    } else if random.sections.iter().len() != sections.len() || !random.started.is_empty() {
+        columns.clear();
+        simulation.random_sections = 0;
+    } else if count != simulation.random_sections || !random.started.is_empty() {
         // A section that stops alone lowers the count; one that starts is in `started`.
-        sections.clear();
-        sections.extend(random.sections.iter().copied());
-        // The picks of a section do not depend on the order; what one pick sets for the
-        // picks of a later section does.
-        sections.sort_unstable_by_key(|section| (section.x, section.z, section.y));
+        simulation.random_sections = count;
+        columns.clear();
+        columns.extend(random.sections.iter().copied());
+        // The sections feed only precipitation, which takes each column once.
+        columns.sort_unstable_by_key(|section| (section.x, section.z));
+        columns.dedup_by_key(|section| ColumnPos::from(*section));
     }
     let seed = *simulation.random_seed.get_or_insert_with(|| {
         let world_seed = random.seed.as_deref().map_or(0, |seed| seed.0);
@@ -488,7 +493,7 @@ fn run_block_simulation<B: BlockBehaviour<WorldKinds> + BlockDrops + Send + 'sta
                 index.listed(&mut simulation.random_listed);
             }
             let picks = RandomPicks {
-                sections: &sections,
+                sections: &columns,
                 listed: &simulation.random_listed,
                 speed,
                 table,
@@ -526,7 +531,7 @@ fn run_block_simulation<B: BlockBehaviour<WorldKinds> + BlockDrops + Send + 'sta
             tracing::error!(%error, ?phase, "the block step refused its input");
         }
     }
-    simulation.random_sections = sections;
+    simulation.random_columns = columns;
     mark_client_writes(
         &mut outlets.marks,
         out.writes.get(broadcast_cut..).unwrap_or_default(),

@@ -39,7 +39,7 @@ use mcrs_minecraft_simulation::{
 };
 use mcrs_minecraft_volume::PalettedSection;
 use mcrs_minecraft_worldgen_generator::saved::CorpusBlockStates;
-use mcrs_voxel::{BlockPos, BlockStateId, SectionPos};
+use mcrs_voxel::{BlockPos, BlockStateId, ColumnPos, SectionPos};
 
 /// The default of the game rule `random_tick_speed`.
 const SPEED: u32 = 3;
@@ -289,7 +289,8 @@ fn blocks_complete(chunk: &Chunk) -> bool {
 struct Loaded {
     world: World,
     dimension: Entity,
-    sections: Vec<SectionPos>,
+    /// One section of each column, as the engine passes them for precipitation.
+    columns: Vec<SectionPos>,
 }
 
 fn load(world: &Path, definitions: &BlockDefinitions, table: &RandomTickTable) -> Loaded {
@@ -364,11 +365,12 @@ fn load(world: &Path, definitions: &BlockDefinitions, table: &RandomTickTable) -
         ticking as f64 / listed.len().max(1) as f64,
     );
     ecs.insert_resource(index);
-    sections.sort_unstable_by_key(|section| (section.x, section.z, section.y));
+    sections.sort_unstable_by_key(|section| (section.x, section.z));
+    sections.dedup_by_key(|section| ColumnPos::from(*section));
     Loaded {
         world: ecs,
         dimension,
-        sections,
+        columns: sections,
     }
 }
 
@@ -415,7 +417,7 @@ fn random_ticks_on_a_save(c: &mut Criterion) {
     let Loaded {
         world: mut ecs,
         dimension,
-        sections,
+        columns,
     } = load(Path::new(&world), definitions, &table);
     let mut state: SystemState<(WorldViewMut, Query<(), With<BlockTicking>>)> =
         SystemState::new(&mut ecs);
@@ -457,7 +459,7 @@ fn random_ticks_on_a_save(c: &mut Criterion) {
                     .expect("the world holds a random tick index")
                     .listed(&mut listed);
                 let picks = RandomPicks {
-                    sections: &sections,
+                    sections: &columns,
                     listed: &listed,
                     speed: SPEED,
                     table: &table,
