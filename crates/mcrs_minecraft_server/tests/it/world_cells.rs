@@ -34,6 +34,7 @@ use mcrs_minecraft_engine::entity_birth::EntityBirth;
 use mcrs_minecraft_engine::muxer::muxer_link::MuxerLink;
 use mcrs_minecraft_engine::to_coordinator::JoinRequested;
 use mcrs_minecraft_engine::world_kinds::WorldKinds;
+use mcrs_minecraft_engine_physics::{EntityRows, ItemStacks};
 use mcrs_minecraft_engine_world::owned_columns::OwnedColumns;
 use mcrs_minecraft_engine_world::palette::ChunkBlocks;
 use mcrs_minecraft_engine_world::session::{PlayerSession, PlayerSessionCounter, Session};
@@ -1315,6 +1316,31 @@ fn a_block_that_a_shape_update_destroys_drops_the_items_of_the_rules() {
         }]
     );
     assert_eq!(block_at(&mut app, label, pos), Some(BlockStateId::AIR));
+
+    let world = cell_worlds(&mut app, label)
+        .into_iter()
+        .next()
+        .expect("a cell");
+    let mut items = Vec::new();
+    for (_, rows) in world.resource_mut::<EntityRows>().tiles_mut() {
+        items.extend(rows.rows_mut().map(|row| (row.id, row.state.body.position)));
+    }
+    let [(id, position)] = items[..] else {
+        panic!("one item row: {items:?}");
+    };
+    assert_eq!(
+        (position.x, position.z),
+        (3.5, 5.5),
+        "the item starts at the centre of the block"
+    );
+    assert!(
+        position.y < 120.5,
+        "the pass moves the item: it falls from {position}"
+    );
+    assert_eq!(
+        world.resource::<ItemStacks>().0.get(&id),
+        Some(&ItemStack::new(Item::NoteBlock.id(), 1))
+    );
 }
 
 #[test]

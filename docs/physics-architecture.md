@@ -1550,3 +1550,15 @@ E1..E8, T1 (any time)   D1 ─ D2 ─ D3 ─ D4 ─ D5 ─ D6 ─ D7
     for the other changes alike. With one uncertain block this equals the two runs of
     MVC-LAT-006. With more, it runs every state that the client can have, and the tick is not
     coarse because neither of the two world views matches.
+50. An item that a block drops (`ItemDropped`), its start position and velocity. Open. No rule
+    states the offset in the block and the start velocity. The row starts at the centre of the
+    block with zero velocity, and its birth source is the block.
+51. The entity data of an item entity, the index and the serializer of its stack. Open. Without
+    it a client gets an item entity with no stack and shows nothing, so the item rows are not
+    replicated yet (Track N).
+52. PHY-SKIP-003 and §1, the rest of an item. Open (design). An item on the ground keeps a
+    horizontal velocity that drops by `0.98F × f` in each tick that it moves, and nothing sets it
+    to zero. It reaches zero only by f64 underflow, after thousands of ticks, so a dropped item
+    with any horizontal speed does not rest within its 6000 ticks. In a test of 50,000 dropped
+    items, none rested after 100 ticks. The 40% of awake entities of §1 thus holds only for items
+    that land with no horizontal speed.

@@ -26,6 +26,7 @@ use crate::column_request::ColumnRequest;
 use crate::column_store::{ColumnStoreInput, ColumnStoreLink, ColumnStoreOutput};
 use crate::column_streams::ColumnRequests;
 use crate::command_handoff::CommandHandoff;
+use crate::coordinator::birth_clock::BirthClock;
 use crate::coordinator::clock::{EditClock, GameTime};
 use crate::coordinator::ops::OpList;
 use crate::coordinator::running_dimensions::RunningDimensions;
@@ -65,6 +66,7 @@ pub type DimWorld = SubAppWorld<DimInput, DimOutput>;
 /// when the host changed it since the last tick; a new world gets every copy when it spawns.
 pub struct DimInput {
     pub(crate) game_time: GameTime,
+    pub(crate) birth_clock: BirthClock,
     pub(crate) clocks: Option<WorldClocks>,
     pub(crate) ops: Option<OpList>,
     pub(crate) registries: Option<Versioned<RegistrySnapshot>>,
@@ -168,6 +170,7 @@ fn apply_input(world: &mut World, _tick: Tick, input: DimInput) {
     if let Some(mut time) = world.get_resource_mut::<GameTime>() {
         time.set_if_neq(input.game_time);
     }
+    world.insert_resource(input.birth_clock);
     if let Some(clocks) = input.clocks {
         world.insert_resource(clocks);
     }

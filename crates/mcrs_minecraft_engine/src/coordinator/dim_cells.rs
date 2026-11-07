@@ -27,6 +27,7 @@ use crate::column_generation::{GenerationAnswer, GenerationAsk};
 use crate::column_request::ColumnRequest;
 use crate::column_store::{ColumnDisk, ColumnStoreOutput};
 use crate::command_handoff::CommandHandoff;
+use crate::coordinator::birth_clock::BirthClock;
 use crate::coordinator::clock::GameTime;
 use crate::coordinator::entity_id_ranges::EntityIdRanges;
 use crate::coordinator::ops::OpList;
@@ -664,6 +665,7 @@ fn lend(worlds: &mut Worlds, cell: CellId) {
 /// The copies of the host resources that every dimension gets in the input of this tick.
 struct Globals {
     game_time: GameTime,
+    birth_clock: BirthClock,
     clocks: Option<WorldClocks>,
     ops: Option<OpList>,
     registries: Option<Versioned<RegistrySnapshot>>,
@@ -674,6 +676,10 @@ impl Globals {
     fn read(host: &World) -> Self {
         Self {
             game_time: host.get_resource::<GameTime>().copied().unwrap_or_default(),
+            birth_clock: host
+                .get_resource::<BirthClock>()
+                .copied()
+                .unwrap_or_default(),
             clocks: changed(host),
             ops: changed(host),
             registries: changed(host),
@@ -698,6 +704,7 @@ impl Globals {
         };
         DimInput {
             game_time: self.game_time,
+            birth_clock: self.birth_clock,
             clocks: self.clocks.clone(),
             ops: self.ops.clone(),
             registries: self.registries.clone(),
