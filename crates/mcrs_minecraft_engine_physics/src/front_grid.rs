@@ -45,9 +45,11 @@ impl BodyView for FrontGrid<'_> {
                 let [x0, z0] = bucket_xz(tile, low);
                 let [x1, z1] = bucket_xz(tile, high);
                 for z in z0..=z1 {
-                    let start = rows.partition_point(|row| bucket(tile, row) < z * BUCKETS + x0);
-                    let end = rows.partition_point(|row| bucket(tile, row) <= z * BUCKETS + x1);
-                    out.extend_from_slice(rows.get(start..end).unwrap_or_default());
+                    let row_start = z * BUCKETS;
+                    let start = rows.partition_point(|row| bucket(tile, row) < row_start + x0);
+                    let rest = rows.get(start..).unwrap_or_default();
+                    let end = rest.partition_point(|row| bucket(tile, row) <= row_start + x1);
+                    out.extend_from_slice(rest.get(..end).unwrap_or_default());
                 }
             }
         }
@@ -74,7 +76,7 @@ pub fn grid_row(state: &EntityState, motion: &MotionRow, id: EntityId) -> Option
 
 /// Sorts the bodies of `tile` into the order of its front buffer.
 pub fn sort_bodies(tile: TileKey, bodies: &mut [GridRow]) {
-    bodies.sort_unstable_by_key(|row| (bucket(tile, row), row.key));
+    bodies.sort_by_cached_key(|row| (bucket(tile, row), row.key));
 }
 
 fn bucket(tile: TileKey, row: &GridRow) -> i32 {
