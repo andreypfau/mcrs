@@ -6,7 +6,6 @@ use bevy_tasks::TaskPool;
 use bevy_tasks::TaskPoolBuilder;
 use glam::DVec3;
 use mcrs_minecraft_engine_physics::EntityRows;
-use mcrs_minecraft_engine_physics::EntityWrite;
 use mcrs_minecraft_engine_physics::EntityWrites;
 use mcrs_minecraft_engine_physics::TestScene;
 use mcrs_minecraft_physics::BirthKey;
@@ -42,11 +41,7 @@ fn writes(rows: &mut EntityRows, tick: u64, reversed: bool) -> EntityWrites {
                         target_id: row.id,
                         writer: WriterKey::Entity { key: writer },
                         sequence: index as u32,
-                        effect: EntityWrite::Impulse(DVec3::new(
-                            0.1 / 3.0,
-                            0.0,
-                            0.07 * (task as f64 + 1.0),
-                        )),
+                        effect: DVec3::new(0.1 / 3.0, 0.0, 0.07 * (task as f64 + 1.0)),
                     },
                 );
             }

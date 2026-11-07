@@ -8,7 +8,6 @@ use mcrs_minecraft_physics::EntityState;
 use mcrs_minecraft_physics::Living;
 use mcrs_minecraft_physics::MotionRow;
 use mcrs_minecraft_physics::MoveInput;
-use mcrs_minecraft_physics::PushRules;
 use mcrs_minecraft_physics::SourceKind;
 use mcrs_minecraft_physics::Steering;
 use mcrs_minecraft_physics::Tables;
@@ -21,10 +20,10 @@ use mcrs_voxel::BlockStateId;
 use mcrs_voxel::LocalPos;
 use mcrs_voxel::SectionPos;
 
-use crate::BlockWorld;
 use crate::EntityRows;
 use crate::EntityWrites;
-use crate::Pass;
+use crate::block_world::BlockWorld;
+use crate::entity_pass::Pass;
 
 /// The top of the stone floor of a scene: inside a section, so the floor section has two states.
 pub const FLOOR: i32 = 4;
@@ -126,7 +125,6 @@ impl TestScene {
             },
             tables: &self.tables,
             tick: self.tick,
-            rules: PushRules::default(),
             tiles_per_task,
         };
         self.rows.tick(&pass, pool, &mut self.grid);

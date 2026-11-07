@@ -46,6 +46,13 @@ impl StateCollision {
         inside_shape: InsideShape::FullCube,
         motion: BlockMotion::DEFAULT,
     };
+
+    /// The state has a collision shape, a context shape, or a moving piston: it sets its bit in
+    /// the `solid` mask of a section.
+    #[must_use]
+    pub fn is_solid(&self) -> bool {
+        self.class != ShapeClass::Empty || self.flags.contains(BlockFlags::MOVING_PISTON)
+    }
 }
 
 /// The collision shapes, flags and motion data of every block state.

@@ -1,9 +1,7 @@
 use mcrs_voxel::BlockStateId;
 use mcrs_voxel::LocalPos;
 
-use crate::BlockFlags;
 use crate::CollisionTable;
-use crate::ShapeClass;
 
 /// Per section, one bit for each brick of 4 × 4 × 4 blocks: a fast test that lets the block scan
 /// skip the bricks that cannot give a collider.
@@ -25,11 +23,10 @@ impl SectionMasks {
         };
         for local in LocalPos::all() {
             let id = state(local);
-            let data = table.state(id);
             if id != BlockStateId::AIR {
                 masks.air_only = false;
             }
-            if data.class != ShapeClass::Empty || data.flags.contains(BlockFlags::MOVING_PISTON) {
+            if table.state(id).is_solid() {
                 masks.solid |= 1_u64 << brick(local);
             }
         }

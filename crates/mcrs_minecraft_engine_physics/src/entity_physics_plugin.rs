@@ -36,7 +36,6 @@ use mcrs_minecraft_physics::Body;
 use mcrs_minecraft_physics::BodyGrid;
 use mcrs_minecraft_physics::EntityState;
 use mcrs_minecraft_physics::MotionRow;
-use mcrs_minecraft_physics::PushRules;
 use mcrs_minecraft_physics::Tables;
 use mcrs_minecraft_registries::CurrentRegistries;
 
@@ -53,11 +52,11 @@ pub struct EntityPhysicsPlugin;
 
 /// The tables of the kernel, from the block definitions and tags of the world.
 #[derive(Resource, Debug)]
-pub struct PhysicsTables(pub Tables);
+pub(crate) struct PhysicsTables(pub(crate) Tables);
 
 /// The body grid of the world.
 #[derive(Resource, Debug, Default)]
-pub struct Bodies(pub BodyGrid);
+pub(crate) struct Bodies(pub(crate) BodyGrid);
 
 /// The stack of each item row.
 #[derive(Resource, Debug, Default)]
@@ -170,7 +169,6 @@ fn entity_tick(
         },
         tables: &tables.0,
         tick: clock.0,
-        rules: PushRules::default(),
         tiles_per_task: tiles.div_ceil(pool.thread_num().saturating_mul(4).max(1)),
     };
     for id in rows.tick(&pass, pool, &mut bodies.0) {

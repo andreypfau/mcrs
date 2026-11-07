@@ -37,13 +37,12 @@ const LIFETIME: u32 = 6000;
 const SERVER: Side = Side::Server { authority: true };
 
 /// The frozen inputs of one entity pass.
-pub struct Pass<'a, W> {
-    pub world: &'a W,
-    pub tables: &'a Tables,
+pub(crate) struct Pass<'a, W> {
+    pub(crate) world: &'a W,
+    pub(crate) tables: &'a Tables,
     /// The tick of the keyed random streams.
-    pub tick: u64,
-    pub rules: PushRules,
-    pub tiles_per_task: usize,
+    pub(crate) tick: u64,
+    pub(crate) tiles_per_task: usize,
 }
 
 /// What the task of one tile hands back.
@@ -62,7 +61,7 @@ impl EntityRows {
     /// the thread count. Writes the grid of each tile whose bodies changed into its back buffer, and keeps the rows
     /// that left their tile for [`Self::move_rows`].
     /// Gives the items and the orbs that reached their lifetime, which left their rows.
-    pub fn tick<W: CollisionWorld + Sync>(
+    pub(crate) fn tick<W: CollisionWorld + Sync>(
         &mut self,
         pass: &Pass<'_, W>,
         pool: &TaskPool,
@@ -123,6 +122,7 @@ fn tick_tile<W: CollisionWorld, B: BodyView>(
     let mut stirred = false;
     let mut expired = Vec::new();
     let mut left = Vec::new();
+    let rules = PushRules::default();
     for row in rows.rows_mut() {
         let state = row.state;
         let start = grid_row(state, row.motion, row.id);
@@ -132,11 +132,10 @@ fn tick_tile<W: CollisionWorld, B: BodyView>(
             actions.clear();
             if let Some(own) = start {
                 let stream = KeyedStream::new(&state.key, pass.tick);
-                let rules = &pass.rules;
                 let pushed = push_entity(
                     view.bodies,
                     &own,
-                    rules,
+                    &rules,
                     &stream,
                     &mut state.body.velocity,
                     scratch,

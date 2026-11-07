@@ -1,10 +1,8 @@
-use mcrs_minecraft_physics::BlockFlags;
 use mcrs_minecraft_physics::CollisionSection;
 use mcrs_minecraft_physics::CollisionTable;
 use mcrs_minecraft_physics::CollisionWorld;
 use mcrs_minecraft_physics::SectionLookup;
 use mcrs_minecraft_physics::SectionMasks;
-use mcrs_minecraft_physics::ShapeClass;
 use mcrs_minecraft_physics::WorldBorder;
 use mcrs_minecraft_volume::BlockVolume;
 use mcrs_minecraft_volume::SectionBlocks;
@@ -15,13 +13,13 @@ use mcrs_voxel::SectionPos;
 
 /// The blocks of a volume as the kernel reads them. A section of one state carries its masks; any
 /// other section takes the per-block path.
-pub struct BlockWorld<'a, V> {
-    pub blocks: &'a V,
-    pub table: &'a CollisionTable,
+pub(crate) struct BlockWorld<'a, V> {
+    pub(crate) blocks: &'a V,
+    pub(crate) table: &'a CollisionTable,
 }
 
 /// A loaded section of a [`BlockWorld`].
-pub struct BlockSection<S> {
+pub(crate) struct BlockSection<S> {
     blocks: S,
     masks: Option<SectionMasks>,
 }
@@ -50,9 +48,7 @@ impl<V: BlockVolume> CollisionWorld for BlockWorld<'_, V> {
 
 impl<V> BlockWorld<'_, V> {
     fn uniform_masks(&self, state: BlockStateId) -> SectionMasks {
-        let collision = self.table.state(state);
-        let solid = collision.class != ShapeClass::Empty
-            || collision.flags.contains(BlockFlags::MOVING_PISTON);
+        let solid = self.table.state(state).is_solid();
         SectionMasks {
             solid: if solid { u64::MAX } else { 0 },
             air_only: state == BlockStateId::AIR,

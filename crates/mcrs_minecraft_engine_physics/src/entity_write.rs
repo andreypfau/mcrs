@@ -8,17 +8,10 @@ use mcrs_minecraft_physics::TileQueues;
 
 use crate::entity_rows::EntityRows;
 
-/// A write of one entity to another, which the target applies at the start of the next tick.
-#[derive(Clone, Copy, Debug, PartialEq)]
-#[non_exhaustive]
-pub enum EntityWrite {
-    /// Adds to the velocity of the target.
-    Impulse(DVec3),
-}
-
-/// The writes of the last tick, by the tile of the target.
+/// The impulses of the last tick, by the tile of the target. The target adds each one to its
+/// velocity at the start of the next tick.
 #[derive(Resource, Debug, Default)]
-pub struct EntityWrites(pub TileQueues<Keyed<EntityWrite>>);
+pub struct EntityWrites(pub TileQueues<Keyed<DVec3>>);
 
 impl EntityRows {
     /// The merge point: each tile applies the writes to its rows in the order of the target key,
@@ -35,9 +28,7 @@ impl EntityRows {
                 let Some(row) = rows.rows_mut().find(|row| row.id == entry.target_id) else {
                     continue;
                 };
-                match entry.effect {
-                    EntityWrite::Impulse(impulse) => row.state.body.velocity += impulse,
-                }
+                row.state.body.velocity += entry.effect;
                 row.state.rest = Rest::Awake;
             }
             self.dirty.insert(tile);

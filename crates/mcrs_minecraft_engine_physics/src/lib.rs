@@ -14,15 +14,9 @@ mod test_scene;
 mod tile_at;
 mod tile_world;
 
-pub use block_world::BlockSection;
-pub use block_world::BlockWorld;
-pub use entity_pass::Pass;
-pub use entity_physics_plugin::Bodies;
 pub use entity_physics_plugin::EntityPhysicsPlugin;
 pub use entity_physics_plugin::ItemStacks;
-pub use entity_physics_plugin::PhysicsTables;
 pub use entity_rows::EntityRows;
-pub use entity_write::EntityWrite;
 pub use entity_write::EntityWrites;
 #[cfg(feature = "testing")]
 pub use test_scene::FLOOR;
