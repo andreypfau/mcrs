@@ -50,3 +50,4 @@ crates/mcrs_minecraft_protocol_game/tests/fixtures/serverbound_game_packets_gold
 crates/mcrs_minecraft_protocol/tests/fixtures/frames_golden.txt linguist-generated
 crates/mcrs_minecraft_game_registries/tests/fixtures/vanilla_player.dat linguist-generated
 crates/mcrs_minecraft_game_registries/tests/fixtures/registry_values.txt linguist-generated
+crates/mcrs_minecraft_collision_table/tests/fixtures/physics/*.json linguist-generated

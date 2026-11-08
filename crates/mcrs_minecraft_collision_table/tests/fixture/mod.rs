@@ -8,9 +8,9 @@
 
 use std::collections::BTreeMap;
 use std::fmt::Write as _;
-use std::path::Path;
 
 use glam::DVec3;
+use mcrs_minecraft_fixtures::FixtureFile;
 use mcrs_minecraft_physics::BirthKey;
 use mcrs_minecraft_physics::Body;
 use mcrs_minecraft_physics::EntityState;
@@ -84,22 +84,11 @@ pub struct Sample {
     pub fall_distance: f64,
 }
 
-/// The fixtures in name order.
-pub fn fixtures() -> Vec<Fixture> {
-    let directory = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../mcrs_minecraft_collision_table/tests/fixtures/physics");
-    let mut paths: Vec<_> = std::fs::read_dir(&directory)
-        .unwrap()
-        .map(|entry| entry.unwrap().path())
-        .filter(|path| {
-            path.extension()
-                .is_some_and(|extension| extension == "json")
-        })
-        .collect();
-    paths.sort();
-    paths
+/// Parses the fixture files that `mcrs_minecraft_fixtures` lists.
+pub fn fixtures(files: &[FixtureFile]) -> Vec<Fixture> {
+    files
         .iter()
-        .map(|path| serde_json::from_slice(&std::fs::read(path).unwrap()).unwrap())
+        .map(|file| serde_json::from_slice(&file.bytes()).unwrap())
         .collect()
 }
 

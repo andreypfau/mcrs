@@ -150,7 +150,7 @@ fn server_entities_follow_the_vanilla_fixtures() {
     let tables = Tables::new(common::table().clone());
     let mut failures = String::new();
     let mut checked = 0;
-    for fixture in fixture::fixtures() {
+    for fixture in fixture::fixtures(&mcrs_minecraft_fixtures::fixture("physics").files()) {
         let colliders: Vec<EntityCollider> = fixture
             .entities
             .iter()

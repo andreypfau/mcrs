@@ -33,6 +33,7 @@ tracing.workspace = true
 bevy_tasks = { workspace = true, features = ["multi_threaded"] }
 criterion = { version = "0.7", default-features = false }
 mcrs_minecraft_engine_physics = { workspace = true, features = ["testing"] }
+mcrs_minecraft_fixtures.workspace = true
 mcrs_minecraft_game_registries = { workspace = true, features = ["test-support"] }
 serde.workspace = true
 serde_json.workspace = true

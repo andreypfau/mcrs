@@ -126,7 +126,7 @@ fn the_pass_follows_the_vanilla_fixtures() {
     let pool = TaskPoolBuilder::new().num_threads(1).build();
     let mut failures = String::new();
     let mut checked = 0;
-    for fixture in fixture::fixtures() {
+    for fixture in fixture::fixtures(&mcrs_minecraft_fixtures::fixture("physics").files()) {
         let unsupported = fixture::border_of(&fixture).is_some()
             || fixture.entities.iter().any(|entity| entity.collider);
         assert_eq!(
