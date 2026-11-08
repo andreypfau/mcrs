@@ -117,7 +117,9 @@ pub(crate) fn spawn_mobs(
 ) {
     let start = pending.0.len();
     pending.0.extend(requests.read().cloned());
-    pending.0.make_contiguous()[start..].sort_by_key(|request| request.key);
+    if let Some(new) = pending.0.make_contiguous().get_mut(start..) {
+        new.sort_by_key(|request| request.key);
+    }
     let registries = registries.as_deref().map(|registries| &**registries);
     while !pending.0.is_empty() {
         let Some(id) = ids.allocate() else {
