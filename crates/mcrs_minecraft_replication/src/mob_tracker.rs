@@ -259,6 +259,52 @@ impl MobTracker {
         Ok(())
     }
 
+    /// Appends the state that the viewers last received, as absolute values: the position base,
+    /// the velocity, the head yaw and the entity data. A client that missed updates holds the
+    /// same state as every other viewer after it, and the next relative move fits its base.
+    pub(crate) fn resend(&self, id: VarInt, bytes: &mut BytesMut) -> Result<()> {
+        all_or_nothing(bytes, |bytes| {
+            write_record(
+                bytes,
+                &ClientboundEntityPositionSync {
+                    entity_id: id,
+                    position: PositionPath::Linear(self.base),
+                    look: Look {
+                        yaw: self.yaw.to_degrees(),
+                        pitch: self.pitch.to_degrees(),
+                    },
+                    on_ground: self.on_ground,
+                },
+            )?;
+            write_record(
+                bytes,
+                &ClientboundSetEntityMotion {
+                    entity_id: id,
+                    velocity: LpVec3(self.velocity),
+                },
+            )?;
+            write_record(
+                bytes,
+                &ClientboundRotateHead {
+                    entity_id: id,
+                    y_head_rot: self.head_yaw,
+                },
+            )?;
+            let mut entries = Vec::new();
+            if self.dying {
+                entries.push(pose_entry());
+            }
+            entries.push(health_entry(self.health));
+            write_record(
+                bytes,
+                &ClientboundSetEntityData {
+                    entity_id: id,
+                    metadata: Metadata(entries),
+                },
+            )
+        })
+    }
+
     /// The relative path from the base to `position`: one step of the open ticks, or a linear
     /// move when the step is empty (TRK-UPD-005). `None` when it does not fit (TRK-WIRE-001).
     fn delta(&self, position: DVec3) -> Option<VecDelta> {

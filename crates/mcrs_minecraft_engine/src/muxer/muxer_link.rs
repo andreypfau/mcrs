@@ -14,6 +14,7 @@ use mcrs_minecraft_engine_world::session::{
 };
 use mcrs_minecraft_network::event::Received;
 use mcrs_minecraft_protocol_game::serverbound::ServerboundChunkBatchReceived;
+use mcrs_minecraft_replication::Backlog;
 use rustc_hash::{FxHashMap, FxHashSet};
 
 use crate::bus::{PacketPayload, to};
@@ -89,6 +90,11 @@ impl MuxerLink {
     /// Hands `latency` of the player of `session` to the muxer of the world it watches.
     pub fn send_latency(&mut self, session: PlayerSession, latency: i32) {
         self.entities.send_latency(&mut self.link, session, latency);
+    }
+
+    /// Hands the `backlog` of the connection of `session` to the muxer of the world it watches.
+    pub fn send_backlog(&mut self, session: PlayerSession, backlog: Backlog) {
+        self.entities.send_backlog(&mut self.link, session, backlog);
     }
 
     fn take_dim(&mut self, dim: Entity, columns: DimColumns) {

@@ -28,6 +28,6 @@ pub use mob_spawn::MobSpawn;
 pub use mob_state::MobState;
 pub use player_codec::{PlayerCodec, wire_id};
 pub use player_data::PlayerData;
-pub use player_input::PlayerInput;
+pub use player_input::{Backlog, PlayerInput};
 pub use player_list::{LIST_INTERVAL_TICKS, LISTED_CAP};
 pub use player_spawn::PlayerSpawn;

@@ -10,7 +10,7 @@ use mcrs_engine_muxer::{
     EntityEvent, EntityId, MuxerInput, SubjectEvent, TileDeltas, TileKey, View, ViewerId, WorldId,
 };
 use mcrs_minecraft_engine_world::session::{PlayerSession, SessionAnchors};
-use mcrs_minecraft_replication::{PlayerCodec, PlayerData, PlayerInput};
+use mcrs_minecraft_replication::{Backlog, PlayerCodec, PlayerData, PlayerInput};
 
 use crate::muxer::latency::Latency;
 use crate::muxer::muxer_link::MuxerLink;
@@ -141,10 +141,25 @@ impl EntityReplication {
         latency: i32,
     ) {
         let viewer = ViewerId(session.0);
+        self.send_input(link, viewer, PlayerInput::Latency { viewer, latency });
+    }
+
+    /// Hands the `backlog` of the connection of `session` to the muxer of the world it watches.
+    pub(crate) fn send_backlog(
+        &self,
+        link: &mut Link<MuxerStage>,
+        session: PlayerSession,
+        backlog: Backlog,
+    ) {
+        let viewer = ViewerId(session.0);
+        self.send_input(link, viewer, PlayerInput::Backlog { viewer, backlog });
+    }
+
+    fn send_input(&self, link: &mut Link<MuxerStage>, viewer: ViewerId, input: PlayerInput) {
         if let Some(watch) = self.viewers.get(&viewer) {
             link.send(MuxerCall::Entities(MuxerInput::Codec {
                 world: watch.world,
-                input: PlayerInput { viewer, latency },
+                input,
             }));
         }
     }

@@ -469,8 +469,13 @@ impl ReplicationCodec for PlayerCodec {
         );
     }
 
-    fn receive(&mut self, PlayerInput { viewer, latency }: PlayerInput) {
-        self.latency.insert(viewer, latency);
+    fn receive(&mut self, input: PlayerInput) {
+        match input {
+            PlayerInput::Latency { viewer, latency } => {
+                self.latency.insert(viewer, latency);
+            }
+            PlayerInput::Backlog { viewer, backlog } => self.mobs.set_backlog(viewer, backlog),
+        }
     }
 }
 

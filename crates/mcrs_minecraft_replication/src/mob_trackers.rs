@@ -17,8 +17,12 @@ use crate::mob_spawn::MobSpawn;
 use crate::mob_state::MobState;
 use crate::mob_tracker::MobTracker;
 use crate::player_codec::wire_id;
+use crate::player_input::Backlog;
 
 const BLOCKS_PER_COLUMN: u32 = 16;
+
+/// The mobs whose latest state a client that caught up receives in one tick.
+const RESENDS_PER_TICK: usize = 1024;
 
 /// The mobs of one world and the viewers whose client holds each one. Its updates come at the
 /// end of each tick for each held mob, not from the tile blobs (TRK-UPD-009).
@@ -36,6 +40,12 @@ pub(crate) struct MobTrackers {
     /// The viewers that held each mob that left the world in this tick. They get its signals
     /// before its removal.
     farewells: FxHashMap<EntityId, Vec<ViewerId>>,
+    /// The viewers whose connection holds more bytes than their client reads. They get no move
+    /// of a mob until they catch up.
+    behind: BTreeSet<ViewerId>,
+    /// The mobs whose updates each client missed. It gets their latest state once it catches up,
+    /// and no relative move before that.
+    missed: BTreeMap<ViewerId, BTreeSet<EntityId>>,
 }
 
 #[derive(Debug)]
@@ -64,6 +74,13 @@ impl MobTrackers {
                 holders: Vec::new(),
             },
         );
+    }
+
+    pub(crate) fn set_backlog(&mut self, viewer: ViewerId, backlog: Backlog) {
+        match backlog {
+            Backlog::Behind => self.behind.insert(viewer),
+            Backlog::Clear => self.behind.remove(&viewer),
+        };
     }
 
     /// Queues `signal` of `subject` for the clients that hold it at the end of the tick.
@@ -129,6 +146,9 @@ impl MobTrackers {
             if let Some(held) = self.holds.get_mut(&viewer) {
                 held.remove(&subject);
             }
+            if let Some(missed) = self.missed.get_mut(&viewer) {
+                missed.remove(&subject);
+            }
         }
     }
 
@@ -177,6 +197,9 @@ impl MobTrackers {
         }
         self.held.insert(subject);
         self.holds.entry(viewer).or_default().insert(subject);
+        if let Some(missed) = self.missed.get_mut(&viewer) {
+            missed.remove(&subject);
+        }
         Ok(())
     }
 
@@ -194,6 +217,9 @@ impl MobTrackers {
         if let Some(held) = self.holds.get_mut(&viewer) {
             held.remove(&subject);
         }
+        if let Some(missed) = self.missed.get_mut(&viewer) {
+            missed.remove(&subject);
+        }
         true
     }
 
@@ -202,10 +228,13 @@ impl MobTrackers {
         for subject in self.holds.remove(&viewer).unwrap_or_default() {
             self.lose(viewer, subject);
         }
+        self.behind.remove(&viewer);
+        self.missed.remove(&viewer);
     }
 
     /// Runs the tracker tick of each held mob, and owes the bytes of each update to each viewer
-    /// that holds the mob.
+    /// that holds the mob. A viewer that is behind misses the update; a viewer that caught up
+    /// gets the latest state of the mobs it missed, a share in each tick.
     pub(crate) fn finish_tick(&mut self, tick: u64, owe: &mut impl FnMut(ViewerId, Bytes)) {
         let Self {
             mobs,
@@ -213,6 +242,8 @@ impl MobTrackers {
             scratch,
             signals,
             farewells,
+            behind,
+            missed,
             ..
         } = self;
         for (subject, packet) in signals.drain(..) {
@@ -237,8 +268,123 @@ impl MobTrackers {
             }
             let update = scratch.split().freeze();
             for &viewer in &mob.holders {
-                owe(viewer, update.clone());
+                let misses = behind.contains(&viewer)
+                    || missed
+                        .get(&viewer)
+                        .is_some_and(|missed| missed.contains(subject));
+                if misses {
+                    missed.entry(viewer).or_default().insert(*subject);
+                } else {
+                    owe(viewer, update.clone());
+                }
             }
         }
+        resend_missed(mobs, behind, missed, scratch, owe);
+    }
+}
+
+/// Owes each viewer that is not behind the latest state of some of the mobs it missed.
+fn resend_missed(
+    mobs: &FxHashMap<EntityId, Mob>,
+    behind: &BTreeSet<ViewerId>,
+    missed: &mut BTreeMap<ViewerId, BTreeSet<EntityId>>,
+    scratch: &mut BytesMut,
+    owe: &mut impl FnMut(ViewerId, Bytes),
+) {
+    for (viewer, subjects) in missed.iter_mut() {
+        if behind.contains(viewer) {
+            continue;
+        }
+        scratch.clear();
+        for _ in 0..RESENDS_PER_TICK {
+            let Some(subject) = subjects.pop_first() else {
+                break;
+            };
+            let Some(mob) = mobs.get(&subject) else {
+                continue;
+            };
+            if let Err(error) = mob.tracker.resend(wire_id(subject), scratch) {
+                tracing::warn!("the state of a mob did not encode: {error:#}");
+            }
+        }
+        if !scratch.is_empty() {
+            owe(*viewer, scratch.split().freeze());
+        }
+    }
+    missed.retain(|_, subjects| !subjects.is_empty());
+}
+
+#[cfg(test)]
+mod tests {
+    use glam::DVec3;
+    use mcrs_minecraft_core::Look;
+    use mcrs_minecraft_protocol_game::clientbound::{ClientboundEntityPositionSync, PositionPath};
+
+    use super::*;
+
+    const MOB: EntityId = EntityId(8);
+    const KEEPS_UP: ViewerId = ViewerId(1);
+    const BEHIND: ViewerId = ViewerId(2);
+
+    fn at(x: f64) -> MobState {
+        MobState {
+            position: DVec3::new(x, -60.0, 0.5),
+            on_ground: true,
+            health: 10.0,
+            ..MobState::default()
+        }
+    }
+
+    fn tick(mobs: &mut MobTrackers, tick: u64) -> BTreeMap<ViewerId, Vec<Bytes>> {
+        let mut owed: BTreeMap<ViewerId, Vec<Bytes>> = BTreeMap::new();
+        mobs.finish_tick(tick, &mut |viewer, bytes| {
+            owed.entry(viewer).or_default().push(bytes);
+        });
+        owed
+    }
+
+    #[test]
+    fn a_viewer_that_is_behind_misses_the_moves_and_then_gets_the_state_the_others_hold() {
+        let mut mobs = MobTrackers::default();
+        let spawn = MobSpawn {
+            kind: MobType::Pig,
+            uuid: Uuid::nil(),
+            state: at(0.5),
+            looks: MobLooks::default(),
+        };
+        mobs.spawn(MOB, &spawn, 0);
+        for viewer in [KEEPS_UP, BEHIND] {
+            mobs.gain(viewer, MOB, 0, &mut Vec::new()).unwrap();
+        }
+        tick(&mut mobs, 0);
+
+        mobs.set_backlog(BEHIND, Backlog::Behind);
+        let mut moves = 0;
+        for (step, now) in (1..=6).enumerate() {
+            mobs.record(MOB, at(0.5 + 0.2 * (step + 1) as f64));
+            let owed = tick(&mut mobs, now);
+            assert!(!owed.contains_key(&BEHIND), "no move while behind");
+            moves += owed.get(&KEEPS_UP).map_or(0, Vec::len);
+        }
+        assert!(moves > 0, "the other viewer keeps getting the moves");
+
+        mobs.set_backlog(BEHIND, Backlog::Clear);
+        let owed = tick(&mut mobs, 7);
+        let expected = record(&ClientboundEntityPositionSync {
+            entity_id: wire_id(MOB),
+            position: PositionPath::Linear(at(0.5 + 0.2 * 6.0).position),
+            look: Look {
+                yaw: 0.0,
+                pitch: 0.0,
+            },
+            on_ground: true,
+        })
+        .unwrap();
+        let resent = owed.get(&BEHIND).and_then(|chunks| chunks.first()).unwrap();
+        assert!(
+            resent.starts_with(&expected),
+            "the latest state that the other viewer holds, as an absolute position"
+        );
+        assert!(!tick(&mut mobs, 8).contains_key(&BEHIND), "sent once");
     }
 }
