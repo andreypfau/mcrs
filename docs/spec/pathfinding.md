@@ -193,7 +193,7 @@ state is the first match of this list:
 
 Thus each trapdoor state gives `DROP_DOWN`, open or closed. A `magma_block` gives `FIRE`.
 
-**PATH-TYP-003** (`source_suggested`, semantic, confidence: medium). The block path type at `(x, y,
+**PATH-TYP-003** (`source_suggested_black_box_confirmed`, semantic, confidence: high). The block path type at `(x, y,
 z)` is:
 
 1. Let `t` be the state path type at `(x, y, z)`. If `t` is not `OPEN`, or `y` is the lowest `y`
@@ -226,7 +226,7 @@ z)` is:
 Thus the air over a magma block is `FIRE`, and the air over an open trapdoor is
 `ON_TOP_OF_DROP_DOWN`. An open trapdoor itself is `DROP_DOWN`.
 
-**PATH-TYP-004** (`source_suggested`, semantic, confidence: medium). The mob path type at `(x, y,
+**PATH-TYP-004** (`source_suggested_black_box_confirmed`, semantic, confidence: high). The mob path type at `(x, y,
 z)` for a mob uses the cell counts `w = floor(width + 1.0F)` and `h = floor(height + 1.0F)`, in
 f32, from the dimensions of the mob at the start of the search. The covered positions are `(x + i,
 y + j, z + k)` with `0 ≤ i < w`, `0 ≤ j < h` and `0 ≤ k < w`. Thus the cells start at the node and
@@ -416,7 +416,7 @@ confirms that the path of a zombified piglin goes into the cell of an open trapd
 A closed side candidate, for example a fence node of step 5.4 of PATH-NOD-005, takes part in this
 check.
 
-**PATH-NOD-008** (`source_suggested_black_box_confirmed`, semantic, confidence: medium). The fall
+**PATH-NOD-008** (`source_suggested_black_box_confirmed`, semantic, confidence: high). The fall
 from a probe of `(x, y, z)` visits `cy` from `y - 1` down to the lowest `y` of the dimension:
 
 1. If `y - cy` is more than the fall limit, the candidate is the node at `(x, cy, z)` with the path
@@ -436,7 +436,8 @@ limit is `floor(k + 3.0F)`, in f32. Here `k = int(health - max_health × 0.33F) 
 negative. `d` is 0 for peaceful, 1 for easy, 2 for normal and 3 for hard. `int` truncates to zero.
 
 E-V4 confirms the limit: a zombified piglin with no target walks off a ledge of 3 blocks to its
-target. With 4 blocks, it stops at the ledge.
+target. With 4 blocks, it stops at the ledge. P3 confirms the limit with an attack target and the
+health 20: 16 on hard, 12 on normal and 8 on easy.
 
 **PATH-NOD-009** (`source_suggested`, semantic, confidence: medium). A collision test of a box in
 the evaluator uses the block colliders of PHY-SHP and the world border. It does not use entity
@@ -477,7 +478,7 @@ block position that it reads. A node has these fields:
 
 A new node has the path type `BLOCKED`, the malus 0, no previous node and no marks.
 
-**PATH-SRC-003** (`source_suggested`, semantic, confidence: medium). The distance between two
+**PATH-SRC-003** (`source_suggested_black_box_confirmed`, semantic, confidence: high). The distance between two
 nodes is `sqrt(dx² + dy² + dz²)`, in f32, with `dx`, `dy` and `dz` the f32 differences of the
 coordinates. The heuristic of a node is the smallest distance from the node to a target. When the
 search computes the heuristic of a node, it also updates the best node of each target
@@ -501,7 +502,7 @@ search computes the heuristic of a node, it also updates the best node of each t
 Step 2.5.1 changes `q.walked` also when step 2.5.3 does not accept `q`. This is the reference
 behaviour, and this server keeps it.
 
-**PATH-SRC-004** (`source_suggested`, semantic, confidence: medium). Each target keeps a best node
+**PATH-SRC-004** (`source_suggested_black_box_confirmed`, semantic, confidence: high). Each target keeps a best node
 and a best value, which starts at the largest f32. When the search computes the distance `v` from a
 node to the target, and `v` is less than the best value, the node becomes the best node of the
 target. The heuristic weight `1.5F` does not apply to this value. After the loop:
@@ -519,7 +520,7 @@ path has the next node index 0, so its first next node is the start node.
 Thus a reached path ends at the node closest to the target, which can be a node in the open set and
 not the node that reached the target.
 
-**PATH-SRC-005** (`source_suggested`, semantic, confidence: medium). The open set is a binary heap
+**PATH-SRC-005** (`source_suggested_black_box_confirmed`, semantic, confidence: high). The open set is a binary heap
 in an array, with the smallest `f` at index 0. It compares with `<` only. The parent of index `i` is
 `(i - 1) / 2`, and the children are `2i + 1` and `2i + 2`.
 
@@ -654,7 +655,7 @@ A reset of the stuck check sets the tick of the last check to the current tick c
 position to the temporary position. An advance resets the check, so the check fires only after 101
 ticks with no advance. A zombified piglin with the mob speed 0.23 has `D = 1.3225`.
 
-**PATH-FOL-004** (`source_suggested`, semantic, confidence: medium). The timeout check runs after
+**PATH-FOL-004** (`source_suggested_black_box_confirmed`, semantic, confidence: high). The timeout check runs after
 the stuck check, while the path is not done. It uses the game time `T`:
 
 1. If the next node is the node of the last check, add `T` minus the time of the last check to the
@@ -669,7 +670,8 @@ the stuck check, while the path is not done. It uses the game time `T`:
 A reset of the timeout sets the node of the last check to `(0, 0, 0)`, the timer to 0 and the limit
 to 0. Only a new path from a request and a timeout reset it. Thus the timer counts the ticks of the
 whole path, and a long path can time out at a node far from its start. This server keeps this
-reference behaviour.
+reference behaviour. P4 confirms it: a piglin that walks through cobwebs loses its input for 1 or 2
+ticks about each 316 ticks of one path.
 
 **PATH-FOL-005** (`source_suggested_black_box_confirmed`, semantic, confidence: medium). The wanted
 position is `(px, gy, pz)`, where `(px, py, pz)` is the point of the next node. `gy` is `py` when the
@@ -937,8 +939,10 @@ passes when all these conditions are true:
 5. A second run from `(-316.5, 199, -602.5)`, with `L = 35.337`, meets conditions 1 to 3 for the
    second table of E-V2, to tick 97.
 
-The positions of each tick compare with the tolerance of PHY-DEV-001 only after the per-tick capture
-of section 15.1, P1, exists.
+The fixtures `e_v2_west.txt` and `e_v2_north.txt` of section 16 give the position of each tick.
+After the test aligns its tick of the first move with the fixture, it compares each position with the
+tolerance of PHY-DEV-001. The search of the first tick also must give the node list of
+`vanilla_paths.json` for that start, with the same `f` of each node, bit for bit.
 
 ### 12.3 Data tables
 
@@ -988,7 +992,7 @@ before the tests are written.
 | The magma detour of E-V3: the search picks the stone detour; with stone in place of magma, it picks the straight route. | PATH-MAL-001, PATH-SRC-003 | scene |
 | The ledge of E-V4: a drop of 3 gives a reached path; a drop of 4 gives a partial path that ends at the ledge. | PATH-NOD-008, PATH-SRC-004 | scene |
 | The budget: a search in an open field with an unreachable target pops exactly `B - 1` nodes for `L` = 35 and for `L` = 94.274. | PATH-SRC-001 | unit |
-| The node lists of the searches of P1 equal the captured lists. | PATH-SRC-003, PATH-SRC-005 | fixture, when P1 exists |
+| Each search of `vanilla_paths.json` (section 16) gives the same node list, the same `f`, malus and path type of each node, and the same open set and closed set, bit for bit. | PATH-TYP-003, PATH-TYP-004, PATH-SRC-003, PATH-SRC-004, PATH-SRC-005 | fixture |
 | The follower advances at `|dx| < 0.45` and not at 0.45, for the width 0.6. | PATH-FOL-002 | unit |
 | The stuck check drops a path after 101 ticks against a wall, not after 100. | PATH-FOL-003 | unit |
 | A block change on the path at a distance less than `R` from `M` triggers one recompute, and a second change in the next 20 ticks waits. | PATH-RCP-001, PATH-RCP-002 | unit |
@@ -1074,8 +1078,8 @@ This server keeps these behaviours of the reference. A test must not report them
   triangle distribution of width 0.11485 around 0, and a second factor `1 + u` when `u = r × 1.5 ×
   m` is more than 1. Here `r` is a random value in `[0, 1)` and `m` is the special multiplier of the
   local difficulty. E-V1 is consistent with this rule.
-- **U2**: the per-tick positions of the vanilla follower are not captured with the precision of
-  `1.0E-6`. E-V2 gives positions only at the ticks of the table. P1 closes this.
+- **U2**: closed. The fixtures of section 16 hold the position of each tick in f64, without a gap,
+  for E-V2 to E-V4 and P4.
 - **U3**: the cost targets of PATH-PRF-001 come from no measurement of this server. The benchmark of
   section 12.4 must confirm them.
 - **U4**: `physics-architecture.md`, section 15, question 65: the version of the path type table
@@ -1099,14 +1103,29 @@ and the game time in each tick over RCON.
 | E-V2 | Summon one zombified piglin at `(-323.5, 199, -609.5)`, and in a second run at `(-316.5, 199, -602.5)`. Record its block column and position in each tick for 200 ticks. Repeat the first run. | PATH-NOD-005, PATH-MOV-002, PATH-MOV-003, PATH-REQ-001, PATH-FOL-001 | done |
 | E-V3 | Build a closed glass box at `y` 139 to 141, `x` -330 to -316, `z` -638 to -630, with air at `y` 142. Make a straight corridor of 11 blocks at `z` -634 with a magma floor in the 9 inner cells, and a detour of 17 blocks with a stone floor through `z` -637. Put a turtle egg at the end. Summon a piglin at the start. Repeat with stone in place of the magma. | PATH-MAL-001 | done |
 | E-V4 | Build a corridor at `y` 134 that ends at a pit. Put a turtle egg on the floor of the pit, 3 blocks below the corridor floor, and in a second run 4 blocks below. Summon a piglin at the far end of the corridor. | PATH-NOD-008, PATH-SRC-004 | done |
-| P1 | Connect a scripted client as an operator. Send the debug subscription request for `entity_paths`. Repeat E-V2 to E-V4 and record each path with its open set and closed set. | PATH-SRC-003, PATH-SRC-005, PATH-SRC-004 | pending: the scripted client cannot send the debug subscription request yet; step G4 does not need it |
-| P2 | Add a dump of the state path type of each state, with the vanilla tags, to `tools/vanilla-oracle`. | PATH-TYP-002 | planned with section 12.1, step 1 |
-| P3 | Put a zombified piglin with an attack target at a ledge of 4 to 8 blocks with health 20 on each difficulty. Record whether it drops. | PATH-NOD-008 | planned |
-| P4 | Let a zombie follow a player along a corridor of 60 blocks. Record the ticks where its path stops. | PATH-FOL-004 | planned |
+| P1 | Connect the path client below as the operator `g4cap`, in spectator mode near the scene. Repeat E-V2 to E-V4 and record each path value with its open set and closed set. | PATH-TYP-003, PATH-TYP-004, PATH-SRC-003, PATH-SRC-004, PATH-SRC-005 | done |
+| P2 | Add a dump of the state path type of each state, with the vanilla tags, to the data source set of `tools/vanilla-oracle`. | PATH-TYP-002 | planned with section 12.1, step 1, because it is code of the oracle |
+| P3 | In a glass box, make a corridor at `y` 150 that ends at a pit `h` blocks deep, with a pig with `NoAI:1b` on the pit floor. Summon a zombified piglin at the far end with `{AngerTime:6000,angry_at:<UUID of the pig>}`, so the pig is its attack target. Use each of hard, normal and easy, with `h` at the limit and 1 more. Record for 30 s whether it drops. | PATH-NOD-008 | done |
+| P4 | Make a corridor of 30 blocks at `y` 150 on stone, with cobwebs in the cells `x` -332 to -312. Summon an angry zombified piglin with a pig target 29 blocks away, as in P3. Record the position in each tick for 900 ticks. Repeat with air in place of the cobwebs. | PATH-FOL-004 | done |
 
-The experiments P1 to P4 need a vanilla server. They wait until the owner confirms the Minecraft
-EULA for this environment (`tools/vanilla-server/run.sh`, `MINECRAFT_EULA=true`). Each row gives the
-steps; the setup of this section stays the same.
+The vanilla client cannot send the debug subscription request, so P1 uses a small client of the
+protocol outside the repository. A tool of the repository that repeats P1 must do these steps:
+
+1. Log in offline with compression off (`network-compression-threshold=-1`).
+2. In the configuration, answer `select_known_packs` with the packs of the server, `keep_alive` and
+   `ping`, then `finish_configuration`.
+3. In the play state, answer `keep_alive`, `ping` and `chunk_batch_finished`. After `login`, send
+   `debug_subscription_request` with the one id of `entity_paths` in the registry
+   `debug_subscription` (5 in `26.4-snapshot-7`).
+4. Decode each `debug/entity_value` of that id: the entity id, the subscription id, a present flag,
+   then the path value. The path value is: a flag "reached", an i32 next node index, a block
+   position, the node list, the open set, the closed set and the target set, then an f32 and a
+   variable integer of the follower. Each list is a count and nodes. A node is three i32
+   coordinates, the f32 walked distance, the f32 malus, the closed flag, the path type number and
+   the f32 `f`.
+
+The server sends a path value only to an operator, and only for a search that ran while the
+subscription existed.
 
 ### 15.2 Tests for this server
 
@@ -1117,6 +1136,56 @@ and PATH-INV-002 by the search tests, and PATH-PRF-001 by the benchmark.
 
 The results come from a vanilla dedicated server of `26.4-snapshot-7` on 2026-11-08, with the
 scene of section 15.1.
+
+The raw captures are in `docs/spec/fixtures/pathfinding/`:
+
+| File | Content |
+|------|---------|
+| `vanilla_paths.json` | each distinct path value of P1: the experiment, the flag "reached", the targets, and each node of the path, the open set and the closed set with all fields |
+| `e_v2_west.txt`, `e_v2_north.txt` | E-V2: the tick and the position `x y z` of each tick, after a first line with the follow range |
+| `e_v3_magma.txt`, `e_v3_stone.txt` | E-V3, in the same form |
+| `e_v4_drop3.txt`, `e_v4_drop4.txt` | E-V4, in the same form |
+| `p4_cobweb.txt`, `p4_air.txt` | P4: the tick and the position of each tick, with no first line |
+
+The captures of the second session repeat the block positions and the ticks of E-V2 to E-V4 below
+exactly, with a spectator operator near the scene.
+
+**P1**, the searches. The `f` of each of the 74 path nodes is equal, bit for bit, to the value of
+PATH-SRC-003: `g` adds the f32 distance and the malus of each node, and `h` is the f32 distance to
+the target times `1.5F`, except at the start node.
+
+| Experiment | Reached | Path nodes | Open set | Closed set | End node |
+|------------|---------|------------|----------|------------|----------|
+| E-V2, west start | yes | 10 | 22 | 83 | `(-317, 197, -609)` |
+| E-V2, north start | yes | 7 | 16 | 49 | `(-317, 197, -609)` |
+| E-V3, magma | yes | 17 | 1 | 17 | `(-318, 140, -634)` |
+| E-V3, stone | yes | 11 | 1 | 10 | `(-318, 140, -634)` |
+| E-V4, drop 3 | yes | 11 | 8 | 10 | `(-320, 131, -632)` |
+| E-V4, drop 4 | no | 7 | 0 | 7 | `(-324, 134, -632)` |
+
+The path of the west start goes over 8 nodes of `FIRE` with the malus 16. Its 9th node is the shaft
+cell `(-317, 199, -610)` with `DROP_DOWN` and the malus 0, and its end is the egg cell, which is
+`WALKABLE`. Thus the target of the search is `(-317, 198, -609)`, and the reach range 1 accepts the
+egg cell below it. In E-V3, the nodes next to the magma corridor are `FIRE_IN_NEIGHBOR` with the
+malus 8, because a magma block is a diagonal neighbour one block down (PATH-TYP-003, step 3). After
+a piglin lands on the honey, its new search gives a partial path of 5 nodes in the chamber.
+
+**P3**, a zombified piglin with a pig as its attack target and the health 20:
+
+| Difficulty | Fall limit | Drop at the limit | Drop 1 block more |
+|------------|------------|-------------------|-------------------|
+| hard | 16 | drops (16) | stops at the ledge (17) |
+| normal | 12 | drops (12) | stops at the ledge (13) |
+| easy | 8 | drops (8) | does not drop in 30 s (9) |
+
+The start of the melee goal took more than 12 s in some runs. That timing belongs to
+`mob-goals.md`.
+
+**P4**, the timeout. In the cobwebs the piglin moves `0.0196` blocks in each tick from tick 21. The
+move is 0 in the ticks 337 and 338, and in the tick 654: the timeout drops the path, and the melee
+goal asks for a new path. The intervals are 316 and 317 ticks of one path. A limit for each node
+would not end a path here, because each node takes about 50 ticks and the limit of a node is about
+310 ticks. On air, the piglin walks the 29 blocks in about 170 ticks with no stop.
 
 **E-V1**, 400 summons in the farm on the difficulty hard:
 
