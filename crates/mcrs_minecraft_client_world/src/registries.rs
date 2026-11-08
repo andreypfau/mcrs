@@ -83,6 +83,7 @@ impl Plugin for ClientRegistriesPlugin {
             .add_observer(replace_server_tags);
         joined_game::add_observers(app);
         crate::clock_sync::add_systems(app);
+        crate::pong::add_observers(app);
     }
 
     fn finish(&self, app: &mut App) {
