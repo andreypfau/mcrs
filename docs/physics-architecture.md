@@ -1657,3 +1657,9 @@ E1..E8, T1 (any time)   D1 ─ D2 ─ D3 ─ D4 ─ D5 ─ D6 ─ D7
     Does the engine load each section within one column and the footprint height of a section
     that runs scheduled ticks? If not, which rule holds: the section does not run ticks, or the
     tick waits?
+65. PATH-PRF-002, PATH-DET-001, the state path type table after a change of the block tags. Open
+    (design). The type of a state reads nine `pathfinding/*` tags and `fire`, `campfires`, `fences`
+    and `walls`, so a data-pack reload changes it. `CollisionTable` is built once at start. A
+    search of issue tick `T` must read the table of the tags of `T`, also when it runs after a
+    reload. Proposal: the table is an `Arc` that the snapshot of each tick names; a reload builds a
+    new table and the next snapshot takes it; old searches keep their `Arc`.
