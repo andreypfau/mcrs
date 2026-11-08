@@ -1,10 +1,9 @@
 use bevy::app::{App, Plugin};
 use bevy::ecs::prelude::{Commands, Component, On};
-use bevy::log::warn;
 use bevy::math::DVec3;
 use mcrs_minecraft_core::Look;
 use mcrs_minecraft_network::event::Received;
-use mcrs_minecraft_protocol_game::ColumnPos;
+use mcrs_minecraft_protocol_game::{ColumnPos, PositionFlags};
 use mcrs_minecraft_protocol_game::clientbound::{
     ClientboundChunkCacheRadius, ClientboundPlayerPosition, ClientboundSetChunkCacheCenter,
 };
@@ -22,12 +21,13 @@ impl Plugin for PlayerViewPlugin {
     }
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub struct ServerTeleport {
     pub teleport_id: i32,
     pub position: DVec3,
     pub velocity: DVec3,
     pub look: Look,
+    pub flags: PositionFlags,
 }
 
 /// Teleports the server has sent that the player has yet to be moved to and
@@ -48,20 +48,12 @@ fn on_player_position(event: On<Received<ClientboundPlayerPosition>>, mut comman
     let Some(position) = event.packet() else {
         return;
     };
-    if !position.flags.is_empty() {
-        // chisle: every relative flag is treated as absolute. Our server
-        // only ever sends absolute teleports; the upgrade is vanilla's
-        // `PositionMoveRotation.calculateAbsolute`.
-        warn!(
-            "relative teleport flags are not applied: {:?}",
-            position.flags
-        );
-    }
     let teleport = ServerTeleport {
         teleport_id: position.teleport_id.0,
         position: position.position,
         velocity: position.velocity,
         look: position.look,
+        flags: position.flags,
     };
     commands
         .entity(event.entity)
