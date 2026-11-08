@@ -5,6 +5,7 @@ use mcrs_minecraft_physics::SectionLookup;
 use mcrs_minecraft_physics::SectionMasks;
 use mcrs_minecraft_physics::WorldBorder;
 use mcrs_minecraft_volume::BlockVolume;
+use mcrs_minecraft_volume::PaletteBuffer;
 use mcrs_minecraft_volume::SectionBlocks;
 use mcrs_minecraft_volume::Unavailable;
 use mcrs_voxel::BlockStateId;
@@ -21,7 +22,7 @@ pub(crate) struct BlockWorld<'a, V> {
 /// A loaded section of a [`BlockWorld`].
 pub(crate) struct BlockSection<S> {
     blocks: S,
-    masks: Option<SectionMasks>,
+    masks: SectionMasks,
 }
 
 impl<V: BlockVolume> CollisionWorld for BlockWorld<'_, V> {
@@ -33,7 +34,9 @@ impl<V: BlockVolume> CollisionWorld for BlockWorld<'_, V> {
     fn section(&self, at: SectionPos) -> SectionLookup<Self::Section<'_>> {
         match self.blocks.section(at) {
             Ok(blocks) => {
-                let masks = blocks.uniform().map(|state| self.uniform_masks(state));
+                let mut buffer = PaletteBuffer::default();
+                let states = blocks.palette(&mut buffer).iter().map(|(state, _)| state);
+                let masks = SectionMasks::from_palette(self.table, states);
                 SectionLookup::Loaded(BlockSection { blocks, masks })
             }
             Err(Unavailable::Outside) => SectionLookup::Outside,
@@ -46,19 +49,9 @@ impl<V: BlockVolume> CollisionWorld for BlockWorld<'_, V> {
     }
 }
 
-impl<V> BlockWorld<'_, V> {
-    fn uniform_masks(&self, state: BlockStateId) -> SectionMasks {
-        let solid = self.table.state(state).is_solid();
-        SectionMasks {
-            solid: if solid { u64::MAX } else { 0 },
-            air_only: state == BlockStateId::AIR,
-        }
-    }
-}
-
 impl<S: SectionBlocks> CollisionSection for BlockSection<S> {
     fn masks(&self) -> Option<&SectionMasks> {
-        self.masks.as_ref()
+        Some(&self.masks)
     }
 
     fn state(&self, at: LocalPos) -> BlockStateId {
@@ -76,7 +69,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn the_masks_of_a_uniform_section_equal_the_masks_from_its_blocks() {
+    fn the_masks_of_a_section_cover_the_masks_from_its_blocks() {
         let blocks = TestBlocks::new();
         let mut volume = SparseVolume::unbounded();
         for (y, state) in [
@@ -97,9 +90,12 @@ mod tests {
             let SectionLookup::Loaded(section) = world.section(SectionPos::new(0, y, 0)) else {
                 panic!("section {y} is loaded");
             };
-            let expected =
-                (y < 2).then(|| SectionMasks::from_states(&blocks.table, |at| section.state(at)));
-            assert_eq!(section.masks(), expected.as_ref(), "section {y}");
+            let masks = section.masks().unwrap();
+            let exact = SectionMasks::from_states(&blocks.table, |at| section.state(at));
+            assert_eq!(masks.solid & exact.solid, exact.solid, "section {y}");
+            assert_eq!(masks.air_only, exact.air_only, "section {y}");
+            assert_eq!(masks.large, exact.large, "section {y}");
+            assert_eq!(masks.inside, exact.inside, "section {y}");
         }
     }
 }

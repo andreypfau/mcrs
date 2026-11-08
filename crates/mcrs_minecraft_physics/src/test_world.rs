@@ -135,7 +135,7 @@ impl CollisionWorld for TestWorld {
             masks: if self.masks.is_empty() {
                 None
             } else {
-                Some(self.masks.get(&at).unwrap_or(&EMPTY_MASKS))
+                Some(self.masks.get(&at).unwrap_or(&SectionMasks::EMPTY))
             },
         })
     }
@@ -144,11 +144,6 @@ impl CollisionWorld for TestWorld {
         self.border.as_ref()
     }
 }
-
-static EMPTY_MASKS: SectionMasks = SectionMasks {
-    solid: 0,
-    air_only: true,
-};
 
 /// A small block table with one state of each shape class, for tests.
 #[derive(Clone, Debug, PartialEq)]

@@ -18,6 +18,7 @@ use crate::StateCollision;
 use crate::StuckIgnore;
 use crate::View;
 use crate::block_scan::ShapeContext;
+use crate::block_scan::any_section;
 use crate::block_scan::block_at;
 use crate::block_scan::entity_shape;
 use crate::block_scan::floor_block;
@@ -93,16 +94,17 @@ fn inside_blocks<W: CollisionWorld, B: BodyView>(
     let low = from.min.min(to.min);
     let high = from.max.max(to.max);
     let mut touched_powder_snow = false;
-    for z in floor_block(low.z)..=floor_block(high.z) {
-        for y in floor_block(low.y)..=floor_block(high.y) {
-            for x in floor_block(low.x)..=floor_block(high.x) {
+    let [x0, y0, z0] = low.to_array().map(floor_block);
+    let [x1, y1, z1] = high.to_array().map(floor_block);
+    if !any_section(view.world, [x0, y0, z0], [x1, y1, z1], |masks| masks.inside) {
+        return false;
+    }
+    for z in z0..=z1 {
+        for y in y0..=y1 {
+            for x in x0..=x1 {
                 let at = BlockPos::new(x, y, z);
                 let block = table.state(state_at(view.world, at));
-                let relevant = block.inside != InsideEffect::None
-                    || block
-                        .flags
-                        .intersects(BlockFlags::INSIDE_ACTION | BlockFlags::FALL_DAMAGE_RESETTING);
-                if !relevant {
+                if !block.acts_inside() {
                     continue;
                 }
                 let cell = Aabb::new(at.as_dvec3(), at.as_dvec3() + DVec3::ONE);

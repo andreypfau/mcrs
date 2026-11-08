@@ -15,6 +15,7 @@ use crate::CollisionWorld;
 use crate::QueryEntity;
 use crate::QueryVariant;
 use crate::SectionLookup;
+use crate::SectionMasks;
 use crate::ShapeClass;
 use crate::ShapeId;
 use crate::StateCollision;
@@ -48,14 +49,19 @@ pub(crate) fn scan<W: CollisionWorld>(
         .max
         .to_array()
         .map(|high| floor_block(high + COLLISION).saturating_add(1));
+    // Without a large shape or a moving piston in the region, no block on its outer faces counts.
+    let large = any_section(world, [x0, y0, z0], [x1, y1, z1], |masks| masks.large);
+    let inset = i32::from(!large);
+    let [low_x, low_y, low_z] = [x0, y0, z0].map(|low| low + inset);
+    let [high_x, high_y, high_z] = [x1, y1, z1].map(|high| high - inset);
     let mut cache = SectionCache::default();
-    for z in z0..=z1 {
+    for z in low_z..=high_z {
         let z_face = u8::from(z == z0 || z == z1);
-        for y in y0..=y1 {
+        for y in low_y..=high_y {
             let yz_faces = z_face + u8::from(y == y0 || y == y1);
-            let mut x = x0;
-            while x <= x1 {
-                let run_end = (x | 15).min(x1);
+            let mut x = low_x;
+            while x <= high_x {
+                let run_end = (x | 15).min(high_x);
                 if let Some(section) = cache.get(world, SectionPos::new(x >> 4, y >> 4, z >> 4)) {
                     let run = Run {
                         y,
@@ -74,6 +80,26 @@ pub(crate) fn scan<W: CollisionWorld>(
         }
     }
     ControlFlow::Continue(())
+}
+
+/// True when a loaded section between the blocks `low` and `high` has no masks or masks that
+/// pass `test`.
+pub(crate) fn any_section<W: CollisionWorld>(
+    world: &W,
+    low: [i32; 3],
+    high: [i32; 3],
+    test: impl Fn(&SectionMasks) -> bool,
+) -> bool {
+    let [x0, y0, z0] = low.map(|value| value >> 4);
+    let [x1, y1, z1] = high.map(|value| value >> 4);
+    (z0..=z1).any(|z| {
+        (y0..=y1).any(|y| {
+            (x0..=x1).any(|x| match world.section(SectionPos::new(x, y, z)) {
+                SectionLookup::Loaded(section) => section.masks().is_none_or(&test),
+                SectionLookup::Outside | SectionLookup::Unloaded => false,
+            })
+        })
+    })
 }
 
 /// The blocks of one row of the scan inside one section.
@@ -204,7 +230,8 @@ fn floor_by_truncation(value: f64) -> i32 {
 }
 
 /// The block that holds a position.
-pub(crate) fn block_at(position: DVec3) -> BlockPos {
+#[must_use]
+pub fn block_at(position: DVec3) -> BlockPos {
     BlockPos::new(
         floor_block(position.x),
         floor_block(position.y),

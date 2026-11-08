@@ -47,6 +47,16 @@ impl StateCollision {
         motion: BlockMotion::DEFAULT,
     };
 
+    /// The state acts on an entity whose box is inside it: an inside effect, an inside action or a
+    /// fall reset.
+    #[must_use]
+    pub fn acts_inside(&self) -> bool {
+        self.inside != InsideEffect::None
+            || self
+                .flags
+                .intersects(BlockFlags::INSIDE_ACTION | BlockFlags::FALL_DAMAGE_RESETTING)
+    }
+
     /// The state has a collision shape, a context shape, or a moving piston: it sets its bit in
     /// the `solid` mask of a section.
     #[must_use]
