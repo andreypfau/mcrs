@@ -3518,6 +3518,7 @@ dependencies = [
  "mcrs_minecraft_biome_file",
  "mcrs_minecraft_block",
  "mcrs_minecraft_client_world",
+ "mcrs_minecraft_console",
  "mcrs_minecraft_dimension",
  "mcrs_minecraft_dimension_environment",
  "mcrs_minecraft_engine",
@@ -4173,6 +4174,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "mcrs_minecraft_console"
+version = "0.5.8"
+dependencies = [
+ "bevy_app",
+ "bevy_ecs",
+ "flume",
+ "mcrs_minecraft_client_jar",
+ "mcrs_minecraft_command",
+ "mcrs_minecraft_dimension",
+ "mcrs_minecraft_engine",
+ "mcrs_minecraft_engine_world",
+ "mcrs_minecraft_nbt",
+ "mcrs_minecraft_text",
+ "serde_json",
+ "tracing",
+]
+
+[[package]]
 name = "mcrs_minecraft_core"
 version = "0.5.8"
 dependencies = [
@@ -4276,6 +4295,7 @@ dependencies = [
  "mcrs_minecraft_environment",
  "mcrs_minecraft_game_mode",
  "mcrs_minecraft_game_registries",
+ "mcrs_minecraft_game_rule",
  "mcrs_minecraft_heightmap",
  "mcrs_minecraft_item",
  "mcrs_minecraft_move_validate",

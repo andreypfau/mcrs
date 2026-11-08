@@ -4,6 +4,7 @@
 )]
 
 use std::path::{Path, PathBuf};
+use std::num::NonZeroUsize;
 use std::str::FromStr;
 
 use bevy_app::{App, AppExit, PluginGroup, Update};
@@ -16,6 +17,7 @@ use mcrs_minecraft_engine_server::{
     DimensionWorldsPlugin, GameMode, InboundRateLimit, NetworkCompressionThreshold, Placement,
     ServerCorePlugin, ServerNetworkPlugin, ShutdownRequest,
 };
+use mcrs_minecraft_console::{ConsolePlugin, log_console_answers};
 use mcrs_minecraft_server::MinecraftServerPlugins;
 use mcrs_minecraft_vanilla_light::LightingPlugin;
 use mcrs_minecraft_vanilla_worldgen::WorldGenPlugin;
@@ -52,6 +54,11 @@ async fn main() -> AppExit {
     let mut server = MinecraftServerPlugins {
         core: ServerCorePlugin {
             worlds: worlds(variable("MCRS_WORLDS").as_deref()),
+            compute_threads: NonZeroUsize::new(positive_count(
+                "MCRS_COMPUTE_THREADS",
+                variable("MCRS_COMPUTE_THREADS").as_deref(),
+                0,
+            )),
             ..MinecraftServerPlugins::default().core
         },
         worlds: DimensionWorldsPlugin {
@@ -69,7 +76,7 @@ async fn main() -> AppExit {
     if !propagates_light(variable("MCRS_NO_LIGHTING").as_deref()) {
         server = server.disable::<LightingPlugin>();
     }
-    app.add_plugins(server);
+    app.add_plugins((server, ConsolePlugin));
     let (signal_send, mut signal_recv) = tokio::sync::mpsc::channel(1);
     tokio::spawn(async move {
         shutdown_signal().await;
@@ -85,11 +92,19 @@ async fn main() -> AppExit {
             }
         },
     );
-    mcrs_minecraft_engine_server::run_server_loop(app)
+    mcrs_minecraft_engine_server::run_server_loop_with(app, log_console_answers)
 }
 
 fn network() -> ServerNetworkPlugin {
+    let defaults = ServerNetworkPlugin::default();
+    let mut bind_address = defaults.bind_address;
+    bind_address.set_port(positive_count(
+        "MCRS_PORT",
+        variable("MCRS_PORT").as_deref(),
+        bind_address.port(),
+    ));
     ServerNetworkPlugin {
+        bind_address,
         announce_on_lan: on_off(
             "MCRS_LAN_ANNOUNCE",
             variable("MCRS_LAN_ANNOUNCE").as_deref(),
@@ -121,12 +136,12 @@ fn network() -> ServerNetworkPlugin {
         send_buffer_bytes: positive_count(
             "MCRS_SEND_BUFFER_BYTES",
             variable("MCRS_SEND_BUFFER_BYTES").as_deref(),
-            ServerNetworkPlugin::default().send_buffer_bytes,
+            defaults.send_buffer_bytes,
         ),
         accept_backlog: positive_count(
             "MCRS_ACCEPT_BACKLOG",
             variable("MCRS_ACCEPT_BACKLOG").as_deref(),
-            ServerNetworkPlugin::default().accept_backlog,
+            defaults.accept_backlog,
         ),
         rate_limit: InboundRateLimit(positive_count(
             "MCRS_RATE_LIMIT",
@@ -145,7 +160,7 @@ fn network() -> ServerNetworkPlugin {
                 false,
             )),
         banlist: BanList::read(Path::new(BANLIST_FILE)),
-        ..Default::default()
+        ..defaults
     }
 }
 

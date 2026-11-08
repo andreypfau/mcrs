@@ -122,6 +122,7 @@ mcrs_minecraft_chat_client = { path = "crates/mcrs_minecraft_chat_client" }
 mcrs_minecraft_keys = { path = "crates/mcrs_minecraft_keys", default-features = false }
 mcrs_minecraft_game_mode = { path = "crates/mcrs_minecraft_game_mode" }
 mcrs_minecraft_command_vanilla = { path = "crates/mcrs_minecraft_command_vanilla" }
+mcrs_minecraft_console = { path = "crates/mcrs_minecraft_console" }
 mcrs_minecraft_loot = { path = "crates/mcrs_minecraft_loot" }
 mcrs_minecraft_predicate = { path = "crates/mcrs_minecraft_predicate" }
 mcrs_minecraft_registry_catalog = { path = "crates/mcrs_minecraft_registry_catalog" }
@@ -218,6 +219,7 @@ bevy_app.workspace = true
 bevy_log.workspace = true
 tokio = { version = "1", features = ["full"] }
 mcrs_minecraft_server.workspace = true
+mcrs_minecraft_console.workspace = true
 mcrs_minecraft_engine_server.workspace = true
 mcrs_minecraft_engine.workspace = true
 mcrs_minecraft_vanilla_light.workspace = true
