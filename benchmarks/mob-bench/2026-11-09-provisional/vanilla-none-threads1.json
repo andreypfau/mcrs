@@ -1,0 +1,264 @@
+{
+  "server": "vanilla",
+  "client": "none",
+  "threads": 1,
+  "threads_note": "-XX:ActiveProcessorCount=1 (the JVM sizes GC, JIT and common pools by it; the server tick stays on one thread)",
+  "pigs": 50000,
+  "pen": {
+    "min_x": -125,
+    "min_z": -125,
+    "size": 250
+  },
+  "roam": {
+    "min_x": 380,
+    "min_z": -320,
+    "size": 640
+  },
+  "tick_metric": "tick_query",
+  "start_seconds": 6.47,
+  "console": true,
+  "settings": [
+    {
+      "line": "gamerule spawn_mobs false",
+      "answer": "[03:25:58] [Server thread/INFO]: System chat: Game rule spawn_mobs is now set to false"
+    },
+    {
+      "line": "gamerule spawn_monsters false",
+      "answer": "[03:25:58] [Server thread/INFO]: System chat: Game rule spawn_monsters is now set to false"
+    },
+    {
+      "line": "gamerule spawn_patrols false",
+      "answer": "[03:25:58] [Server thread/INFO]: System chat: Game rule spawn_patrols is now set to false"
+    },
+    {
+      "line": "gamerule spawn_wandering_traders false",
+      "answer": "[03:25:58] [Server thread/INFO]: System chat: Game rule spawn_wandering_traders is now set to false"
+    },
+    {
+      "line": "gamerule advance_time false",
+      "answer": "[03:25:58] [Server thread/INFO]: System chat: Game rule advance_time is now set to false"
+    },
+    {
+      "line": "gamerule advance_weather false",
+      "answer": "[03:25:58] [Server thread/INFO]: System chat: Game rule advance_weather is now set to false"
+    },
+    {
+      "line": "gamerule max_entity_cramming 0",
+      "answer": "[03:25:58] [Server thread/INFO]: System chat: Game rule max_entity_cramming is now set to 0"
+    },
+    {
+      "line": "gamerule mob_drops false",
+      "answer": "[03:25:58] [Server thread/INFO]: System chat: Game rule mob_drops is now set to false"
+    },
+    {
+      "line": "time set noon",
+      "answer": "[03:25:58] [Server thread/INFO]: System chat: Set minecraft:overworld to time marker minecraft:noon"
+    },
+    {
+      "line": "weather clear",
+      "answer": "[03:25:58] [Server thread/INFO]: System chat: Set the weather to clear"
+    },
+    {
+      "line": "forceload add -144 -144 111 111",
+      "answer": "[03:25:59] [Server thread/INFO]: System chat: Marked 256 chunks in minecraft:overworld from [-9, -9] to [6, 6] to be force loaded"
+    },
+    {
+      "line": "forceload add -144 112 111 143",
+      "answer": "[03:25:59] [Server thread/INFO]: System chat: Marked 32 chunks in minecraft:overworld from [-9, 7] to [6, 8] to be force loaded"
+    },
+    {
+      "line": "forceload add 112 -144 143 111",
+      "answer": "[03:25:59] [Server thread/INFO]: System chat: Marked 32 chunks in minecraft:overworld from [7, -9] to [8, 6] to be force loaded"
+    },
+    {
+      "line": "forceload add 112 112 143 143",
+      "answer": "[03:25:59] [Server thread/INFO]: System chat: Marked 4 chunks in minecraft:overworld from [7, 7] to [8, 8] to be force loaded"
+    },
+    {
+      "line": "forceload add 352 -336 607 -81",
+      "answer": "[03:25:59] [Server thread/INFO]: System chat: Marked 256 chunks in minecraft:overworld from [22, -21] to [37, -6] to be force loaded"
+    },
+    {
+      "line": "forceload add 352 -80 607 175",
+      "answer": "[03:25:59] [Server thread/INFO]: System chat: Marked 256 chunks in minecraft:overworld from [22, -5] to [37, 10] to be force loaded"
+    },
+    {
+      "line": "forceload add 352 176 607 335",
+      "answer": "[03:26:00] [Server thread/INFO]: System chat: Marked 160 chunks in minecraft:overworld from [22, 11] to [37, 20] to be force loaded"
+    },
+    {
+      "line": "forceload add 608 -336 863 -81",
+      "answer": "[03:26:00] [Server thread/INFO]: System chat: Marked 256 chunks in minecraft:overworld from [38, -21] to [53, -6] to be force loaded"
+    },
+    {
+      "line": "forceload add 608 -80 863 175",
+      "answer": "[03:26:00] [Server thread/INFO]: System chat: Marked 256 chunks in minecraft:overworld from [38, -5] to [53, 10] to be force loaded"
+    },
+    {
+      "line": "forceload add 608 176 863 335",
+      "answer": "[03:26:00] [Server thread/INFO]: System chat: Marked 160 chunks in minecraft:overworld from [38, 11] to [53, 20] to be force loaded"
+    },
+    {
+      "line": "forceload add 864 -336 1039 -81",
+      "answer": "[03:26:00] [Server thread/INFO]: System chat: Marked 176 chunks in minecraft:overworld from [54, -21] to [64, -6] to be force loaded"
+    },
+    {
+      "line": "forceload add 864 -80 1039 175",
+      "answer": "[03:26:00] [Server thread/INFO]: System chat: Marked 176 chunks in minecraft:overworld from [54, -5] to [64, 10] to be force loaded"
+    },
+    {
+      "line": "forceload add 864 176 1039 335",
+      "answer": "[03:26:00] [Server thread/INFO]: System chat: Marked 110 chunks in minecraft:overworld from [54, 11] to [64, 20] to be force loaded"
+    },
+    {
+      "line": "fill -126 -60 -126 125 -60 -126 minecraft:oak_fence",
+      "answer": "[03:26:00] [Server thread/INFO]: System chat: Successfully filled 252 block(s)"
+    },
+    {
+      "line": "fill -126 -60 125 125 -60 125 minecraft:oak_fence",
+      "answer": "[03:26:00] [Server thread/INFO]: System chat: Successfully filled 252 block(s)"
+    },
+    {
+      "line": "fill -126 -60 -126 -126 -60 125 minecraft:oak_fence",
+      "answer": "[03:26:01] [Server thread/INFO]: System chat: Successfully filled 250 block(s)"
+    },
+    {
+      "line": "fill 125 -60 -126 125 -60 125 minecraft:oak_fence",
+      "answer": "[03:26:01] [Server thread/INFO]: System chat: Successfully filled 250 block(s)"
+    }
+  ],
+  "watcher_error": null,
+  "machine": {
+    "cpu": "Apple M4 Max",
+    "logical_cpus": "16",
+    "performance_cpus": "12",
+    "efficiency_cpus": "4",
+    "memory_bytes": "137438953472",
+    "os": "Darwin 25.6.0 arm64"
+  },
+  "started_unix": 1794162351,
+  "command": [
+    "java",
+    "-Xms16g",
+    "-Xmx16g",
+    "-XX:ActiveProcessorCount=1",
+    "-jar",
+    "/Users/andreypfau/orca/workspaces/mcrs/mob_render/target/vanilla-server/26.4-snapshot-7/server.jar",
+    "nogui"
+  ],
+  "env": [],
+  "phases": [
+    {
+      "phase": "crowd",
+      "skipped": null,
+      "pigs_before": 50000,
+      "pigs_after": 50000,
+      "setup_seconds": 12.28,
+      "warmup_seconds": 61.15,
+      "measure_seconds": 60.03,
+      "server_mspt": {
+        "samples": 12,
+        "mean": 516.68,
+        "p50": 508.55,
+        "p95": 600.82,
+        "p99": 638.2,
+        "worst": 685.2
+      },
+      "external": {
+        "console_game_time": {
+          "ticks": 115,
+          "seconds": 59.63,
+          "tps": 1.93,
+          "mean_ms_per_tick": 518.48
+        },
+        "watcher_set_time": null,
+        "sprint": {
+          "ticks": 100,
+          "wall_ms_per_tick": 495.24,
+          "server_ms_per_tick": 493.87
+        }
+      },
+      "motion": {
+        "console": {
+          "pigs": 32,
+          "moved_fraction": 1.0,
+          "mean_path_blocks_per_second": 0.0498,
+          "mean_net_blocks_per_second": 0.0258
+        },
+        "watcher": null,
+        "watcher_move_packets_per_second": null
+      },
+      "cpu": {
+        "per_core_percent": [
+          36.92,
+          31.75,
+          30.16,
+          25.92,
+          39.18,
+          39.01,
+          39.12,
+          39.17,
+          39.27,
+          39.28,
+          9.87,
+          7.48,
+          5.9,
+          5.13,
+          4.82,
+          4.57
+        ],
+        "busy_cores": 3.98,
+        "server_cores": 1.01,
+        "harness_cores": 0.0,
+        "other_cores": 2.97,
+        "top_other_processes": [
+          {
+            "pid": 8610,
+            "name": "postgres",
+            "cores": 0.66
+          },
+          {
+            "pid": 91673,
+            "name": "java",
+            "cores": 0.08
+          },
+          {
+            "pid": 50524,
+            "name": "java",
+            "cores": 0.08
+          },
+          {
+            "pid": 35112,
+            "name": "Google Chrome Helper (Aperitif ",
+            "cores": 0.06
+          },
+          {
+            "pid": 943,
+            "name": "Orca Helper (Renderer)",
+            "cores": 0.05
+          },
+          {
+            "pid": 21082,
+            "name": "Google Chrome Helper (Aperitif ",
+            "cores": 0.03
+          }
+        ]
+      },
+      "server_rss_mib_mean": 6204.45,
+      "server_rss_mib_max": 6221.09,
+      "load_average_start": [
+        5.21728515625,
+        5.74755859375,
+        6.3056640625
+      ],
+      "load_average_end": [
+        5.576171875,
+        5.72216796875,
+        6.25439453125
+      ],
+      "load_average_1m_max": 5.71,
+      "contended": true,
+      "probe_rounds_skipped": 0
+    }
+  ]
+}

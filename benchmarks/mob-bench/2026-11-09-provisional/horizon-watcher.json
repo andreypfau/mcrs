@@ -1,0 +1,579 @@
+{
+  "server": "horizon",
+  "client": "horizon-bots stand",
+  "threads": null,
+  "threads_note": "no documented thread setting; defaults",
+  "pigs": 50000,
+  "pen": {
+    "min_x": -125,
+    "min_z": -125,
+    "size": 250
+  },
+  "roam": {
+    "min_x": 380,
+    "min_z": -320,
+    "size": 640
+  },
+  "tick_metric": "tick_query",
+  "start_seconds": 1.06,
+  "console": true,
+  "settings": [
+    {
+      "line": "gamerule spawn_mobs false",
+      "answer": "[02:17:37] [Server thread/INFO]: System chat: Game rule spawn_mobs is now set to false"
+    },
+    {
+      "line": "gamerule spawn_monsters false",
+      "answer": "[02:17:37] [Server thread/INFO]: System chat: Game rule spawn_monsters is now set to false"
+    },
+    {
+      "line": "gamerule spawn_patrols false",
+      "answer": "[02:17:37] [Server thread/INFO]: System chat: Game rule spawn_patrols is now set to false"
+    },
+    {
+      "line": "gamerule spawn_wandering_traders false",
+      "answer": "[02:17:37] [Server thread/INFO]: System chat: Game rule spawn_wandering_traders is now set to false"
+    },
+    {
+      "line": "gamerule advance_time false",
+      "answer": "[02:17:37] [Server thread/INFO]: System chat: Game rule advance_time is now set to false"
+    },
+    {
+      "line": "gamerule advance_weather false",
+      "answer": "[02:17:37] [Server thread/INFO]: System chat: Game rule advance_weather is now set to false"
+    },
+    {
+      "line": "gamerule max_entity_cramming 0",
+      "answer": "[02:17:37] [Server thread/INFO]: System chat: Game rule max_entity_cramming is now set to 0"
+    },
+    {
+      "line": "gamerule mob_drops false",
+      "answer": "[02:17:37] [Server thread/INFO]: System chat: Game rule mob_drops is now set to false"
+    },
+    {
+      "line": "time set noon",
+      "answer": "[02:17:37] [Server thread/INFO]: System chat: Set minecraft:overworld to time marker minecraft:noon"
+    },
+    {
+      "line": "weather clear",
+      "answer": "[02:17:37] [Server thread/INFO]: System chat: Set the weather to clear"
+    },
+    {
+      "line": "forceload add -144 -144 111 111",
+      "answer": "[02:17:37] [Server thread/INFO]: System chat: Marked 256 chunks in minecraft:overworld from [-9, -9] to [6, 6] to be force loaded"
+    },
+    {
+      "line": "forceload add -144 112 111 143",
+      "answer": "[02:17:37] [Server thread/INFO]: System chat: Marked 32 chunks in minecraft:overworld from [-9, 7] to [6, 8] to be force loaded"
+    },
+    {
+      "line": "forceload add 112 -144 143 111",
+      "answer": "[02:17:37] [Server thread/INFO]: System chat: Marked 32 chunks in minecraft:overworld from [7, -9] to [8, 6] to be force loaded"
+    },
+    {
+      "line": "forceload add 112 112 143 143",
+      "answer": "[02:17:37] [Server thread/INFO]: System chat: Marked 4 chunks in minecraft:overworld from [7, 7] to [8, 8] to be force loaded"
+    },
+    {
+      "line": "forceload add 352 -336 607 -81",
+      "answer": "[02:17:37] [Server thread/INFO]: System chat: Marked 256 chunks in minecraft:overworld from [22, -21] to [37, -6] to be force loaded"
+    },
+    {
+      "line": "forceload add 352 -80 607 175",
+      "answer": "[02:17:37] [Server thread/INFO]: System chat: Marked 256 chunks in minecraft:overworld from [22, -5] to [37, 10] to be force loaded"
+    },
+    {
+      "line": "forceload add 352 176 607 335",
+      "answer": "[02:17:37] [Server thread/INFO]: System chat: Marked 160 chunks in minecraft:overworld from [22, 11] to [37, 20] to be force loaded"
+    },
+    {
+      "line": "forceload add 608 -336 863 -81",
+      "answer": "[02:17:37] [Server thread/INFO]: System chat: Marked 256 chunks in minecraft:overworld from [38, -21] to [53, -6] to be force loaded"
+    },
+    {
+      "line": "forceload add 608 -80 863 175",
+      "answer": "[02:17:38] [Server thread/INFO]: System chat: Marked 256 chunks in minecraft:overworld from [38, -5] to [53, 10] to be force loaded"
+    },
+    {
+      "line": "forceload add 608 176 863 335",
+      "answer": "[02:17:38] [Server thread/INFO]: System chat: Marked 160 chunks in minecraft:overworld from [38, 11] to [53, 20] to be force loaded"
+    },
+    {
+      "line": "forceload add 864 -336 1039 -81",
+      "answer": "[02:17:38] [Server thread/INFO]: System chat: Marked 176 chunks in minecraft:overworld from [54, -21] to [64, -6] to be force loaded"
+    },
+    {
+      "line": "forceload add 864 -80 1039 175",
+      "answer": "[02:17:38] [Server thread/INFO]: System chat: Marked 176 chunks in minecraft:overworld from [54, -5] to [64, 10] to be force loaded"
+    },
+    {
+      "line": "forceload add 864 176 1039 335",
+      "answer": "[02:17:38] [Server thread/INFO]: System chat: Marked 110 chunks in minecraft:overworld from [54, 11] to [64, 20] to be force loaded"
+    },
+    {
+      "line": "fill -126 -60 -126 125 -60 -126 minecraft:oak_fence",
+      "answer": "[02:17:38] [Server thread/INFO]: System chat: Successfully filled 252 block(s)"
+    },
+    {
+      "line": "fill -126 -60 125 125 -60 125 minecraft:oak_fence",
+      "answer": "[02:17:38] [Server thread/INFO]: System chat: Successfully filled 252 block(s)"
+    },
+    {
+      "line": "fill -126 -60 -126 -126 -60 125 minecraft:oak_fence",
+      "answer": "[02:17:38] [Server thread/INFO]: System chat: Successfully filled 252 block(s)"
+    },
+    {
+      "line": "fill 125 -60 -126 125 -60 125 minecraft:oak_fence",
+      "answer": "[02:17:38] [Server thread/INFO]: System chat: Successfully filled 252 block(s)"
+    }
+  ],
+  "watcher_error": null,
+  "machine": {
+    "cpu": "Apple M4 Max",
+    "logical_cpus": "16",
+    "performance_cpus": "12",
+    "efficiency_cpus": "4",
+    "memory_bytes": "137438953472",
+    "os": "Darwin 25.6.0 arm64"
+  },
+  "started_unix": 1794158255,
+  "command": [
+    "/Users/andreypfau/src/github.com/horizon/target-mobbench/release/horizon-client",
+    "--resources",
+    "/Users/andreypfau/src/github.com/horizon/.local/horizon-client/26.3",
+    "--dedicated",
+    "--nogui",
+    "--port",
+    "25610"
+  ],
+  "env": [],
+  "phases": [
+    {
+      "phase": "idle",
+      "skipped": null,
+      "pigs_before": 0,
+      "pigs_after": 0,
+      "setup_seconds": 0.06,
+      "warmup_seconds": 10.09,
+      "measure_seconds": 60.01,
+      "server_mspt": {
+        "samples": 12,
+        "mean": 3.13,
+        "p50": 2.95,
+        "p95": 3.64,
+        "p99": 8.45,
+        "worst": 24.1
+      },
+      "external": {
+        "console_game_time": {
+          "ticks": 1200,
+          "seconds": 60.0,
+          "tps": 20.0,
+          "mean_ms_per_tick": 50.0
+        },
+        "watcher_set_time": null,
+        "sprint": null
+      },
+      "motion": {
+        "console": null,
+        "watcher": null,
+        "watcher_move_packets_per_second": null
+      },
+      "cpu": {
+        "per_core_percent": [
+          48.84,
+          44.71,
+          44.06,
+          40.25,
+          49.63,
+          49.6,
+          49.63,
+          49.6,
+          49.58,
+          49.59,
+          18.34,
+          15.84,
+          13.95,
+          12.85,
+          12.35,
+          11.86
+        ],
+        "busy_cores": 5.61,
+        "server_cores": 1.07,
+        "harness_cores": 0.0,
+        "other_cores": 4.54,
+        "top_other_processes": [
+          {
+            "pid": 8610,
+            "name": "postgres",
+            "cores": 0.58
+          },
+          {
+            "pid": 91673,
+            "name": "java",
+            "cores": 0.08
+          },
+          {
+            "pid": 50524,
+            "name": "java",
+            "cores": 0.08
+          },
+          {
+            "pid": 99386,
+            "name": "com.apple.Virtualization.Virtua",
+            "cores": 0.03
+          },
+          {
+            "pid": 21082,
+            "name": "Google Chrome Helper (Aperitif ",
+            "cores": 0.03
+          },
+          {
+            "pid": 943,
+            "name": "Orca Helper (Renderer)",
+            "cores": 0.03
+          }
+        ]
+      },
+      "server_rss_mib_mean": 329.02,
+      "server_rss_mib_max": 329.05,
+      "load_average_start": [
+        11.208984375,
+        12.88330078125,
+        14.25341796875
+      ],
+      "load_average_end": [
+        12.43310546875,
+        12.84033203125,
+        14.13818359375
+      ],
+      "load_average_1m_max": 13.28,
+      "contended": true,
+      "probe_rounds_skipped": 0
+    },
+    {
+      "phase": "roam",
+      "skipped": null,
+      "pigs_before": 50000,
+      "pigs_after": 50000,
+      "setup_seconds": 22.56,
+      "warmup_seconds": 30.35,
+      "measure_seconds": 60.02,
+      "server_mspt": {
+        "samples": 12,
+        "mean": 209.63,
+        "p50": 199.82,
+        "p95": 267.8,
+        "p99": 370.32,
+        "worst": 469.4
+      },
+      "external": {
+        "console_game_time": {
+          "ticks": 295,
+          "seconds": 59.91,
+          "tps": 4.92,
+          "mean_ms_per_tick": 203.09
+        },
+        "watcher_set_time": null,
+        "sprint": null
+      },
+      "motion": {
+        "console": {
+          "pigs": 32,
+          "moved_fraction": 0.09,
+          "mean_path_blocks_per_second": 0.0021,
+          "mean_net_blocks_per_second": 0.002
+        },
+        "watcher": null,
+        "watcher_move_packets_per_second": null
+      },
+      "cpu": {
+        "per_core_percent": [
+          58.43,
+          54.4,
+          53.14,
+          50.65,
+          73.26,
+          73.45,
+          73.38,
+          73.27,
+          73.34,
+          73.28,
+          57.16,
+          56.36,
+          55.88,
+          55.6,
+          55.44,
+          55.36
+        ],
+        "busy_cores": 9.92,
+        "server_cores": 0.97,
+        "harness_cores": 0.0,
+        "other_cores": 8.96,
+        "top_other_processes": [
+          {
+            "pid": 8610,
+            "name": "postgres",
+            "cores": 0.5
+          },
+          {
+            "pid": 50524,
+            "name": "java",
+            "cores": 0.07
+          },
+          {
+            "pid": 91673,
+            "name": "java",
+            "cores": 0.07
+          },
+          {
+            "pid": 35112,
+            "name": "Google Chrome Helper (Aperitif ",
+            "cores": 0.06
+          },
+          {
+            "pid": 94745,
+            "name": "Google Chrome Helper (Aperitif ",
+            "cores": 0.04
+          },
+          {
+            "pid": 21082,
+            "name": "Google Chrome Helper (Aperitif ",
+            "cores": 0.04
+          }
+        ]
+      },
+      "server_rss_mib_mean": 985.15,
+      "server_rss_mib_max": 985.16,
+      "load_average_start": [
+        16.677734375,
+        13.63720703125,
+        14.32421875
+      ],
+      "load_average_end": [
+        15.18798828125,
+        13.830078125,
+        14.353515625
+      ],
+      "load_average_1m_max": 18.77,
+      "contended": true,
+      "probe_rounds_skipped": 0
+    },
+    {
+      "phase": "crowd",
+      "skipped": null,
+      "pigs_before": 50000,
+      "pigs_after": 50000,
+      "setup_seconds": 73.26,
+      "warmup_seconds": 32.81,
+      "measure_seconds": 60.03,
+      "server_mspt": {
+        "samples": 12,
+        "mean": 259.24,
+        "p50": 243.77,
+        "p95": 356.79,
+        "p99": 488.76,
+        "worst": 531.4
+      },
+      "external": {
+        "console_game_time": {
+          "ticks": 227,
+          "seconds": 59.95,
+          "tps": 3.79,
+          "mean_ms_per_tick": 264.09
+        },
+        "watcher_set_time": null,
+        "sprint": null
+      },
+      "motion": {
+        "console": {
+          "pigs": 32,
+          "moved_fraction": 1.0,
+          "mean_path_blocks_per_second": 0.0814,
+          "mean_net_blocks_per_second": 0.0447
+        },
+        "watcher": null,
+        "watcher_move_packets_per_second": null
+      },
+      "cpu": {
+        "per_core_percent": [
+          65.42,
+          61.68,
+          59.62,
+          57.85,
+          89.68,
+          89.58,
+          89.66,
+          89.66,
+          89.58,
+          89.57,
+          81.61,
+          81.11,
+          81.07,
+          80.86,
+          80.88,
+          80.83
+        ],
+        "busy_cores": 12.69,
+        "server_cores": 0.94,
+        "harness_cores": 0.01,
+        "other_cores": 11.74,
+        "top_other_processes": [
+          {
+            "pid": 8610,
+            "name": "postgres",
+            "cores": 0.45
+          },
+          {
+            "pid": 50524,
+            "name": "java",
+            "cores": 0.06
+          },
+          {
+            "pid": 91673,
+            "name": "java",
+            "cores": 0.06
+          },
+          {
+            "pid": 943,
+            "name": "Orca Helper (Renderer)",
+            "cores": 0.04
+          },
+          {
+            "pid": 99386,
+            "name": "com.apple.Virtualization.Virtua",
+            "cores": 0.04
+          },
+          {
+            "pid": 21082,
+            "name": "Google Chrome Helper (Aperitif ",
+            "cores": 0.03
+          }
+        ]
+      },
+      "server_rss_mib_mean": 2587.32,
+      "server_rss_mib_max": 2587.33,
+      "load_average_start": [
+        6.09716796875,
+        10.97509765625,
+        13.1669921875
+      ],
+      "load_average_end": [
+        16.87548828125,
+        13.6123046875,
+        14.0283203125
+      ],
+      "load_average_1m_max": 18.35,
+      "contended": true,
+      "probe_rounds_skipped": 0
+    },
+    {
+      "phase": "stimulus",
+      "skipped": null,
+      "pigs_before": 50000,
+      "pigs_after": 50000,
+      "setup_seconds": 5.43,
+      "warmup_seconds": 33.3,
+      "measure_seconds": 60.02,
+      "server_mspt": {
+        "samples": 12,
+        "mean": 258.62,
+        "p50": 260.62,
+        "p95": 290.58,
+        "p99": 317.08,
+        "worst": 341.5
+      },
+      "external": {
+        "console_game_time": {
+          "ticks": 232,
+          "seconds": 59.85,
+          "tps": 3.88,
+          "mean_ms_per_tick": 257.97
+        },
+        "watcher_set_time": null,
+        "sprint": null
+      },
+      "motion": {
+        "console": {
+          "pigs": 32,
+          "moved_fraction": 1.0,
+          "mean_path_blocks_per_second": 0.1183,
+          "mean_net_blocks_per_second": 0.0515
+        },
+        "watcher": null,
+        "watcher_move_packets_per_second": null
+      },
+      "cpu": {
+        "per_core_percent": [
+          37.61,
+          32.42,
+          32.74,
+          27.77,
+          36.66,
+          36.75,
+          36.89,
+          36.76,
+          36.7,
+          36.87,
+          8.99,
+          7.22,
+          6.25,
+          5.49,
+          5.25,
+          4.88
+        ],
+        "busy_cores": 3.89,
+        "server_cores": 1.01,
+        "harness_cores": 0.01,
+        "other_cores": 2.88,
+        "top_other_processes": [
+          {
+            "pid": 8610,
+            "name": "postgres",
+            "cores": 0.65
+          },
+          {
+            "pid": 35112,
+            "name": "Google Chrome Helper (Aperitif ",
+            "cores": 0.1
+          },
+          {
+            "pid": 91673,
+            "name": "java",
+            "cores": 0.08
+          },
+          {
+            "pid": 50524,
+            "name": "java",
+            "cores": 0.08
+          },
+          {
+            "pid": 99386,
+            "name": "com.apple.Virtualization.Virtua",
+            "cores": 0.03
+          },
+          {
+            "pid": 21082,
+            "name": "Google Chrome Helper (Aperitif ",
+            "cores": 0.03
+          }
+        ]
+      },
+      "server_rss_mib_mean": 2587.73,
+      "server_rss_mib_max": 2587.73,
+      "load_average_start": [
+        11.3818359375,
+        12.70556640625,
+        13.6728515625
+      ],
+      "load_average_end": [
+        8.046875,
+        11.44921875,
+        13.1318359375
+      ],
+      "load_average_1m_max": 11.38,
+      "contended": true,
+      "probe_rounds_skipped": 0
+    }
+  ]
+}
