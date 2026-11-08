@@ -27,6 +27,8 @@ const READY_TIMEOUT: Duration = Duration::from_secs(600);
 const CONSOLE_TIMEOUT: Duration = Duration::from_secs(20);
 const JOIN_TIMEOUT: Duration = Duration::from_secs(60);
 const POPULATE_TIMEOUT: Duration = Duration::from_secs(900);
+/// A pig count that has not changed for this long will not reach its target.
+const STALL_TIMEOUT: Duration = Duration::from_secs(60);
 const ANSWER_SLACK: Duration = Duration::from_secs(3);
 const STOP_GRACE: Duration = Duration::from_secs(90);
 /// The watcher hovers this high above the floor, out of the pigs' way.
@@ -387,10 +389,15 @@ impl Bench<'_> {
     fn wait_count(&mut self, done: impl Fn(usize) -> bool) -> anyhow::Result<()> {
         let deadline = Instant::now() + POPULATE_TIMEOUT;
         let mut last = None;
-        while Instant::now() < deadline {
-            last = self.count_pigs();
-            if last.is_some_and(&done) {
+        let mut changed = Instant::now();
+        while Instant::now() < deadline && changed.elapsed() < STALL_TIMEOUT {
+            let count = self.count_pigs();
+            if count.is_some_and(&done) {
                 return Ok(());
+            }
+            if count != last {
+                last = count;
+                changed = Instant::now();
             }
             self.idle_for(Duration::from_secs(2));
         }
