@@ -226,11 +226,13 @@ fn send_movement(
     }
 }
 
+/// Captures the player's current transform into [`OldTransform`] before movement systems run.
 fn capture_old_transform(player: Single<(&PhysicsTransform, &mut OldTransform), With<Player>>) {
     let (transform, mut old_transform) = player.into_inner();
     old_transform.0 = *transform;
 }
 
+/// Computes flying displacement from active movement inputs and advances the player's translation.
 fn fly(
     input: Res<MovementInput>,
     player: Single<
@@ -365,5 +367,59 @@ mod tests {
         let (_, vel) =
             calculate_teleport(&sine, initial_transform, initial_velocity, &rel_vel_teleport);
         assert_eq!(vel.0, DVec3::new(1.5, 1.0, -1.5));
+    }
+
+    #[test]
+    fn relative_teleport_with_rotate_delta_rotates_velocity() {
+        let sine = SineTable::new();
+        let initial_transform = PhysicsTransform {
+            translation: DVec3::new(5.0, 64.0, 5.0),
+            rotation: Rotation::new(10.0, 20.0),
+        };
+        // Nonzero starting velocity
+        let initial_velocity = Velocity(DVec3::new(1.0, 2.0, 3.0));
+
+        // Nonzero yaw and pitch change with PositionFlag::RotateDelta
+        let teleport = ServerTeleport {
+            teleport_id: 5,
+            position: DVec3::ZERO,
+            velocity: DVec3::new(0.1, 0.2, 0.3),
+            look: Look {
+                yaw: 30.0,
+                pitch: 15.0,
+            },
+            flags: [
+                PositionFlag::YRot,
+                PositionFlag::XRot,
+                PositionFlag::RotateDelta,
+                PositionFlag::DeltaX,
+                PositionFlag::DeltaY,
+                PositionFlag::DeltaZ,
+            ]
+            .into_iter()
+            .collect(),
+        };
+
+        let mut ref_state = PlayerState::new(initial_transform.translation);
+        ref_state.velocity = initial_velocity.0;
+        let mut ref_rot = PlayerRotation {
+            yaw: initial_transform.rotation.yaw(),
+            pitch: initial_transform.rotation.pitch(),
+        };
+        let ref_teleport = Teleport {
+            position: teleport.position,
+            velocity: teleport.velocity,
+            yaw: teleport.look.yaw,
+            pitch: teleport.look.pitch,
+            relative: Relative::from_bits_truncate(teleport.flags.bits()),
+        };
+        apply_teleport(&sine, &mut ref_state, &mut ref_rot, &ref_teleport);
+
+        let (trans, vel) =
+            calculate_teleport(&sine, initial_transform, initial_velocity, &teleport);
+        assert_eq!(trans.rotation.yaw(), ref_rot.yaw);
+        assert_eq!(trans.rotation.pitch(), ref_rot.pitch);
+        assert_eq!(vel.0, ref_state.velocity);
+        assert_ne!(vel.0, initial_velocity.0);
     }
 }

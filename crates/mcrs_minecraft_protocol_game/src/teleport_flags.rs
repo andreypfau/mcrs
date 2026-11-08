@@ -38,11 +38,13 @@ impl PositionFlag {
 pub struct PositionFlags(u16);
 
 impl PositionFlags {
+    /// Returns the raw bitmask of the position flags.
     #[must_use]
     pub const fn bits(self) -> u16 {
         self.0
     }
 
+    /// Reconstructs position flags from a raw bitmask.
     #[must_use]
     pub const fn from_bits(bits: u16) -> Self {
         Self(bits)
