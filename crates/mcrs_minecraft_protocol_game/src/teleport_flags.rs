@@ -38,16 +38,16 @@ impl PositionFlag {
 pub struct PositionFlags(u16);
 
 impl PositionFlags {
-    /// Returns the raw bitmask of the position flags.
+    /// The wire bitmask of the flags.
     #[must_use]
     pub const fn bits(self) -> u16 {
         self.0
     }
 
-    /// Reconstructs position flags from a raw bitmask.
+    /// The flags of the wire bitmask `bits`, without the bits that name no flag.
     #[must_use]
-    pub const fn from_bits(bits: u16) -> Self {
-        Self(bits)
+    pub const fn from_bits_truncate(bits: u16) -> Self {
+        Self(bits & ((1 << PositionFlag::ALL.len()) - 1))
     }
 
     pub fn insert(&mut self, flag: PositionFlag) {
