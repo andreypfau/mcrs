@@ -53,6 +53,8 @@ struct Bench<'a> {
     /// When the next stir of the stimulus phase is due, while that phase runs.
     next_stir: Option<Instant>,
     stir_round: usize,
+    /// The population the pigs now standing belong to; their UUIDs carry it.
+    generation: u32,
     /// The lines of the current stir not sent yet: a stir goes out over most of its period, so
     /// no single tick takes all of it.
     stir_lines: VecDeque<String>,
@@ -107,6 +109,7 @@ pub fn run(args: &Args) -> anyhow::Result<RunReport> {
         metric: args.server.tick_metric(),
         next_stir: None,
         stir_round: 0,
+        generation: 0,
         stir_lines: VecDeque::new(),
         stir_started: Instant::now(),
         stir_total: 0,
@@ -296,6 +299,7 @@ impl Bench<'_> {
         };
         if Instant::now() >= due {
             self.stir_lines.extend(scene::stir(
+                self.generation,
                 self.stir_round,
                 self.args.stimulus_pigs,
                 self.args.pigs,
@@ -371,7 +375,8 @@ impl Bench<'_> {
         let Some(area) = area else {
             return Ok(());
         };
-        let lines = scene::summons(area, self.args.pigs, self.args.samples);
+        self.generation += 1;
+        let lines = scene::summons(area, self.generation, self.args.pigs, self.args.samples);
         let batch = (self.args.summon_rate / 20).max(1);
         for chunk in lines.chunks(batch) {
             for line in chunk {
@@ -478,7 +483,8 @@ impl Bench<'_> {
         }
         self.probe_sent = Some(Instant::now());
         for sample in 0..self.args.samples {
-            let line = scene::sample_query(self.args.pigs, self.args.samples, sample);
+            let line =
+                scene::sample_query(self.generation, self.args.pigs, self.args.samples, sample);
             let _ = self.server.send(&line);
         }
         if !first && self.metric == TickMetric::TickQuery {

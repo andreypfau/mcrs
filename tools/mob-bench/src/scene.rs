@@ -108,16 +108,23 @@ pub fn fence(area: Area) -> Vec<String> {
     .to_vec()
 }
 
-/// The first int of every pig's UUID (`mbs` in ASCII); the last int is the pig's index.
+/// The first int of every pig's UUID (`mbs` in ASCII); the second is the generation of the
+/// population, the last the pig's index. Vanilla refuses a UUID of a pig killed earlier in the run
+/// (`Unable to summon entity due to duplicate UUIDs`), so each population gets new ones.
 const UUID_HIGH: u32 = 0x006d_6273;
 /// Steps through the pig indices so that one stir hits pigs all over the area; coprime with
 /// any pig count that is not a multiple of 7919.
 const STIR_STEP: usize = 7919;
 
-/// The UUID of pig `index`, as the console writes it.
+/// The UUID of pig `index` of population `generation`, as the console writes it.
 #[must_use]
-pub fn pig_uuid(index: usize) -> String {
-    format!("{UUID_HIGH:08x}-0000-0000-0000-0000{:08x}", index as u32)
+pub fn pig_uuid(generation: u32, index: usize) -> String {
+    format!(
+        "{UUID_HIGH:08x}-{:04x}-{:04x}-0000-0000{:08x}",
+        generation >> 16,
+        generation & 0xffff,
+        index as u32
+    )
 }
 
 /// The pig index of named sample `sample`.
@@ -134,7 +141,7 @@ pub fn sample_index(count: usize, samples: usize, sample: usize) -> usize {
 /// takes Horizon about 5 s at 50,000 pigs. The named samples also get the custom name `mbs<i>`,
 /// so that `data get` answers name the pig they describe.
 #[must_use]
-pub fn summons(area: Area, count: usize, samples: usize) -> Vec<String> {
+pub fn summons(area: Area, generation: u32, count: usize, samples: usize) -> Vec<String> {
     let side = (count as f64).sqrt().ceil().max(1.0) as usize;
     let spacing = f64::from(area.size) / side as f64;
     let named: Vec<usize> = (0..samples)
@@ -144,7 +151,11 @@ pub fn summons(area: Area, count: usize, samples: usize) -> Vec<String> {
         .map(|index| {
             let x = f64::from(area.min_x) + ((index % side) as f64 + 0.5) * spacing;
             let z = f64::from(area.min_z) + ((index / side) as f64 + 0.5) * spacing;
-            let uuid = format!("UUID:[I;{},0,0,{}]", UUID_HIGH, index as u32 as i32);
+            let uuid = format!(
+                "UUID:[I;{UUID_HIGH},{},0,{}]",
+                generation as i32,
+                index as u32 as i32
+            );
             match named.iter().position(|named| *named == index) {
                 Some(sample) => format!(
                     "summon minecraft:pig {x:.2} {FLOOR_Y} {z:.2} {{{uuid},CustomName:\"{SAMPLE_PREFIX}{sample}\"}}"
@@ -163,20 +174,20 @@ pub const COUNT_PIGS: &str = "execute if entity @e[type=minecraft:pig]";
 /// Panic does not spread; the neighbours move only when the panicking pigs push them. Each round
 /// hits the next `hit` pigs of a fixed spread-out order.
 #[must_use]
-pub fn stir(round: usize, hit: usize, count: usize) -> Vec<String> {
+pub fn stir(generation: u32, round: usize, hit: usize, count: usize) -> Vec<String> {
     (0..hit.min(count))
         .map(|offset| {
             let index = ((round * hit + offset) * STIR_STEP) % count.max(1);
-            format!("damage {} 0 minecraft:cactus", pig_uuid(index))
+            format!("damage {} 0 minecraft:cactus", pig_uuid(generation, index))
         })
         .collect()
 }
 
 #[must_use]
-pub fn sample_query(count: usize, samples: usize, sample: usize) -> String {
+pub fn sample_query(generation: u32, count: usize, samples: usize, sample: usize) -> String {
     format!(
         "data get entity {} Pos",
-        pig_uuid(sample_index(count, samples, sample))
+        pig_uuid(generation, sample_index(count, samples, sample))
     )
 }
 
@@ -213,15 +224,15 @@ mod tests {
 
     #[test]
     fn a_uuid_reads_as_the_int_array_it_was_summoned_with() {
-        // [I;7168627,0,0,1234]: the ints in order are the 32-bit groups of the hex form.
-        assert_eq!(pig_uuid(1234), "006d6273-0000-0000-0000-0000000004d2");
+        // [I;7168627,2,0,1234]: the ints in order are the 32-bit groups of the hex form.
+        assert_eq!(pig_uuid(2, 1234), "006d6273-0000-0002-0000-0000000004d2");
     }
 
     #[test]
     fn the_stirs_hit_every_pig_once_before_any_twice() {
         let mut hit = std::collections::HashSet::new();
         for round in 0..25 {
-            for line in stir(round, 2000, 50_000) {
+            for line in stir(1, round, 2000, 50_000) {
                 assert!(
                     hit.insert(line),
                     "a pig was hit twice in the first 50,000 hits"
@@ -232,7 +243,7 @@ mod tests {
 
     #[test]
     fn the_grid_keeps_every_pig_inside_the_area_and_names_each_sample_once() {
-        let lines = summons(PEN, 50_000, 32);
+        let lines = summons(PEN, 1, 50_000, 32);
         assert_eq!(lines.len(), 50_000);
         let named = lines
             .iter()
