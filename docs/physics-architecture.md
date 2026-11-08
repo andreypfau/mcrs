@@ -712,7 +712,7 @@ from its palette. Memory: ~0.5 GB at 10k players.
 **Picks drawn at the start of the step.** The index walks its tiles once in each step. For each
 listed section of an owned column, `k` times, it draws `u` in `0..4096` from the stream of the
 section; a `u` below `n = ticking.len()` is a hit at `ticking[u]`. Each hit then forks the stream of
-its handlers from the stream of the section (`draw_random_hits`). The walk also gives the columns
+its handlers from the stream of the section (`draw_random_picks`). The walk also gives the columns
 that take precipitation: each tile keeps a bit for each column that holds a random-ticked section.
 The kernel gets only the hits and the columns. A hit reads the state at its position, runs the block
 handler if the state ticks, then the fluid handler with the state read before the block handler

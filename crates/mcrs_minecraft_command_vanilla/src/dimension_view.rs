@@ -50,15 +50,15 @@ pub(crate) struct DimensionView<'w, 's> {
             Option<&'static NoLeavesHeightmap>,
         ),
     >,
-    sections: Query<'w, 's, &'static SectionStage>,
+    stages: Query<'w, 's, &'static SectionStage>,
     held: Query<'w, 's, &'static SectionBlockEntities>,
     block_entities: Query<'w, 's, (&'static BlockEntityPos, &'static BlockEntity)>,
 }
 
 impl DimensionView<'_, '_> {
     fn column_entity(&self, x: i32, z: i32) -> Option<Entity> {
-        let (index, ..) = self.dimension.single().ok()?;
-        let slot = index.get(&ColumnPos::new(
+        let (column_index, ..) = self.dimension.single().ok()?;
+        let slot = column_index.get(&ColumnPos::new(
             x >> SectionPos::BITS,
             z >> SectionPos::BITS,
         ))?;
@@ -84,7 +84,7 @@ impl DimensionView<'_, '_> {
         self.column(x, z).is_some_and(|column| {
             column.iter().all(|section| match section {
                 SectionLookup::Loaded(entity) => self
-                    .sections
+                    .stages
                     .get(entity)
                     .is_ok_and(|stage| *stage == SectionStage::Loaded),
                 SectionLookup::Unloaded | SectionLookup::OutOfRange => false,
@@ -109,9 +109,9 @@ impl DimensionView<'_, '_> {
     }
 
     pub(crate) fn block_state(&self, pos: [i32; 3]) -> Option<BlockStateId> {
-        let (.., sections) = self.dimension.single().ok()?;
+        let (.., section_index) = self.dimension.single().ok()?;
         let [x, y, z] = pos;
-        let blocks = sections.blocks(SectionPos::from(BlockPos::new(x, y, z)))?;
+        let blocks = section_index.blocks(SectionPos::from(BlockPos::new(x, y, z)))?;
         blocks.get_cell(local(x)?, local(y)?, local(z)?)
     }
 

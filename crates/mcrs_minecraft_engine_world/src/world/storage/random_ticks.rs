@@ -36,9 +36,9 @@ pub struct RandomTickIndex {
     tiles: FxHashMap<ColumnPos, BlockTile>,
     palette: PaletteBuffer,
     order: Vec<ColumnPos>,
-    /// The picks of one tile that hit, with the slot of their section.
+    /// The picks of one tile that hit, and the slot of the section of each.
     picks: Vec<RandomPick>,
-    picked: Vec<u16>,
+    pick_slots: Vec<u16>,
 }
 
 #[derive(Debug, Default)]
@@ -157,7 +157,7 @@ impl RandomTickIndex {
             palette: PaletteBuffer::default(),
             order: Vec::new(),
             picks: Vec::new(),
-            picked: Vec::new(),
+            pick_slots: Vec::new(),
         }
     }
 
@@ -265,7 +265,7 @@ impl RandomTickIndex {
             tiles,
             order,
             picks,
-            picked,
+            pick_slots,
             ..
         } = self;
         order.clear();
@@ -310,12 +310,12 @@ impl RandomTickIndex {
                 if owned & 1 << column_in_tile(section.pos) != 0 {
                     let ticking = section.ticking.as_slice().len();
                     draw_random_picks(section.pos, ticking, speed, streams, picks);
-                    picked.resize(picks.len(), slot);
+                    pick_slots.resize(picks.len(), slot);
                 }
             }
             // The lists of the hits are read after all draws of the tile, so their cache misses
             // overlap.
-            for (slot, pick) in picked.drain(..).zip(picks.drain(..)) {
+            for (slot, pick) in pick_slots.drain(..).zip(picks.drain(..)) {
                 if let Some(section) = sections.get(usize::from(slot)) {
                     let ticking = section.ticking.as_slice();
                     out.hits.extend(RandomHit::of(section.pos, ticking, pick));
