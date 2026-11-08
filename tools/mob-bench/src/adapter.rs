@@ -45,7 +45,6 @@ pub struct Launch {
     pub env: Vec<(String, String)>,
     /// How the thread count was applied, or why it was not.
     pub threads_note: String,
-    /// The port the server listens on, which mcrs cannot be told.
     pub port: u16,
 }
 
@@ -59,9 +58,6 @@ pub struct LaunchOptions<'a> {
     pub threads: Option<usize>,
 }
 
-/// The port mcrs binds; it has no setting for it.
-pub const MCRS_PORT: u16 = 25565;
-
 impl Kind {
     #[must_use]
     pub fn tick_metric(self) -> TickMetric {
@@ -74,7 +70,7 @@ impl Kind {
     /// Whether `tick sprint` ends with a `Sprint completed` answer; Horizon's gives none.
     #[must_use]
     pub fn reports_sprint(self) -> bool {
-        self == Kind::Vanilla
+        self != Kind::Horizon
     }
 
     #[must_use]
@@ -144,10 +140,7 @@ impl Kind {
                 }
             }
             Kind::Mcrs => {
-                if options.threads.is_some() {
-                    bail!("mcrs has no compute thread count setting yet");
-                }
-                let env = [
+                let mut env = [
                     ("MCRS_WORLD_SEED", "12345".to_owned()),
                     ("MCRS_WORLD_PRESET", "flat".to_owned()),
                     ("MCRS_COMPRESSION_THRESHOLD", "-1".to_owned()),
@@ -155,14 +148,22 @@ impl Kind {
                     ("MCRS_LAN_ANNOUNCE", "off".to_owned()),
                     ("BEVY_ASSET_ROOT", options.repo.display().to_string()),
                     ("RUST_LOG", "info,mcrs_tick=trace".to_owned()),
+                    ("MCRS_PORT", options.port.to_string()),
                 ]
                 .map(|(key, value)| (key.to_owned(), value))
                 .to_vec();
+                let threads_note = match options.threads {
+                    Some(threads) => {
+                        env.push(("MCRS_COMPUTE_THREADS".to_owned(), threads.to_string()));
+                        format!("MCRS_COMPUTE_THREADS={threads} (the Bevy compute pool)")
+                    }
+                    None => "Bevy default compute pool".to_owned(),
+                };
                 Launch {
                     command: vec![binary],
                     env,
-                    threads_note: "no compute thread setting; Bevy defaults".to_owned(),
-                    port: MCRS_PORT,
+                    threads_note,
+                    port: options.port,
                 }
             }
         })
