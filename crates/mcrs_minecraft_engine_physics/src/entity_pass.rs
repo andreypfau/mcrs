@@ -46,6 +46,8 @@ const LIFETIME: u32 = 6000;
 const DEATH_TICKS: u8 = 20;
 
 const SERVER: Side = Side::Server { authority: true };
+/// Below this squared length an input does not move a resting row.
+const STILL_INPUT: f64 = 1.0e-7;
 
 /// The frozen inputs of one entity pass.
 pub(crate) struct Pass<'a, W> {
@@ -154,6 +156,7 @@ fn tick_tile<W: CollisionWorld, B: BodyView>(
     for row in rows.rows_mut() {
         let state = row.state;
         let looked = state.living.map(rotations);
+        let mut steered = false;
         if let Some(living) = state.living.as_mut() {
             if !living.is_alive() {
                 living.steering = None;
@@ -163,7 +166,13 @@ fn tick_tile<W: CollisionWorld, B: BodyView>(
                 && let Some(intent) = intents.get(at)
             {
                 apply_intent(intent, living);
+                steered = intent.steering.is_some_and(|steering| {
+                    steering.input.length_squared() >= STILL_INPUT || steering.jump
+                });
             }
+        }
+        if steered {
+            state.rest = Rest::Awake;
         }
         let start = grid_row(state, row.motion, row.id);
         if loaded(view.world, state.body.position) {
@@ -319,9 +328,54 @@ fn loaded<W: CollisionWorld>(world: &W, position: DVec3) -> bool {
 mod tests {
     use bevy_tasks::TaskPoolBuilder;
 
+    use mcrs_minecraft_physics::Steering;
+
     use super::*;
     use crate::EntityWrites;
     use crate::TestScene;
+
+    #[test]
+    fn an_intent_that_steers_a_resting_walker_wakes_it() {
+        let pool = TaskPoolBuilder::new().num_threads(2).build();
+        let mut scene = TestScene::new(1, 2, 0, 7);
+        let standing = EntityId(1);
+        for _ in 0..60 {
+            scene.step(&pool, 1, &mut EntityWrites::default());
+        }
+        let (tile, start) = scene
+            .rows
+            .living_rows()
+            .find(|(at, _)| at.id == standing)
+            .map(|(at, state)| (at.tile, state.body.position))
+            .expect("the standing walker has a row");
+        scene.rows.steer(
+            tile,
+            MobIntent {
+                steering: Some(Steering {
+                    input: MoveInput {
+                        forward: 1.0,
+                        ..MoveInput::default()
+                    },
+                    jump: false,
+                    speed: 0.1,
+                }),
+                ..MobIntent::new(standing)
+            },
+        );
+        for _ in 0..5 {
+            scene.step(&pool, 1, &mut EntityWrites::default());
+        }
+        let end = scene
+            .rows
+            .living_rows()
+            .find(|(at, _)| at.id == standing)
+            .map(|(_, state)| state.body.position)
+            .expect("the walker keeps its row");
+        assert!(
+            start.distance(end) > 0.1,
+            "the walker walks from {start} to {end}"
+        );
+    }
 
     #[test]
     fn an_intent_that_only_turns_the_head_publishes_a_move() {
