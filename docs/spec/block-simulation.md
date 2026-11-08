@@ -2831,7 +2831,7 @@ Provenance: `source_suggested`. Confidence: high.
 | Empty-dimension threshold for the ticks of entities and block entities (vanilla value of P-IDLE) | counter < 300. If all level ticks run normally, the ticks of entities and block entities stop on the 299th level tick after the last keep-active ticket. Ticks that do not run normally do not count | SIM-TICK-002 | `source_suggested` |
 | Pause when empty | `pause-when-empty-seconds` × 20, default 60 s. Only a dedicated server reads the property; other servers use 0 | SIM-TICK-001 | `source_suggested` |
 | Time sync interval | 20 server ticks | SIM-TICK-001 | `source_suggested` |
-| Delay of a fire tick | 30 + r(10): 30 to 39, uniform | SIM-FIRE-001, SIM-FIRE-009 | `source_suggested_black_box_confirmed` (E-F1: no saved fire tick has `t` above 39) |
+| Delay of a fire tick | 30 + r(10): 30 to 39, uniform | SIM-FIRE-001, SIM-FIRE-009 | `source_suggested_black_box_confirmed` (E-F1: no saved fire tick has `t` above 39; E-F4: 50 new fires gave each value from 30 to 39) |
 | Game rule `fire_spread_radius_around_player` default / minimum | 128 / −1 (−1: each position; 0: no position) | SIM-FIRE-002 | `source_suggested`; rule id `black_box_confirmed` (`registries.json`) |
 | Rain extinguish chance | `0.2F + 0.03F × age`, in f32 | SIM-FIRE-004 | `source_suggested` |
 | Burnout chances of the neighbors | 300 to the side, 250 above and below; 50 less where `gameplay/increased_fire_burnout` is true | SIM-FIRE-006 | `source_suggested` |
@@ -3051,7 +3051,7 @@ Out of scope:
   - Kernel: put fire with age 15 on netherrack, with no flammable neighbor. Open the gate. Run 100,000 level ticks. Result: the fire stays. Failing twin: the fire goes out, because the floor is not infiniburn in the rule.
   - Vanilla: experiments E-F3 and E-F5 (section 13.6).
 
-Provenance: `source_suggested`. Edge case 1 is `source_suggested_black_box_confirmed` by E-F1 and E-F2: the save holds 4,835 fire ticks with the gate closed. Kind: semantic. Confidence: high.
+Provenance: `source_suggested_black_box_confirmed`. E-F3 and E-F5 agree: the closed gate, the burnout without fuel on stone, and the infiniburn floor. Edge case 1 also agrees with E-F1 and E-F2: the save holds 4,835 fire ticks with the gate closed. Kind: semantic. Confidence: high.
 
 ### SIM-FIRE-002: The spread gate
 
@@ -3276,7 +3276,7 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: high.
   - Each of the 254 ids names a block of `../../assets/mcrs/block_definition/`.
   - Vanilla: experiment E-F6 (section 13.6).
 
-Provenance: `source_suggested`. The table was compared with the reference by a script, entry for entry (section 13.6, E-F0). Kind: semantic. Confidence: high.
+Provenance: `source_suggested`. The table was compared with the reference by a script, entry for entry (section 13.6, E-F0). E-F6 confirms two entries: `moss_carpet` is not flammable, and `pale_moss_carpet` burns. Kind: semantic. Confidence: high.
 
 ### SIM-FIRE-009: Placement side effect of fire and soul fire
 
@@ -3300,7 +3300,7 @@ Provenance: `source_suggested`. The table was compared with the reference by a s
   - Vanilla: experiment E-F4 (section 13.6).
   - Kernel: set fire on netherrack with flags 3 at G. Result: one fire tick is pending at P, due at `G + 30` to `G + 39`. Set the same fire again with another age. Result: the pending tick does not change.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: high.
+Provenance: `source_suggested_black_box_confirmed`. E-F4: a set of fire on netherrack with ticks frozen left one fire tick with `t` 30 to 39 and `p: 0`. Kind: semantic. Confidence: high.
 
 ### SIM-FIRE-010: Soul fire
 
@@ -3318,7 +3318,7 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: high.
 - **Invariants:** soul fire never schedules a tick.
 - **Conformance tests:** vanilla: experiment E-F7 (section 13.6). Kernel: set soul fire on soul sand. Result: no tick is pending at P.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: high.
+Provenance: `source_suggested_black_box_confirmed`. E-F7: soul fire on soul sand left no saved tick. Kind: semantic. Confidence: high.
 
 ### SIM-FIRE-011: The random draws of fire
 
@@ -3500,13 +3500,17 @@ Experiments that were run:
 - **E-F2** (the game rule of the save). `data/minecraft/game_rules.dat` of the upgraded save has `minecraft:fire_spread_radius_around_player` 0. `level.dat` of the 1.21.8 save has `doFireTick` false and `allowFireTicksAwayFromPlayer` false.
 - **E-F1b** (a simulation of the delay rule). A script started the 4,835 ticks at their saved `t` and rescheduled each tick with `30 + r(10)`. The script used three seeds, a warm-up of 1,200 ticks and 12,000 measured ticks. The mean was 140.14 to 140.15. The standard deviation of one tick was 11.6 to 11.8.
 
-Experiments that wait for the owner. The vanilla server needs the acceptance of the
-Minecraft EULA in the environment, and only the owner can give it. Start the server
-with `MINECRAFT_EULA=true tools/vanilla-server/run.sh serve`. A script can write the
-commands to the standard input of that process. No client is necessary. Put the console log and the region file of the column under
-`crates/mcrs_minecraft_engine/tests/fixtures/vanilla_fire/<experiment id>/`.
+Experiments on the vanilla server. These ran on the dedicated server of
+`26.4-snapshot-7` (`tools/vanilla-server/run.sh serve`, with the EULA that the owner
+accepted). A script wrote the commands to the standard input of the server. The world
+was a flat overworld with the surface block at `y` −61, at the difficulty hard, with
+no player. The positions are not the positions of the steps below, so that the
+experiments do not touch each other.
+`crates/mcrs_minecraft_engine/tests/fixtures/vanilla_fire/` holds the chat output
+(`chat.txt`), the saved ticks (`saved-ticks.txt`) and the positions (`positions.txt`).
+Each result agrees with the rules. No rule changed.
 
-- **E-F3** (the gate). Use a flat overworld and the difficulty hard. Do these steps:
+- **E-F3** (the gate). Do these steps:
   1. `/gamerule fire_spread_radius_around_player 0`
   2. `/setblock 0 -60 0 minecraft:oak_planks`
   3. `/setblock 1 -60 0 minecraft:fire`
@@ -3514,14 +3518,22 @@ commands to the standard input of that process. No client is necessary. Put the 
   5. `/execute if block 1 -60 0 minecraft:fire[age=0]` and `/execute if block 0 -60 0 minecraft:oak_planks`
 
   Expected: both tests pass. Then do the same steps with the radius −1 at other positions. Expected: the planks are gone within 2,400 ticks.
+
+  Result: with the radius 0, the fire stayed at age 0 and the planks stayed. With the radius −1, the planks and the fire were gone after 2,400 ticks: the planks burned, and the fire then had no fuel (SIM-FIRE-001 step 7.1). Limit: with no player, the radius 0 and the radius 128 both close the gate. E-F2 gives the value 0 of the save.
 - **E-F4** (the delay). Do these steps:
   1. `/tick freeze`
   2. Put 50 fires on netherrack with `/setblock`, at 50 positions in one column.
   3. `/save-all flush`
 
   Expected: the record of the column holds 50 elements `{i: "minecraft:fire", t, p: 0}`, with `t` from 30 to 39. Each value occurs.
+
+  Result: 50 elements, each `p: 0`. The counts of `t` from 30 to 39 were 3, 6, 4, 5, 2, 6, 9, 7, 2, 6. Each value occurred, and no other value.
 - **E-F5** (the floor). Use the radius −1. Put fire on netherrack and fire on stone, with no flammable block near them. Run `/tick sprint 20000`. Expected: the fire on netherrack stays, with age 15. The fire on stone is gone.
-- **E-F6** (the table). Use the radius −1. Put fire on stone next to `moss_carpet`, and a second fire next to `pale_moss_carpet`. Expected: the fire next to `moss_carpet` goes out. The other fire stays while the carpet stays, and the carpet can burn.
+
+  Result: as expected. The fire on stone was already gone after 2,400 ticks, and its position held air after 20,000 ticks.
+- **E-F6** (the table). Use the radius −1. Put fire on stone next to `moss_carpet`, and a second fire next to `pale_moss_carpet`. Expected: the fire next to `moss_carpet` goes out, and the `moss_carpet` stays. The `pale_moss_carpet` can burn. When it burns, its fire goes out.
+
+  Result: after 2,400 ticks, the `moss_carpet` stayed and its fire was gone. The `pale_moss_carpet` and its fire were gone.
 - **E-F7** (soul fire). Do these steps:
   1. `/tick freeze`
   2. `/setblock 0 -60 0 minecraft:soul_sand`
@@ -3529,3 +3541,5 @@ commands to the standard input of that process. No client is necessary. Put the 
   4. `/save-all flush`
 
   Expected: the record of the column has no `block_ticks` element at `(0, -59, 0)`.
+
+  Result: the column of the soul fire had no `block_ticks` element.
