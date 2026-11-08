@@ -5,6 +5,11 @@ use mcrs_minecraft_resource::ResourceLocation;
 
 /// What the arguments read from the world of the source: registries, players and dimensions.
 pub trait Lookup {
+    /// The names of the banned players, which only a server knows.
+    fn banned_names(&self) -> impl Iterator<Item = &str> {
+        core::iter::empty()
+    }
+
     /// The identifiers of the entries, each as `namespace:path`.
     fn entries(&self, registry: ResourceLocation<'static>) -> impl Iterator<Item = &str>;
 

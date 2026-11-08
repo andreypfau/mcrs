@@ -35,22 +35,13 @@ pub const OVERWORLD: &str = "minecraft:overworld";
 
 const PATIENCE: Duration = Duration::from_secs(120);
 
-/// The terrain that the overworld generates.
-#[derive(Clone, Copy, Debug)]
-pub enum Terrain {
-    /// The vanilla overworld: 24 sections high, with every generation step.
-    Vanilla,
-    /// The beta overworld: 8 sections high, about three times cheaper to generate.
-    Beta,
-}
-
 /// How a test server runs its worlds. The muxer always runs inline, so a test reads the views
-/// where the muxer serves them.
+/// where the muxer serves them. The worlds generate the beta overworld: 8 sections high, about
+/// three times cheaper than the vanilla preset, which also builds the nether and the end.
 pub struct WorldServer {
     pub worlds: Placement,
     pub cells: u32,
     pub rules: DimensionBlockRules,
-    pub terrain: Terrain,
 }
 
 impl Default for WorldServer {
@@ -59,7 +50,6 @@ impl Default for WorldServer {
             worlds: Placement::Inline,
             cells: 1,
             rules: DimensionBlockRules::default(),
-            terrain: Terrain::Beta,
         }
     }
 }
@@ -76,11 +66,7 @@ impl WorldServer {
         };
         plugins.network.announce_on_lan = false;
         plugins.worlds.seed = 4;
-        plugins.worlds.preset = match self.terrain {
-            Terrain::Vanilla => "normal",
-            Terrain::Beta => "beta",
-        }
-        .to_owned();
+        plugins.worlds.preset = "beta".to_owned();
         let mut app = App::new();
         app.add_plugins(plugins.build());
         app.insert_resource(self.rules);

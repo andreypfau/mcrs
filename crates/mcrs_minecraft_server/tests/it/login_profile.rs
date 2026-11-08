@@ -2,13 +2,18 @@ use bevy_app::App;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::system::{IntoSystem, System};
 use bytes::BytesMut;
+use mcrs_minecraft_engine::banlist::{BanEntry, BanList, BanListHostPlugin, EditBans};
 use mcrs_minecraft_engine::bus::{InboundPlayerDespawn, OutboundPlayerAttached};
 use mcrs_minecraft_engine::channel_types::ToDim;
+use mcrs_minecraft_engine::coordinator::ops::{OpList, OpListEntry};
 use mcrs_minecraft_engine::game_profile::GameProfile;
 use mcrs_minecraft_engine::muxer::dim_inputs::DimInputs;
 use mcrs_minecraft_engine::muxer::dim_outputs;
 use mcrs_minecraft_engine::muxer::disconnect::DisconnectProtocolPlugin;
 use mcrs_minecraft_engine::muxer::session::HostAnchorRef;
+use mcrs_minecraft_engine::whitelist::{
+    EditWhitelist, Whitelist, WhitelistEntry, WhitelistHostPlugin,
+};
 use mcrs_minecraft_engine_server::configuration::on_configuration_ack;
 use mcrs_minecraft_engine_server::login::{LoginPlugin, LoginState, SingleplayerProfile};
 use mcrs_minecraft_engine_server::{ShutdownPlugin, ShutdownRequest};
@@ -49,6 +54,8 @@ const GUEST: Uuid = uuid!("404198aa-cc64-3021-9fdf-8766c0d0096c");
 fn server(host: Option<SingleplayerProfile>) -> App {
     let mut app = App::new();
     app.add_plugins(LoginPlugin);
+    app.add_plugins(WhitelistHostPlugin);
+    app.add_plugins(BanListHostPlugin);
     app.init_resource::<mcrs_minecraft_network::metrics::BridgeTelemetry>();
     app.init_resource::<mcrs_minecraft_engine_world::session::PlayerSessionCounter>();
     app.add_message::<InboundPlayerDespawn>();
@@ -660,4 +667,404 @@ fn configuration_frames_sent_with_the_login_acknowledgement_count_no_decode_faul
             "{state:?}"
         );
     }
+}
+
+fn bans(test: &str, file: &str) -> BanList {
+    let dir = std::env::temp_dir().join(format!("mcrs-bans-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let path = dir.join(test);
+    std::fs::write(&path, file).unwrap();
+    BanList::read(&path)
+}
+
+fn steve_ban(fields: &str) -> String {
+    format!(r#"[{{"uuid": "{STEVE}", "name": "Steve"{fields}}}]"#)
+}
+
+fn refusal(app: &mut App, username: &str) -> serde_json::Value {
+    let mut client = connect(app);
+    send_hello(app, &client, username, Uuid::new_v4());
+    let reason = login_disconnect_reason(&client.received(app));
+    assert!(!connected(app, &client));
+    reason
+}
+
+#[test]
+fn ban_join_002_a_ban_without_a_reason_refuses_with_the_default_text() {
+    let mut app = server(None);
+    app.insert_resource(bans("ban_join_002_default", &steve_ban("")));
+    assert_eq!(
+        refusal(&mut app, "Steve"),
+        serde_json::json!({
+            "translate": "multiplayer.disconnect.banned.reason",
+            "with": [{"translate": "multiplayer.disconnect.banned.reason.default"}],
+        })
+    );
+}
+
+#[test]
+fn ban_join_002_a_ban_with_a_reason_refuses_with_that_reason() {
+    let mut app = server(None);
+    app.insert_resource(bans(
+        "ban_join_002_reason",
+        &steve_ban(r#", "reason": "griefing the spawn""#),
+    ));
+    assert_eq!(
+        refusal(&mut app, "Steve"),
+        serde_json::json!({
+            "translate": "multiplayer.disconnect.banned.reason",
+            "with": ["griefing the spawn"],
+        })
+    );
+}
+
+#[test]
+fn ban_join_001_the_profile_id_decides_and_not_the_name() {
+    let mut app = server(None);
+    app.insert_resource(bans(
+        "ban_join_001",
+        &format!(
+            r#"[{{"uuid": "{STEVE}", "name": "Other", "reason": "by id"}},
+                {{"uuid": "{OPERATOR}", "name": "Guest"}}]"#
+        ),
+    ));
+    assert_eq!(
+        refusal(&mut app, "Steve")["with"],
+        serde_json::json!(["by id"])
+    );
+    assert_eq!(hello(&mut app, "Guest", Uuid::new_v4()).id, GUEST);
+}
+
+#[test]
+fn ban_join_003_a_ban_with_a_future_end_names_its_time() {
+    let mut app = server(None);
+    app.insert_resource(bans(
+        "ban_join_003",
+        &steve_ban(r#", "expires": "2099-01-01 05:00:00 +0500", "reason": "custom text""#),
+    ));
+    let reason = refusal(&mut app, "Steve");
+    let extra = &reason["extra"][0];
+    assert_eq!(
+        extra["translate"],
+        "multiplayer.disconnect.banned.expiration"
+    );
+    assert!(
+        extra["with"][0]
+            .as_str()
+            .unwrap()
+            .starts_with("2099-01-01 at ")
+    );
+}
+
+#[test]
+fn ban_join_004_an_operator_has_no_exception() {
+    let mut app = server(None);
+    app.insert_resource(OpList::new([OpListEntry {
+        uuid: STEVE,
+        name: "Steve".to_owned(),
+        level: 4,
+        bypasses_player_limit: false,
+    }]));
+    app.insert_resource(bans("ban_join_004", &steve_ban("")));
+    assert_eq!(
+        refusal(&mut app, "Steve")["translate"],
+        "multiplayer.disconnect.banned.reason"
+    );
+}
+
+#[test]
+fn wl_join_005_a_ban_comes_before_the_whitelist() {
+    let mut app = server(None);
+    app.insert_resource(Whitelist::default().enabled(true));
+    app.insert_resource(bans("wl_join_005", &steve_ban("")));
+    assert_eq!(
+        refusal(&mut app, "Steve")["translate"],
+        "multiplayer.disconnect.banned.reason"
+    );
+}
+
+#[test]
+fn ban_exp_001_an_expired_ban_does_not_refuse_a_player() {
+    let mut app = server(None);
+    app.insert_resource(bans(
+        "ban_exp_001",
+        &steve_ban(r#", "expires": "2021-01-01 00:00:00 +0000""#),
+    ));
+    assert_eq!(hello(&mut app, "Steve", Uuid::new_v4()).id, STEVE);
+}
+
+fn assert_not_whitelisted(app: &mut App, username: &str) {
+    let mut client = connect(app);
+    send_hello(app, &client, username, Uuid::new_v4());
+    assert_eq!(
+        login_disconnect_reason(&client.received(app)),
+        serde_json::json!({"translate": "multiplayer.disconnect.not_whitelisted"})
+    );
+    assert!(!connected(app, &client));
+}
+
+#[test]
+fn wl_join_001_without_the_check_a_player_that_is_not_listed_joins() {
+    let mut app = server(None);
+    app.insert_resource(Whitelist::default());
+    hello(&mut app, "Steve", Uuid::new_v4());
+}
+
+#[test]
+fn wl_join_002_a_player_that_is_not_listed_is_refused() {
+    let mut app = server(None);
+    app.insert_resource(Whitelist::default().enabled(true));
+    assert_not_whitelisted(&mut app, "Steve");
+}
+
+#[test]
+fn wl_join_003_the_profile_id_decides_and_not_the_name() {
+    let mut app = server(None);
+    app.insert_resource(
+        Whitelist::new([
+            WhitelistEntry {
+                uuid: STEVE,
+                name: "Other".to_owned(),
+            },
+            WhitelistEntry {
+                uuid: Uuid::from_u128(1),
+                name: "Guest".to_owned(),
+            },
+        ])
+        .enabled(true),
+    );
+    hello(&mut app, "Steve", Uuid::new_v4());
+    assert_not_whitelisted(&mut app, "Guest");
+}
+
+#[test]
+fn wl_join_004_an_operator_that_is_not_listed_joins() {
+    let mut app = server(None);
+    app.insert_resource(Whitelist::default().enabled(true));
+    app.insert_resource(OpList::new([OpListEntry {
+        uuid: STEVE,
+        name: "Steve".to_owned(),
+        level: 4,
+        bypasses_player_limit: false,
+    }]));
+    hello(&mut app, "Steve", Uuid::new_v4());
+}
+
+fn not_whitelisted() -> Text {
+    Text::translate("multiplayer.disconnect.not_whitelisted", Vec::new())
+}
+
+fn in_play(app: &mut App, name: &str) -> Client {
+    let mut client = connect(app);
+    send_hello(app, &client, name, Uuid::new_v4());
+    client.received(app);
+    app.world_mut()
+        .entity_mut(client.connection)
+        .insert(ConnectionState::Game);
+    client
+}
+
+fn add_ban(app: &mut App, uuid: Uuid, name: &str, reason: Option<&str>) {
+    app.world_mut().trigger(EditBans::Add(BanEntry::new(
+        uuid,
+        name.to_owned(),
+        "tester".to_owned(),
+        reason.map(str::to_owned),
+    )));
+    app.update();
+}
+
+fn banned() -> Text {
+    Text::translate("multiplayer.disconnect.banned", Vec::new())
+}
+
+#[test]
+fn ban_cmd_004_a_ban_disconnects_only_that_player_and_the_key_has_no_reason() {
+    let mut app = server(None);
+    let mut steve = in_play(&mut app, "Steve");
+    let mut guest = in_play(&mut app, "Guest");
+
+    add_ban(&mut app, STEVE, "Steve", Some("griefing"));
+
+    assert_eq!(play_disconnect_reason(&steve.received(&mut app)), banned());
+    assert!(!connected(&app, &steve));
+    assert!(connected(&app, &guest));
+    assert!(guest.received(&mut app).is_empty());
+}
+
+#[test]
+fn ban_cmd_004_a_ban_disconnects_an_operator() {
+    let mut app = server(None);
+    app.insert_resource(OpList::new([OpListEntry {
+        uuid: STEVE,
+        name: "Steve".to_owned(),
+        level: 4,
+        bypasses_player_limit: false,
+    }]));
+    let mut steve = in_play(&mut app, "Steve");
+
+    add_ban(&mut app, STEVE, "Steve", None);
+
+    assert_eq!(play_disconnect_reason(&steve.received(&mut app)), banned());
+    assert!(!connected(&app, &steve));
+}
+
+#[test]
+fn ban_cmd_004_a_player_after_the_login_finished_gets_the_packet_of_configuration() {
+    let mut app = server(None);
+    let mut client = connect(&mut app);
+    send_hello(&mut app, &client, "Steve", Uuid::new_v4());
+    client.received(&mut app);
+
+    add_ban(&mut app, STEVE, "Steve", None);
+
+    let frames = client.received(&mut app);
+    let [frame] = &frames[..] else {
+        panic!("{frames:?}");
+    };
+    assert_eq!(
+        frame.id,
+        configuration::clientbound::ClientboundDisconnect::ID
+    );
+    let packet =
+        configuration::clientbound::ClientboundDisconnect::decode(&mut &frame.body[..]).unwrap();
+    assert_eq!(packet.reason, banned());
+}
+
+#[test]
+fn ban_exp_001_a_new_ban_does_not_disconnect_a_player_whose_ban_has_expired() {
+    let mut app = server(None);
+    app.insert_resource(bans(
+        "ban_exp_001_online",
+        &steve_ban(r#", "expires": "2021-01-01 00:00:00 +0000""#),
+    ));
+    let mut steve = in_play(&mut app, "Steve");
+    app.update();
+
+    add_ban(&mut app, GUEST, "Guest", None);
+
+    assert!(connected(&app, &steve));
+    assert!(steve.received(&mut app).is_empty());
+}
+
+fn turn_the_check_on(app: &mut App) {
+    app.world_mut().trigger(EditWhitelist::SetEnabled(true));
+    app.update();
+}
+
+#[test]
+fn wl_enf_001_without_enforcement_a_player_that_is_not_listed_stays() {
+    let mut app = server(None);
+    app.insert_resource(Whitelist::default());
+    let mut client = in_play(&mut app, "Steve");
+
+    turn_the_check_on(&mut app);
+
+    assert!(connected(&app, &client));
+    assert!(client.received(&mut app).is_empty());
+}
+
+#[test]
+fn wl_enf_002_with_enforcement_only_a_player_that_is_not_listed_is_disconnected() {
+    let mut app = server(None);
+    app.insert_resource(
+        Whitelist::new([WhitelistEntry {
+            uuid: GUEST,
+            name: "Guest".to_owned(),
+        }])
+        .enforced(true),
+    );
+    let mut steve = in_play(&mut app, "Steve");
+    let mut guest = in_play(&mut app, "Guest");
+
+    turn_the_check_on(&mut app);
+
+    assert_eq!(
+        play_disconnect_reason(&steve.received(&mut app)),
+        not_whitelisted()
+    );
+    assert!(!connected(&app, &steve));
+    assert!(connected(&app, &guest));
+    assert!(guest.received(&mut app).is_empty());
+}
+
+#[test]
+fn wl_enf_002_a_remove_disconnects_with_the_check_on_and_not_with_the_check_off() {
+    for (enabled, stays) in [(true, false), (false, true)] {
+        let mut app = server(None);
+        app.insert_resource(
+            Whitelist::new([WhitelistEntry {
+                uuid: STEVE,
+                name: "Steve".to_owned(),
+            }])
+            .enabled(enabled)
+            .enforced(true),
+        );
+        let client = in_play(&mut app, "Steve");
+        app.update();
+
+        app.world_mut().trigger(EditWhitelist::Remove(STEVE));
+        app.update();
+
+        assert_eq!(connected(&app, &client), stays, "{enabled}");
+    }
+}
+
+#[test]
+fn wl_enf_002_a_player_after_the_login_finished_gets_the_packet_of_configuration() {
+    let mut app = server(None);
+    app.insert_resource(Whitelist::default().enforced(true));
+    let mut client = connect(&mut app);
+    send_hello(&mut app, &client, "Steve", Uuid::new_v4());
+    client.received(&mut app);
+
+    turn_the_check_on(&mut app);
+
+    let frames = client.received(&mut app);
+    let [frame] = &frames[..] else {
+        panic!("{frames:?}");
+    };
+    assert_eq!(
+        frame.id,
+        configuration::clientbound::ClientboundDisconnect::ID
+    );
+    let packet =
+        configuration::clientbound::ClientboundDisconnect::decode(&mut &frame.body[..]).unwrap();
+    assert_eq!(packet.reason, not_whitelisted());
+}
+
+#[test]
+fn wl_enf_003_enforcement_also_disconnects_an_operator_that_is_not_listed() {
+    let mut app = server(None);
+    app.insert_resource(Whitelist::default().enforced(true));
+    app.insert_resource(OpList::new([OpListEntry {
+        uuid: STEVE,
+        name: "Steve".to_owned(),
+        level: 4,
+        bypasses_player_limit: false,
+    }]));
+    let client = in_play(&mut app, "Steve");
+
+    turn_the_check_on(&mut app);
+
+    assert!(!connected(&app, &client));
+}
+
+#[test]
+fn wl_enf_003_an_add_does_not_disconnect_an_operator_that_is_not_listed() {
+    let mut app = server(None);
+    app.insert_resource(Whitelist::default().enabled(true).enforced(true));
+    app.insert_resource(OpList::new([OpListEntry {
+        uuid: STEVE,
+        name: "Steve".to_owned(),
+        level: 4,
+        bypasses_player_limit: false,
+    }]));
+    let client = in_play(&mut app, "Steve");
+
+    app.world_mut()
+        .trigger(EditWhitelist::Add(WhitelistEntry::offline("Guest")));
+    app.update();
+
+    assert!(connected(&app, &client));
 }

@@ -12,7 +12,7 @@
 
 use std::mem;
 
-use bevy_app::{App, FixedUpdate, Plugin, SubApp};
+use bevy_app::{App, FixedPostUpdate, FixedUpdate, Plugin, SubApp};
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::{MessageReader, MessageWriter};
 use bevy_ecs::prelude::{Has, Query, With};
@@ -28,7 +28,7 @@ use mcrs_minecraft_dimension::Dimension as DimensionKey;
 use mcrs_minecraft_engine_world::block_update::{BlockPlaced, BlockSetRequest};
 use mcrs_minecraft_engine_world::owned_columns::{self, OwnedColumns};
 use mcrs_minecraft_engine_world::tick::TickSet;
-use mcrs_minecraft_engine_world::voxel_update::{self, CellBlockWrite};
+use mcrs_minecraft_engine_world::voxel_update::{self, CellBlockWrite, VoxelUpdateSet};
 use mcrs_minecraft_engine_world::world::dimension::Dimension;
 use mcrs_minecraft_engine_world::world::lifecycle::simulation::{BlockTicking, EntityTicking};
 use mcrs_minecraft_engine_world::world::storage::random_ticks::{
@@ -52,7 +52,7 @@ use mcrs_voxel::{ColumnPos, SectionPos};
 use rustc_hash::FxHashSet;
 
 use crate::block_drops::{BlockDrops, ItemDropped};
-use crate::block_update::BroadcastMarks;
+use crate::block_update::{BroadcastMarks, remove_replaced_block_entities};
 use crate::bus::{PacketPayload, PacketPriority};
 use crate::cell_mail::CellOutbox;
 use crate::cell_volume::CellVolume;
@@ -125,6 +125,10 @@ impl<B: BlockBehaviour<WorldKinds> + BlockDrops + Clone + Send + 'static> Plugin
             )
                 .chain()
                 .in_set(TickSet::WorldWrite),
+        );
+        app.add_systems(
+            FixedPostUpdate,
+            remove_replaced_block_entities.in_set(VoxelUpdateSet::NetworkSync),
         );
     }
 }
@@ -640,6 +644,7 @@ fn publish_block_events(
                 param: event.b as u8,
                 block: VarInt(i32::from(event.block.number())),
             }),
+            except: None,
         });
     }
 }

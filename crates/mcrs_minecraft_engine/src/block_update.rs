@@ -1,10 +1,17 @@
 //! The client sync of block changes: a set that notifies clients marks its position, and a
 //! broadcast sends each marked section in one packet, with the states the section holds then.
+//! A block of another type drops the block entity of the block that it replaced.
 
 use std::borrow::Cow;
 
-use bevy_ecs::message::MessageWriter;
+use bevy_ecs::message::{MessageReader, MessageWriter};
+use bevy_ecs::prelude::{Commands, Query, Res};
 use bevy_ecs::resource::Resource;
+use mcrs_minecraft_block::definition::Blocks;
+use mcrs_minecraft_engine_world::block_update::BlockPlaced;
+use mcrs_minecraft_engine_world::world::storage::block_entity::{
+    BlockEntityPos, SectionBlockEntities,
+};
 use mcrs_minecraft_protocol_game::block::BlockStateNumber;
 use mcrs_minecraft_protocol_game::chunk::ChunkBlockUpdateEntry;
 use mcrs_minecraft_protocol_game::clientbound::{
@@ -84,7 +91,39 @@ impl BroadcastMarks {
                 column,
                 priority: PacketPriority::Normal,
                 payload,
+                except: None,
             });
+        }
+    }
+}
+
+/// Removes the block entity at each position that a block of another type took this tick, so
+/// the column no longer carries it. A new state of the same block keeps its block entity.
+pub fn remove_replaced_block_entities(
+    mut placed: MessageReader<BlockPlaced>,
+    sections: Query<&SectionBlockEntities>,
+    positions: Query<&BlockEntityPos>,
+    blocks: Option<Res<Blocks>>,
+    mut commands: Commands,
+) {
+    let Some(blocks) = blocks else {
+        placed.clear();
+        return;
+    };
+    for placed in placed.read() {
+        if blocks.block_index(placed.old_state) == blocks.block_index(placed.new_state) {
+            continue;
+        }
+        let Ok(held) = sections.get(placed.chunk) else {
+            continue;
+        };
+        for &entity in held.iter() {
+            if positions
+                .get(entity)
+                .is_ok_and(|at| at.0 == placed.block_pos)
+            {
+                commands.entity(entity).despawn();
+            }
         }
     }
 }

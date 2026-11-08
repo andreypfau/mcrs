@@ -5,7 +5,10 @@ use crate::muxer::muxer_plugin::MuxerPlugin;
 
 pub mod ability;
 mod advance_production;
+pub mod banlist;
 pub mod between_ticks;
+pub mod block_action_ack;
+mod block_break;
 pub mod block_drops;
 pub mod block_entity_packet;
 pub mod block_simulation;
@@ -50,6 +53,7 @@ pub mod game_profile;
 pub mod heightmap;
 mod held_light;
 mod hot_ticket;
+mod json_list;
 mod light_codec;
 pub mod minecraft_entity;
 mod movement;
@@ -74,6 +78,7 @@ mod tile_events;
 pub mod to_coordinator;
 pub mod to_muxer;
 mod wanted_column;
+pub mod whitelist;
 pub mod world_kinds;
 pub mod world_seed;
 

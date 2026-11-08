@@ -23,7 +23,7 @@ use bevy::prelude::*;
 use bevy::render::{ExtractSchedule, RenderApp};
 use mcrs_minecraft_client_gui::debug_entry_system_specs;
 use mcrs_minecraft_client_gui::debug_screen::{DebugScreenSet, collecting};
-use mcrs_minecraft_client_world::{local_player, registries};
+use mcrs_minecraft_client_world::{block_breaking, local_player, registries};
 
 #[cfg(target_os = "macos")]
 pub mod app_nap;
@@ -57,6 +57,7 @@ impl PluginGroup for ClientPlugins {
             .add(vanilla::VanillaAssetsPlugin)
             .add(input::ClientInputPlugin)
             .add(local_player::LocalPlayerPlugin)
+            .add(block_breaking::BlockBreakingPlugin)
             .add(camera::CameraPlugin)
             .add(mcrs_minecraft_client_gui::debug_screen::DebugScreenPlugin {
                 stats_interval: self.0.stats_interval(),

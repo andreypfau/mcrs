@@ -33,8 +33,8 @@ use mcrs_voxel::{BlockPos, BlockStateId, SectionPos};
 
 use crate::host_app::label_of;
 use crate::world_server::{
-    OVERWORLD, Terrain, WorldServer, block_state, cell_worlds, dimension_of, lockstep_tick,
-    spawn_viewer, wait_for_generation,
+    OVERWORLD, WorldServer, block_state, cell_worlds, dimension_of, lockstep_tick, spawn_viewer,
+    wait_for_generation,
 };
 
 const TICKS: usize = 60;
@@ -99,17 +99,22 @@ fn hash_debug(hasher: &mut DefaultHasher, value: &impl fmt::Debug) {
     fmt::write(&mut HashWriter(hasher), format_args!("{value:?}")).expect("hashing never fails");
 }
 
-fn hash_light(
-    hasher: &mut DefaultHasher,
-    field: &mut [u8; SectionPos::VOLUME],
-    light: Option<&LightStorage>,
-) {
+/// Hashes the light values, so a dense section that holds one value hashes as that uniform value.
+fn hash_light(hasher: &mut DefaultHasher, light: Option<&LightStorage>) {
     match light {
-        Some(storage) => {
-            storage.write_field(field);
-            field.hash(hasher);
-        }
         None => 0u8.hash(hasher),
+        Some(LightStorage::Empty) => (1u8, 0u8).hash(hasher),
+        Some(LightStorage::Uniform(value)) => (1u8, *value).hash(hasher),
+        Some(LightStorage::Dense(packed)) => {
+            let bytes = &packed.0[..];
+            let first = bytes[0];
+            if first >> 4 == first & 0x0F && bytes.iter().all(|&byte| byte == first) {
+                (1u8, first & 0x0F).hash(hasher);
+            } else {
+                2u8.hash(hasher);
+                bytes.hash(hasher);
+            }
+        }
     }
 }
 
@@ -118,7 +123,6 @@ fn hash_light(
 /// players. Entities enter by id, so a different allocation order is a different world.
 fn world_hash(world: &mut World, hashed: Hashed) -> u64 {
     let mut hasher = DefaultHasher::new();
-    let mut field = [0u8; SectionPos::VOLUME];
     let mut sections: Vec<_> = world
         .query::<(
             Entity,
@@ -138,8 +142,8 @@ fn world_hash(world: &mut World, hashed: Hashed) -> u64 {
         entity.hash(&mut hasher);
         pos.hash(&mut hasher);
         hash_debug(&mut hasher, stage);
-        hash_light(&mut hasher, &mut field, block.map(|light| &light.0));
-        hash_light(&mut hasher, &mut field, sky.map(|light| &light.0));
+        hash_light(&mut hasher, block.map(|light| &light.0));
+        hash_light(&mut hasher, sky.map(|light| &light.0));
         if hashed == Hashed::WithBlocks {
             hash_debug(&mut hasher, &chunk.map(|chunk| &chunk.0));
         }
@@ -187,7 +191,6 @@ fn run(worlds: Placement) -> Vec<u64> {
     let mut app = WorldServer {
         worlds,
         cells: 2,
-        terrain: Terrain::Vanilla,
         ..WorldServer::default()
     }
     .start();

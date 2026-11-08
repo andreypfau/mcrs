@@ -1,7 +1,9 @@
 use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
 
 use bevy_app::{App, Plugin};
+use mcrs_minecraft_engine::banlist::BanList;
 use mcrs_minecraft_engine::client_info::ClientInfoPlugin;
+use mcrs_minecraft_engine::whitelist::Whitelist;
 use mcrs_minecraft_network::inbound_rate::InboundRateLimit;
 use mcrs_minecraft_network::{NetworkPlugin, default_favicon};
 
@@ -42,6 +44,8 @@ pub struct ServerNetworkPlugin {
     pub accept_backlog: u32,
     /// The largest average of packets per second of one connection; 0 turns the limit off.
     pub rate_limit: InboundRateLimit,
+    pub whitelist: Whitelist,
+    pub banlist: BanList,
 }
 
 impl ServerNetworkPlugin {
@@ -74,6 +78,8 @@ impl Default for ServerNetworkPlugin {
             send_buffer_bytes: NetworkPlugin::default().send_buffer_bytes,
             accept_backlog: NetworkPlugin::default().accept_backlog,
             rate_limit: InboundRateLimit::default(),
+            whitelist: Whitelist::default(),
+            banlist: BanList::default(),
         }
     }
 }
@@ -107,5 +113,7 @@ impl Plugin for ServerNetworkPlugin {
         }
         app.add_plugins(StatusPlugin);
         app.add_plugins(crate::shutdown::ShutdownPlugin);
+        app.insert_resource(self.whitelist.clone());
+        app.insert_resource(self.banlist.clone());
     }
 }

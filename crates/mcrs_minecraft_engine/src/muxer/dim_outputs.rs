@@ -4,8 +4,10 @@ use bevy_ecs::world::World;
 use mcrs_minecraft_engine_world::session::{
     PlayerSession, Session, SessionAnchors, SessionPlacement,
 };
+use mcrs_minecraft_network::{ConnectionState, ServerSideConnection};
+use mcrs_minecraft_text::Text;
 
-use crate::bus::{OutboundPlayerAttached, OutboundPlayerPacket, PacketTarget};
+use crate::bus::{OutboundPlayerAttached, OutboundPlayerPacket, PacketPayload, PacketTarget};
 use crate::channel_types::ToDim;
 use crate::muxer::column_views::DimColumns;
 use crate::muxer::departure_routing;
@@ -13,6 +15,7 @@ use crate::muxer::dim_inputs::DimInputs;
 use crate::muxer::disconnect::Departing;
 use crate::muxer::entity_replication;
 use crate::muxer::muxer_link::{self, Answers};
+use crate::muxer::session::SessionConnection;
 use crate::player_order::OrderedPlayer;
 use crate::to_muxer::{ClientOutput, DimDelivered};
 
@@ -57,6 +60,7 @@ pub(crate) fn receive(world: &mut World) {
                 column_versions,
                 column_changes,
                 positions,
+                block_acks,
             },
         departures,
     } in delivered
@@ -70,6 +74,7 @@ pub(crate) fn receive(world: &mut World) {
                 versions: column_versions,
                 changes: column_changes,
                 positions,
+                acks: block_acks,
             },
         );
         orders.extend(ordered);
@@ -150,6 +155,17 @@ pub fn deliver(world: &mut World, mut packet: OutboundPlayerPacket) {
 /// As [`deliver`] for each of `packets`. The packets of one player come in a run, so a run
 /// costs one look up of its player.
 pub fn deliver_all(world: &mut World, mut packets: Vec<OutboundPlayerPacket>) {
+    if packets.iter().any(closes_connection) {
+        let closes;
+        (closes, packets) = packets.into_iter().partition(closes_connection);
+        for close in closes {
+            if let (PacketTarget::SinglePlayer(session), PacketPayload::Disconnect(reason)) =
+                (close.target, close.data)
+            {
+                disconnect(world, session, reason);
+            }
+        }
+    }
     let mut last: Option<SessionStamp> = None;
     for packet in &mut packets {
         let stamp = match (&packet.target, last) {
@@ -171,6 +187,33 @@ pub fn deliver_all(world: &mut World, mut packets: Vec<OutboundPlayerPacket>) {
     world
         .resource_mut::<Messages<OutboundPlayerPacket>>()
         .write_batch(packets);
+}
+
+fn closes_connection(packet: &OutboundPlayerPacket) -> bool {
+    matches!(
+        (&packet.target, &packet.data),
+        (PacketTarget::SinglePlayer(_), PacketPayload::Disconnect(_))
+    )
+}
+
+/// Writes `reason` to the connection of `session` and closes it. The removal of the connection
+/// lets the player go as any other disconnect does.
+fn disconnect(world: &mut World, session: PlayerSession, reason: Text) {
+    let Some(connection) = world
+        .get_resource::<SessionAnchors>()
+        .and_then(|anchors| anchors.get(session))
+        .and_then(|anchor| world.get::<SessionConnection>(anchor))
+        .map(SessionConnection::entity)
+    else {
+        return;
+    };
+    let Some(mut socket) = world.get_mut::<ServerSideConnection>(connection) else {
+        return;
+    };
+    socket.disconnect(ConnectionState::Game, reason).ok();
+    world
+        .entity_mut(connection)
+        .remove::<ServerSideConnection>();
 }
 
 /// The session and the epoch of the player that a packet addresses.

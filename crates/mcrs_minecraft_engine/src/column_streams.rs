@@ -317,6 +317,7 @@ fn light_change(column: ColumnPos, light_data: LightData<'static>) -> ColumnChan
             z: VarInt(column.z),
             light_data,
         }),
+        except: None,
     }
 }
 

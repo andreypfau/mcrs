@@ -23,7 +23,7 @@ use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_block::definition::schema::PropertyValue;
 use mcrs_minecraft_chunk::{BlockLight, LightStorage, SkyLight};
 use mcrs_minecraft_core::Direction;
-use mcrs_minecraft_engine::ability::PlayerOpLevel;
+use mcrs_minecraft_engine::ability::{PlayerGameMode, PlayerOpLevel};
 use mcrs_minecraft_engine::block_drops::{BlockDrops, ItemDropped};
 use mcrs_minecraft_engine::block_simulation::{BlockSimulationPlugin, DimensionBlockRules};
 use mcrs_minecraft_engine::bus::{PacketPayload, PlayerTransferSnapshot};
@@ -45,6 +45,7 @@ use mcrs_minecraft_engine_world::world::lifecycle::simulation::{
 };
 use mcrs_minecraft_engine_world::world::lifecycle::stage::SectionStage;
 use mcrs_minecraft_engine_world::world::storage::section::SectionIndex;
+use mcrs_minecraft_game_mode::GameMode;
 use mcrs_minecraft_item::item_keys::Item;
 use mcrs_minecraft_item::{ItemHoverMap, ItemStack};
 use mcrs_minecraft_physics::Birth;
@@ -54,7 +55,8 @@ use mcrs_minecraft_protocol_game::chunk::{LightChunk, LightData};
 use mcrs_minecraft_protocol_game::clientbound::{
     ClientboundAddEntity, ClientboundBlockEvent, ClientboundLevelChunkWithLight,
 };
-use mcrs_minecraft_protocol_game::serverbound::ServerboundChatCommand;
+use mcrs_minecraft_protocol_game::player::PlayerAction;
+use mcrs_minecraft_protocol_game::serverbound::{ServerboundChatCommand, ServerboundPlayerAction};
 use mcrs_minecraft_protocol_game::text::Text;
 use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_resource::Id;
@@ -1685,4 +1687,103 @@ fn cmp_013_players_get_the_same_birth_keys_in_one_cell_and_in_four() {
     assert_eq!(one, four);
     let keys: BTreeSet<_> = one.iter().map(|birth| birth.key).collect();
     assert_eq!(keys.len(), one.len(), "every player has its own key");
+}
+
+/// A player breaks a block of the column of the other cell, across the boundary at x = 0. The
+/// cell of the player reads the block from its halo and sends the write to the owner. A client
+/// of the other cell that holds the column sees the break as a client of the same cell does.
+#[test]
+fn a_block_of_the_other_cell_breaks_for_a_client_of_that_cell() {
+    let mut app = server(2);
+    let label = label_of(&app, OVERWORLD);
+    wait_for_generation(&mut app, label);
+    let stone = block_state(&app, "minecraft:stone");
+    let target = BlockPos::new(1, 100, 5);
+    let breaker_anchor = host_app::admit(
+        &mut app,
+        label,
+        &Arrival {
+            uuid: Uuid::from_u128(1),
+            name: "breaker",
+            position: DVec3::new(-2.5, 100.0, 5.5),
+            view_distance: 2,
+        },
+    );
+    let breaker = host_app::session_of(&app, breaker_anchor).expect("a placed session");
+    let watcher = admit(&mut app, label, "watcher", DVec3::new(8.5, 100.0, 8.5), 2);
+    let column = ColumnPos::from(target);
+    let mut breaker_client = Client::default();
+    let mut watcher_client = Client::default();
+    let deadline = Instant::now() + Duration::from_secs(120);
+    while !(breaker_client.loaded.contains(&(column.x, column.z))
+        && watcher_client.loaded.contains(&(column.x, column.z)))
+    {
+        assert!(
+            Instant::now() < deadline,
+            "the clients never got the column"
+        );
+        for session in [breaker, watcher] {
+            app.world_mut()
+                .resource_mut::<MuxerLink>()
+                .acknowledge_batch(session, 64.0);
+        }
+        let packets = lockstep_tick(&mut app, label);
+        breaker_client.take(sent_to(breaker, packets.clone()));
+        watcher_client.take(sent_to(watcher, packets));
+    }
+    let Holder { cell, player } = holder(&mut app, label, breaker).expect("the breaker");
+    let owner = holder(&mut app, label, watcher).expect("the watcher").cell;
+    assert_ne!(cell, owner, "the players stand in different cells");
+    cell_worlds(&mut app, label)
+        .swap_remove(cell)
+        .get_mut::<PlayerGameMode>(player)
+        .expect("a game mode")
+        .0 = GameMode::Creative;
+    place(&mut app, label, watcher, target, stone);
+    for _ in 0..3 {
+        lockstep_tick(&mut app, label);
+    }
+    assert_eq!(block_at(&mut app, label, target), Some(stone));
+
+    let mut server = PlayServer { app, dim: label };
+    server.queue(
+        breaker_anchor,
+        &ServerboundPlayerAction {
+            action: PlayerAction::StartDestroyBlock,
+            pos: target,
+            direction: Direction::Up,
+            sequence: VarInt(5),
+        },
+    );
+    let packets = server.ticks_all(4);
+
+    let seen = |session| -> Vec<String> {
+        sent_to(session, packets.clone())
+            .into_iter()
+            .filter_map(|packet| match packet {
+                PacketPayload::LevelEvent(event) if event.pos == target => Some(format!(
+                    "level_event {} {}",
+                    event.effect, event.effect_data
+                )),
+                PacketPayload::BlockUpdate(update) if update.block_pos == target => {
+                    Some(format!("block_update {}", update.block_state_id.0))
+                }
+                PacketPayload::BlockChangedAck(ack) => Some(format!("ack {}", ack.sequence.0)),
+                _ => None,
+            })
+            .collect()
+    };
+    assert_eq!(
+        seen(watcher),
+        [
+            format!("level_event 2001 {}", stone.number()),
+            "block_update 0".to_owned()
+        ]
+    );
+    // The owner applies the write one tick after the cell of the breaker acknowledges it.
+    assert_eq!(seen(breaker), ["ack 5", "block_update 0"]);
+    assert_eq!(
+        block_at(&mut server.app, label, target),
+        Some(BlockStateId::AIR)
+    );
 }

@@ -8,6 +8,7 @@ use mcrs_minecraft_engine_world::session::PlayerSession;
 use mcrs_minecraft_replication::PlayerData;
 use mcrs_minecraft_resource::{Id, ResourceKeyBuf};
 
+use crate::block_action_ack::BlockActionAck;
 use crate::bus::{InboundPlayerSpawn, OutboundPlayerAttached, OutboundPlayerPacket};
 use crate::column_change::ColumnChange;
 use crate::column_version::ColumnVersion;
@@ -64,6 +65,8 @@ pub struct ClientOutput {
     pub column_changes: Vec<ColumnChange>,
     /// Where the players that moved in the tick stand, before the changes.
     pub positions: Vec<ViewerPosition>,
+    /// The acknowledgements of the block actions of the tick, after the changes.
+    pub block_acks: Vec<BlockActionAck>,
 }
 
 impl ClientOutput {
@@ -80,6 +83,7 @@ impl ClientOutput {
         self.column_versions.extend(other.column_versions);
         self.column_changes.extend(other.column_changes);
         self.positions.extend(other.positions);
+        self.block_acks.extend(other.block_acks);
     }
 }
 
