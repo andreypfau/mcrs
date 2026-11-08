@@ -1,5 +1,5 @@
 use crate::identity;
-use crate::packet_io::{ByteStream, PacketIo, decode_body};
+use crate::packet_io::{ByteStream, Inbound, PacketIo, decode_body};
 use crate::{RawConnection, SwitchMode};
 use anyhow::bail;
 use bytes::Bytes;
@@ -101,7 +101,7 @@ pub async fn configure<S: ByteStream>(mut io: PacketIo<S>, join: Join) -> anyhow
         join.server_address, join.server_port, profile.username
     );
     Ok(Joined {
-        connection: io.into_raw_connection(join.remote_addr, switch_mode),
+        connection: io.into_raw_connection(join.remote_addr, switch_mode, Inbound::FromServer),
         profile,
         configuration,
     })

@@ -74,6 +74,27 @@ pub struct PacketIo<S> {
 const READ_BUF_SIZE: usize = 4096;
 
 pub(crate) const OUTBOUND_CHANNEL_CAPACITY: usize = 4;
+
+/// Who sends the packets that a connection reads, which sets how many decoded packets wait for
+/// the game loop.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Inbound {
+    /// A server reads an untrusted client, so a small queue bounds the memory of a flood.
+    FromClient,
+    /// A client reads its server. The game loop takes the waiting packets once a frame, so the
+    /// queue holds what a crowd of mobs sends in a slow frame; a small one caps the reading rate
+    /// at the queue times the frame rate, the server's writer stalls, and the server kicks.
+    FromServer,
+}
+
+impl Inbound {
+    fn capacity(self) -> usize {
+        match self {
+            Self::FromClient => 256,
+            Self::FromServer => 65_536,
+        }
+    }
+}
 pub const MAX_QUEUED_BYTES_PER_SOCKET: usize = 4 * 1024 * 1024;
 
 #[cfg(not(target_family = "wasm"))]
@@ -178,11 +199,12 @@ impl<S: AsyncRead + AsyncWrite + Unpin> PacketIo<S> {
         self,
         remote_addr: SocketAddr,
         switch_mode: SwitchMode,
+        inbound: Inbound,
     ) -> RawConnection
     where
         S: ByteStream,
     {
-        let (incoming_sender, incoming_receiver) = mpsc::channel(256);
+        let (incoming_sender, incoming_receiver) = mpsc::channel(inbound.capacity());
         let (outgoing_sender, outgoing_receiver) =
             mpsc::channel::<OutboundBatch>(OUTBOUND_CHANNEL_CAPACITY);
         let signal = Arc::new(WriterSignal::default());
@@ -733,7 +755,7 @@ mod tests {
             .unwrap();
         let (stream, remote) = listener.accept().await.unwrap();
         (
-            PacketIo::new(stream).into_raw_connection(remote, switch_mode),
+            PacketIo::new(stream).into_raw_connection(remote, switch_mode, Inbound::FromClient),
             peer,
         )
     }

@@ -1,4 +1,4 @@
-use crate::packet_io::{ByteStream, PacketIo};
+use crate::packet_io::{ByteStream, Inbound, PacketIo};
 use crate::server::SharedNetworkStateInner;
 use crate::{SharedNetworkState, StatusPlayers, SwitchMode};
 use bytes::Bytes;
@@ -116,7 +116,8 @@ pub(crate) async fn handle_intent<S: ByteStream>(
             let Some(switch_mode) = SwitchMode::of(protocol_version) else {
                 return refuse_login(io, &unsupported_version_reason(protocol_version)).await;
             };
-            let raw_connection = io.into_raw_connection(remote_addr, switch_mode);
+            let raw_connection =
+                io.into_raw_connection(remote_addr, switch_mode, Inbound::FromClient);
             shared
                 .0
                 .new_connections_send
