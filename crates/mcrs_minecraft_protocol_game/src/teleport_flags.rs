@@ -38,6 +38,16 @@ impl PositionFlag {
 pub struct PositionFlags(u16);
 
 impl PositionFlags {
+    #[must_use]
+    pub const fn bits(self) -> u16 {
+        self.0
+    }
+
+    #[must_use]
+    pub const fn from_bits(bits: u16) -> Self {
+        Self(bits)
+    }
+
     pub fn insert(&mut self, flag: PositionFlag) {
         self.0 |= flag.mask();
     }

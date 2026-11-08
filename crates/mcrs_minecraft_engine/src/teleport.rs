@@ -157,22 +157,6 @@ pub fn landing(sine: &SineTable, known: Transform, teleport: &Teleport) -> Trans
 /// The `player_position` packet of `teleport` with the id `teleport_id`.
 #[must_use]
 pub fn position_packet(teleport_id: i32, teleport: &Teleport) -> ClientboundPlayerPosition {
-    const FLAGS: [(Relative, PositionFlag); 9] = [
-        (Relative::X, PositionFlag::X),
-        (Relative::Y, PositionFlag::Y),
-        (Relative::Z, PositionFlag::Z),
-        (Relative::YAW, PositionFlag::YRot),
-        (Relative::PITCH, PositionFlag::XRot),
-        (Relative::VELOCITY_X, PositionFlag::DeltaX),
-        (Relative::VELOCITY_Y, PositionFlag::DeltaY),
-        (Relative::VELOCITY_Z, PositionFlag::DeltaZ),
-        (Relative::ROTATE_VELOCITY, PositionFlag::RotateDelta),
-    ];
-    let flags: PositionFlags = FLAGS
-        .into_iter()
-        .filter(|(relative, _)| teleport.relative.contains(*relative))
-        .map(|(_, flag)| flag)
-        .collect();
     ClientboundPlayerPosition {
         teleport_id: VarInt(teleport_id),
         position: teleport.position,
@@ -181,7 +165,7 @@ pub fn position_packet(teleport_id: i32, teleport: &Teleport) -> ClientboundPlay
             yaw: teleport.yaw,
             pitch: teleport.pitch,
         },
-        flags,
+        flags: PositionFlags::from_bits(teleport.relative.bits()),
     }
 }
 
