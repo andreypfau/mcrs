@@ -12,6 +12,10 @@ pub(crate) const MAX_RANGE: u32 = 1536;
 /// wanders on the edge of the range does not spawn and despawn in each tick.
 const KEEP_MARGIN: f64 = 1.0;
 
+/// A viewer that moves less than this from where the muxer last measured its region keeps the
+/// region, so a walking player does not judge the edge of its range again in each tick.
+pub(crate) const RETRACK_STEP: f64 = 0.5;
+
 /// The distances on X and Z from a viewer to the nearest and to the farthest point of a tile.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) struct TileReach {

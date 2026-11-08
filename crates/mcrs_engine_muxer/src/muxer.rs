@@ -85,8 +85,8 @@ struct TileTouch {
 enum Retrack {
     /// Each tile, also when the viewer did not move.
     All,
-    /// Only after the viewer moved, and then only the tiles that were not and are not inside
-    /// every range.
+    /// Only after the viewer moved a step, and then only the tiles that were not and are not
+    /// inside every range.
     Moved,
 }
 
@@ -227,7 +227,7 @@ impl<C: ReplicationCodec> Muxer<C> {
         self.send_removal(viewer, &lost);
         self.replan(viewer);
         let mut settled = Settled::default();
-        self.retrack(viewer, Retrack::All, &mut settled);
+        self.retrack(viewer, Retrack::Moved, &mut settled);
         self.send_settled(settled);
     }
 
@@ -442,7 +442,10 @@ impl<C: ReplicationCodec> Muxer<C> {
             return;
         };
         let position = self.position(&state.view);
-        if retrack == Retrack::Moved && state.tracked_at == Some(position) {
+        let moved_little = state.tracked_at.is_some_and(|at| {
+            (at.x - position.x).hypot(at.z - position.z) < tile_reach::RETRACK_STEP
+        });
+        if retrack == Retrack::Moved && moved_little {
             return;
         }
         let bounds = self.range_bounds;
