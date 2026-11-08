@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:smooth_stone",
-      "protocol_id": 375
+      "protocol_id": 387
     },
     "components": {
       "minecraft:attack_animation": {},

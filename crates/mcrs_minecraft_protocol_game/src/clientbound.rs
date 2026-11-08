@@ -45,6 +45,11 @@ pub struct ClientboundAddEntity {
 }
 
 #[derive(Clone, Debug, Encode, Decode)]
+pub struct ClientboundBlockChangedAck {
+    pub sequence: VarInt,
+}
+
+#[derive(Clone, Debug, Encode, Decode)]
 pub struct ClientboundBlockDestruction {
     pub id: VarInt,
     pub pos: BlockPos,
@@ -145,6 +150,14 @@ pub struct ClientboundLevelChunkWithLight<'a> {
     pub pos: ColumnPos,
     pub chunk_data: crate::chunk::ChunkData<'a>,
     pub light_data: crate::chunk::LightData<'a>,
+}
+
+#[derive(Clone, Debug, Encode, Decode)]
+pub struct ClientboundLevelEvent {
+    pub effect: i32,
+    pub pos: BlockPos,
+    pub effect_data: i32,
+    pub global: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Encode, Decode)]
@@ -632,6 +645,12 @@ pub struct ClientboundCommandSuggestions<'a> {
     pub suggestions: Vec<CommandSuggestion<'a>>,
 }
 
+/// A probe: the client answers it with a `pong` of the same id, after the packets before it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Encode, Decode)]
+pub struct ClientboundPing {
+    pub id: i32,
+}
+
 #[derive(Clone, Debug, PartialEq, Encode, Decode)]
 pub struct ClientboundSetTime {
     pub game_time: i64,
@@ -801,5 +820,67 @@ impl<'a> mcrs_minecraft_protocol::Decode<'a> for ClientboundPlayerInfoUpdate<'a>
             actions,
             entries: entries.into(),
         })
+    }
+}
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn level_event_test() {
+        let mut bytes = Vec::new();
+        ClientboundLevelEvent {
+            effect: 2001,
+            pos: BlockPos::new(2, -60, 0),
+            effect_data: 1,
+            global: false,
+        }
+        .encode(&mut bytes)
+        .unwrap();
+
+        assert_eq!(
+            bytes,
+            [
+                0x00, 0x00, 0x07, 0xD1, 0x00, 0x00, 0x00, 0x80, 0x00, 0x00, 0x0F, 0xC4, 0x00, 0x00,
+                0x00, 0x01, 0x00
+            ]
+        );
+    }
+
+    #[test]
+    fn section_blocks_update_packs_each_block_into_a_var_long() {
+        let entry = |y, block_state| {
+            ChunkBlockUpdateEntry::new()
+                .with_off_x(10)
+                .with_off_y(y)
+                .with_off_z(8)
+                .with_block_state(block_state)
+        };
+        let mut bytes = Vec::new();
+        ClientboundSectionBlocksUpdate {
+            chunk_pos: SectionPos::new(12, -4, 12),
+            blocks: vec![entry(6, 89), entry(7, 0)].into(),
+        }
+        .encode(&mut bytes)
+        .unwrap();
+
+        assert_eq!(
+            bytes,
+            [
+                0x00, 0x00, 0x30, 0x00, 0x00, 0xCF, 0xFF, 0xFC, 0x02, 0x86, 0xB5, 0x16, 0x87, 0x15
+            ]
+        );
+    }
+
+    #[test]
+    fn block_changed_ack_is_only_the_sequence() {
+        let mut bytes = Vec::new();
+        ClientboundBlockChangedAck {
+            sequence: VarInt(5),
+        }
+        .encode(&mut bytes)
+        .unwrap();
+
+        assert_eq!(bytes, [5]);
     }
 }

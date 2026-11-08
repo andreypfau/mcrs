@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:crafting_table",
-      "protocol_id": 405
+      "protocol_id": 417
     },
     "components": {
       "minecraft:attack_animation": {},

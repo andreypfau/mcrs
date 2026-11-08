@@ -19,4 +19,6 @@ pub const SUPPORTS_LILY_PAD: TagKey<'static, crate::fluid_keys::Fluid> =
     TagKey::new(rl!("minecraft:supports_lily_pad"));
 pub const SUPPORTS_SUGAR_CANE_ADJACENTLY: TagKey<'static, crate::fluid_keys::Fluid> =
     TagKey::new(rl!("minecraft:supports_sugar_cane_adjacently"));
+pub const SWIMMABLE: TagKey<'static, crate::fluid_keys::Fluid> =
+    TagKey::new(rl!("minecraft:swimmable"));
 pub const WATER: TagKey<'static, crate::fluid_keys::Fluid> = TagKey::new(rl!("minecraft:water"));

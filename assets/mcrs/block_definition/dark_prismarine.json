@@ -3,9 +3,9 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:dark_prismarine",
-      "protocol_id": 583,
-      "base_state_id": 14482,
-      "default_state_id": 14482
+      "protocol_id": 587,
+      "base_state_id": 14893,
+      "default_state_id": 14893
     },
     "components": {
       "minecraft:light_emission": 0,

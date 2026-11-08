@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:end_rod",
-      "protocol_id": 396
+      "protocol_id": 408
     },
     "components": {
       "minecraft:attack_animation": {},

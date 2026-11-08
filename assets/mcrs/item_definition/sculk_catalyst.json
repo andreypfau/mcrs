@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:sculk_catalyst",
-      "protocol_id": 505
+      "protocol_id": 521
     },
     "components": {
       "minecraft:attack_animation": {},

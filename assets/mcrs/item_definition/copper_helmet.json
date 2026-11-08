@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:copper_helmet",
-      "protocol_id": 1073
+      "protocol_id": 1095
     },
     "components": {
       "minecraft:attack_animation": {},
@@ -32,7 +32,8 @@
       "minecraft:equippable": {
         "slot": "head",
         "equip_sound": "minecraft:item.armor.equip_copper",
-        "asset_id": "minecraft:copper"
+        "asset_id": "minecraft:copper",
+        "shearing_sound": "minecraft:item.shears.snip"
       },
       "minecraft:interact_animation": {},
       "minecraft:item_model": "minecraft:copper_helmet",

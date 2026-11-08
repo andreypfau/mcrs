@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:magenta_concrete_stairs",
-      "protocol_id": 707
+      "protocol_id": 729
     },
     "components": {
       "minecraft:attack_animation": {},

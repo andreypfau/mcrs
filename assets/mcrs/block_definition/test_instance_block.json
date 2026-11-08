@@ -3,9 +3,9 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:test_instance_block",
-      "protocol_id": 999,
-      "base_state_id": 25105,
-      "default_state_id": 25105
+      "protocol_id": 1008,
+      "base_state_id": 25928,
+      "default_state_id": 25928
     },
     "components": {
       "minecraft:light_emission": 0,

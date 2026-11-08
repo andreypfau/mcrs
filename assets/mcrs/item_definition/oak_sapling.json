@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:oak_sapling",
-      "protocol_id": 77
+      "protocol_id": 89
     },
     "components": {
       "minecraft:attack_animation": {},

@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:deepslate_lapis_ore",
-      "protocol_id": 106
+      "protocol_id": 118
     },
     "components": {
       "minecraft:attack_animation": {},

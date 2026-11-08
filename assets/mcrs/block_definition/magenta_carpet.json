@@ -3,9 +3,9 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:magenta_carpet",
-      "protocol_id": 594,
-      "base_state_id": 14747,
-      "default_state_id": 14747
+      "protocol_id": 598,
+      "base_state_id": 15158,
+      "default_state_id": 15158
     },
     "components": {
       "minecraft:light_emission": 0,

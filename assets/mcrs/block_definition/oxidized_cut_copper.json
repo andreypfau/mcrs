@@ -3,9 +3,9 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:oxidized_cut_copper",
-      "protocol_id": 1139,
-      "base_state_id": 31170,
-      "default_state_id": 31170
+      "protocol_id": 1161,
+      "base_state_id": 33229,
+      "default_state_id": 33229
     },
     "components": {
       "minecraft:light_emission": 0,

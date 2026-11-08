@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:warped_slab",
-      "protocol_id": 354
+      "protocol_id": 366
     },
     "components": {
       "minecraft:attack_animation": {},

@@ -19,9 +19,9 @@
           "south_up"
         ]
       },
-      "protocol_id": 997,
-      "base_state_id": 25089,
-      "default_state_id": 25099
+      "protocol_id": 1006,
+      "base_state_id": 25912,
+      "default_state_id": 25922
     },
     "components": {
       "minecraft:light_emission": 0,

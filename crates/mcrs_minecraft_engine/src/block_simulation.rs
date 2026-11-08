@@ -1,50 +1,58 @@
 //! The block simulation of a dimension world: each tick it runs the step of the block kernels
 //! over the sections of the cell, with the rules of the blocks that the game supplies.
 //!
-//! The order of one tick is the order of vanilla. At the sync point, the halo takes the changes
-//! of the owners, the ticks of the columns that landed join the queues, and the messages of the
-//! other cells and then the block writes of the tick apply. Then the scheduled block ticks run,
-//! then the scheduled fluid ticks, then the random ticks, then the block events. Neighbour and
-//! shape updates run inside the phase that causes them. The block events that a block took go to
-//! the clients that hold its column, and the items of a destroyed block go out as
-//! [`ItemDropped`].
+//! The order of one tick is the order of vanilla. At the sync point, the ticks of the columns
+//! that landed join the queues, and the messages of the other cells and then the block writes of
+//! the tick apply. Then the scheduled block ticks run,
+//! then the scheduled fluid ticks, then the random ticks, then the broadcast of the marked
+//! blocks, then the block events. Neighbour and shape updates run inside the phase that causes
+//! them. The block events that a block took go to the clients near it after the broadcast, so the
+//! changes that the events cause go out in the broadcast of the next tick. The items of a
+//! destroyed block go out as [`ItemDropped`].
 
 use std::mem;
 
 use bevy_app::{App, FixedPostUpdate, FixedUpdate, Plugin, SubApp};
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::{MessageReader, MessageWriter};
-use bevy_ecs::prelude::{Added, Query, With};
+use bevy_ecs::prelude::{Has, Query, With};
 use bevy_ecs::resource::Resource;
-use bevy_ecs::schedule::IntoScheduleConfigs;
+use bevy_ecs::schedule::common_conditions::{not, resource_exists};
+use bevy_ecs::schedule::{IntoScheduleConfigs, SystemCondition};
 use bevy_ecs::system::{Res, ResMut, SystemParam};
+use bevy_ecs::world::World;
+use bevy_tasks::{ComputeTaskPool, ParallelSliceMut, TaskPool};
 use mcrs_minecraft_block::block_keys::Block;
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_dimension::Dimension as DimensionKey;
 use mcrs_minecraft_engine_world::block_update::{BlockPlaced, BlockSetRequest};
 use mcrs_minecraft_engine_world::owned_columns::{self, OwnedColumns};
 use mcrs_minecraft_engine_world::tick::TickSet;
-use mcrs_minecraft_engine_world::voxel_update::{
-    self, CellBlockWrite, HaloBlockChanges, VoxelUpdateSet,
-};
+use mcrs_minecraft_engine_world::voxel_update::{self, CellBlockWrite, VoxelUpdateSet};
 use mcrs_minecraft_engine_world::world::dimension::Dimension;
 use mcrs_minecraft_engine_world::world::lifecycle::simulation::{BlockTicking, EntityTicking};
+use mcrs_minecraft_engine_world::world::storage::random_ticks::{
+    RandomListing, RandomTickIndex, RandomTickIndexPlugin,
+};
+use mcrs_minecraft_engine_world::world::storage::section::SectionIndex;
 use mcrs_minecraft_engine_world::world::storage::view::WorldViewMut;
 use mcrs_minecraft_item::ItemStack;
 use mcrs_minecraft_protocol::VarInt;
 use mcrs_minecraft_protocol_game::clientbound::ClientboundBlockEvent;
 use mcrs_minecraft_resource::{Id, ResourceKeyBuf};
 use mcrs_minecraft_simulation::{
-    BlockBehaviour, BlockEvent, BlockShard, ChainLedger, ChainOrigin, Env, GameTick, KernelConfig,
-    Message, MessageBody, PartitionKind, Phase, PhaseInput, RandomPicks, RandomTickTable,
-    SavedTick, SectionProperties, SectionTicksRef, ShardId, SimulatedSections, StepAt, StepOutput,
-    StreamSeed, SubTick, TickKind, TickQueue, VanillaOrder,
+    BlockBehaviour, BlockEvent, BlockShard, BlockUpdateFlags, BlockWrite, ChainLedger, ChainOrigin,
+    Env, Footprints, GameTick, KernelConfig, Message, MessageBody, PartitionKind, Phase,
+    PhaseInput, RandomPicks, RandomTickTable, SavedTick, SectionProperties, SectionTicksRef,
+    Serial, ShardId, SimulatedSections, Spread, StepAt, StepOutput, StreamSeed, SubTick, TickKind,
+    TickQueue, VanillaOrder,
 };
+use mcrs_minecraft_volume::PalettedSection;
 use mcrs_voxel::{ColumnPos, SectionPos};
 use rustc_hash::FxHashSet;
 
 use crate::block_drops::{BlockDrops, ItemDropped};
-use crate::block_update::publish_block_changes;
+use crate::block_update::{BroadcastMarks, remove_replaced_block_entities};
 use crate::bus::{PacketPayload, PacketPriority};
 use crate::cell_mail::CellOutbox;
 use crate::cell_volume::CellVolume;
@@ -104,14 +112,23 @@ impl<B: BlockBehaviour<WorldKinds> + BlockDrops + Clone + Send + 'static> Plugin
         app.insert_resource(BlockRules(self.rules.clone()));
         app.init_resource::<BlockSimulation>();
         app.init_resource::<LandedTicks>();
+        app.init_resource::<BroadcastMarks>();
         app.add_message::<ItemDropped>();
+        app.add_plugins(RandomTickIndexPlugin);
         app.add_systems(
             FixedUpdate,
-            run_block_simulation::<B>.in_set(TickSet::WorldWrite),
+            (
+                index_random_ticks::<B>.run_if(
+                    resource_exists::<Blocks>.and_then(not(resource_exists::<RandomTickIndex>)),
+                ),
+                run_block_simulation::<B>,
+            )
+                .chain()
+                .in_set(TickSet::WorldWrite),
         );
         app.add_systems(
             FixedPostUpdate,
-            publish_block_changes.in_set(VoxelUpdateSet::NetworkSync),
+            remove_replaced_block_entities.in_set(VoxelUpdateSet::NetworkSync),
         );
     }
 }
@@ -136,11 +153,12 @@ pub struct BlockSimulation {
     held: FxHashSet<SectionPos>,
     /// The columns in which a saved tick activated since they landed.
     activated: FxHashSet<ColumnPos>,
-    /// The random ticks of each block state under the rules, once the block table landed.
+    /// The random ticks of each block state under the rules, once the block table landed: the
+    /// table of the [`RandomTickIndex`].
     random_table: Option<RandomTickTable>,
+    footprints: Footprints,
     random_seed: Option<StreamSeed>,
-    /// The sections that take random ticks, sorted, as the last step found them.
-    random_sections: Vec<SectionPos>,
+    random_listing: RandomListing,
     drops: Vec<ItemStack>,
 }
 
@@ -300,7 +318,6 @@ impl<T: TickKind> Taken<T> {
 struct CellLinks<'w> {
     owned: Option<Res<'w, OwnedColumns>>,
     outbox: Option<ResMut<'w, CellOutbox>>,
-    halo: Option<ResMut<'w, HaloBlockChanges>>,
 }
 
 #[derive(SystemParam)]
@@ -312,11 +329,9 @@ struct Kernel<'w, B: BlockBehaviour<WorldKinds> + Send + 'static> {
     time: Res<'w, GameTime>,
 }
 
-/// The sections that take random ticks, and what their picks draw from.
+/// What the random picks draw from.
 #[derive(SystemParam)]
-struct RandomTicking<'w, 's> {
-    sections: Query<'w, 's, &'static SectionPos, With<EntityTicking>>,
-    started: Query<'w, 's, (), Added<EntityTicking>>,
+struct RandomTicking<'w> {
     speed: Res<'w, RandomTickSpeed>,
     seed: Option<Res<'w, WorldSeed>>,
 }
@@ -324,6 +339,7 @@ struct RandomTicking<'w, 's> {
 /// Where the outcome of a step goes besides the blocks.
 #[derive(SystemParam)]
 struct StepOutlets<'w, 's> {
+    marks: ResMut<'w, BroadcastMarks>,
     streams: Query<'w, 's, &'static ColumnStreams>,
     changes: MessageWriter<'w, ColumnChange>,
     dropped: MessageWriter<'w, ItemDropped>,
@@ -353,9 +369,6 @@ fn run_block_simulation<B: BlockBehaviour<WorldKinds> + BlockDrops + Send + 'sta
         requests.clear();
         return;
     };
-    if let Some(halo) = links.halo.as_mut() {
-        voxel_update::apply_halo_changes(&mut blocks, &mut placed, dimension, &mut halo.0);
-    }
     let Some(definitions) = kernel.definitions.as_deref() else {
         // The block table lands with the registries; until then a write is stored as it is.
         for request in requests.read() {
@@ -365,6 +378,15 @@ fn run_block_simulation<B: BlockBehaviour<WorldKinds> + BlockDrops + Send + 'sta
                 request.dimension,
                 cell_write(request),
             );
+            if request.flags.contains(BlockUpdateFlags::CLIENTS) {
+                outlets.marks.mark(request.pos);
+            }
+        }
+        if let Some(view) = blocks.get_mut(dimension) {
+            let streams = outlets.streams.get(dimension).ok();
+            outlets
+                .marks
+                .broadcast(&view, streams, &mut outlets.changes);
         }
         return;
     };
@@ -422,21 +444,8 @@ fn run_block_simulation<B: BlockBehaviour<WorldKinds> + BlockDrops + Send + 'sta
     simulation.activate(&volume, now);
 
     let rules = &kernel.rules.0;
-    let table = simulation.random_table.get_or_insert_with(|| {
-        RandomTickTable::new(definitions.states(), |state| rules.random_ticks(state))
-    });
+    let table = simulation.random_table.get_or_insert_default();
     let speed = random.speed.0;
-    let mut sections = mem::take(&mut simulation.random_sections);
-    if speed == 0 || table.is_empty() {
-        sections.clear();
-    } else if random.sections.iter().len() != sections.len() || !random.started.is_empty() {
-        // A section that stops alone lowers the count; one that starts is in `started`.
-        sections.clear();
-        sections.extend(random.sections.iter().copied());
-        // The picks of a section do not depend on the order; what one pick sets for the
-        // picks of a later section does.
-        sections.sort_unstable_by_key(|section| (section.x, section.z, section.y));
-    }
     let seed = *simulation.random_seed.get_or_insert_with(|| {
         let world_seed = random.seed.as_deref().map_or(0, |seed| seed.0);
         let key = dimension_key.map_or("", |key| key.as_str());
@@ -458,12 +467,27 @@ fn run_block_simulation<B: BlockBehaviour<WorldKinds> + BlockDrops + Send + 'sta
         (Phase::FluidTicks, [].as_slice(), [].as_slice()),
         (Phase::BlockEvents, [].as_slice(), [].as_slice()),
     ];
+    let streams = outlets.streams.get(dimension).ok();
+    let spread = PoolSpread(ComputeTaskPool::try_get().map(|pool| &**pool));
+    let mut broadcast_cut = 0;
     for (phase, messages, chains) in phases {
         if phase == Phase::BlockEvents {
+            match volume.view.random_ticks_mut().filter(|_| speed != 0) {
+                Some(index) => index.draw(
+                    |column| owned_columns::owns(owned, column),
+                    speed,
+                    seed.sections(now),
+                    &mut simulation.random_listing,
+                    &spread,
+                ),
+                None => simulation.random_listing = RandomListing::default(),
+            }
             let picks = RandomPicks {
-                sections: &sections,
+                columns: &simulation.random_listing.columns,
+                hits: &simulation.random_listing.hits,
                 speed,
                 table,
+                footprints: &simulation.footprints,
                 seed,
             };
             mcrs_minecraft_simulation::random_step(
@@ -473,7 +497,13 @@ fn run_block_simulation<B: BlockBehaviour<WorldKinds> + BlockDrops + Send + 'sta
                 &env,
                 picks,
                 &mut out,
+                &spread,
             );
+            mark_client_writes(&mut outlets.marks, &out.writes);
+            outlets
+                .marks
+                .broadcast(&volume.view, streams, &mut outlets.changes);
+            broadcast_cut = out.writes.len();
         }
         let input = PhaseInput {
             inbound: messages,
@@ -491,7 +521,10 @@ fn run_block_simulation<B: BlockBehaviour<WorldKinds> + BlockDrops + Send + 'sta
             tracing::error!(%error, ?phase, "the block step refused its input");
         }
     }
-    simulation.random_sections = sections;
+    mark_client_writes(
+        &mut outlets.marks,
+        out.writes.get(broadcast_cut..).unwrap_or_default(),
+    );
 
     for write in out.writes.drain(..) {
         let chunk_pos = SectionPos::from(write.pos);
@@ -508,7 +541,7 @@ fn run_block_simulation<B: BlockBehaviour<WorldKinds> + BlockDrops + Send + 'sta
         });
     }
     if !out.delivered.is_empty()
-        && let Ok(streams) = outlets.streams.get(dimension)
+        && let Some(streams) = streams
     {
         publish_block_events(&out.delivered, streams, &mut outlets.changes);
     }
@@ -533,8 +566,67 @@ fn run_block_simulation<B: BlockBehaviour<WorldKinds> + BlockDrops + Send + 'sta
     simulation.ledgers = ledgers;
 }
 
+/// Lists the positions that tick randomly in each loaded section once the block table landed.
+/// From then on, block writes, the landing and unload of sections and the observers of
+/// [`RandomTickIndexPlugin`] keep the index.
+fn index_random_ticks<B: BlockBehaviour<WorldKinds> + Send + Sync + 'static>(world: &mut World) {
+    let (Some(definitions), Some(rules)) = (
+        world.get_resource::<Blocks>(),
+        world.get_resource::<BlockRules<B>>(),
+    ) else {
+        return;
+    };
+    let rules = &rules.0;
+    let table = RandomTickTable::new(definitions.states(), |state| rules.random_ticks(state));
+    let footprints = Footprints::new(definitions.states(), |state| rules.reach(state));
+    let mut index = RandomTickIndex::new(table.clone());
+    let mut dimensions = world.query::<&SectionIndex>();
+    let mut ticking = world.query::<Has<EntityTicking>>();
+    for section_index in dimensions.iter(world) {
+        for (pos, entity, blocks) in section_index.loaded() {
+            let random_ticked = ticking.get(world, entity).unwrap_or(false);
+            index.insert(pos, &PalettedSection(&blocks.0.0), random_ticked);
+        }
+    }
+    world.insert_resource(index);
+    let mut simulation = world.resource_mut::<BlockSimulation>();
+    simulation.random_table = Some(table);
+    simulation.footprints = footprints;
+}
+
+/// The threads of a task pool, or the calling thread without one.
+#[derive(Clone, Copy, Debug)]
+pub struct PoolSpread<'p>(pub Option<&'p TaskPool>);
+
+impl Spread for PoolSpread<'_> {
+    fn spread<T: Send, R: Fn(&mut T) + Sync>(&self, items: &mut [T], run: &R) {
+        let Some(pool) = self
+            .0
+            .filter(|pool| pool.thread_num() > 1 && items.len() > 1)
+        else {
+            return Serial.spread(items, run);
+        };
+        // Tiles differ in cost, so each thread gets several small chunks.
+        let chunk = items.len().div_ceil(pool.thread_num() * 4);
+        let mut items = items;
+        items.par_chunk_map_mut(pool, chunk, |_, chunk| {
+            for item in chunk {
+                run(item);
+            }
+        });
+    }
+}
+
+fn mark_client_writes(marks: &mut BroadcastMarks, writes: &[BlockWrite]) {
+    for write in writes {
+        if write.flags.contains(BlockUpdateFlags::CLIENTS) {
+            marks.mark(write.pos);
+        }
+    }
+}
+
 /// Publishes each event of `delivered` in a column that the muxer subscribes to. The muxer sends
-/// it to the clients that hold the column, as the owner of the column publishes its changes.
+/// it to the clients that hold the column and stand near the block.
 fn publish_block_events(
     delivered: &[BlockEvent<Id<Block>>],
     streams: &ColumnStreams,
@@ -555,6 +647,7 @@ fn publish_block_events(
                 param: event.b as u8,
                 block: VarInt(i32::from(event.block.number())),
             }),
+            except: None,
         });
     }
 }

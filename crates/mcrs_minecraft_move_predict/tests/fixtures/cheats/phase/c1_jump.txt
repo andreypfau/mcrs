@@ -1,0 +1,220 @@
+client-ticks 2
+version 26.4-snapshot-7
+experiment C1
+step jump
+instruction Hold Space for 3 seconds after Go, then release it.
+fill -16 99 -8 16 99 8 minecraft:stone
+events
+29735891 < abilities none 0.05
+29735891 < attribute minecraft:block_interaction_range 4.5
+29735891 < attribute minecraft:entity_interaction_range 3
+29735891 < attribute minecraft:movement_speed 0.10000000149011612
+29735891 < effect minecraft:resistance 4
+29735891 < teleport 119 0.5 100 0.5 0 0 0 -90 0 0
+29804703 > move 0.5,99.5,0.5 - none
+29805866 > tick
+29805867 > move - - on_ground
+29805867 > tick
+29835771 < teleport 120 0.5 100 0.5 0 0 0 -90 0 0
+29904942 > move - - none
+29904943 > tick
+29904944 > move - - on_ground
+29904944 > tick
+30004794 > tick
+30005963 > tick
+30104807 > tick
+30105959 > tick
+30204903 > tick
+30206044 > tick
+30304924 > tick
+30304926 > tick
+30404921 > tick
+30406276 > tick
+30506467 > tick
+30506467 > tick
+30605049 > tick
+30605051 > tick
+30707073 > tick
+30707074 > tick
+30804829 > move 0.5,99.5,0.5 - on_ground
+30806051 > tick
+30806052 > tick
+30845756 < teleport 121 0.5 100 0.5 0 0 0 -90 0 0
+30904648 > move - - none
+30905863 > tick
+30905865 > move - - on_ground
+30905866 > tick
+31005969 > tick
+31005971 > tick
+31105111 > tick
+31106296 > tick
+31210240 > tick
+31210241 > tick
+31307130 > tick
+31307133 > tick
+31405698 > tick
+31406868 > tick
+31507624 > tick
+31507625 > tick
+31612254 > tick
+31612257 > tick
+31707502 > tick
+31707503 > tick
+31813011 > move 0.5,99.5,0.5 - on_ground
+31813014 > tick
+31813014 > tick
+31850216 < teleport 122 0.5 100 0.5 0 0 0 -90 0 0
+31905312 > move - - none
+31905314 > tick
+31905329 > move - - on_ground
+31905329 > tick
+32015756 > tick
+32015758 > tick
+32106811 > tick
+32106813 > tick
+32204856 > tick
+32206026 > tick
+32311820 > tick
+32311822 > tick
+32408105 > tick
+32408108 > tick
+32509180 > tick
+32509183 > tick
+32607721 > tick
+32607722 > tick
+32711205 > tick
+32711206 > tick
+32816858 > input jump
+32816862 > move 0.5,99.91999998688698,0.5 - none
+32816863 > tick
+32816864 > move 0.5,100.2531999805212,0.5 - none
+32816864 > tick
+32848290 < teleport 123 0.5 100 0.5 0 0 0 -90 0 0
+32904943 > move 0.5,99.5,0.5 - none
+32904945 > tick
+32904945 > move - - on_ground
+32904946 > tick
+32931189 < teleport 124 0.5 100 0.5 0 0 0 -90 0 0
+33012157 > move - - none
+33012159 > tick
+33012159 > move - - on_ground
+33012160 > tick
+33105154 > tick
+33105156 > tick
+33205912 > tick
+33205915 > tick
+33308710 > move 0.5,99.91999998688698,0.5 - none
+33308711 > tick
+33308712 > move 0.5,100.2531999805212,0.5 - none
+33308712 > tick
+33344737 < teleport 125 0.5 100 0.5 0 0 0 -90 0 0
+33405344 > move 0.5,99.5,0.5 - none
+33405346 > tick
+33405346 > move - - on_ground
+33405347 > tick
+33432677 < teleport 126 0.5 100 0.5 0 0 0 -90 0 0
+33505596 > move - - none
+33505598 > tick
+33505598 > move - - on_ground
+33505598 > tick
+33606574 > tick
+33606575 > tick
+33706638 > tick
+33706640 > tick
+33808544 > move 0.5,99.91999998688698,0.5 - none
+33808546 > tick
+33808546 > move 0.5,100.2531999805212,0.5 - none
+33808547 > tick
+33834347 < teleport 127 0.5 100 0.5 0 0 0 -90 0 0
+33907106 > move 0.5,99.5,0.5 - none
+33907108 > tick
+33907109 > move - - on_ground
+33907110 > tick
+33932417 < teleport 128 0.5 100 0.5 0 0 0 -90 0 0
+34006707 > move - - none
+34006709 > tick
+34006710 > move - - on_ground
+34006710 > tick
+34106350 > tick
+34107571 > tick
+34206310 > tick
+34207479 > tick
+34307012 > move 0.5,99.91999998688698,0.5 - none
+34307015 > tick
+34307015 > move 0.5,100.2531999805212,0.5 - none
+34307016 > tick
+34335530 < teleport 129 0.5 100 0.5 0 0 0 -90 0 0
+34407098 > move 0.5,99.5,0.5 - none
+34407100 > tick
+34407101 > move - - on_ground
+34408256 > tick
+34431123 < teleport 130 0.5 100 0.5 0 0 0 -90 0 0
+34506897 > move - - none
+34506899 > tick
+34506899 > move - - on_ground
+34506900 > tick
+34613138 > tick
+34613140 > tick
+34711355 > tick
+34711357 > tick
+34806573 > move 0.5,99.91999998688698,0.5 - none
+34806575 > tick
+34806575 > move 0.5,100.2531999805212,0.5 - none
+34806576 > tick
+34832477 < teleport 131 0.5 100 0.5 0 0 0 -90 0 0
+34906858 > move 0.5,99.5,0.5 - none
+34906860 > tick
+34906861 > move - - on_ground
+34906861 > tick
+34934792 < teleport 132 0.5 100 0.5 0 0 0 -90 0 0
+35006838 > move - - none
+35006839 > tick
+35006840 > move - - on_ground
+35006840 > tick
+35106249 > tick
+35107436 > tick
+35206537 > tick
+35206537 > tick
+35306192 > move 0.5,99.91999998688698,0.5 - none
+35310225 > tick
+35310229 > move 0.5,100.2531999805212,0.5 - none
+35310230 > tick
+35334221 < teleport 133 0.5 100 0.5 0 0 0 -90 0 0
+35406760 > move 0.5,99.5,0.5 - none
+35406762 > tick
+35406762 > move - - on_ground
+35406763 > tick
+35434742 < teleport 134 0.5 100 0.5 0 0 0 -90 0 0
+35506926 > move - - none
+35506928 > tick
+35506929 > move - - on_ground
+35506929 > tick
+35606911 > tick
+35606912 > tick
+35706299 > tick
+35707409 > tick
+35806769 > input none
+35806770 > tick
+35806770 > tick
+35906738 > tick
+35906741 > tick
+36006397 > tick
+36006398 > tick
+36107269 > tick
+36107271 > tick
+36206660 > tick
+36206662 > tick
+36306843 > tick
+36306844 > tick
+36409274 > move 0.5,99.5,0.5 - on_ground
+36409277 > tick
+36409277 > tick
+36435223 < teleport 135 0.5 100 0.5 0 0 0 -90 0 0
+36506966 > move - - none
+36506968 > tick
+36506969 > move - - on_ground
+36506969 > tick
+36616365 > tick
+36616367 > tick
+36717376 > tick
+36717378 > tick

@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:verdant_froglight",
-      "protocol_id": 1579
+      "protocol_id": 1602
     },
     "components": {
       "minecraft:attack_animation": {},

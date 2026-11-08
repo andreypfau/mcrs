@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:lilac",
-      "protocol_id": 600
+      "protocol_id": 622
     },
     "components": {
       "minecraft:attack_animation": {},

@@ -1028,7 +1028,7 @@ fn snowy_shepherds_house_1(c: &mut Canvas) {
     c.door(SPRUCE_DOOR, [4, 1, 3], East, Hinge::Right);
     c.door(SPRUCE_DOOR, [1, 1, 7], East, Hinge::Left);
     c.place(&stairs(SPRUCE_STAIRS, East), 0, 0, 7);
-    c.socket([0, 0, 6], "minecraft:buidling_entrance", EMPTY, NOTHING);
+    c.socket([0, 0, 6], "minecraft:building_entrance", EMPTY, NOTHING);
     c.solid(&block("minecraft:loom[facing=north]"), [5, 1, 2], [6, 1, 2]);
     chest(c, [6, 1, 7], West, "village_shepherd");
     c.place(&wall_torch(West), 6, 2, 3);

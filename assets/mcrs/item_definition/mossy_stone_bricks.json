@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:mossy_stone_bricks",
-      "protocol_id": 450
+      "protocol_id": 466
     },
     "components": {
       "minecraft:attack_animation": {},

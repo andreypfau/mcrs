@@ -3,9 +3,9 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:sculk",
-      "protocol_id": 1122,
-      "base_state_id": 31018,
-      "default_state_id": 31018
+      "protocol_id": 1143,
+      "base_state_id": 33076,
+      "default_state_id": 33076
     },
     "components": {
       "minecraft:light_emission": 0,

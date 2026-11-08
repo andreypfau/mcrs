@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:netherrack",
-      "protocol_id": 433
+      "protocol_id": 449
     },
     "components": {
       "minecraft:attack_animation": {},

@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:stone_button",
-      "protocol_id": 857
+      "protocol_id": 879
     },
     "components": {
       "minecraft:attack_animation": {},

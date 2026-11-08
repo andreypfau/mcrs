@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:pale_hanging_moss",
-      "protocol_id": 335
+      "protocol_id": 347
     },
     "components": {
       "minecraft:attack_animation": {},

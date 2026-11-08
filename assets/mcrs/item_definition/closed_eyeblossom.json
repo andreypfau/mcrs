@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:closed_eyeblossom",
-      "protocol_id": 301
+      "protocol_id": 313
     },
     "components": {
       "minecraft:attack_animation": {},

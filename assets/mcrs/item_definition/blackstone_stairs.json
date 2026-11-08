@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:blackstone_stairs",
-      "protocol_id": 1542
+      "protocol_id": 1565
     },
     "components": {
       "minecraft:attack_animation": {},

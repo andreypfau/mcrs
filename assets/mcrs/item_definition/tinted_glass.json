@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:tinted_glass",
-      "protocol_id": 232
+      "protocol_id": 244
     },
     "components": {
       "minecraft:attack_animation": {},

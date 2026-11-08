@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:chiseled_stone_bricks",
-      "protocol_id": 452
+      "protocol_id": 468
     },
     "components": {
       "minecraft:attack_animation": {},

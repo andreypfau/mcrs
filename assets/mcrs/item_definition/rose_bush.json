@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:rose_bush",
-      "protocol_id": 601
+      "protocol_id": 623
     },
     "components": {
       "minecraft:attack_animation": {},

@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:crimson_slab",
-      "protocol_id": 353
+      "protocol_id": 365
     },
     "components": {
       "minecraft:attack_animation": {},

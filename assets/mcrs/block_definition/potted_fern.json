@@ -3,9 +3,9 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:potted_fern",
-      "protocol_id": 474,
-      "base_state_id": 12385,
-      "default_state_id": 12385
+      "protocol_id": 478,
+      "base_state_id": 12796,
+      "default_state_id": 12796
     },
     "components": {
       "minecraft:light_emission": 0,

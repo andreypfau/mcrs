@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:lapis_block",
-      "protocol_id": 233
+      "protocol_id": 245
     },
     "components": {
       "minecraft:attack_animation": {},

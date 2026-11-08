@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:warped_roots",
-      "protocol_id": 323
+      "protocol_id": 335
     },
     "components": {
       "minecraft:attack_animation": {},

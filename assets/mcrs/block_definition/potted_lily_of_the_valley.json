@@ -3,9 +3,9 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:potted_lily_of_the_valley",
-      "protocol_id": 487,
-      "base_state_id": 12398,
-      "default_state_id": 12398
+      "protocol_id": 491,
+      "base_state_id": 12809,
+      "default_state_id": 12809
     },
     "components": {
       "minecraft:light_emission": 0,

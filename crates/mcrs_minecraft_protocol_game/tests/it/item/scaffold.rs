@@ -134,7 +134,7 @@ fn a_slot_writes_a_var_int_count_and_an_empty_sentinel() {
     let slot = ProtoStack::new(Item::OpenEyeblossom.id(), 200, patch());
     let mut wire = Vec::new();
     slot.encode_checked(&lookup, &mut wire).unwrap();
-    assert_eq!(&wire[..4], [0xC8, 0x01, 0xAC, 0x02]);
+    assert_eq!(&wire[..4], [0xC8, 0x01, 0xB8, 0x02]);
     let unchecked = ProtoStack::<Wire>::decode(&mut &wire[..]).unwrap();
     assert_eq!(encoded(&unchecked), wire);
     assert_eq!(

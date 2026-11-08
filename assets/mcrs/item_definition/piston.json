@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:piston",
-      "protocol_id": 830
+      "protocol_id": 852
     },
     "components": {
       "minecraft:attack_animation": {},

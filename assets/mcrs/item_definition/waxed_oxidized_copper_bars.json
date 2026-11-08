@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:waxed_oxidized_copper_bars",
-      "protocol_id": 472
+      "protocol_id": 488
     },
     "components": {
       "minecraft:attack_animation": {},

@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:brain_coral_fan",
-      "protocol_id": 777
+      "protocol_id": 799
     },
     "components": {
       "minecraft:attack_animation": {},

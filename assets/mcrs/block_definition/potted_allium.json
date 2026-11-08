@@ -3,9 +3,9 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:potted_allium",
-      "protocol_id": 479,
-      "base_state_id": 12390,
-      "default_state_id": 12390
+      "protocol_id": 483,
+      "base_state_id": 12801,
+      "default_state_id": 12801
     },
     "components": {
       "minecraft:light_emission": 0,

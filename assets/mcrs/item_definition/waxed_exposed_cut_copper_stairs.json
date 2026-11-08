@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:waxed_exposed_cut_copper_stairs",
-      "protocol_id": 152
+      "protocol_id": 164
     },
     "components": {
       "minecraft:attack_animation": {},

@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:decorated_pot",
-      "protocol_id": 392
+      "protocol_id": 404
     },
     "components": {
       "minecraft:attack_animation": {},

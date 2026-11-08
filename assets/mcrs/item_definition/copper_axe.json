@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:copper_axe",
-      "protocol_id": 1034
+      "protocol_id": 1056
     },
     "components": {
       "minecraft:attack_animation": {},

@@ -15,9 +15,9 @@
           "east"
         ]
       },
-      "protocol_id": 447,
-      "base_state_id": 11229,
-      "default_state_id": 11229
+      "protocol_id": 451,
+      "base_state_id": 11640,
+      "default_state_id": 11640
     },
     "components": {
       "minecraft:light_emission": 0,

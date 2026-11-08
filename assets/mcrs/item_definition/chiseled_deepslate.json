@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:chiseled_deepslate",
-      "protocol_id": 459
+      "protocol_id": 475
     },
     "components": {
       "minecraft:attack_animation": {},

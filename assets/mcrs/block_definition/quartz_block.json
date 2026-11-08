@@ -3,9 +3,9 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:quartz_block",
-      "protocol_id": 531,
-      "base_state_id": 13092,
-      "default_state_id": 13092
+      "protocol_id": 535,
+      "base_state_id": 13503,
+      "default_state_id": 13503
     },
     "components": {
       "minecraft:light_emission": 0,

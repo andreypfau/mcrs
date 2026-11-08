@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:bubble_coral_block",
-      "protocol_id": 763
+      "protocol_id": 785
     },
     "components": {
       "minecraft:attack_animation": {},

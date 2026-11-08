@@ -7,17 +7,20 @@ use mcrs_minecraft_engine_world::session::PlayerSession;
 use mcrs_minecraft_game_mode::GameMode;
 use mcrs_minecraft_network::event::Trigger;
 use mcrs_minecraft_network::metrics::PacketKind;
+use mcrs_minecraft_physics::Birth;
 use mcrs_minecraft_protocol::uuid::Uuid;
 use mcrs_minecraft_protocol_game::clientbound::{
-    ClientboundBlockEvent, ClientboundBlockUpdate, ClientboundChunkBatchFinished,
-    ClientboundChunkBatchStart, ClientboundChunkCacheRadius, ClientboundCommandSuggestions,
-    ClientboundEntityEvent, ClientboundEntityPositionSync, ClientboundForgetLevelChunk,
-    ClientboundGameEvent, ClientboundLightUpdate, ClientboundLogin, ClientboundPlayerAbilities,
+    ClientboundBlockChangedAck, ClientboundBlockDestruction, ClientboundBlockEvent,
+    ClientboundBlockUpdate, ClientboundChunkBatchFinished, ClientboundChunkBatchStart,
+    ClientboundChunkCacheRadius, ClientboundCommandSuggestions, ClientboundEntityEvent,
+    ClientboundEntityPositionSync, ClientboundForgetLevelChunk, ClientboundGameEvent,
+    ClientboundLevelEvent, ClientboundLightUpdate, ClientboundLogin, ClientboundPlayerAbilities,
     ClientboundPlayerLookAt, ClientboundPlayerPosition, ClientboundRespawn,
-    ClientboundSetChunkCacheCenter, ClientboundSetTime, ClientboundSystemChatPacket,
-    ClientboundTabList,
+    ClientboundSectionBlocksUpdate, ClientboundSetChunkCacheCenter, ClientboundSetTime,
+    ClientboundSystemChatPacket, ClientboundTabList,
 };
 use mcrs_minecraft_resource::ResourceKeyBuf;
+use mcrs_minecraft_text::Text;
 use mcrs_voxel::ColumnPos;
 use smallvec::SmallVec;
 use std::sync::Arc;
@@ -50,6 +53,8 @@ pub struct InboundPlayerSpawn {
     /// The keys of the host's `DimensionList`, which no dimension world holds, for
     /// `ClientboundLogin.dimensions`.
     pub dimensions: Arc<[ResourceKeyBuf<mcrs_minecraft_dimension::Dimension>]>,
+    /// The birth of the player: the saved one, or a new one of the tick of the placement.
+    pub birth: Birth,
 }
 
 #[derive(Message, Clone, Debug)]
@@ -112,9 +117,17 @@ impl OutboundPlayerPacket {
 pub enum PacketPayload {
     LightUpdate(ClientboundLightUpdate<'static>),
     BlockUpdate(ClientboundBlockUpdate),
+    /// The changes of more than one block of one section in one broadcast.
+    SectionBlocksUpdate(ClientboundSectionBlocksUpdate<'static>),
     /// A block event that a block took. It is not a change of the column: a client that takes
     /// the column later does not get it.
     BlockEvent(ClientboundBlockEvent),
+    LevelEvent(ClientboundLevelEvent),
+    BlockChangedAck(ClientboundBlockChangedAck),
+    BlockDestruction(ClientboundBlockDestruction),
+    /// Closes the connection of the player with this reason. The host takes it out of the
+    /// packets before they go to the bridge.
+    Disconnect(Text),
     /// A `level_chunk_with_light` packet with its id, encoded once for every player that
     /// receives the column in the same drain.
     ChunkLoad {
@@ -149,6 +162,10 @@ pub enum PacketPayload {
     PlayerPosition(ClientboundPlayerPosition),
     PlayerLookAt(ClientboundPlayerLookAt),
     PlayerAbilities(ClientboundPlayerAbilities),
+    /// A `set_entity_motion`, `set_entity_data` or `update_attributes` packet with its id, about
+    /// the entity of the one player it goes to. The client of that player predicts with it, so
+    /// the muxer never sheds it.
+    OwnEntityState(Bytes),
     SystemChat(ClientboundSystemChatPacket<'static>),
     GameEvent(ClientboundGameEvent),
     /// The `commands` packet with its id, encoded once for every player of one command level.

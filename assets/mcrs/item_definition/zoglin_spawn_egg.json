@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:zoglin_spawn_egg",
-      "protocol_id": 1365
+      "protocol_id": 1387
     },
     "components": {
       "minecraft:attack_animation": {},

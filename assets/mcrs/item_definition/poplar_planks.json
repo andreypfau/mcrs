@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:poplar_planks",
-      "protocol_id": 72
+      "protocol_id": 84
     },
     "components": {
       "minecraft:attack_animation": {},

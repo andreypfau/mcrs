@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:poplar_stairs",
-      "protocol_id": 524
+      "protocol_id": 541
     },
     "components": {
       "minecraft:attack_animation": {},

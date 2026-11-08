@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:end_stone_brick_wall",
-      "protocol_id": 544
+      "protocol_id": 561
     },
     "components": {
       "minecraft:attack_animation": {},

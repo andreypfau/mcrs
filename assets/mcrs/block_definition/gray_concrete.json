@@ -3,9 +3,9 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:gray_concrete",
-      "protocol_id": 776,
-      "base_state_id": 17024,
-      "default_state_id": 17024
+      "protocol_id": 785,
+      "base_state_id": 17847,
+      "default_state_id": 17847
     },
     "components": {
       "minecraft:light_emission": 0,

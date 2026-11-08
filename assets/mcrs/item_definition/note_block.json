@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:note_block",
-      "protocol_id": 856
+      "protocol_id": 878
     },
     "components": {
       "minecraft:attack_animation": {},

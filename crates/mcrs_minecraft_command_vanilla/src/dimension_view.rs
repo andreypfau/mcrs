@@ -4,7 +4,6 @@ use mcrs_minecraft_block_entity::GeneratedBlockEntity;
 use mcrs_minecraft_command_engine::CommandFailure;
 use mcrs_minecraft_core::heightmap::HeightmapName;
 use mcrs_minecraft_engine::teleport::MAX_XZ_BLOCKS;
-use mcrs_minecraft_engine_world::palette::ChunkBlocks;
 use mcrs_minecraft_engine_world::world::dimension::{Dimension, DimensionTypeConfig};
 use mcrs_minecraft_engine_world::world::lifecycle::stage::SectionStage;
 use mcrs_minecraft_engine_world::world::storage::block_entity::{
@@ -13,6 +12,7 @@ use mcrs_minecraft_engine_world::world::storage::block_entity::{
 use mcrs_minecraft_engine_world::world::storage::column::{
     ColumnIndex, ColumnSections, SectionLookup,
 };
+use mcrs_minecraft_engine_world::world::storage::section::SectionIndex;
 use mcrs_minecraft_heightmap::{
     MotionHeightmap, NoLeavesHeightmap, SolidHeightmap, SurfaceHeightmap,
 };
@@ -29,7 +29,16 @@ pub(crate) fn unloaded() -> CommandFailure {
 /// The blocks, the columns and the heightmaps of the dimension of this world.
 #[derive(SystemParam)]
 pub(crate) struct DimensionView<'w, 's> {
-    dimension: Query<'w, 's, (&'static ColumnIndex, &'static DimensionTypeConfig), With<Dimension>>,
+    dimension: Query<
+        'w,
+        's,
+        (
+            &'static ColumnIndex,
+            &'static DimensionTypeConfig,
+            &'static SectionIndex,
+        ),
+        With<Dimension>,
+    >,
     columns: Query<
         'w,
         's,
@@ -41,15 +50,15 @@ pub(crate) struct DimensionView<'w, 's> {
             Option<&'static NoLeavesHeightmap>,
         ),
     >,
-    sections: Query<'w, 's, (&'static ChunkBlocks, &'static SectionStage)>,
+    stages: Query<'w, 's, &'static SectionStage>,
     held: Query<'w, 's, &'static SectionBlockEntities>,
     block_entities: Query<'w, 's, (&'static BlockEntityPos, &'static BlockEntity)>,
 }
 
 impl DimensionView<'_, '_> {
     fn column_entity(&self, x: i32, z: i32) -> Option<Entity> {
-        let (index, _) = self.dimension.single().ok()?;
-        let slot = index.get(&ColumnPos::new(
+        let (column_index, ..) = self.dimension.single().ok()?;
+        let slot = column_index.get(&ColumnPos::new(
             x >> SectionPos::BITS,
             z >> SectionPos::BITS,
         ))?;
@@ -75,9 +84,9 @@ impl DimensionView<'_, '_> {
         self.column(x, z).is_some_and(|column| {
             column.iter().all(|section| match section {
                 SectionLookup::Loaded(entity) => self
-                    .sections
+                    .stages
                     .get(entity)
-                    .is_ok_and(|(_, stage)| *stage == SectionStage::Loaded),
+                    .is_ok_and(|stage| *stage == SectionStage::Loaded),
                 SectionLookup::Unloaded | SectionLookup::OutOfRange => false,
             })
         })
@@ -88,7 +97,7 @@ impl DimensionView<'_, '_> {
         if !self.loaded(x, z) {
             return Err(unloaded());
         }
-        let (_, config) = self.dimension.single().map_err(|_| unloaded())?;
+        let (_, config, _) = self.dimension.single().map_err(|_| unloaded())?;
         let height = i32::try_from(config.height).unwrap_or(i32::MAX);
         let inside = (config.min_y..config.min_y.saturating_add(height)).contains(&y)
             && (-MAX_XZ_BLOCKS..MAX_XZ_BLOCKS).contains(&x)
@@ -100,8 +109,9 @@ impl DimensionView<'_, '_> {
     }
 
     pub(crate) fn block_state(&self, pos: [i32; 3]) -> Option<BlockStateId> {
-        let (blocks, _) = self.sections.get(self.section(pos)?).ok()?;
+        let (.., section_index) = self.dimension.single().ok()?;
         let [x, y, z] = pos;
+        let blocks = section_index.blocks(SectionPos::from(BlockPos::new(x, y, z)))?;
         blocks.get_cell(local(x)?, local(y)?, local(z)?)
     }
 

@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:lapis_ore",
-      "protocol_id": 105
+      "protocol_id": 117
     },
     "components": {
       "minecraft:attack_animation": {},

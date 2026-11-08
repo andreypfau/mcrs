@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:oak_fence_gate",
-      "protocol_id": 933
+      "protocol_id": 955
     },
     "components": {
       "minecraft:attack_animation": {},

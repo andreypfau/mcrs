@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:copper_torch",
-      "protocol_id": 440
+      "protocol_id": 456
     },
     "components": {
       "minecraft:attack_animation": {},

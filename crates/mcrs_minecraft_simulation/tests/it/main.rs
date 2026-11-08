@@ -4,6 +4,8 @@
     clippy::panic,
     reason = "a test reports a failure by panicking"
 )]
+mod colour_oracle;
+mod colour_phases;
 mod conformance_chain;
 mod conformance_set;
 mod conformance_tick;

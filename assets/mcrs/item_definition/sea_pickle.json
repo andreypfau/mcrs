@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:sea_pickle",
-      "protocol_id": 249
+      "protocol_id": 261
     },
     "components": {
       "minecraft:attack_animation": {},

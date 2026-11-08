@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:oxidized_copper_chain",
-      "protocol_id": 477
+      "protocol_id": 493
     },
     "components": {
       "minecraft:attack_animation": {},

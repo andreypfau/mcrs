@@ -3,9 +3,9 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:cracked_nether_bricks",
-      "protocol_id": 1033,
-      "base_state_id": 26457,
-      "default_state_id": 26457
+      "protocol_id": 1042,
+      "base_state_id": 27280,
+      "default_state_id": 27280
     },
     "components": {
       "minecraft:light_emission": 0,

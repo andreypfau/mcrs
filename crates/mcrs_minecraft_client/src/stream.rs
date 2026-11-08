@@ -13,7 +13,7 @@ use mcrs_minecraft_client_world::columns::{
 use mcrs_minecraft_engine_world::world::lifecycle::trace::{ColumnStage, TraceEvent};
 use mcrs_minecraft_mesh::SECTION_SIZE;
 use mcrs_minecraft_registries::CurrentRegistries;
-use mcrs_voxel::{ColumnPos, SectionPos};
+use mcrs_voxel::{BlockPos, ColumnPos, LocalPos, SectionPos};
 
 use crate::cave::{CaveCull, NO_SLOT};
 use crate::tint::{self, BiomeTints};
@@ -113,8 +113,8 @@ pub struct Loader {
     columns: usize,
     sections_total: usize,
     sections: Sections,
-    /// Sections whose light a delta rewrote, present or not.
-    relit: HashSet<[i32; 3]>,
+    /// Sections whose light or blocks a delta rewrote, present or not.
+    stale: HashSet<[i32; 3]>,
     /// Geometry of the meshes placed since the last flush. The flush queues it behind the kills
     /// of the meshes whose room it reuses.
     geometry: Vec<Placement>,
@@ -290,7 +290,7 @@ impl Loader {
             columns: 0,
             sections_total: 0,
             sections: Sections::default(),
-            relit: HashSet::new(),
+            stale: HashSet::new(),
             geometry: Vec::new(),
             replaced: Vec::new(),
             retired_blocks: Vec::new(),
@@ -379,15 +379,39 @@ impl Loader {
         }
     }
 
-    /// A section whose light a delta rewrote has to be meshed again, and so do the
+    /// The faces and the shade of a block reach into the sections that touch it, across a
+    /// face, an edge or a corner.
+    fn mark_stale_around(&mut self, at: BlockPos) {
+        let section = SectionPos::from(at);
+        let local = LocalPos::from(at);
+        let reach = |coordinate: u8| {
+            let low = if coordinate == 0 { -1 } else { 0 };
+            let high = if usize::from(coordinate) == SectionPos::MASK {
+                1
+            } else {
+                0
+            };
+            low..=high
+        };
+        for dy in reach(local.y()) {
+            for dz in reach(local.z()) {
+                for dx in reach(local.x()) {
+                    self.stale
+                        .insert([section.x + dx, section.y + dy, section.z + dz]);
+                }
+            }
+        }
+    }
+
+    /// A section whose light or blocks a delta rewrote has to be meshed again, and so do the
     /// six around it: a face samples the light of the cell it faces, which for a
     /// face on the section boundary lies in the neighbour. One still being meshed
     /// waits for the next frame, since the task holds the light it started with. The mesh
     /// a section has stays drawn until the new one replaces it.
-    fn remesh_relit(&mut self, store: &ColumnStore, cave: &mut CaveCull) {
-        for at in std::mem::take(&mut self.relit) {
+    fn remesh_stale(&mut self, store: &ColumnStore, cave: &mut CaveCull) {
+        for at in std::mem::take(&mut self.stale) {
             if self.sections.is_meshing(at) {
-                self.relit.insert(at);
+                self.stale.insert(at);
             } else if self.meshable(at, store) {
                 self.enqueue(at);
             } else {
@@ -581,6 +605,11 @@ impl Loader {
                         self.enqueue_around(pos, extent, store);
                     }
                 }
+                ColumnChange::Filled(_) => self.sections_total += 1,
+                ColumnChange::Reblocked(at, state) => {
+                    catalog.owe(state.number());
+                    self.mark_stale_around(at);
+                }
                 ColumnChange::Relit(pos, rows) => {
                     // A vertex takes its shade from the four cells around it, so
                     // a section's mesh depends on the sections diagonally past
@@ -590,7 +619,7 @@ impl Loader {
                         for dy in -1..=1 {
                             for dz in -1..=1 {
                                 for dx in -1..=1 {
-                                    self.relit.insert([pos.x + dx, sy + dy, pos.z + dz]);
+                                    self.stale.insert([pos.x + dx, sy + dy, pos.z + dz]);
                                 }
                             }
                         }
@@ -1589,7 +1618,7 @@ fn place_meshes(
         loader.land(mesh, slot, &mut cave);
     }
 
-    loader.remesh_relit(&store, &mut cave);
+    loader.remesh_stale(&store, &mut cave);
 }
 
 pub(crate) fn flush_streams(mut loader: ResMut<Loader>, uploads: Res<Uploads>) {
@@ -2217,8 +2246,8 @@ mod tests {
         // new mesh takes; the second finds the room the first gave back, and leaves the stream
         // dead enough to be rebuilt.
         for _ in 0..2 {
-            loader.relit.insert(relit);
-            loader.remesh_relit(&store, &mut cave);
+            loader.stale.insert(relit);
+            loader.remesh_stale(&store, &mut cave);
             assert!(
                 loader.sections.work(relit) == Work::Queued,
                 "the section is meshed again"
@@ -2262,8 +2291,8 @@ mod tests {
         land_mesh(&mut loader, relit, &mut cave);
         gpu.flush(&mut loader, |_| {});
 
-        loader.relit.insert(relit);
-        loader.remesh_relit(&store, &mut cave);
+        loader.stale.insert(relit);
+        loader.remesh_stale(&store, &mut cave);
         let new = land_mesh(&mut loader, relit, &mut cave);
         gpu.flush(&mut loader, |_| {});
         assert_eq!(

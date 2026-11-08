@@ -3,9 +3,9 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:pale_moss_block",
-      "protocol_id": 1281,
-      "base_state_id": 35611,
-      "default_state_id": 35611
+      "protocol_id": 1303,
+      "base_state_id": 37670,
+      "default_state_id": 37670
     },
     "components": {
       "minecraft:light_emission": 0,

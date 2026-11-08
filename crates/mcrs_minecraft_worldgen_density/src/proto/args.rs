@@ -10,6 +10,7 @@ validated!(
     GradientArguments,
     IntervalSelectArguments,
     FindTopSurfaceArguments,
+    UpscaleArguments,
 );
 
 #[derive(Hash, PartialEq, Eq, Debug, Clone, Serialize, Deserialize)]
@@ -242,5 +243,57 @@ mod tests {
         serde_json::from_str::<ProtoDensityFunction>(ok).unwrap();
         rejects(&ok.replace("-4064", "-4065"));
         rejects(&ok.replace("\"cell_height\":8", "\"cell_height\":0"));
+    }
+}
+
+const MAX_UPSCALE_CELL_SIZE: u32 = 64;
+
+#[derive(Hash, PartialEq, Eq, Debug, Clone, Copy, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum UpscaleMode {
+    NearestNeighbor,
+    InterpolateLinear,
+    InterpolateCosine,
+    InterpolateCubic,
+    BSplineCubic,
+}
+
+#[derive(Hash, PartialEq, Eq, Debug, Clone, Copy, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct UpscaleAxis {
+    pub cell_size: NonZeroU32,
+    pub mode: UpscaleMode,
+}
+
+impl UpscaleAxis {
+    #[must_use]
+    pub const fn linear(cell_size: NonZeroU32) -> Self {
+        Self {
+            cell_size,
+            mode: UpscaleMode::InterpolateLinear,
+        }
+    }
+}
+
+#[derive(Hash, PartialEq, Eq, Debug, Clone, Serialize, Deserialize)]
+#[serde(remote = "Self", deny_unknown_fields)]
+pub struct UpscaleArguments {
+    pub input: DensityFunctionHolder,
+    pub x: UpscaleAxis,
+    pub y: UpscaleAxis,
+    pub z: UpscaleAxis,
+}
+
+impl Validate for UpscaleArguments {
+    fn validate(&self) -> Result<(), String> {
+        for axis in [self.x, self.y, self.z] {
+            if axis.cell_size.get() > MAX_UPSCALE_CELL_SIZE {
+                return Err(format!(
+                    "Value must be within range [1;{MAX_UPSCALE_CELL_SIZE}]: {}",
+                    axis.cell_size
+                ));
+            }
+        }
+        Ok(())
     }
 }

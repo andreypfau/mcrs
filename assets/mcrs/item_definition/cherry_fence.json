@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:cherry_fence",
-      "protocol_id": 422
+      "protocol_id": 438
     },
     "components": {
       "minecraft:attack_animation": {},

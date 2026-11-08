@@ -8,12 +8,15 @@ use mcrs_minecraft_engine_world::world::sub_app::{
 };
 use tracing::{debug, info, warn};
 
+use crate::banlist::BanListHostPlugin;
+use crate::coordinator::birth_clock::BirthClockPlugin;
 use crate::coordinator::clock::WorldClockHostPlugin;
 use crate::coordinator::dim::DimSubAppHandle;
 use crate::coordinator::dim_cells::DimCellsPlugin;
+use crate::whitelist::WhitelistHostPlugin;
 
 /// The coordinator: the dimension worlds and their lockstep tick, the queues that spawn and
-/// despawn them, and the clocks.
+/// despawn them, the clocks, the whitelist and the ban list.
 pub struct CoordinatorPlugin;
 
 impl Plugin for CoordinatorPlugin {
@@ -26,7 +29,12 @@ impl Plugin for CoordinatorPlugin {
                 queue.0.push(trigger.event().entity);
             },
         );
-        app.add_plugins(WorldClockHostPlugin);
+        app.add_plugins((
+            WorldClockHostPlugin,
+            BirthClockPlugin,
+            WhitelistHostPlugin,
+            BanListHostPlugin,
+        ));
         app.add_systems(
             OnEnter(AppState::Playing),
             enqueue_dim_spawns.in_set(DimSpawnEnqueue),

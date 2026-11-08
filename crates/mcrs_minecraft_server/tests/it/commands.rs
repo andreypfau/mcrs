@@ -154,9 +154,11 @@ fn load_stone_column(server: &mut PlayServer) {
     use mcrs_minecraft_engine_world::world::storage::column::{
         ColumnIndex, ColumnPos, ColumnSections, ColumnSlot,
     };
+    use mcrs_minecraft_engine_world::world::storage::section::SectionIndex;
     use mcrs_minecraft_heightmap::{
         MotionHeightmap, NoLeavesHeightmap, SolidHeightmap, SurfaceHeightmap,
     };
+    use mcrs_voxel::SectionPos;
     let stone = crate::support::standalone_corpus()
         .0
         .default_state("minecraft:stone")
@@ -175,12 +177,17 @@ fn load_stone_column(server: &mut PlayServer) {
         } else {
             mcrs_voxel::BlockStateId::AIR
         };
-        let section = world
-            .spawn((
-                ChunkBlocks::new(SectionStates::homogeneous(state)),
-                SectionStage::Loaded,
-            ))
-            .id();
+        let section = world.spawn(SectionStage::Loaded).id();
+        let pos = SectionPos::new(0, chunk_y, 0);
+        let mut index = world.get_mut::<SectionIndex>(dimension).unwrap();
+        index.insert(pos, section);
+        index.land(
+            pos,
+            section,
+            ChunkBlocks::new(SectionStates::homogeneous(state)),
+            None,
+            false,
+        );
         sections.set_loaded(chunk_y, section);
     }
     let mut surface = mcrs_minecraft_chunk::ColumnHeights::new(config.height, config.min_y);
@@ -2122,14 +2129,17 @@ fn teleport_ids(packets: &[PacketPayload]) -> Vec<i32> {
         .collect()
 }
 
-fn accept_teleports(server: &mut PlayServer, anchor: Entity, ids: &[i32]) {
+/// Accepts each of `ids` at the position the player has in `dim`, as a client that computed the
+/// destination of the teleport.
+fn accept_teleports(server: &mut PlayServer, dim: Entity, anchor: Entity, ids: &[i32]) {
     use mcrs_minecraft_protocol_game::serverbound::ServerboundAcceptTeleportation;
+    let at = transform_in(server, dim, anchor).translation;
     for &id in ids {
         server.queue(
             anchor,
             &ServerboundAcceptTeleportation {
                 teleport_id: VarInt(id),
-                position: mcrs_minecraft_protocol_game::Position::default(),
+                position: at.into(),
                 look: mcrs_minecraft_core::Look::default(),
             },
         );
@@ -2148,8 +2158,8 @@ fn a_client_move_after_it_accepts_each_teleport_moves_the_player() {
         Limits::default(),
     );
     let (op, joined) = server.join(OPERATOR, "Op");
-    accept_teleports(&mut server, op, &teleport_ids(&joined));
     let overworld = server.dim;
+    accept_teleports(&mut server, overworld, op, &teleport_ids(&joined));
     let end = host_app::label_of(&server.app, "minecraft:the_end");
     let cases = [
         ("tp @s 2 64 2", overworld, DVec3::new(3.0, 64.0, 2.0)),
@@ -2162,7 +2172,7 @@ fn a_client_move_after_it_accepts_each_teleport_moves_the_player() {
     for (line, dim, step) in cases {
         let ids = teleport_ids(&command(&mut server, op, line));
         assert_eq!(ids.len(), 1, "{line}: one position per move");
-        accept_teleports(&mut server, op, &ids);
+        accept_teleports(&mut server, dim, op, &ids);
         let packets = server.send(
             op,
             &ServerboundMovePlayerPos {
@@ -2205,13 +2215,14 @@ fn a_client_move_is_ignored_until_the_client_accepts_the_teleport() {
         DVec3::new(2.5, 64.0, 2.5),
         "two teleports are unconfirmed"
     );
-    accept_teleports(&mut server, op, &pending[..1]);
+    let dim = server.dim;
+    accept_teleports(&mut server, dim, op, &pending[..1]);
     assert_eq!(
         move_to_step(&mut server),
         DVec3::new(2.5, 64.0, 2.5),
-        "one teleport is still unconfirmed"
+        "TP-CONFIRM-ACC-002: an accept of a replaced teleport confirms nothing"
     );
-    accept_teleports(&mut server, op, &pending[1..]);
+    accept_teleports(&mut server, dim, op, &pending[1..]);
     assert_eq!(move_to_step(&mut server), step);
 }
 
@@ -2250,7 +2261,8 @@ fn login_sends_one_position_and_teleport_ids_follow_the_counter() {
     let second = teleport_ids(&command(&mut server, op, "tp 0 101 0"));
     assert_eq!(
         (teleport_ids(&joined), first, second),
-        (vec![0], vec![1], vec![2])
+        (vec![1], vec![2], vec![3]),
+        "TP-CONFIRM-ID-001: the first teleport of a connection has the id 1"
     );
 }
 

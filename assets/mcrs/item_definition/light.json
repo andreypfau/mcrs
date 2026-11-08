@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:light",
-      "protocol_id": 578
+      "protocol_id": 595
     },
     "components": {
       "minecraft:attack_animation": {},

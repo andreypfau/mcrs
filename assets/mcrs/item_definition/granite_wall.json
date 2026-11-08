@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:granite_wall",
-      "protocol_id": 537
+      "protocol_id": 554
     },
     "components": {
       "minecraft:attack_animation": {},

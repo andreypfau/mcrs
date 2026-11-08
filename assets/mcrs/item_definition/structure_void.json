@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:structure_void",
-      "protocol_id": 655
+      "protocol_id": 677
     },
     "components": {
       "minecraft:attack_animation": {},

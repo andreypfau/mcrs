@@ -186,6 +186,7 @@ pub fn on_known_packs_response(
     con.write_packet(&EncodedBody::<ClientboundUpdateTags>::new(network.tags()));
 
     con.write_packet(&ClientboundFinishConfiguration);
+    con.raw.check_play_moves();
 
     commands.entity(entity).remove::<AwaitingKnownPacks>();
 }
@@ -299,6 +300,7 @@ pub fn request_initial_player_spawn(
         };
         requests.write(JoinRequested {
             session: session.0,
+            saved_birth: saved.as_ref().and_then(|dat| dat.birth),
             saved_dimension: saved.map(|dat| dat.dimension),
             snapshot,
         });

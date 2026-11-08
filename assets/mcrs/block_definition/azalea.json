@@ -3,9 +3,9 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:azalea",
-      "protocol_id": 1231,
-      "base_state_id": 33719,
-      "default_state_id": 33719
+      "protocol_id": 1253,
+      "base_state_id": 35778,
+      "default_state_id": 35778
     },
     "components": {
       "minecraft:light_emission": 0,

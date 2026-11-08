@@ -1,0 +1,80 @@
+//! The cost of the layers per packet, on one core with a warm cache.
+
+use std::hint::black_box;
+
+use criterion::Criterion;
+use criterion::criterion_group;
+use criterion::criterion_main;
+use mcrs_minecraft_move_validate::{Checked, MoveGuard, Verdict, check_serverbound};
+use mcrs_minecraft_protocol::packets::table::game_serverbound::NAMES;
+use mcrs_minecraft_protocol::packets::table::row_of;
+use std::time::Duration;
+
+fn id(name: &str) -> i32 {
+    row_of(NAMES, name).unwrap_or(-1)
+}
+
+/// The packets of one client tick of a walking player.
+fn tick_packets() -> [(i32, Vec<u8>); 3] {
+    let position: Vec<u8> = [0.5f64, 64.0, -0.5]
+        .iter()
+        .flat_map(|value| value.to_be_bytes())
+        .chain([10.0f32, 20.0].iter().flat_map(|value| value.to_be_bytes()))
+        .chain([1])
+        .collect();
+    [
+        (id("player_input"), vec![0x01]),
+        (id("move_player_pos_rot"), position),
+        (id("client_tick_end"), Vec::new()),
+    ]
+}
+
+fn layer_0(c: &mut Criterion) {
+    let packets = tick_packets();
+    c.bench_function("layer 0, the three packets of a walking tick", |b| {
+        b.iter(|| {
+            for (id, body) in &packets {
+                black_box(check_serverbound(black_box(*id), black_box(body)));
+            }
+        });
+    });
+}
+
+/// One server tick with one predicted change and one client tick that answers its probes:
+/// three writes and five serverbound packets.
+fn layer_1(c: &mut Criterion) {
+    let checked = |id: i32, body: &[u8]| match check_serverbound(id, body) {
+        Verdict::Pass(checked) => Some(checked),
+        Verdict::Disconnect(_) => None,
+    };
+    let packets: Vec<Checked> = tick_packets()
+        .iter()
+        .filter_map(|(id, body)| checked(*id, body))
+        .collect();
+    let pong = id("pong");
+    let mut guard = MoveGuard::new();
+    let mut reports = Vec::new();
+    let mut now = Duration::ZERO;
+    c.bench_function("layer 1, three writes and five packets of one tick", |b| {
+        b.iter(|| {
+            now += Duration::from_millis(50);
+            let probes = [
+                guard.change(now),
+                guard.close_changes(now),
+                guard.end_server_tick(now),
+            ];
+            for probe in probes.into_iter().flatten() {
+                if let Some(answer) = checked(pong, &probe.to_be_bytes()) {
+                    black_box(guard.serverbound(&answer, now, &mut reports));
+                }
+            }
+            for packet in &packets {
+                black_box(guard.serverbound(black_box(packet), now, &mut reports));
+            }
+            reports.clear();
+        });
+    });
+}
+
+criterion_group!(layers, layer_0, layer_1);
+criterion_main!(layers);

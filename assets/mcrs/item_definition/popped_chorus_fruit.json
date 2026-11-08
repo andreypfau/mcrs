@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:popped_chorus_fruit",
-      "protocol_id": 1438
+      "protocol_id": 1460
     },
     "components": {
       "minecraft:attack_animation": {},

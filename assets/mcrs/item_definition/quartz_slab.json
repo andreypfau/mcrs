@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:quartz_slab",
-      "protocol_id": 365
+      "protocol_id": 377
     },
     "components": {
       "minecraft:attack_animation": {},

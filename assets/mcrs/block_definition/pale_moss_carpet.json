@@ -29,9 +29,9 @@
           "tall"
         ]
       },
-      "protocol_id": 1282,
-      "base_state_id": 35612,
-      "default_state_id": 35612
+      "protocol_id": 1304,
+      "base_state_id": 37671,
+      "default_state_id": 37671
     },
     "components": {
       "minecraft:light_emission": 0,

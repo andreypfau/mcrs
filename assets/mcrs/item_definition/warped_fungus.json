@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:warped_fungus",
-      "protocol_id": 321
+      "protocol_id": 333
     },
     "components": {
       "minecraft:attack_animation": {},

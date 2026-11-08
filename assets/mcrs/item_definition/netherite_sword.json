@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:netherite_sword",
-      "protocol_id": 1056
+      "protocol_id": 1078
     },
     "components": {
       "minecraft:attack_animation": {},

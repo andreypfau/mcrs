@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:orange_wool",
-      "protocol_id": 251
+      "protocol_id": 263
     },
     "components": {
       "minecraft:attack_animation": {},

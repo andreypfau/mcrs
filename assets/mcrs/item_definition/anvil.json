@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:anvil",
-      "protocol_id": 553
+      "protocol_id": 570
     },
     "components": {
       "minecraft:attack_animation": {},

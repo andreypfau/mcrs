@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:magenta_wool_slab",
-      "protocol_id": 284
+      "protocol_id": 296
     },
     "components": {
       "minecraft:attack_animation": {},

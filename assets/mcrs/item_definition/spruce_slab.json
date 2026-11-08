@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:spruce_slab",
-      "protocol_id": 342
+      "protocol_id": 354
     },
     "components": {
       "minecraft:attack_animation": {},

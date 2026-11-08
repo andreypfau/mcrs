@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:light_gray_bed",
-      "protocol_id": 1229
+      "protocol_id": 1251
     },
     "components": {
       "minecraft:attack_animation": {},

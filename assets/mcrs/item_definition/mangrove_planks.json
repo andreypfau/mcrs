@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:mangrove_planks",
-      "protocol_id": 71
+      "protocol_id": 83
     },
     "components": {
       "minecraft:attack_animation": {},

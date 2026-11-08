@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:nether_brick_fence",
-      "protocol_id": 501
+      "protocol_id": 517
     },
     "components": {
       "minecraft:attack_animation": {},

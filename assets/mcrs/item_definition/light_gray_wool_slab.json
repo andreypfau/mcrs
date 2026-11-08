@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:light_gray_wool_slab",
-      "protocol_id": 290
+      "protocol_id": 302
     },
     "components": {
       "minecraft:attack_animation": {},

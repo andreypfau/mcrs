@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:mangrove_propagule",
-      "protocol_id": 85
+      "protocol_id": 97
     },
     "components": {
       "minecraft:attack_animation": {},

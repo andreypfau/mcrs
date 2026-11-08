@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:spyglass",
-      "protocol_id": 1190
+      "protocol_id": 1212
     },
     "components": {
       "minecraft:attack_animation": {},

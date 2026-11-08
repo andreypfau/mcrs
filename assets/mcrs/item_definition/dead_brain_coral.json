@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:dead_brain_coral",
-      "protocol_id": 771
+      "protocol_id": 793
     },
     "components": {
       "minecraft:attack_animation": {},

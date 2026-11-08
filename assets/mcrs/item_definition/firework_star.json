@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:firework_star",
-      "protocol_id": 1397
+      "protocol_id": 1419
     },
     "components": {
       "minecraft:attack_animation": {},

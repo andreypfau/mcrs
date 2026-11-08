@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:spawner",
-      "protocol_id": 402
+      "protocol_id": 414
     },
     "components": {
       "minecraft:attack_animation": {},

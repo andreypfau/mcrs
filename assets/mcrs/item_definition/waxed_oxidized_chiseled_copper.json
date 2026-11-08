@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:waxed_oxidized_chiseled_copper",
-      "protocol_id": 138
+      "protocol_id": 150
     },
     "components": {
       "minecraft:attack_animation": {},

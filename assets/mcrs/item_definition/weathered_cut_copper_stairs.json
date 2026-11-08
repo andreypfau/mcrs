@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:weathered_cut_copper_stairs",
-      "protocol_id": 149
+      "protocol_id": 161
     },
     "components": {
       "minecraft:attack_animation": {},

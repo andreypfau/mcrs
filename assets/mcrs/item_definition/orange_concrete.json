@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:orange_concrete",
-      "protocol_id": 690
+      "protocol_id": 712
     },
     "components": {
       "minecraft:attack_animation": {},

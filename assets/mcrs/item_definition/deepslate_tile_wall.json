@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:deepslate_tile_wall",
-      "protocol_id": 552
+      "protocol_id": 569
     },
     "components": {
       "minecraft:attack_animation": {},

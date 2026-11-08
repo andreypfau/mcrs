@@ -3,9 +3,9 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:cauldron",
-      "protocol_id": 437,
-      "base_state_id": 11196,
-      "default_state_id": 11196
+      "protocol_id": 441,
+      "base_state_id": 11607,
+      "default_state_id": 11607
     },
     "components": {
       "minecraft:light_emission": 0,

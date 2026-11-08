@@ -3,9 +3,9 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:red_sandstone",
-      "protocol_id": 649,
-      "base_state_id": 15096,
-      "default_state_id": 15096
+      "protocol_id": 658,
+      "base_state_id": 15919,
+      "default_state_id": 15919
     },
     "components": {
       "minecraft:light_emission": 0,

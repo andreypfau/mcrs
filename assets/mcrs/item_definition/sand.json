@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:sand",
-      "protocol_id": 88
+      "protocol_id": 100
     },
     "components": {
       "minecraft:attack_animation": {},

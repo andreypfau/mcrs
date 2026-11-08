@@ -153,14 +153,14 @@ pub const SPAWNS_COLD_VARIANT_FARM_ANIMALS: TagKey<'static, crate::Biome> =
     TagKey::new(rl!("minecraft:spawns_cold_variant_farm_animals"));
 pub const SPAWNS_COLD_VARIANT_FROGS: TagKey<'static, crate::Biome> =
     TagKey::new(rl!("minecraft:spawns_cold_variant_frogs"));
+pub const SPAWNS_COLD_VARIANTS_UNDERGROUND: TagKey<'static, crate::Biome> =
+    TagKey::new(rl!("minecraft:spawns_cold_variants_underground"));
 pub const SPAWNS_CORAL_VARIANT_ZOMBIE_NAUTILUS: TagKey<'static, crate::Biome> =
     TagKey::new(rl!("minecraft:spawns_coral_variant_zombie_nautilus"));
 pub const SPAWNS_GOLD_RABBITS: TagKey<'static, crate::Biome> =
     TagKey::new(rl!("minecraft:spawns_gold_rabbits"));
 pub const SPAWNS_SNOW_FOXES: TagKey<'static, crate::Biome> =
     TagKey::new(rl!("minecraft:spawns_snow_foxes"));
-pub const SPAWNS_STRAYS_WITHOUT_POWDER_SNOW: TagKey<'static, crate::Biome> =
-    TagKey::new(rl!("minecraft:spawns_strays_without_powder_snow"));
 pub const SPAWNS_WARM_VARIANT_FARM_ANIMALS: TagKey<'static, crate::Biome> =
     TagKey::new(rl!("minecraft:spawns_warm_variant_farm_animals"));
 pub const SPAWNS_WARM_VARIANT_FROGS: TagKey<'static, crate::Biome> =

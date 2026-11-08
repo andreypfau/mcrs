@@ -109,7 +109,7 @@ pub fn shuffle<T, R: Random>(items: &mut [T], rng: &mut R) {
     }
 }
 
-/// `Util.shuffledCopy`.
+/// A shuffled copy of `items`, with the draw order of [`shuffle`].
 pub fn shuffled<T: Clone, R: Random>(items: &[T], rng: &mut R) -> Vec<T> {
     let mut copy = items.to_vec();
     shuffle(&mut copy, rng);

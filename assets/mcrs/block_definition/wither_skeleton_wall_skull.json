@@ -15,9 +15,9 @@
           false
         ]
       },
-      "protocol_id": 509,
-      "base_state_id": 12756,
-      "default_state_id": 12757
+      "protocol_id": 513,
+      "base_state_id": 13167,
+      "default_state_id": 13168
     },
     "components": {
       "minecraft:light_emission": 0,
@@ -42,6 +42,7 @@
       },
       "minecraft:loot": "minecraft:blocks/wither_skeleton_skull",
       "mcrs:use_shape_for_light_occlusion": false,
+      "mcrs:occlusion_shape": [],
       "mcrs:emissive_rendering": false,
       "mcrs:block_sound_set": "minecraft:stone"
     },
@@ -54,9 +55,6 @@
           ],
           "minecraft:selection_box": [
             { "origin": [-4, 4, 0], "size": [8, 8, 8] }
-          ],
-          "mcrs:occlusion_shape": [
-            { "origin": [-4, 4, 0], "size": [8, 8, 8] }
           ]
         }
       },
@@ -67,9 +65,6 @@
             { "origin": [-4, 4, -8], "size": [8, 8, 8] }
           ],
           "minecraft:selection_box": [
-            { "origin": [-4, 4, -8], "size": [8, 8, 8] }
-          ],
-          "mcrs:occlusion_shape": [
             { "origin": [-4, 4, -8], "size": [8, 8, 8] }
           ]
         }
@@ -82,9 +77,6 @@
           ],
           "minecraft:selection_box": [
             { "origin": [0, 4, -4], "size": [8, 8, 8] }
-          ],
-          "mcrs:occlusion_shape": [
-            { "origin": [0, 4, -4], "size": [8, 8, 8] }
           ]
         }
       },
@@ -95,9 +87,6 @@
             { "origin": [-8, 4, -4], "size": [8, 8, 8] }
           ],
           "minecraft:selection_box": [
-            { "origin": [-8, 4, -4], "size": [8, 8, 8] }
-          ],
-          "mcrs:occlusion_shape": [
             { "origin": [-8, 4, -4], "size": [8, 8, 8] }
           ]
         }

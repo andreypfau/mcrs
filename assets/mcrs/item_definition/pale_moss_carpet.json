@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:pale_moss_carpet",
-      "protocol_id": 334
+      "protocol_id": 346
     },
     "components": {
       "minecraft:attack_animation": {},

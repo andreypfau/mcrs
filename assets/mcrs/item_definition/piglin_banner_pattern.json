@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:piglin_banner_pattern",
-      "protocol_id": 1502
+      "protocol_id": 1525
     },
     "components": {
       "minecraft:attack_animation": {},

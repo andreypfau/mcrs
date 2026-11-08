@@ -2,6 +2,7 @@
 //! `time`, and the command effects they write.
 
 // std: bevy_ecs needs it.
+mod ban;
 mod dimension_view;
 mod execute;
 mod execute_view;
@@ -14,6 +15,7 @@ mod select;
 mod set;
 mod teleport;
 mod time;
+mod whitelist;
 
 pub use gamemode::SetGameMode;
 pub use plugin::VanillaCommandsPlugin;

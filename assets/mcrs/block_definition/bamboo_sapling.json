@@ -3,9 +3,9 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:bamboo_sapling",
-      "protocol_id": 882,
-      "base_state_id": 18641,
-      "default_state_id": 18641
+      "protocol_id": 891,
+      "base_state_id": 19464,
+      "default_state_id": 19464
     },
     "components": {
       "minecraft:light_emission": 0,

@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:blue_orchid",
-      "protocol_id": 303
+      "protocol_id": 315
     },
     "components": {
       "minecraft:attack_animation": {},

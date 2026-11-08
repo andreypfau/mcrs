@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:jungle_wood",
-      "protocol_id": 206
+      "protocol_id": 218
     },
     "components": {
       "minecraft:attack_animation": {},

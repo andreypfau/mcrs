@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:poplar_slab",
-      "protocol_id": 350
+      "protocol_id": 362
     },
     "components": {
       "minecraft:attack_animation": {},

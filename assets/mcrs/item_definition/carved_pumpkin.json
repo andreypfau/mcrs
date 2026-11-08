@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:carved_pumpkin",
-      "protocol_id": 431
+      "protocol_id": 447
     },
     "components": {
       "minecraft:attack_animation": {},
@@ -26,8 +26,10 @@
       "minecraft:enchantments": {},
       "minecraft:equippable": {
         "slot": "head",
+        "equip_sound": "minecraft:item.armor.equip_generic",
         "camera_overlay": "minecraft:misc/pumpkinblur",
-        "swappable": false
+        "swappable": false,
+        "shearing_sound": "minecraft:item.shears.snip"
       },
       "minecraft:interact_animation": {},
       "minecraft:item_model": "minecraft:carved_pumpkin",

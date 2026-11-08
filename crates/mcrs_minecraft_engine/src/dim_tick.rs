@@ -15,6 +15,7 @@ use mcrs_minecraft_engine_world::world::storage::column::ColumnPosComponent;
 use mcrs_minecraft_environment::world_clock::WorldClocks;
 use mcrs_voxel::{ColumnPos, SectionPos};
 
+use crate::banlist::{BanList, EditBans};
 use crate::bus::{
     InboundPlayerDespawn, InboundPlayerPacket, InboundPlayerSpawn, OutboundPlayerReleased,
 };
@@ -26,6 +27,7 @@ use crate::column_request::ColumnRequest;
 use crate::column_store::{ColumnStoreInput, ColumnStoreLink, ColumnStoreOutput};
 use crate::column_streams::ColumnRequests;
 use crate::command_handoff::CommandHandoff;
+use crate::coordinator::birth_clock::BirthClock;
 use crate::coordinator::clock::{EditClock, GameTime};
 use crate::coordinator::ops::OpList;
 use crate::coordinator::running_dimensions::RunningDimensions;
@@ -38,6 +40,7 @@ use crate::player_order::OrderedPlayer;
 use crate::player_roster::{ForeignPlayers, OwnPlayers, RosterRow};
 use crate::tile_events::TileEvents;
 use crate::to_muxer::ClientOutput;
+use crate::whitelist::{EditWhitelist, Whitelist};
 
 /// The host schedule that ticks the dimension worlds, right after `Last`: each world takes
 /// in what the host sent during the update.
@@ -65,8 +68,11 @@ pub type DimWorld = SubAppWorld<DimInput, DimOutput>;
 /// when the host changed it since the last tick; a new world gets every copy when it spawns.
 pub struct DimInput {
     pub(crate) game_time: GameTime,
+    pub(crate) birth_clock: BirthClock,
     pub(crate) clocks: Option<WorldClocks>,
     pub(crate) ops: Option<OpList>,
+    pub(crate) whitelist: Option<Whitelist>,
+    pub(crate) bans: Option<BanList>,
     pub(crate) registries: Option<Versioned<RegistrySnapshot>>,
     pub(crate) dimensions: Option<RunningDimensions>,
     /// The players of the other worlds, in a tick whose input carries commands.
@@ -97,6 +103,10 @@ pub struct DimOutput {
     pub(crate) roster: Vec<RosterRow>,
     /// The changes to the world clocks that the tick made.
     pub(crate) clock_edits: Vec<EditClock>,
+    /// The changes to the whitelist that the tick made.
+    pub(crate) whitelist_edits: Vec<EditWhitelist>,
+    /// The changes to the ban list that the tick made.
+    pub(crate) ban_edits: Vec<EditBans>,
     /// What the tick hands the other cells of the world. A world of one cell hands nothing.
     pub(crate) cell_mail: CellMail,
     /// The requests of the tick to the data layer of the world, in order.
@@ -113,6 +123,8 @@ impl DimOutput {
         self.client.append(other.client);
         self.departures.extend(other.departures);
         self.clock_edits.extend(other.clock_edits);
+        self.whitelist_edits.extend(other.whitelist_edits);
+        self.ban_edits.extend(other.ban_edits);
     }
 }
 
@@ -168,11 +180,18 @@ fn apply_input(world: &mut World, _tick: Tick, input: DimInput) {
     if let Some(mut time) = world.get_resource_mut::<GameTime>() {
         time.set_if_neq(input.game_time);
     }
+    world.insert_resource(input.birth_clock);
     if let Some(clocks) = input.clocks {
         world.insert_resource(clocks);
     }
     if let Some(ops) = input.ops {
         world.insert_resource(ops);
+    }
+    if let Some(whitelist) = input.whitelist {
+        world.insert_resource(whitelist);
+    }
+    if let Some(bans) = input.bans {
+        world.insert_resource(bans);
     }
     if let Some(registries) = input.registries {
         mcrs_minecraft_engine_registries::apply_registries(world, registries);
@@ -244,11 +263,15 @@ fn take_output(world: &mut World) -> DimOutput {
     if let Some(mut mail) = world.get_resource_mut::<DimMail>() {
         output.client.orders = std::mem::take(&mut mail.orders);
         output.clock_edits = std::mem::take(&mut mail.clock_edits);
+        output.whitelist_edits = std::mem::take(&mut mail.whitelist_edits);
+        output.ban_edits = std::mem::take(&mut mail.ban_edits);
         output.client.handoffs = std::mem::take(&mut mail.handoffs);
     }
     drain_into(world, &mut output.client.views);
     drain_into(world, &mut output.client.column_versions);
     drain_into(world, &mut output.client.column_changes);
+    drain_into(world, &mut output.client.positions);
+    drain_into(world, &mut output.client.block_acks);
     if let Some(mut store) = world.get_resource_mut::<ColumnStoreLink>() {
         store.take_sent(&mut output.store_inputs);
         store.take_generation_asks(&mut output.generation_asks);

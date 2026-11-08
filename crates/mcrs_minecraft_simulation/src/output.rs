@@ -34,6 +34,47 @@ pub struct StepReport {
     pub foreign_reads: u32,
     pub first_chain_overflow: Option<BlockPos>,
     pub chain_overflows: u32,
+    /// Random picks whose footprint left the region of their block tile, undone and run again
+    /// in the serial step.
+    pub random_reruns: u32,
+}
+
+impl StepReport {
+    /// Adds the counts of `other`, a later part of the same step.
+    pub(crate) fn absorb(&mut self, other: Self) {
+        let Self {
+            unaccepted_ticks,
+            refused_sets,
+            unloaded_drops,
+            events_deferred,
+            events_left_by_bound,
+            foreign_reads,
+            first_chain_overflow,
+            chain_overflows,
+            random_reruns,
+        } = other;
+        let add = |count: &mut u32, more: u32| *count = count.saturating_add(more);
+        add(&mut self.unaccepted_ticks, unaccepted_ticks);
+        add(&mut self.refused_sets, refused_sets);
+        add(&mut self.unloaded_drops, unloaded_drops);
+        add(&mut self.events_deferred, events_deferred);
+        add(&mut self.events_left_by_bound, events_left_by_bound);
+        add(&mut self.foreign_reads, foreign_reads);
+        add(&mut self.chain_overflows, chain_overflows);
+        add(&mut self.random_reruns, random_reruns);
+        self.first_chain_overflow = self.first_chain_overflow.or(first_chain_overflow);
+    }
+}
+
+/// The lengths of a [`StepOutput`] at one point, to drop what came after it.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct OutputMark {
+    pub(crate) writes: usize,
+    outbound: usize,
+    delivered: usize,
+    destroyed: usize,
+    chains: usize,
+    report: StepReport,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -68,6 +109,27 @@ impl<K: Kinds> StepOutput<K> {
         self.destroyed.clear();
         self.chains.clear();
         self.report = StepReport::default();
+    }
+
+    pub(crate) fn mark(&self) -> OutputMark {
+        OutputMark {
+            writes: self.writes.len(),
+            outbound: self.outbound.len(),
+            delivered: self.delivered.len(),
+            destroyed: self.destroyed.len(),
+            chains: self.chains.len(),
+            report: self.report,
+        }
+    }
+
+    /// Drops what came after `mark`, the writes included: the caller undoes them in the volume.
+    pub(crate) fn truncate(&mut self, mark: OutputMark) {
+        self.writes.truncate(mark.writes);
+        self.outbound.truncate(mark.outbound);
+        self.delivered.truncate(mark.delivered);
+        self.destroyed.truncate(mark.destroyed);
+        self.chains.truncate(mark.chains);
+        self.report = mark.report;
     }
 }
 

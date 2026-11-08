@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:beacon",
-      "protocol_id": 530
+      "protocol_id": 547
     },
     "components": {
       "minecraft:attack_animation": {},

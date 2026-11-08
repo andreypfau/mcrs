@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:tnt",
-      "protocol_id": 854
+      "protocol_id": 876
     },
     "components": {
       "minecraft:attack_animation": {},

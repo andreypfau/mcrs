@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:clay",
-      "protocol_id": 415
+      "protocol_id": 431
     },
     "components": {
       "minecraft:attack_animation": {},

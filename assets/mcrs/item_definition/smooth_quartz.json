@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:smooth_quartz",
-      "protocol_id": 372
+      "protocol_id": 384
     },
     "components": {
       "minecraft:attack_animation": {},

@@ -8,6 +8,7 @@ use mcrs_minecraft_command_argument_block::BlockLookup;
 use mcrs_minecraft_command_argument_vanilla::{ArgumentError, VanillaArgument};
 use mcrs_minecraft_command_engine::{CommandContext, CommandSet, CommandTargets};
 use mcrs_minecraft_command_registry::RegistryLookup;
+use mcrs_minecraft_engine::banlist::BanList;
 use mcrs_minecraft_engine_world::world::dimension::DimensionTypeId;
 use mcrs_minecraft_registries::CurrentRegistries;
 use mcrs_minecraft_resource::ResourceLocation;
@@ -29,6 +30,7 @@ pub type VanillaContext<'w, 's> = CommandContext<'w, 's, VanillaCommands>;
 #[derive(SystemParam)]
 pub struct VanillaWorld<'w, 's> {
     targets: Res<'w, CommandTargets>,
+    bans: Option<Res<'w, BanList>>,
     registries: Option<Res<'w, CurrentRegistries>>,
     blocks: Option<Res<'w, Blocks>>,
     dimension_type: Query<'w, 's, &'static DimensionTypeId>,
@@ -73,6 +75,15 @@ impl Lookup for VanillaWorld<'_, '_> {
             .players()
             .iter()
             .map(|player| player.name.as_str())
+    }
+
+    fn banned_names(&self) -> impl Iterator<Item = &str> {
+        self.bans
+            .as_deref()
+            .into_iter()
+            .flat_map(BanList::entries)
+            .map(|entry| entry.name.as_str())
+            .filter(|name| !name.is_empty())
     }
 
     fn dimensions(&self) -> impl Iterator<Item = &str> {

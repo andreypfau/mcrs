@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:chipped_anvil",
-      "protocol_id": 554
+      "protocol_id": 571
     },
     "components": {
       "minecraft:attack_animation": {},

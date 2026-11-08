@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:sandstone_slab",
-      "protocol_id": 357
+      "protocol_id": 369
     },
     "components": {
       "minecraft:attack_animation": {},

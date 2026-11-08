@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:twisting_vines",
-      "protocol_id": 326
+      "protocol_id": 338
     },
     "components": {
       "minecraft:attack_animation": {},

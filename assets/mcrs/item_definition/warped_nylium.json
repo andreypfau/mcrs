@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:warped_nylium",
-      "protocol_id": 61
+      "protocol_id": 73
     },
     "components": {
       "minecraft:attack_animation": {},

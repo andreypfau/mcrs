@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:cherry_shelf",
-      "protocol_id": 380
+      "protocol_id": 392
     },
     "components": {
       "minecraft:attack_animation": {},

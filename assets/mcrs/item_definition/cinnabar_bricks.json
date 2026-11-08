@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:cinnabar_bricks",
-      "protocol_id": 48
+      "protocol_id": 60
     },
     "components": {
       "minecraft:attack_animation": {},

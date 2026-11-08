@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:creaking_heart",
-      "protocol_id": 403
+      "protocol_id": 415
     },
     "components": {
       "minecraft:attack_animation": {},

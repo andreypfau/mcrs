@@ -3,9 +3,9 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:cracked_stone_bricks",
-      "protocol_id": 378,
-      "base_state_id": 9492,
-      "default_state_id": 9492
+      "protocol_id": 382,
+      "base_state_id": 9903,
+      "default_state_id": 9903
     },
     "components": {
       "minecraft:light_emission": 0,

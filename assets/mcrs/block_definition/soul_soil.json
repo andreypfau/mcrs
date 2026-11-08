@@ -3,9 +3,9 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:soul_soil",
-      "protocol_id": 336,
-      "base_state_id": 8671,
-      "default_state_id": 8671
+      "protocol_id": 340,
+      "base_state_id": 9082,
+      "default_state_id": 9082
     },
     "components": {
       "minecraft:light_emission": 0,

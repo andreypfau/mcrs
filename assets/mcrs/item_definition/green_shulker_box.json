@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:green_shulker_box",
-      "protocol_id": 670
+      "protocol_id": 692
     },
     "components": {
       "minecraft:attack_animation": {},

@@ -3,9 +3,9 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:netherrack",
-      "protocol_id": 334,
-      "base_state_id": 8669,
-      "default_state_id": 8669
+      "protocol_id": 338,
+      "base_state_id": 9080,
+      "default_state_id": 9080
     },
     "components": {
       "minecraft:light_emission": 0,

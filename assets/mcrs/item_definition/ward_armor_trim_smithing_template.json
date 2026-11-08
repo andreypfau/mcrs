@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:ward_armor_trim_smithing_template",
-      "protocol_id": 1589
+      "protocol_id": 1612
     },
     "components": {
       "minecraft:attack_animation": {},

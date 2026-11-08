@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:crimson_fungus",
-      "protocol_id": 320
+      "protocol_id": 332
     },
     "components": {
       "minecraft:attack_animation": {},

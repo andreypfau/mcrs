@@ -3,9 +3,9 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:budding_amethyst",
-      "protocol_id": 1071,
-      "base_state_id": 26778,
-      "default_state_id": 26778
+      "protocol_id": 1080,
+      "base_state_id": 27601,
+      "default_state_id": 27601
     },
     "components": {
       "minecraft:light_emission": 0,

@@ -3817,6 +3817,30 @@ dependencies = [
 ]
 
 [[package]]
+name = "mcrs_minecraft_client_recorder"
+version = "0.5.8"
+dependencies = [
+ "anyhow",
+ "bytes",
+ "flate2",
+ "glam",
+ "mcrs_minecraft_block",
+ "mcrs_minecraft_client_ticks",
+ "mcrs_minecraft_core",
+ "mcrs_minecraft_item",
+ "mcrs_minecraft_protocol",
+ "mcrs_minecraft_protocol_game",
+ "mcrs_voxel",
+]
+
+[[package]]
+name = "mcrs_minecraft_client_ticks"
+version = "0.5.8"
+dependencies = [
+ "thiserror 2.0.18",
+]
+
+[[package]]
 name = "mcrs_minecraft_client_world"
 version = "0.5.8"
 dependencies = [
@@ -3847,6 +3871,7 @@ dependencies = [
  "mcrs_minecraft_game_registries",
  "mcrs_minecraft_item",
  "mcrs_minecraft_keys",
+ "mcrs_minecraft_light_engine",
  "mcrs_minecraft_nbt",
  "mcrs_minecraft_network",
  "mcrs_minecraft_protocol",
@@ -3856,6 +3881,23 @@ dependencies = [
  "mcrs_minecraft_volume",
  "mcrs_voxel",
  "serde",
+]
+
+[[package]]
+name = "mcrs_minecraft_collision_table"
+version = "0.5.8"
+dependencies = [
+ "glam",
+ "mcrs_engine_muxer",
+ "mcrs_minecraft_block",
+ "mcrs_minecraft_fixtures",
+ "mcrs_minecraft_game_registries",
+ "mcrs_minecraft_physics",
+ "mcrs_minecraft_registries",
+ "mcrs_minecraft_resource",
+ "mcrs_voxel",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]
@@ -4025,6 +4067,7 @@ dependencies = [
  "mcrs_minecraft_heightmap",
  "mcrs_minecraft_keys",
  "mcrs_minecraft_nbt",
+ "mcrs_minecraft_network",
  "mcrs_minecraft_protocol",
  "mcrs_minecraft_protocol_game",
  "mcrs_minecraft_registries",
@@ -4142,8 +4185,10 @@ dependencies = [
  "mcrs_minecraft_game_registries",
  "mcrs_minecraft_heightmap",
  "mcrs_minecraft_item",
+ "mcrs_minecraft_move_validate",
  "mcrs_minecraft_nbt",
  "mcrs_minecraft_network",
+ "mcrs_minecraft_physics",
  "mcrs_minecraft_protocol",
  "mcrs_minecraft_protocol_game",
  "mcrs_minecraft_registries",
@@ -4160,6 +4205,34 @@ dependencies = [
  "serde_json",
  "smallvec",
  "thiserror 2.0.18",
+ "time",
+ "tracing",
+]
+
+[[package]]
+name = "mcrs_minecraft_engine_physics"
+version = "0.5.8"
+dependencies = [
+ "bevy_app",
+ "bevy_ecs",
+ "bevy_tasks",
+ "criterion",
+ "glam",
+ "mcrs_engine_muxer",
+ "mcrs_minecraft_block",
+ "mcrs_minecraft_collision_table",
+ "mcrs_minecraft_engine",
+ "mcrs_minecraft_engine_physics",
+ "mcrs_minecraft_engine_world",
+ "mcrs_minecraft_fixtures",
+ "mcrs_minecraft_game_registries",
+ "mcrs_minecraft_item",
+ "mcrs_minecraft_physics",
+ "mcrs_minecraft_registries",
+ "mcrs_minecraft_volume",
+ "mcrs_voxel",
+ "serde",
+ "serde_json",
  "tracing",
 ]
 
@@ -4234,6 +4307,7 @@ dependencies = [
  "bevy_math",
  "bevy_platform",
  "bevy_time",
+ "criterion",
  "flume",
  "indexmap",
  "mcrs_engine_cell",
@@ -4242,6 +4316,7 @@ dependencies = [
  "mcrs_minecraft_chunk",
  "mcrs_minecraft_core",
  "mcrs_minecraft_dimension",
+ "mcrs_minecraft_random",
  "mcrs_minecraft_resource",
  "mcrs_minecraft_simulation",
  "mcrs_minecraft_volume",
@@ -4382,6 +4457,17 @@ dependencies = [
  "mcrs_minecraft_registries",
  "mcrs_minecraft_resource",
  "mcrs_voxel",
+]
+
+[[package]]
+name = "mcrs_minecraft_hotspots"
+version = "0.5.8"
+dependencies = [
+ "mcrs_minecraft_anvil",
+ "mcrs_minecraft_chunk",
+ "mcrs_minecraft_nbt",
+ "mcrs_voxel",
+ "serde",
 ]
 
 [[package]]
@@ -4529,6 +4615,29 @@ dependencies = [
 ]
 
 [[package]]
+name = "mcrs_minecraft_move_predict"
+version = "0.5.8"
+dependencies = [
+ "criterion",
+ "glam",
+ "mcrs_minecraft_client_ticks",
+ "mcrs_minecraft_move_validate",
+ "mcrs_minecraft_physics",
+ "mcrs_voxel",
+ "rustc-hash 2.1.1",
+]
+
+[[package]]
+name = "mcrs_minecraft_move_validate"
+version = "0.5.8"
+dependencies = [
+ "criterion",
+ "glam",
+ "mcrs_minecraft_protocol",
+ "proptest",
+]
+
+[[package]]
 name = "mcrs_minecraft_nbt"
 version = "0.5.8"
 dependencies = [
@@ -4552,6 +4661,7 @@ dependencies = [
  "bytes",
  "js-sys",
  "mcrs_minecraft_core",
+ "mcrs_minecraft_move_validate",
  "mcrs_minecraft_network",
  "mcrs_minecraft_protocol",
  "mcrs_minecraft_resource",
@@ -4595,6 +4705,21 @@ dependencies = [
  "mcrs_minecraft_wire",
  "mcrs_voxel",
  "serde",
+]
+
+[[package]]
+name = "mcrs_minecraft_physics"
+version = "0.5.8"
+dependencies = [
+ "bitflags 2.10.0",
+ "criterion",
+ "glam",
+ "mcrs_engine_muxer",
+ "mcrs_minecraft_client_ticks",
+ "mcrs_minecraft_core",
+ "mcrs_minecraft_physics",
+ "mcrs_voxel",
+ "rustc-hash 2.1.1",
 ]
 
 [[package]]
@@ -4808,6 +4933,7 @@ dependencies = [
  "mcrs_minecraft_game_registries",
  "mcrs_minecraft_item",
  "mcrs_minecraft_nbt",
+ "mcrs_minecraft_physics",
  "mcrs_minecraft_protocol_game",
  "mcrs_minecraft_registries",
  "mcrs_minecraft_resource",
@@ -4851,6 +4977,7 @@ dependencies = [
  "mcrs_minecraft_dimension",
  "mcrs_minecraft_dimension_environment",
  "mcrs_minecraft_engine",
+ "mcrs_minecraft_engine_physics",
  "mcrs_minecraft_engine_registries",
  "mcrs_minecraft_engine_server",
  "mcrs_minecraft_engine_world",
@@ -4864,6 +4991,7 @@ dependencies = [
  "mcrs_minecraft_light_engine",
  "mcrs_minecraft_nbt",
  "mcrs_minecraft_network",
+ "mcrs_minecraft_physics",
  "mcrs_minecraft_protocol",
  "mcrs_minecraft_protocol_game",
  "mcrs_minecraft_random",
@@ -4875,6 +5003,7 @@ dependencies = [
  "mcrs_minecraft_text",
  "mcrs_minecraft_vanilla_light",
  "mcrs_minecraft_vanilla_worldgen",
+ "mcrs_minecraft_volume",
  "mcrs_minecraft_worldgen_builtin",
  "mcrs_minecraft_worldgen_density",
  "mcrs_minecraft_worldgen_generator",
@@ -4886,6 +5015,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "mcrs_minecraft_server_bench"
+version = "0.5.8"
+dependencies = [
+ "anyhow",
+ "glam",
+ "mcrs_minecraft_core",
+ "mcrs_minecraft_network",
+ "mcrs_minecraft_protocol",
+ "mcrs_minecraft_protocol_game",
+ "mcrs_voxel",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tracing-subscriber",
+]
+
+[[package]]
 name = "mcrs_minecraft_simulation"
 version = "0.5.8"
 dependencies = [
@@ -4894,6 +5040,7 @@ dependencies = [
  "mcrs_minecraft_random",
  "mcrs_minecraft_volume",
  "mcrs_voxel",
+ "proptest",
  "rustc-hash 2.1.1",
  "thiserror 2.0.18",
 ]
@@ -5659,6 +5806,15 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.115",
+]
+
+[[package]]
+name = "num_threads"
+version = "0.1.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cabcc654086861f9e1bc5115258de62ef92c79b20f4615a1b0cc57c4e82027d4"
+dependencies = [
+ "libc",
 ]
 
 [[package]]
@@ -7315,7 +7471,9 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cdb87b95ec50ddfa440816d227a17b2ccbdda963a316a727fda0fc4334f7d134"
 dependencies = [
  "deranged",
+ "libc",
  "num-conv",
+ "num_threads",
  "powerfmt",
  "serde_core",
  "time-core",

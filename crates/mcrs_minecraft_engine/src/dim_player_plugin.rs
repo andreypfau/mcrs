@@ -1,4 +1,5 @@
 use crate::ability::{AnnounceOpLevel, AnswerOpLevel, OpLevelAnnounced};
+use crate::block_break::BlockBreakPlugin;
 use crate::client_info::ClientInfoPlugin;
 use crate::column_streams::ColumnStreamPlugin;
 use crate::consume_inbound_player_spawn::consume_inbound_player_spawn;
@@ -32,7 +33,12 @@ impl Plugin for DimPlayerPlugin {
         app.init_resource::<mcrs_minecraft_engine_world::session::DimPlayerIndex>();
         app.add_message::<ChangeDimensionRequest>();
         app.add_message::<PlayerTransfer>();
-        app.add_plugins((MovementPlugin, ColumnStreamPlugin, GameModePlugin));
+        app.add_plugins((
+            MovementPlugin,
+            ColumnStreamPlugin,
+            GameModePlugin,
+            BlockBreakPlugin,
+        ));
         app.add_message::<OpLevelAnnounced>();
         app.configure_sets(Update, (AnnounceOpLevel, AnswerOpLevel).chain());
         if !app.is_plugin_added::<ClientInfoPlugin>() {

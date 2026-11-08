@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:wind_charge",
-      "protocol_id": 1373
+      "protocol_id": 1395
     },
     "components": {
       "minecraft:attack_animation": {},

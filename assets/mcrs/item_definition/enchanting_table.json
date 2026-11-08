@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:enchanting_table",
-      "protocol_id": 507
+      "protocol_id": 524
     },
     "components": {
       "minecraft:attack_animation": {},

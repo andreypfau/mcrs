@@ -49,7 +49,7 @@ use crate::column_version::ColumnVersion;
 use crate::held_light::{HeldLight, RelitSections};
 use crate::hot_ticket::CellCrossing;
 use crate::light_codec::{build_delta_light_data, build_stored_light_data};
-use crate::player_view::PlayerView;
+use crate::player_view::{PlayerView, ViewerPosition};
 use crate::stored_column::StoredColumn;
 
 /// The version stream of each column of a dimension that the muxer subscribes to: the dimension
@@ -98,6 +98,7 @@ impl Plugin for ColumnStreamPlugin {
         app.add_message::<ColumnLightSettled>();
         app.add_message::<SectionRelit>();
         app.add_message::<PlayerView>();
+        app.add_message::<ViewerPosition>();
         app.add_message::<ColumnVersion>();
         app.add_message::<ColumnChange>();
         app.add_observer(close_player_view);
@@ -254,8 +255,13 @@ pub(crate) fn report_player_views(
     >,
     dims: Query<&DimensionTypeConfig>,
     mut views: MessageWriter<PlayerView>,
+    mut positions: MessageWriter<ViewerPosition>,
 ) {
     for (mut sent_view, transform, distance, in_dim, owner) in &mut players {
+        positions.write(ViewerPosition {
+            session: owner.0,
+            position: transform.translation,
+        });
         let Ok(type_config) = dims.get(in_dim.0) else {
             continue;
         };
@@ -311,6 +317,7 @@ fn light_change(column: ColumnPos, light_data: LightData<'static>) -> ColumnChan
             z: VarInt(column.z),
             light_data,
         }),
+        except: None,
     }
 }
 

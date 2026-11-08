@@ -3,9 +3,9 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:dragon_egg",
-      "protocol_id": 444,
-      "base_state_id": 11214,
-      "default_state_id": 11214
+      "protocol_id": 448,
+      "base_state_id": 11625,
+      "default_state_id": 11625
     },
     "components": {
       "minecraft:light_emission": 1,

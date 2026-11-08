@@ -5,7 +5,7 @@ use mcrs_minecraft_core::BoundingBox;
 use mcrs_minecraft_engine_world::owned_columns::{self, OwnedColumns};
 use mcrs_minecraft_engine_world::world::lifecycle::simulation::BlockTicking;
 use mcrs_minecraft_engine_world::world::storage::view::DimensionViewMut;
-use mcrs_minecraft_simulation::{SectionProperties, SimulatedSections};
+use mcrs_minecraft_simulation::{SectionProperties, SimulatedSections, TickingSectionMut};
 use mcrs_minecraft_volume::{
     Access, BlockVolume, BlockVolumeMut, ColumnLayout, Denied, PalettedSection, PalettedSectionMut,
     Unavailable, Volume,
@@ -14,22 +14,22 @@ use mcrs_voxel::{ColumnPos, SectionPos};
 
 /// A loaded section of a column that the cell owns is writable. A loaded section of the halo is
 /// readable only: the kernels send a write, a tick, an event or an update into it to its owner.
-pub struct CellVolume<'v, 'a, 'w, 's> {
-    pub(crate) view: DimensionViewMut<'a, 'w, 's>,
-    pub(crate) owned: Option<&'v OwnedColumns>,
-    pub(crate) ticking: &'v TickingSections<'v, 'v>,
+pub struct CellVolume<'v, 'a> {
+    pub view: DimensionViewMut<'a>,
+    pub owned: Option<&'v OwnedColumns>,
+    pub ticking: &'v TickingSections<'v, 'v>,
 }
 
 /// The sections that run scheduled ticks and deliver block events.
 pub(crate) type TickingSections<'w, 's> = Query<'w, 's, (), With<BlockTicking>>;
 
-impl CellVolume<'_, '_, '_, '_> {
+impl CellVolume<'_, '_> {
     fn owns(&self, section: SectionPos) -> bool {
         owned_columns::owns(self.owned, ColumnPos::from(section))
     }
 }
 
-impl Volume for CellVolume<'_, '_, '_, '_> {
+impl Volume for CellVolume<'_, '_> {
     fn bounds(&self) -> BoundingBox {
         self.view.bounds()
     }
@@ -46,7 +46,7 @@ impl Volume for CellVolume<'_, '_, '_, '_> {
     }
 }
 
-impl SimulatedSections for CellVolume<'_, '_, '_, '_> {
+impl SimulatedSections for CellVolume<'_, '_> {
     fn properties(&self, section: SectionPos) -> SectionProperties {
         if self.access(section) != Access::Write {
             return SectionProperties::empty();
@@ -66,7 +66,7 @@ impl SimulatedSections for CellVolume<'_, '_, '_, '_> {
     }
 }
 
-impl BlockVolume for CellVolume<'_, '_, '_, '_> {
+impl BlockVolume for CellVolume<'_, '_> {
     type Section<'b>
         = PalettedSection<'b>
     where
@@ -77,13 +77,13 @@ impl BlockVolume for CellVolume<'_, '_, '_, '_> {
     }
 }
 
-impl BlockVolumeMut for CellVolume<'_, '_, '_, '_> {
+impl BlockVolumeMut for CellVolume<'_, '_> {
     type SectionMut<'b>
-        = PalettedSectionMut<'b>
+        = TickingSectionMut<'b, PalettedSectionMut<'b>>
     where
         Self: 'b;
 
-    fn section_mut(&mut self, at: SectionPos) -> Result<PalettedSectionMut<'_>, Denied> {
+    fn section_mut(&mut self, at: SectionPos) -> Result<Self::SectionMut<'_>, Denied> {
         if !self.owns(at) {
             return Err(Denied::ReadOnly);
         }

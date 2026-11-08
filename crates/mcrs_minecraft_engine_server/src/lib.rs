@@ -24,6 +24,7 @@ pub use mcrs_minecraft_engine_world::server_loop::spawn_server_thread;
 pub use mcrs_minecraft_engine_world::world_cells::WorldCells;
 pub use mcrs_minecraft_game_mode::GameMode;
 pub use mcrs_minecraft_network::BoundAddress;
+pub use mcrs_minecraft_network::inbound_rate::InboundRateLimit;
 pub use runner::{DEFAULT_TPS, run_server_loop};
 pub use server_core_plugin::ServerCorePlugin;
 pub use server_network_plugin::ServerNetworkPlugin;

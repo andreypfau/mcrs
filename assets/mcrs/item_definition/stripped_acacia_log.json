@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:stripped_acacia_log",
-      "protocol_id": 182
+      "protocol_id": 194
     },
     "components": {
       "minecraft:attack_animation": {},

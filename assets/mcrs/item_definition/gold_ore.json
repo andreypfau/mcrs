@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:gold_ore",
-      "protocol_id": 99
+      "protocol_id": 111
     },
     "components": {
       "minecraft:attack_animation": {},

@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:spruce_wood",
-      "protocol_id": 204
+      "protocol_id": 216
     },
     "components": {
       "minecraft:attack_animation": {},

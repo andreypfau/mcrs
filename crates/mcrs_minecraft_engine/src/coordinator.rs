@@ -8,6 +8,7 @@
 //! muxer what it decides through the messages of `to_muxer`, and learns what the muxer routed
 //! from the messages of `to_coordinator`.
 
+pub mod birth_clock;
 pub mod clock;
 pub mod coordinator_plugin;
 pub mod default_game_mode;

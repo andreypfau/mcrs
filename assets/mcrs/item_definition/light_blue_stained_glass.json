@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:light_blue_stained_glass",
-      "protocol_id": 608
+      "protocol_id": 630
     },
     "components": {
       "minecraft:attack_animation": {},

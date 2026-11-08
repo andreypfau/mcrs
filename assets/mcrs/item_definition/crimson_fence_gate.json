@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:crimson_fence_gate",
-      "protocol_id": 944
+      "protocol_id": 966
     },
     "components": {
       "minecraft:attack_animation": {},

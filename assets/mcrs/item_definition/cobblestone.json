@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:cobblestone",
-      "protocol_id": 62
+      "protocol_id": 74
     },
     "components": {
       "minecraft:attack_animation": {},

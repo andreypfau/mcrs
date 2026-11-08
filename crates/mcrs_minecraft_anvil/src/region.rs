@@ -268,7 +268,8 @@ impl RegionFile {
             })
     }
 
-    fn read_nbt(&self, pos: ColumnPos) -> Result<Option<Vec<u8>>, ErrorKind> {
+    /// The decompressed NBT of the record at `pos`, or `None` when the slot is empty.
+    pub fn read_nbt(&self, pos: ColumnPos) -> Result<Option<Vec<u8>>, ErrorKind> {
         let ColumnPos { x, z } = pos;
         let Some(span) = self.record(pos)? else {
             return Ok(None);

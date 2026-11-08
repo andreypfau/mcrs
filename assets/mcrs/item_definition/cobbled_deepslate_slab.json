@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:cobbled_deepslate_slab",
-      "protocol_id": 820
+      "protocol_id": 842
     },
     "components": {
       "minecraft:attack_animation": {},

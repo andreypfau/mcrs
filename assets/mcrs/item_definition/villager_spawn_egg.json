@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:villager_spawn_egg",
-      "protocol_id": 1323
+      "protocol_id": 1345
     },
     "components": {
       "minecraft:attack_animation": {},

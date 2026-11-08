@@ -3,9 +3,9 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:chiseled_cinnabar",
-      "protocol_id": 1116,
-      "base_state_id": 30534,
-      "default_state_id": 30534
+      "protocol_id": 1125,
+      "base_state_id": 31357,
+      "default_state_id": 31357
     },
     "components": {
       "minecraft:light_emission": 0,

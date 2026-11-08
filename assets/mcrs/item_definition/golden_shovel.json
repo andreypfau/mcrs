@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:golden_shovel",
-      "protocol_id": 1042
+      "protocol_id": 1064
     },
     "components": {
       "minecraft:attack_animation": {},

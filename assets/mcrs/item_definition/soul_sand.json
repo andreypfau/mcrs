@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:soul_sand",
-      "protocol_id": 434
+      "protocol_id": 450
     },
     "components": {
       "minecraft:attack_animation": {},

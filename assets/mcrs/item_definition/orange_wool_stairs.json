@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:orange_wool_stairs",
-      "protocol_id": 267
+      "protocol_id": 279
     },
     "components": {
       "minecraft:attack_animation": {},

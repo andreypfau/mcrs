@@ -20,9 +20,7 @@ use mcrs_minecraft_engine_world::session::{
     Place, PlayerSessionCounter, Session, SessionPlacement,
 };
 use mcrs_minecraft_network::event::{Received, run_event_loop};
-use mcrs_minecraft_network::inbound_rate::{
-    INBOUND_BUCKET_CAP, INBOUND_KICK_OVERFLOW_PACKETS, InboundRateBucket,
-};
+use mcrs_minecraft_network::inbound_rate::{InboundPacketRate, InboundRateLimit};
 use mcrs_minecraft_network::metrics::{BridgeTelemetry, PacketDispatcher};
 use mcrs_minecraft_network::{ConnectionState, ReceivedPacket, ServerSideConnection};
 use mcrs_minecraft_protocol::Decode;
@@ -36,7 +34,7 @@ use mcrs_minecraft_protocol::packets::table::{
 use mcrs_minecraft_protocol::packets::{configuration, game};
 use mcrs_minecraft_protocol_game::table::game_serverbound;
 
-use std::time::Instant;
+use std::time::{Duration, Instant};
 use tokio::sync::mpsc;
 
 // ---------------------------------------------------------------------------
@@ -57,7 +55,7 @@ fn build_inbound_world() -> World {
     world
 }
 
-/// Spawn a connection entity in the game state with InboundRateBucket +
+/// Spawn a connection entity in the game state with InboundPacketRate +
 /// OutboundQueue and a mock RawConnection that we can inject packets into.
 ///
 /// Returns `(socket_entity, inbound_tx)`. Send `ReceivedPacket` values into
@@ -68,7 +66,7 @@ fn spawn_ingame_connection(world: &mut World) -> (Entity, mpsc::Sender<ReceivedP
         .spawn((
             ServerSideConnection { raw: Box::new(raw) },
             ConnectionState::Game,
-            InboundRateBucket::new(),
+            InboundPacketRate::default(),
             OutboundQueue::default(),
         ))
         .id();
@@ -166,47 +164,63 @@ fn bridge_inbound_emits_received_packet_event() {
     // verification needed.
 }
 
-// ---------------------------------------------------------------------------
-// inbound_rate_kick
-// ---------------------------------------------------------------------------
-
-/// A burst past INBOUND_BUCKET_CAP by INBOUND_KICK_OVERFLOW_PACKETS kicks the connection (ServerSideConnection
-/// removed) and increments kick_flood_total.
-/// Packets received within the budget are NOT dropped.
-#[test]
-fn inbound_rate_kick() {
-    let mut world = build_inbound_world();
-
+fn connected_player(world: &mut World) -> (Entity, mpsc::Sender<ReceivedPacket>) {
     let dim = Entity::from_raw_u32(10).expect("nonzero");
     let in_dim = Entity::from_raw_u32(30).expect("nonzero");
+    let (socket, tx) = spawn_ingame_connection(world);
+    let player = register_player(world, dim, Some(in_dim));
+    attach_anchor(world, socket, player);
+    (socket, tx)
+}
 
-    let (socket, tx) = spawn_ingame_connection(&mut world);
-    let player = register_player(&mut world, dim, Some(in_dim));
-    attach_anchor(&mut world, socket, player);
-
-    let before = world.resource::<BridgeTelemetry>().kick_flood_total;
-
-    // Run enough ticks flooding packets to trigger the kick.
-    // Each tick sends INBOUND_BUCKET_CAP + 1 packets to ensure bucket empties.
-    for _ in 0..INBOUND_KICK_OVERFLOW_PACKETS + 1 {
-        if world.get::<ServerSideConnection>(socket).is_none() {
-            break;
-        }
-        for seq in 0..INBOUND_BUCKET_CAP + 10 {
-            let _ = tx.try_send(make_received_packet(seq));
-        }
-        run_inbound(&mut world);
+/// Sends `count` keep-alives that arrived at `arrival` and reads them.
+fn arrive(world: &mut World, tx: &mpsc::Sender<ReceivedPacket>, arrival: Instant, count: u32) {
+    for seq in 0..count {
+        let mut packet = make_received_packet(seq);
+        packet.timestamp = arrival;
+        tx.try_send(packet).unwrap();
     }
+    run_inbound(world);
+}
 
-    let after = world.resource::<BridgeTelemetry>().kick_flood_total;
-    assert!(
-        after > before,
-        "kick_flood_total must increment on flood kick"
-    );
+#[test]
+fn a_burst_of_100_packets_after_a_stall_of_3_seconds_keeps_the_connection() {
+    for limit in [InboundRateLimit::default(), InboundRateLimit(50)] {
+        let mut world = build_inbound_world();
+        world.insert_resource(limit);
+        let (socket, tx) = connected_player(&mut world);
+        let start = Instant::now();
+
+        arrive(&mut world, &tx, start, 20);
+        arrive(&mut world, &tx, start + Duration::from_secs(3), 100);
+        arrive(&mut world, &tx, start + Duration::from_secs(4), 1);
+
+        assert!(
+            world.get::<ServerSideConnection>(socket).is_some(),
+            "MVC-INV-008: {limit:?}"
+        );
+        assert_eq!(world.resource::<BridgeTelemetry>().kick_flood_total, 0);
+    }
+}
+
+#[test]
+fn a_rate_above_the_limit_ends_the_connection() {
+    let mut world = build_inbound_world();
+    world.insert_resource(InboundRateLimit(50));
+    let (socket, tx) = connected_player(&mut world);
+    let start = Instant::now();
+
+    for second in 0..3 {
+        arrive(&mut world, &tx, start + Duration::from_secs(second), 100);
+    }
+    assert!(world.get::<ServerSideConnection>(socket).is_some());
+    arrive(&mut world, &tx, start + Duration::from_secs(3), 1);
+
     assert!(
         world.get::<ServerSideConnection>(socket).is_none(),
-        "ServerSideConnection must be removed after flood kick"
+        "MVC-VAN-019: the average of the third second is 57.8"
     );
+    assert_eq!(world.resource::<BridgeTelemetry>().kick_flood_total, 1);
 }
 
 #[test]
@@ -288,6 +302,7 @@ fn frame(id: i32, payload: &[u8]) -> ReceivedPacket {
         timestamp: Instant::now(),
         id,
         payload: bytes::Bytes::copy_from_slice(payload),
+        verdict: None,
     }
 }
 
@@ -432,7 +447,7 @@ fn a_malformed_frame_disconnects_its_client_in_the_protocol_of_its_state() {
             .spawn((
                 ServerSideConnection { raw: Box::new(raw) },
                 state,
-                InboundRateBucket::new(),
+                InboundPacketRate::default(),
                 OutboundQueue::default(),
             ))
             .id();

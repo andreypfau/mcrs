@@ -1,0 +1,16 @@
+[package]
+name = "mcrs_minecraft_client_ticks"
+description = "The text format of the client ticks that the client recorder writes and the physics parity tests read"
+version.workspace = true
+edition.workspace = true
+publish = false
+
+[lib]
+doctest = false
+
+[lints]
+workspace = true
+
+# std: String and Vec for the parsed lines
+[dependencies]
+thiserror.workspace = true

@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:cherry_pressure_plate",
-      "protocol_id": 881
+      "protocol_id": 903
     },
     "components": {
       "minecraft:attack_animation": {},

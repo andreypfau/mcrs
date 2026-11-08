@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:iron_sword",
-      "protocol_id": 1046
+      "protocol_id": 1068
     },
     "components": {
       "minecraft:attack_animation": {},

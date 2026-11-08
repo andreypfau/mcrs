@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:lily_of_the_valley",
-      "protocol_id": 312
+      "protocol_id": 324
     },
     "components": {
       "minecraft:attack_animation": {},

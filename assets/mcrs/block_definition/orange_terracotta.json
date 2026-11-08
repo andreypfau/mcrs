@@ -3,9 +3,9 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:orange_terracotta",
-      "protocol_id": 538,
-      "base_state_id": 13214,
-      "default_state_id": 13214
+      "protocol_id": 542,
+      "base_state_id": 13625,
+      "default_state_id": 13625
     },
     "components": {
       "minecraft:light_emission": 0,

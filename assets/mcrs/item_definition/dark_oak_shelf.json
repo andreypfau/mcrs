@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:dark_oak_shelf",
-      "protocol_id": 382
+      "protocol_id": 394
     },
     "components": {
       "minecraft:attack_animation": {},

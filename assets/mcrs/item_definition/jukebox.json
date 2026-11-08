@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:jukebox",
-      "protocol_id": 416
+      "protocol_id": 432
     },
     "components": {
       "minecraft:attack_animation": {},

@@ -3,9 +3,9 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:yellow_concrete",
-      "protocol_id": 773,
-      "base_state_id": 17021,
-      "default_state_id": 17021
+      "protocol_id": 782,
+      "base_state_id": 17844,
+      "default_state_id": 17844
     },
     "components": {
       "minecraft:light_emission": 0,

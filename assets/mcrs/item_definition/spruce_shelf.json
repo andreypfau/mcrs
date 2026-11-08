@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:spruce_shelf",
-      "protocol_id": 388
+      "protocol_id": 400
     },
     "components": {
       "minecraft:attack_animation": {},

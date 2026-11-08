@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:light_blue_concrete_stairs",
-      "protocol_id": 708
+      "protocol_id": 730
     },
     "components": {
       "minecraft:attack_animation": {},

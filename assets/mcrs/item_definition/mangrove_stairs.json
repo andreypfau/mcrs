@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:mangrove_stairs",
-      "protocol_id": 523
+      "protocol_id": 540
     },
     "components": {
       "minecraft:attack_animation": {},

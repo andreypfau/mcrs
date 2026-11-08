@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:nether_brick_slab",
-      "protocol_id": 364
+      "protocol_id": 376
     },
     "components": {
       "minecraft:attack_animation": {},

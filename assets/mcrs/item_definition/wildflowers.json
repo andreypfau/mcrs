@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:wildflowers",
-      "protocol_id": 330
+      "protocol_id": 342
     },
     "components": {
       "minecraft:attack_animation": {},

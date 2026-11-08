@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:stripped_bamboo_block",
-      "protocol_id": 202
+      "protocol_id": 214
     },
     "components": {
       "minecraft:attack_animation": {},

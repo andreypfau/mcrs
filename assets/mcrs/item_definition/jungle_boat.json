@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:jungle_boat",
-      "protocol_id": 982
+      "protocol_id": 1004
     },
     "components": {
       "minecraft:attack_animation": {},

@@ -4,6 +4,7 @@ use bevy_app::{App, Plugin, PluginGroup, PluginGroupBuilder};
 use mcrs_minecraft_chat_server::ChatPlugin;
 use mcrs_minecraft_command_engine::CommandPlugin;
 use mcrs_minecraft_command_vanilla::{VanillaCommands, VanillaCommandsPlugin};
+use mcrs_minecraft_engine_physics::EntityPhysicsPlugin;
 use mcrs_minecraft_engine_server::{DimensionWorldsPlugin, ServerCorePlugin, ServerNetworkPlugin};
 use mcrs_minecraft_engine_world::world::sub_app::AddDimensionPlugins;
 use mcrs_minecraft_vanilla_light::LightingPlugin;
@@ -60,9 +61,19 @@ impl PluginGroup for MinecraftServerPlugins {
             .add(VanillaCommandsPlugin)
             .add(self.worlds)
             .add(VanillaChatPlugin)
+            .add(VanillaEntityPhysicsPlugin)
             .add(self.world_gen)
             .add(LightingPlugin)
             .add(self.network)
+    }
+}
+
+/// The entity pass in every dimension world.
+pub struct VanillaEntityPhysicsPlugin;
+
+impl Plugin for VanillaEntityPhysicsPlugin {
+    fn build(&self, app: &mut App) {
+        app.add_dimension_plugin(EntityPhysicsPlugin);
     }
 }
 

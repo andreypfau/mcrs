@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:light_blue_wool",
-      "protocol_id": 253
+      "protocol_id": 265
     },
     "components": {
       "minecraft:attack_animation": {},

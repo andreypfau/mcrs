@@ -36,8 +36,6 @@ pub struct Section {
 #[derive(Debug, Clone, PartialEq)]
 pub struct Chunk {
     pub pos: ColumnPos,
-    /// `yPos`: the section Y the saved section array starts at.
-    pub min_section_y: i32,
     pub status: ChunkStatus,
     pub is_light_on: bool,
     pub inhabited_time: i64,
@@ -116,7 +114,7 @@ pub(crate) struct RawPalettedContainer {
 
 #[derive(Deserialize, Serialize)]
 pub(crate) struct RawSection {
-    #[serde(rename = "Y")]
+    #[serde(rename = "Y", default)]
     pub(crate) y: i8,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) block_states: Option<RawPalettedContainer>,
@@ -148,7 +146,8 @@ pub(crate) struct RawChunk<'a> {
     pub(crate) x_pos: i32,
     #[serde(rename = "zPos")]
     pub(crate) z_pos: i32,
-    #[serde(rename = "yPos")]
+    /// Each section carries its own `Y`, so the load never reads this.
+    #[serde(rename = "yPos", skip_deserializing)]
     pub(crate) y_pos: i32,
     pub(crate) status: ChunkStatus,
     #[serde(default)]
@@ -239,7 +238,6 @@ pub fn parse(
     let (structures, dropped_structures) = raw.structures.within(pos);
     Ok(Chunk {
         pos,
-        min_section_y: raw.y_pos,
         status: raw.status,
         is_light_on: raw.is_light_on,
         inhabited_time: raw.inhabited_time,

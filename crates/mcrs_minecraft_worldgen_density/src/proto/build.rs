@@ -5,7 +5,8 @@ use crate::proto::{
     BlendedNoiseArguments, ClampArguments, ConstantValue, DensityFunctionHolder,
     FindTopSurfaceArguments, GradientArguments, IntervalSelectArguments,
     MAX_REASONABLE_NOISE_VALUE, NoiseValue, ProtoDensityFunction as P, ProtoSpline, ScaleValue,
-    SingleArgumentFunction, SmearScaleMultiplier, TwoArgumentFunction,
+    SingleArgumentFunction, SmearScaleMultiplier, TwoArgumentFunction, UpscaleArguments,
+    UpscaleAxis,
 };
 use crate::router::NoiseSettings;
 use mcrs_minecraft_core::Axis;
@@ -148,11 +149,12 @@ impl DensityFunctionHolder {
     }
 
     pub fn interpolated(self, cell_size_xz: NonZeroU32, cell_size_y: NonZeroU32) -> Self {
-        owned(P::Interpolated {
+        owned(P::Upscale(UpscaleArguments {
             input: self,
-            cell_size_xz,
-            cell_size_y,
-        })
+            x: UpscaleAxis::linear(cell_size_xz),
+            y: UpscaleAxis::linear(cell_size_y),
+            z: UpscaleAxis::linear(cell_size_xz),
+        }))
     }
 
     pub fn slice_y(self, y: i32) -> Self {

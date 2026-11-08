@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:mangrove_slab",
-      "protocol_id": 349
+      "protocol_id": 361
     },
     "components": {
       "minecraft:attack_animation": {},

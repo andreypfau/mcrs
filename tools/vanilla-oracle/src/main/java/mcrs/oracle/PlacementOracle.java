@@ -200,7 +200,7 @@ public final class PlacementOracle {
     }
 
     static SeedState seedState(final RegistryAccess.Frozen loaded, final Dim dim, final long seed) {
-        RandomState randomState = RandomState.create(loaded.lookupOrThrow(Registries.NOISE), seed, dim.settings());
+        RandomState randomState = RandomState.createForGenerator(loaded.lookupOrThrow(Registries.NOISE), seed, dim.generator(), dim.heights());
         ChunkGeneratorStructureState state = ChunkGeneratorStructureState.createForNormal(
             randomState, seed, ChunkPos.ZERO, dim.biomeSource(), loaded.lookupOrThrow(Registries.STRUCTURE_SET)
         );

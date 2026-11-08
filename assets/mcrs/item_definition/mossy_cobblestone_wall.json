@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:mossy_cobblestone_wall",
-      "protocol_id": 532
+      "protocol_id": 549
     },
     "components": {
       "minecraft:attack_animation": {},

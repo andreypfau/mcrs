@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:stripped_jungle_wood",
-      "protocol_id": 193
+      "protocol_id": 205
     },
     "components": {
       "minecraft:attack_animation": {},

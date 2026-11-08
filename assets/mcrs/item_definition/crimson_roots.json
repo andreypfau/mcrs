@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:crimson_roots",
-      "protocol_id": 322
+      "protocol_id": 334
     },
     "components": {
       "minecraft:attack_animation": {},

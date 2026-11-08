@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:tuff_brick_wall",
-      "protocol_id": 24
+      "protocol_id": 36
     },
     "components": {
       "minecraft:attack_animation": {},

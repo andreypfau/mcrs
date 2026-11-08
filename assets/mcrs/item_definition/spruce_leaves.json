@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:spruce_leaves",
-      "protocol_id": 216
+      "protocol_id": 228
     },
     "components": {
       "minecraft:attack_animation": {},

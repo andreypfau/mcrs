@@ -1,6 +1,7 @@
 mcrs_minecraft_protocol::extend_packet_table! {
     game_clientbound: ClientboundGamePacket<'a> extends mcrs_minecraft_protocol::packets::table::game_clientbound in (crate::clientbound) {
         "add_entity" => ClientboundAddEntity,
+        "block_changed_ack" => ClientboundBlockChangedAck,
         "block_destruction" => ClientboundBlockDestruction,
         "block_event" => ClientboundBlockEvent,
         "block_update" => ClientboundBlockUpdate,
@@ -19,6 +20,7 @@ mcrs_minecraft_protocol::extend_packet_table! {
         "forget_level_chunk" => ClientboundForgetLevelChunk,
         "game_event" => ClientboundGameEvent,
         "level_chunk_with_light" => ClientboundLevelChunkWithLight<'a>,
+        "level_event" => ClientboundLevelEvent,
         "level_particles" => ClientboundLevelParticles,
         "light_update" => ClientboundLightUpdate<'a>,
         "login" => ClientboundLogin,
@@ -28,6 +30,7 @@ mcrs_minecraft_protocol::extend_packet_table! {
         "move_minecart_along_track" => ClientboundMoveMinecartAlongTrack,
         "move_entity_rot" => ClientboundMoveEntityRot,
         "open_screen" => ClientboundOpenScreen<'a>,
+        "ping" => ClientboundPing,
         "player_abilities" => ClientboundPlayerAbilities,
         "player_chat" => ClientboundPlayerChat<'a>,
         "player_info_remove" => ClientboundPlayerInfoRemove,

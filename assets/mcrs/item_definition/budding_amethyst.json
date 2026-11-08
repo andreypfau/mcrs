@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:budding_amethyst",
-      "protocol_id": 118
+      "protocol_id": 130
     },
     "components": {
       "minecraft:attack_animation": {},

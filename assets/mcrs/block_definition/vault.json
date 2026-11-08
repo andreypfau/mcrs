@@ -21,9 +21,9 @@
           "ejecting"
         ]
       },
-      "protocol_id": 1279,
-      "base_state_id": 35577,
-      "default_state_id": 35581
+      "protocol_id": 1301,
+      "base_state_id": 37636,
+      "default_state_id": 37640
     },
     "components": {
       "minecraft:light_dampening": 1,

@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:dried_kelp",
-      "protocol_id": 1259
+      "protocol_id": 1281
     },
     "components": {
       "minecraft:attack_animation": {},
@@ -13,7 +13,8 @@
         "layers": "minecraft:compostable/low"
       },
       "minecraft:consumable": {
-        "consume_seconds": 0.8
+        "consume_seconds": 0.8,
+        "sound": "minecraft:entity.generic.eat"
       },
       "minecraft:enchantments": {},
       "minecraft:food": {

@@ -3,9 +3,9 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:deepslate_emerald_ore",
-      "protocol_id": 450,
-      "base_state_id": 11318,
-      "default_state_id": 11318
+      "protocol_id": 454,
+      "base_state_id": 11729,
+      "default_state_id": 11729
     },
     "components": {
       "minecraft:light_emission": 0,

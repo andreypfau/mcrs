@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:soul_soil",
-      "protocol_id": 435
+      "protocol_id": 451
     },
     "components": {
       "minecraft:attack_animation": {},

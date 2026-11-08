@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:dried_ghast",
-      "protocol_id": 755
+      "protocol_id": 777
     },
     "components": {
       "minecraft:attack_animation": {},

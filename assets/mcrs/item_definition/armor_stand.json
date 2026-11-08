@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:armor_stand",
-      "protocol_id": 1408
+      "protocol_id": 1430
     },
     "components": {
       "minecraft:attack_animation": {},

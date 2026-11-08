@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:spruce_fence",
-      "protocol_id": 418
+      "protocol_id": 434
     },
     "components": {
       "minecraft:attack_animation": {},

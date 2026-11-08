@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:exposed_chiseled_copper",
-      "protocol_id": 132
+      "protocol_id": 144
     },
     "components": {
       "minecraft:attack_animation": {},

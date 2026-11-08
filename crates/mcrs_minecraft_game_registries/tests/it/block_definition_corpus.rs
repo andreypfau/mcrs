@@ -56,10 +56,10 @@ fn every_file_parses_and_the_states_tile_the_id_space() {
         size_of::<BlockStateData>(),
         report.elapsed
     );
-    assert_eq!(report.files, 1289);
-    assert_eq!(report.states, 35781);
-    assert_eq!(definitions.state_count(), 35781);
-    assert_eq!(definitions.blocks().len(), 1289);
+    assert_eq!(report.files, 1311);
+    assert_eq!(report.states, 37840);
+    assert_eq!(definitions.state_count(), 37840);
+    assert_eq!(definitions.blocks().len(), 1311);
 
     let mut claimed = vec![false; report.states];
     for block in definitions.blocks() {

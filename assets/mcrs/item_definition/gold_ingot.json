@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:gold_ingot",
-      "protocol_id": 1023
+      "protocol_id": 1045
     },
     "components": {
       "minecraft:attack_animation": {},

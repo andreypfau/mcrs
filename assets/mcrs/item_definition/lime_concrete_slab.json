@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:lime_concrete_slab",
-      "protocol_id": 726
+      "protocol_id": 748
     },
     "components": {
       "minecraft:attack_animation": {},

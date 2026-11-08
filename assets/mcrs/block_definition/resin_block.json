@@ -3,9 +3,9 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:resin_block",
-      "protocol_id": 425,
-      "base_state_id": 10657,
-      "default_state_id": 10657
+      "protocol_id": 429,
+      "base_state_id": 11068,
+      "default_state_id": 11068
     },
     "components": {
       "minecraft:light_emission": 0,

@@ -9,6 +9,7 @@ mod coordinates;
 mod coordinates_error;
 mod keyword;
 mod keyword_error;
+mod player_name;
 mod resource;
 mod rotation_argument;
 mod rotation_toward;
@@ -27,6 +28,7 @@ pub use coordinates::Coordinates;
 pub use coordinates_error::CoordinatesError;
 pub use keyword::{EntityAnchorArgument, GameModeArgument, HeightmapArgument, by_name};
 pub use keyword_error::KeywordError;
+pub use player_name::PlayerNameArgument;
 pub use resource::{
     DimensionArgument, ResourceArgument, ResourceLocationArgument, ResourceOrTag,
     ResourceOrTagArgument,

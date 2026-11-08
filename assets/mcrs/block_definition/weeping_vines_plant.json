@@ -3,9 +3,9 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:weeping_vines_plant",
-      "protocol_id": 970,
-      "base_state_id": 24366,
-      "default_state_id": 24366
+      "protocol_id": 979,
+      "base_state_id": 25189,
+      "default_state_id": 25189
     },
     "components": {
       "minecraft:light_emission": 0,

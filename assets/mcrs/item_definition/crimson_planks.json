@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:crimson_planks",
-      "protocol_id": 74
+      "protocol_id": 86
     },
     "components": {
       "minecraft:attack_animation": {},

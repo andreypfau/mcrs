@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:dead_horn_coral",
-      "protocol_id": 774
+      "protocol_id": 796
     },
     "components": {
       "minecraft:attack_animation": {},

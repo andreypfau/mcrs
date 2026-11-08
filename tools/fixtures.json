@@ -366,6 +366,16 @@
     ]
   },
   {
+    "name": "physics",
+    "task": "recordPhysics",
+    "outputs": [
+      {
+        "pattern": "*.json",
+        "to": "crates/mcrs_minecraft_collision_table/tests/fixtures/physics"
+      }
+    ]
+  },
+  {
     "name": "registry_values",
     "task": "dumpGolden",
     "outputs": [

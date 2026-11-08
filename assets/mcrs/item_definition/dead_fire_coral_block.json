@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:dead_fire_coral_block",
-      "protocol_id": 759
+      "protocol_id": 781
     },
     "components": {
       "minecraft:attack_animation": {},

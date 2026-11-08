@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:hay_block",
-      "protocol_id": 579
+      "protocol_id": 596
     },
     "components": {
       "minecraft:attack_animation": {},

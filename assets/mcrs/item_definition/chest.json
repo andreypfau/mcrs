@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:chest",
-      "protocol_id": 404
+      "protocol_id": 416
     },
     "components": {
       "minecraft:attack_animation": {},
