@@ -1649,3 +1649,11 @@ E1..E8, T1 (any time)   D1 ─ D2 ─ D3 ─ D4 ─ D5 ─ D6 ─ D7
     type (3 ticks for a zombified piglin), so a path of 10 or 20 ticks moves the mob in 3 ticks and
     then stops it. The claim C5 of `replication.md` §5 thus does not hold for these subjects. The
     budget of REPL §7.4 removes such a subject from the visible set; it never lowers its rate.
+59. SIM-FIRE-012 and SIM-SCH-005, the loaded footprint of a scheduled tick. Open (design). A fire
+    tick reads and sets positions up to 2 blocks to the side and from 2 below to 5 above its
+    position. Vanilla runs scheduled ticks in a column only when its eight neighbour columns are
+    full, so each such read finds a loaded section. Here `BlockTicking` covers one ring past the
+    simulation area, and the simulation area can have a vertical reach shorter than the column.
+    Does the engine load each section within one column and the footprint height of a section
+    that runs scheduled ticks? If not, which rule holds: the section does not run ticks, or the
+    tick waits?

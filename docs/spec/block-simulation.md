@@ -37,11 +37,15 @@ subjects:
 - neighbor updates and shape updates
 - scheduled block ticks and scheduled fluid ticks
 - block events
-- random ticks.
+- random ticks
+- the behavior of some blocks (section 12).
 
-This document does not tell an implementation which architecture to use. It does
-not include what each block does when it receives an update, a tick or an event.
-It gives only the machinery that delivers these to the block.
+This document does not tell an implementation which architecture to use. Sections
+1 to 11 do not include what each block does when it receives an update, a tick or
+an event. They give only the machinery that delivers these to the block. Section 12
+gives the behavior of the blocks that a benchmark scene or a save needs. At this
+time, these blocks are `minecraft:fire` and `minecraft:soul_fire`. Section 13 gives
+the implementation of section 12 and of the saved block ticks.
 
 The document has two parts.
 
@@ -120,6 +124,18 @@ that behavior from sections (section 0.2).
 - **Probe fluid**: a fluid type that only the conformance tests use. Its tick handler adds an entry to the test log, as the handlers of a probe block do.
 - **Inert probe**: a probe block whose handlers only add entries to the test log.
 - **Failing twin**: an incorrect result of a conformance test. A known incorrect implementation gives it. An implementation that conforms must not give it.
+
+These terms apply to section 12:
+
+- **Fire tick**: a scheduled block tick of type `minecraft:fire` that runs at a position that holds `minecraft:fire` (SIM-SCH-007).
+- **Ignite odds**, **burn odds**: two integers of a block state, 0 or more. The table of SIM-FIRE-008 gives them for each block type. A state with the property `waterlogged` = true has 0 for both.
+- **Flammable**: a block state with ignite odds above 0.
+- **Next to fuel**: a position with at least one flammable state at its six neighbors.
+- **Sturdy top**: a block state whose support shape covers the full top face of the block. SIM-FIRE-003 gives the support shape.
+- **Infiniburn floor**: a position whose block below is in the block tag that the field `infiniburn` of the dimension type names.
+- **Spread gate**: the test of SIM-FIRE-002. A fire tick does more than its reschedule only when the spread gate is open at its position.
+- **Rain at a position**: the test of SIM-FIRE-004 for one position.
+- **Fire placement state**: the state that fire puts at a position when it spreads (SIM-FIRE-003).
 
 ### 0.2 Sections and columns
 
@@ -212,6 +228,7 @@ reference implementation, not from an experiment.
 | `SIM-BEV` | block events |
 | `SIM-RND` | random ticks and precipitation picks |
 | `SIM-RNG` | random sources |
+| `SIM-FIRE` | the behavior of fire and soul fire (section 12) |
 | `SIM-MODEL` | the abstract model of Part A |
 | `DEV` | intentional deviations from vanilla (B.4) |
 
@@ -733,7 +750,7 @@ removes drops its contents as item entities.
 
 | Block types | `dx` | `dy` | `dz` | Sets | Other effects |
 |-------------|------|------|------|------|---------------|
-| `fire` | ±2 | −2..+5 | ±2 | fire at ±1, −1..+4, ±1. A block that burns is removed | primed TNT. Reads the rain and the players in the radius of the game rule `fire_spread_radius_around_player` |
+| `fire` | ±2 | −2..+5 | ±2 | fire at ±1, −1..+4, ±1. A block that burns is removed | primed TNT. Reads the rain, the difficulty, the environment attribute `gameplay/increased_fire_burnout`, and the players in the radius of the game rule `fire_spread_radius_around_player`. Section 12 |
 | `water`, `lava` (fluid ticks) | ±5 | −1..+1 | ±5 | the position, the position below, and the 4 horizontal neighbors | none |
 | `tripwire_hook` | −1..+42 along the facing | 0 | 0 across | the tripwire blocks of the line, and the hook at the other end | none |
 | `dispenser` | ±11 | −14..+35 | ±11 | the effect of the item at the front position | entities in front. Note 8 |
@@ -1088,7 +1105,8 @@ Provenance: `source_suggested` for both instances (B.2, B.3). Confidence: high.
   - SIM-SHP-002
   - SIM-SCH-001, SIM-SCH-002, SIM-SCH-004, SIM-SCH-007, SIM-SCH-010,
     SIM-SCH-011, SIM-SCH-012 (layout), SIM-SCH-013 (restored sequences),
-    SIM-SCH-014
+    SIM-SCH-014, SIM-SCH-019
+  - SIM-FIRE-001 to SIM-FIRE-010, SIM-FIRE-012
   - SIM-BEV-001, SIM-BEV-004
   - SIM-RND-003, as the vanilla generator. Other instances can replace it
     (P-RNG).
@@ -1106,7 +1124,7 @@ Provenance: `source_suggested` for both instances (B.2, B.3). Confidence: high.
     SIM-SCH-008 (budget scope), SIM-SCH-009 (phase boundaries are for each step),
     SIM-SCH-015, SIM-SCH-016, SIM-SCH-017
   - SIM-BEV-003 (eligibility input)
-  - SIM-RNG-001.
+  - SIM-RNG-001, SIM-FIRE-011 (the random stream of each draw).
 
 All instances of this project also keep the deviations of B.4.
 
@@ -2499,6 +2517,36 @@ This rule is about the load of each column record, not only its ticks. No other 
 
 Provenance: `source_suggested`. Confidence: high. The reader of the reference never reads `yPos`. No experiment was done: a save of this world version always has `yPos`, so a test must remove the key from a record first.
 
+### SIM-SCH-019: Saved ticks of all block types
+
+This rule collects what SIM-SCH-012 and SIM-SCH-013 require for the list `block_ticks`. It adds the rules for the block types that the server does not simulate.
+
+- **Inputs:** the list `block_ticks` of a column record of the world version that this game version uses.
+- **Relevant state:** the block registry, and the block at the position of each tick when the tick runs.
+- **Preconditions:** none.
+- **Behavior:**
+  - The load decodes each element with step 1 of SIM-SCH-013. The `i` of an element must name an entry of the block registry.
+  - The load keeps each element that decodes, for each block type. It keeps an element also in these cases:
+    - The server has no scheduled-tick handler for the block type.
+    - The block at the position of the element is of another type.
+  - The steps "pending" and "activation" of SIM-SCH-013 apply to block ticks as to fluid ticks. The list of block ticks of a column has its own count `m`.
+  - The save writes `block_ticks` by SIM-SCH-012. First come the saved ticks that are not activated, then the active ticks. The save writes the list also when it is empty.
+  - A block tick runs by SIM-SCH-007. A tick of a block type without a scheduled-tick handler is consumed with no effect. In vanilla, each block type has this handler, and the default handler does nothing.
+- **Ordering constraints:** the order of SIM-SCH-012 and SIM-SCH-013.
+- **Numeric semantics:** as SIM-SCH-012.
+- **Postconditions:** a column that the server loads and saves again, with no tick run and no change of game time, has the same `block_ticks` list, element for element.
+- **Edge cases:**
+  - An instance can lack the handler of a block type T that vanilla simulates. This instance still loads, keeps and saves the ticks of T. When such a tick runs, the instance consumes it. Vanilla runs the handler, and the handler can schedule the next tick. Thus the ticks of T end. Section 13 lists the block types with saved ticks in the benchmark scene.
+  - A tick at a position whose section does not accept ticks is discarded (SIM-SCH-005). In vanilla, a block handler never meets this case in its footprint (SIM-FIRE-012).
+  - A section that is loaded but does not run scheduled ticks keeps its ticks, and they get overdue (SIM-SCH-015). Its record then holds a negative `t`.
+- **Invariants:** after a load, the pending block ticks of a column are the elements that decode, without the later duplicates (DEV-03).
+- **Conformance tests:**
+  - Load the column records of the benchmark scene (section 13.2). Result: 4,846 block ticks decode: 4,835 of `minecraft:fire`, 7 of `minecraft:crafter` and 4 of `minecraft:observer`. There are no fluid ticks. Each tick has `p: 0`. Failing twin: 0 block ticks, because the load keeps only `fluid_ticks`.
+  - Write each record of the scene again, at the game time of the load. Result: each `block_ticks` list is equal to the list of the save, element for element.
+  - Load a record with `block_ticks: [{i: "minecraft:fire", …, t: 5, p: 0}]` at a position that holds stone. Result: at `G' + 5` the tick is consumed with no effect, and no fire tick stays pending.
+
+Provenance: `source_suggested_black_box_confirmed`. The save of the gold farm (section 13.6, E-F1) holds `block_ticks` elements of three block types with all six keys, in columns that also hold `fluid_ticks: []`. Kind: semantic. Confidence: high.
+
 ## 6. Block events
 
 ### SIM-BEV-001: Fields and the queue
@@ -2722,6 +2770,7 @@ Provenance: `source_suggested`, confirmed against the reference at `26.4-snapsho
 | Consumer | Source |
 |----------|--------|
 | scheduled block tick handlers | level random |
+| the delay of the next fire tick, in the fire tick and in the placement side effect of fire (SIM-FIRE-001, SIM-FIRE-009) | level random |
 | scheduled fluid tick handlers | level random (through the level, when they draw) |
 | shape functions (SIM-SHP-001) | level random |
 | random tick handlers (block and fluid) | level random |
@@ -2781,6 +2830,12 @@ Provenance: `source_suggested`. Confidence: high.
 | Empty-dimension threshold for the ticks of entities and block entities (vanilla value of P-IDLE) | counter < 300. If all level ticks run normally, the ticks of entities and block entities stop on the 299th level tick after the last keep-active ticket. Ticks that do not run normally do not count | SIM-TICK-002 | `source_suggested` |
 | Pause when empty | `pause-when-empty-seconds` × 20, default 60 s. Only a dedicated server reads the property; other servers use 0 | SIM-TICK-001 | `source_suggested` |
 | Time sync interval | 20 server ticks | SIM-TICK-001 | `source_suggested` |
+| Delay of a fire tick | 30 + r(10): 30 to 39, uniform | SIM-FIRE-001, SIM-FIRE-009 | `source_suggested_black_box_confirmed` (E-F1: no saved fire tick has `t` above 39) |
+| Game rule `fire_spread_radius_around_player` default / minimum | 128 / −1 (−1: each position; 0: no position) | SIM-FIRE-002 | `source_suggested`; rule id `black_box_confirmed` (`registries.json`) |
+| Rain extinguish chance | `0.2F + 0.03F × age`, in f32 | SIM-FIRE-004 | `source_suggested` |
+| Burnout chances of the neighbors | 300 to the side, 250 above and below; 50 less where `gameplay/increased_fire_burnout` is true | SIM-FIRE-006 | `source_suggested` |
+| Spread rate | 100 for `dy` ≤ 1, `100 × dy` for `dy` = 2 to 4 | SIM-FIRE-007 | `source_suggested` |
+| Spread odds | `(k + 40 + 7 × difficulty) / (age + 30)`, integer division; halved where `gameplay/increased_fire_burnout` is true | SIM-FIRE-007 | `source_suggested` |
 | Fluid types | `empty`, `water`, `lava`; source/flowing: the `source` property of the fluid state; amount: its `level` (1 to 8) | 0.1, SIM-SCH-001 | `black_box_confirmed` at 26.4-snapshot-4 by `registries.json`; changed in 26.4-snapshot-4 (before: five types, with separate flowing types) |
 
 ---
@@ -2925,3 +2980,519 @@ order.
 - **Height with no limit.** A rule must not use a column of fixed height as a
   condition. The column groupings that apply only to vanilla stay in the vanilla
   instance (0.2).
+
+---
+
+## 12. Block behaviors
+
+This section gives what some blocks do when the machinery of sections 1 to 9
+delivers a tick, an update or a side effect to them. Each rule of this section is
+from the reference at `26.4-snapshot-7`.
+
+### 12.1 Fire and soul fire
+
+Fire is `minecraft:fire`. Its states have the properties `age` (0 to 15) and
+`north`, `east`, `south`, `west`, `up` (booleans). Soul fire is
+`minecraft:soul_fire`. It has one state. A fire tick runs for each fire, one time in
+34.5 level ticks on average. In a save with the spread gate closed, each fire only
+reschedules (SIM-FIRE-001, Edge cases). The nether of the gold farm save is such a
+save.
+
+In these rules, `r(n)` is a uniform integer draw in `[0, n)`, and `u` is a uniform
+f32 draw in `[0, 1)`. SIM-FIRE-011 gives the source of the draws. A draw occurs
+only where a rule names it. `a` is the age of the fire state that the tick read.
+"Remove Q" is the "remove block" of SIM-SET-004 at Q. "Set Q to S" is a set with
+flags 3 (SIM-SET-002).
+
+Out of scope:
+
+- The placement of fire by a player, an item, a projectile, lightning or lava. Lava
+  uses the same spread gate (SIM-FIRE-002) in its random tick, but this document
+  does not give that random tick.
+- The nether portal that the placement side effect of fire can make (SIM-FIRE-009).
+  No specification gives the portal frame at this time.
+- The primed TNT that a burnout makes (SIM-FIRE-006): only its position and fuse.
+  Its start motion and its tick are entity rules.
+- What fire does to entities inside it (`entity-physics.md`, the table of inside
+  actions), and the sounds and particles of the client.
+
+### SIM-FIRE-001: The fire tick
+
+- **Inputs:** a fire tick at P. F is the state at P when the tick runs.
+- **Relevant state:** the state that each step reads, and the inputs of the spread gate.
+- **Preconditions:** the state at P is of the block type `minecraft:fire` (SIM-SCH-007).
+- **Behavior:** the tick does these steps in this order.
+  1. Schedule the block tick (P, `minecraft:fire`) with the delay `30 + r(10)` and the priority normal (SIM-SCH-003). The tick that runs is not pending, so the queue accepts the new tick (SIM-SCH-009).
+  2. If the spread gate is closed at P (SIM-FIRE-002), the tick ends.
+  3. If fire cannot survive at P (SIM-FIRE-003), remove P. The tick continues.
+  4. Let `inf` be true when P has an infiniburn floor.
+  5. If `inf` is false, and there is rain near P (SIM-FIRE-004), draw `u`. If `u < 0.2F + 0.03F × a` in f32, remove P, and the tick ends.
+  6. Let `a' = min(15, a + r(3) / 2)`, with integer division. If `a'` is not `a`, set P to F with the age `a'`, with flags 260.
+  7. If `inf` is false:
+     1. If P is not next to fuel, the tick ends. Before it ends, the tick removes P if the block below P does not have a sturdy top, or if `a > 3`.
+     2. If `a = 15`, draw `r(4)`. If the result is 0 and the block below P is not flammable, remove P, and the tick ends.
+  8. Burn the six neighbors (SIM-FIRE-006).
+  9. Spread to the positions near P (SIM-FIRE-007).
+- **Ordering constraints:** the steps run in the order of the list. Each set completes before the next step (SIM-SET-002).
+- **Numeric semantics:** the delay is 30 to 39, uniform. Steps 5 to 9 use the age `a` that the tick read, not `a'`. The extinguish chance is f32 arithmetic: `0.2F + (0.03F × a)`.
+- **Postconditions:** after step 1, a fire tick at P is pending. This is also true when the tick then removes the fire. The later tick then is consumed with no effect.
+- **Edge cases:**
+  - When the spread gate is closed, the tick only reschedules. The age does not change, the fire does not go out, and nothing burns. A save that turned off fire ticks before world version 5127 has the gate closed everywhere (SIM-FIRE-002). The fires of such a save keep one pending tick each, for all time.
+  - Steps 3 to 7 read the state F, not the state at P after a removal. A fire that cannot survive has no sturdy top below and is not next to fuel. Thus step 7.1 ends the tick. Before that, step 6 can set P to fire again, and SIM-FIRE-009 then removes it again. When `inf` is true, step 7 does not run, and steps 8 and 9 run for the fire that step 3 removed. With the vanilla tags, each infiniburn block has a sturdy top, so only a data pack can give this case.
+  - Step 6 uses flags 260, which do not have *sync-clients*. A client does not see the new age until a later change at P, or until it gets the column again.
+  - The set of step 6 runs the placement side effect of fire (SIM-FIRE-009). That side effect schedules (P, `minecraft:fire`) again. The queue discards this tick as a duplicate of step 1 (SIM-SCH-004), but the side effect makes its draw.
+  - On an infiniburn floor, a fire never goes out by itself. Rain does not put it out, and it does not burn out when it is not next to fuel or at age 15. It still burns its neighbors and spreads.
+  - Look at a fire that is not next to fuel, on a floor that is not infiniburn. When the gate is open, it goes out at its first tick with `a > 3`. Its floor has a sturdy top, because the fire survives.
+- **Invariants:** a fire tick that runs leaves exactly one pending fire tick at P.
+- **Conformance tests:**
+  - Kernel: put fire with age 0 on netherrack, with oak planks to the east. Close the gate. Run 10,000 level ticks. Result: P holds fire with age 0, the planks stay, and one fire tick is pending at P at the end of each level tick. The number of fire ticks that run is between 256 and 334. Failing twin: no fire tick is pending after the first one ran, because the handler did not reschedule before the gate.
+  - Kernel: put fire with age 0 on stone, with no flammable neighbor. Open the gate. Result: the fire goes out at its first tick that reads an age above 3. The fourth increase of the age comes at the 12th tick on average. Thus, over 1,000 runs, the mean number of fire ticks to the removal is 13 ± 0.5. Failing twin: the mean is 12, because the rule tested `a'`.
+  - Kernel: put fire with age 15 on netherrack, with no flammable neighbor. Open the gate. Run 100,000 level ticks. Result: the fire stays. Failing twin: the fire goes out, because the floor is not infiniburn in the rule.
+  - Vanilla: experiments E-F3 and E-F5 (section 13.6).
+
+Provenance: `source_suggested`. Edge case 1 is `source_suggested_black_box_confirmed` by E-F1 and E-F2: the save holds 4,835 fire ticks with the gate closed. Kind: semantic. Confidence: high.
+
+### SIM-FIRE-002: The spread gate
+
+- **Inputs:** a position P in a dimension.
+- **Relevant state:** the game rule `fire_spread_radius_around_player` (an integer `R`, default 128, minimum −1), and the players in the dimension.
+- **Preconditions:** none.
+- **Behavior:** the spread gate is open at P in two cases:
+  - `R = −1`.
+  - A player of the dimension who is not in spectator mode has a distance less than `R` to the point `(P.x, P.y, P.z)`.
+
+  The distance is the Euclidean distance in f64 from the position of the player. The point is the corner of P with the smallest coordinates, not the center of P. The comparison is strict.
+- **Ordering constraints:** the test reads the position that each player has when the scheduled-tick phase starts. In vanilla, no player moves during the block phases of a level tick.
+- **Numeric semantics:** `R` is a 32-bit integer from −1 to 2,147,483,647.
+- **Postconditions:** none.
+- **Edge cases:**
+  - When `R = 0`, the gate is closed at each position, with or without players.
+  - Before world version 5127, two boolean game rules gave this behavior: `doFireTick` and `allowFireTicksAwayFromPlayer`. When vanilla upgrades a save from such a version, it writes `R` from them:
+
+    | `doFireTick` | `allowFireTicksAwayFromPlayer` | `R` |
+    |--------------|--------------------------------|-----|
+    | false | any | 0 |
+    | true | false | 128 (the default; vanilla writes no value) |
+    | true | true | −1 |
+
+    This project does not upgrade saves (SIM-SCH-013). The table explains the values in a save that vanilla upgraded.
+  - The random tick of lava uses the same gate.
+- **Invariants:** none.
+- **Conformance tests:** kernel, with `R = 10` and one player at `(0.0, 64.0, 0.0)` in survival mode:
+
+| P | Distance to the corner | Gate | Failing twin |
+|---|------------------------|------|--------------|
+| (9, 64, 0) | 9.0 | open | — |
+| (10, 64, 0) | 10.0 | closed | open, with `≤` |
+| (−10, 64, 0) | 10.0 | closed | open, with the center (distance 9.53) |
+| (9, 64, 0), the player in spectator mode | 9.0 | closed | open |
+
+Provenance: `source_suggested`. The upgrade table is `source_suggested_black_box_confirmed`. The 1.21.8 save of the gold farm has `doFireTick` false and `allowFireTicksAwayFromPlayer` false. Its upgrade to `26.4-snapshot-7` has `minecraft:fire_spread_radius_around_player` 0 (E-F2). Kind: semantic. Confidence: high.
+
+### SIM-FIRE-003: Survival, the fire placement state and the shape function
+
+- **Inputs:** a position P, and an age `a`.
+- **Relevant state:** the states at the six neighbors of P.
+- **Preconditions:** none.
+- **Behavior:**
+  - **Support shape.** The support shape of a state is its collision shape, with these exceptions:
+
+    | Block types | Support shape |
+    |-------------|---------------|
+    | each block of the tag `#minecraft:leaves` | empty |
+    | `honey_block`, `mud`, `soul_sand` | the full block |
+    | `snow` | a box of height `2 × layers` sixteenths of a block, from the bottom |
+    | each fence gate | open: empty. Closed: a box across the gate, 4 sixteenths thick, from `y` 5 to 24 sixteenths |
+    | each shulker box | closed: the full block. Open: a plate of 1 sixteenth on the side opposite to its `facing` |
+    | `chorus_flower` | a box of 14 × 14 sixteenths, from `y` 0 to 15 sixteenths |
+    | each hanging sign | its outline shape |
+
+    A state has a sturdy top when the top face of its support shape covers the full face of the block.
+  - **Survival of fire.** Fire can survive at P when the block below P has a sturdy top, or when P is next to fuel.
+  - **Fire placement state** at P with age `a`:
+    1. If the block below P is in the tag `#minecraft:soul_fire_base_blocks`, the state is soul fire.
+    2. If not, and the block below P is flammable or has a sturdy top, the state is fire with age `a`. Its five side properties are false.
+    3. If not, the state is fire with age `a`. Each of `north`, `east`, `south`, `west` and `up` is true when the neighbor in that direction is flammable.
+  - **Shape function of fire** (SIM-SHP-001). If fire can survive at P, the result is the fire placement state at P with the age of the current state. If not, the result is air.
+- **Ordering constraints:** none.
+- **Numeric semantics:** none.
+- **Postconditions:** none.
+- **Edge cases:**
+  - A fire changes to soul fire when the block below it changes to a block of `#minecraft:soul_fire_base_blocks`. The shape function of the fire gives this change.
+  - Leaves have a full collision shape, but no sturdy top. A fire on leaves survives because leaves are flammable.
+  - Netherrack, magma blocks and bedrock have a sturdy top and are not flammable. A fire on them gets no side property.
+- **Invariants:** a fire placement state with a side property true has neither a flammable block nor a sturdy top below it.
+- **Conformance tests:**
+  - Kernel: P is above air, and oak planks are north of P. Result: the placement state is fire with `north` true and the other side properties false. Failing twin: all side properties false.
+  - Kernel: P is above netherrack, and oak planks are north of P. Result: all side properties are false.
+  - Kernel: P is above soul soil. Result: soul fire.
+  - Kernel: fire on oak leaves at P. Remove the leaves with flags 3. Result: the shape update of P gives air, unless another neighbor of P is flammable.
+
+Provenance: `source_suggested`. The support shapes come from the reference. The corpus of this repository holds the collision shapes but not the support shapes (section 13.3). Kind: semantic. Confidence: high.
+
+### SIM-FIRE-004: Rain near a position
+
+- **Inputs:** a position Q.
+- **Relevant state:** the rain of the dimension (SIM-RND-004), the sky light at Q, the `MOTION_BLOCKING` heightmap, and the biome at Q.
+- **Preconditions:** none.
+- **Behavior:** there is rain at Q when all these conditions are true:
+  - There is rain in the dimension (SIM-RND-004).
+  - The sky light at Q is 15.
+  - The `MOTION_BLOCKING` height of the column of Q is not more than `Q.y`.
+  - The biome at Q has precipitation, and its temperature at Q does not give snow. The temperature test is the test of snow in SIM-RND-004.
+
+  There is rain near Q when there is rain at Q or at one of the four horizontal neighbors of Q.
+- **Ordering constraints:** none.
+- **Numeric semantics:** none.
+- **Postconditions:** none.
+- **Edge cases:** a dimension with a ceiling or without sky light never has rain. Thus rain never affects the fire of the nether.
+- **Invariants:** none.
+- **Conformance tests:** kernel: during rain, in a plains biome, put fire on stone under the open sky. Open the gate. Result: the fire goes out at its first tick with the chance 0.2 at age 0. Over 10,000 trials the rate is 0.200 ± 0.012. In a snowy biome the rate is 0. Failing twin: the rate is 0 in the plains biome.
+
+Provenance: `source_suggested`. Kind: semantic. Confidence: high.
+
+### SIM-FIRE-005: The block below a fire, and infiniburn floors
+
+- **Inputs:** a fire tick at P.
+- **Relevant state:** the dimension type of the dimension, and the block below P.
+- **Preconditions:** none.
+- **Behavior:** the field `infiniburn` of the dimension type names a block tag. P has an infiniburn floor when the block below P is in that tag. The vanilla data pack gives these tags:
+
+| Dimension type | `infiniburn` | Blocks |
+|----------------|--------------|--------|
+| `minecraft:overworld`, `minecraft:overworld_caves` | `#minecraft:infiniburn_overworld` | `netherrack`, `magma_block` |
+| `minecraft:the_nether` | `#minecraft:infiniburn_nether` | `#minecraft:infiniburn_overworld` |
+| `minecraft:the_end` | `#minecraft:infiniburn_end` | `#minecraft:infiniburn_overworld`, `bedrock` |
+
+- **Ordering constraints:** the tick reads the block below P one time, at step 4 of SIM-FIRE-001.
+- **Numeric semantics:** none.
+- **Postconditions:** none.
+- **Edge cases:** bedrock is infiniburn only in the end. A fire on the bedrock floor of the nether goes out when the gate is open and it is not next to fuel.
+- **Invariants:** none.
+- **Conformance tests:** see the third kernel test of SIM-FIRE-001. Kernel: in the nether, put fire on bedrock with no fuel. Open the gate. Result: the fire goes out. Failing twin: it stays, because bedrock is infiniburn in the rule.
+
+Provenance: `source_suggested`; the tags and the fields are data of the vanilla data pack. Kind: semantic. Confidence: high.
+
+### SIM-FIRE-006: Burnout of the neighbors
+
+- **Inputs:** a fire tick at P that got to step 8 of SIM-FIRE-001, and its age `a`.
+- **Relevant state:** the states at the six neighbors of P, the environment attribute `gameplay/increased_fire_burnout` at P, and the game rule `tnt_explodes`.
+- **Preconditions:** none.
+- **Behavior:** let `e = −50` when the attribute is true at P, and `e = 0` when it is false. For each neighbor Q, in this order, the tick does the steps below:
+
+| Order | Q | Chance `c` |
+|-------|---|------------|
+| 1 | east (`x + 1`) | 300 + `e` |
+| 2 | west (`x − 1`) | 300 + `e` |
+| 3 | below (`y − 1`) | 250 + `e` |
+| 4 | above (`y + 1`) | 250 + `e` |
+| 5 | north (`z − 1`) | 300 + `e` |
+| 6 | south (`z + 1`) | 300 + `e` |
+
+  1. Draw `r(c)`. If the result is not less than the burn odds of the state at Q, go to the next Q.
+  2. Let O be the state at Q. Draw `r(a + 10)`. If the result is less than 5 and there is no rain at Q, set Q to the fire placement state at Q. Its age is `min(a + r(5) / 4, 15)`. If not, remove Q.
+  3. If O is of the block type `minecraft:tnt` and `tnt_explodes` is true, a primed TNT spawns at `(Q.x + 0.5, Q.y, Q.z + 0.5)` with a fuse of 80 ticks.
+- **Ordering constraints:** the order of the table. The draw of step 1 occurs for each of the six neighbors, also when the burn odds are 0.
+- **Numeric semantics:** integer arithmetic. `r(5) / 4` is 1 with the chance 1/5.
+- **Postconditions:** none.
+- **Edge cases:**
+  - The draw of the age in step 2 occurs only when the fire replaces the block. The test of rain at Q occurs only when the draw `r(a + 10)` is less than 5.
+  - A waterlogged block has burn odds 0, so it never burns.
+  - The set and the removal run the pre-removal side effects of a block entity. For example, a lectern drops its book.
+  - The fire placement state at Q can be soul fire, when the block below Q is a soul fire base block.
+- **Invariants:** none.
+- **Conformance tests:** kernel: put fire with age 0 on netherrack at P, with a block of hay above P (burn odds 20). Use `e = 0` and no rain. Run the first tick 100,000 times from the same start state, with different streams. Result: the hay changes in 20 / 250 = 8.0 % of the runs (± 0.3 %). Of these, fire replaces it in 50 % and air in 50 % (age 0: `r(10) < 5`). Failing twin: 20 / 300 for the block above.
+
+Provenance: `source_suggested`. Kind: semantic. Confidence: high.
+
+### SIM-FIRE-007: Spread
+
+- **Inputs:** a fire tick at P that got to step 9 of SIM-FIRE-001, and its age `a`.
+- **Relevant state:** the states near P, the difficulty of the server, the attribute `gameplay/increased_fire_burnout` at P, and the rain.
+- **Preconditions:** none.
+- **Behavior:** the tick does the steps below for each offset `(dx, dz, dy)`. `dx` goes from −1 to 1 in the outer loop, then `dz` from −1 to 1, then `dy` from −1 to 4 in the inner loop. The tick skips the offset (0, 0, 0).
+  1. Let T be `P + (dx, dy, dz)`. If T is not air, go to the next offset. Air is `air`, `cave_air` or `void_air`.
+  2. Let `k` be the largest ignite odds of the six neighbors of T. If `k` is 0, go to the next offset.
+  3. Let `o = (k + 40 + 7 × d) / (a + 30)`, with integer division. `d` is the difficulty: 0 peaceful, 1 easy, 2 normal, 3 hard. If the attribute is true at P, let `o = o / 2`.
+  4. If `o` is 0, go to the next offset.
+  5. Let `rate` be 100 when `dy` ≤ 1, and `100 × dy` when `dy` ≥ 2. Draw `r(rate)`. If the result is more than `o`, go to the next offset.
+  6. If there is rain in the dimension and rain near T, go to the next offset.
+  7. Set T to the fire placement state at T with the age `min(15, a + r(5) / 4)`.
+- **Ordering constraints:** the order of the loops. A set at one offset completes before the tick reads the next offset. Thus a fire that the tick put earlier can be a neighbor of a later T, but fire has ignite odds 0.
+- **Numeric semantics:** integer arithmetic. The test of step 5 is `r(rate) ≤ o`, so the chance is `(o + 1) / rate`.
+- **Postconditions:** none.
+- **Edge cases:**
+  - Fire spreads only into air. It does not replace a replaceable block, for example grass.
+  - T can be above the top of the dimension. A read there gives `void_air`. The set at such a position is refused (SIM-SET-003).
+  - The age of a new fire is `a` or `a + 1`, not more than 15.
+  - Step 6 reads the rain of the dimension before the rain near T.
+- **Invariants:** none.
+- **Conformance tests:** kernel, at the difficulty hard, `a = 0`, attribute false, no rain. P is on netherrack. T is air. The only flammable block near P is one oak planks block at `T + (1, 0, 0)`. Then `k = 5` and `o = (5 + 40 + 21) / 30 = 2`.
+
+| Offset of T | `rate` | Chance of fire at T in one tick |
+|-------------|--------|---------------------------------|
+| (1, 0, 0) | 100 | 3 / 100 |
+| (0, 2, 0) | 200 | 3 / 200 |
+| (0, 4, 0) | 400 | 3 / 400 |
+
+  Run 100,000 ticks for each row with independent streams. Result: the rate is in the binomial interval of the row (3 standard deviations). Failing twin: 2 / 100, with `<` in place of `≤`. At the difficulty peaceful, `o = 1` and the chance is 2 / 100.
+
+Provenance: `source_suggested`. Kind: semantic. Confidence: high.
+
+### SIM-FIRE-008: Ignite odds and burn odds
+
+- **Inputs:** a block state S.
+- **Relevant state:** none.
+- **Preconditions:** none.
+- **Behavior:** if S has the property `waterlogged` with the value true, both odds are 0. If not, the block type of S gives the odds in the table below. A block type that is not in the table has 0 and 0.
+
+  In the table, W11 is the list `oak`, `spruce`, `birch`, `jungle`, `acacia`, `cherry`, `dark_oak`, `pale_oak`, `poplar`, `mangrove`, `bamboo`. W10 is W11 without `bamboo`. C16 is the list of the 16 dye colors: `white`, `orange`, `magenta`, `light_blue`, `yellow`, `lime`, `pink`, `gray`, `light_gray`, `cyan`, `purple`, `blue`, `brown`, `green`, `red`, `black`.
+
+| Ignite odds | Burn odds | Block types | Count |
+|-------------|-----------|-------------|-------|
+| 5 | 20 | `<W11>_planks`, `<W11>_slab`, `<W11>_stairs`, `<W11>_fence`, `<W11>_fence_gate`, `bamboo_mosaic`, `bamboo_mosaic_slab`, `bamboo_mosaic_stairs`, `mangrove_roots`, `composter`, `beehive` | 61 |
+| 5 | 5 | `<W10>_log`, `<W10>_wood`, `stripped_<W10>_log`, `stripped_<W10>_wood`, `bamboo_block`, `stripped_bamboo_block`, `coal_block` | 43 |
+| 30 | 60 | `<W10>_leaves` without `poplar_leaves`, `red_poplar_leaves`, `orange_poplar_leaves`, `yellow_poplar_leaves`, `azalea_leaves`, `flowering_azalea_leaves`, `<C16>_wool`, `<C16>_wool_stairs`, `<C16>_wool_slab`, `dried_kelp_block`, `azalea`, `flowering_azalea`, `hanging_roots`, `straw_bed` | 67 |
+| 30 | 20 | `bookshelf`, `lectern`, `bee_nest`, `<W11>_shelf` | 14 |
+| 60 | 100 | `short_grass`, `fern`, `dead_bush`, `short_dry_grass`, `tall_dry_grass`, `sunflower`, `lilac`, `rose_bush`, `peony`, `red_shrub`, `tall_grass`, `large_fern`, `dandelion`, `golden_dandelion`, `poppy`, `open_eyeblossom`, `closed_eyeblossom`, `blue_orchid`, `allium`, `azure_bluet`, `red_tulip`, `orange_tulip`, `white_tulip`, `pink_tulip`, `oxeye_daisy`, `cornflower`, `lily_of_the_valley`, `torchflower`, `pitcher_plant`, `wither_rose`, `pink_petals`, `wildflowers`, `leaf_litter`, `cactus_flower`, `sweet_berry_bush`, `spore_blossom`, `big_dripleaf`, `big_dripleaf_stem`, `small_dripleaf`, `firefly_bush`, `bush` | 41 |
+| 60 | 20 | `hay_block`, `<C16>_carpet` | 17 |
+| 60 | 60 | `bamboo`, `scaffolding` | 2 |
+| 15 | 100 | `tnt`, `vine`, `glow_lichen` | 3 |
+| 15 | 60 | `cave_vines`, `cave_vines_plant` | 2 |
+| 15 | 20 | `target` | 1 |
+| 5 | 100 | `pale_moss_block`, `pale_moss_carpet`, `pale_hanging_moss` | 3 |
+
+  The table has 254 block types. Each id is in the namespace `minecraft`.
+- **Ordering constraints:** none.
+- **Numeric semantics:** none.
+- **Postconditions:** none.
+- **Edge cases:**
+  - The blocks of the nether woods (`crimson_*`, `warped_*`), `moss_block`, `moss_carpet` and `nether_wart_block` are not in the table. Fire does not spread to them.
+  - Fire and soul fire are not in the table.
+  - The odds are data of the code of the game, not of the data pack. A data pack cannot change them.
+- **Invariants:** each block type of the table is an entry of the block registry of this game version.
+- **Conformance tests:**
+  - Each of the 254 ids names a block of `../../assets/mcrs/block_definition/`.
+  - Vanilla: experiment E-F6 (section 13.6).
+
+Provenance: `source_suggested`. The table was compared with the reference by a script, entry for entry (section 13.6, E-F0). Kind: semantic. Confidence: high.
+
+### SIM-FIRE-009: Placement side effect of fire and soul fire
+
+- **Inputs:** a set that puts fire or soul fire at P, with the old state O (SIM-SET-002 step 2.7).
+- **Relevant state:** the dimension, and the neighbors of P.
+- **Preconditions:** the flags of the set do not have *skip-placement*.
+- **Behavior:**
+  1. If O is not of the block type of the new state, these steps occur:
+     1. If the dimension key is `minecraft:overworld` or `minecraft:the_nether`, the server looks for an empty nether portal frame at P. If it finds one, it puts the portal blocks, and the side effect ends. This document does not give the frame (12.1, out of scope).
+     2. If the new block cannot survive at P, remove P.
+  2. For fire only: schedule the block tick (P, `minecraft:fire`) with the delay `30 + r(10)` and the priority normal. This step occurs also when O is fire, and also after the removal of step 1.2.
+- **Ordering constraints:** step 1 before step 2.
+- **Numeric semantics:** the delay is 30 to 39, uniform.
+- **Postconditions:** after a set of fire, a fire tick at P is pending, if none was pending before.
+- **Edge cases:**
+  - A set of fire with *skip-placement* (for example flags 818 of a strict command) schedules no tick. That fire never ticks until a later set or a saved tick gives it one.
+  - A fire that the server loads from a save gets no placement side effect. Only its saved tick makes it tick. The scene of section 13.2 holds 178 fires without a saved tick. These fires do not tick until a set changes their state.
+  - The dimension test uses the dimension key, not the dimension type.
+- **Invariants:** none.
+- **Conformance tests:**
+  - Vanilla: experiment E-F4 (section 13.6).
+  - Kernel: set fire on netherrack with flags 3 at G. Result: one fire tick is pending at P, due at `G + 30` to `G + 39`. Set the same fire again with another age. Result: the pending tick does not change.
+
+Provenance: `source_suggested`. Kind: semantic. Confidence: high.
+
+### SIM-FIRE-010: Soul fire
+
+- **Inputs:** soul fire at P.
+- **Relevant state:** the block below P.
+- **Preconditions:** none.
+- **Behavior:**
+  - Soul fire can survive at P when the block below P is in `#minecraft:soul_fire_base_blocks` (vanilla: `soul_sand`, `soul_soil`).
+  - Its shape function gives soul fire when it can survive, and air when it cannot.
+  - It has no scheduled-tick handler and no random-tick handler. It does not age, spread or burn its neighbors. Its placement side effect is step 1 of SIM-FIRE-009 only.
+- **Ordering constraints:** none.
+- **Numeric semantics:** none.
+- **Postconditions:** none.
+- **Edge cases:** a saved tick of `minecraft:soul_fire` is consumed with no effect (SIM-SCH-019). Soul fire is not flammable, so fire does not spread from it to its neighbors.
+- **Invariants:** soul fire never schedules a tick.
+- **Conformance tests:** vanilla: experiment E-F7 (section 13.6). Kernel: set soul fire on soul sand. Result: no tick is pending at P.
+
+Provenance: `source_suggested`. Kind: semantic. Confidence: high.
+
+### SIM-FIRE-011: The random draws of fire
+
+- **Inputs:** the draws `r(n)` and `u` of SIM-FIRE-001, SIM-FIRE-006, SIM-FIRE-007 and SIM-FIRE-009.
+- **Relevant state:** the random stream of the work item that makes the draw.
+- **Preconditions:** none.
+- **Behavior:**
+  - **Vanilla.** Each draw comes from the level random of the dimension (SIM-RNG-001). The draws of other work in the dimension come between them.
+  - **This project** (P-RNG). Each draw of a fire tick comes from the stream of that scheduled tick. The key of the stream is the dimension seed, the game time of the step, the position of the tick and its sequence. A draw of a placement side effect comes from the stream of the work item that makes the set. A set inside a fire tick is part of the fire tick, so the side effect draws from the stream of that tick.
+  - The draws occur in the order of the rules, and only where a rule names a draw. The order is the order of the steps of SIM-FIRE-001, with the draws of SIM-FIRE-006, SIM-FIRE-007 and SIM-FIRE-009 at their places.
+  - `r(n)` is the bounded integer draw of the 48-bit generator of SIM-RNG-001. `u` is its draw of 24 bits, divided by 2²⁴.
+- **Ordering constraints:** as above.
+- **Numeric semantics:** integer arithmetic and one f32 comparison (SIM-FIRE-001 step 5). The result does not depend on the processor.
+- **Postconditions:** the same stored state, the same inputs and the same seed give the same result. This is also true across processor architectures and for each count of threads.
+- **Edge cases:** vanilla seeds the level random from the clock. Thus a parity test compares only distributions with vanilla.
+- **Invariants:** none.
+- **Conformance tests:**
+  - Kernel: run the scene of section 13.2 with the gate open for 1,000 steps two times from the same save and seed. Result: the two block states and the two tick queues are equal after each step.
+  - Run the same test on `x86_64-apple-darwin` and on `aarch64-apple-darwin`. Result: equal hashes of the block states after each step.
+
+Provenance: `derived` from SIM-RNG-001, P-RNG and SIM-MODEL-106. Kind: unspecified for parity with vanilla. The determinism is a requirement of this project. Confidence: high.
+
+### SIM-FIRE-012: The footprint of a fire tick and loaded positions
+
+- **Inputs:** a fire tick at P.
+- **Relevant state:** the section properties of the positions of its footprint (SIM-MODEL-009, Table 6: ±2, −2..+5, ±2).
+- **Preconditions:** none.
+- **Behavior:** each position of the footprint in the vertical extent of the dimension must be loaded when the tick runs. Vanilla gives this guarantee: a column runs scheduled ticks only when its eight neighbor columns are at full status (SIM-TICK-005). The footprint reaches 2 blocks to the side, so it stays in those columns. An instance must give a section the property *runs scheduled ticks* only when this guarantee holds.
+- **Ordering constraints:** none.
+- **Numeric semantics:** none.
+- **Postconditions:** each read of the tick gets a state, and each set of the tick writes a loaded section. Each tick that the tick schedules goes to a section that accepts ticks (SIM-SCH-005).
+- **Edge cases:**
+  - Positions above or below the vertical extent read `void_air`, and a set there is refused (SIM-SET-003).
+  - A new fire in a neighbor section that accepts ticks but does not run them keeps its tick pending (SIM-SCH-015). The tick gets overdue, and the save writes a negative `t`. The save of the scene holds such ticks (SIM-SCH-019).
+  - When the gate is closed, the tick reads and writes only P.
+- **Invariants:** none.
+- **Conformance tests:** kernel: put fire at the edge of the area that runs scheduled ticks, with oak planks across the column boundary. Open the gate. Result: the tick reads the planks. No read reports an unloaded section.
+
+Provenance: `derived` from SIM-TICK-005 and SIM-MODEL-009. Kind: semantic. Confidence: high.
+
+---
+
+## 13. Implementation: saved block ticks and fire
+
+This section is the plan of step G8 of `../farms/gold-farm.md`.
+
+### 13.1 What the server has, and the order of work
+
+The server decodes `fluid_ticks` (`mcrs_minecraft_anvil`, `ticks.rs`) and leaves out
+`block_ticks`. The read of a saved column reports the dropped fluid ticks
+(`mcrs_minecraft_worldgen_generator`, `saved.rs`), but the saved lists do not get to
+`ColumnTicks`. The block kernel already holds, activates and takes back the ticks of
+both kinds (`mcrs_minecraft_engine`, `block_simulation.rs`: `hold`, `activate`,
+`take_column`). Each dimension runs `InertBlocks`, so each tick is consumed with no
+effect.
+
+Do the work in this order. Each item ships alone.
+
+1. **Load and save `block_ticks`** (SIM-SCH-012, SIM-SCH-013, SIM-SCH-019). Decode both lists with one decoder: the block list resolves `i` in the block registry, the fluid list in the fluid registry. Keep the report of dropped elements for both lists. Write `block_ticks` back.
+2. **Carry the saved lists into `ColumnTicks`** for each saved column, both kinds. Then the kernel holds them and activates them when the section runs scheduled ticks.
+3. **Random streams for block ticks and side effects** (SIM-FIRE-011). Give the scheduled-tick handler the stream of its tick. Give a placement side effect the stream of the work item that makes the set.
+4. **The data of section 13.3.**
+5. **Fire and soul fire** (SIM-FIRE-001 to SIM-FIRE-010): the scheduled-tick handler, the placement side effect and the shape function. Put them in the block rules of the dimension in place of `InertBlocks` for these two block types.
+6. **The benchmark scene** of section 13.2.
+
+The architecture needs no new stage. Fire ticks are scheduled block ticks of the
+block domain (`../physics-architecture.md` §7.5, row "Scheduled block and fluid
+ticks"). Question 59 of `../physics-architecture.md` §15 asks if the engine keeps
+the guarantee of SIM-FIRE-012.
+
+### 13.2 Exit test: the nether fire scene
+
+The fire ticks of the gold farm go to a benchmark of the block domain, not to the farm
+benchmark (`../farms/gold-farm.md` §7, decision 4). The scene is the nether area of
+the farm:
+
+- `MCRS_BENCH_WORLD=~/mc-worlds/upgraded/hermitcraft10`
+- `MCRS_BENCH_AREA="minecraft:the_nether -317 -609 5"`: the 121 columns within 5 columns of the column `(-20, -39)` of the farm center.
+- The game rules of the save: `fire_spread_radius_around_player` is 0. No player is necessary.
+- Each column of the area runs scheduled ticks. Load one more ring of columns, so that SIM-FIRE-012 holds.
+
+The exit test passes when all these results are true:
+
+1. The load decodes 4,846 block ticks: 4,835 fire, 7 crafter, 4 observer. It decodes no fluid tick and drops no element.
+2. The activation occurs at the game time `G'`. The 2,593 fire ticks with `t ≤ 0` run in the first scheduled phase after the activation. The 36 fire ticks with `t = 1` run in the phase of `G' + 1`.
+3. At the end of each level tick after the activation, 4,835 fire ticks are pending.
+4. Warm up for 1,200 level ticks, then measure 12,000 level ticks. The mean count of fire ticks that run in one level tick is 140.1 ± 0.5. The expected value is 4,835 / 34.5 = 140.14. A simulation of the delay rule over this scene gives a standard deviation of 11.7 for one level tick.
+5. No block state of the area changes.
+
+The bench also prints the time of the scheduled-tick phase of each level tick. The
+vanilla run of the farm reports 0.50 ms for all scheduled ticks of the nether
+(`../farms/gold-farm.md` §2.2). That run loads a larger area, so it is not a limit
+for this scene.
+
+A second run of the scene uses `fire_spread_radius_around_player` −1. It measures
+the cost of the full tick. It has no exit value. Its fires on a floor that is not
+infiniburn and not next to fuel go out (SIM-FIRE-001), so the count of result 3
+falls.
+
+The 7 crafter ticks and 4 observer ticks are consumed with no effect, because the
+server has no handler for these block types (SIM-SCH-019).
+
+### 13.3 Data tables
+
+| Data | Source | Status |
+|------|--------|--------|
+| Ignite odds and burn odds | the table of SIM-FIRE-008 | in this document; the corpus does not hold them |
+| Sturdy top of each state | the collision shapes of `../../assets/mcrs/block_definition/`, with the exceptions of SIM-FIRE-003 | the corpus holds no support shape. The block definition dumper of `tools/vanilla-oracle` can add a per-state component with the faces of the full support test. Until then, use the exceptions |
+| `waterlogged` | the properties of each block of the corpus | present |
+| Infiniburn tags | the field `infiniburn` of the dimension type, and the tags of the data pack | present (`mcrs_minecraft_dimension_environment`) |
+| `#minecraft:soul_fire_base_blocks`, `#minecraft:leaves` | block tags of the data pack | present |
+| Game rules `fire_spread_radius_around_player`, `tnt_explodes` | `game_rules.dat` of the save; the definitions of `mcrs_minecraft_game_rule` | present |
+| Difficulty | `difficulty_settings` of `level.dat` | the bench uses hard |
+| `gameplay/increased_fire_burnout` | the environment attributes of the biome and of the dimension (`registry-fields.md`) | present |
+| Rain inputs | the rain level, the sky light, the `MOTION_BLOCKING` heightmap and the biome (SIM-RND-004 uses the same inputs) | present |
+| Players and their game modes | the player table of the dimension | present |
+
+### 13.4 Tests to write
+
+| Test | Rules | Kind of evidence |
+|------|-------|------------------|
+| Decode and write of `block_ticks`: an unknown id is dropped and reported, the other elements stay; a tick outside the column is dropped with no report; the list keeps its order | SIM-SCH-013, SIM-SCH-019 | fixture |
+| The round trip of the chunk files of the game: `block_ticks` is equal to the file of the game | SIM-SCH-012 | game files (`vanilla_files.rs`) |
+| The kernel tests of SIM-FIRE-001 to SIM-FIRE-012 | SIM-FIRE-* | harness; distributions with binomial bounds |
+| Each id of the odds table is a block of the corpus | SIM-FIRE-008 | corpus |
+| Determinism: two runs, and `x86_64` against `aarch64` | SIM-FIRE-011 | harness |
+| The exit test of section 13.2 | SIM-SCH-019, SIM-FIRE-001 | real save. Skip with a printed reason when `MCRS_BENCH_WORLD` is not set |
+| The vanilla experiments E-F3 to E-F7 | SIM-FIRE-* | vanilla server (blocked: human) |
+
+### 13.5 Out of scope
+
+The items of section 12.1 are out of scope. The ticks of other block types (for
+example the crafter and the observer of the scene) are out of scope. They need their
+own rules. Fluid ticks are in scope only for the load and the save.
+
+### 13.6 Experiments
+
+Experiments that were run:
+
+- **E-F0** (the odds table). A script read the table of the reference and compared it with the table of SIM-FIRE-008. Result: 254 entries, no entry is missing, no entry is extra, and no value differs. Each id is a file of the corpus.
+- **E-F1** (the census of the scene). A script read the region files of the nether of `~/mc-worlds/upgraded/hermitcraft10`. It read the columns within 5 columns of `(-20, -39)`. Results:
+  - `block_ticks`: 4,846 elements. 4,835 are `minecraft:fire`, 7 `minecraft:crafter`, 4 `minecraft:observer`. Each element has `p: 0`. There are no `fluid_ticks`.
+  - Each of the 4,835 fire ticks is at a position that holds fire. The fires are at `y` 4 to 124, below the roof. 178 other fire blocks of the area have no tick.
+  - Below the fires: netherrack 4,727, bedrock 35, nether quartz ore 34, nether gold ore 22, blackstone 10, glowstone 3, magma block 2, gravel 1, oak planks 1. Thus 4,729 fires have an infiniburn floor.
+  - The `t` of the fire ticks is −21,515 to 39. 2,593 ticks have `t ≤ 0` and 36 have `t = 1`. No tick has `t` above 39.
+  - With radius 10 the area holds 7,953 fire ticks. With radius 5 it holds 4,835, the number of `../farms/gold-farm.md` §2.4.
+- **E-F2** (the game rule of the save). `data/minecraft/game_rules.dat` of the upgraded save has `minecraft:fire_spread_radius_around_player` 0. `level.dat` of the 1.21.8 save has `doFireTick` false and `allowFireTicksAwayFromPlayer` false.
+- **E-F1b** (a simulation of the delay rule). A script started the 4,835 ticks at their saved `t` and rescheduled each tick with `30 + r(10)`. The script used three seeds, a warm-up of 1,200 ticks and 12,000 measured ticks. The mean was 140.14 to 140.15. The standard deviation of one tick was 11.6 to 11.8.
+
+Experiments that need a human. The vanilla server needs the acceptance of the
+Minecraft EULA in the environment. Start the server with
+`MINECRAFT_EULA=true tools/vanilla-server/run.sh serve`. Type the commands on its
+console. Put the console log and the region file of the column under
+`crates/mcrs_minecraft_engine/tests/fixtures/vanilla_fire/<experiment id>/`.
+
+- **E-F3** (the gate). Use a flat overworld and the difficulty hard. Do these steps:
+  1. `/gamerule fire_spread_radius_around_player 0`
+  2. `/setblock 0 -60 0 minecraft:oak_planks`
+  3. `/setblock 1 -60 0 minecraft:fire`
+  4. `/tick sprint 2400`
+  5. `/execute if block 1 -60 0 minecraft:fire[age=0]` and `/execute if block 0 -60 0 minecraft:oak_planks`
+
+  Expected: both tests pass. Then do the same steps with the radius −1 at other positions. Expected: the planks are gone within 2,400 ticks.
+- **E-F4** (the delay). Do these steps:
+  1. `/tick freeze`
+  2. Put 50 fires on netherrack with `/setblock`, at 50 positions in one column.
+  3. `/save-all flush`
+
+  Expected: the record of the column holds 50 elements `{i: "minecraft:fire", t, p: 0}`, with `t` from 30 to 39. Each value occurs.
+- **E-F5** (the floor). Use the radius −1. Put fire on netherrack and fire on stone, with no flammable block near them. Run `/tick sprint 20000`. Expected: the fire on netherrack stays, with age 15. The fire on stone is gone.
+- **E-F6** (the table). Use the radius −1. Put fire on stone next to `moss_carpet`, and a second fire next to `pale_moss_carpet`. Expected: the fire next to `moss_carpet` goes out. The other fire stays while the carpet stays, and the carpet can burn.
+- **E-F7** (soul fire). Do these steps:
+  1. `/tick freeze`
+  2. `/setblock 0 -60 0 minecraft:soul_sand`
+  3. `/setblock 0 -59 0 minecraft:soul_fire`
+  4. `/save-all flush`
+
+  Expected: the record of the column has no `block_ticks` element at `(0, -59, 0)`.

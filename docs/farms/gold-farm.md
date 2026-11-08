@@ -143,9 +143,12 @@ stops when nobody kills the piglins.
 
 ### 2.4 Scene data of the save
 
-The area of the farm holds 4,835 saved scheduled ticks of `minecraft:fire` below the roof. A fire
-schedules its next tick 30 to 39 ticks later, also when it cannot spread. Thus these fires give about
-140 scheduled ticks in each tick when their chunks tick. The save holds no zombified piglin near the
+The columns within 5 columns of the centre column `(-20, -39)` hold 4,835 saved scheduled ticks of
+`minecraft:fire` below the roof. Within 10 columns there are 7,953. A fire schedules its next tick
+30 to 39 ticks later before it tests if it can spread. The game rule
+`fire_spread_radius_around_player` of the save is 0, so these fires only reschedule
+(`../spec/block-simulation.md`, SIM-FIRE-001). Thus the 4,835 fires give about 140 scheduled ticks
+in each tick when their chunks tick. The save holds no zombified piglin near the
 farm, because the server removes the mobs that can despawn when it unloads a chunk.
 
 ## 3. Mechanics
@@ -181,7 +184,7 @@ weeks), L (more).
 | 17 | Death and experience | A mob that a player hurt in the last 100 ticks drops experience. A zombified piglin gives 5, plus 1 to 3 for each equipment item with a drop chance of 1 or less. A baby gives 2.5 times. The orbs split by value | in 18 | None | `entity-damage.md` | S |
 | 18 | Experience orbs | An orb moves to the nearest player within 8 blocks. Orbs of near values merge. The player picks up an orb and gets its points | 13 % | Part: the orb motion exists (`Category::ExperienceOrb`, PHY-ORD-005, the lifetime in `entity_pass.rs`). No follow, merge or pickup | new `experience-orbs.md` | M |
 | 19 | Spawn equipment | A spawned zombified piglin holds a golden sword, or a golden spear with the chance 1/20. The equipment changes its experience and its attack | — | None | `natural-spawning.md` | S |
-| 20 | Scheduled ticks of the scene | 4,835 saved fire ticks, rescheduled each 30 to 39 ticks | 6 % | Part: the scheduled ticks exist (`mcrs_minecraft_simulation`, SIM-SCH-*). The save loader keeps only the fluid ticks (`mcrs_minecraft_anvil`, `chunk.rs`), and fire has no handler | `block-simulation.md` SIM-SCH-* | S |
+| 20 | Scheduled ticks of the scene | 4,835 saved fire ticks, rescheduled each 30 to 39 ticks | 6 % | Part: the scheduled ticks exist (`mcrs_minecraft_simulation`, SIM-SCH-*). The save loader keeps only the fluid ticks (`mcrs_minecraft_anvil`, `chunk.rs`), and fire has no handler | `block-simulation.md` SIM-SCH-019, SIM-FIRE-001..012 | S |
 | 21 | Random ticks of the scene | The nether columns near the player tick at speed 3 | 7 % | Has: SIM-RND-*, D1 | — | — |
 
 The mechanics 3 and 5 to 9 are about half of the nether tick. Natural spawning is the largest single
@@ -210,7 +213,7 @@ of section 3.1. Each step has an exit criterion that a test or the benchmark of 
 | G5 | `mob-goals.md`: goal selection at the AIT cadence; the egg goal, stroll and look goals; target goals and anger with alerts | 5, 6, 9 | L | without a player attack, the chamber fills to the counts of section 2.3 |
 | G6 | `player-attack.md`: the attack packet, cooldown, damage, sweep, the player hit mark | 16 | M | a scripted attack each 13 ticks gives the death counts of section 2.2 |
 | G7 | Experience: the drop amount, `experience-orbs.md` with follow, merge and pickup | 17, 18 | M | the orb counts near the chamber match section 2.2 |
-| G8 | Saved block ticks of all kinds, and the fire tick that only reschedules when it cannot spread | 20 | S | the scheduled tick count of the scene matches section 2.4 |
+| G8 | Saved block ticks of all kinds, and the fire tick that only reschedules when it cannot spread | 20 | S | the scheduled tick count of the nether fire scene (`block-simulation.md` §13.2) matches section 2.4 |
 
 G1 and G2 can start now. G3 needs G1. G4 can run in parallel with G2 and G3. G5 needs G4. G6 needs
 G2. G7 needs G6. G8 is independent.
