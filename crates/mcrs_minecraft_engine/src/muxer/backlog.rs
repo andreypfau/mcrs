@@ -8,6 +8,7 @@ use mcrs_minecraft_engine_world::session::Session;
 use mcrs_minecraft_network::ServerSideConnection;
 use mcrs_minecraft_replication::Backlog;
 use rustc_hash::FxHashSet;
+use tracing::debug;
 
 use crate::muxer::muxer_link::MuxerLink;
 use crate::muxer::session::HostAnchorRef;
@@ -46,6 +47,12 @@ pub fn forward_backlog(
             Backlog::Behind
         };
         if let Ok(&Session(session)) = sessions.get(anchor) {
+            debug!(
+                ?session,
+                ?backlog,
+                unsent,
+                "the backlog of a connection changed"
+            );
             muxer.send_backlog(session, backlog);
         }
     }
