@@ -1,6 +1,7 @@
 use crate::delta_base::DeltaBase;
 use crate::encode::record;
 use crate::list_packets::{Profile, game_mode_packet};
+use crate::mob_trackers::MobTrackers;
 use crate::motion::Motion;
 use crate::player_data::PlayerData;
 use crate::player_input::PlayerInput;
@@ -23,8 +24,8 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::mem;
 use uuid::Uuid;
 
-/// The Minecraft side of a [`Muxer`](mcrs_engine_muxer::Muxer) for the players of one world.
-/// The [`EntityId`] of a player is its id on the wire.
+/// The Minecraft side of a [`Muxer`](mcrs_engine_muxer::Muxer) for the players and the mobs of
+/// one world. The [`EntityId`] of a subject is its id on the wire.
 ///
 /// It keeps one delta base for each subject and tier, so every viewer of a tier shares its moves,
 /// and the profile entries of each client. The spawn bundle is the same at each tier: the profile
@@ -51,6 +52,7 @@ pub struct PlayerCodec {
     /// get no more bytes from it.
     forgotten: BTreeSet<ViewerId>,
     dispatches: Vec<Dispatch>,
+    mobs: MobTrackers,
 }
 
 #[derive(Debug)]
@@ -158,6 +160,15 @@ impl PlayerCodec {
             let subject = *subject;
             match event {
                 EntityEvent::Spawn(PlayerData::Spawn(spawn)) => self.join(subject, spawn),
+                EntityEvent::Spawn(PlayerData::MobSpawn(spawn)) => {
+                    self.mobs.spawn(subject, spawn, self.tick)?;
+                }
+                EntityEvent::Move(PlayerData::MobMove(state)) => self.mobs.record(subject, *state),
+                EntityEvent::Enter { .. } | EntityEvent::Despawn if self.mobs.contains(subject) => {
+                    if matches!(event, EntityEvent::Despawn) {
+                        self.mobs.despawn(subject);
+                    }
+                }
                 EntityEvent::Move(PlayerData::Pose(pose)) => {
                     if let Some(state) = self.subjects.get_mut(&subject) {
                         state.motion.record(self.tick, pose);
@@ -226,6 +237,9 @@ impl PlayerCodec {
     fn release_all(&mut self, viewer: ViewerId, subjects: &[EntityId]) -> Option<Bytes> {
         let own = self.owners.get(&viewer).copied();
         for &subject in subjects {
+            if self.mobs.lose(viewer, subject) {
+                continue;
+            }
             if let Some(own) = own {
                 self.list.release(own, subject, self.tick);
             }
@@ -379,6 +393,11 @@ impl ReplicationCodec for PlayerCodec {
 
     fn hold(&mut self, viewer: ViewerId, change: Hold<'_>, chunks: &mut Vec<Bytes>) {
         match change {
+            Hold::Gain { subject, .. } if self.mobs.contains(subject) => {
+                if let Err(error) = self.mobs.gain(viewer, subject, self.tick, chunks) {
+                    tracing::warn!("the spawn bundle of a mob did not encode: {error:#}");
+                }
+            }
             Hold::Gain { subject, tier } => {
                 if let Err(error) = self.spawn_chunks(viewer, subject, tier, chunks) {
                     tracing::warn!("a spawn bundle did not encode: {error:#}");
@@ -387,6 +406,7 @@ impl ReplicationCodec for PlayerCodec {
             Hold::Lose { subjects } => chunks.extend(self.release_all(viewer, subjects)),
             Hold::Forget => {
                 self.owed.remove(&viewer);
+                self.mobs.forget(viewer);
                 if self.owners.contains_key(&viewer) {
                     self.forgotten.insert(viewer);
                 }
@@ -395,6 +415,9 @@ impl ReplicationCodec for PlayerCodec {
     }
 
     fn position(&self, subject: EntityId) -> Option<[f64; 3]> {
+        if let Some(position) = self.mobs.position(subject) {
+            return Some(position);
+        }
         let pose = self.subjects.get(&subject)?.motion.latest()?;
         Some(pose.position.to_array())
     }
@@ -415,6 +438,17 @@ impl ReplicationCodec for PlayerCodec {
                 self.owe(viewer, packet.clone());
             }
         }
+        let Self {
+            mobs,
+            owed,
+            forgotten,
+            ..
+        } = self;
+        mobs.finish_tick(tick, &mut |viewer, packet| {
+            if !forgotten.contains(&viewer) {
+                owed.entry(viewer).or_default().push(packet);
+            }
+        });
         if let Err(error) = self.update_list() {
             tracing::warn!("the player list did not encode: {error:#}");
         }

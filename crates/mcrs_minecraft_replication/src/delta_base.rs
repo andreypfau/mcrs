@@ -5,7 +5,7 @@ use mcrs_minecraft_protocol::{Result, VarInt, write_record};
 use mcrs_minecraft_protocol_game::ByteAngle;
 use mcrs_minecraft_protocol_game::clientbound::{
     ClientboundEntityPositionSync, ClientboundMoveEntityPos, ClientboundMoveEntityPosRot,
-    ClientboundMoveEntityRot, ClientboundRotateHead, DeltaStep, VecDelta, PositionPath,
+    ClientboundMoveEntityRot, ClientboundRotateHead, DeltaStep, PositionPath, VecDelta,
 };
 
 /// The steps of one block in a relative move.
@@ -92,9 +92,7 @@ impl DeltaBase {
         };
         let keyframe_due = tick.wrapping_sub(self.keyframe_tick) >= KEYFRAME_INTERVAL_TICKS;
         let delta = match path {
-            Path::Linear(position) => {
-                position_delta(self.position, position).map(VecDelta::Linear)
-            }
+            Path::Linear(position) => position_delta(self.position, position).map(VecDelta::Linear),
             Path::Stepped(waypoints) => stepped_delta(self.position, waypoints),
         };
         let Some(delta) = delta.filter(|_| !keyframe_due) else {
@@ -211,7 +209,7 @@ impl DeltaBase {
 }
 
 /// Runs `write` on `bytes`, and takes back what it wrote when it fails.
-fn all_or_nothing(
+pub(crate) fn all_or_nothing(
     bytes: &mut BytesMut,
     write: impl FnOnce(&mut BytesMut) -> Result<()>,
 ) -> Result<()> {
@@ -252,7 +250,7 @@ fn stepped_delta(from: DVec3, waypoints: &[Waypoint]) -> Option<VecDelta> {
 /// The delta from `from` to `to` in steps, or `None` when an axis moves more than a relative
 /// move holds. Both ends round to the step grid, as the client does, so the rounding of one
 /// delta never carries into the next.
-fn position_delta(from: DVec3, to: DVec3) -> Option<[i16; 3]> {
+pub(crate) fn position_delta(from: DVec3, to: DVec3) -> Option<[i16; 3]> {
     let step = |from: f64, to: f64| {
         let steps = (to * STEPS_PER_BLOCK + 0.5).floor() - (from * STEPS_PER_BLOCK + 0.5).floor();
         (steps >= f64::from(i16::MIN) && steps <= f64::from(i16::MAX)).then_some(steps as i16)

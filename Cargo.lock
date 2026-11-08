@@ -5060,10 +5060,13 @@ dependencies = [
  "mcrs_minecraft_core",
  "mcrs_minecraft_entity",
  "mcrs_minecraft_game_mode",
+ "mcrs_minecraft_mob",
  "mcrs_minecraft_profile",
  "mcrs_minecraft_protocol",
  "mcrs_minecraft_protocol_game",
+ "mcrs_minecraft_resource",
  "mcrs_minecraft_wire",
+ "rustc-hash 2.1.1",
  "tracing",
  "uuid",
 ]
