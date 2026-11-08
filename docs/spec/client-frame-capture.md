@@ -268,12 +268,25 @@ bytes). Kind: semantic. Confidence: high. Milestone: 1.
      | `croak`, `tongue` | for a frog: `started` and `elapsed_ticks` of the animation |
 
      The fields from `body_yaw` to `baby` are only on a living entity.
+
+     `elapsed_ticks` is the time of the clip that the frame draws, in ticks. It is
+     `(age + partial_tick − s)`, with `s` the tick at which the clip started, as the clip
+     clock of `entity-animation.md` gives it. The value includes the millisecond
+     truncation of that clock, so it is a whole number of milliseconds divided by `50`.
+     A client in render mode plays the clip at `elapsed_ticks / 20` seconds and adds no
+     partial tick of its own.
+
+     Two captures of one scene can differ by `1` in a colour channel on some pixels, from the
+     graphics driver. A recapture keeps the stored images when no channel differs by more
+     than `1`, and writes only the files whose content changed in another way.
 - **Postconditions:** a client can draw a frame from the record without a simulation of the
   entities (CFC-CMP-002).
 
 Provenance: `source_suggested`. The values come from the state of the vanilla client at the
 frame. `client-entities.md` defines the walk position, the walk speed, the body yaw, the hurt
-time and the death time. Kind: layout. Confidence: high. Milestone: 1.
+time and the death time. Captures before the snapshot-7 recapture of `client_frames` wrote
+`elapsed_ticks` without the partial tick; a frozen frog then drew its tongue clip one tick
+later than the record said. Kind: layout. Confidence: high. Milestone: 1.
 
 ### CFC-REC-002: Packets and entity updates of a scene
 

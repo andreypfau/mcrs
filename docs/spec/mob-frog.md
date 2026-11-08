@@ -58,8 +58,11 @@ frog is milestone 2.
 In scope: the geometry, the textures, the clips, the conditions of the clips, the walk target
 of the frog and the croak sac.
 
-Out of scope: the tongue target and the line to the target, the tadpole (another entity type),
-sounds and particles. The placement transform, the hurt colour, the death rotation, the light
+Out of scope: the tadpole (another entity type), sounds and particles. The client draws no
+line to the tongue target: the tongue is only the clip `tongue` (MFROG-CLIP-001), which
+stretches the tongue cube to at most 5 times its length along the view of the frog,
+whatever the distance to the target. The client reads the tongue target (index 19) for no
+visible effect. The placement transform, the hurt colour, the death rotation, the light
 and the shadow shape are in `client-entity-render.md`.
 
 ---
@@ -75,7 +78,7 @@ and the shadow shape are in `client-entity-render.md`.
 | Index | Wire type | Default | Meaning | Read by the client |
 |-------|-----------|---------|---------|--------------------|
 | 18 | `FrogVariant` (type id 27) | the id of `minecraft:temperate` | variant | yes |
-| 19 | `OptionalUnsignedInt` (type id 19) | absent | network id of the tongue target | no (out of scope) |
+| 19 | `OptionalUnsignedInt` (type id 19) | absent | network id of the tongue target | no (no visible effect) |
 
   1. A value of index 18 is the numeric id of an entry of the registry
      `minecraft:frog_variant`, with the rules of `mob-pig.md`, MPIG-DATA-001, items 1 to 3.

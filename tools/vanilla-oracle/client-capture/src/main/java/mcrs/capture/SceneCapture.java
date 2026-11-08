@@ -247,7 +247,7 @@ public final class SceneCapture implements FabricClientGameTest {
 				e.addProperty("death_time", living.deathTime);
 				e.addProperty("baby", living.isBaby());
 			}
-			Facts.add(entity, e);
+			Facts.add(entity, entity.tickCount + t, e);
 			entities.add(e);
 		}
 		frame.add("entities", entities);

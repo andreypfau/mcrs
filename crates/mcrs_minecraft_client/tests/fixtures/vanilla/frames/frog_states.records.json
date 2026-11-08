@@ -185,7 +185,7 @@
           "variant": "minecraft:warm",
           "croak": {
             "started": true,
-            "elapsed_ticks": 2.0
+            "elapsed_ticks": 3.0
           },
           "tongue": {
             "started": false,
@@ -221,7 +221,7 @@
           },
           "tongue": {
             "started": true,
-            "elapsed_ticks": 2.0
+            "elapsed_ticks": 3.0
           }
         }
       ]
@@ -297,7 +297,7 @@
           "variant": "minecraft:warm",
           "croak": {
             "started": true,
-            "elapsed_ticks": 6.0
+            "elapsed_ticks": 7.0
           },
           "tongue": {
             "started": false,
@@ -333,7 +333,7 @@
           },
           "tongue": {
             "started": true,
-            "elapsed_ticks": 6.0
+            "elapsed_ticks": 7.0
           }
         }
       ]

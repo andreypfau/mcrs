@@ -12,7 +12,9 @@ import net.minecraft.world.entity.animal.pig.Pig;
 final class Facts {
 	private Facts() {}
 
-	static void add(Entity entity, JsonObject out) {
+	/// `frameAge` is the age in ticks plus the partial tick of the frame, the time the renderer
+	/// gives the animation states.
+	static void add(Entity entity, float frameAge, JsonObject out) {
 		if (entity instanceof Mob mob) {
 			out.addProperty("saddled", mob.isSaddled());
 		}
@@ -21,8 +23,8 @@ final class Facts {
 		}
 		if (entity instanceof Frog frog) {
 			out.addProperty("variant", key(frog.getVariant()));
-			out.add("croak", animation(frog.croakAnimationState, frog.tickCount));
-			out.add("tongue", animation(frog.tongueAnimationState, frog.tickCount));
+			out.add("croak", animation(frog.croakAnimationState, frameAge));
+			out.add("tongue", animation(frog.tongueAnimationState, frameAge));
 		}
 	}
 
@@ -30,10 +32,10 @@ final class Facts {
 		return holder.unwrapKey().map(k -> k.identifier().toString()).orElse("");
 	}
 
-	private static JsonObject animation(AnimationState state, int age) {
+	private static JsonObject animation(AnimationState state, float frameAge) {
 		JsonObject out = new JsonObject();
 		out.addProperty("started", state.isStarted());
-		out.addProperty("elapsed_ticks", state.isStarted() ? state.getTimeInMillis(age) / 50.0F : 0.0F);
+		out.addProperty("elapsed_ticks", state.isStarted() ? state.getTimeInMillis(frameAge) / 50.0F : 0.0F);
 		return out;
 	}
 }
