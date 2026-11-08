@@ -1,6 +1,6 @@
 //! One run: one server, one client mode, the phases in order.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::net::TcpListener;
 use std::net::{Ipv4Addr, SocketAddr};
 use std::process::{Child, Command};
@@ -31,6 +31,10 @@ const ANSWER_SLACK: Duration = Duration::from_secs(3);
 const STOP_GRACE: Duration = Duration::from_secs(90);
 /// The watcher hovers this high above the floor, out of the pigs' way.
 const HOVER: f64 = 2.0;
+/// The least ticks of a warm-up: one `tick query` answer covers the last 100 ticks.
+const WARMUP_TICKS: i64 = 120;
+/// The share of the stir period over which one stir's lines go out.
+const STIR_SPREAD: f64 = 0.8;
 
 struct Bench<'a> {
     args: &'a Args,
@@ -47,6 +51,11 @@ struct Bench<'a> {
     /// When the next stir of the stimulus phase is due, while that phase runs.
     next_stir: Option<Instant>,
     stir_round: usize,
+    /// The lines of the current stir not sent yet: a stir goes out over most of its period, so
+    /// no single tick takes all of it.
+    stir_lines: VecDeque<String>,
+    stir_started: Instant,
+    stir_total: usize,
     /// When the last probe round went out; the next waits for its game time answer.
     probe_sent: Option<Instant>,
     probe_rounds_skipped: usize,
@@ -96,6 +105,9 @@ pub fn run(args: &Args) -> anyhow::Result<RunReport> {
         metric: args.server.tick_metric(),
         next_stir: None,
         stir_round: 0,
+        stir_lines: VecDeque::new(),
+        stir_started: Instant::now(),
+        stir_total: 0,
         probe_sent: None,
         probe_rounds_skipped: 0,
     };
@@ -281,11 +293,47 @@ impl Bench<'_> {
             return;
         };
         if Instant::now() >= due {
-            for line in scene::stir(self.stir_round, self.args.stimulus_pigs, self.args.pigs) {
-                let _ = self.server.send(&line);
-            }
+            self.stir_lines.extend(scene::stir(
+                self.stir_round,
+                self.args.stimulus_pigs,
+                self.args.pigs,
+            ));
+            self.stir_total = self.stir_lines.len();
+            self.stir_started = Instant::now();
             self.stir_round += 1;
             self.next_stir = Some(due + self.args.stimulus_period);
+        }
+        let spread = self.args.stimulus_period.mul_f64(STIR_SPREAD).as_secs_f64();
+        let share = (self.stir_started.elapsed().as_secs_f64() / spread.max(1e-3)).min(1.0);
+        let due_lines = (self.stir_total as f64 * share).ceil() as usize;
+        let sent = self.stir_total - self.stir_lines.len();
+        for _ in sent..due_lines {
+            let Some(line) = self.stir_lines.pop_front() else {
+                break;
+            };
+            let _ = self.server.send(&line);
+        }
+    }
+
+    fn game_time_now(&mut self) -> Option<i64> {
+        let sent = Instant::now();
+        self.server.send("time query gametime").ok()?;
+        self.server
+            .wait_for(sent, CONSOLE_TIMEOUT, probe::game_time)
+    }
+
+    /// Waits until `ticks` game ticks passed since `since`, so that a `tick query` answer in the
+    /// window holds no tick from before the warm-up.
+    fn wait_ticks(&mut self, since: Option<i64>, ticks: i64) {
+        let Some(since) = since else {
+            return;
+        };
+        let deadline = Instant::now() + POPULATE_TIMEOUT;
+        while Instant::now() < deadline {
+            if self.game_time_now().is_none_or(|now| now >= since + ticks) {
+                return;
+            }
+            self.idle_for(Duration::from_secs(2));
         }
     }
 
@@ -383,12 +431,21 @@ impl Bench<'_> {
         if phase == Phase::Stimulus {
             self.next_stir = Some(Instant::now());
         }
+        let warmup_start = Instant::now();
+        let changed_at = if self.console {
+            self.game_time_now()
+        } else {
+            None
+        };
         self.idle_for(warmup);
+        self.wait_ticks(changed_at, WARMUP_TICKS);
+        let warmup = warmup_start.elapsed();
         let (mut report, window) = self.measure(phase);
         self.next_stir = None;
+        self.stir_lines.clear();
         report.pigs_before = pigs_before;
         report.setup_seconds = setup_seconds;
-        report.warmup_seconds = warmup.as_secs_f64();
+        report.warmup_seconds = round(warmup.as_secs_f64());
         report.external.sprint = self.sprint();
         report.pigs_after = self.count_pigs();
         (report, Some(window))
