@@ -215,10 +215,11 @@ impl Bench<'_> {
         let deadline = Instant::now() + JOIN_TIMEOUT;
         while Instant::now() < deadline {
             if watcher.finished() {
-                return Err(watcher
-                    .stop(&self.runtime)
-                    .err()
-                    .unwrap_or_else(|| anyhow::anyhow!("the watcher stopped")));
+                let log = watcher.stop(&self.runtime);
+                anyhow::bail!(
+                    log.error
+                        .unwrap_or_else(|| "the watcher stopped".to_owned())
+                );
             }
             if watcher
                 .snapshot(&self.runtime)
@@ -523,14 +524,14 @@ impl Bench<'_> {
 
     fn sprint(&mut self) -> Option<Sprint> {
         let ticks = self.args.sprint_ticks;
-        if ticks == 0 || !self.console || self.metric != TickMetric::TickQuery {
+        if ticks == 0 || !self.console || !self.args.server.reports_sprint() {
             return None;
         }
         let sent = Instant::now();
         self.server.send(&format!("tick sprint {ticks}")).ok()?;
         // No console line goes out until the sprint reports its end, and a server that never
         // reports it leaves the sprint unmeasured.
-        let timeout = Duration::from_secs(30).max(Duration::from_millis(500) * ticks);
+        let timeout = Duration::from_secs(60).max(Duration::from_millis(1500) * ticks);
         let server_ms = self.server.wait_for(sent, timeout, probe::sprint_millis)?;
         let wall = sent.elapsed().as_secs_f64() * 1e3;
         Some(Sprint {
@@ -549,26 +550,21 @@ impl Bench<'_> {
             .watcher
             .take()
             .map(|watcher| watcher.stop(&self.runtime));
-        match log {
-            Some(Ok(log)) => {
-                for (phase, window) in report.phases.iter_mut().zip(windows) {
-                    let Some(window) = window else {
-                        continue;
-                    };
-                    let inside = |at: &Instant| *at >= window.from && *at < window.until;
-                    let times: Vec<_> = log
-                        .times
-                        .iter()
-                        .copied()
-                        .filter(|sample| inside(&sample.at))
-                        .collect();
-                    phase.external.watcher_set_time = report::set_time_intervals(&times);
-                }
+        if let Some(log) = log {
+            report.watcher_error.clone_from(&log.error);
+            for (phase, window) in report.phases.iter_mut().zip(windows) {
+                let Some(window) = window else {
+                    continue;
+                };
+                let inside = |at: &Instant| *at >= window.from && *at < window.until;
+                let times: Vec<_> = log
+                    .times
+                    .iter()
+                    .copied()
+                    .filter(|sample| inside(&sample.at))
+                    .collect();
+                phase.external.watcher_set_time = report::set_time_intervals(&times);
             }
-            Some(Err(error)) => {
-                report.watcher_error = Some(format!("{error:#}"));
-            }
-            None => {}
         }
         self.server.stop(self.args.server.stop(), STOP_GRACE);
     }

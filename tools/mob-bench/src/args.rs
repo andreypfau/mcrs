@@ -77,7 +77,7 @@ pub fn parse(options: &[String]) -> anyhow::Result<Args> {
         stimulus_warmup: Duration::from_secs(20),
         contended_cores: 1.0,
         java: "java".to_owned(),
-        heap: "8g".to_owned(),
+        heap: "16g".to_owned(),
     };
     for pair in options.chunks(2) {
         let [name, value] = pair else {

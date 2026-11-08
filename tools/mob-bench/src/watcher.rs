@@ -34,7 +34,10 @@ use tokio::time::MissedTickBehavior;
 use crate::scene::WATCHER_NAME;
 
 const TICK: Duration = Duration::from_millis(50);
-const POLL: Duration = Duration::from_millis(5);
+const POLL: Duration = Duration::from_millis(1);
+/// The reader hands packets over through a channel of 256, so a poll drains it, yields to the
+/// reader and drains again: 50,000 pigs send more packets than one drain a millisecond takes.
+const DRAINS_PER_POLL: usize = 64;
 const VIEW_DISTANCE: u8 = 10;
 const DESIRED_CHUNKS_PER_TICK: f32 = 64.0;
 const DELTA_STEPS_PER_BLOCK: f64 = 4096.0;
@@ -63,6 +66,8 @@ pub struct TimeSample {
 #[derive(Default)]
 pub struct WatcherLog {
     pub times: Vec<TimeSample>,
+    /// Why the watcher stopped before it was asked to.
+    pub error: Option<String>,
 }
 
 enum Request {
@@ -72,7 +77,7 @@ enum Request {
 
 pub struct Watcher {
     requests: mpsc::UnboundedSender<Request>,
-    task: tokio::task::JoinHandle<anyhow::Result<WatcherLog>>,
+    task: tokio::task::JoinHandle<WatcherLog>,
 }
 
 impl Watcher {
@@ -93,9 +98,14 @@ impl Watcher {
         self.task.is_finished()
     }
 
-    pub fn stop(self, runtime: &tokio::runtime::Runtime) -> anyhow::Result<WatcherLog> {
+    pub fn stop(self, runtime: &tokio::runtime::Runtime) -> WatcherLog {
         let _ = self.requests.send(Request::Stop);
-        runtime.block_on(self.task)?
+        runtime
+            .block_on(self.task)
+            .unwrap_or_else(|error| WatcherLog {
+                times: Vec::new(),
+                error: Some(error.to_string()),
+            })
     }
 }
 
@@ -106,26 +116,45 @@ struct State {
     position: Option<DVec3>,
 }
 
-async fn run(
-    address: SocketAddr,
-    mut requests: mpsc::UnboundedReceiver<Request>,
-) -> anyhow::Result<WatcherLog> {
-    let mut connection = connect(address)
-        .await
-        .context("the watcher could not join")?;
+async fn run(address: SocketAddr, mut requests: mpsc::UnboundedReceiver<Request>) -> WatcherLog {
     let mut state = State {
         pigs: HashMap::new(),
         move_packets: 0,
         log: WatcherLog::default(),
         position: None,
     };
+    let result = match connect(address).await.context("the watcher could not join") {
+        Ok(mut connection) => serve(&mut connection, &mut state, &mut requests).await,
+        Err(error) => Err(error),
+    };
+    if let Err(error) = result {
+        let at = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_or(0, |since| since.as_secs());
+        state.log.error = Some(format!("{error:#} (at unix time {at})"));
+    }
+    state.log
+}
+
+async fn serve(
+    connection: &mut RawConnection,
+    state: &mut State,
+    requests: &mut mpsc::UnboundedReceiver<Request>,
+) -> anyhow::Result<()> {
     let mut ticks = tokio::time::interval(TICK);
     ticks.set_missed_tick_behavior(MissedTickBehavior::Delay);
     let mut poll = tokio::time::interval(POLL);
     poll.set_missed_tick_behavior(MissedTickBehavior::Delay);
     loop {
         tokio::select! {
-            _ = poll.tick() => receive(&mut connection, &mut state)?,
+            _ = poll.tick() => {
+                for _ in 0..DRAINS_PER_POLL {
+                    if receive(connection, state)? == 0 {
+                        break;
+                    }
+                    tokio::task::yield_now().await;
+                }
+            }
             _ = ticks.tick() => {
                 if let Some(at) = state.position {
                     connection.write_packet(&ServerboundMovePlayerPos {
@@ -145,14 +174,17 @@ async fn run(
                         placed: state.position.is_some(),
                     });
                 }
-                Some(Request::Stop) | None => return Ok(state.log),
+                Some(Request::Stop) | None => return Ok(()),
             },
         }
     }
 }
 
-fn receive(connection: &mut RawConnection, state: &mut State) -> anyhow::Result<()> {
+/// Handles every packet the reader has handed over and returns how many there were.
+fn receive(connection: &mut RawConnection, state: &mut State) -> anyhow::Result<usize> {
+    let mut received = 0;
     while let Some(packet) = connection.try_recv()? {
+        received += 1;
         let body = &mut &packet.payload[..];
         let id = packet.id;
         if id == ClientboundAddEntity::ID {
@@ -220,7 +252,8 @@ fn receive(connection: &mut RawConnection, state: &mut State) -> anyhow::Result<
             state.position = Some(teleport.position);
         }
     }
-    connection.flush()
+    connection.flush()?;
+    Ok(received)
 }
 
 impl State {

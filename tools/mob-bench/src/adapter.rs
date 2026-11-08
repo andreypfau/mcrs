@@ -71,6 +71,12 @@ impl Kind {
         }
     }
 
+    /// Whether `tick sprint` ends with a `Sprint completed` answer; Horizon's gives none.
+    #[must_use]
+    pub fn reports_sprint(self) -> bool {
+        self == Kind::Vanilla
+    }
+
     #[must_use]
     pub fn stop(self) -> Stop {
         match self {

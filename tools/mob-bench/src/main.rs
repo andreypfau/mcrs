@@ -18,6 +18,9 @@ mod watcher;
 use anyhow::bail;
 
 fn main() -> anyhow::Result<()> {
+    tracing_subscriber::fmt()
+        .with_writer(std::io::stderr)
+        .init();
     let all: Vec<String> = std::env::args().skip(1).collect();
     let Some((command, options)) = all.split_first() else {
         bail!("usage: mob-bench run [options]");
