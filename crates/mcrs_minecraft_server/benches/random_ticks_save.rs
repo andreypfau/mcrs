@@ -1,12 +1,13 @@
 //! Random ticks of one step over the overworld of a real save, on one core.
 //!
 //! `MCRS_BENCH_WORLD` names a world directory of the current save format; without it the bench
-//! prints why and measures nothing. Every full column of the save is loaded into section entities
-//! of a dimension and random-ticked through the volume of a cell, as the engine does: the step
-//! draws the random picks of the sections of the random tick index, then runs the precipitation
-//! picks and the hits. The states of the block types of SIM-MODEL-009 Table 1 tick randomly. One
-//! handler reads one block, the other the footprint of its row; neither writes. The bench prints
-//! the handler runs of a step, and asserts that no pick runs again.
+//! prints why and measures nothing. Every full column of the save is loaded into the section
+//! index of a dimension, with an entity for each section, and random-ticked through the volume
+//! of a cell, as the engine does: the step draws the random picks of the sections of the random
+//! tick index, then runs the precipitation picks and the hits. The states of the block types of
+//! SIM-MODEL-009 Table 1 tick randomly. One handler reads one block, the other the footprint of
+//! its row; neither writes. The bench prints the handler runs of a step, and asserts that no pick
+//! runs again.
 #![expect(
     clippy::expect_used,
     clippy::indexing_slicing,
@@ -284,8 +285,8 @@ fn blocks_complete(chunk: &Chunk) -> bool {
         })
 }
 
-/// The full columns of the overworld of a save, as the engine holds them: a section entity
-/// for each section, found through the section index of its dimension.
+/// The full columns of the overworld of a save, as the engine holds them: the blocks and the
+/// entity of each section in the section index of the dimension.
 struct Loaded {
     world: World,
     dimension: Entity,
@@ -325,13 +326,10 @@ fn load(world: &Path, definitions: &BlockDefinitions, table: &RandomTickTable) -
                         let blocks = ChunkBlocks::new(states);
                         index.insert(at, &PalettedSection(&blocks.0.0), true);
                         let entity = ecs
-                            .spawn((
-                                SectionBundle::new(InDimension(dimension), at),
-                                blocks,
-                                BlockTicking,
-                            ))
+                            .spawn((SectionBundle::new(InDimension(dimension), at), BlockTicking))
                             .id();
                         section_index.insert(at, entity);
+                        section_index.land(at, entity, blocks);
                         sections += 1;
                     }
                 }

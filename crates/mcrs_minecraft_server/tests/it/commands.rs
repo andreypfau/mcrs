@@ -154,9 +154,11 @@ fn load_stone_column(server: &mut PlayServer) {
     use mcrs_minecraft_engine_world::world::storage::column::{
         ColumnIndex, ColumnPos, ColumnSections, ColumnSlot,
     };
+    use mcrs_minecraft_engine_world::world::storage::section::SectionIndex;
     use mcrs_minecraft_heightmap::{
         MotionHeightmap, NoLeavesHeightmap, SolidHeightmap, SurfaceHeightmap,
     };
+    use mcrs_voxel::SectionPos;
     let stone = crate::support::standalone_corpus()
         .0
         .default_state("minecraft:stone")
@@ -175,12 +177,15 @@ fn load_stone_column(server: &mut PlayServer) {
         } else {
             mcrs_voxel::BlockStateId::AIR
         };
-        let section = world
-            .spawn((
-                ChunkBlocks::new(SectionStates::homogeneous(state)),
-                SectionStage::Loaded,
-            ))
-            .id();
+        let section = world.spawn(SectionStage::Loaded).id();
+        let pos = SectionPos::new(0, chunk_y, 0);
+        let mut index = world.get_mut::<SectionIndex>(dimension).unwrap();
+        index.insert(pos, section);
+        index.land(
+            pos,
+            section,
+            ChunkBlocks::new(SectionStates::homogeneous(state)),
+        );
         sections.set_loaded(chunk_y, section);
     }
     let mut surface = mcrs_minecraft_chunk::ColumnHeights::new(config.height, config.min_y);

@@ -21,11 +21,12 @@ use mcrs_minecraft_engine_server::Placement;
 use mcrs_minecraft_engine_world::block_update::BlockSetRequest;
 use mcrs_minecraft_engine_world::entity::physics::Transform;
 use mcrs_minecraft_engine_world::entity::player::Player;
-use mcrs_minecraft_engine_world::palette::ChunkBlocks;
 use mcrs_minecraft_engine_world::session::PlayerSession;
+use mcrs_minecraft_engine_world::world::dimension::InDimension;
 use mcrs_minecraft_engine_world::world::lifecycle::stage::SectionStage;
 use mcrs_minecraft_engine_world::world::storage::block_entity::BlockEntity;
 use mcrs_minecraft_engine_world::world::storage::column::ColumnPosComponent;
+use mcrs_minecraft_engine_world::world::storage::section::SectionIndex;
 use mcrs_minecraft_heightmap::{MotionHeightmap, SurfaceHeightmap};
 use mcrs_minecraft_simulation::BlockUpdateFlags;
 use mcrs_voxel::{BlockPos, BlockStateId, SectionPos};
@@ -122,15 +123,18 @@ fn world_hash(world: &mut World, hashed: Hashed) -> u64 {
         .query::<(
             Entity,
             &SectionPos,
+            &InDimension,
             &SectionStage,
-            Option<&ChunkBlocks>,
             Option<&BlockLight>,
             Option<&SkyLight>,
         )>()
         .iter(world)
         .collect();
     sections.sort_by_key(|(entity, pos, ..)| (pos.x, pos.y, pos.z, *entity));
-    for (entity, pos, stage, chunk, block, sky) in sections {
+    for (entity, pos, &InDimension(dim), stage, block, sky) in sections {
+        let chunk = world
+            .get::<SectionIndex>(dim)
+            .and_then(|index| index.blocks(*pos));
         entity.hash(&mut hasher);
         pos.hash(&mut hasher);
         hash_debug(&mut hasher, stage);

@@ -3,29 +3,27 @@
 use bevy_app::{App, Plugin};
 use bevy_ecs::lifecycle::{Insert, Remove};
 use bevy_ecs::observer::On;
-use bevy_ecs::prelude::{Has, Query, ResMut};
+use bevy_ecs::prelude::{Query, ResMut};
 use bevy_ecs::resource::Resource;
 use mcrs_minecraft_simulation::{
-    PRECIPITATION_TILE, RandomHit, RandomTickTable, SectionStreams, TickingPositions,
-    TickingSectionMut, block_tile, draw_random_hits,
+    PRECIPITATION_TILE, RandomHit, RandomPick, RandomTickTable, SectionStreams, TickingPositions,
+    TickingSectionMut, block_tile, draw_random_picks,
 };
-use mcrs_minecraft_volume::{PaletteBuffer, PalettedSection, SectionBlocks, SectionBlocksMut};
+use mcrs_minecraft_volume::{PaletteBuffer, SectionBlocks, SectionBlocksMut};
 use mcrs_voxel::{ColumnPos, SectionPos};
 use rustc_hash::FxHashMap;
 
-use crate::palette::ChunkBlocks;
 use crate::world::lifecycle::simulation::EntityTicking;
 
-/// Keeps the [`RandomTickIndex`] of a dimension world with the sections that land, unload and
-/// start or stop random ticks. Block writes keep it through
-/// [`WorldViewMut`](crate::world::storage::view::WorldViewMut).
+/// Keeps the [`RandomTickIndex`] of a dimension world with the sections that start or stop
+/// random ticks. Block writes keep it through
+/// [`WorldViewMut`](crate::world::storage::view::WorldViewMut); the landing of a section and its
+/// unload call [`RandomTickIndex::insert`] and [`RandomTickIndex::remove`].
 pub struct RandomTickIndexPlugin;
 
 impl Plugin for RandomTickIndexPlugin {
     fn build(&self, app: &mut App) {
-        app.add_observer(index_landed_section)
-            .add_observer(forget_unloaded_section)
-            .add_observer(start_random_ticks)
+        app.add_observer(start_random_ticks)
             .add_observer(stop_random_ticks);
     }
 }
@@ -38,6 +36,9 @@ pub struct RandomTickIndex {
     tiles: FxHashMap<ColumnPos, BlockTile>,
     palette: PaletteBuffer,
     order: Vec<ColumnPos>,
+    /// The picks of one tile that hit, with the slot of their section.
+    picks: Vec<RandomPick>,
+    picked: Vec<u16>,
 }
 
 #[derive(Debug, Default)]
@@ -155,6 +156,8 @@ impl RandomTickIndex {
             tiles: FxHashMap::default(),
             palette: PaletteBuffer::default(),
             order: Vec::new(),
+            picks: Vec::new(),
+            picked: Vec::new(),
         }
     }
 
@@ -258,16 +261,23 @@ impl RandomTickIndex {
     ) {
         out.hits.clear();
         out.columns.clear();
-        self.order.clear();
-        self.order.extend(
-            self.tiles
+        let Self {
+            tiles,
+            order,
+            picks,
+            picked,
+            ..
+        } = self;
+        order.clear();
+        order.extend(
+            tiles
                 .iter()
                 .filter(|(_, tile)| tile.random_ticked_columns != 0)
                 .map(|(pos, _)| *pos),
         );
-        self.order.sort_unstable();
-        for tile_pos in &self.order {
-            let Some(tile) = self.tiles.get_mut(tile_pos) else {
+        order.sort_unstable();
+        for tile_pos in &*order {
+            let Some(tile) = tiles.get_mut(tile_pos) else {
                 continue;
             };
             let BlockTile {
@@ -293,13 +303,22 @@ impl RandomTickIndex {
                     .get(usize::from(slot))
                     .is_some_and(IndexedSection::is_listed)
             });
-            for section in listed
-                .iter()
-                .filter_map(|&slot| sections.get(usize::from(slot)))
-            {
+            for &slot in listed.iter() {
+                let Some(section) = sections.get(usize::from(slot)) else {
+                    continue;
+                };
                 if owned & 1 << column_in_tile(section.pos) != 0 {
+                    let ticking = section.ticking.as_slice().len();
+                    draw_random_picks(section.pos, ticking, speed, streams, picks);
+                    picked.resize(picks.len(), slot);
+                }
+            }
+            // The lists of the hits are read after all draws of the tile, so their cache misses
+            // overlap.
+            for (slot, pick) in picked.drain(..).zip(picks.drain(..)) {
+                if let Some(section) = sections.get(usize::from(slot)) {
                     let ticking = section.ticking.as_slice();
-                    draw_random_hits(section.pos, ticking, speed, streams, &mut out.hits);
+                    out.hits.extend(RandomHit::of(section.pos, ticking, pick));
                 }
             }
             out.columns.extend(
@@ -316,29 +335,6 @@ impl RandomTickIndex {
 pub struct RandomListing {
     pub hits: Vec<RandomHit>,
     pub columns: Vec<ColumnPos>,
-}
-
-fn index_landed_section(
-    insert: On<Insert, ChunkBlocks>,
-    sections: Query<(&SectionPos, &ChunkBlocks, Has<EntityTicking>)>,
-    index: Option<ResMut<RandomTickIndex>>,
-) {
-    let (Some(mut index), Ok((pos, blocks, random_ticked))) =
-        (index, sections.get(insert.event().entity))
-    else {
-        return;
-    };
-    index.insert(*pos, &PalettedSection(&blocks.0.0), random_ticked);
-}
-
-fn forget_unloaded_section(
-    remove: On<Remove, ChunkBlocks>,
-    sections: Query<&SectionPos>,
-    index: Option<ResMut<RandomTickIndex>>,
-) {
-    if let (Some(mut index), Ok(pos)) = (index, sections.get(remove.event().entity)) {
-        index.remove(*pos);
-    }
 }
 
 fn start_random_ticks(
@@ -364,8 +360,9 @@ fn stop_random_ticks(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::palette::{SectionStates, air_section};
+    use crate::palette::{ChunkBlocks, SectionStates, air_section};
     use mcrs_minecraft_simulation::{GameTick, RandomTicks, StreamSeed};
+    use mcrs_minecraft_volume::PalettedSection;
     use mcrs_voxel::BlockStateId;
 
     /// One pick in each listed section: in a section of grass it always hits.
@@ -489,17 +486,24 @@ mod tests {
             .insert_resource(RandomTickIndex::new(table));
         let pos = SectionPos::new(5, 0, -3);
         let section = app.world_mut().spawn((pos, EntityTicking)).id();
-        let grass_section = || ChunkBlocks::new(SectionStates::homogeneous(grass));
+        let grass_section = ChunkBlocks::new(SectionStates::homogeneous(grass));
+        let land = |app: &mut App, blocks: &ChunkBlocks| {
+            app.world_mut().resource_mut::<RandomTickIndex>().insert(
+                pos,
+                &PalettedSection(&blocks.0.0),
+                true,
+            );
+        };
 
-        app.world_mut().entity_mut(section).insert(grass_section());
+        land(&mut app, &grass_section);
         assert_eq!(listed(&mut app), [pos], "a landed section of grass");
 
-        app.world_mut().entity_mut(section).insert(air_section());
+        land(&mut app, &air_section());
         assert!(listed(&mut app).is_empty(), "replaced by air");
 
+        land(&mut app, &grass_section);
         app.world_mut()
             .entity_mut(section)
-            .insert(grass_section())
             .remove::<EntityTicking>();
         assert!(listed(&mut app).is_empty(), "out of the random-ticked area");
         assert!(
@@ -511,7 +515,9 @@ mod tests {
         assert_eq!(listed(&mut app), [pos], "back in the area");
         assert_eq!(listing(&mut app).columns, [ColumnPos::from(pos)]);
 
-        app.world_mut().despawn(section);
+        app.world_mut()
+            .resource_mut::<RandomTickIndex>()
+            .remove(pos);
         assert!(listed(&mut app).is_empty(), "unloaded");
         assert!(
             app.world().resource::<RandomTickIndex>().tiles.is_empty(),

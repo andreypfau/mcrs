@@ -78,7 +78,7 @@ pub struct RandomPicks<'a> {
     /// The writable columns that hold a random-ticked section: they take precipitation picks.
     /// Grouped by block tile, and in a tile sorted by x, then z.
     pub columns: &'a [ColumnPos],
-    /// The picks of the step that [`draw_random_hits`] drew, grouped by block tile, in a stable
+    /// The picks of the step that [`draw_random_picks`] drew, grouped by block tile, in a stable
     /// order.
     pub hits: &'a [RandomHit],
     /// The precipitation picks of each column.
@@ -98,34 +98,56 @@ pub struct RandomHit {
     pub random: LegacyRandom,
 }
 
-/// Draws the `speed` picks of `section`, whose state ticks randomly at the local indices
-/// `ticking`, from the stream of the section in `streams`, and appends those that hit to `hits`.
+impl RandomHit {
+    /// The hit of `pick` in `section`, whose state ticks randomly at the local indices `ticking`.
+    #[must_use]
+    pub fn of(section: SectionPos, ticking: &[u16], pick: RandomPick) -> Option<Self> {
+        let local = *ticking.get(usize::from(pick.index))?;
+        Some(Self {
+            at: section::block_pos(section, LocalPos::from_index(usize::from(local))),
+            random: pick.random,
+        })
+    }
+}
+
+/// A random pick that drew the position at `index` in the list of ticking positions of its
+/// section.
+#[derive(Clone, Debug)]
+pub struct RandomPick {
+    pub index: u16,
+    /// The stream of the handlers of the pick.
+    pub random: LegacyRandom,
+}
+
+/// Draws the `speed` picks of `section`, which holds `ticking` positions whose state ticks
+/// randomly, from the stream of the section in `streams`, and appends those that hit to `picks`.
 ///
-/// Each pick draws `u` in `0..4096`. A `u` below `ticking.len()` picks the position at `u` in
-/// the list; any other `u` picks a position that does not tick. So each position takes a pick
-/// with the chance 1/4096, as a pick over the whole section. Each hit then forks the stream of
-/// its handlers from the stream of the section, so the hits of a section do not depend on the
-/// other sections.
-pub fn draw_random_hits(
+/// Each pick draws `u` in `0..4096`. A `u` below `ticking` picks the position at `u` in the list
+/// of ticking positions; any other `u` picks a position that does not tick. So each position
+/// takes a pick with the chance 1/4096, as a pick over the whole section. Each hit then forks the
+/// stream of its handlers from the stream of the section, so the hits of a section do not depend
+/// on the other sections.
+pub fn draw_random_picks(
     section: SectionPos,
-    ticking: &[u16],
+    ticking: usize,
     speed: u32,
     streams: SectionStreams,
-    hits: &mut Vec<RandomHit>,
+    picks: &mut Vec<RandomPick>,
 ) {
     let mut random = streams.stream(section);
-    let first = hits.len();
+    let first = picks.len();
     for _ in 0..speed {
         let drawn = random.next_u32_bound(SectionPos::VOLUME as u32) as usize;
-        if let Some(&local) = ticking.get(drawn) {
-            hits.push(RandomHit {
-                at: section::block_pos(section, LocalPos::from_index(usize::from(local))),
+        if drawn < ticking {
+            picks.push(RandomPick {
+                // Below a count of ticking positions, at most 4096.
+                index: drawn as u16,
                 random: LegacyRandom::new(0),
             });
         }
     }
-    for hit in hits.get_mut(first..).unwrap_or_default() {
-        hit.random = random.fork();
+    for pick in picks.get_mut(first..).unwrap_or_default() {
+        pick.random = random.fork();
     }
 }
 

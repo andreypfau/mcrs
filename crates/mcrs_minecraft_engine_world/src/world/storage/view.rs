@@ -8,68 +8,72 @@ use mcrs_minecraft_volume::{
 };
 use mcrs_voxel::{BlockPos, SectionPos};
 
-use crate::palette::ChunkBlocks;
 use crate::world::dimension::DimensionTypeConfig;
 use crate::world::storage::random_ticks::RandomTickIndex;
 use crate::world::storage::section::SectionIndex;
 
-type Dimensions<'w, 's> = Query<'w, 's, (&'static SectionIndex, &'static DimensionTypeConfig)>;
-
 /// Shared block access to the dimensions of a world.
 #[derive(SystemParam)]
 pub struct WorldView<'w, 's> {
-    dimensions: Dimensions<'w, 's>,
-    sections: Query<'w, 's, &'static ChunkBlocks>,
+    dimensions: Query<'w, 's, (&'static SectionIndex, &'static DimensionTypeConfig)>,
 }
 
 /// Block access to the dimensions of a world that may write their sections.
 #[derive(SystemParam)]
 pub struct WorldViewMut<'w, 's> {
-    dimensions: Dimensions<'w, 's>,
-    sections: Query<'w, 's, &'static mut ChunkBlocks>,
+    dimensions: Query<'w, 's, (&'static mut SectionIndex, &'static DimensionTypeConfig)>,
     random_ticks: Option<ResMut<'w, RandomTickIndex>>,
 }
 
-impl<'w, 's> WorldView<'w, 's> {
+impl WorldView<'_, '_> {
     /// `None` for an entity that is not a dimension.
-    pub fn get(&self, dimension: Entity) -> Option<DimensionView<'_, 'w, 's>> {
+    pub fn get(&self, dimension: Entity) -> Option<DimensionView<'_>> {
+        let (index, config) = self.dimensions.get(dimension).ok()?;
         Some(DimensionView {
-            sections: Sections::of(&self.dimensions, dimension)?,
-            blocks: &self.sections,
+            index,
+            layout: layout(config),
         })
     }
 }
 
-impl<'w, 's> WorldViewMut<'w, 's> {
+impl WorldViewMut<'_, '_> {
     /// `None` for an entity that is not a dimension.
-    pub fn get_mut(&mut self, dimension: Entity) -> Option<DimensionViewMut<'_, 'w, 's>> {
+    pub fn get_mut(&mut self, dimension: Entity) -> Option<DimensionViewMut<'_>> {
+        let (index, config) = self.dimensions.get_mut(dimension).ok()?;
         Some(DimensionViewMut {
-            sections: Sections::of(&self.dimensions, dimension)?,
-            blocks: &mut self.sections,
+            layout: layout(config),
+            index: index.into_inner(),
             random_ticks: self.random_ticks.as_deref_mut(),
         })
     }
 }
 
-/// The loaded sections of one dimension, read-only. A section is readable once its
-/// entity carries blocks; one still generating is [`Access::Unloaded`].
-pub struct DimensionView<'a, 'w, 's> {
-    sections: Sections<'a>,
-    blocks: &'a Query<'w, 's, &'static ChunkBlocks>,
+fn layout(config: &DimensionTypeConfig) -> ColumnLayout {
+    ColumnLayout {
+        min_section_y: config.min_y.div_euclid(SectionPos::SIZE as i32),
+        sections: config.section_count,
+    }
+}
+
+/// The loaded sections of one dimension, read-only. A section is readable once its blocks
+/// landed; one still generating is [`Access::Unloaded`].
+pub struct DimensionView<'a> {
+    index: &'a SectionIndex,
+    layout: ColumnLayout,
 }
 
 /// The loaded sections of one dimension, writable. A write diverges the section from
 /// every snapshot taken of it and is storage only: nothing hears of it, except the
 /// [`RandomTickIndex`] when the world holds one.
-pub struct DimensionViewMut<'a, 'w, 's> {
-    sections: Sections<'a>,
-    blocks: &'a mut Query<'w, 's, &'static mut ChunkBlocks>,
+pub struct DimensionViewMut<'a> {
+    index: &'a mut SectionIndex,
+    layout: ColumnLayout,
     random_ticks: Option<&'a mut RandomTickIndex>,
 }
 
-impl DimensionViewMut<'_, '_, '_> {
+impl DimensionViewMut<'_> {
     pub fn section_entity(&self, at: SectionPos) -> Option<Entity> {
-        self.sections.index.get(at)
+        self.index.get(at)
     }
 
     pub fn random_ticks_mut(&mut self) -> Option<&mut RandomTickIndex> {
@@ -77,125 +81,101 @@ impl DimensionViewMut<'_, '_, '_> {
     }
 }
 
-#[derive(Clone, Copy)]
-struct Sections<'a> {
-    index: &'a SectionIndex,
+fn bounds(layout: ColumnLayout) -> BoundingBox {
+    let top = layout
+        .min_y()
+        .saturating_add_unsigned(layout.height())
+        .saturating_sub(1);
+    BoundingBox {
+        min: BlockPos::new(i32::MIN, layout.min_y(), i32::MIN),
+        max: BlockPos::new(i32::MAX, top, i32::MAX),
+    }
+}
+
+fn section(
+    index: &SectionIndex,
     layout: ColumnLayout,
+    at: SectionPos,
+) -> Result<PalettedSection<'_>, Unavailable> {
+    if !layout.contains_section_y(at.y) {
+        return Err(Unavailable::Outside);
+    }
+    let blocks = index.blocks(at).ok_or(Unavailable::Unloaded)?;
+    Ok(PalettedSection(&blocks.0.0))
 }
 
-impl<'a> Sections<'a> {
-    fn of(dimensions: &'a Dimensions<'_, '_>, dimension: Entity) -> Option<Self> {
-        let (index, config) = dimensions.get(dimension).ok()?;
-        Some(Self {
-            index,
-            layout: ColumnLayout {
-                min_section_y: config.min_y.div_euclid(SectionPos::SIZE as i32),
-                sections: config.section_count,
-            },
-        })
-    }
-
-    fn bounds(self) -> BoundingBox {
-        let top = self
-            .layout
-            .min_y()
-            .saturating_add_unsigned(self.layout.height())
-            .saturating_sub(1);
-        BoundingBox {
-            min: BlockPos::new(i32::MIN, self.layout.min_y(), i32::MIN),
-            max: BlockPos::new(i32::MAX, top, i32::MAX),
-        }
-    }
-
-    fn entity(self, at: SectionPos) -> Result<Entity, Unavailable> {
-        if !self.layout.contains_section_y(at.y) {
-            return Err(Unavailable::Outside);
-        }
-        self.index.get(at).ok_or(Unavailable::Unloaded)
-    }
-
-    fn access(
-        self,
-        at: SectionPos,
-        loaded: impl FnOnce(Entity) -> bool,
-        granted: Access,
-    ) -> Access {
-        match self.entity(at) {
-            Ok(entity) if loaded(entity) => granted,
-            Err(Unavailable::Outside) => Access::Outside,
-            _ => Access::Unloaded,
-        }
+fn access(index: &SectionIndex, layout: ColumnLayout, at: SectionPos, granted: Access) -> Access {
+    match section(index, layout, at) {
+        Ok(_) => granted,
+        Err(Unavailable::Outside) => Access::Outside,
+        Err(_) => Access::Unloaded,
     }
 }
 
-impl Volume for DimensionView<'_, '_, '_> {
+impl Volume for DimensionView<'_> {
     fn bounds(&self) -> BoundingBox {
-        self.sections.bounds()
+        bounds(self.layout)
     }
 
     fn access(&self, at: SectionPos) -> Access {
-        self.sections
-            .access(at, |entity| self.blocks.contains(entity), Access::Read)
+        access(self.index, self.layout, at, Access::Read)
     }
 
     fn column_layout(&self) -> Option<ColumnLayout> {
-        Some(self.sections.layout)
+        Some(self.layout)
     }
 }
 
-impl BlockVolume for DimensionView<'_, '_, '_> {
+impl BlockVolume for DimensionView<'_> {
     type Section<'a>
         = PalettedSection<'a>
     where
         Self: 'a;
 
     fn section(&self, at: SectionPos) -> Result<PalettedSection<'_>, Unavailable> {
-        let entity = self.sections.entity(at)?;
-        let blocks = self.blocks.get(entity).map_err(|_| Unavailable::Unloaded)?;
-        Ok(PalettedSection(&blocks.0.0))
+        section(self.index, self.layout, at)
     }
 }
 
-impl SectionVolume for DimensionView<'_, '_, '_> {}
+impl SectionVolume for DimensionView<'_> {}
 
-impl Volume for DimensionViewMut<'_, '_, '_> {
+impl Volume for DimensionViewMut<'_> {
     fn bounds(&self) -> BoundingBox {
-        self.sections.bounds()
+        bounds(self.layout)
     }
 
     fn access(&self, at: SectionPos) -> Access {
-        self.sections
-            .access(at, |entity| self.blocks.contains(entity), Access::Write)
+        access(self.index, self.layout, at, Access::Write)
     }
 
     fn column_layout(&self) -> Option<ColumnLayout> {
-        Some(self.sections.layout)
+        Some(self.layout)
     }
 }
 
-impl BlockVolume for DimensionViewMut<'_, '_, '_> {
+impl BlockVolume for DimensionViewMut<'_> {
     type Section<'a>
         = PalettedSection<'a>
     where
         Self: 'a;
 
     fn section(&self, at: SectionPos) -> Result<PalettedSection<'_>, Unavailable> {
-        let entity = self.sections.entity(at)?;
-        let blocks = self.blocks.get(entity).map_err(|_| Unavailable::Unloaded)?;
-        Ok(PalettedSection(&blocks.0.0))
+        section(self.index, self.layout, at)
     }
 }
 
-impl BlockVolumeMut for DimensionViewMut<'_, '_, '_> {
+impl BlockVolumeMut for DimensionViewMut<'_> {
     type SectionMut<'a>
         = TickingSectionMut<'a, PalettedSectionMut<'a>>
     where
         Self: 'a;
 
     fn section_mut(&mut self, at: SectionPos) -> Result<Self::SectionMut<'_>, Denied> {
-        let entity = self.sections.entity(at)?;
-        let blocks = self.blocks.get_mut(entity).map_err(|_| Denied::Unloaded)?;
-        let blocks = PalettedSectionMut(&mut blocks.into_inner().make_mut().0);
+        if !self.layout.contains_section_y(at.y) {
+            return Err(Denied::Outside);
+        }
+        let blocks = self.index.blocks_mut(at).ok_or(Denied::Unloaded)?;
+        let blocks = PalettedSectionMut(&mut blocks.make_mut().0);
         Ok(match self.random_ticks.as_deref_mut() {
             Some(index) => index.section_mut(at, blocks),
             None => TickingSectionMut::untracked(blocks),
@@ -203,7 +183,7 @@ impl BlockVolumeMut for DimensionViewMut<'_, '_, '_> {
     }
 }
 
-impl SectionVolume for DimensionViewMut<'_, '_, '_> {}
+impl SectionVolume for DimensionViewMut<'_> {}
 
 #[cfg(test)]
 mod tests {
@@ -216,19 +196,20 @@ mod tests {
     #[test]
     fn a_section_answers_by_what_the_dimension_holds_for_it() {
         let mut world = World::new();
-        let loaded = world.spawn(air_section()).id();
-        let generating = world.spawn_empty().id();
+        let (loaded, generating) = (SectionPos::new(0, 0, 0), SectionPos::new(1, 0, 0));
         let mut index = SectionIndex::new();
-        index.insert(SectionPos::new(0, 0, 0), loaded);
-        index.insert(SectionPos::new(1, 0, 0), generating);
+        index.insert(loaded, world.spawn_empty().id());
+        index.insert(generating, world.spawn_empty().id());
+        let entity = index.get(loaded).expect("an indexed section");
+        index.land(loaded, entity, air_section());
         let dimension = world.spawn((index, DimensionTypeConfig::new(0, 32))).id();
 
         let mut state: SystemState<WorldViewMut> = SystemState::new(&mut world);
         let mut blocks = state.get_mut(&mut world).expect("valid params");
         let mut view = blocks.get_mut(dimension).expect("a dimension");
 
-        assert_eq!(view.access(SectionPos::new(0, 0, 0)), Access::Write);
-        assert_eq!(view.access(SectionPos::new(1, 0, 0)), Access::Unloaded);
+        assert_eq!(view.access(loaded), Access::Write);
+        assert_eq!(view.access(generating), Access::Unloaded);
         assert_eq!(view.access(SectionPos::new(2, 0, 0)), Access::Unloaded);
         assert_eq!(view.access(SectionPos::new(0, 2, 0)), Access::Outside);
         assert_eq!(view.access(SectionPos::new(0, -1, 0)), Access::Outside);

@@ -27,7 +27,6 @@ use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_dimension::Dimension as DimensionKey;
 use mcrs_minecraft_engine_world::block_update::{BlockPlaced, BlockSetRequest};
 use mcrs_minecraft_engine_world::owned_columns::{self, OwnedColumns};
-use mcrs_minecraft_engine_world::palette::ChunkBlocks;
 use mcrs_minecraft_engine_world::tick::TickSet;
 use mcrs_minecraft_engine_world::voxel_update::{self, CellBlockWrite};
 use mcrs_minecraft_engine_world::world::dimension::Dimension;
@@ -35,6 +34,7 @@ use mcrs_minecraft_engine_world::world::lifecycle::simulation::{BlockTicking, En
 use mcrs_minecraft_engine_world::world::storage::random_ticks::{
     RandomListing, RandomTickIndex, RandomTickIndexPlugin,
 };
+use mcrs_minecraft_engine_world::world::storage::section::SectionIndex;
 use mcrs_minecraft_engine_world::world::storage::view::WorldViewMut;
 use mcrs_minecraft_item::ItemStack;
 use mcrs_minecraft_protocol::VarInt;
@@ -562,7 +562,8 @@ fn run_block_simulation<B: BlockBehaviour<WorldKinds> + BlockDrops + Send + 'sta
 }
 
 /// Lists the positions that tick randomly in each loaded section once the block table landed.
-/// From then on, block writes and the observers of [`RandomTickIndexPlugin`] keep the index.
+/// From then on, block writes, the landing and unload of sections and the observers of
+/// [`RandomTickIndexPlugin`] keep the index.
 fn index_random_ticks<B: BlockBehaviour<WorldKinds> + Send + Sync + 'static>(world: &mut World) {
     let (Some(definitions), Some(rules)) = (
         world.get_resource::<Blocks>(),
@@ -574,9 +575,13 @@ fn index_random_ticks<B: BlockBehaviour<WorldKinds> + Send + Sync + 'static>(wor
     let table = RandomTickTable::new(definitions.states(), |state| rules.random_ticks(state));
     let footprints = Footprints::new(definitions.states(), |state| rules.reach(state));
     let mut index = RandomTickIndex::new(table.clone());
-    let mut sections = world.query::<(&SectionPos, &ChunkBlocks, Has<EntityTicking>)>();
-    for (pos, blocks, random_ticked) in sections.iter(world) {
-        index.insert(*pos, &PalettedSection(&blocks.0.0), random_ticked);
+    let mut dimensions = world.query::<&SectionIndex>();
+    let mut ticking = world.query::<Has<EntityTicking>>();
+    for section_index in dimensions.iter(world) {
+        for (pos, entity, blocks) in section_index.loaded() {
+            let random_ticked = ticking.get(world, entity).unwrap_or(false);
+            index.insert(pos, &PalettedSection(&blocks.0.0), random_ticked);
+        }
     }
     world.insert_resource(index);
     let mut simulation = world.resource_mut::<BlockSimulation>();

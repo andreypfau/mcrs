@@ -14,8 +14,8 @@ use mcrs_voxel::{ColumnPos, SectionPos};
 
 /// A loaded section of a column that the cell owns is writable. A loaded section of the halo is
 /// readable only: the kernels send a write, a tick, an event or an update into it to its owner.
-pub struct CellVolume<'v, 'a, 'w, 's> {
-    pub view: DimensionViewMut<'a, 'w, 's>,
+pub struct CellVolume<'v, 'a> {
+    pub view: DimensionViewMut<'a>,
     pub owned: Option<&'v OwnedColumns>,
     pub ticking: &'v TickingSections<'v, 'v>,
 }
@@ -23,13 +23,13 @@ pub struct CellVolume<'v, 'a, 'w, 's> {
 /// The sections that run scheduled ticks and deliver block events.
 pub(crate) type TickingSections<'w, 's> = Query<'w, 's, (), With<BlockTicking>>;
 
-impl CellVolume<'_, '_, '_, '_> {
+impl CellVolume<'_, '_> {
     fn owns(&self, section: SectionPos) -> bool {
         owned_columns::owns(self.owned, ColumnPos::from(section))
     }
 }
 
-impl Volume for CellVolume<'_, '_, '_, '_> {
+impl Volume for CellVolume<'_, '_> {
     fn bounds(&self) -> BoundingBox {
         self.view.bounds()
     }
@@ -46,7 +46,7 @@ impl Volume for CellVolume<'_, '_, '_, '_> {
     }
 }
 
-impl SimulatedSections for CellVolume<'_, '_, '_, '_> {
+impl SimulatedSections for CellVolume<'_, '_> {
     fn properties(&self, section: SectionPos) -> SectionProperties {
         if self.access(section) != Access::Write {
             return SectionProperties::empty();
@@ -66,7 +66,7 @@ impl SimulatedSections for CellVolume<'_, '_, '_, '_> {
     }
 }
 
-impl BlockVolume for CellVolume<'_, '_, '_, '_> {
+impl BlockVolume for CellVolume<'_, '_> {
     type Section<'b>
         = PalettedSection<'b>
     where
@@ -77,7 +77,7 @@ impl BlockVolume for CellVolume<'_, '_, '_, '_> {
     }
 }
 
-impl BlockVolumeMut for CellVolume<'_, '_, '_, '_> {
+impl BlockVolumeMut for CellVolume<'_, '_> {
     type SectionMut<'b>
         = TickingSectionMut<'b, PalettedSectionMut<'b>>
     where

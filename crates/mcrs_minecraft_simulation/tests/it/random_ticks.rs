@@ -1,9 +1,9 @@
-use crate::probe::{A, AIR, B, C, Host, ProbeFacts, ProbeKinds, STATES, at, section};
+use crate::probe::{A, AIR, B, C, Host, ProbeFacts, ProbeKinds, STATES, at, draw_hits, section};
 use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_simulation::{
     BlockBehaviour, BlockFacts, BlockShard, BlockUpdateFlags, Cx, Env, Footprints, GameTick,
     KernelConfig, PartitionKind, RandomPicks, RandomTickTable, RandomTicks, SemanticOrder, Serial,
-    ShardId, SimulationVolume, StepOutput, StreamSeed, draw_random_hits, random_step,
+    ShardId, SimulationVolume, StepOutput, StreamSeed, random_step,
 };
 use mcrs_minecraft_volume::{BlockVolume, BlockVolumeMut, SectionBlocksMut};
 use mcrs_voxel::{BlockPos, BlockStateId, ColumnPos, LocalPos, SectionPos};
@@ -367,15 +367,15 @@ fn the_drawn_hits_are_uniform_over_the_positions_and_independent_across_sections
     for now in 0..STEPS {
         let streams = seed.sections(GameTick(now));
         hits.clear();
-        draw_random_hits(full, &every, 3, streams, &mut hits);
+        draw_hits(full, &every, 3, streams, &mut hits);
         assert_eq!(hits.len(), 3, "every pick of a full section hits");
         for hit in &hits {
             per_position[LocalPos::from(hit.at).index()] += 1;
         }
         hits.clear();
-        draw_random_hits(even, &evens, 3, streams, &mut hits);
+        draw_hits(even, &evens, 3, streams, &mut hits);
         let on_even = hits.len();
-        draw_random_hits(odd, &odds, 3, streams, &mut hits);
+        draw_hits(odd, &odds, 3, streams, &mut hits);
         assert!(
             hits.iter()
                 .enumerate()

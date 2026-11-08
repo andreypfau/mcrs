@@ -8,13 +8,13 @@ use mcrs_minecraft_engine::column_production::ColumnProduction;
 use mcrs_minecraft_engine_world::block_update::BlockPlaced;
 use mcrs_minecraft_engine_world::entity::physics::Transform;
 use mcrs_minecraft_engine_world::entity::player::Player;
-use mcrs_minecraft_engine_world::palette::ChunkBlocks;
 use mcrs_minecraft_engine_world::tick::TickSet;
 use mcrs_minecraft_engine_world::world::lifecycle::stage::SectionStageChanged;
 use mcrs_minecraft_engine_world::world::light_gate::{
     ColumnAwaitsLight, ColumnLightGate, LightGated,
 };
 use mcrs_minecraft_engine_world::world::storage::column::ColumnPosComponent;
+use mcrs_minecraft_engine_world::world::storage::section::SectionIndex;
 use mcrs_minecraft_heightmap::SurfaceHeightmap;
 use mcrs_minecraft_light_engine::block::LightRegistry;
 use mcrs_minecraft_light_engine::prelude::{Edit, LightBounds};
@@ -89,7 +89,7 @@ fn reprioritize_light_work(mut light: ResMut<LightLink>, players: Query<&Transfo
 fn feed_light_edits(
     mut light: ResMut<LightLink>,
     mut stages: MessageReader<SectionStageChanged>,
-    blocks: Query<&ChunkBlocks>,
+    section_indices: Query<&SectionIndex>,
     mut placed: MessageReader<BlockPlaced>,
 ) {
     let mut queue = |edit: Edit| light.push(edit);
@@ -97,7 +97,10 @@ fn feed_light_edits(
         if change.left() {
             queue(Edit::UnloadSection { pos: change.pos });
         } else if change.landed()
-            && let Ok(section_blocks) = blocks.get(change.section)
+            && let Some(section_blocks) = section_indices
+                .get(change.dim)
+                .ok()
+                .and_then(|index| index.blocks(change.pos))
         {
             queue(Edit::LoadSection {
                 pos: change.pos,

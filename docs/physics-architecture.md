@@ -792,21 +792,19 @@ real save is more than 0.1% of picks.
 Measured on real saves (Hermitcraft S10, Meterstick FarmWorld and LagMachine, upgraded to the
 corpus version): 119–145 ticking positions per listed section, and 2.9–3.5% of picks run a handler.
 This agrees with the density of the model. The bench `random_ticks_save` steps Hermitcraft S10
-through the section entities and the cell volume of the engine: 2.2M loaded sections, 91k columns,
+through the section index and the cell volume of the engine: 2.2M loaded sections, 91k columns,
 258k listed sections, 22.7k handler runs in each step. Each step draws the picks of the index, then
 runs precipitation and the hits.
 
-| Handler of the bench | One step, one core: before / now | At 10k players (× 8.13): before / now |
-|----------------------|----------------------------------|---------------------------------------|
-| reads one block | 28.0–30.7 ms / 14.8–15.7 ms | ~236 / ~124 core-ms |
-| reads its footprint of Table 1 | 47.2–48.7 ms / 34.5–41.1 ms | ~388 / ~300 core-ms |
+| Handler of the bench | One step, one core: old / picks in the walk / blocks in the index | At 10k players (× 8.13), now |
+|----------------------|--------------------------------------------------------------------|------------------------------|
+| reads one block | 26.1–27.9 ms / 14.0–14.7 ms / 10.9–11.0 ms | ~89 core-ms |
+| reads its footprint of Table 1 | 45.3–45.8 ms / 33.2–35.0 ms / 29.3–32.0 ms | ~250 core-ms |
 
-The two numbers of a row come from back-to-back runs of the same build at a load average of 8–33
-on 16 cores. At a load of 7–15, an earlier measure gave 23.9–25.3 ms for the old step, so the
-numbers above are ~15% higher than on a quieter machine. Scaled to that machine, the new step costs
-~12.8 ms (~104 core-ms), against a budget of 11.3 ms (~92 core-ms).
+The numbers of a row come from back-to-back runs of the three builds at a load average of 5–15
+on 16 cores. The step that reads one block is within the budget of 11.3 ms (~92 core-ms).
 
-The cost of a pick is a chain of cache misses, not computation. Before this change, each listed
+The cost of a pick is a chain of cache misses, not computation. In the old step, each listed
 section cost ~19 ns of list and plan, and each hit cost ~1 µs: the lookup of its ticking positions
 in the index (three misses: tile, section entry, list), the access check (section index, entity),
 then the read of the block (section index, entity, row of the component, shared palette, boxed
@@ -821,6 +819,11 @@ palette data, boxed cube). These changes are kept:
 - The cube of a section is inline in its palette data: one miss less for each read. Step: −8%.
 - A tile task reads a section of its region without the access check of the world: the world
   answers a section it cannot read with the same error.
+- The section index of a dimension owns the blocks of its sections; they are no longer a component
+  of the section entity. A read finds the blocks with one lookup of the index, without the entity
+  and the row of its component: two misses less for each hit. Step: −17%.
+- The walk reads the ticking positions of the hits of a tile after all draws of the tile, so the
+  misses of the hits of one tile overlap. Step: −4%.
 
 Earlier changes stay: a block tile finds a section through a table of the first slot of each column,
 and a tile task keeps the world section of its last read, so a read of a footprint costs ~10 ns.
@@ -828,12 +831,11 @@ and a tile task keeps the world section of its last read, so a read of a footpri
 These changes moved the number by less than 2% and are not kept: one stream for each block tile in
 place of one for each section, and one pass over the listed slots of a tile in place of two.
 
-The step now splits into: the walk and the draws, ~35% (one miss for each hit, the rest ~15 ns for
-each listed section); the hits, ~52% (~0.32 µs each: section index, entity, row of the component,
-shared palette, palette data, then the read of the handler); precipitation, plan and commit of the
-tile tasks, ~13%. The next lever is the storage of the blocks: the read of a hit goes through the
-section index and the entity, four misses. Blocks that the section index reaches directly, without
-the entity, would remove ~2 ms of the step. That change touches every user of the block component.
+Before the last two changes, the walk and the draws were ~35% of the step and the hits ~52%; then
+the walk was ~44% and the hits ~42%. A hit now costs the lookup of the section index, the shared
+palette and the palette data, then the read of the handler. The shared palette is one more miss:
+palette data that the index holds without the shared box would remove it, but every user of the
+palette type would change.
 
 ### 7.5 Block shards as a whole
 

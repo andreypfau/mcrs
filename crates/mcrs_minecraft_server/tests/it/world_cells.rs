@@ -36,14 +36,15 @@ use mcrs_minecraft_engine::to_coordinator::JoinRequested;
 use mcrs_minecraft_engine::world_kinds::WorldKinds;
 use mcrs_minecraft_engine_physics::{EntityRows, ItemStacks};
 use mcrs_minecraft_engine_world::owned_columns::OwnedColumns;
-use mcrs_minecraft_engine_world::palette::ChunkBlocks;
 use mcrs_minecraft_engine_world::session::{PlayerSession, PlayerSessionCounter, Session};
 use mcrs_minecraft_engine_world::tick::TickSet;
 use mcrs_minecraft_engine_world::world::dimension::DimensionTypeConfig;
+use mcrs_minecraft_engine_world::world::dimension::InDimension;
 use mcrs_minecraft_engine_world::world::lifecycle::simulation::{
     BlockTicking, EntityTicking, SimulationDistance,
 };
 use mcrs_minecraft_engine_world::world::lifecycle::stage::SectionStage;
+use mcrs_minecraft_engine_world::world::storage::section::SectionIndex;
 use mcrs_minecraft_item::item_keys::Item;
 use mcrs_minecraft_item::{ItemHoverMap, ItemStack};
 use mcrs_minecraft_physics::Birth;
@@ -252,16 +253,19 @@ fn owned_sections(
         let owned = world.get_resource::<OwnedColumns>().copied();
         let mut query = world.query::<(
             &SectionPos,
+            &InDimension,
             &SectionStage,
-            Option<&ChunkBlocks>,
             Option<&BlockLight>,
             Option<&SkyLight>,
         )>();
-        for (pos, stage, blocks, block, sky) in query.iter(world) {
+        for (pos, &InDimension(dim), stage, block, sky) in query.iter(world) {
             let column = ColumnPos::from(*pos);
             if !columns.contains(&column) || owned.is_some_and(|owned| !owned.owns(column)) {
                 continue;
             }
+            let blocks = world
+                .get::<SectionIndex>(dim)
+                .and_then(|index| index.blocks(*pos));
             let previous = sections.insert(
                 (pos.x, pos.y, pos.z),
                 Section {
@@ -736,8 +740,8 @@ fn block_at(app: &mut App, label: Entity, pos: BlockPos) -> Option<BlockStateId>
         if owned.is_some_and(|owned| !owned.owns(ColumnPos::from(pos))) {
             continue;
         }
-        let mut query = world.query::<(&SectionPos, &ChunkBlocks)>();
-        if let Some((_, blocks)) = query.iter(world).find(|(at, _)| **at == section) {
+        let mut query = world.query::<&SectionIndex>();
+        if let Some(blocks) = query.iter(world).find_map(|index| index.blocks(section)) {
             return Some(blocks.get(LocalPos::from(pos)));
         }
     }
@@ -1437,12 +1441,12 @@ struct SeenAtSimulate {
     seen: bool,
 }
 
-fn look_at_probe(mut seen: ResMut<SeenAtSimulate>, sections: Query<(&SectionPos, &ChunkBlocks)>) {
+fn look_at_probe(mut seen: ResMut<SeenAtSimulate>, dimensions: Query<&SectionIndex>) {
     let section = SectionPos::from(HALO_PROBE);
-    let state = sections
+    let state = dimensions
         .iter()
-        .find(|(at, _)| **at == section)
-        .map(|(_, blocks)| blocks.get(LocalPos::from(HALO_PROBE)));
+        .find_map(|index| index.blocks(section))
+        .map(|blocks| blocks.get(LocalPos::from(HALO_PROBE)));
     seen.seen = state.is_some() && state == seen.probe;
 }
 

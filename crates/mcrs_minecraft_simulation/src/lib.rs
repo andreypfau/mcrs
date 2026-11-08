@@ -36,7 +36,8 @@ pub use precipitation::{
     PRECIPITATION_GATE, PRECIPITATION_TILE, PrecipitationHit, precipitation_hits,
 };
 pub use random_tick::{
-    RandomHit, RandomPicks, RandomTickTable, RandomTicks, block_tile, draw_random_hits, random_step,
+    RandomHit, RandomPick, RandomPicks, RandomTickTable, RandomTicks, block_tile,
+    draw_random_picks, random_step,
 };
 pub use scalar::{GameTick, ShardId, TickPriority};
 pub use schedule::{PendingTick, ScheduleTicks};

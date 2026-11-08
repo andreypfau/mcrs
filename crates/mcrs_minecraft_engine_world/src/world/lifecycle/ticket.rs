@@ -4,7 +4,6 @@ use std::collections::VecDeque;
 
 use crate::entity::physics::Transform;
 use crate::entity::player::Player;
-use crate::palette::ChunkBlocks;
 use crate::tick::TickSet;
 use crate::world::dimension::InDimension;
 use crate::world::lifecycle::column_loading::{ColumnLoading, is_loaded};
@@ -14,6 +13,7 @@ use crate::world::lifecycle::simulation::{
 };
 use crate::world::lifecycle::stage::{SectionStage, SectionStageChanged, SectionStages};
 use crate::world::lifecycle::trace::{self, ColumnStage, ColumnTraceLog};
+use crate::world::storage::random_ticks::RandomTickIndex;
 use crate::world::storage::section::{SectionBundle, SectionIndex};
 use bevy_app::{App, FixedUpdate, Plugin};
 use bevy_ecs::prelude::*;
@@ -116,6 +116,7 @@ fn despawn_chunks(
     mut condemned: Local<VecDeque<Entity>>,
     mut dims: Query<(&mut SectionIndex, &mut ColumnLoading)>,
     sections: Query<(&SectionStage, &SectionPos, &InDimension)>,
+    mut random_ticks: Option<ResMut<RandomTickIndex>>,
 ) {
     condemned.extend(
         changes
@@ -148,6 +149,9 @@ fn despawn_chunks(
             continue;
         }
         section_index.remove(*pos);
+        if let Some(random_ticks) = random_ticks.as_deref_mut() {
+            random_ticks.remove(*pos);
+        }
         commands.entity(section).try_despawn();
         taken += 1;
     }
@@ -170,10 +174,6 @@ fn nearest_player_distance_sq(pos: SectionPos, centers: &[SectionPos]) -> i32 {
         .unwrap_or(0)
 }
 
-#[expect(
-    clippy::too_many_arguments,
-    reason = "a Bevy system: each resource and query is its own parameter so the scheduler sees the access"
-)]
 pub fn spawn_chunks(
     mut dims: Query<(
         Entity,
@@ -182,7 +182,6 @@ pub fn spawn_chunks(
         Option<&SectionSimulation>,
     )>,
     mut commands: Commands,
-    has_blocks: Query<Has<ChunkBlocks>>,
     mut stages: SectionStages,
     players: Query<(&Transform, &InDimension), With<Player>>,
     traces: Option<Res<ColumnTraceLog>>,
@@ -239,7 +238,7 @@ pub fn spawn_chunks(
             // it back is far cheaper than despawning it and generating the same terrain again.
             // One condemned before its blocks arrived has nothing to keep and is generated again.
             if stages.get(section) == Some(SectionStage::Unloading) {
-                let back = if has_blocks.get(section).unwrap_or(false) {
+                let back = if section_index.blocks(pos).is_some() {
                     SectionStage::Loaded
                 } else {
                     SectionStage::Loading
@@ -286,14 +285,15 @@ mod tests {
             .world_mut()
             .spawn(SectionBundle::new(InDimension(dim), pos));
         section.insert(SectionStage::Unloading);
-        if blocks {
-            section.insert(crate::palette::air_section());
-        }
         let section = section.id();
-        app.world_mut()
+        let mut index = app
+            .world_mut()
             .get_mut::<SectionIndex>(dim)
-            .expect("section index")
-            .insert(pos, section);
+            .expect("section index");
+        index.insert(pos, section);
+        if blocks {
+            index.land(pos, section, crate::palette::air_section());
+        }
         app.world_mut().write_message(SectionStageChanged {
             section,
             pos,

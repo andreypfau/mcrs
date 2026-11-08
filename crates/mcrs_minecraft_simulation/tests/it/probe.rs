@@ -6,7 +6,9 @@ use mcrs_minecraft_simulation::{
     SectionProperties, SemanticOrder, ShardId, SimulatedSections, StepAt, StepError, StepOutput,
     SubTick, TickPriority, TickingPositions, TickingSectionMut, step,
 };
-use mcrs_minecraft_simulation::{RandomHit, RandomTickTable, StreamSeed, draw_random_hits};
+use mcrs_minecraft_simulation::{
+    RandomHit, RandomTickTable, SectionStreams, StreamSeed, draw_random_picks,
+};
 use mcrs_minecraft_volume::{
     Access, BlockVolume, BlockVolumeMut, Denied, PaletteBuffer, PalettedSection,
     PalettedSectionMut, SparseVolume, Unavailable, Volume,
@@ -97,6 +99,23 @@ impl BlockFacts<ProbeKinds> for ProbeFacts {
 
 pub fn at(x: i32, y: i32, z: i32) -> BlockPos {
     BlockPos::new(x, y, z)
+}
+
+/// The hits of the `speed` picks of `section`, whose state ticks at the local indices `ticking`.
+pub fn draw_hits(
+    section: SectionPos,
+    ticking: &[u16],
+    speed: u32,
+    streams: SectionStreams,
+    hits: &mut Vec<RandomHit>,
+) {
+    let mut picks = Vec::new();
+    draw_random_picks(section, ticking.len(), speed, streams, &mut picks);
+    hits.extend(
+        picks
+            .into_iter()
+            .filter_map(|pick| RandomHit::of(section, ticking, pick)),
+    );
 }
 
 pub fn section(x: i32, y: i32, z: i32) -> SectionPos {
@@ -575,7 +594,7 @@ impl Host {
         let streams = StreamSeed::new(4, "minecraft:overworld").sections(GameTick(now));
         let mut hits = Vec::new();
         for &section in sections {
-            draw_random_hits(
+            draw_hits(
                 section,
                 self.random_ticking(section),
                 speed,

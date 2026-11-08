@@ -2,15 +2,18 @@ use bevy_ecs::entity::Entity;
 use bevy_ecs::prelude::Query;
 use bevy_ecs::system::SystemParam;
 use mcrs_minecraft_chunk::{BlockLight, SkyLight};
-use mcrs_minecraft_engine_world::palette::{BiomePalette, ChunkBlocks};
+use mcrs_minecraft_engine_world::palette::BiomePalette;
+use mcrs_minecraft_engine_world::world::dimension::InDimension;
 use mcrs_minecraft_engine_world::world::lifecycle::stage::SectionStage;
 use mcrs_minecraft_engine_world::world::storage::block_entity::{
     BlockEntity, SectionBlockEntities,
 };
 use mcrs_minecraft_engine_world::world::storage::column::{ColumnSections, SectionLookup};
+use mcrs_minecraft_engine_world::world::storage::section::SectionIndex;
 use mcrs_minecraft_heightmap::{
     ColumnHeightmapSet, MotionHeightmap, NoLeavesHeightmap, SolidHeightmap, SurfaceHeightmap,
 };
+use mcrs_voxel::SectionPos;
 
 use crate::column_ticks::ColumnTicks;
 use crate::stored_column::{StoredColumn, StoredSection};
@@ -27,7 +30,8 @@ type ColumnContent = (
 
 type SectionContent = (
     &'static SectionStage,
-    &'static ChunkBlocks,
+    &'static SectionPos,
+    &'static InDimension,
     &'static BiomePalette,
     Option<&'static BlockLight>,
     Option<&'static SkyLight>,
@@ -39,6 +43,7 @@ type SectionContent = (
 pub(crate) struct ColumnSnapshots<'w, 's> {
     columns: Query<'w, 's, ColumnContent>,
     sections: Query<'w, 's, SectionContent>,
+    section_indices: Query<'w, 's, &'static SectionIndex>,
     block_entities: Query<'w, 's, &'static BlockEntity>,
 }
 
@@ -80,11 +85,12 @@ impl ColumnSnapshots<'_, '_> {
             let SectionLookup::Loaded(section) = lookup else {
                 return None;
             };
-            let (stage, blocks, biomes, block_light, sky_light, held) =
+            let (stage, &pos, &InDimension(dim), biomes, block_light, sky_light, held) =
                 self.sections.get(section).ok()?;
             if *stage != SectionStage::Loaded {
                 return None;
             }
+            let blocks = self.section_indices.get(dim).ok()?.blocks(pos)?;
             stored.sections.push(StoredSection {
                 blocks: blocks.clone(),
                 biomes: biomes.clone(),
