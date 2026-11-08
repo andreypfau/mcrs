@@ -203,7 +203,7 @@ pub(crate) fn write_ticks(
                 block: block.to_array(),
                 radius: f16_up(radius),
                 flags: CULL_VALID
-                    | if death_time > 0 {
+                    | if death_time > 0 || data.upside_down {
                         CULL_FULL_RIG_ONLY
                     } else {
                         0

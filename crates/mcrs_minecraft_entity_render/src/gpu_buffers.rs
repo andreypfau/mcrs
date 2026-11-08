@@ -105,6 +105,34 @@ pub(crate) struct FrameBuffers {
     pub(crate) indirect: Buffer,
     pub(crate) scatter: Buffer,
     pub(crate) scatter_capacity: u32,
+    /// The slot of each impostor of the frame.
+    pub(crate) impostors: Buffer,
+    /// The draw record of each impostor of the frame.
+    pub(crate) impostor_draws: Buffer,
+}
+
+/// The bytes of the draw record of one impostor.
+const IMPOSTOR_DRAW_BYTES: u64 = 128;
+
+/// The draw records of the impostors of `slots` slots: the impostors that discard from the
+/// start, the small ones from the end.
+pub(crate) fn impostor_draws(device: &Device, slots: u32) -> Buffer {
+    device.create_buffer(&BufferDescriptor {
+        label: Some("entity impostor draws"),
+        size: u64::from(slots.max(64)) * IMPOSTOR_DRAW_BYTES,
+        usage: BufferUsages::STORAGE,
+        mapped_at_creation: false,
+    })
+}
+
+/// The impostor list of `slots` slots.
+pub(crate) fn impostor_list(device: &Device, slots: u32) -> Buffer {
+    device.create_buffer(&BufferDescriptor {
+        label: Some("entity impostors"),
+        size: u64::from(slots.max(64)) * 4,
+        usage: BufferUsages::STORAGE,
+        mapped_at_creation: false,
+    })
 }
 
 impl FrameBuffers {
@@ -161,7 +189,7 @@ impl FrameBuffers {
             }),
             indirect: buffer(
                 "entity indirect",
-                (definitions * 6 + arrays * 4) * 4,
+                (definitions * 6 + arrays * 8 + 12) * 4,
                 storage | BufferUsages::INDIRECT,
             ),
             scatter: buffer(
@@ -170,6 +198,8 @@ impl FrameBuffers {
                 storage | BufferUsages::COPY_DST,
             ),
             scatter_capacity: scatter_capacity.max(1),
+            impostors: impostor_list(device, scatter_capacity),
+            impostor_draws: impostor_draws(device, scatter_capacity),
         }
     }
 }

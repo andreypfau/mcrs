@@ -307,3 +307,93 @@ fn compose_rows(instance: Instance, b0: vec4<f32>, b1: vec4<f32>, b2: vec4<f32>)
         compose_row(instance.row2, b0, b1, b2),
     );
 }
+
+const HURT_TICKS: i32 = 10;
+const RED_OVERLAY_ALPHA: f32 = 178.0 / 255.0;
+
+fn relative_block(bx: i32, by: i32, bz: i32) -> vec3<f32> {
+    return vec3<f32>(vec3<i32>(bx, by, bz) - frame.camera_section * 16);
+}
+
+/// The angle equal to `degrees` modulo 360, in `[-180, 180)`.
+fn wrap_degrees(angle: f32) -> f32 {
+    let shifted = angle + 180.0;
+    let wrapped = shifted - floor(shifted / 360.0) * 360.0 - 180.0;
+    return select(wrapped, wrapped - 360.0, wrapped >= 180.0);
+}
+
+fn alerp(t: f32, start: f32, end: f32) -> f32 {
+    return start + t * wrap_degrees(end - start);
+}
+
+fn turn_degrees(bits: u32) -> f32 {
+    return f32(bits & 0xffffu) * (360.0 / 65536.0);
+}
+
+fn record_position(record: TickRecord) -> vec3<f32> {
+    let fraction = vec3<f32>(
+        f32(record.fraction_xy & 0xffffu),
+        f32(record.fraction_xy >> 16u),
+        f32(record.fraction_z_body & 0xffffu),
+    ) * (1.0 / 65536.0);
+    return relative_block(record.bx, record.by, record.bz) + fraction;
+}
+
+fn record_pitch(record: TickRecord) -> f32 {
+    let normalised = f32(bitcast<i32>(record.head_pitch) >> 16u) / 32767.0;
+    return clamp(normalised, -1.0, 1.0) * 180.0;
+}
+
+fn rotation_x(angle: f32) -> mat3x3<f32> {
+    let a = radians(angle);
+    let c = cos(a);
+    let s = sin(a);
+    return mat3x3<f32>(vec3<f32>(1.0, 0.0, 0.0), vec3<f32>(0.0, c, s), vec3<f32>(0.0, -s, c));
+}
+
+fn rotation_y(angle: f32) -> mat3x3<f32> {
+    let a = radians(angle);
+    let c = cos(a);
+    let s = sin(a);
+    return mat3x3<f32>(vec3<f32>(c, 0.0, -s), vec3<f32>(0.0, 1.0, 0.0), vec3<f32>(s, 0.0, c));
+}
+
+fn rotation_z(angle: f32) -> mat3x3<f32> {
+    let a = radians(angle);
+    let c = cos(a);
+    let s = sin(a);
+    return mat3x3<f32>(vec3<f32>(c, s, 0.0), vec3<f32>(-s, c, 0.0), vec3<f32>(0.0, 0.0, 1.0));
+}
+
+/// The red overlay of a hurt or dying entity, or none, as `(colour, alpha)` for `mix`.
+fn entity_overlay(state: StateRecord, whole_age: i32, dying: bool) -> vec4<f32> {
+    let hurt_ticks = whole_age - i32(state.hurt_start);
+    let red = (hurt_ticks >= 0 && hurt_ticks < HURT_TICKS) || dying;
+    return select(vec4<f32>(0.0, 0.0, 0.0, 1.0), vec4<f32>(1.0, 0.0, 0.0, RED_OVERLAY_ALPHA), red);
+}
+
+/// The block light and the sky light of the state record, on the scale of the lightmap.
+fn entity_light(state: StateRecord) -> vec4<f32> {
+    return vec4<f32>(
+        f32(state.light_scale & 0xffu) * 16.0,
+        f32((state.light_scale >> 8u) & 0xffu) * 16.0,
+        0.0,
+        0.0,
+    );
+}
+
+/// The draw record of one impostor that the prepare pass writes.
+struct ImpostorDraw {
+    /// The frame position relative to the camera section, and the body yaw in degrees.
+    origin_yaw: vec4<f32>,
+    /// The direction across the view times the scale (x and z), the scale, and the bits of the
+    /// texel of the top left corner of the view image, x in the low half.
+    axes: vec4<f32>,
+    /// The left, right, low and high edges of the quad at the scale 1.
+    bounds: vec4<f32>,
+    /// The image sets of the layers two to a word, the block and the sky light, and 1 for the
+    /// red overlay.
+    words: vec4<u32>,
+    /// The rectangle of the view image of each layer.
+    rects: array<vec4<f32>, 4>,
+}

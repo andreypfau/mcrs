@@ -4,9 +4,7 @@
 const PALETTE: u32 = #{PALETTE}u;
 const DEFINITION: u32 = #{DEFINITION}u;
 const DEATH_FLIP: f32 = #{DEATH_FLIP};
-const HURT_TICKS: i32 = 10;
 const NO_INPUT: u32 = 0xffffffffu;
-const RED_OVERLAY_ALPHA: f32 = 178.0 / 255.0;
 
 var<private> rotation: array<vec3<f32>, PALETTE>;
 var<private> position: array<vec3<f32>, PALETTE>;
@@ -49,56 +47,6 @@ fn catmull_rom(p0: vec3<f32>, p1: vec3<f32>, p2: vec3<f32>, p3: vec3<f32>, alpha
         + (p2 - p0) * alpha
         + (2.0 * p0 - 5.0 * p1 + 4.0 * p2 - p3) * alpha2
         + (3.0 * p1 - p0 - 3.0 * p2 + p3) * alpha3);
-}
-
-/// The angle equal to `degrees` modulo 360, in `[-180, 180)`.
-fn wrap_degrees(angle: f32) -> f32 {
-    let shifted = angle + 180.0;
-    let wrapped = shifted - floor(shifted / 360.0) * 360.0 - 180.0;
-    return select(wrapped, wrapped - 360.0, wrapped >= 180.0);
-}
-
-fn alerp(t: f32, start: f32, end: f32) -> f32 {
-    return start + t * wrap_degrees(end - start);
-}
-
-fn turn_degrees(bits: u32) -> f32 {
-    return f32(bits & 0xffffu) * (360.0 / 65536.0);
-}
-
-fn record_position(record: TickRecord) -> vec3<f32> {
-    let fraction = vec3<f32>(
-        f32(record.fraction_xy & 0xffffu),
-        f32(record.fraction_xy >> 16u),
-        f32(record.fraction_z_body & 0xffffu),
-    ) * (1.0 / 65536.0);
-    return relative_block(record.bx, record.by, record.bz) + fraction;
-}
-
-fn record_pitch(record: TickRecord) -> f32 {
-    let normalised = f32(bitcast<i32>(record.head_pitch) >> 16u) / 32767.0;
-    return clamp(normalised, -1.0, 1.0) * 180.0;
-}
-
-fn rotation_x(angle: f32) -> mat3x3<f32> {
-    let a = radians(angle);
-    let c = cos(a);
-    let s = sin(a);
-    return mat3x3<f32>(vec3<f32>(1.0, 0.0, 0.0), vec3<f32>(0.0, c, s), vec3<f32>(0.0, -s, c));
-}
-
-fn rotation_y(angle: f32) -> mat3x3<f32> {
-    let a = radians(angle);
-    let c = cos(a);
-    let s = sin(a);
-    return mat3x3<f32>(vec3<f32>(c, 0.0, -s), vec3<f32>(0.0, 1.0, 0.0), vec3<f32>(s, 0.0, c));
-}
-
-fn rotation_z(angle: f32) -> mat3x3<f32> {
-    let a = radians(angle);
-    let c = cos(a);
-    let s = sin(a);
-    return mat3x3<f32>(vec3<f32>(c, s, 0.0), vec3<f32>(-s, c, 0.0), vec3<f32>(0.0, 0.0, 1.0));
 }
 
 fn write_rows(at: u32, linear: mat3x3<f32>, translation: vec3<f32>) {
@@ -235,14 +183,7 @@ fn pose(@builtin(global_invocation_id) id: vec3<u32>) {
     instance.row0 = vec4<f32>(linear[0].x, linear[1].x, linear[2].x, translation.x);
     instance.row1 = vec4<f32>(linear[0].y, linear[1].y, linear[2].y, translation.y);
     instance.row2 = vec4<f32>(linear[0].z, linear[1].z, linear[2].z, translation.z);
-    let hurt_ticks = whole_age - i32(state.hurt_start);
-    let red = (hurt_ticks >= 0 && hurt_ticks < HURT_TICKS) || death_time > 0.0;
-    instance.overlay = select(vec4<f32>(0.0, 0.0, 0.0, 1.0), vec4<f32>(1.0, 0.0, 0.0, RED_OVERLAY_ALPHA), red);
-    instance.light = vec4<f32>(
-        f32(state.light_scale & 0xffu) * 16.0,
-        f32((state.light_scale >> 8u) & 0xffu) * 16.0,
-        0.0,
-        0.0,
-    );
+    instance.overlay = entity_overlay(state, whole_age, death_time > 0.0);
+    instance.light = entity_light(state);
     instances[index] = instance;
 }

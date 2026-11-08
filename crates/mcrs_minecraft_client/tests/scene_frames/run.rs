@@ -67,11 +67,7 @@ pub fn capture(scene: &str, paths: &Paths, entities: Entities) -> Entities {
         .script
         .iter()
         .any(|step| matches!(step, Action::Pose { .. }));
-    let entities = if entities == Entities::Summon && has_pose {
-        Entities::Record
-    } else {
-        entities
-    };
+    let entities = if has_pose { Entities::Record } else { entities };
     let record = (entities == Entities::Record).then(|| {
         paths
             .vanilla_frames

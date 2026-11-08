@@ -44,8 +44,7 @@ const SCENES: [&str; 6] = [
 
 /// `MCRS_SCENE_ENTITIES` picks where the entities come from: `summon` (the full mode, from the
 /// server), `record` (the render mode, from the record of the vanilla client) or `skip` (none,
-/// the default, for the terrain alone). A scene with a pose step always runs in the render mode
-/// when it has entities.
+/// the default, for the terrain alone). A scene with a pose step always runs in the render mode.
 fn capture_and_judge(scene: &str) {
     let paths = Paths::new();
     let entities = match std::env::var("MCRS_SCENE_ENTITIES").as_deref() {

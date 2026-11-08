@@ -14,6 +14,10 @@ pub(crate) struct Layouts {
     pub(crate) args: BindGroupLayout,
     pub(crate) draw: BindGroupLayout,
     pub(crate) texture: BindGroupLayout,
+    /// The draw of the impostors.
+    pub(crate) impostor: BindGroupLayout,
+    /// The colour and the normal images of the impostors.
+    pub(crate) impostor_textures: BindGroupLayout,
 }
 
 impl Layouts {
@@ -38,6 +42,11 @@ impl Layouts {
             (17, true),
             (19, true),
             (20, true),
+            (21, false),
+            (22, true),
+            (23, true),
+            (24, false),
+            (25, true),
         ] {
             compute_entries.push(storage_entry(binding, read_only, compute));
         }
@@ -93,14 +102,41 @@ impl Layouts {
                 },
             ],
         });
-
+        let (impostor_layout, impostor_textures) = impostor_layouts(device);
         Self {
             compute: compute_layout,
             args: args_layout,
             draw: draw_layout,
             texture: texture_layout,
+            impostor: impostor_layout,
+            impostor_textures,
         }
     }
+}
+
+/// The layouts of the impostor draw: its buffers, and its colour and normal images.
+fn impostor_layouts(device: &Device) -> (BindGroupLayout, BindGroupLayout) {
+    let both = ShaderStages::VERTEX_FRAGMENT;
+    let impostor_entries = [uniform_entry(0, both), storage_entry(24, true, both)];
+    let impostor_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+        label: Some("entity impostor"),
+        entries: &impostor_entries,
+    });
+    let image_entry = |binding: u32| BindGroupLayoutEntry {
+        binding,
+        visibility: ShaderStages::FRAGMENT,
+        ty: BindingType::Texture {
+            sample_type: wgpu::TextureSampleType::Float { filterable: false },
+            view_dimension: wgpu::TextureViewDimension::D2Array,
+            multisampled: false,
+        },
+        count: None,
+    };
+    let impostor_textures = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+        label: Some("entity impostor images"),
+        entries: &[image_entry(0), image_entry(1)],
+    });
+    (impostor_layout, impostor_textures)
 }
 
 fn storage_entry(binding: u32, read_only: bool, visibility: ShaderStages) -> BindGroupLayoutEntry {

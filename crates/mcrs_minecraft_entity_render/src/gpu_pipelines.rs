@@ -7,12 +7,21 @@ use wgpu::{
 use crate::entity_gpu::DrawTargets;
 use crate::entity_library::{EntityLibrary, MAX_ARRAYS};
 use crate::gpu_layouts::Layouts;
+use crate::impostor_frame::{
+    IMPOSTOR_ELEVATIONS, IMPOSTOR_SMALL_HEIGHT, IMPOSTOR_TILE, IMPOSTOR_VIEWS, IMPOSTOR_YAWS,
+};
 
 const COMMON: &str = include_str!("shaders/common.wgsl");
 const COMPUTE: &str = include_str!("shaders/compute.wgsl");
 const POSE: &str = include_str!("shaders/pose.wgsl");
 const EXPAND: &str = include_str!("shaders/expand.wgsl");
 const DRAW: &str = include_str!("shaders/draw.wgsl");
+const SHADING: &str = include_str!("shaders/shading.wgsl");
+const IMPOSTOR: &str = include_str!("shaders/impostor.wgsl");
+const IMPOSTOR_PREPARE: &str = include_str!("shaders/impostor_prepare.wgsl");
+/// The format of the colour and of the normal images of an impostor.
+pub(crate) const IMPOSTOR_FORMAT: TextureFormat = TextureFormat::Rgba8Unorm;
+pub(crate) const BAKE_DEPTH_FORMAT: TextureFormat = TextureFormat::Depth32Float;
 
 /// The pose and the expand pipelines of one definition.
 pub(crate) struct DefinitionGpu {
@@ -27,7 +36,18 @@ pub(crate) struct Pipelines {
     pub(crate) cull: ComputePipeline,
     pub(crate) dispatch_args: ComputePipeline,
     pub(crate) draw_args: ComputePipeline,
+    /// The draw of the face records with a cutout texel.
     pub(crate) draw: RenderPipeline,
+    /// The draw of the other face records, with no discard.
+    pub(crate) draw_opaque: RenderPipeline,
+    /// The draw of the face records into the images of an impostor.
+    pub(crate) bake: RenderPipeline,
+    pub(crate) impostor: RenderPipeline,
+    /// The draw of the small impostors, with no discard.
+    pub(crate) impostor_small: RenderPipeline,
+    pub(crate) impostor_draw_args: ComputePipeline,
+    /// The pass that writes the draw record of each impostor.
+    pub(crate) impostor_prepare: ComputePipeline,
     pub(crate) definitions: Vec<DefinitionGpu>,
 }
 
@@ -40,26 +60,7 @@ impl Pipelines {
     ) -> Self {
         let compute_layout = &layouts.compute;
         let args_layout = &layouts.args;
-        let definitions_count = library.definitions.len().max(1);
-        let arrays_count = library.arrays.len().clamp(1, MAX_ARRAYS);
-        let lanes: Vec<String> = (0..definitions_count)
-            .map(|index| {
-                library
-                    .definitions
-                    .get(index)
-                    .map_or(1, |definition| definition.expand_lanes)
-                    .to_string()
-                    + "u"
-            })
-            .collect();
-        let header = COMMON.to_owned()
-            + &COMPUTE
-                .replace("#{DEFINITIONS}", &definitions_count.to_string())
-                .replace("#{ARRAYS}", &arrays_count.to_string())
-                .replace(
-                    "#{EXPAND_LANES}",
-                    &format!("array<u32, {definitions_count}>({})", lanes.join(", ")),
-                );
+        let header = compute_header(library);
         let compute_layout_of = |layout: &BindGroupLayout| {
             device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("entity compute"),
@@ -90,6 +91,16 @@ impl Pipelines {
         let cull = pipeline(&main_pipeline_layout, &compute_module, "cull");
         let dispatch_args = pipeline(&args_pipeline_layout, &compute_module, "dispatch_args");
         let draw_args = pipeline(&args_pipeline_layout, &compute_module, "draw_args");
+        let impostor_draw_args =
+            pipeline(&args_pipeline_layout, &compute_module, "impostor_draw_args");
+        let impostor_prepare = pipeline(
+            &main_pipeline_layout,
+            &module(
+                "entity impostor prepare",
+                &(header.clone() + &impostor_constants(IMPOSTOR_PREPARE)),
+            ),
+            "prepare",
+        );
         let definitions = library
             .definitions
             .iter()
@@ -119,62 +130,244 @@ impl Pipelines {
             })
             .collect();
 
-        let draw = draw_pipeline(device, layouts, targets);
+        let (draw, draw_opaque, bake, impostor, impostor_small) =
+            render_pipelines(device, layouts, targets);
         Self {
             scatter,
             cull,
             dispatch_args,
             draw_args,
             draw,
+            draw_opaque,
+            bake,
+            impostor,
+            impostor_small,
+            impostor_draw_args,
+            impostor_prepare,
             definitions,
         }
     }
 }
 
-/// The pipeline of the gbuffer draw of the face records.
-fn draw_pipeline(device: &Device, layouts: &Layouts, targets: DrawTargets) -> RenderPipeline {
-    let draw_module = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-        label: Some("entity draw"),
-        source: wgpu::ShaderSource::Wgsl((COMMON.to_owned() + DRAW).into()),
-    });
-    let draw_pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+/// The common records and the compute bindings, with the constants of `library`.
+fn compute_header(library: &EntityLibrary) -> String {
+    let definitions_count = library.definitions.len().max(1);
+    let arrays_count = library.arrays.len().clamp(1, MAX_ARRAYS);
+    let lanes: Vec<String> = (0..definitions_count)
+        .map(|index| {
+            library
+                .definitions
+                .get(index)
+                .map_or(1, |definition| definition.expand_lanes)
+                .to_string()
+                + "u"
+        })
+        .collect();
+    let box_sizes: Vec<String> = (0..definitions_count)
+        .map(|index| {
+            let (height, baby) = library
+                .definitions
+                .get(index)
+                .map_or((1.0, 1.0), |definition| {
+                    (definition.box_height, definition.baby_scale)
+                });
+            format!("vec2<f32>({height:?}, {baby:?})")
+        })
+        .collect();
+    let variants_count = library.variants.len().max(1);
+    COMMON.to_owned()
+        + &COMPUTE
+            .replace("#{DEFINITIONS}", &definitions_count.to_string())
+            .replace("#{ARRAYS}", &arrays_count.to_string())
+            .replace(
+                "#{EXPAND_LANES}",
+                &format!("array<u32, {definitions_count}>({})", lanes.join(", ")),
+            )
+            .replace(
+                "#{BOX_SIZES}",
+                &format!(
+                    "array<vec2<f32>, {definitions_count}>({})",
+                    box_sizes.join(", ")
+                ),
+            )
+            .replace("#{VARIANTS}", &variants_count.to_string())
+}
+
+/// `source` with the constants of the impostor image sets.
+pub(crate) fn impostor_constants(source: &str) -> String {
+    source
+        .replace("#{TILE}", &IMPOSTOR_TILE.to_string())
+        .replace("#{SMALL_HEIGHT}", &format!("{IMPOSTOR_SMALL_HEIGHT:?}"))
+        .replace("#{YAWS}", &IMPOSTOR_YAWS.to_string())
+        .replace("#{VIEWS}", &IMPOSTOR_VIEWS.to_string())
+        .replace("#{ELEVATION_COUNT}", &IMPOSTOR_ELEVATIONS.len().to_string())
+        .replace(
+            "#{ELEVATIONS}",
+            &format!(
+                "array<f32, {}>({})",
+                IMPOSTOR_ELEVATIONS.len(),
+                IMPOSTOR_ELEVATIONS
+                    .map(|elevation| format!("{elevation:?}"))
+                    .join(", ")
+            ),
+        )
+}
+
+/// The pipelines of the gbuffer draw of the face records, of the bake of the impostor images and
+/// of the impostor draw.
+fn render_pipelines(
+    device: &Device,
+    layouts: &Layouts,
+    targets: DrawTargets,
+) -> (
+    RenderPipeline,
+    RenderPipeline,
+    RenderPipeline,
+    RenderPipeline,
+    RenderPipeline,
+) {
+    let module = |label: &str, source: &str| {
+        device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: Some(label),
+            source: wgpu::ShaderSource::Wgsl(source.into()),
+        })
+    };
+    let draw_module = module("entity draw", &(COMMON.to_owned() + SHADING + DRAW));
+    let draw_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
         label: Some("entity draw"),
         bind_group_layouts: &[Some(&layouts.draw), Some(&layouts.texture)],
         immediate_size: 0,
     });
-    let color_targets = targets.colors.map(|format| {
-        Some(wgpu::ColorTargetState {
-            format,
-            blend: None,
-            write_mask: wgpu::ColorWrites::ALL,
-        })
-    });
-    device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-        label: Some("entity draw"),
-        layout: Some(&draw_pipeline_layout),
-        vertex: wgpu::VertexState {
+    let gbuffer = targets.colors.map(|format| Some(color_target(format)));
+    let depth = depth_state(targets.depth, targets.depth_compare);
+    let draw = render_pipeline(
+        device,
+        &draw_layout,
+        Stages {
             module: &draw_module,
-            entry_point: Some("vertex"),
+            vertex: "vertex",
+            fragment: "fragment",
+            topology: wgpu::PrimitiveTopology::TriangleStrip,
+        },
+        &gbuffer,
+        depth.clone(),
+    );
+    let draw_opaque = render_pipeline(
+        device,
+        &draw_layout,
+        Stages {
+            module: &draw_module,
+            vertex: "vertex",
+            fragment: "fragment_opaque",
+            topology: wgpu::PrimitiveTopology::TriangleStrip,
+        },
+        &gbuffer,
+        depth.clone(),
+    );
+    let bake = render_pipeline(
+        device,
+        &draw_layout,
+        Stages {
+            module: &draw_module,
+            vertex: "bake_vertex",
+            fragment: "bake_fragment",
+            topology: wgpu::PrimitiveTopology::TriangleList,
+        },
+        &[
+            Some(color_target(IMPOSTOR_FORMAT)),
+            Some(color_target(IMPOSTOR_FORMAT)),
+        ],
+        depth_state(BAKE_DEPTH_FORMAT, wgpu::CompareFunction::GreaterEqual),
+    );
+    let impostor_source = COMMON.to_owned() + SHADING + &impostor_constants(IMPOSTOR);
+    let impostor_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+        label: Some("entity impostor"),
+        bind_group_layouts: &[Some(&layouts.impostor), Some(&layouts.impostor_textures)],
+        immediate_size: 0,
+    });
+    let impostor_module = module("entity impostor", &impostor_source);
+    let impostor = render_pipeline(
+        device,
+        &impostor_layout,
+        Stages {
+            module: &impostor_module,
+            vertex: "vertex",
+            fragment: "fragment",
+            topology: wgpu::PrimitiveTopology::TriangleList,
+        },
+        &gbuffer,
+        depth.clone(),
+    );
+    let impostor_small = render_pipeline(
+        device,
+        &impostor_layout,
+        Stages {
+            module: &impostor_module,
+            vertex: "vertex",
+            fragment: "fragment_small",
+            topology: wgpu::PrimitiveTopology::TriangleList,
+        },
+        &gbuffer,
+        depth,
+    );
+    (draw, draw_opaque, bake, impostor, impostor_small)
+}
+
+/// The shader module and the entry points of a render pipeline.
+struct Stages<'a> {
+    module: &'a wgpu::ShaderModule,
+    vertex: &'a str,
+    fragment: &'a str,
+    topology: wgpu::PrimitiveTopology,
+}
+
+fn color_target(format: TextureFormat) -> wgpu::ColorTargetState {
+    wgpu::ColorTargetState {
+        format,
+        blend: None,
+        write_mask: wgpu::ColorWrites::ALL,
+    }
+}
+
+fn depth_state(format: TextureFormat, compare: wgpu::CompareFunction) -> wgpu::DepthStencilState {
+    wgpu::DepthStencilState {
+        format,
+        depth_write_enabled: Some(true),
+        depth_compare: Some(compare),
+        stencil: Default::default(),
+        bias: Default::default(),
+    }
+}
+
+/// An opaque render pipeline with no vertex buffers and no face culling.
+fn render_pipeline(
+    device: &Device,
+    layout: &wgpu::PipelineLayout,
+    stages: Stages<'_>,
+    targets: &[Option<wgpu::ColorTargetState>],
+    depth: wgpu::DepthStencilState,
+) -> RenderPipeline {
+    device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+        label: Some(stages.vertex),
+        layout: Some(layout),
+        vertex: wgpu::VertexState {
+            module: stages.module,
+            entry_point: Some(stages.vertex),
             compilation_options: Default::default(),
             buffers: &[],
         },
         primitive: wgpu::PrimitiveState {
+            topology: stages.topology,
             cull_mode: None,
             ..Default::default()
         },
-        depth_stencil: Some(wgpu::DepthStencilState {
-            format: targets.depth,
-            depth_write_enabled: Some(true),
-            depth_compare: Some(targets.depth_compare),
-            stencil: Default::default(),
-            bias: Default::default(),
-        }),
+        depth_stencil: Some(depth),
         multisample: Default::default(),
         fragment: Some(wgpu::FragmentState {
-            module: &draw_module,
-            entry_point: Some("fragment"),
+            module: stages.module,
+            entry_point: Some(stages.fragment),
             compilation_options: Default::default(),
-            targets: &color_targets,
+            targets,
         }),
         multiview_mask: None,
         cache: None,

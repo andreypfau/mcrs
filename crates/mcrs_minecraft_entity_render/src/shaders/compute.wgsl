@@ -20,6 +20,11 @@
 @group(0) @binding(18) var hiz: texture_2d<f32>;
 @group(0) @binding(19) var<storage, read> variants: array<Variant>;
 @group(0) @binding(20) var<storage, read> cutout: array<u32>;
+@group(0) @binding(21) var<storage, read_write> impostors: array<u32>;
+@group(0) @binding(22) var<storage, read> impostor_pairs: array<u32>;
+@group(0) @binding(23) var<storage, read> impostor_frames: array<vec4<f32>>;
+@group(0) @binding(24) var<storage, read_write> impostor_draws: array<ImpostorDraw>;
+@group(0) @binding(25) var<storage, read> impostor_covers: array<vec4<f32>>;
 
 struct ScatterEntry {
     slot: u32,
@@ -33,13 +38,22 @@ const SCATTER_FRESH: u32 = 0x80000000u;
 const DEFINITIONS: u32 = #{DEFINITIONS}u;
 const ARRAYS: u32 = #{ARRAYS}u;
 const EXPAND_LANES = #{EXPAND_LANES};
+/// The height of the entity box at the scale 1 and the baby scale of each definition.
+const BOX_SIZES = #{BOX_SIZES};
+const VARIANTS: u32 = #{VARIANTS}u;
 const COUNTER_BONES: u32 = 0u;
 const COUNTER_VISIBLE: u32 = 1u;
 const COUNTER_FACES: u32 = 17u;
 const COUNTER_DROPPED: u32 = 25u;
 const NO_SLOT: u32 = 0xffffffffu;
-/// The visible mobs under the height threshold, which draw a full rig until impostors exist.
-const COUNTER_SMALL: u32 = 26u;
+const COUNTER_IMPOSTORS: u32 = 26u;
+/// The impostors that draw with the discard of the uncovered pixels, and the small ones that
+/// draw their whole quad.
+const COUNTER_CUTOUT_IMPOSTORS: u32 = 27u;
+const COUNTER_SMALL_IMPOSTORS: u32 = 28u;
+/// The face records of each texture array with a cutout texel, which fill its range from the end.
+const COUNTER_CUTOUT_FACES: u32 = 29u;
+const NO_IMPOSTOR: u32 = 0xffffffffu;
 
 /// The scatter of the tick records that the CPU wrote since the last frame: the current record
 /// of each slot becomes its previous record.
@@ -63,6 +77,30 @@ var<workgroup> group_bones: atomic<u32>;
 var<workgroup> group_bones_base: u32;
 var<workgroup> group_visible: array<atomic<u32>, 16>;
 var<workgroup> group_visible_base: array<u32, 16>;
+var<workgroup> group_impostors: atomic<u32>;
+var<workgroup> group_impostors_base: u32;
+
+/// Whether each active layer of `state` has an impostor image set baked with its hidden bones.
+fn impostor_ready(state: StateRecord) -> bool {
+    let mask = layer_mask(state);
+    let hidden = state.flags >> STATE_HIDDEN_SHIFT;
+    for (var layer = 0u; layer < 4u; layer = layer + 1u) {
+        if ((mask & (1u << layer)) == 0u) {
+            continue;
+        }
+        let word = layer_word(state, layer);
+        let variant = word >> 16u;
+        let at = (word & 0xffffu) * VARIANTS + variant;
+        if (variant >= VARIANTS || at >= arrayLength(&impostor_pairs)) {
+            return false;
+        }
+        let pair = impostor_pairs[at];
+        if (pair == NO_IMPOSTOR || (pair >> 16u) != hidden) {
+            return false;
+        }
+    }
+    return mask != 0u;
+}
 
 fn sphere_in_frustum(centre: vec3<f32>, radius: f32) -> bool {
     for (var i = 0u; i < 5u; i = i + 1u) {
@@ -138,12 +176,9 @@ fn sphere_hidden(centre: vec3<f32>, radius: f32) -> bool {
     return footprint.nearest < farthest_under(footprint.lo, footprint.hi);
 }
 
-fn relative_block(bx: i32, by: i32, bz: i32) -> vec3<f32> {
-    return vec3<f32>(vec3<i32>(bx, by, bz) - frame.camera_section * 16);
-}
-
-/// One lane for each slot. A visible slot reserves its bones and goes to the visible list of
-/// its definition. Until impostors exist, a small mob also takes a full rig.
+/// One lane for each slot. A visible slot under the height threshold goes to the impostor list.
+/// Another visible slot reserves its bones and goes to the visible list of its definition; when
+/// the bones or the list are full, it draws as an impostor.
 @compute @workgroup_size(64)
 fn cull(
     @builtin(workgroup_id) workgroup: vec3<u32>,
@@ -157,6 +192,7 @@ fn cull(
         }
         if (local == 0u) {
             atomicStore(&group_bones, 0u);
+            atomicStore(&group_impostors, 0u);
         }
         if (local < 16u) {
             atomicStore(&group_visible[local], 0u);
@@ -164,6 +200,8 @@ fn cull(
         workgroupBarrier();
         let slot = first + local;
         var keep = false;
+        var ready = false;
+        var impostor = false;
         var definition = 0u;
         var bone_count = 0u;
         if (slot < frame.slot_count) {
@@ -173,27 +211,33 @@ fn cull(
                 let radius = unpack2x16float(record.radius_flags & 0xffffu).x + 0.8660254;
                 let centre = relative_block(record.bx, record.by, record.bz) + vec3<f32>(0.5);
                 keep = sphere_in_frustum(centre, radius) && !sphere_hidden(centre, radius);
-                let distance = max(length(centre - frame.camera_offset), 1e-3);
-                let height = 2.0 * radius * frame.projection_scale / distance;
-                if (keep && height < frame.height_threshold && (flags & CULL_FULL_RIG_ONLY) == 0u) {
-                    atomicAdd(&counters[COUNTER_SMALL], 1u);
-                }
-            }
-            if (keep) {
-                let state = states[slot];
-                definition = state_definition(state);
-                let mask = layer_mask(state);
-                for (var layer = 0u; layer < 4u; layer = layer + 1u) {
-                    if ((mask & (1u << layer)) != 0u) {
-                        bone_count = bone_count + models[layer_word(state, layer) & 0xffffu].bone_count;
+                if (keep) {
+                    let state = states[slot];
+                    definition = state_definition(state);
+                    let mask = layer_mask(state);
+                    for (var layer = 0u; layer < 4u; layer = layer + 1u) {
+                        if ((mask & (1u << layer)) != 0u) {
+                            bone_count = bone_count + models[layer_word(state, layer) & 0xffffu].bone_count;
+                        }
+                    }
+                    keep = definition < DEFINITIONS && bone_count != 0u;
+                    if (keep) {
+                        ready = (flags & CULL_FULL_RIG_ONLY) == 0u && impostor_ready(state);
+                        var sizes = BOX_SIZES;
+                        let size = sizes[definition];
+                        let baby = select(1.0, size.y, (state.flags & STATE_BABY) != 0u);
+                        let scale = unpack2x16float(state.light_scale >> 16u).x;
+                        let distance = max(length(centre - frame.camera_offset), 1e-3);
+                        let height = size.x * baby * scale * frame.projection_scale / distance;
+                        impostor = ready && height < frame.height_threshold;
                     }
                 }
-                keep = definition < DEFINITIONS && bone_count != 0u;
             }
         }
+        let full = keep && !impostor;
         var bone_offset = 0u;
         var visible_offset = 0u;
-        if (keep) {
+        if (full) {
             bone_offset = atomicAdd(&group_bones, bone_count);
             visible_offset = atomicAdd(&group_visible[definition], 1u);
         }
@@ -208,7 +252,7 @@ fn cull(
             }
         }
         workgroupBarrier();
-        if (keep) {
+        if (full) {
             let first_bone = group_bones_base + bone_offset;
             let index = group_visible_base[definition] + visible_offset;
             let fits = first_bone + bone_count <= frame.bone_capacity;
@@ -217,7 +261,26 @@ fn cull(
                     select(vec2<u32>(NO_SLOT), vec2<u32>(slot, first_bone), fits);
             }
             if (!fits || index >= frame.visible_capacity) {
-                atomicAdd(&counters[COUNTER_DROPPED], 1u);
+                if (ready) {
+                    impostor = true;
+                } else {
+                    atomicAdd(&counters[COUNTER_DROPPED], 1u);
+                }
+            }
+        }
+        var impostor_offset = 0u;
+        if (impostor) {
+            impostor_offset = atomicAdd(&group_impostors, 1u);
+        }
+        workgroupBarrier();
+        if (local == 0u) {
+            group_impostors_base = atomicAdd(&counters[COUNTER_IMPOSTORS], atomicLoad(&group_impostors));
+        }
+        workgroupBarrier();
+        if (impostor) {
+            let at = group_impostors_base + impostor_offset;
+            if (at < arrayLength(&impostors)) {
+                impostors[at] = slot;
             }
         }
         first = first + grid.x * WORKGROUP;
@@ -248,9 +311,38 @@ fn draw_args() {
     for (var layer_array = 0u; layer_array < ARRAYS; layer_array = layer_array + 1u) {
         let count = min(atomicLoad(&counters[COUNTER_FACES + layer_array]), frame.face_capacity);
         let draw = DEFINITIONS * 6u + layer_array * 4u;
-        indirect[draw] = count * 6u;
-        indirect[draw + 1u] = 1u;
-        indirect[draw + 2u] = layer_array * frame.face_capacity * 6u;
+        indirect[draw] = 4u;
+        indirect[draw + 1u] = count;
+        indirect[draw + 2u] = layer_array * frame.face_capacity * 4u;
         indirect[draw + 3u] = 0u;
+        let cutout = min(atomicLoad(&counters[COUNTER_CUTOUT_FACES + layer_array]), frame.face_capacity);
+        let cutout_draw = DEFINITIONS * 6u + ARRAYS * 4u + 12u + layer_array * 4u;
+        indirect[cutout_draw] = 4u;
+        indirect[cutout_draw + 1u] = cutout;
+        indirect[cutout_draw + 2u] = ((layer_array + 1u) * frame.face_capacity - cutout) * 4u;
+        indirect[cutout_draw + 3u] = 0u;
     }
+    let impostor_draw = DEFINITIONS * 6u + ARRAYS * 4u;
+    let impostors = min(atomicLoad(&counters[COUNTER_IMPOSTORS]), frame.slot_count);
+    indirect[impostor_draw] = impostors * 6u;
+    indirect[impostor_draw + 1u] = 1u;
+    indirect[impostor_draw + 2u] = 0u;
+    indirect[impostor_draw + 3u] = 0u;
+    indirect[impostor_draw + 4u] = min((impostors + WORKGROUP - 1u) / WORKGROUP, 65535u);
+    indirect[impostor_draw + 5u] = 1u;
+    indirect[impostor_draw + 6u] = 1u;
+}
+
+/// The draws of the two kinds of impostors, after their prepare pass. The small impostors take
+/// the draw records from the end of the slot range down.
+@compute @workgroup_size(1)
+fn impostor_draw_args() {
+    let impostor_draw = DEFINITIONS * 6u + ARRAYS * 4u;
+    indirect[impostor_draw] = atomicLoad(&counters[COUNTER_CUTOUT_IMPOSTORS]) * 6u;
+    let small = atomicLoad(&counters[COUNTER_SMALL_IMPOSTORS]);
+    let small_draw = impostor_draw + 8u;
+    indirect[small_draw] = small * 6u;
+    indirect[small_draw + 1u] = 1u;
+    indirect[small_draw + 2u] = (frame.slot_count - small) * 6u;
+    indirect[small_draw + 3u] = 0u;
 }

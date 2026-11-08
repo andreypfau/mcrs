@@ -485,6 +485,72 @@ median and the minimum of the same draw differ by 3 to 10 times (A.5). Chrome qu
 timestamp to 100 µs without the flag `enable-webgpu-developer-features` (S13). Third-party
 reports state other steps for Chrome 148 and later; they are unverified.
 
+### 4.15 The Metal System Trace is the ruler of the draw on `M`
+
+**Decision.** On `M`, the draw time comes from a Metal System Trace, not from the difference of
+two wall times. Each pass of `examples/stress_field.rs` has a label, so the trace gives the GPU
+time of each pass:
+
+```sh
+cargo build --release -p mcrs_minecraft_entity_render --example stress_field
+python3 -I tools/metal-trace/metal_trace.py record /tmp/s1.trace -- \
+    target/release/examples/stress_field
+python3 -I tools/metal-trace/metal_trace.py report /tmp/s1.trace --process stress_field --skip 60
+```
+
+`record` runs `xcrun xctrace record --template 'Metal System Trace'`. `report` reads the table
+`metal-gpu-intervals` and prints the median vertex, fragment and compute time of each label, and
+the `span` of each pass: the time from the start of its vertex work to the end of its fragment
+work. The frames alternate between `gbuffer entities` and `gbuffer no entities`.
+`MCRS_DRAW_ONLY=full_rigs` or `impostors` keeps one draw, and `MCRS_SPLIT_DRAW` puts the two
+draws in two passes. A second pass loads and stores the gbuffer, so its time includes that
+traffic.
+
+**Numbers.**
+
+- The wall-time difference does not measure the draw. For the same build, it read 1.35 ms with
+  a heater of 1 workgroup, and 0.05 ms with the heater of 16384 workgroups. The trace read a span
+  of 0.41 ms.
+- The vertex interval of a pass that waits for an earlier pass starts at the wait. Read the
+  vertex time of a pass only when no other work runs at the same time.
+- A Metal System Trace records one GPU counter, "RT Unit Active". `xctrace record` has no option
+  that selects a counter set: `--show-recording-options` lists none for `Metal GPU Counters`. To
+  get the limiter counters, save a template with a counter set from the Instruments application
+  and pass its path to `--template`.
+- `start_graphics_debugger_capture` of wgpu 29 starts a capture for an attached debugger. With
+  `MTL_CAPTURE_ENABLED=1` and no Xcode, it writes no `.gputrace`. The per-shader cost needs Xcode:
+  run the program from Xcode and capture a GPU workload.
+- `MTL_HUD_ENABLED=1` shows the GPU time of each frame of the client.
+
+S1 on `M`, medians of 256 frames, with the heater; the draw is the span of `gbuffer entities`:
+
+| Step | Draw span | Vertex | Fragment | Full rigs only | Impostors only |
+|---|---|---|---|---|---|
+| first impostors | 0.770 ms | 0.427 | 0.329 | 0.339 | 0.502 |
+| a prepare pass writes one record for each impostor | 0.619 | 0.263 | 0.335 | | 0.323 |
+| the full rigs draw one instance of a four-vertex strip for each face | 0.447 | 0.162 | 0.281 | 0.239 | |
+| faces with no cutout texel draw with no discard | 0.410 | 0.164 | 0.246 | 0.185 | |
+| impostors under 3 px draw a rectangle of their covered area, with no discard | 0.409 | 0.163 | 0.245 | | 0.271 |
+
+The compute passes add 0.030 ms (cull), 0.030 ms (pose), 0.037 ms (expand) and 0.035 ms
+(impostor prepare). The scatter reads 0.02 ms without the heater; with the heater, its timestamps
+overlap the heater.
+
+Choices that the trace rejects:
+
+| Choice | Number |
+|---|---|
+| an impostor drawn as one instance of a four-vertex strip | vertex 0.087 ms against 0.057 ms for six vertices with no instance |
+| impostors in two lists, near before far, for the depth test | fragment 0.218 ms against 0.209 ms |
+| an opaque inner quad before the quad that discards | fragment 0.269 ms against 0.209 ms, and twice the vertex time |
+| a depth-only pass with the discard, then a colour pass with no discard | the depth-only pass alone takes 0.161 ms, the cost of the whole discard pass |
+| a coverage mesh of rectangles instead of the discard | the discard of the impostors from 3 to 12 px costs about 0.16 ms; a mesh of four rectangles for 70,000 impostors adds about 1.7 M vertices, about 0.17 ms at 10 G vertices per second |
+| a box with no discard for impostors under 6 px | fragment 0.149 ms, but a FLIP error of 0.18 to 0.31 at 4 px |
+
+The impostors of 3 px and less cost 0.06 ms of fragment time, those from 3 to 6 px 0.10 ms, and
+those from 6 to 12 px 0.10 ms. With no discard at all, the fragment time of the impostors is
+0.10 ms: the discard costs more than the shading.
+
 ## 5. Stress scenes and gates
 
 ### 5.1 Scenes

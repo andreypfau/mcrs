@@ -6,15 +6,27 @@
 //! cargo run --release -p mcrs_minecraft_entity_render --example stress_field
 //! ```
 //!
-//! It times each compute pass of the entity passes with pass timestamps, and the gbuffer draw as
-//! the difference of the wall time of frames with and without the draw, since the timestamps of
-//! a render pass on Metal do not bracket its work (section 4.14). It also times the CPU writes of
-//! the slot records in a tick and their upload.
+//! It times each compute pass of the entity passes with pass timestamps. It also prints the
+//! difference of the wall time of frames with and without the draw, which does not measure the
+//! draw on Metal; `tools/metal-trace` does (section 4.15). Each frame starts with a
+//! compute pass of arithmetic, `MCRS_GPU_HOT` workgroups (16384 by default), that holds the GPU
+//! at its clock, as `PERF.md` measures. It writes the last counter of the entity passes, so the
+//! passes wait for it. It also times the CPU writes of the slot records in a tick and their
+//! upload.
+//!
+//! Every pass has a label, so `tools/metal-trace` reads the GPU time of each one from a Metal
+//! System Trace: `gbuffer entities` and `gbuffer no entities` alternate. With `MCRS_SPLIT_DRAW`
+//! the draw is two passes, `gbuffer full rigs` and `gbuffer impostors`. `MCRS_DRAW_ONLY=full_rigs`
+//! or `impostors` leaves the other draw out of `gbuffer entities`.
 #![expect(
     clippy::unwrap_used,
     clippy::expect_used,
     clippy::indexing_slicing,
     reason = "a developer tool reports a failure by panicking"
+)]
+#![expect(
+    clippy::disallowed_methods,
+    reason = "a developer tool takes the heater size from the environment"
 )]
 
 #[path = "../tests/support/mod.rs"]
@@ -26,8 +38,8 @@ use std::time::Instant;
 use glam::{Mat4, Vec3};
 use mcrs_minecraft_entity_render::{
     CULL_VALID, Capacities, ComputePass, CullRecord, EntityGpu, EntityLibrary, EntityPack,
-    FULL_RIG_CAP, FrameUniform, FrameView, PassQueries, SlotArena, StateRecord, TextureImage,
-    TickRecord, f16_up,
+    FULL_RIG_CAP, FrameCounts, FrameUniform, FrameView, HeightThreshold, PassQueries, SlotArena,
+    StateRecord, TextureImage, TickRecord, f16_up,
 };
 
 const SIDE: i32 = 316;
@@ -219,13 +231,23 @@ fn camera() -> FrameView {
     }
 }
 
-/// The gbuffer pass of a frame, cleared, with the entity draw when `draw` is set.
-fn draw_gbuffer(
-    encoder: &mut wgpu::CommandEncoder,
-    targets: &[wgpu::TextureView],
-    entity_gpu: &EntityGpu,
-    draw: bool,
-) {
+/// Which entity draws a frame makes, each in its own labelled render pass so that a Metal
+/// System Trace times it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum EntityDraw {
+    None,
+    All,
+    /// The full rigs and the impostors in two passes; the second pass loads the targets.
+    Split,
+}
+
+/// A gbuffer render pass on `targets`, cleared or loaded.
+fn gbuffer_pass<'a>(
+    encoder: &'a mut wgpu::CommandEncoder,
+    targets: &'a [wgpu::TextureView],
+    label: &str,
+    clear: bool,
+) -> wgpu::RenderPass<'a> {
     let colors: Vec<Option<wgpu::RenderPassColorAttachment<'_>>> = targets[..3]
         .iter()
         .map(|view| {
@@ -234,19 +256,27 @@ fn draw_gbuffer(
                 depth_slice: None,
                 resolve_target: None,
                 ops: wgpu::Operations {
-                    load: wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
+                    load: if clear {
+                        wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT)
+                    } else {
+                        wgpu::LoadOp::Load
+                    },
                     store: wgpu::StoreOp::Store,
                 },
             })
         })
         .collect();
-    let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-        label: Some("gbuffer"),
+    encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+        label: Some(label),
         color_attachments: &colors,
         depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
             view: &targets[3],
             depth_ops: Some(wgpu::Operations {
-                load: wgpu::LoadOp::Clear(0.0),
+                load: if clear {
+                    wgpu::LoadOp::Clear(0.0)
+                } else {
+                    wgpu::LoadOp::Load
+                },
                 store: wgpu::StoreOp::Store,
             }),
             stencil_ops: None,
@@ -254,9 +284,103 @@ fn draw_gbuffer(
         timestamp_writes: None,
         occlusion_query_set: None,
         multiview_mask: None,
-    });
-    if draw {
-        entity_gpu.encode_draw(&mut pass);
+    })
+}
+
+/// The gbuffer passes of a frame.
+fn draw_gbuffer(
+    encoder: &mut wgpu::CommandEncoder,
+    targets: &[wgpu::TextureView],
+    entity_gpu: &EntityGpu,
+    draw: EntityDraw,
+) {
+    match draw {
+        EntityDraw::None => {
+            gbuffer_pass(encoder, targets, "gbuffer no entities", true);
+        }
+        EntityDraw::All => {
+            let mut pass = gbuffer_pass(encoder, targets, "gbuffer entities", true);
+            match std::env::var("MCRS_DRAW_ONLY").as_deref() {
+                Ok("full_rigs") => entity_gpu.encode_draw_full_rigs(&mut pass),
+                Ok("impostors") => entity_gpu.encode_draw_impostors(&mut pass),
+                _ => entity_gpu.encode_draw(&mut pass),
+            }
+        }
+        EntityDraw::Split => {
+            entity_gpu.encode_draw_full_rigs(&mut gbuffer_pass(
+                encoder,
+                targets,
+                "gbuffer full rigs",
+                true,
+            ));
+            entity_gpu.encode_draw_impostors(&mut gbuffer_pass(
+                encoder,
+                targets,
+                "gbuffer impostors",
+                false,
+            ));
+        }
+    }
+}
+
+/// A compute pass of arithmetic that keeps the GPU at its clock.
+struct Heater {
+    pipeline: wgpu::ComputePipeline,
+    bind: wgpu::BindGroup,
+    workgroups: u32,
+}
+
+impl Heater {
+    /// A heater that writes the last word of `counters`.
+    fn new(device: &wgpu::Device, counters: &wgpu::Buffer) -> Self {
+        let module = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: Some("heater"),
+            source: wgpu::ShaderSource::Wgsl(
+                "@group(0) @binding(0) var<storage, read_write> sink: array<f32>;
+                @compute @workgroup_size(64)
+                fn heat(@builtin(global_invocation_id) id: vec3<u32>) {
+                    var x = f32(id.x);
+                    for (var i = 0u; i < 4096u; i = i + 1u) { x = fma(x, 1.0001, 0.5); }
+                    if (x == 0.125) { sink[63] = x; }
+                }"
+                .into(),
+            ),
+        });
+        let pipeline = device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
+            label: Some("heater"),
+            layout: None,
+            module: &module,
+            entry_point: Some("heat"),
+            compilation_options: Default::default(),
+            cache: None,
+        });
+        let bind = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: None,
+            layout: &pipeline.get_bind_group_layout(0),
+            entries: &[wgpu::BindGroupEntry {
+                binding: 0,
+                resource: counters.as_entire_binding(),
+            }],
+        });
+        let workgroups = std::env::var("MCRS_GPU_HOT")
+            .ok()
+            .and_then(|text| text.parse().ok())
+            .unwrap_or(16384);
+        Self {
+            pipeline,
+            bind,
+            workgroups,
+        }
+    }
+
+    fn encode(&self, encoder: &mut wgpu::CommandEncoder) {
+        let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
+            label: Some("heater"),
+            timestamp_writes: None,
+        });
+        pass.set_pipeline(&self.pipeline);
+        pass.set_bind_group(0, &self.bind, &[]);
+        pass.dispatch_workgroups(self.workgroups, 1, 1);
     }
 }
 
@@ -334,6 +458,8 @@ fn main() {
     let mut entity_gpu = gpu.entity_gpu(&library, capacities, arena.capacity());
     let targets = gbuffer(&gpu.device);
     let frame_view = camera();
+    let heater = Heater::new(&gpu.device, entity_gpu.counters());
+    let split = std::env::var_os("MCRS_SPLIT_DRAW").is_some();
 
     let queries = gpu.device.create_query_set(&wgpu::QuerySetDescriptor {
         label: None,
@@ -354,6 +480,7 @@ fn main() {
     let mut tick_cpu = Vec::new();
     let mut upload_cpu = Vec::new();
     let mut upload_bytes = Vec::new();
+    let mut threshold = HeightThreshold::new();
     for frame_index in 0..WARMUP + 2 * MEASURED {
         let measuring = frame_index >= WARMUP;
         let draw = (frame_index - WARMUP.min(frame_index)) % 2 == 0;
@@ -370,12 +497,19 @@ fn main() {
         let started = Instant::now();
         let upload = arena.take_upload();
         let mut encoder = gpu.device.create_command_encoder(&Default::default());
+        heater.encode(&mut encoder);
         entity_gpu.upload(&gpu.device, &gpu.queue, &mut encoder, &upload);
         if measuring && !upload.ticks.is_empty() {
             upload_cpu.push(started.elapsed().as_secs_f64() * 1e3);
             upload_bytes.push(upload.bytes() as f64);
         }
-        let uniform = FrameUniform::new(&frame_view, tick, partial, false);
+        if let Some(counts) = entity_gpu.take_counts() {
+            threshold.update(counts.full_rigs, FULL_RIG_CAP);
+        }
+        let uniform = FrameUniform {
+            height_threshold: threshold.pixels(),
+            ..FrameUniform::new(&frame_view, tick, partial, false)
+        };
         entity_gpu.write_frame(&gpu.queue, &uniform, upload.slot_count);
         entity_gpu.encode_compute(
             &mut encoder,
@@ -384,7 +518,12 @@ fn main() {
                 first: 0,
             }),
         );
-        draw_gbuffer(&mut encoder, &targets, &entity_gpu, draw);
+        let entity_draw = match (draw, split) {
+            (false, _) => EntityDraw::None,
+            (true, false) => EntityDraw::All,
+            (true, true) => EntityDraw::Split,
+        };
+        draw_gbuffer(&mut encoder, &targets, &entity_gpu, entity_draw);
         encoder.resolve_query_set(&queries, 0..8, &resolve, 0);
         let submitted = Instant::now();
         gpu.queue.submit([encoder.finish()]);
@@ -409,14 +548,16 @@ fn main() {
             }
         }
     }
-    let counters: Vec<u32> = bytemuck::cast_slice(&gpu.read(entity_gpu.counters())).to_vec();
+    let counts = FrameCounts::of(bytemuck::cast_slice(&gpu.read(entity_gpu.counters())));
     println!(
-        "slots {} visible {} (under 12 px: {}, which draw a full rig until impostors exist) faces {} over the cap {}",
+        "slots {} full rigs {} impostors {} faces {} dropped {}; height threshold {:.1} px; {} impostor image sets",
         pigs.len(),
-        counters[1],
-        counters[26],
-        counters[17],
-        counters[25]
+        counts.full_rigs,
+        counts.impostors,
+        counts.faces,
+        counts.dropped,
+        threshold.pixels(),
+        entity_gpu.impostor_sets()
     );
     report(&mut Measurements {
         pass_times,

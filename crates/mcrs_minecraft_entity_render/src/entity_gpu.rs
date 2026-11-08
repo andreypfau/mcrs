@@ -4,11 +4,15 @@ use wgpu::{
     RenderPass, TextureFormat,
 };
 
-use crate::entity_library::{EntityLibrary, MAX_DEFINITIONS};
+use crate::counts_readback::{CountsReadback, FrameCounts};
+use crate::entity_library::{EntityLibrary, MAX_ARRAYS, MAX_DEFINITIONS};
 use crate::frame_uniform::FrameUniform;
-use crate::gpu_buffers::{COUNTERS, FrameBuffers, SlotBuffers, StaticBuffers};
+use crate::gpu_buffers::{
+    COUNTERS, FrameBuffers, SlotBuffers, StaticBuffers, impostor_draws, impostor_list,
+};
 use crate::gpu_layouts::Layouts;
 use crate::gpu_pipelines::{Pipelines, texture_arrays};
+use crate::impostor_atlas::{BakeResources, ImpostorAtlas};
 use crate::records::{CullRecord, InputRecord, ScatterEntry, StateRecord};
 use crate::slot_upload::SlotUpload;
 
@@ -90,9 +94,12 @@ pub struct EntityGpu {
     slots: SlotBuffers,
     frame: FrameBuffers,
     hiz: wgpu::TextureView,
+    atlas: ImpostorAtlas,
+    readback: CountsReadback,
     compute_bind: BindGroup,
     args_bind: BindGroup,
     draw_bind: BindGroup,
+    impostor_bind: BindGroup,
     cull_grid: u32,
     scatter_count: u32,
 }
@@ -135,11 +142,15 @@ impl EntityGpu {
         let cull_grid = ((1u32 << 19) / 64)
             .min(limits.max_compute_workgroups_per_dimension)
             .max(1);
+        let atlas = ImpostorAtlas::new(device, library, &layouts.impostor_textures);
         let mut gpu = Self {
             capacities,
             compute_bind: placeholder_bind(device, &layouts.args, &frame),
             args_bind: placeholder_bind(device, &layouts.args, &frame),
             draw_bind: placeholder_bind(device, &layouts.args, &frame),
+            impostor_bind: placeholder_bind(device, &layouts.args, &frame),
+            atlas,
+            readback: CountsReadback::new(device),
             layouts,
             pipelines,
             arrays,
@@ -158,7 +169,8 @@ impl EntityGpu {
         let s = &self.slots;
         let st = &self.statics;
         let f = &self.frame;
-        let buffers: [(u32, &Buffer); 19] = [
+        let atlas = &self.atlas;
+        let buffers: [(u32, &Buffer); 24] = [
             (0, &f.uniform),
             (1, &s.ticks),
             (2, &s.previous_ticks),
@@ -178,6 +190,11 @@ impl EntityGpu {
             (17, &f.scatter),
             (19, &st.variants),
             (20, &st.cutout),
+            (21, &f.impostors),
+            (22, &atlas.pairs),
+            (23, &atlas.frame_table),
+            (24, &f.impostor_draws),
+            (25, &atlas.covers),
         ];
         let entries_of = |bindings: &[u32]| -> Vec<BindGroupEntry<'_>> {
             bindings
@@ -194,7 +211,7 @@ impl EntityGpu {
                 .collect()
         };
         let mut compute = entries_of(&[
-            0, 1, 2, 3, 4, 5, 6, 8, 9, 10, 11, 12, 13, 14, 15, 17, 19, 20,
+            0, 1, 2, 3, 4, 5, 6, 8, 9, 10, 11, 12, 13, 14, 15, 17, 19, 20, 21, 22, 23, 24, 25,
         ]);
         compute.push(BindGroupEntry {
             binding: 18,
@@ -214,6 +231,11 @@ impl EntityGpu {
             label: Some("entity draw"),
             layout: &self.layouts.draw,
             entries: &entries_of(&[0, 5, 8, 10, 11, 12, 13, 14, 19]),
+        });
+        self.impostor_bind = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("entity impostor"),
+            layout: &self.layouts.impostor,
+            entries: &entries_of(&[0, 24]),
         });
     }
 
@@ -264,6 +286,8 @@ impl EntityGpu {
         if upload.slot_capacity > self.slots.capacity {
             let grown = SlotBuffers::new(device, upload.slot_capacity.next_power_of_two());
             self.slots.copy_into(&grown, encoder);
+            self.frame.impostors = impostor_list(device, grown.capacity);
+            self.frame.impostor_draws = impostor_draws(device, grown.capacity);
             self.slots = grown;
             self.rebind(device);
         }
@@ -303,6 +327,36 @@ impl EntityGpu {
                 bytemuck::cast_slice(&range.records),
             );
         }
+        for record in upload.states.iter().flat_map(|range| &range.records) {
+            self.atlas.note(record);
+        }
+        self.atlas.bake_noted(
+            device,
+            queue,
+            encoder,
+            &BakeResources {
+                pipeline: &self.pipelines.bake,
+                draw_layout: &self.layouts.draw,
+                images_layout: &self.layouts.impostor_textures,
+                uniform: &self.frame.uniform,
+                models: &self.statics.models,
+                cuboids: &self.statics.cuboids,
+                variants: &self.statics.variants,
+                arrays: &self.arrays,
+            },
+        );
+    }
+
+    /// The image sets of the impostors that the bake has rendered.
+    #[must_use]
+    pub fn impostor_sets(&self) -> u32 {
+        self.atlas.image_sets()
+    }
+
+    /// The counts of the latest earlier frame whose readback completed. Call it once a frame,
+    /// before [`Self::encode_compute`].
+    pub fn take_counts(&mut self) -> Option<FrameCounts> {
+        self.readback.take()
     }
 
     /// Writes the frame uniform, with the capacities and the counts of the last upload.
@@ -320,7 +374,11 @@ impl EntityGpu {
 
     /// Encodes the compute passes of a frame: the scatter of the tick records, the cull, the
     /// pose and the expand of each definition.
-    pub fn encode_compute(&self, encoder: &mut CommandEncoder, queries: Option<PassQueries<'_>>) {
+    pub fn encode_compute(
+        &mut self,
+        encoder: &mut CommandEncoder,
+        queries: Option<PassQueries<'_>>,
+    ) {
         encoder.copy_buffer_to_buffer(
             &self.frame.counters_zero,
             0,
@@ -395,17 +453,64 @@ impl EntityGpu {
             pass.set_bind_group(0, &self.args_bind, &[]);
             pass.dispatch_workgroups(1, 1, 1);
         }
+        {
+            let mut pass = encoder.begin_compute_pass(&ComputePassDescriptor {
+                label: Some("entity impostor prepare"),
+                timestamp_writes: None,
+            });
+            pass.set_pipeline(&self.pipelines.impostor_prepare);
+            pass.set_bind_group(0, &self.compute_bind, &[]);
+            pass.dispatch_workgroups_indirect(&self.frame.indirect, self.impostor_args() + 16);
+            pass.set_pipeline(&self.pipelines.impostor_draw_args);
+            pass.set_bind_group(0, &self.args_bind, &[]);
+            pass.dispatch_workgroups(1, 1, 1);
+        }
+        self.readback.encode(&self.frame.counters, encoder);
     }
 
-    /// Draws the face records of each texture array into the render pass of the gbuffer.
+    /// Draws the face records of each texture array, then the impostors, into the render pass
+    /// of the gbuffer.
     pub fn encode_draw(&self, pass: &mut RenderPass<'_>) {
-        pass.set_pipeline(&self.pipelines.draw);
+        self.encode_draw_full_rigs(pass);
+        self.encode_draw_impostors(pass);
+    }
+
+    /// Draws the face records of each texture array into the render pass of the gbuffer: first
+    /// the faces with no cutout texel, then the others.
+    pub fn encode_draw_full_rigs(&self, pass: &mut RenderPass<'_>) {
+        pass.set_pipeline(&self.pipelines.draw_opaque);
         pass.set_bind_group(0, &self.draw_bind, &[]);
-        let draw_base = self.pipelines.definitions.len().max(1) as u64 * 24;
         for (index, array) in self.arrays.iter().enumerate() {
             pass.set_bind_group(1, array, &[]);
-            pass.draw_indirect(&self.frame.indirect, draw_base + index as u64 * 16);
+            pass.draw_indirect(&self.frame.indirect, self.draw_base() + index as u64 * 16);
         }
+        pass.set_pipeline(&self.pipelines.draw);
+        let cutout_base = self.impostor_args() + 48;
+        for (index, array) in self.arrays.iter().enumerate() {
+            pass.set_bind_group(1, array, &[]);
+            pass.draw_indirect(&self.frame.indirect, cutout_base + index as u64 * 16);
+        }
+    }
+
+    /// Draws the impostors into the render pass of the gbuffer.
+    pub fn encode_draw_impostors(&self, pass: &mut RenderPass<'_>) {
+        pass.set_pipeline(&self.pipelines.impostor);
+        pass.set_bind_group(0, &self.impostor_bind, &[]);
+        pass.set_bind_group(1, &self.atlas.images, &[]);
+        pass.draw_indirect(&self.frame.indirect, self.impostor_args());
+        pass.set_pipeline(&self.pipelines.impostor_small);
+        pass.draw_indirect(&self.frame.indirect, self.impostor_args() + 32);
+    }
+
+    /// The byte offset of the draw arguments of the impostors; the dispatch arguments of their
+    /// prepare pass follow them.
+    fn impostor_args(&self) -> u64 {
+        self.draw_base() + self.arrays.len().clamp(1, MAX_ARRAYS) as u64 * 16
+    }
+
+    /// The byte offset of the draw arguments of the first texture array.
+    fn draw_base(&self) -> u64 {
+        self.pipelines.definitions.len().max(1) as u64 * 24
     }
 }
 

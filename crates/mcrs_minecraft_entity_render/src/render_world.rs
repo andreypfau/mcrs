@@ -14,10 +14,12 @@ use crate::entity_assets::EntityAssets;
 use crate::entity_gpu::{Capacities, DrawTargets, EntityGpu, PassQueries};
 use crate::entity_library::EntityLibrary;
 use crate::frame_uniform::{FrameUniform, FrameView};
+use crate::height_threshold::HeightThreshold;
 use crate::main_world::EntityClock;
 use crate::slot_upload::{SCATTER_FRESH, SlotArena, SlotUpload};
 
-/// The full rigs of one definition that one frame draws: the full-rig cap of the native tier.
+/// The full rigs that one frame draws, in all and of one definition: the full-rig cap of the
+/// native tier.
 pub const FULL_RIG_CAP: u32 = 75_000;
 
 /// The render world state of the entity passes.
@@ -29,6 +31,7 @@ pub(crate) struct EntityRenderState {
     hiz: Option<TextureViewId>,
     pending: SlotUpload,
     clock: EntityClock,
+    threshold: HeightThreshold,
 }
 
 pub(crate) fn extract_entities(mut main: ResMut<MainWorld>, mut state: ResMut<EntityRenderState>) {
@@ -165,10 +168,14 @@ pub(crate) fn draw_entities(
     let (extracted, depth) = view.into_inner();
     let pending = std::mem::take(&mut state.pending);
     let clock = state.clock;
+    let mut threshold = state.threshold;
     let Some(gpu) = state.gpu.as_mut() else {
         state.pending = pending;
         return;
     };
+    if let Some(counts) = gpu.take_counts() {
+        threshold.update(counts.full_rigs, FULL_RIG_CAP);
+    }
     let encoder = ctx.command_encoder();
     gpu.upload(
         params.device.wgpu_device(),
@@ -193,6 +200,7 @@ pub(crate) fn draw_entities(
         .is_some_and(|shade| shade.0.shader_index() == 1);
     let mut uniform = FrameUniform::new(&view, clock.tick, clock.partial_tick, nether);
     uniform.hiz_levels = terrain.depth_pyramid_levels(&params.occlusion, &params.cache);
+    uniform.height_threshold = threshold.pixels();
     gpu.write_frame(&params.queue, &uniform, pending.slot_count);
     let queries = params
         .timestamps
@@ -230,4 +238,6 @@ pub(crate) fn draw_entities(
         multiview_mask: None,
     });
     gpu.encode_draw(&mut pass);
+    drop(pass);
+    state.threshold = threshold;
 }

@@ -7,6 +7,8 @@ const LANES: u32 = #{LANES}u;
 
 var<workgroup> group_faces: array<atomic<u32>, 8>;
 var<workgroup> group_faces_base: array<u32, 8>;
+var<workgroup> group_cutout_faces: array<atomic<u32>, 8>;
+var<workgroup> group_cutout_base: array<u32, 8>;
 
 /// A cuboid of the active layers of a slot.
 struct Found {
@@ -78,6 +80,7 @@ fn expand(
 ) {
     if (local < ARRAYS) {
         atomicStore(&group_faces[local], 0u);
+        atomicStore(&group_cutout_faces[local], 0u);
     }
     workgroupBarrier();
     var emitted = array<u32, 6>();
@@ -85,6 +88,7 @@ fn expand(
     var target_array = 0u;
     var index = 0u;
     var packed = 0u;
+    var cut = 0u;
     let count = min(atomicLoad(&counters[COUNTER_VISIBLE + DEFINITION]), frame.visible_capacity);
     let mob = id.x / LANES;
     if (mob < count) {
@@ -106,7 +110,7 @@ fn expand(
                     let placed = compose(instances[index], found.first_bone + bone_index);
                     let flags = cuboid_flags(cuboid);
                     let face_mask = flags & 0x3fu;
-                    let cut = cutout_bits(found.variant, found.model, found.cuboid);
+                    cut = cutout_bits(found.variant, found.model, found.cuboid);
                     target_array = variants[found.variant].array_layer >> 16u;
                     packed = found.cuboid | (found.layer << 16u);
                     if ((flags & CUBOID_EXPLICIT) != 0u) {
@@ -171,9 +175,20 @@ fn expand(
         }
     }
     target_array = min(target_array, ARRAYS - 1u);
+    // A face with a cutout texel draws with the discard; the others draw with no discard, so a
+    // tile-based GPU removes their hidden fragments.
+    var opaque_count = 0u;
+    for (var face = 0u; face < emit_count; face = face + 1u) {
+        opaque_count = opaque_count + select(1u, 0u, ((cut >> emitted[face]) & 1u) != 0u);
+    }
+    let cutout_count = emit_count - opaque_count;
     var offset = 0u;
-    if (emit_count != 0u) {
-        offset = atomicAdd(&group_faces[target_array], emit_count);
+    var cutout_offset = 0u;
+    if (opaque_count != 0u) {
+        offset = atomicAdd(&group_faces[target_array], opaque_count);
+    }
+    if (cutout_count != 0u) {
+        cutout_offset = atomicAdd(&group_cutout_faces[target_array], cutout_count);
     }
     workgroupBarrier();
     if (local < ARRAYS) {
@@ -181,13 +196,28 @@ fn expand(
         if (total != 0u) {
             group_faces_base[local] = atomicAdd(&counters[COUNTER_FACES + local], total);
         }
+        let cutout_total = atomicLoad(&group_cutout_faces[local]);
+        if (cutout_total != 0u) {
+            let from_end = atomicAdd(&counters[COUNTER_CUTOUT_FACES + local], cutout_total) + cutout_total;
+            group_cutout_base[local] = frame.face_capacity - min(from_end, frame.face_capacity);
+        }
     }
     workgroupBarrier();
-    let base = group_faces_base[target_array] + offset;
+    let region = target_array * frame.face_capacity;
+    var opaque_at = group_faces_base[target_array] + offset;
+    var cutout_at = group_cutout_base[target_array] + cutout_offset;
     for (var face = 0u; face < emit_count; face = face + 1u) {
-        let at = base + face;
-        if (at < frame.face_capacity) {
-            faces[target_array * frame.face_capacity + at] = vec2<u32>(index, packed | (emitted[face] << 24u));
+        let record = vec2<u32>(index, packed | (emitted[face] << 24u));
+        if (((cut >> emitted[face]) & 1u) != 0u) {
+            if (cutout_at < frame.face_capacity) {
+                faces[region + cutout_at] = record;
+            }
+            cutout_at = cutout_at + 1u;
+        } else {
+            if (opaque_at < frame.face_capacity) {
+                faces[region + opaque_at] = record;
+            }
+            opaque_at = opaque_at + 1u;
         }
     }
 }

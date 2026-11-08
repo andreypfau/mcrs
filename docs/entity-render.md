@@ -290,27 +290,32 @@ mode. A lane reads the cull record and:
 3. tests the cull sphere against the frustum. The centre of the sphere is the centre of the
    block of the cull record. The radius is the cull radius plus `√3 / 2` block;
 4. tests the screen rectangle of the sphere against the depth pyramid;
-5. computes the projected height `h_px = 2 · r · H / (2 · d · tan(fov_y / 2))` of the sphere,
-   with `r` the radius of item 3, `H` the viewport height in pixels and `d` the distance of the
-   centre from the camera;
+5. computes the projected height `h_px = h · H / (2 · d · tan(fov_y / 2))` of the entity box,
+   with `h` the box height of the entity type times the baby scale and the scale of the state
+   record, `H` the viewport height in pixels and `d` the distance of the centre of the sphere from
+   the camera. The cull sphere is only for the cull: its radius also covers the movement margin
+   and the visible bounds, so it is too large for the tier;
 6. selects the tier. The mob is a full rig when `h_px` is at least the height threshold of the
-   frame uniforms or when the flag `full rig only` is set. Else it is an impostor
-   (CEREN-VIS-003);
+   frame uniforms, when the flag `full rig only` is set, or when a layer has no image set (section
+   5.6). Else it is an impostor (CEREN-VIS-003);
 7. for a full rig, reads the active layers of the state record and reserves its bone matrices:
    the sum of the bone counts of the models of its active layers. The workgroup sums its
    reservations with a scan and does one `atomicAdd` on the bone arena. A reservation that
-   passes the end of the arena makes the mob an impostor;
-8. appends the slot index, and for a full rig the first bone matrix, to the visible list of its
-   tier and client entity definition, with a scan inside the workgroup.
+   passes the end of the arena or of the visible list makes the mob an impostor when its layers
+   have image sets. Else the mob draws nothing;
+8. appends the slot index and the first bone matrix of a full rig to the visible list of its
+   client entity definition, and the slot index of an impostor to the impostor list, each with
+   a scan inside the workgroup.
 
 The pass also writes the dispatch arguments of the next two passes, and the counts of full rigs
 and impostors to a readback buffer.
 
-The height threshold starts at 12 px. The CPU reads the full-rig count back a few frames late.
-When the count is more than the full-rig cap of section 6.1, the CPU raises the threshold by the
-factor `sqrt(count / cap)`, because the full-rig count falls with the square of the threshold.
-When the count is less than 0.8 of the cap, the CPU lowers the threshold by the same rule, and
-never below 12 px.
+The height threshold starts at 12 px. The CPU reads the full-rig count back a few frames late,
+from a ring of mapped copies of the counters. When the count is more than the full-rig cap of
+section 6.1, the CPU raises the threshold by the factor `sqrt(count / cap)`, because the
+full-rig count falls with the square of the threshold. When the count is less than 0.8 of the
+cap, the CPU lowers the threshold by the same rule, and never below 12 px. The threshold stops
+at 16384 px, because mobs with the flag `full rig only` can keep the count over the cap.
 
 The CPU computes the cull radius when a layer, the scale, the script scale or the upside-down
 flag changes. The radius covers the culling volume of `docs/spec/client-entity-render.md`,
@@ -324,8 +329,7 @@ largest step of the mob in the last 20 ticks, rounded up to 0.25 block, because 
 position interpolates from the previous position. The CPU rewrites the cull record only when that
 rounded value changes.
 
-Until the impostor pipeline exists (section 9), the cull appends an impostor to the full-rig list
-of its definition, and a mob that does not fit in the bone arena draws nothing.
+The CPU sets the flag `full rig only` while the entity dies or is upside down.
 
 ### 5.2 Pose (compute)
 
@@ -402,8 +406,12 @@ with the same aggregation per workgroup.
 
 ### 5.4 Draw
 
-One `draw_indirect` per texture array into the gbuffer targets, with `LoadOp::Load` and depth
-test and write:
+Two `draw_indirect` per texture array into the gbuffer targets, with `LoadOp::Load` and depth
+test and write. The expand pass writes the face records with no cutout texel from the start of
+the range of the array, and the others from its end. The first draws have no discard, so a
+tile-based GPU removes their hidden fragments; the draws of the cutout faces follow. A draw has
+one instance of a strip of four vertices for each face record: on the reference machine this
+costs 0.11 ms of vertex time in S1, against 0.20 ms for six vertices of a triangle list.
 
 - The vertex shader pulls the face record, then the layer of the state record, the cuboid, the
   bone matrix and the corner. It computes the position and the UV from these. For an explicit
@@ -447,6 +455,56 @@ variant of the `deferred.wgsl` helper takes the emissive value; its old form wri
 
 The first pipeline is opaque cutout. Translucent layers later go into `WorldPass::Forward` and
 reuse the face records.
+
+### 5.6 Impostors
+
+An image set holds the views of one model with one texture: 16 yaws and the 9 elevations 0°,
+5°, 10°, 15°, 20°, 30°, 40°, 50° and 60°, at rest. A view is a tile of 64 × 64 texels. An image
+of the wrong elevation shows more or less of the top faces, which are brighter than the sides.
+With the elevations 0°, 30° and 60° of CEREN-VIS-003, a camera 5° to 15° above a far field sees
+the 0° images: the impostors are up to 8% darker than the full rigs. With steps of 10°, a field
+seen from 9 blocks above shows bands from 11% darker to 7% brighter in the final image. The
+steps of 5° up to 20° keep each band within 5%. A set takes 4.7 MB. The set is one layer of two
+`texture_2d_array` targets: the colour after the tint, and the normal in internal space with the
+depth toward the camera. The arrays start with 8 layers and double up to
+`min(2048, max_texture_array_layers)`.
+
+The loader bakes no set. The upload notes each pair of a model and a texture of an active layer
+of a state record that it writes. Before the cull of that frame, a bake renders the set of each
+new pair with the vertex stage of the full-rig draw and its face records: the bones at rest, one
+instance for each view, and all faces of each cuboid with a depth test. A bake costs one render
+pass. The render controllers can hide bones, so the set keeps the hidden mask of the first state
+record that names the pair. A slot with another hidden mask draws its full rig. A table of
+`u32`, one for each model and texture, gives the layer of the set and its hidden mask.
+
+The quad of an impostor stands on the vertical plane through the entity position and faces the
+camera. A view image is the projection of the model onto that plane along the direction of the
+view, so the quad shows each point where the camera sees it. Each model has a rectangle for each
+view, and the quad covers the rectangles of the active layers. The models of one definition
+share the depth scale. Thus the fragment shader takes, for each pixel, the covered texel of the
+layers that is nearest to the camera, the later layer on a tie, and shades it with section 5.5.
+
+A prepare pass after the expand pass has one lane for each impostor. It interpolates the position
+and the body yaw of the tick records, selects the nearest view, and writes a draw record of
+128 B: the position, the axis of the quad, its rectangle, the image sets and the rectangles of
+the layers, the light and the overlay. The vertex stage of the impostor draw reads only the
+record. In S1 this takes the vertex time of the impostors from 0.23 ms to 0.06 ms.
+
+The impostor draws follow the face records in the same render pass: six vertices for each draw
+record, with no instance. A view image holds the pixels of a cutout, so the fragment shader
+discards the pixels that no layer covers. A fragment shader that discards prevents the removal
+of hidden surfaces of a tile-based GPU: in S1 the discard costs about 0.16 ms of the 0.26 ms of
+the impostor fragments.
+
+An impostor under 3 px draws with no discard. At bake, a compute pass measures the share of the
+covered texels of each view image and their centroid. The quad of a small impostor is the
+rectangle with that share of the area of the view rectangle and its aspect, about the centroid.
+A pixel that no layer covers takes the colour at the centroid. The small impostors take their
+draw records from the end of the record buffer down. This takes 0.05 ms of fragment time in S1.
+The FLIP error at 2 and 3 px is 0.07 to 0.19, against 0.02 to 0.05 with the discard.
+
+The budget note, section 4.15, gives the measurements of each step and the choices that did not
+help.
 
 ## 6. Execution paths
 
@@ -560,7 +618,7 @@ faces. Write the results to `docs/perf/`.
 3. The pose pass with `Curve` and `Pure` channels. Pigs walk and look around.
 4. The expand pass and the compaction.
 5. The impostor pipeline of CEREN-VIS-003: the image sets, the quad draw and the impostor list
-   of the cull.
+   of the cull (section 5.6).
 6. The input records, the CPU batch VM in each frame with the skip of CENT-SCR-006, and the
    controller clip slots. The frog uses them; the pig does not.
 7. The Compatibility path: the bone texture, the fetch interface and the draw of face records

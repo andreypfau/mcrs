@@ -38,6 +38,9 @@ wgpu = { version = "29", default-features = false, features = ["wgsl"] }
 
 [dev-dependencies]
 futures-lite = "2"
+image = { version = "0.25", default-features = false, features = ["png"] }
+mcrs_minecraft_client_jar.workspace = true
+nv-flip = "0.1.2"
 serde.workspace = true
 serde_json.workspace = true
 wgpu = { version = "29", features = ["metal", "wgsl"] }

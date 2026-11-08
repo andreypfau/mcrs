@@ -1,10 +1,12 @@
 // wgpu's `Buffer: Sync` proof chain is deeper than the default 128 frames.
 #![recursion_limit = "256"]
 //! The GPU side of the entity rendering: the slot records of each mob, the static tables of the
-//! models, the pose programs, and the entity cull, pose, expand and draw passes.
+//! models, the pose programs, the entity cull, pose, expand and draw passes, and the impostors
+//! of small mobs.
 
 // std: bevy
 
+mod counts_readback;
 mod cpu_inputs;
 mod entity_assets;
 mod entity_gpu;
@@ -14,6 +16,9 @@ mod frame_uniform;
 mod gpu_buffers;
 mod gpu_layouts;
 mod gpu_pipelines;
+mod height_threshold;
+mod impostor_atlas;
+mod impostor_frame;
 mod main_world;
 mod plugin;
 mod pose_program;
@@ -21,6 +26,7 @@ mod records;
 mod render_world;
 mod slot_upload;
 
+pub use counts_readback::FrameCounts;
 pub use cpu_inputs::input_record;
 pub use entity_assets::{
     EntityAssets, MISSING_TEXTURE, VariantInfo, VariantKey, texture_identifier,
@@ -32,6 +38,10 @@ pub use entity_library::{
 };
 pub use entity_pack::{DEATH_FLIP, EntityPack, PackEntity};
 pub use frame_uniform::{FRAME_NETHER_LIGHT, FULL_RIG_HEIGHT, FrameUniform, FrameView};
+pub use height_threshold::HeightThreshold;
+pub use impostor_frame::{
+    IMPOSTOR_ELEVATIONS, IMPOSTOR_TILE, IMPOSTOR_VIEWS, IMPOSTOR_YAWS, ImpostorFrames, ImpostorView,
+};
 pub use main_world::{CpuAnimation, EntityClock, EntitySlot, RecordedClip, RecordedClips};
 pub use plugin::{EntityRenderPlugin, EntitySlotSystems};
 pub use pose_program::{EntryInputs, InputLayout, PoseProgram, PoseProgramError};

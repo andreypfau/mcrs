@@ -2,12 +2,15 @@ use std::collections::HashMap;
 
 use bytemuck::{Pod, Zeroable};
 use glam::Vec3;
+use mcrs_minecraft_client_entity::KindTraits;
+use mcrs_minecraft_entity::entity_type_keys::EntityType;
 use mcrs_minecraft_entity_animation::Rig;
 use mcrs_minecraft_entity_model::{
     BakedCube, BakedGeometry, BoneRecord, CuboidRecords, ModelRecord,
 };
 use mcrs_minecraft_render_controller::matches_bone;
 
+use crate::impostor_frame::{ImpostorFrames, entity_point};
 use crate::pose_program::{PoseProgram, PoseProgramError};
 use crate::records::{HIDEABLE_ENTRIES, MAX_LAYERS};
 
@@ -73,6 +76,10 @@ pub struct DefinitionTables {
     pub max_bones: u32,
     pub death_flip: f32,
     pub program: Result<PoseProgram, PoseProgramError>,
+    /// The height of the entity box at the scale 1, in blocks.
+    pub box_height: f32,
+    /// The size of a baby relative to the adult.
+    pub baby_scale: f32,
 }
 
 impl DefinitionTables {
@@ -114,6 +121,11 @@ pub struct EntityLibrary {
     pub cuboids: Vec<u8>,
     pub variants: Vec<VariantRecord>,
     pub cutout: Vec<u8>,
+    /// The transform of each bone of `bones` at rest, as three rows, in model units.
+    pub rest_bones: Vec<[[f32; 4]; 3]>,
+    /// The views of the impostor images of each model of `models`. The models of one
+    /// definition share the depth radius, so the images of its layers compare their depths.
+    pub impostor_frames: Vec<ImpostorFrames>,
     pub arrays: Vec<TextureArray>,
     /// The variant of each texture identifier.
     pub textures: HashMap<String, u16>,
@@ -209,6 +221,8 @@ impl EntityLibrary {
         let mut models = Vec::with_capacity(source.geometries.len());
         let mut cuboid_counts = Vec::new();
         let mut bone_counts = Vec::new();
+        let mut rest_points = Vec::new();
+        let first_frames = self.impostor_frames.len();
         for geometry in source.geometries {
             let Some(geometry) = geometry else {
                 models.push(None);
@@ -220,6 +234,10 @@ impl EntityLibrary {
                     baked.push(geometry);
                     cuboid_counts.push(geometry.cubes.len() as u32);
                     bone_counts.push(geometry.bones.len() as u32);
+                    let points: Vec<Vec3> = rest_corners(geometry).collect();
+                    self.impostor_frames
+                        .push(ImpostorFrames::enclosing(&points));
+                    rest_points.extend(points);
                 }
                 Err(message) => {
                     self.diagnostics.push(format!(
@@ -239,6 +257,11 @@ impl EntityLibrary {
             self.diagnostics
                 .push(format!("{}: no GPU pose: {error}", rig.identifier));
         }
+        let depth_radius = ImpostorFrames::enclosing(&rest_points).depth_radius;
+        for frames in self.impostor_frames.iter_mut().skip(first_frames) {
+            frames.depth_radius = depth_radius;
+        }
+        let (box_height, baby_scale) = box_size(&rig.identifier, &rest_points);
         DefinitionTables {
             identifier: rig.identifier.clone(),
             first_model,
@@ -248,6 +271,8 @@ impl EntityLibrary {
             max_bones: largest(bone_counts),
             death_flip: source.death_flip,
             program,
+            box_height,
+            baby_scale,
         }
     }
 
@@ -256,6 +281,18 @@ impl EntityLibrary {
         let records = CuboidRecords::new(geometry).map_err(|error| error.to_string())?;
         let first_bone = self.bones.len() as u32;
         let first_cuboid = (self.cuboids.len() / 32) as u32;
+        for transform in geometry.model_transforms(&[]) {
+            let linear = transform.matrix3;
+            let translation = transform.translation;
+            self.rest_bones.push([0, 1, 2].map(|row| {
+                [
+                    linear.x_axis[row],
+                    linear.y_axis[row],
+                    linear.z_axis[row],
+                    translation[row],
+                ]
+            }));
+        }
         for bone in &geometry.bones {
             let entry = palette
                 .iter()
@@ -332,6 +369,35 @@ impl EntityLibrary {
             self.cutout.push(0);
         }
     }
+}
+
+/// The box height and the baby scale of the entity type `identifier`. A type with no box takes
+/// the height of the rest pose of its models.
+fn box_size(identifier: &str, rest_points: &[Vec3]) -> (f32, f32) {
+    let traits = EntityType::read(identifier).map(KindTraits::of);
+    let (low, high) = rest_points
+        .iter()
+        .fold((f32::INFINITY, f32::NEG_INFINITY), |(low, high), point| {
+            (low.min(point.y), high.max(point.y))
+        });
+    let box_height = match traits {
+        Some(traits) if traits.height > 0.0 => traits.height,
+        _ if low < high => high - low,
+        _ => 1.0,
+    };
+    (box_height, traits.map_or(1.0, |traits| traits.baby_scale))
+}
+
+/// The corners of the faces of `geometry` at rest, in entity space at the body yaw 0.
+fn rest_corners(geometry: &BakedGeometry) -> impl Iterator<Item = Vec3> + '_ {
+    let transforms = geometry.model_transforms(&[]);
+    geometry.cubes.iter().flat_map(move |cube| {
+        let transform = transforms.get(cube.bone).copied().unwrap_or_default();
+        cube.faces
+            .iter()
+            .flat_map(|face| face.corners)
+            .map(move |corner| entity_point(transform.transform_point3(corner)))
+    })
 }
 
 /// The image in the top left corner of a transparent square of `side`.
