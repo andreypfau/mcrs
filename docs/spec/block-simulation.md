@@ -3334,7 +3334,7 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: high.
     | a scheduled tick | the kind (block or fluid), the type of the tick, its position | not more than one tick of each (position, type) is pending (SIM-SCH-004, DEV-03), and a phase collects it one time |
     | a block event | its position, block, `a` and `b`, and the count of equal events that the step delivered before it | the count separates an equal event that a drain delivers again |
     | a random pick | the stream that the pick forks from the stream of its section (`../physics-architecture.md` §7.4) | the section and the index of the pick |
-    | a set request of the step input (a command, a player) | its position, and its index in the order in which the step applies its input | the order of the input is stable |
+    | a set request of the step input (a command, a player) | its position, and its index in the step input of the dimension, before the step divides the input between the cells | the input order is stable. An index that counts only the requests that one cell owns depends on the division into cells |
     | a chain item (a neighbor update, a shape update, a side effect) | none: it continues the stream of the work item that started the chain | the order of the chain is fixed (SIM-NBR-003) |
     | a chain item that arrives as a message from another partition | its position, and the key of the message | messages apply in a stable order (SIM-MODEL-007) |
 
@@ -3399,9 +3399,9 @@ SIM-FIRE-010, SIM-FIRE-011. Do the work in this order:
 
    Write `block_ticks` in `write_chunk`, so that the round-trip test of the chunk files of the game covers it (SIM-SCH-012).
 2. **Carry the saved lists to the kernel.** `FilledSnapshot` gets a second field for the saved ticks: the decoded lists of the anvil reader, with their types, `t` and `p` as the save holds them. `fill_column` fills it for a saved column. `generation_stage.rs` makes `StoredColumn.ticks` from that field when the source is `Saved`, and from `generated_ticks::column_ticks` when the source is `Generated`.
-3. **Activation time.** Activate the saved ticks with `G'` = the game time of the step in which the section first runs scheduled ticks, minus 1. The reason: vanilla activates between level ticks, before the game time advances (SIM-SCH-013 step 3). Then `due − now` at a save and `G' + t` at the next load give the same due tick. A column that the server saves at the end of step N and activates in step N + 1 keeps each due tick. If the kernel activates with the time of the step, each save and load makes each tick one level tick later. Check what `activate(now)` gets in `run_block_simulation`, and correct it.
+3. **Activation time.** The step in which the sections of a column first run scheduled ticks activates their saved ticks with `G' = now − 1`. `now` is the game time of the step. Today `run_block_simulation` sets `now = GameTick(kernel.time.0)` and passes it to `BlockSimulation::activate` (`block_simulation.rs`). The block phase collects the ticks with `due ≤ now`, and a save writes `t = due − now` through `take_column`. Change: pass `GameTick(now.0 - 1)` to `BlockSimulation::activate`, and correct its doc comment. `TickQueue::activate` and `take_column` keep `now`. The change applies to saved ticks and to generated ticks. The reason: vanilla activates between level ticks, before the game time advances (SIM-SCH-013 step 3). With the change, a column that the server saves at the end of step N and activates in step N + 1 keeps each due tick. Without it, each save and load makes each tick one level tick later.
 4. **The current stream** of SIM-FIRE-011. `Cx` holds the stream of the work item that runs. The scheduled-tick handler and the placement side effect draw from it.
-5. **The game rule.** Read `fire_spread_radius_around_player` from `data/minecraft/game_rules.dat` into the dimension world. At this time, only the key exists (`mcrs_minecraft_game_rule`).
+5. **The game rule.** `mcrs_minecraft_save::read_game_rules` reads `data/minecraft/game_rules.dat`, but only `advance_time`, and only the client calls it. Add `fire_spread_radius_around_player` (default 128) to it. The server reads it at start and carries the value into each dimension world.
 6. **The block rules.** One rules type replaces `InertBlocks`. It matches on the block type, and it holds static tables for each state, built from the registries in `DimensionBlockRules`. In G8a it has these handlers:
    - the fire tick, steps 1 and 2 of SIM-FIRE-001;
    - the placement side effect of fire, step 2 of SIM-FIRE-009. Step 1 waits for G8b (SIM-FIRE-003);
@@ -3427,12 +3427,12 @@ step 2 of section 13.2, and it gives the columns to `BlockSimulation` through
 `random_ticks_save.rs` does, because that path skips step 2. The bench asserts these
 results:
 
-1. The load decodes 4,846 block ticks: 4,835 fire, 7 crafter, 4 observer. It decodes no fluid tick and drops no element.
+1. The 121 columns of the area hold 4,846 block ticks after the load: 4,835 fire, 7 crafter, 4 observer. They hold no fluid tick, and the load drops no element. The ring of columns outside the area adds its own ticks; the bench does not count them.
 2. The dimension world read `R = 0` from the save. Without this check, result 5 also passes with the default 128 and no player.
-3. The 2,629 fire ticks with `t ≤ 1` run in the first scheduled phase of the area (step 3 of section 13.2). Failing twin: 2,593, when the activation uses the time of the step.
-4. At the end of each level tick after the activation, 4,835 fire ticks are pending.
-5. Warm up for 1,200 level ticks, then measure 12,000 level ticks. The mean count of fire ticks that run in one level tick is 140.1 ± 0.5. The expected value is 4,835 / 34.5 = 140.14. One level tick has a standard deviation of 11.7, but the mean of 12,000 has a standard deviation below 0.01, so the tolerance never fails by chance.
-6. No block state of the area changes.
+3. The 2,629 fire ticks of the area with `t ≤ 1` run in the first scheduled phase of the area (step 3 of section 13.2). Failing twin: 2,593, when the activation uses the time of the step.
+4. At the end of each level tick after the activation, 4,835 fire ticks are pending in the 121 columns of the area.
+5. Warm up for 1,200 level ticks, then measure 12,000 level ticks. The mean count of fire ticks that run in one level tick in the 121 columns is 140.1 ± 0.5. The expected value is 4,835 / 34.5 = 140.14. One level tick has a standard deviation of 11.7, but the mean of 12,000 has a standard deviation below 0.01, so the tolerance never fails by chance.
+6. No block state of the area or of its ring changes.
 
 Results 1, 3, 4 and 6 are exact. The bench prints the time of the scheduled-tick
 phase. The vanilla run of the farm reports 0.50 ms for all scheduled ticks of the
@@ -3449,9 +3449,9 @@ server has no rules for these block types (SIM-SCH-019).
 |------|-------|----------|
 | Decode of both lists: an unknown id is dropped and logged one time for the list, the other elements stay; a long `p` narrows; an `i` without a namespace reads; a tick outside the column is dropped with no log; the order stays | SIM-SCH-013, SIM-SCH-019 | fixture |
 | The round trip of the chunk files of the game: `block_ticks` is equal to the file of the game | SIM-SCH-012 | game files (`vanilla_files.rs`) |
-| A saved column gets to the kernel: through the server harness of `mcrs_minecraft_server/tests/it/world_cells.rs`, load a small checked-in region with fire ticks of `t` −5, 0 and 1, a fire tick at a position that holds stone, and an element with an unknown id. Check the due tick of each tick, the consumed tick at the stone, and one error line | SIM-SCH-013, SIM-SCH-019, step 3 of 13.2 | fixture (CI) |
-| The first kernel test of SIM-FIRE-001, the table of SIM-FIRE-002, the kernel tests of SIM-FIRE-009 and SIM-FIRE-010 | SIM-FIRE-001, 002, 009, 010 | harness |
-| The kernel tests of SIM-FIRE-011 | SIM-FIRE-011 | harness, golden hash |
+| A saved column gets to the kernel. Use a small checked-in region with fire ticks of `t` −5, 0 and 1, a fire tick at a position that holds stone, and an element with an unknown id. Test 1: `fill_column` and `generation_stage` give `StoredColumn.ticks` with the saved types, `t` and `p`, and one error line. Test 2: feed those ticks to `BlockSimulation` through `LandedTicks`. Check the due tick of each tick (`G' + t`), and the consumed tick at the stone. No server test loads anvil regions, so the test does not use `world_cells.rs` | SIM-SCH-013, SIM-SCH-019, step 3 of 13.2 | fixture (CI) |
+| The first kernel test of SIM-FIRE-001; the gate with `R = 0` (closed) and with `R` not 0 (one warning for the dimension, reschedule only); the kernel tests of SIM-FIRE-009 and SIM-FIRE-010 | SIM-FIRE-001, 002, 009, 010 | harness |
+| Determinism with the gate closed: a synthetic scene of 64 fires, two runs, and 1 cell against 4 cells. Hash the tick queues (position and due tick of each pending tick), not the block states, because a closed gate changes no block. Compare with a golden hash | SIM-FIRE-011 | harness, golden hash |
 | The bench of section 13.3 | all of G8a | real save |
 
 ### 13.5 G8b: the full fire tick
@@ -3468,15 +3468,15 @@ the block phases. Give them to the rules as one view of the step input, next to
 | sturdy top of each state | SIM-FIRE-003 | `VoxelShape::face_mask(Up) == FACE_MASK_FULL` over the collision shape of the corpus, with the exceptions of SIM-FIRE-003. Do not use the two existing derivations of the world generation: one uses the selection shape too (`feature_program.rs`), and both lack the exceptions | to build |
 | `#minecraft:soul_fire_base_blocks`, `#minecraft:leaves`, the infiniburn tag of the dimension type | SIM-FIRE-003, 005, 010 | the data pack, `mcrs_minecraft_dimension_environment` | present as data; masks for each state to build |
 | `tnt_explodes` | SIM-FIRE-006 | `game_rules.dat` | key only |
-| the difficulty | SIM-FIRE-007 | `difficulty_settings` of `level.dat` | not in the dimension world |
+| the difficulty | SIM-FIRE-007 | `difficulty_settings` of `level.dat` | `mcrs_minecraft_save` does not read it. G8b adds the read and carries it into the dimension world |
 | `gameplay/increased_fire_burnout` at P | SIM-FIRE-006, 007 | the environment attributes of the biome and of the dimension (`registry-fields.md`) | data present; no lookup at a position in the kernel |
 | rain at Q: the rain of the dimension, the sky light at Q, the `MOTION_BLOCKING` height, the biome and its snow test at Q | SIM-FIRE-004 | the weather, the light data, the heightmaps, the biomes. The snow test is the temperature test of SIM-RND-004 | data present; no test outside world generation. G8b adds it, and precipitation can then use it |
 
-The output: `StepOutput` gets a list of primed TNT spawns, each a position, in the
+The output: `StepOutput` gets a list of primed TNT spawns, each a position, in the order of the tick. The engine has no spawn path for a primed TNT at this time; the physics has its entity kind (`entity-physics.md`). Until the engine has that path, it removes the TNT block, logs each spawn that it cannot do, and spawns nothing. The engine spawns them after the block domain, as it handles `ItemDropped`, when the path exists.
 order of the tick. The engine spawns them after the block domain, as it handles
 `ItemDropped`. The spawn of the entity and its start motion are entity rules.
 
-Exit of G8b: the kernel tests of SIM-FIRE-001 to SIM-FIRE-012 pass. The scene of
+Exit of G8b: the kernel tests of SIM-FIRE-001 to SIM-FIRE-012 pass. These include the table of SIM-FIRE-002, which needs the copy of the players with their game modes, and the tests of SIM-FIRE-011 with the gate open. G8b is of size M to L. The scene of
 section 13.3 runs with `R = −1` for 12,000 level ticks, and prints its phase time.
 Its fires on a floor that is not infiniburn and not next to fuel go out
 (SIM-FIRE-001), so result 4 does not apply. When the vanilla fixtures of E-F3 to

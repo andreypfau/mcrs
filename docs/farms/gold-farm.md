@@ -214,7 +214,7 @@ of section 3.1. Each step has an exit criterion that a test or the benchmark of 
 | G6 | `player-attack.md`: the attack packet, cooldown, damage, sweep, the player hit mark | 16 | M | a scripted attack each 13 ticks gives the death counts of section 2.2 |
 | G7 | Experience: the drop amount, `experience-orbs.md` with follow, merge and pickup | 17, 18 | M | the orb counts near the chamber match section 2.2 |
 | G8a | Saved block ticks of all kinds, the reschedule of the fire tick, the spread gate, soul fire and the random streams of block ticks (`block-simulation.md` §13.2) | 20 | S | the scheduled tick count of the nether fire scene (`block-simulation.md` §13.3) matches section 2.4 |
-| G8b | The full fire tick, with the block inputs of the step (players, game rules, difficulty, rain, environment attributes) and the output of primed TNT (`block-simulation.md` §13.5) | — | M | the kernel tests of SIM-FIRE-001 to SIM-FIRE-012 |
+| G8b | The full fire tick, with the block inputs of the step (players, game rules, difficulty, rain, environment attributes) and the output of primed TNT (`block-simulation.md` §13.5) | — | M–L | the kernel tests of SIM-FIRE-001 to SIM-FIRE-012 |
 
 G1 and G2 can start now. G3 needs G1. G4 can run in parallel with G2 and G3. G5 needs G4. G6 needs
 G2. G7 needs G6. G8a is independent. G8b needs G8a. The farm needs only G8a.
