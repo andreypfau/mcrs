@@ -13,8 +13,8 @@ pub enum ChunkGenerator<M: Refs = Resolved> {
     Debug,
 }
 
-// chisle: the vanilla pack ships flat presets, so a flat generator must load, but nothing
-// generates a flat world; its settings stay unread until a flat generator exists.
+/// The settings of a flat generator stay NBT: the world generation reads only their layer list
+/// and their biome.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct FlatChunkGenerator {
     pub settings: NbtTag,

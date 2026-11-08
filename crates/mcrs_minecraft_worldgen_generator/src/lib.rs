@@ -1175,6 +1175,7 @@ pub mod beta_ores;
 pub(crate) mod biome_upscale;
 pub mod feature_program;
 pub mod features;
+pub mod flat;
 pub mod ids;
 pub mod modern_carvers;
 pub mod multi_noise_biomes;

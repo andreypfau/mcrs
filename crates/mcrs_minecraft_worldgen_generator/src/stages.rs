@@ -32,6 +32,7 @@ use rustc_hash::FxHashMap;
 use tracing::{error, info_span};
 
 use crate::feature_program::{FeatureProgram, RunScratch};
+use crate::flat::FlatLayers;
 use crate::ids::FillIds;
 use crate::modern_carvers::{
     CarverBiomeTable, ModernCarverBlockIds, TerrainCarving, carve_unsurfaced, modern_carving_mask,
@@ -47,8 +48,8 @@ use crate::structures::place::{column_clip, place_structures};
 use crate::task::{CancellationToken, ColumnSource};
 use crate::{
     BetaCaveBlockIds, ColumnBiomes, ColumnBlocks, SurfaceIds, SurfaceStates, apply_beta_carvers,
-    apply_beta_surface, apply_material_surface, beta_surface_rng, fill_column_dense_any,
-    spans_dimension,
+    apply_beta_surface, apply_material_surface, beta_surface_rng, column_biome_palettes,
+    fill_column_dense_any, spans_dimension,
 };
 use mcrs_minecraft_heightmap::{
     ColumnHeightmapSet, HeightmapKinds, HeightmapPredicates, build_column_heightmaps,
@@ -95,6 +96,8 @@ pub enum ColumnGenerator {
         surface: Option<(Arc<SurfaceIds>, SurfaceStates)>,
         carver_blocks: Arc<ModernCarverBlockIds>,
     },
+    /// Fixed layers, with no noise, surface, carver or feature.
+    Flat(Arc<FlatLayers>),
 }
 
 impl ColumnProgram {
@@ -334,6 +337,22 @@ pub fn fill_column(
         });
     }
 
+    if let ColumnGenerator::Flat(layers) = &ctx.program.generator {
+        let min_y = y_sections
+            .first()
+            .map_or(router.noise.min_y, |&bottom| bottom << SectionPos::BITS);
+        layers.fill(column, y_sections, min_y);
+        let (biomes, _) = column_biome_palettes(
+            router,
+            &ctx.program.biomes,
+            col.x * 16,
+            col.z * 16,
+            y_sections,
+        );
+        let terrain = terrain_maps(ctx, column);
+        return Some(pack(ctx, col, column, &biomes, terrain));
+    }
+
     let beard = ctx.structures.as_deref().and_then(|index| {
         let _beard = info_span!("world::column_beard").entered();
         index.beard(col)
@@ -426,6 +445,7 @@ pub fn fill_column(
                 carve_unsurfaced(column, carving);
             }
         }
+        ColumnGenerator::Flat(_) => {}
     }
 
     // The reference keeps the two `_WG` maps live through the carvers and

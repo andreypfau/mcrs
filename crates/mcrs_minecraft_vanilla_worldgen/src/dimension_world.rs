@@ -17,10 +17,13 @@ use mcrs_minecraft_worldgen_generator::SurfaceIds;
 use mcrs_minecraft_worldgen_generator::ids::FillIds;
 use mcrs_minecraft_worldgen_generator::multi_noise_biomes::PresetBiomeTables;
 use mcrs_minecraft_worldgen_generator::saved::SavedColumns;
-use mcrs_minecraft_worldgen_generator::stages::{FillContext, dimension_y_sections};
+use mcrs_minecraft_worldgen_generator::stages::{
+    ColumnGenerator, FillContext, dimension_y_sections,
+};
 use tracing::{error, warn};
 
 use crate::features::DimensionFeaturePrograms;
+use crate::flat_world::{flat_biome, flat_layers};
 use crate::modern_carvers::DimensionCarverBiomes;
 use crate::routers::DimensionRouters;
 use crate::structures::DimensionStructures;
@@ -61,17 +64,23 @@ fn insert_fill_context(host: &World, build: &DimensionBuild<'_>, sub_app: &mut S
         warn!(%dimension, "no noise router for this dimension; it will generate nothing");
         return;
     };
-    let biome_source = host
+    let generator = host
         .get_resource::<DimensionGenerators>()
         .zip(host.get_resource::<DimensionList>())
-        .and_then(|(generators, list)| generators.get(list, build.dimension))
-        .and_then(|generator| match generator {
-            ChunkGenerator::Noise(generator) => Some(Arc::new(generator.biome_source.clone())),
-            _ => None,
-        });
+        .and_then(|(generators, list)| generators.get(list, build.dimension));
     let router = &dimension_router.router;
     let blocks = sub_app.world().resource::<Blocks>().0.clone();
     let current = sub_app.world().resource::<CurrentRegistries>();
+    let (biome_source, flat) = match generator {
+        Some(ChunkGenerator::Noise(generator)) => {
+            (Some(Arc::new(generator.biome_source.clone())), None)
+        }
+        Some(ChunkGenerator::Flat(generator)) => (
+            flat_biome(generator, current).map(|biome| Arc::new(BiomeSource::Fixed { biome })),
+            Some(Arc::new(flat_layers(generator, &blocks))),
+        ),
+        _ => (None, None),
+    };
     let mut diagnostics = Diagnostics::default();
     let surface_ids = SurfaceIds::resolve(current, &mut diagnostics);
     let fill_ids = FillIds::resolve(current, &mut diagnostics);
@@ -87,18 +96,22 @@ fn insert_fill_context(host: &World, build: &DimensionBuild<'_>, sub_app: &mut S
         error!(%dimension, %diagnostics, "the registries lack a name worldgen needs; it will generate nothing");
         return;
     };
-    let features = host
-        .get_resource::<DimensionFeaturePrograms>()
-        .and_then(|programs| programs.0.get(dimension))
-        .map(Arc::clone);
-    if features.is_none() {
+    let features = flat
+        .is_none()
+        .then(|| {
+            host.get_resource::<DimensionFeaturePrograms>()
+                .and_then(|programs| programs.0.get(dimension))
+                .map(Arc::clone)
+        })
+        .flatten();
+    if features.is_none() && flat.is_none() {
         warn!(%dimension, "no feature program for this dimension; it will place no features");
     }
     let saved = host.get_resource::<WorldSave>().and_then(|save| {
         let registries = Registries::clone(sub_app.world().resource::<CurrentRegistries>());
         SavedColumns::open(&save.0, build.dimension, registries)
     });
-    let fill = FillContext::build(
+    let mut fill = FillContext::build(
         Arc::clone(router),
         Some(Arc::clone(&dimension_router.material)),
         blocks,
@@ -122,5 +135,10 @@ fn insert_fill_context(host: &World, build: &DimensionBuild<'_>, sub_app: &mut S
             .and_then(|structures| structures.0.get(dimension))
             .cloned(),
     );
+    if let Some(layers) = flat {
+        fill.program.generator = ColumnGenerator::Flat(layers);
+        fill.program.carvers = None;
+        fill.structures = None;
+    }
     sub_app.insert_resource(fill);
 }
