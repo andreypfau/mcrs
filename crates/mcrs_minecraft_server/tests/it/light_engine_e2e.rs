@@ -20,7 +20,8 @@ use mcrs_minecraft_protocol_game::clientbound::ClientboundLightUpdate;
 use mcrs_minecraft_protocol_game::light_codec::{RowLight, unpack_light_data};
 use mcrs_minecraft_simulation::BlockUpdateFlags;
 use mcrs_minecraft_vanilla_light::{LightBudget, LightLink};
-use mcrs_voxel::{BlockPos, BlockStateId, ColumnPos, SectionPos};
+use mcrs_minecraft_volume::SectionBlocksMut;
+use mcrs_voxel::{BlockPos, BlockStateId, ColumnPos, LocalPos, SectionPos};
 
 use crate::host_app;
 
@@ -90,7 +91,7 @@ fn spawn_loaded_section(
         .get_mut::<SectionIndex>(dimension)
         .expect("the dimension indexes its sections");
     index.insert(pos, section);
-    index.land(pos, section, blocks);
+    index.land(pos, section, blocks, None, false);
     section
 }
 
@@ -158,16 +159,9 @@ fn place_torch(app: &mut App, label: Entity, at: BlockPos) -> u8 {
         .get_mut::<SectionIndex>(dimension)
         .expect("the dimension indexes its sections")
         .into_inner()
-        .blocks_mut(chunk_pos)
+        .section_mut(chunk_pos, None)
         .expect("the section has blocks")
-        .make_mut()
-        .0
-        .set(
-            (at.x & 15) as usize,
-            (at.y & 15) as usize,
-            (at.z & 15) as usize,
-            torch,
-        );
+        .set(LocalPos::from(at), torch);
     sub_app.world_mut().write_message(BlockPlaced {
         chunk,
         chunk_pos,

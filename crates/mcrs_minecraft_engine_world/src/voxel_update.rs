@@ -176,7 +176,13 @@ mod tests {
         world
             .get_mut::<SectionIndex>(dimension)
             .expect("a dimension")
-            .land(SectionPos::new(0, 0, 0), landing, air_section());
+            .land(
+                SectionPos::new(0, 0, 0),
+                landing,
+                air_section(),
+                None,
+                false,
+            );
         apply(&mut world, dimension, &mut changes);
         assert!(
             changes.is_empty(),

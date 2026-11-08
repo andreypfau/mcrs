@@ -5,8 +5,11 @@ use crate::palette::ChunkBlocks;
 use crate::world::dimension::InDimension;
 use crate::world::lifecycle::stage::SectionStage;
 use crate::world::lifecycle::ticket::TicketPlugin;
+use crate::world::storage::random_ticks::RandomTickIndex;
 use bevy_app::{App, Plugin};
 use bevy_ecs::prelude::{Bundle, Component, Entity};
+use mcrs_minecraft_simulation::TickingSectionMut;
+use mcrs_minecraft_volume::{PalettedSection, PalettedSectionMut};
 use rustc_hash::FxHashMap;
 
 pub(crate) struct SectionPlugin;
@@ -44,7 +47,8 @@ impl SectionBundle {
 
 /// The sections of a dimension by position: the entity of each, and the blocks of each loaded
 /// one. The index is the only owner of the blocks, so a read of a block finds them with one
-/// lookup, without the entity.
+/// lookup, without the entity. Each change of blocks takes the [`RandomTickIndex`] of the world,
+/// so their ticking positions follow.
 #[derive(Component, Debug, Default)]
 pub struct SectionIndex(FxHashMap<SectionPos, IndexEntry>);
 
@@ -74,9 +78,16 @@ impl SectionIndex {
         );
     }
 
-    /// Forgets the section at `pos` with its blocks.
-    pub fn remove(&mut self, pos: impl Into<SectionPos>) -> Option<Entity> {
-        self.0.remove(&pos.into()).map(|section| section.entity)
+    /// Forgets the section at `pos` with its blocks and their ticking positions.
+    pub fn remove(
+        &mut self,
+        pos: SectionPos,
+        random_ticks: Option<&mut RandomTickIndex>,
+    ) -> Option<Entity> {
+        if let Some(random_ticks) = random_ticks {
+            random_ticks.remove(pos);
+        }
+        self.0.remove(&pos).map(|section| section.entity)
     }
 
     #[must_use]
@@ -94,23 +105,42 @@ impl SectionIndex {
         self.0.get(&pos)?.blocks.as_ref()
     }
 
-    pub fn blocks_mut(&mut self, pos: SectionPos) -> Option<&mut ChunkBlocks> {
-        self.0.get_mut(&pos)?.blocks.as_mut()
+    /// A handle that writes the blocks of the section at `pos` and keeps their ticking positions.
+    pub fn section_mut<'a>(
+        &'a mut self,
+        pos: SectionPos,
+        random_ticks: Option<&'a mut RandomTickIndex>,
+    ) -> Option<TickingSectionMut<'a, PalettedSectionMut<'a>>> {
+        let blocks = self.0.get_mut(&pos)?.blocks.as_mut()?;
+        let blocks = PalettedSectionMut(&mut blocks.make_mut().0);
+        Some(match random_ticks {
+            Some(index) => index.section_mut(pos, blocks),
+            None => TickingSectionMut::untracked(blocks),
+        })
     }
 
-    /// Gives `entity`, the section at `pos`, its blocks. `None` when the index holds another
-    /// section there, or none.
+    /// Gives `entity`, the section at `pos`, its blocks, and lists their ticking positions. False
+    /// when the index holds another section there, or none.
     pub fn land(
         &mut self,
         pos: SectionPos,
         entity: Entity,
         blocks: ChunkBlocks,
-    ) -> Option<&ChunkBlocks> {
-        let section = self
+        random_ticks: Option<&mut RandomTickIndex>,
+        random_ticked: bool,
+    ) -> bool {
+        let Some(section) = self
             .0
             .get_mut(&pos)
-            .filter(|section| section.entity == entity)?;
-        Some(section.blocks.insert(blocks))
+            .filter(|section| section.entity == entity)
+        else {
+            return false;
+        };
+        let blocks = section.blocks.insert(blocks);
+        if let Some(random_ticks) = random_ticks {
+            random_ticks.insert(pos, &PalettedSection(&blocks.0.0), random_ticked);
+        }
+        true
     }
 
     /// The loaded sections with their blocks, in no order.

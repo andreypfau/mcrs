@@ -38,7 +38,6 @@ use mcrs_minecraft_simulation::{
     PartitionKind, RandomPicks, RandomTickTable, RandomTicks, SemanticOrder, Serial, ShardId,
     SimulationVolume, StepOutput, StreamSeed, random_step,
 };
-use mcrs_minecraft_volume::PalettedSection;
 use mcrs_minecraft_worldgen_generator::saved::CorpusBlockStates;
 use mcrs_voxel::{BlockPos, BlockStateId, SectionPos};
 
@@ -324,12 +323,11 @@ fn load(world: &Path, definitions: &BlockDefinitions, table: &RandomTickTable) -
                         let states = section_states(&VoxelPalette(blocks), state_count);
                         let at = SectionPos::new(pos.x, i32::from(section.y), pos.z);
                         let blocks = ChunkBlocks::new(states);
-                        index.insert(at, &PalettedSection(&blocks.0.0), true);
                         let entity = ecs
                             .spawn((SectionBundle::new(InDimension(dimension), at), BlockTicking))
                             .id();
                         section_index.insert(at, entity);
-                        section_index.land(at, entity, blocks);
+                        section_index.land(at, entity, blocks, Some(&mut index), true);
                         sections += 1;
                     }
                 }

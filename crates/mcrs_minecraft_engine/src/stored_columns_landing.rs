@@ -10,7 +10,6 @@ use mcrs_minecraft_engine_world::world::lifecycle::stage::{
 use mcrs_minecraft_engine_world::world::storage::block_entity::spawn_block_entities;
 use mcrs_minecraft_engine_world::world::storage::random_ticks::RandomTickIndex;
 use mcrs_minecraft_engine_world::world::storage::section::SectionIndex;
-use mcrs_minecraft_volume::PalettedSection;
 use mcrs_voxel::{ColumnPos, SectionPos};
 
 use crate::column_asks::ColumnOrigin;
@@ -206,12 +205,13 @@ fn land_column(
             stages.set(section, SectionStage::Loading);
             continue;
         };
-        let Some(blocks) = landing.index.land(pos, section, content.blocks) else {
+        let random_ticks = landing.random_ticks.as_deref_mut();
+        if !landing
+            .index
+            .land(pos, section, content.blocks, random_ticks, random_ticked)
+        {
             stages.set(section, SectionStage::Loading);
             continue;
-        };
-        if let Some(random_ticks) = landing.random_ticks.as_deref_mut() {
-            random_ticks.insert(pos, &PalettedSection(&blocks.0.0), random_ticked);
         }
         let mut entity = commands.entity(section);
         entity.try_insert(content.biomes);

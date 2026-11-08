@@ -174,12 +174,9 @@ impl BlockVolumeMut for DimensionViewMut<'_> {
         if !self.layout.contains_section_y(at.y) {
             return Err(Denied::Outside);
         }
-        let blocks = self.index.blocks_mut(at).ok_or(Denied::Unloaded)?;
-        let blocks = PalettedSectionMut(&mut blocks.make_mut().0);
-        Ok(match self.random_ticks.as_deref_mut() {
-            Some(index) => index.section_mut(at, blocks),
-            None => TickingSectionMut::untracked(blocks),
-        })
+        self.index
+            .section_mut(at, self.random_ticks.as_deref_mut())
+            .ok_or(Denied::Unloaded)
     }
 }
 
@@ -201,7 +198,7 @@ mod tests {
         index.insert(loaded, world.spawn_empty().id());
         index.insert(generating, world.spawn_empty().id());
         let entity = index.get(loaded).expect("an indexed section");
-        index.land(loaded, entity, air_section());
+        index.land(loaded, entity, air_section(), None, false);
         let dimension = world.spawn((index, DimensionTypeConfig::new(0, 32))).id();
 
         let mut state: SystemState<WorldViewMut> = SystemState::new(&mut world);

@@ -185,6 +185,8 @@ fn load_stone_column(server: &mut PlayServer) {
             pos,
             section,
             ChunkBlocks::new(SectionStates::homogeneous(state)),
+            None,
+            false,
         );
         sections.set_loaded(chunk_y, section);
     }

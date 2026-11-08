@@ -16,9 +16,9 @@ use rustc_hash::FxHashMap;
 use crate::world::lifecycle::simulation::EntityTicking;
 
 /// Keeps the [`RandomTickIndex`] of a dimension world with the sections that start or stop
-/// random ticks. Block writes keep it through
-/// [`WorldViewMut`](crate::world::storage::view::WorldViewMut); the landing of a section and its
-/// unload call [`RandomTickIndex::insert`] and [`RandomTickIndex::remove`].
+/// random ticks. Each change of blocks goes through the
+/// [`SectionIndex`](crate::world::storage::section::SectionIndex), which keeps the ticking
+/// positions.
 pub struct RandomTickIndexPlugin;
 
 impl Plugin for RandomTickIndexPlugin {
@@ -183,7 +183,7 @@ impl RandomTickIndex {
         tile.relist();
     }
 
-    pub fn remove(&mut self, pos: SectionPos) {
+    pub(crate) fn remove(&mut self, pos: SectionPos) {
         let tile_pos = tile_of(pos);
         let Some(tile) = self.tiles.get_mut(&tile_pos) else {
             return;
@@ -197,7 +197,7 @@ impl RandomTickIndex {
         }
     }
 
-    pub fn set_random_ticked(&mut self, pos: SectionPos, random_ticked: bool) {
+    fn set_random_ticked(&mut self, pos: SectionPos, random_ticked: bool) {
         let Some(tile) = self.tiles.get_mut(&tile_of(pos)) else {
             return;
         };
@@ -223,7 +223,7 @@ impl RandomTickIndex {
     }
 
     /// A handle that writes `blocks`, the section at `pos`, and keeps its ticking positions.
-    pub fn section_mut<'a, S: SectionBlocksMut>(
+    pub(crate) fn section_mut<'a, S: SectionBlocksMut>(
         &'a mut self,
         pos: SectionPos,
         blocks: S,

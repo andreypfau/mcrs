@@ -148,10 +148,7 @@ fn despawn_chunks(
             loading.pending_spawn.insert(*pos);
             continue;
         }
-        section_index.remove(*pos);
-        if let Some(random_ticks) = random_ticks.as_deref_mut() {
-            random_ticks.remove(*pos);
-        }
+        section_index.remove(*pos, random_ticks.as_deref_mut());
         commands.entity(section).try_despawn();
         taken += 1;
     }
@@ -292,7 +289,7 @@ mod tests {
             .expect("section index");
         index.insert(pos, section);
         if blocks {
-            index.land(pos, section, crate::palette::air_section());
+            index.land(pos, section, crate::palette::air_section(), None, false);
         }
         app.world_mut().write_message(SectionStageChanged {
             section,

@@ -4,7 +4,8 @@ use mcrs_minecraft_engine_world::palette::{
     BiomePalette, BlockPalette, ChunkBlocks, section_states,
 };
 use mcrs_minecraft_heightmap::*;
-use mcrs_voxel::{BlockPos, BlockStateId};
+use mcrs_minecraft_volume::SectionBlocksMut;
+use mcrs_voxel::{BlockPos, BlockStateId, LocalPos};
 use std::sync::OnceLock;
 
 fn corpus() -> &'static Blocks {
@@ -297,7 +298,7 @@ fn spawn_column(
             let entity = app.world_mut().spawn(InDimension(dim)).id();
             let pos = SectionPos::new(0, section_y, 0);
             section_index.insert(pos, entity);
-            section_index.land(pos, entity, ChunkBlocks::new(states));
+            section_index.land(pos, entity, ChunkBlocks::new(states), None, false);
             entity
         })
         .collect();
@@ -375,6 +376,7 @@ fn a_series_of_edits_stays_bit_for_bit_equal_to_a_rebuild() {
         let (blocks, _) = sections[index].as_mut().unwrap();
         let old = blocks.set_cell(x, (y % 16) as usize, z, id).unwrap();
         let state = |id: VoxelId| BlockStateId::checked(id.0, corpus().state_count()).unwrap();
+        let block_pos = BlockPos::new(x as i32, y, z as i32);
         let InDimension(dim) = *app
             .world()
             .get::<InDimension>(section_entities[index])
@@ -382,14 +384,13 @@ fn a_series_of_edits_stays_bit_for_bit_equal_to_a_rebuild() {
         app.world_mut()
             .get_mut::<SectionIndex>(dim)
             .unwrap()
-            .blocks_mut(SectionPos::new(0, y / 16, 0))
+            .section_mut(SectionPos::new(0, y / 16, 0), None)
             .unwrap()
-            .make_mut()
-            .set_cell(x, (y % 16) as usize, z, state(id));
+            .set(LocalPos::from(block_pos), state(id));
         app.world_mut().write_message(BlockPlaced {
             chunk: section_entities[index],
             chunk_pos: SectionPos::new(0, y / 16, 0),
-            block_pos: BlockPos::new(x as i32, y, z as i32),
+            block_pos,
             old_state: state(old),
             new_state: state(id),
             flags: BlockUpdateFlags::all(),
