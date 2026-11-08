@@ -4145,14 +4145,17 @@ dependencies = [
  "mcrs_minecraft_command_registry",
  "mcrs_minecraft_core",
  "mcrs_minecraft_engine",
+ "mcrs_minecraft_engine_physics",
  "mcrs_minecraft_engine_world",
  "mcrs_minecraft_entity",
  "mcrs_minecraft_environment",
  "mcrs_minecraft_game_mode",
  "mcrs_minecraft_heightmap",
  "mcrs_minecraft_keys",
+ "mcrs_minecraft_mob",
  "mcrs_minecraft_nbt",
  "mcrs_minecraft_network",
+ "mcrs_minecraft_physics",
  "mcrs_minecraft_protocol",
  "mcrs_minecraft_protocol_game",
  "mcrs_minecraft_registries",
@@ -4163,6 +4166,7 @@ dependencies = [
  "mcrs_voxel",
  "rand 0.10.0",
  "tracing",
+ "uuid",
 ]
 
 [[package]]

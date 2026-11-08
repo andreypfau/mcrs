@@ -1,6 +1,6 @@
 [package]
 name = "mcrs_minecraft_command_vanilla"
-description = "The vanilla commands execute, gamemode, teleport, locate and time, and the command effects they write"
+description = "The vanilla commands execute, gamemode, teleport, locate, summon and time, and the command effects they write"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -38,7 +38,10 @@ mcrs_minecraft_command_registry.workspace = true
 mcrs_minecraft_command_argument_vanilla.workspace = true
 mcrs_minecraft_core = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_engine.workspace = true
+mcrs_minecraft_engine_physics.workspace = true
 mcrs_minecraft_entity.workspace = true
+mcrs_minecraft_mob.workspace = true
+mcrs_minecraft_physics.workspace = true
 mcrs_minecraft_environment = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_heightmap = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_keys.workspace = true
@@ -54,3 +57,4 @@ bevy_ecs.workspace = true
 bevy_math.workspace = true
 rand.workspace = true
 tracing.workspace = true
+uuid.workspace = true

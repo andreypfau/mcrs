@@ -55,8 +55,8 @@ use crate::mobs::Mobs;
 use crate::tile_at::tile_at;
 
 /// The entity pass of a dimension world: the merge point, the life cycle and the freeze in
-/// `DomainInput`, the pass in `Simulate`, the tile moves in `Project`, the tile events of the
-/// mobs in `Output`.
+/// `DomainInput`, the pass in `Simulate`, the tile moves and then the tile events of the mobs in
+/// `Project`.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct EntityPhysicsPlugin;
 
@@ -107,8 +107,10 @@ impl Plugin for EntityPhysicsPlugin {
                 .run_if(resource_exists::<PhysicsTables>)
                 .in_set(TickSet::Simulate),
         );
-        app.add_systems(FixedUpdate, move_rows.in_set(TickSet::Project));
-        app.add_systems(FixedUpdate, publish_mobs.in_set(TickSet::Output));
+        app.add_systems(
+            FixedUpdate,
+            (move_rows, publish_mobs).chain().in_set(TickSet::Project),
+        );
     }
 }
 

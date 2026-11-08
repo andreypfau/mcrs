@@ -1,5 +1,5 @@
-//! The vanilla commands `execute`, `gamemode`, `teleport` with its alias `tp`, `locate` and
-//! `time`, and the command effects they write.
+//! The vanilla commands `execute`, `gamemode`, `teleport` with its alias `tp`, `locate`, `summon`
+//! and `time`, and the command effects they write.
 
 // std: bevy_ecs needs it.
 mod ban;
@@ -13,6 +13,7 @@ mod plugin;
 mod relative_move;
 mod select;
 mod set;
+mod summon;
 mod teleport;
 mod time;
 mod whitelist;

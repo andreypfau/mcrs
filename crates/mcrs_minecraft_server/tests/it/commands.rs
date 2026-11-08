@@ -147,7 +147,7 @@ fn transform_in(server: &mut PlayServer, dim: Entity, anchor: Entity) -> Transfo
 }
 
 /// Loads the column at chunk `0 0` with stone from the bottom up to y 63 and air above.
-fn load_stone_column(server: &mut PlayServer) {
+pub(crate) fn load_stone_column(server: &mut PlayServer) {
     use mcrs_minecraft_engine_world::palette::{ChunkBlocks, SectionStates};
     use mcrs_minecraft_engine_world::world::dimension::{Dimension, DimensionTypeConfig};
     use mcrs_minecraft_engine_world::world::lifecycle::stage::SectionStage;
@@ -266,7 +266,7 @@ fn root_literals(packets: &[PacketPayload]) -> Vec<String> {
         .collect()
 }
 
-fn chats(packets: &[PacketPayload]) -> Vec<Text> {
+pub(crate) fn chats(packets: &[PacketPayload]) -> Vec<Text> {
     packets
         .iter()
         .filter_map(|packet| match packet {
@@ -308,7 +308,7 @@ fn an_operator_sees_completes_and_runs_a_plugin_command_that_a_guest_cannot() {
     assert_eq!(
         literals,
         [
-            "echo", "execute", "gamemode", "locate", "shout", "teleport", "time", "tp"
+            "echo", "execute", "gamemode", "locate", "shout", "summon", "teleport", "time", "tp"
         ]
     );
     let (guest, packets) = server.join(GUEST, "Guest");
