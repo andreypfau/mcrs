@@ -1137,15 +1137,9 @@ and PATH-INV-002 by the search tests, and PATH-PRF-001 by the benchmark.
 The results come from a vanilla dedicated server of `26.4-snapshot-7` on 2026-11-08, with the
 scene of section 15.1.
 
-The raw captures are in `docs/spec/fixtures/pathfinding/`:
-
-| File | Content |
-|------|---------|
-| `vanilla_paths.json` | each distinct path value of P1: the experiment, the flag "reached", the targets, and each node of the path, the open set and the closed set with all fields |
-| `e_v2_west.txt`, `e_v2_north.txt` | E-V2: the tick and the position `x y z` of each tick, after a first line with the follow range |
-| `e_v3_magma.txt`, `e_v3_stone.txt` | E-V3, in the same form |
-| `e_v4_drop3.txt`, `e_v4_drop4.txt` | E-V4, in the same form |
-| `p4_cobweb.txt`, `p4_air.txt` | P4: the tick and the position of each tick, with no first line |
+The raw captures are outside the repository: each path value of P1 with its nodes, its open set and
+its closed set, and the position of each tick of E-V2 to E-V4 and P4. A test that needs them adds
+only the part that it checks, as a fixture of `mcrs_minecraft_fixtures`.
 
 The captures of the second session repeat the block positions and the ticks of E-V2 to E-V4 below
 exactly, with a spectator operator near the scene.
