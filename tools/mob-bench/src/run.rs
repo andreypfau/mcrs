@@ -46,6 +46,10 @@ struct Bench<'a> {
     metric: TickMetric,
     /// When the next stir of the stimulus phase is due, while that phase runs.
     next_stir: Option<Instant>,
+    stir_round: usize,
+    /// When the last probe round went out; the next waits for its game time answer.
+    probe_sent: Option<Instant>,
+    probe_rounds_skipped: usize,
 }
 
 /// The window of a measured phase, kept until the watcher's log is in.
@@ -91,6 +95,9 @@ pub fn run(args: &Args) -> anyhow::Result<RunReport> {
         console: false,
         metric: args.server.tick_metric(),
         next_stir: None,
+        stir_round: 0,
+        probe_sent: None,
+        probe_rounds_skipped: 0,
     };
     let start_seconds = bench.wait_ready(address, started);
     let mut report = RunReport {
@@ -274,7 +281,10 @@ impl Bench<'_> {
             return;
         };
         if Instant::now() >= due {
-            let _ = self.server.send(&scene::stimulus(self.args.stimulus_pigs));
+            for line in scene::stir(self.stir_round, self.args.stimulus_pigs, self.args.pigs) {
+                let _ = self.server.send(&line);
+            }
+            self.stir_round += 1;
             self.next_stir = Some(due + self.args.stimulus_period);
         }
     }
@@ -384,17 +394,33 @@ impl Bench<'_> {
         (report, Some(window))
     }
 
+    /// Sends one probe round, `time query gametime` last, unless the game time answer of the
+    /// previous round is still out: a server that answers slower than the rounds go out would
+    /// otherwise build a backlog of commands.
     fn probe_round(&mut self, first: bool) {
         if !self.console {
             return;
         }
-        let _ = self.server.send("time query gametime");
+        if let Some(sent) = self.probe_sent {
+            let answered = self
+                .server
+                .lines_between(sent, Instant::now() + Duration::from_secs(1))
+                .iter()
+                .any(|line| probe::game_time(&line.text).is_some());
+            if !answered {
+                self.probe_rounds_skipped += 1;
+                return;
+            }
+        }
+        self.probe_sent = Some(Instant::now());
+        for sample in 0..self.args.samples {
+            let line = scene::sample_query(self.args.pigs, self.args.samples, sample);
+            let _ = self.server.send(&line);
+        }
         if !first && self.metric == TickMetric::TickQuery {
             let _ = self.server.send("tick query");
         }
-        for index in 0..self.args.samples {
-            let _ = self.server.send(&scene::sample_query(index));
-        }
+        let _ = self.server.send("time query gametime");
     }
 
     fn measure(&mut self, phase: Phase) -> (PhaseReport, Window) {
@@ -408,6 +434,8 @@ impl Bench<'_> {
         let mut rss = Vec::new();
         let mut load_max = load_average_start[0];
         let mut first = true;
+        self.probe_sent = None;
+        self.probe_rounds_skipped = 0;
         while Instant::now() < until {
             let now = Instant::now();
             if now >= next_probe {
@@ -470,6 +498,7 @@ impl Bench<'_> {
             load_average_end,
             load_average_1m_max: round(load_max.max(load_average_end[0])),
             contended,
+            probe_rounds_skipped: self.probe_rounds_skipped,
         };
         (report, Window { from, until })
     }

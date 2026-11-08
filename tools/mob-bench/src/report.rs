@@ -73,6 +73,8 @@ pub struct PhaseReport {
     pub load_average_end: [f64; 3],
     pub load_average_1m_max: f64,
     pub contended: bool,
+    /// Probe rounds not sent because the game time answer of the round before was still out.
+    pub probe_rounds_skipped: usize,
 }
 
 impl PhaseReport {
@@ -96,6 +98,7 @@ impl PhaseReport {
             load_average_end: [0.0; 3],
             load_average_1m_max: 0.0,
             contended: false,
+            probe_rounds_skipped: 0,
         }
     }
 }

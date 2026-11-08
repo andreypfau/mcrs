@@ -108,26 +108,48 @@ pub fn fence(area: Area) -> Vec<String> {
     .to_vec()
 }
 
-/// One `summon` line a pig, on an even grid over `area`. Every `count / samples`-th pig gets the
-/// custom name `mbs<i>`, so that `data get` answers name the pig they describe.
+/// The first int of every pig's UUID (`mbs` in ASCII); the last int is the pig's index.
+const UUID_HIGH: u32 = 0x006d_6273;
+/// Steps through the pig indices so that one stir hits pigs all over the area; coprime with
+/// any pig count that is not a multiple of 7919.
+const STIR_STEP: usize = 7919;
+
+/// The UUID of pig `index`, as the console writes it.
+#[must_use]
+pub fn pig_uuid(index: usize) -> String {
+    format!("{UUID_HIGH:08x}-0000-0000-0000-0000{:08x}", index as u32)
+}
+
+/// The pig index of named sample `sample`.
+#[must_use]
+pub fn sample_index(count: usize, samples: usize, sample: usize) -> usize {
+    let stride = count
+        .checked_div(samples)
+        .map_or(usize::MAX, |stride| stride.max(1));
+    sample * stride + stride / 2
+}
+
+/// One `summon` line a pig, on an even grid over `area`. Each pig gets a UUID from its index, so
+/// the console can address it without an entity selector: a selector scans every entity, which
+/// takes Horizon about 5 s at 50,000 pigs. The named samples also get the custom name `mbs<i>`,
+/// so that `data get` answers name the pig they describe.
 #[must_use]
 pub fn summons(area: Area, count: usize, samples: usize) -> Vec<String> {
     let side = (count as f64).sqrt().ceil().max(1.0) as usize;
     let spacing = f64::from(area.size) / side as f64;
-    let stride = count
-        .checked_div(samples)
-        .map_or(usize::MAX, |stride| stride.max(1));
+    let named: Vec<usize> = (0..samples)
+        .map(|sample| sample_index(count, samples, sample))
+        .collect();
     (0..count)
         .map(|index| {
             let x = f64::from(area.min_x) + ((index % side) as f64 + 0.5) * spacing;
             let z = f64::from(area.min_z) + ((index / side) as f64 + 0.5) * spacing;
-            let sample = index / stride;
-            if index % stride == stride / 2 && sample < samples {
-                format!(
-                    "summon minecraft:pig {x:.2} {FLOOR_Y} {z:.2} {{CustomName:\"{SAMPLE_PREFIX}{sample}\"}}"
-                )
-            } else {
-                format!("summon minecraft:pig {x:.2} {FLOOR_Y} {z:.2}")
+            let uuid = format!("UUID:[I;{},0,0,{}]", UUID_HIGH, index as u32 as i32);
+            match named.iter().position(|named| *named == index) {
+                Some(sample) => format!(
+                    "summon minecraft:pig {x:.2} {FLOOR_Y} {z:.2} {{{uuid},CustomName:\"{SAMPLE_PREFIX}{sample}\"}}"
+                ),
+                None => format!("summon minecraft:pig {x:.2} {FLOOR_Y} {z:.2} {{{uuid}}}"),
             }
         })
         .collect()
@@ -136,19 +158,26 @@ pub fn summons(area: Area, count: usize, samples: usize) -> Vec<String> {
 pub const KILL_PIGS: &str = "kill @e[type=minecraft:pig]";
 pub const COUNT_PIGS: &str = "execute if entity @e[type=minecraft:pig]";
 
-/// Hits `count` random pigs with 0 damage of type `cactus`: in `panic_causes`, so each hit pig
-/// panics, with no health loss and no knockback. Panic does not spread; the neighbours move only
-/// when the panicking pigs push them.
+/// Stir `round`: one line a pig for `hit` of the `count` pigs, 0 damage of type `cactus` each.
+/// `cactus` is in `panic_causes`, so each hit pig panics, with no health loss and no knockback.
+/// Panic does not spread; the neighbours move only when the panicking pigs push them. Each round
+/// hits the next `hit` pigs of a fixed spread-out order.
 #[must_use]
-pub fn stimulus(count: usize) -> String {
-    format!(
-        "execute as @e[type=minecraft:pig,sort=random,limit={count}] run damage @s 0 minecraft:cactus"
-    )
+pub fn stir(round: usize, hit: usize, count: usize) -> Vec<String> {
+    (0..hit.min(count))
+        .map(|offset| {
+            let index = ((round * hit + offset) * STIR_STEP) % count.max(1);
+            format!("damage {} 0 minecraft:cactus", pig_uuid(index))
+        })
+        .collect()
 }
 
 #[must_use]
-pub fn sample_query(index: usize) -> String {
-    format!("data get entity @e[name={SAMPLE_PREFIX}{index},limit=1] Pos")
+pub fn sample_query(count: usize, samples: usize, sample: usize) -> String {
+    format!(
+        "data get entity {} Pos",
+        pig_uuid(sample_index(count, samples, sample))
+    )
 }
 
 #[must_use]
@@ -180,6 +209,25 @@ mod tests {
         // x: 364 in chunk 22 to 1035 in chunk 64, 43 chunks; z: -336 in chunk -21 to 335 in
         // chunk 20, 42 chunks.
         assert_eq!(chunks, 43 * 42);
+    }
+
+    #[test]
+    fn a_uuid_reads_as_the_int_array_it_was_summoned_with() {
+        // [I;7168627,0,0,1234]: the ints in order are the 32-bit groups of the hex form.
+        assert_eq!(pig_uuid(1234), "006d6273-0000-0000-0000-0000000004d2");
+    }
+
+    #[test]
+    fn the_stirs_hit_every_pig_once_before_any_twice() {
+        let mut hit = std::collections::HashSet::new();
+        for round in 0..25 {
+            for line in stir(round, 2000, 50_000) {
+                assert!(
+                    hit.insert(line),
+                    "a pig was hit twice in the first 50,000 hits"
+                );
+            }
+        }
     }
 
     #[test]
