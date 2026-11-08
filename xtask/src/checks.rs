@@ -30,7 +30,7 @@ const WASM32_PACKAGES: [&str; 11] = [
 
 const NO_STD_PACKAGES: [&str; 2] = ["mcrs_command", "mcrs_minecraft_chat"];
 
-const NO_BEVY_PACKAGES: [&str; 79] = [
+const NO_BEVY_PACKAGES: [&str; 80] = [
     "mcrs_command",
     "mcrs_engine_cell",
     "mcrs_engine_link",
@@ -47,6 +47,7 @@ const NO_BEVY_PACKAGES: [&str; 79] = [
     "mcrs_minecraft_chunk",
     "mcrs_minecraft_client_jar",
     "mcrs_minecraft_client_recorder",
+    "mcrs_minecraft_server_bench",
     "mcrs_minecraft_client_ticks",
     "mcrs_minecraft_collision_table",
     "mcrs_minecraft_command",
