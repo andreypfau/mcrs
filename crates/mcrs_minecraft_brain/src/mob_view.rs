@@ -22,8 +22,6 @@ pub struct MobView {
     pub disabled: ControlFlags,
     /// The last path intent that the host applied, and whether that path still runs.
     pub path: Applied,
-    /// The last look-around intent that the host applied, and whether it still runs.
-    pub look_around: Applied,
 }
 
 /// A set of the boolean states of a mob that the goals read.
@@ -72,7 +70,7 @@ pub enum DamageCause {
     Other,
 }
 
-/// The progress of the last intent of one guidance channel that the host applied.
+/// The progress of the last path intent that the host applied.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub struct Applied {
     pub ticket: Ticket,

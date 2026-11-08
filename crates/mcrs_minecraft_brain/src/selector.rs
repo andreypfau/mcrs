@@ -23,11 +23,13 @@ pub struct Selector {
 impl Selector {
     pub const CAPACITY: usize = 32;
 
-    /// One full evaluation: stop the goals that hold a disabled flag or may not continue, start
-    /// each examined goal whose start condition holds, then tick each running goal, all in the
-    /// order of the list.
+    /// One full evaluation: stop the goals that hold a disabled flag or may not continue, release
+    /// the flags of each stopped goal, start each examined goal whose start condition holds, then
+    /// tick each running goal, all in the order of the list. A goal that a start stops keeps the
+    /// flags that the new goal does not take until the next evaluation.
     pub fn evaluate<G: Goals>(&mut self, goals: &mut G, disabled: ControlFlags) {
         let count = goals.specs().len().min(Self::CAPACITY);
+        self.release_stopped();
         for goal in 0..count {
             if !self.is_running(goal) {
                 continue;
@@ -50,11 +52,11 @@ impl Selector {
                 continue;
             }
             for slot in spec.flags.slots() {
-                let holder = self.holders.get(slot).copied().flatten();
-                if let Some(holder) = holder.map(usize::from)
-                    && let Some(holder_spec) = goals.specs().get(holder).copied()
+                if let Some(holder) = self.holder(slot)
+                    && self.is_running(holder)
                 {
-                    self.stop(goals, holder, holder_spec);
+                    self.running &= !(1 << holder);
+                    goals.stop(holder);
                 }
             }
             self.take(goal, spec.flags);
@@ -96,6 +98,24 @@ impl Selector {
                     && holder_spec.priority > spec.priority
             }),
         })
+    }
+
+    /// The selector as the next full evaluation sees it after its release of the flags of the
+    /// goals that stopped.
+    #[must_use]
+    pub fn released(&self) -> Self {
+        let mut next = *self;
+        next.release_stopped();
+        next
+    }
+
+    fn release_stopped(&mut self) {
+        let running = self.running;
+        for holder in &mut self.holders {
+            if holder.is_some_and(|goal| running & (1 << goal) == 0) {
+                *holder = None;
+            }
+        }
     }
 
     fn take(&mut self, goal: usize, flags: ControlFlags) {

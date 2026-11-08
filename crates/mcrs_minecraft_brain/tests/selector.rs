@@ -99,6 +99,37 @@ fn a_smaller_priority_number_interrupts_after_the_stop_of_the_holder() {
 }
 
 #[test]
+fn a_goal_stopped_by_an_interrupt_keeps_its_other_flags_until_the_next_evaluation() {
+    let mut script = Script::new(vec![
+        GoalSpec::new(1, ControlFlags::MOVE),
+        GoalSpec::new(4, ControlFlags::MOVE.union(ControlFlags::LOOK)),
+        GoalSpec::new(7, ControlFlags::LOOK),
+    ]);
+    let mut selector = Selector::default();
+    script.startable = vec![false, true, false];
+    selector.evaluate(&mut script, ControlFlags::NONE);
+    script.events.clear();
+
+    script.startable = vec![true, false, true];
+    selector.evaluate(&mut script, ControlFlags::NONE);
+    assert_eq!(
+        script.events,
+        [Event::Stop(1), Event::Start(0), Event::Tick(0)],
+        "the panic takes only move from the tempt; the tempt still names look, so the look goal \
+         is not examined (GOAL-FRM-002)"
+    );
+    assert_eq!(selector.holder(1), Some(1));
+    assert_eq!(selector.released().holder(1), None);
+
+    script.events.clear();
+    selector.evaluate(&mut script, ControlFlags::NONE);
+    assert_eq!(
+        script.events,
+        [Event::Start(2), Event::Tick(0), Event::Tick(2)]
+    );
+}
+
+#[test]
 fn a_refused_interrupt_and_a_disabled_flag_block_the_start() {
     let mut refusing = GoalSpec::new(5, ControlFlags::MOVE);
     refusing.interrupt = Interrupt::Refused;

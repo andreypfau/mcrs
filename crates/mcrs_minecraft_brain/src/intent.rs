@@ -1,7 +1,7 @@
 use crate::Point;
 
-/// The number of an intent of one guidance channel of one mob. The host reports the ticket of the
-/// last intent that it applied, so the brain can tell a pending intent from an applied one.
+/// The number of a path intent of one mob. The host reports the ticket of the last intent that it
+/// applied, so the brain can tell a pending intent from an applied one.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct Ticket(pub u32);
 
@@ -28,8 +28,8 @@ impl Intents {
     }
 }
 
-/// A change of the path of the mob. The host applies each intent with its ticket; it reports a
-/// dropped intent as applied and ended.
+/// A change of the path of the mob. The host reports the ticket of the last path intent that it
+/// applied, and a dropped intent as applied and ended.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum PathIntent {
     /// Walk to `target` at `speed_modifier` times the movement speed. The route is a straight line
@@ -62,22 +62,17 @@ pub enum LookIntent {
         pitch_limit: f32,
         hold: u8,
     },
-    /// In each tick for `look_time + 1` ticks or more, look at the point one block from the eye in
-    /// the horizontal direction `(cos, sin)`; the end is at the first full evaluation after the
-    /// look time is below 0.
-    Around {
-        ticket: Ticket,
-        cos: f32,
-        sin: f32,
-        look_time: u8,
-    },
-    /// Stop the look-around of `ticket` when it still runs.
-    EndAround { ticket: Ticket },
+    /// From the application on, in each tick, look at the point one block from the eye in the
+    /// horizontal direction `(cos, sin)`, until [`LookIntent::EndAround`] or another look intent.
+    Around { cos: f32, sin: f32 },
+    /// Stop the look-around.
+    EndAround,
 }
 
 /// The in-panic state that the snapshot publishes for the other mobs.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub enum Panic {
+    #[default]
     Calm,
     Panicking,
 }
