@@ -1,3 +1,6 @@
+use std::mem;
+use std::time::Duration;
+
 use bevy_app::App;
 use bevy_app::FixedUpdate;
 use bevy_app::Plugin;
@@ -41,6 +44,7 @@ use mcrs_minecraft_item::damage_type::DamageType;
 use mcrs_minecraft_item::damage_type_tag_keys::PANIC_CAUSES;
 use mcrs_minecraft_registries::CurrentRegistries;
 
+use crate::AiStats;
 use crate::BlockGoalWorld;
 use crate::CellTable;
 use crate::HotTick;
@@ -204,25 +208,56 @@ fn run_stage(
     world: WorldView,
     cells: Res<GoalCells>,
     mut ai: ResMut<MobAi>,
+    mut window: Local<AiWindow>,
 ) {
     let Some(blocks) = world.get(*dimension) else {
         return;
     };
     let goal_world = BlockGoalWorld::new(&blocks, &cells.cells);
     ai.run_stage(ComputeTaskPool::get(), &goal_world);
-    let stats = ai.stats();
-    if stats.mobs > 0 && ai.tick().is_multiple_of(LOG_PERIOD) {
-        tracing::debug!(
-            target: "mcrs_ai",
-            tick = ai.tick(),
-            mobs = stats.mobs,
-            prepare_us = stats.prepare.as_micros(),
-            stage_us = stats.stage.as_micros(),
-            evaluations = stats.evaluations,
-            decisions = stats.decisions,
-            applied = stats.applied,
-            waits = stats.waits,
-            "mob AI"
-        );
+    window.add(ai.stats());
+    if ai.tick().is_multiple_of(LOG_PERIOD) {
+        let window = mem::take(&mut *window);
+        if ai.stats().mobs > 0 && window.ticks > 0 {
+            tracing::debug!(
+                target: "mcrs_ai",
+                tick = ai.tick(),
+                mobs = ai.stats().mobs,
+                prepare_mean_us = window.prepare.as_micros() / u128::from(window.ticks),
+                prepare_max_us = window.prepare_max.as_micros(),
+                stage_mean_us = window.stage.as_micros() / u128::from(window.ticks),
+                stage_max_us = window.stage_max.as_micros(),
+                evaluations_per_tick = window.evaluations / window.ticks,
+                decisions_per_tick = window.decisions / window.ticks,
+                waits = ai.stats().waits,
+                "mob AI"
+            );
+        }
+    }
+}
+
+/// The sums of the AI stats over the ticks since the last log line.
+#[derive(Debug, Default)]
+struct AiWindow {
+    ticks: u64,
+    prepare: Duration,
+    prepare_max: Duration,
+    stage: Duration,
+    stage_max: Duration,
+    evaluations: u64,
+    decisions: u64,
+}
+
+impl AiWindow {
+    fn add(&mut self, stats: &AiStats) {
+        self.ticks = self.ticks.saturating_add(1);
+        self.prepare = self.prepare.saturating_add(stats.prepare);
+        self.prepare_max = self.prepare_max.max(stats.prepare);
+        self.stage = self.stage.saturating_add(stats.stage);
+        self.stage_max = self.stage_max.max(stats.stage);
+        self.evaluations = self.evaluations.saturating_add(stats.evaluations);
+        self.decisions = self
+            .decisions
+            .saturating_add(u64::try_from(stats.decisions).unwrap_or(u64::MAX));
     }
 }
