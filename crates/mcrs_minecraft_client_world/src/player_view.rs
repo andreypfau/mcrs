@@ -44,6 +44,7 @@ pub struct ChunkCacheCenter(pub ColumnPos);
 #[derive(Component, Clone, Copy, Debug)]
 pub struct ChunkCacheRadius(pub i32);
 
+/// Enqueues an inbound player position packet as a pending teleport on the connection entity.
 fn on_player_position(event: On<Received<ClientboundPlayerPosition>>, mut commands: Commands) {
     let Some(position) = event.packet() else {
         return;
