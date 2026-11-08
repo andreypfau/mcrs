@@ -43,6 +43,8 @@ pub(crate) struct EffectContext<'a> {
     /// False for the server copy of a player, whose fall distance comes from the moves of the
     /// client.
     pub(crate) updates_fall: bool,
+    /// The mover has the `weaving` effect, which lowers the slowdown of a cobweb.
+    pub(crate) weaving: bool,
 }
 
 /// Applies the step action, the blocks inside the path of the box, and the fall distance.
@@ -68,7 +70,7 @@ pub(crate) fn apply<W: CollisionWorld, B: BodyView>(
             body.velocity.z *= factor;
         }
     }
-    let touched_powder_snow = inside_blocks(view, context, body, living.as_deref(), actions);
+    let touched_powder_snow = inside_blocks(view, context, body, actions);
     if let Some(living) = living {
         living.in_powder_snow = touched_powder_snow;
     }
@@ -83,7 +85,6 @@ fn inside_blocks<W: CollisionWorld, B: BodyView>(
     view: View<'_, W, B>,
     context: &EffectContext<'_>,
     body: &mut Body,
-    living: Option<&Living>,
     actions: &mut Vec<BlockAction>,
 ) -> bool {
     let table = &view.tables.collision;
@@ -129,7 +130,7 @@ fn inside_blocks<W: CollisionWorld, B: BodyView>(
                 if block.inside == InsideEffect::PowderSnow {
                     touched_powder_snow = true;
                 }
-                inside_effect(view, context, body, living, block.inside, at);
+                inside_effect(view, context, body, block.inside, at);
             }
         }
     }
@@ -201,7 +202,6 @@ fn inside_effect<W: CollisionWorld, B: BodyView>(
     view: View<'_, W, B>,
     context: &EffectContext<'_>,
     body: &mut Body,
-    living: Option<&Living>,
     effect: InsideEffect,
     at: BlockPos,
 ) {
@@ -211,9 +211,7 @@ fn inside_effect<W: CollisionWorld, B: BodyView>(
             slide(context.mover, body, at);
             return;
         }
-        InsideEffect::Cobweb if living.is_some_and(|living| living.effects.weaving) => {
-            DVec3::new(0.5, 0.25, 0.5)
-        }
+        InsideEffect::Cobweb if context.weaving => DVec3::new(0.5, 0.25, 0.5),
         InsideEffect::Cobweb => DVec3::new(0.25, f64::from(0.05_f32), 0.25),
         InsideEffect::SweetBerryBush => DVec3::new(f64::from(0.8_f32), 0.75, f64::from(0.8_f32)),
         InsideEffect::PowderSnow => {

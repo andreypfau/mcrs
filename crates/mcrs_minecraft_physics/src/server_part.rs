@@ -64,6 +64,7 @@ pub fn server_part<B: BodyView, W: CollisionWorld>(
         dy: 0.0,
         flying: state.flight0,
         updates_fall: false,
+        weaving: state.effects.weaving,
     };
     let mut body = state.body();
     block_effects::apply(view, &context, &mut body, None, actions);

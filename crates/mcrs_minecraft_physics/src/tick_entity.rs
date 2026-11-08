@@ -207,6 +207,7 @@ fn tick_living<W: CollisionWorld, B: BodyView>(
         dy,
         flying: false,
         updates_fall: true,
+        weaving: living.effects.weaving,
     };
     block_effects::apply(view, &context, body, Some(&mut living), actions);
     entity.living = Some(living);
@@ -345,6 +346,7 @@ fn tick_other<W: CollisionWorld, B: BodyView>(
         dy,
         flying: false,
         updates_fall: true,
+        weaving: false,
     };
     block_effects::apply(view, &context, body, None, actions);
     if resting_item {

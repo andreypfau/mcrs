@@ -375,3 +375,17 @@ fn cmp_023_the_server_copy_decays_before_the_cutoff() {
     );
     assert_eq!(state.velocity.x, 0.1 * 0.98);
 }
+
+#[test]
+fn a_player_with_weaving_is_slowed_less_by_a_cobweb() {
+    let mut fixture = on_stone();
+    fixture
+        .world
+        .set(BlockPos::new(0, 1, 0), fixture.blocks.cobweb);
+    let mut state = PlayerState::new(DVec3::new(0.5, 1.0, 0.5));
+    let plain = tick(&mut fixture, &state, Keys::default(), 0.0);
+    assert_eq!(plain.stuck, DVec3::new(0.25, f64::from(0.05_f32), 0.25));
+    state.effects.weaving = true;
+    let woven = tick(&mut fixture, &state, Keys::default(), 0.0);
+    assert_eq!(woven.stuck, DVec3::new(0.5, 0.25, 0.5));
+}

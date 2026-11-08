@@ -126,6 +126,7 @@ pub fn tick_player<W: CollisionWorld, B: BodyView>(
         dy,
         flying: flight,
         updates_fall: true,
+        weaving: out.effects.weaving,
     };
     block_effects::apply(view, &context, &mut body, None, actions);
     let flight_end = flight && !(body.flags.on_ground && !facts.spectator);
