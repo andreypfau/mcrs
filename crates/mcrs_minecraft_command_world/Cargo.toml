@@ -1,0 +1,33 @@
+[package]
+name = "mcrs_minecraft_command_world"
+description = "The commands that change the world and the server: fill, forceload, gamerule, weather clear, and tick query and sprint"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lib]
+doctest = false
+
+[lints]
+workspace = true
+
+[dependencies]
+mcrs_command.workspace = true
+mcrs_minecraft_block = { workspace = true, features = ["bevy"] }
+mcrs_minecraft_command.workspace = true
+mcrs_minecraft_command_argument.workspace = true
+mcrs_minecraft_command_argument_block.workspace = true
+mcrs_minecraft_command_engine.workspace = true
+mcrs_minecraft_command_vanilla.workspace = true
+mcrs_minecraft_engine.workspace = true
+mcrs_minecraft_engine_world.workspace = true
+mcrs_minecraft_game_rule.workspace = true
+mcrs_minecraft_simulation.workspace = true
+mcrs_minecraft_text.workspace = true
+mcrs_voxel.workspace = true
+bevy_app.workspace = true
+bevy_ecs.workspace = true
+rand.workspace = true
+tracing.workspace = true
+
+[dev-dependencies]

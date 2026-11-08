@@ -4174,6 +4174,29 @@ dependencies = [
 ]
 
 [[package]]
+name = "mcrs_minecraft_command_world"
+version = "0.5.8"
+dependencies = [
+ "bevy_app",
+ "bevy_ecs",
+ "mcrs_command",
+ "mcrs_minecraft_block",
+ "mcrs_minecraft_command",
+ "mcrs_minecraft_command_argument",
+ "mcrs_minecraft_command_argument_block",
+ "mcrs_minecraft_command_engine",
+ "mcrs_minecraft_command_vanilla",
+ "mcrs_minecraft_engine",
+ "mcrs_minecraft_engine_world",
+ "mcrs_minecraft_game_rule",
+ "mcrs_minecraft_simulation",
+ "mcrs_minecraft_text",
+ "mcrs_voxel",
+ "rand 0.10.0",
+ "tracing",
+]
+
+[[package]]
 name = "mcrs_minecraft_console"
 version = "0.5.8"
 dependencies = [
@@ -5185,6 +5208,7 @@ dependencies = [
  "mcrs_minecraft_command_engine",
  "mcrs_minecraft_command_tree",
  "mcrs_minecraft_command_vanilla",
+ "mcrs_minecraft_command_world",
  "mcrs_minecraft_core",
  "mcrs_minecraft_datapack",
  "mcrs_minecraft_dimension",

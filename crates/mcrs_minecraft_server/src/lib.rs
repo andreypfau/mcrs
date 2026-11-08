@@ -4,6 +4,7 @@ use bevy_app::{App, Plugin, PluginGroup, PluginGroupBuilder};
 use mcrs_minecraft_chat_server::ChatPlugin;
 use mcrs_minecraft_command_engine::CommandPlugin;
 use mcrs_minecraft_command_vanilla::{VanillaCommands, VanillaCommandsPlugin};
+use mcrs_minecraft_command_world::WorldCommandsPlugin;
 use mcrs_minecraft_engine_physics::EntityPhysicsPlugin;
 use mcrs_minecraft_engine_server::{DimensionWorldsPlugin, ServerCorePlugin, ServerNetworkPlugin};
 use mcrs_minecraft_engine_world::world::sub_app::AddDimensionPlugins;
@@ -59,6 +60,7 @@ impl PluginGroup for MinecraftServerPlugins {
             .add(WorldgenRegistriesPlugin)
             .add(CommandPlugin::<VanillaCommands>::new())
             .add(VanillaCommandsPlugin)
+            .add(WorldCommandsPlugin)
             .add(self.worlds)
             .add(VanillaChatPlugin)
             .add(VanillaEntityPhysicsPlugin)

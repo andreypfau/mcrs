@@ -11,3 +11,11 @@ pub struct Invocation {
     pub source: SourceState,
     pub(crate) stage: usize,
 }
+
+impl Invocation {
+    /// The stage of the chain that this run is for.
+    #[must_use]
+    pub fn stage(&self) -> usize {
+        self.stage
+    }
+}
