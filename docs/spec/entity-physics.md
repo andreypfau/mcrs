@@ -175,7 +175,7 @@ These subjects are out of scope:
 - elytra flight and riptide;
 - vehicles and riders;
 - the motion that a piston gives;
-- fall damage;
+- fall damage, which `entity-damage.md` states;
 - the hit detection of projectiles;
 - the movement checks of the server.
 
@@ -2604,7 +2604,8 @@ between server-simulated entities. An implementation can compute the push in thi
    give the same vector to `E` (PHY-PSH-005).
 4. `E` adds the pushes to its own velocity in step 9 of its tick, one at a time. The order is the
    birth key of `O` (PHY-CMP-013), from the lowest to the highest. For one `O`, the push from `O` comes first.
-5. The count of the crowd damage of PHY-PSH-007 uses the neighbours of step 1.
+5. The count of the crowd damage of PHY-PSH-007 uses the neighbours of step 1, without the
+   neighbours that DMG-CRW-002 leaves out.
 
 Each entity writes only its own velocity and its own health. The fixed order of step 4 makes the
 f64 sum independent of the order of the ticks. PHY-DEV-004 records this relaxation. The own player
@@ -2898,7 +2899,7 @@ hook.
 | Riptide | PHY-BOX-004 gives the `spin_attack` pose. The impulse is an external impulse (PHY-SRV-007). |
 | Vehicles and riders | PHY-STP-001 gives a ridden living entity a step height of at least 1. PHY-SHP-008 excludes the root vehicle. PHY-ORD-006 lists the vehicle categories. A rider has no travel step of its own. |
 | The geometry of a piston push | PHY-BLK-002 states the move. The selection of the entities that a piston moves, and the stick of slime and honey blocks, are in the block domain. |
-| Fall damage amounts | step 4 of PHY-FALL-001 calls the fall action of the block at the effect position. |
+| Fall damage amounts | step 4 of PHY-FALL-001 calls the fall action of the block at the effect position. `entity-damage.md` states the damage (DMG-FALL-001). |
 | Hit detection of projectiles | the move `R` along a ray of PHY-ORD-005. |
 | Movement checks of the server | section 11 and `movement-checks.md`. |
 

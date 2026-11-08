@@ -294,7 +294,10 @@ centres (y, z, x).
 
 **Block actions of entities.** The step, inside and fall actions that the pass starts (PHY-RCH-002)
 are effects. They apply in `WorldWrite`, before the scheduled ticks of the block domain, in the order
-`(block position y, z, x, writer key)`, against the current state (PHY-CMP-010).
+`(block position y, z, x, writer key)`, against the current state (PHY-CMP-010). A part of an action
+that writes only the own row is not an effect: it applies in the pass, at the step of the
+reference, with the block of the copy. The damage of the step and fall actions is such a part
+(DMG-ORD-002).
 
 ### 3.8 Exact-parity mode
 
@@ -1661,6 +1664,14 @@ E1..E8, T1 (any time)   D1 ─ D2 ─ D3 ─ D4 ─ D5 ─ D6 ─ D7
     Does the engine load each section within one column and the footprint height of a section
     that runs scheduled ticks? If not, which rule holds: the section does not run ticks, or the
     tick waits?
+60. DMG-CRW-002, crowd deaths in one tick. Open (design). A death removes the entity from the crowd
+    count of each entity with a higher order key in the same tick. Proposal: deaths only lower a
+    count, so the pass computes a tentative crowd hit from the start-of-tick grid, with no
+    dependency. After the pass, one fix-up takes only the entities with a tentative hit, in key
+    order, and recounts one only when a neighbour with a lower key died in this tick. That is about
+    a quarter of each crowd, and nothing in most ticks; tile boundaries do not matter. Without the
+    rule, a crowd of 25 mobs with 5 health loses about 6 mobs in one tick, not 1.
+61. The hits of the own block actions and of the crowd. Resolved: DMG-ORD-002 and §3.7.
 65. PATH-PRF-002, PATH-DET-001, the state path type table after a change of the block tags. Open
     (design). The type of a state reads nine `pathfinding/*` tags and `fire`, `campfires`, `fences`
     and `walls`, so a data-pack reload changes it. `CollisionTable` is built once at start. A

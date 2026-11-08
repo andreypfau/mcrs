@@ -629,7 +629,8 @@ the mob sink. The search of a panic position is a decision (AIT-DEC-001).
 takes it are a reflex. They are the health, the hurt time, the knockback and the death. They also
 are the reset of the idle time, and the time and the source of the last damage. These writes are not
 claims, so they apply at the merge point (PHY-CMP-015). The removal of a mob after its death is a
-claim, and it enters the arbitration of PHY-CMP-017.
+claim, and it enters the arbitration of PHY-CMP-017. The hits that a mob gets from its own block actions and from
+its crowd apply in its own tick instead (DMG-ORD-002).
 
 Then the hot tick sends a fact to the brain. The reaction is a decision: the revenge target, the
 panic and the alert. The reason: the health and the knockback are visible in the next update. The
