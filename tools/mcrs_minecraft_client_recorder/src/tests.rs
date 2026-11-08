@@ -104,6 +104,20 @@ fn pump(connection: &mut Connection, names: &Names, observed: &mut Vec<Observed>
     }
 }
 
+/// Pumps until `done` holds, so that a slow machine does not fail the test.
+fn pump_until(
+    connection: &mut Connection,
+    names: &Names,
+    observed: &mut Vec<Observed>,
+    mut done: impl FnMut(&[Observed]) -> bool,
+) {
+    let deadline = Instant::now() + Duration::from_secs(10);
+    while !done(observed) {
+        assert!(Instant::now() < deadline, "the proxy answers in time");
+        pump(connection, names, observed);
+    }
+}
+
 /// Takes both peers through the handshake, a login that switches compression on and the
 /// configuration.
 fn join(client: &mut Peer, server: &mut Peer, connection: &mut Connection, names: &Names) {
@@ -167,10 +181,13 @@ fn a_clientbound_change_applies_at_the_answer_to_the_probe_after_it() {
     abilities.extend_from_slice(&0.05_f32.to_be_bytes());
     abilities.extend_from_slice(&0.1_f32.to_be_bytes());
     server.send(game_clientbound::NAMES, "player_abilities", &abilities);
-    pump(&mut connection, &names, &mut observed);
-
-    let at_client = client.received();
     let ping = id(game_clientbound::NAMES, "ping");
+    let mut at_client = Vec::new();
+    pump_until(&mut connection, &names, &mut observed, |_| {
+        at_client.extend(client.received());
+        at_client.iter().any(|(packet, _)| *packet == ping)
+    });
+
     let (_, probe) = at_client
         .iter()
         .find(|(packet, _)| *packet == ping)
@@ -188,7 +205,11 @@ fn a_clientbound_change_applies_at_the_answer_to_the_probe_after_it() {
     client.send(game_serverbound::NAMES, "move_player_pos", &position);
     client.send(game_serverbound::NAMES, "client_tick_end", &[]);
     client.send(game_serverbound::NAMES, "pong", probe);
-    pump(&mut connection, &names, &mut observed);
+    pump_until(&mut connection, &names, &mut observed, |observed| {
+        observed
+            .iter()
+            .any(|item| matches!(item, Observed::Applied(_, Event::Abilities(_))))
+    });
 
     let at_server: Vec<i32> = server
         .received()
