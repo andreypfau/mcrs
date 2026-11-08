@@ -325,9 +325,15 @@ Thus a client can see a subject up to one tile diagonal and 8 blocks farther tha
 client draws such a subject as any other entity. G1 does not implement this rule; it uses the
 square of TRK-DEV-004.
 
-**TRK-RNG-004** (`source_suggested`, client agreement, confidence: medium). The spawn bundle of a
-subject goes to a viewer only after the column of the subject reached that viewer. Experiment:
-TRK-E5. G1 does not implement this rule (TRK-DEV-004).
+**TRK-RNG-004** (`source_suggested_black_box_confirmed`, client agreement, confidence: medium).
+The spawn bundle of a subject goes to a viewer only after the column of the subject reached that
+viewer. G1 does not implement this rule (TRK-DEV-004).
+
+TRK-E5 shows the reference: a piglin summoned in a column that waits to be sent gets no spawn
+bundle when the column arrives. The pairing starts only at the next check of TRK-RNG-003, when the
+viewer or the subject moves to another section; in TRK-E5 that was 25 seconds after the column
+arrived. This delay is an accident of the check times (section 11, "Known vanilla quirks"). A
+server can pair at the arrival of the column.
 
 ## 5. The spawn bundle
 
@@ -586,12 +592,12 @@ axis with a delta of 0 as the coordinate of its base, without rounding. Test vec
 
 `move_entity_pos_rot` has the same body, then the packed yaw and the packed pitch, one byte each.
 `move_entity_rot` has the entity id, the on-ground flag as a boolean, the packed yaw and the packed
-pitch, in this order. TRK-E2 captured `move_entity_rot` of a mob in a flat world (section 13):
-the three body bytes after the id are `01 5B 00`, decoded in this order as ground 1, yaw 91, pitch 0,
-next to `rotate_head 91` in the same update. The order of earlier versions (yaw, pitch, ground) reads
-the same bytes as yaw 1 and pitch 91, which is 128 degrees, outside the range of a pitch. The
-`move_entity_pos_rot` at 4099 ms (body yaw −32, head −15) does not contradict this: the head of a
-walking mob turns apart from its body. `ClientboundMoveEntityRot` of
+pitch, in this order. TRK-E4 captured the raw frames `39 23 00 40 15` and `39 23 00 8E E0`
+after `rotate` of a zombie with no AI to `90 30` and to `200.7 -45`: packet id 57, entity id 35,
+on-ground flag 0, then the yaw (64, 142) and the pitch (21, −32). The order of earlier versions
+(yaw, pitch, flag) reads the second frame as yaw 0 and pitch 142, which is not a pitch. The
+`move_entity_pos_rot` at 4099 ms of TRK-E2 (body yaw −32, head −15) does not contradict this: the
+head of a walking mob turns apart from its body. `ClientboundMoveEntityRot` of
 `clientbound.rs` writes the flag after the angles, which is the order of earlier versions; section
 15, step 1, fixes it. The client rejects a step count that is more than the remaining bytes divided by 7.
 
@@ -613,15 +619,18 @@ Section 15, step 1, fixes it.
 The path is the path of TRK-UPD-005 with absolute positions. TRK-E2 shows a stepped path of one
 step at the landing. `PositionPath::Stepped` of the same file does not write the trailing flag.
 
-**TRK-WIRE-004** (`source_suggested`, wire, confidence: high). The packed angle of an f32 angle
+**TRK-WIRE-004** (`source_suggested_black_box_confirmed`, wire, confidence: high). The packed angle of an f32 angle
 `a` in degrees is the low 8 bits of `floor(f32(f32(a × 256.0F) / 360.0F))`, where the floor
 gives a 32-bit integer. The client unpacks a byte `b` as the signed value of `b` times `360 / 256`.
-The cast of the f32 floor to a 32-bit integer saturates, and NaN gives 0. The expected bytes are:
-0 → 0, 1.0 → 0, 1.4 → 0, 359.9 → 255, −1.0 → 255. `ByteAngle::from_degrees` of `byte_angle.rs`
+The cast of the f32 floor to a 32-bit integer saturates, and NaN gives 0. TRK-E4 confirms these
+bytes of the yaw in `add_entity`: 0.7 → 0, 1.0 → 0, 1.4 → 0, 1.40625 → 1, 2.109375 → 1, −0.5 →
+255, −1.0 → 255, 359.9 → 255, and the pitch 30 → 21. The value 2.109375 is 1.5 units exactly:
+the floor gives 1, a rounding gives 2. `ByteAngle::from_degrees` of `byte_angle.rs`
 rounds to the nearest unit. It gives a different byte for each angle with a fraction of a unit of
 0.5 or more, for example 1.0 degree (vanilla 0, `from_degrees` 1). `ByteAngle::to_degrees` unpacks
 the byte as unsigned; only `mcrs_minecraft_client` reads it, and an unsigned angle is the same turn.
-Experiment: TRK-E4.
+The fixture `crates/mcrs_minecraft_server/tests/fixtures/g1/vanilla_angles.txt` holds the raw
+bodies.
 
 **TRK-WIRE-005** (`source_suggested_black_box_confirmed`, wire, confidence: high). The velocity of
 `add_entity` uses the low-precision vector form of `LpVec3` in `mcrs_minecraft_protocol_game`. The
@@ -720,6 +729,7 @@ move, a data, a motion or a removal packet for a network id that it does not kno
 | Rule | Quirk |
 |------|-------|
 | TRK-SPN-001 | The first update of the reference sends `set_entity_data` and `update_attributes` again, with the values of the spawn bundle. A server does not need to send them again. |
+| TRK-RNG-004 | A subject whose column waits to be sent at its spawn stays hidden until the viewer or the subject moves to another section (TRK-E5). |
 | TRK-UPD-001 | Under `/tick freeze`, the reference still runs the trackers in each server tick, and a `/tick step` moves the entity only once. An experiment on the update timing must not freeze the ticks. |
 
 ## 12. Unresolved
@@ -727,7 +737,8 @@ move, a data, a motion or a removal packet for a network id that it does not kno
 - **U1**: no corpus gives the type data of TRK-TYPE-001. Section 15 adds an entity definition
   corpus to the oracle; this also resolves U2 of `entity-physics.md`.
 - **U2**: TRK-RNG-004 has no observation of a vanilla client that receives an entity before its
-  column.
+  column. The vanilla server never sends one (TRK-E5), so only this server can show it, after G1:
+  run item 3 of section 15.4 with the client view distance 2 and a mob 40 blocks away.
 - **U3**: the exact entry of the effect particle list (serializer 17) and of the custom name
   (serializer 6) have no captured bytes. G1 sends neither.
 - **U4**: the player codec writes the on-ground flag `true` in each move of a player subject. The
@@ -749,12 +760,11 @@ Start the vanilla dedicated server of the version of this document with `level-t
 | TRK-E1 | Freeze the ticks. Run `summon zombified_piglin 0.5 -40 4.5 {}`, then `summon zombified_piglin 3.5 -60 4.5`. Step 40 ticks. Kill the first piglin, step 25 ticks. Teleport the second piglin to `200.5 -60 0.5`. Teleport the probe to `400.5 -60 0.5`. | TRK-TYPE-002, TRK-LIFE-003, TRK-SPN-001, TRK-SPN-002, TRK-DATA-003, TRK-REM-001 |
 | TRK-E2 | Do not freeze. Run `summon zombified_piglin 0.5 -40 4.5 {}` and log 5 seconds with the time of each packet. Run `summon zombified_piglin 6.5 -60 4.5 {IsBaby:1b,NoAI:1b}` and `summon zombified_piglin 8.5 -60 4.5 {NoAI:1b,CustomName:'x'}`. | TRK-DATA-002, TRK-DATA-004, TRK-UPD-001 to TRK-UPD-005, TRK-UPD-007, TRK-UPD-008 |
 | TRK-E3 | With the probe view distance 10, summon a piglin with `{NoAI:1b}` at the horizontal distances 127, 128, 129 and 140. With the view distance 4, summon at 60 and 70. | TRK-RNG-001, TRK-RNG-002 |
-| TRK-E4 | Run `summon zombie 0.5 -60 4.5 {NoAI:1b,Rotation:[1.0f,0f]}` and with `0.7f`, `1.4f` and `-1.0f`. Read the yaw byte of `add_entity`. | TRK-WIRE-004 |
-| TRK-E5 | With a vanilla client and `view-distance=2`, summon a piglin in a column at the edge of the view and record when the client draws it. | TRK-RNG-004 |
-| TRK-E6 | Copy `~/mc-worlds/upgraded/hermitcraft10` to a temporary directory and remove its data packs. Start the vanilla server on it with `difficulty=hard` and `view-distance=10`. Join with the probe and teleport it to `-319.5 175 -609.5` in `minecraft:the_nether`, yaw `-90`. Run `gamerule spawn_monsters false` and `kill @e[type=zombified_piglin]`. Run `execute in minecraft:the_nether run summon minecraft:zombified_piglin -317.0 197 -609.0 {}`. Wait 200 ticks without a freeze. Run `data get entity @e[type=zombified_piglin,limit=1,sort=nearest] Pos` from the console and log the decoded packets of the piglin. Write the end `Pos` and the update list to `crates/mcrs_minecraft_server/tests/fixtures/g1/vanilla_farm_drop.txt`. | section 15.4 |
+| TRK-E4 | Run `summon zombie 0.5 -60 4.5 {NoAI:1b,Rotation:[1.0f,0f],Tags:["e4"]}`, then the same with the yaws `0.7f`, `1.4f`, `-1.0f`, `359.9f`, `1.40625f`, `2.109375f`, and `[-0.5f,30f]`. Read the angle bytes of `add_entity`. Run `rotate @e[tag=e4,limit=1] 90 30` and `200.7 -45` and log the raw frame of `move_entity_rot`. | TRK-WIRE-004 |
+| TRK-E5 | Let the probe answer `chunk_batch_finished` with 0.5 chunks for each tick, so that far columns wait. 4 seconds after the join, run `summon zombified_piglin 120.5 -60 0.5 {NoAI:1b,PersistenceRequired:1b}` and the same at `4.5 -60 4.5`. Log the time of `level_chunk_with_light` of column `(7, 0)` and of each `add_entity`. After 30 seconds, teleport the probe 17 blocks in `x`. | TRK-RNG-004 |
+| TRK-E6 | Copy `~/mc-worlds/upgraded/hermitcraft10` to a temporary directory and remove its data packs. Start the vanilla server on it with `difficulty=hard` and `view-distance=10`. Join with the probe and teleport it to `-319.5 175 -609.5` in `minecraft:the_nether`, yaw `-90`. Run `gamerule spawn_monsters false` and `kill @e[type=zombified_piglin]`. Run `execute in minecraft:the_nether run summon minecraft:zombified_piglin -316.5 196 -609.5 {}`. Wait 200 ticks without a freeze. Run `data get entity @e[type=zombified_piglin,limit=1,sort=nearest] Pos` from the console and log the decoded packets of the piglin. Write the end `Pos` and the update list to `crates/mcrs_minecraft_server/tests/fixtures/g1/vanilla_farm_drop.txt`. | section 15.4 |
 
-TRK-E1 to TRK-E3 ran on `26.4-snapshot-7` on 2026-11-08. TRK-E4 to TRK-E6 are pending: they need
-a vanilla server run, which waits for the confirmation of the EULA by the owner.
+TRK-E1 to TRK-E6 ran on `26.4-snapshot-7` on 2026-11-08.
 
 **TRK-E1**, the spawn bundles (network ids of that run):
 
@@ -799,6 +809,25 @@ the entry `(2, 6, present)` and no health entry in the decoded prefix.
 **TRK-E3**: with the view distance 10, the probe received `add_entity` for the piglins at 127 and
 128 blocks and nothing for 129 and 140 blocks. With the view distance 4, it received the piglin at
 60 blocks and not the piglin at 70 blocks.
+
+**TRK-E4**: the bytes of TRK-WIRE-004, and the frames of `move_entity_rot` of TRK-WIRE-002. The
+fixture is `crates/mcrs_minecraft_server/tests/fixtures/g1/vanilla_angles.txt`.
+
+**TRK-E5**: column `(7, 0)` arrived 5 seconds after the summon. The near piglin paired at once. The
+piglin at `120.5 -60 0.5`, 126 blocks from the probe, got no `add_entity` until the probe moved to
+another section, 25 seconds after the column arrived. A first run with zombies showed nothing for
+another reason: a zombie with no AI burns in the sun and dies.
+
+**TRK-E6**: the point `-317.0 197 -609.0` is on a platform, not in a shaft: the block
+`(-317, 196, -609)` is solid. A scan of `execute if block` at `y = 196` and `y = 190` shows the
+shaft at the block column `x = -317`, `z = -610` to `-608`, so the summon point is
+`-316.5 196 -609.5`. The piglin fell to `y = 174.9375` (the top of honey), at `t = 26` ticks, and
+then walked 1 block in `z`. Its end position `-316.70 174.9375 -608.50` is inside the kill box of
+`gold-farm.md` §8. The updates of the fall are those of TRK-E2. The landing came one tick after the
+update before it: the fall damage made the health entry dirty, which made an update
+(TRK-UPD-001); the update sent `entity_position_sync` with one step of 1 tick, after
+`entity_event 54` of the honey block. The fixture is
+`crates/mcrs_minecraft_server/tests/fixtures/g1/vanilla_farm_drop.txt`.
 
 ## 14. Relation to other documents
 
@@ -903,12 +932,11 @@ client shows it.
    blocks away. Run `summon minecraft:zombified_piglin <top of the shaft> {}` and tick 40 times.
    Check the spawn bundle, an update each 3 ticks, the landing sync with the ground flag 1, and
    that the decoded position equals the row position at the floor. This is "harness only".
-2. Raw, the save (pending: TRK-E6). The spec author captures the vanilla end position into the
-   fixture of TRK-E6. The test of this server is a local test, `#[ignore = "needs the farm save"]`,
+2. Raw, the save. The fixture of TRK-E6 holds the vanilla fall. The test of this server is a local test, `#[ignore = "needs the farm save"]`,
    that loads `~/mc-worlds/upgraded/hermitcraft10`, runs the command of TRK-E6 and ticks 200 times.
    The row must end in the kill box: centre `-317 176 -609`, half sizes `1.5, 1.5, 1.6`, as the
-   measurement app of `gold-farm.md` §8 states it. When the fixture exists, the end `y` must also
-   equal the vanilla `y` within `1.0E-6`. The vanilla piglin has an AI, so `x` and `z` differ.
+   measurement app of `gold-farm.md` §8 states it. The end `y` must also equal the vanilla `y`,
+   `174.9375`, within `1.0E-6`. The vanilla piglin has an AI, so `x` and `z` differ.
 3. Raw, a vanilla client (automated). Run this server on the save. Start the vanilla client of
    `tools/vanilla-client` with an offline name; it joins with no human. From the console, teleport
    the player to `-319.5 175 -609.5` in the nether and run the command of TRK-E6. The check passes
