@@ -94,6 +94,7 @@ mcrs_minecraft_engine_physics = { path = "crates/mcrs_minecraft_engine_physics" 
 mcrs_minecraft_brain = { path = "crates/mcrs_minecraft_brain" }
 mcrs_minecraft_goals = { path = "crates/mcrs_minecraft_goals" }
 mcrs_minecraft_mob_control = { path = "crates/mcrs_minecraft_mob_control" }
+mcrs_minecraft_engine_brain = { path = "crates/mcrs_minecraft_engine_brain" }
 mcrs_minecraft_move_validate = { path = "crates/mcrs_minecraft_move_validate" }
 mcrs_minecraft_move_predict = { path = "crates/mcrs_minecraft_move_predict" }
 mcrs_engine_link = { path = "crates/mcrs_engine_link" }
