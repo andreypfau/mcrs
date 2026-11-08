@@ -1,14 +1,14 @@
 use bevy_ecs::prelude::*;
 use mcrs_command::{ArgumentHandle, BuildError, NodeId};
 use mcrs_minecraft_command::{CommandLevel, PermissionCheck};
-use mcrs_minecraft_command_argument::ColumnPosArgument;
+use mcrs_minecraft_command_argument::{ColumnCoordinates, ColumnPosArgument};
 use mcrs_minecraft_command_engine::{
     Call, CommandFailure, CommandOutput, CommandRegistrar, CommandResult, Feedback,
 };
 use mcrs_minecraft_command_vanilla::{VanillaCommands, VanillaContext};
 use mcrs_minecraft_engine::teleport::MAX_XZ_BLOCKS;
 use mcrs_minecraft_engine_world::world::lifecycle::column_loading::ColumnLoading;
-use mcrs_minecraft_text::{IntoText, Text, TranslateArg};
+use mcrs_minecraft_text::{IntoText, ItemHover, Text, TranslateArg};
 use mcrs_voxel::{ColumnPos, SectionPos};
 
 use crate::forced_columns::ForcedColumns;
@@ -133,7 +133,7 @@ impl ColumnRange {
     }
 }
 
-fn chunk_text(column: ColumnPos) -> TranslateArg<mcrs_minecraft_text::ItemHover> {
+fn chunk_text(column: ColumnPos) -> TranslateArg<ItemHover> {
     format!("[{}, {}]", column.x, column.z).into_text().into()
 }
 
@@ -162,11 +162,9 @@ pub(crate) fn run(
         .into_text()
         .into();
     let block_of = |handle| -> Result<Option<[i32; 2]>, CommandFailure> {
-        Ok(context.opt(&call.invocation, handle)?.map(
-            |coordinates: mcrs_minecraft_command_argument::ColumnCoordinates| {
-                coordinates.block(&source)
-            },
-        ))
+        Ok(context
+            .opt(&call.invocation, handle)?
+            .map(|coordinates: ColumnCoordinates| coordinates.block(&source)))
     };
     let (change, from, to) = match call.branch {
         Branch::Add => (Change::Add, command.add_from, command.add_to),
@@ -201,23 +199,7 @@ pub(crate) fn run(
             return Ok(1);
         }
         Branch::Query => {
-            let count = i32::try_from(forced.len()).unwrap_or(i32::MAX);
-            let list = forced
-                .iter()
-                .map(|column| format!("[{}, {}]", column.x, column.z))
-                .collect::<Vec<String>>()
-                .join(", ");
-            let message = match count {
-                0 => Text::translate_args("commands.forceload.added.none", vec![dimension]),
-                1 => Text::translate_args(
-                    "commands.forceload.list.single",
-                    vec![dimension, list.into_text().into()],
-                ),
-                _ => Text::translate_args(
-                    "commands.forceload.list.multiple",
-                    vec![count.into(), dimension, list.into_text().into()],
-                ),
-            };
+            let (message, count) = list_message(&forced, dimension);
             output.success(&call.invocation, message, Feedback::Source);
             return Ok(count);
         }
@@ -227,6 +209,42 @@ pub(crate) fn run(
     let range = ColumnRange::new(from, to)?;
     range.check()?;
     let mut loading = loading.single_mut().map_err(|_| CommandFailure::failed())?;
+    let (changed, last) = change_range(&mut forced, &mut loading, range, change);
+    let message = range_message(change, changed, last, range, dimension)?;
+    output.success(&call.invocation, message, Feedback::SourceAndOperators);
+    Ok(changed)
+}
+
+/// The list of the forced columns, and their number.
+fn list_message(forced: &ForcedColumns, dimension: TranslateArg<ItemHover>) -> (Text, i32) {
+    let count = i32::try_from(forced.len()).unwrap_or(i32::MAX);
+    let list = forced
+        .iter()
+        .map(|column| format!("[{}, {}]", column.x, column.z))
+        .collect::<Vec<String>>()
+        .join(", ");
+    let message = match count {
+        0 => Text::translate_args("commands.forceload.added.none", vec![dimension]),
+        1 => Text::translate_args(
+            "commands.forceload.list.single",
+            vec![dimension, list.into_text().into()],
+        ),
+        _ => Text::translate_args(
+            "commands.forceload.list.multiple",
+            vec![count.into(), dimension, list.into_text().into()],
+        ),
+    };
+    (message, count)
+}
+
+/// Sets or clears the mark of each column of `range`, with its loading ticket. Gives the number
+/// of columns that changed and the last of them.
+fn change_range(
+    forced: &mut ForcedColumns,
+    loading: &mut ColumnLoading,
+    range: ColumnRange,
+    change: Change,
+) -> (i32, ColumnPos) {
     let mut changed: i32 = 0;
     let mut last = range.min;
     for column in range.columns() {
@@ -244,6 +262,16 @@ pub(crate) fn run(
         changed = changed.saturating_add(1);
         last = column;
     }
+    (changed, last)
+}
+
+fn range_message(
+    change: Change,
+    changed: i32,
+    last: ColumnPos,
+    range: ColumnRange,
+    dimension: TranslateArg<ItemHover>,
+) -> Result<Text, CommandFailure> {
     let (single, multiple, failure) = match change {
         Change::Add => (
             "commands.forceload.added.single",
@@ -256,7 +284,7 @@ pub(crate) fn run(
             "commands.forceload.removed.failure",
         ),
     };
-    let message = match changed {
+    Ok(match changed {
         0 => return Err(CommandFailure::translate(failure, vec![])),
         1 => Text::translate_args(single, vec![chunk_text(last), dimension]),
         _ => Text::translate_args(
@@ -268,9 +296,7 @@ pub(crate) fn run(
                 chunk_text(range.max),
             ],
         ),
-    };
-    output.success(&call.invocation, message, Feedback::SourceAndOperators);
-    Ok(changed)
+    })
 }
 
 #[cfg(test)]

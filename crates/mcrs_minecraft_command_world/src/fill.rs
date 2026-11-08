@@ -1,4 +1,5 @@
 use bevy_ecs::prelude::*;
+use bevy_ecs::system::SystemParam;
 use mcrs_command::{ArgumentHandle, BuildError, NodeId};
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_command::{CommandLevel, PermissionCheck};
@@ -135,18 +136,31 @@ impl Region {
     }
 }
 
+/// What a fill reads of this world besides the context of the command.
+#[derive(SystemParam)]
+pub(crate) struct FillWorld<'w, 's> {
+    view: BlockView<'w, 's>,
+    rules: Option<Res<'w, GameRules>>,
+    blocks: Option<Res<'w, Blocks>>,
+    forced: Res<'w, ForcedColumns>,
+    label: Res<'w, DimensionLabel>,
+}
+
 pub(crate) fn run(
     In(call): In<Call<Mode, FillCommand>>,
     context: VanillaContext,
-    view: BlockView,
-    rules: Option<Res<GameRules>>,
-    blocks: Option<Res<Blocks>>,
-    forced: Res<ForcedColumns>,
-    label: Res<DimensionLabel>,
+    world: FillWorld,
     mut commands: Commands,
     mut output: CommandOutput,
     mut sets: MessageWriter<BlockSetRequest>,
 ) -> CommandResult {
+    let FillWorld {
+        view,
+        rules,
+        blocks,
+        forced,
+        label,
+    } = world;
     let command = call.command;
     let source = context.source(&call.invocation)?;
     let corner = |handle: ArgumentHandle<BlockPosArgument>| -> Result<BlockPos, CommandFailure> {
