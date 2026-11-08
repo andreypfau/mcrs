@@ -920,6 +920,10 @@ tick in which the vanilla server runs that part. A part whose vanilla phase read
 reads the phase offset of PHY-CMP-016 in its place (AIT-DEV-003). The issue never depends on the
 backlog of the AI stage, on wall time or on the load of the server.
 
+The goal selection of a mob is an exception. The AI stage can skip a full evaluation that
+`mob-goals.md`, GOAL-WAKE-002, states to be quiet. A quiet evaluation gives no change, so the skip
+is not visible.
+
 A reduced rate for far mobs is visible in mob farms and in villages. Other servers removed it for
 that reason. Thus this server keeps the vanilla periods by default.
 

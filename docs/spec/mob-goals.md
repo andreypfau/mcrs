@@ -100,6 +100,17 @@ each animal type, for example its attributes, its food items, its love state and
   (GOAL-TMP-004).
 - **World query**: a read of the world that a goal makes. Section 0.5 states the form.
 - **Keyed random value**: a random value from the stream of AIT-LAG-008.
+- **Gate**: the random chance in a start condition, for example the chance of `0.02` of the look
+  goal (GOAL-FRM-007).
+- **Eligible**: a goal with a gate is eligible in a full evaluation when it is examined there, and
+  each part of its start condition before the gate is true (GOAL-WAKE-003).
+- **Wait**: the number of eligible full evaluations up to the first one in which a gate passes
+  (GOAL-WAKE-003).
+- **Due**: a wait or a goal timer is due in the full evaluation in which it ends.
+- **Asleep**: the state of a mob in a full evaluation that the AI stage skips (GOAL-WAKE-001).
+- **Quiet evaluation**: a full evaluation that the AI stage can skip (GOAL-WAKE-002).
+- **Busy**: the state of a mob whose full evaluations all run (GOAL-WAKE-004).
+- **Wake event**: an event that makes the next full evaluation of a mob run (GOAL-WAKE-005).
 
 ### 0.2 Provenance
 
@@ -154,6 +165,7 @@ Each rule has an ID with the prefix `GOAL`. The second part names the section.
 | `GOAL-LKP` | look at a player |
 | `GOAL-LKR` | random look around |
 | `GOAL-EAT` | eat grass |
+| `GOAL-WAKE` | sleep and wake: the full evaluations that the AI stage can skip |
 | `GOAL-ANI` | the goal lists and the data of the animals |
 | `GOAL-DEV` | intentional deviations |
 
@@ -183,6 +195,7 @@ This document states:
 - the goals of the pig, the cow, the sheep and the chicken;
 - the place of each part as a reflex or a decision, and the reads, the writes and the world queries
   of each goal (section 7).
+- the full evaluations that the AI stage can skip, and the events that wake a mob (section 4.10).
 
 These subjects are out of scope:
 
@@ -248,6 +261,13 @@ order of the list.
 Thus a goal never interrupts a goal of the same priority. Of two goals with the same priority and
 the same flags, the first in the list wins when both can start. A goal that starts in step 3 ticks
 in step 4 of the same tick. A goal that stops in step 3 does not tick.
+
+A goal that stops in step 3 releases its flags only in step 2 of the next full evaluation. Until
+then, each of its flags that the new goal did not take still names it as the holder. A later goal
+of step 3 can need such a flag. That goal is examined only when its priority number is smaller than
+the number of the stopped goal. For example, the panic goal of a pig takes only `move` from a tempt
+goal. The tempt goal still holds `look`, so the look goal (priority 7) is not examined in that
+evaluation.
 
 **GOAL-FRM-003** (`source_suggested_black_box_confirmed`, semantic, confidence: high, fidelity:
 exact). A goal that holds no flag is examined in each full evaluation while it does not run. It
@@ -468,8 +488,8 @@ look query read only these values:
 - the vehicle chain: the vehicle of the player, the vehicle of that vehicle, and so on.
 
 The visibility factor of GOAL-QRY-002 is 0.8 for a player whose shift key is down, and 1 for each
-other player. This rule is exact for a player that is not invisible and that wears no item with the
-component `mob_visibility` for the type of the mob. The vanilla items give `mob_visibility` only for
+other player. The rule is exact for a player that is not invisible and wears no item with `mob_visibility` for
+the type of the mob. The vanilla items give `mob_visibility` only for
 the skeleton, the zombie, the creeper, the piglin and the piglin brute. Thus the rule is exact for
 the four animals of section 5 and each vanilla item, while the player is not invisible. Section 9,
 U3, records the parts that are deferred.
@@ -590,8 +610,8 @@ Outside these conditions the fidelity is `envelope`. The selection can then diff
 candidates that are both not above `grass_block`. A candidate above `grass_block` wins over them in
 both rules.
 
-On a superflat world with a grass surface and no roof, each candidate that a search accepts on the
-floor of a pen is above `grass_block`. Only a candidate on top of a fence or a wall can have the
+On a superflat world with a grass surface and no roof, each accepted candidate on the floor of a pen
+is above `grass_block`. Only a candidate on top of a fence or a wall can have the
 value 0.5. The search also needs the solid render property and the legacy solid flag of each state
 of the world (PATH section 12.3). For the benchmark these are `air`, `bedrock`, `dirt`,
 `grass_block` and the block of the pen.
@@ -617,9 +637,13 @@ reflex (AIT-RFX-005). Its start condition, its continue condition and its goal t
 tick. They read only the fluid height of the mob and the lava flag of its own row.
 
 **GOAL-FLT-003** (`design`, semantic, confidence: medium, fidelity: exact under the condition
-below). A server without the fluid model of `entity-physics.md` uses these values for each mob: the
-fluid height of each fluid tag is 0, the lava flag is false, and the in-water flag of GOAL-STR-002 is
-false. Thus the float goal never starts, and the stroll always uses the search for a mob that is not
+below). A server without the fluid model of `entity-physics.md` uses these values for each mob:
+
+- the fluid height of each fluid tag is 0;
+- the lava flag is false;
+- the in-water flag of GOAL-STR-002 is false.
+
+Thus the float goal never starts, and the stroll always uses the search for a mob that is not
 in water.
 
 The rule is exact when the box of the mob touches no block whose fluid state is not empty. A block
@@ -933,6 +957,272 @@ the application (AIT-LAG-010). The eat of GOAL-EAT-002 is a due event at the 18t
 after the application. It is a reflex (AIT-RFX-008). It reads the blocks of the copy of PHY-CMP-009,
 and its block writes follow the rules of block writes.
 
+### 4.10 Sleep and wake
+
+The rules of this section let the AI stage skip the goal selection of a mob in most full
+evaluations. A mob that skips only quiet evaluations makes the same decisions as a mob that runs
+each full evaluation. GOAL-WAKE-001 to GOAL-WAKE-008 state the goal selection. GOAL-WAKE-010 to
+GOAL-WAKE-014 state the goals of the benchmark: float, panic, stroll, look at a player and look
+around. GOAL-WAKE-015 to GOAL-WAKE-018 state the other goals of section 5.
+
+#### 4.10.1 The goal selection
+
+**GOAL-WAKE-001** (`design`, semantic, confidence: medium, fidelity: exact). The AI stage can skip
+the goal selection of a mob in a quiet evaluation (GOAL-WAKE-002). It must run each other full
+evaluation. In a skipped evaluation, the mob is asleep:
+
+- no goal starts or stops, and no evaluation goal ticks;
+- the flags, the goal state and the guidance state do not change;
+- no wait draws a value, and no wait is due (GOAL-WAKE-003).
+
+The reflexes of the mob run as usual: the guidance, the look control, the body rotation, the goal
+tick of the look around goal (GOAL-LKR-002) and the float goal (GOAL-WAKE-010).
+
+**GOAL-WAKE-002** (`design`, semantic, confidence: medium, fidelity: exact). A full evaluation of a
+mob is quiet when all these conditions are true:
+
+1. The tick count of the mob is more than 1 (GOAL-FRM-010).
+2. The mob is not busy (GOAL-WAKE-004).
+3. No wait of the mob is due in this evaluation (GOAL-WAKE-003).
+4. No goal timer of the mob is due in this evaluation (GOAL-WAKE-006).
+5. No wake event of the mob occurred after its last full evaluation that ran (GOAL-WAKE-005).
+6. In its last full evaluation that ran, no goal started and no goal stopped.
+
+Condition 6 lets the next evaluation release the flags of a goal that stopped in step 3 of
+GOAL-FRM-002. It also lets each goal that became eligible draw its wait.
+
+**GOAL-WAKE-003** (`design`, semantic, confidence: medium, fidelity: distribution). This server
+draws a wait in place of a draw of a gate in each full evaluation:
+
+1. In a full evaluation in which a goal is eligible and has no wait, draw a wait `w`. The law of
+   `w` is geometric with the chance `p` of the gate: `P(w = k) = (1 - p)^(k - 1) × p`, for each
+   integer `k ≥ 1`.
+2. The gate fails in each eligible evaluation before the `w`-th one, counted from the evaluation of
+   the draw as the first. The gate passes in the `w`-th one. That evaluation is due.
+3. When the goal is not eligible in an evaluation, its wait ends. The gate draws nothing there.
+4. When the gate passes, the wait ends. If the rest of the start condition is false, the goal does
+   not start. The next eligible evaluation draws a new wait.
+
+The goals with a gate:
+
+| Goal | `p` | Parts before the gate |
+|------|-----|-----------------------|
+| stroll (GOAL-STR-001) | `1/60` | no passenger controls the mob; the idle time is less than 100 |
+| look at a player (GOAL-LKP-001) | `0.02` | none |
+| look around (GOAL-LKR-001) | `0.02` | none |
+| eat grass (GOAL-EAT-001) | `1/25` for a baby, `1/500` for an adult | none |
+
+The value `w = 1 + floor(ln(u) / ln(1 - p))`, with `u` uniform in `(0, 1]`, has this law. The
+random values come from the stream of AIT-LAG-008. The part names the goal and the wait. The issue
+tick is the tick of the evaluation of the draw.
+
+The geometric law has no memory. Thus the evaluation in which the gate passes has the law of
+independent draws in each eligible evaluation, which GOAL-FRM-007 states. A wait that ends and a new
+wait do not change this law. A server that runs each full evaluation uses the same waits. Its runs
+and the runs of a server that skips quiet evaluations are equal, tick by tick (AIT-INV-002).
+GOAL-DEV-004 records the vanilla draws.
+
+**GOAL-WAKE-004** (`design`, semantic, confidence: medium, fidelity: exact). A mob is busy while one
+of these conditions is true:
+
+- the panic goal does not run, and the damage record is fresh with a damage type in
+  `panic_causes`;
+- a tempt goal of the mob does not run, and a qualified player holds an item of its item test
+  within its range (GOAL-WAKE-015);
+- the mob is in love;
+- the mob is a baby;
+- the look goal, a tempt goal, the breed goal, the follow goal or the eat goal runs.
+
+Each of these states reads a world query, or writes the guidance state, in each full evaluation.
+Thus the mob cannot skip them. A busy state ends with no wake event: the next evaluation is quiet
+when the conditions of GOAL-WAKE-002 are true.
+
+**GOAL-WAKE-005** (`design`, semantic, confidence: medium, fidelity: exact). These are the wake
+events of a mob:
+
+1. A hit on the mob that passes the tests of DMG-HIT-001. The hit resets the idle time, and it can
+   set the damage record.
+2. The path of the mob becomes done, or the mob loses its path. A stop of the follower, a failed
+   request and a path clear are examples.
+3. A passenger mounts the mob or leaves it, or the controller of the mob changes (GOAL-ANI-007).
+4. The disabled flags of the mob change (GOAL-FRM-008).
+5. The idle time of the mob resets while it is 100 or more. A non-spectator player that comes less
+   than 32 blocks from the mob resets it (AIT-VAN-020).
+6. The mob enters love (ANIM-LOVE-001), or its age changes from adult to baby.
+7. The mob does an AI step after a tick with no AI step (GOAL-FRM-009). The clear of `NoAI`, the
+   end of the control by a player and the first tick of the column of the mob are examples.
+
+The event wakes the first full evaluation whose snapshot holds the event (AIT-LAG-001). The hot
+tick must detect each event in the tick in which it occurs. An event that the hot tick detects later
+is a delay of the decision, and AIT-LAG-003 limits it.
+
+**GOAL-WAKE-006** (`design`, semantic, confidence: medium, fidelity: exact). The end of a look
+around is the only goal timer that wakes a mob (GOAL-WAKE-014). The timers of the other goals run
+while the mob is busy. The goal timer counts only AI steps. In a tick with no AI step, the mob ends
+each of its waits, and the goal timer does not count. The next AI step is a wake event
+(GOAL-WAKE-005, item 7).
+
+**GOAL-WAKE-007** (`design`, semantic, confidence: medium, fidelity: exact). The idle time can end
+the eligibility of the stroll goal with no wake event. In the first full evaluation in which the
+idle time is 100 or more, the wait of the stroll ends. That evaluation stays quiet when the other
+conditions of GOAL-WAKE-002 are true. An implementation can keep the tick of the last reset in place
+of a counter. It then computes the idle time at a due evaluation.
+
+**GOAL-WAKE-008** (`design`, semantic, confidence: medium, fidelity: exact). A quiet evaluation
+changes nothing when the AI stage runs it in full. This is the reason for each step of
+GOAL-FRM-002:
+
+- Step 1: the continue condition of each running goal depends only on a busy state, a due timer
+  or a wake event. GOAL-WAKE-010 to GOAL-WAKE-018 list these for each goal.
+- Step 3: the examined goals change only in a full evaluation that runs, or by the wake events 3, 4
+  and 7. Each eligible goal has a wait that is not due, so each gate fails. Each start condition
+  without a gate is false, else the mob is busy.
+- Step 4: each evaluation goal that ticks keeps the mob busy. The other running goals have no
+  evaluation tick, or tick as a reflex.
+
+Thus the decisions of a sleeping mob are those of GOAL-FRM-002. The deterministic parts are exact.
+The gates and the random position searches have the fidelity `distribution`, as in section 4. The
+delay of each decision is that of AIT-LAG-002, with no extra delay.
+
+#### 4.10.2 The goals of the benchmark
+
+**GOAL-WAKE-010** (`design`, semantic, confidence: medium, fidelity: exact). Float in a fluid
+(GOAL-FLT-001):
+
+- Start and continue: the hot tick tests the fluid height and the lava flag at each full
+  evaluation of the mob, also when the mob is asleep. The test reads only the row of the mob
+  (GOAL-FLT-002).
+- Change: the fluid height of `entity_floatable` at the mob crosses the jump threshold, or the
+  lava flag changes. A mob whose box touches no block with a fluid state cannot change it. The hot
+  tick can skip the test for such a mob while the goal does not run.
+- Target choice: none. The jump draw in each goal tick is a reflex.
+- Selection: the float goal holds only `jump`. No other goal of the pig, the cow and the chicken
+  holds `jump`, so its start and its stop change no other goal. For a sheep, a start of the float
+  goal stops the eat goal. Thus it is a wake event of a sheep.
+
+With GOAL-FLT-003, the float goal never runs, and the test is false for each mob.
+
+**GOAL-WAKE-011** (`design`, semantic, confidence: medium, fidelity: exact). Panic (GOAL-PNC-002):
+
+- Start: the damage record and the destination search. A hit is wake event 1. While the panic goal
+  does not run and the record is fresh with a type of `panic_causes`, the mob is busy. Thus the
+  goal tries a new destination in each full evaluation until it starts, as GOAL-PNC-002 states. The
+  busy state ends in the first full evaluation in which the record is not fresh.
+- Continue: the path is not done. The end of the path is wake event 2.
+- Target choice: the destination, only at the start. The search has the fidelity
+  `distribution` (GOAL-POS-002).
+- Interrupt: no goal of section 5 interrupts the panic goal. A disabled `move` stops it (wake
+  event 4).
+
+Thus a hit wakes a pig. The pig sleeps while it runs on its path, and wakes at the end of each path.
+It runs again while the record is fresh.
+
+**GOAL-WAKE-012** (`design`, semantic, confidence: medium, fidelity: distribution for the gate and
+the destination, exact for each other part). Random stroll (GOAL-STR-001):
+
+- Start: a wait with `p = 1/60` (GOAL-WAKE-003). At the due evaluation, the goal searches the
+  destination (GOAL-STR-002). When the search gives no result, the goal does not start, and the
+  next eligible evaluation draws a new wait.
+- Eligible: the stroll goal is examined, no passenger controls the mob, and the idle time is less
+  than 100. For a pig, the stroll goal is examined while the panic goal, the breed goal and the
+  tempt goals do not run. The look around goal does not block it.
+- Changes of the eligibility: a start or a stop of the panic, breed or tempt goals, in a full
+  evaluation that runs; wake events 3, 4, 5 and 7; the end by the idle time (GOAL-WAKE-007).
+- Continue: the path is not done, and no passenger controls the mob. Wake events 2 and 3 change
+  it.
+- Target choice: the destination, only at the start.
+
+With no non-spectator player within 32 blocks, the idle time reaches 100 in the 100th AI step after
+the summon or the last hit. After that, the pig starts no stroll until a hit or a player resets the
+idle time. E-G9 shows this.
+
+**GOAL-WAKE-013** (`design`, semantic, confidence: medium, fidelity: distribution for the gate,
+exact for each other part). Look at a player (GOAL-LKP-001):
+
+- Start: a wait with `p = 0.02`. At the due evaluation, the goal makes `Q-LOOK`. When it has no
+  result, the goal does not start, and the next eligible evaluation draws a new wait.
+- Eligible: the look goal is examined. For a pig, this is while the breed goal and the tempt goals
+  do not run. The look around goal does not block it. The rule of GOAL-FRM-002 for a goal that
+  stopped in step 3 applies.
+- A player that comes within 6 blocks is not a wake event. `Q-LOOK` is read only in the
+  evaluation in which the gate passes, and the gate has no memory.
+- Continue: while the goal runs, the mob is busy. Each full evaluation tests the player, the
+  distance and the look count, and sets the look target again.
+- Target choice: the player of `Q-LOOK`, only at the start.
+
+While the dimension of the mob has no qualified player, `Q-LOOK` has no result. Then an
+implementation can end the waits of the look goal. Later, a qualified player can enter the
+dimension, or a player there can become qualified. Then each mob of the dimension with an eligible
+look goal must draw a new wait in its next full evaluation. This event is a wake event of each such
+mob.
+
+**GOAL-WAKE-014** (`design`, semantic, confidence: medium, fidelity: distribution for the gate, the
+direction and the look time, exact for each other part). Random look around (GOAL-LKR-001):
+
+- Start: a wait with `p = 0.02`. The start action draws the direction and the look time `T`.
+- Eligible: the look around goal is examined. For a pig, no goal must hold `move` or `look`. Also,
+  no goal with one of these flags stopped in step 3 of the last evaluation.
+- Goal tick: a reflex in each tick (GOAL-LKR-002). It does not wake the mob.
+- Continue: a goal timer. The look time is `T - 1` after the goal tick of the start evaluation. It
+  decreases by 1 in each later AI step. The timer is due in the first full evaluation in which the
+  look time is less than 0 before the goal tick. In that evaluation, the goal stops.
+- Interrupt: the stroll goal and the look goal can start while the look around goal runs. Their
+  waits are due in full evaluations that run.
+- Target choice: the direction, only at the start.
+
+#### 4.10.3 The other goals of the animals
+
+**GOAL-WAKE-015** (`design`, semantic, confidence: medium, fidelity: exact). Tempt
+(GOAL-TMP-001):
+
+- Start: the calm-down is 0, and `Q-TEMPT` has a result. The goal has no gate.
+- Tempt state: in each tick, the hot tick tests each qualified player that holds an item of a
+  tempt item test in a hand. It finds each mob with that tempt goal within `max(R × v, 2)` of the
+  player, as `Q-TEMPT` states. Each mob that it finds is busy in the next full evaluation. The
+  cost of the test depends on the number of such players, not on the number of mobs.
+- Eligible: the tempt goal is examined. For a pig, this is while the panic goal, the breed goal
+  and the other tempt goal do not run. A start of the panic goal or the breed goal, and its stop,
+  occur in full evaluations that run.
+- Calm-down: its end needs no wake event. The goal can start only while a player tempts the mob,
+  and then the mob is busy.
+- Continue: while the goal runs, the mob is busy. The player can change in each full evaluation.
+- Target choice: the player of `Q-TEMPT`, in each full evaluation.
+
+**GOAL-WAKE-016** (`design`, semantic, confidence: medium, fidelity: exact). Breed approach
+(GOAL-BRD-001): a mob in love is busy. The start of the love is wake event 6. The end of the love by
+its timer, by a hit or by a breed needs no wake event. While the goal runs, the mob is busy. The
+partner is the result of `Q-PARTNER` at the start.
+
+**GOAL-WAKE-017** (`design`, semantic, confidence: medium, fidelity: exact). Follow an adult
+(GOAL-FOL-001): a baby is busy. A change from adult to baby is wake event 6. The growth of a baby
+into an adult needs no wake event. The adult is the result of `Q-ADULT` at the start.
+
+**GOAL-WAKE-018** (`design`, semantic, confidence: medium, fidelity: distribution for the gate,
+exact for each other part). Eat grass (GOAL-EAT-001):
+
+- Start: a wait with the `p` of GOAL-WAKE-003. At the due evaluation, the goal reads the blocks at
+  the mob and below it. When the test is false, the goal does not start.
+- Eligible: the eat goal is examined. For a sheep, the float, the panic, the breed, the tempt and
+  the eat goals must not run. No flag of the eat goal is disabled.
+- A change of the age between baby and adult changes `p`. It ends the wait, and the next
+  evaluation draws a new one. A growth into an adult needs no wake event, because a baby is busy.
+- Continue: while the goal runs, the mob is busy.
+
+#### 4.10.4 The benchmark scene
+
+Take an adult pig of `summon` on a dry superflat world with a pen of fences. No player tempts it. The
+pig runs its full evaluations only in these cases:
+
+- its first two AI steps;
+- a wait that is due: the stroll in its first 100 AI steps, the look goal and the look around goal;
+- the end of a look around;
+- a hit, and each full evaluation in the 40 ticks after a hit while the panic goal does not run;
+- the end of a path of a stroll or a panic;
+- a full evaluation in which the look goal runs, near a qualified player;
+- the full evaluation after each start or stop.
+
+Each other full evaluation is quiet.
+
 ## 5. The animals
 
 **GOAL-ANI-001** (`source_suggested`, semantic, confidence: high, fidelity: exact). The goal list of
@@ -1181,12 +1471,11 @@ These notes follow from the table:
   entity, as GOAL-NAV-002 states.
 - **U2**: partly resolved. GOAL-POS-006 gives a walk value without light. It is exact on a world with
   full sky light at each candidate that is not above grass. Deferred: the block light, the sky light
-  below a roof, the sky darkness of the time and the weather, and the ambient light of the dimension
-  type. These need a light engine of the server side, which no specification states yet. The block
+  below a roof, the sky darkness of the time and the weather, and the ambient light. These need a light engine of the server side, which no specification states yet. The block
   corpus must still give the solid render property and the legacy solid flag (PATH section 12.3).
 - **U3**: partly resolved. GOAL-QRY-005 states the player table. Deferred: the invisibility of a
-  player, its armor count, the items with `mob_visibility`, and the clamp of the visibility factor
-  to the range from 0 to 10. These need the effects and the equipment of a player.
+  player, its armor count, the items with `mob_visibility`, and the clamp of the factor to
+  `[0, 10]`. These need the effects and the equipment of a player.
 - **U4**: partly resolved. GOAL-FLT-003 sets the fluid height to 0 on a dry world. Deferred: the
   fluid height of water and lava at the box of a mob, the lava flag and the in-water flag. These
   need the fluid model that `entity-physics.md`, section 12, puts out of scope.
@@ -1233,6 +1522,8 @@ Start a vanilla server of the version in the table at the top. Use a flat world,
 | C-G2 | Run 50,000 pigs on a flat world with `AiDelay::Fixed(1)`, two times. Compare the world hash in each tick. | GOAL-DEV-004, AIT-INV-002 |
 | C-G3 | Compare the start rates of the stroll, the look goals and the eat over 10,000 animals with the chances of section 4. | GOAL-FRM-007, GOAL-STR-001, GOAL-LKP-001, GOAL-LKR-001, GOAL-EAT-001 |
 | C-G4 | Run the random position searches on fixed block scenes with fixed draws. Compare the result with the rules. | GOAL-POS-002, GOAL-POS-003, GOAL-POS-004 |
+| C-G5 | Run 50,000 pigs with `AiDelay::Fixed(1)` two times: one run evaluates each full evaluation, one run skips each quiet evaluation. Hit a group of pigs with `damage`, and let a player walk near them. Compare the world hash in each tick. | GOAL-WAKE-001 to GOAL-WAKE-014, AIT-INV-002 |
+| C-G6 | Count the evaluations in which each gate passes over 10,000 animals, with the waits of GOAL-WAKE-003. Compare the counts with a geometric law of the chance of each gate. | GOAL-WAKE-003 |
 
 ## 11. Captured results
 
