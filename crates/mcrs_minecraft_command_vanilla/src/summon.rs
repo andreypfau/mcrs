@@ -1,28 +1,32 @@
+use crate::mob_view::display_name;
 use crate::set::{VanillaCommands, VanillaContext};
 use bevy_ecs::prelude::*;
 use bevy_math::DVec3;
 use mcrs_command::{ArgumentHandle, BuildError, NodeId};
 use mcrs_minecraft_command::{CommandLevel, PermissionCheck};
 use mcrs_minecraft_command_argument::{ResourceArgument, Vec3Argument};
+use mcrs_minecraft_command_argument_vanilla::NbtCompoundArgument;
 use mcrs_minecraft_command_engine::{
     Call, CommandFailure, CommandOutput, CommandRegistrar, CommandResult, EffectQueue, Feedback,
     Worlds,
 };
 use mcrs_minecraft_engine::coordinator::birth_clock::BirthClock;
 use mcrs_minecraft_engine::teleport::{MAX_XZ, MAX_Y};
-use mcrs_minecraft_engine_physics::{MobSpawnRequest, SpawnSetup};
+use mcrs_minecraft_engine_physics::{MobExtras, MobSpawnRequest, SpawnSetup};
 use mcrs_minecraft_entity::entity_type_keys::EntityType;
 use mcrs_minecraft_entity::registry_keys::ENTITY_TYPE;
 use mcrs_minecraft_mob::MobType;
+use mcrs_minecraft_nbt::compound::NbtCompound;
+use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_physics::{BirthKey, BirthSource, birth_uuid};
-use mcrs_minecraft_resource::ResourceLocationBuf;
-use mcrs_minecraft_text::{HoverEvent, IntoText, Text};
+use mcrs_minecraft_text::Text;
 use uuid::Uuid;
 
 #[derive(Clone, Copy)]
 pub(crate) struct SummonCommand {
     entity: ArgumentHandle<ResourceArgument>,
     pos: ArgumentHandle<Vec3Argument>,
+    nbt: ArgumentHandle<NbtCompoundArgument>,
 }
 
 /// The command sequence of the summons of the current tick of this world: the order of the next
@@ -51,7 +55,11 @@ pub(crate) fn build(
         .runs(())
         .id()?;
     let pos = registrar.arg(entity, "pos", Vec3Argument).runs(()).id()?;
-    Ok(SummonCommand { entity, pos })
+    let nbt = registrar
+        .arg(pos, "nbt", NbtCompoundArgument)
+        .runs(())
+        .id()?;
+    Ok(SummonCommand { entity, pos, nbt })
 }
 
 fn spawnable(position: DVec3) -> bool {
@@ -91,8 +99,16 @@ pub(crate) fn run(
             vec![],
         ));
     }
+    let failed = || CommandFailure::translate("commands.summon.failed", vec![]);
     let Some(kind) = MobType::of(entity_type) else {
-        return Err(CommandFailure::translate("commands.summon.failed", vec![]));
+        return Err(failed());
+    };
+    let (setup, extras) = match context.opt(&call.invocation, command.nbt)? {
+        None => (SpawnSetup::First, MobExtras::default()),
+        Some(text) => {
+            let compound = text.read().map_err(|_| failed())?;
+            (SpawnSetup::None, extras(compound).ok_or_else(failed)?)
+        }
     };
     if order.tick != clock.0 {
         *order = SummonOrder {
@@ -110,36 +126,44 @@ pub(crate) fn run(
             position,
             key,
             uuid,
-            setup: SpawnSetup::First,
+            setup,
+            extras,
         },
     );
     output.success(
         &call.invocation,
         Text::translate(
             "commands.summon.success",
-            vec![display_name(entity_type, Uuid::from_u128(uuid))],
+            vec![display_name(entity_type, Uuid::from_u128(uuid), None)],
         ),
         Feedback::SourceAndOperators,
     );
     Ok(1)
 }
 
-/// The display name of a mob with no custom name (TRK-SUM-004): the name of its type, with the
-/// type and the UUID on hover and the UUID as the insertion.
-fn display_name(entity_type: EntityType, uuid: Uuid) -> Text {
-    let key = format!(
-        "entity.{}.{}",
-        entity_type.location().namespace(),
-        entity_type.location().path()
-    );
-    let name = Text::translate(key.clone(), vec![]);
-    let mut text = Text::translate(key, vec![]).insertion(uuid.hyphenated().to_string());
-    text.style.hover_event = Some(HoverEvent::ShowEntity {
-        id: ResourceLocationBuf::from(entity_type.location()),
-        uuid,
-        name: Some(name),
-    });
-    text
+/// The keys of `<nbt>` that this server loads (TRK-SUM-003, TRK-DEV-002): `NoAI`, `CustomName`
+/// as a string and `Tags`. `None` when the compound holds another key. A value with the wrong tag
+/// keeps the default.
+fn extras(compound: NbtCompound) -> Option<MobExtras> {
+    let mut extras = MobExtras::default();
+    for (key, tag) in compound {
+        match (key.as_str(), tag) {
+            ("NoAI", NbtTag::Byte(value)) => extras.no_ai = value != 0,
+            ("CustomName", NbtTag::String(name)) => extras.custom_name = Some(name),
+            ("Tags", NbtTag::List(tags)) => {
+                extras.tags = tags
+                    .into_iter()
+                    .filter_map(|tag| match tag {
+                        NbtTag::String(tag) => Some(tag),
+                        _ => None,
+                    })
+                    .collect();
+            }
+            ("NoAI" | "CustomName" | "Tags", _) => {}
+            _ => return None,
+        }
+    }
+    Some(extras)
 }
 
 pub(crate) fn apply(worlds: &mut Worlds, request: MobSpawnRequest) {

@@ -1,5 +1,6 @@
 use crate::dimension_view::{DimensionView, unloaded};
 use crate::execute::{Branch, ExecuteCommand, Polarity, Test};
+use crate::mob_view::Found;
 use crate::select::{FoundPlayers, select};
 use crate::set::VanillaContext;
 use bevy_ecs::system::SystemParam;
@@ -10,8 +11,7 @@ use mcrs_minecraft_block_entity::GeneratedBlockEntity;
 use mcrs_minecraft_command_argument::{DimensionArgument, ResourceOrTag};
 use mcrs_minecraft_command_argument_entity::EntityArgument;
 use mcrs_minecraft_command_engine::{
-    Call, CommandFailure, CommandOutput, DimensionEntry, Modified, ModifyResult, PlayerEntry,
-    SourceState,
+    Call, CommandFailure, CommandOutput, DimensionEntry, Modified, ModifyResult, SourceState,
 };
 use mcrs_minecraft_nbt::compound::NbtCompound;
 
@@ -38,12 +38,15 @@ impl ExecuteView<'_, '_> {
         targets: ArgumentHandle<EntityArgument>,
         found: &mut FoundPlayers,
         output: &mut CommandOutput,
-        each: impl Fn(&SourceState, &PlayerEntry) -> SourceState,
+        each: impl Fn(&SourceState, Found<'_>) -> SourceState,
     ) -> ModifyResult {
         found.with(|out| {
             select(&self.context, &call.invocation, targets, out)?;
             for target in out.found.iter() {
-                output.fork(each(&call.invocation.source, target));
+                output.fork(each(&call.invocation.source, Found::Player(target)));
+            }
+            for target in &out.mobs {
+                output.fork(each(&call.invocation.source, Found::Mob(target)));
             }
             Ok(Modified::Forked)
         })
@@ -62,9 +65,7 @@ impl ExecuteView<'_, '_> {
         match test {
             Test::Entity => found.with(|out| {
                 select(context, &call.invocation, args.entities, out)?;
-                Ok(Outcome::Count(
-                    i32::try_from(out.found.len()).unwrap_or(i32::MAX),
-                ))
+                Ok(Outcome::Count(i32::try_from(out.len()).unwrap_or(i32::MAX)))
             }),
             Test::Dimension => {
                 let named = dimension(context, call, args.dimension)?;

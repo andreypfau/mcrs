@@ -9,9 +9,13 @@ use mcrs_minecraft_command_argument_vanilla::{ArgumentError, VanillaArgument};
 use mcrs_minecraft_command_engine::{CommandContext, CommandSet, CommandTargets};
 use mcrs_minecraft_command_registry::RegistryLookup;
 use mcrs_minecraft_engine::banlist::BanList;
+use mcrs_minecraft_engine::command_handoff::SourceMob;
+use mcrs_minecraft_engine_physics::{EntityRows, Mobs, Placed};
 use mcrs_minecraft_engine_world::world::dimension::DimensionTypeId;
 use mcrs_minecraft_registries::CurrentRegistries;
 use mcrs_minecraft_resource::ResourceLocation;
+
+use crate::mob_view::MobView;
 
 /// The vanilla argument types, which read the registries, the block table and the players of
 /// the world a line parses in.
@@ -34,6 +38,8 @@ pub struct VanillaWorld<'w, 's> {
     registries: Option<Res<'w, CurrentRegistries>>,
     blocks: Option<Res<'w, Blocks>>,
     dimension_type: Query<'w, 's, &'static DimensionTypeId>,
+    rows: Option<Res<'w, EntityRows>>,
+    mobs: Option<Res<'w, Mobs>>,
 }
 
 impl VanillaWorld<'_, '_> {
@@ -44,6 +50,34 @@ impl VanillaWorld<'_, '_> {
             blocks: self.blocks.as_deref().map(|blocks| &*blocks.0),
             dimension_type: self.dimension_type.iter().next().map(|id| id.0),
         }
+    }
+
+    /// Each mob row of this world.
+    pub(crate) fn mobs(&self) -> impl Iterator<Item = MobView<'_>> {
+        let rows = self.rows.as_deref();
+        let mobs = self.mobs.as_deref();
+        rows.zip(mobs).into_iter().flat_map(|(rows, mobs)| {
+            rows.living_rows().filter_map(|(at, state)| {
+                Some(MobView {
+                    at,
+                    state,
+                    mob: mobs.0.get(&at.id)?,
+                })
+            })
+        })
+    }
+
+    /// The mob row that a source holds; `None` when it left the world or its tile.
+    pub(crate) fn mob(&self, source: SourceMob) -> Option<MobView<'_>> {
+        let at = Placed {
+            tile: source.tile,
+            id: source.id,
+        };
+        Some(MobView {
+            at,
+            state: self.rows.as_deref()?.state_of(at)?,
+            mob: self.mobs.as_deref()?.0.get(&source.id)?,
+        })
     }
 
     /// The block table of this world, when it has one.

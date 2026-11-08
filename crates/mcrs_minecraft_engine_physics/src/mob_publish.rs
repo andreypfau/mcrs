@@ -5,22 +5,25 @@ use bevy_ecs::system::ResMut;
 use mcrs_engine_muxer::EntityEvent;
 use mcrs_engine_muxer::EntityId;
 use mcrs_minecraft_engine::tile_events::TileEvents;
+use mcrs_minecraft_replication::MobSignal;
 use mcrs_minecraft_replication::MobSpawn;
 use mcrs_minecraft_replication::MobState;
 use mcrs_minecraft_replication::PlayerData;
 use uuid::Uuid;
 
+use crate::entity_pass::mob_state;
 use crate::entity_rows::EntityRows;
 use crate::mob_life::MobChanges;
 use crate::mobs::Mobs;
 use crate::tile_at::tile_at;
 
 /// Records the tile events of the mobs of the tick: a spawn with the state of the start of its
-/// tracker, a move for each row whose visible state changed, a change of tile and a despawn.
-/// A mob that spawned in this tick spawns in the tile it ends the tick in.
+/// tracker, the signals, a move for each row whose visible state changed, a change of tile, and
+/// the removal at the end of a death. A mob that spawned in this tick spawns in the tile it ends
+/// the tick in.
 pub(crate) fn publish_mobs(
     rows: Res<EntityRows>,
-    mobs: Res<Mobs>,
+    mut mobs: ResMut<Mobs>,
     mut changes: ResMut<MobChanges>,
     mut events: ResMut<TileEvents>,
 ) {
@@ -61,6 +64,14 @@ pub(crate) fn publish_mobs(
             },
         );
     }
+    for signaled in &changes.signals {
+        events.push(
+            signaled.at.tile,
+            signaled.at.id,
+            EntityEvent::Data(PlayerData::MobSignal(signaled.signal)),
+        );
+    }
+    let mut published: Vec<EntityId> = Vec::with_capacity(rows.moved.len());
     for moved in &rows.moved {
         if let Some(start) = fresh.remove(&moved.id) {
             spawn(&mut events, moved.id, start, moved.state);
@@ -71,14 +82,37 @@ pub(crate) fn publish_mobs(
                 moved.id,
                 EntityEvent::Move(PlayerData::MobMove(moved.state)),
             );
+            published.push(moved.id);
         }
     }
     for (id, start) in fresh {
         spawn(&mut events, id, start, start);
     }
-    for despawned in &changes.despawned {
-        events.push(despawned.tile, despawned.id, EntityEvent::Despawn);
+    published.sort_unstable();
+    for touched in &changes.touched {
+        if published.binary_search(&touched.id).is_ok() {
+            continue;
+        }
+        if let Some(state) = rows.state_of(*touched).map(mob_state) {
+            events.push(
+                tile_at(state.position),
+                touched.id,
+                EntityEvent::Move(PlayerData::MobMove(state)),
+            );
+        }
+    }
+    for removed in &rows.removed {
+        if mobs.0.remove(&removed.id).is_none() {
+            continue;
+        }
+        events.push(
+            removed.tile,
+            removed.id,
+            EntityEvent::Data(PlayerData::MobSignal(MobSignal::Removed)),
+        );
+        events.push(removed.tile, removed.id, EntityEvent::Despawn);
     }
     changes.spawned.clear();
-    changes.despawned.clear();
+    changes.touched.clear();
+    changes.signals.clear();
 }

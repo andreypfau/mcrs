@@ -5,24 +5,25 @@ use mcrs_minecraft_protocol::{Result, VarInt, write_record};
 use mcrs_minecraft_protocol_game::clientbound::{
     AttributeSnapshot, ClientboundSetEntityData, ClientboundUpdateAttributes,
 };
-use mcrs_minecraft_protocol_game::entity::{MetaDataValue, Metadata, MetadataEntry};
+use mcrs_minecraft_protocol_game::entity::{MetaDataValue, Metadata, MetadataEntry, Pose};
 
 use crate::mob_looks::{MobLooks, MobVariant};
 
+const POSE: u8 = 6;
 const HEALTH: u8 = 9;
 const MOB_FLAGS: u8 = 15;
 const NO_AI: i8 = 1;
 const LEFT_HANDED: i8 = 2;
 
-/// The entity data of a new mob that differ from the defaults, in the order of the indices
-/// (TRK-DATA-002, TRK-DATA-006): its health, which is its `max_health`, its mob flags and its
-/// variant entries.
+/// The entity data of a mob that differ from the defaults, in the order of the indices
+/// (TRK-DATA-002, TRK-DATA-006): its pose, its health, its mob flags and its variant entries.
 #[must_use]
-pub(crate) fn spawn_data(kind: MobType, looks: &MobLooks) -> Metadata<'static> {
-    let mut entries = vec![MetadataEntry {
-        index: HEALTH,
-        value: MetaDataValue::Float(kind.max_health()),
-    }];
+pub(crate) fn spawn_data(looks: &MobLooks, health: f32, dying: bool) -> Metadata<'static> {
+    let mut entries = Vec::new();
+    if dying {
+        entries.push(pose_entry());
+    }
+    entries.push(health_entry(health));
     let flags =
         if looks.no_ai { NO_AI } else { 0 } | if looks.left_handed { LEFT_HANDED } else { 0 };
     if flags != 0 {
@@ -55,16 +56,36 @@ pub(crate) fn spawn_data(kind: MobType, looks: &MobLooks) -> Metadata<'static> {
     Metadata(entries)
 }
 
+pub(crate) fn pose_entry() -> MetadataEntry<'static> {
+    MetadataEntry {
+        index: POSE,
+        value: MetaDataValue::Pose(Pose::Dying),
+    }
+}
+
+pub(crate) fn health_entry(health: f32) -> MetadataEntry<'static> {
+    MetadataEntry {
+        index: HEALTH,
+        value: MetaDataValue::Float(health),
+    }
+}
+
 /// The `set_entity_data` and the `update_attributes` of the spawn bundle of the mob `id`, as
 /// records. The attributes are the list that the reference sends: `movement_speed` with its base
 /// and no modifier (TRK-DATA-004).
-pub(crate) fn spawn_extras(id: VarInt, kind: MobType, looks: &MobLooks) -> Result<Bytes> {
+pub(crate) fn spawn_extras(
+    id: VarInt,
+    kind: MobType,
+    looks: &MobLooks,
+    health: f32,
+    dying: bool,
+) -> Result<Bytes> {
     let mut bytes = BytesMut::new();
     write_record(
         &mut bytes,
         &ClientboundSetEntityData {
             entity_id: id,
-            metadata: spawn_data(kind, looks),
+            metadata: spawn_data(looks, health, dying),
         },
     )?;
     write_record(

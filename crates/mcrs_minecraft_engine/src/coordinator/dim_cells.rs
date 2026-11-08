@@ -791,6 +791,7 @@ mod tests {
         let source = SourceState {
             level: CommandLevel::All,
             player: None,
+            mob: None,
             dimension: label,
             position,
             yaw: 0.0,

@@ -67,6 +67,22 @@ impl TileRows {
         &self.id
     }
 
+    /// The state of each row, in the order of [`Self::ids`].
+    #[must_use]
+    pub fn states(&self) -> &[EntityState] {
+        &self.state
+    }
+
+    /// The row of `id`, open to its writer; `None` when the tile has no such row.
+    pub fn row_mut(&mut self, id: EntityId) -> Option<RowMut<'_>> {
+        let row = self.id.iter().position(|&held| held == id)?;
+        Some(RowMut {
+            state: self.state.get_mut(row)?,
+            motion: self.motion.get(row)?,
+            id,
+        })
+    }
+
     pub fn rows_mut(&mut self) -> impl Iterator<Item = RowMut<'_>> {
         iter::zip(
             iter::zip(&mut self.state, &self.motion),

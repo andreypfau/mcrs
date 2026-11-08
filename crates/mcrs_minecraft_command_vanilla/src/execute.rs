@@ -1,5 +1,6 @@
 use crate::dimension_view::unloaded;
 use crate::execute_view::{ExecuteView, Outcome};
+use crate::mob_view::Found;
 use crate::select::FoundPlayers;
 use crate::set::VanillaCommands;
 use bevy_ecs::prelude::*;
@@ -14,7 +15,7 @@ use mcrs_minecraft_command_argument_block::BlockPredicateArgument;
 use mcrs_minecraft_command_argument_entity::EntityArgument;
 use mcrs_minecraft_command_engine::{
     Call, CommandFailure, CommandOutput, CommandRegistrar, CommandResult, CommandTargets, Feedback,
-    Modified, ModifyResult, PlayerEntry, SourceState,
+    Modified, ModifyResult, SourceState,
 };
 use mcrs_minecraft_core::LookAnchor;
 use mcrs_minecraft_core::heightmap::HeightmapName;
@@ -300,37 +301,32 @@ fn anchor_point(anchor: LookAnchor, position: DVec3) -> DVec3 {
     mcrs_minecraft_command::anchored(anchor, position, PLAYER_EYE_HEIGHT)
 }
 
-fn as_target(state: &SourceState, target: &PlayerEntry) -> SourceState {
+fn as_target(state: &SourceState, target: Found<'_>) -> SourceState {
+    target.run_as(state)
+}
+
+fn at_target(targets: &CommandTargets, state: &SourceState, target: Found<'_>) -> SourceState {
     SourceState {
-        player: Some(target.session),
+        dimension: target.dimension(targets, state.dimension),
+        position: target.position(),
+        ..*state
+    }
+    .with_look(target.look())
+}
+
+fn positioned_as_target(state: &SourceState, target: Found<'_>) -> SourceState {
+    SourceState {
+        position: target.position(),
         ..*state
     }
 }
 
-fn at_target(targets: &CommandTargets, state: &SourceState, target: &PlayerEntry) -> SourceState {
-    SourceState {
-        dimension: targets
-            .label_of(target.dimension)
-            .unwrap_or(state.dimension),
-        position: target.transform.translation,
-        ..*state
-    }
-    .with_look(target.transform.rotation.into())
+fn rotated_as_target(state: &SourceState, target: Found<'_>) -> SourceState {
+    state.with_look(target.look())
 }
 
-fn positioned_as_target(state: &SourceState, target: &PlayerEntry) -> SourceState {
-    SourceState {
-        position: target.transform.translation,
-        ..*state
-    }
-}
-
-fn rotated_as_target(state: &SourceState, target: &PlayerEntry) -> SourceState {
-    state.with_look(target.transform.rotation.into())
-}
-
-fn facing_target(anchor: LookAnchor, state: &SourceState, target: &PlayerEntry) -> SourceState {
-    facing_at(state, anchor_point(anchor, target.transform.translation))
+fn facing_target(anchor: LookAnchor, state: &SourceState, target: Found<'_>) -> SourceState {
+    facing_at(state, anchor_point(anchor, target.position()))
 }
 
 fn facing_at(state: &SourceState, to: DVec3) -> SourceState {

@@ -12,6 +12,7 @@ use mcrs_minecraft_physics::CollisionWorld;
 use mcrs_minecraft_physics::EntityState;
 use mcrs_minecraft_physics::KeyedStream;
 use mcrs_minecraft_physics::Living;
+use mcrs_minecraft_physics::MoveInput;
 use mcrs_minecraft_physics::PushRules;
 use mcrs_minecraft_physics::Rest;
 use mcrs_minecraft_physics::Scratch;
@@ -34,12 +35,15 @@ use crate::entity_rows::wakes;
 use crate::front_grid::FrontGrid;
 use crate::front_grid::grid_row;
 use crate::mob_intent::MobIntent;
+use crate::mob_life::Placed;
 use crate::mob_moved::MobMoved;
 use crate::tile_at::tile_at;
 use crate::tile_world::TileWorld;
 
 /// The age at which an item or an experience orb despawns (AIT-VAN-018, AIT-VAN-019).
 const LIFETIME: u32 = 6000;
+/// The death time at which a dying entity leaves the world (DMG-DTH-003).
+const DEATH_TICKS: u8 = 20;
 
 const SERVER: Side = Side::Server { authority: true };
 
@@ -62,6 +66,8 @@ struct TileStep {
     /// The rows whose position is in another tile now.
     left: Vec<EntityId>,
     moved: Vec<MobMoved>,
+    /// The living rows of `expired`.
+    died: Vec<EntityId>,
 }
 
 impl EntityRows {
@@ -77,6 +83,7 @@ impl EntityRows {
         grid: &BodyGrid,
     ) -> Vec<EntityId> {
         self.moved.clear();
+        self.removed.clear();
         let bodies = FrontGrid {
             grid,
             reach: self.reach,
@@ -107,6 +114,10 @@ impl EntityRows {
                 self.written.insert(step.tile);
                 self.reach = self.reach.max(reach);
             }
+            self.removed.extend(step.died.into_iter().map(|id| Placed {
+                tile: step.tile,
+                id,
+            }));
             expired.extend(step.expired);
             self.moved.extend(step.moved);
             self.leaving.extend(step.left.into_iter().map(|id| Leaving {
@@ -135,15 +146,22 @@ fn tick_tile<W: CollisionWorld, B: BodyView>(
     let mut expired = Vec::new();
     let mut left = Vec::new();
     let mut moved = Vec::new();
+    let mut died = Vec::new();
     let mut intents = mem::take(&mut entry.intents);
     intents.sort_by_key(|intent| intent.target);
     let rules = PushRules::default();
     for row in rows.rows_mut() {
         let state = row.state;
-        if let Ok(at) = intents.binary_search_by_key(&row.id, |intent| intent.target)
-            && let (Some(intent), Some(living)) = (intents.get(at), state.living.as_mut())
-        {
-            apply_intent(intent, living);
+        if let Some(living) = state.living.as_mut() {
+            if !living.is_alive() {
+                living.steering = None;
+                living.input = MoveInput::default();
+                living.jump = false;
+            } else if let Ok(at) = intents.binary_search_by_key(&row.id, |intent| intent.target)
+                && let Some(intent) = intents.get(at)
+            {
+                apply_intent(intent, living);
+            }
         }
         let start = grid_row(state, row.motion, row.id);
         if loaded(view.world, state.body.position) {
@@ -181,7 +199,16 @@ fn tick_tile<W: CollisionWorld, B: BodyView>(
                 row.motion.category,
                 Category::Item | Category::ExperienceOrb
             );
-            if expires && state.age >= LIFETIME {
+            let dead = state.living.as_mut().is_some_and(count_down);
+            if state.living.is_some_and(|living| {
+                living.hurt_time > 0 || living.damage_cooldown > 0 || !living.is_alive()
+            }) {
+                state.rest = Rest::Awake;
+            }
+            if dead || (expires && state.age >= LIFETIME) {
+                if dead {
+                    died.push(row.id);
+                }
                 expired.push(row.id);
             } else if tile_at(state.body.position) != tile {
                 left.push(row.id);
@@ -198,7 +225,20 @@ fn tick_tile<W: CollisionWorld, B: BodyView>(
         expired,
         left,
         moved,
+        died,
     }
+}
+
+/// The damage counters and the death time of one tick (DMG-HIT-006, DMG-DTH-003). Gives true
+/// when the death time reaches its end and the entity leaves the world.
+fn count_down(living: &mut Living) -> bool {
+    living.hurt_time = living.hurt_time.saturating_sub(1);
+    living.damage_cooldown = living.damage_cooldown.saturating_sub(1);
+    let Some(death_time) = living.death_time.as_mut() else {
+        return false;
+    };
+    *death_time = death_time.saturating_add(1);
+    *death_time >= DEATH_TICKS
 }
 
 /// The rotations of a living row that its viewers see, as bits.
@@ -233,6 +273,8 @@ pub(crate) fn mob_state(state: &EntityState) -> MobState {
         pitch: living.pitch,
         head_yaw: living.head_yaw,
         on_ground: state.body.flags.on_ground,
+        health: living.health,
+        dying: !living.is_alive(),
     }
 }
 

@@ -17,6 +17,7 @@ use mcrs_minecraft_physics::TileRows;
 use crate::front_grid::grid_row;
 use crate::front_grid::sort_bodies;
 use crate::mob_intent::MobIntent;
+use crate::mob_life::Placed;
 use crate::mob_moved::Crossing;
 use crate::mob_moved::MobMoved;
 use crate::tile_at::tile_at;
@@ -41,6 +42,8 @@ pub struct EntityRows {
     pub(crate) moved: Vec<MobMoved>,
     /// The rows that the last tile moves took to another tile.
     pub(crate) crossed: Vec<Crossing>,
+    /// The living rows that left the world in the last pass at the end of their death.
+    pub(crate) removed: Vec<Placed>,
     /// The largest half width of a body that the grid ever held.
     pub(crate) reach: f32,
 }
@@ -85,6 +88,34 @@ impl EntityRows {
         let row = self.tiles.get_mut(&tile)?.rows.despawn_row(id)?;
         self.dirty.insert(tile);
         Some(row)
+    }
+
+    /// The id and the state of each living row, with its tile.
+    pub fn living_rows(&self) -> impl Iterator<Item = (Placed, &EntityState)> {
+        self.tiles.iter().flat_map(|(&tile, entry)| {
+            let rows = &entry.rows;
+            rows.ids()
+                .iter()
+                .zip(rows.states())
+                .filter(|(_, state)| state.living.is_some())
+                .map(move |(&id, state)| (Placed { tile, id }, state))
+        })
+    }
+
+    /// The state of the row `at`; `None` when the tile has no such row.
+    #[must_use]
+    pub fn state_of(&self, at: Placed) -> Option<&EntityState> {
+        let rows = &self.tiles.get(&at.tile)?.rows;
+        let row = rows.ids().iter().position(|&held| held == at.id)?;
+        rows.states().get(row)
+    }
+
+    /// The state of the row `at`, open to a writer outside the pass; `None` when the tile has no
+    /// such row. The tile writes its grid again at the next freeze.
+    pub fn state_mut(&mut self, at: Placed) -> Option<&mut EntityState> {
+        let row = self.tiles.get_mut(&at.tile)?.rows.row_mut(at.id)?;
+        self.dirty.insert(at.tile);
+        Some(row.state)
     }
 
     /// The rows of each tile, in tile order.

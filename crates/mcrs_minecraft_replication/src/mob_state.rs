@@ -10,4 +10,7 @@ pub struct MobState {
     pub pitch: f32,
     pub head_yaw: f32,
     pub on_ground: bool,
+    pub health: f32,
+    /// Whether the mob is in the dying state, whose pose is `dying`.
+    pub dying: bool,
 }

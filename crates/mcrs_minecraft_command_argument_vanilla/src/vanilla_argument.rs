@@ -1,4 +1,5 @@
 use crate::error::{ArgumentError, CommandSyntaxError};
+use crate::nbt_compound_argument::NbtCompoundArgument;
 use crate::vanilla_lookup::VanillaLookup;
 use core::fmt;
 use mcrs_command::{
@@ -75,6 +76,8 @@ pub enum VanillaArgument {
     Timeline(TimelineArgument),
     /// The name of a player that may not be online.
     PlayerName(PlayerNameArgument),
+    /// `minecraft:nbt_compound_tag`.
+    NbtCompound(NbtCompoundArgument),
 }
 
 macro_rules! variant_conversions {
@@ -122,6 +125,7 @@ variant_conversions! {
     TimeMarker(TimeMarkerArgument)
     Timeline(TimelineArgument)
     PlayerName(PlayerNameArgument)
+    NbtCompound(NbtCompoundArgument)
 }
 
 fn check<S, A: Argument<S>>(
@@ -171,6 +175,7 @@ impl<L: VanillaLookup> ArgumentSet<Source<'_, L>> for VanillaArgument {
             VanillaArgument::TimeMarker(argument) => check(argument, reader, source),
             VanillaArgument::Timeline(argument) => check(argument, reader, source),
             VanillaArgument::PlayerName(argument) => check(argument, reader, source),
+            VanillaArgument::NbtCompound(argument) => check(argument, reader, source),
         }
     }
 
@@ -203,7 +208,8 @@ impl<L: VanillaLookup> ArgumentSet<Source<'_, L>> for VanillaArgument {
             | VanillaArgument::Double(_)
             | VanillaArgument::String(_)
             | VanillaArgument::Rotation(_)
-            | VanillaArgument::ResourceLocationBuf(_) => {}
+            | VanillaArgument::ResourceLocationBuf(_)
+            | VanillaArgument::NbtCompound(_) => {}
         }
     }
 }
@@ -220,7 +226,7 @@ fn limits<T: Copy>(range: &NumberRange<T>, any: (T, T)) -> (T, T) {
 }
 
 /// The arguments with no properties on the wire, each told apart by its parser id alone.
-const UNIT_ARGUMENTS: [VanillaArgument; 10] = [
+const UNIT_ARGUMENTS: [VanillaArgument; 11] = [
     VanillaArgument::Vec3(Vec3Argument),
     VanillaArgument::Rotation(RotationArgument),
     VanillaArgument::ResourceLocationBuf(ResourceLocationArgument),
@@ -231,6 +237,7 @@ const UNIT_ARGUMENTS: [VanillaArgument; 10] = [
     VanillaArgument::Swizzle(SwizzleArgument),
     VanillaArgument::Heightmap(HeightmapArgument),
     VanillaArgument::BlockPredicate(BlockPredicateArgument),
+    VanillaArgument::NbtCompound(NbtCompoundArgument),
 ];
 
 /// The parser of an argument has no id in the `command_argument_type` registry.
@@ -422,6 +429,7 @@ impl WireArgument for VanillaArgument {
                 parser::BRIGADIER_STRING,
                 ParserProperties::String(StringMode::Word),
             ),
+            VanillaArgument::NbtCompound(_) => (parser::NBT_COMPOUND_TAG, ParserProperties::None),
         };
         Ok(ArgumentParser {
             id: parser_id(key)?,
@@ -567,6 +575,7 @@ mod tests {
             "minecraft:swizzle",
             "minecraft:heightmap",
             "minecraft:block_predicate",
+            "minecraft:nbt_compound_tag",
         ];
         arguments.extend(UNIT_ARGUMENTS.into_iter().zip(unit_names));
         for (argument, name) in arguments {

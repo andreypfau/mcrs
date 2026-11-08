@@ -161,7 +161,10 @@ impl PlayerCodec {
             match event {
                 EntityEvent::Spawn(PlayerData::Spawn(spawn)) => self.join(subject, spawn),
                 EntityEvent::Spawn(PlayerData::MobSpawn(spawn)) => {
-                    self.mobs.spawn(subject, spawn, self.tick)?;
+                    self.mobs.spawn(subject, spawn, self.tick);
+                }
+                EntityEvent::Data(PlayerData::MobSignal(signal)) => {
+                    self.mobs.signal(subject, *signal)?;
                 }
                 EntityEvent::Move(PlayerData::MobMove(state)) => self.mobs.record(subject, *state),
                 EntityEvent::Enter { .. } | EntityEvent::Despawn if self.mobs.contains(subject) => {
@@ -403,7 +406,10 @@ impl ReplicationCodec for PlayerCodec {
                     tracing::warn!("a spawn bundle did not encode: {error:#}");
                 }
             }
-            Hold::Lose { subjects } => chunks.extend(self.release_all(viewer, subjects)),
+            Hold::Lose { subjects } => {
+                self.mobs.farewell(viewer, subjects, chunks);
+                chunks.extend(self.release_all(viewer, subjects));
+            }
             Hold::Forget => {
                 self.owed.remove(&viewer);
                 self.mobs.forget(viewer);

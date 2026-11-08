@@ -3,13 +3,16 @@ use std::collections::{BTreeMap, BTreeSet};
 use bytes::{Bytes, BytesMut};
 use mcrs_engine_muxer::{EntityId, ViewerId};
 use mcrs_minecraft_mob::MobType;
-use mcrs_minecraft_protocol::Result;
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundBundleDelimiter;
+use mcrs_minecraft_protocol::{Result, VarInt};
+use mcrs_minecraft_protocol_game::clientbound::{ClientboundDamageEvent, ClientboundEntityEvent};
 use rustc_hash::FxHashMap;
 use uuid::Uuid;
 
 use crate::encode::record;
 use crate::mob_bundle::spawn_extras;
+use crate::mob_looks::MobLooks;
+use crate::mob_signal::MobSignal;
 use crate::mob_spawn::MobSpawn;
 use crate::mob_state::MobState;
 use crate::mob_tracker::MobTracker;
@@ -26,15 +29,19 @@ pub(crate) struct MobTrackers {
     holds: BTreeMap<ViewerId, BTreeSet<EntityId>>,
     delimiter: Option<Bytes>,
     scratch: BytesMut,
+    /// The signals of the tick, as records, in the order of their causes.
+    signals: Vec<(EntityId, Bytes)>,
+    /// The viewers that held each mob that left the world in this tick. They get its signals
+    /// before its removal.
+    farewells: FxHashMap<EntityId, Vec<ViewerId>>,
 }
 
 #[derive(Debug)]
 struct Mob {
     kind: MobType,
     uuid: Uuid,
+    looks: MobLooks,
     tracker: MobTracker,
-    /// The entity data and the attributes of the spawn bundle, as records.
-    extras: Bytes,
     /// Sorted.
     holders: Vec<ViewerId>,
 }
@@ -44,19 +51,63 @@ impl MobTrackers {
         self.mobs.contains_key(&subject)
     }
 
-    pub(crate) fn spawn(&mut self, subject: EntityId, spawn: &MobSpawn, tick: u64) -> Result<()> {
-        let extras = spawn_extras(wire_id(subject), spawn.kind, &spawn.looks)?;
+    pub(crate) fn spawn(&mut self, subject: EntityId, spawn: &MobSpawn, tick: u64) {
         self.mobs.insert(
             subject,
             Mob {
                 kind: spawn.kind,
                 uuid: spawn.uuid,
+                looks: spawn.looks,
                 tracker: MobTracker::new(spawn.state, spawn.kind.update_interval(), tick),
-                extras,
                 holders: Vec::new(),
             },
         );
+    }
+
+    /// Queues `signal` of `subject` for the clients that hold it at the end of the tick.
+    pub(crate) fn signal(&mut self, subject: EntityId, signal: MobSignal) -> Result<()> {
+        if !self.held.contains(&subject) {
+            return Ok(());
+        }
+        let entity_id = wire_id(subject);
+        let event = |entity_status| {
+            record(&ClientboundEntityEvent {
+                entity_id: entity_id.0,
+                entity_status,
+            })
+        };
+        let packet = match signal {
+            MobSignal::Hurt { damage_type } => record(&ClientboundDamageEvent {
+                entity_id,
+                damage_type: VarInt(i32::try_from(damage_type).unwrap_or(i32::MAX)),
+                cause_entity_id: VarInt(0),
+                direct_entity_id: VarInt(0),
+                source_position: None,
+            })?,
+            MobSignal::Died => event(3)?,
+            MobSignal::Removed => event(60)?,
+        };
+        self.signals.push((subject, packet));
         Ok(())
+    }
+
+    /// Appends the signals of the tick of each mob of `subjects` that left the world, for the
+    /// client of `viewer`, before the removal of the mobs.
+    pub(crate) fn farewell(
+        &self,
+        viewer: ViewerId,
+        subjects: &[EntityId],
+        chunks: &mut Vec<Bytes>,
+    ) {
+        for (subject, packet) in &self.signals {
+            let held = self
+                .farewells
+                .get(subject)
+                .is_some_and(|holders| holders.contains(&viewer));
+            if held && subjects.contains(subject) {
+                chunks.push(packet.clone());
+            }
+        }
     }
 
     pub(crate) fn record(&mut self, subject: EntityId, state: MobState) {
@@ -71,6 +122,7 @@ impl MobTrackers {
             return;
         };
         self.held.remove(&subject);
+        self.farewells.insert(subject, mob.holders.clone());
         for viewer in mob.holders {
             if let Some(held) = self.holds.get_mut(&viewer) {
                 held.remove(&subject);
@@ -105,12 +157,11 @@ impl MobTrackers {
         if mob.holders.is_empty() && mob.tracker.is_stale(tick) {
             mob.tracker.restart();
         }
-        let add = record(&mob.tracker.add_entity(
-            wire_id(subject),
-            mob.uuid,
-            mob.kind.entity_type(),
-        ))?;
-        chunks.extend([delimiter.clone(), add, mob.extras.clone(), delimiter]);
+        let id = wire_id(subject);
+        let add = record(&mob.tracker.add_entity(id, mob.uuid, mob.kind.entity_type()))?;
+        let (health, dying) = mob.tracker.sent_data();
+        let extras = spawn_extras(id, mob.kind, &mob.looks, health, dying)?;
+        chunks.extend([delimiter.clone(), add, extras, delimiter]);
         if let Err(at) = mob.holders.binary_search(&viewer) {
             mob.holders.insert(at, viewer);
         }
@@ -150,8 +201,18 @@ impl MobTrackers {
             mobs,
             held,
             scratch,
+            signals,
+            farewells,
             ..
         } = self;
+        for (subject, packet) in signals.drain(..) {
+            if let Some(mob) = mobs.get(&subject) {
+                for &viewer in &mob.holders {
+                    owe(viewer, packet.clone());
+                }
+            }
+        }
+        farewells.clear();
         for subject in held.iter() {
             let Some(mob) = mobs.get_mut(subject) else {
                 continue;

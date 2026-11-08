@@ -19,10 +19,10 @@ use mcrs_minecraft_protocol::packets::table::game_clientbound::ClientboundGamePa
 use mcrs_minecraft_protocol::uuid::Uuid;
 use mcrs_minecraft_protocol::{Bounded, Decode, VarInt};
 use mcrs_minecraft_protocol_game::clientbound::{PositionPath, VecDelta};
-use mcrs_minecraft_protocol_game::entity::MetaDataValue;
+use mcrs_minecraft_protocol_game::entity::{MetaDataValue, Pose};
 use mcrs_minecraft_protocol_game::serverbound::ServerboundChatCommand;
 use mcrs_minecraft_protocol_game::table::game_clientbound::{self, ClientboundGamePacket};
-use mcrs_minecraft_protocol_game::text::TextContent;
+use mcrs_minecraft_protocol_game::text::{Text, TextContent, TranslateArg};
 use mcrs_minecraft_server::VanillaEntityPhysicsPlugin;
 
 use crate::commands::{chats, load_stone_column};
@@ -58,6 +58,20 @@ enum Seen {
     },
     Motion {
         id: i32,
+    },
+    Event {
+        id: i32,
+        event: i8,
+    },
+    Hurt {
+        id: i32,
+    },
+    Dying {
+        id: i32,
+        health: Option<f32>,
+    },
+    Remove {
+        ids: Vec<i32>,
     },
 }
 
@@ -138,13 +152,35 @@ impl Viewer {
                     pos: add.pos,
                 }
             }
-            ClientboundGamePacket::ClientboundSetEntityData(data) => Seen::Data {
-                id: data.entity_id.0,
-                health: data.metadata.0.iter().find_map(|entry| match entry.value {
+            ClientboundGamePacket::ClientboundSetEntityData(data) => {
+                let id = data.entity_id.0;
+                let health = data.metadata.0.iter().find_map(|entry| match entry.value {
                     MetaDataValue::Float(health) if entry.index == 9 => Some(health),
                     _ => None,
-                }),
+                });
+                let dying = data
+                    .metadata
+                    .0
+                    .iter()
+                    .any(|entry| matches!(entry.value, MetaDataValue::Pose(Pose::Dying)));
+                if dying {
+                    Seen::Dying { id, health }
+                } else {
+                    Seen::Data { id, health }
+                }
+            }
+            ClientboundGamePacket::ClientboundEntityEvent(event) => Seen::Event {
+                id: event.entity_id,
+                event: event.entity_status,
             },
+            ClientboundGamePacket::ClientboundDamageEvent(event) => Seen::Hurt {
+                id: event.entity_id.0,
+            },
+            ClientboundGamePacket::ClientboundRemoveEntities(remove) => {
+                let ids: Vec<i32> = remove.entity_ids.iter().map(|id| id.0).collect();
+                self.positions.retain(|(id, _)| !ids.contains(id));
+                Seen::Remove { ids }
+            }
             ClientboundGamePacket::ClientboundUpdateAttributes(update) => Seen::Attributes {
                 id: update.entity_id.0,
                 speed: update
@@ -298,4 +334,169 @@ fn trk_spn_001_a_summoned_pig_reaches_a_viewer_as_one_bundle_and_falls_onto_the_
         [(id, rows[0])],
         "the client shows the row"
     );
+}
+
+/// The translation key of `message` and the plain text of each of its arguments.
+fn translated(message: &Text) -> (String, Vec<String>) {
+    let TextContent::Translate {
+        translate, with, ..
+    } = &message.content
+    else {
+        panic!("a translated message: {message:?}");
+    };
+    let args = with
+        .iter()
+        .map(|arg| match arg {
+            TranslateArg::Text(text) => text.to_legacy_lossy(),
+            TranslateArg::Number(number) => format!("{number:?}"),
+            TranslateArg::Bool(value) => value.to_string(),
+        })
+        .collect();
+    (translate.to_string(), args)
+}
+
+fn run(
+    server: &mut PlayServer,
+    operator: Entity,
+    viewer: &mut Viewer,
+    line: &str,
+) -> (String, Vec<String>) {
+    let packets = server.send(
+        operator,
+        &ServerboundChatCommand {
+            command: Bounded(line),
+        },
+    );
+    let reply = chats(&packets)
+        .pop()
+        .unwrap_or_else(|| panic!("{line} replies"));
+    viewer.receive(packets);
+    translated(&reply)
+}
+
+/// CMD-EX-?, CMD-DMG-003, CMD-KILL-002 to CMD-KILL-005, TRK-SUM-005: `@e` finds the summoned
+/// pigs by type and by name, a hit of 0 hurts with no health loss, and a kill leaves each pig
+/// dying for 20 ticks before its removal reaches the viewer.
+#[test]
+fn cmd_kill_summoned_pigs_are_found_hurt_killed_and_removed_after_their_death_time() {
+    let mut server = start();
+    load_stone_column(&mut server);
+    let (operator, _) = server.join(OPERATOR, "op");
+    let mut viewer = Viewer::new();
+    viewer.receive(server.ticks(operator, 2));
+    for (index, x) in [2, 4, 6].into_iter().enumerate() {
+        let line =
+            format!("summon minecraft:pig {x} 64 4 {{CustomName:\"mbs{index}\",Tags:[\"bench\"]}}");
+        let (key, _) = run(&mut server, operator, &mut viewer, &line);
+        assert_eq!(key, "commands.summon.success", "{line}");
+    }
+    viewer.receive(server.ticks(operator, 5));
+
+    assert_eq!(
+        run(
+            &mut server,
+            operator,
+            &mut viewer,
+            "execute if entity @e[type=minecraft:pig,tag=bench]"
+        ),
+        (
+            "commands.execute.conditional.pass_count".into(),
+            vec!["3".into()]
+        )
+    );
+    let (key, args) = run(
+        &mut server,
+        operator,
+        &mut viewer,
+        "data get entity @e[name=mbs1,limit=1] Pos",
+    );
+    assert_eq!(
+        (key.as_str(), args[0].as_str()),
+        ("commands.data.entity.query", "mbs1")
+    );
+    assert_eq!(args[1], "[4.5d, 64.0d, 4.5d]");
+
+    let (key, _) = run(
+        &mut server,
+        operator,
+        &mut viewer,
+        "execute as @e[type=minecraft:pig,name=mbs0] run damage @s 0 minecraft:cactus",
+    );
+    assert_eq!(key, "commands.damage.success");
+    let (key, _) = run(
+        &mut server,
+        operator,
+        &mut viewer,
+        "damage @e[name=mbs0,limit=1] 0 minecraft:cactus",
+    );
+    assert_eq!(
+        key, "commands.damage.invulnerable",
+        "the cooldown rejects a second hit of 0"
+    );
+
+    let (key, args) = run(
+        &mut server,
+        operator,
+        &mut viewer,
+        "kill @e[type=minecraft:pig]",
+    );
+    assert_eq!(
+        (key.as_str(), args),
+        ("commands.kill.success.multiple", vec!["Int(3)".to_owned()])
+    );
+    let (key, _) = run(
+        &mut server,
+        operator,
+        &mut viewer,
+        "execute if entity @e[type=minecraft:pig]",
+    );
+    assert_eq!(
+        key, "commands.execute.conditional.fail",
+        "a dying pig is not selected"
+    );
+    viewer.receive(server.ticks(operator, 25));
+
+    let mobs = server.world().resource::<Mobs>().0.len();
+    assert_eq!(mobs, 0, "the pigs left the world");
+    assert!(pig_rows(&mut server).is_empty(), "and their rows");
+    let ids: Vec<i32> = viewer
+        .seen
+        .iter()
+        .filter_map(|seen| match seen {
+            Seen::Add { id, .. } => Some(*id),
+            _ => None,
+        })
+        .collect();
+    let hurt = ids[0];
+    assert!(
+        viewer.seen.contains(&Seen::Hurt { id: hurt }),
+        "the hit sends damage_event"
+    );
+    for &id in &ids {
+        let died = viewer
+            .seen
+            .iter()
+            .position(|seen| *seen == Seen::Event { id, event: 3 });
+        let dying = viewer.seen.iter().position(|seen| {
+            *seen
+                == Seen::Dying {
+                    id,
+                    health: Some(0.0),
+                }
+        });
+        let poof = viewer
+            .seen
+            .iter()
+            .position(|seen| *seen == Seen::Event { id, event: 60 });
+        let removed = viewer
+            .seen
+            .iter()
+            .position(|seen| matches!(seen, Seen::Remove { ids } if ids.contains(&id)));
+        assert!(
+            died < dying && dying < poof && poof < removed && died.is_some(),
+            "{id}: the death event, the dying pose, the smoke, then the removal: {:?}",
+            [died, dying, poof, removed]
+        );
+    }
+    assert!(viewer.positions.is_empty(), "the client holds no pig");
 }

@@ -6,12 +6,15 @@ use mcrs_minecraft_protocol::{Result, VarInt, write_record};
 use mcrs_minecraft_protocol_game::clientbound::{
     ClientboundAddEntity, ClientboundEntityPositionSync, ClientboundMoveEntityPos,
     ClientboundMoveEntityPosRot, ClientboundMoveEntityRot, ClientboundRotateHead,
-    ClientboundSetEntityMotion, DeltaStep, PositionPath, PositionStep, VecDelta,
+    ClientboundSetEntityData, ClientboundSetEntityMotion, DeltaStep, PositionPath, PositionStep,
+    VecDelta,
 };
+use mcrs_minecraft_protocol_game::entity::Metadata;
 use mcrs_minecraft_protocol_game::{ByteAngle, LpVec3};
 use uuid::Uuid;
 
 use crate::delta_base::{all_or_nothing, position_delta};
+use crate::mob_bundle::{health_entry, pose_entry};
 use crate::mob_state::MobState;
 
 /// The squared move, in blocks, from which the position counts as changed (TRK-UPD-003).
@@ -40,6 +43,8 @@ pub(crate) struct MobTracker {
     pitch: ByteAngle,
     head_yaw: ByteAngle,
     on_ground: bool,
+    health: f32,
+    dying: bool,
     /// The updates since the last `entity_position_sync`.
     since_sync: u32,
     /// The tracker ticks of the open step.
@@ -60,6 +65,8 @@ impl MobTracker {
             pitch: ByteAngle::default(),
             head_yaw: ByteAngle::default(),
             on_ground: state.on_ground,
+            health: state.health,
+            dying: state.dying,
             since_sync: 0,
             open: 0,
         };
@@ -69,6 +76,11 @@ impl MobTracker {
 
     pub(crate) fn latest(&self) -> &MobState {
         &self.latest
+    }
+
+    /// The health and the dying state that the viewers last received.
+    pub(crate) fn sent_data(&self) -> (f32, bool) {
+        (self.health, self.dying)
     }
 
     pub(crate) fn record(&mut self, state: MobState) {
@@ -91,8 +103,15 @@ impl MobTracker {
         self.pitch = ByteAngle::from_degrees(state.pitch);
         self.head_yaw = ByteAngle::from_degrees(state.head_yaw);
         self.on_ground = state.on_ground;
+        self.health = state.health;
+        self.dying = state.dying;
         self.since_sync = 0;
         self.open = 0;
+    }
+
+    /// Whether an entity data entry changed after the tracker last sent it (TRK-DATA-005).
+    fn dirty(&self) -> bool {
+        self.latest.health.to_bits() != self.health.to_bits() || self.latest.dying != self.dying
     }
 
     /// The `add_entity` of the spawn bundle: the base and the last sent velocity and angles.
@@ -119,7 +138,7 @@ impl MobTracker {
     /// `bytes`. The tracker and `bytes` stay as they are when an encoding fails.
     pub(crate) fn tick(&mut self, id: VarInt, tick: u64, bytes: &mut BytesMut) -> Result<()> {
         let count = tick.wrapping_sub(self.start);
-        if count % self.interval == 0 {
+        if count % self.interval == 0 || self.dirty() {
             let mut next = self.clone();
             all_or_nothing(bytes, |bytes| next.update(id, count, bytes))?;
             *self = next;
@@ -207,6 +226,24 @@ impl MobTracker {
         } else {
             self.since_sync.saturating_add(1)
         };
+        if self.dirty() {
+            let mut entries = Vec::new();
+            if state.dying != self.dying {
+                entries.push(pose_entry());
+            }
+            if state.health.to_bits() != self.health.to_bits() {
+                entries.push(health_entry(state.health));
+            }
+            write_record(
+                bytes,
+                &ClientboundSetEntityData {
+                    entity_id: id,
+                    metadata: Metadata(entries),
+                },
+            )?;
+            self.health = state.health;
+            self.dying = state.dying;
+        }
         let head_yaw = ByteAngle::from_degrees(state.head_yaw);
         if head_yaw != self.head_yaw {
             write_record(

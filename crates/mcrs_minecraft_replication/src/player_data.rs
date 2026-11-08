@@ -1,4 +1,5 @@
 use crate::delta_base::Pose;
+use crate::mob_signal::MobSignal;
 use crate::mob_spawn::MobSpawn;
 use crate::mob_state::MobState;
 use crate::player_spawn::PlayerSpawn;
@@ -25,4 +26,5 @@ pub enum PlayerData {
     MobSpawn(MobSpawn),
     /// The state of a mob at the end of a tick in which it changed.
     MobMove(MobState),
+    MobSignal(MobSignal),
 }

@@ -21,6 +21,7 @@ use mcrs_minecraft_physics::MotionRow;
 use mcrs_minecraft_registries::CurrentRegistries;
 use mcrs_minecraft_registries::Registries;
 use mcrs_minecraft_replication::MobLooks;
+use mcrs_minecraft_replication::MobSignal;
 use mcrs_minecraft_replication::MobState;
 use mcrs_minecraft_replication::MobVariant;
 use mcrs_minecraft_resource::Id;
@@ -40,7 +41,16 @@ const LEFT_HANDED: f64 = 0.05;
 #[derive(Resource, Debug, Default)]
 pub struct MobChanges {
     pub(crate) spawned: Vec<Spawned>,
-    pub(crate) despawned: Vec<Despawned>,
+    /// The rows that a command changed outside the pass.
+    pub(crate) touched: Vec<Placed>,
+    pub(crate) signals: Vec<Signaled>,
+}
+
+/// What a mob shows its viewers in the tick, besides its state.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct Signaled {
+    pub(crate) at: Placed,
+    pub(crate) signal: MobSignal,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -49,10 +59,11 @@ pub(crate) struct Spawned {
     pub(crate) state: MobState,
 }
 
-#[derive(Clone, Copy, Debug)]
-pub(crate) struct Despawned {
-    pub(crate) id: EntityId,
-    pub(crate) tile: TileKey,
+/// A row and its tile.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Placed {
+    pub tile: TileKey,
+    pub id: EntityId,
 }
 
 /// The motion row of a mob of `kind`: a walker with the adult box of the type.
@@ -71,6 +82,7 @@ pub fn mob_row(kind: MobType) -> MotionRow {
 pub fn mob_body(kind: MobType, row: &MotionRow, key: Birth, position: DVec3) -> EntityState {
     let mut living = Living::of(row);
     living.attributes.movement_speed = kind.movement_speed();
+    living.health = kind.max_health();
     let body = Body {
         position,
         ..Body::default()
@@ -91,7 +103,7 @@ pub(crate) fn spawn_mobs(
     mut mobs: ResMut<Mobs>,
     mut changes: ResMut<MobChanges>,
 ) {
-    let mut batch: Vec<MobSpawnRequest> = requests.read().copied().collect();
+    let mut batch: Vec<MobSpawnRequest> = requests.read().cloned().collect();
     if batch.is_empty() {
         return;
     }
@@ -109,7 +121,7 @@ pub(crate) fn spawn_mobs(
             Birth::from(request.key),
             request.position,
         );
-        let looks = match request.setup {
+        let mut looks = match request.setup {
             SpawnSetup::First => first_looks(
                 request.kind,
                 &KeyedStream::new(&request.key, clock.0),
@@ -117,6 +129,7 @@ pub(crate) fn spawn_mobs(
             ),
             SpawnSetup::None => MobLooks::default(),
         };
+        looks.no_ai = request.extras.no_ai;
         changes.spawned.push(Spawned {
             id,
             state: mob_state(&state),
@@ -128,6 +141,9 @@ pub(crate) fn spawn_mobs(
                 kind: request.kind,
                 uuid: request.uuid,
                 looks,
+                custom_name: request.extras.custom_name,
+                tags: request.extras.tags,
+                last_hit: None,
             },
         );
     }

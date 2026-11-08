@@ -77,6 +77,14 @@ pub struct Selector<'a> {
     pub(crate) options: Option<usize>,
 }
 
+impl Selector<'_> {
+    /// Whether the selector can find an entity that is not a player.
+    #[must_use]
+    pub fn includes_entities(&self) -> bool {
+        self.includes_entities
+    }
+}
+
 pub(crate) struct KindEntry {
     pub(crate) text: &'static str,
     pub(crate) tooltip: &'static str,

@@ -1,8 +1,11 @@
+use crate::mob_view::{MobTarget, MobView};
 use crate::set::VanillaContext;
 use bevy_math::DVec3;
 use mcrs_command::ArgumentHandle;
 use mcrs_minecraft_command::ErrorText;
-use mcrs_minecraft_command_argument_entity::{Candidate, EntityArgument, EntityBounds};
+use mcrs_minecraft_command_argument_entity::{
+    Candidate, EntityArgument, EntityBounds, SelectorKind, Target,
+};
 use mcrs_minecraft_command_engine::{CommandFailure, Invocation, PlayerEntry};
 use mcrs_minecraft_engine_world::session::PlayerSession;
 use mcrs_minecraft_entity::entity_type_keys::EntityType;
@@ -10,13 +13,14 @@ use mcrs_minecraft_entity::{PLAYER_HEIGHT, PLAYER_WIDTH};
 use mcrs_minecraft_game_mode::GameMode;
 use mcrs_minecraft_protocol::uuid::Uuid;
 
-/// The players a selector found, which a handler keeps between its runs so that a search
-/// allocates only when it finds more players than every search before it.
+/// The entities a selector found, which a handler keeps between its runs so that a search
+/// allocates only when it finds more entities than every search before it.
 #[derive(Default)]
 pub(crate) struct FoundPlayers {
     found: Vec<&'static PlayerEntry>,
-    candidates: Vec<PlayerCandidate<'static>>,
-    picked: Vec<&'static PlayerCandidate<'static>>,
+    mobs: Vec<MobTarget>,
+    candidates: Vec<EntityCandidate<'static>>,
+    picked: Vec<&'static EntityCandidate<'static>>,
 }
 
 impl FoundPlayers {
@@ -24,26 +28,37 @@ impl FoundPlayers {
     pub(crate) fn with<'c, R>(&mut self, search: impl FnOnce(&mut Selection<'c>) -> R) -> R {
         let mut selection = Selection {
             found: mcrs_command::recycle(core::mem::take(&mut self.found)),
+            mobs: core::mem::take(&mut self.mobs),
             candidates: mcrs_command::recycle(core::mem::take(&mut self.candidates)),
             picked: core::mem::take(&mut self.picked),
         };
         let result = search(&mut selection);
         self.found = mcrs_command::recycle(selection.found);
+        self.mobs = selection.mobs;
         self.candidates = mcrs_command::recycle(selection.candidates);
         self.picked = selection.picked;
         result
     }
 }
 
-/// The players a search found, and the buffers the search reuses.
+/// The entities a search found, players and mobs apart, and the buffers the search reuses.
 pub(crate) struct Selection<'c> {
     pub(crate) found: Vec<&'c PlayerEntry>,
-    candidates: Vec<PlayerCandidate<'c>>,
-    picked: Vec<&'static PlayerCandidate<'static>>,
+    /// The mobs of this world, in the order of the selector.
+    pub(crate) mobs: Vec<MobTarget>,
+    candidates: Vec<EntityCandidate<'c>>,
+    picked: Vec<&'static EntityCandidate<'static>>,
 }
 
-/// The players a selector argument finds in every dimension, in
-/// `out`, or the failure of its search.
+impl Selection<'_> {
+    /// The number of players and mobs found.
+    pub(crate) fn len(&self) -> usize {
+        self.found.len().saturating_add(self.mobs.len())
+    }
+}
+
+/// The entities a selector argument finds: the players in every dimension and the mobs of this
+/// world, in `out`, or the failure of its search.
 pub(crate) fn select<'c>(
     context: &'c VanillaContext,
     call: &Invocation,
@@ -68,14 +83,31 @@ fn select_if_present<'c>(
     };
     let source = context.source(call)?;
     let targets = context.targets();
-    let me = call
-        .source
-        .player
-        .and_then(|session| targets.player(session))
-        .map(PlayerCandidate);
+    let dimension = targets
+        .dimension_of(call.source.dimension)
+        .unwrap_or_default();
+    let me = match (call.source.player, call.source.mob) {
+        (Some(session), _) => targets.player(session).map(EntityCandidate::Player),
+        (None, Some(mob)) => context
+            .lookup()
+            .mob(mob)
+            .map(|view| EntityCandidate::Mob { view, dimension }),
+        (None, None) => None,
+    };
     let mut random = |bound: usize| rand::random_range(0..bound.max(1));
     let mut candidates = mcrs_command::recycle(core::mem::take(&mut out.candidates));
-    candidates.extend(targets.players().iter().map(PlayerCandidate));
+    let searches = !matches!(selector.target, Target::Kind(SelectorKind::SelfEntity));
+    if searches {
+        candidates.extend(targets.players().iter().map(EntityCandidate::Player));
+        if selector.includes_entities() {
+            candidates.extend(
+                context
+                    .lookup()
+                    .mobs()
+                    .map(|view| EntityCandidate::Mob { view, dimension }),
+            );
+        }
+    }
     let mut picked = mcrs_command::recycle(core::mem::take(&mut out.picked));
     let selected = selector.select(
         &source,
@@ -85,8 +117,13 @@ fn select_if_present<'c>(
         &mut picked,
     );
     out.found.clear();
-    out.found
-        .extend(picked.iter().map(|&&PlayerCandidate(player)| player));
+    out.mobs.clear();
+    for candidate in &picked {
+        match candidate {
+            EntityCandidate::Player(player) => out.found.push(player),
+            EntityCandidate::Mob { view, .. } => out.mobs.push(view.target()),
+        }
+    }
     out.picked = mcrs_command::recycle(picked);
     candidates.clear();
     out.candidates = candidates;
@@ -132,76 +169,131 @@ pub(crate) fn targets_or_self<'c>(
 ) -> Result<(), CommandFailure> {
     if !select_if_present(context, call, arg, out)? {
         out.found.clear();
+        out.mobs.clear();
         let source = call.source.player;
         out.found
             .extend(source.and_then(|session| context.targets().player(session)));
+        if let Some(mob) = call.source.mob.and_then(|mob| context.lookup().mob(mob)) {
+            out.mobs.push(mob.target());
+            return Ok(());
+        }
         return needs.require(source, out.found.first());
     }
-    if out.found.is_empty() {
+    if out.len() == 0 {
         return Err(CommandFailure::translate(none_found, vec![]));
     }
     Ok(())
 }
 
-/// A player as an entity selector sees it. The engine that owns [`PlayerEntry`] does not know
-/// the selector crate, so the candidate is a view of the entry.
+/// An entity as a selector sees it: a player of any dimension, or a mob of this world. The engine
+/// that owns [`PlayerEntry`] does not know the selector crate, so the candidate is a view.
 #[derive(Clone, Copy)]
-struct PlayerCandidate<'c>(&'c PlayerEntry);
+enum EntityCandidate<'c> {
+    Player(&'c PlayerEntry),
+    Mob {
+        view: MobView<'c>,
+        /// The position of this world in the dimension order.
+        dimension: usize,
+    },
+}
 
-impl Candidate for PlayerCandidate<'_> {
+impl Candidate for EntityCandidate<'_> {
     fn uuid(&self) -> Uuid {
-        self.0.uuid
+        match self {
+            Self::Player(player) => player.uuid,
+            Self::Mob { view, .. } => view.uuid(),
+        }
     }
 
     fn name(&self) -> &str {
-        &self.0.name
+        match self {
+            Self::Player(player) => &player.name,
+            Self::Mob { view, .. } => view.mob.custom_name.as_deref().unwrap_or_default(),
+        }
     }
 
     fn entity_type(&self) -> EntityType {
-        EntityType::Player
+        match self {
+            Self::Player(_) => EntityType::Player,
+            Self::Mob { view, .. } => view.entity_type(),
+        }
     }
 
     fn position(&self) -> DVec3 {
-        self.0.transform.translation
+        match self {
+            Self::Player(player) => player.transform.translation,
+            Self::Mob { view, .. } => view.state.body.position,
+        }
     }
 
     fn bounding_box(&self) -> EntityBounds {
-        let half = DVec3::new(PLAYER_WIDTH / 2.0, 0.0, PLAYER_WIDTH / 2.0);
-        let position = self.0.transform.translation;
+        let (position, width, height) = match self {
+            Self::Player(player) => (player.transform.translation, PLAYER_WIDTH, PLAYER_HEIGHT),
+            Self::Mob { view, .. } => {
+                let [width, height] = view.mob.kind.size();
+                (
+                    view.state.body.position,
+                    f64::from(width),
+                    f64::from(height),
+                )
+            }
+        };
+        let half = DVec3::new(width / 2.0, 0.0, width / 2.0);
         EntityBounds {
             min: position - half,
-            max: position + half + DVec3::Y * PLAYER_HEIGHT,
+            max: position + half + DVec3::Y * height,
         }
     }
 
     fn yaw(&self) -> f32 {
-        self.0.transform.rotation.yaw()
+        match self {
+            Self::Player(player) => player.transform.rotation.yaw(),
+            Self::Mob { view, .. } => view.target().yaw,
+        }
     }
 
     fn pitch(&self) -> f32 {
-        self.0.transform.rotation.pitch()
+        match self {
+            Self::Player(player) => player.transform.rotation.pitch(),
+            Self::Mob { view, .. } => view.target().pitch,
+        }
     }
 
     fn game_mode(&self) -> Option<GameMode> {
-        Some(self.0.mode)
+        match self {
+            Self::Player(player) => Some(player.mode),
+            Self::Mob { .. } => None,
+        }
     }
 
-    // chisle: experience, tags and teams have no state in the server yet: every player is at
-    // level 0, has no tag and no team. Their components lift it.
+    // chisle: experience, player tags and teams have no state in the server yet: every player is
+    // at level 0, has no tag and no team. Their components lift it.
     fn experience_level(&self) -> Option<i32> {
-        Some(0)
+        match self {
+            Self::Player(_) => Some(0),
+            Self::Mob { .. } => None,
+        }
     }
 
     fn alive(&self) -> bool {
-        true
+        match self {
+            Self::Player(_) => true,
+            Self::Mob { view, .. } => view.alive(),
+        }
     }
 
-    fn has_tag(&self, _: &str) -> bool {
-        false
+    fn has_tag(&self, tag: &str) -> bool {
+        match self {
+            Self::Player(_) => false,
+            Self::Mob { view, .. } => view.mob.tags.iter().any(|held| held == tag),
+        }
     }
 
     fn has_any_tag(&self) -> bool {
-        false
+        match self {
+            Self::Player(_) => false,
+            Self::Mob { view, .. } => !view.mob.tags.is_empty(),
+        }
     }
 
     fn team(&self) -> Option<&str> {
@@ -209,7 +301,10 @@ impl Candidate for PlayerCandidate<'_> {
     }
 
     fn dimension(&self) -> usize {
-        self.0.dimension
+        match self {
+            Self::Player(player) => player.dimension,
+            Self::Mob { dimension, .. } => *dimension,
+        }
     }
 }
 
