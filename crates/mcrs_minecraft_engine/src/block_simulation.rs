@@ -472,16 +472,15 @@ fn run_block_simulation<B: BlockBehaviour<WorldKinds> + BlockDrops + Send + 'sta
     let mut broadcast_cut = 0;
     for (phase, messages, chains) in phases {
         if phase == Phase::BlockEvents {
-            if speed != 0
-                && let Some(index) = volume.view.random_ticks_mut()
-            {
-                index.draw(
+            match volume.view.random_ticks_mut().filter(|_| speed != 0) {
+                Some(index) => index.draw(
                     |column| owned_columns::owns(owned, column),
                     speed,
                     seed.sections(now),
                     &mut simulation.random_listing,
                     &spread,
-                );
+                ),
+                None => simulation.random_listing = RandomListing::default(),
             }
             let picks = RandomPicks {
                 columns: &simulation.random_listing.columns,
