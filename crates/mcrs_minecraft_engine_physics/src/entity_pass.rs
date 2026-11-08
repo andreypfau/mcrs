@@ -153,6 +153,7 @@ fn tick_tile<W: CollisionWorld, B: BodyView>(
     let rules = pass.push;
     for row in rows.rows_mut() {
         let state = row.state;
+        let looked = state.living.map(rotations);
         if let Some(living) = state.living.as_mut() {
             if !living.is_alive() {
                 living.steering = None;
@@ -167,7 +168,6 @@ fn tick_tile<W: CollisionWorld, B: BodyView>(
         let start = grid_row(state, row.motion, row.id);
         if loaded(view.world, state.body.position) {
             let before = state.body;
-            let looked = state.living.map(rotations);
             tick_entity(view, SERVER, row.motion, state, wake, &mut actions, scratch);
             actions.clear();
             if let Some(own) = start {
@@ -313,4 +313,45 @@ fn loaded<W: CollisionWorld>(world: &W, position: DVec3) -> bool {
         world.section(SectionPos::from(block_at(position))),
         SectionLookup::Unloaded
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use bevy_tasks::TaskPoolBuilder;
+
+    use super::*;
+    use crate::EntityWrites;
+    use crate::TestScene;
+
+    #[test]
+    fn an_intent_that_only_turns_the_head_publishes_a_move() {
+        let pool = TaskPoolBuilder::new().num_threads(2).build();
+        let mut scene = TestScene::new(1, 2, 0, 7);
+        let standing = EntityId(1);
+        for _ in 0..60 {
+            scene.step(&pool, 1, &mut EntityWrites::default());
+        }
+        assert!(
+            scene.rows.moved.iter().all(|moved| moved.id != standing),
+            "the standing walker settled on the floor"
+        );
+        let tile = scene
+            .rows
+            .living_rows()
+            .find(|(at, _)| at.id == standing)
+            .map(|(at, _)| at.tile)
+            .expect("the standing walker has a row");
+        scene.rows.steer(
+            tile,
+            MobIntent {
+                head_yaw: Some(45.0),
+                ..MobIntent::new(standing)
+            },
+        );
+        scene.step(&pool, 1, &mut EntityWrites::default());
+        assert!(
+            scene.rows.moved.iter().any(|moved| moved.id == standing),
+            "the turn of the head reaches the viewers"
+        );
+    }
 }
