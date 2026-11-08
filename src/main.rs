@@ -18,7 +18,7 @@ use mcrs_minecraft_engine_server::{
     DimensionWorldsPlugin, GameMode, InboundRateLimit, NetworkCompressionThreshold, Placement,
     ServerCorePlugin, ServerNetworkPlugin, ShutdownRequest,
 };
-use mcrs_minecraft_server::MinecraftServerPlugins;
+use mcrs_minecraft_server::{MinecraftServerPlugins, VanillaMobBrainPlugin};
 use mcrs_minecraft_vanilla_light::LightingPlugin;
 use mcrs_minecraft_vanilla_worldgen::WorldGenPlugin;
 
@@ -75,6 +75,9 @@ async fn main() -> AppExit {
     .build();
     if !propagates_light(variable("MCRS_NO_LIGHTING").as_deref()) {
         server = server.disable::<LightingPlugin>();
+    }
+    if !on_off("MCRS_MOB_AI", variable("MCRS_MOB_AI").as_deref(), true) {
+        server = server.disable::<VanillaMobBrainPlugin>();
     }
     app.add_plugins((server, ConsolePlugin));
     let (signal_send, mut signal_recv) = tokio::sync::mpsc::channel(1);

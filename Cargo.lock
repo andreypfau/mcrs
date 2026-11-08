@@ -4346,6 +4346,35 @@ dependencies = [
 ]
 
 [[package]]
+name = "mcrs_minecraft_engine_brain"
+version = "0.5.8"
+dependencies = [
+ "bevy_app",
+ "bevy_ecs",
+ "bevy_tasks",
+ "glam",
+ "mcrs_engine_muxer",
+ "mcrs_minecraft_block",
+ "mcrs_minecraft_brain",
+ "mcrs_minecraft_engine",
+ "mcrs_minecraft_engine_physics",
+ "mcrs_minecraft_engine_world",
+ "mcrs_minecraft_game_mode",
+ "mcrs_minecraft_goals",
+ "mcrs_minecraft_item",
+ "mcrs_minecraft_mob",
+ "mcrs_minecraft_mob_control",
+ "mcrs_minecraft_physics",
+ "mcrs_minecraft_registries",
+ "mcrs_minecraft_replication",
+ "mcrs_minecraft_resource",
+ "mcrs_minecraft_volume",
+ "mcrs_voxel",
+ "rustc-hash 2.1.1",
+ "tracing",
+]
+
+[[package]]
 name = "mcrs_minecraft_engine_physics"
 version = "0.5.8"
 dependencies = [
@@ -5216,6 +5245,7 @@ dependencies = [
  "mcrs_minecraft_dimension",
  "mcrs_minecraft_dimension_environment",
  "mcrs_minecraft_engine",
+ "mcrs_minecraft_engine_brain",
  "mcrs_minecraft_engine_physics",
  "mcrs_minecraft_engine_registries",
  "mcrs_minecraft_engine_server",

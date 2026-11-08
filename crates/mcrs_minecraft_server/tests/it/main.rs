@@ -39,13 +39,14 @@ mod dimension_type;
 mod disconnect;
 mod entity_ids;
 mod entity_replication;
-mod mob_replication;
 mod epoch_round_trip;
 mod host_app;
 mod host_subapp_handoff;
 mod light_engine_e2e;
 mod login_handshake_e2e;
 mod login_profile;
+mod mob_ai;
+mod mob_replication;
 #[path = "common/mock_connection.rs"]
 mod mock_connection;
 mod op_level;
