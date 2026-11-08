@@ -1,3 +1,4 @@
+use bevy_ecs::change_detection::Mut;
 use bevy_ecs::world::World;
 use mcrs_minecraft_command_engine::Worlds;
 use mcrs_minecraft_engine::coordinator::birth_clock::BirthClock;
@@ -15,14 +16,17 @@ pub(crate) fn apply(worlds: &mut Worlds, HitMob { at, hit }: HitMob) {
     let tick = world
         .get_resource::<BirthClock>()
         .map_or(0, |clock| clock.0);
-    world.resource_scope(
-        |world, mut rows: bevy_ecs::change_detection::Mut<EntityRows>| {
-            world.resource_scope(|world, mut mobs: bevy_ecs::change_detection::Mut<Mobs>| {
-                let Some(mut changes) = world.get_resource_mut::<MobChanges>() else {
-                    return;
-                };
-                hurt(&mut rows, &mut mobs, &mut changes, at, hit, tick);
-            });
-        },
-    );
+    let outcome = world
+        .try_resource_scope(|world, mut rows: Mut<EntityRows>| {
+            world
+                .try_resource_scope(|world, mut mobs: Mut<Mobs>| {
+                    let mut changes = world.get_resource_mut::<MobChanges>()?;
+                    hurt(&mut rows, &mut mobs, &mut changes, at, hit, tick)
+                })
+                .flatten()
+        })
+        .flatten();
+    if outcome.is_none() {
+        tracing::debug!(?at, "a command hit finds no mob row; it does nothing");
+    }
 }

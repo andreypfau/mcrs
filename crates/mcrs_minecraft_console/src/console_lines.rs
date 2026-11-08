@@ -26,10 +26,17 @@ fn read_console(send: &flume::Sender<ConsoleInput>) {
     if send.send(ConsoleInput::Language(english())).is_err() {
         return;
     }
-    for line in std::io::stdin().lock().lines() {
-        let Ok(line) = line else {
+    send_lines(std::io::stdin().lock(), send);
+}
+
+/// Sends each command line of `input`. A line that is not UTF-8 is read with the replacement
+/// character, so that one bad byte does not end the console.
+fn send_lines(input: impl BufRead, send: &flume::Sender<ConsoleInput>) {
+    for bytes in input.split(b'\n') {
+        let Ok(bytes) = bytes else {
             return;
         };
+        let line = String::from_utf8_lossy(&bytes);
         let Some(command) = command_of(&line) else {
             continue;
         };
@@ -67,4 +74,23 @@ fn english() -> Language {
         tracing::warn!(%error, "the console writes translation keys, not English");
         Language::default()
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_line_that_is_not_utf8_does_not_end_the_console() {
+        let (send, receive) = flume::unbounded();
+        send_lines(&b"say \xff\r\n\n  /list \nkill"[..], &send);
+        let lines: Vec<String> = receive
+            .try_iter()
+            .filter_map(|input| match input {
+                ConsoleInput::Line(line) => Some(line),
+                ConsoleInput::Language(_) => None,
+            })
+            .collect();
+        assert_eq!(lines, ["say \u{fffd}", "list", "kill"]);
+    }
 }

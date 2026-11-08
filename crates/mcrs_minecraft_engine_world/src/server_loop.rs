@@ -97,7 +97,9 @@ fn next_deadline(previous: Instant, tick: Duration, at_once: bool, now: Instant)
     if at_once {
         return now;
     }
-    let next = previous + tick;
+    let Some(next) = previous.checked_add(tick) else {
+        return now;
+    };
     if now.saturating_duration_since(next) > MAX_BACKLOG {
         tracing::warn!(
             behind_ms = now.saturating_duration_since(next).as_millis() as u64,

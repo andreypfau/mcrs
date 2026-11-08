@@ -84,7 +84,11 @@ impl TickPace {
     #[must_use]
     pub fn average_nanos(&self) -> u64 {
         let written = self.ticks.clamp(1, TICK_SAMPLES as u64);
-        self.samples.iter().sum::<u64>() / written
+        let sum = self
+            .samples
+            .iter()
+            .fold(0u64, |sum, &sample| sum.saturating_add(sample));
+        sum / written
     }
 
     #[must_use]

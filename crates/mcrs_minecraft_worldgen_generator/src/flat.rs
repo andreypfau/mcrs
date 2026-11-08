@@ -21,10 +21,18 @@ impl FlatLayers {
     /// Fills `column` with the layers from `min_y` up. A layer above the column is cut off.
     pub fn fill(&self, column: &mut ColumnBlocks, y_sections: &[i32], min_y: i32) {
         column.reset(y_sections);
+        let column_top = y_sections.last().map_or(min_y, |&section| {
+            section
+                .saturating_add(1)
+                .saturating_mul(1 << SectionPos::BITS)
+        });
         let mut y = min_y;
         for layer in &self.layers {
+            if y >= column_top {
+                break;
+            }
             let height = i32::try_from(layer.height).unwrap_or(i32::MAX);
-            let top = y.saturating_add(height);
+            let top = y.saturating_add(height).min(column_top);
             for block_y in y..top {
                 let Some(index) = column.section_index(block_y) else {
                     continue;

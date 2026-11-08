@@ -7,7 +7,8 @@ use std::num::NonZeroUsize;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 
-use bevy_app::{App, AppExit, PluginGroup, Update};
+use bevy_app::{App, AppExit, Plugin, PluginGroup, Update};
+use bevy_ecs::error::{BevyError, ErrorContext, FallbackErrorHandler, Severity};
 use bevy_ecs::message::MessageWriter;
 use bevy_log::{Level, LogPlugin, tracing_subscriber};
 use mcrs_minecraft_console::{ConsolePlugin, log_console_answers};
@@ -18,15 +19,31 @@ use mcrs_minecraft_engine_server::{
     DimensionWorldsPlugin, GameMode, InboundRateLimit, NetworkCompressionThreshold, Placement,
     ServerCorePlugin, ServerNetworkPlugin, ShutdownRequest,
 };
+use mcrs_minecraft_engine_world::world::sub_app::AddDimensionPlugins;
 use mcrs_minecraft_server::{MinecraftServerPlugins, VanillaMobBrainPlugin};
 use mcrs_minecraft_vanilla_light::LightingPlugin;
 use mcrs_minecraft_vanilla_worldgen::WorldGenPlugin;
 
 const LOG_FILTER: &str = "mcrs_minecraft_server=debug,mcrs_minecraft_engine=debug,mcrs_minecraft_engine::muxer::column_views=trace,mcrs_minecraft_engine_world::entity::player::chunk_view=trace,mcrs_minecraft_network=debug";
 
-#[tokio::main]
-async fn main() -> AppExit {
+// The server loop runs outside `block_on`: the network owns runtimes of its own, and tokio
+// panics when one drops inside an async context, as on an exit before the first tick.
+fn main() -> AppExit {
+    let runtime = match tokio::runtime::Runtime::new() {
+        Ok(runtime) => runtime,
+        Err(error) => {
+            eprintln!("the async runtime does not start: {error}");
+            return AppExit::error();
+        }
+    };
+    let _entered = runtime.enter();
+    serve()
+}
+
+fn serve() -> AppExit {
     let mut app = App::new();
+    app.insert_resource(FallbackErrorHandler(log_instead_of_panic));
+    app.add_dimension_plugin(LogInsteadOfPanicPlugin);
     app.add_plugins(LogPlugin {
         filter: log_filter(variable("RUST_LOG").as_deref()),
         level: Level::INFO,
@@ -96,6 +113,25 @@ async fn main() -> AppExit {
         },
     );
     mcrs_minecraft_engine_server::run_server_loop_with(app, log_console_answers)
+}
+
+/// Logs an error that Bevy would panic on, such as a command for an entity that left the world,
+/// so that the server keeps ticking.
+fn log_instead_of_panic(error: BevyError, context: ErrorContext) {
+    match error.severity() {
+        Severity::Panic => bevy_ecs::error::error(error, context),
+        _ => bevy_ecs::error::match_severity(error, context),
+    }
+}
+
+/// [`log_instead_of_panic`] in a dimension world.
+#[derive(Clone)]
+struct LogInsteadOfPanicPlugin;
+
+impl Plugin for LogInsteadOfPanicPlugin {
+    fn build(&self, app: &mut App) {
+        app.insert_resource(FallbackErrorHandler(log_instead_of_panic));
+    }
 }
 
 fn network() -> ServerNetworkPlugin {

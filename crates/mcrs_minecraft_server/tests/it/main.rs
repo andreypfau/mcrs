@@ -41,6 +41,7 @@ mod entity_ids;
 mod entity_replication;
 mod epoch_round_trip;
 mod host_app;
+mod hostile_commands;
 mod host_subapp_handoff;
 mod light_engine_e2e;
 mod login_handshake_e2e;

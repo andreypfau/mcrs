@@ -88,7 +88,9 @@ impl Region {
     /// The number of positions, as a 64-bit integer.
     pub(crate) fn volume(self) -> i64 {
         let side = |min: i32, max: i32| i64::from(max) - i64::from(min) + 1;
-        side(self.min.x, self.max.x) * side(self.min.y, self.max.y) * side(self.min.z, self.max.z)
+        side(self.min.x, self.max.x)
+            .saturating_mul(side(self.min.y, self.max.y))
+            .saturating_mul(side(self.min.z, self.max.z))
     }
 
     /// Fails with `commands.fill.toobig` when the region has more than `limit` positions.
