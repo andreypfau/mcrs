@@ -465,7 +465,8 @@ search gives no path, the mob has no path after the application.
 
 **GOAL-NAV-002** (`source_suggested_black_box_confirmed`, semantic, confidence: medium, fidelity:
 exact). A request to an entity goes to the block position of the feet point of that entity, with the
-reach range 1. When the search gives no path, the mob keeps its current path. E-G3 shows this: a
+reach range 1. When the search gives no path, the mob keeps its current path (PATH-REQ-004, step
+1). E-G3 shows this: a
 summoned baby is not on the ground in its first tick, so its first request gives no path
 (PATH-REQ-001, step 2).
 
@@ -1120,8 +1121,8 @@ These notes follow from the table:
 
 ## 9. Unresolved
 
-- **U1**: PATH-REQ-004 states that no path clears the path. GOAL-NAV-002 states that a failed
-  request to an entity keeps the current path. `pathfinding.md` must take this difference.
+- **U1**: resolved. PATH-REQ-004, step 1, keeps the current path after a failed request to an
+  entity, as GOAL-NAV-002 states.
 - **U2**: the block corpus must give the solid render property of each state (the stable floor) and
   the legacy solid flag (PATH section 12.3). The walk value needs the block light, the sky light, the
   sky darkness and the ambient light of the dimension type. No specification of this server states
