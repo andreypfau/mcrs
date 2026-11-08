@@ -14,6 +14,10 @@ use mcrs_minecraft_engine_world::session::PlayerSession;
 use crate::console_lines::{ConsoleInput, spawn_console_thread};
 use crate::language::Language;
 
+/// The most console lines that one tick hands on. A burst of lines runs over several ticks, in
+/// order, so that no tick runs them all.
+const MAX_LINES_PER_TICK: usize = 2_000;
+
 /// Runs each line of the standard input as a command of the server source, in the overworld.
 /// The embedder runs [`log_console_answers`](crate::log_console_answers) after the host took the
 /// output of each tick.
@@ -40,8 +44,8 @@ pub(crate) struct Console {
     pub(crate) language: Language,
 }
 
-/// Hands each new console line to the overworld, which runs it in its next tick. The lines wait
-/// while no overworld runs.
+/// Hands the oldest console lines, at most [`MAX_LINES_PER_TICK`], to the overworld, which runs
+/// them in its next tick. The lines wait while no overworld runs.
 fn send_console_lines(
     mut console: ResMut<Console>,
     running: Option<Res<RunningDimensions>>,
@@ -64,7 +68,8 @@ fn send_console_lines(
     else {
         return;
     };
-    for line in console.pending.drain(..) {
+    let count = console.pending.len().min(MAX_LINES_PER_TICK);
+    for line in console.pending.drain(..count) {
         let mut origin = SourceState::of_player(
             PlayerSession::SERVER,
             overworld,
