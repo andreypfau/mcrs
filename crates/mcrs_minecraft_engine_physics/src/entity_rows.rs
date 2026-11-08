@@ -11,6 +11,7 @@ use mcrs_minecraft_physics::EntityState;
 use mcrs_minecraft_physics::GridRow;
 use mcrs_minecraft_physics::MotionRow;
 use mcrs_minecraft_physics::Row;
+use mcrs_minecraft_physics::TileBodies;
 use mcrs_minecraft_physics::TileRows;
 
 use crate::front_grid::grid_row;
@@ -20,9 +21,11 @@ use crate::tile_at::tile_at;
 /// The rows of the server entities of a dimension world, one segment per tile.
 #[derive(Resource, Debug, Default)]
 pub struct EntityRows {
-    pub(crate) tiles: BTreeMap<TileKey, TileRows>,
+    pub(crate) tiles: BTreeMap<TileKey, Tile>,
     /// The tiles whose rows changed after the pass wrote their grid; the freeze writes it again.
     pub(crate) dirty: BTreeSet<TileKey>,
+    /// The tiles whose back buffer the pass wrote; the freeze makes it their front.
+    pub(crate) written: BTreeSet<TileKey>,
     /// The tiles whose blocks changed since the freeze. A body, a move or a write wakes no other
     /// row: the push runs in each tick, and a write wakes its target.
     pub(crate) stirred: BTreeSet<TileKey>,
@@ -33,6 +36,14 @@ pub struct EntityRows {
     pub(crate) leaving: Vec<Leaving>,
     /// The largest half width of a body that the grid ever held.
     pub(crate) reach: f32,
+}
+
+/// The rows of one tile and the back buffer of its grid. The task of the tile writes the buffer,
+/// so the bodies never pass through one thread.
+#[derive(Debug, Default)]
+pub(crate) struct Tile {
+    pub(crate) rows: TileRows,
+    pub(crate) back: TileBodies,
 }
 
 /// A row that left the tile `from` in the pass.
@@ -49,13 +60,16 @@ impl EntityRows {
         self.tiles
             .entry(tile)
             .or_default()
+            .rows
             .insert_row(Row { state, motion, id });
         self.dirty.insert(tile);
     }
 
     /// The rows of each tile, in tile order.
     pub fn tiles_mut(&mut self) -> impl Iterator<Item = (TileKey, &mut TileRows)> {
-        self.tiles.iter_mut().map(|(&tile, rows)| (tile, rows))
+        self.tiles
+            .iter_mut()
+            .map(|(&tile, entry)| (tile, &mut entry.rows))
     }
 
     /// Marks that a block changed in `tile`, so the rows that rest near it wake.
@@ -69,56 +83,72 @@ impl EntityRows {
             let Some(row) = self
                 .tiles
                 .get_mut(&from)
-                .and_then(|rows| rows.despawn_row(id))
+                .and_then(|entry| entry.rows.despawn_row(id))
             else {
                 continue;
             };
             let to = tile_at(row.state.body.position);
-            self.tiles.entry(to).or_default().insert_row(row);
+            self.tiles.entry(to).or_default().rows.insert_row(row);
             self.dirty.extend([from, to]);
         }
     }
 
     /// The freeze: writes the grid of each dirty tile from its rows, in parallel over the tiles,
-    /// makes the back buffers the front, and keeps the stirred tiles for the wakes of the next
-    /// pass.
+    /// makes the written back buffers the front, and keeps the stirred tiles for the wakes of the
+    /// next pass.
     pub fn freeze(&mut self, pool: &TaskPool, grid: &mut BodyGrid) {
         let dirty = mem::take(&mut self.dirty);
-        let rebuilt: Vec<(TileKey, Vec<GridRow>)> = pool.scope(|scope| {
-            for (&tile, rows) in &mut self.tiles {
-                if dirty.contains(&tile) {
-                    scope.spawn(async move { (tile, bodies(tile, rows)) });
-                }
+        let mut tiles: Vec<(TileKey, &mut Tile)> = self
+            .tiles
+            .iter_mut()
+            .filter(|(tile, _)| dirty.contains(tile))
+            .map(|(&tile, entry)| (tile, entry))
+            .collect();
+        let per_task = tiles_per_task(pool, tiles.len());
+        let reaches: Vec<f32> = pool.scope(|scope| {
+            for chunk in tiles.chunks_mut(per_task) {
+                scope.spawn(async move {
+                    let mut reach = 0.0_f32;
+                    for (tile, entry) in chunk {
+                        let bodies: Vec<GridRow> = entry
+                            .rows
+                            .rows_mut()
+                            .filter_map(|row| grid_row(row.state, row.motion, row.id))
+                            .collect();
+                        reach = reach.max(entry.write(*tile, &bodies));
+                    }
+                    reach
+                });
             }
         });
-        for (tile, bodies) in rebuilt {
-            self.install(grid, tile, bodies);
-        }
-        for &tile in &dirty {
-            if !self.tiles.contains_key(&tile) {
-                self.install(grid, tile, Vec::new());
+        self.reach = reaches.into_iter().fold(self.reach, f32::max);
+        self.written.extend(dirty);
+        for tile in mem::take(&mut self.written) {
+            if let Some(entry) = self.tiles.get_mut(&tile) {
+                grid.swap(tile, &mut entry.back);
             }
         }
-        grid.swap();
         self.woken = mem::take(&mut self.stirred);
-    }
-
-    pub(crate) fn install(&mut self, grid: &mut BodyGrid, tile: TileKey, bodies: Vec<GridRow>) {
-        for body in &bodies {
-            self.reach = self.reach.max(body.half_width);
-        }
-        *grid.back_mut(tile) = bodies;
     }
 }
 
-/// The bodies of the rows of `tile`, in the order of its grid.
-fn bodies(tile: TileKey, rows: &mut TileRows) -> Vec<GridRow> {
-    let mut bodies: Vec<GridRow> = rows
-        .rows_mut()
-        .filter_map(|row| grid_row(row.state, row.motion, row.id))
-        .collect();
-    sort_bodies(tile, &mut bodies);
-    bodies
+impl Tile {
+    /// Writes `bodies` into the back buffer in the order of the grid; gives their largest half
+    /// width.
+    pub(crate) fn write(&mut self, tile: TileKey, bodies: &[GridRow]) -> f32 {
+        sort_bodies(tile, bodies, &mut self.back);
+        bodies
+            .iter()
+            .map(|body| body.half_width)
+            .fold(0.0, f32::max)
+    }
+}
+
+/// The tiles in one task of a parallel pass: four tasks per thread.
+pub(crate) fn tiles_per_task(pool: &TaskPool, tiles: usize) -> usize {
+    tiles
+        .div_ceil(pool.thread_num().saturating_mul(4).max(1))
+        .max(1)
 }
 
 /// True when a resting row of `tile` runs a full tick: something changed in the tile or in a tile

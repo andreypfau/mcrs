@@ -25,7 +25,7 @@ impl EntityRows {
                 continue;
             }
             for entry in entries {
-                let Some(row) = rows.rows_mut().find(|row| row.id == entry.target_id) else {
+                let Some(row) = rows.rows.rows_mut().find(|row| row.id == entry.target_id) else {
                     continue;
                 };
                 row.state.body.velocity += entry.effect;

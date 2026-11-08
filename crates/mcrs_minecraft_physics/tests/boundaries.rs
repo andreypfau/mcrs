@@ -23,6 +23,7 @@ use mcrs_minecraft_physics::TeamSlot;
 use mcrs_minecraft_physics::TestBlocks;
 use mcrs_minecraft_physics::TestFixture;
 use mcrs_minecraft_physics::TestWorld;
+use mcrs_minecraft_physics::TileBodies;
 use mcrs_minecraft_physics::TileQueues;
 use mcrs_minecraft_physics::TileRows;
 use mcrs_minecraft_physics::View;
@@ -188,28 +189,33 @@ fn grid_row(x: f64) -> GridRow {
 }
 
 #[test]
-fn the_pass_writes_the_back_buffer_and_the_freeze_swaps_only_written_tiles() {
+fn the_freeze_swaps_only_written_tiles_and_gives_back_the_old_front() {
+    let bodies = |x: f64| TileBodies {
+        rows: vec![grid_row(x)],
+        starts: vec![0, 1],
+    };
     let mut grid = BodyGrid::default();
     let quiet = TileKey::new(1, 0, 0);
-    grid.back_mut(TILE).push(grid_row(1.0));
-    grid.back_mut(quiet).push(grid_row(9.0));
-    grid.swap();
+    let mut back = bodies(1.0);
+    grid.swap(TILE, &mut back);
+    grid.swap(quiet, &mut bodies(9.0));
+    assert_eq!(back, TileBodies::default(), "a new tile has no old front");
 
-    grid.back_mut(TILE).push(grid_row(2.0));
+    let mut back = bodies(2.0);
+    grid.swap(TILE, &mut back);
     assert_eq!(
         grid.front(TILE),
-        &[grid_row(1.0)],
-        "the pass reads the old front"
+        &bodies(2.0),
+        "the back buffer becomes the front"
     );
-    grid.swap();
     assert_eq!(
-        grid.front(TILE),
-        &[grid_row(2.0)],
-        "the back starts empty each tick"
+        back,
+        bodies(1.0),
+        "the old front comes back for the next write"
     );
     assert_eq!(
         grid.front(quiet),
-        &[grid_row(9.0)],
+        &bodies(9.0),
         "a quiet tile keeps its front"
     );
 }

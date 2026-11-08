@@ -3,47 +3,29 @@ use std::mem;
 
 use mcrs_engine_muxer::TileKey;
 
-use crate::GridRow;
+use crate::TileBodies;
 
-/// The body grid, with a front and a back buffer per tile. The front buffer is the state at the
-/// start of the tick; the task of a tile writes the back buffer of its tile, and the freeze swaps
-/// the two.
+/// The front buffer of the body grid: the bodies of each tile at the start of the tick. The
+/// writer of a tile keeps its back buffer, writes it in the pass, and swaps it in at the freeze.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct BodyGrid {
-    tiles: BTreeMap<TileKey, GridTile>,
+    tiles: BTreeMap<TileKey, TileBodies>,
 }
 
-#[derive(Clone, Debug, Default, PartialEq)]
-struct GridTile {
-    front: Vec<GridRow>,
-    back: Vec<GridRow>,
-    written: bool,
-}
+static NO_BODIES: TileBodies = TileBodies {
+    rows: Vec::new(),
+    starts: Vec::new(),
+};
 
 impl BodyGrid {
-    /// The rows of `tile` at the start of the tick.
+    /// The bodies of `tile` at the start of the tick.
     #[must_use]
-    pub fn front(&self, tile: TileKey) -> &[GridRow] {
-        self.tiles.get(&tile).map_or(&[], |grid| &grid.front)
+    pub fn front(&self, tile: TileKey) -> &TileBodies {
+        self.tiles.get(&tile).unwrap_or(&NO_BODIES)
     }
 
-    /// The back buffer of `tile`, empty, for the rows of the next tick.
-    pub fn back_mut(&mut self, tile: TileKey) -> &mut Vec<GridRow> {
-        let grid = self.tiles.entry(tile).or_default();
-        if !grid.written {
-            grid.back.clear();
-            grid.written = true;
-        }
-        &mut grid.back
-    }
-
-    /// Makes the back buffer of each written tile its front buffer. A tile that nobody wrote keeps
-    /// its front buffer.
-    pub fn swap(&mut self) {
-        for grid in self.tiles.values_mut() {
-            if mem::take(&mut grid.written) {
-                mem::swap(&mut grid.front, &mut grid.back);
-            }
-        }
+    /// Makes `back` the front of `tile`, and gives the old front in `back`.
+    pub fn swap(&mut self, tile: TileKey, back: &mut TileBodies) {
+        mem::swap(self.tiles.entry(tile).or_default(), back);
     }
 }

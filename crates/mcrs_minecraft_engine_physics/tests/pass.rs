@@ -112,7 +112,11 @@ fn the_grid_that_the_pass_writes_and_the_freeze_patches_equals_a_rebuild() {
         let mut grid = BodyGrid::default();
         rebuilt.freeze(&pool(1), &mut grid);
         for (tile, _) in scene.rows.tiles_mut() {
-            assert_eq!(scene.grid.front(tile), grid.front(tile), "tile {tile:?}");
+            assert_eq!(
+                scene.grid.front(tile).rows,
+                grid.front(tile).rows,
+                "tile {tile:?}"
+            );
         }
         assert!(
             scene.rows.tiles_mut().count() > 4,

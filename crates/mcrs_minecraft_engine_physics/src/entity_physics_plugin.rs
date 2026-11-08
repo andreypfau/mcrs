@@ -44,6 +44,7 @@ use mcrs_voxel::BlockPos;
 use crate::block_world::BlockWorld;
 use crate::entity_pass::Pass;
 use crate::entity_rows::EntityRows;
+use crate::entity_rows::tiles_per_task;
 use crate::entity_write::EntityWrites;
 use crate::tile_at::tile_at;
 
@@ -171,14 +172,13 @@ fn entity_tick(
     tables: Res<PhysicsTables>,
     clock: Res<BirthClock>,
     mut rows: ResMut<EntityRows>,
-    mut bodies: ResMut<Bodies>,
+    bodies: Res<Bodies>,
     mut stacks: ResMut<ItemStacks>,
 ) {
     let Some(blocks) = world.get(*dimension) else {
         return;
     };
     let pool = ComputeTaskPool::get();
-    let tiles = rows.tiles.len();
     let pass = Pass {
         world: &BlockWorld {
             blocks: &blocks,
@@ -186,9 +186,9 @@ fn entity_tick(
         },
         tables: &tables.0,
         tick: clock.0,
-        tiles_per_task: tiles.div_ceil(pool.thread_num().saturating_mul(4).max(1)),
+        tiles_per_task: tiles_per_task(pool, rows.tiles.len()),
     };
-    for id in rows.tick(&pass, pool, &mut bodies.0) {
+    for id in rows.tick(&pass, pool, &bodies.0) {
         stacks.0.remove(&id);
     }
 }

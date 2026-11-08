@@ -127,7 +127,7 @@ impl TestScene {
             tick: self.tick,
             tiles_per_task,
         };
-        self.rows.tick(&pass, pool, &mut self.grid);
+        self.rows.tick(&pass, pool, &self.grid);
         self.rows.move_rows();
         self.tick = self.tick.wrapping_add(1);
     }

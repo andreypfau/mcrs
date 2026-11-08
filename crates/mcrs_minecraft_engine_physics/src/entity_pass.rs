@@ -7,7 +7,6 @@ use mcrs_minecraft_physics::BodyGrid;
 use mcrs_minecraft_physics::BodyView;
 use mcrs_minecraft_physics::Category;
 use mcrs_minecraft_physics::CollisionWorld;
-use mcrs_minecraft_physics::GridRow;
 use mcrs_minecraft_physics::KeyedStream;
 use mcrs_minecraft_physics::PushRules;
 use mcrs_minecraft_physics::Rest;
@@ -17,6 +16,7 @@ use mcrs_minecraft_physics::Side;
 use mcrs_minecraft_physics::Tables;
 use mcrs_minecraft_physics::TileRows;
 use mcrs_minecraft_physics::View;
+use mcrs_minecraft_physics::block_at;
 use mcrs_minecraft_physics::push_entity;
 use mcrs_minecraft_physics::same_bits;
 use mcrs_minecraft_physics::tick_entity;
@@ -24,10 +24,10 @@ use mcrs_voxel::SectionPos;
 
 use crate::entity_rows::EntityRows;
 use crate::entity_rows::Leaving;
+use crate::entity_rows::Tile;
 use crate::entity_rows::wakes;
 use crate::front_grid::FrontGrid;
 use crate::front_grid::grid_row;
-use crate::front_grid::sort_bodies;
 use crate::tile_at::tile_at;
 use crate::tile_world::TileWorld;
 
@@ -48,8 +48,9 @@ pub(crate) struct Pass<'a, W> {
 /// What the task of one tile hands back.
 struct TileStep {
     tile: TileKey,
-    /// The grid of the tile when one of its bodies changed.
-    bodies: Option<Vec<GridRow>>,
+    /// The largest half width of the bodies that the task wrote into the back buffer of the tile;
+    /// `None` when no body of the tile changed and the task wrote nothing.
+    reach: Option<f32>,
     expired: Vec<EntityId>,
     /// The rows whose position is in another tile now.
     left: Vec<EntityId>,
@@ -58,24 +59,24 @@ struct TileStep {
 impl EntityRows {
     /// Ticks every row once, in parallel over tiles: each row reads only its own state, the
     /// blocks of `pass` and the front grid, so the result does not depend on the task split or
-    /// the thread count. Writes the grid of each tile whose bodies changed into its back buffer, and keeps the rows
-    /// that left their tile for [`Self::move_rows`].
+    /// the thread count. Writes the grid of each tile whose bodies changed into its back buffer,
+    /// and keeps the rows that left their tile for [`Self::move_rows`].
     /// Gives the items and the orbs that reached their lifetime, which left their rows.
     pub(crate) fn tick<W: CollisionWorld + Sync>(
         &mut self,
         pass: &Pass<'_, W>,
         pool: &TaskPool,
-        grid: &mut BodyGrid,
+        grid: &BodyGrid,
     ) -> Vec<EntityId> {
         let bodies = FrontGrid {
             grid,
             reach: self.reach,
         };
         let woken = &self.woken;
-        let mut tiles: Vec<(TileKey, &mut TileRows)> = self
+        let mut tiles: Vec<(TileKey, &mut Tile)> = self
             .tiles
             .iter_mut()
-            .map(|(&tile, rows)| (tile, rows))
+            .map(|(&tile, entry)| (tile, entry))
             .collect();
         let steps: Vec<Vec<TileStep>> = pool.scope(|scope| {
             for chunk in tiles.chunks_mut(pass.tiles_per_task.max(1)) {
@@ -83,9 +84,9 @@ impl EntityRows {
                     let mut scratch = Scratch::new();
                     chunk
                         .iter_mut()
-                        .map(|(tile, rows)| {
+                        .map(|(tile, entry)| {
                             let wake = wakes(woken, *tile);
-                            tick_tile(pass, &bodies, *tile, rows, wake, &mut scratch)
+                            tick_tile(pass, &bodies, *tile, entry, wake, &mut scratch)
                         })
                         .collect()
                 });
@@ -93,8 +94,9 @@ impl EntityRows {
         });
         let mut expired = Vec::new();
         for step in steps.into_iter().flatten() {
-            if let Some(bodies) = step.bodies {
-                self.install(grid, step.tile, bodies);
+            if let Some(reach) = step.reach {
+                self.written.insert(step.tile);
+                self.reach = self.reach.max(reach);
             }
             expired.extend(step.expired);
             self.leaving.extend(step.left.into_iter().map(|id| Leaving {
@@ -110,10 +112,11 @@ fn tick_tile<W: CollisionWorld, B: BodyView>(
     pass: &Pass<'_, W>,
     bodies_view: &B,
     tile: TileKey,
-    rows: &mut TileRows,
+    entry: &mut Tile,
     wake: bool,
     scratch: &mut Scratch,
 ) -> TileStep {
+    let rows = &mut entry.rows;
     let world = tile_world(pass.world, tile, rows);
     let view = View::new(&world, bodies_view, pass.tables);
     let mut actions = Vec::new();
@@ -164,10 +167,7 @@ fn tick_tile<W: CollisionWorld, B: BodyView>(
     }
     TileStep {
         tile,
-        bodies: stirred.then(|| {
-            sort_bodies(tile, &mut bodies);
-            bodies
-        }),
+        reach: stirred.then(|| entry.write(tile, &bodies)),
         expired,
         left,
     }
@@ -204,7 +204,7 @@ fn tile_world<'a, W: CollisionWorld>(
 /// is not loaded does not tick.
 fn loaded<W: CollisionWorld>(world: &W, position: DVec3) -> bool {
     !matches!(
-        world.section(SectionPos::from(position)),
+        world.section(SectionPos::from(block_at(position))),
         SectionLookup::Unloaded
     )
 }
