@@ -56,6 +56,19 @@ pub(crate) struct HostMob {
     panic: Panic,
     /// The tick in which the life cycle last found the mob.
     pub(crate) seen: u64,
+    /// What the controls of this tick read of the row, from [`HostMob::observe`]; `None` for a
+    /// row that is not a living row, or a dying one.
+    row: Option<RowFacts>,
+}
+
+/// The values of a living row that the controls read before its travel.
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct RowFacts {
+    on_ground: bool,
+    sideways: f32,
+    speed: f32,
+    movement_speed: f64,
+    step_height: f32,
 }
 
 /// What the start of a tick saw of one mob: its view and its wake events.
@@ -81,6 +94,7 @@ impl HostMob {
             damage: None,
             panic: Panic::Calm,
             seen: tick,
+            row: None,
         }
     }
 
@@ -97,6 +111,16 @@ impl HostMob {
         state: &EntityState,
     ) -> Observed {
         let living = state.living.unwrap_or_default();
+        self.row = state
+            .living
+            .filter(Living::is_alive)
+            .map(|living| RowFacts {
+                on_ground: state.body.flags.on_ground,
+                sideways: living.input.sideways,
+                speed: living.speed,
+                movement_speed: living.attributes.movement_speed,
+                step_height: living.attributes.step_height as f32,
+            });
         self.position = point(state.body.position);
         self.rotations = Rotations {
             yaw: living.yaw,
@@ -169,18 +193,15 @@ impl HostMob {
         }
     }
 
-    /// The controls of this tick before the travel of the row: the intent for the pass, and the
-    /// end of the path when it ended in this step. A dying mob gets no intent.
+    /// The controls of this tick before the travel of the row that [`HostMob::observe`] saw: the
+    /// intent for the pass, and the end of the path when it ended in this step. A dying mob gets
+    /// no intent.
     pub(crate) fn steer<V: BlockVolume>(
         &mut self,
         world: &BlockGoalWorld<'_, V>,
         tick: u64,
-        state: &EntityState,
     ) -> Option<(MobIntent, Option<PathEnd>)> {
-        let living: &Living = state.living.as_ref()?;
-        if !living.is_alive() {
-            return None;
-        }
+        let row = self.row.take()?;
         let feet = self.position.block();
         let [width, _] = self.kind.size();
         let input = ControlInput {
@@ -190,17 +211,17 @@ impl HostMob {
             body: BodyData {
                 width,
                 eye_height: self.kind.eye_height(),
-                step_height: living.attributes.step_height as f32,
+                step_height: row.step_height,
                 head_yaw_limit: HEAD_YAW_LIMIT,
             },
-            flags: if state.body.flags.on_ground {
+            flags: if row.on_ground {
                 ControlFlags::ON_GROUND
             } else {
                 ControlFlags::NONE
             },
-            sideways: living.input.sideways,
-            speed: living.speed,
-            movement_speed: living.attributes.movement_speed,
+            sideways: row.sideways,
+            speed: row.speed,
+            movement_speed: row.movement_speed,
             feet_block_top: world.feet_top(feet),
         };
         let out = self.control.before_travel(&input);

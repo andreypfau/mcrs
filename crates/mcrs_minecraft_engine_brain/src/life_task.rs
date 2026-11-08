@@ -35,15 +35,18 @@ pub(crate) struct LifeOut {
 impl LifeTask<'_> {
     pub(crate) fn run(&mut self, tick: u64, mobs: &Mobs) -> LifeOut {
         let mut out = LifeOut::default();
-        for (id, state) in self.rows.ids().iter().zip(self.rows.states()) {
-            if state.living.is_none() {
-                continue;
-            }
+        for (row, id) in self.rows.ids().iter().enumerate() {
             if let Some(held) = self.mobs.as_deref_mut()
                 && let Ok(at) = held.binary_search_by_key(id, |host| host.id)
                 && let Some(host) = held.get_mut(at)
             {
                 host.seen = tick;
+                continue;
+            }
+            let Some(state) = self.rows.states().get(row) else {
+                continue;
+            };
+            if state.living.is_none() {
                 continue;
             }
             let Some(mob) = mobs.0.get(id) else {

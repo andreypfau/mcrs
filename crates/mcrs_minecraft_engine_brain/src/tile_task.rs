@@ -71,17 +71,15 @@ impl TileTask<'_> {
                 out.applied = out.applied.saturating_add(1);
             }
         }
-        for (id, state) in rows.ids().iter().zip(rows.states()) {
-            let Some(mob) = find(self.mobs, id.0) else {
-                continue;
-            };
-            if let Some((intent, ended)) = mob.steer(&world, self.tick, state) {
+        for mob in self.mobs.iter_mut() {
+            if let Some((intent, ended)) = mob.steer(&world, self.tick) {
                 out.intents.push(intent);
                 if ended.is_some() {
                     out.ended.push(mob.mob());
                 }
             }
         }
+        out.views.sort_by_key(|view| view.key);
         out
     }
 }
