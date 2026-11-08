@@ -11,6 +11,10 @@ pub enum BirthSource {
     Player {
         order: u32,
     },
+    /// A command effect, by its index in the command effect buffer of the world in the tick.
+    Command {
+        order: u32,
+    },
     Block(BlockPos),
     /// Another entity, by its birth key.
     Entity(BirthKey),
@@ -21,6 +25,7 @@ impl BirthSource {
     pub fn kind(&self) -> SourceKind {
         match self {
             Self::Player { .. } => SourceKind::Player,
+            Self::Command { .. } => SourceKind::Command,
             Self::Block(_) => SourceKind::Block,
             Self::Entity(_) => SourceKind::Entity,
         }
@@ -32,7 +37,7 @@ impl BirthSource {
     #[must_use]
     pub fn packed(&self) -> u128 {
         match *self {
-            Self::Player { order } => u128::from(order),
+            Self::Player { order } | Self::Command { order } => u128::from(order),
             Self::Block(pos) => {
                 u128::from(ordered(pos.y)) << 64
                     | u128::from(ordered(pos.z)) << 32

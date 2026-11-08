@@ -15,6 +15,12 @@ pub struct Living {
     pub jump_delay: u8,
     /// The raw yaw in degrees, never wrapped.
     pub yaw: f32,
+    /// The pitch in degrees.
+    pub pitch: f32,
+    /// The yaw of the head in degrees, never wrapped.
+    pub head_yaw: f32,
+    /// The yaw of the body in degrees, never wrapped.
+    pub body_yaw: f32,
     pub travel: Travel,
     /// True when the entity was inside powder snow in the previous tick.
     pub in_powder_snow: bool,
