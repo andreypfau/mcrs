@@ -14,6 +14,7 @@ use uuid::Uuid;
 use crate::entity_pass::mob_state;
 use crate::entity_rows::EntityRows;
 use crate::mob_life::MobChanges;
+use crate::mobs::MobUuids;
 use crate::mobs::Mobs;
 use crate::tile_at::tile_at;
 
@@ -26,29 +27,19 @@ pub(crate) fn publish_mobs(
     mut mobs: ResMut<Mobs>,
     mut changes: ResMut<MobChanges>,
     mut events: ResMut<TileEvents>,
+    mut uuids: ResMut<MobUuids>,
 ) {
     let mut fresh: BTreeMap<EntityId, MobState> = changes
         .spawned
         .iter()
         .map(|spawned| (spawned.id, spawned.state))
         .collect();
-    let spawn = |events: &mut TileEvents, id: EntityId, start: MobState, now: MobState| {
-        let Some(mob) = mobs.0.get(&id) else {
-            return;
-        };
-        events.push(
-            tile_at(now.position),
-            id,
-            EntityEvent::Spawn(PlayerData::MobSpawn(MobSpawn {
-                kind: mob.kind,
-                uuid: Uuid::from_u128(mob.uuid),
-                state: start,
-                looks: mob.looks,
-            })),
-        );
-    };
     for crossing in &rows.crossed {
-        if fresh.contains_key(&crossing.id) || !mobs.0.contains_key(&crossing.id) {
+        let Some(mob) = mobs.0.get_mut(&crossing.id) else {
+            continue;
+        };
+        mob.tile = crossing.to;
+        if fresh.contains_key(&crossing.id) {
             continue;
         }
         events.push(
@@ -64,6 +55,21 @@ pub(crate) fn publish_mobs(
             },
         );
     }
+    let spawn = |events: &mut TileEvents, id: EntityId, start: MobState, now: MobState| {
+        let Some(mob) = mobs.0.get(&id) else {
+            return;
+        };
+        events.push(
+            tile_at(now.position),
+            id,
+            EntityEvent::Spawn(PlayerData::MobSpawn(MobSpawn {
+                kind: mob.kind,
+                uuid: Uuid::from_u128(mob.uuid),
+                state: start,
+                looks: mob.looks,
+            })),
+        );
+    };
     for signaled in &changes.signals {
         events.push(
             signaled.at.tile,
@@ -102,9 +108,10 @@ pub(crate) fn publish_mobs(
         }
     }
     for removed in &rows.removed {
-        if mobs.0.remove(&removed.id).is_none() {
+        let Some(mob) = mobs.0.remove(&removed.id) else {
             continue;
-        }
+        };
+        uuids.0.remove(&mob.uuid);
         events.push(
             removed.tile,
             removed.id,

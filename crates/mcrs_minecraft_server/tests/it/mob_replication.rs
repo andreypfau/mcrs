@@ -385,10 +385,15 @@ fn cmd_kill_summoned_pigs_are_found_hurt_killed_and_removed_after_their_death_ti
     let mut viewer = Viewer::new();
     viewer.receive(server.ticks(operator, 2));
     for (index, x) in [2, 4, 6].into_iter().enumerate() {
-        let line =
-            format!("summon minecraft:pig {x} 64 4 {{CustomName:\"mbs{index}\",Tags:[\"bench\"]}}");
-        let (key, _) = run(&mut server, operator, &mut viewer, &line);
-        assert_eq!(key, "commands.summon.success", "{line}");
+        let line = format!(
+            "summon minecraft:pig {x} 64 4 {{UUID:[I;7168627,0,0,{index}],CustomName:\"mbs{index}\",Tags:[\"bench\"]}}"
+        );
+        let (key, args) = run(&mut server, operator, &mut viewer, &line);
+        assert_eq!(
+            (key.as_str(), args),
+            ("commands.summon.success", vec![format!("mbs{index}")]),
+            "{line}"
+        );
     }
     viewer.receive(server.ticks(operator, 5));
 
@@ -415,6 +420,24 @@ fn cmd_kill_summoned_pigs_are_found_hurt_killed_and_removed_after_their_death_ti
         ("commands.data.entity.query", "mbs1")
     );
     assert_eq!(args[1], "[4.5d, 64.0d, 4.5d]");
+    let (_, args) = run(
+        &mut server,
+        operator,
+        &mut viewer,
+        "data get entity 006d6273-0000-0000-0000-000000000002 Pos",
+    );
+    assert_eq!(
+        args,
+        ["mbs2", "[6.5d, 64.0d, 4.5d]"],
+        "a UUID target finds the mob"
+    );
+    let (key, _) = run(
+        &mut server,
+        operator,
+        &mut viewer,
+        "summon minecraft:pig 8 64 4 {UUID:[I;7168627,0,0,2]}",
+    );
+    assert_eq!(key, "commands.summon.failed.uuid");
 
     let (key, _) = run(
         &mut server,
@@ -427,7 +450,7 @@ fn cmd_kill_summoned_pigs_are_found_hurt_killed_and_removed_after_their_death_ti
         &mut server,
         operator,
         &mut viewer,
-        "damage @e[name=mbs0,limit=1] 0 minecraft:cactus",
+        "damage 006d6273-0000-0000-0000-000000000000 0 minecraft:cactus",
     );
     assert_eq!(
         key, "commands.damage.invulnerable",

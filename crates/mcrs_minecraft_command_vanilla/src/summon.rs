@@ -103,13 +103,19 @@ pub(crate) fn run(
     let Some(kind) = MobType::of(entity_type) else {
         return Err(failed());
     };
-    let (setup, extras) = match context.opt(&call.invocation, command.nbt)? {
-        None => (SpawnSetup::First, MobExtras::default()),
+    let (setup, Summoned { extras, uuid }) = match context.opt(&call.invocation, command.nbt)? {
+        None => (SpawnSetup::First, Summoned::default()),
         Some(text) => {
             let compound = text.read().map_err(|_| failed())?;
-            (SpawnSetup::None, extras(compound).ok_or_else(failed)?)
+            (SpawnSetup::None, read_keys(compound).ok_or_else(failed)?)
         }
     };
+    if uuid.is_some_and(|uuid| context.lookup().mob_by_uuid(uuid).is_some()) {
+        return Err(CommandFailure::translate(
+            "commands.summon.failed.uuid",
+            vec![],
+        ));
+    }
     if order.tick != clock.0 {
         *order = SummonOrder {
             tick: clock.0,
@@ -118,7 +124,12 @@ pub(crate) fn run(
     }
     let key = BirthKey::born(clock.0, &BirthSource::Command { order: order.next }, 0);
     order.next = order.next.wrapping_add(1);
-    let uuid = birth_uuid(&key, None);
+    let uuid = uuid.unwrap_or_else(|| birth_uuid(&key, None));
+    let name = display_name(
+        entity_type,
+        Uuid::from_u128(uuid),
+        extras.custom_name.as_deref(),
+    );
     output.effect(
         &mut spawns,
         MobSpawnRequest {
@@ -132,22 +143,33 @@ pub(crate) fn run(
     );
     output.success(
         &call.invocation,
-        Text::translate(
-            "commands.summon.success",
-            vec![display_name(entity_type, Uuid::from_u128(uuid), None)],
-        ),
+        Text::translate("commands.summon.success", vec![name]),
         Feedback::SourceAndOperators,
     );
     Ok(1)
 }
 
+/// What the keys of `<nbt>` set: the values of the new mob, and its UUID.
+#[derive(Default)]
+struct Summoned {
+    extras: MobExtras,
+    uuid: Option<u128>,
+}
+
 /// The keys of `<nbt>` that this server loads (TRK-SUM-003, TRK-DEV-002): `NoAI`, `CustomName`
-/// as a string and `Tags`. `None` when the compound holds another key. A value with the wrong tag
-/// keeps the default.
-fn extras(compound: NbtCompound) -> Option<MobExtras> {
-    let mut extras = MobExtras::default();
+/// as a string, `Tags` and `UUID` as four ints, the most significant first. `None` when the
+/// compound holds another key. A value with the wrong tag keeps the default.
+fn read_keys(compound: NbtCompound) -> Option<Summoned> {
+    let mut summoned = Summoned::default();
+    let extras = &mut summoned.extras;
     for (key, tag) in compound {
         match (key.as_str(), tag) {
+            ("UUID", NbtTag::IntArray(words)) => {
+                if let [a, b, c, d] = words[..] {
+                    let word = |value: i32| u128::from(value.cast_unsigned());
+                    summoned.uuid = Some(word(a) << 96 | word(b) << 64 | word(c) << 32 | word(d));
+                }
+            }
             ("NoAI", NbtTag::Byte(value)) => extras.no_ai = value != 0,
             ("CustomName", NbtTag::String(name)) => extras.custom_name = Some(name),
             ("Tags", NbtTag::List(tags)) => {
@@ -159,11 +181,11 @@ fn extras(compound: NbtCompound) -> Option<MobExtras> {
                     })
                     .collect();
             }
-            ("NoAI" | "CustomName" | "Tags", _) => {}
+            ("NoAI" | "CustomName" | "Tags" | "UUID", _) => {}
             _ => return None,
         }
     }
-    Some(extras)
+    Some(summoned)
 }
 
 pub(crate) fn apply(worlds: &mut Worlds, request: MobSpawnRequest) {

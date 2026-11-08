@@ -96,16 +96,30 @@ fn select_if_present<'c>(
     };
     let mut random = |bound: usize| rand::random_range(0..bound.max(1));
     let mut candidates = mcrs_command::recycle(core::mem::take(&mut out.candidates));
-    let searches = !matches!(selector.target, Target::Kind(SelectorKind::SelfEntity));
-    if searches {
-        candidates.extend(targets.players().iter().map(EntityCandidate::Player));
-        if selector.includes_entities() {
+    match selector.target {
+        Target::Kind(SelectorKind::SelfEntity) => {}
+        Target::Uuid(uuid) => {
+            candidates.extend(targets.players().iter().map(EntityCandidate::Player));
             candidates.extend(
                 context
                     .lookup()
-                    .mobs()
+                    .mob_by_uuid(uuid.as_u128())
                     .map(|view| EntityCandidate::Mob { view, dimension }),
             );
+        }
+        Target::Name(_) => {
+            candidates.extend(targets.players().iter().map(EntityCandidate::Player));
+        }
+        Target::Kind(_) => {
+            candidates.extend(targets.players().iter().map(EntityCandidate::Player));
+            if selector.includes_entities() {
+                candidates.extend(
+                    context
+                        .lookup()
+                        .mobs()
+                        .map(|view| EntityCandidate::Mob { view, dimension }),
+                );
+            }
         }
     }
     let mut picked = mcrs_command::recycle(core::mem::take(&mut out.picked));

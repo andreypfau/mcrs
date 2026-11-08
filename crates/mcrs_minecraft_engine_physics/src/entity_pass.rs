@@ -53,6 +53,7 @@ pub(crate) struct Pass<'a, W> {
     pub(crate) tables: &'a Tables,
     /// The tick of the keyed random streams.
     pub(crate) tick: u64,
+    pub(crate) push: PushRules,
     pub(crate) tiles_per_task: usize,
 }
 
@@ -149,7 +150,7 @@ fn tick_tile<W: CollisionWorld, B: BodyView>(
     let mut died = Vec::new();
     let mut intents = mem::take(&mut entry.intents);
     intents.sort_by_key(|intent| intent.target);
-    let rules = PushRules::default();
+    let rules = pass.push;
     for row in rows.rows_mut() {
         let state = row.state;
         if let Some(living) = state.living.as_mut() {

@@ -8,6 +8,7 @@ use mcrs_minecraft_physics::EntityState;
 use mcrs_minecraft_physics::Living;
 use mcrs_minecraft_physics::MotionRow;
 use mcrs_minecraft_physics::MoveInput;
+use mcrs_minecraft_physics::PushRules;
 use mcrs_minecraft_physics::SourceKind;
 use mcrs_minecraft_physics::Steering;
 use mcrs_minecraft_physics::Tables;
@@ -125,6 +126,7 @@ impl TestScene {
             },
             tables: &self.tables,
             tick: self.tick,
+            push: PushRules::default(),
             tiles_per_task,
         };
         self.rows.tick(&pass, pool, &self.grid);

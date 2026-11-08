@@ -1,3 +1,5 @@
+use std::collections::VecDeque;
+
 use bevy_ecs::message::MessageReader;
 use bevy_ecs::resource::Resource;
 use bevy_ecs::system::Res;
@@ -32,10 +34,18 @@ use crate::entity_rows::EntityRows;
 use crate::mob_spawn_request::MobSpawnRequest;
 use crate::mob_spawn_request::SpawnSetup;
 use crate::mobs::Mob;
+use crate::mobs::MobUuids;
 use crate::mobs::Mobs;
+use crate::tile_at::tile_at;
 
 /// The chance of a left hand in the first spawn setup (ANIM-SPAWN-001).
 const LEFT_HANDED: f64 = 0.05;
+
+/// The spawn requests that wait for an entity id, in the order of the life cycle. The cell gets
+/// [`ENTITY_ID_RANGE_LEN`](mcrs_minecraft_engine::entity_ids::ENTITY_ID_RANGE_LEN) ids in each
+/// tick, so a longer run of requests spawns over several ticks instead of losing its mobs.
+#[derive(Resource, Debug, Default)]
+pub struct PendingSpawns(pub VecDeque<MobSpawnRequest>);
 
 /// The mobs that came into the world and left it in this tick, for the tile events.
 #[derive(Resource, Debug, Default)]
@@ -102,17 +112,19 @@ pub(crate) fn spawn_mobs(
     mut rows: ResMut<EntityRows>,
     mut mobs: ResMut<Mobs>,
     mut changes: ResMut<MobChanges>,
+    mut pending: ResMut<PendingSpawns>,
+    mut uuids: ResMut<MobUuids>,
 ) {
-    let mut batch: Vec<MobSpawnRequest> = requests.read().cloned().collect();
-    if batch.is_empty() {
-        return;
-    }
-    batch.sort_by_key(|request| request.key);
+    let start = pending.0.len();
+    pending.0.extend(requests.read().cloned());
+    pending.0.make_contiguous()[start..].sort_by_key(|request| request.key);
     let registries = registries.as_deref().map(|registries| &**registries);
-    for request in batch {
+    while !pending.0.is_empty() {
         let Some(id) = ids.allocate() else {
-            tracing::warn!(kind = ?request.kind, "the cell has no entity id left; the mob is lost");
-            continue;
+            break;
+        };
+        let Some(request) = pending.0.pop_front() else {
+            break;
         };
         let row = mob_row(request.kind);
         let state = mob_body(
@@ -135,12 +147,14 @@ pub(crate) fn spawn_mobs(
             state: mob_state(&state),
         });
         rows.spawn(id, state, row);
+        uuids.0.insert(request.uuid, id);
         mobs.0.insert(
             id,
             Mob {
                 kind: request.kind,
                 uuid: request.uuid,
                 looks,
+                tile: tile_at(request.position),
                 custom_name: request.extras.custom_name,
                 tags: request.extras.tags,
                 last_hit: None,

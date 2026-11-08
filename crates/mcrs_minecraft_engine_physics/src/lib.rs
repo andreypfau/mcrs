@@ -40,6 +40,7 @@ pub use mob_spawn_request::MobSpawnRequest;
 pub use mob_spawn_request::SpawnSetup;
 pub use mobs::Mob;
 pub use mobs::MobHit;
+pub use mobs::MobUuids;
 pub use mobs::Mobs;
 #[cfg(feature = "testing")]
 pub use test_scene::FLOOR;

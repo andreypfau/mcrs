@@ -24,11 +24,13 @@ use mcrs_minecraft_collision_table::collision_table;
 use mcrs_minecraft_engine::block_drops::ItemDropped;
 use mcrs_minecraft_engine::coordinator::birth_clock::BirthClock;
 use mcrs_minecraft_engine::entity_ids::CellEntityIds;
+use mcrs_minecraft_engine::game_rules::GameRules;
 use mcrs_minecraft_engine::tile_events::TileEvents;
 use mcrs_minecraft_engine_world::tick::TickSet;
 use mcrs_minecraft_engine_world::voxel_update::BlockPlaced;
 use mcrs_minecraft_engine_world::world::dimension::Dimension;
 use mcrs_minecraft_engine_world::world::storage::view::WorldView;
+use mcrs_minecraft_game_rule::GameRule;
 use mcrs_minecraft_item::ItemStack;
 use mcrs_minecraft_physics::Birth;
 use mcrs_minecraft_physics::BirthKey;
@@ -38,6 +40,7 @@ use mcrs_minecraft_physics::BodyGrid;
 use mcrs_minecraft_physics::EntityState;
 use mcrs_minecraft_physics::KeyedStream;
 use mcrs_minecraft_physics::MotionRow;
+use mcrs_minecraft_physics::PushRules;
 use mcrs_minecraft_physics::Tables;
 use mcrs_minecraft_registries::CurrentRegistries;
 use mcrs_voxel::BlockPos;
@@ -48,9 +51,11 @@ use crate::entity_rows::EntityRows;
 use crate::entity_rows::tiles_per_task;
 use crate::entity_write::EntityWrites;
 use crate::mob_life::MobChanges;
+use crate::mob_life::PendingSpawns;
 use crate::mob_life::spawn_mobs;
 use crate::mob_publish::publish_mobs;
 use crate::mob_spawn_request::MobSpawnRequest;
+use crate::mobs::MobUuids;
 use crate::mobs::Mobs;
 use crate::tile_at::tile_at;
 
@@ -80,7 +85,9 @@ impl Plugin for EntityPhysicsPlugin {
         app.init_resource::<ItemStacks>();
         app.init_resource::<BirthClock>();
         app.init_resource::<Mobs>();
+        app.init_resource::<MobUuids>();
         app.init_resource::<MobChanges>();
+        app.init_resource::<PendingSpawns>();
         app.init_resource::<TileEvents>();
         app.add_message::<MobSpawnRequest>();
         app.add_message::<ItemDropped>();
@@ -189,6 +196,7 @@ fn entity_tick(
     mut rows: ResMut<EntityRows>,
     bodies: Res<Bodies>,
     mut stacks: ResMut<ItemStacks>,
+    rules: Option<Res<GameRules>>,
 ) {
     let Some(blocks) = world.get(*dimension) else {
         return;
@@ -201,6 +209,12 @@ fn entity_tick(
         },
         tables: &tables.0,
         tick: clock.0,
+        push: PushRules {
+            max_entity_cramming: rules.map_or(PushRules::default().max_entity_cramming, |rules| {
+                rules.get(GameRule::MaxEntityCramming)
+            }),
+            ..PushRules::default()
+        },
         tiles_per_task: tiles_per_task(pool, rows.tiles.len()),
     };
     for id in rows.tick(&pass, pool, &bodies.0) {
