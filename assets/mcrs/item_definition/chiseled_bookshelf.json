@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:chiseled_bookshelf",
-      "protocol_id": 391
+      "protocol_id": 403
     },
     "components": {
       "minecraft:attack_animation": {},

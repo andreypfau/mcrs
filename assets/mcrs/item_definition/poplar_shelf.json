@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:poplar_shelf",
-      "protocol_id": 385
+      "protocol_id": 397
     },
     "components": {
       "minecraft:attack_animation": {},

@@ -3,9 +3,9 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:cactus_flower",
-      "protocol_id": 329,
-      "base_state_id": 8615,
-      "default_state_id": 8615
+      "protocol_id": 333,
+      "base_state_id": 9026,
+      "default_state_id": 9026
     },
     "components": {
       "minecraft:light_emission": 0,

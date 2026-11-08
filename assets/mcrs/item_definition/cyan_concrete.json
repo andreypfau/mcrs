@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:cyan_concrete",
-      "protocol_id": 698
+      "protocol_id": 720
     },
     "components": {
       "minecraft:attack_animation": {},

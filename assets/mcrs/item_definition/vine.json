@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:vine",
-      "protocol_id": 484
+      "protocol_id": 500
     },
     "components": {
       "minecraft:attack_animation": {},

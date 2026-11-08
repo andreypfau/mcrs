@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:cobblestone_slab",
-      "protocol_id": 360
+      "protocol_id": 372
     },
     "components": {
       "minecraft:attack_animation": {},

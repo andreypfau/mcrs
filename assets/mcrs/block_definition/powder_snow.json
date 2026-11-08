@@ -3,9 +3,9 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:powder_snow",
-      "protocol_id": 1119,
-      "base_state_id": 30537,
-      "default_state_id": 30537
+      "protocol_id": 1140,
+      "base_state_id": 32595,
+      "default_state_id": 32595
     },
     "components": {
       "minecraft:light_emission": 0,

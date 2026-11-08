@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:flower_banner_pattern",
-      "protocol_id": 1497
+      "protocol_id": 1520
     },
     "components": {
       "minecraft:attack_animation": {},

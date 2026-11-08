@@ -3,9 +3,9 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:red_carpet",
-      "protocol_id": 606,
-      "base_state_id": 14759,
-      "default_state_id": 14759
+      "protocol_id": 610,
+      "base_state_id": 15170,
+      "default_state_id": 15170
     },
     "components": {
       "minecraft:light_emission": 0,

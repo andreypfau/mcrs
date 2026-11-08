@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:pumpkin_seeds",
-      "protocol_id": 1260
+      "protocol_id": 1282
     },
     "components": {
       "minecraft:attack_animation": {},

@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:stripped_jungle_log",
-      "protocol_id": 181
+      "protocol_id": 193
     },
     "components": {
       "minecraft:attack_animation": {},

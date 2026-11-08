@@ -3,9 +3,9 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:potted_bamboo",
-      "protocol_id": 884,
-      "base_state_id": 18654,
-      "default_state_id": 18654
+      "protocol_id": 893,
+      "base_state_id": 19477,
+      "default_state_id": 19477
     },
     "components": {
       "minecraft:light_emission": 0,

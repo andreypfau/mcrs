@@ -3,9 +3,9 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:potted_white_tulip",
-      "protocol_id": 483,
-      "base_state_id": 12394,
-      "default_state_id": 12394
+      "protocol_id": 487,
+      "base_state_id": 12805,
+      "default_state_id": 12805
     },
     "components": {
       "minecraft:light_emission": 0,

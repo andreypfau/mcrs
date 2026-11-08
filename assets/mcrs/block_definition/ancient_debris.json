@@ -3,9 +3,9 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:ancient_debris",
-      "protocol_id": 1007,
-      "base_state_id": 25182,
-      "default_state_id": 25182
+      "protocol_id": 1016,
+      "base_state_id": 26005,
+      "default_state_id": 26005
     },
     "components": {
       "minecraft:light_emission": 0,

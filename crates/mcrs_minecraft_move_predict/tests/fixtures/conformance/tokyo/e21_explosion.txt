@@ -1,0 +1,157 @@
+client-ticks 2
+version 26.4-snapshot-7
+experiment E21
+step explosion
+instruction Release all keys and do nothing until Stop.
+fill -16 99 -16 48 99 16 minecraft:stone
+events
+9775433 < abilities none 0.05
+9775433 < attribute minecraft:block_interaction_range 4.5
+9775433 < attribute minecraft:entity_interaction_range 3
+9775433 < attribute minecraft:movement_speed 0.10000000149011612
+9775433 < effect minecraft:resistance 4
+9775433 < teleport 6 0.5 100 0.5 0 0 0 -90 0 0
+9856986 > move 0.5,100,0.5 - none
+9859278 > tick
+9872905 > move - - on_ground
+9872906 > tick
+9959226 > tick
+9961523 > tick
+10059565 > tick
+10077726 > tick
+10159177 > tick
+10159177 > tick
+10257281 > tick
+10259587 > tick
+10384704 > tick
+10384705 > tick
+10457441 > tick
+10462007 > tick
+10559902 > tick
+10587156 > tick
+10657589 > tick
+10662160 > tick
+10759655 > tick
+10759656 > tick
+10893665 > move 0.5,100,0.5 - on_ground
+10893667 > tick
+10893667 > tick
+10960620 > tick
+10960620 > tick
+11093097 > tick
+11093098 > tick
+11160956 > tick
+11160957 > tick
+11261370 > tick
+11293731 > tick
+11360982 > tick
+11360982 > tick
+11461013 > tick
+11461013 > tick
+11600512 > tick
+11600514 > tick
+11661072 > tick
+11661072 > tick
+11759450 > tick
+11803780 > tick
+11787080 < explosion -0.5545357112409718 0.288127513960013 0
+11866507 > move -0.054535711240971785,100.20972751243413,0.5 - none
+11868825 > tick
+11868826 > move -0.3573122447468323,100.33686047709394,0.5 - none
+11910799 > tick
+11824166 < block 4 99 1 minecraft:air
+11824166 < block 3 99 0 minecraft:air
+11824166 < block 2 99 0 minecraft:air
+11824166 < block 3 99 1 minecraft:air
+11824166 < block 2 99 1 minecraft:air
+11824166 < block 4 99 0 minecraft:air
+11824171 < block 4 99 -1 minecraft:air
+11824171 < block 3 99 -1 minecraft:air
+11824171 < block 2 99 -1 minecraft:air
+11876963 < forget 5 -7
+11876966 < forget 5 7
+11876967 < forget 6 -6
+11876967 < forget 6 6
+11876968 < forget 7 -5
+11876968 < forget 7 -4
+11876969 < forget 7 -3
+11876969 < forget 7 -2
+11876969 < forget 7 -1
+11876970 < forget 7 0
+11876970 < forget 7 1
+11876970 < forget 7 2
+11876970 < forget 7 3
+11876971 < forget 7 4
+11876971 < forget 7 5
+11973994 > move -0.6328388981777959,100.38305078335954,0.5 - none
+11973995 > tick
+11978584 > move -0.8835681600259468,100.34991728285496,0.5 - none
+11978585 > tick
+12061922 > move -1.111731794883401,100.23904645020262,0.5 - none
+12061923 > tick
+12085898 > move -1.3193607085875134,100.05199303056276,0.5 - none
+12085899 > tick
+12159730 > move -1.5083030255035408,100,0.5 - on_ground
+12159732 > tick
+12193636 > move -1.6802405388523352,100,0.5 - on_ground
+12193637 > tick
+12259471 > move -1.7741184320449408,100,0.5 - on_ground
+12259472 > tick
+12259472 > move -1.8253757676817777,100,0.5 - on_ground
+12302506 > tick
+12361376 > move -1.853362276190197,100,0.5 - on_ground
+12361378 > tick
+12363580 > move -1.8686429116106802,100,0.5 - on_ground
+12363580 > tick
+12506323 > move -1.8769861395193517,100,0.5 - on_ground
+12506337 > tick
+12506337 > move -1.8815415424866084,100,0.5 - on_ground
+12506337 > tick
+12558610 > tick
+12560898 > tick
+12663343 > tick
+12663344 > tick
+12760756 > tick
+12760757 > tick
+12861489 > tick
+12872683 > tick
+12961206 > tick
+12961206 > tick
+13058627 > tick
+13060915 > tick
+13174250 > tick
+13174251 > tick
+13258748 > tick
+13261035 > tick
+13366646 > tick
+13386974 > tick
+13458612 > tick
+13460905 > move -1.8815415424866084,100,0.5 - on_ground
+13463187 > tick
+13558531 > tick
+13583348 > tick
+13658678 > tick
+13660969 > tick
+13760553 > tick
+13760555 > tick
+13887931 > tick
+13887932 > tick
+13961380 > tick
+13961381 > tick
+14061073 > tick
+14092748 > tick
+14158267 > tick
+14160547 > tick
+14261043 > tick
+14261044 > tick
+14392305 > tick
+14392307 > tick
+14462952 > tick
+14462953 > move -1.8815415424866084,100,0.5 - on_ground
+14462954 > tick
+14599196 > tick
+14599197 > tick
+14661460 > tick
+14661461 > tick
+14758604 > tick
+14803479 > tick

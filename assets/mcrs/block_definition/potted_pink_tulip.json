@@ -3,9 +3,9 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:potted_pink_tulip",
-      "protocol_id": 484,
-      "base_state_id": 12395,
-      "default_state_id": 12395
+      "protocol_id": 488,
+      "base_state_id": 12806,
+      "default_state_id": 12806
     },
     "components": {
       "minecraft:light_emission": 0,

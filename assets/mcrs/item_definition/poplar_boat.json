@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:poplar_boat",
-      "protocol_id": 994
+      "protocol_id": 1016
     },
     "components": {
       "minecraft:attack_animation": {},

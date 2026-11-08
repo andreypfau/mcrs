@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:red_sand",
-      "protocol_id": 91
+      "protocol_id": 103
     },
     "components": {
       "minecraft:attack_animation": {},

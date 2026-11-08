@@ -6,9 +6,9 @@
       "properties": {
         "level": [1, 2, 3]
       },
-      "protocol_id": 440,
-      "base_state_id": 11201,
-      "default_state_id": 11201
+      "protocol_id": 444,
+      "base_state_id": 11612,
+      "default_state_id": 11612
     },
     "components": {
       "minecraft:light_emission": 0,

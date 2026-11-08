@@ -366,10 +366,14 @@ fn a_shared_packet_that_one_connection_sheds_is_not_framed_for_the_other() {
     let mut world = build_dispatch_world();
     let (sending, mut rx) = spawn_mock_connection(&mut world);
     let (shedding, _shedding_rx) = spawn_mock_connection(&mut world);
-    let column = OutboundPlayerPacket {
+    let PacketPayload::ChunkLoad { packet, .. } = chunk_load(&[0x80u8; 2000]) else {
+        unreachable!("a column")
+    };
+    // A column is never shed; the command tree is, as a shared packet that no prediction needs.
+    let shared = OutboundPlayerPacket {
         target: PacketTarget::AllPlayers,
         priority: PacketPriority::Normal,
-        data: chunk_load(&[0x80u8; 2000]),
+        data: PacketPayload::Commands(packet),
         session: PlayerSession(0),
         epoch: 0,
     };
@@ -377,7 +381,7 @@ fn a_shared_packet_that_one_connection_sheds_is_not_framed_for_the_other() {
         world
             .get_mut::<OutboundQueue>(socket)
             .unwrap()
-            .push(column.clone());
+            .push(shared.clone());
     }
     enqueue(&mut world, shedding, PacketPriority::Normal, DEPTH_LIMIT);
 
@@ -386,7 +390,178 @@ fn a_shared_packet_that_one_connection_sheds_is_not_framed_for_the_other() {
     assert_eq!(
         world.resource::<BridgeTelemetry>().shared_frames_total,
         0,
-        "the one connection that sends the column leaves the framing to its writer"
+        "the one connection that sends the packet leaves the framing to its writer"
     );
     assert!(rx.try_recv().is_ok());
+}
+
+// ---------------------------------------------------------------------------
+// wire order with shedding
+// ---------------------------------------------------------------------------
+
+/// What one packet on the wire is, for an order test.
+#[derive(Clone, Debug, PartialEq)]
+enum Wire {
+    Update(i32),
+    Event(i32),
+    /// An `update_attributes` of the entity of the viewer, with the entity id.
+    Own(i32),
+    Position,
+    Probe(i32),
+}
+
+fn payload_of(wire: &Wire) -> (PacketPriority, PacketPayload) {
+    use mcrs_minecraft_protocol_game::block::BlockStateNumber;
+    use mcrs_minecraft_protocol_game::clientbound::{
+        ClientboundBlockEvent, ClientboundPlayerPosition, ClientboundUpdateAttributes,
+    };
+    use mcrs_voxel::BlockPos;
+
+    match *wire {
+        Wire::Update(x) => (
+            PacketPriority::Normal,
+            PacketPayload::BlockUpdate(ClientboundBlockUpdate {
+                block_pos: BlockPos::new(x, 64, 0),
+                block_state_id: BlockStateNumber(1),
+            }),
+        ),
+        Wire::Event(x) => (
+            PacketPriority::Normal,
+            PacketPayload::BlockEvent(ClientboundBlockEvent {
+                pos: BlockPos::new(x, 64, 0),
+                action: 0,
+                param: 0,
+                block: VarInt(1),
+            }),
+        ),
+        Wire::Own(entity_id) => {
+            let mut packet = Vec::new();
+            ClientboundUpdateAttributes {
+                entity_id: VarInt(entity_id),
+                attributes: Vec::new(),
+            }
+            .encode_with_id(&mut packet)
+            .unwrap();
+            (
+                PacketPriority::Normal,
+                PacketPayload::OwnEntityState(packet.into()),
+            )
+        }
+        Wire::Position => (
+            PacketPriority::Critical,
+            PacketPayload::PlayerPosition(ClientboundPlayerPosition {
+                teleport_id: VarInt(1),
+                position: bevy_math::DVec3::ZERO,
+                velocity: bevy_math::DVec3::ZERO,
+                look: mcrs_minecraft_core::Look::default(),
+                flags: mcrs_minecraft_protocol_game::PositionFlags::default(),
+            }),
+        ),
+        Wire::Probe(_) => unreachable!("the test writes no probe"),
+    }
+}
+
+/// The packets of `blob`, as the client reads them.
+fn wire_of(blob: &[u8]) -> Vec<Wire> {
+    use mcrs_minecraft_protocol_game::clientbound::{
+        ClientboundBlockEvent, ClientboundPing, ClientboundPlayerPosition,
+        ClientboundUpdateAttributes,
+    };
+
+    let mut decoder = PacketDecoder::new();
+    decoder.queue_bytes(BytesMut::from(blob));
+    let mut wire = Vec::new();
+    while let Some(frame) = decoder.try_next_packet().unwrap() {
+        let mut body = &frame.body[..];
+        wire.push(match frame.id {
+            ClientboundBlockUpdate::ID => Wire::Update(
+                ClientboundBlockUpdate::decode(&mut body)
+                    .unwrap()
+                    .block_pos
+                    .x,
+            ),
+            ClientboundBlockEvent::ID => {
+                Wire::Event(ClientboundBlockEvent::decode(&mut body).unwrap().pos.x)
+            }
+            ClientboundUpdateAttributes::ID => Wire::Own(
+                ClientboundUpdateAttributes::decode(&mut body)
+                    .unwrap()
+                    .entity_id
+                    .0,
+            ),
+            ClientboundPlayerPosition::ID => Wire::Position,
+            ClientboundPing::ID => Wire::Probe(ClientboundPing::decode(&mut body).unwrap().id),
+            id => panic!("an unexpected packet {id}"),
+        });
+    }
+    wire
+}
+
+/// MVC-LAT-001, MVC-TICK-002, MVC-PKT-031: a queue past its depth sheds only packets that the
+/// client may miss. Every block update, the teleport and the state of the own entity keep their
+/// place in the order of the writes, the probes bracket the predicted changes of the flush on the
+/// wire, and MVC-LAT-002: the flush of the tick ends with a probe.
+#[test]
+fn a_shedding_queue_keeps_the_wire_order_of_the_predicted_changes_between_probes() {
+    use mcrs_minecraft_engine::muxer::probes::Probes;
+
+    let mut world = build_dispatch_world();
+    let (socket, mut rx) = spawn_mock_connection(&mut world);
+    world.entity_mut(socket).insert((
+        Probes::default(),
+        mcrs_minecraft_network::ConnectionState::Game,
+    ));
+    let written: Vec<Wire> = (0..300)
+        .map(|x| match x {
+            0 => Wire::Own(x),
+            150 => Wire::Position,
+            x if x % 10 == 5 => Wire::Update(x),
+            x => Wire::Event(x),
+        })
+        .collect();
+    {
+        let mut queue = world.get_mut::<OutboundQueue>(socket).unwrap();
+        for wire in &written {
+            let (priority, data) = payload_of(wire);
+            queue.push(OutboundPlayerPacket {
+                target: PacketTarget::AllPlayers,
+                priority,
+                data,
+                session: PlayerSession(0),
+                epoch: 0,
+            });
+        }
+    }
+
+    run_dispatch(&mut world);
+
+    let shed = written.len() - DEPTH_DRAIN_TARGET;
+    let mut events_to_shed = shed;
+    let mut expected: Vec<Wire> = written
+        .iter()
+        .filter(|wire| {
+            let drop = matches!(wire, Wire::Event(_)) && events_to_shed > 0;
+            events_to_shed -= usize::from(drop);
+            !drop
+        })
+        .cloned()
+        .collect();
+    let first = expected
+        .iter()
+        .position(|wire| matches!(wire, Wire::Update(_) | Wire::Own(_)))
+        .unwrap();
+    let last = expected
+        .iter()
+        .rposition(|wire| matches!(wire, Wire::Update(_) | Wire::Own(_)))
+        .unwrap();
+    expected.push(Wire::Probe(2));
+    expected.insert(last + 1, Wire::Probe(1));
+    expected.insert(first, Wire::Probe(0));
+
+    let wire = wire_of(&rx.try_recv().unwrap());
+    assert_eq!(
+        world.resource::<BridgeTelemetry>().drop_normal_total,
+        shed as u64
+    );
+    assert_eq!(wire, expected);
 }

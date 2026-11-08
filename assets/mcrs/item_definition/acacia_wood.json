@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:acacia_wood",
-      "protocol_id": 207
+      "protocol_id": 219
     },
     "components": {
       "minecraft:attack_animation": {},

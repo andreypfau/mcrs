@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:cherry_sapling",
-      "protocol_id": 82
+      "protocol_id": 94
     },
     "components": {
       "minecraft:attack_animation": {},

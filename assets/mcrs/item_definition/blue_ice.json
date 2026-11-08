@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:blue_ice",
-      "protocol_id": 786
+      "protocol_id": 808
     },
     "components": {
       "minecraft:attack_animation": {},

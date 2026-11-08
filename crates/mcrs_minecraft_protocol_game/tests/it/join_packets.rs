@@ -89,7 +89,6 @@ fn login_carries_no_seed_and_equals_the_reference_bytes() {
             dimension: overworld(),
             game_mode: GameMode::Creative,
             prev_game_mode: OptGameMode(Some(GameMode::Survival)),
-            is_debug: false,
             is_flat: false,
             last_depth_location: None,
             portal_cooldown: VarInt(5),
@@ -110,7 +109,6 @@ fn respawn_equals_the_reference_bytes() {
             dimension: mcrs_minecraft_dimension::dimension_keys::THE_NETHER.into(),
             game_mode: GameMode::Survival,
             prev_game_mode: OptGameMode(None),
-            is_debug: false,
             is_flat: true,
             last_depth_location: Some(GlobalPos {
                 dimension: overworld(),

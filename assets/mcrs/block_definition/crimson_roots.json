@@ -3,9 +3,9 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:crimson_roots",
-      "protocol_id": 973,
-      "base_state_id": 24394,
-      "default_state_id": 24394
+      "protocol_id": 982,
+      "base_state_id": 25217,
+      "default_state_id": 25217
     },
     "components": {
       "minecraft:light_emission": 0,

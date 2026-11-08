@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:nether_quartz_ore",
-      "protocol_id": 110
+      "protocol_id": 122
     },
     "components": {
       "minecraft:attack_animation": {},

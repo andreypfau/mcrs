@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:sheep_spawn_egg",
-      "protocol_id": 1285
+      "protocol_id": 1307
     },
     "components": {
       "minecraft:attack_animation": {},

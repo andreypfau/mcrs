@@ -93,8 +93,13 @@ A differential test against vanilla must not automatically treat such difference
 | Fluids | semantic | tick rates, levels, spread distance and the resulting states |
 | Lighting | semantic | the stable light levels |
 | Random behaviour (growth, spawning, loot, AI choices) | semantic | distributions, not vanilla's random sequence |
+| Server-simulated entity motion and push | semantic | within 1e-6 per tick; colliders, blocks and pushes from the start of the tick (PHY-CMP-006, 008, 009, 012) |
+| AI decisions | semantic | the decisions and their distributions; a decision applies one tick or more after the state it read |
 
 A subsystem not in the table declares its policy when it is built.
+
+**Revised.** The last two rows are new. They record the policies that the entity design of
+`physics-architecture.md` relies on (decisions 22 and 23).
 
 ## Semantic now, exact later
 
@@ -156,11 +161,21 @@ Kernel
 
 Task
     Physical unit of work Bevy runs on its task pool
+
+Tile
+    Fixed spatial square of 2 x 2 columns, full height. The memory segment and
+    the work unit of the entity domain, and the replication tile of the Muxer
+
+Cell
+    Unit of placement: a part of a world that can run in another thread,
+    process or machine (cells.md)
 ```
 
-Where shards run, and how a player sees and simulates the world, is in `cells.md`: cells, the cell tree, the Muxer, the data layer and stages.
+Where cells run, and how a player sees and simulates the world, is in `cells.md`: cells, the cell tree, the Muxer, the data layer and stages. How entities tick inside a world is in `physics-architecture.md`.
 
-The term **region file** is reserved for Anvil storage. Do not use `region` for simulation partitions, and do not use `cell` for any grouping of chunks.
+**Revised.** `Tile` and `Cell` are new terms here. A tile is a work unit, not a causal unit. A cell is a placement unit; it is not the unit of parallel work inside a process (decision 25).
+
+The term **region file** is reserved for Anvil storage. Do not use `region` for simulation partitions. A `cell` is only a unit of placement (`cells.md`), never a causal partition.
 
 The only term for a simulation partition is **Shard**.
 
@@ -188,6 +203,8 @@ The system that steps a domain may:
 - contain multiple independent shards inside one section.
 
 This prevents the 16×16×16 grid from becoming an artificial execution constraint.
+
+A domain whose step reads only a frozen snapshot and writes only its own item has no causal group larger than one item. Entity physics is such a domain (decision 22): its causal unit is one entity, or one vehicle with its passengers, for one tick. Its tasks are batches of tiles.
 
 ---
 
@@ -231,40 +248,50 @@ Therefore:
 
 **Shard identity must not be derived solely from spatial bounds.**
 
+**Revised.** `EntityShard` is no longer a shard type (section 7). The list stays as examples of
+domains with a causal structure of their own.
+
 ---
 
-# 7. EntityShard
+# 7. The entity domain
 
-`EntityShard` is primarily spatial.
+**Revised.** This section described an `EntityShard`: a spatial group of entities that interact
+through collision, proximity and targeting, which grows and splits with density. The entity
+domain no longer has such a shard. The design is in `physics-architecture.md`.
 
-Its purpose is to group entities whose simulation may interact through:
+The physics specification lets the tick of a server-simulated entity read the colliders, the
+blocks and the pushes from the start of the tick (PHY-CMP-008, PHY-CMP-009, PHY-CMP-012). Then
+the tick of each entity reads only frozen state and its own state, and writes only itself and
+deferred effects (PHY-INV-015). This gives the entity domain three properties:
 
-- collision;
-- proximity;
-- targeting;
-- entity-to-entity interaction;
-- player interaction;
-- local environmental effects;
-- movement across space.
+- The causal unit is one entity for one tick. A vehicle and its passengers are one unit, because a
+  passenger reads the new state of its vehicle.
+- The entity pass is one parallel map. It needs no islands, no merge or split, and no locks.
+- The result does not depend on the order, the thread count, the tasks or the cells.
 
-An EntityShard may cover many chunk sections.
+What a shard did for entities, other units now do:
 
-Its size should not necessarily be fixed.
+| Need | Unit |
+|------|------|
+| Memory locality and the work unit | the tile: 2 × 2 columns, full height |
+| Load balance | tasks: batches of tiles, or a range of rows of one heavy tile |
+| Placement in another process | the cell (`cells.md`) |
+| Targeting, sensing, pathfinding | the AI stage beside the tick (section 13, decision 23) |
 
-It may grow or split depending on:
+Interactions that write another entity (a hit, a knockback, a pickup) are deferred effects. They
+apply at the start of the next tick in a stable order (PHY-CMP-015). Exclusive actions (a pickup,
+a merge, a removal) are claims, arbitrated once per tick after the block domain (PHY-CMP-017). The
+block domain writes entities in the same tick, after the entity pass (PHY-BLK-001).
 
-- entity density;
-- colliding entity pairs;
-- entities with active AI;
-- cross-boundary interactions.
+Two small sets tick in sequence, in the order of the birth key: groups of colliders whose read
+zones touch (PHY-CMP-018), and explosion groups around primed TNT that explodes in the tick
+(PHY-CMP-020). The start-of-tick state decides them, and each group is one task.
 
-All four are read from simulation state; CPU load and worker availability only decide how shards are grouped into tasks (sections 18, 21).
+The order key of every rule above is the persisted birth key of PHY-CMP-013, not the network id,
+which an implementation gives per cell and does not save.
 
-A shard is not equivalent to a worker thread.
-
-Many shards may execute on one worker.
-
-One machine may execute thousands of logical shards.
+The exact-parity mode does not use the start-of-tick rules. It ticks the entities in sequence, in
+the order in which they entered the tick list, over the same store and kernel (decision 20).
 
 ---
 
@@ -397,8 +424,10 @@ Preferred hybrid model:
 |---|---|
 | Static blocks | palette-compressed chunk/section storage |
 | Active blocks | sparse indices / activity structures |
-| Entities | Bevy ECS |
-| Players | Bevy ECS |
+| Entities: hot motion state (position, velocity, motion flags, rest, steering) | a tile-segmented SoA body store that the physics kernel crate owns; Bevy drives it |
+| Entities: cold state (health, equipment, attributes, team, custom data) | Bevy ECS |
+| Entities: brain state (memories, goals, plans) | the AI stage beside the tick |
+| Players | rows of the body store (position, rotation, pose); cold state in Bevy ECS |
 | Block entities | ECS or specialized sparse storage |
 | Scheduled block ticks | timing wheel / priority structure |
 | Spatial queries | section/chunk-based spatial index |
@@ -407,6 +436,11 @@ Preferred hybrid model:
 | Fluids | specialized active simulation representation |
 
 Bevy is the execution/runtime framework for suitable domains, not necessarily the universal storage format for every Minecraft object.
+
+**Revised.** The entity rows were "Bevy ECS". At 100k to 1M entities, the hot loop needs rows in
+spatial order, a skip of quiet tiles with no work, and contiguous lanes for a batch path. Bevy
+tables give spawn order and one table per archetype. Each hot field lives only in the store, so
+ECS holds no second copy of it (decision 24).
 
 ---
 
@@ -462,9 +496,17 @@ A driver owns the shards of a domain, steps them, delivers cross-shard messages 
 
 A driver can run a step beside the tick, on a thread of its own. The tick does not wait for such a step. The writes of the step are input of the first tick after the step ends. That tick applies them in a stable order. World generation and lighting run their steps beside the tick (decision 21).
 
+AI runs beside the tick in the same way (decision 23). The AI stage keeps its own replica of the bodies and a navigation projection of the blocks, fed by the output of each tick. A decision that it issues at tick `T` reads the replica at `T` and applies at tick `T + k` or later, with `k ≥ 1`.
+
+## A step as a parallel map
+
+A step can also read only a frozen view and write only its own item. Then the driver runs it as a parallel map over the items, with no shard and no cross-shard message. The entity pass is such a step (decision 22). Its frozen view is the blocks at the copy point and the body grid of the previous tick; its outputs are the new rows of the items and deferred effects, merged in a stable order after the map.
+
 ## Bevy schedules; no custom scheduler
 
-Inside the tick, the engine's driver is Bevy. There is no task graph, worker scheduler or dependency analyser of our own.
+Inside the tick, the engine's driver is Bevy. There is no task graph, worker scheduler or dependency analyser of our own between systems.
+
+**Revised.** Inside one system, a domain can run its tile tasks with dependency counters: a task starts when the tasks it reads from have ended, and each ending task decrements the counters of its dependents. The counters live for one tick, on the Bevy compute pool. The entity domain uses them to overlap the sequential groups, the movement checks and the main pass, and the block domain to drive its colour phases without global barriers (`physics-architecture.md` §3.9). Bevy stays the scheduler between systems.
 
 - Shards are data: an index or a component per domain.
 - One system per domain steps every shard of that domain, in parallel across shards (`par_iter` or similar).
@@ -579,6 +621,28 @@ Instead consider:
 
 This model remains a design direction, not a mandatory implementation detail.
 
+**Revised.** The entity domain uses snapshot isolation per tick, without a copy of the world:
+
+```text
+Freeze: blocks by order (no block write before the block step),
+        bodies = the grid that the previous tick rebuilt
+        |
+        v
+Parallel map: each entity reads the frozen state, writes its own row,
+              appends deferred effects
+        |
+        v
+Collider groups, main pass, explosion groups;
+claims arbitrated after the block step;
+writes to other entities merged at the start of T+1
+by (target key, writer key, sequence)
+        |
+        v
+Block step applies block actions; rebuild the grid of dirty tiles
+```
+
+Only the public part of a body (its box and push fields, 48 bytes) is double-buffered, because only that part is read by another entity. Commit is deterministic and global for this domain; the other domains keep the open question of section 29.
+
 ---
 
 # 17. Avoid Global Tick Barriers Where Possible
@@ -601,6 +665,8 @@ Shard D ───── executes independently
 ```
 
 A global barrier is acceptable only where the semantics actually require it or where benchmarking proves it cheaper than fine-grained synchronization.
+
+The entity domain has four barriers per tick: the freeze, the collider pre-pass, the main pass and the explosion groups. Each costs tens of microseconds against a pass of several milliseconds. A barrier per task group would save less than it costs in code.
 
 ---
 
@@ -629,6 +695,8 @@ Do not accidentally allow thread scheduling to become gameplay semantics.
 The same inputs give the same result regardless of thread count. Shard layout is derived from the inputs, so it is reproducible as well; a result that may differ between layouts, such as the sync point at which a cross-shard effect applies, is stated by the domain's ordering policy. Ties are broken by a stable key, such as a shard key and an insertion sequence, never by arrival from a thread.
 
 For a step beside the tick, thread timing decides only the tick that applies its writes, never their content or order. This is the third choice above. World generation and lighting accept it, and vanilla also computes both on worker threads.
+
+AI accepts it too, within a bound. The AI step of tick `T` is a function of the brain state, the replica at `T` and a random stream keyed by the birth key and `T`. A path search advances by a budget of nodes per stage tick, never by time. Results apply in the order of `T` and the birth key, at a tick in `[T + k, T + max_lag]`: past `max_lag` the tick waits for the stage (`entity-ai-timing.md`). A mode with a fixed delay of `k` ticks makes the tick always wait, so tests and replays apply each result at the same tick in every run.
 
 ---
 
@@ -706,13 +774,14 @@ Possible architecture:
 
 ## Entities
 
-Possible architecture:
+Chosen architecture (`physics-architecture.md`):
 
-- ECS archetypes;
-- spatial indexing;
-- batched collision;
-- vectorized broadphase;
-- parallel AI where safe.
+- a Jacobi tick: a parallel map over a frozen start-of-tick state;
+- a tile-segmented SoA body store for the hot fields, cold fields in ECS;
+- a body grid per tile, rebuilt only for dirty tiles;
+- rest per tile: a quiet tile costs no work;
+- a batched path for entities in air;
+- AI, sensing and pathfinding beside the tick.
 
 ## Fluids
 
@@ -897,6 +966,8 @@ This helps detect hidden dependencies that the shard formation failed to represe
 
 Thread timing decides when a step beside the tick ends. A test of the whole tick therefore runs in lockstep: after each tick, it waits until the generation and light steps of the tick end. It applies nothing while it waits. Every run then receives the same writes at the same ticks. The test compares the blocks, light, heightmaps and entities after each tick between `Placement::Inline` and `Placement::Thread` of the worlds (`crates/mcrs_minecraft_server/tests/it/tick_determinism.rs`). It fails when the tick applies the writes by arrival, or at a moment between ticks.
 
+The same test runs the AI stage with a fixed delay of one tick. A second test slows the AI stage at random with no fixed delay, and checks that each entity gets the same sequence of decisions; only the ticks that apply them differ. The entity pass is also run with one, two and eight tasks per heavy tile, and the results must be equal.
+
 ---
 
 # 26. Data Locality
@@ -928,7 +999,7 @@ Do not:
 - assume section boundaries define causal independence;
 - map one shard to one thread;
 - add a dedicated shard abstraction to every subsystem without measured benefit;
-- build a task graph or scheduler beside Bevy's;
+- build a task graph or scheduler beside Bevy's between systems (dependency counters over tiles inside one system are allowed, decision 10);
 - make a domain's kernel depend on Bevy or tokio;
 - preserve vanilla bugs by default;
 - treat every differential mismatch as a defect in the new server.
@@ -953,18 +1024,20 @@ Use the term **Shard** for simulation partitions.
 
 Do not use `Region`, because Minecraft already defines 32×32 chunk region files. The term **region file** is reserved for Anvil storage.
 
-## Decision 4
+## Decision 4 (revised)
 
 Shards are **domain-specific** rather than necessarily universal.
 
-Primary examples:
+Primary example:
 
 ```text
-EntityShard
 RedstoneShard
 ```
 
 Additional shard types are allowed only when justified.
+
+**Revised.** `EntityShard` was the second example. The entity domain has no shard: its causal
+unit is one entity for one tick (decision 22).
 
 ## Decision 5
 
@@ -990,7 +1063,7 @@ A shard is a logical dependency/ownership unit, not a thread.
 
 Sections are indexing units, not necessarily execution units.
 
-## Decision 9
+## Decision 9 (revised)
 
 The world uses a hybrid data model.
 
@@ -998,11 +1071,16 @@ Bevy ECS is primarily suited to dynamic entities and selected sparse dynamic sta
 
 Static blocks remain in compact section/chunk storage.
 
-## Decision 10
+**Revised.** The hot motion state of entities is not in Bevy ECS. It is in the body store of the
+physics kernel (decision 24). ECS keeps the cold state of entities and the players.
+
+## Decision 10 (revised)
 
 Bevy schedules; there is no custom scheduler.
 
 Shards are data. One system per domain steps every shard of that domain in parallel, and cross-shard messages are applied in a stable sorted order at a sync point.
+
+**Revised.** A domain without shards, such as the entity pass, is one system that maps over its tiles on the Bevy compute pool. Inside that system, tile tasks start by per-tile dependency counters, so sequential groups and the main pass overlap and the block phases need no global barrier. The counters are local to one system and one tick; Bevy stays the scheduler between systems.
 
 ## Decision 11
 
@@ -1014,9 +1092,13 @@ Parallelize commuting work.
 
 Use explicit cross-shard events/messages rather than unrestricted cross-shard mutation.
 
-## Decision 13
+## Decision 13 (revised)
 
 Allow dynamic shard merge/split.
+
+**Revised.** This applies to the domains that have shards, such as redstone. The entity domain
+does not merge or split anything; it only moves a row to another tile when an entity crosses a
+tile edge.
 
 ## Decision 14
 
@@ -1068,6 +1150,40 @@ Between ticks, the server loop only hands the packets of a tick to the sockets. 
 
 A column goes out in the tick that applies the last write it needs.
 
+## Decision 22 (new)
+
+Entities tick as a Jacobi step.
+
+With PHY-CMP-008, PHY-CMP-009 and PHY-CMP-012, the tick of each server-simulated entity reads only the blocks at the copy point, the body grid from the start of the tick and its own state. It writes only its own state and deferred effects. The entity pass is one parallel map. Interaction islands are rejected: read zones percolate in dense areas, so the largest island becomes a serial pass exactly where the load is highest. Only two small sets tick in sequence, each as one task: groups of colliders whose read zones touch (PHY-CMP-018), and explosion groups (PHY-CMP-020). The start-of-tick state decides them.
+
+## Decision 23 (new)
+
+The hot loop and the cold work are separate.
+
+The hot loop holds physics, the push, steering along the current plan and due events. Goal and target selection, sensing, pathfinding, item merge search and similar work run in an AI stage beside the tick. Reflexes that a stale state would make wrong (a creeper that swells, melee reach, a door on the path) stay in the hot loop. The stage runs at the rate of the reference, with no throttling by distance, on its own pool at a lower priority, in slices. A decision is a pure function of the brain state, the replica at tick `T` and a random stream of the birth key and `T`. It applies at a tick in `[T + k, T + max_lag]`, in the order of `T` and the birth key. Pair actions (breeding, a pack) use propose and accept inside one stage tick. The hot loop waits for the stage only past `max_lag`, or in the mode with a fixed delay that tests use. With `max_lag` = 2 (`entity-ai-timing.md`), the stage is a pipeline: it must finish one tick of AI work per tick, so AI cost is on the critical path whenever it needs more cores than the stage has. In the exact-parity mode, decisions run inside the tick with no delay (`AiDelay::Inline`).
+
+**Revised.** The first version issued decisions at a cadence by the distance to the nearest player, and had no bound on the lag. Throttling by distance is visible to players, and an unbounded lag lets a stale decision act long after its cause. A reduced cadence for far mobs exists only as an operator's recorded deviation, off by default.
+
+## Decision 24 (new)
+
+The hot motion state of entities lives in a body store of the physics kernel.
+
+The store is tile-segmented SoA, with rows sorted by tile and motion class. Players are rows too, so a player position has one home. Bevy drives the store through one resource per writer (`EntityRows`, `PlayerRows`, `BodyGrid`), so the entity pass and the movement checks run in parallel. Cold state stays in ECS, linked by the entity id; side tables are keyed by id, never by row. Each row has one writer in each phase: the merge point and the life cycle at the sync point, commands (which write through, so a command reads its own writes), the entity pass, the block domain, and the exact-parity driver in its mode.
+
+**Revised.** The first version allowed only messages at the sync point. Commands, the block domain and the exact-parity driver must write in their own phases.
+
+## Decision 25 (new)
+
+A cell is a unit of placement, not the unit of parallel work.
+
+Inside a process, a world is one cell by default, and tiles are the work units of the entity domain. A world of one cell needs block shards inside it, because the block domain grows with the players and runs on one core today. Cells exist to place parts of a world in other processes or machines. Their rules (halo, bodies near a boundary, hysteresis) stay for that case. The physics result is the same in one cell and in many (PHY-INV-015), except the two boundary cases that PHY-INV-014 and `physics-architecture.md` name.
+
+## Decision 26 (new)
+
+A write from one entity to another applies at the start of the next tick, at one merge point for local and mailed writes, in the order of the target key, the writer key and a sequence. Claims are arbitrated once per tick after the block domain, with a total writer key (`command < entity < block`). The key of an entity is its persisted birth key.
+
+**Revised.** The first version applied the writes after the pass and keyed them by the global entity id. The id comes from per-cell ranges and is not saved, so it gave different orders in different layouts and after a restart; and a second application point for mailed writes changed the f64 sum order between layouts.
+
 ---
 
 # 29. Open Design Questions
@@ -1083,6 +1199,8 @@ Determine the exact write-ownership model:
 - per domain;
 - transactional;
 - versioned/optimistic hybrid.
+
+Resolved for entities: each entity writes only its own row in its tick; every other write is a deferred effect (decisions 22 and 26).
 
 ## Cross-domain dependency graph
 
@@ -1110,18 +1228,29 @@ Resolved: redstone is semantic now and migratable to exact (section 2). Delays, 
 
 ## Entity boundaries
 
-Determine whether EntityShard boundaries are:
-
-- section-aligned;
-- chunk-aligned;
-- arbitrary spatial volumes;
-- dynamically clustered.
+Resolved: entities have no shard and no boundary inside a process (decision 22). Tiles of 2 × 2 columns are the work units. Across processes, the boundary is the cell boundary, with the rules of `cells.md`.
 
 ## Commit semantics
 
 Determine whether mutation buffering and deterministic commit are required globally or only for selected domains.
 
-Resolved for the steps beside the tick: their writes commit at the start of a tick, in a stable order (decision 21).
+Resolved for the steps beside the tick: their writes commit at the start of a tick, in a stable order (decision 21). Resolved for entities: snapshot isolation per tick, with effects merged in a stable order (section 16, decision 26).
+
+## Serial domains in one world
+
+With one cell per world in a process, a domain that steps one shard for the whole world runs on one core. The block kernel does that today. It must step shards in parallel inside the world before the entity load reaches 1M; until then an operator can divide a world into cells in one process.
+
+## Brain state
+
+The AI stage owns the brain state of each entity. Determine how a save reads it, and how it moves with an entity to another cell.
+
+## Crowds
+
+Resolved: the push uses the mutual `K` nearest neighbours when crowd damage is off (PHY-CMP-019, PHY-DEV-008).
+
+## Sequential groups
+
+A very large explosion group (a detonation of 1,000 TNT) is a serial chain of ~30 ms even when the rays of each explosion fan out. Determine whether such a case needs a bound.
 
 ## Distributed simulation
 
@@ -1140,7 +1269,7 @@ When implementing a feature:
 5. Write the domain's step as a kernel without Bevy, over the world view trait.
 6. Determine the minimum required ordering, and keep it in the domain's ordering policy.
 7. Keep the fields vanilla orders by in every queue.
-8. Express independent work as separate shards.
+8. Express independent work as separate shards, or as a parallel map over a frozen view when each item writes only itself.
 9. Avoid global synchronization.
 10. Add conformance tests, and a kernel test without Bevy.
 11. Add thread-count and shard-layout tests.
@@ -1170,10 +1299,14 @@ The intended server architecture can be summarized as:
          Entity Domain   Redstone Domain   Other Domains
               |               |               |
               v               v               v
-         EntityShards    RedstoneShards      Shards
+         Jacobi map      RedstoneShards      Shards
+         over tiles           |               |
+         (+ AI stage          |               |
+          beside the tick)    |               |
               |               |               |
               v               v               v
-            Kernels: one step per shard, no Bevy
+            Kernels: no Bevy. One step per shard,
+            or one step per entity over a frozen view
             (state, world view, messages, policy)
                               |
                               v

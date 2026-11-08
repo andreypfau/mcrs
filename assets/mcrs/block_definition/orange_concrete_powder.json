@@ -3,9 +3,9 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:orange_concrete_powder",
-      "protocol_id": 818,
-      "base_state_id": 18410,
-      "default_state_id": 18410
+      "protocol_id": 827,
+      "base_state_id": 19233,
+      "default_state_id": 19233
     },
     "components": {
       "minecraft:light_emission": 0,

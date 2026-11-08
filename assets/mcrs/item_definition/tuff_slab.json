@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:tuff_slab",
-      "protocol_id": 13
+      "protocol_id": 25
     },
     "components": {
       "minecraft:attack_animation": {},

@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:dark_oak_planks",
-      "protocol_id": 69
+      "protocol_id": 81
     },
     "components": {
       "minecraft:attack_animation": {},

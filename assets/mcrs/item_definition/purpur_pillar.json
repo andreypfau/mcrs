@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:purpur_pillar",
-      "protocol_id": 400
+      "protocol_id": 412
     },
     "components": {
       "minecraft:attack_animation": {},

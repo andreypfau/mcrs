@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:calibrated_sculk_sensor",
-      "protocol_id": 851
+      "protocol_id": 873
     },
     "components": {
       "minecraft:attack_animation": {},

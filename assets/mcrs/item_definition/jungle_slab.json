@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:jungle_slab",
-      "protocol_id": 344
+      "protocol_id": 356
     },
     "components": {
       "minecraft:attack_animation": {},

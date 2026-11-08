@@ -3,13 +3,14 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:chicken",
-      "protocol_id": 1264
+      "protocol_id": 1286
     },
     "components": {
       "minecraft:attack_animation": {},
       "minecraft:attribute_modifiers": [],
       "minecraft:break_sound": "minecraft:entity.item.break",
       "minecraft:consumable": {
+        "sound": "minecraft:entity.generic.eat",
         "on_consume_effects": [
           {
             "effects": [

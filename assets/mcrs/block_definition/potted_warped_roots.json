@@ -3,9 +3,9 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:potted_warped_roots",
-      "protocol_id": 1013,
-      "base_state_id": 25192,
-      "default_state_id": 25192
+      "protocol_id": 1022,
+      "base_state_id": 26015,
+      "default_state_id": 26015
     },
     "components": {
       "minecraft:light_emission": 0,

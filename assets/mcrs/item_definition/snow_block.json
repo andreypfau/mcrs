@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:snow_block",
-      "protocol_id": 412
+      "protocol_id": 424
     },
     "components": {
       "minecraft:attack_animation": {},

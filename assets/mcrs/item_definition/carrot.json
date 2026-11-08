@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:carrot",
-      "protocol_id": 1381
+      "protocol_id": 1403
     },
     "components": {
       "minecraft:attack_animation": {},
@@ -12,7 +12,9 @@
       "minecraft:compostable": {
         "layers": "minecraft:compostable/medium"
       },
-      "minecraft:consumable": {},
+      "minecraft:consumable": {
+        "sound": "minecraft:entity.generic.eat"
+      },
       "minecraft:enchantments": {},
       "minecraft:food": {
         "nutrition": 3,

@@ -27,9 +27,9 @@
           false
         ]
       },
-      "protocol_id": 579,
-      "base_state_id": 14384,
-      "default_state_id": 14415
+      "protocol_id": 583,
+      "base_state_id": 14795,
+      "default_state_id": 14826
     },
     "components": {
       "minecraft:friction": 0.6,

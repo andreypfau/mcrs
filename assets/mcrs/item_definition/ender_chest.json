@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:ender_chest",
-      "protocol_id": 513
+      "protocol_id": 530
     },
     "components": {
       "minecraft:attack_animation": {},

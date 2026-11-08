@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:bell",
-      "protocol_id": 1517
+      "protocol_id": 1540
     },
     "components": {
       "minecraft:attack_animation": {},

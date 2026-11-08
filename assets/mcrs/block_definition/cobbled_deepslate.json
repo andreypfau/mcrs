@@ -3,9 +3,9 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:cobbled_deepslate",
-      "protocol_id": 1245,
-      "base_state_id": 33834,
-      "default_state_id": 33834
+      "protocol_id": 1267,
+      "base_state_id": 35893,
+      "default_state_id": 35893
     },
     "components": {
       "minecraft:light_emission": 0,

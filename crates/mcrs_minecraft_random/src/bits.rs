@@ -26,6 +26,7 @@ pub(crate) trait BitSource {
         self.next_bits(1) != 0
     }
 
+    #[inline]
     fn bits_u32_bound(&mut self, bound: u32) -> u32 {
         if (bound & (bound - 1)) == 0 {
             let n = self.next_bits(31);

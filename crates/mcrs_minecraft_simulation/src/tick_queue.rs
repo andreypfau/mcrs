@@ -9,9 +9,9 @@ use std::collections::hash_map::Entry;
 use std::fmt::Debug;
 use std::hash::Hash;
 
-pub trait TickKind: Copy + Eq + Ord + Hash + Debug {}
+pub trait TickKind: Copy + Eq + Ord + Hash + Debug + Send + Sync {}
 
-impl<T: Copy + Eq + Ord + Hash + Debug> TickKind for T {}
+impl<T: Copy + Eq + Ord + Hash + Debug + Send + Sync> TickKind for T {}
 
 pub trait Kinds: Copy + Eq + Debug {
     type Block: TickKind;

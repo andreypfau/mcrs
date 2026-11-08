@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:podzol",
-      "protocol_id": 57
+      "protocol_id": 69
     },
     "components": {
       "minecraft:attack_animation": {},

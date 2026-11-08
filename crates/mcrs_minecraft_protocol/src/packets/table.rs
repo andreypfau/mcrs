@@ -69,11 +69,12 @@ macro_rules! for_each_packet_table {
             }
             login_clientbound: ClientboundLoginPacket<'a>, Login, Clientbound in ($crate::packets::login::clientbound) {
                 "login_disconnect" => ClientboundLoginDisconnect<'a>,
-                "hello" => ClientboundHello<'a>,
+                "key" => ClientboundHello<'a>,
                 "login_finished" => ClientboundLoginFinished<'a>,
-                "login_compression" => LoginCompression,
+                "setup_compression" => LoginCompression,
                 "custom_query",
                 "cookie_request",
+                "apply_options",
             }
             login_serverbound: ServerboundLoginPacket<'a>, Login, Serverbound in ($crate::packets::login::serverbound) {
                 "hello" => ServerboundHello<'a>,
@@ -81,6 +82,7 @@ macro_rules! for_each_packet_table {
                 "custom_query_answer" => ServerboundCustomQueryAnswer<'a>,
                 "login_acknowledged" => ServerboundLoginAcknowledged,
                 "cookie_response" => ServerboundCookieResponse<'a>,
+                "options_applied",
             }
             configuration_clientbound: ClientboundConfigurationPacket<'a>, Configuration, Clientbound in ($crate::packets::configuration::clientbound) {
                 "cookie_request",

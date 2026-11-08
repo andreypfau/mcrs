@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:seagrass",
-      "protocol_id": 248
+      "protocol_id": 260
     },
     "components": {
       "minecraft:attack_animation": {},

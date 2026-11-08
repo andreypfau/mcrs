@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:birch_sapling",
-      "protocol_id": 79
+      "protocol_id": 91
     },
     "components": {
       "minecraft:attack_animation": {},

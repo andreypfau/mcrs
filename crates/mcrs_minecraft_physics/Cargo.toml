@@ -1,0 +1,36 @@
+[package]
+name = "mcrs_minecraft_physics"
+description = "The entity physics kernel: boxes, block shapes, the collision algorithm, step-up and the move procedure"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+doctest = false
+
+[lints]
+workspace = true
+
+# std: Vec and Box for the shape table and the scratch buffers
+[dependencies]
+glam.workspace = true
+mcrs_voxel.workspace = true
+mcrs_engine_muxer.workspace = true
+bitflags = "2"
+rustc-hash.workspace = true
+mcrs_minecraft_client_ticks = { workspace = true, optional = true }
+
+[dev-dependencies]
+criterion = { version = "0.7", default-features = false }
+mcrs_minecraft_client_ticks.workspace = true
+mcrs_minecraft_core.workspace = true
+mcrs_minecraft_physics = { workspace = true, features = ["testing"] }
+
+[features]
+default = []
+# A block world in a hash map, a small block table and the reading of recorded client ticks, for
+# tests and benches of this and other crates.
+testing = ["dep:mcrs_minecraft_client_ticks"]
+
+[[bench]]
+name = "kernel"
+harness = false

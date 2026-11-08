@@ -6,8 +6,9 @@ use mcrs_voxel::{BlockStateId, SectionPos};
 /// One section's block states as the engine keeps them.
 pub type SectionStates = VoxelPalette<BlockStateId, { SectionPos::SIZE }>;
 
-/// The blocks a loaded chunk entity holds: the engine's shared section
-/// palette, named in this crate's vocabulary.
+/// The blocks of a loaded section, which the
+/// [`SectionIndex`](crate::world::storage::section::SectionIndex) of its dimension holds: the
+/// engine's shared section palette, named in this crate's vocabulary.
 pub type ChunkBlocks = SharedVoxelPalette<BlockStateId, { SectionPos::SIZE }>;
 
 /// The states of a section that worldgen or a save produced, checked against the

@@ -3,9 +3,9 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:amethyst_block",
-      "protocol_id": 1069,
-      "base_state_id": 26765,
-      "default_state_id": 26765
+      "protocol_id": 1078,
+      "base_state_id": 27588,
+      "default_state_id": 27588
     },
     "components": {
       "minecraft:light_emission": 0,

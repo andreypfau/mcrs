@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:brittle_ice",
-      "protocol_id": 787
+      "protocol_id": 809
     },
     "components": {
       "minecraft:attack_animation": {},

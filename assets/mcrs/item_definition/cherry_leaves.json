@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:cherry_leaves",
-      "protocol_id": 220
+      "protocol_id": 232
     },
     "components": {
       "minecraft:attack_animation": {},

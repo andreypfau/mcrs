@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:short_grass",
-      "protocol_id": 238
+      "protocol_id": 250
     },
     "components": {
       "minecraft:attack_animation": {},

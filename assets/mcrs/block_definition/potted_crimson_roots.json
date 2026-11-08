@@ -3,9 +3,9 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:potted_crimson_roots",
-      "protocol_id": 1012,
-      "base_state_id": 25191,
-      "default_state_id": 25191
+      "protocol_id": 1021,
+      "base_state_id": 26014,
+      "default_state_id": 26014
     },
     "components": {
       "minecraft:light_emission": 0,

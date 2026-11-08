@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:firefly_bush",
-      "protocol_id": 245
+      "protocol_id": 257
     },
     "components": {
       "minecraft:attack_animation": {},

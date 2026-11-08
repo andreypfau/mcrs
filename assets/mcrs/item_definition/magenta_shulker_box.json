@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:magenta_shulker_box",
-      "protocol_id": 659
+      "protocol_id": 681
     },
     "components": {
       "minecraft:attack_animation": {},

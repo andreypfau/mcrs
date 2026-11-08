@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:cyan_candle",
-      "protocol_id": 1563
+      "protocol_id": 1586
     },
     "components": {
       "minecraft:attack_animation": {},

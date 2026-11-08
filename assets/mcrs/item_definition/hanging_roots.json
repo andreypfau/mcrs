@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:hanging_roots",
-      "protocol_id": 337
+      "protocol_id": 349
     },
     "components": {
       "minecraft:attack_animation": {},

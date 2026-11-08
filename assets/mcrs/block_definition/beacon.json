@@ -3,9 +3,9 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:beacon",
-      "protocol_id": 459,
-      "base_state_id": 11724,
-      "default_state_id": 11724
+      "protocol_id": 463,
+      "base_state_id": 12135,
+      "default_state_id": 12135
     },
     "components": {
       "minecraft:light_emission": 15,

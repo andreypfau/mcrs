@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:azure_bluet",
-      "protocol_id": 305
+      "protocol_id": 317
     },
     "components": {
       "minecraft:attack_animation": {},

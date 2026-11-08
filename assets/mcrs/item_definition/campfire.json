@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:campfire",
-      "protocol_id": 1530
+      "protocol_id": 1553
     },
     "components": {
       "minecraft:attack_animation": {},

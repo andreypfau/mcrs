@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:poplar_trapdoor",
-      "protocol_id": 921
+      "protocol_id": 943
     },
     "components": {
       "minecraft:attack_animation": {},

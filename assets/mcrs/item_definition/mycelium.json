@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:mycelium",
-      "protocol_id": 496
+      "protocol_id": 512
     },
     "components": {
       "minecraft:attack_animation": {},

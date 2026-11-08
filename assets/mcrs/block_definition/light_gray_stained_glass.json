@@ -3,9 +3,9 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:light_gray_stained_glass",
-      "protocol_id": 357,
-      "base_state_id": 8778,
-      "default_state_id": 8778
+      "protocol_id": 361,
+      "base_state_id": 9189,
+      "default_state_id": 9189
     },
     "components": {
       "minecraft:light_emission": 0,

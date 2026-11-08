@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:dripstone_block",
-      "protocol_id": 53
+      "protocol_id": 65
     },
     "components": {
       "minecraft:attack_animation": {},

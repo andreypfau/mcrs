@@ -1,0 +1,159 @@
+client-ticks 2
+version 26.4-snapshot-7
+experiment E21
+step explosion
+instruction Release all keys and do nothing until Stop.
+fill -16 99 -16 48 99 16 minecraft:stone
+events
+9829462 < abilities none 0.05
+9829462 < attribute minecraft:block_interaction_range 4.5
+9829462 < attribute minecraft:entity_interaction_range 3
+9829462 < attribute minecraft:movement_speed 0.10000000149011612
+9829462 < effect minecraft:resistance 4
+9829462 < teleport 6 0.5 100 0.5 0 0 0 -90 0 0
+9877158 > move - - none
+9902174 > tick
+9902175 > move - - on_ground
+9902175 > tick
+9980454 > move 0.5,100,0.5 - on_ground
+9980456 > tick
+10005262 > tick
+10078969 > tick
+10081250 > tick
+10176795 > tick
+10176797 > tick
+10312943 > tick
+10312944 > tick
+10376754 > tick
+10379053 > tick
+10479098 > tick
+10515224 > tick
+10576645 > tick
+10578929 > tick
+10679432 > tick
+10679433 > tick
+10818136 > tick
+10818137 > tick
+10882327 > tick
+10883810 > tick
+10977825 > move 0.5,100,0.5 - on_ground
+11022844 > tick
+11022845 > tick
+11077939 > tick
+11082487 > tick
+11180232 > tick
+11224518 > tick
+11280099 > tick
+11281250 > tick
+11384239 > tick
+11384239 > tick
+11522262 > tick
+11522263 > tick
+11578079 > tick
+11582627 > tick
+11682080 > tick
+11682081 > tick
+11782956 > tick
+11782956 > tick
+11845285 < explosion -0.5545357112409718 0.288127513960013 0
+11882637 > move -0.054535711240971785,100.20972751243413,0.5 - none
+11882638 > tick
+11891746 > move -0.3573122447468323,100.33686047709394,0.5 - none
+11891748 > tick
+11880421 < block 4 99 1 minecraft:air
+11880421 < block 3 99 0 minecraft:air
+11880421 < block 2 99 0 minecraft:air
+11880421 < block 3 99 1 minecraft:air
+11880421 < block 2 99 1 minecraft:air
+11880421 < block 4 99 0 minecraft:air
+11880425 < block 4 99 -1 minecraft:air
+11880425 < block 3 99 -1 minecraft:air
+11880425 < block 2 99 -1 minecraft:air
+11928109 < forget 5 -7
+11928111 < forget 5 7
+11928112 < forget 6 -6
+11928113 < forget 6 6
+11928113 < forget 7 -5
+11928114 < forget 7 -4
+11928114 < forget 7 -3
+11928115 < forget 7 -2
+11928115 < forget 7 -1
+11928115 < forget 7 0
+11928115 < forget 7 1
+11928116 < forget 7 2
+11928116 < forget 7 3
+11928116 < forget 7 4
+11928117 < forget 7 5
+12010496 > move -0.6328388981777959,100.38305078335954,0.5 - none
+12010497 > tick
+12010498 > move -0.8835681600259468,100.34991728285496,0.5 - none
+12010498 > tick
+12115356 > move -1.111731794883401,100.23904645020262,0.5 - none
+12115357 > tick
+12115358 > move -1.3193607085875134,100.05199303056276,0.5 - none
+12115358 > tick
+12220045 > move -1.5083030255035408,100,0.5 - on_ground
+12220046 > tick
+12220046 > move -1.6802405388523352,100,0.5 - on_ground
+12220047 > tick
+12229147 < block -2 99 0 minecraft:stone
+12326644 > move -1.7741184320449408,100,0.5 - on_ground
+12326646 > tick
+12326646 > move -1.8253757676817777,100,0.5 - on_ground
+12326646 > tick
+12378813 > move -1.853362276190197,100,0.5 - on_ground
+12381092 > tick
+12385676 > move -1.8686429116106802,100,0.5 - on_ground
+12385677 > tick
+12478396 > move -1.8769861395193517,100,0.5 - on_ground
+12482949 > tick
+12482950 > move -1.8815415424866084,100,0.5 - on_ground
+12494308 > tick
+12578289 > tick
+12578289 > tick
+12678767 > tick
+12683325 > tick
+12794730 > tick
+12794731 > tick
+12878566 > tick
+12883016 > tick
+12980589 > tick
+13001016 > tick
+13078294 > tick
+13080573 > tick
+13180432 > tick
+13180433 > tick
+13304387 > tick
+13304388 > tick
+13380308 > tick
+13380309 > tick
+13478451 > tick
+13510009 > move -1.8815415424866084,100,0.5 - on_ground
+13510010 > tick
+13578449 > tick
+13580733 > tick
+13680510 > tick
+13715735 > tick
+13777958 > tick
+13777959 > tick
+13880552 > tick
+13880552 > tick
+14019239 > tick
+14019240 > tick
+14078203 > tick
+14079349 > tick
+14180189 > tick
+14225572 > tick
+14278290 > tick
+14280575 > tick
+14378219 > tick
+14378220 > tick
+14478242 > tick
+14480520 > move -1.8815415424866084,100,0.5 - on_ground
+14480521 > tick
+14578133 > tick
+14580418 > tick
+14678645 > tick
+14685396 > tick
+14782703 > tick
+14782704 > tick

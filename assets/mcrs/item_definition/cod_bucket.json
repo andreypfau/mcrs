@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:cod_bucket",
-      "protocol_id": 1139
+      "protocol_id": 1161
     },
     "components": {
       "minecraft:attack_animation": {},

@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:potato",
-      "protocol_id": 1382
+      "protocol_id": 1404
     },
     "components": {
       "minecraft:attack_animation": {},
@@ -12,7 +12,9 @@
       "minecraft:compostable": {
         "layers": "minecraft:compostable/medium"
       },
-      "minecraft:consumable": {},
+      "minecraft:consumable": {
+        "sound": "minecraft:entity.generic.eat"
+      },
       "minecraft:enchantments": {},
       "minecraft:food": {
         "nutrition": 1,

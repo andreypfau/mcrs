@@ -1,0 +1,158 @@
+client-ticks 2
+version 26.4-snapshot-7
+experiment E21
+step explosion
+instruction Release all keys and do nothing until Stop.
+fill -16 99 -16 48 99 16 minecraft:stone
+events
+9630211 < abilities none 0.05
+9630211 < attribute minecraft:block_interaction_range 4.5
+9630211 < attribute minecraft:entity_interaction_range 3
+9630211 < attribute minecraft:movement_speed 0.10000000149011612
+9630211 < effect minecraft:resistance 4
+9630211 < teleport 6 0.5 100 0.5 0 0 0 -90 0 0
+9693682 > move 0.5,100,0.5 - none
+9693683 > tick
+9694837 > move - - on_ground
+9694837 > tick
+9793670 > tick
+9794820 > tick
+9894368 > tick
+9894368 > tick
+9993873 > tick
+9995025 > tick
+10093537 > tick
+10094631 > tick
+10193639 > tick
+10194790 > tick
+10293604 > tick
+10294759 > tick
+10393854 > tick
+10395007 > tick
+10493654 > tick
+10494804 > tick
+10593641 > tick
+10594795 > tick
+10695703 > move 0.5,100,0.5 - on_ground
+10696848 > tick
+10696848 > tick
+10793676 > tick
+10794825 > tick
+10893696 > tick
+10894855 > tick
+10994102 > tick
+10995249 > tick
+11094473 > tick
+11094474 > tick
+11193777 > tick
+11194927 > tick
+11293663 > tick
+11294815 > tick
+11394502 > tick
+11394503 > tick
+11493788 > tick
+11494937 > tick
+11595259 > tick
+11596414 > tick
+11641917 < explosion -0.5545357112409718 0.288127513960013 0
+11679150 < block 4 99 1 minecraft:air
+11679150 < block 3 99 0 minecraft:air
+11679150 < block 2 99 0 minecraft:air
+11679150 < block 3 99 1 minecraft:air
+11679150 < block 2 99 1 minecraft:air
+11679150 < block 4 99 0 minecraft:air
+11679156 < block 4 99 -1 minecraft:air
+11679156 < block 3 99 -1 minecraft:air
+11679156 < block 2 99 -1 minecraft:air
+11698202 > move -0.054535711240971785,100.20972751243413,0.5 - none
+11699855 > tick
+11701003 > move -0.3573122447468323,100.33686047709394,0.5 - none
+11702593 > tick
+11725668 < forget 5 -7
+11725670 < forget 5 7
+11725672 < forget 6 -6
+11725672 < forget 6 6
+11725673 < forget 7 -5
+11725674 < forget 7 -4
+11725674 < forget 7 -3
+11725675 < forget 7 -2
+11725676 < forget 7 -1
+11725678 < forget 7 0
+11725678 < forget 7 1
+11725679 < forget 7 2
+11725679 < forget 7 3
+11725680 < forget 7 4
+11725681 < forget 7 5
+11795388 > move -0.6328388981777959,100.38305078335954,0.5 - none
+11796532 > tick
+11796532 > move -0.8835681600259468,100.34991728285496,0.5 - none
+11796532 > tick
+11895734 > move -1.111731794883401,100.23904645020262,0.5 - none
+11895736 > tick
+11896886 > move -1.3193607085875134,100.05199303056276,0.5 - none
+11896887 > tick
+11995364 > move -1.5083030255035408,100,0.5 - on_ground
+11996514 > tick
+11996515 > move -1.6802405388523352,100,0.5 - on_ground
+11997681 > tick
+12029621 < block -2 99 0 minecraft:stone
+12095281 > move -1.7741184320449408,100,0.5 - on_ground
+12096435 > tick
+12096436 > move -1.8253757676817777,100,0.5 - on_ground
+12096436 > tick
+12195230 > move -1.853362276190197,100,0.5 - on_ground
+12196438 > tick
+12196438 > move -1.8686429116106802,100,0.5 - on_ground
+12196439 > tick
+12295150 > move -1.8769861395193517,100,0.5 - on_ground
+12296324 > tick
+12296325 > move -1.8815415424866084,100,0.5 - on_ground
+12296326 > tick
+12395337 > tick
+12396483 > tick
+12495252 > tick
+12496369 > tick
+12595527 > tick
+12596681 > tick
+12695473 > tick
+12696619 > tick
+12795376 > tick
+12796529 > tick
+12896137 > tick
+12896138 > tick
+12995241 > tick
+12996395 > tick
+13095551 > tick
+13096704 > tick
+13195295 > tick
+13196441 > tick
+13295064 > tick
+13296219 > move -1.8815415424866084,100,0.5 - on_ground
+13296220 > tick
+13395260 > tick
+13396418 > tick
+13495266 > tick
+13496415 > tick
+13595205 > tick
+13596367 > tick
+13695228 > tick
+13696379 > tick
+13795305 > tick
+13796462 > tick
+13895151 > tick
+13896303 > tick
+13995135 > tick
+13996292 > tick
+14095071 > tick
+14096232 > tick
+14195142 > tick
+14196292 > tick
+14295065 > tick
+14296208 > move -1.8815415424866084,100,0.5 - on_ground
+14296209 > tick
+14395331 > tick
+14396502 > tick
+14496332 > tick
+14497484 > tick
+14596260 > tick
+14596262 > tick

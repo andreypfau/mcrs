@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:birch_leaves",
-      "protocol_id": 217
+      "protocol_id": 229
     },
     "components": {
       "minecraft:attack_animation": {},

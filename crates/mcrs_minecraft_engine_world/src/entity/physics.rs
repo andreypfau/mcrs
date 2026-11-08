@@ -2,10 +2,10 @@ use bevy_derive::{Deref, DerefMut};
 use bevy_ecs::prelude::Component;
 use bevy_math::*;
 use mcrs_minecraft_core::Look;
-use mcrs_minecraft_core::mth::wrap_degrees;
 
-/// Yaw and pitch in degrees. Pitch is clamped to `[-90, 90]` and yaw is
-/// wrapped to `[-180, 180)`, so no consumer has to normalise either.
+/// Yaw and pitch in degrees. Pitch is clamped to `[-90, 90]`. Yaw keeps the raw value the client
+/// sent: the client turns its input with the sine of the raw yaw in f32, and a wrapped yaw gives
+/// another rounding, so the server copy of a player would drift from the client.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct Rotation {
     yaw: f32,
@@ -21,7 +21,7 @@ impl Rotation {
     #[inline]
     pub fn new(yaw: f32, pitch: f32) -> Self {
         Self {
-            yaw: wrap_degrees(yaw),
+            yaw,
             pitch: pitch.clamp(-90.0, 90.0),
         }
     }
@@ -36,7 +36,7 @@ impl Rotation {
         self.pitch
     }
 
-    /// `Entity.turn`, without the caller-side sensitivity scale.
+    /// Adds the turn of the mouse, already scaled, to the yaw and the pitch.
     #[inline]
     #[must_use]
     pub fn turn(self, yaw: f32, pitch: f32) -> Self {
@@ -110,7 +110,7 @@ pub struct Velocity(pub DVec3);
 
 #[cfg(test)]
 mod tests {
-    use super::Rotation;
+    use super::*;
 
     #[test]
     fn pitch_is_clamped_to_a_quarter_turn_each_way() {
@@ -124,11 +124,10 @@ mod tests {
     }
 
     #[test]
-    fn yaw_wraps_past_half_a_turn() {
-        assert_eq!(Rotation::new(190.0, 0.0).yaw(), -170.0);
-        assert_eq!(Rotation::new(-190.0, 0.0).yaw(), 170.0);
-        assert!((Rotation::new(720.0 - 139.9493, 0.0).yaw() + 139.9493).abs() < 1e-3);
-        assert_eq!(Rotation::new(-139.9493, 0.0).yaw(), -139.9493);
-        assert_eq!(Rotation::ZERO.turn(-200.0, 0.0).yaw(), 160.0);
+    fn a_yaw_of_720_survives_a_round_trip() {
+        let rotation = Rotation::new(720.0, 0.0).turn(-0.5, 0.0);
+        assert_eq!(rotation.yaw(), 719.5, "PHY-NUM-005: the yaw is raw");
+        let look: Look = rotation.into();
+        assert_eq!(Rotation::new(look.yaw, look.pitch), rotation);
     }
 }

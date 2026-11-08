@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:lime_wool_slab",
-      "protocol_id": 287
+      "protocol_id": 299
     },
     "components": {
       "minecraft:attack_animation": {},

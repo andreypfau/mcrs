@@ -3,9 +3,9 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:potted_wither_rose",
-      "protocol_id": 488,
-      "base_state_id": 12399,
-      "default_state_id": 12399
+      "protocol_id": 492,
+      "base_state_id": 12810,
+      "default_state_id": 12810
     },
     "components": {
       "minecraft:light_emission": 0,

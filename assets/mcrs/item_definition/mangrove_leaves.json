@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:mangrove_leaves",
-      "protocol_id": 223
+      "protocol_id": 235
     },
     "components": {
       "minecraft:attack_animation": {},

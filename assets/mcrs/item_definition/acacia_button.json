@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:acacia_button",
-      "protocol_id": 863
+      "protocol_id": 885
     },
     "components": {
       "minecraft:attack_animation": {},

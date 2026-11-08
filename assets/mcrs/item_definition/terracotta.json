@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:terracotta",
-      "protocol_id": 596
+      "protocol_id": 613
     },
     "components": {
       "minecraft:attack_animation": {},

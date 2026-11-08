@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:music_disc_tears",
-      "protocol_id": 1484
+      "protocol_id": 1507
     },
     "components": {
       "minecraft:attack_animation": {},

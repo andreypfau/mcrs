@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:infested_stone",
-      "protocol_id": 442
+      "protocol_id": 458
     },
     "components": {
       "minecraft:attack_animation": {},

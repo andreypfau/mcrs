@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:desert_pyramid_map",
-      "protocol_id": 1254
+      "protocol_id": 1276
     },
     "components": {
       "minecraft:attack_animation": {},

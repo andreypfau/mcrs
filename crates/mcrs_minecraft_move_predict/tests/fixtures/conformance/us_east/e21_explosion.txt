@@ -1,0 +1,159 @@
+client-ticks 2
+version 26.4-snapshot-7
+experiment E21
+step explosion
+instruction Release all keys and do nothing until Stop.
+fill -16 99 -16 48 99 16 minecraft:stone
+events
+10667048 < abilities none 0.05
+10667048 < attribute minecraft:block_interaction_range 4.5
+10667048 < attribute minecraft:entity_interaction_range 3
+10667048 < attribute minecraft:movement_speed 0.10000000149011612
+10667048 < effect minecraft:resistance 4
+10667048 < teleport 6 0.5 100 0.5 0 0 0 -90 0 0
+10903447 > move 0.5,100,0.5 - none
+10909694 > tick
+10909695 > move - - on_ground
+10909695 > tick
+11003715 > tick
+11008286 > tick
+11115833 > tick
+11115834 > tick
+11206439 > tick
+11206440 > tick
+11303672 > tick
+11319901 > tick
+11403470 > tick
+11407997 > tick
+11503788 > tick
+11503789 > tick
+11624729 > tick
+11624730 > tick
+11710861 > tick
+11710862 > tick
+11803187 > tick
+11831073 > tick
+11903248 > move 0.5,100,0.5 - on_ground
+11917814 > tick
+11917815 > tick
+12003878 > tick
+12039825 > tick
+12104271 > tick
+12126570 > tick
+12204715 > tick
+12204716 > tick
+12342444 > tick
+12342444 > tick
+12426457 > tick
+12426457 > tick
+12505110 > tick
+12545895 > tick
+12605969 > tick
+12631030 > tick
+12702648 > tick
+12704937 > tick
+12803935 > tick
+12806226 > tick
+12938418 > move 0.5,100,0.5 - on_ground
+12938420 > tick
+12938420 > tick
+13006102 > tick
+13010500 > tick
+12880046 < explosion -0.5545357112409718 0.288127513960013 0
+13146841 > move -0.054535711240971785,100.20972751243413,0.5 - none
+13146841 > tick
+13146842 > move -0.3573122447468323,100.33686047709394,0.5 - none
+13146842 > tick
+12914613 < block 4 99 1 minecraft:air
+12914613 < block 3 99 0 minecraft:air
+12914613 < block 2 99 0 minecraft:air
+12914613 < block 3 99 1 minecraft:air
+12914613 < block 2 99 1 minecraft:air
+12914613 < block 4 99 0 minecraft:air
+12914618 < block 4 99 -1 minecraft:air
+12914618 < block 3 99 -1 minecraft:air
+12914618 < block 2 99 -1 minecraft:air
+12968803 < block 0 99 0 minecraft:stone
+13203511 > move -0.6328388981777959,100.38305078335954,0.5 - none
+13228476 > tick
+13228477 > move -0.8835681600259468,100.34991728285496,0.5 - none
+13228478 > tick
+13304912 > move -1.111731794883401,100.23904645020262,0.5 - none
+13304913 > tick
+13333200 > move -1.3193607085875134,100.05199303056276,0.5 - none
+13333202 > tick
+13421183 > move -1.5083030255035408,100,0.5 - on_ground
+13421184 > tick
+13421184 > move -1.6802405388523352,100,0.5 - on_ground
+13443836 > tick
+13167287 < forget 5 -7
+13167289 < forget 5 7
+13167290 < forget 6 -6
+13167290 < forget 6 6
+13167291 < forget 7 -5
+13167291 < forget 7 -4
+13167291 < forget 7 -3
+13167292 < forget 7 -2
+13167292 < forget 7 -1
+13167293 < forget 7 0
+13167293 < forget 7 1
+13167293 < forget 7 2
+13167293 < forget 7 3
+13167293 < forget 7 4
+13167294 < forget 7 5
+13543225 > move -1.7741184320449408,100,0.5 - on_ground
+13543226 > tick
+13543226 > move -1.8253757676817777,100,0.5 - on_ground
+13543226 > tick
+13608736 > move -1.853362276190197,100,0.5 - on_ground
+13608737 > tick
+13608738 > move -1.8686429116106802,100,0.5 - on_ground
+13632175 > tick
+13704884 > move -1.8769861395193517,100,0.5 - on_ground
+13714430 > tick
+13714431 > move -1.8815415424866084,100,0.5 - on_ground
+13714432 > tick
+13832572 > tick
+13832573 > tick
+13918639 > tick
+13918639 > tick
+14004685 > tick
+14039578 > tick
+14105240 > tick
+14125927 > tick
+14207382 > tick
+14207383 > tick
+14341725 > tick
+14341726 > tick
+14428501 > tick
+14428502 > tick
+14505330 > tick
+14546460 > tick
+14602708 > tick
+14634719 > tick
+14702548 > tick
+14707103 > move -1.8815415424866084,100,0.5 - on_ground
+14750947 > tick
+14807416 > tick
+14835471 > tick
+14906631 > tick
+14906632 > tick
+15006098 > tick
+15008384 > tick
+15141338 > tick
+15141339 > tick
+15207015 > tick
+15207016 > tick
+15311643 > tick
+15349063 > tick
+15407916 > tick
+15407916 > tick
+15508197 > tick
+15519745 > tick
+15605597 > tick
+15607882 > tick
+15706157 > tick
+15706158 > move -1.8815415424866084,100,0.5 - on_ground
+15725051 > tick
+15806508 > tick
+15811064 > tick

@@ -3,9 +3,9 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:emerald_block",
-      "protocol_id": 454,
-      "base_state_id": 11471,
-      "default_state_id": 11471
+      "protocol_id": 458,
+      "base_state_id": 11882,
+      "default_state_id": 11882
     },
     "components": {
       "minecraft:light_emission": 0,

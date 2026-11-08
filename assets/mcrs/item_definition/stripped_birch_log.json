@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:stripped_birch_log",
-      "protocol_id": 180
+      "protocol_id": 192
     },
     "components": {
       "minecraft:attack_animation": {},

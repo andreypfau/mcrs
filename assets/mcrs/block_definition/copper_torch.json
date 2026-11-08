@@ -3,9 +3,9 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:copper_torch",
-      "protocol_id": 341,
-      "base_state_id": 8683,
-      "default_state_id": 8683
+      "protocol_id": 345,
+      "base_state_id": 9094,
+      "default_state_id": 9094
     },
     "components": {
       "minecraft:light_emission": 14,

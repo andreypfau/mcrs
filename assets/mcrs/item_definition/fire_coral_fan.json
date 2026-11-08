@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:fire_coral_fan",
-      "protocol_id": 779
+      "protocol_id": 801
     },
     "components": {
       "minecraft:attack_animation": {},

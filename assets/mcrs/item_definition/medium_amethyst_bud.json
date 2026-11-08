@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:medium_amethyst_bud",
-      "protocol_id": 1571
+      "protocol_id": 1594
     },
     "components": {
       "minecraft:attack_animation": {},

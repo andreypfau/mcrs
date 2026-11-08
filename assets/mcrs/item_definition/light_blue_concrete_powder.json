@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:light_blue_concrete_powder",
-      "protocol_id": 740
+      "protocol_id": 762
     },
     "components": {
       "minecraft:attack_animation": {},

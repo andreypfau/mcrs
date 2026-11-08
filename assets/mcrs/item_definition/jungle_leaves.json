@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:jungle_leaves",
-      "protocol_id": 218
+      "protocol_id": 230
     },
     "components": {
       "minecraft:attack_animation": {},

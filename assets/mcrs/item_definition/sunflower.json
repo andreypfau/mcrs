@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:sunflower",
-      "protocol_id": 599
+      "protocol_id": 621
     },
     "components": {
       "minecraft:attack_animation": {},

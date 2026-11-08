@@ -3,9 +3,9 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:green_terracotta",
-      "protocol_id": 550,
-      "base_state_id": 13226,
-      "default_state_id": 13226
+      "protocol_id": 554,
+      "base_state_id": 13637,
+      "default_state_id": 13637
     },
     "components": {
       "minecraft:light_emission": 0,

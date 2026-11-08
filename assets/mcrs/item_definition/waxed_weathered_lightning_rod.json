@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:waxed_weathered_lightning_rod",
-      "protocol_id": 847
+      "protocol_id": 869
     },
     "components": {
       "minecraft:attack_animation": {},

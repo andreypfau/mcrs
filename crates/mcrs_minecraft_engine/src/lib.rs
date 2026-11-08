@@ -45,6 +45,7 @@ pub mod dimension_change;
 pub mod dimension_generators;
 pub mod drain_player_despawn;
 mod enter_level_packets;
+pub mod entity_birth;
 pub mod entity_ids;
 pub mod foreign_views;
 mod game_mode;
@@ -64,7 +65,7 @@ mod player_bundle;
 mod player_dimension_change;
 pub mod player_order;
 pub mod player_roster;
-mod player_tiles;
+pub mod player_tiles;
 mod player_tracker;
 mod player_view;
 mod publish_player_tiles;
@@ -80,6 +81,9 @@ mod wanted_column;
 pub mod whitelist;
 pub mod world_kinds;
 pub mod world_seed;
+
+#[cfg(feature = "world-access")]
+pub use cell_volume::CellVolume;
 
 /// The host: the coordinator and the muxer, in one world.
 pub struct EnginePlugin;

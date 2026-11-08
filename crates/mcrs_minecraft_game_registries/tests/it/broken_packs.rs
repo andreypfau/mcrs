@@ -10,7 +10,7 @@ use mcrs_minecraft_registries::{Diagnostic, Missing, Referrer, RegistryAdditions
 use crate::common::directory_packs;
 
 const METADATA: &str = r#"{"pack":{"description":"t","min_format":124,"max_format":124}}"#;
-const OVERLAID: &str = r#"{"pack":{"description":"t","min_format":124,"max_format":124},"overlays":{"entries":[{"directory":"o","min_format":124,"max_format":124}]}}"#;
+const OVERLAID: &str = r#"{"pack":{"description":"t","min_format":124,"max_format":124},"overlays":{"entries":[{"directory":"o","min_format":100,"max_format":999}]}}"#;
 
 fn rl(text: &str) -> ResourceLocationBuf {
     ResourceLocationBuf::read(text).unwrap()

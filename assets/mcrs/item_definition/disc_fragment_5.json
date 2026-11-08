@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:disc_fragment_5",
-      "protocol_id": 1485
+      "protocol_id": 1508
     },
     "components": {
       "minecraft:attack_animation": {},

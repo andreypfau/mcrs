@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:grass_block",
-      "protocol_id": 54
+      "protocol_id": 66
     },
     "components": {
       "minecraft:attack_animation": {},

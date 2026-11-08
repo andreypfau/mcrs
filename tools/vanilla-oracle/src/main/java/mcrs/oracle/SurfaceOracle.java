@@ -88,7 +88,7 @@ public final class SurfaceOracle {
 
         if (args.length > 1 && args[1].equals("search")) {
             for (long seed : new long[] {42L, 2L}) {
-                RandomState randomState = RandomState.create(noises, seed, settings.value());
+                RandomState randomState = RandomState.createForTesting(noises, seed, settings.value());
                 net.minecraft.world.level.biome.NoiseBiomeResolver resolver = biomeSource.createUncachedResolver(
                     randomState
                 );
@@ -139,7 +139,7 @@ public final class SurfaceOracle {
             int[][] centres = {{2, 19, -1}, {2, 52, 36}, {42, 348, -26}, {42, 381, 74}};
             for (int[] centre : centres) {
                 long seed = centre[0];
-                RandomState randomState = RandomState.create(noises, seed, settings.value());
+                RandomState randomState = RandomState.createForTesting(noises, seed, settings.value());
                 for (int cx = centre[1] - 8; cx <= centre[1] + 8; cx++) {
                     for (int cz = centre[2] - 8; cz <= centre[2] + 8; cz++) {
                         ProtoChunk chunk = generate(generator, containers, randomState, new Column(seed, cx, cz));
@@ -163,7 +163,7 @@ public final class SurfaceOracle {
         }
 
         for (Column column : columns) {
-            RandomState randomState = RandomState.create(noises, column.seed(), settings.value());
+            RandomState randomState = RandomState.createForTesting(noises, column.seed(), settings.value());
             ProtoChunk chunk = generate(generator, containers, randomState, column);
 
             Path file = outDir.resolve(

@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:yellow_concrete_powder",
-      "protocol_id": 741
+      "protocol_id": 763
     },
     "components": {
       "minecraft:attack_animation": {},

@@ -80,7 +80,9 @@ fn announce(host: &mut World, anchor: Entity, destination: Destination, departur
     }
     let session = departure.session;
     let carried = &mut departure.carried;
-    let teleport_id = carried.teleport.sent(departure.arrival.transform);
+    let teleport_id = carried
+        .teleport
+        .sent(departure.arrival.transform, carried.departed_at);
     dim_outputs::deliver(
         host,
         bus::to(

@@ -3,9 +3,9 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:reinforced_deepslate",
-      "protocol_id": 1275,
-      "base_state_id": 35500,
-      "default_state_id": 35500
+      "protocol_id": 1297,
+      "base_state_id": 37559,
+      "default_state_id": 37559
     },
     "components": {
       "minecraft:light_emission": 0,

@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:allium",
-      "protocol_id": 304
+      "protocol_id": 316
     },
     "components": {
       "minecraft:attack_animation": {},

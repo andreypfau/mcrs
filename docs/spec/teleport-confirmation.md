@@ -30,6 +30,8 @@ section 6 gives the captured results.
 ### 0.2 Provenance
 
 - `black_box_confirmed`: shown by a captured result in section 6.
+- `source_suggested`: taken from the reference implementation, and consistent with the captured
+  results.
 - `unresolved`: not decided. Section 4 collects these items.
 
 All the results come from one vanilla server and one scripted client on one machine. Rules that
@@ -88,7 +90,7 @@ and the teleport stays pending. This rule applies to:
 **TP-CONFIRM-ACC-003** (`black_box_confirmed`, semantic). An accept that confirms the pending
 teleport sets the position of the player to the position in the accept. The accept does not need to
 hold the position of the teleport. In result R7, the accept names a position 5 blocks away, and the
-server uses that position.
+server uses that position. TP-CONFIRM-ACC-009 states the two steps of this change.
 
 **TP-CONFIRM-ACC-004** (`black_box_confirmed`, semantic). The movement checks apply to the position
 in an accept. In results R8 and R16, the accept names a position 1000 blocks away. The player stays
@@ -102,6 +104,18 @@ result R16.
 **TP-CONFIRM-ACC-008** (`black_box_confirmed`, semantic). The server sends a correction for each
 accept that fails the movement checks. The interval of TP-CONFIRM-RES-003 does not apply. In result
 R17, the server sends three corrections in less than 0.5 seconds.
+
+**TP-CONFIRM-ACC-009** (`source_suggested`, semantic). An accept that confirms the pending
+teleport has two effects, in this order:
+
+1. The server sets the position of the player to the destination of the teleport.
+2. The server handles the position, the yaw and the pitch of the accept as a move from the
+   destination. The on-ground flag and the horizontal collision flag of this move are false.
+
+The checks of a move apply to step 2 (TP-CONFIRM-ACC-004). Thus an accept 5 blocks away passes,
+and an accept 1000 blocks away fails. The yaw and the pitch of the accept set the rotation of the
+player, as in a move. A server without the checks of `movement-checks.md` uses this rule. A server
+with these checks uses MVC-LAT-008 in place of step 2 (deviation D8 of that document).
 
 ### 3.2 An accept when no teleport is pending
 
@@ -144,17 +158,30 @@ teleport, not the position of the move. See results R4, R14 and R15.
 because it does not confirm a teleport. Results R12 and R15 show this for 25 and 12 seconds. A
 longer time is unresolved.
 
+**TP-CONFIRM-RES-006** (`source_suggested`, semantic). The server counts the ticks of each
+connection. It keeps the tick at which it sent the last teleport, also a resend or a correction.
+When no teleport is pending, each move packet also sets this tick. When a move packet arrives
+while a teleport is pending, the server sends a resend when more than 20 ticks have passed after
+that tick. Thus the shortest interval is 21 ticks.
+
+These packets are move packets for this rule: `move_player_pos`, `move_player_pos_rot`,
+`move_player_rot`, `move_player_status_only` and `move_vehicle`. A resend has the position of the
+pending teleport, the current rotation of the player, zero velocity and no relative flags.
+
+**TP-CONFIRM-ID-003** (`source_suggested`, semantic). When the next `teleport_id` is the largest
+value of a signed 32-bit integer, the server uses 0 in its place. Thus the ids go from
+2147483646 to 0.
+
 ## 4. Unresolved
 
-- **U1**: the exact interval of a resend. The results agree with 20 ticks and with 21 ticks. When
-  the client sends a move each second, the interval between resends is 1 second or 2 seconds
-  (result R14).
+- **U1**: closed by TP-CONFIRM-RES-006. The interval is more than 20 ticks. When the client sends
+  a move each second, the interval between resends is 1 second or 2 seconds (result R14).
 - **U2**: the limit on the distance in TP-CONFIRM-ACC-004. 5 blocks pass and 1000 blocks fail.
-- **U3**: whether the yaw and the pitch of an accept set the rotation of the player. The experiments
-  did not read the rotation.
-- **U4**: the value of `teleport_id` after the largest VarInt.
-- **U5**: whether `move_player_pos_rot`, `move_player_rot` and `move_player_status_only` cause a
-  teleport, as a move does. The experiments send only `move_player_pos`.
+- **U3**: closed by TP-CONFIRM-ACC-009, from the reference. The yaw and the pitch of an accept set
+  the rotation of the player. The experiments did not read the rotation.
+- **U4**: closed by TP-CONFIRM-ID-003, from the reference.
+- **U5**: closed by TP-CONFIRM-RES-006, from the reference. Each move packet causes a resend. The
+  experiments send only `move_player_pos`.
 - **U6**: the result of an accept with the id of an older teleport when no teleport is pending.
   TP-CONFIRM-ACC-005 and TP-CONFIRM-ACC-006 state only the newest id and an id that the server never
   sent.

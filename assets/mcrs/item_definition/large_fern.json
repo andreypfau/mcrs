@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:large_fern",
-      "protocol_id": 604
+      "protocol_id": 626
     },
     "components": {
       "minecraft:attack_animation": {},

@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:mooshroom_spawn_egg",
-      "protocol_id": 1316
+      "protocol_id": 1338
     },
     "components": {
       "minecraft:attack_animation": {},

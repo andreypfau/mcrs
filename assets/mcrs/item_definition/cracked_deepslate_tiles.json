@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:cracked_deepslate_tiles",
-      "protocol_id": 458
+      "protocol_id": 474
     },
     "components": {
       "minecraft:attack_animation": {},

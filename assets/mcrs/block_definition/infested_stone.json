@@ -3,9 +3,9 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:infested_stone",
-      "protocol_id": 382,
-      "base_state_id": 9496,
-      "default_state_id": 9496
+      "protocol_id": 386,
+      "base_state_id": 9907,
+      "default_state_id": 9907
     },
     "components": {
       "minecraft:light_emission": 0,

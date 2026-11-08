@@ -18,7 +18,6 @@ use mcrs_minecraft_engine::muxer::muxer_link::MuxerLink;
 use mcrs_minecraft_engine_world::block_update::BlockSetRequest;
 use mcrs_minecraft_engine_world::entity::physics::Transform;
 use mcrs_minecraft_engine_world::entity::player::chunk_view::SentChunkView;
-use mcrs_minecraft_engine_world::palette::ChunkBlocks;
 use mcrs_minecraft_engine_world::session::PlayerSession;
 use mcrs_minecraft_engine_world::world::dimension::DimensionTypeConfig;
 use mcrs_minecraft_engine_world::world::lifecycle::column_loading::LOADING_RINGS;
@@ -90,13 +89,12 @@ fn holds_whole_view(views: &ColumnViews, session: PlayerSession) -> bool {
 }
 
 fn block_at(world: &mut World, dimension: Entity, pos: BlockPos) -> Option<BlockStateId> {
-    let section = world
-        .get::<SectionIndex>(dimension)?
-        .get(SectionPos::from(pos))?;
+    let index = world.get::<SectionIndex>(dimension)?;
+    let section = index.get(SectionPos::from(pos))?;
     if world.get::<SectionStage>(section) != Some(&SectionStage::Loaded) {
         return None;
     }
-    let blocks = world.get::<ChunkBlocks>(section)?;
+    let blocks = index.blocks(SectionPos::from(pos))?;
     blocks.0.get_cell(
         pos.x.rem_euclid(16) as usize,
         pos.y.rem_euclid(16) as usize,
@@ -261,7 +259,7 @@ fn capture_published(
                 change.column,
                 update.light_data.clone(),
             )),
-            PacketPayload::BlockUpdate(_) => {
+            PacketPayload::BlockUpdate(_) | PacketPayload::SectionBlocksUpdate(_) => {
                 published.0.push(PublishedColumn::Block(change.column));
             }
             _ => {}

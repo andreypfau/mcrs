@@ -3,9 +3,9 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:chiseled_deepslate",
-      "protocol_id": 1261,
-      "base_state_id": 35478,
-      "default_state_id": 35478
+      "protocol_id": 1283,
+      "base_state_id": 37537,
+      "default_state_id": 37537
     },
     "components": {
       "minecraft:light_emission": 0,

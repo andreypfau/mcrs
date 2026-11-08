@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:netherite_chestplate",
-      "protocol_id": 1094
+      "protocol_id": 1116
     },
     "components": {
       "minecraft:attack_animation": {},
@@ -42,7 +42,8 @@
       "minecraft:equippable": {
         "slot": "chest",
         "equip_sound": "minecraft:item.armor.equip_netherite",
-        "asset_id": "minecraft:netherite"
+        "asset_id": "minecraft:netherite",
+        "shearing_sound": "minecraft:item.shears.snip"
       },
       "minecraft:interact_animation": {},
       "minecraft:item_model": "minecraft:netherite_chestplate",

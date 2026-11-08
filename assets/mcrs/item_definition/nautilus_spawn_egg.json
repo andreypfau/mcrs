@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:nautilus_spawn_egg",
-      "protocol_id": 1308
+      "protocol_id": 1330
     },
     "components": {
       "minecraft:attack_animation": {},

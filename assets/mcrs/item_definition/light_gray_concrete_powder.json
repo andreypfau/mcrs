@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:light_gray_concrete_powder",
-      "protocol_id": 745
+      "protocol_id": 767
     },
     "components": {
       "minecraft:attack_animation": {},

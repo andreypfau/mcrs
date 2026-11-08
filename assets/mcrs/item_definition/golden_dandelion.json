@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:golden_dandelion",
-      "protocol_id": 299
+      "protocol_id": 311
     },
     "components": {
       "minecraft:attack_animation": {},

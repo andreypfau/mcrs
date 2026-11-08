@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:snow",
-      "protocol_id": 410
+      "protocol_id": 422
     },
     "components": {
       "minecraft:attack_animation": {},

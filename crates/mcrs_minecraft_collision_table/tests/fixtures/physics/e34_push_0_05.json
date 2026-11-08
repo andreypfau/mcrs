@@ -1,0 +1,219 @@
+{
+ "name": "e34_push_0_05",
+ "rule": "E34",
+ "origin": [
+  1680,
+  100,
+  0
+ ],
+ "blocks": [
+  {
+   "min": [
+    -2,
+    0,
+    -4
+   ],
+   "max": [
+    12,
+    0,
+    4
+   ],
+   "block": "minecraft:stone"
+  }
+ ],
+ "entities": [
+  {
+   "tag": "a",
+   "kind": "zombie",
+   "pos": [
+    0.5,
+    1.0,
+    0.5
+   ],
+   "nbt": "NoAI:1b,OnGround:1b,Motion:[0.0d,0.0d,0.0d]",
+   "ticks": [
+    {
+     "pos": [
+      1680.5,
+      101.0,
+      0.5
+     ],
+     "motion": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "on_ground": true,
+     "fall_distance": 0.0
+    },
+    {
+     "pos": [
+      1680.5,
+      101.0,
+      0.5
+     ],
+     "motion": [
+      -0.02236068010818782,
+      0.0,
+      0.0
+     ],
+     "on_ground": true,
+     "fall_distance": 0.0
+    },
+    {
+     "pos": [
+      1680.5,
+      101.0,
+      0.5
+     ],
+     "motion": [
+      -0.04472136021637564,
+      0.0,
+      0.0
+     ],
+     "on_ground": true,
+     "fall_distance": 0.0
+    },
+    {
+     "pos": [
+      1680.5,
+      101.0,
+      0.5
+     ],
+     "motion": [
+      -0.06708204032456346,
+      0.0,
+      0.0
+     ],
+     "on_ground": true,
+     "fall_distance": 0.0
+    },
+    {
+     "pos": [
+      1680.5,
+      101.0,
+      0.5
+     ],
+     "motion": [
+      -0.08944272043275127,
+      0.0,
+      0.0
+     ],
+     "on_ground": true,
+     "fall_distance": 0.0
+    },
+    {
+     "pos": [
+      1680.5,
+      101.0,
+      0.5
+     ],
+     "motion": [
+      -0.11180340054093908,
+      0.0,
+      0.0
+     ],
+     "on_ground": true,
+     "fall_distance": 0.0
+    }
+   ]
+  },
+  {
+   "tag": "b",
+   "kind": "zombie",
+   "pos": [
+    0.55,
+    1.0,
+    0.5
+   ],
+   "nbt": "NoAI:1b,OnGround:1b,Motion:[0.0d,0.0d,0.0d]",
+   "ticks": [
+    {
+     "pos": [
+      1680.55,
+      101.0,
+      0.5
+     ],
+     "motion": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "on_ground": true,
+     "fall_distance": 0.0
+    },
+    {
+     "pos": [
+      1680.55,
+      101.0,
+      0.5
+     ],
+     "motion": [
+      0.02236068010818782,
+      0.0,
+      0.0
+     ],
+     "on_ground": true,
+     "fall_distance": 0.0
+    },
+    {
+     "pos": [
+      1680.55,
+      101.0,
+      0.5
+     ],
+     "motion": [
+      0.04472136021637564,
+      0.0,
+      0.0
+     ],
+     "on_ground": true,
+     "fall_distance": 0.0
+    },
+    {
+     "pos": [
+      1680.55,
+      101.0,
+      0.5
+     ],
+     "motion": [
+      0.06708204032456346,
+      0.0,
+      0.0
+     ],
+     "on_ground": true,
+     "fall_distance": 0.0
+    },
+    {
+     "pos": [
+      1680.55,
+      101.0,
+      0.5
+     ],
+     "motion": [
+      0.08944272043275127,
+      0.0,
+      0.0
+     ],
+     "on_ground": true,
+     "fall_distance": 0.0
+    },
+    {
+     "pos": [
+      1680.55,
+      101.0,
+      0.5
+     ],
+     "motion": [
+      0.11180340054093908,
+      0.0,
+      0.0
+     ],
+     "on_ground": true,
+     "fall_distance": 0.0
+    }
+   ]
+  }
+ ],
+ "version": "26.4-snapshot-7"
+}

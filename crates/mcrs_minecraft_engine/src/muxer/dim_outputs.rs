@@ -59,6 +59,7 @@ pub(crate) fn receive(world: &mut World) {
                 views,
                 column_versions,
                 column_changes,
+                positions,
                 block_acks,
             },
         departures,
@@ -72,6 +73,7 @@ pub(crate) fn receive(world: &mut World) {
                 views,
                 versions: column_versions,
                 changes: column_changes,
+                positions,
                 acks: block_acks,
             },
         );

@@ -1,12 +1,14 @@
-//! The block changes that a dimension publishes for the clients: one change of each section in
-//! which a tick placed blocks, in a column that the muxer subscribes to.
+//! The client sync of block changes: a set that notifies clients marks its position, and a
+//! broadcast sends each marked section in one packet, with the states the section holds then.
+//! A block of another type drops the block entity of the block that it replaced.
+
+use std::borrow::Cow;
 
 use bevy_ecs::message::{MessageReader, MessageWriter};
-use bevy_ecs::prelude::{Commands, Entity, Local, Query, Res};
+use bevy_ecs::prelude::{Commands, Query, Res};
+use bevy_ecs::resource::Resource;
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_engine_world::block_update::BlockPlaced;
-use mcrs_minecraft_engine_world::palette::ChunkBlocks;
-use mcrs_minecraft_engine_world::world::dimension::InDimension;
 use mcrs_minecraft_engine_world::world::storage::block_entity::{
     BlockEntityPos, SectionBlockEntities,
 };
@@ -15,83 +17,83 @@ use mcrs_minecraft_protocol_game::chunk::ChunkBlockUpdateEntry;
 use mcrs_minecraft_protocol_game::clientbound::{
     ClientboundBlockUpdate, ClientboundSectionBlocksUpdate,
 };
-use mcrs_minecraft_simulation::BlockUpdateFlags;
-use mcrs_voxel::BlockPos;
-use mcrs_voxel::ColumnPos;
-use mcrs_voxel::LocalPos;
-use mcrs_voxel::SectionPos;
-use rustc_hash::{FxHashMap, FxHashSet};
+use mcrs_minecraft_volume::{BlockVolume, SectionBlocks};
+use mcrs_voxel::{BlockPos, ColumnPos, LocalPos, SectionPos};
+use rustc_hash::FxHashMap;
 
 use crate::bus::{PacketPayload, PacketPriority};
 use crate::column_change::ColumnChange;
 use crate::column_streams::ColumnStreams;
 
-/// Publishes the blocks placed this tick that notify clients, in a column that the muxer
-/// subscribes to: a `block_update` for a section with one changed block, a
-/// `section_blocks_update` for a section with several. A block placed more than once in a tick
-/// goes out once, with the state it holds when the change is built.
-#[cfg_attr(
-    feature = "telemetry-tracy",
-    tracing::instrument(name = "block_update::publish_block_changes", skip_all)
-)]
-pub fn publish_block_changes(
-    mut placed: MessageReader<BlockPlaced>,
-    sections: Query<(&InDimension, &ChunkBlocks)>,
-    streams: Query<&ColumnStreams>,
-    mut changes: MessageWriter<ColumnChange>,
-    mut changed: Local<FxHashMap<Entity, (SectionPos, FxHashSet<BlockPos>)>>,
-) {
-    for placed in placed.read() {
-        if placed.flags.contains(BlockUpdateFlags::CLIENTS) {
-            changed
-                .entry(placed.chunk)
-                .or_insert_with(|| (placed.chunk_pos, FxHashSet::default()))
-                .1
-                .insert(placed.block_pos);
+/// The positions that sets marked for the clients since the last broadcast, by section.
+#[derive(Resource, Default)]
+pub struct BroadcastMarks {
+    sections: FxHashMap<SectionPos, Vec<BlockPos>>,
+    order: Vec<SectionPos>,
+}
+
+impl BroadcastMarks {
+    pub fn mark(&mut self, pos: BlockPos) {
+        let section = SectionPos::from(pos);
+        let marks = self.sections.entry(section).or_insert_with(|| {
+            self.order.push(section);
+            Vec::new()
+        });
+        if !marks.contains(&pos) {
+            marks.push(pos);
         }
     }
 
-    for (section, (section_pos, positions)) in changed.drain() {
-        let Ok((in_dim, palette)) = sections.get(section) else {
-            continue;
-        };
-        let column = ColumnPos::from(section_pos);
-        if !streams
-            .get(in_dim.0)
-            .is_ok_and(|streams| streams.is_subscribed(column))
-        {
-            continue;
-        }
-        let state = |position: BlockPos| palette.get(LocalPos::from(position)).number();
-        let payload = match positions.iter().next() {
-            Some(&position) if positions.len() == 1 => {
-                PacketPayload::BlockUpdate(ClientboundBlockUpdate {
-                    block_pos: position,
-                    block_state_id: BlockStateNumber(state(position)),
-                })
+    /// Sends one packet for each marked section in a column that the muxer subscribes to: a
+    /// `block_update` for one position, else a `section_blocks_update`, with the states that
+    /// `blocks` holds now. Clears every mark; a section that no client sees sends nothing.
+    pub fn broadcast<V: BlockVolume>(
+        &mut self,
+        blocks: &V,
+        streams: Option<&ColumnStreams>,
+        changes: &mut MessageWriter<ColumnChange>,
+    ) {
+        for section in self.order.drain(..) {
+            let Some(marks) = self.sections.remove(&section) else {
+                continue;
+            };
+            let column = ColumnPos::from(section);
+            if !streams.is_some_and(|streams| streams.is_subscribed(column)) {
+                continue;
             }
-            _ => PacketPayload::SectionBlocksUpdate(ClientboundSectionBlocksUpdate {
-                chunk_pos: section_pos,
-                blocks: positions
+            let Ok(states) = blocks.section(section) else {
+                continue;
+            };
+            let state_at = |pos: BlockPos| states.get(LocalPos::from(pos)).number();
+            let payload = if let [pos] = marks[..] {
+                PacketPayload::BlockUpdate(ClientboundBlockUpdate {
+                    block_pos: pos,
+                    block_state_id: BlockStateNumber(state_at(pos)),
+                })
+            } else {
+                let entries: Vec<ChunkBlockUpdateEntry> = marks
                     .iter()
-                    .map(|&position| {
-                        let local = LocalPos::from(position);
+                    .map(|&pos| {
+                        let local = LocalPos::from(pos);
                         ChunkBlockUpdateEntry::new()
                             .with_off_x(local.x())
                             .with_off_y(local.y())
                             .with_off_z(local.z())
-                            .with_block_state(state(position))
+                            .with_block_state(state_at(pos))
                     })
-                    .collect::<Vec<_>>()
-                    .into(),
-            }),
-        };
-        changes.write(ColumnChange {
-            column,
-            priority: PacketPriority::Normal,
-            payload,
-            except: None,
-        });
+                    .collect();
+                PacketPayload::SectionBlocksUpdate(ClientboundSectionBlocksUpdate {
+                    chunk_pos: section,
+                    blocks: Cow::Owned(entries),
+                })
+            };
+            changes.write(ColumnChange {
+                column,
+                priority: PacketPriority::Normal,
+                payload,
+                except: None,
+            });
+        }
     }
 }
 

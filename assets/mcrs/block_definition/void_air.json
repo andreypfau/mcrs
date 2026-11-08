@@ -3,9 +3,9 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:void_air",
-      "protocol_id": 885,
-      "base_state_id": 18655,
-      "default_state_id": 18655
+      "protocol_id": 894,
+      "base_state_id": 19478,
+      "default_state_id": 19478
     },
     "components": {
       "minecraft:light_emission": 0,

@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:obsidian",
-      "protocol_id": 394
+      "protocol_id": 406
     },
     "components": {
       "minecraft:attack_animation": {},

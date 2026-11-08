@@ -14,7 +14,7 @@ path = "src/main.rs"
 workspace = true
 
 [workspace]
-members = ["crates/*", "tools/mcrs_minecraft_fixtures", "tools/mcrs_minecraft_update", "xtask"]
+members = ["crates/*", "tools/mcrs_minecraft_client_recorder", "tools/mcrs_minecraft_client_ticks", "tools/mcrs_minecraft_fixtures", "tools/mcrs_minecraft_hotspots", "tools/mcrs_minecraft_server_bench", "tools/mcrs_minecraft_update", "xtask"]
 
 [workspace.package]
 version = "0.5.8"
@@ -87,6 +87,11 @@ mcrs_minecraft_engine_world = { path = "crates/mcrs_minecraft_engine_world" }
 mcrs_minecraft_engine = { path = "crates/mcrs_minecraft_engine" }
 mcrs_minecraft_engine_server = { path = "crates/mcrs_minecraft_engine_server", default-features = false }
 mcrs_voxel = { path = "crates/mcrs_voxel" }
+mcrs_minecraft_physics = { path = "crates/mcrs_minecraft_physics" }
+mcrs_minecraft_collision_table = { path = "crates/mcrs_minecraft_collision_table" }
+mcrs_minecraft_engine_physics = { path = "crates/mcrs_minecraft_engine_physics" }
+mcrs_minecraft_move_validate = { path = "crates/mcrs_minecraft_move_validate" }
+mcrs_minecraft_move_predict = { path = "crates/mcrs_minecraft_move_predict" }
 mcrs_engine_link = { path = "crates/mcrs_engine_link" }
 mcrs_minecraft_replication = { path = "crates/mcrs_minecraft_replication" }
 mcrs_engine_muxer = { path = "crates/mcrs_engine_muxer" }
@@ -169,6 +174,7 @@ mcrs_minecraft_chunk = { path = "crates/mcrs_minecraft_chunk", default-features 
 mcrs_minecraft_heightmap = { path = "crates/mcrs_minecraft_heightmap", default-features = false }
 mcrs_minecraft_volume = { path = "crates/mcrs_minecraft_volume" }
 mcrs_minecraft_simulation = { path = "crates/mcrs_minecraft_simulation" }
+mcrs_minecraft_client_ticks = { path = "tools/mcrs_minecraft_client_ticks" }
 mcrs_minecraft_fixtures = { path = "tools/mcrs_minecraft_fixtures" }
 wtransport = "0.7.2"
 

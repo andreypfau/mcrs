@@ -3,9 +3,9 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:potted_poppy",
-      "protocol_id": 477,
-      "base_state_id": 12388,
-      "default_state_id": 12388
+      "protocol_id": 481,
+      "base_state_id": 12799,
+      "default_state_id": 12799
     },
     "components": {
       "minecraft:light_emission": 0,

@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:iron_ore",
-      "protocol_id": 95
+      "protocol_id": 107
     },
     "components": {
       "minecraft:attack_animation": {},

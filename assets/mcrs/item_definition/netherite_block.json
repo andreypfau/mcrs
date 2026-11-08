@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:netherite_block",
-      "protocol_id": 130
+      "protocol_id": 142
     },
     "components": {
       "minecraft:attack_animation": {},

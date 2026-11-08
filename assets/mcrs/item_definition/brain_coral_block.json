@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:brain_coral_block",
-      "protocol_id": 762
+      "protocol_id": 784
     },
     "components": {
       "minecraft:attack_animation": {},

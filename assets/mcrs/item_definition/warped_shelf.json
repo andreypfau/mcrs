@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:warped_shelf",
-      "protocol_id": 389
+      "protocol_id": 401
     },
     "components": {
       "minecraft:attack_animation": {},

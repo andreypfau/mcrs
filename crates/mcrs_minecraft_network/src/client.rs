@@ -607,6 +607,7 @@ mod tests {
                 timestamp: crate::Instant::now(),
                 id,
                 payload,
+                verdict: None,
             }))
             .unwrap();
     }

@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:netherite_shovel",
-      "protocol_id": 1057
+      "protocol_id": 1079
     },
     "components": {
       "minecraft:attack_animation": {},

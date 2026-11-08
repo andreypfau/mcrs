@@ -25,6 +25,7 @@ pub mod muxer_placement;
 pub mod muxer_plugin;
 pub mod muxer_stage;
 pub mod online_count;
+pub mod probes;
 pub mod session;
 pub mod tick_wake;
 #[cfg(feature = "world-access")]

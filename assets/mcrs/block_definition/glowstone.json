@@ -3,9 +3,9 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:glowstone",
-      "protocol_id": 343,
-      "base_state_id": 8688,
-      "default_state_id": 8688
+      "protocol_id": 347,
+      "base_state_id": 9099,
+      "default_state_id": 9099
     },
     "components": {
       "minecraft:light_emission": 15,

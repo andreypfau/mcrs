@@ -37,3 +37,11 @@ uuid = { workspace = true, features = ["v4"] }
 
 [features]
 telemetry-tracy = []
+
+[dev-dependencies]
+criterion = { version = "0.7", default-features = false }
+mcrs_minecraft_random.workspace = true
+
+[[bench]]
+name = "random_ticks"
+harness = false

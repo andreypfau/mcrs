@@ -3,9 +3,9 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:quartz_bricks",
-      "protocol_id": 1034,
-      "base_state_id": 26458,
-      "default_state_id": 26458
+      "protocol_id": 1043,
+      "base_state_id": 27281,
+      "default_state_id": 27281
     },
     "components": {
       "minecraft:light_emission": 0,

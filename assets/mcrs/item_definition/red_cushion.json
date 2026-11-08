@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:red_cushion",
-      "protocol_id": 1186
+      "protocol_id": 1208
     },
     "components": {
       "minecraft:attack_animation": {},

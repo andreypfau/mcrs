@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:weeping_vines",
-      "protocol_id": 325
+      "protocol_id": 337
     },
     "components": {
       "minecraft:attack_animation": {},

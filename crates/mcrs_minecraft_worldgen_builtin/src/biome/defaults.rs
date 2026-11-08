@@ -116,24 +116,13 @@ pub fn default_carvers_and_lakes(g: &mut Generation) {
 }
 
 pub fn default_underground_variety(g: &mut Generation) {
-    underground_variety(g, true, true);
-}
-
-pub fn underground_variety(g: &mut Generation, dirt_and_granite: bool, glow_lichen: bool) {
-    if dirt_and_granite {
-        g.features(
-            UndergroundOres,
-            &[
-                placed_feature_keys::ORE_DIRT,
-                placed_feature_keys::ORE_GRANITE_UPPER,
-                placed_feature_keys::ORE_GRANITE_LOWER,
-            ],
-        );
-    }
     g.features(
         UndergroundOres,
         &[
+            placed_feature_keys::ORE_DIRT,
             placed_feature_keys::ORE_GRAVEL,
+            placed_feature_keys::ORE_GRANITE_UPPER,
+            placed_feature_keys::ORE_GRANITE_LOWER,
             placed_feature_keys::ORE_DIORITE_UPPER,
             placed_feature_keys::ORE_DIORITE_LOWER,
             placed_feature_keys::ORE_ANDESITE_UPPER,
@@ -141,9 +130,7 @@ pub fn underground_variety(g: &mut Generation, dirt_and_granite: bool, glow_lich
             placed_feature_keys::ORE_TUFF,
         ],
     );
-    if glow_lichen {
-        g.feature(VegetalDecoration, placed_feature_keys::GLOW_LICHEN);
-    }
+    g.feature(VegetalDecoration, placed_feature_keys::GLOW_LICHEN);
 }
 
 pub fn default_ores(g: &mut Generation) {

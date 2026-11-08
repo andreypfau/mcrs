@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:baked_potato",
-      "protocol_id": 1383
+      "protocol_id": 1405
     },
     "components": {
       "minecraft:attack_animation": {},
@@ -12,7 +12,9 @@
       "minecraft:compostable": {
         "layers": "minecraft:compostable/medium_high"
       },
-      "minecraft:consumable": {},
+      "minecraft:consumable": {
+        "sound": "minecraft:entity.generic.eat"
+      },
       "minecraft:enchantments": {},
       "minecraft:food": {
         "nutrition": 5,

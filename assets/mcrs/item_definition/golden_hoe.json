@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:golden_hoe",
-      "protocol_id": 1045
+      "protocol_id": 1067
     },
     "components": {
       "minecraft:attack_animation": {},

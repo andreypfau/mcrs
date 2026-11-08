@@ -7,6 +7,9 @@ use crate::writer_signal::WriterSignal;
 use crate::writer_wakes::WriterWakes;
 use crate::{Instant, ReceivedPacket, SwitchMode};
 use bytes::{Bytes, BytesMut};
+use mcrs_minecraft_move_validate::{Verdict, check_serverbound};
+use mcrs_minecraft_protocol::packets::configuration::serverbound::ServerboundFinishConfiguration;
+use mcrs_minecraft_protocol::packets::game::serverbound::ServerboundConfigurationAcknowledged;
 use mcrs_minecraft_protocol::packets::login::clientbound::{
     ClientboundLoginFinished, ClientboundLoginFinishedWithOptions, LoginCompression, OptionFlags,
 };
@@ -224,6 +227,7 @@ impl<S: AsyncRead + AsyncWrite + Unpin> PacketIo<S> {
             awaits_login_acknowledgement: false,
             signal,
             inbound_switch: Some(inbound_switch),
+            play_switch: None,
             queue,
         }
     }
@@ -277,6 +281,7 @@ async fn reader_loop<R: AsyncRead + Unpin>(
     let mut buf = BytesMut::new();
     let mut switches = Some(switches);
     let mut after = None;
+    let mut play = PlayChecks::Off;
     loop {
         while let Some(receiver) = &mut switches {
             match receiver.try_recv() {
@@ -285,6 +290,7 @@ async fn reader_loop<R: AsyncRead + Unpin>(
                     packet_id,
                     threshold,
                 }) => after = Some((packet_id, threshold)),
+                Ok(InboundSwitch::CheckPlay) => play = PlayChecks::AfterConfiguration,
                 Err(mpsc::error::TryRecvError::Empty) => break,
                 Err(mpsc::error::TryRecvError::Disconnected) => switches = None,
             }
@@ -321,11 +327,13 @@ async fn reader_loop<R: AsyncRead + Unpin>(
         }
 
         let timestamp = Instant::now();
-
+        let verdict = play.check(frame.id, &frame.body);
+        play = play.after(frame.id);
         let packet = ReceivedPacket {
             timestamp,
             id: frame.id,
             payload: frame.body,
+            verdict,
         };
 
         if incoming_sender.send(packet).await.is_err() {
@@ -387,6 +395,7 @@ pub struct RawConnection {
     queue: WriterQueue,
     signal: Arc<WriterSignal>,
     inbound_switch: Option<mpsc::UnboundedSender<InboundSwitch>>,
+    play_switch: Option<mpsc::UnboundedSender<InboundSwitch>>,
 }
 
 /// What one hand-over to the writer did.
@@ -407,6 +416,31 @@ enum InboundSwitch {
         packet_id: i32,
         threshold: CompressionThreshold,
     },
+    /// Runs layer 0 of the movement checks from the frame after the next `finish_configuration`
+    /// to the `configuration_acknowledged` that leaves the play state.
+    CheckPlay,
+}
+
+/// Where the reader is in the play state, for layer 0 of the movement checks.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum PlayChecks {
+    Off,
+    AfterConfiguration,
+    On,
+}
+
+impl PlayChecks {
+    fn check(self, frame_id: i32, body: &[u8]) -> Option<Verdict> {
+        (self == Self::On).then(|| check_serverbound(frame_id, body))
+    }
+
+    fn after(self, frame_id: i32) -> Self {
+        match self {
+            Self::AfterConfiguration if frame_id == ServerboundFinishConfiguration::ID => Self::On,
+            Self::On if frame_id == ServerboundConfigurationAcknowledged::ID => Self::Off,
+            other => other,
+        }
+    }
 }
 
 impl Drop for RawConnection {
@@ -436,6 +470,7 @@ impl RawConnection {
             awaits_login_acknowledgement: false,
             signal: Arc::new(WriterSignal::default()),
             inbound_switch: Some(mpsc::unbounded_channel().0),
+            play_switch: None,
             queue: WriterQueue::default(),
         };
         (raw, OutboundReceiver::new(outgoing_rx), inbound_tx)
@@ -509,10 +544,10 @@ impl RawConnection {
         }
     }
 
-    /// Closes the switch channel too: no switch follows `login_finished`, so the reader stops
-    /// polling for one.
+    /// No compression switch follows `login_finished`.
     pub fn finish_login(&mut self, profile: GameProfile<'_>, session_id: Uuid) {
         let switches = self.inbound_switch.take();
+        self.play_switch = switches.clone();
         match self.switch_mode {
             SwitchMode::Immediate => {
                 self.write_packet(&ClientboundLoginFinished {
@@ -537,6 +572,14 @@ impl RawConnection {
                 }
                 self.awaits_login_acknowledgement = true;
             }
+        }
+    }
+
+    /// Makes the reader run layer 0 of the movement checks on each play-state frame after the
+    /// next `finish_configuration` of the client. Call it as `finish_configuration` is written.
+    pub fn check_play_moves(&mut self) {
+        if let Some(switches) = &self.play_switch {
+            let _ = switches.send(InboundSwitch::CheckPlay);
         }
     }
 
@@ -828,6 +871,58 @@ mod tests {
                 (second.id, &second.payload[..]),
                 (StatusResponse::ID, &body_of(&status)[..])
             );
+        });
+    }
+
+    #[test]
+    fn the_reader_checks_moves_only_in_the_play_state() {
+        let move_player_pos = mcrs_minecraft_protocol::packets::table::row_of(
+            mcrs_minecraft_protocol::packets::table::game_serverbound::NAMES,
+            "move_player_pos",
+        )
+        .unwrap();
+        let not_finite: Vec<u8> = [f64::NAN, 0.0, 0.0]
+            .iter()
+            .flat_map(|value| value.to_be_bytes())
+            .chain([0])
+            .collect();
+        let frame = |id: i32, body: &[u8]| {
+            let mut frame = vec![u8::try_from(body.len() + 1).unwrap(), id as u8];
+            frame.extend_from_slice(body);
+            frame
+        };
+        let runtime = tokio::runtime::Runtime::new().unwrap();
+        runtime.block_on(async {
+            let (mut connection, mut peer) = loopback(SwitchMode::Immediate).await;
+            connection.finish_login(
+                GameProfile {
+                    id: Uuid::nil(),
+                    username: mcrs_minecraft_protocol::Bounded("Steve"),
+                    properties: Default::default(),
+                },
+                Uuid::nil(),
+            );
+            connection.check_play_moves();
+            let wire = [
+                frame(move_player_pos, &not_finite),
+                frame(ServerboundFinishConfiguration::ID, &[]),
+                frame(move_player_pos, &not_finite),
+                frame(ServerboundConfigurationAcknowledged::ID, &[]),
+                frame(move_player_pos, &not_finite),
+            ]
+            .concat();
+            peer.write_all(&wire).await.unwrap();
+
+            let mut verdicts = Vec::new();
+            for _ in 0..5 {
+                verdicts.push(next_received(&mut connection).await.verdict);
+            }
+            let refused = Some(Verdict::Disconnect(
+                mcrs_minecraft_move_validate::Disconnect::InvalidPlayerMovement,
+            ));
+            assert_eq!(verdicts[..3], [None, None, refused]);
+            assert!(matches!(verdicts[3], Some(Verdict::Pass(_))));
+            assert_eq!(verdicts[4], None);
         });
     }
 }

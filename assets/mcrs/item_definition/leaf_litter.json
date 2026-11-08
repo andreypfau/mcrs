@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:leaf_litter",
-      "protocol_id": 331
+      "protocol_id": 343
     },
     "components": {
       "minecraft:attack_animation": {},

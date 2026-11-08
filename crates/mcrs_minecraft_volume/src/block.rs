@@ -9,6 +9,7 @@ pub trait BlockVolume: Volume {
     where
         Self: 'a;
 
+    /// Fails for a section that [`Volume::access`] does not let read, with the same reason.
     fn section(&self, at: SectionPos) -> Result<Self::Section<'_>, Unavailable>;
 
     #[inline]
@@ -176,7 +177,8 @@ pub struct PaletteBuffer {
 }
 
 impl PaletteBuffer {
-    fn collect<S: SectionBlocks + ?Sized>(&mut self, section: &S) -> Palette<'_> {
+    /// The palette of `section`, built in this buffer.
+    pub fn collect<S: SectionBlocks + ?Sized>(&mut self, section: &S) -> Palette<'_> {
         self.values.clear();
         self.counts.clear();
         let mut last: Option<(BlockStateId, usize)> = None;

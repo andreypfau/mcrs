@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:sweet_berries",
-      "protocol_id": 1528
+      "protocol_id": 1551
     },
     "components": {
       "minecraft:attack_animation": {},
@@ -12,7 +12,9 @@
       "minecraft:compostable": {
         "layers": "minecraft:compostable/low"
       },
-      "minecraft:consumable": {},
+      "minecraft:consumable": {
+        "sound": "minecraft:entity.generic.eat"
+      },
       "minecraft:enchantments": {},
       "minecraft:food": {
         "nutrition": 2,

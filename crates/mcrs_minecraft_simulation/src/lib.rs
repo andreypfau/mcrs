@@ -5,10 +5,14 @@ mod behaviour;
 mod chain;
 mod cx;
 mod event_queue;
+mod footprints;
 mod message;
 mod output;
+mod overlay;
 mod policy;
+mod precipitation;
 mod random_tick;
+mod region;
 mod scalar;
 mod schedule;
 mod section;
@@ -17,25 +21,36 @@ mod shard;
 mod step;
 mod stream;
 mod tick_queue;
+mod ticking_positions;
+mod tile_task;
 
 pub use access::{PartitionKind, SectionProperties, SimulatedSections, SimulationVolume};
 pub use behaviour::{BlockBehaviour, BlockFacts};
 pub use cx::Cx;
 pub use event_queue::{BlockEvent, DrainEnd, Drained, EventQueue, QueuedEvent};
+pub use footprints::Footprints;
 pub use message::{ChainOrigin, Message, MessageBody, UpdateRequest};
 pub use output::{BlockWrite, ChainLedger, Destroyed, StepError, StepOutput, StepReport};
 pub use policy::{CollectScratch, OrderingPolicy, SemanticOrder, VanillaOrder};
-pub use random_tick::{RandomPicks, RandomTickTable, RandomTicks, random_step};
+pub use precipitation::{
+    PRECIPITATION_GATE, PRECIPITATION_TILE, PrecipitationHit, precipitation_hits,
+};
+pub use random_tick::{
+    RandomHit, RandomPick, RandomPicks, RandomTickTable, RandomTicks, block_tile,
+    draw_random_picks, random_step,
+};
 pub use scalar::{GameTick, ShardId, TickPriority};
 pub use schedule::{PendingTick, ScheduleTicks};
 pub use sequence::{SequenceClock, SubTick, TickKey};
 pub use shard::{BlockShard, ChainLimit, Env, KernelConfig, Phase, PhaseInput, StepAt};
 pub use step::step;
-pub use stream::{StreamKey, StreamSeed};
+pub use stream::{SectionStreams, StreamKey, StreamSeed};
 pub use tick_queue::{
     Collected, Kinds, Queued, SavedTick, ScheduledTick, SectionOccupied, SectionTicks,
     SectionTicksRef, TickKind, TickQueue,
 };
+pub use ticking_positions::{TickingPositions, TickingSectionMut};
+pub use tile_task::{Serial, Spread};
 
 bitflags::bitflags! {
     #[derive(Copy, Clone, Debug, PartialEq, Eq)]

@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:acacia_fence",
-      "protocol_id": 421
+      "protocol_id": 437
     },
     "components": {
       "minecraft:attack_animation": {},

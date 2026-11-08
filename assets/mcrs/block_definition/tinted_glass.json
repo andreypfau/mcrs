@@ -3,9 +3,9 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:tinted_glass",
-      "protocol_id": 1118,
-      "base_state_id": 30536,
-      "default_state_id": 30536
+      "protocol_id": 1139,
+      "base_state_id": 32594,
+      "default_state_id": 32594
     },
     "components": {
       "minecraft:light_emission": 0,

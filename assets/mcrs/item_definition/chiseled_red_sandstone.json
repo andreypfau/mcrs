@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:chiseled_red_sandstone",
-      "protocol_id": 645
+      "protocol_id": 667
     },
     "components": {
       "minecraft:attack_animation": {},

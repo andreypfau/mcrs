@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:cinnabar_brick_wall",
-      "protocol_id": 51
+      "protocol_id": 63
     },
     "components": {
       "minecraft:attack_animation": {},

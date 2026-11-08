@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:diorite_wall",
-      "protocol_id": 545
+      "protocol_id": 562
     },
     "components": {
       "minecraft:attack_animation": {},

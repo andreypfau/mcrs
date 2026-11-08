@@ -3,9 +3,9 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:brown_concrete",
-      "protocol_id": 781,
-      "base_state_id": 17029,
-      "default_state_id": 17029
+      "protocol_id": 790,
+      "base_state_id": 17852,
+      "default_state_id": 17852
     },
     "components": {
       "minecraft:light_emission": 0,

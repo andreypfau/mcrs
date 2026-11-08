@@ -118,13 +118,13 @@ fn packet_target_missing_queue_counted() {
 }
 
 // ---------------------------------------------------------------------------
-// priority_drain_order
+// write_order
 // ---------------------------------------------------------------------------
 
-/// Pushing Normal → High → Critical then draining in priority order
-/// yields Critical, High, Normal.
+/// MVC-LAT-001: the queue drains in the order of the writes, whatever their priority, so the
+/// client applies the changes in the order the server made them.
 #[test]
-fn priority_drain_order() {
+fn the_queue_drains_in_the_order_of_the_writes() {
     let mut world = build_bridge_world();
 
     let dim = Entity::from_raw_u32(500).expect("nonzero");
@@ -156,11 +156,93 @@ fn priority_drain_order() {
         })
         .collect();
 
-    assert_eq!(
-        seqs,
-        vec![1, 2, 3],
-        "drain order must be Critical(1) → High(2) → Normal(3)"
-    );
+    assert_eq!(seqs, vec![3, 2, 1]);
+}
+
+/// MVC-LAT-001, MVC-TICK-002: a packet that the bridge serializes once for many players has the
+/// need it has for one player, so a deep queue sheds it exactly as it sheds the packet of one.
+/// A block update stays a predicted change, and the marks of a column batch always arrive.
+#[test]
+fn a_shared_packet_keeps_the_need_it_has_for_one_player() {
+    use mcrs_minecraft_engine::bus::{OutboundPlayerPacket, PacketPayload};
+    use mcrs_minecraft_engine::muxer::bridge_queue::Need;
+    use mcrs_minecraft_protocol::VarInt;
+    use mcrs_minecraft_protocol_game::block::BlockStateNumber;
+    use mcrs_minecraft_protocol_game::chunk::LightData;
+    use mcrs_minecraft_protocol_game::clientbound::{
+        ClientboundBlockEvent, ClientboundBlockUpdate, ClientboundChunkBatchFinished,
+        ClientboundChunkBatchStart, ClientboundLightUpdate,
+    };
+    use mcrs_voxel::BlockPos;
+
+    let pos = BlockPos::new(1, 64, 0);
+    for (data, need) in [
+        (
+            PacketPayload::BlockUpdate(ClientboundBlockUpdate {
+                block_pos: pos,
+                block_state_id: BlockStateNumber(1),
+            }),
+            Need::PredictedChange,
+        ),
+        (
+            PacketPayload::BlockEvent(ClientboundBlockEvent {
+                pos,
+                action: 0,
+                param: 0,
+                block: VarInt(1),
+            }),
+            Need::MayMiss,
+        ),
+        (
+            PacketPayload::LightUpdate(ClientboundLightUpdate {
+                x: VarInt(0),
+                z: VarInt(0),
+                light_data: LightData::default(),
+            }),
+            Need::MayMiss,
+        ),
+        (
+            PacketPayload::ChunkBatchStart(ClientboundChunkBatchStart),
+            Need::MustArrive,
+        ),
+        (
+            PacketPayload::ChunkBatchFinished(ClientboundChunkBatchFinished {
+                batch_size: VarInt(1),
+            }),
+            Need::MustArrive,
+        ),
+    ] {
+        let mut world = build_bridge_world();
+        let dim = Entity::from_raw_u32(500).expect("nonzero");
+        let sockets = [spawn_connection(&mut world), spawn_connection(&mut world)];
+        let lone = spawn_connection(&mut world);
+        let lone_dim = Entity::from_raw_u32(501).expect("nonzero");
+        for socket in sockets {
+            register_player(&mut world, socket, dim);
+        }
+        let (_, lone_session) = register_player(&mut world, lone, lone_dim);
+        for (target, session) in [
+            (PacketTarget::AllInDim(dim), PlayerSession(0)),
+            (PacketTarget::SinglePlayer(lone_session), lone_session),
+        ] {
+            world.write_message(OutboundPlayerPacket {
+                target,
+                priority: PacketPriority::Normal,
+                data: data.clone(),
+                session,
+                epoch: 0,
+            });
+        }
+
+        run_system(&mut world, bridge_outbound);
+
+        let needs: Vec<Need> = [sockets[0], sockets[1], lone]
+            .into_iter()
+            .flat_map(|socket| drain_queue(&mut world, socket))
+            .map(|queued| queued.need())
+            .collect();
+        assert_eq!(needs, [need; 3], "{data:?}");
+    }
 }
 
 // ---------------------------------------------------------------------------

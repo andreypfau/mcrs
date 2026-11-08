@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:weathered_chiseled_copper",
-      "protocol_id": 133
+      "protocol_id": 145
     },
     "components": {
       "minecraft:attack_animation": {},

@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:chainmail_boots",
-      "protocol_id": 1080
+      "protocol_id": 1102
     },
     "components": {
       "minecraft:attack_animation": {},
@@ -32,7 +32,8 @@
       "minecraft:equippable": {
         "slot": "feet",
         "equip_sound": "minecraft:item.armor.equip_chain",
-        "asset_id": "minecraft:chainmail"
+        "asset_id": "minecraft:chainmail",
+        "shearing_sound": "minecraft:item.shears.snip"
       },
       "minecraft:interact_animation": {},
       "minecraft:item_model": "minecraft:chainmail_boots",

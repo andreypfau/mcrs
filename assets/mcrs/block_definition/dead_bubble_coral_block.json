@@ -3,9 +3,9 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:dead_bubble_coral_block",
-      "protocol_id": 841,
-      "base_state_id": 18502,
-      "default_state_id": 18502
+      "protocol_id": 850,
+      "base_state_id": 19325,
+      "default_state_id": 19325
     },
     "components": {
       "minecraft:light_emission": 0,

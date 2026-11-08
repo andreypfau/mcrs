@@ -1,0 +1,54 @@
+{
+  "format_version": "1.21.130",
+  "minecraft:block": {
+    "description": {
+      "identifier": "minecraft:chiseled_packed_ice",
+      "protocol_id": 619,
+      "base_state_id": 15586,
+      "default_state_id": 15586
+    },
+    "components": {
+      "minecraft:light_emission": 0,
+      "minecraft:light_dampening": 15,
+      "minecraft:friction": 0.6,
+      "minecraft:map_color": "#a0a0ff",
+      "minecraft:collision_box": [
+        { "origin": [-8, 0, -8], "size": [16, 16, 16] }
+      ],
+      "minecraft:selection_box": [
+        { "origin": [-8, 0, -8], "size": [16, 16, 16] }
+      ],
+      "minecraft:destructible_by_explosion": {
+        "explosion_resistance": 0.5
+      },
+      "minecraft:redstone_conductivity": {
+        "redstone_conductor": true
+      },
+      "minecraft:movable": {
+        "movement_type": "push_pull"
+      },
+      "minecraft:instrument_sound": {
+        "down": "chime"
+      },
+      "minecraft:destructible_by_mining": {
+        "item_specific_speeds": [
+          {
+            "item": {
+              "tags": "q.any_tag(\u0027minecraft:pickaxes\u0027)"
+            },
+            "destroy_speed": 0.5
+          }
+        ],
+        "seconds_to_destroy": 0.5
+      },
+      "minecraft:loot": "minecraft:blocks/chiseled_packed_ice",
+      "mcrs:use_shape_for_light_occlusion": false,
+      "mcrs:occlusion_shape": [
+        { "origin": [-8, 0, -8], "size": [16, 16, 16] }
+      ],
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:packed_ice"
+    },
+    "permutations": []
+  }
+}

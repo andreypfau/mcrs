@@ -6,9 +6,9 @@
       "properties": {
         "hatch": [0, 1, 2]
       },
-      "protocol_id": 837,
-      "base_state_id": 18465,
-      "default_state_id": 18465
+      "protocol_id": 846,
+      "base_state_id": 19288,
+      "default_state_id": 19288
     },
     "components": {
       "minecraft:light_emission": 0,

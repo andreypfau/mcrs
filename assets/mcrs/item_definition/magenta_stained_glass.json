@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:magenta_stained_glass",
-      "protocol_id": 607
+      "protocol_id": 629
     },
     "components": {
       "minecraft:attack_animation": {},

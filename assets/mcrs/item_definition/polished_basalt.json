@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:polished_basalt",
-      "protocol_id": 437
+      "protocol_id": 453
     },
     "components": {
       "minecraft:attack_animation": {},

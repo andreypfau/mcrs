@@ -3,9 +3,9 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:soul_sand",
-      "protocol_id": 335,
-      "base_state_id": 8670,
-      "default_state_id": 8670
+      "protocol_id": 339,
+      "base_state_id": 9081,
+      "default_state_id": 9081
     },
     "components": {
       "minecraft:light_emission": 0,

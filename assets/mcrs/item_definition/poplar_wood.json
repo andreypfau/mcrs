@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:poplar_wood",
-      "protocol_id": 212
+      "protocol_id": 224
     },
     "components": {
       "minecraft:attack_animation": {},

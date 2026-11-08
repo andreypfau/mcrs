@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:iron_nugget",
-      "protocol_id": 1459
+      "protocol_id": 1481
     },
     "components": {
       "minecraft:attack_animation": {},

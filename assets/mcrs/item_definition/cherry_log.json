@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:cherry_log",
-      "protocol_id": 168
+      "protocol_id": 180
     },
     "components": {
       "minecraft:attack_animation": {},

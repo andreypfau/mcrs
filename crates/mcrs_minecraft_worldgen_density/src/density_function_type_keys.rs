@@ -42,8 +42,9 @@ mcrs_minecraft_registries::static_registry! {
     IntervalSelect = "minecraft:interval_select",
     Cache = "minecraft:cache",
     BlendDensity = "minecraft:blend_density",
-    Interpolated = "minecraft:interpolated",
+    Upscale = "minecraft:upscale",
     Slice = "minecraft:slice",
     FindTopSurface = "minecraft:find_top_surface",
+    DomainWarp = "minecraft:domain_warp",
     OldBlendedNoise = "minecraft:old_blended_noise",
 }

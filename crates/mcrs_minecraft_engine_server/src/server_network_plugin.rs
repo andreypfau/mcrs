@@ -4,6 +4,7 @@ use bevy_app::{App, Plugin};
 use mcrs_minecraft_engine::banlist::BanList;
 use mcrs_minecraft_engine::client_info::ClientInfoPlugin;
 use mcrs_minecraft_engine::whitelist::Whitelist;
+use mcrs_minecraft_network::inbound_rate::InboundRateLimit;
 use mcrs_minecraft_network::{NetworkPlugin, default_favicon};
 
 use crate::configuration::{ConfigurationStatePlugin, KnownPackOffer};
@@ -41,6 +42,8 @@ pub struct ServerNetworkPlugin {
     pub send_buffer_bytes: usize,
     /// The length of the kernel queue of connections that wait for the accept loop.
     pub accept_backlog: u32,
+    /// The largest average of packets per second of one connection; 0 turns the limit off.
+    pub rate_limit: InboundRateLimit,
     pub whitelist: Whitelist,
     pub banlist: BanList,
 }
@@ -74,6 +77,7 @@ impl Default for ServerNetworkPlugin {
             enable_status: true,
             send_buffer_bytes: NetworkPlugin::default().send_buffer_bytes,
             accept_backlog: NetworkPlugin::default().accept_backlog,
+            rate_limit: InboundRateLimit::default(),
             whitelist: Whitelist::default(),
             banlist: BanList::default(),
         }
@@ -98,6 +102,7 @@ impl Plugin for ServerNetworkPlugin {
             enable_status: self.enable_status,
             send_buffer_bytes: self.send_buffer_bytes,
             accept_backlog: self.accept_backlog,
+            rate_limit: self.rate_limit,
         });
         app.insert_resource(self.compression_threshold);
         app.add_plugins(LoginPlugin);

@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:repeating_command_block",
-      "protocol_id": 648
+      "protocol_id": 670
     },
     "components": {
       "minecraft:attack_animation": {},

@@ -95,7 +95,6 @@ impl<V: Hash + Eq + Copy + Send + Sync + 'static> VoxelPalette<V, { SectionPos::
 /// heterogeneous section weighs. A write diverges that one section through
 /// [`SharedVoxelPalette::make_mut`].
 #[derive(Debug)]
-#[cfg_attr(feature = "bevy", derive(bevy_ecs::component::Component))]
 pub struct SharedVoxelPalette<V: Hash + Eq + Copy + Send + Sync + 'static, const DIM: usize>(
     pub Arc<VoxelPalette<V, DIM>>,
 );

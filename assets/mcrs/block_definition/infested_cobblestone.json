@@ -3,9 +3,9 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:infested_cobblestone",
-      "protocol_id": 383,
-      "base_state_id": 9497,
-      "default_state_id": 9497
+      "protocol_id": 387,
+      "base_state_id": 9908,
+      "default_state_id": 9908
     },
     "components": {
       "minecraft:light_emission": 0,

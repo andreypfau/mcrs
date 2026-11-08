@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:golden_spear",
-      "protocol_id": 1454
+      "protocol_id": 1476
     },
     "components": {
       "minecraft:attack_animation": {

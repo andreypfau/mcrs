@@ -5,6 +5,7 @@
 use std::mem;
 
 use bevy_ecs::entity::Entity;
+use bevy_math::DVec3;
 use mcrs_engine_muxer::{ChunkStream, StreamNeed, ViewerId};
 use mcrs_minecraft_engine_world::entity::player::chunk_view::{ChunkTrackingView, VIEW_MARGIN};
 use mcrs_minecraft_engine_world::session::PlayerSession;
@@ -14,7 +15,7 @@ use mcrs_minecraft_protocol_game::clientbound::{
     ClientboundBlockChangedAck, ClientboundChunkBatchFinished, ClientboundChunkBatchStart,
     ClientboundChunkCacheRadius, ClientboundForgetLevelChunk, ClientboundSetChunkCacheCenter,
 };
-use mcrs_voxel::ColumnPos;
+use mcrs_voxel::{BlockPos, ColumnPos};
 use rustc_hash::{FxHashMap, FxHashSet};
 use smallvec::SmallVec;
 
@@ -24,7 +25,7 @@ use crate::column_change::ColumnChange;
 use crate::column_request::ColumnRequest;
 use crate::column_version::ColumnVersion;
 use crate::muxer::batch_pacing::BatchPacing;
-use crate::player_view::PlayerView;
+use crate::player_view::{PlayerView, ViewerPosition};
 
 /// A ceiling on one batch, not the rate: the client's answer is what paces the load, and a cap
 /// low enough to bind first silently overrides it — at a full render distance a column is some
@@ -70,6 +71,8 @@ struct DimColumn {
 struct PlayerColumns {
     dim: Entity,
     view: ChunkTrackingView,
+    /// Where the player stood when the dimension last reported it.
+    position: Option<DVec3>,
     states: FxHashMap<ColumnPos, ColumnState>,
     queued: FxHashSet<ColumnPos>,
     wanted: FxHashSet<ColumnPos>,
@@ -90,6 +93,7 @@ impl PlayerColumns {
         Self {
             dim,
             view,
+            position: None,
             states: FxHashMap::default(),
             queued: FxHashSet::default(),
             wanted: FxHashSet::default(),
@@ -315,22 +319,33 @@ impl ColumnViews {
         let Some(feed) = self.feeds.get_mut(&at) else {
             return;
         };
-        // An event shows once, to the clients that hold the column when it happens.
-        let need = match change.payload {
-            PacketPayload::BlockEvent(_)
-            | PacketPayload::LevelEvent(_)
-            | PacketPayload::BlockDestruction(_) => StreamNeed::Nothing,
-            _ => feed.log(&change),
+        // An event shows once, to the clients that hold the column when it happens. A block event
+        // shows only to those that stand within its range.
+        let (need, near) = match &change.payload {
+            PacketPayload::BlockEvent(event) => (StreamNeed::Nothing, Some(event.pos)),
+            PacketPayload::LevelEvent(_) | PacketPayload::BlockDestruction(_) => {
+                (StreamNeed::Nothing, None)
+            }
+            _ => (feed.log(&change), None),
         };
-        let holders: SmallVec<[PlayerSession; 8]> = feed
+        let players = &self.players;
+        let recipients: SmallVec<[PlayerSession; 8]> = feed
             .holders()
             .iter()
             .map(|holder| PlayerSession(holder.0))
-            .filter(|&holder| Some(holder) != change.except)
+            .filter(|&session| Some(session) != change.except)
+            .filter(|session| {
+                near.is_none_or(|pos| {
+                    players
+                        .get(session)
+                        .and_then(|player| player.position)
+                        .is_some_and(|position| hears_block_event(pos, position))
+                })
+            })
             .collect();
-        if !holders.is_empty() {
+        if !recipients.is_empty() {
             out.push(OutboundPlayerPacket {
-                target: PacketTarget::PlayerSet(holders),
+                target: PacketTarget::PlayerSet(recipients),
                 priority: change.priority,
                 data: change.payload,
                 session: PlayerSession(0),
@@ -352,10 +367,16 @@ impl ColumnViews {
             views,
             versions,
             changes,
+            positions,
             acks,
         } = published;
         for view in views {
             self.apply_view(dim, view, out);
+        }
+        for ViewerPosition { session, position } in positions {
+            if let Some(player) = self.players.get_mut(&session) {
+                player.position = Some(position);
+            }
         }
         for version in versions {
             self.take_version(dim, version);
@@ -577,12 +598,23 @@ fn send_cache_view(
     }
 }
 
+/// The squared range of a block event, from the minimum corner of its block.
+const BLOCK_EVENT_RANGE_SQUARED: f64 = 64.0 * 64.0;
+
+/// Whether a player at `position` gets the block event of the block at `pos`: the server picks
+/// the players by distance, strictly inside the range.
+fn hears_block_event(pos: BlockPos, position: DVec3) -> bool {
+    let corner = DVec3::new(f64::from(pos.x), f64::from(pos.y), f64::from(pos.z));
+    corner.distance_squared(position) < BLOCK_EVENT_RANGE_SQUARED
+}
+
 /// What a dimension published for the views in one tick.
 #[derive(Clone, Debug, Default)]
 pub struct DimColumns {
     pub views: Vec<PlayerView>,
     pub versions: Vec<ColumnVersion>,
     pub changes: Vec<ColumnChange>,
+    pub positions: Vec<ViewerPosition>,
     pub acks: Vec<BlockActionAck>,
 }
 
@@ -592,6 +624,7 @@ impl DimColumns {
         self.views.is_empty()
             && self.versions.is_empty()
             && self.changes.is_empty()
+            && self.positions.is_empty()
             && self.acks.is_empty()
     }
 }
@@ -633,6 +666,18 @@ mod tests {
             &mut out,
         );
         out
+    }
+
+    fn stand(views: &mut ColumnViews, dim: Entity, session: PlayerSession, position: DVec3) {
+        let mut out = Vec::new();
+        views.take_dim(
+            dim,
+            DimColumns {
+                positions: vec![ViewerPosition { session, position }],
+                ..DimColumns::default()
+            },
+            &mut out,
+        );
     }
 
     fn publish(views: &mut ColumnViews, dim: Entity, column: ColumnPos, packet: &'static [u8]) {
@@ -732,10 +777,46 @@ mod tests {
             "the event does not follow the column to a client that waited for it: {sent:?}"
         );
 
+        stand(&mut views, dim, session, DVec3::new(0.0, 63.99, 0.0));
         views.take_change(dim, event, &mut out);
         assert!(
             matches!(&out[..], [packet] if matches!(packet.data, PacketPayload::BlockEvent(_))),
             "an event after the send goes to the holder: {out:?}"
+        );
+    }
+
+    #[test]
+    fn a_block_event_reaches_a_holder_strictly_within_64_blocks_of_the_block_corner() {
+        let dim = dim();
+        let session = PlayerSession(1);
+        let column = ColumnPos::new(0, 0);
+        let mut views = ColumnViews::default();
+        look(&mut views, dim, session, 0);
+        send(&mut views);
+        publish(&mut views, dim, column, b"column");
+        send(&mut views);
+        let event = ColumnChange {
+            column,
+            priority: PacketPriority::Normal,
+            payload: PacketPayload::BlockEvent(ClientboundBlockEvent {
+                pos: BlockPos::new(2, 10, 3),
+                action: 1,
+                param: 0,
+                block: VarInt(1),
+            }),
+            except: None,
+        };
+        let mut heard = Vec::new();
+        for y in [74.0, 73.99] {
+            stand(&mut views, dim, session, DVec3::new(2.0, y, 3.0));
+            let mut out = Vec::new();
+            views.take_change(dim, event.clone(), &mut out);
+            heard.push(out.len());
+        }
+        assert_eq!(
+            heard,
+            [0, 1],
+            "SIM-BEV-004: 64.0 is out of range, 63.99 is in"
         );
     }
 

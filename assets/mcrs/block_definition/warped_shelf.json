@@ -45,9 +45,6 @@
       "minecraft:instrument_sound": {
         "down": "bass"
       },
-      "minecraft:flammable": {
-        "lava_flammable": "always"
-      },
       "minecraft:block_entity": {
         "container": {
           "slot_count": 3

@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:copper_nautilus_armor",
-      "protocol_id": 1492
+      "protocol_id": 1515
     },
     "components": {
       "minecraft:attack_animation": {},

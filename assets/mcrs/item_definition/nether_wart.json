@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:nether_wart",
-      "protocol_id": 1271
+      "protocol_id": 1293
     },
     "components": {
       "minecraft:attack_animation": {},

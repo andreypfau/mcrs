@@ -30,7 +30,7 @@ const WASM32_PACKAGES: [&str; 11] = [
 
 const NO_STD_PACKAGES: [&str; 2] = ["mcrs_command", "mcrs_minecraft_chat"];
 
-const NO_BEVY_PACKAGES: [&str; 73] = [
+const NO_BEVY_PACKAGES: [&str; 80] = [
     "mcrs_command",
     "mcrs_engine_cell",
     "mcrs_engine_link",
@@ -46,6 +46,10 @@ const NO_BEVY_PACKAGES: [&str; 73] = [
     "mcrs_minecraft_chat_client",
     "mcrs_minecraft_chunk",
     "mcrs_minecraft_client_jar",
+    "mcrs_minecraft_client_recorder",
+    "mcrs_minecraft_server_bench",
+    "mcrs_minecraft_client_ticks",
+    "mcrs_minecraft_collision_table",
     "mcrs_minecraft_command",
     "mcrs_minecraft_command_argument",
     "mcrs_minecraft_command_argument_block",
@@ -69,10 +73,13 @@ const NO_BEVY_PACKAGES: [&str; 73] = [
     "mcrs_minecraft_light_engine",
     "mcrs_minecraft_loot",
     "mcrs_minecraft_mesh",
+    "mcrs_minecraft_move_predict",
+    "mcrs_minecraft_move_validate",
     "mcrs_minecraft_nbt",
     "mcrs_minecraft_network",
     "mcrs_minecraft_noise",
     "mcrs_minecraft_particle",
+    "mcrs_minecraft_physics",
     "mcrs_minecraft_predicate",
     "mcrs_minecraft_profile",
     "mcrs_minecraft_protocol",

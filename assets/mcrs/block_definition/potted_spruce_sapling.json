@@ -3,9 +3,9 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:potted_spruce_sapling",
-      "protocol_id": 465,
-      "base_state_id": 12376,
-      "default_state_id": 12376
+      "protocol_id": 469,
+      "base_state_id": 12787,
+      "default_state_id": 12787
     },
     "components": {
       "minecraft:light_emission": 0,

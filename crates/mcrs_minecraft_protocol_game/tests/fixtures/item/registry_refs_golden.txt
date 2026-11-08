@@ -6,8 +6,8 @@ id minecraft:enchantment minecraft:unbreaking 40
 id minecraft:block minecraft:stone 1
 id minecraft:block minecraft:dirt 9
 id minecraft:item minecraft:stone 1
-id minecraft:item minecraft:apple 1008
-id minecraft:item minecraft:diamond 1013
+id minecraft:item minecraft:apple 1030
+id minecraft:item minecraft:diamond 1035
 id minecraft:entity_type minecraft:zombie 156
 id minecraft:entity_type minecraft:pig 103
 id minecraft:banner_pattern minecraft:globe 13
@@ -48,7 +48,7 @@ id minecraft:decorated_pot_pattern minecraft:skull 21
 id minecraft:attribute minecraft:attack_damage 3
 id minecraft:attribute minecraft:armor 1
 id minecraft:sound_event minecraft:item.armor.equip_generic 50
-id minecraft:sound_event minecraft:item.shears.snip 997
+id minecraft:sound_event minecraft:item.shears.snip 999
 id minecraft:sound_event minecraft:item.armor.equip_iron 52
 id minecraft:potion minecraft:swiftness 13
 id minecraft:potion minecraft:water 0
@@ -149,7 +149,7 @@ sample minecraft:repairable {"items":"minecraft:diamond"}
   json {"items":"minecraft:diamond"}
   snbt {items:"minecraft:diamond"}
   nbt 0a0800056974656d7300116d696e6563726166743a6469616d6f6e6400
-  wire 02f507
+  wire 028b08
   wire_roundtrip true remaining 0
   hash 586845746
 sample minecraft:repairable {"items":"#minecraft:planks"}
@@ -163,7 +163,7 @@ sample minecraft:repairable {"items":["minecraft:stone","minecraft:apple"]}
   json {"items":["minecraft:stone","minecraft:apple"]}
   snbt {items:["minecraft:stone","minecraft:apple"]}
   nbt 0a0900056974656d730800000002000f6d696e6563726166743a73746f6e65000f6d696e6563726166743a6170706c6500
-  wire 0301f007
+  wire 03018608
   wire_roundtrip true remaining 0
   hash -284934266
 sample minecraft:mob_visibility {"targeting_entity_types":"#minecraft:skeletons","visibility":0.5}
@@ -375,28 +375,28 @@ sample minecraft:equippable {"slot":"head"}
   json {"slot":"head"}
   snbt {slot:"head"}
   nbt 0a080004736c6f7400046865616400
-  wire 04330000000101010000e607
+  wire 0400000000010101000000
   wire_roundtrip true remaining 0
   hash 497790992
 sample minecraft:equippable {"slot":"offhand","equip_sound":"minecraft:item.armor.equip_iron","asset_id":"minecraft:iron","camera_overlay":"minecraft:misc/pumpkinblur","allowed_entities":["minecraft:zombie","minecraft:pig"],"dispensable":false,"swappable":false,"damage_on_hurt":false,"equip_on_interact":true,"can_be_sheared":true,"shearing_sound":{"sound_id":"mcrs:snip","range":3.5}}
   json {"slot":"offhand","equip_sound":"minecraft:item.armor.equip_iron","asset_id":"minecraft:iron","camera_overlay":"minecraft:misc/pumpkinblur","allowed_entities":["minecraft:zombie","minecraft:pig"],"dispensable":false,"swappable":false,"damage_on_hurt":false,"equip_on_interact":true,"can_be_sheared":true,"shearing_sound":{"sound_id":"mcrs:snip","range":3.5}}
   snbt {allowed_entities:["minecraft:zombie","minecraft:pig"],asset_id:"minecraft:iron",camera_overlay:"minecraft:misc/pumpkinblur",can_be_sheared:1b,damage_on_hurt:0b,dispensable:0b,equip_on_interact:1b,equip_sound:"minecraft:item.armor.equip_iron",shearing_sound:{range:3.5f,sound_id:"mcrs:snip"},slot:"offhand",swappable:0b}
   nbt 0a01000b64697370656e7361626c650001001165717569705f6f6e5f696e7465726163740108000b65717569705f736f756e64001f6d696e6563726166743a6974656d2e61726d6f722e65717569705f69726f6e090010616c6c6f7765645f656e746974696573080000000200106d696e6563726166743a7a6f6d626965000d6d696e6563726166743a70696708000e63616d6572615f6f7665726c6179001a6d696e6563726166743a6d6973632f70756d706b696e626c75720a000e7368656172696e675f736f756e64080008736f756e645f696400096d6372733a736e697005000572616e67654060000000080004736c6f7400076f666668616e6408000861737365745f6964000e6d696e6563726166743a69726f6e010009737761707061626c650001000e64616d6167655f6f6e5f687572740001000e63616e5f62655f736865617265640100
-  wire 0535010e6d696e6563726166743a69726f6e011a6d696e6563726166743a6d6973632f70756d706b696e626c757201039c0167000000010100096d6372733a736e69700140600000
+  wire 050135010e6d696e6563726166743a69726f6e011a6d696e6563726166743a6d6973632f70756d706b696e626c757201039c016700000001010100096d6372733a736e69700140600000
   wire_roundtrip true remaining 0
   hash -742698965
 sample minecraft:equippable {"slot":"saddle","equip_sound":"minecraft:item.armor.equip_generic","allowed_entities":"#minecraft:skeletons","dispensable":true,"swappable":true,"damage_on_hurt":true,"equip_on_interact":false,"can_be_sheared":false,"shearing_sound":"minecraft:item.shears.snip"}
-  json {"slot":"saddle","allowed_entities":"#minecraft:skeletons"}
-  snbt {allowed_entities:"#minecraft:skeletons",slot:"saddle"}
-  nbt 0a080010616c6c6f7765645f656e7469746965730014236d696e6563726166743a736b656c65746f6e73080004736c6f740006736164646c6500
-  wire 073300000100136d696e6563726166743a736b656c65746f6e730101010000e607
+  json {"slot":"saddle","equip_sound":"minecraft:item.armor.equip_generic","allowed_entities":"#minecraft:skeletons","shearing_sound":"minecraft:item.shears.snip"}
+  snbt {allowed_entities:"#minecraft:skeletons",equip_sound:"minecraft:item.armor.equip_generic",shearing_sound:"minecraft:item.shears.snip",slot:"saddle"}
+  nbt 0a08000b65717569705f736f756e6400226d696e6563726166743a6974656d2e61726d6f722e65717569705f67656e65726963080010616c6c6f7765645f656e7469746965730014236d696e6563726166743a736b656c65746f6e7308000e7368656172696e675f736f756e64001a6d696e6563726166743a6974656d2e7368656172732e736e6970080004736c6f740006736164646c6500
+  wire 07013300000100136d696e6563726166743a736b656c65746f6e73010101000001e807
   wire_roundtrip true remaining 0
-  hash -137090998
+  hash -1616834939
 sample minecraft:equippable {"slot":"body","equip_sound":{"sound_id":"mcrs:equip"},"allowed_entities":"minecraft:pig"}
   json {"slot":"body","equip_sound":{"sound_id":"mcrs:equip"},"allowed_entities":"minecraft:pig"}
   snbt {allowed_entities:"minecraft:pig",equip_sound:{sound_id:"mcrs:equip"},slot:"body"}
   nbt 0a0a000b65717569705f736f756e64080008736f756e645f6964000a6d6372733a657175697000080010616c6c6f7765645f656e746974696573000d6d696e6563726166743a706967080004736c6f740004626f647900
-  wire 06000a6d6372733a65717569700000000102670101010000e607
+  wire 0601000a6d6372733a6571756970000000010267010101000000
   wire_roundtrip true remaining 0
   hash 1431180046
 sample minecraft:potion_contents "minecraft:swiftness"
@@ -535,7 +535,7 @@ sample minecraft:equippable {"slot":"head","equip_sound":null,"dispensable":null
   json {"slot":"head"}
   snbt {slot:"head"}
   nbt 0a080004736c6f7400046865616400
-  wire 04330000000101010000e607
+  wire 0400000000010101000000
   wire_roundtrip true remaining 0
   hash 497790992
 sample minecraft:attribute_modifiers [{"type":"minecraft:scale","id":"mcrs:x","amount":1,"operation":"add_value","slot":null,"display":null}]

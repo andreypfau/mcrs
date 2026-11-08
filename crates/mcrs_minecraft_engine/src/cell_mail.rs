@@ -3,10 +3,10 @@
 
 use std::mem;
 
-use bevy_app::{App, FixedPostUpdate, FixedPreUpdate, Plugin};
+use bevy_app::{App, FixedPostUpdate, FixedPreUpdate, FixedUpdate, Plugin};
 use bevy_ecs::entity::Entity;
-use bevy_ecs::message::{MessageReader, Messages};
-use bevy_ecs::prelude::With;
+use bevy_ecs::message::{MessageReader, MessageWriter, Messages};
+use bevy_ecs::prelude::{Query, With};
 use bevy_ecs::resource::Resource;
 use bevy_ecs::schedule::IntoScheduleConfigs;
 use bevy_ecs::system::{Res, ResMut};
@@ -14,18 +14,21 @@ use bevy_ecs::world::World;
 use mcrs_minecraft_engine_world::block_update::{BlockPlaced, BlockSetRequest};
 use mcrs_minecraft_engine_world::entity::add_entity_to_chunk;
 use mcrs_minecraft_engine_world::owned_columns::OwnedColumns;
+use mcrs_minecraft_engine_world::tick::TickSet;
 use mcrs_minecraft_engine_world::voxel_update::{
-    BlockChange, CellBlockWrite, HaloBlockChanges, VoxelUpdateSet,
+    self, BlockChange, CellBlockWrite, HaloBlockChanges, VoxelUpdateSet,
 };
 use mcrs_minecraft_engine_world::world::dimension::Dimension;
+use mcrs_minecraft_engine_world::world::storage::view::WorldViewMut;
 use mcrs_minecraft_simulation::{ChainLedger, Message};
 use mcrs_voxel::ColumnPos;
 
 use crate::block_simulation::BlockSimulation;
 use crate::cell_crossing::{self, Crossing};
 use crate::column_asks::{ColumnAnswer, ColumnAsk, ColumnHold};
+use crate::column_light::ColdStageLandSet;
 use crate::column_production::ColumnProduction;
-use crate::column_store::ColumnStoreLink;
+use crate::column_store::{ColumnStoreLink, StoredColumnLandSet};
 use crate::dim_tick::{DimInboxDrain, drain_dim_inbox};
 use crate::foreign_views::ForeignViews;
 use crate::hot_ticket::{RemoteTickets, TicketMail, TicketUpdate};
@@ -124,6 +127,13 @@ impl Plugin for CellMailPlugin {
                 .before(add_entity_to_chunk),
         );
         app.add_systems(
+            FixedUpdate,
+            apply_halo_changes
+                .in_set(TickSet::DomainInput)
+                .after(StoredColumnLandSet)
+                .after(ColdStageLandSet),
+        );
+        app.add_systems(
             FixedPostUpdate,
             collect_halo_changes.in_set(VoxelUpdateSet::NetworkSync),
         );
@@ -205,6 +215,23 @@ fn receive_cell_mail(world: &mut World) {
             tracing::error!("a player did not arrive from another cell: {error}");
         }
     }
+}
+
+/// Writes the changes that the owners made in tick `T` into the halo before anything of tick
+/// `T + 1` reads it, so every cell starts the tick from the blocks that one cell would hold.
+fn apply_halo_changes(
+    mut blocks: WorldViewMut,
+    mut placed: MessageWriter<BlockPlaced>,
+    dimensions: Query<Entity, With<Dimension>>,
+    mut halo: ResMut<HaloBlockChanges>,
+) {
+    if halo.0.is_empty() {
+        return;
+    }
+    let Ok(dimension) = dimensions.single() else {
+        return;
+    };
+    voxel_update::apply_halo_changes(&mut blocks, &mut placed, dimension, &mut halo.0);
 }
 
 /// Keeps each change of a column of this cell that another cell reads, for its halo.

@@ -3,9 +3,9 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:horn_coral_block",
-      "protocol_id": 848,
-      "base_state_id": 18509,
-      "default_state_id": 18509
+      "protocol_id": 857,
+      "base_state_id": 19332,
+      "default_state_id": 19332
     },
     "components": {
       "minecraft:light_emission": 0,

@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:infested_chiseled_stone_bricks",
-      "protocol_id": 447
+      "protocol_id": 463
     },
     "components": {
       "minecraft:attack_animation": {},

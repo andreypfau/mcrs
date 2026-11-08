@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:nether_gold_ore",
-      "protocol_id": 109
+      "protocol_id": 121
     },
     "components": {
       "minecraft:attack_animation": {},

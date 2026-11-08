@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:gravel",
-      "protocol_id": 92
+      "protocol_id": 104
     },
     "components": {
       "minecraft:attack_animation": {},

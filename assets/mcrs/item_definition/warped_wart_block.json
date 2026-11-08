@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:warped_wart_block",
-      "protocol_id": 652
+      "protocol_id": 674
     },
     "components": {
       "minecraft:attack_animation": {},

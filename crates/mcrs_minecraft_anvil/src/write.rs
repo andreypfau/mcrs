@@ -137,12 +137,14 @@ impl<V: PaletteId> PaletteLookup<V> for PaletteNames<V> {
     }
 }
 
-/// The chunk as NBT, uncompressed, at the current `DataVersion`.
+/// The chunk as NBT, uncompressed, at the current `DataVersion`, with the
+/// lowest section of its dimension as `yPos`.
 // chisle: block ticks, post-processing and blending data are not in
 // `Chunk`, so a written chunk drops them and a vanilla server reads their
 // absence; carrying them in `Chunk` lifts this.
 pub fn write_chunk(
     chunk: &Chunk,
+    min_section_y: i32,
     blocks: &PaletteNames<VoxelId>,
     biomes: &PaletteNames<u8>,
 ) -> Result<Vec<u8>, ErrorKind> {
@@ -177,7 +179,7 @@ pub fn write_chunk(
         data_version: VERSION.world_version,
         x_pos: chunk.pos.x,
         z_pos: chunk.pos.z,
-        y_pos: chunk.min_section_y,
+        y_pos: min_section_y,
         status: chunk.status,
         sections,
         heightmaps: chunk.heightmaps.clone(),

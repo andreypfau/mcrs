@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:torchflower_seeds",
-      "protocol_id": 1439
+      "protocol_id": 1461
     },
     "components": {
       "minecraft:attack_animation": {},

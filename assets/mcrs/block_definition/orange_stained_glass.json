@@ -3,9 +3,9 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:orange_stained_glass",
-      "protocol_id": 350,
-      "base_state_id": 8771,
-      "default_state_id": 8771
+      "protocol_id": 354,
+      "base_state_id": 9182,
+      "default_state_id": 9182
     },
     "components": {
       "minecraft:light_emission": 0,

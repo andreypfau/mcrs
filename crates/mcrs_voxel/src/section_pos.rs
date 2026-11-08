@@ -37,6 +37,16 @@ impl SectionPos {
     pub fn new(x: i32, y: i32, z: i32) -> Self {
         Self(IVec3::new(x, y, z))
     }
+
+    /// The block of the section with the lowest `x`, `y` and `z`.
+    #[must_use]
+    pub fn min_block(self) -> BlockPos {
+        BlockPos::new(
+            self.x << Self::BITS,
+            self.y << Self::BITS,
+            self.z << Self::BITS,
+        )
+    }
 }
 
 impl Hash for SectionPos {

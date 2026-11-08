@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:acacia_planks",
-      "protocol_id": 67
+      "protocol_id": 79
     },
     "components": {
       "minecraft:attack_animation": {},
