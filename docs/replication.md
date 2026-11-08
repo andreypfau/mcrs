@@ -326,6 +326,14 @@ The Muxer judges a mob again only in these cases:
 A held mob stays held up to 1 block past its range, so a mob on the edge does not spawn and
 despawn in each tick.
 
+A slow client does not get a queue that grows. The host marks a connection as behind when more
+than 512 KiB wait on its writer, and as clear again below 64 KiB. While a connection is behind,
+the codec sends it no update of a mob and records the mob as missed. Spawn bundles, removals,
+signals and columns still go. When the connection is clear, the codec sends at most 1,024 missed
+mobs in each tick: an absolute position at the base of the tracker, the velocity, the head yaw
+and the entity data. Thus the client holds the state of every other viewer, and the next relative
+move fits its base. A missed mob gets no relative move until its state goes.
+
 This rule replaces the cap of TRK-RNG-003 for mobs. TRK-RNG-003 lets the cap and the budget stop
 a pairing, but then a viewer in a crowd holds the first ranks of each tile, not the nearest mobs.
 In a pen of 50,000 pigs, the vanilla server pairs about 27,000 pigs with a viewer at the fence,
