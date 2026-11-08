@@ -1633,13 +1633,15 @@ E1..E8, T1 (any time)   D1 ─ D2 ─ D3 ─ D4 ─ D5 ─ D6 ─ D7
     no violation, for each teleport; the accept applies the teleport to the candidates at that time,
     which keep their flags and fall distance; unknown values make the next tick a resync tick.
 56. `entity-tracking.md` TRK-LIFE-001, the cold state of a mob. Decided: the cold state of a mob
-    (its type and its entity data values) lives in a side table keyed by `EntityId`, as the stack
-    of an item, not in an ECS entity as §6.3 states. Reason: no system queries the cold state of
+    lives in a side table keyed by `EntityId`, as the stack of an item, not in an ECS entity as
+    §6.3 states. In G1 the table holds only the entity type; each entity data value is a function
+    of the type until `entity-damage.md` changes the health. Reason: no system queries the cold state of
     mobs yet, and a side table keeps the spawn a row operation of its tile. A mob gets an ECS
     entity when a system of the AI or the damage needs a query over the cold state.
-57. `entity-tracking.md` TRK-RNG-001, TRK-RNG-003, the radius of the subscriptions. Open
-    (design). `VIEW_RADIUS` is 3 tiles on each axis around the tile of the viewer, so a subject can
-    be outside the subscriptions at 97 to 128 blocks. The tracking range of a zombified piglin is
+57. `entity-tracking.md` TRK-RNG-001, TRK-RNG-003, the radius of the subscriptions. Decided for
+    G1: `VIEW_RADIUS` becomes 4 tiles, which covers 128 blocks from any point of the own tile;
+    TRK-DEV-004 records the square. Still open (design): with 3 tiles a subject can be outside the
+    subscriptions at 97 to 128 blocks, and the muxer does not know the view distance of a viewer. The tracking range of a zombified piglin is
     128 blocks, and of a player 160 blocks at the view distance 10. The radius must cover the
     largest tracking range of the dimension, capped by the view distance of the viewer, and the
     codec must pair each subject by the range of its type.
@@ -1648,7 +1650,9 @@ E1..E8, T1 (any time)   D1 ─ D2 ─ D3 ─ D4 ─ D5 ─ D6 ─ D7
     every tier. Reason: the client plays all steps of a path within the update interval of the
     type (3 ticks for a zombified piglin), so a path of 10 or 20 ticks moves the mob in 3 ticks and
     then stops it. The claim C5 of `replication.md` §5 thus does not hold for these subjects. The
-    budget of REPL §7.4 removes such a subject from the visible set; it never lowers its rate.
+    budget of REPL §7.4 removes such a subject from the visible set; it never lowers its rate. The
+    muxer calls `blob` only for due tiles and tiers, so the codec runs one tracker for each such
+    subject and writes its updates in `finish_tick` to each viewer that holds it (TRK-UPD-009).
 59. SIM-FIRE-012 and SIM-SCH-005, the loaded footprint of a scheduled tick. Open (design). A fire
     tick reads and sets positions up to 2 blocks to the side and from 2 below to 5 above its
     position. Vanilla runs scheduled ticks in a column only when its eight neighbour columns are

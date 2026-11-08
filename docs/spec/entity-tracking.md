@@ -29,13 +29,14 @@ architecture can make. It does not prescribe the code.
 - **Mob**: a server-simulated living entity that is not a player and not an armor stand, for
   example a zombified piglin.
 - **Entity type**: an entry of the registry `minecraft:entity_type`.
-- **Type data**: the values that an entity type gives to each entity of the type (section 2).
+- **Type data**: the values that an entity type gives to each entity of the type (section 1).
 - **Network id**: the id of an entity on the wire. A player keeps the id of its session. Another
   entity gets an even id (`replication.md`, section 7.2).
 - **Tracker**: the state that the server keeps for one subject to send it to viewers. A subject
   has one tracker. All viewers of the subject share it.
 - **Tracker tick**: one run of the tracker of a subject. The tracker counts its ticks from 0. The
-  first tracker tick is the tick in which the server starts to track the subject.
+  first tracker tick is the tick in which the server starts to track the subject. A tracker ticks
+  in each tick in which the row of the subject ticks in the entity pass.
 - **Update**: a tracker tick in which the tracker sends the state of the subject (TRK-UPD-001).
 - **Update interval**: the number of tracker ticks between two updates, as type data gives it.
 - **Tracking range**: the largest horizontal distance at which a viewer sees a subject
@@ -53,7 +54,9 @@ architecture can make. It does not prescribe the code.
 - **Syncable attribute**: an attribute that the server sends to the client.
 - **Spawn request**: a request of a system to add a mob to a world (TRK-LIFE-002).
 - **First spawn setup**: the random setup of a new mob of the type, for example its equipment
-  (section 4.4).
+  (section 3.1).
+- **Hook**: a rule whose input no system of G1 produces. G1 does not implement a hook; the system
+  that produces the input implements it.
 - **Display name**: as `command-execute.md`, section 0, defines it.
 - **Spawnable bounds**: as `command-teleport.md`, section 0, defines them.
 
@@ -84,8 +87,8 @@ states its kind as `docs/spec/README.md` defines the kinds.
 This document states:
 
 - a mob in the rows of the entity pass, its type data and its attributes;
-- the add and the removal of a mob, by a command and by another system;
-- the `summon` command with the forms that section 4 lists;
+- the add of a mob by the `summon` command, and the add and the removal of a mob by another system;
+- the `summon` command with the forms that section 3 lists;
 - the replication of each entity that is not a player: tracking range, spawn bundle, entity data
   of the base entries and of the zombified piglin, updates, head rotation and removal.
 
@@ -101,6 +104,9 @@ These subjects are out of scope:
 | The entity data of an item entity | PHY-CMP-026. Section 6 keeps the model general. |
 | Passengers, leashes, minecarts on rails, projectiles, item frames | No mob of the farm uses them. Their packets have hooks in TRK-SPN-001 and TRK-UPD-002. |
 | Teams and the team colour of a name | No team exists in the server. |
+| The removal of a mob by a command (`kill`, `tp` of a mob), and mobs as targets of a selector | No step of `gold-farm.md` needs them. In G1 an entity selector (`@e`, `@n`) finds only players. |
+| The difficulty of a world | The server has no difficulty state. TRK-DEV-003 records the peaceful check of `summon`. |
+| The on-ground flag of the moves of a player subject | `replication.md` owns the player codec. Section 12, U4, records the gap. |
 
 ## 1. Type data
 
@@ -114,27 +120,27 @@ data:
 | dimensions | width, height and eye height of the `standing` pose; fixed or scalable |
 | client tracking range | in columns; 0 means that the server never tracks the type |
 | update interval | in tracker ticks; "none" means no periodic update |
-| tracks velocity | true when the tracker sends the velocity (TRK-UPD-007) |
 | summonable | false for a type that `summon` must not make |
-| allowed in peaceful | false for a type that `summon` must not make in the difficulty `peaceful` |
-| fire immune | true for a type that fire and lava do not damage |
 | default attributes | the base value of each attribute that an entity of the type has |
 | entity data layout | the entries of section 6, by the chain of the type |
 
-The default values are: client tracking range 5, update interval 3, tracks velocity true,
-summonable true, allowed in peaceful true.
+The default values are: client tracking range 5, update interval 3, summonable true. The type data
+of the reference has more fields: "tracks velocity" (true for each mob, false for the player),
+"allowed in peaceful" and "fire immune". G1 reads none of them, so a table of G1 does not hold
+them.
 
 **TRK-TYPE-002** (`source_suggested_black_box_confirmed`, wire, confidence: high). The types of
 the farm have these values. TRK-E1 and TRK-E3 confirm the wire id, the range and the interval of
 the zombified piglin.
 
-| Type | Wire id | Category | Width × height | Eye height | Range | Interval | Tracks velocity | Peaceful | Fire immune |
-|------|---------|----------|----------------|------------|-------|----------|-----------------|----------|-------------|
-| `minecraft:zombified_piglin` | 160 | walker | `0.6F × 1.95F`, scalable | `1.79F` | 8 | 3 | yes | no | yes |
-| `minecraft:zombie` | (registry) | walker | `0.6F × 1.95F`, scalable | `1.74F` | 8 | 3 | yes | no | no |
-| `minecraft:player` | (registry) | player | `0.6F × 1.8F` | `1.62F` | 32 | 2 | no | yes | no |
+| Type | Wire id | Category | Width × height | Eye height | Range | Interval |
+|------|---------|----------|----------------|------------|-------|----------|
+| `minecraft:zombified_piglin` | 160 | walker | `0.6F × 1.95F`, scalable | `1.79F` | 8 | 3 |
+| `minecraft:player` | (registry) | player | `0.6F × 1.8F` | `1.62F` | 32 | 2 |
 
-The player is not summonable. A baby zombified piglin has the dimensions `0.49F × 0.98F` and the
+The player is not summonable. The motion row of the zombified piglin is
+`MotionRow::living(Category::Walker, ..)` with these dimensions; its step height is the default
+0.6. A baby zombified piglin has the dimensions `0.49F × 0.98F` and the
 eye height `0.78F`. G1 makes no baby (TRK-DEV-001).
 
 **TRK-TYPE-003** (`source_suggested_black_box_confirmed`, client agreement, confidence: high).
@@ -148,7 +154,7 @@ attribute defaults, and these values:
 | `follow_range` | 35 |
 | `attack_damage` | 5 |
 | `armor` | 2 |
-| `spawn_reinforcements_chance` | 0 |
+| `spawn_reinforcements` | 0 |
 
 The attributes of a living entity are: `max_health`, `knockback_resistance`, `movement_speed`,
 `armor`, `armor_toughness`, `max_absorption`, `step_height`, `scale`, `gravity`,
@@ -158,7 +164,9 @@ The attributes of a living entity are: `max_health`, `knockback_resistance`, `mo
 `bounciness`, `air_drag_modifier`, `friction_modifier`, `name_tag_distance` and
 `below_name_distance`. The client has the same defaults for each type. Thus the client agrees on
 each attribute that the server does not send. The walker tick reads the attributes of
-`MotionAttributes`; for a zombified piglin only `movement_speed` differs from the default.
+`MotionAttributes`; for a zombified piglin only `movement_speed` differs from the attribute
+default (0.7). In this document, "the base of the type" is the value of this table, and "the
+attribute default" is the default of the attribute itself.
 
 ## 2. The life cycle of a mob
 
@@ -169,10 +177,12 @@ pass of its dimension world. The row has:
 - the living state with the default attributes of TRK-TYPE-003;
 - the birth key of PHY-CMP-013 and the UUID of PHY-CMP-024;
 - a network id from the ids of the cell;
-- the yaw, the pitch and the head yaw, as raw f32 degrees.
+- the yaw of `Living`, as raw f32 degrees.
 
-The cold state of the mob holds its type and its entity data values (section 6). The walker tick
-of PHY-ORD-002 moves the mob in each tick. Until `mob-goals.md` gives the mob an AI, the mob has no
+The cold state of the mob holds only its entity type. In G1 each entity data value of a mob is a
+function of its type (TRK-DATA-003), so G1 stores no entity data value. In G1 the pitch and the
+head yaw of a mob are 0 and have no storage; `mob-goals.md` adds them with the look control. The
+walker tick of PHY-ORD-002 moves the mob in each tick. Until `mob-goals.md` gives the mob an AI, the mob has no
 steering: its input vector is zero and it does not jump.
 
 **TRK-LIFE-002** (`source_suggested`, semantic, confidence: medium). A spawn request has the
@@ -180,24 +190,28 @@ type, the position, the rotation, the velocity, the source of the birth key and 
 values that differ from the defaults. These systems make spawn requests:
 
 - the `summon` command (section 3), with the birth source of the kind `command` and the command
-  sequence of PHY-CMP-013;
+  sequence of PHY-CMP-013. The command sequence is the position of the effect of the command among
+  the effects that the world applies in the tick, from 0. The command computes the birth key from
+  the birth clock and this sequence when it runs, and the UUID as `birth_uuid(key, None)`. Thus the
+  success message of TRK-SUM-004 has the UUID, and the spawn request carries the key and the UUID;
 - natural spawning (`natural-spawning.md`), with the birth source of the kind `spawn`;
 - any later system that adds a mob, with the birth source that PHY-CMP-013 gives it.
 
 The life cycle of `DomainInput` applies the spawn requests of the tick in the order of their birth
-keys (`physics-architecture.md`, section 3.9). The new row ticks first in the next `Simulate`. At
-the spawn, the health entry is the `max_health` value of the mob (TRK-DATA-003).
+keys (`physics-architecture.md`, section 3.9). The command effects apply in `DomainInput` before
+the life cycle, so the new row ticks first in the `Simulate` of the same tick.
 
 **TRK-LIFE-003** (`black_box_confirmed`, semantic, confidence: high). A new mob of a spawn request
 without a rotation has the yaw 0, the pitch 0 and the head yaw 0. Its velocity is zero. TRK-E1
 shows these values in `add_entity` for a summoned zombified piglin, with and without the first
 spawn setup.
 
-**TRK-LIFE-004** (`source_suggested`, semantic, confidence: medium). A removal request names a
-row and a reason. The reasons are: discarded (a command, a despawn, a merge) and killed. The life
-cycle of `DomainInput` removes the row from its tile, the grid and the cold state. The tracker of
-the subject then ends each pairing (TRK-REM-001). A killed mob first plays its death
-(`entity-damage.md`), and the removal follows after the death animation of 20 ticks.
+**TRK-LIFE-004** (`source_suggested`, semantic, confidence: medium). Hook. A removal request
+names a row and a reason. The reasons are: discarded (a despawn of `natural-spawning.md`) and
+killed (`entity-damage.md`). The life cycle of `DomainInput` removes the row from its tile, the
+grid and the cold state. The tracker of the subject then ends each pairing (TRK-REM-001). A killed
+mob first plays its death, and the removal follows after the death animation of 20 ticks. No
+system of G1 makes a removal request.
 
 **TRK-LIFE-005** (`source_suggested`, semantic, confidence: high). A mob row in a section that is
 not loaded does not tick, as PHY-ORD-002 and the pass state now. The row stays until a removal
@@ -215,8 +229,11 @@ summon                                       require command_level gamemasters
 ```
 
 The argument types are CMD-TIME-004 (`minecraft:resource`), ARG-COORD-003 (`minecraft:vec3`) and
-SNBT-ARG-002 (`minecraft:nbt_compound_tag`). The permission is PERM-LEVEL-001, level
-`gamemasters`.
+SNBT-ARG-002 (`minecraft:nbt_compound_tag`, parser id 21, no properties). `VanillaArgument` has
+no variant for `nbt_compound_tag` yet; G1 adds one, with the read of SNBT-ARG-002. The permission
+is PERM-LEVEL-001, level `gamemasters`. The client makes the suggestions of
+`minecraft:summonable_entities` itself (CMDP-ARG-002), so the server answers no suggestion request
+for `<entity>`.
 
 **TRK-SUM-002** (`source_suggested`, semantic, confidence: high). The behaviour:
 
@@ -226,17 +243,19 @@ SNBT-ARG-002 (`minecraft:nbt_compound_tag`). The permission is PERM-LEVEL-001, l
    position that contains `pos` is outside the spawnable bounds, fail with
    `commands.summon.invalidPosition`.
 3. If the difficulty of the source dimension is `peaceful` and `type` is not allowed in peaceful,
-   fail with `commands.summon.failed.peaceful`.
+   fail with `commands.summon.failed.peaceful`. G1 skips this step (TRK-DEV-003).
 4. Let `setup` be true when the `<nbt>` node is absent, and false when it is present. Check the
    compound with TRK-SUM-003.
-5. Make a spawn request of `type` at `pos` in the source dimension (TRK-LIFE-002), with no
-   rotation. When `setup` is true, the mob also gets the first spawn setup of its type.
+5. Compute the birth key and the UUID (TRK-LIFE-002). Make a spawn request of `type` at `pos` in
+   the source dimension, with no rotation. When `setup` is true, the mob also gets the first spawn
+   setup of its type.
 6. If an entity with the same UUID exists in the dimension, fail with
-   `commands.summon.failed.uuid`. A UUID of PHY-CMP-024 cannot collide in practice.
+   `commands.summon.failed.uuid`. A UUID of PHY-CMP-024 cannot collide in practice, so G1 does not
+   implement this step.
 7. Send the success message of TRK-SUM-004. The result is 1.
 
-When `type` is not a mob, step 5 makes the entity of the category of the type. G1 makes only mobs
-of the walker category; another type fails with `commands.summon.failed`. CMD-EX-022 uses steps 1
+When `type` is not a mob, step 5 makes the entity of the category of the type. G1 makes only the
+types of TRK-TYPE-002 that are summonable; another type fails with `commands.summon.failed`. CMD-EX-022 uses steps 1
 to 6 with `pos` from the source and `setup` true.
 
 **TRK-SUM-003** (`source_suggested`, semantic, confidence: medium). The compound of `<nbt>` can
@@ -298,11 +317,12 @@ time. These are valid choices:
   `R + 8` blocks from the viewer. The 8 blocks are the hysteresis of REPL §7.4.
 
 Thus a client can see a subject up to one tile diagonal and 8 blocks farther than `R`. A vanilla
-client draws such a subject as any other entity.
+client draws such a subject as any other entity. G1 does not implement this rule; it uses the
+square of TRK-DEV-004.
 
 **TRK-RNG-004** (`source_suggested`, client agreement, confidence: medium). The spawn bundle of a
 subject goes to a viewer only after the column of the subject reached that viewer. Experiment:
-TRK-E5.
+TRK-E5. G1 does not implement this rule (TRK-DEV-004).
 
 ## 5. The spawn bundle
 
@@ -397,19 +417,23 @@ living entity. Index 15 is the entry of each mob. TRK-E1 and TRK-E2 confirm indi
 16 with their serializers.
 
 **TRK-DATA-003** (`black_box_confirmed`, wire, confidence: high). A zombified piglin that `summon`
-makes with `{}` has the health 20.0 and the default value in each other entry. Its spawn bundle
-thus carries only the entry `(9, 3, 20.0)`.
+makes with `{}` has the health 20.0, its `max_health`, and the default value in each other entry.
+Its spawn bundle thus carries only the entry `(9, 3, 20.0)`. In G1 no entry changes after the spawn,
+so the codec derives this entry from the type.
 
 **TRK-DATA-004** (`source_suggested_black_box_confirmed`, client agreement, confidence: medium).
 The `update_attributes` of the spawn bundle must hold each syncable attribute whose base value
-differs from the default of TRK-TYPE-003, or that has a modifier. It can hold other syncable
-attributes. The reference holds the attributes that the server read or changed, for example
-`movement_speed` of a zombified piglin with its default base `0.23F`. When an attribute changes
-later, the next update sends `update_attributes` with the changed attributes, after
-`set_entity_data`. TRK-E2 shows the modifier `minecraft:baby`, amount 0.5, operation 1, on
+differs from the base of the type (TRK-TYPE-003), or that has a modifier. It can hold other
+syncable attributes. Each attribute of TRK-TYPE-003 is syncable, except `follow_range`,
+`attack_damage`, `knockback_resistance`, `spawn_reinforcements`, `attack_knockback` and
+`waypoint_transmit_range`. The
+reference holds the attributes that the server read or changed, for example `movement_speed` of a
+zombified piglin with its base `0.23F`. G1 sends the list of the reference: `movement_speed` with
+its base and no modifier, so the bundle equals TRK-E1. Hook: when an attribute changes later, the
+next update sends `update_attributes` with the changed attributes, after `set_entity_data`. TRK-E2 shows the modifier `minecraft:baby`, amount 0.5, operation 1, on
 `movement_speed` of a baby.
 
-**TRK-DATA-005** (`source_suggested`, wire, confidence: high). A dirty entry makes the tracker
+**TRK-DATA-005** (`source_suggested`, wire, confidence: high). Hook. A dirty entry makes the tracker
 tick an update (TRK-UPD-001). The update sends `set_entity_data` with each dirty entry in the
 order of the indices, after the move packet. The entry is then clean. A player subject also
 receives its own `set_entity_data` (MVC-PKT-031).
@@ -425,9 +449,15 @@ conditions is true:
 - the subject got an impulse or jumped in this tick (the "needs sync" mark).
 
 The counter starts at 0, so the first tracker tick is an update. The counter counts only the
-tracker ticks, not the server ticks. A tracker ticks only when the subject is in the entity
-ticking range, has the "needs sync" mark, or moved to another section in this tick. A type with no update interval updates only for a dirty entry or
-the mark. TRK-E2 shows updates each 3 ticks of a falling zombified piglin.
+tracker ticks, not the server ticks. In the reference, a tracker ticks only when the subject is in
+the entity ticking range, has the "needs sync" mark, or moved to another section. In this server,
+the entity ticking range is the set of rows that tick in the pass (TRK-LIFE-005). While a row ticks
+in each tick, `c` is the tick minus the tick of the first tracker tick. A type with no update
+interval updates only for a dirty entry or the mark. TRK-E2 shows updates each 3 ticks of a falling
+zombified piglin.
+
+In G1 only the first condition occurs. The dirty entry (TRK-DATA-005) and the "needs sync" mark are
+hooks: no system of G1 changes an entry, gives an impulse to a mob or makes it jump.
 
 **TRK-UPD-002** (`source_suggested_black_box_confirmed`, wire, confidence: high). An update of a
 subject that is not a passenger sends, in this order:
@@ -452,7 +482,7 @@ The tracker selects the packet in this order:
 
 | Condition | Packet |
 |-----------|--------|
-| the subject needs a precise position, or more than 400 updates came after the last `entity_position_sync`, or the subject stopped a ride, or the on-ground flag differs from the last sent flag | `entity_position_sync` (TRK-WIRE-003) |
+| the subject needs a precise position (hook), or more than 400 updates came after the last `entity_position_sync`, or the subject stopped a ride, or the on-ground flag differs from the last sent flag | `entity_position_sync` (TRK-WIRE-003); the end of a ride is a hook |
 | the position is due, and the path of TRK-UPD-005 does not fit TRK-WIRE-001 | `entity_position_sync` |
 | the position is due and the rotation is due | `move_entity_pos_rot` |
 | the position is due | `move_entity_pos` |
@@ -467,21 +497,25 @@ TRK-E2 shows the landing of a zombified piglin: the on-ground flag changes, and 
 `entity_position_sync`. It shows a zero step each 60 tracker ticks of a piglin at rest.
 
 **TRK-UPD-004** (`source_suggested_black_box_confirmed`, wire, confidence: high). Each move
-packet and `entity_position_sync` carry the on-ground flag of the row at the end of the tick. A
-codec that writes a constant flag does not conform.
+packet and `entity_position_sync` of a subject that is not a player carry the on-ground flag of the
+row at the end of the tick. A codec that writes a constant flag for such a subject does not
+conform. The flag of a player subject is out of scope (section 12, U4).
 
 **TRK-UPD-005** (`source_suggested_black_box_confirmed`, wire, confidence: high). The path of an
 update of a living entity is a list of steps. Each step is a position and the number of tracker
 ticks since the step before. The tracker makes the list in this way:
 
-1. In each tracker tick, add 1 to the tick count `k` of the open step.
-2. In a tracker tick in which the subject bounced on a block, add a step at the position of that
-   tick with `k` ticks, when `k > 0`, and set `k` to 0.
-3. At an update, add a step at `P` with `k` ticks, when `k > 0`. Send the list as a stepped path.
-   If the list is empty, send the linear path `P`. Then clear the list and set `k` to 0.
+1. At the start of each tracker tick, before the check of TRK-UPD-001, add 1 to the tick count
+   `k` of the open step. `k` starts at 0 at the first tracker tick, so it is 0 there.
+2. Hook: in a tracker tick in which the subject bounced on a block, add a step at the position of
+   that tick with `k` ticks, when `k > 0`, and set `k` to 0.
+3. At an update, add a step at `P` with `k` ticks, when `k > 0`. This is the path of the update.
+   It is a stepped path, or the linear path `P` when the list is empty.
+4. At the end of each update, clear the list and set `k` to 0. This also occurs at an update that
+   sends no move packet or only a rotation.
 
 The "start now" flag of a stepped path is true when the subject has the "needs sync" mark of
-TRK-UPD-001. An entity that is not living sends the linear path `P`. TRK-E2 shows one step of 3
+TRK-UPD-001; in G1 it is false. An entity that is not living sends the linear path `P`. TRK-E2 shows one step of 3
 ticks with the flag false in each update of a falling zombified piglin, and the linear zero move
 of the first update.
 
@@ -490,10 +524,10 @@ also simulates, for example a piston push, adds its displacement to each open st
 squared length is more than `1.0E-5F`. No system of G1 makes such a move.
 
 **TRK-UPD-007** (`source_suggested_black_box_confirmed`, wire, confidence: high). When the type
-tracks velocity, or the subject has the "needs sync" mark, an update compares the velocity `v`
+tracks velocity (each mob type), or the subject has the "needs sync" mark, an update compares the velocity `v`
 with the last sent velocity `v0`. Let `q = |v − v0|²` in f64. The update sends
 `set_entity_motion` with `v`, and sets `v0 = v`, when `q > 1.0E-7`, or when `q > 0` and
-`|v|² = 0`. A hurt subject also sends `set_entity_motion` at the end of its tracker tick, to the
+`|v|² = 0`. Hook: a hurt subject also sends `set_entity_motion` at the end of its tracker tick, to the
 viewers and to itself (`entity-damage.md`). TRK-E2 shows `set_entity_motion` before each move of a
 falling zombified piglin.
 
@@ -502,11 +536,13 @@ the tracker compares the packed head yaw with the last sent packed head yaw. Whe
 sends `rotate_head` and keeps the new value. The head yaw goes only in an update. TRK-E2 shows
 `rotate_head` only with the updates each 3 ticks.
 
-**TRK-UPD-009** (`source_suggested`, semantic, confidence: medium). The server sends each update
-of a living subject that is not a player at every tier, at the update interval of its type.
-`replication.md` tiers 1 to 3 do not lower the rate of such a subject. The reason is TRK-CLI-001:
-the client plays all steps of a path in the update interval, so a slower rate makes the mob move
-in jumps. `physics-architecture.md` §15, question 58, records this decision.
+**TRK-UPD-009** (`source_suggested`, semantic, confidence: medium). A living subject that is not a
+player has one tracker, which all viewers share at every tier. The updates of section 7 go to each
+viewer that holds the subject, in the tick of the update. The tiers of `replication.md` §7.4 and
+its keyframes do not apply to such a subject, and §7.11 applies only to the categories that the
+client simulates. The reason is TRK-CLI-001: the client plays all steps of a path in the update
+interval, so a slower rate makes the mob move in jumps. `physics-architecture.md` §15, question 58,
+records this decision.
 
 **TRK-UPD-010** (`unresolved`, unspecified). The tick of the first update, relative to the tick
 of the spawn, is a choice of the server. The reference runs the first update in the tick after
@@ -520,7 +556,8 @@ the f64 product: a half rounds up, also for a negative value. `f64::round` round
 away from zero, so `position_delta` of `delta_base.rs` differs for such a value. The delta of an axis from `B` to `P` is
 `e(P) − e(B)`. A delta fits when each axis is in `[−32768, 32767]`. A stepped path fits when the
 delta of each step from the step before fits; the first step starts at `B`. The client decodes an
-axis with a delta of 0 as the coordinate of its base, without rounding.
+axis with a delta of 0 as the coordinate of its base, without rounding. Test vector: `B = 0` and
+`P = −0.5 / 4096` (exact in f64) give `e(P) = 0` and the delta 0; `f64::round` gives −1.
 
 **TRK-WIRE-002** (`source_suggested_black_box_confirmed`, wire, confidence: high). The body of
 `move_entity_pos` is:
@@ -534,7 +571,10 @@ axis with a delta of 0 as the coordinate of its base, without rounding.
 
 `move_entity_pos_rot` has the same body, then the packed yaw and the packed pitch, one byte each.
 `move_entity_rot` has the entity id, the on-ground flag as a boolean, the packed yaw and the packed
-pitch. The client rejects a step count that is more than the remaining bytes divided by 7.
+pitch, in this order. The probe of section 13 decoded the captured `move_entity_rot` in this order:
+the yaw of each one is equal to the `rotate_head` of the same update. `ClientboundMoveEntityRot` of
+`clientbound.rs` writes the flag after the angles, which is the order of earlier versions; section
+15, step 1, fixes it. The client rejects a step count that is more than the remaining bytes divided by 7.
 
 The codec of `crates/mcrs_minecraft_protocol_game/src/clientbound.rs` (`VecDelta::Stepped`) does
 not write the "start now" flag. A vanilla client misreads each stepped move of that codec.
@@ -557,13 +597,18 @@ step at the landing. `PositionPath::Stepped` of the same file does not write the
 **TRK-WIRE-004** (`source_suggested`, wire, confidence: high). The packed angle of an f32 angle
 `a` in degrees is the low 8 bits of `floor(f32(f32(a × 256.0F) / 360.0F))`, where the floor
 gives a 32-bit integer. The client unpacks a byte `b` as the signed value of `b` times `360 / 256`.
-`ByteAngle::from_degrees` of `byte_angle.rs` rounds to the nearest unit. It gives a different byte
-for each angle with a fraction of a unit of 0.5 or more, for example 1.0 degree (vanilla 0,
-`from_degrees` 1). Experiment: TRK-E4.
+The cast of the f32 floor to a 32-bit integer saturates, and NaN gives 0. The expected bytes are:
+0 → 0, 1.0 → 0, 1.4 → 0, 359.9 → 255, −1.0 → 255. `ByteAngle::from_degrees` of `byte_angle.rs`
+rounds to the nearest unit. It gives a different byte for each angle with a fraction of a unit of
+0.5 or more, for example 1.0 degree (vanilla 0, `from_degrees` 1). `ByteAngle::to_degrees` unpacks
+the byte as unsigned; only `mcrs_minecraft_client` reads it, and an unsigned angle is the same turn.
+Experiment: TRK-E4.
 
-**TRK-WIRE-005** (`source_suggested`, wire, confidence: high). The velocity of `add_entity` and
-`set_entity_motion` uses the low-precision vector form of `LpVec3` in
-`mcrs_minecraft_protocol_game`. TRK-E1 decodes the captured velocities with that form.
+**TRK-WIRE-005** (`source_suggested_black_box_confirmed`, wire, confidence: high). The velocity of
+`add_entity` uses the low-precision vector form of `LpVec3` in `mcrs_minecraft_protocol_game`. The
+body of `set_entity_motion` is the entity id, a VarInt, then the velocity in the same form. TRK-E2
+decodes the captured velocities with that form. The protocol crate has no struct for
+`set_entity_motion`; section 15, step 1, adds it.
 
 **TRK-WIRE-006** (`source_suggested`, wire, confidence: high). `remove_entities` holds a list of
 network ids, each a VarInt. The reference sends one packet with one id for each removal. A server
@@ -617,6 +662,31 @@ move, a data, a motion or a removal packet for a network id that it does not kno
   entity appears. The server never gives a different meaning to a key.
 - **Test:** a differential test uses only `{}` or no compound.
 
+### TRK-DEV-003: No peaceful check
+
+- **Rule:** TRK-SUM-002, step 3.
+- **Reference:** in the difficulty `peaceful`, `summon` of a type that is not allowed in peaceful
+  fails with `commands.summon.failed.peaceful`.
+- **Visible to the client:** yes, only in the difficulty `peaceful`. The server has no difficulty
+  state, so `summon` of a zombified piglin always makes it. The step comes back with the difficulty.
+- **Test:** a differential test runs on a difficulty that is not `peaceful`.
+
+### TRK-DEV-004: Pairing by a square of tiles
+
+- **Rule:** TRK-RNG-002 to TRK-RNG-004.
+- **Reference:** a viewer sees a subject at a horizontal distance of `R` or less, with `R` of
+  TRK-RNG-001, and only after its client has the column of the subject.
+- **G1:** `VIEW_RADIUS` is 4 tiles on X and Z (`physics-architecture.md` §15, question 57). A viewer
+  holds each subject of each tile at a tile distance of 4 or less from its own tile, subject to the
+  cap and the budget of REPL §7.4. The server does not use the view distance of the viewer, the
+  range of the type or the column of the subject.
+- **Visible to the client:** yes. A tile is 32 blocks, so each subject inside 128 blocks pairs,
+  which is `R` of a zombified piglin at a view distance of 8 or more. A subject up to 160 blocks
+  away on each axis (226 blocks on the diagonal) can also pair. A client with a view distance of
+  less than 8 sees mobs in columns that it does not have (U2).
+- **Test:** a differential test compares only the subjects inside `R`, and runs the viewer at the
+  view distance 8 or more.
+
 ### Known vanilla quirks
 
 | Rule | Quirk |
@@ -632,6 +702,9 @@ move, a data, a motion or a removal packet for a network id that it does not kno
   column.
 - **U3**: the exact entry of the effect particle list (serializer 17) and of the custom name
   (serializer 6) have no captured bytes. G1 sends neither.
+- **U4**: the player codec writes the on-ground flag `true` in each move of a player subject. The
+  accepted state of a player has the flag, but no step of `gold-farm.md` sends it, and no rule
+  states yet whether a change of the flag of a player forces `entity_position_sync`.
 
 ## 13. Experiments and captured results
 
@@ -650,9 +723,10 @@ Start the vanilla dedicated server of the version of this document with `level-t
 | TRK-E3 | With the probe view distance 10, summon a piglin with `{NoAI:1b}` at the horizontal distances 127, 128, 129 and 140. With the view distance 4, summon at 60 and 70. | TRK-RNG-001, TRK-RNG-002 |
 | TRK-E4 | Run `summon zombie 0.5 -60 4.5 {NoAI:1b,Rotation:[1.0f,0f]}` and with `0.7f`, `1.4f` and `-1.0f`. Read the yaw byte of `add_entity`. | TRK-WIRE-004 |
 | TRK-E5 | With a vanilla client and `view-distance=2`, summon a piglin in a column at the edge of the view and record when the client draws it. | TRK-RNG-004 |
-| TRK-E6 | Run the exit test of section 15 on the farm save in the vanilla server, and in this server with a vanilla client. | section 15 |
+| TRK-E6 | Copy `~/mc-worlds/upgraded/hermitcraft10` to a temporary directory and remove its data packs. Start the vanilla server on it with `difficulty=hard` and `view-distance=10`. Join with the probe and teleport it to `-319.5 175 -609.5` in `minecraft:the_nether`, yaw `-90`. Run `gamerule spawn_monsters false` and `kill @e[type=zombified_piglin]`. Run `execute in minecraft:the_nether run summon minecraft:zombified_piglin -317.0 197 -609.0 {}`. Wait 200 ticks without a freeze. Run `data get entity @e[type=zombified_piglin,limit=1,sort=nearest] Pos` from the console and log the decoded packets of the piglin. Write the end `Pos` and the update list to `crates/mcrs_minecraft_server/tests/fixtures/g1/vanilla_farm_drop.txt`. | section 15.4 |
 
-TRK-E1 to TRK-E3 ran on `26.4-snapshot-7` on 2026-11-08. TRK-E4 to TRK-E6 have not run.
+TRK-E1 to TRK-E3 ran on `26.4-snapshot-7` on 2026-11-08. TRK-E4 to TRK-E6 are pending: they need
+a vanilla server run, which waits for the confirmation of the EULA by the owner.
 
 **TRK-E1**, the spawn bundles (network ids of that run):
 
@@ -711,31 +785,48 @@ the entry `(2, 6, present)` and no health entry in the decoded prefix.
 
 ### 15.1 Order of work
 
-1. **Wire fixes** (`mcrs_minecraft_protocol_game`). Add the "start now" flag to the stepped
-   `VecDelta` (before the steps) and to the stepped `PositionPath` (after the steps)
-   (TRK-WIRE-002, TRK-WIRE-003). Make `ByteAngle::from_degrees` follow TRK-WIRE-004. Change the
-   existing tests that encode the old bytes, and name the rules in the commit. The player codec
-   passes `false` for the flag.
-2. **Type data** (`mcrs_minecraft_entity` or a new small crate under the rust-style rules). A
-   table of TRK-TYPE-001 for the types of TRK-TYPE-002. A motion row of the zombified piglin with
-   the eye height `1.79F`, next to `MotionRow::zombie`.
-3. **Mob rows** (`mcrs_minecraft_engine_physics`). Spawn and removal requests in the life cycle of
-   `DomainInput` (TRK-LIFE-001 to TRK-LIFE-004). A birth source of the kind `command`. The cold
-   state in a side table keyed by `EntityId`, as `ItemStacks`; `physics-architecture.md` §15,
-   question 56, records this choice.
-4. **The `summon` command** (`mcrs_minecraft_command_vanilla`). TRK-SUM-001 to TRK-SUM-004; it
-   writes a spawn request.
-5. **Tile deltas of mobs** (Output stage). The pass publishes a spawn, a move with the on-ground
-   flag, the velocity and the rotations, a data change and a despawn of each mob in its tile
-   delta, from the mover lists.
+1. **Wire fixes** (`mcrs_minecraft_protocol_game`).
+   - Add the "start now" flag to the stepped `VecDelta`, before the steps, and to the stepped
+     `PositionPath`, after the steps (TRK-WIRE-002, TRK-WIRE-003). The player codec passes `false`.
+   - Write `ClientboundMoveEntityRot` as id, on-ground flag, yaw, pitch (TRK-WIRE-002).
+   - Add `ClientboundSetEntityMotion`: a VarInt id and an `LpVec3` (TRK-WIRE-005).
+   - Make `ByteAngle::from_degrees` follow TRK-WIRE-004.
+   - Change the existing tests that encode the old bytes, and name the rules in the commit.
+2. **Type data** (`mcrs_minecraft_entity`, or a small crate under the rust-style rules). The rows
+   of TRK-TYPE-002: wire id, motion row (`MotionRow::living(Category::Walker, ..)` with the
+   dimensions of the table), range, interval, summonable, and the base `movement_speed` `0.23F`.
+3. **Mob rows** (`mcrs_minecraft_engine_physics`). Spawn requests in the life cycle of
+   `DomainInput` (TRK-LIFE-001 to TRK-LIFE-003). The cold state is a side table from `EntityId` to
+   the entity type (`physics-architecture.md` §15, question 56). Add the birth source
+   `BirthSource::Command { order }` to `mcrs_minecraft_physics`, with the kind `command` of
+   PHY-CMP-013. A kernel change is allowed here, because PHY-CMP-013 requires the kind and the
+   kernel lacks it. The removal requests of TRK-LIFE-004 are a hook: G1 adds no producer.
+4. **The `summon` command** (`mcrs_minecraft_command_vanilla`). The argument
+   `minecraft:nbt_compound_tag` in `VanillaArgument`. TRK-SUM-001 to TRK-SUM-004: the handler
+   computes the birth key and the UUID, writes the spawn request as a command effect, and sends the
+   message.
+5. **Tile deltas of mobs** (Output stage of the dimension). The engine pass keeps no mover list.
+   In each tick, publish one `Move` event for each mob row that ticked, with the position, the
+   velocity, the yaw and the on-ground flag. Publish `Spawn` in the tick of the spawn, and `Leave`
+   and `Enter` when `move_rows` moves a row to another tile. The tile delta data gains variants for
+   a mob next to the variants of `PlayerData`, because a muxer link has one codec.
 6. **Codec of mobs** (`mcrs_minecraft_replication`). One codec of the world handles players and
-   mobs, because a muxer link has one codec. For each mob subject: the tracker of section 7
-   (counter, position base, last sent angles, velocity, on-ground flag, open step), the spawn
-   bundle of section 5 and the removal of section 9. A mob updates at its type interval at every
-   tier (TRK-UPD-009).
-7. **Range** (`mcrs_minecraft_engine`, muxer planner). Pair by TRK-RNG-001 to TRK-RNG-004.
-   `physics-architecture.md` §15, question 57, records the gap of the fixed view radius of 3
-   tiles.
+   mobs. For each mob subject it keeps the tracker of section 7: the start tick, the position base,
+   the last sent packed angles, the last sent velocity and on-ground flag, the update count for
+   400, and the open step `k`. The muxer calls `codec.blob` only for due tiles and tiers, so the
+   mob updates do not come from `blob`:
+   - `apply` records the event of each mob of the tick.
+   - `finish_tick` runs the tracker tick of each mob (TRK-UPD-001 to TRK-UPD-008) and owes the
+     bytes of each update to each viewer in `held_by` of the subject, as for `Joined` today.
+   - `blob` writes nothing for a mob, and `refresh` and the keyframes do nothing for a mob.
+   - `hold` writes the spawn bundle of section 5 and the removal of section 9.
+
+   The tracker reuses `position_delta` of `delta_base.rs`, with the rounding of TRK-WIRE-001, and
+   the packet structs. It does not reuse `DeltaBase::advance` or `Motion`: they drop the steps that
+   do not move, write a constant on-ground flag, send a keyframe each 100 ticks and couple the head
+   to the yaw.
+7. **Range** (`mcrs_minecraft_engine`). Set `VIEW_RADIUS` to 4 tiles on X and Z (TRK-DEV-004).
+   Write TRK-RNG-001 as a pure function with the cases of TRK-E3, for the decision of question 57.
 
 ### 15.2 Data tables and their sources
 
@@ -743,44 +834,50 @@ the entry `(2, 6, present)` and no health entry in the decoded prefix.
 |-------|--------|
 | Wire ids of entity types and attributes | `assets/mcrs/reports/registries.json`, already in `EntityType` and `Attribute` |
 | Packet ids | `assets/mcrs/reports/packets.json`, already in the packet tables |
-| Type data of TRK-TYPE-001 | until the corpus exists, the table of TRK-TYPE-002. Then a new corpus `assets/mcrs/entity_definition/<type>.json` from the `dumpDefinitions` task of `tools/vanilla-oracle` (data source set): dimensions, eye height, fixed flag, range, interval, tracks velocity, summonable, allowed in peaceful, fire immune, default attributes |
-| Entity data layout | TRK-DATA-002 for the chain of the zombified piglin; the corpus can add the layout of each type later |
+| Type data of TRK-TYPE-001 | until the corpus exists, the table of TRK-TYPE-002. Later, a corpus `assets/mcrs/entity_definition/<type>.json` from the `dumpDefinitions` task of `tools/vanilla-oracle` (data source set) |
+| Entity data layout | TRK-DATA-002 |
 | Serializer ids | TRK-DATA-001; the existing `MetaDataValue` |
-| Default attributes | TRK-TYPE-003; the existing `MotionAttributes` for the motion part |
+| Base attributes | TRK-TYPE-003; the existing `MotionAttributes` for the motion part |
 | Tags | none |
 
 ### 15.3 Tests
 
 - Codec, wire: a stepped `move_entity_pos` and `entity_position_sync` round-trip with the flag;
-  the bytes of one stepped move equal the bytes of TRK-E2 (`(3, 0, -1901, 0)`, start 0, ground 0).
-- Codec, packed angles: the bytes of TRK-WIRE-004 for 0, 1.0, 1.4, 359.9 and -1.0 degrees.
+  the bytes of one stepped move equal TRK-E2 (`(3, 0, -1901, 0)`, start 0, ground 0);
+  `move_entity_rot` writes the flag before the angles; `set_entity_motion` round-trips.
+- Codec, numbers: the test vector of TRK-WIRE-001 and the bytes of TRK-WIRE-004.
 - Tracker, pure: feed the row positions of a falling piglin, one for each tick. The packets equal
-  the sequence of TRK-E2 from the first update to the landing: one update each 3 ticks, the
-  velocity before the move, one step of 3 ticks, `entity_position_sync` at the landing with the
-  ground flag 1, and a zero step at `c mod 60 = 0`.
-- Spawn bundle: the bundle of a summoned piglin equals TRK-E1 without `update_attributes`, or
-  with it when the codec sends `movement_speed` (TRK-DATA-004 allows both).
-- Range: a pure test of TRK-RNG-001 with the cases of TRK-E3.
-- `summon`: each failure of TRK-SUM-002 and TRK-SUM-003, and the success message of TRK-SUM-004.
-- Determinism: the world hash of `tick_determinism.rs` covers the mob rows.
+  TRK-E2 from the first update to the landing: the linear zero move at `c = 0`, one update each 3
+  ticks, the velocity before the move, one step of 3 ticks, `entity_position_sync` at the landing
+  with the ground flag 1, and a zero step at `c = 60` while the piglin rests.
+- Spawn bundle: the bundle of a summoned piglin equals TRK-E1.
+- Range: the pure function of TRK-RNG-001 with the cases of TRK-E3.
+- `summon`: the failures of TRK-SUM-002 steps 1 and 2 and of TRK-SUM-003, and the message of
+  TRK-SUM-004 with the UUID of the row.
+- Determinism: `crates/mcrs_minecraft_server/tests/it/tick_determinism.rs` hashes no `EntityRows`
+  today. Add the rows (position, velocity, flags, key) of mobs and items to the world hash.
 
 ### 15.4 Exit test
 
 The exit of step G1 of `gold-farm.md` §4: a summoned piglin falls into the chamber, and a vanilla
 client shows it.
 
-1. Harness, automated (synthetic world): in `crates/mcrs_minecraft_server/tests/it`, build a
-   shaft of air 20 blocks high over a floor, with a viewer 10 blocks away. Run
-   `summon minecraft:zombified_piglin <top of the shaft> {}`. Tick 40 times. Decode the bytes of the
-   viewer with `mcrs_minecraft_client_world`. Check the spawn bundle, the update each 3 ticks,
-   the landing sync with the ground flag 1, and that the decoded position equals the row position
-   at the floor. This is "harness only".
-2. Raw, differential (TRK-E6): run the vanilla server on a copy of the farm save, put a player at
-   `-319.5 175 -609.5` in the nether, and run
-   `execute in minecraft:the_nether run summon minecraft:zombified_piglin -317.0 197 -609.0 {}`.
-   The measurement app of `gold-farm.md` §8 counts the piglin in the `kill` area after it lands.
-   Run the same on this server. The piglin must end in the chamber box of the app.
-3. Raw, client (blocked: human): run this server on the save, join with the vanilla client of
-   `tools/vanilla-client`, stand at `-319.5 175 -609.5` and run the command of item 2. The client
-   must show the piglin from the summon to the chamber. Save a screenshot of the piglin in the
-   chamber at `target/g1/vanilla_client_chamber.png`.
+1. Harness, automated (synthetic world). Extend `ClientModel` of
+   `crates/mcrs_minecraft_server/tests/it/entity_replication.rs`, which decodes `add_entity`,
+   `VecDelta` and `PositionPath`. Add `set_entity_data`, `set_entity_motion`, the "start now"
+   flag and the on-ground flag. Build a shaft of air 20 blocks high over a floor, with a viewer 10
+   blocks away. Run `summon minecraft:zombified_piglin <top of the shaft> {}` and tick 40 times.
+   Check the spawn bundle, an update each 3 ticks, the landing sync with the ground flag 1, and
+   that the decoded position equals the row position at the floor. This is "harness only".
+2. Raw, the save (pending: TRK-E6). The spec author captures the vanilla end position into the
+   fixture of TRK-E6. The test of this server is a local test, `#[ignore = "needs the farm save"]`,
+   that loads `~/mc-worlds/upgraded/hermitcraft10`, runs the command of TRK-E6 and ticks 200 times.
+   The row must end in the kill box: centre `-317 176 -609`, half sizes `1.5, 1.5, 1.6`, as the
+   measurement app of `gold-farm.md` §8 states it. When the fixture exists, the end `y` must also
+   equal the vanilla `y` within `1.0E-6`. The vanilla piglin has an AI, so `x` and `z` differ.
+3. Raw, a vanilla client (automated). Run this server on the save. Start the vanilla client of
+   `tools/vanilla-client` with an offline name; it joins with no human. From the console, teleport
+   the player to `-319.5 175 -609.5` in the nether and run the command of TRK-E6. The check passes
+   when the client stays connected for 60 ticks after the summon: a vanilla client disconnects on
+   a move packet that it cannot decode. After the landing, take a screenshot of the client window
+   with the macOS tool `screencapture -l <window id>` to `target/g1/vanilla_client_chamber.png`.
