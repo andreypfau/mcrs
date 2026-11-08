@@ -27,7 +27,9 @@ pub struct BlockPredicate<'a> {
 }
 
 impl<'a> BlockPredicate<'a> {
-    fn properties(&self) -> impl Iterator<Item = (StringValue<'a>, StringValue<'a>)> + 'a {
+    pub(crate) fn properties(
+        &self,
+    ) -> impl Iterator<Item = (StringValue<'a>, StringValue<'a>)> + 'a {
         let input = self.input;
         entries(input, self.list).map(move |(name, value)| {
             (

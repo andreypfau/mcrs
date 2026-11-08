@@ -9,14 +9,15 @@ use mcrs_command::{
 use mcrs_minecraft_block::registry_keys::BLOCK;
 use mcrs_minecraft_command::{PermissionCheck, Source, WireArgument};
 use mcrs_minecraft_command_argument::{
-    BlockPosArgument, PlayerNameArgument, RotationArgument, SwizzleArgument, Vec3Argument,
+    BlockPosArgument, ColumnPosArgument, PlayerNameArgument, RotationArgument, SwizzleArgument,
+    Vec3Argument,
 };
 use mcrs_minecraft_command_argument::{
     DimensionArgument, EntityAnchorArgument, GameModeArgument, HeightmapArgument, ResourceArgument,
     ResourceLocationArgument, ResourceOrTagArgument,
 };
 use mcrs_minecraft_command_argument::{TimeArgument, TimeMarkerArgument, TimelineArgument};
-use mcrs_minecraft_command_argument_block::BlockPredicateArgument;
+use mcrs_minecraft_command_argument_block::{BlockPredicateArgument, BlockStateArgument};
 use mcrs_minecraft_command_argument_entity::EntityArgument;
 use mcrs_minecraft_command_tree::{ArgumentParser, NumberRange, ParserProperties, StringMode};
 use mcrs_minecraft_keys::command_argument_type as parser;
@@ -60,6 +61,10 @@ pub enum VanillaArgument {
     ResourceOrTag(ResourceOrTagArgument),
     /// `minecraft:block_pos`.
     BlockPos(BlockPosArgument),
+    /// `minecraft:column_pos`.
+    ColumnPos(ColumnPosArgument),
+    /// `minecraft:block_state`.
+    BlockState(BlockStateArgument),
     /// `minecraft:swizzle`.
     Swizzle(SwizzleArgument),
     /// `minecraft:heightmap`.
@@ -117,6 +122,8 @@ variant_conversions! {
     GameMode(GameModeArgument)
     ResourceOrTag(ResourceOrTagArgument)
     BlockPos(BlockPosArgument)
+    ColumnPos(ColumnPosArgument)
+    BlockState(BlockStateArgument)
     Swizzle(SwizzleArgument)
     Heightmap(HeightmapArgument)
     BlockPredicate(BlockPredicateArgument)
@@ -167,6 +174,8 @@ impl<L: VanillaLookup> ArgumentSet<Source<'_, L>> for VanillaArgument {
             VanillaArgument::GameMode(argument) => check(argument, reader, source),
             VanillaArgument::ResourceOrTag(argument) => check(argument, reader, source),
             VanillaArgument::BlockPos(argument) => check(argument, reader, source),
+            VanillaArgument::ColumnPos(argument) => check(argument, reader, source),
+            VanillaArgument::BlockState(argument) => check(argument, reader, source),
             VanillaArgument::Swizzle(argument) => check(argument, reader, source),
             VanillaArgument::Heightmap(argument) => check(argument, reader, source),
             VanillaArgument::BlockPredicate(argument) => check(argument, reader, source),
@@ -196,6 +205,7 @@ impl<L: VanillaLookup> ArgumentSet<Source<'_, L>> for VanillaArgument {
             VanillaArgument::BlockPos(_) => BlockPosArgument::suggest(builder),
             VanillaArgument::Heightmap(_) => HeightmapArgument::suggest(builder),
             VanillaArgument::BlockPredicate(_) => BlockPredicateArgument::suggest(source, builder),
+            VanillaArgument::BlockState(_) => BlockStateArgument::suggest(source, builder),
             VanillaArgument::Time(_) => TimeArgument::suggest(builder),
             VanillaArgument::Resource(argument) => argument.suggest(source, builder),
             VanillaArgument::TimeMarker(argument) => argument.suggest(source, context, builder),
@@ -209,6 +219,7 @@ impl<L: VanillaLookup> ArgumentSet<Source<'_, L>> for VanillaArgument {
             | VanillaArgument::String(_)
             | VanillaArgument::Rotation(_)
             | VanillaArgument::ResourceLocationBuf(_)
+            | VanillaArgument::ColumnPos(_)
             | VanillaArgument::NbtCompound(_) => {}
         }
     }
@@ -226,7 +237,7 @@ fn limits<T: Copy>(range: &NumberRange<T>, any: (T, T)) -> (T, T) {
 }
 
 /// The arguments with no properties on the wire, each told apart by its parser id alone.
-const UNIT_ARGUMENTS: [VanillaArgument; 11] = [
+const UNIT_ARGUMENTS: [VanillaArgument; 13] = [
     VanillaArgument::Vec3(Vec3Argument),
     VanillaArgument::Rotation(RotationArgument),
     VanillaArgument::ResourceLocationBuf(ResourceLocationArgument),
@@ -234,6 +245,8 @@ const UNIT_ARGUMENTS: [VanillaArgument; 11] = [
     VanillaArgument::Dimension(DimensionArgument),
     VanillaArgument::GameMode(GameModeArgument),
     VanillaArgument::BlockPos(BlockPosArgument),
+    VanillaArgument::ColumnPos(ColumnPosArgument),
+    VanillaArgument::BlockState(BlockStateArgument),
     VanillaArgument::Swizzle(SwizzleArgument),
     VanillaArgument::Heightmap(HeightmapArgument),
     VanillaArgument::BlockPredicate(BlockPredicateArgument),
@@ -268,7 +281,9 @@ impl VanillaArgument {
             VanillaArgument::ResourceOrTag(argument) => Some(argument.registry),
             VanillaArgument::Resource(argument) => Some(argument.registry),
             VanillaArgument::Timeline(_) => Some(TimelineArgument::RESOURCE.registry),
-            VanillaArgument::BlockPredicate(_) => Some(BLOCK.location()),
+            VanillaArgument::BlockPredicate(_) | VanillaArgument::BlockState(_) => {
+                Some(BLOCK.location())
+            }
             _ => None,
         }
     }
@@ -415,6 +430,8 @@ impl WireArgument for VanillaArgument {
                 registry(argument.registry),
             ),
             VanillaArgument::BlockPos(_) => (parser::BLOCK_POS, ParserProperties::None),
+            VanillaArgument::ColumnPos(_) => (parser::COLUMN_POS, ParserProperties::None),
+            VanillaArgument::BlockState(_) => (parser::BLOCK_STATE, ParserProperties::None),
             VanillaArgument::Swizzle(_) => (parser::SWIZZLE, ParserProperties::None),
             VanillaArgument::Heightmap(_) => (parser::HEIGHTMAP, ParserProperties::None),
             VanillaArgument::BlockPredicate(_) => (parser::BLOCK_PREDICATE, ParserProperties::None),
@@ -572,6 +589,8 @@ mod tests {
             "minecraft:dimension",
             "minecraft:gamemode",
             "minecraft:block_pos",
+            "minecraft:column_pos",
+            "minecraft:block_state",
             "minecraft:swizzle",
             "minecraft:heightmap",
             "minecraft:block_predicate",

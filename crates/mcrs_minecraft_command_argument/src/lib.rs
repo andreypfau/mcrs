@@ -4,6 +4,7 @@
 mod align;
 mod block_floor;
 mod block_pos_argument;
+mod column_pos_argument;
 mod coordinate_reader;
 mod coordinates;
 mod coordinates_error;
@@ -24,6 +25,7 @@ mod world_coordinate;
 pub use align::align;
 pub use block_floor::block_floor;
 pub use block_pos_argument::BlockPosArgument;
+pub use column_pos_argument::{ColumnCoordinates, ColumnPosArgument};
 pub use coordinates::Coordinates;
 pub use coordinates_error::CoordinatesError;
 pub use keyword::{EntityAnchorArgument, GameModeArgument, HeightmapArgument, by_name};
