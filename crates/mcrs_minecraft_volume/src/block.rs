@@ -9,6 +9,7 @@ pub trait BlockVolume: Volume {
     where
         Self: 'a;
 
+    /// Fails for a section that [`Volume::access`] does not let read, with the same reason.
     fn section(&self, at: SectionPos) -> Result<Self::Section<'_>, Unavailable>;
 
     #[inline]

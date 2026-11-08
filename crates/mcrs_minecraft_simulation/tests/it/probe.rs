@@ -1,5 +1,4 @@
 use mcrs_minecraft_core::{BoundingBox, Direction};
-use mcrs_minecraft_simulation::RandomTickTable;
 use mcrs_minecraft_simulation::SimulationVolume;
 use mcrs_minecraft_simulation::{
     BlockBehaviour, BlockEvent, BlockFacts, BlockShard, BlockUpdateFlags, ChainLedger, ChainOrigin,
@@ -7,6 +6,7 @@ use mcrs_minecraft_simulation::{
     SectionProperties, SemanticOrder, ShardId, SimulatedSections, StepAt, StepError, StepOutput,
     SubTick, TickPriority, TickingPositions, TickingSectionMut, step,
 };
+use mcrs_minecraft_simulation::{RandomHit, RandomTickTable, StreamSeed, draw_random_hits};
 use mcrs_minecraft_volume::{
     Access, BlockVolume, BlockVolumeMut, Denied, PaletteBuffer, PalettedSection,
     PalettedSectionMut, SparseVolume, Unavailable, Volume,
@@ -563,6 +563,29 @@ impl Host {
         ticking.rebuild(&section, &self.random_table, &mut PaletteBuffer::default());
     }
 
+    /// The local indices of the positions of `section` whose state takes random ticks.
+    pub fn random_ticking(&self, section: SectionPos) -> &[u16] {
+        self.ticking
+            .get(&section)
+            .map_or(&[], TickingPositions::as_slice)
+    }
+
+    /// The hits of `speed` picks in each of `sections` in step `now`, in the order of `sections`.
+    pub fn draw_hits(&self, sections: &[SectionPos], speed: u32, now: i64) -> Vec<RandomHit> {
+        let streams = StreamSeed::new(4, "minecraft:overworld").sections(GameTick(now));
+        let mut hits = Vec::new();
+        for &section in sections {
+            draw_random_hits(
+                section,
+                self.random_ticking(section),
+                speed,
+                streams,
+                &mut hits,
+            );
+        }
+        hits
+    }
+
     pub fn set_access(&mut self, at: SectionPos, access: Access) {
         self.overrides.insert(at, access);
     }
@@ -617,12 +640,6 @@ impl SimulatedSections for Host {
             .get(&section)
             .copied()
             .unwrap_or(SectionProperties::all())
-    }
-
-    fn random_ticking(&self, section: SectionPos) -> &[u16] {
-        self.ticking
-            .get(&section)
-            .map_or(&[], TickingPositions::as_slice)
     }
 }
 

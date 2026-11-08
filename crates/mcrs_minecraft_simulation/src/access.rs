@@ -13,11 +13,6 @@ bitflags::bitflags! {
 
 pub trait SimulatedSections: Volume {
     fn properties(&self, section: SectionPos) -> SectionProperties;
-
-    /// The local indices of the positions of `section` whose state takes random ticks, kept with
-    /// each write ([`TickingPositions`](crate::TickingPositions)). Empty for a section the host
-    /// does not hold.
-    fn random_ticking(&self, section: SectionPos) -> &[u16];
 }
 
 pub trait SimulationVolume: BlockVolumeMut + SimulatedSections {}

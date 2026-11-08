@@ -1,9 +1,8 @@
 use core::cell::Cell;
 
 use crate::access::{SectionProperties, SimulatedSections};
-use crate::random_tick::RandomTickTable;
 use crate::region::Region;
-use crate::ticking_positions::{TickingPositions, local_index};
+use crate::ticking_positions::local_index;
 use mcrs_minecraft_core::BoundingBox;
 use mcrs_minecraft_volume::{
     Access, BlockVolume, BlockVolumeMut, Denied, Palette, PaletteBuffer, PalettedSectionMut,
@@ -16,14 +15,7 @@ use rustc_hash::FxHashMap;
 /// read at the same time.
 #[derive(Debug, Default)]
 pub(crate) struct Overlay {
-    sections: FxHashMap<SectionPos, Written>,
-}
-
-#[derive(Debug, Default)]
-struct Written {
-    blocks: FxHashMap<u16, BlockStateId>,
-    /// The ticking positions of the section, once a write changed them.
-    ticking: Option<TickingPositions>,
+    sections: FxHashMap<SectionPos, FxHashMap<u16, BlockStateId>>,
 }
 
 impl Overlay {
@@ -38,7 +30,6 @@ pub(crate) struct OverlaidVolume<'a, W: BlockVolume> {
     pub(crate) world: &'a W,
     pub(crate) region: Region,
     pub(crate) overlay: &'a mut Overlay,
-    pub(crate) table: &'a RandomTickTable,
     /// The world section of the last read: the reads of a handler stay mostly in one section,
     /// and finding a section costs several cache misses.
     pub(crate) last: Cell<Option<(SectionPos, W::Section<'a>)>>,
@@ -68,11 +59,7 @@ impl<'a, W: BlockVolume> BlockVolume for OverlaidVolume<'a, W> {
         self.access(at).check_read()?;
         Ok(OverlaidSection {
             base: self.world.section(at)?,
-            blocks: self
-                .overlay
-                .sections
-                .get(&at)
-                .map(|written| &written.blocks),
+            blocks: self.overlay.sections.get(&at),
         })
     }
 
@@ -82,11 +69,8 @@ impl<'a, W: BlockVolume> BlockVolume for OverlaidVolume<'a, W> {
             // The region and the world do not change while the task runs: a section read once
             // stays readable.
             Some((held, base)) if held == section => base,
+            _ if !self.region.holds(section) => return Err(Unavailable::Foreign),
             _ => {
-                self.access(section).check_read()?;
-                if !self.world.contains(at) {
-                    return Err(Unavailable::Outside);
-                }
                 let world: &'a W = self.world;
                 world.section(section)?
             }
@@ -96,7 +80,7 @@ impl<'a, W: BlockVolume> BlockVolume for OverlaidVolume<'a, W> {
             .overlay
             .sections
             .get(&section)
-            .and_then(|written| written.blocks.get(&local_index(local)))
+            .and_then(|written| written.get(&local_index(local)))
             .copied()
             .unwrap_or_else(|| base.get(local));
         self.last.set(Some((section, base)));
@@ -104,7 +88,7 @@ impl<'a, W: BlockVolume> BlockVolume for OverlaidVolume<'a, W> {
     }
 }
 
-impl<W: BlockVolume + SimulatedSections> BlockVolumeMut for OverlaidVolume<'_, W> {
+impl<W: BlockVolume> BlockVolumeMut for OverlaidVolume<'_, W> {
     type SectionMut<'b>
         = PalettedSectionMut<'b>
     where
@@ -119,17 +103,11 @@ impl<W: BlockVolume + SimulatedSections> BlockVolumeMut for OverlaidVolume<'_, W
         let section = SectionPos::from(at);
         self.access(section).check_write()?;
         let old = self.block(at)?;
-        let written = self.overlay.sections.entry(section).or_default();
-        written
-            .blocks
+        self.overlay
+            .sections
+            .entry(section)
+            .or_default()
             .insert(local_index(LocalPos::from(at)), state);
-        if self.table.ticks(old) != self.table.ticks(state) {
-            let world = self.world;
-            written
-                .ticking
-                .get_or_insert_with(|| TickingPositions::from_sorted(world.random_ticking(section)))
-                .record(LocalPos::from(at), old, state, self.table);
-        }
         Ok(old)
     }
 }
@@ -137,18 +115,6 @@ impl<W: BlockVolume + SimulatedSections> BlockVolumeMut for OverlaidVolume<'_, W
 impl<W: BlockVolume + SimulatedSections> SimulatedSections for OverlaidVolume<'_, W> {
     fn properties(&self, section: SectionPos) -> SectionProperties {
         self.world.properties(section)
-    }
-
-    fn random_ticking(&self, section: SectionPos) -> &[u16] {
-        match self
-            .overlay
-            .sections
-            .get(&section)
-            .and_then(|written| written.ticking.as_ref())
-        {
-            Some(ticking) => ticking.as_slice(),
-            None => self.world.random_ticking(section),
-        }
     }
 }
 

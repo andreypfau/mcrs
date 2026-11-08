@@ -11,7 +11,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use criterion::{Criterion, criterion_group, criterion_main};
 use mcrs_minecraft_core::BoundingBox;
 use mcrs_minecraft_engine_world::palette::{ChunkBlocks, SectionStates};
-use mcrs_minecraft_engine_world::world::storage::random_ticks::RandomTickIndex;
+use mcrs_minecraft_engine_world::world::storage::random_ticks::{RandomListing, RandomTickIndex};
 use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_simulation::{
     BlockBehaviour, BlockFacts, BlockShard, Cx, Env, Footprints, GameTick, KernelConfig, Kinds,
@@ -83,7 +83,10 @@ impl BlockBehaviour<Bench> for Counted {
         for dx in -1..=1 {
             for dy in -3..=2 {
                 for dz in -1..=1 {
-                    black_box(cx.state(BlockPos::new(at.x + dx, at.y + dy, at.z + dz)).ok());
+                    black_box(
+                        cx.state(BlockPos::new(at.x + dx, at.y + dy, at.z + dz))
+                            .ok(),
+                    );
                 }
             }
         }
@@ -129,10 +132,6 @@ impl SimulatedSections for World {
     fn properties(&self, _: SectionPos) -> SectionProperties {
         SectionProperties::all()
     }
-
-    fn random_ticking(&self, section: SectionPos) -> &[u16] {
-        self.index.ticking(section)
-    }
 }
 
 fn world(stone: BlockStateId, grass: BlockStateId, table: &RandomTickTable) -> World {
@@ -173,21 +172,30 @@ fn random_ticks(c: &mut Criterion) {
     };
     let seed = StreamSeed::new(4, "minecraft:overworld");
     let footprints = Footprints::default();
-    let mut listed = Vec::new();
-    world.index.listed(&mut listed);
+    let mut listing = RandomListing::default();
     let mut shard = BlockShard::new();
     let mut out = StepOutput::default();
     let mut now = 0;
 
-    c.bench_function("list the sections", |b| {
-        b.iter(|| world.index.listed(black_box(&mut listed)));
+    c.bench_function("draw the picks", |b| {
+        b.iter(|| {
+            world.index.draw(
+                |_| true,
+                3,
+                seed.sections(GameTick(0)),
+                black_box(&mut listing),
+            );
+        });
     });
     c.bench_function("random step", |b| {
         b.iter(|| {
             now += 1;
+            world
+                .index
+                .draw(|_| true, 3, seed.sections(GameTick(now)), &mut listing);
             let picks = RandomPicks {
-                sections: &[],
-                listed: &listed,
+                columns: &[],
+                hits: &listing.hits,
                 speed: 3,
                 table: &table,
                 footprints: &footprints,
@@ -205,11 +213,9 @@ fn random_ticks(c: &mut Criterion) {
         });
     });
     let runs = behaviour.runs.load(Ordering::Relaxed) as f64;
-    let picks = now as f64 * listed.len() as f64 * 3.0;
     println!(
-        "{} listed sections; {:.2}% of the picks ran a handler; {} of {picks} picks ran again",
-        listed.len(),
-        100.0 * runs / picks,
+        "{:.0} handler runs in each step; {} picks ran again",
+        runs / now as f64,
         out.report.random_reruns,
     );
 }

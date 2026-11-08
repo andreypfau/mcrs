@@ -64,12 +64,6 @@ impl SimulatedSections for CellVolume<'_, '_, '_, '_> {
             loaded
         }
     }
-
-    fn random_ticking(&self, section: SectionPos) -> &[u16] {
-        self.view
-            .random_ticks()
-            .map_or(&[], |index| index.ticking(section))
-    }
 }
 
 impl BlockVolume for CellVolume<'_, '_, '_, '_> {

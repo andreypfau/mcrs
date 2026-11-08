@@ -8,9 +8,9 @@ use crate::precipitation::PrecipitationHit;
 use crate::scalar::{GameTick, ShardId};
 use crate::sequence::SequenceClock;
 use crate::tick_queue::{Collected, Kinds, TickQueue};
-use crate::tile_task::{Rerun, TileTask};
+use crate::tile_task::TileTask;
 use mcrs_minecraft_volume::PaletteBuffer;
-use mcrs_voxel::{BlockPos, ColumnPos, SectionPos};
+use mcrs_voxel::BlockPos;
 use rustc_hash::FxHashSet;
 
 pub struct BlockShard<K: Kinds> {
@@ -24,11 +24,9 @@ pub struct BlockShard<K: Kinds> {
     pub(crate) ticking: FxHashSet<(BlockPos, K::Block)>,
     pub(crate) palette: PaletteBuffer,
     pub(crate) chain: Chain<K>,
-    pub(crate) rained_columns: Vec<ColumnPos>,
     pub(crate) rain_hits: Vec<PrecipitationHit>,
-    pub(crate) random_touched: FxHashSet<SectionPos>,
     pub(crate) tiles: Vec<TileTask<K>>,
-    pub(crate) reruns: Vec<Rerun>,
+    pub(crate) reruns: Vec<usize>,
 }
 
 impl<K: Kinds> BlockShard<K> {
@@ -59,9 +57,7 @@ impl<K: Kinds> Default for BlockShard<K> {
             ticking: FxHashSet::default(),
             palette: PaletteBuffer::default(),
             chain: Chain::default(),
-            rained_columns: Vec::new(),
             rain_hits: Vec::new(),
-            random_touched: FxHashSet::default(),
             tiles: Vec::new(),
             reruns: Vec::new(),
         }

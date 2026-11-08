@@ -15,7 +15,7 @@ use std::mem;
 use bevy_app::{App, FixedUpdate, Plugin, SubApp};
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::{MessageReader, MessageWriter};
-use bevy_ecs::prelude::{Added, Has, Query, With};
+use bevy_ecs::prelude::{Has, Query, With};
 use bevy_ecs::resource::Resource;
 use bevy_ecs::schedule::common_conditions::{not, resource_exists};
 use bevy_ecs::schedule::{IntoScheduleConfigs, SystemCondition};
@@ -33,7 +33,7 @@ use mcrs_minecraft_engine_world::voxel_update::{self, CellBlockWrite};
 use mcrs_minecraft_engine_world::world::dimension::Dimension;
 use mcrs_minecraft_engine_world::world::lifecycle::simulation::{BlockTicking, EntityTicking};
 use mcrs_minecraft_engine_world::world::storage::random_ticks::{
-    RandomTickIndex, RandomTickIndexPlugin,
+    RandomListing, RandomTickIndex, RandomTickIndexPlugin,
 };
 use mcrs_minecraft_engine_world::world::storage::view::WorldViewMut;
 use mcrs_minecraft_item::ItemStack;
@@ -42,10 +42,10 @@ use mcrs_minecraft_protocol_game::clientbound::ClientboundBlockEvent;
 use mcrs_minecraft_resource::{Id, ResourceKeyBuf};
 use mcrs_minecraft_simulation::{
     BlockBehaviour, BlockEvent, BlockShard, BlockUpdateFlags, BlockWrite, ChainLedger, ChainOrigin,
-    Env, Footprints, GameTick, KernelConfig, ListedSection, Message, MessageBody, PartitionKind,
-    Phase, PhaseInput, RandomPicks, RandomTickTable, SavedTick, SectionProperties, SectionTicksRef,
+    Env, Footprints, GameTick, KernelConfig, Message, MessageBody, PartitionKind, Phase,
+    PhaseInput, RandomPicks, RandomTickTable, SavedTick, SectionProperties, SectionTicksRef,
     Serial, ShardId, SimulatedSections, Spread, StepAt, StepOutput, StreamSeed, SubTick, TickKind,
-    TickQueue, VanillaOrder, block_tile,
+    TickQueue, VanillaOrder,
 };
 use mcrs_minecraft_volume::PalettedSection;
 use mcrs_voxel::{ColumnPos, SectionPos};
@@ -154,11 +154,7 @@ pub struct BlockSimulation {
     random_table: Option<RandomTickTable>,
     footprints: Footprints,
     random_seed: Option<StreamSeed>,
-    /// One section of each column that takes random ticks, as the last step found them, and
-    /// the number of sections that take random ticks then.
-    random_columns: Vec<SectionPos>,
-    random_sections: usize,
-    random_listed: Vec<ListedSection>,
+    random_listing: RandomListing,
     drops: Vec<ItemStack>,
 }
 
@@ -329,11 +325,9 @@ struct Kernel<'w, B: BlockBehaviour<WorldKinds> + Send + 'static> {
     time: Res<'w, GameTime>,
 }
 
-/// The sections that take random ticks, and what their picks draw from.
+/// What the random picks draw from.
 #[derive(SystemParam)]
-struct RandomTicking<'w, 's> {
-    sections: Query<'w, 's, &'static SectionPos, With<EntityTicking>>,
-    started: Query<'w, 's, (), Added<EntityTicking>>,
+struct RandomTicking<'w> {
     speed: Res<'w, RandomTickSpeed>,
     seed: Option<Res<'w, WorldSeed>>,
 }
@@ -448,23 +442,6 @@ fn run_block_simulation<B: BlockBehaviour<WorldKinds> + BlockDrops + Send + 'sta
     let rules = &kernel.rules.0;
     let table = simulation.random_table.get_or_insert_default();
     let speed = random.speed.0;
-    let mut columns = mem::take(&mut simulation.random_columns);
-    let count = random.sections.iter().len();
-    if speed == 0 {
-        columns.clear();
-        simulation.random_sections = 0;
-    } else if count != simulation.random_sections || !random.started.is_empty() {
-        // A section that stops alone lowers the count; one that starts is in `started`.
-        simulation.random_sections = count;
-        columns.clear();
-        columns.extend(random.sections.iter().copied());
-        // The sections feed only precipitation, which takes each column once.
-        columns.sort_unstable_by_key(|section| {
-            let column = ColumnPos::from(*section);
-            (block_tile(column), column.x, column.z)
-        });
-        columns.dedup_by_key(|section| ColumnPos::from(*section));
-    }
     let seed = *simulation.random_seed.get_or_insert_with(|| {
         let world_seed = random.seed.as_deref().map_or(0, |seed| seed.0);
         let key = dimension_key.map_or("", |key| key.as_str());
@@ -493,11 +470,16 @@ fn run_block_simulation<B: BlockBehaviour<WorldKinds> + BlockDrops + Send + 'sta
             if speed != 0
                 && let Some(index) = volume.view.random_ticks_mut()
             {
-                index.listed(&mut simulation.random_listed);
+                index.draw(
+                    |column| owned_columns::owns(owned, column),
+                    speed,
+                    seed.sections(now),
+                    &mut simulation.random_listing,
+                );
             }
             let picks = RandomPicks {
-                sections: &columns,
-                listed: &simulation.random_listed,
+                columns: &simulation.random_listing.columns,
+                hits: &simulation.random_listing.hits,
                 speed,
                 table,
                 footprints: &simulation.footprints,
@@ -534,7 +516,6 @@ fn run_block_simulation<B: BlockBehaviour<WorldKinds> + BlockDrops + Send + 'sta
             tracing::error!(%error, ?phase, "the block step refused its input");
         }
     }
-    simulation.random_columns = columns;
     mark_client_writes(
         &mut outlets.marks,
         out.writes.get(broadcast_cut..).unwrap_or_default(),

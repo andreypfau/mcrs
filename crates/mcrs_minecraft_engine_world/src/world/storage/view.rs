@@ -72,10 +72,6 @@ impl DimensionViewMut<'_, '_, '_> {
         self.sections.index.get(at)
     }
 
-    pub fn random_ticks(&self) -> Option<&RandomTickIndex> {
-        self.random_ticks.as_deref()
-    }
-
     pub fn random_ticks_mut(&mut self) -> Option<&mut RandomTickIndex> {
         self.random_ticks.as_deref_mut()
     }

@@ -5,9 +5,9 @@ use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_random::{Random, shuffle};
 use mcrs_minecraft_simulation::{
     BlockBehaviour, BlockEvent, BlockFacts, BlockShard, BlockUpdateFlags, BlockWrite, Cx, Env,
-    Footprints, GameTick, KernelConfig, ListedSection, PartitionKind, Phase, PhaseInput,
-    RandomPicks, RandomTickTable, RandomTicks, SemanticOrder, Serial, ShardId, SimulatedSections,
-    SimulationVolume, Spread, StepAt, StepOutput, StreamSeed, TickPriority, step,
+    Footprints, GameTick, KernelConfig, PartitionKind, Phase, PhaseInput, RandomPicks,
+    RandomTickTable, RandomTicks, SemanticOrder, Serial, ShardId, SimulationVolume, Spread, StepAt,
+    StepOutput, StreamSeed, TickPriority, step,
 };
 use mcrs_minecraft_volume::{BlockVolume, PaletteBuffer, SectionBlocks};
 use mcrs_voxel::{BlockPos, BlockStateId, LocalPos, SectionPos};
@@ -285,19 +285,14 @@ fn tile_of(section: SectionPos) -> (i32, i32) {
 }
 
 /// The listed sections grouped by block tile, the groups and the sections in each group shuffled.
-fn listed(host: &Host, order: u64) -> Vec<ListedSection> {
+fn listed(host: &Host, order: u64) -> Vec<SectionPos> {
     let mut random = LegacyRandom::new(order);
-    let mut tiles: Vec<Vec<ListedSection>> = Vec::new();
+    let mut tiles: Vec<Vec<SectionPos>> = Vec::new();
     for tx in 0..LISTED / 4 {
         for tz in 0..LISTED / 4 {
-            let mut group: Vec<ListedSection> = (0..4)
+            let mut group: Vec<SectionPos> = (0..4)
                 .flat_map(|x| (0..4).map(move |z| section(tx * 4 + x, 0, tz * 4 + z)))
-                .map(|section| ListedSection {
-                    section,
-                    ticking: u16::try_from(host.random_ticking(section).len())
-                        .expect("4096 at most"),
-                })
-                .filter(|listed| listed.ticking > 0)
+                .filter(|&section| !host.random_ticking(section).is_empty())
                 .collect();
             shuffle(&mut group, &mut random);
             tiles.push(group);
@@ -362,9 +357,10 @@ fn kernel<S: Spread>(case: &Case, mut host: Host, spread: &S) -> Outcome {
     let mut out = StepOutput::default();
     for now in 0..case.steps {
         let listed = listed(&host, case.shuffle.wrapping_add(now as u64));
+        let hits = host.draw_hits(&listed, case.speed, now);
         let picks = RandomPicks {
-            sections: &[],
-            listed: &listed,
+            columns: &[],
+            hits: &hits,
             speed: case.speed,
             table: &table,
             footprints: &footprints,
@@ -430,9 +426,10 @@ fn kernel<S: Spread>(case: &Case, mut host: Host, spread: &S) -> Outcome {
     }
 }
 
-/// The reference: one thread, no overlay. It runs the picks in the order colour, tile, section,
-/// pick. A pick that leaves the region of its tile is rolled back from a journal and runs again
-/// after all tiles, in the order of the listed sections and the picks.
+/// The reference: one thread, no overlay. It draws the picks of all listed sections from the
+/// ticking positions at the start of the step, then runs the hits in the order colour, tile,
+/// listed section, pick. A hit that leaves the region of its tile is rolled back from a journal
+/// and runs again after all tiles, in the order of the listed sections and the picks.
 struct Reference<'a> {
     host: Host,
     rules: &'a Rules,
@@ -548,32 +545,38 @@ impl Reference<'_> {
             self.now = now;
             let listed = listed(&self.host, case.shuffle.wrapping_add(now as u64));
             let streams = seed().sections(GameTick(now));
-            let mut order: Vec<usize> = (0..listed.len()).collect();
+            let mut hits = Vec::new();
+            for &section in &listed {
+                let mut random = streams.stream(section);
+                let list = self.lists.get(&section).cloned().unwrap_or_default();
+                let first = hits.len();
+                for _ in 0..case.speed {
+                    if let Some(&local) = list.get(random.next_u32_bound(4096) as usize) {
+                        hits.push((block_at(section, usize::from(local)), random.clone()));
+                    }
+                }
+                for hit in &mut hits[first..] {
+                    hit.1 = random.fork();
+                }
+            }
+            let mut order: Vec<usize> = (0..hits.len()).collect();
             order.sort_by_key(|&i| {
-                let (x, z) = tile_of(listed[i].section);
+                let (x, z) = tile_of(SectionPos::from(hits[i].0));
                 ((x & 1, z & 1), (x, z))
             });
             let mut deferred = Vec::new();
             for index in order {
-                let section = listed[index].section;
-                let mut random = streams.stream(section);
-                for pick in 0..case.speed {
-                    let drawn = random.next_u32_bound(4096) as usize;
-                    let Some(&local) = self.lists.get(&section).and_then(|list| list.get(drawn))
-                    else {
-                        continue;
-                    };
-                    let at = block_at(section, usize::from(local));
-                    let replay = random.clone();
-                    if !self.bounded_pick(at, &mut random, Some(tile_of(section))) {
-                        deferred.push(((index, pick), at, replay));
-                    }
+                let (at, random) = &hits[index];
+                let tile = tile_of(SectionPos::from(*at));
+                if !self.bounded_pick(*at, &mut random.clone(), Some(tile)) {
+                    deferred.push(index);
                 }
             }
-            deferred.sort_by_key(|(order, _, _)| *order);
+            deferred.sort_unstable();
             reruns += deferred.len() as u32;
-            for (_, at, mut random) in deferred {
-                self.bounded_pick(at, &mut random, None);
+            for index in deferred {
+                let (at, random) = &hits[index];
+                self.bounded_pick(*at, &mut random.clone(), None);
             }
         }
         let mut outcome = Outcome {

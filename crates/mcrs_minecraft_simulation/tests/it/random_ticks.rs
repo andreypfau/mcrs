@@ -2,12 +2,11 @@ use crate::probe::{A, AIR, B, C, Host, ProbeFacts, ProbeKinds, STATES, at, secti
 use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_simulation::{
     BlockBehaviour, BlockFacts, BlockShard, BlockUpdateFlags, Cx, Env, Footprints, GameTick,
-    KernelConfig, ListedSection, PartitionKind, RandomPicks, RandomTickTable, RandomTicks,
-    SemanticOrder, Serial, ShardId, SimulatedSections, SimulationVolume, StepOutput, StreamSeed,
-    random_step,
+    KernelConfig, PartitionKind, RandomPicks, RandomTickTable, RandomTicks, SemanticOrder, Serial,
+    ShardId, SimulationVolume, StepOutput, StreamSeed, draw_random_hits, random_step,
 };
-use mcrs_minecraft_volume::{Access, BlockVolume, BlockVolumeMut, SectionBlocksMut};
-use mcrs_voxel::{BlockPos, BlockStateId, LocalPos, SectionPos};
+use mcrs_minecraft_volume::{BlockVolume, BlockVolumeMut, SectionBlocksMut};
+use mcrs_voxel::{BlockPos, BlockStateId, ColumnPos, LocalPos, SectionPos};
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicU32, Ordering};
 
@@ -69,16 +68,10 @@ fn run(
     let mut shard = BlockShard::new();
     let mut out = StepOutput::default();
     for now in 0..ticks {
-        let listed: Vec<ListedSection> = sections
-            .iter()
-            .map(|&section| ListedSection {
-                section,
-                ticking: u16::try_from(host.random_ticking(section).len()).expect("4096 at most"),
-            })
-            .collect();
+        let hits = host.draw_hits(sections, speed, now);
         let picks = RandomPicks {
-            sections,
-            listed: &listed,
+            columns: &[],
+            hits: &hits,
             speed,
             table: &table,
             footprints: &Footprints::default(),
@@ -108,36 +101,29 @@ fn at_in(section: SectionPos, x: i32, y: i32, z: i32) -> BlockPos {
     at(section.x * 16 + x, section.y * 16 + y, section.z * 16 + z)
 }
 
-/// Only a writable section that holds a state that takes random ticks gets picks, and it gets
-/// `speed` of them in each step.
+/// Only a section that holds a state that takes random ticks gets picks, and it gets `speed` of
+/// them in each step.
 #[test]
-fn picks_reach_only_writable_sections_that_hold_a_randomly_ticking_state() {
-    let (ticking, inert, halo) = (section(0, 0, 0), section(1, 0, 0), section(2, 0, 0));
+fn picks_reach_only_sections_that_hold_a_randomly_ticking_state() {
+    let (ticking, inert) = (section(0, 0, 0), section(1, 0, 0));
     let mut host = Host::new();
     host.insert(ticking, A);
     host.insert(inert, C);
-    host.insert(halo, A);
-    host.set_access(halo, Access::Read);
     let rules = Picks {
         replace: true,
         ticks: AtomicU32::new(0),
     };
 
-    run(&mut host, &rules, &[ticking, inert, halo], 0, 5);
+    run(&mut host, &rules, &[ticking, inert], 0, 5);
     assert_eq!(count(&host, ticking, B), 0, "speed 0 makes no pick");
 
-    run(&mut host, &rules, &[ticking, inert, halo], 3, 1);
+    run(&mut host, &rules, &[ticking, inert], 3, 1);
     let replaced = count(&host, ticking, B);
     assert!(
         (1..=3).contains(&replaced),
         "three picks of a section of A replace one to three blocks, not {replaced}"
     );
     assert_eq!(count(&host, inert, C), 4096, "a section of C takes no tick");
-    assert_eq!(
-        count(&host, halo, A),
-        4096,
-        "a readable section takes no tick"
-    );
 }
 
 /// SIM-RND-002: one probe in a section gets a mean of 3 * 10000 / 4096 = 7.32 ticks over 10,000
@@ -259,17 +245,15 @@ impl BlockBehaviour<ProbeKinds> for Rain {
     }
 }
 
-/// SIM-RND-004: a writable column takes precipitation picks whatever its blocks are, a readable
-/// one takes none, and the hits of a column do not depend on the other sections or their order.
+/// SIM-RND-004: a column takes precipitation picks whatever its blocks are, and the hits of a
+/// column do not depend on the columns of other block tiles or their order.
 #[test]
-fn precipitation_hits_writable_columns_only_and_do_not_depend_on_the_other_sections() {
-    let (first, halo, far) = (section(0, 0, 0), section(1, 0, 0), section(5, 0, 0));
-    let rained_on_first = |sections: &[SectionPos]| {
+fn precipitation_hits_of_a_column_do_not_depend_on_other_tiles() {
+    let (first, far) = (ColumnPos::new(0, 0), ColumnPos::new(5, 0));
+    let rained_on_first = |columns: &[ColumnPos]| {
         let mut host = Host::new();
-        host.insert(first, AIR);
-        host.insert(halo, AIR);
-        host.insert(far, AIR);
-        host.set_access(halo, Access::Read);
+        host.insert(section(0, 0, 0), AIR);
+        host.insert(section(5, 0, 0), AIR);
         let rules = Rain::default();
         let config = KernelConfig::default();
         let env = Env {
@@ -285,8 +269,8 @@ fn precipitation_hits_writable_columns_only_and_do_not_depend_on_the_other_secti
         let mut out = StepOutput::default();
         for now in 0..400 {
             let picks = RandomPicks {
-                sections,
-                listed: &[],
+                columns,
+                hits: &[],
                 speed: 3,
                 table: &table,
                 footprints: &Footprints::default(),
@@ -303,10 +287,6 @@ fn precipitation_hits_writable_columns_only_and_do_not_depend_on_the_other_secti
             );
         }
         let hits = rules.hits.into_inner().expect("one step at a time");
-        assert!(
-            hits.iter().all(|(x, _)| !(16..32).contains(x)),
-            "a readable column takes no pick"
-        );
         let first_hits: Vec<(i32, i32)> = hits
             .into_iter()
             .filter(|&(x, z)| (0..16).contains(&x) && (0..16).contains(&z))
@@ -314,18 +294,18 @@ fn precipitation_hits_writable_columns_only_and_do_not_depend_on_the_other_secti
         first_hits
     };
 
-    let alone = rained_on_first(&[first, halo]);
+    let alone = rained_on_first(&[first]);
     assert!(
         (5..=50).contains(&alone.len()),
         "about 400 * 3 / 48 = 25 hits, not {}",
         alone.len()
     );
-    assert_eq!(rained_on_first(&[far, halo, first]), alone);
+    assert_eq!(rained_on_first(&[far, first]), alone);
 }
 
-/// SIM-RND-001..003: the picks of a section with a fixed seed are the positions that the streams
-/// gave before the step was made faster. Half the section ticks, so draws both hit and miss, and
-/// each hit shrinks the list that the later draws index.
+/// SIM-RND-001..003: the picks of a section with a fixed seed keep their positions. Half the
+/// section ticks, so draws both hit and miss, and the draws of a step index the list of the start
+/// of the step, though each hit shrinks the list.
 #[test]
 fn the_picks_of_a_section_keep_their_positions_for_a_fixed_seed() {
     let target = section(1, -1, 2);
@@ -356,9 +336,9 @@ fn the_picks_of_a_section_keep_their_positions_for_a_fixed_seed() {
             (17, -14, 33),
             (16, -14, 46),
             (27, -15, 32),
-            (30, -9, 35),
+            (28, -9, 35),
             (17, -11, 43),
-            (23, -10, 41),
+            (22, -10, 41),
             (24, -11, 37),
             (19, -11, 36),
             (20, -11, 42),
@@ -366,5 +346,70 @@ fn the_picks_of_a_section_keep_their_positions_for_a_fixed_seed() {
             (19, -10, 33),
             (19, -11, 47),
         ]
+    );
+}
+
+/// SIM-MODEL-106(a), SIM-RND-002: each position of a section takes `k` uniform picks in each
+/// step. The hits of a section where every position ticks spread evenly over its positions; a
+/// section where half the positions tick gets half the hits, and the hits of two such sections
+/// do not correlate.
+#[test]
+fn the_drawn_hits_are_uniform_over_the_positions_and_independent_across_sections() {
+    const STEPS: i64 = 20_000;
+    let (full, even, odd) = (section(0, 0, 0), section(1, 0, 0), section(0, 1, 0));
+    let every: Vec<u16> = (0..4096).collect();
+    let evens: Vec<u16> = (0..4096).step_by(2).collect();
+    let odds: Vec<u16> = (1..4096).step_by(2).collect();
+    let seed = StreamSeed::new(4, "minecraft:overworld");
+    let mut per_position = vec![0u32; 4096];
+    let mut halves = Vec::new();
+    let mut hits = Vec::new();
+    for now in 0..STEPS {
+        let streams = seed.sections(GameTick(now));
+        hits.clear();
+        draw_random_hits(full, &every, 3, streams, &mut hits);
+        assert_eq!(hits.len(), 3, "every pick of a full section hits");
+        for hit in &hits {
+            per_position[LocalPos::from(hit.at).index()] += 1;
+        }
+        hits.clear();
+        draw_random_hits(even, &evens, 3, streams, &mut hits);
+        let on_even = hits.len();
+        draw_random_hits(odd, &odds, 3, streams, &mut hits);
+        assert!(
+            hits.iter()
+                .enumerate()
+                .all(|(n, hit)| LocalPos::from(hit.at).index() % 2 == usize::from(n >= on_even)),
+            "a hit lands on a listed position of its section"
+        );
+        halves.push((on_even as f64, (hits.len() - on_even) as f64));
+    }
+
+    let expected = 3.0 * STEPS as f64 / 4096.0;
+    let chi_square: f64 = per_position
+        .iter()
+        .map(|&count| (f64::from(count) - expected).powi(2) / expected)
+        .sum();
+    assert!(
+        (chi_square - 4095.0).abs() < 5.0 * (2.0 * 4095.0_f64).sqrt(),
+        "the hits of a full section are uniform: chi-square {chi_square:.0} on 4095 degrees"
+    );
+    let steps = STEPS as f64;
+    // Binomial(3, 1/2) in one step: a mean of 1.5 and a variance of 0.75.
+    let bound = 5.0 * 0.75_f64.sqrt() / steps.sqrt();
+    let mean_even = halves.iter().map(|half| half.0).sum::<f64>() / steps;
+    let mean_odd = halves.iter().map(|half| half.1).sum::<f64>() / steps;
+    assert!(
+        (mean_even - 1.5).abs() < bound && (mean_odd - 1.5).abs() < bound,
+        "half the positions get half the picks: {mean_even}, {mean_odd}"
+    );
+    let covariance = halves
+        .iter()
+        .map(|(a, b)| (a - mean_even) * (b - mean_odd))
+        .sum::<f64>()
+        / steps;
+    assert!(
+        covariance.abs() < 5.0 * 0.75 / steps.sqrt(),
+        "the hits of two sections do not correlate: covariance {covariance}"
     );
 }

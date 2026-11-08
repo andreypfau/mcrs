@@ -681,13 +681,17 @@ change and when a count of ticking positions crosses zero.
 non-empty `RandomTickTable::kinds` (block, fluid, or both). Every write goes through one wrapper of
 `SectionBlocksMut::set` that compares the kinds of the old and new state: a push, or a scan of at most
 `n` entries and a swap-remove. `apply_write` uses the same wrapper; a landing section builds its list
-from its palette. The kernel reads the list through an accessor of `SimulatedSections`. Memory:
-~0.5 GB at 10k players.
+from its palette. Memory: ~0.5 GB at 10k players.
 
-**Picks without misses.** For each listed section, `k` times: draw `u` in `0..4096`; read
-`n = ticking.len()` again; if `u < n`, take `at = ticking[u]`, read the state at `at`, run the block
+**Picks drawn at the start of the step.** The index walks its tiles once in each step. For each
+listed section of an owned column, `k` times, it draws `u` in `0..4096` from the stream of the
+section; a `u` below `n = ticking.len()` is a hit at `ticking[u]`. Each hit then forks the stream of
+its handlers from the stream of the section (`draw_random_hits`). The walk also gives the columns
+that take precipitation: each tile keeps a bit for each column that holds a random-ticked section.
+The kernel gets only the hits and the columns. A hit reads the state at its position, runs the block
 handler if the state ticks, then the fluid handler with the state read before the block handler
-(SIM-RND-002). This is the distribution of a pick over 4096 positions; no deviation entry.
+(SIM-RND-002). Each pick is uniform over 4096 positions. A position that starts to tick during the
+step takes picks from the next step (DEV-08).
 
 **Precipitation picks (SIM-RND-004).** Each random-ticked column takes `k` gates of 1/48 in every
 tick, with or without rain and weather. A hit runs at a uniform `(x, z)` of the column, at the height
@@ -763,66 +767,47 @@ Measured on real saves (Hermitcraft S10, Meterstick FarmWorld and LagMachine, up
 corpus version): 119–145 ticking positions per listed section, and 2.9–3.5% of picks run a handler.
 This agrees with the density of the model. The bench `random_ticks_save` steps Hermitcraft S10
 through the section entities and the cell volume of the engine: 2.2M loaded sections, 91k columns,
-258k listed sections, 22.7k handler runs in each step. Each step lists the sections of the index
-and runs precipitation. The engine passes one section of each column, sorted in the order of
-precipitation; before this, precipitation went through all 2.2M sections, and a step cost 197 ms.
+258k listed sections, 22.7k handler runs in each step. Each step draws the picks of the index, then
+runs precipitation and the hits.
 
 | Handler of the bench | One step, one core: before / now | At 10k players (× 8.13): before / now |
 |----------------------|----------------------------------|---------------------------------------|
-| reads one block | 34.3–35.2 ms / 23.9–25.3 ms | ~282 / ~198 core-ms |
-| reads its footprint of Table 1 | 73.9–75.1 ms / 41.2–41.5 ms | ~604 / ~336 core-ms |
-| same footprint, one section template for all sections (cache-hot) | 10.5 ms | ~85 core-ms |
+| reads one block | 28.0–30.7 ms / 14.8–15.7 ms | ~236 / ~124 core-ms |
+| reads its footprint of Table 1 | 47.2–48.7 ms / 34.5–41.1 ms | ~388 / ~300 core-ms |
 
-The two numbers of a row come from back-to-back runs at a load average of 7–15 on 16 cores. The
-density of the model is correct; its constants are not. They come from a cache-hot bench. On a
-real save the data of a pick is not in the cache. The bench splits one step of "reads one block"
-into these parts:
+The two numbers of a row come from back-to-back runs of the same build at a load average of 8–33
+on 16 cores. At a load of 7–15, an earlier measure gave 23.9–25.3 ms for the old step, so the
+numbers above are ~15% higher than on a quieter machine. Scaled to that machine, the new step costs
+~12.8 ms (~104 core-ms), against a budget of 11.3 ms (~92 core-ms).
 
-| Part | Unit cost | One step | At 10k players |
-|------|-----------|----------|----------------|
-| listed section: read from the list, stream, 3 draws, plan of the tile tasks | ~18 ns | 4.6 ms | ~37 core-ms |
-| precipitation: access of each column, then the gates | ~57 ns | 5.2 ms | ~42 core-ms |
-| pick that hits, before the handler reads | ~0.64 µs | 14.5 ms | ~118 core-ms |
-| read of the footprint after the first read | ~10 ns | +17 ms for the full box | ~138 core-ms |
+The cost of a pick is a chain of cache misses, not computation. Before this change, each listed
+section cost ~19 ns of list and plan, and each hit cost ~1 µs: the lookup of its ticking positions
+in the index (three misses: tile, section entry, list), the access check (section index, entity),
+then the read of the block (section index, entity, row of the component, shared palette, boxed
+palette data, boxed cube). These changes are kept:
+- The index draws the picks while it walks its own sections. The entry of a section is in the
+  cache then, so a hit costs one miss for its position, and a section with no hit costs no lookup.
+  The kernel gets the hits, not the sections, so it keeps no touched set and no copy of the
+  ticking positions of its writes. Step: −44%.
+- The index gives the columns of precipitation and filters the columns that the cell owns. The
+  kernel checks no access for each column or hit. Alone this change moved the step by less than 2%;
+  with the hits drawn in the walk, its access checks were the part of the hit that was left.
+- The cube of a section is inline in its palette data: one miss less for each read. Step: −8%.
+- A tile task reads a section of its region without the access check of the world: the world
+  answers a section it cannot read with the same error.
 
-Before the warm-up pass, a hit split into: the access of the section ~165 ns, the ticking
-positions ~40 ns, the read of the picked block ~430 ns, the fit check and the handler ~105 ns.
+Earlier changes stay: a block tile finds a section through a table of the first slot of each column,
+and a tile task keeps the world section of its last read, so a read of a footprint costs ~10 ns.
 
-These changes are kept. Each one leaves the values of the streams as they were (test
-`the_picks_of_a_section_keep_their_positions_for_a_fixed_seed`):
-- A block tile finds a section through a table of the first slot of each column and a guess from
-  the lowest section of the column. The binary search over the sections of the tile cost ~240 ns
-  for each hit; the lookup of the ticking positions now costs ~40 ns. Step: −12%.
-- A tile task keeps the world section of its last read. The reads of a footprint stay mostly in
-  one section, so a read costs ~10 ns, not ~30 ns. Full box: −15%.
-- The plan sorts the pairs of tile and range, not the tile tasks: a sort of the large tasks moved
-  ~6% of the step in memory. The draw functions are inlined across crates (−3%).
+These changes moved the number by less than 2% and are not kept: one stream for each block tile in
+place of one for each section, and one pass over the listed slots of a tile in place of two.
 
-These changes are not kept because their code is hard to maintain for the gain. A section index
-keyed by column, with a dense array of the sections of a column, gave −4%. A read ahead of the
-first pick of each listed section, which repeats the draws, gave −8 to −10%.
-
-These changes moved the number by less than 2% and are not kept: a fast path that skips a section
-with no draw below its count, a read of a tile task that checks only the region, and a test for
-an empty touched set before its lookup. Before that, these did not move the number by more than
-3%: tiles listed in the order of the colour phases, and a slot map in place of the binary search
-of the index.
-
-The budget of ~92 core-ms (11.3 ms on the bench) is not reachable with this storage. The listed
-sections and precipitation alone cost 9.8 ms, so a hit must cost ≤ 66 ns, about one cache miss.
-The read of a picked block is a chain of dependent misses: the section index, the location of the
-entity, the row of its blocks, the shared palette, the boxed palette data and the boxed cube. The
-next levers change the storage, not the spec:
-- Store the cube of a section inline in its palette data, and reach the blocks of a section from
-  the section index without the entity. This removes 2–3 misses for each hit.
-- Keep the writable columns of precipitation in the host and update them when a column loads,
-  unloads or changes owner. This removes the access of each column in each step (~42 core-ms).
-- A draw for each hit in place of a draw for each pick lowers the cost of a listed section.
-  SIM-MODEL-106(b) allows it, but it changes the values of the streams, so it needs a new decision
-  and new expected values in the colour-phase tests.
-
-The machine ran other jobs during the measurement, which makes a cache miss slower than on an idle
-machine.
+The step now splits into: the walk and the draws, ~35% (one miss for each hit, the rest ~15 ns for
+each listed section); the hits, ~52% (~0.32 µs each: section index, entity, row of the component,
+shared palette, palette data, then the read of the handler); precipitation, plan and commit of the
+tile tasks, ~13%. The next lever is the storage of the blocks: the read of a hit goes through the
+section index and the entity, four misses. Blocks that the section index reaches directly, without
+the entity, would remove ~2 ms of the step. That change touches every user of the block component.
 
 ### 7.5 Block shards as a whole
 

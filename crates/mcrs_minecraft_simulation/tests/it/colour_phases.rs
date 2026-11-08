@@ -4,12 +4,12 @@ use crate::probe::{
 use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_simulation::{
     BlockBehaviour, BlockFacts, BlockShard, BlockUpdateFlags, BlockWrite, Cx, Env, Footprints,
-    GameTick, KernelConfig, ListedSection, PartitionKind, RandomPicks, RandomTickTable,
-    RandomTicks, SemanticOrder, Serial, ShardId, SimulatedSections, SimulationVolume, Spread,
-    StepOutput, StreamSeed, block_tile, random_step,
+    GameTick, KernelConfig, PartitionKind, RandomHit, RandomPicks, RandomTickTable, RandomTicks,
+    SemanticOrder, Serial, ShardId, SimulationVolume, Spread, StepOutput, StreamSeed, block_tile,
+    random_step,
 };
 use mcrs_minecraft_volume::BlockVolume;
-use mcrs_voxel::{BlockPos, BlockStateId, ColumnPos};
+use mcrs_voxel::{BlockPos, BlockStateId, ColumnPos, SectionPos};
 
 /// `A` spreads east into air and turns into `B` against a block, but waits for a far or
 /// unbounded block; the east neighbour can be in the
@@ -125,17 +125,13 @@ fn marker_at(x: i32, z: i32, row: i32) -> BlockPos {
 }
 
 /// The listed sections, grouped by block tile in the order of the colour phases.
-fn listed(host: &Host) -> Vec<ListedSection> {
-    let tile = |listed: &ListedSection| block_tile(ColumnPos::from(listed.section));
-    let mut listed: Vec<ListedSection> = (0..12)
+fn listed(host: &Host) -> Vec<SectionPos> {
+    let tile = |section: &SectionPos| block_tile(ColumnPos::from(*section));
+    let mut listed: Vec<SectionPos> = (0..12)
         .flat_map(|x| (0..12).map(move |z| section(x, 0, z)))
-        .map(|section| ListedSection {
-            section,
-            ticking: u16::try_from(host.random_ticking(section).len()).expect("4096 at most"),
-        })
-        .filter(|listed| listed.ticking > 0)
+        .filter(|&section| !host.random_ticking(section).is_empty())
         .collect();
-    listed.sort_by_key(|listed| ([tile(listed).x & 1, tile(listed).z & 1], tile(listed)));
+    listed.sort_by_key(|section| ([tile(section).x & 1, tile(section).z & 1], tile(section)));
     listed
 }
 
@@ -154,11 +150,8 @@ struct Run {
     markers_kept: bool,
 }
 
-/// Runs the steps with the sections of each step given to `random_step` in `batches`.
-fn run<S: Spread>(
-    spread: &S,
-    batches: impl Fn(Vec<ListedSection>) -> Vec<Vec<ListedSection>>,
-) -> Run {
+/// Runs the steps with the hits of each step given to `random_step` in `batches`.
+fn run<S: Spread>(spread: &S, batches: impl Fn(Vec<RandomHit>) -> Vec<Vec<RandomHit>>) -> Run {
     let rules = Spreading;
     let states_of = || (0..STATES).filter_map(|n| BlockStateId::checked(n as u16, STATES));
     let table = RandomTickTable::new(states_of(), |state| rules.random_ticks(state));
@@ -176,18 +169,10 @@ fn run<S: Spread>(
     let mut shard = BlockShard::new();
     let mut out = StepOutput::default();
     for now in 0..TICKS {
-        for batch in batches(listed(&host)) {
-            let batch: Vec<ListedSection> = batch
-                .iter()
-                .map(|listed| ListedSection {
-                    ticking: u16::try_from(host.random_ticking(listed.section).len())
-                        .expect("4096 at most"),
-                    ..*listed
-                })
-                .collect();
+        for batch in batches(host.draw_hits(&listed(&host), SPEED, now)) {
             let picks = RandomPicks {
-                sections: &[],
-                listed: &batch,
+                columns: &[],
+                hits: &batch,
                 speed: SPEED,
                 table: &table,
                 footprints: &footprints,
@@ -218,15 +203,15 @@ fn run<S: Spread>(
 }
 
 /// SIM-MODEL-102(a), SIM-RND-001: the colour phases give the same result on one thread and on
-/// four, and the result of running the sections one at a time in the order of the phases. A
-/// pick that leaves its region, by its bound or by what it reads, is undone and runs again.
+/// four, and the result of running the hits one at a time in the order of the phases. A pick
+/// that leaves its region, by its bound or by what it reads, is undone and runs again.
 #[test]
-fn colour_phases_equal_one_thread_and_the_serial_order_of_the_sections() {
-    let whole = |listed: Vec<ListedSection>| vec![listed];
+fn colour_phases_equal_one_thread_and_the_serial_order_of_the_hits() {
+    let whole = |hits: Vec<RandomHit>| vec![hits];
     let one = run(&Serial, whole);
     let four = run(&Threads, whole);
-    let serial = run(&Serial, |listed: Vec<ListedSection>| {
-        listed.into_iter().map(|listed| vec![listed]).collect()
+    let serial = run(&Serial, |hits: Vec<RandomHit>| {
+        hits.into_iter().map(|hit| vec![hit]).collect()
     });
 
     assert!(one.reruns > 0, "some far and unbounded picks ran again");

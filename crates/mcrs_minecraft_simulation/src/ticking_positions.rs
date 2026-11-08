@@ -46,12 +46,6 @@ impl TickingPositions {
         }
     }
 
-    pub(crate) fn from_sorted(positions: &[u16]) -> Self {
-        Self {
-            positions: positions.to_vec(),
-        }
-    }
-
     #[must_use]
     pub fn as_slice(&self) -> &[u16] {
         &self.positions

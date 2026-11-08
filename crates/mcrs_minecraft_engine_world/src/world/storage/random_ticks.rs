@@ -6,8 +6,8 @@ use bevy_ecs::observer::On;
 use bevy_ecs::prelude::{Has, Query, ResMut};
 use bevy_ecs::resource::Resource;
 use mcrs_minecraft_simulation::{
-    ListedSection, PRECIPITATION_TILE, RandomTickTable, TickingPositions, TickingSectionMut,
-    block_tile,
+    PRECIPITATION_TILE, RandomHit, RandomTickTable, SectionStreams, TickingPositions,
+    TickingSectionMut, block_tile, draw_random_hits,
 };
 use mcrs_minecraft_volume::{PaletteBuffer, PalettedSection, SectionBlocks, SectionBlocksMut};
 use mcrs_voxel::{ColumnPos, SectionPos};
@@ -49,6 +49,8 @@ struct BlockTile {
     listed: Vec<u16>,
     /// The first slot of each column of the tile in `sections`, then the end of the last.
     columns: [u16; COLUMNS + 1],
+    /// One bit for each column that holds a random-ticked section, at its index in the tile.
+    random_ticked_columns: u16,
 }
 
 const COLUMNS: usize = (PRECIPITATION_TILE * PRECIPITATION_TILE) as usize;
@@ -104,7 +106,16 @@ impl BlockTile {
             .map_err(|slot| start + slot)
     }
 
+    fn mark_random_ticked_columns(&mut self) {
+        self.random_ticked_columns = self
+            .sections
+            .iter()
+            .filter(|section| section.random_ticked)
+            .fold(0, |mask, section| mask | 1 << column_in_tile(section.pos));
+    }
+
     fn relist(&mut self) {
+        self.mark_random_ticked_columns();
         let mut slot = 0;
         for (column, start) in self.columns.iter_mut().enumerate() {
             *start = slot;
@@ -197,11 +208,11 @@ impl RandomTickIndex {
         if section.is_listed() {
             tile.list(slot);
         }
+        tile.mark_random_ticked_columns();
     }
 
-    /// The local indices of the ticking positions of the section at `pos`.
-    #[must_use]
-    pub fn ticking(&self, pos: SectionPos) -> &[u16] {
+    #[cfg(test)]
+    fn ticking(&self, pos: SectionPos) -> &[u16] {
         self.tiles
             .get(&tile_of(pos))
             .and_then(|tile| tile.sections.get(tile.slot(pos).ok()?))
@@ -234,15 +245,24 @@ impl RandomTickIndex {
         }
     }
 
-    /// Replaces `out` with the random-ticked sections that hold a ticking position, block tile
-    /// by block tile in the order of the tiles, and in each tile in the order of the sections.
-    pub fn listed(&mut self, out: &mut Vec<ListedSection>) {
-        out.clear();
+    /// Replaces `out` with what takes random ticks in the columns that `owns` accepts, block tile
+    /// by block tile in the order of the tiles: the hits of the `speed` picks of each
+    /// random-ticked section from `streams`, in the order of the sections and the picks, and the
+    /// columns that hold a random-ticked section, sorted by x, then z.
+    pub fn draw(
+        &mut self,
+        owns: impl Fn(ColumnPos) -> bool,
+        speed: u32,
+        streams: SectionStreams,
+        out: &mut RandomListing,
+    ) {
+        out.hits.clear();
+        out.columns.clear();
         self.order.clear();
         self.order.extend(
             self.tiles
                 .iter()
-                .filter(|(_, tile)| !tile.listed.is_empty())
+                .filter(|(_, tile)| tile.random_ticked_columns != 0)
                 .map(|(pos, _)| *pos),
         );
         self.order.sort_unstable();
@@ -251,25 +271,51 @@ impl RandomTickIndex {
                 continue;
             };
             let BlockTile {
-                sections, listed, ..
+                sections,
+                listed,
+                random_ticked_columns,
+                ..
             } = tile;
+            let column_pos = |column: i32| {
+                ColumnPos::new(
+                    tile_pos.x * PRECIPITATION_TILE + column / PRECIPITATION_TILE,
+                    tile_pos.z * PRECIPITATION_TILE + column % PRECIPITATION_TILE,
+                )
+            };
+            let columns = 0..PRECIPITATION_TILE * PRECIPITATION_TILE;
+            let owned = columns
+                .clone()
+                .filter(|&column| *random_ticked_columns & 1 << column != 0)
+                .filter(|&column| owns(column_pos(column)))
+                .fold(0u16, |mask, column| mask | 1 << column);
             listed.retain(|&slot| {
                 sections
                     .get(usize::from(slot))
                     .is_some_and(IndexedSection::is_listed)
             });
-            out.extend(
-                listed
-                    .iter()
-                    .filter_map(|&slot| sections.get(usize::from(slot)))
-                    .map(|section| ListedSection {
-                        section: section.pos,
-                        // At most 4096 positions.
-                        ticking: section.ticking.as_slice().len() as u16,
-                    }),
+            for section in listed
+                .iter()
+                .filter_map(|&slot| sections.get(usize::from(slot)))
+            {
+                if owned & 1 << column_in_tile(section.pos) != 0 {
+                    let ticking = section.ticking.as_slice();
+                    draw_random_hits(section.pos, ticking, speed, streams, &mut out.hits);
+                }
+            }
+            out.columns.extend(
+                columns
+                    .filter(|&column| owned & 1 << column != 0)
+                    .map(column_pos),
             );
         }
     }
+}
+
+/// What takes random ticks in one step, as [`RandomTickIndex::draw`] gives it.
+#[derive(Clone, Debug, Default)]
+pub struct RandomListing {
+    pub hits: Vec<RandomHit>,
+    pub columns: Vec<ColumnPos>,
 }
 
 fn index_landed_section(
@@ -319,15 +365,34 @@ fn stop_random_ticks(
 mod tests {
     use super::*;
     use crate::palette::{SectionStates, air_section};
-    use mcrs_minecraft_simulation::RandomTicks;
+    use mcrs_minecraft_simulation::{GameTick, RandomTicks, StreamSeed};
     use mcrs_voxel::BlockStateId;
 
+    /// One pick in each listed section: in a section of grass it always hits.
+    fn draw(index: &mut RandomTickIndex, owns: impl Fn(ColumnPos) -> bool) -> RandomListing {
+        let mut out = RandomListing::default();
+        let streams = StreamSeed::new(0, "minecraft:overworld").sections(GameTick(0));
+        index.draw(owns, 1, streams, &mut out);
+        out
+    }
+
+    fn listing(app: &mut App) -> RandomListing {
+        draw(
+            &mut app.world_mut().resource_mut::<RandomTickIndex>(),
+            |_| true,
+        )
+    }
+
+    fn picked(listing: &RandomListing) -> Vec<SectionPos> {
+        listing
+            .hits
+            .iter()
+            .map(|hit| SectionPos::from(hit.at))
+            .collect()
+    }
+
     fn listed(app: &mut App) -> Vec<SectionPos> {
-        let mut out = Vec::new();
-        app.world_mut()
-            .resource_mut::<RandomTickIndex>()
-            .listed(&mut out);
-        out.iter().map(|listed| listed.section).collect()
+        picked(&listing(app))
     }
 
     #[test]
@@ -380,6 +445,41 @@ mod tests {
         check(&index, Some((5, 0, 9)));
     }
 
+    /// SIM-RND-004: a column takes precipitation while it holds a random-ticked section, whatever
+    /// its blocks are; a column of another cell takes neither precipitation nor random picks.
+    #[test]
+    fn a_listing_holds_the_owned_columns_of_random_ticked_sections() {
+        let grass = BlockStateId::checked(1, 2).expect("a state past air");
+        let mut index = RandomTickIndex::new(RandomTickTable::new([grass], |_| RandomTicks::BLOCK));
+        let grass_section = ChunkBlocks::new(SectionStates::homogeneous(grass));
+        let air = air_section();
+        let sections = [
+            (SectionPos::new(1, 0, 2), &grass_section, true),
+            (SectionPos::new(0, 5, 3), &air, true),
+            (SectionPos::new(0, 4, 0), &grass_section, false),
+            (SectionPos::new(-3, 0, 0), &grass_section, true),
+            (SectionPos::new(9, 0, 0), &grass_section, true),
+        ];
+        for (pos, blocks, random_ticked) in sections {
+            index.insert(pos, &PalettedSection(&blocks.0.0), random_ticked);
+        }
+        let listing = draw(&mut index, |column| column.x < 8);
+
+        assert_eq!(
+            picked(&listing),
+            [SectionPos::new(-3, 0, 0), SectionPos::new(1, 0, 2)]
+        );
+        assert_eq!(
+            listing.columns,
+            [
+                ColumnPos::new(-3, 0),
+                ColumnPos::new(0, 3),
+                ColumnPos::new(1, 2)
+            ],
+            "by tile, then by x and z; the air section rains, the section out of the area does not"
+        );
+    }
+
     #[test]
     fn a_section_is_listed_while_it_is_loaded_random_ticked_and_holds_a_ticking_state() {
         let grass = BlockStateId::checked(1, 2).expect("a state past air");
@@ -402,9 +502,14 @@ mod tests {
             .insert(grass_section())
             .remove::<EntityTicking>();
         assert!(listed(&mut app).is_empty(), "out of the random-ticked area");
+        assert!(
+            listing(&mut app).columns.is_empty(),
+            "no precipitation either"
+        );
 
         app.world_mut().entity_mut(section).insert(EntityTicking);
         assert_eq!(listed(&mut app), [pos], "back in the area");
+        assert_eq!(listing(&mut app).columns, [ColumnPos::from(pos)]);
 
         app.world_mut().despawn(section);
         assert!(listed(&mut app).is_empty(), "unloaded");

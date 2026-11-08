@@ -3,10 +3,10 @@
 //! `MCRS_BENCH_WORLD` names a world directory of the current save format; without it the bench
 //! prints why and measures nothing. Every full column of the save is loaded into section entities
 //! of a dimension and random-ticked through the volume of a cell, as the engine does: the step
-//! lists the sections of the random tick index, then draws the precipitation and random picks.
-//! The states of the block types of SIM-MODEL-009 Table 1 tick randomly. One handler reads one
-//! block, the other the footprint of its row; neither writes. The bench prints the share of the
-//! picks that runs a handler, and asserts that no pick runs again.
+//! draws the random picks of the sections of the random tick index, then runs the precipitation
+//! picks and the hits. The states of the block types of SIM-MODEL-009 Table 1 tick randomly. One
+//! handler reads one block, the other the footprint of its row; neither writes. The bench prints
+//! the handler runs of a step, and asserts that no pick runs again.
 #![expect(
     clippy::expect_used,
     clippy::indexing_slicing,
@@ -28,18 +28,18 @@ use mcrs_minecraft_engine_registries::test_corpus;
 use mcrs_minecraft_engine_world::palette::{ChunkBlocks, section_states};
 use mcrs_minecraft_engine_world::world::dimension::{DimensionTypeConfig, InDimension};
 use mcrs_minecraft_engine_world::world::lifecycle::simulation::BlockTicking;
-use mcrs_minecraft_engine_world::world::storage::random_ticks::RandomTickIndex;
+use mcrs_minecraft_engine_world::world::storage::random_ticks::{RandomListing, RandomTickIndex};
 use mcrs_minecraft_engine_world::world::storage::section::{SectionBundle, SectionIndex};
 use mcrs_minecraft_engine_world::world::storage::view::WorldViewMut;
 use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_simulation::{
     BlockBehaviour, BlockFacts, BlockShard, Cx, Env, Footprints, GameTick, KernelConfig, Kinds,
     PartitionKind, RandomPicks, RandomTickTable, RandomTicks, SemanticOrder, Serial, ShardId,
-    SimulationVolume, StepOutput, StreamSeed, block_tile, random_step,
+    SimulationVolume, StepOutput, StreamSeed, random_step,
 };
 use mcrs_minecraft_volume::PalettedSection;
 use mcrs_minecraft_worldgen_generator::saved::CorpusBlockStates;
-use mcrs_voxel::{BlockPos, BlockStateId, ColumnPos, SectionPos};
+use mcrs_voxel::{BlockPos, BlockStateId, SectionPos};
 
 /// The default of the game rule `random_tick_speed`.
 const SPEED: u32 = 3;
@@ -289,8 +289,6 @@ fn blocks_complete(chunk: &Chunk) -> bool {
 struct Loaded {
     world: World,
     dimension: Entity,
-    /// One section of each column, as the engine passes them for precipitation.
-    columns: Vec<SectionPos>,
 }
 
 fn load(world: &Path, definitions: &BlockDefinitions, table: &RandomTickTable) -> Loaded {
@@ -300,7 +298,7 @@ fn load(world: &Path, definitions: &BlockDefinitions, table: &RandomTickTable) -
     let dimension = ecs.spawn_empty().id();
     let mut section_index = SectionIndex::new();
     let mut index = RandomTickIndex::new(table.clone());
-    let mut sections = Vec::new();
+    let mut sections = 0;
     let (mut columns, mut failed) = (0, 0);
     let mut first_error = None;
     let dir = region_dir(world);
@@ -334,7 +332,7 @@ fn load(world: &Path, definitions: &BlockDefinitions, table: &RandomTickTable) -
                             ))
                             .id();
                         section_index.insert(at, entity);
-                        sections.push(at);
+                        sections += 1;
                     }
                 }
                 Ok(_) => {}
@@ -348,32 +346,15 @@ fn load(world: &Path, definitions: &BlockDefinitions, table: &RandomTickTable) -
     println!(
         "{}: {columns} columns with complete blocks, {} sections, {failed} columns failed{}",
         world.display(),
-        sections.len(),
+        sections,
         first_error.map_or(String::new(), |error| format!(" (first: {error})")),
     );
     ecs.entity_mut(dimension)
         .insert((section_index, DimensionTypeConfig::new(-64, 384)));
-    let mut listed = Vec::new();
-    index.listed(&mut listed);
-    let ticking: usize = listed
-        .iter()
-        .map(|listed| usize::from(listed.ticking))
-        .sum();
-    println!(
-        "{} listed sections, {ticking} ticking positions ({:.1} for each listed section)",
-        listed.len(),
-        ticking as f64 / listed.len().max(1) as f64,
-    );
     ecs.insert_resource(index);
-    sections.sort_unstable_by_key(|section| {
-        let column = ColumnPos::from(*section);
-        (block_tile(column), column.x, column.z)
-    });
-    sections.dedup_by_key(|section| ColumnPos::from(*section));
     Loaded {
         world: ecs,
         dimension,
-        columns: sections,
     }
 }
 
@@ -420,7 +401,6 @@ fn random_ticks_on_a_save(c: &mut Criterion) {
     let Loaded {
         world: mut ecs,
         dimension,
-        columns,
     } = load(Path::new(&world), definitions, &table);
     let mut state: SystemState<(WorldViewMut, Query<(), With<BlockTicking>>)> =
         SystemState::new(&mut ecs);
@@ -433,7 +413,7 @@ fn random_ticks_on_a_save(c: &mut Criterion) {
     let config = KernelConfig::default();
     let seed = StreamSeed::new(4, "minecraft:overworld");
     let footprints = Footprints::new(states(), |state| reach(&rows, state));
-    let mut listed = Vec::new();
+    let mut listing = RandomListing::default();
     let mut shard = BlockShard::new();
     let mut out = StepOutput::default();
     let mut now = 0;
@@ -460,10 +440,10 @@ fn random_ticks_on_a_save(c: &mut Criterion) {
                     .view
                     .random_ticks_mut()
                     .expect("the world holds a random tick index")
-                    .listed(&mut listed);
+                    .draw(|_| true, SPEED, seed.sections(GameTick(now)), &mut listing);
                 let picks = RandomPicks {
-                    sections: &columns,
-                    listed: &listed,
+                    columns: &listing.columns,
+                    hits: &listing.hits,
                     speed: SPEED,
                     table: &table,
                     footprints: &footprints,
@@ -485,10 +465,10 @@ fn random_ticks_on_a_save(c: &mut Criterion) {
             });
         });
         let runs = behaviour.runs.load(Ordering::Relaxed) as f64;
-        let picks = (now - steps) as f64 * listed.len() as f64 * f64::from(SPEED);
         println!(
-            "{handler:?}: {:.3}% of the picks ran a handler",
-            100.0 * runs / picks.max(1.0)
+            "{handler:?}: {:.0} handler runs in each step, {} precipitation columns",
+            runs / (now - steps).max(1) as f64,
+            listing.columns.len(),
         );
     }
 }
