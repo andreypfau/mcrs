@@ -29,7 +29,7 @@ use crate::column_streams::ColumnRequests;
 use crate::command_handoff::CommandHandoff;
 use crate::coordinator::birth_clock::BirthClock;
 use crate::coordinator::clock::{EditClock, GameTime};
-use crate::coordinator::ops::OpList;
+use crate::coordinator::ops::{EditOps, OpList};
 use crate::coordinator::running_dimensions::RunningDimensions;
 use crate::departure::{Departure, PlayerTransfer};
 use crate::dim_mail::DimMail;
@@ -112,6 +112,8 @@ pub struct DimOutput {
     pub(crate) whitelist_edits: Vec<EditWhitelist>,
     /// The changes to the ban list that the tick made.
     pub(crate) ban_edits: Vec<EditBans>,
+    /// The changes to the operators that the tick made.
+    pub(crate) ops_edits: Vec<EditOps>,
     /// The changes to the state of the whole server that the tick asked for.
     pub(crate) server_edits: Vec<ServerEdit>,
     /// What the tick hands the other cells of the world. A world of one cell hands nothing.
@@ -132,6 +134,7 @@ impl DimOutput {
         self.clock_edits.extend(other.clock_edits);
         self.whitelist_edits.extend(other.whitelist_edits);
         self.ban_edits.extend(other.ban_edits);
+        self.ops_edits.extend(other.ops_edits);
         self.server_edits.extend(other.server_edits);
     }
 }
@@ -279,6 +282,7 @@ fn take_output(world: &mut World) -> DimOutput {
         output.clock_edits = std::mem::take(&mut mail.clock_edits);
         output.whitelist_edits = std::mem::take(&mut mail.whitelist_edits);
         output.ban_edits = std::mem::take(&mut mail.ban_edits);
+        output.ops_edits = std::mem::take(&mut mail.ops_edits);
         output.server_edits = std::mem::take(&mut mail.server_edits);
         output.client.handoffs = std::mem::take(&mut mail.handoffs);
     }

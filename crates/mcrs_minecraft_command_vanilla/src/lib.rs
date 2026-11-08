@@ -1,5 +1,5 @@
 //! The vanilla commands `execute`, `gamemode`, `teleport` with its alias `tp`, `locate`, `summon`,
-//! `kill`, `damage`, `data get entity` and `time`, and the command effects they write.
+//! `kill`, `damage`, `data get entity`, `time`, `op` and `deop`, and the command effects they write.
 
 // std: bevy_ecs needs it.
 mod ban;
@@ -14,6 +14,7 @@ mod kill;
 mod locate;
 mod mob_hit;
 mod mob_view;
+mod op;
 mod plugin;
 mod relative_move;
 mod select;

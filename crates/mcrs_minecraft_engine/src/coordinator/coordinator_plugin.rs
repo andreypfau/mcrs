@@ -13,11 +13,12 @@ use crate::coordinator::birth_clock::BirthClockPlugin;
 use crate::coordinator::clock::WorldClockHostPlugin;
 use crate::coordinator::dim::DimSubAppHandle;
 use crate::coordinator::dim_cells::DimCellsPlugin;
+use crate::coordinator::ops::OpListHostPlugin;
 use crate::server_edit::ServerStateHostPlugin;
 use crate::whitelist::WhitelistHostPlugin;
 
 /// The coordinator: the dimension worlds and their lockstep tick, the queues that spawn and
-/// despawn them, the clocks, the whitelist and the ban list.
+/// despawn them, the clocks, the whitelist, the ban list and the operators.
 pub struct CoordinatorPlugin;
 
 impl Plugin for CoordinatorPlugin {
@@ -35,6 +36,7 @@ impl Plugin for CoordinatorPlugin {
             BirthClockPlugin,
             WhitelistHostPlugin,
             BanListHostPlugin,
+            OpListHostPlugin,
             ServerStateHostPlugin,
         ));
         app.add_systems(

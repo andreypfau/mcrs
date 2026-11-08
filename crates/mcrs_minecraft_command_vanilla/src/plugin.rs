@@ -1,7 +1,7 @@
 #[cfg(feature = "locate")]
 use crate::locate;
 use crate::{
-    ban, damage, data, execute, gamemode, kill, mob_hit, summon, teleport, time, whitelist,
+    ban, damage, data, execute, gamemode, kill, mob_hit, op, summon, teleport, time, whitelist,
 };
 use bevy_app::{App, Plugin};
 use core::fmt::Display;
@@ -20,6 +20,7 @@ impl Plugin for VanillaCommandsPlugin {
             .add_command_effect(|worlds: &mut Worlds<'_>, edit| worlds.edit_clock(edit))
             .add_command_effect(whitelist::apply)
             .add_command_effect(ban::apply)
+            .add_command_effect(op::apply)
             .add_command_effect(summon::apply)
             .add_command_effect(mob_hit::apply);
         report(
@@ -36,6 +37,7 @@ impl Plugin for VanillaCommandsPlugin {
         report("data", app.add_command(data::build, data::run));
         report("time", app.add_command(time::build, time::run));
         report("ban", app.add_command(ban::build, ban::run));
+        report("op", app.add_command(op::build, op::run));
         report(
             "whitelist",
             app.add_command(whitelist::build, whitelist::run),

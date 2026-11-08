@@ -1,10 +1,12 @@
 use crate::ability::{OpLevelAnnounced, PlayerOpLevel};
 use crate::bus::{OutboundPlayerPacket, PacketPayload, to};
+use crate::coordinator::ops::{DefaultOpLevel, OpList};
 use crate::network_id;
 use bevy_ecs::component::Component;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::MessageWriter;
-use bevy_ecs::prelude::{Changed, Query};
+use bevy_ecs::prelude::{Changed, DetectChangesMut, Query, Res, With};
+use mcrs_minecraft_engine_world::entity::EntityUuid;
 use mcrs_minecraft_engine_world::session::{Owner, PlayerSession};
 use mcrs_minecraft_protocol_game::clientbound::ClientboundEntityEvent;
 
@@ -12,6 +14,18 @@ use mcrs_minecraft_protocol_game::clientbound::ClientboundEntityEvent;
 /// change leave as it was told.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct AnnouncedOpLevel(pub PlayerOpLevel);
+
+/// Gives each player of this world the level that the operators now name for it, after an `op`,
+/// a `deop` or a loopback join changed them.
+pub(crate) fn refresh_op_levels(
+    ops: Res<OpList>,
+    default_level: Res<DefaultOpLevel>,
+    mut players: Query<(&EntityUuid, &mut PlayerOpLevel), With<Owner>>,
+) {
+    for (uuid, mut op_level) in &mut players {
+        op_level.set_if_neq(ops.level_of(&uuid.0, *default_level));
+    }
+}
 
 /// A player that spawns or changes dimension learns its level in the sequence that brings it
 /// in; this tells it every later change.
