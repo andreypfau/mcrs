@@ -5684,6 +5684,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "mcrs_mob_bench"
+version = "0.5.8"
+dependencies = [
+ "anyhow",
+ "glam",
+ "libc",
+ "mcrs_minecraft_core",
+ "mcrs_minecraft_entity",
+ "mcrs_minecraft_network",
+ "mcrs_minecraft_protocol",
+ "mcrs_minecraft_protocol_game",
+ "serde",
+ "serde_json",
+ "tokio",
+]
+
+[[package]]
 name = "mcrs_molang"
 version = "0.5.8"
 dependencies = [

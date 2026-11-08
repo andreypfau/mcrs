@@ -1,0 +1,28 @@
+[package]
+name = "mcrs_mob_bench"
+description = "Runs the 50,000-pig scene on mcrs, vanilla or Horizon and measures ticks, CPU and pig motion"
+version.workspace = true
+edition.workspace = true
+publish = false
+
+[[bin]]
+name = "mob-bench"
+path = "src/main.rs"
+doctest = false
+
+[lints]
+workspace = true
+
+# std: tokio, process and Mach counters
+[dependencies]
+anyhow.workspace = true
+glam.workspace = true
+libc = "0.2"
+mcrs_minecraft_core.workspace = true
+mcrs_minecraft_entity.workspace = true
+mcrs_minecraft_network.workspace = true
+mcrs_minecraft_protocol.workspace = true
+mcrs_minecraft_protocol_game.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tokio.workspace = true

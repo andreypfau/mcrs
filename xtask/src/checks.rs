@@ -36,7 +36,7 @@ const NO_STD_PACKAGES: [&str; 5] = [
     "mcrs_molang_wgsl",
 ];
 
-const NO_BEVY_PACKAGES: [&str; 85] = [
+const NO_BEVY_PACKAGES: [&str; 86] = [
     "mcrs_command",
     "mcrs_engine_cell",
     "mcrs_engine_link",
@@ -55,6 +55,7 @@ const NO_BEVY_PACKAGES: [&str; 85] = [
     "mcrs_minecraft_client_jar",
     "mcrs_minecraft_client_recorder",
     "mcrs_minecraft_server_bench",
+    "mcrs_mob_bench",
     "mcrs_minecraft_client_ticks",
     "mcrs_minecraft_collision_table",
     "mcrs_minecraft_command",
