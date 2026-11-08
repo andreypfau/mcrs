@@ -51,6 +51,13 @@ pub trait ReplicationCodec {
 
     fn receive(&mut self, input: Self::Input);
 
+    /// The tracking range of `subject` in the units of the game, or `None` for a subject that the
+    /// planner places by tiers, layers, the cap and the budget. A viewer holds a subject with a
+    /// range while the distance on X and Z between them is at most the range, and no tier, cap or
+    /// budget applies to it: the codec sends its updates to each viewer that holds it. The muxer
+    /// asks when the subject spawns or enters a tile, and keeps the answer until it despawns.
+    fn tracking_range(&self, subject: EntityId) -> Option<u32>;
+
     /// The latest position of `subject` as `[x, y, z]`, in the units of the
     /// tile width of the [`Muxer`](crate::Muxer). The muxer measures the
     /// distance of the tiles to a viewer from the position of its own subject.

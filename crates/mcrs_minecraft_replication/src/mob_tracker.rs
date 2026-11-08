@@ -138,7 +138,7 @@ impl MobTracker {
     /// `bytes`. The tracker and `bytes` stay as they are when an encoding fails.
     pub(crate) fn tick(&mut self, id: VarInt, tick: u64, bytes: &mut BytesMut) -> Result<()> {
         let count = tick.wrapping_sub(self.start);
-        if count % self.interval == 0 || self.dirty() {
+        if count.is_multiple_of(self.interval) || self.dirty() {
             let mut next = self.clone();
             all_or_nothing(bytes, |bytes| next.update(id, count, bytes))?;
             *self = next;
@@ -163,8 +163,8 @@ impl MobTracker {
         }
         let yaw = ByteAngle::from_degrees(state.yaw);
         let pitch = ByteAngle::from_degrees(state.pitch);
-        let position_due =
-            (state.position - self.base).length_squared() >= MOVED || count % POSITION_REFRESH == 0;
+        let position_due = (state.position - self.base).length_squared() >= MOVED
+            || count.is_multiple_of(POSITION_REFRESH);
         let rotation_due = (yaw, pitch) != (self.yaw, self.pitch);
         let delta = self.delta(state.position);
         let synced = match delta {

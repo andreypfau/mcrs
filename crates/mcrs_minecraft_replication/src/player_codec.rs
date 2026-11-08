@@ -420,6 +420,10 @@ impl ReplicationCodec for PlayerCodec {
         }
     }
 
+    fn tracking_range(&self, subject: EntityId) -> Option<u32> {
+        self.mobs.tracking_range(subject)
+    }
+
     fn position(&self, subject: EntityId) -> Option<[f64; 3]> {
         if let Some(position) = self.mobs.position(subject) {
             return Some(position);

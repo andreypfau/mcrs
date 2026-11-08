@@ -1,8 +1,9 @@
 //! The Muxer of the engine. Its entity side takes the tile deltas of a world, keeps a stream for
 //! each tile, and turns the subscriptions of the viewers into bytes that it encodes once and
 //! shares. Each viewer receives the tiles near it at a fast tier and the far ones at a slow tier,
-//! at most a cap of subjects, and within a budget of bytes. Its chunk side keeps the version
-//! stream of each chunk that a viewer holds or waits for.
+//! at most a cap of subjects, and within a budget of bytes. A subject with a tracking range skips
+//! the tiers, the cap and the budget: a viewer holds it while it is within its range. Its chunk
+//! side keeps the version stream of each chunk that a viewer holds or waits for.
 
 // std: bytes
 
@@ -20,6 +21,7 @@ mod tile_delta;
 mod tile_grid;
 mod tile_key;
 mod tile_radius;
+mod tile_reach;
 mod tile_stream;
 mod view;
 mod viewer;

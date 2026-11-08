@@ -10,9 +10,10 @@ pub const TILE_WIDTH: NonZeroU32 = match NonZeroU32::new(32) {
     None => NonZeroU32::MIN,
 };
 
-/// The tiles around its own tile that a player sees: 3 tiles are about 96 blocks, on X and Z
-/// only, since one tile spans the height of the world.
-pub const VIEW_RADIUS: TileRadius = TileRadius::new(3, 0, 3);
+/// The tiles around its own tile in which a player sees the other players: 4 tiles are about 128
+/// blocks, on X and Z only, since one tile spans the height of the world. A mob has its own
+/// tracking range instead.
+pub const VIEW_RADIUS: TileRadius = TileRadius::new(4, 0, 4);
 
 /// The tile that holds a point of a world, from the height of the world.
 #[derive(Clone, Copy, Debug)]

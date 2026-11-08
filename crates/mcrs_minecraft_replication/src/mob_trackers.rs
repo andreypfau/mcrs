@@ -18,6 +18,8 @@ use crate::mob_state::MobState;
 use crate::mob_tracker::MobTracker;
 use crate::player_codec::wire_id;
 
+const BLOCKS_PER_COLUMN: u32 = 16;
+
 /// The mobs of one world and the viewers whose client holds each one. Its updates come at the
 /// end of each tick for each held mob, not from the tile blobs (TRK-UPD-009).
 #[derive(Debug, Default)]
@@ -128,6 +130,14 @@ impl MobTrackers {
                 held.remove(&subject);
             }
         }
+    }
+
+    /// The tracking range of `subject` in blocks (TRK-RNG-001), at the
+    /// `entity-broadcast-range-percentage` of 100. The view distance of the viewer does not limit
+    /// it (TRK-DEV-004).
+    pub(crate) fn tracking_range(&self, subject: EntityId) -> Option<u32> {
+        let mob = self.mobs.get(&subject)?;
+        Some(mob.kind.tracking_range().saturating_mul(BLOCKS_PER_COLUMN))
     }
 
     pub(crate) fn position(&self, subject: EntityId) -> Option<[f64; 3]> {

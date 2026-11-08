@@ -12,6 +12,8 @@ use crate::tier::Tier;
 use crate::tile_blob::TileBlob;
 use crate::tile_delta::{TileDelta, TileDeltas};
 use crate::tile_key::TileKey;
+use crate::tile_reach;
+use crate::tile_reach::{MAX_RANGE, TileReach};
 use crate::tile_stream::TileStream;
 use crate::view::View;
 use crate::viewer::{Gain, Viewer};
@@ -24,6 +26,12 @@ use crate::viewer_bytes::ViewerBytes;
 /// slow tier, the cap K limits the subjects that the viewer holds, and the budget lowers tiers
 /// when the viewer receives too many bytes. It encodes each tile once for each tier that is due
 /// and has viewers, and the viewers of a tier share the bytes, cut by layer.
+///
+/// A subject with a tracking range ([`ReplicationCodec::tracking_range`]) has none of this: a
+/// viewer holds it while it is within its range, the codec sends its updates, and it counts
+/// neither for the cap nor for the budget. The muxer judges such a subject again only when it
+/// enters or leaves a tile, when it moves in a tile on the edge of the range of a viewer, or when
+/// the viewer moves.
 #[derive(Debug)]
 pub struct Muxer<C> {
     codec: C,
@@ -46,6 +54,40 @@ pub struct Muxer<C> {
     scratch_viewers: Vec<ViewerId>,
     scratch_tiles: Vec<TileKey>,
     tick: u64,
+    /// The tracking range of each ranged subject.
+    ranges: BTreeMap<EntityId, u32>,
+    /// The smallest and the largest tracking range seen, or `None` before the first.
+    range_bounds: Option<RangeBounds>,
+    /// The tiles of this tick with events of ranged subjects.
+    touches: Vec<TileTouch>,
+    /// The ranged subjects that despawned in this tick.
+    departed: Vec<EntityId>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct RangeBounds {
+    min: u32,
+    max: u32,
+}
+
+/// The ranged subjects of one tile delta that a viewer of the tile may have to judge again.
+#[derive(Debug)]
+struct TileTouch {
+    tile: TileKey,
+    /// The subjects that spawned, despawned, came in or went out.
+    crossed: Vec<EntityId>,
+    /// The subjects that moved inside the tile.
+    moved: Vec<EntityId>,
+}
+
+/// Which tiles of the region of a viewer the muxer judges again.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Retrack {
+    /// Each tile, also when the viewer did not move.
+    All,
+    /// Only after the viewer moved, and then only the tiles that were not and are not inside
+    /// every range.
+    Moved,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -87,6 +129,10 @@ impl<C: ReplicationCodec> Muxer<C> {
             scratch_viewers: Vec::new(),
             scratch_tiles: Vec::new(),
             tick: 0,
+            ranges: BTreeMap::new(),
+            range_bounds: None,
+            touches: Vec::new(),
+            departed: Vec::new(),
         }
     }
 
@@ -104,6 +150,7 @@ impl<C: ReplicationCodec> Muxer<C> {
     pub fn publish(&mut self, deltas: &TileDeltas<C::Data>) {
         self.tick = deltas.tick;
         self.keyframes.clear();
+        let bounds = self.range_bounds;
         let mut memberships = Vec::new();
         for delta in &deltas.tiles {
             self.codec.apply(deltas.tick, delta);
@@ -119,6 +166,12 @@ impl<C: ReplicationCodec> Muxer<C> {
         for state in self.viewers.values_mut() {
             state.measure(BUDGET);
         }
+        let retrack = if self.range_bounds == bounds {
+            Retrack::Moved
+        } else {
+            Retrack::All
+        };
+        self.track(retrack);
         let mut viewers = mem::take(&mut self.scratch_viewers);
         viewers.clear();
         viewers.extend(
@@ -173,6 +226,9 @@ impl<C: ReplicationCodec> Muxer<C> {
             .view = view;
         self.send_removal(viewer, &lost);
         self.replan(viewer);
+        let mut settled = Settled::default();
+        self.retrack(viewer, Retrack::All, &mut settled);
+        self.send_settled(settled);
     }
 
     /// Forgets `viewer`, and so does the codec. It gets no removal, because its connection is
@@ -186,6 +242,12 @@ impl<C: ReplicationCodec> Muxer<C> {
         for tile in state.subscriptions.keys() {
             if let Some(stream) = self.tiles.get_mut(tile) {
                 stream.viewers.remove(&viewer);
+            }
+            self.forget_if_empty(*tile);
+        }
+        for tile in state.region.keys() {
+            if let Some(stream) = self.tiles.get_mut(tile) {
+                stream.watchers.remove(&viewer);
             }
             self.forget_if_empty(*tile);
         }
@@ -217,18 +279,69 @@ impl<C: ReplicationCodec> Muxer<C> {
             }))
     }
 
-    /// Moves the subjects that come into or go out of the tile of `delta`.
+    /// Moves the subjects that come into or go out of the tile of `delta`. Returns the change of
+    /// the subjects that the planner places, and records the events of the ranged subjects in
+    /// `touches`.
     fn take_in(&mut self, delta: &TileDelta<C::Data>) -> Option<Membership> {
         let tile = delta.tile;
         let stream = self.tiles.entry(tile).or_default();
-        if !delta.events.is_empty() {
-            stream.unsent = [true; Tier::ALL.len()];
-            self.unsent.insert(tile);
-        }
         let mut before: Option<Vec<EntityId>> = None;
         let mut crossed = Vec::new();
+        let mut touch = TileTouch {
+            tile,
+            crossed: Vec::new(),
+            moved: Vec::new(),
+        };
+        let mut planned_events = false;
         for SubjectEvent { subject, event } in &delta.events {
             let subject = *subject;
+            let range = match event {
+                EntityEvent::Spawn(_) | EntityEvent::Enter { .. } => {
+                    self.ranges.get(&subject).copied().or_else(|| {
+                        self.codec
+                            .tracking_range(subject)
+                            .map(|range| range.min(MAX_RANGE))
+                    })
+                }
+                EntityEvent::Leave { .. } | EntityEvent::Despawn => stream
+                    .range_of(subject)
+                    .or_else(|| self.ranges.get(&subject).copied()),
+                EntityEvent::Move(_) | EntityEvent::Data(_) => stream.range_of(subject),
+            };
+            if let Some(range) = range {
+                match event {
+                    EntityEvent::Spawn(_) | EntityEvent::Enter { .. } => {
+                        stream.insert_ranged(subject, range);
+                        self.homes.insert(subject, tile);
+                        self.ranges.insert(subject, range);
+                        self.range_bounds = Some(match self.range_bounds {
+                            Some(bounds) => RangeBounds {
+                                min: bounds.min.min(range),
+                                max: bounds.max.max(range),
+                            },
+                            None => RangeBounds {
+                                min: range,
+                                max: range,
+                            },
+                        });
+                        touch.crossed.push(subject);
+                    }
+                    EntityEvent::Leave { .. } | EntityEvent::Despawn => {
+                        stream.remove_ranged(subject);
+                        if self.homes.get(&subject) == Some(&tile) {
+                            self.homes.remove(&subject);
+                        }
+                        if matches!(event, EntityEvent::Despawn) {
+                            self.departed.push(subject);
+                        }
+                        touch.crossed.push(subject);
+                    }
+                    EntityEvent::Move(_) => touch.moved.push(subject),
+                    EntityEvent::Data(_) => {}
+                }
+                continue;
+            }
+            planned_events = true;
             match event {
                 EntityEvent::Spawn(_) | EntityEvent::Enter { .. } => {
                     before.get_or_insert_with(|| stream.subjects.clone());
@@ -246,6 +359,13 @@ impl<C: ReplicationCodec> Muxer<C> {
             }
             crossed.push(subject);
         }
+        if planned_events {
+            stream.unsent = [true; Tier::ALL.len()];
+            self.unsent.insert(tile);
+        }
+        if !touch.crossed.is_empty() || !touch.moved.is_empty() {
+            self.touches.push(touch);
+        }
         crossed.sort_unstable();
         crossed.dedup();
         Some(Membership {
@@ -253,6 +373,131 @@ impl<C: ReplicationCodec> Muxer<C> {
             before: before?,
             crossed,
         })
+    }
+
+    /// Judges the ranged subjects again: first for each viewer that moved, then for the subjects
+    /// with events in this tick. Sends the spawns and the removals that follow.
+    fn track(&mut self, retrack: Retrack) {
+        let mut settled = Settled::default();
+        let mut viewers = mem::take(&mut self.scratch_viewers);
+        viewers.clear();
+        viewers.extend(self.viewers.keys().copied());
+        for &viewer in &viewers {
+            self.retrack(viewer, retrack, &mut settled);
+        }
+        self.scratch_viewers = viewers;
+
+        let mut touches = mem::take(&mut self.touches);
+        let bounds = self.range_bounds;
+        for touch in &touches {
+            let Some(stream) = self.tiles.get(&touch.tile) else {
+                continue;
+            };
+            for &viewer in &stream.watchers {
+                let Some(state) = self.viewers.get_mut(&viewer) else {
+                    continue;
+                };
+                let Some(&reach) = state.region.get(&touch.tile) else {
+                    continue;
+                };
+                for &subject in &touch.crossed {
+                    let place = self.homes.get(&subject).and_then(|home| {
+                        Some(Place {
+                            reach: *state.region.get(home)?,
+                            range: *self.ranges.get(&subject)?,
+                        })
+                    });
+                    let wanted = wants(&self.codec, state, subject, place);
+                    record_hold(state, viewer, subject, wanted, &mut settled);
+                }
+                let on_edge = bounds.is_some_and(|bounds| {
+                    reach.can_reach(bounds.max) && !reach.is_inside(bounds.min)
+                });
+                if !on_edge {
+                    continue;
+                }
+                for &subject in &touch.moved {
+                    let place = stream.range_of(subject).map(|range| Place { reach, range });
+                    let wanted = wants(&self.codec, state, subject, place);
+                    record_hold(state, viewer, subject, wanted, &mut settled);
+                }
+            }
+        }
+        for touch in touches.drain(..) {
+            self.forget_if_empty(touch.tile);
+        }
+        self.touches = touches;
+        for subject in mem::take(&mut self.departed) {
+            if !self.homes.contains_key(&subject) {
+                self.ranges.remove(&subject);
+            }
+        }
+        self.send_settled(settled);
+    }
+
+    /// Measures the tracking region of `viewer` again from its position, and judges the ranged
+    /// subjects of the tiles that `retrack` names.
+    fn retrack(&mut self, viewer: ViewerId, retrack: Retrack, settled: &mut Settled) {
+        let Some(state) = self.viewers.get(&viewer) else {
+            return;
+        };
+        let position = self.position(&state.view);
+        if retrack == Retrack::Moved && state.tracked_at == Some(position) {
+            return;
+        }
+        let bounds = self.range_bounds;
+        let width = f64::from(self.tile_width.get());
+        let max = bounds.map_or(0, |bounds| bounds.max);
+        let region = tile_reach::region(position, &state.view, width, max);
+        let Some(state) = self.viewers.get_mut(&viewer) else {
+            return;
+        };
+        let old = mem::replace(&mut state.region, region);
+        state.tracked_at = Some(position);
+        let inside = |reach: Option<&TileReach>| {
+            bounds.is_some_and(|bounds| reach.is_some_and(|reach| reach.is_inside(bounds.min)))
+        };
+        let mut judged = mem::take(&mut self.scratch_tiles);
+        judged.clear();
+        for (&tile, reach) in &state.region {
+            let was = old.get(&tile);
+            if was.is_none() {
+                self.tiles.entry(tile).or_default().watchers.insert(viewer);
+            }
+            let stays_inside = retrack == Retrack::Moved && inside(was) && inside(Some(reach));
+            if !stays_inside {
+                judged.push(tile);
+            }
+        }
+        let first_dropped = judged.len();
+        for &tile in old.keys() {
+            if !state.region.contains_key(&tile) {
+                if let Some(stream) = self.tiles.get_mut(&tile) {
+                    stream.watchers.remove(&viewer);
+                }
+                judged.push(tile);
+            }
+        }
+        for &tile in &judged {
+            let Some(stream) = self.tiles.get(&tile) else {
+                continue;
+            };
+            let reach = state.region.get(&tile).copied();
+            for entry in &stream.ranged {
+                let place = reach.map(|reach| Place {
+                    reach,
+                    range: entry.range,
+                });
+                let wanted = wants(&self.codec, state, entry.subject, place);
+                record_hold(state, viewer, entry.subject, wanted, settled);
+            }
+        }
+        for &tile in judged.get(first_dropped..).unwrap_or_default() {
+            if self.tiles.get(&tile).is_some_and(TileStream::is_empty) {
+                self.tiles.remove(&tile);
+            }
+        }
+        self.scratch_tiles = judged;
     }
 
     /// Finds what each viewer of a tile gains and loses after its subjects changed.
@@ -547,6 +792,55 @@ fn wanted(
     state.subscriptions.get(tile)?.tier_of(rank)
 }
 
+/// Where a ranged subject is for a viewer: the reach of its tile and its range.
+#[derive(Clone, Copy, Debug)]
+struct Place {
+    reach: TileReach,
+    range: u32,
+}
+
+/// Whether the client of `state` holds the ranged `subject` at `place`, after this tick. A subject
+/// with no place, outside the region of the viewer or gone, is not held.
+fn wants<C: ReplicationCodec>(
+    codec: &C,
+    state: &Viewer,
+    subject: EntityId,
+    place: Option<Place>,
+) -> bool {
+    let Some(place) = place else {
+        return false;
+    };
+    if Some(subject) == state.view.subject {
+        return false;
+    }
+    let held = state.held.contains(&subject);
+    tile_reach::tracks(place.reach, place.range, held, || {
+        let viewer = state.tracked_at?;
+        let [x, _, z] = codec.position(subject)?;
+        Some((x - viewer.x).hypot(z - viewer.z))
+    })
+}
+
+/// Records that the client of `viewer` holds `subject` or not, and what it gains or loses.
+fn record_hold(
+    state: &mut Viewer,
+    viewer: ViewerId,
+    subject: EntityId,
+    wanted: bool,
+    settled: &mut Settled,
+) {
+    if wanted {
+        if state.held.insert(subject) {
+            settled.gained.entry(viewer).or_default().push(Gain {
+                subject,
+                tier: Tier::NEAREST,
+            });
+        }
+    } else if state.held.remove(&subject) {
+        settled.lost.entry(viewer).or_default().push(subject);
+    }
+}
+
 /// Whether tier `tier` of `tile` sends its moves at `tick`. The phase of a tile spreads the work
 /// of a slow tier over its ticks.
 fn due(tile: TileKey, tier: Tier, tick: u64) -> bool {
@@ -586,6 +880,8 @@ mod tests {
         moved: [BTreeSet<EntityId>; 4],
         /// Bytes for one viewer at the end of the next tick.
         owed: Vec<ViewerBytes>,
+        ranges: BTreeMap<EntityId, u32>,
+        positions: BTreeMap<EntityId, [f64; 3]>,
     }
 
     impl TextCodec {
@@ -664,8 +960,12 @@ mod tests {
 
         fn receive(&mut self, (): ()) {}
 
-        fn position(&self, _subject: EntityId) -> Option<[f64; 3]> {
-            None
+        fn tracking_range(&self, subject: EntityId) -> Option<u32> {
+            self.ranges.get(&subject).copied()
+        }
+
+        fn position(&self, subject: EntityId) -> Option<[f64; 3]> {
+            self.positions.get(&subject).copied()
         }
     }
 
@@ -856,5 +1156,122 @@ mod tests {
             moved, 96,
             "the viewer gets the moves of layers 0 and 1 only"
         );
+    }
+
+    const RANGE: u32 = 160;
+
+    /// Places a ranged subject with `RANGE` at `x`, `z`, and gives the delta of its spawn.
+    fn spawn_ranged(muxer: &mut Muxer<TextCodec>, subject: u64, x: f64, z: f64) -> TileDelta<()> {
+        let codec = muxer.codec_mut();
+        codec.ranges.insert(EntityId(subject), RANGE);
+        codec.positions.insert(EntityId(subject), [x, 0.0, z]);
+        TileDelta {
+            tile: TileKey::new((x / 32.0).floor() as i32, 0, (z / 32.0).floor() as i32),
+            events: vec![event(subject, EntityEvent::Spawn(()))],
+        }
+    }
+
+    fn held_by(text: &str, token: &str) -> BTreeSet<u64> {
+        text.split(';')
+            .filter_map(|part| part.strip_prefix(token))
+            .flat_map(|ids| ids.split(','))
+            .map(|id| id.trim().parse().unwrap())
+            .collect()
+    }
+
+    #[test]
+    fn a_viewer_holds_each_ranged_subject_within_its_range_and_still_at_most_k_others() {
+        let mut muxer = muxer();
+        muxer
+            .codec_mut()
+            .positions
+            .insert(EntityId(1), [0.5, 0.0, 0.5]);
+        let players: Vec<SubjectEvent<()>> = (1..=300)
+            .map(|subject| event(subject, EntityEvent::Spawn(())))
+            .collect();
+        let mut tiles = at(ORIGIN, players);
+        let mut expected = BTreeSet::new();
+        let mut near = BTreeSet::new();
+        let mut subject = 1000;
+        for x in (-200..=200).step_by(8) {
+            for z in (-200..=200).step_by(8) {
+                let (x, z) = (f64::from(x) + 0.25, f64::from(z) + 0.75);
+                tiles.push(spawn_ranged(&mut muxer, subject, x, z));
+                let distance = (x - 0.5).hypot(z - 0.5);
+                if distance <= f64::from(RANGE) {
+                    expected.insert(subject);
+                }
+                if distance <= 16.0 {
+                    near.insert(subject);
+                }
+                subject += 1;
+            }
+        }
+        publish(&mut muxer, 0, tiles);
+
+        muxer.subscribe(ViewerId(1), view(ORIGIN, Some(1)));
+        let bundles = held_by(&text(&mut muxer)[&1], "bundle ");
+
+        let ranged: BTreeSet<u64> = bundles.iter().copied().filter(|id| *id >= 1000).collect();
+        assert!(
+            expected.len() > 1000,
+            "the scene puts more than 1,000 subjects in range"
+        );
+        assert!(
+            near.len() > 10 && near.is_subset(&ranged),
+            "the nearest subjects are held"
+        );
+        assert_eq!(
+            ranged, expected,
+            "exactly the ranged subjects within the range"
+        );
+        assert_eq!(
+            bundles.len() - ranged.len(),
+            95,
+            "layers 0 and 1 of the players fit in K, without the own player"
+        );
+    }
+
+    #[test]
+    fn a_ranged_subject_is_removed_when_it_walks_out_of_range_and_spawned_when_it_comes_back() {
+        let mut muxer = muxer();
+        let home = TileKey::new(-1, 0, 0);
+        muxer
+            .codec_mut()
+            .positions
+            .insert(EntityId(1), [-5.0, 0.0, 0.5]);
+        let mut tiles = at(home, vec![event(1, EntityEvent::Spawn(()))]);
+        tiles.push(spawn_ranged(&mut muxer, 2000, 150.0, 0.5));
+        publish(&mut muxer, 0, tiles);
+        muxer.subscribe(ViewerId(1), view(home, Some(1)));
+        assert_eq!(text(&mut muxer)[&1], "bundle 2000;");
+
+        let edge = TileKey::new(4, 0, 0);
+        let walk = |muxer: &mut Muxer<TextCodec>, tick: u64, x: f64, tiles: Vec<TileDelta<()>>| {
+            muxer
+                .codec_mut()
+                .positions
+                .insert(EntityId(2000), [x, 0.0, 0.5]);
+            publish(muxer, tick, tiles);
+            text(muxer).remove(&1).unwrap_or_default()
+        };
+        let moved = || at(edge, vec![event(2000, EntityEvent::Move(()))]);
+        assert_eq!(walk(&mut muxer, 2, 154.9, moved()), "");
+        assert_eq!(walk(&mut muxer, 4, 156.0, moved()), "", "inside the margin");
+        assert_eq!(walk(&mut muxer, 6, 156.6, moved()), "remove 2000;");
+        assert_eq!(walk(&mut muxer, 8, 154.0, moved()), "bundle 2000;");
+
+        let far = TileKey::new(6, 0, 0);
+        let crossing = vec![
+            TileDelta {
+                tile: edge,
+                events: vec![event(2000, EntityEvent::Leave { to: far })],
+            },
+            TileDelta {
+                tile: far,
+                events: vec![event(2000, EntityEvent::Enter { from: edge })],
+            },
+        ];
+        assert_eq!(walk(&mut muxer, 10, 200.0, crossing), "remove 2000;");
     }
 }
