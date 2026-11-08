@@ -123,7 +123,11 @@ It reads the zones of PHY-RCH-001 and PHY-RCH-006. It writes only `row'_e` and a
 (PHY-RCH-002, PHY-CMP-015, PHY-CMP-017). PHY-INV-015 states that the result is then independent of
 the order of the entities, the thread count, the task split and the cell layout.
 
-The push follows PHY-CMP-012 with the order key of PHY-CMP-013 (§4). The crowd damage uses the
+The push follows PHY-CMP-012 with the order key of PHY-CMP-013 (§4). The push of step 9 of tick
+`T − 1` reads the boxes after the moves of `T − 1`, and only `F_T` holds them. Thus the pass adds
+that push at the start of `T`, before the travel step, and the travel step of `T` uses it, as in
+the reference (PHY-PSH-006). A push from `F_T` after the move of `T` lags one more tick. Then each
+pair keeps the push for one tick after the boxes part, and a dense crowd does not settle. The crowd damage uses the
 neighbours of the gather and the random value of PHY-CMP-014, so the pass has no shared random
 source.
 
@@ -340,8 +344,8 @@ Simulate:     one system, `entity_tick`, over tiles and players with dependency 
                   accepted row in the player layer of the front grid (PHY-CMP-021)
                 collider groups (waves) -> ColliderEnds ready per tile
                 main pass per tile, once the players and colliders near it are ready: late AI
-                  decisions of its entities, reflexes, steering, tick_entity / tick_mount_tree,
-                  push gather, rest, grid back buffer, bins
+                  decisions of its entities, reflexes, steering, push gather,
+                  tick_entity / tick_mount_tree, rest, grid back buffer, bins
                 explosion groups (overlay), starting at once
                 server part per player, once the tiles near it are done (PHY-CMP-023 steps 2, 3)
 WorldWrite:   explosion overlays commit per block tile; entity block actions;
