@@ -231,8 +231,8 @@ the AI.
   ticks with the sword of section 2.1. The player does not move.
 - Warm up for 1,200 ticks, so that the mob cap fills. Then measure for at least 12,000 ticks.
 
-The player must be a scripted player of the bench, not a network client, so that the bench can run
-without a human. Section 7 asks the owner about this.
+The player is a scripted player of the bench, not a network client, so that the bench can run
+without a human (section 7).
 
 ### 5.2 What to measure
 
@@ -266,22 +266,17 @@ set them before a test uses them.
 The save has a second gold farm by Impulse at the nether position `x -1054, z -296`, with 38 saved
 piglins. This document does not analyse it.
 
-## 7. Open questions
+## 7. Decisions
 
-1. The bench needs a player that attacks without a network client. Is a scripted player of the
-   bench acceptable, or must a vanilla client play it?
-2. The attack rate and the sword of the real farm are not known. The run used one attack each 13
-   ticks with a netherite sword. Must the bench use the same values?
-3. The save loads chunks of the overworld with 1,733 hoppers. Does the farm scene exclude the
-   overworld?
-4. The scene has 4,835 fire ticks below the roof. Do they belong in the farm benchmark, or in a
-   separate benchmark of the block domain?
-5. The 1.21.8 save has the difficulty hard, and the upgraded save has easy. Which value does the
-   bench use?
-6. Items are out of scope, but the equipment of a piglin changes its experience reward (mechanic
-   17). Does the bench give each piglin its golden sword as a flag without item entities?
-7. The vanilla run had Carpet loaded. Carpet changes no rule that the farm uses. Must a run without
-   Carpet confirm the numbers?
+1. The bench uses a scripted player of the bench, not a network client.
+2. The bench uses the values of the run: one attack each 13 ticks with the netherite sword of
+   section 2.1.
+3. The farm scene excludes the overworld.
+4. The fire ticks go to a separate benchmark of the block domain, not to the farm benchmark.
+5. The bench uses the difficulty hard, the value of the server.
+6. Each piglin has its golden sword as a flag of the bench, without item entities.
+7. A second vanilla run with a different seed sets the tolerances of section 5.3 before a test
+   uses them.
 
 ## 8. The measurement app
 
