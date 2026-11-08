@@ -177,8 +177,9 @@ fn tick_tile<W: CollisionWorld, B: BodyView>(
         let start = grid_row(state, row.motion, row.id);
         if loaded(view.world, state.body.position) {
             let before = state.body;
-            tick_entity(view, SERVER, row.motion, state, wake, &mut actions, scratch);
-            actions.clear();
+            // The push of step 9 of the last tick reads the boxes after every move of that tick,
+            // which only this frozen grid holds. Pushing after this move, from the same boxes,
+            // lags one tick behind the reference and keeps a crowd oscillating.
             if let Some(own) = start {
                 let stream = KeyedStream::new(&state.key, pass.tick);
                 let pushed = push_entity(
@@ -194,6 +195,10 @@ fn tick_tile<W: CollisionWorld, B: BodyView>(
                 if pushed.pushed || crowded {
                     state.rest = Rest::Awake;
                 }
+            }
+            tick_entity(view, SERVER, row.motion, state, wake, &mut actions, scratch);
+            actions.clear();
+            if start.is_some() {
                 stirred |= !same_bits(&before, &state.body);
             }
             if let Some(looked) = looked

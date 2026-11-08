@@ -37,6 +37,7 @@ pub struct TestScene {
     pub rows: EntityRows,
     pub grid: BodyGrid,
     pub tick: u64,
+    pub push: PushRules,
 }
 
 impl TestScene {
@@ -112,6 +113,7 @@ impl TestScene {
             rows,
             grid: BodyGrid::default(),
             tick: 0,
+            push: PushRules::default(),
         }
     }
 
@@ -126,7 +128,7 @@ impl TestScene {
             },
             tables: &self.tables,
             tick: self.tick,
-            push: PushRules::default(),
+            push: self.push,
             tiles_per_task,
         };
         self.rows.tick(&pass, pool, &self.grid);

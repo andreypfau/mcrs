@@ -13,6 +13,7 @@ use mcrs_minecraft_engine_physics::EntityWrites;
 use mcrs_minecraft_engine_physics::TestScene;
 use mcrs_minecraft_physics::BirthKey;
 use mcrs_minecraft_physics::BodyGrid;
+use mcrs_minecraft_physics::PushRules;
 use mcrs_minecraft_physics::SourceKind;
 use mcrs_minecraft_physics::Tables;
 use mcrs_minecraft_volume::BlockVolumeMut;
@@ -46,6 +47,7 @@ fn scene_of(fixture: &Fixture) -> TestScene {
         rows: EntityRows::default(),
         grid: BodyGrid::default(),
         tick: 1,
+        push: PushRules::default(),
     };
     let [ox, oy, oz] = fixture.origin.map(|value| value.div_euclid(16));
     for y in -AREA..=AREA {
