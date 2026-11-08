@@ -1,5 +1,4 @@
 use core::cell::Cell;
-use core::hint::black_box;
 use core::ops::Range;
 
 use crate::SimulationVolume;
@@ -13,10 +12,8 @@ use crate::scalar::GameTick;
 use crate::shard::{BlockShard, Env};
 use crate::stream::SectionStreams;
 use crate::tick_queue::Kinds;
-use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::legacy::LegacyRandom;
-use mcrs_minecraft_volume::SectionBlocks;
-use mcrs_voxel::{BlockPos, ColumnPos, LocalPos, SectionPos};
+use mcrs_voxel::{BlockPos, ColumnPos};
 
 /// Runs a closure on each item of a slice, on any threads and in any order.
 pub trait Spread {
@@ -112,30 +109,6 @@ impl<K: Kinds> TileTask<K> {
     {
         self.shard.chain.reset();
         self.shard.random_touched.clear();
-        // Finding the block of a pick is a chain of cache misses. The chains of different sections
-        // do not depend on each other, so reading the first pick of each section ahead lets the
-        // processor wait for them together; the picks below then find their data in the cache.
-        // The draws are drawn again below, so the values do not change.
-        let listed = picks.listed.get(self.listed.clone()).unwrap_or_default();
-        for listed in listed {
-            let mut random = streams.stream(listed.section);
-            let ticking = u32::from(listed.ticking);
-            let Some(drawn) = (0..picks.speed)
-                .map(|_| random.next_u32_bound(SectionPos::VOLUME as u32))
-                .find(|&drawn| drawn < ticking)
-            else {
-                continue;
-            };
-            if let Some(&local) = world.random_ticking(listed.section).get(drawn as usize) {
-                let local = LocalPos::from_index(usize::from(local));
-                black_box(
-                    world
-                        .section(listed.section)
-                        .map(|section| section.get(local))
-                        .ok(),
-                );
-            }
-        }
         let region = Region::of(self.tile);
         let mut volume = OverlaidVolume {
             world,

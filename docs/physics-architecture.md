@@ -793,14 +793,14 @@ These changes are kept. Each one leaves the values of the streams as they were (
 - A block tile finds a section through a table of the first slot of each column and a guess from
   the lowest section of the column. The binary search over the sections of the tile cost ~240 ns
   for each hit; the lookup of the ticking positions now costs ~40 ns. Step: −12%.
-- The section index keys its map by column, with a dense array of the sections of a column. The
-  map holds 91k entries in place of 2.2M, so it stays in the cache more often. Step: −4%.
 - A tile task keeps the world section of its last read. The reads of a footprint stay mostly in
   one section, so a read costs ~10 ns, not ~30 ns. Full box: −15%.
-- A tile task first reads the block of the first pick of each listed section. The misses of
-  different sections then overlap. Step: −8 to −10%.
 - The plan sorts the pairs of tile and range, not the tile tasks: a sort of the large tasks moved
   ~6% of the step in memory. The draw functions are inlined across crates (−3%).
+
+These changes are not kept because their code is hard to maintain for the gain. A section index
+keyed by column, with a dense array of the sections of a column, gave −4%. A read ahead of the
+first pick of each listed section, which repeats the draws, gave −8 to −10%.
 
 These changes moved the number by less than 2% and are not kept: a fast path that skips a section
 with no draw below its count, a read of a tile task that checks only the region, and a test for
