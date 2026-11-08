@@ -51,6 +51,7 @@ mcrs_minecraft_protocol::extend_packet_table! {
         "set_chunk_cache_radius" => ClientboundChunkCacheRadius,
         "set_cursor_item" => ClientboundSetCursorItem,
         "set_entity_data" => ClientboundSetEntityData<'a>,
+        "set_entity_motion" => ClientboundSetEntityMotion,
         "set_equipment" => ClientboundSetEquipment,
         "set_held_slot" => ClientboundSetHeldSlot,
         "set_passengers" => ClientboundSetPassengers,

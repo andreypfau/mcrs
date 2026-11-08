@@ -8,8 +8,10 @@ use std::io::Write;
 pub struct ByteAngle(pub u8);
 
 impl ByteAngle {
-    pub fn from_degrees(f: f32) -> ByteAngle {
-        ByteAngle((f.rem_euclid(360.0) / 360.0 * 256.0).round() as u8)
+    /// The low 8 bits of `floor(degrees × 256 / 360)` in f32, as the game packs an angle: a
+    /// fraction of a step rounds down, and NaN packs to 0.
+    pub fn from_degrees(degrees: f32) -> ByteAngle {
+        ByteAngle((degrees * 256.0 / 360.0).floor() as i32 as u8)
     }
 
     pub fn to_degrees(self) -> f32 {

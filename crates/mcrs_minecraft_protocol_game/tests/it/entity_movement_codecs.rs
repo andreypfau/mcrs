@@ -8,7 +8,7 @@ use mcrs_minecraft_protocol::{Decode, Encode, VarInt};
 use mcrs_minecraft_protocol_game::ByteAngle;
 use mcrs_minecraft_protocol_game::clientbound::{
     ClientboundEntityPositionSync, ClientboundMoveEntityPos, ClientboundMoveEntityPosRot,
-    DeltaStep, PositionPath, PositionStep, VecDelta,
+    ClientboundMoveEntityRot, DeltaStep, PositionPath, PositionStep, VecDelta,
 };
 
 fn round_trip<'a, P: Encode + Decode<'a> + std::fmt::Debug>(packet: &P, buf: &'a mut Vec<u8>) -> P {
@@ -167,4 +167,26 @@ fn a_stepped_sync_path_with_no_step_is_rejected() {
     false.encode(&mut buf).unwrap();
     let mut r: &[u8] = &buf;
     assert!(PositionPath::decode(&mut r).is_err());
+}
+
+/// TRK-WIRE-002: TRK-E2 captured the body `01 5B 00` after the id: ground 1, yaw 91, pitch 0.
+#[test]
+fn trk_wire_002_a_rotation_writes_the_ground_flag_before_the_angles() {
+    let packet = ClientboundMoveEntityRot {
+        entity_id: VarInt(65),
+        on_ground: true,
+        y_rot: ByteAngle(91),
+        x_rot: ByteAngle(0),
+    };
+    let mut buf = Vec::new();
+    round_trip(&packet, &mut buf);
+    assert_eq!(buf, [65, 0x01, 0x5B, 0x00]);
+}
+
+/// TRK-WIRE-004: an angle packs to the floor of its step, not to the nearest step.
+#[test]
+fn trk_wire_004_an_angle_packs_to_the_floor_of_its_step() {
+    for (degrees, byte) in [(0.0, 0), (1.0, 0), (1.4, 0), (359.9, 255), (-1.0, 255)] {
+        assert_eq!(ByteAngle::from_degrees(degrees), ByteAngle(byte), "{degrees}");
+    }
 }

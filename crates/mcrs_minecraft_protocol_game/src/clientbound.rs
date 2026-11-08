@@ -422,12 +422,13 @@ pub struct ClientboundMoveMinecartAlongTrack {
     pub lerp_steps: Vec<MinecartStep>,
 }
 
+/// The on-ground flag comes before the angles, unlike in `move_entity_pos_rot`.
 #[derive(Clone, Debug, Encode, Decode)]
 pub struct ClientboundMoveEntityRot {
     pub entity_id: VarInt,
+    pub on_ground: bool,
     pub y_rot: ByteAngle,
     pub x_rot: ByteAngle,
-    pub on_ground: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Encode, Decode)]
@@ -548,6 +549,12 @@ pub struct ClientboundSectionBlocksUpdate<'a> {
 #[derive(Clone, Debug, PartialEq, Encode, Decode)]
 pub struct ClientboundSetCursorItem {
     pub contents: ProtoStack<Wire>,
+}
+
+#[derive(Clone, Debug, PartialEq, Encode, Decode)]
+pub struct ClientboundSetEntityMotion {
+    pub entity_id: VarInt,
+    pub velocity: LpVec3,
 }
 
 #[derive(Clone, Debug, PartialEq, Encode, Decode)]
