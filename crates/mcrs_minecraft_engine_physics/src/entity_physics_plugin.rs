@@ -24,6 +24,7 @@ use mcrs_minecraft_collision_table::collision_table;
 use mcrs_minecraft_engine::block_drops::ItemDropped;
 use mcrs_minecraft_engine::coordinator::birth_clock::BirthClock;
 use mcrs_minecraft_engine::entity_ids::CellEntityIds;
+use mcrs_minecraft_engine::tile_events::TileEvents;
 use mcrs_minecraft_engine_world::tick::TickSet;
 use mcrs_minecraft_engine_world::voxel_update::BlockPlaced;
 use mcrs_minecraft_engine_world::world::dimension::Dimension;
@@ -46,10 +47,16 @@ use crate::entity_pass::Pass;
 use crate::entity_rows::EntityRows;
 use crate::entity_rows::tiles_per_task;
 use crate::entity_write::EntityWrites;
+use crate::mob_life::MobChanges;
+use crate::mob_life::spawn_mobs;
+use crate::mob_publish::publish_mobs;
+use crate::mob_spawn_request::MobSpawnRequest;
+use crate::mobs::Mobs;
 use crate::tile_at::tile_at;
 
 /// The entity pass of a dimension world: the merge point, the life cycle and the freeze in
-/// `DomainInput`, the pass in `Simulate`, the tile moves in `Project`.
+/// `DomainInput`, the pass in `Simulate`, the tile moves in `Project`, the tile events of the
+/// mobs in `Output`.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct EntityPhysicsPlugin;
 
@@ -72,6 +79,10 @@ impl Plugin for EntityPhysicsPlugin {
         app.init_resource::<EntityWrites>();
         app.init_resource::<ItemStacks>();
         app.init_resource::<BirthClock>();
+        app.init_resource::<Mobs>();
+        app.init_resource::<MobChanges>();
+        app.init_resource::<TileEvents>();
+        app.add_message::<MobSpawnRequest>();
         app.add_message::<ItemDropped>();
         app.add_message::<BlockPlaced>();
         app.add_systems(
@@ -83,6 +94,7 @@ impl Plugin for EntityPhysicsPlugin {
                 ),
                 apply_writes,
                 spawn_dropped_items,
+                spawn_mobs,
                 stir_changed_blocks,
                 freeze,
             )
@@ -96,6 +108,7 @@ impl Plugin for EntityPhysicsPlugin {
                 .in_set(TickSet::Simulate),
         );
         app.add_systems(FixedUpdate, move_rows.in_set(TickSet::Project));
+        app.add_systems(FixedUpdate, publish_mobs.in_set(TickSet::Output));
     }
 }
 

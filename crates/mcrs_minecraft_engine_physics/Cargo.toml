@@ -1,6 +1,6 @@
 [package]
 name = "mcrs_minecraft_engine_physics"
-description = "The entity pass of a dimension world: the rows of the server entities by tile, the body grid, the tick of the rows over tiles with the physics kernel, and the row-only items"
+description = "The entity pass of a dimension world: the rows of the server entities by tile, the body grid, the tick of the rows over tiles with the physics kernel, the row-only items, and the mob rows with their life cycle and tile events"
 version.workspace = true
 edition.workspace = true
 
@@ -21,12 +21,17 @@ mcrs_minecraft_block.workspace = true
 mcrs_minecraft_collision_table.workspace = true
 mcrs_minecraft_engine.workspace = true
 mcrs_minecraft_engine_world.workspace = true
+mcrs_minecraft_entity.workspace = true
 mcrs_minecraft_item.workspace = true
+mcrs_minecraft_mob.workspace = true
 mcrs_minecraft_physics.workspace = true
 mcrs_minecraft_registries = { workspace = true, features = ["bevy"] }
+mcrs_minecraft_replication.workspace = true
+mcrs_minecraft_resource.workspace = true
 mcrs_minecraft_volume.workspace = true
 mcrs_voxel.workspace = true
 tracing.workspace = true
+uuid.workspace = true
 
 [dev-dependencies]
 # Without it a pool of the tests and the benchmark runs every task on one thread.

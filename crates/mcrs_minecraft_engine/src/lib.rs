@@ -74,7 +74,7 @@ mod replicated;
 pub mod stored_column;
 mod stored_columns_landing;
 pub mod teleport;
-mod tile_events;
+pub mod tile_events;
 pub mod to_coordinator;
 pub mod to_muxer;
 mod wanted_column;

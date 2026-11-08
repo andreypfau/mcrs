@@ -1,3 +1,5 @@
+use std::mem;
+
 use bevy_tasks::TaskPool;
 use glam::DVec3;
 use mcrs_engine_muxer::EntityId;
@@ -7,7 +9,9 @@ use mcrs_minecraft_physics::BodyGrid;
 use mcrs_minecraft_physics::BodyView;
 use mcrs_minecraft_physics::Category;
 use mcrs_minecraft_physics::CollisionWorld;
+use mcrs_minecraft_physics::EntityState;
 use mcrs_minecraft_physics::KeyedStream;
+use mcrs_minecraft_physics::Living;
 use mcrs_minecraft_physics::PushRules;
 use mcrs_minecraft_physics::Rest;
 use mcrs_minecraft_physics::Scratch;
@@ -20,6 +24,7 @@ use mcrs_minecraft_physics::block_at;
 use mcrs_minecraft_physics::push_entity;
 use mcrs_minecraft_physics::same_bits;
 use mcrs_minecraft_physics::tick_entity;
+use mcrs_minecraft_replication::MobState;
 use mcrs_voxel::SectionPos;
 
 use crate::entity_rows::EntityRows;
@@ -28,6 +33,8 @@ use crate::entity_rows::Tile;
 use crate::entity_rows::wakes;
 use crate::front_grid::FrontGrid;
 use crate::front_grid::grid_row;
+use crate::mob_intent::MobIntent;
+use crate::mob_moved::MobMoved;
 use crate::tile_at::tile_at;
 use crate::tile_world::TileWorld;
 
@@ -54,6 +61,7 @@ struct TileStep {
     expired: Vec<EntityId>,
     /// The rows whose position is in another tile now.
     left: Vec<EntityId>,
+    moved: Vec<MobMoved>,
 }
 
 impl EntityRows {
@@ -68,6 +76,7 @@ impl EntityRows {
         pool: &TaskPool,
         grid: &BodyGrid,
     ) -> Vec<EntityId> {
+        self.moved.clear();
         let bodies = FrontGrid {
             grid,
             reach: self.reach,
@@ -99,6 +108,7 @@ impl EntityRows {
                 self.reach = self.reach.max(reach);
             }
             expired.extend(step.expired);
+            self.moved.extend(step.moved);
             self.leaving.extend(step.left.into_iter().map(|id| Leaving {
                 from: step.tile,
                 id,
@@ -124,12 +134,21 @@ fn tick_tile<W: CollisionWorld, B: BodyView>(
     let mut stirred = false;
     let mut expired = Vec::new();
     let mut left = Vec::new();
+    let mut moved = Vec::new();
+    let mut intents = mem::take(&mut entry.intents);
+    intents.sort_by_key(|intent| intent.target);
     let rules = PushRules::default();
     for row in rows.rows_mut() {
         let state = row.state;
+        if let Ok(at) = intents.binary_search_by_key(&row.id, |intent| intent.target)
+            && let (Some(intent), Some(living)) = (intents.get(at), state.living.as_mut())
+        {
+            apply_intent(intent, living);
+        }
         let start = grid_row(state, row.motion, row.id);
         if loaded(view.world, state.body.position) {
             let before = state.body;
+            let looked = state.living.map(rotations);
             tick_entity(view, SERVER, row.motion, state, wake, &mut actions, scratch);
             actions.clear();
             if let Some(own) = start {
@@ -148,6 +167,14 @@ fn tick_tile<W: CollisionWorld, B: BodyView>(
                     state.rest = Rest::Awake;
                 }
                 stirred |= !same_bits(&before, &state.body);
+            }
+            if let Some(looked) = looked
+                && (!same_bits(&before, &state.body) || state.living.map(rotations) != Some(looked))
+            {
+                moved.push(MobMoved {
+                    id: row.id,
+                    state: mob_state(state),
+                });
             }
             state.age = state.age.wrapping_add(1);
             let expires = matches!(
@@ -170,6 +197,42 @@ fn tick_tile<W: CollisionWorld, B: BodyView>(
         reach: stirred.then(|| entry.write(tile, &bodies)),
         expired,
         left,
+        moved,
+    }
+}
+
+/// The rotations of a living row that its viewers see, as bits.
+fn rotations(living: Living) -> [u32; 3] {
+    [living.yaw, living.pitch, living.head_yaw].map(f32::to_bits)
+}
+
+fn apply_intent(intent: &MobIntent, living: &mut Living) {
+    if intent.steering.is_some() {
+        living.steering = intent.steering;
+    }
+    let turns = [
+        (intent.yaw, &mut living.yaw),
+        (intent.pitch, &mut living.pitch),
+        (intent.head_yaw, &mut living.head_yaw),
+        (intent.body_yaw, &mut living.body_yaw),
+    ];
+    for (turn, angle) in turns {
+        if let Some(turn) = turn {
+            *angle = turn;
+        }
+    }
+}
+
+/// The state of a living row that its viewers see.
+pub(crate) fn mob_state(state: &EntityState) -> MobState {
+    let living = state.living.unwrap_or_default();
+    MobState {
+        position: state.body.position,
+        velocity: state.body.velocity,
+        yaw: living.yaw,
+        pitch: living.pitch,
+        head_yaw: living.head_yaw,
+        on_ground: state.body.flags.on_ground,
     }
 }
 

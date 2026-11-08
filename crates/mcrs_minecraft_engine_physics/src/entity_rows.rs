@@ -16,6 +16,9 @@ use mcrs_minecraft_physics::TileRows;
 
 use crate::front_grid::grid_row;
 use crate::front_grid::sort_bodies;
+use crate::mob_intent::MobIntent;
+use crate::mob_moved::Crossing;
+use crate::mob_moved::MobMoved;
 use crate::tile_at::tile_at;
 
 /// The rows of the server entities of a dimension world, one segment per tile.
@@ -34,6 +37,10 @@ pub struct EntityRows {
     pub(crate) woken: BTreeSet<TileKey>,
     /// The rows that the pass moved out of their tile, with that tile.
     pub(crate) leaving: Vec<Leaving>,
+    /// The living rows whose visible state changed in the last pass.
+    pub(crate) moved: Vec<MobMoved>,
+    /// The rows that the last tile moves took to another tile.
+    pub(crate) crossed: Vec<Crossing>,
     /// The largest half width of a body that the grid ever held.
     pub(crate) reach: f32,
 }
@@ -44,6 +51,8 @@ pub struct EntityRows {
 pub(crate) struct Tile {
     pub(crate) rows: TileRows,
     pub(crate) back: TileBodies,
+    /// The intents that the next pass applies to the rows of the tile before their step.
+    pub(crate) intents: Vec<MobIntent>,
 }
 
 /// A row that left the tile `from` in the pass.
@@ -65,6 +74,19 @@ impl EntityRows {
         self.dirty.insert(tile);
     }
 
+    /// Queues `intent` for the row of its target in `tile`: the next pass applies it before the
+    /// step of the row. An intent whose target is not in the tile then is dropped.
+    pub fn steer(&mut self, tile: TileKey, intent: MobIntent) {
+        self.tiles.entry(tile).or_default().intents.push(intent);
+    }
+
+    /// Removes the row `id` from `tile` and gives it; `None` when the tile has no such row.
+    pub fn despawn(&mut self, tile: TileKey, id: EntityId) -> Option<Row> {
+        let row = self.tiles.get_mut(&tile)?.rows.despawn_row(id)?;
+        self.dirty.insert(tile);
+        Some(row)
+    }
+
     /// The rows of each tile, in tile order.
     pub fn tiles_mut(&mut self) -> impl Iterator<Item = (TileKey, &mut TileRows)> {
         self.tiles
@@ -79,6 +101,7 @@ impl EntityRows {
 
     /// Moves each row that the pass moved out of its tile into the tile of its position.
     pub fn move_rows(&mut self) {
+        self.crossed.clear();
         for Leaving { from, id } in mem::take(&mut self.leaving) {
             let Some(row) = self
                 .tiles
@@ -88,6 +111,9 @@ impl EntityRows {
                 continue;
             };
             let to = tile_at(row.state.body.position);
+            if row.state.living.is_some() {
+                self.crossed.push(Crossing { id, from, to });
+            }
             self.tiles.entry(to).or_default().rows.insert_row(row);
             self.dirty.extend([from, to]);
         }
