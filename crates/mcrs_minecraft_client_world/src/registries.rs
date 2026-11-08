@@ -12,7 +12,7 @@ use mcrs_minecraft_datapack::DirectoryPacks;
 use mcrs_minecraft_engine_registries::load_item_definitions;
 use mcrs_minecraft_environment::timeline::Timeline;
 use mcrs_minecraft_environment::world_clock::{
-    ClockTimeMarkers, WorldClocks, WorldClock, WorldClockPlugin,
+    ClockTimeMarkers, WorldClock, WorldClockPlugin, WorldClocks,
 };
 use mcrs_minecraft_game_registries::registry_load::{RegistryLoadError, load_received};
 use mcrs_minecraft_item::Items;
@@ -82,6 +82,7 @@ impl Plugin for ClientRegistriesPlugin {
             .add_observer(load_server_registries)
             .add_observer(replace_server_tags);
         joined_game::add_observers(app);
+        crate::clock_sync::add_systems(app);
     }
 
     fn finish(&self, app: &mut App) {

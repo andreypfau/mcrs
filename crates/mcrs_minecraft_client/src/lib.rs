@@ -33,6 +33,7 @@ pub mod config;
 #[cfg(feature = "dev")]
 pub mod dev;
 pub mod entities;
+pub mod frozen_clocks;
 pub mod input;
 pub mod light_volume;
 #[cfg(not(target_family = "wasm"))]

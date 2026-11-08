@@ -298,6 +298,7 @@ pub fn run() -> AppExit {
     app.init_resource::<mcrs_minecraft_client_world::screen::Screen>();
     app.add_plugins(mcrs_minecraft_client_world::game_mode::GameModePlugin);
     app.add_plugins(mcrs_minecraft_client_entity::ClientEntityPlugin);
+    app.add_plugins(mcrs_minecraft_client::frozen_clocks::FrozenClocksPlugin);
     app.add_plugins(game_mode_switcher::GameModeSwitcherPlugin);
     app.add_plugins(mcrs_minecraft_client_world::chat::ClientChatPlugin {
         command_history: knobs.command_history().or_else(|| {

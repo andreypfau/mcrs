@@ -12,7 +12,7 @@ use crate::attribute::{
 };
 use crate::environment_attribute_keys::EnvironmentAttribute;
 use crate::timeline::{Easing, NamedEasing, Timeline};
-use crate::world_clock::{ClockTimeMarker, ClockTime};
+use crate::world_clock::{ClockTime, ClockTimeMarker};
 
 static ARTEFACT: LazyLock<Value> = LazyLock::new(|| {
     let bytes = std::fs::read(concat!(
