@@ -1632,3 +1632,20 @@ E1..E8, T1 (any time)   D1 ─ D2 ─ D3 ─ D4 ─ D5 ─ D6 ─ D7
     MVC-LAT-008, MVC-MODE-002, MVC-RSP-003. The server predicts the ticks before the accept with
     no violation, for each teleport; the accept applies the teleport to the candidates at that time,
     which keep their flags and fall distance; unknown values make the next tick a resync tick.
+56. `entity-tracking.md` TRK-LIFE-001, the cold state of a mob. Decided: the cold state of a mob
+    (its type and its entity data values) lives in a side table keyed by `EntityId`, as the stack
+    of an item, not in an ECS entity as §6.3 states. Reason: no system queries the cold state of
+    mobs yet, and a side table keeps the spawn a row operation of its tile. A mob gets an ECS
+    entity when a system of the AI or the damage needs a query over the cold state.
+57. `entity-tracking.md` TRK-RNG-001, TRK-RNG-003, the radius of the subscriptions. Open
+    (design). `VIEW_RADIUS` is 3 tiles on each axis around the tile of the viewer, so a subject can
+    be outside the subscriptions at 97 to 128 blocks. The tracking range of a zombified piglin is
+    128 blocks, and of a player 160 blocks at the view distance 10. The radius must cover the
+    largest tracking range of the dimension, capped by the view distance of the viewer, and the
+    codec must pair each subject by the range of its type.
+58. `entity-tracking.md` TRK-UPD-009, TRK-CLI-001, the tiers of a living subject. Decided: a
+    living subject that is not a player sends its updates at the update interval of its type at
+    every tier. Reason: the client plays all steps of a path within the update interval of the
+    type (3 ticks for a zombified piglin), so a path of 10 or 20 ticks moves the mob in 3 ticks and
+    then stops it. The claim C5 of `replication.md` §5 thus does not hold for these subjects. The
+    budget of REPL §7.4 removes such a subject from the visible set; it never lowers its rate.
