@@ -1,13 +1,14 @@
-//! Random ticks of one step over the overworld of a real save, on one core.
+//! Random ticks of one step over a real save, on one core.
 //!
 //! `MCRS_BENCH_WORLD` names a world directory of the current save format; without it the bench
-//! prints why and measures nothing. Every full column of the save is loaded into the section
-//! index of a dimension, with an entity for each section, and random-ticked through the volume
-//! of a cell, as the engine does: the step draws the random picks of the sections of the random
+//! prints why and measures nothing. Every full column of the overworld is loaded into the section
+//! index of a dimension, with an entity for each section, and random-ticked through the volume of
+//! a cell, as the engine does: the step draws the random picks of the sections of the random
 //! tick index, then runs the precipitation picks and the hits. The states of the block types of
 //! SIM-MODEL-009 Table 1 tick randomly. One handler reads one block, the other the footprint of
 //! its row; neither writes. The bench prints the handler runs of a step, and asserts that no pick
-//! runs again.
+//! runs again. `MCRS_BENCH_AREA=<dimension> <x> <z> <radius>` loads only the full columns of that
+//! dimension within `radius` columns of the column of block `x z`.
 #![expect(
     clippy::expect_used,
     clippy::indexing_slicing,
@@ -39,7 +40,7 @@ use mcrs_minecraft_simulation::{
     SimulationVolume, StepOutput, StreamSeed, random_step,
 };
 use mcrs_minecraft_worldgen_generator::saved::CorpusBlockStates;
-use mcrs_voxel::{BlockPos, BlockStateId, SectionPos};
+use mcrs_voxel::{BlockPos, BlockStateId, ColumnPos, SectionPos};
 
 /// The default of the game rule `random_tick_speed`.
 const SPEED: u32 = 3;
@@ -261,8 +262,54 @@ impl PaletteLookup<u8> for AnyBiome {
     }
 }
 
-fn region_dir(world: &Path) -> PathBuf {
-    let current = world.join("dimensions/minecraft/overworld/region");
+/// The columns within `radius` of the column `centre` of one dimension.
+struct Area {
+    dimension: String,
+    centre: ColumnPos,
+    radius: i32,
+}
+
+impl Area {
+    /// `MCRS_BENCH_AREA` as `<dimension> <x> <z> <radius>`, with `x z` a block position, or the
+    /// whole overworld.
+    fn from_env() -> Self {
+        #[expect(
+            clippy::disallowed_methods,
+            reason = "a bench takes the area of its input from the environment"
+        )]
+        let Ok(text) = std::env::var("MCRS_BENCH_AREA") else {
+            return Self {
+                dimension: "overworld".to_owned(),
+                centre: ColumnPos::new(0, 0),
+                radius: i32::MAX,
+            };
+        };
+        let mut words = text.split_whitespace();
+        let mut word = || {
+            words
+                .next()
+                .expect("MCRS_BENCH_AREA is `<dimension> <x> <z> <radius>`")
+        };
+        let dimension = word().to_owned();
+        let mut number = || {
+            word()
+                .parse::<i32>()
+                .expect("MCRS_BENCH_AREA holds integers")
+        };
+        Self {
+            dimension,
+            centre: ColumnPos::new(number() >> 4, number() >> 4),
+            radius: number(),
+        }
+    }
+
+    fn contains(&self, pos: ColumnPos) -> bool {
+        pos.chebyshev_distance(self.centre) <= self.radius
+    }
+}
+
+fn region_dir(world: &Path, dimension: &str) -> PathBuf {
+    let current = world.join(format!("dimensions/minecraft/{dimension}/region"));
     if current.is_dir() {
         current
     } else {
@@ -284,14 +331,19 @@ fn blocks_complete(chunk: &Chunk) -> bool {
         })
 }
 
-/// The full columns of the overworld of a save, as the engine holds them: the blocks and the
+/// The full columns of one dimension of a save, as the engine holds them: the blocks and the
 /// entity of each section in the section index of the dimension.
 struct Loaded {
     world: World,
     dimension: Entity,
 }
 
-fn load(world: &Path, definitions: &BlockDefinitions, table: &RandomTickTable) -> Loaded {
+fn load(
+    world: &Path,
+    area: &Area,
+    definitions: &BlockDefinitions,
+    table: &RandomTickTable,
+) -> Loaded {
     let lookup = CorpusBlockStates(definitions);
     let state_count = definitions.state_count();
     let mut ecs = World::new();
@@ -301,9 +353,9 @@ fn load(world: &Path, definitions: &BlockDefinitions, table: &RandomTickTable) -
     let mut sections = 0;
     let (mut columns, mut failed) = (0, 0);
     let mut first_error = None;
-    let dir = region_dir(world);
+    let dir = region_dir(world, &area.dimension);
     let mut files: Vec<PathBuf> = std::fs::read_dir(&dir)
-        .expect("the world holds a region directory of the overworld")
+        .expect("the world holds a region directory of the dimension")
         .filter_map(|entry| entry.ok().map(|entry| entry.path()))
         .filter(|path| path.extension().is_some_and(|ext| ext == "mca"))
         .collect();
@@ -313,6 +365,9 @@ fn load(world: &Path, definitions: &BlockDefinitions, table: &RandomTickTable) -
             continue;
         };
         for pos in region.present().collect::<Vec<_>>() {
+            if !area.contains(pos) {
+                continue;
+            }
             match region.read_chunk(pos, &lookup, &AnyBiome) {
                 Ok(Some(chunk)) if blocks_complete(&chunk) => {
                     columns += 1;
@@ -387,6 +442,7 @@ fn random_ticks_on_a_save(c: &mut Criterion) {
         );
         return;
     };
+    let area = Area::from_env();
     let definitions = &test_corpus().0.0;
     let rows = rows(definitions);
     let states = || definitions.states();
@@ -397,7 +453,7 @@ fn random_ticks_on_a_save(c: &mut Criterion) {
     let Loaded {
         world: mut ecs,
         dimension,
-    } = load(Path::new(&world), definitions, &table);
+    } = load(Path::new(&world), &area, definitions, &table);
     let mut state: SystemState<(WorldViewMut, Query<(), With<BlockTicking>>)> =
         SystemState::new(&mut ecs);
     let (mut blocks, ticking) = state.get_mut(&mut ecs).expect("valid params");
@@ -407,7 +463,7 @@ fn random_ticks_on_a_save(c: &mut Criterion) {
         ticking: &ticking,
     };
     let config = KernelConfig::default();
-    let seed = StreamSeed::new(4, "minecraft:overworld");
+    let seed = StreamSeed::new(4, &format!("minecraft:{}", area.dimension));
     let footprints = Footprints::new(states(), |state| reach(&rows, state));
     let mut listing = RandomListing::default();
     let mut shard = BlockShard::new();
