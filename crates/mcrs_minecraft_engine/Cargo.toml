@@ -48,6 +48,7 @@ mcrs_minecraft_chunk = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_core = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_dimension.workspace = true
 mcrs_minecraft_environment = { workspace = true, features = ["bevy"] }
+mcrs_minecraft_game_rule.workspace = true
 mcrs_minecraft_heightmap = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_engine_world.workspace = true
 mcrs_minecraft_network = { workspace = true, features = ["bevy"] }

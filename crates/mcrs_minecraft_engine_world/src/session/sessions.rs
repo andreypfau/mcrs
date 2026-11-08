@@ -12,6 +12,12 @@ use rustc_hash::FxHashMap;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct PlayerSession(pub u64);
 
+impl PlayerSession {
+    /// The session that names the server console as the receiver of command output. No player
+    /// has it, so a packet for it reaches no connection.
+    pub const SERVER: PlayerSession = PlayerSession(u64::MAX);
+}
+
 /// Marks a DimWorld player entity as owned by a session, and enters it in the
 /// [`DimPlayerIndex`] of its world.
 #[derive(Component, Clone, Copy, Debug, PartialEq, Eq, Hash)]

@@ -5,9 +5,10 @@ use bevy_ecs::schedule::{Schedules, SingleThreadedExecutor};
 use bevy_ecs::world::World;
 use bevy_time::{Fixed, Time, TimePlugin, TimeUpdateStrategy};
 use mcrs_engine_link::Placement;
-use std::num::NonZeroU32;
+use std::num::{NonZeroU32, NonZeroUsize};
 use std::time::{Duration, Instant};
 
+use crate::tick_pace::TickPace;
 use crate::world_placement::WorldPlacement;
 
 pub struct VoxelServerPlugin {
@@ -24,22 +25,30 @@ pub struct VoxelServerPlugin {
     /// [`Placement::Inline`] an app that does not own the task pools still runs `par_iter` on the
     /// host's compute pool.
     pub worlds: Placement,
+    /// The thread count of the compute pool, for an app that owns the task pools. `None` keeps
+    /// one thread under [`Placement::Inline`] and the Bevy default otherwise.
+    pub compute_threads: Option<NonZeroUsize>,
 }
 
 impl Plugin for VoxelServerPlugin {
     fn build(&self, app: &mut App) {
         app.insert_resource(WorldPlacement(self.worlds));
-        let task_pool_options = if self.worlds == Placement::Inline && self.owns_task_pools {
-            TaskPoolOptions {
+        let compute_threads = match (self.compute_threads, self.worlds) {
+            _ if !self.owns_task_pools => None,
+            (Some(threads), _) => Some(threads.get()),
+            (None, Placement::Inline) => Some(1),
+            (None, _) => None,
+        };
+        let task_pool_options = match compute_threads {
+            Some(threads) => TaskPoolOptions {
                 compute: TaskPoolThreadAssignmentPolicy {
-                    min_threads: 1,
-                    max_threads: 1,
+                    min_threads: threads,
+                    max_threads: threads,
                     ..TaskPoolOptions::default().compute
                 },
                 ..TaskPoolOptions::default()
-            }
-        } else {
-            TaskPoolOptions::default()
+            },
+            None => TaskPoolOptions::default(),
         };
         app.add_plugins(TaskPoolPlugin { task_pool_options });
 
@@ -51,6 +60,7 @@ impl Plugin for VoxelServerPlugin {
             app.add_plugins(TimePlugin);
         }
         app.insert_resource(Time::<Fixed>::from_hz(self.tick_rate.get() as f64));
+        app.insert_resource(TickPace::new(self.tick_rate.get()));
         // One host update is one tick: the host's fixed schedules run exactly once in it, as
         // the dimensions' do, however late the update starts. Wall-clock time decides only
         // when a tick starts, never what it does.
@@ -129,12 +139,26 @@ pub fn run_server_loop(
     }
     loop {
         let start = Instant::now();
+        if let Some(mut pace) = app.world_mut().get_resource_mut::<TickPace>() {
+            pace.begin_tick();
+        }
         app.update();
         between_ticks(&mut app);
-        tracing::trace!(target: "mcrs_tick", micros = start.elapsed().as_micros() as u64);
+        let elapsed = start.elapsed();
+        tracing::trace!(target: "mcrs_tick", micros = elapsed.as_micros() as u64);
         if let Some(exit) = app.should_exit() {
             return exit;
         }
-        until(&mut app, start + tick);
+        let nanos = u64::try_from(elapsed.as_nanos()).unwrap_or(u64::MAX);
+        let at_once = app
+            .world_mut()
+            .get_resource_mut::<TickPace>()
+            .is_some_and(|mut pace| pace.end_tick(nanos));
+        let deadline = if at_once {
+            Instant::now()
+        } else {
+            start + tick
+        };
+        until(&mut app, deadline);
     }
 }

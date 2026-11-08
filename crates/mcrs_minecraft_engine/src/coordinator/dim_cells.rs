@@ -38,11 +38,13 @@ use crate::departure::PlayerTransfer;
 use crate::dim_tick;
 use crate::dim_tick::{DimInput, DimOutput, DimWorld, TickDimensions, TickDimensionsSet};
 use crate::entity_ids::EntityIdRange;
+use crate::game_rules::GameRules;
 use crate::player_roster::RosterRow;
 use crate::player_view::PlayerView;
 use crate::to_coordinator::RoutedInput;
 use crate::to_muxer::{DimClosed, DimDelivered, DimOpened};
 use crate::whitelist::Whitelist;
+use mcrs_minecraft_engine_world::tick_pace::TickPace;
 
 /// Ticks the dimension worlds once in every host update, in lockstep.
 pub struct DimCellsPlugin;
@@ -672,6 +674,8 @@ struct Globals {
     ops: Option<OpList>,
     whitelist: Option<Whitelist>,
     bans: Option<BanList>,
+    game_rules: Option<GameRules>,
+    tick_pace: Option<TickPace>,
     registries: Option<Versioned<RegistrySnapshot>>,
     dimensions: Option<RunningDimensions>,
 }
@@ -688,6 +692,8 @@ impl Globals {
             ops: changed(host),
             whitelist: changed(host),
             bans: changed(host),
+            game_rules: changed(host),
+            tick_pace: changed(host),
             registries: changed(host),
             dimensions: changed(host),
         }
@@ -715,6 +721,8 @@ impl Globals {
             ops: self.ops.clone(),
             whitelist: self.whitelist.clone(),
             bans: self.bans.clone(),
+            game_rules: self.game_rules.clone(),
+            tick_pace: self.tick_pace.clone(),
             registries: self.registries.clone(),
             dimensions: self.dimensions.clone(),
             players,

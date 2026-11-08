@@ -13,6 +13,7 @@ use crate::coordinator::birth_clock::BirthClockPlugin;
 use crate::coordinator::clock::WorldClockHostPlugin;
 use crate::coordinator::dim::DimSubAppHandle;
 use crate::coordinator::dim_cells::DimCellsPlugin;
+use crate::server_edit::ServerStateHostPlugin;
 use crate::whitelist::WhitelistHostPlugin;
 
 /// The coordinator: the dimension worlds and their lockstep tick, the queues that spawn and
@@ -34,6 +35,7 @@ impl Plugin for CoordinatorPlugin {
             BirthClockPlugin,
             WhitelistHostPlugin,
             BanListHostPlugin,
+            ServerStateHostPlugin,
         ));
         app.add_systems(
             OnEnter(AppState::Playing),

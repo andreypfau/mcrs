@@ -277,6 +277,15 @@ fn spawn_dim_subapp(app: &mut App, request: &DimSpawnRequest) -> Result<Entity, 
                 .unwrap_or_default(),
         );
         sub_app.insert_resource(
+            host.get_resource::<crate::game_rules::GameRules>()
+                .cloned()
+                .unwrap_or_default(),
+        );
+        if let Some(pace) = host.get_resource::<mcrs_minecraft_engine_world::tick_pace::TickPace>()
+        {
+            sub_app.insert_resource(pace.clone());
+        }
+        sub_app.insert_resource(
             host.get_resource::<crate::random_tick_speed::RandomTickSpeed>()
                 .copied()
                 .unwrap_or_default(),

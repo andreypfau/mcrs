@@ -10,6 +10,7 @@ use crate::banlist::{BanList, EditBans};
 use crate::command_handoff::CommandHandoff;
 use crate::coordinator::clock::EditClock;
 use crate::player_order::OrderedPlayer;
+use crate::server_edit::{self, ServerEdit};
 use crate::whitelist::{EditWhitelist, Whitelist};
 
 /// The messages of this tick for other parts, each class in the order of writing.
@@ -19,6 +20,7 @@ pub struct DimMail {
     pub(crate) clock_edits: Vec<EditClock>,
     pub(crate) whitelist_edits: Vec<EditWhitelist>,
     pub(crate) ban_edits: Vec<EditBans>,
+    pub(crate) server_edits: Vec<ServerEdit>,
     pub(crate) handoffs: Vec<CommandHandoff>,
 }
 
@@ -73,4 +75,15 @@ pub fn edit_bans(world: &mut World, edit: EditBans) {
         bans.apply(&edit);
     }
     world.get_resource_or_init::<DimMail>().ban_edits.push(edit);
+}
+
+/// Applies `edit` to the copies of the state of the whole server in this world at once, so the
+/// rest of the tick reads it, and sends it to the host, which owns that state and tells every
+/// world.
+pub fn edit_server(world: &mut World, edit: ServerEdit) {
+    server_edit::apply_edit(world, edit);
+    world
+        .get_resource_or_init::<DimMail>()
+        .server_edits
+        .push(edit);
 }

@@ -34,13 +34,16 @@ use crate::coordinator::running_dimensions::RunningDimensions;
 use crate::departure::{Departure, PlayerTransfer};
 use crate::dim_mail::DimMail;
 use crate::entity_ids::{CellEntityIds, EntityIdRange};
+use crate::game_rules::GameRules;
 use crate::hot_ticket::RemoteTicket;
 use crate::player_dimension_change;
 use crate::player_order::OrderedPlayer;
 use crate::player_roster::{ForeignPlayers, OwnPlayers, RosterRow};
+use crate::server_edit::ServerEdit;
 use crate::tile_events::TileEvents;
 use crate::to_muxer::ClientOutput;
 use crate::whitelist::{EditWhitelist, Whitelist};
+use mcrs_minecraft_engine_world::tick_pace::TickPace;
 
 /// The host schedule that ticks the dimension worlds, right after `Last`: each world takes
 /// in what the host sent during the update.
@@ -73,6 +76,8 @@ pub struct DimInput {
     pub(crate) ops: Option<OpList>,
     pub(crate) whitelist: Option<Whitelist>,
     pub(crate) bans: Option<BanList>,
+    pub(crate) game_rules: Option<GameRules>,
+    pub(crate) tick_pace: Option<TickPace>,
     pub(crate) registries: Option<Versioned<RegistrySnapshot>>,
     pub(crate) dimensions: Option<RunningDimensions>,
     /// The players of the other worlds, in a tick whose input carries commands.
@@ -107,6 +112,8 @@ pub struct DimOutput {
     pub(crate) whitelist_edits: Vec<EditWhitelist>,
     /// The changes to the ban list that the tick made.
     pub(crate) ban_edits: Vec<EditBans>,
+    /// The changes to the state of the whole server that the tick asked for.
+    pub(crate) server_edits: Vec<ServerEdit>,
     /// What the tick hands the other cells of the world. A world of one cell hands nothing.
     pub(crate) cell_mail: CellMail,
     /// The requests of the tick to the data layer of the world, in order.
@@ -125,6 +132,7 @@ impl DimOutput {
         self.clock_edits.extend(other.clock_edits);
         self.whitelist_edits.extend(other.whitelist_edits);
         self.ban_edits.extend(other.ban_edits);
+        self.server_edits.extend(other.server_edits);
     }
 }
 
@@ -192,6 +200,12 @@ fn apply_input(world: &mut World, _tick: Tick, input: DimInput) {
     }
     if let Some(bans) = input.bans {
         world.insert_resource(bans);
+    }
+    if let Some(game_rules) = input.game_rules {
+        world.insert_resource(game_rules);
+    }
+    if let Some(tick_pace) = input.tick_pace {
+        world.insert_resource(tick_pace);
     }
     if let Some(registries) = input.registries {
         mcrs_minecraft_engine_registries::apply_registries(world, registries);
@@ -265,6 +279,7 @@ fn take_output(world: &mut World) -> DimOutput {
         output.clock_edits = std::mem::take(&mut mail.clock_edits);
         output.whitelist_edits = std::mem::take(&mut mail.whitelist_edits);
         output.ban_edits = std::mem::take(&mut mail.ban_edits);
+        output.server_edits = std::mem::take(&mut mail.server_edits);
         output.client.handoffs = std::mem::take(&mut mail.handoffs);
     }
     drain_into(world, &mut output.client.views);
