@@ -153,18 +153,37 @@ Per tile, the grid holds the public rows sorted by bucket (4 × 4 blocks, full h
 A query merges the sorted runs of the buckets that it touches, which gives the order of
 PHY-CMP-012 step 4 without a sort.
 
-`BodyGrid` has a front and a back buffer per tile. The front buffer is `F_T`. Each tile task of the
-main pass writes the back buffer of its tile from its rows right after it steps them, while they
-are in cache: a counting sort of ~1k rows into buckets. After the pass, other writers can still
-change rows: explosion groups, the block domain (pistons), claim grants, tile moves, the merge point
-of the next tick, commands and the life cycle. Each of them marks the tile dirty. The freeze patches
-the back buffer of the dirty tiles only, then swaps front and back.
+`BodyGrid` holds the front buffer of each tile, `F_T`: the rows in bucket order and the index of
+the first row of each bucket, so a query takes the rows of a bucket as one slice. The back buffer
+of a tile stays with the rows of the tile. Each tile task of the main pass writes the back buffer
+of its tile from its rows right after it steps them, while they are in cache. After the pass, other
+writers can still change rows: explosion groups, the block domain (pistons), claim grants, tile
+moves, the merge point of the next tick, commands and the life cycle. Each of them marks the tile
+dirty. The freeze writes the back buffer of the dirty tiles again in parallel tasks, then swaps
+the written back buffers into the front. The main thread never reads a row of the grid: a serial
+install of each tile grid read rows that other cores had just written, and it cost ~0.9 ms of the
+16-thread tick at 100k entities.
 
 | Option | Serial at the freeze, 1M | Core-ms | Complexity |
 |--------|--------------------------|---------|------------|
 | Rebuild dirty tiles at the freeze | ~0.7 ms (a phase of its own) | ~5.4 | low |
 | Grid inside the pass, patch at the freeze (chosen) | ~0.1 ms (only tiles changed after the pass) | ~5, hidden in the pass | low: one more buffer per tile |
 | Incremental, second generation for movers | ~0.1 ms | ~3 | high |
+
+Measured with the bench `entity_pass` (50k walkers, half of them walking, and 50k items at rest on
+32 × 32 tiles) on the amd64 host: AMD EPYC 9454, 16 logical CPUs on 8 cores, shared with other
+load. Callgrind counts one tick on one thread with `tools/callgrind.sh`.
+
+| Version | Criterion, 16 threads | Ir per tick |
+|---------|-----------------------|-------------|
+| Before: masks only on sections of one state, grid installed on the main thread | 6.36 ms | 717M |
+| Palette masks with `large` and `inside` (§6.7), grid written by the tile tasks, bucket starts | 3.77 ms | 382M |
+
+The time per tick does not follow the instruction count alone. Before the change, about 1.4 ms of
+the tick ran on one thread: the install of the tile grids (~0.9 ms), the serial part of the freeze
+and the tile moves. In a tick of the bench, ~26k walkers move, ~2k standing walkers are awake,
+~23k walkers rest, and of the 50k items 12.5k skip their tick at rest and 37.5k run the rest tick
+of PHY-ORD-005 without a move. Each living row runs the push in each tick.
 
 ### 3.5 Sequential groups
 
@@ -610,6 +629,13 @@ up).
   `y`, and 0 and 1 on `x` and `z`. A box off the `1/8` grid on one axis keeps only its faces on all
   three axes.
 - The exact scan visits positions with `x` fastest, then `y`, then `z` (PHY-SHP-007).
+- Each loaded section has masks. A section of one state, or a section from the palette of its
+  states, has the bricks of all solid states set. Two flags come from the palette: `large`, a state
+  that can reach out of its cell (a large shape or a moving piston), and `inside`, a state that acts
+  on a box inside it. Without `large` in the sections of a scan region, the scan reads only the
+  inner blocks of the region, because a block on an outer face counts only with a large shape. For
+  a walker on flat ground this is about 8 blocks instead of 64 for the supporting block, and about
+  36 instead of 150 for a move. Without `inside`, the inside step of the block effects reads no block.
 - The shape context is built only when a context-dependent state is in the zone; the world border
   is tested only when the zone is near it.
 - A task keeps a cache of 64 section references.
