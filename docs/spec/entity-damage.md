@@ -717,10 +717,9 @@ This check is still open:
 
 D14 tests this server, so it waits for the implementation of G2.
 
-The fixtures of D1 to D13 are in `crates/mcrs_minecraft_physics/tests/fixtures/damage/`. Each file
-names its experiment. `d6_d7_crowd.json` holds, for each trial, the tick of each crowd hit and of
-each death, from tick 1 after the summon. The packet files hold the body of each recorded packet as
-hex, after the packet id.
+The raw capture is outside the repository. A test that needs it adds only the part that it checks, as a fixture of `mcrs_minecraft_fixtures`. The capture of D6 and D7 holds, for each trial, the tick of
+each crowd hit and of each death, from tick 1 after the summon. The packet captures hold the body of
+each recorded packet as hex, after the packet id.
 
 ## 16. Captured results
 

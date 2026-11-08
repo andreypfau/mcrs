@@ -629,8 +629,7 @@ the floor gives 1, a rounding gives 2. `ByteAngle::from_degrees` of `byte_angle.
 rounds to the nearest unit. It gives a different byte for each angle with a fraction of a unit of
 0.5 or more, for example 1.0 degree (vanilla 0, `from_degrees` 1). `ByteAngle::to_degrees` unpacks
 the byte as unsigned; only `mcrs_minecraft_client` reads it, and an unsigned angle is the same turn.
-The fixture `crates/mcrs_minecraft_server/tests/fixtures/g1/vanilla_angles.txt` holds the raw
-bodies.
+TRK-E4 in section 13 gives the results.
 
 **TRK-WIRE-005** (`source_suggested_black_box_confirmed`, wire, confidence: high). The velocity of
 `add_entity` uses the low-precision vector form of `LpVec3` in `mcrs_minecraft_protocol_game`. The
@@ -810,8 +809,7 @@ the entry `(2, 6, present)` and no health entry in the decoded prefix.
 128 blocks and nothing for 129 and 140 blocks. With the view distance 4, it received the piglin at
 60 blocks and not the piglin at 70 blocks.
 
-**TRK-E4**: the bytes of TRK-WIRE-004, and the frames of `move_entity_rot` of TRK-WIRE-002. The
-fixture is `crates/mcrs_minecraft_server/tests/fixtures/g1/vanilla_angles.txt`.
+**TRK-E4**: the bytes of TRK-WIRE-004, and the frames of `move_entity_rot` of TRK-WIRE-002. The raw capture is outside the repository. A test that needs it adds only the part that it checks, as a fixture of `mcrs_minecraft_fixtures`.
 
 **TRK-E5**: column `(7, 0)` arrived 5 seconds after the summon. The near piglin paired at once. The
 piglin at `120.5 -60 0.5`, 126 blocks from the probe, got no `add_entity` until the probe moved to
@@ -826,8 +824,7 @@ then walked 1 block in `z`. Its end position `-316.70 174.9375 -608.50` is insid
 `gold-farm.md` §8. The updates of the fall are those of TRK-E2. The landing came one tick after the
 update before it: the fall damage made the health entry dirty, which made an update
 (TRK-UPD-001); the update sent `entity_position_sync` with one step of 1 tick, after
-`entity_event 54` of the honey block. The fixture is
-`crates/mcrs_minecraft_server/tests/fixtures/g1/vanilla_farm_drop.txt`.
+`entity_event 54` of the honey block. The raw capture is outside the repository. A test that needs it adds only the part that it checks, as a fixture of `mcrs_minecraft_fixtures`.
 
 ## 14. Relation to other documents
 

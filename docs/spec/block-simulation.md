@@ -3506,8 +3506,7 @@ accepted). A script wrote the commands to the standard input of the server. The 
 was a flat overworld with the surface block at `y` −61, at the difficulty hard, with
 no player. The positions are not the positions of the steps below, so that the
 experiments do not touch each other.
-`crates/mcrs_minecraft_engine/tests/fixtures/vanilla_fire/` holds the chat output
-(`chat.txt`), the saved ticks (`saved-ticks.txt`) and the positions (`positions.txt`).
+The raw capture is outside the repository. A test that needs it adds only the part that it checks, as a fixture of `mcrs_minecraft_fixtures`.
 Each result agrees with the rules. No rule changed.
 
 - **E-F3** (the gate). Do these steps:
