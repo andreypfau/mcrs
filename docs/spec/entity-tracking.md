@@ -164,7 +164,8 @@ The attributes of a living entity are: `max_health`, `knockback_resistance`, `mo
 `bounciness`, `air_drag_modifier`, `friction_modifier`, `name_tag_distance` and
 `below_name_distance`. The client has the same defaults for each type. Thus the client agrees on
 each attribute that the server does not send. The walker tick reads the attributes of
-`MotionAttributes`; for a zombified piglin only `movement_speed` differs from the attribute
+`MotionAttributes`; of the fields of `MotionAttributes`, only `movement_speed` of a zombified
+piglin differs from the attribute
 default (0.7). In this document, "the base of the type" is the value of this table, and "the
 attribute default" is the default of the attribute itself.
 
@@ -190,8 +191,8 @@ type, the position, the rotation, the velocity, the source of the birth key and 
 values that differ from the defaults. These systems make spawn requests:
 
 - the `summon` command (section 3), with the birth source of the kind `command` and the command
-  sequence of PHY-CMP-013. The command sequence is the position of the effect of the command among
-  the effects that the world applies in the tick, from 0. The command computes the birth key from
+  sequence of PHY-CMP-013. The command sequence is the index of the effect of the command in the
+  command effect buffer of the world in the tick, from 0. The command computes the birth key from
   the birth clock and this sequence when it runs, and the UUID as `birth_uuid(key, None)`. Thus the
   success message of TRK-SUM-004 has the UUID, and the spawn request carries the key and the UUID;
 - natural spawning (`natural-spawning.md`), with the birth source of the kind `spawn`;
@@ -255,7 +256,8 @@ for `<entity>`.
 7. Send the success message of TRK-SUM-004. The result is 1.
 
 When `type` is not a mob, step 5 makes the entity of the category of the type. G1 makes only the
-types of TRK-TYPE-002 that are summonable; another type fails with `commands.summon.failed`. CMD-EX-022 uses steps 1
+types of TRK-TYPE-002 that are summonable; another type fails with `commands.summon.failed`
+(TRK-DEV-005). CMD-EX-022 uses steps 1
 to 6 with `pos` from the source and `setup` true.
 
 **TRK-SUM-003** (`source_suggested`, semantic, confidence: medium). The compound of `<nbt>` can
@@ -359,6 +361,12 @@ A viewer that pairs later gets the base, not the current position. The next upda
 the base. Before the first update, the base is the position of the entity when the tracker starts,
 and the last sent velocity and angles are its values at that time.
 
+In this server the tracker of a mob starts in `apply` of the codec, with the position, the
+velocity and the angles of the `Spawn` event. `Muxer::publish` runs `apply`, then `hold`, then
+`finish_tick` in one tick. Thus a spawn bundle of the first tick uses that start state, and
+`finish_tick` then runs the tracker tick `c = 0`. The update of `c = 0` also goes to each viewer
+that `hold` added in the same tick.
+
 ## 6. Entity data
 
 **TRK-DATA-001** (`source_suggested_black_box_confirmed`, wire, confidence: high). The entity data
@@ -424,7 +432,8 @@ so the codec derives this entry from the type.
 **TRK-DATA-004** (`source_suggested_black_box_confirmed`, client agreement, confidence: medium).
 The `update_attributes` of the spawn bundle must hold each syncable attribute whose base value
 differs from the base of the type (TRK-TYPE-003), or that has a modifier. It can hold other
-syncable attributes. Each attribute of TRK-TYPE-003 is syncable, except `follow_range`,
+syncable attributes. Each attribute of TRK-TYPE-003, in its table and in its list, is syncable,
+except `follow_range`,
 `attack_damage`, `knockback_resistance`, `spawn_reinforcements`, `attack_knockback` and
 `waypoint_transmit_range`. The
 reference holds the attributes that the server read or changed, for example `movement_speed` of a
@@ -505,14 +514,14 @@ conform. The flag of a player subject is out of scope (section 12, U4).
 update of a living entity is a list of steps. Each step is a position and the number of tracker
 ticks since the step before. The tracker makes the list in this way:
 
-1. At the start of each tracker tick, before the check of TRK-UPD-001, add 1 to the tick count
-   `k` of the open step. `k` starts at 0 at the first tracker tick, so it is 0 there.
+1. `k` is the tick count of the open step. It is 0 at the first tracker tick.
 2. Hook: in a tracker tick in which the subject bounced on a block, add a step at the position of
    that tick with `k` ticks, when `k > 0`, and set `k` to 0.
 3. At an update, add a step at `P` with `k` ticks, when `k > 0`. This is the path of the update.
    It is a stepped path, or the linear path `P` when the list is empty.
 4. At the end of each update, clear the list and set `k` to 0. This also occurs at an update that
    sends no move packet or only a rotation.
+5. At the end of each tracker tick, after the update, add 1 to `k`.
 
 The "start now" flag of a stepped path is true when the subject has the "needs sync" mark of
 TRK-UPD-001; in G1 it is false. An entity that is not living sends the linear path `P`. TRK-E2 shows one step of 3
@@ -571,8 +580,12 @@ axis with a delta of 0 as the coordinate of its base, without rounding. Test vec
 
 `move_entity_pos_rot` has the same body, then the packed yaw and the packed pitch, one byte each.
 `move_entity_rot` has the entity id, the on-ground flag as a boolean, the packed yaw and the packed
-pitch, in this order. The probe of section 13 decoded the captured `move_entity_rot` in this order:
-the yaw of each one is equal to the `rotate_head` of the same update. `ClientboundMoveEntityRot` of
+pitch, in this order. TRK-E2 captured `move_entity_rot` of a mob in a flat world (section 13):
+the three body bytes after the id are `01 5B 00`, decoded in this order as ground 1, yaw 91, pitch 0,
+next to `rotate_head 91` in the same update. The order of earlier versions (yaw, pitch, ground) reads
+the same bytes as yaw 1 and pitch 91, which is 128 degrees, outside the range of a pitch. The
+`move_entity_pos_rot` at 4099 ms (body yaw −32, head −15) does not contradict this: the head of a
+walking mob turns apart from its body. `ClientboundMoveEntityRot` of
 `clientbound.rs` writes the flag after the angles, which is the order of earlier versions; section
 15, step 1, fixes it. The client rejects a step count that is more than the remaining bytes divided by 7.
 
@@ -687,6 +700,15 @@ move, a data, a motion or a removal packet for a network id that it does not kno
 - **Test:** a differential test compares only the subjects inside `R`, and runs the viewer at the
   view distance 8 or more.
 
+### TRK-DEV-005: Only the types of the type table
+
+- **Rule:** TRK-SUM-002, the paragraph after step 7.
+- **Reference:** `summon` makes each summonable type.
+- **Visible to the client:** yes. `summon` of a type outside TRK-TYPE-002 fails with
+  `commands.summon.failed`, and no entity appears. Each later type table removes the failure for
+  its types.
+- **Test:** a differential test summons only the types of TRK-TYPE-002.
+
 ### Known vanilla quirks
 
 | Rule | Quirk |
@@ -761,6 +783,7 @@ milliseconds after `add_entity`; 50 ms is one tick.
 | 1099 | `-1.40658`, `(3, 0, -16006, 0)` |
 | 1249 | `set_entity_motion (0, -0.078374, 0)`; `entity_position_sync` stepped, one step `(0.5, -60.0, 4.5)` after 3 ticks, start 0, yaw 0, pitch 0, ground 1; `set_entity_data [(9, 3, 3.0)]` (fall damage); `set_entity_motion (0, -0.078374, 0)` (hurt) |
 | 3048 | `move_entity_pos` stepped `(3, 0, 0, 0)`, ground 1: the update of `c mod 60 = 0` |
+| 3248 (another mob of the world, id 65) | `move_entity_rot` id 65, ground 1, yaw 91, pitch 0; `rotate_head 65 91` |
 | 4099 | the AI starts to walk: `set_entity_motion`, `move_entity_pos_rot` stepped `(3, 673, 0, 673)` with rotation `(-32, 0)`, `rotate_head -15` |
 
 The baby has `set_entity_data [(9, 3, 20.0), (15, 0, 1), (16, 8, true)]` and the attribute
@@ -798,9 +821,11 @@ the entry `(2, 6, present)` and no health entry in the decoded prefix.
 3. **Mob rows** (`mcrs_minecraft_engine_physics`). Spawn requests in the life cycle of
    `DomainInput` (TRK-LIFE-001 to TRK-LIFE-003). The cold state is a side table from `EntityId` to
    the entity type (`physics-architecture.md` §15, question 56). Add the birth source
-   `BirthSource::Command { order }` to `mcrs_minecraft_physics`, with the kind `command` of
-   PHY-CMP-013. A kernel change is allowed here, because PHY-CMP-013 requires the kind and the
-   kernel lacks it. The removal requests of TRK-LIFE-004 are a hook: G1 adds no producer.
+   `BirthSource::Command { order }` to `mcrs_minecraft_physics`. Its kind is the existing
+   `SourceKind::Command`, which sorts after `Player` and before `Spawn`; its packed source value is
+   `order`, as for `Player { order }`. `order` is the index of the effect in the command effect
+   buffer of the world in the tick, from 0. A kernel change is allowed here, because PHY-CMP-013
+   requires the source and the kernel lacks it. The removal requests of TRK-LIFE-004 are a hook: G1 adds no producer.
 4. **The `summon` command** (`mcrs_minecraft_command_vanilla`). The argument
    `minecraft:nbt_compound_tag` in `VanillaArgument`. TRK-SUM-001 to TRK-SUM-004: the handler
    computes the birth key and the UUID, writes the spawn request as a command effect, and sends the
@@ -826,6 +851,9 @@ the entry `(2, 6, present)` and no health entry in the decoded prefix.
    do not move, write a constant on-ground flag, send a keyframe each 100 ticks and couple the head
    to the yaw.
 7. **Range** (`mcrs_minecraft_engine`). Set `VIEW_RADIUS` to 4 tiles on X and Z (TRK-DEV-004).
+   `entity_replication.rs` uses the same radius for the players, so a viewer also subscribes to
+   81 tiles of players instead of 49. G1 accepts this cost: a player has the range 160 blocks at
+   the view distance 10, so the change also brings players nearer to the vanilla range.
    Write TRK-RNG-001 as a pure function with the cases of TRK-E3, for the decision of question 57.
 
 ### 15.2 Data tables and their sources
@@ -881,3 +909,6 @@ client shows it.
    when the client stays connected for 60 ticks after the summon: a vanilla client disconnects on
    a move packet that it cannot decode. After the landing, take a screenshot of the client window
    with the macOS tool `screencapture -l <window id>` to `target/g1/vanilla_client_chamber.png`.
+   Get the window id from the window list of Core Graphics, for example
+   `python3 -c 'import Quartz; print([w["kCGWindowNumber"] for w in Quartz.CGWindowListCopyWindowInfo(0, 0) if w.get("kCGWindowOwnerName") == "java"])'`
+   (`pyobjc-framework-Quartz`); the client of `tools/vanilla-client` runs in the `java` process.
