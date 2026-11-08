@@ -31,6 +31,7 @@ document states what they compute. `gold-farm.md`, step G4, is the reason for th
   **snapshot**, **birth key**: as `entity-ai-timing.md`, section 0.1, defines them.
 - **Block position**: the integer position `(floor(x), floor(y), floor(z))` of a point.
 - **Mob block position**: the block position of the position of a mob.
+- **Air**: a state of the block `air`, `cave_air` or `void_air`.
 - **Path type**: one of the 27 values of the table of PATH-TYP-001. A path type tells a mob what a
   block position means for a walk.
 - **Malus**: an f32 cost that a mob adds when a path enters a node of one path type. A negative
@@ -143,8 +144,8 @@ These subjects are out of scope:
   `pathfinding/sticky`, `pathfinding/avoid_in_air`, `pathfinding/damage_cautious`, `fire`,
   `campfires`, `fences`, `walls`, `doors`, `cauldrons` and `air`. In `26.4-snapshot-7`,
   `pathfinding/drop_down` holds `#trapdoors`, `lily_pad` and `big_dripleaf`.
-- The corpus does not give the land walk flag, the door kind, the fence gate kind or the legacy
-  solid flag of a state. Section 12.3 states the component that the corpus must add.
+- The corpus does not give the flag "pathfindable on land", the door kind or the legacy solid flag
+  of a state. Section 12.3 states the component that the corpus must add.
 
 ## 1. Path types
 
@@ -176,7 +177,7 @@ state is the first match of this list:
    `pathfinding/damaging` gives `DAMAGING`; `pathfinding/leaves` gives `LEAVES`;
    `pathfinding/sticky` gives `STICKY`; `pathfinding/avoid_in_air` gives `AVOID_IN_AIR`;
    `pathfinding/damage_cautious` gives `DAMAGE_CAUTIOUS`.
-2. A state with a lava fluid gives `LAVA`.
+2. A state whose fluid (`mcrs:fluid_state`) is `minecraft:lava` gives `LAVA`.
 3. A fire state gives `FIRE`. A state is a fire state when one of these is true:
    - the block is in the tag `fire`;
    - the block is `lava`, `magma_block` or `lava_cauldron`;
@@ -184,10 +185,10 @@ state is the first match of this list:
 4. A door state (the door kind of section 12.3 is not `none`) gives `DOOR_OPEN` when it has
    `open=true`. Else it gives `DOOR_IRON_CLOSED` when the door kind is `not_by_hand`, and
    `DOOR_WOOD_CLOSED` when the door kind is `by_hand`.
-5. A state of a block in the tag `fences` or in the tag `walls` gives `FENCE`. A fence gate state
-   with `open=false` also gives `FENCE`.
-6. A state without the land walk flag (section 12.3) gives `BLOCKED`.
-7. A state with a water fluid gives `WATER`.
+5. A state of a block in the tag `fences` or in the tag `walls` gives `FENCE`. A state of a block in
+   the tag `fence_gates` with `open=false` also gives `FENCE` (PATH-DEV-005).
+6. A state that is not pathfindable on land (section 12.3) gives `BLOCKED`.
+7. A state whose fluid is `minecraft:water` gives `WATER`.
 8. Each other state gives `OPEN`.
 
 Thus each trapdoor state gives `DROP_DOWN`, open or closed. A `magma_block` gives `FIRE`.
@@ -211,7 +212,8 @@ z)` is:
    | each other path type | the neighbour check of step 3 |
 
 3. The neighbour check visits the positions `(x + dx, y + dy, z + dz)` with `dx`, `dy` and `dz`
-   from -1 to 1. It skips the two positions with `dx = 0` and `dz = 0`. The order is `dx` first,
+   from -1 to 1. It skips the three positions with `dx = 0` and `dz = 0`: the block itself, the
+   block above and the block below. Thus it visits 24 positions. The order is `dx` first,
    then `dy`, then `dz`, each from -1 up. The first visited position with one of these state path
    types gives the result:
    - `DAMAGING` gives `DAMAGING_IN_NEIGHBOR`;
@@ -236,17 +238,23 @@ extend to the positive axes. The procedure is:
    - `RAIL` becomes `UNPASSABLE_RAIL` when the block path type at the mob block position is not
      `RAIL`, and the block path type at one block below the mob block position is not `RAIL`. The
      mob block position is the position at the start of the search.
-2. Let `S` be the set of the changed path types. If `S` has one element, the result is that element.
-3. Else, if `S` holds `FENCE`, the result is `FENCE`. Else, if `S` holds `UNPASSABLE_RAIL`, the
-   result is `UNPASSABLE_RAIL`.
-4. Else visit the elements of `S` in the order of their numbers. The first element with a negative
-   malus is the result. Else let `H` be the last element whose malus is at least the largest malus
-   before it. The search for `H` starts with the type `BLOCKED` and its malus.
+2. Let `S` be the set of the changed path types. If `S` has one element, return that element.
+3. If `S` holds `FENCE`, return `FENCE`. If `S` holds `UNPASSABLE_RAIL`, return
+   `UNPASSABLE_RAIL`.
+4. Find `H` with this loop, where `malus` is the malus of the mob:
+
+   ```text
+   H = BLOCKED; mH = malus(BLOCKED)
+   for e in S, in the order of the numbers:
+       if malus(e) < 0: return e
+       if malus(e) >= mH: H = e; mH = malus(e)
+   ```
+
 5. Let `c` be the block path type at `(x, y, z)`, without the changes of step 1.
-6. When `w > 1`: the result is `BIG_MOBS_CLOSE_TO_DANGER` when the malus of `c` and the malus of
-   `BIG_MOBS_CLOSE_TO_DANGER` are both less than the malus of `H`. Else the result is `H`.
-7. When `w = 1`: the result is `OPEN` when `c` is `OPEN`, `H` is not `OPEN` and the malus of `H`
-   is 0. Else the result is `H`.
+6. When `w > 1`: return `BIG_MOBS_CLOSE_TO_DANGER` when `malus(c) < mH` and
+   `malus(BIG_MOBS_CLOSE_TO_DANGER) < mH`. Else return `H`.
+7. When `w = 1`: return `OPEN` when `c` is `OPEN`, `H` is not `OPEN` and `mH` is 0. Else return
+   `H`.
 
 A zombified piglin has `w = 1` and `h = 2`. On a magma platform, its node over a magma block covers
 the types `FIRE` and `OPEN`, and the result is `FIRE`.
@@ -282,6 +290,7 @@ inputs of the mob at the issue tick of the search:
 - the step height (PHY-STP-001);
 - the malus table (PATH-MAL-001);
 - the fall limit (PATH-NOD-008);
+- the mob block position, for the rail rule of PATH-TYP-004;
 - the four flags `can_open_doors`, `can_pass_doors`, `can_float` and `can_walk_over_fences`.
 
 The defaults of the flags are false, true, false and false. A goal or a mob type can change them. A
@@ -302,11 +311,10 @@ comes from these steps:
    the fluid.
 2. Else, if the on-ground flag is true, `sy = floor(y + 0.5)`.
 3. Else go down from `floor(y + 1.0)`. In each step, let `sy` be the current `y`, then read the
-   block below. Stop when that block is not air and does not have the land walk flag. Also stop
-   at the lowest `y` of the dimension.
+   block below. Stop when that block is not air and is not pathfindable on land. Also stop when
+   the current `y` is the lowest `y` of the dimension.
 
-A mob that can stand on the fluid at its block goes up while it can stand on the fluid. `sy` is the
-last such block.
+A mob that can stand on a fluid has another start rule. No mob of the gold farm can, so this document does not state it.
 
 Then the start position is checked. A position can be a start when its mob path type is not `OPEN`
 and has a malus of 0 or more. When `(bx, sy, bz)` cannot be a start, try the four corners of the box
@@ -371,8 +379,8 @@ of the column `(x, y, z)` with the jump size `j`, the floor level `hn`, the side
       `can_walk_over_fences` is true, and `t` is none of `UNPASSABLE_RAIL`, `DROP_DOWN` and
       `POWDER_SNOW`: the candidate is the result of the step up of PATH-NOD-006.
    2. `t` is `WATER` and `can_float` is false: go down from `y - 1` while the mob path type is
-      `WATER`. Each such position becomes the candidate, as in step 2. Stop at the first other
-      type, or above the lowest `y` of the dimension.
+      `WATER`, while the `y` is more than the lowest `y` of the dimension. Each such position
+      becomes the candidate, as in step 2. Stop at the first other type.
    3. `t` is `OPEN`: the candidate is the result of the fall of PATH-NOD-008.
    4. `t` is a partial collision type and the candidate is no node: the candidate is the node at
       `(x, y, z)`, with the path type `t`, the default malus of `t`, and the closed mark.
@@ -389,8 +397,10 @@ confirms that the path of a zombified piglin goes into the cell of an open trapd
 2. If the width of the mob is 1.0 or more, the step up gives that result.
 3. If the path type of the result is not `OPEN` and not `WALKABLE`, the step up gives that result.
 4. Else test the box from `(cx - w2, f1 + 0.001, cz - w2)` to `(cx + w2, height + f2 - 0.002, cz +
-   w2)`, in f64. Here `cx = x - dx + 0.5` and `cz = z - dz + 0.5` are the centre of the node that the
-   probe starts from. `w2` is half of the width. `f1` is the floor level of the block position of
+   w2)`, in f64. Here `cx = x - dx + 0.5` and `cz = z - dz + 0.5`, with `(dx, dz)` the side of the
+   probe. For a side probe this is the centre of the node that the probe starts from. For a corner
+   probe it is not, because the side is only the first side of the corner; the formula applies.
+   `w2` is half of the width. `f1` is the floor level of the block position of
    `(cx, y + 1, cz)`, and `f2` is the floor level of the result. When the box has a collision
    (PATH-NOD-009), the step up gives no node. Else it gives the result.
 
@@ -420,20 +430,25 @@ from a probe of `(x, y, z)` visits `cy` from `y - 1` down to the lowest `y` of t
 When the loop ends at the lowest `y`, the candidate is the node at `(x, y, z)` with `BLOCKED` and
 -1. A `BLOCKED` result changes the stored node at that position (PATH-SRC-002).
 
-The fall limit of a mob without an attack target is 3. With an attack target, it is `floor(k +
-3.0F)`, in f32. Here `k = int(health - max_health × 0.33F) - (3 - d) × 4`, and `k = 0` when this is
+The fall limit of a mob without an attack target is 3. Step G4 implements only this case, because
+health (step G2) and attack targets (step G5) do not exist yet. With an attack target, the fall
+limit is `floor(k + 3.0F)`, in f32. Here `k = int(health - max_health × 0.33F) - (3 - d) × 4`, and `k = 0` when this is
 negative. `d` is 0 for peaceful, 1 for easy, 2 for normal and 3 for hard. `int` truncates to zero.
 
 E-V4 confirms the limit: a zombified piglin with no target walks off a ledge of 3 blocks to its
 target. With 4 blocks, it stops at the ledge.
 
 **PATH-NOD-009** (`source_suggested`, semantic, confidence: medium). A collision test of a box in
-the evaluator uses the block colliders of PHY-SHP for the mob and the world border. It does not use
-entity colliders. The sweep to a node `p` starts from the box of the mob at the issue tick. Let
-`v = (p.x - x + sx / 2, p.y - y + sy / 2, p.z - z + sz / 2)`, where `(x, y, z)` is the position and
-`(sx, sy, sz)` the size of the box. Let `n = ceil(|v| / a)`, where `a` is the mean of the three sizes.
-Multiply `v` by `1.0F / n`, widened. Then move the box by `v` for `n` steps. The sweep finds a
-collision when the box has a collision after one step.
+the evaluator uses the block colliders of PHY-SHP and the world border. It does not use entity
+colliders. A shape that depends on the entity (PHY-SHP-003) uses the state of the mob at the issue
+tick: its fall distance, its shift key state and the bottom of its own box, not of the tested box.
+The implementation can use `query::intersects` with `NoBodies` of `mcrs_minecraft_physics`.
+
+The sweep to a node `p` starts from the box of the mob at the issue tick. Let `v = (p.x - x + sx /
+2, p.y - y + sy / 2, p.z - z + sz / 2)`, where `(x, y, z)` is the position and `(sx, sy, sz)` the
+size of the box. Let `n = ceil(|v| / a)`, where `a` is the mean of the three sizes. When `n = 0`, the
+sweep finds no collision. Else multiply `v` by `f32(1.0F / n)`, widened, and move the box by `v` for
+`n` steps. The sweep finds a collision when the box has a collision after any of the steps.
 
 ## 4. The path search
 
@@ -498,7 +513,8 @@ target. The heuristic weight `1.5F` does not apply to this value. After the loop
   the smallest Manhattan distance to its target, then the fewest nodes, then the first target. The
   path is a partial path.
 
-A path is the list of nodes from the start node to the end node, along the previous nodes.
+A path is the list of nodes from the start node to the end node, along the previous nodes. A new
+path has the next node index 0, so its first next node is the start node.
 
 Thus a reached path ends at the node closest to the target, which can be a node in the open set and
 not the node that reached the target.
@@ -512,7 +528,8 @@ in an array, with the smallest `f` at index 0. It compares with `<` only. The pa
   `l` and `r` be the `f` of the children, with `r` = positive infinity when there is no right
   child. When `l < r`, the left child is the candidate, else the right child. Swap with the
   candidate while the `f` of the candidate is less than the `f` of the node.
-- Change of the key to `k`: when `k` is less than the old `f`, move up, else move down.
+- Change of the key to `k`: keep the old `f`, set `f = k`. When `k` is less than the old `f`, move
+  up, else move down.
 
 This rule fixes the order of nodes with equal `f`. A path in an open area has many equal costs, so
 the path shape depends on it. The rule makes the paths of this server equal to the vanilla paths.
@@ -553,7 +570,10 @@ block target `p` in this way, unless the mob can path to targets below the surfa
 
 **PATH-REQ-003** (`source_suggested`, semantic, confidence: medium). The search region of a request
 is the set of block columns of the chunks that intersect the square from `s - r` to `s + r` on the
-`x` and `z` axes. Here `s` is the mob block position, and `r = int(L + 8)`. The region has the full
+`x` and `z` axes. Here `s` is the mob block position, and `r = int(L + 8)`. A ground navigation
+changes an entity target into a block target (PATH-REQ-001), so it always uses this region. The
+region of AIT-VAN-014 for an entity target, `L + 16` from the block above the mob, applies only to
+the other navigations. The region has the full
 height of the dimension. A read at a position outside the region, or in a column that is not
 loaded, gives air. A read above or below the build height gives air.
 
@@ -562,21 +582,29 @@ from a request in this way:
 
 1. If the result is no path, the navigation has no path. Stop.
 2. The path changes when its list of node positions differs from the current path.
-3. If the new path is done (its next node index is the node count), stop.
-4. Apply the cauldron rule: each node at a block of the tag `cauldrons` moves up by 1. When the
-   node after it has a `y` that is not more than the `y` of the node, that next node takes the `y`
-   of the moved node.
-5. If the path has no nodes, stop.
-6. Store the speed modifier. When the path changed, reset the stuck check of PATH-FOL-003.
+3. If the new path is done (its next node index is the node count, also for 0 nodes), stop.
+4. Apply the cauldron rule to each node in order: when the node is at a block of the tag
+   `cauldrons`, compare its old `y` with the `y` of the next node. Move the node up by 1. When the old
+   `y` is not less than the `y` of the next node, the next node also takes the `y` of the moved
+   node.
+5. Store the speed modifier. When the path changed, reset the stuck check of PATH-FOL-003.
 
 A request that gives the current path (step 3 of PATH-REQ-001) keeps the next node index.
+
+**PATH-REQ-005** (`design`, semantic, confidence: medium). A request is a decision (AIT-DEC-001). The
+search runs on the snapshot of the issue tick, and PATH-REQ-004 applies the result at the
+application tick. A navigation has at most one pending request. A new request of a later issue
+tick replaces a pending request; the result of the replaced request is dropped. Until the
+application, the follower uses the current path. The storage of the target, the reach range and
+the timeout reset of PATH-REQ-001 step 4 occur at the application.
 
 ## 6. The path follower
 
 **PATH-FOL-001** (`source_suggested_black_box_confirmed`, semantic, confidence: medium). The path
 follower runs in each tick in step 4 of AIT-VAN-001. It counts its ticks. It does these steps:
 
-1. If a recompute waits (PATH-RCP-002), try it.
+1. If a recompute waits (PATH-RCP-002), check its wait condition. When the condition no longer
+   holds, issue the recompute as a request (PATH-REQ-005). The follower does no search.
 2. If the path is done or the navigation has no path, stop.
 3. If the mob can update a path (PATH-REQ-001, step 2), do the steps of PATH-FOL-002 and
    PATH-FOL-003.
@@ -688,18 +716,31 @@ A set of the mob speed also sets the forward input to the same value.
 E-V2 confirms step 5: an open trapdoor is not in the tag `doors`. Thus a piglin that walks into the
 cell of an open trapdoor jumps in that cell before it falls.
 
-**PATH-MOV-003** (`source_suggested`, semantic, confidence: medium). The move control gives the
-walker tick of PHY-ORD-002 these values for the travel step:
+**PATH-MOV-003** (`source_suggested`, semantic, confidence: medium). In the reference, the AI step
+runs in step 4 of PHY-ORD-002: after the base tick, the jump delay decrease and the decay of
+PHY-INP-003, and before the jump and the travel step. The steps `move_to`, `jump` and `wait` each
+set the forward input. None of them sets the sideways input, so the sideways input keeps its value
+after the decay. The vertical input stays 0. The jump control sets the jump input to true in the
+tick of a jump, and to false in each other tick. PHY-INP-004 then applies the jump.
 
-- the forward component of the input vector: the value of PATH-MOV-001 or PATH-MOV-002, or the
-  value after the decay of PHY-INP-003 when the step sets none;
-- the sideways component: the value after the decay of PHY-INP-003, because the steps `move_to`,
-  `jump` and `wait` do not set it;
-- the speed of PHY-GRV-010: the mob speed;
-- the yaw of PHY-INP-002: the yaw of step 3 of PATH-MOV-002.
+**PATH-MOV-004** (`design`, semantic, confidence: medium). The guidance writes the result of the
+move control and the jump control into the walker row of `mcrs_minecraft_physics` in this way:
 
-The jump control sets the jump input for one tick: true in the tick of a jump, false in the next
-tick. PHY-INP-004 then applies the jump.
+- It runs in the tile task, before `tick_entity` of the row, in each tick in which the mob has a
+  navigation.
+- It sets `Living::steering` in each such tick to `Steering { input, jump, speed }`. `input` has
+  `sideways = f32(old sideways × 0.98F)`, `vertical = 0` and `forward` from the operation. `jump`
+  is the value of the jump control. `speed` is the mob speed; a step that does not set the mob speed
+  keeps the old `Living::speed`.
+- It sets `Living::yaw` to the yaw of PATH-MOV-002 step 3, when that step runs.
+
+`tick_living` multiplies the old input by `0.98F` and then replaces it with `Steering`. The product
+of the guidance is the same f32 operation on the same value, so the result is bit-equal to
+PHY-ORD-002. No kernel change is necessary.
+
+The position, the on-ground flag and the box that the guidance reads are the values at the start of
+the tick. The base tick and the jump delay do not change them, so they are the values of step 4 of
+PHY-ORD-002.
 
 A zombified piglin with the speed modifier 1 and `movement_speed` 0.23 sets the speed and the
 forward input to 0.23. On a block with the friction `0.6F`, it walks at about 0.1165 blocks in each
@@ -727,15 +768,15 @@ recompute for a navigating mob. The trigger needs all these conditions:
    is no path. The tick of the last recompute becomes the current tick. The recompute no longer
    waits.
 
-The tick of the last recompute starts at 0.
+The tick of the last recompute starts at 0. Each tick of this section is the game time.
 
 **PATH-RCP-003** (`design`, semantic, confidence: medium). This server checks the trigger of
-PATH-RCP-001 for the block changes of tick `T` at tick `T + 1`. The check reads the snapshot of
-`T + 1`, which has the block changes of `T` (PHY-DEV-003). The recompute is a decision with the
-issue tick `T + 1` (AIT-DEC-001). Only the navigating mobs of the tiles that a change can reach take
-part in the check: a change at the centre `b` can trigger a mob only when the distance from `b` to
-`M` is less than `R`, so the set of navigating mobs of each tile keeps the largest `R + |M - x|` of
-its mobs. Section 13 records the difference from the reference as PATH-DEV-004.
+PATH-RCP-001 for the block changes of tick `T` at tick `T + 1`. The block changes are the
+`BlockPlaced` messages of `T`, with their old and new states; the system `stir_changed_blocks`
+already reads them. The check reads the guidance state at the start of `T + 1`. It tests each
+navigating mob of the dimension against each change, with no index. The recompute is a request
+with the issue tick `T + 1` (PATH-REQ-005). Section 13 records the difference from the reference as
+PATH-DEV-004.
 
 The goals and the behaviours give the other recompute triggers (AIT-VAN-015). The follower gives the
 stuck and the timeout triggers (PATH-FOL-003, PATH-FOL-004). This document does not add a
@@ -747,7 +788,7 @@ trigger.
 inputs only:
 
 - the blocks of the snapshot of its issue tick (AIT-LAG-001), read through the search region;
-- the state path type table of the tag version of that snapshot (PATH-PRF-002);
+- the path type table of the tags of that tick (PATH-PRF-002);
 - the inputs of the mob of PATH-NOD-010, from the snapshot;
 - the request: the targets, the reach range, `L` and the node multiplier;
 - the difficulty and the attack target, for the fall limit.
@@ -774,6 +815,20 @@ result at the issue tick plus 1. This is the mode `AiDelay::Fixed(1)` for search
 tests of section 12 do not change when the AI stage replaces this runner. In the exact-parity mode,
 the search applies at once (AIT-LAG-011).
 
+**PATH-DET-005** (`design`, semantic, confidence: high). The navigation of a mob lives in its tile,
+next to the rows: `Tile` in `entity_rows.rs` gains `navigation: BTreeMap<EntityId, Navigation>`.
+Each mob with an AI has an entry, also when it has no path; a mob with `NoAI:1b` has none.
+`Navigation` holds the path, the stored target, the reach range, `L`, the speed modifier, the move
+operation, the wanted position, the timers of PATH-FOL-003 and PATH-FOL-004, the recompute state of
+PATH-RCP-002 and the pending request of PATH-REQ-005. `EntityRows::move_rows` moves the entry with
+its row. A despawn of the row removes the entry. The `BTreeMap` keeps the order of the entries
+independent of the thread count.
+
+**PATH-DET-006** (`design`, semantic, confidence: high). A mob whose navigation has a path that is
+not done, a pending request or a waiting recompute does not rest (`physics-architecture.md`,
+section 6.6). The guidance clears the rest state of the row in each such tick. Else the pass skips
+the follower of a resting row.
+
 ## 10. Cost and caches
 
 **PATH-PRF-001** (`design`, semantic, confidence: medium). These are the cost targets of one search
@@ -781,8 +836,6 @@ on one core of the reference machine (Apple M4 Max), with warm tables:
 
 | Search | Target (median) |
 |--------|-----------------|
-| one probe of PATH-NOD-005 that reads only cached path types | ≤ 40 ns |
-| one node expansion, 8 probes | ≤ 400 ns |
 | a search that pops 560 nodes | ≤ 250 µs |
 | a search that pops 1508 nodes | ≤ 650 µs |
 | the farm search from the edge of a layer to its centre | ≤ 100 µs |
@@ -795,9 +848,16 @@ many more mobs scales with the request rate, not with the mob count.
 **PATH-PRF-002** (`design`, semantic, confidence: high). The implementation must keep these tables
 and caches:
 
-- The state path type of each block state, one byte for each state, in `CollisionTable`
-  (`physics-architecture.md`, section 6.7). The build reads the corpus and the tags. A change of
-  the block tags builds a new table, and each snapshot names the version that it uses.
+- A `PathTypeTable` in `mcrs_minecraft_pathfind`, with two values for each block state: the state
+  path type (one byte) and the top of the collision shape for no entity, for PATH-NOD-002. The
+  table stores the top because `CollisionTable` keeps only the context class of a state with a
+  shape that depends on the entity. The build reads the definitions and the block tags, beside
+  `build_tables` of `entity_physics_plugin.rs`, which already builds again when the registries
+  change. The inline runner of PATH-DET-004 reads the table of the same tick, so step G4 needs no
+  version for each snapshot (`physics-architecture.md`, section 15, question 65).
+- For each search, a cache of section references with their masks, of 64 entries
+  (`physics-architecture.md`, section 6.7). `BlockWorld::section` builds the masks from the
+  palette in each call, so the search must not call it for each block read.
 - For each search, a map from a block position to its block path type, and a map from a block
   position to its mob path type. A position is computed at most one time in a search.
 - For each search, a map from a box to the result of its collision test (PATH-NOD-006,
@@ -810,8 +870,8 @@ The implementation must not keep a path type cache of the whole dimension (PATH-
 
 **PATH-PRF-003** (`design`, semantic, confidence: medium). The follower and the move control do a
 fixed amount of work in each tick: at most four block reads and no search (AIT-SPL-003). The
-recompute trigger of PATH-RCP-001 costs one distance test for each navigating mob of a tile that a
-change can reach.
+recompute trigger of PATH-RCP-001 costs one distance test for each pair of a block change and a
+navigating mob. An index is not necessary until a measurement shows this cost.
 
 ## 11. Invariants
 
@@ -825,18 +885,22 @@ Each step from one node to the next is a neighbour of PATH-NOD-004.
 
 ### 12.1 Order of work
 
-1. Corpus: add the component of section 12.3 to the block definition dumper of
-   `tools/vanilla-oracle` and recapture the corpus with `mcrs_minecraft_update`.
-2. Table: add the state path type to `CollisionTable`, built in `mcrs_minecraft_collision_table`
-   from the corpus and the tags (PATH-TYP-002).
-3. Kernel: a new crate `mcrs_minecraft_pathfind`, without Bevy, with the block and mob path types,
-   the evaluator, the search and the heap (sections 1 to 4). It reads blocks through a trait like
-   `CollisionWorld`. Add the crate to the list of packages without Bevy in `xtask/src/checks.rs`.
-4. Navigation: the request, the follower and the move control as a reflex beside the walker tick
-   (sections 5 to 7), in `mcrs_minecraft_engine_physics`. The move control writes `Steering`
-   (`mcrs_minecraft_physics`, `living.rs`) and the yaw.
-5. The search runner of PATH-DET-004 and the recompute of section 8.
-6. The scripted target and the exit test of section 12.2.
+1. Corpus: add the component `mcrs:navigation` of section 12.3 to the block definition dumper of
+   `tools/vanilla-oracle`, add it to the corpus schema, and recapture the corpus with
+   `mcrs_minecraft_update`. `Components` in `schema.rs` denies unknown fields, so the schema change
+   and the recaptured corpus land in one commit. Add the dump P2 in the same step.
+2. Kernel: a new crate `mcrs_minecraft_pathfind`, without Bevy. It holds the `PathTypeTable`
+   (PATH-PRF-002), the block and mob path types, the evaluator, the search and the heap (sections 1
+   to 4). It also holds the follower and the move control as pure functions of the navigation and
+   the row (sections 6 and 7), with their unit tests. It reads blocks through `CollisionWorld` and
+   tests boxes with `query::intersects` and `NoBodies`. It reuses `mcrs_minecraft_core::mth::atan2`
+   and `wrap_degrees`, and `block_at` of `mcrs_minecraft_physics`. Add the crate to the list of
+   packages without Bevy in `xtask/src/checks.rs`.
+3. Engine: in `mcrs_minecraft_engine_physics`, the navigation store of PATH-DET-005, the call of the
+   guidance before `tick_entity` (PATH-MOV-004), the rest rule of PATH-DET-006, the runner of
+   PATH-DET-004 and the recompute check of PATH-RCP-003. This step is only the connection of the
+   kernel functions.
+4. The scripted target and the exit test of section 12.2.
 
 ### 12.2 Exit test
 
@@ -847,27 +911,31 @@ The scripted target asks for a path to the block `(-317, 198, -609)` with the re
 speed modifier 1. It asks in the first tick of the mob, and again each 40 ticks while the navigation
 has no path or its path is done. This is the request of the turtle egg goal of E-V2.
 
-The test scene is one layer of the farm, built in code from the blocks of E-V2:
+The test runs on an `EntityRows` and `Pass` scene, in the form of `test_scene.rs`, and does not
+need step G1. The piglin row uses these constants: the walker category, width 0.6, height 1.95,
+step height 0.6, `movement_speed` 0.23, `jump_strength` 0.42 and the gravity of the walker. The
+navigation of the test stores `L = 70.629`, the follow range of the piglin of E-V2.
 
-- `magma_block` at `y = 198` in the disc of the layer, without the 3 × 3 centre cells;
-- at `y = 196`, `glass`; at `y = 197`, `turtle_egg` with `eggs=1`, both at `(-317, -609)`;
-- at `y = 198`: `glass` at `(-318, -610..-608)` and `(-316, -609)`, `grindstone` at `(-316, -610)`
-  and `(-316, -608)`, air at `(-317, -609)`; at `y = 199`: `glass` at `(-318, -609)` and `(-316,
-  -609)`;
-- open `mangrove_trapdoor` states in the two shaft columns `(-317, -610)` and `(-317, -608)`, from
-  `y = 198` to 206;
-- air below `y = 198` in the shaft columns down to a `honey_block` floor at `y = 174`.
+The blocks come from a fixture that is checked in: `crates/mcrs_minecraft_pathfind/tests/fixtures/
+gold_farm_layer.txt`. A tool test with `#[ignore]` writes it with `mcrs_minecraft_anvil` from
+`~/mc-worlds/upgraded/hermitcraft10`, region `dimensions/minecraft/the_nether/region/r.-1.-2.mca`.
+The fixture holds one line for each block that is not air, as `x y z` and the block state with its
+properties, in the box from `(-326, 196, -620)` to `(-308, 201, -598)`. It also holds the two shaft
+columns `(-317, -610)` and `(-317, -608)` from `y = 174` to 195. This extract has about 1000 lines of
+the build. It is not a save file: `gold-farm.md`, section 5.1, forbids only the commit of world data.
 
-E-V2 probed only these cells. The fixture must read the other cells of the layer from `y = 196` to
-201, and the property `facing` of each trapdoor, from the save one time with `/execute if block`.
-The test keeps these values. The test passes when all these conditions are true:
+The tick 0 of E-V2 is the first game tick after the summon, or the tick after it, because the
+capture read the game time over RCON. The comparison does not depend on that offset. The test
+passes when all these conditions are true:
 
-1. A zombified piglin with the follow range 70.629 that is summoned at `(-323.5, 199, -609.5)` goes
-   through the block columns of the E-V2 table, in the same order.
-2. It enters the shaft cell `(-317, -610)` and has a `y` below 198 within 130 ticks of the summon.
-3. The tick of each column change is within 1 tick of the E-V2 table.
-4. A second run from `(-316.5, 199, -602.5)` enters the shaft cell `(-317, -608)` in the order of the
-   E-V2 table for that start.
+1. A zombified piglin that is summoned at `(-323.5, 199, -609.5)` goes through the block positions of
+   the first E-V2 table to tick 122, in the same order. A change of `y` only is a change of the
+   block position.
+2. Its first move (the change at tick 45 in E-V2) occurs within 2 ticks of tick 45.
+3. The interval between two neighbouring changes is within 1 tick of the interval in the E-V2 table.
+4. It has a `y` below 198 in the shaft cell `(-317, -610)` within 130 ticks of the summon.
+5. A second run from `(-316.5, 199, -602.5)`, with `L = 35.337`, meets conditions 1 to 3 for the
+   second table of E-V2, to tick 97.
 
 The positions of each tick compare with the tolerance of PHY-DEV-001 only after the per-tick capture
 of section 15.1, P1, exists.
@@ -878,26 +946,35 @@ of section 15.1, P1, exists.
 |------|--------|------|
 | path types, numbers and default maluses | PATH-TYP-001 | a constant table |
 | the tags of PATH-TYP-002 and PATH-MOV-002 | the data pack; keys in `mcrs_minecraft_block::block_tag_keys` | the keys exist |
-| collision shapes, fluids, the properties `open` and `lit` | block definition corpus | exists |
-| land walk flag, door kind, fence gate kind, legacy solid flag | new corpus component `mcrs:navigation` | see below |
+| collision shapes, fluids, the properties `open`, `lit` and `facing` | block definition corpus | exists |
+| pathfindable on land, door kind, legacy solid flag | new corpus component `mcrs:navigation` | see below |
 | malus table of each entity type | PATH-MAL-001 | data of the entity type |
 | dimensions, step height, `movement_speed`, `follow_range` | the entity type table and the attributes (step G1) | the follow range of a spawned mob also needs the spawn bonuses of `natural-spawning.md` |
 | `m` of PATH-SRC-001 for each entity type | AIT-VAN-014 | 16 for a zombified piglin |
+| the state path type of each state with the vanilla tags | dump P2 | test data only |
 
-The component `mcrs:navigation` has one value for each state, in the permutations of the
-definition:
+The component `mcrs:navigation` is a JSON object with three fields. The dumper writes it for each
+state, with its real values. Like the other components, it is in the components of the block when
+all states have the same value, else in the permutations.
 
-- `pathfindable`: the computation types for which the state is walkable, a list of `"land"`,
-  `"water"` and `"air"`. The reference gives a default from the collision shape and overrides it in
-  55 block classes, so a dump is the only exact source.
+```json
+"mcrs:navigation": {"pathfindable_land": true, "door": "none", "legacy_solid": false}
+```
+
+- `pathfindable_land`: the value of the reference for the computation type `LAND`, for the state,
+  in an empty level at the block position `(0, 0, 0)`. The reference gives a default from the
+  collision shape and overrides it in 55 block classes, so a dump is the only exact source. The
+  value does not depend on the position.
 - `door`: `"none"`, `"by_hand"` or `"not_by_hand"`. Only a door block has a value other than
   `"none"`. In `26.4-snapshot-7`, only `iron_door` is `"not_by_hand"`.
-- `fence_gate`: true for a fence gate block.
 - `legacy_solid`: the legacy solid flag of the state.
 
-The dumper writes the component only when a value differs from the default: `pathfindable` of
-`["land", "air"]` when the shape is not a full cube, else `[]`; `door` `"none"`; `fence_gate` false;
-`legacy_solid` false.
+The flags for water and for air have no consumer in step G4, so the component does not hold them.
+A fence gate uses the existing flag `FENCE_GATE` of `CollisionTable`, which the tag `fence_gates`
+gives (PATH-DEV-005).
+
+The dump P2 is `crates/mcrs_minecraft_pathfind/tests/fixtures/state_path_types.json`: a JSON
+array, with one path type name of PATH-TYP-001 for each state id, in the order of the state ids.
 
 ### 12.4 Tests to write
 
@@ -915,8 +992,9 @@ before the tests are written.
 | The follower advances at `|dx| < 0.45` and not at 0.45, for the width 0.6. | PATH-FOL-002 | unit |
 | The stuck check drops a path after 101 ticks against a wall, not after 100. | PATH-FOL-003 | unit |
 | A block change on the path at a distance less than `R` from `M` triggers one recompute, and a second change in the next 20 ticks waits. | PATH-RCP-001, PATH-RCP-002 | unit |
-| The same scene with 1 and 8 threads gives the same paths and the same world hash in each tick. | PATH-DET-001 | determinism |
+| The same scene with 1 and 8 threads gives the same paths and the same world hash in each tick. Reuse the harness of `tests/pass.rs`. | PATH-DET-001, PATH-DET-005 | determinism |
 | The exit test of section 12.2. | all | scene |
+| The guidance and `tick_entity` give the same position and velocity, bit for bit, as a test model of PHY-ORD-002 that sets the input in step 4, over 200 ticks of E-V2. | PATH-MOV-003, PATH-MOV-004 | unit |
 | A benchmark of the farm search and of a 1508-node search against PATH-PRF-001. | PATH-PRF-001 | criterion |
 
 ## 13. Intentional deviations
@@ -965,6 +1043,15 @@ only where the reference depends on an order that is not part of the world, or o
 - **Test:** as AIT-DEV-001: a differential test accepts a shift of the new path of 1 to
   `max_lag + 1` ticks.
 
+### PATH-DEV-005: Fence gates by the tag
+
+- **Rule:** PATH-TYP-002, step 5.
+- **Reference:** a closed fence gate is `FENCE` by the class of its block, not by the tag
+  `fence_gates`.
+- **Visible to the client:** no with the vanilla data pack, where the tag holds each fence gate
+  block. A data pack that changes the tag changes the path types of this server only.
+- **Test:** a differential test uses the vanilla tag `fence_gates`.
+
 ### Known vanilla quirks
 
 This server keeps these behaviours of the reference. A test must not report them as defects.
@@ -991,8 +1078,8 @@ This server keeps these behaviours of the reference. A test must not report them
   `1.0E-6`. E-V2 gives positions only at the ticks of the table. P1 closes this.
 - **U3**: the cost targets of PATH-PRF-001 come from no measurement of this server. The benchmark of
   section 12.4 must confirm them.
-- **U4**: `physics-architecture.md`, section 15, question 65: the version of the state path type
-  table after a change of the block tags.
+- **U4**: `physics-architecture.md`, section 15, question 65: the version of the path type table
+  for each snapshot. Step G4 does not need it (PATH-PRF-002). Track A decides it.
 
 ## 15. Experiments
 
@@ -1012,10 +1099,14 @@ and the game time in each tick over RCON.
 | E-V2 | Summon one zombified piglin at `(-323.5, 199, -609.5)`, and in a second run at `(-316.5, 199, -602.5)`. Record its block column and position in each tick for 200 ticks. Repeat the first run. | PATH-NOD-005, PATH-MOV-002, PATH-MOV-003, PATH-REQ-001, PATH-FOL-001 | done |
 | E-V3 | Build a closed glass box at `y` 139 to 141, `x` -330 to -316, `z` -638 to -630, with air at `y` 142. Make a straight corridor of 11 blocks at `z` -634 with a magma floor in the 9 inner cells, and a detour of 17 blocks with a stone floor through `z` -637. Put a turtle egg at the end. Summon a piglin at the start. Repeat with stone in place of the magma. | PATH-MAL-001 | done |
 | E-V4 | Build a corridor at `y` 134 that ends at a pit. Put a turtle egg on the floor of the pit, 3 blocks below the corridor floor, and in a second run 4 blocks below. Summon a piglin at the far end of the corridor. | PATH-NOD-008, PATH-SRC-004 | done |
-| P1 | Connect a scripted client as an operator. Send the debug subscription request for `entity_paths`. Repeat E-V2 to E-V4 and record each path with its open set and closed set. | PATH-SRC-003, PATH-SRC-005, PATH-SRC-004 | blocked: the scripted client cannot send the debug subscription request yet |
+| P1 | Connect a scripted client as an operator. Send the debug subscription request for `entity_paths`. Repeat E-V2 to E-V4 and record each path with its open set and closed set. | PATH-SRC-003, PATH-SRC-005, PATH-SRC-004 | pending: the scripted client cannot send the debug subscription request yet; step G4 does not need it |
 | P2 | Add a dump of the state path type of each state, with the vanilla tags, to `tools/vanilla-oracle`. | PATH-TYP-002 | planned with section 12.1, step 1 |
 | P3 | Put a zombified piglin with an attack target at a ledge of 4 to 8 blocks with health 20 on each difficulty. Record whether it drops. | PATH-NOD-008 | planned |
 | P4 | Let a zombie follow a player along a corridor of 60 blocks. Record the ticks where its path stops. | PATH-FOL-004 | planned |
+
+The experiments P1 to P4 need a vanilla server. They wait until the owner confirms the Minecraft
+EULA for this environment (`tools/vanilla-server/run.sh`, `MINECRAFT_EULA=true`). Each row gives the
+steps; the setup of this section stays the same.
 
 ### 15.2 Tests for this server
 
@@ -1038,7 +1129,7 @@ scene of section 15.1.
 Of the 400 piglins, 4 have the budget 560. The share with both bonuses is 31 %. This agrees with
 the chance `1/3` of `u > 1` at the special multiplier 1.
 
-**E-V2**, the block column of the piglin from `(-323.5, 199, -609.5)`, follow range 70.629. The tick
+**E-V2**, the block position of the piglin from `(-323.5, 199, -609.5)`, follow range 70.629. The tick
 counts from the first recorded tick. Two runs gave the same table.
 
 | Tick | Block position | `x` | `y` | `z` |
@@ -1063,9 +1154,21 @@ The piglin does not move until tick 40, because its first request fails before i
 the south side and jumps in the cell of the open trapdoor (tick 113). It lands on the honey at
 `y = 174.9375`.
 
-The second start, `(-316.5, 199, -602.5)`, walks south along the column `x = -317` through `z` -603 to
--607. It enters the shaft cell `(-317, -608)` at tick 80, jumps at tick 86 and reaches the block
-`y = 197` at tick 97.
+The second start, `(-316.5, 199, -602.5)`, follow range 35.337. A change of `y` only counts as a
+change of the block position, in both tables.
+
+| Tick | Block position | `x` | `y` | `z` |
+|------|----------------|-----|-----|-----|
+| 0 | `(-317, 199, -603)` | -316.5 | 199.0 | -602.5 |
+| 46 | `(-317, 199, -604)` | -316.436 | 199.0 | -603.06 |
+| 55 | `(-317, 199, -605)` | -316.476 | 199.0 | -604.103 |
+| 63 | `(-317, 199, -606)` | -316.485 | 199.0 | -605.035 |
+| 72 | `(-317, 199, -607)` | -316.492 | 199.0 | -606.083 |
+| 80 | `(-317, 199, -608)` | -316.495 | 199.0 | -607.015 |
+| 86 | `(-317, 200, -608)` | -316.496 | 200.001 | -607.512 |
+| 92 | `(-317, 199, -608)` | -316.496 | 199.797 | -607.512 |
+| 95 | `(-317, 198, -608)` | -316.496 | 198.676 | -607.512 |
+| 97 | `(-317, 197, -608)` | -316.496 | 197.58 | -607.512 |
 
 **E-V3**, the route of the piglin from `(-327.5, 140, -633.5)`:
 

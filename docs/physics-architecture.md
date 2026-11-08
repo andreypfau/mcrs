@@ -1672,9 +1672,10 @@ E1..E8, T1 (any time)   D1 ─ D2 ─ D3 ─ D4 ─ D5 ─ D6 ─ D7
     a quarter of each crowd, and nothing in most ticks; tile boundaries do not matter. Without the
     rule, a crowd of 25 mobs with 5 health loses about 6 mobs in one tick, not 1.
 61. The hits of the own block actions and of the crowd. Resolved: DMG-ORD-002 and §3.7.
-65. PATH-PRF-002, PATH-DET-001, the state path type table after a change of the block tags. Open
-    (design). The type of a state reads nine `pathfinding/*` tags and `fire`, `campfires`, `fences`
-    and `walls`, so a data-pack reload changes it. `CollisionTable` is built once at start. A
-    search of issue tick `T` must read the table of the tags of `T`, also when it runs after a
-    reload. Proposal: the table is an `Arc` that the snapshot of each tick names; a reload builds a
-    new table and the next snapshot takes it; old searches keep their `Arc`.
+65. PATH-PRF-002, PATH-DET-001, the version of the path type table for each snapshot. Deferred to
+    track A1. The type of a state reads the `pathfinding/*` tags and `fire`, `campfires`, `fences`,
+    `walls` and `fence_gates`, so a data-pack reload changes it. In step G4, `build_tables` builds
+    the tables again in `DomainInput` when `CurrentRegistries` changes, before `Simulate`, and the
+    inline runner of PATH-DET-004 reads the table of the same tick, so no version is necessary. The
+    AI stage of A1 runs a search after its issue tick; then the snapshot of each tick must name the
+    table (for example an `Arc`), and a search keeps the table of its issue tick.
