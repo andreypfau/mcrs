@@ -42,7 +42,12 @@ impl Plugin for MuxerPlugin {
         app.add_schedule(flush);
         app.add_systems(
             bridge::OutboundFlush,
-            (bridge::bridge_outbound, bridge::dispatch_encode).chain(),
+            (
+                bridge::bridge_outbound,
+                bridge::dispatch_encode,
+                backlog::forward_backlog,
+            )
+                .chain(),
         );
         app.add_systems(
             FixedPostUpdate,
@@ -61,7 +66,6 @@ impl Plugin for MuxerPlugin {
                 bridge::forward_pending_inbound,
                 online_count::send_online_count,
                 latency::forward_latency,
-                backlog::forward_backlog,
             )
                 .chain(),
         );
