@@ -3,13 +3,14 @@
     reason = "the server binary reads its settings from the environment"
 )]
 
-use std::path::{Path, PathBuf};
 use std::num::NonZeroUsize;
+use std::path::{Path, PathBuf};
 use std::str::FromStr;
 
 use bevy_app::{App, AppExit, PluginGroup, Update};
 use bevy_ecs::message::MessageWriter;
 use bevy_log::{Level, LogPlugin, tracing_subscriber};
+use mcrs_minecraft_console::{ConsolePlugin, log_console_answers};
 use mcrs_minecraft_engine::banlist::{BANLIST_FILE, BanList};
 use mcrs_minecraft_engine::coordinator::ops::{OPS_FILE, OpList};
 use mcrs_minecraft_engine::whitelist::{WHITELIST_FILE, Whitelist};
@@ -17,7 +18,6 @@ use mcrs_minecraft_engine_server::{
     DimensionWorldsPlugin, GameMode, InboundRateLimit, NetworkCompressionThreshold, Placement,
     ServerCorePlugin, ServerNetworkPlugin, ShutdownRequest,
 };
-use mcrs_minecraft_console::{ConsolePlugin, log_console_answers};
 use mcrs_minecraft_server::MinecraftServerPlugins;
 use mcrs_minecraft_vanilla_light::LightingPlugin;
 use mcrs_minecraft_vanilla_worldgen::WorldGenPlugin;
@@ -28,7 +28,7 @@ const LOG_FILTER: &str = "mcrs_minecraft_server=debug,mcrs_minecraft_engine=debu
 async fn main() -> AppExit {
     let mut app = App::new();
     app.add_plugins(LogPlugin {
-        filter: LOG_FILTER.to_string(),
+        filter: log_filter(variable("RUST_LOG").as_deref()),
         level: Level::INFO,
         fmt_layer: |_| {
             Some(Box::new(
@@ -162,6 +162,16 @@ fn network() -> ServerNetworkPlugin {
         banlist: BanList::read(Path::new(BANLIST_FILE)),
         ..defaults
     }
+}
+
+/// `RUST_LOG` replaces the default filter, so it can lower the levels that the default raises for
+/// the server's own crates; bevy alone only adds it on top of them.
+fn log_filter(rust_log: Option<&str>) -> String {
+    rust_log
+        .map(str::trim)
+        .filter(|filter| !filter.is_empty())
+        .unwrap_or(LOG_FILTER)
+        .to_owned()
 }
 
 fn variable(name: &str) -> Option<String> {

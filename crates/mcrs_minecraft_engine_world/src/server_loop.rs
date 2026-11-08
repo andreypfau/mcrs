@@ -86,6 +86,28 @@ impl Plugin for VoxelServerPlugin {
     }
 }
 
+/// The longest backlog of ticks that the loop runs back to back to catch up.
+const MAX_BACKLOG: Duration = Duration::from_secs(2);
+
+/// When the next tick starts. The ticks keep a fixed schedule, one `tick` after another from the
+/// first, so a late wake or a long tick does not shift the ticks after it: a late tick is followed
+/// at once by the next. A backlog longer than [`MAX_BACKLOG`] is dropped, and the schedule starts
+/// again from `now`. A tick of a sprint, `at_once`, starts the schedule again from `now` too.
+fn next_deadline(previous: Instant, tick: Duration, at_once: bool, now: Instant) -> Instant {
+    if at_once {
+        return now;
+    }
+    let next = previous + tick;
+    if now.saturating_duration_since(next) > MAX_BACKLOG {
+        tracing::warn!(
+            behind_ms = now.saturating_duration_since(next).as_millis() as u64,
+            "the server cannot keep up; it skips the ticks it is behind"
+        );
+        return now;
+    }
+    next
+}
+
 /// Gives every schedule of `world` a single-threaded executor.
 pub fn run_schedules_on_one_thread(world: &mut World) {
     let Some(mut schedules) = world.get_resource_mut::<Schedules>() else {
@@ -137,6 +159,7 @@ pub fn run_server_loop(
     if let Some(exit) = app.should_exit() {
         return exit;
     }
+    let mut next = Instant::now();
     loop {
         let start = Instant::now();
         if let Some(mut pace) = app.world_mut().get_resource_mut::<TickPace>() {
@@ -154,11 +177,37 @@ pub fn run_server_loop(
             .world_mut()
             .get_resource_mut::<TickPace>()
             .is_some_and(|mut pace| pace.end_tick(nanos));
-        let deadline = if at_once {
-            Instant::now()
-        } else {
-            start + tick
-        };
-        until(&mut app, deadline);
+        next = next_deadline(next, tick, at_once, Instant::now());
+        until(&mut app, next);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const TICK: Duration = Duration::from_millis(50);
+
+    #[test]
+    fn a_late_wake_does_not_move_the_ticks_after_it() {
+        let start = Instant::now();
+        let first = next_deadline(start, TICK, false, start + Duration::from_millis(57));
+        assert_eq!(first, start + TICK);
+        let second = next_deadline(first, TICK, false, first + Duration::from_millis(7));
+        assert_eq!(
+            second,
+            start + 2 * TICK,
+            "the schedule stays on 50 ms steps"
+        );
+    }
+
+    #[test]
+    fn a_backlog_up_to_two_seconds_is_caught_up_and_a_longer_one_is_dropped() {
+        let start = Instant::now();
+        let late = start + Duration::from_millis(1500);
+        assert_eq!(next_deadline(start, TICK, false, late), start + TICK);
+        let stalled = start + Duration::from_secs(3);
+        assert_eq!(next_deadline(start, TICK, false, stalled), stalled);
+        assert_eq!(next_deadline(start, TICK, true, late), late);
     }
 }
