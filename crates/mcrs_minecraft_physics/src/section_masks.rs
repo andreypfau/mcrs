@@ -12,9 +12,8 @@ pub struct SectionMasks {
     pub solid: u64,
     /// Every block is air.
     pub air_only: bool,
-    /// A state with a large shape, which reaches out of its cell. A moving piston needs no flag of
-    /// its own: the table marks each shape out of its cell as large, and a shape inside its cell
-    /// cannot reach a query from an outer edge of the scan.
+    /// A state whose shape the block scan reads out of its cell: a large shape, or a moving
+    /// piston, whose shape is the moved block at its progress and so can leave the cell.
     pub large: bool,
     /// A state with an inside effect, an inside action or a fall reset.
     pub inside: bool,
@@ -60,7 +59,9 @@ impl SectionMasks {
         if data.is_solid() {
             self.solid |= bricks;
         }
-        self.large |= data.flags.contains(BlockFlags::LARGE);
+        self.large |= data
+            .flags
+            .intersects(BlockFlags::LARGE | BlockFlags::MOVING_PISTON);
         self.inside |= data.acts_inside();
     }
 

@@ -49,7 +49,7 @@ pub(crate) fn scan<W: CollisionWorld>(
         .max
         .to_array()
         .map(|high| floor_block(high + COLLISION).saturating_add(1));
-    // Without a large shape in the region, no block on its outer faces can reach the query.
+    // Without a large shape or a moving piston in the region, no block on its outer faces counts.
     let large = any_section(world, [x0, y0, z0], [x1, y1, z1], |masks| masks.large);
     let inset = i32::from(!large);
     let [low_x, low_y, low_z] = [x0, y0, z0].map(|low| low + inset);
