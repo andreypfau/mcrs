@@ -83,6 +83,11 @@ impl EntityRows {
         self.tiles.entry(tile).or_default().intents.push(intent);
     }
 
+    /// Queues each of `intents` as [`Self::steer`] does, with one lookup of the tile.
+    pub fn steer_all(&mut self, tile: TileKey, intents: impl IntoIterator<Item = MobIntent>) {
+        self.tiles.entry(tile).or_default().intents.extend(intents);
+    }
+
     /// Removes the row `id` from `tile` and gives it; `None` when the tile has no such row.
     pub fn despawn(&mut self, tile: TileKey, id: EntityId) -> Option<Row> {
         let row = self.tiles.get_mut(&tile)?.rows.despawn_row(id)?;
