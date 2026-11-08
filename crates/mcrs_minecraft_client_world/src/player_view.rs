@@ -3,10 +3,10 @@ use bevy::ecs::prelude::{Commands, Component, On};
 use bevy::math::DVec3;
 use mcrs_minecraft_core::Look;
 use mcrs_minecraft_network::event::Received;
-use mcrs_minecraft_protocol_game::{ColumnPos, PositionFlags};
 use mcrs_minecraft_protocol_game::clientbound::{
     ClientboundChunkCacheRadius, ClientboundPlayerPosition, ClientboundSetChunkCacheCenter,
 };
+use mcrs_minecraft_protocol_game::{ColumnPos, PositionFlags};
 
 /// Keeps on the connection where the server puts the player and which columns it keeps
 /// loaded around it.
@@ -44,7 +44,6 @@ pub struct ChunkCacheCenter(pub ColumnPos);
 #[derive(Component, Clone, Copy, Debug)]
 pub struct ChunkCacheRadius(pub i32);
 
-/// Enqueues an inbound player position packet as a pending teleport on the connection entity.
 fn on_player_position(event: On<Received<ClientboundPlayerPosition>>, mut commands: Commands) {
     let Some(position) = event.packet() else {
         return;

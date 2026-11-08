@@ -78,11 +78,11 @@ pub struct LookOverride {
     pub pitch: f32,
 }
 
-/// The position a run asked for, kept through the teleports the server answers a join with.
+/// The position a run asked for, in place of the first absolute teleport the server sends.
 #[derive(Resource, Clone, Copy)]
 pub struct PositionOverride(pub DVec3);
 
-/// The client's sine table for trigonometry calculations, such as relative teleport velocity rotations.
+/// The sine table that rotates the velocity of a teleport.
 #[derive(Resource, Clone, Debug, Default)]
 pub struct ClientSine(pub SineTable);
 
@@ -110,47 +110,40 @@ impl Plugin for LocalPlayerPlugin {
     }
 }
 
-/// Computes the resulting transform and velocity from applying a server teleport (absolute or relative)
-/// to the player's current transform and velocity.
-#[must_use]
-pub fn calculate_teleport(
+fn apply_server_teleport(
     sine: &SineTable,
-    current_transform: PhysicsTransform,
-    current_velocity: Velocity,
+    transform: &mut PhysicsTransform,
+    velocity: &mut Velocity,
     teleport: &ServerTeleport,
-) -> (PhysicsTransform, Velocity) {
-    let relative = Relative::from_bits_truncate(teleport.flags.bits());
-    let teleport_spec = Teleport {
+) {
+    let mut state = PlayerState::new(transform.translation);
+    state.velocity = velocity.0;
+    let mut rotation = PlayerRotation {
+        yaw: transform.rotation.yaw(),
+        pitch: transform.rotation.pitch(),
+    };
+    let packet = Teleport {
         position: teleport.position,
         velocity: teleport.velocity,
         yaw: teleport.look.yaw,
         pitch: teleport.look.pitch,
-        relative,
+        relative: Relative::from_bits_truncate(teleport.flags.bits()),
     };
-    let mut state = PlayerState::new(current_transform.translation);
-    state.velocity = current_velocity.0;
-    let mut player_rotation = PlayerRotation {
-        yaw: current_transform.rotation.yaw(),
-        pitch: current_transform.rotation.pitch(),
-    };
-    apply_teleport(sine, &mut state, &mut player_rotation, &teleport_spec);
-    (
-        PhysicsTransform {
-            translation: state.position,
-            rotation: Rotation::new(player_rotation.yaw, player_rotation.pitch),
-        },
-        Velocity(state.velocity),
-    )
+    apply_teleport(sine, &mut state, &mut rotation, &packet);
+    transform.translation = state.position;
+    transform.rotation = Rotation::new(rotation.yaw, rotation.pitch);
+    velocity.0 = state.velocity;
 }
 
 /// Moves to where the server says, then confirms with the position that move
 /// landed on.
 fn accept_teleports(
+    mut commands: Commands,
     player: Single<(&mut PhysicsTransform, &mut Velocity), With<Player>>,
     connection: Option<Single<(&mut ClientConnection, &mut PendingTeleports)>>,
     look: Option<Res<LookOverride>>,
     position: Option<Res<PositionOverride>>,
-    sine: Option<Res<ClientSine>>,
+    sine: Res<ClientSine>,
 ) {
     let Some(connection) = connection else { return };
     let (mut connection, mut pending) = connection.into_inner();
@@ -158,33 +151,20 @@ fn accept_teleports(
         return;
     }
     let (mut transform, mut velocity) = player.into_inner();
-    let fallback_sine;
-    let sine_table = match sine.as_deref() {
-        Some(sine) => &sine.0,
-        None => {
-            fallback_sine = SineTable::new();
-            &fallback_sine
-        }
-    };
-
+    let mut position = position.map(|position| position.0);
     for teleport in pending.0.drain(..) {
-        let (new_transform, new_velocity) =
-            calculate_teleport(sine_table, *transform, *velocity, &teleport);
-
-        // Position and look overrides apply to initial absolute join teleports;
-        // relative teleports apply their delta to the player's current state.
-        transform.translation = match position.as_deref() {
-            Some(pos_override) if teleport.flags.is_empty() => pos_override.0,
-            _ => new_transform.translation,
-        };
-        transform.rotation = match look.as_deref() {
-            Some(look_override) if teleport.flags.is_empty() => {
-                Rotation::new(look_override.yaw, look_override.pitch)
+        apply_server_teleport(&sine.0, &mut transform, &mut velocity, &teleport);
+        if teleport.flags.is_empty() {
+            if let Some(position) = position.take() {
+                transform.translation = position;
+                // The server answers the mismatch with its own destination,
+                // which the client has to accept instead of overriding again.
+                commands.remove_resource::<PositionOverride>();
             }
-            _ => new_transform.rotation,
-        };
-        velocity.0 = new_velocity.0;
-
+            if let Some(look) = look.as_deref() {
+                transform.rotation = Rotation::new(look.yaw, look.pitch);
+            }
+        }
         connection.write_packet(&ServerboundAcceptTeleportation {
             teleport_id: VarInt(teleport.teleport_id),
             position: transform.translation.into(),
@@ -226,13 +206,11 @@ fn send_movement(
     }
 }
 
-/// Captures the player's current transform into [`OldTransform`] before movement systems run.
 fn capture_old_transform(player: Single<(&PhysicsTransform, &mut OldTransform), With<Player>>) {
     let (transform, mut old_transform) = player.into_inner();
     old_transform.0 = *transform;
 }
 
-/// Computes flying displacement from active movement inputs and advances the player's translation.
 fn fly(
     input: Res<MovementInput>,
     player: Single<
@@ -270,7 +248,7 @@ mod tests {
     use super::*;
     use crate::player::look_direction;
     use mcrs_minecraft_core::Look;
-    use mcrs_minecraft_protocol_game::{PositionFlag, PositionFlags};
+    use mcrs_minecraft_protocol_game::PositionFlag;
 
     #[test]
     fn forward_moves_along_the_horizontal_look_direction() {
@@ -288,138 +266,90 @@ mod tests {
         }
     }
 
-    #[test]
-    fn relative_teleport_adds_to_position_rotation_and_velocity() {
-        let sine = SineTable::new();
-        let initial_transform = PhysicsTransform {
+    fn teleport(flags: &[PositionFlag], look: Look, velocity: DVec3) -> ServerTeleport {
+        ServerTeleport {
+            teleport_id: 1,
+            position: DVec3::new(1.0, 2.0, 3.0),
+            velocity,
+            look,
+            flags: flags.iter().copied().collect(),
+        }
+    }
+
+    fn landing(teleport: &ServerTeleport) -> (PhysicsTransform, Velocity) {
+        let mut transform = PhysicsTransform {
             translation: DVec3::new(10.0, 64.0, -5.0),
             rotation: Rotation::new(45.0, 10.0),
         };
-        let initial_velocity = Velocity(DVec3::new(1.0, 0.0, -1.0));
-
-        // Absolute teleport
-        let abs_teleport = ServerTeleport {
-            teleport_id: 1,
-            position: DVec3::new(20.0, 70.0, 30.0),
-            velocity: DVec3::new(0.0, 0.5, 0.0),
-            look: Look {
-                yaw: 90.0,
-                pitch: 0.0,
-            },
-            flags: PositionFlags::default(),
-        };
-        let (trans, vel) =
-            calculate_teleport(&sine, initial_transform, initial_velocity, &abs_teleport);
-        assert_eq!(trans.translation, DVec3::new(20.0, 70.0, 30.0));
-        assert_eq!(trans.rotation.yaw(), 90.0);
-        assert_eq!(trans.rotation.pitch(), 0.0);
-        assert_eq!(vel.0, DVec3::new(0.0, 0.5, 0.0));
-
-        // Relative position: /tp ~ ~10 ~
-        let rel_pos_teleport = ServerTeleport {
-            teleport_id: 2,
-            position: DVec3::new(0.0, 10.0, 0.0),
-            velocity: DVec3::ZERO,
-            look: Look {
-                yaw: 0.0,
-                pitch: 0.0,
-            },
-            flags: [PositionFlag::X, PositionFlag::Y, PositionFlag::Z]
-                .into_iter()
-                .collect(),
-        };
-        let (trans, vel) =
-            calculate_teleport(&sine, initial_transform, initial_velocity, &rel_pos_teleport);
-        assert_eq!(trans.translation, DVec3::new(10.0, 74.0, -5.0));
-        assert_eq!(vel.0, DVec3::ZERO);
-
-        // Relative rotation: yaw + 90, pitch - 5
-        let rel_rot_teleport = ServerTeleport {
-            teleport_id: 3,
-            position: DVec3::ZERO,
-            velocity: DVec3::ZERO,
-            look: Look {
-                yaw: 90.0,
-                pitch: -5.0,
-            },
-            flags: [PositionFlag::YRot, PositionFlag::XRot]
-                .into_iter()
-                .collect(),
-        };
-        let (trans, _) =
-            calculate_teleport(&sine, initial_transform, initial_velocity, &rel_rot_teleport);
-        assert_eq!(trans.rotation.yaw(), 135.0);
-        assert_eq!(trans.rotation.pitch(), 5.0);
-
-        // Relative velocity: delta x, y, z
-        let rel_vel_teleport = ServerTeleport {
-            teleport_id: 4,
-            position: DVec3::ZERO,
-            velocity: DVec3::new(0.5, 1.0, -0.5),
-            look: Look {
-                yaw: 0.0,
-                pitch: 0.0,
-            },
-            flags: [PositionFlag::DeltaX, PositionFlag::DeltaY, PositionFlag::DeltaZ]
-                .into_iter()
-                .collect(),
-        };
-        let (_, vel) =
-            calculate_teleport(&sine, initial_transform, initial_velocity, &rel_vel_teleport);
-        assert_eq!(vel.0, DVec3::new(1.5, 1.0, -1.5));
+        let mut velocity = Velocity(DVec3::new(1.0, 0.0, -1.0));
+        apply_server_teleport(&SineTable::new(), &mut transform, &mut velocity, teleport);
+        (transform, velocity)
     }
 
     #[test]
-    fn relative_teleport_with_rotate_delta_rotates_velocity() {
-        let sine = SineTable::new();
-        let initial_transform = PhysicsTransform {
-            translation: DVec3::new(5.0, 64.0, 5.0),
-            rotation: Rotation::new(10.0, 20.0),
+    fn each_relative_flag_adds_to_its_own_component() {
+        let look = Look {
+            yaw: 90.0,
+            pitch: -5.0,
         };
-        // Nonzero starting velocity
-        let initial_velocity = Velocity(DVec3::new(1.0, 2.0, 3.0));
+        let change = DVec3::new(0.5, 1.0, -0.5);
+        let (transform, velocity) = landing(&teleport(&[], look, change));
+        assert_eq!(transform.translation, DVec3::new(1.0, 2.0, 3.0));
+        assert_eq!(
+            (transform.rotation.yaw(), transform.rotation.pitch()),
+            (90.0, -5.0)
+        );
+        assert_eq!(velocity.0, change);
 
-        // Nonzero yaw and pitch change with PositionFlag::RotateDelta
-        let teleport = ServerTeleport {
-            teleport_id: 5,
-            position: DVec3::ZERO,
-            velocity: DVec3::new(0.1, 0.2, 0.3),
-            look: Look {
-                yaw: 30.0,
-                pitch: 15.0,
-            },
-            flags: [
-                PositionFlag::YRot,
-                PositionFlag::XRot,
-                PositionFlag::RotateDelta,
-                PositionFlag::DeltaX,
-                PositionFlag::DeltaY,
-                PositionFlag::DeltaZ,
-            ]
-            .into_iter()
-            .collect(),
-        };
+        let cases = [
+            (PositionFlag::X, DVec3::new(11.0, 2.0, 3.0)),
+            (PositionFlag::Y, DVec3::new(1.0, 66.0, 3.0)),
+            (PositionFlag::Z, DVec3::new(1.0, 2.0, -2.0)),
+        ];
+        for (flag, expected) in cases {
+            let (transform, _) = landing(&teleport(&[flag], look, change));
+            assert_eq!(transform.translation, expected, "{flag:?}");
+        }
+        let (transform, _) = landing(&teleport(&[PositionFlag::YRot], look, change));
+        assert_eq!(
+            (transform.rotation.yaw(), transform.rotation.pitch()),
+            (135.0, -5.0)
+        );
+        let (transform, _) = landing(&teleport(&[PositionFlag::XRot], look, change));
+        assert_eq!(
+            (transform.rotation.yaw(), transform.rotation.pitch()),
+            (90.0, 5.0)
+        );
+        let cases = [
+            (PositionFlag::DeltaX, DVec3::new(1.5, 1.0, -0.5)),
+            (PositionFlag::DeltaY, DVec3::new(0.5, 1.0, -0.5)),
+            (PositionFlag::DeltaZ, DVec3::new(0.5, 1.0, -1.5)),
+        ];
+        for (flag, expected) in cases {
+            let (_, velocity) = landing(&teleport(&[flag], look, change));
+            assert_eq!(velocity.0, expected, "{flag:?}");
+        }
+    }
 
-        let mut ref_state = PlayerState::new(initial_transform.translation);
-        ref_state.velocity = initial_velocity.0;
-        let mut ref_rot = PlayerRotation {
-            yaw: initial_transform.rotation.yaw(),
-            pitch: initial_transform.rotation.pitch(),
+    #[test]
+    fn rotate_delta_turns_the_velocity_with_the_yaw_change() {
+        let flags = [
+            PositionFlag::YRot,
+            PositionFlag::XRot,
+            PositionFlag::RotateDelta,
+            PositionFlag::DeltaX,
+            PositionFlag::DeltaY,
+            PositionFlag::DeltaZ,
+        ];
+        let look = Look {
+            yaw: 90.0,
+            pitch: 0.0,
         };
-        let ref_teleport = Teleport {
-            position: teleport.position,
-            velocity: teleport.velocity,
-            yaw: teleport.look.yaw,
-            pitch: teleport.look.pitch,
-            relative: Relative::from_bits_truncate(teleport.flags.bits()),
-        };
-        apply_teleport(&sine, &mut ref_state, &mut ref_rot, &ref_teleport);
-
-        let (trans, vel) =
-            calculate_teleport(&sine, initial_transform, initial_velocity, &teleport);
-        assert_eq!(trans.rotation.yaw(), ref_rot.yaw);
-        assert_eq!(trans.rotation.pitch(), ref_rot.pitch);
-        assert_eq!(vel.0, ref_state.velocity);
-        assert_ne!(vel.0, initial_velocity.0);
+        let (_, velocity) = landing(&teleport(&flags, look, DVec3::ZERO));
+        assert!(
+            velocity.0.abs_diff_eq(DVec3::new(1.0, 0.0, 1.0), 1e-6),
+            "{:?}",
+            velocity.0
+        );
     }
 }

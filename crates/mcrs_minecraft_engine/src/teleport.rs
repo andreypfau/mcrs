@@ -8,8 +8,8 @@ use mcrs_minecraft_physics::{
     PlayerRotation, PlayerState, Relative, SineTable, Teleport, apply_teleport,
 };
 use mcrs_minecraft_protocol::VarInt;
+use mcrs_minecraft_protocol_game::PositionFlags;
 use mcrs_minecraft_protocol_game::clientbound::ClientboundPlayerPosition;
-use mcrs_minecraft_protocol_game::{PositionFlag, PositionFlags};
 
 use crate::coordinator::clock::GameTime;
 
@@ -165,13 +165,14 @@ pub fn position_packet(teleport_id: i32, teleport: &Teleport) -> ClientboundPlay
             yaw: teleport.yaw,
             pitch: teleport.pitch,
         },
-        flags: PositionFlags::from_bits(teleport.relative.bits()),
+        flags: PositionFlags::from_bits_truncate(teleport.relative.bits()),
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use mcrs_minecraft_protocol_game::PositionFlag;
 
     fn at(x: f64) -> Transform {
         Transform::default().with_translation(DVec3::new(x, 64.0, 0.0))
