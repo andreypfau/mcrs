@@ -171,12 +171,17 @@ fn accept_teleports(
         let (new_transform, new_velocity) =
             calculate_teleport(sine_table, *transform, *velocity, &teleport);
 
-        transform.translation = position
-            .as_deref()
-            .map_or(new_transform.translation, |pos| pos.0);
+        // Position and look overrides apply to initial absolute join teleports;
+        // relative teleports apply their delta to the player's current state.
+        transform.translation = match position.as_deref() {
+            Some(pos_override) if teleport.flags.is_empty() => pos_override.0,
+            _ => new_transform.translation,
+        };
         transform.rotation = match look.as_deref() {
-            Some(look_override) => Rotation::new(look_override.yaw, look_override.pitch),
-            None => new_transform.rotation,
+            Some(look_override) if teleport.flags.is_empty() => {
+                Rotation::new(look_override.yaw, look_override.pitch)
+            }
+            _ => new_transform.rotation,
         };
         velocity.0 = new_velocity.0;
 
