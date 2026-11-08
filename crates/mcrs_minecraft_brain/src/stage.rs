@@ -10,6 +10,7 @@ use crate::MobBrain;
 use crate::MobId;
 use crate::MobView;
 use crate::OrderKey;
+use crate::PlayerRow;
 use crate::Point;
 use crate::Replica;
 use crate::StageConfig;
@@ -268,7 +269,7 @@ fn load_players<W: ?Sized>(
     cx: &TickContext<'_, W>,
     views: &[MobView],
     range: f64,
-    out: &mut Vec<crate::PlayerRow>,
+    out: &mut Vec<PlayerRow>,
 ) {
     let Some(table) = cx.replica.players(cx.tick) else {
         return;

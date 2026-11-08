@@ -6,6 +6,8 @@
 
 extern crate alloc;
 
+#[cfg(feature = "testing")]
+mod flat_ground;
 mod float;
 mod gate;
 mod goal_world;
@@ -22,6 +24,8 @@ mod random_position;
 mod straight_route;
 mod stroll;
 
+#[cfg(feature = "testing")]
+pub use flat_ground::*;
 pub use float::*;
 pub use gate::*;
 pub use goal_world::*;

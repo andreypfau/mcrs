@@ -3,7 +3,8 @@
 //! acts as if a player stood near it, so it strolls (the most awake case of a pig); 64 players
 //! stand in the pen, and a pig takes a hit about once in 4000 ticks. Before the timed runs, the
 //! bench prints the full evaluations and the decisions of a tick, in the sleeping and the polling
-//! stage.
+//! stage, and in the sleeping stage with the idle time of the reference, where the pigs far from
+//! the 64 players stop to stroll.
 
 use std::time::Duration;
 use std::time::Instant;
@@ -30,13 +31,13 @@ const PIGS: u32 = 50_000;
 const WARM_UP_TICKS: u32 = 300;
 const REPORT_TICKS: u32 = 400;
 
-fn pen(wake: WakeMode) -> PigPen {
+fn pen(wake: WakeMode, idle: IdleRule) -> PigPen {
     let config = PenConfig {
         side: 1024,
         pigs: PIGS,
         players: 64,
         hurt_chance: 1.0 / 4000.0,
-        idle: IdleRule::AlwaysNear,
+        idle,
         seed: 0xBE7C4,
     };
     let stage = StageConfig::new(WorldSeed(0xBE7C4)).with_wake(wake);
@@ -64,8 +65,8 @@ fn timed_step(pen: &mut PigPen, pool: &ThreadPool, threads: usize) -> Duration {
     elapsed
 }
 
-fn report(wake: WakeMode, pool: &ThreadPool, threads: usize) {
-    let mut pen = pen(wake);
+fn report(wake: WakeMode, idle: IdleRule, pool: &ThreadPool, threads: usize) {
+    let mut pen = pen(wake, idle);
     let (evaluations, decisions) = (pen.stage().evaluations(), pen.decisions());
     let mut walking = 0;
     let mut stage = Duration::ZERO;
@@ -78,7 +79,7 @@ fn report(wake: WakeMode, pool: &ThreadPool, threads: usize) {
     let decisions = (pen.decisions() - decisions) as f64 / ticks;
     let per_tick = stage.as_secs_f64() / ticks;
     eprintln!(
-        "{wake:?}, {threads} threads: {evaluations:.0} evaluations ({:.2}% of the pigs) and \
+        "{wake:?}, {idle:?}, {threads} threads: {evaluations:.0} evaluations ({:.2}% of the pigs) and \
          {decisions:.0} decisions in a tick, {:.0} walking; stage {:.3} ms a tick, {:.2} M \
          decisions/s, {:.2} M evaluations/s",
         evaluations / f64::from(PIGS) * 100.0,
@@ -95,9 +96,10 @@ fn pig_stage(criterion: &mut Criterion) {
             eprintln!("no pool of {threads} threads");
             continue;
         };
-        report(WakeMode::Sleep, &pool, threads);
-        report(WakeMode::Poll, &pool, threads);
-        let mut pen = pen(WakeMode::Sleep);
+        report(WakeMode::Sleep, IdleRule::AlwaysNear, &pool, threads);
+        report(WakeMode::Poll, IdleRule::AlwaysNear, &pool, threads);
+        report(WakeMode::Sleep, IdleRule::FromPlayers, &pool, threads);
+        let mut pen = pen(WakeMode::Sleep, IdleRule::AlwaysNear);
         criterion.bench_function(
             &format!("stage tick of 50k pigs, {threads} threads"),
             |bencher| {
