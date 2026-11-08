@@ -7,6 +7,7 @@ mod block_goal_world;
 mod cell_table;
 mod host_mob;
 mod hot_tick;
+mod life_task;
 mod mob_ai;
 mod mob_brain_plugin;
 mod order_key;

@@ -20,10 +20,8 @@ use mcrs_minecraft_brain::TickContext;
 use mcrs_minecraft_brain::TileId;
 use mcrs_minecraft_engine_physics::EntityRows;
 use mcrs_minecraft_engine_physics::Mobs;
-use mcrs_minecraft_engine_physics::Placed;
 use mcrs_minecraft_goals::GoalWorld;
 use mcrs_minecraft_goals::PigBrain;
-use mcrs_minecraft_mob::MobType;
 use mcrs_minecraft_physics::TileRows;
 use mcrs_minecraft_volume::BlockVolume;
 use rustc_hash::FxHashMap;
@@ -31,6 +29,8 @@ use rustc_hash::FxHashMap;
 use crate::AiStats;
 use crate::HotTick;
 use crate::host_mob::HostMob;
+use crate::life_task::LifeOut;
+use crate::life_task::LifeTask;
 use crate::order_key::order_key;
 use crate::tile_task::TileOut;
 use crate::tile_task::TileTask;
@@ -98,7 +98,8 @@ impl MobAi {
         let started = Instant::now();
         self.tick = self.tick.saturating_add(1);
         let tick = self.tick;
-        self.follow_life_cycle(tick, hot.mobs, rows);
+        self.follow_life_cycle(tick, hot.mobs, rows, pool);
+        let followed = Instant::now();
         let mut due = self.due(tick);
         let mut tasks: Vec<TileTask<'_>> = Vec::with_capacity(self.tiles.len());
         let mut held = self.tiles.iter_mut().peekable();
@@ -124,7 +125,11 @@ impl MobAi {
         });
         drop(tasks);
         due.clear();
+        let ran = Instant::now();
         self.publish(tick, outs, hot, rows);
+        self.stats.life_cycle = followed.duration_since(started);
+        self.stats.tile_tasks = ran.duration_since(followed);
+        self.stats.publish = ran.elapsed();
         self.stats.prepare = started.elapsed();
     }
 
@@ -162,61 +167,78 @@ impl MobAi {
     }
 
     /// Registers each pig with AI that came into the world, moves the brain of each mob that
-    /// changed tile, and drops each mob that left the world.
-    fn follow_life_cycle(&mut self, tick: u64, mobs: &Mobs, rows: &EntityRows) {
-        for (&id, mob) in &mobs.0 {
-            if mob.kind != MobType::Pig || mob.looks.no_ai {
-                continue;
+    /// changed tile, and drops each mob that left the world. The tiles find their changes in
+    /// parallel; only the changes run on one thread.
+    fn follow_life_cycle(
+        &mut self,
+        tick: u64,
+        mobs: &Mobs,
+        rows: &mut EntityRows,
+        pool: &TaskPool,
+    ) {
+        let mut departed = Vec::new();
+        let mut tasks: Vec<LifeTask<'_>> = Vec::with_capacity(self.tiles.len());
+        let mut held = self.tiles.iter_mut().peekable();
+        for (tile, tile_rows) in rows.tiles_mut() {
+            while let Some((_, hosts)) = held.next_if(|(key, _)| **key < tile) {
+                departed.append(hosts);
             }
-            let tile = mob.tile;
-            match self.index.get(&id).copied() {
-                Some(held) if held == tile => {
-                    if let Some(host) = find_mut(&mut self.tiles, held, id) {
-                        host.seen = tick;
-                    }
-                }
-                Some(held) => {
-                    let Some(mut host) = take(&mut self.tiles, held, id) else {
-                        continue;
-                    };
-                    host.seen = tick;
-                    insert(&mut self.tiles, tile, host);
-                    self.index.insert(id, tile);
-                    self.stage.relocate(host.mob(), tile_id(tile));
-                }
-                None => {
-                    let Some(state) = rows.state_of(Placed { tile, id }) else {
-                        continue;
-                    };
-                    let key = order_key(&state.key);
-                    let host = HostMob::new(id, key, mob.kind, tick);
-                    self.stage.spawn(
-                        tile_id(tile),
-                        host.mob(),
-                        key,
-                        Cadence::new(tick, state.phase),
-                        PigBrain::default(),
-                    );
-                    insert(&mut self.tiles, tile, host);
-                    self.index.insert(id, tile);
-                }
-            }
-        }
-        let mut gone = Vec::new();
-        for hosts in self.tiles.values_mut() {
-            hosts.retain(|host| {
-                let found = host.seen == tick;
-                if !found {
-                    gone.push(host.id);
-                }
-                found
+            let tile_rows: &TileRows = tile_rows;
+            tasks.push(LifeTask {
+                tile,
+                rows: tile_rows,
+                mobs: held
+                    .next_if(|(key, _)| **key == tile)
+                    .map(|(_, hosts)| hosts),
             });
         }
-        self.tiles.retain(|_, hosts| !hosts.is_empty());
-        for id in gone {
+        for (_, hosts) in held {
+            departed.append(hosts);
+        }
+        let per_task = tiles_per_task(pool, tasks.len());
+        let outs: Vec<Vec<LifeOut>> = pool.scope(|scope| {
+            for chunk in tasks.chunks_mut(per_task) {
+                scope.spawn(
+                    async move { chunk.iter_mut().map(|task| task.run(tick, mobs)).collect() },
+                );
+            }
+        });
+        drop(tasks);
+        let mut arrivals = Vec::new();
+        for out in outs.into_iter().flatten() {
+            arrivals.extend(out.arrivals);
+            departed.extend(out.departed);
+        }
+        let mut moving: FxHashMap<EntityId, HostMob> =
+            departed.into_iter().map(|host| (host.id, host)).collect();
+        for arrival in arrivals {
+            let host = match moving.remove(&arrival.id) {
+                Some(mut host) => {
+                    self.stage.relocate(host.mob(), tile_id(arrival.tile));
+                    host.seen = tick;
+                    host
+                }
+                None => {
+                    let key = order_key(&arrival.key);
+                    let host = HostMob::new(arrival.id, key, arrival.kind, tick);
+                    self.stage.spawn(
+                        tile_id(arrival.tile),
+                        host.mob(),
+                        key,
+                        Cadence::new(tick, arrival.phase),
+                        PigBrain::default(),
+                    );
+                    host
+                }
+            };
+            insert(&mut self.tiles, arrival.tile, host);
+            self.index.insert(arrival.id, arrival.tile);
+        }
+        for id in moving.into_keys() {
             self.index.remove(&id);
             self.stage.despawn(MobId(id.0));
         }
+        self.tiles.retain(|_, hosts| !hosts.is_empty());
         self.stats.mobs = self.index.len();
     }
 
@@ -269,9 +291,7 @@ impl MobAi {
                 facts.entry(out.tile).or_default().extend(out.facts);
             }
             self.ended.extend(out.ended);
-            for intent in out.intents {
-                rows.steer(out.tile, intent);
-            }
+            rows.steer_all(out.tile, out.intents);
         }
         for (tile, facts) in facts {
             self.replica.publish_facts(tick, tile_id(tile), facts);
@@ -292,26 +312,6 @@ fn tiles_per_task(pool: &TaskPool, tiles: usize) -> usize {
 
 fn tile_id(tile: TileKey) -> TileId {
     TileId::new(tile.x, tile.z)
-}
-
-fn find_mut(
-    tiles: &mut BTreeMap<TileKey, Vec<HostMob>>,
-    tile: TileKey,
-    id: EntityId,
-) -> Option<&mut HostMob> {
-    let hosts = tiles.get_mut(&tile)?;
-    let at = hosts.binary_search_by_key(&id, |host| host.id).ok()?;
-    hosts.get_mut(at)
-}
-
-fn take(
-    tiles: &mut BTreeMap<TileKey, Vec<HostMob>>,
-    tile: TileKey,
-    id: EntityId,
-) -> Option<HostMob> {
-    let hosts = tiles.get_mut(&tile)?;
-    let at = hosts.binary_search_by_key(&id, |host| host.id).ok()?;
-    Some(hosts.remove(at))
 }
 
 fn insert(tiles: &mut BTreeMap<TileKey, Vec<HostMob>>, tile: TileKey, host: HostMob) {

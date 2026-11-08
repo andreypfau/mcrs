@@ -6,6 +6,10 @@ pub struct AiStats {
     pub mobs: usize,
     /// The wall time of the snapshot, the application and the controls of the hot side.
     pub prepare: Duration,
+    /// The parts of `prepare`: the life cycle, the parallel tile tasks and the publication.
+    pub life_cycle: Duration,
+    pub tile_tasks: Duration,
+    pub publish: Duration,
     /// The wall time of the stage tick.
     pub stage: Duration,
     pub evaluations: u64,
