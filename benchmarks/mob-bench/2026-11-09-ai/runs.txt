@@ -1,0 +1,63 @@
+# 50,000 pigs summoned by the console in the 250 x 250 pen area (no fence) of a flat world, gamerule max_entity_cramming 0, no player. Per run: 30 s after the count reached 50,000, then a 30 s window of mcrs_tick lines, one tick query and tick sprint 100. MCRS_MOB_AI=on|off, MCRS_COMPUTE_THREADS as named. Server built from fe9e58847. The machine ran other agents' builds and servers; the load average is on each line.
+== r2-on-default load { 84.28 72.38 87.03 }
+  "mean": 25.05,
+  "p50": 24.57,
+  "avg": 24.8,
+  "p50": 24.6,
+  "2026-11-08T22:12:19.442135Z DEBUG mcrs_ai: mob AI tick=1000 mobs=50000 prepare_mean_us=4959 prepare_max_us=9654 life_cycle_mean_us=2417 tile_tasks_mean_us=2315 publish_mean_us=226 stage_mean_us=6979 stage_max_us=10950 evaluations_per_tick=2457 decisions_per_tick=768 waits=0",
+  "2026-11-08T22:12:29.446044Z DEBUG mcrs_ai: mob AI tick=1200 mobs=50000 prepare_mean_us=5147 prepare_max_us=12415 life_cycle_mean_us=2437 tile_tasks_mean_us=2445 publish_mean_us=264 stage_mean_us=7146 stage_max_us=32001 evaluations_per_tick=2454 decisions_per_tick=767 waits=0",
+  "2026-11-08T22:12:39.445348Z DEBUG mcrs_ai: mob AI tick=1400 mobs=50000 prepare_mean_us=4960 prepare_max_us=7553 life_cycle_mean_us=2380 tile_tasks_mean_us=2323 publish_mean_us=256 stage_mean_us=6742 stage_max_us=10476 evaluations_per_tick=2460 decisions_per_tick=767 waits=0"
+  "ms": 26.55,
+== r2-off-default load { 47.14 66.10 83.01 }
+  "mean": 21.06,
+  "p50": 19.6,
+  "avg": 20.0,
+  "p50": 19.5,
+  "ms": 21.91,
+== r2-on-t1 load { 25.46 52.85 75.78 }
+  "mean": 86.11,
+  "p50": 85.61,
+  "avg": 86.0,
+  "p50": 85.4,
+  "2026-11-08T22:15:55.697667Z DEBUG mcrs_ai: mob AI tick=600 mobs=50000 prepare_mean_us=19982 prepare_max_us=57884 life_cycle_mean_us=4834 tile_tasks_mean_us=14889 publish_mean_us=258 stage_mean_us=58137 stage_max_us=159714 evaluations_per_tick=2462 decisions_per_tick=773 waits=0",
+  "2026-11-08T22:16:12.920109Z DEBUG mcrs_ai: mob AI tick=800 mobs=50000 prepare_mean_us=18730 prepare_max_us=27808 life_cycle_mean_us=4563 tile_tasks_mean_us=13928 publish_mean_us=237 stage_mean_us=54329 stage_max_us=63301 evaluations_per_tick=2462 decisions_per_tick=769 waits=0"
+  "ms": 145.08,
+== r2-off-t1 load { 70.66 54.23 72.77 }
+  "mean": 65.97,
+  "p50": 64.04,
+  "avg": 72.2,
+  "p50": 68.7,
+  "ms": 71.76,
+== r2-on-t4 load { 27.02 47.18 67.97 }
+  "mean": 34.34,
+  "p50": 34.05,
+  "avg": 34.6,
+  "p50": 34.1,
+  "2026-11-08T22:19:59.948648Z DEBUG mcrs_ai: mob AI tick=1000 mobs=50000 prepare_mean_us=7057 prepare_max_us=12031 life_cycle_mean_us=2847 tile_tasks_mean_us=3976 publish_mean_us=233 stage_mean_us=13613 stage_max_us=18265 evaluations_per_tick=2455 decisions_per_tick=767 waits=0",
+  "2026-11-08T22:20:09.946181Z DEBUG mcrs_ai: mob AI tick=1200 mobs=50000 prepare_mean_us=6919 prepare_max_us=8847 life_cycle_mean_us=2731 tile_tasks_mean_us=3954 publish_mean_us=233 stage_mean_us=13423 stage_max_us=16880 evaluations_per_tick=2451 decisions_per_tick=766 waits=0",
+  "2026-11-08T22:20:19.948101Z DEBUG mcrs_ai: mob AI tick=1400 mobs=50000 prepare_mean_us=7048 prepare_max_us=10524 life_cycle_mean_us=2753 tile_tasks_mean_us=4052 publish_mean_us=242 stage_mean_us=12959 stage_max_us=18142 evaluations_per_tick=2457 decisions_per_tick=766 waits=0"
+  "ms": 34.04,
+== r2-on-t8 load { 17.20 36.73 61.31 }
+  "mean": 24.76,
+  "p50": 24.42,
+  "avg": 24.7,
+  "p50": 24.3,
+  "2026-11-08T22:21:51.177614Z DEBUG mcrs_ai: mob AI tick=1000 mobs=50000 prepare_mean_us=4932 prepare_max_us=17150 life_cycle_mean_us=2464 tile_tasks_mean_us=2247 publish_mean_us=220 stage_mean_us=6881 stage_max_us=9925 evaluations_per_tick=2453 decisions_per_tick=765 waits=0",
+  "2026-11-08T22:22:01.176934Z DEBUG mcrs_ai: mob AI tick=1200 mobs=50000 prepare_mean_us=4990 prepare_max_us=11165 life_cycle_mean_us=2452 tile_tasks_mean_us=2314 publish_mean_us=223 stage_mean_us=7150 stage_max_us=24620 evaluations_per_tick=2453 decisions_per_tick=766 waits=0",
+  "2026-11-08T22:22:11.174745Z DEBUG mcrs_ai: mob AI tick=1400 mobs=50000 prepare_mean_us=4906 prepare_max_us=7814 life_cycle_mean_us=2441 tile_tasks_mean_us=2238 publish_mean_us=225 stage_mean_us=6672 stage_max_us=12593 evaluations_per_tick=2469 decisions_per_tick=772 waits=0"
+  "ms": 24.07,
+== r2-on-t16 load { 11.18 28.59 55.13 }
+  "mean": 20.46,
+  "p50": 20.08,
+  "avg": 20.2,
+  "p50": 20.1,
+  "2026-11-08T22:23:41.365487Z DEBUG mcrs_ai: mob AI tick=1000 mobs=50000 prepare_mean_us=4113 prepare_max_us=6827 life_cycle_mean_us=2372 tile_tasks_mean_us=1518 publish_mean_us=222 stage_mean_us=4405 stage_max_us=18571 evaluations_per_tick=2468 decisions_per_tick=770 waits=0",
+  "2026-11-08T22:23:51.365535Z DEBUG mcrs_ai: mob AI tick=1200 mobs=50000 prepare_mean_us=4160 prepare_max_us=9380 life_cycle_mean_us=2333 tile_tasks_mean_us=1600 publish_mean_us=227 stage_mean_us=4450 stage_max_us=8914 evaluations_per_tick=2456 decisions_per_tick=765 waits=0",
+  "2026-11-08T22:24:01.364206Z DEBUG mcrs_ai: mob AI tick=1400 mobs=50000 prepare_mean_us=4071 prepare_max_us=6626 life_cycle_mean_us=2340 tile_tasks_mean_us=1515 publish_mean_us=215 stage_mean_us=4455 stage_max_us=10415 evaluations_per_tick=2460 decisions_per_tick=769 waits=0"
+  "ms": 20.16,
+== r2-off-t16 load { 6.42 21.78 49.25 }
+  "mean": 28.81,
+  "p50": 23.65,
+  "avg": 15.6,
+  "p50": 15.3,
+  "ms": 15.38,

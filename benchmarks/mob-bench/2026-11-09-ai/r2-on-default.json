@@ -1,0 +1,32 @@
+{
+ "name": "r2-on-default",
+ "threads": null,
+ "ai": true,
+ "pigs": 50000,
+ "count": 50000,
+ "summon_s": 10.2,
+ "ticks": {
+  "n": 600,
+  "mean": 25.05,
+  "p50": 24.57,
+  "p95": 27.96,
+  "p99": 36.4,
+  "max": 63.41
+ },
+ "tick_query": {
+  "avg": 24.8,
+  "p50": 24.6,
+  "p95": 27.5,
+  "p99": 28.5
+ },
+ "ai_log": [
+  "2026-11-08T22:12:19.442135Z DEBUG mcrs_ai: mob AI tick=1000 mobs=50000 prepare_mean_us=4959 prepare_max_us=9654 life_cycle_mean_us=2417 tile_tasks_mean_us=2315 publish_mean_us=226 stage_mean_us=6979 stage_max_us=10950 evaluations_per_tick=2457 decisions_per_tick=768 waits=0",
+  "2026-11-08T22:12:29.446044Z DEBUG mcrs_ai: mob AI tick=1200 mobs=50000 prepare_mean_us=5147 prepare_max_us=12415 life_cycle_mean_us=2437 tile_tasks_mean_us=2445 publish_mean_us=264 stage_mean_us=7146 stage_max_us=32001 evaluations_per_tick=2454 decisions_per_tick=767 waits=0",
+  "2026-11-08T22:12:39.445348Z DEBUG mcrs_ai: mob AI tick=1400 mobs=50000 prepare_mean_us=4960 prepare_max_us=7553 life_cycle_mean_us=2380 tile_tasks_mean_us=2323 publish_mean_us=256 stage_mean_us=6742 stage_max_us=10476 evaluations_per_tick=2460 decisions_per_tick=767 waits=0"
+ ],
+ "sprint": {
+  "tps": 37.0,
+  "ms": 26.55,
+  "wall": 2.902445077896118
+ }
+}
