@@ -16,7 +16,7 @@ use mcrs_minecraft_engine::whitelist::{
 };
 use mcrs_minecraft_engine_server::configuration::on_configuration_ack;
 use mcrs_minecraft_engine_server::login::{LoginPlugin, LoginState, SingleplayerProfile};
-use mcrs_minecraft_engine_server::{ShutdownPlugin, ShutdownRequest};
+use mcrs_minecraft_engine_server::{LoopbackOps, ShutdownPlugin, ShutdownRequest};
 use mcrs_minecraft_engine_world::session::{Place, Session, SessionPlacement};
 use mcrs_minecraft_network::OutboundReceiver;
 use mcrs_minecraft_network::event::run_event_loop;
@@ -754,6 +754,43 @@ fn ban_join_003_a_ban_with_a_future_end_names_its_time() {
             .unwrap()
             .starts_with("2099-01-01 at ")
     );
+}
+
+#[test]
+fn a_loopback_hello_makes_an_operator_and_a_remote_one_does_not() {
+    let mut app = server(None);
+    app.insert_resource(LoopbackOps::Grant);
+    for (address, name) in [("127.0.0.1:50000", "Local"), ("[::1]:50000", "LocalSix")] {
+        let local = hello_from(&mut app, address, name);
+        assert_eq!(
+            app.world()
+                .resource::<OpList>()
+                .get(&local.id)
+                .map(|op| op.level),
+            Some(4),
+            "{address}"
+        );
+    }
+    let remote = hello_from(&mut app, "192.168.1.20:50000", "Remote");
+    assert!(app.world().resource::<OpList>().get(&remote.id).is_none());
+
+    app.insert_resource(LoopbackOps::Deny);
+    let denied = hello_from(&mut app, "127.0.0.1:50000", "Denied");
+    assert!(app.world().resource::<OpList>().get(&denied.id).is_none());
+}
+
+fn hello_from(app: &mut App, address: &str, username: &str) -> GameProfile {
+    let client = connect(app);
+    app.world_mut()
+        .get_mut::<ServerSideConnection>(client.connection)
+        .unwrap()
+        .raw
+        .remote_addr = address.parse().unwrap();
+    send_hello(app, &client, username, Uuid::new_v4());
+    app.world()
+        .get::<GameProfile>(client.connection)
+        .expect("the hello is accepted")
+        .clone()
 }
 
 #[test]

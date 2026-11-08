@@ -6,6 +6,7 @@ mod data_pack;
 mod dimension_worlds_plugin;
 mod keep_alive;
 pub mod login;
+mod loopback_ops;
 mod require;
 pub mod runner;
 mod server_core_plugin;
@@ -17,6 +18,7 @@ pub mod world_options;
 pub use data_pack::{DataPack, DataPackError};
 pub use dimension_worlds_plugin::DimensionWorldsPlugin;
 pub use login::NetworkCompressionThreshold;
+pub use loopback_ops::LoopbackOps;
 pub use mcrs_engine_link::Placement;
 #[cfg(feature = "client-jar")]
 pub use mcrs_minecraft_client_jar::ClientJar;

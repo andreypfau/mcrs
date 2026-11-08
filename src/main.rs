@@ -16,8 +16,8 @@ use mcrs_minecraft_engine::banlist::{BANLIST_FILE, BanList};
 use mcrs_minecraft_engine::coordinator::ops::{OPS_FILE, OpList};
 use mcrs_minecraft_engine::whitelist::{WHITELIST_FILE, Whitelist};
 use mcrs_minecraft_engine_server::{
-    DimensionWorldsPlugin, GameMode, InboundRateLimit, NetworkCompressionThreshold, Placement,
-    ServerCorePlugin, ServerNetworkPlugin, ShutdownRequest,
+    DimensionWorldsPlugin, GameMode, InboundRateLimit, LoopbackOps, NetworkCompressionThreshold,
+    Placement, ServerCorePlugin, ServerNetworkPlugin, ShutdownRequest,
 };
 use mcrs_minecraft_engine_world::world::sub_app::AddDimensionPlugins;
 use mcrs_minecraft_server::{MinecraftServerPlugins, VanillaMobBrainPlugin};
@@ -199,7 +199,18 @@ fn network() -> ServerNetworkPlugin {
                 false,
             )),
         banlist: BanList::read(Path::new(BANLIST_FILE)),
+        loopback_ops: loopback_ops(variable("MCRS_OP_LOCAL").as_deref()),
         ..defaults
+    }
+}
+
+/// `MCRS_OP_LOCAL`, on by default, makes a player who joins from a loopback address an operator
+/// for the session; off, only the ops file names operators.
+fn loopback_ops(value: Option<&str>) -> LoopbackOps {
+    if on_off("MCRS_OP_LOCAL", value, true) {
+        LoopbackOps::Grant
+    } else {
+        LoopbackOps::Deny
     }
 }
 
