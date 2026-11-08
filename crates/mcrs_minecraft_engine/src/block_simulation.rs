@@ -21,7 +21,7 @@ use bevy_ecs::schedule::common_conditions::{not, resource_exists};
 use bevy_ecs::schedule::{IntoScheduleConfigs, SystemCondition};
 use bevy_ecs::system::{Res, ResMut, SystemParam};
 use bevy_ecs::world::World;
-use bevy_tasks::{ComputeTaskPool, ParallelSliceMut};
+use bevy_tasks::{ComputeTaskPool, ParallelSliceMut, TaskPool};
 use mcrs_minecraft_block::block_keys::Block;
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_dimension::Dimension as DimensionKey;
@@ -468,6 +468,7 @@ fn run_block_simulation<B: BlockBehaviour<WorldKinds> + BlockDrops + Send + 'sta
         (Phase::BlockEvents, [].as_slice(), [].as_slice()),
     ];
     let streams = outlets.streams.get(dimension).ok();
+    let spread = PoolSpread(ComputeTaskPool::try_get().map(|pool| &**pool));
     let mut broadcast_cut = 0;
     for (phase, messages, chains) in phases {
         if phase == Phase::BlockEvents {
@@ -479,6 +480,7 @@ fn run_block_simulation<B: BlockBehaviour<WorldKinds> + BlockDrops + Send + 'sta
                     speed,
                     seed.sections(now),
                     &mut simulation.random_listing,
+                    &spread,
                 );
             }
             let picks = RandomPicks {
@@ -496,7 +498,7 @@ fn run_block_simulation<B: BlockBehaviour<WorldKinds> + BlockDrops + Send + 'sta
                 &env,
                 picks,
                 &mut out,
-                &ComputePool,
+                &spread,
             );
             mark_client_writes(&mut outlets.marks, &out.writes);
             outlets
@@ -593,13 +595,15 @@ fn index_random_ticks<B: BlockBehaviour<WorldKinds> + Send + Sync + 'static>(wor
     simulation.footprints = footprints;
 }
 
-/// The threads of the compute pool, or the calling thread without one.
-struct ComputePool;
+/// The threads of a task pool, or the calling thread without one.
+#[derive(Clone, Copy, Debug)]
+pub struct PoolSpread<'p>(pub Option<&'p TaskPool>);
 
-impl Spread for ComputePool {
+impl Spread for PoolSpread<'_> {
     fn spread<T: Send, R: Fn(&mut T) + Sync>(&self, items: &mut [T], run: &R) {
-        let Some(pool) =
-            ComputeTaskPool::try_get().filter(|pool| pool.thread_num() > 1 && items.len() > 1)
+        let Some(pool) = self
+            .0
+            .filter(|pool| pool.thread_num() > 1 && items.len() > 1)
         else {
             return Serial.spread(items, run);
         };

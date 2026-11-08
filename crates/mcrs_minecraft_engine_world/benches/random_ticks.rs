@@ -184,15 +184,20 @@ fn random_ticks(c: &mut Criterion) {
                 3,
                 seed.sections(GameTick(0)),
                 black_box(&mut listing),
+                &Serial,
             );
         });
     });
     c.bench_function("random step", |b| {
         b.iter(|| {
             now += 1;
-            world
-                .index
-                .draw(|_| true, 3, seed.sections(GameTick(now)), &mut listing);
+            world.index.draw(
+                |_| true,
+                3,
+                seed.sections(GameTick(now)),
+                &mut listing,
+                &Serial,
+            );
             let picks = RandomPicks {
                 columns: &[],
                 hits: &listing.hits,

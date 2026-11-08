@@ -1,13 +1,15 @@
 //! The positions that tick randomly in each loaded section of a dimension, by block tile.
 
+use core::ops::Range;
+
 use bevy_app::{App, Plugin};
 use bevy_ecs::lifecycle::{Insert, Remove};
 use bevy_ecs::observer::On;
 use bevy_ecs::prelude::{Query, ResMut};
 use bevy_ecs::resource::Resource;
 use mcrs_minecraft_simulation::{
-    PRECIPITATION_TILE, RandomHit, RandomPick, RandomTickTable, SectionStreams, TickingPositions,
-    TickingSectionMut, block_tile, draw_random_picks,
+    PRECIPITATION_TILE, RandomHit, RandomPick, RandomTickTable, SectionStreams, Spread,
+    TickingPositions, TickingSectionMut, block_tile, draw_random_picks,
 };
 use mcrs_minecraft_volume::{PaletteBuffer, SectionBlocks, SectionBlocksMut};
 use mcrs_voxel::{ColumnPos, SectionPos};
@@ -36,9 +38,23 @@ pub struct RandomTickIndex {
     tiles: FxHashMap<ColumnPos, BlockTile>,
     palette: PaletteBuffer,
     order: Vec<ColumnPos>,
+    batches: Vec<TileBatch>,
+}
+
+/// Tiles that draw together in one step. A batch holds several tiles, so that its buffers stay in
+/// the cache from one tile to the next.
+#[derive(Debug, Default)]
+struct TileBatch {
+    /// The tiles of the batch in `RandomTickIndex::order`.
+    tiles: Range<usize>,
+    /// The slots of the listed sections of one tile.
+    drawn: Vec<u16>,
     /// The picks of one tile that hit, and the slot of the section of each.
     picks: Vec<RandomPick>,
     pick_slots: Vec<u16>,
+    listing: RandomListing,
+    /// The tiles whose `listed` holds a section that is no longer listed.
+    stale: Vec<ColumnPos>,
 }
 
 #[derive(Debug, Default)]
@@ -46,13 +62,15 @@ struct BlockTile {
     /// Sorted by x, z, then y.
     sections: Vec<IndexedSection>,
     /// Slots of `sections`, sorted: each random-ticked section that holds a ticking position, and
-    /// possibly some that no longer do.
+    /// possibly some that no longer do, until the next draw.
     listed: Vec<u16>,
     /// The first slot of each column of the tile in `sections`, then the end of the last.
     columns: [u16; COLUMNS + 1],
     /// One bit for each column that holds a random-ticked section, at its index in the tile.
     random_ticked_columns: u16,
 }
+
+const TILES_IN_BATCH: usize = 32;
 
 const COLUMNS: usize = (PRECIPITATION_TILE * PRECIPITATION_TILE) as usize;
 
@@ -67,6 +85,12 @@ impl IndexedSection {
     fn is_listed(&self) -> bool {
         self.random_ticked && !self.ticking.as_slice().is_empty()
     }
+}
+
+fn is_listed(sections: &[IndexedSection], slot: u16) -> bool {
+    sections
+        .get(usize::from(slot))
+        .is_some_and(IndexedSection::is_listed)
 }
 
 fn tile_of(pos: SectionPos) -> ColumnPos {
@@ -137,6 +161,13 @@ impl BlockTile {
         );
     }
 
+    fn prune(&mut self) {
+        let Self {
+            sections, listed, ..
+        } = self;
+        listed.retain(|&slot| is_listed(sections, slot));
+    }
+
     fn list(&mut self, slot: usize) {
         let Ok(slot) = u16::try_from(slot) else {
             return;
@@ -156,8 +187,7 @@ impl RandomTickIndex {
             tiles: FxHashMap::default(),
             palette: PaletteBuffer::default(),
             order: Vec::new(),
-            picks: Vec::new(),
-            pick_slots: Vec::new(),
+            batches: Vec::new(),
         }
     }
 
@@ -251,21 +281,20 @@ impl RandomTickIndex {
     /// Replaces `out` with what takes random ticks in the columns that `owns` accepts, block tile
     /// by block tile in the order of the tiles: the hits of the `speed` picks of each
     /// random-ticked section from `streams`, in the order of the sections and the picks, and the
-    /// columns that hold a random-ticked section, sorted by x, then z.
-    pub fn draw(
+    /// columns that hold a random-ticked section, sorted by x, then z. The tiles draw on the
+    /// threads of `spread`; each section has its own stream, so the threads do not change `out`.
+    pub fn draw<S: Spread>(
         &mut self,
-        owns: impl Fn(ColumnPos) -> bool,
+        owns: impl Fn(ColumnPos) -> bool + Sync,
         speed: u32,
         streams: SectionStreams,
         out: &mut RandomListing,
+        spread: &S,
     ) {
-        out.hits.clear();
-        out.columns.clear();
         let Self {
             tiles,
             order,
-            picks,
-            pick_slots,
+            batches,
             ..
         } = self;
         order.clear();
@@ -276,57 +305,91 @@ impl RandomTickIndex {
                 .map(|(pos, _)| *pos),
         );
         order.sort_unstable();
-        for tile_pos in &*order {
-            let Some(tile) = tiles.get_mut(tile_pos) else {
-                continue;
-            };
-            let BlockTile {
-                sections,
-                listed,
-                random_ticked_columns,
-                ..
-            } = tile;
-            let column_pos = |column: i32| {
-                ColumnPos::new(
-                    tile_pos.x * PRECIPITATION_TILE + column / PRECIPITATION_TILE,
-                    tile_pos.z * PRECIPITATION_TILE + column % PRECIPITATION_TILE,
-                )
-            };
-            let columns = 0..PRECIPITATION_TILE * PRECIPITATION_TILE;
-            let owned = columns
-                .clone()
-                .filter(|&column| *random_ticked_columns & 1 << column != 0)
-                .filter(|&column| owns(column_pos(column)))
-                .fold(0u16, |mask, column| mask | 1 << column);
-            listed.retain(|&slot| {
-                sections
-                    .get(usize::from(slot))
-                    .is_some_and(IndexedSection::is_listed)
-            });
-            for &slot in listed.iter() {
-                let Some(section) = sections.get(usize::from(slot)) else {
-                    continue;
-                };
-                if owned & 1 << column_in_tile(section.pos) != 0 {
-                    let ticking = section.ticking.as_slice().len();
-                    draw_random_picks(section.pos, ticking, speed, streams, picks);
-                    pick_slots.resize(picks.len(), slot);
-                }
-            }
-            // The lists of the hits are read after all draws of the tile, so their cache misses
-            // overlap.
-            for (slot, pick) in pick_slots.drain(..).zip(picks.drain(..)) {
-                if let Some(section) = sections.get(usize::from(slot)) {
-                    let ticking = section.ticking.as_slice();
-                    out.hits.extend(RandomHit::of(section.pos, ticking, pick));
-                }
-            }
-            out.columns.extend(
-                columns
-                    .filter(|&column| owned & 1 << column != 0)
-                    .map(column_pos),
-            );
+        batches.resize_with(order.len().div_ceil(TILES_IN_BATCH), TileBatch::default);
+        for (index, batch) in batches.iter_mut().enumerate() {
+            batch.tiles = index * TILES_IN_BATCH..order.len().min((index + 1) * TILES_IN_BATCH);
         }
+        spread.spread(batches, &|batch: &mut TileBatch| {
+            for tile_pos in order.get(batch.tiles.clone()).unwrap_or_default() {
+                if let Some(tile) = tiles.get(tile_pos) {
+                    batch.draw(*tile_pos, tile, &owns, speed, streams);
+                }
+            }
+        });
+        out.hits.clear();
+        out.columns.clear();
+        for batch in batches {
+            out.hits.append(&mut batch.listing.hits);
+            out.columns.append(&mut batch.listing.columns);
+            for tile_pos in batch.stale.drain(..) {
+                if let Some(tile) = tiles.get_mut(&tile_pos) {
+                    tile.prune();
+                }
+            }
+        }
+    }
+}
+
+impl TileBatch {
+    fn draw(
+        &mut self,
+        tile_pos: ColumnPos,
+        tile: &BlockTile,
+        owns: impl Fn(ColumnPos) -> bool,
+        speed: u32,
+        streams: SectionStreams,
+    ) {
+        let Self {
+            drawn,
+            picks,
+            pick_slots,
+            listing,
+            stale,
+            ..
+        } = self;
+        let column_pos = |column: i32| {
+            ColumnPos::new(
+                tile_pos.x * PRECIPITATION_TILE + column / PRECIPITATION_TILE,
+                tile_pos.z * PRECIPITATION_TILE + column % PRECIPITATION_TILE,
+            )
+        };
+        let columns = 0..PRECIPITATION_TILE * PRECIPITATION_TILE;
+        let owned = columns
+            .clone()
+            .filter(|&column| tile.random_ticked_columns & 1 << column != 0)
+            .filter(|&column| owns(column_pos(column)))
+            .fold(0u16, |mask, column| mask | 1 << column);
+        // The sections are checked in a pass of their own before the first draw, so their cache
+        // misses overlap.
+        drawn.clone_from(&tile.listed);
+        drawn.retain(|&slot| is_listed(&tile.sections, slot));
+        if drawn.len() < tile.listed.len() {
+            stale.push(tile_pos);
+        }
+        for &slot in &*drawn {
+            if let Some(section) = tile.sections.get(usize::from(slot))
+                && owned & 1 << column_in_tile(section.pos) != 0
+            {
+                let ticking = section.ticking.as_slice().len();
+                draw_random_picks(section.pos, ticking, speed, streams, picks);
+                pick_slots.resize(picks.len(), slot);
+            }
+        }
+        // The lists of the hits are read after all draws of the tile, so their cache misses
+        // overlap.
+        for (slot, pick) in pick_slots.drain(..).zip(picks.drain(..)) {
+            if let Some(section) = tile.sections.get(usize::from(slot)) {
+                let ticking = section.ticking.as_slice();
+                listing
+                    .hits
+                    .extend(RandomHit::of(section.pos, ticking, pick));
+            }
+        }
+        listing.columns.extend(
+            columns
+                .filter(|&column| owned & 1 << column != 0)
+                .map(column_pos),
+        );
     }
 }
 
@@ -361,15 +424,15 @@ fn stop_random_ticks(
 mod tests {
     use super::*;
     use crate::palette::{ChunkBlocks, SectionStates, air_section};
-    use mcrs_minecraft_simulation::{GameTick, RandomTicks, StreamSeed};
+    use mcrs_minecraft_simulation::{GameTick, RandomTicks, Serial, StreamSeed};
     use mcrs_minecraft_volume::PalettedSection;
     use mcrs_voxel::BlockStateId;
 
     /// One pick in each listed section: in a section of grass it always hits.
-    fn draw(index: &mut RandomTickIndex, owns: impl Fn(ColumnPos) -> bool) -> RandomListing {
+    fn draw(index: &mut RandomTickIndex, owns: impl Fn(ColumnPos) -> bool + Sync) -> RandomListing {
         let mut out = RandomListing::default();
         let streams = StreamSeed::new(0, "minecraft:overworld").sections(GameTick(0));
-        index.draw(owns, 1, streams, &mut out);
+        index.draw(owns, 1, streams, &mut out, &Serial);
         out
     }
 
@@ -475,6 +538,44 @@ mod tests {
             ],
             "by tile, then by x and z; the air section rains, the section out of the area does not"
         );
+    }
+
+    /// Runs each item on a thread of its own, the last first.
+    struct Reversed;
+
+    impl Spread for Reversed {
+        fn spread<T: Send, R: Fn(&mut T) + Sync>(&self, items: &mut [T], run: &R) {
+            std::thread::scope(|scope| {
+                for item in items.iter_mut().rev() {
+                    scope.spawn(move || run(item));
+                }
+            });
+        }
+    }
+
+    #[test]
+    fn tiles_drawn_on_threads_give_the_listing_of_one_thread() {
+        let grass = BlockStateId::checked(1, 2).expect("a state past air");
+        let mut index = RandomTickIndex::new(RandomTickTable::new([grass], |_| RandomTicks::BLOCK));
+        let grass_section = ChunkBlocks::new(SectionStates::homogeneous(grass));
+        // One section in each of 8 × 8 tiles: more tiles than a batch holds.
+        for x in -4..4 {
+            for z in -4..4 {
+                index.insert(
+                    SectionPos::new(x * PRECIPITATION_TILE, 0, z * PRECIPITATION_TILE + 1),
+                    &PalettedSection(&grass_section.0.0),
+                    true,
+                );
+            }
+        }
+        let streams = StreamSeed::new(7, "minecraft:overworld").sections(GameTick(3));
+        let mut serial = RandomListing::default();
+        let mut threads = RandomListing::default();
+        index.draw(|_| true, 3, streams, &mut serial, &Serial);
+        index.draw(|_| true, 3, streams, &mut threads, &Reversed);
+
+        assert_eq!(serial.hits.len(), 3 * 64, "each pick in grass hits");
+        assert_eq!(format!("{serial:?}"), format!("{threads:?}"));
     }
 
     #[test]

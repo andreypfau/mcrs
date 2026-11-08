@@ -840,6 +840,38 @@ palette and the palette data, then the read of the handler. The shared palette i
 palette data that the index holds without the shared box would remove it, but every user of the
 palette type would change.
 
+**Walk on threads.** The walk runs in batches of 32 block tiles on the threads of the tile tasks
+(`Spread`). Each section has its own stream, so the hits and their order do not depend on the
+threads. Each batch keeps its own buffers, and the walk joins the hits and columns of the batches
+in the order of the tiles. A tile checks its listed sections in a pass of its own before the first
+draw, so the cache misses of the sections overlap: with one pass, the walk is ~40% slower. After
+the walk, the calling thread removes the slots of sections that are no longer listed.
+
+The bench `random_ticks_save` gives the wall time of a step on 1, 4, 8 and 16 threads of a task
+pool. It also gives the wall time of the walk and of each colour phase, and their idle time: the
+wall time of a call less its busy time over the threads. The "serial rest" is the precipitation
+step, the plan of the tile tasks and the commits.
+
+| Bench handler, threads | M4 Max, load 12–17: step | EPYC 9454, 16 CPUs, load 10–15: step |
+|------------------------|--------------------------|--------------------------|
+| reads one block, 1 | 12.3 ms (before: 11.9–12.1 ms) | 24.5–24.7 ms (before: 24.0–25.0 ms) |
+| reads one block, 4 | 3.9 ms | 6.8–7.1 ms |
+| reads one block, 8 | 3.2–3.3 ms | 5.7–6.1 ms |
+| reads one block, 16 | 3.2–3.3 ms | 6.0–6.1 ms |
+| reads its footprint, 1 | 31.5–31.9 ms | 48.9–49.2 ms (before: 49.2–49.7 ms) |
+| reads its footprint, 16 | 4.5 ms | 8.3–8.5 ms |
+
+At 16 threads on the M4 Max, a step that reads one block costs: walk 0.63 ms, four phases
+0.44 ms each, serial rest 0.92 ms. The idle time of the walk and the four phases is 0.88 ms in
+all. On the EPYC, the walk is 9.3–9.6 ms of the one-thread step and
+1.05–1.14 ms at 16 threads, and each phase is ~0.6 ms. The serial rest grows from 1.25 ms on one
+thread to 2.0–2.6 ms on 4 to 16 threads, and the idle time is 1.6–1.8 ms in all. The EPYC host is
+shared, so its wall times are an upper bound.
+
+The walk is no longer the serial part. The serial rest is: ~28% of the wall time on the M4 Max and
+~40% on the EPYC. The idle time of the barriers is more than the ~0.5 ms of the decision above, on
+both hosts.
+
 ### 7.5 Block shards as a whole
 
 | Domain | Global items (A.2) | Plan | Step (§14) |

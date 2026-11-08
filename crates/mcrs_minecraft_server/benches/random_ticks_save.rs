@@ -1,4 +1,4 @@
-//! Random ticks of one step over a real save, on one core.
+//! Random ticks of one step over a real save, on 1, 4, 8 and 16 threads.
 //!
 //! `MCRS_BENCH_WORLD` names a world directory of the current save format; without it the bench
 //! prints why and measures nothing. Every full column of the overworld is loaded into the section
@@ -8,24 +8,30 @@
 //! SIM-MODEL-009 Table 1 tick randomly. One handler reads one block, the other the footprint of
 //! its row; neither writes. The bench prints the handler runs of a step, and asserts that no pick
 //! runs again. `MCRS_BENCH_AREA=<dimension> <x> <z> <radius>` loads only the full columns of that
-//! dimension within `radius` columns of the column of block `x z`.
+//! dimension within `radius` columns of the column of block `x z`. For each thread count the
+//! bench also prints the wall time of the walk and of each colour phase, and the idle time of
+//! each: the wall time of a call less its busy time over the threads.
 #![expect(
     clippy::expect_used,
     clippy::indexing_slicing,
     reason = "a bench reports a failure by panicking"
 )]
 
+use std::cell::RefCell;
 use std::hint::black_box;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::time::{Duration, Instant};
 
 use bevy_ecs::prelude::{Entity, Query, With, World};
 use bevy_ecs::system::SystemState;
+use bevy_tasks::{TaskPool, TaskPoolBuilder};
 use criterion::{Criterion, criterion_group, criterion_main};
 use mcrs_minecraft_anvil::{Chunk, ChunkStatus, PaletteLookup, Properties, RegionFile};
 use mcrs_minecraft_block::definition::{BlockDefinitions, BlockEntry};
 use mcrs_minecraft_chunk::VoxelPalette;
 use mcrs_minecraft_engine::CellVolume;
+use mcrs_minecraft_engine::block_simulation::PoolSpread;
 use mcrs_minecraft_engine_registries::test_corpus;
 use mcrs_minecraft_engine_world::palette::{ChunkBlocks, section_states};
 use mcrs_minecraft_engine_world::world::dimension::{DimensionTypeConfig, InDimension};
@@ -36,8 +42,8 @@ use mcrs_minecraft_engine_world::world::storage::view::WorldViewMut;
 use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_simulation::{
     BlockBehaviour, BlockFacts, BlockShard, Cx, Env, Footprints, GameTick, KernelConfig, Kinds,
-    PartitionKind, RandomPicks, RandomTickTable, RandomTicks, SemanticOrder, Serial, ShardId,
-    SimulationVolume, StepOutput, StreamSeed, random_step,
+    PartitionKind, RandomPicks, RandomTickTable, RandomTicks, SemanticOrder, ShardId,
+    SimulationVolume, Spread, StepOutput, StreamSeed, random_step,
 };
 use mcrs_minecraft_worldgen_generator::saved::CorpusBlockStates;
 use mcrs_voxel::{BlockPos, BlockStateId, ColumnPos, SectionPos};
@@ -409,6 +415,101 @@ fn load(
     }
 }
 
+const STEPS: u32 = 50;
+
+/// One call of a spread: its wall time and the sum of the run times of its items.
+struct Call {
+    wall: Duration,
+    busy: Duration,
+}
+
+/// The threads of `pool`, and with `calls` the timing of each call.
+struct Timed<'p> {
+    pool: &'p TaskPool,
+    calls: Option<RefCell<Vec<Call>>>,
+}
+
+impl Spread for Timed<'_> {
+    fn spread<T: Send, R: Fn(&mut T) + Sync>(&self, items: &mut [T], run: &R) {
+        let spread = PoolSpread(Some(self.pool));
+        let Some(calls) = &self.calls else {
+            return spread.spread(items, run);
+        };
+        let busy = AtomicU64::new(0);
+        let start = Instant::now();
+        spread.spread(items, &|item: &mut T| {
+            let start = Instant::now();
+            run(item);
+            busy.fetch_add(start.elapsed().as_nanos() as u64, Ordering::Relaxed);
+        });
+        calls.borrow_mut().push(Call {
+            wall: start.elapsed(),
+            busy: Duration::from_nanos(busy.into_inner()),
+        });
+    }
+}
+
+/// Prints the mean wall time of a step and of each call of `calls`: the walk, then the colour
+/// phases, with the idle time of each.
+fn print_calls(threads: usize, step: Duration, calls: &[Call]) {
+    let per_step = calls.len() / STEPS as usize;
+    let mut text = format!("{threads} threads: step {:.3} ms", ms(step / STEPS));
+    let mut spread = Duration::ZERO;
+    let mut idle = Duration::ZERO;
+    for slot in 0..per_step {
+        let (wall, busy) = calls
+            .iter()
+            .skip(slot)
+            .step_by(per_step)
+            .fold((Duration::ZERO, Duration::ZERO), |(wall, busy), call| {
+                (wall + call.wall, busy + call.busy)
+            });
+        let slot_idle = wall.saturating_sub(busy / threads as u32);
+        spread += wall;
+        idle += slot_idle;
+        let name = if slot == 0 { "walk" } else { "phase" };
+        text += &format!(
+            ", {name} {:.3} (idle {:.3})",
+            ms(wall / STEPS),
+            ms(slot_idle / STEPS)
+        );
+    }
+    println!(
+        "{text}, serial rest {:.3}, idle in all {:.3} ms",
+        ms(step.saturating_sub(spread) / STEPS),
+        ms(idle / STEPS)
+    );
+}
+
+/// Measures `step` on 1, 4, 8 and 16 threads, then prints where the time of a step goes.
+fn on_threads(c: &mut Criterion, handler: Handler, mut step: impl FnMut(&Timed)) {
+    for threads in [1, 4, 8, 16] {
+        let pool = TaskPoolBuilder::new().num_threads(threads).build();
+        let plain = Timed {
+            pool: &pool,
+            calls: None,
+        };
+        c.bench_function(
+            &format!("random step on a save, {handler:?}, {threads} threads"),
+            |b| b.iter(|| step(&plain)),
+        );
+        let timed = Timed {
+            pool: &pool,
+            calls: Some(RefCell::default()),
+        };
+        let start = Instant::now();
+        for _ in 0..STEPS {
+            step(&timed);
+        }
+        let calls = timed.calls.map(RefCell::into_inner).unwrap_or_default();
+        print_calls(threads, start.elapsed(), &calls);
+    }
+}
+
+fn ms(time: Duration) -> f64 {
+    time.as_secs_f64() * 1e3
+}
+
 fn reach(rows: &[Option<Footprint>], state: BlockStateId) -> u8 {
     rows.get(state.index())
         .copied()
@@ -484,38 +585,43 @@ fn random_ticks_on_a_save(c: &mut Criterion) {
             config: &config,
         };
         let steps = now;
-        c.bench_function(&format!("random step on a save, {handler:?}"), |b| {
-            b.iter(|| {
-                now += 1;
-                out.clear();
-                volume
-                    .view
-                    .random_ticks_mut()
-                    .expect("the world holds a random tick index")
-                    .draw(|_| true, SPEED, seed.sections(GameTick(now)), &mut listing);
-                let picks = RandomPicks {
-                    columns: &listing.columns,
-                    hits: &listing.hits,
-                    speed: SPEED,
-                    table: &table,
-                    footprints: &footprints,
-                    seed,
-                };
-                random_step(
-                    &mut shard,
-                    GameTick(now),
-                    &mut volume,
-                    &env,
-                    picks,
-                    &mut out,
-                    &Serial,
+        let step = |spread: &Timed| {
+            now += 1;
+            out.clear();
+            volume
+                .view
+                .random_ticks_mut()
+                .expect("the world holds a random tick index")
+                .draw(
+                    |_| true,
+                    SPEED,
+                    seed.sections(GameTick(now)),
+                    &mut listing,
+                    spread,
                 );
-                assert_eq!(
-                    out.report.random_reruns, 0,
-                    "a read-only handler of Table 1 fits"
-                );
-            });
-        });
+            let picks = RandomPicks {
+                columns: &listing.columns,
+                hits: &listing.hits,
+                speed: SPEED,
+                table: &table,
+                footprints: &footprints,
+                seed,
+            };
+            random_step(
+                &mut shard,
+                GameTick(now),
+                &mut volume,
+                &env,
+                picks,
+                &mut out,
+                spread,
+            );
+            assert_eq!(
+                out.report.random_reruns, 0,
+                "a read-only handler of Table 1 fits"
+            );
+        };
+        on_threads(c, handler, step);
         let runs = behaviour.runs.load(Ordering::Relaxed) as f64;
         println!(
             "{handler:?}: {:.0} handler runs in each step, {} precipitation columns",
