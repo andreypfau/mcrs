@@ -163,7 +163,7 @@ impl Kind {
     }
 }
 
-/// The settings both Java-format servers read. `pause-when-empty-seconds=0` keeps the no-client
+/// The settings both Java-format servers read. `pause-when-empty-seconds=-1` keeps the no-client
 /// runs ticking; `max-tick-time=-1` keeps the watchdog from stopping a slow tick.
 #[must_use]
 pub fn server_properties(port: u16) -> String {
@@ -179,7 +179,7 @@ difficulty=easy
 view-distance=10
 simulation-distance=10
 max-tick-time=-1
-pause-when-empty-seconds=0
+pause-when-empty-seconds=-1
 spawn-protection=0
 max-players=10
 enforce-secure-profile=false

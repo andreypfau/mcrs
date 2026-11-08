@@ -152,8 +152,8 @@ pub fn sample_query(index: usize) -> String {
 }
 
 #[must_use]
-pub fn teleport_watcher(at: DVec3) -> String {
-    format!("tp {WATCHER_NAME} {} {} {}", at.x, at.y, at.z)
+pub fn teleport(player: &str, at: DVec3) -> String {
+    format!("tp {player} {} {} {}", at.x, at.y, at.z)
 }
 
 #[cfg(test)]

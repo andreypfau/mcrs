@@ -50,6 +50,8 @@ pub struct PigSnapshot {
     pub at: std::time::Instant,
     pub pigs: HashMap<i32, PigTrack>,
     pub move_packets: u64,
+    /// The server placed the watcher's player, so it is in the world.
+    pub placed: bool,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -140,6 +142,7 @@ async fn run(
                         at: std::time::Instant::now(),
                         pigs: state.pigs.clone(),
                         move_packets: state.move_packets,
+                        placed: state.position.is_some(),
                     });
                 }
                 Some(Request::Stop) | None => return Ok(state.log),

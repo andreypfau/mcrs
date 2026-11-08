@@ -9,7 +9,10 @@ use crate::phase::Phase;
 /// Whether a watcher client joins the run.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Client {
+    /// This harness's own protocol client, of mcrs's protocol version.
     Watcher,
+    /// One `horizon-bots` client with the `stand` behaviour, for a server of 26.3's protocol.
+    Bot,
     None,
 }
 
@@ -18,6 +21,7 @@ pub struct Args {
     pub client: Client,
     pub binary: PathBuf,
     pub resources: Option<PathBuf>,
+    pub bot: Option<PathBuf>,
     pub repo: PathBuf,
     pub dir: PathBuf,
     pub out: PathBuf,
@@ -34,6 +38,7 @@ pub struct Args {
     pub sprint_ticks: u32,
     pub stimulus_pigs: usize,
     pub stimulus_period: Duration,
+    pub stimulus_warmup: Duration,
     pub contended_cores: f64,
     pub java: String,
     pub heap: String,
@@ -52,6 +57,7 @@ pub fn parse(options: &[String]) -> anyhow::Result<Args> {
         client: Client::None,
         binary: PathBuf::new(),
         resources: None,
+        bot: None,
         repo: std::env::current_dir()?,
         dir: PathBuf::new(),
         out: PathBuf::new(),
@@ -68,6 +74,7 @@ pub fn parse(options: &[String]) -> anyhow::Result<Args> {
         sprint_ticks: 100,
         stimulus_pigs: 2_000,
         stimulus_period: Duration::from_secs(5),
+        stimulus_warmup: Duration::from_secs(20),
         contended_cores: 1.0,
         java: "java".to_owned(),
         heap: "8g".to_owned(),
@@ -81,12 +88,14 @@ pub fn parse(options: &[String]) -> anyhow::Result<Args> {
             "--client" => {
                 args.client = match value.as_str() {
                     "watcher" => Client::Watcher,
+                    "bot" => Client::Bot,
                     "none" => Client::None,
                     other => bail!("unknown client {other}"),
                 }
             }
             "--binary" => args.binary = PathBuf::from(value),
             "--resources" => args.resources = Some(PathBuf::from(value)),
+            "--bot" => args.bot = Some(PathBuf::from(value)),
             "--repo" => args.repo = PathBuf::from(value),
             "--dir" => args.dir = PathBuf::from(value),
             "--out" => args.out = PathBuf::from(value),
@@ -109,6 +118,7 @@ pub fn parse(options: &[String]) -> anyhow::Result<Args> {
             "--sprint-ticks" => args.sprint_ticks = value.parse()?,
             "--stimulus-pigs" => args.stimulus_pigs = value.parse()?,
             "--stimulus-period" => args.stimulus_period = seconds(value)?,
+            "--stimulus-warmup" => args.stimulus_warmup = seconds(value)?,
             "--contended-cores" => args.contended_cores = value.parse()?,
             "--java" => args.java.clone_from(value),
             "--heap" => args.heap.clone_from(value),

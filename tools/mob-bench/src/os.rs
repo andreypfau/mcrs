@@ -36,7 +36,7 @@ pub struct CpuReport {
     pub busy_cores: f64,
     /// CPU time of the server process over the window, as cores.
     pub server_cores: f64,
-    /// CPU time of this harness (and its watcher) over the window, as cores.
+    /// CPU time of this harness, its watcher and its client process over the window, as cores.
     pub harness_cores: f64,
     /// `busy_cores` less the server and the harness: every other process, the kernel included.
     pub other_cores: f64,
@@ -67,7 +67,12 @@ pub fn snapshot() -> Snapshot {
 }
 
 #[must_use]
-pub fn cpu_between(start: &Snapshot, end: &Snapshot, server_pid: i32) -> CpuReport {
+pub fn cpu_between(
+    start: &Snapshot,
+    end: &Snapshot,
+    server_pid: i32,
+    client_pids: &[i32],
+) -> CpuReport {
     let seconds = end.at.duration_since(start.at).as_secs_f64().max(1e-9);
     let per_core_percent: Vec<f64> = start
         .cores
@@ -89,11 +94,12 @@ pub fn cpu_between(start: &Snapshot, end: &Snapshot, server_pid: i32) -> CpuRepo
         }
     };
     let server_cores = cores_of(server_pid);
-    let harness_cores = cores_of(own_pid);
+    let harness_cores =
+        cores_of(own_pid) + client_pids.iter().map(|pid| cores_of(*pid)).sum::<f64>();
     let mut others: Vec<OtherProcess> = end
         .processes
         .keys()
-        .filter(|pid| **pid != server_pid && **pid != own_pid)
+        .filter(|pid| **pid != server_pid && **pid != own_pid && !client_pids.contains(pid))
         .map(|pid| OtherProcess {
             pid: *pid,
             name: String::new(),

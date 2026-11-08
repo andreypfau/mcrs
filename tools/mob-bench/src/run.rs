@@ -1,8 +1,9 @@
 //! One run: one server, one client mode, the phases in order.
 
 use std::collections::HashMap;
+use std::net::TcpListener;
 use std::net::{Ipv4Addr, SocketAddr};
-use std::process::Command;
+use std::process::{Child, Command};
 use std::time::{Duration, Instant, SystemTime};
 
 use anyhow::Context;
@@ -36,10 +37,15 @@ struct Bench<'a> {
     runtime: tokio::runtime::Runtime,
     server: ServerProcess,
     watcher: Option<Watcher>,
+    bot: Option<Child>,
+    /// The name of the connected client's player, once it joined.
+    player: Option<String>,
     /// Where the pigs stand now, `None` while there are none.
     pigs_in: Option<Area>,
     console: bool,
     metric: TickMetric,
+    /// When the next stir of the stimulus phase is due, while that phase runs.
+    next_stir: Option<Instant>,
 }
 
 /// The window of a measured phase, kept until the watcher's log is in.
@@ -63,6 +69,9 @@ pub fn run(args: &Args) -> anyhow::Result<RunReport> {
         .duration_since(SystemTime::UNIX_EPOCH)
         .map_or(0, |since| since.as_secs());
     let address = SocketAddr::from((Ipv4Addr::LOCALHOST, launch.port));
+    // A status answer from another server on the port would pass for this one's.
+    TcpListener::bind((Ipv4Addr::UNSPECIFIED, launch.port))
+        .with_context(|| format!("port {} is in use", launch.port))?;
     let runtime = tokio::runtime::Runtime::new()?;
     let started = Instant::now();
     let server = ServerProcess::start(
@@ -76,15 +85,19 @@ pub fn run(args: &Args) -> anyhow::Result<RunReport> {
         runtime,
         server,
         watcher: None,
+        bot: None,
+        player: None,
         pigs_in: None,
         console: false,
         metric: args.server.tick_metric(),
+        next_stir: None,
     };
     let start_seconds = bench.wait_ready(address, started);
     let mut report = RunReport {
         server: args.server,
         client: match args.client {
             Client::Watcher => "watcher".to_owned(),
+            Client::Bot => "horizon-bots stand".to_owned(),
             Client::None => "none".to_owned(),
         },
         threads: args.threads,
@@ -113,9 +126,12 @@ pub fn run(args: &Args) -> anyhow::Result<RunReport> {
     if bench.console {
         report.settings = bench.set_up();
     }
-    if args.client == Client::Watcher
-        && let Err(error) = bench.join_watcher(address)
-    {
+    let joined = match args.client {
+        Client::Watcher => bench.join_watcher(address),
+        Client::Bot => bench.join_bot(address),
+        Client::None => Ok(()),
+    };
+    if let Err(error) = joined {
         report.watcher_error = Some(format!("{error:#}"));
         report.phases = skip_all(args, "the watcher did not join");
         bench.finish(&mut report, &[]);
@@ -196,9 +212,7 @@ impl Bench<'_> {
 
     fn join_watcher(&mut self, address: SocketAddr) -> anyhow::Result<()> {
         let watcher = Watcher::spawn(&self.runtime, address);
-        let sent = Instant::now();
-        let deadline = sent + JOIN_TIMEOUT;
-        let joined = format!("{} joined the game", scene::WATCHER_NAME);
+        let deadline = Instant::now() + JOIN_TIMEOUT;
         while Instant::now() < deadline {
             if watcher.finished() {
                 return Err(watcher
@@ -206,24 +220,68 @@ impl Bench<'_> {
                     .err()
                     .unwrap_or_else(|| anyhow::anyhow!("the watcher stopped")));
             }
-            if self
-                .server
-                .wait_for(sent, Duration::from_millis(500), |text| {
-                    text.contains(&joined).then_some(())
-                })
-                .is_some()
+            if watcher
+                .snapshot(&self.runtime)
+                .is_some_and(|snapshot| snapshot.placed)
             {
                 self.watcher = Some(watcher);
+                self.player = Some(scene::WATCHER_NAME.to_owned());
+                self.idle_for(Duration::from_secs(1));
                 return Ok(());
             }
+            self.idle_for(Duration::from_millis(500));
         }
         let _ = watcher.stop(&self.runtime);
-        anyhow::bail!("{} did not join in {JOIN_TIMEOUT:?}", scene::WATCHER_NAME)
+        anyhow::bail!("{} was not placed in {JOIN_TIMEOUT:?}", scene::WATCHER_NAME)
+    }
+
+    fn join_bot(&mut self, address: SocketAddr) -> anyhow::Result<()> {
+        let Some(program) = &self.args.bot else {
+            anyhow::bail!("--client bot needs --bot, the horizon-bots binary");
+        };
+        let log = std::fs::File::create(self.args.dir.join("bot.log"))?;
+        let bot = Command::new(program)
+            .args([
+                "--server",
+                &address.to_string(),
+                "--bots",
+                "1",
+                "--behaviour",
+                "stand",
+            ])
+            .args(["--name", scene::WATCHER_NAME, "--seconds", "1000000"])
+            .args(["--view-distance", "10"])
+            .stdout(log.try_clone()?)
+            .stderr(log)
+            .spawn()
+            .with_context(|| format!("starting {}", program.display()))?;
+        self.bot = Some(bot);
+        let name = format!("{}0", scene::WATCHER_NAME);
+        let joined = format!("{name} joined the game");
+        let sent = Instant::now();
+        self.server
+            .wait_for(sent, JOIN_TIMEOUT, |text| {
+                text.contains(&joined).then_some(())
+            })
+            .with_context(|| format!("{name} did not join in {JOIN_TIMEOUT:?}"))?;
+        self.player = Some(name);
+        Ok(())
+    }
+
+    fn stir_when_due(&mut self) {
+        let Some(due) = self.next_stir else {
+            return;
+        };
+        if Instant::now() >= due {
+            let _ = self.server.send(&scene::stimulus(self.args.stimulus_pigs));
+            self.next_stir = Some(due + self.args.stimulus_period);
+        }
     }
 
     fn idle_for(&mut self, duration: Duration) {
         let until = Instant::now() + duration;
         while Instant::now() < until {
+            self.stir_when_due();
             self.server.pump();
             std::thread::sleep(Duration::from_millis(50));
         }
@@ -301,18 +359,22 @@ impl Bench<'_> {
             Phase::Roam => ROAM.center() + DVec3::Y * HOVER,
             Phase::Idle | Phase::Crowd | Phase::Stimulus => PEN_WATCH,
         };
-        if self.watcher.is_some() {
-            let _ = self.server.send(&scene::teleport_watcher(watch));
+        if let Some(player) = self.player.clone() {
+            let _ = self.server.send(&scene::teleport(&player, watch));
         }
         let pigs_before = self.count_pigs();
         let setup_seconds = round(setup_start.elapsed().as_secs_f64());
         let warmup = match phase {
             Phase::Idle => self.args.idle_warmup,
             Phase::Roam | Phase::Crowd => self.args.warmup,
-            Phase::Stimulus => Duration::ZERO,
+            Phase::Stimulus => self.args.stimulus_warmup,
         };
+        if phase == Phase::Stimulus {
+            self.next_stir = Some(Instant::now());
+        }
         self.idle_for(warmup);
-        let (mut report, window) = self.measure(phase, phase == Phase::Stimulus);
+        let (mut report, window) = self.measure(phase);
+        self.next_stir = None;
         report.pigs_before = pigs_before;
         report.setup_seconds = setup_seconds;
         report.warmup_seconds = warmup.as_secs_f64();
@@ -334,14 +396,13 @@ impl Bench<'_> {
         }
     }
 
-    fn measure(&mut self, phase: Phase, stimulus: bool) -> (PhaseReport, Window) {
+    fn measure(&mut self, phase: Phase) -> (PhaseReport, Window) {
         let load_average_start = os::load_average();
         let start_os = os::snapshot();
         let watcher_start = self.watcher_snapshot();
         let from = Instant::now();
         let until = from + self.args.measure;
         let mut next_probe = from;
-        let mut next_stimulus = from;
         let mut next_sample = from;
         let mut rss = Vec::new();
         let mut load_max = load_average_start[0];
@@ -353,10 +414,7 @@ impl Bench<'_> {
                 first = false;
                 next_probe += self.args.probe_interval;
             }
-            if stimulus && now >= next_stimulus {
-                let _ = self.server.send(&scene::stimulus(self.args.stimulus_pigs));
-                next_stimulus += self.args.stimulus_period;
-            }
+            self.stir_when_due();
             if now >= next_sample {
                 if let Some(usage) = os::process(self.server.pid()) {
                     rss.push(usage.rss_bytes as f64 / (1024.0 * 1024.0));
@@ -373,7 +431,8 @@ impl Bench<'_> {
         let load_average_end = os::load_average();
         let until = Instant::now();
         self.idle_for(ANSWER_SLACK);
-        let cpu = os::cpu_between(&start_os, &end_os, self.server.pid());
+        let harness: Vec<i32> = self.bot.iter().map(|bot| bot.id() as i32).collect();
+        let cpu = os::cpu_between(&start_os, &end_os, self.server.pid(), &harness);
         let contended = cpu.other_cores > self.args.contended_cores;
         let report = PhaseReport {
             phase,
@@ -469,7 +528,9 @@ impl Bench<'_> {
         }
         let sent = Instant::now();
         self.server.send(&format!("tick sprint {ticks}")).ok()?;
-        let timeout = Duration::from_secs(60).max(Duration::from_secs(2) * ticks);
+        // No console line goes out until the sprint reports its end, and a server that never
+        // reports it leaves the sprint unmeasured.
+        let timeout = Duration::from_secs(30).max(Duration::from_millis(500) * ticks);
         let server_ms = self.server.wait_for(sent, timeout, probe::sprint_millis)?;
         let wall = sent.elapsed().as_secs_f64() * 1e3;
         Some(Sprint {
@@ -480,6 +541,10 @@ impl Bench<'_> {
     }
 
     fn finish(mut self, report: &mut RunReport, windows: &[Option<Window>]) {
+        if let Some(mut bot) = self.bot.take() {
+            let _ = bot.kill();
+            let _ = bot.wait();
+        }
         let log = self
             .watcher
             .take()
