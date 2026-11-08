@@ -691,7 +691,7 @@ step of its operation:
   the attribute `movement_speed`, in f64. When the on-ground flag is true, or the mob is in a liquid
   that affects it, the operation becomes `wait`.
 - `wait`: set the forward input to 0.
-- `strafe`: a goal sets it. `mob-goals.md` states it.
+- `strafe`: a goal sets it. `mob-goals.md` reserves it for the ranged goals (section 6.5).
 
 A set of the mob speed also sets the forward input to the same value.
 
