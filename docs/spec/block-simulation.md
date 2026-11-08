@@ -1232,6 +1232,7 @@ list before it reports a difference from vanilla as a defect.
 | DEV-06 | The server sends a `block_event` to each player within 64 blocks of the corner, also to a player that does not hold the column. That client has no block at the position, so the event has no effect for it. | The server can send a `block_event` only to the players in range that hold the column of the position. The difference is not visible: a client without the column ignores the event. | SIM-BEV-004 |
 | DEV-07 | A column that does not broadcast changes keeps its marks, and sends them when it broadcasts again. The complete column that the client gets later also carries the change. | A column that no player can receive drops its marks, as a section that no player sees does. The difference is not visible, because the client gets the complete column before it can show the position. | SIM-SET-005 |
 | DEV-08 | Each random pick draws its position when it runs. A position whose state starts to tick during the level tick can take a later pick of its section in the same level tick. | The random picks of all sections draw their positions at the start of the random-tick step, from the positions that tick then. Each pick reads the state at its position when it runs, and runs a handler only if that state ticks. A position whose state starts to tick during the step takes picks from the next step. Each pick stays uniform over the 4096 positions of its section. A position that ticks at the start of a step keeps its rate. | SIM-RND-002, SIM-MODEL-106 |
+| DEV-09 | An open shulker box, while its lid moves or stays open, has the support shape of a plate of 1 sixteenth on the side opposite to its `facing`. The lid state is in the block entity, not in the block state. | Each shulker box has the full block as its support shape, open or closed. The block rules read only block states. | SIM-FIRE-003 |
 
 Provenance of the vanilla column: `source_suggested`. No experiment was run.
 
@@ -2541,7 +2542,7 @@ This rule collects what SIM-SCH-012 and SIM-SCH-013 require for the list `block_
   - A section that is loaded but does not run scheduled ticks keeps its ticks, and they get overdue (SIM-SCH-015). Its record then holds a negative `t`.
 - **Invariants:** after a load, the pending block ticks of a column are the elements that decode, without the later duplicates (DEV-03).
 - **Conformance tests:**
-  - Load the column records of the benchmark scene (section 13.2). Result: 4,846 block ticks decode: 4,835 of `minecraft:fire`, 7 of `minecraft:crafter` and 4 of `minecraft:observer`. There are no fluid ticks. Each tick has `p: 0`. Failing twin: 0 block ticks, because the load keeps only `fluid_ticks`.
+  - Load the column records of the benchmark scene (section 13.3). Result: 4,846 block ticks decode: 4,835 of `minecraft:fire`, 7 of `minecraft:crafter` and 4 of `minecraft:observer`. There are no fluid ticks. Each tick has `p: 0`. Failing twin: 0 block ticks, because the load keeps only `fluid_ticks`.
   - Write each record of the scene again, at the game time of the load. Result: each `block_ticks` list is equal to the list of the save, element for element.
   - Load a record with `block_ticks: [{i: "minecraft:fire", …, t: 5, p: 0}]` at a position that holds stone. Result: at `G' + 5` the tick is consumed with no effect, and no fire tick stays pending.
 
@@ -3062,7 +3063,7 @@ Provenance: `source_suggested`. Edge case 1 is `source_suggested_black_box_confi
   - A player of the dimension who is not in spectator mode has a distance less than `R` to the point `(P.x, P.y, P.z)`.
 
   The distance is the Euclidean distance in f64 from the position of the player. The point is the corner of P with the smallest coordinates, not the center of P. The comparison is strict.
-- **Ordering constraints:** the test reads the position that each player has when the scheduled-tick phase starts. In vanilla, no player moves during the block phases of a level tick.
+- **Ordering constraints:** the test reads the position that each player has when the scheduled-tick phase starts. In vanilla, no player moves during the block phases of a level tick. The moves that vanilla received before the level tick are applied. In this project, these are the positions after the player moves of the step (L2 of `../physics-architecture.md` §8), and before the block domain. The block domain reads them from a copy of the player table that the step makes before the block phases. The copy holds the dimension, the position and the game mode of each player.
 - **Numeric semantics:** `R` is a 32-bit integer from −1 to 2,147,483,647.
 - **Postconditions:** none.
 - **Edge cases:**
@@ -3103,11 +3104,11 @@ Provenance: `source_suggested`. The upgrade table is `source_suggested_black_box
     | `honey_block`, `mud`, `soul_sand` | the full block |
     | `snow` | a box of height `2 × layers` sixteenths of a block, from the bottom |
     | each fence gate | open: empty. Closed: a box across the gate, 4 sixteenths thick, from `y` 5 to 24 sixteenths |
-    | each shulker box | closed: the full block. Open: a plate of 1 sixteenth on the side opposite to its `facing` |
+    | each shulker box | the full block (DEV-09) |
     | `chorus_flower` | a box of 14 × 14 sixteenths, from `y` 0 to 15 sixteenths |
     | each hanging sign | its outline shape |
 
-    A state has a sturdy top when the top face of its support shape covers the full face of the block.
+    A state has a sturdy top when the face of its support shape on the plane `y = 16` sixteenths covers all of the 16 × 16 face. A shape that ends below that plane has no sturdy top. Thus `soul_sand` and `mud` (collision height 14 sixteenths) have a sturdy top only because of the table.
   - **Survival of fire.** Fire can survive at P when the block below P has a sturdy top, or when P is next to fuel.
   - **Fire placement state** at P with age `a`:
     1. If the block below P is in the tag `#minecraft:soul_fire_base_blocks`, the state is soul fire.
@@ -3126,9 +3127,10 @@ Provenance: `source_suggested`. The upgrade table is `source_suggested_black_box
   - Kernel: P is above air, and oak planks are north of P. Result: the placement state is fire with `north` true and the other side properties false. Failing twin: all side properties false.
   - Kernel: P is above netherrack, and oak planks are north of P. Result: all side properties are false.
   - Kernel: P is above soul soil. Result: soul fire.
-  - Kernel: fire on oak leaves at P. Remove the leaves with flags 3. Result: the shape update of P gives air, unless another neighbor of P is flammable.
+  - Kernel: P is above `mud`, with no fuel. Result: fire can survive. Failing twin: it cannot, because the collision shape ends at 14 sixteenths.
+  - Kernel: P is above oak leaves with `waterlogged` true, and no neighbor of P is flammable. Result: fire cannot survive, because waterlogged leaves are not flammable and leaves have no sturdy top. Failing twin: fire survives, because the rule used the full collision shape of the leaves.
 
-Provenance: `source_suggested`. The support shapes come from the reference. The corpus of this repository holds the collision shapes but not the support shapes (section 13.3). Kind: semantic. Confidence: high.
+Provenance: `source_suggested`. The support shapes come from the reference. The corpus of this repository holds the collision shapes but not the support shapes. The validator checked the exceptions against the collision shapes of the corpus: leaves have a full collision shape, `soul_sand` and `mud` are 14 sixteenths high, and `honey_block` is 14 × 15 × 14. Kind: semantic. Confidence: high.
 
 ### SIM-FIRE-004: Rain near a position
 
@@ -3216,7 +3218,7 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: high.
   3. Let `o = (k + 40 + 7 × d) / (a + 30)`, with integer division. `d` is the difficulty: 0 peaceful, 1 easy, 2 normal, 3 hard. If the attribute is true at P, let `o = o / 2`.
   4. If `o` is 0, go to the next offset.
   5. Let `rate` be 100 when `dy` ≤ 1, and `100 × dy` when `dy` ≥ 2. Draw `r(rate)`. If the result is more than `o`, go to the next offset.
-  6. If there is rain in the dimension and rain near T, go to the next offset.
+  6. If there is rain near T (SIM-FIRE-004), go to the next offset.
   7. Set T to the fire placement state at T with the age `min(15, a + r(5) / 4)`.
 - **Ordering constraints:** the order of the loops. A set at one offset completes before the tick reads the next offset. Thus a fire that the tick put earlier can be a neighbor of a later T, but fire has ignite odds 0.
 - **Numeric semantics:** integer arithmetic. The test of step 5 is `r(rate) ≤ o`, so the chance is `(o + 1) / rate`.
@@ -3225,7 +3227,6 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: high.
   - Fire spreads only into air. It does not replace a replaceable block, for example grass.
   - T can be above the top of the dimension. A read there gives `void_air`. The set at such a position is refused (SIM-SET-003).
   - The age of a new fire is `a` or `a + 1`, not more than 15.
-  - Step 6 reads the rain of the dimension before the rain near T.
 - **Invariants:** none.
 - **Conformance tests:** kernel, at the difficulty hard, `a = 0`, attribute false, no rain. P is on netherrack. T is air. The only flammable block near P is one oak planks block at `T + (1, 0, 0)`. Then `k = 5` and `o = (5 + 40 + 21) / 30 = 2`.
 
@@ -3284,7 +3285,7 @@ Provenance: `source_suggested`. The table was compared with the reference by a s
 - **Preconditions:** the flags of the set do not have *skip-placement*.
 - **Behavior:**
   1. If O is not of the block type of the new state, these steps occur:
-     1. If the dimension key is `minecraft:overworld` or `minecraft:the_nether`, the server looks for an empty nether portal frame at P. If it finds one, it puts the portal blocks, and the side effect ends. This document does not give the frame (12.1, out of scope).
+     1. If the dimension key is `minecraft:overworld` or `minecraft:the_nether`, the server looks for an empty nether portal frame at P. If it finds one, it puts the portal blocks, and step 1 ends. This document does not give the frame (12.1, out of scope). Until a specification gives it, an implementation skips this test. This is a known gap, not a deviation: fire in a complete obsidian frame does not light the portal.
      2. If the new block cannot survive at P, remove P.
   2. For fire only: schedule the block tick (P, `minecraft:fire`) with the delay `30 + r(10)` and the priority normal. This step occurs also when O is fire, and also after the removal of step 1.2.
 - **Ordering constraints:** step 1 before step 2.
@@ -3292,7 +3293,7 @@ Provenance: `source_suggested`. The table was compared with the reference by a s
 - **Postconditions:** after a set of fire, a fire tick at P is pending, if none was pending before.
 - **Edge cases:**
   - A set of fire with *skip-placement* (for example flags 818 of a strict command) schedules no tick. That fire never ticks until a later set or a saved tick gives it one.
-  - A fire that the server loads from a save gets no placement side effect. Only its saved tick makes it tick. The scene of section 13.2 holds 178 fires without a saved tick. These fires do not tick until a set changes their state.
+  - A fire that the server loads from a save gets no placement side effect. Only its saved tick makes it tick. The scene of section 13.3 holds 178 fires without a saved tick. These fires do not tick until a set changes their state.
   - The dimension test uses the dimension key, not the dimension type.
 - **Invariants:** none.
 - **Conformance tests:**
@@ -3326,7 +3327,18 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: high.
 - **Preconditions:** none.
 - **Behavior:**
   - **Vanilla.** Each draw comes from the level random of the dimension (SIM-RNG-001). The draws of other work in the dimension come between them.
-  - **This project** (P-RNG). Each draw of a fire tick comes from the stream of that scheduled tick. The key of the stream is the dimension seed, the game time of the step, the position of the tick and its sequence. A draw of a placement side effect comes from the stream of the work item that makes the set. A set inside a fire tick is part of the fire tick, so the side effect draws from the stream of that tick.
+  - **This project** (P-RNG). The kernel holds one current stream while a work item runs. Each draw of the item and of the sets that it makes comes from that stream. The key of a stream must not use a sequence number, because the sequence depends on the division into cells (SIM-MODEL-005, D5). Each key starts with the dimension seed and the game time of the step:
+
+    | Work item | Rest of the key | Why the key is unique in one step |
+    |-----------|-----------------|-----------------------------------|
+    | a scheduled tick | the kind (block or fluid), the type of the tick, its position | not more than one tick of each (position, type) is pending (SIM-SCH-004, DEV-03), and a phase collects it one time |
+    | a block event | its position, block, `a` and `b`, and the count of equal events that the step delivered before it | the count separates an equal event that a drain delivers again |
+    | a random pick | the stream that the pick forks from the stream of its section (`../physics-architecture.md` §7.4) | the section and the index of the pick |
+    | a set request of the step input (a command, a player) | its position, and its index in the order in which the step applies its input | the order of the input is stable |
+    | a chain item (a neighbor update, a shape update, a side effect) | none: it continues the stream of the work item that started the chain | the order of the chain is fixed (SIM-NBR-003) |
+    | a chain item that arrives as a message from another partition | its position, and the key of the message | messages apply in a stable order (SIM-MODEL-007) |
+
+    A set inside a fire tick is part of the fire tick. Thus the placement side effect of that set draws from the stream of the tick, at its place in the order of the draws. An undo and re-run (SIM-MODEL-102) restores the state of the stream with the other state of the item.
   - The draws occur in the order of the rules, and only where a rule names a draw. The order is the order of the steps of SIM-FIRE-001, with the draws of SIM-FIRE-006, SIM-FIRE-007 and SIM-FIRE-009 at their places.
   - `r(n)` is the bounded integer draw of the 48-bit generator of SIM-RNG-001. `u` is its draw of 24 bits, divided by 2²⁴.
 - **Ordering constraints:** as above.
@@ -3335,8 +3347,8 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: high.
 - **Edge cases:** vanilla seeds the level random from the clock. Thus a parity test compares only distributions with vanilla.
 - **Invariants:** none.
 - **Conformance tests:**
-  - Kernel: run the scene of section 13.2 with the gate open for 1,000 steps two times from the same save and seed. Result: the two block states and the two tick queues are equal after each step.
-  - Run the same test on `x86_64-apple-darwin` and on `aarch64-apple-darwin`. Result: equal hashes of the block states after each step.
+  - Kernel: build a synthetic scene of 64 fires on netherrack, oak planks and air, with the gate open and a fixed seed. Run 1,000 steps two times. Result: the block states and the tick queues are equal after each step. Compare the hash of the final block states with a golden value in the test. The golden value also checks other processors: the arithmetic is integer, with one f32 comparison.
+  - Kernel: run the same scene with 1 and with 4 threads (one cell and four cells). Result: equal hashes. Failing twin: different hashes, because a stream key used the sequence of a shard.
 
 Provenance: `derived` from SIM-RNG-001, P-RNG and SIM-MODEL-106. Kind: unspecified for parity with vanilla. The determinism is a requirement of this project. Confidence: high.
 
@@ -3362,33 +3374,43 @@ Provenance: `derived` from SIM-TICK-005 and SIM-MODEL-009. Kind: semantic. Confi
 
 ## 13. Implementation: saved block ticks and fire
 
-This section is the plan of step G8 of `../farms/gold-farm.md`.
+This section is the plan of the steps G8a and G8b of `../farms/gold-farm.md`. G8a
+gives the exit of the farm: the saved ticks, the reschedule and the gate. G8b gives
+the full fire tick. G8b needs inputs that the block kernel does not have at this
+time.
 
-### 13.1 What the server has, and the order of work
+### 13.1 What the server has
 
-The server decodes `fluid_ticks` (`mcrs_minecraft_anvil`, `ticks.rs`) and leaves out
-`block_ticks`. The read of a saved column reports the dropped fluid ticks
-(`mcrs_minecraft_worldgen_generator`, `saved.rs`), but the saved lists do not get to
-`ColumnTicks`. The block kernel already holds, activates and takes back the ticks of
-both kinds (`mcrs_minecraft_engine`, `block_simulation.rs`: `hold`, `activate`,
-`take_column`). Each dimension runs `InertBlocks`, so each tick is consumed with no
-effect.
+- The anvil reader decodes `fluid_ticks` (`mcrs_minecraft_anvil`, `ticks.rs`) and leaves out `block_ticks`.
+- The saved lists do not get to the kernel. For a saved column, `fill_column` (`mcrs_minecraft_worldgen_generator`, `stages.rs`) gives `FilledSnapshot.ticks` an empty list. `generation_stage.rs` (`mcrs_minecraft_vanilla_worldgen`) then makes `StoredColumn.ticks` with `generated_ticks::column_ticks`. That function gives each tick the delay 0 (SIM-SCH-014) and holds the block as a block state. It is correct only for the ticks of generation.
+- The block kernel holds, activates and takes back the ticks of both kinds (`mcrs_minecraft_engine`, `block_simulation.rs`: `hold`, `activate`, `take_column`). The cold store of the server writes both kinds through `take_column` (`cold_columns.rs`). Only the tests write anvil files (`write_chunk`).
+- A rule handler gets a `Cx` over a `SimulationVolume` (block states only) and `BlockFacts`. It gets no random stream, no player, no game rule, no light, no heightmap, no biome and no difficulty. `StepOutput` has no output for an entity spawn other than item drops.
+- No block has rules: each dimension runs `InertBlocks`. Fire is the first block with rules.
 
-Do the work in this order. Each item ships alone.
+### 13.2 G8a: saved ticks, reschedule, gate
 
-1. **Load and save `block_ticks`** (SIM-SCH-012, SIM-SCH-013, SIM-SCH-019). Decode both lists with one decoder: the block list resolves `i` in the block registry, the fluid list in the fluid registry. Keep the report of dropped elements for both lists. Write `block_ticks` back.
-2. **Carry the saved lists into `ColumnTicks`** for each saved column, both kinds. Then the kernel holds them and activates them when the section runs scheduled ticks.
-3. **Random streams for block ticks and side effects** (SIM-FIRE-011). Give the scheduled-tick handler the stream of its tick. Give a placement side effect the stream of the work item that makes the set.
-4. **The data of section 13.3.**
-5. **Fire and soul fire** (SIM-FIRE-001 to SIM-FIRE-010): the scheduled-tick handler, the placement side effect and the shape function. Put them in the block rules of the dimension in place of `InertBlocks` for these two block types.
-6. **The benchmark scene** of section 13.2.
+Rules: SIM-SCH-019, SIM-FIRE-001 steps 1 and 2, SIM-FIRE-002, SIM-FIRE-009 step 2,
+SIM-FIRE-010, SIM-FIRE-011. Do the work in this order:
 
-The architecture needs no new stage. Fire ticks are scheduled block ticks of the
-block domain (`../physics-architecture.md` §7.5, row "Scheduled block and fluid
-ticks"). Question 59 of `../physics-architecture.md` §15 asks if the engine keeps
-the guarantee of SIM-FIRE-012.
+1. **Decode `block_ticks`.** Use one generic decoder for both lists, because `Block` and `Fluid` are both registry enums. The decoder must also do these items of step 1 of SIM-SCH-013:
+   - narrow a numeric field of another NBT type to int before the clamp (`p: 4294967295L` gives −1);
+   - read an `i` without a namespace as `minecraft:`;
+   - log one error line for each list that dropped one or more elements.
 
-### 13.2 Exit test: the nether fire scene
+   Write `block_ticks` in `write_chunk`, so that the round-trip test of the chunk files of the game covers it (SIM-SCH-012).
+2. **Carry the saved lists to the kernel.** `FilledSnapshot` gets a second field for the saved ticks: the decoded lists of the anvil reader, with their types, `t` and `p` as the save holds them. `fill_column` fills it for a saved column. `generation_stage.rs` makes `StoredColumn.ticks` from that field when the source is `Saved`, and from `generated_ticks::column_ticks` when the source is `Generated`.
+3. **Activation time.** Activate the saved ticks with `G'` = the game time of the step in which the section first runs scheduled ticks, minus 1. The reason: vanilla activates between level ticks, before the game time advances (SIM-SCH-013 step 3). Then `due − now` at a save and `G' + t` at the next load give the same due tick. A column that the server saves at the end of step N and activates in step N + 1 keeps each due tick. If the kernel activates with the time of the step, each save and load makes each tick one level tick later. Check what `activate(now)` gets in `run_block_simulation`, and correct it.
+4. **The current stream** of SIM-FIRE-011. `Cx` holds the stream of the work item that runs. The scheduled-tick handler and the placement side effect draw from it.
+5. **The game rule.** Read `fire_spread_radius_around_player` from `data/minecraft/game_rules.dat` into the dimension world. At this time, only the key exists (`mcrs_minecraft_game_rule`).
+6. **The block rules.** One rules type replaces `InertBlocks`. It matches on the block type, and it holds static tables for each state, built from the registries in `DimensionBlockRules`. In G8a it has these handlers:
+   - the fire tick, steps 1 and 2 of SIM-FIRE-001;
+   - the placement side effect of fire, step 2 of SIM-FIRE-009. Step 1 waits for G8b (SIM-FIRE-003);
+   - no handler for soul fire (SIM-FIRE-010).
+
+   In G8a the spread gate is closed when `R = 0`, as the rule states. When `R` is not 0, G8a also keeps each fire tick to the reschedule. It logs one warning for the dimension. This is a known gap that G8b closes, not a deviation.
+7. **The bench and the tests** of section 13.4.
+
+### 13.3 Exit of G8a: the nether fire scene
 
 The fire ticks of the gold farm go to a benchmark of the block domain, not to the farm
 benchmark (`../farms/gold-farm.md` §7, decision 4). The scene is the nether area of
@@ -3396,62 +3418,73 @@ the farm:
 
 - `MCRS_BENCH_WORLD=~/mc-worlds/upgraded/hermitcraft10`
 - `MCRS_BENCH_AREA="minecraft:the_nether -317 -609 5"`: the 121 columns within 5 columns of the column `(-20, -39)` of the farm center.
-- The game rules of the save: `fire_spread_radius_around_player` is 0. No player is necessary.
-- Each column of the area runs scheduled ticks. Load one more ring of columns, so that SIM-FIRE-012 holds.
+- The game rules of the save. No player is necessary.
+- Each column of the area runs scheduled ticks. Load one more ring of columns, so that SIM-FIRE-012 holds. Question 59 of `../physics-architecture.md` §15 asks if the engine keeps that guarantee in general. It does not block G8a, because a closed gate reads only P.
 
-The exit test passes when all these results are true:
+The bench is one binary. It decodes the region files through the anvil reader and
+step 2 of section 13.2, and it gives the columns to `BlockSimulation` through
+`LandedTicks`. It does not read the regions directly into a `SectionIndex`, as
+`random_ticks_save.rs` does, because that path skips step 2. The bench asserts these
+results:
 
 1. The load decodes 4,846 block ticks: 4,835 fire, 7 crafter, 4 observer. It decodes no fluid tick and drops no element.
-2. The activation occurs at the game time `G'`. The 2,593 fire ticks with `t ≤ 0` run in the first scheduled phase after the activation. The 36 fire ticks with `t = 1` run in the phase of `G' + 1`.
-3. At the end of each level tick after the activation, 4,835 fire ticks are pending.
-4. Warm up for 1,200 level ticks, then measure 12,000 level ticks. The mean count of fire ticks that run in one level tick is 140.1 ± 0.5. The expected value is 4,835 / 34.5 = 140.14. A simulation of the delay rule over this scene gives a standard deviation of 11.7 for one level tick.
-5. No block state of the area changes.
+2. The dimension world read `R = 0` from the save. Without this check, result 5 also passes with the default 128 and no player.
+3. The 2,629 fire ticks with `t ≤ 1` run in the first scheduled phase of the area (step 3 of section 13.2). Failing twin: 2,593, when the activation uses the time of the step.
+4. At the end of each level tick after the activation, 4,835 fire ticks are pending.
+5. Warm up for 1,200 level ticks, then measure 12,000 level ticks. The mean count of fire ticks that run in one level tick is 140.1 ± 0.5. The expected value is 4,835 / 34.5 = 140.14. One level tick has a standard deviation of 11.7, but the mean of 12,000 has a standard deviation below 0.01, so the tolerance never fails by chance.
+6. No block state of the area changes.
 
-The bench also prints the time of the scheduled-tick phase of each level tick. The
-vanilla run of the farm reports 0.50 ms for all scheduled ticks of the nether
-(`../farms/gold-farm.md` §2.2). That run loads a larger area, so it is not a limit
-for this scene.
-
-A second run of the scene uses `fire_spread_radius_around_player` −1. It measures
-the cost of the full tick. It has no exit value. Its fires on a floor that is not
-infiniburn and not next to fuel go out (SIM-FIRE-001), so the count of result 3
-falls.
+Results 1, 3, 4 and 6 are exact. The bench prints the time of the scheduled-tick
+phase. The vanilla run of the farm reports 0.50 ms for all scheduled ticks of the
+nether (`../farms/gold-farm.md` §2.2). That run loads a larger area, so it is not a
+limit for this scene. When `MCRS_BENCH_WORLD` is not set, the bench prints why and
+measures nothing.
 
 The 7 crafter ticks and 4 observer ticks are consumed with no effect, because the
-server has no handler for these block types (SIM-SCH-019).
+server has no rules for these block types (SIM-SCH-019).
 
-### 13.3 Data tables
+### 13.4 Tests of G8a
 
-| Data | Source | Status |
-|------|--------|--------|
-| Ignite odds and burn odds | the table of SIM-FIRE-008 | in this document; the corpus does not hold them |
-| Sturdy top of each state | the collision shapes of `../../assets/mcrs/block_definition/`, with the exceptions of SIM-FIRE-003 | the corpus holds no support shape. The block definition dumper of `tools/vanilla-oracle` can add a per-state component with the faces of the full support test. Until then, use the exceptions |
-| `waterlogged` | the properties of each block of the corpus | present |
-| Infiniburn tags | the field `infiniburn` of the dimension type, and the tags of the data pack | present (`mcrs_minecraft_dimension_environment`) |
-| `#minecraft:soul_fire_base_blocks`, `#minecraft:leaves` | block tags of the data pack | present |
-| Game rules `fire_spread_radius_around_player`, `tnt_explodes` | `game_rules.dat` of the save; the definitions of `mcrs_minecraft_game_rule` | present |
-| Difficulty | `difficulty_settings` of `level.dat` | the bench uses hard |
-| `gameplay/increased_fire_burnout` | the environment attributes of the biome and of the dimension (`registry-fields.md`) | present |
-| Rain inputs | the rain level, the sky light, the `MOTION_BLOCKING` heightmap and the biome (SIM-RND-004 uses the same inputs) | present |
-| Players and their game modes | the player table of the dimension | present |
-
-### 13.4 Tests to write
-
-| Test | Rules | Kind of evidence |
-|------|-------|------------------|
-| Decode and write of `block_ticks`: an unknown id is dropped and reported, the other elements stay; a tick outside the column is dropped with no report; the list keeps its order | SIM-SCH-013, SIM-SCH-019 | fixture |
+| Test | Rules | Evidence |
+|------|-------|----------|
+| Decode of both lists: an unknown id is dropped and logged one time for the list, the other elements stay; a long `p` narrows; an `i` without a namespace reads; a tick outside the column is dropped with no log; the order stays | SIM-SCH-013, SIM-SCH-019 | fixture |
 | The round trip of the chunk files of the game: `block_ticks` is equal to the file of the game | SIM-SCH-012 | game files (`vanilla_files.rs`) |
-| The kernel tests of SIM-FIRE-001 to SIM-FIRE-012 | SIM-FIRE-* | harness; distributions with binomial bounds |
-| Each id of the odds table is a block of the corpus | SIM-FIRE-008 | corpus |
-| Determinism: two runs, and `x86_64` against `aarch64` | SIM-FIRE-011 | harness |
-| The exit test of section 13.2 | SIM-SCH-019, SIM-FIRE-001 | real save. Skip with a printed reason when `MCRS_BENCH_WORLD` is not set |
-| The vanilla experiments E-F3 to E-F7 | SIM-FIRE-* | vanilla server (blocked: human) |
+| A saved column gets to the kernel: through the server harness of `mcrs_minecraft_server/tests/it/world_cells.rs`, load a small checked-in region with fire ticks of `t` −5, 0 and 1, a fire tick at a position that holds stone, and an element with an unknown id. Check the due tick of each tick, the consumed tick at the stone, and one error line | SIM-SCH-013, SIM-SCH-019, step 3 of 13.2 | fixture (CI) |
+| The first kernel test of SIM-FIRE-001, the table of SIM-FIRE-002, the kernel tests of SIM-FIRE-009 and SIM-FIRE-010 | SIM-FIRE-001, 002, 009, 010 | harness |
+| The kernel tests of SIM-FIRE-011 | SIM-FIRE-011 | harness, golden hash |
+| The bench of section 13.3 | all of G8a | real save |
 
-### 13.5 Out of scope
+### 13.5 G8b: the full fire tick
 
-The items of section 12.1 are out of scope. The ticks of other block types (for
-example the crafter and the observer of the scene) are out of scope. They need their
-own rules. Fluid ticks are in scope only for the load and the save.
+Rules: SIM-FIRE-001 steps 3 to 9, SIM-FIRE-003 to SIM-FIRE-008, SIM-FIRE-009 step 1,
+SIM-FIRE-012. G8b needs these inputs and one output. Each input is read-only during
+the block phases. Give them to the rules as one view of the step input, next to
+`BlockFacts`:
+
+| Input | Rule | Source | Status |
+|-------|------|--------|--------|
+| `R`, and a copy of the players: dimension, position, game mode | SIM-FIRE-002 | `game_rules.dat` (13.2 step 5); the copy of the player table that the step makes before the block phases | the player table exists only as a plan (`../physics-architecture.md` §5.7). G8b adds the copy |
+| ignite odds, burn odds | SIM-FIRE-008 | the table of SIM-FIRE-008, as a table for each state (0 for a waterlogged state) | in this document only |
+| sturdy top of each state | SIM-FIRE-003 | `VoxelShape::face_mask(Up) == FACE_MASK_FULL` over the collision shape of the corpus, with the exceptions of SIM-FIRE-003. Do not use the two existing derivations of the world generation: one uses the selection shape too (`feature_program.rs`), and both lack the exceptions | to build |
+| `#minecraft:soul_fire_base_blocks`, `#minecraft:leaves`, the infiniburn tag of the dimension type | SIM-FIRE-003, 005, 010 | the data pack, `mcrs_minecraft_dimension_environment` | present as data; masks for each state to build |
+| `tnt_explodes` | SIM-FIRE-006 | `game_rules.dat` | key only |
+| the difficulty | SIM-FIRE-007 | `difficulty_settings` of `level.dat` | not in the dimension world |
+| `gameplay/increased_fire_burnout` at P | SIM-FIRE-006, 007 | the environment attributes of the biome and of the dimension (`registry-fields.md`) | data present; no lookup at a position in the kernel |
+| rain at Q: the rain of the dimension, the sky light at Q, the `MOTION_BLOCKING` height, the biome and its snow test at Q | SIM-FIRE-004 | the weather, the light data, the heightmaps, the biomes. The snow test is the temperature test of SIM-RND-004 | data present; no test outside world generation. G8b adds it, and precipitation can then use it |
+
+The output: `StepOutput` gets a list of primed TNT spawns, each a position, in the
+order of the tick. The engine spawns them after the block domain, as it handles
+`ItemDropped`. The spawn of the entity and its start motion are entity rules.
+
+Exit of G8b: the kernel tests of SIM-FIRE-001 to SIM-FIRE-012 pass. The scene of
+section 13.3 runs with `R = −1` for 12,000 level ticks, and prints its phase time.
+Its fires on a floor that is not infiniburn and not next to fuel go out
+(SIM-FIRE-001), so result 4 does not apply. When the vanilla fixtures of E-F3 to
+E-F7 exist, a test compares them with the rules.
+
+Out of scope for both steps: the items of section 12.1, and the rules of other block
+types, for example the crafter and the observer of the scene. Fluid ticks are in
+scope only for the load and the save.
 
 ### 13.6 Experiments
 
@@ -3467,10 +3500,10 @@ Experiments that were run:
 - **E-F2** (the game rule of the save). `data/minecraft/game_rules.dat` of the upgraded save has `minecraft:fire_spread_radius_around_player` 0. `level.dat` of the 1.21.8 save has `doFireTick` false and `allowFireTicksAwayFromPlayer` false.
 - **E-F1b** (a simulation of the delay rule). A script started the 4,835 ticks at their saved `t` and rescheduled each tick with `30 + r(10)`. The script used three seeds, a warm-up of 1,200 ticks and 12,000 measured ticks. The mean was 140.14 to 140.15. The standard deviation of one tick was 11.6 to 11.8.
 
-Experiments that need a human. The vanilla server needs the acceptance of the
-Minecraft EULA in the environment. Start the server with
-`MINECRAFT_EULA=true tools/vanilla-server/run.sh serve`. Type the commands on its
-console. Put the console log and the region file of the column under
+Experiments that wait for the owner. The vanilla server needs the acceptance of the
+Minecraft EULA in the environment, and only the owner can give it. Start the server
+with `MINECRAFT_EULA=true tools/vanilla-server/run.sh serve`. A script can write the
+commands to the standard input of that process. No client is necessary. Put the console log and the region file of the column under
 `crates/mcrs_minecraft_engine/tests/fixtures/vanilla_fire/<experiment id>/`.
 
 - **E-F3** (the gate). Use a flat overworld and the difficulty hard. Do these steps:
