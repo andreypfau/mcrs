@@ -321,8 +321,8 @@ another row, so it is a write of PHY-CMP-015 at the merge point, not a hit of DM
 no passengers, so G2 does not implement this rule.
 
 **DMG-FALL-004** (`source_suggested_black_box_confirmed`, semantic, confidence: high). The fall
-action of each block. D1 confirms the default row, `honey_block` and `hay_block`. The farm needs
-only the default row and `honey_block`; G2 implements these two rows. The other rows wait for D12.
+action of each block. D1 and D12 confirm each row. The farm needs only the default row and
+`honey_block`; G2 implements these two rows.
 
 | Block | `d'` | `m` | Damage type | Other effect |
 |-------|------|-----|-------------|--------------|
@@ -533,13 +533,17 @@ The events `damage_event` and `entity_event` go to the tracker as a subject even
 `EntityEvent::Signal`, with the body of the packet. For one subject in one tick, each viewer gets
 the packets in this order:
 
-1. the signals, in the order of their causes in the tick: for one hit, `damage_event` before the
-   entity event 3;
+1. the signals and the sounds, in the order of their causes in the tick. For a hit that kills:
+   `damage_event`, the death sound, the spawn of the drops, then the entity event 3. For a fall:
+   the fall sounds, `damage_event`, then the hurt sound. A fall onto honey adds the slide sound and
+   the entity event 54 first, and the block fall sound of its row last (D13);
 2. the update packets of TRK-UPD-002;
 3. the velocity of DMG-NET-004;
 4. at the removal, `remove_entities` (TRK-REM-001).
 
-D9 and TRK-E1 show this order.
+D9, D13 and TRK-E1 show this order. The sounds do not go through the tracker; they go to the
+players near the position (DMG-NET-007). Thus only their place among the packets of one tick is
+stated, not a channel.
 
 **DMG-NET-004** (`black_box_confirmed`, semantic, confidence: high). A full hit of a damage type
 without the tag `no_impact` marks the velocity. At the end of the next tracker tick, after the
@@ -576,8 +580,10 @@ that is a separate sound of the client. A `sound` packet goes to each player wit
 or 16 × the volume when the volume is more than 1. The sound event of a hurt and of a death is data
 of the entity type: for a zombified piglin, `entity.zombified_piglin.hurt` and
 `entity.zombified_piglin.death`. The default is `entity.generic.hurt` and `entity.generic.death`.
-The pitch and the seed are random, so a test compares only the sound event and the position. The
-exact bytes of these packets are a pending capture (D13).
+The pitch and the seed are random, so a test compares only the sound event, the source and the
+position. D13 decoded the packets: the source is 5 (`hostile`) for a zombified piglin and a
+zombie, the volume is 1.0 for a hurt, a death and a fall sound of the entity, and the fall sound of
+a block has the volume and the pitch of DMG-FALL-005.
 
 The fall particles go in `level_particles` (play clientbound 48) to each player within 32 blocks.
 The count is an integer: `c = trunc(150.0 × min(f64(0.2F) + p / 15.0, 2.5))`, in f64, with `p`
@@ -698,17 +704,23 @@ values; a UUID selector also reads an entity in the dying state.
 | D8 | For each entity type, summon it with `NoAI` and `NoGravity`. Read the base value of each attribute of DMG-ATT-002 with `/attribute … base get`, and `Health`. Do a `/damage` of `fall`, `hot_floor`, `cramming` and `player_attack` with the amounts 0.001, 0.002, 0.003 and 0.004, so that the cooldown accepts each one. Record each reply "invulnerable". | DMG-ATT-001, DMG-ATT-003, Appendix A |
 | D9 | Join the server with an offline client that answers only the keep-alive, the teleport and the chunk batches. Run D1 (13 blocks onto honey), D5 for a pig, the kills and the hits of D3 near the player, and hits on the player. Record the clientbound packets 1, 25, 34, 43, 48, 69, 78, 101, 103, 106 and 119. | section 9 |
 
-These checks are still open:
+| D10 | With the client of D9, drop a zombie 10 blocks onto magma. Record the packets and read `Health`. | DMG-ORD-001 |
+| D11 | Hit the player of D9 with `/damage Probe 1 minecraft:mob_attack by <piglin>`. Record the packets. | DMG-NET-001, DMG-NET-006 |
+| D12 | Drop a zombified piglin 10 and 24 blocks onto a bed, `slime_block`, `powder_snow`, `pointed_dripstone` and `icicle` with the tip up, and `shelf_mushroom`. Read `Health` after 6 seconds. | DMG-FALL-004, DMG-FALL-005 |
+| D13 | With the client of D9, hit a zombified piglin with `cramming` 6, then kill it with `cramming` 100. Decode each `sound` packet by the registry `minecraft:sound_event`. | DMG-NET-003, DMG-NET-007 |
+
+This check is still open:
 
 | Id | Steps | Rules |
 |----|-------|-------|
-| D10 | Drop a zombie onto magma from 10 blocks. Record the type of the damage event. | DMG-ORD-001 |
-| D11 | Hit a player with a knockback type and a source entity. Record `hurt_animation`. | DMG-NET-006 |
-| D12 | Drop a mob onto a bed, a slime block, powder snow and a dripstone tip. Read `Health`. | DMG-FALL-004 |
-| D13 | Repeat D9 and decode each `sound` packet: the sound event id, the source and the position. | DMG-NET-007 |
 | D14 | With `tools/vanilla-client`, watch a zombified piglin fall onto honey, take crowd hits and die, with the server of this project. The client must show the hurt, the death and the removal, with no disconnect. | section 9 |
 
-The owner has not yet confirmed the acceptance of the EULA for new runs. D10 to D14 wait for it.
+D14 tests this server, so it waits for the implementation of G2.
+
+The fixtures of D1 to D13 are in `crates/mcrs_minecraft_physics/tests/fixtures/damage/`. Each file
+names its experiment. `d6_d7_crowd.json` holds, for each trial, the tick of each crowd hit and of
+each death, from tick 1 after the summon. The packet files hold the body of each recorded packet as
+hex, after the packet id.
 
 ## 16. Captured results
 
@@ -773,6 +785,43 @@ lost 0.94 at the same ticks: 19.06, 18.119999, 17.179998. The zombified piglin k
 
 No `hurt_animation` arrived for `cramming`, `cactus` and `magic`. Each of them has
 `no_knockback`.
+
+**D10.** The zombie burned in daylight before it landed, so it had 19.0 health. In the tick of the
+landing, the server sent `damage_event` with the type 20 (`hot_floor`) and no other
+`damage_event`. The health became 12.06: the `hot_floor` hit of 1 gave 0.94 through the armor, and
+the fall hit of 7 was a partial hit of 6. A fall hit first gives 12.0 and the type 10. Thus the
+step action comes before the fall action (DMG-ORD-001).
+
+**D11.** `damage_event` `01 1c 13 13 00`: the type 28 (`mob_attack`), and the piglin with the
+network id 18 as the causing entity and as the direct entity (18 + 1 = `0x13`). Then
+`hurt_animation` `01 00000000` in the same tick, and in the next update the velocity of the player
+to the player itself and `set_health`.
+
+**D12.** Health after the fall:
+
+| Floor | 10 blocks | 24 blocks |
+|-------|-----------|-----------|
+| red bed, foot | 19 | 12 |
+| `shelf_mushroom` | 19 | 12 |
+| `slime_block` | 20 | 20 |
+| `powder_snow` | 20 | 20 |
+| `pointed_dripstone`, tip up | 3 | dead, "impaled on a stalagmite" |
+| `icicle`, tip up | 3 | dead, "impaled on a stalagmite" |
+
+The top of a bed is at 0.5625, so `d` is 9.4375 and 23.4375: `floor(4.71875 - 2.999999) = 1` and
+`floor(11.71875 - 2.999999) = 8`. For the tip, `floor((9.31 + 2.5 - 3) × 2) = 17`. A fall onto a
+bed sent `entity.hostile.small_fall`, then `block.wood.fall` with the volume 0.5, then
+`damage_event`, then the hurt sound. A piglin in powder snow later took `freeze` damage; that is
+out of scope.
+
+**D13.** A crowd hit: `damage_event` type 4, then `entity.zombified_piglin.hurt`, source 5, at the
+position of the piglin. The kill by a full hit: `damage_event` type 4,
+`entity.zombified_piglin.death`, `add_entity` of the drop, `entity_event` 3, then in the update
+`set_entity_data` with the pose `dying` and the health 0. After 20 ticks: `entity_event` 60 and
+`remove_entities`. The fall onto honey of D9 sent, in one tick: `block.honey_block.slide`,
+`entity_event` 54, `entity.hostile.small_fall`, `block.honey_block.fall`, `damage_event`,
+`entity.zombified_piglin.hurt`, and `block.honey_block.fall` again. The second block fall sound is
+the one of the honey row of DMG-FALL-004. The magma hit on a pig sent `entity.pig.hurt`.
 
 ## 17. Implementation
 
