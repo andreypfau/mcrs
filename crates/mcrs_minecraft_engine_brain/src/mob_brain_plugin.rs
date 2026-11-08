@@ -162,6 +162,10 @@ fn start(mut commands: Commands, settings: Res<StageSettings>, seed: Option<Res<
     commands.insert_resource(MobAi::new(config));
 }
 
+#[expect(
+    clippy::too_many_arguments,
+    reason = "a system names each resource and query that it reads"
+)]
 fn prepare(
     dimension: Single<Entity, With<Dimension>>,
     world: WorldView,

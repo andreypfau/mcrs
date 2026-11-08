@@ -95,11 +95,13 @@ impl Run {
         }
         let blocks = TestBlocks::new();
         let mut states = vec![StateCell::AIR; blocks.stone.index() + 1];
-        states[blocks.stone.index()] = StateCell {
-            flags: StateFlags::SOLID_RENDER.union(StateFlags::LEGACY_SOLID),
-            path: PathType::Blocked,
-            collision: Collision::FullCube,
-        };
+        if let Some(stone) = states.get_mut(blocks.stone.index()) {
+            *stone = StateCell {
+                flags: StateFlags::SOLID_RENDER.union(StateFlags::LEGACY_SOLID),
+                path: PathType::Blocked,
+                collision: Collision::FullCube,
+            };
+        }
         let players = vec![PlayerRow {
             player: PlayerId(1),
             key: OrderKey::new(0, 1),
