@@ -4455,6 +4455,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "mcrs_minecraft_hotspots"
+version = "0.5.8"
+dependencies = [
+ "mcrs_minecraft_anvil",
+ "mcrs_minecraft_chunk",
+ "mcrs_minecraft_nbt",
+ "mcrs_voxel",
+ "serde",
+]
+
+[[package]]
 name = "mcrs_minecraft_item"
 version = "0.5.8"
 dependencies = [

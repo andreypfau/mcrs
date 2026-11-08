@@ -1,0 +1,17 @@
+[package]
+name = "mcrs_minecraft_hotspots"
+description = "Ranks the farms and machines of a save by the server load they cause"
+version.workspace = true
+edition.workspace = true
+publish = false
+
+[lints]
+workspace = true
+
+# std: file reads and the report on stdout
+[dependencies]
+mcrs_minecraft_anvil.workspace = true
+mcrs_minecraft_chunk.workspace = true
+mcrs_minecraft_nbt.workspace = true
+mcrs_voxel.workspace = true
+serde.workspace = true

@@ -14,7 +14,7 @@ path = "src/main.rs"
 workspace = true
 
 [workspace]
-members = ["crates/*", "tools/mcrs_minecraft_client_recorder", "tools/mcrs_minecraft_client_ticks", "tools/mcrs_minecraft_fixtures", "tools/mcrs_minecraft_update", "xtask"]
+members = ["crates/*", "tools/mcrs_minecraft_client_recorder", "tools/mcrs_minecraft_client_ticks", "tools/mcrs_minecraft_fixtures", "tools/mcrs_minecraft_hotspots", "tools/mcrs_minecraft_update", "xtask"]
 
 [workspace.package]
 version = "0.5.8"
