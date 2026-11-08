@@ -35,10 +35,10 @@ impl Goals for Script {
         &self.specs
     }
     fn can_start(&mut self, goal: usize) -> bool {
-        self.startable[goal]
+        self.startable.get(goal).copied().unwrap_or(false)
     }
     fn can_continue(&mut self, goal: usize) -> bool {
-        self.continuable[goal]
+        self.continuable.get(goal).copied().unwrap_or(false)
     }
     fn start(&mut self, goal: usize) {
         self.events.push(Event::Start(goal));

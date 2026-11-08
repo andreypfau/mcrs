@@ -1,15 +1,16 @@
 use std::collections::BTreeMap;
 
 use mcrs_minecraft_brain::AiDelay;
+use mcrs_minecraft_brain::ConfigError;
 use mcrs_minecraft_brain::DecisionPipeline;
 use mcrs_minecraft_brain::IssuedDecisions;
 use mcrs_minecraft_brain::StageConfig;
 use mcrs_minecraft_brain::Wait;
 use mcrs_minecraft_brain::WorldSeed;
 
-fn pipeline(delay: AiDelay) -> DecisionPipeline {
-    let config = StageConfig::new(WorldSeed(1)).with_delay(2, delay).unwrap();
-    DecisionPipeline::new(&config)
+fn pipeline(delay: AiDelay) -> Result<DecisionPipeline, ConfigError> {
+    let config = StageConfig::new(WorldSeed(1)).with_delay(2, delay)?;
+    Ok(DecisionPipeline::new(&config))
 }
 
 fn ready(tick: u64) -> IssuedDecisions {
@@ -25,7 +26,7 @@ fn ticks(due: Result<Vec<IssuedDecisions>, Wait>) -> Result<Vec<u64>, Wait> {
 
 #[test]
 fn fixed_delay_applies_exactly_k_ticks_after_the_issue_and_waits_for_it() {
-    let mut pipeline = pipeline(AiDelay::Fixed(2));
+    let mut pipeline = pipeline(AiDelay::Fixed(2)).unwrap();
     pipeline.issue(10);
     pipeline.ready(ready(10));
     pipeline.issue(11);
@@ -42,7 +43,7 @@ fn fixed_delay_applies_exactly_k_ticks_after_the_issue_and_waits_for_it() {
 
 #[test]
 fn at_least_one_applies_when_ready_and_waits_only_at_max_lag() {
-    let mut pipeline = pipeline(AiDelay::AtLeast(1));
+    let mut pipeline = pipeline(AiDelay::AtLeast(1)).unwrap();
     pipeline.issue(10);
     pipeline.issue(11);
     pipeline.ready(ready(11));
