@@ -2,6 +2,7 @@ use bevy_app::{App, Plugin, Update};
 use bevy_ecs::prelude::*;
 use mcrs_minecraft_command_engine::{AppCommandsExt, RegistrationError, system_message};
 use mcrs_minecraft_engine::bus::OutboundPlayerPacket;
+use mcrs_minecraft_engine::muxer::online_count::send_online_count;
 use mcrs_minecraft_engine_world::session::PlayerSession;
 use mcrs_minecraft_engine_world::tick_pace::TickPace;
 use mcrs_minecraft_engine_world::world::sub_app::AddDimensionPlugins;
@@ -26,7 +27,7 @@ impl Plugin for WorldCommandsPlugin {
         report("weather", app.add_command(weather::build, weather::run));
         report("tick", app.add_command(tick::build, tick::run));
         app.add_dimension_plugin(ForcedColumnsPlugin);
-        app.add_systems(Update, report_sprint);
+        app.add_systems(Update, report_sprint.after(send_online_count));
     }
 }
 

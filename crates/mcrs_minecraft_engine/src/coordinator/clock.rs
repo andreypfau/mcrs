@@ -4,7 +4,7 @@ use crate::bus::{OutboundPlayerPacket, PacketPayload, PacketTarget, to_target};
 use bevy_app::{App, FixedUpdate, Plugin};
 use bevy_ecs::prelude::*;
 use mcrs_minecraft_environment::world_clock::{
-    AdvanceTime, ClockEdit, ClockTime, WorldClock, WorldClocks,
+    AdvanceTime, ClockEdit, ClockTime, WorldClock, WorldClockSystems, WorldClocks,
 };
 use mcrs_minecraft_protocol::{VarInt, VarLong};
 use mcrs_minecraft_protocol_game::clientbound::{ClientboundSetTime, ClockUpdate};
@@ -35,7 +35,10 @@ impl Plugin for WorldClockHostPlugin {
         app.add_systems(FixedUpdate, advance_game_time);
         app.add_systems(
             FixedUpdate,
-            send_every_clock.run_if(resource_changed::<AdvanceTime>),
+            send_every_clock
+                .after(advance_game_time)
+                .after(WorldClockSystems)
+                .run_if(resource_changed::<AdvanceTime>),
         );
         app.add_observer(apply_clock_edit);
     }
@@ -59,13 +62,19 @@ fn clock_update(clock: Id<WorldClock>, state: &ClockTime, advance_time: bool) ->
     }
 }
 
-/// Sends the state of every clock to every player of the server, once `advance_time` changed.
+/// Sends the state of every clock to every player of the server, once `advance_time` changed
+/// from the value that the first tick saw.
 fn send_every_clock(
     clocks: Res<WorldClocks>,
     advance_time: Res<AdvanceTime>,
     game_time: Res<GameTime>,
+    mut sent: Local<Option<bool>>,
     mut writer: MessageWriter<OutboundPlayerPacket>,
 ) {
+    let before = sent.replace(advance_time.0);
+    if before.is_none_or(|before| before == advance_time.0) {
+        return;
+    }
     let updates: Vec<ClockUpdate> = clocks
         .iter()
         .map(|(clock, state)| clock_update(clock, state, advance_time.0))
