@@ -75,6 +75,7 @@ sha2 = "0.11.0"
 rand_xoshiro = "0.8.0-rc.0"
 flume = { version = "0.12.0", default-features = false }
 rayon = "1"
+libm = { version = "0.2.16", default-features = false }
 
 mcrs_minecraft_wire = { path = "crates/mcrs_minecraft_wire" }
 mcrs_minecraft_wire_macros = { path = "crates/mcrs_minecraft_wire_macros" }
@@ -90,6 +91,8 @@ mcrs_voxel = { path = "crates/mcrs_voxel" }
 mcrs_minecraft_physics = { path = "crates/mcrs_minecraft_physics" }
 mcrs_minecraft_collision_table = { path = "crates/mcrs_minecraft_collision_table" }
 mcrs_minecraft_engine_physics = { path = "crates/mcrs_minecraft_engine_physics" }
+mcrs_minecraft_brain = { path = "crates/mcrs_minecraft_brain" }
+mcrs_minecraft_goals = { path = "crates/mcrs_minecraft_goals" }
 mcrs_minecraft_move_validate = { path = "crates/mcrs_minecraft_move_validate" }
 mcrs_minecraft_move_predict = { path = "crates/mcrs_minecraft_move_predict" }
 mcrs_engine_link = { path = "crates/mcrs_engine_link" }
