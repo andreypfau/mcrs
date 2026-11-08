@@ -103,7 +103,8 @@ pub fn mob_body(kind: MobType, row: &MotionRow, key: Birth, position: DVec3) -> 
 }
 
 /// The life cycle of the mobs: each spawn request of the tick becomes a row, in the order of the
-/// birth keys (TRK-LIFE-002).
+/// birth keys (TRK-LIFE-002). A request with the UUID of a mob that exists, or of an earlier
+/// request, spawns nothing.
 pub(crate) fn spawn_mobs(
     mut requests: MessageReader<MobSpawnRequest>,
     clock: Res<BirthClock>,
@@ -121,7 +122,15 @@ pub(crate) fn spawn_mobs(
         new.sort_by_key(|request| request.key);
     }
     let registries = registries.as_deref().map(|registries| &**registries);
-    while !pending.0.is_empty() {
+    while let Some(front) = pending.0.front() {
+        if uuids.0.contains_key(&front.uuid) {
+            tracing::warn!(
+                uuid = front.uuid,
+                "a mob with this UUID exists; the spawn is refused"
+            );
+            pending.0.pop_front();
+            continue;
+        }
         let Some(id) = ids.allocate() else {
             break;
         };

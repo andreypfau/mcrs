@@ -523,3 +523,26 @@ fn cmd_kill_summoned_pigs_are_found_hurt_killed_and_removed_after_their_death_ti
     }
     assert!(viewer.positions.is_empty(), "the client holds no pig");
 }
+
+/// Two summons with one UUID in one tick make one mob: the second spawn is refused.
+#[test]
+fn two_summons_with_one_uuid_in_one_tick_make_one_mob() {
+    let mut server = start();
+    load_stone_column(&mut server);
+    let (operator, _) = server.join(OPERATOR, "op");
+    for x in [2, 6] {
+        let line = format!("summon minecraft:pig {x} 64 4 {{UUID:[I;1,2,3,4]}}");
+        server.queue(
+            operator,
+            &ServerboundChatCommand {
+                command: Bounded(&line),
+            },
+        );
+    }
+    server.ticks(operator, 3);
+    assert_eq!(
+        server.world().resource::<Mobs>().0.len(),
+        1,
+        "the second pig with the UUID does not spawn"
+    );
+}
