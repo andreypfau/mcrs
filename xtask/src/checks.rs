@@ -36,7 +36,7 @@ const NO_STD_PACKAGES: [&str; 5] = [
     "mcrs_molang_wgsl",
 ];
 
-const NO_BEVY_PACKAGES: [&str; 84] = [
+const NO_BEVY_PACKAGES: [&str; 85] = [
     "mcrs_command",
     "mcrs_engine_cell",
     "mcrs_engine_link",
@@ -81,6 +81,7 @@ const NO_BEVY_PACKAGES: [&str; 84] = [
     "mcrs_minecraft_light_engine",
     "mcrs_minecraft_loot",
     "mcrs_minecraft_mesh",
+    "mcrs_minecraft_mob",
     "mcrs_minecraft_move_predict",
     "mcrs_minecraft_move_validate",
     "mcrs_minecraft_nbt",

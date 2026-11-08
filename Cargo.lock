@@ -4731,6 +4731,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "mcrs_minecraft_mob"
+version = "0.5.8"
+dependencies = [
+ "mcrs_minecraft_entity",
+]
+
+[[package]]
 name = "mcrs_minecraft_model"
 version = "0.5.8"
 dependencies = [
