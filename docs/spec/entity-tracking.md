@@ -126,8 +126,9 @@ data:
 
 The default values are: client tracking range 5, update interval 3, summonable true. The type data
 of the reference has more fields: "tracks velocity" (true for each mob, false for the player),
-"allowed in peaceful" and "fire immune". G1 reads none of them, so a table of G1 does not hold
-them.
+"allowed in peaceful" and "fire immune". G1 reads none of them. G2 adds the fields fire-immune,
+the base `armor` and the hit kind (`entity-damage.md`, Appendix A); the zombified piglin is
+fire-immune, with the armor 2 and the normal hit kind.
 
 **TRK-TYPE-002** (`source_suggested_black_box_confirmed`, wire, confidence: high). The types of
 the farm have these values. TRK-E1 and TRK-E3 confirm the wire id, the range and the interval of
@@ -181,7 +182,9 @@ pass of its dimension world. The row has:
 - the yaw of `Living`, as raw f32 degrees.
 
 The cold state of the mob holds only its entity type. In G1 each entity data value of a mob is a
-function of its type (TRK-DATA-003), so G1 stores no entity data value. In G1 the pitch and the
+function of its type (TRK-DATA-003), so G1 stores no entity data value. From G2, the row is the
+authority for the health and the dying state (DMG-DTH-005): the entries 6 (pose) and 9 (health)
+come from the row, never from the cold state. In G1 the pitch and the
 head yaw of a mob are 0 and have no storage; `mob-goals.md` adds them with the look control. The
 walker tick of PHY-ORD-002 moves the mob in each tick. Until `mob-goals.md` gives the mob an AI, the mob has no
 steering: its input vector is zero and it does not jump.
@@ -208,11 +211,11 @@ shows these values in `add_entity` for a summoned zombified piglin, with and wit
 spawn setup.
 
 **TRK-LIFE-004** (`source_suggested`, semantic, confidence: medium). Hook. A removal request
-names a row and a reason. The reasons are: discarded (a despawn of `natural-spawning.md`) and
-killed (`entity-damage.md`). The life cycle of `DomainInput` removes the row from its tile, the
-grid and the cold state. The tracker of the subject then ends each pairing (TRK-REM-001). A killed
-mob first plays its death, and the removal follows after the death animation of 20 ticks. No
-system of G1 makes a removal request.
+names a row and the reason "discarded" (a despawn of `natural-spawning.md`). The life cycle of
+`DomainInput` removes the row from its tile, the grid and the cold state. The tracker of the
+subject then ends each pairing (TRK-REM-001). A killed mob makes no request: the pass removes its
+row in the tick in which its death time reaches 20, on the expiry path of an item, and the tracker
+sends `remove_entities` in the same tick (DMG-DTH-003). No system of G1 makes a removal request.
 
 **TRK-LIFE-005** (`source_suggested`, semantic, confidence: high). A mob row in a section that is
 not loaded does not tick, as PHY-ORD-002 and the pass state now. The row stays until a removal
@@ -475,6 +478,9 @@ subject that is not a passenger sends, in this order:
 2. the move packet of TRK-UPD-003, when there is one;
 3. `set_entity_data` of TRK-DATA-005, and `update_attributes` of TRK-DATA-004;
 4. `rotate_head`, when TRK-UPD-008 sends the head yaw.
+
+The signals of the subject in the tick (`damage_event`, `entity_event`) come before the update, and
+the velocity of a hurt subject after it (`entity-damage.md`, DMG-NET-003, DMG-NET-004).
 
 The order is that of each update in TRK-E1 and TRK-E2. A passenger, a minecart on rails and an
 arrow have other forms; they are hooks out of scope.

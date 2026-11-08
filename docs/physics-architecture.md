@@ -248,7 +248,7 @@ from its start-of-tick row.
 |-------|------------------------|------------------------|
 | `DomainInput` | commands (write-through); the merge point (writes of `T − 1`, local and mailed; mailed block-domain writes); proposal grants; impulses; the raid tick (AIT-CPL-006); the life cycle; then the freeze | commands, through the teleport of PHY-SRV-010; the merge point |
 | `ClientInput` | client-controlled vehicles | — |
-| `Simulate` | collider groups, the main pass (late AI decisions first, per tile), explosion groups (each on its own rows) | `predict` before the main pass; the server part of each player after it (§8.6) |
+| `Simulate` | collider groups, the main pass (late AI decisions first, per tile), the crowd fix-up after the main pass (DMG-CRW-002), explosion groups (each on its own rows) | `predict` before the main pass; the server part of each player after it (§8.6) |
 | `WorldWrite` | explosion overlays commit; entity block actions; the block domain (PHY-BLK-001) in block order; claim grants | claim grants |
 | `Project` | tile moves of rows that left their tile | `RiderPlaced` |
 
@@ -667,7 +667,7 @@ bit-identical to the scalar path.
 | Bodies near a boundary | 60k × 2 × 40 ns = 4.8 core-ms; 3.8 MB of mail per tick | none |
 | Halo sections | ~6% more sections; halo changes applied again | none |
 | Crossings | ~250 per tick × 2 µs | ~1.2k tile moves × 50 ns |
-| Boundary exceptions | C2, C3, C5 | none |
+| Boundary exceptions | C2, C3, C5, C6 | none |
 | Serial parts of the schedule | in parallel across cells | once per world; §12.1 removes them |
 
 Decision: one world per dimension in a process. Cells are for placement across processes.
@@ -686,7 +686,8 @@ Decision: one world per dimension in a process. Cells are for placement across p
 Conflicts in a layout of many cells: **C1** halo changes must apply in `DomainInput` (engine fix
 E1, §14); **C2** a zone past the halo, bounded by the teleport rule; **C3** a block action in another
 cell's column is one tick later (PHY-INV-014); **C5** a claim from another cell joins the
-arbitration one tick later; a block chain that leaves the cell is a cross-cell effect, allowed only
+arbitration one tick later; **C6** a death in the halo counts in the crowd fix-up (DMG-CRW-002) one
+tick later; a block chain that leaves the cell is a cross-cell effect, allowed only
 at the boundary level, and is reported.
 
 ### 7.4 Block shards, first step: random ticks
@@ -1669,8 +1670,8 @@ E1..E8, T1 (any time)   D1 ─ D2 ─ D3 ─ D4 ─ D5 ─ D6 ─ D7
     which keep their flags and fall distance; unknown values make the next tick a resync tick.
 56. `entity-tracking.md` TRK-LIFE-001, the cold state of a mob. Decided: the cold state of a mob
     lives in a side table keyed by `EntityId`, as the stack of an item, not in an ECS entity as
-    §6.3 states. In G1 the table holds only the entity type; each entity data value is a function
-    of the type until `entity-damage.md` changes the health. Reason: no system queries the cold state of
+    §6.3 states. The table holds only the entity type; each other entity data value is a function
+    of the type. The health and the dying state live in the row (DMG-DTH-005). Reason: no system queries the cold state of
     mobs yet, and a side table keeps the spawn a row operation of its tile. A mob gets an ECS
     entity when a system of the AI or the damage needs a query over the cold state.
 57. `entity-tracking.md` TRK-RNG-001, TRK-RNG-003, the radius of the subscriptions. Decided for
@@ -1696,13 +1697,8 @@ E1..E8, T1 (any time)   D1 ─ D2 ─ D3 ─ D4 ─ D5 ─ D6 ─ D7
     Does the engine load each section within one column and the footprint height of a section
     that runs scheduled ticks? If not, which rule holds: the section does not run ticks, or the
     tick waits?
-60. DMG-CRW-002, crowd deaths in one tick. Open (design). A death removes the entity from the crowd
-    count of each entity with a higher order key in the same tick. Proposal: deaths only lower a
-    count, so the pass computes a tentative crowd hit from the start-of-tick grid, with no
-    dependency. After the pass, one fix-up takes only the entities with a tentative hit, in key
-    order, and recounts one only when a neighbour with a lower key died in this tick. That is about
-    a quarter of each crowd, and nothing in most ticks; tile boundaries do not matter. Without the
-    rule, a crowd of 25 mobs with 5 health loses about 6 mobs in one tick, not 1.
+60. DMG-CRW-002, crowd deaths in one tick. Resolved: DMG-CRW-002 states the crowd fix-up in
+    `Simulate` after the main pass (§3.7). Across cells, C6.
 61. The hits of the own block actions and of the crowd. Resolved: DMG-ORD-002 and §3.7.
 65. PATH-PRF-002, PATH-DET-001, the version of the path type table for each snapshot. Deferred to
     track A1. The type of a state reads the `pathfinding/*` tags and `fire`, `campfires`, `fences`,

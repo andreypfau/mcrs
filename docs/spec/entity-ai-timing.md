@@ -628,9 +628,10 @@ the mob sink. The search of a panic position is a decision (AIT-DEC-001).
 **AIT-RFX-006** (`design`, semantic, confidence: medium). The effects of damage on the mob that
 takes it are a reflex. They are the health, the hurt time, the knockback and the death. They also
 are the reset of the idle time, and the time and the source of the last damage. These writes are not
-claims, so they apply at the merge point (PHY-CMP-015). The removal of a mob after its death is a
-claim, and it enters the arbitration of PHY-CMP-017. The hits that a mob gets from its own block actions and from
-its crowd apply in its own tick instead (DMG-ORD-002).
+claims, so they apply at the merge point (PHY-CMP-015). The removal of a mob after its death is not
+a claim: the pass removes the row when its death time reaches 20 (DMG-DTH-003). The hits of the own
+step and fall actions apply in the tick of the mob, and the crowd hit in the crowd fix-up after the
+main pass (DMG-ORD-002, DMG-CRW-002).
 
 Then the hot tick sends a fact to the brain. The reaction is a decision: the revenge target, the
 panic and the alert. The reason: the health and the knockback are visible in the next update. The
