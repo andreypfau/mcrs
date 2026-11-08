@@ -330,8 +330,9 @@ stale (AIT-LAG-005).
 **GOAL-CTL-001** (`source_suggested`, semantic, confidence: high, fidelity: exact). A mob has four
 rotations: the yaw, the pitch, the head yaw and the body yaw. Each is an f32 value in degrees. The
 head yaw and the body yaw are not wrapped; a turn adds to them. When a mob enters the world, the
-head yaw and the body yaw are equal to the yaw. A new mob with no saved rotation gets a random yaw
-from 0 to 360. ANIM-SPAWN-001 states the spawn of each animal type.
+head yaw and the body yaw are equal to the yaw. A mob of natural spawning gets a random yaw from 0
+to 360. A mob of `summon` gets the yaw 0, with or without the first spawn setup (TRK-LIFE-003,
+TRK-SUM-006). ANIM-SPAWN-001 states the spawn of each animal type.
 
 The row of each mob holds the four rotations. The body yaw also needs two values of the body
 rotation: the stable head yaw and the stable count (GOAL-CTL-006). Both start at 0.

@@ -336,6 +336,31 @@ broadcast flag set. The display name of a mob without a custom name is:
 Experiment: as an operator, run `summon minecraft:zombified_piglin ~ ~ ~ {}` and capture the
 `system_chat` packet. Compare its text with the list above.
 
+**TRK-SUM-006** (`source_suggested`, semantic, confidence: medium). These facts apply to a
+sequence of many summons, for example 50,000 runs of `summon pig x y z` from the server console:
+
+- One run makes exactly one mob. The command has no count argument. The server has no limit on the
+  number of mobs in a dimension.
+- `<pos>` is a `vec3`. An integer x or z gets the centre correction, so `summon pig 10 -60 10`
+  puts the pig at `10.5 -60 10.5` (ARG-COORD-003). The y does not change.
+- The new mob has the yaw 0, the pitch 0, the head yaw 0 and the body yaw 0 (TRK-LIFE-003). The
+  first spawn setup does not change the rotation. Only the key `Rotation` of `<nbt>` sets it
+  (TRK-SUM-005).
+- Two mobs at the same position overlap. The push of `entity-physics.md` separates them from
+  their first tick. The game rule `max_entity_cramming` controls the crowd damage
+  (`entity-damage.md`, DMG-CRW-001).
+- A summon into a column that does not tick entities still succeeds. The mob does not tick
+  (TRK-LIFE-005). In a column that is not loaded, the server also does not track the mob, and a
+  selector does not find it. A benchmark must load the area, for example with `forceload`, before
+  the summons.
+- Each run sends its own success message (TRK-SUM-004) and has the result 1. From the console,
+  the message goes to the server log and to the operators (`commands-packet.md`, CMDP-EXEC-004).
+- The runs of one tick apply in the order of their command sequence (TRK-LIFE-002).
+
+Experiment: on a superflat world, run `summon pig 10 -60 10` from the console. Run
+`data get entity @n[type=pig] Pos` and `data get entity @n[type=pig] Rotation`. The values are
+`[10.5d, -60.0d, 10.5d]` and `[0.0f, 0.0f]`.
+
 ### 3.1 First spawn setup
 
 The first spawn setup of a zombified piglin gives a `golden_sword` in the main hand, or a
