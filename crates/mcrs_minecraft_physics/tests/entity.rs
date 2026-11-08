@@ -7,14 +7,22 @@
 use glam::DVec3;
 use mcrs_minecraft_physics::BirthKey;
 use mcrs_minecraft_physics::BlockAction;
+use mcrs_minecraft_physics::BlockFlags;
+use mcrs_minecraft_physics::BlockMotion;
 use mcrs_minecraft_physics::Body;
+use mcrs_minecraft_physics::CollisionTableBuilder;
 use mcrs_minecraft_physics::EntityState;
+use mcrs_minecraft_physics::InsideBoxes;
+use mcrs_minecraft_physics::InsideEffect;
 use mcrs_minecraft_physics::Living;
 use mcrs_minecraft_physics::MotionRow;
 use mcrs_minecraft_physics::NoBodies;
 use mcrs_minecraft_physics::Rest;
+use mcrs_minecraft_physics::Scratch;
 use mcrs_minecraft_physics::Side;
 use mcrs_minecraft_physics::SourceKind;
+use mcrs_minecraft_physics::StateSpec;
+use mcrs_minecraft_physics::Tables;
 use mcrs_minecraft_physics::TestBlocks;
 use mcrs_minecraft_physics::TestFixture;
 use mcrs_minecraft_physics::TestRng;
@@ -197,6 +205,50 @@ fn fall_004_the_feet_reset_the_fall_when_the_centre_stays_above_the_block() {
         (item.body.fall_distance - drop).abs() < 1.0e-12,
         "only the fall of the tick"
     );
+}
+
+/// A table can give a state an inside effect or a fall reset with no inside action; the section
+/// masks must still send the box through the inside step.
+#[test]
+fn fall_004_a_block_acts_inside_a_masked_section_without_an_inside_action() {
+    let mut builder = CollisionTableBuilder::new();
+    let mut push = |flags: BlockFlags, inside: InsideEffect| {
+        builder
+            .push(StateSpec {
+                boxes: &[],
+                context: None,
+                flags,
+                inside,
+                inside_shape: InsideBoxes::FullCube,
+                motion: BlockMotion::DEFAULT,
+            })
+            .unwrap()
+    };
+    let _air = push(BlockFlags::empty(), InsideEffect::None);
+    let fall_reset = push(BlockFlags::FALL_DAMAGE_RESETTING, InsideEffect::None);
+    let cobweb = push(BlockFlags::empty(), InsideEffect::Cobweb);
+    let tables = Tables::new(builder.build());
+    for block in [fall_reset, cobweb] {
+        let mut world = TestWorld::new();
+        world.set(BlockPos::new(0, 1, 0), block);
+        world.build_masks(&tables.collision);
+        let mut item = entity(DVec3::new(0.5, 1.5, 0.5), DVec3::ZERO, false);
+        item.body.fall_distance = 5.0;
+        tick_entity(
+            View::new(&world, &NoBodies, &tables),
+            SERVER,
+            &MotionRow::item(),
+            &mut item,
+            true,
+            &mut Vec::new(),
+            &mut Scratch::new(),
+        );
+        if block == fall_reset {
+            assert!(item.body.fall_distance < 1.0, "the block resets the fall");
+        } else {
+            assert_ne!(item.body.stuck, DVec3::ZERO, "the cobweb holds the item");
+        }
+    }
 }
 
 #[test]

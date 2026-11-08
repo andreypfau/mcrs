@@ -631,7 +631,7 @@ up).
 - The exact scan visits positions with `x` fastest, then `y`, then `z` (PHY-SHP-007).
 - Each loaded section has masks. A section of one state, or a section from the palette of its
   states, has the bricks of all solid states set. Two flags come from the palette: `large`, a state
-  that can reach out of its cell (a large shape or a moving piston), and `inside`, a state that acts
+  with a large shape, which reaches out of its cell, and `inside`, a state that acts
   on a box inside it. Without `large` in the sections of a scan region, the scan reads only the
   inner blocks of the region, because a block on an outer face counts only with a large shape. For
   a walker on flat ground this is about 8 blocks instead of 64 for the supporting block, and about
