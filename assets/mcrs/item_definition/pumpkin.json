@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:pumpkin",
-      "protocol_id": 430
+      "protocol_id": 446
     },
     "components": {
       "minecraft:attack_animation": {},

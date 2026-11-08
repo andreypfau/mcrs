@@ -14,7 +14,9 @@ use mcrs_minecraft_resource::ResourceKeyBuf;
 
 use crate::ability::{PlayerFlying, PlayerGameMode, PlayerOpLevel};
 use crate::client_info::ClientInfo;
+use crate::coordinator::clock::GameTime;
 use crate::dimension_change::{Arrival, DimensionChangeError};
+use crate::entity_birth::EntityBirth;
 use crate::game_mode::ListedGameMode;
 use crate::game_profile::GameProfile;
 use crate::op_level::AnnouncedOpLevel;
@@ -51,6 +53,9 @@ pub(crate) struct CarriedPlayer {
     pub(crate) flying: PlayerFlying,
     pub(crate) op_level: PlayerOpLevel,
     pub(crate) teleport: TeleportState,
+    /// The game time at which the player left, when the host sends its arrival teleport.
+    pub(crate) departed_at: GameTime,
+    birth: Option<EntityBirth>,
     profile: Option<GameProfile>,
     view_distance: Option<PlayerViewDistance>,
     client_info: Option<ClientInfo>,
@@ -93,6 +98,11 @@ impl CarriedPlayer {
         let Some(teleport) = player.take::<TeleportState>() else {
             return Err(DimensionChangeError::NoArrivalState);
         };
+        let departed_at = player
+            .world()
+            .get_resource::<GameTime>()
+            .copied()
+            .unwrap_or_default();
         Ok(Self {
             uuid,
             transform,
@@ -100,6 +110,8 @@ impl CarriedPlayer {
             flying,
             op_level,
             teleport,
+            departed_at,
+            birth: player.take(),
             profile: player.take(),
             view_distance: player.take(),
             client_info: player.take(),
@@ -114,6 +126,9 @@ impl CarriedPlayer {
     /// the spawn of `player` sets.
     pub(crate) fn insert_into(self, player: &mut EntityWorldMut<'_>) {
         player.insert((self.game_mode, self.flying, self.op_level, self.teleport));
+        if let Some(birth) = self.birth {
+            player.insert(birth);
+        }
         if let Some(profile) = self.profile {
             player.insert(profile);
         }

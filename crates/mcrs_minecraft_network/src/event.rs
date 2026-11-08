@@ -133,13 +133,13 @@ impl Visit for Triggers {
 
 #[cfg(not(target_family = "wasm"))]
 mod loop_plugin {
-    use crate::inbound_rate::InboundRateBucket;
+    use crate::inbound_rate::{InboundPacketRate, InboundRateLimit};
     use crate::metrics::{BridgeTelemetry, PacketDispatcher};
     use crate::{ConnectionState, ServerSideConnection};
     use bevy_app::{App, Plugin, Update};
     use bevy_ecs::entity::Entity;
     use bevy_ecs::prelude::Commands;
-    use bevy_ecs::system::{Query, ResMut};
+    use bevy_ecs::system::{Query, Res, ResMut};
     use tracing::warn;
 
     pub(crate) struct EventLoopPlugin;
@@ -166,15 +166,17 @@ mod loop_plugin {
         mut query: Query<(
             Entity,
             &mut ServerSideConnection,
-            &mut InboundRateBucket,
+            &mut InboundPacketRate,
             &ConnectionState,
         )>,
+        rate_limit: Option<Res<InboundRateLimit>>,
         mut commands: Commands,
         mut dispatcher: ResMut<PacketDispatcher>,
         mut telemetry: ResMut<BridgeTelemetry>,
     ) {
-        for (entity, mut conn, mut bucket, &state) in &mut query {
-            // A connection in game is read by the server's bridge, which rate-limits it.
+        let rate_limit = rate_limit.as_deref().copied().unwrap_or_default();
+        for (entity, mut conn, mut rate, &state) in &mut query {
+            // A connection in game is read by the server's bridge.
             if state == ConnectionState::Game {
                 continue;
             }
@@ -182,7 +184,8 @@ mod loop_plugin {
             for _ in 0..PRE_GAME_FRAMES_PER_PASS {
                 match conn.raw.try_recv() {
                     Ok(Some(pkt)) => {
-                        if !bucket.consume_or_flag(pkt.timestamp) {
+                        if !rate.count(pkt.timestamp, rate_limit) {
+                            conn.disconnect(state, InboundRateLimit::reason()).ok();
                             commands.entity(entity).remove::<ServerSideConnection>();
                             telemetry.kick_flood_total += 1;
                             break;

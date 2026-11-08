@@ -1,87 +1,94 @@
+use std::time::Duration;
+
 use bevy_ecs::component::Component;
+use bevy_ecs::resource::Resource;
+use mcrs_minecraft_text::Text;
 
 use crate::Instant;
 
-// Inbound rate-bucket baselines. A real throughput measurement pass may
-// revise these values.
-pub const INBOUND_BUCKET_CAP: u32 = 100;
-pub const INBOUND_REFILL_PER_SECOND: f32 = 400.0;
-pub const INBOUND_KICK_OVERFLOW_PACKETS: u8 = 3;
+/// The `rate-limit` property: the largest average of packets per second of one connection. 0
+/// turns the limit off, which is the default, so that no burst of a client ends its connection.
+#[derive(Resource, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct InboundRateLimit(pub u32);
 
-/// Per-connection inbound token-bucket rate limiter.
+impl InboundRateLimit {
+    /// The reason of the disconnect.
+    #[must_use]
+    pub fn reason() -> Text {
+        Text::translate("disconnect.exceeded_packet_rate", [])
+    }
+}
+
+const SECOND: Duration = Duration::from_secs(1);
+/// Each second keeps this share of the average and takes the rest from its own count.
+const KEEP: f32 = 0.75;
+
+/// The packets of a connection in each second, and their running average.
 ///
-/// Refills from the packets' arrival times rather than from server ticks: a
-/// server that stalls drains a backlog in one go, and that burst is the
-/// server's, not the client's.
-#[derive(Component)]
-pub struct InboundRateBucket {
-    tokens: f32,
-    last_arrival: Option<Instant>,
-    overflow: u8,
+/// The seconds follow the arrival times of the packets, not the server ticks: a server that
+/// stalls reads a backlog in one go, and that burst is the server's, not the client's.
+#[derive(Component, Clone, Debug, Default)]
+pub struct InboundPacketRate {
+    second_start: Option<Instant>,
+    count: u32,
+    average: f32,
 }
 
-impl Default for InboundRateBucket {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl InboundRateBucket {
-    pub fn new() -> Self {
-        Self {
-            tokens: INBOUND_BUCKET_CAP as f32,
-            last_arrival: None,
-            overflow: 0,
+impl InboundPacketRate {
+    /// Counts a packet that arrived at `arrival`. Answers `false` when the average of a finished
+    /// second is more than `limit`.
+    pub fn count(&mut self, arrival: Instant, limit: InboundRateLimit) -> bool {
+        if limit.0 == 0 {
+            return true;
         }
-    }
-
-    /// Spends a token on a packet that arrived at `arrival`, answering `false`
-    /// once `INBOUND_KICK_OVERFLOW_PACKETS` packets in a row found the bucket
-    /// empty.
-    pub fn consume_or_flag(&mut self, arrival: Instant) -> bool {
-        if let Some(last) = self.last_arrival {
-            let elapsed = arrival.saturating_duration_since(last).as_secs_f32();
-            self.tokens =
-                (self.tokens + elapsed * INBOUND_REFILL_PER_SECOND).min(INBOUND_BUCKET_CAP as f32);
+        let start = *self.second_start.get_or_insert(arrival);
+        let mut within_limit = true;
+        let elapsed = arrival.saturating_duration_since(start);
+        if elapsed >= SECOND {
+            self.average = self.count as f32 + KEEP * (self.average - self.count as f32);
+            within_limit = self.average <= limit.0 as f32;
+            let empty_seconds = elapsed.as_secs().saturating_sub(1);
+            self.average *= KEEP.powi(i32::try_from(empty_seconds).unwrap_or(i32::MAX));
+            self.count = 0;
+            let whole_seconds = Duration::from_secs(elapsed.as_secs());
+            self.second_start = Some(start.checked_add(whole_seconds).unwrap_or(arrival));
         }
-        self.last_arrival = Some(self.last_arrival.map_or(arrival, |last| last.max(arrival)));
-        if self.tokens >= 1.0 {
-            self.tokens -= 1.0;
-            self.overflow = 0;
-            true
-        } else {
-            self.overflow += 1;
-            self.overflow < INBOUND_KICK_OVERFLOW_PACKETS
-        }
+        self.count = self.count.saturating_add(1);
+        within_limit
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use std::time::Duration;
-
     use super::*;
 
-    #[test]
-    fn a_backlog_drained_at_once_is_judged_by_when_it_arrived() {
-        let mut bucket = InboundRateBucket::new();
-        let start = Instant::now();
-        for sent in 0..10_000u32 {
-            let arrival = start + Duration::from_millis(u64::from(sent) * 5);
-            assert!(bucket.consume_or_flag(arrival), "packet {sent} was flagged");
+    /// Counts `per_second` packets in each of `seconds` seconds from `start`, and answers the
+    /// second in which the rate first ends the connection.
+    fn first_refused(
+        rate: &mut InboundPacketRate,
+        start: Instant,
+        seconds: u32,
+        per_second: u32,
+        limit: u32,
+    ) -> Option<u32> {
+        for second in 0..seconds {
+            for packet in 0..per_second {
+                let arrival = start + SECOND * second + SECOND * packet / per_second;
+                if !rate.count(arrival, InboundRateLimit(limit)) {
+                    return Some(second);
+                }
+            }
         }
+        None
     }
 
     #[test]
-    fn a_burst_past_the_cap_is_flagged() {
-        let mut bucket = InboundRateBucket::new();
-        let now = Instant::now();
-        let accepted = (0..INBOUND_BUCKET_CAP + u32::from(INBOUND_KICK_OVERFLOW_PACKETS))
-            .take_while(|_| bucket.consume_or_flag(now))
-            .count();
+    fn a_steady_rate_above_the_limit_ends_the_connection_in_the_fourth_second() {
+        let mut rate = InboundPacketRate::default();
         assert_eq!(
-            accepted,
-            (INBOUND_BUCKET_CAP + u32::from(INBOUND_KICK_OVERFLOW_PACKETS) - 1) as usize
+            first_refused(&mut rate, Instant::now(), 10, 100, 50),
+            Some(3),
+            "MVC-VAN-019: the averages are 25, 43.75 and 57.8 after the first three seconds"
         );
     }
 }

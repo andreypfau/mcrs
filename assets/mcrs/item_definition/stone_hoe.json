@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:stone_hoe",
-      "protocol_id": 1040
+      "protocol_id": 1062
     },
     "components": {
       "minecraft:attack_animation": {},

@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:smithing_table",
-      "protocol_id": 1515
+      "protocol_id": 1538
     },
     "components": {
       "minecraft:attack_animation": {},

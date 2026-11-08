@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:acacia_pressure_plate",
-      "protocol_id": 880
+      "protocol_id": 902
     },
     "components": {
       "minecraft:attack_animation": {},

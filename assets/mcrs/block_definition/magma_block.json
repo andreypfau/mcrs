@@ -3,9 +3,9 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:magma_block",
-      "protocol_id": 730,
-      "base_state_id": 16832,
-      "default_state_id": 16832
+      "protocol_id": 739,
+      "base_state_id": 17655,
+      "default_state_id": 17655
     },
     "components": {
       "minecraft:light_emission": 3,

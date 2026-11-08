@@ -3,9 +3,9 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:smooth_sandstone",
-      "protocol_id": 679,
-      "base_state_id": 15330,
-      "default_state_id": 15330
+      "protocol_id": 688,
+      "base_state_id": 16153,
+      "default_state_id": 16153
     },
     "components": {
       "minecraft:light_emission": 0,

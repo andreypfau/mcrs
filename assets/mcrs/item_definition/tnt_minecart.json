@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:tnt_minecart",
-      "protocol_id": 970
+      "protocol_id": 992
     },
     "components": {
       "minecraft:attack_animation": {},

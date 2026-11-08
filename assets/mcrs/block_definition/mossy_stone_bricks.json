@@ -3,9 +3,9 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:mossy_stone_bricks",
-      "protocol_id": 377,
-      "base_state_id": 9491,
-      "default_state_id": 9491
+      "protocol_id": 381,
+      "base_state_id": 9902,
+      "default_state_id": 9902
     },
     "components": {
       "minecraft:light_emission": 0,

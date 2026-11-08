@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:bookshelf",
-      "protocol_id": 390
+      "protocol_id": 402
     },
     "components": {
       "minecraft:attack_animation": {},

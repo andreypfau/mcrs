@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:dead_bush",
-      "protocol_id": 244
+      "protocol_id": 256
     },
     "components": {
       "minecraft:attack_animation": {},

@@ -3,9 +3,9 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:sulfur",
-      "protocol_id": 1090,
-      "base_state_id": 28062,
-      "default_state_id": 28062
+      "protocol_id": 1099,
+      "base_state_id": 28885,
+      "default_state_id": 28885
     },
     "components": {
       "minecraft:light_emission": 0,

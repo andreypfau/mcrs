@@ -16,6 +16,7 @@ pub struct LegacyRandom {
 }
 
 impl LegacyRandom {
+    #[inline]
     pub fn new(seed: u64) -> Self {
         Self {
             seed: (seed ^ MULTIPLIER) & MODULUS_MASK,
@@ -59,6 +60,7 @@ impl LegacyRandom {
 }
 
 impl BitSource for LegacyRandom {
+    #[inline]
     fn next_bits(&mut self, bits: usize) -> u64 {
         self.advance();
         self.seed >> (MODULUS_BITS - bits)
@@ -103,6 +105,7 @@ impl Random for LegacyRandom {
         self.bits_bool()
     }
 
+    #[inline]
     fn next_u32_bound(&mut self, bound: u32) -> u32 {
         self.bits_u32_bound(bound)
     }

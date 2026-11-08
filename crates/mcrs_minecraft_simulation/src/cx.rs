@@ -1,8 +1,10 @@
 use crate::access::{PartitionKind, SectionProperties};
 use crate::behaviour::{BlockBehaviour, BlockFacts};
 use crate::event_queue::{BlockEvent, QueuedEvent};
+use crate::footprints::Footprints;
 use crate::message::{ChainOrigin, Message, MessageBody};
 use crate::output::{BlockWrite, Destroyed, StepOutput};
+use crate::region::Region;
 use crate::scalar::{GameTick, ShardId, TickPriority};
 use crate::sequence::{SubTick, TickKey};
 use crate::shard::{BlockShard, Env, KernelConfig};
@@ -56,6 +58,18 @@ pub struct Cx<'a, K: Kinds, V, F, B> {
     pub(crate) kind: PartitionKind,
     pub(crate) partition: ShardId,
     pub(crate) now: GameTick,
+    pub(crate) task: Option<TileCx<'a, K>>,
+}
+
+/// What a tile task adds to the context: its volume holds only its region. Ticks and events
+/// that it schedules wait in the output for the end of its colour.
+pub(crate) struct TileCx<'a, K: Kinds> {
+    pub(crate) region: Region,
+    /// The queues of the step, as the colours before this one left them.
+    pub(crate) base: &'a BlockShard<K>,
+    pub(crate) footprints: &'a Footprints,
+    /// The current pick read, wrote or ran a handler outside the region.
+    pub(crate) overflowed: bool,
 }
 
 impl<'a, K, V, F, B> Cx<'a, K, V, F, B>
@@ -82,6 +96,32 @@ where
             kind: env.kind,
             partition: env.partition,
             now,
+            task: None,
+        }
+    }
+
+    /// Whether the handler of `state` may run at `at`: in a tile task, its footprint bound
+    /// lies in the region.
+    pub(crate) fn fits(&mut self, at: BlockPos, state: BlockStateId) -> bool {
+        let Some(task) = &mut self.task else {
+            return true;
+        };
+        if !task.overflowed && task.region.fits(at, task.footprints.reach(state)) {
+            return true;
+        }
+        task.overflowed = true;
+        false
+    }
+
+    /// A tile task never reads past its region or sends a message: a chain stays whole in one
+    /// partition, so the pick runs again in the serial step.
+    pub(crate) fn task_leaves(&mut self) -> bool {
+        match &mut self.task {
+            None => false,
+            Some(task) => {
+                task.overflowed = true;
+                true
+            }
         }
     }
 
@@ -93,7 +133,9 @@ where
         match self.volume.block(pos) {
             Err(Unavailable::Outside) => Ok(self.facts.void_air()),
             Err(Unavailable::Foreign) => {
-                bump(&mut self.out.report.foreign_reads);
+                if !self.task_leaves() {
+                    bump(&mut self.out.report.foreign_reads);
+                }
                 Err(Unavailable::Foreign)
             }
             other => other,
@@ -121,6 +163,12 @@ where
     }
 
     fn send(&mut self, stamp: SubTick, body: MessageBody<K>) {
+        if !self.task_leaves() {
+            self.defer(stamp, body);
+        }
+    }
+
+    fn defer(&mut self, stamp: SubTick, body: MessageBody<K>) {
         let origin = self.origin_at(stamp);
         self.out.outbound.push(Message {
             stamp,
@@ -138,7 +186,14 @@ where
     ) {
         let stamp = self.shard.clock.stamp(self.now);
         let due = due_after(self.now, delay);
+        let body = MessageBody::BlockTick {
+            pos,
+            block,
+            due,
+            priority,
+        };
         match self.lane_for_tick(pos) {
+            Lane::Own if self.task.is_some() => self.defer(stamp, body),
             Lane::Own => self.push_block_tick(
                 pos,
                 block,
@@ -148,15 +203,7 @@ where
                     sequence: stamp,
                 },
             ),
-            Lane::Away => self.send(
-                stamp,
-                MessageBody::BlockTick {
-                    pos,
-                    block,
-                    due,
-                    priority,
-                },
-            ),
+            Lane::Away => self.send(stamp, body),
             Lane::Dropped => bump(&mut self.out.report.unaccepted_ticks),
         }
     }
@@ -170,7 +217,14 @@ where
     ) {
         let stamp = self.shard.clock.stamp(self.now);
         let due = due_after(self.now, delay);
+        let body = MessageBody::FluidTick {
+            pos,
+            fluid,
+            due,
+            priority,
+        };
         match self.lane_for_tick(pos) {
+            Lane::Own if self.task.is_some() => self.defer(stamp, body),
             Lane::Own => self.push_fluid_tick(
                 pos,
                 fluid,
@@ -180,15 +234,7 @@ where
                     sequence: stamp,
                 },
             ),
-            Lane::Away => self.send(
-                stamp,
-                MessageBody::FluidTick {
-                    pos,
-                    fluid,
-                    due,
-                    priority,
-                },
-            ),
+            Lane::Away => self.send(stamp, body),
             Lane::Dropped => bump(&mut self.out.report.unaccepted_ticks),
         }
     }
@@ -209,6 +255,7 @@ where
         let stamp = self.shard.clock.stamp(self.now);
         let event = BlockEvent { pos, block, a, b };
         match self.lane_for_event(pos) {
+            Lane::Own if self.task.is_some() => self.defer(stamp, MessageBody::Event(event)),
             Lane::Own => self.push_event(stamp, event),
             Lane::Away => self.send(stamp, MessageBody::Event(event)),
             Lane::Dropped => bump(&mut self.out.report.unloaded_drops),
@@ -219,12 +266,28 @@ where
         self.shard.events.queue(QueuedEvent { sequence, event });
     }
 
-    pub fn has_scheduled_block_tick(&self, pos: BlockPos, block: K::Block) -> bool {
-        self.lane_for_tick(pos) == Lane::Own && self.shard.block_ticks.contains(pos, block)
+    pub fn has_scheduled_block_tick(&mut self, pos: BlockPos, block: K::Block) -> bool {
+        match self.lane_for_tick(pos) {
+            Lane::Own => {}
+            Lane::Away => {
+                self.task_leaves();
+                return false;
+            }
+            Lane::Dropped => return false,
+        }
+        let Some(task) = &self.task else {
+            return self.shard.block_ticks.contains(pos, block);
+        };
+        task.base.block_ticks.contains(pos, block)
+            || self.out.outbound.iter().any(|message| {
+                matches!(message.body, MessageBody::BlockTick { pos: at, block: kind, .. }
+                    if at == pos && kind == block)
+            })
     }
 
     pub fn will_tick_this_tick(&self, pos: BlockPos, block: K::Block) -> bool {
-        self.shard.ticking.contains(&(pos, block))
+        let shard = self.task.as_ref().map_or(&*self.shard, |task| task.base);
+        shard.ticking.contains(&(pos, block))
     }
 
     pub fn set(
@@ -234,6 +297,10 @@ where
         flags: BlockUpdateFlags,
         limit: u16,
     ) -> bool {
+        // An overflowed pick is undone, so it writes nothing more.
+        if self.task.as_ref().is_some_and(|task| task.overflowed) {
+            return false;
+        }
         match self.volume.access(SectionPos::from(pos)) {
             Access::Write => self.write_block(pos, state, flags, limit),
             Access::Read | Access::Foreign => {
@@ -300,13 +367,13 @@ where
         let type_changed = self.facts.block_of(old) != self.facts.block_of(state);
         let removal =
             flags.intersects(BlockUpdateFlags::NEIGHBORS | BlockUpdateFlags::MOVE_BY_PISTON);
-        if (type_changed || self.facts.is_rail(state)) && removal {
+        if (type_changed || self.facts.is_rail(state)) && removal && self.fits(pos, old) {
             behaviour.removed(self, pos, old, moved_by_piston);
         }
         if !self.holds_block_of(pos, state) {
             return false;
         }
-        if !flags.contains(BlockUpdateFlags::SKIP_ON_PLACE) {
+        if !flags.contains(BlockUpdateFlags::SKIP_ON_PLACE) && self.fits(pos, state) {
             behaviour.placed(self, pos, state, old, moved_by_piston);
         }
         if self.volume.block(pos).is_ok_and(|now| now == state) {

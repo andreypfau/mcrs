@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:magenta_carpet",
-      "protocol_id": 582
+      "protocol_id": 599
     },
     "components": {
       "minecraft:attack_animation": {},

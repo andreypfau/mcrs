@@ -13,8 +13,8 @@ use mcrs_minecraft_engine::banlist::{BANLIST_FILE, BanList};
 use mcrs_minecraft_engine::coordinator::ops::{OPS_FILE, OpList};
 use mcrs_minecraft_engine::whitelist::{WHITELIST_FILE, Whitelist};
 use mcrs_minecraft_engine_server::{
-    DimensionWorldsPlugin, GameMode, NetworkCompressionThreshold, Placement, ServerCorePlugin,
-    ServerNetworkPlugin, ShutdownRequest,
+    DimensionWorldsPlugin, GameMode, InboundRateLimit, NetworkCompressionThreshold, Placement,
+    ServerCorePlugin, ServerNetworkPlugin, ShutdownRequest,
 };
 use mcrs_minecraft_server::MinecraftServerPlugins;
 use mcrs_minecraft_vanilla_light::LightingPlugin;
@@ -128,6 +128,11 @@ fn network() -> ServerNetworkPlugin {
             variable("MCRS_ACCEPT_BACKLOG").as_deref(),
             ServerNetworkPlugin::default().accept_backlog,
         ),
+        rate_limit: InboundRateLimit(positive_count(
+            "MCRS_RATE_LIMIT",
+            variable("MCRS_RATE_LIMIT").as_deref(),
+            0,
+        )),
         whitelist: Whitelist::read(Path::new(WHITELIST_FILE))
             .enabled(on_off(
                 "MCRS_WHITE_LIST",

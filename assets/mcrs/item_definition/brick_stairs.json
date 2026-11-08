@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:brick_stairs",
-      "protocol_id": 493
+      "protocol_id": 509
     },
     "components": {
       "minecraft:attack_animation": {},

@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:resin_clump",
-      "protocol_id": 486
+      "protocol_id": 502
     },
     "components": {
       "minecraft:attack_animation": {},

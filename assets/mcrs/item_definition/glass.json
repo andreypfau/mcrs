@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:glass",
-      "protocol_id": 231
+      "protocol_id": 243
     },
     "components": {
       "minecraft:attack_animation": {},

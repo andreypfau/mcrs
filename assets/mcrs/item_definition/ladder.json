@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:ladder",
-      "protocol_id": 408
+      "protocol_id": 420
     },
     "components": {
       "minecraft:attack_animation": {},

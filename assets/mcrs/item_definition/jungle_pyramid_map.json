@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:jungle_pyramid_map",
-      "protocol_id": 1244
+      "protocol_id": 1266
     },
     "components": {
       "minecraft:attack_animation": {},

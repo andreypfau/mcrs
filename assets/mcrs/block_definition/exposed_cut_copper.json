@@ -3,9 +3,9 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:exposed_cut_copper",
-      "protocol_id": 1137,
-      "base_state_id": 31168,
-      "default_state_id": 31168
+      "protocol_id": 1159,
+      "base_state_id": 33227,
+      "default_state_id": 33227
     },
     "components": {
       "minecraft:light_emission": 0,

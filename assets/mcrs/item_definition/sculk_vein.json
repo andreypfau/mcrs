@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:sculk_vein",
-      "protocol_id": 504
+      "protocol_id": 520
     },
     "components": {
       "minecraft:attack_animation": {},

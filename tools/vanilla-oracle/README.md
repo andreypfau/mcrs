@@ -480,7 +480,7 @@ come out as 18 overworld, 3 nether and 1 end.
 
 Per dimension it builds `NoiseBasedChunkGenerator` over the loaded noise
 settings and a biome source from the loaded parameter list (`TheEndBiomeSource`
-for the end); per seed, `RandomState.create` and
+for the end); per seed, `RandomState.createForGenerator(noises, seed, generator, heights)` and
 `ChunkGeneratorStructureState.createForNormal(randomState, seed, ChunkPos.ZERO, biomeSource, structureSets)`.
 For the jigsaw sites a real `StructureTemplateManager` is built over a temporary
 `LevelStorageSource` access, and each `Structure.GenerationContext` is

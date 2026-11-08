@@ -366,6 +366,7 @@ fn no_duplicate_spawn_on_reread() {
                 client_info: Some(crate::support::client_info_with_view_distance(12)),
             },
             dimensions: Vec::new().into(),
+            birth: crate::support::login_birth(0),
         },
     );
 
@@ -568,6 +569,7 @@ fn a_registry_resource_is_not_changed_on_the_second_tick(app: &mut App) {
                 client_info: Some(crate::support::client_info_with_view_distance(12)),
             },
             dimensions: Vec::new().into(),
+            birth: crate::support::login_birth(0),
         },
     );
 

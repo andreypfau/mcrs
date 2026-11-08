@@ -1,0 +1,803 @@
+{
+ "name": "e28_rest",
+ "rule": "E28",
+ "origin": [
+  1536,
+  100,
+  0
+ ],
+ "blocks": [
+  {
+   "min": [
+    -2,
+    0,
+    -4
+   ],
+   "max": [
+    12,
+    0,
+    4
+   ],
+   "block": "minecraft:stone"
+  }
+ ],
+ "entities": [
+  {
+   "tag": "a",
+   "kind": "armor_stand",
+   "pos": [
+    0.5,
+    1.0,
+    0.5
+   ],
+   "nbt": "Motion:[0.0d,0.0d,0.0d]",
+   "ticks": [
+    {
+     "pos": [
+      1536.5,
+      101.0,
+      0.5
+     ],
+     "motion": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "on_ground": false,
+     "fall_distance": 0.0
+    },
+    {
+     "pos": [
+      1536.5,
+      101.0,
+      0.5
+     ],
+     "motion": [
+      0.0,
+      -0.0784000015258789,
+      0.0
+     ],
+     "on_ground": false,
+     "fall_distance": 0.0
+    },
+    {
+     "pos": [
+      1536.5,
+      101.0,
+      0.5
+     ],
+     "motion": [
+      0.0,
+      -0.0784000015258789,
+      0.0
+     ],
+     "on_ground": true,
+     "fall_distance": 0.0
+    },
+    {
+     "pos": [
+      1536.5,
+      101.0,
+      0.5
+     ],
+     "motion": [
+      0.0,
+      -0.0784000015258789,
+      0.0
+     ],
+     "on_ground": true,
+     "fall_distance": 0.0
+    },
+    {
+     "pos": [
+      1536.5,
+      101.0,
+      0.5
+     ],
+     "motion": [
+      0.0,
+      -0.0784000015258789,
+      0.0
+     ],
+     "on_ground": true,
+     "fall_distance": 0.0
+    },
+    {
+     "pos": [
+      1536.5,
+      101.0,
+      0.5
+     ],
+     "motion": [
+      0.0,
+      -0.0784000015258789,
+      0.0
+     ],
+     "on_ground": true,
+     "fall_distance": 0.0
+    },
+    {
+     "pos": [
+      1536.5,
+      101.0,
+      0.5
+     ],
+     "motion": [
+      0.0,
+      -0.0784000015258789,
+      0.0
+     ],
+     "on_ground": true,
+     "fall_distance": 0.0
+    },
+    {
+     "pos": [
+      1536.5,
+      101.0,
+      0.5
+     ],
+     "motion": [
+      0.0,
+      -0.0784000015258789,
+      0.0
+     ],
+     "on_ground": true,
+     "fall_distance": 0.0
+    },
+    {
+     "pos": [
+      1536.5,
+      101.0,
+      0.5
+     ],
+     "motion": [
+      0.0,
+      -0.0784000015258789,
+      0.0
+     ],
+     "on_ground": true,
+     "fall_distance": 0.0
+    },
+    {
+     "pos": [
+      1536.5,
+      101.0,
+      0.5
+     ],
+     "motion": [
+      0.0,
+      -0.0784000015258789,
+      0.0
+     ],
+     "on_ground": true,
+     "fall_distance": 0.0
+    },
+    {
+     "pos": [
+      1536.5,
+      101.0,
+      0.5
+     ],
+     "motion": [
+      0.0,
+      -0.0784000015258789,
+      0.0
+     ],
+     "on_ground": true,
+     "fall_distance": 0.0
+    },
+    {
+     "pos": [
+      1536.5,
+      101.0,
+      0.5
+     ],
+     "motion": [
+      0.0,
+      -0.0784000015258789,
+      0.0
+     ],
+     "on_ground": true,
+     "fall_distance": 0.0
+    },
+    {
+     "pos": [
+      1536.5,
+      101.0,
+      0.5
+     ],
+     "motion": [
+      0.0,
+      -0.0784000015258789,
+      0.0
+     ],
+     "on_ground": true,
+     "fall_distance": 0.0
+    }
+   ]
+  },
+  {
+   "tag": "item",
+   "kind": "item",
+   "pos": [
+    3.5,
+    1.0,
+    0.5
+   ],
+   "nbt": "Item:{id:\"minecraft:stone\",count:1},PickupDelay:32767,Age:-32768,Motion:[0.0d,0.0d,0.0d]",
+   "ticks": [
+    {
+     "pos": [
+      1539.5,
+      101.0,
+      0.5
+     ],
+     "motion": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "on_ground": false,
+     "fall_distance": 0.0
+    },
+    {
+     "pos": [
+      1539.5,
+      101.0,
+      0.5
+     ],
+     "motion": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "on_ground": true,
+     "fall_distance": 0.0
+    },
+    {
+     "pos": [
+      1539.5,
+      101.0,
+      0.5
+     ],
+     "motion": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "on_ground": true,
+     "fall_distance": 0.0
+    },
+    {
+     "pos": [
+      1539.5,
+      101.0,
+      0.5
+     ],
+     "motion": [
+      0.0,
+      -0.04,
+      0.0
+     ],
+     "on_ground": true,
+     "fall_distance": 0.0
+    },
+    {
+     "pos": [
+      1539.5,
+      101.0,
+      0.5
+     ],
+     "motion": [
+      0.0,
+      -0.08,
+      0.0
+     ],
+     "on_ground": true,
+     "fall_distance": 0.0
+    },
+    {
+     "pos": [
+      1539.5,
+      101.0,
+      0.5
+     ],
+     "motion": [
+      0.0,
+      -0.12,
+      0.0
+     ],
+     "on_ground": true,
+     "fall_distance": 0.0
+    },
+    {
+     "pos": [
+      1539.5,
+      101.0,
+      0.5
+     ],
+     "motion": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "on_ground": true,
+     "fall_distance": 0.0
+    },
+    {
+     "pos": [
+      1539.5,
+      101.0,
+      0.5
+     ],
+     "motion": [
+      0.0,
+      -0.04,
+      0.0
+     ],
+     "on_ground": true,
+     "fall_distance": 0.0
+    },
+    {
+     "pos": [
+      1539.5,
+      101.0,
+      0.5
+     ],
+     "motion": [
+      0.0,
+      -0.08,
+      0.0
+     ],
+     "on_ground": true,
+     "fall_distance": 0.0
+    },
+    {
+     "pos": [
+      1539.5,
+      101.0,
+      0.5
+     ],
+     "motion": [
+      0.0,
+      -0.12,
+      0.0
+     ],
+     "on_ground": true,
+     "fall_distance": 0.0
+    },
+    {
+     "pos": [
+      1539.5,
+      101.0,
+      0.5
+     ],
+     "motion": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "on_ground": true,
+     "fall_distance": 0.0
+    },
+    {
+     "pos": [
+      1539.5,
+      101.0,
+      0.5
+     ],
+     "motion": [
+      0.0,
+      -0.04,
+      0.0
+     ],
+     "on_ground": true,
+     "fall_distance": 0.0
+    },
+    {
+     "pos": [
+      1539.5,
+      101.0,
+      0.5
+     ],
+     "motion": [
+      0.0,
+      -0.08,
+      0.0
+     ],
+     "on_ground": true,
+     "fall_distance": 0.0
+    }
+   ]
+  },
+  {
+   "tag": "tnt",
+   "kind": "tnt",
+   "pos": [
+    6.5,
+    1.0,
+    0.5
+   ],
+   "nbt": "fuse:400,Motion:[0.0d,0.0d,0.0d]",
+   "ticks": [
+    {
+     "pos": [
+      1542.5,
+      101.0,
+      0.5
+     ],
+     "motion": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "on_ground": false,
+     "fall_distance": 0.0
+    },
+    {
+     "pos": [
+      1542.5,
+      101.0,
+      0.5
+     ],
+     "motion": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "on_ground": true,
+     "fall_distance": 0.0
+    },
+    {
+     "pos": [
+      1542.5,
+      101.0,
+      0.5
+     ],
+     "motion": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "on_ground": true,
+     "fall_distance": 0.0
+    },
+    {
+     "pos": [
+      1542.5,
+      101.0,
+      0.5
+     ],
+     "motion": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "on_ground": true,
+     "fall_distance": 0.0
+    },
+    {
+     "pos": [
+      1542.5,
+      101.0,
+      0.5
+     ],
+     "motion": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "on_ground": true,
+     "fall_distance": 0.0
+    },
+    {
+     "pos": [
+      1542.5,
+      101.0,
+      0.5
+     ],
+     "motion": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "on_ground": true,
+     "fall_distance": 0.0
+    },
+    {
+     "pos": [
+      1542.5,
+      101.0,
+      0.5
+     ],
+     "motion": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "on_ground": true,
+     "fall_distance": 0.0
+    },
+    {
+     "pos": [
+      1542.5,
+      101.0,
+      0.5
+     ],
+     "motion": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "on_ground": true,
+     "fall_distance": 0.0
+    },
+    {
+     "pos": [
+      1542.5,
+      101.0,
+      0.5
+     ],
+     "motion": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "on_ground": true,
+     "fall_distance": 0.0
+    },
+    {
+     "pos": [
+      1542.5,
+      101.0,
+      0.5
+     ],
+     "motion": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "on_ground": true,
+     "fall_distance": 0.0
+    },
+    {
+     "pos": [
+      1542.5,
+      101.0,
+      0.5
+     ],
+     "motion": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "on_ground": true,
+     "fall_distance": 0.0
+    },
+    {
+     "pos": [
+      1542.5,
+      101.0,
+      0.5
+     ],
+     "motion": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "on_ground": true,
+     "fall_distance": 0.0
+    },
+    {
+     "pos": [
+      1542.5,
+      101.0,
+      0.5
+     ],
+     "motion": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "on_ground": true,
+     "fall_distance": 0.0
+    }
+   ]
+  },
+  {
+   "tag": "orb",
+   "kind": "experience_orb",
+   "pos": [
+    9.5,
+    1.0,
+    0.5
+   ],
+   "nbt": "Value:1,Motion:[0.0d,0.0d,0.0d]",
+   "ticks": [
+    {
+     "pos": [
+      1545.5,
+      101.0,
+      0.5
+     ],
+     "motion": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "on_ground": false,
+     "fall_distance": 0.0
+    },
+    {
+     "pos": [
+      1545.5,
+      101.0,
+      0.5
+     ],
+     "motion": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "on_ground": true,
+     "fall_distance": 0.0
+    },
+    {
+     "pos": [
+      1545.5,
+      101.0,
+      0.5
+     ],
+     "motion": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "on_ground": true,
+     "fall_distance": 0.0
+    },
+    {
+     "pos": [
+      1545.5,
+      101.0,
+      0.5
+     ],
+     "motion": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "on_ground": true,
+     "fall_distance": 0.0
+    },
+    {
+     "pos": [
+      1545.5,
+      101.0,
+      0.5
+     ],
+     "motion": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "on_ground": true,
+     "fall_distance": 0.0
+    },
+    {
+     "pos": [
+      1545.5,
+      101.0,
+      0.5
+     ],
+     "motion": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "on_ground": true,
+     "fall_distance": 0.0
+    },
+    {
+     "pos": [
+      1545.5,
+      101.0,
+      0.5
+     ],
+     "motion": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "on_ground": true,
+     "fall_distance": 0.0
+    },
+    {
+     "pos": [
+      1545.5,
+      101.0,
+      0.5
+     ],
+     "motion": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "on_ground": true,
+     "fall_distance": 0.0
+    },
+    {
+     "pos": [
+      1545.5,
+      101.0,
+      0.5
+     ],
+     "motion": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "on_ground": true,
+     "fall_distance": 0.0
+    },
+    {
+     "pos": [
+      1545.5,
+      101.0,
+      0.5
+     ],
+     "motion": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "on_ground": true,
+     "fall_distance": 0.0
+    },
+    {
+     "pos": [
+      1545.5,
+      101.0,
+      0.5
+     ],
+     "motion": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "on_ground": true,
+     "fall_distance": 0.0
+    },
+    {
+     "pos": [
+      1545.5,
+      101.0,
+      0.5
+     ],
+     "motion": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "on_ground": true,
+     "fall_distance": 0.0
+    },
+    {
+     "pos": [
+      1545.5,
+      101.0,
+      0.5
+     ],
+     "motion": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "on_ground": true,
+     "fall_distance": 0.0
+    }
+   ]
+  }
+ ],
+ "version": "26.4-snapshot-7"
+}

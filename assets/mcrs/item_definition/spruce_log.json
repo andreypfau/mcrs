@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:spruce_log",
-      "protocol_id": 164
+      "protocol_id": 176
     },
     "components": {
       "minecraft:attack_animation": {},

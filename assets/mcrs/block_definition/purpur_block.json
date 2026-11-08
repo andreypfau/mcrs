@@ -3,9 +3,9 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:purpur_block",
-      "protocol_id": 715,
-      "base_state_id": 16689,
-      "default_state_id": 16689
+      "protocol_id": 724,
+      "base_state_id": 17512,
+      "default_state_id": 17512
     },
     "components": {
       "minecraft:light_emission": 0,

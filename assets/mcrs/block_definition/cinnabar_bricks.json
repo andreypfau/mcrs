@@ -3,9 +3,9 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:cinnabar_bricks",
-      "protocol_id": 1112,
-      "base_state_id": 30123,
-      "default_state_id": 30123
+      "protocol_id": 1121,
+      "base_state_id": 30946,
+      "default_state_id": 30946
     },
     "components": {
       "minecraft:light_emission": 0,

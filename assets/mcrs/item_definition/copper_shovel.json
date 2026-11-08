@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:copper_shovel",
-      "protocol_id": 1032
+      "protocol_id": 1054
     },
     "components": {
       "minecraft:attack_animation": {},

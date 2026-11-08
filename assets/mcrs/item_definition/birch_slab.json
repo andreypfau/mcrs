@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:birch_slab",
-      "protocol_id": 343
+      "protocol_id": 355
     },
     "components": {
       "minecraft:attack_animation": {},

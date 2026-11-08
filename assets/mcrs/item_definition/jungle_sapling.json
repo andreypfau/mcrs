@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:jungle_sapling",
-      "protocol_id": 80
+      "protocol_id": 92
     },
     "components": {
       "minecraft:attack_animation": {},

@@ -1,14 +1,14 @@
 use mcrs_minecraft_core::{BoundingBox, Direction};
-use mcrs_minecraft_simulation::SimulationVolume;
 use mcrs_minecraft_simulation::{
     BlockBehaviour, BlockEvent, BlockFacts, BlockShard, BlockUpdateFlags, ChainLedger, ChainOrigin,
     Cx, Env, GameTick, KernelConfig, Kinds, Message, MessageBody, PartitionKind, Phase, PhaseInput,
-    SectionProperties, SemanticOrder, ShardId, SimulatedSections, StepAt, StepError, StepOutput,
-    SubTick, TickPriority, step,
+    RandomHit, RandomTickTable, SectionProperties, SectionStreams, SemanticOrder, ShardId,
+    SimulatedSections, SimulationVolume, StepAt, StepError, StepOutput, StreamSeed, SubTick,
+    TickPriority, TickingPositions, TickingSectionMut, draw_random_picks, step,
 };
 use mcrs_minecraft_volume::{
-    Access, BlockVolume, BlockVolumeMut, Denied, PalettedSection, PalettedSectionMut, SparseVolume,
-    Unavailable, Volume,
+    Access, BlockVolume, BlockVolumeMut, Denied, PaletteBuffer, PalettedSection,
+    PalettedSectionMut, SparseVolume, Unavailable, Volume,
 };
 use mcrs_voxel::{BlockPos, BlockStateId, SectionPos};
 use std::collections::HashMap;
@@ -96,6 +96,23 @@ impl BlockFacts<ProbeKinds> for ProbeFacts {
 
 pub fn at(x: i32, y: i32, z: i32) -> BlockPos {
     BlockPos::new(x, y, z)
+}
+
+/// The hits of the `speed` picks of `section`, whose state ticks at the local indices `ticking`.
+pub fn draw_hits(
+    section: SectionPos,
+    ticking: &[u16],
+    speed: u32,
+    streams: SectionStreams,
+    hits: &mut Vec<RandomHit>,
+) {
+    let mut picks = Vec::new();
+    draw_random_picks(section, ticking.len(), speed, streams, &mut picks);
+    hits.extend(
+        picks
+            .into_iter()
+            .filter_map(|pick| RandomHit::of(section, ticking, pick)),
+    );
 }
 
 pub fn section(x: i32, y: i32, z: i32) -> SectionPos {
@@ -500,10 +517,13 @@ impl BlockBehaviour<ProbeKinds> for ProbeBehaviour {
     }
 }
 
+#[derive(Clone)]
 pub struct Host {
     volume: SparseVolume,
     overrides: HashMap<SectionPos, Access>,
     properties: HashMap<SectionPos, SectionProperties>,
+    random_table: RandomTickTable,
+    ticking: HashMap<SectionPos, TickingPositions>,
 }
 
 impl Host {
@@ -526,15 +546,60 @@ impl Host {
             volume: SparseVolume::new(bounds),
             overrides: HashMap::new(),
             properties: HashMap::new(),
+            random_table: RandomTickTable::default(),
+            ticking: HashMap::new(),
         }
     }
 
     pub fn insert(&mut self, at: SectionPos, state: BlockStateId) {
         assert!(self.volume.insert(at, state), "section inside the bounds");
+        self.ticking.insert(at, TickingPositions::default());
+        self.list_random_ticks(at);
     }
 
     pub fn put(&mut self, pos: BlockPos, state: BlockStateId) {
-        self.volume.set_block(pos, state).expect("loaded section");
+        self.set_block(pos, state).expect("loaded section");
+    }
+
+    /// Lists the positions that tick randomly under `table` in each section, now and after each
+    /// write.
+    pub fn set_random_ticks(&mut self, table: RandomTickTable) {
+        self.random_table = table;
+        let sections: Vec<SectionPos> = self.ticking.keys().copied().collect();
+        for section in sections {
+            self.list_random_ticks(section);
+        }
+    }
+
+    fn list_random_ticks(&mut self, at: SectionPos) {
+        let (Ok(section), Some(ticking)) = (self.volume.section(at), self.ticking.get_mut(&at))
+        else {
+            return;
+        };
+        ticking.rebuild(&section, &self.random_table, &mut PaletteBuffer::default());
+    }
+
+    /// The local indices of the positions of `section` whose state takes random ticks.
+    pub fn random_ticking(&self, section: SectionPos) -> &[u16] {
+        self.ticking
+            .get(&section)
+            .map_or(&[], TickingPositions::as_slice)
+    }
+
+    /// The hits of `speed` picks in each of `sections` in step `now`, in the order of `sections`.
+    pub fn draw_hits(&self, sections: &[SectionPos], speed: u32, now: i64) -> Vec<RandomHit> {
+        let streams = StreamSeed::new(4, "minecraft:overworld").sections(GameTick(now));
+        let mut hits = Vec::new();
+        for &section in sections {
+            draw_hits(
+                section,
+                self.random_ticking(section),
+                speed,
+                streams,
+                &mut hits,
+            );
+        }
+        hits
     }
 
     pub fn set_access(&mut self, at: SectionPos, access: Access) {
@@ -573,11 +638,15 @@ impl BlockVolume for Host {
 }
 
 impl BlockVolumeMut for Host {
-    type SectionMut<'a> = PalettedSectionMut<'a>;
+    type SectionMut<'a> = TickingSectionMut<'a, PalettedSectionMut<'a>>;
 
-    fn section_mut(&mut self, at: SectionPos) -> Result<PalettedSectionMut<'_>, Denied> {
+    fn section_mut(&mut self, at: SectionPos) -> Result<Self::SectionMut<'_>, Denied> {
         self.access(at).check_write()?;
-        self.volume.section_mut(at)
+        let section = self.volume.section_mut(at)?;
+        Ok(match self.ticking.get_mut(&at) {
+            Some(ticking) => TickingSectionMut::new(section, ticking, &self.random_table),
+            None => TickingSectionMut::untracked(section),
+        })
     }
 }
 

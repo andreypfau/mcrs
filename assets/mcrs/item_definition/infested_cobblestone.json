@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:infested_cobblestone",
-      "protocol_id": 443
+      "protocol_id": 459
     },
     "components": {
       "minecraft:attack_animation": {},

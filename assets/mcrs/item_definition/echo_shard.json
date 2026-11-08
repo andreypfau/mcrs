@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:echo_shard",
-      "protocol_id": 1582
+      "protocol_id": 1605
     },
     "components": {
       "minecraft:attack_animation": {},

@@ -3,9 +3,9 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:shroomlight",
-      "protocol_id": 968,
-      "base_state_id": 24339,
-      "default_state_id": 24339
+      "protocol_id": 977,
+      "base_state_id": 25162,
+      "default_state_id": 25162
     },
     "components": {
       "minecraft:light_emission": 15,

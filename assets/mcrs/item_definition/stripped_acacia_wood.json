@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:stripped_acacia_wood",
-      "protocol_id": 194
+      "protocol_id": 206
     },
     "components": {
       "minecraft:attack_animation": {},

@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:dead_bubble_coral_fan",
-      "protocol_id": 783
+      "protocol_id": 805
     },
     "components": {
       "minecraft:attack_animation": {},

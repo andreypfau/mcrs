@@ -192,11 +192,11 @@ fn equipment_chains_slots_with_the_continuation_bit() {
     };
     let mut buf = Vec::new();
     let bytes = round_trip(&packet, &mut buf);
-    // entity id; main hand continues: 1 x item 1483 (two-byte varint) with no
+    // entity id; main hand continues: 1 x item 1506 (two-byte varint) with no
     // components; off hand continues: empty; head last: 3 x item 1.
     assert_eq!(
         bytes,
-        [9, 0x80, 1, 0xCB, 0x0B, 0, 0, 0x81, 0, 5, 3, 1, 0, 0]
+        [9, 0x80, 1, 0xE2, 0x0B, 0, 0, 0x81, 0, 5, 3, 1, 0, 0]
     );
 
     let single = ClientboundSetEquipment {

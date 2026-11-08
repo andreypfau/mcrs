@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:polished_diorite_stairs",
-      "protocol_id": 792
+      "protocol_id": 814
     },
     "components": {
       "minecraft:attack_animation": {},

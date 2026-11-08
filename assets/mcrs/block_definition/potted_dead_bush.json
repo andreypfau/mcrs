@@ -3,9 +3,9 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:potted_dead_bush",
-      "protocol_id": 491,
-      "base_state_id": 12402,
-      "default_state_id": 12402
+      "protocol_id": 495,
+      "base_state_id": 12813,
+      "default_state_id": 12813
     },
     "components": {
       "minecraft:light_emission": 0,

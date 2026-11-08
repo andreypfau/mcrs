@@ -324,6 +324,14 @@ pub const BLOCKS_CAKE: ResourceKey<'static, crate::loot::LootTable> =
     ResourceKey::new(rl!("minecraft:blocks/cake"));
 pub const BLOCKS_CALCITE: ResourceKey<'static, crate::loot::LootTable> =
     ResourceKey::new(rl!("minecraft:blocks/calcite"));
+pub const BLOCKS_CALCITE_PILLAR: ResourceKey<'static, crate::loot::LootTable> =
+    ResourceKey::new(rl!("minecraft:blocks/calcite_pillar"));
+pub const BLOCKS_CALCITE_SLAB: ResourceKey<'static, crate::loot::LootTable> =
+    ResourceKey::new(rl!("minecraft:blocks/calcite_slab"));
+pub const BLOCKS_CALCITE_STAIRS: ResourceKey<'static, crate::loot::LootTable> =
+    ResourceKey::new(rl!("minecraft:blocks/calcite_stairs"));
+pub const BLOCKS_CALCITE_WALL: ResourceKey<'static, crate::loot::LootTable> =
+    ResourceKey::new(rl!("minecraft:blocks/calcite_wall"));
 pub const BLOCKS_CALIBRATED_SCULK_SENSOR: ResourceKey<'static, crate::loot::LootTable> =
     ResourceKey::new(rl!("minecraft:blocks/calibrated_sculk_sensor"));
 pub const BLOCKS_CAMPFIRE: ResourceKey<'static, crate::loot::LootTable> =
@@ -390,6 +398,8 @@ pub const BLOCKS_CHISELED_DEEPSLATE: ResourceKey<'static, crate::loot::LootTable
     ResourceKey::new(rl!("minecraft:blocks/chiseled_deepslate"));
 pub const BLOCKS_CHISELED_NETHER_BRICKS: ResourceKey<'static, crate::loot::LootTable> =
     ResourceKey::new(rl!("minecraft:blocks/chiseled_nether_bricks"));
+pub const BLOCKS_CHISELED_PACKED_ICE: ResourceKey<'static, crate::loot::LootTable> =
+    ResourceKey::new(rl!("minecraft:blocks/chiseled_packed_ice"));
 pub const BLOCKS_CHISELED_POLISHED_BLACKSTONE: ResourceKey<'static, crate::loot::LootTable> =
     ResourceKey::new(rl!("minecraft:blocks/chiseled_polished_blackstone"));
 pub const BLOCKS_CHISELED_QUARTZ_BLOCK: ResourceKey<'static, crate::loot::LootTable> =
@@ -400,6 +410,8 @@ pub const BLOCKS_CHISELED_RESIN_BRICKS: ResourceKey<'static, crate::loot::LootTa
     ResourceKey::new(rl!("minecraft:blocks/chiseled_resin_bricks"));
 pub const BLOCKS_CHISELED_SANDSTONE: ResourceKey<'static, crate::loot::LootTable> =
     ResourceKey::new(rl!("minecraft:blocks/chiseled_sandstone"));
+pub const BLOCKS_CHISELED_SOULSHALE: ResourceKey<'static, crate::loot::LootTable> =
+    ResourceKey::new(rl!("minecraft:blocks/chiseled_soulshale"));
 pub const BLOCKS_CHISELED_STONE_BRICKS: ResourceKey<'static, crate::loot::LootTable> =
     ResourceKey::new(rl!("minecraft:blocks/chiseled_stone_bricks"));
 pub const BLOCKS_CHISELED_SULFUR: ResourceKey<'static, crate::loot::LootTable> =
@@ -1392,6 +1404,14 @@ pub const BLOCKS_OXIDIZED_LIGHTNING_ROD: ResourceKey<'static, crate::loot::LootT
     ResourceKey::new(rl!("minecraft:blocks/oxidized_lightning_rod"));
 pub const BLOCKS_PACKED_ICE: ResourceKey<'static, crate::loot::LootTable> =
     ResourceKey::new(rl!("minecraft:blocks/packed_ice"));
+pub const BLOCKS_PACKED_ICE_BRICK_SLAB: ResourceKey<'static, crate::loot::LootTable> =
+    ResourceKey::new(rl!("minecraft:blocks/packed_ice_brick_slab"));
+pub const BLOCKS_PACKED_ICE_BRICK_STAIRS: ResourceKey<'static, crate::loot::LootTable> =
+    ResourceKey::new(rl!("minecraft:blocks/packed_ice_brick_stairs"));
+pub const BLOCKS_PACKED_ICE_BRICK_WALL: ResourceKey<'static, crate::loot::LootTable> =
+    ResourceKey::new(rl!("minecraft:blocks/packed_ice_brick_wall"));
+pub const BLOCKS_PACKED_ICE_BRICKS: ResourceKey<'static, crate::loot::LootTable> =
+    ResourceKey::new(rl!("minecraft:blocks/packed_ice_bricks"));
 pub const BLOCKS_PACKED_MUD: ResourceKey<'static, crate::loot::LootTable> =
     ResourceKey::new(rl!("minecraft:blocks/packed_mud"));
 pub const BLOCKS_PALE_HANGING_MOSS: ResourceKey<'static, crate::loot::LootTable> =
@@ -1518,6 +1538,22 @@ pub const BLOCKS_POLISHED_BLACKSTONE_STAIRS: ResourceKey<'static, crate::loot::L
     ResourceKey::new(rl!("minecraft:blocks/polished_blackstone_stairs"));
 pub const BLOCKS_POLISHED_BLACKSTONE_WALL: ResourceKey<'static, crate::loot::LootTable> =
     ResourceKey::new(rl!("minecraft:blocks/polished_blackstone_wall"));
+pub const BLOCKS_POLISHED_CALCITE: ResourceKey<'static, crate::loot::LootTable> =
+    ResourceKey::new(rl!("minecraft:blocks/polished_calcite"));
+pub const BLOCKS_POLISHED_CALCITE_BRICK_SLAB: ResourceKey<'static, crate::loot::LootTable> =
+    ResourceKey::new(rl!("minecraft:blocks/polished_calcite_brick_slab"));
+pub const BLOCKS_POLISHED_CALCITE_BRICK_STAIRS: ResourceKey<'static, crate::loot::LootTable> =
+    ResourceKey::new(rl!("minecraft:blocks/polished_calcite_brick_stairs"));
+pub const BLOCKS_POLISHED_CALCITE_BRICK_WALL: ResourceKey<'static, crate::loot::LootTable> =
+    ResourceKey::new(rl!("minecraft:blocks/polished_calcite_brick_wall"));
+pub const BLOCKS_POLISHED_CALCITE_BRICKS: ResourceKey<'static, crate::loot::LootTable> =
+    ResourceKey::new(rl!("minecraft:blocks/polished_calcite_bricks"));
+pub const BLOCKS_POLISHED_CALCITE_SLAB: ResourceKey<'static, crate::loot::LootTable> =
+    ResourceKey::new(rl!("minecraft:blocks/polished_calcite_slab"));
+pub const BLOCKS_POLISHED_CALCITE_STAIRS: ResourceKey<'static, crate::loot::LootTable> =
+    ResourceKey::new(rl!("minecraft:blocks/polished_calcite_stairs"));
+pub const BLOCKS_POLISHED_CALCITE_WALL: ResourceKey<'static, crate::loot::LootTable> =
+    ResourceKey::new(rl!("minecraft:blocks/polished_calcite_wall"));
 pub const BLOCKS_POLISHED_CINNABAR: ResourceKey<'static, crate::loot::LootTable> =
     ResourceKey::new(rl!("minecraft:blocks/polished_cinnabar"));
 pub const BLOCKS_POLISHED_CINNABAR_SLAB: ResourceKey<'static, crate::loot::LootTable> =
@@ -1934,6 +1970,14 @@ pub const BLOCKS_SNOW: ResourceKey<'static, crate::loot::LootTable> =
     ResourceKey::new(rl!("minecraft:blocks/snow"));
 pub const BLOCKS_SNOW_BLOCK: ResourceKey<'static, crate::loot::LootTable> =
     ResourceKey::new(rl!("minecraft:blocks/snow_block"));
+pub const BLOCKS_SNOW_BRICK_SLAB: ResourceKey<'static, crate::loot::LootTable> =
+    ResourceKey::new(rl!("minecraft:blocks/snow_brick_slab"));
+pub const BLOCKS_SNOW_BRICK_STAIRS: ResourceKey<'static, crate::loot::LootTable> =
+    ResourceKey::new(rl!("minecraft:blocks/snow_brick_stairs"));
+pub const BLOCKS_SNOW_BRICK_WALL: ResourceKey<'static, crate::loot::LootTable> =
+    ResourceKey::new(rl!("minecraft:blocks/snow_brick_wall"));
+pub const BLOCKS_SNOW_BRICKS: ResourceKey<'static, crate::loot::LootTable> =
+    ResourceKey::new(rl!("minecraft:blocks/snow_bricks"));
 pub const BLOCKS_SOUL_CAMPFIRE: ResourceKey<'static, crate::loot::LootTable> =
     ResourceKey::new(rl!("minecraft:blocks/soul_campfire"));
 pub const BLOCKS_SOUL_FIRE: ResourceKey<'static, crate::loot::LootTable> =

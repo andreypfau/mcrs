@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:sugar_cane",
-      "protocol_id": 327
+      "protocol_id": 339
     },
     "components": {
       "minecraft:attack_animation": {},

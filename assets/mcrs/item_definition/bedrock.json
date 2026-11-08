@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:bedrock",
-      "protocol_id": 87
+      "protocol_id": 99
     },
     "components": {
       "minecraft:attack_animation": {},

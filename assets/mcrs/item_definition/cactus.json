@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:cactus",
-      "protocol_id": 413
+      "protocol_id": 429
     },
     "components": {
       "minecraft:attack_animation": {},

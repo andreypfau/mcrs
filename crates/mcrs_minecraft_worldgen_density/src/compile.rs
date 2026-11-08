@@ -9,7 +9,9 @@ use crate::node::spline::{CompiledSpline, Multipoint, SplineValue};
 use crate::program::{
     BinaryOp, Node, NodeId, Program, RoundKind, UnaryOp, drops_offset, node_axes,
 };
-use crate::proto::{DensityFunctionHolder, ProtoDensityFunction, ProtoSpline};
+use crate::proto::{
+    DensityFunctionHolder, ProtoDensityFunction, ProtoSpline, UpscaleAxis, UpscaleMode,
+};
 use crate::router::{Aquifers, NoiseGeneratorSettings, NoiseRouter, RouterBlocks};
 use mcrs_minecraft_core::mth;
 use mcrs_minecraft_noise::blended::BlendedNoise;
@@ -45,6 +47,9 @@ pub enum CompileError {
     /// A condition kind this build parses but cannot evaluate.
     #[error("material condition minecraft:{0} cannot be evaluated by this build")]
     UnsupportedCondition(&'static str),
+    /// An upscale that is not linear on every axis with one cell size for X and Z.
+    #[error("upscale with axes {0:?} cannot be evaluated by this build")]
+    UnsupportedUpscale([UpscaleAxis; 3]),
 }
 
 pub fn build_router(
@@ -586,12 +591,18 @@ impl<'a> Compiler<'a> {
                     },
                 ))
             }
-            P::Interpolated {
-                input,
-                cell_size_xz,
-                cell_size_y,
-            } => {
-                let input = self.compile(input)?;
+            P::Upscale(upscale) => {
+                let linear = [upscale.x, upscale.y, upscale.z]
+                    .iter()
+                    .all(|axis| axis.mode == UpscaleMode::InterpolateLinear);
+                if !linear || upscale.x.cell_size != upscale.z.cell_size {
+                    return Err(CompileError::UnsupportedUpscale([
+                        upscale.x, upscale.y, upscale.z,
+                    ]));
+                }
+                let cell_size_xz = upscale.x.cell_size;
+                let cell_size_y = upscale.y.cell_size;
+                let input = self.compile(&upscale.input)?;
                 let key = Key::Interpolated(input, cell_size_xz.get(), cell_size_y.get());
                 if let Some(&id) = self.interned.get(&key) {
                     return Ok(id);

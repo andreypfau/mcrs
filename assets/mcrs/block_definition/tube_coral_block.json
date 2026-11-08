@@ -3,9 +3,9 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:tube_coral_block",
-      "protocol_id": 844,
-      "base_state_id": 18505,
-      "default_state_id": 18505
+      "protocol_id": 853,
+      "base_state_id": 19328,
+      "default_state_id": 19328
     },
     "components": {
       "minecraft:light_emission": 0,

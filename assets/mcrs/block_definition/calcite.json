@@ -3,9 +3,9 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:calcite",
-      "protocol_id": 1117,
-      "base_state_id": 30535,
-      "default_state_id": 30535
+      "protocol_id": 1126,
+      "base_state_id": 31358,
+      "default_state_id": 31358
     },
     "components": {
       "minecraft:light_emission": 0,

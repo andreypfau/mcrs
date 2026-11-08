@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:fletching_table",
-      "protocol_id": 1513
+      "protocol_id": 1536
     },
     "components": {
       "minecraft:attack_animation": {},

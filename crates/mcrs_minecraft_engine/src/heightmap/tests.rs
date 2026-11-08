@@ -4,7 +4,8 @@ use mcrs_minecraft_engine_world::palette::{
     BiomePalette, BlockPalette, ChunkBlocks, section_states,
 };
 use mcrs_minecraft_heightmap::*;
-use mcrs_voxel::{BlockPos, BlockStateId};
+use mcrs_minecraft_volume::SectionBlocksMut;
+use mcrs_voxel::{BlockPos, BlockStateId, LocalPos};
 use std::sync::OnceLock;
 
 fn corpus() -> &'static Blocks {
@@ -251,7 +252,9 @@ fn spawn_column(
     sections: &[Option<(BlockPalette, BiomePalette)>],
     y_sections: &[i32],
 ) -> (App, Entity, Vec<Entity>) {
-    use mcrs_minecraft_engine_world::world::storage::column::{ColumnIndex, ColumnSlot};
+    use mcrs_minecraft_engine_world::world::storage::column::{
+        ColumnIndex, ColumnSections, ColumnSlot,
+    };
     use mcrs_minecraft_engine_world::world::storage::section::SectionIndex;
 
     let mut app = App::new();
@@ -292,11 +295,10 @@ fn spawn_column(
         .map(|(section, &section_y)| {
             let blocks = section.as_ref().map(|(b, _)| b.clone()).unwrap_or_default();
             let states = section_states(&blocks, corpus().state_count());
-            let entity = app
-                .world_mut()
-                .spawn((ChunkBlocks::new(states), InDimension(dim)))
-                .id();
-            section_index.insert(SectionPos::new(0, section_y, 0), entity);
+            let entity = app.world_mut().spawn(InDimension(dim)).id();
+            let pos = SectionPos::new(0, section_y, 0);
+            section_index.insert(pos, entity);
+            section_index.land(pos, entity, ChunkBlocks::new(states), None, false);
             entity
         })
         .collect();
@@ -333,6 +335,7 @@ fn read_maps(app: &App, column: Entity) -> ColumnHeightmapSet {
 }
 
 fn a_series_of_edits_stays_bit_for_bit_equal_to_a_rebuild() {
+    use mcrs_minecraft_engine_world::world::storage::section::SectionIndex;
     use mcrs_minecraft_simulation::BlockUpdateFlags;
 
     let table = predicates();
@@ -373,16 +376,21 @@ fn a_series_of_edits_stays_bit_for_bit_equal_to_a_rebuild() {
         let (blocks, _) = sections[index].as_mut().unwrap();
         let old = blocks.set_cell(x, (y % 16) as usize, z, id).unwrap();
         let state = |id: VoxelId| BlockStateId::checked(id.0, corpus().state_count()).unwrap();
+        let block_pos = BlockPos::new(x as i32, y, z as i32);
+        let InDimension(dim) = *app
+            .world()
+            .get::<InDimension>(section_entities[index])
+            .unwrap();
         app.world_mut()
-            .entity_mut(section_entities[index])
-            .get_mut::<ChunkBlocks>()
+            .get_mut::<SectionIndex>(dim)
             .unwrap()
-            .make_mut()
-            .set_cell(x, (y % 16) as usize, z, state(id));
+            .section_mut(SectionPos::new(0, y / 16, 0), None)
+            .unwrap()
+            .set(LocalPos::from(block_pos), state(id));
         app.world_mut().write_message(BlockPlaced {
             chunk: section_entities[index],
             chunk_pos: SectionPos::new(0, y / 16, 0),
-            block_pos: BlockPos::new(x as i32, y, z as i32),
+            block_pos,
             old_state: state(old),
             new_state: state(id),
             flags: BlockUpdateFlags::all(),

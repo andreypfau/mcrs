@@ -19,7 +19,7 @@ pub fn the_shipped_biome_tags_resolve(app: &App) {
     );
 
     let biased = members(app, "minecraft:stronghold_biased_to");
-    assert_eq!(biased.len(), 38);
+    assert_eq!(biased.len(), 39);
     assert!(biased.contains(&"minecraft:plains".to_owned()));
 
     let nested = members(app, "minecraft:has_structure/stronghold");

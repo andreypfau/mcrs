@@ -63,7 +63,7 @@ public final class VanillaOracle {
         );
 
         for (long seed : new long[] {1L, 2L, 42L}) {
-            RandomState randomState = RandomState.create(noises, seed, settings);
+            RandomState randomState = RandomState.createForTesting(noises, seed, settings);
             for (Chunk chunk : chunks) {
                 DensityVolume lattice = new DensityVolume(
                     5, 49, 5, chunk.x() * 16, -64, chunk.z() * 16, 4, 8, 4
@@ -78,7 +78,7 @@ public final class VanillaOracle {
 
         long denseSeed = 42L;
         Chunk denseChunk = new Chunk(0, 0);
-        RandomState denseState = RandomState.create(noises, denseSeed, settings);
+        RandomState denseState = RandomState.createForTesting(noises, denseSeed, settings);
         DensityVolume dense = new DensityVolume(16, 384, 16, denseChunk.x() * 16, -64, denseChunk.z() * 16, 1, 1, 1);
         Path denseFile = outDir.resolve(
             "overworld_s" + denseSeed + "_c" + denseChunk.x() + "_" + denseChunk.z() + "_dense.bin"

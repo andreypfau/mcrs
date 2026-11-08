@@ -3,13 +3,14 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:enchanted_golden_apple",
-      "protocol_id": 1102
+      "protocol_id": 1124
     },
     "components": {
       "minecraft:attack_animation": {},
       "minecraft:attribute_modifiers": [],
       "minecraft:break_sound": "minecraft:entity.item.break",
       "minecraft:consumable": {
+        "sound": "minecraft:entity.generic.eat",
         "on_consume_effects": [
           {
             "effects": [

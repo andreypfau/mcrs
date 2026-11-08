@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:brick_wall",
-      "protocol_id": 533
+      "protocol_id": 550
     },
     "components": {
       "minecraft:attack_animation": {},

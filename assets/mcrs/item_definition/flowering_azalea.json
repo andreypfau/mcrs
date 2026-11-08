@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:flowering_azalea",
-      "protocol_id": 243
+      "protocol_id": 255
     },
     "components": {
       "minecraft:attack_animation": {},

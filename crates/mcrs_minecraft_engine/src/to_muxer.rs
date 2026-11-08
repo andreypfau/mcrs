@@ -15,7 +15,7 @@ use crate::column_version::ColumnVersion;
 use crate::command_handoff::CommandHandoff;
 use crate::departure::Departure;
 use crate::player_order::OrderedPlayer;
-use crate::player_view::PlayerView;
+use crate::player_view::{PlayerView, ViewerPosition};
 
 /// The dimension `dim` runs and takes input from now on.
 #[derive(Message, Clone, Copy, Debug)]
@@ -63,6 +63,8 @@ pub struct ClientOutput {
     pub column_versions: Vec<ColumnVersion>,
     /// The changes of the tick to the columns that the muxer subscribes to, after the versions.
     pub column_changes: Vec<ColumnChange>,
+    /// Where the players that moved in the tick stand, before the changes.
+    pub positions: Vec<ViewerPosition>,
     /// The acknowledgements of the block actions of the tick, after the changes.
     pub block_acks: Vec<BlockActionAck>,
 }
@@ -80,6 +82,7 @@ impl ClientOutput {
         self.views.extend(other.views);
         self.column_versions.extend(other.column_versions);
         self.column_changes.extend(other.column_changes);
+        self.positions.extend(other.positions);
         self.block_acks.extend(other.block_acks);
     }
 }

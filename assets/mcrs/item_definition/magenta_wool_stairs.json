@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:magenta_wool_stairs",
-      "protocol_id": 268
+      "protocol_id": 280
     },
     "components": {
       "minecraft:attack_animation": {},

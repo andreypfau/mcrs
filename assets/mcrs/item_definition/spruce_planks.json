@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:spruce_planks",
-      "protocol_id": 64
+      "protocol_id": 76
     },
     "components": {
       "minecraft:attack_animation": {},

@@ -1,0 +1,47 @@
+[package]
+name = "mcrs_minecraft_engine_physics"
+description = "The entity pass of a dimension world: the rows of the server entities by tile, the body grid, the tick of the rows over tiles with the physics kernel, and the row-only items"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+doctest = false
+
+[lints]
+workspace = true
+
+# std: the rows and the grid live in Vec and BTreeMap
+[dependencies]
+bevy_app.workspace = true
+bevy_ecs.workspace = true
+bevy_tasks.workspace = true
+glam.workspace = true
+mcrs_engine_muxer.workspace = true
+mcrs_minecraft_block.workspace = true
+mcrs_minecraft_collision_table.workspace = true
+mcrs_minecraft_engine.workspace = true
+mcrs_minecraft_engine_world.workspace = true
+mcrs_minecraft_item.workspace = true
+mcrs_minecraft_physics.workspace = true
+mcrs_minecraft_registries = { workspace = true, features = ["bevy"] }
+mcrs_minecraft_volume.workspace = true
+mcrs_voxel.workspace = true
+tracing.workspace = true
+
+[dev-dependencies]
+# Without it a pool of the tests and the benchmark runs every task on one thread.
+bevy_tasks = { workspace = true, features = ["multi_threaded"] }
+criterion = { version = "0.7", default-features = false }
+mcrs_minecraft_engine_physics = { workspace = true, features = ["testing"] }
+mcrs_minecraft_fixtures.workspace = true
+mcrs_minecraft_game_registries = { workspace = true, features = ["test-support"] }
+serde.workspace = true
+serde_json.workspace = true
+
+[features]
+# A scene of walkers and items on a stone floor, for tests and benchmarks of the pass.
+testing = ["mcrs_minecraft_physics/testing"]
+
+[[bench]]
+name = "entity_pass"
+harness = false

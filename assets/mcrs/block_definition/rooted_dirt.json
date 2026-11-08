@@ -3,9 +3,9 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:rooted_dirt",
-      "protocol_id": 1242,
-      "base_state_id": 33829,
-      "default_state_id": 33829
+      "protocol_id": 1264,
+      "base_state_id": 35888,
+      "default_state_id": 35888
     },
     "components": {
       "minecraft:light_emission": 0,

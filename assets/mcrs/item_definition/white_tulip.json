@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:white_tulip",
-      "protocol_id": 308
+      "protocol_id": 320
     },
     "components": {
       "minecraft:attack_animation": {},

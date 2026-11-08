@@ -560,7 +560,7 @@ public final class StubLevel implements WorldGenLevel {
             final LevelStem stem,
             final List<CustomSpawner> spawners
         ) {
-            super(server, executor, storage, levelData, dimension, stem, false, spawners, false);
+            super(server, executor, storage, levelData, dimension, stem, spawners, false);
         }
 
         static ServerLevel allocate() {
@@ -603,7 +603,7 @@ public final class StubLevel implements WorldGenLevel {
             final LevelStem stem,
             final List<CustomSpawner> spawners
         ) {
-            super(server, executor, storage, levelData, dimension, stem, false, spawners, false);
+            super(server, executor, storage, levelData, dimension, stem, spawners, false);
         }
 
         static ServerLevel allocate(final StubLevel owner, final MinecraftServer server) {

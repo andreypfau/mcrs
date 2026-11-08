@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:acacia_trapdoor",
-      "protocol_id": 916
+      "protocol_id": 938
     },
     "components": {
       "minecraft:attack_animation": {},

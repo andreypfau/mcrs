@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:orange_glazed_terracotta",
-      "protocol_id": 674
+      "protocol_id": 696
     },
     "components": {
       "minecraft:attack_animation": {},

@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:ice_ball",
-      "protocol_id": 1134
+      "protocol_id": 1156
     },
     "components": {
       "minecraft:attack_animation": {},

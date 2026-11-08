@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:shelf_mushroom",
-      "protocol_id": 319
+      "protocol_id": 331
     },
     "components": {
       "minecraft:attack_animation": {},

@@ -3,9 +3,9 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:cracked_deepslate_bricks",
-      "protocol_id": 1262,
-      "base_state_id": 35479,
-      "default_state_id": 35479
+      "protocol_id": 1284,
+      "base_state_id": 37538,
+      "default_state_id": 37538
     },
     "components": {
       "minecraft:light_emission": 0,

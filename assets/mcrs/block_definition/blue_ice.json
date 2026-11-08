@@ -3,9 +3,9 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:blue_ice",
-      "protocol_id": 880,
-      "base_state_id": 18638,
-      "default_state_id": 18638
+      "protocol_id": 889,
+      "base_state_id": 19461,
+      "default_state_id": 19461
     },
     "components": {
       "minecraft:light_emission": 0,

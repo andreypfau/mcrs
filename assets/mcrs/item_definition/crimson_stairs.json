@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:crimson_stairs",
-      "protocol_id": 527
+      "protocol_id": 544
     },
     "components": {
       "minecraft:attack_animation": {},

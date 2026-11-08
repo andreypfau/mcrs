@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:dolphin_spawn_egg",
-      "protocol_id": 1305
+      "protocol_id": 1327
     },
     "components": {
       "minecraft:attack_animation": {},

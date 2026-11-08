@@ -139,30 +139,38 @@ pub fn write_world_gen_settings(
     registries: &Registries,
 ) -> Result<(), SaveError> {
     let path = saved_data_path(world, "world_gen_settings");
-    let io = |source| SaveError::Io {
-        path: path.clone(),
-        source,
-    };
     let data = settings
         .name(registries)
         .map_err(|source| SaveError::Resolve {
             path: path.clone(),
             source,
         })?;
+    write_saved_data(&path, data)
+}
+
+/// Writes `data` in the saved data form, next to the target and renamed over it, so a crash
+/// mid-write leaves the previous file.
+fn write_saved_data<T: Serialize>(path: &Path, data: T) -> Result<(), SaveError> {
+    let io = |source| SaveError::Io {
+        path: path.to_path_buf(),
+        source,
+    };
     let file = SavedDataFile {
         data,
         data_version: VERSION.world_version,
     };
     let bytes = mcrs_minecraft_nbt::nbt_compress::to_gzip_bytes_vec(&file).map_err(|source| {
         SaveError::Nbt {
-            path: path.clone(),
+            path: path.to_path_buf(),
             source,
         }
     })?;
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent).map_err(io)?;
     }
-    fs::write(&path, bytes).map_err(io)
+    let tmp = path.with_extension("dat.tmp");
+    fs::write(&tmp, bytes).map_err(io)?;
+    fs::rename(&tmp, path).map_err(io)
 }
 
 pub fn read_weather(world: &Path) -> Result<WeatherData, SaveError> {
@@ -173,6 +181,31 @@ pub fn read_weather(world: &Path) -> Result<WeatherData, SaveError> {
 pub fn read_game_rules(world: &Path) -> Result<GameRules, SaveError> {
     let path = saved_data_path(world, "game_rules");
     parse_game_rules(&read_bytes(&path)?, &path)
+}
+
+/// The birth clock of the world: the birth tick of the entity keys. It is data of mcrs, so it
+/// has its own file next to the saved data of the game.
+#[derive(Serialize, Deserialize)]
+struct BirthClockData {
+    tick: i64,
+}
+
+fn birth_clock_path(world: &Path) -> PathBuf {
+    world.join("data/mcrs/birth_clock.dat")
+}
+
+/// The saved value of the birth clock; [`SaveError::Missing`] in a save without one.
+pub fn read_birth_clock(world: &Path) -> Result<u64, SaveError> {
+    let path = birth_clock_path(world);
+    let data: BirthClockData = parse_saved_data(&read_bytes(&path)?, &path)?;
+    Ok(data.tick.cast_unsigned())
+}
+
+pub fn write_birth_clock(world: &Path, tick: u64) -> Result<(), SaveError> {
+    let data = BirthClockData {
+        tick: tick.cast_signed(),
+    };
+    write_saved_data(&birth_clock_path(world), data)
 }
 
 fn saved_data_path(world: &Path, name: &str) -> PathBuf {
@@ -332,13 +365,15 @@ fn parse_world_gen_settings(
 }
 
 fn parse_weather(bytes: &[u8], path: &Path) -> Result<WeatherData, SaveError> {
-    let file: SavedDataFile<WeatherData> = decode(bytes, path)?;
-    check_data_version(file.data_version, path)?;
-    Ok(file.data)
+    parse_saved_data(bytes, path)
 }
 
 fn parse_game_rules(bytes: &[u8], path: &Path) -> Result<GameRules, SaveError> {
-    let file: SavedDataFile<GameRules> = decode(bytes, path)?;
+    parse_saved_data(bytes, path)
+}
+
+fn parse_saved_data<T: DeserializeOwned>(bytes: &[u8], path: &Path) -> Result<T, SaveError> {
+    let file: SavedDataFile<T> = decode(bytes, path)?;
     check_data_version(file.data_version, path)?;
     Ok(file.data)
 }

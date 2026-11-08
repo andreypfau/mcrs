@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:smooth_quartz_stairs",
-      "protocol_id": 797
+      "protocol_id": 819
     },
     "components": {
       "minecraft:attack_animation": {},

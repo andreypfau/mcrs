@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:light_blue_terracotta",
-      "protocol_id": 564
+      "protocol_id": 581
     },
     "components": {
       "minecraft:attack_animation": {},

@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:prismarine_wall",
-      "protocol_id": 534
+      "protocol_id": 551
     },
     "components": {
       "minecraft:attack_animation": {},

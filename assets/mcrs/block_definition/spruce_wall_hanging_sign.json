@@ -22,7 +22,7 @@
     "components": {
       "minecraft:light_emission": 0,
       "minecraft:friction": 0.6,
-      "minecraft:map_color": "#8f7748",
+      "minecraft:map_color": "#815631",
       "minecraft:destructible_by_explosion": {
         "explosion_resistance": 1
       },

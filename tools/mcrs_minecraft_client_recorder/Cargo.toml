@@ -1,0 +1,22 @@
+[package]
+name = "mcrs_minecraft_client_recorder"
+description = "Records the client ticks of a vanilla client behind a proxy to the vanilla server, one scripted experiment at a time"
+version.workspace = true
+edition.workspace = true
+publish = false
+
+[lints]
+workspace = true
+
+[dependencies]
+anyhow.workspace = true
+bytes.workspace = true
+flate2.workspace = true
+glam.workspace = true
+mcrs_minecraft_block.workspace = true
+mcrs_minecraft_client_ticks.workspace = true
+mcrs_minecraft_core.workspace = true
+mcrs_minecraft_item.workspace = true
+mcrs_minecraft_protocol.workspace = true
+mcrs_minecraft_protocol_game.workspace = true
+mcrs_voxel.workspace = true

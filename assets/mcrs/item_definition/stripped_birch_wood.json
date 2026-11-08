@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:stripped_birch_wood",
-      "protocol_id": 192
+      "protocol_id": 204
     },
     "components": {
       "minecraft:attack_animation": {},

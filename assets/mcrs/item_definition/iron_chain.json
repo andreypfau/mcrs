@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:iron_chain",
-      "protocol_id": 473
+      "protocol_id": 489
     },
     "components": {
       "minecraft:attack_animation": {},

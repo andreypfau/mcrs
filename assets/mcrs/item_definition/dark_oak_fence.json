@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:dark_oak_fence",
-      "protocol_id": 423
+      "protocol_id": 439
     },
     "components": {
       "minecraft:attack_animation": {},

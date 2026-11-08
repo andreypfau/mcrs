@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:purple_wool",
-      "protocol_id": 260
+      "protocol_id": 272
     },
     "components": {
       "minecraft:attack_animation": {},

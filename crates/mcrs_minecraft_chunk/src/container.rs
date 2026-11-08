@@ -8,7 +8,8 @@ pub type AbstractCube<T, const DIM: usize> = [[[T; DIM]; DIM]; DIM];
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct HeterogeneousPaletteData<V: Hash + Eq + Copy, const DIM: usize> {
-    pub cube: Box<AbstractCube<V, DIM>>,
+    /// Inline, not boxed: a read of a cell then misses the cache once less.
+    pub cube: AbstractCube<V, DIM>,
     pub palette: Vec<V>,
     pub counts: Vec<u16>,
     /// Reverse index: value → palette index. Kept in sync with `palette`.
@@ -109,6 +110,10 @@ impl<V: Hash + Eq + Copy, const DIM: usize> PalettedContainer<V, DIM> {
     /// known. `value_is_first` says whether cell index 0 (x=y=z=0) holds the new
     /// value, which is what decides the first-appearance order `from_cube`
     /// would produce.
+    #[expect(
+        clippy::boxed_local,
+        reason = "callers fill the cube in place on the heap, not on the stack"
+    )]
     fn from_split_cube(
         cube: Box<AbstractCube<V, DIM>>,
         original: V,
@@ -130,13 +135,17 @@ impl<V: Hash + Eq + Copy, const DIM: usize> PalettedContainer<V, DIM> {
         };
         let index: FxHashMap<V, usize> = palette.iter().enumerate().map(|(i, v)| (*v, i)).collect();
         Self::Heterogeneous(Box::new(HeterogeneousPaletteData {
-            cube,
+            cube: *cube,
             palette,
             counts,
             index,
         }))
     }
 
+    #[expect(
+        clippy::boxed_local,
+        reason = "callers fill the cube in place on the heap, not on the stack"
+    )]
     pub fn from_cube(cube: Box<AbstractCube<V, DIM>>) -> Self {
         let mut palette: Vec<V> = Vec::new();
         let mut counts: Vec<u16> = Vec::new();
@@ -176,7 +185,7 @@ impl<V: Hash + Eq + Copy, const DIM: usize> PalettedContainer<V, DIM> {
             return Self::Homogeneous(only);
         }
         Self::Heterogeneous(Box::new(HeterogeneousPaletteData {
-            cube,
+            cube: *cube,
             palette,
             counts,
             index,
@@ -399,7 +408,7 @@ impl<V: Hash + Eq + Copy, const DIM: usize> PalettedContainer<V, DIM> {
                     return PalettedContainer::from_cube(cube);
                 }
                 PalettedContainer::Heterogeneous(Box::new(HeterogeneousPaletteData {
-                    cube,
+                    cube: *cube,
                     palette,
                     counts: data.counts.clone(),
                     index,
@@ -416,7 +425,7 @@ impl<V: Hash + Eq + Copy> PalettedContainer<V, { SectionPos::SIZE }> {
             Self::Heterogeneous(data) => {
                 // A `LocalPos` keeps every coordinate inside the cube, so the
                 // lookup cannot miss; the corner only gives the type a value.
-                let [[[corner, ..], ..], ..] = &*data.cube;
+                let [[[corner, ..], ..], ..] = &data.cube;
                 data.get(pos.x().into(), pos.y().into(), pos.z().into())
                     .unwrap_or(*corner)
             }

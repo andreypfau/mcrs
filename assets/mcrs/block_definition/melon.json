@@ -3,9 +3,9 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:melon",
-      "protocol_id": 411,
-      "base_state_id": 10069,
-      "default_state_id": 10069
+      "protocol_id": 415,
+      "base_state_id": 10480,
+      "default_state_id": 10480
     },
     "components": {
       "minecraft:light_emission": 0,

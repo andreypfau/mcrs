@@ -131,6 +131,7 @@ pub fn run_server_loop(
         let start = Instant::now();
         app.update();
         between_ticks(&mut app);
+        tracing::trace!(target: "mcrs_tick", micros = start.elapsed().as_micros() as u64);
         if let Some(exit) = app.should_exit() {
             return exit;
         }

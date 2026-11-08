@@ -28,7 +28,7 @@ use mcrs_minecraft_engine_server::login::{LoginPlugin, LoginState};
 use mcrs_minecraft_engine_world::session::{Place, SessionPlacement};
 use mcrs_minecraft_engine_world::world::sub_app::{DimSpawnQueue, DimSpawnRequest};
 use mcrs_minecraft_network::ServerSideConnection;
-use mcrs_minecraft_network::inbound_rate::InboundRateBucket;
+use mcrs_minecraft_network::inbound_rate::InboundPacketRate;
 use mcrs_minecraft_protocol::uuid::Uuid;
 
 // ---------------------------------------------------------------------------
@@ -90,7 +90,7 @@ fn e2e_join_releases_joining_world() {
         .spawn((
             ServerSideConnection { raw: Box::new(raw) },
             OutboundQueue::default(),
-            InboundRateBucket::new(),
+            InboundPacketRate::default(),
         ))
         .id();
 

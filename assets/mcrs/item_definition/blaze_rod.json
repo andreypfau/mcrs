@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:blaze_rod",
-      "protocol_id": 1268
+      "protocol_id": 1290
     },
     "components": {
       "minecraft:attack_animation": {},

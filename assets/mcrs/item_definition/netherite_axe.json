@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:netherite_axe",
-      "protocol_id": 1059
+      "protocol_id": 1081
     },
     "components": {
       "minecraft:attack_animation": {},

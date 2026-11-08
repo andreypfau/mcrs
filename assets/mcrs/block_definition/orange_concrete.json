@@ -3,9 +3,9 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:orange_concrete",
-      "protocol_id": 770,
-      "base_state_id": 17018,
-      "default_state_id": 17018
+      "protocol_id": 779,
+      "base_state_id": 17841,
+      "default_state_id": 17841
     },
     "components": {
       "minecraft:light_emission": 0,

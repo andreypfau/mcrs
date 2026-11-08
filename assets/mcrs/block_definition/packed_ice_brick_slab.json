@@ -1,0 +1,152 @@
+{
+  "format_version": "1.21.130",
+  "minecraft:block": {
+    "description": {
+      "identifier": "minecraft:packed_ice_brick_slab",
+      "properties": {
+        "type": [
+          "top",
+          "bottom",
+          "double"
+        ],
+        "waterlogged": [
+          true,
+          false
+        ]
+      },
+      "protocol_id": 616,
+      "base_state_id": 15176,
+      "default_state_id": 15179
+    },
+    "components": {
+      "minecraft:light_emission": 0,
+      "minecraft:friction": 0.6,
+      "minecraft:map_color": "#a0a0ff",
+      "minecraft:destructible_by_explosion": {
+        "explosion_resistance": 0.5
+      },
+      "minecraft:movable": {
+        "movement_type": "push_pull"
+      },
+      "minecraft:instrument_sound": {
+        "down": "chime"
+      },
+      "minecraft:destructible_by_mining": {
+        "item_specific_speeds": [
+          {
+            "item": {
+              "tags": "q.any_tag(\u0027minecraft:pickaxes\u0027)"
+            },
+            "destroy_speed": 0.5
+          }
+        ],
+        "seconds_to_destroy": 0.5
+      },
+      "minecraft:loot": "minecraft:blocks/packed_ice_brick_slab",
+      "mcrs:emissive_rendering": false,
+      "mcrs:block_sound_set": "minecraft:packed_ice"
+    },
+    "permutations": [
+      {
+        "condition": "q.block_state(\u0027type\u0027) \u003d\u003d \u0027top\u0027 \u0026\u0026 q.block_state(\u0027waterlogged\u0027) \u003d\u003d true",
+        "components": {
+          "minecraft:light_dampening": 1
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027type\u0027) \u003d\u003d \u0027top\u0027 \u0026\u0026 q.block_state(\u0027waterlogged\u0027) \u003d\u003d false",
+        "components": {
+          "minecraft:light_dampening": 0
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027type\u0027) \u003d\u003d \u0027bottom\u0027 \u0026\u0026 q.block_state(\u0027waterlogged\u0027) \u003d\u003d true",
+        "components": {
+          "minecraft:light_dampening": 1
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027type\u0027) \u003d\u003d \u0027bottom\u0027 \u0026\u0026 q.block_state(\u0027waterlogged\u0027) \u003d\u003d false",
+        "components": {
+          "minecraft:light_dampening": 0
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027type\u0027) \u003d\u003d \u0027double\u0027 \u0026\u0026 q.block_state(\u0027waterlogged\u0027) \u003d\u003d true",
+        "components": {
+          "minecraft:light_dampening": 15
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027type\u0027) \u003d\u003d \u0027double\u0027 \u0026\u0026 q.block_state(\u0027waterlogged\u0027) \u003d\u003d false",
+        "components": {
+          "minecraft:light_dampening": 15
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027type\u0027) \u003d\u003d \u0027top\u0027",
+        "components": {
+          "minecraft:collision_box": [
+            { "origin": [-8, 8, -8], "size": [16, 8, 16] }
+          ],
+          "minecraft:selection_box": [
+            { "origin": [-8, 8, -8], "size": [16, 8, 16] }
+          ],
+          "minecraft:redstone_conductivity": {
+            "redstone_conductor": false
+          },
+          "mcrs:use_shape_for_light_occlusion": true,
+          "mcrs:occlusion_shape": [
+            { "origin": [-8, 8, -8], "size": [16, 8, 16] }
+          ]
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027type\u0027) \u003d\u003d \u0027bottom\u0027",
+        "components": {
+          "minecraft:collision_box": [
+            { "origin": [-8, 0, -8], "size": [16, 8, 16] }
+          ],
+          "minecraft:selection_box": [
+            { "origin": [-8, 0, -8], "size": [16, 8, 16] }
+          ],
+          "minecraft:redstone_conductivity": {
+            "redstone_conductor": false
+          },
+          "mcrs:use_shape_for_light_occlusion": true,
+          "mcrs:occlusion_shape": [
+            { "origin": [-8, 0, -8], "size": [16, 8, 16] }
+          ]
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027type\u0027) \u003d\u003d \u0027double\u0027",
+        "components": {
+          "minecraft:collision_box": [
+            { "origin": [-8, 0, -8], "size": [16, 16, 16] }
+          ],
+          "minecraft:selection_box": [
+            { "origin": [-8, 0, -8], "size": [16, 16, 16] }
+          ],
+          "minecraft:redstone_conductivity": {
+            "redstone_conductor": true
+          },
+          "mcrs:use_shape_for_light_occlusion": false,
+          "mcrs:occlusion_shape": [
+            { "origin": [-8, 0, -8], "size": [16, 16, 16] }
+          ]
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027waterlogged\u0027) \u003d\u003d true",
+        "components": {
+          "mcrs:fluid_state": {
+            "fluid": "minecraft:water",
+            "level": 8,
+            "source": true
+          }
+        }
+      }
+    ]
+  }
+}

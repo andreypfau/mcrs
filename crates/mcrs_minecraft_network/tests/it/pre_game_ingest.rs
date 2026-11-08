@@ -5,7 +5,7 @@ use bevy_ecs::system::{Commands, IntoSystem, Query, ResMut, System};
 use bevy_ecs::world::World;
 use bytes::Bytes;
 use mcrs_minecraft_network::event::{PRE_GAME_FRAMES_PER_PASS, Received, run_event_loop};
-use mcrs_minecraft_network::inbound_rate::{INBOUND_BUCKET_CAP, INBOUND_KICK_OVERFLOW_PACKETS};
+use mcrs_minecraft_network::inbound_rate::InboundRateLimit;
 use mcrs_minecraft_network::metrics::{BridgeTelemetry, PacketDispatcher};
 use mcrs_minecraft_network::{
     ConnectionState, Instant, RawConnection, ReceivedPacket, ServerSideConnection,
@@ -56,6 +56,7 @@ fn frame_at<P: Encode + Packet>(packet: &P, timestamp: Instant) -> ReceivedPacke
         timestamp,
         id: P::ID,
         payload: body.into(),
+        verdict: None,
     }
 }
 
@@ -86,6 +87,7 @@ fn raw_frame(id: i32) -> ReceivedPacket {
         timestamp: Instant::now(),
         id,
         payload: Bytes::new(),
+        verdict: None,
     }
 }
 
@@ -128,7 +130,6 @@ fn a_pass_reads_its_budget_and_leaves_the_rest_queued_in_order() {
     world.add_observer(record_keep_alives);
     let (connection, tx) = spawn_connection(&mut world, ConnectionState::Configuration);
     let queued = 3 * PRE_GAME_FRAMES_PER_PASS as i64;
-    assert!(queued < i64::from(INBOUND_BUCKET_CAP));
     let now = Instant::now();
     for payload in 0..queued {
         tx.try_send(keep_alive(payload, now)).unwrap();
@@ -150,27 +151,30 @@ fn a_pass_reads_its_budget_and_leaves_the_rest_queued_in_order() {
 }
 
 #[test]
-fn a_flood_before_the_game_state_is_cut_off_like_one_in_it() {
+fn a_rate_above_the_limit_before_the_game_state_is_cut_off_like_one_in_it() {
     let mut world = server_world();
+    world.insert_resource(InboundRateLimit(50));
     world.init_resource::<KeepAlives>();
     world.add_observer(record_keep_alives);
     let (connection, tx) = spawn_connection(&mut world, ConnectionState::Configuration);
-    let allowed = i64::from(INBOUND_BUCKET_CAP) + i64::from(INBOUND_KICK_OVERFLOW_PACKETS) - 1;
-    let queued = allowed + 10;
-    let now = Instant::now();
-    for payload in 0..queued {
-        tx.try_send(keep_alive(payload, now)).unwrap();
-    }
+    let start = Instant::now();
 
-    for _ in 0..queued {
-        run(&mut world);
+    for second in 0..4u32 {
+        let arrival = start + std::time::Duration::from_secs(u64::from(second));
+        for packet in 0..100 {
+            let _ = tx.try_send(keep_alive(i64::from(second * 100 + packet), arrival));
+        }
+        for _ in 0..100 {
+            run(&mut world);
+        }
     }
 
     assert!(!world.entity(connection).contains::<ServerSideConnection>());
     assert_eq!(world.resource::<BridgeTelemetry>().kick_flood_total, 1);
     assert_eq!(
         world.resource::<KeepAlives>().0,
-        (0..allowed).collect::<Vec<_>>()
+        (0..300).collect::<Vec<_>>(),
+        "MVC-VAN-019: the first packet of the fourth second ends the connection"
     );
 }
 
@@ -224,6 +228,7 @@ fn a_login_and_configuration_sent_in_one_burst_reaches_the_game_state() {
         timestamp: Instant::now(),
         id: ServerboundHello::ID,
         payload: Bytes::from(hello),
+        verdict: None,
     })
     .unwrap();
     tx.try_send(frame(&ServerboundLoginAcknowledged)).unwrap();

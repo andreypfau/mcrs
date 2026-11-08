@@ -1,0 +1,23 @@
+# A relative teleport while the player falls, and an explosion near the player. Rules
+# PHY-SRV-008, 009, 010. The recorder runs the teleport and the TNT; the human does nothing.
+experiment E21
+arena -16 98 -16 48 110 16
+
+step teleport_while_falling
+instruction Release all keys and do nothing until Stop.
+fill -16 99 -16 48 99 16 minecraft:stone
+run gamemode survival @a
+run effect clear @a
+run effect give @a minecraft:resistance infinite 4 true
+start 0.5 109 0.5 -90 0
+at 6 execute as @a at @s run tp @s ~1 ~ ~ ~10 ~
+go 1000
+ticks 80
+
+step explosion
+instruction Release all keys and do nothing until Stop.
+fill -16 99 -16 48 99 16 minecraft:stone
+start 0.5 100 0.5 -90 0
+at 20 summon minecraft:tnt 3.5 100 0.5 {fuse:20}
+go 1000
+ticks 100

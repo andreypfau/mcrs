@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:dark_prismarine_stairs",
-      "protocol_id": 642
+      "protocol_id": 664
     },
     "components": {
       "minecraft:attack_animation": {},

@@ -17,9 +17,9 @@
           "cooldown"
         ]
       },
-      "protocol_id": 1278,
-      "base_state_id": 35565,
-      "default_state_id": 35571
+      "protocol_id": 1300,
+      "base_state_id": 37624,
+      "default_state_id": 37630
     },
     "components": {
       "minecraft:light_dampening": 1,

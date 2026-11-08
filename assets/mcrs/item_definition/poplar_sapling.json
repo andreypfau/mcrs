@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:poplar_sapling",
-      "protocol_id": 86
+      "protocol_id": 98
     },
     "components": {
       "minecraft:attack_animation": {},

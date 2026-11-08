@@ -7,7 +7,7 @@ use mcrs_minecraft_nbt::{BYTE_ID, COMPOUND_ID, FLOAT_ID, STRING_ID};
 use mcrs_minecraft_registries::{Ref, Refs, Resolved, registry_value};
 use mcrs_minecraft_sound::sound_event_keys::SoundEvent;
 use mcrs_minecraft_sound::{Sound, SoundEventValue};
-use serde::{Deserialize, Deserializer, Serialize};
+use serde::{Deserialize, Serialize};
 
 use crate::component::registry_ref::null_as_default;
 use crate::harness::Sample;
@@ -81,13 +81,8 @@ impl EquipmentSlot {
 #[serde(deny_unknown_fields)]
 pub struct Equippable<M: Refs = Resolved> {
     pub slot: EquipmentSlot,
-    #[serde(
-        default = "equip_generic::<M>",
-        deserialize_with = "equip_sound_or_default::<M, _>",
-        skip_serializing_if = "is_equip_generic::<M>",
-        bound(deserialize = "Sound<M>: Deserialize<'de>")
-    )]
-    pub equip_sound: Sound<M>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub equip_sound: Option<Sound<M>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub asset_id: Option<ResourceLocationBuf>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -124,13 +119,8 @@ pub struct Equippable<M: Refs = Resolved> {
         skip_serializing_if = "std::ops::Not::not"
     )]
     pub can_be_sheared: bool,
-    #[serde(
-        default = "shears_snip::<M>",
-        deserialize_with = "shearing_sound_or_default::<M, _>",
-        skip_serializing_if = "is_shears_snip::<M>",
-        bound(deserialize = "Sound<M>: Deserialize<'de>")
-    )]
-    pub shearing_sound: Sound<M>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub shearing_sound: Option<Sound<M>>,
 }
 
 null_as_default! {
@@ -138,41 +128,11 @@ null_as_default! {
     false_or_default: bool = false;
 }
 
-fn equip_sound_or_default<'de, M: Refs, D: Deserializer<'de>>(d: D) -> Result<Sound<M>, D::Error>
-where
-    Sound<M>: Deserialize<'de>,
-{
-    Ok(Option::deserialize(d)?.unwrap_or_else(equip_generic::<M>))
-}
-
-fn shearing_sound_or_default<'de, M: Refs, D: Deserializer<'de>>(d: D) -> Result<Sound<M>, D::Error>
-where
-    Sound<M>: Deserialize<'de>,
-{
-    Ok(Option::deserialize(d)?.unwrap_or_else(shears_snip::<M>))
-}
-
-fn equip_generic<M: Refs>() -> Sound<M> {
-    Ref::of(SoundEvent::ItemArmorEquipGeneric)
-}
-
-fn is_equip_generic<M: Refs>(sound: &Sound<M>) -> bool {
-    *sound == equip_generic::<M>()
-}
-
-fn shears_snip<M: Refs>() -> Sound<M> {
-    Ref::of(SoundEvent::ItemShearsSnip)
-}
-
-fn is_shears_snip<M: Refs>(sound: &Sound<M>) -> bool {
-    *sound == shears_snip::<M>()
-}
-
 impl<M: Refs> Equippable<M> {
     pub fn new(slot: EquipmentSlot) -> Self {
         Equippable {
             slot,
-            equip_sound: equip_generic::<M>(),
+            equip_sound: None,
             asset_id: None,
             camera_overlay: None,
             allowed_entities: None,
@@ -181,7 +141,7 @@ impl<M: Refs> Equippable<M> {
             damage_on_hurt: true,
             equip_on_interact: false,
             can_be_sheared: false,
-            shearing_sound: shears_snip::<M>(),
+            shearing_sound: None,
         }
     }
 }
@@ -199,16 +159,14 @@ impl Sample for Equippable {
             tags.push(("can_be_sheared", BYTE_ID));
         }
         match &self.shearing_sound {
-            Ref::Inline(event) if event.range.is_some() => tags.extend([
+            Some(Ref::Inline(event)) if event.range.is_some() => tags.extend([
                 ("shearing_sound", COMPOUND_ID),
                 ("shearing_sound.sound_id", STRING_ID),
                 ("shearing_sound.range", FLOAT_ID),
             ]),
-            Ref::Inline(_) => tags.push(("shearing_sound", COMPOUND_ID)),
-            Ref::Id(id) if *id != SoundEvent::ItemShearsSnip.id() => {
-                tags.push(("shearing_sound", STRING_ID))
-            }
-            Ref::Id(_) => {}
+            Some(Ref::Inline(_)) => tags.push(("shearing_sound", COMPOUND_ID)),
+            Some(Ref::Id(_)) => tags.push(("shearing_sound", STRING_ID)),
+            None => {}
         }
         tags
     }
@@ -218,7 +176,7 @@ impl Sample for Equippable {
             Equippable::new(EquipmentSlot::Head),
             Equippable {
                 slot: EquipmentSlot::OffHand,
-                equip_sound: Ref::Id(SoundEvent::ItemArmorEquipIron.id()),
+                equip_sound: Some(Ref::Id(SoundEvent::ItemArmorEquipIron.id())),
                 asset_id: Some(rl!("minecraft:iron").to_buf()),
                 camera_overlay: Some(rl!("minecraft:misc/pumpkinblur").to_buf()),
                 allowed_entities: Some(list_set(&["zombie", "pig"])),
@@ -227,20 +185,20 @@ impl Sample for Equippable {
                 damage_on_hurt: false,
                 equip_on_interact: true,
                 can_be_sheared: true,
-                shearing_sound: Ref::Inline(Arc::new(SoundEventValue {
+                shearing_sound: Some(Ref::Inline(Arc::new(SoundEventValue {
                     sound_id: rl!("mcrs:snip").to_buf(),
                     range: Some(3.5),
-                })),
+                }))),
             },
             Equippable {
                 allowed_entities: Some(tag_set("skeletons")),
                 ..Equippable::new(EquipmentSlot::Saddle)
             },
             Equippable {
-                equip_sound: Ref::Inline(Arc::new(SoundEventValue {
+                equip_sound: Some(Ref::Inline(Arc::new(SoundEventValue {
                     sound_id: rl!("mcrs:equip").to_buf(),
                     range: None,
-                })),
+                }))),
                 allowed_entities: Some(one_set("pig")),
                 ..Equippable::new(EquipmentSlot::Body)
             },
@@ -269,7 +227,7 @@ impl Decode<'_> for Equippable<Wire> {
         Ok(Equippable {
             slot: u8::try_from(VarInt::decode(r)?.0)
                 .map_or(EquipmentSlot::MainHand, EquipmentSlot::from_equippable_id),
-            equip_sound: Decode::decode(r)?,
+            equip_sound: Option::decode(r)?,
             asset_id: Option::decode(r)?,
             camera_overlay: Option::decode(r)?,
             allowed_entities: Option::decode(r)?,
@@ -278,7 +236,7 @@ impl Decode<'_> for Equippable<Wire> {
             damage_on_hurt: bool::decode(r)?,
             equip_on_interact: bool::decode(r)?,
             can_be_sheared: bool::decode(r)?,
-            shearing_sound: Decode::decode(r)?,
+            shearing_sound: Option::decode(r)?,
         })
     }
 }

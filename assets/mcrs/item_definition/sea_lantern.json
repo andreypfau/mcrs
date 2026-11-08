@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:sea_lantern",
-      "protocol_id": 643
+      "protocol_id": 665
     },
     "components": {
       "minecraft:attack_animation": {},

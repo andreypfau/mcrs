@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:waxed_weathered_copper_chain",
-      "protocol_id": 480
+      "protocol_id": 496
     },
     "components": {
       "minecraft:attack_animation": {},

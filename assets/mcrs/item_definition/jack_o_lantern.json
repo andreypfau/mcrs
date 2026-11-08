@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:jack_o_lantern",
-      "protocol_id": 432
+      "protocol_id": 448
     },
     "components": {
       "minecraft:attack_animation": {},

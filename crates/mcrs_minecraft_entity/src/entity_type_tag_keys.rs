@@ -54,20 +54,26 @@ pub const FOLLOWABLE_FRIENDLY_MOBS: TagKey<'static, crate::entity_type_keys::Ent
     TagKey::new(rl!("minecraft:followable_friendly_mobs"));
 pub const FREEZE_HURTS_EXTRA_TYPES: TagKey<'static, crate::entity_type_keys::EntityType> =
     TagKey::new(rl!("minecraft:freeze_hurts_extra_types"));
-pub const FREEZE_IMMUNE_ENTITY_TYPES: TagKey<'static, crate::entity_type_keys::EntityType> =
-    TagKey::new(rl!("minecraft:freeze_immune_entity_types"));
 pub const FROG_FOOD: TagKey<'static, crate::entity_type_keys::EntityType> =
     TagKey::new(rl!("minecraft:frog_food"));
-pub const IGNORES_POISON_AND_REGEN: TagKey<'static, crate::entity_type_keys::EntityType> =
-    TagKey::new(rl!("minecraft:ignores_poison_and_regen"));
 pub const ILLAGER: TagKey<'static, crate::entity_type_keys::EntityType> =
     TagKey::new(rl!("minecraft:illager"));
 pub const ILLAGER_FRIENDS: TagKey<'static, crate::entity_type_keys::EntityType> =
     TagKey::new(rl!("minecraft:illager_friends"));
+pub const IMMUNE_TO_FREEZING: TagKey<'static, crate::entity_type_keys::EntityType> =
+    TagKey::new(rl!("minecraft:immune_to_freezing"));
 pub const IMMUNE_TO_INFESTED: TagKey<'static, crate::entity_type_keys::EntityType> =
     TagKey::new(rl!("minecraft:immune_to_infested"));
 pub const IMMUNE_TO_OOZING: TagKey<'static, crate::entity_type_keys::EntityType> =
     TagKey::new(rl!("minecraft:immune_to_oozing"));
+pub const IMMUNE_TO_POISON: TagKey<'static, crate::entity_type_keys::EntityType> =
+    TagKey::new(rl!("minecraft:immune_to_poison"));
+pub const IMMUNE_TO_REGENERATION: TagKey<'static, crate::entity_type_keys::EntityType> =
+    TagKey::new(rl!("minecraft:immune_to_regeneration"));
+pub const IMMUNE_TO_WEAKNESS: TagKey<'static, crate::entity_type_keys::EntityType> =
+    TagKey::new(rl!("minecraft:immune_to_weakness"));
+pub const IMMUNE_TO_WITHER: TagKey<'static, crate::entity_type_keys::EntityType> =
+    TagKey::new(rl!("minecraft:immune_to_wither"));
 pub const IMPACT_PROJECTILES: TagKey<'static, crate::entity_type_keys::EntityType> =
     TagKey::new(rl!("minecraft:impact_projectiles"));
 pub const INVERTED_HEALING_AND_HARM: TagKey<'static, crate::entity_type_keys::EntityType> =

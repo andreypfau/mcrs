@@ -3,9 +3,9 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:potted_dandelion",
-      "protocol_id": 475,
-      "base_state_id": 12386,
-      "default_state_id": 12386
+      "protocol_id": 479,
+      "base_state_id": 12797,
+      "default_state_id": 12797
     },
     "components": {
       "minecraft:light_emission": 0,

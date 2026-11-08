@@ -3,9 +3,9 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:flower_pot",
-      "protocol_id": 462,
-      "base_state_id": 12373,
-      "default_state_id": 12373
+      "protocol_id": 466,
+      "base_state_id": 12784,
+      "default_state_id": 12784
     },
     "components": {
       "minecraft:light_emission": 0,

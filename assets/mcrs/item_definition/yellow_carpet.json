@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:yellow_carpet",
-      "protocol_id": 584
+      "protocol_id": 601
     },
     "components": {
       "minecraft:attack_animation": {},

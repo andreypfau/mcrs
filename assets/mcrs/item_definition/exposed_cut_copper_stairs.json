@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:exposed_cut_copper_stairs",
-      "protocol_id": 148
+      "protocol_id": 160
     },
     "components": {
       "minecraft:attack_animation": {},

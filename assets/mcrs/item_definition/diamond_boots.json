@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:diamond_boots",
-      "protocol_id": 1088
+      "protocol_id": 1110
     },
     "components": {
       "minecraft:attack_animation": {},
@@ -32,7 +32,8 @@
       "minecraft:equippable": {
         "slot": "feet",
         "equip_sound": "minecraft:item.armor.equip_diamond",
-        "asset_id": "minecraft:diamond"
+        "asset_id": "minecraft:diamond",
+        "shearing_sound": "minecraft:item.shears.snip"
       },
       "minecraft:interact_animation": {},
       "minecraft:item_model": "minecraft:diamond_boots",

@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:end_stone",
-      "protocol_id": 509
+      "protocol_id": 526
     },
     "components": {
       "minecraft:attack_animation": {},

@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:name_tag",
-      "protocol_id": 1416
+      "protocol_id": 1438
     },
     "components": {
       "minecraft:attack_animation": {},

@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:stripped_oak_wood",
-      "protocol_id": 190
+      "protocol_id": 202
     },
     "components": {
       "minecraft:attack_animation": {},

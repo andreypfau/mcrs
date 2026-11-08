@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:birch_stairs",
-      "protocol_id": 517
+      "protocol_id": 534
     },
     "components": {
       "minecraft:attack_animation": {},

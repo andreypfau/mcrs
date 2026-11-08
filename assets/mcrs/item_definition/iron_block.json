@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:iron_block",
-      "protocol_id": 119
+      "protocol_id": 131
     },
     "components": {
       "minecraft:attack_animation": {},

@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:green_concrete_slab",
-      "protocol_id": 734
+      "protocol_id": 756
     },
     "components": {
       "minecraft:attack_animation": {},

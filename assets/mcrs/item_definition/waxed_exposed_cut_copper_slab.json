@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:waxed_exposed_cut_copper_slab",
-      "protocol_id": 160
+      "protocol_id": 172
     },
     "components": {
       "minecraft:attack_animation": {},

@@ -3,9 +3,9 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:polished_tuff",
-      "protocol_id": 1080,
-      "base_state_id": 27238,
-      "default_state_id": 27238
+      "protocol_id": 1089,
+      "base_state_id": 28061,
+      "default_state_id": 28061
     },
     "components": {
       "minecraft:light_emission": 0,

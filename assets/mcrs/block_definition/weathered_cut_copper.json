@@ -3,9 +3,9 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:weathered_cut_copper",
-      "protocol_id": 1138,
-      "base_state_id": 31169,
-      "default_state_id": 31169
+      "protocol_id": 1160,
+      "base_state_id": 33228,
+      "default_state_id": 33228
     },
     "components": {
       "minecraft:light_emission": 0,

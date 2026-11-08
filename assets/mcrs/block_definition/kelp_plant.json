@@ -3,9 +3,9 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:kelp_plant",
-      "protocol_id": 834,
-      "base_state_id": 18451,
-      "default_state_id": 18451
+      "protocol_id": 843,
+      "base_state_id": 19274,
+      "default_state_id": 19274
     },
     "components": {
       "minecraft:light_emission": 0,

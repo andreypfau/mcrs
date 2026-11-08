@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:waxed_cut_copper",
-      "protocol_id": 143
+      "protocol_id": 155
     },
     "components": {
       "minecraft:attack_animation": {},

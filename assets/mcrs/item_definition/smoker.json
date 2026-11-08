@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:smoker",
-      "protocol_id": 1510
+      "protocol_id": 1533
     },
     "components": {
       "minecraft:attack_animation": {},

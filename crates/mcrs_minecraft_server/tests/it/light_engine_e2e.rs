@@ -1,6 +1,6 @@
 use bevy_app::{App, Last};
 use bevy_ecs::message::MessageReader;
-use bevy_ecs::prelude::{Entity, ResMut, Resource};
+use bevy_ecs::prelude::{Entity, ResMut, Resource, World};
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_chunk::{BlockLight, SkyLight};
 use mcrs_minecraft_engine::between_ticks::drain_dim_spawn_queue;
@@ -15,11 +15,13 @@ use mcrs_minecraft_engine_world::palette::{ChunkBlocks, SectionStates};
 use mcrs_minecraft_engine_world::world::dimension::{DimensionTypeConfig, InDimension};
 use mcrs_minecraft_engine_world::world::lifecycle::stage::{SectionStage, SectionStageChanged};
 use mcrs_minecraft_engine_world::world::storage::column::ColumnIndex;
+use mcrs_minecraft_engine_world::world::storage::section::SectionIndex;
 use mcrs_minecraft_protocol_game::clientbound::ClientboundLightUpdate;
 use mcrs_minecraft_protocol_game::light_codec::{RowLight, unpack_light_data};
 use mcrs_minecraft_simulation::BlockUpdateFlags;
 use mcrs_minecraft_vanilla_light::{LightBudget, LightLink};
-use mcrs_voxel::{BlockPos, BlockStateId, ColumnPos, SectionPos};
+use mcrs_minecraft_volume::SectionBlocksMut;
+use mcrs_voxel::{BlockPos, BlockStateId, ColumnPos, LocalPos, SectionPos};
 
 use crate::host_app;
 
@@ -63,14 +65,8 @@ fn light_one_column(app: &mut App, label: Entity, stone_floor: bool) {
     });
     for pos in sections {
         let solid = stone_floor && pos.y == STONE_SECTION_Y;
-        let section = world
-            .spawn((
-                pos,
-                InDimension(dimension),
-                ChunkBlocks::new(filled(if solid { stone } else { air })),
-                SectionStage::Loaded,
-            ))
-            .id();
+        let blocks = ChunkBlocks::new(filled(if solid { stone } else { air }));
+        let section = spawn_loaded_section(world, dimension, pos, blocks);
         world.write_message(SectionStageChanged::spawned(
             section,
             pos,
@@ -79,6 +75,24 @@ fn light_one_column(app: &mut App, label: Entity, stone_floor: bool) {
         ));
     }
     settle(app, label);
+}
+
+/// A section of `dimension` at `pos` whose blocks landed.
+fn spawn_loaded_section(
+    world: &mut World,
+    dimension: Entity,
+    pos: SectionPos,
+    blocks: ChunkBlocks,
+) -> Entity {
+    let section = world
+        .spawn((pos, InDimension(dimension), SectionStage::Loaded))
+        .id();
+    let mut index = world
+        .get_mut::<SectionIndex>(dimension)
+        .expect("the dimension indexes its sections");
+    index.insert(pos, section);
+    index.land(pos, section, blocks, None, false);
+    section
 }
 
 /// Updates until an update leaves the light stage owing nothing, and waits for the stage to
@@ -132,24 +146,22 @@ fn place_torch(app: &mut App, label: Entity, at: BlockPos) -> u8 {
 
     let sub_app = host_app::sub_app(app, label);
     let chunk_pos = SectionPos::from(at);
-    let mut sections = sub_app.world_mut().query::<(Entity, &SectionPos)>();
-    let chunk = sections
+    let mut sections = sub_app
+        .world_mut()
+        .query::<(Entity, &SectionPos, &InDimension)>();
+    let (chunk, dimension) = sections
         .iter(sub_app.world())
-        .find(|(_, pos)| **pos == chunk_pos)
-        .map(|(entity, _)| entity)
+        .find(|(_, pos, _)| **pos == chunk_pos)
+        .map(|(entity, _, &InDimension(dimension))| (entity, dimension))
         .expect("the section holding the torch");
     sub_app
         .world_mut()
-        .get_mut::<ChunkBlocks>(chunk)
+        .get_mut::<SectionIndex>(dimension)
+        .expect("the dimension indexes its sections")
+        .into_inner()
+        .section_mut(chunk_pos, None)
         .expect("the section has blocks")
-        .make_mut()
-        .0
-        .set(
-            (at.x & 15) as usize,
-            (at.y & 15) as usize,
-            (at.z & 15) as usize,
-            torch,
-        );
+        .set(LocalPos::from(at), torch);
     sub_app.world_mut().write_message(BlockPlaced {
         chunk,
         chunk_pos,
@@ -344,14 +356,8 @@ fn the_column_under_the_player_is_lit_before_the_far_ones() {
         for y in SECTIONS {
             let solid = y == STONE_SECTION_Y;
             let pos = SectionPos::new(x, y, z);
-            let section = world
-                .spawn((
-                    pos,
-                    InDimension(dimension),
-                    ChunkBlocks::new(filled(if solid { stone } else { air })),
-                    SectionStage::Loaded,
-                ))
-                .id();
+            let blocks = ChunkBlocks::new(filled(if solid { stone } else { air }));
+            let section = spawn_loaded_section(world, dimension, pos, blocks);
             world.write_message(SectionStageChanged::spawned(
                 section,
                 pos,

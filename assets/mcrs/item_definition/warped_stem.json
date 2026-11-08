@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:warped_stem",
-      "protocol_id": 176
+      "protocol_id": 188
     },
     "components": {
       "minecraft:attack_animation": {},

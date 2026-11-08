@@ -3,9 +3,9 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:potted_oak_sapling",
-      "protocol_id": 464,
-      "base_state_id": 12375,
-      "default_state_id": 12375
+      "protocol_id": 468,
+      "base_state_id": 12786,
+      "default_state_id": 12786
     },
     "components": {
       "minecraft:light_emission": 0,

@@ -3,9 +3,9 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:yellow_concrete_powder",
-      "protocol_id": 821,
-      "base_state_id": 18413,
-      "default_state_id": 18413
+      "protocol_id": 830,
+      "base_state_id": 19236,
+      "default_state_id": 19236
     },
     "components": {
       "minecraft:light_emission": 0,

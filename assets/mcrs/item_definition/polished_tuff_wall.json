@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:polished_tuff_wall",
-      "protocol_id": 20
+      "protocol_id": 32
     },
     "components": {
       "minecraft:attack_animation": {},

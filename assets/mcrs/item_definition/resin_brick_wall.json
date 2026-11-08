@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:resin_brick_wall",
-      "protocol_id": 491
+      "protocol_id": 507
     },
     "components": {
       "minecraft:attack_animation": {},

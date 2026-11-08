@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:jungle_stairs",
-      "protocol_id": 518
+      "protocol_id": 535
     },
     "components": {
       "minecraft:attack_animation": {},

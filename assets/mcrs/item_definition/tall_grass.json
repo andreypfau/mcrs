@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:tall_grass",
-      "protocol_id": 603
+      "protocol_id": 625
     },
     "components": {
       "minecraft:attack_animation": {},

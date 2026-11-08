@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:poppy",
-      "protocol_id": 302
+      "protocol_id": 314
     },
     "components": {
       "minecraft:attack_animation": {},

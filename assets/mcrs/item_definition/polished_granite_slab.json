@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:polished_granite_slab",
-      "protocol_id": 807
+      "protocol_id": 829
     },
     "components": {
       "minecraft:attack_animation": {},

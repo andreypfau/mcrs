@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:jungle_planks",
-      "protocol_id": 66
+      "protocol_id": 78
     },
     "components": {
       "minecraft:attack_animation": {},

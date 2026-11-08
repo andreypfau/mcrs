@@ -19,7 +19,8 @@ use mcrs_minecraft_engine_world::session::{
 use mcrs_minecraft_network::OutboundReceiver;
 use mcrs_minecraft_network::RawConnection;
 use mcrs_minecraft_protocol::VarInt;
-use mcrs_minecraft_protocol_game::clientbound::ClientboundChunkBatchFinished;
+use mcrs_minecraft_protocol_game::clientbound::ClientboundBlockEvent;
+use mcrs_voxel::BlockPos;
 use tokio::sync::mpsc;
 
 /// Build a bare world with the resources needed for `bridge_outbound` tests.
@@ -135,30 +136,29 @@ where
     sys.apply_deferred(world);
 }
 
-/// Collect all packets from a connection entity's `OutboundQueue` in priority
-/// drain order (Critical → High → Normal) into a flat `Vec`.
+/// Collect all packets from a connection entity's `OutboundQueue`, in the order they go on the
+/// wire.
 pub fn drain_queue(world: &mut World, socket: Entity) -> Vec<QueuedPacket> {
     let mut q = world
         .get_mut::<OutboundQueue>(socket)
         .expect("OutboundQueue present");
-    let mut out = Vec::new();
-    out.extend(q.critical.drain(..));
-    out.extend(q.high.drain(..));
-    out.extend(q.normal.drain(..));
-    out
+    q.drain().map(|queued| queued.packet).collect()
 }
 
 /// A small real packet that carries `seq`, so a test can tell its packets apart.
 pub fn marker(seq: u32) -> PacketPayload {
-    PacketPayload::ChunkBatchFinished(ClientboundChunkBatchFinished {
-        batch_size: VarInt(seq as i32),
+    PacketPayload::BlockEvent(ClientboundBlockEvent {
+        pos: BlockPos::new(0, 0, 0),
+        action: 0,
+        param: 0,
+        block: VarInt(seq as i32),
     })
 }
 
 /// The `seq` of a packet that [`marker`] made.
 pub fn marker_seq(payload: &PacketPayload) -> Option<u32> {
     match payload {
-        PacketPayload::ChunkBatchFinished(packet) => Some(packet.batch_size.0 as u32),
+        PacketPayload::BlockEvent(packet) => Some(packet.block.0 as u32),
         _ => None,
     }
 }

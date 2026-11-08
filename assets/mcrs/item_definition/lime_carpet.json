@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:lime_carpet",
-      "protocol_id": 585
+      "protocol_id": 602
     },
     "components": {
       "minecraft:attack_animation": {},

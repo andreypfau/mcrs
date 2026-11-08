@@ -1,0 +1,187 @@
+client-ticks 2
+version 26.4-snapshot-7
+experiment C1
+step walk
+instruction Hold W for 2 seconds after Go, then release it.
+fill -16 99 -8 16 99 8 minecraft:stone
+events
+3630390 < abilities none 0.05
+3630390 < attribute minecraft:block_interaction_range 4.5
+3630390 < attribute minecraft:entity_interaction_range 3
+3630390 < attribute minecraft:movement_speed 0.10000000149011612
+3630390 < effect minecraft:resistance 4
+3630390 < teleport 4 -15.5 100 0.5 0 0 0 -90 0 0
+3775255 > move - - none
+3775255 > tick
+3775255 > move - - on_ground
+3775256 > tick
+3834161 > tick
+3836447 > tick
+3934057 > move -15.5,100,0.5 - on_ground
+3934059 > tick
+3936358 > tick
+4034768 > tick
+4039337 > tick
+4134326 > tick
+4134327 > tick
+4234286 > tick
+4234287 > tick
+4343054 > tick
+4343055 > tick
+4432029 > tick
+4434320 > tick
+4534126 > tick
+4547765 > tick
+4632126 > tick
+4636666 > tick
+4734467 > tick
+4734468 > tick
+4854510 > tick
+4854511 > tick
+4931710 > move -15.5,100,0.5 - on_ground
+4934003 > tick
+4934004 > tick
+5056785 > tick
+5056786 > tick
+5132016 > tick
+5134312 > tick
+5231701 > tick
+5261178 > tick
+5370241 > tick
+5370242 > tick
+5436595 > tick
+5436596 > tick
+5565635 > tick
+5565636 > tick
+5637482 > tick
+5637483 > tick
+5732085 > tick
+5766192 > tick
+5833989 > tick
+5833991 > tick
+5931848 > move -15.5,100,0.5 - on_ground
+5934131 > tick
+5972707 > tick
+6031966 > tick
+6034255 > tick
+6134206 > tick
+6134207 > tick
+6288480 > tick
+6288481 > tick
+6331785 > tick
+6334069 > tick
+6434045 > tick
+6434045 > tick
+6531743 > tick
+6534034 > tick
+6633960 > tick
+6633961 > tick
+6732956 > input forward
+6742037 > move -15.401999996632338,100,0.5 - on_ground
+6742038 > tick
+6742039 > move -15.250491985210836,100,0.5 - on_ground
+6742039 > tick
+6833649 > move -15.069768597998495,100,0.5 - on_ground
+6844926 > tick
+6844927 > move -14.873093613751536,100,0.5 - on_ground
+6844928 > tick
+6931663 > move -14.667709056512036,100,0.5 - on_ground
+6931664 > tick
+6949804 > move -14.457569071866253,100,0.5 - on_ground
+6949805 > tick
+7031651 > move -14.244832623555054,100,0.5 - on_ground
+7031652 > tick
+7031652 > move -14.030678505917871,100,0.5 - on_ground
+7056543 > tick
+7131696 > move -13.815750340738793,100,0.5 - on_ground
+7133998 > tick
+7133998 > move -13.60039954555275,100,0.5 - on_ground
+7133999 > tick
+7258650 > move -13.384817994356103,100,0.5 - on_ground
+7258652 > tick
+7258652 > move -13.169110450363032,100,0.5 - on_ground
+7258652 > tick
+7331637 > move -12.953334114295123,100,0.5 - on_ground
+7363396 > tick
+7363397 > move -12.737520217749989,100,0.5 - on_ground
+7363397 > tick
+7433735 > move -12.521685813181907,100,0.5 - on_ground
+7433736 > tick
+7470017 > move -12.305840211231997,100,0.5 - on_ground
+7470018 > tick
+7533721 > move -12.089988495510898,100,0.5 - on_ground
+7533723 > tick
+7533723 > move -11.874133441670342,100,0.5 - on_ground
+7572241 > tick
+7631676 > move -11.65827656521635,100,0.5 - on_ground
+7633954 > tick
+7633955 > move -11.442418693615306,100,0.5 - on_ground
+7633955 > tick
+7776659 > move -11.226560278663909,100,0.5 - on_ground
+7776660 > tick
+7776660 > move -11.010701567043185,100,0.5 - on_ground
+7776660 > tick
+7833950 > move -10.794842693440991,100,0.5 - on_ground
+7879315 > tick
+7879316 > move -10.578983731396903,100,0.5 - on_ground
+7879317 > tick
+7934010 > move -10.363124721063535,100,0.5 - on_ground
+7936305 > tick
+7936306 > move -10.147265684364218,100,0.5 - on_ground
+7936307 > tick
+8033808 > move -9.93140663326909,100,0.5 - on_ground
+8033809 > tick
+8033809 > move -9.715547574313849,100,0.5 - on_ground
+8033809 > tick
+8136315 > move -9.499688511066985,100,0.5 - on_ground
+8136316 > tick
+8136316 > move -9.283829445476895,100,0.5 - on_ground
+8136316 > tick
+8231772 > move -9.067970378607404,100,0.5 - on_ground
+8240876 > tick
+8240877 > move -8.852111311039359,100,0.5 - on_ground
+8240878 > tick
+8333979 > move -8.636252243089904,100,0.5 - on_ground
+8333980 > tick
+8352173 > move -8.4203931749322,100,0.5 - on_ground
+8352174 > tick
+8433945 > move -8.20453410666079,100,0.5 - on_ground
+8433946 > tick
+8433946 > move -7.9886750383272975,100,0.5 - on_ground
+8449822 > tick
+8533731 > move -7.772815969959908,100,0.5 - on_ground
+8533733 > tick
+8533733 > move -7.5569569015740115,100,0.5 - on_ground
+8533733 > tick
+8654329 > move -7.341097833178009,100,0.5 - on_ground
+8654330 > tick
+8654330 > move -7.125238764776489,100,0.5 - on_ground
+8654330 > tick
+8731620 > input none
+8761048 > move -7.0073796997396185,100,0.5 - on_ground
+8761050 > tick
+8761050 > move -6.9430286427549435,100,0.5 - on_ground
+8761050 > tick
+8863171 > move -6.907892961560209,100,0.5 - on_ground
+8863173 > tick
+8863173 > move -6.888708877399602,100,0.5 - on_ground
+8863173 > tick
+8931671 > move -6.878234366231269,100,0.5 - on_ground
+8976919 > tick
+8976919 > move -6.872515282469073,100,0.5 - on_ground
+8976919 > tick
+9033760 > move -6.8693926623722135,100,0.5 - on_ground
+9033762 > tick
+9074520 > tick
+9131827 > tick
+9131828 > tick
+9231652 > tick
+9233948 > tick
+9379019 > tick
+9379021 > tick
+9431926 > tick
+9443281 > tick
+9538401 > tick
+9538402 > tick
+9636256 > tick
+9636257 > tick

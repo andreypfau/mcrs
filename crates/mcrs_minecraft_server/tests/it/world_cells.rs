@@ -12,10 +12,11 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::ops::RangeInclusive;
 use std::time::{Duration, Instant};
 
-use bevy_app::{App, Last};
+use bevy_app::{App, FixedUpdate, Last};
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::MessageReader;
-use bevy_ecs::prelude::{Has, ResMut, Resource};
+use bevy_ecs::prelude::{Has, Query, ResMut, Resource};
+use bevy_ecs::schedule::IntoScheduleConfigs;
 use bevy_math::DVec3;
 use mcrs_minecraft_block::block_keys::Block;
 use mcrs_minecraft_block::definition::Blocks;
@@ -25,22 +26,29 @@ use mcrs_minecraft_core::Direction;
 use mcrs_minecraft_engine::ability::{PlayerGameMode, PlayerOpLevel};
 use mcrs_minecraft_engine::block_drops::{BlockDrops, ItemDropped};
 use mcrs_minecraft_engine::block_simulation::{BlockSimulationPlugin, DimensionBlockRules};
-use mcrs_minecraft_engine::bus::PacketPayload;
+use mcrs_minecraft_engine::bus::{PacketPayload, PlayerTransferSnapshot};
+use mcrs_minecraft_engine::coordinator::birth_clock::BirthClock;
 use mcrs_minecraft_engine::coordinator::dim_cells::DimCells;
 use mcrs_minecraft_engine::coordinator::ops::DefaultOpLevel;
+use mcrs_minecraft_engine::entity_birth::EntityBirth;
 use mcrs_minecraft_engine::muxer::muxer_link::MuxerLink;
+use mcrs_minecraft_engine::to_coordinator::JoinRequested;
 use mcrs_minecraft_engine::world_kinds::WorldKinds;
+use mcrs_minecraft_engine_physics::{EntityRows, ItemStacks};
 use mcrs_minecraft_engine_world::owned_columns::OwnedColumns;
-use mcrs_minecraft_engine_world::palette::ChunkBlocks;
-use mcrs_minecraft_engine_world::session::PlayerSession;
+use mcrs_minecraft_engine_world::session::{PlayerSession, PlayerSessionCounter, Session};
+use mcrs_minecraft_engine_world::tick::TickSet;
 use mcrs_minecraft_engine_world::world::dimension::DimensionTypeConfig;
+use mcrs_minecraft_engine_world::world::dimension::InDimension;
 use mcrs_minecraft_engine_world::world::lifecycle::simulation::{
     BlockTicking, EntityTicking, SimulationDistance,
 };
 use mcrs_minecraft_engine_world::world::lifecycle::stage::SectionStage;
+use mcrs_minecraft_engine_world::world::storage::section::SectionIndex;
 use mcrs_minecraft_game_mode::GameMode;
 use mcrs_minecraft_item::item_keys::Item;
 use mcrs_minecraft_item::{ItemHoverMap, ItemStack};
+use mcrs_minecraft_physics::Birth;
 use mcrs_minecraft_protocol::uuid::Uuid;
 use mcrs_minecraft_protocol::{Bounded, Decode, Packet, VarInt};
 use mcrs_minecraft_protocol_game::chunk::{LightChunk, LightData};
@@ -247,16 +255,19 @@ fn owned_sections(
         let owned = world.get_resource::<OwnedColumns>().copied();
         let mut query = world.query::<(
             &SectionPos,
+            &InDimension,
             &SectionStage,
-            Option<&ChunkBlocks>,
             Option<&BlockLight>,
             Option<&SkyLight>,
         )>();
-        for (pos, stage, blocks, block, sky) in query.iter(world) {
+        for (pos, &InDimension(dim), stage, block, sky) in query.iter(world) {
             let column = ColumnPos::from(*pos);
             if !columns.contains(&column) || owned.is_some_and(|owned| !owned.owns(column)) {
                 continue;
             }
+            let blocks = world
+                .get::<SectionIndex>(dim)
+                .and_then(|index| index.blocks(*pos));
             let previous = sections.insert(
                 (pos.x, pos.y, pos.z),
                 Section {
@@ -716,10 +727,7 @@ impl BlockBehaviour<WorldKinds> for Relay {
 impl BlockDrops for Relay {}
 
 fn lit_lamp(app: &App) -> BlockStateId {
-    let blocks = app.world().resource::<Blocks>();
-    let lamp = blocks.block("minecraft:redstone_lamp").expect("a lamp");
-    lamp.with(lamp.default_state_id, "lit", &PropertyValue::Bool(true))
-        .expect("a lit lamp")
+    lit_lamp_in(app.world().resource::<Blocks>())
 }
 
 fn relay_server(cells: u32) -> App {
@@ -734,8 +742,8 @@ fn block_at(app: &mut App, label: Entity, pos: BlockPos) -> Option<BlockStateId>
         if owned.is_some_and(|owned| !owned.owns(ColumnPos::from(pos))) {
             continue;
         }
-        let mut query = world.query::<(&SectionPos, &ChunkBlocks)>();
-        if let Some((_, blocks)) = query.iter(world).find(|(at, _)| **at == section) {
+        let mut query = world.query::<&SectionIndex>();
+        if let Some(blocks) = query.iter(world).find_map(|index| index.blocks(section)) {
             return Some(blocks.get(LocalPos::from(pos)));
         }
     }
@@ -1314,6 +1322,49 @@ fn a_block_that_a_shape_update_destroys_drops_the_items_of_the_rules() {
         }]
     );
     assert_eq!(block_at(&mut app, label, pos), Some(BlockStateId::AIR));
+
+    let world = cell_worlds(&mut app, label)
+        .into_iter()
+        .next()
+        .expect("a cell");
+    let mut items = Vec::new();
+    for (_, rows) in world.resource_mut::<EntityRows>().tiles_mut() {
+        items.extend(rows.rows_mut().map(|row| (row.id, row.state.body.position)));
+    }
+    let [(id, position)] = items[..] else {
+        panic!("one item row: {items:?}");
+    };
+    // PHY-CMP-025: 0.25 of random offset, then at most 0.1 per tick for the ten ticks since.
+    assert!(
+        (position.x - 3.5).abs() < 1.25 && (position.z - 5.5).abs() < 1.25,
+        "the item starts at the block: {position}"
+    );
+    assert_eq!(
+        world.resource::<ItemStacks>().0.get(&id),
+        Some(&ItemStack::new(Item::NoteBlock.id(), 1))
+    );
+
+    // The item starts with 0.2 upward, so it is back near its start ten ticks later.
+    for _ in 0..20 {
+        lockstep_tick(&mut app, label);
+    }
+    let world = cell_worlds(&mut app, label)
+        .into_iter()
+        .next()
+        .expect("a cell");
+    let later = world
+        .resource_mut::<EntityRows>()
+        .tiles_mut()
+        .flat_map(|(_, rows)| {
+            rows.rows_mut()
+                .map(|row| row.state.body.position.y)
+                .collect::<Vec<_>>()
+        })
+        .next();
+    assert!(
+        later.is_some_and(|y| y < position.y),
+        "the pass moves the item: it falls from {position} to {later:?}"
+    );
 }
 
 #[test]
@@ -1381,6 +1432,261 @@ fn a_command_at_a_player_of_another_cell_reads_the_columns_of_that_cell() {
             Vec::<Text>::new()
         )]
     );
+}
+
+const HALO_PROBE: BlockPos = BlockPos::new(1, 120, 1);
+
+/// Whether the entity pass of the last tick of a cell saw the probe block in its copy.
+#[derive(Resource, Default)]
+struct SeenAtSimulate {
+    probe: Option<BlockStateId>,
+    seen: bool,
+}
+
+fn look_at_probe(mut seen: ResMut<SeenAtSimulate>, dimensions: Query<&SectionIndex>) {
+    let section = SectionPos::from(HALO_PROBE);
+    let state = dimensions
+        .iter()
+        .find_map(|index| index.blocks(section))
+        .map(|blocks| blocks.get(LocalPos::from(HALO_PROBE)));
+    seen.seen = state.is_some() && state == seen.probe;
+}
+
+/// For each cell that holds the column of the probe, the tick at which its entity pass first
+/// saw the block that the owner placed.
+fn run_halo_probe(cells: u32) -> Vec<usize> {
+    let mut app = server(cells);
+    let label = label_of(&app, OVERWORLD);
+    wait_for_generation(&mut app, label);
+    let probe = block_state(&app, "minecraft:stone");
+    for sub_app in app
+        .world_mut()
+        .resource_mut::<DimCells>()
+        .into_inner()
+        .cell_sub_apps_mut(label)
+    {
+        sub_app.insert_resource(SeenAtSimulate {
+            probe: Some(probe),
+            seen: false,
+        });
+        sub_app.add_systems(FixedUpdate, look_at_probe.in_set(TickSet::Simulate));
+    }
+    let owner = admit(&mut app, label, "owner", DVec3::new(8.5, 100.0, 8.5), 2);
+    for (name, x, z) in [
+        ("west", -8.5, 8.5),
+        ("north", 8.5, -8.5),
+        ("corner", -8.5, -8.5),
+    ] {
+        admit(&mut app, label, name, DVec3::new(x, 100.0, z), 2);
+    }
+    let mut first_seen: Vec<Option<usize>> = vec![None; cells as usize];
+    for at in 0..40 {
+        if at == 30 {
+            place(&mut app, label, owner, HALO_PROBE, probe);
+        }
+        lockstep_tick(&mut app, label);
+        for (cell, world) in cell_worlds(&mut app, label).into_iter().enumerate() {
+            if world.resource::<SeenAtSimulate>().seen {
+                first_seen[cell].get_or_insert(at);
+            }
+        }
+    }
+    first_seen
+        .into_iter()
+        .map(|at| at.expect("each cell holds the column of the probe"))
+        .collect()
+}
+
+/// PHY-INV-014, PHY-CMP-009: a block that the owner sets in tick `T` is in the copy of every
+/// other cell before the entities of `T + 1` move, as in a world of one cell.
+#[test]
+fn a_change_reaches_the_halo_of_every_cell_before_the_next_entity_pass() {
+    let one = run_halo_probe(1);
+    let four = run_halo_probe(4);
+    assert_eq!(one, [31], "the entity pass after the write sees it");
+    assert_eq!(four, [31; 4]);
+}
+
+/// Probe rules, not the rules of any game block: a note block that is placed queues a block
+/// event, and the event lights a lamp south of it.
+#[derive(Clone, Copy, Debug)]
+struct Echo {
+    note: BlockStateId,
+    lit: BlockStateId,
+}
+
+const ECHO: BlockPos = BlockPos::new(1, 120, 1);
+const ECHO_BESIDE: BlockPos = BlockPos::new(2, 120, 1);
+const ECHO_LAMP: BlockPos = BlockPos::new(1, 120, 2);
+
+impl Echo {
+    fn install(sub_app: &mut bevy_app::SubApp) {
+        let echo = Echo {
+            note: sub_app
+                .world()
+                .resource::<Blocks>()
+                .default_state("minecraft:note_block")
+                .expect("a note block"),
+            lit: lit_lamp_in(sub_app.world().resource::<Blocks>()),
+        };
+        sub_app.add_plugins(BlockSimulationPlugin::new(echo));
+    }
+}
+
+fn lit_lamp_in(blocks: &Blocks) -> BlockStateId {
+    let lamp = blocks.block("minecraft:redstone_lamp").expect("a lamp");
+    lamp.with(lamp.default_state_id, "lit", &PropertyValue::Bool(true))
+        .expect("a lit lamp")
+}
+
+impl BlockBehaviour<WorldKinds> for Echo {
+    fn placed<V: SimulationVolume, F: BlockFacts<WorldKinds>>(
+        &self,
+        cx: &mut Cx<'_, WorldKinds, V, F, Self>,
+        at: BlockPos,
+        new: BlockStateId,
+        _old: BlockStateId,
+        _moved_by_piston: bool,
+    ) {
+        if new == self.note {
+            cx.queue_block_event(at, Block::NoteBlock.id(), 1, 0);
+        }
+    }
+
+    fn block_event<V: SimulationVolume, F: BlockFacts<WorldKinds>>(
+        &self,
+        cx: &mut Cx<'_, WorldKinds, V, F, Self>,
+        _at: BlockPos,
+        _state: BlockStateId,
+        _a: i32,
+        _b: i32,
+    ) -> bool {
+        cx.set(ECHO_LAMP, self.lit, BlockUpdateFlags::CLIENTS, 512);
+        true
+    }
+}
+
+impl BlockDrops for Echo {}
+
+/// The block packets and block events of one tick, in wire order.
+fn block_traffic(packets: Vec<PacketPayload>) -> Vec<String> {
+    packets
+        .into_iter()
+        .filter_map(|packet| match packet {
+            PacketPayload::BlockUpdate(update) => Some(format!("block {:?}", update.block_pos)),
+            PacketPayload::SectionBlocksUpdate(update) => {
+                Some(format!("section {} blocks", update.blocks.len()))
+            }
+            PacketPayload::BlockEvent(event) => Some(format!("event {:?}", event.pos)),
+            _ => None,
+        })
+        .collect()
+}
+
+/// SIM-SET-005, SIM-MODEL-107(a), SIM-TICK-002: the writes of a tick leave in one packet per
+/// section before the block events, and a write of a block event leaves in the next broadcast.
+#[test]
+fn a_broadcast_sends_one_packet_per_section_before_the_block_events() {
+    let mut app = server_with(1, DimensionBlockRules(Echo::install));
+    let label = label_of(&app, OVERWORLD);
+    wait_for_generation(&mut app, label);
+    let note = block_state(&app, "minecraft:note_block");
+    let stone = block_state(&app, "minecraft:stone");
+    let viewer = admit(&mut app, label, "viewer", DVec3::new(8.5, 100.0, 8.5), 2);
+    let column = ColumnPos::from(ECHO);
+    let mut client = Client::default();
+    let deadline = Instant::now() + Duration::from_secs(120);
+    while !client.loaded.contains(&(column.x, column.z)) {
+        assert!(Instant::now() < deadline, "the client never got the column");
+        app.world_mut()
+            .resource_mut::<MuxerLink>()
+            .acknowledge_batch(viewer, 64.0);
+        client.take(sent_to(viewer, lockstep_tick(&mut app, label)));
+    }
+
+    place(&mut app, label, viewer, ECHO, note);
+    place(&mut app, label, viewer, ECHO_BESIDE, stone);
+    let ticks: Vec<Vec<String>> = (0..2)
+        .map(|_| block_traffic(sent_to(viewer, lockstep_tick(&mut app, label))))
+        .collect();
+
+    assert_eq!(
+        ticks,
+        [
+            vec!["section 2 blocks".to_owned(), format!("event {ECHO:?}")],
+            vec![format!("block {ECHO_LAMP:?}")],
+        ]
+    );
+}
+
+/// Asks the coordinator to place a player at `position`, as a client that just logged in does.
+fn request_join(app: &mut App, name: &str, position: DVec3) -> PlayerSession {
+    let session = app
+        .world_mut()
+        .resource_mut::<PlayerSessionCounter>()
+        .next();
+    app.world_mut().spawn(Session(session));
+    app.world_mut().write_message(JoinRequested {
+        session,
+        saved_dimension: None,
+        saved_birth: None,
+        snapshot: PlayerTransferSnapshot {
+            uuid: Uuid::from_u128(name.bytes().fold(0, |id, byte| id << 8 | u128::from(byte))),
+            username: name.into(),
+            position,
+            rotation: bevy_math::Vec2::ZERO,
+            client_info: Some(crate::support::client_info_with_view_distance(2)),
+        },
+    });
+    session
+}
+
+/// The birth of each player of two batches of joins, and the number of cells that hold them.
+fn run_births(cells: u32) -> (Vec<Birth>, usize) {
+    let mut app = server(cells);
+    let label = label_of(&app, OVERWORLD);
+    wait_for_generation(&mut app, label);
+    // The wait above takes as many ticks as the generation needs; the scenario starts at one tick.
+    app.world_mut().insert_resource(BirthClock(1000));
+    let batches = [
+        vec![("a", -600.5), ("b", 8.5), ("c", 600.5)],
+        vec![("d", -8.5), ("e", 1200.5)],
+    ];
+    let mut sessions = Vec::new();
+    for batch in batches {
+        for (name, x) in batch {
+            sessions.push(request_join(&mut app, name, DVec3::new(x, 100.0, 8.5)));
+        }
+        lockstep_tick(&mut app, label);
+    }
+    for _ in 0..5 {
+        lockstep_tick(&mut app, label);
+    }
+    let mut holders = BTreeSet::new();
+    let births = sessions
+        .into_iter()
+        .map(|session| {
+            let Holder { cell, player } =
+                holder(&mut app, label, session).expect("the player joined");
+            holders.insert(cell);
+            cell_worlds(&mut app, label)
+                .swap_remove(cell)
+                .get::<EntityBirth>(player)
+                .expect("a player has a birth")
+                .0
+        })
+        .collect();
+    (births, holders.len())
+}
+
+#[test]
+fn cmp_013_players_get_the_same_birth_keys_in_one_cell_and_in_four() {
+    let (one, _) = run_births(1);
+    let (four, holders) = run_births(4);
+    assert!(holders > 1, "the players stand in several cells");
+    assert_eq!(one, four);
+    let keys: BTreeSet<_> = one.iter().map(|birth| birth.key).collect();
+    assert_eq!(keys.len(), one.len(), "every player has its own key");
 }
 
 /// A player breaks a block of the column of the other cell, across the boundary at x = 0. The

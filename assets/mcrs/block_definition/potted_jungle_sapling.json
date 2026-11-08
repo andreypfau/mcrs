@@ -3,9 +3,9 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:potted_jungle_sapling",
-      "protocol_id": 467,
-      "base_state_id": 12378,
-      "default_state_id": 12378
+      "protocol_id": 471,
+      "base_state_id": 12789,
+      "default_state_id": 12789
     },
     "components": {
       "minecraft:light_emission": 0,

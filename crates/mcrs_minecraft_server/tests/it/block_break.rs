@@ -21,12 +21,13 @@ use mcrs_minecraft_engine::muxer::session::SessionConnection;
 use mcrs_minecraft_engine::network_id::player_network_id;
 use mcrs_minecraft_engine_world::block_update::BlockSetRequest;
 use mcrs_minecraft_engine_world::entity::physics::Transform;
-use mcrs_minecraft_engine_world::palette::{ChunkBlocks, air_section};
+use mcrs_minecraft_engine_world::palette::air_section;
 use mcrs_minecraft_engine_world::session::PlayerSession;
 use mcrs_minecraft_engine_world::world::dimension::{DimensionTypeConfig, InDimension};
 use mcrs_minecraft_engine_world::world::storage::block_entity::{
     BlockEntity, BlockEntityPos, InSection,
 };
+use mcrs_minecraft_engine_world::world::storage::random_ticks::RandomTickIndex;
 use mcrs_minecraft_engine_world::world::storage::section::SectionIndex;
 use mcrs_minecraft_game_mode::GameMode;
 use mcrs_minecraft_network::ServerSideConnection;
@@ -157,21 +158,27 @@ fn join(server: &mut PlayServer, mode: GameMode) -> Breaker {
 fn add_section(server: &mut PlayServer, breaker: &Breaker, pos: BlockPos) {
     let section_pos = SectionPos::from(pos);
     let world = server.world();
-    let held = world
-        .get::<SectionIndex>(breaker.dimension)
-        .unwrap()
-        .get(section_pos);
+    let index = world.get::<SectionIndex>(breaker.dimension).unwrap();
     // The section of a ticket waits for a generation that this server never runs.
-    if held.is_some_and(|section| world.get::<ChunkBlocks>(section).is_some()) {
+    if index.blocks(section_pos).is_some() {
         return;
     }
     let section = world
-        .spawn((section_pos, InDimension(breaker.dimension), air_section()))
+        .spawn((section_pos, InDimension(breaker.dimension)))
         .id();
-    world
-        .get_mut::<SectionIndex>(breaker.dimension)
-        .unwrap()
-        .insert(section_pos, section);
+    let mut random_ticks = world.remove_resource::<RandomTickIndex>();
+    let mut index = world.get_mut::<SectionIndex>(breaker.dimension).unwrap();
+    index.insert(section_pos, section);
+    index.land(
+        section_pos,
+        section,
+        air_section(),
+        random_ticks.as_mut(),
+        false,
+    );
+    if let Some(random_ticks) = random_ticks {
+        world.insert_resource(random_ticks);
+    }
 }
 
 fn place(server: &mut PlayServer, breaker: &Breaker, pos: BlockPos, state: BlockStateId) {

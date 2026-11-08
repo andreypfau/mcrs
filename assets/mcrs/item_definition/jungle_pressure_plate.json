@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:jungle_pressure_plate",
-      "protocol_id": 879
+      "protocol_id": 901
     },
     "components": {
       "minecraft:attack_animation": {},

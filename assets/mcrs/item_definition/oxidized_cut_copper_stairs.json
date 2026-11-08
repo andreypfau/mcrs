@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:oxidized_cut_copper_stairs",
-      "protocol_id": 150
+      "protocol_id": 162
     },
     "components": {
       "minecraft:attack_animation": {},

@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:orange_concrete_stairs",
-      "protocol_id": 706
+      "protocol_id": 728
     },
     "components": {
       "minecraft:attack_animation": {},

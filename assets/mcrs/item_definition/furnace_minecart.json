@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:furnace_minecart",
-      "protocol_id": 969
+      "protocol_id": 991
     },
     "components": {
       "minecraft:attack_animation": {},

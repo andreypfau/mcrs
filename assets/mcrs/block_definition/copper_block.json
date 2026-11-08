@@ -3,9 +3,9 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:copper_block",
-      "protocol_id": 1126,
-      "base_state_id": 31157,
-      "default_state_id": 31157
+      "protocol_id": 1148,
+      "base_state_id": 33216,
+      "default_state_id": 33216
     },
     "components": {
       "minecraft:light_emission": 0,

@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:bread",
-      "protocol_id": 1068
+      "protocol_id": 1090
     },
     "components": {
       "minecraft:attack_animation": {},
@@ -12,7 +12,9 @@
       "minecraft:compostable": {
         "layers": "minecraft:compostable/medium_high"
       },
-      "minecraft:consumable": {},
+      "minecraft:consumable": {
+        "sound": "minecraft:entity.generic.eat"
+      },
       "minecraft:enchantments": {},
       "minecraft:food": {
         "nutrition": 5,

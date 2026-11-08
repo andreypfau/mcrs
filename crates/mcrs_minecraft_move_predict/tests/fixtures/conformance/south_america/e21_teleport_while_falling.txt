@@ -1,0 +1,115 @@
+client-ticks 2
+version 26.4-snapshot-7
+experiment E21
+step teleport_while_falling
+instruction Release all keys and do nothing until Stop.
+fill -16 99 -16 48 99 16 minecraft:stone
+events
+4867156 < abilities none 0.05
+4867156 < attribute minecraft:block_interaction_range 4.5
+4867156 < attribute minecraft:entity_interaction_range 3
+4867156 < attribute minecraft:movement_speed 0.10000000149011612
+4867156 < effect minecraft:resistance 4
+4867156 < teleport 3 0.5 109 0.5 0 0 0 -90 0 0
+5279821 > move 0.5,109,0.5 - none
+5279821 > tick
+5279822 > move 0.5,108.92159999847412,0.5 - none
+5279823 > tick
+5339255 > move 0.5,108.76636799395752,0.5 - none
+5348356 > tick
+5348357 > move 0.5,108.53584062504456,0.5 - none
+5380113 > tick
+5443073 > move 0.5,108.23152379758702,0.5 - none
+5443075 > tick
+5449894 > move 0.5,107.85489329934836,0.5 - none
+5449895 > tick
+5582662 > move 0.5,107.40739540236494,0.5 - none
+5582663 > tick
+5582664 > move 0.5,106.89044745325997,0.5 - none
+5582664 > tick
+5641623 > move 0.5,106.30543845175121,0.5 - none
+5641624 > tick
+5641625 > move 0.5,105.6537296175886,0.5 - none
+5641625 > tick
+5763860 > move 0.5,104.936654946153,0.5 - none
+5763861 > tick
+5763862 > move 0.5,104.15552175294312,0.5 - none
+5763862 > tick
+5470361 < teleport 4 1 0 0 0 0 0 10 0 255
+5870723 > move 1.5,103.31161120717262,0.5 -80,0 none
+5870724 > tick
+5870724 > move 1.5,102.40617885469534,0.5 - none
+5870724 > tick
+5977685 > move 1.5,101.44045513047197,0.5 - none
+5977686 > tick
+5977686 > move 1.5,100.41564586078748,0.5 - none
+5977686 > tick
+6039335 > move 1.5,100,0.5 - on_ground
+6080237 > tick
+6080237 > tick
+6141429 > tick
+6161846 > tick
+6241470 > tick
+6286853 > tick
+6341427 > tick
+6341428 > tick
+6067776 < motion 0 -0.0783739241897089 0
+6464526 > tick
+6486934 > tick
+6544621 > tick
+6544623 > tick
+6669981 > tick
+6669982 > tick
+6744850 > tick
+6749410 > tick
+6840478 > tick
+6872175 > tick
+6940520 > tick
+6942811 > tick
+7047588 > move 1.5,100,0.5 - on_ground
+7047589 > tick
+7083927 > tick
+7149883 > tick
+7149884 > tick
+7256563 > tick
+7256564 > tick
+7387918 > tick
+7387919 > tick
+7441906 > tick
+7462307 > tick
+7542671 > tick
+7588016 > tick
+7645212 > tick
+7645213 > tick
+7762251 > tick
+7762251 > tick
+7842554 > tick
+7844832 > tick
+7942905 > tick
+7967943 > tick
+8042829 > move 1.5,100,0.5 - on_ground
+8042832 > tick
+8047416 > tick
+8145276 > tick
+8172553 > tick
+8243155 > tick
+8243157 > tick
+8350016 > tick
+8350017 > tick
+8476077 > tick
+8476078 > tick
+8547457 > tick
+8558833 > tick
+8649701 > tick
+8685887 > tick
+8745240 > tick
+8745242 > tick
+8865658 > tick
+8865659 > tick
+8983586 > tick
+8983587 > tick
+9052027 > move 1.5,100,0.5 - on_ground
+9070209 > tick
+9070210 > tick
+9190628 > tick
+9190629 > tick

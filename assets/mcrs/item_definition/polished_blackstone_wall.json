@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:polished_blackstone_wall",
-      "protocol_id": 547
+      "protocol_id": 564
     },
     "components": {
       "minecraft:attack_animation": {},

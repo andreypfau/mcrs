@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:azalea",
-      "protocol_id": 242
+      "protocol_id": 254
     },
     "components": {
       "minecraft:attack_animation": {},

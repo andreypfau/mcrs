@@ -3,9 +3,9 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:crimson_planks",
-      "protocol_id": 974,
-      "base_state_id": 24395,
-      "default_state_id": 24395
+      "protocol_id": 983,
+      "base_state_id": 25218,
+      "default_state_id": 25218
     },
     "components": {
       "minecraft:light_emission": 0,

@@ -173,7 +173,16 @@ mod tests {
             "the change waits for its section, and a change with no section is dropped"
         );
 
-        world.entity_mut(landing).insert(air_section());
+        world
+            .get_mut::<SectionIndex>(dimension)
+            .expect("a dimension")
+            .land(
+                SectionPos::new(0, 0, 0),
+                landing,
+                air_section(),
+                None,
+                false,
+            );
         apply(&mut world, dimension, &mut changes);
         assert!(
             changes.is_empty(),

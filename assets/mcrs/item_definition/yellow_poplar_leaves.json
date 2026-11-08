@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:yellow_poplar_leaves",
-      "protocol_id": 226
+      "protocol_id": 238
     },
     "components": {
       "minecraft:attack_animation": {},

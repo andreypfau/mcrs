@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:stripped_dark_oak_log",
-      "protocol_id": 184
+      "protocol_id": 196
     },
     "components": {
       "minecraft:attack_animation": {},

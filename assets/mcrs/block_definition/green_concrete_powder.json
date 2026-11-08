@@ -3,9 +3,9 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:green_concrete_powder",
-      "protocol_id": 830,
-      "base_state_id": 18422,
-      "default_state_id": 18422
+      "protocol_id": 839,
+      "base_state_id": 19245,
+      "default_state_id": 19245
     },
     "components": {
       "minecraft:light_emission": 0,

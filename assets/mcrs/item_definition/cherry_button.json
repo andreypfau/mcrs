@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:cherry_button",
-      "protocol_id": 864
+      "protocol_id": 886
     },
     "components": {
       "minecraft:attack_animation": {},

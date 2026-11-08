@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:jungle_fence",
-      "protocol_id": 420
+      "protocol_id": 436
     },
     "components": {
       "minecraft:attack_animation": {},

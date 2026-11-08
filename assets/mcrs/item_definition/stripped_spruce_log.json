@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:stripped_spruce_log",
-      "protocol_id": 179
+      "protocol_id": 191
     },
     "components": {
       "minecraft:attack_animation": {},

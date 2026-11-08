@@ -3,9 +3,9 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:potted_orange_tulip",
-      "protocol_id": 482,
-      "base_state_id": 12393,
-      "default_state_id": 12393
+      "protocol_id": 486,
+      "base_state_id": 12804,
+      "default_state_id": 12804
     },
     "components": {
       "minecraft:light_emission": 0,

@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:packed_ice",
-      "protocol_id": 597
+      "protocol_id": 614
     },
     "components": {
       "minecraft:attack_animation": {},

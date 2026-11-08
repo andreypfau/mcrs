@@ -4,6 +4,8 @@ use mcrs_minecraft_resource::{ResourceKey, rl};
 
 pub const BOUNCY: ResourceKey<'static, crate::sulfur_cube_archetype::SulfurCubeArchetype> =
     ResourceKey::new(rl!("minecraft:bouncy"));
+pub const COLD: ResourceKey<'static, crate::sulfur_cube_archetype::SulfurCubeArchetype> =
+    ResourceKey::new(rl!("minecraft:cold"));
 pub const EXPLOSIVE: ResourceKey<'static, crate::sulfur_cube_archetype::SulfurCubeArchetype> =
     ResourceKey::new(rl!("minecraft:explosive"));
 pub const FAST_FLAT: ResourceKey<'static, crate::sulfur_cube_archetype::SulfurCubeArchetype> =

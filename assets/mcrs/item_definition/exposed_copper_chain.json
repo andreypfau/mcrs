@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:exposed_copper_chain",
-      "protocol_id": 475
+      "protocol_id": 491
     },
     "components": {
       "minecraft:attack_animation": {},

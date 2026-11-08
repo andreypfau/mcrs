@@ -2,6 +2,7 @@ use mcrs_minecraft_core::codec::{NonNegativeInt, PositiveInt, is_default};
 use mcrs_minecraft_entity::attribute_keys::Attribute;
 use mcrs_minecraft_item::AttributeOperation;
 use mcrs_minecraft_item::item_keys::Item;
+use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_registries::{Refs, Resolved, registry_value};
 use mcrs_minecraft_resource::ResourceLocationBuf;
 use mcrs_minecraft_sound::Sound;
@@ -22,6 +23,9 @@ pub struct SulfurCubeArchetype<M: Refs = Resolved> {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub contact_damage: Option<ContactDamage<M>>,
     pub knockback_modifiers: KnockbackModifiers,
+    // Kept as the file's NBT and sent as is: nothing applies location-based effects yet.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub location_based_effects: Option<NbtTag>,
     pub sound_settings: SoundSettings<M>,
 }
 

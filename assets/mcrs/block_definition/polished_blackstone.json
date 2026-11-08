@@ -3,9 +3,9 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:polished_blackstone",
-      "protocol_id": 1019,
-      "base_state_id": 25605,
-      "default_state_id": 25605
+      "protocol_id": 1028,
+      "base_state_id": 26428,
+      "default_state_id": 26428
     },
     "components": {
       "minecraft:light_emission": 0,

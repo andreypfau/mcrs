@@ -3,9 +3,9 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:chiseled_quartz_block",
-      "protocol_id": 532,
-      "base_state_id": 13093,
-      "default_state_id": 13093
+      "protocol_id": 536,
+      "base_state_id": 13504,
+      "default_state_id": 13504
     },
     "components": {
       "minecraft:light_emission": 0,

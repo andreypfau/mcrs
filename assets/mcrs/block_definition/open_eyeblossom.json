@@ -3,9 +3,9 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:open_eyeblossom",
-      "protocol_id": 1284,
-      "base_state_id": 35776,
-      "default_state_id": 35776
+      "protocol_id": 1306,
+      "base_state_id": 37835,
+      "default_state_id": 37835
     },
     "components": {
       "minecraft:light_emission": 0,

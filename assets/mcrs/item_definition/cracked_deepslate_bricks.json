@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:cracked_deepslate_bricks",
-      "protocol_id": 456
+      "protocol_id": 472
     },
     "components": {
       "minecraft:attack_animation": {},

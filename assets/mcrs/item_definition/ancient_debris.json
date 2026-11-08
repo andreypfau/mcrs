@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:ancient_debris",
-      "protocol_id": 111
+      "protocol_id": 123
     },
     "components": {
       "minecraft:attack_animation": {},

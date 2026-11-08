@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:raw_gold_block",
-      "protocol_id": 115
+      "protocol_id": 127
     },
     "components": {
       "minecraft:attack_animation": {},

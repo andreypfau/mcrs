@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:gray_stained_glass",
-      "protocol_id": 612
+      "protocol_id": 634
     },
     "components": {
       "minecraft:attack_animation": {},

@@ -1,12 +1,15 @@
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::MessageReader;
-use bevy_ecs::prelude::{Commands, Component, Local, ParamSet, Query, ResMut, Single, With};
+use bevy_ecs::prelude::{Commands, Component, Has, Local, ParamSet, Query, ResMut, Single, With};
 use mcrs_engine_store::{ChunkVersion, StoreOutput};
 use mcrs_minecraft_engine_world::world::dimension::{Dimension, InDimension};
+use mcrs_minecraft_engine_world::world::lifecycle::simulation::EntityTicking;
 use mcrs_minecraft_engine_world::world::lifecycle::stage::{
     SectionStage, SectionStageChanged, SectionStages,
 };
 use mcrs_minecraft_engine_world::world::storage::block_entity::spawn_block_entities;
+use mcrs_minecraft_engine_world::world::storage::random_ticks::RandomTickIndex;
+use mcrs_minecraft_engine_world::world::storage::section::SectionIndex;
 use mcrs_voxel::{ColumnPos, SectionPos};
 
 use crate::column_asks::ColumnOrigin;
@@ -51,15 +54,18 @@ pub(crate) fn fetch_loading_columns(
     reason = "a Bevy system: each resource and query is its own parameter so the scheduler sees the access"
 )]
 pub(crate) fn land_stored_columns(
-    dim: Single<Entity, With<Dimension>>,
+    dim: Single<(Entity, &mut SectionIndex), With<Dimension>>,
+    mut random_ticks: Option<ResMut<RandomTickIndex>>,
     mut store: ResMut<ColumnStoreLink>,
     mut stages: SectionStages,
-    positions: Query<&SectionPos>,
+    positions: Query<(&SectionPos, Has<EntityTicking>)>,
     mut pending_heightmaps: ResMut<PendingColumnHeightmaps>,
     mut commands: Commands,
     mut answers: Local<Vec<StoreOutput<ColumnPos, StoredColumn>>>,
     mut landed_ticks: Option<ResMut<LandedTicks>>,
 ) {
+    let (dim, section_index) = dim.into_inner();
+    let section_index = section_index.into_inner();
     answers.extend(store.outputs());
     for answer in answers.drain(..) {
         let (column, version) = match &answer {
@@ -100,7 +106,9 @@ pub(crate) fn land_stored_columns(
                     Produced::No => None,
                 };
                 let landing = Landing {
-                    dim: *dim,
+                    dim,
+                    index: &mut *section_index,
+                    random_ticks: random_ticks.as_deref_mut(),
                     column,
                     sections: &read.sections,
                     from: read.from,
@@ -150,6 +158,8 @@ fn drop_sections(read: &ColumnRead, stages: &mut SectionStages) {
 /// The sections of one column that wait for an answer, and where the answer came from.
 struct Landing<'a> {
     dim: Entity,
+    index: &'a mut SectionIndex,
+    random_ticks: Option<&'a mut RandomTickIndex>,
     column: ColumnPos,
     sections: &'a [Entity],
     from: ReadFrom,
@@ -160,10 +170,10 @@ struct Landing<'a> {
 /// may light the version again at any time and what the dimension simulates must not depend on
 /// when that happened.
 fn land_column(
-    landing: Landing<'_>,
+    mut landing: Landing<'_>,
     stored: StoredColumn,
     stages: &mut SectionStages,
-    positions: &Query<&SectionPos>,
+    positions: &Query<(&SectionPos, Has<EntityTicking>)>,
     commands: &mut Commands,
     pending_heightmaps: &mut PendingColumnHeightmaps,
     landed_ticks: Option<&mut LandedTicks>,
@@ -182,9 +192,10 @@ fn land_column(
         if stages.get(section) != Some(SectionStage::Fetching) {
             continue;
         }
-        let Some(y) = positions.get(section).ok().map(|pos| pos.y) else {
+        let Ok((&pos, random_ticked)) = positions.get(section) else {
             continue;
         };
+        let y = pos.y;
         let content = y
             .checked_sub(min_section_y)
             .and_then(|index| usize::try_from(index).ok())
@@ -194,8 +205,16 @@ fn land_column(
             stages.set(section, SectionStage::Loading);
             continue;
         };
+        let random_ticks = landing.random_ticks.as_deref_mut();
+        if !landing
+            .index
+            .land(pos, section, content.blocks, random_ticks, random_ticked)
+        {
+            stages.set(section, SectionStage::Loading);
+            continue;
+        }
         let mut entity = commands.entity(section);
-        entity.try_insert((content.blocks, content.biomes));
+        entity.try_insert(content.biomes);
         if landing.from == ReadFrom::Store {
             entity.try_insert(TakenFromStore);
         }
@@ -252,7 +271,7 @@ mod tests {
         let mut world = World::new();
         world.init_resource::<Messages<SectionStageChanged>>();
         world.init_resource::<PendingColumnHeightmaps>();
-        let dim = world.spawn(Dimension).id();
+        let dim = world.spawn((Dimension, SectionIndex::new())).id();
         let section = world
             .spawn((
                 SectionStage::Fetching,

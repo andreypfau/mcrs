@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:warped_planks",
-      "protocol_id": 75
+      "protocol_id": 87
     },
     "components": {
       "minecraft:attack_animation": {},

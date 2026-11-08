@@ -43,14 +43,15 @@ pub fn run_pending_flush(world: &mut World) {
 }
 
 use bytes::{BufMut, Bytes, BytesMut};
-use mcrs_minecraft_network::inbound_rate::InboundRateBucket;
-use mcrs_minecraft_network::metrics::{BridgeTelemetry, PacketDispatcher, PacketKind};
+use mcrs_minecraft_network::inbound_rate::{InboundPacketRate, InboundRateLimit};
+use mcrs_minecraft_network::metrics::{BridgeTelemetry, Malformed, PacketDispatcher, PacketKind};
 use mcrs_minecraft_network::{
-    ConnectionState, RawConnection, ServerSideConnection, SharedAppend, SharedFrames, WriterWakes,
+    ConnectionState, Instant, RawConnection, ServerSideConnection, SharedAppend, SharedFrames,
+    WriterWakes,
 };
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundDisconnect;
 use mcrs_minecraft_protocol::{Encode, Packet, WritePacket, anyhow};
-use mcrs_minecraft_protocol_game::clientbound::ClientboundPlayerInfoUpdate;
+use mcrs_minecraft_protocol_game::clientbound::{ClientboundPing, ClientboundPlayerInfoUpdate};
 use mcrs_minecraft_protocol_game::player_list::{PlayerListActions, PlayerListEntry};
 use mcrs_minecraft_text::Text;
 use std::borrow::Cow;
@@ -59,15 +60,21 @@ use tracing::{trace, warn};
 
 use crate::bus::{InboundPlayerPacket, OutboundPlayerAttached, OutboundPlayerPacket};
 use crate::bus::{PacketPayload, PacketPriority, PacketTarget};
-use crate::muxer::bridge_queue::{EncodedPacket, OutboundQueue, QueuedPacket};
+use crate::muxer::bridge_queue::{EncodedPacket, Need, OutboundQueue, Queued, QueuedPacket};
 use crate::muxer::dim_inputs::DimInputs;
+use crate::muxer::probes::Probes;
 use crate::muxer::session::{HostAnchorRef, PendingInbound, SessionConnection};
 use mcrs_minecraft_engine_world::session::{Place, Session, SessionAnchors, SessionPlacement};
 use mcrs_minecraft_engine_world::world::channels::MAX_HELD_SERVERBOUND;
+use mcrs_minecraft_move_validate::{Action, MoveGuard, Report, Verdict};
+use std::time::Duration;
 
-/// Gives each new connection its `OutboundQueue`, which the network crate cannot name.
+/// Gives each new connection its `OutboundQueue` and its layer 1 state, which the network crate
+/// cannot name.
 pub fn attach_outbound_queue(add: On<Add, ServerSideConnection>, mut commands: Commands) {
-    commands.entity(add.entity).insert(OutboundQueue::default());
+    commands
+        .entity(add.entity)
+        .insert((OutboundQueue::default(), Probes::default()));
 }
 
 /// What [`bridge_outbound`] reuses from one message to the next.
@@ -199,6 +206,7 @@ fn encode_once(
         return Ok(queued);
     };
     let kind = payload.kind();
+    let need = Need::of(&payload);
     if let Err(error) = write_payload(buffer, payload) {
         buffer.0.clear();
         return Err(error);
@@ -206,6 +214,7 @@ fn encode_once(
     telemetry.encode_calls_total = telemetry.encode_calls_total.saturating_add(1);
     Ok(QueuedPacket::Encoded(EncodedPacket {
         kind,
+        need,
         packet: buffer.0.split().freeze(),
     }))
 }
@@ -244,6 +253,27 @@ fn push_to_connection(
     queue.push_queued(priority, packet);
 }
 
+/// The connections that the flush writes to, with their probes when the server checks their
+/// moves.
+type Writers<'w, 's> = Query<
+    'w,
+    's,
+    (
+        Entity,
+        &'static mut OutboundQueue,
+        &'static mut ServerSideConnection,
+        Option<&'static mut Probes>,
+        Option<&'static ConnectionState>,
+    ),
+>;
+
+/// Which flush writes the queues: the one of the tick ends the server tick for layer 1.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Flush {
+    EndOfTick,
+    BetweenTicks,
+}
+
 /// The queued packets past which a connection sheds its Normal packets.
 pub const DEPTH_LIMIT: usize = 256;
 /// The queued packets that the shedding leaves.
@@ -253,12 +283,12 @@ pub const DEPTH_DRAIN_TARGET: usize = 192;
 const STALLED_WRITER_BYTES: usize = 16 * mcrs_minecraft_network::MAX_QUEUED_BYTES_PER_SOCKET;
 
 /// Hands queued outbound packets to every active connection's writer, enforces the
-/// drop-oldest policy, and kicks connections whose writer is dead or has stalled.
+/// shedding policy, and kicks connections whose writer is dead or has stalled.
 ///
 /// Execution order: runs in `OutboundFlush`, after `bridge_outbound` filled
 /// queues; in FixedPostUpdate that flush runs before `bridge_inbound` reads.
 ///
-/// Only the serialization of each packet for one connection runs here, in priority order. A
+/// Only the serialization of each packet for one connection runs here, in write order. A
 /// packet serialized once for many connections is framed and compressed here once for each
 /// compression threshold, and every connection sends that frame. Framing and compression of the
 /// rest, and the socket write, run on each connection's writer task.
@@ -267,7 +297,7 @@ const STALLED_WRITER_BYTES: usize = 16 * mcrs_minecraft_network::MAX_QUEUED_BYTE
     tracing::instrument(name = "network::dispatch_encode", skip_all)
 )]
 pub fn dispatch_encode(
-    mut players: Query<(Entity, &mut OutboundQueue, &mut ServerSideConnection)>,
+    mut players: Writers,
     mut commands: Commands,
     mut telemetry: ResMut<BridgeTelemetry>,
     mut pending: ResMut<PendingConnections>,
@@ -285,6 +315,7 @@ pub fn dispatch_encode(
         &mut telemetry,
         &mut frames,
         &mut wakes,
+        Flush::EndOfTick,
     );
     every.clear();
 }
@@ -293,7 +324,7 @@ pub fn dispatch_encode(
 /// and nothing left behind has nothing to hand over, and the tick's flush checks it for a dead
 /// writer.
 pub fn dispatch_pending(
-    mut players: Query<(Entity, &mut OutboundQueue, &mut ServerSideConnection)>,
+    mut players: Writers,
     mut commands: Commands,
     mut telemetry: ResMut<BridgeTelemetry>,
     mut pending: ResMut<PendingConnections>,
@@ -315,6 +346,7 @@ pub fn dispatch_pending(
         &mut telemetry,
         &mut frames,
         &mut wakes,
+        Flush::BetweenTicks,
     );
     visiting.clear();
 }
@@ -322,19 +354,24 @@ pub fn dispatch_pending(
 /// Hands the queued packets of each `listed` connection to its writer. A connection whose writer
 /// is left with bytes it has not taken goes to `left_behind`. `listed` keeps only the connections
 /// that were written.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "the two flushes share every resource of the write"
+)]
 fn dispatch_listed(
-    players: &mut Query<(Entity, &mut OutboundQueue, &mut ServerSideConnection)>,
+    players: &mut Writers,
     listed: &mut Vec<Entity>,
     left_behind: &mut Vec<Entity>,
     commands: &mut Commands,
     telemetry: &mut BridgeTelemetry,
     frames: &mut SharedFrames,
     wakes: &mut WriterWakes,
+    flush: Flush,
 ) {
     // A shared packet is framed once only when more than one connection sends it, so the count
     // comes after the kicks and the shedding.
     listed.retain(|&entity| {
-        let Ok((entity, mut queue, mut conn)) = players.get_mut(entity) else {
+        let Ok((entity, mut queue, mut conn, ..)) = players.get_mut(entity) else {
             return false;
         };
         let writable = ready_to_write(entity, &mut queue, &mut conn, commands, telemetry, wakes);
@@ -344,10 +381,35 @@ fn dispatch_listed(
         writable
     });
     for &entity in listed.iter() {
-        let Ok((entity, mut queue, mut conn)) = players.get_mut(entity) else {
+        let Ok((entity, mut queue, mut conn, probes, state)) = players.get_mut(entity) else {
             continue;
         };
-        write_queue(entity, &mut queue, &mut conn.raw, telemetry, frames);
+        let layer_one = probes
+            .filter(|_| state == Some(&ConnectionState::Game))
+            .map(|probes| {
+                let probes = probes.into_inner();
+                LayerOne {
+                    now: probes.since_origin(Instant::now()),
+                    guard: &mut probes.guard,
+                    flush,
+                }
+            });
+        if let Some(layer_one) = &layer_one
+            && layer_one.guard.overdue(layer_one.now)
+        {
+            let reason = Text::translate("disconnect.timeout", []);
+            conn.disconnect(ConnectionState::Game, reason).ok();
+            commands.entity(entity).remove::<ServerSideConnection>();
+            continue;
+        }
+        write_queue(
+            entity,
+            &mut queue,
+            &mut conn.raw,
+            telemetry,
+            frames,
+            layer_one,
+        );
         conn.raw.send_written_deferred(wakes);
         if conn.raw.unsent_bytes() > 0 {
             left_behind.push(entity);
@@ -360,11 +422,9 @@ fn dispatch_listed(
 /// Counts the connections that receive each packet serialized once, so that only a packet of
 /// more than one connection costs a frame on this thread.
 fn count_recipients(queue: &OutboundQueue, frames: &mut SharedFrames) {
-    for sub_queue in [&queue.critical, &queue.high, &queue.normal] {
-        for queued in sub_queue {
-            if let QueuedPacket::Encoded(encoded) = queued {
-                frames.add_recipient(&encoded.packet);
-            }
+    for queued in queue.iter() {
+        if let QueuedPacket::Encoded(encoded) = &queued.packet {
+            frames.add_recipient(&encoded.packet);
         }
     }
 }
@@ -406,37 +466,64 @@ fn ready_to_write(
     }
 
     // Past DEPTH_LIMIT, drain down to DEPTH_DRAIN_TARGET so the queue stays below the limit
-    // for a few ticks before it refills. Critical and High are never shed.
+    // for a few ticks before it refills. Only the packets that the client may miss go.
     if queue.total_len() > DEPTH_LIMIT {
-        while queue.total_len() > DEPTH_DRAIN_TARGET && queue.normal.pop_front().is_some() {
-            telemetry.drop_normal_total += 1;
-        }
+        let dropped = queue.shed_to(DEPTH_DRAIN_TARGET);
+        telemetry.drop_normal_total = telemetry.drop_normal_total.saturating_add(dropped as u64);
     }
     true
 }
 
-/// Serializes the queue in priority order, behind anything written to the connection directly.
+/// Layer 1 of a connection in the play state, as one flush writes it.
+struct LayerOne<'a> {
+    guard: &'a mut MoveGuard,
+    now: Duration,
+    flush: Flush,
+}
+
+/// Serializes the queue in the order it was written, behind anything written to the connection
+/// directly. With `layer_one`, probes bracket the changes that the client predicts with, and
+/// the flush of the tick ends with a probe.
 fn write_queue(
     entity: Entity,
     queue: &mut OutboundQueue,
     raw: &mut RawConnection,
     telemetry: &mut BridgeTelemetry,
     frames: &mut SharedFrames,
+    mut layer_one: Option<LayerOne<'_>>,
 ) {
-    let OutboundQueue {
-        critical,
-        high,
-        normal,
-    } = queue;
-    for sub_queue in [critical, high, normal] {
-        for queued in sub_queue.drain(..) {
-            trace!(
-                target: "mcrs_minecraft_engine::bridge",
-                conn = ?entity,
-                kind = ?queued.kind(),
-                "dispatch_encode"
-            );
+    let last_change = layer_one.as_ref().and_then(|_| {
+        queue
+            .iter()
+            .rposition(|queued| queued.packet.changes_prediction())
+    });
+    for (index, Queued { packet: queued, .. }) in queue.drain().enumerate() {
+        trace!(
+            target: "mcrs_minecraft_engine::bridge",
+            conn = ?entity,
+            kind = ?queued.kind(),
+            "dispatch_encode"
+        );
+        if let Some(LayerOne { guard, now, .. }) = layer_one.as_mut() {
+            if queued.changes_prediction() {
+                write_probe(raw, guard.change(*now));
+            } else {
+                match &queued {
+                    QueuedPacket::Payload(PacketPayload::PlayerPosition(teleport)) => {
+                        guard.teleport_sent(teleport.teleport_id.0);
+                    }
+                    QueuedPacket::Payload(PacketPayload::Respawn(_)) => guard.respawned(),
+                    _ => {}
+                }
+                guard.wrote();
+            }
+        }
+        {
             match queued {
+                QueuedPacket::Payload(PacketPayload::OwnEntityState(packet)) => {
+                    telemetry.packets.count(PacketKind::Other);
+                    append_encoded(entity, raw, packet, telemetry, frames);
+                }
                 QueuedPacket::Payload(payload) => {
                     telemetry.packets.count(payload.kind());
                     if let Err(error) = write_payload(raw, payload) {
@@ -463,6 +550,24 @@ fn write_queue(
                 }
             }
         }
+        if let Some(LayerOne { guard, now, .. }) = layer_one.as_mut()
+            && last_change == Some(index)
+        {
+            write_probe(raw, guard.close_changes(*now));
+        }
+    }
+    if let Some(LayerOne { guard, now, flush }) = layer_one
+        && flush == Flush::EndOfTick
+    {
+        write_probe(raw, guard.end_server_tick(now));
+    }
+}
+
+fn write_probe(raw: &mut RawConnection, probe: Option<i32>) {
+    if let Some(id) = probe
+        && let Err(error) = raw.append(&ClientboundPing { id })
+    {
+        warn!("a probe did not encode: {error:#}");
     }
 }
 
@@ -500,11 +605,11 @@ fn write_payload<W: WritePacket>(sink: &mut W, data: PacketPayload) -> anyhow::R
     match data {
         PacketPayload::LightUpdate(p) => sink.write_packet_fallible(&p),
         PacketPayload::BlockUpdate(p) => sink.write_packet_fallible(&p),
+        PacketPayload::SectionBlocksUpdate(p) => sink.write_packet_fallible(&p),
         PacketPayload::BlockEvent(p) => sink.write_packet_fallible(&p),
         PacketPayload::LevelEvent(p) => sink.write_packet_fallible(&p),
         PacketPayload::BlockChangedAck(p) => sink.write_packet_fallible(&p),
         PacketPayload::BlockDestruction(p) => sink.write_packet_fallible(&p),
-        PacketPayload::SectionBlocksUpdate(p) => sink.write_packet_fallible(&p),
         PacketPayload::Disconnect(reason) => {
             sink.write_packet_fallible(&ClientboundDisconnect { reason })
         }
@@ -515,7 +620,8 @@ fn write_payload<W: WritePacket>(sink: &mut W, data: PacketPayload) -> anyhow::R
         PacketPayload::PlayerAbilities(p) => sink.write_packet_fallible(&p),
         PacketPayload::ChunkLoad { .. }
         | PacketPayload::Commands(_)
-        | PacketPayload::Replication(_) => {
+        | PacketPayload::Replication(_)
+        | PacketPayload::OwnEntityState(_) => {
             anyhow::bail!("a serialized packet reached the encoder")
         }
         PacketPayload::ChunkBatchStart(p) => sink.write_packet_fallible(&p),
@@ -667,17 +773,21 @@ pub fn bridge_inbound(
     mut conns: Query<(
         Entity,
         &mut ServerSideConnection,
-        &mut InboundRateBucket,
+        &mut InboundPacketRate,
         Option<&HostAnchorRef>,
         &ConnectionState,
+        Option<&mut Probes>,
     )>,
+    rate_limit: Option<Res<InboundRateLimit>>,
     mut commands: Commands,
     mut sessions: Query<(&Session, &SessionPlacement, &mut PendingInbound)>,
     mut dim_inputs: ResMut<DimInputs>,
     mut telemetry: ResMut<BridgeTelemetry>,
     mut dispatcher: ResMut<PacketDispatcher>,
 ) {
-    for (entity, mut conn, mut bucket, anchor_ref, state) in conns.iter_mut() {
+    let mut reports: Vec<Report> = Vec::new();
+    let rate_limit = rate_limit.as_deref().copied().unwrap_or_default();
+    for (entity, mut conn, mut rate, anchor_ref, state, mut probes) in conns.iter_mut() {
         if *state != ConnectionState::Game {
             continue;
         }
@@ -685,12 +795,9 @@ pub fn bridge_inbound(
         loop {
             match conn.raw.try_recv() {
                 Ok(Some(pkt)) => {
-                    if !bucket.consume_or_flag(pkt.timestamp) {
-                        conn.disconnect(
-                            ConnectionState::Game,
-                            Text::from("Connection flood detected"),
-                        )
-                        .ok();
+                    if !rate.count(pkt.timestamp, rate_limit) {
+                        conn.disconnect(ConnectionState::Game, InboundRateLimit::reason())
+                            .ok();
                         commands.entity(entity).remove::<ServerSideConnection>();
                         telemetry.kick_flood_total += 1;
                         break;
@@ -705,6 +812,37 @@ pub fn bridge_inbound(
                                 break;
                             }
                         };
+                    let action = match (pkt.verdict, probes.as_deref_mut()) {
+                        (Some(Verdict::Disconnect(refused)), _) => Action::Disconnect(refused),
+                        (Some(Verdict::Pass(checked)), Some(probes)) => {
+                            let now = probes.since_origin(pkt.timestamp);
+                            probes.guard.serverbound(&checked, now, &mut reports)
+                        }
+                        _ => Action::Forward,
+                    };
+                    for report in reports.drain(..) {
+                        trace!(conn = ?entity, ?report, "a movement check reports");
+                    }
+                    if action == Action::Drop {
+                        continue;
+                    }
+                    if let Action::Disconnect(refused) = action {
+                        match refused.translation_key() {
+                            Some(key) => {
+                                conn.disconnect(ConnectionState::Game, Text::translate(key, []))
+                                    .ok();
+                            }
+                            None => conn.reject(
+                                ConnectionState::Game,
+                                &Malformed {
+                                    cause: refused.to_string(),
+                                    log: None,
+                                },
+                            ),
+                        }
+                        commands.entity(entity).remove::<ServerSideConnection>();
+                        break;
+                    }
                     if let Some(trigger) = trigger {
                         trigger.raise_arrived(
                             &mut commands,

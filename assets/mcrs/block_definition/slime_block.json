@@ -3,9 +3,9 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:slime_block",
-      "protocol_id": 577,
-      "base_state_id": 14381,
-      "default_state_id": 14381
+      "protocol_id": 581,
+      "base_state_id": 14792,
+      "default_state_id": 14792
     },
     "components": {
       "minecraft:light_emission": 0,

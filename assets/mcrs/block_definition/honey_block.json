@@ -3,9 +3,9 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:honey_block",
-      "protocol_id": 1004,
-      "base_state_id": 25179,
-      "default_state_id": 25179
+      "protocol_id": 1013,
+      "base_state_id": 26002,
+      "default_state_id": 26002
     },
     "components": {
       "minecraft:light_emission": 0,

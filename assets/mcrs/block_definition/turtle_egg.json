@@ -12,9 +12,9 @@
         ],
         "hatch": [0, 1, 2]
       },
-      "protocol_id": 836,
-      "base_state_id": 18453,
-      "default_state_id": 18453
+      "protocol_id": 845,
+      "base_state_id": 19276,
+      "default_state_id": 19276
     },
     "components": {
       "minecraft:light_emission": 0,

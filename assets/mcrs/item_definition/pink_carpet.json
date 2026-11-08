@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:pink_carpet",
-      "protocol_id": 586
+      "protocol_id": 603
     },
     "components": {
       "minecraft:attack_animation": {},

@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:spruce_sapling",
-      "protocol_id": 78
+      "protocol_id": 90
     },
     "components": {
       "minecraft:attack_animation": {},

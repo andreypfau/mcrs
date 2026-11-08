@@ -18,6 +18,8 @@ pub const CREATOR: ResourceKey<'static, crate::JukeboxSong> =
 pub const CREATOR_MUSIC_BOX: ResourceKey<'static, crate::JukeboxSong> =
     ResourceKey::new(rl!("minecraft:creator_music_box"));
 pub const FAR: ResourceKey<'static, crate::JukeboxSong> = ResourceKey::new(rl!("minecraft:far"));
+pub const FLURRY: ResourceKey<'static, crate::JukeboxSong> =
+    ResourceKey::new(rl!("minecraft:flurry"));
 pub const LAVA_CHICKEN: ResourceKey<'static, crate::JukeboxSong> =
     ResourceKey::new(rl!("minecraft:lava_chicken"));
 pub const MALL: ResourceKey<'static, crate::JukeboxSong> = ResourceKey::new(rl!("minecraft:mall"));

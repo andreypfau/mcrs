@@ -52,6 +52,8 @@ pub const CHERRY_WOOD_HANGING_SIGN: ResourceKey<'static, crate::BlockSoundSet> =
     ResourceKey::new(rl!("minecraft:cherry_wood_hanging_sign"));
 pub const CHISELED_BOOKSHELF: ResourceKey<'static, crate::BlockSoundSet> =
     ResourceKey::new(rl!("minecraft:chiseled_bookshelf"));
+pub const CHISELED_SOULSHALE: ResourceKey<'static, crate::BlockSoundSet> =
+    ResourceKey::new(rl!("minecraft:chiseled_soulshale"));
 pub const CINNABAR: ResourceKey<'static, crate::BlockSoundSet> =
     ResourceKey::new(rl!("minecraft:cinnabar"));
 pub const COBWEB: ResourceKey<'static, crate::BlockSoundSet> =
@@ -256,8 +258,6 @@ pub const TUFF: ResourceKey<'static, crate::BlockSoundSet> =
     ResourceKey::new(rl!("minecraft:tuff"));
 pub const TUFF_BRICKS: ResourceKey<'static, crate::BlockSoundSet> =
     ResourceKey::new(rl!("minecraft:tuff_bricks"));
-pub const TWISTING_VINES: ResourceKey<'static, crate::BlockSoundSet> =
-    ResourceKey::new(rl!("minecraft:twisting_vines"));
 pub const VAULT: ResourceKey<'static, crate::BlockSoundSet> =
     ResourceKey::new(rl!("minecraft:vault"));
 pub const VINE: ResourceKey<'static, crate::BlockSoundSet> =

@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:stripped_cherry_log",
-      "protocol_id": 183
+      "protocol_id": 195
     },
     "components": {
       "minecraft:attack_animation": {},

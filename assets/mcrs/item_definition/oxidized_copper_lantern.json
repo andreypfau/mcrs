@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:oxidized_copper_lantern",
-      "protocol_id": 1523
+      "protocol_id": 1546
     },
     "components": {
       "minecraft:attack_animation": {},

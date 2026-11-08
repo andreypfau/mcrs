@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:purpur_slab",
-      "protocol_id": 368
+      "protocol_id": 380
     },
     "components": {
       "minecraft:attack_animation": {},

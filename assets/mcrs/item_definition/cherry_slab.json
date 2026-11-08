@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:cherry_slab",
-      "protocol_id": 346
+      "protocol_id": 358
     },
     "components": {
       "minecraft:attack_animation": {},

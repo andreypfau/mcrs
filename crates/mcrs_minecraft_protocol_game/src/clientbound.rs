@@ -645,6 +645,12 @@ pub struct ClientboundCommandSuggestions<'a> {
     pub suggestions: Vec<CommandSuggestion<'a>>,
 }
 
+/// A probe: the client answers it with a `pong` of the same id, after the packets before it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Encode, Decode)]
+pub struct ClientboundPing {
+    pub id: i32,
+}
+
 #[derive(Clone, Debug, PartialEq, Encode, Decode)]
 pub struct ClientboundSetTime {
     pub game_time: i64,

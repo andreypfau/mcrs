@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:bamboo_block",
-      "protocol_id": 177
+      "protocol_id": 189
     },
     "components": {
       "minecraft:attack_animation": {},

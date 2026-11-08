@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:cyan_wool",
-      "protocol_id": 259
+      "protocol_id": 271
     },
     "components": {
       "minecraft:attack_animation": {},

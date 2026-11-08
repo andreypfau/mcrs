@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:horn_coral_fan",
-      "protocol_id": 780
+      "protocol_id": 802
     },
     "components": {
       "minecraft:attack_animation": {},

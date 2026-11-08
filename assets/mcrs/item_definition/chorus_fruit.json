@@ -3,13 +3,14 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:chorus_fruit",
-      "protocol_id": 1437
+      "protocol_id": 1459
     },
     "components": {
       "minecraft:attack_animation": {},
       "minecraft:attribute_modifiers": [],
       "minecraft:break_sound": "minecraft:entity.item.break",
       "minecraft:consumable": {
+        "sound": "minecraft:entity.generic.eat",
         "on_consume_effects": [
           {
             "type": "minecraft:teleport_randomly"

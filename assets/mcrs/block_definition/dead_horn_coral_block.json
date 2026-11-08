@@ -3,9 +3,9 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:dead_horn_coral_block",
-      "protocol_id": 843,
-      "base_state_id": 18504,
-      "default_state_id": 18504
+      "protocol_id": 852,
+      "base_state_id": 19327,
+      "default_state_id": 19327
     },
     "components": {
       "minecraft:light_emission": 0,

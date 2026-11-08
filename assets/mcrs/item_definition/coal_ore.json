@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:coal_ore",
-      "protocol_id": 93
+      "protocol_id": 105
     },
     "components": {
       "minecraft:attack_animation": {},

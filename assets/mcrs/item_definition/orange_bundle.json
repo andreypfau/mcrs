@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:orange_bundle",
-      "protocol_id": 1157
+      "protocol_id": 1179
     },
     "components": {
       "minecraft:attack_animation": {},

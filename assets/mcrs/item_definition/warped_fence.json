@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:warped_fence",
-      "protocol_id": 429
+      "protocol_id": 445
     },
     "components": {
       "minecraft:attack_animation": {},

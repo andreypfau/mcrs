@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:spruce_stairs",
-      "protocol_id": 516
+      "protocol_id": 533
     },
     "components": {
       "minecraft:attack_animation": {},

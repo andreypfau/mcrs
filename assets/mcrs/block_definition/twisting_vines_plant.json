@@ -3,9 +3,9 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:twisting_vines_plant",
-      "protocol_id": 972,
-      "base_state_id": 24393,
-      "default_state_id": 24393
+      "protocol_id": 981,
+      "base_state_id": 25216,
+      "default_state_id": 25216
     },
     "components": {
       "minecraft:light_emission": 0,

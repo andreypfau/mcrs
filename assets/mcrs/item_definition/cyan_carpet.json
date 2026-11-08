@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:cyan_carpet",
-      "protocol_id": 589
+      "protocol_id": 606
     },
     "components": {
       "minecraft:attack_animation": {},

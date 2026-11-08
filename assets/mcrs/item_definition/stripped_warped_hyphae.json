@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:stripped_warped_hyphae",
-      "protocol_id": 201
+      "protocol_id": 213
     },
     "components": {
       "minecraft:attack_animation": {},

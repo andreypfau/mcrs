@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:pale_oak_shelf",
-      "protocol_id": 387
+      "protocol_id": 399
     },
     "components": {
       "minecraft:attack_animation": {},

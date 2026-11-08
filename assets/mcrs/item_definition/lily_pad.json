@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:lily_pad",
-      "protocol_id": 497
+      "protocol_id": 513
     },
     "components": {
       "minecraft:attack_animation": {},

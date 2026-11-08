@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:polished_sulfur_wall",
-      "protocol_id": 34
+      "protocol_id": 46
     },
     "components": {
       "minecraft:attack_animation": {},

@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:turtle_helmet",
-      "protocol_id": 1002
+      "protocol_id": 1024
     },
     "components": {
       "minecraft:attack_animation": {},
@@ -32,7 +32,8 @@
       "minecraft:equippable": {
         "slot": "head",
         "equip_sound": "minecraft:item.armor.equip_turtle",
-        "asset_id": "minecraft:turtle_scute"
+        "asset_id": "minecraft:turtle_scute",
+        "shearing_sound": "minecraft:item.shears.snip"
       },
       "minecraft:interact_animation": {},
       "minecraft:item_model": "minecraft:turtle_helmet",

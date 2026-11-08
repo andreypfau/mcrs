@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:pale_oak_fence",
-      "protocol_id": 424
+      "protocol_id": 440
     },
     "components": {
       "minecraft:attack_animation": {},

@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:birch_log",
-      "protocol_id": 165
+      "protocol_id": 177
     },
     "components": {
       "minecraft:attack_animation": {},

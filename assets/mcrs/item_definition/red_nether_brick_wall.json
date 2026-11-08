@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:red_nether_brick_wall",
-      "protocol_id": 542
+      "protocol_id": 559
     },
     "components": {
       "minecraft:attack_animation": {},

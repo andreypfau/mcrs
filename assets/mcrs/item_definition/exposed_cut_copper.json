@@ -3,7 +3,7 @@
   "minecraft:item": {
     "description": {
       "identifier": "minecraft:exposed_cut_copper",
-      "protocol_id": 140
+      "protocol_id": 152
     },
     "components": {
       "minecraft:attack_animation": {},

@@ -3,9 +3,9 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:firefly_bush",
-      "protocol_id": 1288,
-      "base_state_id": 35780,
-      "default_state_id": 35780
+      "protocol_id": 1310,
+      "base_state_id": 37839,
+      "default_state_id": 37839
     },
     "components": {
       "minecraft:light_emission": 2,

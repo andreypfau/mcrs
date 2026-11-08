@@ -3,9 +3,9 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:cartography_table",
-      "protocol_id": 933,
-      "base_state_id": 24133,
-      "default_state_id": 24133
+      "protocol_id": 942,
+      "base_state_id": 24956,
+      "default_state_id": 24956
     },
     "components": {
       "minecraft:light_emission": 0,

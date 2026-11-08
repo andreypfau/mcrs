@@ -3,9 +3,9 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:cyan_concrete",
-      "protocol_id": 778,
-      "base_state_id": 17026,
-      "default_state_id": 17026
+      "protocol_id": 787,
+      "base_state_id": 17849,
+      "default_state_id": 17849
     },
     "components": {
       "minecraft:light_emission": 0,

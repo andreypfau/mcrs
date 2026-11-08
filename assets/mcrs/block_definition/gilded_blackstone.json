@@ -3,9 +3,9 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:gilded_blackstone",
-      "protocol_id": 1026,
-      "base_state_id": 26019,
-      "default_state_id": 26019
+      "protocol_id": 1035,
+      "base_state_id": 26842,
+      "default_state_id": 26842
     },
     "components": {
       "minecraft:light_emission": 0,

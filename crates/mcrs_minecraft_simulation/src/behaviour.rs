@@ -1,5 +1,6 @@
 use crate::SimulationVolume;
 use crate::cx::Cx;
+use crate::footprints::Footprints;
 use crate::random_tick::RandomTicks;
 use crate::tick_queue::Kinds;
 use mcrs_minecraft_core::Direction;
@@ -45,6 +46,12 @@ pub trait BlockBehaviour<K: Kinds>: Sync + Sized {
         RandomTicks::empty()
     }
 
+    /// The footprint bound of the handlers of `state` (SIM-MODEL-009). The step asks once for
+    /// each state.
+    fn reach(&self, _state: BlockStateId) -> u8 {
+        Footprints::DEFAULT
+    }
+
     /// A random pick of a section found `state`, which takes block random ticks, at `at`.
     fn random_tick<V: SimulationVolume, F: BlockFacts<K>>(
         &self,
@@ -63,6 +70,17 @@ pub trait BlockBehaviour<K: Kinds>: Sync + Sized {
         _at: BlockPos,
         _state: BlockStateId,
         _fluid: K::Fluid,
+        _random: &mut LegacyRandom,
+    ) {
+    }
+
+    /// A precipitation pick hit the column of the block column `(x, z)`. The rules find its
+    /// surface and what the weather does there.
+    fn precipitation<V: SimulationVolume, F: BlockFacts<K>>(
+        &self,
+        _cx: &mut Cx<'_, K, V, F, Self>,
+        _x: i32,
+        _z: i32,
         _random: &mut LegacyRandom,
     ) {
     }
