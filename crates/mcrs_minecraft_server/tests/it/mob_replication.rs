@@ -539,7 +539,16 @@ fn two_summons_with_one_uuid_in_one_tick_make_one_mob() {
             },
         );
     }
-    server.ticks(operator, 3);
+    let packets = server.ticks(operator, 3);
+    let keys: Vec<String> = chats(&packets)
+        .iter()
+        .map(|reply| translated(reply).0)
+        .collect();
+    assert_eq!(
+        keys,
+        ["commands.summon.success", "commands.summon.failed.uuid"],
+        "the second summon answers the refusal"
+    );
     assert_eq!(
         server.world().resource::<Mobs>().0.len(),
         1,

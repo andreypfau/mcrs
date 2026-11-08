@@ -20,6 +20,7 @@ use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_physics::{BirthKey, BirthSource, birth_uuid};
 use mcrs_minecraft_text::Text;
+use std::collections::HashSet;
 use uuid::Uuid;
 
 #[derive(Clone, Copy)]
@@ -30,11 +31,13 @@ pub(crate) struct SummonCommand {
 }
 
 /// The command sequence of the summons of the current tick of this world: the order of the next
-/// spawn request in the command effect buffer of the tick (TRK-LIFE-002).
+/// spawn request in the command effect buffer of the tick (TRK-LIFE-002), and the UUIDs that the
+/// requests of the tick hold.
 #[derive(Default)]
 pub(crate) struct SummonOrder {
     tick: u64,
     next: u32,
+    uuids: HashSet<u128>,
 }
 
 pub(crate) fn build(
@@ -110,21 +113,24 @@ pub(crate) fn run(
             (SpawnSetup::None, read_keys(compound).ok_or_else(failed)?)
         }
     };
-    if uuid.is_some_and(|uuid| context.lookup().mob_by_uuid(uuid).is_some()) {
+    if order.tick != clock.0 {
+        *order = SummonOrder {
+            tick: clock.0,
+            ..SummonOrder::default()
+        };
+    }
+    if let Some(uuid) = uuid
+        && taken(&mut order, &context, uuid)
+    {
         return Err(CommandFailure::translate(
             "commands.summon.failed.uuid",
             vec![],
         ));
     }
-    if order.tick != clock.0 {
-        *order = SummonOrder {
-            tick: clock.0,
-            next: 0,
-        };
-    }
     let key = BirthKey::born(clock.0, &BirthSource::Command { order: order.next }, 0);
     order.next = order.next.wrapping_add(1);
     let uuid = uuid.unwrap_or_else(|| birth_uuid(&key, None));
+    order.uuids.insert(uuid);
     let name = display_name(
         entity_type,
         Uuid::from_u128(uuid),
@@ -147,6 +153,17 @@ pub(crate) fn run(
         Feedback::SourceAndOperators,
     );
     Ok(1)
+}
+
+/// The engine refuses a spawn whose UUID a mob or an earlier request holds, and the request of a
+/// summon of this tick has no mob in the lookup yet. A UUID that the lookup finds leaves the
+/// requests of the tick, so a clock that stands still cannot keep it taken after the mob is gone.
+fn taken(order: &mut SummonOrder, context: &VanillaContext, uuid: u128) -> bool {
+    if context.lookup().mob_by_uuid(uuid).is_some() {
+        order.uuids.remove(&uuid);
+        return true;
+    }
+    order.uuids.contains(&uuid)
 }
 
 /// What the keys of `<nbt>` set: the values of the new mob, and its UUID.
