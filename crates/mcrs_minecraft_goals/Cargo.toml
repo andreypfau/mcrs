@@ -1,0 +1,28 @@
+[package]
+name = "mcrs_minecraft_goals"
+description = "The goals of passive mobs for the AI stage: float, panic, random stroll, look at a player and look around, the random position searches and the goal list of the pig"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+doctest = false
+
+[lints]
+workspace = true
+
+[dependencies]
+libm.workspace = true
+mcrs_minecraft_brain.workspace = true
+
+[dev-dependencies]
+criterion = { version = "0.7", default-features = false }
+mcrs_minecraft_goals = { workspace = true, features = ["testing"] }
+rayon.workspace = true
+
+[features]
+# A flat pen of pigs with a host that applies the decisions, for tests and benches of the stage.
+testing = []
+
+[[bench]]
+name = "pig_stage"
+harness = false

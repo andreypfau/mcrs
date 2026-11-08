@@ -4591,6 +4591,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "mcrs_minecraft_goals"
+version = "0.5.8"
+dependencies = [
+ "criterion",
+ "libm",
+ "mcrs_minecraft_brain",
+ "mcrs_minecraft_goals",
+ "rayon",
+]
+
+[[package]]
 name = "mcrs_minecraft_heightmap"
 version = "0.5.8"
 dependencies = [

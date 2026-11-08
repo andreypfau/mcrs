@@ -28,15 +28,16 @@ const WASM32_PACKAGES: [&str; 11] = [
     "mcrs_minecraft_biome_file",
 ];
 
-const NO_STD_PACKAGES: [&str; 5] = [
+const NO_STD_PACKAGES: [&str; 6] = [
     "mcrs_command",
     "mcrs_minecraft_brain",
     "mcrs_minecraft_chat",
+    "mcrs_minecraft_goals",
     "mcrs_molang",
     "mcrs_molang_wgsl",
 ];
 
-const NO_BEVY_PACKAGES: [&str; 86] = [
+const NO_BEVY_PACKAGES: [&str; 87] = [
     "mcrs_command",
     "mcrs_engine_cell",
     "mcrs_engine_link",
@@ -54,6 +55,7 @@ const NO_BEVY_PACKAGES: [&str; 86] = [
     "mcrs_minecraft_chunk",
     "mcrs_minecraft_client_jar",
     "mcrs_minecraft_client_recorder",
+    "mcrs_minecraft_goals",
     "mcrs_minecraft_server_bench",
     "mcrs_mob_bench",
     "mcrs_minecraft_client_ticks",
