@@ -107,7 +107,8 @@ These subjects are out of scope:
 | The entity data of an item entity | PHY-CMP-026. Section 6 keeps the model general. |
 | Passengers, leashes, minecarts on rails, projectiles, item frames | No mob of the farm uses them. Their packets have hooks in TRK-SPN-001 and TRK-UPD-002. |
 | Teams and the team colour of a name | No team exists in the server. |
-| The removal of a mob by a command (`kill`, `tp` of a mob), and mobs as targets of a selector | No step of `gold-farm.md` needs them. In G1 an entity selector (`@e`, `@n`) finds only players. |
+| The kill of a mob by a command, and mobs as targets of a selector | `command-kill.md` states `kill`. A kill of a mob is a hit and a death (`entity-damage.md`), not a removal request (TRK-LIFE-004). `argument-entity.md`, ARG-ENT-013, states how a selector finds mobs. In G1 an entity selector (`@e`, `@n`) finds only players. |
+| The move of a mob by `tp` | `command-teleport.md` states it. No step of `gold-farm.md` needs it. |
 | The difficulty of a world | The server has no difficulty state. TRK-DEV-003 records the peaceful check of `summon`. |
 | The on-ground flag of the moves of a player subject | `replication.md` owns the player codec. Section 12, U4, records the gap. |
 
