@@ -9,7 +9,7 @@ use mcrs_minecraft_core::VERSION;
 use mcrs_minecraft_network::RawConnection;
 use mcrs_minecraft_network::join::{Join, Joined, join};
 use mcrs_minecraft_network::packet_io::PacketIo;
-use mcrs_minecraft_protocol::packets::common::serverbound::KeepAlive;
+use mcrs_minecraft_protocol::packets::common::serverbound::{KeepAlive, Pong};
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundKeepAlive;
 use mcrs_minecraft_protocol::packets::game::serverbound::ServerboundKeepAlive;
 use mcrs_minecraft_protocol::uuid::Uuid;
@@ -17,11 +17,11 @@ use mcrs_minecraft_protocol::{Decode, Packet, WritePacket};
 use mcrs_minecraft_protocol_game::MoveFlags;
 use mcrs_minecraft_protocol_game::clientbound::{
     ClientboundChunkBatchFinished, ClientboundForgetLevelChunk, ClientboundLevelChunkWithLight,
-    ClientboundPlayerPosition,
+    ClientboundPing, ClientboundPlayerPosition,
 };
 use mcrs_minecraft_protocol_game::serverbound::{
     ServerboundAcceptTeleportation, ServerboundChunkBatchReceived, ServerboundClientTickEnd,
-    ServerboundMovePlayerPos, ServerboundPlayerAbilities, ServerboundPlayerLoaded,
+    ServerboundMovePlayerPos, ServerboundPlayerAbilities, ServerboundPlayerLoaded, ServerboundPong,
 };
 use mcrs_voxel::ColumnPos;
 use serde::Serialize;
@@ -139,6 +139,9 @@ pub async fn run(plan: Plan) -> anyhow::Result<BotReport> {
                 connection.write_packet(&ServerboundKeepAlive(KeepAlive {
                     payload: keep_alive.0.payload,
                 }));
+            } else if packet.id == ClientboundPing::ID {
+                let ping = ClientboundPing::decode(body)?;
+                connection.write_packet(&ServerboundPong(Pong { payload: ping.id }));
             } else if packet.id == ClientboundPlayerPosition::ID {
                 let teleport = ClientboundPlayerPosition::decode(body)?;
                 connection.write_packet(&ServerboundAcceptTeleportation {

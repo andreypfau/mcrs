@@ -82,6 +82,9 @@ fn parse_args() -> anyhow::Result<Args> {
 }
 
 fn main() -> anyhow::Result<()> {
+    tracing_subscriber::fmt()
+        .with_writer(std::io::stderr)
+        .init();
     let args = parse_args()?;
     let runtime = tokio::runtime::Runtime::new()?;
     let address = SocketAddr::from((Ipv4Addr::LOCALHOST, PORT));
