@@ -457,6 +457,27 @@ The cache of AIT-VAN-004 can keep the result for one tick.
 query finds two members at the same distance, it selects the member with the smaller order key.
 GOAL-DEV-001 records the vanilla order.
 
+**GOAL-QRY-005** (`design`, semantic, confidence: medium, fidelity: exact under the conditions
+below). The player table of AIT-CDN-002 holds these values of each player. The tempt query and the
+look query read only these values:
+
+- the feet point, and the eye height of the current pose of the player;
+- the flags spectator and alive;
+- the shift key state (`entity-physics.md`, section 0.1);
+- the item in the main hand and the item in the off hand;
+- the vehicle chain: the vehicle of the player, the vehicle of that vehicle, and so on.
+
+The visibility factor of GOAL-QRY-002 is 0.8 for a player whose shift key is down, and 1 for each
+other player. This rule is exact for a player that is not invisible and that wears no item with the
+component `mob_visibility` for the type of the mob. The vanilla items give `mob_visibility` only for
+the skeleton, the zombie, the creeper, the piglin and the piglin brute. Thus the rule is exact for
+the four animals of section 5 and each vanilla item, while the player is not invisible. Section 9,
+U3, records the parts that are deferred.
+
+A benchmark with a watcher player meets the conditions when the player has no effect
+`invisibility`. A watcher in the game mode `spectator` is not a qualified player. It does not
+tempt an animal, an animal does not look at it, and it does not reset the idle time (AIT-VAN-020).
+
 ### 3.2 Path requests
 
 **GOAL-NAV-001** (`source_suggested`, semantic, confidence: high, fidelity: exact). A request to a
@@ -551,6 +572,30 @@ search is a part of the decision of its goal (AIT-DEC-001). It reads the blocks 
 snapshot of the issue tick. The envelope of its result is the support of GOAL-POS-002 or GOAL-POS-003
 for that snapshot. The probabilities must match the stated draws.
 
+**GOAL-POS-006** (`design`, semantic, confidence: medium, fidelity: exact under the conditions
+below, else envelope). A server without a light engine on the server side uses this walk value in
+place of GOAL-POS-004:
+
+- 10, when the block below the candidate is `grass_block`;
+- else 0.5.
+
+The value 0.5 is the value of GOAL-POS-004 for `l = 15` and the ambient light 0. The rule is exact
+when all these conditions are true at each candidate that is not above `grass_block`:
+
+- the dimension type has the ambient light 0, for example the overworld;
+- the sky light at the candidate is 15;
+- the sky darkness is 0, for example in clear weather at noon.
+
+Outside these conditions the fidelity is `envelope`. The selection can then differ only between two
+candidates that are both not above `grass_block`. A candidate above `grass_block` wins over them in
+both rules.
+
+On a superflat world with a grass surface and no roof, each candidate that a search accepts on the
+floor of a pen is above `grass_block`. Only a candidate on top of a fence or a wall can have the
+value 0.5. The search also needs the solid render property and the legacy solid flag of each state
+of the world (PATH section 12.3). For the benchmark these are `air`, `bedrock`, `dirt`,
+`grass_block` and the block of the pen.
+
 ## 4. The goals
 
 ### 4.1 Float in a fluid
@@ -570,6 +615,17 @@ The goal has no start action and no stop action.
 **GOAL-FLT-002** (`design`, semantic, confidence: medium, fidelity: exact). The float goal is a
 reflex (AIT-RFX-005). Its start condition, its continue condition and its goal tick run in the hot
 tick. They read only the fluid height of the mob and the lava flag of its own row.
+
+**GOAL-FLT-003** (`design`, semantic, confidence: medium, fidelity: exact under the condition
+below). A server without the fluid model of `entity-physics.md` uses these values for each mob: the
+fluid height of each fluid tag is 0, the lava flag is false, and the in-water flag of GOAL-STR-002 is
+false. Thus the float goal never starts, and the stroll always uses the search for a mob that is not
+in water.
+
+The rule is exact when the box of the mob touches no block whose fluid state is not empty. A block
+with water, lava or a waterlogged state is such a block. A dry superflat world with a pen of fences
+meets the condition. The water tests of `Q-WATER` and GOAL-POS-003, step 3, read the fluid state of
+a block, not the fluid height. They do not need the fluid model and stay as they are.
 
 ### 4.2 Panic
 
@@ -1065,9 +1121,9 @@ These notes follow from the table:
 - A decision reads other entities only through the snapshot. The entity reads are the in-love and
   in-panic states, the age, the position, the box and the visibility inputs. The snapshot must
   publish these values for each animal.
-- The player reads come from the player table. The table must hold, for each player, a test result
-  for each tempt item set, the sneak state, the visibility inputs and the vehicle chain. AIT-CDN-002
-  holds only the position and two flags now (section 9, U3).
+- The player reads come from the player table. GOAL-QRY-005 states its values: the position, the
+  eye height, two flags, the shift key state, the two held items and the vehicle chain. The
+  invisibility inputs are deferred (section 9, U3).
 - Most evaluations of an adult animal that is not in love draw only random gates: `0.02` for each
   look goal, `1/60` for the stroll and `1/500` for the eat. For such an animal, the tempt query is
   the only query in each full evaluation. It reads only the player table. A baby adds `Q-ADULT`,
@@ -1123,16 +1179,17 @@ These notes follow from the table:
 
 - **U1**: resolved. PATH-REQ-004, step 1, keeps the current path after a failed request to an
   entity, as GOAL-NAV-002 states.
-- **U2**: the block corpus must give the solid render property of each state (the stable floor) and
-  the legacy solid flag (PATH section 12.3). The walk value needs the block light, the sky light, the
-  sky darkness and the ambient light of the dimension type. No specification of this server states
-  the light engine of the server side yet.
-- **U3**: the player table of AIT-CDN-002 holds only the position and the flags spectator and alive.
-  The tempt query and the look query need more values of each player: the held items, the sneak
-  state, the invisibility, the armor count, the `mob_visibility` items, the eye height and the
-  vehicle chain.
-- **U4**: the float goal reads the height of a fluid at the mob. `entity-physics.md` puts the fluid
-  model out of scope. The fluid height must come from a later rule.
+- **U2**: partly resolved. GOAL-POS-006 gives a walk value without light. It is exact on a world with
+  full sky light at each candidate that is not above grass. Deferred: the block light, the sky light
+  below a roof, the sky darkness of the time and the weather, and the ambient light of the dimension
+  type. These need a light engine of the server side, which no specification states yet. The block
+  corpus must still give the solid render property and the legacy solid flag (PATH section 12.3).
+- **U3**: partly resolved. GOAL-QRY-005 states the player table. Deferred: the invisibility of a
+  player, its armor count, the items with `mob_visibility`, and the clamp of the visibility factor
+  to the range from 0 to 10. These need the effects and the equipment of a player.
+- **U4**: partly resolved. GOAL-FLT-003 sets the fluid height to 0 on a dry world. Deferred: the
+  fluid height of water and lava at the box of a mob, the lava flag and the in-water flag. These
+  need the fluid model that `entity-physics.md`, section 12, puts out of scope.
 - **U5**: the leash, the mob that rides a mob, and the home are hooks (section 6.7). The random
   position searches read the home now.
 - **U6**: ANIM-FOOD-003 repeats the priorities and the speed modifiers of section 5, and

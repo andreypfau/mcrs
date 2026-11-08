@@ -925,7 +925,7 @@ that reason. Thus this server keeps the vanilla periods by default.
 
 **AIT-CDN-002** (`design`, semantic, confidence: medium). Each cell keeps the player table of each
 dimension. The table holds the position of each player at the end of the previous tick, with the
-flags spectator and alive. The coordinator sends each change to each cell at the sync point. Thus
+flags spectator and alive. `mob-goals.md`, GOAL-QRY-005, adds the values that the goals read. The coordinator sends each change to each cell at the sync point. Thus
 the table is the same in each cell and in each division of the world. The nearest player of the
 despawn check, of the idle time reset and of the orb attraction comes from this table.
 
