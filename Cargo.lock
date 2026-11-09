@@ -4858,6 +4858,7 @@ dependencies = [
  "criterion",
  "mcrs_minecraft_brain",
  "mcrs_minecraft_core",
+ "mcrs_minecraft_entity",
 ]
 
 [[package]]

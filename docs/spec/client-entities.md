@@ -27,7 +27,8 @@ in each frame. The document does not prescribe an architecture.
   draws a frame. `pt` is in the range `[0, 1)`.
 - **Client entity**: the state that the client keeps for one entity id that the server added.
 - **Living entity**: a client entity of a type that has health. Each mob is a living entity.
-- **Mob**: a living entity with an AI on the server. Pig and frog are mobs. A player is not a mob.
+- **Mob**: a living entity with an AI on the server. The pig, the cow, the sheep, the chicken, the
+  zombified piglin and the frog are mobs. A player is not a mob.
 - **Yaw**: a horizontal angle in degrees. Yaw `0` faces +Z. Yaw `90` faces −X. The facing vector
   for yaw `y` and pitch `p` is `(−sin y · cos p, −sin p, cos y · cos p)`.
 - **Pitch**: a vertical angle in degrees. A positive pitch looks down.
@@ -761,7 +762,9 @@ Milestone: 1.
 - **Inputs:** the entity data of CENTS-DATA-002; the entity type.
 - **Behavior:**
   1. The entity is on fire when bit 0 of index 0 is set and the type is not fire immune. The
-     mob document states when a type is fire immune.
+     mob document states when a type is fire immune. The zombified piglin is fire immune
+     (`entity_types.json`). The pig, the cow, the sheep, the chicken and the frog are not fire
+     immune.
   2. The entity is invisible when bit 5 of index 0 is set.
   3. The entity glows when bit 6 of index 0 is set.
   4. The entity is fully frozen when index 7 is 140 or more.

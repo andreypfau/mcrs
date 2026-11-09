@@ -385,7 +385,10 @@ fn box_size(identifier: &str, rest_points: &[Vec3]) -> (f32, f32) {
         _ if low < high => high - low,
         _ => 1.0,
     };
-    (box_height, traits.map_or(1.0, |traits| traits.baby_scale))
+    (
+        box_height,
+        traits.and_then(|traits| traits.baby_scale).unwrap_or(1.0),
+    )
 }
 
 /// The corners of the faces of `geometry` at rest, in entity space at the body yaw 0.

@@ -19,8 +19,9 @@ pub struct EntityTypeData {
     /// The tracker ticks between two periodic position updates.
     pub update_interval: u32,
     pub fire_immune: bool,
-    /// The size of a baby relative to the adult, which the renderer applies.
-    pub baby_scale: f32,
+    /// The size of a baby relative to the adult, which the renderer applies; `None` for a type
+    /// with no baby form or with no uniform baby scale in its mob document.
+    pub baby_scale: Option<f32>,
     /// The factor from the horizontal movement of a tick to the walk target speed.
     pub walk_target_factor: f32,
     pub life: Life,
@@ -36,7 +37,8 @@ const MOB_DEFAULTS: EntityTypeData = EntityTypeData {
     tracking_range: 10,
     update_interval: EntityTypeData::DEFAULT_UPDATE_INTERVAL,
     fire_immune: false,
-    baby_scale: 0.5,
+    baby_scale: None,
+    // client-entities.md, CENTS-WALK-001, item 3.
     walk_target_factor: 4.0,
     life: Life::Mob(MobData::DEFAULT),
     base_attributes: None,
@@ -56,6 +58,8 @@ impl EntityTypeData {
         width: 0.9,
         height: 0.9,
         eye_height: 0.765,
+        // mob-pig.md: the size of a baby is the adult values times 0.5.
+        baby_scale: Some(0.5),
         life: ANIMAL,
         base_attributes: Some(BaseAttributes {
             max_health: 10.0,
@@ -69,6 +73,8 @@ impl EntityTypeData {
         width: 0.9,
         height: 1.4,
         eye_height: 1.3,
+        // mob-animals.md, ANIM-TYPE-001: the baby box is half the adult box on each axis.
+        baby_scale: Some(0.5),
         life: ANIMAL,
         base_attributes: Some(BaseAttributes {
             max_health: 10.0,
@@ -82,6 +88,8 @@ impl EntityTypeData {
         width: 0.9,
         height: 1.3,
         eye_height: 1.235,
+        // mob-animals.md, ANIM-TYPE-001: the baby box is half the adult box on each axis.
+        baby_scale: Some(0.5),
         life: ANIMAL,
         base_attributes: Some(BaseAttributes {
             max_health: 8.0,
@@ -122,6 +130,7 @@ impl EntityTypeData {
         width: 0.5,
         height: 0.5,
         eye_height: 0.425,
+        // mob-frog.md: the walk target factor.
         walk_target_factor: 25.0,
         life: Life::Mob(MobData {
             head_yaw_limit: 5.0,
@@ -138,7 +147,6 @@ impl EntityTypeData {
         eye_height: 1.62,
         tracking_range: 32,
         update_interval: 2,
-        baby_scale: 1.0,
         life: Life::Living,
         ..MOB_DEFAULTS
     };
@@ -192,5 +200,47 @@ impl EntityTypeData {
     #[must_use]
     pub const fn is_ageable(&self) -> bool {
         matches!(self.life, Life::Mob(MobData { ageable: true, .. }))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{PLAYER_EYE_HEIGHT, PLAYER_HEIGHT, PLAYER_WIDTH};
+
+    #[test]
+    fn of_finds_each_row_of_all() {
+        for row in EntityTypeData::ALL {
+            assert_eq!(
+                EntityTypeData::of(row.entity_type),
+                Some(row),
+                "{:?}",
+                row.entity_type
+            );
+        }
+        let listed = EntityType::ALL
+            .iter()
+            .filter(|entity_type| EntityTypeData::of(**entity_type).is_some())
+            .count();
+        assert_eq!(
+            listed,
+            EntityTypeData::ALL.len(),
+            "ALL misses a row of `of`"
+        );
+    }
+
+    #[test]
+    fn the_f64_player_constants_are_the_player_row() {
+        let player = EntityTypeData::PLAYER;
+        for (constant, row) in [
+            (PLAYER_WIDTH, player.width),
+            (PLAYER_HEIGHT, player.height),
+            (PLAYER_EYE_HEIGHT, player.eye_height),
+        ] {
+            assert!(
+                (constant - f64::from(row)).abs() < f64::from(f32::EPSILON) * constant,
+                "{constant} != {row}"
+            );
+        }
     }
 }

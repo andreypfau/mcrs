@@ -15,6 +15,8 @@ use mcrs_minecraft_brain::LookIntent;
 use mcrs_minecraft_brain::PathIntent;
 use mcrs_minecraft_brain::Point;
 use mcrs_minecraft_brain::Ticket;
+use mcrs_minecraft_entity::EntityTypeData;
+use mcrs_minecraft_entity::MobData;
 use mcrs_minecraft_mob_control::BodyData;
 use mcrs_minecraft_mob_control::ControlFlags;
 use mcrs_minecraft_mob_control::ControlInput;
@@ -25,8 +27,8 @@ use mcrs_minecraft_mob_control::Rotations;
 
 const MOBS: u32 = 50_000;
 const PIG_LOOK: LookDefaults = LookDefaults {
-    turn_speed: 10.0,
-    pitch_limit: 40.0,
+    turn_speed: MobData::DEFAULT.head_turn_speed,
+    pitch_limit: MobData::DEFAULT.pitch_limit,
 };
 
 struct Mob {
@@ -72,10 +74,10 @@ fn mobs() -> Vec<Mob> {
                 position,
                 rotations: Rotations::default(),
                 body: BodyData {
-                    width: 0.9,
-                    eye_height: 0.765,
+                    width: EntityTypeData::PIG.width,
+                    eye_height: EntityTypeData::PIG.eye_height,
                     step_height: 0.6,
-                    head_yaw_limit: 75.0,
+                    head_yaw_limit: MobData::DEFAULT.head_yaw_limit,
                 },
                 flags: ControlFlags::ON_GROUND,
                 sideways: 0.0,

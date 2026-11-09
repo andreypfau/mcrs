@@ -171,10 +171,14 @@ impl RenderInputs<'_> {
                 (yaw, yaw, WalkFrame::default(), 0.0, 0)
             }
         };
-        let (baby_scale, eye_height) = type_data.map_or((1.0, 0.0), |type_data| {
+        let (baby_scale, eye_height) = type_data.map_or((None, 0.0), |type_data| {
             (type_data.baby_scale, type_data.eye_height)
         });
-        let size = if data.baby { baby_scale } else { 1.0 };
+        let size = if data.baby {
+            baby_scale.unwrap_or(1.0)
+        } else {
+            1.0
+        };
         let eye_height = f64::from(eye_height * size) * data.scale;
         let movement = motion.movement();
         let upside_down_sign = if data.upside_down { -1.0 } else { 1.0 };

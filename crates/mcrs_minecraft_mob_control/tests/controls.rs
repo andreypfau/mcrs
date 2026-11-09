@@ -7,6 +7,8 @@ use mcrs_minecraft_brain::PathIntent;
 use mcrs_minecraft_brain::Point;
 use mcrs_minecraft_brain::Progress;
 use mcrs_minecraft_brain::Ticket;
+use mcrs_minecraft_entity::EntityTypeData;
+use mcrs_minecraft_entity::MobData;
 use mcrs_minecraft_mob_control::BodyData;
 use mcrs_minecraft_mob_control::ControlFlags;
 use mcrs_minecraft_mob_control::ControlInput;
@@ -18,15 +20,15 @@ use mcrs_minecraft_mob_control::Rotations;
 use mcrs_minecraft_mob_control::wrap;
 
 const PIG_LOOK: LookDefaults = LookDefaults {
-    turn_speed: 10.0,
-    pitch_limit: 40.0,
+    turn_speed: MobData::DEFAULT.head_turn_speed,
+    pitch_limit: MobData::DEFAULT.pitch_limit,
 };
 
 const PIG: BodyData = BodyData {
-    width: 0.9,
-    eye_height: 0.765,
+    width: EntityTypeData::PIG.width,
+    eye_height: EntityTypeData::PIG.eye_height,
     step_height: 0.6,
-    head_yaw_limit: 75.0,
+    head_yaw_limit: MobData::DEFAULT.head_yaw_limit,
 };
 
 struct Walker {

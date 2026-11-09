@@ -39,6 +39,7 @@ use mcrs_minecraft_engine_world::entity::player::Player;
 use mcrs_minecraft_engine_world::tick::TickSet;
 use mcrs_minecraft_engine_world::world::dimension::Dimension;
 use mcrs_minecraft_engine_world::world::storage::view::WorldView;
+use mcrs_minecraft_entity::EntityTypeData;
 use mcrs_minecraft_game_mode::GameMode;
 use mcrs_minecraft_item::damage_type::DamageType;
 use mcrs_minecraft_item::damage_type_tag_keys::PANIC_CAUSES;
@@ -51,8 +52,6 @@ use crate::HotTick;
 use crate::MobAi;
 use crate::PanicCauses;
 
-/// The eye height of a standing player.
-const PLAYER_EYE_HEIGHT: f32 = 1.62;
 /// The ticks between two log lines of the AI cost.
 const LOG_PERIOD: u64 = 200;
 
@@ -187,7 +186,7 @@ fn prepare(
             player: PlayerId(entity.to_bits()),
             key: OrderKey::new(0, u128::from(entity.to_bits())),
             position: Point::new(position.x, position.y, position.z),
-            eye_height: PLAYER_EYE_HEIGHT,
+            eye_height: EntityTypeData::PLAYER.eye_height,
             flags: if spectator {
                 PlayerFlags::ALIVE.union(PlayerFlags::SPECTATOR)
             } else {

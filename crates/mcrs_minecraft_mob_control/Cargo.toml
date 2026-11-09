@@ -17,6 +17,7 @@ mcrs_minecraft_core.workspace = true
 
 [dev-dependencies]
 criterion = { version = "0.7", default-features = false }
+mcrs_minecraft_entity.workspace = true
 
 [[bench]]
 name = "controls"

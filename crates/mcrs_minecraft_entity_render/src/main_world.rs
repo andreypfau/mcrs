@@ -233,7 +233,12 @@ pub(crate) fn write_ticks(
         if moved {
             let type_data = client.type_data();
             let eye = type_data.map_or(0.0, |type_data| {
-                type_data.eye_height * if data.baby { type_data.baby_scale } else { 1.0 }
+                type_data.eye_height
+                    * if data.baby {
+                        type_data.baby_scale.unwrap_or(1.0)
+                    } else {
+                        1.0
+                    }
             });
             let eye = (position + glam::DVec3::Y * f64::from(eye) * data.scale)
                 .floor()
