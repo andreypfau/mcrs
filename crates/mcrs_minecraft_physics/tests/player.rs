@@ -8,8 +8,8 @@ use mcrs_minecraft_physics::Keys;
 use mcrs_minecraft_physics::MoveFlags;
 use mcrs_minecraft_physics::NoBodies;
 use mcrs_minecraft_physics::Observation;
+use mcrs_minecraft_physics::Orientation;
 use mcrs_minecraft_physics::PlayerInput;
-use mcrs_minecraft_physics::PlayerRotation;
 use mcrs_minecraft_physics::PlayerState;
 use mcrs_minecraft_physics::PushRules;
 use mcrs_minecraft_physics::Relative;
@@ -39,7 +39,7 @@ fn on_stone() -> TestFixture {
 fn tick(fixture: &mut TestFixture, state: &PlayerState, keys: Keys, yaw: f32) -> PlayerState {
     let input = PlayerInput {
         keys,
-        rotation: PlayerRotation { yaw, pitch: 0.0 },
+        rotation: Orientation::facing(yaw, 0.0),
         ..PlayerInput::default()
     };
     tick_with(fixture, state, &input)
@@ -83,8 +83,8 @@ const FORWARD: Keys = Keys {
 fn a_standing_player_rests_on_the_ground() {
     let mut fixture = on_stone();
     let state = settled(&mut fixture);
-    assert!(state.flags.on_ground);
-    assert_eq!(state.velocity.y, -0.0784000015258789);
+    assert!(state.body.flags.on_ground);
+    assert_eq!(state.body.velocity.y, -0.0784000015258789);
     let next = tick(&mut fixture, &state, Keys::default(), 0.0);
     assert_eq!(next, state);
 }
@@ -93,7 +93,7 @@ fn a_standing_player_rests_on_the_ground() {
 fn inp_001_a_diagonal_input_is_as_long_as_one_or_longer() {
     let mut fixture = on_stone();
     let state = settled(&mut fixture);
-    let straight = tick(&mut fixture, &state, FORWARD, 0.0).velocity;
+    let straight = tick(&mut fixture, &state, FORWARD, 0.0).body.velocity;
     let diagonal = tick(
         &mut fixture,
         &state,
@@ -103,6 +103,7 @@ fn inp_001_a_diagonal_input_is_as_long_as_one_or_longer() {
         },
         0.0,
     )
+    .body
     .velocity;
     let straight_speed = straight.x.hypot(straight.z);
     let diagonal_speed = diagonal.x.hypot(diagonal.z);
@@ -180,7 +181,7 @@ fn inp_015_flight_that_starts_on_the_ground_jumps_before_the_impulse() {
     let next = tick(&mut fixture, &state, press, 0.0);
     assert!(next.flight0);
     let rise = f64::from(0.42_f32) + f64::from(0.05_f32 * 3.0);
-    assert_eq!(next.position.y - state.position.y, rise);
+    assert_eq!(next.body.position.y - state.body.position.y, rise);
 }
 
 #[test]
@@ -192,7 +193,7 @@ fn psh_008_the_push_enters_the_velocity_before_the_zero_cutoff() {
         ..PlayerInput::default()
     };
     let next = tick_with(&mut fixture, &state, &input);
-    assert_eq!(next.position.x, state.position.x);
+    assert_eq!(next.body.position.x, state.body.position.x);
 }
 
 #[test]
@@ -202,10 +203,10 @@ fn inp_011_a_block_in_the_column_pushes_the_player_to_the_nearest_free_faces() {
         .world
         .set(BlockPos::new(0, 2, 0), fixture.blocks.stone);
     let mut state = PlayerState::new(DVec3::new(0.4, 1.0, 0.5));
-    state.flags.on_ground = true;
+    state.body.flags.on_ground = true;
     let next = tick(&mut fixture, &state, Keys::default(), 0.0);
-    assert!(next.position.x < state.position.x, "pushed west");
-    assert!(next.position.z > state.position.z, "pushed south");
+    assert!(next.body.position.x < state.body.position.x, "pushed west");
+    assert!(next.body.position.z > state.body.position.z, "pushed south");
 }
 
 #[test]
@@ -224,9 +225,12 @@ fn inp_012_a_sneaking_player_stays_on_the_edge() {
         let mut walker = state;
         for _ in 0..40 {
             walker = tick(&mut fixture, &walker, sneak, yaw);
-            assert!(walker.position.y >= 1.0, "fell off the edge at yaw {yaw}");
+            assert!(
+                walker.body.position.y >= 1.0,
+                "fell off the edge at yaw {yaw}"
+            );
         }
-        assert!(walker.flags.on_ground);
+        assert!(walker.body.flags.on_ground);
     }
 }
 
@@ -247,15 +251,15 @@ fn srv_008_the_observed_velocity_holds_the_velocity_of_the_tick() {
         let yaw = (index as f32) * 13.0 - 100.0;
         let next = tick(&mut fixture, &state, walk, yaw);
         let observation = Observation {
-            displacement: next.position - state.position,
-            end_flags: next.flags,
-            end_support: next.support,
+            displacement: next.body.position - state.body.position,
+            end_flags: next.body.flags,
+            end_support: next.body.support,
             flight: false,
             jump: false,
             shift: false,
         };
         let candidates = observed_velocity(fixture.view(), &state, &observation);
-        let expected = if next.flags.horizontal_collision {
+        let expected = if next.body.flags.horizontal_collision {
             3
         } else {
             1
@@ -263,11 +267,12 @@ fn srv_008_the_observed_velocity_holds_the_velocity_of_the_tick() {
         assert_eq!(candidates.as_slice().len(), expected);
         // The displacement from the positions can differ from the resolved move by one unit in
         // the last place, so the candidate can too.
-        let near = |candidate: &DVec3| (*candidate - next.velocity).abs().max_element() <= 1.0e-15;
+        let near =
+            |candidate: &DVec3| (*candidate - next.body.velocity).abs().max_element() <= 1.0e-15;
         assert!(
             candidates.as_slice().iter().any(near),
             "tick {index}: {:?} not in {:?}",
-            next.velocity,
+            next.body.velocity,
             candidates.as_slice()
         );
         state = next;
@@ -301,25 +306,22 @@ fn srv_008_slow_falling_reads_the_vertical_velocity_before_the_climb() {
 fn grv_002_a_slow_falling_player_falls_by_the_capped_gravity() {
     let mut fixture = on_stone();
     let mut state = PlayerState::new(DVec3::new(0.5, 10.0, 0.5));
-    state.velocity.y = -0.5;
+    state.body.velocity.y = -0.5;
     state.effects.slow_falling = true;
     let next = tick(&mut fixture, &state, Keys::default(), 0.0);
-    assert_eq!(next.velocity.y, (-0.5 - 0.01) * f64::from(0.98_f32));
+    assert_eq!(next.body.velocity.y, (-0.5 - 0.01) * f64::from(0.98_f32));
 }
 
 #[test]
 fn srv_010_a_teleport_rotates_the_velocity_by_the_table() {
     let mut state = PlayerState::new(DVec3::new(10.0, 64.0, -3.0));
-    state.velocity = DVec3::new(1.0, 0.5, 0.0);
-    state.flags = MoveFlags {
+    state.body.velocity = DVec3::new(1.0, 0.5, 0.0);
+    state.body.flags = MoveFlags {
         on_ground: true,
         ..MoveFlags::default()
     };
-    state.fall_distance = 2.0;
-    let mut rotation = PlayerRotation {
-        yaw: 0.0,
-        pitch: 0.0,
-    };
+    state.body.fall_distance = 2.0;
+    let mut rotation = Orientation::facing(0.0, 0.0);
     let packet = Teleport {
         position: DVec3::new(1.0, 2.0, 3.0),
         velocity: DVec3::new(0.0, 0.25, 0.0),
@@ -328,11 +330,11 @@ fn srv_010_a_teleport_rotates_the_velocity_by_the_table() {
         relative: Relative::X | Relative::ROTATE_VELOCITY | Relative::VELOCITY_Y,
     };
     apply_teleport(&mut state, &mut rotation, &packet);
-    assert_eq!(state.position, DVec3::new(11.0, 2.0, 3.0));
+    assert_eq!(state.body.position, DVec3::new(11.0, 2.0, 3.0));
     assert_eq!((rotation.yaw, rotation.pitch), (90.0, 90.0));
     // The pitch turns by -90 degrees and the yaw by -90 degrees, both exact in the table.
-    assert_eq!(state.velocity, DVec3::new(0.0, 0.25, 0.0));
-    assert!(state.flags.on_ground && state.fall_distance == 2.0);
+    assert_eq!(state.body.velocity, DVec3::new(0.0, 0.25, 0.0));
+    assert!(state.body.flags.on_ground && state.body.fall_distance == 2.0);
 }
 
 #[test]
@@ -340,19 +342,19 @@ fn cmp_023_the_server_copy_decays_before_the_cutoff() {
     let mut fixture = on_stone();
     let mut state = settled(&mut fixture);
     let row = GridRow {
-        position: state.position,
+        position: state.body.position,
         height: 1.8,
         flags: GridFlags::PUSHABLE | GridFlags::PLAYER,
         ..TestFixture::mob(0, 0.0, 0.0)
     };
     let copy = ServerCopy {
-        start: state.position,
+        start: state.body.position,
         row: &row,
         rules: PushRules::default(),
         stream: KeyedStream::new(&row.key, 1),
     };
     // 0.003 survives the cutoff of 9.0E-6 on the squared length; 0.98 × 0.003 does not.
-    state.velocity = DVec3::new(0.003, 0.0, 0.0);
+    state.body.velocity = DVec3::new(0.003, 0.0, 0.0);
     let view = fixture.view();
     server_part(
         view,
@@ -361,8 +363,8 @@ fn cmp_023_the_server_copy_decays_before_the_cutoff() {
         &mut Vec::new(),
         &mut Scratch::new(),
     );
-    assert_eq!(state.velocity.x, 0.0);
-    state.velocity = DVec3::new(0.1, 0.0, 0.0);
+    assert_eq!(state.body.velocity.x, 0.0);
+    state.body.velocity = DVec3::new(0.1, 0.0, 0.0);
     server_part(
         view,
         &mut state,
@@ -370,7 +372,7 @@ fn cmp_023_the_server_copy_decays_before_the_cutoff() {
         &mut Vec::new(),
         &mut Scratch::new(),
     );
-    assert_eq!(state.velocity.x, 0.1 * 0.98);
+    assert_eq!(state.body.velocity.x, 0.1 * 0.98);
 }
 
 #[test]
@@ -381,8 +383,11 @@ fn a_player_with_weaving_is_slowed_less_by_a_cobweb() {
         .set(BlockPos::new(0, 1, 0), fixture.blocks.cobweb);
     let mut state = PlayerState::new(DVec3::new(0.5, 1.0, 0.5));
     let plain = tick(&mut fixture, &state, Keys::default(), 0.0);
-    assert_eq!(plain.stuck, DVec3::new(0.25, f64::from(0.05_f32), 0.25));
+    assert_eq!(
+        plain.body.stuck,
+        DVec3::new(0.25, f64::from(0.05_f32), 0.25)
+    );
     state.effects.weaving = true;
     let woven = tick(&mut fixture, &state, Keys::default(), 0.0);
-    assert_eq!(woven.stuck, DVec3::new(0.5, 0.25, 0.5));
+    assert_eq!(woven.body.stuck, DVec3::new(0.5, 0.25, 0.5));
 }

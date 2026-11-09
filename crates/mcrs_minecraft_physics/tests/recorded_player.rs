@@ -10,8 +10,8 @@ use mcrs_minecraft_client_ticks::Recording;
 use mcrs_minecraft_core::VERSION;
 use mcrs_minecraft_physics::MotionAttributes;
 use mcrs_minecraft_physics::NoBodies;
+use mcrs_minecraft_physics::Orientation;
 use mcrs_minecraft_physics::PlayerInput;
-use mcrs_minecraft_physics::PlayerRotation;
 use mcrs_minecraft_physics::PlayerState;
 use mcrs_minecraft_physics::Relative;
 use mcrs_minecraft_physics::Scratch;
@@ -119,8 +119,8 @@ fn replay(name: &str, recording: &Recording) -> Result<(), String> {
                         ),
                     },
                 ),
-                Event::Motion(velocity) => state.velocity = DVec3::from_array(*velocity),
-                Event::Explosion(impulse) => state.velocity += DVec3::from_array(*impulse),
+                Event::Motion(velocity) => state.body.velocity = DVec3::from_array(*velocity),
+                Event::Explosion(impulse) => state.body.velocity += DVec3::from_array(*impulse),
                 Event::Abilities(abilities) => {
                     state.may_fly = abilities.may_fly;
                     state.flight0 = abilities.flying;
@@ -151,10 +151,7 @@ fn replay(name: &str, recording: &Recording) -> Result<(), String> {
                 }
                 Event::Move(step) => {
                     if let Some(rotation) = step.rotation {
-                        input.rotation = PlayerRotation {
-                            yaw: rotation.yaw,
-                            pitch: rotation.pitch,
-                        };
+                        input.rotation = Orientation::facing(rotation.yaw, rotation.pitch);
                     }
                     sent = Some(*step);
                 }
@@ -178,11 +175,18 @@ fn replay(name: &str, recording: &Recording) -> Result<(), String> {
         );
         let Some(step) = sent else { continue };
         if let Some(position) = step.position {
-            assert_eq!(state.position.to_array(), position, "{name}, tick {tick}");
+            assert_eq!(
+                state.body.position.to_array(),
+                position,
+                "{name}, tick {tick}"
+            );
         }
-        assert_eq!(state.flags.on_ground, step.on_ground, "{name}, tick {tick}");
         assert_eq!(
-            state.flags.horizontal_collision, step.horizontal_collision,
+            state.body.flags.on_ground, step.on_ground,
+            "{name}, tick {tick}"
+        );
+        assert_eq!(
+            state.body.flags.horizontal_collision, step.horizontal_collision,
             "{name}, tick {tick}"
         );
     }

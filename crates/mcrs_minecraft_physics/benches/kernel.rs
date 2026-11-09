@@ -24,8 +24,8 @@ use mcrs_minecraft_physics::ListedBodies;
 use mcrs_minecraft_physics::Living;
 use mcrs_minecraft_physics::MotionRow;
 use mcrs_minecraft_physics::NoBodies;
+use mcrs_minecraft_physics::Orientation;
 use mcrs_minecraft_physics::PlayerInput;
-use mcrs_minecraft_physics::PlayerRotation;
 use mcrs_minecraft_physics::PlayerState;
 use mcrs_minecraft_physics::Probe;
 use mcrs_minecraft_physics::PushRules;
@@ -258,10 +258,7 @@ fn bench_player(c: &mut Criterion) {
             forward: true,
             ..Keys::default()
         },
-        rotation: PlayerRotation {
-            yaw: 30.0,
-            pitch: 0.0,
-        },
+        rotation: Orientation::facing(30.0, 0.0),
         ..PlayerInput::default()
     };
     for _ in 0..3 {
@@ -288,7 +285,7 @@ fn bench_player(c: &mut Criterion) {
                 &mut actions,
                 &mut scratch,
             );
-            out.velocity
+            out.body.velocity
         })
     });
 }

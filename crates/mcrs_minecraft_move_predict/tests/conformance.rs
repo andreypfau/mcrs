@@ -26,7 +26,7 @@ use mcrs_minecraft_move_validate::Move;
 use mcrs_minecraft_physics::MotionAttributes;
 use mcrs_minecraft_physics::MotionEffects;
 use mcrs_minecraft_physics::NoBodies;
-use mcrs_minecraft_physics::PlayerRotation;
+use mcrs_minecraft_physics::Orientation;
 use mcrs_minecraft_physics::PlayerState;
 use mcrs_minecraft_physics::Relative;
 use mcrs_minecraft_physics::Tables;
@@ -193,7 +193,7 @@ struct Server {
     sprint: Vec<String>,
     attributes: MotionAttributes,
     effects: MotionEffects,
-    rotation: PlayerRotation,
+    rotation: Orientation,
     tick: ClientTick,
     /// The changes that the client applied: the answer to the probe after each is in.
     applied: u64,
@@ -219,7 +219,7 @@ fn replay(recording: &Recording) -> Result<Tally, String> {
         sprint: sprint_modifiers(recording),
         attributes: MotionAttributes::default(),
         effects: MotionEffects::default(),
-        rotation: PlayerRotation::default(),
+        rotation: Orientation::default(),
         tick: ClientTick::default(),
         applied: 0,
     };
@@ -334,7 +334,7 @@ impl Server {
                     &mut self.rotation,
                     &teleport_of(teleport)?,
                 );
-                return Ok(self.prediction.accept(destination.position));
+                return Ok(self.prediction.accept(destination.body.position));
             }
             Event::ChunkForgotten([x, z]) => self.world.unload_chunk(*x, *z),
             _ => self.applied += 1,
@@ -375,10 +375,7 @@ impl Server {
             Event::ReleaseUseItem => tick.item_use = Some(false),
             Event::Move(step) => {
                 if let Some(look) = step.rotation {
-                    self.rotation = PlayerRotation {
-                        yaw: look.yaw,
-                        pitch: look.pitch,
-                    };
+                    self.rotation = Orientation::facing(look.yaw, look.pitch);
                 }
                 tick.reported = Move {
                     position: step.position.map(DVec3::from_array),

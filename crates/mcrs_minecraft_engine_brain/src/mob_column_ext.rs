@@ -204,9 +204,9 @@ impl MobColumnExt for MobColumn {
 /// The rotations of a living row.
 fn rotations(living: &Living) -> Rotations {
     Rotations {
-        yaw: living.yaw,
-        pitch: living.pitch,
-        head_yaw: living.head_yaw,
-        body_yaw: living.body_yaw,
+        yaw: living.orientation.yaw,
+        pitch: living.orientation.pitch,
+        head_yaw: living.orientation.head_yaw,
+        body_yaw: living.orientation.body_yaw,
     }
 }

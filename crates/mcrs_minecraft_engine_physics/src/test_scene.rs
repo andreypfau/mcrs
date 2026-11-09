@@ -72,7 +72,7 @@ impl<M: Send> TestScene<M> {
             let (motion, body, living) = if walker {
                 let motion = MotionRow::zombie();
                 let mut living = Living::of(&motion);
-                living.yaw = rng.range(0.0, 360.0) as f32;
+                living.orientation.yaw = rng.range(0.0, 360.0) as f32;
                 if index % 2 == 0 {
                     living.steering = Some(Steering {
                         input: MoveInput {

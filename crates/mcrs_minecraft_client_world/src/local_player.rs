@@ -5,7 +5,7 @@ use mcrs_minecraft_engine_world::entity::physics::{
 };
 use mcrs_minecraft_network::ConnectionState;
 use mcrs_minecraft_network::client::ClientConnection;
-use mcrs_minecraft_physics::{PlayerRotation, PlayerState, Relative, Teleport, apply_teleport};
+use mcrs_minecraft_physics::{Orientation, PlayerState, Relative, Teleport, apply_teleport};
 use mcrs_minecraft_protocol::{VarInt, WritePacket};
 use mcrs_minecraft_protocol_game::MoveFlags;
 use mcrs_minecraft_protocol_game::serverbound::{
@@ -116,11 +116,8 @@ fn apply_server_teleport(
     teleport: &ServerTeleport,
 ) {
     let mut state = PlayerState::new(transform.translation);
-    state.velocity = velocity.0;
-    let mut rotation = PlayerRotation {
-        yaw: transform.rotation.yaw(),
-        pitch: transform.rotation.pitch(),
-    };
+    state.body.velocity = velocity.0;
+    let mut rotation = Orientation::facing(transform.rotation.yaw(), transform.rotation.pitch());
     let packet = Teleport {
         position: teleport.position,
         velocity: teleport.velocity,
@@ -129,9 +126,9 @@ fn apply_server_teleport(
         relative: Relative::from_bits_truncate(teleport.flags.bits()),
     };
     apply_teleport(&mut state, &mut rotation, &packet);
-    transform.translation = state.position;
+    transform.translation = state.body.position;
     transform.rotation = Rotation::new(rotation.yaw, rotation.pitch);
-    velocity.0 = state.velocity;
+    velocity.0 = state.body.velocity;
 }
 
 /// Moves to where the server says, then confirms with the position that move

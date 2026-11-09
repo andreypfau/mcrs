@@ -3,7 +3,7 @@
 use bevy_ecs::component::Component;
 use bevy_math::DVec3;
 use mcrs_minecraft_engine_world::entity::physics::{Rotation, Transform};
-use mcrs_minecraft_physics::{PlayerRotation, PlayerState, Relative, Teleport, apply_teleport};
+use mcrs_minecraft_physics::{Orientation, PlayerState, Relative, Teleport, apply_teleport};
 use mcrs_minecraft_protocol::VarInt;
 use mcrs_minecraft_protocol_game::PositionFlags;
 use mcrs_minecraft_protocol_game::clientbound::ClientboundPlayerPosition;
@@ -136,13 +136,10 @@ pub fn teleport_to(known: Transform, destination: Transform) -> Teleport {
 #[must_use]
 pub fn landing(known: Transform, teleport: &Teleport) -> Transform {
     let mut state = PlayerState::new(known.translation);
-    let mut rotation = PlayerRotation {
-        yaw: known.rotation.yaw(),
-        pitch: known.rotation.pitch(),
-    };
+    let mut rotation = Orientation::facing(known.rotation.yaw(), known.rotation.pitch());
     apply_teleport(&mut state, &mut rotation, teleport);
     Transform {
-        translation: state.position,
+        translation: state.body.position,
         rotation: Rotation::new(rotation.yaw, rotation.pitch),
     }
 }

@@ -25,8 +25,8 @@ impl MobView<'_> {
     pub(crate) fn look(&self) -> Look {
         let living = self.state.living.unwrap_or_default();
         Look {
-            yaw: living.yaw,
-            pitch: living.pitch,
+            yaw: living.orientation.yaw,
+            pitch: living.orientation.pitch,
         }
     }
 

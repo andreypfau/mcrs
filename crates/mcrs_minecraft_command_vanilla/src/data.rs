@@ -67,8 +67,8 @@ pub(crate) fn run(
             "Rotation" => (
                 format!(
                     "[{}f, {}f]",
-                    java_float(living.yaw),
-                    java_float(living.pitch)
+                    java_float(living.orientation.yaw),
+                    java_float(living.orientation.pitch)
                 ),
                 2,
             ),

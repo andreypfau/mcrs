@@ -187,7 +187,7 @@ fn tick_living<W: CollisionWorld, B: BodyView>(
             input: living.input,
             speed: living.speed,
             air_speed: AIR_SPEED,
-            yaw: living.yaw,
+            yaw: living.orientation.yaw,
             jump: living.jump,
             omnidirectional,
             climbs_powder_snow: living.in_powder_snow && living.walks_on_powder_snow,

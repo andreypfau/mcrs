@@ -156,9 +156,14 @@ impl Run {
                 .map(f64::to_bits)
                 .hash(&mut hasher);
             if let Some(living) = state.living {
-                [living.yaw, living.pitch, living.head_yaw, living.body_yaw]
-                    .map(f32::to_bits)
-                    .hash(&mut hasher);
+                [
+                    living.orientation.yaw,
+                    living.orientation.pitch,
+                    living.orientation.head_yaw,
+                    living.orientation.body_yaw,
+                ]
+                .map(f32::to_bits)
+                .hash(&mut hasher);
             }
         }
         for (tile, brains) in self.ai.stage().tiles() {

@@ -1,6 +1,7 @@
 use crate::MotionAttributes;
 use crate::MotionEffects;
 use crate::MotionRow;
+use crate::Orientation;
 
 /// The state of a living entity that is not a player, besides its [`Body`](crate::Body).
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
@@ -13,14 +14,7 @@ pub struct Living {
     /// The speed of the input acceleration on the ground, as the AI sets it.
     pub speed: f32,
     pub jump_delay: u8,
-    /// The raw yaw in degrees, never wrapped.
-    pub yaw: f32,
-    /// The pitch in degrees.
-    pub pitch: f32,
-    /// The yaw of the head in degrees, never wrapped.
-    pub head_yaw: f32,
-    /// The yaw of the body in degrees, never wrapped.
-    pub body_yaw: f32,
+    pub orientation: Orientation,
     pub travel: Travel,
     /// True when the entity was inside powder snow in the previous tick.
     pub in_powder_snow: bool,

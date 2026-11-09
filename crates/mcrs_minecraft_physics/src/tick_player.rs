@@ -12,9 +12,9 @@ use crate::MotionAttributes;
 use crate::MoveInput;
 use crate::MovePath;
 use crate::Mover;
+use crate::Orientation;
 use crate::Physics;
 use crate::PlayerFacts;
-use crate::PlayerRotation;
 use crate::PlayerState;
 use crate::Pose;
 use crate::Scratch;
@@ -46,7 +46,7 @@ const FLIGHT_IMPULSE: f32 = 3.0;
 pub struct PlayerInput {
     pub keys: Keys,
     /// The rotation of this tick; it applies before the tick.
-    pub rotation: PlayerRotation,
+    pub rotation: Orientation,
     pub facts: PlayerFacts,
     /// The push of other entities since the last tick; it adds to the velocity before the tick.
     pub push: DVec3,
@@ -63,12 +63,12 @@ pub fn tick_player<W: CollisionWorld, B: BodyView>(
     scratch: &mut Scratch,
 ) {
     *out = *start;
-    out.velocity += input.push;
+    out.body.velocity += input.push;
     let keys = input.keys;
     let facts = input.facts;
     let yaw = input.rotation.yaw;
     if facts.spectator || facts.passenger {
-        out.flags.on_ground = false;
+        out.body.flags.on_ground = false;
     }
     out.sprint_timer = out.sprint_timer.saturating_sub(1);
     out.crouching = crouch_state(view, start, &facts, scratch);
@@ -79,9 +79,9 @@ pub fn tick_player<W: CollisionWorld, B: BodyView>(
     let sprint = sprint_state(start, out, &keys, &facts, move_input.forward);
     let flight = flight_steps(view, side, start, out, input, sprint);
     out.jump_delay = out.jump_delay.saturating_sub(1);
-    zero_small_speeds(&mut out.velocity);
+    zero_small_speeds(&mut out.body.velocity);
     let attributes = out.attributes;
-    let mut body = out.body();
+    let mut body = out.body;
     player_jump(view, out, &mut body, &keys, flight, sprint, yaw);
     if out.effects.slow_falling || out.effects.levitation.is_some() {
         body.fall_distance = 0.0;
@@ -131,7 +131,7 @@ pub fn tick_player<W: CollisionWorld, B: BodyView>(
     let flight_end = flight && !(body.flags.on_ground && !facts.spectator);
     body.position.x = body.position.x.clamp(-WORLD_EDGE, WORLD_EDGE);
     body.position.z = body.position.z.clamp(-WORLD_EDGE, WORLD_EDGE);
-    out.set_body(&body);
+    out.body = body;
     out.pose = select_pose(view, out, &keys, &facts, flight_end, scratch);
     out.shift0 = keys.shift;
     out.jump0 = keys.jump;
@@ -151,8 +151,8 @@ fn flight_steps<W: CollisionWorld, B: BodyView>(
     sprint: bool,
 ) -> bool {
     let flight = flight_state(start, out, &input.keys, &input.facts);
-    if flight && !start.flight0 && out.flags.on_ground {
-        let mut body = out.body();
+    if flight && !start.flight0 && out.body.flags.on_ground {
+        let mut body = out.body;
         let sprint_yaw = sprint.then_some(input.rotation.yaw);
         let strength = out.attributes.jump_strength;
         jump(
@@ -162,14 +162,14 @@ fn flight_steps<W: CollisionWorld, B: BodyView>(
             out.effects.jump_boost,
             sprint_yaw,
         );
-        out.set_body(&body);
+        out.body = body;
     }
     if flight && side == Side::OwnClient {
-        out.velocity.y += flight_impulse(&input.keys, out.flight_speed);
+        out.body.velocity.y += flight_impulse(&input.keys, out.flight_speed);
     }
     out.jump_timer = out.jump_timer.saturating_sub(1);
     if flight {
-        out.fall_distance = 0.0;
+        out.body.fall_distance = 0.0;
     }
     flight
 }
@@ -375,7 +375,7 @@ fn sprint_state(
         }
     }
     if sprint && !out.swimming {
-        let blocked = start.flags.horizontal_collision && !start.flags.minor_collision;
+        let blocked = start.body.flags.horizontal_collision && !start.body.flags.minor_collision;
         if !allowed || !moving || blocked {
             sprint = false;
         }
@@ -446,6 +446,6 @@ fn collides_in<W: CollisionWorld, B: BodyView>(
 ) -> bool {
     let dimensions = dimensions_of(pose, &state.attributes);
     let bounds =
-        Aabb::of_body(state.position, dimensions.width, dimensions.height).deflate(COLLISION);
+        Aabb::of_body(state.body.position, dimensions.width, dimensions.height).deflate(COLLISION);
     query::intersects(view, &state.query_entity(), bounds, &mut scratch.entities)
 }

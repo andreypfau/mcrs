@@ -14,8 +14,8 @@ use mcrs_minecraft_move_predict::Prediction;
 use mcrs_minecraft_move_predict::Pusher;
 use mcrs_minecraft_move_validate::Move;
 use mcrs_minecraft_physics::Keys;
+use mcrs_minecraft_physics::Orientation;
 use mcrs_minecraft_physics::PlayerInput;
-use mcrs_minecraft_physics::PlayerRotation;
 use mcrs_minecraft_physics::PlayerState;
 use mcrs_minecraft_physics::Scratch;
 use mcrs_minecraft_physics::Side;
@@ -49,10 +49,7 @@ fn script(fixture: &TestFixture) -> Vec<(PlayerState, Vec<ClientTick>)> {
                 .map(|tick| {
                     let input = PlayerInput {
                         keys: keys(tick),
-                        rotation: PlayerRotation {
-                            yaw: -90.0 + index as f32 % 7.0,
-                            pitch: 0.0,
-                        },
+                        rotation: Orientation::facing(-90.0 + index as f32 % 7.0, 0.0),
                         ..PlayerInput::default()
                     };
                     let before = client;
@@ -69,10 +66,10 @@ fn script(fixture: &TestFixture) -> Vec<(PlayerState, Vec<ClientTick>)> {
                     ClientTick {
                         input,
                         reported: Move {
-                            position: Some(client.position),
+                            position: Some(client.body.position),
                             look: None,
-                            on_ground: client.flags.on_ground,
-                            horizontal_collision: client.flags.horizontal_collision,
+                            on_ground: client.body.flags.on_ground,
+                            horizontal_collision: client.body.flags.horizontal_collision,
                         },
                         ..ClientTick::default()
                     }

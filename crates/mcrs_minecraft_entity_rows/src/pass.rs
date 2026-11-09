@@ -262,7 +262,12 @@ fn count_down(living: &mut Living) -> bool {
 
 /// The rotations of a living row that its viewers see, as bits.
 fn rotations(living: Living) -> [u32; 3] {
-    [living.yaw, living.pitch, living.head_yaw].map(f32::to_bits)
+    [
+        living.orientation.yaw,
+        living.orientation.pitch,
+        living.orientation.head_yaw,
+    ]
+    .map(f32::to_bits)
 }
 
 fn apply_intent(intent: &MobIntent, living: &mut Living) {
@@ -270,10 +275,10 @@ fn apply_intent(intent: &MobIntent, living: &mut Living) {
         living.steering = intent.steering;
     }
     let turns = [
-        (intent.yaw, &mut living.yaw),
-        (intent.pitch, &mut living.pitch),
-        (intent.head_yaw, &mut living.head_yaw),
-        (intent.body_yaw, &mut living.body_yaw),
+        (intent.yaw, &mut living.orientation.yaw),
+        (intent.pitch, &mut living.orientation.pitch),
+        (intent.head_yaw, &mut living.orientation.head_yaw),
+        (intent.body_yaw, &mut living.orientation.body_yaw),
     ];
     for (turn, angle) in turns {
         if let Some(turn) = turn {

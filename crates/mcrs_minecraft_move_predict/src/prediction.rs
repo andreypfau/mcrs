@@ -7,7 +7,7 @@ use mcrs_minecraft_physics::BodyView;
 use mcrs_minecraft_physics::CollisionWorld;
 use mcrs_minecraft_physics::MoveFlags;
 use mcrs_minecraft_physics::Observation;
-use mcrs_minecraft_physics::PlayerRotation;
+use mcrs_minecraft_physics::Orientation;
 use mcrs_minecraft_physics::PlayerState;
 use mcrs_minecraft_physics::Relative;
 use mcrs_minecraft_physics::Side;
@@ -55,7 +55,7 @@ pub struct Prediction {
     first: Candidate,
     others: Vec<Candidate>,
     reference: DVec3,
-    rotation: PlayerRotation,
+    rotation: Orientation,
     kept: KeptChanges,
     records: VecDeque<Record>,
     buffer: f64,
@@ -76,8 +76,8 @@ impl Prediction {
             limits,
             first: Candidate { state, applied: 0 },
             others: Vec::new(),
-            reference: state.position,
-            rotation: PlayerRotation::default(),
+            reference: state.body.position,
+            rotation: Orientation::default(),
             kept: KeptChanges::default(),
             records: VecDeque::new(),
             buffer: 0.0,
@@ -112,7 +112,7 @@ impl Prediction {
     /// accepted edit, or the state that a refused action gives in the world of the server; `None`
     /// when the server cannot compute it.
     pub fn block_requested(&mut self, at: BlockPos, state: Option<BlockStateId>) {
-        let position = self.first.state.position;
+        let position = self.first.state.body.position;
         let rollback = match &mut self.rollback {
             Some(rollback) if rollback.ack.is_none() => rollback,
             _ => self.rollback.insert(Rollback::default()),
@@ -148,18 +148,18 @@ impl Prediction {
         let found = self
             .candidates()
             .map(destination)
-            .find(|(moved, _)| moved.state.position.distance(position) < threshold);
+            .find(|(moved, _)| moved.state.body.position.distance(position) < threshold);
         let Some((moved, rotation)) = found else {
             let (moved, _) = destination(&self.first);
             return Outcome {
-                offset: Some(moved.state.position.distance(position)),
+                offset: Some(moved.state.body.position.distance(position)),
                 setback: Some(self.set_back_to(moved.state)),
                 ..Outcome::default()
             };
         };
         self.restart(moved);
         self.rotation = rotation;
-        self.reference = moved.state.position;
+        self.reference = moved.state.body.position;
         self.pending = None;
         self.rollback = None;
         self.after_accept = true;
@@ -336,9 +336,9 @@ impl Prediction {
             .work
             .matched
             .iter()
-            .any(|candidate| candidate.state.flags.on_ground == reported.on_ground);
+            .any(|candidate| candidate.state.body.flags.on_ground == reported.on_ground);
         let horizontal = self.work.matched.iter().any(|candidate| {
-            candidate.state.flags.horizontal_collision == reported.horizontal_collision
+            candidate.state.body.flags.horizontal_collision == reported.horizontal_collision
         });
         self.accept_matched();
         self.buffer *= self.limits.buffer_decay;
@@ -368,7 +368,7 @@ impl Prediction {
         }
         let mut candidate = best.candidate;
         if let Some(position) = tick.reported.position {
-            candidate.state.position = position;
+            candidate.state.body.position = position;
         }
         self.set_accepted(&[candidate]);
         self.after_accept = false;
@@ -396,7 +396,7 @@ impl Prediction {
         self.kept.apply(&mut first.state, first.applied, applied);
         first.applied = applied;
         if let Some(position) = tick.reported.position {
-            first.state.position = position;
+            first.state.body.position = position;
         }
         self.restart(first);
         self.resync = true;
@@ -438,27 +438,28 @@ impl Prediction {
             &mut self.work.scratch,
         );
         self.work.actions.clear();
-        end.flags = MoveFlags {
+        end.body.flags = MoveFlags {
             on_ground: tick.reported.on_ground,
             horizontal_collision: tick.reported.horizontal_collision,
-            ..end.flags
+            ..end.body.flags
         };
         let observation = Observation {
-            displacement: position - start.state.position,
-            end_flags: end.flags,
-            end_support: end.support,
+            displacement: position - start.state.body.position,
+            end_flags: end.body.flags,
+            end_support: end.body.support,
             flight: end.flight0,
             jump: tick.input.keys.jump,
             shift: tick.input.keys.shift,
         };
         let velocities = observed_velocity(client, &start.state, &observation);
-        end.position = position;
+        end.body.position = position;
         let resynced: Vec<Candidate> = velocities
             .as_slice()
             .iter()
-            .map(|&velocity| Candidate {
-                state: PlayerState { velocity, ..end },
-                applied,
+            .map(|&velocity| {
+                let mut state = end;
+                state.body.velocity = velocity;
+                Candidate { state, applied }
             })
             .collect();
         self.set_accepted(&resynced);
@@ -472,8 +473,8 @@ impl Prediction {
     /// the rotation of the client kept.
     fn set_back_to(&mut self, state: PlayerState) -> Teleport {
         let correction = Teleport {
-            position: state.position,
-            velocity: state.velocity,
+            position: state.body.position,
+            velocity: state.body.velocity,
             yaw: 0.0,
             pitch: 0.0,
             relative: Relative::YAW | Relative::PITCH,

@@ -67,9 +67,9 @@ pub(crate) fn push_out_of_blocks<W: CollisionWorld>(
     state: &mut PlayerState,
 ) {
     let dimensions = dimensions_of(state.pose, &state.attributes);
-    let bounds = Aabb::of_body(state.position, dimensions.width, dimensions.height);
+    let bounds = Aabb::of_body(state.body.position, dimensions.width, dimensions.height);
     let reach = f64::from(dimensions.width) * 0.35;
-    let position = state.position;
+    let position = state.body.position;
     let entity = state.query_entity();
     let context = ShapeContext {
         entity: &entity,
@@ -105,7 +105,7 @@ pub(crate) fn push_out_of_blocks<W: CollisionWorld>(
             }
         }
         if let Some((face, _)) = nearest {
-            face.push(&mut state.velocity);
+            face.push(&mut state.body.velocity);
         }
     }
 }

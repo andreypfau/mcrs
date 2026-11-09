@@ -162,9 +162,9 @@ fn run_trials<W: CollisionWorld, B: BodyView>(
             continue;
         }
         if let Some(position) = reported.position {
-            candidate.state.position = position;
+            candidate.state.body.position = position;
         }
-        let flags = candidate.state.flags;
+        let flags = candidate.state.body.flags;
         let flags_match = flags.on_ground == reported.on_ground
             && flags.horizontal_collision == reported.horizontal_collision;
         if search == Search::First && flags_match {
@@ -229,26 +229,26 @@ fn run_trial<W: CollisionWorld, B: BodyView>(
     step(&input, &mut candidate.state)?;
     if let Some(rollback) = rollback {
         let dimensions = dimensions_of(start.pose, &start.attributes);
-        let grown = Aabb::of_body(start.position, dimensions.width, dimensions.height)
-            .expand_towards(candidate.state.position - start.position)
+        let grown = Aabb::of_body(start.body.position, dimensions.width, dimensions.height)
+            .expand_towards(candidate.state.body.position - start.body.position)
             .inflate(DVec3::splat(CONTACT));
         if rollback.unsettled(candidate.applied, &grown) {
             return Err(Stop::Unsettled);
         }
     }
     let Some(position) = tick.reported.position else {
-        let distance = candidate.state.position.distance(record.reference);
+        let distance = candidate.state.body.position.distance(record.reference);
         let tolerance = SILENT_DISTANCE + bound.reach();
         return Ok(Score {
             offset: (distance - tolerance).max(0.0),
             matches: distance <= tolerance + limits.offset_threshold,
         });
     };
-    input.push = bound.clamp(position - candidate.state.position);
+    input.push = bound.clamp(position - candidate.state.body.position);
     if input.push != DVec3::ZERO {
         step(&input, &mut candidate.state)?;
     }
-    let offset = candidate.state.position.distance(position);
+    let offset = candidate.state.body.position.distance(position);
     Ok(Score {
         offset,
         matches: offset < limits.offset_threshold,
@@ -281,9 +281,9 @@ fn push_bound<W, B>(
         return Ok(PushBound::default());
     }
     let dimensions = dimensions_of(start.pose, &start.attributes);
-    let player = Aabb::of_body(start.position, dimensions.width, dimensions.height);
+    let player = Aabb::of_body(start.body.position, dimensions.width, dimensions.height);
     let near = player
-        .expand_towards(start.velocity)
+        .expand_towards(start.body.velocity)
         .inflate(DVec3::splat(1.0));
     work.pushers.clear();
     work.pushers.extend(
@@ -292,7 +292,8 @@ fn push_bound<W, B>(
             .iter()
             .filter(|pusher| pusher.hull().intersects(&near)),
     );
-    PushBound::of(&work.pushers, &player, start.position, context.limits).ok_or(Stop::Unbounded)
+    PushBound::of(&work.pushers, &player, start.body.position, context.limits)
+        .ok_or(Stop::Unbounded)
 }
 
 /// The candidates of the tick in the try order: per start candidate, the primary one first, then
@@ -365,11 +366,11 @@ fn add_moves_back<W: CollisionWorld, B: BodyView>(
         let view = View::new(&world, context.view.bodies, context.view.tables);
         let state = &from.state;
         let dimensions = dimensions_of(state.pose, &state.attributes);
-        let bounds = Aabb::of_body(state.position, dimensions.width, dimensions.height);
+        let bounds = Aabb::of_body(state.body.position, dimensions.width, dimensions.height);
         let entity = QueryEntity {
             key: state.key,
-            position: state.position,
-            fall_distance: state.fall_distance,
+            position: state.body.position,
+            fall_distance: state.body.fall_distance,
             shift: state.shift0,
             powder_snow_solid: false,
             walks_on_powder_snow: false,
@@ -449,7 +450,7 @@ impl Trial {
             state.item_use.using = using;
         }
         if let Some(position) = self.position {
-            state.position = position;
+            state.body.position = position;
         }
     }
 }

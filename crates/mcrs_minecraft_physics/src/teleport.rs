@@ -1,7 +1,7 @@
 use glam::DVec3;
 use mcrs_minecraft_numeric as numeric;
 
-use crate::PlayerRotation;
+use crate::Orientation;
 use crate::PlayerState;
 
 /// Degrees to radians in f64, as the teleport computes them.
@@ -36,7 +36,7 @@ bitflags::bitflags! {
 
 /// Applies a teleport to the state and the rotation of a player. The flags, the supporting block
 /// and the fall distance stay.
-pub fn apply_teleport(state: &mut PlayerState, rotation: &mut PlayerRotation, packet: &Teleport) {
+pub fn apply_teleport(state: &mut PlayerState, rotation: &mut Orientation, packet: &Teleport) {
     let relative = packet.relative;
     let pick = |flag: Relative, current: f64, change: f64| {
         if relative.contains(flag) {
@@ -46,9 +46,9 @@ pub fn apply_teleport(state: &mut PlayerState, rotation: &mut PlayerRotation, pa
         }
     };
     let position = DVec3::new(
-        pick(Relative::X, state.position.x, packet.position.x),
-        pick(Relative::Y, state.position.y, packet.position.y),
-        pick(Relative::Z, state.position.z, packet.position.z),
+        pick(Relative::X, state.body.position.x, packet.position.x),
+        pick(Relative::Y, state.body.position.y, packet.position.y),
+        pick(Relative::Z, state.body.position.z, packet.position.z),
     );
     let yaw = if relative.contains(Relative::YAW) {
         rotation.yaw + packet.yaw
@@ -61,7 +61,7 @@ pub fn apply_teleport(state: &mut PlayerState, rotation: &mut PlayerRotation, pa
         packet.pitch
     }
     .clamp(-90.0, 90.0);
-    let mut velocity = state.velocity;
+    let mut velocity = state.body.velocity;
     if relative.contains(Relative::ROTATE_VELOCITY) {
         let about_x = radians(rotation.pitch - pitch);
         let (cos, sin) = (
@@ -84,12 +84,12 @@ pub fn apply_teleport(state: &mut PlayerState, rotation: &mut PlayerRotation, pa
             velocity.z * cos - velocity.x * sin,
         );
     }
-    state.velocity = DVec3::new(
+    state.body.velocity = DVec3::new(
         pick(Relative::VELOCITY_X, velocity.x, packet.velocity.x),
         pick(Relative::VELOCITY_Y, velocity.y, packet.velocity.y),
         pick(Relative::VELOCITY_Z, velocity.z, packet.velocity.z),
     );
-    state.position = position;
+    state.body.position = position;
     rotation.yaw = yaw;
     rotation.pitch = pitch;
 }
