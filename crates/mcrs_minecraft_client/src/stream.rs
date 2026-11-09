@@ -24,7 +24,6 @@ use mcrs_minecraft_dimension::CardinalLight;
 use mcrs_minecraft_dimension_environment::dimension_type::DimensionTypeFile;
 use mcrs_minecraft_mesh::arena::{Arena, Block};
 use mcrs_minecraft_mesh::block::BlockInfo;
-use mcrs_minecraft_mesh::face_shade::ShadeTable;
 use mcrs_minecraft_mesh::pack::QUAD_WORDS;
 use mcrs_minecraft_mesh::smooth_light::SmoothLight;
 use mcrs_minecraft_mesh::{self as mesh, Connectivity, Draw, Group, STREAMS, Scratch, SectionMesh};
@@ -1662,10 +1661,7 @@ fn apply_dimension_shade(
     };
     let table = Id::checked(current.dimension_type.number(), dimension_types.len())
         .and_then(|id| dimension_types.get(id))
-        .map_or(ShadeTable::Default, |file| match file.cardinal_light {
-            CardinalLight::Default => ShadeTable::Default,
-            CardinalLight::Nether => ShadeTable::Nether,
-        });
+        .map_or(CardinalLight::Default, |file| file.cardinal_light);
     shade.set_if_neq(TerrainShade(table));
 }
 

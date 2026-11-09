@@ -23,13 +23,13 @@ pub mod uv_orientation;
 pub mod variant_pick;
 
 use crate::block::{BlockInfo, Pass, face_axes};
-use crate::face_shade::ShadeTable;
 use crate::pack::{
     BOUNDS_HI_X, BOUNDS_HI_Y, BOUNDS_HI_Z, BOUNDS_LO_X, BOUNDS_LO_Y, BOUNDS_LO_Z, FACE_WORDS,
     Field, MODEL_OVERHANG, MODEL_STEPS, MODEL_X, MODEL_Y, MODEL_Z, QUAD_DROP, QUAD_FACE,
     QUAD_FLUID, QUAD_H, QUAD_W, QUAD_WORDS, QUAD_X, QUAD_Y, QUAD_Z,
 };
 use crate::smooth_light::SmoothLight;
+use mcrs_minecraft_core::CardinalLight;
 use mcrs_minecraft_volume::{BlockVolume, LightVolume};
 
 pub use connectivity::{CONNECT_ALL, Connectivity, OPEN, SEALED, along};
@@ -262,7 +262,7 @@ pub fn mesh_section(
     section: [i32; 3],
     slot: u32,
     smooth_light: SmoothLight,
-    shade: ShadeTable,
+    shade: CardinalLight,
     scratch: &mut Scratch,
 ) -> SectionMesh {
     scratch.smooth_light = smooth_light;
@@ -414,7 +414,7 @@ pub fn mesh_world(
             section,
             slot,
             SmoothLight::On,
-            ShadeTable::Default,
+            CardinalLight::Default,
             scratch,
         );
         batch.simple.extend_from_slice(&mesh.simple);
@@ -473,7 +473,7 @@ mod tests {
             [0, 0, 0],
             0,
             SmoothLight::On,
-            ShadeTable::Default,
+            CardinalLight::Default,
             &mut Scratch::new(),
         );
 
@@ -484,7 +484,7 @@ mod tests {
             [0, 0, 0],
             0,
             SmoothLight::On,
-            ShadeTable::Default,
+            CardinalLight::Default,
             &mut carried,
         );
         let again = mesh_section(
@@ -493,7 +493,7 @@ mod tests {
             [0, 0, 0],
             0,
             SmoothLight::On,
-            ShadeTable::Default,
+            CardinalLight::Default,
             &mut carried,
         );
 
@@ -548,7 +548,7 @@ mod tests {
                 [0, 0, 0],
                 0,
                 SmoothLight::On,
-                ShadeTable::Default,
+                CardinalLight::Default,
                 &mut Scratch::new(),
             );
             assert!(!mesh.groups.is_empty());
@@ -589,7 +589,7 @@ mod tests {
             [0, 0, 0],
             0,
             SmoothLight::On,
-            ShadeTable::Default,
+            CardinalLight::Default,
             &mut Scratch::new(),
         );
         assert_eq!(mesh.model_quads(), SECTION_SIZE * SECTION_SIZE);
@@ -652,7 +652,7 @@ mod tests {
             [0, 0, 0],
             0,
             SmoothLight::On,
-            ShadeTable::Default,
+            CardinalLight::Default,
             &mut Scratch::new(),
         );
         let tops: Vec<_> = mesh
@@ -705,7 +705,7 @@ mod tests {
             [0, 0, 0],
             0,
             SmoothLight::On,
-            ShadeTable::Default,
+            CardinalLight::Default,
             &mut scratch,
         );
 

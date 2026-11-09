@@ -11,6 +11,7 @@ doctest = false
 workspace = true
 
 [dependencies]
+mcrs_minecraft_core.workspace = true
 mcrs_minecraft_mesh.workspace = true
 bevy = { version = "0.19.1", default-features = false, features = [
     "std",

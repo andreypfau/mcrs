@@ -4277,6 +4277,7 @@ name = "mcrs_minecraft_dimension"
 version = "0.5.8"
 dependencies = [
  "mcrs_minecraft_block",
+ "mcrs_minecraft_core",
  "mcrs_minecraft_registries",
  "mcrs_minecraft_resource",
  "mcrs_minecraft_value_provider",
@@ -5209,6 +5210,7 @@ dependencies = [
  "bevy",
  "bitflags 2.10.0",
  "bytemuck",
+ "mcrs_minecraft_core",
  "mcrs_minecraft_mesh",
  "wgpu",
 ]

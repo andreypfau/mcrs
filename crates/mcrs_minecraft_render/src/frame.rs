@@ -10,7 +10,8 @@ use super::Occlusion;
 use super::draws::PARAMS_STRIDE;
 use super::stats::args_reset;
 use super::terrain::Terrain;
-use mcrs_minecraft_mesh::face_shade::ShadeTable;
+use mcrs_minecraft_core::CardinalLight;
+use mcrs_minecraft_mesh::face_shade;
 use mcrs_minecraft_mesh::{SECTION_SIZE, STREAMS};
 
 use super::Budget;
@@ -40,7 +41,14 @@ impl CameraOrigin {
 
 /// The directional shade table of the dimension the camera is in.
 #[derive(Resource, Clone, Copy, Debug, Default, PartialEq, Eq, ExtractResource)]
-pub struct TerrainShade(pub ShadeTable);
+pub struct TerrainShade(pub CardinalLight);
+
+impl TerrainShade {
+    #[must_use]
+    pub fn is_nether(self) -> bool {
+        self.0 == CardinalLight::Nether
+    }
+}
 
 /// The frame's view, expressed against the origin of the section the camera stands in. Nothing
 /// here is an absolute world coordinate: at the edge of the world f32 has no block left to give.
@@ -176,7 +184,7 @@ pub(super) fn write_camera(
             hiz_levels: if occlusion.0 { terrain.hiz.levels() } else { 0 },
             viewport: view.viewport.zw().as_vec2().to_array(),
             quad_cull: quad_cull.0 as u32,
-            shade_table: shade.0.shader_index(),
+            shade_table: face_shade::shader_index(shade.0),
             ..default()
         }),
     );

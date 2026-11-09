@@ -1,9 +1,9 @@
 use crate::axis_mut;
 use crate::block::{AIR, BlockInfo, Pass, face_axes};
-use crate::face_shade::ShadeTable;
 use crate::pack::{FACE_NONE, FACE_WORDS, QUAD_WORDS};
 use crate::smooth_light::{CellLight, LightState, Sample, SmoothLight};
 use crate::{SECTION_SIZE, SECTION_VOLUME};
+use mcrs_minecraft_core::CardinalLight;
 use mcrs_minecraft_volume::{BlockVolume, LightVolume, SectionBlocks};
 use mcrs_voxel::{BlockPos, LocalPos, SectionPos};
 
@@ -51,7 +51,7 @@ pub struct Scratch {
     pub(super) section_faces: Vec<[u32; FACE_WORDS]>,
     pub(super) complex_by_pass: [[Vec<u32>; FACE_GROUPS]; Pass::COUNT],
     pub(super) smooth_light: SmoothLight,
-    pub(super) shade: ShadeTable,
+    pub(super) shade: CardinalLight,
 }
 
 #[derive(Copy, Clone)]
@@ -86,7 +86,7 @@ impl Scratch {
             section_faces: Vec::new(),
             complex_by_pass: Default::default(),
             smooth_light: SmoothLight::default(),
-            shade: ShadeTable::default(),
+            shade: CardinalLight::default(),
         }
     }
 

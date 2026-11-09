@@ -1,4 +1,4 @@
-use mcrs_minecraft_core::Direction;
+use mcrs_minecraft_core::{CardinalLight, Direction};
 
 /// What a model face multiplies the colour of its vertices by.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -11,7 +11,7 @@ pub enum FaceShade {
 
 impl FaceShade {
     #[must_use]
-    pub fn factor(self, table: ShadeTable) -> f32 {
+    pub fn factor(self, table: CardinalLight) -> f32 {
         match self {
             FaceShade::Direction(direction) => table.factor(direction),
             FaceShade::Factor(factor) => factor,
@@ -19,33 +19,11 @@ impl FaceShade {
     }
 }
 
-/// The directional shade factors of a dimension type, one table per value of its
-/// `cardinal_light`.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
-pub enum ShadeTable {
-    #[default]
-    Default,
-    Nether,
-}
-
-impl ShadeTable {
-    #[must_use]
-    pub const fn factor(self, direction: Direction) -> f32 {
-        match (self, direction) {
-            (ShadeTable::Default, Direction::Down) => 0.5,
-            (ShadeTable::Default, Direction::Up) => 1.0,
-            (ShadeTable::Nether, Direction::Down | Direction::Up) => 0.9,
-            (_, Direction::North | Direction::South) => 0.8,
-            (_, Direction::West | Direction::East) => 0.6,
-        }
-    }
-
-    /// The value the terrain shaders read to select the table.
-    #[must_use]
-    pub const fn shader_index(self) -> u32 {
-        match self {
-            ShadeTable::Default => 0,
-            ShadeTable::Nether => 1,
-        }
+/// The value the terrain shaders read to select the shade table.
+#[must_use]
+pub const fn shader_index(light: CardinalLight) -> u32 {
+    match light {
+        CardinalLight::Default => 0,
+        CardinalLight::Nether => 1,
     }
 }

@@ -29,7 +29,7 @@ use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
 use bevy::tasks::block_on;
 
 use mcrs_minecraft_client::vanilla::{self, VanillaAssets};
-use mcrs_minecraft_mesh::face_shade::ShadeTable;
+use mcrs_minecraft_core::CardinalLight;
 use mcrs_minecraft_mesh::smooth_light::{self, LightState, Sample};
 use mcrs_minecraft_model::atlas;
 use mcrs_minecraft_model::bake::BlockModels;
@@ -294,7 +294,7 @@ fn build_mesh(
             normals.push(normal);
             uvs.push([quad.uvs[i][0], (slot as f32 + quad.uvs[i][1]) / slots]);
             // Vanilla's shade byte is sRGB; Bevy consumes vertex colours as linear.
-            let c = smooth_light::shade_byte(ao[i], quad.shade.factor(ShadeTable::Default));
+            let c = smooth_light::shade_byte(ao[i], quad.shade.factor(CardinalLight::Default));
             colors.push(LinearRgba::from(Color::srgb_u8(c, c, c)).to_f32_array());
         }
         indices.extend_from_slice(&[base, base + 1, base + 2, base, base + 2, base + 3]);

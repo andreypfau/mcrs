@@ -13,6 +13,7 @@ pub mod voxel_shape;
 
 mod block_pos_long;
 mod block_state_number;
+mod cardinal_light;
 mod look;
 mod look_anchor;
 mod wire;
@@ -20,6 +21,7 @@ mod wire;
 pub use block_pos_long::block_pos_as_long;
 pub use block_state_number::BlockStateNumber;
 pub use bounding_box::BoundingBox;
+pub use cardinal_light::CardinalLight;
 pub use direction::{Axis, Direction, DirectionSet, dist_manhattan};
 pub use heightmap::HeightmapName;
 pub use look::Look;

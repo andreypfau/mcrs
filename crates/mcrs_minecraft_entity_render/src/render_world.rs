@@ -195,9 +195,7 @@ pub(crate) fn draw_entities(
         viewport: extracted.viewport.zw().as_vec2().to_array(),
         focal_y: clip_from_view.y_axis.y,
     };
-    let nether = params
-        .shade
-        .is_some_and(|shade| shade.0.shader_index() == 1);
+    let nether = params.shade.is_some_and(|shade| shade.is_nether());
     let mut uniform = FrameUniform::new(&view, clock.tick, clock.partial_tick, nether);
     uniform.hiz_levels = terrain.depth_pyramid_levels(&params.occlusion, &params.cache);
     uniform.height_threshold = threshold.pixels();
