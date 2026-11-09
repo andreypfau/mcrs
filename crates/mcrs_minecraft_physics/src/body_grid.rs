@@ -1,7 +1,7 @@
-use std::collections::BTreeMap;
 use std::mem;
 
 use mcrs_engine_muxer::TileKey;
+use rustc_hash::FxHashMap;
 
 use crate::TileBodies;
 
@@ -9,7 +9,7 @@ use crate::TileBodies;
 /// writer of a tile keeps its back buffer, writes it in the pass, and swaps it in at the freeze.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct BodyGrid {
-    tiles: BTreeMap<TileKey, TileBodies>,
+    tiles: FxHashMap<TileKey, TileBodies>,
 }
 
 static NO_BODIES: TileBodies = TileBodies {

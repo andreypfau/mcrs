@@ -38,6 +38,7 @@ impl BodyView for FrontGrid<'_> {
         let reach = f64::from(of.half_width) + f64::from(self.reach);
         let low = of.position - DVec3::new(reach, 0.0, reach);
         let high = of.position + DVec3::new(reach, 0.0, reach);
+        let bounds = of.bounds();
         let (first, last) = (tile_at(low), tile_at(high));
         for tile_z in first.z..=last.z {
             for tile_x in first.x..=last.x {
@@ -46,7 +47,12 @@ impl BodyView for FrontGrid<'_> {
                 let [x0, z0] = bucket_xz(tile, low);
                 let [x1, z1] = bucket_xz(tile, high);
                 for z in z0..=z1 {
-                    out.extend_from_slice(bodies.cells(z * BUCKETS + x0, z * BUCKETS + x1));
+                    out.extend(
+                        bodies
+                            .cells(z * BUCKETS + x0, z * BUCKETS + x1)
+                            .iter()
+                            .filter(|row| row.bounds().intersects(&bounds)),
+                    );
                 }
             }
         }

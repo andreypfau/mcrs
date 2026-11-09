@@ -1,5 +1,3 @@
-use std::collections::BTreeMap;
-
 use bevy_ecs::resource::Resource;
 use mcrs_engine_muxer::EntityId;
 use mcrs_engine_muxer::TileKey;
@@ -9,7 +7,7 @@ use rustc_hash::FxHashMap;
 
 /// The cold state of each mob row of the world, by its id.
 #[derive(Resource, Debug, Default)]
-pub struct Mobs(pub BTreeMap<EntityId, Mob>);
+pub struct Mobs(pub FxHashMap<EntityId, Mob>);
 
 /// The id of each mob row of the world, by its UUID.
 #[derive(Resource, Debug, Default)]
