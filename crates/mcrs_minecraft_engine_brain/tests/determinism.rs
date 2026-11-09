@@ -90,6 +90,7 @@ impl Run {
                     custom_name: None,
                     tags: Vec::new(),
                     last_hit: None,
+                    strikes: 0,
                 },
             );
         }
@@ -135,6 +136,7 @@ impl Run {
                         tick,
                         damage_type: CACTUS,
                     });
+                    mob.strikes = mob.strikes.wrapping_add(1);
                 }
             }
         }

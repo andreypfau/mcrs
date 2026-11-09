@@ -52,6 +52,8 @@ pub(crate) struct HostMob {
     rotations: Rotations,
     idle_time: u32,
     last_hit: Option<MobHit>,
+    /// The strike count of the mob at the last observe (GOAL-STR-004).
+    strikes: u32,
     damage: Option<DamageRecord>,
     panic: Panic,
     /// The tick in which the life cycle last found the mob.
@@ -74,7 +76,8 @@ struct RowFacts {
 /// What the start of a tick saw of one mob: its view and its wake events.
 pub(crate) struct Observed {
     pub(crate) view: MobView,
-    pub(crate) hurt: bool,
+    /// A hit passed the tests of DMG-HIT-001 since the last observe: wake event 1.
+    pub(crate) struck: bool,
     pub(crate) idle_reset: bool,
 }
 
@@ -91,6 +94,7 @@ impl HostMob {
             rotations: Rotations::default(),
             idle_time: 0,
             last_hit: None,
+            strikes: 0,
             damage: None,
             panic: Panic::Calm,
             seen: tick,
@@ -135,15 +139,21 @@ impl HostMob {
         if let Some(turned) = self.turned {
             self.rotations = turned;
         }
-        // A hit that the cooldown accepts leaves the cooldown above zero up to the next observe,
-        // so a row without a cooldown has no new hit, and the lookup in the map is skipped.
-        let hit = if living.damage_cooldown > 0 {
-            hot.mobs.0.get(&self.id).and_then(|mob| mob.last_hit)
+        // A hit leaves the damage cooldown above zero up to the next observe, also one that the
+        // cooldown rejects, since that needs a cooldown above 10. So a row without a cooldown has
+        // no new hit, and the lookup in the map is skipped.
+        let (hit, strikes) = if living.damage_cooldown > 0 {
+            hot.mobs
+                .0
+                .get(&self.id)
+                .map_or((None, self.strikes), |mob| (mob.last_hit, mob.strikes))
         } else {
-            self.last_hit
+            (self.last_hit, self.strikes)
         };
         let hurt = hit.is_some() && hit != self.last_hit;
         self.last_hit = hit;
+        let struck_now = strikes != self.strikes;
+        self.strikes = strikes;
         if hurt && let Some(hit) = hit {
             self.damage = Some(DamageRecord {
                 tick: tick.saturating_sub(1),
@@ -158,7 +168,7 @@ impl HostMob {
             player.is_qualified()
                 && player.position.distance_squared(self.position) < NEAR_PLAYER * NEAR_PLAYER
         });
-        let idle_time = if near || hurt {
+        let idle_time = if near || struck_now {
             0
         } else {
             self.idle_time.saturating_add(1)
@@ -186,7 +196,7 @@ impl HostMob {
                 disabled: DisabledFlags::NONE,
                 path: self.control.applied(),
             },
-            hurt,
+            struck: struck_now,
             idle_reset,
         }
     }

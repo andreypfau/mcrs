@@ -10,6 +10,7 @@ use mcrs_minecraft_command_engine::{
     Call, CommandFailure, CommandOutput, CommandRegistrar, CommandResult, EffectQueue, Feedback,
 };
 use mcrs_minecraft_engine_physics::{Hit, HitOutcome, preview};
+use mcrs_minecraft_physics::Living;
 use mcrs_minecraft_resource::{ResourceLocation, rl};
 use mcrs_minecraft_text::Text;
 
@@ -96,16 +97,14 @@ pub(crate) fn run(
             .lookup()
             .mob(mob.source())
             .ok_or_else(CommandFailure::failed)?;
-        let rejected = view
-            .state
-            .living
-            .is_none_or(|living| preview(&living, amount) == HitOutcome::Rejected);
-        if rejected {
+        let Some(living) = view.state.living.filter(Living::is_alive) else {
             return Err(CommandFailure::translate(
                 "commands.damage.invulnerable",
                 vec![],
             ));
-        }
+        };
+        // A hit that the cooldown rejects still resets the idle time (CMD-DMG-003), so it goes
+        // to the row before the command fails.
         output.effect(
             &mut hits,
             HitMob {
@@ -116,6 +115,12 @@ pub(crate) fn run(
                 },
             },
         );
+        if preview(&living, amount) == HitOutcome::Rejected {
+            return Err(CommandFailure::translate(
+                "commands.damage.invulnerable",
+                vec![],
+            ));
+        }
         output.success(
             &call.invocation,
             Text::translate_args(

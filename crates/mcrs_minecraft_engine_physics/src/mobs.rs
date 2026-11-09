@@ -26,6 +26,10 @@ pub struct Mob {
     pub tags: Vec<String>,
     /// The last hit that the damage cooldown accepted (`mob-goals.md`, GOAL-PNC-001).
     pub last_hit: Option<MobHit>,
+    /// The count of the hits that passed the tests of DMG-HIT-001, also those that the cooldown
+    /// rejected. Each one resets the idle time (DMG-HIT-002, step 1, and `mob-goals.md`,
+    /// GOAL-STR-004); the count wraps.
+    pub strikes: u32,
 }
 
 /// A hit on a mob: its tick and the network id of its damage type.

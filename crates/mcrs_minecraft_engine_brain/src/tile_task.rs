@@ -54,7 +54,7 @@ impl TileTask<'_> {
             };
             let observed = mob.observe(hot, self.tick, state);
             let kinds = [
-                (observed.hurt, FactKind::Hurt),
+                (observed.struck, FactKind::Hurt),
                 (observed.idle_reset, FactKind::IdleReset),
             ];
             for (set, kind) in kinds {

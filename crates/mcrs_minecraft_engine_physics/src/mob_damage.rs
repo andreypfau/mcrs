@@ -30,7 +30,8 @@ pub enum HitOutcome {
 }
 
 /// Does `hit` on the mob row `at` in tick `tick` (DMG-HIT-001 to DMG-HIT-005, DMG-DTH-001), and
-/// records what its viewers see. A row that is gone or dying rejects the hit. Gives `None` when
+/// records what its viewers see. A row that is gone or dying rejects the hit; each other hit
+/// records the strike for the idle time, also one that the cooldown rejects. Gives `None` when
 /// `at` is not a living row.
 pub fn hurt(
     rows: &mut EntityRows,
@@ -41,6 +42,12 @@ pub fn hurt(
     tick: u64,
 ) -> Option<HitOutcome> {
     let living = rows.state_mut(at)?.living.as_mut()?;
+    if !living.is_alive() {
+        return Some(HitOutcome::Rejected);
+    }
+    if let Some(mob) = mobs.0.get_mut(&at.id) {
+        mob.strikes = mob.strikes.wrapping_add(1);
+    }
     let outcome = apply(living, hit.amount);
     if outcome == HitOutcome::Rejected {
         return Some(outcome);
@@ -132,6 +139,78 @@ mod tests {
             "the cooldown ended"
         );
         assert_eq!(living.health, 6.0);
+    }
+
+    /// DMG-HIT-002 step 1, GOAL-STR-004: a hit that the cooldown rejects records the strike that
+    /// resets the idle time, but not the damage record; a hit on a dying mob records neither.
+    #[test]
+    fn hit_002_a_hit_that_the_cooldown_rejects_still_strikes_the_mob() {
+        use glam::DVec3;
+        use mcrs_engine_muxer::EntityId;
+        use mcrs_minecraft_mob::MobType;
+        use mcrs_minecraft_physics::Birth;
+        use mcrs_minecraft_physics::BirthKey;
+        use mcrs_minecraft_physics::SourceKind;
+
+        use crate::mob_life::mob_body;
+        use crate::mob_life::mob_row;
+        use crate::mobs::Mob;
+        use crate::tile_at::tile_at;
+
+        let id = EntityId(1);
+        let position = DVec3::new(0.5, 0.0, 0.5);
+        let row = mob_row(MobType::Pig);
+        let key = Birth::from(BirthKey::new(0, SourceKind::Command, 0, 0));
+        let mut rows = EntityRows::default();
+        rows.spawn(id, mob_body(MobType::Pig, &row, key, position), row);
+        let mut mobs = Mobs::default();
+        mobs.0.insert(
+            id,
+            Mob {
+                kind: MobType::Pig,
+                uuid: 1,
+                looks: Default::default(),
+                tile: tile_at(position),
+                custom_name: None,
+                tags: Vec::new(),
+                last_hit: None,
+                strikes: 0,
+            },
+        );
+        let mut changes = MobChanges::default();
+        let at = Placed {
+            tile: tile_at(position),
+            id,
+        };
+        let drown = Hit {
+            amount: 0.0,
+            damage_type: 3,
+        };
+        let mut hit = |tick, hit| hurt(&mut rows, &mut mobs, &mut changes, at, hit, tick);
+        assert_eq!(hit(10, drown), Some(HitOutcome::Full));
+        assert_eq!(
+            hit(12, drown),
+            Some(HitOutcome::Rejected),
+            "the cooldown runs"
+        );
+        let mob = mobs.0.get(&id).expect("the pig keeps its mob");
+        assert_eq!(mob.strikes, 2, "the rejected hit strikes the pig");
+        assert_eq!(
+            mob.last_hit.map(|hit| hit.tick),
+            Some(10),
+            "the damage record keeps the accepted hit"
+        );
+
+        if let Some(living) = rows.state_mut(at).and_then(|state| state.living.as_mut()) {
+            living.death_time = Some(1);
+        }
+        let mut hit = |tick, hit| hurt(&mut rows, &mut mobs, &mut changes, at, hit, tick);
+        assert_eq!(hit(40, drown), Some(HitOutcome::Rejected));
+        assert_eq!(
+            mobs.0.get(&id).map(|mob| mob.strikes),
+            Some(2),
+            "a hit on a dying pig strikes nothing"
+        );
     }
 
     #[test]

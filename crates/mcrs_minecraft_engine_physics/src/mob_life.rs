@@ -169,6 +169,7 @@ pub(crate) fn spawn_mobs(
                 custom_name: request.extras.custom_name,
                 tags: request.extras.tags,
                 last_hit: None,
+                strikes: 0,
             },
         );
     }

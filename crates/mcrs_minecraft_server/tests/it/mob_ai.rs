@@ -122,3 +122,59 @@ fn a_cactus_hit_makes_a_resting_pig_panic_and_run() {
         "the panicking pig runs: {rested:?} to {ran:?}"
     );
 }
+
+/// GOAL-STR-004, GOAL-WAKE-020, TRK-SUM-007: a pig of `{PersistenceRequired:1b}` stops its
+/// strolls under a spectator, and a hit of 0 by drown each 80 ticks makes it stroll again without
+/// a panic and without a push.
+#[test]
+fn a_drown_hit_each_80_ticks_keeps_a_pig_strolling_without_a_panic() {
+    const HIT: &str = "execute as @e[type=minecraft:pig] run damage @s 0 minecraft:drown";
+    let (mut server, operator) = start();
+    run(&mut server, operator, "gamemode spectator");
+    run(
+        &mut server,
+        operator,
+        "summon minecraft:pig 8 64 8 {PersistenceRequired:1b}",
+    );
+    server.ticks(operator, 300);
+    let rested = pig_positions(&mut server);
+    assert_eq!(rested.len(), 1, "the summon accepts PersistenceRequired");
+    server.ticks(operator, 40);
+    assert_eq!(
+        pig_positions(&mut server),
+        rested,
+        "the spectator resets no idle time"
+    );
+    let velocity = |server: &mut PlayServer| {
+        server
+            .world()
+            .resource_mut::<EntityRows>()
+            .living_rows()
+            .map(|(_, state)| state.body.velocity)
+            .collect::<Vec<DVec3>>()
+    };
+    let resting = velocity(&mut server);
+    run(&mut server, operator, HIT);
+    server.ticks(operator, 1);
+    assert_eq!(velocity(&mut server), resting, "a drown hit gives no push");
+
+    let mut farthest: f64 = 0.0;
+    for round in 0..10 {
+        if round > 0 {
+            run(&mut server, operator, HIT);
+        }
+        for _ in 0..80 {
+            server.ticks(operator, 1);
+            let ai = server.world().resource::<MobAi>();
+            let panics = ai.stage().tiles().any(|(_, brains)| {
+                brains
+                    .iter()
+                    .any(|entry| entry.brain.selector().is_running(PANIC))
+            });
+            assert!(!panics, "drown is not a panic cause");
+        }
+        let now = pig_positions(&mut server);
+        farthest = farthest.max(horizontal_distance(rested[0], now[0]));
+    }
+    assert!(farthest > 0.5, "the hits make the pig stroll again");
+}

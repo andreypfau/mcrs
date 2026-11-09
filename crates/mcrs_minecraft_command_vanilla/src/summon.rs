@@ -174,7 +174,8 @@ struct Summoned {
 }
 
 /// The keys of `<nbt>` that this server loads (TRK-SUM-003, TRK-DEV-002): `NoAI`, `CustomName`
-/// as a string, `Tags` and `UUID` as four ints, the most significant first. `None` when the
+/// as a string, `Tags`, `UUID` as four ints, the most significant first, and
+/// `PersistenceRequired`, which changes nothing for a farm animal. `None` when the
 /// compound holds another key. A value with the wrong tag keeps the default.
 fn read_keys(compound: NbtCompound) -> Option<Summoned> {
     let mut summoned = Summoned::default();
@@ -198,7 +199,9 @@ fn read_keys(compound: NbtCompound) -> Option<Summoned> {
                     })
                     .collect();
             }
-            ("NoAI" | "CustomName" | "Tags" | "UUID", _) => {}
+            // `PersistenceRequired` only keeps a mob from the removal steps of the despawn check,
+            // which no farm animal takes (TRK-SUM-007).
+            ("NoAI" | "CustomName" | "Tags" | "UUID" | "PersistenceRequired", _) => {}
             _ => return None,
         }
     }
