@@ -3,7 +3,7 @@ use crate::config::{CanyonShape, CarverConfig};
 use crate::mask::CarvingMask;
 use crate::target::{CarveTarget, SingleColumn};
 use crate::water::WaterMask;
-use mcrs_minecraft_core::numeric::{cos_truncated, sin_truncated};
+use mcrs_minecraft_numeric::{cos_truncated, sin_truncated};
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_value_provider::HeightContext;

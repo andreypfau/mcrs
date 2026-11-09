@@ -4,9 +4,9 @@ use crate::compile::{
 };
 use glam::IVec3;
 use mcrs_minecraft_chunk::VoxelId;
-use mcrs_minecraft_core::numeric::{floor_to_i32, remap};
 use mcrs_minecraft_noise::interval::Interval;
 use mcrs_minecraft_noise::sample_grid::SampleGrid;
+use mcrs_minecraft_numeric::{floor_to_i32, remap};
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_worldgen_density::cell::{
     CELL_BOUNDS_SLACK, CellBounds, corner_bounds, sampled_bounds,

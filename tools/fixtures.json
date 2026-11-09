@@ -441,7 +441,7 @@
     "outputs": [
       {
         "file": "numeric.json",
-        "to": "crates/mcrs_minecraft_core/tests/fixtures/vanilla"
+        "to": "crates/mcrs_minecraft_numeric/tests/fixtures/vanilla"
       }
     ]
   },

@@ -1,4 +1,5 @@
 use mcrs_minecraft_brain::Point;
+use mcrs_minecraft_numeric as numeric;
 
 use crate::ControlFlags;
 use crate::ControlInput;
@@ -85,7 +86,8 @@ impl MoveControl {
             return None;
         }
         let yaw = input.rotations.yaw;
-        let turn = angles::wrap(angles::yaw_to(dx, dz) - yaw).clamp(-LARGEST_TURN, LARGEST_TURN);
+        let turn =
+            numeric::wrap_degrees(angles::yaw_to(dx, dz) - yaw).clamp(-LARGEST_TURN, LARGEST_TURN);
         let mut turned = yaw + turn;
         if turned < 0.0 {
             turned += 360.0;

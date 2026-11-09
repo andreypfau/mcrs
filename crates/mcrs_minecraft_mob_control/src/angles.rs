@@ -1,27 +1,17 @@
 use core::f32::consts::PI;
 
-use mcrs_minecraft_core::numeric;
-
-/// The angle `a mod 360`, in `[-180, 180)`.
-#[must_use]
-pub fn wrap(angle: f32) -> f32 {
-    // `fmodf` is a library call; an angle already in the range is its own result.
-    if (-180.0..180.0).contains(&angle) {
-        return angle;
-    }
-    numeric::wrap_degrees(angle)
-}
+use mcrs_minecraft_numeric as numeric;
 
 /// `angle` turned toward `goal` by at most `step` degrees.
 #[must_use]
 pub fn turn_toward(angle: f32, goal: f32, step: f32) -> f32 {
-    angle + wrap(goal - angle).clamp(-step, step)
+    angle + numeric::wrap_degrees(goal - angle).clamp(-step, step)
 }
 
 /// `angle` moved by the smallest amount that puts it within `width` degrees of `centre`.
 #[must_use]
 pub fn limit_to(angle: f32, centre: f32, width: f32) -> f32 {
-    centre - wrap(centre - angle).clamp(-width, width)
+    centre - numeric::wrap_degrees(centre - angle).clamp(-width, width)
 }
 
 /// The yaw to the offset `(dx, dz)`: `f32(atan2(dz, dx) × 180 / π) - 90`, with the `atan2` and the

@@ -3,7 +3,7 @@ use mcrs_minecraft_block_predicate::block_state::BlockState;
 use mcrs_minecraft_block_predicate::predicate::HeightmapName;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::Direction;
-use mcrs_minecraft_core::numeric::remap_clamped;
+use mcrs_minecraft_numeric::remap_clamped;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::worldgen::WorldgenRandom;
 use mcrs_minecraft_value_provider::{FloatProvider, IntProvider};
@@ -13,7 +13,7 @@ use mcrs_minecraft_worldgen_feature::proto::SpeleothemPlacementMode;
 use mcrs_voxel::BlockPos;
 
 use crate::holds;
-use mcrs_minecraft_core::numeric::{cos_truncated, sin_truncated};
+use mcrs_minecraft_numeric::{cos_truncated, sin_truncated};
 use mcrs_minecraft_worldgen_feature::column::scan_column;
 
 fn speleothem_profile(

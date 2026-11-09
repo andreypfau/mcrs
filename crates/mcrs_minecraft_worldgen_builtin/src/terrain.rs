@@ -1,4 +1,4 @@
-use mcrs_minecraft_core::numeric::lerp;
+use mcrs_minecraft_numeric::lerp;
 use mcrs_minecraft_worldgen_density::proto::ProtoSpline;
 use mcrs_minecraft_worldgen_density::proto::build::Df;
 

@@ -512,10 +512,8 @@ impl Trunk {
             let mut bz = 0;
 
             for b in 0..5 {
-                bx = (1.5 + mcrs_minecraft_core::numeric::cos_truncated(angle as f64) * b as f32)
-                    as i32;
-                bz = (1.5 + mcrs_minecraft_core::numeric::sin_truncated(angle as f64) * b as f32)
-                    as i32;
+                bx = (1.5 + mcrs_minecraft_numeric::cos_truncated(angle as f64) * b as f32) as i32;
+                bz = (1.5 + mcrs_minecraft_numeric::sin_truncated(angle as f64) * b as f32) as i32;
                 let at = origin + IVec3::new(bx, branch_height - 3 + b / 2, bz);
                 self.place_log(cx, rng, at, None);
             }

@@ -3854,6 +3854,7 @@ dependencies = [
  "mcrs_minecraft_fixtures",
  "mcrs_minecraft_item",
  "mcrs_minecraft_network",
+ "mcrs_minecraft_numeric",
  "mcrs_minecraft_protocol",
  "mcrs_minecraft_protocol_game",
  "mcrs_minecraft_registries",
@@ -4026,6 +4027,7 @@ dependencies = [
  "mcrs_minecraft_command",
  "mcrs_minecraft_core",
  "mcrs_minecraft_game_mode",
+ "mcrs_minecraft_numeric",
  "mcrs_minecraft_resource",
  "mcrs_minecraft_text",
  "mcrs_test_alloc",
@@ -4060,6 +4062,7 @@ dependencies = [
  "mcrs_minecraft_entity",
  "mcrs_minecraft_game_mode",
  "mcrs_minecraft_loot",
+ "mcrs_minecraft_numeric",
  "mcrs_minecraft_resource",
  "mcrs_minecraft_snbt",
  "mcrs_minecraft_text",
@@ -4174,6 +4177,7 @@ dependencies = [
  "mcrs_minecraft_keys",
  "mcrs_minecraft_nbt",
  "mcrs_minecraft_network",
+ "mcrs_minecraft_numeric",
  "mcrs_minecraft_physics",
  "mcrs_minecraft_protocol",
  "mcrs_minecraft_protocol_game",
@@ -4236,7 +4240,6 @@ version = "0.5.8"
 dependencies = [
  "bevy_ecs",
  "glam",
- "mcrs_minecraft_fixtures",
  "mcrs_minecraft_nbt",
  "mcrs_minecraft_resource",
  "mcrs_minecraft_snbt",
@@ -4244,7 +4247,6 @@ dependencies = [
  "mcrs_voxel",
  "serde",
  "serde_json",
- "sha2",
  "tracing",
 ]
 
@@ -4612,6 +4614,7 @@ dependencies = [
  "mcrs_minecraft_fixtures",
  "mcrs_minecraft_item",
  "mcrs_minecraft_nbt",
+ "mcrs_minecraft_numeric",
  "mcrs_minecraft_particle",
  "mcrs_minecraft_registries",
  "mcrs_minecraft_resource",
@@ -4869,8 +4872,8 @@ version = "0.5.8"
 dependencies = [
  "criterion",
  "mcrs_minecraft_brain",
- "mcrs_minecraft_core",
  "mcrs_minecraft_entity",
+ "mcrs_minecraft_numeric",
 ]
 
 [[package]]
@@ -4973,11 +4976,22 @@ version = "0.5.8"
 dependencies = [
  "glam",
  "mcrs_minecraft_core",
+ "mcrs_minecraft_numeric",
  "mcrs_minecraft_random",
  "mcrs_minecraft_registries",
  "mcrs_minecraft_resource",
  "serde",
  "serde_json",
+]
+
+[[package]]
+name = "mcrs_minecraft_numeric"
+version = "0.5.8"
+dependencies = [
+ "mcrs_minecraft_fixtures",
+ "serde",
+ "serde_json",
+ "sha2",
 ]
 
 [[package]]
@@ -5543,6 +5557,7 @@ dependencies = [
  "mcrs_minecraft_fixtures",
  "mcrs_minecraft_game_registries",
  "mcrs_minecraft_noise",
+ "mcrs_minecraft_numeric",
  "mcrs_minecraft_registries",
  "mcrs_minecraft_resource",
  "mcrs_minecraft_worldgen_builtin",
@@ -5571,6 +5586,7 @@ dependencies = [
  "mcrs_minecraft_item",
  "mcrs_minecraft_nbt",
  "mcrs_minecraft_noise",
+ "mcrs_minecraft_numeric",
  "mcrs_minecraft_particle",
  "mcrs_minecraft_registries",
  "mcrs_minecraft_resource",
@@ -5594,7 +5610,7 @@ dependencies = [
  "bevy_reflect",
  "fixedbitset",
  "mcrs_minecraft_biome",
- "mcrs_minecraft_core",
+ "mcrs_minecraft_numeric",
  "mcrs_minecraft_random",
  "mcrs_minecraft_registries",
  "mcrs_minecraft_resource",
@@ -5616,6 +5632,7 @@ dependencies = [
  "mcrs_minecraft_dimension",
  "mcrs_minecraft_fixtures",
  "mcrs_minecraft_noise",
+ "mcrs_minecraft_numeric",
  "mcrs_minecraft_random",
  "mcrs_minecraft_registries",
  "mcrs_minecraft_resource",
@@ -5677,6 +5694,7 @@ dependencies = [
  "mcrs_minecraft_item",
  "mcrs_minecraft_nbt",
  "mcrs_minecraft_noise",
+ "mcrs_minecraft_numeric",
  "mcrs_minecraft_random",
  "mcrs_minecraft_registries",
  "mcrs_minecraft_resource",
@@ -5765,6 +5783,7 @@ dependencies = [
  "mcrs_minecraft_fixtures",
  "mcrs_minecraft_item",
  "mcrs_minecraft_nbt",
+ "mcrs_minecraft_numeric",
  "mcrs_minecraft_random",
  "mcrs_minecraft_registries",
  "mcrs_minecraft_resource",
@@ -5810,8 +5829,8 @@ dependencies = [
  "mcrs_minecraft_biome",
  "mcrs_minecraft_block_predicate",
  "mcrs_minecraft_chunk",
- "mcrs_minecraft_core",
  "mcrs_minecraft_noise",
+ "mcrs_minecraft_numeric",
  "mcrs_minecraft_random",
  "mcrs_minecraft_registries",
  "mcrs_minecraft_resource",

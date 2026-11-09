@@ -21,6 +21,7 @@ mcrs_minecraft_entity.workspace = true
 bevy_app = { workspace = true, optional = true }
 bevy_ecs = { workspace = true, optional = true }
 mcrs_minecraft_core.workspace = true
+mcrs_minecraft_numeric.workspace = true
 mcrs_minecraft_nbt.workspace = true
 serde.workspace = true
 serde_json.workspace = true

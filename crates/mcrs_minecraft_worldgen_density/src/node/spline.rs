@@ -1,8 +1,8 @@
-use mcrs_minecraft_core::numeric::{max_f32, min_f32};
 use mcrs_minecraft_noise::interval::Interval;
 use mcrs_minecraft_noise::jmath::{lerp, mul_add};
 use mcrs_minecraft_noise::kernel::{Runs, at, each_column};
 use mcrs_minecraft_noise::sample_grid::SampleGrid;
+use mcrs_minecraft_numeric::{max_f32, min_f32};
 
 #[derive(Clone, Debug)]
 pub enum SplineValue {

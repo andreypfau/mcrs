@@ -1,6 +1,6 @@
 use mcrs_minecraft_core::BoundingBox;
-use mcrs_minecraft_core::numeric::{floor_div, inverse_sqrt_estimate};
 use mcrs_minecraft_noise::SampleGrid;
+use mcrs_minecraft_numeric::{floor_div, inverse_sqrt_estimate};
 use mcrs_minecraft_resource::ResourceLocationBuf;
 use mcrs_minecraft_worldgen_density::proto::{DensityFunctionHolder, ProtoDensityFunction};
 use mcrs_minecraft_worldgen_feature::template::Projection;

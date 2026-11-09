@@ -17,7 +17,7 @@ use mcrs_minecraft_mob_control::LookDefaults;
 use mcrs_minecraft_mob_control::MobControl;
 use mcrs_minecraft_mob_control::PathEnd;
 use mcrs_minecraft_mob_control::Rotations;
-use mcrs_minecraft_mob_control::wrap;
+use mcrs_minecraft_numeric::wrap_degrees;
 
 const PIG_LOOK: LookDefaults = LookDefaults {
     turn_speed: MobData::DEFAULT.head_turn_speed,
@@ -139,13 +139,13 @@ fn the_move_control_turns_the_yaw_by_at_most_ninety_degrees_in_a_tick() {
     walker.apply(walk_to(Point::new(0.5, 0.0, -9.5)));
     let first = walker.tick().yaw.unwrap();
     assert_eq!(
-        wrap(first - 0.0).abs(),
+        wrap_degrees(first - 0.0).abs(),
         90.0,
         "the target is behind the mob"
     );
     let second = walker.tick().yaw.unwrap();
     assert!(
-        wrap(second - 180.0).abs() < 1e-3,
+        wrap_degrees(second - 180.0).abs() < 1e-3,
         "the second tick faces the target: {second}"
     );
 }
@@ -167,7 +167,10 @@ fn the_head_follows_a_look_target_within_its_speed_and_limits() {
     for tick in 0..12 {
         let output = walker.tick();
         let head = output.head_yaw.unwrap();
-        assert!(wrap(head - previous).abs() <= 10.0 + 1e-4, "tick {tick}");
+        assert!(
+            wrap_degrees(head - previous).abs() <= 10.0 + 1e-4,
+            "tick {tick}"
+        );
         assert_eq!(
             output.pitch,
             Some(-40.0),
@@ -176,7 +179,7 @@ fn the_head_follows_a_look_target_within_its_speed_and_limits() {
         previous = head;
     }
     assert!(
-        wrap(previous - 90.0).abs() < 1e-3,
+        wrap_degrees(previous - 90.0).abs() < 1e-3,
         "the yaw to -x is 90 degrees: {previous}"
     );
     let output = walker.tick();
@@ -186,7 +189,7 @@ fn the_head_follows_a_look_target_within_its_speed_and_limits() {
         "with no hold the pitch is 0 at once"
     );
     assert!(
-        (wrap(output.head_yaw.unwrap() - previous).abs() - 10.0).abs() < 1e-3,
+        (wrap_degrees(output.head_yaw.unwrap() - previous).abs() - 10.0).abs() < 1e-3,
         "with no hold the head returns to the body at 10 degrees in a tick"
     );
 }
@@ -217,7 +220,7 @@ fn a_standing_body_follows_a_still_head_after_ten_ticks() {
     let head = walker.input.rotations.head_yaw;
     assert!(bodies.iter().take(10).all(|body| *body == bodies[0]));
     assert!(
-        wrap(head - bodies[39]).abs() < 1e-3,
+        wrap_degrees(head - bodies[39]).abs() < 1e-3,
         "the body faces the head within 20 ticks of a still head: {head} against {}",
         bodies[39]
     );
@@ -251,7 +254,7 @@ fn a_walking_head_stays_within_the_head_yaw_limit_of_the_body() {
     for _ in 0..60 {
         let output = walker.tick();
         let body = walker.input.rotations.body_yaw;
-        widest = widest.max(wrap(output.head_yaw.unwrap() - body).abs());
+        widest = widest.max(wrap_degrees(output.head_yaw.unwrap() - body).abs());
     }
     assert!(
         (widest - 75.0).abs() < 1e-3,

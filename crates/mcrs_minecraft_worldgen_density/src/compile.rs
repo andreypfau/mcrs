@@ -13,7 +13,6 @@ use crate::proto::{
     DensityFunctionHolder, ProtoDensityFunction, ProtoSpline, UpscaleAxis, UpscaleMode,
 };
 use crate::router::{Aquifers, NoiseGeneratorSettings, NoiseRouter, RouterBlocks};
-use mcrs_minecraft_core::numeric;
 use mcrs_minecraft_noise::blended::BlendedNoise;
 use mcrs_minecraft_noise::interval::Interval;
 use mcrs_minecraft_noise::jmath;
@@ -22,6 +21,7 @@ use mcrs_minecraft_noise::proto::{NoiseHolder, NoiseParam};
 use mcrs_minecraft_noise::sample_grid::Axis;
 use mcrs_minecraft_noise::stack::{NoiseStack, Octave};
 use mcrs_minecraft_noise::strata::{Axes, NO_AXES, axis_bit};
+use mcrs_minecraft_numeric as numeric;
 use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_random::{Random, RandomSource};
 use mcrs_minecraft_resource::ResourceLocationBuf;

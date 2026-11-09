@@ -38,6 +38,7 @@ mcrs_minecraft_command_registry.workspace = true
 mcrs_minecraft_command_argument_vanilla.workspace = true
 mcrs_minecraft_core = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_damage.workspace = true
+mcrs_minecraft_numeric.workspace = true
 mcrs_minecraft_engine.workspace = true
 mcrs_minecraft_engine_physics.workspace = true
 mcrs_minecraft_entity.workspace = true

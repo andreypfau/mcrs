@@ -4,7 +4,7 @@ use crate::kernel::each_column;
 use crate::perlin::SmearedPerlinNoise;
 use crate::sample_grid::SampleGrid;
 use crate::stack::{ColumnScratch, NoiseStack};
-use mcrs_minecraft_core::numeric;
+use mcrs_minecraft_numeric as numeric;
 use mcrs_minecraft_random::RandomSource;
 use std::cell::RefCell;
 use std::fmt;

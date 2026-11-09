@@ -1,5 +1,6 @@
 use mcrs_minecraft_brain::LookIntent;
 use mcrs_minecraft_brain::Point;
+use mcrs_minecraft_numeric as numeric;
 
 use crate::ControlInput;
 use crate::angles;
@@ -107,8 +108,8 @@ impl LookControl {
                 }
                 if dy.abs() > NEAR || horizontal > NEAR {
                     let limit = target.pitch_limit;
-                    head.pitch =
-                        angles::wrap(angles::pitch_to(dy, horizontal)).clamp(-limit, limit);
+                    head.pitch = numeric::wrap_degrees(angles::pitch_to(dy, horizontal))
+                        .clamp(-limit, limit);
                 }
             }
             _ => {

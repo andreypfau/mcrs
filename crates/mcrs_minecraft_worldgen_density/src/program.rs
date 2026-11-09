@@ -5,7 +5,6 @@ use crate::node::gradient::GradientParams;
 use crate::node::noise::NoiseFunctionParams;
 use crate::node::spline::CompiledSpline;
 use glam::IVec3;
-use mcrs_minecraft_core::numeric;
 use mcrs_minecraft_noise::blended::BlendedNoise;
 use mcrs_minecraft_noise::interval::Interval;
 use mcrs_minecraft_noise::jmath;
@@ -16,6 +15,7 @@ use mcrs_minecraft_noise::sample_grid::{Axis, SampleGrid};
 use mcrs_minecraft_noise::strata::{
     ALL_AXES, AXIS_X, AXIS_Y, AXIS_Z, Axes, NO_AXES, axis_bit, extent, stratum,
 };
+use mcrs_minecraft_numeric as numeric;
 use std::sync::Arc;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]

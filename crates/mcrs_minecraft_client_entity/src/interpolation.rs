@@ -1,5 +1,7 @@
 use std::collections::VecDeque;
 
+use mcrs_minecraft_numeric as numeric;
+
 use crate::angle;
 use crate::path::{PacketPath, PathStep};
 use crate::placement::{Placement, Rotation};
@@ -137,7 +139,7 @@ impl Interpolation {
                 };
                 Rotation {
                     yaw: angle::alerp(share, from.yaw, rotation.yaw),
-                    pitch: angle::lerp(share, from.pitch, rotation.pitch),
+                    pitch: numeric::lerp(share, from.pitch, rotation.pitch),
                 }
             } else {
                 rotation

@@ -1,6 +1,6 @@
-use mcrs_minecraft_core::numeric::max_f32;
 use mcrs_minecraft_noise::jmath::mul_add;
 use mcrs_minecraft_noise::sample_grid::SampleGrid;
+use mcrs_minecraft_numeric::max_f32;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "snake_case")]

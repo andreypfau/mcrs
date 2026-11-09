@@ -5,7 +5,7 @@ use crate::proto::{
 };
 use glam::IVec3;
 use mcrs_minecraft_chunk::VoxelId;
-use mcrs_minecraft_core::numeric::remap;
+use mcrs_minecraft_numeric::remap;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_resource::ResourceLocationBuf;
 use mcrs_minecraft_value_provider::HeightContext;

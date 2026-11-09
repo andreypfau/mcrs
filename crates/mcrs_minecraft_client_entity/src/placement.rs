@@ -1,4 +1,5 @@
 use glam::DVec3;
+use mcrs_minecraft_numeric as numeric;
 
 use crate::angle;
 
@@ -26,7 +27,7 @@ impl Placement {
         Placement {
             position: self.position.lerp(to.position, f64::from(t)),
             yaw: angle::alerp(t, self.yaw, to.yaw),
-            pitch: angle::lerp(t, self.pitch, to.pitch),
+            pitch: numeric::lerp(t, self.pitch, to.pitch),
         }
     }
 

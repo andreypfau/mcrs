@@ -2,8 +2,8 @@
 
 use std::sync::LazyLock;
 
-use mcrs_minecraft_core::numeric;
 use mcrs_minecraft_fixtures::fixture;
+use mcrs_minecraft_numeric as numeric;
 use serde::Deserialize;
 use sha2::{Digest, Sha256};
 
@@ -91,17 +91,11 @@ fn sha256_hex(table: &[f32]) -> String {
 fn sine_tables_match_the_artefact() {
     let artefact = &ARTEFACT.sine_table;
     let current = numeric::sine_table();
-    let earlier = numeric::earlier_sine_table();
     assert_eq!(current.len(), artefact.entries);
     assert_eq!(sha256_hex(current), artefact.sha256_of_le_bits);
     for (index, bits) in &artefact.probes {
         assert!(same_f32(current[*index], bits), "sine_table probe {index}");
     }
-    let differences: Vec<usize> = (0..numeric::SINE_TABLE_LEN)
-        .filter(|&index| current[index].to_bits() != earlier[index].to_bits())
-        .collect();
-    assert_eq!(differences, [32768]);
-    assert_eq!(earlier[32768].to_bits(), 0x250d_3132);
 }
 
 #[test]

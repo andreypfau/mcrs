@@ -1,3 +1,5 @@
+use mcrs_minecraft_numeric as numeric;
+
 use crate::Rotations;
 use crate::angles;
 
@@ -44,7 +46,7 @@ impl BodyRotation {
         if passenger == MobPassenger::Yes {
             return;
         }
-        if angles::wrap(rotations.head_yaw - self.stable_head_yaw).abs() > STABLE_TURN {
+        if numeric::wrap_degrees(rotations.head_yaw - self.stable_head_yaw).abs() > STABLE_TURN {
             self.stable_count = 0;
             self.stable_head_yaw = rotations.head_yaw;
             rotations.body_yaw =

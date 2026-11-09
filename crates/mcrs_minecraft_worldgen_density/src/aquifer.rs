@@ -2,10 +2,10 @@ use crate::program::{Program, Workspace};
 use crate::router::NoiseRouter;
 use glam::IVec3;
 use mcrs_minecraft_chunk::VoxelId;
-use mcrs_minecraft_core::numeric::floor_div;
-use mcrs_minecraft_core::numeric::remap;
-use mcrs_minecraft_core::numeric::remap_clamped;
 use mcrs_minecraft_noise::sample_grid::SampleGrid;
+use mcrs_minecraft_numeric::floor_div;
+use mcrs_minecraft_numeric::remap;
+use mcrs_minecraft_numeric::remap_clamped;
 use mcrs_minecraft_random::{Random, RandomSource};
 
 /// `DimensionType.WAY_BELOW_MIN_Y`: the level of a dry cell. Still a number,

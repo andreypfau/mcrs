@@ -1,5 +1,6 @@
 use mcrs_minecraft_item::Text;
 use mcrs_minecraft_nbt::tag::NbtTag;
+use mcrs_minecraft_numeric::{lerp, lerp_i32, wrap_degrees};
 use mcrs_minecraft_particle::ParticleOptions;
 use mcrs_minecraft_registries::Named;
 use serde::de::DeserializeOwned;
@@ -219,7 +220,7 @@ impl AttributeValue {
                 }
                 _ => V::Float(lerp(t, *a, *b)),
             },
-            (V::Integer(a), V::Integer(b)) => V::Integer(integer(t, *a, *b)),
+            (V::Integer(a), V::Integer(b)) => V::Integer(lerp_i32(t, *a, *b)),
             (V::Rgb(a), V::Rgb(b)) => V::Rgb(channels(t, *a, *b)),
             (V::Argb(a), V::Argb(b)) => V::Argb(channels(t, *a, *b)),
             (V::AmbientParticles(a), V::AmbientParticles(b)) => cross_fade(t, a, b),
@@ -239,33 +240,12 @@ impl AttributeValue {
     }
 }
 
-#[must_use]
-pub(crate) fn lerp(t: f32, a: f32, b: f32) -> f32 {
-    a + t * (b - a)
-}
-
 pub(crate) fn channels<const N: usize>(t: f32, a: [f32; N], b: [f32; N]) -> [f32; N] {
     let mut out = a;
     for (slot, target) in out.iter_mut().zip(b) {
         *slot = lerp(t, *slot, target);
     }
     out
-}
-
-pub(crate) fn integer(t: f32, a: i32, b: i32) -> i32 {
-    let delta = b.wrapping_sub(a);
-    a.wrapping_add((t * delta as f32).floor() as i32)
-}
-
-fn wrap_degrees(x: f32) -> f32 {
-    let mut rest = x % 360.0;
-    if rest >= 180.0 {
-        rest -= 360.0;
-    }
-    if rest < -180.0 {
-        rest += 360.0;
-    }
-    rest
 }
 
 fn degrees(t: f32, a: f32, b: f32) -> f32 {

@@ -2,10 +2,11 @@ use std::fmt;
 use std::str::FromStr;
 
 use mcrs_minecraft_nbt::tag::NbtTag;
+use mcrs_minecraft_numeric::{lerp, lerp_i32};
 use serde::ser::SerializeMap;
 use serde::{Serialize, Serializer};
 
-use crate::attribute_value::{AttributeValue, Interpolation, channels, integer, lerp, read_float};
+use crate::attribute_value::{AttributeValue, Interpolation, channels, read_float};
 use crate::kind::AttributeType;
 use crate::mob_spawns::MobSpawnSettings;
 
@@ -269,7 +270,7 @@ fn interpolate_value(
             AttributeValue::interpolate(kind, Interpolation::Keyframe, t, a, b)
         }
         (_, V::Float(a), V::Float(b)) => V::Float(lerp(t, *a, *b)),
-        (_, V::Integer(a), V::Integer(b)) => V::Integer(integer(t, *a, *b)),
+        (_, V::Integer(a), V::Integer(b)) => V::Integer(lerp_i32(t, *a, *b)),
         (_, V::Rgb(a), V::Rgb(b)) => V::Rgb(channels(t, *a, *b)),
         (_, V::Argb(a), V::Argb(b)) => V::Argb(channels(t, *a, *b)),
         _ if t >= 1.0 => b.clone(),

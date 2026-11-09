@@ -1,0 +1,19 @@
+[package]
+name = "mcrs_minecraft_numeric"
+description = "Bit-exact numeric operations: integer division, comparisons, interpolation, angle wrap, sine tables and the arctangent"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+doctest = false
+
+[lints]
+workspace = true
+
+[dependencies]
+
+[dev-dependencies]
+mcrs_minecraft_fixtures.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true

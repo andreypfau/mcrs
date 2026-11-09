@@ -1,4 +1,5 @@
 use glam::DVec3;
+use mcrs_minecraft_numeric as numeric;
 use mcrs_minecraft_protocol_game::entity::Pose;
 
 use crate::angle;
@@ -137,15 +138,15 @@ impl RenderInputs<'_> {
         let data = self.data;
         let position = motion.frame_position(partial_tick);
         let alive = !data.is_dying();
-        let pitch = angle::lerp(partial_tick, motion.previous.pitch, motion.current.pitch);
+        let pitch = numeric::lerp(partial_tick, motion.previous.pitch, motion.current.pitch);
         let (body_yaw, head_yaw, walk, death_ticks, hurt_time) = match self.living {
             Some(living) => (
-                angle::wrap(angle::alerp(
+                numeric::wrap_degrees(angle::alerp(
                     partial_tick,
                     living.previous_body_yaw,
                     living.body_yaw,
                 )),
-                angle::wrap(angle::alerp(
+                numeric::wrap_degrees(angle::alerp(
                     partial_tick,
                     living.previous_head_yaw,
                     living.head_yaw,
@@ -163,7 +164,7 @@ impl RenderInputs<'_> {
                 living.hurt_time,
             ),
             None => {
-                let yaw = angle::wrap(angle::alerp(
+                let yaw = numeric::wrap_degrees(angle::alerp(
                     partial_tick,
                     motion.previous.yaw,
                     motion.current.yaw,
@@ -189,7 +190,7 @@ impl RenderInputs<'_> {
             clock: self.age.0 as f32 + partial_tick,
             body_yaw,
             head_yaw,
-            relative_head_yaw: upside_down_sign * angle::wrap(head_yaw - body_yaw),
+            relative_head_yaw: upside_down_sign * numeric::wrap_degrees(head_yaw - body_yaw),
             pitch: upside_down_sign * pitch,
             walk,
             death_ticks,

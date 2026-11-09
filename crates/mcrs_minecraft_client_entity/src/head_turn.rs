@@ -1,4 +1,4 @@
-use crate::angle;
+use mcrs_minecraft_numeric as numeric;
 
 /// The ticks that a head yaw packet takes to turn the head.
 pub const HEAD_TURN_TICKS: u8 = 3;
@@ -21,7 +21,8 @@ impl HeadTurn {
         if self.ticks_left == 0 {
             return head_yaw;
         }
-        let next = head_yaw + angle::wrap(self.target - head_yaw) / f32::from(self.ticks_left);
+        let next =
+            head_yaw + numeric::wrap_degrees(self.target - head_yaw) / f32::from(self.ticks_left);
         self.ticks_left -= 1;
         next
     }
@@ -39,7 +40,7 @@ mod tests {
         let mut seen = Vec::new();
         for _ in 0..4 {
             head = turn.step(head);
-            seen.push(angle::wrap(head));
+            seen.push(numeric::wrap_degrees(head));
         }
         let expected = [170.0, -170.0, -150.0, -150.0];
         for (seen, expected) in seen.iter().zip(expected) {

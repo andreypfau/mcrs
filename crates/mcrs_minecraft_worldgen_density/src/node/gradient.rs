@@ -1,6 +1,6 @@
-use mcrs_minecraft_core::numeric::{floor_div, floor_mod};
 use mcrs_minecraft_noise::jmath::mul_add;
 use mcrs_minecraft_noise::sample_grid::{Axis, SampleGrid};
+use mcrs_minecraft_numeric::{floor_div, floor_mod};
 
 #[derive(
     Clone, Copy, Debug, PartialEq, Eq, Hash, Default, serde::Serialize, serde::Deserialize,

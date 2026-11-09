@@ -5,7 +5,7 @@ use crate::mask::CarvingMask;
 use crate::target::{CarveTarget, SingleColumn};
 use crate::tunnel::{SplitSeeding, TrigIndex, TunnelShape, walk_tunnel_into};
 use crate::water::WaterMask;
-use mcrs_minecraft_core::numeric::sin_truncated;
+use mcrs_minecraft_numeric::sin_truncated;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_value_provider::{FloatProvider, HeightContext};

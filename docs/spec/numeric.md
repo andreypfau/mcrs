@@ -35,7 +35,7 @@ architecture, a module or a name of a function.
 - **Wrapping integer step**: an i32 addition, subtraction or multiplication that keeps the low
   32 bits of the exact result.
 - **Same zero**: a zero with the same sign as the input zero.
-- **Numeric artefact**: the file `crates/mcrs_minecraft_core/tests/fixtures/vanilla/numeric.json`.
+- **Numeric artefact**: the file `crates/mcrs_minecraft_numeric/tests/fixtures/vanilla/numeric.json`.
   The task `dumpNumeric` of `tools/vanilla-oracle` writes it. Each float in it is the hex text
   of its bits, big-endian: 8 digits for an f32, 16 digits for an f64. Each integer is decimal
   text.
@@ -58,7 +58,7 @@ states its users, so that a reader knows which output changes when the rule chan
 | `NUM-CMP` | minimum, maximum, clamp and sign |
 | `NUM-FN` | logarithm and power |
 | `NUM-INTERP` | interpolation and range maps |
-| `NUM-ANGLE` | the wrap of an angle in degrees |
+| `NUM-ANGLE` | the wrap of an angle in degrees, and the conversion from degrees to radians |
 | `NUM-TRIG` | the sine table and the three index forms |
 | `NUM-ATAN` | the inverse square root estimate and the arctangent |
 | `NUM-COLOUR` | the conversion from hue, saturation and value to RGB |
@@ -266,6 +266,23 @@ Provenance: `source_suggested_black_box_confirmed` (numeric artefact, `wrap_degr
 is `[x, result]`). Kind: semantic. Confidence: high. Users: the rotation of an entity after a
 move, the rotation arguments of commands, the rotation limits of entity selectors and the
 rotation of placed entities in structures.
+
+### NUM-ANGLE-002: Degrees to radians
+
+- **Inputs:** an f32 angle `x`, in degrees.
+- **Behavior:**
+  1. Let `r` be the narrow of the f64 value `π / 180`.
+  2. The result is the widen of `x · r`, in f32.
+- **Postconditions:** the product rounds once, in f32. The result is an f64 value that an f32
+  holds exactly.
+
+Provenance: `source_suggested` (ARG-COORD-007 and PHY-NUM-005 state the same form). Kind:
+semantic. Confidence: medium. Users: the local coordinates `^` of commands, and the yaw of the
+movement input, the jump of a sprint and the minor collision flag of an entity.
+
+The rotation of the velocity by a teleport (PHY-SRV-010) uses a different form. It multiplies the
+widen of `x` by `0.017453292519943295` in f64, and then narrows the product. The two forms can
+give different bits for one `x`, so each user keeps the form that its rule states.
 
 ---
 

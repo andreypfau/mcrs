@@ -1,4 +1,5 @@
 use glam::DVec2;
+use mcrs_minecraft_numeric as numeric;
 
 use crate::angle;
 
@@ -78,15 +79,15 @@ pub fn follow_movement(yaw: f32, body_yaw: f32, movement: DVec2) -> f32 {
     let mut target = body_yaw;
     if movement.length_squared() > WALKER_DISTANCE_SQUARED {
         let heading = (movement.y.atan2(movement.x) as f32).to_degrees() - 90.0;
-        let off = (angle::wrap(yaw) - heading).abs();
+        let off = (numeric::wrap_degrees(yaw) - heading).abs();
         target = if off > WALKER_BACKWARD_MIN && off < WALKER_BACKWARD_MAX {
             heading - 180.0
         } else {
             heading
         };
     }
-    let mut body_yaw = body_yaw + WALKER_FOLLOW * angle::wrap(target - body_yaw);
-    let head = angle::wrap(yaw - body_yaw);
+    let mut body_yaw = body_yaw + WALKER_FOLLOW * numeric::wrap_degrees(target - body_yaw);
+    let head = numeric::wrap_degrees(yaw - body_yaw);
     if head.abs() > WALKER_BODY_LIMIT {
         body_yaw += head - WALKER_BODY_LIMIT.copysign(head);
     }

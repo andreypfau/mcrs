@@ -1,7 +1,7 @@
-use mcrs_minecraft_core::numeric::{clamp_f32, max_f32};
 use mcrs_minecraft_noise::jmath::mul_add;
 use mcrs_minecraft_noise::sample_grid::SampleGrid;
 use mcrs_minecraft_noise::simplex::SimplexNoise;
+use mcrs_minecraft_numeric::{clamp_f32, max_f32};
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::legacy::LegacyRandom;
 

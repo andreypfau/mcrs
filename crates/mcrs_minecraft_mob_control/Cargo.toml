@@ -10,10 +10,10 @@ doctest = false
 [lints]
 workspace = true
 
-# std: mcrs_minecraft_core gives the atan2 and the angle wrap of the reference
+# std: mcrs_minecraft_numeric gives the atan2 and the angle wrap of the reference
 [dependencies]
 mcrs_minecraft_brain.workspace = true
-mcrs_minecraft_core.workspace = true
+mcrs_minecraft_numeric.workspace = true
 
 [dev-dependencies]
 criterion = { version = "0.7", default-features = false }
