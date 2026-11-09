@@ -28,8 +28,8 @@ pub const RESEND_INTERVAL: i64 = 20;
 /// client did not confirm yet, and the transform the client last knew.
 #[derive(Component, Clone, Debug, Default)]
 pub struct TeleportState {
-    /// The id of the newest teleport; 0 before the first one.
-    last_id: i32,
+    /// The id of the newest teleport; `None` before the first one.
+    last_id: Option<i32>,
     pending: Option<PendingTeleport>,
     synced_transform: Transform,
 }
@@ -50,6 +50,9 @@ pub enum AcceptOutcome {
     Confirmed,
     /// The accept names no pending teleport, or an older one; nothing changes.
     Ignored,
+    /// The accept names the newest teleport, which is already confirmed; the caller disconnects
+    /// the client.
+    Invalid,
     /// The accept names the pending teleport at a position away from its destination. The
     /// teleport stays pending, and the caller sends a correction to `destination`.
     Mismatch { destination: Transform },
@@ -64,18 +67,17 @@ impl TeleportState {
     /// A teleport to `destination` that the caller sends to the client itself, at `now`: the id
     /// of the packet, after which the `teleport` system treats `destination` as already sent.
     pub fn sent(&mut self, destination: Transform, now: GameTime) -> i32 {
-        self.last_id = self
-            .last_id
-            .checked_add(1)
-            .filter(|id| *id != i32::MAX)
-            .unwrap_or(0);
+        let id = self.last_id.map_or(1, |id| {
+            id.checked_add(1).filter(|id| *id != i32::MAX).unwrap_or(0)
+        });
+        self.last_id = Some(id);
         self.pending = Some(PendingTeleport {
-            id: self.last_id,
+            id,
             destination,
             sent_at: now,
         });
         self.synced_transform = destination;
-        self.last_id
+        id
     }
 
     /// The destination to send again when a move arrives at `now` while a teleport is pending.
@@ -87,9 +89,16 @@ impl TeleportState {
 
     /// Applies an accept of `id` at `position`.
     pub fn accept(&mut self, id: i32, position: DVec3) -> AcceptOutcome {
-        let Some(pending) = self.pending.filter(|pending| pending.id == id) else {
-            return AcceptOutcome::Ignored;
+        let Some(pending) = self.pending else {
+            return if self.last_id == Some(id) {
+                AcceptOutcome::Invalid
+            } else {
+                AcceptOutcome::Ignored
+            };
         };
+        if pending.id != id {
+            return AcceptOutcome::Ignored;
+        }
         if position.distance(pending.destination.translation) < OFFSET_THRESHOLD {
             self.pending = None;
             AcceptOutcome::Confirmed
@@ -216,7 +225,7 @@ mod tests {
         assert_eq!(ids, [1, 2, 3], "TP-CONFIRM-ID-001, TP-CONFIRM-ID-002");
 
         let mut state = TeleportState {
-            last_id: i32::MAX - 2,
+            last_id: Some(i32::MAX - 2),
             ..TeleportState::default()
         };
         let ids = [
@@ -250,8 +259,13 @@ mod tests {
         assert!(state.pending().is_none());
         assert_eq!(
             state.accept(newest, destination),
+            AcceptOutcome::Invalid,
+            "TP-CONFIRM-ACC-005"
+        );
+        assert_eq!(
+            state.accept(newest + 1000, destination),
             AcceptOutcome::Ignored,
-            "nothing is pending"
+            "TP-CONFIRM-ACC-006"
         );
     }
 

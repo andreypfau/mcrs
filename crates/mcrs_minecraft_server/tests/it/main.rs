@@ -58,6 +58,7 @@ mod schedule_ambiguity;
 mod session_lifecycle;
 mod subapp_lifecycle;
 mod support;
+mod teleport_confirmation;
 mod tick_determinism;
 mod whitelist;
 mod world_cells;
