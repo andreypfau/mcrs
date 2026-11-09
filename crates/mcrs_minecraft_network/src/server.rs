@@ -366,9 +366,11 @@ impl ServerSideConnection {
             ConnectionState::Configuration => self
                 .raw
                 .append(&configuration::clientbound::ClientboundDisconnect { reason })?,
-            ConnectionState::Game => self
-                .raw
-                .append(&game::clientbound::ClientboundDisconnect { reason })?,
+            ConnectionState::Game => {
+                self.raw.fence();
+                self.raw
+                    .append(&game::clientbound::ClientboundDisconnect { reason })?;
+            }
             // Neither protocol has a disconnect packet; the connection only closes.
             ConnectionState::Handshaking | ConnectionState::Status => return Ok(()),
         }

@@ -645,6 +645,19 @@ impl RawConnection {
         self.queue.append_records(records)
     }
 
+    /// Queues `records` as [`Self::append_records`] does, behind every other packet that the
+    /// writer has not taken yet, now or later, until a [`Self::fence`]. The records keep their
+    /// own order. Use it for entity bytes that a client may get after its columns.
+    pub fn append_deferred(&mut self, records: Bytes) -> usize {
+        self.queue.append_deferred(records)
+    }
+
+    /// Puts the deferred records in order before the next packet, which they must precede: a
+    /// respawn, a login or a disconnect, after which the client no longer holds their entities.
+    pub fn fence(&mut self) {
+        self.queue.fence();
+    }
+
     /// Queues a packet that `encode_with_id` wrote once for every connection that receives it,
     /// without a copy. A packet that `frames` counted for more than one connection goes as the
     /// frame that `frames` makes once for this connection's threshold, so it is compressed once

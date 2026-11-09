@@ -51,15 +51,23 @@ impl OutboundBatch {
     }
 }
 
-/// What a connection has written and its writer has not taken yet, in order.
+/// What a connection has written and its writer has not taken yet.
 ///
 /// The server thread only serializes packets here; framing and compression wait for the
 /// writer, so a packet's frame always matches the threshold the writer switched to before it.
+///
+/// The queue has two lanes. The ordered lane keeps the order of everything written to it. The
+/// deferred lane holds the entity bytes of the replication, in their own order, and the writer
+/// takes them only when the ordered lane is empty. Thus a client that reads slowly still gets
+/// its columns, its teleports and its keep-alives first. A fence puts the deferred bytes back in
+/// order, before a packet after which they no longer apply.
 #[derive(Default)]
 pub(crate) struct WriterQueue {
     records: BytesMut,
     open: OutboundBatch,
     closed: VecDeque<OutboundBatch>,
+    deferred: VecDeque<OutboundPart>,
+    deferred_bytes: usize,
     compression: CompressionThreshold,
 }
 
@@ -107,7 +115,25 @@ impl WriterQueue {
         self.push(OutboundPart::Framed(frame));
     }
 
+    /// Queues records as [`Self::append_records`] does, in the deferred lane.
+    pub(crate) fn append_deferred(&mut self, records: Bytes) -> usize {
+        let count = packets(&records).count();
+        self.deferred_bytes = self.deferred_bytes.saturating_add(records.len());
+        self.deferred.push_back(OutboundPart::Packets(records));
+        count
+    }
+
+    /// Moves the deferred bytes into the ordered lane, ahead of what comes next.
+    pub(crate) fn fence(&mut self) {
+        self.close_records();
+        while let Some(part) = self.deferred.pop_front() {
+            self.push(part);
+        }
+        self.deferred_bytes = 0;
+    }
+
     pub(crate) fn switch_compression(&mut self, threshold: CompressionThreshold) {
+        self.fence();
         self.compression = threshold;
         self.close_records();
         self.push(OutboundPart::Compression(threshold));
@@ -121,19 +147,37 @@ impl WriterQueue {
         }
     }
 
+    /// The next batch for the writer: the ordered lane first, then the deferred bytes.
     pub(crate) fn pop(&mut self) -> Option<OutboundBatch> {
-        self.closed.pop_front()
+        if let Some(batch) = self.closed.pop_front() {
+            return Some(batch);
+        }
+        let mut batch = OutboundBatch::default();
+        while let Some(part) = self.deferred.pop_front() {
+            if batch.bytes > 0
+                && batch.bytes.saturating_add(part.len()) > MAX_QUEUED_BYTES_PER_SOCKET
+            {
+                self.deferred.push_front(part);
+                break;
+            }
+            self.deferred_bytes = self.deferred_bytes.saturating_sub(part.len());
+            batch.push(part);
+        }
+        (!batch.parts.is_empty()).then_some(batch)
     }
 
     pub(crate) fn push_front(&mut self, batch: OutboundBatch) {
         self.closed.push_front(batch);
     }
 
-    /// The bytes of the batches ready for the writer that it has not taken.
+    /// The bytes of the batches ready for the writer that it has not taken, with the deferred
+    /// bytes.
     pub(crate) fn closed_bytes(&self) -> usize {
         self.closed
             .iter()
-            .fold(0, |total, batch| total.saturating_add(batch.bytes()))
+            .fold(self.deferred_bytes, |total, batch| {
+                total.saturating_add(batch.bytes())
+            })
     }
 
     fn close_records(&mut self) {
@@ -241,5 +285,72 @@ impl OutboundReceiver {
                 return Ok(self.chunks.drain(..).flatten().collect());
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use mcrs_minecraft_protocol::packets::common::clientbound::KeepAlive;
+    use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundKeepAlive;
+
+    use super::*;
+
+    fn keep_alive(payload: i64) -> ClientboundKeepAlive {
+        ClientboundKeepAlive(KeepAlive { payload })
+    }
+
+    /// Records of `count` packets, which stand for the entity bytes of the replication.
+    fn entity_records(first: i64, count: i64) -> Bytes {
+        let mut records = BytesMut::new();
+        for payload in first..first + count {
+            write_record(&mut records, &keep_alive(payload)).unwrap();
+        }
+        records.freeze()
+    }
+
+    fn ordered_record(payload: i64) -> Bytes {
+        let mut record = BytesMut::new();
+        write_record(&mut record, &keep_alive(payload)).unwrap();
+        record.freeze()
+    }
+
+    fn contents(batch: &OutboundBatch) -> Vec<Bytes> {
+        batch
+            .parts
+            .iter()
+            .filter_map(|part| match part {
+                OutboundPart::Packets(bytes) => Some(bytes.clone()),
+                _ => None,
+            })
+            .collect()
+    }
+
+    #[test]
+    fn a_packet_written_after_deferred_entity_bytes_reaches_the_writer_first() {
+        let mut queue = WriterQueue::default();
+        let entities = entity_records(0, 1000);
+        queue.append_deferred(entities.clone());
+        queue.append(&keep_alive(-1)).unwrap();
+        queue.close();
+
+        assert_eq!(contents(&queue.pop().unwrap()), vec![ordered_record(-1)]);
+        assert_eq!(contents(&queue.pop().unwrap()), vec![entities]);
+        assert!(queue.pop().is_none());
+    }
+
+    #[test]
+    fn a_fence_keeps_the_deferred_bytes_before_the_next_packet() {
+        let mut queue = WriterQueue::default();
+        let entities = entity_records(0, 10);
+        queue.append_deferred(entities.clone());
+        queue.fence();
+        queue.append(&keep_alive(-1)).unwrap();
+        queue.close();
+
+        assert_eq!(
+            contents(&queue.pop().unwrap()),
+            vec![entities, ordered_record(-1)]
+        );
+        assert!(queue.pop().is_none());
     }
 }

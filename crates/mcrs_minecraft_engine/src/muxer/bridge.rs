@@ -525,6 +525,14 @@ fn write_queue(
                     append_encoded(entity, raw, packet, telemetry, frames);
                 }
                 QueuedPacket::Payload(payload) => {
+                    if matches!(
+                        payload,
+                        PacketPayload::Respawn(_)
+                            | PacketPayload::PlayerLogin(_)
+                            | PacketPayload::Disconnect(_)
+                    ) {
+                        raw.fence();
+                    }
                     telemetry.packets.count(payload.kind());
                     if let Err(error) = write_payload(raw, payload) {
                         warn!(conn = ?entity, "an outbound packet did not encode: {error:#}");
@@ -542,7 +550,7 @@ fn write_queue(
                         telemetry.replication_bytes_total = telemetry
                             .replication_bytes_total
                             .saturating_add(records.len() as u64);
-                        let packets = raw.append_records(records);
+                        let packets = raw.append_deferred(records);
                         telemetry
                             .packets
                             .add(PacketKind::Replication, packets as u64);
