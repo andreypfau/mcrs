@@ -5,14 +5,15 @@
 | Game version | `26.4-snapshot-4` (Minecraft Java Edition, 26.4 Snapshot 4) |
 | Protocol version | `1073742166` |
 
-This document states how a player breaks a block in creative mode, and what the server sends for
-it. It states only what a client, the server console and the server files show. It does not
-prescribe an architecture. Most rules come from a vanilla server in offline mode. A rule with a
-`source_suggested` label comes from the reference implementation. Section 8 gives the experiments,
-and section 9 gives the captured results.
+This document states how a player breaks a block in creative mode and in survival mode, and what
+the server sends for it. It states only what a client, the server console and the server files
+show. It does not prescribe an architecture. Most rules come from a vanilla server in offline mode.
+A rule with a `source_suggested` label comes from the reference implementation. Section 10 gives the
+experiments, and section 11 gives the captured results.
 
-Scope: creative mode only. This document does not state break progress, tools, survival mode or
-block placement. It will grow to cover them.
+Scope: creative mode and survival mode, for a client of Java Edition. Section 7 states survival
+mode. This document does not state block placement, the loot table of each block, or the hit
+reactions of blocks.
 
 ## 0. Conventions
 
@@ -31,15 +32,28 @@ block placement. It will grow to cover them.
 - **Eye position**: the position of the player, with 1.62 added to `y`.
 - **Break**: the server changes the block at the position to air.
 - **Refusal**: the block at the position does not change.
+- **Abort action**, **finish action**, **face change action**: an action with the value 2, 3 and 1.
+- **Dig**: the record that a start action makes in survival mode (BRK-SRV-001). A dig has a
+  position, a face and a start tick. A player has at most one dig.
+- **Tick count**: the number of server ticks that started after the server handled the start action
+  of the dig. The first tick after the start has the tick count 1.
+- **Rate**: the progress of one tick for a block, a player and the inputs of one tick (BRK-PRG-002).
+- **Progress**: a number from 0 that grows while the dig continues (BRK-PRG-001). At 1 the block can
+  break.
+- **Stage**: `floor(progress × 10)`.
+- **Harvest**: the player can harvest a block when the block does not need the correct tool for
+  drops, or when the main-hand item is a correct tool for the block (BRK-PRG-003).
+- **Survival break**: a break that a dig, or a start action with a rate of 1 or more, causes.
+- **Main-hand item**: the item stack in the selected hotbar slot.
 
 ### 0.2 Provenance
 
-- `black_box_confirmed`: shown by a captured result in section 9.
+- `black_box_confirmed`: shown by a captured result in section 11.
 - `source_suggested_black_box_confirmed`: taken from the reference implementation, and consistent
-  with a captured result in section 9.
-- `source_suggested`: taken from the reference implementation, with no captured result. Section 8
+  with a captured result in section 11.
+- `source_suggested`: taken from the reference implementation, with no captured result. Section 10
   attaches an experiment.
-- `unresolved`: not decided. Section 7 collects these items.
+- `unresolved`: not decided. Section 9 collects these items.
 
 All the results come from one vanilla server and scripted clients on one machine. A rule that rests
 on one observation states this.
@@ -312,7 +326,233 @@ valid. See result R24.
 translation key `disconnect.packetError`. The block breaks before the connection closes. See result
 R24. This rule rests on one observation.
 
-## 7. Unresolved
+## 7. Survival mode
+
+The rules of this section apply in survival mode. The checks of section 3 apply to each action
+first, in the order of BRK-ORD-001. In adventure mode and in spectator mode, BRK-REF-001 refuses the
+start action.
+
+These rules state Java Edition. The decisions of issue #474 for Bedrock Edition apply at the Bedrock
+edge, and not in these rules. For example, Bedrock Edition keeps the progress when the main-hand
+item changes, and Java Edition restarts it (BRK-ITM-001).
+
+### 7.1 Dependencies
+
+Some rules need parts of the server that do not exist yet. An implementation can build the other
+rules now. Without an inventory, the main-hand item is empty.
+
+| Rules | Needs |
+|-------|-------|
+| BRK-SRV-001 to BRK-SRV-012, BRK-PRG-001, BRK-PRG-002 for an empty hand | nothing more |
+| The item speed and the correct tool in BRK-PRG-002 and BRK-PRG-003, BRK-ITM-002, BRK-DMG-001, BRK-DMG-002 | the player inventory, issue #521 |
+| The effects and the attributes in BRK-PRG-002 | the effects and the attributes of a player |
+| BRK-LOOT-001 | the item entities, issue #522, the loot tables, issue #72, and the block drops, issue #77 |
+| BRK-LOOT-002 | the food of a player |
+
+### 7.2 The dig
+
+**BRK-SRV-001** (`black_box_confirmed`, semantic). A start action on a block with a rate less than 1
+starts a dig at the position, with the face of the request. The breaker gets one acknowledgement and
+no block state. Each observer of BRK-SRV-004 gets `block_destruction` with the entity id of the
+breaker, the position and the stage `floor(rate × 10)`. See results R28 and R30.
+
+**BRK-SRV-002** (`black_box_confirmed`, semantic). A start action on a block with a rate of 1 or
+more breaks the block at once. The packets are the packets of a finish (BRK-SRV-008), but the
+observer gets no `block_destruction`. A block with a hardness of 0 gives this result with each
+main-hand item. See result R30.
+
+**BRK-SRV-003** (`black_box_confirmed`, semantic). A start action at a new position while a dig
+exists replaces the dig. The breaker gets `block_update` with the current state at the position of
+the old dig, and then the acknowledgement. The observer gets `block_destruction` at the new
+position, and the vanilla client moves the crack there (CBK-DST-002). See result R33.
+
+**BRK-SRV-004** (`black_box_confirmed`, semantic). While a dig exists, and the block at its position
+is not air, the server does these steps in each tick:
+
+1. Calculate the progress (BRK-PRG-001).
+2. If the stage is not the stage that the server sent last for the dig, send `block_destruction`
+   with the new stage. The receivers are the observers at a distance less than 32 from the block
+   corner. The breaker does not get it.
+3. If the progress is less than 1, send `level_event` to the breaker and to each observer near the
+   block. The type is 2020 when the tick count is a multiple of 4, and otherwise 2019. The data is
+   the face of the dig.
+
+In the first tick, the `level_event` comes before the acknowledgement of the start. See results R28
+and R38.
+
+**BRK-SRV-005** (`black_box_confirmed`, semantic). The stage of BRK-SRV-004 has no limit of 9. When the
+progress is more than 1, the observer gets the stages 10, 11 and more until the dig ends. The vanilla
+client removes the crack for such a stage (CBK-DST-002). See result R28.
+
+**BRK-SRV-006** (`black_box_confirmed`, semantic). An abort action ends the dig. The breaker gets one
+acknowledgement with the sequence of the request. The vanilla client sends the sequence 0
+(CBK-SRV-006). Each observer gets `block_destruction` with the progress 255 at the position of the
+request. When the dig has another position, the observer first gets the same packet for the position
+of the dig. See result R33.
+
+**BRK-SRV-007** (`black_box_confirmed`, semantic). A face change action at the position of the dig
+changes the face of the dig. The breaker gets one acknowledgement. The progress does not change. From
+the next tick, the data of the `level_event` of BRK-SRV-004 is the new face. See result R33.
+
+**BRK-SRV-008** (`black_box_confirmed`, semantic). A finish action at the position of the dig breaks
+the block when the progress of the last tick is 0.7 or more. The dig ends. The breaker gets these
+packets in one tick, in this order:
+
+1. `add_entity` for each item entity and each experience orb that drops (BRK-LOOT-001).
+2. `block_update` with the new state.
+3. `container_set_slot` for the main-hand slot, when the item takes damage (BRK-DMG-001).
+4. The acknowledgement.
+
+An observer gets `block_destruction` with the progress 255, `level_event` with type 2001 and the
+state id of the old block, `add_entity` for each drop, and then `block_update`. See results R32 and
+R37.
+
+**BRK-SRV-009** (`source_suggested`, semantic). A finish action at the position of the dig, with a
+progress less than 0.7, does not break the block. The breaker gets one acknowledgement and no block
+state. The dig changes to a delayed break with the same position and the same start tick. In each
+tick, the server does steps 1 and 2 of BRK-SRV-004 for the delayed break. At a progress of 1 or more,
+the block breaks with the packets of BRK-SRV-008, without the acknowledgement. When the state of the
+block at the position changes, the delayed break ends. Section 8, entry D1, records the reference
+behaviour. See experiment E45.
+
+**BRK-SRV-010** (`black_box_confirmed`, semantic). In each of these cases, a finish action gets only
+one acknowledgement, and the block stays:
+
+- The player has no dig. See result R33. Section 8, entry D2, records a case where the reference
+  breaks the block.
+- The position of the request is not the position of the dig. The dig continues. See result R33.
+- The request is out of reach (BRK-SRV-012). The dig continues. See result R36.
+
+**BRK-SRV-011** (`black_box_confirmed`, semantic). A block with a hardness of -1 has a rate of 0. A
+start action on such a block starts a dig with the stage 0, and the stage does not change. A finish
+action gets only one acknowledgement, and makes no delayed break. See result R34. Section 8, entry D3,
+records the reference behaviour.
+
+**BRK-SRV-012** (`black_box_confirmed`, semantic). In survival mode, the reach limit of BRK-RCH-001 is
+5.5: the attribute is 4.5, and survival mode adds nothing. A start action out of reach gets one
+acknowledgement, and the observer gets nothing. The limit applies to the finish action too. See
+result R36.
+
+### 7.3 Progress
+
+**BRK-PRG-001** (`black_box_confirmed`, client agreement). The progress at the tick count `c` is the
+sum of the rates of the ticks from 0 to `c`. Tick 0 is the start action. Each rate uses the inputs of
+its own tick. When the rate is the same in each tick, the progress is `rate × (c + 1)`, as a product in
+32-bit floating point. See results R28 and R29. The vanilla client adds the rate of each tick in the
+same way (CBK-SRV-002). Section 8, entry D4, records how the reference uses an input that changes.
+
+For a finish action, the progress is the progress of the last tick before the request. Thus the
+first tick after the start has the progress `2 × rate`.
+
+**BRK-PRG-002** (`black_box_confirmed`, semantic). The rate is `S / H / F`:
+
+- `H` is the hardness of the block state.
+- `F` is 30 when the player can harvest the block (BRK-PRG-003), and 100 when it cannot.
+- `S` is the break speed of the player.
+
+`S` starts with the speed of the main-hand item for the block. The `minecraft:tool` component of the
+item gives this speed: the speed of the first rule that matches the block and has a speed, or else
+the default speed of the component. An item with no such component, and an empty hand, have the
+speed 1. When this speed is more than 1, add the attribute `minecraft:mining_efficiency`. The
+Efficiency enchantment of level `n` sets this attribute to `n × n + 1`. Then apply these factors in
+this order:
+
+1. Haste or Conduit Power with the amplifier `a`: multiply by `1 + (a + 1) × 0.2`.
+2. Mining Fatigue with the amplifier `a`: multiply by `0.3^(a + 1)`.
+3. Multiply by the attribute `minecraft:block_break_speed`.
+4. When the eyes of the player are in water: multiply by the attribute
+   `minecraft:submerged_mining_speed`. Its default is 0.2. Aqua Affinity sets it to 1.
+5. When the player is not on the ground: divide by 5. The server uses the on-ground flag of the last
+   movement packet of the client.
+
+Result R29 tests each factor. CBK-SRV-003 states the same rate for the client.
+
+**BRK-PRG-003** (`black_box_confirmed`, semantic). The block definition states if a block needs the
+correct tool for drops. A main-hand item is a correct tool for a block when the first rule of its
+`minecraft:tool` component that matches the block and has a value for `correct_for_drops` has the
+value true. Thus a wooden pickaxe has the speed 2 on iron ore, but is not a correct tool for it. See
+results R29 and R37.
+
+### 7.4 The held item
+
+**BRK-ITM-001** (`source_suggested`, semantic). For Java Edition, a change of the main-hand item
+restarts the progress (issue #474). The vanilla client sends an abort action and then a start action
+for this (CBK-SRV-001). The start action makes a new dig with the tick count 0 (BRK-SRV-001). See
+experiment E47.
+
+**BRK-ITM-002** (`black_box_confirmed`, semantic). When the main-hand item changes and no start action
+follows, the dig continues with the same start tick. From the next tick, the rate uses the new item.
+See result R35. Section 8, entry D4, records that the reference also applies the new rate to the
+earlier ticks.
+
+### 7.5 Tool damage
+
+**BRK-DMG-001** (`black_box_confirmed`, semantic). After a survival break of a block with a hardness
+that is not 0, the main-hand item takes damage. The amount is the value of `damage_per_block` in the
+`minecraft:tool` component of the item. An item with no such component takes no damage. The damage
+does not need a harvest. A block with a hardness of 0 causes no damage. See result R37.
+
+**BRK-DMG-002** (`black_box_confirmed`, semantic). When the damage of the item becomes equal to its
+maximum damage, the item breaks, and the main-hand slot becomes empty. The breaker gets
+`container_set_slot` for the slot. See result R37. This rule rests on one observation.
+
+### 7.6 Drops and exhaustion
+
+**BRK-LOOT-001** (`black_box_confirmed`, semantic). A survival break with a harvest drops the items of
+the loot table of the block. The loot table uses the main-hand item, for example for Silk Touch. Each
+item stack becomes one item entity at a random position. Each coordinate of the position is from 0.25
+to 0.75 inside the block cube. A block that gives experience also drops experience orbs at the centre
+of the block, after the items. A survival break without a harvest drops nothing. See result R37.
+
+**BRK-LOOT-002** (`black_box_confirmed`, semantic). A survival break with a harvest adds 0.005 to the
+food exhaustion of the breaker. A survival break without a harvest adds nothing. See result R37.
+
+## 8. Intentional deviations
+
+**D1.**
+
+- **Rule**: BRK-SRV-009.
+- **Reference**: the reference does not count the progress of the delayed break from the start of the
+  dig. It uses the rate multiplied by the number of ticks from the login of the player to the start
+  of the dig, and this value does not grow. When it is 1 or more, the block breaks in the next tick,
+  and the observer first gets `block_destruction` with a large stage, for example 42 or 108. When it
+  is less than 1, the observer gets that stage one time, and the block never breaks. For a dig on
+  stone with a wooden pickaxe that started about 94 ticks after the login, the stage was 42.
+- **Visible to the client**: yes. An early finish breaks the block at once in a long session, and
+  never in a short session.
+- **Test**: a differential test must not send a finish action with a progress less than 0.7.
+
+**D2.**
+
+- **Rule**: BRK-SRV-010.
+- **Reference**: the reference keeps the position and the start tick of a dig after the dig ends. A
+  finish action at that position with no new start uses them. The progress since the old start is
+  large, so a new block at that position breaks at once, with drops and tool damage.
+- **Visible to the client**: yes. A finish action with no start breaks the block.
+- **Test**: a differential test must not send a finish action without a start action.
+
+**D3.**
+
+- **Rule**: BRK-SRV-011.
+- **Reference**: a finish action on a block with a hardness of -1 makes a delayed break that never
+  ends. When another block is set at the position later, the delayed break continues with that block.
+  The observer gets a stage for it, and the block can break with no action of the player.
+- **Visible to the client**: yes.
+- **Test**: a differential test must not send a finish action on a block with a hardness of -1.
+
+**D4.**
+
+- **Rule**: BRK-PRG-001 and BRK-ITM-002.
+- **Reference**: the reference multiplies the rate of the current tick by `c + 1`. A change of an
+  input thus changes the progress of the earlier ticks too. In result R35, the stage went from 4 to 0
+  when the item changed from a wooden pickaxe to the hand, and to 7 when it changed back. The vanilla
+  client adds the rate of each tick, so the reference server and the vanilla client disagree when an
+  input changes.
+- **Visible to the client**: yes. The stage of an observer jumps, and a finish action that the client
+  sends can get a delayed break.
+- **Test**: a differential test compares the progress only with inputs that do not change.
+
+## 9. Unresolved
 
 - **U7**: a position in reach in a chunk that is not loaded. The only tested position was also out of
   reach.
@@ -321,8 +561,26 @@ R24. This rule rests on one observation.
 - **U11**: two breaks in one tick in different sections.
 - **U13**: other blocks that act differently in a creative break. For example, a piston head also
   removes its piston, and a beehive with bees or honey drops itself.
+- **U14**: a new dig while a delayed break exists (BRK-SRV-009). D1 prevents an experiment on the
+  reference.
+- **U15**: the distance limit for the `level_event` of BRK-SRV-004. An observer 40 blocks away gets
+  it. No larger distance was tested.
+- **U16**: the block at the position of a dig changes while the dig continues, to air or to another
+  state.
+- **U17**: a face change action or an abort action at another position, and an abort action with no
+  dig, in survival mode.
+- **U18**: the factors of BRK-PRG-002 that no experiment tested: Haste and Conduit Power together,
+  Mining Fatigue with an amplifier of 4 or more, other values of `minecraft:block_break_speed`, feet in
+  water with the eyes out of water, and water without Aqua Affinity together with no ground.
+- **U19**: enchantments that change the tool damage, for example Unbreaking, and the sound and the
+  entity event of a tool that breaks.
+- **U20**: the drops of containers and of blocks with no support in survival mode. BRK-DRP-002 and
+  BRK-DRP-004 rest on creative mode. The experience of each block. One observation, coal ore, shows
+  the experience orb.
+- **U21**: the stage when the progress is more than 25.5. The stage can then reach 255, the value of
+  an abort.
 
-## 8. Experiments
+## 10. Experiments
 
 Use a vanilla server of the game version in the table at the top of this document, with
 `online-mode=false`, `level-type=minecraft:flat` and `network-compression-threshold=-1`. Use
@@ -360,7 +618,28 @@ Before each step, set the block with `setblock`, and read the packets that arriv
 | E25 | Wall a block position in stone. Set water and lava there, at the levels of R25. Wait until the breaker gets the `block_update`, and send the start action at once, before the fluid changes. Do each level that is not a source three times, and each source once. | R25 |
 | E26 | Wall a block position in stone. Set each block of R26 there. Send the start action. Read the block and the item entities. For tall seagrass, hit each part. | R26 |
 
-Experiments E28 to E33 test the `source_suggested` rules. Nobody has run them yet.
+For experiments E34 to E44, put the breaker in survival mode, and keep the observer in creative mode.
+Set the difficulty to peaceful, except in E43. Let the breaker send `move_player_status_only` each
+50 ms, with the on-ground flag set, except where a step clears it. Give items with `item replace`
+and effects with `effect give`. Before each step, clear the inventory, the effects, the item entities
+and the experience orbs. Count the tick count from the acknowledgement of the start, or from the
+`level_event` packets of BRK-SRV-004.
+
+| Experiment | Steps | Result |
+|------------|-------|--------|
+| E34 | With an empty hand, send the start action on stone 2 blocks away. Wait 10 s. Send the finish action. | R28 |
+| E35 | For each case of R29, send the start action and do not finish. Read the tick count of each stage of the observer. | R29 |
+| E36 | Send the start action on short grass and on a torch with an empty hand. Send it on stone with the main-hand items of R30. | R30 |
+| E37 | Do E35 on stone with a wooden pickaxe: with the on-ground flag clear, in water 4 blocks deep, and in that water with Aqua Affinity on the helmet. | R31 |
+| E38 | With a wooden pickaxe, start a dig on stone. Send the finish action after the tick counts of R32. | R32 |
+| E39 | Start a dig on stone. Send a face change action with face 3, an abort action, a start action on a second block, and a finish action on the second block. Then send a finish action on a block with no dig. | R33 |
+| E40 | Start a dig on bedrock. After 30 ticks, send the finish action. | R34 |
+| E41 | Start a dig on stone with a wooden pickaxe in slot 0. Change the selected slot with `set_carried_item`, with no new start action, as R35 states. | R35 |
+| E42 | Put the eye position at the distances of R36 from the face of a stone block in the row of the eyes. Send the start action. Start a dig at 5.4, move the player to 5.6, and send the finish action. | R36 |
+| E43 | For each case of R37, break the block with a start action and a finish action. Read the main-hand item, the item entities, the experience orbs and `foodExhaustionLevel`. | R37 |
+| E44 | Put the observer 20, 31, 33 and 40 blocks from the block on `x`. Start a dig, and abort it after 0.6 s. | R38 |
+
+Experiments E28 to E33, E45, E46 and E47 have no captured result. Nobody has run them yet.
 
 | Experiment | Steps | Rule |
 |------------|-------|------|
@@ -370,8 +649,13 @@ Experiments E28 to E33 test the `source_suggested` rules. Nobody has run them ye
 | E31 | Set water and lava at the levels 9 and 15. Send the start action. | BRK-ACK-005 |
 | E32 | Hold a diamond sword. Send the start action on air, on water and at `y=-65`. Send actions 1, 2 and 3 at `y=320`. With an empty hand, send the start action at `y=-65` and read the observer. | BRK-ORD-001, BRK-ORD-002 |
 | E33 | Do E20 on the `z` axis, on a diagonal, with an operator of level 1, and in the nether. | BRK-SPN-001 |
+| E45 | On mcrs, start a dig on stone with an empty hand. Send the finish action at the tick count 5. Read the block and the stages until the tick count 160. Repeat, and set the block to dirt at the tick count 20. | BRK-SRV-009 |
+| E46 | On mcrs, change the main-hand item during a dig with no start action, as in E41. Read the stages. | BRK-PRG-001, BRK-ITM-002 |
+| E47 | With a vanilla client and a proxy, start a dig on stone with a wooden pickaxe. Select another hotbar slot during the dig. Read the actions that the client sends. | BRK-ITM-001 |
 
-## 9. Captured results
+Experiments E45 and E46 run on mcrs, because the reference has the deviations D1 and D4.
+
+## 11. Captured results
 
 Each packet is shortened to its name and the fields that matter. A state id of 0 is air, and 1 is
 stone.
@@ -651,3 +935,177 @@ other part hit:
   observer: level_event at other, level_event at main
             section_blocks_update
 ```
+
+**R28.** Stone, empty hand, sequence 10. A stage is first seen at the tick count in brackets.
+
+```text
+start:
+  breaker:  level_event type 2019 data 1; block_changed_ack seq 10
+  observer: block_destruction entity 1 (2,-60,0) progress 0; level_event type 2019 data 1
+each tick: level_event to both, type 2020 at the tick counts 4, 8, 12, ..., otherwise 2019
+observer: progress 1 (14), 2 (29), 3 (44), 4 (59), 5 (74), 6 (89), 7 (104), 8 (119), 9 (134),
+          10 (149), 11 (164), 12 (179), 13 (194)
+level_event: the last one comes in the tick of progress 10
+finish after 10 s, seq 11:
+  breaker:  block_update state 0; block_changed_ack seq 11
+  observer: block_destruction progress 255; level_event type 2001 data 1; block_update state 0
+```
+
+**R29.** The last column gives a stage and the tick count where the observer first gets it. Each tick
+count is equal to the first tick count `c` where `floor(10 × rate × (c + 1))`, in 32-bit floating
+point, reaches the stage. For cobweb with an empty hand, exact arithmetic gives one tick less.
+
+| Block | Main-hand item and effect | `H` | `S` | `F` | Stage at tick count |
+|-------|---------------------------|-----|-----|-----|---------------------|
+| stone | empty | 1.5 | 1 | 100 | 10 at 149 |
+| stone | wooden pickaxe | 1.5 | 2 | 30 | 10 at 22 |
+| stone | diamond pickaxe | 1.5 | 8 | 30 | 10 at 5 |
+| dirt | empty (three runs) | 0.5 | 1 | 30 | 10 at 14 |
+| dirt | wooden pickaxe (three runs) | 0.5 | 1 | 30 | 10 at 14 |
+| dirt | wooden shovel | 0.5 | 2 | 30 | 10 at 7 |
+| dirt | wooden sword | 0.5 | 1 | 30 | 10 at 14 |
+| obsidian | diamond pickaxe | 50 | 8 | 30 | 10 at 187 |
+| iron ore | wooden pickaxe | 3 | 2 | 100 | 10 at 149 |
+| iron ore | stone pickaxe | 3 | 4 | 30 | 10 at 22 |
+| stone | wooden pickaxe, Efficiency II | 1.5 | 2 + 5 | 30 | 10 at 6 |
+| dirt | wooden pickaxe, Efficiency II | 0.5 | 1 | 30 | 10 at 14 |
+| stone | wooden pickaxe, Haste amplifier 1 | 1.5 | 2 × 1.4 | 30 | 10 at 16 |
+| stone | empty, Haste amplifier 1 | 1.5 | 1.4 | 100 | 10 at 107 |
+| stone | wooden pickaxe, Conduit Power amplifier 0 | 1.5 | 2 × 1.2 | 30 | 10 at 18 |
+| stone | wooden pickaxe, Mining Fatigue amplifier 0 | 1.5 | 2 × 0.3 | 30 | 10 at 74 |
+| stone | diamond pickaxe, Mining Fatigue amplifier 2 | 1.5 | 8 × 0.3³ | 30 | 10 at 208 |
+| stone | diamond pickaxe, Mining Fatigue amplifier 3 | 1.5 | 8 × 0.3⁴ | 30 | 1 at 69 |
+| glass | empty | 0.3 | 1 | 30 | 10 at 8 |
+| cobweb | iron sword | 4 | 15 | 30 | 10 at 7 |
+| cobweb | empty | 4 | 1 | 100 | 1 at 40, 7 at 279 |
+| white wool | shears | 0.8 | 5 | 30 | 10 at 4 |
+| oak leaves | wooden hoe | 0.2 | 2 | 30 | 10 at 2 |
+| bedrock | empty | -1 | 1 | 100 | 0 only |
+
+A first run of dirt with a wooden pickaxe gave 10 at 17, with a lag of the server. Three later runs
+gave 14.
+
+**R30.**
+
+```text
+short_grass, empty hand:
+  breaker:  block_update state 0; block_changed_ack
+  observer: level_event type 2001 data 2363; block_update state 0; no item
+torch, empty hand:
+  breaker:  add_entity (item minecraft:torch); block_update state 0; block_changed_ack
+stone, netherite pickaxe with Efficiency V, Haste amplifier 1 (rate 1.09):
+  breaker:  add_entity (item); block_update state 0; container_set_slot; block_changed_ack
+  observer: level_event type 2001 data 1; add_entity; block_update state 0
+stone, diamond pickaxe with Efficiency V (rate 0.756):
+  breaker:  block_changed_ack; observer: block_destruction progress 7; the block stays
+```
+
+**R31.** Stone, wooden pickaxe. The rate with no factor is 0.0444.
+
+| Case | Rate | Stage at tick count |
+|------|------|---------------------|
+| on-ground flag clear (three runs) | 0.00889 | 7 at 78, 10 at 112 |
+| in water 4 blocks deep, eyes in water | 0.00889 | 10 at 112 |
+| in water, helmet with Aqua Affinity | 0.0444 | 10 at 22 |
+
+**R32.** Stone, wooden pickaxe, rate 0.0444. The finish action follows the tick count `k`.
+
+| `k` | Progress | Result |
+|-----|----------|--------|
+| 5 | 0.267 | deviation D1: `block_changed_ack`; one tick later the block breaks; the observer gets progress 42 |
+| 13 | 0.622 | deviation D1: as `k = 5`, with progress 73 |
+| 14 | 0.667 | deviation D1: as `k = 5`, with progress 108 |
+| 15 | 0.711 | the block breaks at once |
+| 16 | 0.756 | the block breaks at once |
+
+```text
+k = 15:
+  breaker:  add_entity (item minecraft:cobblestone); block_update state 0; container_set_slot;
+            block_changed_ack
+  observer: block_destruction progress 255; level_event type 2001 data 1; add_entity;
+            block_update state 0
+```
+
+**R33.** Stone, wooden pickaxe, a dig at (2,-60,0).
+
+```text
+face change, face 3, seq 0: block_changed_ack seq 0; the next level_event has data 3;
+                            the stages continue
+abort at (2,-60,0), seq 0:  breaker:  block_changed_ack seq 0
+                            observer: block_destruction (2,-60,0) progress 255
+abort at (2,-60,1):         observer: block_destruction (2,-60,0) progress 255,
+                                      then block_destruction (2,-60,1) progress 255
+start at (2,-60,1):         breaker:  block_update (2,-60,0) state 1; block_changed_ack
+                            observer: block_destruction (2,-60,1) progress 0, then 1, 2, ...
+finish at (2,-60,1):        block_changed_ack; both blocks stay; the stages at (2,-60,0) continue
+finish at (2,-60,-1), no dig in a new session: block_changed_ack; the block stays
+```
+
+**R34.** Bedrock, empty hand.
+
+```text
+start:             breaker: block_changed_ack; observer: block_destruction progress 0
+the next 30 ticks: no block_destruction
+finish:            block_changed_ack; the block stays
+```
+
+**R35.** Stone. A wooden pickaxe is in slot 0, and slot 2 is empty. The observer gets these stages,
+with the tick count in brackets: 1 (2), 2 (4), 3 (6), 4 (8). The player selects slot 2 at the tick
+count 10, and the observer gets 0 (11). The player selects slot 0 at the tick count 14, and the
+observer gets 1 (14) and 7 (15). The finish action at the tick count 16 breaks the block.
+
+**R36.** Stone at `y=-59`, in the row of the eye position. The distance is on `x`, from the eye
+position to the face of the block.
+
+| Distance | Result |
+|----------|--------|
+| 5.4, 5.49 | `block_changed_ack`; the observer gets the stages |
+| 5.5, 5.51, 5.6 | `block_changed_ack`; the observer gets nothing |
+| a dig at 5.4, a finish at 5.6 | `block_changed_ack`; the block stays; the stages continue |
+
+**R37.** The exhaustion is the increase of `foodExhaustionLevel`. The maximum damage of a wooden
+pickaxe is 59.
+
+| Block | Main-hand item | Damage after | Items | Exhaustion |
+|-------|----------------|--------------|-------|------------|
+| stone | empty | none | none | 0 |
+| stone | wooden pickaxe | 1 | cobblestone | 0.005 |
+| stone | wooden pickaxe, Silk Touch | 1 | stone | 0.005 |
+| stone | wooden pickaxe, damage 58 | the item breaks | cobblestone | 0.005 |
+| stone | wooden hoe | 1 | none | 0 |
+| dirt | wooden pickaxe | 1 | dirt | 0.005 |
+| dirt | wooden shovel | 1 | dirt | 0.005 |
+| dirt | wooden sword | 2 | dirt | 0.005 |
+| dirt | mace | 2 | dirt | 0.005 |
+| short grass | wooden pickaxe | 0 | none | 0.005 |
+| torch | wooden pickaxe | 0 | torch | 0.005 |
+| iron ore | wooden pickaxe | 1 | none | 0 |
+| iron ore | stone pickaxe | 1 | raw_iron | 0.005 |
+| coal ore | stone pickaxe | 1 | coal, one experience orb | 0.005 |
+| glass | empty | none | none | 0.005 |
+| glass | trident | 2 | none | 0.005 |
+| white wool | shears | 1 | white_wool | 0.005 |
+| oak leaves | shears | 1 | oak_leaves | 0.005 |
+| cobweb | iron sword | 2 | string | 0.005 |
+| cobweb | empty | none | none | 0 |
+| grass block | empty | none | dirt | 0.005 |
+| oak log | empty | none | oak_log | 0.005 |
+
+```text
+coal ore at (3,-60,0), breaker:
+  add_entity item at (3.43,-59.64,0.45); add_entity experience_orb at (3.5,-59.5,0.5);
+  block_update state 0; container_set_slot; block_changed_ack
+```
+
+For the block at (3,-60,0), the item entities of all the runs were at `x` from 3.27 to 3.70, `y`
+from -59.87 to -59.43 and `z` from 0.25 to 0.72.
+
+**R38.** The observer is on the `x` axis from the block (3,-60,0), at `z=0.5`. The dig lasts about 12
+ticks.
+
+| Distance | `block_destruction` packets | `level_event` 2019 and 2020 packets |
+|----------|-----------------------------|-------------------------------------|
+| 20 | 7 | 12 |
+| 31 | 7 | 12 |
+| 33 | 0 | 12 |
+| 40 | 0 | 12 |
