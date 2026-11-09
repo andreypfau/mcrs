@@ -1,8 +1,8 @@
 use glam::DVec3;
+use mcrs_minecraft_numeric as numeric;
 
 use crate::PlayerRotation;
 use crate::PlayerState;
-use crate::SineTable;
 
 /// Degrees to radians in f64, as the teleport computes them.
 const RADIANS_PER_DEGREE: f64 = 0.017453292519943295;
@@ -36,12 +36,7 @@ bitflags::bitflags! {
 
 /// Applies a teleport to the state and the rotation of a player. The flags, the supporting block
 /// and the fall distance stay.
-pub fn apply_teleport(
-    sine: &SineTable,
-    state: &mut PlayerState,
-    rotation: &mut PlayerRotation,
-    packet: &Teleport,
-) {
+pub fn apply_teleport(state: &mut PlayerState, rotation: &mut PlayerRotation, packet: &Teleport) {
     let relative = packet.relative;
     let pick = |flag: Relative, current: f64, change: f64| {
         if relative.contains(flag) {
@@ -69,14 +64,20 @@ pub fn apply_teleport(
     let mut velocity = state.velocity;
     if relative.contains(Relative::ROTATE_VELOCITY) {
         let about_x = radians(rotation.pitch - pitch);
-        let (cos, sin) = (f64::from(sine.cos(about_x)), f64::from(sine.sin(about_x)));
+        let (cos, sin) = (
+            f64::from(numeric::cos_nearest(about_x)),
+            f64::from(numeric::sin_nearest(about_x)),
+        );
         velocity = DVec3::new(
             velocity.x,
             velocity.y * cos + velocity.z * sin,
             velocity.z * cos - velocity.y * sin,
         );
         let about_y = radians(rotation.yaw - yaw);
-        let (cos, sin) = (f64::from(sine.cos(about_y)), f64::from(sine.sin(about_y)));
+        let (cos, sin) = (
+            f64::from(numeric::cos_nearest(about_y)),
+            f64::from(numeric::sin_nearest(about_y)),
+        );
         velocity = DVec3::new(
             velocity.x * cos + velocity.z * sin,
             velocity.y,

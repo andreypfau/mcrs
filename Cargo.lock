@@ -5027,6 +5027,7 @@ dependencies = [
  "mcrs_engine_muxer",
  "mcrs_minecraft_client_ticks",
  "mcrs_minecraft_core",
+ "mcrs_minecraft_numeric",
  "mcrs_minecraft_physics",
  "mcrs_voxel",
  "rustc-hash 2.1.1",

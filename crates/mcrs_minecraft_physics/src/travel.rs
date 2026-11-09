@@ -1,4 +1,5 @@
 use glam::DVec3;
+use mcrs_minecraft_numeric as numeric;
 
 use crate::BlockFlags;
 use crate::Body;
@@ -12,13 +13,11 @@ use crate::Mover;
 use crate::MoverKind;
 use crate::Scratch;
 use crate::ShapeClass;
-use crate::SineTable;
 use crate::View;
 use crate::block_scan::block_at;
 use crate::block_scan::state_at;
 use crate::move_body;
 use crate::move_body::friction_below;
-use crate::sine_table::yaw_radians;
 
 /// The largest horizontal speed and the fastest descent on a climbable block: `0.15F`.
 const CLIMB_SPEED: f32 = 0.15;
@@ -66,7 +65,7 @@ pub(crate) fn travel<W: CollisionWorld, B: BodyView>(
     } else {
         input.air_speed
     };
-    accelerate(&view.tables.sine, body, input.input, speed, input.yaw);
+    accelerate(body, input.input, speed, input.yaw);
     let climb = climbable(view, body.position);
     if let Some(block) = climb {
         let limit = f64::from(CLIMB_SPEED);
@@ -145,13 +144,7 @@ pub(crate) fn modifier(factor: f32, modifier: f32) -> f32 {
 }
 
 /// Adds the input vector, scaled by `speed` and rotated by the yaw, to the velocity.
-pub(crate) fn accelerate(
-    sine: &SineTable,
-    body: &mut Body,
-    input: MoveInput,
-    speed: f32,
-    yaw: f32,
-) {
+pub(crate) fn accelerate(body: &mut Body, input: MoveInput, speed: f32, yaw: f32) {
     let mut vector = DVec3::new(
         f64::from(input.sideways),
         f64::from(input.vertical),
@@ -170,9 +163,9 @@ pub(crate) fn accelerate(
         };
     }
     vector *= f64::from(speed);
-    let angle = yaw_radians(yaw);
-    let sin = f64::from(sine.sin(angle));
-    let cos = f64::from(sine.cos(angle));
+    let angle = numeric::radians_from_degrees(yaw);
+    let sin = f64::from(numeric::sin_nearest(angle));
+    let cos = f64::from(numeric::cos_nearest(angle));
     body.velocity += DVec3::new(
         vector.x * cos - vector.z * sin,
         vector.y,

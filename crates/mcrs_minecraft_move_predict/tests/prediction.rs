@@ -217,11 +217,7 @@ fn rsp_001_a_report_far_above_the_prediction_sets_the_client_back_to_the_accepte
     );
     assert_eq!(setback.relative, Relative::YAW | Relative::PITCH);
     assert_eq!(session.step(FORWARD).mode, Mode::Exempt, "RSP-003");
-    assert!(passes(
-        session
-            .prediction
-            .accept(&session.fixture.tables, setback.position)
-    ));
+    assert!(passes(session.prediction.accept(setback.position)));
 }
 
 #[test]
@@ -372,25 +368,18 @@ fn lat_008_an_accept_matches_the_destination_of_a_candidate() {
     };
     let mut destination = session.client;
     let mut rotation = session.input.rotation;
-    apply_teleport(
-        &session.fixture.tables.sine,
-        &mut destination,
-        &mut rotation,
-        &teleport,
-    );
+    apply_teleport(&mut destination, &mut rotation, &teleport);
 
     session.prediction.teleport(teleport);
     let far = destination.position + DVec3::new(0.0, 0.0, 5.0);
-    let outcome = session.prediction.accept(&session.fixture.tables, far);
+    let outcome = session.prediction.accept(far);
     let correction = outcome
         .setback
         .expect("an accept elsewhere gets a correction");
     assert_eq!(correction.position, destination.position);
     assert_eq!(outcome.offset, Some(5.0));
 
-    let outcome = session
-        .prediction
-        .accept(&session.fixture.tables, destination.position);
+    let outcome = session.prediction.accept(destination.position);
     assert!(passes(outcome));
     assert_eq!(session.prediction.accepted().position, destination.position);
     session.client = destination;

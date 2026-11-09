@@ -1,4 +1,5 @@
 use glam::DVec3;
+use mcrs_minecraft_numeric as numeric;
 
 use crate::Aabb;
 use crate::BirthKey;
@@ -25,7 +26,6 @@ use crate::block_effects;
 use crate::block_effects::EffectContext;
 use crate::push_out;
 use crate::query;
-use crate::sine_table::yaw_radians;
 use crate::tick_entity::applied_dy;
 use crate::tick_entity::jump;
 use crate::tolerance::CLIP;
@@ -91,7 +91,7 @@ pub fn tick_player<W: CollisionWorld, B: BodyView>(
         physics: physics_of(&facts),
         shift: keys.shift,
         keeps_to_edges: !flight,
-        intent: (side == Side::OwnClient).then(|| intent(&view.tables.sine, move_input, yaw)),
+        intent: (side == Side::OwnClient).then(|| intent(move_input, yaw)),
         ..player_mover(BirthKey::new(0, SourceKind::Player, 0, 0), side, out)
     };
     let start_position = body.position;
@@ -320,10 +320,10 @@ fn input_vector(keys: &Keys, state: &PlayerState, facts: &PlayerFacts) -> MoveIn
 
 /// The intended horizontal direction for the minor collision flag: the input rotated by the yaw,
 /// with the table values widened before the products.
-fn intent(sine: &crate::SineTable, input: MoveInput, yaw: f32) -> DVec3 {
-    let angle = yaw_radians(yaw);
-    let sin = f64::from(sine.sin(angle));
-    let cos = f64::from(sine.cos(angle));
+fn intent(input: MoveInput, yaw: f32) -> DVec3 {
+    let angle = numeric::radians_from_degrees(yaw);
+    let sin = f64::from(numeric::sin_nearest(angle));
+    let cos = f64::from(numeric::cos_nearest(angle));
     let x = f64::from(input.sideways);
     let z = f64::from(input.forward);
     DVec3::new(x * cos - z * sin, 0.0, z * cos + x * sin)

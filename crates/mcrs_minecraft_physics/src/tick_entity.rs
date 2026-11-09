@@ -1,4 +1,5 @@
 use glam::DVec3;
+use mcrs_minecraft_numeric as numeric;
 
 use crate::Aabb;
 use crate::BirthKey;
@@ -31,7 +32,6 @@ use crate::move_body::offset_block;
 use crate::open_air;
 use crate::query;
 use crate::rest::same_bits;
-use crate::sine_table::yaw_radians;
 use crate::support::MOVEMENT_OFFSET;
 use crate::tolerance::CLIP;
 use crate::tolerance::COLLISION;
@@ -262,12 +262,11 @@ pub(crate) fn jump<W: CollisionWorld, B: BodyView>(
     }
     body.velocity.y = power.max(body.velocity.y);
     if let Some(yaw) = sprint_yaw {
-        let angle = yaw_radians(yaw);
-        let sine = &view.tables.sine;
+        let angle = numeric::radians_from_degrees(yaw);
         body.velocity += DVec3::new(
-            -f64::from(sine.sin(angle)) * 0.2,
+            -f64::from(numeric::sin_nearest(angle)) * 0.2,
             0.0,
-            f64::from(sine.cos(angle)) * 0.2,
+            f64::from(numeric::cos_nearest(angle)) * 0.2,
         );
     }
 }

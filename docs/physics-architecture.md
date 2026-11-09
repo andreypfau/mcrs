@@ -1044,9 +1044,8 @@ pub struct View<'a, W, B> { pub world: &'a W, pub bodies: &'a B, pub tables: &'a
 /// outside the world border. Index-based, so the scratch buffers hold no borrow of the tables.
 pub enum Collider { Block { shape: ShapeId, at: BlockPos }, Entity(Aabb), Border(BorderRegion) }
 
-pub struct Tables {
+pub struct Tables {                         // PHY-NUM-005 reads the sine table of mcrs_minecraft_numeric
     pub collision: CollisionTable,
-    pub sine: SineTable,                    // PHY-NUM-005: 65536 f32 entries
 }                                           // a `MotionRow` (PHY-ORD-005, ORD-009) goes with each call
 
 /// Which side runs the step: the flags, gravity and the bounce differ (PHY-FLG-002/003,
@@ -1135,9 +1134,7 @@ pub fn observed_velocity<W: CollisionWorld, B: BodyView>(
 ) -> VelocityCandidates;                    // up to three, and whether `y` is known
 
 /// PHY-SRV-010: apply a `player_position` packet; rotation values are f32.
-pub fn apply_teleport(
-    sine: &SineTable, state: &mut PlayerState, rotation: &mut PlayerRotation, packet: &Teleport,
-);
+pub fn apply_teleport(state: &mut PlayerState, rotation: &mut PlayerRotation, packet: &Teleport);
 
 /// PHY-MOV-001. A `piston` move first passes `limit_piston` (PHY-BLK-002), which the block
 /// domain calls with the sums of the entity for the game tick.
@@ -1204,7 +1201,8 @@ short.
 - PHY-GRV-007 factor `0.546000063419342`; PHY-SKIP-003 rest values; PHY-SHP-005 slab lines; a carpet
   gives the lines 0 and `1/16` on `y` through the one-box fast path; a box from `x = 0.25` to
   `0.75` and `y = 0` to `1/16` gives only 0.25 and 0.75 on `x`; PHY-SHP-007 scan order.
-- PHY-NUM-005: sine table entries 0, 16384, 32768, 49152; raw yaw values above 360 and below −360.
+- PHY-NUM-005: the parity test of `mcrs_minecraft_numeric` checks the sine table entries and the
+  sine and cosine of angles above one turn and below minus one turn.
 - PHY-PSH-004/005 pairs, bit for bit; PHY-CMP-012 crowds equal for any row order and task split.
 - PHY-SHP-012: tagged sources; `feet` of the old position gives the scaffolding shape from before the
   move; the placement variant gives no border and empty scaffolding.

@@ -16,9 +16,7 @@ use mcrs_minecraft_physics::Relative;
 use mcrs_minecraft_physics::Scratch;
 use mcrs_minecraft_physics::ServerCopy;
 use mcrs_minecraft_physics::Side;
-use mcrs_minecraft_physics::Tables;
 use mcrs_minecraft_physics::Teleport;
-use mcrs_minecraft_physics::TestBlocks;
 use mcrs_minecraft_physics::TestFixture;
 use mcrs_minecraft_physics::TestWorld;
 use mcrs_minecraft_physics::View;
@@ -311,7 +309,6 @@ fn grv_002_a_slow_falling_player_falls_by_the_capped_gravity() {
 
 #[test]
 fn srv_010_a_teleport_rotates_the_velocity_by_the_table() {
-    let tables = Tables::new(TestBlocks::new().table);
     let mut state = PlayerState::new(DVec3::new(10.0, 64.0, -3.0));
     state.velocity = DVec3::new(1.0, 0.5, 0.0);
     state.flags = MoveFlags {
@@ -330,7 +327,7 @@ fn srv_010_a_teleport_rotates_the_velocity_by_the_table() {
         pitch: 100.0,
         relative: Relative::X | Relative::ROTATE_VELOCITY | Relative::VELOCITY_Y,
     };
-    apply_teleport(&tables.sine, &mut state, &mut rotation, &packet);
+    apply_teleport(&mut state, &mut rotation, &packet);
     assert_eq!(state.position, DVec3::new(11.0, 2.0, 3.0));
     assert_eq!((rotation.yaw, rotation.pitch), (90.0, 90.0));
     // The pitch turns by -90 degrees and the yaw by -90 degrees, both exact in the table.

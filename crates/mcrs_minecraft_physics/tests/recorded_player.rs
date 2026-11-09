@@ -107,7 +107,6 @@ fn replay(name: &str, recording: &Recording) -> Result<(), String> {
         for event in events {
             match event {
                 Event::Teleport(teleport) => apply_teleport(
-                    &tables.sine,
                     &mut state,
                     &mut input.rotation,
                     &Teleport {

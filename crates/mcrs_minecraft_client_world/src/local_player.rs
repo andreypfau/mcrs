@@ -5,9 +5,7 @@ use mcrs_minecraft_engine_world::entity::physics::{
 };
 use mcrs_minecraft_network::ConnectionState;
 use mcrs_minecraft_network::client::ClientConnection;
-use mcrs_minecraft_physics::{
-    PlayerRotation, PlayerState, Relative, SineTable, Teleport, apply_teleport,
-};
+use mcrs_minecraft_physics::{PlayerRotation, PlayerState, Relative, Teleport, apply_teleport};
 use mcrs_minecraft_protocol::{VarInt, WritePacket};
 use mcrs_minecraft_protocol_game::MoveFlags;
 use mcrs_minecraft_protocol_game::serverbound::{
@@ -90,10 +88,6 @@ pub struct LookOverride {
 #[derive(Resource, Clone, Copy)]
 pub struct PositionOverride(pub DVec3);
 
-/// The sine table that rotates the velocity of a teleport.
-#[derive(Resource, Clone, Debug, Default)]
-pub struct ClientSine(pub SineTable);
-
 /// One tick of local-player movement.
 #[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
 pub struct LocalPlayerTick;
@@ -105,21 +99,18 @@ impl Plugin for LocalPlayerPlugin {
         if !app.is_plugin_added::<PlayerViewPlugin>() {
             app.add_plugins(PlayerViewPlugin);
         }
-        app.init_resource::<MovementInput>()
-            .init_resource::<ClientSine>()
-            .add_systems(
-                FixedUpdate,
-                (
-                    accept_teleports.before(LocalPlayerTick),
-                    (capture_old_transform, fly).chain().in_set(LocalPlayerTick),
-                    send_movement.after(LocalPlayerTick),
-                ),
-            );
+        app.init_resource::<MovementInput>().add_systems(
+            FixedUpdate,
+            (
+                accept_teleports.before(LocalPlayerTick),
+                (capture_old_transform, fly).chain().in_set(LocalPlayerTick),
+                send_movement.after(LocalPlayerTick),
+            ),
+        );
     }
 }
 
 fn apply_server_teleport(
-    sine: &SineTable,
     transform: &mut PhysicsTransform,
     velocity: &mut Velocity,
     teleport: &ServerTeleport,
@@ -137,7 +128,7 @@ fn apply_server_teleport(
         pitch: teleport.look.pitch,
         relative: Relative::from_bits_truncate(teleport.flags.bits()),
     };
-    apply_teleport(sine, &mut state, &mut rotation, &packet);
+    apply_teleport(&mut state, &mut rotation, &packet);
     transform.translation = state.position;
     transform.rotation = Rotation::new(rotation.yaw, rotation.pitch);
     velocity.0 = state.velocity;
@@ -151,7 +142,6 @@ fn accept_teleports(
     connection: Option<Single<(&mut ClientConnection, &mut PendingTeleports)>>,
     look: Option<Res<LookOverride>>,
     position: Option<Res<PositionOverride>>,
-    sine: Res<ClientSine>,
 ) {
     let Some(connection) = connection else { return };
     let (mut connection, mut pending) = connection.into_inner();
@@ -161,7 +151,7 @@ fn accept_teleports(
     let (mut transform, mut velocity, mut last_sent) = player.into_inner();
     let mut position = position.map(|position| position.0);
     for teleport in pending.0.drain(..) {
-        apply_server_teleport(&sine.0, &mut transform, &mut velocity, &teleport);
+        apply_server_teleport(&mut transform, &mut velocity, &teleport);
         if teleport.flags.is_empty() {
             if let Some(position) = position.take() {
                 transform.translation = position;
@@ -314,7 +304,7 @@ mod tests {
             rotation: Rotation::new(45.0, 10.0),
         };
         let mut velocity = Velocity(DVec3::new(1.0, 0.0, -1.0));
-        apply_server_teleport(&SineTable::new(), &mut transform, &mut velocity, teleport);
+        apply_server_teleport(&mut transform, &mut velocity, teleport);
         (transform, velocity)
     }
 

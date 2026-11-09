@@ -329,14 +329,12 @@ impl Server {
         match event {
             Event::Teleport(teleport) => {
                 let mut destination = *self.prediction.accepted();
-                let sine = &self.tables.sine;
                 apply_teleport(
-                    sine,
                     &mut destination,
                     &mut self.rotation,
                     &teleport_of(teleport)?,
                 );
-                return Ok(self.prediction.accept(&self.tables, destination.position));
+                return Ok(self.prediction.accept(destination.position));
             }
             Event::ChunkForgotten([x, z]) => self.world.unload_chunk(*x, *z),
             _ => self.applied += 1,

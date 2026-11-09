@@ -11,7 +11,6 @@ use mcrs_minecraft_physics::PlayerRotation;
 use mcrs_minecraft_physics::PlayerState;
 use mcrs_minecraft_physics::Relative;
 use mcrs_minecraft_physics::Side;
-use mcrs_minecraft_physics::Tables;
 use mcrs_minecraft_physics::Teleport;
 use mcrs_minecraft_physics::View;
 use mcrs_minecraft_physics::apply_teleport;
@@ -135,14 +134,14 @@ impl Prediction {
 
     /// The accept of the pending teleport, at the position that the client reports. The
     /// prediction starts again at the destination of the candidate that the accept matches.
-    pub fn accept(&mut self, tables: &Tables, position: DVec3) -> Outcome {
+    pub fn accept(&mut self, position: DVec3) -> Outcome {
         let Some(teleport) = self.pending else {
             return Outcome::from(Mode::Exempt);
         };
         let destination = |candidate: &Candidate| {
             let mut moved = *candidate;
             let mut rotation = self.rotation;
-            apply_teleport(&tables.sine, &mut moved.state, &mut rotation, &teleport);
+            apply_teleport(&mut moved.state, &mut rotation, &teleport);
             (moved, rotation)
         };
         let threshold = self.limits.offset_threshold;
