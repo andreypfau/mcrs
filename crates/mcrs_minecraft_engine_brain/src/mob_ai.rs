@@ -221,10 +221,12 @@ impl MobAi {
         }
         let mut moving: FxHashMap<EntityId, HostMob> =
             departed.into_iter().map(|host| (host.id, host)).collect();
+        let mut relocated: Vec<(MobId, TileId)> = Vec::new();
+        let mut entering: BTreeMap<TileKey, Vec<HostMob>> = BTreeMap::new();
         for arrival in arrivals {
             let host = match moving.remove(&arrival.id) {
                 Some(mut host) => {
-                    self.stage.relocate(host.mob(), tile_id(arrival.tile));
+                    relocated.push((host.mob(), tile_id(arrival.tile)));
                     host.seen = tick;
                     host
                 }
@@ -241,8 +243,12 @@ impl MobAi {
                     host
                 }
             };
-            insert(&mut self.tiles, arrival.tile, host);
+            entering.entry(arrival.tile).or_default().push(host);
             self.index.insert(arrival.id, arrival.tile);
+        }
+        self.stage.relocate_all(relocated);
+        for (tile, hosts) in entering {
+            merge(self.tiles.entry(tile).or_default(), hosts);
         }
         for id in moving.into_keys() {
             self.index.remove(&id);
@@ -346,8 +352,22 @@ fn tile_id(tile: TileKey) -> TileId {
     TileId::new(tile.x, tile.z)
 }
 
-fn insert(tiles: &mut BTreeMap<TileKey, Vec<HostMob>>, tile: TileKey, host: HostMob) {
-    let hosts = tiles.entry(tile).or_default();
-    let at = hosts.partition_point(|held| held.id < host.id);
-    hosts.insert(at, host);
+/// Adds `entering` to `hosts`, which is sorted by id, in one merge.
+fn merge(hosts: &mut Vec<HostMob>, mut entering: Vec<HostMob>) {
+    entering.sort_by_key(|host| host.id);
+    let held = mem::take(hosts);
+    hosts.reserve(held.len().saturating_add(entering.len()));
+    let mut held = held.into_iter().peekable();
+    let mut entering = entering.into_iter().peekable();
+    loop {
+        let next = match (held.peek(), entering.peek()) {
+            (Some(old), Some(new)) if new.id < old.id => entering.next(),
+            (Some(_), _) => held.next(),
+            (None, _) => entering.next(),
+        };
+        let Some(host) = next else {
+            break;
+        };
+        hosts.push(host);
+    }
 }

@@ -18,6 +18,7 @@ use crate::TileBrains;
 use crate::TileId;
 use crate::Turn;
 use crate::WakeMode;
+use crate::tile_brains::Removed;
 
 /// The brains of the mobs of one world, by tile. A tick of the stage is a parallel map over its
 /// tiles ([`Stage::work`] and [`TileWork::run`]) and a gather ([`Stage::collect`]); the result does
@@ -114,6 +115,43 @@ impl<B> Stage<B> {
                 removed.wake,
                 removed.brain,
             );
+        }
+    }
+
+    /// Moves each brain of `moves` as [`Self::relocate`] does, with one pass over each tile that a
+    /// brain leaves or enters.
+    pub fn relocate_all(&mut self, moves: impl IntoIterator<Item = (MobId, TileId)>) {
+        let mut leaving: BTreeMap<TileId, Vec<OrderKey>> = BTreeMap::new();
+        let mut targets: BTreeMap<OrderKey, TileId> = BTreeMap::new();
+        for (mob, to) in moves {
+            let Some(location) = self.locations.get_mut(&mob) else {
+                continue;
+            };
+            if location.tile == to {
+                continue;
+            }
+            let from = mem::replace(&mut location.tile, to);
+            leaving.entry(from).or_default().push(location.key);
+            targets.insert(location.key, to);
+        }
+        let mut entering: BTreeMap<TileId, Vec<Removed<B>>> = BTreeMap::new();
+        for (from, mut keys) in leaving {
+            let Some(tiles) = self.tiles.get_mut(&from) else {
+                continue;
+            };
+            keys.sort_unstable();
+            for removed in tiles.remove_all(&keys) {
+                if let Some(&to) = targets.get(&removed.key) {
+                    entering.entry(to).or_default().push(removed);
+                }
+            }
+            if tiles.is_empty() {
+                self.tiles.remove(&from);
+            }
+        }
+        for (to, mut entries) in entering {
+            entries.sort_by_key(|entry| entry.key);
+            self.tiles.entry(to).or_default().insert_all(entries);
         }
     }
 

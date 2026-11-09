@@ -108,6 +108,89 @@ impl<B> TileBrains<B> {
         })
     }
 
+    /// Removes the brains of `keys`, which are sorted, in one pass over the columns; gives them in
+    /// key order.
+    pub(crate) fn remove_all(&mut self, keys: &[OrderKey]) -> Vec<Removed<B>> {
+        let leaves: Vec<bool> = self
+            .keys
+            .iter()
+            .map(|key| keys.binary_search(key).is_ok())
+            .collect();
+        let mut ids = extract(&mut self.ids, &leaves).into_iter();
+        let mut cadences = extract(&mut self.cadences, &leaves).into_iter();
+        let mut wakes = extract(&mut self.wakes, &leaves).into_iter();
+        let mut brains = extract(&mut self.brains, &leaves).into_iter();
+        let mut removed = Vec::new();
+        for key in extract(&mut self.keys, &leaves) {
+            let (Some(mob), Some(cadence), Some(wake), Some(brain)) =
+                (ids.next(), cadences.next(), wakes.next(), brains.next())
+            else {
+                break;
+            };
+            removed.push(Removed {
+                mob,
+                key,
+                cadence,
+                wake,
+                brain,
+            });
+        }
+        removed
+    }
+
+    /// Adds `entries`, which are sorted by key, in one merge with the columns. The keys of the
+    /// tile and of `entries` are distinct.
+    pub(crate) fn insert_all(&mut self, entries: Vec<Removed<B>>) {
+        if entries.is_empty() {
+            return;
+        }
+        let count = self.ids.len().saturating_add(entries.len());
+        let mut merged = TileBrains {
+            ids: Vec::with_capacity(count),
+            keys: Vec::with_capacity(count),
+            cadences: Vec::with_capacity(count),
+            wakes: Vec::with_capacity(count),
+            brains: Vec::with_capacity(count),
+            near_players: core::mem::take(&mut self.near_players),
+            decisions: core::mem::take(&mut self.decisions),
+            evaluations: self.evaluations,
+        };
+        let mut held = core::mem::take(self).into_entries().peekable();
+        let mut entries = entries.into_iter().peekable();
+        loop {
+            let next = match (held.peek(), entries.peek()) {
+                (Some(old), Some(new)) if new.key < old.key => entries.next(),
+                (Some(_), _) => held.next(),
+                (None, _) => entries.next(),
+            };
+            let Some(entry) = next else {
+                break;
+            };
+            merged.ids.push(entry.mob);
+            merged.keys.push(entry.key);
+            merged.cadences.push(entry.cadence);
+            merged.wakes.push(entry.wake);
+            merged.brains.push(entry.brain);
+        }
+        *self = merged;
+    }
+
+    fn into_entries(self) -> impl Iterator<Item = Removed<B>> {
+        self.ids
+            .into_iter()
+            .zip(self.keys)
+            .zip(self.cadences)
+            .zip(self.wakes)
+            .zip(self.brains)
+            .map(|((((mob, key), cadence), wake), brain)| Removed {
+                mob,
+                key,
+                cadence,
+                wake,
+                brain,
+            })
+    }
+
     pub(crate) fn position(&self, mob: MobId) -> Option<usize> {
         self.ids.iter().position(|id| *id == mob)
     }
@@ -119,4 +202,12 @@ pub(crate) struct Removed<B> {
     pub(crate) cadence: Cadence,
     pub(crate) wake: u64,
     pub(crate) brain: B,
+}
+
+/// Takes the values of `column` whose flag in `leaves` is set, in order; keeps the others.
+fn extract<T>(column: &mut Vec<T>, leaves: &[bool]) -> Vec<T> {
+    let mut flags = leaves.iter();
+    column
+        .extract_if(.., |_| flags.next().copied().unwrap_or(false))
+        .collect()
 }
