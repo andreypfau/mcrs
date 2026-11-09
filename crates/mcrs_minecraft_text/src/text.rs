@@ -214,11 +214,19 @@ impl<I: TextTypes> Text<I> {
             }
         }
 
+        const MAX_OUTPUT_LEN: usize = 32 * 1024;
+        const MAX_EXPANSION_DEPTH: usize = 16;
+
         fn to_legacy_inner<I: TextTypes>(
             this: &Text<I>,
             result: &mut String,
             mods: &mut Modifiers,
+            depth: usize,
         ) {
+            if result.len() >= MAX_OUTPUT_LEN || depth >= MAX_EXPANSION_DEPTH {
+                return;
+            }
+
             let new_mods = Modifiers {
                 obfuscated: this.0.style.obfuscated,
                 bold: this.0.style.bold,
@@ -241,6 +249,10 @@ impl<I: TextTypes> Text<I> {
                 // Reset and print sum of old and new modifiers
                 result.push_str("§r");
                 mods.add(&new_mods).write(result);
+            } else if new_mods.color.is_some() {
+                // In Minecraft legacy formatting, setting a color code clears all active styles (bold, italic, etc.).
+                // Reapply all active styles from merged modifiers after the color code.
+                mods.add(&new_mods).write(result);
             } else {
                 // Print only new modifiers
                 new_mods.write(result);
@@ -250,7 +262,12 @@ impl<I: TextTypes> Text<I> {
 
             match &this.0.content {
                 TextContent::Text { text, .. } => {
-                    result.push_str(text);
+                    let remaining = MAX_OUTPUT_LEN.saturating_sub(result.len());
+                    if text.len() <= remaining {
+                        result.push_str(text);
+                    } else {
+                        result.push_str(&text[..remaining]);
+                    }
                 }
                 TextContent::Translate {
                     translate,
@@ -258,7 +275,7 @@ impl<I: TextTypes> Text<I> {
                     with,
                 } => {
                     let template = fallback.as_deref().unwrap_or(translate);
-                    format_translate(template, with, result, mods);
+                    format_translate(template, with, result, mods, depth + 1);
                 }
                 TextContent::Keybind { keybind } => {
                     result.push_str(keybind);
@@ -274,13 +291,16 @@ impl<I: TextTypes> Text<I> {
                 }
                 TextContent::Object { fallback, .. } => {
                     if let Some(fallback) = fallback {
-                        to_legacy_inner(fallback, result, mods);
+                        to_legacy_inner(fallback, result, mods, depth + 1);
                     }
                 }
             }
 
             for child in &this.0.extra {
-                to_legacy_inner(child, result, mods);
+                if result.len() >= MAX_OUTPUT_LEN {
+                    break;
+                }
+                to_legacy_inner(child, result, mods, depth + 1);
             }
         }
 
@@ -288,9 +308,14 @@ impl<I: TextTypes> Text<I> {
             arg: &TranslateArg<I>,
             result: &mut String,
             mods: &mut Modifiers,
+            depth: usize,
         ) {
+            if result.len() >= MAX_OUTPUT_LEN || depth >= MAX_EXPANSION_DEPTH {
+                return;
+            }
+
             match arg {
-                TranslateArg::Text(text) => to_legacy_inner(text, result, mods),
+                TranslateArg::Text(text) => to_legacy_inner(text, result, mods, depth + 1),
                 TranslateArg::Bool(b) => result.push_str(if *b { "true" } else { "false" }),
                 TranslateArg::Number(tag) => match tag {
                     mcrs_minecraft_nbt::tag::NbtTag::Byte(v) => result.push_str(&v.to_string()),
@@ -309,7 +334,12 @@ impl<I: TextTypes> Text<I> {
             with: &[TranslateArg<I>],
             result: &mut String,
             mods: &mut Modifiers,
+            depth: usize,
         ) {
+            if result.len() >= MAX_OUTPUT_LEN || depth >= MAX_EXPANSION_DEPTH {
+                return;
+            }
+
             if with.is_empty() {
                 result.push_str(template);
                 return;
@@ -318,12 +348,15 @@ impl<I: TextTypes> Text<I> {
             if !template.contains('%') {
                 result.push_str(template);
                 for (i, arg) in with.iter().enumerate() {
+                    if result.len() >= MAX_OUTPUT_LEN {
+                        break;
+                    }
                     if i == 0 {
                         result.push_str(": ");
                     } else {
                         result.push_str(", ");
                     }
-                    render_arg(arg, result, mods);
+                    render_arg(arg, result, mods, depth + 1);
                 }
                 return;
             }
@@ -331,6 +364,9 @@ impl<I: TextTypes> Text<I> {
             let mut chars = template.chars().peekable();
             let mut auto_idx = 0;
             while let Some(c) = chars.next() {
+                if result.len() >= MAX_OUTPUT_LEN {
+                    break;
+                }
                 if c != '%' {
                     result.push(c);
                     continue;
@@ -361,7 +397,7 @@ impl<I: TextTypes> Text<I> {
                             if let Ok(idx) = num_str.parse::<usize>() {
                                 if let Some(_spec) = chars.next() {
                                     if idx >= 1 && idx <= with.len() {
-                                        render_arg(&with[idx - 1], result, mods);
+                                        render_arg(&with[idx - 1], result, mods, depth + 1);
                                     }
                                 }
                             }
@@ -375,7 +411,7 @@ impl<I: TextTypes> Text<I> {
                     Some('s') | Some('d') | Some('f') => {
                         chars.next();
                         if auto_idx < with.len() {
-                            render_arg(&with[auto_idx], result, mods);
+                            render_arg(&with[auto_idx], result, mods, depth + 1);
                             auto_idx += 1;
                         }
                     }
@@ -388,7 +424,7 @@ impl<I: TextTypes> Text<I> {
 
         let mut result = String::new();
         let mut mods = Modifiers::default();
-        to_legacy_inner(self, &mut result, &mut mods);
+        to_legacy_inner(self, &mut result, &mut mods, 0);
 
         result
     }
