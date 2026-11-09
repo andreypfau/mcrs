@@ -1,10 +1,12 @@
 use crate::anim;
-use crate::resource_set::{self, ResourceSet};
+use crate::resource_set::ResourceSet;
+use crate::sprite_error::SpriteError;
 use bevy::asset::RenderAssetUsages;
 use bevy::image::{CompressedImageFormats, ImageSampler, ImageType};
 use bevy::prelude::*;
 use mcrs_minecraft_mesh::block::Pass;
 use mcrs_minecraft_mesh::pack::{MAX_SPRITE_ARRAYS, MAX_SPRITES};
+use mcrs_minecraft_model_file::resource_id;
 use serde::Deserialize;
 use std::collections::{BTreeMap, HashMap};
 use std::sync::LazyLock;
@@ -100,17 +102,20 @@ impl SpriteRegistry {
     /// Registers the paletted permutations every `atlases/*.json` declares, so
     /// an id such as `minecraft:trims/items/chestplate_trim_quartz` interns
     /// although no such file exists.
-    pub fn load_atlases(&mut self, pack: &ResourceSet) -> Result<(), String> {
+    pub fn load_atlases(&mut self, pack: &ResourceSet) -> Result<(), SpriteError> {
         for (id, bytes) in pack.entries("atlases", "json") {
-            let sources: AtlasSources = serde_json::from_slice(bytes)
-                .map_err(|error| format!("cannot parse atlas {id}: {error}"))?;
+            let sources: AtlasSources =
+                serde_json::from_slice(bytes).map_err(|error| SpriteError::Atlas {
+                    id: id.clone(),
+                    message: error.to_string(),
+                })?;
             self.permutations.extend(sources.permutations(pack)?);
         }
         Ok(())
     }
 
-    fn source(&self, pack: &ResourceSet, id: &str) -> Result<Source, String> {
-        let path = resource_set::resource_path(id, "textures", "png");
+    fn source(&self, pack: &ResourceSet, id: &str) -> Result<Source, SpriteError> {
+        let path = resource_id::resource_path(id, "textures", "png");
         if let Some(bytes) = pack.get(&path) {
             let (data, width, height) = decode_png(bytes, &path)?;
             return Ok(Source {
@@ -121,7 +126,7 @@ impl SpriteRegistry {
             });
         }
         if let Some((base, mapping)) = self.permutations.get(id) {
-            let base_path = resource_set::resource_path(base, "textures", "png");
+            let base_path = resource_id::resource_path(base, "textures", "png");
             let (mut data, width, height) = decode_png(pack.read(&base_path)?, &base_path)?;
             for pixel in data.as_chunks_mut::<4>().0 {
                 *pixel = rgba(mapping.apply(argb(pixel)));
@@ -133,7 +138,7 @@ impl SpriteRegistry {
                 animation: anim::read(pack, &base_path)?,
             });
         }
-        if resource_set::split_id(id) == resource_set::split_id(MISSING_SPRITE) {
+        if resource_id::split_id(id) == resource_id::split_id(MISSING_SPRITE) {
             return Ok(Source {
                 data: missing_pixels(),
                 width: MISSING_SIZE,
@@ -141,7 +146,7 @@ impl SpriteRegistry {
                 animation: None,
             });
         }
-        Err(format!("{path} is not in the resource pack"))
+        Err(SpriteError::NotInPack { path })
     }
 
     /// The pixels of every frame the sprite holds, level zero, row-major RGBA.
@@ -163,16 +168,17 @@ impl SpriteRegistry {
             .collect()
     }
 
-    pub fn intern(&mut self, pack: &ResourceSet, id: &str) -> Result<u16, String> {
+    pub fn intern(&mut self, pack: &ResourceSet, id: &str) -> Result<u16, SpriteError> {
         if let Some(&sprite) = self.index.get(id) {
             return Ok(sprite);
         }
         if self.table.len() >= MAX_SPRITES {
-            return Err(format!(
-                "{id} would be sprite {MAX_SPRITES}, past what a face can name"
-            ));
+            return Err(SpriteError::TooManySprites {
+                id: id.to_owned(),
+                limit: MAX_SPRITES,
+            });
         }
-        let path = resource_set::resource_path(id, "textures", "png");
+        let path = resource_id::resource_path(id, "textures", "png");
         let Source {
             data,
             width,
@@ -185,9 +191,11 @@ impl SpriteRegistry {
             None => (width, width),
         };
         if frame_width != frame_height {
-            return Err(format!(
-                "{path} has {frame_width}x{frame_height} frames, and every layer of an array is square",
-            ));
+            return Err(SpriteError::FrameNotSquare {
+                path,
+                width: frame_width,
+                height: frame_height,
+            });
         }
         let side = frame_width;
 
@@ -205,8 +213,11 @@ impl SpriteRegistry {
         };
         let mut pixels = Vec::with_capacity(frames.len() * (side * side * 4) as usize);
         for &frame in frames {
-            let cut = cut(&data, image_size.0, side, frame)
-                .ok_or_else(|| format!("{path} has no frame {frame}"))?;
+            let cut =
+                cut(&data, image_size.0, side, frame).ok_or_else(|| SpriteError::NoFrame {
+                    path: path.clone(),
+                    frame,
+                })?;
             pixels.extend_from_slice(&cut);
         }
         let opacity = opacity_of(&pixels);
@@ -218,10 +229,11 @@ impl SpriteRegistry {
             Some(index) => index,
             None => {
                 if self.arrays.len() >= MAX_SPRITE_ARRAYS {
-                    return Err(format!(
-                        "{id} needs a {}th texture array, but the shaders bind {MAX_SPRITE_ARRAYS}",
-                        self.arrays.len() + 1
-                    ));
+                    return Err(SpriteError::TooManyArrays {
+                        id: id.to_owned(),
+                        needed: self.arrays.len() + 1,
+                        limit: MAX_SPRITE_ARRAYS,
+                    });
                 }
                 self.arrays.push(SpriteArray {
                     size: side,
@@ -234,7 +246,10 @@ impl SpriteRegistry {
         let array = self
             .arrays
             .get_mut(index)
-            .ok_or_else(|| format!("{id} lands in texture array {index}, past the registry's"))?;
+            .ok_or_else(|| SpriteError::NoArray {
+                id: id.to_owned(),
+                index,
+            })?;
         let layer = array.layers.len() as u16;
         array
             .layers
@@ -261,7 +276,7 @@ impl SpriteRegistry {
     }
 }
 
-pub fn decode_png(bytes: &[u8], path: &str) -> Result<(Vec<u8>, u32, u32), String> {
+pub fn decode_png(bytes: &[u8], path: &str) -> Result<(Vec<u8>, u32, u32), SpriteError> {
     let image = Image::from_buffer(
         bytes,
         ImageType::Extension("png"),
@@ -270,11 +285,14 @@ pub fn decode_png(bytes: &[u8], path: &str) -> Result<(Vec<u8>, u32, u32), Strin
         ImageSampler::nearest(),
         RenderAssetUsages::default(),
     )
-    .map_err(|error| format!("cannot decode {path}: {error}"))?;
+    .map_err(|error| SpriteError::Decode {
+        path: path.to_owned(),
+        message: error.to_string(),
+    })?;
     let (width, height) = (image.width(), image.height());
-    let data = image
-        .data
-        .ok_or_else(|| format!("{path} decoded without pixel data"))?;
+    let data = image.data.ok_or_else(|| SpriteError::NoPixels {
+        path: path.to_owned(),
+    })?;
     Ok((data, width, height))
 }
 
@@ -365,7 +383,7 @@ impl AtlasSources {
     /// Every permuted sprite id with the base texture it copies and the palette swap it applies.
     /// Only paletted permutations create sprites here; the other sources name files that
     /// intern on demand.
-    fn permutations(&self, pack: &ResourceSet) -> Result<Vec<(String, Permutation)>, String> {
+    fn permutations(&self, pack: &ResourceSet) -> Result<Vec<(String, Permutation)>, SpriteError> {
         let mut out = Vec::new();
         for source in &self.sources {
             let AtlasSource::PalettedPermutations {
@@ -395,8 +413,8 @@ impl AtlasSources {
 struct Palette(Vec<u32>);
 
 impl Palette {
-    fn load(pack: &ResourceSet, id: &str) -> Result<Self, String> {
-        let path = resource_set::resource_path(id, "textures/palettes", "png");
+    fn load(pack: &ResourceSet, id: &str) -> Result<Self, SpriteError> {
+        let path = resource_id::resource_path(id, "textures/palettes", "png");
         let (data, _, _) = decode_png(pack.read(&path)?, &path)?;
         Ok(Self(data.as_chunks::<4>().0.iter().map(argb).collect()))
     }
@@ -406,13 +424,12 @@ impl Palette {
 pub struct PaletteMapping(HashMap<u32, u32>);
 
 impl PaletteMapping {
-    fn create(base: &Palette, target: &Palette) -> Result<Self, String> {
+    fn create(base: &Palette, target: &Palette) -> Result<Self, SpriteError> {
         if base.0.len() != target.0.len() {
-            return Err(format!(
-                "PaletteMapping has different sizes: {} != {}",
-                base.0.len(),
-                target.0.len()
-            ));
+            return Err(SpriteError::PaletteSize {
+                base: base.0.len(),
+                target: target.0.len(),
+            });
         }
         Ok(Self(
             base.0
@@ -772,7 +789,7 @@ mod tests {
         assert_eq!(array.layers(), 32);
         let stride = (array.size * array.size * 4) as usize;
         let image = ResourceSet::corpus()
-            .read(&resource_set::resource_path(
+            .read(&resource_id::resource_path(
                 "minecraft:block/fire_0",
                 "textures",
                 "png",
@@ -794,7 +811,7 @@ mod tests {
 
     fn source_frames(id: &str) -> Vec<Vec<u8>> {
         let bytes = ResourceSet::corpus()
-            .read(&resource_set::resource_path(id, "textures", "png"))
+            .read(&resource_id::resource_path(id, "textures", "png"))
             .unwrap();
         let image = Image::from_buffer(
             bytes,

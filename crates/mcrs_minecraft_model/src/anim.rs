@@ -1,6 +1,7 @@
 use serde::Deserialize;
 
 use crate::resource_set::ResourceSet;
+use crate::sprite_error::SpriteError;
 
 #[derive(Deserialize)]
 struct File {
@@ -38,12 +39,15 @@ impl Frame {
     }
 }
 
-pub fn read(pack: &ResourceSet, png: &str) -> Result<Option<Animation>, String> {
+pub fn read(pack: &ResourceSet, png: &str) -> Result<Option<Animation>, SpriteError> {
     let path = format!("{png}.mcmeta");
     let Some(bytes) = pack.get(&path) else {
         return Ok(None);
     };
-    from_json(bytes).map_err(|error| format!("cannot parse {path}: {error}"))
+    from_json(bytes).map_err(|error| SpriteError::Animation {
+        path,
+        message: error.to_string(),
+    })
 }
 
 fn from_json(bytes: &[u8]) -> Result<Option<Animation>, serde_json::Error> {

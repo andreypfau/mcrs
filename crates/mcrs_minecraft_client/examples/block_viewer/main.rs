@@ -30,11 +30,13 @@ use bevy::tasks::block_on;
 
 use mcrs_minecraft_client::vanilla::{self, VanillaAssets};
 use mcrs_minecraft_core::CardinalLight;
+use mcrs_minecraft_mesh::face_shade::FaceShade;
 use mcrs_minecraft_mesh::smooth_light::{self, LightState, Sample};
 use mcrs_minecraft_model::atlas;
 use mcrs_minecraft_model::bake::BlockModels;
-use mcrs_minecraft_model::property_table::PropertyTable;
-use mcrs_minecraft_model::resource_set::{self, ResourceSet};
+use mcrs_minecraft_model::resource_set::ResourceSet;
+use mcrs_minecraft_model_file::property_table::PropertyTable;
+use mcrs_minecraft_model_file::resource_id;
 
 const DEFAULT_TARGET: &str = "minecraft:oak_log[axis=y]";
 
@@ -250,12 +252,14 @@ fn build_mesh(
         .block(&target.block)
         .ok_or_else(|| format!("no block {}", target.block))?;
     let properties = PropertyTable::of_block(&block.properties);
-    let baked = BlockModels::new(pack).bake_state(&target.block, &properties, &props, [0, 0, 0])?;
+    let baked = BlockModels::new(pack)
+        .bake_state(&target.block, &properties, &props, [0, 0, 0])
+        .map_err(|error| error.to_string())?;
     for &pos in blocks {
         for quad in baked.quads.iter().cloned() {
             // The only face-culling rule a lone block needs: a face touching a
             // full neighbour is never visible.
-            if let Some(cull) = quad.cull
+            if let Some(cull) = quad.face.cull
                 && solid(pos + cull.normal())
             {
                 continue;
@@ -269,7 +273,7 @@ fn build_mesh(
                 }
             };
             let ao = if baked.ambient_occlusion {
-                smooth_light::smooth(&quad.positions, quad.dir, |offset| Sample {
+                smooth_light::smooth(&quad.face.positions, quad.face.direction, |offset| Sample {
                     state: if solid(pos + offset) {
                         SOLID
                     } else {
@@ -288,13 +292,20 @@ fn build_mesh(
     let slots = sprites.len().max(1) as f32;
     for (pos, quad, slot, ao) in baked_quads {
         let base = positions.len() as u32;
-        let normal = quad.dir.normal().as_vec3().to_array();
+        let normal = quad.face.direction.normal().as_vec3().to_array();
         for i in 0..4 {
-            positions.push((quad.positions[i] + pos.as_vec3()).to_array());
+            positions.push((quad.face.positions[i] + pos.as_vec3()).to_array());
             normals.push(normal);
-            uvs.push([quad.uvs[i][0], (slot as f32 + quad.uvs[i][1]) / slots]);
+            uvs.push([
+                quad.face.uvs[i][0],
+                (slot as f32 + quad.face.uvs[i][1]) / slots,
+            ]);
             // Vanilla's shade byte is sRGB; Bevy consumes vertex colours as linear.
-            let c = smooth_light::shade_byte(ao[i], quad.shade.factor(CardinalLight::Default));
+            let c = smooth_light::shade_byte(
+                ao[i],
+                FaceShade::Direction(quad.face.shade_face.unwrap_or(quad.face.direction))
+                    .factor(CardinalLight::Default),
+            );
             colors.push(LinearRgba::from(Color::srgb_u8(c, c, c)).to_f32_array());
         }
         indices.extend_from_slice(&[base, base + 1, base + 2, base, base + 2, base + 3]);
@@ -320,8 +331,10 @@ fn build_mesh(
 fn build_atlas(pack: &ResourceSet, sprites: &[String]) -> Result<Image, String> {
     let mut cells: Vec<(usize, Vec<u8>)> = Vec::new();
     for id in sprites {
-        let path = resource_set::resource_path(id, "textures", "png");
-        let (data, width, _) = atlas::decode_png(pack.read(&path)?, &path)?;
+        let path = resource_id::resource_path(id, "textures", "png");
+        let (data, width, _) =
+            atlas::decode_png(pack.read(&path).map_err(|error| error.to_string())?, &path)
+                .map_err(|error| error.to_string())?;
         let width = width as usize;
         // An animated sprite is a vertical strip of square frames; take the first one.
         let frame = width * width * 4;

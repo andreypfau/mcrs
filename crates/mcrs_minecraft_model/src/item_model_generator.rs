@@ -4,7 +4,7 @@ use bevy::math::DVec3;
 use mcrs_minecraft_core::Direction;
 
 use crate::item_model_bake::{ItemQuad, element_quads, plain_element};
-use crate::model_file::FaceEntry;
+use mcrs_minecraft_model_file::model_file::FaceEntry;
 
 const MIN_Z: f32 = 7.5;
 const MAX_Z: f32 = 8.5;

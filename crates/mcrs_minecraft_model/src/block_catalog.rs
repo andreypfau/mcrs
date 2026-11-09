@@ -1,7 +1,7 @@
 use crate::atlas::SpriteRegistry;
 use crate::bake::BlockModels;
 use crate::block_build::build_one;
-use crate::property_table::PropertyTable;
+use crate::catalog_failure::CatalogFailure;
 use crate::resource_set::ResourceSet;
 use bevy::math::Vec3;
 use mcrs_minecraft_block::block_keys::Block;
@@ -10,6 +10,7 @@ use mcrs_minecraft_block::definition::schema::PropertyValue;
 use mcrs_minecraft_core::Direction;
 use mcrs_minecraft_mesh::block::BlockInfo;
 use mcrs_minecraft_mesh::pack::{MAX_SPRITE_ARRAYS, MAX_SPRITES};
+use mcrs_minecraft_model_file::property_table::PropertyTable;
 use mcrs_voxel::BlockStateId;
 
 /// A block state as the resource pack names it: the block's identifier and
@@ -70,7 +71,7 @@ fn render(value: &PropertyValue) -> String {
 pub struct Catalog {
     pub blocks: Vec<BlockInfo>,
     pub sprites: SpriteRegistry,
-    pub failures: Vec<String>,
+    pub failures: Vec<CatalogFailure>,
 }
 
 /// The four corners of a full cube's `dir` face, in the order a baked quad winds them.
@@ -102,10 +103,10 @@ pub fn extend(
     }
     for &id in ids {
         let Some(id_state) = BlockStateId::checked(id, definitions.state_count()) else {
-            catalog.failures.push(format!(
-                "state {id}: past the {} corpus states",
-                definitions.state_count()
-            ));
+            catalog.failures.push(CatalogFailure::PastStates {
+                id,
+                count: definitions.state_count(),
+            });
             continue;
         };
         let (Some(state), Some(block), Some(owner)) = (
@@ -113,9 +114,7 @@ pub fn extend(
             definitions.block_index(id_state).and_then(Block::from_id),
             definitions.owner(id_state),
         ) else {
-            catalog
-                .failures
-                .push(format!("state {id}: no registry block owns it"));
+            catalog.failures.push(CatalogFailure::NoOwner { id });
             continue;
         };
         let data = definitions.state(id_state);
@@ -133,16 +132,17 @@ pub fn extend(
                     *slot = info;
                 }
             }
-            Err(reason) => catalog
-                .failures
-                .push(format!("{}: {reason}", state.label())),
+            Err(cause) => catalog.failures.push(CatalogFailure::Build {
+                state: state.label(),
+                cause,
+            }),
         }
     }
     catalog.failures.extend(
         models
             .take_errors()
             .into_iter()
-            .map(|error| format!("content error: {error}")),
+            .map(CatalogFailure::Content),
     );
     assert!(
         catalog.sprites.arrays().len() <= MAX_SPRITE_ARRAYS,

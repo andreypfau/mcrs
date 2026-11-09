@@ -4,8 +4,9 @@ use std::marker::PhantomData;
 use serde::Deserialize;
 use serde::de::{Deserializer, MapAccess, Visitor};
 
+use crate::block_state_file_error::BlockStateFileError;
 use crate::property_table::PropertyTable;
-use crate::resource_set::full_id;
+use crate::resource_id::full_id;
 
 pub const MISSING_MODEL: &str = "minecraft:builtin/missing";
 
@@ -50,7 +51,7 @@ pub enum Selection<'a> {
 pub struct BlockStateFile {
     variants: Vec<KeyedPart>,
     multipart: Option<Vec<MultipartEntry>>,
-    errors: Vec<String>,
+    errors: Vec<BlockStateFileError>,
 }
 
 #[derive(Clone, Debug)]
@@ -105,22 +106,28 @@ impl Condition {
 impl BlockStateFile {
     /// Reads a blockstate file. An error is a content error of the whole file: each state of
     /// the block then draws the missing model.
-    pub fn parse(bytes: &[u8], properties: &PropertyTable) -> Result<Self, String> {
-        let raw: RawFile = serde_json::from_slice(bytes).map_err(|error| error.to_string())?;
+    pub fn parse(bytes: &[u8], properties: &PropertyTable) -> Result<Self, BlockStateFileError> {
+        let raw: RawFile =
+            serde_json::from_slice(bytes).map_err(|error| BlockStateFileError::Syntax {
+                message: error.to_string(),
+            })?;
         if raw.variants.is_none() && raw.multipart.is_none() {
-            return Err("the file has neither `variants` nor `multipart`".to_owned());
+            return Err(BlockStateFileError::NoParts);
         }
         let mut file = Self::default();
         if let Some(Ordered(variants)) = raw.variants {
             if variants.is_empty() {
-                return Err("`variants` is empty".to_owned());
+                return Err(BlockStateFileError::EmptyVariants);
             }
             for (key, part) in variants {
                 let part = part.compile()?;
                 let terms = match variant_key(&key, properties) {
                     Ok(terms) => Some(terms),
                     Err(error) => {
-                        file.errors.push(format!("variant key `{key}`: {error}"));
+                        file.errors.push(BlockStateFileError::VariantKey {
+                            key,
+                            cause: Box::new(error),
+                        });
                         None
                     }
                 };
@@ -129,7 +136,7 @@ impl BlockStateFile {
         }
         if let Some(entries) = raw.multipart {
             if entries.is_empty() {
-                return Err("`multipart` is empty".to_owned());
+                return Err(BlockStateFileError::EmptyMultipart);
             }
             let mut compiled = Vec::with_capacity(entries.len());
             for entry in entries {
@@ -148,7 +155,7 @@ impl BlockStateFile {
 
     /// The content errors of single variant keys, which leave the rest of the file valid.
     #[must_use]
-    pub fn errors(&self) -> &[String] {
+    pub fn errors(&self) -> &[BlockStateFileError] {
         &self.errors
     }
 
@@ -178,34 +185,45 @@ impl BlockStateFile {
     }
 }
 
-fn variant_key(key: &str, properties: &PropertyTable) -> Result<Vec<Term>, String> {
+fn variant_key(key: &str, properties: &PropertyTable) -> Result<Vec<Term>, BlockStateFileError> {
     let mut terms: Vec<Term> = Vec::new();
     for term in key.split(',').filter(|term| !term.is_empty()) {
-        let (name, value) = term
-            .split_once('=')
-            .ok_or_else(|| format!("the term `{term}` has no `=`"))?;
-        let property = properties
-            .index_of(name)
-            .ok_or_else(|| format!("unknown property `{name}`"))?;
+        let (name, value) =
+            term.split_once('=')
+                .ok_or_else(|| BlockStateFileError::TermWithoutEquals {
+                    term: term.to_owned(),
+                })?;
+        let property =
+            properties
+                .index_of(name)
+                .ok_or_else(|| BlockStateFileError::UnknownProperty {
+                    name: name.to_owned(),
+                })?;
         let value = properties
             .properties
             .get(property)
             .and_then(|domain| domain.value_index(value))
-            .ok_or_else(|| format!("unknown value `{value}` of `{name}`"))?;
+            .ok_or_else(|| BlockStateFileError::UnknownValue {
+                name: name.to_owned(),
+                value: value.to_owned(),
+            })?;
         terms.retain(|earlier| earlier.property != property);
         terms.push(Term { property, value });
     }
     Ok(terms)
 }
 
-fn condition(raw: RawCondition, properties: &PropertyTable) -> Result<Condition, String> {
+fn condition(
+    raw: RawCondition,
+    properties: &PropertyTable,
+) -> Result<Condition, BlockStateFileError> {
     let Ordered(members) = raw.0;
     let combined = members.iter().any(|(key, _)| key == "AND" || key == "OR");
     if combined {
-        let [(key, RawTestValue::List(list))] = <[_; 1]>::try_from(members)
-            .map_err(|_| "`AND` or `OR` beside another member".to_owned())?
+        let [(key, RawTestValue::List(list))] =
+            <[_; 1]>::try_from(members).map_err(|_| BlockStateFileError::CombinatorBesideMember)?
         else {
-            return Err("`AND` or `OR` without an array".to_owned());
+            return Err(BlockStateFileError::CombinatorWithoutArray);
         };
         let conditions = list
             .into_iter()
@@ -218,7 +236,7 @@ fn condition(raw: RawCondition, properties: &PropertyTable) -> Result<Condition,
         });
     }
     if members.is_empty() {
-        return Err("an empty condition".to_owned());
+        return Err(BlockStateFileError::EmptyCondition);
     }
     let mut tests = Vec::with_capacity(members.len());
     for (name, value) in members {
@@ -226,7 +244,7 @@ fn condition(raw: RawCondition, properties: &PropertyTable) -> Result<Condition,
             RawTestValue::Text(text) => text,
             RawTestValue::Integer(number) => number.to_string(),
             RawTestValue::Boolean(flag) => flag.to_string(),
-            RawTestValue::List(_) => return Err(format!("`{name}` holds an array")),
+            RawTestValue::List(_) => return Err(BlockStateFileError::TestIsArray { name }),
         };
         tests.push(property_test(&name, &text, properties)?);
     }
@@ -237,14 +255,18 @@ fn property_test(
     name: &str,
     text: &str,
     properties: &PropertyTable,
-) -> Result<PropertyTest, String> {
-    let property = properties
-        .index_of(name)
-        .ok_or_else(|| format!("unknown property `{name}`"))?;
-    let domain = properties
-        .properties
-        .get(property)
-        .ok_or_else(|| format!("unknown property `{name}`"))?;
+) -> Result<PropertyTest, BlockStateFileError> {
+    let property =
+        properties
+            .index_of(name)
+            .ok_or_else(|| BlockStateFileError::UnknownProperty {
+                name: name.to_owned(),
+            })?;
+    let domain = properties.properties.get(property).ok_or_else(|| {
+        BlockStateFileError::UnknownProperty {
+            name: name.to_owned(),
+        }
+    })?;
     let mut accepted = vec![false; domain.values.len()];
     for alternative in text.split('|') {
         let (negated, value) = match alternative.strip_prefix('!') {
@@ -252,11 +274,17 @@ fn property_test(
             None => (false, alternative),
         };
         if value.is_empty() {
-            return Err(format!("an empty alternative in `{name}: {text}`"));
+            return Err(BlockStateFileError::EmptyAlternative {
+                name: name.to_owned(),
+                text: text.to_owned(),
+            });
         }
         let index = domain
             .value_index(value)
-            .ok_or_else(|| format!("unknown value `{value}` of `{name}`"))?;
+            .ok_or_else(|| BlockStateFileError::UnknownValue {
+                name: name.to_owned(),
+                value: value.to_owned(),
+            })?;
         for (other, slot) in accepted.iter_mut().enumerate() {
             if (other == index) != negated {
                 *slot = true;
@@ -308,10 +336,10 @@ struct RawVariant {
 }
 
 impl RawPart {
-    fn compile(self) -> Result<Vec<Variant>, String> {
+    fn compile(self) -> Result<Vec<Variant>, BlockStateFileError> {
         match self {
             RawPart::One(variant) => Ok(vec![variant.compile(Weighted::No)?]),
-            RawPart::Many(variants) if variants.is_empty() => Err("an empty part".to_owned()),
+            RawPart::Many(variants) if variants.is_empty() => Err(BlockStateFileError::EmptyPart),
             RawPart::Many(variants) => variants
                 .into_iter()
                 .map(|variant| variant.compile(Weighted::Yes))
@@ -327,15 +355,14 @@ enum Weighted {
 }
 
 impl RawVariant {
-    fn compile(self, weighted: Weighted) -> Result<Variant, String> {
-        let turn = |angle: Option<i64>| -> Result<u16, String> {
+    fn compile(self, weighted: Weighted) -> Result<Variant, BlockStateFileError> {
+        let turn = |angle: Option<i64>| -> Result<u16, BlockStateFileError> {
             let degrees = angle.unwrap_or(0).rem_euclid(360);
             match degrees {
                 0 | 90 | 180 | 270 => Ok(degrees as u16),
-                _ => Err(format!(
-                    "the rotation {} is no quarter turn",
-                    angle.unwrap_or(0)
-                )),
+                _ => Err(BlockStateFileError::Rotation {
+                    degrees: angle.unwrap_or(0),
+                }),
             }
         };
         let weight = match weighted {
@@ -345,7 +372,7 @@ impl RawVariant {
         let weight = u32::try_from(weight)
             .ok()
             .filter(|weight| *weight >= 1)
-            .ok_or_else(|| format!("the weight {weight} is below 1"))?;
+            .ok_or(BlockStateFileError::Weight { weight })?;
         Ok(Variant {
             model: full_id(&self.model),
             x: turn(self.x)?,

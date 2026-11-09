@@ -4,7 +4,8 @@ use bevy::math::IVec2;
 use serde::Deserialize;
 
 use crate::scene::GuiQuad;
-use mcrs_minecraft_model::resource_set::{ResourceSet, split_id};
+use mcrs_minecraft_model::resource_set::ResourceSet;
+use mcrs_minecraft_model_file::resource_id::split_id;
 
 pub const ASCII_TEXTURE: &str = "minecraft/textures/font/ascii.png";
 const ASCII_FILE: &str = "minecraft:font/ascii.png";
@@ -50,8 +51,9 @@ impl Font {
     pub fn load(pack: &ResourceSet, ascii: &[u8], width: u32, height: u32) -> Result<Self, String> {
         let mut font = Font::default();
         for path in DEFINITIONS {
-            let definition: FontDefinition = serde_json::from_slice(pack.read(path)?)
-                .map_err(|error| format!("{path}: {error}"))?;
+            let definition: FontDefinition =
+                serde_json::from_slice(pack.read(path).map_err(|error| error.to_string())?)
+                    .map_err(|error| format!("{path}: {error}"))?;
             for provider in definition.providers {
                 match provider {
                     Provider::Space { advances } => font.spaces.extend(advances),

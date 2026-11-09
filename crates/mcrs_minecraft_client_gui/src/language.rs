@@ -10,7 +10,7 @@ pub struct ClientLanguage(Language);
 
 impl ClientLanguage {
     pub fn load(pack: &ResourceSet) -> Result<Self, String> {
-        Language::from_json(pack.read(EN_US)?)
+        Language::from_json(pack.read(EN_US).map_err(|error| error.to_string())?)
             .map(Self)
             .map_err(|error| format!("{EN_US}: {error}"))
     }

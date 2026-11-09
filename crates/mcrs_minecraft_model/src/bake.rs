@@ -3,30 +3,26 @@ use std::collections::HashMap;
 use bevy::math::Vec3;
 use mcrs_minecraft_core::Direction;
 use mcrs_minecraft_mesh::block::Pass;
-use mcrs_minecraft_mesh::face_shade::FaceShade;
 use mcrs_minecraft_mesh::variant_pick::{PartSource, VariantPick};
 
-use crate::block_state_file::{BlockStateFile, Selection, Variant};
-use crate::face_bake::{self, VariantTransform};
-use crate::model_resolver::ModelResolver;
-use crate::property_table::PropertyTable;
-use crate::resource_set::{ResourceSet, resource_path};
+use crate::bake_error::BakeError;
+use crate::resource_set::ResourceSet;
+use mcrs_minecraft_model_file::block_state_file::{BlockStateFile, Selection, Variant};
+use mcrs_minecraft_model_file::content_error::{ContentError, ContentErrorKind};
+use mcrs_minecraft_model_file::face_bake::{self, ElementFace, VariantTransform};
+use mcrs_minecraft_model_file::model_resolver::ModelResolver;
+use mcrs_minecraft_model_file::property_table::PropertyTable;
+use mcrs_minecraft_model_file::resource_id::resource_path;
 
 /// One face of a block in block space, with the sprite it draws as an index into the sprites of
 /// its [`BakedBlock`].
 #[derive(Clone, Debug, PartialEq)]
 pub struct BakedFace {
-    pub positions: [Vec3; 4],
-    pub uvs: [[f32; 2]; 4],
-    pub dir: Direction,
+    pub face: ElementFace,
     pub sprite: usize,
-    pub cull: Option<Direction>,
-    pub shade: FaceShade,
-    pub tint: Option<u32>,
     pub dye: Option<u8>,
     /// The pass the face must draw in, when its texture alone does not decide it.
     pub pass: Option<Pass>,
-    pub light_emission: u8,
 }
 
 #[derive(Clone, Debug, Default, PartialEq)]
@@ -119,16 +115,18 @@ pub fn seed_offset(properties: &PropertyTable, state: &[usize]) -> [i32; 3] {
 /// Reads blockstate files and model files from a resource set and bakes the faces of block
 /// states, each file once.
 pub struct BlockModels<'a> {
+    set: &'a ResourceSet,
     resolver: ModelResolver<'a>,
     block_states: HashMap<String, Option<BlockStateFile>>,
-    errors: Vec<String>,
+    errors: Vec<ContentError>,
 }
 
 impl<'a> BlockModels<'a> {
     #[must_use]
     pub fn new(set: &'a ResourceSet) -> Self {
         Self {
-            resolver: ModelResolver::new(set),
+            set,
+            resolver: ModelResolver::new(set.files()),
             block_states: HashMap::new(),
             errors: Vec::new(),
         }
@@ -136,7 +134,7 @@ impl<'a> BlockModels<'a> {
 
     #[must_use]
     pub fn set(&self) -> &'a ResourceSet {
-        self.resolver.set()
+        self.set
     }
 
     pub fn resolver(&mut self) -> &mut ModelResolver<'a> {
@@ -144,7 +142,7 @@ impl<'a> BlockModels<'a> {
     }
 
     /// The content errors found so far, each naming its file.
-    pub fn take_errors(&mut self) -> Vec<String> {
+    pub fn take_errors(&mut self) -> Vec<ContentError> {
         let mut errors = std::mem::take(&mut self.errors);
         errors.extend(self.resolver.take_errors());
         errors
@@ -157,23 +155,33 @@ impl<'a> BlockModels<'a> {
         properties: &PropertyTable,
         state: &[usize],
     ) -> StateParts {
-        let set = self.resolver.set();
+        let pack = self.resolver.pack();
         let file = self
             .block_states
             .entry(block.to_owned())
             .or_insert_with(|| {
                 let path = resource_path(block, "blockstates", "json");
-                let parsed = set
-                    .read(&path)
-                    .and_then(|bytes| BlockStateFile::parse(bytes, properties));
-                match parsed {
+                let Some(bytes) = pack.get(&path) else {
+                    self.errors.push(ContentError {
+                        path,
+                        kind: ContentErrorKind::NoBlockState,
+                    });
+                    return None;
+                };
+                match BlockStateFile::parse(bytes, properties) {
                     Ok(file) => {
                         self.errors
-                            .extend(file.errors().iter().map(|error| format!("{path}: {error}")));
+                            .extend(file.errors().iter().map(|error| ContentError {
+                                path: path.clone(),
+                                kind: ContentErrorKind::BlockState(error.clone()),
+                            }));
                         Some(file)
                     }
                     Err(error) => {
-                        self.errors.push(format!("{path}: {error}"));
+                        self.errors.push(ContentError {
+                            path,
+                            kind: ContentErrorKind::BlockState(error),
+                        });
                         None
                     }
                 }
@@ -191,15 +199,19 @@ impl<'a> BlockModels<'a> {
                 parts: parts.into_iter().map(<[Variant]>::to_vec).collect(),
             },
             Selection::Missing => {
-                self.errors
-                    .push(format!("{block}: no part for the state {state:?}"));
+                self.errors.push(ContentError {
+                    path: block.to_owned(),
+                    kind: ContentErrorKind::NoPart {
+                        state: state.to_vec(),
+                    },
+                });
                 StateParts::missing()
             }
         }
     }
 
     /// The faces of the variants, in order, with the ambient occlusion flag of the first.
-    pub fn bake(&mut self, variants: &[&Variant]) -> Result<BakedBlock, String> {
+    pub fn bake(&mut self, variants: &[&Variant]) -> Result<BakedBlock, BakeError> {
         let mut baked = BakedBlock::default();
         for (index, variant) in variants.iter().enumerate() {
             let model = self.resolver.resolve(&variant.model);
@@ -207,20 +219,17 @@ impl<'a> BlockModels<'a> {
                 baked.ambient_occlusion = model.ambient_occlusion;
             }
             let faces = face_bake::bake_elements(&model.elements, VariantTransform::from(*variant))
-                .map_err(|error| format!("{}: {error}", variant.model))?;
+                .map_err(|cause| BakeError::Face {
+                    model: variant.model.clone(),
+                    cause,
+                })?;
             for face in faces {
                 let texture = model.sprite(&face.texture);
                 baked.quads.push(BakedFace {
-                    positions: face.positions,
-                    uvs: face.uvs,
-                    dir: face.direction,
                     sprite: intern(&mut baked.sprites, &texture.sprite),
-                    cull: face.cull,
-                    shade: FaceShade::Direction(face.shade_face.unwrap_or(face.direction)),
-                    tint: face.tint,
                     dye: None,
                     pass: texture.force_translucent.then_some(Pass::Translucent),
-                    light_emission: face.light_emission,
+                    face,
                 });
             }
         }
@@ -234,10 +243,12 @@ impl<'a> BlockModels<'a> {
         properties: &PropertyTable,
         values: &[(&str, &str)],
         position: [i32; 3],
-    ) -> Result<BakedBlock, String> {
+    ) -> Result<BakedBlock, BakeError> {
         let state = properties
             .state(values)
-            .ok_or_else(|| format!("{block}: {values:?} is no state of the block"))?;
+            .ok_or_else(|| BakeError::NotAState {
+                state: format!("{block}{values:?}"),
+            })?;
         let parts = self.parts(block, properties, &state);
         let chosen = parts.pick(properties, &state).chosen(position);
         let variants: Vec<&Variant> = parts

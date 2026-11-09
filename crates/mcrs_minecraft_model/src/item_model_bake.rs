@@ -8,16 +8,18 @@ use mcrs_minecraft_core::Direction;
 
 use crate::atlas::{MISSING_SPRITE, SpriteRegistry};
 use crate::colormap::load_colormap;
-use crate::face_bake::{self, VariantTransform};
 use crate::item_model_asset::{
     ClientItem, ConditionProperty, RangeProperty, SelectSwitch, SpecialModel, TintSource,
     UnbakedItemModel,
 };
 use crate::item_model_generator;
 use crate::item_model_transform::compose;
-use crate::model_file::{DisplayContext, DisplayTransform, Element, FaceEntry, GuiLight};
-use crate::model_resolver::{MergedModel, ModelResolver};
 use crate::resource_set::ResourceSet;
+use mcrs_minecraft_model_file::face_bake::{self, VariantTransform};
+use mcrs_minecraft_model_file::model_file::{
+    DisplayContext, DisplayTransform, Element, FaceEntry, GuiLight,
+};
+use mcrs_minecraft_model_file::model_resolver::{MergedModel, ModelResolver};
 
 #[derive(Debug, Clone)]
 pub struct ItemQuad {
@@ -102,6 +104,7 @@ impl ItemModels {
 }
 
 struct Baker<'a> {
+    pack: &'a ResourceSet,
     resolver: ModelResolver<'a>,
     sprites: &'a mut SpriteRegistry,
     models: HashMap<String, Arc<BakedItemModel>>,
@@ -111,10 +114,13 @@ struct Baker<'a> {
 /// Bakes every `items/*.json` of the pack; a file that fails to parse, validate or bake
 /// fails the whole load, naming the file.
 pub fn bake_all(pack: &ResourceSet, sprites: &mut SpriteRegistry) -> Result<ItemModels, String> {
-    sprites.load_atlases(pack)?;
+    sprites
+        .load_atlases(pack)
+        .map_err(|error| error.to_string())?;
     let missing = Arc::new(missing_model(pack, sprites)?);
     let mut baker = Baker {
-        resolver: ModelResolver::new(pack),
+        pack,
+        resolver: ModelResolver::new(pack.files()),
         sprites,
         models: HashMap::new(),
         missing: missing.clone(),
@@ -130,7 +136,7 @@ pub fn bake_all(pack: &ResourceSet, sprites: &mut SpriteRegistry) -> Result<Item
     }
     Ok(ItemModels {
         by_id,
-        grass_colormap: Some(load_colormap(pack, "grass")?),
+        grass_colormap: Some(load_colormap(pack, "grass").map_err(|error| error.to_string())?),
         missing: Arc::new(BakedNode::Model {
             model: missing,
             tints: Vec::new(),
@@ -257,7 +263,7 @@ impl Baker<'_> {
         if let Some(model) = self.models.get(id) {
             return Ok(model.clone());
         }
-        let pack = self.resolver.set();
+        let pack = self.pack;
         let resolved = self.resolver.resolve(id);
         let model = Arc::new(bake_model(pack, self.sprites, resolved)?);
         self.models.insert(id.to_string(), model.clone());
@@ -276,7 +282,9 @@ fn bake_model(
             let Some(texture) = model.textures.get(&format!("layer{layer}")) else {
                 break;
             };
-            let sprite = sprites.intern(pack, &texture.sprite)?;
+            let sprite = sprites
+                .intern(pack, &texture.sprite)
+                .map_err(|error| error.to_string())?;
             let side = sprites
                 .sprite(sprite)
                 .and_then(|interned| sprites.arrays().get(usize::from(interned.array)))
@@ -286,8 +294,12 @@ fn bake_model(
             quads.extend(item_model_generator::extrude(sprite, side, &frames, layer)?);
         }
     } else {
-        for face in face_bake::bake_elements(&model.elements, VariantTransform::default())? {
-            let sprite = sprites.intern(pack, &model.sprite(&face.texture).sprite)?;
+        for face in face_bake::bake_elements(&model.elements, VariantTransform::default())
+            .map_err(|error| error.to_string())?
+        {
+            let sprite = sprites
+                .intern(pack, &model.sprite(&face.texture).sprite)
+                .map_err(|error| error.to_string())?;
             quads.push(ItemQuad {
                 positions: face.positions,
                 uvs: face.uvs,
@@ -308,7 +320,8 @@ fn bake_model(
 
 /// The quads of the faces of one element, each drawing `sprite`.
 pub(super) fn element_quads(element: Element, sprite: u16) -> Result<Vec<ItemQuad>, String> {
-    let faces = face_bake::bake_elements(&[element], VariantTransform::default())?;
+    let faces = face_bake::bake_elements(&[element], VariantTransform::default())
+        .map_err(|error| error.to_string())?;
     Ok(faces
         .into_iter()
         .map(|face| ItemQuad {
@@ -338,7 +351,9 @@ fn missing_model(
     pack: &ResourceSet,
     sprites: &mut SpriteRegistry,
 ) -> Result<BakedItemModel, String> {
-    let sprite = sprites.intern(pack, MISSING_SPRITE)?;
+    let sprite = sprites
+        .intern(pack, MISSING_SPRITE)
+        .map_err(|error| error.to_string())?;
     let face = FaceEntry {
         texture: MISSING_SPRITE.to_string(),
         uv: None,

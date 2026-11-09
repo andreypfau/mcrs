@@ -15,6 +15,7 @@ mcrs_minecraft_entity.workspace = true
 mcrs_minecraft_dimension.workspace = true
 mcrs_minecraft_mesh.workspace = true
 mcrs_minecraft_model.workspace = true
+mcrs_minecraft_model_file.workspace = true
 mcrs_minecraft_volume.workspace = true
 mcrs_minecraft_render.workspace = true
 mcrs_minecraft_light_render.workspace = true

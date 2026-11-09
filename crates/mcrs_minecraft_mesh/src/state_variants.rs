@@ -110,3 +110,83 @@ impl<'a> Iterator for CellQuads<'a> {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use glam::Vec3;
+    use mcrs_minecraft_core::Direction;
+
+    use super::*;
+    use crate::block::Pass;
+    use crate::face_shade::FaceShade;
+    use crate::tint::Tint;
+    use crate::variant_pick::PartSource;
+
+    fn quad(sprite: u16) -> ModelQuad {
+        ModelQuad {
+            positions: [Vec3::ZERO; 4],
+            uvs: [[0.0; 2]; 4],
+            cull: None,
+            facing: Direction::Up,
+            face: None,
+            sprite,
+            pass: Pass::Solid,
+            shade: FaceShade::Factor(1.0),
+            tint: Tint::None,
+            emission: 0,
+        }
+    }
+
+    fn two_parts() -> BlockInfo {
+        let sizes = [2usize, 3];
+        let parts = sizes
+            .iter()
+            .enumerate()
+            .map(|(part, size)| {
+                (0..*size)
+                    .map(|variant| vec![quad((part * 10 + variant) as u16)])
+                    .collect()
+            })
+            .collect();
+        BlockInfo {
+            variants: Some(Box::new(StateVariants {
+                pick: VariantPick {
+                    seed_offset: [0, 0, 0],
+                    source: PartSource::Multipart,
+                    weights: sizes.iter().map(|size| vec![1; *size]).collect(),
+                },
+                shapes: VariantShapes::Parts(parts),
+            })),
+            ..BlockInfo::default()
+        }
+    }
+
+    #[test]
+    fn a_choice_reads_each_part_as_a_digit_of_its_variant_count() {
+        let info = two_parts();
+        let pick = &info.variants.as_ref().unwrap().pick;
+        assert_eq!(pick.choices(), Some(6));
+        for choice in 0..6u32 {
+            let sprites: Vec<u16> = info.quads_of(choice).map(|quad| quad.sprite).collect();
+            let (first, second) = (choice % 2, choice / 2 % 3);
+            assert_eq!(sprites, [first as u16, 10 + second as u16], "choice {choice}");
+        }
+    }
+
+    #[test]
+    fn the_choice_of_a_position_packs_the_chosen_variants_in_the_same_radix() {
+        let info = two_parts();
+        let pick = &info.variants.as_ref().unwrap().pick;
+        for x in -3..4 {
+            for z in -3..4 {
+                let position = [x, 64, z];
+                let chosen = pick.chosen(position);
+                assert_eq!(
+                    pick.choice(position),
+                    (chosen[0] + 2 * chosen[1]) as u32,
+                    "{position:?}"
+                );
+            }
+        }
+    }
+}

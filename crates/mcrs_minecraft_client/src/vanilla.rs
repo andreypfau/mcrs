@@ -163,7 +163,12 @@ fn load_font(fetch: Res<Fetch>, mut images: ResMut<Assets<Image>>, mut commands:
 
 fn font_page(files: Files) -> Result<(Font, Image), String> {
     let pack: ResourceSet = files.into_iter().collect();
-    let (pixels, width, height) = decode_png(pack.read(ASCII_TEXTURE)?, ASCII_TEXTURE)?;
+    let (pixels, width, height) = decode_png(
+        pack.read(ASCII_TEXTURE)
+            .map_err(|error| error.to_string())?,
+        ASCII_TEXTURE,
+    )
+    .map_err(|error| error.to_string())?;
     let font = Font::load(&pack, &pixels, width, height)?;
     let mut page = Image::new(
         Extent3d {

@@ -3701,6 +3701,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "mcrs_minecraft_block_entity_oracle"
+version = "0.5.8"
+dependencies = [
+ "glam",
+ "mcrs_minecraft_block",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "mcrs_minecraft_block_predicate"
 version = "0.5.8"
 dependencies = [
@@ -3818,6 +3828,7 @@ dependencies = [
  "mcrs_minecraft_light_render",
  "mcrs_minecraft_mesh",
  "mcrs_minecraft_model",
+ "mcrs_minecraft_model_file",
  "mcrs_minecraft_network",
  "mcrs_minecraft_noise",
  "mcrs_minecraft_protocol",
@@ -3888,6 +3899,7 @@ dependencies = [
  "mcrs_minecraft_item",
  "mcrs_minecraft_lang",
  "mcrs_minecraft_model",
+ "mcrs_minecraft_model_file",
  "mcrs_minecraft_network",
  "mcrs_minecraft_protocol",
  "mcrs_minecraft_protocol_game",
@@ -4908,6 +4920,7 @@ dependencies = [
  "hashbrown 0.16.1",
  "mcrs_minecraft_assets",
  "mcrs_minecraft_block",
+ "mcrs_minecraft_block_entity_oracle",
  "mcrs_minecraft_client_jar",
  "mcrs_minecraft_core",
  "mcrs_minecraft_datapack",
@@ -4918,11 +4931,23 @@ dependencies = [
  "mcrs_minecraft_fixtures",
  "mcrs_minecraft_item",
  "mcrs_minecraft_mesh",
+ "mcrs_minecraft_model_file",
  "mcrs_minecraft_nbt",
  "mcrs_minecraft_registries",
  "mcrs_minecraft_resource",
  "mcrs_molang",
  "mcrs_voxel",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "mcrs_minecraft_model_file"
+version = "0.5.8"
+dependencies = [
+ "glam",
+ "mcrs_minecraft_block",
+ "mcrs_minecraft_core",
  "serde",
  "serde_json",
 ]
@@ -5441,6 +5466,7 @@ version = "0.5.8"
 dependencies = [
  "mcrs_minecraft_biome",
  "mcrs_minecraft_block",
+ "mcrs_minecraft_block_entity_oracle",
  "mcrs_minecraft_client_jar",
  "mcrs_minecraft_core",
  "mcrs_minecraft_fixtures",

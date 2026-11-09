@@ -16,7 +16,7 @@ use mcrs_minecraft_registries::{CurrentRegistries, Registries};
 use mcrs_minecraft_model::colormap::colormap_rgba;
 use mcrs_minecraft_model::item_model_bake::{BakedItemModel, BakedNode, ItemModels};
 use mcrs_minecraft_model::item_model_eval::{EntityStack, Evaluator};
-use mcrs_minecraft_model::model_file::{DisplayTransform, GuiLight};
+use mcrs_minecraft_model_file::model_file::{DisplayTransform, GuiLight};
 
 /// A slot-local GUI vertex: `pos` in pixels from the slot's top-left, `y` down and
 /// `z` out of the screen; `sprite` is the sprite id under the flag bits. The four vertices of a

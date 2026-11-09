@@ -137,8 +137,10 @@ pub fn derive_tints(
     Some((BiomeTints(tints), failures))
 }
 
-fn noted<T>(result: Result<T, String>, failures: &mut Vec<String>) -> Option<T> {
-    result.map_err(|reason| failures.push(reason)).ok()
+fn noted<T, E: ToString>(result: Result<T, E>, failures: &mut Vec<String>) -> Option<T> {
+    result
+        .map_err(|reason| failures.push(reason.to_string()))
+        .ok()
 }
 
 pub fn tint_column(

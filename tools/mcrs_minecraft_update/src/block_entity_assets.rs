@@ -1,14 +1,19 @@
 //! Writes the geometry files and the data files of the static block entities from the oracle
-//! artefacts and the shape tables, and checks that the files in the repository are current.
+//! artefacts and the shape tables.
 
 use std::collections::BTreeMap;
+use std::fs;
 use std::path::{Path, PathBuf};
 
 use mcrs_minecraft_fixtures::fixture;
 use serde::Serialize;
 
-use crate::artefact::{Artefacts, Cube, LayerRecord, Part, PartTransform};
-use crate::block_entity_shapes::{self, BlockShapes, GeometrySource};
+use mcrs_minecraft_block_entity_oracle::artefact::{
+    Artefacts, Cube, LayerRecord, Part, PartTransform,
+};
+use mcrs_minecraft_block_entity_oracle::shapes::{
+    self as block_entity_shapes, BlockShapes, GeometrySource,
+};
 
 const GEOMETRY_DIRECTORY: &str = "mcrs/entity/geometry/block";
 const DATA_DIRECTORY: &str = "mcrs/block_entity_model/minecraft";
@@ -380,53 +385,41 @@ fn generate() -> BTreeMap<PathBuf, String> {
     files
 }
 
-fn assets() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR")).join("../../assets")
-}
-
-fn checked_in() -> Vec<PathBuf> {
+fn checked_in(assets: &Path) -> Result<Vec<PathBuf>, String> {
     let mut found = Vec::new();
     for directory in [GEOMETRY_DIRECTORY, DATA_DIRECTORY] {
-        let Ok(entries) = std::fs::read_dir(assets().join(directory)) else {
+        let Ok(entries) = fs::read_dir(assets.join(directory)) else {
             continue;
         };
         for entry in entries {
-            let name = entry.unwrap().file_name();
-            found.push(Path::new(directory).join(name));
+            let entry = entry.map_err(|error| format!("{directory}: {error}"))?;
+            found.push(Path::new(directory).join(entry.file_name()));
         }
     }
-    found
+    Ok(found)
 }
 
-#[test]
-#[expect(
-    clippy::disallowed_methods,
-    reason = "a developer asks for the files to be written again through the environment"
-)]
-fn the_block_entity_files_are_generated_from_the_artefacts() {
+/// Writes the files below `assets/` again and removes the files that no shape writes.
+pub fn write(root: &Path) -> Result<(), String> {
+    let assets = root.join("assets");
     let generated = generate();
-    let stale: Vec<PathBuf> = checked_in()
-        .into_iter()
-        .filter(|path| !generated.contains_key(path))
-        .collect();
-    if std::env::var("MCRS_BLESS").is_ok() {
-        for path in &stale {
-            std::fs::remove_file(assets().join(path)).unwrap();
+    for path in checked_in(&assets)? {
+        if !generated.contains_key(&path) {
+            fs::remove_file(assets.join(&path))
+                .map_err(|error| format!("{}: {error}", path.display()))?;
+            println!("removed assets/{}", path.display());
         }
-        for (path, text) in &generated {
-            let target = assets().join(path);
-            std::fs::create_dir_all(target.parent().unwrap()).unwrap();
-            std::fs::write(target, text).unwrap();
-        }
-        return;
     }
-    assert!(stale.is_empty(), "files that no shape writes: {stale:?}");
     for (path, text) in &generated {
-        let held = std::fs::read_to_string(assets().join(path)).unwrap_or_default();
-        assert!(
-            held == *text,
-            "assets/{} is stale; rerun with MCRS_BLESS=1 to write it again",
-            path.display()
-        );
+        let target = assets.join(path);
+        if let Some(parent) = target.parent() {
+            fs::create_dir_all(parent).map_err(|error| format!("{}: {error}", parent.display()))?;
+        }
+        if fs::read_to_string(&target).is_ok_and(|held| held == *text) {
+            continue;
+        }
+        fs::write(&target, text).map_err(|error| format!("{}: {error}", target.display()))?;
+        println!("wrote assets/{}", path.display());
     }
+    Ok(())
 }

@@ -1,14 +1,18 @@
 use crate::atlas::decode_png;
-use crate::resource_set::{ResourceSet, resource_path};
+use crate::resource_set::ResourceSet;
+use crate::sprite_error::SpriteError;
+use mcrs_minecraft_model_file::resource_id::resource_path;
 
 /// The pixels of `textures/colormap/<name>.png`, which vanilla samples as a 256x256 grid.
-pub fn load_colormap(pack: &ResourceSet, name: &str) -> Result<Vec<u8>, String> {
+pub fn load_colormap(pack: &ResourceSet, name: &str) -> Result<Vec<u8>, SpriteError> {
     let path = resource_path(&format!("minecraft:colormap/{name}"), "textures", "png");
     let (data, width, height) = decode_png(pack.read(&path)?, &path)?;
     if width != 256 || height != 256 {
-        return Err(format!(
-            "{path} is {width}x{height}, and a colormap is sampled as a 256x256 grid"
-        ));
+        return Err(SpriteError::ColormapSize {
+            path,
+            width,
+            height,
+        });
     }
     Ok(data)
 }

@@ -1,7 +1,8 @@
-use bevy::math::{DMat3, DVec3, Vec3};
+use glam::{DMat3, DVec3, Vec3};
 use mcrs_minecraft_core::Direction;
 
 use crate::block_state_file::Variant;
+use crate::face_bake_error::FaceBakeError;
 use crate::model_file::{Axis, Element, ElementTurn, FaceEntry};
 
 /// The turn of a whole model that a blockstate variant gives, in degrees, and its texture lock.
@@ -43,7 +44,7 @@ pub struct ElementFace {
 pub fn bake_elements(
     elements: &[Element],
     transform: VariantTransform,
-) -> Result<Vec<ElementFace>, String> {
+) -> Result<Vec<ElementFace>, FaceBakeError> {
     let turn = QuarterTurn::of(transform);
     let mut faces = Vec::new();
     for element in elements {
@@ -144,7 +145,7 @@ fn bake_face(
     entry: &FaceEntry,
     turn: QuarterTurn,
     uvlock: bool,
-) -> Result<ElementFace, String> {
+) -> Result<ElementFace, FaceBakeError> {
     let mut corners = box_face_corners(key, element.from / 16.0, element.to / 16.0);
 
     let [u1, v1, u2, v2] = entry.uv.unwrap_or_else(|| default_uv(element, key));
@@ -183,7 +184,7 @@ fn bake_face(
             *slot = corners
                 .iter()
                 .position(|corner| *corner == expected)
-                .ok_or_else(|| format!("a {} face is no box face after its turn", key.name()))?;
+                .ok_or(FaceBakeError::NotBoxFace { key })?;
         }
         let (old_corners, old_uvs) = (corners, uvs);
         for (to, from) in order.into_iter().enumerate() {

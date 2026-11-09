@@ -30,7 +30,7 @@ use mcrs_minecraft_mesh::{self as mesh, Connectivity, Draw, Group, STREAMS, Scra
 use mcrs_minecraft_model::atlas::SpriteArray;
 use mcrs_minecraft_model::block_catalog::{self, Catalog};
 use mcrs_minecraft_model::item_model_bake::{ItemModels, bake_all as bake_items};
-use mcrs_minecraft_model::resource_set::ResourceSet;
+use mcrs_minecraft_model::resource_set::{PackLoadError, ResourceSet};
 use mcrs_minecraft_render::{
     Animation, AtlasUpdate, Budget, FACE_BYTES, Placement, STILL, SectionDesc, SpriteEntry,
     SpriteUpload, TerrainShade, Upload, Uploads,
@@ -191,7 +191,7 @@ pub struct ColumnTints {
 
 enum PackLoad {
     Pending,
-    Loading(Task<Result<ResourceSet, String>>),
+    Loading(Task<Result<ResourceSet, PackLoadError>>),
     Ready(Arc<ResourceSet>),
 }
 

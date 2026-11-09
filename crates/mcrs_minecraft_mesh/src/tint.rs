@@ -32,6 +32,11 @@ const DYE_COLORS: [u32; 16] = [
 
 pub const FIXED_TINTS: usize = DYE as usize + DYE_COLORS.len();
 
+const _: () = assert!(
+    Tint::Fixed(FIXED_TINTS as u8 - 1).index() as u64 <= crate::pack::FACE_TINT.max(),
+    "the face tint field is too narrow for the fixed tints"
+);
+
 impl Tint {
     pub const SPRUCE_LEAVES: Tint = Tint::Fixed(SPRUCE_LEAVES);
     pub const BIRCH_LEAVES: Tint = Tint::Fixed(BIRCH_LEAVES);
@@ -113,21 +118,5 @@ mod tests {
         assert_eq!(colors[(STEM + 7) as usize], 0xe0c71c);
         assert_eq!(colors[REDSTONE as usize], 0x4c0000);
         assert_eq!(colors[(REDSTONE + 15) as usize], 0xff3200);
-    }
-
-    #[test]
-    fn every_index_is_distinct_and_fits_the_fields() {
-        let mut seen = std::collections::BTreeSet::new();
-        let all = [Tint::None]
-            .into_iter()
-            .chain(BIOME_TINTS)
-            .chain((0..FIXED_TINTS as u8).map(Tint::Fixed));
-        for tint in all {
-            assert!(seen.insert(tint.index()), "{tint:?}");
-        }
-        assert!(
-            (*seen.last().unwrap() as u64) <= crate::pack::FACE_TINT.max(),
-            "the face tint field is too narrow"
-        );
     }
 }

@@ -1,10 +1,11 @@
 use std::collections::BTreeMap;
 
-use bevy::math::{DVec3, Vec3};
+use glam::{DVec3, Vec3};
 use mcrs_minecraft_core::Direction;
 use serde::Deserialize;
 
-use crate::resource_set::full_id;
+use crate::model_file_error::ModelFileError;
+use crate::resource_id::full_id;
 
 /// The light that a GUI draws an item model with.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -166,13 +167,20 @@ pub struct ModelFile {
 
 impl ModelFile {
     /// Reads a model file. An error is a content error: the model is then absent.
-    pub fn parse(bytes: &[u8]) -> Result<Self, String> {
-        let raw: RawModel = serde_json::from_slice(bytes).map_err(|error| error.to_string())?;
+    pub fn parse(bytes: &[u8]) -> Result<Self, ModelFileError> {
+        let raw: RawModel =
+            serde_json::from_slice(bytes).map_err(|error| ModelFileError::Syntax {
+                message: error.to_string(),
+            })?;
         let gui_light = match raw.gui_light.as_deref() {
             None => None,
             Some("front") => Some(GuiLight::Front),
             Some("side") => Some(GuiLight::Side),
-            Some(other) => return Err(format!("unknown gui_light `{other}`")),
+            Some(other) => {
+                return Err(ModelFileError::GuiLight {
+                    value: other.to_owned(),
+                });
+            }
         };
         let elements = raw
             .elements
@@ -204,7 +212,7 @@ impl ModelFile {
 
 fn display_table(
     raw: BTreeMap<String, RawTransform>,
-) -> Result<[Option<DisplayTransform>; 9], String> {
+) -> Result<[Option<DisplayTransform>; 9], ModelFileError> {
     let mut table = [None; 9];
     for context in DisplayContext::ALL {
         if let Some(transform) = raw.get(context.name())
@@ -291,12 +299,12 @@ struct RawTransform {
 }
 
 impl RawTransform {
-    fn compile(&self) -> Result<DisplayTransform, String> {
-        let triple = |values: &Option<Vec<f32>>, default: Vec3| -> Result<Vec3, String> {
+    fn compile(&self) -> Result<DisplayTransform, ModelFileError> {
+        let triple = |values: &Option<Vec<f32>>, default: Vec3| -> Result<Vec3, ModelFileError> {
             match values.as_deref() {
                 None => Ok(default),
                 Some(&[x, y, z]) => Ok(Vec3::new(x, y, z)),
-                Some(other) => Err(format!("a transform array of {} numbers", other.len())),
+                Some(other) => Err(ModelFileError::TransformArity { count: other.len() }),
             }
         };
         Ok(DisplayTransform {
@@ -319,35 +327,33 @@ struct RawElement {
 }
 
 impl RawElement {
-    fn compile(self) -> Result<Element, String> {
-        let corner = |values: [f64; 3]| -> Result<DVec3, String> {
+    fn compile(self) -> Result<Element, ModelFileError> {
+        let corner = |values: [f64; 3]| -> Result<DVec3, ModelFileError> {
             if values.iter().all(|value| (-16.0..=32.0).contains(value)) {
                 Ok(DVec3::from_array(values))
             } else {
-                Err(format!("the corner {values:?} is outside -16 to 32"))
+                Err(ModelFileError::CornerRange { corner: values })
             }
         };
         if self.faces.is_empty() {
-            return Err("an element with no face".to_owned());
+            return Err(ModelFileError::NoFace);
         }
         let mut faces: [Option<FaceEntry>; 6] = Default::default();
         for (key, face) in self.faces {
-            let direction = direction_named(&key).ok_or_else(|| format!("the face key `{key}`"))?;
+            let direction = direction_named(&key)
+                .ok_or_else(|| ModelFileError::FaceKey { key: key.clone() })?;
             if let Some(slot) = faces.get_mut(direction as usize) {
                 *slot = Some(face.compile()?);
             }
         }
         let shade_direction_override = self
             .shade_direction_override
-            .map(|name| {
-                direction_named(&name)
-                    .ok_or_else(|| format!("the shade_direction_override `{name}`"))
-            })
+            .map(|name| direction_named(&name).ok_or(ModelFileError::ShadeDirection { name }))
             .transpose()?;
         let light_emission = match self.light_emission {
             None => 0,
             Some(level @ 0..=15) => level as u8,
-            Some(level) => return Err(format!("the light_emission {level}")),
+            Some(level) => return Err(ModelFileError::LightEmission { level }),
         };
         Ok(Element {
             from: corner(self.from)?,
@@ -370,15 +376,15 @@ struct RawFace {
 }
 
 impl RawFace {
-    fn compile(self) -> Result<FaceEntry, String> {
+    fn compile(self) -> Result<FaceEntry, ModelFileError> {
         let uv = match self.uv.as_deref() {
             None => None,
             Some(&[u1, v1, u2, v2]) => Some([u1, v1, u2, v2]),
-            Some(other) => return Err(format!("a uv of {} numbers", other.len())),
+            Some(other) => return Err(ModelFileError::UvArity { count: other.len() }),
         };
         let degrees = self.rotation.unwrap_or(0).rem_euclid(360);
         if degrees % 90 != 0 {
-            return Err(format!("the face rotation {degrees}"));
+            return Err(ModelFileError::FaceRotation { degrees });
         }
         Ok(FaceEntry {
             texture: self.texture,
@@ -403,16 +409,16 @@ struct RawRotation {
 }
 
 impl RawRotation {
-    fn compile(self) -> Result<ElementRotation, String> {
+    fn compile(self) -> Result<ElementRotation, ModelFileError> {
         let turn = if self.axis.is_some() || self.angle.is_some() {
             let (Some(axis), Some(degrees)) = (self.axis, self.angle) else {
-                return Err("an axis rotation needs both `axis` and `angle`".to_owned());
+                return Err(ModelFileError::RotationIncomplete);
             };
             let axis = match axis.to_ascii_lowercase().as_str() {
                 "x" => Axis::X,
                 "y" => Axis::Y,
                 "z" => Axis::Z,
-                _ => return Err(format!("the rotation axis `{axis}`")),
+                _ => return Err(ModelFileError::RotationAxis { axis }),
             };
             ElementTurn::Axis { axis, degrees }
         } else if self.x.is_some() || self.y.is_some() || self.z.is_some() {
@@ -422,7 +428,7 @@ impl RawRotation {
                 self.z.unwrap_or(0.0),
             ))
         } else {
-            return Err("a rotation with no axis and no angle".to_owned());
+            return Err(ModelFileError::RotationEmpty);
         };
         Ok(ElementRotation {
             origin: DVec3::from_array(self.origin),

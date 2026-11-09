@@ -43,3 +43,26 @@ impl UvOrientation {
         self.0
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn each_of_the_eight_orientations_is_read_back_from_its_corners() {
+        let mut seen = Vec::new();
+        for bits in 0..8 {
+            let orientation = UvOrientation(bits);
+            let corners = CORNER_UV.map(|corner| orientation.apply(corner));
+            assert!(!seen.contains(&corners), "orientation {bits} repeats one");
+            seen.push(corners);
+            assert_eq!(UvOrientation::of_corners(&corners), Some(orientation));
+        }
+    }
+
+    #[test]
+    fn corners_that_do_not_cover_the_whole_sprite_have_no_orientation() {
+        let half = CORNER_UV.map(|[u, v]| [u * 0.5, v]);
+        assert_eq!(UvOrientation::of_corners(&half), None);
+    }
+}

@@ -166,7 +166,9 @@ impl GuiAtlasData {
         let tooltip_scaling = load_tooltip_sprites(pack, &mut images);
         for name in GUI_TEXTURES {
             let path = texture_path(name);
-            let (pixels, width, height) = decode_png(pack.read(&path)?, &path)?;
+            let (pixels, width, height) =
+                decode_png(pack.read(&path).map_err(|error| error.to_string())?, &path)
+                    .map_err(|error| error.to_string())?;
             match name {
                 "misc/enchanted_glint_item" => glint = Some((width, height, pixels)),
                 "container/inventory" => {
@@ -281,8 +283,10 @@ fn load_tooltip_sprites(
     TOOLTIP_SPRITES.map(|name| {
         let path = texture_path(name);
         let bytes = pack.get(&path)?;
-        let loaded = Scaling::read(pack.get(&format!("{path}.mcmeta")))
-            .and_then(|scaling| Ok((scaling, decode_png(bytes, &path)?)));
+        let loaded = Scaling::read(pack.get(&format!("{path}.mcmeta"))).and_then(|scaling| {
+            let image = decode_png(bytes, &path).map_err(|error| error.to_string())?;
+            Ok((scaling, image))
+        });
         match loaded {
             Ok((scaling, (pixels, width, height))) => {
                 images.push((name, pixels, width, height));

@@ -3,7 +3,7 @@
 
 use std::path::Path;
 
-use bevy::math::{DMat3, DMat4, DVec3};
+use glam::{DMat3, DMat4, DVec3};
 use mcrs_minecraft_block::definition::schema::BlockDefinitionFile;
 
 pub const DYES: [&str; 16] = [

@@ -5,10 +5,10 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use mcrs_minecraft_fixtures::fixture;
 use mcrs_minecraft_model::bake::BlockModels;
-use mcrs_minecraft_model::block_state_file::{MISSING_MODEL, Variant};
-use mcrs_minecraft_model::model_file::{DisplayContext, GuiLight};
-use mcrs_minecraft_model::model_resolver::ModelResolver;
-use mcrs_minecraft_model::property_table::{PropertyDomain, PropertyTable};
+use mcrs_minecraft_model_file::block_state_file::{MISSING_MODEL, Variant};
+use mcrs_minecraft_model_file::model_file::{DisplayContext, GuiLight};
+use mcrs_minecraft_model_file::model_resolver::ModelResolver;
+use mcrs_minecraft_model_file::property_table::{PropertyDomain, PropertyTable};
 use serde::Deserialize;
 
 use crate::client_pack::client_pack;
@@ -199,7 +199,7 @@ fn chosen_variants_agree(artefact: &ModelsArtefact, models: &mut BlockModels<'_>
 }
 
 fn merged_models_agree(artefact: &ModelsArtefact) {
-    let mut resolver = ModelResolver::new(client_pack());
+    let mut resolver = ModelResolver::new(client_pack().files());
     let mut failures = Vec::new();
     for expected in &artefact.models {
         let model = resolver.resolve(&expected.id);

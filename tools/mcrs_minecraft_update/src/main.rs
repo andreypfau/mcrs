@@ -18,6 +18,7 @@ use std::process::Command;
 
 use mcrs_minecraft_client_jar::{RELEASE, get, official_dir};
 
+mod block_entity_assets;
 mod blocks;
 mod corpus;
 mod definitions;
@@ -37,6 +38,7 @@ usage: mcrs_minecraft_update <version id> [--allow-dirty] [--diff-out <directory
        mcrs_minecraft_update recapture <fixture name | --all>
        mcrs_minecraft_update names
        mcrs_minecraft_update keys
+       mcrs_minecraft_update block-entities
 
 Writes assets/minecraft/version.json from the client jar of the version, writes the client jar
 descriptor, runs the data generator and dumps the block, item and game rule definitions, stops
@@ -61,6 +63,8 @@ entry names of every registry of datapack.json that has elements and the tag nam
 registry, in sorted order. It prints the entries and tags added and removed against the stored
 file, then writes the registry key sources from the stored reports. It touches nothing else.
 
+block-entities writes the geometry files and the data files of the static block entities under
+assets/mcrs from the oracle artefacts and the shape table.
 keys writes the registry key sources from the stored reports alone: the src/*_keys.rs modules
 of every crate that owns a registry type, crates/mcrs_minecraft_keys for the registries no crate
 owns, and crates/mcrs_minecraft_registry_catalog. A source file there the generator no longer
@@ -92,6 +96,7 @@ enum Invocation {
     Recapture(Recapture),
     Names,
     Keys,
+    BlockEntities,
     Update(Options),
 }
 
@@ -101,6 +106,7 @@ fn main() {
         Invocation::Recapture(args) => recapture(&args),
         Invocation::Names => names_report(),
         Invocation::Keys => write_keys(&workspace_root(), None),
+        Invocation::BlockEntities => block_entity_assets::write(&workspace_root()),
         Invocation::Update(options) => run(&options),
     };
     if let Err(error) = result {
@@ -114,6 +120,7 @@ fn command(args: Vec<String>) -> Option<Invocation> {
         Some("recapture") => recapture_target(&args[1..]).map(Invocation::Recapture),
         Some("names") => (args.len() == 1).then_some(Invocation::Names),
         Some("keys") => (args.len() == 1).then_some(Invocation::Keys),
+        Some("block-entities") => (args.len() == 1).then_some(Invocation::BlockEntities),
         _ => parse(args.into_iter()).map(Invocation::Update),
     }
 }

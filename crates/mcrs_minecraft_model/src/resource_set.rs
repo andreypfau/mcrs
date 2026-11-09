@@ -1,4 +1,6 @@
-use std::collections::{BTreeMap, HashMap};
+use std::collections::HashMap;
+use std::error::Error;
+use std::fmt;
 use std::path::{Path, PathBuf};
 
 use bevy::asset::AssetServer;
@@ -9,6 +11,7 @@ use bevy::tasks::futures_lite::StreamExt;
 use crate::block_entity_model::{BlockEntityModels, DATA_DIRECTORY, GEOMETRY_DIRECTORY};
 use crate::vanilla_source::SOURCE;
 use mcrs_minecraft_block::definition::CORPUS_DIRECTORY;
+use mcrs_minecraft_model_file::pack_files::{PackError, PackFiles};
 
 /// The directories of the default asset source that the static block entities read.
 const BLOCK_ENTITY_DIRECTORIES: [&str; 3] = [DATA_DIRECTORY, GEOMETRY_DIRECTORY, CORPUS_DIRECTORY];
@@ -25,30 +28,69 @@ const FOLDERS: [&str; 8] = [
     "lang",
 ];
 
+/// Why the pack could not be read from the asset sources.
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum PackLoadError {
+    /// The app registers no asset source of this name.
+    NoSource { source: String, reason: String },
+    /// A file of an asset source could not be read.
+    Read { path: String, reason: String },
+    /// Two layers supply the same file.
+    Pack(PackError),
+}
+
+impl fmt::Display for PackLoadError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            PackLoadError::NoSource { source, reason } => {
+                write!(f, "no {source} asset source: {reason}")
+            }
+            PackLoadError::Read { path, reason } => write!(f, "cannot read {path}: {reason}"),
+            PackLoadError::Pack(error) => error.fmt(f),
+        }
+    }
+}
+
+impl Error for PackLoadError {}
+
+impl From<PackError> for PackLoadError {
+    fn from(error: PackError) -> Self {
+        PackLoadError::Pack(error)
+    }
+}
+
 /// The files of the client resource pack that the client reads, each keyed by its path below
 /// `assets/`, such as `minecraft/models/block/stone.json`.
 #[derive(Resource, Default, Debug)]
 pub struct ResourceSet {
-    files: BTreeMap<String, Vec<u8>>,
+    files: PackFiles,
     block_entity_models: BlockEntityModels,
 }
 
 impl ResourceSet {
     /// Reads every file of the `vanilla` asset source that [`is_resource`] picks, and the
     /// static block entity files of the default asset source.
-    pub async fn load(assets: &AssetServer) -> Result<Self, String> {
+    pub async fn load(assets: &AssetServer) -> Result<Self, PackLoadError> {
         let vanilla = assets
             .get_source(AssetSourceId::from(SOURCE))
-            .map_err(|error| format!("no {SOURCE} asset source: {error}"))?;
+            .map_err(|error| PackLoadError::NoSource {
+                source: SOURCE.to_owned(),
+                reason: error.to_string(),
+            })?;
         let mut set = Self::default();
         for (path, bytes) in read_tree(vanilla.reader(), "").await? {
             if is_resource(&path) {
                 set.add_file(&path, bytes)?;
             }
         }
-        let own = assets
-            .get_source(AssetSourceId::Default)
-            .map_err(|error| format!("no default asset source: {error}"))?;
+        let own =
+            assets
+                .get_source(AssetSourceId::Default)
+                .map_err(|error| PackLoadError::NoSource {
+                    source: "default".to_owned(),
+                    reason: error.to_string(),
+                })?;
         let mut layer = HashMap::new();
         for directory in BLOCK_ENTITY_DIRECTORIES {
             layer.extend(read_tree(own.reader(), directory).await?);
@@ -63,16 +105,16 @@ impl ResourceSet {
         &self.block_entity_models
     }
 
+    /// The files of the pack.
+    #[must_use]
+    pub fn files(&self) -> &PackFiles {
+        &self.files
+    }
+
     /// Adds a file at its path below `assets/`. A file of an extra pack layer never replaces a
-    /// file that the set holds: that is an error that names the path.
-    pub fn add_file(&mut self, path: &str, bytes: Vec<u8>) -> Result<(), String> {
-        if self.files.contains_key(path) {
-            return Err(format!(
-                "{path}: a pack layer supplies a file the client pack holds"
-            ));
-        }
-        self.files.insert(path.to_owned(), bytes);
-        Ok(())
+    /// file that the set holds.
+    pub fn add_file(&mut self, path: &str, bytes: Vec<u8>) -> Result<(), PackError> {
+        self.files.add_file(path, bytes)
     }
 
     #[must_use]
@@ -88,13 +130,12 @@ impl ResourceSet {
     /// The bytes of the file at `path` below `assets/`.
     #[must_use]
     pub fn get(&self, path: &str) -> Option<&[u8]> {
-        self.files.get(path).map(Vec::as_slice)
+        self.files.get(path)
     }
 
     /// The bytes of the file at `path`, or an error that names the path.
-    pub fn read(&self, path: &str) -> Result<&[u8], String> {
-        self.get(path)
-            .ok_or_else(|| format!("the resource pack has no {path}"))
+    pub fn read(&self, path: &str) -> Result<&[u8], PackError> {
+        self.files.read(path)
     }
 
     /// Each file `<namespace>/<folder>/<path>.<extension>`, as the identifier
@@ -104,12 +145,7 @@ impl ResourceSet {
         folder: &'a str,
         extension: &'a str,
     ) -> impl Iterator<Item = (String, &'a [u8])> + 'a {
-        self.files.iter().filter_map(move |(path, bytes)| {
-            let (namespace, rest) = path.split_once('/')?;
-            let rest = rest.strip_prefix(folder)?.strip_prefix('/')?;
-            let id = rest.strip_suffix(extension)?.strip_suffix('.')?;
-            Some((format!("{namespace}:{id}"), bytes.as_slice()))
-        })
+        self.files.entries(folder, extension)
     }
 
     /// The resource half of the installed client jar.
@@ -185,7 +221,7 @@ impl FromIterator<(String, Vec<u8>)> for ResourceSet {
 async fn read_tree(
     reader: &dyn ErasedAssetReader,
     directory: &str,
-) -> Result<Vec<(String, Vec<u8>)>, String> {
+) -> Result<Vec<(String, Vec<u8>)>, PackLoadError> {
     let mut files = Vec::new();
     let mut pending = vec![PathBuf::from(directory)];
     while let Some(directory) = pending.pop() {
@@ -204,16 +240,22 @@ async fn read_tree(
     Ok(files)
 }
 
-async fn read_whole(reader: &dyn ErasedAssetReader, path: &Path) -> Result<Vec<u8>, String> {
+async fn read_whole(reader: &dyn ErasedAssetReader, path: &Path) -> Result<Vec<u8>, PackLoadError> {
     use bevy::asset::io::Reader;
     let mut bytes = Vec::new();
     let mut file = reader
         .read(path)
         .await
-        .map_err(|error| format!("cannot read {}: {error}", path.display()))?;
+        .map_err(|error| PackLoadError::Read {
+            path: path.display().to_string(),
+            reason: error.to_string(),
+        })?;
     file.read_to_end(&mut bytes)
         .await
-        .map_err(|error| format!("cannot read {}: {error}", path.display()))?;
+        .map_err(|error| PackLoadError::Read {
+            path: path.display().to_string(),
+            reason: error.to_string(),
+        })?;
     Ok(bytes)
 }
 
@@ -228,27 +270,6 @@ pub fn is_resource(path: &str) -> bool {
         return false;
     };
     !namespace.is_empty() && FOLDERS.contains(&folder) && !path.ends_with('/')
-}
-
-/// The path below `assets/` of the resource `<namespace>:<path>` in `folder`, with `extension`.
-#[must_use]
-pub fn resource_path(id: &str, folder: &str, extension: &str) -> String {
-    let (namespace, path) = split_id(id);
-    format!("{namespace}/{folder}/{path}.{extension}")
-}
-
-/// The namespace and the path of an identifier. An identifier with no namespace is in
-/// `minecraft`.
-#[must_use]
-pub fn split_id(id: &str) -> (&str, &str) {
-    id.split_once(':').unwrap_or(("minecraft", id))
-}
-
-/// The identifier in its full form, `<namespace>:<path>`.
-#[must_use]
-pub fn full_id(id: &str) -> String {
-    let (namespace, path) = split_id(id);
-    format!("{namespace}:{path}")
 }
 
 #[cfg(test)]

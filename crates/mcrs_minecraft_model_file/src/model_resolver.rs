@@ -1,10 +1,12 @@
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 use crate::block_state_file::MISSING_MODEL;
+use crate::content_error::{ContentError, ContentErrorKind};
 use crate::model_file::{
     DisplayContext, DisplayTransform, Element, GuiLight, ModelFile, SlotValue, TextureValue,
 };
-use crate::resource_set::{ResourceSet, full_id, resource_path};
+use crate::pack_files::PackFiles;
+use crate::resource_id::{full_id, resource_path};
 
 pub const GENERATED_MODEL: &str = "minecraft:builtin/generated";
 pub const MISSING_TEXTURE: &str = "minecraft:missingno";
@@ -75,17 +77,17 @@ impl MergedModel {
     }
 }
 
-/// Reads model files from a resource set and merges their chains, each model once.
+/// Reads model files from the files of a pack and merges their chains, each model once.
 pub struct ModelResolver<'a> {
-    set: &'a ResourceSet,
+    pack: &'a PackFiles,
     files: HashMap<String, Option<ModelFile>>,
     merged: HashMap<String, MergedModel>,
-    errors: Vec<String>,
+    errors: Vec<ContentError>,
 }
 
 impl<'a> ModelResolver<'a> {
     #[must_use]
-    pub fn new(set: &'a ResourceSet) -> Self {
+    pub fn new(pack: &'a PackFiles) -> Self {
         let mut files = HashMap::new();
         for (id, text) in [
             (MISSING_MODEL, MISSING_MODEL_FILE),
@@ -94,7 +96,7 @@ impl<'a> ModelResolver<'a> {
             files.insert(id.to_owned(), ModelFile::parse(text.as_bytes()).ok());
         }
         Self {
-            set,
+            pack,
             files,
             merged: HashMap::new(),
             errors: Vec::new(),
@@ -102,17 +104,17 @@ impl<'a> ModelResolver<'a> {
     }
 
     #[must_use]
-    pub fn set(&self) -> &'a ResourceSet {
-        self.set
+    pub fn pack(&self) -> &'a PackFiles {
+        self.pack
     }
 
     /// The content errors found so far, each naming its file.
     #[must_use]
-    pub fn errors(&self) -> &[String] {
+    pub fn errors(&self) -> &[ContentError] {
         &self.errors
     }
 
-    pub fn take_errors(&mut self) -> Vec<String> {
+    pub fn take_errors(&mut self) -> Vec<ContentError> {
         std::mem::take(&mut self.errors)
     }
 
@@ -135,15 +137,21 @@ impl<'a> ModelResolver<'a> {
             return file.is_some();
         }
         let path = resource_path(id, "models", "json");
-        let file = match self.set.get(&path) {
+        let file = match self.pack.get(&path) {
             None => {
-                self.errors.push(format!("{path}: no such model"));
+                self.errors.push(ContentError {
+                    path,
+                    kind: ContentErrorKind::NoModel,
+                });
                 None
             }
             Some(bytes) => match ModelFile::parse(bytes) {
                 Ok(file) => Some(file),
                 Err(error) => {
-                    self.errors.push(format!("{path}: {error}"));
+                    self.errors.push(ContentError {
+                        path,
+                        kind: ContentErrorKind::Model(error),
+                    });
                     None
                 }
             },
@@ -170,8 +178,10 @@ impl<'a> ModelResolver<'a> {
                 return Some(chain);
             };
             if chain.contains(&parent) {
-                self.errors
-                    .push(format!("model {id}: its chain has a cycle at {parent}"));
+                self.errors.push(ContentError {
+                    path: id.to_owned(),
+                    kind: ContentErrorKind::ModelCycle { parent },
+                });
                 return None;
             }
             let parent = if self.load(&parent) {

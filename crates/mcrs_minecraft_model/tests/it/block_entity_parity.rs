@@ -10,8 +10,10 @@ use mcrs_minecraft_model::block_entity_model::{
     BlockEntityModels, DATA_DIRECTORY, GEOMETRY_DIRECTORY, ShapeQuad,
 };
 
-use crate::artefact::{Artefacts, Part, PartTransform};
-use crate::block_entity_shapes::{self, BlockShapes, Literal, Shape, block_properties};
+use mcrs_minecraft_block_entity_oracle::artefact::{Artefacts, Part, PartTransform};
+use mcrs_minecraft_block_entity_oracle::shapes::{
+    self, BlockShapes, Literal, Shape, block_properties,
+};
 
 const VERTEX_TOLERANCE: f64 = 1e-5;
 const PLACEMENT_TOLERANCE: f64 = 1e-6;
@@ -229,9 +231,9 @@ fn baked_static_block_entities_agree_with_the_artefacts() {
         &fixture("entity_models").text(),
         &fixture("block_entity_poses").text(),
     );
-    let blocks = block_entity_shapes::all();
+    let blocks = shapes::all();
     let models = models(&blocks);
-    assert_eq!(models.errors(), [] as [String; 0]);
+    assert_eq!(models.errors(), []);
     let mut failures = Vec::new();
     for block in &blocks {
         for state in states(block.path()) {
@@ -246,7 +248,7 @@ fn baked_static_block_entities_agree_with_the_artefacts() {
                 .flat_map(|case| &case.shapes)
                 .flat_map(|shape| expected_faces(&artefacts, shape))
                 .collect();
-            let quads = models.bake(&block.block, &props);
+            let quads = models.bake(&block.block, &props).unwrap();
             let mut unused: Vec<usize> = (0..quads.len()).collect();
             for face in &expected {
                 if let Err(error) = take_quads(&quads, &mut unused, face) {

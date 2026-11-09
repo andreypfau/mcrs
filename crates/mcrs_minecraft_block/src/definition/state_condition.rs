@@ -314,4 +314,13 @@ mod tests {
         );
         assert!(error("q.is_open == true").contains("query.is_open"));
     }
+
+    #[test]
+    fn the_block_state_query_takes_one_string_literal() {
+        assert!(error("q.block_state() == 'north'").contains("takes one argument"));
+        assert!(error("q.block_state('facing', 'level') == 'north'").contains("takes one argument"));
+        assert!(
+            error("q.block_state(1) == 'north'").contains("name of a property as a string literal")
+        );
+    }
 }

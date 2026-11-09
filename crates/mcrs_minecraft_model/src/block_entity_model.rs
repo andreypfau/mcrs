@@ -6,6 +6,9 @@ use std::collections::HashMap;
 use bevy::math::{Affine3A, Mat3, Mat4, Vec2, Vec3, Vec4};
 use mcrs_minecraft_block::definition::CORPUS_DIRECTORY;
 use mcrs_minecraft_block::definition::schema::{BlockDefinitionFile, BlockProperties};
+use mcrs_minecraft_block::definition::state_condition::{StateCondition, StateInputs};
+use mcrs_minecraft_model_file::property_table::PropertyTable;
+use mcrs_molang::ScalarVm;
 use serde::Deserialize;
 
 use mcrs_minecraft_core::Direction;
@@ -13,7 +16,8 @@ use mcrs_minecraft_entity_model::{
     BakedGeometry, Diagnostic, Geometry, GeometryFile, resolve_parents,
 };
 
-use crate::block_state_condition::BlockStateCondition;
+use crate::bake_error::BakeError;
+use crate::block_entity_error::{BlockEntityError, BlockEntityErrorKind, LayerError};
 
 /// The pack directory of the data files, one file `<namespace>/<path>.json` per block.
 pub const DATA_DIRECTORY: &str = "mcrs/block_entity_model";
@@ -29,7 +33,7 @@ const SHAPE_ORIGIN_HEIGHT: f32 = 24.0;
 pub struct BlockEntityModels {
     blocks: HashMap<String, StaticBlockEntity>,
     geometries: Vec<RestGeometry>,
-    errors: Vec<String>,
+    errors: Vec<BlockEntityError>,
 }
 
 /// A baked geometry with the model transform of each bone in the rest pose.
@@ -42,12 +46,13 @@ struct RestGeometry {
 #[derive(Debug)]
 struct StaticBlockEntity {
     properties: BlockProperties,
+    table: PropertyTable,
     layers: Vec<Layer>,
 }
 
 #[derive(Debug)]
 struct Layer {
-    when: Option<BlockStateCondition>,
+    when: Option<StateCondition>,
     geometry: usize,
     texture: String,
     dye: Option<u8>,
@@ -108,9 +113,13 @@ impl BlockEntityModels {
                 ..
             } = diagnostic
             {
-                models
-                    .errors
-                    .push(format!("{}: {diagnostic}", path_of(identifier)));
+                models.errors.push(BlockEntityError {
+                    path: path_of(identifier).to_owned(),
+                    kind: BlockEntityErrorKind::Geometry {
+                        identifier: None,
+                        message: diagnostic.to_string(),
+                    },
+                });
             }
         }
         let mut by_identifier: HashMap<String, usize> = HashMap::new();
@@ -129,15 +138,25 @@ impl BlockEntityModels {
                         bone_transforms,
                     });
                 }
-                Err(error) => models
-                    .errors
-                    .push(format!("{path}: {}: {error}", geometry.identifier)),
+                Err(error) => models.errors.push(BlockEntityError {
+                    path: path.to_owned(),
+                    kind: BlockEntityErrorKind::Geometry {
+                        identifier: Some(geometry.identifier.clone()),
+                        message: error.to_string(),
+                    },
+                }),
             }
             models.errors.extend(
                 diagnostics
                     .iter()
                     .filter(|diagnostic| is_content_error(diagnostic))
-                    .map(|diagnostic| format!("{path}: {}: {diagnostic}", geometry.identifier)),
+                    .map(|diagnostic| BlockEntityError {
+                        path: path.to_owned(),
+                        kind: BlockEntityErrorKind::Geometry {
+                            identifier: Some(geometry.identifier.clone()),
+                            message: diagnostic.to_string(),
+                        },
+                    }),
             );
         }
         for (path, bytes) in sorted_under(files, DATA_DIRECTORY) {
@@ -145,38 +164,57 @@ impl BlockEntityModels {
                 Ok((block, entity)) => {
                     models.blocks.insert(block, entity);
                 }
-                Err(error) => models.errors.push(format!("{path}: {error}")),
+                Err(kind) => models.errors.push(BlockEntityError {
+                    path: path.to_owned(),
+                    kind,
+                }),
             }
         }
         models
     }
 
     /// The content errors found while reading the files.
-    pub fn errors(&self) -> &[String] {
+    pub fn errors(&self) -> &[BlockEntityError] {
         &self.errors
     }
 
     /// The faces of the drawn layers of the state of `block` with the property values
     /// `state`, in block space, in the order of the layers. The list is empty when no layer is
-    /// drawn.
-    #[must_use]
-    pub fn bake(&self, block: &str, state: &[(&str, &str)]) -> Vec<ShapeQuad<'_>> {
+    /// drawn. A state that names no value of a property of the block is an error.
+    pub fn bake(
+        &self,
+        block: &str,
+        state: &[(&str, &str)],
+    ) -> Result<Vec<ShapeQuad<'_>>, BakeError> {
         let mut quads = Vec::new();
         let Some(entity) = self.blocks.get(block) else {
-            return quads;
+            return Ok(quads);
         };
+        let not_a_state = || BakeError::NotAState {
+            state: format!("{block}{state:?}"),
+        };
+        let indices: Vec<u8> = entity
+            .table
+            .state(state)
+            .ok_or_else(not_a_state)?
+            .into_iter()
+            .map(|index| u8::try_from(index).map_err(|_| not_a_state()))
+            .collect::<Result<_, _>>()?;
+        let mut inputs = StateInputs::new(&entity.properties);
+        inputs.select(&indices);
+        let mut vm = ScalarVm::new();
         for layer in &entity.layers {
             let drawn = layer
                 .when
                 .as_ref()
-                .is_none_or(|when| when.holds(&entity.properties, state));
+                .is_none_or(|when| when.matches(&mut vm, &inputs));
             if let Some(geometry) = self.geometries.get(layer.geometry)
                 && drawn
             {
                 bake_layer(layer, geometry, &mut quads);
             }
         }
-        quads
+        Ok(quads)
     }
 }
 
@@ -204,20 +242,29 @@ pub struct ShapeQuad<'a> {
 fn read_geometries<'a>(
     files: &'a HashMap<String, Vec<u8>>,
     paths: &mut HashMap<String, &'a str>,
-    errors: &mut Vec<String>,
+    errors: &mut Vec<BlockEntityError>,
 ) -> Vec<Geometry> {
     let mut geometries = Vec::new();
     for (path, bytes) in sorted_under(files, GEOMETRY_DIRECTORY) {
         let file = match core::str::from_utf8(bytes) {
-            Ok(text) => text
-                .parse::<GeometryFile>()
-                .map_err(|error| error.to_string()),
-            Err(error) => Err(error.to_string()),
+            Ok(text) => {
+                text.parse::<GeometryFile>()
+                    .map_err(|error| BlockEntityErrorKind::Geometry {
+                        identifier: None,
+                        message: error.to_string(),
+                    })
+            }
+            Err(error) => Err(BlockEntityErrorKind::NotUtf8 {
+                message: error.to_string(),
+            }),
         };
         let file = match file {
             Ok(file) => file,
-            Err(error) => {
-                errors.push(format!("{path}: {error}"));
+            Err(kind) => {
+                errors.push(BlockEntityError {
+                    path: path.to_owned(),
+                    kind,
+                });
                 continue;
             }
         };
@@ -225,15 +272,23 @@ fn read_geometries<'a>(
             file.diagnostics
                 .iter()
                 .filter(|diagnostic| is_content_error(diagnostic))
-                .map(|diagnostic| format!("{path}: {diagnostic}")),
+                .map(|diagnostic| BlockEntityError {
+                    path: path.to_owned(),
+                    kind: BlockEntityErrorKind::Geometry {
+                        identifier: None,
+                        message: diagnostic.to_string(),
+                    },
+                }),
         );
         for geometry in file.geometries {
             let key = geometry.identifier.to_ascii_lowercase();
             if paths.insert(key, path).is_some() {
-                errors.push(format!(
-                    "{path}: the geometry {} is defined again",
-                    geometry.identifier
-                ));
+                errors.push(BlockEntityError {
+                    path: path.to_owned(),
+                    kind: BlockEntityErrorKind::DuplicateGeometry {
+                        identifier: geometry.identifier.clone(),
+                    },
+                });
             }
             geometries.push(geometry);
         }
@@ -278,20 +333,33 @@ fn read_data_file(
     bytes: &[u8],
     files: &HashMap<String, Vec<u8>>,
     geometries: &HashMap<String, usize>,
-) -> Result<(String, StaticBlockEntity), String> {
-    let (namespace, block_path) =
-        block_of(path).ok_or("the path does not name a block as <namespace>/<path>.json")?;
+) -> Result<(String, StaticBlockEntity), BlockEntityErrorKind> {
+    let (namespace, block_path) = block_of(path).ok_or(BlockEntityErrorKind::DataPath)?;
     let block = format!("{namespace}:{block_path}");
-    let properties = block_properties(namespace, block_path, files)
-        .ok_or_else(|| format!("the block {block} has no block definition"))?;
-    let file: DataFile = serde_json::from_slice(bytes).map_err(|error| error.to_string())?;
+    let properties = block_properties(namespace, block_path, files).ok_or_else(|| {
+        BlockEntityErrorKind::NoBlockDefinition {
+            block: block.clone(),
+        }
+    })?;
+    let file: DataFile =
+        serde_json::from_slice(bytes).map_err(|error| BlockEntityErrorKind::Syntax {
+            message: error.to_string(),
+        })?;
     let mut layers = Vec::with_capacity(file.layers.len());
     for (index, entry) in file.layers.into_iter().enumerate() {
         let layer = read_layer(entry, &properties, geometries)
-            .map_err(|error| format!("layer {index}: {error}"))?;
+            .map_err(|cause| BlockEntityErrorKind::Layer { index, cause })?;
         layers.push(layer);
     }
-    Ok((block, StaticBlockEntity { properties, layers }))
+    let table = PropertyTable::of_block(&properties);
+    Ok((
+        block,
+        StaticBlockEntity {
+            properties,
+            table,
+            layers,
+        },
+    ))
 }
 
 fn block_properties(
@@ -311,22 +379,28 @@ fn read_layer(
     entry: LayerRecord,
     properties: &BlockProperties,
     geometries: &HashMap<String, usize>,
-) -> Result<Layer, String> {
+) -> Result<Layer, LayerError> {
     let when = entry
         .when
         .map(|source| {
-            BlockStateCondition::compile(&source, properties)
-                .map_err(|error| format!("`when` {source:?}: {error}"))
+            StateCondition::compile(&source, properties).map_err(|error| LayerError::Condition {
+                message: error.to_string(),
+                source,
+            })
         })
         .transpose()?;
     let geometry = *geometries
         .get(&entry.geometry.to_ascii_lowercase())
-        .ok_or_else(|| format!("no geometry {}", entry.geometry))?;
+        .ok_or_else(|| LayerError::NoGeometry {
+            name: entry.geometry.clone(),
+        })?;
     if !entry.texture.contains(':') {
-        return Err(format!("the texture {} is not ns:path", entry.texture));
+        return Err(LayerError::TextureId {
+            texture: entry.texture,
+        });
     }
     if entry.tint.is_some_and(|dye| dye >= DYE_COUNT) {
-        return Err(format!("the tint {:?} is not a dye id", entry.tint));
+        return Err(LayerError::Tint { tint: entry.tint });
     }
     let [x, y, z] = entry.placement;
     let placement = Mat4::from_cols_array_2d(&[x, y, z, [0.0, 0.0, 0.0, 1.0]]).transpose();
@@ -474,12 +548,14 @@ mod tests {
     #[test]
     fn a_layer_draws_only_in_the_states_where_its_condition_holds() {
         let models = models(&layer("q.block_state('facing') == 'north'"));
-        assert_eq!(models.errors(), [] as [String; 0]);
-        let north = models.bake("minecraft:test_block", &[("facing", "north")]);
+        assert_eq!(models.errors(), []);
+        let north = models
+            .bake("minecraft:test_block", &[("facing", "north")])
+            .unwrap();
         assert_eq!(north.len(), 6);
         assert_eq!(
             models.bake("minecraft:test_block", &[("facing", "south")]),
-            []
+            Ok(Vec::new())
         );
     }
 
@@ -489,10 +565,13 @@ mod tests {
         let [error] = models.errors() else {
             panic!("one content error expected, got {:?}", models.errors());
         };
-        assert!(error.contains("minecraft/test_block.json"), "{error}");
+        assert_eq!(
+            error.path,
+            "mcrs/block_entity_model/minecraft/test_block.json"
+        );
         assert_eq!(
             models.bake("minecraft:test_block", &[("facing", "north")]),
-            []
+            Ok(Vec::new())
         );
     }
 }

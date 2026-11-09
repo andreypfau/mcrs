@@ -1,9 +1,8 @@
 use crate::atlas::{Opacity, SpriteRegistry};
 use crate::bake::{BakedBlock, BakedFace, BlockModels};
+use crate::bake_error::BakeError;
 use crate::block_catalog::{BlockStateKey, cube_corners};
 use crate::block_entity_model::Surface;
-use crate::block_state_file::Variant;
-use crate::property_table::PropertyTable;
 use crate::resource_set::ResourceSet;
 use bevy::math::Vec3;
 use mcrs_minecraft_block::block_keys::Block;
@@ -20,6 +19,8 @@ use mcrs_minecraft_mesh::state_variants::{Shape, StateVariants, VariantShapes};
 use mcrs_minecraft_mesh::tint::Tint;
 use mcrs_minecraft_mesh::uv_orientation::UvOrientation;
 use mcrs_minecraft_mesh::variant_pick::PartSource;
+use mcrs_minecraft_model_file::block_state_file::Variant;
+use mcrs_minecraft_model_file::property_table::PropertyTable;
 
 fn fluid_of(
     pack: &ResourceSet,
@@ -27,7 +28,7 @@ fn fluid_of(
     state: &BlockStateKey,
     data: &BlockStateData,
     sprites: &mut SpriteRegistry,
-) -> Result<Option<Fluid>, String> {
+) -> Result<Option<Fluid>, BakeError> {
     let prop = |key: &str| {
         state
             .props
@@ -37,9 +38,9 @@ fn fluid_of(
     };
     let (lava, amount) = match block {
         Block::Water | Block::Lava => {
-            let fluid = data
-                .fluid
-                .ok_or_else(|| format!("{} states no fluid", state.name))?;
+            let fluid = data.fluid.ok_or_else(|| BakeError::NoFluid {
+                block: state.name.clone(),
+            })?;
             (block == Block::Lava, fluid.level)
         }
         Block::BubbleColumn
@@ -68,9 +69,6 @@ fn fluid_of(
     }))
 }
 
-const PAST_QUADS: &str = "a face names a quad past the baked model";
-const PAST_SPRITES: &str = "a quad names a sprite past the baked model's table";
-
 pub(crate) fn build_one(
     models: &mut BlockModels<'_>,
     block: Block,
@@ -79,7 +77,7 @@ pub(crate) fn build_one(
     data: &BlockStateData,
     occlusion: &[Aabb],
     sprites: &mut SpriteRegistry,
-) -> Result<BlockInfo, String> {
+) -> Result<BlockInfo, BakeError> {
     if matches!(block, Block::Air | Block::CaveAir | Block::VoidAir) {
         return Ok(BlockInfo::default());
     }
@@ -102,7 +100,9 @@ pub(crate) fn build_one(
 
     let values = properties
         .state(&state.pairs())
-        .ok_or_else(|| format!("{} is no state of its block", state.label()))?;
+        .ok_or_else(|| BakeError::NotAState {
+            state: state.label(),
+        })?;
     let parts = models.parts(&state.name, properties, &values);
     let pick = parts.pick(properties, &values);
     let varies = parts.parts.iter().any(|part| part.len() > 1) && pick.choices().is_some();
@@ -203,7 +203,7 @@ fn geometry(
     state: &BlockStateKey,
     baked: &BakedBlock,
     sprites: &mut SpriteRegistry,
-) -> Result<Geometry, String> {
+) -> Result<Geometry, BakeError> {
     let mut layers: Vec<u16> = Vec::with_capacity(baked.sprites.len());
     for sprite in &baked.sprites {
         layers.push(sprites.intern(set, sprite)?);
@@ -232,8 +232,8 @@ fn geometry(
         let mut built = [CubeFace::default(); 6];
         let mut worst = Pass::Solid;
         for (&index, face) in faces.iter().zip(&mut built) {
-            let quad = baked.quads.get(index).ok_or(PAST_QUADS)?;
-            let interned = *layers.get(quad.sprite).ok_or(PAST_SPRITES)?;
+            let quad = baked.quads.get(index).ok_or(BakeError::PastQuads)?;
+            let interned = *layers.get(quad.sprite).ok_or(BakeError::PastSprites)?;
             let pass = quad
                 .pass
                 .unwrap_or_else(|| Pass::from(sprites.opacity(interned)));
@@ -241,9 +241,9 @@ fn geometry(
             *face = CubeFace {
                 sprite: interned,
                 pass: pass as u8,
-                tint: tint_of(state, quad.tint),
-                emission: quad.light_emission,
-                uv: UvOrientation::of_corners(&quad.uvs).unwrap_or_default(),
+                tint: tint_of(state, quad.face.tint),
+                emission: quad.face.light_emission,
+                uv: UvOrientation::of_corners(&quad.face.uvs).unwrap_or_default(),
             };
         }
         cube = Some(built);
@@ -266,25 +266,28 @@ fn model_quads(
     baked: &BakedBlock,
     sprites: &mut SpriteRegistry,
     indices: impl IntoIterator<Item = usize>,
-) -> Result<Vec<ModelQuad>, String> {
+) -> Result<Vec<ModelQuad>, BakeError> {
     let mut quads = Vec::new();
     for index in indices {
-        let quad = baked.quads.get(index).ok_or(PAST_QUADS)?;
-        let sprite = baked.sprites.get(quad.sprite).ok_or(PAST_SPRITES)?;
+        let quad = baked.quads.get(index).ok_or(BakeError::PastQuads)?;
+        let sprite = baked
+            .sprites
+            .get(quad.sprite)
+            .ok_or(BakeError::PastSprites)?;
         let interned = sprites.intern(set, sprite)?;
         quads.push(ModelQuad {
-            positions: quad.positions,
-            uvs: quad.uvs,
-            cull: quad.cull,
-            facing: quad.dir,
-            face: face_group(&quad.positions),
+            positions: quad.face.positions,
+            uvs: quad.face.uvs,
+            cull: quad.face.cull,
+            facing: quad.face.direction,
+            face: face_group(&quad.face.positions),
             sprite: interned,
             pass: quad
                 .pass
                 .unwrap_or_else(|| Pass::from(sprites.opacity(interned))),
-            shade: quad.shade,
-            tint: tint_of(state, quad.tint),
-            emission: quad.light_emission,
+            shade: FaceShade::Direction(quad.face.shade_face.unwrap_or(quad.face.direction)),
+            tint: tint_of(state, quad.face.tint),
+            emission: quad.face.light_emission,
         });
     }
     Ok(quads)
@@ -295,8 +298,10 @@ fn shape_quads(
     pack: &ResourceSet,
     state: &BlockStateKey,
     sprites: &mut SpriteRegistry,
-) -> Result<Vec<ModelQuad>, String> {
-    let shapes = pack.block_entity_models().bake(&state.name, &state.pairs());
+) -> Result<Vec<ModelQuad>, BakeError> {
+    let shapes = pack
+        .block_entity_models()
+        .bake(&state.name, &state.pairs())?;
     let mut quads = Vec::with_capacity(shapes.len());
     for shape in shapes {
         quads.push(ModelQuad {
@@ -387,7 +392,7 @@ fn mark(side: &mut SideCells, rows: (f32, f32), columns: (f32, f32), out: bool) 
 fn sturdy_faces(quads: &[BakedFace], layers: &[u16], sprites: &SpriteRegistry) -> u8 {
     let mut sides = [[0u16; FACE_GRID]; Direction::all().len()];
     for quad in quads {
-        let Some(dir) = quad.cull else { continue };
+        let Some(dir) = quad.face.cull else { continue };
         let Some(&layer) = layers.get(quad.sprite) else {
             continue;
         };
@@ -395,7 +400,7 @@ fn sturdy_faces(quads: &[BakedFace], layers: &[u16], sprites: &SpriteRegistry) -
             continue;
         }
         if let Some(side) = sides.get_mut(dir as usize) {
-            cover_face(side, &quad.positions, dir);
+            cover_face(side, &quad.face.positions, dir);
         }
     }
     let mut mask = 0;
@@ -519,7 +524,7 @@ fn split_cube(quads: &[BakedFace]) -> (Option<[usize; 6]>, Vec<usize>) {
     let mut faces = [usize::MAX; 6];
     let mut extras = Vec::new();
     for (index, quad) in quads.iter().enumerate() {
-        match faces.get_mut(quad.dir as usize) {
+        match faces.get_mut(quad.face.direction as usize) {
             Some(slot) if *slot == usize::MAX && is_cube_face(quad) => *slot = index,
             _ => extras.push(index),
         }
@@ -536,12 +541,12 @@ fn split_cube(quads: &[BakedFace]) -> (Option<[usize; 6]>, Vec<usize>) {
 fn split_lowered(quads: &[BakedFace]) -> Option<(usize, usize, u8)> {
     let bottom = quads
         .iter()
-        .position(|quad| quad.dir == Direction::Down && is_cube_face(quad))?;
+        .position(|quad| quad.face.direction == Direction::Down && is_cube_face(quad))?;
     quads.iter().enumerate().find_map(|(index, quad)| {
-        if quad.dir != Direction::Up || quad.cull.is_some() || !cube_uvs(quad) {
+        if quad.face.direction != Direction::Up || quad.face.cull.is_some() || !cube_uvs(quad) {
             return None;
         }
-        let height = quad.positions[0].y;
+        let height = quad.face.positions[0].y;
         let drop = (1.0 - height) * MODEL_STEPS;
         if !(1.0..MODEL_STEPS).contains(&drop.round()) || (drop - drop.round()).abs() > 1e-3 {
             return None;
@@ -552,29 +557,31 @@ fn split_lowered(quads: &[BakedFace]) -> Option<(usize, usize, u8)> {
             Vec3::new(1.0, height, 1.0),
         )
         .iter()
-        .zip(&quad.positions)
+        .zip(&quad.face.positions)
         .all(|(at, position)| position.distance_squared(*at) <= 1e-6);
         lowered.then_some((index, bottom, drop.round() as u8))
     })
 }
 
 fn cube_uvs(quad: &BakedFace) -> bool {
-    quad.uvs
+    quad.face
+        .uvs
         .iter()
         .zip(&CORNER_UV)
         .all(|(&uv, &want)| near_uv(uv, want))
 }
 
 fn is_cube_face(quad: &BakedFace) -> bool {
-    if quad.cull != Some(quad.dir) {
+    if quad.face.cull != Some(quad.face.direction) {
         return false;
     }
     let on_cube = quad
+        .face
         .positions
         .iter()
-        .zip(cube_corners(quad.dir))
+        .zip(cube_corners(quad.face.direction))
         .all(|(position, corner)| position.distance_squared(corner) <= 1e-6);
-    on_cube && UvOrientation::of_corners(&quad.uvs).is_some()
+    on_cube && UvOrientation::of_corners(&quad.face.uvs).is_some()
 }
 
 fn near_uv([u, v]: [f32; 2], [want_u, want_v]: [f32; 2]) -> bool {
@@ -583,72 +590,7 @@ fn near_uv([u, v]: [f32; 2], [want_u, want_v]: [f32; 2]) -> bool {
 
 #[cfg(test)]
 mod tests {
-
-    mod jar {
-        use super::*;
-
-        #[test]
-        fn block_states_bake_from_the_corpus() {
-            a_fluid_level_reads_back_as_the_height_vanilla_gives_it();
-            ambient_occlusion_reads_its_neighbours_from_the_corpus();
-            a_block_lights_the_mesh_by_what_the_corpus_says_it_emits();
-            a_block_closes_the_sides_its_own_geometry_covers();
-            a_face_hides_behind_a_neighbour_whose_shape_covers_it();
-            a_box_lower_than_its_cell_meshes_its_top_and_bottom_as_cube_faces();
-            cube_uv_matches_the_vanilla_bake();
-            a_turned_cube_still_tiles_and_a_weighted_block_varies_by_position();
-            every_state_drawn_in_code_bakes_with_its_entity_textures();
-        }
-    }
-
-    fn every_state_drawn_in_code_bakes_with_its_entity_textures() {
-        let corpus = crate::block_catalog::corpus();
-        let mut sprites = SpriteRegistry::default();
-        for name in [
-            "chest",
-            "trapped_chest",
-            "ender_chest",
-            "waxed_weathered_copper_chest",
-            "shulker_box",
-            "light_gray_shulker_box",
-            "lime_banner",
-            "black_wall_banner",
-            "skeleton_skull",
-            "wither_skeleton_wall_skull",
-            "zombie_head",
-            "player_wall_head",
-            "creeper_head",
-            "piglin_wall_head",
-            "dragon_head",
-            "decorated_pot",
-            "enchanting_table",
-            "lectern",
-            "bell",
-        ] {
-            let block = corpus
-                .block(&format!("minecraft:{name}"))
-                .unwrap_or_else(|| panic!("the corpus has {name}"));
-            for id in (0..block.state_count).filter_map(|offset| block.state_at(offset)) {
-                let state = crate::block_catalog::state_key(corpus, id).unwrap();
-                let info = super::build_one(
-                    &mut BlockModels::new(ResourceSet::corpus()),
-                    corpus.block_index(id).and_then(Block::from_id).unwrap(),
-                    &state,
-                    &PropertyTable::of_block(&block.properties),
-                    corpus.state(id),
-                    corpus.shape(corpus.state(id).occlusion_shape),
-                    &mut sprites,
-                )
-                .unwrap_or_else(|reason| panic!("{} does not bake: {reason}", state.label()));
-                assert!(
-                    !info.quads.is_empty() || info.cube.is_some(),
-                    "{} draws nothing",
-                    state.label()
-                );
-            }
-        }
-    }
-
+    #[test]
     fn a_fluid_level_reads_back_as_the_height_vanilla_gives_it() {
         let ninths = [8u8, 7, 6, 5, 4, 3, 2, 1, 8, 8, 8, 8, 8, 8, 8, 8];
         for (level, height) in ninths.iter().enumerate() {
@@ -697,6 +639,7 @@ mod tests {
         assert_eq!(tint("stone", &[], Some(0)), Tint::None);
     }
 
+    #[test]
     fn ambient_occlusion_reads_its_neighbours_from_the_corpus() {
         let stone = bake_state("minecraft:stone", &[]);
         assert!(stone.light.full_collision && !stone.light.is_open());
@@ -727,6 +670,7 @@ mod tests {
         );
     }
 
+    #[test]
     fn a_block_lights_the_mesh_by_what_the_corpus_says_it_emits() {
         assert_eq!(bake_state("minecraft:torch", &[]).light.emission, 14);
         assert_eq!(bake_state("minecraft:glowstone", &[]).light.emission, 15);
@@ -792,6 +736,7 @@ mod tests {
             .collect()
     }
 
+    #[test]
     fn a_block_closes_the_sides_its_own_geometry_covers() {
         assert_eq!(
             closed("minecraft:stone", &[]),
@@ -876,6 +821,7 @@ mod tests {
         );
     }
 
+    #[test]
     fn a_face_hides_behind_a_neighbour_whose_shape_covers_it() {
         use mcrs_minecraft_mesh::block::face_hidden;
         let snow = |layers: &str| bake_state("minecraft:snow", &[("layers", layers)]);
@@ -913,6 +859,7 @@ mod tests {
         assert!(!face_hidden(&low, &grass, north));
     }
 
+    #[test]
     fn a_box_lower_than_its_cell_meshes_its_top_and_bottom_as_cube_faces() {
         for layers in 1..=7u8 {
             let snow = bake_state("minecraft:snow", &[("layers", &layers.to_string())]);
@@ -943,23 +890,7 @@ mod tests {
         );
     }
 
-    fn cube_uv_matches_the_vanilla_bake() {
-        let baked = baked("minecraft:stone", &[]);
-        let (faces, extras) = split_cube(&baked.quads);
-        let faces = faces.expect("stone is a full cube");
-        assert!(extras.is_empty(), "stone has nothing beyond its cube");
-        for dir in Direction::all() {
-            let quad = &baked.quads[faces[dir as usize]];
-            for (corner, position) in quad.positions.iter().enumerate().take(4) {
-                assert_eq!(
-                    *position,
-                    cube_corners(dir)[corner],
-                    "{dir:?} corner {corner}"
-                );
-            }
-        }
-    }
-
+    #[test]
     fn a_turned_cube_still_tiles_and_a_weighted_block_varies_by_position() {
         let upright = baked("minecraft:oak_log", &[("axis", "y")]);
         assert!(split_cube(&upright.quads).0.is_some());
@@ -969,7 +900,7 @@ mod tests {
         let faces = faces.expect("a log turned on its side is still a cube");
         assert!(
             faces.iter().any(|&index| {
-                UvOrientation::of_corners(&sideways.quads[index].uvs)
+                UvOrientation::of_corners(&sideways.quads[index].face.uvs)
                     != Some(UvOrientation::IDENTITY)
             }),
             "a log turned on its side lays some sprite turned"

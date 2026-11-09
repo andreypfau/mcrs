@@ -15,7 +15,8 @@ use mcrs_minecraft_entity_render::{
 };
 use mcrs_minecraft_game_registries::variant::{FrogVariantFile, PigVariantFile};
 use mcrs_minecraft_model::atlas::{MISSING_SIZE, decode_png, missing_pixels};
-use mcrs_minecraft_model::resource_set::{ResourceSet, resource_path};
+use mcrs_minecraft_model::resource_set::ResourceSet;
+use mcrs_minecraft_model_file::resource_id::resource_path;
 use mcrs_minecraft_registries::CurrentRegistries;
 use mcrs_minecraft_resource::ResourceLocation;
 use serde::Deserialize;

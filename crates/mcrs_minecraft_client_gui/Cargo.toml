@@ -24,6 +24,7 @@ mcrs_minecraft_game_mode.workspace = true
 mcrs_minecraft_item = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_lang.workspace = true
 mcrs_minecraft_model.workspace = true
+mcrs_minecraft_model_file.workspace = true
 mcrs_minecraft_network = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_protocol.workspace = true
 mcrs_minecraft_registries = { workspace = true, features = ["bevy"] }
