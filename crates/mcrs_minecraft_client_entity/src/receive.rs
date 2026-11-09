@@ -28,7 +28,7 @@ pub const SNAP_DISTANCE: f64 = 64.0;
 /// The largest X and Z of an added entity.
 pub const WORLD_LIMIT: f64 = 3.0e7;
 /// The entity event that sets the health of a living entity to 0.
-pub const DEATH_EVENT: i8 = 3;
+pub const DEATH_EVENT: i8 = ClientboundEntityEvent::DIED;
 
 pub(crate) fn add_observers(app: &mut bevy_app::App) {
     app.add_observer(on_add_entity)

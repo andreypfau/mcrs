@@ -126,6 +126,13 @@ pub struct ClientboundEntityEvent {
     pub entity_status: i8,
 }
 
+impl ClientboundEntityEvent {
+    /// The status of a living entity that died.
+    pub const DIED: i8 = 3;
+    /// The status of a dead living entity that the server removes.
+    pub const REMOVED: i8 = 60;
+}
+
 #[derive(Clone, Debug, PartialEq, Encode, Decode)]
 pub struct PositionStep {
     pub position: DVec3,

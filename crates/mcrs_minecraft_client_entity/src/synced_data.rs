@@ -4,19 +4,12 @@ use mcrs_minecraft_entity::attribute_keys::Attribute;
 use mcrs_minecraft_entity::variant::{FrogVariant, PigVariant};
 use mcrs_minecraft_protocol_game::clientbound::{AttributeOperation, AttributeSnapshot};
 use mcrs_minecraft_protocol_game::entity::{MetaDataValue, MetadataEntry, Pose};
+use mcrs_minecraft_protocol_game::entity_data_index::{
+    AGE_LOCKED, BABY, CUSTOM_NAME, HEALTH, LIVING_FLAGS, MOB_FLAGS, NAME_VISIBLE, POSE,
+    SHARED_FLAGS, TICKS_FROZEN,
+};
 use mcrs_minecraft_protocol_game::text::{Text, TextContent};
 use mcrs_minecraft_resource::Id;
-
-const SHARED_FLAGS: u8 = 0;
-const CUSTOM_NAME: u8 = 2;
-const NAME_VISIBLE: u8 = 3;
-const POSE: u8 = 6;
-const TICKS_FROZEN: u8 = 7;
-const LIVING_FLAGS: u8 = 8;
-const HEALTH: u8 = 9;
-const MOB_FLAGS: u8 = 15;
-const BABY: u8 = 16;
-const AGE_LOCKED: u8 = 17;
 
 const ON_FIRE: u8 = 1 << 0;
 const CROUCHING: u8 = 1 << 1;

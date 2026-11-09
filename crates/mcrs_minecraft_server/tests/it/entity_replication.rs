@@ -18,6 +18,7 @@ use mcrs_minecraft_protocol::packets::table::Decoded;
 use mcrs_minecraft_protocol::uuid::Uuid;
 use mcrs_minecraft_protocol::{Decode, VarInt};
 use mcrs_minecraft_protocol_game::clientbound::{PositionPath, VecDelta};
+use mcrs_minecraft_protocol_game::position_delta;
 use mcrs_minecraft_protocol_game::table::game_clientbound::{self, ClientboundGamePacket};
 use mcrs_minecraft_replication::{LIST_INTERVAL_TICKS, LISTED_CAP};
 use rustc_hash::{FxHashMap, FxHashSet};
@@ -113,15 +114,8 @@ impl ClientModel {
             VecDelta::Stepped { steps, .. } => steps.iter().map(|step| step.delta).collect(),
         };
         if let Some(pos) = self.entities.get_mut(&id.0) {
-            let grid = |base: f64, steps: i16| {
-                if steps == 0 {
-                    base
-                } else {
-                    ((base * 4096.0 + 0.5).floor() + f64::from(steps)) / 4096.0
-                }
-            };
-            for [x, y, z] in steps {
-                *pos = DVec3::new(grid(pos.x, x), grid(pos.y, y), grid(pos.z, z));
+            for delta in steps {
+                *pos = position_delta::decode(*pos, delta);
             }
         }
     }

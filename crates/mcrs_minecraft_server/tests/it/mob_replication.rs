@@ -20,6 +20,7 @@ use mcrs_minecraft_protocol::uuid::Uuid;
 use mcrs_minecraft_protocol::{Bounded, Decode, VarInt};
 use mcrs_minecraft_protocol_game::clientbound::{PositionPath, VecDelta};
 use mcrs_minecraft_protocol_game::entity::{MetaDataValue, Pose};
+use mcrs_minecraft_protocol_game::position_delta;
 use mcrs_minecraft_protocol_game::serverbound::ServerboundChatCommand;
 use mcrs_minecraft_protocol_game::table::game_clientbound::{self, ClientboundGamePacket};
 use mcrs_minecraft_protocol_game::text::{Text, TextContent, TranslateArg};
@@ -225,16 +226,9 @@ impl Viewer {
             VecDelta::Linear(delta) => vec![*delta],
             VecDelta::Stepped { steps, .. } => steps.iter().map(|step| step.delta).collect(),
         };
-        let grid = |base: f64, steps: i16| {
-            if steps == 0 {
-                base
-            } else {
-                ((base * 4096.0 + 0.5).floor() + f64::from(steps)) / 4096.0
-            }
-        };
         if let Some((_, at)) = self.positions.iter_mut().find(|(seen, _)| *seen == id) {
-            for [x, y, z] in steps {
-                *at = DVec3::new(grid(at.x, x), grid(at.y, y), grid(at.z, z));
+            for delta in steps {
+                *at = position_delta::decode(*at, delta);
             }
         }
     }
