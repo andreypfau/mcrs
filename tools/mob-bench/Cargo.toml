@@ -10,6 +10,11 @@ name = "mob-bench"
 path = "src/main.rs"
 doctest = false
 
+[[bin]]
+name = "mob-drift"
+path = "drift/main.rs"
+doctest = false
+
 [lints]
 workspace = true
 
