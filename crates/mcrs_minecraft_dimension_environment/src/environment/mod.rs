@@ -19,7 +19,7 @@ use mcrs_minecraft_environment::attribute::{
 };
 use mcrs_minecraft_environment::environment_attribute_keys::EnvironmentAttribute;
 use mcrs_minecraft_environment::timeline::{Timeline, Track};
-use mcrs_minecraft_environment::world_clock::{WorldClocks, WorldClock};
+use mcrs_minecraft_environment::world_clock::{WorldClock, WorldClocks};
 
 /// How much it is raining and thundering, in `[0; 1]`.
 ///

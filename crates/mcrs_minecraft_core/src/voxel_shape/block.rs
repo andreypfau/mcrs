@@ -1,4 +1,4 @@
-use super::{Aabb, VoxelShape, FACE_MASK_FULL, ShapeRepr};
+use super::{Aabb, FACE_MASK_FULL, ShapeRepr, VoxelShape};
 use glam::Vec3;
 
 pub(super) static BLOCK: VoxelShape = VoxelShape {

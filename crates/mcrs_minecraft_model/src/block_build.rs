@@ -7,7 +7,7 @@ use crate::property_table::PropertyTable;
 use crate::resource_set::ResourceSet;
 use bevy::math::Vec3;
 use mcrs_minecraft_block::block_keys::Block;
-use mcrs_minecraft_block::definition::{BlockStateFlags, BlockStateData};
+use mcrs_minecraft_block::definition::{BlockStateData, BlockStateFlags};
 use mcrs_minecraft_core::Direction;
 use mcrs_minecraft_core::voxel_shape::Aabb;
 use mcrs_minecraft_mesh::block::{

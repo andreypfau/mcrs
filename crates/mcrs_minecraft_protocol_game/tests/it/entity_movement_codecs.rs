@@ -187,6 +187,10 @@ fn trk_wire_002_a_rotation_writes_the_ground_flag_before_the_angles() {
 #[test]
 fn trk_wire_004_an_angle_packs_to_the_floor_of_its_step() {
     for (degrees, byte) in [(0.0, 0), (1.0, 0), (1.4, 0), (359.9, 255), (-1.0, 255)] {
-        assert_eq!(ByteAngle::from_degrees(degrees), ByteAngle(byte), "{degrees}");
+        assert_eq!(
+            ByteAngle::from_degrees(degrees),
+            ByteAngle(byte),
+            "{degrees}"
+        );
     }
 }

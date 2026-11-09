@@ -47,9 +47,8 @@ struct Map {
     unclamped_f64: Rows,
 }
 
-static ARTEFACT: LazyLock<Artefact> = LazyLock::new(|| {
-    serde_json::from_str(&fixture("numeric").text()).unwrap()
-});
+static ARTEFACT: LazyLock<Artefact> =
+    LazyLock::new(|| serde_json::from_str(&fixture("numeric").text()).unwrap());
 
 fn f32_of(hex: &str) -> f32 {
     f32::from_bits(u32::from_str_radix(hex, 16).unwrap())

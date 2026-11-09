@@ -216,7 +216,8 @@ impl Interval {
         if self.max < 0.0 {
             return Self::NAI;
         }
-        self.pointwise_max(Self::exact(0.0)).map_monotonic(numeric::ln_f32)
+        self.pointwise_max(Self::exact(0.0))
+            .map_monotonic(numeric::ln_f32)
     }
 
     pub fn map_monotonic(self, op: impl Fn(f32) -> f32) -> Self {

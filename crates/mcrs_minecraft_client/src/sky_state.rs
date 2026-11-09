@@ -319,7 +319,7 @@ mod tests {
     };
     use mcrs_minecraft_environment::attribute::ModifierMap;
     use mcrs_minecraft_environment::timeline::Timeline;
-    use mcrs_minecraft_environment::world_clock::{WorldClocks, ClockTime};
+    use mcrs_minecraft_environment::world_clock::{ClockTime, WorldClocks};
 
     use super::*;
     use super::{test_clock_count, test_resolved};

@@ -201,7 +201,7 @@ fn create_room_into<T: CarveTarget>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use mcrs_minecraft_value_provider::{VerticalAnchor, HeightProvider, IntProvider};
+    use mcrs_minecraft_value_provider::{HeightProvider, IntProvider, VerticalAnchor};
 
     fn overworld() -> HeightContext {
         HeightContext {

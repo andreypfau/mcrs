@@ -3,10 +3,10 @@
 
 use bevy::math::DVec3;
 use mcrs_minecraft_core::Direction;
+use mcrs_minecraft_fixtures::fixture;
 use mcrs_minecraft_model::face_bake::{ElementFace, VariantTransform, bake_elements};
 use mcrs_minecraft_model::model_file::{ModelFile, direction_named};
 use mcrs_minecraft_model::resource_set::resource_path;
-use mcrs_minecraft_fixtures::fixture;
 use serde::Deserialize;
 
 use crate::client_pack::client_pack;

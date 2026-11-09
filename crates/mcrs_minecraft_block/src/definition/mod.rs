@@ -893,14 +893,11 @@ impl Builder {
             .block_sound_set
             .as_ref()
             .map(|set| SoundSetId(intern(&mut self.sound_sets, set)));
-        let fluid = components
-            .fluid_state
-            .as_ref()
-            .map(|fluid| FluidState {
-                fluid: fluid.fluid.id(),
-                level: fluid.level,
-                source: fluid.source,
-            });
+        let fluid = components.fluid_state.as_ref().map(|fluid| FluidState {
+            fluid: fluid.fluid.id(),
+            level: fluid.level,
+            source: fluid.source,
+        });
 
         Ok(BlockStateData {
             light_emission: components
@@ -1359,8 +1356,8 @@ mod tests {
                 Id::checked(u16::try_from(at).ok()?, names.len())
             }
         };
-        let missing = BlockSoundSets::resolve(&definitions, id_of(&["minecraft:decorated_pot"]))
-            .unwrap_err();
+        let missing =
+            BlockSoundSets::resolve(&definitions, id_of(&["minecraft:decorated_pot"])).unwrap_err();
         assert_eq!(missing.as_str(), "minecraft:decorated_pot_cracked");
 
         let resolved = BlockSoundSets::resolve(&definitions, id_of(&LOADED)).unwrap();

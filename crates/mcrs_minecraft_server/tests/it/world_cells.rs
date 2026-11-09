@@ -61,7 +61,7 @@ use mcrs_minecraft_protocol_game::text::Text;
 use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_resource::Id;
 use mcrs_minecraft_simulation::{
-    BlockFacts, BlockBehaviour, BlockUpdateFlags, Cx, RandomTicks, SimulationVolume, TickPriority,
+    BlockBehaviour, BlockFacts, BlockUpdateFlags, Cx, RandomTicks, SimulationVolume, TickPriority,
 };
 use mcrs_voxel::{BlockPos, BlockStateId, ColumnPos, LocalPos, SectionPos};
 

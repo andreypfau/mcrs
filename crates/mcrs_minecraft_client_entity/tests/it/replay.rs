@@ -14,8 +14,8 @@ use mcrs_minecraft_protocol_game::clientbound::{
     ClientboundAddEntity, ClientboundDamageEvent, ClientboundEntityEvent,
     ClientboundEntityPositionSync, ClientboundMoveEntityPos, ClientboundMoveEntityPosRot,
     ClientboundMoveEntityRot, ClientboundRotateHead, ClientboundSetEntityData,
-    ClientboundTickingState, ClientboundTickingStep, DeltaStep, VecDelta, PositionPath,
-    PositionStep,
+    ClientboundTickingState, ClientboundTickingStep, DeltaStep, PositionPath, PositionStep,
+    VecDelta,
 };
 use mcrs_minecraft_protocol_game::entity::{MetaDataValue, Metadata, MetadataEntry};
 use mcrs_minecraft_protocol_game::{ByteAngle, LpVec3};

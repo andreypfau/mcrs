@@ -8,8 +8,8 @@ use glam::DVec3;
 use mcrs_minecraft_core::codec::Bounded;
 use mcrs_minecraft_particle::particle_type_keys::ParticleType;
 use mcrs_minecraft_particle::{
-    BlockParticle, BlockStateValue, ColorParticle, DustParticle, ItemParticle, ParticleScale,
-    ParticleOptions, PositionSource, SpellParticle, TrailParticle, VibrationParticle,
+    BlockParticle, BlockStateValue, ColorParticle, DustParticle, ItemParticle, ParticleOptions,
+    ParticleScale, PositionSource, SpellParticle, TrailParticle, VibrationParticle,
 };
 use mcrs_minecraft_protocol::{Decode, Encode, VarInt};
 use mcrs_minecraft_protocol_game::clientbound::{ClientboundLevelParticles, ParticleRandomization};
@@ -226,7 +226,8 @@ fn data_forms_validate_like_vanilla() {
     );
 
     let clamped =
-        ParticleOptions::decode_checked(&block_lookup(), &mut &hex("1500ff000041200000")[..]).unwrap();
+        ParticleOptions::decode_checked(&block_lookup(), &mut &hex("1500ff000041200000")[..])
+            .unwrap();
     assert_eq!(
         clamped,
         ParticleOptions::Dust(DustParticle {
@@ -318,7 +319,7 @@ fn block_states_read_from_data_resolve_like_vanilla() {
 fn a_wire_value_that_names_no_known_entry_is_rejected_by_the_check() {
     use mcrs_minecraft_core::BlockStateNumber;
     use mcrs_minecraft_item::component::CompactList;
-    use mcrs_minecraft_item::component::{BlockPredicate, AdventureModePredicate, CanPlaceOn};
+    use mcrs_minecraft_item::component::{AdventureModePredicate, BlockPredicate, CanPlaceOn};
     use mcrs_minecraft_item::item_keys::Item;
     use mcrs_minecraft_item::kind::ItemComponentValue;
     use mcrs_minecraft_item::stack::ItemStackValue;

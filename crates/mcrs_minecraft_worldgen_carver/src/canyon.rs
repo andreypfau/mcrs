@@ -184,7 +184,7 @@ fn update_vertical_radius(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use mcrs_minecraft_value_provider::{FloatProvider, VerticalAnchor, HeightProvider};
+    use mcrs_minecraft_value_provider::{FloatProvider, HeightProvider, VerticalAnchor};
 
     fn overworld() -> HeightContext {
         HeightContext {

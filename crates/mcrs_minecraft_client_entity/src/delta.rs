@@ -1,7 +1,7 @@
 //! Relative positions on the wire, in steps of 1/4096 block from a base.
 
 use glam::DVec3;
-use mcrs_minecraft_protocol_game::clientbound::{VecDelta, PositionPath};
+use mcrs_minecraft_protocol_game::clientbound::{PositionPath, VecDelta};
 
 use crate::path::{PacketPath, PathStep};
 

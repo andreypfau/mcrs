@@ -4,11 +4,11 @@
 use std::collections::BTreeMap;
 
 use glam::{DVec2, DVec3, Vec2, Vec3};
-use mcrs_minecraft_fixtures::fixture;
 use mcrs_minecraft_entity_model::{
     BakedFace, BakedGeometry, CUBOID_EXPLICIT, CUBOID_MIRROR, CuboidRecords, FACE_TRIANGLES, Face,
     GeometryFile, INFLATE_STEP,
 };
+use mcrs_minecraft_fixtures::fixture;
 
 use crate::artefact::{self, LayerRecord, ModelArtefact, Part};
 use crate::convert::{self, Frame, ORIGIN_HEIGHT, Rules};
@@ -250,7 +250,10 @@ fn the_pig_and_the_frog_bake_to_the_faces_of_the_artefact() {
         let entry = artefact.layer_entry(model, layer);
         let baked = bake(entry, Rules::Mob).unwrap();
         assert!(
-            CuboidRecords::new(&baked).unwrap().explicit_faces.is_empty(),
+            CuboidRecords::new(&baked)
+                .unwrap()
+                .explicit_faces
+                .is_empty(),
             "{model} / {layer} uses only the 32-byte record"
         );
         let rebuilt = rebuild_from_records(&baked, &mut Explicit::default());

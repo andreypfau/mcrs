@@ -3,12 +3,12 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
+use mcrs_minecraft_fixtures::fixture;
 use mcrs_minecraft_model::bake::BlockModels;
 use mcrs_minecraft_model::block_state_file::{MISSING_MODEL, Variant};
 use mcrs_minecraft_model::model_file::{DisplayContext, GuiLight};
 use mcrs_minecraft_model::model_resolver::ModelResolver;
 use mcrs_minecraft_model::property_table::{PropertyDomain, PropertyTable};
-use mcrs_minecraft_fixtures::fixture;
 use serde::Deserialize;
 
 use crate::client_pack::client_pack;

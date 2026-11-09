@@ -17,7 +17,7 @@ use mcrs_minecraft_network::{OutboundReceiver, ServerSideConnection};
 use mcrs_minecraft_protocol::packets::table::Decoded;
 use mcrs_minecraft_protocol::uuid::Uuid;
 use mcrs_minecraft_protocol::{Decode, VarInt};
-use mcrs_minecraft_protocol_game::clientbound::{VecDelta, PositionPath};
+use mcrs_minecraft_protocol_game::clientbound::{PositionPath, VecDelta};
 use mcrs_minecraft_protocol_game::table::game_clientbound::{self, ClientboundGamePacket};
 use mcrs_minecraft_replication::{LIST_INTERVAL_TICKS, LISTED_CAP};
 use rustc_hash::{FxHashMap, FxHashSet};

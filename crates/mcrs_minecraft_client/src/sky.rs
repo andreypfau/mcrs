@@ -16,7 +16,7 @@ use mcrs_minecraft_dimension_environment::environment::{
     DimensionAttributes, EnvironmentContext, Weather,
 };
 use mcrs_minecraft_environment::attribute::MoonPhase;
-use mcrs_minecraft_environment::world_clock::{WorldClocks, WorldClock};
+use mcrs_minecraft_environment::world_clock::{WorldClock, WorldClocks};
 
 use crate::camera::PlayerCamera;
 use crate::vanilla::VanillaAssets;

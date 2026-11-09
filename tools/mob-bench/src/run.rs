@@ -267,13 +267,11 @@ impl Bench<'_> {
     fn answered(&mut self, line: &str) -> Answered {
         let sent = Instant::now();
         let _ = self.server.send(line);
-        let answer = self
-            .server
-            .wait_for(sent, Duration::from_secs(1), |text| {
-                probe::mcrs_tick_millis(text)
-                    .is_none()
-                    .then(|| text.to_owned())
-            });
+        let answer = self.server.wait_for(sent, Duration::from_secs(1), |text| {
+            probe::mcrs_tick_millis(text)
+                .is_none()
+                .then(|| text.to_owned())
+        });
         Answered {
             line: line.to_owned(),
             answer,

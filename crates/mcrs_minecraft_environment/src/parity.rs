@@ -15,9 +15,8 @@ use crate::environment_attribute_keys::EnvironmentAttribute;
 use crate::timeline::{Easing, NamedEasing, Timeline};
 use crate::world_clock::{ClockTime, ClockTimeMarker};
 
-static ARTEFACT: LazyLock<Value> = LazyLock::new(|| {
-    serde_json::from_slice(&fixture("environment").bytes()).unwrap()
-});
+static ARTEFACT: LazyLock<Value> =
+    LazyLock::new(|| serde_json::from_slice(&fixture("environment").bytes()).unwrap());
 
 fn section(name: &str) -> &'static Value {
     &ARTEFACT[name]

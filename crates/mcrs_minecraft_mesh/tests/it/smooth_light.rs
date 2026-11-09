@@ -8,7 +8,6 @@ use mcrs_minecraft_mesh::smooth_light::{
 };
 use serde::Deserialize;
 
-
 #[derive(Deserialize)]
 struct Golden {
     palette: Vec<PaletteEntry>,
@@ -184,7 +183,8 @@ fn check(case: &Case, palette: &[PaletteEntry]) -> Vec<String> {
 
 #[test]
 fn vertex_values_match_the_game() {
-    let golden: Golden = serde_json::from_str(&fixture("block_smooth_light").text()).expect("the golden artefact parses");
+    let golden: Golden = serde_json::from_str(&fixture("block_smooth_light").text())
+        .expect("the golden artefact parses");
     let mismatches: Vec<String> = golden
         .cases
         .iter()

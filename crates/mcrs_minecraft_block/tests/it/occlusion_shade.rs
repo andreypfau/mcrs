@@ -7,7 +7,6 @@ use serde::Deserialize;
 
 use crate::common::{assert_no_mismatches, corpus};
 
-
 #[derive(Deserialize)]
 struct Artefact {
     exceptions: Vec<Exception>,
@@ -42,7 +41,8 @@ fn state_name(definitions: &BlockDefinitions, state: BlockStateId) -> String {
 
 #[test]
 fn each_state_has_the_occlusion_shade_of_the_game() {
-    let artefact: Artefact = serde_json::from_str(&fixture("block_occlusion_shade").text()).expect("the shade artefact parses");
+    let artefact: Artefact = serde_json::from_str(&fixture("block_occlusion_shade").text())
+        .expect("the shade artefact parses");
     let mut exceptions: HashMap<&str, &Exception> = artefact
         .exceptions
         .iter()

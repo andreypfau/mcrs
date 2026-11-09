@@ -5,8 +5,8 @@ use mcrs_minecraft_protocol::VarInt;
 use mcrs_minecraft_protocol_game::clientbound::{
     ClientboundDamageEvent, ClientboundEntityEvent, ClientboundEntityPositionSync,
     ClientboundMoveEntityPos, ClientboundRemoveEntities, ClientboundRotateHead,
-    ClientboundTeleportEntity, ClientboundTickingState, ClientboundTickingStep, VecDelta,
-    PositionPath,
+    ClientboundTeleportEntity, ClientboundTickingState, ClientboundTickingStep, PositionPath,
+    VecDelta,
 };
 use mcrs_minecraft_protocol_game::{ByteAngle, PositionFlags};
 
