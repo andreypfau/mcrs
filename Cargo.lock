@@ -3887,7 +3887,6 @@ dependencies = [
  "mcrs_minecraft_item",
  "mcrs_minecraft_lang",
  "mcrs_minecraft_model",
- "mcrs_minecraft_nbt",
  "mcrs_minecraft_network",
  "mcrs_minecraft_protocol",
  "mcrs_minecraft_protocol_game",
@@ -3895,7 +3894,6 @@ dependencies = [
  "mcrs_minecraft_render",
  "mcrs_minecraft_render_probe",
  "mcrs_minecraft_resource",
- "mcrs_minecraft_snbt",
  "mcrs_minecraft_volume",
  "mcrs_voxel",
  "serde",
@@ -4231,7 +4229,6 @@ dependencies = [
  "mcrs_minecraft_engine",
  "mcrs_minecraft_engine_world",
  "mcrs_minecraft_lang",
- "mcrs_minecraft_nbt",
  "mcrs_minecraft_text",
  "tracing",
 ]
@@ -4787,6 +4784,8 @@ dependencies = [
 name = "mcrs_minecraft_lang"
 version = "0.5.8"
 dependencies = [
+ "mcrs_minecraft_nbt",
+ "mcrs_minecraft_snbt",
  "serde_json",
 ]
 

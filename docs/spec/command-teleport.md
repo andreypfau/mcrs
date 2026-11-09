@@ -362,3 +362,19 @@ Overworld, run `execute in minecraft:the_end run tp @s 0 25000000 0`. The reply 
   occurs only for a removed victim, or for a victim that the game cannot create in the other
   dimension.
 - **Test:** a differential test with a failed move does not compare the result or the message.
+
+---
+
+## Known gaps
+
+### CMD-TP-016: A mob as a victim or as a facing target
+
+- **Rule:** CMD-TP-003, CMD-TP-005 and CMD-TP-011, for a victim or a `facingEntity` that is a mob.
+- **This server:** the entity rows have no move of a mob to a given position yet. Thus the
+  command fails before it moves a victim when a victim or the facing target is a mob. The
+  failure is the plain text `teleport does not move or face a mob yet; only players can be
+  victims or facing targets`, with no translation key. A mob as the destination entity of
+  CMD-TP-004 is not part of this gap: a player goes to the position and the rotation of the mob.
+- **Visible to the client:** yes, in the failure message and in the command result.
+- **Status:** a known gap, not a deviation. The gap closes when the entity rows can move a mob.
+- **Test:** a test sends `tp @e 0 64 0` with a mob in the world and expects this message.

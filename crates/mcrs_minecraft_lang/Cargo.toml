@@ -12,4 +12,6 @@ doctest = false
 workspace = true
 
 [dependencies]
+mcrs_minecraft_nbt.workspace = true
+mcrs_minecraft_snbt.workspace = true
 serde_json.workspace = true

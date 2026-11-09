@@ -1,6 +1,5 @@
 //! Text components as styled spans, and the wrap of spans into rows.
 
-use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_protocol_game::text::color::RgbColor;
 use mcrs_minecraft_protocol_game::text::{Color, Text, TextContent, TranslateArg};
 
@@ -41,18 +40,6 @@ pub fn argb(color: Color) -> u32 {
     0xFF00_0000 | u32::from(rgb.r) << 16 | u32::from(rgb.g) << 8 | u32::from(rgb.b)
 }
 
-fn number(tag: &NbtTag) -> String {
-    match tag {
-        NbtTag::Byte(v) => v.to_string(),
-        NbtTag::Short(v) => v.to_string(),
-        NbtTag::Int(v) => v.to_string(),
-        NbtTag::Long(v) => v.to_string(),
-        NbtTag::Float(v) => mcrs_minecraft_snbt::java_float(*v),
-        NbtTag::Double(v) => mcrs_minecraft_snbt::java_double(*v),
-        _ => String::new(),
-    }
-}
-
 fn push(out: &mut Vec<Span>, text: impl Into<String>, style: Inherited) {
     let text = text.into();
     if !text.is_empty() {
@@ -87,7 +74,9 @@ fn collect<'a>(
                     match arg {
                         TranslateArg::Text(text) => collect(text, language, style, &mut spans),
                         TranslateArg::Bool(value) => push(&mut spans, value.to_string(), style),
-                        TranslateArg::Number(tag) => push(&mut spans, number(tag), style),
+                        TranslateArg::Number(tag) => {
+                            push(&mut spans, mcrs_minecraft_lang::primitive_text(tag), style)
+                        }
                     }
                     spans
                 })

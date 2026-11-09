@@ -559,7 +559,7 @@ fn execute_as_sorted_entities_forks_players_and_mobs_in_one_order() {
     );
 }
 
-/// CMD-TP-004: a player goes to a mob destination; a mob victim fails the command with a
+/// CMD-TP-004, CMD-TP-016: a player goes to a mob destination; a mob victim fails the command with a
 /// message instead of a silent skip.
 #[test]
 fn teleport_goes_to_a_mob_and_refuses_to_move_one() {
@@ -598,9 +598,42 @@ fn teleport_goes_to_a_mob_and_refuses_to_move_one() {
         },
     );
     let reply = chats(&packets).pop().expect("the teleport replies");
-    assert!(
-        !matches!(reply.content, TextContent::Translate { .. }),
-        "a mob victim fails with its own message: {reply:?}"
+    let TextContent::Text { text } = &reply.content else {
+        panic!("a plain-text failure: {reply:?}");
+    };
+    assert_eq!(
+        text.as_ref(),
+        "teleport does not move or face a mob yet; only players can be victims or facing targets",
+        "docs/spec/command-teleport.md, CMD-TP-016"
+    );
+}
+
+/// CMD-KILL-002, CMD-KILL-005: each entity the selector finds is a victim and counts, the player
+/// too, so a kill of a player and two pigs reports three victims.
+#[test]
+fn kill_of_players_and_mobs_counts_each_victim() {
+    let mut server = start();
+    load_stone_column(&mut server);
+    let (operator, _) = server.join(OPERATOR, "op");
+    let mut viewer = Viewer::new();
+    viewer.receive(server.ticks(operator, 2));
+    for x in [2, 6] {
+        let (key, _) = run(
+            &mut server,
+            operator,
+            &mut viewer,
+            &format!("summon minecraft:pig {x} 64 4"),
+        );
+        assert_eq!(key, "commands.summon.success");
+    }
+    viewer.receive(server.ticks(operator, 1));
+
+    assert_eq!(
+        run(&mut server, operator, &mut viewer, "kill @e"),
+        (
+            "commands.kill.success.multiple".to_owned(),
+            vec!["Int(3)".to_owned()]
+        )
     );
 }
 

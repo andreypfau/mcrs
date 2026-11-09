@@ -16,7 +16,6 @@ mcrs_minecraft_dimension.workspace = true
 mcrs_minecraft_engine.workspace = true
 mcrs_minecraft_engine_world.workspace = true
 mcrs_minecraft_lang.workspace = true
-mcrs_minecraft_nbt.workspace = true
 mcrs_minecraft_text.workspace = true
 bevy_app.workspace = true
 bevy_ecs.workspace = true
