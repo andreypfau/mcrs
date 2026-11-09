@@ -296,7 +296,9 @@ impl Plugin for TerrainPlugin {
                     pass::drop_unused_bins.in_set(RenderSystems::Prepare),
                     terrain::write_lightmap.in_set(RenderSystems::Prepare),
                     sprites::write_animation_frames.in_set(RenderSystems::Prepare),
-                    frame::write_camera.in_set(RenderSystems::Prepare),
+                    (frame::write_frame_view, frame::write_camera)
+                        .chain()
+                        .in_set(RenderSystems::Prepare),
                     pipeline::prepare_deferred_pipelines.in_set(RenderSystems::Prepare),
                     (
                         gbuffer::fit_deferred_frame,

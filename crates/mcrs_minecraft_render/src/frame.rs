@@ -137,32 +137,40 @@ pub fn clip_from_relative(clip_from_view: Mat4, rotation: Quat, offset: Vec3) ->
     clip_from_view * Mat4::from_rotation_translation(rotation, offset).inverse()
 }
 
-pub(super) fn write_camera(
+/// Publishes the view of the frame for the passes of the render world.
+pub(super) fn write_frame_view(
     mut commands: Commands,
-    terrain: Option<Res<Terrain>>,
     origin: Option<Res<CameraOrigin>>,
     views: Query<&ExtractedView, With<Camera3d>>,
+) {
+    let (Some(origin), Some(view)) = (origin, views.iter().next()) else {
+        return;
+    };
+    commands.insert_resource(FrameView::new(
+        view.clip_from_view,
+        Mat4::from_rotation_translation(view.world_from_view.rotation(), origin.offset).inverse(),
+        *origin,
+        view.viewport.zw().as_vec2(),
+    ));
+}
+
+pub(super) fn write_camera(
+    terrain: Option<Res<Terrain>>,
+    frame_view: Option<Res<FrameView>>,
     occlusion: Res<Occlusion>,
     quad_cull: Res<super::QuadCull>,
     shade: Res<TerrainShade>,
     queue: Res<RenderQueue>,
 ) {
-    let (Some(terrain), Some(origin), Some(view)) = (terrain, origin, views.iter().next()) else {
+    let (Some(terrain), Some(frame_view)) = (terrain, frame_view) else {
         return;
     };
-    let frame_view = FrameView::new(
-        view.clip_from_view,
-        Mat4::from_rotation_translation(view.world_from_view.rotation(), origin.offset).inverse(),
-        *origin,
-        view.viewport.zw().as_vec2(),
-    );
+    let section = frame_view.camera_section;
     // The tint window wraps, so only the camera section's place inside it matters, and that
     // stays exact in i32 where the section's absolute position would not in f32.
     let tint_origin = [
-        -(origin.section.x * SECTION_SIZE as i32).rem_euclid(terrain.budget.tint_size[0] as i32)
-            as f32,
-        -(origin.section.z * SECTION_SIZE as i32).rem_euclid(terrain.budget.tint_size[1] as i32)
-            as f32,
+        -(section.x * SECTION_SIZE as i32).rem_euclid(terrain.budget.tint_size[0] as i32) as f32,
+        -(section.z * SECTION_SIZE as i32).rem_euclid(terrain.budget.tint_size[1] as i32) as f32,
     ];
     queue.write_buffer(
         &terrain.frame.camera,
@@ -170,8 +178,8 @@ pub(super) fn write_camera(
         bytemuck::bytes_of(&CameraUniform {
             clip_from_relative: frame_view.clip_from_relative.to_cols_array(),
             frustum: frame_view.frustum.map(|plane| plane.to_array()),
-            section: origin.section.to_array(),
-            offset: origin.offset.to_array(),
+            section: section.to_array(),
+            offset: frame_view.camera_offset.to_array(),
             tint_origin,
             tint_scale: [
                 1.0 / terrain.budget.tint_size[0] as f32,
@@ -184,7 +192,6 @@ pub(super) fn write_camera(
             ..default()
         }),
     );
-    commands.insert_resource(frame_view);
 }
 
 #[cfg(test)]
