@@ -1,11 +1,10 @@
 use glam::DVec3;
+use mcrs_minecraft_brain::BuildHeight;
+use mcrs_minecraft_brain::CellFlags;
+use mcrs_minecraft_brain::GoalWorld;
+use mcrs_minecraft_brain::GroundCell;
+use mcrs_minecraft_brain::straight_route;
 use mcrs_voxel::BlockPos;
-
-use crate::BuildHeight;
-use crate::CellFlags;
-use crate::GoalWorld;
-use crate::GroundCell;
-use crate::straight_route;
 
 /// The malus of water for a mob that does not swim.
 const WATER_MALUS: f32 = 8.0;
@@ -87,8 +86,8 @@ impl GoalWorld for FlatGround {
     /// The straight route wades through the pond, as a path search crosses water at its malus.
     fn route(&self, from: DVec3, target: BlockPos) -> Option<DVec3> {
         match self.pond {
-            Some(_) => straight_route::straight_route(&Wading(self), from, target),
-            None => straight_route::straight_route(self, from, target),
+            Some(_) => straight_route(&Wading(self), from, target),
+            None => straight_route(self, from, target),
         }
     }
 }

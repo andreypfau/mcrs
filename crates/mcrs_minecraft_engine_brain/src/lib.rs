@@ -10,7 +10,6 @@ mod mob_ai;
 mod mob_brain_plugin;
 mod mob_column;
 mod mob_column_ext;
-mod panic_causes;
 mod sight_blocks;
 mod tile_task;
 
@@ -22,4 +21,3 @@ pub use mob_ai::MobAi;
 pub use mob_brain_plugin::MobBrainPlugin;
 pub use mob_brain_plugin::MobBrainSet;
 pub use mob_column::MobColumn;
-pub use panic_causes::PanicCauses;

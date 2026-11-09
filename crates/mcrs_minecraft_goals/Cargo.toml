@@ -1,6 +1,6 @@
 [package]
 name = "mcrs_minecraft_goals"
-description = "The goals of passive mobs for the AI stage: float, panic, random stroll, look at a player and look around, the random position searches and the goal list of the pig"
+description = "The goals of passive mobs for the AI stage: float, panic, random stroll, look at a player and look around, the random position searches, the goal list of the pig and the brain of each mob type with goals"
 version.workspace = true
 edition.workspace = true
 

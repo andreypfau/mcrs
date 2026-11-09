@@ -1,7 +1,8 @@
-use bevy_ecs::resource::Resource;
+use alloc::vec::Vec;
 
-/// The network ids of the damage types in the tag `panic_causes`, sorted.
-#[derive(Resource, Clone, Debug, Default, PartialEq, Eq, Hash)]
+/// The network ids of the damage types whose hit makes a mob panic, sorted: the members of the
+/// damage type tag `panic_causes` (GOAL-PNC-002).
+#[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
 pub struct PanicCauses(Vec<u32>);
 
 impl PanicCauses {

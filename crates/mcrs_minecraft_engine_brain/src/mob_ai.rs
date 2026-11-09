@@ -10,7 +10,9 @@ use mcrs_minecraft_brain::Cadence;
 use mcrs_minecraft_brain::Decision;
 use mcrs_minecraft_brain::Fact;
 use mcrs_minecraft_brain::FactKind;
+use mcrs_minecraft_brain::GoalWorld;
 use mcrs_minecraft_brain::MobBrain;
+use mcrs_minecraft_brain::PanicCauses;
 use mcrs_minecraft_brain::PlayerTable;
 use mcrs_minecraft_brain::Stage;
 use mcrs_minecraft_brain::StageConfig;
@@ -22,13 +24,14 @@ use mcrs_minecraft_entity_key::EntityId;
 use mcrs_minecraft_entity_key::TileKey;
 use mcrs_minecraft_entity_rows::Placed;
 use mcrs_minecraft_entity_rows::tiles_per_task;
-use mcrs_minecraft_goals::GoalWorld;
 use mcrs_minecraft_volume::BlockVolume;
 
 use crate::AiStats;
+use crate::BlockGoalWorld;
 use crate::EntityRows;
 use crate::HotTick;
 use crate::MobColumn;
+use crate::mob_column_ext::BrainRules;
 use crate::tile_task::TileOut;
 use crate::tile_task::TileTask;
 
@@ -42,6 +45,7 @@ pub struct MobAi<B: Send + Sync + 'static> {
     driver: AiDriver<B>,
     /// The brain of a mob that came into the world, from its type; `None` for a type without AI.
     brain_for: fn(&'static EntityTypeData) -> Option<B>,
+    panic_causes: PanicCauses,
     /// The mobs whose path ended in the last tick.
     ended: Vec<EntityId>,
     stats: AiStats,
@@ -55,9 +59,15 @@ impl<B: Send + Sync + 'static> MobAi<B> {
         Self {
             driver: AiDriver::new(config),
             brain_for,
+            panic_causes: PanicCauses::default(),
             ended: Vec::new(),
             stats: AiStats::default(),
         }
+    }
+
+    /// Sets the damage types whose hit makes a mob panic; a new AI has none.
+    pub fn set_panic_causes(&mut self, panic_causes: PanicCauses) {
+        self.panic_causes = panic_causes;
     }
 
     #[must_use]
@@ -87,12 +97,18 @@ impl<B: Send + Sync + 'static> MobAi<B> {
         players: PlayerTable,
         rows: &mut EntityRows,
         pool: &TaskPool,
-    ) {
+    ) where
+        B: for<'w> MobBrain<BlockGoalWorld<'w, V>>,
+    {
         let started = Instant::now();
         let tick = self.driver.begin_tick();
         self.follow_life_cycle(tick, hot.mobs, rows);
         let followed = Instant::now();
         let mut due = self.due();
+        let rules = BrainRules {
+            panic_causes: &self.panic_causes,
+            idle_limit: <B as MobBrain<BlockGoalWorld<'_, V>>>::IDLE_LIMIT,
+        };
         let mut tasks: Vec<TileTask<'_>> = Vec::new();
         for (tile, mobs) in rows.mob_tiles_mut() {
             tasks.push(TileTask {
@@ -100,6 +116,7 @@ impl<B: Send + Sync + 'static> MobAi<B> {
                 mobs,
                 due: due.get(&tile).map_or(&[], Vec::as_slice),
                 players: &players,
+                rules,
                 tick,
             });
         }

@@ -5,10 +5,10 @@ use mcrs_minecraft_brain::Intents;
 use mcrs_minecraft_brain::MobFlags;
 use mcrs_minecraft_brain::MobView;
 use mcrs_minecraft_brain::Panic;
+use mcrs_minecraft_brain::PanicCauses;
 use mcrs_minecraft_brain::PlayerTable;
 use mcrs_minecraft_entity_key::EntityId;
 use mcrs_minecraft_entity_rows::MobIntent;
-use mcrs_minecraft_goals::STROLL_IDLE_LIMIT;
 use mcrs_minecraft_mob_control::BodyData;
 use mcrs_minecraft_mob_control::BodyFlags;
 use mcrs_minecraft_mob_control::ControlInput;
@@ -22,11 +22,18 @@ use mcrs_minecraft_volume::BlockVolume;
 use mcrs_voxel::BlockPos;
 
 use crate::BlockGoalWorld;
-use crate::HotTick;
 use crate::MobColumn;
 
 /// A player nearer than this resets the idle time of a mob (AIT-VAN-020).
 const NEAR_PLAYER: f64 = 32.0;
+
+/// The rules of the brains that the start of a tick applies to the rows.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct BrainRules<'a> {
+    pub(crate) panic_causes: &'a PanicCauses,
+    /// The idle time from which a reset of the idle time is a wake event (GOAL-WAKE-005, event 5).
+    pub(crate) idle_limit: u32,
+}
 
 /// What the start of a tick saw of one mob: its view and its wake events.
 pub(crate) struct Observed {
@@ -42,9 +49,9 @@ pub(crate) struct Observed {
 pub(crate) trait MobColumnExt {
     /// The end of the last tick: the body rotation after its travel, the damage record, the idle
     /// time, and the view of the snapshot of `tick`. A new hit counts as a hit in the last tick.
-    fn observe<V>(
+    fn observe(
         &mut self,
-        hot: &HotTick<'_, V>,
+        rules: BrainRules<'_>,
         players: &PlayerTable,
         tick: u64,
         id: EntityId,
@@ -67,9 +74,9 @@ pub(crate) trait MobColumnExt {
 }
 
 impl MobColumnExt for MobColumn {
-    fn observe<V>(
+    fn observe(
         &mut self,
-        hot: &HotTick<'_, V>,
+        rules: BrainRules<'_>,
         players: &PlayerTable,
         tick: u64,
         id: EntityId,
@@ -92,7 +99,7 @@ impl MobColumnExt for MobColumn {
         }
         let damage = self.hit_tick.zip(hit).map(|(tick, hit)| DamageRecord {
             tick,
-            cause: if hot.panic_causes.contains(u32::from(hit.damage_type)) {
+            cause: if rules.panic_causes.contains(u32::from(hit.damage_type)) {
                 DamageCause::Panic
             } else {
                 DamageCause::Other
@@ -107,7 +114,7 @@ impl MobColumnExt for MobColumn {
         } else {
             self.idle_time.saturating_add(1)
         };
-        let idle_reset = idle_time == 0 && self.idle_time >= STROLL_IDLE_LIMIT;
+        let idle_reset = idle_time == 0 && self.idle_time >= rules.idle_limit;
         self.idle_time = idle_time;
         let stalled = self.age == Some(state.age);
         let resumed = self.stalled && !stalled;

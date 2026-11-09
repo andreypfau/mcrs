@@ -8,6 +8,7 @@ use std::hash::Hasher;
 use bevy_tasks::TaskPool;
 use bevy_tasks::TaskPoolBuilder;
 use glam::DVec3;
+use mcrs_minecraft_brain::PanicCauses;
 use mcrs_minecraft_brain::PlayerFlags;
 use mcrs_minecraft_brain::PlayerRow;
 use mcrs_minecraft_brain::PlayerTable;
@@ -18,7 +19,6 @@ use mcrs_minecraft_engine_brain::BlockGoalWorld;
 use mcrs_minecraft_engine_brain::HotTick;
 use mcrs_minecraft_engine_brain::MobAi;
 use mcrs_minecraft_engine_brain::MobColumn;
-use mcrs_minecraft_engine_brain::PanicCauses;
 use mcrs_minecraft_engine_physics::EntityWrites;
 use mcrs_minecraft_engine_physics::FLOOR;
 use mcrs_minecraft_engine_physics::Mob;
@@ -49,7 +49,6 @@ struct Run {
     scene: TestScene<MobColumn>,
     mobs: Mobs,
     ai: MobAi<PigBrain>,
-    causes: PanicCauses,
     players: Vec<PlayerRow>,
     pool: TaskPool,
 }
@@ -98,11 +97,12 @@ impl Run {
             visibility: 1.0,
             vehicle: None,
         }];
+        let mut ai = MobAi::new(StageConfig::new(WorldSeed(42)), pig_brain);
+        ai.set_panic_causes(PanicCauses::new([CACTUS]));
         Self {
             scene,
             mobs,
-            ai: MobAi::new(StageConfig::new(WorldSeed(42)), pig_brain),
-            causes: PanicCauses::new([CACTUS]),
+            ai,
             players,
             pool: TaskPoolBuilder::new().num_threads(threads).build(),
         }
@@ -132,7 +132,6 @@ impl Run {
             blocks: &self.scene.blocks,
             collision: &self.scene.tables.collision,
             mobs: &self.mobs,
-            panic_causes: &self.causes,
         };
         let players = PlayerTable::new(self.players.iter().copied());
         self.ai

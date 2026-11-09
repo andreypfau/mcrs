@@ -1,4 +1,5 @@
 use glam::DVec3;
+use mcrs_minecraft_brain::GoalWorld;
 use mcrs_minecraft_brain::Intents;
 use mcrs_minecraft_brain::LookIntent;
 use mcrs_minecraft_brain::PlayerFlags;
@@ -7,7 +8,6 @@ use mcrs_minecraft_brain::Turn;
 use mcrs_minecraft_entity_key::EntityId;
 
 use crate::Gate;
-use crate::GoalWorld;
 use crate::LOOK_AT_PLAYER_COUNT;
 use crate::LOOK_AT_PLAYER_WAIT;
 

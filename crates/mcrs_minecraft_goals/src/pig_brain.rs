@@ -1,6 +1,7 @@
 use glam::DVec3;
 use mcrs_minecraft_brain::ControlFlags;
 use mcrs_minecraft_brain::GoalSpec;
+use mcrs_minecraft_brain::GoalWorld;
 use mcrs_minecraft_brain::Goals;
 use mcrs_minecraft_brain::Intents;
 use mcrs_minecraft_brain::MobBrain;
@@ -8,7 +9,6 @@ use mcrs_minecraft_brain::Panic;
 use mcrs_minecraft_brain::Selector;
 use mcrs_minecraft_brain::Turn;
 
-use crate::GoalWorld;
 use crate::LookAroundGoal;
 use crate::LookAtPlayerGoal;
 use crate::LookParams;
@@ -110,6 +110,7 @@ impl PigBrain {
 
 impl<W: GoalWorld + ?Sized> MobBrain<W> for PigBrain {
     const PLAYER_RANGE: f64 = PIG_LOOK.range;
+    const IDLE_LIMIT: u32 = STROLL_IDLE_LIMIT;
 
     fn evaluate(&mut self, turn: &Turn<'_, W>, intents: &mut Intents) -> u64 {
         let mut goals = PigTurn {

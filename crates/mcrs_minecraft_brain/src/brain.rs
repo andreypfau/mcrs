@@ -12,6 +12,10 @@ pub trait MobBrain<W: ?Sized> {
     /// The largest horizontal distance from the mob at which an evaluation reads a player.
     const PLAYER_RANGE: f64;
 
+    /// The idle time from which a reset of the idle time wakes the brain (GOAL-WAKE-005, event
+    /// 5): the idle time at which the goals stop to start a stroll; `u32::MAX` for none.
+    const IDLE_LIMIT: u32;
+
     /// One full evaluation from the snapshot of `turn.tick`. Writes the guidance changes to
     /// `intents`, and returns the next tick at which the brain needs a full evaluation when no fact
     /// wakes it; `u64::MAX` for none.

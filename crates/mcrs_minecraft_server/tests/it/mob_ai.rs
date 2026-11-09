@@ -7,7 +7,7 @@ use mcrs_minecraft_command_engine::CommandPlugin;
 use mcrs_minecraft_command_vanilla::{VanillaCommands, VanillaCommandsPlugin};
 use mcrs_minecraft_engine_brain::EntityRows;
 use mcrs_minecraft_engine_brain::MobAi;
-use mcrs_minecraft_goals::PigBrain;
+use mcrs_minecraft_goals::VanillaBrain;
 use mcrs_minecraft_protocol::Bounded;
 use mcrs_minecraft_protocol::uuid::Uuid;
 use mcrs_minecraft_protocol_game::serverbound::ServerboundChatCommand;
@@ -48,6 +48,12 @@ fn pig_positions(server: &mut PlayServer) -> Vec<DVec3> {
         .living_rows()
         .map(|(_, state)| state.body.position)
         .collect()
+}
+
+fn pig_panics(brain: &VanillaBrain) -> bool {
+    match brain {
+        VanillaBrain::Pig(pig) => pig.selector().is_running(PANIC),
+    }
 }
 
 fn horizontal_distance(from: DVec3, to: DVec3) -> f64 {
@@ -108,12 +114,11 @@ fn a_cactus_hit_makes_a_resting_pig_panic_and_run() {
     let mut panicked = false;
     for _ in 0..10 {
         server.ticks(operator, 1);
-        let ai = server.world().resource::<MobAi<PigBrain>>();
-        panicked |= ai.stage().tiles().any(|(_, brains)| {
-            brains
-                .iter()
-                .any(|entry| entry.brain.selector().is_running(PANIC))
-        });
+        let ai = server.world().resource::<MobAi<VanillaBrain>>();
+        panicked |= ai
+            .stage()
+            .tiles()
+            .any(|(_, brains)| brains.iter().any(|entry| pig_panics(entry.brain)));
     }
     assert!(panicked, "the hit starts the panic within 10 ticks");
     server.ticks(operator, 40);
@@ -166,12 +171,11 @@ fn a_drown_hit_each_80_ticks_keeps_a_pig_strolling_without_a_panic() {
         }
         for _ in 0..80 {
             server.ticks(operator, 1);
-            let ai = server.world().resource::<MobAi<PigBrain>>();
-            let panics = ai.stage().tiles().any(|(_, brains)| {
-                brains
-                    .iter()
-                    .any(|entry| entry.brain.selector().is_running(PANIC))
-            });
+            let ai = server.world().resource::<MobAi<VanillaBrain>>();
+            let panics = ai
+                .stage()
+                .tiles()
+                .any(|(_, brains)| brains.iter().any(|entry| pig_panics(entry.brain)));
             assert!(!panics, "drown is not a panic cause");
         }
         let now = pig_positions(&mut server);

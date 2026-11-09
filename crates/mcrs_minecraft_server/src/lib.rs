@@ -1,11 +1,11 @@
 pub mod operator_broadcast;
+mod vanilla_brains;
 
 use bevy_app::{App, Plugin, PluginGroup, PluginGroupBuilder};
 use mcrs_minecraft_chat_server::ChatPlugin;
 use mcrs_minecraft_command_engine::CommandPlugin;
 use mcrs_minecraft_command_vanilla::{VanillaCommands, VanillaCommandsPlugin};
 use mcrs_minecraft_command_world::WorldCommandsPlugin;
-use mcrs_minecraft_engine_brain::MobBrainPlugin;
 use mcrs_minecraft_engine_brain::MobColumn;
 use mcrs_minecraft_engine_mob_replication::MobReplicationPlugin;
 use mcrs_minecraft_engine_physics::EntityPhysicsPlugin;
@@ -13,6 +13,8 @@ use mcrs_minecraft_engine_server::{DimensionWorldsPlugin, ServerCorePlugin, Serv
 use mcrs_minecraft_engine_world::world::sub_app::AddDimensionPlugins;
 use mcrs_minecraft_vanilla_light::LightingPlugin;
 use mcrs_minecraft_vanilla_worldgen::{WorldGenPlugin, WorldgenRegistriesPlugin};
+
+use crate::vanilla_brains::VanillaBrainsPlugin;
 
 /// The vanilla server: the engine's server plugins with every vanilla member, each one a
 /// member that can be disabled or replaced through [`PluginGroup::build`]. A member that needs
@@ -84,12 +86,12 @@ impl Plugin for VanillaEntityPhysicsPlugin {
     }
 }
 
-/// The AI of the mobs in every dimension world.
+/// The AI of the mobs in every dimension world, with the brains of `mcrs_minecraft_goals`.
 pub struct VanillaMobBrainPlugin;
 
 impl Plugin for VanillaMobBrainPlugin {
     fn build(&self, app: &mut App) {
-        app.add_dimension_plugin(MobBrainPlugin::default());
+        app.add_dimension_plugin(VanillaBrainsPlugin);
     }
 }
 
