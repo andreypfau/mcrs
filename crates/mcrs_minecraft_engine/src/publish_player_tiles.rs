@@ -6,7 +6,7 @@ use bevy_ecs::lifecycle::Remove;
 use bevy_ecs::observer::On;
 use bevy_ecs::prelude::{Commands, DetectChanges, Entity, Has, Query, Ref, ResMut, With, Without};
 use bytes::Bytes;
-use mcrs_engine_muxer::{EntityEvent, EntityId, ViewerId};
+use mcrs_engine_muxer::{EntityEvent, EntityId, TileKey, ViewerId};
 use mcrs_minecraft_engine_world::entity::physics::Transform;
 use mcrs_minecraft_engine_world::entity::player::Player;
 use mcrs_minecraft_engine_world::session::{Owner, PlayerSession};
@@ -21,7 +21,6 @@ use crate::game_mode::ListedGameMode;
 use crate::game_profile::GameProfile;
 use crate::hot_ticket::CellCrossing;
 use crate::network_id::player_network_id;
-use crate::player_tiles::PlayerTiles;
 use crate::replicated::Replicated;
 use crate::tile_events::TileEvents;
 
@@ -51,7 +50,7 @@ fn pose(transform: &Transform) -> Pose {
 )]
 pub fn publish_player_tiles(
     mut events: ResMut<TileEvents>,
-    dimensions: Query<&DimensionTypeConfig>,
+    dimensions: Query<(), With<DimensionTypeConfig>>,
     mut players: Query<
         (
             Entity,
@@ -83,10 +82,10 @@ pub fn publish_player_tiles(
         if crossed.is_some() {
             commands.entity(player).remove::<CrossedAt>();
         }
-        let Ok(config) = dimensions.get(dimension.0) else {
+        if !dimensions.contains(dimension.0) {
             continue;
-        };
-        let tile = PlayerTiles::new(config).tile_at(transform.translation);
+        }
+        let tile = TileKey::at(transform.translation);
         let game_mode = game_mode.map(|mode| mode.0).unwrap_or_default();
         let Some(mut replicated) = replicated else {
             let id = player_entity_id(session);

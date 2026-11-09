@@ -19,7 +19,7 @@ use crate::muxer::muxer_stage::{MuxerCall, MuxerStage};
 use crate::muxer::session::SessionConnection;
 #[cfg(feature = "world-access")]
 use crate::muxer::tile_delta_log::{LoggedDeltas, TileDeltaLog};
-use crate::player_tiles::VIEW_RADIUS;
+use crate::view_radius::VIEW_RADIUS;
 
 /// The subscription of each player to the entity muxer of its world.
 #[derive(Default)]

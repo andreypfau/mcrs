@@ -35,6 +35,7 @@ use mcrs_minecraft_engine_world::world::dimension::Dimension;
 use mcrs_minecraft_engine_world::world::storage::view::WorldView;
 use mcrs_minecraft_entity_key::BirthSource;
 use mcrs_minecraft_entity_key::KeyedStream;
+use mcrs_minecraft_entity_key::TileKey;
 use mcrs_minecraft_entity_rows::BodyGrid;
 use mcrs_minecraft_entity_rows::Pass;
 use mcrs_minecraft_entity_rows::RowStore;
@@ -59,7 +60,6 @@ use crate::mob_life::spawn_mobs;
 use crate::mob_spawn_request::MobSpawnRequest;
 use crate::mobs::MobUuids;
 use crate::mobs::Mobs;
-use crate::tile_at::tile_at;
 
 /// The entity pass of a dimension world: the merge point, the life cycle and the freeze in
 /// `DomainInput`, the pass in `Simulate`, and in `Project` the tile moves, then the systems of
@@ -231,7 +231,7 @@ fn stir_changed_blocks<M: Send + Sync + 'static>(
     mut rows: ResMut<RowStore<M>>,
 ) {
     for block in placed.read() {
-        rows.stir(tile_at(block.block_pos.as_dvec3()));
+        rows.stir(TileKey::at(block.block_pos.as_dvec3()));
     }
 }
 

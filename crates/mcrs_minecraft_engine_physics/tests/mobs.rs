@@ -9,9 +9,9 @@ use mcrs_minecraft_engine_physics::FLOOR;
 use mcrs_minecraft_engine_physics::TestScene;
 use mcrs_minecraft_engine_physics::mob_body;
 use mcrs_minecraft_engine_physics::mob_row;
-use mcrs_minecraft_engine_physics::tile_at;
 use mcrs_minecraft_entity::EntityTypeData;
 use mcrs_minecraft_entity_key::EntityKey;
+use mcrs_minecraft_entity_key::TileKey;
 use mcrs_minecraft_entity_rows::MobIntent;
 use mcrs_minecraft_physics::MoveInput;
 use mcrs_minecraft_physics::Steering;
@@ -82,7 +82,7 @@ fn an_intent_steers_a_pig_before_its_step() {
     run(&mut scene, 20, |scene| {
         let at = position(scene, 2);
         scene.rows.steer(
-            tile_at(at),
+            TileKey::at(at),
             MobIntent {
                 steering: Some(forward),
                 yaw: Some(0.0),

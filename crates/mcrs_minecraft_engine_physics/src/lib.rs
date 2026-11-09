@@ -13,7 +13,6 @@ mod mob_spawn_request;
 mod mobs;
 #[cfg(feature = "testing")]
 mod test_scene;
-mod tile_at;
 
 pub use entity_physics_plugin::EntityPhysicsPlugin;
 pub use entity_physics_plugin::ItemStacks;
@@ -36,4 +35,3 @@ pub use mobs::Mobs;
 pub use test_scene::FLOOR;
 #[cfg(feature = "testing")]
 pub use test_scene::TestScene;
-pub use tile_at::tile_at;
