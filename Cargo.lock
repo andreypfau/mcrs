@@ -4882,6 +4882,7 @@ dependencies = [
  "glam",
  "mcrs_minecraft_core",
  "mcrs_minecraft_fixtures",
+ "mcrs_minecraft_random",
  "mcrs_minecraft_volume",
  "mcrs_voxel",
  "serde",
