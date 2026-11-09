@@ -11,7 +11,7 @@ use mcrs_engine_muxer::{
 };
 use mcrs_minecraft_engine_world::session::{PlayerSession, SessionAnchors};
 use mcrs_minecraft_entity_key::TILE_WIDTH;
-use mcrs_minecraft_replication::{Backlog, PlayerCodec, PlayerData, PlayerInput};
+use mcrs_minecraft_replication::{Backlog, EntityCodec, PlayerData, PlayerInput, ReplicationData};
 
 use crate::muxer::latency::Latency;
 use crate::muxer::muxer_link::MuxerLink;
@@ -29,7 +29,7 @@ pub(crate) struct EntityReplication {
     viewers: BTreeMap<ViewerId, WorldPlayer>,
     /// The viewer of each player, by the world it is in.
     players: BTreeMap<WorldPlayer, ViewerId>,
-    inputs: Vec<MuxerInput<PlayerCodec>>,
+    inputs: Vec<MuxerInput<EntityCodec>>,
     #[cfg(feature = "world-access")]
     pub(crate) published_tiles: u64,
 }
@@ -47,7 +47,7 @@ impl EntityReplication {
         &mut self,
         link: &mut Link<MuxerStage>,
         world: WorldId,
-        deltas: TileDeltas<PlayerData>,
+        deltas: TileDeltas<ReplicationData>,
     ) {
         if self.worlds.insert(world) {
             link.send(MuxerCall::Entities(MuxerInput::Open {
@@ -77,11 +77,11 @@ impl EntityReplication {
         world: WorldId,
         tile: TileKey,
         subject: EntityId,
-        event: &EntityEvent<PlayerData>,
+        event: &EntityEvent<ReplicationData>,
     ) {
         let player = WorldPlayer { world, subject };
         match event {
-            EntityEvent::Spawn(PlayerData::Spawn(spawn)) => {
+            EntityEvent::Spawn(ReplicationData::Player(PlayerData::Spawn(spawn))) => {
                 let viewer = spawn.viewer;
                 if let Some(old) = self.viewers.get(&viewer)
                     && old.world != world
@@ -187,7 +187,7 @@ fn subscribe(
     viewer: ViewerId,
     center: TileKey,
     subject: EntityId,
-) -> MuxerInput<PlayerCodec> {
+) -> MuxerInput<EntityCodec> {
     MuxerInput::Subscribe {
         world,
         viewer,
@@ -201,7 +201,7 @@ fn subscribe(
 
 /// Hands the tile deltas of the dimension `label` to the muxer. A player that comes into the
 /// world gets the latency the host knows for it.
-pub fn publish(world: &mut World, label: Entity, deltas: TileDeltas<PlayerData>) {
+pub fn publish(world: &mut World, label: Entity, deltas: TileDeltas<ReplicationData>) {
     #[cfg(feature = "world-access")]
     if let Some(mut log) = world.get_resource_mut::<TileDeltaLog>() {
         log.0.push(LoggedDeltas {
@@ -214,7 +214,7 @@ pub fn publish(world: &mut World, label: Entity, deltas: TileDeltas<PlayerData>)
         .iter()
         .flat_map(|delta| &delta.events)
         .filter_map(|event| match &event.event {
-            EntityEvent::Spawn(PlayerData::Spawn(spawn)) => {
+            EntityEvent::Spawn(ReplicationData::Player(PlayerData::Spawn(spawn))) => {
                 let session = PlayerSession(spawn.viewer.0);
                 Some((session, latency_of(world, session)?))
             }

@@ -995,8 +995,9 @@ update before it: the fall damage made the health entry dirty, which made an upd
 5. **Tile deltas of mobs** (Output stage of the dimension). The engine pass keeps no mover list.
    In each tick, publish one `Move` event for each mob row that ticked, with the position, the
    velocity, the yaw and the on-ground flag. Publish `Spawn` in the tick of the spawn, and `Leave`
-   and `Enter` when `move_rows` moves a row to another tile. The tile delta data gains variants for
-   a mob next to the variants of `PlayerData`, because a muxer link has one codec.
+   and `Enter` when `move_rows` moves a row to another tile. The tile delta data is
+   `ReplicationData`: `PlayerData` for a player or `MobReport` for a mob, because a muxer link has
+   one codec.
 6. **Codec of mobs** (`mcrs_minecraft_replication`). One codec of the world handles players and
    mobs. For each mob subject it keeps the tracker of section 7: the start tick, the position base,
    the last sent packed angles, the last sent velocity and on-ground flag, the update count for
@@ -1004,14 +1005,16 @@ update before it: the fall damage made the health entry dirty, which made an upd
    mob updates do not come from `blob`:
    - `apply` records the event of each mob of the tick.
    - `finish_tick` runs the tracker tick of each mob (TRK-UPD-001 to TRK-UPD-008) and owes the
-     bytes of each update to each viewer in `held_by` of the subject, as for `Joined` today.
+     bytes of each update to each viewer that holds the subject in the hold set of the codec, as for
+     `Joined`.
    - `blob` writes nothing for a mob, and `refresh` and the keyframes do nothing for a mob.
    - `hold` writes the spawn bundle of section 5 and the removal of section 9.
 
-   The tracker reuses `position_delta` of `delta_base.rs`, with the rounding of TRK-WIRE-001, and
-   the packet structs. It does not reuse `DeltaBase::advance` or `Motion`: they drop the steps that
-   do not move, write a constant on-ground flag, send a keyframe each 100 ticks and couple the head
-   to the yaw.
+   The tracker uses `position_delta::encode` of `mcrs_minecraft_protocol_game`, with the rounding
+   of TRK-WIRE-001. It shares the move choice of TRK-UPD-003 (`move_choice.rs`) with
+   `DeltaBase::advance` of the players. It does not reuse `DeltaBase::advance` or `Motion`: they
+   drop the steps that do not move, write a constant on-ground flag, send a keyframe each 100 ticks
+   and couple the head to the yaw.
 7. **Range** (`mcrs_minecraft_engine`). Set `VIEW_RADIUS` to 4 tiles on X and Z (TRK-DEV-004).
    `entity_replication.rs` uses the same radius for the players, so a viewer also subscribes to
    81 tiles of players instead of 49. G1 accepts this cost: a player has the range 160 blocks at

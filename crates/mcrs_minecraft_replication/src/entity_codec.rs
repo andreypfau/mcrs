@@ -1,12 +1,17 @@
+use crate::delivery::Delivery;
 use crate::delta_base::DeltaBase;
 use crate::encode::record;
+use crate::hold_set::HoldSet;
 use crate::list_packets::{Profile, game_mode_packet};
+use crate::mob_report::MobReport;
 use crate::mob_trackers::MobTrackers;
 use crate::motion::Motion;
 use crate::player_data::PlayerData;
 use crate::player_input::PlayerInput;
 use crate::player_list::{Dispatch, Member, PlayerList, ProfileNeed};
 use crate::player_spawn::PlayerSpawn;
+use crate::replication_data::ReplicationData;
+use crate::wire_id::wire_id;
 use bytes::{Bytes, BytesMut};
 use glam::DVec3;
 use mcrs_engine_muxer::{
@@ -20,37 +25,32 @@ use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundBundleDelimi
 use mcrs_minecraft_protocol::{Result, VarInt};
 use mcrs_minecraft_protocol_game::LpVec3;
 use mcrs_minecraft_protocol_game::clientbound::{ClientboundAddEntity, ClientboundRemoveEntities};
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 use std::mem;
 use uuid::Uuid;
 
 /// The Minecraft side of a [`Muxer`](mcrs_engine_muxer::Muxer) for the players and the mobs of
 /// one world. The [`EntityId`] of a subject is its id on the wire.
 ///
-/// It keeps one delta base for each subject and tier, so every viewer of a tier shares its moves,
-/// and the profile entries of each client. The spawn bundle is the same at each tier: the profile
-/// entry and the spawn, with no equipment or entity data yet. Every packet that it gives is a record (see
+/// For a player, it keeps one delta base for each tier, so every viewer of a tier shares its
+/// moves, and the profile entries of each client. The spawn bundle of a player is the same at
+/// each tier: the profile entry and the spawn, with no equipment or entity data yet. A mob has
+/// one tracker that all its viewers share. Every packet that it gives is a record (see
 /// [`record`](crate::record)).
 #[derive(Debug, Default)]
-pub struct PlayerCodec {
+pub struct EntityCodec {
     list: PlayerList,
     subjects: BTreeMap<EntityId, Subject>,
     /// The own subject of each viewer.
     owners: BTreeMap<ViewerId, EntityId>,
-    /// The subjects that each client holds.
-    holds: BTreeMap<ViewerId, BTreeSet<EntityId>>,
-    /// The viewers whose client holds each subject.
-    held_by: BTreeMap<EntityId, BTreeSet<ViewerId>>,
+    holds: HoldSet,
     latency: BTreeMap<ViewerId, i32>,
     tick: u64,
     /// Changes whenever a player joins, leaves or changes tile.
     generation: u64,
     delimiter: Option<Bytes>,
     joined: Vec<Message>,
-    owed: BTreeMap<ViewerId, Vec<Bytes>>,
-    /// The viewers that left the muxer while their own subject is still in this world. They
-    /// get no more bytes from it.
-    forgotten: BTreeSet<ViewerId>,
+    delivery: Delivery,
     dispatches: Vec<Dispatch>,
     mobs: MobTrackers,
 }
@@ -81,17 +81,21 @@ struct Message {
     packet: Bytes,
 }
 
-impl PlayerCodec {
-    fn owe(&mut self, viewer: ViewerId, packet: Bytes) {
-        if !self.forgotten.contains(&viewer) {
-            self.owed.entry(viewer).or_default().push(packet);
+impl EntityCodec {
+    fn delimiter(&mut self) -> Result<Bytes> {
+        if let Some(delimiter) = &self.delimiter {
+            return Ok(delimiter.clone());
         }
+        Ok(self
+            .delimiter
+            .insert(record(&ClientboundBundleDelimiter)?)
+            .clone())
     }
 
     fn join(&mut self, subject: EntityId, spawn: &PlayerSpawn) {
         self.generation = self.generation.wrapping_add(1);
         self.owners.insert(spawn.viewer, subject);
-        self.forgotten.remove(&spawn.viewer);
+        self.delivery.remember(spawn.viewer);
         self.list.join(subject, spawn.viewer.0, spawn.uuid);
         self.subjects.insert(
             subject,
@@ -122,7 +126,7 @@ impl PlayerCodec {
             .map(|holder| holder.viewer)
             .collect();
         for viewer in holders {
-            self.owe(viewer, packet.clone());
+            self.delivery.owe(viewer, packet.clone());
         }
         Ok(())
     }
@@ -135,65 +139,58 @@ impl PlayerCodec {
         let viewer = state.viewer;
         if self.owners.get(&viewer) == Some(&subject) {
             self.owners.remove(&viewer);
-            self.forgotten.remove(&viewer);
+            self.delivery.remember(viewer);
             self.latency.remove(&viewer);
-            for held in self.holds.remove(&viewer).unwrap_or_default() {
-                if let Some(viewers) = self.held_by.get_mut(&held) {
-                    viewers.remove(&viewer);
-                }
-            }
+            let mobs = &self.mobs;
+            self.holds
+                .release_where(viewer, |held| !mobs.contains(held));
         }
-        for holder in self.held_by.remove(&subject).unwrap_or_default() {
-            if let Some(held) = self.holds.get_mut(&holder) {
-                held.remove(&subject);
-            }
-        }
+        self.holds.remove_subject(subject);
         if let Some(packet) = self.list.leave(subject)? {
-            self.owe(viewer, packet);
+            self.delivery.owe(viewer, packet);
         }
         Ok(())
     }
 
-    fn apply_events(&mut self, delta: &TileDelta<PlayerData>) -> Result<()> {
+    fn apply_events(&mut self, delta: &TileDelta<ReplicationData>) -> Result<()> {
         let mut entered = Vec::new();
         for SubjectEvent { subject, event } in &delta.events {
             let subject = *subject;
             match event {
-                EntityEvent::Spawn(PlayerData::Spawn(spawn)) => self.join(subject, spawn),
-                EntityEvent::Spawn(PlayerData::MobSpawn(spawn)) => {
+                EntityEvent::Spawn(ReplicationData::Player(PlayerData::Spawn(spawn))) => {
+                    self.join(subject, spawn);
+                }
+                EntityEvent::Spawn(ReplicationData::Mob(MobReport::Spawn(spawn))) => {
                     self.mobs.spawn(subject, spawn, self.tick);
                 }
-                EntityEvent::Data(PlayerData::MobSignal(signal)) => {
-                    self.mobs.signal(subject, *signal)?;
+                EntityEvent::Data(ReplicationData::Mob(MobReport::Signal(signal))) => {
+                    self.mobs.signal(subject, *signal, &self.holds)?;
                 }
-                EntityEvent::Move(PlayerData::MobMove(state)) => self.mobs.record(subject, *state),
+                EntityEvent::Move(ReplicationData::Mob(MobReport::Move(state))) => {
+                    self.mobs.record(subject, *state);
+                }
                 EntityEvent::Enter { .. } | EntityEvent::Despawn if self.mobs.contains(subject) => {
                     if matches!(event, EntityEvent::Despawn) {
-                        self.mobs.despawn(subject);
+                        self.mobs.despawn(subject, &mut self.holds);
                     }
                 }
-                EntityEvent::Move(PlayerData::Pose(pose)) => {
+                EntityEvent::Move(ReplicationData::Player(PlayerData::Pose(pose))) => {
                     if let Some(state) = self.subjects.get_mut(&subject) {
                         state.motion.record(self.tick, pose);
                     }
                 }
-                EntityEvent::Data(PlayerData::GameMode(game_mode)) => {
+                EntityEvent::Data(ReplicationData::Player(PlayerData::GameMode(game_mode))) => {
                     self.change_game_mode(subject, *game_mode)?;
                 }
-                EntityEvent::Data(PlayerData::Joined(packet)) => self.joined.push(Message {
-                    subject,
-                    packet: packet.clone(),
-                }),
-                EntityEvent::Data(PlayerData::Left(packet)) => {
-                    let holders: Vec<ViewerId> = self
-                        .held_by
-                        .get(&subject)
-                        .into_iter()
-                        .flatten()
-                        .copied()
-                        .collect();
-                    for viewer in holders {
-                        self.owe(viewer, packet.clone());
+                EntityEvent::Data(ReplicationData::Player(PlayerData::Joined(packet))) => {
+                    self.joined.push(Message {
+                        subject,
+                        packet: packet.clone(),
+                    });
+                }
+                EntityEvent::Data(ReplicationData::Player(PlayerData::Left(packet))) => {
+                    for &viewer in self.holds.holders(subject) {
+                        self.delivery.owe(viewer, packet.clone());
                     }
                 }
                 EntityEvent::Enter { .. } => {
@@ -240,17 +237,12 @@ impl PlayerCodec {
     fn release_all(&mut self, viewer: ViewerId, subjects: &[EntityId]) -> Option<Bytes> {
         let own = self.owners.get(&viewer).copied();
         for &subject in subjects {
+            self.holds.remove(viewer, subject);
             if self.mobs.lose(viewer, subject) {
                 continue;
             }
             if let Some(own) = own {
                 self.list.release(own, subject, self.tick);
-            }
-            if let Some(held) = self.holds.get_mut(&viewer) {
-                held.remove(&subject);
-            }
-            if let Some(viewers) = self.held_by.get_mut(&subject) {
-                viewers.remove(&viewer);
             }
         }
         let entity_ids: Vec<VarInt> = subjects.iter().map(|&subject| wire_id(subject)).collect();
@@ -270,13 +262,7 @@ impl PlayerCodec {
         tier: Tier,
         chunks: &mut Vec<Bytes>,
     ) -> Result<()> {
-        let delimiter = match &self.delimiter {
-            Some(delimiter) => delimiter.clone(),
-            None => self
-                .delimiter
-                .insert(record(&ClientboundBundleDelimiter)?)
-                .clone(),
-        };
+        let delimiter = self.delimiter()?;
         let Some(state) = self.subjects.get_mut(&subject) else {
             return Ok(());
         };
@@ -305,8 +291,7 @@ impl PlayerCodec {
         chunks.extend(profile);
         chunks.push(add_player);
         chunks.push(delimiter);
-        self.holds.entry(viewer).or_default().insert(subject);
-        self.held_by.entry(subject).or_default().insert(viewer);
+        self.holds.insert(viewer, subject);
         Ok(())
     }
 
@@ -331,8 +316,7 @@ impl PlayerCodec {
         let sees = |viewer: EntityId, subject: EntityId| {
             subjects
                 .get(&viewer)
-                .and_then(|state| holds.get(&state.viewer))
-                .is_some_and(|held| held.contains(&subject))
+                .is_some_and(|state| holds.contains(state.viewer, subject))
         };
         let result = self.list.update(
             self.tick,
@@ -344,8 +328,7 @@ impl PlayerCodec {
         let mut dispatches = mem::take(&mut self.dispatches);
         for Dispatch { viewer, packet } in dispatches.drain(..) {
             if let Some(state) = self.subjects.get(&viewer) {
-                let viewer = state.viewer;
-                self.owe(viewer, packet);
+                self.delivery.owe(state.viewer, packet);
             }
         }
         self.dispatches = dispatches;
@@ -353,11 +336,11 @@ impl PlayerCodec {
     }
 }
 
-impl ReplicationCodec for PlayerCodec {
-    type Data = PlayerData;
+impl ReplicationCodec for EntityCodec {
+    type Data = ReplicationData;
     type Input = PlayerInput;
 
-    fn apply(&mut self, tick: u64, delta: &TileDelta<PlayerData>) {
+    fn apply(&mut self, tick: u64, delta: &TileDelta<ReplicationData>) {
         self.tick = tick;
         if let Err(error) = self.apply_events(delta) {
             tracing::warn!("the events of a tile did not encode: {error:#}");
@@ -397,7 +380,17 @@ impl ReplicationCodec for PlayerCodec {
     fn hold(&mut self, viewer: ViewerId, change: Hold<'_>, chunks: &mut Vec<Bytes>) {
         match change {
             Hold::Gain { subject, .. } if self.mobs.contains(subject) => {
-                if let Err(error) = self.mobs.gain(viewer, subject, self.tick, chunks) {
+                let gained = self.delimiter().and_then(|delimiter| {
+                    self.mobs.gain(
+                        viewer,
+                        subject,
+                        self.tick,
+                        &delimiter,
+                        &mut self.holds,
+                        chunks,
+                    )
+                });
+                if let Err(error) = gained {
                     tracing::warn!("the spawn bundle of a mob did not encode: {error:#}");
                 }
             }
@@ -411,10 +404,10 @@ impl ReplicationCodec for PlayerCodec {
                 chunks.extend(self.release_all(viewer, subjects));
             }
             Hold::Forget => {
-                self.owed.remove(&viewer);
-                self.mobs.forget(viewer);
+                self.delivery.drop_owed(viewer);
+                self.mobs.forget(viewer, &mut self.holds);
                 if self.owners.contains_key(&viewer) {
-                    self.forgotten.insert(viewer);
+                    self.delivery.forget(viewer);
                 }
             }
         }
@@ -436,37 +429,15 @@ impl ReplicationCodec for PlayerCodec {
         self.tick = tick;
         for Message { subject, packet } in mem::take(&mut self.joined) {
             let own = self.subjects.get(&subject).map(|state| state.viewer);
-            let holders: Vec<ViewerId> = self
-                .held_by
-                .get(&subject)
-                .into_iter()
-                .flatten()
-                .copied()
-                .chain(own)
-                .collect();
-            for viewer in holders {
-                self.owe(viewer, packet.clone());
+            for &viewer in self.holds.holders(subject).iter().chain(own.as_ref()) {
+                self.delivery.owe(viewer, packet.clone());
             }
         }
-        let Self {
-            mobs,
-            owed,
-            forgotten,
-            ..
-        } = self;
-        mobs.finish_tick(tick, &mut |viewer, packet| {
-            if !forgotten.contains(&viewer) {
-                owed.entry(viewer).or_default().push(packet);
-            }
-        });
+        self.mobs.finish_tick(tick, &self.holds, &mut self.delivery);
         if let Err(error) = self.update_list() {
             tracing::warn!("the player list did not encode: {error:#}");
         }
-        out.extend(
-            mem::take(&mut self.owed)
-                .into_iter()
-                .map(|(viewer, chunks)| ViewerBytes { viewer, chunks }),
-        );
+        self.delivery.drain(out);
     }
 
     fn receive(&mut self, input: PlayerInput) {
@@ -491,11 +462,4 @@ fn add_player(id: VarInt, uuid: Uuid, base: &DeltaBase) -> Result<Bytes> {
         head_yaw: base.yaw,
         data: VarInt(0),
     })
-}
-
-/// The id on the wire of `subject`: its low 32 bits. The id of a player is odd and the id of
-/// any other entity is even, so the two kinds keep apart on the wire too.
-#[must_use]
-pub fn wire_id(subject: EntityId) -> VarInt {
-    VarInt(subject.0 as u32 as i32)
 }

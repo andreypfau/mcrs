@@ -21,12 +21,13 @@ use mcrs_minecraft_physics::Dimensions;
 use mcrs_minecraft_physics::EntityState;
 use mcrs_minecraft_physics::Living;
 use mcrs_minecraft_physics::MotionRow;
+use mcrs_minecraft_protocol_game::entity::MetaDataValue;
+use mcrs_minecraft_protocol_game::entity::MetadataEntry;
 use mcrs_minecraft_registries::CurrentRegistries;
 use mcrs_minecraft_registries::Registries;
 use mcrs_minecraft_replication::MobLooks;
 use mcrs_minecraft_replication::MobSignal;
 use mcrs_minecraft_replication::MobState;
-use mcrs_minecraft_replication::MobVariant;
 use mcrs_minecraft_resource::Id;
 use mcrs_minecraft_resource::ResourceLocation;
 
@@ -185,22 +186,25 @@ fn first_looks(
     if !kind.is_ageable() {
         return MobLooks::default();
     }
-    let variant = match kind.entity_type {
-        EntityType::Pig => MobVariant::Pig {
-            variant: None,
-            sound: pick(
-                registries,
-                PIG_SOUND_VARIANT.location(),
-                pig_sound_variant_keys::CLASSIC.location(),
-                stream.unit(0),
-            ),
-        },
-        _ => MobVariant::Plain,
-    };
+    let mut type_entries = Vec::new();
+    if kind.entity_type == EntityType::Pig {
+        let sound = pick(
+            registries,
+            PIG_SOUND_VARIANT.location(),
+            pig_sound_variant_keys::CLASSIC.location(),
+            stream.unit(0),
+        );
+        if let (Some(index), Some(sound)) = (kind.variant_indices.sound_variant, sound) {
+            type_entries.push(MetadataEntry {
+                index,
+                value: MetaDataValue::PigSoundVariant(sound),
+            });
+        }
+    }
     MobLooks {
         no_ai: false,
         left_handed: stream.unit(1) < LEFT_HANDED,
-        variant,
+        type_entries,
     }
 }
 

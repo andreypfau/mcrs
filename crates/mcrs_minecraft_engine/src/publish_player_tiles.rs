@@ -93,25 +93,32 @@ pub fn publish_player_tiles(
             events.push(
                 tile,
                 id,
-                EntityEvent::Spawn(PlayerData::Spawn(PlayerSpawn {
-                    viewer: ViewerId(session.0),
-                    uuid: profile.map_or(Uuid::nil(), |profile| profile.id),
-                    username: profile
-                        .map(|profile| profile.username.clone())
-                        .unwrap_or_default(),
-                    properties: profile
-                        .map(|profile| profile.properties.clone())
-                        .unwrap_or_default(),
-                    pose: pose(&transform),
-                    game_mode,
-                })),
+                EntityEvent::Spawn(
+                    PlayerData::Spawn(PlayerSpawn {
+                        viewer: ViewerId(session.0),
+                        uuid: profile.map_or(Uuid::nil(), |profile| profile.id),
+                        username: profile
+                            .map(|profile| profile.username.clone())
+                            .unwrap_or_default(),
+                        properties: profile
+                            .map(|profile| profile.properties.clone())
+                            .unwrap_or_default(),
+                        pose: pose(&transform),
+                        game_mode,
+                    })
+                    .into(),
+                ),
             );
             if announce {
                 commands.entity(player).remove::<AnnounceJoin>();
                 if let Some(message) =
                     profile.and_then(|profile| presence(profile, "multiplayer.player.joined"))
                 {
-                    events.push(tile, id, EntityEvent::Data(PlayerData::Joined(message)));
+                    events.push(
+                        tile,
+                        id,
+                        EntityEvent::Data(PlayerData::Joined(message).into()),
+                    );
                 }
             }
             commands.entity(player).insert(Replicated {
@@ -133,12 +140,16 @@ pub fn publish_player_tiles(
             events.push(
                 tile,
                 id,
-                EntityEvent::Move(PlayerData::Pose(pose(&transform))),
+                EntityEvent::Move(PlayerData::Pose(pose(&transform)).into()),
             );
         }
         if replicated.game_mode != game_mode {
             replicated.game_mode = game_mode;
-            events.push(tile, id, EntityEvent::Data(PlayerData::GameMode(game_mode)));
+            events.push(
+                tile,
+                id,
+                EntityEvent::Data(PlayerData::GameMode(game_mode).into()),
+            );
         }
     }
 }
@@ -164,7 +175,7 @@ pub fn publish_leave_message(
         events.push(
             replicated.tile,
             replicated.id,
-            EntityEvent::Data(PlayerData::Left(message)),
+            EntityEvent::Data(PlayerData::Left(message).into()),
         );
     }
 }

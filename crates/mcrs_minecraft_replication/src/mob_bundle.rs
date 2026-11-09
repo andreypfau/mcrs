@@ -6,53 +6,59 @@ use mcrs_minecraft_protocol_game::clientbound::{
     AttributeSnapshot, ClientboundSetEntityData, ClientboundUpdateAttributes,
 };
 use mcrs_minecraft_protocol_game::entity::{MetaDataValue, Metadata, MetadataEntry, Pose};
+use mcrs_minecraft_protocol_game::entity_data_index::{
+    HEALTH, MOB_FLAG_LEFT_HANDED, MOB_FLAG_NO_AI, MOB_FLAGS, POSE,
+};
 
-use crate::mob_looks::{MobLooks, MobVariant};
+use crate::mob_looks::MobLooks;
+use crate::mob_state::MobState;
 
-const POSE: u8 = 6;
-const HEALTH: u8 = 9;
-const MOB_FLAGS: u8 = 15;
-const NO_AI: i8 = 1;
-const LEFT_HANDED: i8 = 2;
+/// The living entries of a mob that change in its life.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct LivingEntries {
+    pub(crate) health: f32,
+    /// The pose is `dying`.
+    pub(crate) dying: bool,
+}
+
+impl LivingEntries {
+    pub(crate) fn of(state: &MobState) -> Self {
+        Self {
+            health: state.health,
+            dying: state.dying,
+        }
+    }
+}
+
+impl PartialEq for LivingEntries {
+    /// Compares the bits of the health, as the entry on the wire does.
+    fn eq(&self, other: &Self) -> bool {
+        self.health.to_bits() == other.health.to_bits() && self.dying == other.dying
+    }
+}
 
 /// The entity data of a mob that differ from the defaults, in the order of the indices
-/// (TRK-DATA-002, TRK-DATA-006): its pose, its health, its mob flags and its variant entries.
+/// (TRK-DATA-002, TRK-DATA-006): its pose, its health, its mob flags and the entries of its type.
 #[must_use]
-pub(crate) fn spawn_data(looks: &MobLooks, health: f32, dying: bool) -> Metadata<'static> {
-    let mut entries = Vec::new();
-    if dying {
+pub(crate) fn spawn_data(looks: &MobLooks, living: LivingEntries) -> Metadata<'static> {
+    let mut entries = Vec::with_capacity(3 + looks.type_entries.len());
+    if living.dying {
         entries.push(pose_entry());
     }
-    entries.push(health_entry(health));
-    let flags =
-        if looks.no_ai { NO_AI } else { 0 } | if looks.left_handed { LEFT_HANDED } else { 0 };
+    entries.push(health_entry(living.health));
+    let flags = if looks.no_ai { MOB_FLAG_NO_AI } else { 0 }
+        | if looks.left_handed {
+            MOB_FLAG_LEFT_HANDED
+        } else {
+            0
+        };
     if flags != 0 {
         entries.push(MetadataEntry {
             index: MOB_FLAGS,
             value: MetaDataValue::Byte(flags),
         });
     }
-    let mut entry = |index: u8, value: Option<MetaDataValue<'static>>| {
-        entries.extend(value.map(|value| MetadataEntry { index, value }));
-    };
-    match looks.variant {
-        MobVariant::Plain => {}
-        MobVariant::Pig { variant, sound } => {
-            entry(19, variant.map(MetaDataValue::PigVariant));
-            entry(20, sound.map(MetaDataValue::PigSoundVariant));
-        }
-        MobVariant::Cow { variant, sound } => {
-            entry(18, variant.map(MetaDataValue::CowVariant));
-            entry(19, sound.map(MetaDataValue::CowSoundVariant));
-        }
-        MobVariant::Chicken { variant, sound } => {
-            entry(18, variant.map(MetaDataValue::ChickenVariant));
-            entry(19, sound.map(MetaDataValue::ChickenSoundVariant));
-        }
-        MobVariant::Sheep { wool } => {
-            entry(18, (wool != 0).then_some(MetaDataValue::Byte(wool as i8)));
-        }
-    }
+    entries.extend(looks.type_entries.iter().cloned());
     Metadata(entries)
 }
 
@@ -77,8 +83,7 @@ pub(crate) fn spawn_extras(
     id: VarInt,
     kind: &EntityTypeData,
     looks: &MobLooks,
-    health: f32,
-    dying: bool,
+    living: LivingEntries,
 ) -> Result<Bytes> {
     let movement_speed = kind
         .base_attributes
@@ -90,7 +95,7 @@ pub(crate) fn spawn_extras(
         &mut bytes,
         &ClientboundSetEntityData {
             entity_id: id,
-            metadata: spawn_data(looks, health, dying),
+            metadata: spawn_data(looks, living),
         },
     )?;
     write_record(

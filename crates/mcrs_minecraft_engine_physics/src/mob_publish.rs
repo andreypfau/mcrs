@@ -8,10 +8,11 @@ use mcrs_engine_muxer::EntityId;
 use mcrs_engine_muxer::SubjectEvent;
 use mcrs_engine_muxer::TileKey;
 use mcrs_minecraft_engine::tile_events::TileEvents;
+use mcrs_minecraft_replication::MobReport;
 use mcrs_minecraft_replication::MobSignal;
 use mcrs_minecraft_replication::MobSpawn;
 use mcrs_minecraft_replication::MobState;
-use mcrs_minecraft_replication::PlayerData;
+use mcrs_minecraft_replication::ReplicationData;
 use rustc_hash::FxHashSet;
 use uuid::Uuid;
 
@@ -67,19 +68,22 @@ pub(crate) fn publish_mobs(
         events.push(
             tile_at(now.position),
             id,
-            EntityEvent::Spawn(PlayerData::MobSpawn(MobSpawn {
-                kind: mob.kind,
-                uuid: Uuid::from_u128(mob.uuid),
-                state: start,
-                looks: mob.looks,
-            })),
+            EntityEvent::Spawn(
+                MobReport::Spawn(MobSpawn {
+                    kind: mob.kind,
+                    uuid: Uuid::from_u128(mob.uuid),
+                    state: start,
+                    looks: mob.looks.clone(),
+                })
+                .into(),
+            ),
         );
     };
     for signaled in &changes.signals {
         events.push(
             signaled.at.tile,
             signaled.at.id,
-            EntityEvent::Data(PlayerData::MobSignal(signaled.signal)),
+            EntityEvent::Data(MobReport::Signal(signaled.signal).into()),
         );
     }
     let mut published: Vec<EntityId> = Vec::new();
@@ -113,7 +117,7 @@ pub(crate) fn publish_mobs(
                 events.push(
                     tile_at(moved.state.position),
                     moved.id,
-                    EntityEvent::Move(PlayerData::MobMove(moved.state)),
+                    EntityEvent::Move(MobReport::Move(moved.state).into()),
                 );
                 published.push(moved.id);
             }
@@ -131,7 +135,7 @@ pub(crate) fn publish_mobs(
             events.push(
                 tile_at(state.position),
                 touched.id,
-                EntityEvent::Move(PlayerData::MobMove(state)),
+                EntityEvent::Move(MobReport::Move(state).into()),
             );
         }
     }
@@ -143,7 +147,7 @@ pub(crate) fn publish_mobs(
         events.push(
             removed.tile,
             removed.id,
-            EntityEvent::Data(PlayerData::MobSignal(MobSignal::Removed)),
+            EntityEvent::Data(MobReport::Signal(MobSignal::Removed).into()),
         );
         events.push(removed.tile, removed.id, EntityEvent::Despawn);
     }
@@ -158,7 +162,7 @@ const MOVES_PER_TASK: usize = 1024;
 /// The move events of a run of moved rows, by tile in the order of the run, and the ids of the
 /// moved rows that a writer also touched.
 struct MoveBatches {
-    tiles: Vec<(TileKey, Vec<SubjectEvent<PlayerData>>)>,
+    tiles: Vec<(TileKey, Vec<SubjectEvent<ReplicationData>>)>,
     touched: Vec<EntityId>,
 }
 
@@ -174,7 +178,7 @@ fn move_batches(moved: &[MobMoved], mobs: &Mobs, touched: &FxHashSet<EntityId>) 
         let tile = tile_at(moved.state.position);
         let event = SubjectEvent {
             subject: moved.id,
-            event: EntityEvent::Move(PlayerData::MobMove(moved.state)),
+            event: EntityEvent::Move(MobReport::Move(moved.state).into()),
         };
         match out.tiles.last_mut() {
             Some((last, moves)) if *last == tile => moves.push(event),

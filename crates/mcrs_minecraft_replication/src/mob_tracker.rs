@@ -4,25 +4,19 @@ use mcrs_minecraft_core::Look;
 use mcrs_minecraft_entity::entity_type_keys::EntityType;
 use mcrs_minecraft_protocol::{Result, VarInt, write_record};
 use mcrs_minecraft_protocol_game::clientbound::{
-    ClientboundAddEntity, ClientboundEntityPositionSync, ClientboundMoveEntityPos,
-    ClientboundMoveEntityPosRot, ClientboundMoveEntityRot, ClientboundRotateHead,
+    ClientboundAddEntity, ClientboundEntityPositionSync, ClientboundRotateHead,
     ClientboundSetEntityData, ClientboundSetEntityMotion, DeltaStep, PositionPath, PositionStep,
     VecDelta,
 };
 use mcrs_minecraft_protocol_game::entity::Metadata;
-use mcrs_minecraft_protocol_game::{ByteAngle, LpVec3};
+use mcrs_minecraft_protocol_game::{ByteAngle, LpVec3, position_delta};
 use uuid::Uuid;
 
-use crate::delta_base::{all_or_nothing, position_delta};
-use crate::mob_bundle::{health_entry, pose_entry};
+use crate::delta_base::all_or_nothing;
+use crate::mob_bundle::{LivingEntries, health_entry, pose_entry};
 use crate::mob_state::MobState;
+use crate::move_choice::{Due, MOVED, MoveChoice, POSITION_REFRESH, Resync, UPDATES_PER_SYNC};
 
-/// The squared move, in blocks, from which the position counts as changed (TRK-UPD-003).
-const MOVED: f64 = 7.629_394_5e-6_f32 as f64;
-/// A resting subject sends its position each this many tracker ticks.
-const POSITION_REFRESH: u64 = 60;
-/// The updates after which the next one sends the absolute position.
-const UPDATES_PER_SYNC: u32 = 400;
 /// The squared change of the velocity, in blocks per tick, from which it is sent (TRK-UPD-007).
 const VELOCITY_CHANGE: f64 = 1.0e-7;
 
@@ -36,42 +30,52 @@ pub(crate) struct MobTracker {
     /// The tick of the last tracker tick that ran.
     last: u64,
     latest: MobState,
-    /// The position base.
-    base: DVec3,
-    velocity: DVec3,
-    yaw: ByteAngle,
-    pitch: ByteAngle,
-    head_yaw: ByteAngle,
-    on_ground: bool,
-    health: f32,
-    dying: bool,
+    sent: Sent,
     /// The updates since the last `entity_position_sync`.
     since_sync: u32,
     /// The tracker ticks of the open step.
     open: u32,
 }
 
+/// The state of a mob that its viewers last received.
+#[derive(Clone, Copy, Debug)]
+struct Sent {
+    /// The position base.
+    position: DVec3,
+    velocity: DVec3,
+    yaw: ByteAngle,
+    pitch: ByteAngle,
+    head_yaw: ByteAngle,
+    on_ground: bool,
+    entries: LivingEntries,
+}
+
+impl Sent {
+    fn of(state: &MobState) -> Self {
+        Self {
+            position: state.position,
+            velocity: state.velocity,
+            yaw: ByteAngle::from_degrees(state.yaw),
+            pitch: ByteAngle::from_degrees(state.pitch),
+            head_yaw: ByteAngle::from_degrees(state.head_yaw),
+            on_ground: state.on_ground,
+            entries: LivingEntries::of(state),
+        }
+    }
+}
+
 impl MobTracker {
     /// The tracker of a mob that `state` shows, whose first tracker tick is `tick`.
     pub(crate) fn new(state: MobState, interval: u32, tick: u64) -> Self {
-        let mut tracker = Self {
+        Self {
             interval: u64::from(interval.max(1)),
             start: tick,
             last: tick.wrapping_sub(1),
             latest: state,
-            base: state.position,
-            velocity: state.velocity,
-            yaw: ByteAngle::default(),
-            pitch: ByteAngle::default(),
-            head_yaw: ByteAngle::default(),
-            on_ground: state.on_ground,
-            health: state.health,
-            dying: state.dying,
+            sent: Sent::of(&state),
             since_sync: 0,
             open: 0,
-        };
-        tracker.restart();
-        tracker
+        }
     }
 
     pub(crate) fn latest(&self) -> &MobState {
@@ -79,8 +83,8 @@ impl MobTracker {
     }
 
     /// The health and the dying state that the viewers last received.
-    pub(crate) fn sent_data(&self) -> (f32, bool) {
-        (self.health, self.dying)
+    pub(crate) fn sent_entries(&self) -> LivingEntries {
+        self.sent.entries
     }
 
     pub(crate) fn record(&mut self, state: MobState) {
@@ -96,22 +100,14 @@ impl MobTracker {
     /// Makes the latest state the state that the viewers last received, for the first viewer of
     /// a mob that no client held.
     pub(crate) fn restart(&mut self) {
-        let state = self.latest;
-        self.base = state.position;
-        self.velocity = state.velocity;
-        self.yaw = ByteAngle::from_degrees(state.yaw);
-        self.pitch = ByteAngle::from_degrees(state.pitch);
-        self.head_yaw = ByteAngle::from_degrees(state.head_yaw);
-        self.on_ground = state.on_ground;
-        self.health = state.health;
-        self.dying = state.dying;
+        self.sent = Sent::of(&self.latest);
         self.since_sync = 0;
         self.open = 0;
     }
 
     /// Whether an entity data entry changed after the tracker last sent it (TRK-DATA-005).
     fn dirty(&self) -> bool {
-        self.latest.health.to_bits() != self.health.to_bits() || self.latest.dying != self.dying
+        LivingEntries::of(&self.latest) != self.sent.entries
     }
 
     /// The `add_entity` of the spawn bundle: the base and the last sent velocity and angles.
@@ -125,11 +121,11 @@ impl MobTracker {
             id,
             uuid,
             kind,
-            pos: self.base,
-            movement: LpVec3(self.velocity),
-            pitch: self.pitch,
-            yaw: self.yaw,
-            head_yaw: self.head_yaw,
+            pos: self.sent.position,
+            movement: LpVec3(self.sent.velocity),
+            pitch: self.sent.pitch,
+            yaw: self.sent.yaw,
+            head_yaw: self.sent.head_yaw,
             data: VarInt(0),
         }
     }
@@ -150,7 +146,7 @@ impl MobTracker {
 
     fn update(&mut self, id: VarInt, count: u64, bytes: &mut BytesMut) -> Result<()> {
         let state = self.latest;
-        let change = (state.velocity - self.velocity).length_squared();
+        let change = (state.velocity - self.sent.velocity).length_squared();
         if change > VELOCITY_CHANGE || (change > 0.0 && state.velocity.length_squared() == 0.0) {
             write_record(
                 bytes,
@@ -159,93 +155,64 @@ impl MobTracker {
                     velocity: LpVec3(state.velocity),
                 },
             )?;
-            self.velocity = state.velocity;
+            self.sent.velocity = state.velocity;
         }
         let yaw = ByteAngle::from_degrees(state.yaw);
         let pitch = ByteAngle::from_degrees(state.pitch);
-        let position_due = (state.position - self.base).length_squared() >= MOVED
-            || count.is_multiple_of(POSITION_REFRESH);
-        let rotation_due = (yaw, pitch) != (self.yaw, self.pitch);
-        let delta = self.delta(state.position);
-        let synced = match delta {
-            _ if self.since_sync > UPDATES_PER_SYNC || state.on_ground != self.on_ground => {
-                self.sync(id, bytes)?;
-                true
-            }
-            None if position_due => {
-                self.sync(id, bytes)?;
-                true
-            }
-            Some(delta) if position_due && rotation_due => {
-                write_record(
-                    bytes,
-                    &ClientboundMoveEntityPosRot {
-                        entity_id: id,
-                        delta,
-                        y_rot: yaw,
-                        x_rot: pitch,
-                        on_ground: state.on_ground,
-                    },
-                )?;
-                false
-            }
-            Some(delta) if position_due => {
-                write_record(
-                    bytes,
-                    &ClientboundMoveEntityPos {
-                        entity_id: id,
-                        delta,
-                        on_ground: state.on_ground,
-                    },
-                )?;
-                false
-            }
-            _ if rotation_due => {
-                write_record(
-                    bytes,
-                    &ClientboundMoveEntityRot {
-                        entity_id: id,
-                        on_ground: state.on_ground,
-                        y_rot: yaw,
-                        x_rot: pitch,
-                    },
-                )?;
-                false
-            }
-            _ => false,
+        let resync = if self.since_sync > UPDATES_PER_SYNC || state.on_ground != self.sent.on_ground
+        {
+            Resync::Due
+        } else {
+            Resync::NotDue
         };
-        if position_due {
-            self.base = state.position;
+        let due = Due {
+            position: (state.position - self.sent.position).length_squared() >= MOVED
+                || count.is_multiple_of(POSITION_REFRESH),
+            rotation: (yaw, pitch) != (self.sent.yaw, self.sent.pitch),
+        };
+        let synced = match MoveChoice::choose(resync, due, || self.delta(state.position)) {
+            MoveChoice::Sync => {
+                self.sync(id, bytes)?;
+                true
+            }
+            MoveChoice::Relative(relative) => {
+                relative.write(id, yaw, pitch, state.on_ground, bytes)?;
+                false
+            }
+            MoveChoice::Still => false,
+        };
+        if due.position {
+            self.sent.position = state.position;
         }
-        if rotation_due {
-            self.yaw = yaw;
-            self.pitch = pitch;
+        if due.rotation {
+            self.sent.yaw = yaw;
+            self.sent.pitch = pitch;
         }
         self.since_sync = if synced {
             0
         } else {
             self.since_sync.saturating_add(1)
         };
-        if self.dirty() {
-            let mut entries = Vec::new();
-            if state.dying != self.dying {
-                entries.push(pose_entry());
+        let entries = LivingEntries::of(&state);
+        if entries != self.sent.entries {
+            let mut changed = Vec::new();
+            if entries.dying != self.sent.entries.dying {
+                changed.push(pose_entry());
             }
-            if state.health.to_bits() != self.health.to_bits() {
-                entries.push(health_entry(state.health));
+            if entries.health.to_bits() != self.sent.entries.health.to_bits() {
+                changed.push(health_entry(entries.health));
             }
             write_record(
                 bytes,
                 &ClientboundSetEntityData {
                     entity_id: id,
-                    metadata: Metadata(entries),
+                    metadata: Metadata(changed),
                 },
             )?;
-            self.health = state.health;
-            self.dying = state.dying;
+            self.sent.entries = entries;
         }
         let head_yaw = ByteAngle::from_degrees(state.head_yaw);
-        if head_yaw != self.head_yaw {
+        if head_yaw != self.sent.head_yaw {
             write_record(
                 bytes,
                 &ClientboundRotateHead {
@@ -253,7 +220,7 @@ impl MobTracker {
                     y_head_rot: head_yaw,
                 },
             )?;
-            self.head_yaw = head_yaw;
+            self.sent.head_yaw = head_yaw;
         }
         self.open = 0;
         Ok(())
@@ -263,38 +230,39 @@ impl MobTracker {
     /// the velocity, the head yaw and the entity data. A client that missed updates holds the
     /// same state as every other viewer after it, and the next relative move fits its base.
     pub(crate) fn resend(&self, id: VarInt, bytes: &mut BytesMut) -> Result<()> {
+        let sent = &self.sent;
         all_or_nothing(bytes, |bytes| {
             write_record(
                 bytes,
                 &ClientboundEntityPositionSync {
                     entity_id: id,
-                    position: PositionPath::Linear(self.base),
+                    position: PositionPath::Linear(sent.position),
                     look: Look {
-                        yaw: self.yaw.to_degrees(),
-                        pitch: self.pitch.to_degrees(),
+                        yaw: sent.yaw.to_degrees(),
+                        pitch: sent.pitch.to_degrees(),
                     },
-                    on_ground: self.on_ground,
+                    on_ground: sent.on_ground,
                 },
             )?;
             write_record(
                 bytes,
                 &ClientboundSetEntityMotion {
                     entity_id: id,
-                    velocity: LpVec3(self.velocity),
+                    velocity: LpVec3(sent.velocity),
                 },
             )?;
             write_record(
                 bytes,
                 &ClientboundRotateHead {
                     entity_id: id,
-                    y_head_rot: self.head_yaw,
+                    y_head_rot: sent.head_yaw,
                 },
             )?;
             let mut entries = Vec::new();
-            if self.dying {
+            if sent.entries.dying {
                 entries.push(pose_entry());
             }
-            entries.push(health_entry(self.health));
+            entries.push(health_entry(sent.entries.health));
             write_record(
                 bytes,
                 &ClientboundSetEntityData {
@@ -308,7 +276,7 @@ impl MobTracker {
     /// The relative path from the base to `position`: one step of the open ticks, or a linear
     /// move when the step is empty (TRK-UPD-005). `None` when it does not fit (TRK-WIRE-001).
     fn delta(&self, position: DVec3) -> Option<VecDelta> {
-        let delta = position_delta(self.base, position)?;
+        let delta = position_delta::encode(self.sent.position, position)?;
         Some(match self.open {
             0 => VecDelta::Linear(delta),
             ticks => VecDelta::Stepped {
@@ -346,10 +314,10 @@ impl MobTracker {
                 on_ground: state.on_ground,
             },
         )?;
-        self.base = state.position;
-        self.yaw = ByteAngle::from_degrees(state.yaw);
-        self.pitch = ByteAngle::from_degrees(state.pitch);
-        self.on_ground = state.on_ground;
+        self.sent.position = state.position;
+        self.sent.yaw = ByteAngle::from_degrees(state.yaw);
+        self.sent.pitch = ByteAngle::from_degrees(state.pitch);
+        self.sent.on_ground = state.on_ground;
         Ok(())
     }
 }
@@ -360,6 +328,7 @@ mod tests {
 
     use super::*;
     use crate::encode::record;
+    use mcrs_minecraft_protocol_game::clientbound::ClientboundMoveEntityPos;
 
     const ID: VarInt = VarInt(51);
     const FLOOR: f64 = -60.0;
