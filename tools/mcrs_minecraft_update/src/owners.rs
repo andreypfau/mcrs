@@ -15,12 +15,12 @@ pub const OWNERS: &[Owner] = &[
     Owner {
         registry: "minecraft:timeline",
         krate: "mcrs_minecraft_environment",
-        value: ValueType::Defined("crate::timeline::Timeline"),
+        value: ValueType::Defined("crate::Timeline"),
     },
     Owner {
         registry: "minecraft:world_clock",
         krate: "mcrs_minecraft_environment",
-        value: ValueType::Defined("crate::world_clock::WorldClock"),
+        value: ValueType::Defined("crate::WorldClock"),
     },
     Owner {
         registry: "minecraft:banner_pattern",

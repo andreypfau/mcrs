@@ -15,8 +15,7 @@ impl Registered for crate::environment_attribute_keys::EnvironmentAttribute {
     const REGISTRY: RegistryKey<Self> = ENVIRONMENT_ATTRIBUTE;
 }
 
-pub const TIMELINE: RegistryKey<crate::Timeline> =
-    RegistryKey::new(rl!("minecraft:timeline"));
+pub const TIMELINE: RegistryKey<crate::Timeline> = RegistryKey::new(rl!("minecraft:timeline"));
 impl Registered for crate::Timeline {
     const REGISTRY: RegistryKey<Self> = TIMELINE;
 }

@@ -3,9 +3,7 @@
 use mcrs_minecraft_resource::{TagKey, rl};
 
 pub const IN_END: TagKey<'static, crate::Timeline> = TagKey::new(rl!("minecraft:in_end"));
-pub const IN_NETHER: TagKey<'static, crate::Timeline> =
-    TagKey::new(rl!("minecraft:in_nether"));
+pub const IN_NETHER: TagKey<'static, crate::Timeline> = TagKey::new(rl!("minecraft:in_nether"));
 pub const IN_OVERWORLD: TagKey<'static, crate::Timeline> =
     TagKey::new(rl!("minecraft:in_overworld"));
-pub const UNIVERSAL: TagKey<'static, crate::Timeline> =
-    TagKey::new(rl!("minecraft:universal"));
+pub const UNIVERSAL: TagKey<'static, crate::Timeline> = TagKey::new(rl!("minecraft:universal"));
