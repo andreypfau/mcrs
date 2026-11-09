@@ -2,12 +2,12 @@ use std::collections::HashMap;
 
 use glam::{IVec3, Vec3};
 use mcrs_minecraft_core::Direction;
+use mcrs_minecraft_fixtures::fixture;
 use mcrs_minecraft_mesh::smooth_light::{
     self, CellLight, LightState, Sample, VertexLight, VertexValues,
 };
 use serde::Deserialize;
 
-const GOLDEN: &str = include_str!("../fixtures/vanilla/block_smooth_light.json");
 
 #[derive(Deserialize)]
 struct Golden {
@@ -184,7 +184,7 @@ fn check(case: &Case, palette: &[PaletteEntry]) -> Vec<String> {
 
 #[test]
 fn vertex_values_match_the_game() {
-    let golden: Golden = serde_json::from_str(GOLDEN).expect("the golden artefact parses");
+    let golden: Golden = serde_json::from_str(&fixture("block_smooth_light").text()).expect("the golden artefact parses");
     let mismatches: Vec<String> = golden
         .cases
         .iter()

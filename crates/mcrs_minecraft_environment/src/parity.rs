@@ -2,6 +2,7 @@
 
 use std::sync::LazyLock;
 
+use mcrs_minecraft_fixtures::fixture;
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_registries::Named;
@@ -15,12 +16,7 @@ use crate::timeline::{Easing, NamedEasing, Timeline};
 use crate::world_clock::{ClockTime, ClockTimeMarker};
 
 static ARTEFACT: LazyLock<Value> = LazyLock::new(|| {
-    let bytes = std::fs::read(concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/tests/fixtures/vanilla/environment.json"
-    ))
-    .unwrap();
-    serde_json::from_slice(&bytes).unwrap()
+    serde_json::from_slice(&fixture("environment").bytes()).unwrap()
 });
 
 fn section(name: &str) -> &'static Value {

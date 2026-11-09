@@ -3,6 +3,7 @@
 use std::sync::LazyLock;
 
 use mcrs_minecraft_core::numeric;
+use mcrs_minecraft_fixtures::fixture;
 use serde::Deserialize;
 use sha2::{Digest, Sha256};
 
@@ -47,8 +48,7 @@ struct Map {
 }
 
 static ARTEFACT: LazyLock<Artefact> = LazyLock::new(|| {
-    let text = include_str!("../fixtures/vanilla/numeric.json");
-    serde_json::from_str(text).unwrap()
+    serde_json::from_str(&fixture("numeric").text()).unwrap()
 });
 
 fn f32_of(hex: &str) -> f32 {

@@ -77,9 +77,10 @@ struct Record {
 /// Scores each frame of the vanilla record of `scene` and writes its FLIP error image to
 /// `<report>/<scene>.<frame>.flip.png`.
 pub fn judge(scene: &str, paths: &Paths) -> Vec<Score> {
-    let records_path = paths.vanilla_frames.join(format!("{scene}.records.json"));
-    let text = std::fs::read_to_string(&records_path)
-        .unwrap_or_else(|error| panic!("cannot read {}: {error}", records_path.display()));
+    let text = paths
+        .vanilla_frames
+        .file(&format!("{scene}.records.json"))
+        .text();
     let records: Records = serde_json::from_str(&text).expect("a record lists its frames");
     std::fs::create_dir_all(paths.report()).expect("the report directory can be created");
     let prefix = format!("{scene}.");
@@ -98,17 +99,13 @@ pub fn judge(scene: &str, paths: &Paths) -> Vec<Score> {
 }
 
 fn score(scene: &str, frame: &str, paths: &Paths) -> Score {
-    let vanilla = read_rgb(&paths.vanilla_frames.join(format!("{scene}.{frame}.png")));
+    let vanilla = vanilla_rgb(paths, &format!("{scene}.{frame}.png"));
     let background_name = if frame.ends_with(BACKGROUND) {
         frame.to_owned()
     } else {
         format!("{frame}{BACKGROUND}")
     };
-    let background = read_rgb(
-        &paths
-            .vanilla_frames
-            .join(format!("{scene}.{background_name}.png")),
-    );
+    let background = vanilla_rgb(paths, &format!("{scene}.{background_name}.png"));
     let mcrs = read_rgb(&paths.frames.join(scene).join(format!("{frame}.png")));
     assert_eq!(
         mcrs.dimensions(),
@@ -188,6 +185,12 @@ fn entity_mask(frame: &RgbImage, background: &RgbImage) -> Vec<bool> {
         }
     }
     mask
+}
+
+fn vanilla_rgb(paths: &Paths, name: &str) -> RgbImage {
+    image::load_from_memory(&paths.vanilla_frames.file(name).bytes())
+        .unwrap_or_else(|error| panic!("cannot decode {name}: {error}"))
+        .into_rgb8()
 }
 
 fn read_rgb(path: &Path) -> RgbImage {

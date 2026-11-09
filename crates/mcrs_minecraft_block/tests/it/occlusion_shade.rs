@@ -1,15 +1,12 @@
 use std::collections::HashMap;
 
 use mcrs_minecraft_block::definition::{BlockDefinitions, BlockStateFlags};
+use mcrs_minecraft_fixtures::fixture;
 use mcrs_voxel::BlockStateId;
 use serde::Deserialize;
 
 use crate::common::{assert_no_mismatches, corpus};
 
-const ARTEFACT: &str = include_str!(concat!(
-    env!("CARGO_MANIFEST_DIR"),
-    "/../mcrs_minecraft_mesh/tests/fixtures/vanilla/block_occlusion_shade.json"
-));
 
 #[derive(Deserialize)]
 struct Artefact {
@@ -45,7 +42,7 @@ fn state_name(definitions: &BlockDefinitions, state: BlockStateId) -> String {
 
 #[test]
 fn each_state_has_the_occlusion_shade_of_the_game() {
-    let artefact: Artefact = serde_json::from_str(ARTEFACT).expect("the shade artefact parses");
+    let artefact: Artefact = serde_json::from_str(&fixture("block_occlusion_shade").text()).expect("the shade artefact parses");
     let mut exceptions: HashMap<&str, &Exception> = artefact
         .exceptions
         .iter()

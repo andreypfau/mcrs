@@ -1,5 +1,3 @@
-use std::path::{Path, PathBuf};
-
 use serde::Deserialize;
 
 #[derive(Deserialize)]
@@ -48,12 +46,8 @@ pub struct Face {
 }
 
 impl ModelArtefact {
-    pub fn read() -> Self {
-        let path = fixtures().join("entity_models.json");
-        let text = std::fs::read_to_string(path)
-            .unwrap()
-            .replace("NaN", "null");
-        serde_json::from_str(&text).unwrap()
+    pub fn parse(text: &str) -> Self {
+        serde_json::from_str(&text.replace("NaN", "null")).unwrap()
     }
 
     pub fn layer_entry(&self, model: &str, layer: &str) -> &LayerRecord {
@@ -62,8 +56,4 @@ impl ModelArtefact {
             .find(|entry| entry.model == model && entry.layer == layer)
             .unwrap_or_else(|| panic!("the model artefact has no {model} / {layer}"))
     }
-}
-
-fn fixtures() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR")).join("../mcrs_minecraft_model/tests/fixtures/vanilla")
 }

@@ -8,9 +8,10 @@ use mcrs_minecraft_model::block_state_file::{MISSING_MODEL, Variant};
 use mcrs_minecraft_model::model_file::{DisplayContext, GuiLight};
 use mcrs_minecraft_model::model_resolver::ModelResolver;
 use mcrs_minecraft_model::property_table::{PropertyDomain, PropertyTable};
+use mcrs_minecraft_fixtures::fixture;
 use serde::Deserialize;
 
-use crate::client_pack::{artefact, client_pack};
+use crate::client_pack::client_pack;
 
 const DISPLAY_TOLERANCE: f32 = 1e-6;
 
@@ -127,7 +128,7 @@ fn entry(variant: &Variant) -> VariantEntry {
 
 #[test]
 fn block_models_agree_with_the_reference_client() {
-    let artefact: ModelsArtefact = artefact("block_models.json");
+    let artefact: ModelsArtefact = serde_json::from_str(&fixture("block_models").text()).unwrap();
     let mut models = BlockModels::new(client_pack());
     selected_parts_agree(&artefact, &mut models);
     chosen_variants_agree(&artefact, &mut models);

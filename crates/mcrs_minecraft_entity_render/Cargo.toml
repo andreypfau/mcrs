@@ -37,6 +37,7 @@ mcrs_molang_wgsl.workspace = true
 wgpu = { version = "29", default-features = false, features = ["wgsl"] }
 
 [dev-dependencies]
+mcrs_minecraft_fixtures.workspace = true
 futures-lite = "2"
 image = { version = "0.25", default-features = false, features = ["png"] }
 mcrs_minecraft_client_jar.workspace = true

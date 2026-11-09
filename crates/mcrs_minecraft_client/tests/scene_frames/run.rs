@@ -1,6 +1,7 @@
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
+use mcrs_minecraft_fixtures::{Fixture, fixture};
 use serde::Deserialize;
 
 use crate::client::{McrsClient, workspace_root};
@@ -18,7 +19,7 @@ const TICK: Duration = Duration::from_millis(50);
 /// Where a run reads its inputs and writes its frames.
 pub struct Paths {
     pub scenes: PathBuf,
-    pub vanilla_frames: PathBuf,
+    pub vanilla_frames: Fixture,
     pub frames: PathBuf,
     pub target: PathBuf,
 }
@@ -32,8 +33,7 @@ impl Paths {
             .to_owned();
         Self {
             scenes: root.join("tools/scenes"),
-            vanilla_frames: Path::new(env!("CARGO_MANIFEST_DIR"))
-                .join("tests/fixtures/vanilla/frames"),
+            vanilla_frames: fixture("client_frames"),
             frames: target.join("scene-frames"),
             target,
         }
@@ -68,11 +68,6 @@ pub fn capture(scene: &str, paths: &Paths, entities: Entities) -> Entities {
         .iter()
         .any(|step| matches!(step, Action::Pose { .. }));
     let entities = if has_pose { Entities::Record } else { entities };
-    let record = (entities == Entities::Record).then(|| {
-        paths
-            .vanilla_frames
-            .join(format!("{}.records.json", scene.name))
-    });
     let knobs =
         options::knobs(&scene.options).unwrap_or_else(|error| panic!("{}: {error}", scene.name));
     let out = paths.frames.join(&scene.name);
@@ -80,6 +75,13 @@ pub fn capture(scene: &str, paths: &Paths, entities: Entities) -> Entities {
         std::fs::remove_dir_all(&out).expect("the frames of the last run can be removed");
     }
     std::fs::create_dir_all(&out).expect("the frame directory can be created");
+    let record = (entities == Entities::Record).then(|| {
+        let name = format!("{}.records.json", scene.name);
+        let path = out.join(&name);
+        std::fs::write(&path, paths.vanilla_frames.file(&name).bytes())
+            .expect("the vanilla record can be copied to the frame directory");
+        path
+    });
 
     let mut server = VanillaServer::start(&server_jar(paths), &out.join("server"), &scene.world);
     let mut client = McrsClient::start(

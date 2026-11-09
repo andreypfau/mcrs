@@ -1,5 +1,4 @@
 use std::collections::BTreeMap;
-use std::path::{Path, PathBuf};
 
 use serde::Deserialize;
 
@@ -64,8 +63,8 @@ pub struct PartPose {
 }
 
 impl ClipArtefact {
-    pub fn read() -> Self {
-        read_json("entity_animations.json")
+    pub fn parse(text: &str) -> Self {
+        serde_json::from_str(text).unwrap()
     }
 
     pub fn clip(&self, id: &str) -> &ClipRecord {
@@ -77,16 +76,22 @@ impl ClipArtefact {
 }
 
 impl PoseArtefact {
-    pub fn read() -> Self {
-        read_json("entity_poses.json")
+    pub fn parse(text: &str) -> Self {
+        serde_json::from_str(text).unwrap()
     }
 }
 
-fn read_json<T: serde::de::DeserializeOwned>(name: &str) -> T {
-    let text = std::fs::read_to_string(fixtures().join(name)).unwrap();
-    serde_json::from_str(&text).unwrap()
-}
-
-fn fixtures() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR")).join("../mcrs_minecraft_model/tests/fixtures/vanilla")
+#[test]
+fn the_pose_artefact_has_each_case_of_the_pig_and_the_frog() {
+    let artefact = PoseArtefact::parse(&mcrs_minecraft_fixtures::fixture("entity_poses").text());
+    let frog_cases = artefact
+        .cases
+        .iter()
+        .filter(|case| case.model == "minecraft:frog")
+        .count();
+    assert_eq!(
+        (artefact.cases.len() - frog_cases, frog_cases),
+        (432, 59),
+        "the artefact has each case"
+    );
 }

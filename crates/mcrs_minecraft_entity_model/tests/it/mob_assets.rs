@@ -5,6 +5,7 @@ use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
 use mcrs_minecraft_entity_model::GeometryFile;
+use mcrs_minecraft_fixtures::fixture;
 
 use crate::artefact::ModelArtefact;
 use crate::convert::{self, Rules};
@@ -63,7 +64,7 @@ fn geometry_file(artefact: &ModelArtefact, sources: &[Source]) -> String {
 
 /// Each generated file, keyed by its path below `assets/`.
 fn generate() -> BTreeMap<PathBuf, String> {
-    let artefact = ModelArtefact::read();
+    let artefact = ModelArtefact::parse(&fixture("entity_models").text());
     let directory = Path::new(GEOMETRY_DIRECTORY);
     BTreeMap::from([
         (directory.join("pig.json"), geometry_file(&artefact, &PIG)),

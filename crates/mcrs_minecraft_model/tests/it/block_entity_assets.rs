@@ -4,6 +4,7 @@
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
+use mcrs_minecraft_fixtures::fixture;
 use serde::Serialize;
 
 use crate::artefact::{Artefacts, Cube, LayerRecord, Part, PartTransform};
@@ -363,7 +364,10 @@ fn collapse_number_arrays(pretty: &str) -> String {
 
 /// Each generated file, keyed by its path below `assets/`.
 fn generate() -> BTreeMap<PathBuf, String> {
-    let artefacts = Artefacts::read();
+    let artefacts = Artefacts::parse(
+        &fixture("entity_models").text(),
+        &fixture("block_entity_poses").text(),
+    );
     let mut files = BTreeMap::new();
     for source in &block_entity_shapes::GEOMETRIES {
         let path = Path::new(GEOMETRY_DIRECTORY).join(format!("{}.json", source.identifier));

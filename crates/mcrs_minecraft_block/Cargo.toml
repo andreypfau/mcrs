@@ -41,6 +41,7 @@ bevy = [
 ]
 
 [dev-dependencies]
+mcrs_minecraft_fixtures.workspace = true
 bevy_app.workspace = true
 bevy_asset.workspace = true
 mcrs_minecraft_block = { workspace = true, features = ["bevy"] }

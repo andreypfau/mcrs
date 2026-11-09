@@ -6,13 +6,12 @@
 //! without them: the ticks of a frozen world, the body and head of a pig that walks straight,
 //! and the walk accumulator against the distance that the pig covered.
 
-use std::path::PathBuf;
-
 use glam::DVec3;
 use mcrs_minecraft_client_entity::FrameValues;
 use mcrs_minecraft_client_entity::walk::{self, Walk};
 use mcrs_minecraft_core::Look;
 use mcrs_minecraft_entity::entity_type_keys::EntityType;
+use mcrs_minecraft_fixtures::fixture;
 use mcrs_minecraft_protocol::VarInt;
 use mcrs_minecraft_protocol_game::PositionFlags;
 use mcrs_minecraft_protocol_game::clientbound::{
@@ -65,10 +64,9 @@ impl RecordedPig {
 }
 
 fn recorded_pigs() -> Vec<RecordedPig> {
-    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../mcrs_minecraft_client/tests/fixtures/vanilla/frames/pig_walk.records.json");
-    let text = std::fs::read_to_string(&path)
-        .unwrap_or_else(|error| panic!("reading {}: {error}", path.display()));
+    let text = fixture("client_frames")
+        .file("pig_walk.records.json")
+        .text();
     let record: Record = serde_json::from_str(&text).expect("the record has the frame layout");
     record
         .frames

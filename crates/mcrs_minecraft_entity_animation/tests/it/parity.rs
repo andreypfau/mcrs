@@ -6,6 +6,7 @@ use mcrs_minecraft_entity_animation::{
     EntityAnimation, EntityQuery, Pose, PoseBinding, QuerySource, Rig,
 };
 use mcrs_minecraft_entity_model::BakedGeometry;
+use mcrs_minecraft_fixtures::fixture;
 use mcrs_molang::{ScalarVm, Value, string_hash};
 
 use crate::artefact::{Inputs, PoseArtefact, PoseCase};
@@ -233,7 +234,7 @@ fn the_pig_and_the_frog_agree_with_each_case_of_the_pose_artefact() {
         rig: pack::rig("frog"),
         geometries: pack::geometries("frog"),
     };
-    let artefact = PoseArtefact::read();
+    let artefact = PoseArtefact::parse(&fixture("entity_poses").text());
     let mut vm = ScalarVm::new();
     let mut pig_errors = Errors::default();
     let mut frog_errors = Errors::default();
@@ -249,9 +250,4 @@ fn the_pig_and_the_frog_agree_with_each_case_of_the_pose_artefact() {
     }
     println!("pig: {pig_cases} cases, max error {pig_errors:?}");
     println!("frog: {frog_cases} cases, max error {frog_errors:?}");
-    assert_eq!(
-        (pig_cases, frog_cases),
-        (432, 59),
-        "the artefact has each case"
-    );
 }

@@ -5,11 +5,10 @@
 //! packet: only packets that arrive while no entity ticks can shift between two runs, and those
 //! packets cannot change a row.
 
-use std::path::PathBuf;
-
 use glam::DVec3;
 use mcrs_minecraft_core::Look;
 use mcrs_minecraft_entity::entity_type_keys::EntityType;
+use mcrs_minecraft_fixtures::fixture;
 use mcrs_minecraft_protocol::VarInt;
 use mcrs_minecraft_protocol_game::clientbound::{
     ClientboundAddEntity, ClientboundDamageEvent, ClientboundEntityEvent,
@@ -223,12 +222,8 @@ struct TickingStep {
 }
 
 fn read_artefact<T: DeserializeOwned>(file: &str) -> T {
-    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../mcrs_minecraft_client/tests/fixtures/vanilla/frames")
-        .join(file);
-    let text = std::fs::read_to_string(&path)
-        .unwrap_or_else(|error| panic!("reading {}: {error}", path.display()));
-    serde_json::from_str(&text).unwrap_or_else(|error| panic!("{}: {error}", path.display()))
+    let text = fixture("client_frames").file(file).text();
+    serde_json::from_str(&text).unwrap_or_else(|error| panic!("{file}: {error}"))
 }
 
 fn motion_delta(delta: &RecordedDelta) -> VecDelta {

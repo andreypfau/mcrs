@@ -11,7 +11,6 @@
 mod support;
 
 use std::collections::{BTreeMap, HashMap};
-use std::path::Path;
 
 use glam::{Affine3A, Mat3, Vec3, Vec4};
 use mcrs_minecraft_entity_animation::{
@@ -21,6 +20,7 @@ use mcrs_minecraft_entity_render::{
     CULL_VALID, Capacities, CullRecord, DefinitionTables, EntityGpu, EntityLibrary, FrameUniform,
     PackEntity, SlotArena, StateRecord, TickRecord, f16_up, input_record,
 };
+use mcrs_minecraft_fixtures::fixture;
 use mcrs_molang::{ScalarVm, Value, string_hash};
 use serde::Deserialize;
 
@@ -382,12 +382,7 @@ fn the_gpu_pose_of_each_case_agrees_with_the_cpu_animation() {
             definition.program
         );
     }
-    let text = std::fs::read_to_string(
-        Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("../mcrs_minecraft_model/tests/fixtures/vanilla/entity_poses.json"),
-    )
-    .unwrap();
-    let artefact: PoseArtefact = serde_json::from_str(&text).unwrap();
+    let artefact: PoseArtefact = serde_json::from_str(&fixture("entity_poses").text()).unwrap();
     let mut arena = SlotArena::new();
     let mut vm = ScalarVm::new();
     let mut slots: HashMap<u32, Slot<'_>> = HashMap::new();

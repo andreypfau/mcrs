@@ -5,6 +5,7 @@ use std::collections::{BTreeMap, HashMap};
 use std::path::Path;
 
 use bevy::math::{DMat3, DMat4, DVec3, Vec3};
+use mcrs_minecraft_fixtures::fixture;
 use mcrs_minecraft_model::block_entity_model::{
     BlockEntityModels, DATA_DIRECTORY, GEOMETRY_DIRECTORY, ShapeQuad,
 };
@@ -224,7 +225,10 @@ fn take_quads(
 
 #[test]
 fn baked_static_block_entities_agree_with_the_artefacts() {
-    let artefacts = Artefacts::read();
+    let artefacts = Artefacts::parse(
+        &fixture("entity_models").text(),
+        &fixture("block_entity_poses").text(),
+    );
     let blocks = block_entity_shapes::all();
     let models = models(&blocks);
     assert_eq!(models.errors(), [] as [String; 0]);

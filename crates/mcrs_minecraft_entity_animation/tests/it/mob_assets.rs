@@ -3,6 +3,8 @@
 
 use std::fmt::Write;
 
+use mcrs_minecraft_fixtures::fixture;
+
 use crate::artefact::{ChannelRecord, ClipArtefact, ClipRecord, KeyframeRecord};
 use crate::pack;
 
@@ -159,7 +161,7 @@ fn clip(out: &mut String, record: &ClipRecord, settings: &Settings) {
 }
 
 fn generate() -> String {
-    let artefact = ClipArtefact::read();
+    let artefact = ClipArtefact::parse(&fixture("entity_animations").text());
     let mut out = String::from("{\n  \"format_version\": \"1.8.0\",\n  \"animations\": {\n");
     for (index, settings) in FROG.iter().enumerate() {
         clip(&mut out, artefact.clip(settings.id), settings);

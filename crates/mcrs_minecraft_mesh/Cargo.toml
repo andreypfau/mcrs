@@ -18,5 +18,6 @@ mcrs_minecraft_core.workspace = true
 mcrs_minecraft_volume.workspace = true
 
 [dev-dependencies]
+mcrs_minecraft_fixtures.workspace = true
 serde.workspace = true
 serde_json.workspace = true

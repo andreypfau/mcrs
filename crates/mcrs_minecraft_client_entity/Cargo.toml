@@ -24,6 +24,7 @@ mcrs_minecraft_resource.workspace = true
 uuid.workspace = true
 
 [dev-dependencies]
+mcrs_minecraft_fixtures.workspace = true
 mcrs_minecraft_core.workspace = true
 mcrs_minecraft_protocol.workspace = true
 serde = { workspace = true, features = ["derive"] }

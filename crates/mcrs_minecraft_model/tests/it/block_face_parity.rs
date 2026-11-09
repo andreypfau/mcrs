@@ -6,9 +6,10 @@ use mcrs_minecraft_core::Direction;
 use mcrs_minecraft_model::face_bake::{ElementFace, VariantTransform, bake_elements};
 use mcrs_minecraft_model::model_file::{ModelFile, direction_named};
 use mcrs_minecraft_model::resource_set::resource_path;
+use mcrs_minecraft_fixtures::fixture;
 use serde::Deserialize;
 
-use crate::client_pack::{artefact, client_pack};
+use crate::client_pack::client_pack;
 
 const TOLERANCE: f64 = 1e-5;
 
@@ -84,7 +85,7 @@ fn tied(face: &ElementFace, other: Direction) -> bool {
 
 #[test]
 fn baked_faces_agree_with_the_reference_client() {
-    let artefact: FacesArtefact = artefact("block_faces.json");
+    let artefact: FacesArtefact = serde_json::from_str(&fixture("block_faces").text()).unwrap();
     let mut failures = Vec::new();
     for case in &artefact.cases {
         let label = format!(

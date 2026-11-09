@@ -1,5 +1,4 @@
 use std::collections::BTreeMap;
-use std::path::Path;
 
 use serde::Deserialize;
 
@@ -82,15 +81,10 @@ pub struct Artefacts {
 }
 
 impl Artefacts {
-    pub fn read() -> Self {
-        let directory = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/vanilla");
-        let read = |name: &str| std::fs::read(directory.join(name)).unwrap();
-        let models = String::from_utf8(read("entity_models.json"))
-            .unwrap()
-            .replace("NaN", "null");
+    pub fn parse(models: &str, poses: &str) -> Self {
         Self {
-            models: serde_json::from_str(&models).unwrap(),
-            poses: serde_json::from_slice(&read("block_entity_poses.json")).unwrap(),
+            models: serde_json::from_str(&models.replace("NaN", "null")).unwrap(),
+            poses: serde_json::from_str(poses).unwrap(),
         }
     }
 

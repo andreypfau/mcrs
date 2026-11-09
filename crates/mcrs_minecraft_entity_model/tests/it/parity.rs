@@ -4,6 +4,7 @@
 use std::collections::BTreeMap;
 
 use glam::{DVec2, DVec3, Vec2, Vec3};
+use mcrs_minecraft_fixtures::fixture;
 use mcrs_minecraft_entity_model::{
     BakedFace, BakedGeometry, CUBOID_EXPLICIT, CUBOID_MIRROR, CuboidRecords, FACE_TRIANGLES, Face,
     GeometryFile, INFLATE_STEP,
@@ -238,7 +239,7 @@ fn check(label: &str, errors: &Errors, position_tolerance: f64) {
 
 #[test]
 fn the_pig_and_the_frog_bake_to_the_faces_of_the_artefact() {
-    let artefact = ModelArtefact::read();
+    let artefact = ModelArtefact::parse(&fixture("entity_models").text());
     for (model, layer, faces) in [
         ("minecraft:pig", "main", 42),
         ("minecraft:pig", "saddle", 42),
@@ -248,12 +249,11 @@ fn the_pig_and_the_frog_bake_to_the_faces_of_the_artefact() {
     ] {
         let entry = artefact.layer_entry(model, layer);
         let baked = bake(entry, Rules::Mob).unwrap();
-        let mut explicit = Explicit::default();
-        let rebuilt = rebuild_from_records(&baked, &mut explicit);
-        assert_eq!(
-            explicit.cuboids, 0,
+        assert!(
+            CuboidRecords::new(&baked).unwrap().explicit_faces.is_empty(),
             "{model} / {layer} uses only the 32-byte record"
         );
+        let rebuilt = rebuild_from_records(&baked, &mut Explicit::default());
         let mut errors = Errors::default();
         compare_layer(entry, &rebuilt, &mut errors);
         check(
@@ -275,7 +275,7 @@ fn the_pig_and_the_frog_bake_to_the_faces_of_the_artefact() {
 
 #[test]
 fn each_layer_entry_that_converts_bakes_and_rebuilds_from_its_records_to_the_artefact() {
-    let artefact = ModelArtefact::read();
+    let artefact = ModelArtefact::parse(&fixture("entity_models").text());
     let mut compared = 0;
     let mut refused = Vec::new();
     let mut baked_errors = Errors::default();

@@ -37,5 +37,6 @@ bevy = [
 ]
 
 [dev-dependencies]
+mcrs_minecraft_fixtures.workspace = true
 mcrs_minecraft_environment = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_worldgen_testing.workspace = true
