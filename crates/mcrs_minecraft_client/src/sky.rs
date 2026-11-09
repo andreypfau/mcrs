@@ -15,8 +15,8 @@ use mcrs_minecraft_dimension_environment::dimension_type::DimensionTypeFile;
 use mcrs_minecraft_dimension_environment::environment::{
     DimensionAttributes, EnvironmentContext, WeatherLevel,
 };
-use mcrs_minecraft_environment::attribute::MoonPhase;
-use mcrs_minecraft_environment::world_clock::{WorldClock, WorldClocks};
+use mcrs_minecraft_environment::MoonPhase;
+use mcrs_minecraft_environment::{WorldClock, WorldClocks};
 
 use crate::camera::PlayerCamera;
 use crate::vanilla::VanillaAssets;
@@ -133,7 +133,7 @@ pub struct SkyEnvironment {
     attributes: DimensionAttributes,
     layout: SkyLayout,
     statics: SkyStatic,
-    clock: Option<Id<mcrs_minecraft_environment::world_clock::WorldClock>>,
+    clock: Option<Id<mcrs_minecraft_environment::WorldClock>>,
 }
 
 impl SkyEnvironment {
@@ -576,9 +576,9 @@ mod sky_regression {
     use mcrs_minecraft_dimension_environment::environment::{
         DimensionAttributes, DimensionEnvironment,
     };
-    use mcrs_minecraft_environment::attribute::ModifierMap;
-    use mcrs_minecraft_environment::timeline::Timeline;
-    use mcrs_minecraft_environment::world_clock::ClockTime;
+    use mcrs_minecraft_environment::ClockTime;
+    use mcrs_minecraft_environment::ModifierMap;
+    use mcrs_minecraft_environment::Timeline;
 
     use super::*;
     use crate::sky_state::{test_clock_count, test_resolved};

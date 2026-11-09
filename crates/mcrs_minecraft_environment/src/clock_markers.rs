@@ -2,8 +2,8 @@
 use bevy_ecs::prelude::Resource;
 use mcrs_minecraft_resource::{Id, ResourceLocationBuf};
 
-use super::world_clocks::WorldClock;
-use crate::timeline::Timeline;
+use crate::Timeline;
+use crate::world_clocks::WorldClock;
 
 /// A time marker of a clock, with the period of the timeline that declares it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

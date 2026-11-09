@@ -13,7 +13,7 @@ use mcrs_minecraft_client_world::player::Player;
 use mcrs_minecraft_dimension::DimensionType;
 use mcrs_minecraft_dimension_environment::dimension_type::DimensionTypeFile;
 use mcrs_minecraft_dimension_environment::environment::WeatherLevel;
-use mcrs_minecraft_environment::world_clock::{ClockTimeMarkers, WorldClock, WorldClocks};
+use mcrs_minecraft_environment::{ClockTimeMarkers, WorldClock, WorldClocks};
 use mcrs_minecraft_game_mode::GameMode;
 use mcrs_minecraft_item::{Items, JukeboxPlayable, JukeboxSong};
 use mcrs_minecraft_network::ConnectionState;

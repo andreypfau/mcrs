@@ -2,7 +2,7 @@ use bevy_app::{App, FixedUpdate, Plugin, PreUpdate};
 use bevy_ecs::prelude::*;
 use mcrs_minecraft_registries::CurrentRegistries;
 
-use super::world_clocks::{AdvanceTime, WorldClock, WorldClocks};
+use crate::world_clocks::{AdvanceTime, WorldClock, WorldClocks};
 
 /// Holds a state for each clock of the loaded registries and advances the clocks in each
 /// fixed tick while [`AdvanceTime`] is true.

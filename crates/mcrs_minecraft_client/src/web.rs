@@ -7,7 +7,7 @@ use bevy::math::DVec3;
 use bevy::prelude::*;
 use mcrs_minecraft_assets::packs::PackLayers;
 use mcrs_minecraft_dimension_environment::environment::WeatherLevel;
-use mcrs_minecraft_environment::world_clock::{AdvanceTime, WorldClocks};
+use mcrs_minecraft_environment::{AdvanceTime, WorldClocks};
 use mcrs_minecraft_network::browser::target_from_query;
 use mcrs_minecraft_network::client::ClientNetworkPlugin;
 use mcrs_minecraft_registries::CurrentRegistries;

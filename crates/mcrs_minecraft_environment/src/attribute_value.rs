@@ -5,14 +5,14 @@ use mcrs_minecraft_registries::Named;
 use serde::de::DeserializeOwned;
 use serde::{Serialize, Serializer};
 
-use super::color;
-use super::kind::{AttributeType, info};
-use super::mob_spawns::MobSpawnSettings;
-use super::value::{
+use crate::activity_keys::Activity;
+use crate::color;
+use crate::environment_attribute_keys::EnvironmentAttribute;
+use crate::kind::{AttributeType, info};
+use crate::mob_spawns::MobSpawnSettings;
+use crate::value::{
     AmbientParticle, AmbientSounds, BackgroundMusic, BedRule, BedRuleCondition, MoonPhase, TriState,
 };
-use crate::activity_keys::Activity;
-use crate::environment_attribute_keys::EnvironmentAttribute;
 
 /// A value of one attribute. `Float` holds both `float` and `angle_degrees`.
 #[derive(Debug, Clone, PartialEq)]

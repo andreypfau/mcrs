@@ -22,8 +22,8 @@ use mcrs_minecraft_entity::variant::{
     CatSoundVariant, CatVariant, ChickenSoundVariant, ChickenVariant, CowSoundVariant, CowVariant,
     FrogVariant, PigSoundVariant, PigVariant, WolfSoundVariant, WolfVariant, ZombieNautilusVariant,
 };
-use mcrs_minecraft_environment::timeline::{NetworkTimeline, Timeline};
-use mcrs_minecraft_environment::world_clock::WorldClock;
+use mcrs_minecraft_environment::WorldClock;
+use mcrs_minecraft_environment::{NetworkTimeline, Timeline};
 use mcrs_minecraft_item::block_transformer::BlockTransformer;
 use mcrs_minecraft_item::damage_type::DamageType;
 use mcrs_minecraft_item::decorated_pot_pattern::DecoratedPotPattern;

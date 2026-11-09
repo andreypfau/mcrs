@@ -17,7 +17,7 @@ use mcrs_minecraft_core::Versioned;
 use mcrs_minecraft_engine_registries::RegistrySnapshot;
 use mcrs_minecraft_engine_world::owned_columns::{HALO, column_key};
 use mcrs_minecraft_engine_world::session::PlayerSession;
-use mcrs_minecraft_environment::world_clock::WorldClocks;
+use mcrs_minecraft_environment::WorldClocks;
 use mcrs_voxel::ColumnPos;
 use rustc_hash::FxHashMap;
 

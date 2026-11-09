@@ -15,14 +15,14 @@ impl Registered for crate::environment_attribute_keys::EnvironmentAttribute {
     const REGISTRY: RegistryKey<Self> = ENVIRONMENT_ATTRIBUTE;
 }
 
-pub const TIMELINE: RegistryKey<crate::timeline::Timeline> =
+pub const TIMELINE: RegistryKey<crate::Timeline> =
     RegistryKey::new(rl!("minecraft:timeline"));
-impl Registered for crate::timeline::Timeline {
+impl Registered for crate::Timeline {
     const REGISTRY: RegistryKey<Self> = TIMELINE;
 }
 
-pub const WORLD_CLOCK: RegistryKey<crate::world_clock::WorldClock> =
+pub const WORLD_CLOCK: RegistryKey<crate::WorldClock> =
     RegistryKey::new(rl!("minecraft:world_clock"));
-impl Registered for crate::world_clock::WorldClock {
+impl Registered for crate::WorldClock {
     const REGISTRY: RegistryKey<Self> = WORLD_CLOCK;
 }

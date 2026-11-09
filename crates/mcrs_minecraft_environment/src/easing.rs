@@ -269,7 +269,7 @@ impl Easing {
                 let [x1, y1, x2, y2] = points.as_slice() else {
                     return Err("`cubic_bezier` holds four numbers".to_owned());
                 };
-                let number = crate::attribute::read_float;
+                let number = crate::read_float;
                 let curve = [number(x1)?, number(y1)?, number(x2)?, number(y2)?];
                 if !(0.0..=1.0).contains(&curve[0]) || !(0.0..=1.0).contains(&curve[2]) {
                     return Err("the x of a cubic Bézier control point is not in [0; 1]".to_owned());

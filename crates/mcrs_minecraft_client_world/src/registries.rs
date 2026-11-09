@@ -10,10 +10,8 @@ use bevy::prelude::*;
 use mcrs_minecraft_block::definition::{Blocks, load_block_definitions};
 use mcrs_minecraft_datapack::DirectoryPacks;
 use mcrs_minecraft_engine_registries::load_item_definitions;
-use mcrs_minecraft_environment::timeline::Timeline;
-use mcrs_minecraft_environment::world_clock::{
-    ClockTimeMarkers, WorldClock, WorldClockPlugin, WorldClocks,
-};
+use mcrs_minecraft_environment::Timeline;
+use mcrs_minecraft_environment::{ClockTimeMarkers, WorldClock, WorldClockPlugin, WorldClocks};
 use mcrs_minecraft_game_registries::registry_load::{RegistryLoadError, load_received};
 use mcrs_minecraft_item::Items;
 use mcrs_minecraft_network::ConnectionState;

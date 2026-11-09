@@ -5,10 +5,8 @@ use mcrs_minecraft_biome::{
     TemperatureModifier,
 };
 use mcrs_minecraft_core::codec::HexRgb;
-use mcrs_minecraft_environment::attribute::id::{self, Attribute};
-use mcrs_minecraft_environment::attribute::{
-    AttributeError, MobSpawnSettings, ModifierMap, Operation,
-};
+use mcrs_minecraft_environment::attribute_id::{self, Attribute};
+use mcrs_minecraft_environment::{AttributeError, MobSpawnSettings, ModifierMap, Operation};
 use mcrs_minecraft_registries::{KeySet, Named, Refs, Resolve, Resolved};
 use mcrs_minecraft_resource::{ResourceKey, ResourceKeyBuf, ResourceLocationBuf};
 
@@ -204,7 +202,7 @@ impl BiomeDraft {
     }
 
     pub fn spawns(self, mobs: MobSpawnSettings) -> Self {
-        self.modified(id::NATURAL_MOB_SPAWNS, Operation::Overlay, mobs)
+        self.modified(attribute_id::NATURAL_MOB_SPAWNS, Operation::Overlay, mobs)
     }
 
     pub fn with<T: Serialize>(self, attribute: Attribute<T>, value: T) -> Self {

@@ -3,8 +3,8 @@ use mcrs_minecraft_block::definition::{BlockDefinitions, BlockEntry, BlockStateF
 use mcrs_minecraft_command_argument::ResourceOrTag;
 use mcrs_minecraft_dimension::DimensionType;
 use mcrs_minecraft_dimension_environment::dimension_type::DimensionTypeFile;
-use mcrs_minecraft_environment::timeline::Timeline;
-use mcrs_minecraft_environment::world_clock::WorldClock;
+use mcrs_minecraft_environment::Timeline;
+use mcrs_minecraft_environment::WorldClock;
 use mcrs_minecraft_registries::Registries;
 use mcrs_minecraft_resource::{Id, ResourceLocation, ResourceLocationBuf};
 

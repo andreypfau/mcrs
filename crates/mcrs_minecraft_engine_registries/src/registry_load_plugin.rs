@@ -22,7 +22,7 @@ pub struct RegistryLoadPlugin;
 
 impl Plugin for RegistryLoadPlugin {
     fn build(&self, app: &mut App) {
-        app.add_plugins(mcrs_minecraft_environment::world_clock::WorldClockPlugin);
+        app.add_plugins(mcrs_minecraft_environment::WorldClockPlugin);
         app.init_resource::<LoadedRegistryAssets>();
 
         app.add_systems(PostStartup, start_loading_data_pack)

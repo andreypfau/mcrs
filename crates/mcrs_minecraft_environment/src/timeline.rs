@@ -7,11 +7,11 @@ use mcrs_minecraft_resource::{Id, ResourceLocationBuf};
 use serde::de::Error as _;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-use super::attribute_track::{Track, deserialize_tracks, serialize_tracks};
-use super::marker::TimeMarker;
-use crate::attribute::info;
+use crate::WorldClock;
 use crate::environment_attribute_keys::EnvironmentAttribute;
-use crate::world_clock::WorldClock;
+use crate::info;
+use crate::time_marker::TimeMarker;
+use crate::track::{Track, deserialize_tracks, serialize_tracks};
 
 fn positive_period<'de, D: Deserializer<'de>>(d: D) -> Result<Option<u32>, D::Error> {
     match Option::<i64>::deserialize(d)? {

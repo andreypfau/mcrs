@@ -12,7 +12,7 @@ use mcrs_minecraft_engine_registries::RegistrySnapshot;
 use mcrs_minecraft_engine_world::entity::player::Player;
 use mcrs_minecraft_engine_world::world::lifecycle::trace::{ColumnTraceLog, TraceEvent};
 use mcrs_minecraft_engine_world::world::storage::column::ColumnPosComponent;
-use mcrs_minecraft_environment::world_clock::WorldClocks;
+use mcrs_minecraft_environment::WorldClocks;
 use mcrs_voxel::{ColumnPos, SectionPos};
 
 use crate::banlist::{BanList, EditBans};

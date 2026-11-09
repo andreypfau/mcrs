@@ -3,7 +3,7 @@ use std::marker::PhantomData;
 use mcrs_minecraft_core::codec::HexRgb;
 use mcrs_minecraft_resource::ResourceLocation;
 
-use super::MobSpawnSettings;
+use crate::mob_spawns::MobSpawnSettings;
 
 /// An attribute id together with the type an `override` of it takes.
 pub struct Attribute<T> {

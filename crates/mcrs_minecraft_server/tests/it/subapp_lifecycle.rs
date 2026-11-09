@@ -15,13 +15,13 @@ use mcrs_minecraft_engine_world::session::{PlayerSessionCounter, Session};
 use mcrs_minecraft_engine_world::world::dimension::Dimension;
 use mcrs_minecraft_engine_world::world::dimension_list::DimensionList;
 use mcrs_minecraft_engine_world::world::sub_app::DimDespawnQueue;
-use mcrs_minecraft_environment::world_clock::{ClockTime, WorldClockPlugin, WorldClocks};
+use mcrs_minecraft_environment::{ClockTime, WorldClockPlugin, WorldClocks};
 use mcrs_minecraft_network::ServerSideConnection;
 use mcrs_minecraft_registries::{CurrentRegistries, Registries, Resolver};
 use mcrs_minecraft_resource::Id;
 
 use crate::host_app;
-use mcrs_minecraft_environment::world_clock::WorldClock;
+use mcrs_minecraft_environment::WorldClock;
 
 #[test]
 fn dim_sub_apps_are_isolated_worlds_that_come_and_go() {

@@ -14,7 +14,7 @@ use uuid::Uuid;
 use mcrs_minecraft_game_registries::dimension::DimensionEntry;
 
 use mcrs_minecraft_dimension::Dimension;
-use mcrs_minecraft_environment::world_clock::ClockTime;
+use mcrs_minecraft_environment::ClockTime;
 
 #[derive(Debug, thiserror::Error)]
 pub enum SaveError {

@@ -7,10 +7,10 @@ use serde::de::{self, MapAccess, Visitor};
 use serde::ser::SerializeMap;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-use super::attribute_value::AttributeValue;
-use super::kind::{AttributeType, info};
-use super::operation::{Argument, Operation};
+use crate::attribute_value::AttributeValue;
 use crate::environment_attribute_keys::EnvironmentAttribute;
+use crate::kind::{AttributeType, info};
+use crate::operation::{Argument, Operation};
 
 /// An attribute map or a timeline holds a value the attribute does not take.
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]

@@ -4,7 +4,7 @@
 
 use bevy_ecs::resource::Resource;
 use bevy_ecs::world::World;
-use mcrs_minecraft_environment::world_clock::WorldClocks;
+use mcrs_minecraft_environment::WorldClocks;
 
 use crate::banlist::{BanList, EditBans};
 use crate::command_handoff::CommandHandoff;

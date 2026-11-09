@@ -1,5 +1,5 @@
 use bevy::prelude::*;
-use mcrs_minecraft_environment::world_clock::{WorldClockSystems, WorldClocks};
+use mcrs_minecraft_environment::{WorldClockSystems, WorldClocks};
 use mcrs_minecraft_network::event::Received;
 use mcrs_minecraft_protocol_game::clientbound::ClientboundSetTime;
 use mcrs_minecraft_resource::Id;

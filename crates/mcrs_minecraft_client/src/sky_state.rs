@@ -4,7 +4,7 @@ use mcrs_minecraft_dimension::Skybox;
 use mcrs_minecraft_dimension_environment::environment::{
     AttributeStack, DimensionAttributes, EnvironmentContext, WeatherLevel,
 };
-use mcrs_minecraft_environment::attribute::AttributeValue;
+use mcrs_minecraft_environment::AttributeValue;
 use mcrs_minecraft_environment::environment_attribute_keys::EnvironmentAttribute;
 
 use mcrs_minecraft_render::sky::SkyEffects;
@@ -305,7 +305,7 @@ pub(crate) fn test_resolved<T: mcrs_minecraft_registries::Resolve>(named: T::Nam
 #[cfg(test)]
 pub(crate) fn test_clock_count() -> usize {
     mcrs_minecraft_game_registries::registry_load::test_registries()
-        .registry::<mcrs_minecraft_environment::world_clock::WorldClock>()
+        .registry::<mcrs_minecraft_environment::WorldClock>()
         .unwrap()
         .len()
 }
@@ -317,9 +317,9 @@ mod tests {
     use mcrs_minecraft_dimension_environment::environment::{
         DimensionAttributes, DimensionEnvironment, EnvironmentContext, WeatherLevel,
     };
-    use mcrs_minecraft_environment::attribute::ModifierMap;
-    use mcrs_minecraft_environment::timeline::Timeline;
-    use mcrs_minecraft_environment::world_clock::{ClockTime, WorldClocks};
+    use mcrs_minecraft_environment::ModifierMap;
+    use mcrs_minecraft_environment::Timeline;
+    use mcrs_minecraft_environment::{ClockTime, WorldClocks};
 
     use super::*;
     use super::{test_clock_count, test_resolved};

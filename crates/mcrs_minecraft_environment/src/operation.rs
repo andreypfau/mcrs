@@ -5,9 +5,9 @@ use mcrs_minecraft_nbt::tag::NbtTag;
 use serde::ser::SerializeMap;
 use serde::{Serialize, Serializer};
 
-use super::attribute_value::{AttributeValue, Interpolation, channels, integer, lerp, read_float};
-use super::kind::AttributeType;
-use super::mob_spawns::MobSpawnSettings;
+use crate::attribute_value::{AttributeValue, Interpolation, channels, integer, lerp, read_float};
+use crate::kind::AttributeType;
+use crate::mob_spawns::MobSpawnSettings;
 
 /// A modifier: how an argument changes the value of the layers below it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

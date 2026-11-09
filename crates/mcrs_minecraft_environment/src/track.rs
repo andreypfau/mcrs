@@ -6,9 +6,9 @@ use serde::de::{self, MapAccess, Visitor};
 use serde::ser::{SerializeMap, SerializeStruct};
 use serde::{Deserializer, Serialize, Serializer};
 
-use super::easing::{Easing, NamedEasing};
-use crate::attribute::{Argument, AttributeValue, Operation, info, read_argument};
+use crate::easing::{Easing, NamedEasing};
 use crate::environment_attribute_keys::EnvironmentAttribute;
+use crate::{Argument, AttributeValue, Operation, info, read_argument};
 
 /// One keyframe of a track: a tick and the argument of the track's modifier there.
 #[derive(Debug, Clone, PartialEq)]

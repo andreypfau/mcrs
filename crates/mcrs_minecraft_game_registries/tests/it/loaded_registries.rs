@@ -13,8 +13,8 @@ use mcrs_minecraft_block::block_keys::Block;
 use mcrs_minecraft_datapack::{Level, PackDiagnostic, StackedPack, VANILLA_PACK};
 use mcrs_minecraft_dimension_environment::dimension_type::DimensionTypeFile;
 use mcrs_minecraft_engine_registries::SyncedRegistries;
-use mcrs_minecraft_environment::timeline::Timeline;
-use mcrs_minecraft_environment::world_clock::WorldClock;
+use mcrs_minecraft_environment::Timeline;
+use mcrs_minecraft_environment::WorldClock;
 use mcrs_minecraft_game_registries::registry_load::{
     RegistryLoadError, load_registries, sent_by, test_network, test_registries,
 };

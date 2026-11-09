@@ -3,7 +3,7 @@ use bevy_ecs::prelude::Resource;
 use mcrs_minecraft_resource::Id;
 use serde::{Deserialize, Serialize};
 
-use super::clock_time::ClockTime;
+use crate::clock_time::ClockTime;
 
 /// An entry of the registry `world_clock`. It has no fields.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]

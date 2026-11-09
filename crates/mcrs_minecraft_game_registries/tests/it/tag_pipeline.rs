@@ -4,7 +4,7 @@ use mcrs_minecraft_block::block_keys::Block;
 use mcrs_minecraft_block::block_tag_keys;
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_entity::entity_type_keys::EntityType;
-use mcrs_minecraft_environment::timeline::Timeline;
+use mcrs_minecraft_environment::Timeline;
 use mcrs_minecraft_game_registries::registry_load::test_registries;
 use mcrs_minecraft_registries::{CurrentRegistries, IdSet};
 use mcrs_minecraft_resource::{ResourceLocationBuf, TagKey, TagKeyBuf};

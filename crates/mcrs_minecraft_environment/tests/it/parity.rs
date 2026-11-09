@@ -8,12 +8,12 @@ use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_registries::Named;
 use serde_json::Value;
 
-use mcrs_minecraft_environment::attribute::{
+use mcrs_minecraft_environment::environment_attribute_keys::EnvironmentAttribute;
+use mcrs_minecraft_environment::{
     Argument, AttributeType, AttributeValue, Interpolation, Operation, read_argument,
 };
-use mcrs_minecraft_environment::environment_attribute_keys::EnvironmentAttribute;
-use mcrs_minecraft_environment::timeline::{Easing, NamedEasing, Timeline};
-use mcrs_minecraft_environment::world_clock::{ClockTime, ClockTimeMarker};
+use mcrs_minecraft_environment::{ClockTime, ClockTimeMarker};
+use mcrs_minecraft_environment::{Easing, NamedEasing, Timeline};
 
 static ARTEFACT: LazyLock<Value> =
     LazyLock::new(|| serde_json::from_slice(&fixture("environment").bytes()).unwrap());
@@ -115,9 +115,9 @@ fn the_modifiers_agree_with_the_artefact() {
             for case in rows(cases) {
                 let subject = value(kind, &case["subject"]);
                 let argument = match argument_kind {
-                    mcrs_minecraft_environment::attribute::ArgumentKind::Value(
-                        AttributeType::Integer,
-                    ) => Argument::Value(value(AttributeType::Integer, &case["argument"])),
+                    mcrs_minecraft_environment::ArgumentKind::Value(AttributeType::Integer) => {
+                        Argument::Value(value(AttributeType::Integer, &case["argument"]))
+                    }
                     other => Argument::read(other, &tag(&case["argument"])).unwrap(),
                 };
                 let expected = value(kind, &case["result"]);

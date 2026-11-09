@@ -13,7 +13,7 @@ mod template_pool;
 mod terrain;
 
 use mcrs_minecraft_biome_file::BiomeFile;
-use mcrs_minecraft_environment::attribute::AttributeError;
+use mcrs_minecraft_environment::AttributeError;
 use mcrs_minecraft_nbt::nbt_compress::to_gzip_bytes_vec;
 use mcrs_minecraft_noise::proto::NoiseParam;
 use mcrs_minecraft_registries::Named;

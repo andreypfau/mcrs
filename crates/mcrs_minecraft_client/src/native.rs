@@ -23,7 +23,7 @@ use mcrs_minecraft_datapack::DirectoryPacks;
 use mcrs_minecraft_dimension_environment::dimension_type::DimensionTypeFile;
 use mcrs_minecraft_dimension_environment::environment::WeatherLevel;
 use mcrs_minecraft_engine_world::entity::physics::Transform as PhysicsTransform;
-use mcrs_minecraft_environment::world_clock::{AdvanceTime, WorldClocks};
+use mcrs_minecraft_environment::{AdvanceTime, WorldClocks};
 use mcrs_minecraft_protocol::uuid::Uuid;
 use mcrs_minecraft_registries::CurrentRegistries;
 use mcrs_minecraft_resource::Id;
@@ -51,7 +51,7 @@ use mcrs_minecraft_engine_server::{
 };
 #[cfg(feature = "singleplayer")]
 use mcrs_minecraft_engine_world::world::lifecycle::trace::ColumnTraceSink;
-use mcrs_minecraft_environment::world_clock::WorldClock;
+use mcrs_minecraft_environment::WorldClock;
 use mcrs_minecraft_mesh::SECTION_SIZE;
 #[cfg(feature = "singleplayer")]
 use mcrs_minecraft_network::client::offline_player_uuid;
@@ -640,7 +640,7 @@ fn log_registry_counts(registries: Res<CurrentRegistries>) {
     info!(
         dimension_types = count::<DimensionTypeFile>(&registries),
         biomes = count::<BiomeFile>(&registries),
-        timelines = count::<mcrs_minecraft_environment::timeline::Timeline>(&registries),
+        timelines = count::<mcrs_minecraft_environment::Timeline>(&registries),
         world_clocks = count::<WorldClock>(&registries),
         "registry assets loaded"
     );

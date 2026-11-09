@@ -4,8 +4,8 @@ use serde_json::json;
 use mcrs_minecraft_dimension_environment::environment::{
     DimensionAttributes, DimensionEnvironment, EnvironmentContext,
 };
-use mcrs_minecraft_environment::attribute::AttributeValue;
-use mcrs_minecraft_environment::timeline::Timeline;
+use mcrs_minecraft_environment::AttributeValue;
+use mcrs_minecraft_environment::Timeline;
 use mcrs_minecraft_registries::{Named, Resolve, Resolver};
 use mcrs_minecraft_resource::{Id, ResourceKeyBuf};
 use mcrs_minecraft_resource::{Registered, TagId, TagKeyBuf};

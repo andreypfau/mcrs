@@ -4,9 +4,9 @@ use serde::{Deserialize, Deserializer, Serialize};
 use mcrs_minecraft_block::block_keys::Block;
 use mcrs_minecraft_core::codec::{Bounded, is_default};
 use mcrs_minecraft_dimension::{CardinalLight, DimensionType, Skybox};
-use mcrs_minecraft_environment::attribute::ModifierMap;
-use mcrs_minecraft_environment::timeline::Timeline;
-use mcrs_minecraft_environment::world_clock::WorldClock;
+use mcrs_minecraft_environment::ModifierMap;
+use mcrs_minecraft_environment::Timeline;
+use mcrs_minecraft_environment::WorldClock;
 use mcrs_minecraft_registries::{IdSet, Named, Refs, Resolve, Resolved};
 use mcrs_minecraft_resource::Id;
 use mcrs_minecraft_value_provider::{BoundedIntProvider, IntProvider};
@@ -258,7 +258,7 @@ mod tests {
         assert!(!attributes.is_empty());
         for id in attributes.keys() {
             assert!(
-                mcrs_minecraft_environment::attribute::is_syncable(id),
+                mcrs_minecraft_environment::is_syncable(id),
                 "{id} is not syncable"
             );
         }

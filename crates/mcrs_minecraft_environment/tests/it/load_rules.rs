@@ -3,11 +3,9 @@
 use mcrs_minecraft_registries::Named;
 use serde_json::json;
 
-use mcrs_minecraft_environment::attribute::{
-    Argument, AttributeValue, ModifierMap, Operation, argb_hex,
-};
+use mcrs_minecraft_environment::Timeline;
 use mcrs_minecraft_environment::environment_attribute_keys::EnvironmentAttribute;
-use mcrs_minecraft_environment::timeline::Timeline;
+use mcrs_minecraft_environment::{Argument, AttributeValue, ModifierMap, Operation, argb_hex};
 
 fn track_with_ticks(ticks: &[u32]) -> serde_json::Value {
     let keyframes: Vec<serde_json::Value> = ticks
