@@ -524,6 +524,86 @@ fn cmd_kill_summoned_pigs_are_found_hurt_killed_and_removed_after_their_death_ti
     assert!(viewer.positions.is_empty(), "the client holds no pig");
 }
 
+/// ARG-ENT-016, CMD-KILL-002: `execute as @e[sort=nearest]` forks for the players and the mobs
+/// in one order of distance, so a player between two pigs runs second.
+#[test]
+fn execute_as_sorted_entities_forks_players_and_mobs_in_one_order() {
+    let mut server = start();
+    load_stone_column(&mut server);
+    let (operator, _) = server.join(OPERATOR, "op");
+    let mut viewer = Viewer::new();
+    viewer.receive(server.ticks(operator, 2));
+    for (offset, name) in [(2, "near"), (10, "far")] {
+        let line = format!(
+            "execute at @s run summon minecraft:pig ~{offset} ~ ~ {{CustomName:\"{name}\"}}"
+        );
+        let (key, _) = run(&mut server, operator, &mut viewer, &line);
+        assert_eq!(key, "commands.summon.success", "{line}");
+    }
+    viewer.receive(server.ticks(operator, 1));
+
+    let packets = server.send(
+        operator,
+        &ServerboundChatCommand {
+            command: Bounded("execute at @s positioned ~4 ~ ~ as @e[sort=nearest] run kill @s"),
+        },
+    );
+    let names: Vec<Vec<String>> = chats(&packets)
+        .iter()
+        .map(|reply| translated(reply).1)
+        .collect();
+    assert_eq!(
+        names,
+        [["near"], ["op"], ["far"]],
+        "the pig 2 blocks away, the player 4 blocks away, the pig 6 blocks away"
+    );
+}
+
+/// CMD-TP-004: a player goes to a mob destination; a mob victim fails the command with a
+/// message instead of a silent skip.
+#[test]
+fn teleport_goes_to_a_mob_and_refuses_to_move_one() {
+    let mut server = start();
+    load_stone_column(&mut server);
+    let (operator, _) = server.join(OPERATOR, "op");
+    let mut viewer = Viewer::new();
+    viewer.receive(server.ticks(operator, 2));
+    let (key, _) = run(
+        &mut server,
+        operator,
+        &mut viewer,
+        "summon minecraft:pig 6 64 4 {CustomName:\"dest\"}",
+    );
+    assert_eq!(key, "commands.summon.success");
+    viewer.receive(server.ticks(operator, 1));
+
+    let (key, args) = run(
+        &mut server,
+        operator,
+        &mut viewer,
+        "tp @s @e[type=minecraft:pig,limit=1]",
+    );
+    assert_eq!(
+        (key.as_str(), args),
+        (
+            "commands.teleport.success.entity.single",
+            vec!["op".to_owned(), "dest".to_owned()]
+        )
+    );
+
+    let packets = server.send(
+        operator,
+        &ServerboundChatCommand {
+            command: Bounded("tp @e 0 64 0"),
+        },
+    );
+    let reply = chats(&packets).pop().expect("the teleport replies");
+    assert!(
+        !matches!(reply.content, TextContent::Translate { .. }),
+        "a mob victim fails with its own message: {reply:?}"
+    );
+}
+
 /// Two summons with one UUID in one tick make one mob: the second spawn is refused.
 #[test]
 fn two_summons_with_one_uuid_in_one_tick_make_one_mob() {

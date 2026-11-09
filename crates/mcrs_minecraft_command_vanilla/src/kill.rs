@@ -1,5 +1,5 @@
 use crate::mob_hit::HitMob;
-use crate::select::{FoundPlayers, SelfSource, targets_or_self};
+use crate::select::{SelectionBuffers, SelfSource, targets_or_self};
 use crate::set::{VanillaCommands, VanillaContext};
 use bevy_ecs::prelude::*;
 use mcrs_command::{ArgumentHandle, BuildError, NodeId};
@@ -42,9 +42,9 @@ pub(crate) fn run(
     context: VanillaContext,
     mut output: CommandOutput,
     mut hits: ResMut<EffectQueue<HitMob>>,
-    mut found: Local<FoundPlayers>,
+    mut found: Local<SelectionBuffers>,
 ) -> CommandResult {
-    let damage_type = damage_type_id(&context, rl!("minecraft:generic_kill"));
+    let damage_type = damage_type_id(&context, rl!("minecraft:generic_kill"))?;
     found.with(|targets| {
         targets_or_self(
             &context,
@@ -54,7 +54,7 @@ pub(crate) fn run(
             SelfSource::Entity,
             targets,
         )?;
-        for mob in &targets.mobs {
+        for mob in targets.mobs() {
             output.effect(
                 &mut hits,
                 HitMob {
@@ -64,17 +64,9 @@ pub(crate) fn run(
             );
         }
         let count = i32::try_from(targets.len()).unwrap_or(i32::MAX);
-        let message = match (targets.found.first(), targets.mobs.first(), count) {
-            (Some(player), _, 1) => Text::translate(
-                "commands.kill.success.single",
-                vec![player.name.clone().into()],
-            ),
-            (None, Some(mob), 1) => {
-                let name = context
-                    .lookup()
-                    .mob(mob.source())
-                    .map_or_else(|| Text::text(""), |view| view.display_name());
-                Text::translate("commands.kill.success.single", vec![name])
+        let message = match (targets.first(), count) {
+            (Some(target), 1) => {
+                Text::translate("commands.kill.success.single", vec![target.display_name()])
             }
             _ => Text::translate_args("commands.kill.success.multiple", vec![count.into()]),
         };

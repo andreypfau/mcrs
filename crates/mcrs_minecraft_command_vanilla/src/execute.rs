@@ -1,7 +1,7 @@
 use crate::dimension_view::unloaded;
+use crate::entity_view::EntityView;
 use crate::execute_view::{ExecuteView, Outcome};
-use crate::mob_view::Found;
-use crate::select::FoundPlayers;
+use crate::select::SelectionBuffers;
 use crate::set::VanillaCommands;
 use bevy_ecs::prelude::*;
 use bevy_math::DVec3;
@@ -301,31 +301,31 @@ fn anchor_point(anchor: LookAnchor, position: DVec3) -> DVec3 {
     mcrs_minecraft_command::anchored(anchor, position, PLAYER_EYE_HEIGHT)
 }
 
-fn as_target(state: &SourceState, target: Found<'_>) -> SourceState {
+fn as_target(state: &SourceState, target: EntityView<'_>) -> SourceState {
     target.run_as(state)
 }
 
-fn at_target(targets: &CommandTargets, state: &SourceState, target: Found<'_>) -> SourceState {
+fn at_target(targets: &CommandTargets, state: &SourceState, target: EntityView<'_>) -> SourceState {
     SourceState {
-        dimension: target.dimension(targets, state.dimension),
+        dimension: target.dimension_label(targets, state.dimension),
         position: target.position(),
         ..*state
     }
     .with_look(target.look())
 }
 
-fn positioned_as_target(state: &SourceState, target: Found<'_>) -> SourceState {
+fn positioned_as_target(state: &SourceState, target: EntityView<'_>) -> SourceState {
     SourceState {
         position: target.position(),
         ..*state
     }
 }
 
-fn rotated_as_target(state: &SourceState, target: Found<'_>) -> SourceState {
+fn rotated_as_target(state: &SourceState, target: EntityView<'_>) -> SourceState {
     state.with_look(target.look())
 }
 
-fn facing_target(anchor: LookAnchor, state: &SourceState, target: Found<'_>) -> SourceState {
+fn facing_target(anchor: LookAnchor, state: &SourceState, target: EntityView<'_>) -> SourceState {
     facing_at(state, anchor_point(anchor, target.position()))
 }
 
@@ -357,7 +357,7 @@ pub(crate) fn modify(
     In(call): In<Call<Branch, ExecuteCommand>>,
     view: ExecuteView,
     mut output: CommandOutput,
-    mut found: Local<FoundPlayers>,
+    mut found: Local<SelectionBuffers>,
 ) -> ModifyResult {
     let command = call.command;
     let context = &view.context;
@@ -459,7 +459,7 @@ pub(crate) fn run(
     In(call): In<Call<Branch, ExecuteCommand>>,
     view: ExecuteView,
     mut feedback: CommandOutput,
-    mut found: Local<FoundPlayers>,
+    mut found: Local<SelectionBuffers>,
 ) -> CommandResult {
     let Branch::Condition { test, polarity } = call.branch else {
         return Err(CommandFailure::failed());

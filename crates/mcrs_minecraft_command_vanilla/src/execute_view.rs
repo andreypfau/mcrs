@@ -1,7 +1,7 @@
 use crate::dimension_view::{DimensionView, unloaded};
+use crate::entity_view::EntityView;
 use crate::execute::{Branch, ExecuteCommand, Polarity, Test};
-use crate::mob_view::Found;
-use crate::select::{FoundPlayers, select};
+use crate::select::{SelectionBuffers, select};
 use crate::set::VanillaContext;
 use bevy_ecs::system::SystemParam;
 use bevy_math::DVec3;
@@ -36,17 +36,14 @@ impl ExecuteView<'_, '_> {
         &self,
         call: &Call<Branch, ExecuteCommand>,
         targets: ArgumentHandle<EntityArgument>,
-        found: &mut FoundPlayers,
+        found: &mut SelectionBuffers,
         output: &mut CommandOutput,
-        each: impl Fn(&SourceState, Found<'_>) -> SourceState,
+        each: impl Fn(&SourceState, EntityView<'_>) -> SourceState,
     ) -> ModifyResult {
         found.with(|out| {
             select(&self.context, &call.invocation, targets, out)?;
-            for target in out.found.iter() {
-                output.fork(each(&call.invocation.source, Found::Player(target)));
-            }
-            for target in &out.mobs {
-                output.fork(each(&call.invocation.source, Found::Mob(target)));
+            for target in out.iter() {
+                output.fork(each(&call.invocation.source, target));
             }
             Ok(Modified::Forked)
         })
@@ -57,7 +54,7 @@ impl ExecuteView<'_, '_> {
         call: &Call<Branch, ExecuteCommand>,
         test: Test,
         polarity: Polarity,
-        found: &mut FoundPlayers,
+        found: &mut SelectionBuffers,
     ) -> Result<Outcome, CommandFailure> {
         let args = call.command.condition(polarity);
         let context = &self.context;

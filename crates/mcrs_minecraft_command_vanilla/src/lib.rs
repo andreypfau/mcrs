@@ -6,6 +6,7 @@ mod ban;
 mod damage;
 mod data;
 mod dimension_view;
+mod entity_view;
 mod execute;
 mod execute_view;
 mod gamemode;

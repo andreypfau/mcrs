@@ -1,5 +1,5 @@
 use crate::mob_hit::HitMob;
-use crate::select::{FoundPlayers, select};
+use crate::select::{SelectionBuffers, select};
 use crate::set::{VanillaCommands, VanillaContext};
 use bevy_ecs::prelude::*;
 use mcrs_command::{ArgumentHandle, BuildError, FloatArgument, NodeId};
@@ -62,7 +62,12 @@ pub(crate) fn build(
 }
 
 /// The network id of the damage type `name`: its position in the registry that the clients got.
-pub(crate) fn damage_type_id(context: &VanillaContext, name: ResourceLocation<'_>) -> u32 {
+/// A type the registry does not hold fails the command, since another id would hurt with an
+/// unrelated type.
+pub(crate) fn damage_type_id(
+    context: &VanillaContext,
+    name: ResourceLocation<'_>,
+) -> Result<u32, CommandFailure> {
     context
         .lookup()
         .registry_lookup()
@@ -70,7 +75,7 @@ pub(crate) fn damage_type_id(context: &VanillaContext, name: ResourceLocation<'_
         .iter()
         .position(|entry| *entry == name)
         .and_then(|index| u32::try_from(index).ok())
-        .unwrap_or_default()
+        .ok_or_else(CommandFailure::failed)
 }
 
 /// CMD-DMG-001 to CMD-DMG-004, for a mob target and a source with no entity and no position: one
@@ -80,23 +85,17 @@ pub(crate) fn run(
     context: VanillaContext,
     mut output: CommandOutput,
     mut hits: ResMut<EffectQueue<HitMob>>,
-    mut found: Local<FoundPlayers>,
+    mut found: Local<SelectionBuffers>,
 ) -> CommandResult {
     let command = call.command;
     let amount = context.arg(&call.invocation, command.amount)?;
     let damage_type = match context.opt(&call.invocation, command.damage_type)? {
-        Some(name) => damage_type_id(&context, name),
-        None => damage_type_id(&context, rl!("minecraft:generic")),
+        Some(name) => damage_type_id(&context, name)?,
+        None => damage_type_id(&context, rl!("minecraft:generic"))?,
     };
     found.with(|targets| {
         select(&context, &call.invocation, command.target, targets)?;
-        let Some(mob) = targets.mobs.first() else {
-            return Err(CommandFailure::failed());
-        };
-        let view = context
-            .lookup()
-            .mob(mob.source())
-            .ok_or_else(CommandFailure::failed)?;
+        let view = targets.single_mob()?;
         let Some(living) = view.state.living.filter(Living::is_alive) else {
             return Err(CommandFailure::translate(
                 "commands.damage.invulnerable",
@@ -108,7 +107,7 @@ pub(crate) fn run(
         output.effect(
             &mut hits,
             HitMob {
-                at: mob.at,
+                at: view.at,
                 hit: Hit::new(amount, damage_type),
             },
         );

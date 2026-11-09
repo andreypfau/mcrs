@@ -1,4 +1,4 @@
-use crate::select::{FoundPlayers, select};
+use crate::select::{SelectionBuffers, select};
 use crate::set::{VanillaCommands, VanillaContext};
 use bevy_ecs::prelude::*;
 use mcrs_command::{ArgumentHandle, BuildError, NodeId, StringArgument};
@@ -42,7 +42,7 @@ pub(crate) fn run(
     In(call): In<Call<(), DataCommand>>,
     context: VanillaContext,
     mut output: CommandOutput,
-    mut found: Local<FoundPlayers>,
+    mut found: Local<SelectionBuffers>,
 ) -> CommandResult {
     let command = call.command;
     let path: String = context
@@ -51,13 +51,7 @@ pub(crate) fn run(
         .collect();
     found.with(|targets| {
         select(&context, &call.invocation, command.target, targets)?;
-        let Some(mob) = targets.mobs.first() else {
-            return Err(CommandFailure::failed());
-        };
-        let view = context
-            .lookup()
-            .mob(mob.source())
-            .ok_or_else(CommandFailure::failed)?;
+        let view = targets.single_mob()?;
         let living = view.state.living.unwrap_or_default();
         let position = view.state.body.position;
         let (value, result) = match path.as_str() {
