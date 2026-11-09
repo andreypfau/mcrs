@@ -218,6 +218,7 @@ fn write_frame(dir: &Path, frame: &str, image: &Image) {
         Ok(image) => image.into_rgb8(),
         Err(error) => {
             error!(frame, %error, "cannot convert the scene frame");
+            remove_request(dir);
             return;
         }
     };
@@ -225,6 +226,7 @@ fn write_frame(dir: &Path, frame: &str, image: &Image) {
     let done = dir.join(format!("{frame}.png"));
     if let Err(error) = image.save(&partial) {
         error!(path = %partial.display(), %error, "cannot write the scene frame");
+        remove_request(dir);
         return;
     }
     remove_request(dir);
