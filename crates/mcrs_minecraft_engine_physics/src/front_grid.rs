@@ -19,7 +19,7 @@ use mcrs_minecraft_physics::floor_block;
 use crate::tile_at::tile_at;
 
 /// The edge of a bucket in blocks; a tile holds `BUCKETS × BUCKETS` buckets.
-const BUCKET: i32 = 4;
+const BUCKET: i32 = 1;
 const BUCKETS: usize = (TILE_WIDTH.get() / BUCKET.unsigned_abs()) as usize;
 
 /// The front buffer of the body grid as the bodies that a step reads: the rows of each tile sorted
