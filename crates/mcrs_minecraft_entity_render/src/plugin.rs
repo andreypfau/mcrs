@@ -1,12 +1,12 @@
 use bevy::core_pipeline::schedule::Core3d;
 use bevy::prelude::*;
 use bevy::render::{ExtractSchedule, Render, RenderApp, RenderSystems};
-use mcrs_minecraft_client_entity::{ClientEntityTick, ServerTicking};
+use mcrs_minecraft_client_entity::ClientEntityTick;
 use mcrs_minecraft_render::WorldPass;
 
 use crate::main_world::{
-    EntityClock, EntityVm, advance_clock, assign_slots, frame_clock, release_slot, write_inputs,
-    write_layers, write_ticks,
+    EntityClock, EntityVm, advance_clock, assign_slots, frame_clock, release_slot, server_ticks,
+    write_inputs, write_layers, write_ticks,
 };
 use crate::render_world::{EntityRenderState, draw_entities, extract_entities, prepare_entities};
 use crate::slot_upload::SlotArena;
@@ -27,11 +27,7 @@ impl Plugin for EntityRenderPlugin {
             .init_resource::<EntityVm>()
             .add_systems(
                 FixedUpdate,
-                advance_clock.before(ClientEntityTick).run_if(
-                    |ticking: Option<Res<ServerTicking>>| {
-                        ticking.is_none_or(|ticking| ticking.runs())
-                    },
-                ),
+                advance_clock.before(ClientEntityTick).run_if(server_ticks),
             )
             .add_systems(
                 PostUpdate,

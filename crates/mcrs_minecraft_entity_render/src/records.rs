@@ -1,4 +1,5 @@
 use bytemuck::{Pod, Zeroable};
+use half::f16;
 
 /// The values of a slot that change with the ticks of the entity: the current values only. The
 /// GPU keeps the record of the previous write of the slot.
@@ -17,6 +18,14 @@ pub struct TickRecord {
     pub walk_position: u32,
     /// The bits of the walk speed.
     pub walk_speed: u32,
+}
+
+impl TickRecord {
+    /// An angle in degrees as 1/65536 of a turn, as the record holds a yaw.
+    #[must_use]
+    pub fn turn_from_degrees(degrees: f32) -> u16 {
+        ((degrees.rem_euclid(360.0) / 360.0 * 65536.0).round() as u32 % 65536) as u16
+    }
 }
 
 /// The part of a slot that the entity cull reads for each slot.
@@ -113,45 +122,12 @@ pub fn f16_up(value: f32) -> u16 {
     if value.is_nan() || value <= 0.0 {
         return 0;
     }
-    const LARGEST: u16 = 0x7bff;
-    let bits = value.to_bits();
-    let exponent = ((bits >> 23) & 0xff) as i32 - 127 + 15;
-    if exponent >= 31 {
-        return LARGEST;
-    }
-    let mantissa = bits & 0x007f_ffff;
-    if exponent <= 0 {
-        let shift = (14 - exponent) as u32;
-        if shift > 24 {
-            return 1;
-        }
-        let full = mantissa | 0x0080_0000;
-        let half = full >> shift;
-        let exact = half << shift == full;
-        return (half + u32::from(!exact)) as u16;
-    }
-    let half = ((exponent as u32) << 10) | (mantissa >> 13);
-    let exact = mantissa & 0x1fff == 0;
-    let rounded = half + u32::from(!exact);
-    if rounded > u32::from(LARGEST) {
-        LARGEST
-    } else {
-        rounded as u16
-    }
-}
-
-/// The value of the `f16` bits `half`.
-#[must_use]
-pub fn f16_value(half: u16) -> f32 {
-    let exponent = i32::from((half >> 10) & 0x1f);
-    let mantissa = f32::from(half & 0x3ff);
-    let sign = if half & 0x8000 != 0 { -1.0 } else { 1.0 };
-    let magnitude = match exponent {
-        0 => mantissa * 2f32.powi(-24),
-        31 => f32::INFINITY,
-        _ => (1.0 + mantissa / 1024.0) * 2f32.powi(exponent - 15),
-    };
-    sign * magnitude
+    let nearest = f16::from_f32(value);
+    let below = nearest.to_f32() < value;
+    nearest
+        .to_bits()
+        .saturating_add(u16::from(below))
+        .min(f16::MAX.to_bits())
 }
 
 #[cfg(test)]
@@ -160,11 +136,13 @@ mod tests {
 
     #[test]
     fn a_rounded_up_half_never_falls_below_the_value() {
+        let value_of = |half: u16| f16::from_bits(half).to_f32();
         for value in [0.3f32, 1.0, 1.7, 2.513_7, 9.99, 0.000_1, 65_504.0, 1.0e-7] {
             let half = f16_up(value);
-            assert!(f16_value(half) >= value, "{value} gave {}", f16_value(half));
+            assert!(value_of(half) >= value, "{value} gave {}", value_of(half));
         }
-        assert_eq!(f16_value(f16_up(1.0)), 1.0);
-        assert_eq!(f16_value(f16_up(1e9)), 65_504.0);
+        assert_eq!(value_of(f16_up(1.0)), 1.0);
+        assert_eq!(value_of(f16_up(65_510.0)), 65_504.0);
+        assert_eq!(value_of(f16_up(1e9)), 65_504.0);
     }
 }

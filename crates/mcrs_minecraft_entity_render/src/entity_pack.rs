@@ -8,6 +8,7 @@ use mcrs_minecraft_pack_file::ClientEntityFile;
 use mcrs_minecraft_render_controller::{RenderControllerLibrary, RenderControllers};
 
 use crate::entity_library::DefinitionSource;
+use crate::repository_pack::REPOSITORY_PACK;
 
 /// The flip angle of the death tilt when a mob document gives no other, in degrees.
 pub const DEATH_FLIP: f32 = 90.0;
@@ -31,6 +32,12 @@ pub struct EntityPack {
 }
 
 impl EntityPack {
+    /// The entity pack of the repository, `assets/mcrs/entity`, which the crate embeds.
+    #[must_use]
+    pub fn repository() -> Self {
+        Self::load(REPOSITORY_PACK)
+    }
+
     /// Compiles the files of an entity pack. Each file is its path below the pack root, such as
     /// `entity/pig.entity.json`, and its text.
     #[must_use]

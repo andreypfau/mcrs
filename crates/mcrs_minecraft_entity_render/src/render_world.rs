@@ -231,3 +231,40 @@ pub(crate) fn draw_entities(
     drop(pass);
     state.threshold = threshold;
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::records::{ScatterEntry, TickRecord};
+
+    fn entry(slot: u32, tick: u32, x: i32) -> ScatterEntry {
+        ScatterEntry {
+            slot,
+            tick,
+            record: TickRecord {
+                block: [x, 0, 0],
+                ..TickRecord::default()
+            },
+        }
+    }
+
+    #[test]
+    fn a_lagging_upload_keeps_the_last_tick_record_of_a_slot_and_its_fresh_bit() {
+        let mut pending = SlotUpload {
+            ticks: vec![entry(3, 5 | SCATTER_FRESH, 1)],
+            ..SlotUpload::default()
+        };
+        let next = SlotUpload {
+            slot_capacity: 64,
+            slot_count: 5,
+            ticks: vec![entry(3, 6, 2), entry(4, 6, 7)],
+            ..SlotUpload::default()
+        };
+        merge(&mut pending, next);
+        assert_eq!(
+            pending.ticks,
+            vec![entry(3, 6 | SCATTER_FRESH, 2), entry(4, 6, 7)]
+        );
+        assert_eq!((pending.slot_capacity, pending.slot_count), (64, 5));
+    }
+}

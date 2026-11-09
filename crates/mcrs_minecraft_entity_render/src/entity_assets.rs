@@ -7,20 +7,42 @@ use mcrs_molang::string_hash;
 
 use crate::entity_library::EntityLibrary;
 use crate::entity_pack::EntityPack;
+use crate::frame_queries::VariantEntry;
 
-/// The texture identifier of the missing texture of the resource pack.
-pub const MISSING_TEXTURE: &str = "mcrs:missing";
+/// The texture identifier of the missing texture, which the entity textures hold first. It is
+/// not a texture of the resource pack, so no pack texture can take its place.
+pub(crate) const MISSING_TEXTURE: &str = "mcrs:missing";
 
-/// An entry of a synced variant registry.
-#[derive(Clone, Debug, PartialEq)]
+/// An entry of a synced variant registry, with the strings that the render controllers and the
+/// animations compare as [`string_hash`]es.
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub struct VariantInfo {
-    /// The position of the entry in the registry.
-    pub id: f32,
-    pub identifier: String,
-    pub asset: String,
-    pub baby_asset: Option<String>,
-    /// The model type in lower case.
-    pub model: String,
+    /// The entry as an adult reads it.
+    pub adult: VariantEntry,
+    /// The asset of a baby, when the entry gives babies their own.
+    pub baby_asset: Option<u64>,
+}
+
+impl VariantInfo {
+    /// The entry as an adult or a baby reads it.
+    #[must_use]
+    pub fn entry(&self, baby: bool) -> VariantEntry {
+        match (self.baby_asset, baby) {
+            (Some(asset), true) => VariantEntry {
+                asset,
+                ..self.adult
+            },
+            _ => self.adult,
+        }
+    }
+}
+
+/// A variant entry: the entity type whose entity data names it and its position in the synced
+/// registry.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct VariantKey {
+    pub kind: EntityType,
+    pub number: u16,
 }
 
 /// What the entity passes draw: the pack, its tables on the GPU, the client entity of each
@@ -34,30 +56,14 @@ pub struct EntityAssets {
     /// The index of the client entity of each entity type in [`EntityPack::entities`].
     pub kinds: HashMap<EntityType, usize>,
     pub variants: HashMap<VariantKey, VariantInfo>,
-    /// The variant of an entity whose entity data names none.
-    pub default_variants: HashMap<EntityType, VariantKey>,
+    /// The variant number of an entity whose entity data names none.
+    pub default_variants: HashMap<EntityType, u16>,
     /// The texture identifier of each equipment asset and layer type.
     pub equipment_textures: HashMap<(String, String), String>,
     /// The cull radius of each definition at the scale 1, in blocks.
     pub radii: Vec<f32>,
     /// The variant of each texture identifier by its `string_hash`.
     texture_hashes: HashMap<u64, u16>,
-}
-
-/// A variant entry of a variant registry.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub enum VariantKey {
-    Pig(u16),
-    Frog(u16),
-}
-
-impl From<VariantId> for VariantKey {
-    fn from(id: VariantId) -> Self {
-        match id {
-            VariantId::Pig(id) => Self::Pig(id.number()),
-            VariantId::Frog(id) => Self::Frog(id.number()),
-        }
-    }
 }
 
 impl EntityAssets {
@@ -80,12 +86,23 @@ impl EntityAssets {
             .copied()
             .unwrap_or(0)
     }
+
+    /// The variant of an entity of the type `kind` whose entity data names `variant`, or the
+    /// default variant of the type when it names none.
+    #[must_use]
+    pub fn variant(&self, kind: EntityType, variant: Option<VariantId>) -> Option<&VariantInfo> {
+        let number = match variant {
+            Some(id) => id.number(),
+            None => *self.default_variants.get(&kind)?,
+        };
+        self.variants.get(&VariantKey { kind, number })
+    }
 }
 
 /// The texture identifier `ns:path` of a texture path of a client entity: `textures/path` is
 /// `minecraft:path`.
 #[must_use]
-pub fn texture_identifier(path: &str) -> String {
+pub(crate) fn texture_identifier(path: &str) -> String {
     match path.strip_prefix("textures/") {
         Some(rest) => format!("minecraft:{rest}"),
         None if path.contains(':') => path.to_owned(),

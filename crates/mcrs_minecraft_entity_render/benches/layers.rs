@@ -5,7 +5,6 @@
 )]
 
 use std::hint::black_box;
-use std::path::Path;
 
 use criterion::{Criterion, Throughput, criterion_group, criterion_main};
 use mcrs_minecraft_entity_animation::EntityQuery;
@@ -15,31 +14,8 @@ use mcrs_molang::{ScalarVm, Value, string_hash};
 
 const FROGS: usize = 10_000;
 
-fn pack_files() -> Vec<(String, String)> {
-    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../assets/mcrs/entity");
-    let mut files = Vec::new();
-    for folder in ["entity", "animations", "geometry", "render_controllers"] {
-        for entry in std::fs::read_dir(root.join(folder)).unwrap().flatten() {
-            let path = entry.path();
-            if path
-                .extension()
-                .is_some_and(|extension| extension == "json")
-            {
-                let name = format!("{folder}/{}", path.file_name().unwrap().to_string_lossy());
-                files.push((name, std::fs::read_to_string(&path).unwrap()));
-            }
-        }
-    }
-    files
-}
-
 fn bench_frog_layers(c: &mut Criterion) {
-    let files = pack_files();
-    let pack = EntityPack::load(
-        files
-            .iter()
-            .map(|(path, text)| (path.as_str(), text.as_str())),
-    );
+    let pack = EntityPack::repository();
     let library = EntityLibrary::build(&pack.sources(), &[], 2048);
     let (definition, frog) = pack.entity("minecraft:frog").unwrap();
     let tables = &library.definitions[definition];

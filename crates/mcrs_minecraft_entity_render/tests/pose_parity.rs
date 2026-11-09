@@ -1,6 +1,10 @@
 //! Runs the pose pass on a real adapter for each case of the pose artefact and compares each
 //! bone with the pose of the CPU animation crate for the same inputs, within the pose tolerance
-//! of `docs/spec/entity-animation.md`, EANIM-GPU-003.
+//! of `docs/spec/entity-animation.md`, EANIM-GPU-003. It needs a GPU:
+//!
+//! ```sh
+//! cargo test -p mcrs_minecraft_entity_render --test pose_parity -- --ignored
+//! ```
 #![expect(
     clippy::unwrap_used,
     clippy::panic,
@@ -137,10 +141,6 @@ fn animate(rig: &Rig, inputs: &Inputs, vm: &mut ScalarVm) -> EntityAnimation {
         }
     }
     entity
-}
-
-fn turn(degrees: f64) -> u16 {
-    ((degrees.rem_euclid(360.0) / 360.0 * 65536.0).round() as u32 % 65536) as u16
 }
 
 #[derive(Clone, Copy, Debug, Default)]
@@ -281,7 +281,7 @@ fn write_case(
             block: [0, 64, 0],
             fraction: [0; 3],
             body_yaw: 0,
-            head_yaw: turn(inputs.head_yaw_degrees),
+            head_yaw: TickRecord::turn_from_degrees(inputs.head_yaw_degrees as f32),
             pitch,
             walk_position: (inputs.walk_position as f32).to_bits(),
             walk_speed: (inputs.walk_speed as f32).to_bits(),
@@ -367,10 +367,10 @@ fn compare_with_cpu<'a>(
 }
 
 #[test]
+#[ignore = "needs a GPU"]
 fn the_gpu_pose_of_each_case_agrees_with_the_cpu_animation() {
     let Some(gpu) = support::Gpu::new() else {
-        eprintln!("no adapter: the GPU pose parity does not run");
-        return;
+        panic!("no adapter: the GPU pose parity needs a GPU");
     };
     let pack = support::pack();
     let library = EntityLibrary::build(&pack.sources(), &[support::white_texture()], 2048);

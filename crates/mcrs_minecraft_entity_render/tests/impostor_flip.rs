@@ -283,10 +283,6 @@ fn place(case: &Case, pack: &EntityPack, library: &EntityLibrary) -> Placed {
     }
 }
 
-fn turn(degrees: f32) -> u16 {
-    ((degrees.rem_euclid(360.0) / 360.0 * 65536.0).round() as u32 % 65536) as u16
-}
-
 /// The pixels of one block at the distance of one block.
 fn projection_scale() -> f32 {
     TEST_HEIGHT / (2.0 * 35f32.to_radians().tan())
@@ -411,8 +407,8 @@ fn render(
         TickRecord {
             block: [0, 64, 0],
             fraction: [32768, 0, 32768],
-            body_yaw: turn(yaw),
-            head_yaw: turn(yaw),
+            body_yaw: TickRecord::turn_from_degrees(yaw),
+            head_yaw: TickRecord::turn_from_degrees(yaw),
             ..TickRecord::default()
         },
         true,

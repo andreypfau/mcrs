@@ -78,10 +78,6 @@ fn texture(identifier: &str, side: u32) -> TextureImage {
     }
 }
 
-fn turn(degrees: f32) -> u16 {
-    ((degrees.rem_euclid(360.0) / 360.0 * 65536.0).round() as u32 % 65536) as u16
-}
-
 fn record(pig: &Pig) -> TickRecord {
     let block = pig.position.floor();
     let fraction = ((pig.position - block) * 65536.0)
@@ -90,8 +86,8 @@ fn record(pig: &Pig) -> TickRecord {
     TickRecord {
         block: block.as_ivec3().to_array(),
         fraction: [fraction.x as u16, fraction.y as u16, fraction.z as u16],
-        body_yaw: turn(pig.heading),
-        head_yaw: turn(pig.heading + 20.0),
+        body_yaw: TickRecord::turn_from_degrees(pig.heading),
+        head_yaw: TickRecord::turn_from_degrees(pig.heading + 20.0),
         pitch: 0,
         walk_position: pig.walk_position.to_bits(),
         walk_speed: pig.walk_speed.to_bits(),

@@ -147,6 +147,13 @@ impl EntityLibrary {
         let mut library = Self::default();
         let mut baked: Vec<&BakedGeometry> = Vec::new();
         for source in sources.iter().take(MAX_DEFINITIONS) {
+            let layers = source.controllers.layers.len();
+            if layers > MAX_LAYERS {
+                library.diagnostics.push(format!(
+                    "{}: {layers} render controller layers; the entity passes draw the first {MAX_LAYERS}",
+                    source.rig.identifier
+                ));
+            }
             let definition = library.add_definition(source, &mut baked);
             library.definitions.push(definition);
         }

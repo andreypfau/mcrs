@@ -14,8 +14,8 @@ use mcrs_molang::{ScalarVm, Value, string_hash};
 use mcrs_voxel::BlockPos;
 
 use crate::cpu_inputs::input_record;
-use crate::entity_assets::{EntityAssets, VariantInfo, VariantKey, texture_identifier};
-use crate::frame_queries::{FrameQueries, VariantEntry, pose_name};
+use crate::entity_assets::{EntityAssets, texture_identifier};
+use crate::frame_queries::{FrameQueries, pose_name};
 use crate::records::{
     CULL_FULL_RIG_ONLY, CULL_VALID, CullRecord, MAX_LAYERS, STATE_BABY, STATE_DYING,
     STATE_HIDDEN_SHIFT, TickRecord, f16_up,
@@ -61,6 +61,11 @@ pub(crate) struct EntityVm(ScalarVm);
 const MOVEMENT_MARGIN: f32 = 0.25;
 /// The hurt start of an entity that was never hurt: far before any age.
 const NEVER_HURT: f32 = -1.0e9;
+
+/// Whether the server runs ticks: a frozen world runs only the steps that it asks for.
+pub(crate) fn server_ticks(ticking: Option<Res<ServerTicking>>) -> bool {
+    ticking.is_none_or(|ticking| ticking.runs())
+}
 
 pub(crate) fn advance_clock(mut clock: ResMut<EntityClock>) {
     clock.tick = clock.tick.wrapping_add(1);
@@ -118,8 +123,37 @@ pub(crate) fn release_slot(
     }
 }
 
-fn turn(degrees: f32) -> u16 {
-    ((degrees.rem_euclid(360.0) / 360.0 * 65536.0).round() as u32 % 65536) as u16
+/// The yaws in degrees and the walk of an entity in a tick record.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+struct Facing {
+    body_yaw: f32,
+    head_yaw: f32,
+    walk_position: f32,
+    walk_speed: f32,
+}
+
+impl Facing {
+    /// A dying entity keeps its yaws and stops its walk.
+    fn of(motion: &Motion, living: Option<&Living>, dying: bool) -> Self {
+        match living {
+            Some(living) if !dying => Self {
+                body_yaw: living.body_yaw,
+                head_yaw: living.head_yaw,
+                walk_position: living.walk.position * living.walk.scale,
+                walk_speed: living.walk.speed,
+            },
+            Some(living) => Self {
+                body_yaw: living.body_yaw,
+                head_yaw: living.head_yaw,
+                ..Self::default()
+            },
+            None => Self {
+                body_yaw: motion.current.yaw,
+                head_yaw: motion.current.yaw,
+                ..Self::default()
+            },
+        }
+    }
 }
 
 /// Writes the tick record, the cull record and the tick values of the state of each entity
@@ -157,16 +191,7 @@ pub(crate) fn write_ticks(
             .as_uvec3()
             .min(glam::UVec3::splat(65535));
         let dying = data.is_dying();
-        let (body_yaw, head_yaw, walk_position, walk_speed) = match living {
-            Some(living) if !dying => (
-                living.body_yaw,
-                living.head_yaw,
-                living.walk.position * living.walk.scale,
-                living.walk.speed,
-            ),
-            Some(living) => (living.body_yaw, living.head_yaw, 0.0, 0.0),
-            None => (motion.current.yaw, motion.current.yaw, 0.0, 0.0),
-        };
+        let facing = Facing::of(motion, living, dying);
         let pitch = (motion.current.pitch / 180.0 * 32767.0)
             .round()
             .clamp(-32767.0, 32767.0) as i16;
@@ -174,11 +199,11 @@ pub(crate) fn write_ticks(
         let record = TickRecord {
             block: block.to_array(),
             fraction: [fraction.x as u16, fraction.y as u16, fraction.z as u16],
-            body_yaw: turn(body_yaw),
-            head_yaw: turn(head_yaw),
+            body_yaw: TickRecord::turn_from_degrees(facing.body_yaw),
+            head_yaw: TickRecord::turn_from_degrees(facing.head_yaw),
             pitch,
-            walk_position: walk_position.to_bits(),
-            walk_speed: walk_speed.to_bits(),
+            walk_position: facing.walk_position.to_bits(),
+            walk_speed: facing.walk_speed.to_bits(),
         };
         let fresh = slot.is_added();
         let moved = arena
@@ -274,32 +299,6 @@ fn equipment_asset(
     }
 }
 
-fn equipment_slot(name: &str) -> Option<EquipmentSlot> {
-    Some(match name {
-        "mainhand" => EquipmentSlot::MainHand,
-        "offhand" => EquipmentSlot::OffHand,
-        "head" => EquipmentSlot::Head,
-        "chest" => EquipmentSlot::Chest,
-        "legs" => EquipmentSlot::Legs,
-        "feet" => EquipmentSlot::Feet,
-        "body" => EquipmentSlot::Body,
-        "saddle" => EquipmentSlot::Saddle,
-        _ => return None,
-    })
-}
-
-fn variant_of<'a>(
-    assets: &'a EntityAssets,
-    client: &ClientEntity,
-    data: &SyncedData,
-) -> Option<&'a VariantInfo> {
-    let key = data
-        .variant
-        .map(VariantKey::from)
-        .or_else(|| assets.default_variants.get(&client.kind).copied())?;
-    assets.variants.get(&key)
-}
-
 /// The value of a query of a render controller, from the tick state of an entity.
 fn render_query(
     query: &RenderQuery,
@@ -311,24 +310,23 @@ fn render_query(
 ) -> Option<Value> {
     let flag = |value: bool| Value::Number(if value { 1.0 } else { 0.0 });
     let text = |value: &str| Value::String(string_hash(value));
-    let variant = variant_of(assets, client, data);
+    let empty = || Value::String(string_hash(""));
+    let variant = assets
+        .variant(client.kind, data.variant)
+        .map(|variant| variant.entry(data.baby));
     Some(match query {
         RenderQuery::Entity(EntityQuery::IsBaby) => flag(data.baby),
         RenderQuery::Entity(EntityQuery::Variant) => {
             Value::Number(variant.map_or(0.0, |variant| variant.id))
         }
         RenderQuery::Entity(EntityQuery::VariantIdentifier) => {
-            text(variant.map_or("", |variant| variant.identifier.as_str()))
+            variant.map_or_else(empty, |variant| Value::String(variant.identifier))
         }
-        RenderQuery::Entity(EntityQuery::VariantAsset) => text(variant.map_or(
-            "",
-            |variant| match (&variant.baby_asset, data.baby) {
-                (Some(baby), true) => baby.as_str(),
-                _ => variant.asset.as_str(),
-            },
-        )),
+        RenderQuery::Entity(EntityQuery::VariantAsset) => {
+            variant.map_or_else(empty, |variant| Value::String(variant.asset))
+        }
         RenderQuery::Entity(EntityQuery::VariantModel) => {
-            text(variant.map_or("", |variant| variant.model.as_str()))
+            variant.map_or_else(empty, |variant| Value::String(variant.model))
         }
         RenderQuery::Entity(EntityQuery::Pose) => text(pose_name(data.pose)),
         RenderQuery::Entity(EntityQuery::IsSaddled) => {
@@ -336,8 +334,10 @@ fn render_query(
         }
         RenderQuery::Entity(EntityQuery::IsAlive) => flag(!data.is_dying()),
         RenderQuery::EquipmentTexture { slot, layer } => {
-            let asset =
-                equipment_slot(slot).and_then(|slot| equipment_asset(equipment, slot, items));
+            let asset = slot
+                .parse::<EquipmentSlot>()
+                .ok()
+                .and_then(|slot| equipment_asset(equipment, slot, items));
             let texture =
                 asset.and_then(|asset| assets.equipment_textures.get(&(asset, layer.clone())));
             text(texture.map_or("", String::as_str))
@@ -464,15 +464,9 @@ pub(crate) fn write_inputs(
         };
         let inputs = RenderInputs::from(inputs);
         let frame = inputs.frame(clock.partial_tick);
-        let variant = variant_of(&assets, inputs.entity, inputs.data).map(|variant| VariantEntry {
-            id: variant.id,
-            identifier: string_hash(&variant.identifier),
-            asset: string_hash(match (&variant.baby_asset, frame.baby) {
-                (Some(baby), true) => baby,
-                _ => &variant.asset,
-            }),
-            model: string_hash(&variant.model),
-        });
+        let variant = assets
+            .variant(inputs.entity.kind, inputs.data.variant)
+            .map(|variant| variant.entry(frame.baby));
         let source = FrameQueries {
             frame: &frame,
             variant,

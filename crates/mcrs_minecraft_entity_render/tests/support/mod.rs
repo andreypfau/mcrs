@@ -1,7 +1,5 @@
 //! A headless adapter and the entity pack of the repository for the GPU tests.
 
-use std::path::Path;
-
 use mcrs_minecraft_entity_render::{
     Capacities, DrawTargets, EntityGpu, EntityLibrary, EntityPack, TextureImage,
 };
@@ -110,32 +108,9 @@ impl Gpu {
     }
 }
 
-/// The files of the entity pack of the repository.
-pub fn pack_files() -> Vec<(String, String)> {
-    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../assets/mcrs/entity");
-    let mut files = Vec::new();
-    for folder in ["entity", "animations", "geometry", "render_controllers"] {
-        for entry in std::fs::read_dir(root.join(folder)).unwrap().flatten() {
-            let path = entry.path();
-            if path
-                .extension()
-                .is_some_and(|extension| extension == "json")
-            {
-                let name = format!("{folder}/{}", path.file_name().unwrap().to_string_lossy());
-                files.push((name, std::fs::read_to_string(&path).unwrap()));
-            }
-        }
-    }
-    files
-}
-
+/// The entity pack of the repository, with no diagnostics.
 pub fn pack() -> EntityPack {
-    let files = pack_files();
-    let pack = EntityPack::load(
-        files
-            .iter()
-            .map(|(path, text)| (path.as_str(), text.as_str())),
-    );
+    let pack = EntityPack::repository();
     assert!(pack.diagnostics.is_empty(), "{:#?}", pack.diagnostics);
     pack
 }

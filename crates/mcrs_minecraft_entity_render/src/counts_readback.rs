@@ -110,10 +110,11 @@ impl CountsReadback {
                 Stage::Mapping(state) => match state.load(Ordering::Acquire) {
                     MAP_PENDING => {}
                     MAP_DONE => {
-                        let counters: Vec<u32> =
-                            bytemuck::cast_slice(&buffer.slice(..).get_mapped_range()).to_vec();
+                        let counts = EntityFrameCounts::of(bytemuck::cast_slice(
+                            &buffer.slice(..).get_mapped_range(),
+                        ));
                         buffer.unmap();
-                        latest = Some(EntityFrameCounts::of(&counters));
+                        latest = Some(counts);
                         *stage = Stage::Free;
                     }
                     _ => *stage = Stage::Free,
