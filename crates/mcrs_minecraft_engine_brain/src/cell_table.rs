@@ -12,7 +12,7 @@ use mcrs_minecraft_resource::TagId;
 use mcrs_minecraft_resource::TagKey;
 use mcrs_voxel::BlockStateId;
 
-use crate::PathType;
+use mcrs_minecraft_physics::PathType;
 
 /// What the goals and the controls of a mob read of each block state: the render and solid
 /// flags, the fluid, the state path type and the collision shape.

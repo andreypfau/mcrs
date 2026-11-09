@@ -17,6 +17,7 @@ use mcrs_minecraft_physics::InsideEffect;
 use mcrs_minecraft_physics::Living;
 use mcrs_minecraft_physics::MotionRow;
 use mcrs_minecraft_physics::NoBodies;
+use mcrs_minecraft_physics::PathType;
 use mcrs_minecraft_physics::Rest;
 use mcrs_minecraft_physics::Scratch;
 use mcrs_minecraft_physics::Side;
@@ -220,6 +221,7 @@ fn fall_004_a_block_acts_inside_a_masked_section_without_an_inside_action() {
                 inside,
                 inside_shape: InsideBoxes::FullCube,
                 motion: BlockMotion::DEFAULT,
+                path: PathType::Open,
             })
             .unwrap()
     };

@@ -2,7 +2,9 @@ use glam::DVec3;
 use mcrs_minecraft_block::block_keys::Block;
 use mcrs_minecraft_block::block_tag_keys;
 use mcrs_minecraft_block::definition::BlockDefinitions;
+use mcrs_minecraft_block::definition::BlockStateFlags;
 use mcrs_minecraft_block::definition::schema::PropertyValue;
+use mcrs_minecraft_block::fluid_keys::Fluid;
 use mcrs_minecraft_physics::Aabb;
 use mcrs_minecraft_physics::BlockFlags;
 use mcrs_minecraft_physics::BlockMotion;
@@ -16,9 +18,11 @@ use mcrs_voxel::BlockStateId;
 
 use crate::inside_shape::inside_shape;
 use crate::named_block::NamedBlock;
+use crate::path_types::PathTypes;
 
 /// The block tags that set a flag.
-const TAG_FLAGS: [(TagKey<'static, Block>, BlockFlags); 11] = [
+const TAG_FLAGS: [(TagKey<'static, Block>, BlockFlags); 12] = [
+    (block_tag_keys::DOORS, BlockFlags::DOOR),
     (block_tag_keys::CLIMBABLE, BlockFlags::CLIMBABLE),
     (block_tag_keys::FENCES, BlockFlags::FENCE),
     (block_tag_keys::WALLS, BlockFlags::WALL),
@@ -55,6 +59,7 @@ pub fn collision_table(definitions: &BlockDefinitions, tags: &Tags<Block>) -> Co
     let causes_suffocation = tags.id(block_tag_keys::CAUSES_SUFFOCATION);
     let leaves = tags.id(block_tag_keys::LEAVES);
     let shulker_boxes = tags.id(block_tag_keys::SHULKER_BOXES);
+    let path_types = PathTypes::new(definitions, tags);
     let mut builder = CollisionTableBuilder::new();
     let mut boxes = Vec::new();
     let cauldron: Vec<Aabb> = definitions
@@ -84,8 +89,17 @@ pub fn collision_table(definitions: &BlockDefinitions, tags: &Tags<Block>) -> Co
         if flags.contains(BlockFlags::FALL_DAMAGE_RESETTING) {
             flags |= BlockFlags::INSIDE_ACTION;
         }
-        if state.fluid.is_some() {
+        if let Some(fluid) = state.fluid {
             flags |= BlockFlags::FLUID | BlockFlags::COARSE_NEAR;
+            if fluid.fluid == Fluid::Water.id() {
+                flags |= BlockFlags::WATER;
+            }
+        }
+        if state.flags.contains(BlockStateFlags::IS_SOLID_RENDER) {
+            flags |= BlockFlags::SOLID_RENDER;
+        }
+        if state.flags.contains(BlockStateFlags::LEGACY_SOLID) {
+            flags |= BlockFlags::LEGACY_SOLID;
         }
         boxes.clear();
         boxes.extend(boxes_of(definitions, id));
@@ -126,6 +140,7 @@ pub fn collision_table(definitions: &BlockDefinitions, tags: &Tags<Block>) -> Co
             inside: named.inside,
             inside_shape: inside_shape(path, value_of, &cauldron, &mut inside_boxes),
             motion,
+            path: path_types.of(definitions, id, &boxes),
         });
     }
     builder.build()

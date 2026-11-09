@@ -6,6 +6,7 @@ use crate::BlockMotion;
 use crate::BoxRange;
 use crate::InsideEffect;
 use crate::InsideShape;
+use crate::PathType;
 use crate::Shape;
 
 /// The index of a shape in a [`CollisionTable`].
@@ -36,6 +37,8 @@ pub struct StateCollision {
     pub inside: InsideEffect,
     pub inside_shape: InsideShape,
     pub motion: BlockMotion,
+    /// The state path type of PATH-TYP-002.
+    pub path: PathType,
 }
 
 impl StateCollision {
@@ -45,6 +48,7 @@ impl StateCollision {
         inside: InsideEffect::None,
         inside_shape: InsideShape::FullCube,
         motion: BlockMotion::DEFAULT,
+        path: PathType::Open,
     };
 
     /// The state acts on an entity whose box is inside it: an inside effect, an inside action or a
@@ -117,6 +121,18 @@ impl CollisionTable {
         self.inside_boxes
             .get(range.start as usize..range.end as usize)
             .unwrap_or(&[])
+    }
+
+    /// The shape of `class` for no entity: the shape of the block definition. A scaffolding has
+    /// its top shape, and a powder snow block has none.
+    #[must_use]
+    pub fn shape_without_context(&self, class: ShapeClass) -> Option<&Shape> {
+        match class {
+            ShapeClass::Empty | ShapeClass::PowderSnow => None,
+            ShapeClass::FullCube => self.shape(self.full_cube),
+            ShapeClass::OneBox(id) | ShapeClass::Compound(id) => self.shape(id),
+            ShapeClass::Scaffolding { .. } => self.shape(self.scaffolding_top),
+        }
     }
 
     /// The scaffolding shape for an entity above it: the top slab and the four corner posts.

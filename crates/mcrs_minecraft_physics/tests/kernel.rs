@@ -9,6 +9,7 @@ use mcrs_minecraft_physics::CollisionTableBuilder;
 use mcrs_minecraft_physics::InsideBoxes;
 use mcrs_minecraft_physics::InsideEffect;
 use mcrs_minecraft_physics::NoBodies;
+use mcrs_minecraft_physics::PathType;
 use mcrs_minecraft_physics::Probe;
 use mcrs_minecraft_physics::QueryVariant;
 use mcrs_minecraft_physics::Scratch;
@@ -173,6 +174,7 @@ fn scan_reads_large_shapes_on_faces_only() {
         inside: InsideEffect::None,
         inside_shape: InsideBoxes::FullCube,
         motion: BlockMotion::DEFAULT,
+        path: PathType::Open,
     };
     let _air = builder.push(spec(&[]));
     let big = builder

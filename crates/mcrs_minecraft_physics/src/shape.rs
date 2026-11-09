@@ -76,6 +76,55 @@ impl Shape {
         }
     }
 
+    /// The top of the highest solid cell, relative to the block position. The grid lines can go
+    /// above it.
+    #[must_use]
+    pub fn top(&self) -> f64 {
+        let lines = self.lines(Axis::Y);
+        let end = match &self.cells {
+            Cells::Block([_, rows, _]) => usize::from(rows.end),
+            Cells::Bits(_) => {
+                let [nx, ny, nz] = self.cell_counts();
+                (0..ny)
+                    .rev()
+                    .find(|&y| (0..nx).any(|x| (0..nz).any(|z| self.is_solid(x, y, z))))
+                    .map_or(0, |y| y + 1)
+            }
+        };
+        lines.get(end).copied().unwrap_or(0.0)
+    }
+
+    /// True when `hit` is true for one box of the shape, given as its min and max corners. A
+    /// compound shape gives each solid cell as a box.
+    pub(crate) fn any_box(&self, mut hit: impl FnMut(DVec3, DVec3) -> bool) -> bool {
+        let corner = |cell: [usize; 3]| {
+            DVec3::from_array(Axis::ALL.map(|axis| {
+                self.lines(axis)
+                    .get(*axis.pick(&cell))
+                    .copied()
+                    .unwrap_or(0.0)
+            }))
+        };
+        match &self.cells {
+            Cells::Block(ranges) => {
+                let min = corner(ranges.clone().map(|range| usize::from(range.start)));
+                let max = corner(ranges.clone().map(|range| usize::from(range.end)));
+                hit(min, max)
+            }
+            Cells::Bits(_) => {
+                let [nx, ny, nz] = self.cell_counts();
+                (0..nx).any(|x| {
+                    (0..ny).any(|y| {
+                        (0..nz).any(|z| {
+                            self.is_solid(x, y, z)
+                                && hit(corner([x, y, z]), corner([x + 1, y + 1, z + 1]))
+                        })
+                    })
+                })
+            }
+        }
+    }
+
     fn cell_counts(&self) -> [usize; 3] {
         Axis::ALL.map(|axis| self.lines(axis).len().saturating_sub(1))
     }

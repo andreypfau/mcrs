@@ -11,9 +11,9 @@ use mcrs_minecraft_volume::Unavailable;
 
 use crate::CellBox;
 use crate::CellTable;
-use crate::PathType;
 use crate::StateCell;
 use crate::StateFlags;
+use mcrs_minecraft_physics::PathType;
 
 /// The walk value above `grass_block`, and elsewhere on a server without a light engine
 /// (GOAL-POS-006).
