@@ -6,10 +6,11 @@ use std::time::Instant;
 use glam::DVec3;
 use serde::Serialize;
 
-use crate::adapter::{Kind, TickMetric};
-use crate::os::{CpuReport, round};
+use mcrs_minecraft_bench_support::{TickMetric, TickWindow, mean, nearest_rank, round};
+
+use crate::adapter::Target;
+use crate::os::CpuReport;
 use crate::phase::Phase;
-use crate::probe::TickWindow;
 use crate::scene::Area;
 use crate::watcher::{PigSnapshot, TimeSample};
 
@@ -22,7 +23,7 @@ const DISPLACED_BLOCKS: f64 = 0.5;
 
 #[derive(Serialize)]
 pub struct RunReport {
-    pub server: Kind,
+    pub server: Target,
     pub client: String,
     pub threads: Option<usize>,
     pub threads_note: String,
@@ -209,19 +210,6 @@ pub struct MotionSummary {
 }
 
 #[must_use]
-pub fn nearest_rank(sorted: &[f64], quantile: f64) -> f64 {
-    let index = (quantile * sorted.len() as f64).ceil() as usize;
-    sorted.get(index.saturating_sub(1)).copied().unwrap_or(0.0)
-}
-
-fn mean(values: &[f64]) -> f64 {
-    if values.is_empty() {
-        return 0.0;
-    }
-    values.iter().sum::<f64>() / values.len() as f64
-}
-
-#[must_use]
 pub fn mspt_of_windows(windows: &[TickWindow]) -> Option<Mspt> {
     if windows.is_empty() {
         return None;
@@ -391,4 +379,103 @@ fn summary(paths: &[f64], nets: &[f64], durations: &[f64], moved: usize) -> Opti
         mean_net_blocks: four_places(mean(nets)),
         displaced_fraction: round(displaced as f64 / paths.len() as f64),
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use std::time::Duration;
+
+    use super::*;
+    use crate::watcher::PigTrack;
+
+    #[test]
+    fn mcrs_ticks_report_nearest_rank_percentiles_of_the_sorted_ticks() {
+        let ticks: Vec<f64> = (1..=100).rev().map(f64::from).collect();
+        let mspt = mspt_of_ticks(ticks).expect("100 ticks");
+        assert_eq!(mspt.samples, 100);
+        assert_eq!(mspt.mean, 50.5);
+        assert_eq!(mspt.p50, 50.0);
+        assert_eq!(mspt.p95, 95.0);
+        assert_eq!(mspt.p99, 99.0);
+        assert_eq!(mspt.worst, 100.0);
+        assert!(mspt_of_ticks(Vec::new()).is_none());
+    }
+
+    #[test]
+    fn tick_query_windows_average_per_field_and_keep_the_worst_p99() {
+        let windows = [
+            TickWindow {
+                average: 10.0,
+                p50: 9.0,
+                p95: 20.0,
+                p99: 30.0,
+            },
+            TickWindow {
+                average: 20.0,
+                p50: 11.0,
+                p95: 40.0,
+                p99: 50.0,
+            },
+        ];
+        let mspt = mspt_of_windows(&windows).expect("two windows");
+        assert_eq!(mspt.samples, 2);
+        assert_eq!(mspt.mean, 15.0);
+        assert_eq!(mspt.p50, 10.0);
+        assert_eq!(mspt.p95, 30.0);
+        assert_eq!(mspt.p99, 40.0);
+        assert_eq!(mspt.worst, 50.0);
+    }
+
+    fn sighting(start: Instant, seconds: u64, x: f64) -> Sighting {
+        Sighting {
+            at: start + Duration::from_secs(seconds),
+            position: DVec3::new(x, 0.0, 0.0),
+        }
+    }
+
+    #[test]
+    fn the_console_counts_the_pig_that_walks_and_not_the_one_that_stands() {
+        let start = Instant::now();
+        let samples = HashMap::from([
+            (
+                0,
+                vec![
+                    sighting(start, 0, 0.0),
+                    sighting(start, 5, 5.0),
+                    sighting(start, 10, 10.0),
+                ],
+            ),
+            (1, vec![sighting(start, 0, 3.0), sighting(start, 10, 3.0)]),
+        ]);
+        let motion = console_motion(&samples).expect("two pigs");
+        assert_eq!(motion.pigs, 2);
+        assert_eq!(motion.moved_fraction, 0.5);
+        assert_eq!(motion.displaced_fraction, 0.5);
+        assert_eq!(motion.mean_path_blocks_per_second, 0.5);
+        assert_eq!(motion.mean_net_blocks, 5.0);
+    }
+
+    #[test]
+    fn the_watcher_counts_the_pig_that_walks_and_not_the_one_that_stands() {
+        let at = Instant::now();
+        let pig = |x: f64, path: f64| PigTrack {
+            position: DVec3::new(x, 0.0, 0.0),
+            path,
+        };
+        let snapshot = |at: Instant, walker: PigTrack| PigSnapshot {
+            at,
+            pigs: HashMap::from([(1, walker), (2, pig(3.0, 0.0))]),
+            move_packets: 0,
+            placed: true,
+            game_mode: None,
+        };
+        let start = snapshot(at, pig(0.0, 0.0));
+        let end = snapshot(at + Duration::from_secs(10), pig(10.0, 10.0));
+        let motion = watcher_motion(&start, &end).expect("two pigs");
+        assert_eq!(motion.pigs, 2);
+        assert_eq!(motion.moved_fraction, 0.5);
+        assert_eq!(motion.mean_path_blocks_per_second, 0.5);
+        assert_eq!(motion.mean_net_blocks_per_second, 0.5);
+        assert!(watcher_motion(&start, &start).is_none());
+    }
 }

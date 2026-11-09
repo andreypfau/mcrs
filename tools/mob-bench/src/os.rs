@@ -3,6 +3,7 @@
 use std::collections::HashMap;
 use std::time::Instant;
 
+use mcrs_minecraft_bench_support::round;
 use serde::Serialize;
 
 #[cfg(target_os = "macos")]
@@ -121,10 +122,6 @@ pub fn cpu_between(
         per_core_percent,
         top_other_processes: others,
     }
-}
-
-pub fn round(value: f64) -> f64 {
-    (value * 100.0).round() / 100.0
 }
 
 #[cfg(target_os = "macos")]

@@ -4,29 +4,29 @@ use std::collections::{HashMap, VecDeque};
 use std::net::TcpListener;
 use std::net::{Ipv4Addr, SocketAddr};
 use std::process::{Child, Command};
-use std::time::{Duration, Instant, SystemTime};
+use std::time::{Duration, Instant};
 
 use anyhow::Context;
 use glam::DVec3;
 
-use crate::adapter::{LaunchOptions, TickMetric};
+use mcrs_minecraft_bench_support::{
+    ServerProcess, TickMetric, mcrs_tick_millis, round, tick_windows, unix_now,
+};
+
+use crate::adapter::LaunchOptions;
 use crate::args::{Args, Client};
-use crate::os::{self, round};
+use crate::os;
 use crate::phase::Phase;
 use crate::probe;
-use crate::process::ServerProcess;
 use crate::report::{
     self, Answered, External, GameTimeAnswer, Machine, Motion, PhaseReport, PlayerModeCheck,
     RunReport, Sighting, Sprint, StirReport,
 };
 use crate::scene::{self, Ai, Area, PEN, PEN_WATCH, ROAM};
-use crate::status;
+use crate::session::{self, CONSOLE_TIMEOUT, JOIN_TIMEOUT};
 use crate::stir::{self, Stir};
 use crate::watcher::{PigSnapshot, Watcher};
 
-const READY_TIMEOUT: Duration = Duration::from_secs(600);
-const CONSOLE_TIMEOUT: Duration = Duration::from_secs(20);
-const JOIN_TIMEOUT: Duration = Duration::from_secs(60);
 const POPULATE_TIMEOUT: Duration = Duration::from_secs(900);
 /// A pig count that has not changed for this long will not reach its target.
 const STALL_TIMEOUT: Duration = Duration::from_secs(60);
@@ -122,9 +122,7 @@ pub fn run(args: &Args) -> anyhow::Result<RunReport> {
         threads: args.threads,
         player_mode: args.player_mode,
     })?;
-    let started_unix = SystemTime::now()
-        .duration_since(SystemTime::UNIX_EPOCH)
-        .map_or(0, |since| since.as_secs());
+    let started_unix = unix_now();
     let address = SocketAddr::from((Ipv4Addr::LOCALHOST, launch.port));
     // A status answer from another server on the port would pass for this one's.
     TcpListener::bind((Ipv4Addr::UNSPECIFIED, launch.port))
@@ -135,8 +133,9 @@ pub fn run(args: &Args) -> anyhow::Result<RunReport> {
         &launch.command,
         &launch.env,
         &args.dir,
-        &args.dir.join("server.log"),
-    )?;
+        Some(&args.dir.join("server.log")),
+    )?
+    .counting(probe::damage_applied);
     let mut bench = Bench::new(args, runtime, server);
     let start_seconds = bench.wait_ready(address, started);
     let mut report = RunReport {
@@ -236,20 +235,13 @@ impl<'a> Bench<'a> {
 }
 
 impl Bench<'_> {
+    fn server_pid(&self) -> i32 {
+        i32::try_from(self.server.pid()).unwrap_or(i32::MAX)
+    }
+
     fn wait_ready(&mut self, address: SocketAddr, started: Instant) -> Option<f64> {
-        loop {
-            self.server.pump();
-            if self.server.exited() {
-                return None;
-            }
-            if self.runtime.block_on(status::answers(address)) {
-                return Some(round(started.elapsed().as_secs_f64()));
-            }
-            if started.elapsed() > READY_TIMEOUT {
-                return None;
-            }
-            std::thread::sleep(Duration::from_millis(200));
-        }
+        session::wait_ready(&mut self.server, &self.runtime, address, started)
+            .map(|elapsed| round(elapsed.as_secs_f64()))
     }
 
     fn answers_console(&mut self) -> bool {
@@ -262,19 +254,10 @@ impl Bench<'_> {
             .is_some()
     }
 
-    /// Sends one line and returns the first log line that follows it within a second, other than
-    /// the mcrs tick trace.
     fn answered(&mut self, line: &str) -> Answered {
-        let sent = Instant::now();
-        let _ = self.server.send(line);
-        let answer = self.server.wait_for(sent, Duration::from_secs(1), |text| {
-            probe::mcrs_tick_millis(text)
-                .is_none()
-                .then(|| text.to_owned())
-        });
         Answered {
             line: line.to_owned(),
-            answer,
+            answer: session::answered(&mut self.server, line),
         }
     }
 
@@ -295,29 +278,11 @@ impl Bench<'_> {
     }
 
     fn join_watcher(&mut self, address: SocketAddr) -> anyhow::Result<()> {
-        let watcher = Watcher::spawn(&self.runtime, address);
-        let deadline = Instant::now() + JOIN_TIMEOUT;
-        while Instant::now() < deadline {
-            if watcher.finished() {
-                let log = watcher.stop(&self.runtime);
-                anyhow::bail!(
-                    log.error
-                        .unwrap_or_else(|| "the watcher stopped".to_owned())
-                );
-            }
-            if watcher
-                .snapshot(&self.runtime)
-                .is_some_and(|snapshot| snapshot.placed)
-            {
-                self.watcher = Some(watcher);
-                self.player = Some(scene::WATCHER_NAME.to_owned());
-                self.idle_for(Duration::from_secs(1));
-                return Ok(());
-            }
-            self.idle_for(Duration::from_millis(500));
-        }
-        let _ = watcher.stop(&self.runtime);
-        anyhow::bail!("{} was not placed in {JOIN_TIMEOUT:?}", scene::WATCHER_NAME)
+        let watcher = session::join_watcher(&mut self.server, &self.runtime, address)?;
+        self.watcher = Some(watcher);
+        self.player = Some(scene::WATCHER_NAME.to_owned());
+        self.idle_for(Duration::from_secs(1));
+        Ok(())
     }
 
     fn join_bot(&mut self, address: SocketAddr) -> anyhow::Result<()> {
@@ -691,7 +656,7 @@ impl Bench<'_> {
             self.stir_when_due();
             self.panic_when_due();
             if now >= next_sample {
-                if let Some(usage) = os::process(self.server.pid()) {
+                if let Some(usage) = os::process(self.server_pid()) {
                     rss.push(usage.rss_bytes as f64 / (1024.0 * 1024.0));
                 }
                 load_max = load_max.max(os::load_average()[0]);
@@ -709,7 +674,7 @@ impl Bench<'_> {
         let until = Instant::now();
         self.idle_for(ANSWER_SLACK);
         let harness: Vec<i32> = self.bot.iter().map(|bot| bot.id() as i32).collect();
-        let cpu = os::cpu_between(&start_os, &end_os, self.server.pid(), &harness);
+        let cpu = os::cpu_between(&start_os, &end_os, self.server_pid(), &harness);
         let contended = cpu.other_cores > self.args.contended_cores;
         let seconds = until.duration_since(from).as_secs_f64().max(1e-9);
         let stir = self.stir.stir.map(|stir| {
@@ -770,7 +735,7 @@ impl Bench<'_> {
             ticks_served: self.stir.ticks_served,
             lines_sent: self.stir.lines_sent,
             panic_lines_sent: self.panic.sent,
-            damage_answers: self.server.damage_answers,
+            damage_answers: self.server.counted_lines(),
         }
     }
 
@@ -782,14 +747,14 @@ impl Bench<'_> {
         match self.metric {
             TickMetric::TickQuery => {
                 let lines = self.server.lines_between(from, until + ANSWER_SLACK);
-                let windows = probe::tick_windows(lines.iter().map(|line| line.text.as_str()));
+                let windows = tick_windows(lines.iter().map(|line| line.text.as_str()));
                 report::mspt_of_windows(&windows)
             }
             TickMetric::McrsTrace => {
                 let lines = self.server.lines_between(from, until);
                 let ticks: Vec<f64> = lines
                     .iter()
-                    .filter_map(|line| probe::mcrs_tick_millis(&line.text))
+                    .filter_map(|line| mcrs_tick_millis(&line.text))
                     .collect();
                 report::mspt_of_ticks(ticks)
             }

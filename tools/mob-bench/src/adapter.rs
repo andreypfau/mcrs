@@ -7,37 +7,27 @@ use std::str::FromStr;
 use anyhow::bail;
 use serde::Serialize;
 
-use crate::process::Stop;
+use mcrs_minecraft_bench_support::{Kind, Stop, TickMetric};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "lowercase")]
-pub enum Kind {
+pub enum Target {
     Mcrs,
     Vanilla,
     Horizon,
 }
 
-impl FromStr for Kind {
+impl FromStr for Target {
     type Err = anyhow::Error;
 
     fn from_str(name: &str) -> anyhow::Result<Self> {
         Ok(match name {
-            "mcrs" => Kind::Mcrs,
-            "vanilla" => Kind::Vanilla,
-            "horizon" => Kind::Horizon,
+            "mcrs" => Target::Mcrs,
+            "vanilla" => Target::Vanilla,
+            "horizon" => Target::Horizon,
             other => bail!("unknown server {other}"),
         })
     }
-}
-
-/// Where a server reports its own tick times.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
-#[serde(rename_all = "snake_case")]
-pub enum TickMetric {
-    /// `tick query` on the console: the mean and percentiles of the last 100 ticks.
-    TickQuery,
-    /// One `mcrs_tick` trace line a tick.
-    McrsTrace,
 }
 
 /// The game mode a joining player gets.
@@ -90,32 +80,35 @@ pub struct LaunchOptions<'a> {
     pub player_mode: PlayerMode,
 }
 
-impl Kind {
+impl Target {
+    /// The server of the shared harness that this one behaves like on its console and log.
+    #[must_use]
+    pub fn kind(self) -> Kind {
+        match self {
+            Target::Mcrs => Kind::Mcrs,
+            Target::Vanilla | Target::Horizon => Kind::Vanilla,
+        }
+    }
+
     #[must_use]
     pub fn tick_metric(self) -> TickMetric {
-        match self {
-            Kind::Mcrs => TickMetric::McrsTrace,
-            Kind::Vanilla | Kind::Horizon => TickMetric::TickQuery,
-        }
+        self.kind().tick_metric()
     }
 
     /// Whether `tick sprint` ends with a `Sprint completed` answer; Horizon's gives none.
     #[must_use]
     pub fn reports_sprint(self) -> bool {
-        self != Kind::Horizon
+        self != Target::Horizon
     }
 
     #[must_use]
     pub fn stop(self) -> Stop {
-        match self {
-            Kind::Mcrs => Stop::Interrupt,
-            Kind::Vanilla | Kind::Horizon => Stop::Console,
-        }
+        self.kind().stop()
     }
 
     /// Writes the files the server reads at start into the empty folder `dir`.
     pub fn prepare(self, dir: &Path, port: u16, player_mode: PlayerMode) -> anyhow::Result<()> {
-        if self == Kind::Mcrs {
+        if self == Target::Mcrs {
             return Ok(());
         }
         std::fs::write(dir.join("eula.txt"), "eula=true\n")?;
@@ -129,7 +122,7 @@ impl Kind {
     pub fn launch(self, options: &LaunchOptions<'_>) -> anyhow::Result<Launch> {
         let binary = options.binary.display().to_string();
         Ok(match self {
-            Kind::Vanilla => {
+            Target::Vanilla => {
                 let mut command = vec![
                     options.java.to_owned(),
                     format!("-Xms{}", options.heap),
@@ -152,7 +145,7 @@ impl Kind {
                     port: options.port,
                 }
             }
-            Kind::Horizon => {
+            Target::Horizon => {
                 let Some(resources) = options.resources else {
                     bail!("horizon needs --resources, the folder horizon-prepare wrote");
                 };
@@ -174,7 +167,7 @@ impl Kind {
                     port: options.port,
                 }
             }
-            Kind::Mcrs => {
+            Target::Mcrs => {
                 let mut env = [
                     ("MCRS_WORLD_SEED", "12345".to_owned()),
                     ("MCRS_WORLD_PRESET", "flat".to_owned()),

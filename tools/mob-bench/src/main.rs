@@ -1,22 +1,8 @@
 //! Starts one server in a fresh folder, builds the pig scene through its console, and measures
 //! each phase. See `README.md` in `benchmarks/mob-bench` for the method.
 
-mod adapter;
-mod args;
-mod os;
-#[cfg(target_os = "macos")]
-mod os_macos;
-mod phase;
-mod probe;
-mod process;
-mod report;
-mod run;
-mod scene;
-mod status;
-mod stir;
-mod watcher;
-
 use anyhow::bail;
+use mcrs_mob_bench::{args, run};
 
 fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt()

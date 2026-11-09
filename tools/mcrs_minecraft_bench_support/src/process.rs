@@ -9,39 +9,36 @@ use std::time::{Duration, Instant};
 
 use anyhow::{Context, bail};
 
-use crate::probe;
-
 pub struct Line {
     pub at: Instant,
     pub text: String,
+}
+
+/// How the server is asked to stop.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Stop {
+    Console,
+    Interrupt,
 }
 
 pub struct ServerProcess {
     child: Child,
     console: ChildStdin,
     incoming: Receiver<Line>,
-    pub log: Vec<Line>,
-    /// The answers to `damage` hits so far. They are counted, not kept in the log: the stir gets
-    /// one a pig every 80 ticks, millions in a run.
-    pub damage_answers: u64,
-    raw: BufWriter<File>,
-}
-
-/// How the server is asked to stop.
-#[derive(Clone, Copy, Debug)]
-pub enum Stop {
-    Console,
-    Interrupt,
+    log: Vec<Line>,
+    counted: Option<fn(&str) -> bool>,
+    counted_lines: u64,
+    raw: Option<BufWriter<File>>,
 }
 
 impl ServerProcess {
     /// Starts `command` in `dir` with standard error joined to standard output, and copies every
-    /// line to `log_file`.
+    /// kept line to `log_file` when there is one.
     pub fn start(
         command: &[String],
         env: &[(String, String)],
         dir: &Path,
-        log_file: &Path,
+        log_file: Option<&Path>,
     ) -> anyhow::Result<Self> {
         let Some((program, arguments)) = command.split_first() else {
             bail!("no server command");
@@ -63,18 +60,30 @@ impl ServerProcess {
         };
         let (send, incoming) = channel();
         std::thread::spawn(move || read_lines(output, &send));
+        let raw = log_file
+            .map(|path| File::create(path).map(BufWriter::new))
+            .transpose()?;
         Ok(Self {
             child,
             console,
             incoming,
             log: Vec::new(),
-            damage_answers: 0,
-            raw: BufWriter::new(File::create(log_file)?),
+            counted: None,
+            counted_lines: 0,
+            raw,
         })
     }
 
-    pub fn pid(&self) -> i32 {
-        self.child.id() as i32
+    /// Counts the lines `matches` accepts instead of keeping them: a stir answers one line a
+    /// hit, millions in a run.
+    #[must_use]
+    pub fn counting(mut self, matches: fn(&str) -> bool) -> Self {
+        self.counted = Some(matches);
+        self
+    }
+
+    pub fn pid(&self) -> u32 {
+        self.child.id()
     }
 
     pub fn exited(&mut self) -> bool {
@@ -86,14 +95,24 @@ impl ServerProcess {
         Ok(self.console.flush()?)
     }
 
-    /// Moves the lines that arrived into [`Self::log`].
+    pub fn log(&self) -> &[Line] {
+        &self.log
+    }
+
+    pub fn counted_lines(&self) -> u64 {
+        self.counted_lines
+    }
+
+    /// Moves the lines that arrived into the log.
     pub fn pump(&mut self) {
         while let Ok(line) = self.incoming.try_recv() {
-            if probe::damage_applied(&line.text) {
-                self.damage_answers = self.damage_answers.saturating_add(1);
+            if self.counted.is_some_and(|matches| matches(&line.text)) {
+                self.counted_lines = self.counted_lines.saturating_add(1);
                 continue;
             }
-            let _ = writeln!(self.raw, "{}", line.text);
+            if let Some(raw) = &mut self.raw {
+                let _ = writeln!(raw, "{}", line.text);
+            }
             self.log.push(line);
         }
     }
@@ -130,8 +149,8 @@ impl ServerProcess {
         self.log.get(start..end).unwrap_or_default()
     }
 
-    /// Asks the server to stop, kills it after `grace`, and flushes the log file.
-    pub fn stop(mut self, stop: Stop, grace: Duration) {
+    /// Asks the server to stop, kills it after `grace`, flushes the log file and returns the log.
+    pub fn stop(mut self, stop: Stop, grace: Duration) -> Vec<Line> {
         match stop {
             Stop::Console => {
                 let _ = self.send("stop");
@@ -152,7 +171,10 @@ impl ServerProcess {
         let _ = self.child.wait();
         std::thread::sleep(Duration::from_millis(200));
         self.pump();
-        let _ = self.raw.flush();
+        if let Some(raw) = &mut self.raw {
+            let _ = raw.flush();
+        }
+        self.log
     }
 }
 

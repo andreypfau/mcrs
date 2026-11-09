@@ -4,10 +4,6 @@ use glam::DVec3;
 
 use crate::scene::SAMPLE_PREFIX;
 
-/// The marker of the line the mcrs server loop logs after each tick, at trace level.
-const MCRS_TICK: &str = "mcrs_tick: micros=";
-const AVERAGE: &str = "Average time per tick: ";
-const PERCENTILES: &str = "Percentiles: P50: ";
 /// 26.4 answers `The game time is 1234 tick(s)`; earlier versions `The time is 1234`.
 const GAME_TIME: [&str; 2] = ["The game time is ", "The time is "];
 /// 26.4 answers `Test passed. Count: 2`; earlier versions `Test passed, count: 2`.
@@ -16,55 +12,6 @@ const ENTITY_DATA: &str = " has the following entity data: ";
 const SPRINT: &str = "Sprint completed with ";
 /// `Applied 0.0 damage to Pig`, the answer to one hit of `damage`.
 const DAMAGE: [&str; 2] = ["Applied ", " damage to "];
-
-/// One answer to `tick query`: the mean and percentiles of the last 100 ticks, in milliseconds.
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct TickWindow {
-    pub average: f64,
-    pub p50: f64,
-    pub p95: f64,
-    pub p99: f64,
-}
-
-/// `Average time per tick: 0.1ms (Target: 50.0ms)` followed by
-/// `Percentiles: P50: 0.1ms P95: 0.1ms P99: 1.6ms. Sample: 100`.
-pub fn tick_windows<'a>(lines: impl IntoIterator<Item = &'a str>) -> Vec<TickWindow> {
-    let mut windows = Vec::new();
-    let mut average = None;
-    for line in lines {
-        if let Some((_, rest)) = line.split_once(AVERAGE) {
-            average = millis(rest);
-        } else if let Some((_, rest)) = line.split_once(PERCENTILES) {
-            let mut parts = rest.split(" P9").map(millis);
-            let (Some(average), Some(Some(p50)), Some(Some(p95)), Some(Some(p99))) =
-                (average.take(), parts.next(), parts.next(), parts.next())
-            else {
-                continue;
-            };
-            windows.push(TickWindow {
-                average,
-                p50,
-                p95,
-                p99,
-            });
-        }
-    }
-    windows
-}
-
-/// The number before the first `ms`, after an optional `5: ` or `9: ` label.
-fn millis(text: &str) -> Option<f64> {
-    let (number, _) = text.split_once("ms")?;
-    number.rsplit(' ').next()?.parse().ok()
-}
-
-/// The duration of one mcrs tick from its `mcrs_tick` trace line, in milliseconds.
-#[must_use]
-pub fn mcrs_tick_millis(line: &str) -> Option<f64> {
-    let (_, micros) = line.split_once(MCRS_TICK)?;
-    let micros: f64 = micros.trim().parse().ok()?;
-    Some(micros / 1e3)
-}
 
 /// The answer to `time query gametime`.
 #[must_use]
@@ -136,23 +83,6 @@ pub fn sprint_millis(line: &str) -> Option<f64> {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn a_tick_query_answer_gives_one_window() {
-        let lines = [
-            "[12:00:00] [Server thread/INFO]: Average time per tick: 118.4ms (Target: 50.0ms)",
-            "[12:00:00] [Server thread/INFO]: Percentiles: P50: 117.0ms P95: 130.2ms P99: 151.9ms. Sample: 100",
-        ];
-        assert_eq!(
-            tick_windows(lines),
-            [TickWindow {
-                average: 118.4,
-                p50: 117.0,
-                p95: 130.2,
-                p99: 151.9,
-            }]
-        );
-    }
 
     #[test]
     fn the_game_time_and_the_count_read_in_both_wordings() {

@@ -3613,6 +3613,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "mcrs_minecraft_bench_support"
+version = "0.5.8"
+dependencies = [
+ "anyhow",
+ "glam",
+ "mcrs_minecraft_core",
+ "mcrs_minecraft_network",
+ "mcrs_minecraft_protocol",
+ "mcrs_minecraft_protocol_game",
+ "serde",
+ "tokio",
+]
+
+[[package]]
 name = "mcrs_minecraft_biome"
 version = "0.5.8"
 dependencies = [
@@ -5298,7 +5312,7 @@ version = "0.5.8"
 dependencies = [
  "anyhow",
  "glam",
- "mcrs_minecraft_core",
+ "mcrs_minecraft_bench_support",
  "mcrs_minecraft_network",
  "mcrs_minecraft_protocol",
  "mcrs_minecraft_protocol_game",
@@ -5810,6 +5824,7 @@ dependencies = [
  "anyhow",
  "glam",
  "libc",
+ "mcrs_minecraft_bench_support",
  "mcrs_minecraft_core",
  "mcrs_minecraft_entity",
  "mcrs_minecraft_network",

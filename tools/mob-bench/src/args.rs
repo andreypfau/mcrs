@@ -3,7 +3,7 @@ use std::time::Duration;
 
 use anyhow::{Context, bail};
 
-use crate::adapter::{Kind, PlayerMode};
+use crate::adapter::{PlayerMode, Target};
 use crate::phase::Phase;
 use crate::stir;
 
@@ -18,7 +18,7 @@ pub enum Client {
 }
 
 pub struct Args {
-    pub server: Kind,
+    pub server: Target,
     pub client: Client,
     pub binary: PathBuf,
     pub resources: Option<PathBuf>,
@@ -57,7 +57,7 @@ fn seconds(value: &str) -> anyhow::Result<Duration> {
 
 pub fn parse(options: &[String]) -> anyhow::Result<Args> {
     let mut args = Args {
-        server: Kind::Vanilla,
+        server: Target::Vanilla,
         client: Client::None,
         binary: PathBuf::new(),
         resources: None,
@@ -150,4 +150,29 @@ pub fn parse(options: &[String]) -> anyhow::Result<Args> {
     }
     std::fs::create_dir_all(&args.dir).with_context(|| format!("{}", args.dir.display()))?;
     Ok(args)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn options(words: &[&str]) -> Vec<String> {
+        words.iter().map(|word| (*word).to_owned()).collect()
+    }
+
+    #[test]
+    fn an_option_without_a_value_fails() {
+        let error = parse(&options(&["--server", "mcrs", "--pigs"]))
+            .map(|_| ())
+            .expect_err("no value");
+        assert!(error.to_string().contains("has no value"));
+    }
+
+    #[test]
+    fn an_unknown_option_fails() {
+        let error = parse(&options(&["--speed", "9"]))
+            .map(|_| ())
+            .expect_err("unknown option");
+        assert!(error.to_string().contains("unknown option --speed"));
+    }
 }

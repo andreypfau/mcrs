@@ -3,24 +3,6 @@
 //! game times. Each checkpoint writes two snapshots `window` ticks apart, so that the pigs that
 //! walk can be told from the pigs that stand.
 
-#![allow(
-    dead_code,
-    reason = "the shared modules of mob-bench carry items this tool does not use"
-)]
-
-#[path = "../src/adapter.rs"]
-mod adapter;
-#[path = "../src/probe.rs"]
-mod probe;
-#[path = "../src/process.rs"]
-mod process;
-#[path = "../src/scene.rs"]
-mod scene;
-#[path = "../src/status.rs"]
-mod status;
-#[path = "../src/watcher.rs"]
-mod watcher;
-
 use std::fmt::Write as _;
 use std::net::{Ipv4Addr, SocketAddr, TcpListener};
 use std::path::PathBuf;
@@ -29,13 +11,13 @@ use std::time::{Duration, Instant};
 use anyhow::{Context, bail};
 use glam::DVec3;
 
-use adapter::{Kind, LaunchOptions, PlayerMode};
-use process::ServerProcess;
-use scene::Area;
-use watcher::{PigSnapshot, Watcher};
+use mcrs_minecraft_bench_support::ServerProcess;
+use mcrs_mob_bench::adapter::{LaunchOptions, PlayerMode, Target};
+use mcrs_mob_bench::probe;
+use mcrs_mob_bench::scene::{self, Area};
+use mcrs_mob_bench::session::{self, CONSOLE_TIMEOUT};
+use mcrs_mob_bench::watcher::{PigSnapshot, Watcher};
 
-const CONSOLE_TIMEOUT: Duration = Duration::from_secs(30);
-const READY_TIMEOUT: Duration = Duration::from_secs(600);
 /// Pigs a block, as in the 50,000-pig pen of 250 × 250 blocks.
 const DENSITY: f64 = 0.8;
 /// How far the player stands outside the west fence and above the floor, as in the user's scene
@@ -44,7 +26,7 @@ const PLAYER_OUTSIDE: f64 = 8.5;
 const PLAYER_ABOVE: f64 = 10.0;
 
 struct Options {
-    server: Kind,
+    server: Target,
     binary: PathBuf,
     port: u16,
     dir: PathBuf,
@@ -56,7 +38,7 @@ struct Options {
 
 fn parse() -> anyhow::Result<Options> {
     let mut options = Options {
-        server: Kind::Mcrs,
+        server: Target::Mcrs,
         binary: PathBuf::new(),
         port: 25800,
         dir: PathBuf::from("target/drift-run"),
@@ -117,7 +99,12 @@ fn main() -> anyhow::Result<()> {
         .with_context(|| format!("port {} is in use", options.port))?;
     let address = SocketAddr::from((Ipv4Addr::LOCALHOST, options.port));
     let runtime = tokio::runtime::Runtime::new()?;
-    let server = ServerProcess::start(&launch.command, &launch.env, &dir, &dir.join("server.log"))?;
+    let server = ServerProcess::start(
+        &launch.command,
+        &launch.env,
+        &dir,
+        Some(&dir.join("server.log")),
+    )?;
     let mut drift = Drift {
         server,
         runtime,
@@ -149,20 +136,8 @@ impl Drift {
         dir: &std::path::Path,
         address: SocketAddr,
     ) -> anyhow::Result<()> {
-        let started = Instant::now();
-        loop {
-            self.server.pump();
-            if self.server.exited() {
-                bail!("the server exited");
-            }
-            if self.runtime.block_on(status::answers(address)) {
-                break;
-            }
-            if started.elapsed() > READY_TIMEOUT {
-                bail!("the server did not answer a status request");
-            }
-            std::thread::sleep(Duration::from_millis(200));
-        }
+        session::wait_ready(&mut self.server, &self.runtime, address, Instant::now())
+            .context("the server did not answer a status request")?;
         self.game_time().context("the console does not answer")?;
         let half = options.side / 2;
         let pen = Area {
@@ -249,25 +224,11 @@ impl Drift {
     }
 
     fn join_watcher(&mut self, address: SocketAddr) -> anyhow::Result<()> {
-        let watcher = Watcher::spawn(&self.runtime, address);
-        let deadline = Instant::now() + Duration::from_secs(60);
-        loop {
-            if watcher.finished() {
-                let log = watcher.stop(&self.runtime);
-                bail!("the watcher stopped: {:?}", log.error);
-            }
-            if watcher
-                .snapshot(&self.runtime)
-                .is_some_and(|snapshot| snapshot.placed)
-            {
-                break;
-            }
-            if Instant::now() > deadline {
-                bail!("the watcher was not placed");
-            }
-            self.idle(Duration::from_millis(500));
-        }
-        self.watcher = Some(watcher);
+        self.watcher = Some(session::join_watcher(
+            &mut self.server,
+            &self.runtime,
+            address,
+        )?);
         Ok(())
     }
 
@@ -293,26 +254,15 @@ impl Drift {
     }
 
     fn game_time(&mut self) -> Option<i64> {
-        let sent = Instant::now();
-        self.server.send("time query gametime").ok()?;
-        self.server
-            .wait_for(sent, CONSOLE_TIMEOUT, probe::game_time)
+        session::game_time(&mut self.server)
     }
 
     fn answered(&mut self, line: &str) {
-        let sent = Instant::now();
-        let _ = self.server.send(line);
-        let _ = self
-            .server
-            .wait_for(sent, Duration::from_secs(1), |text| Some(text.to_owned()));
+        session::answered(&mut self.server, line);
     }
 
     fn idle(&mut self, duration: Duration) {
-        let until = Instant::now() + duration;
-        while Instant::now() < until {
-            self.server.pump();
-            std::thread::sleep(Duration::from_millis(20));
-        }
+        session::idle(&mut self.server, duration);
     }
 }
 

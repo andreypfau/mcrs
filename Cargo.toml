@@ -14,7 +14,7 @@ path = "src/main.rs"
 workspace = true
 
 [workspace]
-members = ["crates/*", "tools/mcrs_minecraft_client_recorder", "tools/mcrs_minecraft_client_ticks", "tools/mcrs_minecraft_fixtures", "tools/mcrs_minecraft_hotspots", "tools/mcrs_minecraft_server_bench", "tools/mcrs_minecraft_update", "tools/mob-bench", "tools/molang-corpus", "xtask"]
+members = ["crates/*", "tools/mcrs_minecraft_bench_support", "tools/mcrs_minecraft_client_recorder", "tools/mcrs_minecraft_client_ticks", "tools/mcrs_minecraft_fixtures", "tools/mcrs_minecraft_hotspots", "tools/mcrs_minecraft_server_bench", "tools/mcrs_minecraft_update", "tools/mob-bench", "tools/molang-corpus", "xtask"]
 
 [workspace.package]
 version = "0.5.8"
@@ -52,6 +52,8 @@ syn = "2.0.110"
 quote = "1.0.42"
 bytes = "1"
 anyhow = "1.0.100"
+libc = "0.2"
+tracing-subscriber = "0.3"
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = { version = "1.0.145"}
 time = { version = "0.3.55", features = ["formatting", "parsing", "local-offset", "macros"] }
@@ -190,6 +192,7 @@ mcrs_minecraft_heightmap = { path = "crates/mcrs_minecraft_heightmap", default-f
 mcrs_minecraft_volume = { path = "crates/mcrs_minecraft_volume" }
 mcrs_minecraft_simulation = { path = "crates/mcrs_minecraft_simulation" }
 mcrs_minecraft_client_ticks = { path = "tools/mcrs_minecraft_client_ticks" }
+mcrs_minecraft_bench_support = { path = "tools/mcrs_minecraft_bench_support" }
 mcrs_minecraft_fixtures = { path = "tools/mcrs_minecraft_fixtures" }
 wtransport = "0.7.2"
 

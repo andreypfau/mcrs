@@ -7,40 +7,31 @@ use std::time::Duration;
 
 use anyhow::Context;
 use glam::DVec3;
-use mcrs_minecraft_core::VERSION;
+use mcrs_minecraft_bench_support::{
+    TICK, Upkeep, announce_loaded, answer_upkeep, connect, unix_now,
+};
 use mcrs_minecraft_entity::entity_type_keys::EntityType;
 use mcrs_minecraft_network::RawConnection;
-use mcrs_minecraft_network::join::{Join, Joined, join};
-use mcrs_minecraft_network::packet_io::PacketIo;
-use mcrs_minecraft_protocol::packets::common::serverbound::{KeepAlive, Pong};
-use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundKeepAlive;
-use mcrs_minecraft_protocol::packets::game::serverbound::ServerboundKeepAlive;
-use mcrs_minecraft_protocol::uuid::Uuid;
 use mcrs_minecraft_protocol::{Decode, Packet, WritePacket};
 use mcrs_minecraft_protocol_game::MoveFlags;
 use mcrs_minecraft_protocol_game::clientbound::{
-    ClientboundAddEntity, ClientboundChunkBatchFinished, ClientboundEntityPositionSync,
-    ClientboundGameEvent, ClientboundLogin, ClientboundMoveEntityPos, ClientboundMoveEntityPosRot,
-    ClientboundPing, ClientboundPlayerPosition, ClientboundRemoveEntities, ClientboundSetTime,
-    ClientboundTeleportEntity, PositionPath, VecDelta,
+    ClientboundAddEntity, ClientboundEntityPositionSync, ClientboundGameEvent, ClientboundLogin,
+    ClientboundMoveEntityPos, ClientboundMoveEntityPosRot, ClientboundRemoveEntities,
+    ClientboundSetTime, ClientboundTeleportEntity, PositionPath, VecDelta,
 };
 use mcrs_minecraft_protocol_game::game_event::GameEventKind;
 use mcrs_minecraft_protocol_game::serverbound::{
-    ServerboundAcceptTeleportation, ServerboundChunkBatchReceived, ServerboundClientTickEnd,
-    ServerboundMovePlayerPos, ServerboundPlayerAbilities, ServerboundPlayerLoaded, ServerboundPong,
+    ServerboundClientTickEnd, ServerboundMovePlayerPos,
 };
 use tokio::sync::{mpsc, oneshot};
 use tokio::time::MissedTickBehavior;
 
 use crate::scene::WATCHER_NAME;
 
-const TICK: Duration = Duration::from_millis(50);
 const POLL: Duration = Duration::from_millis(1);
 /// The reader hands packets over through a channel of 256, so a poll drains it, yields to the
 /// reader and drains again: 50,000 pigs send more packets than one drain a millisecond takes.
 const DRAINS_PER_POLL: usize = 64;
-const VIEW_DISTANCE: u8 = 10;
-const DESIRED_CHUNKS_PER_TICK: f32 = 64.0;
 const DELTA_STEPS_PER_BLOCK: f64 = 4096.0;
 
 #[derive(Clone, Copy, Debug)]
@@ -75,6 +66,7 @@ pub struct WatcherLog {
 
 enum Request {
     Snapshot(oneshot::Sender<PigSnapshot>),
+    Placed(oneshot::Sender<bool>),
     Stop,
 }
 
@@ -95,6 +87,13 @@ impl Watcher {
         let (reply, answer) = oneshot::channel();
         self.requests.send(Request::Snapshot(reply)).ok()?;
         runtime.block_on(answer).ok()
+    }
+
+    /// Whether the server placed the watcher's player; `false` once it stopped.
+    pub fn placed(&self, runtime: &tokio::runtime::Runtime) -> bool {
+        let (reply, answer) = oneshot::channel();
+        self.requests.send(Request::Placed(reply)).is_ok()
+            && runtime.block_on(answer).unwrap_or(false)
     }
 
     pub fn finished(&self) -> bool {
@@ -128,15 +127,15 @@ async fn run(address: SocketAddr, mut requests: mpsc::UnboundedReceiver<Request>
         position: None,
         game_mode: None,
     };
-    let result = match connect(address).await.context("the watcher could not join") {
+    let result = match connect(address, WATCHER_NAME.to_owned())
+        .await
+        .context("the watcher could not join")
+    {
         Ok(mut connection) => serve(&mut connection, &mut state, &mut requests).await,
         Err(error) => Err(error),
     };
     if let Err(error) = result {
-        let at = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map_or(0, |since| since.as_secs());
-        state.log.error = Some(format!("{error:#} (at unix time {at})"));
+        state.log.error = Some(format!("{error:#} (at unix time {})", unix_now()));
     }
     state.log
 }
@@ -179,6 +178,9 @@ async fn serve(
                         placed: state.position.is_some(),
                         game_mode: state.game_mode.clone(),
                     });
+                }
+                Some(Request::Placed(reply)) => {
+                    let _ = reply.send(state.position.is_some());
                 }
                 Some(Request::Stop) | None => return Ok(()),
             },
@@ -241,30 +243,11 @@ fn receive(connection: &mut RawConnection, state: &mut State) -> anyhow::Result<
             {
                 state.game_mode = Some(format!("{mode:?}"));
             }
-        } else if id == ClientboundChunkBatchFinished::ID {
-            connection.write_packet(&ServerboundChunkBatchReceived {
-                desired_chunks_per_tick: DESIRED_CHUNKS_PER_TICK,
-            });
-        } else if id == ClientboundKeepAlive::ID {
-            let keep_alive = ClientboundKeepAlive::decode(body)?;
-            connection.write_packet(&ServerboundKeepAlive(KeepAlive {
-                payload: keep_alive.0.payload,
-            }));
-        } else if id == ClientboundPing::ID {
-            let ping = ClientboundPing::decode(body)?;
-            connection.write_packet(&ServerboundPong(Pong { payload: ping.id }));
-        } else if id == ClientboundPlayerPosition::ID {
-            let teleport = ClientboundPlayerPosition::decode(body)?;
-            connection.write_packet(&ServerboundAcceptTeleportation {
-                teleport_id: teleport.teleport_id,
-                position: teleport.position.into(),
-                look: teleport.look,
-            });
+        } else if let Upkeep::Teleported(position) = answer_upkeep(connection, id, body)? {
             if state.position.is_none() {
-                connection.write_packet(&ServerboundPlayerLoaded);
-                connection.write_packet(&ServerboundPlayerAbilities { flying: true });
+                announce_loaded(connection);
             }
-            state.position = Some(teleport.position);
+            state.position = Some(position);
         }
     }
     connection.flush()?;
@@ -300,23 +283,4 @@ impl State {
         track.path += position.distance(track.position);
         track.position = position;
     }
-}
-
-async fn connect(address: SocketAddr) -> anyhow::Result<RawConnection> {
-    let io = PacketIo::connect(address).await?;
-    let Joined { connection, .. } = join(
-        io,
-        Join {
-            server_address: address.ip().to_string(),
-            server_port: address.port(),
-            remote_addr: address,
-            username: WATCHER_NAME.to_owned(),
-            profile_id: Uuid::nil(),
-            protocol_version: VERSION.protocol_version,
-            view_distance: VIEW_DISTANCE,
-            holds_vanilla_pack: false,
-        },
-    )
-    .await?;
-    Ok(connection)
 }

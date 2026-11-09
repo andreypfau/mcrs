@@ -246,12 +246,6 @@ mod tests {
     }
 
     #[test]
-    fn a_uuid_reads_as_the_int_array_it_was_summoned_with() {
-        // [I;7168627,2,0,1234]: the ints in order are the 32-bit groups of the hex form.
-        assert_eq!(pig_uuid(2, 1234), "006d6273-0000-0002-0000-0000000004d2");
-    }
-
-    #[test]
     fn the_panic_rounds_hit_every_pig_once_before_any_twice() {
         let mut hit = std::collections::HashSet::new();
         for round in 0..25 {
@@ -265,7 +259,7 @@ mod tests {
     }
 
     #[test]
-    fn the_grid_keeps_every_pig_inside_the_area_and_names_each_sample_once() {
+    fn the_summons_stay_in_the_area_and_keep_the_sample_and_uuid_formats() {
         let lines = summons(PEN, 1, 50_000, 32, Ai::On);
         assert_eq!(lines.len(), 50_000);
         let named = lines
@@ -283,5 +277,7 @@ mod tests {
             assert!((-125.0..125.0).contains(&parts[0]), "{line}");
             assert!((-125.0..125.0).contains(&parts[2]), "{line}");
         }
+        // [I;7168627,2,0,1234]: the ints in order are the 32-bit groups of the hex form.
+        assert_eq!(pig_uuid(2, 1234), "006d6273-0000-0002-0000-0000000004d2");
     }
 }

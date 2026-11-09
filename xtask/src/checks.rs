@@ -37,13 +37,14 @@ const NO_STD_PACKAGES: [&str; 6] = [
     "mcrs_molang_wgsl",
 ];
 
-const NO_BEVY_PACKAGES: [&str; 88] = [
+const NO_BEVY_PACKAGES: [&str; 89] = [
     "mcrs_command",
     "mcrs_engine_cell",
     "mcrs_engine_link",
     "mcrs_engine_muxer",
     "mcrs_engine_store",
     "mcrs_minecraft_anvil",
+    "mcrs_minecraft_bench_support",
     "mcrs_minecraft_biome",
     "mcrs_minecraft_biome_file",
     "mcrs_minecraft_block",
