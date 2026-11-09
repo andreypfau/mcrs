@@ -10,310 +10,27 @@
 use std::collections::BTreeMap;
 
 use mcrs_molang::{
-    Arguments, ChannelClass, CompileOptions, InputRange, Milestone, QueryDeclaration,
-    QueryRegistry, QueryScope, Rate, UseContext, ValueType, VariableLayout, compile_text,
+    ChannelClass, CompileOptions, InputRange, Milestone, QueryRegistry, VariableLayout,
+    compile_text,
 };
 use serde::Deserialize;
 
+#[path = "../../mcrs_molang/tests/entity_queries/mod.rs"]
+mod entity_queries;
+
+use entity_queries::{ENTITY_QUERIES, PoseInput, registry};
+
 const TEXT_FORMS: [&str; 3] = ["string", "script_array", "versioned_object"];
-
-/// How a query reaches a GPU channel: the column "Pose input" of `docs/spec/molang-queries.md`.
-#[derive(Clone, Copy, PartialEq, Eq)]
-enum Pose {
-    /// `time`: a value of the entity clock, never negative.
-    Time,
-    /// `tick` for a flag: `0` or `1`.
-    Flag,
-    /// Any other pose input kind.
-    Other,
-    /// `—`: not a pose input.
-    None,
-}
-
-const ENTITY_QUERIES: [(&str, ValueType, u8, Rate, Pose); 37] = [
-    (
-        "life_time",
-        ValueType::Number,
-        0,
-        Rate::EntityFrame,
-        Pose::Time,
-    ),
-    (
-        "delta_time",
-        ValueType::Number,
-        0,
-        Rate::EntityFrame,
-        Pose::Time,
-    ),
-    (
-        "frame_alpha",
-        ValueType::Number,
-        0,
-        Rate::Frame,
-        Pose::Other,
-    ),
-    (
-        "time_of_day",
-        ValueType::Number,
-        0,
-        Rate::Frame,
-        Pose::Other,
-    ),
-    (
-        "modified_distance_moved",
-        ValueType::Number,
-        0,
-        Rate::EntityFrame,
-        Pose::Other,
-    ),
-    (
-        "modified_move_speed",
-        ValueType::Number,
-        0,
-        Rate::EntityFrame,
-        Pose::Other,
-    ),
-    (
-        "ground_speed",
-        ValueType::Number,
-        0,
-        Rate::EntityTick,
-        Pose::Other,
-    ),
-    (
-        "vertical_speed",
-        ValueType::Number,
-        0,
-        Rate::EntityTick,
-        Pose::Other,
-    ),
-    (
-        "is_moving",
-        ValueType::Number,
-        0,
-        Rate::EntityTick,
-        Pose::Flag,
-    ),
-    (
-        "is_on_ground",
-        ValueType::Number,
-        0,
-        Rate::EntityTick,
-        Pose::Flag,
-    ),
-    (
-        "is_in_water",
-        ValueType::Number,
-        0,
-        Rate::EntityTick,
-        Pose::Flag,
-    ),
-    (
-        "target_x_rotation",
-        ValueType::Number,
-        0,
-        Rate::EntityFrame,
-        Pose::Other,
-    ),
-    (
-        "target_y_rotation",
-        ValueType::Number,
-        0,
-        Rate::EntityFrame,
-        Pose::Other,
-    ),
-    (
-        "body_y_rotation",
-        ValueType::Number,
-        0,
-        Rate::EntityFrame,
-        Pose::Other,
-    ),
-    (
-        "head_x_rotation",
-        ValueType::Number,
-        1,
-        Rate::EntityFrame,
-        Pose::Other,
-    ),
-    (
-        "head_y_rotation",
-        ValueType::Number,
-        1,
-        Rate::EntityFrame,
-        Pose::Other,
-    ),
-    (
-        "is_baby",
-        ValueType::Number,
-        0,
-        Rate::EntityTick,
-        Pose::Flag,
-    ),
-    (
-        "is_alive",
-        ValueType::Number,
-        0,
-        Rate::EntityTick,
-        Pose::Flag,
-    ),
-    (
-        "hurt_time",
-        ValueType::Number,
-        0,
-        Rate::EntityTick,
-        Pose::Other,
-    ),
-    (
-        "death_ticks",
-        ValueType::Number,
-        0,
-        Rate::EntityFrame,
-        Pose::Other,
-    ),
-    (
-        "variant",
-        ValueType::Number,
-        0,
-        Rate::EntityTick,
-        Pose::Other,
-    ),
-    (
-        "variant_identifier",
-        ValueType::String,
-        0,
-        Rate::EntityTick,
-        Pose::None,
-    ),
-    (
-        "model_scale",
-        ValueType::Number,
-        0,
-        Rate::EntityTick,
-        Pose::Other,
-    ),
-    (
-        "is_saddled",
-        ValueType::Number,
-        0,
-        Rate::EntityTick,
-        Pose::Flag,
-    ),
-    ("pose", ValueType::String, 0, Rate::EntityTick, Pose::None),
-    (
-        "is_on_fire",
-        ValueType::Number,
-        0,
-        Rate::EntityTick,
-        Pose::Flag,
-    ),
-    (
-        "is_sneaking",
-        ValueType::Number,
-        0,
-        Rate::EntityTick,
-        Pose::Flag,
-    ),
-    (
-        "is_sprinting",
-        ValueType::Number,
-        0,
-        Rate::EntityTick,
-        Pose::Flag,
-    ),
-    (
-        "is_swimming",
-        ValueType::Number,
-        0,
-        Rate::EntityTick,
-        Pose::Flag,
-    ),
-    (
-        "is_invisible",
-        ValueType::Number,
-        0,
-        Rate::EntityTick,
-        Pose::Flag,
-    ),
-    (
-        "is_riding",
-        ValueType::Number,
-        0,
-        Rate::EntityTick,
-        Pose::Flag,
-    ),
-    (
-        "has_rider",
-        ValueType::Number,
-        0,
-        Rate::EntityTick,
-        Pose::Flag,
-    ),
-    (
-        "anim_time",
-        ValueType::Number,
-        0,
-        Rate::AnimationFrame,
-        Pose::Time,
-    ),
-    (
-        "key_frame_lerp_time",
-        ValueType::Number,
-        0,
-        Rate::AnimationFrame,
-        Pose::Time,
-    ),
-    (
-        "all_animations_finished",
-        ValueType::Number,
-        0,
-        Rate::AnimationFrame,
-        Pose::None,
-    ),
-    (
-        "any_animation_finished",
-        ValueType::Number,
-        0,
-        Rate::AnimationFrame,
-        Pose::None,
-    ),
-    (
-        "distance_from_camera",
-        ValueType::Number,
-        0,
-        Rate::EntityFrame,
-        Pose::None,
-    ),
-];
-
-fn registry() -> QueryRegistry {
-    let mut registry = QueryRegistry::new(UseContext::Entity);
-    for (name, result, arguments, rate, _) in ENTITY_QUERIES {
-        registry.declare(QueryDeclaration {
-            name: name.into(),
-            arguments: if arguments == 0 {
-                Arguments::None
-            } else {
-                Arguments::Literals(arguments)
-            },
-            result,
-            rate,
-            scope: QueryScope::Entity,
-            milestone: Milestone::One,
-        });
-    }
-    registry
-}
 
 fn pose_range(registry: &QueryRegistry, slot: mcrs_molang::QuerySlot) -> Option<InputRange> {
     let (_, key) = registry.slots().find(|(known, _)| *known == slot)?;
     let name = &*registry.declaration(key.declaration)?.name;
-    let (_, _, _, _, pose) = ENTITY_QUERIES.iter().find(|entry| entry.0 == name)?;
-    match pose {
-        Pose::Time => Some(InputRange::new(0.0, f32::MAX)),
-        Pose::Flag => Some(InputRange::BOOLEAN),
-        Pose::Other => Some(InputRange::FINITE),
-        Pose::None => None,
+    let entry = ENTITY_QUERIES.iter().find(|entry| entry.name == name)?;
+    match entry.pose {
+        PoseInput::Time => Some(InputRange::new(0.0, f32::MAX)),
+        PoseInput::Flag => Some(InputRange::BOOLEAN),
+        PoseInput::Other => Some(InputRange::FINITE),
+        PoseInput::None => None,
     }
 }
 
@@ -400,6 +117,7 @@ fn every_pure_expression_of_the_corpus_lowers_to_valid_wgsl() {
                     let reason = format!("{reason:?}");
                     format!("state {}", reason.split('(').next().unwrap_or_default())
                 }
+                other => format!("unclassified {other:?}"),
             },
         };
         if record.kind == "animation" && record.field.starts_with("bones.") {

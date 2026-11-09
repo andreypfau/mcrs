@@ -1,13 +1,10 @@
-//! The GPU side of Molang: the lowering of a pure channel program to a WGSL function, the WGSL
-//! math library that the function calls, and the CPU twin that computes the same bits.
+//! The GPU side of Molang: the lowering of a pure channel program to a WGSL function and the WGSL
+//! math library that the function calls.
 
 #![no_std]
 
 extern crate alloc;
 
-mod gpu_math;
-mod twin;
 mod wgsl;
 
-pub use twin::{Twin, TwinRun};
 pub use wgsl::{LIBRARY, lower, write_function};

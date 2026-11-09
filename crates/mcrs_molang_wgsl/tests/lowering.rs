@@ -6,20 +6,18 @@
 
 use mcrs_molang::{
     Arguments, ChannelClass, CompileOptions, InputRange, Milestone, PureProgram, QueryDeclaration,
-    QueryRegistry, QueryScope, Rate, UseContext, ValueType, VariableLayout, compile_text,
+    QueryRegistry, Rate, UseContext, ValueType, VariableLayout, compile_text,
 };
 
 fn pure(text: &str) -> PureProgram {
     let mut registry = QueryRegistry::new(UseContext::Entity);
     for name in ["qa", "qb"] {
-        registry.declare(QueryDeclaration {
-            name: name.into(),
-            arguments: Arguments::None,
-            result: ValueType::Number,
-            rate: Rate::EntityFrame,
-            scope: QueryScope::Entity,
-            milestone: Milestone::One,
-        });
+        registry.declare(QueryDeclaration::entity(
+            name,
+            ValueType::Number,
+            Arguments::None,
+            Rate::EntityFrame,
+        ));
     }
     let options = CompileOptions {
         milestone: Milestone::Later,

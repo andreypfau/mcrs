@@ -5,10 +5,15 @@
 )]
 
 use mcrs_molang::{
-    Arguments, CompileOptions, ErrorKind, Milestone, QueryDeclaration, QueryRegistry, QueryScope,
-    QuerySlot, QueryValues, Rate, ScalarVm, Source, Subject, UseContext, Value, ValueType,
-    VariableLayout, Variables, WarningKind, compile, compile_text, string_hash,
+    Arguments, CompileOptions, ErrorKind, Milestone, QueryDeclaration, QueryRegistry, QuerySlot,
+    QueryValues, Rate, ScalarVm, Source, Subject, UseContext, Value, ValueType, VariableLayout,
+    Variables, WarningKind, compile, compile_text, string_hash,
 };
+
+#[expect(dead_code, reason = "this test reads the table, not the registry")]
+mod entity_queries;
+
+use entity_queries::{ENTITY_QUERIES, PoseInput};
 
 struct Run {
     value: Value,
@@ -437,14 +442,12 @@ fn the_cpu_keeps_subnormal_results() {
 fn a_program_lists_the_slots_it_reads_and_writes_once() {
     let mut registry = QueryRegistry::new(UseContext::Entity);
     for name in ["a", "b"] {
-        registry.declare(QueryDeclaration {
-            name: name.into(),
-            arguments: Arguments::None,
-            result: ValueType::Number,
-            rate: Rate::EntityFrame,
-            scope: QueryScope::Entity,
-            milestone: Milestone::One,
-        });
+        registry.declare(QueryDeclaration::entity(
+            name,
+            ValueType::Number,
+            Arguments::None,
+            Rate::EntityFrame,
+        ));
     }
     let mut layout = VariableLayout::new();
     let compiled = compile_text(
@@ -476,4 +479,93 @@ fn a_query_slot_reads_back_its_value_or_missing() {
     assert_eq!(values.get(QuerySlot(1)), Some(u64::from(2.5f32.to_bits())));
     assert_eq!(values.get(QuerySlot(0)), None);
     assert_eq!(values.get(QuerySlot(9)), None);
+}
+
+struct SpecRow {
+    name: String,
+    arguments: String,
+    result: String,
+    rate: String,
+    pose: String,
+}
+
+fn spec_rows(markdown: &str) -> Vec<SpecRow> {
+    let unquote = |cell: &str| cell.trim_matches('`').to_owned();
+    let mut rows = Vec::new();
+    let mut pairs: Vec<(String, String)> = Vec::new();
+    for line in markdown.lines().chain(["end"]) {
+        let cells: Vec<&str> = line.split('|').map(str::trim).collect();
+        let is_row = line.starts_with('|') && cells.len() >= 4;
+        if is_row && cells.len() == 10 && cells[1].starts_with('`') {
+            rows.push(SpecRow {
+                name: unquote(cells[1]),
+                arguments: cells[2].to_owned(),
+                result: cells[3].to_owned(),
+                rate: unquote(cells[5]),
+                pose: unquote(cells[8]),
+            });
+        } else if is_row && cells.len() == 4 {
+            pairs.push((cells[1].to_owned(), unquote(cells[2])));
+        } else if !pairs.is_empty() {
+            let find = |key: &str| {
+                pairs
+                    .iter()
+                    .find(|(name, _)| name == key)
+                    .map(|(_, value)| value.clone())
+            };
+            if let (Some(name), Some(arguments), Some(result), Some(rate)) = (
+                find("name"),
+                find("arguments"),
+                find("result"),
+                find("rate class"),
+            ) {
+                rows.push(SpecRow {
+                    name,
+                    arguments,
+                    result,
+                    rate,
+                    pose: "—".to_owned(),
+                });
+            }
+            pairs.clear();
+        }
+    }
+    rows
+}
+
+#[test]
+fn the_entity_query_table_equals_the_spec() {
+    let path = concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../docs/spec/molang-queries.md"
+    );
+    let markdown = std::fs::read_to_string(path).unwrap_or_else(|error| panic!("{path}: {error}"));
+    let rows = spec_rows(&markdown);
+    for query in &ENTITY_QUERIES {
+        let Some(row) = rows.iter().find(|row| row.name == query.name) else {
+            panic!("`{}` is not in the spec", query.name);
+        };
+        let name = query.name;
+        let result = match query.result {
+            ValueType::Number => "number",
+            ValueType::String => "string",
+            other => panic!("{name}: {other:?}"),
+        };
+        assert_eq!(row.result, result, "{name}: result");
+        assert_eq!(row.rate, query.rate.to_string(), "{name}: rate class");
+        assert_eq!(
+            row.arguments == "none",
+            query.arguments == 0,
+            "{name}: arguments"
+        );
+        match query.pose {
+            PoseInput::None => assert_eq!(row.pose, "—", "{name}: pose input"),
+            PoseInput::Time => assert_eq!(row.pose, "time", "{name}: pose input"),
+            PoseInput::Flag => assert_eq!(row.pose, "tick", "{name}: pose input"),
+            PoseInput::Other => assert!(
+                !["—", "time"].contains(&row.pose.as_str()),
+                "{name}: pose input"
+            ),
+        }
+    }
 }

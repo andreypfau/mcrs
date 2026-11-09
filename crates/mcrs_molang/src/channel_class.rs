@@ -22,6 +22,7 @@ const ANGLE_LIMIT: f32 = 1e6;
 
 /// The processor class of a channel expression.
 #[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
 pub enum ChannelClass {
     /// The value is fixed for each pack load and host key: the host computes it once on the CPU.
     Constant,
@@ -43,8 +44,8 @@ pub enum StateReason {
     MissingValue,
     /// The expression selects from an array.
     Table,
-    /// The expression reads a query that is not a pose input.
-    NotPoseInput(QuerySlot),
+    /// The expression reads a query that is not a GPU input.
+    NotGpuInput(QuerySlot),
     /// A constant is NaN or infinite.
     NonFiniteConstant,
     /// The argument of a function can leave the domain where the result is finite.
@@ -54,30 +55,24 @@ pub enum StateReason {
 }
 
 impl Expression {
-    /// The processor class of the expression as a channel. `pose_input` gives the range of each
-    /// query that is a pose input, and `None` for a query that is not one.
-    pub fn classify(
-        &self,
-        pose_input: impl FnMut(QuerySlot) -> Option<InputRange>,
-    ) -> ChannelClass {
+    /// The processor class of the expression as a channel. `gpu_input` gives the range of each
+    /// query that is a GPU input, and `None` for a query that is not one.
+    pub fn classify(&self, gpu_input: impl FnMut(QuerySlot) -> Option<InputRange>) -> ChannelClass {
         match self {
             Self::Constant(_) => ChannelClass::Constant,
-            Self::Program(program) => program.classify(pose_input),
+            Self::Program(program) => program.classify(gpu_input),
         }
     }
 }
 
 impl Program {
     /// The processor class of the program as a channel; see [`Expression::classify`].
-    pub fn classify(
-        &self,
-        pose_input: impl FnMut(QuerySlot) -> Option<InputRange>,
-    ) -> ChannelClass {
+    pub fn classify(&self, gpu_input: impl FnMut(QuerySlot) -> Option<InputRange>) -> ChannelClass {
         if self.rate <= Rate::Load {
             return ChannelClass::Constant;
         }
         let mut converter = Converter {
-            pose_input,
+            gpu_input,
             code: Vec::with_capacity(self.code.len()),
             inputs: Vec::new(),
             ranges: vec![InputRange::EMPTY; self.number_registers],
@@ -109,7 +104,7 @@ enum Frame {
 }
 
 struct Converter<F> {
-    pose_input: F,
+    gpu_input: F,
     code: Vec<PureInstr>,
     inputs: Vec<PureInput>,
     ranges: Vec<InputRange>,
@@ -176,7 +171,7 @@ impl<F: FnMut(QuerySlot) -> Option<InputRange>> Converter<F> {
             Instr::This { dst } => self.input(dst, PureInput::This, InputRange::FINITE)?,
             Instr::Query { dst, slot } => {
                 let slot = QuerySlot(slot);
-                let range = (self.pose_input)(slot).ok_or(StateReason::NotPoseInput(slot))?;
+                let range = (self.gpu_input)(slot).ok_or(StateReason::NotGpuInput(slot))?;
                 self.input(dst, PureInput::Query(slot), range)?;
             }
             Instr::LoadVar { dst, slot } => {

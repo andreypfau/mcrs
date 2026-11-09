@@ -70,7 +70,7 @@ const ATAN: [f32; 9] = [
 
 /// A subnormal value becomes a zero with its sign.
 #[must_use]
-pub(crate) fn flush(x: f32) -> f32 {
+pub(super) fn flush(x: f32) -> f32 {
     let bits = x.to_bits();
     if bits & EXPONENT == 0 {
         f32::from_bits(bits & SIGN)
@@ -139,7 +139,7 @@ fn scale(x: f32, k: i32) -> f32 {
 
 /// The correctly rounded quotient; `0.0` for a zero divisor.
 #[must_use]
-pub(crate) fn divide(a: f32, b: f32) -> f32 {
+pub(super) fn divide(a: f32, b: f32) -> f32 {
     let (ua, ub) = (a.to_bits(), b.to_bits());
     let sign = (ua ^ ub) & SIGN;
     let (ea, eb) = ((ua >> 23) & 0xff, (ub >> 23) & 0xff);
@@ -197,7 +197,7 @@ fn finish(sign: u32, exponent: i32, mantissa: u32) -> f32 {
 
 /// The correctly rounded square root; NaN below zero.
 #[must_use]
-pub(crate) fn sqrt(x: f32) -> f32 {
+pub(super) fn sqrt(x: f32) -> f32 {
     let bits = x.to_bits();
     if bits & !SIGN == 0 {
         return x;
@@ -240,7 +240,7 @@ pub(crate) fn sqrt(x: f32) -> f32 {
 
 /// The exact remainder of `a / b` with the sign of `a`; `0.0` for a zero divisor.
 #[must_use]
-pub(crate) fn remainder(a: f32, b: f32) -> f32 {
+pub(super) fn remainder(a: f32, b: f32) -> f32 {
     let (ua, ub) = (a.to_bits(), b.to_bits());
     let sign = ua & SIGN;
     let (ax, bx) = (ua & !SIGN, ub & !SIGN);
@@ -479,7 +479,7 @@ fn ease(easing: Easing, t: f32) -> f32 {
 }
 
 #[must_use]
-pub(crate) fn unary(function: UnaryFn, x: f32) -> f32 {
+pub(super) fn unary(function: UnaryFn, x: f32) -> f32 {
     match function {
         UnaryFn::Negate => negate(x),
         UnaryFn::Not => number(x == 0.0),
@@ -504,7 +504,7 @@ pub(crate) fn unary(function: UnaryFn, x: f32) -> f32 {
 }
 
 #[must_use]
-pub(crate) fn binary(function: BinaryFn, a: f32, b: f32) -> f32 {
+pub(super) fn binary(function: BinaryFn, a: f32, b: f32) -> f32 {
     match function {
         BinaryFn::Add => add(a, b),
         BinaryFn::Subtract => sub(a, b),
@@ -529,7 +529,7 @@ pub(crate) fn binary(function: BinaryFn, a: f32, b: f32) -> f32 {
 }
 
 #[must_use]
-pub(crate) fn ternary(function: TernaryFn, a: f32, b: f32, c: f32) -> f32 {
+pub(super) fn ternary(function: TernaryFn, a: f32, b: f32, c: f32) -> f32 {
     match function {
         TernaryFn::Clamp => molang_min(molang_max(a, b), c),
         TernaryFn::Lerp => lerp(a, b, c),
@@ -543,7 +543,7 @@ pub(crate) fn ternary(function: TernaryFn, a: f32, b: f32, c: f32) -> f32 {
 /// The value that the pose pass samples: NaN gives `0.0`, and the rest is limited to
 /// `[-1e6, 1e6]`.
 #[must_use]
-pub(crate) fn pose_clamp(x: f32) -> f32 {
+pub(super) fn pose_clamp(x: f32) -> f32 {
     let bits = x.to_bits();
     if bits & EXPONENT == EXPONENT {
         if bits & MANTISSA != 0 {

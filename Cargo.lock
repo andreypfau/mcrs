@@ -5853,6 +5853,7 @@ name = "mcrs_molang_corpus"
 version = "0.5.8"
 dependencies = [
  "anyhow",
+ "mcrs_molang",
  "serde",
  "serde_json",
 ]

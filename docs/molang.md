@@ -404,7 +404,7 @@ fn <name>(opaque_zero: u32, i0: f32, i1: f32, …) -> f32
   has nothing to rewrite.
 - The functions call `mcrs_molang_wgsl::LIBRARY`. A module holds it once.
 
-The CPU twin (`mcrs_molang_wgsl::Twin`) runs a `PureProgram` with the algorithms of the library,
+The CPU twin (`Twin` of the `mcrs_molang_wgsl` tests) runs a `PureProgram` with the algorithms of the library,
 operation for operation. Its result has the bits of the GPU result. Each float result is
 flushed to zero when it is subnormal, in the twin and on the GPU. The twin is the reference of
 the GPU parity tests, and only of those tests. The scalar VM stays the reference of the

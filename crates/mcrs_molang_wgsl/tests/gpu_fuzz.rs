@@ -24,6 +24,7 @@
 )]
 mod generator;
 mod gpu;
+mod twin;
 
 use std::collections::BTreeMap;
 use std::fmt::Write as _;
@@ -33,13 +34,14 @@ use mcrs_molang::{
     InputRange, Milestone, PureInput, PureInstr, PureProgram, QueryRegistry, QueryValues, ScalarVm,
     Source, Subject, TernaryFn, UnaryFn, Value, VariableLayout, Variables, compile,
 };
-use mcrs_molang_wgsl::{LIBRARY, Twin, lower};
+use mcrs_molang_wgsl::{LIBRARY, lower};
 use proptest::strategy::{Strategy, ValueTree};
 use proptest::test_runner::TestRunner;
 use wgpu::{BufferDescriptor, BufferUsages, MapMode, PollType};
 
 use generator::{Profile, program, registry};
 use gpu::Gpu;
+use twin::Twin;
 
 const LANES: usize = 64;
 const STRIDE: usize = 8;
@@ -112,6 +114,7 @@ fn reason_name(class: &ChannelClass) -> String {
             let name = text.split('(').next().unwrap_or_default();
             format!("state {name}")
         }
+        other => format!("unclassified {other:?}"),
     }
 }
 

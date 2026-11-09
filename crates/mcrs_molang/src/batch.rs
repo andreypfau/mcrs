@@ -74,6 +74,8 @@ fn map2<const N: usize>(
     }
 }
 
+// The named arms fix the function inside the loop so that it inlines and vectorises; the
+// `other` arm matches on the function for each lane.
 fn unary_column<const N: usize>(function: UnaryFn, dst: &mut [f32; N], a: &[f32; N]) {
     match function {
         UnaryFn::Negate => map1(dst, a, |x| -x),

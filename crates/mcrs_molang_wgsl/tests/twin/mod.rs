@@ -1,8 +1,10 @@
-use alloc::vec::Vec;
+//! The CPU twin of the generated WGSL: it runs a `PureProgram` with the algorithms of
+//! `library.wgsl` and gives the bits of the GPU result. It is the oracle of the GPU parity tests
+//! and must change together with the library.
 
 use mcrs_molang::{PureInstr, PureProgram, Register};
 
-use crate::gpu_math;
+mod gpu_math;
 
 /// The result of one run of the CPU twin.
 #[derive(Clone, Copy, Debug, PartialEq)]

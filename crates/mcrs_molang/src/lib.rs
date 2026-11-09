@@ -40,7 +40,7 @@ pub use compile::{CompileOptions, Compiled, Expression, Source, compile, compile
 pub use diagnostic::{Diagnostic, ErrorKind, Span, Warning, WarningKind};
 pub use input_range::InputRange;
 pub use layout::{Bank, TypeConflict, VariableLayout, VariableSlot};
-pub use math::{BinaryFn, EaseDirection, EaseShape, Easing, TernaryFn, UnaryFn};
+pub use math::{BinaryFn, EaseDirection, EaseShape, Easing, TernaryFn, UnaryFn, math_arity};
 pub use parse::parse;
 pub use pure_program::{PureInput, PureInstr, PureProgram, Register};
 pub use query::{

@@ -7,7 +7,7 @@ pub struct InputRange {
 }
 
 impl InputRange {
-    /// Every finite value: the range of a pose input whose range the host does not know.
+    /// Every finite value: the range of a GPU input whose range the host does not know.
     pub const FINITE: Self = Self::new(f32::MIN, f32::MAX);
     /// Every value, the infinities included.
     pub const ANY: Self = Self::new(f32::NEG_INFINITY, f32::INFINITY);

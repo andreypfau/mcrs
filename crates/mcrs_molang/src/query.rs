@@ -141,6 +141,21 @@ pub struct QueryDeclaration {
     pub milestone: Milestone,
 }
 
+impl QueryDeclaration {
+    /// A query of the entity scope that the first milestone supports.
+    #[must_use]
+    pub fn entity(name: &str, result: ValueType, arguments: Arguments, rate: Rate) -> Self {
+        Self {
+            name: name.into(),
+            arguments,
+            result,
+            rate,
+            scope: QueryScope::Entity,
+            milestone: Milestone::One,
+        }
+    }
+}
+
 /// An owned literal argument, the key of a query slot.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum LiteralKey {

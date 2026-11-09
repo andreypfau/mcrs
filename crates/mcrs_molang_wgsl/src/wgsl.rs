@@ -14,7 +14,19 @@ pub const LIBRARY: &str = include_str!("library.wgsl");
 /// [`PureProgram::inputs`], and returns the channel value limited to `[-1e6, 1e6]`, with `0.0`
 /// for a NaN. The caller must pass a zero that the shader compiler cannot see, for example a
 /// field of a uniform buffer: it keeps fast math from changing the result bits.
-pub fn write_function(out: &mut String, program: &PureProgram, name: &str) -> core::fmt::Result {
+pub fn write_function(out: &mut String, program: &PureProgram, name: &str) {
+    debug_assert!(
+        !name.is_empty()
+            && !name.starts_with("molang_")
+            && !name.starts_with(|c: char| c.is_ascii_digit())
+            && name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_'),
+        "the function name must be a WGSL identifier that does not start with `molang_`"
+    );
+    // Writing to a `String` cannot fail.
+    let _ = write_body(out, program, name);
+}
+
+fn write_body(out: &mut String, program: &PureProgram, name: &str) -> core::fmt::Result {
     write!(out, "fn {name}(opaque_zero: u32")?;
     for index in 0..program.inputs().len() {
         write!(out, ", i{index}: f32")?;
@@ -26,6 +38,7 @@ pub fn write_function(out: &mut String, program: &PureProgram, name: &str) -> co
     let mut depth = 1usize;
     for instr in program.instructions() {
         if matches!(instr, PureInstr::Else { .. } | PureInstr::EndIf) {
+            debug_assert!(depth > 1, "the compiler balances every `else` and `end if`");
             depth = depth.saturating_sub(1);
         }
         for _ in 0..depth {
@@ -45,8 +58,7 @@ pub fn write_function(out: &mut String, program: &PureProgram, name: &str) -> co
 #[must_use]
 pub fn lower(program: &PureProgram, name: &str) -> String {
     let mut out = String::new();
-    // Writing to a `String` cannot fail.
-    let _ = write_function(&mut out, program, name);
+    write_function(&mut out, program, name);
     out
 }
 
@@ -56,20 +68,33 @@ fn write_instr(out: &mut String, instr: PureInstr) -> core::fmt::Result {
             write!(
                 out,
                 "r{} = molang_constant({:#010x}u);",
-                dst.0,
+                dst.index(),
                 value.to_bits()
             )
         }
-        PureInstr::Input { dst, input } => write!(out, "r{} = molang_flush(i{input});", dst.0),
+        PureInstr::Input { dst, input } => {
+            write!(out, "r{} = molang_flush(i{input});", dst.index())
+        }
         PureInstr::Unary { function, dst, a } => {
-            write!(out, "r{} = {}(r{});", dst.0, unary_name(function), a.0)
+            write!(
+                out,
+                "r{} = {}(r{});",
+                dst.index(),
+                unary_name(function),
+                a.index()
+            )
         }
         PureInstr::Binary {
             function,
             dst,
             a,
             b,
-        } => write!(out, "r{} = {};", dst.0, binary_call(function, a.0, b.0)),
+        } => write!(
+            out,
+            "r{} = {};",
+            dst.index(),
+            binary_call(function, a.index(), b.index())
+        ),
         PureInstr::Ternary {
             function,
             dst,
@@ -77,8 +102,8 @@ fn write_instr(out: &mut String, instr: PureInstr) -> core::fmt::Result {
             b,
             c,
         } => {
-            let call = ternary_call(function, [a.0, b.0, c.0]);
-            write!(out, "r{} = {call};", dst.0)
+            let call = ternary_call(function, [a.index(), b.index(), c.index()]);
+            write!(out, "r{} = {call};", dst.index())
         }
         PureInstr::Select {
             dst,
@@ -88,15 +113,18 @@ fn write_instr(out: &mut String, instr: PureInstr) -> core::fmt::Result {
         } => write!(
             out,
             "r{} = select(r{}, r{}, molang_is_truthy(r{}));",
-            dst.0, otherwise.0, then.0, condition.0
+            dst.index(),
+            otherwise.index(),
+            then.index(),
+            condition.index()
         ),
-        PureInstr::Move { dst, src } => write!(out, "r{} = r{};", dst.0, src.0),
+        PureInstr::Move { dst, src } => write!(out, "r{} = r{};", dst.index(), src.index()),
         PureInstr::If { condition, .. } => {
-            write!(out, "if (molang_is_truthy(r{})) {{", condition.0)
+            write!(out, "if (molang_is_truthy(r{})) {{", condition.index())
         }
         PureInstr::Else { .. } => out.write_str("} else {"),
         PureInstr::EndIf => out.write_str("}"),
-        PureInstr::Return { src } => write!(out, "return molang_pose_clamp(r{});", src.0),
+        PureInstr::Return { src } => write!(out, "return molang_pose_clamp(r{});", src.index()),
         _ => Ok(()),
     }
 }
@@ -125,7 +153,7 @@ fn unary_name(function: UnaryFn) -> &'static str {
     }
 }
 
-fn binary_call(function: BinaryFn, a: u16, b: u16) -> String {
+fn binary_call(function: BinaryFn, a: usize, b: usize) -> String {
     let name = match function {
         BinaryFn::Less => return alloc::format!("molang_number(r{a} < r{b})"),
         BinaryFn::LessEqual => return alloc::format!("molang_number(r{a} <= r{b})"),
@@ -150,7 +178,7 @@ fn binary_call(function: BinaryFn, a: u16, b: u16) -> String {
     alloc::format!("{name}(r{a}, r{b})")
 }
 
-fn ternary_call(function: TernaryFn, [a, b, c]: [u16; 3]) -> String {
+fn ternary_call(function: TernaryFn, [a, b, c]: [usize; 3]) -> String {
     let name = match function {
         TernaryFn::Clamp => "molang_clamp",
         TernaryFn::Lerp => "molang_lerp",

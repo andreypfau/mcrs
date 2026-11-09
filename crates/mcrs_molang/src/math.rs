@@ -358,6 +358,13 @@ impl TernaryFn {
     }
 }
 
+/// The number of arguments of the `math.` function `name`, or `None` when the language has no
+/// such function. `math.pi` has no argument list and gives `Some(0)`.
+#[must_use]
+pub fn math_arity(name: &str) -> Option<usize> {
+    MathName::lookup(name).map(MathName::arity)
+}
+
 /// A `math.` name after the lookup.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) enum MathName {

@@ -6,7 +6,7 @@ use crate::query::QuerySlot;
 
 /// A number register of a [`PureProgram`]. A register holds `0.0` before its first write.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub struct Register(pub u16);
+pub struct Register(pub(crate) u16);
 
 impl Register {
     #[must_use]

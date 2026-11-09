@@ -10,71 +10,14 @@ use std::collections::BTreeMap;
 
 use serde::Deserialize;
 
-use mcrs_molang::{
-    Arguments, CompileOptions, Milestone, QueryDeclaration, QueryRegistry, QueryScope, Rate,
-    UseContext, ValueType, VariableLayout, compile_text, parse,
-};
+use mcrs_molang::{CompileOptions, Milestone, VariableLayout, compile_text, parse};
+
+#[expect(dead_code, reason = "this test does not read the GPU pose inputs")]
+mod entity_queries;
+
+use entity_queries::registry;
 
 const TEXT_FORMS: [&str; 3] = ["string", "script_array", "versioned_object"];
-
-/// The entity queries of `docs/spec/molang-queries.md`, so that the compile census sees the
-/// errors of the language rather than unknown names.
-const ENTITY_QUERIES: [(&str, ValueType, u8); 35] = [
-    ("life_time", ValueType::Number, 0),
-    ("delta_time", ValueType::Number, 0),
-    ("frame_alpha", ValueType::Number, 0),
-    ("time_of_day", ValueType::Number, 0),
-    ("modified_distance_moved", ValueType::Number, 0),
-    ("modified_move_speed", ValueType::Number, 0),
-    ("ground_speed", ValueType::Number, 0),
-    ("vertical_speed", ValueType::Number, 0),
-    ("is_moving", ValueType::Number, 0),
-    ("is_on_ground", ValueType::Number, 0),
-    ("is_in_water", ValueType::Number, 0),
-    ("target_x_rotation", ValueType::Number, 0),
-    ("target_y_rotation", ValueType::Number, 0),
-    ("body_y_rotation", ValueType::Number, 0),
-    ("head_x_rotation", ValueType::Number, 1),
-    ("head_y_rotation", ValueType::Number, 1),
-    ("is_baby", ValueType::Number, 0),
-    ("is_alive", ValueType::Number, 0),
-    ("hurt_time", ValueType::Number, 0),
-    ("death_ticks", ValueType::Number, 0),
-    ("variant", ValueType::Number, 0),
-    ("variant_identifier", ValueType::String, 0),
-    ("model_scale", ValueType::Number, 0),
-    ("is_saddled", ValueType::Number, 0),
-    ("pose", ValueType::String, 0),
-    ("is_on_fire", ValueType::Number, 0),
-    ("is_sneaking", ValueType::Number, 0),
-    ("is_sprinting", ValueType::Number, 0),
-    ("is_swimming", ValueType::Number, 0),
-    ("is_invisible", ValueType::Number, 0),
-    ("is_riding", ValueType::Number, 0),
-    ("has_rider", ValueType::Number, 0),
-    ("anim_time", ValueType::Number, 0),
-    ("key_frame_lerp_time", ValueType::Number, 0),
-    ("distance_from_camera", ValueType::Number, 0),
-];
-
-fn registry() -> QueryRegistry {
-    let mut registry = QueryRegistry::new(UseContext::Entity);
-    for (name, result, arguments) in ENTITY_QUERIES {
-        registry.declare(QueryDeclaration {
-            name: name.into(),
-            arguments: if arguments == 0 {
-                Arguments::None
-            } else {
-                Arguments::Literals(arguments)
-            },
-            result,
-            rate: Rate::EntityFrame,
-            scope: QueryScope::Entity,
-            milestone: Milestone::One,
-        });
-    }
-    registry
-}
 
 #[derive(Deserialize)]
 struct Form {

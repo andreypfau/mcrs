@@ -1,8 +1,6 @@
 //! The grammar-based generator of Molang programs that the differential tests share.
 
-use mcrs_molang::{
-    Arguments, Milestone, QueryDeclaration, QueryRegistry, QueryScope, Rate, UseContext, ValueType,
-};
+use mcrs_molang::{Arguments, QueryDeclaration, QueryRegistry, Rate, UseContext, ValueType};
 use proptest::prelude::*;
 
 pub const VARIABLES: [&str; 4] = ["a", "b", "c", "d"];
@@ -333,22 +331,18 @@ pub fn program(profile: Profile) -> BoxedStrategy<String> {
 pub fn registry() -> QueryRegistry {
     let mut registry = QueryRegistry::new(UseContext::Entity);
     for name in NUMBER_QUERIES {
-        registry.declare(QueryDeclaration {
-            name: name.into(),
-            arguments: Arguments::None,
-            result: ValueType::Number,
-            rate: Rate::EntityFrame,
-            scope: QueryScope::Entity,
-            milestone: Milestone::One,
-        });
+        registry.declare(QueryDeclaration::entity(
+            name,
+            ValueType::Number,
+            Arguments::None,
+            Rate::EntityFrame,
+        ));
     }
-    registry.declare(QueryDeclaration {
-        name: "sq".into(),
-        arguments: Arguments::None,
-        result: ValueType::String,
-        rate: Rate::EntityTick,
-        scope: QueryScope::Entity,
-        milestone: Milestone::One,
-    });
+    registry.declare(QueryDeclaration::entity(
+        "sq",
+        ValueType::String,
+        Arguments::None,
+        Rate::EntityTick,
+    ));
     registry
 }

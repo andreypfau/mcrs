@@ -13,11 +13,11 @@ workspace = true
 
 [dependencies]
 hashbrown.workspace = true
-libm = "0.2.16"
+libm = { workspace = true, features = ["arch"] }
 
 [dev-dependencies]
-criterion = { version = "0.7", features = ["html_reports"] }
-proptest = "1.11.0"
+criterion = { workspace = true, features = ["html_reports"] }
+proptest.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 

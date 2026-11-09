@@ -8,12 +8,12 @@
 
 use mcrs_molang::{
     Arguments, ChannelClass, CompileOptions, InputRange, Milestone, PureInput, QueryDeclaration,
-    QueryRegistry, QueryScope, QuerySlot, Rate, StateReason, UseContext, ValueType, VariableLayout,
+    QueryRegistry, QuerySlot, Rate, StateReason, UseContext, ValueType, VariableLayout,
     compile_text,
 };
 
-/// `q.time` is a pose input of the range `[0, 1e9]`, `q.walk` one with no known range, `q.load`
-/// a value of the pack load, and `q.name` a string that is not a pose input.
+/// `q.time` is a GPU input of the range `[0, 1e9]`, `q.walk` one with no known range, `q.load`
+/// a value of the pack load, and `q.name` a string that is not a GPU input.
 fn classify(text: &str) -> ChannelClass {
     let mut registry = QueryRegistry::new(UseContext::Entity);
     for (name, result, rate) in [
@@ -23,14 +23,12 @@ fn classify(text: &str) -> ChannelClass {
         ("name", ValueType::String, Rate::EntityTick),
         ("cpu", ValueType::Number, Rate::EntityTick),
     ] {
-        registry.declare(QueryDeclaration {
-            name: name.into(),
-            arguments: Arguments::None,
+        registry.declare(QueryDeclaration::entity(
+            name,
             result,
+            Arguments::None,
             rate,
-            scope: QueryScope::Entity,
-            milestone: Milestone::One,
-        });
+        ));
     }
     let options = CompileOptions {
         milestone: Milestone::Later,
@@ -55,7 +53,7 @@ fn reason(text: &str) -> StateReason {
 }
 
 #[test]
-fn a_channel_over_pose_inputs_is_pure() {
+fn a_channel_over_gpu_inputs_is_pure() {
     let ChannelClass::Pure(program) = classify("math.cos(q.walk * 38.17) * 80 * q.time") else {
         panic!("not pure");
     };
@@ -92,7 +90,7 @@ fn a_channel_that_needs_the_cpu_states_why() {
     assert_eq!(reason("q.name == 'a'"), StateReason::String);
     assert_eq!(reason("v.x = 2; return q.walk * v.x;"), StateReason::Write);
     assert_eq!(reason("v.x ?? 1"), StateReason::MissingValue);
-    assert_eq!(reason("q.cpu * 2"), StateReason::NotPoseInput(QuerySlot(0)));
+    assert_eq!(reason("q.cpu * 2"), StateReason::NotGpuInput(QuerySlot(0)));
     assert_eq!(
         reason("q.walk + math.ln(0)"),
         StateReason::NonFiniteConstant
