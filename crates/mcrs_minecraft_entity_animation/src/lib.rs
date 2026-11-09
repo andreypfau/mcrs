@@ -28,7 +28,7 @@ pub use clip::{Clip, ClipBone, LoopMode, TimeUpdate};
 pub use clip_library::ClipLibrary;
 pub use entity_animation::EntityAnimation;
 pub use entity_query::EntityQuery;
-pub use frame_queries::{FrameQueries, VariantEntry, pose_name};
+pub use frame_queries::{FrameQueries, VariantEntry, pose_from_name, pose_name};
 pub use instance::{Instance, Phase};
 pub use pack_file_error::PackFileError;
 pub use pose::{Pose, PoseBone};

@@ -88,27 +88,55 @@ impl QuerySource for FrameQueries<'_> {
     }
 }
 
+const POSES: [(Pose, &str); 18] = [
+    (Pose::Standing, "standing"),
+    (Pose::FallFlying, "fall_flying"),
+    (Pose::Sleeping, "sleeping"),
+    (Pose::Swimming, "swimming"),
+    (Pose::SpinAttack, "spin_attack"),
+    (Pose::Crouching, "crouching"),
+    (Pose::LongJumping, "long_jumping"),
+    (Pose::Dying, "dying"),
+    (Pose::Croaking, "croaking"),
+    (Pose::UsingTongue, "using_tongue"),
+    (Pose::Sitting, "sitting"),
+    (Pose::Roaring, "roaring"),
+    (Pose::Sniffing, "sniffing"),
+    (Pose::Emerging, "emerging"),
+    (Pose::Digging, "digging"),
+    (Pose::Sliding, "sliding"),
+    (Pose::Shooting, "shooting"),
+    (Pose::Inhaling, "inhaling"),
+];
+
 /// The value of `query.pose` for a pose of the entity data.
 #[must_use]
 pub fn pose_name(pose: Pose) -> &'static str {
-    match pose {
-        Pose::Standing => "standing",
-        Pose::FallFlying => "fall_flying",
-        Pose::Sleeping => "sleeping",
-        Pose::Swimming => "swimming",
-        Pose::SpinAttack => "spin_attack",
-        Pose::Crouching => "crouching",
-        Pose::LongJumping => "long_jumping",
-        Pose::Dying => "dying",
-        Pose::Croaking => "croaking",
-        Pose::UsingTongue => "using_tongue",
-        Pose::Sitting => "sitting",
-        Pose::Roaring => "roaring",
-        Pose::Sniffing => "sniffing",
-        Pose::Emerging => "emerging",
-        Pose::Digging => "digging",
-        Pose::Sliding => "sliding",
-        Pose::Shooting => "shooting",
-        Pose::Inhaling => "inhaling",
+    POSES
+        .iter()
+        .find(|(candidate, _)| *candidate == pose)
+        .map_or("standing", |(_, name)| name)
+}
+
+/// The pose that `query.pose` names, or `None` for a name that no pose has.
+#[must_use]
+pub fn pose_from_name(name: &str) -> Option<Pose> {
+    POSES
+        .iter()
+        .find(|(_, candidate)| *candidate == name)
+        .map(|(pose, _)| *pose)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn every_pose_name_names_its_pose_back() {
+        for (pose, name) in POSES {
+            assert_eq!(pose_name(pose), name);
+            assert_eq!(pose_from_name(name), Some(pose));
+        }
+        assert_eq!(pose_from_name("floating"), None);
     }
 }
