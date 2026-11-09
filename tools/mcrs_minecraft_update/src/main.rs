@@ -537,11 +537,17 @@ printf MC > "$out/beard.bin"
     fn an_unknown_fixture_runs_no_task_and_lists_the_known_names() {
         let root = oracle_root(ONLY_BEARD_SUCCEEDS);
         let error = recapture_in(&root, &Recapture::One("no_such_fixture".to_owned())).unwrap_err();
-        assert!(
-            error
-                .starts_with("unknown fixture no_such_fixture; known fixtures: density, surface, ")
+        let names: Vec<&str> = mcrs_minecraft_fixtures::table()
+            .iter()
+            .map(|fixture| fixture.name.as_str())
+            .collect();
+        assert_eq!(
+            error,
+            format!(
+                "unknown fixture no_such_fixture; known fixtures: {}",
+                names.join(", ")
+            )
         );
-        assert!(error.ends_with(", registry_values"), "{error}");
         assert!(calls(&root).is_empty());
     }
 

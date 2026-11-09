@@ -8,33 +8,42 @@ pub const SINE_TABLE_LEN: usize = 65536;
 /// The number of table entries for each radian, `65536 / 2π`.
 pub(crate) const ENTRIES_PER_RADIAN: f64 = 10430.378350470453;
 
+const QUARTER_TURN: usize = 16384;
 const HALF_TURN: usize = 32768;
+const THREE_QUARTER_TURN: usize = 49152;
 
 // The tables are built on the heap: a reader can be deep in a tick, and 256 KiB of stack
 // temporaries per table overflow a test thread in an unoptimised build.
 static EARLIER: LazyLock<Box<[f32; SINE_TABLE_LEN]>> = LazyLock::new(|| {
-    boxed(
-        (0..SINE_TABLE_LEN)
-            .map(|index| (index as f64 / ENTRIES_PER_RADIAN).sin() as f32)
-            .collect(),
-    )
+    let mut entries: Vec<f32> = Vec::with_capacity(SINE_TABLE_LEN);
+    for index in 0..SINE_TABLE_LEN {
+        entries.push((index as f64 / ENTRIES_PER_RADIAN).sin() as f32);
+    }
+    boxed(entries)
 });
 
 static CURRENT: LazyLock<Box<[f32; SINE_TABLE_LEN]>> = LazyLock::new(|| {
-    let mut table: Vec<f32> = EARLIER.to_vec();
-    for (index, value) in [(0, 0.0), (16384, 1.0), (HALF_TURN, 0.0), (49152, -1.0)] {
-        if let Some(entry) = table.get_mut(index) {
-            *entry = value;
-        }
+    let mut entries: Vec<f32> = Vec::with_capacity(SINE_TABLE_LEN);
+    for (index, &entry) in EARLIER.iter().enumerate() {
+        entries.push(match index {
+            0 | HALF_TURN => 0.0,
+            QUARTER_TURN => 1.0,
+            THREE_QUARTER_TURN => -1.0,
+            _ => entry,
+        });
     }
-    boxed(table)
+    boxed(entries)
 });
 
+#[expect(
+    clippy::expect_used,
+    reason = "each caller pushes exactly SINE_TABLE_LEN entries, so a failure is a programming error"
+)]
 fn boxed(entries: Vec<f32>) -> Box<[f32; SINE_TABLE_LEN]> {
     entries
         .into_boxed_slice()
         .try_into()
-        .unwrap_or_else(|_| Box::new([0.0; SINE_TABLE_LEN]))
+        .expect("a sine table has SINE_TABLE_LEN entries")
 }
 
 /// The current sine table: entry `k` is the sine of `k / ENTRIES_PER_RADIAN`, with the four
