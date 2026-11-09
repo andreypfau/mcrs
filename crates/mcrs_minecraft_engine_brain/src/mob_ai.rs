@@ -5,22 +5,23 @@ use std::time::Instant;
 
 use bevy_ecs::resource::Resource;
 use bevy_tasks::TaskPool;
+use mcrs_minecraft_brain::AiDriver;
 use mcrs_minecraft_brain::Cadence;
 use mcrs_minecraft_brain::Decision;
-use mcrs_minecraft_brain::DecisionPipeline;
 use mcrs_minecraft_brain::Fact;
 use mcrs_minecraft_brain::FactKind;
+use mcrs_minecraft_brain::MobBrain;
 use mcrs_minecraft_brain::PlayerTable;
-use mcrs_minecraft_brain::Replica;
 use mcrs_minecraft_brain::Stage;
 use mcrs_minecraft_brain::StageConfig;
 use mcrs_minecraft_brain::TickContext;
+use mcrs_minecraft_brain::TileWork;
 use mcrs_minecraft_engine_physics::EntityRows;
 use mcrs_minecraft_engine_physics::Mobs;
+use mcrs_minecraft_entity::EntityTypeData;
 use mcrs_minecraft_entity_key::EntityId;
 use mcrs_minecraft_entity_key::TileKey;
 use mcrs_minecraft_goals::GoalWorld;
-use mcrs_minecraft_goals::PigBrain;
 use mcrs_minecraft_physics::TileRows;
 use mcrs_minecraft_volume::BlockVolume;
 use rustc_hash::FxHashMap;
@@ -33,50 +34,48 @@ use crate::life_task::LifeTask;
 use crate::tile_task::TileOut;
 use crate::tile_task::TileTask;
 
-/// The AI of the mobs of one dimension world. In each tick [`MobAi::prepare`] publishes the
-/// snapshot of the tick, applies the due decisions and steers the rows before the entity pass;
-/// [`MobAi::run_stage`] runs the stage of the tick beside the pass. Both work in parallel over
-/// the tiles, and their result does not depend on the thread count.
+/// The AI of the mobs of one dimension world, with the brains `B`. In each tick
+/// [`MobAi::prepare`] publishes the snapshot of the tick, applies the due decisions and steers the
+/// rows before the entity pass; [`MobAi::run_stage`] runs the stage of the tick beside the pass.
+/// Both work in parallel over the tiles, and their result does not depend on the thread count.
 #[derive(Resource, Debug)]
-pub struct MobAi {
-    stage: Stage<PigBrain>,
-    pipeline: DecisionPipeline,
-    replica: Replica,
+pub struct MobAi<B: Send + Sync + 'static> {
+    driver: AiDriver<B>,
+    /// The brain of a mob that came into the world, from its type; `None` for a type without AI.
+    brain_for: fn(&'static EntityTypeData) -> Option<B>,
     /// The mobs of each tile, by entity id.
     tiles: BTreeMap<TileKey, Vec<HostMob>>,
     index: FxHashMap<EntityId, TileKey>,
     /// The mobs whose path ended in the last tick.
     ended: Vec<EntityId>,
-    /// The AI ticks so far: the clock of the cadences, the keyed random values and the damage
-    /// records.
-    tick: u64,
     stats: AiStats,
 }
 
-impl MobAi {
+impl<B: Send + Sync + 'static> MobAi<B> {
+    /// The AI of a world in which each mob without `NoAI` gets the brain that `brain_for` makes
+    /// for its type.
     #[must_use]
-    pub fn new(config: StageConfig) -> Self {
+    pub fn new(config: StageConfig, brain_for: fn(&'static EntityTypeData) -> Option<B>) -> Self {
         Self {
-            pipeline: DecisionPipeline::new(&config),
-            stage: Stage::new(config),
-            replica: Replica::default(),
+            driver: AiDriver::new(config),
+            brain_for,
             tiles: BTreeMap::new(),
             index: FxHashMap::default(),
             ended: Vec::new(),
-            tick: 0,
             stats: AiStats::default(),
         }
     }
 
     #[must_use]
-    pub fn stage(&self) -> &Stage<PigBrain> {
-        &self.stage
+    pub const fn stage(&self) -> &Stage<B> {
+        self.driver.stage()
     }
 
-    /// The last AI tick.
+    /// The last AI tick: the clock of the cadences, the keyed random values and the damage
+    /// records.
     #[must_use]
     pub const fn tick(&self) -> u64 {
-        self.tick
+        self.driver.tick()
     }
 
     #[must_use]
@@ -96,11 +95,10 @@ impl MobAi {
         pool: &TaskPool,
     ) {
         let started = Instant::now();
-        self.tick = self.tick.saturating_add(1);
-        let tick = self.tick;
+        let tick = self.driver.begin_tick();
         self.follow_life_cycle(tick, hot.mobs, rows, pool);
         let followed = Instant::now();
-        let mut due = self.due(tick);
+        let mut due = self.due();
         let mut tasks: Vec<TileTask<'_>> = Vec::with_capacity(self.tiles.len());
         let mut held = self.tiles.iter_mut().peekable();
         for (tile, tile_rows) in rows.tiles_mut() {
@@ -133,7 +131,7 @@ impl MobAi {
         let outs = in_order(outs);
         due.clear();
         let ran = Instant::now();
-        self.publish(tick, outs, players, rows);
+        self.publish(outs, players, rows);
         self.stats.life_cycle = followed.duration_since(started);
         self.stats.tile_tasks = ran.duration_since(followed);
         self.stats.publish = ran.elapsed();
@@ -142,38 +140,24 @@ impl MobAi {
 
     /// The stage of the tick of the last [`MobAi::prepare`] over `world`, the blocks at the start
     /// of the tick.
-    pub fn run_stage<W: GoalWorld + Sync>(&mut self, pool: &TaskPool, world: &W) {
+    pub fn run_stage<W: GoalWorld + Sync>(&mut self, pool: &TaskPool, world: &W)
+    where
+        B: MobBrain<W>,
+    {
         let started = Instant::now();
-        let tick = self.tick;
-        let evaluations = self.stage.evaluations();
-        let cx = TickContext {
-            tick,
-            config: *self.stage.config(),
-            replica: &self.replica,
-            world,
-        };
-        let mut work = self.stage.work();
-        let per_task = tiles_per_task(pool, work.len());
-        pool.scope(|scope| {
-            let cx = &cx;
-            for chunk in work.chunks_mut(per_task) {
-                scope.spawn(async move {
-                    for task in chunk {
-                        task.run(cx);
-                    }
-                });
-            }
-        });
-        drop(work);
-        let issued = self.stage.collect(tick);
-        self.stats.decisions = issued.len();
-        self.pipeline.ready(issued);
-        self.replica.retire(tick.saturating_add(1));
-        self.stats.evaluations = self.stage.evaluations().saturating_sub(evaluations);
+        let evaluations = self.driver.stage().evaluations();
+        self.stats.decisions = self
+            .driver
+            .run_stage(world, |work, cx| run_tiles(pool, work, cx));
+        self.stats.evaluations = self
+            .driver
+            .stage()
+            .evaluations()
+            .saturating_sub(evaluations);
         self.stats.stage = started.elapsed();
     }
 
-    /// Registers each pig with AI that came into the world, moves the brain of each mob that
+    /// Registers each mob with AI that came into the world, moves the brain of each mob that
     /// changed tile, and drops each mob that left the world. The tiles find their changes in
     /// parallel; only the changes run on one thread.
     fn follow_life_cycle(
@@ -184,7 +168,8 @@ impl MobAi {
         pool: &TaskPool,
     ) {
         let mut departed = Vec::new();
-        let mut tasks: Vec<LifeTask<'_>> = Vec::with_capacity(self.tiles.len());
+        let brain_for = self.brain_for;
+        let mut tasks: Vec<LifeTask<'_, B>> = Vec::with_capacity(self.tiles.len());
         let mut held = self.tiles.iter_mut().peekable();
         for (tile, tile_rows) in rows.tiles_mut() {
             while let Some((_, hosts)) = held.next_if(|(key, _)| **key < tile) {
@@ -197,6 +182,7 @@ impl MobAi {
                 mobs: held
                     .next_if(|(key, _)| **key == tile)
                     .map(|(_, hosts)| hosts),
+                brain_for,
             });
         }
         for (_, hosts) in held {
@@ -204,7 +190,7 @@ impl MobAi {
         }
         let per_task = tiles_per_task(pool, tasks.len());
         let dealt = deal(tasks, per_task, |task| task.rows.ids().len());
-        let outs: Vec<Vec<(usize, LifeOut)>> = pool.scope(|scope| {
+        let outs: Vec<Vec<(usize, LifeOut<B>)>> = pool.scope(|scope| {
             for chunk in dealt {
                 scope.spawn(async move {
                     chunk
@@ -235,12 +221,12 @@ impl MobAi {
                     let Some(host) = HostMob::new(arrival.id, key, arrival.kind, tick) else {
                         continue;
                     };
-                    self.stage.spawn(
+                    self.driver.spawn(
                         arrival.tile,
                         host.id,
                         key,
                         Cadence::new(tick, arrival.phase),
-                        PigBrain::default(),
+                        arrival.brain,
                     );
                     host
                 }
@@ -248,29 +234,24 @@ impl MobAi {
             entering.entry(arrival.tile).or_default().push(host);
             self.index.insert(arrival.id, arrival.tile);
         }
-        self.stage.relocate_all(relocated);
+        self.driver.relocate_all(relocated);
         for (tile, hosts) in entering {
             merge(self.tiles.entry(tile).or_default(), hosts);
         }
         for id in moving.into_keys() {
             self.index.remove(&id);
-            self.stage.despawn(id);
+            self.driver.despawn(id);
         }
         self.tiles.retain(|_, hosts| !hosts.is_empty());
         self.stats.mobs = self.index.len();
     }
 
-    /// The decisions due in `tick`, by the tile of their mob now, each tile in the order of the
+    /// The decisions due in this tick, by the tile of their mob now, each tile in the order of the
     /// issue ticks and the keys.
-    fn due(&mut self, tick: u64) -> BTreeMap<TileKey, Vec<Decision>> {
+    fn due(&mut self) -> BTreeMap<TileKey, Vec<Decision>> {
         let mut by_tile: BTreeMap<TileKey, Vec<Decision>> = BTreeMap::new();
-        let issued = match self.pipeline.take_due(tick) {
-            Ok(issued) => issued,
-            Err(_) => {
-                self.stats.waits = self.stats.waits.saturating_add(1);
-                Vec::new()
-            }
-        };
+        let issued = self.driver.take_due();
+        self.stats.waits = self.driver.waits();
         for decisions in issued {
             for decision in decisions.tiles.into_values().flatten() {
                 if let Some(&tile) = self.index.get(&decision.mob) {
@@ -284,13 +265,7 @@ impl MobAi {
         by_tile
     }
 
-    fn publish(
-        &mut self,
-        tick: u64,
-        outs: Vec<TileOut>,
-        players: PlayerTable,
-        rows: &mut EntityRows,
-    ) {
+    fn publish(&mut self, outs: Vec<TileOut>, players: PlayerTable, rows: &mut EntityRows) {
         let mut facts: BTreeMap<TileKey, Vec<Fact>> = BTreeMap::new();
         for mob in mem::take(&mut self.ended) {
             if let Some(&tile) = self.index.get(&mob) {
@@ -303,7 +278,7 @@ impl MobAi {
         let mut applied: usize = 0;
         for out in outs {
             applied = applied.saturating_add(out.applied);
-            self.replica.publish_tile(tick, out.tile, out.views);
+            self.driver.publish_tile(out.tile, out.views);
             if !out.facts.is_empty() {
                 facts.entry(out.tile).or_default().extend(out.facts);
             }
@@ -311,12 +286,29 @@ impl MobAi {
             rows.steer_all(out.tile, out.intents);
         }
         for (tile, facts) in facts {
-            self.replica.publish_facts(tick, tile, facts);
+            self.driver.publish_facts(tile, facts);
         }
-        self.replica.publish_players(tick, players);
-        self.pipeline.issue(tick);
+        self.driver.publish_players(players);
         self.stats.applied = applied;
     }
+}
+
+/// Runs the tile tasks of one stage tick on `pool`.
+fn run_tiles<B, W>(pool: &TaskPool, work: &mut [TileWork<'_, B>], cx: &TickContext<'_, W>)
+where
+    B: MobBrain<W> + Send,
+    W: GoalWorld + Sync,
+{
+    let per_task = tiles_per_task(pool, work.len());
+    pool.scope(|scope| {
+        for chunk in work.chunks_mut(per_task) {
+            scope.spawn(async move {
+                for task in chunk {
+                    task.run(cx);
+                }
+            });
+        }
+    });
 }
 
 /// The tiles in one task of a parallel pass: four tasks per thread.

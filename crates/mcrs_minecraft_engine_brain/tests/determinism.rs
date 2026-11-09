@@ -30,8 +30,10 @@ use mcrs_minecraft_engine_physics::mob_body;
 use mcrs_minecraft_engine_physics::mob_row;
 use mcrs_minecraft_engine_physics::tile_at;
 use mcrs_minecraft_entity::EntityTypeData;
+use mcrs_minecraft_entity::entity_type_keys::EntityType;
 use mcrs_minecraft_entity_key::EntityId;
 use mcrs_minecraft_entity_key::EntityKey;
+use mcrs_minecraft_goals::PigBrain;
 use mcrs_minecraft_replication::MobLooks;
 
 const PIGS: u32 = 2000;
@@ -39,10 +41,14 @@ const TICKS: u64 = 200;
 const HALF_TILES: i32 = 3;
 const CACTUS: u32 = 7;
 
+fn pig_brain(kind: &'static EntityTypeData) -> Option<PigBrain> {
+    (kind.entity_type == EntityType::Pig).then(PigBrain::default)
+}
+
 struct Run {
     scene: TestScene,
     mobs: Mobs,
-    ai: MobAi,
+    ai: MobAi<PigBrain>,
     causes: PanicCauses,
     players: Vec<PlayerRow>,
     pool: TaskPool,
@@ -96,7 +102,7 @@ impl Run {
         Self {
             scene,
             mobs,
-            ai: MobAi::new(StageConfig::new(WorldSeed(42))),
+            ai: MobAi::new(StageConfig::new(WorldSeed(42)), pig_brain),
             causes: PanicCauses::new([CACTUS]),
             players,
             pool: TaskPoolBuilder::new().num_threads(threads).build(),

@@ -9,6 +9,7 @@
 extern crate alloc;
 
 mod ai_delay;
+mod ai_driver;
 mod brain;
 mod cadence;
 mod control_flags;
@@ -28,6 +29,7 @@ mod stage_config;
 mod tile_brains;
 
 pub use ai_delay::*;
+pub use ai_driver::*;
 pub use brain::*;
 pub use cadence::*;
 pub use control_flags::*;

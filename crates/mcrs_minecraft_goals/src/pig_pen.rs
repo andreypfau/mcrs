@@ -4,13 +4,13 @@ use core::hash::Hash;
 use core::hash::Hasher;
 
 use glam::DVec3;
+use mcrs_minecraft_brain::AiDriver;
 use mcrs_minecraft_brain::Applied;
 use mcrs_minecraft_brain::Cadence;
 use mcrs_minecraft_brain::ControlFlags;
 use mcrs_minecraft_brain::DamageCause;
 use mcrs_minecraft_brain::DamageRecord;
 use mcrs_minecraft_brain::Decision;
-use mcrs_minecraft_brain::DecisionPipeline;
 use mcrs_minecraft_brain::Fact;
 use mcrs_minecraft_brain::FactKind;
 use mcrs_minecraft_brain::KeyedRandom;
@@ -24,7 +24,6 @@ use mcrs_minecraft_brain::PlayerFlags;
 use mcrs_minecraft_brain::PlayerRow;
 use mcrs_minecraft_brain::PlayerTable;
 use mcrs_minecraft_brain::Progress;
-use mcrs_minecraft_brain::Replica;
 use mcrs_minecraft_brain::Stage;
 use mcrs_minecraft_brain::StageConfig;
 use mcrs_minecraft_brain::TickContext;
@@ -72,15 +71,12 @@ pub struct PenConfig {
 pub struct PigPen {
     config: PenConfig,
     ground: FlatGround,
-    stage: Stage<PigBrain>,
-    pipeline: DecisionPipeline,
-    replica: Replica,
+    driver: AiDriver<PigBrain>,
     players: Vec<PlayerRow>,
     pigs: Vec<HostPig>,
     facts: BTreeMap<TileKey, Vec<Fact>>,
-    tick: u64,
+    moves: Vec<(EntityId, TileKey)>,
     decisions: u64,
-    waits: u64,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -130,7 +126,7 @@ impl PigPen {
     pub fn new(config: PenConfig, stage_config: StageConfig) -> Self {
         let seed = WorldSeed(config.seed);
         let side = f64::from(config.side);
-        let mut stage = Stage::new(stage_config);
+        let mut driver = AiDriver::new(stage_config);
         let pigs: Vec<HostPig> = (0..config.pigs)
             .map(|index| {
                 let key = EntityKey(u128::from(index) << 64);
@@ -156,7 +152,7 @@ impl PigPen {
             })
             .collect();
         for (index, pig) in pigs.iter().enumerate() {
-            stage.spawn(
+            driver.spawn(
                 pig.tile,
                 mob(index),
                 pig.key,
@@ -185,15 +181,12 @@ impl PigPen {
                 side: config.side,
                 pond: None,
             },
-            pipeline: DecisionPipeline::new(&stage_config),
-            stage,
-            replica: Replica::default(),
+            driver,
             players,
             pigs,
             facts: BTreeMap::new(),
-            tick: 1,
+            moves: Vec::new(),
             decisions: 0,
-            waits: 0,
         }
     }
 
@@ -203,47 +196,28 @@ impl PigPen {
         &mut self,
         run: impl FnOnce(&mut [TileWork<'_, PigBrain>], &TickContext<'_, FlatGround>),
     ) -> PenTick {
-        let tick = self.tick;
-        self.publish(tick);
-        self.pipeline.issue(tick);
-        {
-            let cx = TickContext {
-                tick,
-                config: *self.stage.config(),
-                replica: &self.replica,
-                world: &self.ground,
-            };
-            let mut work = self.stage.work();
-            run(&mut work, &cx);
-        }
-        let issued = self.stage.collect(tick);
-        let decisions = issued.len() as u64;
+        let tick = self.driver.begin_tick();
+        self.publish();
+        let decisions = self.driver.run_stage(&self.ground, run) as u64;
         self.decisions += decisions;
-        self.pipeline.ready(issued);
-        match self.pipeline.take_due(tick) {
-            Ok(due) => {
-                for issued in due {
-                    for decision in issued.tiles.values().flatten() {
-                        self.apply(decision);
-                    }
-                }
+        for issued in self.driver.take_due() {
+            for decision in issued.tiles.values().flatten() {
+                self.apply(decision);
             }
-            Err(_) => self.waits += 1,
         }
         self.hot_step(tick);
-        self.replica.retire(tick.saturating_add(1));
-        self.tick = tick.saturating_add(1);
         PenTick { tick, decisions }
     }
 
+    /// The tick of the next [`PigPen::step`].
     #[must_use]
     pub const fn tick(&self) -> u64 {
-        self.tick
+        self.driver.tick().saturating_add(1)
     }
 
     #[must_use]
-    pub fn stage(&self) -> &Stage<PigBrain> {
-        &self.stage
+    pub const fn stage(&self) -> &Stage<PigBrain> {
+        self.driver.stage()
     }
 
     #[must_use]
@@ -254,7 +228,7 @@ impl PigPen {
     /// The ticks in which a due decision was not ready; 0 when the stage runs inside the tick.
     #[must_use]
     pub const fn waits(&self) -> u64 {
-        self.waits
+        self.driver.waits()
     }
 
     /// The count of pigs that walk now.
@@ -275,7 +249,7 @@ impl PigPen {
             pig.damage.hash(&mut hasher);
             pig.panic.hash(&mut hasher);
         }
-        for (tile, brains) in self.stage.tiles() {
+        for (tile, brains) in self.driver.stage().tiles() {
             tile.hash(&mut hasher);
             for entry in brains.iter() {
                 entry.mob.hash(&mut hasher);
@@ -290,7 +264,7 @@ impl PigPen {
 
     /// Sets the damage record of pig `index` as a hit in the last tick.
     pub fn hurt(&mut self, index: usize, cause: DamageCause) {
-        let tick = self.tick.saturating_sub(1);
+        let tick = self.driver.tick();
         if let Some(pig) = self.pigs.get_mut(index) {
             pig.damage = Some(DamageRecord { tick, cause });
             pig.idle_time = 0;
@@ -322,7 +296,7 @@ impl PigPen {
         if let Some(pig) = self.pigs.get_mut(index) {
             pig.position = position;
             pig.tile = TileKey::at(position);
-            self.stage.relocate(mob(index), pig.tile);
+            self.driver.relocate_all([(mob(index), pig.tile)]);
         }
     }
 
@@ -343,7 +317,7 @@ impl PigPen {
         self.players = players;
     }
 
-    fn publish(&mut self, tick: u64) {
+    fn publish(&mut self) {
         let mut tiles: BTreeMap<TileKey, Vec<MobView>> = BTreeMap::new();
         for (index, pig) in self.pigs.iter().enumerate() {
             let in_water = self
@@ -356,13 +330,13 @@ impl PigPen {
                 .push(view(index, pig, in_water));
         }
         for (tile, views) in tiles {
-            self.replica.publish_tile(tick, tile, views);
+            self.driver.publish_tile(tile, views);
         }
         for (tile, facts) in core::mem::take(&mut self.facts) {
-            self.replica.publish_facts(tick, tile, facts);
+            self.driver.publish_facts(tile, facts);
         }
-        self.replica
-            .publish_players(tick, PlayerTable::new(self.players.iter().copied()));
+        self.driver
+            .publish_players(PlayerTable::new(self.players.iter().copied()));
     }
 
     fn apply(&mut self, decision: &Decision) {
@@ -459,7 +433,7 @@ impl PigPen {
             }
             pig.tile = TileKey::at(pig.position);
             if pig.tile != from {
-                self.stage.relocate(mob, pig.tile);
+                self.moves.push((mob, pig.tile));
             }
             for kind in facts.into_iter().flatten() {
                 self.facts
@@ -468,6 +442,7 @@ impl PigPen {
                     .push(Fact { mob, kind });
             }
         }
+        self.driver.relocate_all(self.moves.drain(..));
     }
 }
 

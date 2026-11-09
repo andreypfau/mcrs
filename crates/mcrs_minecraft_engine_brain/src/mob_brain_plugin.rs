@@ -38,9 +38,11 @@ use mcrs_minecraft_engine_world::tick::TickSet;
 use mcrs_minecraft_engine_world::world::dimension::Dimension;
 use mcrs_minecraft_engine_world::world::storage::view::WorldView;
 use mcrs_minecraft_entity::EntityTypeData;
+use mcrs_minecraft_entity::entity_type_keys::EntityType;
 use mcrs_minecraft_entity_key::EntityId;
 use mcrs_minecraft_entity_key::EntityKey;
 use mcrs_minecraft_game_mode::GameMode;
+use mcrs_minecraft_goals::PigBrain;
 use mcrs_minecraft_item::damage_type::DamageType;
 use mcrs_minecraft_item::damage_type_tag_keys::PANIC_CAUSES;
 use mcrs_minecraft_registries::CurrentRegistries;
@@ -85,7 +87,7 @@ impl Plugin for MobBrainPlugin {
     fn build(&self, app: &mut App) {
         let ready = resource_exists::<PanicCauses>
             .and_then(resource_exists::<PhysicsTables>)
-            .and_then(resource_exists::<MobAi>);
+            .and_then(resource_exists::<MobAi<PigBrain>>);
         app.configure_sets(
             FixedUpdate,
             (
@@ -124,8 +126,13 @@ impl Plugin for MobBrainPlugin {
                 StageConfig::new(seed)
             }
         };
-        app.insert_resource(MobAi::new(config));
+        app.insert_resource(MobAi::new(config, brain_for));
     }
+}
+
+/// The brain of each mob type with AI: only the pig has one.
+fn brain_for(kind: &'static EntityTypeData) -> Option<PigBrain> {
+    (kind.entity_type == EntityType::Pig).then(PigBrain::default)
 }
 
 fn build_panic_causes(mut commands: Commands, registries: Res<CurrentRegistries>) {
@@ -154,7 +161,7 @@ fn prepare(
     mobs: Res<Mobs>,
     players: Query<(&Owner, &EntityUuid, &Transform, Option<&PlayerGameMode>), With<Player>>,
     mut rows: ResMut<EntityRows>,
-    mut ai: ResMut<MobAi>,
+    mut ai: ResMut<MobAi<PigBrain>>,
 ) {
     let Some(blocks) = world.get(*dimension) else {
         return;
@@ -188,7 +195,7 @@ fn run_stage(
     dimension: Single<Entity, With<Dimension>>,
     world: WorldView,
     tables: Res<PhysicsTables>,
-    mut ai: ResMut<MobAi>,
+    mut ai: ResMut<MobAi<PigBrain>>,
     mut window: Local<AiWindow>,
 ) {
     let Some(blocks) = world.get(*dimension) else {

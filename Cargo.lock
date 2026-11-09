@@ -5373,6 +5373,7 @@ dependencies = [
  "mcrs_minecraft_fixtures",
  "mcrs_minecraft_game_mode",
  "mcrs_minecraft_game_registries",
+ "mcrs_minecraft_goals",
  "mcrs_minecraft_heightmap",
  "mcrs_minecraft_item",
  "mcrs_minecraft_light_engine",

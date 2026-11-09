@@ -7,6 +7,7 @@ use mcrs_minecraft_command_engine::CommandPlugin;
 use mcrs_minecraft_command_vanilla::{VanillaCommands, VanillaCommandsPlugin};
 use mcrs_minecraft_engine_brain::MobAi;
 use mcrs_minecraft_engine_physics::EntityRows;
+use mcrs_minecraft_goals::PigBrain;
 use mcrs_minecraft_protocol::Bounded;
 use mcrs_minecraft_protocol::uuid::Uuid;
 use mcrs_minecraft_protocol_game::serverbound::ServerboundChatCommand;
@@ -107,7 +108,7 @@ fn a_cactus_hit_makes_a_resting_pig_panic_and_run() {
     let mut panicked = false;
     for _ in 0..10 {
         server.ticks(operator, 1);
-        let ai = server.world().resource::<MobAi>();
+        let ai = server.world().resource::<MobAi<PigBrain>>();
         panicked |= ai.stage().tiles().any(|(_, brains)| {
             brains
                 .iter()
@@ -165,7 +166,7 @@ fn a_drown_hit_each_80_ticks_keeps_a_pig_strolling_without_a_panic() {
         }
         for _ in 0..80 {
             server.ticks(operator, 1);
-            let ai = server.world().resource::<MobAi>();
+            let ai = server.world().resource::<MobAi<PigBrain>>();
             let panics = ai.stage().tiles().any(|(_, brains)| {
                 brains
                     .iter()
