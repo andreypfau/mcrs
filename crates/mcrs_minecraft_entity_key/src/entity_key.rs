@@ -20,7 +20,6 @@ impl EntityKey {
         source: &BirthSource,
         sequence: u32,
     ) -> Self {
-        let packed = source.packed();
         let mut lanes = Lanes::new();
         lanes.push(world_seed);
         lanes.push(dimension.len() as u64);
@@ -31,15 +30,12 @@ impl EntityKey {
             }
             lanes.push(u64::from_le_bytes(bytes));
         }
-        for word in [
-            tick,
-            source.kind(),
-            (packed >> 64) as u64,
-            packed as u64,
-            u64::from(sequence),
-        ] {
+        lanes.push(tick);
+        lanes.push(source.kind());
+        for word in source.words() {
             lanes.push(word);
         }
+        lanes.push(u64::from(sequence));
         let Lanes { high, low } = lanes;
         let hash = u128::from(mix(high)) << 64 | u128::from(mix(low ^ high));
         Self(hash & !(0xF << 76) & !(0x3 << 62) | 0x4 << 76 | 0x2 << 62)

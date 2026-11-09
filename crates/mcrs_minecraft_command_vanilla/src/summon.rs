@@ -16,10 +16,11 @@ use mcrs_minecraft_engine_physics::{MobExtras, MobSpawnRequest, SpawnSetup};
 use mcrs_minecraft_entity::EntityTypeData;
 use mcrs_minecraft_entity::entity_type_keys::EntityType;
 use mcrs_minecraft_entity::registry_keys::ENTITY_TYPE;
-use mcrs_minecraft_entity_key::BirthSource;
+use mcrs_minecraft_entity_key::{BirthSequences, BirthSource};
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_text::Text;
+use mcrs_voxel::BlockPos;
 use std::collections::HashSet;
 use uuid::Uuid;
 
@@ -30,13 +31,12 @@ pub(crate) struct SummonCommand {
     nbt: ArgumentHandle<NbtCompoundArgument>,
 }
 
-/// The command sequence of the summons of the current tick of this world: the order of the next
-/// spawn request in the command effect buffer of the tick (TRK-LIFE-002), and the UUIDs that the
-/// requests of the tick hold.
+/// The summons of the current tick of this world: the sequence of each pair of a spawn point and
+/// a source block, and the UUIDs that the requests of the tick hold.
 #[derive(Default)]
 pub(crate) struct SummonOrder {
     tick: u64,
-    next: u32,
+    sequences: BirthSequences,
     uuids: HashSet<u128>,
 }
 
@@ -74,7 +74,8 @@ fn spawnable(position: DVec3) -> bool {
 
 /// TRK-SUM-002: one mob of the type at the position, or at the source, with the first spawn setup
 /// of its type. A summon without a UUID gives the mob a new one from the world seed, the
-/// dimension, the birth clock, the cell and the command sequence of the cell.
+/// dimension, the birth clock, the block of the spawn point, the block of the source and the
+/// sequence of that pair in the tick.
 pub(crate) fn run(
     In(call): In<Call<(), SummonCommand>>,
     context: VanillaContext,
@@ -128,12 +129,12 @@ pub(crate) fn run(
             vec![],
         ));
     }
-    let source = BirthSource::Command {
-        cell: births.cell(),
-        order: order.next,
+    let birth = BirthSource::Command {
+        spawn: BlockPos::from(position),
+        source: BlockPos::from(source.position),
     };
-    order.next = order.next.wrapping_add(1);
-    let uuid = uuid.unwrap_or_else(|| births.born(&source, 0).0);
+    let sequence = order.sequences.next(births.tick(), &birth);
+    let uuid = uuid.unwrap_or_else(|| births.born(&birth, sequence).0);
     order.uuids.insert(uuid);
     let name = display_name(
         entity_type,

@@ -15,14 +15,21 @@ fn from_block(x: i32, y: i32, z: i32) -> EntityKey {
     )
 }
 
+fn command(spawn: BlockPos, source: BlockPos) -> EntityKey {
+    EntityKey::born(7, OVERWORLD, 3, &BirthSource::Command { spawn, source }, 0)
+}
+
 #[test]
 fn cmp_013_a_new_uuid_is_a_random_uuid_of_rfc_9562() {
-    for order in 0..64 {
+    for order in 0_u32..64 {
         let uuid = EntityKey::born(
             order.into(),
             OVERWORLD,
             9,
-            &BirthSource::Command { cell: 0, order },
+            &BirthSource::Command {
+                spawn: BlockPos::new(order.cast_signed(), 0, 0),
+                source: BlockPos::new(0, 0, 0),
+            },
             order,
         )
         .0;
@@ -65,27 +72,9 @@ fn cmp_013_each_birth_input_changes_the_new_uuid() {
             &BirthSource::Entity(parent),
             0,
         ),
-        EntityKey::born(
-            7,
-            OVERWORLD,
-            3,
-            &BirthSource::Command { cell: 0, order: 0 },
-            0,
-        ),
-        EntityKey::born(
-            7,
-            OVERWORLD,
-            3,
-            &BirthSource::Command { cell: 1, order: 0 },
-            0,
-        ),
-        EntityKey::born(
-            7,
-            OVERWORLD,
-            3,
-            &BirthSource::Command { cell: 0, order: 1 },
-            0,
-        ),
+        command(BlockPos::new(0, 0, 0), BlockPos::new(0, 0, 0)),
+        command(BlockPos::new(0, 0, 0), BlockPos::new(1, 0, 0)),
+        command(BlockPos::new(1, 0, 0), BlockPos::new(0, 0, 0)),
         from_block(0, 0, 0),
         from_block(0, 1, 0),
         from_block(0, 0, 1),
@@ -102,8 +91,17 @@ fn cmp_013_each_birth_input_changes_the_new_uuid() {
 #[test]
 fn cmp_016_the_phase_offset_of_new_uuids_covers_zero_to_three() {
     let mut seen = [false; 4];
-    for order in 0..64 {
-        let uuid = EntityKey::born(0, OVERWORLD, 0, &BirthSource::Command { cell: 0, order }, 0);
+    for order in 0_u32..64 {
+        let uuid = EntityKey::born(
+            0,
+            OVERWORLD,
+            0,
+            &BirthSource::Command {
+                spawn: BlockPos::new(order.cast_signed(), 0, 0),
+                source: BlockPos::new(0, 0, 0),
+            },
+            0,
+        );
         seen[usize::from(uuid.phase_offset())] = true;
     }
     assert_eq!(seen, [true; 4]);

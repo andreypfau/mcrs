@@ -224,10 +224,10 @@ type, the position, the rotation, the velocity, the UUID and the entity data
 values that differ from the defaults. These systems make spawn requests:
 
 - the `summon` command (section 3), with the birth source of the kind `command` and the command
-  sequence of PHY-CMP-013. The command sequence is the index of the effect of the command in the
-  command effect buffer of the cell in the tick, from 0. A summon without a `UUID` key computes a
-  new UUID from the world seed, the dimension key, the birth clock, the cell index and this
-  sequence when it runs (PHY-CMP-013). Thus
+  sequence of PHY-CMP-013. The source key is the block of the spawn point, then the block of the
+  command source. The sequence numbers the summons of that pair in the tick, from 0. A summon
+  without a `UUID` key computes a new UUID from the world seed, the dimension key, the birth clock,
+  this source key and this sequence when it runs (PHY-CMP-013). Thus
   the success message of TRK-SUM-004 has the UUID, and the spawn request carries it;
 - natural spawning (`natural-spawning.md`), with the birth source of the kind `spawn`;
 - any later system that adds a mob, with the birth source that PHY-CMP-013 gives it.
@@ -984,10 +984,9 @@ update before it: the fall damage made the health entry dirty, which made an upd
 3. **Mob rows** (`mcrs_minecraft_engine_physics`). Spawn requests in the life cycle of
    `DomainInput` (TRK-LIFE-001 to TRK-LIFE-003). The cold state is a side table from `EntityId` to
    the entity type (`physics-architecture.md` §15, question 56). Add the birth source
-   `BirthSource::Command { cell, order }` to `mcrs_minecraft_entity_key`. Its kind number is 2 and
-   its source key is `cell`, then `order` (PHY-CMP-013). `cell` is the index of the cell in its
-   dimension. `order` is the index of the effect in the command effect buffer of that cell in the
-   tick, from 0. A kernel change is allowed here, because PHY-CMP-013
+   `BirthSource::Command { spawn, source }` to `mcrs_minecraft_entity_key`. Its kind number is 2
+   and its source key is the block of the spawn point, then the block of the command source
+   (PHY-CMP-013). `BirthSequences` numbers the summons of one pair in one tick, from 0. A kernel change is allowed here, because PHY-CMP-013
    requires the source and the kernel lacks it. The removal requests of TRK-LIFE-004 are a hook: G1 adds no producer.
 4. **The `summon` command** (`mcrs_minecraft_command_vanilla`). The argument
    `minecraft:nbt_compound_tag` in `VanillaArgument`. TRK-SUM-001 to TRK-SUM-004: the handler

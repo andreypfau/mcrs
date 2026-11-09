@@ -2623,7 +2623,8 @@ of 128 bits of these birth inputs, in this order:
 2. the dimension key, for example `minecraft:overworld`: first its length in bytes, then its bytes;
 3. the birth tick: the value of the birth clock of the world in the tick of the birth;
 4. the number of the kind of the source, as the table states;
-5. the source key: 128 bits, as the table states;
+5. the source key: four words of 64 bits, as the table states. A key of one value ends with
+   zero words;
 6. the sequence: the number of the entity among the entities of the same source and tick, from 0.
 
 The hash then sets the version bits to 4 and the variant bits to the variant of RFC 9562. Thus the
@@ -2634,7 +2635,7 @@ hash. Each process with the same inputs gives the same UUID, at each thread coun
 |--------------|---------------|------------|
 | a load of a saved entity that has no UUID | `load` (0) | the chunk position, then the position of the entity in the saved list of that chunk |
 | no way of birth: a player always has the UUID of its profile | `player` (1) | not used |
-| a command | `command` (2) | the index of the cell of the dimension that runs the command, then the sequence number of the command in the command effect buffer of that cell in the tick |
+| a command | `command` (2) | the block of the spawn point, then the block of the command source |
 | a natural spawn | `spawn` (3) | the chunk position, then the number of the spawn attempt in that chunk and tick |
 | a block creates it, for example a dispenser, a spawner, a primed TNT from a block or the drops of a block | `block` (4) | the block position: `y`, `z` and `x`, 32 bits each |
 | another entity creates it, for example a drop, a projectile, a child or an experience orb | `entity` (5) | the UUID of the parent |
@@ -2841,9 +2842,15 @@ tick, the inputs of two births differ in one of these ways:
 
 - Two dimensions have two dimension keys. The hash reads the length of the key before its bytes,
   so two keys never give the same words.
-- Two cells of one dimension run commands with two cell indexes in the source key.
-- One cell numbers its commands, and one block or one parent numbers its entities, by the sequence.
+- A command runs in the cell that owns the column of its source. Thus one pair of a spawn point
+  and a source block has one world in one tick, and that world numbers its summons by the sequence.
 - Only the cell that owns a block changes it, so one block in one tick has one source of births.
+- One parent numbers its children by the sequence.
+
+None of these inputs is a cell index. Thus a world of one cell and a world of many cells give the
+same UUIDs. The sequence of a command source follows the order of the command pass of its world.
+That pass runs first the runs that other worlds hand over, in the order that they come, then the
+command lines of its players, in the order of the input of the tick.
 
 Two new UUIDs can thus be equal only when the hash collides. The probability for one pair is about
 `2^-122`, because the version and the variant fix 6 of the 128 bits.
@@ -3141,6 +3148,8 @@ for client agreement. A server that computes another result gives false setbacks
 - **U10**: no tool in the repository records the motion of the vanilla client. The experiments
   for the player (E9 to E14) need a vanilla client and a proxy that records the serverbound move
   packets.
+- **U11**: two cells of one dimension can accept the same given UUID, because each cell refuses
+  only the UUIDs of its own entities (PHY-CMP-024).
 
 ## 15. Experiments
 

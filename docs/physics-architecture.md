@@ -380,8 +380,8 @@ impl EntityKey {
     // A fixed 128-bit hash of the world seed, the dimension key (its length, then its
     // bytes), the birth tick, the source kind number (load 0, player 1, command 2,
     // spawn 3, block 4, entity 5), the 128-bit source key (block: y, z, x; spawn: chunk
-    // and attempt; load: chunk and list position; command: the cell index, then the
-    // sequence in that cell; entity: the UUID of the parent) and the sequence,
+    // and attempt; load: chunk and list position; command: the block of the spawn point,
+    // then the block of the source; entity: the UUID of the parent) and the sequence,
     // with the version 4 and the variant of RFC 9562.
     pub fn born(
         world_seed: u64,
@@ -393,8 +393,9 @@ impl EntityKey {
 }
 ```
 
-The birth inputs of two new UUIDs never repeat in one server: the dimension key and the cell index
-of a command separate the worlds that tick in parallel. A spawn with a given UUID is refused when
+The birth inputs of two new UUIDs never repeat in one server: the dimension key separates the
+dimensions, and a command runs in the cell that owns the column of its source block. No input is a
+cell index, so one cell and many cells give the same UUIDs. A spawn with a given UUID is refused when
 an entity of the world that applies it has that UUID. Thus two entities of one world never compare
 equal (PHY-CMP-024). `EntityBirths` in `mcrs_minecraft_engine` reads the inputs of a world. A UUID from a save, a load or a
 summon `UUID` stays as it is. The phase offset of PHY-CMP-016 is the two lowest bits of the UUID,

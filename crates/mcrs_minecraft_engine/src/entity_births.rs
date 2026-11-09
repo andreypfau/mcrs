@@ -1,7 +1,6 @@
 use bevy_ecs::prelude::With;
 use bevy_ecs::system::{Query, Res, SystemParam};
 use mcrs_minecraft_dimension::Dimension as DimensionKey;
-use mcrs_minecraft_engine_world::owned_columns::OwnedColumns;
 use mcrs_minecraft_engine_world::world::dimension::Dimension;
 use mcrs_minecraft_entity_key::{BirthSource, EntityKey};
 use mcrs_minecraft_resource::ResourceKeyBuf;
@@ -9,13 +8,13 @@ use mcrs_minecraft_resource::ResourceKeyBuf;
 use crate::coordinator::birth_clock::BirthClock;
 use crate::world_seed::WorldSeed;
 
-/// The inputs of the new UUIDs of this world: the world seed, the key of its dimension, its cell
-/// and the birth clock. A world without a dimension entity hashes an empty dimension key.
+/// The inputs of the new UUIDs of this world: the world seed, the key of its dimension and the
+/// birth clock. None of them depends on the cells of the dimension. A world without a dimension
+/// entity hashes an empty dimension key.
 #[derive(SystemParam)]
 pub struct EntityBirths<'w, 's> {
     clock: Res<'w, BirthClock>,
     seed: Option<Res<'w, WorldSeed>>,
-    owned: Option<Res<'w, OwnedColumns>>,
     dimensions: Query<'w, 's, &'static ResourceKeyBuf<DimensionKey>, With<Dimension>>,
 }
 
@@ -23,12 +22,6 @@ impl EntityBirths<'_, '_> {
     #[must_use]
     pub fn tick(&self) -> u64 {
         self.clock.0
-    }
-
-    /// The index of this cell in its dimension; 0 in a world of one cell.
-    #[must_use]
-    pub fn cell(&self) -> u32 {
-        self.owned.as_deref().map_or(0, |owned| owned.index().0)
     }
 
     /// The UUID of the entity number `sequence` that `source` brings into existence in this
@@ -43,56 +36,84 @@ impl EntityBirths<'_, '_> {
 
 #[cfg(test)]
 mod tests {
+    use std::num::NonZeroU32;
+
     use bevy_ecs::system::RunSystemOnce;
     use bevy_ecs::world::World;
     use mcrs_engine_cell::CellIndex;
-    use mcrs_minecraft_engine_world::owned_columns::region_partition;
+    use mcrs_minecraft_engine_world::owned_columns::{OwnedColumns, region_partition};
+    use mcrs_minecraft_entity_key::BirthSequences;
     use mcrs_minecraft_resource::ResourceLocationBuf;
+    use mcrs_voxel::{BlockPos, ColumnPos};
 
     use super::*;
 
-    /// The UUID of the first summon of tick 9 in a world of `dimension` and `cell` of `cells`.
-    fn first_summon(dimension: &str, cell: u32, cells: u32) -> EntityKey {
+    /// Two summons of tick 9 in the Overworld: each at its own spawn point, from a source in the
+    /// column of its own cell when the dimension has two cells.
+    const SUMMONS: [BirthSource; 2] = [
+        BirthSource::Command {
+            spawn: BlockPos::new(4, 64, 4),
+            source: BlockPos::new(1, 64, 1),
+        },
+        BirthSource::Command {
+            spawn: BlockPos::new(8, 64, 8),
+            source: BlockPos::new(600, 64, 1),
+        },
+    ];
+
+    /// A world of the Overworld at tick 9; `cell` of two cells, or the only cell.
+    fn world(cell: Option<u32>) -> World {
         let mut world = World::new();
         world.insert_resource(BirthClock(9));
         world.insert_resource(WorldSeed(5));
-        if let Some(count) = std::num::NonZeroU32::new(cells).filter(|count| count.get() > 1) {
-            world.insert_resource(OwnedColumns::new(region_partition(count), CellIndex(cell)));
+        if let (Some(cell), Some(cells)) = (cell, NonZeroU32::new(2)) {
+            world.insert_resource(OwnedColumns::new(region_partition(cells), CellIndex(cell)));
         }
-        let location = ResourceLocationBuf::read(dimension).expect("a valid dimension key");
+        let location = ResourceLocationBuf::read("minecraft:overworld").expect("a valid key");
         world.spawn((
             Dimension,
             ResourceKeyBuf::<DimensionKey>::from_location(location),
         ));
         world
-            .run_system_once(|births: EntityBirths| {
-                births.born(
-                    &BirthSource::Command {
-                        cell: births.cell(),
-                        order: 0,
-                    },
-                    0,
-                )
+    }
+
+    /// The UUIDs that `world` gives to `summons`, in their order.
+    fn summon(world: &mut World, summons: &[BirthSource]) -> Vec<EntityKey> {
+        let summons = summons.to_vec();
+        world
+            .run_system_once(move |births: EntityBirths| {
+                let mut sequences = BirthSequences::default();
+                summons
+                    .iter()
+                    .map(|source| births.born(source, sequences.next(births.tick(), source)))
+                    .collect::<Vec<EntityKey>>()
             })
             .expect("the system runs")
     }
 
     #[test]
-    fn cmp_024_the_first_summons_of_one_tick_differ_across_dimensions_and_cells() {
-        let summons = [
-            first_summon("minecraft:overworld", 0, 2),
-            first_summon("minecraft:overworld", 1, 2),
-            first_summon("minecraft:the_nether", 0, 2),
-            first_summon("minecraft:the_nether", 0, 1),
-        ];
-        for (index, uuid) in summons.iter().enumerate().take(3) {
-            for other in &summons[index + 1..3] {
-                assert_ne!(uuid, other, "summon {index} has its own UUID");
-            }
-        }
+    fn cmp_013_024_two_summons_of_one_tick_differ_and_keep_their_uuids_across_cell_layouts() {
+        let one_cell = summon(&mut world(None), &SUMMONS);
+        assert_ne!(one_cell[0], one_cell[1], "two spawn points give two UUIDs");
+        let two_cells: Vec<EntityKey> = [0, 1]
+            .into_iter()
+            .zip(&SUMMONS)
+            .flat_map(|(cell, source)| {
+                let mut world = world(Some(cell));
+                if let BirthSource::Command { source: at, .. } = source {
+                    let owned = world.resource::<OwnedColumns>();
+                    assert!(
+                        owned.owns(ColumnPos::from(*at)),
+                        "cell {cell} runs the command"
+                    );
+                }
+                summon(&mut world, &[*source])
+            })
+            .collect();
+        assert_ne!(two_cells[0], two_cells[1], "two cells give two UUIDs");
         assert_eq!(
-            summons[2], summons[3],
-            "the first cell of a dimension makes the UUIDs of a world of one cell"
+            one_cell, two_cells,
+            "the cell layout does not change a UUID"
         );
     }
 }
