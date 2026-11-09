@@ -323,6 +323,22 @@ default, as in the reference. A spawn request then carries the entity data value
 the defaults (TRK-LIFE-002). ANIM-E1 to ANIM-E8 of `mob-animals.md` use these keys on a vanilla
 server.
 
+**TRK-SUM-007** (`source_suggested_black_box_confirmed`, semantic, confidence: high). A mob of
+`summon` has the idle time 0 (`mob-goals.md`, GOAL-STR-004). No key of TRK-SUM-005 sets the idle
+time, and no key stops its increase, except `NoAI:1b`, which stops the AI. These are the effects
+of the key `PersistenceRequired:1b` on a farm animal:
+
+- The save holds the key with the value true.
+- The mob skips the removal steps of the despawn check (AIT-VAN-020). An animal is not removed by
+  these steps without the key either (`mob-animals.md`, ANIM-SAVE-001).
+- The goals, the idle time, the entity data, the spawn bundle and the tracking do not change. The
+  AI work in each tick does not change.
+
+Thus a pig with `PersistenceRequired:1b` stops its strolls after AI step 99 when no non-spectator
+player is near, as a pig without the key does. A benchmark summons each pig with the compound `{}`.
+The compound skips the first spawn setup, so the pig is an adult of the default variant.
+`mob-goals.md`, GOAL-WAKE-019 and GOAL-WAKE-020, state the motion and the reset of the idle time.
+
 **TRK-SUM-004** (`source_suggested`, semantic, confidence: high). The success message is
 `commands.summon.success`, with the display name of the new entity, as a success message with the
 broadcast flag set. The display name of a mob without a custom name is:
