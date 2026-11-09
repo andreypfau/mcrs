@@ -1,17 +1,18 @@
 use glam::DVec3;
+use mcrs_minecraft_brain::BrainRules;
 use mcrs_minecraft_brain::ControlFlags;
 use mcrs_minecraft_brain::GoalSpec;
-use mcrs_minecraft_brain::GoalWorld;
 use mcrs_minecraft_brain::Goals;
 use mcrs_minecraft_brain::Intents;
 use mcrs_minecraft_brain::MobBrain;
 use mcrs_minecraft_brain::Panic;
 use mcrs_minecraft_brain::Selector;
 use mcrs_minecraft_brain::Turn;
+use mcrs_minecraft_goal_world::GoalWorld;
 
+use crate::IDLE_RESET_RANGE;
 use crate::LookAroundGoal;
 use crate::LookAtPlayerGoal;
-use crate::LookParams;
 use crate::PathTrack;
 use crate::STROLL_IDLE_LIMIT;
 use crate::StrollGoal;
@@ -34,11 +35,8 @@ const LOOK_AROUND: usize = 3;
 
 const PANIC_SPEED: f32 = 1.25;
 const STROLL_SPEED: f32 = 1.0;
-const PIG_LOOK: LookParams = LookParams {
-    turn_speed: 10.0,
-    pitch_limit: 40.0,
-    range: 6.0,
-};
+/// The range of the look at a player (GOAL-LKP-001).
+const LOOK_RANGE: f64 = 6.0;
 
 /// The brain state of one pig.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
@@ -109,8 +107,13 @@ impl PigBrain {
 }
 
 impl<W: GoalWorld + ?Sized> MobBrain<W> for PigBrain {
-    const PLAYER_RANGE: f64 = PIG_LOOK.range;
-    const IDLE_LIMIT: u32 = STROLL_IDLE_LIMIT;
+    fn rules(&self) -> BrainRules {
+        BrainRules {
+            player_range: LOOK_RANGE,
+            idle_limit: STROLL_IDLE_LIMIT,
+            idle_reset_range: IDLE_RESET_RANGE,
+        }
+    }
 
     fn evaluate(&mut self, turn: &Turn<'_, W>, intents: &mut Intents) -> u64 {
         let mut goals = PigTurn {
@@ -182,7 +185,7 @@ impl<W: GoalWorld + ?Sized> Goals for PigTurn<'_, '_, '_, W> {
             }
             LOOK_AT_PLAYER => {
                 self.eligible |= 1 << LOOK_AT_PLAYER;
-                return self.goals.look_at_player.can_start(turn, &PIG_LOOK);
+                return self.goals.look_at_player.can_start(turn, LOOK_RANGE);
             }
             LOOK_AROUND => {
                 self.eligible |= 1 << LOOK_AROUND;
@@ -199,7 +202,7 @@ impl<W: GoalWorld + ?Sized> Goals for PigTurn<'_, '_, '_, W> {
         match goal {
             PANIC => path_running,
             STROLL => StrollGoal::can_continue(turn, path_running),
-            LOOK_AT_PLAYER => self.goals.look_at_player.can_continue(turn, &PIG_LOOK),
+            LOOK_AT_PLAYER => self.goals.look_at_player.can_continue(turn, LOOK_RANGE),
             LOOK_AROUND => self.goals.look_around.can_continue(turn),
             _ => false,
         }
@@ -239,9 +242,7 @@ impl<W: GoalWorld + ?Sized> Goals for PigTurn<'_, '_, '_, W> {
 
     fn tick(&mut self, goal: usize) {
         if goal == LOOK_AT_PLAYER {
-            self.goals
-                .look_at_player
-                .tick(self.turn, &PIG_LOOK, self.intents);
+            self.goals.look_at_player.tick(self.turn, self.intents);
         }
     }
 }

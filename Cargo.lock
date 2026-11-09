@@ -4409,10 +4409,14 @@ dependencies = [
  "mcrs_minecraft_entity_key",
  "mcrs_minecraft_entity_rows",
  "mcrs_minecraft_game_mode",
+ "mcrs_minecraft_goal_world",
  "mcrs_minecraft_goals",
+ "mcrs_minecraft_item",
  "mcrs_minecraft_mob_control",
  "mcrs_minecraft_physics",
  "mcrs_minecraft_protocol_game",
+ "mcrs_minecraft_registries",
+ "mcrs_minecraft_resource",
  "mcrs_minecraft_volume",
  "mcrs_voxel",
  "tracing",
@@ -4780,6 +4784,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "mcrs_minecraft_goal_world"
+version = "0.5.8"
+dependencies = [
+ "glam",
+ "libm",
+ "mcrs_voxel",
+]
+
+[[package]]
 name = "mcrs_minecraft_goals"
 version = "0.5.8"
 dependencies = [
@@ -4789,6 +4802,7 @@ dependencies = [
  "mcrs_minecraft_brain",
  "mcrs_minecraft_entity",
  "mcrs_minecraft_entity_key",
+ "mcrs_minecraft_goal_world",
  "mcrs_minecraft_goals",
  "mcrs_voxel",
  "rayon",
@@ -5385,7 +5399,6 @@ dependencies = [
  "mcrs_minecraft_biome_file",
  "mcrs_minecraft_block",
  "mcrs_minecraft_block_entity",
- "mcrs_minecraft_brain",
  "mcrs_minecraft_chat_client",
  "mcrs_minecraft_chat_server",
  "mcrs_minecraft_chunk",

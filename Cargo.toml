@@ -104,6 +104,7 @@ mcrs_minecraft_engine_mob_replication = { path = "crates/mcrs_minecraft_engine_m
 mcrs_minecraft_entity_rows = { path = "crates/mcrs_minecraft_entity_rows" }
 mcrs_minecraft_brain = { path = "crates/mcrs_minecraft_brain" }
 mcrs_minecraft_goals = { path = "crates/mcrs_minecraft_goals" }
+mcrs_minecraft_goal_world = { path = "crates/mcrs_minecraft_goal_world" }
 mcrs_minecraft_mob_control = { path = "crates/mcrs_minecraft_mob_control" }
 mcrs_minecraft_engine_brain = { path = "crates/mcrs_minecraft_engine_brain" }
 mcrs_minecraft_move_validate = { path = "crates/mcrs_minecraft_move_validate" }

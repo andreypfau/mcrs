@@ -17,6 +17,7 @@ mcrs_voxel.workspace = true
 glam = { version = "0.32.1", default-features = false, features = ["nostd-libm"] }
 libm.workspace = true
 mcrs_minecraft_brain.workspace = true
+mcrs_minecraft_goal_world.workspace = true
 mcrs_minecraft_entity = { workspace = true, optional = true }
 
 [dev-dependencies]

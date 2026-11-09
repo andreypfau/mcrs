@@ -1,8 +1,8 @@
 use glam::DVec3;
-use mcrs_minecraft_brain::BuildHeight;
-use mcrs_minecraft_brain::CellFlags;
-use mcrs_minecraft_brain::GoalWorld;
-use mcrs_minecraft_brain::GroundCell;
+use mcrs_minecraft_goal_world::BuildHeight;
+use mcrs_minecraft_goal_world::CellFlags;
+use mcrs_minecraft_goal_world::GoalWorld;
+use mcrs_minecraft_goal_world::GroundCell;
 use mcrs_minecraft_physics::BlockFlags;
 use mcrs_minecraft_physics::CollisionTable;
 use mcrs_minecraft_physics::PathType;

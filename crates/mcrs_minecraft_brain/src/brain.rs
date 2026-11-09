@@ -1,3 +1,4 @@
+use crate::BrainRules;
 use crate::Cadence;
 use crate::Intents;
 use crate::KeyedRandom;
@@ -9,12 +10,8 @@ use crate::WorldSeed;
 /// The brain of one mob type: its brain state and one full evaluation of its goals. `W` is the
 /// read-only world of the host for the queries of the goals.
 pub trait MobBrain<W: ?Sized> {
-    /// The largest horizontal distance from the mob at which an evaluation reads a player.
-    const PLAYER_RANGE: f64;
-
-    /// The idle time from which a reset of the idle time wakes the brain (GOAL-WAKE-005, event
-    /// 5): the idle time at which the goals stop to start a stroll; `u32::MAX` for none.
-    const IDLE_LIMIT: u32;
+    /// The rules of this brain; they do not change while the brain lives.
+    fn rules(&self) -> BrainRules;
 
     /// One full evaluation from the snapshot of `turn.tick`. Writes the guidance changes to
     /// `intents`, and returns the next tick at which the brain needs a full evaluation when no fact
@@ -31,7 +28,7 @@ pub struct Turn<'a, W: ?Sized> {
     pub cadence: Cadence,
     pub view: &'a MobView,
     /// The players near the tile of the mob, in the order of their order keys: each player within
-    /// [`MobBrain::PLAYER_RANGE`] of the mob is in it.
+    /// the [`BrainRules::player_range`] of the mob is in it.
     pub players: &'a [PlayerRow],
     pub world: &'a W,
 }

@@ -1,11 +1,11 @@
 use glam::DVec3;
-use mcrs_minecraft_brain::GoalWorld;
 use mcrs_minecraft_brain::Intents;
 use mcrs_minecraft_brain::MobView;
 use mcrs_minecraft_brain::PathIntent;
 use mcrs_minecraft_brain::Progress;
 use mcrs_minecraft_brain::Ticket;
 use mcrs_minecraft_brain::Turn;
+use mcrs_minecraft_goal_world::GoalWorld;
 use mcrs_voxel::BlockPos;
 
 /// The one path of a mob as its brain sees it: the ticket of the last path intent and whether

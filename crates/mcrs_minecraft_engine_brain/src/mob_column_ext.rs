@@ -24,17 +24,6 @@ use mcrs_voxel::BlockPos;
 use crate::BlockGoalWorld;
 use crate::MobColumn;
 
-/// A player nearer than this resets the idle time of a mob (AIT-VAN-020).
-const NEAR_PLAYER: f64 = 32.0;
-
-/// The rules of the brains that the start of a tick applies to the rows.
-#[derive(Clone, Copy, Debug)]
-pub(crate) struct BrainRules<'a> {
-    pub(crate) panic_causes: &'a PanicCauses,
-    /// The idle time from which a reset of the idle time is a wake event (GOAL-WAKE-005, event 5).
-    pub(crate) idle_limit: u32,
-}
-
 /// What the start of a tick saw of one mob: its view and its wake events.
 pub(crate) struct Observed {
     pub(crate) view: MobView,
@@ -51,7 +40,7 @@ pub(crate) trait MobColumnExt {
     /// time, and the view of the snapshot of `tick`. A new hit counts as a hit in the last tick.
     fn observe(
         &mut self,
-        rules: BrainRules<'_>,
+        panic_causes: &PanicCauses,
         players: &PlayerTable,
         tick: u64,
         id: EntityId,
@@ -76,7 +65,7 @@ pub(crate) trait MobColumnExt {
 impl MobColumnExt for MobColumn {
     fn observe(
         &mut self,
-        rules: BrainRules<'_>,
+        panic_causes: &PanicCauses,
         players: &PlayerTable,
         tick: u64,
         id: EntityId,
@@ -99,22 +88,22 @@ impl MobColumnExt for MobColumn {
         }
         let damage = self.hit_tick.zip(hit).map(|(tick, hit)| DamageRecord {
             tick,
-            cause: if rules.panic_causes.contains(u32::from(hit.damage_type)) {
+            cause: if panic_causes.contains(u32::from(hit.damage_type)) {
                 DamageCause::Panic
             } else {
                 DamageCause::Other
             },
         });
+        let reach = self.rules.idle_reset_range;
         let near = players.rows().iter().any(|player| {
-            player.is_qualified()
-                && player.position.distance_squared(position) < NEAR_PLAYER * NEAR_PLAYER
+            player.is_qualified() && player.position.distance_squared(position) < reach * reach
         });
         let idle_time = if near || struck_now {
             0
         } else {
             self.idle_time.saturating_add(1)
         };
-        let idle_reset = idle_time == 0 && self.idle_time >= rules.idle_limit;
+        let idle_reset = idle_time == 0 && self.idle_time >= self.rules.idle_limit;
         self.idle_time = idle_time;
         let stalled = self.age == Some(state.age);
         let resumed = self.stalled && !stalled;

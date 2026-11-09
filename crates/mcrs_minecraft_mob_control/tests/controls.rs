@@ -157,8 +157,8 @@ fn the_head_follows_a_look_target_within_its_speed_and_limits() {
     walker.apply(Intents {
         look: Some(LookIntent::At {
             point: DVec3::new(-20.5, 30.0, 0.5),
-            turn_speed: 10.0,
-            pitch_limit: 40.0,
+            turn_speed: Some(10.0),
+            pitch_limit: Some(40.0),
             hold: 12,
         }),
         ..Intents::default()
@@ -206,8 +206,8 @@ fn a_standing_body_follows_a_still_head_after_ten_ticks() {
                 0.765,
                 0.5 + 10.0 * (-30.0_f64).to_radians().tan().abs(),
             ),
-            turn_speed: 10.0,
-            pitch_limit: 40.0,
+            turn_speed: Some(10.0),
+            pitch_limit: Some(40.0),
             hold: 200,
         }),
         ..Intents::default()
@@ -245,8 +245,8 @@ fn a_walking_head_stays_within_the_head_yaw_limit_of_the_body() {
     let mut intents = walk_to(DVec3::new(0.5, 0.0, 20.5));
     intents.look = Some(LookIntent::At {
         point: DVec3::new(0.5, 0.765, -30.5),
-        turn_speed: 10.0,
-        pitch_limit: 40.0,
+        turn_speed: Some(10.0),
+        pitch_limit: Some(40.0),
         hold: 100,
     });
     walker.apply(intents);

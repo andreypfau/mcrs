@@ -1,9 +1,9 @@
 use glam::DVec3;
-use mcrs_minecraft_brain::BuildHeight;
-use mcrs_minecraft_brain::CellFlags;
-use mcrs_minecraft_brain::GoalWorld;
-use mcrs_minecraft_brain::GroundCell;
-use mcrs_minecraft_brain::straight_route;
+use mcrs_minecraft_goal_world::BuildHeight;
+use mcrs_minecraft_goal_world::CellFlags;
+use mcrs_minecraft_goal_world::GoalWorld;
+use mcrs_minecraft_goal_world::GroundCell;
+use mcrs_minecraft_goal_world::straight_route;
 use mcrs_voxel::BlockPos;
 
 /// The malus of water for a mob that does not swim.

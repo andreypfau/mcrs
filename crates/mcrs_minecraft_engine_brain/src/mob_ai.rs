@@ -10,7 +10,6 @@ use mcrs_minecraft_brain::Cadence;
 use mcrs_minecraft_brain::Decision;
 use mcrs_minecraft_brain::Fact;
 use mcrs_minecraft_brain::FactKind;
-use mcrs_minecraft_brain::GoalWorld;
 use mcrs_minecraft_brain::MobBrain;
 use mcrs_minecraft_brain::PanicCauses;
 use mcrs_minecraft_brain::PlayerTable;
@@ -24,6 +23,7 @@ use mcrs_minecraft_entity_key::EntityId;
 use mcrs_minecraft_entity_key::TileKey;
 use mcrs_minecraft_entity_rows::Placed;
 use mcrs_minecraft_entity_rows::tiles_per_task;
+use mcrs_minecraft_goal_world::GoalWorld;
 use mcrs_minecraft_volume::BlockVolume;
 
 use crate::AiStats;
@@ -31,7 +31,6 @@ use crate::BlockGoalWorld;
 use crate::EntityRows;
 use crate::HotTick;
 use crate::MobColumn;
-use crate::mob_column_ext::BrainRules;
 use crate::tile_task::TileOut;
 use crate::tile_task::TileTask;
 
@@ -102,13 +101,9 @@ impl<B: Send + Sync + 'static> MobAi<B> {
     {
         let started = Instant::now();
         let tick = self.driver.begin_tick();
-        self.follow_life_cycle(tick, hot.mobs, rows);
+        self.follow_life_cycle::<V>(tick, hot.mobs, rows);
         let followed = Instant::now();
         let mut due = self.due();
-        let rules = BrainRules {
-            panic_causes: &self.panic_causes,
-            idle_limit: <B as MobBrain<BlockGoalWorld<'_, V>>>::IDLE_LIMIT,
-        };
         let mut tasks: Vec<TileTask<'_>> = Vec::new();
         for (tile, mobs) in rows.mob_tiles_mut() {
             tasks.push(TileTask {
@@ -116,7 +111,7 @@ impl<B: Send + Sync + 'static> MobAi<B> {
                 mobs,
                 due: due.get(&tile).map_or(&[], Vec::as_slice),
                 players: &players,
-                rules,
+                panic_causes: &self.panic_causes,
                 tick,
             });
         }
@@ -164,7 +159,10 @@ impl<B: Send + Sync + 'static> MobAi<B> {
     /// Follows the life cycle of the rows since the last tick: drops the brain of each mob that
     /// left the world, moves the brain of each mob that changed tile, and gives each new mob with
     /// AI a brain and a mob column. The column moves with its row, so only the changes run.
-    fn follow_life_cycle(&mut self, tick: u64, mobs: &Mobs, rows: &mut EntityRows) {
+    fn follow_life_cycle<V>(&mut self, tick: u64, mobs: &Mobs, rows: &mut EntityRows)
+    where
+        B: for<'w> MobBrain<BlockGoalWorld<'w, V>>,
+    {
         let changes = rows.changes();
         for removed in changes.removed() {
             self.driver.despawn(removed.id);
@@ -191,7 +189,8 @@ impl<B: Send + Sync + 'static> MobAi<B> {
             let Some(brain) = (self.brain_for)(mob.kind) else {
                 continue;
             };
-            let Some(column) = MobColumn::new(mob.kind) else {
+            let rules = MobBrain::<BlockGoalWorld<'_, V>>::rules(&brain);
+            let Some(column) = MobColumn::new(mob.kind, rules) else {
                 continue;
             };
             let Some(state) = rows.state_of(at) else {

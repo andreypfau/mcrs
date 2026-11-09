@@ -1,10 +1,10 @@
 use glam::DVec3;
-use mcrs_minecraft_brain::CellFlags;
 use mcrs_minecraft_brain::DamageCause;
-use mcrs_minecraft_brain::GoalWorld;
 use mcrs_minecraft_brain::MobFlags;
 use mcrs_minecraft_brain::MobView;
 use mcrs_minecraft_brain::Turn;
+use mcrs_minecraft_goal_world::CellFlags;
+use mcrs_minecraft_goal_world::GoalWorld;
 use mcrs_voxel::BlockPos;
 
 use crate::PANIC_SEARCH;

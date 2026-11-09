@@ -1,7 +1,7 @@
 use glam::DVec3;
-use mcrs_minecraft_brain::CellFlags;
-use mcrs_minecraft_brain::GoalWorld;
 use mcrs_minecraft_brain::KeyedRandom;
+use mcrs_minecraft_goal_world::CellFlags;
+use mcrs_minecraft_goal_world::GoalWorld;
 use mcrs_voxel::BlockPos;
 
 /// The horizontal and the vertical range of a random position search.

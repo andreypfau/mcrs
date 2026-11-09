@@ -37,6 +37,7 @@ use mcrs_minecraft_entity_key::TileKey;
 use mcrs_voxel::BlockPos;
 
 use crate::FlatGround;
+use crate::IDLE_RESET_RANGE;
 use crate::PigBrain;
 use crate::Pond;
 use crate::STROLL_IDLE_LIMIT;
@@ -118,7 +119,6 @@ const HURT: Part = Part(0xF000);
 const PLACE: Part = Part(0xF001);
 const PIG_SPEED: f64 = 0.25;
 const GRASS_WALK: f64 = 2.2026;
-const NEAR_PLAYER: f64 = 32.0;
 const FAR_IDLE: u32 = 1000;
 
 impl PigPen {
@@ -410,7 +410,7 @@ impl PigPen {
                     let near = self.players.iter().any(|player| {
                         player.is_qualified()
                             && player.position.distance_squared(pig.position)
-                                < NEAR_PLAYER * NEAR_PLAYER
+                                < IDLE_RESET_RANGE * IDLE_RESET_RANGE
                     });
                     if near {
                         0

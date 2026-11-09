@@ -1,11 +1,11 @@
 use glam::DVec3;
-use mcrs_minecraft_brain::GoalWorld;
 use mcrs_minecraft_brain::Intents;
 use mcrs_minecraft_brain::LookIntent;
 use mcrs_minecraft_brain::PlayerFlags;
 use mcrs_minecraft_brain::PlayerRow;
 use mcrs_minecraft_brain::Turn;
 use mcrs_minecraft_entity_key::EntityId;
+use mcrs_minecraft_goal_world::GoalWorld;
 
 use crate::Gate;
 use crate::LOOK_AT_PLAYER_COUNT;
@@ -14,15 +14,9 @@ use crate::LOOK_AT_PLAYER_WAIT;
 /// The chance of the random gate of a look goal in one examined full evaluation.
 pub const LOOK_CHANCE: f64 = 0.02;
 
-/// The head turn speed, the pitch limit of a look target, and the look range of a type.
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct LookParams {
-    pub turn_speed: f32,
-    pub pitch_limit: f32,
-    pub range: f64,
-}
-
-/// The look at a player (GOAL-LKP-001): the player and the count of evaluation units that remain.
+/// The look at a player (GOAL-LKP-001) within `range` of the mob: the player and the count of
+/// evaluation units that remain. The look target uses the head turn speed and the pitch limit of
+/// the mob type.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub struct LookAtPlayerGoal {
     gate: Gate,
@@ -31,15 +25,11 @@ pub struct LookAtPlayerGoal {
 }
 
 impl LookAtPlayerGoal {
-    pub fn can_start<W: GoalWorld + ?Sized>(
-        &mut self,
-        turn: &Turn<'_, W>,
-        params: &LookParams,
-    ) -> bool {
+    pub fn can_start<W: GoalWorld + ?Sized>(&mut self, turn: &Turn<'_, W>, range: f64) -> bool {
         if !self.gate.passes(turn, LOOK_AT_PLAYER_WAIT, LOOK_CHANCE) {
             return false;
         }
-        self.player = nearest_player(turn, params.range).map(|row| row.player);
+        self.player = nearest_player(turn, range).map(|row| row.player);
         self.player.is_some()
     }
 
@@ -49,19 +39,14 @@ impl LookAtPlayerGoal {
     }
 
     /// Sets the look target at the eye of the player while it is alive, and counts one unit.
-    pub fn tick<W: ?Sized>(
-        &mut self,
-        turn: &Turn<'_, W>,
-        params: &LookParams,
-        intents: &mut Intents,
-    ) {
+    pub fn tick<W: ?Sized>(&mut self, turn: &Turn<'_, W>, intents: &mut Intents) {
         if let Some(row) = self.row(turn)
             && row.flags.contains(PlayerFlags::ALIVE)
         {
             intents.look = Some(LookIntent::At {
                 point: row.eye(),
-                turn_speed: params.turn_speed,
-                pitch_limit: params.pitch_limit,
+                turn_speed: None,
+                pitch_limit: None,
                 hold: look_hold(turn.max_lag),
             });
         }
@@ -69,12 +54,11 @@ impl LookAtPlayerGoal {
     }
 
     #[must_use]
-    pub fn can_continue<W: ?Sized>(&self, turn: &Turn<'_, W>, params: &LookParams) -> bool {
+    pub fn can_continue<W: ?Sized>(&self, turn: &Turn<'_, W>, range: f64) -> bool {
         self.count > 0
             && self.row(turn).is_some_and(|row| {
                 row.flags.contains(PlayerFlags::ALIVE)
-                    && row.position.distance_squared(turn.view.position)
-                        <= params.range * params.range
+                    && row.position.distance_squared(turn.view.position) <= range * range
             })
     }
 

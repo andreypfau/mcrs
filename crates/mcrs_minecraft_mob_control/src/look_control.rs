@@ -23,8 +23,8 @@ pub struct LookControl {
 #[derive(Clone, Copy, Debug, PartialEq)]
 struct LookAt {
     point: DVec3,
-    turn_speed: f32,
-    pitch_limit: f32,
+    turn_speed: Option<f32>,
+    pitch_limit: Option<f32>,
     hold: u8,
 }
 
@@ -85,8 +85,8 @@ impl LookControl {
                     eye,
                     position.z + f64::from(direction.sin),
                 ),
-                turn_speed: defaults.turn_speed,
-                pitch_limit: defaults.pitch_limit,
+                turn_speed: None,
+                pitch_limit: None,
                 hold: AROUND_HOLD,
             });
         }
@@ -103,11 +103,14 @@ impl LookControl {
                 let dz = target.point.z - position.z;
                 let horizontal = (dx * dx + dz * dz).sqrt();
                 if dx.abs() > NEAR || dz.abs() > NEAR {
-                    head.head_yaw =
-                        angles::turn_toward(head_yaw, angles::yaw_to(dx, dz), target.turn_speed);
+                    head.head_yaw = angles::turn_toward(
+                        head_yaw,
+                        angles::yaw_to(dx, dz),
+                        target.turn_speed.unwrap_or(defaults.turn_speed),
+                    );
                 }
                 if dy.abs() > NEAR || horizontal > NEAR {
-                    let limit = target.pitch_limit;
+                    let limit = target.pitch_limit.unwrap_or(defaults.pitch_limit);
                     head.pitch = numeric::wrap_degrees(angles::pitch_to(dy, horizontal))
                         .clamp(-limit, limit);
                 }

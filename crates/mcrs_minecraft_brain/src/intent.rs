@@ -68,11 +68,12 @@ impl PathIntent {
 /// A change of the look target of the mob.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum LookIntent {
-    /// Turn the head to `point` for `hold` ticks after the application.
+    /// Turn the head to `point` for `hold` ticks after the application. A `None` speed or limit is
+    /// the one of the mob type.
     At {
         point: DVec3,
-        turn_speed: f32,
-        pitch_limit: f32,
+        turn_speed: Option<f32>,
+        pitch_limit: Option<f32>,
         hold: u8,
     },
     /// From the application on, in each tick, look at the point one block from the eye in the

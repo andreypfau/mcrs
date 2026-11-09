@@ -1,6 +1,6 @@
 [package]
 name = "mcrs_minecraft_brain"
-description = "The AI stage of mobs without Bevy: the snapshot replica, the issue and the late application of decisions, keyed random values, the wake schedule, the goal selector and the world queries of the goals"
+description = "The AI stage of mobs without Bevy: the snapshot replica, the issue and the late application of decisions, keyed random values, the wake schedule and the goal selector"
 version.workspace = true
 edition.workspace = true
 

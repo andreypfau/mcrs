@@ -236,7 +236,7 @@ impl<B> TileWork<'_, B> {
             }
         }
         let views = cx.replica.views(self.tile, tick);
-        let mut players_loaded = false;
+        let mut loaded_range: Option<f64> = None;
         let TileBrains {
             ids,
             keys,
@@ -263,9 +263,11 @@ impl<B> TileWork<'_, B> {
                 *wake = cadence.next_evaluation(tick.saturating_add(1));
                 continue;
             };
-            if !players_loaded {
-                players_loaded = true;
-                load_players(cx, views, B::PLAYER_RANGE, near_players);
+            let range = brain.rules().player_range;
+            if loaded_range.is_none_or(|loaded| loaded < range) {
+                loaded_range = Some(range);
+                near_players.clear();
+                load_players(cx, views, range, near_players);
             }
             let turn = Turn {
                 tick,

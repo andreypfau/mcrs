@@ -1,0 +1,17 @@
+[package]
+name = "mcrs_minecraft_goal_world"
+description = "The read-only block world of the goals of mobs: the ground cell of a block position, the build height, the line of sight and the straight route on walkable ground"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+doctest = false
+
+[lints]
+workspace = true
+
+[dependencies]
+mcrs_voxel.workspace = true
+# The workspace entry enables std, which the wasm32v1-none build of this crate does not have.
+glam = { version = "0.32.1", default-features = false, features = ["nostd-libm"] }
+libm.workspace = true

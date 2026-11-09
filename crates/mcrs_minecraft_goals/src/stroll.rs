@@ -1,7 +1,7 @@
 use glam::DVec3;
-use mcrs_minecraft_brain::GoalWorld;
 use mcrs_minecraft_brain::MobFlags;
 use mcrs_minecraft_brain::Turn;
+use mcrs_minecraft_goal_world::GoalWorld;
 
 use crate::Gate;
 use crate::STROLL_SEARCH;
@@ -15,6 +15,9 @@ pub const STROLL_CHANCE: f64 = 1.0 / 60.0;
 
 /// A mob with this idle time or more starts no stroll (GOAL-STR-001, AIT-VAN-020).
 pub const STROLL_IDLE_LIMIT: u32 = 100;
+
+/// A qualified player nearer than this resets the idle time of a mob (AIT-VAN-020).
+pub const IDLE_RESET_RANGE: f64 = 32.0;
 
 /// The random stroll that avoids water (GOAL-STR-001).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]

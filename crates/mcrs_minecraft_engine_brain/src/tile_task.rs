@@ -2,6 +2,7 @@ use mcrs_minecraft_brain::Decision;
 use mcrs_minecraft_brain::Fact;
 use mcrs_minecraft_brain::FactKind;
 use mcrs_minecraft_brain::MobView;
+use mcrs_minecraft_brain::PanicCauses;
 use mcrs_minecraft_brain::PlayerTable;
 use mcrs_minecraft_entity_key::EntityId;
 use mcrs_minecraft_entity_key::TileKey;
@@ -12,7 +13,6 @@ use mcrs_minecraft_volume::BlockVolume;
 use crate::BlockGoalWorld;
 use crate::HotTick;
 use crate::MobColumn;
-use crate::mob_column_ext::BrainRules;
 use crate::mob_column_ext::MobColumnExt;
 
 /// The hot side of one tile in one AI tick: the snapshot of its mobs, the application of the
@@ -22,7 +22,7 @@ pub(crate) struct TileTask<'a> {
     pub(crate) mobs: MobRows<'a, MobColumn>,
     pub(crate) due: &'a [Decision],
     pub(crate) players: &'a PlayerTable,
-    pub(crate) rules: BrainRules<'a>,
+    pub(crate) panic_causes: &'a PanicCauses,
     pub(crate) tick: u64,
 }
 
@@ -50,9 +50,13 @@ impl TileTask<'_> {
             applied: 0,
         };
         for row in self.mobs.iter_mut() {
-            let observed = row
-                .mob
-                .observe(self.rules, self.players, self.tick, row.id, row.state);
+            let observed = row.mob.observe(
+                self.panic_causes,
+                self.players,
+                self.tick,
+                row.id,
+                row.state,
+            );
             let kinds = [
                 (observed.struck, FactKind::Hurt),
                 (observed.idle_reset, FactKind::IdleReset),

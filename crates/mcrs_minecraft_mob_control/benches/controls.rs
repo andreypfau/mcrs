@@ -61,8 +61,8 @@ fn mobs() -> Vec<Mob> {
                 _ => Intents {
                     look: Some(LookIntent::At {
                         point: DVec3::new(position.x - 3.0, 1.6, position.z + 2.0),
-                        turn_speed: 10.0,
-                        pitch_limit: 40.0,
+                        turn_speed: Some(10.0),
+                        pitch_limit: Some(40.0),
                         hold: u8::MAX,
                     }),
                     ..Intents::default()

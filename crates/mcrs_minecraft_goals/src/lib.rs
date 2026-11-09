@@ -1,6 +1,6 @@
 //! The goals of the passive animals for the AI stage of `mcrs_minecraft_brain`, the goal list of
 //! the pig, and [`VanillaBrain`], the brain of each mob type with goals. The goals read the world
-//! through [`GoalWorld`](mcrs_minecraft_brain::GoalWorld), which the host implements on its block
+//! through [`GoalWorld`](mcrs_minecraft_goal_world::GoalWorld), which the host implements on its block
 //! snapshot; a path search replaces the straight-line route of that trait later.
 
 #![no_std]

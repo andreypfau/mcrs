@@ -6,15 +6,15 @@ use mcrs_minecraft_chat_server::ChatPlugin;
 use mcrs_minecraft_command_engine::CommandPlugin;
 use mcrs_minecraft_command_vanilla::{VanillaCommands, VanillaCommandsPlugin};
 use mcrs_minecraft_command_world::WorldCommandsPlugin;
+use mcrs_minecraft_engine_brain::MobBrainPlugin;
 use mcrs_minecraft_engine_brain::MobColumn;
 use mcrs_minecraft_engine_mob_replication::MobReplicationPlugin;
 use mcrs_minecraft_engine_physics::EntityPhysicsPlugin;
 use mcrs_minecraft_engine_server::{DimensionWorldsPlugin, ServerCorePlugin, ServerNetworkPlugin};
 use mcrs_minecraft_engine_world::world::sub_app::AddDimensionPlugins;
+use mcrs_minecraft_item::damage_type_tag_keys::PANIC_CAUSES;
 use mcrs_minecraft_vanilla_light::LightingPlugin;
 use mcrs_minecraft_vanilla_worldgen::{WorldGenPlugin, WorldgenRegistriesPlugin};
-
-use crate::vanilla_brains::VanillaBrainsPlugin;
 
 /// The vanilla server: the engine's server plugins with every vanilla member, each one a
 /// member that can be disabled or replaced through [`PluginGroup::build`]. A member that needs
@@ -86,12 +86,16 @@ impl Plugin for VanillaEntityPhysicsPlugin {
     }
 }
 
-/// The AI of the mobs in every dimension world, with the brains of `mcrs_minecraft_goals`.
+/// The AI of the mobs in every dimension world, with the brains of `mcrs_minecraft_goals`; a hit
+/// by a damage type of the tag `panic_causes` makes a mob panic (GOAL-PNC-002).
 pub struct VanillaMobBrainPlugin;
 
 impl Plugin for VanillaMobBrainPlugin {
     fn build(&self, app: &mut App) {
-        app.add_dimension_plugin(VanillaBrainsPlugin);
+        app.add_dimension_plugin(MobBrainPlugin::new(
+            vanilla_brains::vanilla_brain,
+            PANIC_CAUSES,
+        ));
     }
 }
 

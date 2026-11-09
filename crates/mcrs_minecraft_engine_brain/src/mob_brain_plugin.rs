@@ -10,6 +10,7 @@ use bevy_ecs::schedule::IntoScheduleConfigs;
 use bevy_ecs::schedule::SystemCondition;
 use bevy_ecs::schedule::SystemSet;
 use bevy_ecs::schedule::common_conditions::resource_exists;
+use bevy_ecs::schedule::common_conditions::resource_exists_and_changed;
 use bevy_ecs::system::Local;
 use bevy_ecs::system::Query;
 use bevy_ecs::system::Res;
@@ -18,6 +19,7 @@ use bevy_ecs::system::Single;
 use bevy_tasks::ComputeTaskPool;
 use mcrs_minecraft_brain::AiDelay;
 use mcrs_minecraft_brain::MobBrain;
+use mcrs_minecraft_brain::PanicCauses;
 use mcrs_minecraft_brain::PlayerFlags;
 use mcrs_minecraft_brain::PlayerRow;
 use mcrs_minecraft_brain::PlayerTable;
@@ -40,6 +42,9 @@ use mcrs_minecraft_entity::EntityTypeData;
 use mcrs_minecraft_entity_key::EntityId;
 use mcrs_minecraft_entity_key::EntityKey;
 use mcrs_minecraft_game_mode::GameMode;
+use mcrs_minecraft_item::damage_type::DamageType;
+use mcrs_minecraft_registries::CurrentRegistries;
+use mcrs_minecraft_resource::TagKey;
 
 use crate::AiStats;
 use crate::BlockGoalWorld;
@@ -52,25 +57,29 @@ const LOG_PERIOD: u64 = 200;
 
 /// The AI of the mobs of a dimension world with the brains `B`: the hot side between the client
 /// input and the entity pass, and the stage in `Simulate`, beside the pass, on the compute pool.
-/// The plugin inserts a [`MobAi<B>`] with no panic causes; the application sets them through
-/// [`MobAi::set_panic_causes`] before [`MobBrainSet::Prepare`].
 #[derive(Clone, Copy, Debug)]
 pub struct MobBrainPlugin<B> {
     pub max_lag: u8,
     pub delay: AiDelay,
     /// The brain of a mob that comes into the world, from its type; `None` for a type without AI.
     pub brain_for: fn(&'static EntityTypeData) -> Option<B>,
+    /// The damage type tag whose members make a mob panic when they hit it.
+    pub panic_causes: TagKey<'static, DamageType>,
 }
 
 impl<B> MobBrainPlugin<B> {
     /// The AI with the default lag and delay, in which each mob without `NoAI` gets the brain that
-    /// `brain_for` makes for its type.
+    /// `brain_for` makes for its type, and a hit by a member of `panic_causes` makes a mob panic.
     #[must_use]
-    pub fn new(brain_for: fn(&'static EntityTypeData) -> Option<B>) -> Self {
+    pub fn new(
+        brain_for: fn(&'static EntityTypeData) -> Option<B>,
+        panic_causes: TagKey<'static, DamageType>,
+    ) -> Self {
         Self {
             max_lag: StageConfig::DEFAULT_MAX_LAG,
             delay: AiDelay::AtLeast(1),
             brain_for,
+            panic_causes,
         }
     }
 }
@@ -104,6 +113,13 @@ where
         app.add_systems(
             FixedUpdate,
             (
+                set_panic_causes::<B>(self.panic_causes)
+                    .run_if(
+                        resource_exists::<MobAi<B>>
+                            .and_then(resource_exists_and_changed::<CurrentRegistries>),
+                    )
+                    .after(TickSet::ClientInput)
+                    .before(MobBrainSet::Prepare),
                 prepare::<B>.in_set(MobBrainSet::Prepare),
                 run_stage::<B>.in_set(MobBrainSet::Stage),
             ),
@@ -126,6 +142,25 @@ where
             }
         };
         app.insert_resource(MobAi::new(config, self.brain_for));
+    }
+}
+
+/// The system that sets the panic causes of the AI to the members of the tag `panic_causes`.
+fn set_panic_causes<B: Send + Sync + 'static>(
+    panic_causes: TagKey<'static, DamageType>,
+) -> impl FnMut(Res<CurrentRegistries>, ResMut<MobAi<B>>) {
+    move |registries, mut ai| {
+        let members = registries
+            .tags::<DamageType>()
+            .and_then(|tags| {
+                let tag = tags.id(panic_causes)?;
+                Some(PanicCauses::new(
+                    tags.members(tag)
+                        .filter_map(|id| u32::try_from(id.index()).ok()),
+                ))
+            })
+            .unwrap_or_default();
+        ai.set_panic_causes(members);
     }
 }
 
