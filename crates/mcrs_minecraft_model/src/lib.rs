@@ -15,7 +15,6 @@ pub mod block_entity_model;
 mod block_state_condition;
 pub mod block_state_file;
 pub mod colormap;
-mod entity_geometry;
 pub mod face_bake;
 pub mod item_model_asset;
 pub mod item_model_bake;

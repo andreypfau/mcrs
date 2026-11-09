@@ -4886,6 +4886,7 @@ dependencies = [
  "mcrs_minecraft_dimension",
  "mcrs_minecraft_engine_registries",
  "mcrs_minecraft_entity",
+ "mcrs_minecraft_entity_model",
  "mcrs_minecraft_fixtures",
  "mcrs_minecraft_item",
  "mcrs_minecraft_mesh",

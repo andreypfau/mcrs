@@ -19,6 +19,7 @@ mcrs_minecraft_core.workspace = true
 mcrs_minecraft_datapack.workspace = true
 mcrs_minecraft_dimension.workspace = true
 mcrs_minecraft_entity.workspace = true
+mcrs_minecraft_entity_model.workspace = true
 mcrs_minecraft_item = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_mesh.workspace = true
 mcrs_minecraft_nbt.workspace = true

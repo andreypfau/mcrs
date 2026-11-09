@@ -9,9 +9,11 @@ use mcrs_minecraft_block::definition::schema::{BlockDefinitionFile, BlockPropert
 use serde::Deserialize;
 
 use mcrs_minecraft_core::Direction;
+use mcrs_minecraft_entity_model::{
+    BakedGeometry, Diagnostic, Geometry, GeometryFile, resolve_parents,
+};
 
 use crate::block_state_condition::BlockStateCondition;
-use crate::entity_geometry::{self, BakedGeometry};
 
 /// The pack directory of the data files, one file `<namespace>/<path>.json` per block.
 pub const DATA_DIRECTORY: &str = "mcrs/block_entity_model";
@@ -26,8 +28,15 @@ const SHAPE_ORIGIN_HEIGHT: f32 = 24.0;
 #[derive(Debug, Default)]
 pub struct BlockEntityModels {
     blocks: HashMap<String, StaticBlockEntity>,
-    geometries: Vec<BakedGeometry>,
+    geometries: Vec<RestGeometry>,
     errors: Vec<String>,
+}
+
+/// A baked geometry with the model transform of each bone in the rest pose.
+#[derive(Debug)]
+struct RestGeometry {
+    baked: BakedGeometry,
+    bone_transforms: Vec<Affine3A>,
 }
 
 #[derive(Debug)]
@@ -83,24 +92,53 @@ impl BlockEntityModels {
     /// file is skipped and `errors` names it.
     pub fn from_files(files: &HashMap<String, Vec<u8>>) -> Self {
         let mut models = Self::default();
-        let mut by_identifier: HashMap<String, usize> = HashMap::new();
-        for (path, bytes) in sorted_under(files, GEOMETRY_DIRECTORY) {
-            match entity_geometry::read_geometry_file(bytes) {
-                Ok(geometries) => {
-                    for geometry in geometries {
-                        let key = geometry.identifier.to_ascii_lowercase();
-                        if by_identifier.contains_key(&key) {
-                            models.errors.push(format!(
-                                "{path}: the geometry {} is defined again",
-                                geometry.identifier
-                            ));
-                        }
-                        by_identifier.insert(key, models.geometries.len());
-                        models.geometries.push(geometry);
-                    }
-                }
-                Err(error) => models.errors.push(format!("{path}: {error}")),
+        let mut paths: HashMap<String, &str> = HashMap::new();
+        let read = read_geometries(files, &mut paths, &mut models.errors);
+        let path_of = |identifier: &str| {
+            paths
+                .get(&identifier.to_ascii_lowercase())
+                .copied()
+                .unwrap_or(GEOMETRY_DIRECTORY)
+        };
+        let mut rejected = Vec::new();
+        let resolved = resolve_parents(read, &mut rejected);
+        for diagnostic in &rejected {
+            if let Diagnostic::RejectedGeometry {
+                identifier: Some(identifier),
+                ..
+            } = diagnostic
+            {
+                models
+                    .errors
+                    .push(format!("{}: {diagnostic}", path_of(identifier)));
             }
+        }
+        let mut by_identifier: HashMap<String, usize> = HashMap::new();
+        for geometry in resolved {
+            let path = path_of(&geometry.identifier);
+            let mut diagnostics = Vec::new();
+            match geometry.bake(&mut diagnostics) {
+                Ok(baked) => {
+                    by_identifier.insert(
+                        baked.identifier.to_ascii_lowercase(),
+                        models.geometries.len(),
+                    );
+                    let bone_transforms = baked.model_transforms(&[]);
+                    models.geometries.push(RestGeometry {
+                        baked,
+                        bone_transforms,
+                    });
+                }
+                Err(error) => models
+                    .errors
+                    .push(format!("{path}: {}: {error}", geometry.identifier)),
+            }
+            models.errors.extend(
+                diagnostics
+                    .iter()
+                    .filter(|diagnostic| is_content_error(diagnostic))
+                    .map(|diagnostic| format!("{path}: {}: {diagnostic}", geometry.identifier)),
+            );
         }
         for (path, bytes) in sorted_under(files, DATA_DIRECTORY) {
             match read_data_file(path, bytes, files, &by_identifier) {
@@ -159,6 +197,56 @@ pub struct ShapeQuad<'a> {
     /// A dye id whose colour multiplies the texture.
     pub dye: Option<u8>,
     pub surface: Surface,
+}
+
+/// The geometries of the geometry files in path order. `paths` takes the path of each
+/// identifier in lower case.
+fn read_geometries<'a>(
+    files: &'a HashMap<String, Vec<u8>>,
+    paths: &mut HashMap<String, &'a str>,
+    errors: &mut Vec<String>,
+) -> Vec<Geometry> {
+    let mut geometries = Vec::new();
+    for (path, bytes) in sorted_under(files, GEOMETRY_DIRECTORY) {
+        let file = match core::str::from_utf8(bytes) {
+            Ok(text) => text
+                .parse::<GeometryFile>()
+                .map_err(|error| error.to_string()),
+            Err(error) => Err(error.to_string()),
+        };
+        let file = match file {
+            Ok(file) => file,
+            Err(error) => {
+                errors.push(format!("{path}: {error}"));
+                continue;
+            }
+        };
+        errors.extend(
+            file.diagnostics
+                .iter()
+                .filter(|diagnostic| is_content_error(diagnostic))
+                .map(|diagnostic| format!("{path}: {diagnostic}")),
+        );
+        for geometry in file.geometries {
+            let key = geometry.identifier.to_ascii_lowercase();
+            if paths.insert(key, path).is_some() {
+                errors.push(format!(
+                    "{path}: the geometry {} is defined again",
+                    geometry.identifier
+                ));
+            }
+            geometries.push(geometry);
+        }
+    }
+    geometries
+}
+
+/// A diagnostic that drops a geometry or a parent link; the other diagnostics are warnings.
+fn is_content_error(diagnostic: &Diagnostic) -> bool {
+    matches!(
+        diagnostic,
+        Diagnostic::RejectedGeometry { .. } | Diagnostic::MissingParent { .. }
+    )
 }
 
 fn sorted_under<'a>(
@@ -264,24 +352,30 @@ fn shape_from_internal() -> Mat4 {
     ) * (1.0 / MODEL_UNITS_PER_BLOCK)
 }
 
-fn bake_layer<'a>(layer: &'a Layer, geometry: &BakedGeometry, quads: &mut Vec<ShapeQuad<'a>>) {
+fn bake_layer<'a>(layer: &'a Layer, geometry: &RestGeometry, quads: &mut Vec<ShapeQuad<'a>>) {
     let to_block = Affine3A::from_mat4(layer.placement * shape_from_internal());
-    let linear = Mat3::from(to_block.matrix3);
-    let normals = linear.inverse().transpose();
-    let keeps_winding = linear.determinant() >= 0.0;
-    let sprite_scale = geometry.texture_size / geometry.texture_size.max_element();
+    let keeps_winding = Mat3::from(to_block.matrix3).determinant() >= 0.0;
+    let texture_size = geometry.baked.texture_size;
+    let sprite_scale = texture_size / texture_size.max_element();
     let [front, back] = if keeps_winding {
         [[0, 2, 3, 1], [0, 1, 3, 2]]
     } else {
         [[0, 1, 3, 2], [0, 2, 3, 1]]
     };
-    for face in &geometry.faces {
-        let normal = (normals * face.normal).normalize_or_zero();
-        let corners = face.corners.map(|corner| to_block.transform_point3(corner));
-        let uvs = face.uvs.map(|uv| uv * sprite_scale);
-        quads.push(quad(layer, &corners, &uvs, front, normal));
-        if layer.back_faces {
-            quads.push(quad(layer, &corners, &uvs, back, -normal));
+    for cube in &geometry.baked.cubes {
+        let Some(bone) = geometry.bone_transforms.get(cube.bone) else {
+            continue;
+        };
+        let placed = to_block * *bone;
+        let normals = Mat3::from(placed.matrix3).inverse().transpose();
+        for face in &cube.faces {
+            let normal = (normals * face.normal).normalize_or_zero();
+            let corners = face.corners.map(|corner| placed.transform_point3(corner));
+            let uvs = face.uvs.map(|uv| uv * sprite_scale);
+            quads.push(quad(layer, &corners, &uvs, front, normal));
+            if layer.back_faces {
+                quads.push(quad(layer, &corners, &uvs, back, -normal));
+            }
         }
     }
 }
