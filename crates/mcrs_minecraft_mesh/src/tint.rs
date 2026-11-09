@@ -37,6 +37,12 @@ const _: () = assert!(
     "the face tint field is too narrow for the fixed tints"
 );
 
+const _: () = assert!(
+    Tint::Fixed(0).index() == 1 + BIOME_TINTS.len() as u32
+        && Tint::Water.index() == BIOME_TINTS.len() as u32,
+    "the fixed tints follow the biome tints without a gap or an overlap"
+);
+
 impl Tint {
     pub const SPRUCE_LEAVES: Tint = Tint::Fixed(SPRUCE_LEAVES);
     pub const BIRCH_LEAVES: Tint = Tint::Fixed(BIRCH_LEAVES);

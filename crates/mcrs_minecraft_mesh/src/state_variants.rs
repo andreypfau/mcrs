@@ -169,7 +169,11 @@ mod tests {
         for choice in 0..6u32 {
             let sprites: Vec<u16> = info.quads_of(choice).map(|quad| quad.sprite).collect();
             let (first, second) = (choice % 2, choice / 2 % 3);
-            assert_eq!(sprites, [first as u16, 10 + second as u16], "choice {choice}");
+            assert_eq!(
+                sprites,
+                [first as u16, 10 + second as u16],
+                "choice {choice}"
+            );
         }
     }
 

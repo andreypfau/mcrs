@@ -140,6 +140,19 @@ const NO_BEVY_PACKAGES: [&str; 97] = [
 /// The wire and network layers, which a proxy or a bot takes without any game data.
 const WIRE_LAYER_PACKAGES: [&str; 2] = ["mcrs_minecraft_protocol", "mcrs_minecraft_network"];
 
+/// The crates that bake models from a pack, which a viewer takes without a connection.
+const STANDALONE_BAKE_PACKAGES: [&str; 2] = ["mcrs_minecraft_model", "mcrs_minecraft_model_file"];
+
+const STANDALONE_BAKE_FORBIDDEN: [&str; 7] = [
+    "mcrs_minecraft_network",
+    "mcrs_minecraft_protocol",
+    "mcrs_minecraft_client",
+    "mcrs_minecraft_client_world",
+    "mcrs_minecraft_server",
+    "mcrs_minecraft_engine_server",
+    "tokio",
+];
+
 const GAME_DATA_PACKAGES: [&str; 7] = [
     "mcrs_minecraft_block",
     "mcrs_minecraft_chunk",
@@ -355,44 +368,63 @@ fn no_bevy(ctx: &Context) -> Outcome {
     )
 }
 
+fn linked_forbidden(
+    ctx: &Context,
+    package: &str,
+    forbidden: &[&str],
+    linked: &mut Vec<String>,
+) -> Result<(), String> {
+    let args = [
+        "tree",
+        "--locked",
+        "--all-features",
+        "--edges",
+        "normal",
+        "--prefix",
+        "none",
+        "--format",
+        "{p}",
+        "--package",
+        package,
+    ];
+    println!("$ cargo {}", args.join(" "));
+    let output = Command::new("cargo")
+        .args(args)
+        .current_dir(&ctx.root)
+        .output()
+        .map_err(|e| format!("could not run cargo: {e}; install it and put it on PATH"))?;
+    if !output.status.success() {
+        return Err(format!("cargo tree failed for {package}"));
+    }
+    for line in String::from_utf8_lossy(&output.stdout).lines() {
+        let name = line.split_whitespace().next().unwrap_or_default();
+        let found = format!("{package} links {name}");
+        if forbidden.contains(&name) && !linked.contains(&found) {
+            linked.push(found);
+        }
+    }
+    Ok(())
+}
+
 fn layers(ctx: &Context) -> Outcome {
     let mut linked = Vec::new();
     for package in WIRE_LAYER_PACKAGES {
-        let args = [
-            "tree",
-            "--locked",
-            "--all-features",
-            "--edges",
-            "normal",
-            "--prefix",
-            "none",
-            "--format",
-            "{p}",
-            "--package",
-            package,
-        ];
-        println!("$ cargo {}", args.join(" "));
-        let output = Command::new("cargo")
-            .args(args)
-            .current_dir(&ctx.root)
-            .output()
-            .map_err(|e| format!("could not run cargo: {e}; install it and put it on PATH"))?;
-        if !output.status.success() {
-            return Err(format!("cargo tree failed for {package}"));
-        }
-        for line in String::from_utf8_lossy(&output.stdout).lines() {
-            let name = line.split_whitespace().next().unwrap_or_default();
-            let found = format!("{package} links {name}");
-            if GAME_DATA_PACKAGES.contains(&name) && !linked.contains(&found) {
-                linked.push(found);
-            }
-        }
+        linked_forbidden(ctx, package, &GAME_DATA_PACKAGES, &mut linked)?;
+    }
+    if !linked.is_empty() {
+        return Err(format!(
+            "a crate of the wire or network layer links game data ({}); move the code that needs it to mcrs_minecraft_protocol_game or above",
+            linked.join(", ")
+        ));
+    }
+    for package in STANDALONE_BAKE_PACKAGES {
+        linked_forbidden(ctx, package, &STANDALONE_BAKE_FORBIDDEN, &mut linked)?;
     }
     if linked.is_empty() {
         Ok(String::new())
     } else {
         Err(format!(
-            "a crate of the wire or network layer links game data ({}); move the code that needs it to mcrs_minecraft_protocol_game or above",
+            "a model bake links the network, a client or a server ({}); a viewer bakes from the pack alone",
             linked.join(", ")
         ))
     }

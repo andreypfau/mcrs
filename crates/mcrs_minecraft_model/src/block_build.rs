@@ -591,6 +591,55 @@ fn near_uv([u, v]: [f32; 2], [want_u, want_v]: [f32; 2]) -> bool {
 #[cfg(test)]
 mod tests {
     #[test]
+    fn every_state_drawn_in_code_bakes_with_its_entity_textures() {
+        let corpus = crate::block_catalog::corpus();
+        let mut sprites = SpriteRegistry::default();
+        for name in [
+            "chest",
+            "trapped_chest",
+            "ender_chest",
+            "waxed_weathered_copper_chest",
+            "shulker_box",
+            "light_gray_shulker_box",
+            "lime_banner",
+            "black_wall_banner",
+            "skeleton_skull",
+            "wither_skeleton_wall_skull",
+            "zombie_head",
+            "player_wall_head",
+            "creeper_head",
+            "piglin_wall_head",
+            "dragon_head",
+            "decorated_pot",
+            "enchanting_table",
+            "lectern",
+            "bell",
+        ] {
+            let block = corpus
+                .block(&format!("minecraft:{name}"))
+                .unwrap_or_else(|| panic!("the corpus has {name}"));
+            for id in (0..block.state_count).filter_map(|offset| block.state_at(offset)) {
+                let state = crate::block_catalog::state_key(corpus, id).unwrap();
+                let info = super::build_one(
+                    &mut BlockModels::new(ResourceSet::corpus()),
+                    corpus.block_index(id).and_then(Block::from_id).unwrap(),
+                    &state,
+                    &PropertyTable::of_block(&block.properties),
+                    corpus.state(id),
+                    corpus.shape(corpus.state(id).occlusion_shape),
+                    &mut sprites,
+                )
+                .unwrap_or_else(|reason| panic!("{} does not bake: {reason}", state.label()));
+                assert!(
+                    !info.quads.is_empty() || info.cube.is_some(),
+                    "{} draws nothing",
+                    state.label()
+                );
+            }
+        }
+    }
+
+    #[test]
     fn a_fluid_level_reads_back_as_the_height_vanilla_gives_it() {
         let ninths = [8u8, 7, 6, 5, 4, 3, 2, 1, 8, 8, 8, 8, 8, 8, 8, 8];
         for (level, height) in ninths.iter().enumerate() {

@@ -13,7 +13,7 @@ pub enum ModelFileError {
     TransformArity { count: usize },
     /// A corner of an element lies outside -16 to 32.
     CornerRange { corner: [f64; 3] },
-    /// An element has no face.
+    /// An element with no face draws nothing: the model is rejected.
     NoFace,
     /// A face key is no direction name.
     FaceKey { key: String },

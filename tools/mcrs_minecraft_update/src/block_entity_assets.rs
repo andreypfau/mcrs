@@ -399,6 +399,41 @@ fn checked_in(assets: &Path) -> Result<Vec<PathBuf>, String> {
     Ok(found)
 }
 
+/// The files below `assets/` that differ from what the generator writes: stale, missing and
+/// stray ones.
+fn differences(
+    assets: &Path,
+    generated: &BTreeMap<PathBuf, String>,
+) -> Result<Vec<String>, String> {
+    let mut found = Vec::new();
+    for path in checked_in(assets)? {
+        if !generated.contains_key(&path) {
+            found.push(format!("assets/{} is written by no shape", path.display()));
+        }
+    }
+    for (path, text) in generated {
+        match fs::read_to_string(assets.join(path)) {
+            Ok(held) if held == *text => {}
+            Ok(_) => found.push(format!("assets/{} is stale", path.display())),
+            Err(_) => found.push(format!("assets/{} is missing", path.display())),
+        }
+    }
+    Ok(found)
+}
+
+/// Fails when the checked-in files differ from what the generator writes.
+pub fn check(root: &Path) -> Result<(), String> {
+    let found = differences(&root.join("assets"), &generate())?;
+    if found.is_empty() {
+        Ok(())
+    } else {
+        Err(format!(
+            "{}; run cargo run -p mcrs_minecraft_update -- block-entities",
+            found.join("; ")
+        ))
+    }
+}
+
 /// Writes the files below `assets/` again and removes the files that no shape writes.
 pub fn write(root: &Path) -> Result<(), String> {
     let assets = root.join("assets");
@@ -422,4 +457,15 @@ pub fn write(root: &Path) -> Result<(), String> {
         println!("wrote assets/{}", path.display());
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_checked_in_block_entity_files_are_what_the_generator_writes() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+        check(&root).expect("the block entity files are current");
+    }
 }

@@ -15,9 +15,11 @@ pub enum BakeError {
     NotAState { state: String },
     /// A fluid block has no fluid data.
     NoFluid { block: String },
-    /// A baked face names a quad past the baked model.
+    /// A baked face names a quad that the baked model lacks. This is a defect of the bake, not of a
+    /// pack file.
     PastQuads,
-    /// A baked face names a sprite past the sprite table of the baked model.
+    /// A baked quad names a sprite that the table of the baked model lacks. This is a defect of
+    /// the bake, not of a pack file.
     PastSprites,
     /// A sprite of the model cannot be read.
     Sprite(SpriteError),

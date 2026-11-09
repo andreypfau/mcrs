@@ -9,9 +9,9 @@ pub enum BlockStateFileError {
     Syntax { message: String },
     /// The file has neither `variants` nor `multipart`.
     NoParts,
-    /// The `variants` object has no member.
+    /// The `variants` object has no member, so no state has a model: the whole file is rejected.
     EmptyVariants,
-    /// The `multipart` array has no entry.
+    /// The `multipart` array has no entry, so no state has a model: the whole file is rejected.
     EmptyMultipart,
     /// A variant key is wrong; the key matches no state.
     VariantKey {
@@ -28,13 +28,13 @@ pub enum BlockStateFileError {
     CombinatorBesideMember,
     /// `AND` or `OR` holds no array.
     CombinatorWithoutArray,
-    /// A condition has no member.
+    /// A `when` condition with no member would match each state by accident: the file is rejected.
     EmptyCondition,
-    /// A property test holds an array.
+    /// A property test takes one value or alternatives joined by `|`, never an array.
     TestIsArray { name: String },
     /// A property test has an empty alternative.
     EmptyAlternative { name: String, text: String },
-    /// A part is an empty array of variants.
+    /// A part with no variant has nothing to choose from: the file is rejected.
     EmptyPart,
     /// A variant rotation is no quarter turn.
     Rotation { degrees: i64 },

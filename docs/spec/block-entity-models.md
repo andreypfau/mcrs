@@ -173,6 +173,7 @@ Confidence: high. Milestone: 1. Experiment: BEM-TEST-001.
   4. For each block state, the client evaluates `when` of each layer at load. Each layer with
      a true condition is drawn. The order of the layers is the order of the array.
   5. A block with no file is not a static block entity.
+  6. A state value that the block does not have is an error, and the client draws nothing for that state.
 - **Postconditions:** each block state has a list of drawn layers, which can be empty. An error
   in a file is a content error that names the file. A file with an error draws nothing.
 
