@@ -4164,6 +4164,7 @@ dependencies = [
  "mcrs_minecraft_command_engine",
  "mcrs_minecraft_command_registry",
  "mcrs_minecraft_core",
+ "mcrs_minecraft_damage",
  "mcrs_minecraft_engine",
  "mcrs_minecraft_engine_physics",
  "mcrs_minecraft_engine_world",
@@ -4246,6 +4247,13 @@ dependencies = [
  "serde_json",
  "sha2",
  "tracing",
+]
+
+[[package]]
+name = "mcrs_minecraft_damage"
+version = "0.5.8"
+dependencies = [
+ "mcrs_minecraft_physics",
 ]
 
 [[package]]
@@ -4373,6 +4381,7 @@ dependencies = [
  "mcrs_engine_muxer",
  "mcrs_minecraft_block",
  "mcrs_minecraft_brain",
+ "mcrs_minecraft_damage",
  "mcrs_minecraft_engine",
  "mcrs_minecraft_engine_physics",
  "mcrs_minecraft_engine_world",
@@ -4403,6 +4412,7 @@ dependencies = [
  "mcrs_engine_muxer",
  "mcrs_minecraft_block",
  "mcrs_minecraft_collision_table",
+ "mcrs_minecraft_damage",
  "mcrs_minecraft_engine",
  "mcrs_minecraft_engine_physics",
  "mcrs_minecraft_engine_world",

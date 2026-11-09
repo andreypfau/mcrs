@@ -1,8 +1,9 @@
 use bevy_ecs::change_detection::Mut;
 use bevy_ecs::world::World;
 use mcrs_minecraft_command_engine::Worlds;
+use mcrs_minecraft_damage::Hit;
 use mcrs_minecraft_engine::coordinator::birth_clock::BirthClock;
-use mcrs_minecraft_engine_physics::{EntityRows, Hit, MobChanges, Mobs, Placed, hurt};
+use mcrs_minecraft_engine_physics::{EntityRows, MobChanges, Placed, hurt_mob};
 
 /// The command effect that hits the mob row `at` of this world.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -18,12 +19,8 @@ pub(crate) fn apply(worlds: &mut Worlds, HitMob { at, hit }: HitMob) {
         .map_or(0, |clock| clock.0);
     let outcome = world
         .try_resource_scope(|world, mut rows: Mut<EntityRows>| {
-            world
-                .try_resource_scope(|world, mut mobs: Mut<Mobs>| {
-                    let mut changes = world.get_resource_mut::<MobChanges>()?;
-                    hurt(&mut rows, &mut mobs, &mut changes, at, hit, tick)
-                })
-                .flatten()
+            let mut changes = world.get_resource_mut::<MobChanges>()?;
+            hurt_mob(&mut rows, &mut changes, at, hit, tick)
         })
         .flatten();
     if outcome.is_none() {

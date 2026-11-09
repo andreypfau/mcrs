@@ -10,7 +10,6 @@ use mcrs_minecraft_brain::MobView;
 use mcrs_minecraft_brain::OrderKey;
 use mcrs_minecraft_brain::Panic;
 use mcrs_minecraft_brain::Point;
-use mcrs_minecraft_engine_physics::MobHit;
 use mcrs_minecraft_engine_physics::MobIntent;
 use mcrs_minecraft_entity::EntityTypeData;
 use mcrs_minecraft_goals::STROLL_IDLE_LIMIT;
@@ -22,6 +21,7 @@ use mcrs_minecraft_mob_control::MobControl;
 use mcrs_minecraft_mob_control::PathEnd;
 use mcrs_minecraft_mob_control::Rotations;
 use mcrs_minecraft_physics::EntityState;
+use mcrs_minecraft_physics::LastHit;
 use mcrs_minecraft_physics::Living;
 use mcrs_minecraft_physics::MoveInput;
 use mcrs_minecraft_physics::Steering;
@@ -50,7 +50,7 @@ pub(crate) struct HostMob {
     position: Point,
     rotations: Rotations,
     idle_time: u32,
-    last_hit: Option<MobHit>,
+    last_hit: Option<LastHit>,
     /// The strike count of the mob at the last observe (GOAL-STR-004).
     strikes: u32,
     damage: Option<DamageRecord>,
@@ -149,17 +149,8 @@ impl HostMob {
         if let Some(turned) = self.turned {
             self.rotations = turned;
         }
-        // A hit leaves the damage cooldown above zero up to the next observe, also one that the
-        // cooldown rejects, since that needs a cooldown above 10. So a row without a cooldown has
-        // no new hit, and the lookup in the map is skipped.
-        let (hit, strikes) = if living.damage_cooldown > 0 {
-            hot.mobs
-                .0
-                .get(&self.id)
-                .map_or((None, self.strikes), |mob| (mob.last_hit, mob.strikes))
-        } else {
-            (self.last_hit, self.strikes)
-        };
+        let hit = state.hits.last;
+        let strikes = state.hits.strikes;
         let hurt = hit.is_some() && hit != self.last_hit;
         self.last_hit = hit;
         let struck_now = strikes != self.strikes;

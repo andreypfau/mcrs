@@ -38,6 +38,7 @@ tracing.workspace = true
 [dev-dependencies]
 # Without it a pool of the tests runs every task on one thread.
 bevy_tasks = { workspace = true, features = ["multi_threaded"] }
+mcrs_minecraft_damage.workspace = true
 mcrs_minecraft_engine_physics = { workspace = true, features = ["testing"] }
 mcrs_minecraft_physics = { workspace = true, features = ["testing"] }
 mcrs_minecraft_replication.workspace = true

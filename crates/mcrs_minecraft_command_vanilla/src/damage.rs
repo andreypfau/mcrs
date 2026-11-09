@@ -9,7 +9,7 @@ use mcrs_minecraft_command_argument_entity::EntityArgument;
 use mcrs_minecraft_command_engine::{
     Call, CommandFailure, CommandOutput, CommandRegistrar, CommandResult, EffectQueue, Feedback,
 };
-use mcrs_minecraft_engine_physics::{Hit, HitOutcome, preview};
+use mcrs_minecraft_damage::{Hit, HitOutcome, preview};
 use mcrs_minecraft_physics::Living;
 use mcrs_minecraft_resource::{ResourceLocation, rl};
 use mcrs_minecraft_text::Text;
@@ -109,10 +109,7 @@ pub(crate) fn run(
             &mut hits,
             HitMob {
                 at: mob.at,
-                hit: Hit {
-                    amount,
-                    damage_type,
-                },
+                hit: Hit::new(amount, damage_type),
             },
         );
         if preview(&living, amount) == HitOutcome::Rejected {

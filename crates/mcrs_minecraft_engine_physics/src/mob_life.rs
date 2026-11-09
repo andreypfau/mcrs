@@ -175,8 +175,6 @@ pub(crate) fn spawn_mobs(
                 tile: tile_at(request.position),
                 custom_name: request.extras.custom_name,
                 tags: request.extras.tags,
-                last_hit: None,
-                strikes: 0,
             },
         );
     }

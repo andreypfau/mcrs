@@ -1,5 +1,6 @@
 use crate::BirthKey;
 use crate::Body;
+use crate::HitRecord;
 use crate::Living;
 use crate::MovePath;
 use crate::Rest;
@@ -11,6 +12,8 @@ pub struct EntityState {
     pub body: Body,
     /// The state of a living entity; `None` for every other category.
     pub living: Option<Living>,
+    /// The hits on a living entity that its AI reads; empty for every other category.
+    pub hits: HitRecord,
     pub no_gravity: bool,
     /// The number of ticks the entity has existed, before the increment of this tick.
     pub age: u32,
@@ -29,6 +32,7 @@ impl EntityState {
             key,
             body,
             living,
+            hits: HitRecord::default(),
             no_gravity: false,
             age: 0,
             phase: 0,

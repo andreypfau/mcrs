@@ -1,0 +1,15 @@
+[package]
+name = "mcrs_minecraft_damage"
+description = "The hit procedure of a living entity without Bevy: the damage cooldown, the health change, the start of the death and the hit record"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+doctest = false
+
+[lints]
+workspace = true
+
+# std: mcrs_minecraft_physics needs it
+[dependencies]
+mcrs_minecraft_physics.workspace = true

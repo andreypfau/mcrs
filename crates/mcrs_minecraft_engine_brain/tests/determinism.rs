@@ -16,6 +16,7 @@ use mcrs_minecraft_brain::PlayerRow;
 use mcrs_minecraft_brain::Point;
 use mcrs_minecraft_brain::StageConfig;
 use mcrs_minecraft_brain::WorldSeed;
+use mcrs_minecraft_damage::Hit;
 use mcrs_minecraft_engine_brain::BlockGoalWorld;
 use mcrs_minecraft_engine_brain::CellTable;
 use mcrs_minecraft_engine_brain::Collision;
@@ -28,9 +29,11 @@ use mcrs_minecraft_engine_brain::StateFlags;
 use mcrs_minecraft_engine_physics::EntityWrites;
 use mcrs_minecraft_engine_physics::FLOOR;
 use mcrs_minecraft_engine_physics::Mob;
-use mcrs_minecraft_engine_physics::MobHit;
+use mcrs_minecraft_engine_physics::MobChanges;
 use mcrs_minecraft_engine_physics::Mobs;
+use mcrs_minecraft_engine_physics::Placed;
 use mcrs_minecraft_engine_physics::TestScene;
+use mcrs_minecraft_engine_physics::hurt_mob;
 use mcrs_minecraft_engine_physics::mob_body;
 use mcrs_minecraft_engine_physics::mob_row;
 use mcrs_minecraft_engine_physics::tile_at;
@@ -89,8 +92,6 @@ impl Run {
                     tile: tile_at(position),
                     custom_name: None,
                     tags: Vec::new(),
-                    last_hit: None,
-                    strikes: 0,
                 },
             );
         }
@@ -130,14 +131,22 @@ impl Run {
             }
         }
         if tick == 50 {
-            for index in 0..40 {
-                if let Some(mob) = self.mobs.0.get_mut(&EntityId(index)) {
-                    mob.last_hit = Some(MobHit {
-                        tick,
-                        damage_type: CACTUS,
-                    });
-                    mob.strikes = mob.strikes.wrapping_add(1);
-                }
+            let struck: Vec<Placed> = self
+                .scene
+                .rows
+                .living_rows()
+                .map(|(at, _)| at)
+                .filter(|at| at.id.0 < 40)
+                .collect();
+            let mut changes = MobChanges::default();
+            for at in struck {
+                hurt_mob(
+                    &mut self.scene.rows,
+                    &mut changes,
+                    at,
+                    Hit::new(1.0, CACTUS),
+                    tick,
+                );
             }
         }
         let hot = HotTick {

@@ -8,7 +8,7 @@ use mcrs_minecraft_command_argument_entity::EntityArgument;
 use mcrs_minecraft_command_engine::{
     Call, CommandOutput, CommandRegistrar, CommandResult, EffectQueue, Feedback,
 };
-use mcrs_minecraft_engine_physics::Hit;
+use mcrs_minecraft_damage::Hit;
 use mcrs_minecraft_resource::rl;
 use mcrs_minecraft_text::Text;
 
@@ -59,10 +59,7 @@ pub(crate) fn run(
                 &mut hits,
                 HitMob {
                     at: mob.at,
-                    hit: Hit {
-                        amount: f32::MAX,
-                        damage_type,
-                    },
+                    hit: Hit::new(f32::MAX, damage_type),
                 },
             );
         }
