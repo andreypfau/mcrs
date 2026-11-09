@@ -16,11 +16,12 @@ use crate::phase::Phase;
 use crate::probe;
 use crate::process::ServerProcess;
 use crate::report::{
-    self, Answered, External, GameTimeAnswer, Machine, Motion, PhaseReport, RunReport, Sighting,
-    Sprint,
+    self, Answered, External, GameTimeAnswer, Machine, Motion, PhaseReport, PlayerModeCheck,
+    RunReport, Sighting, Sprint, StirReport,
 };
-use crate::scene::{self, Area, PEN, PEN_WATCH, ROAM};
+use crate::scene::{self, Ai, Area, PEN, PEN_WATCH, ROAM};
 use crate::status;
+use crate::stir::{self, Stir};
 use crate::watcher::{PigSnapshot, Watcher};
 
 const READY_TIMEOUT: Duration = Duration::from_secs(600);
@@ -35,8 +36,19 @@ const STOP_GRACE: Duration = Duration::from_secs(90);
 const HOVER: f64 = 2.0;
 /// The least ticks of a warm-up: one `tick query` answer covers the last 100 ticks.
 const WARMUP_TICKS: i64 = 120;
-/// The share of the stir period over which one stir's lines go out.
-const STIR_SPREAD: f64 = 0.8;
+/// The share of the panic period over which one round's lines go out.
+const PANIC_SPREAD: f64 = 0.8;
+/// Blocks beyond the open area that the stir strips cover: the pigs stroll out of it.
+const ROAM_STIR_MARGIN: i32 = 32;
+/// A stir clock query with no answer for this long is sent again.
+const STIR_QUERY_TIMEOUT: Duration = Duration::from_secs(30);
+
+/// The pigs standing in the world.
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct Population {
+    area: Area,
+    ai: Ai,
+}
 
 struct Bench<'a> {
     args: &'a Args,
@@ -47,22 +59,48 @@ struct Bench<'a> {
     /// The name of the connected client's player, once it joined.
     player: Option<String>,
     /// Where the pigs stand now, `None` while there are none.
-    pigs_in: Option<Area>,
+    pigs_in: Option<Population>,
     console: bool,
     metric: TickMetric,
-    /// When the next stir of the stimulus phase is due, while that phase runs.
-    next_stir: Option<Instant>,
-    stir_round: usize,
     /// The population the pigs now standing belong to; their UUIDs carry it.
     generation: u32,
-    /// The lines of the current stir not sent yet: a stir goes out over most of its period, so
-    /// no single tick takes all of it.
-    stir_lines: VecDeque<String>,
-    stir_started: Instant,
-    stir_total: usize,
+    panic: PanicHits,
+    stir: StirClock,
     /// When the last probe round went out; the next waits for its game time answer.
     probe_sent: Option<Instant>,
     probe_rounds_skipped: usize,
+}
+
+/// The panic hits of the stimulus phase.
+struct PanicHits {
+    /// When the next round is due, while the phase runs.
+    next: Option<Instant>,
+    round: usize,
+    /// The lines of the current round not sent yet: a round goes out over most of its period,
+    /// so no single tick takes all of it.
+    lines: VecDeque<String>,
+    started: Instant,
+    total: usize,
+    sent: u64,
+}
+
+#[derive(Default)]
+struct StirClock {
+    /// The stir of a stirred phase while it runs.
+    stir: Option<Stir>,
+    /// When the last `time query gametime` of the stir went out, while its answer is due.
+    query: Option<Instant>,
+    /// The first game tick the stir has not served lines for yet.
+    next_tick: Option<i64>,
+    ticks_served: u64,
+    lines_sent: u64,
+}
+
+struct StirCounts {
+    ticks_served: u64,
+    lines_sent: u64,
+    panic_lines_sent: u64,
+    damage_answers: u64,
 }
 
 /// The window of a measured phase, kept until the watcher's log is in.
@@ -72,7 +110,8 @@ struct Window {
 }
 
 pub fn run(args: &Args) -> anyhow::Result<RunReport> {
-    args.server.prepare(&args.dir, args.port)?;
+    args.server
+        .prepare(&args.dir, args.port, args.player_mode)?;
     let launch = args.server.launch(&LaunchOptions {
         binary: &args.binary,
         resources: args.resources.as_deref(),
@@ -81,6 +120,7 @@ pub fn run(args: &Args) -> anyhow::Result<RunReport> {
         heap: &args.heap,
         port: args.port,
         threads: args.threads,
+        player_mode: args.player_mode,
     })?;
     let started_unix = SystemTime::now()
         .duration_since(SystemTime::UNIX_EPOCH)
@@ -97,33 +137,11 @@ pub fn run(args: &Args) -> anyhow::Result<RunReport> {
         &args.dir,
         &args.dir.join("server.log"),
     )?;
-    let mut bench = Bench {
-        args,
-        runtime,
-        server,
-        watcher: None,
-        bot: None,
-        player: None,
-        pigs_in: None,
-        console: false,
-        metric: args.server.tick_metric(),
-        next_stir: None,
-        stir_round: 0,
-        generation: 0,
-        stir_lines: VecDeque::new(),
-        stir_started: Instant::now(),
-        stir_total: 0,
-        probe_sent: None,
-        probe_rounds_skipped: 0,
-    };
+    let mut bench = Bench::new(args, runtime, server);
     let start_seconds = bench.wait_ready(address, started);
     let mut report = RunReport {
         server: args.server,
-        client: match args.client {
-            Client::Watcher => "watcher".to_owned(),
-            Client::Bot => "horizon-bots stand".to_owned(),
-            Client::None => "none".to_owned(),
-        },
+        client: client_label(args.client).to_owned(),
         threads: args.threads,
         threads_note: launch.threads_note,
         pigs: args.pigs,
@@ -134,6 +152,8 @@ pub fn run(args: &Args) -> anyhow::Result<RunReport> {
         console: false,
         settings: Vec::new(),
         watcher_error: None,
+        player_mode: None,
+        stir_mode: args.stir_mode,
         machine: machine(),
         started_unix,
         command: launch.command,
@@ -161,6 +181,7 @@ pub fn run(args: &Args) -> anyhow::Result<RunReport> {
         bench.finish(&mut report, &[]);
         return Ok(report);
     }
+    report.player_mode = bench.set_player_mode();
     let mut windows = Vec::new();
     for phase in &args.phases {
         let (phase_report, window) = bench.phase(*phase);
@@ -171,11 +192,47 @@ pub fn run(args: &Args) -> anyhow::Result<RunReport> {
     Ok(report)
 }
 
+fn client_label(client: Client) -> &'static str {
+    match client {
+        Client::Watcher => "watcher",
+        Client::Bot => "horizon-bots stand",
+        Client::None => "none",
+    }
+}
+
 fn skip_all(args: &Args, reason: &str) -> Vec<PhaseReport> {
     args.phases
         .iter()
         .map(|phase| PhaseReport::skipped(*phase, reason.to_owned()))
         .collect()
+}
+
+impl<'a> Bench<'a> {
+    fn new(args: &'a Args, runtime: tokio::runtime::Runtime, server: ServerProcess) -> Self {
+        Self {
+            args,
+            runtime,
+            server,
+            watcher: None,
+            bot: None,
+            player: None,
+            pigs_in: None,
+            console: false,
+            metric: args.server.tick_metric(),
+            generation: 0,
+            panic: PanicHits {
+                next: None,
+                round: 0,
+                lines: VecDeque::new(),
+                started: Instant::now(),
+                total: 0,
+                sent: 0,
+            },
+            stir: StirClock::default(),
+            probe_sent: None,
+            probe_rounds_skipped: 0,
+        }
+    }
 }
 
 impl Bench<'_> {
@@ -293,32 +350,127 @@ impl Bench<'_> {
         Ok(())
     }
 
-    fn stir_when_due(&mut self) {
-        let Some(due) = self.next_stir else {
+    /// Sets the game mode of the client's player, also where the server default already did, and
+    /// checks it.
+    fn set_player_mode(&mut self) -> Option<PlayerModeCheck> {
+        let player = self.player.clone()?;
+        let command = self.answered(&scene::game_mode(&player, self.args.player_mode));
+        let spectators = if self.console {
+            let sent = Instant::now();
+            let _ = self.server.send(scene::COUNT_SPECTATORS);
+            self.server
+                .wait_for(sent, CONSOLE_TIMEOUT, probe::count_or_zero)
+        } else {
+            None
+        };
+        self.idle_for(Duration::from_secs(1));
+        let watcher_game_mode = self
+            .watcher_snapshot()
+            .and_then(|snapshot| snapshot.game_mode);
+        Some(PlayerModeCheck {
+            command,
+            spectators,
+            watcher_game_mode,
+        })
+    }
+
+    fn panic_when_due(&mut self) {
+        let Some(due) = self.panic.next else {
             return;
         };
         if Instant::now() >= due {
-            self.stir_lines.extend(scene::stir(
+            self.panic.lines.extend(scene::panic_hits(
                 self.generation,
-                self.stir_round,
+                self.panic.round,
                 self.args.stimulus_pigs,
                 self.args.pigs,
             ));
-            self.stir_total = self.stir_lines.len();
-            self.stir_started = Instant::now();
-            self.stir_round += 1;
-            self.next_stir = Some(due + self.args.stimulus_period);
+            self.panic.total = self.panic.lines.len();
+            self.panic.started = Instant::now();
+            self.panic.round += 1;
+            self.panic.next = Some(due + self.args.stimulus_period);
         }
-        let spread = self.args.stimulus_period.mul_f64(STIR_SPREAD).as_secs_f64();
-        let share = (self.stir_started.elapsed().as_secs_f64() / spread.max(1e-3)).min(1.0);
-        let due_lines = (self.stir_total as f64 * share).ceil() as usize;
-        let sent = self.stir_total - self.stir_lines.len();
+        let spread = self
+            .args
+            .stimulus_period
+            .mul_f64(PANIC_SPREAD)
+            .as_secs_f64();
+        let share = (self.panic.started.elapsed().as_secs_f64() / spread.max(1e-3)).min(1.0);
+        let due_lines = (self.panic.total as f64 * share).ceil() as usize;
+        let sent = self.panic.total - self.panic.lines.len();
         for _ in sent..due_lines {
-            let Some(line) = self.stir_lines.pop_front() else {
+            let Some(line) = self.panic.lines.pop_front() else {
                 break;
             };
             let _ = self.server.send(&line);
+            self.panic.sent += 1;
         }
+    }
+
+    /// Serves the stir lines of each game tick that passed since the last served one. The game
+    /// time comes from a `time query gametime` that goes out once the one before is answered, so
+    /// a slow server gets the same lines a game tick as a fast one.
+    fn stir_when_due(&mut self) {
+        let Some(stir) = self.stir.stir else {
+            return;
+        };
+        if let Some(sent) = self.stir.query {
+            let latest = self
+                .server
+                .lines_between(sent, Instant::now() + Duration::from_secs(1))
+                .iter()
+                .rev()
+                .find_map(|line| probe::game_time(&line.text));
+            if let Some(now) = latest {
+                self.stir.query = None;
+                let next = self
+                    .stir
+                    .next_tick
+                    .unwrap_or(now)
+                    .max(now + 1 - stir::PERIOD);
+                for tick in next..=now {
+                    for line in stir.lines(tick) {
+                        let _ = self.server.send(&line);
+                        self.stir.lines_sent += 1;
+                    }
+                    self.stir.ticks_served += 1;
+                }
+                self.stir.next_tick = Some(next.max(now + 1));
+            } else if sent.elapsed() > STIR_QUERY_TIMEOUT {
+                self.stir.query = None;
+            }
+        }
+        if self.stir.query.is_none() {
+            self.stir.query = Some(Instant::now());
+            let _ = self.server.send("time query gametime");
+        }
+    }
+
+    fn start_stir(&mut self, phase: Phase) {
+        let Some(population) = self.pigs_in else {
+            return;
+        };
+        if !phase.stirred() {
+            return;
+        }
+        let margin = if phase.roams() { ROAM_STIR_MARGIN } else { 1 };
+        self.stir.stir = Some(Stir {
+            mode: self.args.stir_mode,
+            area: population.area,
+            margin,
+            generation: self.generation,
+            count: self.args.pigs,
+        });
+        self.stir.query = None;
+        self.stir.next_tick = None;
+    }
+
+    fn stop_stir(&mut self) {
+        self.stir.stir = None;
+        self.stir.query = None;
+        self.stir.next_tick = None;
+        self.panic.next = None;
+        self.panic.lines.clear();
     }
 
     fn game_time_now(&mut self) -> Option<i64> {
@@ -347,8 +499,9 @@ impl Bench<'_> {
         let until = Instant::now() + duration;
         while Instant::now() < until {
             self.stir_when_due();
+            self.panic_when_due();
             self.server.pump();
-            std::thread::sleep(Duration::from_millis(50));
+            std::thread::sleep(Duration::from_millis(20));
         }
     }
 
@@ -362,9 +515,9 @@ impl Bench<'_> {
             .wait_for(sent, CONSOLE_TIMEOUT, probe::count_or_zero)
     }
 
-    /// Puts the pigs into `area`, or removes them for `None`.
-    fn populate(&mut self, area: Option<Area>) -> anyhow::Result<()> {
-        if self.pigs_in == area {
+    /// Puts the pigs of `population` in the world, or removes them for `None`.
+    fn populate(&mut self, population: Option<Population>) -> anyhow::Result<()> {
+        if self.pigs_in == population {
             return Ok(());
         }
         if self.pigs_in.is_some() {
@@ -372,11 +525,17 @@ impl Bench<'_> {
             self.wait_count(|count| count == 0)?;
             self.pigs_in = None;
         }
-        let Some(area) = area else {
+        let Some(population) = population else {
             return Ok(());
         };
         self.generation += 1;
-        let lines = scene::summons(area, self.generation, self.args.pigs, self.args.samples);
+        let lines = scene::summons(
+            population.area,
+            self.generation,
+            self.args.pigs,
+            self.args.samples,
+            population.ai,
+        );
         let batch = (self.args.summon_rate / 20).max(1);
         for chunk in lines.chunks(batch) {
             for line in chunk {
@@ -387,7 +546,7 @@ impl Bench<'_> {
         }
         let target = self.args.pigs;
         self.wait_count(|count| count >= target)?;
-        self.pigs_in = Some(area);
+        self.pigs_in = Some(population);
         Ok(())
     }
 
@@ -416,19 +575,26 @@ impl Bench<'_> {
             let reason = "the server answers no console command".to_owned();
             return (PhaseReport::skipped(phase, reason), None);
         }
-        let area = match phase {
+        let population = match phase {
             Phase::Idle => None,
-            Phase::Roam => Some(ROAM),
-            Phase::Crowd | Phase::Stimulus => Some(PEN),
+            _ if phase.roams() => Some(Population {
+                area: ROAM,
+                ai: phase.ai(),
+            }),
+            _ => Some(Population {
+                area: PEN,
+                ai: phase.ai(),
+            }),
         };
         if self.console
-            && let Err(error) = self.populate(area)
+            && let Err(error) = self.populate(population)
         {
             return (PhaseReport::skipped(phase, format!("{error:#}")), None);
         }
-        let watch = match phase {
-            Phase::Roam => ROAM.center() + DVec3::Y * HOVER,
-            Phase::Idle | Phase::Crowd | Phase::Stimulus => PEN_WATCH,
+        let watch = if phase.roams() {
+            ROAM.center() + DVec3::Y * HOVER
+        } else {
+            PEN_WATCH
         };
         if let Some(player) = self.player.clone() {
             let _ = self.server.send(&scene::teleport(&player, watch));
@@ -437,11 +603,12 @@ impl Bench<'_> {
         let setup_seconds = round(setup_start.elapsed().as_secs_f64());
         let warmup = match phase {
             Phase::Idle => self.args.idle_warmup,
-            Phase::Roam | Phase::Crowd => self.args.warmup,
             Phase::Stimulus => self.args.stimulus_warmup,
+            _ => self.args.warmup,
         };
+        self.start_stir(phase);
         if phase == Phase::Stimulus {
-            self.next_stir = Some(Instant::now());
+            self.panic.next = Some(Instant::now());
         }
         let warmup_start = Instant::now();
         let changed_at = if self.console {
@@ -453,8 +620,7 @@ impl Bench<'_> {
         self.wait_ticks(changed_at, WARMUP_TICKS);
         let warmup = warmup_start.elapsed();
         let (mut report, window) = self.measure(phase);
-        self.next_stir = None;
-        self.stir_lines.clear();
+        self.stop_stir();
         report.pigs_before = pigs_before;
         report.setup_seconds = setup_seconds;
         report.warmup_seconds = round(warmup.as_secs_f64());
@@ -506,6 +672,7 @@ impl Bench<'_> {
         let mut first = true;
         self.probe_sent = None;
         self.probe_rounds_skipped = 0;
+        let stir_start = self.stir_counts();
         while Instant::now() < until {
             let now = Instant::now();
             if now >= next_probe {
@@ -514,6 +681,7 @@ impl Bench<'_> {
                 next_probe += self.args.probe_interval;
             }
             self.stir_when_due();
+            self.panic_when_due();
             if now >= next_sample {
                 if let Some(usage) = os::process(self.server.pid()) {
                     rss.push(usage.rss_bytes as f64 / (1024.0 * 1024.0));
@@ -525,6 +693,8 @@ impl Bench<'_> {
             std::thread::sleep(Duration::from_millis(20));
         }
         self.probe_round(false);
+        self.server.pump();
+        let stir_end = self.stir_counts();
         let end_os = os::snapshot();
         let watcher_end = self.watcher_snapshot();
         let load_average_end = os::load_average();
@@ -533,6 +703,19 @@ impl Bench<'_> {
         let harness: Vec<i32> = self.bot.iter().map(|bot| bot.id() as i32).collect();
         let cpu = os::cpu_between(&start_os, &end_os, self.server.pid(), &harness);
         let contended = cpu.other_cores > self.args.contended_cores;
+        let seconds = until.duration_since(from).as_secs_f64().max(1e-9);
+        let stir = self.stir.stir.map(|stir| {
+            let answers = stir_end.damage_answers - stir_start.damage_answers;
+            StirReport {
+                mode: stir.mode,
+                pacing: "game time",
+                ticks_served: stir_end.ticks_served - stir_start.ticks_served,
+                lines_sent: stir_end.lines_sent - stir_start.lines_sent,
+                panic_lines_sent: stir_end.panic_lines_sent - stir_start.panic_lines_sent,
+                damage_answers: answers,
+                damage_answers_per_second: round(answers as f64 / seconds),
+            }
+        });
         let report = PhaseReport {
             phase,
             skipped: None,
@@ -560,6 +743,7 @@ impl Bench<'_> {
                         round((end.move_packets - start.move_packets) as f64 / seconds)
                     }),
             },
+            stir,
             cpu: Some(cpu),
             server_rss_mib_mean: (!rss.is_empty())
                 .then(|| round(rss.iter().sum::<f64>() / rss.len() as f64)),
@@ -571,6 +755,15 @@ impl Bench<'_> {
             probe_rounds_skipped: self.probe_rounds_skipped,
         };
         (report, Window { from, until })
+    }
+
+    fn stir_counts(&self) -> StirCounts {
+        StirCounts {
+            ticks_served: self.stir.ticks_served,
+            lines_sent: self.stir.lines_sent,
+            panic_lines_sent: self.panic.sent,
+            damage_answers: self.server.damage_answers,
+        }
     }
 
     fn watcher_snapshot(&self) -> Option<PigSnapshot> {

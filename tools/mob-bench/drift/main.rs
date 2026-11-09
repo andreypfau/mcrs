@@ -29,7 +29,7 @@ use std::time::{Duration, Instant};
 use anyhow::{Context, bail};
 use glam::DVec3;
 
-use adapter::{Kind, LaunchOptions};
+use adapter::{Kind, LaunchOptions, PlayerMode};
 use process::ServerProcess;
 use scene::Area;
 use watcher::{PigSnapshot, Watcher};
@@ -94,7 +94,9 @@ fn main() -> anyhow::Result<()> {
     let options = parse()?;
     std::fs::create_dir_all(&options.dir)?;
     let dir = options.dir.canonicalize()?;
-    options.server.prepare(&dir, options.port)?;
+    options
+        .server
+        .prepare(&dir, options.port, PlayerMode::Creative)?;
     let repo = std::env::current_dir()?;
     let mut launch = options.server.launch(&LaunchOptions {
         binary: &options.binary,
@@ -104,6 +106,7 @@ fn main() -> anyhow::Result<()> {
         heap: &options.heap,
         port: options.port,
         threads: None,
+        player_mode: PlayerMode::Creative,
     })?;
     for (key, value) in &mut launch.env {
         if key == "RUST_LOG" {
@@ -189,7 +192,7 @@ impl Drift {
         self.idle(Duration::from_secs(2));
 
         let count = (DENSITY * f64::from(options.side * options.side)).round() as usize;
-        let summons = scene::summons(pen, 1, count, 0);
+        let summons = scene::summons(pen, 1, count, 0, scene::Ai::On);
         for chunk in summons.chunks(100) {
             for line in chunk {
                 self.server.send(line)?;

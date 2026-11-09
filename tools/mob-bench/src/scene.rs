@@ -2,6 +2,8 @@
 
 use glam::DVec3;
 
+use crate::adapter::PlayerMode;
+
 /// The block the pigs stand in on vanilla's default superflat (grass block at y = -61).
 pub const FLOOR_Y: i32 = -60;
 /// Vanilla's `forceload add` refuses an area of more than 256 chunks.
@@ -10,6 +12,14 @@ const FORCELOAD_SIDE_CHUNKS: i32 = 16;
 const FORCELOAD_MARGIN: i32 = 16;
 pub const SAMPLE_PREFIX: &str = "mbs";
 pub const WATCHER_NAME: &str = "mobbench";
+
+/// Whether the pigs of a population run their AI.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Ai {
+    On,
+    /// `NoAI:1b`: no AI step, so no stroll and no change of the idle time.
+    Off,
+}
 
 /// A square of blocks `min_x..min_x + size`, `min_z..min_z + size`.
 #[derive(Clone, Copy, Debug, PartialEq, serde::Serialize)]
@@ -112,7 +122,8 @@ pub fn fence(area: Area) -> Vec<String> {
 /// population, the last the pig's index. Vanilla refuses a UUID of a pig killed earlier in the run
 /// (`Unable to summon entity due to duplicate UUIDs`), so each population gets new ones.
 const UUID_HIGH: u32 = 0x006d_6273;
-/// Steps through the pig indices so that one stir hits pigs all over the area; coprime with
+/// Steps through the pig indices so that one round of panic hits reaches pigs all over the area;
+/// coprime with
 /// any pig count that is not a multiple of 7919.
 const STIR_STEP: usize = 7919;
 
@@ -139,9 +150,11 @@ pub fn sample_index(count: usize, samples: usize, sample: usize) -> usize {
 /// One `summon` line a pig, on an even grid over `area`. Each pig gets a UUID from its index, so
 /// the console can address it without an entity selector: a selector scans every entity, which
 /// takes Horizon about 5 s at 50,000 pigs. The named samples also get the custom name `mbs<i>`,
-/// so that `data get` answers name the pig they describe.
+/// so that `data get` answers name the pig they describe. A compound with a key skips the first
+/// spawn setup, so every pig is an adult of the default variant (TRK-SUM-003); neither key changes
+/// the idle time (GOAL-STR-004).
 #[must_use]
-pub fn summons(area: Area, generation: u32, count: usize, samples: usize) -> Vec<String> {
+pub fn summons(area: Area, generation: u32, count: usize, samples: usize, ai: Ai) -> Vec<String> {
     let side = (count as f64).sqrt().ceil().max(1.0) as usize;
     let spacing = f64::from(area.size) / side as f64;
     let named: Vec<usize> = (0..samples)
@@ -151,8 +164,12 @@ pub fn summons(area: Area, generation: u32, count: usize, samples: usize) -> Vec
         .map(|index| {
             let x = f64::from(area.min_x) + ((index % side) as f64 + 0.5) * spacing;
             let z = f64::from(area.min_z) + ((index / side) as f64 + 0.5) * spacing;
+            let no_ai = match ai {
+                Ai::On => "",
+                Ai::Off => ",NoAI:1b",
+            };
             let uuid = format!(
-                "UUID:[I;{UUID_HIGH},{},0,{}]",
+                "UUID:[I;{UUID_HIGH},{},0,{}]{no_ai}",
                 generation as i32,
                 index as u32 as i32
             );
@@ -168,13 +185,14 @@ pub fn summons(area: Area, generation: u32, count: usize, samples: usize) -> Vec
 
 pub const KILL_PIGS: &str = "kill @e[type=minecraft:pig]";
 pub const COUNT_PIGS: &str = "execute if entity @e[type=minecraft:pig]";
+pub const COUNT_SPECTATORS: &str = "execute if entity @a[gamemode=spectator]";
 
-/// Stir `round`: one line a pig for `hit` of the `count` pigs, 0 damage of type `cactus` each.
-/// `cactus` is in `panic_causes`, so each hit pig panics, with no health loss and no knockback.
-/// Panic does not spread; the neighbours move only when the panicking pigs push them. Each round
-/// hits the next `hit` pigs of a fixed spread-out order.
+/// Panic round `round`: one line a pig for `hit` of the `count` pigs, 0 damage of type `cactus`
+/// each. `cactus` is in `panic_causes`, so each hit pig panics, with no health loss and no
+/// knockback. Panic does not spread; the neighbours move only when the panicking pigs push them.
+/// Each round hits the next `hit` pigs of a fixed spread-out order.
 #[must_use]
-pub fn stir(generation: u32, round: usize, hit: usize, count: usize) -> Vec<String> {
+pub fn panic_hits(generation: u32, round: usize, hit: usize, count: usize) -> Vec<String> {
     (0..hit.min(count))
         .map(|offset| {
             let index = ((round * hit + offset) * STIR_STEP) % count.max(1);
@@ -189,6 +207,11 @@ pub fn sample_query(generation: u32, count: usize, samples: usize, sample: usize
         "data get entity {} Pos",
         pig_uuid(generation, sample_index(count, samples, sample))
     )
+}
+
+#[must_use]
+pub fn game_mode(player: &str, mode: PlayerMode) -> String {
+    format!("gamemode {} {player}", mode.as_str())
 }
 
 #[must_use]
@@ -229,10 +252,10 @@ mod tests {
     }
 
     #[test]
-    fn the_stirs_hit_every_pig_once_before_any_twice() {
+    fn the_panic_rounds_hit_every_pig_once_before_any_twice() {
         let mut hit = std::collections::HashSet::new();
         for round in 0..25 {
-            for line in stir(1, round, 2000, 50_000) {
+            for line in panic_hits(1, round, 2000, 50_000) {
                 assert!(
                     hit.insert(line),
                     "a pig was hit twice in the first 50,000 hits"
@@ -243,7 +266,7 @@ mod tests {
 
     #[test]
     fn the_grid_keeps_every_pig_inside_the_area_and_names_each_sample_once() {
-        let lines = summons(PEN, 1, 50_000, 32);
+        let lines = summons(PEN, 1, 50_000, 32, Ai::On);
         assert_eq!(lines.len(), 50_000);
         let named = lines
             .iter()

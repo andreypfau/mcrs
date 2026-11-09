@@ -13,6 +13,7 @@ mod report;
 mod run;
 mod scene;
 mod status;
+mod stir;
 mod watcher;
 
 use anyhow::bail;

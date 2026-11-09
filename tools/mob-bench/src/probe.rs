@@ -14,6 +14,8 @@ const GAME_TIME: [&str; 2] = ["The game time is ", "The time is "];
 const COUNT: [&str; 2] = ["Test passed. Count: ", "Test passed, count: "];
 const ENTITY_DATA: &str = " has the following entity data: ";
 const SPRINT: &str = "Sprint completed with ";
+/// `Applied 0.0 damage to Pig`, the answer to one hit of `damage`.
+const DAMAGE: [&str; 2] = ["Applied ", " damage to "];
 
 /// One answer to `tick query`: the mean and percentiles of the last 100 ticks, in milliseconds.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -87,6 +89,13 @@ pub fn count_or_zero(line: &str) -> Option<usize> {
         return Some(0);
     }
     count(line)
+}
+
+/// Whether `line` answers one hit of `damage`.
+#[must_use]
+pub fn damage_applied(line: &str) -> bool {
+    line.split_once(DAMAGE[0])
+        .is_some_and(|(_, rest)| rest.contains(DAMAGE[1]))
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]

@@ -16,6 +16,9 @@ use crate::watcher::{PigSnapshot, TimeSample};
 /// A path shorter than this over the window counts as not moved: below the wire precision of
 /// the deltas summed over a minute, and below the jitter of a pig pushed in place.
 const MOVED_BLOCKS: f64 = 0.1;
+/// A pig whose last position is this far from its first counts as displaced: the test of the
+/// stroll experiment E-G13 of `docs/spec/mob-goals.md`.
+const DISPLACED_BLOCKS: f64 = 0.5;
 
 #[derive(Serialize)]
 pub struct RunReport {
@@ -31,6 +34,8 @@ pub struct RunReport {
     pub console: bool,
     pub settings: Vec<Answered>,
     pub watcher_error: Option<String>,
+    pub player_mode: Option<PlayerModeCheck>,
+    pub stir_mode: crate::stir::Mode,
     pub machine: Machine,
     pub started_unix: u64,
     pub command: Vec<String>,
@@ -42,6 +47,16 @@ pub struct RunReport {
 pub struct Answered {
     pub line: String,
     pub answer: Option<String>,
+}
+
+/// How the run set the game mode of its client's player, and what shows the mode.
+#[derive(Serialize)]
+pub struct PlayerModeCheck {
+    pub command: Answered,
+    /// The answer to `execute if entity @a[gamemode=spectator]`.
+    pub spectators: Option<usize>,
+    /// The game mode of the watcher's last login or game event packet.
+    pub watcher_game_mode: Option<String>,
 }
 
 #[derive(Serialize, Default)]
@@ -66,6 +81,7 @@ pub struct PhaseReport {
     pub server_mspt: Option<Mspt>,
     pub external: External,
     pub motion: Motion,
+    pub stir: Option<StirReport>,
     pub cpu: Option<CpuReport>,
     pub server_rss_mib_mean: Option<f64>,
     pub server_rss_mib_max: Option<f64>,
@@ -91,6 +107,7 @@ impl PhaseReport {
             server_mspt: None,
             external: External::default(),
             motion: Motion::default(),
+            stir: None,
             cpu: None,
             server_rss_mib_mean: None,
             server_rss_mib_max: None,
@@ -152,6 +169,22 @@ pub struct Sprint {
     pub server_ms_per_tick: Option<f64>,
 }
 
+/// The stir lines of the window and their answers.
+#[derive(Serialize)]
+pub struct StirReport {
+    pub mode: crate::stir::Mode,
+    /// What paces the lines: the game time from `time query gametime`.
+    pub pacing: &'static str,
+    /// Game ticks the stir served lines for.
+    pub ticks_served: u64,
+    pub lines_sent: u64,
+    /// The `damage` lines of the panic hits, also answered with `Applied`.
+    pub panic_lines_sent: u64,
+    /// `Applied ... damage` answers: one a hit pig, of the stir and the panic hits.
+    pub damage_answers: u64,
+    pub damage_answers_per_second: f64,
+}
+
 #[derive(Serialize, Default)]
 pub struct Motion {
     /// The named sample pigs, from `data get entity` every probe interval.
@@ -169,6 +202,10 @@ pub struct MotionSummary {
     pub mean_path_blocks_per_second: f64,
     /// The mean distance between the first and the last position, a second.
     pub mean_net_blocks_per_second: f64,
+    /// The mean distance between the first and the last position.
+    pub mean_net_blocks: f64,
+    /// The share of pigs whose last position is more than 0.5 blocks from the first.
+    pub displaced_fraction: f64,
 }
 
 #[must_use]
@@ -286,6 +323,7 @@ pub struct Sighting {
 pub fn console_motion(samples: &HashMap<usize, Vec<Sighting>>) -> Option<MotionSummary> {
     let mut paths = Vec::new();
     let mut nets = Vec::new();
+    let mut durations = Vec::new();
     let mut moved = 0;
     for sightings in samples.values() {
         let (Some(first), Some(last)) = (sightings.first(), sightings.last()) else {
@@ -304,9 +342,10 @@ pub fn console_motion(samples: &HashMap<usize, Vec<Sighting>>) -> Option<MotionS
             .sum();
         moved += usize::from(path > MOVED_BLOCKS);
         paths.push(path / seconds);
-        nets.push(first.position.distance(last.position) / seconds);
+        nets.push(first.position.distance(last.position));
+        durations.push(seconds);
     }
-    summary(&paths, &nets, moved)
+    summary(&paths, &nets, &durations, moved)
 }
 
 /// Motion of the pigs the watcher tracked at both ends of the window.
@@ -318,6 +357,7 @@ pub fn watcher_motion(start: &PigSnapshot, end: &PigSnapshot) -> Option<MotionSu
     }
     let mut paths = Vec::new();
     let mut nets = Vec::new();
+    let mut durations = Vec::new();
     let mut moved = 0;
     for (id, before) in &start.pigs {
         let Some(after) = end.pigs.get(id) else {
@@ -326,19 +366,29 @@ pub fn watcher_motion(start: &PigSnapshot, end: &PigSnapshot) -> Option<MotionSu
         let path = after.path - before.path;
         moved += usize::from(path > MOVED_BLOCKS);
         paths.push(path / seconds);
-        nets.push(before.position.distance(after.position) / seconds);
+        nets.push(before.position.distance(after.position));
+        durations.push(seconds);
     }
-    summary(&paths, &nets, moved)
+    summary(&paths, &nets, &durations, moved)
 }
 
-fn summary(paths: &[f64], nets: &[f64], moved: usize) -> Option<MotionSummary> {
+fn summary(paths: &[f64], nets: &[f64], durations: &[f64], moved: usize) -> Option<MotionSummary> {
     if paths.is_empty() {
         return None;
     }
+    let per_second: Vec<f64> = nets
+        .iter()
+        .zip(durations)
+        .map(|(net, seconds)| net / seconds)
+        .collect();
+    let displaced = nets.iter().filter(|net| **net > DISPLACED_BLOCKS).count();
+    let four_places = |value: f64| (value * 1e4).round() / 1e4;
     Some(MotionSummary {
         pigs: paths.len(),
         moved_fraction: round(moved as f64 / paths.len() as f64),
-        mean_path_blocks_per_second: (mean(paths) * 1e4).round() / 1e4,
-        mean_net_blocks_per_second: (mean(nets) * 1e4).round() / 1e4,
+        mean_path_blocks_per_second: four_places(mean(paths)),
+        mean_net_blocks_per_second: four_places(mean(&per_second)),
+        mean_net_blocks: four_places(mean(nets)),
+        displaced_fraction: round(displaced as f64 / paths.len() as f64),
     })
 }

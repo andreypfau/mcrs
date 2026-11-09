@@ -9,7 +9,7 @@ root=$(cd "$here/../.." && pwd)
 
 servers="${SERVERS:-vanilla horizon mcrs}"
 clients="${CLIENTS:-watcher none}"
-phases="${PHASES:-idle,roam,crowd,stimulus}"
+phases="${PHASES:-idle,roam-still,roam-stir,crowd-still,crowd-stir,stimulus,cost-still,cost-stir}"
 pigs="${PIGS:-50000}"
 samples="${SAMPLES:-32}"
 idle_warmup="${IDLE_WARMUP:-10}"
@@ -21,12 +21,14 @@ sprint_ticks="${SPRINT_TICKS:-100}"
 stimulus_pigs="${STIMULUS_PIGS:-2000}"
 stimulus_period="${STIMULUS_PERIOD:-5}"
 stimulus_warmup="${STIMULUS_WARMUP:-20}"
+stir_mode="${STIR_MODE:-uuid}"
+player_mode="${PLAYER_MODE:-spectator}"
 contended_cores="${CONTENDED_CORES:-1.0}"
 port="${PORT:-25610}"
 java="${JAVA:-java}"
 heap="${HEAP:-16g}"
 scaling_threads="${SCALING_THREADS:-}"
-scaling_phases="${SCALING_PHASES:-crowd}"
+scaling_phases="${SCALING_PHASES:-crowd-stir}"
 scaling_servers="${SCALING_SERVERS:-vanilla}"
 out="${OUT:-$root/benchmarks/mob-bench/$(date -u +%Y-%m-%d)}"
 work="${WORK:-$root/target/mob-bench}"
@@ -60,6 +62,7 @@ run_one() {
         --samples "$samples" --idle-warmup "$idle_warmup" --warmup "$warmup" --measure "$measure"
         --probe-interval "$probe_interval" --summon-rate "$summon_rate" --sprint-ticks "$sprint_ticks"
         --stimulus-pigs "$stimulus_pigs" --stimulus-period "$stimulus_period" --stimulus-warmup "$stimulus_warmup"
+        --stir-mode "$stir_mode" --player-mode "$player_mode"
         --contended-cores "$contended_cores" --java "$java" --heap "$heap")
     case "$server" in
         vanilla) args+=(--binary "$vanilla_jar") ;;

@@ -20,10 +20,11 @@ use mcrs_minecraft_protocol::{Decode, Packet, WritePacket};
 use mcrs_minecraft_protocol_game::MoveFlags;
 use mcrs_minecraft_protocol_game::clientbound::{
     ClientboundAddEntity, ClientboundChunkBatchFinished, ClientboundEntityPositionSync,
-    ClientboundMoveEntityPos, ClientboundMoveEntityPosRot, ClientboundPing,
-    ClientboundPlayerPosition, ClientboundRemoveEntities, ClientboundSetTime,
+    ClientboundGameEvent, ClientboundLogin, ClientboundMoveEntityPos, ClientboundMoveEntityPosRot,
+    ClientboundPing, ClientboundPlayerPosition, ClientboundRemoveEntities, ClientboundSetTime,
     ClientboundTeleportEntity, PositionPath, VecDelta,
 };
+use mcrs_minecraft_protocol_game::game_event::GameEventKind;
 use mcrs_minecraft_protocol_game::serverbound::{
     ServerboundAcceptTeleportation, ServerboundChunkBatchReceived, ServerboundClientTickEnd,
     ServerboundMovePlayerPos, ServerboundPlayerAbilities, ServerboundPlayerLoaded, ServerboundPong,
@@ -55,6 +56,8 @@ pub struct PigSnapshot {
     pub move_packets: u64,
     /// The server placed the watcher's player, so it is in the world.
     pub placed: bool,
+    /// The game mode of the last login or game mode change packet.
+    pub game_mode: Option<String>,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -114,6 +117,7 @@ struct State {
     move_packets: u64,
     log: WatcherLog,
     position: Option<DVec3>,
+    game_mode: Option<String>,
 }
 
 async fn run(address: SocketAddr, mut requests: mpsc::UnboundedReceiver<Request>) -> WatcherLog {
@@ -122,6 +126,7 @@ async fn run(address: SocketAddr, mut requests: mpsc::UnboundedReceiver<Request>
         move_packets: 0,
         log: WatcherLog::default(),
         position: None,
+        game_mode: None,
     };
     let result = match connect(address).await.context("the watcher could not join") {
         Ok(mut connection) => serve(&mut connection, &mut state, &mut requests).await,
@@ -172,6 +177,7 @@ async fn serve(
                         pigs: state.pigs.clone(),
                         move_packets: state.move_packets,
                         placed: state.position.is_some(),
+                        game_mode: state.game_mode.clone(),
                     });
                 }
                 Some(Request::Stop) | None => return Ok(()),
@@ -226,6 +232,15 @@ fn receive(connection: &mut RawConnection, state: &mut State) -> anyhow::Result<
                 at: packet.timestamp,
                 game_time: time.game_time,
             });
+        } else if id == ClientboundLogin::ID {
+            let login = ClientboundLogin::decode(body)?;
+            state.game_mode = Some(format!("{:?}", login.player_spawn_info.game_mode));
+        } else if id == ClientboundGameEvent::ID {
+            if let GameEventKind::ChangeGameMode(mode) =
+                ClientboundGameEvent::decode(body)?.game_event
+            {
+                state.game_mode = Some(format!("{mode:?}"));
+            }
         } else if id == ClientboundChunkBatchFinished::ID {
             connection.write_packet(&ServerboundChunkBatchReceived {
                 desired_chunks_per_tick: DESIRED_CHUNKS_PER_TICK,

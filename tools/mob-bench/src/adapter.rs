@@ -40,6 +40,37 @@ pub enum TickMetric {
     McrsTrace,
 }
 
+/// The game mode a joining player gets.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PlayerMode {
+    /// Does not reset the idle time of a pig and is not a target of its look goal, so the client
+    /// of a run has no influence on the pigs.
+    Spectator,
+    Creative,
+}
+
+impl FromStr for PlayerMode {
+    type Err = anyhow::Error;
+
+    fn from_str(name: &str) -> anyhow::Result<Self> {
+        Ok(match name {
+            "spectator" => PlayerMode::Spectator,
+            "creative" => PlayerMode::Creative,
+            other => bail!("unknown player mode {other}"),
+        })
+    }
+}
+
+impl PlayerMode {
+    #[must_use]
+    pub fn as_str(self) -> &'static str {
+        match self {
+            PlayerMode::Spectator => "spectator",
+            PlayerMode::Creative => "creative",
+        }
+    }
+}
+
 pub struct Launch {
     pub command: Vec<String>,
     pub env: Vec<(String, String)>,
@@ -56,6 +87,7 @@ pub struct LaunchOptions<'a> {
     pub heap: &'a str,
     pub port: u16,
     pub threads: Option<usize>,
+    pub player_mode: PlayerMode,
 }
 
 impl Kind {
@@ -82,12 +114,15 @@ impl Kind {
     }
 
     /// Writes the files the server reads at start into the empty folder `dir`.
-    pub fn prepare(self, dir: &Path, port: u16) -> anyhow::Result<()> {
+    pub fn prepare(self, dir: &Path, port: u16, player_mode: PlayerMode) -> anyhow::Result<()> {
         if self == Kind::Mcrs {
             return Ok(());
         }
         std::fs::write(dir.join("eula.txt"), "eula=true\n")?;
-        std::fs::write(dir.join("server.properties"), server_properties(port))?;
+        std::fs::write(
+            dir.join("server.properties"),
+            server_properties(port, player_mode),
+        )?;
         Ok(())
     }
 
@@ -144,7 +179,10 @@ impl Kind {
                     ("MCRS_WORLD_SEED", "12345".to_owned()),
                     ("MCRS_WORLD_PRESET", "flat".to_owned()),
                     ("MCRS_COMPRESSION_THRESHOLD", "-1".to_owned()),
-                    ("MCRS_DEFAULT_GAMEMODE", "creative".to_owned()),
+                    (
+                        "MCRS_DEFAULT_GAMEMODE",
+                        options.player_mode.as_str().to_owned(),
+                    ),
                     ("MCRS_LAN_ANNOUNCE", "off".to_owned()),
                     ("BEVY_ASSET_ROOT", options.repo.display().to_string()),
                     ("RUST_LOG", "info,mcrs_tick=trace".to_owned()),
@@ -173,14 +211,15 @@ impl Kind {
 /// The settings both Java-format servers read. `pause-when-empty-seconds=-1` keeps the no-client
 /// runs ticking; `max-tick-time=-1` keeps the watchdog from stopping a slow tick.
 #[must_use]
-pub fn server_properties(port: u16) -> String {
+pub fn server_properties(port: u16, player_mode: PlayerMode) -> String {
+    let game_mode = player_mode.as_str();
     format!(
         "online-mode=false
 server-port={port}
 level-type=minecraft\\:flat
 level-seed=12345
 generate-structures=false
-gamemode=creative
+gamemode={game_mode}
 force-gamemode=true
 difficulty=easy
 view-distance=10

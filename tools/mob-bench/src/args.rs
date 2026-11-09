@@ -3,8 +3,9 @@ use std::time::Duration;
 
 use anyhow::{Context, bail};
 
-use crate::adapter::Kind;
+use crate::adapter::{Kind, PlayerMode};
 use crate::phase::Phase;
+use crate::stir;
 
 /// Whether a watcher client joins the run.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -39,6 +40,9 @@ pub struct Args {
     pub stimulus_pigs: usize,
     pub stimulus_period: Duration,
     pub stimulus_warmup: Duration,
+    pub stir_mode: stir::Mode,
+    /// The game mode of the client's player; a spectator has no influence on the pigs.
+    pub player_mode: PlayerMode,
     pub contended_cores: f64,
     pub java: String,
     pub heap: String,
@@ -63,7 +67,16 @@ pub fn parse(options: &[String]) -> anyhow::Result<Args> {
         out: PathBuf::new(),
         port: 25610,
         threads: None,
-        phases: vec![Phase::Idle, Phase::Roam, Phase::Crowd, Phase::Stimulus],
+        phases: vec![
+            Phase::Idle,
+            Phase::RoamStill,
+            Phase::RoamStir,
+            Phase::CrowdStill,
+            Phase::CrowdStir,
+            Phase::Stimulus,
+            Phase::CostStill,
+            Phase::CostStir,
+        ],
         pigs: 50_000,
         samples: 32,
         idle_warmup: Duration::from_secs(10),
@@ -75,6 +88,8 @@ pub fn parse(options: &[String]) -> anyhow::Result<Args> {
         stimulus_pigs: 2_000,
         stimulus_period: Duration::from_secs(5),
         stimulus_warmup: Duration::from_secs(20),
+        stir_mode: stir::Mode::Uuid,
+        player_mode: PlayerMode::Spectator,
         contended_cores: 1.0,
         java: "java".to_owned(),
         heap: "16g".to_owned(),
@@ -119,6 +134,8 @@ pub fn parse(options: &[String]) -> anyhow::Result<Args> {
             "--stimulus-pigs" => args.stimulus_pigs = value.parse()?,
             "--stimulus-period" => args.stimulus_period = seconds(value)?,
             "--stimulus-warmup" => args.stimulus_warmup = seconds(value)?,
+            "--stir-mode" => args.stir_mode = value.parse()?,
+            "--player-mode" => args.player_mode = value.parse()?,
             "--contended-cores" => args.contended_cores = value.parse()?,
             "--java" => args.java.clone_from(value),
             "--heap" => args.heap.clone_from(value),

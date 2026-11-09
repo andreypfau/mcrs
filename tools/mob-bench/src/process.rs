@@ -9,6 +9,8 @@ use std::time::{Duration, Instant};
 
 use anyhow::{Context, bail};
 
+use crate::probe;
+
 pub struct Line {
     pub at: Instant,
     pub text: String,
@@ -19,6 +21,9 @@ pub struct ServerProcess {
     console: ChildStdin,
     incoming: Receiver<Line>,
     pub log: Vec<Line>,
+    /// The answers to `damage` hits so far. They are counted, not kept in the log: the stir gets
+    /// one a pig every 80 ticks, millions in a run.
+    pub damage_answers: u64,
     raw: BufWriter<File>,
 }
 
@@ -63,6 +68,7 @@ impl ServerProcess {
             console,
             incoming,
             log: Vec::new(),
+            damage_answers: 0,
             raw: BufWriter::new(File::create(log_file)?),
         })
     }
@@ -83,6 +89,10 @@ impl ServerProcess {
     /// Moves the lines that arrived into [`Self::log`].
     pub fn pump(&mut self) {
         while let Ok(line) = self.incoming.try_recv() {
+            if probe::damage_applied(&line.text) {
+                self.damage_answers = self.damage_answers.saturating_add(1);
+                continue;
+            }
             let _ = writeln!(self.raw, "{}", line.text);
             self.log.push(line);
         }
