@@ -6,7 +6,6 @@
 )]
 
 mod artefact;
-mod batch;
 mod mob_assets;
 mod pack;
 mod parity;

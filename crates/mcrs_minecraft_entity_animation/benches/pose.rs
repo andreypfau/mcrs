@@ -9,14 +9,13 @@ use std::path::Path;
 
 use criterion::{Criterion, Throughput, criterion_group, criterion_main};
 use mcrs_minecraft_entity_animation::{
-    BatchLanes, ClientEntityDefinition, ClipLibrary, EntityAnimation, EntityQuery, Pose, PoseBatch,
-    PoseBinding, QuerySource, Rig,
+    ClientEntityDefinition, ClipLibrary, EntityAnimation, EntityQuery, Pose, PoseBinding,
+    QuerySource, Rig,
 };
 use mcrs_minecraft_entity_model::GeometryFile;
 use mcrs_molang::{ScalarVm, Value};
 
 const PIGS: usize = 10_000;
-const LANES: usize = 256;
 
 #[derive(Clone, Copy)]
 struct PigInputs {
@@ -82,23 +81,6 @@ fn bench_pig(c: &mut Criterion) {
         });
     });
 
-    let mut batch: PoseBatch<LANES> = PoseBatch::new(&rig);
-    let clocks = vec![0.0f32; PIGS];
-    group.bench_function("batch_10k", |b| {
-        b.iter(|| {
-            batch.run(
-                &rig,
-                &binding,
-                BatchLanes {
-                    entities: &mut entities,
-                    clocks: &clocks,
-                    sources: &sources,
-                    poses: &mut poses,
-                },
-            );
-            black_box(&poses);
-        });
-    });
     group.finish();
 }
 
