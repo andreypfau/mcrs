@@ -100,7 +100,7 @@ impl<'a> RegistryLookup<'a> {
     }
 
     /// The registry id of the entry `name`.
-    // chisle: a linear scan of the names per read, because `id_of` takes the full text and a
+    // A linear scan of the names per read, because `id_of` takes the full text and a
     // short identifier would need it built; an index by `ResourceLocation` lifts it.
     pub fn id(
         &self,
@@ -115,7 +115,7 @@ impl<'a> RegistryLookup<'a> {
     }
 
     /// The entry of the block table for `block`.
-    // chisle: a linear scan of the block table per read; an index by identifier that takes
+    // A linear scan of the block table per read; an index by identifier that takes
     // borrowed text lifts it.
     pub fn block(&self, block: ResourceLocation<'_>) -> Option<&'a BlockEntry> {
         self.blocks?

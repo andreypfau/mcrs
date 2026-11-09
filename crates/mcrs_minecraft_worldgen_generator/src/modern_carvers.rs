@@ -140,7 +140,7 @@ impl<K, V> Default for Lru<K, V> {
 impl<K: PartialEq, V: Clone> Lru<K, V> {
     fn get(&mut self, key: &K) -> Option<V> {
         self.clock += 1;
-        // chisle: a linear scan, which holds while the capacity is tens of
+        // A linear scan, which holds while the capacity is tens of
         // entries; past a few hundred it wants a map keyed by `K`.
         let (_, used, value) = self.entries.iter_mut().find(|(at, ..)| at == key)?;
         *used = self.clock;
@@ -180,7 +180,7 @@ pub const REGION_WIDTH: i32 = 2;
 /// 12,320,768 bytes in the overworld. A miss rebuilds the region in under a
 /// millisecond and changes no block. 256 holds the regions of a view 32
 /// columns in every direction twice over.
-// chisle: sized for one view; several views at once evict each other's
+// Sized for one view; several views at once evict each other's
 // regions and pay rebuilds, not blocks.
 pub const REGION_CAPACITY: usize = 256;
 

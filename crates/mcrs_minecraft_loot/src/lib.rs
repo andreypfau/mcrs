@@ -15,7 +15,7 @@ pub mod registry_keys;
 #[rustfmt::skip]
 pub mod slot_source_type_keys;
 
-// chisle: loot conditions, item modifiers and slot sources are read for their names only; their
+// Loot conditions, item modifiers and slot sources are read for their names only; their
 // values get types when a loot table is rolled.
 pub mod condition {
     pub enum LootCondition {}

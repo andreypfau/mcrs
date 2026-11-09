@@ -3,9 +3,11 @@
 use mcrs_minecraft_registries::Named;
 use serde_json::json;
 
-use crate::attribute::{Argument, AttributeValue, ModifierMap, Operation, argb_hex};
-use crate::environment_attribute_keys::EnvironmentAttribute;
-use crate::timeline::Timeline;
+use mcrs_minecraft_environment::attribute::{
+    Argument, AttributeValue, ModifierMap, Operation, argb_hex,
+};
+use mcrs_minecraft_environment::environment_attribute_keys::EnvironmentAttribute;
+use mcrs_minecraft_environment::timeline::Timeline;
 
 fn track_with_ticks(ticks: &[u32]) -> serde_json::Value {
     let keyframes: Vec<serde_json::Value> = ticks
@@ -36,6 +38,15 @@ fn a_keyframe_may_sit_on_the_period_but_a_time_marker_may_not() {
 
     on_period["time_markers"] = json!({"test:end": 24000});
     assert!(serde_json::from_value::<Timeline<Named>>(on_period).is_err());
+}
+
+#[test]
+fn a_timeline_refuses_a_period_that_is_not_positive() {
+    for period in [0, -1] {
+        let mut timeline = track_with_ticks(&[0, 100]);
+        timeline["period_ticks"] = json!(period);
+        assert!(serde_json::from_value::<Timeline<Named>>(timeline).is_err());
+    }
 }
 
 #[test]

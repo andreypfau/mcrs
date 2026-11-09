@@ -1,14 +1,21 @@
 use serde::de::DeserializeOwned;
 use serde_json::json;
 
-use super::*;
+use mcrs_minecraft_dimension_environment::environment::{
+    DimensionAttributes, DimensionEnvironment, EnvironmentContext,
+};
+use mcrs_minecraft_environment::attribute::AttributeValue;
+use mcrs_minecraft_environment::timeline::Timeline;
 use mcrs_minecraft_registries::{Named, Resolve, Resolver};
+use mcrs_minecraft_resource::{Id, ResourceKeyBuf};
 use mcrs_minecraft_resource::{Registered, TagId, TagKeyBuf};
 use mcrs_minecraft_worldgen_testing::vanilla_dir;
 
-use crate::dimension_type::{DimensionTypeEnvironment, DimensionTypeFile};
 use mcrs_minecraft_dimension::Dimension;
 use mcrs_minecraft_dimension::DimensionType;
+use mcrs_minecraft_dimension_environment::dimension_type::{
+    DimensionTypeEnvironment, DimensionTypeFile,
+};
 use mcrs_minecraft_environment::environment_attribute_keys::EnvironmentAttribute as A;
 
 const NOON: i64 = 6000;

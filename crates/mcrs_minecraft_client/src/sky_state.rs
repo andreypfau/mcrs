@@ -2,7 +2,7 @@ use bevy::prelude::*;
 
 use mcrs_minecraft_dimension::Skybox;
 use mcrs_minecraft_dimension_environment::environment::{
-    AttributeStack, DimensionAttributes, EnvironmentContext, Weather,
+    AttributeStack, DimensionAttributes, EnvironmentContext, WeatherLevel,
 };
 use mcrs_minecraft_environment::attribute::AttributeValue;
 use mcrs_minecraft_environment::environment_attribute_keys::EnvironmentAttribute;
@@ -192,7 +192,7 @@ impl SkyLayout {
         attributes: &DimensionAttributes,
         time: &SkyTime,
         camera: Vec3,
-        weather: Weather,
+        weather: WeatherLevel,
         frame: &mut SkyFrame,
     ) {
         frame.camera = camera.to_array();
@@ -315,7 +315,7 @@ mod tests {
     use serde_json::json;
 
     use mcrs_minecraft_dimension_environment::environment::{
-        DimensionAttributes, DimensionEnvironment, EnvironmentContext, Weather,
+        DimensionAttributes, DimensionEnvironment, EnvironmentContext, WeatherLevel,
     };
     use mcrs_minecraft_environment::attribute::ModifierMap;
     use mcrs_minecraft_environment::timeline::Timeline;
@@ -514,7 +514,7 @@ mod tests {
         let (attributes, _timelines) = overworld();
         let layout = SkyLayout::derive(&attributes);
         let ticks = ticks_at(&attributes, NOON);
-        let weather = Weather {
+        let weather = WeatherLevel {
             rain: 0.5,
             thunder: 0.25,
         };

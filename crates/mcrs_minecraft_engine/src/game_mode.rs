@@ -60,7 +60,7 @@ fn handle_player_abilities(
     }
 }
 
-// chisle: the flying and walking speeds are the defaults, because the saved speeds of a player
+// The flying and walking speeds are the defaults, because the saved speeds of a player
 // are not read yet; reading them with the rest of the player data lifts it.
 const FLYING_SPEED: f32 = 0.05;
 const WALKING_SPEED: f32 = 0.1;
@@ -85,7 +85,7 @@ pub(crate) fn abilities(mode: GameMode, flying: PlayerFlying) -> ClientboundPlay
 /// Gives a player the abilities of its new game mode and tells it both. The change of
 /// [`ListedGameMode`] tells the viewers that have its profile entry. A mode that the login or a
 /// dimension change already told is not sent again.
-// chisle: a player that flies near the ground keeps its flight on a change to creative, since
+// A player that flies near the ground keeps its flight on a change to creative, since
 // the server has no collision query for it yet; a ground test over the block world lifts it.
 pub(crate) fn send_game_mode(
     mut players: Query<

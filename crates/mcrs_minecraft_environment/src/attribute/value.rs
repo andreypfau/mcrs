@@ -8,7 +8,7 @@ use mcrs_minecraft_sound::Sound;
 use serde::de::{self, Visitor};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-// chisle: the sound, text and particle attributes keep the names a pack wrote, unresolved: no
+// The sound, text and particle attributes keep the names a pack wrote, unresolved: no
 // system reads them yet. Resolving them at load gives an unknown name its error there.
 type NamedSound = Sound<Named>;
 

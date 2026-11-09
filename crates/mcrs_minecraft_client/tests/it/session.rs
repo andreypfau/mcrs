@@ -12,7 +12,7 @@ use mcrs_minecraft_client_world::joined_game::CurrentDimension;
 use mcrs_minecraft_client_world::player::Player;
 use mcrs_minecraft_dimension::DimensionType;
 use mcrs_minecraft_dimension_environment::dimension_type::DimensionTypeFile;
-use mcrs_minecraft_dimension_environment::environment::Weather;
+use mcrs_minecraft_dimension_environment::environment::WeatherLevel;
 use mcrs_minecraft_environment::world_clock::{ClockTimeMarkers, WorldClock, WorldClocks};
 use mcrs_minecraft_game_mode::GameMode;
 use mcrs_minecraft_item::{Items, JukeboxPlayable, JukeboxSong};
@@ -31,7 +31,7 @@ fn play_app() -> App {
         app.add_plugins((ColumnCachePlugin, SkyPlugin))
             .init_resource::<ButtonInput<KeyCode>>()
             .init_resource::<ClearColor>()
-            .insert_resource(Weather::default());
+            .insert_resource(WeatherLevel::default());
     })
 }
 

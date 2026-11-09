@@ -53,7 +53,7 @@ pub enum BakedNode {
         on_false: Box<BakedNode>,
     },
     /// `cases[i]` is the baked model of the switch's i-th case.
-    // chisle: the switch keeps its unbaked case models and lookup is a scan of `when`
+    // The switch keeps its unbaked case models and lookup is a scan of `when`
     // lists; a per-property `HashMap<T, BakedNode>` is the upgrade if selects show in a profile.
     Select {
         switch: SelectSwitch,

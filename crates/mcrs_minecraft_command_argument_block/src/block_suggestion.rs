@@ -21,7 +21,7 @@ fn value_text(value: &PropertyValue) -> Option<SuggestionText<'_>> {
         PropertyValue::Str(name) => Some(SuggestionText::new(name)),
         PropertyValue::Bool(true) => Some(SuggestionText::new("true")),
         PropertyValue::Bool(false) => Some(SuggestionText::new("false")),
-        // chisle: integer values from 0 to 99 have a text; every vanilla integer property
+        // Integer values from 0 to 99 have a text; every vanilla integer property
         // is in that range. A caller-owned text buffer lifts it.
         PropertyValue::Int(n @ 0..=9) => digit(*n).map(SuggestionText::new),
         PropertyValue::Int(n @ 10..=99) => {

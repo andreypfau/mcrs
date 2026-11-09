@@ -114,7 +114,7 @@ pub(super) fn hint_lines(
     let commands = &screen.commands;
     let hints = commands.hints();
     let width = |hint: &Hint| match hint {
-        // chisle: an error line builds its spans, with a String each, on every frame it shows; caching them per input lifts it.
+        // An error line builds its spans, with a String each, on every frame it shows; caching them per input lifts it.
         Hint::Error(_) => font.width(&error_spans(commands.input(), hint, language)),
         Hint::Usage(range) => font.str_width(commands.usage_text(range.clone())),
         Hint::Restriction(key) => font.str_width(language.get(key)),

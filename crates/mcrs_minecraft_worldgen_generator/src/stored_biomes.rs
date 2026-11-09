@@ -18,7 +18,7 @@ pub fn column_cell(first_section_y: i32, section_count: usize, y: i32) -> (usize
     )
 }
 
-// chisle: a height outside the column reads the edge block layer, while the reference's horizontal pick at that height can land on another cell; lifted by storing rows beyond the column.
+// A height outside the column reads the edge block layer, while the reference's horizontal pick at that height can land on another cell; lifted by storing rows beyond the column.
 pub fn stored_biome(sections: &[Container], first_section_y: i32, x: i32, y: i32, z: i32) -> u8 {
     if sections.is_empty() {
         return 0;

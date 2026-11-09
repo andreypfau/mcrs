@@ -25,7 +25,7 @@ pub(crate) fn flat_layers(generator: &FlatChunkGenerator, blocks: &BlockDefiniti
             .filter_map(|&(block, height)| layer(blocks, block, height))
             .collect()
     });
-    FlatLayers { layers }
+    FlatLayers::new(layers)
 }
 
 /// The biome of every column of a flat generator: the one its settings name, or plains.
@@ -74,4 +74,60 @@ fn compound_string<'a>(tag: &'a NbtTag, name: &str) -> Option<&'a str> {
         return None;
     };
     compound.get_string(name)
+}
+
+#[cfg(test)]
+mod tests {
+    use bevy_app::{App, TaskPoolPlugin};
+    use bevy_asset::{AssetPlugin, AssetServer};
+    use mcrs_minecraft_block::definition::load_block_definitions;
+    use mcrs_minecraft_nbt::compound::NbtCompound;
+
+    use super::*;
+
+    fn layer_tag(block: &str, height: i32) -> NbtTag {
+        let mut layer = NbtCompound::new();
+        layer.put("block", NbtTag::String(block.to_owned()));
+        layer.put("height", NbtTag::Int(height));
+        NbtTag::Compound(layer)
+    }
+
+    fn settings(layers: Vec<NbtTag>) -> FlatChunkGenerator {
+        let mut settings = NbtCompound::new();
+        settings.put("layers", NbtTag::List(layers));
+        FlatChunkGenerator {
+            settings: NbtTag::Compound(settings),
+        }
+    }
+
+    #[test]
+    fn a_layer_list_naming_an_unknown_block_gives_the_default_layers() {
+        let mut app = App::new();
+        app.add_plugins(TaskPoolPlugin::default());
+        app.add_plugins(AssetPlugin {
+            watch_for_changes_override: Some(false),
+            ..Default::default()
+        });
+        let asset_server = app.world().resource::<AssetServer>().clone();
+        let blocks = load_block_definitions(&asset_server)
+            .expect("the corpus loads")
+            .0;
+
+        let read = flat_layers(&settings(vec![layer_tag("minecraft:stone", 3)]), &blocks);
+        let refused = flat_layers(
+            &settings(vec![
+                layer_tag("minecraft:stone", 3),
+                layer_tag("test:no_such_block", 1),
+            ]),
+            &blocks,
+        );
+        let default = FlatLayers::new(
+            DEFAULT_LAYERS
+                .iter()
+                .filter_map(|&(block, height)| layer(&blocks, block, height))
+                .collect(),
+        );
+        assert_ne!(read, default);
+        assert_eq!(refused, default);
+    }
 }

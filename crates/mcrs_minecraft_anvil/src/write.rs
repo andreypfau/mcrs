@@ -139,7 +139,7 @@ impl<V: PaletteId> PaletteLookup<V> for PaletteNames<V> {
 
 /// The chunk as NBT, uncompressed, at the current `DataVersion`, with the
 /// lowest section of its dimension as `yPos`.
-// chisle: block ticks, post-processing and blending data are not in
+// Block ticks, post-processing and blending data are not in
 // `Chunk`, so a written chunk drops them and a vanilla server reads their
 // absence; carrying them in `Chunk` lifts this.
 pub fn write_chunk(

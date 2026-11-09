@@ -42,7 +42,7 @@ pub fn site(
         (states.air_states.clone(), states.sturdy_up.clone())
     };
     let column = ctx.world.base_column(x, z);
-    // chisle: the reference also accepts soul sand under the fossil, whose
+    // The reference also accepts soul sand under the fossil, whose
     // collision shape is not a full block; a base column holds only the noise
     // settings' default block, so that matters for a datapack whose default
     // block is soul sand.

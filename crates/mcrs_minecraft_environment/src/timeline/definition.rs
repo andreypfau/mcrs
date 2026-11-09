@@ -78,8 +78,12 @@ impl<M: Refs> Timeline<M> {
 
 impl<'de> Deserialize<'de> for Timeline<Named> {
     fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
-        let timeline = Timeline::deserialize(d)?;
+        let mut timeline = Timeline::deserialize(d)?;
         timeline.check().map_err(D::Error::custom)?;
+        let period = timeline.period_ticks;
+        for track in timeline.tracks.values_mut() {
+            track.set_period(period);
+        }
         Ok(timeline)
     }
 }

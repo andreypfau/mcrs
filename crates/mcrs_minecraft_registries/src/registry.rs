@@ -11,7 +11,7 @@ use serde::de::DeserializeOwned;
 
 use crate::refs::Resolve;
 
-// chisle: an id is a u16, so a registry holds at most 65 536 entries; widening `Id` lifts it.
+// An id is a u16, so a registry holds at most 65 536 entries; widening `Id` lifts it.
 pub(crate) const MAX_ENTRIES: usize = u16::MAX as usize + 1;
 
 /// What a data registry holds: a value read from the named form its files and packets carry.

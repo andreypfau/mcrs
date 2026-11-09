@@ -104,10 +104,10 @@ impl<'a> Selector<'a> {
                 // No scoreboard and no advancements exist, so an objective or an
                 // advancement that the map names never does either.
                 ListOption::Scores { empty } | ListOption::Advancements { empty } => empty,
-                // chisle: no saved data of an entity reaches a candidate yet, so the data of each
+                // No saved data of an entity reaches a candidate yet, so the data of each
                 // one counts as not containing the compound; a saved-data view lifts it.
                 ListOption::Nbt { negated } => negated,
-                // chisle: a loot predicate is not evaluated against an entity yet, so one that
+                // A loot predicate is not evaluated against an entity yet, so one that
                 // exists selects nothing; evaluating loot conditions here lifts it.
                 ListOption::Predicate { .. } => false,
             });

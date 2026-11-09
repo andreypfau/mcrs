@@ -18,7 +18,7 @@ use crate::{
 
 const CHUNK: u64 = 1 << 20;
 const READ: usize = 64 << 10;
-// chisle: a fixed pool; make it adaptive only if measurements show four connections are wrong.
+// A fixed pool; make it adaptive only if measurements show four connections are wrong.
 pub const WORKERS: usize = 4;
 pub(crate) const FIRST_BACKOFF: Duration = Duration::from_secs(1);
 const MAX_BACKOFF: Duration = Duration::from_secs(30);

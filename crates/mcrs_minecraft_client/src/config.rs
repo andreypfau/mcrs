@@ -408,7 +408,7 @@ impl Knobs {
                 scale: self.gui_scale(),
                 cursor: self.gui_cursor(),
                 frozen_ticks: self.frozen_time(),
-                // chisle: nothing toggles it yet; F3 + H is the vanilla key.
+                // Nothing toggles it yet; F3 + H is the vanilla key.
                 advanced_tooltips: false,
             },
             screen: if self.opens_inventory() {

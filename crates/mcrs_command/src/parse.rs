@@ -12,7 +12,7 @@ use crate::suggest::{Suggestion, SuggestionBuilder, starts_with_ignore_case};
 use alloc::vec::Vec;
 
 /// Each redirect and each node below it nests one level of the parse.
-// chisle: a deeper chain parses as if the node had no children; 512 levels is far past a
+// A deeper chain parses as if the node had no children; 512 levels is far past a
 // 32500 code unit command block, and an explicit stack in place of recursion lifts it.
 const MAX_DEPTH: usize = 512;
 

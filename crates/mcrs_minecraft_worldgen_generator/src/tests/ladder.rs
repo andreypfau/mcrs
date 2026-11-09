@@ -125,7 +125,7 @@ pub(super) fn structure_dimension(structure: &str, biome_id: &str) -> Dimension 
     let index = StructureIndex::new(
         Arc::new(tables),
         seed as i64,
-        Arc::clone(&ctx.router),
+        Arc::clone(ctx.router.as_ref().expect("a noise context")),
         BiomeLookup::Fixed(biome.number()),
         ctx.predicates.clone(),
         Arc::clone(&ctx.features().expect("the dimension has a program").world),
@@ -221,7 +221,7 @@ pub fn fill_context(consumer: Consumer) -> Dimension {
         predicates: Some(heightmap_predicates(blocks(), block_tags())),
         saved: None,
         program,
-        router,
+        router: Some(router),
         material: None,
         y_sections: y_sections.clone(),
         structures: None,

@@ -411,7 +411,7 @@ macro_rules! tables {
                     $($($ty(rows::$ty $(<$lt>)?),)?)*
                 }
 
-                // chisle: a linear chain over this table's typed rows; the dispatcher
+                // A linear chain over this table's typed rows; the dispatcher
                 // generated from the exported rows by another crate replaces it.
                 pub fn decode$(<$tlt>)?(
                     id: i32,
@@ -558,7 +558,7 @@ macro_rules! extend_packet_table {
                     $($ty(rows::$ty $(<$lt>)?),)*
                 }
 
-                // chisle: a linear chain over this table's typed rows, as in the base table.
+                // A linear chain over this table's typed rows, as in the base table.
                 pub fn decode<'a>(
                     id: i32,
                     r: &mut &'a [u8],

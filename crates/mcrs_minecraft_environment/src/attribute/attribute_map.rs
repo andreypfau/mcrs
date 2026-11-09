@@ -60,7 +60,7 @@ pub(crate) fn check_range(
 }
 
 /// Reads the argument of `modifier` for `attribute`.
-pub(crate) fn read_argument(
+pub fn read_argument(
     attribute: EnvironmentAttribute,
     modifier: Operation,
     tag: &NbtTag,

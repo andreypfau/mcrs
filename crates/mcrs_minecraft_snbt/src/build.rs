@@ -129,7 +129,7 @@ impl Build for Tags {
     }
 
     fn insert(&mut self, compound: &mut NbtCompound, key: StrText<'_>, value: NbtTag) {
-        // chisle: linear duplicate scan makes a compound O(n^2) in its keys; a key index lifts it
+        // Linear duplicate scan makes a compound O(n^2) in its keys; a key index lifts it
         match compound
             .child_tags
             .iter_mut()

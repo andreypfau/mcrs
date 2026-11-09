@@ -137,9 +137,9 @@ fn verified(path: &Path, progress: &Progress) -> Result<Vec<u8>, VanillaDataErro
 // Unpacking runs under an exclusive lock, so one process reads the jar while the others wait
 // and then find the tree complete. A tree is renamed into place only once it holds everything,
 // so a reader that checks for the marker never sees half of one.
-// chisle: the trees of other jars stay until removed by hand, since a process of another
+// The trees of other jars stay until removed by hand, since a process of another
 // version may still read its own; a last-used stamp per tree would let them be swept.
-// chisle: files are not synced before the rename, so a power loss right after it can leave a
+// Files are not synced before the rename, so a power loss right after it can leave a
 // marked tree with truncated files; syncing every file first lifts this at a cost per file.
 fn unpacked(
     cache: &Path,

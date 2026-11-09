@@ -15,19 +15,6 @@ impl Registered for crate::environment_attribute_keys::EnvironmentAttribute {
     const REGISTRY: RegistryKey<Self> = ENVIRONMENT_ATTRIBUTE;
 }
 
-pub const TEST_ENVIRONMENT_DEFINITION_TYPE: RegistryKey<
-    crate::test_environment_definition_type_keys::TestEnvironmentDefinitionType,
-> = RegistryKey::new(rl!("minecraft:test_environment_definition_type"));
-impl Registered for crate::test_environment_definition_type_keys::TestEnvironmentDefinitionType {
-    const REGISTRY: RegistryKey<Self> = TEST_ENVIRONMENT_DEFINITION_TYPE;
-}
-
-pub const TEST_INSTANCE_TYPE: RegistryKey<crate::test_instance_type_keys::TestInstanceType> =
-    RegistryKey::new(rl!("minecraft:test_instance_type"));
-impl Registered for crate::test_instance_type_keys::TestInstanceType {
-    const REGISTRY: RegistryKey<Self> = TEST_INSTANCE_TYPE;
-}
-
 pub const TIMELINE: RegistryKey<crate::timeline::Timeline> =
     RegistryKey::new(rl!("minecraft:timeline"));
 impl Registered for crate::timeline::Timeline {

@@ -438,7 +438,7 @@ impl GeneratedBlockEntity {
             .is_some_and(|id| Self::LOOT_SEEDED_IDS.contains(&id))
     }
 
-    // chisle: the compound is written to bytes and read back through the
+    // The compound is written to bytes and read back through the
     // serde deserializer; the upgrade is a Deserializer over NbtTag itself.
     pub fn from_compound(compound: &NbtCompound) -> Result<Self, mcrs_minecraft_nbt::Error> {
         let bytes = Nbt::new(String::new(), compound.clone()).write_unnamed()?;

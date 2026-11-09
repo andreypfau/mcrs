@@ -152,7 +152,7 @@ fn tri_state(tag: &NbtTag) -> Result<TriState, String> {
 
 impl AttributeValue {
     /// Reads the value form of `kind`. A float is not checked against a range here.
-    pub(crate) fn read(kind: AttributeType, tag: &NbtTag) -> Result<AttributeValue, String> {
+    pub fn read(kind: AttributeType, tag: &NbtTag) -> Result<AttributeValue, String> {
         use AttributeType as T;
         Ok(match kind {
             T::Boolean => AttributeValue::Boolean(boolean(tag)?),

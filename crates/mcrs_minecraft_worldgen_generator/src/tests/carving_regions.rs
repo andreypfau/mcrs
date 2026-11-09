@@ -524,7 +524,7 @@ fn wet_border_pairs(
     context: &FillContext,
     filled: &HashMap<(i32, i32), ColumnBlocks>,
 ) -> Vec<Pair> {
-    let router = context.router.as_ref();
+    let router = context.router.as_deref().expect("a noise context");
     let height = extent(router);
     let table = context
         .program
@@ -626,7 +626,7 @@ fn assert_blocks_independent_of_width(
             regions_touched * regions_touched,
         )));
 
-        let router = context.router.as_ref();
+        let router = context.router.as_deref().expect("a noise context");
         let regional = context.program.carvers.as_ref().expect("a carver table");
         let alone = table(Preset::Overworld, 1, 0);
         let height = extent(router);

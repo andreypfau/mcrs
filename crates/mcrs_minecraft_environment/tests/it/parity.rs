@@ -8,12 +8,12 @@ use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_registries::Named;
 use serde_json::Value;
 
-use crate::attribute::{
+use mcrs_minecraft_environment::attribute::{
     Argument, AttributeType, AttributeValue, Interpolation, Operation, read_argument,
 };
-use crate::environment_attribute_keys::EnvironmentAttribute;
-use crate::timeline::{Easing, NamedEasing, Timeline};
-use crate::world_clock::{ClockTime, ClockTimeMarker};
+use mcrs_minecraft_environment::environment_attribute_keys::EnvironmentAttribute;
+use mcrs_minecraft_environment::timeline::{Easing, NamedEasing, Timeline};
+use mcrs_minecraft_environment::world_clock::{ClockTime, ClockTimeMarker};
 
 static ARTEFACT: LazyLock<Value> =
     LazyLock::new(|| serde_json::from_slice(&fixture("environment").bytes()).unwrap());
@@ -115,9 +115,9 @@ fn the_modifiers_agree_with_the_artefact() {
             for case in rows(cases) {
                 let subject = value(kind, &case["subject"]);
                 let argument = match argument_kind {
-                    crate::attribute::ArgumentKind::Value(AttributeType::Integer) => {
-                        Argument::Value(value(AttributeType::Integer, &case["argument"]))
-                    }
+                    mcrs_minecraft_environment::attribute::ArgumentKind::Value(
+                        AttributeType::Integer,
+                    ) => Argument::Value(value(AttributeType::Integer, &case["argument"])),
                     other => Argument::read(other, &tag(&case["argument"])).unwrap(),
                 };
                 let expected = value(kind, &case["result"]);
@@ -288,13 +288,13 @@ fn the_vanilla_timelines_sample_as_the_artefact() {
             let attribute = EnvironmentAttribute::read(attribute_name).unwrap();
             let actual = &timeline.tracks[&attribute];
             let modifier: Operation = track["modifier"].as_str().unwrap().parse().unwrap();
-            assert_eq!(actual.modifier, modifier, "{name} {attribute_name}");
+            assert_eq!(actual.modifier(), modifier, "{name} {attribute_name}");
             let eased = !matches!(
-                actual.ease,
+                actual.ease(),
                 Easing::Named(NamedEasing::Linear | NamedEasing::Constant)
             );
             let scale = actual
-                .keyframes
+                .keyframes()
                 .iter()
                 .filter_map(|keyframe| match &keyframe.argument {
                     Argument::Value(value) => Some(floats(value)),
@@ -305,7 +305,7 @@ fn the_vanilla_timelines_sample_as_the_artefact() {
             for sample in rows(&track["samples"]) {
                 let ticks = sample[0].as_i64().unwrap();
                 let wanted = read_argument(attribute, modifier, &tag(&sample[1])).unwrap();
-                let got = actual.sample(ticks, timeline.period_ticks).unwrap();
+                let got = actual.sample(ticks).unwrap();
                 let context = format!("{name} {attribute_name} at {ticks}");
                 if eased {
                     assert_close(&got, &wanted, scale, &context);
@@ -334,7 +334,7 @@ fn a_value_outside_its_range_becomes_the_nearer_bound() {
 }
 
 #[test]
-fn the_server_clock_advances_as_the_artefact() {
+fn clock_parity() {
     for case in rows(section("server_clock")) {
         let mut clock = ClockTime {
             total_ticks: case["start_total_ticks"].as_i64().unwrap(),
@@ -360,10 +360,6 @@ fn the_server_clock_advances_as_the_artefact() {
             );
         }
     }
-}
-
-#[test]
-fn the_client_clock_follows_the_game_time_as_the_artefact() {
     for case in rows(section("client_clock")) {
         let mut game_time = case["update_game_time"].as_i64().unwrap();
         let mut clock = ClockTime {
@@ -388,10 +384,6 @@ fn the_client_clock_follows_the_game_time_as_the_artefact() {
             );
         }
     }
-}
-
-#[test]
-fn a_time_marker_occurs_and_comes_next_as_the_artefact() {
     for case in rows(section("time_markers")) {
         let marker = ClockTimeMarker {
             ticks: case["ticks"].as_u64().unwrap() as u32,

@@ -78,7 +78,7 @@ impl Sample for BucketEntityData {
     }
 }
 
-/// chisle: the persistent codec carries no registry, so an unknown
+/// The persistent codec carries no registry, so an unknown
 /// decoration type id is accepted here where vanilla fails the load; parsing
 /// the field as a registry id inside a registry scope lifts this.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -130,7 +130,7 @@ impl Sample for MapDecorations {
     }
 }
 
-/// chisle: the block id and the property name are accepted as any strings
+/// The block id and the property name are accepted as any strings
 /// until a registry and block state definitions reach the persistent codec;
 /// vanilla rejects an unknown block and a property the block does not have.
 #[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]

@@ -154,7 +154,7 @@ mod loop_plugin {
         }
     }
 
-    // chisle: a guess above the handful of frames the reference client sends in a
+    // A guess above the handful of frames the reference client sends in a
     // pre-game state; the measured cost of decoding one frame sets it.
     pub const PRE_GAME_FRAMES_PER_PASS: usize = 16;
 
@@ -199,7 +199,7 @@ mod loop_plugin {
                             ),
                             Ok(None) => {}
                             Err(malformed) => {
-                                // chisle: once the server accepts a login the game disconnects
+                                // Once the server accepts a login the game disconnects
                                 // in the configuration protocol, but this loop cannot see that
                                 // the login was accepted; handing it the client's protocol
                                 // lifts it.

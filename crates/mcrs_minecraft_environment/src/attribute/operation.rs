@@ -192,7 +192,7 @@ fn unit(name: &str, tag: Option<&NbtTag>) -> Result<f32, String> {
 
 impl Argument {
     /// Reads an argument of `kind`. A value is not checked against a range here.
-    pub(crate) fn read(kind: ArgumentKind, tag: &NbtTag) -> Result<Argument, String> {
+    pub fn read(kind: ArgumentKind, tag: &NbtTag) -> Result<Argument, String> {
         match (kind, tag) {
             (ArgumentKind::Value(kind), tag) => {
                 AttributeValue::read(kind, tag).map(Argument::Value)

@@ -41,7 +41,7 @@ fn swap_left_right(value: &str) -> String {
         .replace('\0', "right")
 }
 
-// chisle: `rotate_state` and `mirror_state` in the feature placement turn
+// `rotate_state` and `mirror_state` in the feature placement turn
 // numeric ids through `WorldStates` and keep the game's own handling of
 // mirrored stairs and `type`; this is the plain geometric turn the blueprints
 // rely on. Turning by property tables shared with the block definitions lifts it.

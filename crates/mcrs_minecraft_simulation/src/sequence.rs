@@ -80,7 +80,7 @@ impl SequenceClock {
             self.counter = 0;
         }
         let stamp = SubTick::runtime(GameTick(self.tick), self.counter);
-        // chisle: past 2^23 stamps in one tick the counter saturates and later stamps tie,
+        // Past 2^23 stamps in one tick the counter saturates and later stamps tie,
         // ordered by position only; a 16-byte (tick, counter) key lifts it.
         self.counter = self.counter.saturating_add(1).min(COUNTER_MAX);
         stamp

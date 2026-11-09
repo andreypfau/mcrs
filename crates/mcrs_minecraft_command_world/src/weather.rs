@@ -19,7 +19,7 @@ pub(crate) struct WeatherCommand {
     duration: ArgumentHandle<TimeArgument>,
 }
 
-// chisle: `weather rain` and `weather thunder` are not registered: the server has no rain cycle
+// `weather rain` and `weather thunder` are not registered: the server has no rain cycle
 // and no rain level yet. The rain and thunder of CMD-W-003 lift it.
 pub(crate) fn build(
     registrar: &mut CommandRegistrar<'_, VanillaCommands, ()>,

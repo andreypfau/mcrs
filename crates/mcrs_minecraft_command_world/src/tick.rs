@@ -24,7 +24,7 @@ pub(crate) struct TickCommand {
     sprint: ArgumentHandle<TimeArgument>,
 }
 
-// chisle: `tick rate`, `tick step`, `tick freeze` and `tick unfreeze` are not registered: the
+// `tick rate`, `tick step`, `tick freeze` and `tick unfreeze` are not registered: the
 // server has a fixed tick rate and no frozen state yet.
 pub(crate) fn build(
     registrar: &mut CommandRegistrar<'_, VanillaCommands, Branch>,

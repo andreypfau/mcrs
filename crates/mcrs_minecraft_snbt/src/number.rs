@@ -308,7 +308,7 @@ fn float_value(negative: bool, parts: &FloatParts<'_>) -> Option<(Scalar, bool)>
         .iter()
         .flat_map(|piece| piece.bytes())
         .filter(|&b| b != b'_');
-    // chisle: a number text longer than FLOAT_TEXT bytes allocates once; a decimal reader over
+    // A number text longer than FLOAT_TEXT bytes allocates once; a decimal reader over
     // the pieces lifts it.
     let text: &[u8] = if length <= FLOAT_TEXT {
         let mut used = 0;

@@ -26,7 +26,7 @@ use mcrs_minecraft_environment::world_clock::{WorldClock, WorldClocks};
 /// Truth until the reader that supplies it from the save lands.
 #[derive(Debug, Clone, Copy, Default, PartialEq)]
 #[cfg_attr(feature = "bevy", derive(Resource))]
-pub struct Weather {
+pub struct WeatherLevel {
     pub rain: f32,
     pub thunder: f32,
 }
@@ -44,7 +44,6 @@ pub enum EnvironmentError {
 #[derive(Debug, Clone)]
 struct TrackLayer {
     clock: usize,
-    period: Option<u32>,
     track: Track,
 }
 
@@ -76,7 +75,7 @@ impl AttributeStack {
             .iter()
             .fold(self.base.clone(), |value, layer| {
                 let ticks = ctx.ticks.get(layer.clock).copied().unwrap_or(0);
-                layer.track.apply(value, ticks, layer.period)
+                layer.track.apply(value, ticks)
             })
             .sanitized(self.attribute)
     }
@@ -180,7 +179,6 @@ impl DimensionAttributes {
                 if let Some(stack) = stacks.get_mut(*attribute as usize) {
                     stack.tracks.push(TrackLayer {
                         clock,
-                        period: timeline.period_ticks,
                         track: track.clone(),
                     });
                 }
@@ -279,6 +277,3 @@ impl DimensionAttributes {
 pub struct EnvironmentContext<'a> {
     pub ticks: &'a [i64],
 }
-
-#[cfg(test)]
-mod tests;

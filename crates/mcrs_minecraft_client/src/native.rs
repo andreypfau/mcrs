@@ -21,7 +21,7 @@ use bevy::winit::{UpdateMode, WinitPlugin, WinitSettings};
 use mcrs_minecraft_biome_file::BiomeFile;
 use mcrs_minecraft_datapack::DirectoryPacks;
 use mcrs_minecraft_dimension_environment::dimension_type::DimensionTypeFile;
-use mcrs_minecraft_dimension_environment::environment::Weather;
+use mcrs_minecraft_dimension_environment::environment::WeatherLevel;
 use mcrs_minecraft_engine_world::entity::physics::Transform as PhysicsTransform;
 use mcrs_minecraft_environment::world_clock::{AdvanceTime, WorldClocks};
 use mcrs_minecraft_protocol::uuid::Uuid;
@@ -532,7 +532,7 @@ struct SaveData {
     world_clocks: save::WorldClockStates,
     player_uuid: Option<Uuid>,
     advance_time: bool,
-    weather: Weather,
+    weather: WeatherLevel,
     position: DVec3,
     yaw: f32,
     pitch: f32,
@@ -544,7 +544,7 @@ impl Default for SaveData {
             world_clocks: save::WorldClockStates::default(),
             player_uuid: None,
             advance_time: true,
-            weather: Weather::default(),
+            weather: WeatherLevel::default(),
             position: DVec3::new(0.5, 80.0, 0.5),
             yaw: 0.0,
             pitch: 0.0,
@@ -575,7 +575,7 @@ fn load_save(world: &Path) -> SaveData {
         world_clocks,
         player_uuid: level.singleplayer_uuid,
         advance_time: game_rules.advance_time,
-        weather: Weather {
+        weather: WeatherLevel {
             rain: if weather.raining { 1.0 } else { 0.0 },
             thunder: if weather.thundering { 1.0 } else { 0.0 },
         },
@@ -664,7 +664,7 @@ fn log_seeded_resources(
     clocks: Res<WorldClocks>,
     registries: Res<CurrentRegistries>,
     advance_time: Res<AdvanceTime>,
-    weather: Res<Weather>,
+    weather: Res<WeatherLevel>,
 ) {
     let names = registries.registry::<WorldClock>();
     info!(

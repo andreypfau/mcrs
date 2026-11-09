@@ -144,7 +144,7 @@ impl<B: Copy + Eq + Hash + Debug> EventQueue<B> {
     {
         let mut split = EventQueue::new();
         let undelivered = &mut self.undelivered;
-        // chisle: scans every pending event, as `take_section` does; a per-section index
+        // Scans every pending event, as `take_section` does; a per-section index
         // lifts it if a measurement asks.
         let mut moved = Vec::new();
         let mut keep = |event: &QueuedEvent<B>| {
@@ -176,7 +176,7 @@ impl<B: Copy + Eq + Hash + Debug> EventQueue<B> {
             out.push(*event);
             false
         };
-        // chisle: scans every pending event; a per-section index lifts it if unloads
+        // Scans every pending event; a per-section index lifts it if unloads
         // during long event queues show up in a measurement.
         self.deferred.retain(&mut keep);
         self.pending.retain(&mut keep);

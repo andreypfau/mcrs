@@ -42,7 +42,7 @@ impl CommandOutput<'_> {
 
     /// A success message, to the players that `feedback` names.
     pub fn success(&mut self, invocation: &Invocation, message: Text, feedback: Feedback) {
-        // chisle: `send_command_feedback` and `log_admin_commands` have no state in the server
+        // `send_command_feedback` and `log_admin_commands` have no state in the server
         // yet, so both hold their default true; a game rule resource lifts it.
         if feedback == Feedback::Source {
             self.outbox

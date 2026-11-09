@@ -541,7 +541,7 @@ fn push_flat_quad(
             region,
             color,
         } => {
-            // chisle: a sprite quad names its region and the string lookup runs per quad per frame; a resolved rect on `GuiQuad::Sprite` lifts it.
+            // A sprite quad names its region and the string lookup runs per quad per frame; a resolved rect on `GuiQuad::Sprite` lifts it.
             push_quad(
                 vertices,
                 rect,

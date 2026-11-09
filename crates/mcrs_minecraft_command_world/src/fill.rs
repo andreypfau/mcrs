@@ -45,7 +45,7 @@ pub(crate) struct FillCommand {
     block: ArgumentHandle<BlockStateArgument>,
 }
 
-// chisle: the modes `destroy`, `keep` and `strict` and the filter of `replace` are not
+// The modes `destroy`, `keep` and `strict` and the filter of `replace` are not
 // registered, and a fill sends no neighbour update after its sets.
 pub(crate) fn build(
     registrar: &mut CommandRegistrar<'_, VanillaCommands, Mode>,

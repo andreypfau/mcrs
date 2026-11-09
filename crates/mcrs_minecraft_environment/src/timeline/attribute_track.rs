@@ -18,37 +18,87 @@ pub struct Keyframe {
 }
 
 /// How a timeline moves one attribute: a modifier whose argument follows keyframes.
+///
+/// The segments between keyframes, including the wrap-around ones of a periodic timeline, are
+/// computed when the track is built and when its period is set, so a read allocates nothing.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Track {
-    pub attribute: EnvironmentAttribute,
-    pub modifier: Operation,
-    pub keyframes: Vec<Keyframe>,
-    pub ease: Easing,
+    attribute: EnvironmentAttribute,
+    modifier: Operation,
+    keyframes: Vec<Keyframe>,
+    ease: Easing,
+    period: Option<u32>,
+    segments: Vec<Segment>,
 }
 
-struct Segment<'a> {
-    from: &'a Keyframe,
-    to: &'a Keyframe,
+#[derive(Debug, Clone, PartialEq)]
+struct Segment {
+    from: usize,
+    to: usize,
     start: i64,
     end: i64,
     ease: Easing,
 }
 
 impl Track {
-    fn segments(&self, period: Option<u32>) -> Vec<Segment<'_>> {
+    pub(crate) fn new(
+        attribute: EnvironmentAttribute,
+        modifier: Operation,
+        keyframes: Vec<Keyframe>,
+        ease: Easing,
+    ) -> Self {
+        let mut track = Self {
+            attribute,
+            modifier,
+            keyframes,
+            ease,
+            period: None,
+            segments: Vec::new(),
+        };
+        track.segments = track.build_segments();
+        track
+    }
+
+    pub(crate) fn set_period(&mut self, period: Option<u32>) {
+        self.period = period;
+        self.segments = self.build_segments();
+    }
+
+    #[must_use]
+    pub fn attribute(&self) -> EnvironmentAttribute {
+        self.attribute
+    }
+
+    #[must_use]
+    pub fn modifier(&self) -> Operation {
+        self.modifier
+    }
+
+    #[must_use]
+    pub fn ease(&self) -> Easing {
+        self.ease
+    }
+
+    #[must_use]
+    pub fn keyframes(&self) -> &[Keyframe] {
+        &self.keyframes
+    }
+
+    fn build_segments(&self) -> Vec<Segment> {
         let (Some(first), Some(last)) = (self.keyframes.first(), self.keyframes.last()) else {
             return Vec::new();
         };
         if self.keyframes.len() == 1 {
             return vec![Segment {
-                from: first,
-                to: first,
+                from: 0,
+                to: 0,
                 start: 0,
                 end: 0,
                 ease: Easing::Named(NamedEasing::Constant),
             }];
         }
         let ease = self.ease;
+        let last_index = self.keyframes.len() - 1;
         let segment = |from, to, start, end| Segment {
             from,
             to,
@@ -57,27 +107,29 @@ impl Track {
             ease,
         };
         let mut segments = Vec::with_capacity(self.keyframes.len() + 1);
-        if let Some(period) = period.map(i64::from) {
+        let period = self.period.map(i64::from);
+        if let Some(period) = period {
             segments.push(segment(
-                last,
-                first,
+                last_index,
+                0,
                 i64::from(last.ticks) - period,
                 i64::from(first.ticks),
             ));
         }
-        segments.extend(self.keyframes.windows(2).filter_map(|pair| match pair {
-            [from, to] => Some(segment(
-                from,
-                to,
-                i64::from(from.ticks),
-                i64::from(to.ticks),
-            )),
-            _ => None,
-        }));
-        if let Some(period) = period.map(i64::from) {
+        for (at, pair) in self.keyframes.windows(2).enumerate() {
+            if let [from, to] = pair {
+                segments.push(segment(
+                    at,
+                    at + 1,
+                    i64::from(from.ticks),
+                    i64::from(to.ticks),
+                ));
+            }
+        }
+        if let Some(period) = period {
             segments.push(segment(
-                last,
-                first,
+                last_index,
+                0,
                 i64::from(last.ticks),
                 i64::from(first.ticks) + period,
             ));
@@ -87,41 +139,38 @@ impl Track {
 
     /// The argument of the track at the whole tick `ticks` of its clock.
     #[must_use]
-    pub fn sample(&self, ticks: i64, period: Option<u32>) -> Option<Argument> {
-        let at = match period {
+    pub fn sample(&self, ticks: i64) -> Option<Argument> {
+        let at = match self.period {
             Some(period) => ticks.rem_euclid(i64::from(period)),
             None => ticks,
         };
-        let segments = self.segments(period);
-        let segment = segments
+        let segment = self
+            .segments
             .iter()
             .find(|segment| segment.end > at)
-            .or(segments.last())?;
+            .or(self.segments.last())?;
+        let from = &self.keyframes.get(segment.from)?.argument;
+        let to = &self.keyframes.get(segment.to)?.argument;
         if at <= segment.start {
-            return Some(segment.from.argument.clone());
+            return Some(from.clone());
         }
         if at >= segment.end {
-            return Some(segment.to.argument.clone());
+            return Some(to.clone());
         }
         let x = (at - segment.start) as f32 / (segment.end - segment.start) as f32;
         Some(Argument::interpolate(
             self.modifier,
             info(self.attribute).kind,
             segment.ease.ease(x),
-            &segment.from.argument,
-            &segment.to.argument,
+            from,
+            to,
         ))
     }
 
     /// The modifier of the track applied to `subject` at the whole tick `ticks`.
     #[must_use]
-    pub fn apply(
-        &self,
-        subject: AttributeValue,
-        ticks: i64,
-        period: Option<u32>,
-    ) -> AttributeValue {
-        let Some(argument) = self.sample(ticks, period) else {
+    pub fn apply(&self, subject: AttributeValue, ticks: i64) -> AttributeValue {
+        let Some(argument) = self.sample(ticks) else {
             return subject;
         };
         match self.modifier.apply(&subject, &argument) {
@@ -200,12 +249,7 @@ fn read_track(attribute: EnvironmentAttribute, tag: &NbtTag) -> Result<Track, St
         };
         keyframes.push(read().map_err(|message: String| format!("keyframes[{at}]: {message}"))?);
     }
-    Ok(Track {
-        attribute,
-        modifier,
-        keyframes,
-        ease,
-    })
+    Ok(Track::new(attribute, modifier, keyframes, ease))
 }
 
 struct KeyframeForm<'a>(&'a Keyframe);

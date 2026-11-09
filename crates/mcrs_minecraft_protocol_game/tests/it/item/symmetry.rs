@@ -25,7 +25,7 @@ use mcrs_minecraft_item::item_keys::Item;
 const ITERATIONS: usize = 256;
 const ITEMS: [&str; 4] = ["stone", "diamond_sword", "apple", "bundle"];
 
-// chisle: the pool is every kind's Sample::samples(); only the nested kinds
+// The pool is every kind's Sample::samples(); only the nested kinds
 // are generated fresh, so scalar kinds are exercised in combination, not with
 // random field values. Upgrade path: a Gen impl per value type.
 macro_rules! sample_pool {

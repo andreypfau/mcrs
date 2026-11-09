@@ -13,7 +13,7 @@ use mcrs_minecraft_resource::Id;
 use crate::sky_state::{SkyField, SkyFrame, SkyKey, SkyLayout, SkyStatic, SkyTime, SkyValue};
 use mcrs_minecraft_dimension_environment::dimension_type::DimensionTypeFile;
 use mcrs_minecraft_dimension_environment::environment::{
-    DimensionAttributes, EnvironmentContext, Weather,
+    DimensionAttributes, EnvironmentContext, WeatherLevel,
 };
 use mcrs_minecraft_environment::attribute::MoonPhase;
 use mcrs_minecraft_environment::world_clock::{WorldClock, WorldClocks};
@@ -301,7 +301,7 @@ struct FrameClocks<'w> {
 fn evaluate_sky(
     environment: Res<SkyEnvironment>,
     frame_clocks: FrameClocks,
-    weather: Res<Weather>,
+    weather: Res<WeatherLevel>,
     camera: Single<&GlobalTransform, With<PlayerCamera>>,
     mut frame: ResMut<SkyFrame>,
     mut clear: ResMut<ClearColor>,
@@ -672,7 +672,7 @@ mod sky_regression {
                 partial: 0.0,
             },
             camera,
-            Weather::default(),
+            WeatherLevel::default(),
             &mut frame,
         );
         environment.uniform(&frame, cloud_drift(ticks as f64))

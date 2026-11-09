@@ -15,7 +15,7 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 pub type EnvironmentRef<M = Resolved> = Ref<M, TestEnvironment, TestEnvironment<M>>;
 
 #[registry_value]
-#[dispatch(registry = mcrs_minecraft_environment::test_environment_definition_type_keys::TestEnvironmentDefinitionType)]
+#[dispatch(registry = crate::test_environment_definition_type_keys::TestEnvironmentDefinitionType)]
 #[derive(Debug, Clone, PartialEq)]
 pub enum TestEnvironment<M: Refs = Resolved> {
     AllOf {
@@ -198,7 +198,7 @@ test_instance!(FunctionTest {
 });
 
 #[registry_value]
-#[dispatch(registry = mcrs_minecraft_environment::test_instance_type_keys::TestInstanceType)]
+#[dispatch(registry = crate::test_instance_type_keys::TestInstanceType)]
 #[derive(Debug, Clone, PartialEq)]
 pub enum TestInstance<M: Refs = Resolved> {
     BlockBased(BlockBasedTest<M>),

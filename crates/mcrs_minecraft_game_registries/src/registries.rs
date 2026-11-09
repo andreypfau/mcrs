@@ -162,7 +162,10 @@ pub fn declarations(
     extra: Vec<Declaration>,
 ) -> Result<Vec<Declaration>, RegistryLoadError> {
     let mut declarations = Vec::new();
-    for (key, names) in mcrs_minecraft_registry_catalog::STATIC_REGISTRIES {
+    for (key, names) in mcrs_minecraft_registry_catalog::STATIC_REGISTRIES
+        .iter()
+        .chain(crate::registry_keys::STATIC_REGISTRIES)
+    {
         let names = names.iter().map(|&name| name.into()).collect();
         declarations.push(Declaration::fixed((*key).into(), names));
     }

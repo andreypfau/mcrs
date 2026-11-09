@@ -10,7 +10,7 @@ use mcrs_minecraft_nbt::tag::NbtTag;
 
 /// An enchantment file as a data pack writes it, stored as its registry value
 /// and its effects column.
-// chisle: the effects are kept as the file's NBT and sent as is; nothing applies them until the
+// The effects are kept as the file's NBT and sent as is; nothing applies them until the
 // loot conditions and predicates they name get types.
 #[registry_value]
 #[derive(Debug, Clone, Deserialize, Serialize)]

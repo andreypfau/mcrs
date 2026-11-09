@@ -82,7 +82,7 @@ impl Pointer<'_> {
     fn tag_tooltip(&mut self, tag: Tag, font: &Font) {
         let language = self.language;
         self.tooltip.request(self.at, |rows| {
-            // chisle: a `Modified` tooltip ends with the original text in gray,
+            // A `Modified` tooltip ends with the original text in gray,
             // which the log does not keep; no message is tagged `Modified` yet.
             let spans = [Span::new(language.get(tag.tooltip_key()), WHITE)];
             text::wrap(&spans, TAG_TOOLTIP_WIDTH, Wrap::Tooltip, font, rows);
@@ -254,7 +254,7 @@ fn hover_lines(
             let spans = text::text_spans(value, language, WHITE);
             text::wrap(&spans, (gui_width / 2).max(200), Wrap::Tooltip, font, rows);
         }
-        // chisle: `show_item` shows the item tooltip of the stack, which has no specification
+        // `show_item` shows the item tooltip of the stack, which has no specification
         // yet; it shows nothing until one states its lines.
         Hover::ShowItem(_) => {}
         Hover::ShowEntity { id, uuid, name } => {

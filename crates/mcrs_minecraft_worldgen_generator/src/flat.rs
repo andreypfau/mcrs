@@ -14,13 +14,23 @@ pub struct FlatLayer {
 /// every block is air.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct FlatLayers {
-    pub layers: Vec<FlatLayer>,
+    layers: Vec<FlatLayer>,
 }
 
 impl FlatLayers {
-    /// Fills `column` with the layers from `min_y` up. A layer above the column is cut off.
-    pub fn fill(&self, column: &mut ColumnBlocks, y_sections: &[i32], min_y: i32) {
+    #[must_use]
+    pub fn new(layers: Vec<FlatLayer>) -> Self {
+        Self { layers }
+    }
+
+    /// Fills `column` with the layers from the bottom section up. A layer above the column is
+    /// cut off.
+    pub fn fill(&self, column: &mut ColumnBlocks, y_sections: &[i32]) {
         column.reset(y_sections);
+        let Some(&bottom) = y_sections.first() else {
+            return;
+        };
+        let min_y = bottom.saturating_mul(1 << SectionPos::BITS);
         let column_top = y_sections.last().map_or(min_y, |&section| {
             section
                 .saturating_add(1)
@@ -55,24 +65,22 @@ mod tests {
         let y_sections: Vec<i32> = (-4..20).collect();
         let state = |number| BlockStateId::checked(number, 4).expect("below the bound");
         let (bedrock, dirt, grass) = (state(1), state(2), state(3));
-        let layers = FlatLayers {
-            layers: vec![
-                FlatLayer {
-                    state: bedrock,
-                    height: 1,
-                },
-                FlatLayer {
-                    state: dirt,
-                    height: 2,
-                },
-                FlatLayer {
-                    state: grass,
-                    height: 1,
-                },
-            ],
-        };
+        let layers = FlatLayers::new(vec![
+            FlatLayer {
+                state: bedrock,
+                height: 1,
+            },
+            FlatLayer {
+                state: dirt,
+                height: 2,
+            },
+            FlatLayer {
+                state: grass,
+                height: 1,
+            },
+        ]);
         let mut column = ColumnBlocks::new(&y_sections);
-        layers.fill(&mut column, &y_sections, -64);
+        layers.fill(&mut column, &y_sections);
         let cells = column.section_cells(0);
         let at = |y: usize, x: usize, z: usize| cells[y * 256 + z * 16 + x].get();
         assert_eq!(

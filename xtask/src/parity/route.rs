@@ -68,7 +68,7 @@ impl Routes {
         Ok(())
     }
 
-    // chisle: each literal is judged alone, so a path joined from segments that each stop above a
+    // Each literal is judged alone, so a path joined from segments that each stop above a
     // destination directory still passes; resolving a `join` chain or `concat!` as one path lifts it.
     fn names_a_fixture(&self, literal: &str, resolved_against: &[&str]) -> bool {
         let tail = join("", literal);
